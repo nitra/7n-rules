@@ -3,8 +3,8 @@
  * під фікс і застосування змін. Використовують і `llm-worker.mjs` (конформність), і
  * `llm-lint-fix.mjs` (per-tool лінтер-фіксери) — щоб не дублювати парс/apply (knip/jscpd).
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 const JSON_CODE_BLOCK_RE = /```(?:json)?[ \t]{0,8}\n?([\s\S]*?)```/
 
@@ -69,7 +69,11 @@ export function applyChanges(changes, projectRoot) {
   for (const change of changes) {
     if (!change.path || typeof change.content !== 'string') continue
     try {
-      writeFileSync(join(projectRoot, change.path), change.content, 'utf8')
+      const abs = join(projectRoot, change.path)
+      // Створюємо батьківську теку перед записом: модель може запропонувати новий файл
+      // у ще неіснуючому каталозі (напр. `<ws>/.changes/…`) — інакше writeFileSync ENOENT.
+      mkdirSync(dirname(abs), { recursive: true })
+      writeFileSync(abs, change.content, 'utf8')
     } catch (error) {
       return { ok: false, error: `write ${change.path}: ${error.message}` }
     }

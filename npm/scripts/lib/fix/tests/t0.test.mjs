@@ -5,16 +5,25 @@
  *   - edge cases: дублікати, відсутні файли, невалідний JSON
  */
 import { describe, expect, test } from 'vitest'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+import { withTmpDir } from '../../../utils/test-helpers.mjs'
 import { applyT0Auto, filterT0AutoRules } from '../t0.mjs'
+
+/**
+ * Текст violation «немає change-файлу» для воркспейсу.
+ * @param {string} ws воркспейс
+ * @returns {string} рядок violation
+ */
+const missingChangeViolation = ws =>
+  `  ❌ ${ws}: є релевантні зміни, але немає change-файлу (version у ${ws}/package.json не чіпай вручну). ` +
+  `Поклади change-файл: npx @nitra/cursor change --bump <…> --message "<…>"; bump зробить CI`
 
 // ─── applyT0Auto: vscode-ext-add ─────────────────────────────────────────────
 
 describe('applyT0Auto: vscode-ext-add', () => {
   test('додає відсутнє розширення до recommendations', async () => {
-    await withTmpDir(dir => {
+    await withTmpDir(async dir => {
       mkdirSync(join(dir, '.vscode'))
       writeFileSync(
         join(dir, '.vscode/extensions.json'),
@@ -22,7 +31,7 @@ describe('applyT0Auto: vscode-ext-add', () => {
         'utf8'
       )
 
-      const result = applyT0Auto(
+      const result = await applyT0Auto(
         'rego',
         '❌ .vscode/extensions.json: recommendations має містити "tsandall.opa" (rego.mdc)',
         dir
@@ -39,7 +48,7 @@ describe('applyT0Auto: vscode-ext-add', () => {
   })
 
   test('не дублює якщо розширення вже є', async () => {
-    await withTmpDir(dir => {
+    await withTmpDir(async dir => {
       mkdirSync(join(dir, '.vscode'))
       writeFileSync(
         join(dir, '.vscode/extensions.json'),
@@ -47,7 +56,7 @@ describe('applyT0Auto: vscode-ext-add', () => {
         'utf8'
       )
 
-      const result = applyT0Auto('rego', 'recommendations має містити "tsandall.opa"', dir)
+      const result = await applyT0Auto('rego', 'recommendations має містити "tsandall.opa"', dir)
 
       expect(result.applied).toBe(false)
       expect(result.actions[0]).toContain('вже є')
@@ -55,11 +64,11 @@ describe('applyT0Auto: vscode-ext-add', () => {
   })
 
   test('додає кілька розширень з одного output', async () => {
-    await withTmpDir(dir => {
+    await withTmpDir(async dir => {
       mkdirSync(join(dir, '.vscode'))
       writeFileSync(join(dir, '.vscode/extensions.json'), JSON.stringify({ recommendations: [] }, null, 2), 'utf8')
 
-      const result = applyT0Auto(
+      const result = await applyT0Auto(
         'multi',
         'recommendations має містити "tsandall.opa"\nrecommendations має містити "stylelint.vscode-stylelint"',
         dir
@@ -73,19 +82,19 @@ describe('applyT0Auto: vscode-ext-add', () => {
   })
 
   test('повертає applied=false якщо .vscode/extensions.json відсутній', async () => {
-    await withTmpDir(dir => {
-      const result = applyT0Auto('rego', 'recommendations має містити "tsandall.opa"', dir)
+    await withTmpDir(async dir => {
+      const result = await applyT0Auto('rego', 'recommendations має містити "tsandall.opa"', dir)
       expect(result.applied).toBe(false)
       expect(result.actions[0]).toContain('не знайдено')
     })
   })
 
   test('повертає applied=false якщо extensions.json невалідний JSON', async () => {
-    await withTmpDir(dir => {
+    await withTmpDir(async dir => {
       mkdirSync(join(dir, '.vscode'))
       writeFileSync(join(dir, '.vscode/extensions.json'), 'not-json', 'utf8')
 
-      const result = applyT0Auto('rego', 'recommendations має містити "tsandall.opa"', dir)
+      const result = await applyT0Auto('rego', 'recommendations має містити "tsandall.opa"', dir)
       expect(result.applied).toBe(false)
       expect(result.actions[0]).toContain('невалідний JSON')
     })
@@ -96,10 +105,10 @@ describe('applyT0Auto: vscode-ext-add', () => {
 
 describe('applyT0Auto: rm-forbidden-file', () => {
   test('видаляє заборонений файл', async () => {
-    await withTmpDir(dir => {
+    await withTmpDir(async dir => {
       writeFileSync(join(dir, 'package-lock.json'), '{}', 'utf8')
 
-      const result = applyT0Auto('bun', '❌ Знайдено заборонений файл: package-lock.json — видали його', dir)
+      const result = await applyT0Auto('bun', '❌ Знайдено заборонений файл: package-lock.json — видали його', dir)
 
       expect(result.applied).toBe(true)
       expect(result.actions[0]).toContain('package-lock.json')
@@ -108,11 +117,11 @@ describe('applyT0Auto: rm-forbidden-file', () => {
   })
 
   test('видаляє кілька заборонених файлів', async () => {
-    await withTmpDir(dir => {
+    await withTmpDir(async dir => {
       writeFileSync(join(dir, 'package-lock.json'), '{}', 'utf8')
       writeFileSync(join(dir, 'yarn.lock'), '', 'utf8')
 
-      const result = applyT0Auto(
+      const result = await applyT0Auto(
         'bun',
         'Знайдено заборонений файл: package-lock.json\nЗнайдено заборонений файл: yarn.lock',
         dir
@@ -125,10 +134,41 @@ describe('applyT0Auto: rm-forbidden-file', () => {
   })
 
   test('applied=false якщо файл вже відсутній', async () => {
-    await withTmpDir(dir => {
-      const result = applyT0Auto('bun', 'Знайдено заборонений файл: package-lock.json', dir)
+    await withTmpDir(async dir => {
+      const result = await applyT0Auto('bun', 'Знайдено заборонений файл: package-lock.json', dir)
       expect(result.applied).toBe(false)
       expect(result.actions[0]).toContain('не знайдено')
+    })
+  })
+})
+
+// ─── applyT0Auto: changelog-create-change-file ───────────────────────────────
+
+describe('applyT0Auto: changelog-create-change-file', () => {
+  test('створює change-файл у <ws>/.changes/ через writeChange (без LLM)', async () => {
+    await withTmpDir(async dir => {
+      const result = await applyT0Auto('changelog', missingChangeViolation('npm'), dir)
+      expect(result.applied).toBe(true)
+      const changesDir = join(dir, 'npm', '.changes')
+      expect(existsSync(changesDir)).toBe(true)
+      const files = readdirSync(changesDir).filter(f => f.endsWith('.md'))
+      expect(files.length).toBe(1)
+      const content = readFileSync(join(changesDir, files[0]), 'utf8')
+      expect(content).toContain('bump: patch')
+      expect(content).toContain('section: Changed')
+    })
+  })
+
+  test('кілька воркспейсів з одного output', async () => {
+    await withTmpDir(async dir => {
+      const result = await applyT0Auto(
+        'changelog',
+        `${missingChangeViolation('npm')}\n${missingChangeViolation('demo')}`,
+        dir
+      )
+      expect(result.applied).toBe(true)
+      expect(existsSync(join(dir, 'npm', '.changes'))).toBe(true)
+      expect(existsSync(join(dir, 'demo', '.changes'))).toBe(true)
     })
   })
 })
@@ -137,8 +177,8 @@ describe('applyT0Auto: rm-forbidden-file', () => {
 
 describe('applyT0Auto: output без T0 паттерну', () => {
   test('повертає applied=false для нерозпізнаного output', async () => {
-    await withTmpDir(dir => {
-      const result = applyT0Auto('ci4', 'ESLint: no-console violation in src/main.js', dir)
+    await withTmpDir(async dir => {
+      const result = await applyT0Auto('ci4', 'ESLint: no-console violation in src/main.js', dir)
       expect(result.applied).toBe(false)
       expect(result.actions).toHaveLength(0)
     })

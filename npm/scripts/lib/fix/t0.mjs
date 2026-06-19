@@ -1,13 +1,33 @@
 /** @see ./docs/t0.md */
+import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { runFixCheck } from './run-fix-check.mjs'
+import { writeChange } from '../../../rules/release/change.mjs'
 
 const REC_REQUIRE_RE = /recommendations має містити "[^"]+"/
 const REC_MATCH_ALL_RE = /recommendations має містити "([^"]+)"/g
 const FORBIDDEN_FILE_RE = /Знайдено заборонений файл: \S+/
 const FORBIDDEN_FILE_MATCH_ALL_RE = /Знайдено заборонений файл: (\S+)/g
+// Конформність changelog: «<ws>: є релевантні зміни, але немає change-файлу».
+const MISSING_CHANGE_RE = /є релевантні зміни, але немає change-файлу/
+const MISSING_CHANGE_MATCH_ALL_RE = /(?:^|\s)([\w./@-]+): є релевантні зміни, але немає change-файлу/gm
+/** Дефолти autofix-створеного change-файлу (узгоджено з n-changelog.mdc / consistency.mjs). */
+const CHANGE_BUMP = 'patch'
+const CHANGE_SECTION = 'Changed'
+const CHANGE_FALLBACK_MESSAGE = 'оновлення'
+
+/**
+ * Опис для авто-створеного change-файлу: subject останнього коміту, інакше fallback.
+ * @param {string} cwd корінь репозиторію
+ * @returns {string} непорожній опис
+ */
+function autoChangeMessage(cwd) {
+  const r = spawnSync('git', ['log', '-1', '--format=%s'], { cwd, encoding: 'utf8' })
+  const subject = r.status === 0 ? (r.stdout ?? '').trim() : ''
+  return subject || CHANGE_FALLBACK_MESSAGE
+}
 
 /**
  * Патерни T0-auto.
@@ -71,6 +91,31 @@ const PATTERNS = [
       if (removed.length === 0) return { ok: false, action: 'файлів не знайдено' }
       return { ok: true, action: `видалено: ${removed.join(', ')}` }
     }
+  },
+
+  // ── changelog-create-change-file ─────────────────────────────────────────────
+  // Violation: «<ws>: є релевантні зміни, але немає change-файлу»
+  // Fix: створити change-файл через канонічну `writeChange` (без LLM) — той самий
+  // механізм, що autofix changelog-конформності. Прибирає ескалацію в хмару на цьому кейсі.
+  {
+    id: 'changelog-create-change-file',
+    test: out => MISSING_CHANGE_RE.test(out),
+    apply: async (out, cwd) => {
+      const workspaces = Array.from(out.matchAll(MISSING_CHANGE_MATCH_ALL_RE), m => m[1])
+      if (workspaces.length === 0) return { ok: false, action: 'no match' }
+
+      const message = autoChangeMessage(cwd)
+      const created = []
+      for (const ws of workspaces) {
+        try {
+          const rel = await writeChange({ bump: CHANGE_BUMP, section: CHANGE_SECTION, message, ws, cwd })
+          created.push(ws === '.' ? rel : join(ws, rel))
+        } catch (error) {
+          return { ok: false, action: `writeChange ${ws}: ${error.message}` }
+        }
+      }
+      return { ok: true, action: `створено change-файл (${CHANGE_BUMP}/${CHANGE_SECTION}): ${created.join(', ')}` }
+    }
   }
 ]
 
@@ -79,15 +124,16 @@ const PATTERNS = [
  * @param {string} ruleId id правила (для логу)
  * @param {string} violationOutput рядок з поля `output` у `fix --json`
  * @param {string} cwd корінь проєкту
- * @returns {{ applied: boolean, actions: string[] }} результат: чи щось застосовано і список дій
+ * @returns {Promise<{ applied: boolean, actions: string[] }>} результат: чи щось застосовано і список дій
  */
-export function applyT0Auto(ruleId, violationOutput, cwd) {
+export async function applyT0Auto(ruleId, violationOutput, cwd) {
   const actions = []
   let applied = false
 
   for (const p of PATTERNS) {
     if (!p.test(violationOutput)) continue
-    const result = p.apply(violationOutput, cwd)
+    // Патерн може бути sync ({ok,action}) або async (Promise) — await нормалізує обидва.
+    const result = await p.apply(violationOutput, cwd)
     actions.push(`[${p.id}] ${result.action}`)
     if (result.ok) {
       applied = true
@@ -113,13 +159,13 @@ export function filterT0AutoRules(failedRules) {
  * Застосовує T0-auto до кожного провального правила, розділяючи на applied/skipped.
  * @param {Array<{ ruleId: string, output: string }>} failed провальні правила
  * @param {string} cwd корінь проєкту
- * @returns {{ applied: Array<{ ruleId: string, actions: string[] }>, skipped: string[] }} застосовані й пропущені
+ * @returns {Promise<{ applied: Array<{ ruleId: string, actions: string[] }>, skipped: string[] }>} застосовані й пропущені
  */
-function applyT0ToFailed(failed, cwd) {
+async function applyT0ToFailed(failed, cwd) {
   const applied = []
   const skipped = []
   for (const r of failed) {
-    const result = applyT0Auto(r.ruleId, r.output, cwd)
+    const result = await applyT0Auto(r.ruleId, r.output, cwd)
     if (result.applied) {
       applied.push({ ruleId: r.ruleId, actions: result.actions })
     } else {
@@ -150,7 +196,7 @@ export async function runT0AutoCli(args, cwd) {
   }
 
   // 2. Застосувати T0-auto
-  const { applied, skipped } = applyT0ToFailed(failed, cwd)
+  const { applied, skipped } = await applyT0ToFailed(failed, cwd)
 
   if (applied.length === 0) {
     console.log(`⏭️  fix-t0: T0-auto паттерн не підходить для: ${failed.map(r => r.ruleId).join(', ')}`)

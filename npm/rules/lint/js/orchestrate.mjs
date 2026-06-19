@@ -9,7 +9,9 @@
  * викликає `rules/<id>/js/lint.mjs` → `lint(files, cwd, { readOnly })`:
  *  - default scope: `files` = змінені відносно origin (`collectChangedFilesSince`);
  *  - `--full`:      `files = undefined` — весь проєкт.
- * Порядок правил — алфавітний. Fail-fast: перший ненульовий код спиняє.
+ * Порядок правил — алфавітний. Fail-fast **лише в `--read-only`** (CI/детект): перший
+ * ненульовий код спиняє. У fix-режимі (default) ненульовий код НЕ спиняє — проганяємо всі
+ * правила й доходимо до кроку виправлення (конформність-драбина), повертаючи найгірший код.
  */
 import { existsSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -81,6 +83,53 @@ function readAllMeta(rulesDir) {
 }
 
 /**
+ * Per-file фаза: проганяє лінтер кожного правила. Fail-fast лише в read-only.
+ * @param {string[]} ids id правил (алфавітно)
+ * @param {{ rulesDir: string, changed: string[]|undefined, cwd: string, readOnly: boolean, metaById: Record<string, {llmFix?: boolean}>, log: (s: string) => void }} ctx контекст
+ * @returns {Promise<{ stop: boolean, code: number }>} `stop` — read-only fail-fast; `code` — найгірший код
+ */
+async function runPerFileRules(ids, ctx) {
+  const { rulesDir, changed, cwd, readOnly, metaById, log } = ctx
+  let worst = 0
+  for (const id of ids) {
+    const lintPath = join(rulesDir, id, 'js', 'lint.mjs')
+    if (!existsSync(lintPath)) {
+      log(`⚠️  lint: правило ${id} має lint-фазу, але немає js/lint.mjs — пропускаю.\n`)
+      continue
+    }
+    // lintPath = join(rulesDir, id, …) — суто package-internal (rulesDir пакета + id зі
+    // selectLintRules за власним meta), не зовнішній вхід → ін'єкції немає.
+    // eslint-disable-next-line no-unsanitized/method
+    const mod = await import(lintPath)
+    // `llmFix` (opt-in opportunistic LLM-fix, спека 2026-06-15): лише правила з
+    // `meta.json: llmFix:true` отримують fix-сходинку; решта — detect-only.
+    const llmFix = metaById[id]?.llmFix === true
+    const code = await mod.lint(changed, cwd, { readOnly, llmFix })
+    if (code !== 0) {
+      if (readOnly) return { stop: true, code } // read-only — fail-fast (детект для CI)
+      worst = code // fix-режим — фіксуємо, але йдемо далі до кроку виправлення
+    }
+  }
+  return { stop: false, code: worst }
+}
+
+/**
+ * Конформність-фаза `--full` (поглинула `fix`): escalation-аналітику обрамляє зсувом логу
+ * (записи саме цього прогону), у fix-режимі по конформності викликає аналіз.
+ * @param {string} cwd корінь
+ * @param {boolean} readOnly лише детект
+ * @param {(s: string) => void} log логер
+ * @returns {Promise<number>} код конформності
+ */
+async function runFullConformancePhase(cwd, readOnly, log) {
+  const { escalationLogSize, maybeAnalyzeEscalation } = await import('../../../scripts/lib/fix/analyze-escalation.mjs')
+  const escOffset = readOnly ? 0 : escalationLogSize()
+  const conformanceCode = await runConformance(cwd, readOnly, log)
+  if (!readOnly) maybeAnalyzeEscalation(cwd, escOffset, log)
+  return conformanceCode
+}
+
+/**
  * Запускає lint-оркестрацію.
  * @param {{ full?: boolean, readOnly?: boolean, rules?: string[], cwd?: string, rulesDir?: string, log?: (s: string) => void }} [opts] параметри
  *   - `full` — весь репо (`true`) проти дельти vs origin (`false`, default);
@@ -110,34 +159,18 @@ export async function runLint(opts = {}) {
 
   const metaById = readAllMeta(rulesDir)
   const ids = selectLintRules(metaById, full)
-  for (const id of ids) {
-    const lintPath = join(rulesDir, id, 'js', 'lint.mjs')
-    if (!existsSync(lintPath)) {
-      log(`⚠️  lint: правило ${id} має lint-фазу, але немає js/lint.mjs — пропускаю.\n`)
-      continue
-    }
-    // lintPath = join(rulesDir, id, …) — суто package-internal (rulesDir пакета + id зі
-    // selectLintRules за власним meta), не зовнішній вхід → ін'єкції немає.
-    // eslint-disable-next-line no-unsanitized/method
-    const mod = await import(lintPath)
-    // `llmFix` (opt-in opportunistic LLM-fix, спека 2026-06-15): лише правила з
-    // `meta.json: llmFix:true` отримують fix-сходинку; решта — detect-only. Це й
-    // забезпечує safety-тріаж (логічні лінтери не вмикають LLM-fix випадково).
-    const llmFix = metaById[id]?.llmFix === true
-    const code = await mod.lint(changed, cwd, { readOnly, llmFix })
-    if (code !== 0) return code
-  }
+  const perFile = await runPerFileRules(ids, { rulesDir, changed, cwd, readOnly, metaById, log })
+  if (perFile.stop) return perFile.code
+  let worst = perFile.code
 
-  // Конформність-фаза (поглинула `fix`): whole-repo, лише у `--full`. Кастомний rulesDir
-  // (юніт-тести селектора) — реальний пакет недоступний, тож пропускаємо.
+  // Конформність-фаза: whole-repo, лише у `--full`. Кастомний rulesDir (юніт-тести
+  // селектора) — реальний пакет недоступний, тож пропускаємо.
   if (full && opts.rulesDir === undefined) {
-    // Escalation-аналітика: фіксуємо зсув логу ДО конформності, після — аналізуємо
-    // записи саме цього прогону (fix-режим). Аналіз не має валити lint.
-    const { escalationLogSize, maybeAnalyzeEscalation } = await import('../../../scripts/lib/fix/analyze-escalation.mjs')
-    const escOffset = readOnly ? 0 : escalationLogSize()
-    const conformanceCode = await runConformance(cwd, readOnly, log)
-    if (!readOnly) maybeAnalyzeEscalation(cwd, escOffset, log)
-    if (conformanceCode !== 0) return conformanceCode
+    const conformanceCode = await runFullConformancePhase(cwd, readOnly, log)
+    if (conformanceCode !== 0) {
+      if (readOnly) return conformanceCode
+      worst = conformanceCode
+    }
   }
-  return 0
+  return worst
 }
