@@ -131,7 +131,12 @@ export async function runLint(opts = {}) {
   // Конформність-фаза (поглинула `fix`): whole-repo, лише у `--full`. Кастомний rulesDir
   // (юніт-тести селектора) — реальний пакет недоступний, тож пропускаємо.
   if (full && opts.rulesDir === undefined) {
+    // Escalation-аналітика: фіксуємо зсув логу ДО конформності, після — аналізуємо
+    // записи саме цього прогону (fix-режим). Аналіз не має валити lint.
+    const { escalationLogSize, maybeAnalyzeEscalation } = await import('../../../scripts/lib/fix/analyze-escalation.mjs')
+    const escOffset = readOnly ? 0 : escalationLogSize()
     const conformanceCode = await runConformance(cwd, readOnly, log)
+    if (!readOnly) maybeAnalyzeEscalation(cwd, escOffset, log)
     if (conformanceCode !== 0) return conformanceCode
   }
   return 0

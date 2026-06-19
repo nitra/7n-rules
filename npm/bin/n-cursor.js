@@ -1599,6 +1599,15 @@ try {
 
       break
     }
+    case 'analyze-escalation': {
+      // n-cursor analyze-escalation — читає весь escalation-лог (.n-cursor/fix-escalation.jsonl),
+      // чанкує й просить хмарну avg-модель запропонувати, як зменшити LLM-залежність fix-
+      // конформності (нові T0-патерни / правки .mdc / зміни скриптів). Звіт → markdown.
+      const { runEscalationAnalysisCli } = await import('../scripts/lib/fix/analyze-escalation.mjs')
+      process.exitCode = await runEscalationAnalysisCli(args)
+
+      break
+    }
     case 'taze': {
       // n-cursor taze diff — read-only semver-diff package.json ↔ package.json.taze-bak
       // (root + воркспейси) для скілу n-taze: скрипт класифікує major-оновлення,
@@ -1697,7 +1706,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, post-tool-use-fix, adr-normalize-local, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, lint-doc-files, fix-doc-files, coverage, coverage-fix, taze, start-check, change, release, skill, trace, doc-aggregate`
+        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, post-tool-use-fix, adr-normalize-local, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, lint-doc-files, fix-doc-files, coverage, coverage-fix, analyze-escalation, taze, start-check, change, release, skill, trace, doc-aggregate`
       )
       process.exitCode = 1
     }
