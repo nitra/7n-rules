@@ -1,160 +1,191 @@
 /**
- * Юніт-тести для orchestrator.mjs.
+ * Юніт-тести orchestrator.mjs — драбина ескалації (спека 2026-06-19-fix-escalation-cascade).
  *
- * Стратегія: мокуємо спавн і llm-worker, перевіряємо логіку convergence-loop.
- * Реальний n-cursor fix --json не викликається (offline-тест).
+ * Стратегія: тестуємо чисті `buildLadder` і `escalateRule` з інжектованими
+ * worker/check — без реального spawnSync/LLM. Escalation-лог вимкнено kill-switch-ем,
+ * щоб тести не писали в .n-cursor/.
  */
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import { env } from 'node:process'
 
-import { describe, expect, test } from 'vitest'
+import { buildLadder, escalateRule, parseOrchestratorArgs } from '../orchestrator.mjs'
 
-// ── мінімальний mock модуля orchestrator без реального spawnSync ──
-// Тестуємо getFixState та загальний flow через заміну спавну
+let prevTrace
+beforeAll(() => {
+  prevTrace = env.N_CURSOR_FIX_ESCALATION_LOG
+  env.N_CURSOR_FIX_ESCALATION_LOG = '0'
+})
+afterAll(() => {
+  if (prevTrace === undefined) delete env.N_CURSOR_FIX_ESCALATION_LOG
+  else env.N_CURSOR_FIX_ESCALATION_LOG = prevTrace
+})
 
-describe('orchestrator logic', () => {
-  test('clean state → returns 0 immediately', async () => {
-    // Симулюємо: fix --json → failed=0
-    const result = await runLoopMock({
-      states: [{ total: 3, failed: 0, rules: [] }],
-      t0Exit: 0,
-      llmResults: []
-    })
-    expect(result).toBe(0)
+// ── фіктивні worker/check ─────────────────────────────────────────────────────
+
+/**
+ * Worker, що віддає наперед задані результати по черзі й логує виклики.
+ * @param {Array<object>} results послідовність результатів runLlmWorker
+ * @returns {{ calls: object[], runLlmWorker: (ruleId: string, violation: string, cwd: string, opts: object) => object }} worker із журналом викликів
+ */
+function makeWorker(results) {
+  const calls = []
+  let i = 0
+  return {
+    calls,
+    runLlmWorker(ruleId, violation, _cwd, opts) {
+      calls.push({ ruleId, model: opts.model, feedback: opts.feedback, caller: opts.caller })
+      return results[i++] ?? { ok: false, error: 'no result', changes: [], diagnosis: null }
+    }
+  }
+}
+
+/**
+ * check, що віддає ok/не-ok по черзі для одного правила.
+ * @param {string} ruleId id правила
+ * @param {boolean[]} okSeq послідовність recheck-результатів
+ * @returns {() => Promise<{rules: Array<{ruleId:string,ok:boolean,output:string}>}>} check(rules, cwd)
+ */
+function makeCheck(ruleId, okSeq) {
+  let i = 0
+  return () => {
+    const isOk = okSeq[i++] ?? false
+    return Promise.resolve({ rules: [{ ruleId, ok: isOk, output: isOk ? '' : 'still failing' }] })
+  }
+}
+
+const ok = changes => ({ ok: true, changes: changes ?? [{ path: 'f' }], diagnosis: null })
+const fail = (error, diagnosis) => ({ ok: false, error, changes: [], diagnosis: diagnosis ?? null })
+const clock = () => 0
+const noop = () => {
+  /* лог глушимо у тестах */
+}
+
+const FULL = { localMin: 'omlx/local', cloudMin: 'openai/min', cloudAvg: 'openai/avg' }
+
+describe('buildLadder', () => {
+  test('усі тири → 4 рунги у правильному порядку', () => {
+    const l = buildLadder(FULL)
+    expect(l.map(r => r.tier)).toEqual(['local-min', 'local-min-retry', 'cloud-min', 'cloud-avg'])
+    expect(l[0].feedback).toBe(false)
+    expect(l[1].feedback).toBe(true)
+    expect(l[3].isAvg).toBe(true)
   })
 
-  test('T0-auto closes all → returns 0 without LLM', async () => {
-    const result = await runLoopMock({
-      states: [
-        {
-          total: 3,
-          failed: 1,
-          rules: [{ ruleId: 'bun', ok: false, output: 'Знайдено заборонений файл: package-lock.json' }]
-        },
-        { total: 3, failed: 0, rules: [] } // після T0
-      ],
-      t0Exit: 0,
-      llmResults: []
-    })
-    expect(result).toBe(0)
+  test('лише local-min → два локальні рунги', () => {
+    const l = buildLadder({ localMin: 'omlx/x', cloudMin: '', cloudAvg: '' })
+    expect(l.map(r => r.tier)).toEqual(['local-min', 'local-min-retry'])
   })
 
-  test('LLM fixes remaining after T0 → returns 0', async () => {
-    const result = await runLoopMock({
-      states: [
-        { total: 3, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'складне порушення' }] },
-        { total: 3, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'складне порушення' }] }, // after T0 (no change)
-        { total: 3, failed: 0, rules: [] } // after LLM
-      ],
-      t0Exit: 1,
-      llmResults: [{ ok: true, turns: 5 }]
-    })
-    expect(result).toBe(0)
+  test('лише хмара → cloud-min, cloud-avg', () => {
+    const l = buildLadder({ localMin: '', cloudMin: 'o/min', cloudAvg: 'o/avg' })
+    expect(l.map(r => r.tier)).toEqual(['cloud-min', 'cloud-avg'])
   })
 
-  test('LLM escalates haiku→sonnet after 2 failures', async () => {
-    const models = []
-    const result = await runLoopMock({
-      states: [
-        // iter 1: rego fails
-        { total: 1, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'X' }] },
-        { total: 1, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'X' }] }, // after T0
-        // iter 2: still fails
-        { total: 1, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'X' }] },
-        { total: 1, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'X' }] }, // after T0
-        // iter 3: still fails
-        { total: 1, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'X' }] },
-        { total: 1, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'X' }] }, // after T0
-        // final check
-        { total: 1, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'X' }] }
-      ],
-      t0Exit: 1,
-      llmResults: [
-        { ok: false, turns: 10, error: 'fail' }, // iter 1: haiku fails → failCount=1
-        { ok: false, turns: 10, error: 'fail' }, // iter 2: haiku fails → failCount=2
-        { ok: false, turns: 10, error: 'fail' } // iter 3: sonnet fails → failCount=3
-      ],
-      onLlmCall: (ruleId, _output, _root, opts) => models.push(opts.model)
-    })
-    expect(result).toBe(1) // unresolved
-    expect(models[0]).toContain('haiku')
-    expect(models[1]).toContain('haiku')
-    expect(models[2]).toContain('sonnet') // escalated
-  })
-
-  test('max-iter reached with unresolved → returns 1', async () => {
-    const result = await runLoopMock({
-      states: Array.from({ length: 8 }, () => ({
-        total: 1,
-        failed: 1,
-        rules: [{ ruleId: 'rego', ok: false, output: 'X' }]
-      })),
-      t0Exit: 1,
-      llmResults: [
-        { ok: false, turns: 5 },
-        { ok: false, turns: 5 },
-        { ok: false, turns: 5 }
-      ],
-      maxIter: 3
-    })
-    expect(result).toBe(1)
+  test('жодного тиру → порожня драбина', () => {
+    expect(buildLadder({ localMin: '', cloudMin: '', cloudAvg: '' })).toEqual([])
   })
 })
 
-// ── допоміжний mock-runner ────────────────────────────────────────────────────
+describe('parseOrchestratorArgs', () => {
+  test('дефолтний avg-кеп і фільтр правил', () => {
+    expect(parseOrchestratorArgs(['changelog', 'bun'])).toEqual({ maxAvg: 3, ruleFilter: ['changelog', 'bun'] })
+  })
+  test('--max-avg перевизначає і прибирається з фільтра', () => {
+    expect(parseOrchestratorArgs(['--max-avg', '1', 'bun'])).toEqual({ maxAvg: 1, ruleFilter: ['bun'] })
+  })
+})
 
-/**
- * Імітує runOrchestratorCli з mock-станами замість реального spawnSync.
- * @param {{
- *   states: Array<{total:number,failed:number,rules:Array<{ruleId:string,ok:boolean,output:string}>}>,
- *   t0Exit: number,
- *   llmResults: Array<{ok:boolean,turns:number,error?:string}>,
- *   maxIter?: number,
- *   onLlmCall?: (ruleId: string, output: string, root: string, opts: { model: string }) => void
- * }} opts опції симуляції (стани, exit code T0, результати LLM)
- * @returns {Promise<number>} 0 — convergence, 1 — unresolved
- */
-function runLoopMock({ states, t0Exit, llmResults, maxIter = 3, onLlmCall }) {
-  const MODEL_HAIKU = 'claude-haiku-4-5-20251001'
-  const MODEL_SONNET = 'claude-sonnet-4-6'
-  const ESCALATE_AFTER = 2
+describe('escalateRule', () => {
+  const rule = { ruleId: 'rego', output: 'violation' }
 
-  let stateIdx = 0
-  let llmIdx = 0
-  const failCount = new Map()
+  test('local-min закриває на першому рунгу → resolved, без feedback, avgUsed=0', async () => {
+    const worker = makeWorker([ok()])
+    const r = await escalateRule(rule, '/p', {
+      ladder: buildLadder(FULL),
+      worker,
+      check: makeCheck('rego', [true]),
+      avgBudget: 3,
+      clock,
+      log: noop
+    })
+    expect(r).toEqual({ resolved: true, avgUsed: 0 })
+    expect(worker.calls).toHaveLength(1)
+    expect(worker.calls[0].model).toBe('omlx/local')
+    expect(worker.calls[0].feedback).toBeNull()
+    expect(worker.calls[0].caller).toBe('fix:rego:local-min')
+  })
 
-  /**
-   * Повертає наступний стан із масиву (clamped до останнього).
-   * @returns {object} наступний стан
-   */
-  function nextState() {
-    return states[Math.min(stateIdx++, states.length - 1)]
-  }
+  test('retry того самого local-min із feedback закриває на 2-му рунгу', async () => {
+    const worker = makeWorker([fail('pi returned no changes'), ok()])
+    const r = await escalateRule(rule, '/p', {
+      ladder: buildLadder(FULL),
+      worker,
+      check: makeCheck('rego', [false, true]),
+      avgBudget: 3,
+      clock,
+      log: noop
+    })
+    expect(r.resolved).toBe(true)
+    expect(worker.calls).toHaveLength(2)
+    expect(worker.calls[1].model).toBe('omlx/local')
+    expect(worker.calls[1].feedback).toMatchObject({ previousModel: 'omlx/local' })
+  })
 
-  for (let iter = 1; iter <= maxIter; iter++) {
-    const state = nextState()
-    const failed = state.rules.filter(r => !r.ok)
-    if (failed.length === 0) return 0
+  test('каскад local→cloud-min→cloud-avg; avg рахується', async () => {
+    const worker = makeWorker([fail('x'), fail('x'), fail('x'), ok()])
+    const r = await escalateRule(rule, '/p', {
+      ladder: buildLadder(FULL),
+      worker,
+      check: makeCheck('rego', [false, false, false, true]),
+      avgBudget: 3,
+      clock,
+      log: noop
+    })
+    expect(r).toEqual({ resolved: true, avgUsed: 1 })
+    expect(worker.calls.map(c => c.model)).toEqual(['omlx/local', 'omlx/local', 'openai/min', 'openai/avg'])
+  })
 
-    // T0-auto (mock)
-    const stateAfterT0 = t0Exit === 0 ? { ...state, failed: 0, rules: [] } : nextState()
-    const failedAfterT0 = stateAfterT0.rules.filter(r => !r.ok)
-    if (failedAfterT0.length === 0) return 0
+  test('avg-кеп 0 → cloud-avg пропускається, worker не кличеться для avg', async () => {
+    const worker = makeWorker([fail('x'), fail('x'), fail('x')])
+    const r = await escalateRule(rule, '/p', {
+      ladder: buildLadder(FULL),
+      worker,
+      check: makeCheck('rego', [false, false, false]),
+      avgBudget: 0,
+      clock,
+      log: noop
+    })
+    expect(r.resolved).toBe(false)
+    expect(worker.calls.map(c => c.model)).toEqual(['omlx/local', 'omlx/local', 'openai/min'])
+  })
 
-    // LLM per rule
-    for (const rule of failedAfterT0) {
-      const prevFails = failCount.get(rule.ruleId) ?? 0
-      const model = prevFails >= ESCALATE_AFTER ? MODEL_SONNET : MODEL_HAIKU
+  test('systemic-помилка local → пропуск local-min-retry, стрибок на cloud-min', async () => {
+    const worker = makeWorker([fail('omlx curl: connection refused'), ok()])
+    const r = await escalateRule(rule, '/p', {
+      ladder: buildLadder(FULL),
+      worker,
+      check: makeCheck('rego', [false, true]),
+      avgBudget: 3,
+      clock,
+      log: noop
+    })
+    expect(r.resolved).toBe(true)
+    // 2-й виклик — одразу cloud-min (local-min-retry пропущено через systemic)
+    expect(worker.calls.map(c => c.model)).toEqual(['omlx/local', 'openai/min'])
+  })
 
-      const result = llmResults[llmIdx++] ?? { ok: false, turns: 0, error: 'no result' }
-      if (onLlmCall) onLlmCall(rule.ruleId, rule.output, '/mock', { model })
-
-      if (result.ok) {
-        failCount.delete(rule.ruleId)
-      } else {
-        failCount.set(rule.ruleId, prevFails + 1)
-      }
-    }
-  }
-
-  const final = nextState()
-  return final.rules.filter(r => !r.ok).length === 0 ? 0 : 1
-}
+  test('відсутній API-ключ на хмарному → драбина обривається', async () => {
+    const worker = makeWorker([fail('x'), fail('x'), fail('pi: немає ключа для openai')])
+    const r = await escalateRule(rule, '/p', {
+      ladder: buildLadder(FULL),
+      worker,
+      check: makeCheck('rego', [false, false, false]),
+      avgBudget: 3,
+      clock,
+      log: noop
+    })
+    expect(r.resolved).toBe(false)
+    // cloud-avg не пробувався після no-key на cloud-min
+    expect(worker.calls.map(c => c.model)).toEqual(['omlx/local', 'omlx/local', 'openai/min'])
+  })
+})
