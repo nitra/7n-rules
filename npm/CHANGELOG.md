@@ -1,5 +1,11 @@
 # Changelog
 
+## [12.3.0] - 2026-06-19
+
+### Added
+
+- lint --full: резюме викликів моделей у stdout (локальна / cloud-min / cloud-avg) через reportRunStats/summarizeCalls
+
 ## [12.2.0] - 2026-06-19
 
 ### Changed
