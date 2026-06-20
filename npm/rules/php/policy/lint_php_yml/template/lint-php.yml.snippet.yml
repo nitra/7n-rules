@@ -44,4 +44,4 @@ jobs:
         run: composer install --no-interaction --no-progress --prefer-dist
 
       - name: Lint PHP
-        run: bun run lint-php
+        run: n-cursor lint php --read-only

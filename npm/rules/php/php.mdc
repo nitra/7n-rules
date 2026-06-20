@@ -63,9 +63,7 @@ composer audit
 
 ## lint-php
 
-`composer`-інструмененти не мають єдиного CLI, який сам обходить репозиторій, тому `lint-php` зручно делегувати у JS-скрипт-обгортку (як `lint-docker`, `lint-k8s`).
-
-- Канон `package.json#scripts.lint-php` (substring requirement): [package.json.contains.json](./policy/package_json/template/package.json.contains.json)
+`composer`-інструмененти не мають єдиного CLI, який сам обходить репозиторій, тому php-лінт делегується у JS-скрипт-обгортку. Запуск — через **`n-cursor lint php`** (CI — `--read-only`); окремого `package.json`-скрипта немає.
 
 Скрипт `run-php.mjs`:
 
