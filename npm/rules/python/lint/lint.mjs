@@ -63,9 +63,11 @@ function uvToolAvailable(uv, tool) {
 /**
  * Внутрішні кроки `lint-python` без локу.
  * @param {string} [cwd] корінь репозиторію
+ * @param {{ readOnly?: boolean }} [opts] readOnly → `ruff` без `--fix`, `ruff format --check` (нуль мутацій, CI/детект)
  * @returns {number} 0 — OK, 1 — є помилки
  */
-export function runLintPythonSteps(cwd = process.cwd()) {
+export function runLintPythonSteps(cwd = process.cwd(), opts = {}) {
+  const readOnly = opts.readOnly === true
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
@@ -98,8 +100,10 @@ export function runLintPythonSteps(cwd = process.cwd()) {
     return runTool(label, uv, ['run', '--frozen', tool, ...args], pass, fail)
   }
 
-  if (!runOptionalUvTool('ruff', 'ruff check --fix', ['check', '--fix', '.'])) return reporter.getExitCode()
-  if (!runOptionalUvTool('ruff', 'ruff format', ['format', '.'])) return reporter.getExitCode()
+  const ruffCheck = readOnly ? ['check', '.'] : ['check', '--fix', '.']
+  const ruffFormat = readOnly ? ['format', '--check', '.'] : ['format', '.']
+  if (!runOptionalUvTool('ruff', readOnly ? 'ruff check' : 'ruff check --fix', ruffCheck)) return reporter.getExitCode()
+  if (!runOptionalUvTool('ruff', readOnly ? 'ruff format --check' : 'ruff format', ruffFormat)) return reporter.getExitCode()
   if (!runOptionalUvTool('mypy', 'mypy', ['.'])) return reporter.getExitCode()
 
   return reporter.getExitCode()
@@ -107,10 +111,12 @@ export function runLintPythonSteps(cwd = process.cwd()) {
 
 /**
  * Публічна CLI-форма: серіалізує через `withLock('lint-python')` + дедуп за станом git-дерева.
+ * @param {{ readOnly?: boolean }} [opts] readOnly → детект без мутацій (проброс у кроки)
  * @returns {Promise<number>} код виходу
  */
-export const runLintPython = () => runStandardLint(import.meta.dirname, runLintPythonSteps)
+export const runLintPython = (opts = {}) =>
+  runStandardLint(import.meta.dirname, () => runLintPythonSteps(process.cwd(), opts))
 
 if (isRunAsCli(import.meta.url)) {
-  process.exitCode = await runLintPython()
+  process.exitCode = await runLintPython({ readOnly: process.argv.includes('--read-only') })
 }

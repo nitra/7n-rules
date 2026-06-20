@@ -39,6 +39,22 @@ is_tooling_only_change() {
   return 1
 }
 
+# Cross-project guard: чи серед змінених файлів є хоч один під $proj.
+# Вхід: рядки-шляхи у stdin (абсолютні file_path із tool_use).
+# Вихід: 0 — є хоч один файл під $proj; 1 — жодного (сесія цілком в інших проєктах).
+# Призначення: відсікти ADR-чернетки від паралельної роботи в чужих репозиторіях.
+has_in_project_change() {
+  local proj="$1"
+  local f
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    case "$f" in
+      "$proj"/*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
 # Допоміжна: чи git-diff для файлу торкається ЛИШЕ рядків з `"version":`.
 # Поза git-репо або при помилці — вертаємо 1 (не tooling).
 git_diff_only_version_field() {

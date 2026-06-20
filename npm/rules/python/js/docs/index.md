@@ -9,4 +9,5 @@ resource: npm/rules/python/js/
 | Файл | Тип |
 |---|---|
 | [applies.mjs](applies.md) | JS Module |
+| [lint.mjs](lint.md) | JS Module |
 | [tooling.mjs](tooling.md) | JS Module |

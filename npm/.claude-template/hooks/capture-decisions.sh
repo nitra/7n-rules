@@ -91,26 +91,38 @@ if [[ -z "$TRANSCRIPT" ]]; then
   exit 0
 fi
 
+# Файли, змінені в сесії (file_path із tool_use Edit/Write/MultiEdit) — спільне
+# джерело для structural-скіпів нижче.
+CHANGED_FILES=$(jq -r '
+  select(.type == "assistant" or .role == "assistant")
+  | .message as $m
+  | ($m.content // [])
+  | if type == "array" then
+      map(select(.type == "tool_use" and (.name == "Edit" or .name == "Write" or .name == "MultiEdit"))
+          | .input.file_path // empty)
+      | .[]
+    else empty end
+' "$TRANSCRIPT_PATH" 2>/dev/null | sort -u || true)
+
+# Cross-project skip: якщо в сесії редагувалися файли, але ЖОДЕН не під $PROJECT_ROOT —
+# це паралельна робота в іншому проєкті; ADR сюди не пишемо (чужі рішення не змішуємо).
+# Сесії без редагувань (чисте Q&A / дизайн-дискусія) не відкидаємо — це валідний ADR.
+# ENV `ADR_CAPTURE_SKIP_CROSS_PROJECT=0` вимикає скіп.
+if [[ "${ADR_CAPTURE_SKIP_CROSS_PROJECT:-1}" = "1" && -n "$CHANGED_FILES" ]]; then
+  if ! printf '%s\n' "$CHANGED_FILES" | has_in_project_change "$PROJECT_ROOT"; then
+    log "  → skipping ADR capture: cross-project session (no in-project changes)"
+    log "    files: $(printf '%s' "$CHANGED_FILES" | tr '\n' ' ')"
+    exit 0
+  fi
+fi
+
 # Structural skip: якщо в сесії змінювалися лише tooling-файли — не викликаємо LLM.
 # ENV `ADR_NORMALIZE_SKIP_TOOLING_ONLY=0` вимикає скіп.
-if [[ "${ADR_NORMALIZE_SKIP_TOOLING_ONLY:-1}" = "1" ]]; then
-  CHANGED_FILES=$(jq -r '
-    select(.type == "assistant" or .role == "assistant")
-    | .message as $m
-    | ($m.content // [])
-    | if type == "array" then
-        map(select(.type == "tool_use" and (.name == "Edit" or .name == "Write" or .name == "MultiEdit"))
-            | .input.file_path // empty)
-        | .[]
-      else empty end
-  ' "$TRANSCRIPT_PATH" 2>/dev/null | sort -u || true)
-
-  if [[ -n "$CHANGED_FILES" ]]; then
-    if printf '%s\n' "$CHANGED_FILES" | is_tooling_only_change "$PROJECT_ROOT"; then
-      log "  → skipping ADR capture: tooling-only session"
-      log "    files: $(printf '%s' "$CHANGED_FILES" | tr '\n' ' ')"
-      exit 0
-    fi
+if [[ "${ADR_NORMALIZE_SKIP_TOOLING_ONLY:-1}" = "1" && -n "$CHANGED_FILES" ]]; then
+  if printf '%s\n' "$CHANGED_FILES" | is_tooling_only_change "$PROJECT_ROOT"; then
+    log "  → skipping ADR capture: tooling-only session"
+    log "    files: $(printf '%s' "$CHANGED_FILES" | tr '\n' ' ')"
+    exit 0
   fi
 fi
 
@@ -166,7 +178,12 @@ TRANSCRIPT FOLLOWS:
 EOF
 )
 
-PROMPT_FULL=$(printf '%s\n%s\n' "$PROMPT" "$TRANSCRIPT")
+# Scope: обмежуємо рішення поточним проєктом. Для змішаних сесій (правки і тут, і в
+# чужих репо) детермінований cross-project gate не спрацьовує, тож звужуємо обсяг у промпті.
+# Йде ПЕРЕД інструкціями, щоб не сприйматись як перший рядок транскрипту.
+SCOPE_LINE="CURRENT PROJECT ROOT: $PROJECT_ROOT
+SCOPE: Document ONLY decisions evidenced by changes within this project root. Ignore edits and discussion about files outside it (parallel work in other repositories)."
+PROMPT_FULL=$(printf '%s\n\n%s\n%s\n' "$SCOPE_LINE" "$PROMPT" "$TRANSCRIPT")
 
 CLAUDE_MODEL="${CAPTURE_DECISIONS_CLAUDE_MODEL:-sonnet}"
 CURSOR_MODEL="${CAPTURE_DECISIONS_CURSOR_MODEL:-claude-4.6-sonnet-medium}"

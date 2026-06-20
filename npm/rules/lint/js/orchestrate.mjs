@@ -3,9 +3,11 @@ import { existsSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { cwd as processCwd } from 'node:process'
+import { spawnSync } from 'node:child_process'
 
 import { parseRuleLintSpec, readRuleMetaRaw } from '../../../scripts/lib/rule-meta.mjs'
 import { collectChangedFilesSince, resolveChangedBase } from '../../../scripts/lib/changed-files.mjs'
+import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 
 // Цей файл: npm/rules/lint/js/orchestrate.mjs → PACKAGE_ROOT = npm (чотири dirname угору).
 const PACKAGE_ROOT = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))))
@@ -121,6 +123,26 @@ async function runFullConformancePhase(cwd, readOnly, log) {
 }
 
 /**
+ * Формат-крок (`oxfmt .`): whole-tree форматування у fix-режимі. У read-only НЕ викликається
+ * (CI/детект — нуль мутацій). `oxfmt` форматує не лише JS, а й root-конфіги (toml тощо), тож
+ * крок незалежний від набору правил і scope. Якщо `oxfmt` відсутній у PATH — пропуск (не fail).
+ * @param {string} cwd корінь
+ * @param {(s: string) => void} log логер
+ * @returns {Promise<number>} код виходу oxfmt (0 — OK або пропущено)
+ */
+async function runFormat(cwd, log) {
+  const oxfmt = resolveCmd('oxfmt')
+  if (!oxfmt) {
+    log('ℹ️  lint: oxfmt недоступний у PATH — формат-крок пропущено.\n')
+    return 0
+  }
+  const r = spawnSync(oxfmt, ['.'], { cwd, stdio: 'inherit', shell: false })
+  const code = typeof r.status === 'number' ? r.status : 1
+  if (code !== 0) log(`❌ lint: oxfmt — помилка (код ${code})\n`)
+  return code
+}
+
+/**
  * Запускає lint-оркестрацію.
  * @param {{ full?: boolean, readOnly?: boolean, rules?: string[], cwd?: string, rulesDir?: string, log?: (s: string) => void }} [opts] параметри
  *   - `full` — весь репо (`true`) проти дельти vs origin (`false`, default);
@@ -162,6 +184,13 @@ export async function runLint(opts = {}) {
       if (readOnly) return conformanceCode
       worst = conformanceCode
     }
+  }
+
+  // Формат-крок (oxfmt): fix-режим — завжди (будь-який scope); read-only пропускаємо (нуль
+  // мутацій). Кастомний rulesDir (юніт-тести) — реальний пакет недоступний, тож пропускаємо.
+  if (!readOnly && opts.rulesDir === undefined) {
+    const fmtCode = await runFormat(cwd, log)
+    if (fmtCode !== 0) worst = fmtCode
   }
   return worst
 }
