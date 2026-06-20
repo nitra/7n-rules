@@ -1,5 +1,11 @@
 # Changelog
 
+## [12.3.1] - 2026-06-20
+
+### Changed
+
+- npm-module конформність: module-level JSDoc → pointer (`/** @see ./docs/… */`) у docgen-crc/extract-anchors/files-batch/judge-measure, doc-files/lint, lint/orchestrate, doc-aggregate/docgen-ignore; doc-CRC перештамповано; eslint --fix-стан прийнято як канон
+
 ## [12.3.0] - 2026-06-19
 
 ### Added
