@@ -1,9 +1,0 @@
-{
-  "scripts": {
-    "lint-rust": [
-      "cargo fmt --all",
-      "cargo clippy --fix --allow-staged --allow-dirty",
-      "cargo clippy --all-targets --all-features -- -D warnings"
-    ]
-  }
-}

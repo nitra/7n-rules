@@ -5,11 +5,9 @@ alwaysApply: false
 version: '1.4'
 ---
 
-**rustfmt** ([rust-lang/rustfmt](https://github.com/rust-lang/rustfmt)) — форматер; **clippy** ([rust-lang/rust-clippy](https://github.com/rust-lang/rust-clippy)) — лінтер. У скрипті **`lint-rust`** локально йдуть три кроки в одному рядку: `cargo fmt --all` → `cargo clippy --fix --allow-staged --allow-dirty --all-targets --all-features` → фінальний `cargo clippy --all-targets --all-features -- -D warnings`. У CI — без `--fix`: `cargo fmt --all -- --check` і `cargo clippy ... -- -D warnings` (див. `lint-rust.yml`).
+**rustfmt** ([rust-lang/rustfmt](https://github.com/rust-lang/rustfmt)) — форматер; **clippy** ([rust-lang/rust-clippy](https://github.com/rust-lang/rust-clippy)) — лінтер. Запуск — через **`n-cursor lint rust`** (адаптер `js/lint.mjs`): локально (fix) `cargo fmt --all` → `cargo clippy --fix --allow-staged --allow-dirty --all-targets --all-features` → фінальний `cargo clippy --all-targets --all-features -- -D warnings`; у `--read-only` (детект) — `cargo fmt --all -- --check` + `cargo clippy ... -- -D warnings`. Окремого `package.json`-скрипта немає. У CI cargo викликається напряму (див. `lint-rust.yml`).
 
 `cargo`, `rustfmt`, `clippy` не додавай у `devDependencies` — це Rust toolchain, ставиться через `rustup` локально або через `dtolnay/rust-toolchain@stable` у CI.
-
-Канон `scripts.lint-rust` (substring requirement): [package.json.contains.json](./policy/package_json/template/package.json.contains.json)
 
 У `.vscode/extensions.json` `recommendations` мають містити `rust-lang.rust-analyzer` і `tamasfe.even-better-toml`: [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
 
@@ -21,7 +19,7 @@ version: '1.4'
 
 Tauri-проєкт завжди має `src-tauri/Cargo.toml`, тому правило `rust` активується автоматично разом з `tauri`. Поділ обов'язків:
 
-- `rust` — `lint-rust` скрипт, `rust-analyzer`, `even-better-toml`, CI workflow.
+- `rust` — лінт через `n-cursor lint rust`, `rust-analyzer`, `even-better-toml`, CI workflow.
 - `tauri` — `tauri-apps.tauri-vscode` (див. **tauri.mdc**).
 
 Обидва правила перевіряють `.vscode/extensions.json` за `contains`-семантикою; конкурентного запису немає.

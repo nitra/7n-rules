@@ -1,0 +1,67 @@
+/** @see ./docs/lint.md */
+import { spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+
+/**
+ * Запускає cargo-крок і репортить результат.
+ * @param {string} label назва кроку
+ * @param {string} cargo абсолютний шлях до `cargo`
+ * @param {string[]} args аргументи
+ * @param {(m: string) => void} pass callback pass
+ * @param {(m: string) => void} fail callback fail
+ * @returns {boolean} true якщо крок успішний
+ */
+function runCargo(label, cargo, args, pass, fail) {
+  const r = spawnSync(cargo, args, { stdio: 'inherit', shell: false })
+  if (r.status === 0) {
+    pass(`lint-rust: ${label} — OK`)
+    return true
+  }
+  const code = typeof r.status === 'number' ? r.status : 1
+  fail(`lint-rust: ${label} — помилка (код ${code}, rust.mdc)`)
+  return false
+}
+
+/**
+ * Оркестраторний адаптер `n-cursor lint rust`: rustfmt + clippy через cargo. Без `Cargo.toml` —
+ * no-op (0). `cargo`/`rustfmt`/`clippy` — Rust toolchain (rustup), не npm-залежності.
+ * readOnly (CI): `cargo fmt --all -- --check` + `cargo clippy … -D warnings` (нуль мутацій).
+ * fix: `cargo fmt --all` + `cargo clippy --fix` + фінальний `cargo clippy … -D warnings`.
+ * @param {string[] | undefined} _files ігнорується (cargo обходить crate сам)
+ * @param {string} [cwd] корінь
+ * @param {{ readOnly?: boolean }} [opts] readOnly → без мутацій
+ * @returns {number} exit code
+ */
+export function lint(_files, cwd = process.cwd(), opts = {}) {
+  const readOnly = opts.readOnly === true
+  const reporter = createCheckReporter()
+  const { pass, fail } = reporter
+
+  if (!existsSync(join(cwd, 'Cargo.toml'))) {
+    pass('lint-rust: немає Cargo.toml — кроки Rust пропущено')
+    return reporter.getExitCode()
+  }
+
+  const cargo = resolveCmd('cargo')
+  if (!cargo) {
+    fail('lint-rust: `cargo` не знайдено в PATH (Rust toolchain через rustup, rust.mdc)')
+    return reporter.getExitCode()
+  }
+
+  const fmtArgs = readOnly ? ['fmt', '--all', '--', '--check'] : ['fmt', '--all']
+  if (!runCargo(readOnly ? 'cargo fmt --check' : 'cargo fmt', cargo, fmtArgs, pass, fail)) {
+    return reporter.getExitCode()
+  }
+
+  if (!readOnly) {
+    const fixArgs = ['clippy', '--fix', '--allow-staged', '--allow-dirty', '--all-targets', '--all-features']
+    if (!runCargo('cargo clippy --fix', cargo, fixArgs, pass, fail)) return reporter.getExitCode()
+  }
+
+  runCargo('cargo clippy -D warnings', cargo, ['clippy', '--all-targets', '--all-features', '--', '-D', 'warnings'], pass, fail)
+  return reporter.getExitCode()
+}
