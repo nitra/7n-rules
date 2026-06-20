@@ -27,9 +27,7 @@ Python-проєкти ведуться **виключно** на [uv](https://do
 
 ## lint-python
 
-Інструменти uv-екосистеми не мають єдиного CLI, що сам обходить репозиторій, тому `lint-python` делегується у JS-скрипт-обгортку (як `lint-php`, `lint-docker`).
-
-- Канон `package.json#scripts.lint-python` (substring requirement): [package.json.contains.json](./policy/package_json/template/package.json.contains.json)
+Інструменти uv-екосистеми не мають єдиного CLI, що сам обходить репозиторій, тому python-лінт делегується у JS-скрипт-обгортку. Запуск — через **`n-cursor lint python`** (CI — `--read-only`); окремого `package.json`-скрипта немає.
 
 Скрипт `rules/python/lint/lint.mjs`:
 

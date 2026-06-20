@@ -38,4 +38,4 @@ jobs:
         run: uv sync --frozen
 
       - name: Lint Python
-        run: bun run lint-python
+        run: n-cursor lint python --read-only

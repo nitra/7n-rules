@@ -8,7 +8,7 @@ template_data := {"snippet": {"jobs": {"python": {"steps": [
 	{"uses": "./.github/actions/setup-bun-deps"},
 	{"uses": "astral-sh/setup-uv@v8.0.0"},
 	{"run": "uv sync --frozen"},
-	{"run": "bun run lint-python"},
+	{"run": "n-cursor lint python --read-only"},
 ]}}}}
 
 canonical_wf := {"jobs": {"python": {"steps": [
@@ -16,7 +16,7 @@ canonical_wf := {"jobs": {"python": {"steps": [
 	{"uses": "./.github/actions/setup-bun-deps"},
 	{"uses": "astral-sh/setup-uv@v8.0.0"},
 	{"run": "uv sync --frozen"},
-	{"run": "bun run lint-python"},
+	{"run": "n-cursor lint python --read-only"},
 ]}}}
 
 test_allow_canonical if {
@@ -28,7 +28,7 @@ test_deny_missing_setup_uv_uses if {
 		{"uses": "actions/checkout@v6"},
 		{"uses": "./.github/actions/setup-bun-deps"},
 		{"run": "uv sync --frozen"},
-		{"run": "bun run lint-python"},
+		{"run": "n-cursor lint python --read-only"},
 	]}}}
 	some msg in lint_python_yml.deny with input as wf with data.template as template_data
 	contains(msg, "astral-sh/setup-uv@v8.0.0")
@@ -39,7 +39,7 @@ test_deny_missing_uv_sync_run if {
 		{"uses": "actions/checkout@v6"},
 		{"uses": "./.github/actions/setup-bun-deps"},
 		{"uses": "astral-sh/setup-uv@v8.0.0"},
-		{"run": "bun run lint-python"},
+		{"run": "n-cursor lint python --read-only"},
 	]}}}
 	some msg in lint_python_yml.deny with input as wf with data.template as template_data
 	contains(msg, "uv sync --frozen")
@@ -53,7 +53,7 @@ test_deny_missing_lint_python_run if {
 		{"run": "uv sync --frozen"},
 	]}}}
 	some msg in lint_python_yml.deny with input as wf with data.template as template_data
-	contains(msg, "bun run lint-python")
+	contains(msg, "n-cursor lint python --read-only")
 }
 
 test_deny_empty if {
