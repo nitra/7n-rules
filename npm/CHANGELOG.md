@@ -1,5 +1,11 @@
 # Changelog
 
+## [12.3.2] - 2026-06-20
+
+### Fixed
+
+- fix-каскад: per-tier timeout (локалі fail-fast ~45s замість стіни 120s, env N_LOCAL_FIX_TIMEOUT_MS/N_CLOUD_FIX_TIMEOUT_MS) + хмарний транспортний збій (pi ETIMEDOUT/spawn) обриває драбину замість ескалації на cloud-avg — не палиться avg-бюджет
+
 ## [12.3.1] - 2026-06-20
 
 ### Changed
