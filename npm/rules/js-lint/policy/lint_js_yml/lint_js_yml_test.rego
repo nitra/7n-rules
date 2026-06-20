@@ -6,13 +6,13 @@ import rego.v1
 template_data := {"snippet": {"jobs": {"eslint": {"steps": [
 	{"uses": "actions/checkout@v6", "with": {"persist-credentials": false}},
 	{"uses": "./.github/actions/setup-bun-deps"},
-	{"name": "Eslint", "run": "bunx oxlint\nbunx eslint .\nbunx jscpd .\nbunx knip --no-config-hints\n"},
+	{"name": "Eslint", "run": "n-cursor lint js-lint js-lint-ci --read-only"},
 ]}}}}
 
 canonical_input := {"jobs": {"eslint": {"steps": [
 	{"uses": "actions/checkout@v6", "with": {"persist-credentials": false}},
 	{"uses": "./.github/actions/setup-bun-deps"},
-	{"name": "Eslint", "run": "bunx oxlint\nbunx eslint .\nbunx jscpd .\nbunx knip --no-config-hints\n"},
+	{"name": "Eslint", "run": "n-cursor lint js-lint js-lint-ci --read-only"},
 ]}}}
 
 test_allow_canonical if {
@@ -25,8 +25,8 @@ test_deny_missing_checkout if {
 	contains(msg, "checkout")
 }
 
-test_deny_missing_oxlint_run if {
-	wf := {"jobs": {"eslint": {"steps": [{"run": "bunx eslint ."}]}}}
+test_deny_missing_required_run if {
+	wf := {"jobs": {"eslint": {"steps": [{"run": "echo nothing"}]}}}
 	count(lint_js_yml.deny) > 0 with input as wf with data.template as template_data
 }
 

@@ -143,11 +143,41 @@ async function runFormat(cwd, log) {
 }
 
 /**
+ * Scoped-режим (`lint <rule…>`): повний прогін НАЗВАНИХ правил — їх лінтер (`js/lint.mjs`,
+ * whole-repo) для тих, що його мають, + конформність для всіх названих. Дзеркалить `--full`,
+ * але звужено до правил, тож `lint ga` ≡ standalone `lint-ga`. Конформність-only правила
+ * (напр. `changelog` із hk) не мають `js/lint.mjs` → проганяється лише їх конформність
+ * (зворотна сумісність із колишнім `fix <rule>`). oxfmt у scoped НЕ запускається — це
+ * таргетований прогін правил, а не глобальне форматування.
+ * @param {string[]} rules id названих правил
+ * @param {{ cwd: string, readOnly: boolean, rulesDir: string, conformance: boolean, log: (s: string) => void }} ctx контекст (`conformance` — чи запускати конформність; false для юніт-тестів із кастомним rulesDir, де реальний пакет недоступний)
+ * @returns {Promise<number>} найгірший код (read-only — fail-fast на першому ненульовому)
+ */
+async function runScopedRules(rules, ctx) {
+  const { cwd, readOnly, rulesDir, conformance, log } = ctx
+  const metaById = readAllMeta(rulesDir)
+  const linterIds = rules.filter(id => existsSync(join(rulesDir, id, 'js', 'lint.mjs')))
+  let worst = 0
+  if (linterIds.length > 0) {
+    const perFile = await runPerFileRules(linterIds, { rulesDir, changed: undefined, cwd, readOnly, metaById, log })
+    if (perFile.stop) return perFile.code
+    worst = perFile.code
+  }
+  if (!conformance) return worst
+  const conformanceCode = await runConformance(cwd, readOnly, log, rules)
+  if (conformanceCode !== 0) {
+    if (readOnly) return conformanceCode
+    worst = conformanceCode
+  }
+  return worst
+}
+
+/**
  * Запускає lint-оркестрацію.
  * @param {{ full?: boolean, readOnly?: boolean, rules?: string[], cwd?: string, rulesDir?: string, log?: (s: string) => void }} [opts] параметри
  *   - `full` — весь репо (`true`) проти дельти vs origin (`false`, default);
  *   - `readOnly` — лише детект без мутацій (`true`) проти fix (`false`, default);
- *   - `rules` — непорожній фільтр → лише конформність цих правил (без лінтер-скану; мапить `fix <rule>`).
+ *   - `rules` — непорожній scope → повний прогін лише цих правил (лінтер + конформність, whole-repo).
  * @returns {Promise<number>} exit code
  */
 export async function runLint(opts = {}) {
@@ -158,9 +188,9 @@ export async function runLint(opts = {}) {
   const rulesDir = opts.rulesDir ?? RULES_DIR
   const log = opts.log ?? (s => process.stdout.write(s))
 
-  // Rule-filter режим (напр. `lint changelog` із hk): лише конформність указаних правил, без лінтерів.
+  // Scoped режим (`lint <rule…>`): повний прогін названих правил — лінтер + конформність.
   if (rules.length > 0) {
-    return runConformance(cwd, readOnly, log, rules)
+    return runScopedRules(rules, { cwd, readOnly, rulesDir, conformance: opts.rulesDir === undefined, log })
   }
 
   // Default scope — дельта vs origin (merge-base main/origin/main); `--full` — весь репо.

@@ -100,8 +100,8 @@ deny contains msg if {
 
 deny contains msg if {
 	expected_run_blob != ""
-	not contains(job_run_blob, "bun run lint-ga")
-	msg := "lint-ga.yml: має бути крок run: bun run lint-ga (ga.mdc)"
+	not contains(job_run_blob, "n-cursor lint ga --read-only")
+	msg := "lint-ga.yml: має бути крок run: n-cursor lint ga --read-only (ga.mdc)"
 }
 
 # ── helpers ────────────────────────────────────────────────────────────────

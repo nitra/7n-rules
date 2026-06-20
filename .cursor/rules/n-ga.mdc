@@ -141,7 +141,7 @@ jobs:
           | sudo tar -xz -C /usr/local/bin conftest
 
       - name: Lint GA
-        run: bun run lint-ga
+        run: n-cursor lint ga --read-only
 ```
 
 Повинен бути файл `.github/workflows/git-ai.yml`:

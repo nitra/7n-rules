@@ -63,3 +63,30 @@ describe('runLint — прокидання осей', () => {
     })
   })
 })
+
+describe('runLint — scoped (`lint <rule…>`)', () => {
+  test('названe правило з js/lint.mjs → лінтер whole-repo (files=undefined)', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedProbeRule(dir)
+      // rules задано → scoped: проганяє лінтер ТІЛЬКИ probe; кастомний rulesDir → конформність skip.
+      const code = await runLint({ rules: ['probe'], cwd: dir, rulesDir, log: () => {} })
+      expect(code).toBe(0)
+      const { readFileSync } = await import('node:fs')
+      expect(JSON.parse(readFileSync(join(dir, 'probe.json'), 'utf8'))).toEqual({
+        filesUndefined: true,
+        readOnly: false
+      })
+    })
+  })
+
+  test('названe правило без js/lint.mjs → лінтер не викликається (конформність-only)', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedProbeRule(dir)
+      // 'adr' не має js/lint.mjs у tmp-rulesDir → linterIds порожній, probe.json не пишеться.
+      const code = await runLint({ rules: ['adr'], cwd: dir, rulesDir, log: () => {} })
+      expect(code).toBe(0)
+      const { existsSync } = await import('node:fs')
+      expect(existsSync(join(dir, 'probe.json'))).toBe(false)
+    })
+  })
+})

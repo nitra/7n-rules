@@ -36,4 +36,4 @@ jobs:
       - uses: ./.github/actions/setup-bun-deps
 
       - name: StyleLint
-        run: npx stylelint '**/*.{css,scss,vue}'
+        run: n-cursor lint style-lint --read-only
