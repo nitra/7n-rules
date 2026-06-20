@@ -79,15 +79,12 @@ description: test
         private: true,
         devDependencies: {
           '@nitra/cspell-dict': '^2.0.0'
-        },
-        scripts: {
-          'lint-text': 'n-cursor lint-text'
         }
       })
       await ensureDir(join(dir, '.github/workflows'))
       await writeFile(
         join(dir, '.github/workflows', 'lint-text.yml'),
-        'name: T\non: push\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: n-cursor lint-text --read-only\n',
+        'name: T\non: push\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: n-cursor lint text --read-only\n',
         'utf8'
       )
       expect(await check(dir)).toBe(0)

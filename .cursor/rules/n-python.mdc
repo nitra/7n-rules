@@ -47,7 +47,17 @@ poetry = "Poetry заборонено: мігруй на uv + PEP 621 [project] 
 
 ## lint-python
 
-Інструменти uv-екосистеми не мають єдиного CLI, що сам обходить репозиторій, тому python-лінт делегується у JS-скрипт-обгортку. Запуск — через **`n-cursor lint python`** (CI — `--read-only`); окремого `package.json`-скрипта немає.
+Інструменти uv-екосистеми не мають єдиного CLI, що сам обходить репозиторій, тому `lint-python` делегується у JS-скрипт-обгортку (як `lint-php`, `lint-docker`).
+
+- Канон `package.json#scripts.lint-python` (substring requirement): `package.json`:
+
+```json
+{
+  "scripts": {
+    "lint-python": ["bun"]
+  }
+}
+```
 
 Скрипт `rules/python/lint/lint.mjs`:
 

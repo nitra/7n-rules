@@ -94,25 +94,20 @@ function checkTextConfigsExistence(passFn, failFn, cwd) {
 }
 
 /**
- * Перевіряє package.json для текстового стека: складний `lint-text` скрипт і
- * виклик `n-cursor lint-text --read-only` у відповідному workflow (CI — нуль мутацій). Решта (Prettier-заборона,
- * `@nitra/cspell-dict ^2.0.0+`, заборона `markdownlint-cli2` у залежностях,
- * `@nitra/*` гейт) — у Rego (`text.package_json`, `bun.package_json`).
+ * Перевіряє CI-workflow текстового стека: крок `n-cursor lint text --read-only` у
+ * `.github/workflows/lint-text.yml` (CI — нуль мутацій). Окремого `lint-text` скрипта в
+ * `package.json` немає — лінт через `n-cursor lint text`. Решта package.json-перевірок
+ * (Prettier-заборона, `@nitra/cspell-dict`, `@nitra/*` гейт) — у Rego (`text.package_json`, `bun.package_json`).
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
  * @param {string} cwd корінь репозиторію
  */
-async function checkPackageJsonText(passFn, failFn, cwd) {
-  const pkgPath = join(cwd, 'package.json')
-  if (!existsSync(pkgPath)) return
-  const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
-  checkLintTextScript(pkg.scripts?.['lint-text'], passFn, failFn)
-
+async function checkLintTextWorkflow(passFn, failFn, cwd) {
   const lintTextWf = join(cwd, '.github/workflows/lint-text.yml')
   if (existsSync(lintTextWf)) {
     const wf = await readFile(lintTextWf, 'utf8')
     const root = parseWorkflowYaml(wf)
-    const canonRun = 'n-cursor lint-text --read-only'
+    const canonRun = 'n-cursor lint text --read-only'
     const ok = root ? anyRunStepIncludes(root, canonRun) : wf.includes(canonRun)
     if (ok) {
       passFn(`lint-text.yml викликає ${canonRun}`)
@@ -121,25 +116,6 @@ async function checkPackageJsonText(passFn, failFn, cwd) {
     }
   } else {
     failFn('.github/workflows/lint-text.yml не існує — створи згідно n-text.mdc')
-  }
-}
-
-/**
- * Перевіряє скрипт lint-text: канонічний — `n-cursor lint-text` (CLI пакета `@nitra/cursor` робить
- * `cspell` → `runShellcheckText()` → `bunx markdownlint-cli2 --fix` → `runV8rWithGlobs()`).
- * Дозволено whitespace навколо команди.
- * @param {unknown} lintText значення `scripts.lint-text` з package.json
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-function checkLintTextScript(lintText, passFn, failFn) {
-  const lt = typeof lintText === 'string' ? lintText.trim() : ''
-  if (lt === 'n-cursor lint-text') {
-    passFn('lint-text делегує CLI n-cursor lint-text (cspell + shellcheck + markdownlint + v8r)')
-  } else {
-    failFn(
-      'package.json: lint-text має бути "n-cursor lint-text" — CLI пакета @nitra/cursor виконує cspell → shellcheck → markdownlint-cli2 → v8r (text.mdc)'
-    )
   }
 }
 
@@ -166,7 +142,7 @@ export async function check(cwd = process.cwd()) {
     }
   }
 
-  await checkPackageJsonText(pass, fail, cwd)
+  await checkLintTextWorkflow(pass, fail, cwd)
 
   return reporter.getExitCode()
 }

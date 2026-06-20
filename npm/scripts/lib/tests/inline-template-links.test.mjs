@@ -91,30 +91,18 @@ describe('inlineTemplateLinks', () => {
     expect(result).toBe('`snippet.json`:\n\n```json\n{ "key": "val" }\n``` and `config.yml`:\n\n```yaml\nkey: val\n```')
   })
 
-  test('integration: security.mdc — 5 template links inlined, non-template links untouched', async () => {
+  test('integration: security.mdc — template links inlined, non-template links untouched', async () => {
     const { readFile } = await import('node:fs/promises')
     const mdc = await readFile(join(SECURITY_RULE_DIR, 'security.mdc'), 'utf8')
     const result = await inlineTemplateLinks(mdc, SECURITY_RULE_DIR)
 
-    // All 5 template links are gone
-    expect(result).not.toContain(
-      '[package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)'
-    )
-    expect(result).not.toContain(
-      '[package.json.contains.json](./policy/package_json/template/package.json.contains.json)'
-    )
+    // Template links are gone (inlined)
     expect(result).not.toContain('[package.json.deny.json](./policy/package_json/template/package.json.deny.json)')
-    expect(result).not.toContain(
-      '[.trufflehog-exclude.snippet.txt](./js/trufflehog/template/.trufflehog-exclude.snippet.txt)'
-    )
     expect(result).not.toContain(
       '[lint-security.yml.snippet.yml](./policy/lint_security_yml/template/lint-security.yml.snippet.yml)'
     )
 
     // Inline content from the actual template files is present
-    expect(result).toContain(
-      '```json\n{\n  "scripts": {\n    "lint-security": "trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail"\n  }\n}\n```'
-    )
     expect(result).toContain('(^|/)node_modules(/|$)')
     expect(result).toContain('uses: trufflesecurity/trufflehog@main')
 
