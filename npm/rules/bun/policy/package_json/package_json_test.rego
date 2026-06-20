@@ -98,40 +98,6 @@ test_deny_empty_dependencies_object if {
 	contains(msg, "dependencies")
 }
 
-# ── deny: агрегований lint (логіка лишається в rego) ─────────────────────
-
-test_deny_lint_prefixed_without_aggregate if {
-	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/scripts", "value": {"lint-js": "echo"}}])
-	count(package_json.deny) > 0 with input as pkg with data.template as template_data
-}
-
-test_allow_lint_aggregate_calls_subscript_and_oxfmt if {
-	pkg := json.patch(valid_pkg, [{
-		"op": "add",
-		"path": "/scripts",
-		"value": {"lint-js": "echo", "lint": "bun run lint-js && oxfmt ."},
-	}])
-	count(package_json.deny) == 0 with input as pkg with data.template as template_data
-}
-
-test_deny_lint_aggregate_missing_oxfmt if {
-	pkg := json.patch(valid_pkg, [{
-		"op": "add",
-		"path": "/scripts",
-		"value": {"lint-js": "echo", "lint": "bun run lint-js"},
-	}])
-	count(package_json.deny) > 0 with input as pkg with data.template as template_data
-}
-
-test_deny_lint_aggregate_missing_subscript_via_bun_run if {
-	pkg := json.patch(valid_pkg, [{
-		"op": "add",
-		"path": "/scripts",
-		"value": {"lint-js": "echo", "lint-text": "echo", "lint": "bun run lint-js && oxfmt ."},
-	}])
-	count(package_json.deny) > 0 with input as pkg with data.template as template_data
-}
-
 # Drift test: ensures top-level deny is template-driven.
 test_data_template_drives_top_level_deny if {
 	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/customField", "value": "x"}])

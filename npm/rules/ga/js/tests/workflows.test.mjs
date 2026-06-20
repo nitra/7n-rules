@@ -40,8 +40,7 @@ async function setupCanonicalGaProject(dir) {
 
   await writeJson(join(dir, 'package.json'), {
     name: 't',
-    private: true,
-    scripts: { 'lint-ga': 'n-cursor lint-ga' }
+    private: true
   })
 
   await writeFile(
@@ -148,7 +147,7 @@ jobs:
           https://github.com/open-policy-agent/conftest/releases/download/v0.62.0/conftest_0.62.0_Linux_x86_64.tar.gz
           | sudo tar -xz -C /usr/local/bin conftest
       - name: Lint GA
-        run: bun run lint-ga
+        run: n-cursor lint ga --read-only
 `,
     'utf8'
   )

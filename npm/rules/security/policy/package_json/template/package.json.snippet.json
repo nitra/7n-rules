@@ -1,5 +1,0 @@
-{
-  "scripts": {
-    "lint-security": "trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail"
-  }
-}

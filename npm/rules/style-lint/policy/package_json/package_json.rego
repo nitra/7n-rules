@@ -10,16 +10,6 @@ package style_lint.package_json
 
 import rego.v1
 
-# ── deny: substring requirements у scripts (contains) ────────────────────
-
-deny contains msg if {
-	some script_name, needles in data.template.contains.scripts
-	actual := object.get(object.get(input, "scripts", {}), script_name, "")
-	some needle in needles
-	not contains(actual, needle)
-	msg := sprintf("package.json: scripts.%s має містити %q (style-lint.mdc)", [script_name, needle])
-}
-
 # ── deny: 2-level snippet walker (для stylelint.extends, якщо поле є) ────
 
 deny contains msg if {

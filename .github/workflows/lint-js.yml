@@ -14,7 +14,6 @@ on:
       - '**/*.tsx'
       - '**/*.vue'
       - '**/eslint.config.*'
-
   pull_request:
     branches:
       - dev

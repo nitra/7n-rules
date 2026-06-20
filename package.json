@@ -10,13 +10,7 @@
   "scripts": {
     "start": "bun ./npm/bin/n-cursor.js",
     "test": "vitest run",
-    "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip --no-config-hints",
-    "lint-ga": "n-cursor lint-ga",
-    "lint-text": "n-cursor lint-text",
-    "oxfmt": "oxfmt .",
-    "coverage": "n-cursor coverage",
-    "lint-security": "trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail",
-    "lint": "bun run lint-security"
+    "coverage": "n-cursor coverage"
   },
   "devDependencies": {
     "@nitra/cspell-dict": "^2.2.0",

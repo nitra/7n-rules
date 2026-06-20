@@ -8,7 +8,6 @@
 #  - `devDependencies` лише `@nitra/*` + root-only тестові peer/tools для `n-cursor coverage`
 #    (правило `test` enabled завжди — див. `test/auto.md`; published workspace-и не мають
 #     `devDependencies` за `npm-module.mdc`)
-#  - Агрегований `lint` скрипт (cross-script aggregation logic)
 #
 # Перевірки, які ЗАЛИШИЛИСЬ у JS (потребують FS / cross-file):
 #  - `lint-docker` / `lint-k8s` коли `.n-cursor.json:rules` містить відповідне
@@ -16,13 +15,6 @@
 package bun.package_json
 
 import rego.v1
-
-# ── Шаблони повідомлень ────────────────────────────────────────────────────
-
-lint_aggregate_missing_template := concat(" ", [
-	"У package.json є скрипти %v, але немає агрегованого `lint`.",
-	"Додай скрипт, який запускає їх через `bun run` (bun.mdc)",
-])
 
 # ── deny: заборонені top-level поля (template-driven) ─────────────────────
 
@@ -41,29 +33,6 @@ deny contains msg if {
 	some name, _ in input.devDependencies
 	not allowed_root_dev_dependency(name)
 	msg := sprintf("Кореневі devDependencies: дозволені лише @nitra/* або root-only test peers — прибери або перенеси: %s (bun.mdc)", [name])
-}
-
-# ── deny: агрегований lint-скрипт (cross-script aggregation logic) ───────
-
-deny contains msg if {
-	count(lint_prefixed_scripts) > 0
-	lint_script == ""
-	msg := sprintf(lint_aggregate_missing_template, [lint_prefixed_scripts])
-}
-
-deny contains msg if {
-	count(lint_prefixed_scripts) > 0
-	lint_script != ""
-	some script in lint_prefixed_scripts
-	not contains(lint_script, sprintf("bun run %s", [script]))
-	msg := sprintf("Скрипт `lint` має викликати `%s` через `bun run` (bun.mdc)", [script])
-}
-
-deny contains msg if {
-	count(lint_prefixed_scripts) > 0
-	lint_script != ""
-	not regex.match(`&&[ \t]+oxfmt[ \t]+\.[ \t]*$`, lint_script)
-	msg := "Скрипт `lint` має закінчуватися на `&& oxfmt .` (bun.mdc)"
 }
 
 # ── helpers ────────────────────────────────────────────────────────────────
