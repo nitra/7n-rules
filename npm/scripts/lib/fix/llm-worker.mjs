@@ -117,11 +117,12 @@ function buildPrompt(ruleId, ruleMdc, output, files, feedback = null) {
  * @param {string} prompt текст промпта
  * @param {string} model назва моделі (provider/id, `omlx/...` або '')
  * @param {string} caller мітка викликача для wire-trace (`fix:<rule>:<rung>`)
+ * @param {number} [timeoutMs] ліміт виклику (драбина задає per-tier; undefined → дефолт callLlm)
  * @returns {{ text: string, error?: string }} текст відповіді або повідомлення про помилку
  */
-function callModel(prompt, model, caller) {
+function callModel(prompt, model, caller, timeoutMs) {
   try {
-    return { text: callLlm([{ role: 'user', content: prompt }], model, { timeoutMs: 120_000, caller }) }
+    return { text: callLlm([{ role: 'user', content: prompt }], model, { timeoutMs, caller }) }
   } catch (error) {
     const msg = String(error.message)
     if (API_KEY_RE.test(msg)) {
@@ -146,9 +147,10 @@ function callModel(prompt, model, caller) {
  * @param {string} ruleId ID правила
  * @param {string} violationOutput  output з fix check для цього rule
  * @param {string} projectRoot      абсолютний шлях до кореня проєкту
- * @param {{ model?: string, feedback?: object|null, caller?: string }} opts опції:
+ * @param {{ model?: string, feedback?: object|null, caller?: string, timeoutMs?: number }} opts опції:
  *   `model` — перевизначення моделі; `feedback` — контекст попереднього рунга
- *   драбини (retry-with-feedback); `caller` — мітка для wire-trace
+ *   драбини (retry-with-feedback); `caller` — мітка для wire-trace; `timeoutMs` —
+ *   per-tier ліміт виклику (драбина: локалі fail-fast, хмара повний)
  * @returns {{ ok: boolean, error?: string, changes: Array<{path:string}>, diagnosis: string|null }}
  *   статус виправлення, помилка, запропоновані зміни і само-аналіз моделі
  */
@@ -156,6 +158,7 @@ export function runLlmWorker(ruleId, violationOutput, projectRoot, opts = {}) {
   const model = opts.model ?? MODEL
   const feedback = opts.feedback ?? null
   const caller = opts.caller ?? 'fix'
+  const timeoutMs = opts.timeoutMs
 
   // 1. Читаємо rule .mdc
   const mdcPath = join(projectRoot, '.cursor', 'rules', `n-${ruleId}.mdc`)
@@ -166,7 +169,7 @@ export function runLlmWorker(ruleId, violationOutput, projectRoot, opts = {}) {
 
   // 3. Будуємо prompt і викликаємо модель
   const prompt = buildPrompt(ruleId, ruleMdc, violationOutput, files, feedback)
-  const { text, error: modelError } = callModel(prompt, model, caller)
+  const { text, error: modelError } = callModel(prompt, model, caller, timeoutMs)
 
   if (modelError) return { ok: false, error: modelError, changes: [], diagnosis: null }
   if (!text) return { ok: false, error: 'model returned empty response', changes: [], diagnosis: null }

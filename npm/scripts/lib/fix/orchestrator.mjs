@@ -1,5 +1,6 @@
 /** @see ./docs/orchestrator.md */
 
+import { env } from 'node:process'
 import { runFixCheck } from './run-fix-check.mjs'
 import { runT0AutoCli } from './t0.mjs'
 import { logEscalation } from './escalation-log.mjs'
@@ -13,8 +14,23 @@ import { CLOUD_AVG, CLOUD_MIN, LOCAL_MIN } from '../../../lib/models.mjs'
  */
 const DEFAULT_MAX_AVG = 3
 
+/**
+ * Timeout одного LLM-виклику за тиром. Локальні рунги **fail-fast**: не палити
+ * стіну 120s на повільному 4b (curl exit 28) — швидше абортнути й ескалувати.
+ * Хмарні — повний. Перевизначення: `N_LOCAL_FIX_TIMEOUT_MS` / `N_CLOUD_FIX_TIMEOUT_MS`.
+ */
+const LOCAL_TIMEOUT_MS = Number(env.N_LOCAL_FIX_TIMEOUT_MS) || 45_000
+const CLOUD_TIMEOUT_MS = Number(env.N_CLOUD_FIX_TIMEOUT_MS) || 120_000
+
 /** Маркер дружнього повідомлення про відсутній API-ключ (з `llm-worker.callModel`). */
 const NO_KEY_RE = /немає ключа|api key/i
+
+/**
+ * Хмарний транспорт (pi) упав на рівні процесу: таймаут/spawn-помилка. Стіна часу
+ * однакова для всіх cloud-рунгів (та сама pi-транспортна стіна), а cloud-avg — інша
+ * модель, не більший timeout. Ескалація на неї лише спалить avg-бюджет → обрив.
+ */
+const CLOUD_TRANSPORT_RE = /etimedout|timed out|pi error/i
 
 /**
  * Будує драбину ескалації за наявними тирами (спека 2026-06-19-fix-escalation-cascade):
@@ -24,14 +40,14 @@ const NO_KEY_RE = /немає ключа|api key/i
  *  4. `cloud-avg`       — `N_CLOUD_AVG_MODEL` (через pi), з feedback, під avg-кепом.
  * Рунги з незаданим тиром (`''`) відсіюються — драбина стискається до доступних.
  * @param {{ localMin: string, cloudMin: string, cloudAvg: string }} models тири з env
- * @returns {Array<{ tier: string, model: string, feedback: boolean, local: boolean, isAvg: boolean }>} драбина
+ * @returns {Array<{ tier: string, model: string, feedback: boolean, local: boolean, isAvg: boolean, timeoutMs: number }>} драбина
  */
 export function buildLadder({ localMin, cloudMin, cloudAvg }) {
   return [
-    { tier: 'local-min', model: localMin, feedback: false, local: true, isAvg: false },
-    { tier: 'local-min-retry', model: localMin, feedback: true, local: true, isAvg: false },
-    { tier: 'cloud-min', model: cloudMin, feedback: true, local: false, isAvg: false },
-    { tier: 'cloud-avg', model: cloudAvg, feedback: true, local: false, isAvg: true }
+    { tier: 'local-min', model: localMin, feedback: false, local: true, isAvg: false, timeoutMs: LOCAL_TIMEOUT_MS },
+    { tier: 'local-min-retry', model: localMin, feedback: true, local: true, isAvg: false, timeoutMs: LOCAL_TIMEOUT_MS },
+    { tier: 'cloud-min', model: cloudMin, feedback: true, local: false, isAvg: false, timeoutMs: CLOUD_TIMEOUT_MS },
+    { tier: 'cloud-avg', model: cloudAvg, feedback: true, local: false, isAvg: true, timeoutMs: CLOUD_TIMEOUT_MS }
   ].filter(r => r.model)
 }
 
@@ -40,6 +56,8 @@ export function buildLadder({ localMin, cloudMin, cloudAvg }) {
  *  - `break`     — відсутній API-ключ на хмарному (інші хмарні рунги теж без ключа);
  *  - `skip-model` — systemic-помилка локального тиру (memory-guard/auth/down): повтор
  *                   тієї ж моделі марний → пропустити рунги з цим model.
+ *  - `break`     — також хмарний транспорт упав (pi таймаут/spawn): решта cloud-рунгів
+ *                  під тією ж стіною → обрив, щоб не палити avg-бюджет.
  * @param {{ local: boolean }} rung поточний рунг
  * @param {string|null|undefined} error помилка виклику worker
  * @returns {'break'|'skip-model'|null} дія для драбини
@@ -48,6 +66,7 @@ function decideAfterFailure(rung, error) {
   if (!error) return null
   if (NO_KEY_RE.test(error)) return 'break'
   if (rung.local && classifyOmlxError(error) === 'systemic') return 'skip-model'
+  if (!rung.local && CLOUD_TRANSPORT_RE.test(error)) return 'break'
   return null
 }
 
@@ -93,7 +112,8 @@ export async function escalateRule(rule, cwd, deps) {
     const res = worker.runLlmWorker(rule.ruleId, currentViolation, cwd, {
       model: rung.model,
       feedback: rung.feedback ? feedback : null,
-      caller: `fix:${rule.ruleId}:${rung.tier}`
+      caller: `fix:${rule.ruleId}:${rung.tier}`,
+      timeoutMs: rung.timeoutMs
     })
     if (rung.isAvg) avgUsed++
 

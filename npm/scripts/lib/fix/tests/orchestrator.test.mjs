@@ -33,7 +33,7 @@ function makeWorker(results) {
   return {
     calls,
     runLlmWorker(ruleId, violation, _cwd, opts) {
-      calls.push({ ruleId, model: opts.model, feedback: opts.feedback, caller: opts.caller })
+      calls.push({ ruleId, model: opts.model, feedback: opts.feedback, caller: opts.caller, timeoutMs: opts.timeoutMs })
       return results[i++] ?? { ok: false, error: 'no result', changes: [], diagnosis: null }
     }
   }
@@ -79,6 +79,16 @@ describe('buildLadder', () => {
   test('лише хмара → cloud-min, cloud-avg', () => {
     const l = buildLadder({ localMin: '', cloudMin: 'o/min', cloudAvg: 'o/avg' })
     expect(l.map(r => r.tier)).toEqual(['cloud-min', 'cloud-avg'])
+  })
+
+  test('локальні рунги fail-fast (коротший timeout), хмарні — повний', () => {
+    const l = buildLadder(FULL)
+    const local = l.filter(r => r.local).map(r => r.timeoutMs)
+    const cloud = l.filter(r => !r.local).map(r => r.timeoutMs)
+    expect(local.every(t => t > 0)).toBe(true)
+    expect(cloud.every(t => t > 0)).toBe(true)
+    // кожен локальний рунг має строго менший timeout, ніж будь-який хмарний
+    expect(Math.max(...local)).toBeLessThan(Math.min(...cloud))
   })
 
   test('жодного тиру → порожня драбина', () => {
@@ -172,6 +182,37 @@ describe('escalateRule', () => {
     expect(r.resolved).toBe(true)
     // 2-й виклик — одразу cloud-min (local-min-retry пропущено через systemic)
     expect(worker.calls.map(c => c.model)).toEqual(['omlx/local', 'openai/min'])
+  })
+
+  test('кожен рунг отримує per-tier timeoutMs у worker', async () => {
+    const worker = makeWorker([fail('x'), fail('x'), ok()])
+    await escalateRule(rule, '/p', {
+      ladder: buildLadder(FULL),
+      worker,
+      check: makeCheck('rego', [false, false, true]),
+      avgBudget: 3,
+      clock,
+      log: noop
+    })
+    const timeouts = worker.calls.map(c => c.timeoutMs)
+    expect(timeouts.every(t => typeof t === 'number' && t > 0)).toBe(true)
+    // локальні (перші два) — швидший fail-fast, ніж хмарний (третій)
+    expect(timeouts[0]).toBeLessThan(timeouts[2])
+  })
+
+  test('хмарний транспортний таймаут (pi ETIMEDOUT) обриває драбину — avg не палиться', async () => {
+    const worker = makeWorker([fail('x'), fail('x'), fail('pi error: spawnSync pi ETIMEDOUT')])
+    const r = await escalateRule(rule, '/p', {
+      ladder: buildLadder(FULL),
+      worker,
+      check: makeCheck('rego', [false, false, false]),
+      avgBudget: 3,
+      clock,
+      log: noop
+    })
+    expect(r).toEqual({ resolved: false, avgUsed: 0 })
+    // cloud-avg не пробувався після pi-таймауту на cloud-min
+    expect(worker.calls.map(c => c.model)).toEqual(['omlx/local', 'omlx/local', 'openai/min'])
   })
 
   test('відсутній API-ключ на хмарному → драбина обривається', async () => {

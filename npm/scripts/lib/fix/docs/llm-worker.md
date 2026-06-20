@@ -3,7 +3,7 @@ type: JS Module
 title: llm-worker.mjs
 resource: npm/scripts/lib/fix/llm-worker.mjs
 docgen:
-  crc: de9eb68c
+  crc: 857c510e
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
@@ -18,7 +18,7 @@ docgen:
 
 ## Публічний API
 
-- `runLlmWorker(ruleId, violationOutput, projectRoot, opts)` — виправляє одне порушення; `opts`: `model`, `feedback`, `caller`. Повертає `{ ok, error, changes, diagnosis }`.
+- `runLlmWorker(ruleId, violationOutput, projectRoot, opts)` — виправляє одне порушення; `opts`: `model`, `feedback`, `caller`, `timeoutMs` (per-tier ліміт виклику; драбина задає коротший для локальних рунгів). Повертає `{ ok, error, changes, diagnosis }`.
 
 ## Гарантії поведінки
 
