@@ -3,7 +3,7 @@ type: JS Module
 title: docgen-judge-measure.mjs
 resource: npm/rules/doc-files/js/docgen-judge-measure.mjs
 docgen:
-  crc: 7f72e520
+  crc: e6e19732
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

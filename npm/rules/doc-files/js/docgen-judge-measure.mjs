@@ -1,21 +1,4 @@
-#!/usr/bin/env node
-/**
- * docgen-judge-measure.mjs — Q4 офлайн-вимірювач (spec 2026-06-14-docgen-judge-design).
- *
- * Міряє false-positive rate детермінованого `scoreDoc`: серед доків, що ПРОЙШЛИ
- * (score ≥ threshold), який % сильна хмарна модель-суддя класифікує як
- * `generic`/`inaccurate`. Це число вирішує, чи будувати рантайм-judge-гейт.
- *
- * Генерація: локальна (N_LOCAL_MIN_MODEL, omlx/* → прямий HTTP) — реальний пайплайн.
- * Суддя: openai-codex/gpt-5.4-mini (сильніша хмара, ніж генератор — інакше вимір беззмістовний).
- * Обидва — через існуючий `../../../lib/llm.mjs callLlm` (маршрутизація за префіксом).
- *
- * Кеш на диску (за хешем контенту) → повторні прогони не регенерують і не пересуджують.
- *
- * Usage:
- *   node docgen-judge-measure.mjs <file1> <file2> ...
- *   MEASURE_CACHE=/tmp/x N_CLOUD_MIN_MODEL=openai-codex/gpt-5.4 node docgen-judge-measure.mjs ...
- */
+/** @see ./docs/docgen-judge-measure.md */
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
@@ -39,10 +22,16 @@ Prefer "inaccurate" over "generic" if any claim is wrong. Respond with ONLY a JS
 
 const sha = s => createHash('sha256').update(s).digest('hex').slice(0, 16)
 
+/**
+ *
+ */
 function cacheGet(key) {
   const p = join(CACHE_DIR, key + '.json')
   return existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : null
 }
+/**
+ *
+ */
 function cacheSet(key, val) {
   if (!existsSync(CACHE_DIR)) mkdirSync(CACHE_DIR, { recursive: true })
   writeFileSync(join(CACHE_DIR, key + '.json'), JSON.stringify(val))
@@ -83,6 +72,9 @@ function judgeCached(src, doc) {
   return { ...v, cached: false }
 }
 
+/**
+ *
+ */
 function main() {
   const files = process.argv.slice(2).filter(f => !f.startsWith('--'))
   if (!files.length) {

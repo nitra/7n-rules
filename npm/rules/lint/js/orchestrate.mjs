@@ -1,18 +1,4 @@
-/**
- * Оркестратор `n-cursor lint` — дві ортогональні осі (spec 2026-06-14-lint-rule-consolidation
- * + компаньйон 2026-06-14-lint-orchestrator-fix-readonly-unification):
- *  - **scope** (`--full`): default = дельта vs origin (лише `per-file` правила);
- *    `--full` = весь репо (`per-file` ∪ `full` правила);
- *  - **behavior** (`--read-only`): default = fix; `--read-only` = лише детект без мутацій.
- *
- * Data-driven: сканує `rules/<id>/meta.json` за полем `lint` (`per-file`|`full`),
- * викликає `rules/<id>/js/lint.mjs` → `lint(files, cwd, { readOnly })`:
- *  - default scope: `files` = змінені відносно origin (`collectChangedFilesSince`);
- *  - `--full`:      `files = undefined` — весь проєкт.
- * Порядок правил — алфавітний. Fail-fast **лише в `--read-only`** (CI/детект): перший
- * ненульовий код спиняє. У fix-режимі (default) ненульовий код НЕ спиняє — проганяємо всі
- * правила й доходимо до кроку виправлення (конформність-драбина), повертаючи найгірший код.
- */
+/** @see ./docs/orchestrate.md */
 import { existsSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'

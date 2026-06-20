@@ -3,7 +3,7 @@ type: JS Module
 title: docgen-crc.mjs
 resource: npm/rules/doc-files/js/docgen-crc.mjs
 docgen:
-  crc: 6baf999b
+  crc: cca0a79f
 ---
 
 Детермінований маркер актуальності файлових док: контрольна сума джерела у frontmatter плюс опційний degraded-маркер якості. Єдине джерело правди про «дока свіжа/застаріла/неякісна» для генерації, перевірок і хуків.

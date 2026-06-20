@@ -3,7 +3,7 @@ type: JS Module
 title: docgen-extract-anchors.mjs
 resource: npm/rules/doc-files/js/docgen-extract-anchors.mjs
 docgen:
-  crc: 49749e9c
+  crc: b675f159
   score: 80
 ---
 

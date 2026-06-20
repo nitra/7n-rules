@@ -3,7 +3,7 @@ type: JS Module
 title: docgen-files-batch.mjs
 resource: npm/rules/doc-files/js/docgen-files-batch.mjs
 docgen:
-  crc: 975d6cfa
+  crc: 18c96a58
   score: 95
 ---
 

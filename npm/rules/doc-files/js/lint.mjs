@@ -1,19 +1,4 @@
-/**
- * Адаптер агрегатора `n-cursor lint` для правила doc-files (opportunistic LLM-fix
- * tier, спека docs/specs/2026-06-15-opportunistic-llm-fix-tier.md).
- *
- * Quick-фаза отримує список змінених файлів і мапить їх у пари в **обидва** боки:
- *  - змінене **джерело** (`.js/.mjs/.ts/.vue/.py/.rs`) → перевірка його доки `<dir>/docs/<stem>.md`;
- *  - змінена/видалена **дока** (`<dir>/docs/<stem>.md`) → перевірка відповідного джерела
- *    (той самий stem у каталозі над текою `docs`).
- * Ci-фаза (files === undefined) проганяє повний скан дерева.
- *
- * Детект — `missing` ∪ `crc-mismatch` (детермінований CRC, 0 LLM-токенів); degraded не блокує.
- * Поведінка за осями (правило має `meta.json: llmFix:true`):
- *  - `readOnly` (CI/hook): **лише детект** — нуль мутацій/LLM, exit 1 на stale (детермінований гейт);
- *  - fix-by-default + omlx **піднято**: opportunistic-генерація stale-доків → re-detect → 0 якщо полагоджено;
- *  - fix-by-default + omlx **недоступно**: fix пропущено (повідомлення) + exit 1 — гейт тримається, без false-green.
- */
+/** @see ./docs/lint.md */
 import { join, dirname, basename, extname } from 'node:path'
 import { existsSync, readdirSync } from 'node:fs'
 

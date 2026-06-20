@@ -1,34 +1,4 @@
-/**
- * CRC32 джерела + YAML-frontmatter файлової документації.
- *
- * Кожна файлова дока несе у frontmatter контрольну суму байтів джерела на момент
- * генерації. Це детермінований маркер застарілості: `crc32(поточне джерело)` звіряється
- * з `crc` у доці — розбіжність (або відсутня дока) означає, що дока відстала від коду.
- * CRC не залежить від git-стану (rebase, незакомічене, гілки), тож придатний і для
- * per-edit hook (бачить лише змінений файл), і для повного сканування.
- *
- * Degraded-маркер (ADR 260610-2228): якщо локальний конвеєр не дотягнув до порогу
- * якості, дока все одно пишеться, а frontmatter додатково несе `score` (det-оцінка)
- * та `issues` (коди проблем). CRC при цьому свіжий — Stop-гейт не блокує задачі через
- * слабкість моделі; борг видимий через `check --degraded` і автоматично доретраюється
- * наступним `gen` (рівно один раз на версію джерела — далі `retried: true` у frontmatter).
- *
- * Frontmatter — єдиний дозволений виняток із правила «чистий Markdown без HTML»:
- * це машинні метадані, не контент. Формат:
- *
- *   ---
- *   docgen:
- *     source: src/lib/foo.js
- *     crc: a3f1c9e0
- *     model: omlx/gemma-4-e4b-it-OptiQ-4bit
- *     score: 55
- *     issues: short-behavior,internal-name:bar
- *   ---
- *
- * `model` — повний id моделі-генератора (як повертає resolveModel, із префіксом
- * провайдера). Пасивна метадата: маркер «віку» доки за моделлю на додачу до CRC
- * джерела. На staleness НЕ впливає — звіряється лише `crc`.
- */
+/** @see ./docs/docgen-crc.md */
 import { existsSync, readFileSync } from 'node:fs'
 import { basename, extname } from 'node:path'
 import { crc32 as zlibCrc32 } from 'node:zlib'
@@ -173,6 +143,9 @@ export function buildDocFrontmatter(source, crc, quality = null, model = null) {
  */
 const LEADING_H1_RE = /^#[^\n]*\n+/u
 
+/**
+ *
+ */
 export function stampDoc(md, source, crc, quality = null, model = null) {
   const { body } = parseDocFrontmatter(md)
   const cleanBody = body.replace(LEADING_NEWLINES_RE, '').replace(LEADING_H1_RE, '')

@@ -3,7 +3,7 @@ type: JS Module
 title: lint.mjs
 resource: npm/rules/doc-files/js/lint.mjs
 docgen:
-  crc: fcdc1c2a
+  crc: ca055f8f
   score: 100
 ---
 

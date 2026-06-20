@@ -3,7 +3,7 @@ type: JS Module
 title: docgen-ignore.mjs
 resource: npm/skills/doc-aggregate/js/docgen-ignore.mjs
 docgen:
-  crc: 5faaffd0
+  crc: 3b579230
 ---
 
 Re-export спільного списку ignore-глобів зі скіла doc-files: обидва скіли документації (пофайлові доки й агрегати) мусять бачити однакове дерево кодових файлів, інакше агрегат посилатиметься на файли без док або навпаки.

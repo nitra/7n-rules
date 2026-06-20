@@ -1,15 +1,4 @@
-/**
- * JS-оркестрація генерації файлових док (local-only, ADR 260610-2228).
- *
- * Уся черга/батчинг/CRC-штамп живуть тут, а не в контексті моделі — тому
- * масовий перший прогін на сотні файлів не «заморює» агента. Конвеєр суто
- * локальний: жодних cloud-ескалацій; якщо det-score нижче порогу — дока все
- * одно пишеться з degraded-маркером (`score`/`issues` у frontmatter), а наступний
- * `gen` автоматично доретраює такі доки (один раз на версію джерела — далі `retried:true`).
- *
- * Перед масовим прогоном — health-check omlx: memory-guard зайнятої 8GB машини
- * означає «відклади прогін», а не сотні хибних «✗» у звіті.
- */
+/** @see ./docs/docgen-files-batch.md */
 import { readFileSync, readdirSync, mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs'
 import { basename, dirname, join, relative } from 'node:path'
 

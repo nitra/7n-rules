@@ -3,7 +3,7 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/rules/lint/js/orchestrate.mjs
 docgen:
-  crc: 0f1d717c
+  crc: 0ab5b22c
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
