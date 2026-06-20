@@ -1,5 +1,5 @@
 ---
-description: Локальний та CI-секюріті-лінт через TruffleHog — скрипт `lint-security`, `.trufflehog-exclude`, інтеграція в агрегований `lint`; канонічний placeholder `sample-secret` у прикладних файлах
+description: Локальний та CI-секюріті-лінт через TruffleHog — `.trufflehog-exclude`, канонічний placeholder `sample-secret` у прикладних файлах
 globs: "**/.trufflehog-exclude,**/package.json,**/.github/workflows/**/*.yml"
 alwaysApply: false
 version: '2.1'
@@ -7,10 +7,10 @@ version: '2.1'
 
 [TruffleHog](https://github.com/trufflesecurity/trufflehog) — глобальний CLI (як `shellcheck`, `conftest`); **не** додавай до `dependencies`/`devDependencies`.
 
-## Канон `package.json#scripts`
+## Канон `package.json`
 
-- `lint-security` скрипт: [package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)
-- `lint` агрегатор повинен містити: [package.json.contains.json](./policy/package_json/template/package.json.contains.json)
+Скан запускається через `n-cursor lint security` (CI — `n-cursor lint security --read-only`); окремого `lint-*` скрипта в `package.json` немає.
+
 - Заборонено `trufflehog` у `dependencies`/`devDependencies`: [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
 
 **Зауваження:**
@@ -19,8 +19,7 @@ version: '2.1'
 - `--no-update` — вимикає self-update check (CI-friendly).
 - `--exclude-paths .trufflehog-exclude` — файл з regex-patterns, які треба пропускати (аналог `[allowlist].paths` із gitleaks).
 - `--results=verified,unknown` — показує лише верифіковані секрети + ті, що TruffleHog не зміг перевірити (`unverified` дублікат відсіюється).
-- `--fail` — exit-code `183` за наявності знахідок (потрібно, щоб `bun run lint` падав).
-- Позиція в `lint`: за конвенцією після інших `lint-*` і перед `oxfmt`.
+- `--fail` — exit-code `183` за наявності знахідок (щоб лінт падав).
 
 ## `.trufflehog-exclude` (рекомендована основа)
 

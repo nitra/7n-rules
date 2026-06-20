@@ -188,9 +188,7 @@ CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE
 
 Обхід: **`walkDir`** з тими самими пропусками каталогів, що й **`rules/docker/fix.mjs`**. Виклик **`hadolint`** як **нативного бінарника** через **`ensureTool`** (PATH → кеш → авто-install brew/scoop/GitHub Release; **без** `docker run`) — спільна логіка **`npm/rules/docker/lib/docker-hadolint.mjs`**.
 
-- Канон `package.json#scripts.lint-docker`: [package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)
-
-Якщо правило **`docker`** підключено в **`.n-cursor.json`** (масив **`rules`**), у **кореневому** `package.json` **обов'язково** мають бути скрипт **`lint-docker`** і виклик **`bun run lint-docker`** у агрегованому **`lint`** (див. **`bun.mdc`**). Це перевіряє **`npx @nitra/cursor fix bun`**.
+Запуск — через **`n-cursor lint docker`** (CI — `--read-only`); окремого `package.json`-скрипта немає.
 
 Додай workflow **`.github/workflows/lint-docker.yml`** (гілки **`dev`** і **`main`**, лише **`.yml`**, узгоджено з **`ga.mdc`**):
 
@@ -198,11 +196,9 @@ CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE
 
 Локально hadolint авто-встановлюється через **`ensureTool`** (latest, без піну версії). У CI встанови його кроком із workflow-сніпета (curl-download бінарника — без `docker run`).
 
-Кореневий скрипт **`lint`** (див. **`n-bun.mdc`**) **обов'язково** містить **`bun run lint-docker`**, коли в проєкті підключено правило **`docker`**.
-
 ## Запуск
 
-1. **`bun run lint-docker`** — **`run-docker.mjs`**: **`Dockerfile`** та **`*.Dockerfile`** (див. **`lint-docker`**); у CI встанови hadolint (приклад у workflow).
+1. **`n-cursor lint docker`** — **`run-docker.mjs`**: **`Dockerfile`** та **`*.Dockerfile`** (див. **`lint-docker`**); у CI встанови hadolint (приклад у workflow).
 2. **`npx @nitra/cursor fix docker`** — **`rules/docker/fix.mjs`**, виклик hadolint як у **`docker-hadolint.mjs`** (нативний бінарник через **`ensureTool`**; **без** `docker run`).
 3. Кореневий **`.hadolint.yaml`**: вимкнення правил, trusted registries — [документація](https://github.com/hadolint/hadolint#configure). Щоб не додавати **`# hadolint ignore=DL3007`** у кожному **`FROM`** з **`:latest`**, у корені репозиторію задати глобально:
 

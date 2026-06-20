@@ -271,15 +271,9 @@ jobs:
       - uses: ./.github/actions/setup-bun-deps
 ```
 
-**Лінт:** [actionlint](https://github.com/rhysd/actionlint) через [github-actionlint](https://www.npmjs.com/package/github-actionlint); [zizmor](https://docs.zizmor.sh) — `uvx`, офлайн. Канонічний скрипт у корені делегує виконання CLI `n-cursor lint-ga` (бінарка з `node_modules/.bin/` пакету `@nitra/cursor`), який робить preflight на `shellcheck` і послідовно запускає `actionlint` та `zizmor`:
+**Лінт:** [actionlint](https://github.com/rhysd/actionlint) через [github-actionlint](https://www.npmjs.com/package/github-actionlint); [zizmor](https://docs.zizmor.sh) — `uvx`, офлайн. Запуск — через **`n-cursor lint ga`** (CI — `--read-only`; бінарка з `node_modules/.bin/` пакету `@nitra/cursor`), який робить preflight на `shellcheck` і послідовно запускає `actionlint` та `zizmor`. Окремого `package.json`-скрипта немає.
 
-- `package.json` — `scripts.lint-ga` має містити `n-cursor lint-ga`: `package.json`:
-
-```json
-{ "scripts": { "lint-ga": ["n-cursor lint-ga"] } }
-```
-
-> Не використовуй `npx --no @nitra/cursor lint-ga` — `bun run` автоматично транслює `npx` у `bun x`, а `bun x` для скоупованого пакету з одним bin-ім’ям повертає 0 без виконання. Виклик через bin-ім’я `n-cursor` працює і у `bun run`, і у `npm run`.
+> Виклик через bin-ім’я `n-cursor` (а **не** `npx @nitra/cursor`): `bun x`/`npx` для скоупованого пакету з одним bin-ім’ям повертає 0 без виконання, тому в CI-кроці `run:` використовуй саме `n-cursor lint <rule>`.
 
 CLI робить preflight на `shellcheck` і `uv` (`uvx`) у `PATH`, потім запускає `bunx github-actionlint` і `uvx zizmor --offline --collect=workflows .`.
 

@@ -1,13 +1,13 @@
 ---
-description: Конвенція git-worktree у цьому репо — створення, інвентаризація та прибирання через n-cursor worktree CLI.
+description: Конвенція git-worktree у цьому репо — створення, інвентаризація та прибирання через `npx @7n/mt worktree`.
 globs:
 alwaysApply: true
 ---
 
 # Worktree-конвенція
 
-Усі git-worktree створюй і прибирай через CLI `n-cursor worktree` — він кладе їх у
-`.worktrees/` (gitignored) і веде інвентарний файл-опис поруч.
+Усі git-worktree створюй і прибирай через `npx @7n/mt worktree` — він кладе їх у
+`.worktrees/` (gitignored, checkout `<sanit>/`) і веде інвентарний файл-опис у `.worktrees/.meta/`.
 
 ## Розташування
 
@@ -100,10 +100,10 @@ Zed **замінює** масив `file_scan_exclusions` цілком (не зл
 
 ## Команди
 
-- **Створити** (опис обовʼязковий): `npx @nitra/cursor worktree add <branch> "<навіщо>"`
-- **Інвентаризація**: `npx @nitra/cursor worktree list`
-- **Прибрати**: `npx @nitra/cursor worktree remove <branch> [--force]`
-- **Прибрати осиротілі**: `npx @nitra/cursor worktree prune`
+- **Створити** (опис обовʼязковий): `npx @7n/mt worktree create <branch> "<навіщо>"`
+- **Інвентаризація**: `npx @7n/mt worktree list` (людино-) або `npx @7n/mt worktree inventory` (JSON)
+- **Прибрати** (ефемерний — прибирає й git-гілку): `npx @7n/mt worktree remove <branch>`
+- **Прибрати осиротілі інвентарі**: `npx @7n/mt worktree prune`
 
 ## Завершення гілки worktree
 
@@ -123,4 +123,4 @@ git checkout <base> && git merge --squash <branch> && git commit
 
 - Не клади worktree в `.claude/worktrees/` — це приватна директорія харнесу Claude Code.
 - Не клади worktree в батьківський каталог `../cursor-<name>` — ускладнює інвентаризацію.
-- Не створюй worktree вручну (`git worktree add`) повз CLI — інакше не буде інвентарного опису.
+- Не створюй worktree вручну (`git worktree add`) повз `npx @7n/mt worktree create` — інакше не буде інвентарного опису.

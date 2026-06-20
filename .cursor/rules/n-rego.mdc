@@ -1,5 +1,5 @@
 ---
-description: Opa, Rego — інструментарій (VS Code, lint-rego)
+description: Opa, Rego — інструментарій (VS Code, opa/regal)
 version: '1.1'
 globs: "**/*.rego"
 alwaysApply: false
@@ -12,20 +12,12 @@ alwaysApply: false
 ## Перевірка
 
 ```bash
-bun run lint-rego
+n-cursor lint rego
 ```
 
 Цілі — `npm/rules/` (рекурсивно знаходить `.rego` у `<rule>/policy/<concern>/`). Інші *.rego поза деревом додай у `LINT_TARGETS` у `npm/rules/rego/lint/lint.mjs`.
 
 `opa` і `regal` — лише у `PATH`, **не** додавай у `dependencies` / `devDependencies`.
-
-### `package.json`
-
-- Канон `scripts.lint-rego`: `package.json`:
-
-```json
-{ "scripts": { "lint-rego": "n-cursor lint-rego" } }
-```
 
 ### `.vscode/extensions.json`
 
