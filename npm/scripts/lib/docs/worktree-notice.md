@@ -6,10 +6,7 @@ docgen:
   crc: 1f7d5e0d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
-  judgeModel: openai-codex/gpt-5.4-mini
 ---
-
-## Огляд
 
 Цей файл вшиває worktree-інструкцію у синкнутий `SKILL.md` (рішення D2 зі spec). Коли `meta.json.worktree === true`, скіл вставляє/замінює ідемпотентний ре-синкнутий блок, що містить маркери WORKTREE_START та WORKTREE_END, забезпечуючи виконання скілу в окремому git-worktree та запобігаючи паралелізації. Функція `injectWorktreeNotice` керує наявністю або відсутністю цього блоку в `SKILL.md` на основі конфігурації.
 

@@ -7,10 +7,7 @@ docgen:
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 95
   issues: anchor-miss:meta.json,judge:inaccurate:0.98
-  judgeModel: openai-codex/gpt-5.4-mini
 ---
-
-## Огляд
 
 Цей модуль інтегрує cspell у ланцюжок lint-text для класифікації невідомих слів згідно зі схемою omlx. Він витягує невідомі слова, класифікує їх за допомогою LLM (detect $\rightarrow$ omlx-класифікація) та автоматично дописує валідні терміни до словника `.cspell.json`. Нерозкласифіковані та ймовірні одруки залишаються для ручного рев'ю. Процес є read-only, оскільки він лише класифікує знахідки, а не переписує файли.
 

@@ -9,5 +9,6 @@ resource: npm/rules/release/
 | Файл | Тип |
 |---|---|
 | [change.mjs](change.md) | JS Module |
+| [check.mjs](check.md) | JS Module |
 | [fix.mjs](fix.md) | JS Module |
 | [release.mjs](release.md) | JS Module |

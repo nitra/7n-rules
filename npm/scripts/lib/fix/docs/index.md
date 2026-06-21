@@ -14,5 +14,6 @@ resource: npm/scripts/lib/fix/
 | [llm-lint-fix.mjs](llm-lint-fix.md) | JS Module |
 | [llm-worker.mjs](llm-worker.md) | JS Module |
 | [orchestrator.mjs](orchestrator.md) | JS Module |
+| [run-conformance-check.mjs](run-conformance-check.md) | JS Module |
 | [run-fix-check.mjs](run-fix-check.md) | JS Module |
 | [t0.mjs](t0.md) | JS Module |

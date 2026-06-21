@@ -8,4 +8,5 @@ resource: npm/rules/php/
 
 | Файл | Тип |
 |---|---|
+| [check.mjs](check.md) | JS Module |
 | [fix.mjs](fix.md) | JS Module |

@@ -23,7 +23,9 @@
       "Skill(claude-api)",
       "Skill(claude-api:*)",
       "WebFetch(domain:suganthan.com)",
-      "WebFetch(domain:www.marktechpost.com)"
+      "WebFetch(domain:www.marktechpost.com)",
+      "Bash(sed -i '' 's|post-tool-use-fix|post-tool-use-check|g' /Users/vitalii/www/nitra/cursor/npm/.claude-template/settings.template.json /Users/vitalii/www/nitra/cursor/.claude/settings.json)",
+      "Bash(sed -i '' 's|post-tool-use-fix|post-tool-use-check|g' /Users/vitalii/www/nitra/cursor/npm/scripts/sync-claude-config.mjs)"
     ]
   }
 }

@@ -3,108 +3,80 @@ type: JS Module
 title: sync-claude-config.mjs
 resource: npm/scripts/sync-claude-config.mjs
 docgen:
-  crc: ad7b8440
-  score: 95
+  crc: 88f4080d
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  score: 85
 ---
 
-Файл синхронізує конфігурацію Claude Code (`.claude/settings.json`), slash-команди з темплейту та Cursor hooks (`.cursor/hooks.json`) у поточний проєкт з використанням темплейтів пакету `npm/.claude-template/`. Він виконує злиття користувацьких полів, дозволів та хуків з різних джерел. Синхронізуються та видаляються залежні скрипти та фрагменти конфігурації.
+## Огляд
+
+Синхронізує конфігурацію Claude Code (`.claude/settings.json`, slash-команди з `commands/` темплейту, ADR Stop-hook) та Cursor hooks (`.cursor/hooks.json`) у поточний проєкт із темплейтів пакету `npm/.claude-template/`. Здійснює злиття конфігурацій: користувацькі поля зберігаються у `.claude/settings.json`, а дозволи (`permissions.allow`) зливаються через union. Керовані хуки, ідентифіковані командою-маркером `MANAGED_HOOK_COMMAND_MARKERS`, перезаписуються. Копіює ADR Stop-hook (`.claude/hooks/capture-decisions.sh`) та ADR normalize Stop-hook (`.claude/hooks/normalize-decisions.sh`) залежно від налаштувань у `.n-cursor.json`. Також зливає фрагмент `.gitignore` з канонічного шаблону, додаючи необхідні записи для ADR.
 
 ## Поведінка
 
-MANAGED_HOOK_COMMAND_MARKER Маркер PostToolUse fix-hook
-
-DOC_FILES_HOOK_COMMAND_MARKER Маркер doc-files staleness-hook
-
-LEGACY_STOP_HOOK_COMMAND_MARKER Маркер старого Stop-hook
-
-ADR_HOOK_COMMAND_MARKER Маркер ADR Stop-hook
-
-ADR_NORMALIZE_HOOK_COMMAND_MARKER Маркер ADR Stop-hook
-
-CURSOR_ADR_HOOK_COMMAND_MARKER Маркер Cursor ADR Stop-hook
-
-CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER Маркер Cursor ADR Normalize Stop-hook
-
-MANAGED_HOOK_COMMAND_MARKERS Маркерів для відрізнення managed-hook'ів
-
-PI_DIR Корінь pi.dev артефактів
-
-PI_EXTENSIONS_DIR Директорія pi.dev TS-extensions
-
-PI_TEMPLATE_DIR_NAME Назва bundled-директорії pi-template
-
-PI_EXTENSION_NAME Імʼя bundled pi-extension'а
-
-ADR_GITIGNORE_SNIPPET_REL Відносний шлях до канонічного фрагмента `.gitignore` для ADR Stop-hook'ів
-
-mergeAllowList Зливає список allow-permissions без дублікатів
-
-mergeHooks Зливає hooks-секцію, видаляючи managed-групи з існуючої конфігурації
-
-mergeSettings Зливає конфігурацію Claude, перевіряючи та зливаючи permissions та hooks
-
-mergeCursorHooksConfig Зливає конфігурацію Cursor, керуючи додаванням/видаленням ADR stop entries
-
-syncCursorHooksConfig Синхронізує `.cursor/hooks.json` для Cursor Agent stop-hooks
-
-syncClaudeSettings Синхронізує `.claude/settings.json` за темплейтом
-
-syncAdrHookScript Копіює канонічний bash-скрипт ADR capture Stop-hook з темплейту
-
-syncAdrNormalizeHookScript Копіює канонічний bash-скрипт ADR normalize Stop-hook з темплейту
-
-syncAdrHookLibScripts Копіює `.sh`-файли з `.claude-template/hooks/lib/` у `.claude/hooks/`
-
-removeOrphanAdrHookLib Видаляє директорію `.claude/hooks/lib/` з проєкту-споживача
-
-syncPiExtensions Копіює bundled pi.dev TS-extension з пакета у проєкт
-
-removeOrphanPiExtension Видаляє директорію `.pi/extensions/n-cursor-adr/` з проєкту-споживача
-
-syncGitignoreAdrFragment Дописує відсутні рядки з канонічного ADR-фрагмента до кореневого `.gitignore` проєкту
-
-syncClaudeCommands Копіює slash-команди з `commands/` темплейту у `.claude/commands/`
-
-syncClaudeConfig Виконує повну синхронізацію Claude Code-конфігу з темплейту
+MANAGED_HOOK_COMMAND_MARKER — Визначає маркер для хука `post-tool-use-check`.
+DOC_FILES_HOOK_COMMAND_MARKER — Визначає маркер для хука `lint-doc-files`.
+LEGACY_DOC_FILES_HOOK_COMMAND_MARKER — Визначає маркер для застарілого хука `doc-files check`.
+LEGACY_STOP_HOOK_COMMAND_MARKER — Визначає маркер для застарілого Stop-hook'а.
+ADR_HOOK_COMMAND_MARKER — Визначає маркер шляху до bash-скрипта ADR capture Stop-hook.
+ADR_NORMALIZE_HOOK_COMMAND_MARKER — Визначає маркер шляху до bash-скрипта ADR normalize Stop-hook.
+CURSOR_ADR_HOOK_COMMAND_MARKER — Визначає маркер шляху до bash-скрипта ADR capture Stop-hook у `.cursor/hooks.json`.
+CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER — Визначає маркер шляху до bash-скрипта ADR normalize Stop-hook у `.cursor/hooks.json`.
+MANAGED_HOOK_COMMAND_MARKERS — Містить список усіх маркерів, що ідентифікують керовані хуки пакета.
+PI_DIR — Визначає кореневу директорію для артефактів pi.dev у проєкті-споживачі.
+PI_EXTENSIONS_DIR — Визначає директорію для TS-extensions pi.dev у проєкті-споживачі.
+PI_TEMPLATE_DIR_NAME — Визначає назву директорії з темплейтом pi-template у пакеті.
+PI_EXTENSION_NAME — Визначає ім'я bundled pi-extension для ADR capture/normalize.
+ADR_GITIGNORE_SNIPPET_REL — Визначає відносний шлях до канонічного фрагмента `.gitignore` для ADR Stop-hook'ів у tarball пакета.
+mergeAllowList — Об'єднує списки дозволених дозволів, зберігаючи користувацькі записи першими.
+mergeHooks — Зливає секцію `hooks` з `.claude/settings.json`, видаляючи керовані групи з існуючої конфігурації.
+mergeSettings — Зливає конфігурацію `.claude/settings.json` з темплейту, зберігаючи користувацькі поля та оновлюючи керовані хуки.
+mergeCursorHooksConfig — Зливає конфігурацію `.cursor/hooks.json`, зберігаючи користувацькі записи та додаючи/видаляючи керовані ADR stop entries.
+syncCursorHooksConfig — Синхронізує `.cursor/hooks.json` для Cursor Agent stop-hooks, додаючи ADR entries за умовою.
+syncClaudeSettings — Синхронізує `.claude/settings.json` за темплейтом, зберігаючи користувацькі налаштування.
+syncAdrHookScript — Копіює канонічний bash-скрипт ADR capture Stop-hook з темплейту пакета у `.claude/hooks/`.
+syncAdrNormalizeHookScript — Копіює канонічний bash-скрипт ADR normalize Stop-hook з темплейту пакета у `.claude/hooks/`.
+syncAdrHookLibScripts — Копіює всі bash-скрипти з `lib/` темплейту у `.claude/hooks/lib/` проєкту.
+removeOrphanAdrHookLib — Видаляє директорію `.claude/hooks/lib/` з проєкту, якщо ADR-хуки вимкнені.
+syncPiExtensions — Копіює bundled pi.dev TS-extension `n-cursor-adr` у `.pi/extensions/n-cursor-adr/` проєкту.
+removeOrphanPiExtension — Видаляє директорію `.pi/extensions/n-cursor-adr/` з проєкту, якщо ADR-хуки вимкнені.
+syncGitignoreAdrFragment — Дописує відсутні рядки з канонічного ADR-фрагмента до кореневого `.gitignore` проєкту.
+syncClaudeCommands — Копіює всі slash-команди з `.claude-template/commands/` у `.claude/commands/` проєкту.
+syncClaudeConfig — Виконує повну синхронізацію Claude Code-конфігу, включаючи ADR-хуки, `.gitignore` та pi-extension, залежно від правил.
 
 ## Публічний API
 
-MANAGED_HOOK_COMMAND_MARKER — Маркер для хуків PostToolUse fix-hook'а (`npx --no @nitra/cursor post-tool-use-fix`).
-DOC_FILES_HOOK_COMMAND_MARKER — Маркер для хуків doc-files staleness-hook'ів (PostToolUse `--hook` та Stop-гейт `--git`).
-LEGACY_STOP_HOOK_COMMAND_MARKER — Маркер для старого Stop-hook'а — для очищення при оновленні існуючих інсталяцій.
-ADR_HOOK_COMMAND_MARKER — Маркер для ADR Stop-hook'а — підрядок шляху до bash-скрипта capture-decisions.sh.
-ADR_NORMALIZE_HOOK_COMMAND_MARKER — Маркер для ADR Stop-hook'а — підрядок шляху до bash-скрипта normalize-decisions.sh.
-CURSOR_ADR_HOOK_COMMAND_MARKER — Маркер для Cursor ADR Stop-hook'а — той самий script path, але в `.cursor/hooks.json`.
-CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER — Маркер для Cursor ADR Stop-hook'а — той самий script path, але в `.cursor/hooks.json`.
-MANAGED_HOOK_COMMAND_MARKERS — Група маркерів managed-hook'ів пакета — відрізняються від користувацьких.
-Legacy stop-hook включений сюди, щоб старі entries автоматично видалялись при наступному sync-у.
-PI_DIR — Корінь артефактів pi.dev у проєкті-споживачі.
-PI_EXTENSIONS_DIR — Директорія TS-розширень pi.dev у проєкті-споживачі.
-PI_TEMPLATE_DIR_NAME — Назва bundled-директорії pi-template у пакеті `@nitra/cursor`.
-PI_EXTENSION_NAME — Імʼя bundled pi-extension'а для ADR capture/normalize.
-ADR_GITIGNORE_SNIPPET_REL — Відносний шлях до канонічного фрагмента `.gitignore` для ADR Stop-hook'ів у tarball пакета.
-mergeAllowList — Зливає список allow-permissions: об'єднує існуючі та темплейтні дозволи без дублікатів, зберігаючи користувацький порядок.
-mergeHooks — Зливає hooks-секцію. Видаляє managed-групи з існуючої конфігурації та дописує managed-групи з темплейту. Перебір подій union-у враховує зміну порядку хуків.
-mergeSettings — Повертає об'єднаний об'єкт settings.json.
-mergeCursorHooksConfig — Зливає `.cursor/hooks.json`: користувацькі записи зберігаються, managed ADR записи в `hooks.stop` перезаписуються або видаляються залежно від `includeAdrHook`.
-syncCursorHooksConfig — Синхронізує `.cursor/hooks.json` для Cursor Agent stop-hooks. Cursor читає project-level config з `.cursor/hooks.json`; хук-скрипти залишаються спільними з Claude Code у `.claude/hooks/`.
-syncClaudeSettings — Синхронізує `.claude/settings.json` за темплейтом, зберігаючи решту користувацьких полів.
-syncAdrHookScript — Копіює канонічний `.claude/hooks/capture-decisions.sh` з темплейту пакета.
-syncAdrNormalizeHookScript — Копіює канонічний `.claude/hooks/normalize-decisions.sh` з темплейту пакета.
-syncAdrHookLibScripts — Копіює всі `.sh`-файли з `.claude-template/hooks/lib/` у `.claude/hooks/lib/` проєкту.
-Файли source-only (без exec bit) — їх source-ять capture/normalize-decisions.sh, щоб уникнути дублювання спільної bash-логіки (`is_tooling_only_change`, `git_diff_only_version_field`).
-Тека fully-owned — при кожному sync-у перезаписується.
-removeOrphanAdrHookLib — Видаляє директорію `.claude/hooks/lib/` з проєкту-споживача. Викликається, коли правило `adr` вимкнено — бібліотечні файли не самостійні, і їх не потрібні.
-syncPiExtensions — Копіює bundled pi.dev TS-extension `npm/.pi-template/extensions/n-cursor-adr/` (всі файли — `index.ts`, `tsconfig.json`, потенційні `package.json`/`.gitignore` тощо`) у `.pi/extensions/n-cursor-adr/` проєкту-споживача. Тека fully-owned: при кожному sync-у перезаписується. Якщо bundled template відсутній (legacy-версії пакета без `.pi-template/`) або в ньому немає `index.ts` — повертається `{written: false}` без помилки.
-Розширення поверх `index.ts` (tsconfig тощо) потрібні, бо `.pi/extensions/` синхронізується як у проєкти-споживачі, а IDE/TS-сервер мусить резолвити `node:*` модулі без додаткових project-wide конфігів.
-removeOrphanPiExtension — Видаляє директорію `.pi/extensions/n-cursor-adr/` з проєкту-споживача. Викликається, коли правило `adr` вимкнено у `.n-cursor.json` — бібліотечні файли не самостійні, і їх не потрібні (симетрично до cleanup-у `.claude/hooks/{capture,normalize}-decisions.sh`).
-syncGitignoreAdrFragment — Дописує в кореневий `.gitignore` проєкту відсутні рядки з канонічного ADR-фрагмента.
-syncClaudeCommands — Копіює всі slash-команди з `templateDir/commands/` у `.claude/commands/`. Команди ідентифікуються тим, що вони лежать у темплейті — не перетинаються з командами скілів (n-fix, n-lint, ...).
-syncClaudeConfig — Виконує повну синхронізацію Claude Code-конфігу з темплейту пакету в проєкт. Використовується з `bin/n-cursor.js` після інших синків.
+MANAGED_HOOK_COMMAND_MARKER — Позначає хук для перевірки після використання інструменту.
+DOC_FILES_HOOK_COMMAND_MARKER — Позначає хук для перевірки актуальності файлів документації.
+LEGACY_DOC_FILES_HOOK_COMMAND_MARKER — Позначає старий маркер для очищення хуків документації.
+LEGACY_STOP_HOOK_COMMAND_MARKER — Позначає старий маркер для очищення хука зупинки.
+ADR_HOOK_COMMAND_MARKER — Позначає шлях до скрипта для фіксації рішень ADR.
+ADR_NORMALIZE_HOOK_COMMAND_MARKER — Позначає шлях до скрипта для нормалізації рішень ADR.
+CURSOR_ADR_HOOK_COMMAND_MARKER — Позначає шлях до скрипта фіксації ADR у конфігурації Cursor.
+CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER — Позначає шлях до скрипта нормалізації ADR у конфігурації Cursor.
+MANAGED_HOOK_COMMAND_MARKERS — Групує всі маркери хуків, щоб відрізнити автоматичні записи від користувацьких.
+PI_DIR — Місце зберігання артефактів pi.dev у проєкті.
+PI_EXTENSIONS_DIR — Директорія для TS-розширень pi.dev у проєкті.
+PI_TEMPLATE_DIR_NAME — Назва папки з шаблоном pi у пакеті.
+PI_EXTENSION_NAME — Ім'я пакета pi-розширення для фіксації/нормалізації ADR.
+ADR_GITIGNORE_SNIPPET_REL — Відносний шлях до шаблону `.gitignore` для ADR.
+mergeAllowList — Об'єднує дозволені права доступу, зберігаючи порядок існуючих записів.
+mergeHooks — Об'єднує секцію хуків: видаляє автоматичні записи з існуючої конфігурації та додає записи з шаблону.
+mergeSettings — Створює об'єднаний файл налаштувань.
+mergeCursorHooksConfig — Об'єднує конфігурацію хуків Cursor, зберігаючи користувацькі записи та оновлюючи ADR-записи.
+syncCursorHooksConfig — Синхронізує конфігурацію зупинки для агента Cursor.
+syncClaudeSettings — Копіює налаштування Claude Code з шаблону, зберігаючи користувацькі дані.
+syncAdrHookScript — Копіює канонічний скрипт фіксації рішень ADR.
+syncAdrNormalizeHookScript — Копіює канонічний скрипт нормалізації рішень ADR.
+syncAdrHookLibScripts — Копіює всі допоміжні скрипти з шаблону в проєкт.
+removeOrphanAdrHookLib — Видаляє директорію з допоміжними скриптами ADR, якщо правило ADR вимкнено.
+syncPiExtensions — Копіює TS-розширення pi.dev у проєкт.
+removeOrphanPiExtension — Видаляє директорію з розширення pi, якщо правило ADR вимкнено.
+syncGitignoreAdrFragment — Додає необхідні рядки з канонічного фрагмента `.gitignore` до кореня проєкту.
+syncClaudeCommands — Копіює всі slash-команди з шаблону в директорію команд Claude.
+syncClaudeConfig — Виконує повну синхронізацію конфігурації Claude Code з шаблону.
 
 ## Гарантії поведінки
 
 - Перехоплює помилки і не пропускає винятків назовні (fail-safe).
-- За невдачі повертає значення помилки (`false`/`null`/`Err`) замість генерування винятку чи паніки.
 - Свідомо пропускає шляхи: `.git`.
-- Не звертається до мережі.

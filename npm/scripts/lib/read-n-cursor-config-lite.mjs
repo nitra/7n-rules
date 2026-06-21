@@ -1,12 +1,12 @@
 /**
- * Light read-only `.n-cursor.json` reader для standalone `fix.mjs` invocation.
+ * Light read-only `.n-cursor.json` reader для standalone `check.mjs` invocation.
  *
  * НЕ робить auto-rules detection, merge, schema sync — це справа повного `readConfig` у CLI.
  * Тут лише: прочитати файл (якщо є), повернути `{ rules: string[], disableRules: string[] }`.
  *
  * Спостереження whitelist:
  *   - якщо `.n-cursor.json` НЕМАЄ → правило вважається enabled (поведінка "open by default"),
- *     щоб `bun rules/<id>/fix.mjs` з будь-якої тимчасової директорії працювало для debug.
+ *     щоб `bun rules/<id>/check.mjs` з будь-якої тимчасової директорії працювало для debug.
  *   - якщо файл є з `rules:[…]`, але правила там немає → правило не enabled.
  *   - якщо правило в `disable-rules` → не enabled, навіть якщо у `rules:[…]`.
  */

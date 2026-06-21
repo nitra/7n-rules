@@ -8,4 +8,5 @@ resource: npm/rules/feedback/
 
 | Файл | Тип |
 |---|---|
+| [check.mjs](check.md) | JS Module |
 | [fix.mjs](fix.md) | JS Module |

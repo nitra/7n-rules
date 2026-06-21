@@ -9,7 +9,7 @@ import { listRuleIds } from '../scripts/lib/list-rule-ids.mjs'
 const tmpRoots = []
 
 /**
- * Створює тимчасове дерево rules/ з fix.mjs і прихованими каталогами.
+ * Створює тимчасове дерево rules/ з check.mjs і прихованими каталогами.
  * @param {{withFix?: string[], withoutFix?: string[], hidden?: string[]}} opts набори id правил
  * @returns {string} абсолютний шлях до кореня fake rules/
  */
@@ -18,14 +18,14 @@ function makeFakeRules({ withFix = [], withoutFix = [], hidden = [] }) {
   tmpRoots.push(root)
   for (const id of withFix) {
     mkdirSync(join(root, id), { recursive: true })
-    writeFileSync(join(root, id, 'fix.mjs'), '')
+    writeFileSync(join(root, id, 'check.mjs'), '')
   }
   for (const id of withoutFix) {
     mkdirSync(join(root, id), { recursive: true })
   }
   for (const id of hidden) {
     mkdirSync(join(root, id), { recursive: true })
-    writeFileSync(join(root, id, 'fix.mjs'), '')
+    writeFileSync(join(root, id, 'check.mjs'), '')
   }
   return root
 }
@@ -35,17 +35,17 @@ afterEach(() => {
 })
 
 describe('listRuleIds', () => {
-  test('повертає алфавітно відсортовані id з fix.mjs', async () => {
+  test('повертає алфавітно відсортовані id з check.mjs', async () => {
     const root = makeFakeRules({ withFix: ['ga', 'abie', 'k8s'] })
     expect(await listRuleIds(root)).toEqual(['abie', 'ga', 'k8s'])
   })
 
-  test('пропускає каталоги без fix.mjs', async () => {
+  test('пропускає каталоги без check.mjs', async () => {
     const root = makeFakeRules({ withFix: ['abie'], withoutFix: ['no-fix'] })
     expect(await listRuleIds(root)).toEqual(['abie'])
   })
 
-  test('пропускає каталоги з dot-prefix навіть якщо мають fix.mjs', async () => {
+  test('пропускає каталоги з dot-prefix навіть якщо мають check.mjs', async () => {
     const root = makeFakeRules({ withFix: ['abie'], hidden: ['.hidden'] })
     expect(await listRuleIds(root)).toEqual(['abie'])
   })

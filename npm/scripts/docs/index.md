@@ -15,6 +15,7 @@ resource: npm/scripts/
 | [coverage-fix-extract.mjs](coverage-fix-extract.md) | JS Module |
 | [coverage-fix.mjs](coverage-fix.md) | JS Module |
 | [ensure-nitra-cursor-dev-dependencies.mjs](ensure-nitra-cursor-dev-dependencies.md) | JS Module |
+| [post-tool-use-check.mjs](post-tool-use-check.md) | JS Module |
 | [post-tool-use-fix.mjs](post-tool-use-fix.md) | JS Module |
 | [rename-yaml-extensions.mjs](rename-yaml-extensions.md) | JS Module |
 | [skills-cli.mjs](skills-cli.md) | JS Module |

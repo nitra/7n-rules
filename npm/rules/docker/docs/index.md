@@ -8,4 +8,5 @@ resource: npm/rules/docker/
 
 | Файл | Тип |
 |---|---|
+| [check.mjs](check.md) | JS Module |
 | [fix.mjs](fix.md) | JS Module |

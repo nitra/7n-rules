@@ -1,6 +1,6 @@
 /**
  * Список `.mdc`-файлів правил у `.cursor/rules/` проєкту-споживача (відсортований).
- * Винесено зі `bin/n-cursor.js`, щоб ділити між CLI-dispatch і `run-fix-check` (конформність-детект).
+ * Винесено зі `bin/n-cursor.js`, щоб ділити між CLI-dispatch і `run-conformance-check` (конформність-детект).
  */
 import { existsSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'

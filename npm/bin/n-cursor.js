@@ -7,7 +7,7 @@
  *   `npx \@nitra/cursor`             — завантажити cursor-правила (синк); якщо в корені вже є `.n-cursor.json`,
  *                                     спочатку зчитується конфіг і за потреби дописується `$schema`
  *   `npx \@nitra/cursor rename-yaml-extensions` — k8s `*.yml` → `*.yaml`, `.github` `*.yaml` → `*.yml` (опції: `--dry-run`, `--root=…`; див. bin/rename-yaml-extensions.mjs)
- *   `npx \@nitra/cursor post-tool-use-fix` — точка входу PostToolUse hook Claude Code: читає stdin JSON,
+ *   `npx \@nitra/cursor post-tool-use-check` — точка входу PostToolUse hook Claude Code: читає stdin JSON,
  *                                     дістає `tool_input.file_path`, маршрутизує його у відповідні правила
  *                                     (`*.mjs` → `js-lint`, `*.vue` → `js-lint style-lint vue` тощо) і викликає
  *                                     `fix` лише з ними. Прописується автоматично в `.claude/settings.json`.
@@ -16,14 +16,6 @@
  *                                     весь репо (`per-file` ∪ `full`); `--read-only` = без мутацій/LLM (CI); позиційні
  *                                     (не-флаг) аргументи — фільтр правил конформності (мапить колишній `fix <rule>`).
  *                                     CI = `lint --read-only --full` (весь репо, нуль мутацій/LLM).
- *   `npx \@nitra/cursor lint-ga`     — канонічний lint-ga (ga.mdc): preflight на `shellcheck` →
- *                                     `bunx github-actionlint` → `uvx zizmor --offline --collect=workflows .`
- *   `npx \@nitra/cursor lint-rego`   — канонічний lint-rego (conftest.mdc + rego.mdc):
- *                                     preflight на `opa`/`regal` → `opa check --strict` → `regal lint` → опц. `conftest verify`
- *   `npx \@nitra/cursor lint-k8s`    — канонічний lint-k8s (k8s.mdc): `kubeconform` + `kubescape` по `…/k8s/*.yaml`
- *   `npx \@nitra/cursor lint-docker` — канонічний lint-docker (docker.mdc): `hadolint` по `Dockerfile`/`*.Dockerfile`
- *   `npx \@nitra/cursor lint-text`   — канонічний lint-text (text.mdc): `cspell` → `shellcheck` (з auto-fix) →
- *                                     `markdownlint-cli2 --fix` → `v8r` (json/json5/yaml/yml/toml)
  *   `npx \@nitra/cursor lint-doc-files`  — детермінований детектор застарілості файлових док (`stale`: `missing`|`crc-mismatch`); правило doc-files (ignore-glob у `npm/rules/doc-files/js/docgen-ignore.mjs`; тека `docs/` поряд із джерелом). Режими: повний (exit 1), `--json` (exit 0), `--missing-only`, `--hook`/`--git` (hook-протокол, exit 2), `--degraded`
  *   `npx \@nitra/cursor fix-doc-files`   — JS-оркестрована генерація файлових док (роутинг local/cloud) зі штампом CRC (`--limit`/`--from`/`--overwrite`); `--stamp` — детерміноване перештампування CRC без LLM
  *   `npx \@nitra/cursor doc-aggregate modules` — JSON-лістинг логічних модулів (межі за `package.json`) для Tier 2 скілу doc-aggregate
@@ -94,15 +86,10 @@ import { detectAutoSkills } from '../scripts/auto-skills.mjs'
 import { readSkillMetaRaw } from '../scripts/lib/skill-meta.mjs'
 import { injectWorktreeNotice } from '../scripts/lib/worktree-notice.mjs'
 import { injectRootNotice } from '../scripts/lib/root-notice.mjs'
-import { runPostToolUseFixCli } from '../scripts/post-tool-use-fix.mjs'
+import { runPostToolUseCheckCli } from '../scripts/post-tool-use-check.mjs'
 import { listProjectRulesMdcFiles } from '../scripts/lib/list-project-rules-mdc.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
 import { assertCwdIsProjectRoot } from '../scripts/lib/assert-project-root.mjs'
-import { runLintDocker } from '../rules/docker/lint/lint.mjs'
-import { runLintGaCli } from '../rules/ga/lint/lint.mjs'
-import { runLintK8s } from '../rules/k8s/lint/lint.mjs'
-import { runLintRego } from '../rules/rego/lint/lint.mjs'
-import { runLintTextCli } from '../rules/text/lint/lint.mjs'
 import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { syncGitignoreWorktree } from '../scripts/lib/sync-gitignore-worktree.mjs'
 import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitra-cursor-and-install.mjs'
@@ -1527,10 +1514,10 @@ try {
 
       break
     }
-    case 'post-tool-use-fix': {
+    case 'post-tool-use-check': {
       // Викликається з .claude/settings.json як PostToolUse hook Claude Code.
       // Маршрутизує змінений файл у релевантні правила і прокидає `fix` лише з ними.
-      const code = await runPostToolUseFixCli()
+      const code = await runPostToolUseCheckCli()
       process.exitCode = code
 
       break
@@ -1545,39 +1532,6 @@ try {
         readOnly: args.includes('--read-only'),
         rules
       })
-
-      break
-    }
-    case 'lint-ga': {
-      // Канонічний lint-ga з preflight на shellcheck → actionlint → zizmor → check-ga (ga.mdc).
-      // Останній крок (check-ga) async — тому await обов'язковий, інакше process.exitCode буде Promise.
-      process.exitCode = await runLintGaCli()
-
-      break
-    }
-    case 'lint-rego': {
-      // Канонічний lint-rego: preflight opa/regal → opa check --strict → regal lint → conftest verify (опц.).
-      process.exitCode = await runLintRego()
-
-      break
-    }
-    case 'lint-k8s': {
-      // Канонічний lint-k8s: kubeconform + kubescape по знайдених деревах `…/k8s/*.yaml`.
-      process.exitCode = await runLintK8s()
-
-      break
-    }
-    case 'lint-docker': {
-      // Канонічний lint-docker: hadolint по Dockerfile та *.Dockerfile (docker.mdc).
-      process.exitCode = await runLintDocker()
-
-      break
-    }
-    case 'lint-text': {
-      // Канонічний lint-text: cspell → shellcheck → dotenv → markdownlint → v8r (text.mdc).
-      // `--read-only` (CI): без авто-фіксу (markdownlint/shellcheck/dotenv) — нуль мутацій.
-      // `llmFix:true` — text llmFix-capable, тож standalone lint-text робить omlx-класифікацію cspell.
-      process.exitCode = await runLintTextCli({ readOnly: args.includes('--read-only'), llmFix: true })
 
       break
     }
@@ -1706,7 +1660,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, post-tool-use-fix, adr-normalize-local, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, lint-doc-files, fix-doc-files, coverage, coverage-fix, analyze-escalation, taze, start-check, change, release, skill, trace, doc-aggregate`
+        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, post-tool-use-check, adr-normalize-local, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, lint-doc-files, fix-doc-files, coverage, coverage-fix, analyze-escalation, taze, start-check, change, release, skill, trace, doc-aggregate`
       )
       process.exitCode = 1
     }

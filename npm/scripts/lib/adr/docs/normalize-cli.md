@@ -6,10 +6,7 @@ docgen:
   crc: 63a18347
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
-  judgeModel: openai-codex/gpt-5.4-mini
 ---
-
-## Огляд
 
 Цей файл є CLI-обгорткою для локального нормалізатора ADR. Він зчитує шляхи до чернеток (`--batch <file>`) та список чистих ADR (`--clean <file>`), використовуючи директорію ADR (`--adr-dir <dir>`) для резолву шляхів. Обгортка запускає `normalizePipeline`, яка генерує JSON-контракт у форматі `{ "operations": [...] }` та виводить його у stdout для подальшого парсингу bash-скриптом. Прогрес та помилки записуються у stderr. Поведінка нормалізатора може бути змінена через змінні середовища: `ADR_NORMALIZE_ALLOW_CLOUD` контролює можливість хмарної ескалації, а `ADR_NORMALIZE_VOTES` визначає кількість голосів self-consistency для чистих ADR.
 

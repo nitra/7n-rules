@@ -6,10 +6,7 @@ docgen:
   crc: 06d3556b
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
-  judgeModel: openai-codex/gpt-5.4-mini
 ---
-
-## Огляд
 
 Файл автоматизує процес випуску версій. Він агрегує зміна-файли для всіх робочих просторів у `version-bump` та `CHANGELOG`, комітить зміни, ставить тег `<name>@<version>` та видаляє використані зміна-файли. Цей процес виконується у CI на гілці `main` (n-cursor-release-design, варіант A). Публічні функції, що надає модуль, — `release` та `runReleaseCli`.
 

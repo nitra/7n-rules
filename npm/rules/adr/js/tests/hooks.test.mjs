@@ -1,5 +1,5 @@
 /**
- * Тести rules/adr/fix.mjs: перевірка ADR Stop-hook (capture-decisions.sh) у Claude Code.
+ * Тести rules/adr/check.mjs: перевірка ADR Stop-hook (capture-decisions.sh) у Claude Code.
  *
  * `withTmpDir` створює тимчасовий каталог; усі шляхи у check обчислюються відносно нього
  * через явно переданий `cwd` параметр (без `process.chdir`).

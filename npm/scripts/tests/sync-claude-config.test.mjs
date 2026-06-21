@@ -2,7 +2,7 @@
  * Тести sync-claude-config: merge-логіка settings.json, опт-аут,
  * синхронізація slash-команд і ADR Stop-hook'ів.
  *
- * Управлений хук пакета зараз — PostToolUse (`@nitra/cursor post-tool-use-fix`).
+ * Управлений хук пакета зараз — PostToolUse (`@nitra/cursor post-tool-use-check`).
  * Legacy Stop-hook (`@nitra/cursor stop-hook`) усе ще ідентифікується як managed,
  * щоб при оновленні старих інсталяцій автоматично прибиратись.
  */
@@ -58,7 +58,7 @@ async function setupTemplate(cwdAbs, tpl = {}) {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-fix', timeout: 300 }]
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-check', timeout: 300 }]
         }
       ]
     }
@@ -116,7 +116,7 @@ describe('mergeHooks', () => {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-fix' }]
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-check' }]
         }
       ]
     }
@@ -124,13 +124,13 @@ describe('mergeHooks', () => {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-fix --updated' }]
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-check --updated' }]
         }
       ]
     }
     const merged = mergeHooks(existing, fromTemplate)
     expect(merged.PostToolUse).toHaveLength(1)
-    expect(merged.PostToolUse[0].hooks[0].command).toBe('npx --no @nitra/cursor post-tool-use-fix --updated')
+    expect(merged.PostToolUse[0].hooks[0].command).toBe('npx --no @nitra/cursor post-tool-use-check --updated')
   })
 
   test('зберігає користувацькі групи поряд з managed', () => {
@@ -141,7 +141,7 @@ describe('mergeHooks', () => {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-fix' }]
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-check' }]
         }
       ]
     }
@@ -164,7 +164,7 @@ describe('mergeHooks', () => {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-fix' }]
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-check' }]
         }
       ]
     }
@@ -186,7 +186,7 @@ describe('mergeHooks', () => {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-fix' }]
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-check' }]
         }
       ]
     }

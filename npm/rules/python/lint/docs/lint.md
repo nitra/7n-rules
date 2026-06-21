@@ -7,10 +7,7 @@ docgen:
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
   issues: internal-name:runStandardLint,judge:inaccurate:0.99
-  judgeModel: openai-codex/gpt-5.4-mini
 ---
-
-## Огляд
 
 Забезпечує виконання обов'язкових кроків для валідації Python-коду відповідно до правил, визначених у `python.mdc`, використовуючи інструменти з [uv](https://docs.astral.sh/uv/). Якщо `pyproject.toml` відсутній у корені, процес завершується з кодом 0. Якщо файл присутній, але `uv` не знайдено в PATH, це розглядається як помилка. Обов'язкові кроки включають перевірку актуальності lock-файлу (`uv lock --check`) та збірку середовища (`uv sync --frozen`). Опціональні лінтери (`ruff`, `mypy`) запускаються лише за умови їх доступності через `uv run`. Цей процес реалізує канон патерну `lint-*` (серіалізація через `runStandardLint`).
 

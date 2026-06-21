@@ -1,14 +1,14 @@
 /**
- * Public API per-rule orchestration. Викликається з `rules/<id>/fix.mjs`.
+ * Public API per-rule orchestration. Викликається з `rules/<id>/check.mjs`.
  *
  * Інкапсулює: `discoverOneRule` → `runRule(applies → JS → policy → mdc-refs)`.
  * Локальна логіка в правилах заборонена; розширення поведінки — через `ctx`-опції.
  *
  * Серіалізація: загортає виконання у `withLock('fix-<ruleId>')` — паралельні запуски
- * того самого правила (через `npx \@nitra/cursor fix`, прямий `bun rules/<id>/fix.mjs`
+ * того самого правила (через `npx \@nitra/cursor fix`, прямий `bun rules/<id>/check.mjs`
  * чи `run(ctx)`-композицію) дедупляться за станом git-дерева; різні правила можуть
  * виконуватись паралельно. Точка інтеграції — тут, щоб не дублювати лок у кожному
- * `fix.mjs`.
+ * `check.mjs`.
  */
 import { basename, dirname } from 'node:path'
 
@@ -24,7 +24,7 @@ import { withLock } from '../utils/with-lock.mjs'
  * Зарезервовано на майбутнє (поки не реалізовано — додається, коли з'явиться потреба):
  *   - `skipMdcRefs`, `skipApplies`, `onlyConcerns`.
  * Розширення поведінки правила робиться лише через нові поля тут, не через локальну
- * логіку в `rules/<id>/fix.mjs`.
+ * логіку в `rules/<id>/check.mjs`.
  */
 
 /**

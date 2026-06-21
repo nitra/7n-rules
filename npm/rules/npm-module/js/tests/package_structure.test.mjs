@@ -1,5 +1,5 @@
 /**
- * Тести компактності пакета з `rules/npm-module/fix.mjs` (npm-module.mdc):
+ * Тести компактності пакета з `rules/npm-module/check.mjs` (npm-module.mdc):
  *  - `globToRegex` коректно ловить файли під `**`/`*`/`?` patterns (для negation у `files`).
  *  - `findTestFrameworkImport` бачить test-фреймворки і у `import`, і у `require()`, і у динамічному `import()`.
  *  - `classifyPublishedFileAsTest` повертає причину для test-style каталогів/імен/імпортів і `null` для «чистих» файлів.

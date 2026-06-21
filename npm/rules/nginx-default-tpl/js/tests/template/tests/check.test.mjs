@@ -1,5 +1,5 @@
 /**
- * Тести допоміжних функцій rules/nginx-default-tpl/fix.mjs (HTTPRoute, ini, шаблон).
+ * Тести допоміжних функцій rules/nginx-default-tpl/check.mjs (HTTPRoute, ini, шаблон).
  */
 import { describe, expect, test } from 'vitest'
 import { existsSync } from 'node:fs'

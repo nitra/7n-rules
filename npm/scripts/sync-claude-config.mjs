@@ -30,8 +30,8 @@ import { existsSync } from 'node:fs'
 import { chmod, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-/** Маркер PostToolUse fix-hook'а (`npx --no \@nitra/cursor post-tool-use-fix`). */
-export const MANAGED_HOOK_COMMAND_MARKER = '@nitra/cursor post-tool-use-fix'
+/** Маркер PostToolUse fix-hook'а (`npx --no \@nitra/cursor post-tool-use-check`). */
+export const MANAGED_HOOK_COMMAND_MARKER = '@nitra/cursor post-tool-use-check'
 /** Маркер doc-files staleness-hook'ів (PostToolUse `--hook` і Stop-гейт `--git`). */
 export const DOC_FILES_HOOK_COMMAND_MARKER = '@nitra/cursor lint-doc-files'
 /** Legacy-маркер старих doc-files hook'ів (`doc-files check`) — cleanup при ресинку наявних інсталяцій. */

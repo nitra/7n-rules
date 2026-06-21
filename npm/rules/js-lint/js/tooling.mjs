@@ -350,7 +350,7 @@ async function checkLintJsWorkflows(passFn, failFn, cwd) {
   if (existsSync(join(cwd, '.github/workflows/lint-js.yml'))) {
     passFn('.github/workflows/lint-js.yml є (структуру перевіряє npx @nitra/cursor fix → js_lint.lint_js_yml)')
   } else {
-    failFn('.github/workflows/lint-js.yml не існує — створи його (див. rules/js-lint/fix.mjs / js-lint.mdc)')
+    failFn('.github/workflows/lint-js.yml не існує — створи його (див. rules/js-lint/check.mjs / js-lint.mdc)')
   }
 
   const lintYmlPath = join(cwd, '.github/workflows/lint.yml')

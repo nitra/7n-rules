@@ -8,4 +8,5 @@ resource: npm/rules/capacitor/
 
 | Файл | Тип |
 |---|---|
+| [check.mjs](check.md) | JS Module |
 | [fix.mjs](fix.md) | JS Module |

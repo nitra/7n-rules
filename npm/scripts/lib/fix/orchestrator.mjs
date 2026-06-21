@@ -1,7 +1,7 @@
 /** @see ./docs/orchestrator.md */
 
 import { env } from 'node:process'
-import { runFixCheck } from './run-fix-check.mjs'
+import { runConformanceCheck } from './run-conformance-check.mjs'
 import { runT0AutoCli } from './t0.mjs'
 import { logEscalation } from './escalation-log.mjs'
 import { runLlmWorker } from './llm-worker.mjs'
@@ -165,7 +165,7 @@ export function parseOrchestratorArgs(args) {
 async function runT0Step(cwd, ruleFilter, failed) {
   await runT0AutoCli([...ruleFilter], cwd)
 
-  const afterT0 = await runFixCheck(ruleFilter, cwd)
+  const afterT0 = await runConformanceCheck(ruleFilter, cwd)
   const failedAfterT0 = afterT0.rules.filter(r => !r.ok)
   const t0Fixed = failed.filter(r => !failedAfterT0.some(f => f.ruleId === r.ruleId))
 
@@ -186,7 +186,7 @@ export async function runOrchestratorCli(args, cwd) {
   const ladder = buildLadder({ localMin: LOCAL_MIN, cloudMin: CLOUD_MIN, cloudAvg: CLOUD_AVG })
 
   // ── Перша перевірка (тихо) ──
-  const initial = await runFixCheck(ruleFilter, cwd)
+  const initial = await runConformanceCheck(ruleFilter, cwd)
   let failed = initial.rules.filter(r => !r.ok)
   const total = initial.total
 
@@ -220,14 +220,14 @@ export async function runOrchestratorCli(args, cwd) {
     const { avgUsed } = await escalateRule(rule, cwd, {
       ladder,
       worker,
-      check: runFixCheck,
+      check: runConformanceCheck,
       avgBudget
     })
     avgBudget -= avgUsed
   }
 
   // ── Фінальна перевірка ──
-  const finalCheck = await runFixCheck(ruleFilter, cwd)
+  const finalCheck = await runConformanceCheck(ruleFilter, cwd)
   const stillFailed = finalCheck.rules.filter(r => !r.ok)
   if (stillFailed.length === 0) {
     console.log(`✅ fix: ${total} правил — все чисто`)

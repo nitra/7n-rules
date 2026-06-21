@@ -2,7 +2,7 @@
  * Тести runRuleCli після видалення per-rule whitelist-гейту.
  *
  * `runRuleCli` більше НЕ читає `.n-cursor.json` — гейтинг активних правил живе виключно
- * у `resolveCheckRuleIds` (selection). Прямий `bun rules/<id>/fix.mjs` виконується
+ * у `resolveCheckRuleIds` (selection). Прямий `bun rules/<id>/check.mjs` виконується
  * беззастережно (свідомий debug/override-запуск). Тут перевіряємо: запуск незалежний
  * від конфіга, exit-код віддзеркалює результат concern'ів.
  */

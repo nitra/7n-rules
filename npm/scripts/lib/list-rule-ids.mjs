@@ -1,6 +1,6 @@
 /**
- * Перебір `rules/<id>/` директорій з фільтром на наявність `fix.mjs`.
- * Після атомарної міграції `fix.mjs` обов'язковий у кожному правилі — каталог без нього
+ * Перебір `rules/<id>/` директорій з фільтром на наявність `check.mjs`.
+ * Після атомарної міграції `check.mjs` обов'язковий у кожному правилі — каталог без нього
  * пропускається (це not-a-rule або заглушка).
  */
 import { existsSync } from 'node:fs'
@@ -17,7 +17,7 @@ export async function listRuleIds(bundledRulesDir, filter) {
   const ids = entries
     .filter(e => e.isDirectory() && !e.name.startsWith('.'))
     .map(e => e.name)
-    .filter(id => existsSync(join(bundledRulesDir, id, 'fix.mjs')))
+    .filter(id => existsSync(join(bundledRulesDir, id, 'check.mjs')))
     .filter(id => filter === undefined || id === filter)
   return ids.toSorted((a, b) => a.localeCompare(b))
 }

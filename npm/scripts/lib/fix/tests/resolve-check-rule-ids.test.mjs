@@ -9,7 +9,7 @@ import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-import { resolveCheckRuleIds } from '../run-fix-check.mjs'
+import { resolveCheckRuleIds } from '../run-conformance-check.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../utils/test-helpers.mjs'
 
 const AVAILABLE = ['adr', 'bun', 'changelog', 'text']

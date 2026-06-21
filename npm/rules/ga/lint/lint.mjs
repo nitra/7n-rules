@@ -2,13 +2,13 @@
  * CLI-обгортка над канонічним `lint-ga` (ga.mdc): авто-встановлює `shellcheck` і `conftest`
  * через `ensureTool` (brew/scoop/GitHub Release per-platform), перевіряє наявність `uv` (для `uvx`),
  * тоді послідовно виконує `bunx github-actionlint`, `uvx zizmor --offline --collect=workflows .` і
- * делегує до `rules/ga/fix.mjs::check()` — там і Rego-частина (через `runConftestBatch`),
+ * делегує до `rules/ga/check.mjs::check()` — там і Rego-частина (через `runConftestBatch`),
  * і JS cross-file перевірки правил `ga.mdc`.
  *
  * Plan B-патерн (rego-authoritative): Rego-полісі (`npm/policy/ga/`) запускає вже сам
- * `rules/ga/fix.mjs::check()` як перший крок — `lint-ga.mjs` про це не знає. Раніше `lint-ga.mjs` сам
+ * `rules/ga/check.mjs::check()` як перший крок — `lint-ga.mjs` про це не знає. Раніше `lint-ga.mjs` сам
  * спавнив conftest для `ga.<name>` per-workflow і `ga.workflow_common` (PoC); тепер ця логіка
- * централізована у `rules/ga/fix.mjs`, тож одне джерело істини, без дублювання між
+ * централізована у `rules/ga/check.mjs`, тож одне джерело істини, без дублювання між
  * `lint-ga` і `npx \@nitra/cursor check ga`.
  *
  * Без preflight `actionlint` (через `bunx github-actionlint`) мовчки пропускає shell-перевірки в
@@ -109,7 +109,7 @@ function preflight(dep) {
  * 2) preflight: `uv` (для `uvx zizmor`) — hint-only, без авто-install;
  * 3) `bunx github-actionlint`;
  * 4) `uvx zizmor --offline --collect=workflows .`;
- * 5) `rules/ga/fix.mjs::check()` — Rego-полісі (батч conftest з `npm/policy/ga/`) + JS cross-file
+ * 5) `rules/ga/check.mjs::check()` — Rego-полісі (батч conftest з `npm/policy/ga/`) + JS cross-file
  *    перевірки правил `ga.mdc`. Це **те саме**, що робить `npx \@nitra/cursor check ga`, тож
  *    `lint-ga` тепер є суперсетом перевірки правила: external-tools + check.
  * @returns {Promise<number>} 0 — все OK, інакше — код першого кроку, що впав

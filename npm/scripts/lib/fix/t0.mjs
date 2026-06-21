@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { runFixCheck } from './run-fix-check.mjs'
+import { runConformanceCheck } from './run-conformance-check.mjs'
 import { writeChange } from '../../../rules/release/change.mjs'
 
 const REC_REQUIRE_RE = /recommendations має містити "[^"]+"/
@@ -188,7 +188,7 @@ export async function runT0AutoCli(args, cwd) {
   const verbose = args.includes('--verbose') || args.includes('-v')
 
   // 1. Конформність-детект (пряма функція, без subprocess)
-  const fixJson = await runFixCheck(ruleFilter, cwd)
+  const fixJson = await runConformanceCheck(ruleFilter, cwd)
   const failed = fixJson.rules.filter(r => !r.ok)
   if (failed.length === 0) {
     console.log(`✅ fix-t0: всі правила чисті — T0 не потрібен`)
@@ -210,7 +210,7 @@ export async function runT0AutoCli(args, cwd) {
   }
 
   // 4. Check-gate: перевірити лише ті правила, що ми чіпали
-  const recheckJson = await runFixCheck(applied.map(a => a.ruleId), cwd)
+  const recheckJson = await runConformanceCheck(applied.map(a => a.ruleId), cwd)
   const stillFailed = recheckJson.rules.filter(r => !r.ok)
 
   if (verbose) {

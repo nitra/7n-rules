@@ -17,7 +17,7 @@ export default {
   incremental: true,
   incrementalFile: 'reports/stryker/incremental.json',
   // Покриваємо весь production-код: scripts/ (lib/utils/CLI helpers), rules/<r>/{js,lib,coverage}/
-  // + кореневі rule-`fix.mjs`. Test-файли Stryker і так виключає за іменем (`*.test.*`),
+  // + кореневі rule-`check.mjs`. Test-файли Stryker і так виключає за іменем (`*.test.*`),
   // але `tests/` і `__fixtures__/` міняємо явно для прозорості. `data/`, `template(s)/` —
   // baseline-шаблони/JSON-канон, що копіюються консьюмерам як-є; логіки для мутації немає,
   // тому виключаємо щоб не інфляти survived-рейтинг (виняток — `rules/test/js/data/stryker_config/

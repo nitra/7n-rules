@@ -30,8 +30,8 @@ async function runConformance(cwd, readOnly, log, filter = []) {
     const { runOrchestratorCli } = await import('../../../scripts/lib/fix/orchestrator.mjs')
     return runOrchestratorCli(filter, cwd)
   }
-  const { runFixCheck } = await import('../../../scripts/lib/fix/run-fix-check.mjs')
-  const { rules } = await runFixCheck(filter, cwd)
+  const { runConformanceCheck } = await import('../../../scripts/lib/fix/run-conformance-check.mjs')
+  const { rules } = await runConformanceCheck(filter, cwd)
   const failed = rules.filter(x => !x.ok)
   if (failed.length === 0) return 0
   log(`❌ lint: конформність — ${failed.length} порушень: ${failed.map(x => x.ruleId).join(', ')}\n`)
