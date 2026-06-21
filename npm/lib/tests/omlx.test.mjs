@@ -251,9 +251,7 @@ describe('callOmlxRaw', () => {
   })
 
   test('успіх → багатий обʼєкт із content/reasoning/finish/usage/attempts', () => {
-    spawnSyncMock.mockReturnValue(
-      richResult({ content: '391', reasoning: 'Okay…', usage: { completion_tokens: 308 } })
-    )
+    spawnSyncMock.mockReturnValue(richResult({ content: '391', reasoning: 'Okay…', usage: { completion_tokens: 308 } }))
     const r = callOmlxRaw([{ role: 'user', content: 'hi' }], 'omlx/g')
     expect(r).toMatchObject({
       content: '391',

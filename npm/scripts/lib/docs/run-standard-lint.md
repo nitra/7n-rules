@@ -11,11 +11,12 @@ docgen:
 ## Огляд
 
 Спільна точка входу для канонічних `lint-<rule>` підкоманд `@nitra/cursor`. Файл серіалізує та дедуплікує запуски лінту через `withLock`. `ruleId` визначається зі шляху незалежно від глибини виклику (наприклад, `rules/<id>`). Це дозволяє уніфікувати крос-cutting концерни. Інтеграція з боку правила виглядає так:
-* import { runStandardLint } from '../../scripts/lib/run-standard-lint.mjs'
- *
- * async function runLintFooSteps { ... }
- *
- * export function lint { return runStandardLint }
+
+- import { runStandardLint } from '../../scripts/lib/run-standard-lint.mjs'
+-
+- async function runLintFooSteps { ... }
+-
+- export function lint { return runStandardLint }
 
 ## Поведінка
 
@@ -29,6 +30,7 @@ lint — є спільною точкою входу для канонічних
 runStandardLint — виконує стандартний лінтинг у директорії, приймаючи контекст директорії та функцію, що описує кроки лінтингу.
 
 Приклад інтеграції:
+
 ```js
 import { runStandardLint } from '../../scripts/lib/run-standard-lint.mjs'
 

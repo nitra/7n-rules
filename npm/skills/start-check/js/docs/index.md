@@ -6,6 +6,6 @@ resource: npm/skills/start-check/js/
 
 # npm/skills/start-check/js
 
-| Файл | Тип |
-|---|---|
+| Файл                  | Тип       |
+| --------------------- | --------- |
 | [check.mjs](check.md) | JS Module |

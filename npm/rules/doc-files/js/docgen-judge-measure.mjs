@@ -64,8 +64,16 @@ function judgeCached(src, doc) {
   const hit = cacheGet(key)
   if (hit) return { ...hit, cached: true }
   const user = `SOURCE FILE:\n\`\`\`\n${src.slice(0, 12000)}\n\`\`\`\n\nGENERATED DOC:\n\`\`\`md\n${doc.slice(0, 8000)}\n\`\`\`\n\nReturn the JSON verdict.`
-  const raw = callLlm([{ role: 'system', content: SYSTEM }, { role: 'user', content: user }], JUDGE_MODEL, { timeoutMs: JUDGE_TIMEOUT, temperature: 0 })
-  const a = raw.indexOf('{'), b = raw.lastIndexOf('}')
+  const raw = callLlm(
+    [
+      { role: 'system', content: SYSTEM },
+      { role: 'user', content: user }
+    ],
+    JUDGE_MODEL,
+    { timeoutMs: JUDGE_TIMEOUT, temperature: 0 }
+  )
+  const a = raw.indexOf('{'),
+    b = raw.lastIndexOf('}')
   if (a === -1 || b === -1) throw new Error('no JSON in judge reply: ' + raw.slice(0, 160))
   const v = JSON.parse(raw.slice(a, b + 1))
   cacheSet(key, v)
@@ -81,17 +89,34 @@ function main() {
     console.error('Usage: node docgen-judge-measure.mjs <file1> <file2> ...')
     process.exit(2)
   }
-  console.error(`[measure] gen=${GEN_MODEL} judge=${JUDGE_MODEL} threshold=${THRESHOLD} files=${files.length} cache=${CACHE_DIR}`)
+  console.error(
+    `[measure] gen=${GEN_MODEL} judge=${JUDGE_MODEL} threshold=${THRESHOLD} files=${files.length} cache=${CACHE_DIR}`
+  )
 
   const rows = []
   for (const [i, file] of files.entries()) {
     const tag = `(${i + 1}/${files.length}) ${file}`
     let src
-    try { src = readFileSync(file, 'utf8') } catch (error) { console.error(`[skip] ${tag}: read ${error.message}`); continue }
+    try {
+      src = readFileSync(file, 'utf8')
+    } catch (error) {
+      console.error(`[skip] ${tag}: read ${error.message}`)
+      continue
+    }
 
     let gen
-    try { gen = genCached(file, src) } catch (error) { console.error(`[gen-err] ${tag}: ${error.message.slice(0, 120)}`); rows.push({ file, error: 'gen', detail: error.message.slice(0, 200) }); continue }
-    if (gen.score === null) { console.error(`[unsupported] ${tag}`); rows.push({ file, score: null, unsupported: true }); continue }
+    try {
+      gen = genCached(file, src)
+    } catch (error) {
+      console.error(`[gen-err] ${tag}: ${error.message.slice(0, 120)}`)
+      rows.push({ file, error: 'gen', detail: error.message.slice(0, 200) })
+      continue
+    }
+    if (gen.score === null) {
+      console.error(`[unsupported] ${tag}`)
+      rows.push({ file, score: null, unsupported: true })
+      continue
+    }
 
     const passed = gen.score >= THRESHOLD
     const row = { file, score: gen.score, degraded: gen.degraded, passed, genCached: gen.cached }
@@ -100,9 +125,18 @@ function main() {
     if (passed) {
       try {
         const v = judgeCached(src, gen.md)
-        row.verdict = v.verdict; row.confidence = v.confidence; row.reason = v.reason; row.offending = v.offending; row.judgeCached = v.cached
-        console.error(`  [judge${v.cached ? '*' : ''}] ${v.verdict} (${v.confidence}) — ${(v.reason || '').slice(0, 90)}`)
-      } catch (error) { row.judgeError = error.message.slice(0, 200); console.error(`  [judge-err] ${error.message.slice(0, 120)}`) }
+        row.verdict = v.verdict
+        row.confidence = v.confidence
+        row.reason = v.reason
+        row.offending = v.offending
+        row.judgeCached = v.cached
+        console.error(
+          `  [judge${v.cached ? '*' : ''}] ${v.verdict} (${v.confidence}) — ${(v.reason || '').slice(0, 90)}`
+        )
+      } catch (error) {
+        row.judgeError = error.message.slice(0, 200)
+        console.error(`  [judge-err] ${error.message.slice(0, 120)}`)
+      }
     }
     rows.push(row)
   }
@@ -119,17 +153,26 @@ function main() {
   const report = {
     config: { genModel: GEN_MODEL, judgeModel: JUDGE_MODEL, threshold: THRESHOLD },
     counts: {
-      files: files.length, generated: scored.length,
+      files: files.length,
+      generated: scored.length,
       unsupported: rows.filter(r => r.unsupported).length,
       genErrors: rows.filter(r => r.error === 'gen').length,
       passedDetScorer: scored.filter(r => r.passed).length,
-      judged: M, judgeErrors: rows.filter(r => r.judgeError).length
+      judged: M,
+      judgeErrors: rows.filter(r => r.judgeError).length
     },
-    falsePositiveRate: { // серед PASSED+judged
-      accurate: byVerdict.accurate, generic: byVerdict.generic, inaccurate: byVerdict.inaccurate,
-      badPct: pct(bad), inaccuratePct: pct(byVerdict.inaccurate), genericPct: pct(byVerdict.generic)
+    falsePositiveRate: {
+      // серед PASSED+judged
+      accurate: byVerdict.accurate,
+      generic: byVerdict.generic,
+      inaccurate: byVerdict.inaccurate,
+      badPct: pct(bad),
+      inaccuratePct: pct(byVerdict.inaccurate),
+      genericPct: pct(byVerdict.generic)
     },
-    offenders: passedRows.filter(r => r.verdict !== 'accurate').map(r => ({ file: r.file, score: r.score, verdict: r.verdict, confidence: r.confidence, reason: r.reason })),
+    offenders: passedRows
+      .filter(r => r.verdict !== 'accurate')
+      .map(r => ({ file: r.file, score: r.score, verdict: r.verdict, confidence: r.confidence, reason: r.reason })),
     rows
   }
 
@@ -138,10 +181,16 @@ function main() {
   writeFileSync(out, JSON.stringify(report, null, 2))
 
   console.log('\n===== Q4 MEASUREMENT =====')
-  console.log(`generated: ${report.counts.generated}/${files.length}  (unsupported=${report.counts.unsupported}, gen-errors=${report.counts.genErrors})`)
+  console.log(
+    `generated: ${report.counts.generated}/${files.length}  (unsupported=${report.counts.unsupported}, gen-errors=${report.counts.genErrors})`
+  )
   console.log(`passed det-scorer (score≥${THRESHOLD}): ${report.counts.passedDetScorer}   judged: ${M}`)
-  console.log(`among PASSED+judged → accurate=${byVerdict.accurate} generic=${byVerdict.generic} inaccurate=${byVerdict.inaccurate}`)
-  console.log(`>>> det-scorer FALSE-POSITIVE rate: ${pct(bad)}%  (inaccurate=${pct(byVerdict.inaccurate)}%, generic=${pct(byVerdict.generic)}%)`)
+  console.log(
+    `among PASSED+judged → accurate=${byVerdict.accurate} generic=${byVerdict.generic} inaccurate=${byVerdict.inaccurate}`
+  )
+  console.log(
+    `>>> det-scorer FALSE-POSITIVE rate: ${pct(bad)}%  (inaccurate=${pct(byVerdict.inaccurate)}%, generic=${pct(byVerdict.generic)}%)`
+  )
   console.log(`decision guide: <~5% → don't build gate; >~15% → build (inaccurate-only)`)
   console.log(`report: ${out}`)
 }

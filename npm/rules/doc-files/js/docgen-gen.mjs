@@ -133,7 +133,10 @@ export function splitProtected(md) {
       break
     }
   }
-  const body = lines.slice(start + 1, end).join('\n').trim()
+  const body = lines
+    .slice(start + 1, end)
+    .join('\n')
+    .trim()
   const without = [...lines.slice(0, start), ...lines.slice(end)].join('\n')
   return { body: body || null, without }
 }
@@ -395,7 +398,10 @@ export const DEFAULT_LOCAL_MODEL = env.N_CURSOR_DOCGEN_MODEL ?? resolveModel('mi
  * @param {{ model?: string, threshold?: number, existingMd?: string|null }} [opts] model-id, поріг degraded, наявна дока (для збереження захищеної секції)
  * @returns {{ md: string, ms: number, llmMs: number, llmCalls: number, score: number|null, issues: string[], degraded: boolean, model: string }} документ і метадані генерації (ms — увесь файл; llmMs/llmCalls — лише LLM; решта ms — оркестрація)
  */
-export function generateDoc(file, { model = DEFAULT_LOCAL_MODEL, threshold = QUALITY_THRESHOLD, existingMd = null } = {}) {
+export function generateDoc(
+  file,
+  { model = DEFAULT_LOCAL_MODEL, threshold = QUALITY_THRESHOLD, existingMd = null } = {}
+) {
   const src = readFileSync(file, 'utf8')
   // Pre-send guard: весь src вшивається у промпт як є (екстракт фактів його НЕ
   // замінює). Для гігантів (vendored/генерат) це переповнює контекст → інстант-skip
@@ -403,7 +409,9 @@ export function generateDoc(file, { model = DEFAULT_LOCAL_MODEL, threshold = QUA
   const estTokens = Math.round(Buffer.byteLength(src, 'utf8') / 4)
   const budget = srcTokenBudget()
   if (estTokens > budget) {
-    throw new Error(`docgen pre-send guard: джерело ~${estTokens} токенів > бюджет ${budget} (0.5× контексту) — Prompt too long, skip`)
+    throw new Error(
+      `docgen pre-send guard: джерело ~${estTokens} токенів > бюджет ${budget} (0.5× контексту) — Prompt too long, skip`
+    )
   }
   const facts = extractFacts(src, file)
   const t0 = Date.now()

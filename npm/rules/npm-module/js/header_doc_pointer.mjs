@@ -47,9 +47,7 @@ function moduleJsDoc(source) {
  * @returns {boolean} true для звичайних source-файлів
  */
 function isSourceMjs(fileEntry) {
-  return (
-    fileEntry.isFile() && fileEntry.name.endsWith('.mjs') && !fileEntry.name.endsWith('.test.mjs')
-  )
+  return fileEntry.isFile() && fileEntry.name.endsWith('.mjs') && !fileEntry.name.endsWith('.test.mjs')
 }
 
 /**

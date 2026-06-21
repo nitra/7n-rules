@@ -6,6 +6,6 @@ resource: npm/rules/js-run/js/
 
 # npm/rules/js-run/js
 
-| Файл | Тип |
-|---|---|
+| Файл                      | Тип       |
+| ------------------------- | --------- |
 | [runtime.mjs](runtime.md) | JS Module |

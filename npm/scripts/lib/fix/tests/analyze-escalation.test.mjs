@@ -149,7 +149,7 @@ describe('analyzeEscalations', () => {
   test('кілька чанків → синтез останнім викликом', async () => {
     const records = Array.from({ length: 6 }, (_, i) => rec({ remainingViolation: 'z'.repeat(200), ruleId: `r${i}` }))
     const prompts = []
-    const callLlm = (msgs) => {
+    const callLlm = msgs => {
       prompts.push(msgs[0].content)
       return prompts.length <= 99 ? `partial ${prompts.length}` : 'x'
     }

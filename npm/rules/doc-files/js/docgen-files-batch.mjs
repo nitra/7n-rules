@@ -1,5 +1,14 @@
 /** @see ./docs/docgen-files-batch.md */
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmdirSync,
+  statSync,
+  unlinkSync,
+  writeFileSync
+} from 'node:fs'
 import { basename, dirname, join, relative } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
@@ -153,7 +162,9 @@ const OKF_RESOURCE_RE = /^resource:[ \t]+(.+)$/mu
  * @returns {void}
  */
 function generateDirIndex(docsAbsDir, root) {
-  const allMd = readdirSync(docsAbsDir).filter(f => f.endsWith('.md')).sort()
+  const allMd = readdirSync(docsAbsDir)
+    .filter(f => f.endsWith('.md'))
+    .sort()
 
   // Якщо index.md вже є дока для source-файлу (має docgen.source → index.*) — не чіпаємо
   if (allMd.includes('index.md')) {
@@ -243,7 +254,11 @@ export function purgeOrphanedDocs(root) {
       // Лише index.md або порожня директорія — прибираємо повністю
       const indexPath = join(docsAbsDir, 'index.md')
       if (existsSync(indexPath)) unlinkSync(indexPath)
-      try { rmdirSync(docsAbsDir) } catch { /* не порожня — пропускаємо */ }
+      try {
+        rmdirSync(docsAbsDir)
+      } catch {
+        /* не порожня — пропускаємо */
+      }
     } else {
       generateDirIndex(docsAbsDir, root)
     }

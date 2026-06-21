@@ -6,7 +6,7 @@ resource: npm/
 
 # npm
 
-| Файл | Тип |
-|---|---|
+| Файл                                    | Тип       |
+| --------------------------------------- | --------- |
 | [stryker.config.mjs](stryker.config.md) | JS Module |
-| [vitest.config.js](vitest.config.md) | JS Module |
+| [vitest.config.js](vitest.config.md)    | JS Module |

@@ -6,6 +6,6 @@ resource: npm/rules/image-avif/js/
 
 # npm/rules/image-avif/js
 
-| Файл | Тип |
-|---|---|
+| Файл                                      | Тип       |
+| ----------------------------------------- | --------- |
 | [avif_generation.mjs](avif_generation.md) | JS Module |

@@ -23,16 +23,16 @@ skill-неймспейсі (`n-cursor doc-files scan|check|gen|stamp`):
 
 ## 2. Поточний стан (звідки мігруємо)
 
-| Що | Де зараз |
-| --- | --- |
-| Увесь JS (скан, CRC, ignore, конвеєр генерації) | `npm/skills/doc-files/js/` (≈13 модулів + `tests/` + `docs/`) |
-| CLI | `n-cursor doc-files scan\|check\|gen\|stamp` (диспатч у `npm/bin/n-cursor.js`, lazy import зі skills) |
-| Детект для hook'ів | `doc-files check --hook` (PostToolUse), `doc-files check --git` (Stop-гейт, поріг `N_CURSOR_DOC_FILES_GATE_MAX`), exit 2 |
-| Синк hook'ів | `npm/scripts/sync-claude-config.mjs`, маркер `DOC_FILES_HOOK_COMMAND_MARKER = '@nitra/cursor doc-files check'` |
-| Секція CLAUDE.md | рендериться кодом у `npm/bin/n-cursor.js` (`## Файлова документація…`) |
-| GA workflow | **немає** |
-| `lint-*` скрипт у package.json | **немає** |
-| Policy (rego/template) | **немає** |
+| Що                                              | Де зараз                                                                                                                 |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Увесь JS (скан, CRC, ignore, конвеєр генерації) | `npm/skills/doc-files/js/` (≈13 модулів + `tests/` + `docs/`)                                                            |
+| CLI                                             | `n-cursor doc-files scan\|check\|gen\|stamp` (диспатч у `npm/bin/n-cursor.js`, lazy import зі skills)                    |
+| Детект для hook'ів                              | `doc-files check --hook` (PostToolUse), `doc-files check --git` (Stop-гейт, поріг `N_CURSOR_DOC_FILES_GATE_MAX`), exit 2 |
+| Синк hook'ів                                    | `npm/scripts/sync-claude-config.mjs`, маркер `DOC_FILES_HOOK_COMMAND_MARKER = '@nitra/cursor doc-files check'`           |
+| Секція CLAUDE.md                                | рендериться кодом у `npm/bin/n-cursor.js` (`## Файлова документація…`)                                                   |
+| GA workflow                                     | **немає**                                                                                                                |
+| `lint-*` скрипт у package.json                  | **немає**                                                                                                                |
+| Policy (rego/template)                          | **немає**                                                                                                                |
 
 Розширення джерел (канон у `docgen-scan.mjs`): `.js .mjs .ts .vue .py .rs`.
 Визначення застарілості: дока **stale**, якщо її **немає** (`missing`) або
@@ -41,19 +41,19 @@ CRC свіжий) — **не** stale.
 
 ## 3. Ухвалені рішення (пропозиція)
 
-| # | Питання | Рішення |
-| --- | --- | --- |
-| А | Де живе механізм | Нове правило **`npm/rules/doc-files/`** — лише правило має слоти для policy/template (GA workflow, package.json-скрипт) і місце в lint-агрегаторі. Скіл `doc-files` стає **тонким** (тільки `SKILL.md` + `meta.json`; прецедент — скіл `lint`) |
-| Б | Імена команд | rule id = `doc-files` → команди **`lint-doc-files`** / **`fix-doc-files`**; ключі локів `lint-doc-files` / `fix-doc-files` виводяться зі шляху каталогу (канон scripts.mdc) |
-| В | Що детектує `lint-doc-files` | повний клас **stale = missing ∪ crc-mismatch** (обидва детерміновані, 0 токенів); degraded **не** падає; опція `--missing-only` звужує до самої наявності |
-| Г | Exit-коди | повний прогін — **1** (конвенція `lint-*`); `--hook`/`--git` — **2** (hook-протокол Claude Code: blocking feedback). Раніше plain `check` повертав 2 — зміна фіксується в changelog |
-| Д | Переїзд JS | `npm/skills/doc-files/js/` → **`npm/rules/doc-files/js/`** одним `git mv` (разом із `tests/` і `docs/`); глибина та сама, тож відносні імпорти `../../../scripts/…`, `../../../lib/…` не змінюються; після переносу `fix-doc-files --stamp` оновлює `source:` у frontmatter док |
-| Е | GA workflow | `policy/lint_doc_yml/` + `template/lint-doc-files.yml.snippet.yml` (job `doc`, `bun run lint-doc-files`); CI суто детермінований — без omlx/LLM/ключів |
-| Ж | package.json | `policy/package_json/` вимагає `"lint-doc-files": "n-cursor lint-doc-files"`; кореневий `lint`-ланцюжок цього репо отримує `bun run lint-doc-files` (алфавітно перед `lint-ga`) |
-| З | Агрегатор `n-cursor lint` | `meta.json` правила: `{ "auto": "завжди", "lint": "quick" }`; `js/lint.mjs` — per-file адаптер (quick = лише змінені файли) |
-| И | Hooks | команди стають `npx @nitra/cursor lint-doc-files --hook` / `--git`; маркер у sync — `'@nitra/cursor lint-doc-files'`; синк розпізнає й **замінює** legacy-рядки з `doc-files check`. Env `N_CURSOR_DOC_FILES_GATE_MAX` — без перейменування |
-| К | Сумісність | `n-cursor doc-files <sub>` лишається **делегувальним аліасом** з deprecation-попередженням на stderr; зняття аліасів — у наступному major |
-| Л | Semver | реліз з аліасами — **minor**; видалення неймспейсу `doc-files` — major |
+| #   | Питання                      | Рішення                                                                                                                                                                                                                                                                         |
+| --- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| А   | Де живе механізм             | Нове правило **`npm/rules/doc-files/`** — лише правило має слоти для policy/template (GA workflow, package.json-скрипт) і місце в lint-агрегаторі. Скіл `doc-files` стає **тонким** (тільки `SKILL.md` + `meta.json`; прецедент — скіл `lint`)                                  |
+| Б   | Імена команд                 | rule id = `doc-files` → команди **`lint-doc-files`** / **`fix-doc-files`**; ключі локів `lint-doc-files` / `fix-doc-files` виводяться зі шляху каталогу (канон scripts.mdc)                                                                                                     |
+| В   | Що детектує `lint-doc-files` | повний клас **stale = missing ∪ crc-mismatch** (обидва детерміновані, 0 токенів); degraded **не** падає; опція `--missing-only` звужує до самої наявності                                                                                                                       |
+| Г   | Exit-коди                    | повний прогін — **1** (конвенція `lint-*`); `--hook`/`--git` — **2** (hook-протокол Claude Code: blocking feedback). Раніше plain `check` повертав 2 — зміна фіксується в changelog                                                                                             |
+| Д   | Переїзд JS                   | `npm/skills/doc-files/js/` → **`npm/rules/doc-files/js/`** одним `git mv` (разом із `tests/` і `docs/`); глибина та сама, тож відносні імпорти `../../../scripts/…`, `../../../lib/…` не змінюються; після переносу `fix-doc-files --stamp` оновлює `source:` у frontmatter док |
+| Е   | GA workflow                  | `policy/lint_doc_yml/` + `template/lint-doc-files.yml.snippet.yml` (job `doc`, `bun run lint-doc-files`); CI суто детермінований — без omlx/LLM/ключів                                                                                                                          |
+| Ж   | package.json                 | `policy/package_json/` вимагає `"lint-doc-files": "n-cursor lint-doc-files"`; кореневий `lint`-ланцюжок цього репо отримує `bun run lint-doc-files` (алфавітно перед `lint-ga`)                                                                                                 |
+| З   | Агрегатор `n-cursor lint`    | `meta.json` правила: `{ "auto": "завжди", "lint": "quick" }`; `js/lint.mjs` — per-file адаптер (quick = лише змінені файли)                                                                                                                                                     |
+| И   | Hooks                        | команди стають `npx @nitra/cursor lint-doc-files --hook` / `--git`; маркер у sync — `'@nitra/cursor lint-doc-files'`; синк розпізнає й **замінює** legacy-рядки з `doc-files check`. Env `N_CURSOR_DOC_FILES_GATE_MAX` — без перейменування                                     |
+| К   | Сумісність                   | `n-cursor doc-files <sub>` лишається **делегувальним аліасом** з deprecation-попередженням на stderr; зняття аліасів — у наступному major                                                                                                                                       |
+| Л   | Semver                       | реліз з аліасами — **minor**; видалення неймспейсу `doc-files` — major                                                                                                                                                                                                          |
 
 ## 4. Цільова структура
 
@@ -96,16 +96,16 @@ npm/skills/doc-files/
 
 ## 5. Мапа команд
 
-| Було | Стає | Exit | Семантика |
-| --- | --- | --- | --- |
-| `doc-files scan` | `lint-doc-files --json` | 0 | JSON-лістинг усіх кандидатів зі станом застарілості |
-| `doc-files check [paths…]` | `lint-doc-files [paths…]` | 1 — є stale | повний (або точковий) детект, людиночитний вивід зі списком stale |
-| — | `lint-doc-files --missing-only` | 1 | лише `missing`, без `crc-mismatch` |
-| `doc-files check --hook` | `lint-doc-files --hook` | 2 — stale | PostToolUse: stdin JSON, один файл |
-| `doc-files check --git [--max N]` | `lint-doc-files --git [--max N]` | 2 — stale | Stop-гейт: `git diff --name-only HEAD`; понад поріг (`N_CURSOR_DOC_FILES_GATE_MAX`, дефолт 50) — warn + exit 0 |
-| `doc-files check --degraded` | `lint-doc-files --degraded` | 0 | інформаційний звіт про доки зі score < порогу |
-| `doc-files gen [--limit/--from/--overwrite/--retry-degraded]` | `fix-doc-files [ті самі прапорці]` | 0/1 | local-only генерація за спекою 2026-06-10, omlx preflight, штамп CRC |
-| `doc-files stamp` | `fix-doc-files --stamp` | 0/1 | детерміноване перештампування `source`+`crc` без LLM |
+| Було                                                          | Стає                               | Exit        | Семантика                                                                                                      |
+| ------------------------------------------------------------- | ---------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------- |
+| `doc-files scan`                                              | `lint-doc-files --json`            | 0           | JSON-лістинг усіх кандидатів зі станом застарілості                                                            |
+| `doc-files check [paths…]`                                    | `lint-doc-files [paths…]`          | 1 — є stale | повний (або точковий) детект, людиночитний вивід зі списком stale                                              |
+| —                                                             | `lint-doc-files --missing-only`    | 1           | лише `missing`, без `crc-mismatch`                                                                             |
+| `doc-files check --hook`                                      | `lint-doc-files --hook`            | 2 — stale   | PostToolUse: stdin JSON, один файл                                                                             |
+| `doc-files check --git [--max N]`                             | `lint-doc-files --git [--max N]`   | 2 — stale   | Stop-гейт: `git diff --name-only HEAD`; понад поріг (`N_CURSOR_DOC_FILES_GATE_MAX`, дефолт 50) — warn + exit 0 |
+| `doc-files check --degraded`                                  | `lint-doc-files --degraded`        | 0           | інформаційний звіт про доки зі score < порогу                                                                  |
+| `doc-files gen [--limit/--from/--overwrite/--retry-degraded]` | `fix-doc-files [ті самі прапорці]` | 0/1         | local-only генерація за спекою 2026-06-10, omlx preflight, штамп CRC                                           |
+| `doc-files stamp`                                             | `fix-doc-files --stamp`            | 0/1         | детерміноване перештампування `source`+`crc` без LLM                                                           |
 
 Обидві нові команди підтримують `--root <dir>` і, як і `doc-files` сьогодні,
 належать до «`--root`-команд» (виконуються без синку правил). `fix-doc-files` зберігає
@@ -203,16 +203,16 @@ jobs:
 
 ## 9. Інтеграційні точки
 
-| Точка | Зміна |
-| --- | --- |
-| `npm/bin/n-cursor.js` | нові cases `lint-doc-files` / `fix-doc-files` (обидва `await`); case `doc-files` → делегат + deprecation-warn; оновити header-JSDoc, список очікуваних команд, what-is-хелпер |
-| Рендерер секції CLAUDE.md (там само) | текст секції `## Файлова документація…` посилається на `lint-doc-files --hook` / `lint-doc-files --git` / `fix-doc-files` |
-| `npm/scripts/sync-claude-config.mjs` | маркер → `'@nitra/cursor lint-doc-files'`; PostToolUse: `npx @nitra/cursor lint-doc-files --hook`; Stop: `npx @nitra/cursor lint-doc-files --git`; при merge видаляти/замінювати hook-рядки зі старим маркером `doc-files check` |
-| `npm/skills/doc-aggregate/js/docgen-ignore.mjs` | re-export ignore-глобів вказує на `npm/rules/doc-files/js/docgen-ignore.mjs` |
-| Кореневий `package.json` | `"lint-doc-files": "n-cursor lint-doc-files"`; ланцюжок `"lint"` += `bun run lint-doc-files &&` (першим, алфавітно) |
-| `.n-cursor.json` цього репо | `rules` += `"doc"` (якщо список явний) |
-| `AGENTS.md` | перегенерується синком автоматично (скрипти беруться з package.json) |
-| `.github/workflows/lint-doc-files.yml` (цей репо) | створюється зі снапшота template |
+| Точка                                             | Зміна                                                                                                                                                                                                                            |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm/bin/n-cursor.js`                             | нові cases `lint-doc-files` / `fix-doc-files` (обидва `await`); case `doc-files` → делегат + deprecation-warn; оновити header-JSDoc, список очікуваних команд, what-is-хелпер                                                    |
+| Рендерер секції CLAUDE.md (там само)              | текст секції `## Файлова документація…` посилається на `lint-doc-files --hook` / `lint-doc-files --git` / `fix-doc-files`                                                                                                        |
+| `npm/scripts/sync-claude-config.mjs`              | маркер → `'@nitra/cursor lint-doc-files'`; PostToolUse: `npx @nitra/cursor lint-doc-files --hook`; Stop: `npx @nitra/cursor lint-doc-files --git`; при merge видаляти/замінювати hook-рядки зі старим маркером `doc-files check` |
+| `npm/skills/doc-aggregate/js/docgen-ignore.mjs`   | re-export ignore-глобів вказує на `npm/rules/doc-files/js/docgen-ignore.mjs`                                                                                                                                                     |
+| Кореневий `package.json`                          | `"lint-doc-files": "n-cursor lint-doc-files"`; ланцюжок `"lint"` += `bun run lint-doc-files &&` (першим, алфавітно)                                                                                                              |
+| `.n-cursor.json` цього репо                       | `rules` += `"doc"` (якщо список явний)                                                                                                                                                                                           |
+| `AGENTS.md`                                       | перегенерується синком автоматично (скрипти беруться з package.json)                                                                                                                                                             |
+| `.github/workflows/lint-doc-files.yml` (цей репо) | створюється зі снапшота template                                                                                                                                                                                                 |
 
 ## 10. Порядок міграції
 

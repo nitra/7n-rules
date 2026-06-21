@@ -132,7 +132,9 @@ function runLintTextSteps(readOnly = false, llmFix = false) {
   const dotenvCode = runDotenvLinter(process.cwd(), readOnly)
   if (dotenvCode !== 0) return dotenvCode
 
-  const mdArgs = readOnly ? ['markdownlint-cli2', '**/*.md', '**/*.mdc'] : ['markdownlint-cli2', '--fix', '**/*.md', '**/*.mdc']
+  const mdArgs = readOnly
+    ? ['markdownlint-cli2', '**/*.md', '**/*.mdc']
+    : ['markdownlint-cli2', '--fix', '**/*.md', '**/*.mdc']
   const markdownlintCode = runLintStep('markdownlint', 'bunx', mdArgs)
   if (markdownlintCode !== 0) return markdownlintCode
 

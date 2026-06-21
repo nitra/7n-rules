@@ -6,6 +6,6 @@ resource: npm/scripts/tests/fixtures/
 
 # npm/scripts/tests/fixtures
 
-| Файл | Тип |
-|---|---|
+| Файл                                        | Тип       |
+| ------------------------------------------- | --------- |
 | [cli-entry-as-cli.mjs](cli-entry-as-cli.md) | JS Module |

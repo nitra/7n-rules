@@ -6,6 +6,6 @@ resource: npm/rules/graphql/lib/
 
 # npm/rules/graphql/lib
 
-| Файл | Тип |
-|---|---|
+| Файл                                        | Тип       |
+| ------------------------------------------- | --------- |
 | [graphql-gql-scan.mjs](graphql-gql-scan.md) | JS Module |

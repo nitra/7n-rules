@@ -39,11 +39,11 @@ check
 
 findDefaultConfTemplatePaths — Збирає повні шляхи до **default.conf.template** у репозиторії; виключає будь-який сегмент `fixtures/` (включаючи `tests/fixtures/` та ко-локальні шляхи `rules/<rule>/js/<concern>/fixtures/`).
 migrateDefaultTplConfFiles — Знаходить **default.tpl.conf** у дереві від `root`. Якщо **default.conf.template** відсутній, перейменовує **default.tpl.conf**; якщо він присутній, перезаписує **default.conf.template** вмістом **default.tpl.conf** та видаляє **default.tpl.conf**.
-migrateErrorLogOffDirective — Замінює невалідну директиву `error_log off;` на `error_log /dev/null crit;` у всіх **default.conf.template** від `root**. `error_log off;` трактується як ім'я файлу (`/etc/nginx/off`), що призводить до помилки `readOnlyRootFilesystem`. `/dev/null` — це записуваний пристрій.
+migrateErrorLogOffDirective — Замінює невалідну директиву `error_log off;` на `error_log /dev/null crit;` у всіх **default.conf.template** від `root**. `error_log off;` трактується як ім'я файлу (`/etc/nginx/off`), що призводить до помилки `readOnlyRootFilesystem`. `/dev/null`— це записуваний пристрій.
 parseIniVariableNames — Витягує імена змінних з файлів ini (рядки у форматі KEY=value, без коментарів і порожніх).
 nginxTemplateViolations — Перевіряє вміст **default.conf.template** на відповідність вимогам **nginx-default-tpl.mdc**.
 httpRouteMatchesNginxDefaultTpl — Перевіряє, чи відповідає **HTTPRoute** патерну Exact→RequestRedirect + PathPrefix→backendRefs.
-iniKeysMissingInTemplate — Перевіряє, чи входять усі імена ключів з ini до шаблону у форматі `$KEY` (використовуючи envsubst).
+iniKeysMissingInTemplate — Перевіряє, чи входять усі імена ключів з ini до шаблону у форматі`$KEY` (використовуючи envsubst).
 check — Перевіряє відповідність проєкту правилам **nginx-default-tpl.mdc**.
 
 ## Гарантії поведінки

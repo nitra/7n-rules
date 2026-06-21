@@ -148,9 +148,7 @@ async function runPerFileRules(ids, ctx) {
  * @returns {Promise<number>} код конформності
  */
 async function runFullConformancePhase(cwd, readOnly, log) {
-  const { escalationLogSize, maybeAnalyzeEscalation, reportRunStats } = await import(
-    './fix/analyze-escalation.mjs'
-  )
+  const { escalationLogSize, maybeAnalyzeEscalation, reportRunStats } = await import('./fix/analyze-escalation.mjs')
   const escOffset = readOnly ? 0 : escalationLogSize()
   const conformanceCode = await runConformance(cwd, readOnly, log)
   if (!readOnly) {

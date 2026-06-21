@@ -6,6 +6,6 @@ resource: npm/rules/nginx-default-tpl/js/
 
 # npm/rules/nginx-default-tpl/js
 
-| Файл | Тип |
-|---|---|
+| Файл                        | Тип       |
+| --------------------------- | --------- |
 | [template.mjs](template.md) | JS Module |

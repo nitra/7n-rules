@@ -623,7 +623,7 @@ function buildClaudeLintParallelismSectionLines() {
     '',
     '## Лінт і ESLint (паралелізм)',
     '',
-    'Паралельний лінт по **різних** файлах — **дозволено**: диз\'юнктні набори (per-file `lint` на змінених vs origin) не конфліктують і не перевантажують диск/CPU. Серіалізувати треба лише **whole-tree** прогони того самого корпусу (`bun run lint`, `n-cursor lint --full` по всьому репо) — щоб не дублювати важкий full-scan. Деталі: `.cursor/skills/n-lint/SKILL.md`.',
+    "Паралельний лінт по **різних** файлах — **дозволено**: диз'юнктні набори (per-file `lint` на змінених vs origin) не конфліктують і не перевантажують диск/CPU. Серіалізувати треба лише **whole-tree** прогони того самого корпусу (`bun run lint`, `n-cursor lint --full` по всьому репо) — щоб не дублювати важкий full-scan. Деталі: `.cursor/skills/n-lint/SKILL.md`.",
     ''
   ]
 }

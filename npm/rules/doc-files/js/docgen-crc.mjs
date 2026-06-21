@@ -74,7 +74,7 @@ const EXT_TYPES = {
   '.ts': 'TS Module',
   '.vue': 'Vue Component',
   '.py': 'Python Module',
-  '.rs': 'Rust Module',
+  '.rs': 'Rust Module'
 }
 
 /**
@@ -85,8 +85,6 @@ const EXT_TYPES = {
 function typeForSource(sourcePath) {
   return EXT_TYPES[extname(sourcePath).toLowerCase()] ?? 'Source File'
 }
-
-
 
 /**
  * Нормалізує issues до YAML-безпечних кодів: бере фрагмент до першого пробілу
@@ -112,11 +110,7 @@ function issueCodes(issues) {
  * @returns {string} OKF-сумісний YAML frontmatter
  */
 export function buildDocFrontmatter(source, crc, quality = null, model = null) {
-  const okfLines = [
-    `type: ${typeForSource(source)}`,
-    `title: ${basename(source)}`,
-    `resource: ${source}`,
-  ]
+  const okfLines = [`type: ${typeForSource(source)}`, `title: ${basename(source)}`, `resource: ${source}`]
 
   // docgen namespace: лише CRC-механіка і quality (source перенесено у resource)
   const docgenLines = [`crc: ${crc}`]

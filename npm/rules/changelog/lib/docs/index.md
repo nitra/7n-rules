@@ -6,6 +6,6 @@ resource: npm/rules/changelog/lib/
 
 # npm/rules/changelog/lib
 
-| Файл | Тип |
-|---|---|
+| Файл                                        | Тип       |
+| ------------------------------------------- | --------- |
 | [package-manifest.mjs](package-manifest.md) | JS Module |

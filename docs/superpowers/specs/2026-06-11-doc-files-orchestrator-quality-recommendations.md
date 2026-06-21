@@ -16,11 +16,11 @@
 
 ### 1.1 Впевнено хибні факти (найгірший клас)
 
-| Дока | Хибне твердження | Корінь |
-|---|---|---|
-| `adr/js/hooks.md` Огляд | «використовує конфігурацію з файлу `.local.json`» | анкор-баг R1 |
-| `capacitor/js/platforms.md` Огляд | «спирається на конфігурації, визначені у файлі `.config.json`» | анкор-баг R1 |
-| `capacitor/js/platforms.md` Гарантії | «Кешує результати в межах одного прогону» | маркер-баг R2 |
+| Дока                                 | Хибне твердження                                               | Корінь        |
+| ------------------------------------ | -------------------------------------------------------------- | ------------- |
+| `adr/js/hooks.md` Огляд              | «використовує конфігурацію з файлу `.local.json`»              | анкор-баг R1  |
+| `capacitor/js/platforms.md` Огляд    | «спирається на конфігурації, визначені у файлі `.config.json`» | анкор-баг R1  |
+| `capacitor/js/platforms.md` Гарантії | «Кешує результати в межах одного прогону»                      | маркер-баг R2 |
 
 Це **не випадковість моделі**. Перевірено детерміновано:
 
@@ -85,11 +85,11 @@ Style-промпт і критик мають **закритий список з
 
 Новий `scoreDoc` прогнано проти трьох пілотних док, які раніше мали **score=100**:
 
-| Дока | Було | Стало | Спіймані issues |
-|---|---|---|---|
-| `adr/js/hooks.md` | 100 | **55** | generic-overview, anchor-miss:hooks.json, anchor-miss:settings.local.json |
-| `bun/js/layout.md` | 100 | **60** | generic-overview, anchor-miss:package-lock.json |
-| `capacitor/js/platforms.md` | 100 | **30** | generic-overview, cache-hallucination, anchor-miss:capacitor.config.json, surzhik |
+| Дока                        | Було | Стало  | Спіймані issues                                                                   |
+| --------------------------- | ---- | ------ | --------------------------------------------------------------------------------- |
+| `adr/js/hooks.md`           | 100  | **55** | generic-overview, anchor-miss:hooks.json, anchor-miss:settings.local.json         |
+| `bun/js/layout.md`          | 100  | **60** | generic-overview, anchor-miss:package-lock.json                                   |
+| `capacitor/js/platforms.md` | 100  | **30** | generic-overview, cache-hallucination, anchor-miss:capacitor.config.json, surzhik |
 
 Усі три тепер degraded (< 70) → у майбутньому прогоні best-of-2 спрацював би, а не тихо прийняв фабрикації. `cache-hallucination` на platforms.md — спільний ефект R2 (markers.caches=false) і наявної перевірки. Реалізовано в `docgen-extract.mjs`, `docgen-extract-anchors.mjs`, `docgen-prompts.mjs`, `docgen-gen.mjs`; тести — `tests/docgen-{extract,extract-anchors,gen,prompts}.test.mjs` (43 passed).
 

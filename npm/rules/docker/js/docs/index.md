@@ -6,6 +6,6 @@ resource: npm/rules/docker/js/
 
 # npm/rules/docker/js
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [lint.mjs](lint.md) | JS Module |

@@ -6,6 +6,6 @@ resource: npm/scripts/dispatcher/
 
 # npm/scripts/dispatcher
 
-| Файл | Тип |
-|---|---|
+| Файл                  | Тип       |
+| --------------------- | --------- |
 | [trace.mjs](trace.md) | JS Module |

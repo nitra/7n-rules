@@ -6,6 +6,6 @@ resource: npm/rules/js-mssql/js/
 
 # npm/rules/js-mssql/js
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [deps.mjs](deps.md) | JS Module |

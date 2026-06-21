@@ -6,6 +6,6 @@ resource: npm/rules/ci4/js/
 
 # npm/rules/ci4/js
 
-| Файл | Тип |
-|---|---|
+| Файл                                      | Тип       |
+| ----------------------------------------- | --------- |
 | [marksman_config.mjs](marksman_config.md) | JS Module |

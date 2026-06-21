@@ -21,13 +21,13 @@ worktree-керування зараз живе в `@nitra/cursor` (`scripts/wor
 
 Без зворотної сумісності (рішення): команди іменуємо правильно, аліасів немає.
 
-| Команда | Поведінка |
-|---|---|
+| Команда                                | Поведінка                                                                                                                                                                         |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `mt worktree create <branch> "<desc>"` | `git worktree add .worktrees/<sanit> -b <branch>` від HEAD; інвентар `.worktrees/.meta/<sanit>.md`; collision → `firstFree`; dirty-notice про незакомічені зміни основного дерева |
-| `mt worktree list` | `git worktree list` + вміст інвентарів |
-| `mt worktree remove <branch>` | прибрати checkout + інвентар + **git-гілку** (worktree ефемерний — рішення) |
-| `mt worktree prune` | `git worktree prune` + видалити осиротілі інвентарі |
-| `mt worktree inventory` | машинний (JSON) стан worktree для task-graph (об'єднує з наявним `discover_worktrees`) |
+| `mt worktree list`                     | `git worktree list` + вміст інвентарів                                                                                                                                            |
+| `mt worktree remove <branch>`          | прибрати checkout + інвентар + **git-гілку** (worktree ефемерний — рішення)                                                                                                       |
+| `mt worktree prune`                    | `git worktree prune` + видалити осиротілі інвентарі                                                                                                                               |
+| `mt worktree inventory`                | машинний (JSON) стан worktree для task-graph (об'єднує з наявним `discover_worktrees`)                                                                                            |
 
 `desc` для `create` — **обовʼязковий** (як зараз).
 
@@ -41,6 +41,7 @@ worktree-керування зараз живе в `@nitra/cursor` (`scripts/wor
 ## Поведінка, яку зберігаємо 1:1 (порт у Rust)
 
 Чисті функції з `lib/worktree.mjs` → Rust (mt уже має частину: `sanitizeTaskName`, `discover_worktrees`):
+
 - `sanitizeBranch`: trim → `[^a-zA-Z0-9._-]+` у `-` → обрізати краєві `-`; порожнє → помилка. Git-гілка лишає slash, шлях — sanitized.
 - `firstFreeBranch`: зайнято (git-гілка АБО checkout-каталог існує) → `base`, `base2`, `base3`… (стеля 1000).
 - `buildDescription`: інвентар-`.md` (заголовок=branch, `**Задача**`/`**Дата**`/`**База (коміт)**`, hint на remove — оновити на `mt worktree remove`).
@@ -55,6 +56,7 @@ worktree-керування зараз живе в `@nitra/cursor` (`scripts/wor
 **Бенчмарк JS vs Rust (2026-06-16):** `mt` входить через Node-wrapper `bin/mt.js` (підлога ~50 мс, неминуча). Повний `mt worktree list` (JS) ≈ **63 мс**; Rust-lifecycle через той самий wrapper додав би spawn (~10 мс) → **~70+ мс, повільніше**. Rust-native (~21 мс) вимагав би викинути Node-wrapper для всього CLI — окрема велика ініціатива. git-op (~11 мс) і Rust-старт (~10 мс) затьмарені Node-стартом. **Висновок: worktree-логіка лишається у JS** (швидше за поточної архітектури + вже реалізовано).
 
 **Обсяг вирівнювання `commands/worktree.mjs`:**
+
 - `add` → `create`;
 - додати `prune` (git prune + видалити осиротілі інвентарі) і `inventory` (JSON стан для task-graph, поверх `discover_worktrees`);
 - інвентар → `.meta/` layout;
@@ -65,20 +67,24 @@ worktree-керування зараз живе в `@nitra/cursor` (`scripts/wor
 ## Міграція cursor
 
 **Видалити:**
+
 - `scripts/worktree-cli.mjs`, `lib/worktree.mjs` + їхні тести (`scripts/tests/worktree-cli.test.mjs`, `lib/tests/worktree.test.mjs`);
 - `case 'worktree'` + `runWorktreeCli`-import у `bin/n-cursor.js` (+ рядок у шапці/`default`-помилці);
 - скіл-пакет `skills/worktree/` (логіка тепер у mt) — або лишити тонкий скіл, що документує `mt worktree`? (див. відкрите).
 
 **Перемкнути на `mt worktree`:**
+
 - інжектований preflight-снипет `n-cursor:worktree:start` у `lib/worktree-notice.mjs`: `npx @nitra/cursor worktree add …` → `mt worktree create …`; bootstrap = `bun install` (тягне `@7n/mt`) → `mt worktree create` (retry-обгортка ETARGET прибрана — це бінарник, не npx-резолв);
 - правило `rules/worktree/worktree.mdc` — на `mt worktree`;
 - `skills/worktree/SKILL.md` (якщо лишаємо) — на `mt worktree`.
 
 **Лишити без змін:**
+
 - `syncGitignoreWorktree` (`.worktrees/` gitignored);
 - `injectWorktreeNotice` як механізм інжекту (міняється лише вміст снипета).
 
 **Залежність:**
+
 - `@7n/mt` у `dependencies` + `@7n/mt-{darwin-arm64,linux-x64}` у `optionalDependencies`;
 - аналог `ensureNitraCursorInRootDevDependencies` — переконатись, що `@7n/mt` є в консумера (або документувати в правилі).
 

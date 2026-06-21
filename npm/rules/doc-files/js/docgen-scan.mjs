@@ -160,7 +160,12 @@ function gitIgnoredPaths(root, relPaths) {
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'ignore'] // git пише «not a git repository» у stderr — глушимо
     })
-    return new Set(out.split('\n').map(s => s.trim()).filter(Boolean))
+    return new Set(
+      out
+        .split('\n')
+        .map(s => s.trim())
+        .filter(Boolean)
+    )
   } catch {
     // exit 1 (жоден не ігнорується) і 128 (не git-репо) → execFileSync кидає; обидва = «не фільтруємо».
     return new Set()
@@ -201,7 +206,10 @@ export function scanForDocFiles(root) {
   }
 
   walk(root)
-  const ignored = gitIgnoredPaths(root, results.map(r => r.sourcePath))
+  const ignored = gitIgnoredPaths(
+    root,
+    results.map(r => r.sourcePath)
+  )
   return ignored.size ? results.filter(r => !ignored.has(r.sourcePath)) : results
 }
 

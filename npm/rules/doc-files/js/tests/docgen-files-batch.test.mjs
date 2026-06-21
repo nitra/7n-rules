@@ -42,7 +42,8 @@ vi.mock('node:fs', () => ({
 const { runDocFilesGenCli, selectTargets } = await import('../docgen-files-batch.mjs')
 
 /** @param {number} n кількість stale-цілей */
-const targets = n => Array.from({ length: n }, (_, i) => ({ sourcePath: `src/f${i}.js`, docPath: `src/docs/f${i}.md`, stale: true }))
+const targets = n =>
+  Array.from({ length: n }, (_, i) => ({ sourcePath: `src/f${i}.js`, docPath: `src/docs/f${i}.md`, stale: true }))
 
 const SYSTEMIC = () => {
   throw new Error('omlx api: ... memory ceiling 11.84GB')
@@ -50,7 +51,16 @@ const SYSTEMIC = () => {
 const PERMANENT = () => {
   throw new Error('omlx api: Prompt too long: 9177917 tokens exceeds max context window')
 }
-const OK = () => ({ md: '## Огляд\n', score: 90, degraded: false, issues: [], model: 'omlx/test-model', ms: 1, llmMs: 1, llmCalls: 1 })
+const OK = () => ({
+  md: '## Огляд\n',
+  score: 90,
+  degraded: false,
+  issues: [],
+  model: 'omlx/test-model',
+  ms: 1,
+  llmMs: 1,
+  llmCalls: 1
+})
 
 describe('runDocFilesGenCli — circuit-breaker / класифікація', () => {
   beforeEach(() => {

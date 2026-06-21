@@ -54,10 +54,10 @@
 
 ### Двошарова модель даних (raw → aggregate)
 
-| Шар | Що | Доля |
-|---|---|---|
-| **Raw** `<cwd>/.n-cursor/llm-trace.jsonl` (+ архіви) | потік wire-записів: код, reasoning, великий, шумний | **gitignored**, локальний; лежить, доки батч-агрегація не спожиє |
-| **Aggregate** | дистильовані висновки | **коммітиться в git** (`docs/omlx-insights/`), назавжди — історія + code-review |
+| Шар                                                  | Що                                                  | Доля                                                                            |
+| ---------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **Raw** `<cwd>/.n-cursor/llm-trace.jsonl` (+ архіви) | потік wire-записів: код, reasoning, великий, шумний | **gitignored**, локальний; лежить, доки батч-агрегація не спожиє                |
+| **Aggregate**                                        | дистильовані висновки                               | **коммітиться в git** (`docs/omlx-insights/`), назавжди — історія + code-review |
 
 «Назавжди» — про **агрегат**, не про сирий потік. Тому raw-ротація **недеструктивна**: дані доживають до агрегації.
 
@@ -75,6 +75,7 @@
 `omlx.mjs` отримує **ядро** `callOmlxRaw(messages, model, opts) → { content, reasoning, reasoningSource, finishReason, usage, attempts }` (увесь curl/retry-цикл там). Публічний `callOmlx` стає тонкою обгорткою `callOmlxRaw(...).content` — **контракт `string` незмінний** для будь-яких прямих споживачів. `callLlm` (omlx-гілка) кличе `callOmlxRaw` і дістає всі поля для запису.
 
 `reasoning` всередині `callOmlxRaw`:
+
 - спершу `message.reasoning_content` → `reasoningSource: "field"`;
 - якщо порожнє — regex `<think>(.*?)</think>` з `content` → `"think_tag"`;
 - якщо порожнє і `finish_reason == "length"` → `"truncated"` (думку зрізав `max_tokens`, сирий reasoning у `content`);
@@ -86,25 +87,25 @@
 
 ```jsonc
 {
-  "ts": "2026-06-10T...",        // ISO, момент завершення
-  "caller": "doc-files|fix|coverage|unknown",  // opts.caller ?? env.N_CURSOR_TRACE_CALLER ?? 'unknown'
+  "ts": "2026-06-10T...", // ISO, момент завершення
+  "caller": "doc-files|fix|coverage|unknown", // opts.caller ?? env.N_CURSOR_TRACE_CALLER ?? 'unknown'
   "backend": "omlx|pi",
   "model": "omlx/Qwen3-4B-Thinking-2507-4bit",
   "temperature": 0.2,
-  "max_tokens": 4096,            // null для pi
+  "max_tokens": 4096, // null для pi
 
-  "messages": [ { "role": "system", "content": "…(cap 8000 симв.)…" } ],
-  "messages_sha256": "…",        // hash повного (необрізаного) масиву
+  "messages": [{ "role": "system", "content": "…(cap 8000 симв.)…" }],
+  "messages_sha256": "…", // hash повного (необрізаного) масиву
   "messages_truncated": false,
 
   "content": "391",
   "reasoning": "Okay, the user…", // null якщо нема
   "reasoning_source": "field|think_tag|truncated|null",
-  "finish_reason": "stop",       // null для pi
+  "finish_reason": "stop", // null для pi
   "usage": { "...": "verbatim" }, // null для pi
 
   "ms": 12740,
-  "attempts": 1,                 // retry-цикл omlx; 1 для pi
+  "attempts": 1, // retry-цикл omlx; 1 для pi
   "ok": true,
   "error": null
 }

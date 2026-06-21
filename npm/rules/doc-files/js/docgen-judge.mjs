@@ -58,7 +58,14 @@ export function parseDocVerdict(rawText) {
  */
 export function judgeDoc(src, doc, { model = JUDGE_MODEL, timeoutMs = 120_000 } = {}) {
   const user = `SOURCE FILE:\n\`\`\`\n${src.slice(0, 12_000)}\n\`\`\`\n\nGENERATED DOC:\n\`\`\`md\n${doc.slice(0, 8000)}\n\`\`\`\n\nReturn the JSON verdict.`
-  const raw = callLlm([{ role: 'system', content: JUDGE_SYSTEM }, { role: 'user', content: user }], model, { timeoutMs, temperature: 0 })
+  const raw = callLlm(
+    [
+      { role: 'system', content: JUDGE_SYSTEM },
+      { role: 'user', content: user }
+    ],
+    model,
+    { timeoutMs, temperature: 0 }
+  )
   return parseDocVerdict(raw)
 }
 

@@ -6,6 +6,6 @@ resource: npm/rules/graphql/js/
 
 # npm/rules/graphql/js
 
-| Файл | Тип |
-|---|---|
+| Файл                      | Тип       |
+| ------------------------- | --------- |
 | [tooling.mjs](tooling.md) | JS Module |

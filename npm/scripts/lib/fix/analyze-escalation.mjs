@@ -231,7 +231,10 @@ function buildSynthesisPrompt(partials) {
  */
 function safeCall(call, prompt, model) {
   try {
-    const text = call([{ role: 'user', content: prompt }], model, { timeoutMs: ANALYZE_TIMEOUT_MS, caller: 'fix-analyze' })
+    const text = call([{ role: 'user', content: prompt }], model, {
+      timeoutMs: ANALYZE_TIMEOUT_MS,
+      caller: 'fix-analyze'
+    })
     return text || null
   } catch {
     return null

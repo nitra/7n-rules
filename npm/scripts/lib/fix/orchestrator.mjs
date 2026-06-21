@@ -45,7 +45,14 @@ const CLOUD_TRANSPORT_RE = /etimedout|timed out|pi error/i
 export function buildLadder({ localMin, cloudMin, cloudAvg }) {
   return [
     { tier: 'local-min', model: localMin, feedback: false, local: true, isAvg: false, timeoutMs: LOCAL_TIMEOUT_MS },
-    { tier: 'local-min-retry', model: localMin, feedback: true, local: true, isAvg: false, timeoutMs: LOCAL_TIMEOUT_MS },
+    {
+      tier: 'local-min-retry',
+      model: localMin,
+      feedback: true,
+      local: true,
+      isAvg: false,
+      timeoutMs: LOCAL_TIMEOUT_MS
+    },
     { tier: 'cloud-min', model: cloudMin, feedback: true, local: false, isAvg: false, timeoutMs: CLOUD_TIMEOUT_MS },
     { tier: 'cloud-avg', model: cloudAvg, feedback: true, local: false, isAvg: true, timeoutMs: CLOUD_TIMEOUT_MS }
   ].filter(r => r.model)
@@ -103,7 +110,15 @@ export async function escalateRule(rule, cwd, deps) {
 
     const common = { rung: idx, tier: rung.tier, model: rung.model, withFeedback: rung.feedback }
     if (rung.isAvg && avgBudget - avgUsed <= 0) {
-      record({ ...common, callOk: false, callError: 'cloud-avg cap reached', recheckOk: false, remainingViolation: currentViolation, diagnosis: null, ms: 0 })
+      record({
+        ...common,
+        callOk: false,
+        callError: 'cloud-avg cap reached',
+        recheckOk: false,
+        remainingViolation: currentViolation,
+        diagnosis: null,
+        ms: 0
+      })
       log(`  ⏭️  ${rule.ruleId}: ${rung.tier} пропущено (avg-кеп вичерпано)`)
       continue
     }
@@ -120,7 +135,15 @@ export async function escalateRule(rule, cwd, deps) {
     const recheck = await check([rule.ruleId], cwd)
     const recheckOk = recheck.rules.every(r => r.ok)
     const remaining = recheckOk ? '' : (recheck.rules.find(r => !r.ok)?.output ?? '')
-    record({ ...common, callOk: res.ok, callError: res.error ?? null, recheckOk, remainingViolation: remaining, diagnosis: res.diagnosis ?? null, ms: clock() - startedAt })
+    record({
+      ...common,
+      callOk: res.ok,
+      callError: res.error ?? null,
+      recheckOk,
+      remainingViolation: remaining,
+      diagnosis: res.diagnosis ?? null,
+      ms: clock() - startedAt
+    })
 
     if (recheckOk) {
       log(`  ✅ ${rung.tier} (${rung.model || 'pi'}): ${rule.ruleId}`)

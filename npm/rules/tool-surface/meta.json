@@ -1,1 +1,6 @@
-{ "auto": { "predicate": "depInAnyPackageJson", "arg": ["vue", "react", "svelte", "@angular/core", "preact", "solid-js", "@tauri-apps/api", "@capacitor/core"] } }
+{
+  "auto": {
+    "predicate": "depInAnyPackageJson",
+    "arg": ["vue", "react", "svelte", "@angular/core", "preact", "solid-js", "@tauri-apps/api", "@capacitor/core"]
+  }
+}

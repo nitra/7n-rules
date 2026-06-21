@@ -143,12 +143,17 @@ export function runCspellText(cwd = process.cwd(), readOnly = false, llmFix = fa
   const words = unknownWords(first.out)
   const batch = words.slice(0, MAX_CLASSIFY_WORDS)
   if (words.length > MAX_CLASSIFY_WORDS) {
-    process.stdout.write(`ℹ️  cspell: класифікація перших ${MAX_CLASSIFY_WORDS}/${words.length} слів (решта — наступний прогін)\n`)
+    process.stdout.write(
+      `ℹ️  cspell: класифікація перших ${MAX_CLASSIFY_WORDS}/${words.length} слів (решта — наступний прогін)\n`
+    )
   }
 
   let text
   try {
-    text = callLlm([{ role: 'user', content: classifyPrompt(batch) }], model, { caller: 'cspell-classify', maxTokens: 4000 })
+    text = callLlm([{ role: 'user', content: classifyPrompt(batch) }], model, {
+      caller: 'cspell-classify',
+      maxTokens: 4000
+    })
   } catch (error) {
     process.stdout.write(`⚠️  cspell: omlx-класифікація впала (${error.message}) — без авто-словника\n`)
     process.stdout.write(first.out)

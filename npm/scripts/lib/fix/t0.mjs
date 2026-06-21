@@ -210,7 +210,10 @@ export async function runT0AutoCli(args, cwd) {
   }
 
   // 4. Check-gate: перевірити лише ті правила, що ми чіпали
-  const recheckJson = await runConformanceCheck(applied.map(a => a.ruleId), cwd)
+  const recheckJson = await runConformanceCheck(
+    applied.map(a => a.ruleId),
+    cwd
+  )
   const stillFailed = recheckJson.rules.filter(r => !r.ok)
 
   if (verbose) {

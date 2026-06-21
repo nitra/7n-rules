@@ -149,7 +149,7 @@
 
 ### Changed
 
-- Конформність-селекція: .n-cursor.json — єдине джерело правди. resolveCheckRuleIds бере активні правила прямо з конфіга (available ∩ enabled), .cursor/rules/*.mdc лишається лише fallback'ом коли конфіга нема. Прибрано дрейф «правило enabled, але .mdc нема → тихо пропущено». Per-rule whitelist-гейт у runRuleCli видалено як дубль — гейтинг живе виключно у селекції.
+- Конформність-селекція: .n-cursor.json — єдине джерело правди. resolveCheckRuleIds бере активні правила прямо з конфіга (available ∩ enabled), .cursor/rules/\*.mdc лишається лише fallback'ом коли конфіга нема. Прибрано дрейф «правило enabled, але .mdc нема → тихо пропущено». Per-rule whitelist-гейт у runRuleCli видалено як дубль — гейтинг живе виключно у селекції.
 
 ## [10.0.1] - 2026-06-14
 
@@ -161,7 +161,7 @@
 
 ### Changed
 
-- Інлайн _fix-check/fix-t0 у прямі функції — видалено внутрішні subcommand'и. runFixCheck (scripts/lib/fix/run-fix-check) + listProjectRulesMdcFiles винесено з bin; orchestrator/t0/PostToolUse-хук/lint-конформність кличуть прямо (без subprocess-обгортки). Per-rule ізоляція збережена
+- Інлайн \_fix-check/fix-t0 у прямі функції — видалено внутрішні subcommand'и. runFixCheck (scripts/lib/fix/run-fix-check) + listProjectRulesMdcFiles винесено з bin; orchestrator/t0/PostToolUse-хук/lint-конформність кличуть прямо (без subprocess-обгортки). Per-rule ізоляція збережена
 
 ## [9.4.0] - 2026-06-14
 
@@ -221,7 +221,7 @@
 
 ### Removed
 
-- Видалено команди fix/check/fix-run; рух-движок конформності переміщено skills/fix/js→scripts/lib/fix і поглинуто в lint. PostToolUse-хук → read-only детект усіх правил (без роутингу). /n-fix → делегат на /n-lint. fix-t0/_fix-check лишаються внутрішніми фазами движка
+- Видалено команди fix/check/fix-run; рух-движок конформності переміщено skills/fix/js→scripts/lib/fix і поглинуто в lint. PostToolUse-хук → read-only детект усіх правил (без роутингу). /n-fix → делегат на /n-lint. fix-t0/\_fix-check лишаються внутрішніми фазами движка
 
 ## [6.0.0] - 2026-06-14
 
@@ -254,7 +254,7 @@
 
 ### Changed
 
-- ✨ feat(npm/skills/doc-files): doc-files: підтримка Rust (.rs) — SOURCE_…
+- ✨ feat(npm/skills/doc-files): doc-files: підтримка Rust (.rs) — SOURCE\_…
 
 ## [5.3.2] - 2026-06-11
 
@@ -290,7 +290,7 @@
 
 ### Fixed
 
-- lint: санація шарів, що ховалися за першим падінням oxlint — повний bun run lint доведено до lint-js/style зелених: JSDoc/regex/sonarjs фікси у ~25 файлах, slow-regex обмежено bounded-квантифікаторами, eslint ignore для згенерованих docs/*.md, jscpd ignore (.git, COVERAGE.md, docs, відомі легасі-клони), knip ignoreBinaries (pi/claude/fix-t0), stylelint/cspell ignore згенерованих артефактів; docgen-ignore у doc-aggregate став re-export з doc-files
+- lint: санація шарів, що ховалися за першим падінням oxlint — повний bun run lint доведено до lint-js/style зелених: JSDoc/regex/sonarjs фікси у ~25 файлах, slow-regex обмежено bounded-квантифікаторами, eslint ignore для згенерованих docs/\*.md, jscpd ignore (.git, COVERAGE.md, docs, відомі легасі-клони), knip ignoreBinaries (pi/claude/fix-t0), stylelint/cspell ignore згенерованих артефактів; docgen-ignore у doc-aggregate став re-export з doc-files
 
 ## [5.1.0] - 2026-06-10
 

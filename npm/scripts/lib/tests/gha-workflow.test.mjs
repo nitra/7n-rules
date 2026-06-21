@@ -62,7 +62,9 @@ describe('gha-workflow', () => {
       - run: n-cursor lint text --read-only
 `
     const root = parseWorkflowYaml(y)
-    expect(anyRunStepIncludes(/** @type {Record<string, unknown>} */ (root), 'n-cursor lint text --read-only')).toBe(true)
+    expect(anyRunStepIncludes(/** @type {Record<string, unknown>} */ (root), 'n-cursor lint text --read-only')).toBe(
+      true
+    )
   })
 
   test('getStepUses — рядок або порожній рядок', () => {

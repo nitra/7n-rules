@@ -6,6 +6,6 @@ resource: npm/rules/js-mssql/lib/
 
 # npm/rules/js-mssql/lib
 
-| Файл | Тип |
-|---|---|
+| Файл                                      | Тип       |
+| ----------------------------------------- | --------- |
 | [mssql-pool-scan.mjs](mssql-pool-scan.md) | JS Module |

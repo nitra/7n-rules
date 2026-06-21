@@ -115,7 +115,8 @@ export function runLintPythonSteps(cwd = process.cwd(), opts = {}) {
   const ruffCheck = readOnly ? ['check', '.'] : ['check', '--fix', '.']
   const ruffFormat = readOnly ? ['format', '--check', '.'] : ['format', '.']
   if (!runOptionalUvTool('ruff', readOnly ? 'ruff check' : 'ruff check --fix', ruffCheck)) return reporter.getExitCode()
-  if (!runOptionalUvTool('ruff', readOnly ? 'ruff format --check' : 'ruff format', ruffFormat)) return reporter.getExitCode()
+  if (!runOptionalUvTool('ruff', readOnly ? 'ruff format --check' : 'ruff format', ruffFormat))
+    return reporter.getExitCode()
   if (!runOptionalUvTool('mypy', 'mypy', ['.'])) return reporter.getExitCode()
 
   return reporter.getExitCode()

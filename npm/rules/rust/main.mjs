@@ -75,7 +75,13 @@ function runRustLint(cwd = process.cwd(), opts = {}) {
     if (!runCargo('cargo clippy --fix', cargo, fixArgs, pass, fail)) return reporter.getExitCode()
   }
 
-  runCargo('cargo clippy -D warnings', cargo, ['clippy', '--all-targets', '--all-features', '--', '-D', 'warnings'], pass, fail)
+  runCargo(
+    'cargo clippy -D warnings',
+    cargo,
+    ['clippy', '--all-targets', '--all-features', '--', '-D', 'warnings'],
+    pass,
+    fail
+  )
   return reporter.getExitCode()
 }
 

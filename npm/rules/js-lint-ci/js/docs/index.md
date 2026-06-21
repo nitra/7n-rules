@@ -6,6 +6,6 @@ resource: npm/rules/js-lint-ci/js/
 
 # npm/rules/js-lint-ci/js
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [lint.mjs](lint.md) | JS Module |

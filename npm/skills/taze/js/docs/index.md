@@ -6,6 +6,6 @@ resource: npm/skills/taze/js/
 
 # npm/skills/taze/js
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [diff.mjs](diff.md) | JS Module |

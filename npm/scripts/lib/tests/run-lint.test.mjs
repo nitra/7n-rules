@@ -20,22 +20,14 @@ const ignoreLog = text => text
 
 describe('selectLintRules', () => {
   test('default (full=false) → лише per-file правила, алфавітно', () => {
-    expect(selectLintRules(META, false, ['docker', 'ga', 'js-lint', 'js-lint-ci', 'k8s', 'php', 'rust', 'style-lint'])).toEqual([
-      'js-lint',
-      'style-lint'
-    ])
+    expect(
+      selectLintRules(META, false, ['docker', 'ga', 'js-lint', 'js-lint-ci', 'k8s', 'php', 'rust', 'style-lint'])
+    ).toEqual(['js-lint', 'style-lint'])
   })
   test('full=true → per-file + full, алфавітно', () => {
-    expect(selectLintRules(META, true, ['docker', 'ga', 'js-lint', 'js-lint-ci', 'k8s', 'php', 'rust', 'style-lint'])).toEqual([
-      'docker',
-      'ga',
-      'js-lint',
-      'js-lint-ci',
-      'k8s',
-      'php',
-      'rust',
-      'style-lint'
-    ])
+    expect(
+      selectLintRules(META, true, ['docker', 'ga', 'js-lint', 'js-lint-ci', 'k8s', 'php', 'rust', 'style-lint'])
+    ).toEqual(['docker', 'ga', 'js-lint', 'js-lint-ci', 'k8s', 'php', 'rust', 'style-lint'])
   })
   test('ігнорує правила, не активовані у .n-cursor.json', () => {
     expect(selectLintRules(META, true, ['js-lint'])).toEqual(['js-lint'])

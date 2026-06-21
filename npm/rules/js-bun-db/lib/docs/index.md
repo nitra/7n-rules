@@ -6,6 +6,6 @@ resource: npm/rules/js-bun-db/lib/
 
 # npm/rules/js-bun-db/lib
 
-| Файл | Тип |
-|---|---|
+| Файл                                | Тип       |
+| ----------------------------------- | --------- |
 | [bun-sql-scan.mjs](bun-sql-scan.md) | JS Module |
