@@ -1660,7 +1660,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, post-tool-use-check, adr-normalize-local, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, lint-doc-files, fix-doc-files, coverage, coverage-fix, analyze-escalation, taze, start-check, change, release, skill, trace, doc-aggregate`
+        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, post-tool-use-check, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), lint-doc-files, fix-doc-files, coverage, coverage-fix, analyze-escalation, taze, start-check, change, release, skill, trace, doc-aggregate`
       )
       process.exitCode = 1
     }

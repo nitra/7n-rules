@@ -342,7 +342,7 @@ async function runLintK8sSteps() {
 
 /**
  * Публічна CLI-форма: серіалізує через `withLock('lint-k8s')` + дедуп за станом git-дерева.
- * Експортовано як `runLintK8s` — використовується з `bin/n-cursor.js` як підкоманда `lint-k8s`.
+ * Експортовано як `runLintK8s` — викликається через `n-cursor lint k8s` (оркестраторний адаптер `lint()` делегує сюди); окремої bin-підкоманди `lint-k8s` немає.
  * @returns {Promise<number>} код виходу
  */
 export const runLintK8s = () => runStandardLint(import.meta.dirname, runLintK8sSteps)
