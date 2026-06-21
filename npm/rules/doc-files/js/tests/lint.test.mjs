@@ -17,7 +17,7 @@ vi.mock('../docgen-files-batch.mjs', () => ({
   purgeOrphanedDocs: () => state.purgeImpl?.() ?? 0
 }))
 
-const { lint } = await import('../lint.mjs')
+const { lint } = await import('../../main.mjs')
 
 /**
  * Пише джерело й свіжу доку (CRC збігається) у тимчасовому корені.

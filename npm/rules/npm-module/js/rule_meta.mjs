@@ -1,5 +1,5 @@
 /** @see ./docs/rule_meta.md */
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
@@ -41,8 +41,12 @@ function checkLintField(id, ruleDir, raw, reporter) {
     reporter.fail(`rules/${id}: meta.json.lint нерозпізнане (очікується "per-file"|"full")`)
     return false
   }
-  if (!existsSync(join(ruleDir, 'js', 'lint.mjs'))) {
-    reporter.fail(`rules/${id}: lint:"${raw.lint}" але немає js/lint.mjs`)
+  const mainPath = join(ruleDir, 'main.mjs')
+  const src = existsSync(mainPath) ? readFileSync(mainPath, 'utf8') : ''
+  // Канон (ADR 2026-06-21): lint-поверхня — це експорт `lint` із `main.mjs` (інлайн або
+  // `export { lint } from './js/…'`), а не окремий `js/lint.mjs`.
+  if (!/export\s+(?:async\s+)?function\s+lint\b|export\s*\{[^}]*\blint\b/u.test(src)) {
+    reporter.fail(`rules/${id}: lint:"${raw.lint}" але main.mjs не експортує lint`)
     return false
   }
   return true

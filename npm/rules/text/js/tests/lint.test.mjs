@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { env, platform } from 'node:process'
 
-import { runLintTextCli } from '../lint.mjs'
+import { runLintTextCli } from '../../main.mjs'
 
 const SHELLCHECK_RE = /shellcheck/
 const DOTENV_LINTER_RE = /dotenv-linter/

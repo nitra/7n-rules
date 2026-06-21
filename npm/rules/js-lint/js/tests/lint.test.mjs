@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { filterJsFiles } from '../lint.mjs'
+import { filterJsFiles } from '../../main.mjs'
 
 describe('filterJsFiles', () => {
   test('лишає лише js-подібні розширення', () => {

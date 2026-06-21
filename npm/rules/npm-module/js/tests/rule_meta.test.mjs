@@ -59,26 +59,27 @@ describe('rule_meta check', () => {
     })
   })
 
-  test('lint:"per-file" без js/lint.mjs → 1', async () => {
+  test('lint:"per-file" без lint-export у main.mjs → 1', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'npm', 'rules', 'x'))
       await writeJson(join(dir, 'npm', 'rules', 'x', 'meta.json'), { lint: 'per-file' })
+      await writeFile(join(dir, 'npm', 'rules', 'x', 'main.mjs'), 'export function run(){return 0}\n', 'utf8')
       expect(await check(dir)).toBe(1)
     })
   })
-  test('lint:"per-file" з js/lint.mjs → 0', async () => {
+  test('lint:"per-file" з lint-export у main.mjs → 0', async () => {
     await withTmpDir(async dir => {
-      await ensureDir(join(dir, 'npm', 'rules', 'x', 'js'))
+      await ensureDir(join(dir, 'npm', 'rules', 'x'))
       await writeJson(join(dir, 'npm', 'rules', 'x', 'meta.json'), { lint: 'per-file' })
-      await writeFile(join(dir, 'npm', 'rules', 'x', 'js', 'lint.mjs'), 'export function lint(){return 0}\n', 'utf8')
+      await writeFile(join(dir, 'npm', 'rules', 'x', 'main.mjs'), 'export function lint(){return 0}\n', 'utf8')
       expect(await check(dir)).toBe(0)
     })
   })
-  test('lint:"full" з js/lint.mjs → 0', async () => {
+  test('lint:"full" з re-export lint у main.mjs → 0', async () => {
     await withTmpDir(async dir => {
-      await ensureDir(join(dir, 'npm', 'rules', 'x', 'js'))
+      await ensureDir(join(dir, 'npm', 'rules', 'x'))
       await writeJson(join(dir, 'npm', 'rules', 'x', 'meta.json'), { lint: 'full' })
-      await writeFile(join(dir, 'npm', 'rules', 'x', 'js', 'lint.mjs'), 'export function lint(){return 0}\n', 'utf8')
+      await writeFile(join(dir, 'npm', 'rules', 'x', 'main.mjs'), "export { lint } from './js/lint.mjs'\n", 'utf8')
       expect(await check(dir)).toBe(0)
     })
   })

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { filterStyleFiles } from '../lint.mjs'
+import { filterStyleFiles } from '../../main.mjs'
 
 describe('filterStyleFiles', () => {
   test('лишає css/scss/vue', () => {

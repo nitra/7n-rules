@@ -3,7 +3,7 @@ import { chmod, readFile, writeFile } from 'node:fs/promises'
 import { delimiter, join } from 'node:path'
 import { env } from 'node:process'
 
-import { lint } from '../lint.mjs'
+import { lint } from '../../main.mjs'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 /**

@@ -11,7 +11,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { env, platform } from 'node:process'
 
-import { runLintGaCli } from '../lint.mjs'
+import { runLintGaCli } from '../../main.mjs'
 
 const SHELLCHECK_RE = /shellcheck/
 const UV_RE = /uv/

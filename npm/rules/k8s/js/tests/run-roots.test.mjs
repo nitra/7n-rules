@@ -12,7 +12,7 @@ import {
   findKustomizationDirs,
   k8sRootFromFile,
   pathHasK8sSegment
-} from '../lint.mjs'
+} from '../../main.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('pathHasK8sSegment', () => {
