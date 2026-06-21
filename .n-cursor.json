@@ -18,16 +18,26 @@
     "style-lint",
     "test",
     "text",
+    "tool-surface",
     "vue",
     "worktree"
   ],
-  "ignore": [".claude/worktrees"],
-  "disable-rules": ["docker", "flow", "image-avif", "image-compress", "js-bun-db", "k8s", "nginx-default-tpl"],
+  "ignore": [
+    ".claude/worktrees"
+  ],
+  "disable-rules": [
+    "docker",
+    "flow",
+    "image-avif",
+    "image-compress",
+    "js-bun-db",
+    "k8s",
+    "nginx-default-tpl"
+  ],
   "skills": [
     "adr-normalize",
     "coverage-fix",
-    "docgen",
-    "fix",
+    "doc-files",
     "lint",
     "llm-patch",
     "publish-telegram",

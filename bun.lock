@@ -6,7 +6,7 @@
       "name": "mono",
       "devDependencies": {
         "@nitra/cspell-dict": "^2.2.0",
-        "@nitra/cursor": "^4.1.0",
+        "@nitra/cursor": "^12.6.1",
         "@nitra/eslint-config": "^3.10.1",
         "@nitra/stylelint-config": "^1.4.0",
         "@stryker-mutator/vitest-runner": "^9.6.1",
@@ -30,6 +30,12 @@
     },
   },
   "packages": {
+    "@7n/mt": ["@7n/mt@0.5.1", "", { "optionalDependencies": { "@7n/mt-darwin-arm64": "0.5.1", "@7n/mt-linux-x64": "0.5.1" }, "bin": { "mt": "bin/mt.js" } }, "sha512-fIP75AODAX6ri+Geznpph0BJR0kkOWeCarSNJCibLCPH3vnfbEvHC9/MgTk3zg9cYIGEFAHd1gkCEnOekexIdg=="],
+
+    "@7n/mt-darwin-arm64": ["@7n/mt-darwin-arm64@0.5.1", "", { "os": "darwin", "cpu": "arm64" }, "sha512-ozofQxbsdrv7cVZJeb9P9MLwzpdNxdqTcmzRQjwSf316TK8ptxzZhU0b24CsoH/Ia98zhbJLBPsdK/ueHWFl4Q=="],
+
+    "@7n/mt-linux-x64": ["@7n/mt-linux-x64@0.5.1", "", { "os": "linux", "cpu": "x64" }, "sha512-c4b1c435vfGZcRKkLnWcoKs8O6KTATFFx6gPGnid4ee+JDqzyhtxb5kzxYkcTQySO8iBHPAtUMEOBCHDrF1UjQ=="],
+
     "@antfu/utils": ["@antfu/utils@0.7.10", "", {}, "sha512-+562v9k4aI80m1+VuMHehNJWLOFjBnXn3tdOitzD0il5b7smkSBal4+a3oKiQTbrwMmN/TBUMDvbdoWDehgOww=="],
 
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
@@ -306,7 +312,7 @@
 
     "@nitra/cspell-dict": ["@nitra/cspell-dict@2.2.1", "", { "dependencies": { "@cspell/dict-bash": "^4.2.2", "@cspell/dict-csharp": "^4.0.8", "@cspell/dict-css": "^4.1.1", "@cspell/dict-docker": "^1.1.17", "@cspell/dict-html": "^4.0.15", "@cspell/dict-k8s": "^1.0.12", "@cspell/dict-kotlin": "^1.1.1", "@cspell/dict-lua": "^4.0.8", "@cspell/dict-markdown": "^2.0.16", "@cspell/dict-php": "^4.1.1", "@cspell/dict-python": "^4.2.26", "@cspell/dict-ro-ro": "^2.0.6", "@cspell/dict-ru_ru": "^2.3.2", "@cspell/dict-sql": "^2.2.1", "@cspell/dict-swift": "^2.0.6", "@cspell/dict-tr-tr": "^3.0.6", "@cspell/dict-uk-ua": "^4.0.6", "@cspell/dict-vue": "^3.0.5" } }, "sha512-W/ZBC/z9LdvbmmZYXMqcJ1VtbkKW1aa5w/thWPfEWJNcXC6dVD0cixm4TyhYvZk4tgufLjlZAXc+b9Sw+Pmdig=="],
 
-    "@nitra/cursor": ["@nitra/cursor@4.1.2", "", { "dependencies": { "oxc-parser": "^0.128.0", "picomatch": "^4.0.4", "smol-toml": "^1.6.1", "yaml": "^2.8.3", "zod": "^4.4.3" }, "bin": { "n-cursor": "bin/n-cursor.js" } }, "sha512-pKprF9nBF+NWuhCMm+nRou8vzjiuymERp6GFmwnOM/m8f7KxQPnbwaS8omEF3OyXGYzXZK7bC85N/0IJiTg9Mw=="],
+    "@nitra/cursor": ["@nitra/cursor@12.6.1", "", { "dependencies": { "@7n/mt": "^0.5.0", "oxc-parser": "^0.128.0", "picomatch": "^4.0.4", "smol-toml": "^1.6.1", "yaml": "^2.8.3", "zod": "^4.4.3" }, "bin": { "n-cursor": "bin/n-cursor.js" } }, "sha512-e9aA/+uYYNrBa8yXGyWkC3ErKxkIH7Ntp4cpoJFI8+KDojDfhtgMKO98Eu5432cfsBvgl2sraoqD4KiZ5P9TOQ=="],
 
     "@nitra/eslint-config": ["@nitra/eslint-config@3.10.1", "", { "dependencies": { "@e18e/eslint-plugin": "^0.5.0", "@eslint/compat": "^2.1.0", "@eslint/js": "^10.0.1", "@graphql-eslint/eslint-plugin": "^4.4.0", "@graphql-tools/code-file-loader": "^8.1.32", "@graphql-tools/graphql-tag-pluck": "^8.3.31", "@graphql-tools/utils": "^11.1.0", "@microsoft/eslint-plugin-sdl": "^1.1.0", "eslint": "^10.4.1", "eslint-merge-processors": "^2.0.0", "eslint-plugin-import-x": "^4.16.2", "eslint-plugin-jsdoc": "^63.0.0", "eslint-plugin-jsonc": "^3.2.0", "eslint-plugin-markdown": "^5.1.0", "eslint-plugin-n": "^18.0.1", "eslint-plugin-no-unsanitized": "^4.1.5", "eslint-plugin-oxlint": "^1.67.0", "eslint-plugin-security": "^4.0.0", "eslint-plugin-sonarjs": "^4.0.3", "eslint-plugin-unicorn": "^64.0.0", "eslint-plugin-vue": "^10.9.1", "eslint-plugin-yml": "^3.4.0", "eslint-processor-vue-blocks": "^2.0.0", "globals": "^17.6.0", "graphql": "^16.14.0", "vue-eslint-parser": "^10.4.0" } }, "sha512-jTvD58KuhafDml6bA5bmtWfvI7ombiJFNaszpkW95HwMualJb1QOu/zqrquSyQYyEVuCFAWqyM9IWIx9WV/WsQ=="],
 

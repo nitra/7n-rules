@@ -14,6 +14,7 @@ The primary development rules are stored in the Cursor rules directory:
 - .cursor/rules/n-bun.mdc
 - .cursor/rules/n-changelog.mdc
 - .cursor/rules/n-ci4.mdc
+- .cursor/rules/n-doc-files.mdc
 - .cursor/rules/n-feedback.mdc
 - .cursor/rules/n-ga.mdc
 - .cursor/rules/n-js-lint-ci.mdc
@@ -26,6 +27,7 @@ The primary development rules are stored in the Cursor rules directory:
 - .cursor/rules/n-style-lint.mdc
 - .cursor/rules/n-test.mdc
 - .cursor/rules/n-text.mdc
+- .cursor/rules/n-tool-surface.mdc
 - .cursor/rules/n-vue.mdc
 - .cursor/rules/n-worktree.mdc
 - .cursor/rules/scripts.mdc
@@ -35,14 +37,12 @@ The primary development rules are stored in the Cursor rules directory:
 - `.cursor/skills/mdc-check/SKILL.md` — Проаналізувати правило в npm/mdc: максимум перевірюваної логіки й деталей — у check-{id}.mjs з зрозумілими коментарями/JSDoc; у .mdc залишати людинозрозумілий зміст без дублювання алгоритму перевірки
 - `.cursor/skills/n-adr-normalize/SKILL.md` — Ручний запуск ADR-нормалізації — обхід порогу й min-interval, прогон одного батчу чернеток через LLM, перегляд результату через git diff
 - `.cursor/skills/n-coverage-fix/SKILL.md` — Автономна команда: запускає n-cursor coverage → читає вцілілих мутантів → ітеративно пише тести до конвергенції (max 3 ітерації)
-- `.cursor/skills/n-docgen/SKILL.md` — Обходить проєкт і для кожного кодового файлу (js/mjs/ts/vue/py) пише лаконічну поведінкову українську md-документацію у теку docs/ поряд із кодом — диспатчить окремого субагента на кожен файл, за правилами adr/ci4
-- `.cursor/skills/n-fix/SKILL.md` — Виправити проєкт відповідно до всіх правил в .cursor/rules/
+- `.cursor/skills/n-doc-files/SKILL.md` — Обовʼязковий крок задачі (як lint): для кожного зміненого/нового кодового файлу (js/mjs/ts/vue/py) JS-оркестрована генерація лаконічної поведінкової української md-документації у теку docs/ поряд із кодом, зі звіркою застарілості за CRC у frontmatter
 - `.cursor/skills/n-lint/SKILL.md` — Запустити кореневий bun run lint, виправити порушення й підтвердити чистий вихід
 - `.cursor/skills/n-llm-patch/SKILL.md` — Підготовка самодостатнього текстового промпта для іншого Claude/Cursor-агента — read-only аналіз CWD без жодних змін у поточному репо
 - `.cursor/skills/n-publish-telegram/SKILL.md` — Підготовка матеріалу з поточного контексту для публікації в Telegram-каналі команди
 - `.cursor/skills/n-start-check/SKILL.md` — Smoke-перевірка bun-монорепо: зайти в кожен воркспейс зі `start`-скриптом, прогнати `start` і зафіксувати, чи проєкт взагалі запускається без негайного краху
 - `.cursor/skills/n-taze/SKILL.md` — Оновлення версій модулів проекту з аналізом major-змін і автоматичним рефакторингом несумісного коду
-- `.cursor/skills/n-worktree/SKILL.md` — Створення та керування git-worktree через n-cursor worktree CLI: ізольований workspace у .worktrees/<branch>/ з інвентарним файлом-описом
 
 ## Commands
 
@@ -50,15 +50,7 @@ Generated from the root `package.json` on each `npx @nitra/cursor` sync. Prefer 
 
 - **Залежності**: `bun i`
 - **test**: `bun run test`
-- **lint**: `bun run lint`
-- **lint-js**: `bun run lint-js`
-- **lint-text**: `bun run lint-text`
-- **lint-ga**: `bun run lint-ga`
 - **start**: `bun run start`
-- **lint-python**: `bun run lint-python`
-- **lint-rego**: `bun run lint-rego`
-- **lint-security**: `bun run lint-security`
-- **lint-style**: `bun run lint-style`
 - **Оновити правила та AGENTS.md** (після змін у правилах/шаблоні CLI): `npx @nitra/cursor`
 - **Перевірки правил (programmatic)**: `npx @nitra/cursor fix`
 - **knip (невикористані залежності та експорти)**: `bunx knip`

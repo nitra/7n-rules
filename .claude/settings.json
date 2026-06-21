@@ -17,6 +17,16 @@
         "hooks": [
           {
             "type": "command",
+            "command": "npx --no @nitra/cursor lint-doc-files --git",
+            "timeout": 120
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/capture-decisions.sh\"",
             "async": true,
             "timeout": 180
@@ -43,6 +53,16 @@
             "type": "command",
             "command": "npx --no @nitra/cursor post-tool-use-fix",
             "timeout": 300
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx --no @nitra/cursor lint-doc-files --hook",
+            "timeout": 120
           }
         ]
       }
