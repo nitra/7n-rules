@@ -12,7 +12,7 @@ docgen:
 
 - `check-ga` — загальна перевірка GitHub Actions workflows;
 - `check-js-lint` — перевірка структури `lint-js.yml`;
-- `check-text` — перевірка наявності викликів `bun run lint-text` у CI;
+- `check-text` — перевірка наявності викликів `n-cursor lint text --read-only` у CI;
 - `check-style-lint` — перевірка викликів стайл-лінту в CI;
 - `check-npm-module` — перевірка workflow npm-модуля.
 
@@ -191,7 +191,7 @@ docgen:
 
 **Side effects:** немає. Ітерація припиняється на першому збігу (рання передача).
 
-**Типовий приклад:** `anyRunStepIncludes(root, 'bun run lint-text')` для `check-text` — перевірити, що CI взагалі викликає таргет лінту текстів.
+**Типовий приклад:** `anyRunStepIncludes(root, 'n-cursor lint text --read-only')` для `check-text` — перевірити, що CI взагалі викликає таргет лінту текстів.
 
 ---
 
@@ -299,14 +299,14 @@ if (!result.ok) {
 }
 ```
 
-### Приклад: перевірка наявності таргета `bun run lint-text`
+### Приклад: перевірка наявності таргета `n-cursor lint text --read-only`
 
 ```js
 import { parseWorkflowYaml, anyRunStepIncludes } from './gha-workflow.mjs'
 
 const root = parseWorkflowYaml(content)
-if (root && !anyRunStepIncludes(root, 'bun run lint-text')) {
-  console.error('у CI відсутній виклик bun run lint-text')
+if (root && !anyRunStepIncludes(root, 'n-cursor lint text --read-only')) {
+  console.error('у CI відсутній виклик n-cursor lint text --read-only')
 }
 ```
 

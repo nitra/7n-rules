@@ -3,7 +3,7 @@
  * команди і прокидає stdout/stderr на користувацькі stream-и (`stdio: 'inherit'`), щоб виглядало
  * як прямий виклик у shell.
  *
- * Використовується з `n-cursor lint-ga`, `n-cursor lint-text` та інших підкоманд, щоб не дублювати
+ * Використовується з rule-адаптерів `n-cursor lint <rule>`, щоб не дублювати
  * одну й ту саму обгортку у кожному `rules/<id>/js/lint.mjs` (jscpd-clone).
  */
 import { spawnSync } from 'node:child_process'

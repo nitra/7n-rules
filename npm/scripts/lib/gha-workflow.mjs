@@ -135,7 +135,7 @@ export function verifyLintJsWorkflowStructure(root) {
 }
 
 /**
- * Чи є в будь-якому `run` кроку підрядок (наприклад `bun run lint-text`).
+ * Чи є в будь-якому `run` кроку підрядок (наприклад `n-cursor lint text --read-only`).
  * @param {Record<string, unknown>} root корінь workflow
  * @param {string} needle підрядок для пошуку
  * @returns {boolean} `true`, якщо хоча б один `run` містить `needle`

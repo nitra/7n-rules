@@ -117,19 +117,16 @@ version: '1.30'
 
 Завжди пиши **JSDoc** до функцій та методів.
 
-**`package.json`:** скрипт **`lint-text`** і devDependencies **`@nitra/cspell-dict`** (**`^2.0.0`** або новіший у лінії 2.x) — з **2.0.0** у пакет транзитивно входять типові **`@cspell/dict-*`**, тому **не** додавай їх окремо в корінь. **`markdownlint-cli2`** викликай у `lint-text` лише через **`bunx markdownlint-cli2`**, не додавай пакет до devDependencies. **`v8r`** лише через **`bunx v8r`** (зазвичай **`bunx v8r`**), не в devDependencies. Окремий пакет **`markdownlint`** не потрібний.
+**`package.json`:** у `devDependencies` має бути **`@nitra/cspell-dict`** (**`^2.0.0`** або новіший у лінії 2.x) — з **2.0.0** у пакет транзитивно входять типові **`@cspell/dict-*`**, тому **не** додавай їх окремо в корінь. Окремий `package.json`-скрипт `lint-text` не потрібен: запуск іде через **`n-cursor lint text`**. **`markdownlint-cli2`** запускається rule-адаптером через **`bunx markdownlint-cli2`**, не додавай пакет до devDependencies. **`v8r`** лише через **`bunx v8r`**, не в devDependencies. Окремий пакет **`markdownlint`** не потрібний.
 
-**shellcheck:** інструмент лише в **`PATH`** (як у **ga.mdc** для `lint-ga`), **не** додавай до `dependencies` / `devDependencies`. Якщо `shellcheck` відсутній — встанови локально (**macOS:** `brew install shellcheck`; **Debian/Ubuntu:** `sudo apt-get install -y shellcheck`; **Arch:** `sudo pacman -S shellcheck`). Канонічний **`lint-text`** делегує до CLI **`n-cursor lint-text`** (бінарка з `node_modules/.bin/` пакету `@nitra/cursor`): після **`cspell .`** виконується **`runShellcheckText()`** з пакета — циклічно **`shellcheck -f diff`** і **`patch -p1`** для авто-виправлень, потім повний прогін **`shellcheck`** по всіх tracked `*.sh` (у git) або по `**/*.sh` без `node_modules`. Потрібен також **`patch`** у `PATH` (на macOS зазвичай уже є).
+**shellcheck:** інструмент лише в **`PATH`** (як у **ga.mdc** для `lint-ga`), **не** додавай до `dependencies` / `devDependencies`. Якщо `shellcheck` відсутній — встанови локально (**macOS:** `brew install shellcheck`; **Debian/Ubuntu:** `sudo apt-get install -y shellcheck`; **Arch:** `sudo pacman -S shellcheck`). Канонічний запуск — **`n-cursor lint text`** (бінарка з `node_modules/.bin/` пакету `@nitra/cursor`): після **`cspell .`** виконується **`runShellcheckText()`** з пакета — циклічно **`shellcheck -f diff`** і **`patch -p1`** для авто-виправлень, потім повний прогін **`shellcheck`** по всіх tracked `*.sh` (у git) або по `**/*.sh` без `node_modules`. Потрібен також **`patch`** у `PATH` (на macOS зазвичай уже є).
 
 **dotenv-linter:** після shellcheck CLI запускає **`runDotenvLinter()`** з пакета — рекурсивно по `.env*`-файлах проєкту через **`dotenv-linter fix -r --no-backup --quiet . --exclude node_modules --exclude .envrc`**, далі такий самий **`check`** для фінальної перевірки. Інструмент має бути в **`PATH`** і **не** додається в `dependencies` / `devDependencies`. Якщо `dotenv-linter` відсутній — встанови локально (**macOS:** `brew install dotenv-linter`; **Linux:** `curl -sSfL https://git.io/JLbXn | sh -s -- -b /usr/local/bin`; через **cargo:** `cargo install dotenv-linter`).
 
-У v8r **немає** прапорця тихого режиму; CLI-обгортка **`n-cursor lint-text`** на четвертому кроці викликає **`runV8rWithGlobs()`** з пакета (реалізація — `npm/rules/text/js/run-v8r.mjs`): під капотом послідовні **`bunx v8r`** для кожного типу (**json**, **json5**, **yml**, **yaml**, **toml**), бо один процес v8r з кількома глобами падає з **98**, якщо хоч один glob порожній, і тоді інші розширення не перевіряються. Вивід при кодах **0** і **98** не показується. Каталог схем **`schemas/v8r-catalog.json`** пакета `@nitra/cursor` обгортка підставляє в v8r сама.
+У v8r **немає** прапорця тихого режиму; rule-адаптер **`n-cursor lint text`** на четвертому кроці викликає **`runV8rWithGlobs()`** з пакета (реалізація — `npm/rules/text/js/run-v8r.mjs`): під капотом послідовні **`bunx v8r`** для кожного типу (**json**, **json5**, **yml**, **yaml**, **toml**), бо один процес v8r з кількома глобами падає з **98**, якщо хоч один glob порожній, і тоді інші розширення не перевіряються. Вивід при кодах **0** і **98** не показується. Каталог схем **`schemas/v8r-catalog.json`** пакета `@nitra/cursor` обгортка підставляє в v8r сама.
 
 ```json title="package.json"
 {
-  "scripts": {
-    "lint-text": "n-cursor lint-text"
-  },
   "devDependencies": {
     "@nitra/cspell-dict": "^2.1.0"
   }
@@ -174,7 +171,7 @@ version: '1.30'
 
 - Канон: [lint-text.yml.snippet.yml](./policy/lint_text/template/lint-text.yml.snippet.yml)
 
-Перед **`./.github/actions/setup-bun-deps`** — **`actions/checkout@v6`** (див. **ga.mdc**). Після composite — кроки **`Install shellcheck`** (apt) і **`Install dotenv-linter`** (curl), бо `n-cursor lint-text` вимагає обидва бінарники в PATH; на ubuntu-latest shellcheck часто вже є, dotenv-linter — ні. Composite: Node 24, Bun, кеш, `bun install --frozen-lockfile`.
+Перед **`./.github/actions/setup-bun-deps`** — **`actions/checkout@v6`** (див. **ga.mdc**). Після composite — кроки **`Install shellcheck`** (apt) і **`Install dotenv-linter`** (curl), бо `n-cursor lint text` вимагає обидва бінарники в PATH; на ubuntu-latest shellcheck часто вже є, dotenv-linter — ні. Composite: Node 24, Bun, кеш, `bun install --frozen-lockfile`.
 
 Не дублюй окремий workflow з тими самими кроками cspell/markdownlint.
 
@@ -198,9 +195,6 @@ version: '1.30'
 
 ```json title="package.json"
 {
-  "scripts": {
-    "lint-text": "n-cursor lint-text"
-  },
   "devDependencies": {
     "@nitra/cspell-dict": "^2.1.0"
   }
@@ -215,9 +209,6 @@ version: '1.30'
 
 ```json title="package.json"
 {
-  "scripts": {
-    "lint-text": "n-cursor lint-text"
-  },
   "devDependencies": {
     "@nitra/cspell-dict": "^2.1.0"
   }
@@ -262,4 +253,4 @@ kebab-case
 
 ## Перевірка
 
-`npx @nitra/cursor fix text` (охоплює oxfmt, cspell, shellcheck у `lint-text`, markdownlint, v8r, CI для `lint-text`). Зокрема падає, якщо у корені є `.prettierignore`, `.prettierrc*`, `prettier.config.*` або у `package.json#scripts` зустрічається команда з `prettier` — Prettier повністю заборонено, форматування лише через **oxfmt**.
+`npx @nitra/cursor fix text` (охоплює oxfmt, cspell, shellcheck, markdownlint, v8r і CI для `n-cursor lint text`). Зокрема падає, якщо у корені є `.prettierignore`, `.prettierrc*`, `prettier.config.*` або у `package.json#scripts` зустрічається команда з `prettier` — Prettier повністю заборонено, форматування лише через **oxfmt**.

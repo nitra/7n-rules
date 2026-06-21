@@ -86,7 +86,7 @@ test_deny_scripts_path_prettier if {
 
 test_allow_scripts_without_prettier if {
 	bad := json.patch(valid_pkg, [{"op": "add", "path": "/scripts", "value": {
-		"lint-text": "n-cursor lint-text",
+		"lint": "n-cursor lint text",
 		"format": "oxfmt --write .",
 	}}])
 	count(package_json.deny) == 0 with input as bad with data.template as template_data
