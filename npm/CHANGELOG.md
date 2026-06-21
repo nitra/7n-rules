@@ -1,5 +1,15 @@
 # Changelog
 
+## [12.8.0] - 2026-06-21
+
+### Added
+
+- doc-files: orphan-detect і auto-purge — `lint-doc-files` і `fix-doc-files` тепер виявляють і видаляють `docs/<stem>.md` чиї source-файли більше не існують
+
+### Changed
+
+- Переміщено логіку linting до `js` та оновив `n-cursor.js
+
 ## [12.7.0] - 2026-06-21
 
 ### Added
