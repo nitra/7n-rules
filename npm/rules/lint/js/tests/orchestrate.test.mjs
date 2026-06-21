@@ -43,21 +43,23 @@ describe('selectLintRules', () => {
 })
 
 /**
- * Будує тимчасовий rulesDir з одним full-правилом, чий lint.mjs записує отримані
- * (files, opts) у sidecar-файл — щоб перевірити прокидання осей full/readOnly.
+ * Будує тимчасовий rulesDir з одним full-правилом, чий `main.mjs::lint` записує отримані
+ * (files, opts) у sidecar-файл — щоб перевірити прокидання осей full/readOnly. Entrypoint —
+ * єдиний `main.mjs` (канон ADR 2026-06-21).
  * @param {string} dir tmp-корінь
  * @returns {Promise<string>} шлях до rulesDir
  */
 async function seedProbeRule(dir) {
   const rulesDir = join(dir, 'rules')
-  const probeDir = join(rulesDir, 'probe', 'js')
+  const probeDir = join(rulesDir, 'probe')
   await mkdir(probeDir, { recursive: true })
-  await writeJson(join(rulesDir, 'probe', 'meta.json'), { lint: 'full' })
+  await writeJson(join(probeDir, 'meta.json'), { lint: 'full' })
   await writeFile(
-    join(probeDir, 'lint.mjs'),
+    join(probeDir, 'main.mjs'),
     [
       "import { writeFileSync } from 'node:fs'",
       "import { join } from 'node:path'",
+      'export function run() { return 0 }',
       'export function lint(files, cwd, opts = {}) {',
       "  writeFileSync(join(cwd, 'probe.json'), JSON.stringify({ filesUndefined: files === undefined, readOnly: opts.readOnly === true }))",
       '  return 0',
@@ -108,7 +110,7 @@ describe('runLint — прокидання осей', () => {
 })
 
 describe('runLint — scoped (`lint <rule…>`)', () => {
-  test('названe правило з js/lint.mjs → лінтер whole-repo (files=undefined)', async () => {
+  test('названe правило з main.mjs::lint → лінтер whole-repo (files=undefined)', async () => {
     await withTmpDir(async dir => {
       const rulesDir = await seedProbeRule(dir)
       // rules задано → scoped: проганяє лінтер ТІЛЬКИ probe; кастомний rulesDir → конформність skip.
@@ -122,10 +124,10 @@ describe('runLint — scoped (`lint <rule…>`)', () => {
     })
   })
 
-  test('названe правило без js/lint.mjs → лінтер не викликається (конформність-only)', async () => {
+  test('названe правило без лінт-поверхні → лінтер не викликається (конформність-only)', async () => {
     await withTmpDir(async dir => {
       const rulesDir = await seedProbeRule(dir)
-      // 'adr' не має js/lint.mjs у tmp-rulesDir → linterIds порожній, probe.json не пишеться.
+      // 'adr' відсутнє у tmp-rulesDir (нема meta.lint) → linterIds порожній, probe.json не пишеться.
       const code = await runLint({ rules: ['adr'], cwd: dir, rulesDir, log: ignoreLog })
       expect(code).toBe(0)
       const { existsSync } = await import('node:fs')

@@ -3,8 +3,9 @@
  * Викликають конформність-фаза `lint` (read-only), движок (`orchestrator.mjs`, `t0.mjs`)
  * і PostToolUse-хук.
  *
- * Per-rule ізоляція зберігається: кожне `rules/<id>/check.mjs` запускається окремим
- * процесом `bun` (crash-isolation).
+ * Per-rule ізоляція зберігається: entrypoint `rules/<id>/main.mjs` кожного правила
+ * запускається окремим процесом `bun` (crash-isolation). Канон — єдиний `main.mjs`
+ * (ADR 2026-06-21); його CLI-блок кличе `runRuleCli(import.meta.dirname)`.
  *
  * Селекція активних правил — виключно тут (`resolveCheckRuleIds` за `.n-cursor.json`);
  * per-rule whitelist у спавнених процесах прибрано як дубль (див. `runRuleCli`).
@@ -60,7 +61,7 @@ export async function resolveCheckRuleIds(requestedRules, available, cwd) {
 }
 
 /**
- * Прогоняє `check.mjs` кожного правила окремим процесом, захоплюючи output.
+ * Прогоняє check-entrypoint кожного правила окремим процесом, захоплюючи output.
  * @param {string[]} idsToRun правила
  * @param {string} cwd корінь
  * @returns {{ totalFailed:number, rules:Array<{ruleId:string, ok:boolean, output:string}> }} результат
@@ -69,7 +70,7 @@ function runRuleCheckProcesses(idsToRun, cwd) {
   let totalFailed = 0
   const rules = []
   for (const id of idsToRun) {
-    const r = spawnSync('bun', [join(BUNDLED_RULES_DIR, id, 'check.mjs')], { cwd, encoding: 'utf8' })
+    const r = spawnSync('bun', [join(BUNDLED_RULES_DIR, id, 'main.mjs')], { cwd, encoding: 'utf8' })
     const ok = r.status === 0
     rules.push({ ruleId: id, ok, output: `${r.stdout ?? ''}${r.stderr ?? ''}`.trim() })
     if (!ok) totalFailed++

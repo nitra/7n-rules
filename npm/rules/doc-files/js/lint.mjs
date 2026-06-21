@@ -2,7 +2,7 @@
 import { join, dirname, basename, extname } from 'node:path'
 import { existsSync, readdirSync } from 'node:fs'
 
-import { describeFile, isDocCandidate, isSourceFile, scanForDocFiles } from './docgen-scan.mjs'
+import { describeFile, isDocCandidate, isSourceFile, scanForDocFiles, scanOrphanedDocs } from './docgen-scan.mjs'
 
 /** Дока живе у `<dir>/docs/<stem>.md`; повертає `<dir>/<stem>` для реверс-мапінгу. */
 const DOC_MD_RE = /(?:^|\/)docs\/[^/]+\.md$/u
@@ -89,16 +89,47 @@ function collectStale(files, cwd) {
  */
 export async function lint(files, cwd = process.cwd(), { readOnly = false, llmFix = false } = {}) {
   const stale = collectStale(files, cwd)
-  if (stale.length === 0) return 0
-  if (readOnly || !llmFix) return reportStale(stale)
+  // Orphan-детект тільки при повному скані; при точковому (files визначено) — не релевантно
+  const orphans = files === undefined ? scanOrphanedDocs(cwd) : []
 
-  // fix-by-default: opportunistic-генерація через спільне ядро (preflight omlx →
-  // батч із circuit-breaker'ом). omlx недоступний → runGenerationBatch друкує причину
-  // й повертає !=0; ми re-detect'имо й через reportStale віддаємо exit 1 (гейт тримається).
-  process.stdout.write(`ℹ️  doc-files: ${stale.length} застарілих — пробую авто-фікс (omlx)…\n`)
-  const { runGenerationBatch } = await import('./docgen-files-batch.mjs')
-  await runGenerationBatch(stale, cwd, { headline: `📋 doc-files: генерація ${stale.length} файл(ів)` })
-  return reportStale(collectStale(files, cwd))
+  if (stale.length === 0 && orphans.length === 0) return 0
+  if (readOnly || !llmFix) {
+    if (stale.length > 0) reportStale(stale)
+    if (orphans.length > 0) {
+      const list = orphans.map(f => `  - ${f}`).join('\n')
+      process.stderr.write(
+        `✗ doc-files: сирітських доків (source видалено) ${orphans.length}:\n${list}\n→ очисти: npx @nitra/cursor fix-doc-files\n`
+      )
+    }
+    return 1
+  }
+
+  // fix-by-default: opportunistic-генерація stale + purge orphans.
+  // omlx недоступний → runGenerationBatch друкує причину й повертає !=0;
+  // purgeOrphanedDocs не залежить від LLM і виконується завжди.
+  if (stale.length > 0) {
+    process.stdout.write(`ℹ️  doc-files: ${stale.length} застарілих — пробую авто-фікс (omlx)…\n`)
+  }
+  const { runGenerationBatch, purgeOrphanedDocs } = await import('./docgen-files-batch.mjs')
+  if (stale.length > 0) {
+    await runGenerationBatch(stale, cwd, { headline: `📋 doc-files: генерація ${stale.length} файл(ів)` })
+  }
+  if (orphans.length > 0) {
+    const deleted = purgeOrphanedDocs(cwd)
+    if (deleted > 0) process.stdout.write(`🗑 doc-files: видалено ${deleted} сирітських доки(ів)\n`)
+  }
+
+  const stillStale = collectStale(files, cwd)
+  const stillOrphans = files === undefined ? scanOrphanedDocs(cwd) : []
+  if (stillStale.length === 0 && stillOrphans.length === 0) return 0
+  if (stillStale.length > 0) reportStale(stillStale)
+  if (stillOrphans.length > 0) {
+    const list = stillOrphans.map(f => `  - ${f}`).join('\n')
+    process.stderr.write(
+      `✗ doc-files: сирітських доків (source видалено) ${stillOrphans.length}:\n${list}\n→ очисти: npx @nitra/cursor fix-doc-files\n`
+    )
+  }
+  return 1
 }
 
-export { runLintDocFilesCli } from '../lint/lint.mjs'
+export { runLintDocFilesCli } from './run-lint.mjs'

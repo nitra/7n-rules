@@ -15,6 +15,27 @@ const PACKAGE_ROOT = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.u
 const RULES_DIR = join(PACKAGE_ROOT, 'rules')
 
 /**
+ * Чи має правило лінт-поверхню — `meta.json#lint` задано (`per-file`/`full`).
+ * Канонічний сигнал (ADR 2026-06-21): gate за meta, не за наявністю файлу.
+ * @param {Record<string, unknown> | undefined} raw meta-обʼєкт правила
+ * @returns {boolean} true — правило лінтить
+ */
+function hasLintSurface(raw) {
+  return parseRuleLintSpec(raw?.lint) !== null
+}
+
+/**
+ * Резолвить лінт-entrypoint правила: `main.mjs` з експортом `lint` (канон, ADR 2026-06-21).
+ * @param {string} rulesDir каталог rules
+ * @param {string} id rule-id
+ * @returns {string | null} шлях до `main.mjs`, або null якщо файлу нема
+ */
+function resolveLintEntrypoint(rulesDir, id) {
+  const main = join(rulesDir, id, 'main.mjs')
+  return existsSync(main) ? main : null
+}
+
+/**
  * Конформність-фаза lint (whole-repo: config/file/workflow conformance — те, що раніше робив `fix`).
  * Per-file декомпозиції немає, тож виконується лише у `--full`.
  *  - read-only: детект через `_fix-check` (per-rule `fix.mjs run()` = перевірка, без мутацій);
@@ -97,9 +118,9 @@ async function runPerFileRules(ids, ctx) {
   const { rulesDir, changed, cwd, readOnly, metaById, log } = ctx
   let worst = 0
   for (const id of ids) {
-    const lintPath = join(rulesDir, id, 'js', 'lint.mjs')
-    if (!existsSync(lintPath)) {
-      log(`⚠️  lint: правило ${id} має lint-фазу, але немає js/lint.mjs — пропускаю.\n`)
+    const lintPath = resolveLintEntrypoint(rulesDir, id)
+    if (!lintPath) {
+      log(`⚠️  lint: правило ${id} має lint-фазу (meta.lint), але немає main.mjs — пропускаю.\n`)
       continue
     }
     // lintPath = join(rulesDir, id, …) — суто package-internal (rulesDir пакета + id зі
@@ -160,11 +181,12 @@ function runFormat(cwd, log) {
 }
 
 /**
- * Scoped-режим (`lint <rule…>`): повний прогін НАЗВАНИХ правил — їх лінтер (`js/lint.mjs`,
- * whole-repo) для тих, що його мають, + конформність для всіх названих. Дзеркалить `--full`,
- * але звужено до правил, тож `lint ga` ≡ standalone `lint-ga`. Конформність-only правила
- * (напр. `changelog` із hk) не мають `js/lint.mjs` → проганяється лише їх конформність
- * (зворотна сумісність із колишнім `fix <rule>`). oxfmt у scoped НЕ запускається — це
+ * Scoped-режим (`lint <rule…>`): повний прогін НАЗВАНИХ правил — їх лінтер (entrypoint
+ * `main.mjs::lint`, whole-repo) для тих, що мають лінт-поверхню
+ * (`meta.json#lint`), + конформність для всіх названих. Дзеркалить `--full`, але звужено
+ * до правил, тож `lint ga` ≡ standalone `lint-ga`. Конформність-only правила (напр.
+ * `changelog` із hk) без `meta.lint` → проганяється лише їх конформність (зворотна
+ * сумісність із колишнім `fix <rule>`). oxfmt у scoped НЕ запускається — це
  * таргетований прогін правил, а не глобальне форматування.
  * @param {string[]} rules id названих правил
  * @param {{ cwd: string, readOnly: boolean, rulesDir: string, conformance: boolean, log: (s: string) => void }} ctx контекст (`conformance` — чи запускати конформність; false для юніт-тестів із кастомним rulesDir, де реальний пакет недоступний)
@@ -173,7 +195,7 @@ function runFormat(cwd, log) {
 async function runScopedRules(rules, ctx) {
   const { cwd, readOnly, rulesDir, conformance, log } = ctx
   const metaById = readAllMeta(rulesDir)
-  const linterIds = rules.filter(id => existsSync(join(rulesDir, id, 'js', 'lint.mjs')))
+  const linterIds = rules.filter(id => hasLintSurface(metaById[id]))
   let worst = 0
   if (linterIds.length > 0) {
     const perFile = await runPerFileRules(linterIds, { rulesDir, changed: undefined, cwd, readOnly, metaById, log })

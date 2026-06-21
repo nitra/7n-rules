@@ -1,12 +1,12 @@
 /** @see ./docs/docgen-files-batch.md */
-import { readFileSync, readdirSync, mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, relative } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { classifyOmlxError, preflightLocalModel } from '../../../lib/llm.mjs'
 import { generateDoc, DEFAULT_LOCAL_MODEL } from './docgen-gen.mjs'
 import { crc32, stampDoc, readDocQuality, readDocModel, QUALITY_THRESHOLD } from './docgen-crc.mjs'
-import { resolveRoot, scanForDocFiles } from './docgen-scan.mjs'
+import { resolveRoot, scanForDocFiles, scanOrphanedDocs } from './docgen-scan.mjs'
 
 /**
  * Парсить `--limit N` / `--from N` / прапори режимів для дозапуску великого прогону.
@@ -216,6 +216,42 @@ function reportStats(stats) {
 }
 
 /**
+ * Видаляє сирітські доки (source-файл не існує) і оновлює/прибирає index.md.
+ * Якщо після видалення в docs/-директорії лишились тільки index.md або нічого — очищує її.
+ * @param {string} root абсолютний корінь
+ * @returns {number} кількість видалених doc-файлів
+ */
+export function purgeOrphanedDocs(root) {
+  const orphans = scanOrphanedDocs(root)
+  if (orphans.length === 0) return 0
+  let deleted = 0
+  const docsDirs = new Set()
+  for (const docRel of orphans) {
+    try {
+      unlinkSync(join(root, docRel))
+      docsDirs.add(dirname(join(root, docRel)))
+      deleted++
+    } catch {
+      // race condition або вже видалено — ігноруємо
+    }
+  }
+  for (const docsAbsDir of docsDirs) {
+    if (!existsSync(docsAbsDir)) continue
+    const remaining = readdirSync(docsAbsDir)
+    const docFiles = remaining.filter(f => f.endsWith('.md') && f !== 'index.md')
+    if (docFiles.length === 0) {
+      // Лише index.md або порожня директорія — прибираємо повністю
+      const indexPath = join(docsAbsDir, 'index.md')
+      if (existsSync(indexPath)) unlinkSync(indexPath)
+      try { rmdirSync(docsAbsDir) } catch { /* не порожня — пропускаємо */ }
+    } else {
+      generateDirIndex(docsAbsDir, root)
+    }
+  }
+  return deleted
+}
+
+/**
  * `doc-files gen` — згенерувати документацію для застарілих/відсутніх док.
  * @param {string[]} argv аргументи після назви субкоманди
  * @returns {Promise<number>} exit-код: 0 — без помилок; 1 — помилки/фейл preflight; 2 — systemic-abort
@@ -224,11 +260,19 @@ export async function runDocFilesGenCli(argv) {
   const root = resolveRoot(argv)
   const { from, limit, overwrite } = parseGenArgs(argv)
 
+  // Видаляємо orphan-доки до генерації (незалежно від наявності stale)
+  const deleted = purgeOrphanedDocs(root)
+  if (deleted > 0) {
+    console.log(`🗑 doc-files: видалено ${deleted} сирітських доки(ів)`)
+  }
+
   const all = scanForDocFiles(root)
   const targets = selectTargets(root, all, { overwrite }).slice(from, from + limit)
 
   if (targets.length === 0) {
-    console.log('✓ doc-files: усі файлові доки свіжі й не-degraded. Нічого генерувати.')
+    if (deleted === 0) {
+      console.log('✓ doc-files: усі файлові доки свіжі й не-degraded. Нічого генерувати.')
+    }
     return 0
   }
 

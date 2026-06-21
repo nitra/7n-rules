@@ -8,5 +8,5 @@ resource: npm/rules/js-run/
 
 | Файл | Тип |
 |---|---|
-| [check.mjs](check.md) | JS Module |
 | [fix.mjs](fix.md) | JS Module |
+| [main.mjs](main.md) | JS Module |

@@ -1,12 +1,11 @@
 /**
- * Тести фільтрації імен Dockerfile / *.Dockerfile та збору шляхів.
+ * Тести фільтрації імен Dockerfile / Containerfile та збору шляхів.
  */
 import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { findDockerfilePaths, isDockerfileName } from '../../../lint.mjs'
-import { findLintDockerfilePaths, isLintDockerfileName } from '../../../../lint/lint.mjs'
 import { withTmpDir } from '../../../../../../scripts/utils/test-helpers.mjs'
 
 describe('isDockerfileName', () => {
@@ -25,21 +24,8 @@ describe('isDockerfileName', () => {
   })
 })
 
-describe('isLintDockerfileName', () => {
-  test('лише Dockerfile та *.Dockerfile', () => {
-    expect(isLintDockerfileName('Dockerfile')).toBe(true)
-    expect(isLintDockerfileName('app.Dockerfile')).toBe(true)
-    expect(isLintDockerfileName('App.dockerfile')).toBe(true)
-  })
-
-  test('не Containerfile і не Dockerfile.*', () => {
-    expect(isLintDockerfileName('Containerfile')).toBe(false)
-    expect(isLintDockerfileName('Dockerfile.prod')).toBe(false)
-  })
-})
-
-describe('findDockerfilePaths / findLintDockerfilePaths', () => {
-  test('різні набори файлів', async () => {
+describe('findDockerfilePaths', () => {
+  test('збирає Dockerfile / Containerfile у дереві', async () => {
     await withTmpDir(async root => {
       await mkdir(join(root, 'a'), { recursive: true })
       await mkdir(join(root, 'b'), { recursive: true })
@@ -50,9 +36,6 @@ describe('findDockerfilePaths / findLintDockerfilePaths', () => {
 
       const all = await findDockerfilePaths(root)
       expect(all.length).toBe(3)
-
-      const lint = await findLintDockerfilePaths(root)
-      expect(lint.length).toBe(2)
     })
   })
 })

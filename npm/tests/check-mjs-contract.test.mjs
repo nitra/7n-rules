@@ -1,7 +1,7 @@
 /**
- * Smoke-контракт: кожне правило `rules/<id>/` має `check.mjs` з валідним експортом `run`.
- * Каталог `fix/` (legacy) має бути відсутнім — convention перейшла на `js/`.
- * Doc-only правила (без `js/` і без `policy/`) допускаються — для них `check.mjs` no-op повертає 0.
+ * Smoke-контракт: кожне правило `rules/<id>/` має єдиний entrypoint `main.mjs` з валідним
+ * експортом `run` (канон ADR 2026-06-21). Каталоги `fix/` і `check.mjs` (legacy) — відсутні.
+ * Doc-only правила (без `js/` і без `policy/`) допускаються — для них `run` no-op повертає 0.
  */
 import { describe, expect, test } from 'vitest'
 import { existsSync } from 'node:fs'
@@ -17,22 +17,23 @@ const ruleIds = rulesEntries
   .map(e => e.name)
   .toSorted((a, b) => a.localeCompare(b))
 
-describe('check.mjs contract — усі правила', () => {
+describe('entrypoint contract — усі правила', () => {
   test('38 правил знайдено', () => {
     expect(ruleIds.length).toBe(38)
   })
 
   for (const id of ruleIds) {
-    test(`${id}: rules/${id}/check.mjs існує`, () => {
-      expect(existsSync(join(RULES_DIR, id, 'check.mjs'))).toBe(true)
+    test(`${id}: rules/${id}/main.mjs існує`, () => {
+      expect(existsSync(join(RULES_DIR, id, 'main.mjs'))).toBe(true)
     })
 
-    test(`${id}: rules/${id}/check.mjs експортує run()`, async () => {
-      const mod = await import(pathToFileURL(join(RULES_DIR, id, 'check.mjs')).href)
+    test(`${id}: main.mjs експортує run()`, async () => {
+      const mod = await import(pathToFileURL(join(RULES_DIR, id, 'main.mjs')).href)
       expect(typeof mod.run).toBe('function')
     })
 
-    test(`${id}: rules/${id}/ — без legacy fix/ каталогу`, () => {
+    test(`${id}: rules/${id}/ — без legacy check.mjs / fix/`, () => {
+      expect(existsSync(join(RULES_DIR, id, 'check.mjs'))).toBe(false)
       expect(existsSync(join(RULES_DIR, id, 'fix'))).toBe(false)
     })
   }

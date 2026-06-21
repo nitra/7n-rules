@@ -1,13 +1,13 @@
 /** @see ./docs/docgen-scan.md */
 import { join, dirname, basename, extname, relative, resolve, sep, isAbsolute, posix } from 'node:path'
-import { existsSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { once } from 'node:events'
 import { env } from 'node:process'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { isDocgenIgnored } from './docgen-ignore.mjs'
-import { QUALITY_THRESHOLD, readDocQuality, staleness } from './docgen-crc.mjs'
+import { QUALITY_THRESHOLD, parseDocFrontmatter, readDocQuality, staleness } from './docgen-crc.mjs'
 
 /** Кодові розширення, для яких генеруємо документацію. */
 const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.vue', '.py', '.rs'])
@@ -76,6 +76,70 @@ export function describeFile(root, sourcePath) {
   const docPath = docPathForSource(sourcePath)
   const { stale, reason } = staleness(join(root, sourcePath), join(root, docPath))
   return { sourcePath, docPath, stale, reason }
+}
+
+/**
+ * Знаходить "сирітські" доки: `docs/<stem>.md` із `resource:` + `docgen.crc` у frontmatter,
+ * у яких відповідний source-файл (resource:) вже не існує. Перевіряє лише файли,
+ * згенеровані `fix-doc-files` (наявність `docgen.crc` у frontmatter). Directory Index
+ * (resource із `/` на кінці) та ручні доки без `resource:` або без CRC — ігноруються.
+ * @param {string} root абсолютний корінь обходу
+ * @returns {string[]} posix-шляхи сирітських doc-файлів від кореня
+ */
+export function scanOrphanedDocs(root) {
+  const orphans = []
+
+  /** @param {string} docsAbsDir абсолютний шлях docs/-директорії */
+  function scanDocsDir(docsAbsDir) {
+    let entries
+    try {
+      entries = readdirSync(docsAbsDir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith('.md')) continue
+      const fullPath = join(docsAbsDir, entry.name)
+      let content
+      try {
+        content = readFileSync(fullPath, 'utf8')
+      } catch {
+        continue
+      }
+      const { data } = parseDocFrontmatter(content)
+      // Пропускаємо: Directory Index (resource з `/`), ручні доки (немає resource або CRC)
+      if (!data?.source || data.source.endsWith('/') || !data.crc) continue
+      if (!existsSync(join(root, data.source))) {
+        orphans.push(relative(root, fullPath).split(sep).join('/'))
+      }
+    }
+  }
+
+  /** Обходить дерево, шукаючи docs/-директорії для orphan-перевірки.
+   *  docs/ — входимо завжди (батьківська пройшла ignore-перевірку);
+   *  інші — перевіряємо через isDocgenIgnored. */
+  function walk(dir) {
+    let entries
+    try {
+      entries = readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const fullPath = join(dir, entry.name)
+      if (entry.name === 'docs') {
+        scanDocsDir(fullPath)
+      } else {
+        const relPath = relative(root, fullPath).split(sep).join('/')
+        if (isDocgenIgnored(relPath, 'dir')) continue
+        walk(fullPath)
+      }
+    }
+  }
+
+  walk(root)
+  return orphans
 }
 
 /**
@@ -307,20 +371,36 @@ export async function runDocFilesCheckCli(argv) {
   }
 
   const stale = sources.map(src => describeFile(root, src)).filter(f => f.stale)
-  if (stale.length === 0) return 0
+  // В git-режимі (Stop-гейт) додатково шукаємо сирітські доки без source-файлу
+  const orphans = gitMode ? scanOrphanedDocs(root) : []
 
-  // Великий прогін: Stop-гейт не блокує, лише попереджає (захист від нескінченного блоку).
+  if (stale.length === 0 && orphans.length === 0) return 0
+
+  // Великий прогін stale: Stop-гейт не блокує, але orphan-check продовжуємо
   if (gitMode && stale.length > gateMax) {
     console.error(
       `⚠ doc-files: застарілих док ${stale.length} (> ${gateMax}) — гейт не блокує. Запусти масовий прогін:\n  npx @nitra/cursor fix-doc-files`
     )
-    return 0
+    if (orphans.length === 0) return 0
+    const oList = orphans.map(f => `  - ${f}`).join('\n')
+    console.error(
+      `✗ doc-files: сирітських доків (source видалено) ${orphans.length}:\n${oList}\n→ очисти: npx @nitra/cursor fix-doc-files`
+    )
+    return 2
   }
 
-  const list = stale.map(f => `  - ${f.sourcePath} (${f.reason})`).join('\n')
-  console.error(
-    `✗ doc-files: документація застаріла/відсутня для ${stale.length} файл(ів):\n${list}\n→ перегенеруй: /doc-files`
-  )
+  if (stale.length > 0) {
+    const list = stale.map(f => `  - ${f.sourcePath} (${f.reason})`).join('\n')
+    console.error(
+      `✗ doc-files: документація застаріла/відсутня для ${stale.length} файл(ів):\n${list}\n→ перегенеруй: /doc-files`
+    )
+  }
+  if (orphans.length > 0) {
+    const oList = orphans.map(f => `  - ${f}`).join('\n')
+    console.error(
+      `✗ doc-files: сирітських доків (source видалено) ${orphans.length}:\n${oList}\n→ очисти: npx @nitra/cursor fix-doc-files`
+    )
+  }
   return 2
 }
 

@@ -19,6 +19,7 @@ resource: npm/rules/doc-files/js/
 | [docgen-prompts.mjs](docgen-prompts.md) | JS Module |
 | [docgen-scan.mjs](docgen-scan.md) | JS Module |
 | [lint.mjs](lint.md) | JS Module |
+| [run-lint.mjs](run-lint.md) | JS Module |
 | [units-js.mjs](units-js.md) | JS Module |
 | [units-rs.mjs](units-rs.md) | JS Module |
 | [units.mjs](units.md) | JS Module |

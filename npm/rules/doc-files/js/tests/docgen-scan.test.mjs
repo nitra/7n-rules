@@ -10,6 +10,7 @@ import {
   isDocCandidate,
   describeFile,
   scanForDocFiles,
+  scanOrphanedDocs,
   runDocFilesCheckCli
 } from '../docgen-scan.mjs'
 import { crc32, stampDoc } from '../docgen-crc.mjs'
@@ -87,6 +88,64 @@ describe('scanForDocFiles (CRC staleness)', () => {
       const paths = scanForDocFiles(root).map(i => i.sourcePath)
       expect(paths).toContain('src/keep.js')
       expect(paths).not.toContain('src/build.js')
+    })
+  })
+})
+
+describe('scanOrphanedDocs', () => {
+  test('source видалено → orphan знайдено', async () => {
+    await withTmpDir(async root => {
+      await ensureDir(join(root, 'src', 'docs'))
+      await writeFile(
+        join(root, 'src', 'docs', 'ghost.md'),
+        stampDoc('## Огляд\n\nтест\n', 'src/ghost.mjs', 'deadbeef')
+      )
+      // src/ghost.mjs не існує → orphan
+      expect(scanOrphanedDocs(root)).toEqual(['src/docs/ghost.md'])
+    })
+  })
+
+  test('source існує → не orphan', async () => {
+    await withTmpDir(async root => {
+      const body = 'export const a = 1\n'
+      await ensureDir(join(root, 'src', 'docs'))
+      await writeFile(join(root, 'src', 'a.mjs'), body)
+      await writeFile(join(root, 'src', 'docs', 'a.md'), stampDoc('## Огляд\n\nтест\n', 'src/a.mjs', crc32(body)))
+      expect(scanOrphanedDocs(root)).toEqual([])
+    })
+  })
+
+  test('Directory Index (resource із /) → не orphan', async () => {
+    await withTmpDir(async root => {
+      await ensureDir(join(root, 'src', 'docs'))
+      await writeFile(
+        join(root, 'src', 'docs', 'index.md'),
+        '---\ntype: Directory Index\ntitle: src\nresource: src/\n---\n\n# src\n'
+      )
+      expect(scanOrphanedDocs(root)).toEqual([])
+    })
+  })
+
+  test('ручна дока без CRC → не orphan', async () => {
+    await withTmpDir(async root => {
+      await ensureDir(join(root, 'src', 'docs'))
+      // resource є, але немає docgen.crc → не від fix-doc-files → пропускаємо
+      await writeFile(
+        join(root, 'src', 'docs', 'notes.md'),
+        '---\ntitle: Notes\nresource: src/notes.mjs\n---\n\n# Notes\n'
+      )
+      expect(scanOrphanedDocs(root)).toEqual([])
+    })
+  })
+
+  test('docs/ у node_modules ігнорується', async () => {
+    await withTmpDir(async root => {
+      await ensureDir(join(root, 'node_modules', 'pkg', 'docs'))
+      await writeFile(
+        join(root, 'node_modules', 'pkg', 'docs', 'foo.md'),
+        stampDoc('## Огляд\n', 'node_modules/pkg/foo.mjs', 'deadbeef')
+      )
+      expect(scanOrphanedDocs(root)).toEqual([])
     })
   })
 })

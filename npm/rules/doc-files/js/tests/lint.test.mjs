@@ -13,7 +13,8 @@ vi.mock('../docgen-files-batch.mjs', () => ({
   runGenerationBatch: (...args) => {
     state.calls.push(args)
     return state.impl(...args)
-  }
+  },
+  purgeOrphanedDocs: () => state.purgeImpl?.() ?? 0
 }))
 
 const { lint } = await import('../lint.mjs')

@@ -15,7 +15,11 @@ const { generateDocMock, scanMock, readDocQualityMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('../docgen-gen.mjs', () => ({ generateDoc: generateDocMock, DEFAULT_LOCAL_MODEL: 'omlx/test-model' }))
-vi.mock('../docgen-scan.mjs', () => ({ resolveRoot: () => '/fake-root', scanForDocFiles: scanMock }))
+vi.mock('../docgen-scan.mjs', () => ({
+  resolveRoot: () => '/fake-root',
+  scanForDocFiles: scanMock,
+  scanOrphanedDocs: () => [] // у batch-тестах orphan-перевірка незначима
+}))
 vi.mock('../docgen-crc.mjs', () => ({
   crc32: () => 'crc',
   stampDoc: md => md,
