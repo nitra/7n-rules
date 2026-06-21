@@ -50,6 +50,38 @@ describe('globToRegex', () => {
     expect(re.test('a/_test.rego')).toBe(true)
     expect(re.test('a/b/_test.rego')).toBe(true)
   })
+
+  test('буквальний шлях без wildcard', () => {
+    const re = globToRegex('bin/n-cursor.js')
+    expect(re.test('bin/n-cursor.js')).toBe(true)
+    expect(re.test('other/n-cursor.js')).toBe(false)
+  })
+
+  test('trailing **', () => {
+    const re = globToRegex('rules/test/**')
+    expect(re.test('rules/test/js/check.mjs')).toBe(true)
+    expect(re.test('rules/other/js/check.mjs')).toBe(false)
+  })
+
+  test('два ** поспіль', () => {
+    const re = globToRegex('**/**')
+    expect(re.test('a/b/c')).toBe(true)
+  })
+
+  test('brace-альтернативи {a,b,c} — multi-extension', () => {
+    const re = globToRegex('**/*.{png,jpg,jpeg,gif,svg}')
+    expect(re.test('src/logo.png')).toBe(true)
+    expect(re.test('assets/photo.jpeg')).toBe(true)
+    expect(re.test('icon.svg')).toBe(true)
+    expect(re.test('src/app.js')).toBe(false)
+    expect(re.test('src/data.json')).toBe(false)
+  })
+
+  test('кома поза дужками — літерал', () => {
+    const re = globToRegex('a,b.txt')
+    expect(re.test('a,b.txt')).toBe(true)
+    expect(re.test('ab.txt')).toBe(false)
+  })
 })
 
 describe('findTestFrameworkImport', () => {
@@ -71,6 +103,20 @@ describe('findTestFrameworkImport', () => {
   test('звичайний файл без тест-імпортів', () => {
     const code = "import { join } from 'node:path'\nexport const x = 1\n"
     expect(findTestFrameworkImport(code, 'foo.mjs')).toBeNull()
+  })
+
+  test('знаходить vitest статичний імпорт', () => {
+    const code = `import { describe, test } from 'vitest'\ndescribe('x', () => {})\n`
+    expect(findTestFrameworkImport(code, 'check.test.mjs')).toBe('vitest')
+  })
+
+  test('знаходить mocha через require', () => {
+    const code = `const { describe } = require('mocha')\n`
+    expect(findTestFrameworkImport(code, 'check.test.cjs')).toBe('mocha')
+  })
+
+  test('null для порожнього файлу', () => {
+    expect(findTestFrameworkImport('', 'empty.mjs')).toBeNull()
   })
 })
 

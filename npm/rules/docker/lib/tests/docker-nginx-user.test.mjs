@@ -4,7 +4,7 @@
  */
 import { describe, expect, test } from 'vitest'
 
-import { getNginxUnprivilegedUserHint, isNginxUnprivilegedImage } from '../../../../lib/docker-nginx-user.mjs'
+import { getNginxUnprivilegedUserHint, isNginxUnprivilegedImage } from '../docker-nginx-user.mjs'
 
 const CANON = [
   'FROM mirror.gcr.io/oven/bun:alpine AS build',

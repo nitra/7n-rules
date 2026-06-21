@@ -1,7 +1,6 @@
 /**
- * Тести для tooling.check(cwd): мінімальні fixture-директорії → перевіряємо exit code
- * і конкретні fail-повідомлення через mock checkReporter.
- * Тестуємо наслідки checkEslintConfig, checkOxlintRc, checkLintJsWorkflows, checkKnipConfig,
+ * Тести check(cwd) з check.mjs: мінімальні fixture-директорії → перевіряємо exit code.
+ * Охоплює checkEslintConfig, checkOxlintRc, checkLintJsWorkflows, checkKnipConfig,
  * checkWorkspacePackages (type:module, engines.node, engines.bun).
  */
 import { readFileSync } from 'node:fs'
@@ -10,7 +9,8 @@ import { join } from 'node:path'
 
 import { describe, expect, test } from 'vitest'
 
-import { OXLINT_CANONICAL_JSON_PATH, check } from '../tooling.mjs'
+import { check } from '../check.mjs'
+import { OXLINT_CANONICAL_JSON_PATH } from '../tooling.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 const canonical = JSON.parse(readFileSync(OXLINT_CANONICAL_JSON_PATH, 'utf8'))

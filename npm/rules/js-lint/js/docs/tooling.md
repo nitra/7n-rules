@@ -3,29 +3,27 @@ type: JS Module
 title: tooling.mjs
 resource: npm/rules/js-lint/js/tooling.mjs
 docgen:
-  crc: bc30b49f
+  crc: 7ead48ee
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 95
 ---
 
-Цей модуль верифікує відповідність конфігураційних файлів проєкту встановленим стандартам. Він порівнює локальні файли конфігурації (наприклад, `.oxlintrc.json`) з канонічними версіями, визначеними в пакеті, використовуючи шляхи, такі як OXLINT_CANONICAL_JSON_PATH та KNIP_CANONICAL_JSON_PATH. Модуль також перевіряє відповідність правилам (js-lint.mdc), аналізуючи конфігураційні файли, включаючи package.json, oxlint-canonical.json, knip-canonical.json, .oxlintrc.json, .eslintrc.json та knip.json.
+## Огляд
+
+Визначає шляхи до канонічних конфігураційних файлів для oxlint та knip за допомогою OXLINT_CANONICAL_JSON_PATH та KNIP_CANONICAL_JSON_PATH. Дозволяє перевіряти відповідність конфігураційного файлу .oxlintrc.json до канонічного файлу oxlint-canonical.json за допомогою verifyOxlintRcAgainstCanonical.
 
 ## Поведінка
 
-OXLINT_CANONICAL_JSON_PATH — Вказує на шлях до канонічного JSON-конфігу oxlint у цьому пакеті, який використовується для перевірки.
-KNIP_CANONICAL_JSON_PATH — Вказує на шлях до канонічного JSON-конфігу knip у цьому пакеті, який копіюється у корінь проєкту-споживача, якщо відсутній.
-verifyOxlintRcAgainstCanonical — Порівнює конфігурацію `.oxlintrc.json` з каноном пакета `@nitra/cursor`, виявляючи відхилення у правилах та інших полях.
-check — Виконує комплексний набір перевірок відповідності проєкту правилам js-lint.mdc, включаючи ESLint, package.json, oxlintrc.json, lint-js.yml та knip.json. Не перевіряє шляхи .github або .git.
+OXLINT_CANONICAL_JSON_PATH — Вказує шлях до канонічного JSON-файлу oxlint у цьому пакеті.
+KNIP_CANONICAL_JSON_PATH — Вказує шлях до канонічного JSON-файлу knip у цьому пакеті.
+verifyOxlintRcAgainstCanonical — Перевіряє конфігураційний файл `.oxlintrc.json` на відповідність канонічному файлу oxlint-canonical.json, виявляючи відхилення у правилах та інших полях.
 
 ## Публічний API
 
-OXLINT_CANONICAL_JSON_PATH — Вказує місцезнаходження стандартного конфігу для oxlint у пакеті.
-KNIP_CANONICAL_JSON_PATH — Вказує місцезнаходження стандартного конфігу для knip; його копіюють у корінь проєкту, якщо його там немає.
-verifyOxlintRcAgainstCanonical — Порівнює конфіг `.oxlintrc.json` з канонічним конфігом пакета `@nitra/cursor` (всі правила мають бути присутніми, інші поля повинні збігатися з `oxlint-canonical.json`).
-check — Перевіряє відповідність проєкту вимогам, описаним у js-lint.mdc.
+OXLINT_CANONICAL_JSON_PATH — Вказує розташування стандартного конфігураційного файлу oxlint для валідації.
+KNIP_CANONICAL_JSON_PATH — Вказує розташування стандартного конфігураційного файлу knip, який копіюється у кореневий каталог проєкту, якщо його там немає.
+verifyOxlintRcAgainstCanonical — Порівнює конфігураційний файл `.oxlintrc.json` з канонічним файлом пакета, вимагаючи збігу всіх полів, крім додаткових ключів у секції `rules`.
 
 ## Гарантії поведінки
 
 - Read-only: не виконує операцій запису (ФС/БД).
-- Перехоплює помилки і не пропускає винятків назовні (fail-safe).
-- Свідомо пропускає шляхи: `.github`, `.git`.
