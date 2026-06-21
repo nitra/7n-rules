@@ -1,6 +1,7 @@
 /** @see ./docs/lint.md */
 import { readFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
+import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
 
 import { getMirrorGcrHint, getFromImageToken } from '../lib/docker-mirror.mjs'
 import { getNativeAddonDeps, getNativeAddonNoCompileHint } from '../lib/docker-native-addon.mjs'
@@ -368,4 +369,14 @@ async function checkDockerfile(reporter, root, abs) {
     const detail = tail ? `:\n${tail}` : ''
     fail(`${rel} (${via})${detail}`)
   }
+}
+
+/**
+ * Оркестраторний адаптер `n-cursor lint docker`: обгортає `check()` у `runStandardLint` (лок).
+ * @param {string[] | undefined} _files ігнорується (whole-repo обхід)
+ * @param {string} [cwd] корінь
+ * @returns {Promise<number>} exit code
+ */
+export function lint(_files, cwd = process.cwd()) {
+  return runStandardLint(import.meta.dirname, () => check(cwd))
 }

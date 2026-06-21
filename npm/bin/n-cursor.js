@@ -1609,7 +1609,7 @@ try {
       // n-cursor lint-doc-files — детермінований детектор застарілості файлових док
       // (missing ∪ crc-mismatch). Режими: (повний) exit 1, --json exit 0, --missing-only,
       //   --hook/--git/--degraded — hook-протокол (exit 2/0). Деталі — doc-files.mdc.
-      const { runLintDocFilesCli } = await import('../rules/doc-files/lint/lint.mjs')
+      const { runLintDocFilesCli } = await import('../rules/doc-files/js/lint.mjs')
       process.exitCode = await runLintDocFilesCli(args)
 
       break

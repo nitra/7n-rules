@@ -3,70 +3,42 @@ type: JS Module
 title: lint.mjs
 resource: npm/rules/docker/js/lint.mjs
 docgen:
-  crc: 495d03ee
+  crc: bf935f19
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
 
-Модуль забезпечує декомпозицію структури Dockerfile для вилучення даних про багатостадійні збірки та залежності середовища. Функції, такі як `findDockerfilePaths` та `splitDockerfileStages`, використовуються для ідентифікації та розділення стадій збірки. Модуль надає інструменти для отримання підказок про виконання, включаючи визначення багатостадійного режиму (`getMultistageAndRuntimeHint`), компіляційних налаштувань (`getBunCompileHint`), та підказок про використання образу Nginx Alpine Slim (`getNginxAlpineSlimTagHint`). Додатково, він визначає необхідність роботи без прав root (`getNonRootRuntimeHint`). (docker.mdc)
+## Огляд
+
+Модуль аналізує файли `Dockerfile` та `Containerfile` у репозиторії, використовуючи `isDockerfileName` та `findDockerfilePaths` для ідентифікації конфігурацій. Він розбиває знайдені файли на етапи за допомогою `parseFromStages` та `splitDockerfileStages`. Модуль перевіряє конфігурацію, використовуючи `check` та `lint`, щоб оцінити відповідність стандартам, враховуючи дані з `package.json`. Він визначає інформацію про багатоетапну збірку, теги образів та права користувача, відповідно до вимог (docker.mdc).
 
 ## Поведінка
 
-isDockerfileName
-Перевіряє, чи є вхідний рядок назвою Dockerfile або Containerfile.
-
-findDockerfilePaths
-Збирає абсолютні шляхи до Dockerfile або Containerfile від заданого кореня репозиторію, враховуючи виключені шляхи.
-
-parseFromStages
-Витягує інструкції FROM з вмісту файлу.
-
-splitDockerfileStages
-Розбиває вміст Dockerfile на окремі стадії на основі інструкцій FROM.
-
-getMultistageAndRuntimeHint
-Перевіряє, чи має Dockerfile мінімум дві інструкції FROM і чи є фінальний образ дозволеним runtime-образом (docker.mdc).
-
-getBunCompileHint
-Перевіряє наявність інструкцій `bun install` та відсутності `bun build --compile` для виявлення необхідності компіляції бінарника (docker.mdc).
-
-getNginxAlpineSlimTagHint
-Перевіряє, чи містить інструкція FROM для образу nginx потрібний тег `alpine-slim` (docker.mdc).
-
-getNonRootRuntimeHint
-Перевіряє, чи присутня інструкція USER у фінальній стадії і чи не використовується `root` або `0` для запуску (docker.mdc).
-
-check
-Запускає перевірки Dockerfile через hadolint, включаючи перевірки multistage, компіляції, non-root, тегів nginx та загальну валідацію.
-
-readNearestDependencies
-Читає залежності з найближчого package.json, розташованого у каталогах Dockerfile або вище.
-
-checkDockerfile
-Перевіряє індивідуальний Dockerfile/Containerfile на наявність інструкцій, пов'язаних з mirror.gcr.io, multistage, компіляції, non-root, тегів nginx та виконує перевірку через hadolint.
+isDockerfileName визначає, чи є наданий шлях назвою Dockerfile або Containerfile.
+findDockerfilePaths збирає відсортований список абсолютних шляхів до всіх Dockerfile/Containerfile, ігноруючи вказані шляхи каталогів.
+parseFromStages витягує список усіх інструкцій `FROM <image>` з вмісту Dockerfile/Containerfile.
+splitDockerfileStages розбиває вміст Dockerfile/Containerfile на окремі етапи (stages) на основі інструкцій `FROM`.
+getMultistageAndRuntimeHint перевіряє, чи відповідає структура Dockerfile вимогам multistage build та дозволеним образам для фінального runtime (docker.mdc).
+getBunCompileHint перевіряє, чи виконано необхідну компіляцію застосунку у бінарник для bun-проєктів, якщо фінальний образ — alpine (docker.mdc).
+getNginxAlpineSlimTagHint перевіряє, чи використовується тег `alpine-slim` для nginx-образів (docker.mdc).
+getNonRootRuntimeHint перевіряє, чи має фінальний stage інструкцію `USER <non-root>` для забезпечення не превілейованого образу (docker.mdc).
+check перевіряє всі знайдені Dockerfile/Containerfile, виконуючи перевірки на відповідність стандартам, включаючи hadolint (docker.mdc).
+lint оркеструє обхід репозиторію та викликає `check` для всіх знайдених Dockerfile/Containerfile.
 
 ## Публічний API
 
-isDockerfileName — перевіряє наявність файлів `Dockerfile` або `Containerfile` у назві.
-findDockerfilePaths — збирає повні шляхи до файлів `Dockerfile` або `Containerfile` від поточної робочої директорії.
-parseFromStages — витягує всі інструкції `FROM <image>` з вмісту файлів.
-splitDockerfileStages — розділяє файл `Dockerfile` на послідовні етапи за інструкціями `FROM`. Повертає порожній масив, якщо інструкції `FROM` відсутні.
-getMultistageAndRuntimeHint — перевіряє вимоги до структури Dockerfile:
-  multistage — вимагає мінімум два етапи `FROM`.
-  фінальний FROM — перевіряє, чи дозволений образ у `docker.mdc` (alpine, scratch, debian slim, php, python, nginx, openresty, тощо). Для проєктів з нативним .node-аддоном дозволено `mirror.gcr.io/oven/bun:*` (bun-рантайм).
-getBunCompileHint — перевіряє наявність вимоги "компіляції в бінарник" для bun-проєктів на бекенд-рантаймах.
-Тригер — перевіряє, чи присутній крок `bun install` або `bun i` у Dockerfile.
-Тригер — перевіряє, чи фінальний образ — `mirror.gcr.io/library/alpine:*` (виключаючи фронтенд nginx/openresty).
-getNginxAlpineSlimTagHint — перевіряє, чи містить `FROM` для nginx-образу (`mirror.gcr.io/nginxinc/nginx-unprivileged`) тег `alpine-slim` (`docker.mdc`).
-getNonRootRuntimeHint — перевіряє вимогу "non-root" у фінальному runtime-етапі (`docker.mdc`).
-Очікування — перевіряє, чи містить build stage інструкцію `bun build --compile`.
-Очікування — перевіряє, чи відсутні виклики `bun` у фінальному етапі (залишкові інструменти збірки).
-Очікування — перевіряє, чи містить фінальний етап інструкцію `USER <name|uid>`.
-Очікування — перевіряє, чи користувач у фінальному етапі не є `root` і не дорівнює `0`.
-check — виконує перевірку через hadolint (`docker.mdc`).
+isDockerfileName — визначає, чи є файл `Dockerfile` або `Containerfile` у поточному каталозі.
+findDockerfilePaths — збирає повні шляхи до файлів `Dockerfile` або `Containerfile` від кореня робочого каталогу.
+parseFromStages — витягує всі образи, зазначені в інструкціях `FROM` у файлі.
+splitDockerfileStages — розділяє вміст файлу на окремі етапи згідно з інструкціями `FROM`.
+getMultistageAndRuntimeHint — оцінює відповідність структури файлу: мінімум два етапи `FROM` та відповідність базових образів списку дозволених у `docker.mdc` (з додатковим дозволом для `bun` у випадку нативного `.node-аддону`).
+getBunCompileHint — перевіряє, чи вимагає проєкт на базі Bun компіляції в бінарний файл для бекенд-рантайму.
+getNginxAlpineSlimTagHint — перевіряє, чи використовується тег `alpine-slim` для образів Nginx, як зазначено в `docker.mdc`.
+getNonRootRuntimeHint — перевіряє, чи встановлено користувача, відмінного від `root` (не `0`), у фінальному етапі виконання, згідно з `docker.mdc`.
+check — виконує статичний аналіз файлу `Dockerfile`/`Containerfile` за допомогою hadolint (`docker.mdc`).
+lint — запускає стандартний лінтер для Docker-файлів через адаптер `n-cursor lint docker`.
 
 ## Гарантії поведінки
 
-- Read-only: файл не виконує операцій запису у файлову систему.
+- Read-only: не виконує операцій запису (ФС/БД).
 - Перехоплює помилки і не пропускає винятків назовні (fail-safe).
-- За невдалої перевірки повертає `false`/`null` замість винятку.
-- Не звертається до мережі.

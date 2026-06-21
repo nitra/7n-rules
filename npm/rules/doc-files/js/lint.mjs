@@ -100,3 +100,5 @@ export async function lint(files, cwd = process.cwd(), { readOnly = false, llmFi
   await runGenerationBatch(stale, cwd, { headline: `📋 doc-files: генерація ${stale.length} файл(ів)` })
   return reportStale(collectStale(files, cwd))
 }
+
+export { runLintDocFilesCli } from '../lint/lint.mjs'
