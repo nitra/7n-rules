@@ -18,7 +18,7 @@ export function check() {
   }
 
   if (existsSync('package.json')) {
-    pass('package.json є (наявність lint-php перевіряє npx @nitra/cursor fix → php.package_json)')
+    pass('package.json є')
   } else {
     fail('package.json не знайдено в корені — додай (php.mdc)')
   }

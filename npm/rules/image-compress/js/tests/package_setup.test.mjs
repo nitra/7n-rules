@@ -5,8 +5,8 @@
  *  - `.n-minify-image.tsv` НЕ у `.gitignore`;
  *  - застарілий `.minify-image-cache.tsv` видалений (з кореня й з `.gitignore`).
  *
- * Заборона `@nitra/minify-image` у dependencies/devDependencies тепер у Rego
- * (`npm/policy/image_compress/package_json/`).
+ * Заборона `@nitra/minify-image` у dependencies/devDependencies лишається у Rego
+ * (`npm/rules/image-compress/policy/package_json/`).
  *
  * AVIF-генерацію та переписування `.vue`/`.html` тестує `check-image-avif.test.mjs`.
  */

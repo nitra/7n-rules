@@ -33,9 +33,9 @@ export function check(cwd = process.cwd()) {
   }
 
   if (existsSync(join(cwd, 'package.json'))) {
-    pass('package.json є (наявність lint-python перевіряє fix → python.package_json)')
+    pass('package.json є')
   } else {
-    fail('package.json не знайдено в корені — додай для `bun run lint-python` (python.mdc)')
+    fail('package.json не знайдено в корені — додай (python.mdc)')
   }
 
   const wfPath = '.github/workflows/lint-python.yml'

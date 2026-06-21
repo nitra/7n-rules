@@ -76,8 +76,7 @@ async function checkLegacyCacheRemoved(pass, fail, cwd) {
 
 /**
  * Перевіряє відповідність проєкту правилу `image-compress.mdc`: `.n-minify-image.tsv` НЕ
- * в `.gitignore`, застарілий `.minify-image-cache.tsv` видалений. CI-workflow для image
- * не вимагається — лінт зображень виконується лише локально.
+ * в `.gitignore`, застарілий `.minify-image-cache.tsv` видалений.
  * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
@@ -89,7 +88,7 @@ export async function check(cwd = process.cwd()) {
     fail('package.json не знайдено в корені — додай (image-compress.mdc)')
     return reporter.getExitCode()
   }
-  pass('package.json є (структуру перевіряє npx @nitra/cursor fix → image_compress.package_json)')
+  pass('package.json є (dependency policy перевіряє npx @nitra/cursor fix → image_compress.package_json)')
 
   await checkHashCacheNotIgnored(pass, fail, cwd)
   await checkLegacyCacheRemoved(pass, fail, cwd)

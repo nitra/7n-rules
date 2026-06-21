@@ -2,7 +2,7 @@
 #
 # Канон надходить через --data: { "template": { "snippet": ... } }
 # Структура --data сформована з template/lint-php.yml.snippet.yml.
-# Маркер `run:` (bun run lint-php) збирається з template's php-job steps.
+# Маркер `run:` збирається з template's php-job steps.
 # Універсальні workflow-перевірки — у `ga.workflow_common`.
 package php.lint_php_yml
 
