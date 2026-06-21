@@ -73,3 +73,21 @@ description: "Кожне правило npm/rules/<id>/ має рівно оди
 - Doc-конвенція-колізія: `docs/index.md` = `type: Directory Index` у кожній теці → entrypoint не може зватися `index.mjs`.
 - Інвентар lint-правил: зовн.-тулзи (×8) `ga, docker, k8s, php, python, rego, text, doc-files`; лише per-file/full без `lint/` (×6) `rust, security, style-lint, image-compress, js-lint, js-lint-ci`.
 - Пов'язано: попередній рефактор `js/<concern>/check.mjs` → flat `js/<concern>.mjs` (1.13.90+) та `20260516-rules-fix-lint-policy-structure.md`.
+
+## Update 2026-06-21 — lint-поверхню заінлайнено в main.mjs
+
+Після Ф3 lint-імпл лишався в `js/lint.mjs`, а `main.mjs` його re-export'ив. Це
+давало дві вади: `js/lint.mjs` дискаверився як **no-op concern** (`listJsConcerns`
+сканує `js/*.mjs`, але `lint.mjs` не має `export check` → дарма імпортувався під час
+кожного conformance-прогону), плюс зайва indirection `main.mjs → js/lint.mjs`.
+
+Рішення: для всіх lint-правил **заінлайнити** `lint`-поверхню в `main.mjs` (один файл =
+правило), `js/lint.mjs` видалити. Виняток — **docker**: його `js/lint.mjs` має `export
+check` (реальний concern Dockerfile-структури), тож лишається в `js/`, а `main.mjs`
+re-export'ить `lint` звідти.
+
+Enabling-зміни: `run-standard-lint.mjs` ruleId-деривація стала глибино-незалежною (сегмент
+після `rules/`, бо `import.meta.dirname` з `main.mjs` = `rules/<id>`, а не `rules/<id>/js`);
+`npm-module/rule_meta.mjs` чек `meta.lint` ⟺ **`main.mjs` експортує `lint`** (замість
+наявності `js/lint.mjs`); важкі bespoke-хелпери (actionlint/cspell/докген-скан тощо)
+лишаються окремими модулями в `js/`, `main.mjs` їх імпортує.
