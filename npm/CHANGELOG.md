@@ -1,5 +1,11 @@
 # Changelog
 
+## [12.5.0] - 2026-06-21
+
+### Changed
+
+- Уніфіковано image-compress, docker і k8s lint через n-cursor lint <rule> без package.json wrappers; image-compress read-only використовує @nitra/minify-image --json.
+
 ## [12.4.0] - 2026-06-21
 
 ### Changed
