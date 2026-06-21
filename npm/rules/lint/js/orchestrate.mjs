@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process'
 import { parseRuleLintSpec, readRuleMetaRaw } from '../../../scripts/lib/rule-meta.mjs'
 import { collectChangedFilesSince, resolveChangedBase } from '../../../scripts/lib/changed-files.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { isRuleEnabled, readNCursorConfigLite } from '../../../scripts/lib/read-n-cursor-config-lite.mjs'
 
 // Цей файл: npm/rules/lint/js/orchestrate.mjs → PACKAGE_ROOT = npm (чотири dirname угору).
 const PACKAGE_ROOT = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))))
@@ -42,15 +43,31 @@ async function runConformance(cwd, readOnly, log, filter = []) {
  * Вибирає id правил для контексту, алфавітно.
  * @param {Record<string, {lint?: unknown}>} metaById мапа id → meta-обʼєкт
  * @param {boolean} full `false` → лише `per-file` правила; `true` → усі (`per-file` ∪ `full`)
+ * @param {string[]} enabledRuleIds активні rule-id з `.n-cursor.json`
  * @returns {string[]} відсортовані id
  */
-export function selectLintRules(metaById, full) {
+export function selectLintRules(metaById, full, enabledRuleIds) {
+  const enabled = new Set(enabledRuleIds)
   const out = []
   for (const [id, raw] of Object.entries(metaById)) {
+    if (!enabled.has(id)) continue
     const scope = parseRuleLintSpec(raw?.lint)
     if (scope === 'per-file' || (full && scope === 'full')) out.push(id)
   }
   return out.toSorted((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Активні правила для unscoped linter-фази. `.n-cursor.json` — єдине джерело
+ * whitelist/disable, `meta.json#lint` нижче використовується лише як scope (`per-file`/`full`).
+ * @param {Record<string, unknown>} metaById доступні bundled правила
+ * @param {string} cwd корінь
+ * @returns {Promise<string[]>} активні rule-id з конфіга, що існують у пакеті
+ */
+async function readEnabledLintRuleIds(metaById, cwd) {
+  const config = await readNCursorConfigLite(cwd)
+  if (!config.exists) return []
+  return Object.keys(metaById).filter(id => isRuleEnabled(config, id))
 }
 
 /**
@@ -130,7 +147,7 @@ async function runFullConformancePhase(cwd, readOnly, log) {
  * @param {(s: string) => void} log логер
  * @returns {Promise<number>} код виходу oxfmt (0 — OK або пропущено)
  */
-async function runFormat(cwd, log) {
+function runFormat(cwd, log) {
   const oxfmt = resolveCmd('oxfmt')
   if (!oxfmt) {
     log('ℹ️  lint: oxfmt недоступний у PATH — формат-крок пропущено.\n')
@@ -201,7 +218,8 @@ export async function runLint(opts = {}) {
   }
 
   const metaById = readAllMeta(rulesDir)
-  const ids = selectLintRules(metaById, full)
+  const enabledRuleIds = await readEnabledLintRuleIds(metaById, cwd)
+  const ids = selectLintRules(metaById, full, enabledRuleIds)
   const perFile = await runPerFileRules(ids, { rulesDir, changed, cwd, readOnly, metaById, log })
   if (perFile.stop) return perFile.code
   let worst = perFile.code
@@ -219,7 +237,7 @@ export async function runLint(opts = {}) {
   // Формат-крок (oxfmt): fix-режим — завжди (будь-який scope); read-only пропускаємо (нуль
   // мутацій). Кастомний rulesDir (юніт-тести) — реальний пакет недоступний, тож пропускаємо.
   if (!readOnly && opts.rulesDir === undefined) {
-    const fmtCode = await runFormat(cwd, log)
+    const fmtCode = runFormat(cwd, log)
     if (fmtCode !== 0) worst = fmtCode
   }
   return worst

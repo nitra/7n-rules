@@ -12,13 +12,25 @@ const META = {
   ga: { lint: 'full' },
   adr: {}
 }
+const ignoreLog = text => text
 
 describe('selectLintRules', () => {
   test('default (full=false) → лише per-file правила, алфавітно', () => {
-    expect(selectLintRules(META, false)).toEqual(['js-lint', 'style-lint'])
+    expect(selectLintRules(META, false, ['ga', 'js-lint', 'js-lint-ci', 'style-lint'])).toEqual([
+      'js-lint',
+      'style-lint'
+    ])
   })
   test('full=true → per-file + full, алфавітно', () => {
-    expect(selectLintRules(META, true)).toEqual(['ga', 'js-lint', 'js-lint-ci', 'style-lint'])
+    expect(selectLintRules(META, true, ['ga', 'js-lint', 'js-lint-ci', 'style-lint'])).toEqual([
+      'ga',
+      'js-lint',
+      'js-lint-ci',
+      'style-lint'
+    ])
+  })
+  test('ігнорує правила, не активовані у .n-cursor.json', () => {
+    expect(selectLintRules(META, true, ['js-lint'])).toEqual(['js-lint'])
   })
 })
 
@@ -53,13 +65,36 @@ describe('runLint — прокидання осей', () => {
   test('full + readOnly → lint(undefined, cwd, {readOnly:true})', async () => {
     await withTmpDir(async dir => {
       const rulesDir = await seedProbeRule(dir)
-      const code = await runLint({ full: true, readOnly: true, cwd: dir, rulesDir, log: () => {} })
+      await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
+      const code = await runLint({ full: true, readOnly: true, cwd: dir, rulesDir, log: ignoreLog })
       expect(code).toBe(0)
       const { readFileSync } = await import('node:fs')
       expect(JSON.parse(readFileSync(join(dir, 'probe.json'), 'utf8'))).toEqual({
         filesUndefined: true,
         readOnly: true
       })
+    })
+  })
+
+  test('unscoped linter-фаза не запускає правило поза .n-cursor.json', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedProbeRule(dir)
+      await writeJson(join(dir, '.n-cursor.json'), { rules: [] })
+      const code = await runLint({ full: true, readOnly: true, cwd: dir, rulesDir, log: ignoreLog })
+      expect(code).toBe(0)
+      const { existsSync } = await import('node:fs')
+      expect(existsSync(join(dir, 'probe.json'))).toBe(false)
+    })
+  })
+
+  test('unscoped linter-фаза не запускає правило з disable-rules', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedProbeRule(dir)
+      await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'], 'disable-rules': ['probe'] })
+      const code = await runLint({ full: true, readOnly: true, cwd: dir, rulesDir, log: ignoreLog })
+      expect(code).toBe(0)
+      const { existsSync } = await import('node:fs')
+      expect(existsSync(join(dir, 'probe.json'))).toBe(false)
     })
   })
 })
@@ -69,7 +104,7 @@ describe('runLint — scoped (`lint <rule…>`)', () => {
     await withTmpDir(async dir => {
       const rulesDir = await seedProbeRule(dir)
       // rules задано → scoped: проганяє лінтер ТІЛЬКИ probe; кастомний rulesDir → конформність skip.
-      const code = await runLint({ rules: ['probe'], cwd: dir, rulesDir, log: () => {} })
+      const code = await runLint({ rules: ['probe'], cwd: dir, rulesDir, log: ignoreLog })
       expect(code).toBe(0)
       const { readFileSync } = await import('node:fs')
       expect(JSON.parse(readFileSync(join(dir, 'probe.json'), 'utf8'))).toEqual({
@@ -83,7 +118,7 @@ describe('runLint — scoped (`lint <rule…>`)', () => {
     await withTmpDir(async dir => {
       const rulesDir = await seedProbeRule(dir)
       // 'adr' не має js/lint.mjs у tmp-rulesDir → linterIds порожній, probe.json не пишеться.
-      const code = await runLint({ rules: ['adr'], cwd: dir, rulesDir, log: () => {} })
+      const code = await runLint({ rules: ['adr'], cwd: dir, rulesDir, log: ignoreLog })
       expect(code).toBe(0)
       const { existsSync } = await import('node:fs')
       expect(existsSync(join(dir, 'probe.json'))).toBe(false)

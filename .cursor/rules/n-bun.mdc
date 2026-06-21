@@ -80,8 +80,8 @@ FROM oven/bun:alpine AS build-env
 
 Лінт запускається через CLI **`n-cursor`**, **не** через `package.json`-скрипти:
 
-- **`n-cursor lint --full`** — весь репо: усі правила (per-file лінтери + конформність) + `oxfmt` у кінці (fix-режим);
-- **`n-cursor lint`** — дельта vs origin (per-file лінтери лише змінених файлів);
+- **`n-cursor lint --full`** — весь репо: активні у `.n-cursor.json` правила (per-file + full лінтери за `meta.json#lint` scope, конформність) + `oxfmt` у кінці (fix-режим);
+- **`n-cursor lint`** — дельта vs origin (активні у `.n-cursor.json` per-file лінтери лише змінених файлів);
 - **`n-cursor lint <rule…>`** — конкретні правила (лінтер + конформність), напр. **`n-cursor lint ga`**.
 
 У кореневому `package.json` **не повинно бути** `lint`/`lint-*` скриптів — єдина точка лінту — CLI `n-cursor`. У CI кожен workflow викликає **`n-cursor lint <rule> --read-only`** напряму (без обгорток).
