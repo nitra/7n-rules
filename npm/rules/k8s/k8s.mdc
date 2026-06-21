@@ -43,17 +43,7 @@ alwaysApply: false
 
 Підстав свою `attributes.name` (рядок або regex), якщо ConfigMap зветься інакше; виключай контрольно, а не глобально (не додавай винятки без `attributes.name`/`labels`, бо тоді C-0012 знімається для усіх ConfigMap-ів проєкту і реальні витоки credentials теж пройдуть).
 
-У репозиторії пакета **`@nitra/cursor`** скрипт **`lint-k8s`** делегує до CLI **`n-cursor lint-k8s`** (реалізація — **`npm/rules/k8s/js/run.mjs`**). У інших проєктах достатньо встановити **`@nitra/cursor`** у `devDependencies` — бінарка **`n-cursor`** буде у **`node_modules/.bin/`**.
-
-```json title="package.json"
-{
-  "scripts": {
-    "lint-k8s": "n-cursor lint-k8s"
-  }
-}
-```
-
-Якщо правило **`k8s`** підключено в **`.n-cursor.json`** (масив **`rules`**), у **кореневому** `package.json` **мають** бути скрипт **`lint-k8s`** і виклик **`bun run lint-k8s`** у агрегованому **`lint`** (див. **`bun.mdc`**). Це перевіряє **`npx @nitra/cursor fix bun`**.
+Лінт запускається через правило **`n-cursor lint k8s`** (реалізація — **`npm/rules/k8s/js/lint.mjs`**, делегує kubeconform/kubescape у **`npm/rules/k8s/lint/lint.mjs`**). Окремий `package.json`-скрипт `lint-k8s` не потрібен і не перевіряється.
 
 Додай workflow **`.github/workflows/lint-k8s.yml`** (гілки **`dev`** і **`main`**, лише **`.yml`**, узгоджено з **`ga.mdc`**). **Не** дублюй **`setup-node`**, **`oven-sh/setup-bun`**, **`actions/cache`** і **`bun install`** у job — після **`checkout`** використовуй локальний composite **`setup-bun-deps`** (шлях **`./.github/actions/setup-bun-deps`** або **`./npm/github-actions/setup-bun-deps`**, як у репозиторії). Встановлення **kubeconform** / **kubescape** лишаються окремими кроками.
 
@@ -103,7 +93,7 @@ jobs:
       # (kubectl уже доступний на github-hosted runner'ах: https://github.com/actions/runner-images).
 
       - name: Lint K8s
-        run: bun run lint-k8s
+        run: n-cursor lint k8s --read-only
 ```
 
 ## Deployment: `resources.requests` (CPU і memory)

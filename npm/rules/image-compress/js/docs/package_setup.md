@@ -18,7 +18,7 @@ docgen:
 
 ## Публічний API
 
-check — Перевіряє, чи відсутній у `.gitignore` файл `.n-minify-image.tsv` та чи видалено `.minify-image-cache.tsv`. Вказує, що CI-workflow для image не потрібен, оскільки лінтування зображень відбувається лише локально. (image-compress.mdc)
+check — Перевіряє, чи відсутній у `.gitignore` файл `.n-minify-image.tsv` та чи видалено `.minify-image-cache.tsv`. Package-level стискання зображень виконує `n-cursor lint image-compress`, а read-only CI-gate використовує JSON detect-mode `@nitra/minify-image --json`. (image-compress.mdc)
 
 ## Гарантії поведінки
 

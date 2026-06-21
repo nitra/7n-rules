@@ -9,9 +9,7 @@
 #    (правило `test` enabled завжди — див. `test/auto.md`; published workspace-и не мають
 #     `devDependencies` за `npm-module.mdc`)
 #
-# Перевірки, які ЗАЛИШИЛИСЬ у JS (потребують FS / cross-file):
-#  - `lint-docker` / `lint-k8s` коли `.n-cursor.json:rules` містить відповідне
-#    правило (потрібен другий файл-вхід — у Rego без `--combine` не зробити).
+# Перевірки, які потребують FS / cross-file контексту, лишаються у JS.
 package bun.package_json
 
 import rego.v1
@@ -47,12 +45,3 @@ allowed_root_dev_dependency(name) if {
 	# не мають `devDependencies` (`npm-module.mdc`).
 	name in allowed_root_test_deps
 }
-
-lint_prefixed_scripts := [name |
-	some name, _ in object.get(input, "scripts", {})
-	startswith(name, "lint-")
-]
-
-default lint_script := ""
-
-lint_script := input.scripts.lint if is_string(input.scripts.lint)

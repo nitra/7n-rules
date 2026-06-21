@@ -317,12 +317,10 @@ CLI-режим: при прямому виконанні скрипта (`bun np
 
 ## Потік виконання / Використання
 
-### CLI-режим (підкоманда `lint-k8s`)
+### CLI-режим
 
 ```
-bun run lint-k8s             # через root-script (workspace)
-# або
-n-cursor lint-k8s            # CLI-обгортка
+n-cursor lint k8s            # rule orchestration entrypoint
 # або (наприкінці файлу — прямий запуск)
 bun npm/rules/k8s/lint/lint.mjs
 ```

@@ -1,1 +1,1 @@
-{ "auto": { "glob": "**/*.{png,jpg,jpeg,gif,svg}" } }
+{ "auto": { "glob": "**/*.{png,jpg,jpeg,gif,svg}" }, "lint": "full" }

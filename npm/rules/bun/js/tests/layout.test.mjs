@@ -5,7 +5,7 @@
  * `packageManager` / `dependencies` у кореневому `package.json`, `devDependencies`
  * лише `@nitra/*`, агрегований `lint`-скрипт) тепер у Rego-полісі під
  * `npm/policy/bun/`. Тут лишилося лише FS / cross-file (`bun.lock`, `bunfig.toml`,
- * заборонені lockfile, інтеграція з `.n-cursor.json:rules`).
+ * заборонені lockfile).
  */
 import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
@@ -44,113 +44,13 @@ describe('check-bun', () => {
     })
   })
 
-  test('docker у .n-cursor.json вимагає lint-docker', async () => {
+  test('мігровані lint-правила НЕ вимагають package.json scripts', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'bun.lock'), '', 'utf8')
       await writeFile(join(dir, 'bunfig.toml'), '[install]\nlinker = "hoisted"\n', 'utf8')
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['docker'] })
+      await writeJson(join(dir, '.n-cursor.json'), { rules: ['docker', 'k8s', 'image-compress', 'image-avif'] })
       await writeJson(join(dir, 'package.json'), { name: 't', scripts: {} })
-      expect(await check(dir)).toBe(1)
-    })
-  })
-
-  test('docker + lint-docker — OK', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'bun.lock'), '', 'utf8')
-      await writeFile(join(dir, 'bunfig.toml'), '[install]\nlinker = "hoisted"\n', 'utf8')
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['docker'] })
-      await writeJson(join(dir, 'package.json'), {
-        name: 't',
-        scripts: {
-          'lint-docker': 'echo',
-          lint: 'bun run lint-docker && oxfmt .'
-        }
-      })
       expect(await check(dir)).toBe(0)
-    })
-  })
-
-  test('зворотній інваріант: правило k8s відсутнє, але scripts.lint-k8s є → fail', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'bun.lock'), '', 'utf8')
-      await writeFile(join(dir, 'bunfig.toml'), '[install]\nlinker = "hoisted"\n', 'utf8')
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['docker'], 'disable-rules': ['k8s'] })
-      await writeJson(join(dir, 'package.json'), {
-        name: 't',
-        scripts: {
-          'lint-docker': 'echo',
-          'lint-k8s': 'n-cursor lint-k8s',
-          lint: 'bun run lint-docker && oxfmt .'
-        }
-      })
-      expect(await check(dir)).toBe(1)
-    })
-  })
-
-  test('зворотній інваріант: правило k8s відсутнє, але scripts.lint містить bun run lint-k8s → fail', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'bun.lock'), '', 'utf8')
-      await writeFile(join(dir, 'bunfig.toml'), '[install]\nlinker = "hoisted"\n', 'utf8')
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['docker'] })
-      await writeJson(join(dir, 'package.json'), {
-        name: 't',
-        scripts: {
-          'lint-docker': 'echo',
-          lint: 'bun run lint-docker && bun run lint-k8s && oxfmt .'
-        }
-      })
-      expect(await check(dir)).toBe(1)
-    })
-  })
-
-  test('зворотній інваріант: правило k8s відсутнє і ніяких слідів → OK', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'bun.lock'), '', 'utf8')
-      await writeFile(join(dir, 'bunfig.toml'), '[install]\nlinker = "hoisted"\n', 'utf8')
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['docker'], 'disable-rules': ['k8s'] })
-      await writeJson(join(dir, 'package.json'), {
-        name: 't',
-        scripts: {
-          'lint-docker': 'echo',
-          lint: 'bun run lint-docker && oxfmt .'
-        }
-      })
-      expect(await check(dir)).toBe(0)
-    })
-  })
-
-  test('multi-owner: достатньо одного активного власника (image-avif) щоб lint-image був дозволений', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'bun.lock'), '', 'utf8')
-      await writeFile(join(dir, 'bunfig.toml'), '[install]\nlinker = "hoisted"\n', 'utf8')
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['image-avif'], 'disable-rules': ['image-compress'] })
-      await writeJson(join(dir, 'package.json'), {
-        name: 't',
-        scripts: {
-          'lint-image': 'npx @nitra/minify-image',
-          lint: 'bun run lint-image && oxfmt .'
-        }
-      })
-      expect(await check(dir)).toBe(0)
-    })
-  })
-
-  test('multi-owner: обидва image-* вимкнено, але lint-image у chain → fail', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'bun.lock'), '', 'utf8')
-      await writeFile(join(dir, 'bunfig.toml'), '[install]\nlinker = "hoisted"\n', 'utf8')
-      await writeJson(join(dir, '.n-cursor.json'), {
-        rules: ['bun'],
-        'disable-rules': ['image-avif', 'image-compress']
-      })
-      await writeJson(join(dir, 'package.json'), {
-        name: 't',
-        scripts: {
-          'lint-image': 'npx @nitra/minify-image',
-          lint: 'bun run lint-image && oxfmt .'
-        }
-      })
-      expect(await check(dir)).toBe(1)
     })
   })
 

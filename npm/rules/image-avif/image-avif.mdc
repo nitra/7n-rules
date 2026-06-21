@@ -5,7 +5,7 @@ globs: "**/*.{png,jpg,jpeg,gif,avif,vue,html}"
 alwaysApply: false
 ---
 
-AVIF-двійники (`<name>.<ext>.avif`) генерує **виключно** `npx @nitra/cursor fix image-avif` — у `lint-image` прапорець `--avif` заборонений (це валідує правило `image-compress`). Перевірка робить чотири кроки в порядку:
+AVIF-двійники (`<name>.<ext>.avif`) генерує **виключно** `npx @nitra/cursor fix image-avif`. Правило `image-compress` відповідає лише за стиснення початкових raster/SVG-файлів через `@nitra/minify-image`, а AVIF лишається окремим правилом. Перевірка робить чотири кроки в порядку:
 
 1. **Pre-scan**: шукає у `.vue`/`.html` хоча б одне raster-посилання, яке потенційно треба переписати на AVIF-двійник (`import x from '...png'` або `<img src="...png" />`). Пакети з opt-out `disable-avif: true` пропускаються. **Якщо жодного raster-посилання не знайдено — `check image-avif` завершується успіхом одразу: ні `npx --avif`, ні rewrite, ні cleanup-сиріт не виконуються** (нічого було б змінювати). Так уникаємо дорогого `npx @nitra/minify-image` у проєктах, де AVIF не вживається.
 2. Запускає `npx @nitra/minify-image --src=. --write --avif` (≥ **3.3.1**) — генерує `<name>.<ext>.avif` поряд з кожним PNG/JPEG/GIF. CLI порівнює sha1 кожного raster-сорсу зі збереженим у `.n-minify-image.tsv` і перезаписує `<source>.avif` при зміні оригіналу.

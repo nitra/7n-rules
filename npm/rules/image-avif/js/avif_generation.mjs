@@ -389,7 +389,7 @@ async function cleanupOrphanAvifs(usedAvifAbs, optedOutAbs, ignorePaths, cwd) {
 
 /**
  * Виконує AVIF-етап: запуск AVIF-генерації, авто-заміна raster-посилань у `.vue`/`.html`,
- * видалення AVIF-сиріт. Не валідує `package.json`/`lint-image` — це вже у `image-compress`.
+ * видалення AVIF-сиріт. Не валідує image-compress cache/dependency policy — це окреме правило.
  * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */

@@ -5,15 +5,15 @@ package docker.package_json_test
 import data.docker.package_json
 import rego.v1
 
-template_data := {"snippet": {"scripts": {"lint-docker": "n-cursor lint-docker"}}}
+template_data := {"snippet": {"scripts": {"lint-docker": "n-cursor lint docker"}}}
 
 test_allow_canonical if {
-	pkg := {"scripts": {"lint-docker": "n-cursor lint-docker"}}
+	pkg := {"scripts": {"lint-docker": "n-cursor lint docker"}}
 	count(package_json.deny) == 0 with input as pkg with data.template as template_data
 }
 
 test_allow_lint_docker_absent if {
-	# rego не вимагає наявність — cross-file умовно вимагає `rules/bun/fix.mjs`.
+	# Новий orchestration entrypoint не вимагає package.json wrapper.
 	count(package_json.deny) == 0 with input as {"scripts": {}} with data.template as template_data
 }
 
@@ -22,7 +22,7 @@ test_allow_no_scripts_at_all if {
 }
 
 test_allow_with_extra_whitespace if {
-	pkg := {"scripts": {"lint-docker": " n-cursor lint-docker  "}}
+	pkg := {"scripts": {"lint-docker": " n-cursor lint docker  "}}
 	count(package_json.deny) == 0 with input as pkg with data.template as template_data
 }
 
@@ -33,7 +33,7 @@ test_deny_lint_docker_wrong_value if {
 
 # Drift test.
 test_data_template_drives_expected if {
-	pkg := {"scripts": {"lint-docker": "n-cursor lint-docker"}}
+	pkg := {"scripts": {"lint-docker": "n-cursor lint docker"}}
 	some msg in package_json.deny with input as pkg
 		with data.template as {"snippet": {"scripts": {"lint-docker": "custom-cli"}}}
 	contains(msg, "custom-cli")

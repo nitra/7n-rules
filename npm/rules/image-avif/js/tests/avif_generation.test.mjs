@@ -7,7 +7,7 @@
  * `<...>.avif`, прибирання AVIF-сиріт, опт-аут пакета через
  * `"@nitra/minify-image": { "disable-avif": true }`.
  *
- * Валідації `lint-image`/deps/`.gitignore` тестує `check-image-compress.test.mjs`.
+ * Валідації deps/`.gitignore` тестує `image-compress`.
  */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { existsSync } from 'node:fs'

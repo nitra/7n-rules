@@ -1,9 +1,9 @@
 # Перевірка `package.json` (docker.mdc).
 #
 # Канон надходить через --data: { "template": { "snippet": ... } }
-# Перевіряє ЛИШЕ зміст значення `scripts.lint-docker`, якщо ключ присутній.
-# Умовну обовʼязковість (правило `docker` у `.n-cursor.json` → `scripts.lint-docker`
-# зобовʼязаний існувати) перевіряє `rules/bun/fix.mjs` через cross-file логіку.
+# Backward-compatible: перевіряє ЛИШЕ зміст значення `scripts.lint-docker`, якщо ключ
+# присутній у старому проєкті. Нові проєкти використовують `n-cursor lint docker`
+# напряму, без package.json wrapper.
 package docker.package_json
 
 import rego.v1

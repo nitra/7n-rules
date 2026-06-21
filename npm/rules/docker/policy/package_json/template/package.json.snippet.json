@@ -1,1 +1,1 @@
-{ "scripts": { "lint-docker": "n-cursor lint-docker" } }
+{ "scripts": { "lint-docker": "n-cursor lint docker" } }

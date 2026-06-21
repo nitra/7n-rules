@@ -148,9 +148,9 @@ if (isRunAsCli(import.meta.url)) {
 
 ## Потік виконання / Використання
 
-### Послідовність дій при `n-cursor lint-docker`
+### Послідовність дій при `n-cursor lint docker`
 
-1. `bin/n-cursor.js` диспатчить підкоманду `lint-docker` на `runLintDocker` із цього модуля.
+1. `bin/n-cursor.js` диспатчить правило `docker` на `npm/rules/docker/js/lint.mjs`, яке використовує `runLintDocker` із цього модуля.
 2. `runLintDocker` → `runStandardLint(import.meta.dirname, runLintDockerSteps)`:
    - бере серіалізаційний лок на ім’я `lint-docker`;
    - перевіряє стан git-дерева; якщо стан збігається з попереднім успішним прогоном — крок може бути пропущено (дедуп);
@@ -167,7 +167,7 @@ if (isRunAsCli(import.meta.url)) {
 
 ### Як це використовується ззовні
 
-- **CLI:** `bun run n-cursor lint-docker` (або відповідний bin-скрипт) — основний сценарій.
+- **CLI:** `n-cursor lint docker` — основний сценарій.
 - **Програмно з інших скриптів:**
 
   ```js
