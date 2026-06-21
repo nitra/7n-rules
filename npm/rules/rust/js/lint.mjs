@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 
 /**
@@ -36,7 +37,7 @@ function runCargo(label, cargo, args, pass, fail) {
  * @param {{ readOnly?: boolean }} [opts] readOnly → без мутацій
  * @returns {number} exit code
  */
-export function lint(_files, cwd = process.cwd(), opts = {}) {
+function runRustLint(cwd = process.cwd(), opts = {}) {
   const readOnly = opts.readOnly === true
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
@@ -64,4 +65,15 @@ export function lint(_files, cwd = process.cwd(), opts = {}) {
 
   runCargo('cargo clippy -D warnings', cargo, ['clippy', '--all-targets', '--all-features', '--', '-D', 'warnings'], pass, fail)
   return reporter.getExitCode()
+}
+
+/**
+ * Locked orchestration entry point for `n-cursor lint rust`.
+ * @param {string[] | undefined} _files ігнорується (cargo обходить crate сам)
+ * @param {string} [cwd] корінь
+ * @param {{ readOnly?: boolean }} [opts] readOnly → без мутацій
+ * @returns {Promise<number>} exit code
+ */
+export function lint(_files, cwd = process.cwd(), opts = {}) {
+  return runStandardLint(import.meta.dirname, () => runRustLint(cwd, opts))
 }

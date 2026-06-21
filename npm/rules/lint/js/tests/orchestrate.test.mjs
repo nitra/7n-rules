@@ -6,8 +6,12 @@ import { runLint, selectLintRules } from '../orchestrate.mjs'
 import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 const META = {
+  docker: { lint: 'full' },
   'js-lint': { lint: 'per-file' },
   'js-lint-ci': { lint: 'full' },
+  k8s: { lint: 'full' },
+  php: { lint: 'full' },
+  rust: { lint: 'full' },
   'style-lint': { lint: 'per-file' },
   ga: { lint: 'full' },
   adr: {}
@@ -16,16 +20,20 @@ const ignoreLog = text => text
 
 describe('selectLintRules', () => {
   test('default (full=false) → лише per-file правила, алфавітно', () => {
-    expect(selectLintRules(META, false, ['ga', 'js-lint', 'js-lint-ci', 'style-lint'])).toEqual([
+    expect(selectLintRules(META, false, ['docker', 'ga', 'js-lint', 'js-lint-ci', 'k8s', 'php', 'rust', 'style-lint'])).toEqual([
       'js-lint',
       'style-lint'
     ])
   })
   test('full=true → per-file + full, алфавітно', () => {
-    expect(selectLintRules(META, true, ['ga', 'js-lint', 'js-lint-ci', 'style-lint'])).toEqual([
+    expect(selectLintRules(META, true, ['docker', 'ga', 'js-lint', 'js-lint-ci', 'k8s', 'php', 'rust', 'style-lint'])).toEqual([
+      'docker',
       'ga',
       'js-lint',
       'js-lint-ci',
+      'k8s',
+      'php',
+      'rust',
       'style-lint'
     ])
   })

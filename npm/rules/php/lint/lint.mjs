@@ -63,13 +63,14 @@ function runTool(label, abs, args, pass, fail) {
 
 /**
  * Запускає `lint-php`.
+ * @param {string} [cwd] корінь репозиторію
  * @returns {number} 0 — OK, 1 — є помилки
  */
-export function run() {
+export function run(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
-  const root = process.cwd()
+  const root = cwd
   if (!existsSync(join(root, 'composer.json'))) {
     pass('lint-php: немає composer.json у корені — кроки PHP пропущено')
     return reporter.getExitCode()

@@ -1,1 +1,1 @@
-{ "auto": { "glob": "**/k8s/**" } }
+{ "auto": { "glob": "**/k8s/**" }, "lint": "full" }

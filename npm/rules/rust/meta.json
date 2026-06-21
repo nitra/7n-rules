@@ -1,1 +1,1 @@
-{ "auto": { "glob": "**/Cargo.toml" } }
+{ "auto": { "glob": "**/Cargo.toml" }, "lint": "full" }

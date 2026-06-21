@@ -1,1 +1,1 @@
-{ "auto": { "glob": "composer.json" } }
+{ "auto": { "glob": "composer.json" }, "lint": "full" }
