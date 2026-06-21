@@ -31,6 +31,7 @@ resource: npm/scripts/lib/
 | [rule-predicates.mjs](rule-predicates.md) | JS Module |
 | [run-conftest-batch.mjs](run-conftest-batch.md) | JS Module |
 | [run-lint-step.mjs](run-lint-step.md) | JS Module |
+| [run-lint.mjs](run-lint.md) | JS Module |
 | [run-rule-cli.mjs](run-rule-cli.md) | JS Module |
 | [run-rule.mjs](run-rule.md) | JS Module |
 | [run-standard-lint.mjs](run-standard-lint.md) | JS Module |

@@ -96,7 +96,7 @@ import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitr
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
 import { runSkillsCli } from '../scripts/skills-cli.mjs'
 import { syncSetupBunDepsAction } from '../scripts/sync-setup-bun-deps-action.mjs'
-import { runLint } from '../rules/lint/js/orchestrate.mjs'
+import { runLint } from '../scripts/lib/run-lint.mjs'
 
 const PACKAGE_NAME = '@nitra/cursor'
 const CONFIG_FILE = '.n-cursor.json'

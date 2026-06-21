@@ -1,17 +1,17 @@
-/** @see ./docs/orchestrate.md */
+/** @see ./docs/run-lint.md */
 import { existsSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { cwd as processCwd } from 'node:process'
 import { spawnSync } from 'node:child_process'
 
-import { parseRuleLintSpec, readRuleMetaRaw } from '../../../scripts/lib/rule-meta.mjs'
-import { collectChangedFilesSince, resolveChangedBase } from '../../../scripts/lib/changed-files.mjs'
-import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
-import { isRuleEnabled, readNCursorConfigLite } from '../../../scripts/lib/read-n-cursor-config-lite.mjs'
+import { parseRuleLintSpec, readRuleMetaRaw } from './rule-meta.mjs'
+import { collectChangedFilesSince, resolveChangedBase } from './changed-files.mjs'
+import { resolveCmd } from '../utils/resolve-cmd.mjs'
+import { isRuleEnabled, readNCursorConfigLite } from './read-n-cursor-config-lite.mjs'
 
-// Цей файл: npm/rules/lint/js/orchestrate.mjs → PACKAGE_ROOT = npm (чотири dirname угору).
-const PACKAGE_ROOT = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))))
+// Цей файл: npm/scripts/lib/run-lint.mjs → PACKAGE_ROOT = npm (два dirname угору).
+const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const RULES_DIR = join(PACKAGE_ROOT, 'rules')
 
 /**
@@ -48,10 +48,10 @@ function resolveLintEntrypoint(rulesDir, id) {
  */
 async function runConformance(cwd, readOnly, log, filter = []) {
   if (!readOnly) {
-    const { runOrchestratorCli } = await import('../../../scripts/lib/fix/orchestrator.mjs')
+    const { runOrchestratorCli } = await import('./fix/orchestrator.mjs')
     return runOrchestratorCli(filter, cwd)
   }
-  const { runConformanceCheck } = await import('../../../scripts/lib/fix/run-conformance-check.mjs')
+  const { runConformanceCheck } = await import('./fix/run-conformance-check.mjs')
   const { rules } = await runConformanceCheck(filter, cwd)
   const failed = rules.filter(x => !x.ok)
   if (failed.length === 0) return 0
@@ -149,7 +149,7 @@ async function runPerFileRules(ids, ctx) {
  */
 async function runFullConformancePhase(cwd, readOnly, log) {
   const { escalationLogSize, maybeAnalyzeEscalation, reportRunStats } = await import(
-    '../../../scripts/lib/fix/analyze-escalation.mjs'
+    './fix/analyze-escalation.mjs'
   )
   const escOffset = readOnly ? 0 : escalationLogSize()
   const conformanceCode = await runConformance(cwd, readOnly, log)
