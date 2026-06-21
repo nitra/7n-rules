@@ -23,7 +23,7 @@ version: '1.15'
 
 ```
 npm/rules/{rule}/
-├── {rule}.mdc                              ← текст правила (frontmatter + body)
+├── {rule}.mdc                              ← текст правила (frontmatter + body) — ОБОВ'ЯЗКОВИЙ
 ├── meta.json                              ← метадані правила: auto (умова автоактивації)
 ├── fix.mjs                                 ← entry-point правила (wrapper навколо runStandardRule)
 ├── js/                                     ← JS-частина (опційно)

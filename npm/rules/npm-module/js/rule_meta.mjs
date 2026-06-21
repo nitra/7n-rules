@@ -67,6 +67,12 @@ function checkRule(id, ruleDir, reporter) {
     ruleOk = false
   }
 
+  // Канон (scripts.mdc): {rule}.mdc — ОБОВ'ЯЗКОВИЙ у кожному npm/rules/<id>/.
+  if (!existsSync(join(ruleDir, `${id}.mdc`))) {
+    reporter.fail(`rules/${id}: відсутній ${id}.mdc — обов'язковий (scripts.mdc)`)
+    ruleOk = false
+  }
+
   const raw = readRuleMetaRaw(ruleDir)
   if (!raw) {
     reporter.fail(`rules/${id}: відсутній або невалідний meta.json`)
