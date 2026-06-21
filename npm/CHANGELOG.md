@@ -1,5 +1,11 @@
 # Changelog
 
+## [12.6.1] - 2026-06-21
+
+### Changed
+
+- Оновлено text rule docs і helper-приклади на n-cursor lint text без package.json lint-text wrapper.
+
 ## [12.6.0] - 2026-06-21
 
 ### Changed
