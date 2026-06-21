@@ -1,5 +1,11 @@
 # Changelog
 
+## [12.4.0] - 2026-06-21
+
+### Changed
+
+- Уніфіковано selection linter-фази: unscoped n-cursor lint бере правила з .n-cursor.json, а meta.json#lint лишається тільки scope-класифікацією.
+
 ## [12.3.3] - 2026-06-20
 
 ### Changed
