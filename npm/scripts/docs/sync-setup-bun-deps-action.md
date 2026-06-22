@@ -3,28 +3,28 @@ type: JS Module
 title: sync-setup-bun-deps-action.mjs
 resource: npm/scripts/sync-setup-bun-deps-action.mjs
 docgen:
-  crc: 098d7209
+  crc: 327991b2
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  score: 100
 ---
 
-Файл містить конфігурацію GitHub Action `setup-bun-deps`, яка автоматично встановлює залежності проєкту Bun. Він використовується workflow для підготовки середовища проєкту, забезпечуючи узгодженість та спрощуючи виконання тестів та інших завдань, що потребують Bun. Це дозволяє workflow, що використовує `actions/checkout@v6`, безпосередньо використовувати action, не потребуючи додаткової конфігурації.
+## Огляд
+
+Копіює composite GitHub Action `setup-bun-deps` з каталогу `github-actions/setup-bun-deps/` у корені tarball пакету `@nitra/cursor` у цільовий репозиторій за шлях `.github/actions/setup-bun-deps/action.yml`. Це забезпечує можливість для workflow з правил `ga`, `js` або `text` викликати цей action для налаштування залежностей Bun одразу після виконання `actions/checkout@v6`.
 
 ## Поведінка
 
-1.  Перевіряє наявність шаблону composite action `action.yml` у каталозі `github-actions/setup-bun-deps/` всередині кореня пакету `@nitra/cursor`.
-2.  Якщо шаблон не знайдено, кидає помилку, вказуючи очікуваний шлях та пропонуючи перевстановити пакет.
-3.  Створює каталог `.github/actions/setup-bun-deps` у цільовому репозиторії, якщо його не існує.
-4.  Зчитує вміст файлу `action.yml` з джерела.
-5.  Записує вміст `action.yml` у файл `action.yml` у цільовому репозиторії. Додає новий рядок в кінці файлу, якщо потрібно.
-6.  Повертає об'єкт, що містить інформацію про успішність запису та повний шлях до створеного файлу.
+1. Перевіряє наявність шаблону composite action у корені встановленого пакету `@nitra/cursor`.
+2. Створює необхідну директорію у корені цільового репозиторію для розміщення composite action.
+3. Зчитує вміст шаблону composite action з кореня встановленого пакету.
+4. Записує вміст шаблону composite action у цільовий шлях у корені репозиторію.
+5. Повертає підтвердження успішного запису та повний шлях до файлу.
+6. Не перевіряє шляхи `.github` чи `.git`.
 
 ## Публічний API
 
-syncSetupBunDepsAction — Створює файл з залежностями Bun, використовуючи корінь пакета `@nitra/cursor`.
+syncSetupBunDepsAction — фіксує у `projectRoot` композитну дію, що вказує на корінь встановленого `@nitra/cursor`.
 
 ## Гарантії поведінки
 
-- Копіює файл `action.yml` з каталогу `github-actions/setup-bun-deps/` у каталог `.github/actions/setup-bun-deps/`.
-- Забезпечує доступність action `setup-bun-deps` для workflow, що використовує `actions/checkout@v6`.
-- Використовує `npx @nitra/cursor` для ініціалізації action.
-- Не враховує наявність checkout runner.
-- Не має кешування.
+- Свідомо пропускає шляхи: `.github`, `.git`.

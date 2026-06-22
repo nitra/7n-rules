@@ -253,9 +253,7 @@ describe('checkTextSubset', () => {
   test('reports missing line', () => {
     const actual = 'node_modules/\n'
     const template = 'dist/\n'
-    expect(checkTextSubset(actual, template, opts)).toEqual([
-      '.stylelintignore: відсутній рядок "dist/" (style.mdc)'
-    ])
+    expect(checkTextSubset(actual, template, opts)).toEqual(['.stylelintignore: відсутній рядок "dist/" (style.mdc)'])
   })
 
   test('ignores empty lines and comments (# prefix)', () => {

@@ -1,0 +1,33 @@
+## Внутрішньокластерні URL у env-файлах (dev / ua)
+
+Правило стосується **будь-якого** внутрішньокластерного URL у env-файлах abie-проєкту, а не лише `HASURA_GRAPHQL_ENDPOINT`. Це може бути URL до Hasura, KVCMS, `auth-run-hl`, `file-link-hl` чи будь-якого іншого Service у кластері — у всіх випадках DNS-суфікс і namespace-префікс мають відповідати **середовищу** з імені env-файлу.
+
+abie-проєкти живуть у **двох GKE-кластерах** (dev / ua), тож DNS-суфікс і namespace у URL відрізняються між `*.env`-файлами:
+
+| env-файл (basename) | namespace-префікс у URL | DNS-суфікс кластера | примітка |
+| --- | --- | --- | --- |
+| `dev.env`, `.dev.env` | `dev-…` | `abie-dev.internal` | GKE-кластер dev |
+| `ua.env`, `.ua.env` | `ua-…` | `abie-ua.internal` | GKE-кластер ua |
+
+Канонічна форма URL — `http://<service>.<namespace>.svc.<cluster-dns-suffix>:<port>`. Суфікс — `<cluster>.internal`.
+
+Приклади для одного env-файлу з двома сервісами (Hasura + KVCMS):
+
+```env title="hasura/.dev.env"
+HASURA_GRAPHQL_ENDPOINT=http://apruv-h-hl.dev-apruv.svc.abie-dev.internal:8080
+KVCMS_URL=http://kvcms-hl.dev-apruv.svc.abie-dev.internal:8080
+```
+
+```env title="hasura/.ua.env"
+HASURA_GRAPHQL_ENDPOINT=http://apruv-h-hl.ua-apruv.svc.abie-ua.internal:8080
+KVCMS_URL=http://kvcms-hl.ua-apruv.svc.abie-ua.internal:8080
+```
+
+`<namespace>` (наприклад `dev-apruv` / `ua-apruv`) — `metadata.name` цільового namespace після kustomize-overlay для відповідного середовища; `<service>` — `metadata.name` headless Service (`-hl`) того сервісу, до якого йде URL.
+
+**Перевірка `js/env_dns.mjs`** сканує всі `*.env` файли, basename яких збігається з `dev.env` / `ua.env` (з провідною крапкою чи без), знаходить **усі** internal URL (`http://<svc>.<ns>.svc.<dns>` — як для Hasura-ендпоінта, так і для KVCMS чи будь-якого іншого) і вимагає, щоб для кожного:
+
+- DNS-суфікс відповідав env: `abie-dev.internal` / `abie-ua.internal`;
+- namespace починався з `dev-` / `ua-` відповідно.
+
+Загальне правило про **внутрішній** URL (не публічний домен) для `HASURA_GRAPHQL_ENDPOINT` лишається у **`hasura.mdc`** (для nitra і abie) — `rules/hasura/fix.mjs` приймає кластерний DNS-формат `<cluster>.internal`.

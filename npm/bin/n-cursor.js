@@ -74,7 +74,7 @@ import { fileURLToPath } from 'node:url'
 
 import { buildAgentsCommandBulletItems } from '../scripts/build-agents-commands.mjs'
 import { formatGeneratedMarkdownLines, renderAgentsTemplate } from '../scripts/lib/generated-markdown.mjs'
-import { inlineTemplateLinks } from '../scripts/lib/inline-template-links.mjs'
+import { inlineMarkdownIncludes, inlineTemplateLinks } from '../scripts/lib/inline-template-links.mjs'
 import {
   detectAutoRules,
   detectLegacyRuleIds,
@@ -422,7 +422,8 @@ async function readBundledRuleContent(rule, bundledRulesDir = BUNDLED_RULES_DIR)
     )
   }
   const text = await readFile(bundledPath, 'utf8')
-  return inlineTemplateLinks(text, dirname(bundledPath))
+  const withTemplates = await inlineTemplateLinks(text, dirname(bundledPath))
+  return inlineMarkdownIncludes(withTemplates, dirname(bundledPath))
 }
 
 /**

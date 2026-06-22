@@ -1,0 +1,23 @@
+## k8s: `hc.yaml` поруч із Deployment
+
+Якщо під **`k8s`** є **Deployment**, у **тій самій директорії** має бути **`hc.yaml`** з **HealthCheckPolicy** (**`networking.gke.io/v1`**): коректний modeline **`$schema`**, **`httpHealthCheck.requestPath`** — непорожній шлях від кореня (рядок, що починається з **`/`**: канонічно **`/healthz`**, але також допустимі **`/IsAlive`**, **`/api/live`** тощо — узгоджується з реальним endpoint сервісу), порт **8080**, **`targetRef.name`** — **headless** **Service** з суфіксом **`-hl`** (узгоджено з парою **`svc.yaml`** / **`svc-hl.yaml`** у **k8s.mdc**): або **`${metadata.name}-hl`**, або те саме ім'я, якщо **`metadata.name`** уже з **`-hl`**.
+
+```yaml title="hc.yaml"
+# yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: СЕРВІС
+  namespace: dev # kustomize overlay
+spec:
+  default:
+    config:
+      type: HTTP
+      httpHealthCheck:
+        requestPath: /healthz
+        port: 8080
+  targetRef:
+    group: ''
+    kind: Service
+    name: СЕРВІС-hl
+```

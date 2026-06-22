@@ -1,0 +1,27 @@
+## k8s: overlay **ua** і nodeSelector
+
+У **`…/ua/kustomization.yaml`** того пакета, у дереві **`k8s`** якого є **Deployment**, потрібен patch на **`kind: Deployment`**: **`spec.template.spec.nodeSelector`** з **`preem: false`**. Форму **JSON6902** (шлях **`/spec/template/spec/nodeSelector`**, **`op`**) див. **k8s.mdc**.
+
+```yaml title="…/ua/kustomization.yaml (фрагмент)"
+patches:
+  - target:
+      kind: Deployment
+      name: my-app
+    patch: |-
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          preem: 'false'
+```
+
+### Базовий Deployment (`…/base/`)
+
+Якщо **Deployment** у YAML під **`k8s`** лежить у шляху з сегментом **`base`**, у **`spec.template.spec.nodeSelector`** має бути **`preem`** зі значенням **істинно** (**`true`** або рядок **`'true'`**); overlay **ua** підміняє селектор.
+
+```yaml title="…/base/deploy.yaml (фрагмент)"
+spec:
+  template:
+    spec:
+      nodeSelector:
+        preem: 'true' # буде замінено через kustomize
+```

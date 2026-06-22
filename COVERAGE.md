@@ -57761,9 +57761,9 @@ test('0 — повний валідний setup', async () => {
   | 104 | `: [` | `""` | StringLiteral |
   | 104 | ``|`""`| StringLiteral |
 | 106 |`am {{ pass: (msg: s` | `true` | ConditionalExpression |
-    | 106 | `am {{ pass: (msg: s` | `false` | ConditionalExpression |
-    | 106 | `am {{ pass: (msg: s` | `owners.length !== 1` | EqualityOperator |
-    | 106 | `ing) => void, fail: (msg: string) => void }} reporter callback-и `pass`/`fail` для звіту
+        | 106 | `am {{ pass: (msg: s` | `false` | ConditionalExpression |
+        | 106 | `am {{ pass: (msg: s` | `owners.length !== 1` | EqualityOperator |
+        | 106 | `ing) => void, fail: (msg: string) => void }} reporter callback-и `pass`/`fail` для звіту
 - @param {Record<string, string>} scripts scripts з package.json
 - @param {{ rules: Set<string>, disabled: Set<string> }} cursorRules `rules` та `disable-rules`
   \*/
@@ -60567,8 +60567,8 @@ test('повертає true коли vitest у devDependencies', async () => {
   const nodeEngine = pkg.engines?.node
   if`|`{}`| BlockStatement |
 | 247 |` {{ engines?: { node` | `true` | ConditionalExpression |
-    | 247 | ` {{ engines?: { node` | `false` | ConditionalExpression |
-    | 247 | ` string } }} pkg розпарсений package.json
+        | 247 | ` {{ engines?: { node` | `false` | ConditionalExpression |
+        | 247 | ` string } }} pkg розпарсений package.json
 - @param {(msg: string) => void} passFn callback при успішній перевірці
 - @param {(msg: string) => void} failFn callback при помилці
   \*/
@@ -62334,7 +62334,7 @@ sensitivity: 'base'
 | 1286 | `` |`false`| ConditionalExpression |
 | 1298 |`ypeof t.kind === 'string' ? t.kind.trim() : ''`|`true`| ConditionalExpression |
 | 1298 |`ypeof t.kind === 'string' ? t.kind.trim() : ''`|`false`| ConditionalExpression |
-| 1298 |`ypeof t.kind === 'string' ? t.kind.trim() : ''`|`lines.length > 0 || MODELINE*RE.test(lines[0])`| LogicalOperator |
+| 1298 |`ypeof t.kind === 'string' ? t.kind.trim() : ''`|`lines.length > 0 || MODELINE\*RE.test(lines[0])`| LogicalOperator |
 | 1298 |`ypeof t.kind ===`|`true`| ConditionalExpression |
 | 1298 |`ypeof t.kind ===`|`lines.length >= 0`| EqualityOperator |
 | 1298 |`ypeof t.kind ===`|`lines.length <= 0`| EqualityOperator |
@@ -62380,7 +62380,7 @@ sensitivity: 'base'
 | 1387 |`ng`|`["Stryker was here"]`| ArrayDeclaration |
 | 1395 |`
   }
-  const pr = /\** @type {Record<string, unknown>} \_/ (p)
+  const pr = /\*\* @type {Record<string, unknown>} \_/ (p)
   const hasTargetKey = 'target' in pr && pr.target !== undefined && pr.target !== null
   const pathStr = typeof pr.path === 'string' ? pr.path.trim() : ''
   const inlinePatch = typeof pr.patch === 'string' && pr.patch.trim() !== ''
@@ -65601,9 +65601,9 @@ return keys
   { msg: 'відсутнє client_body_buffer_size 512M', ok: c => c.includes('client_body_buffer_size 512M') },
   { msg: 'відсутнє listen 8080', ok: c => c.includes('listen 8080') },
   { msg: 'відсутнє server_name *', ok: c => c.includes('server*name *') },
-  { msg: 'відсутнє access\*log off', ok: c => c.includes('access*log off') },
+  { msg: 'відсутнє access\*log off', ok: c => c.includes('access\*log off') },
   {
-  msg: 'відсутнє error_log /dev/null crit (error_log off — НЕ валідний nginx, падає під readOnlyRootFilesystem)',
+  msg: 'відсутнє error*log /dev/null crit (error_log off — НЕ валідний nginx, падає під readOnlyRootFilesystem)',
   ok: c => c.includes('error_log /dev/null crit')
   },
   { msg: 'відсутнє root /usr/share/nginx/html', ok: c => c.includes('root /usr/share/nginx/html') },
@@ -65632,7 +65632,7 @@ return keys
 | 131 | `` |`""`| StringLiteral |
 | 132 | `` |`""`| StringLiteral |
 | 132 | `` |`""`| StringLiteral |
-| 133 |` вміст \**default.conf.tem`|`""`| StringLiteral |
+| 133 |` вміст \*\_default.conf.tem`|`""`| StringLiteral |
 | 133 |`ть канону з ngin`|`""`| StringLiteral |
 | 134 |`tring} content текст шаб`|`""`| StringLiteral |
 | 134 | `` |`""`| StringLiteral |
@@ -65640,11 +65640,11 @@ return keys
 | 135 | `` |`""`| StringLiteral |
 | 137 |`ion nginxTemplateViolations(content) {`|`""`| StringLiteral |
 | 138 |`sg: string, ok: (c: string) => boolean }[]} */`|`true`| ConditionalExpression |
-| 138 |`sg: string, ok: (c: string) => boolean }[]} */`|`c.includes('/healthz') || c.includes('healthy') || RETURN_200_RE.test(c)`| LogicalOperator |
+| 138 |`sg: string, ok: (c: string) => boolean }[]} _/`|`c.includes('/healthz') || c.includes('healthy') || RETURN_200_RE.test(c)`| LogicalOperator |
 | 138 |` ok: (c: s`|`""`| StringLiteral |
-| 138 |` => boolean }[]} */`|`true`| ConditionalExpression |
-| 138 |` => boolean }[]} */`|`c.includes('healthy') && RETURN_200_RE.test(c)`| LogicalOperator |
-| 138 |` }[]} */`|`""`| StringLiteral |
+| 138 |` => boolean }[]} _/`|`true`| ConditionalExpression |
+| 138 |` => boolean }[]} _/`|`c.includes('healthy') && RETURN_200_RE.test(c)`| LogicalOperator |
+| 138 |` }[]} _/`|`""`| StringLiteral |
 | 141 |`відсутнє port_in_redirect off', ok: c => c.includes('port_in_redirect off') },`|`""`| StringLiteral |
 | 143 |`: 'відсутнє client_body_buffer_size 512M', ok: c => c.includes('client_body_buffer_size 512M') },
   { msg: 'відсутнє listen 8080', ok: c => c.includes('listen 8080') },
@@ -65712,7 +65712,7 @@ return keys
 | 195 |`TTPRoute відпов`|`false`| ConditionalExpression |
 | 195 |` патерну Exact→Reque`|`false`| ConditionalExpression |
 | 195 |`direct(301, https) + PathP`|`false`| ConditionalExpression |
-| 206 |`st rules = /\** @type {Record<string, unknown>} \_/ (spec).rules
+| 206 |`st rules = /\*\* @type {Record<string, unknown>} \_/ (spec).rules
   if (!Array.isArray(rules) || rules.length < 2) return false
 
 const [first, second] = rules
@@ -66423,9 +66423,9 @@ return filtered
 | 305 |`гу повертаємо `null` — це не наш checker для синтаксису.`|`""`| StringLiteral |
 | 319 |`
   const mod = imp.moduleRequest?.value
-  if (typeof mod === 'string' && TEST*FRAMEWORK_MODULES.has(mod)) return mod
+  if (typeof mod === 'string' && TEST\*FRAMEWORK_MODULES.has(mod)) return mod
   }
-  /\** @type {string | null} \_/
+  /\*\* @type {string | null} \_/
   let found = null
   walkAstWithAncestors(result.program, [], node => {
   if (found) return

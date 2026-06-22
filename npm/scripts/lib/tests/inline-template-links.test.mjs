@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { inlineTemplateLinks } from '../inline-template-links.mjs'
+import { inlineMarkdownIncludes, inlineTemplateLinks } from '../inline-template-links.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const FIXTURES = join(HERE, '__fixtures__', 'inline-template')
@@ -108,5 +108,63 @@ describe('inlineTemplateLinks', () => {
 
     // Non-template links are untouched
     expect(result).toContain('[TruffleHog](https://github.com/trufflesecurity/trufflehog)')
+  })
+})
+
+describe('inlineMarkdownIncludes', () => {
+  test('.mdc link → inlined raw markdown content', async () => {
+    const text = '[section](./js/section.mdc)'
+    const result = await inlineMarkdownIncludes(text, FIXTURES)
+    expect(result).toBe('## Section title\n\nContent from the included section file.')
+  })
+
+  test('non-.mdc link left intact', async () => {
+    const text = '[README](./README.md)'
+    const result = await inlineMarkdownIncludes(text, FIXTURES)
+    expect(result).toBe('[README](./README.md)')
+  })
+
+  test('external link left intact', async () => {
+    const text = '[docs](https://example.com/docs.mdc)'
+    const result = await inlineMarkdownIncludes(text, FIXTURES)
+    expect(result).toBe('[docs](https://example.com/docs.mdc)')
+  })
+
+  test('.mdc link inside /template/ path left intact (handled by inlineTemplateLinks)', async () => {
+    const text = '[tmpl](./policy/bar/template/foo.mdc)'
+    const result = await inlineMarkdownIncludes(text, FIXTURES)
+    expect(result).toBe('[tmpl](./policy/bar/template/foo.mdc)')
+  })
+
+  test('multiple .mdc includes both get inlined', async () => {
+    const text = '[a](./js/section.mdc) and [b](./js/section.mdc)'
+    const result = await inlineMarkdownIncludes(text, FIXTURES)
+    const body = '## Section title\n\nContent from the included section file.'
+    expect(result).toBe(`${body} and ${body}`)
+  })
+
+  test('missing file throws', async () => {
+    const text = '[missing](./js/missing.mdc)'
+    await expect(inlineMarkdownIncludes(text, FIXTURES)).rejects.toThrow(
+      `inlineMarkdownIncludes: file not found: ${join(FIXTURES, 'js/missing.mdc')} (referenced from .mdc)`
+    )
+  })
+
+  test('integration: abie.mdc — includes inlined, template links and plain text untouched', async () => {
+    const { readFile } = await import('node:fs/promises')
+    const abieDir = join(HERE, '..', '..', '..', 'rules', 'abie')
+    const mdc = await readFile(join(abieDir, 'abie.mdc'), 'utf8')
+    const withTemplates = await inlineTemplateLinks(mdc, abieDir)
+    const result = await inlineMarkdownIncludes(withTemplates, abieDir)
+
+    // Include links are gone
+    expect(result).not.toContain('[k8s-hc-yaml](./js/hc_pairing.mdc)')
+
+    // Content from included files is present
+    expect(result).toContain('## k8s: `hc.yaml` поруч із Deployment')
+    expect(result).toContain('## Внутрішньокластерні URL у env-файлах')
+
+    // Template link in abie.mdc (Git branches section) still gets inlined by inlineTemplateLinks
+    expect(result).not.toContain('clean-merged-branch.yml.snippet.yml')
   })
 })

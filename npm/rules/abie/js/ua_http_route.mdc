@@ -1,0 +1,47 @@
+## k8s: overlay **HTTPRoute** (**ua**)
+
+За наявності **Deployment** під **k8s** і наявності **Vite** (**`vite.config.js`**, **`vite.config.mjs`** або **`vite.config.ts`** у каталозі пакета) у **`ua/kustomization.yaml`** цього пакета потрібні **inline JSON6902** у **`patches`**: **target** **`kind: HTTPRoute`**, **непорожній `name`** (як у маніфесті маршруту). Мають бути зміни **`/spec/hostnames`** (домени abie — у скрипті) та **`/spec/parentRefs/0/namespace`** (**`ua`**, також дозволені префікси **`ua-*`**, наприклад **`ua-b2b`**). Як обирати **`op`** (**add** / **replace** тощо) у patch — **k8s.mdc** (розділ про JSON patch у kustomization).
+
+### HTTPRoute: спільні сервіси **`auth-run-hl`**, **`file-link-hl`**
+
+У **HTTPRoute** у шляху з **`…/k8s/base/…`** у **`spec.hostnames`** дозволені лише **`aiml.live`**, **`*.aiml.live`** та інші піддомени **aiml.live** (перевірка — Rego-пакет **`abie.http_route_base`**, див. розділ нижче).
+
+Ці **Service** (headless **`-hl`**) живуть у **базовому** неймспейсі **`dev`**. У маніфесті **HTTPRoute** під **`k8s`** (шар без **`ua/`** — наприклад **`…/k8s/base/hr.yaml`**) для кожного **`backendRefs`** до такого сервісу явно вкажи **`namespace: dev`** і порт **8080**:
+
+```yaml title="…/k8s/base/hr.yaml (фрагмент)"
+spec:
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: auth-run-hl
+          namespace: dev
+          port: 8080
+        - name: file-link-hl
+          namespace: dev
+          port: 8080
+```
+
+У **`ua/kustomization.yaml`** додай до того самого **inline** patch на **`HTTPRoute`** (той самий **`target.name`**) операції **JSON6902** з **`path`**: **`/spec/rules/<i>/backendRefs/<j>/namespace`**, де **`<i>`** / **`<j>`** — індекси відповідно до порядку **`spec.rules`** та **`backendRefs`** у base-файлі; **`value`**: **`ua`** (також дозволені **`ua-*`**). Якщо кілька таких **`backendRefs`**, потрібна окрема операція для кожного.
+
+```yaml title="…/ua/kustomization.yaml (фрагмент)"
+  - target:
+      kind: HTTPRoute
+      name: my-httproute
+    patch: |-
+      - op: replace
+        path: /spec/hostnames
+        value:
+          - "abie.app" # зокрема vybeerai.com.ua, *.vybeerai.com.ua, *.abie.app
+      - op: replace
+        path: /spec/parentRefs/0/namespace
+        value: ua
+      - op: replace
+        path: /spec/rules/0/backendRefs/0/namespace
+        value: ua
+      - op: replace
+        path: /spec/rules/0/backendRefs/1/namespace
+        value: ua
+```
