@@ -1,7 +1,7 @@
 ---
 type: JS Module
 title: fix.mjs
-resource: npm/rules/style-lint/fix.mjs
+resource: npm/rules/style/fix.mjs
 docgen:
   crc: 38cf876b
   score: 100

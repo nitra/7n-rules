@@ -1,4 +1,4 @@
-# Перевірка `lint-style.yml` (style-lint.mdc).
+# Перевірка `lint-style.yml` (style.mdc).
 #
 # Канон надходить через --data: { "template": { "snippet": ... } }
 # Структура --data сформована з template/lint-style.yml.snippet.yml.
@@ -23,7 +23,7 @@ all_run_text := concat("\n", [run_text |
 deny contains msg if {
 	expected_run_blob != ""
 	not contains(all_run_text, expected_run_blob)
-	msg := sprintf("lint-style.yml: жоден крок run не містить %q (style-lint.mdc)", [expected_run_blob])
+	msg := sprintf("lint-style.yml: жоден крок run не містить %q (style.mdc)", [expected_run_blob])
 }
 
 step_run_to_text(step) := step.run if is_string(step.run)

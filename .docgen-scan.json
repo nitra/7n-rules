@@ -1115,18 +1115,18 @@
     "exists": true
   },
   {
-    "sourcePath": "npm/rules/style-lint/fix.mjs",
-    "docPath": "npm/rules/style-lint/docs/fix.md",
+    "sourcePath": "npm/rules/style/fix.mjs",
+    "docPath": "npm/rules/style/docs/fix.md",
     "exists": true
   },
   {
-    "sourcePath": "npm/rules/style-lint/js/lint.mjs",
-    "docPath": "npm/rules/style-lint/js/docs/lint.md",
+    "sourcePath": "npm/rules/style/js/lint.mjs",
+    "docPath": "npm/rules/style/js/docs/lint.md",
     "exists": true
   },
   {
-    "sourcePath": "npm/rules/style-lint/js/tooling.mjs",
-    "docPath": "npm/rules/style-lint/js/docs/tooling.md",
+    "sourcePath": "npm/rules/style/js/tooling.mjs",
+    "docPath": "npm/rules/style/js/docs/tooling.md",
     "exists": true
   },
   {

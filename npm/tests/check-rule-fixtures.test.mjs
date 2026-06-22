@@ -1,5 +1,5 @@
 /**
- * Тести check-vue, check-style-lint, check-nginx у штучних мінімальних проєктах (у репозиторії cursor ці правила не повністю застосовані).
+ * Тести check-vue, check-style, check-nginx у штучних мінімальних проєктах (у репозиторії cursor ці правила не повністю застосовані).
  */
 import { describe, expect, test } from 'vitest'
 import { copyFile, readFile, writeFile } from 'node:fs/promises'
@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { check as checkNginx } from '../rules/nginx-default-tpl/js/template.mjs'
-import { check as checkStyle } from '../rules/style-lint/js/tooling.mjs'
+import { check as checkStyle } from '../rules/style/js/tooling.mjs'
 import { check as checkVue } from '../rules/vue/js/packages.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
 
@@ -151,7 +151,7 @@ describe('check-vue (мінімальний проєкт)', () => {
   })
 })
 
-describe('check-style-lint (мінімальний проєкт)', () => {
+describe('check-style (мінімальний проєкт)', () => {
   test('проходить при повному мінімальному наборі файлів', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), {

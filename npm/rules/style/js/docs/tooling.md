@@ -1,9 +1,9 @@
 ---
 type: JS Module
 title: tooling.mjs
-resource: npm/rules/style-lint/js/tooling.mjs
+resource: npm/rules/style/js/tooling.mjs
 docgen:
-  crc: 631f5de8
+  crc: bc2b0934
   score: 80
 ---
 
@@ -18,7 +18,7 @@ docgen:
 
 ## Публічний API
 
-check — Перевіряє відповідність проєкту правилам style-lint.mdc
+check — Перевіряє відповідність проєкту правилам style.mdc
 
 ## Гарантії поведінки
 

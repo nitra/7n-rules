@@ -118,7 +118,7 @@ npm/skills/{skill}/
 4. **Error handling.** Кожен виклик воркера обгорнутий `try/catch`; SDK кидає на `maxTurns`, не повертає — без обгортки оркестратор крашиться замість ескалації.
 5. **Fail-fast локаль.** Локальний tier отримує **≤60 с timeout** і **одну спробу**; при ETIMEDOUT — негайна ескалація. (Обґрунтування: 4B-модель на M2 8GB потребує ~97 с/крок, типовий coding-фікс — 5+ кроків = ~485 с >> будь-який розумний timeout. Довгі таймаути поглинають ~89 % wall-time без результату — підтверджено бенчем D: localSec 2847 з 3192 с.)
 
-**Чому convergence-loop вирішує повноту (з бенчу A/B/C/D):** single-agent A давав 3/3 не через якість моделі, а бо сам агент крутиться у внутрішньому convergence-loop. B/C (фіксований cap=2) — 2/3 через обрізання до cap. D hardened (ladder + convergence) — 0 unresolved: loop спіймав каскад `[ci4, style-lint]`, який будь-який fixed-cap обрізав би. Архітектура воркерів не визначає повноту — визначає convergence-loop із check-gate.
+**Чому convergence-loop вирішує повноту (з бенчу A/B/C/D):** single-agent A давав 3/3 не через якість моделі, а бо сам агент крутиться у внутрішньому convergence-loop. B/C (фіксований cap=2) — 2/3 через обрізання до cap. D hardened (ladder + convergence) — 0 unresolved: loop спіймав каскад `[ci4, style]`, який будь-який fixed-cap обрізав би. Архітектура воркерів не визначає повноту — визначає convergence-loop із check-gate.
 
 **Red flags:**
 

@@ -15,7 +15,7 @@
     "python",
     "rego",
     "security",
-    "style-lint",
+    "style",
     "test",
     "text",
     "tool-surface",

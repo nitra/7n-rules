@@ -242,7 +242,7 @@ describe('checkContains', () => {
 })
 
 describe('checkTextSubset', () => {
-  const opts = { targetPath: '.stylelintignore', source: 'style-lint.mdc' }
+  const opts = { targetPath: '.stylelintignore', source: 'style.mdc' }
 
   test('returns empty when actual contains every template line', () => {
     const actual = 'dist/\nnode_modules/\n'
@@ -254,7 +254,7 @@ describe('checkTextSubset', () => {
     const actual = 'node_modules/\n'
     const template = 'dist/\n'
     expect(checkTextSubset(actual, template, opts)).toEqual([
-      '.stylelintignore: відсутній рядок "dist/" (style-lint.mdc)'
+      '.stylelintignore: відсутній рядок "dist/" (style.mdc)'
     ])
   })
 

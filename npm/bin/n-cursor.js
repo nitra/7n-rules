@@ -9,7 +9,7 @@
  *   `npx \@nitra/cursor rename-yaml-extensions` — k8s `*.yml` → `*.yaml`, `.github` `*.yaml` → `*.yml` (опції: `--dry-run`, `--root=…`; див. bin/rename-yaml-extensions.mjs)
  *   `npx \@nitra/cursor post-tool-use-check` — точка входу PostToolUse hook Claude Code: читає stdin JSON,
  *                                     дістає `tool_input.file_path`, маршрутизує його у відповідні правила
- *                                     (`*.mjs` → `js-lint`, `*.vue` → `js-lint style-lint vue` тощо) і викликає
+ *                                     (`*.mjs` → `js-lint`, `*.vue` → `js-lint style vue` тощо) і викликає
  *                                     `fix` лише з ними. Прописується автоматично в `.claude/settings.json`.
  *   `npx \@nitra/cursor lint`        — data-driven оркестратор lint+конформності по `rules/<id>/meta.json` (`lint: per-file|full`):
  *                                     за замовчуванням fix-by-default по дельті vs origin (лише `per-file` правила); `--full` =

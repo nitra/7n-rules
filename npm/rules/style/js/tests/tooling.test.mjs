@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { check } from '../tooling.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
-describe('check (style-lint tooling)', () => {
+describe('check (style tooling)', () => {
   test('exit 0 — повний набір конфігів', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), {

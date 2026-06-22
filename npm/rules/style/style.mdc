@@ -95,7 +95,7 @@ $white-a1: color.adjust(white, $alpha: -0.85);
 
 - **Джерело правил:** перед тим як писати або суттєво змінювати **`.css`**, **`.scss`** або стилі в **`.vue`**, переглянь у корені проєкту (і в релевантних пакетах монорепо, якщо є) поле **`stylelint`** у **`package.json`** (зокрема `extends`), наявні **`.stylelintrc.*`**, **`stylelint.config.*`** та **`.stylelintignore`**. Не покладайся на «типові» правила stylelint з пам’яті — дотримуйся **проєктного** **`@nitra/stylelint-config`** і будь-яких локальних доповнень у репозиторії.
 - **Форматування** узгоджуй з **`n-text.mdc`** (oxfmt / `.oxfmtrc.json` для css, scss тощо), щоб форматер і stylelint не суперечили один одному.
-- **Запуск stylelint:** лише через **`n-cursor lint style-lint`** (локально — з auto-fix; у CI — `--read-only`, нуль мутацій). Під капотом — `npx stylelint`; **не** використовуй **`bunx stylelint`**. Після змін запускай **`n-cursor lint style-lint`** і виправляй усе, що лишилось після auto-fix; за потреби — повний прогін `n-cursor lint --full`.
+- **Запуск stylelint:** лише через **`n-cursor lint style`** (локально — з auto-fix; у CI — `--read-only`, нуль мутацій). Під капотом — `npx stylelint`; **не** використовуй **`bunx stylelint`**. Після змін запускай **`n-cursor lint style`** і виправляй усе, що лишилось після auto-fix; за потреби — повний прогін `n-cursor lint --full`.
 - **Не розширюй винятки:** не додавай зайві **`stylelint-disable`** без потреби; краще підлаштувати стилі під правила проєкту.
 
 ## Канон
@@ -104,7 +104,7 @@ $white-a1: color.adjust(white, $alpha: -0.85);
 
 - `stylelint.extends`: [package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)
 
-Окремого `lint-style` скрипта немає — запуск через **`n-cursor lint style-lint`** (CI — `--read-only`).
+Окремого `lint-style` скрипта немає — запуск через **`n-cursor lint style`** (CI — `--read-only`).
 
 ### `.vscode/extensions.json`
 
@@ -129,7 +129,7 @@ $white-a1: color.adjust(white, $alpha: -0.85);
   },
 ```
 
-Додай **`.github/workflows/lint-style.yml`** (лише **`.yml`**, **`ga.mdc`**): після **`checkout`** — локальний composite **`setup-bun-deps`**, далі `n-cursor lint style-lint --read-only` у кроці **`run`**. **Не** дублюй окремі кроки **`setup-node`** / **`oven-sh/setup-bun`** / кеш / **`npm install`**.
+Додай **`.github/workflows/lint-style.yml`** (лише **`.yml`**, **`ga.mdc`**): після **`checkout`** — локальний composite **`setup-bun-deps`**, далі `n-cursor lint style --read-only` у кроці **`run`**. **Не** дублюй окремі кроки **`setup-node`** / **`oven-sh/setup-bun`** / кеш / **`npm install`**.
 
 ```yaml title=".github/workflows/lint-style.yml"
 name: StyleLint

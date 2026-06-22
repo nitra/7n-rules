@@ -44,7 +44,7 @@ async function checkStylelintConfigPresence(reporter, cwd) {
 // `npx @nitra/cursor fix`. JS-копії видалено, щоб не було двох джерел істини.
 
 /**
- * Перевіряє відповідність проєкту правилам style-lint.mdc
+ * Перевіряє відповідність проєкту правилам style.mdc
  * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */

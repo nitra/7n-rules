@@ -40,7 +40,7 @@ const ALL_RULES = [
   'npm-module',
   'rust',
   'security',
-  'style-lint',
+  'style',
   'tauri',
   'test',
   'text',
@@ -96,7 +96,7 @@ describe('detectAutoRules', () => {
         'nginx-default-tpl',
         'npm-module',
         'security',
-        'style-lint',
+        'style',
         'test',
         'text',
         'vue'

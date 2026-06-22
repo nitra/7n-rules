@@ -1,7 +1,7 @@
 ---
 type: JS Module
 title: main.mjs
-resource: npm/rules/style-lint/main.mjs
+resource: npm/rules/style/main.mjs
 docgen:
   crc: d4951ce5
   model: omlx/gemma-4-e4b-it-OptiQ-4bit

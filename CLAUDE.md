@@ -22,7 +22,7 @@
 @.cursor/rules/n-python.mdc
 @.cursor/rules/n-rego.mdc
 @.cursor/rules/n-security.mdc
-@.cursor/rules/n-style-lint.mdc
+@.cursor/rules/n-style.mdc
 @.cursor/rules/n-test.mdc
 @.cursor/rules/n-text.mdc
 @.cursor/rules/n-tool-surface.mdc
