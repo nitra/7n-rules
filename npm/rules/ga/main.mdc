@@ -21,13 +21,18 @@ alwaysApply: false
 
 ## Швидкий gate через conftest
 
-Rego-пакети (namespace → що перевіряє):
+[ga-workflow_common](./policy/workflow_common/workflow_common.mdc)
 
-- `ga.workflow_common` — усі `*.yml`: concurrency, composite setup-bun-deps, run:>-, мінімальні версії actions, заборона depcheck
-- `ga.clean_ga_workflows` — структура `clean-ga-workflows.yml` (cron, permissions, cleanup step)
-- `ga.clean_merged_branch` — структура `clean-merged-branch.yml` (cron, permissions, ignore_branches, dry_run)
-- `ga.lint_ga` — структура `lint-ga.yml` (triggers, conftest install, n-cursor lint ga --read-only)
-- `ga.git_ai` — структура `git-ai.yml` (pr closed trigger, git-ai install + run)
-- `ga.vscode_extensions` — `.vscode/extensions.json`: рекомендація `github.vscode-github-actions`
-- `ga.vscode_settings` — `.vscode/settings.json`: `editor.defaultFormatter` для github-actions-workflow
-- `ga.zizmor_yml` — `.github/zizmor.yml`: `rules.unpinned-uses.config.policies["*"]`
+[ga-clean_ga_workflows](./policy/clean_ga_workflows/clean_ga_workflows.mdc)
+
+[ga-clean_merged_branch](./policy/clean_merged_branch/clean_merged_branch.mdc)
+
+[ga-lint_ga](./policy/lint_ga/lint_ga.mdc)
+
+[ga-git_ai](./policy/git_ai/git_ai.mdc)
+
+[ga-vscode_extensions](./policy/vscode_extensions/vscode_extensions.mdc)
+
+[ga-vscode_settings](./policy/vscode_settings/vscode_settings.mdc)
+
+[ga-zizmor_yml](./policy/zizmor_yml/zizmor_yml.mdc)

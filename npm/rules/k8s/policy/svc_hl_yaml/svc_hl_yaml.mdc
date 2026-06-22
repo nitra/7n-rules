@@ -1,0 +1,13 @@
+## Перевірки `svc-hl.yaml` (Headless Service)
+
+Rego-пакет: `k8s.svc_hl_yaml`
+
+**Цільові файли:** лише `svc-hl.yaml` (basename). JS відбирає файли через walk по `basename == "svc-hl.yaml"`.
+
+**Що перевіряється:**
+
+- `kind: Service` — `metadata.name` має закінчуватися на `-hl`
+- `kind: Service` — `spec.clusterIP` має бути `None` (headless)
+
+✓ `metadata.name: my-app-hl`, `spec.clusterIP: None`
+✗ `metadata.name: my-app` (без суфікса), `spec.clusterIP: 10.0.0.1`

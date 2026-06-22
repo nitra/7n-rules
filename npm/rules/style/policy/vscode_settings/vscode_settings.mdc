@@ -1,0 +1,19 @@
+## .vscode/settings.json: вимкнення вбудованих CSS/SCSS/Less валідаторів
+
+Rego-пакет: `style_lint.vscode_settings`
+
+Цільовий файл: `.vscode/settings.json`
+
+Leaf-by-leaf walker: перевіряє кожен ключ з template — його значення у `settings.json` має точно збігатися. Додаткові ключі у файлі — дозволені.
+
+Канонічний template: [settings.json.snippet.json](./template/settings.json.snippet.json)
+
+Обов'язкові значення:
+
+- `"css.validate": false`
+- `"less.validate": false`
+- `"scss.validate": false`
+
+**✓ Правильно** — усі три ключі присутні зі значенням `false`; можуть бути й інші ключі.
+
+**✗ Неправильно** — будь-який з ключів відсутній, має значення `true` або рядок (`"off"`).

@@ -21,6 +21,6 @@ version: '1.4'
 
 Rego-перевірки (`policy/`) — швидкий синхронний gate для одиничного `package.json` без JS-рантайму:
 
-- `js_mssql.package_json` — перевіряє `dependencies.mssql >= 12.5.0` у вхідному `package.json`.
+[js-mssql-package_json](./policy/package_json/package_json.mdc)
 
 JS-перевірка (`deps.mjs`) — authoritative: охоплює всі `package.json` репо, AST-скан JS/TS-джерел і повний semver-triple-compare. Rego-gate — доповнення, не заміна.

@@ -1,0 +1,12 @@
+## Перевірки `svc.yaml` (ClusterIP Service)
+
+Rego-пакет: `k8s.svc_yaml`
+
+**Цільові файли:** лише `svc.yaml` (basename). JS відбирає файли через walk по `basename == "svc.yaml"` і передає conftest з цим namespace.
+
+**Що перевіряється:**
+
+- `kind: Service` — `spec.type` має бути `ClusterIP` (відсутній `spec` або `type != "ClusterIP"` — порушення)
+
+✓ `spec.type: ClusterIP`
+✗ `spec.type: LoadBalancer` або відсутній `spec`

@@ -1,0 +1,9 @@
+## Rego-gate: версія `mssql` у `package.json`
+
+Rego-пакет: `js_mssql.package_json`
+
+Цільові файли: `**/package.json`
+
+Перевіряє поле `dependencies.mssql` — якщо присутнє, версія має бути `>= 12.5.0`. Підтримувані формати: `^12.5.0`, `>=12.5.0`, `12.5.0`, `workspace:*` (OK). Версії нижче 12.5.x генерують `deny`.
+
+Це швидкий синхронний gate для одиничного `package.json`. Authoritative-перевірка (повний semver-triple-compare, усі `package.json` репо) — у JS (`fix.mjs`).

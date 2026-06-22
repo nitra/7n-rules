@@ -1,0 +1,16 @@
+## Обовʼязкові скрипти в package.json
+
+Rego-пакет: `test.package_json`
+
+Цільовий файл: `package.json` кожного workspace.
+
+Перевіряє substring-відповідність значень у `scripts`:
+
+| Поле | Має містити |
+|---|---|
+| `scripts.coverage` | `n-cursor coverage` |
+| `scripts.test` | `vitest` |
+
+Substring-семантика: команди-обгортки (наприклад `bun run pre-coverage && n-cursor coverage`) дозволені — головне, щоб потрібний рядок був присутній.
+
+Канон підтягується через `--data`: [package.json.contains.json](./template/package.json.contains.json)

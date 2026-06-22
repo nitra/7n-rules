@@ -1,0 +1,14 @@
+## Rego-gate `.jscpd.json`
+
+Rego-пакет: `js_lint.jscpd`
+
+Цільовий файл: `.jscpd.json` у корені проєкту.
+
+Що перевіряється:
+
+- `gitignore` — точна відповідність (`true`)
+- `exitCode` — точна відповідність (`1`)
+- `reporters` — subset-of: масив має містити всі елементи з канону (`["console"]`)
+- `minLines` — число, значення >= канонічного порогу (`25`); більше дозволено
+
+Канон-snippet: [.jscpd.json.snippet.json](./template/.jscpd.json.snippet.json)

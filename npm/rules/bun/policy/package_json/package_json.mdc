@@ -1,0 +1,14 @@
+## Rego-gate: заборонені поля та devDependencies у кореневому package.json
+
+Rego-пакет: `bun.package_json`
+
+Цільовий файл: кореневий `package.json`.
+
+Список заборонених top-level полів (template-driven): [package.json.deny.json](./template/package.json.deny.json)
+
+Gate виносить два класи deny:
+
+1. **Заборонені top-level поля** — будь-яке поле з `package.json.deny.json` присутнє у файлі (навіть із порожнім значенням `{}`).
+2. **devDependencies не з білого списку** — дозволені лише `@nitra/*` та root-only тестові peer/tools (`vitest`, `@vitest/coverage-v8`, `@stryker-mutator/vitest-runner`, `@playwright/test`). Будь-який інший пакет → deny.
+
+Перевірки, що потребують FS або cross-file контексту (наприклад наявність `yarn.lock`), лишаються у JS-шарі.

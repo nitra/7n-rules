@@ -1,0 +1,11 @@
+## Rego-перевірка наявності tsandall.opa у recommendations
+
+Rego-пакет: `rego.vscode_extensions`
+
+Цільовий файл: `.vscode/extensions.json`
+
+Перевіряє: поле `recommendations` містить рядок `"tsandall.opa"`. Порожній масив або відсутнє поле — deny. Додаткові записи дозволені.
+
+Канонічний сніпет: [extensions.json.snippet.json](./template/extensions.json.snippet.json)
+
+Логіка: subset-of — кожна рекомендація зі сніпету має бути присутня у `recommendations` вхідного файлу. Канон надходить через `--data` як `data.template.snippet`.

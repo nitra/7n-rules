@@ -1,0 +1,9 @@
+## Rego-gate: обовʼязкові розширення VSCode
+
+Rego-пакет: `ci4.vscode_extensions`
+
+Цільовий файл: `.vscode/extensions.json`
+
+Перевіряє, що кожен запис з `data.template.snippet.recommendations` присутній у `input.recommendations`. Канонічний шаблон надходить через `--data` у conftest: [extensions.json.snippet.json](./template/extensions.json.snippet.json)
+
+Додаткові розширення в масиві дозволені — deny лише на відсутність обовʼязкових.

@@ -1,0 +1,9 @@
+## `.vscode/extensions.json` — розширення для GitHub Actions
+
+Rego-пакет: `ga.vscode_extensions`
+
+**Цільовий файл:** `.vscode/extensions.json`
+
+Кожне розширення з template має бути присутнє у `recommendations`. Додаткові розширення від інших правил — допустимі (subset-перевірка).
+
+Канон: [extensions.json.snippet.json](./template/extensions.json.snippet.json)

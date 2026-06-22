@@ -1,0 +1,22 @@
+## Rego: `nodeSelector.preem` у base-Deployment
+
+Rego-пакет: `abie.base_deployment_preem`
+
+Цільові файли: YAML-маніфести Deployment під `…/k8s/.../base/…`.
+
+Перевіряє, що кожен `Deployment` має `spec.template.spec.nodeSelector.preem` зі значенням `true` (boolean `true` або рядок `"true"` — без урахування регістру, з обрізаними пробілами). Значення `false` або відсутність ключа — deny.
+
+ua-overlay далі підміняє це значення на `preem: false` через JSON6902-патч (`js/ua_node_selector.mjs`). Cross-document перевірка ua-патча — поза Rego.
+
+```yaml title="…/k8s/base/deployment.yaml (фрагмент)"
+spec:
+  template:
+    spec:
+      nodeSelector:
+        preem: "true"   # ✓ або boolean true
+```
+
+```yaml
+      nodeSelector:
+        role: worker    # ✗ preem відсутній
+```

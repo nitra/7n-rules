@@ -1,0 +1,13 @@
+## GitHub Actions workflow: lint-style.yml
+
+Rego-пакет: `style_lint.lint_style_yml`
+
+Цільовий файл: `.github/workflows/lint-style.yml`
+
+Перевіряє, що у workflow є крок `run`, який містить команду `n-cursor lint style --read-only` (substring-match по всіх кроках усіх jobs). Канонічний текст береться з template через `--data`.
+
+Канонічний template: [lint-style.yml.snippet.yml](./template/lint-style.yml.snippet.yml)
+
+**✓ Правильно** — крок `run: n-cursor lint style --read-only` присутній у jobs.stylelint.steps.
+
+**✗ Неправильно** — крок відсутній або містить лише `echo nothing` / `npx stylelint` без канонічного рядка.

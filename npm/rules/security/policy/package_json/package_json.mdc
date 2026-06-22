@@ -1,0 +1,7 @@
+## Заборона `trufflehog` у залежностях `package.json`
+
+Rego-пакет: `security.package_json`
+
+Цільові файли: `package.json`
+
+Перевіряє, що пакет `trufflehog` відсутній у `dependencies` та `devDependencies` — він є глобальним CLI і не має бути npm-залежністю. Список заборонених пакетів надходить через `--data` з [package.json.deny.json](./template/package.json.deny.json).

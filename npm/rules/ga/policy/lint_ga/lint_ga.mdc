@@ -1,0 +1,21 @@
+## Структура `lint-ga.yml` — CI-лінт GitHub Actions файлів
+
+Rego-пакет: `ga.lint_ga`
+
+**Цільовий файл:** `.github/workflows/lint-ga.yml`
+
+### Що перевіряється
+
+- `name` — точна відповідність значенню з template (`Lint GA`)
+- `on.push.branches` — superset: містить `dev` і `main`
+- `on.pull_request.branches` — superset: містить `dev` і `main`
+- `on.push.paths` — superset: містить `.github/actions/**` і `.github/workflows/**`
+- `jobs.lint-ga` — job має існувати
+- `jobs.lint-ga.runs-on` — за template (`ubuntu-latest`)
+- `jobs.lint-ga.permissions.contents` — `read`
+- `jobs.lint-ga.steps` — не порожній
+- `steps[*].uses` — кожен `uses:` з template має бути присутнім у кроках
+- `steps[*].run` (сукупно) — містить `open-policy-agent/conftest` (Install conftest)
+- `steps[*].run` (сукупно) — містить `n-cursor lint ga --read-only`
+
+Канон: [lint-ga.yml.snippet.yml](./template/lint-ga.yml.snippet.yml)

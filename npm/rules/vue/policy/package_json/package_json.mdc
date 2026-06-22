@@ -1,0 +1,30 @@
+## Залежності Vue+Vite пакета — канонічний набір і заборони
+
+Rego-пакет: `vue.package_json`
+
+Цільові файли: `**/package.json`
+
+Перевірка активна лише якщо у `dependencies` присутній `vue`.
+
+**Обов'язкові залежності:**
+
+- `devDependencies.vite` — мажорна версія ≥ 8
+- `devDependencies.@vitejs/plugin-vue`
+- `vue-macros` (dependencies або devDependencies)
+- `unplugin-auto-import` (dependencies або devDependencies)
+- `vite-plugin-vue-layouts-next` (dependencies або devDependencies)
+
+**Заборонені залежності (у будь-якій групі):**
+
+- `esbuild` — замінено на rolldown
+- `vitest` — замінено на Bun Test Runner (`bun test`)
+- `jsdom` — замінено на happy-dom
+
+Приклади:
+
+```
+✓ "devDependencies": { "vite": "^8.0.0", "@vitejs/plugin-vue": "^6.0.0", "vue-macros": "^3.0.0", "unplugin-auto-import": "^20.0.0", "vite-plugin-vue-layouts-next": "^1.0.0" }
+✗ "devDependencies": { "vite": "^7.0.0", "esbuild": "^0.25.0", "vitest": "^3.0.0", "jsdom": "^25.0.0" }
+```
+
+Пакети без `vue` у `dependencies` — ігноруються повністю.

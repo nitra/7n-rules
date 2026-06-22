@@ -1,0 +1,30 @@
+## Наявність `@nitra/efes-shared` у `devDependencies`
+
+Rego-пакет: `efes.package_json_shared`
+
+**Цільовий файл:** `package.json` (корінь проєкту, обовʼязковий).
+
+**Що перевіряється:** у `devDependencies` кореневого `package.json` має бути ключ `@nitra/efes-shared`. Версію не фіксуємо — лише presence. Наявність лише у `dependencies` (не `devDependencies`) — теж помилка.
+
+**Виправлення:**
+
+```bash
+bun add -d @nitra/efes-shared
+```
+
+**Приклади:**
+
+✓ правильно — `devDependencies` містить пакет:
+```json
+{ "devDependencies": { "@nitra/efes-shared": "^1.0.0" } }
+```
+
+✗ неправильно — `devDependencies` відсутній або порожній:
+```json
+{ "name": "my-project" }
+```
+
+✗ неправильно — пакет лише у `dependencies`:
+```json
+{ "dependencies": { "@nitra/efes-shared": "^1.0.0" } }
+```

@@ -21,3 +21,7 @@ alwaysApply: false
 [rego-vscode_extensions](./js/vscode_extensions.mdc)
 
 [rego-vscode_settings](./js/vscode_settings.mdc)
+
+[rego-vscode_extensions](./policy/vscode_extensions/vscode_extensions.mdc)
+
+[rego-vscode_settings](./policy/vscode_settings/vscode_settings.mdc)

@@ -10,3 +10,5 @@ version: '1.2'
 [js-bun-redis-imports](./js/imports.mdc)
 
 [js-bun-redis-package_json](./js/package_json.mdc)
+
+[js-bun-redis-policy-package_json](./policy/package_json/package_json.mdc)

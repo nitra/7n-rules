@@ -17,7 +17,6 @@ version: '2.1'
 
 ## Швидкий gate через conftest
 
-| Namespace | Що перевіряє |
-|---|---|
-| `bun.bunfig` | Відповідність `bunfig.toml` канонічному шаблону (секції + leaf-ключі) |
-| `bun.package_json` | Заборонені top-level поля у root `package.json`; `devDependencies` лише `@nitra/*` + root-only test peers |
+[bun-policy-bunfig](./policy/bunfig/bunfig.mdc)
+
+[bun-policy-package_json](./policy/package_json/package_json.mdc)

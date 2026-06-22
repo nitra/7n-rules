@@ -1,0 +1,38 @@
+## Перевірка `.markdownlint-cli2.jsonc` — конфігурація markdownlint
+
+Rego-пакет: `text.markdownlint`
+
+Цільовий файл: `.markdownlint-cli2.jsonc`
+
+**Що перевіряється (generic walker по канонічному snippet):**
+
+- Top-level scalar leafs (наприклад `gitignore: true`)
+- 2-рівневі leafs: `config.<rule>` — скалярні значення правил (MD013, MD029, MD040, MD041 тощо)
+- 3-рівневі leafs: `config.MD024.siblings_only` — вкладене поле
+- Наявність самого об'єкта `config` (якщо відсутній — deny)
+
+**Приклади:**
+
+✓ правильно:
+```jsonc
+{
+  "gitignore": true,
+  "config": {
+    "MD013": false,
+    "MD024": { "siblings_only": true },
+    "MD029": false,
+    "MD040": false,
+    "MD041": false
+  }
+}
+```
+
+✗ неправильно:
+```jsonc
+{
+  "gitignore": false,
+  "config": {
+    "MD024": {}
+  }
+}
+```

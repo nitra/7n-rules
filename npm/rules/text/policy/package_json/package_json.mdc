@@ -1,0 +1,33 @@
+## Перевірка `package.json` — текст-специфічні обмеження
+
+Rego-пакет: `text.package_json`
+
+Цільовий файл: `package.json`
+
+**Що перевіряється:**
+
+- Заборонені top-level поля: `prettier`
+- Заборонені пакети у `dependencies` / `devDependencies`: `prettier`, `@nitra/prettier-config`, `markdownlint-cli2` (використовуй `bunx` у lint-text)
+- `@nitra/cspell-dict` обов'язковий у `devDependencies` з версією `^2.0.0` або новішою
+- `scripts.*` — будь-який скрипт, що викликає `prettier` (через `bunx`, `npx`, прямо або через шлях), заборонений; використовуй `oxfmt`
+
+Список заборонених пакетів: [package.json.deny.json](./template/package.json.deny.json)
+
+**Приклади:**
+
+✓ правильно:
+```json
+{
+  "devDependencies": { "@nitra/cspell-dict": "^2.0.0" },
+  "scripts": { "format": "oxfmt --write ." }
+}
+```
+
+✗ неправильно:
+```json
+{
+  "prettier": "@nitra/prettier-config",
+  "devDependencies": { "prettier": "^3.0.0", "@nitra/cspell-dict": "^1.0.0" },
+  "scripts": { "fix": "bunx prettier --write ." }
+}
+```

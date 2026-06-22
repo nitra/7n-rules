@@ -1,0 +1,11 @@
+## Rego-gate: наявність розширення nginx у `.vscode/extensions.json`
+
+Rego-пакет: `nginx_default_tpl.vscode_extensions`
+
+Цільовий файл: `.vscode/extensions.json`
+
+Перевіряє, що масив `recommendations` містить рядок `"ahmadalli.vscode-nginx-conf"`. Відсутнє поле `recommendations` або порожній масив — теж deny.
+
+✓ `{"recommendations": ["ahmadalli.vscode-nginx-conf"]}`
+✗ `{"recommendations": []}` — розширення відсутнє
+✗ `{}` — поле `recommendations` відсутнє

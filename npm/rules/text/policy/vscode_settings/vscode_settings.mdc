@@ -1,0 +1,13 @@
+## Перевірка `.vscode/settings.json` — налаштування редактора
+
+Rego-пакет: `text.vscode_settings`
+
+Цільовий файл: `.vscode/settings.json`
+
+**Що перевіряється (generic walker по канонічному snippet):**
+
+- Scalar leafs: `editor.formatOnSave` має бути `true`
+- Об'єктні блоки мовних налаштувань `[javascript]`, `[typescript]`, `[json]`, `[vue]`, `[css]`, `[html]`: `editor.defaultFormatter` має бути `"oxc.oxc-vscode"`
+- Якщо блок відсутній або не є об'єктом — deny
+
+Канонічний snippet: [settings.json.snippet.json](./template/settings.json.snippet.json)

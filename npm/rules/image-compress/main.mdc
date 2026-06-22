@@ -15,4 +15,4 @@ CLI [`@nitra/minify-image`](https://www.npmjs.com/package/@nitra/minify-image) (
 
 ## Швидкий gate через conftest
 
-- `image_compress.package_json` — забороняє `@nitra/minify-image` у `dependencies`/`devDependencies` проєкту
+[image-compress-package_json](./policy/package_json/package_json.mdc)

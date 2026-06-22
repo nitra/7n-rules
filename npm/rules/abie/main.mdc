@@ -48,11 +48,15 @@ bun add -d @nitra/abie-shared
 
 Пакети (директорія в **`npm/policy/abie/`** → namespace → що перевіряє):
 
-- **`http_route_base/`** → `abie.http_route_base` — у HTTPRoute під `…/k8s/.../base/...` усі `spec.hostnames` мають бути в домені `aiml.live` (включно з `*.aiml.live` та піддоменами). **Цільові файли:** `…/k8s/.../base/.../hr.yaml`.
-- **`health_check_policy/`** → `abie.health_check_policy` — структура HealthCheckPolicy: `apiVersion: networking.gke.io/v1`, `metadata.name`, `spec.default.config.type: HTTP`, `httpHealthCheck.requestPath` починається з `/`, `port: 8080`, `targetRef.kind: Service`, `targetRef.name` має суфікс `-hl`. **Цільові файли:** `…/k8s/.../hc.yaml`.
-- **`base_deployment_preem/`** → `abie.base_deployment_preem` — Deployment у base/ має `spec.template.spec.nodeSelector.preem` зі значенням `true` (boolean або рядок). **Цільові файли:** ресурсні YAML під `…/k8s/.../base/...`.
-- **`clean_merged_ignore_branches/`** → `abie.clean_merged_ignore_branches` — у workflow `.github/workflows/clean-merged-branch.yml` крок з `uses: phpdocker-io/github-actions-delete-abandoned-branches` має `with.ignore_branches`, що містить токени `dev,ua` (case-insensitive). **Цільові файли:** `.github/workflows/clean-merged-branch.yml`.
-- **`package_json_shared/`** → `abie.package_json_shared` — у кореневому `package.json` `devDependencies` має містити `@nitra/abie-shared` (presence-only, версію не фіксуємо). **Цільові файли:** `package.json`.
+[abie-http-route-base](./policy/http_route_base/http_route_base.mdc)
+
+[abie-health-check-policy](./policy/health_check_policy/health_check_policy.mdc)
+
+[abie-base-deployment-preem](./policy/base_deployment_preem/base_deployment_preem.mdc)
+
+[abie-clean-merged-ignore-branches](./policy/clean_merged_ignore_branches/clean_merged_ignore_branches.mdc)
+
+[abie-package-json-shared](./policy/package_json_shared/package_json_shared.mdc)
 
 Cross-file / FS-логіка лишається у JS-частинах (`js/<concern>.mjs`) — Rego не читає файлову систему й не робить cross-document резолюцію:
 

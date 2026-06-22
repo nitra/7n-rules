@@ -21,9 +21,10 @@ alwaysApply: false
 
 ## Швидкий gate через conftest (Rego)
 
-Пакети у `npm/rules/style/policy/`:
+[style-lint_style_yml](./policy/lint_style_yml/lint_style_yml.mdc)
 
-- `style_lint.package_json` — `package.json`: `stylelint.extends == "@nitra/stylelint-config"`, `@nitra/stylelint-config` у `devDependencies`.
-- `style_lint.vscode_extensions` — `.vscode/extensions.json`: `recommendations` містить `stylelint.vscode-stylelint`.
-- `style_lint.vscode_settings` — `.vscode/settings.json`: `css.validate`, `less.validate`, `scss.validate` вимкнені (`false`).
-- `style_lint.lint_style_yml` — `.github/workflows/lint-style.yml`: крок `run` містить команду `n-cursor lint style --read-only`.
+[style-package_json](./policy/package_json/package_json.mdc)
+
+[style-vscode_extensions](./policy/vscode_extensions/vscode_extensions.mdc)
+
+[style-vscode_settings](./policy/vscode_settings/vscode_settings.mdc)

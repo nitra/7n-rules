@@ -15,8 +15,9 @@ version: '2.1'
 
 ## Швидкий gate через conftest
 
-- `security.package_json` — забороняє `trufflehog` у `dependencies`/`devDependencies`
-- `security.lint_security_yml` — перевіряє наявність кроку `trufflesecurity/trufflehog@main` у CI workflow
+[security-package-json](./policy/package_json/package_json.mdc)
+
+[security-lint-security-yml](./policy/lint_security_yml/lint_security_yml.mdc)
 
 ## Перевірка
 

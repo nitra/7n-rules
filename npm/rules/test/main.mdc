@@ -39,6 +39,4 @@ alwaysApply: false
 
 ## Швидкий gate через conftest
 
-| Namespace | Що перевіряє |
-|---|---|
-| `test.package_json` | `scripts.coverage` містить `n-cursor coverage`; `scripts.test` містить `vitest` |
+[test-package_json](./policy/package_json/package_json.mdc)

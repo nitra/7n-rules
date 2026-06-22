@@ -1,0 +1,14 @@
+## Перевірки маніфестів у шарі `base/`
+
+Rego-пакет: `k8s.base_manifest`
+
+**Цільові файли:** будь-який `*.yaml` у шляху `k8s/.../base/` (окрім `kustomization.yaml`). JS відбирає файли через `isK8sBaseManifestYamlPath` і передає conftest з цим namespace.
+
+**Що перевіряється:**
+
+- Namespaced kind — обов'язковий непорожній `metadata.namespace` (cluster-scoped kinds, `List`, `Kustomization` — виняток; список cluster-scoped kinds узгоджено з `CLUSTER_SCOPED_KINDS` у `fix.mjs`)
+- `kind: Deployment` — фіксовані resource-requests у кожному контейнері (включно з `initContainers`):
+  - `resources.requests.cpu` рівно `"0.02"` (або число `0.02`)
+  - `resources.requests.memory` рівно `"128Mi"` (суфікс `Mi` без урахування регістру)
+
+**Примітка:** cross-file перевірки (`metadataNamespaceRequiredViolation` у ширшому контексті дерева) лишаються у JS.

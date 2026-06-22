@@ -1,0 +1,37 @@
+## Rego-gate: валідація кореневого `package.json`
+
+Rego-пакет: `npm-module.root_package_json`
+
+Цільовий файл: `package.json` (корінь репозиторію)
+
+### Що перевіряється
+
+Subset-of перевірка масиву `workspaces`: кожне значення з канонічного сніпету має бути присутнє у `workspaces`. За замовчуванням обовʼязковий елемент — `"npm"`.
+
+Якщо `workspaces` відсутнє або не є масивом — окрема deny-помилка.
+
+Канонічний сніпет: [package.json.snippet.json](./template/package.json.snippet.json)
+
+Решта перевірок кореневого `package.json` (заборонені поля, devDeps лише `@nitra/*`) — у пакеті `bun.package_json`. FS-перевірки (наявність директорії `npm/`, `npm/package.json`) — у JS.
+
+### Приклади
+
+✓ Правильно — `workspaces` містить `"npm"`:
+```json
+{ "workspaces": ["npm"] }
+```
+
+✓ Правильно — `workspaces` містить `"npm"` разом з іншими:
+```json
+{ "workspaces": ["demo", "npm", "tests"] }
+```
+
+✗ Неправильно — `workspaces` відсутній:
+```json
+{ "name": "monorepo" }
+```
+
+✗ Неправильно — `workspaces` без `"npm"`:
+```json
+{ "workspaces": ["demo"] }
+```

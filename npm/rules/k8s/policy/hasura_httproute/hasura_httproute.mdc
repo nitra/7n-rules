@@ -1,0 +1,16 @@
+## Перевірки HTTPRoute, парного з Hasura-Deployment
+
+Rego-пакет: `k8s.hasura_httproute`
+
+**Цільові файли:** `hr.yaml` (або будь-який HTTPRoute з `kind: HTTPRoute`) у каталогах, де є Deployment з образом `hasura/graphql-engine`. JS знаходить пару Deployment–HTTPRoute через `collectHasuraDeploymentsAndHttpRoutes` і передає conftest з цим namespace.
+
+**Що перевіряється — канон 4 правил у `spec.rules` (у порядку):**
+
+1. `matches: [{path: {type: Exact, value: "<prefix>/ql"}}]` (без headers) + `filters: [RequestRedirect ReplaceFullPath "<prefix>/ql/console" statusCode 302]`
+2. `matches: [{path: {type: Exact, value: "<prefix>/ql/"}}]` + такий самий redirect на `<prefix>/ql/console`
+3. `matches: [{path: {type: PathPrefix, value: "<prefix>/ql"}}]` + `filters: [URLRewrite ReplacePrefixMatch "/"]` + один `backendRef` на headless Service
+4. WebSocket: `matches: [{path: PathPrefix "<prefix>/ql", headers: [{Exact "Upgrade: websocket"}]}]` + `filters: [URLRewrite ReplacePrefixMatch "/", RequestHeaderModifier remove [Authorization]]` + той самий `backendRef`
+
+`<prefix>` визначається автоматично як рядок до `/ql` у першому matching-правилі. Додаткові правила поверх канону дозволені.
+
+**Примітка:** cross-file прив'язка HTTPRoute до Deployment — JS (`validateHasuraHttpRouteCanon`).

@@ -1,0 +1,18 @@
+## Універсальні Rego-перевірки для всіх workflow-файлів
+
+Rego-пакет: `ga.workflow_common`
+
+**Цільові файли:** `.github/workflows/*.yml` (кожен файл окремо)
+
+### Що перевіряється
+
+- **concurrency** — обов'язкова наявність блоку; `group` = `${{ github.ref }}-${{ github.workflow }}`; `cancel-in-progress: true`
+- **Заборонені кроки** — `oven-sh/setup-bun`, `actions/cache`, `bun install` у будь-якому `uses:`/`run:` (мають бути інкапсульовані у composite `setup-bun-deps`)
+- **Порядок кроків** — якщо є `setup-bun-deps`, перед ним обов'язковий `actions/checkout@`
+- **Shell-продовження** — `\` перед переносом рядка у `run:` заборонено; треба `run: >-`
+- **Заборонені команди** — `depcheck` у `run:` (мігровано на `knip`)
+- **Мінімальні версії** — `uses:` з marketplace-actions перевіряються за канонічним JSON
+
+Канон мінімальних версій: [uses-min-versions.snippet.json](./template/uses-min-versions.snippet.json)
+
+Детальна документація поведінки — у [ga-workflow_common](../../js/workflow_common.mdc).

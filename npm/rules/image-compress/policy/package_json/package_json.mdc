@@ -1,0 +1,13 @@
+## Заборона `@nitra/minify-image` у залежностях (`package.json`)
+
+Rego-пакет: `image_compress.package_json`
+
+Цільовий файл: `package.json` (єдиний файл проєкту).
+
+Перевіряє поля `dependencies` та `devDependencies`: якщо там присутній пакет `@nitra/minify-image` — deny. Список заборонених пакетів надходить через `--data` з канонічного шаблону:
+
+[package.json.deny.json](./template/package.json.deny.json)
+
+✓ `{}` — порожній `package.json` без залежностей
+✗ `{ "dependencies": { "@nitra/minify-image": "^4.0.1" } }` — заборонено, використовуй `npx`
+✗ `{ "devDependencies": { "@nitra/minify-image": "^4.0.1" } }` — заборонено, використовуй `npx`

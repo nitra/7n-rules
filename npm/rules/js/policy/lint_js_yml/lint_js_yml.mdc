@@ -1,0 +1,14 @@
+## Rego-gate `.github/workflows/lint-js.yml`
+
+Rego-пакет: `js_lint.lint_js_yml`
+
+Цільовий файл: `.github/workflows/lint-js.yml`.
+
+Що перевіряється:
+
+- Наявність усіх `uses:`-кроків з канону (subset-of по `jobs.eslint.steps`)
+- Наявність усіх рядків `run:` з канону (substring-match по всіх кроках)
+- `actions/checkout@v6` має мати `with.persist-credentials: false` (inverse-check)
+- Заборона `--fix` у CI: `bunx oxlint ... --fix` або `eslint --fix` у будь-якому `run:` → deny
+
+Канон-snippet: [lint-js.yml.snippet.yml](./template/lint-js.yml.snippet.yml)

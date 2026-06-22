@@ -25,7 +25,10 @@ Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.g
 
 Rego-пакети (запускаються через `npx @nitra/cursor fix`):
 
-- `npm_module.npm_package_json` — валідує `npm/package.json`: поле `types`, наявність і непорожність `files`, subset-of з template (зокрема `"types"` у `files`), заборона `devDependencies`.
-- `npm_module.root_package_json` — валідує кореневий `package.json`: поле `workspaces` має містити `"npm"`.
-- `npm_module.emit_types_config` — валідує `npm/tsconfig.emit-types.json`: `compilerOptions` відповідає канонічному сніпету (allowJs, declaration, emitDeclarationOnly, outDir, skipLibCheck).
+[npm-module-npm_package_json](./policy/npm_package_json/npm_package_json.mdc)
+
+[npm-module-root_package_json](./policy/root_package_json/root_package_json.mdc)
+
+[npm-module-emit_types_config](./policy/emit_types_config/emit_types_config.mdc)
+
 - `npm_module.npm_publish_yml` — template-driven перевірка `.github/workflows/npm-publish.yml` (deep-subset: усі обовʼязкові поля й кроки з канонічного сніпету).

@@ -1,0 +1,17 @@
+## Заборонені залежності у package.json
+
+Rego-пакет: `js_bun_db.package_json`
+
+Цільові файли: `**/package.json`
+
+Перевіряє поле `dependencies` на наявність пакетів із deny-списку [`package.json.deny.json`](./template/package.json.deny.json). Список керується даними (`--data`), тому розширюється без зміни rego-коду.
+
+Поточний deny-список:
+
+- `pg-format` — заміни на Bun native SQL (без ручного форматування)
+- `mysql2` — заміни на Bun native SQL
+
+`pg` у dependencies **не** є порушенням на рівні Rego — виняток для LISTEN/NOTIFY зважується у JS-сканері (`js/safety.mjs`).
+
+✓ `{ "dependencies": { "pg": "^8.0.0" } }` — дозволено
+✗ `{ "dependencies": { "pg-format": "^1.0.0" } }` — `deny: dependencies.pg-format — заміни на Bun native SQL`

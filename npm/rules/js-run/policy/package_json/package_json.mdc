@@ -1,0 +1,38 @@
+## Rego-gate: package.json (залежності та scripts)
+
+Rego-пакет: `js-run.package_json`
+
+**Цільові файли:** `package.json` у backend workspace-пакетах (без `vite` у `devDependencies`)
+
+Перевіряє три класи порушень за deny-списком із template:
+
+Канон deny-списку: [package.json.deny.json](./template/package.json.deny.json)
+
+**1. Заборонені залежності** (`dependencies` / `devDependencies`)
+
+| Пакет | Причина |
+|-------|---------|
+| `bunyan` | використовуй стандартні логери |
+| `@nitra/bunyan` | використовуй стандартні логери |
+
+**2. Заборонений рантайм у `scripts`** (лише backend-пакети без `vite`)
+
+- Патерн `\bnode(\s|$)` — заміни `node` на `bun`
+- Патерн `\benv\s+\$\(cat\s+[^)]+\)\s+bun\b` — заміни `env $(cat A B) bun` на `bun --env-file=A --env-file=B`
+
+**✓ Правильно**
+
+```json
+{ "scripts": { "start": "bun src/index.js" } }
+{ "scripts": { "start": "bun --env-file=.env src/index.js" } }
+```
+
+**✗ Неправильно**
+
+```json
+{ "scripts": { "start": "node src/index.js" } }
+{ "scripts": { "start": "env $(cat .env .env.local) bun src/index.js" } }
+{ "dependencies": { "bunyan": "^1.0.0" } }
+```
+
+Пакети з `vite` у `devDependencies` — frontend, поза областю js-run, перевірка scripts не застосовується.

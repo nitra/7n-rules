@@ -1,0 +1,11 @@
+## Rego gate: заборонені redis-залежності у `package.json`
+
+Rego-пакет: `js-bun-redis.package_json`
+
+**Цільовий файл:** `package.json` (поле `dependencies`)
+
+Перевіряє наявність заборонених redis-пакетів у `dependencies`. Список заборон надходить через `--data` з канонічного шаблону:
+
+[package.json.deny.json](./template/package.json.deny.json)
+
+Повідомлення про порушення формується як `dependencies.<pkg> — <reason>`.

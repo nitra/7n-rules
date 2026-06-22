@@ -15,9 +15,7 @@ alwaysApply: false
 
 ## Швидкий gate через conftest
 
-| Пакет | Що перевіряє |
-|---|---|
-| `docker.lint_docker_yml` | `.github/workflows/lint-docker.yml` відповідає канонічному сніпету (paths, uses, run-підрядки) |
+[docker-lint_docker_yml](./policy/lint_docker_yml/lint_docker_yml.mdc)
 
 [docker-mirror](./js/mirror.mdc)
 

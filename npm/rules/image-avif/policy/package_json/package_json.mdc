@@ -1,0 +1,18 @@
+## Rego-gate: структура опт-аут конфігу у package.json
+
+Rego-пакет: `image-avif.package_json`
+
+Цільові файли: `package.json` (передається через `--input` у conftest).
+
+Перевіряє три умови:
+
+- **Тип поля** — `"@nitra/minify-image"` має бути обʼєктом (якщо задано); рядок, масив чи boolean → deny.
+- **Тип прапора** — `"@nitra/minify-image.disable-avif"` має бути `boolean`; рядок або число → deny.
+- **Typo-ключі** — забороняє ключі зі списку deny-template [`package.json.deny.json`](./template/package.json.deny.json) (наприклад, `"disabled-avif"` замість `"disable-avif"`).
+
+Deny-template: [package.json.deny.json](./template/package.json.deny.json)
+
+✓ `{ "@nitra/minify-image": { "disable-avif": true } }`
+✗ `{ "@nitra/minify-image": { "disabled-avif": true } }` — typo-ключ
+✗ `{ "@nitra/minify-image": "disable-avif" }` — поле не є обʼєктом
+✗ `{ "@nitra/minify-image": { "disable-avif": "yes" } }` — не boolean

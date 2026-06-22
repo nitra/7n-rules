@@ -35,9 +35,10 @@ version: '1.30'
 
 Rego-пакети у `policy/` — запускаються `npx @nitra/cursor fix js` або `conftest`:
 
-| Namespace | Що перевіряє |
-|---|---|
-| `js_lint.package_json` | `package.json`: `"type": "module"`, `engines.node >= 24`, `engines.bun >= 1.3`, `@nitra/eslint-config` >= semver-поріг |
-| `js_lint.jscpd` | `.jscpd.json`: `gitignore`, `exitCode`, `reporters` (subset), `minLines >= канон` |
-| `js_lint.lint_js_yml` | `.github/workflows/lint-js.yml`: required uses/run кроки, `persist-credentials: false`, заборона `--fix` у CI |
-| `js_lint.vscode_extensions` | `.vscode/extensions.json`: наявність трьох канонічних recommendations |
+[js-policy-package_json](./policy/package_json/package_json.mdc)
+
+[js-policy-jscpd](./policy/jscpd/jscpd.mdc)
+
+[js-policy-lint_js_yml](./policy/lint_js_yml/lint_js_yml.mdc)
+
+[js-policy-vscode_extensions](./policy/vscode_extensions/vscode_extensions.mdc)

@@ -1,0 +1,7 @@
+## Відсутність дублів ADR Stop-хуків у `.claude/settings.local.json`
+
+Rego-пакет: `adr.settings_local_json`
+
+Цільовий файл: `.claude/settings.local.json`
+
+Перевіряє **зворотне** до `adr.settings_json`: local-файл **не повинен** містити маркерів `capture-decisions.sh` або `normalize-decisions.sh` у `hooks.Stop[*].hooks[*].command` — інакше кожен скрипт виконається двічі на одну Stop-подію.

@@ -15,6 +15,4 @@ alwaysApply: false
 
 ## Швидкий gate через conftest
 
-| Пакет | Файл | Що перевіряє |
-|---|---|---|
-| `hasura.svc_hl` | `policy/svc_hl/svc_hl.rego` | Іменування headless/clusterIP Service: суфікси `-h-hl` та `-h` |
+[hasura-svc_hl](./policy/svc_hl/svc_hl.mdc)

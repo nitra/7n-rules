@@ -1,0 +1,23 @@
+## Структурні перевірки HPA і PDB
+
+Rego-пакет: `k8s.hpa_pdb`
+
+**Цільові файли:** `hpa.yaml` (`kind: HorizontalPodAutoscaler`) та `pdb.yaml` (`kind: PodDisruptionBudget`) у overlay-каталогах (не в `base/`).
+
+**Що перевіряється:**
+
+HPA (`kind: HorizontalPodAutoscaler` або `apiVersion: autoscaling/…`):
+- `apiVersion: autoscaling/v2` (не v1)
+- `kind: HorizontalPodAutoscaler`
+- `spec` — присутній об'єкт
+- `spec.behavior` — присутній; містить `scaleUp` і `scaleDown`, кожен з непорожнім масивом `policies`
+- `spec.metrics` — непорожній масив
+
+PDB (`kind: PodDisruptionBudget` або `apiVersion: policy/v1`):
+- `apiVersion: policy/v1`
+- `kind: PodDisruptionBudget`
+- `spec` — присутній об'єкт
+- `spec.selector` — присутній об'єкт
+- `spec.selector.matchLabels` — присутній об'єкт
+
+**Примітка:** cross-file перевірки (відповідність `expectedDeployName`, `expectedAppLabel`, `isDevLike`-сегмент) лишаються у JS (`hpaManifestViolations`, `pdbManifestViolations`).

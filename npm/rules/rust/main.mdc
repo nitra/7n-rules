@@ -14,5 +14,5 @@ version: '1.4'
 
 ## Швидкий gate через conftest
 
-- `rust.lint_rust_yml` — перевіряє `.github/workflows/lint-rust.yml`: наявність обов'язкових `uses` (`actions/checkout@v6`, `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`) та `run`-кроків з канону.
-- `rust.vscode_extensions` — перевіряє `.vscode/extensions.json`: `recommendations` містить `rust-lang.rust-analyzer` і `tamasfe.even-better-toml`.
+[rust-lint_rust_yml](./policy/lint_rust_yml/lint_rust_yml.mdc)
+[rust-vscode_extensions](./policy/vscode_extensions/vscode_extensions.mdc)

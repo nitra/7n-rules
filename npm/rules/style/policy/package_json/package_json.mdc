@@ -1,0 +1,18 @@
+## package.json: stylelint-конфіг та devDependencies
+
+Rego-пакет: `style_lint.package_json`
+
+Цільовий файл: `package.json`
+
+Дві незалежні перевірки:
+
+1. **snippet-walker** — якщо поле `stylelint` присутнє у `package.json`, перевіряє `stylelint.extends == "@nitra/stylelint-config"` (2-рівневий обхід через template).
+2. **presence-check** — `@nitra/stylelint-config` має бути у `devDependencies` (ця перевірка завжди активна, не залежить від template).
+
+FS-альтернативи (`.stylelintrc.*` файли) та `.stylelintignore` перевіряються у JS, не в Rego.
+
+Канонічний template: [package.json.snippet.json](./template/package.json.snippet.json)
+
+**✓ Правильно** — `devDependencies` містить `@nitra/stylelint-config`; якщо є поле `stylelint` — `extends` дорівнює `"@nitra/stylelint-config"`.
+
+**✗ Неправильно** — відсутній `@nitra/stylelint-config` у `devDependencies`; або поле `stylelint.extends` має інше значення.

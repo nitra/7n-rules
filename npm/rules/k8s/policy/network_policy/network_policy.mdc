@@ -1,0 +1,22 @@
+## Перевірки NetworkPolicy
+
+Rego-пакет: `k8s.network_policy`
+
+**Цільові файли:** `networkpolicy.yaml` / будь-який YAML з `kind: NetworkPolicy` або `apiVersion: networking.k8s.io/…`.
+
+**Що перевіряється:**
+
+- `apiVersion: networking.k8s.io/v1`
+- `kind: NetworkPolicy`
+- `spec` — присутній об'єкт
+- `spec.podSelector.matchLabels` — присутній об'єкт; поле `app` обов'язкове і непорожнє
+- `spec.policyTypes` — містить `Ingress` і `Egress`
+- `spec.ingress` — хоча б одне правило з `from.podSelector`
+- **Superset-перевірка egress/ingress:** кожне правило з канон-сніпета має бути присутнє в `spec.egress` / `spec.ingress` (extra-правила дозволені). Канон обирається за анотацією `nitra.dev/workload-kind`:
+  - `StatefulSet` → [stateful-set.snippet.yaml](./template/stateful-set.snippet.yaml) (додає intra-replica ingress/egress)
+  - решта (default) → [deployment.snippet.yaml](./template/deployment.snippet.yaml)
+- Заборонено `egress: [{}]` (allow-all) — навіть як extra-правило
+
+**Передача snippets:** через `--data` при виклику conftest (JS передає `templateData` для `runConftestBatch`).
+
+**Примітка:** cross-file визначення `metadata.name` воркнавантаження і мітки `app` — JS (`validateNetworkPolicyForWorkload`).

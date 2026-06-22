@@ -1,0 +1,18 @@
+## Структура `clean-ga-workflows.yml` — видалення завершених workflow runs
+
+Rego-пакет: `ga.clean_ga_workflows`
+
+**Цільовий файл:** `.github/workflows/clean-ga-workflows.yml`
+
+### Що перевіряється
+
+- `name` — точна відповідність значенню з template
+- `on.schedule[].cron` — має містити cron із template (`0 1 16 * *`)
+- `on.workflow_dispatch` — має бути об'єктом `{}`
+- `jobs.cleanup_old_workflows` — job має існувати
+- `jobs.cleanup_old_workflows.runs-on` — відповідно до template (`ubuntu-latest`)
+- `jobs.cleanup_old_workflows.permissions` — `actions: write`, `contents: read`
+- `steps[0].name` і `steps[0].uses` — відповідно до template (`dmvict/clean-workflow-runs@v1`)
+- `steps[0].with` — `token`, `save_period`, `save_min_runs_number` як у template
+
+Канон: [clean-ga-workflows.yml.snippet.yml](./template/clean-ga-workflows.yml.snippet.yml)

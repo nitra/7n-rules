@@ -1,0 +1,20 @@
+## Перевірки ConfigMap для Hasura-Deployment
+
+Rego-пакет: `k8s.hasura_configmap`
+
+**Цільові файли:** `configmap.yaml` у каталогах, де є Deployment з образом `hasura/graphql-engine`. JS (`manifests.mjs`) знаходить відповідні ConfigMap через cross-file збіг і передає їх conftest з цим namespace.
+
+**Що перевіряється (обов'язкові ключі у `data`):**
+
+| Ключ | Очікуване значення |
+|------|--------------------|
+| `HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS` | `"true"` |
+| `HASURA_GRAPHQL_ENABLE_RELAY` | `"false"` |
+| `HASURA_GRAPHQL_ENABLE_TELEMETRY` | `"false"` |
+| `HASURA_GRAPHQL_ENABLED_LOG_TYPES` | `"startup,http-log"` (точно) |
+| `HASURA_GRAPHQL_ENABLED_APIS` | `"metadata,graphql,pgdump"` (base/dev; overlay має патчем замінити на `"metadata,graphql"`) |
+| `HASURA_GRAPHQL_DISABLE_EVENTING` | ключ обов'язковий, значення довільне (рекомендовано `"true"`) |
+
+Семантика: `"true"`/`"false"` приймаються як boolean або рядок (case-insensitive); точний рядок — exact match.
+
+**Примітка:** відбір ConfigMap за сусідством із Hasura-Deployment — cross-file, у JS. Rego — пер-документна валідація полів `data`.

@@ -1,0 +1,7 @@
+## Наявність ADR Stop-хуків у `.claude/settings.json`
+
+Rego-пакет: `adr.settings_json`
+
+Цільовий файл: `.claude/settings.json`
+
+Перевіряє, що project-shared файл містить **обидва** managed Stop-хуки — `capture-decisions.sh` і `normalize-decisions.sh` — у `hooks.Stop[*].hooks[*].command`. Помилка, якщо маркер будь-якого зі скриптів відсутній.

@@ -1,0 +1,15 @@
+## Rego-gate: налаштування форматера nginx у `.vscode/settings.json`
+
+Rego-пакет: `nginx_default_tpl.vscode_settings`
+
+Цільовий файл: `.vscode/settings.json`
+
+Три незалежні deny-правила:
+
+1. `"editor.formatOnSave"` має бути `true` (відсутність або `false` → deny).
+2. `"[nginx]"` має бути обʼєктом (рядок або відсутність → deny).
+3. `"[nginx].editor.defaultFormatter"` має дорівнювати `"ahmadalli.vscode-nginx-conf"`.
+
+✓ `{"editor.formatOnSave": true, "[nginx]": {"editor.defaultFormatter": "ahmadalli.vscode-nginx-conf"}}`
+✗ `{"editor.formatOnSave": false, "[nginx]": {"editor.defaultFormatter": "ahmadalli.vscode-nginx-conf"}}` — formatOnSave не true
+✗ `{"editor.formatOnSave": true, "[nginx]": "ahmadalli.vscode-nginx-conf"}` — `[nginx]` не обʼєкт

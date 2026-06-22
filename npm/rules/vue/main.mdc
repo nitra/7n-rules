@@ -33,9 +33,7 @@ alwaysApply: false
 
 Rego-перевірки (запускаються через `npx @nitra/cursor fix vue`):
 
-| Namespace | Що перевіряє |
-| --- | --- |
-| `vue.package_json` | `vite` ≥ 8 у devDeps, наявність `@vitejs/plugin-vue`, `vue-macros`, `unplugin-auto-import`, `vite-plugin-vue-layouts-next`; відсутність `esbuild`, `vitest`, `jsdom` |
+[vue-package_json](./policy/package_json/package_json.mdc)
 
 ## Перевірка
 

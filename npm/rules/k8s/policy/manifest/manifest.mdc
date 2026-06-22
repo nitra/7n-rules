@@ -1,0 +1,17 @@
+## Пер-документні перевірки маніфестів Kubernetes
+
+Rego-пакет: `k8s.manifest`
+
+**Цільові файли:** будь-який `*.yaml` у шляху з `k8s/` (окрім `kustomization.yaml`, `base/`, `svc.yaml`, `svc-hl.yaml`). Conftest розрізає multi-doc YAML по `---` і запускає policy на кожен документ окремо.
+
+**Що перевіряється:**
+
+- `kind: Ingress` — заборонено; потрібен Gateway API (HTTPRoute / HealthCheckPolicy)
+- `apiVersion: autoscaling/v1` — заборонено; потрібен `autoscaling/v2`
+- `kind: Service` — анотації `cloud.google.com/neg` та `cloud.google.com/backend-config` заборонені
+- `kind: Deployment` — у кожного контейнера (включно з `initContainers`) обов'язкові `resources.requests.cpu` і `resources.requests.memory` (непорожній рядок або число > 0)
+- `kind: Deployment` з образом `hasura/graphql-engine` — образ має бути у білому списку `allowed_hasura_images` (зараз: `hasura/graphql-engine:v2.49.2.ubuntu.amd64`; `docker.io/` префікс допустимий; digest `@sha256:…` відрізається перед порівнянням)
+- `kind: Deployment` — `spec.strategy.type: RollingUpdate` з `maxUnavailable: 0` і `maxSurge: 1`
+- `kind: Deployment` — канонічний запис у `spec.template.spec.topologySpreadConstraints`: `maxSkew: 1`, `topologyKey: kubernetes.io/hostname`, `whenUnsatisfiable: ScheduleAnyway`, `labelSelector.matchLabels.app: <app-label>` (перевіряється лише для Deployment з міткою `app` у `spec.selector.matchLabels`)
+
+**Примітка:** cross-file логіка (Kustomize-резолюція, парність svc/svc-hl, HPA/PDB за каталогом, schema modeline) лишається у JS `rules/k8s/fix.mjs`.

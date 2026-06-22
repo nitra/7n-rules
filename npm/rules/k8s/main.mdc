@@ -45,16 +45,24 @@ alwaysApply: false
 
 Підмножину пер-документних правил продубльовано як rego-полісі у **`npm/rules/k8s/policy/`** (запускається через **`bun run lint-rego`** для `*_test.rego` юніт-тестів і через **`npx @nitra/cursor fix k8s`** для прогону по реальних YAML). JS authoritative; rego — швидкий gate для одиничного маніфеста.
 
-Пакети (директорія в **`npm/rules/k8s/policy/`** → namespace → що перевіряє):
+[k8s-policy-manifest](./policy/manifest/manifest.mdc)
 
-- **`manifest/`** → `k8s.manifest` — per-doc: заборона `kind: Ingress` і `autoscaling/v1`; заборонені GKE-анотації Service; resources.requests.cpu/memory в Deployment; дозволений образ hasura; RollingUpdate strategy; topologySpreadConstraints.
-- **`base_manifest/`** → `k8s.base_manifest` — Deployment у `base/`: фіксовані cpu=`0.02` / memory=`128Mi`; непорожній `metadata.namespace` для namespaced kinds.
-- **`base_kustomization/`** → `k8s.base_kustomization` — `base/kustomization.yaml`: непорожній `namespace:`; заборона `hpa.yaml`/`pdb.yaml` у `resources:`.
-- **`gateway/`** → `k8s.gateway` — HTTPRoute/GRPCRoute/TCPRoute/TLSRoute/UDPRoute: backendRef на headless Service (суфікс `-hl`); заборона redundant `namespace` у backendRef; HealthCheckPolicy: `targetRef.name` з суфіксом `-hl`.
-- **`hasura_configmap/`** → `k8s.hasura_configmap` — ConfigMap поруч з Hasura Deployment: обов'язкові env-ключі та значення.
-- **`hasura_httproute/`** → `k8s.hasura_httproute` — HTTPRoute парний з Hasura Deployment: канон 4 правил (Exact redirect × 2 + PathPrefix rewrite + WebSocket).
-- **`hpa_pdb/`** → `k8s.hpa_pdb` — структурна перевірка HPA (`autoscaling/v2`, spec.behavior, spec.metrics) і PDB (`policy/v1`, spec.selector.matchLabels).
-- **`kustomization/`** → `k8s.kustomization` — `kustomization.yaml`: сортування `resources[]` і `patches[]`; заборона `remove`+`add` на той самий path (вимагає `replace`).
-- **`network_policy/`** → `k8s.network_policy` — NetworkPolicy: apiVersion, spec.podSelector, policyTypes Ingress+Egress, superset-перевірка egress/ingress за snippet-файлами.
-- **`svc_yaml/`** → `k8s.svc_yaml` — `svc.yaml`: `spec.type: ClusterIP`.
-- **`svc_hl_yaml/`** → `k8s.svc_hl_yaml` — `svc-hl.yaml`: `metadata.name` з суфіксом `-hl`; `spec.clusterIP: None`.
+[k8s-policy-base-manifest](./policy/base_manifest/base_manifest.mdc)
+
+[k8s-policy-base-kustomization](./policy/base_kustomization/base_kustomization.mdc)
+
+[k8s-policy-gateway](./policy/gateway/gateway.mdc)
+
+[k8s-policy-hasura-configmap](./policy/hasura_configmap/hasura_configmap.mdc)
+
+[k8s-policy-hasura-httproute](./policy/hasura_httproute/hasura_httproute.mdc)
+
+[k8s-policy-hpa-pdb](./policy/hpa_pdb/hpa_pdb.mdc)
+
+[k8s-policy-kustomization](./policy/kustomization/kustomization.mdc)
+
+[k8s-policy-network-policy](./policy/network_policy/network_policy.mdc)
+
+[k8s-policy-svc-yaml](./policy/svc_yaml/svc_yaml.mdc)
+
+[k8s-policy-svc-hl-yaml](./policy/svc_hl_yaml/svc_hl_yaml.mdc)

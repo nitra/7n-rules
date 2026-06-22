@@ -10,3 +10,5 @@ alwaysApply: false
 [graphql-tooling](./js/tooling.mdc)
 
 [graphql-vscode-extensions](./js/vscode_extensions.mdc)
+
+[graphql-vscode-extensions-policy](./policy/vscode_extensions/vscode_extensions.mdc)

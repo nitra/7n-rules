@@ -31,6 +31,8 @@ version: '1.12'
 
 Rego-пакети, які запускає `npx @nitra/cursor fix js-run` / `npx @nitra/cursor check`:
 
-- `js_run.package_json` — заборонені `dependencies`/`devDependencies` (`bunyan`, `@nitra/bunyan`) і заборонені патерни у `scripts` (`node`, `env $(cat …) bun`)
-- `js_run.jsconfig` — відповідність `jsconfig.json` канону (`NodeNext`, `include: src/**/*`)
-- `js_run.configmap` — наявність `service.name=` і `service.namespace=` у `OTEL_RESOURCE_ATTRIBUTES` в `k8s/base/configmap.yaml`
+[js-run-package_json](./policy/package_json/package_json.mdc)
+
+[js-run-jsconfig](./policy/jsconfig/jsconfig.mdc)
+
+[js-run-configmap](./policy/configmap/configmap.mdc)

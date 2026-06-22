@@ -1,0 +1,9 @@
+## Rego-перевірка наявності graphql.vscode-graphql у recommendations
+
+Rego-пакет: `graphql.vscode_extensions`
+
+Цільовий файл: `.vscode/extensions.json` (передається явно через `runConftestBatch` — без `target.json`, тому не auto-discoverable).
+
+Перевіряє: поле `recommendations` містить рядок `"graphql.vscode-graphql"`. Порожній масив або відсутнє поле — deny. Додаткові записи дозволені.
+
+Запускається умовно — лише якщо JS-сканер виявив `gql\`…\`` у джерелах проєкту.

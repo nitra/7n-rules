@@ -1,0 +1,9 @@
+## `.vscode/settings.json` — налаштування форматування GitHub Actions workflow
+
+Rego-пакет: `ga.vscode_settings`
+
+**Цільовий файл:** `.vscode/settings.json`
+
+Перевіряє 2-рівневу структуру: для кожного `<block-key>` з template кожен `<leaf-key>` у відповідному блоці input має точно відповідати очікуваному значенню. Ключі можуть містити дужки та крапки (VS Code-конвенція, наприклад `[github-actions-workflow]`).
+
+Канон: [settings.json.snippet.json](./template/settings.json.snippet.json)

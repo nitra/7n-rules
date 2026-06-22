@@ -1,0 +1,11 @@
+## Перевірка `.oxfmtrc.json` — конфігурація oxfmt форматера
+
+Rego-пакет: `text.oxfmtrc`
+
+Цільовий файл: `.oxfmtrc.json`
+
+**Що перевіряється:**
+
+- Наявність усіх обов'язкових ключів (presence-only): `arrowParens`, `printWidth`, `bracketSpacing`, `bracketSameLine`, `semi`, `singleQuote`, `tabWidth`, `trailingComma`, `useTabs`
+- Scalar leafs: точні значення відповідно до канонічного snippet
+- `ignorePatterns`: масив має бути надмножиною канонічних glob-ів (subset-of перевірка)

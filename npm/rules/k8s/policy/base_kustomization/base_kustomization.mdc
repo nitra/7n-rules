@@ -1,0 +1,12 @@
+## Перевірки `base/kustomization.yaml`
+
+Rego-пакет: `k8s.base_kustomization`
+
+**Цільові файли:** `k8s/.../base/kustomization.yaml` (вибір через `isBaseKustomizationPath` у JS; `kind: Kustomization`, `apiVersion: kustomize.config.k8s.io/…`).
+
+**Що перевіряється:**
+
+- `namespace:` — обов'язковий і непорожній (наприклад `namespace: dev`)
+- `resources:` — не повинен містити `hpa.yaml` або `pdb.yaml` (у будь-якому підкаталозі); HPA/PDB мають бути у sibling-каталозі `components/` і підключатися з overlay через `components: [- ../components]`
+
+**Примітка:** рекурсивний обхід `resources:`/`components:`/`bases:` із зануренням у вкладені `kustomization.yaml` — у JS (`verifyK8sBaseKustomizeHasNoHpaPdb`). NetworkPolicy у `base/resources:` — дозволена і не блокується цим правилом.

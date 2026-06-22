@@ -1,0 +1,9 @@
+## Перевірка `.vscode/extensions.json` (Rego-gate)
+
+Rego-пакет: `rust.vscode_extensions`
+
+Цільовий файл: `.vscode/extensions.json`
+
+Семантика `contains`: кожен запис з канону має бути присутнім у `recommendations` — додаткові розширення дозволені. Канон завантажується через `--data` з template-сніпету.
+
+Канонічний template: [extensions.json.snippet.json](./template/extensions.json.snippet.json)

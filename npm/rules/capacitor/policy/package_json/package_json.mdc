@@ -1,0 +1,9 @@
+## Rego-gate: версія `@capacitor/core` у `package.json`
+
+Rego-пакет: `capacitor.package_json`
+
+Цільовий файл: `package.json` (один файл, `target.json` → `files.single`).
+
+Перевіряє наявність `dependencies["@capacitor/core"]` і вимагає, щоб перша мажорна цифра діапазону була ≥ 8. Значення `workspace:*` пропускається без помилки.
+
+Спрощений порт JS-логіки: `||`-діапазони та hyphen-range — лише у JS (`fix.mjs`). Цей gate — швидка перевірка одиничного `package.json` (наприклад, через IDE або conftest у CI).

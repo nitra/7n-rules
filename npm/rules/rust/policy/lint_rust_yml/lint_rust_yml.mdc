@@ -1,0 +1,12 @@
+## Перевірка `.github/workflows/lint-rust.yml`
+
+Rego-пакет: `rust.lint_rust_yml`
+
+Цільовий файл: `.github/workflows/lint-rust.yml`
+
+Перевіряє:
+- кожен `uses`-крок з канону присутній у workflow (підмножина): `actions/checkout@v6`, `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`
+- кожен `run`-крок з канону присутній як підрядок серед усіх `run`-кроків: `cargo fmt --all -- --check`, `cargo clippy --all-targets --all-features -- -D warnings`
+- канон завантажується через `--data` з template-сніпету — drift-safe: зміна шаблону автоматично рухає перевірку
+
+Канонічний template: [lint-rust.yml.snippet.yml](./template/lint-rust.yml.snippet.yml)

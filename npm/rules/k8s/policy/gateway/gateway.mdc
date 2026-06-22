@@ -1,0 +1,17 @@
+## Перевірки Gateway API маршрутів і HealthCheckPolicy
+
+Rego-пакет: `k8s.gateway`
+
+**Цільові файли:** YAML з `kind` одного з: `HTTPRoute`, `GRPCRoute`, `TCPRoute`, `TLSRoute`, `UDPRoute` (`apiVersion: gateway.networking.k8s.io/…`); `HealthCheckPolicy` (`apiVersion: networking.gke.io/…`).
+
+**Що перевіряється:**
+
+- `HealthCheckPolicy`: `spec.targetRef` обов'язковий; якщо `targetRef.kind` не вказано або `Service` — `targetRef.name` має закінчуватися на `-hl` (headless Service)
+- Gateway API маршрут: кожен `backendRef` до Service (визначається за полями `name` + `port`; `kind`/`group` необов'язкові) — ім'я має закінчуватися на `-hl`
+- Gateway API маршрут: `backendRef` з полем `namespace`, що збігається з `metadata.namespace` маршруту, — заборонено (надлишкове поле, ламається при overlay-перенесеннях)
+
+**Приклади:**
+
+✓ `backendRef.name: my-svc-hl` (headless)
+✗ `backendRef.name: my-svc` (без суфікса `-hl`)
+✗ `backendRef.namespace: dev` при `metadata.namespace: dev` (redundant)

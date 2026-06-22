@@ -1,0 +1,11 @@
+## Rego-gate `.vscode/extensions.json`
+
+Rego-пакет: `js_lint.vscode_extensions`
+
+Цільовий файл: `.vscode/extensions.json`.
+
+Що перевіряється:
+
+- `recommendations` — subset-of: масив має містити всі три канонічні розширення (`dbaeumer.vscode-eslint`, `github.vscode-github-actions`, `oxc.oxc-vscode`)
+
+Канон-snippet: [extensions.json.snippet.json](./template/extensions.json.snippet.json)

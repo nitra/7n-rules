@@ -30,10 +30,16 @@ version: '1.30'
 
 Rego-пакети, що перевіряються через conftest (auto-discovered за `target.json` поряд із `.rego`):
 
-- `text.cspell` — `.cspell.json`: version, ignorePaths, import (@nitra/cspell-dict), language, заборонені @cspell/dict-* у import
-- `text.lint_text` — `.github/workflows/lint-text.yml`: name, on.push/pull_request branches+paths, runs-on, permissions, кроки uses+run
-- `text.markdownlint` — `.markdownlint-cli2.jsonc`: gitignore, config leafs (MD013, MD024.siblings_only, MD029, MD040, MD041)
-- `text.oxfmtrc` — `.oxfmtrc.json`: обовʼязкові ключі (presence), ignorePatterns subset, scalar leafs
-- `text.package_json` — `package.json`: заборонені top-level/deps (prettier, @nitra/prettier-config, markdownlint-cli2), @nitra/cspell-dict ^2.0.0+ у devDependencies, scripts без prettier
-- `text.vscode_extensions` — `.vscode/extensions.json`: recommendations містить канонічні розширення
-- `text.vscode_settings` — `.vscode/settings.json`: editor.formatOnSave, editor.defaultFormatter для мов
+[text-policy-cspell](./policy/cspell/cspell.mdc)
+
+[text-policy-lint_text](./policy/lint_text/lint_text.mdc)
+
+[text-policy-markdownlint](./policy/markdownlint/markdownlint.mdc)
+
+[text-policy-oxfmtrc](./policy/oxfmtrc/oxfmtrc.mdc)
+
+[text-policy-package_json](./policy/package_json/package_json.mdc)
+
+[text-policy-vscode_extensions](./policy/vscode_extensions/vscode_extensions.mdc)
+
+[text-policy-vscode_settings](./policy/vscode_settings/vscode_settings.mdc)

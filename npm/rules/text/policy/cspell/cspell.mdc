@@ -1,0 +1,34 @@
+## Перевірка `.cspell.json` — структура та canonical import
+
+Rego-пакет: `text.cspell`
+
+Цільовий файл: `.cspell.json`
+
+**Що перевіряється:**
+
+- `version` — має відповідати канону (наразі `"0.2"`)
+- `language` — поле обов'язкове (presence-only, значення довільне, наприклад `"en,uk"`)
+- `ignorePaths` — масив має бути надмножиною канонічних glob-ів, включно з `docs/adr/**`
+- `import` — має містити підрядок `@nitra/cspell-dict`; заборонені будь-які записи з підрядком `@cspell/dict-` (використовуй лише `@nitra/cspell-dict`)
+
+**Приклади:**
+
+✓ правильно:
+```json
+{
+  "version": "0.2",
+  "language": "en,uk",
+  "import": ["@nitra/cspell-dict/cspell-ext.json"],
+  "ignorePaths": ["**/node_modules/**", "**/.git/**", "docs/adr/**"]
+}
+```
+
+✗ неправильно:
+```json
+{
+  "version": "0.1",
+  "import": ["@cspell/dict-de"],
+  "ignorePaths": []
+}
+```
+(відсутнє `language`, застарілий `version`, заборонений `@cspell/dict-`, не всі canonical `ignorePaths`)

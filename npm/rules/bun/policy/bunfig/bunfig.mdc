@@ -1,0 +1,12 @@
+## Rego-gate: відповідність bunfig.toml канонічному шаблону
+
+Rego-пакет: `bun.bunfig`
+
+Цільовий файл: `bunfig.toml` (корінь репо).
+
+Шаблон (leaf-значення, які gate порівнює): [bunfig.toml.snippet.toml](./template/bunfig.toml.snippet.toml)
+
+Gate порівнює кожен leaf-ключ у кожній секції шаблону з фактичним значенням у `bunfig.toml`. Зайві ключі та секції — ігноруються. Deny-повідомлення виникає, якщо:
+
+- секція відсутня або не є обʼєктом (`bunfig.toml: відсутня секція [install]`)
+- leaf-ключ має інше значення (`bunfig.toml: у секції [install] має бути linker = "hoisted"`)

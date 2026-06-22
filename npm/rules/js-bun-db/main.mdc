@@ -27,9 +27,4 @@ version: '1.15'
 
 ## Швидкий gate через conftest
 
-Rego-пакет `js_bun_db.package_json` (файл `policy/package_json/package_json.rego`) перевіряє `dependencies` у `package.json` проти deny-списку [`package.json.deny.json`](./policy/package_json/template/package.json.deny.json):
-
-- `pg-format` → заміни на Bun native SQL — без ручного форматування
-- `mysql2` → заміни на Bun native SQL
-
-AST-скан коду (`new SQL(...)` у функціях, `unsafe()` без маркера, pg-leftover, динамічні `IN (…)` через `.join(',')`) лишається у JS-перевірці (`js/safety.mjs`). Виключення `pg` для LISTEN/NOTIFY зважується у JS (Rego не бачить JS-коду).
+[js-bun-db-package-json](./policy/package_json/package_json.mdc)

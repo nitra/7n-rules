@@ -13,6 +13,4 @@ alwaysApply: false
 
 ## Швидкий gate через conftest
 
-| Rego-пакет | Що перевіряє |
-|---|---|
-| `image_avif.package_json` | typo-ключі, тип поля та тип `disable-avif` в опт-аут конфігу `package.json` |
+[image-avif-package_json](./policy/package_json/package_json.mdc)

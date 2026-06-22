@@ -1,0 +1,19 @@
+## Rego-gate: налаштування форматера rego у `.vscode/settings.json`
+
+Rego-пакет: `rego.vscode_settings`
+
+Цільовий файл: `.vscode/settings.json`
+
+Перевіряє `[rego]`-блок — два листові ключі:
+
+- `editor.defaultFormatter` має дорівнювати `"tsandall.opa"`
+- `editor.formatOnSave` має бути `true`
+
+Канонічний сніпет: [settings.json.snippet.json](./template/settings.json.snippet.json)
+
+Два незалежні deny-правила:
+
+1. Leaf-by-leaf: якщо `[rego]`-блок є обʼєктом — кожне ключ/значення зі сніпету звіряється з фактичним значенням (відсутнє або відмінне — deny).
+2. Тип: якщо `[rego]`-блок присутній, але не є обʼєктом (наприклад, рядок) — окрема помилка типу.
+
+Канон надходить через `--data` як `data.template.snippet`.

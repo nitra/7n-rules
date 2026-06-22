@@ -1,0 +1,20 @@
+## Структурні перевірки `kustomization.yaml`
+
+Rego-пакет: `k8s.kustomization`
+
+**Цільові файли:** будь-який `kustomization.yaml` (`kind: Kustomization`, `apiVersion: kustomize.config.k8s.io/…`).
+
+**Що перевіряється:**
+
+- `resources[]` — має бути масивом рядків; непорожні рядки мають бути відсортовані за алфавітом (en, case-insensitive)
+- `patches[]` — має бути масивом; елементи мають бути відсортовані за tuple `(target.kind, target.name, target.namespace, path)` (case-insensitive)
+- Inline patch (поле `patch` як YAML-рядок JSON6902): у наборі операцій не може бути одночасно `op: remove` і `op: add` на той самий `path` — потрібен `op: replace`
+
+**Приклади:**
+
+✓ `resources: [deployment.yaml, hpa.yaml, svc.yaml]` (алфавіт)
+✗ `resources: [svc.yaml, deployment.yaml]` (не за алфавітом)
+✓ `op: replace` для зміни значення поля
+✗ `op: remove` + `op: add` на один `path` в одному patch
+
+**Примітка:** резолюція kustomize-дерева, перевірка існування refs на диску, парність `svc.yaml`/`svc-hl.yaml` — JS (`rules/k8s/fix.mjs`).

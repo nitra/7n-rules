@@ -13,6 +13,4 @@ alwaysApply: false
 
 ## Швидкий gate через conftest
 
-| Пакет | Що перевіряє |
-|---|---|
-| `php.lint_php_yml` | Структуру `.github/workflows/lint-php.yml` — наявність канонічних `run:`-кроків |
+[php-lint_php_yml](./policy/lint_php_yml/lint_php_yml.mdc)

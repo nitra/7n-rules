@@ -1,0 +1,15 @@
+## Rego-gate: іменування headless та clusterIP Service
+
+Rego-пакет: `hasura.svc_hl`
+
+Цільові файли: `hasura/k8s/base/svc.yaml`, `hasura/k8s/base/svc-hl.yaml`
+
+Перевіряє два правила іменування Kubernetes Service:
+
+- **Headless Service** (`spec.clusterIP: None`) — ім'я має закінчуватись на `-h-hl`
+- **ClusterIP Service** (не headless) — ім'я має закінчуватись на `-h`
+
+Ресурси з `kind != "Service"` пропускаються без помилок.
+
+✓ `db-h-hl` (headless), `db-h` (clusterIP)
+✗ `contract-h` як headless, `db-h-hl` як clusterIP

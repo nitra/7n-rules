@@ -9,9 +9,7 @@ version: '1.5'
 
 ## Швидкий gate через conftest
 
-| Namespace | Файл | Що перевіряє |
-|---|---|---|
-| `tauri.vscode_extensions` | `.vscode/extensions.json` | `recommendations` містить `tauri-apps.tauri-vscode` |
+[tauri-vscode_extensions](./policy/vscode_extensions/vscode_extensions.mdc)
 
 [tauri-tooling](./js/tooling.mdc)
 

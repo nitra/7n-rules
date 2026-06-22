@@ -13,8 +13,6 @@ version: '1.1'
 
 ## Швидкий gate через conftest
 
-| namespace | що перевіряє |
-|---|---|
-| `capacitor.package_json` | версія `@capacitor/core` у `dependencies` — мінімум major 8 (спрощений JS-порт для одиничного `package.json`) |
+[capacitor-package_json](./policy/package_json/package_json.mdc)
 
 JS-перевірка (`platforms.mjs`) — authoritative: підтримує `||`-діапазони, hyphen-range, workspace-monorepo та iOS-специфічну логіку (Podfile).

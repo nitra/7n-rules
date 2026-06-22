@@ -1,0 +1,13 @@
+## Rego-gate: перевірка `pyproject.toml`
+
+Rego-пакет: `python.pyproject_toml`
+
+Цільовий файл: `pyproject.toml`
+
+Дві групи правил:
+
+**1. Заборона Poetry** — перевіряє заборонені під-таблиці `[tool.*]` за deny-template (drift-safe через `--data template`): [pyproject.toml.deny.toml](./template/pyproject.toml.deny.toml)
+
+**2. PEP 621** — `[project].name` і `[project].version` мають бути непорожніми рядками.
+
+Канонічний цільовий вигляд: [pyproject.toml.snippet.toml](./template/pyproject.toml.snippet.toml)

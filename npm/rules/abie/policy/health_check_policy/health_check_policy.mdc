@@ -1,0 +1,17 @@
+## Rego: структура `HealthCheckPolicy` у `hc.yaml`
+
+Rego-пакет: `abie.health_check_policy`
+
+Цільові файли: `…/k8s/.../hc.yaml`.
+
+Перевіряє для `kind: HealthCheckPolicy` (з `apiVersion` що починається на `networking.gke.io/`):
+
+- `apiVersion` — точно `networking.gke.io/v1`;
+- `metadata.name` — непорожній рядок;
+- `spec.default.config.type` — `HTTP`;
+- `spec.default.config.httpHealthCheck.requestPath` — непорожній, починається з `/`;
+- `spec.default.config.httpHealthCheck.port` — `8080`;
+- `spec.targetRef.kind` — `Service`;
+- `spec.targetRef.name` — `<metadata.name>-hl` (якщо `metadata.name` вже закінчується на `-hl` — використовується як є).
+
+FS-парність HCP↔Deployment та modeline `$schema` у `hc.yaml` — поза Rego, у `js/hc_pairing.mjs`. JS-опис структури та приклад — у `js/hc_pairing.mdc`.

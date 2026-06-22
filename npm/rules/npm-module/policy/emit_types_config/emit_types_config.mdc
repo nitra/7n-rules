@@ -1,0 +1,40 @@
+## Rego-gate: конфігурація генерації типів `npm/tsconfig.emit-types.json`
+
+Rego-пакет: `npm-module.emit_types_config`
+
+Цільовий файл: `npm/tsconfig.emit-types.json`
+
+### Що перевіряється
+
+Leaf-by-leaf порівняння з канонічним сніпетом (через `--data`): кожне поле всередині `compilerOptions` має точно відповідати очікуваному значенню. Якщо секція `compilerOptions` відсутня або не є обʼєктом — окрема deny-помилка.
+
+Канонічний сніпет: [tsconfig.emit-types.json.snippet.json](./template/tsconfig.emit-types.json.snippet.json)
+
+### Допустимі відхилення
+
+Додаткові поля у `compilerOptions` (наприклад `rootDir`, `baseUrl`) не спричиняють помилку — перевіряється лише наявність і коректність обовʼязкових ключів зі сніпету.
+
+### Приклади
+
+✓ Правильно:
+```json
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "types",
+    "skipLibCheck": true
+  }
+}
+```
+
+✗ Неправильно — неправильний `outDir`:
+```json
+{ "compilerOptions": { "outDir": "dist" } }
+```
+
+✗ Неправильно — відсутній `compilerOptions`:
+```json
+{}
+```

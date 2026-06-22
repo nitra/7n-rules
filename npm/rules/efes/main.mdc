@@ -20,4 +20,4 @@ bun add -d @nitra/efes-shared
 
 Пакети (директорія в **`npm/rules/efes/policy/`** → namespace → що перевіряє):
 
-- **`package_json_shared/`** → `efes.package_json_shared` — у кореневому `package.json` `devDependencies` має містити `@nitra/efes-shared` (presence-only, версію не фіксуємо). **Цільові файли:** `package.json`.
+[efes-package_json_shared](./policy/package_json_shared/package_json_shared.mdc)

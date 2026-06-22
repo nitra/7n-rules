@@ -1,0 +1,17 @@
+## Rego: `@nitra/abie-shared` у `devDependencies`
+
+Rego-пакет: `abie.package_json_shared`
+
+Цільовий файл: `package.json` (кореневий).
+
+Перевіряє presence-only: `devDependencies` має містити ключ `@nitra/abie-shared`. Версію не фіксує. Якщо ключ є лише у `dependencies` (не `devDependencies`) — deny.
+
+JS-опис та інструкція встановлення — у секції «`@nitra/abie-shared` у `devDependencies`» в `main.mdc`.
+
+```json title="package.json (фрагмент)"
+{
+  "devDependencies": {
+    "@nitra/abie-shared": "^1.0.0"   // ✓
+  }
+}
+```

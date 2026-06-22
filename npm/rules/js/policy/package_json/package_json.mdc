@@ -1,0 +1,15 @@
+## Rego-gate `package.json`
+
+Rego-пакет: `js_lint.package_json`
+
+Цільовий файл: `package.json` (корінь і workspace-пакети).
+
+Що перевіряється:
+
+- `"type"` — точна відповідність `"module"` (з канон-snippet)
+- `scripts.lint-js` — нормалізована точна відповідність (collapse whitespace)
+- `engines.node` — semver-парсинг: major >= 24 (inverse, без template)
+- `engines.bun` — semver-парсинг: >= 1.3 (inverse, без template)
+- `devDependencies["@nitra/eslint-config"]` — наявність ключа + semver >= порогу зі snippet (`^3.10.0`); `workspace:*` завжди проходить
+
+Канон-snippet: [package.json.snippet.json](./template/package.json.snippet.json)

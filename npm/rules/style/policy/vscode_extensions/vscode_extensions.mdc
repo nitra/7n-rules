@@ -1,0 +1,13 @@
+## .vscode/extensions.json: розширення для stylelint
+
+Rego-пакет: `style_lint.vscode_extensions`
+
+Цільовий файл: `.vscode/extensions.json`
+
+Перевіряє, що масив `recommendations` містить усі записи з канонічного template (subset-check). Додаткові розширення поза списком — дозволені.
+
+Канонічний template: [extensions.json.snippet.json](./template/extensions.json.snippet.json)
+
+**✓ Правильно** — `recommendations` містить `"stylelint.vscode-stylelint"` (може бути і більше елементів).
+
+**✗ Неправильно** — `recommendations` відсутній або не містить `"stylelint.vscode-stylelint"`.

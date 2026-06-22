@@ -1,0 +1,25 @@
+## Rego-gate: jsconfig.json
+
+Rego-пакет: `js-run.jsconfig`
+
+**Цільові файли:** `jsconfig.json` у корені backend workspace-пакету
+
+Порівнює `jsconfig.json` з каноном через walker по всіх листах template:
+
+- `compilerOptions.*` — значення мають збігатись точно
+- `include` — масив порівнюється як множина (точний склад)
+
+Канон: [jsconfig.json.snippet.json](./template/jsconfig.json.snippet.json)
+
+Перевірені поля:
+
+| Поле | Очікуване значення |
+|------|--------------------|
+| `compilerOptions.module` | `"NodeNext"` |
+| `compilerOptions.moduleResolution` | `"NodeNext"` |
+| `compilerOptions.target` | `"esnext"` |
+| `compilerOptions.lib` | `["esnext"]` |
+| `compilerOptions.checkJs` | `false` |
+| `include` | `["src/**/*"]` |
+
+Якщо розділ `compilerOptions` відсутній або не є обʼєктом — deny.

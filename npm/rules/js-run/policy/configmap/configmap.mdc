@@ -1,0 +1,31 @@
+## Rego-gate: OTEL ConfigMap (k8s)
+
+Rego-пакет: `js-run.configmap`
+
+**Цільові файли:** `k8s/base/configmap.yaml` (і будь-які ConfigMap у kustomize-оверлеях)
+
+**Умова спрацювання:** `input.kind == "ConfigMap"`
+
+Перевіряє, що поле `data.OTEL_RESOURCE_ATTRIBUTES` містить усі обовʼязкові substring-маркери, визначені у template:
+
+- `service.name=`
+- `service.namespace=`
+
+Канон маркерів: [configmap.yaml.contains.yml](./template/configmap.yaml.contains.yml)
+
+**✓ Правильно**
+
+```yaml
+data:
+  OTEL_RESOURCE_ATTRIBUTES: 'service.name=my-svc,service.namespace=prod'
+```
+
+**✗ Неправильно**
+
+```yaml
+data:
+  OTEL_RESOURCE_ATTRIBUTES: 'service.name=my-svc'
+# Відсутній service.namespace= → deny
+```
+
+Ресурси типу `kind: Deployment` та інші non-ConfigMap — ігноруються.

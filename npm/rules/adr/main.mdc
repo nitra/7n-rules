@@ -78,4 +78,8 @@ Cursor Agent читає project-level **`.cursor/hooks.json`**. `npx @nitra/curs
 
 [adr-settings-policy](./js/settings_policy.mdc)
 
+[adr-settings_json-policy](./policy/settings_json/settings_json.mdc)
+
+[adr-settings_local_json-policy](./policy/settings_local_json/settings_local_json.mdc)
+
 [adr-hooks](./js/hooks.mdc)

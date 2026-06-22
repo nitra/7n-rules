@@ -1,0 +1,9 @@
+## Rego: `HTTPRoute` у base-шарі — домени `aiml.live`
+
+Rego-пакет: `abie.http_route_base`
+
+Цільові файли: `…/k8s/.../base/.../*.yaml` типу HTTPRoute.
+
+Перевіряє, що кожен hostname у `spec.hostnames` належить до домену `aiml.live`: точна відповідність `aiml.live`, wildcard `*.aiml.live` або будь-який піддомен `*.aiml.live`. Перевірка case-insensitive. Не є HTTPRoute — пакет не діє.
+
+JS-частина (cross-file аналіз ua-overlay, backendRefs, тощо) — у `js/ua_http_route.mjs`. Людинозрозумілий опис + приклади — у `js/http_route_base.mdc`.
