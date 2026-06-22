@@ -30,7 +30,7 @@ export function listManagedMirrors(repoRoot) {
       return {
         id,
         mirrorPath: join(rulesDir, f),
-        canonicalPath: join(repoRoot, 'npm/rules', id, `${id}${MDC_EXT}`)
+        canonicalPath: join(repoRoot, 'npm/rules', id, `main${MDC_EXT}`)
       }
     })
     .filter(m => existsSync(m.canonicalPath))

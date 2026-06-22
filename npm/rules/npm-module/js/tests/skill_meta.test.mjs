@@ -6,17 +6,17 @@ import { check } from '../skill_meta.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('skill_meta check', () => {
-  test('усі скіли з валідним meta.json → 0', async () => {
+  test('усі скіли з валідним main.json → 0', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'npm', 'skills', 'fix'))
-      await writeJson(join(dir, 'npm', 'skills', 'fix', 'meta.json'), { auto: 'завжди', worktree: true })
+      await writeJson(join(dir, 'npm', 'skills', 'fix', 'main.json'), { auto: 'завжди', worktree: true })
       await ensureDir(join(dir, 'npm', 'skills', 'lint'))
-      await writeJson(join(dir, 'npm', 'skills', 'lint', 'meta.json'), { auto: 'завжди', worktree: false })
+      await writeJson(join(dir, 'npm', 'skills', 'lint', 'main.json'), { auto: 'завжди', worktree: false })
       expect(await check(dir)).toBe(0)
     })
   })
 
-  test('відсутній meta.json → 1', async () => {
+  test('відсутній main.json → 1', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'npm', 'skills', 'fix'))
       expect(await check(dir)).toBe(1)
@@ -26,7 +26,7 @@ describe('skill_meta check', () => {
   test('залишковий auto.md → 1', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'npm', 'skills', 'fix'))
-      await writeJson(join(dir, 'npm', 'skills', 'fix', 'meta.json'), { auto: 'завжди', worktree: true })
+      await writeJson(join(dir, 'npm', 'skills', 'fix', 'main.json'), { auto: 'завжди', worktree: true })
       await writeFile(join(dir, 'npm', 'skills', 'fix', 'auto.md'), 'завжди\n', 'utf8')
       expect(await check(dir)).toBe(1)
     })
@@ -35,7 +35,7 @@ describe('skill_meta check', () => {
   test('worktree не boolean → 1', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'npm', 'skills', 'fix'))
-      await writeJson(join(dir, 'npm', 'skills', 'fix', 'meta.json'), { auto: 'завжди', worktree: 'yes' })
+      await writeJson(join(dir, 'npm', 'skills', 'fix', 'main.json'), { auto: 'завжди', worktree: 'yes' })
       expect(await check(dir)).toBe(1)
     })
   })
@@ -43,7 +43,7 @@ describe('skill_meta check', () => {
   test('auto присутнє, але нерозпізнане → 1', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'npm', 'skills', 'fix'))
-      await writeJson(join(dir, 'npm', 'skills', 'fix', 'meta.json'), { auto: 'always', worktree: true })
+      await writeJson(join(dir, 'npm', 'skills', 'fix', 'main.json'), { auto: 'always', worktree: true })
       expect(await check(dir)).toBe(1)
     })
   })
@@ -57,7 +57,7 @@ describe('skill_meta check', () => {
   test('requireRoot:true без worktree → 0 (валідний in-place root-only скіл)', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'npm', 'skills', 'start-check'))
-      await writeJson(join(dir, 'npm', 'skills', 'start-check', 'meta.json'), {
+      await writeJson(join(dir, 'npm', 'skills', 'start-check', 'main.json'), {
         auto: 'завжди',
         worktree: false,
         requireRoot: true
@@ -69,7 +69,7 @@ describe('skill_meta check', () => {
   test('requireRoot не boolean → 1', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'npm', 'skills', 'fix'))
-      await writeJson(join(dir, 'npm', 'skills', 'fix', 'meta.json'), {
+      await writeJson(join(dir, 'npm', 'skills', 'fix', 'main.json'), {
         auto: 'завжди',
         worktree: false,
         requireRoot: 'yes'
@@ -81,7 +81,7 @@ describe('skill_meta check', () => {
   test('worktree:true + requireRoot:false → 1 (суперечність)', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'npm', 'skills', 'fix'))
-      await writeJson(join(dir, 'npm', 'skills', 'fix', 'meta.json'), {
+      await writeJson(join(dir, 'npm', 'skills', 'fix', 'main.json'), {
         auto: 'завжди',
         worktree: true,
         requireRoot: false

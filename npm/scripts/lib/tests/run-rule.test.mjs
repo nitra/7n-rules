@@ -256,7 +256,7 @@ describe('runRule — MDC template refs', () => {
       const ruleDir = join(rulesDir, 'myrule')
       await ensureDir(join(ruleDir, 'fix', 'concern', 'template'))
       await writeFile(join(ruleDir, 'fix', 'concern', 'template', 'example.js'), 'x\n', 'utf8')
-      await writeFile(join(ruleDir, 'myrule.mdc'), '# Rule\n\nNo references\n', 'utf8')
+      await writeFile(join(ruleDir, 'main.mdc'), '# Rule\n\nNo references\n', 'utf8')
       const rule = { id: 'myrule', jsConcerns: [], policyConcerns: [] }
       const code = await runRule(rule, rulesDir, new Map())
       expect(code).toBe(1)
@@ -269,7 +269,7 @@ describe('runRule — MDC template refs', () => {
       const ruleDir = join(rulesDir, 'myrule2')
       await ensureDir(join(ruleDir, 'fix', 'concern', 'template'))
       await writeFile(join(ruleDir, 'fix', 'concern', 'template', 'example.js'), 'x\n', 'utf8')
-      await writeFile(join(ruleDir, 'myrule2.mdc'), '# Rule\n\n[ref](./fix/concern/template/example.js)\n', 'utf8')
+      await writeFile(join(ruleDir, 'main.mdc'), '# Rule\n\n[ref](./fix/concern/template/example.js)\n', 'utf8')
       const rule = { id: 'myrule2', jsConcerns: [], policyConcerns: [] }
       const code = await runRule(rule, rulesDir, new Map())
       expect(code).toBe(0)

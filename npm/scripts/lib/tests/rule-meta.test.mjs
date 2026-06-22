@@ -59,9 +59,9 @@ describe('parseRuleLintSpec', () => {
 })
 
 describe('readRuleMetaRaw', () => {
-  test('валідний meta.json → обʼєкт', async () => {
+  test('валідний main.json → обʼєкт', async () => {
     await withTmpDir(async dir => {
-      await writeJson(join(dir, 'meta.json'), { auto: 'завжди' })
+      await writeJson(join(dir, 'main.json'), { auto: 'завжди' })
       expect(readRuleMetaRaw(dir)).toEqual({ auto: 'завжди' })
     })
   })
@@ -72,7 +72,7 @@ describe('readRuleMetaRaw', () => {
   })
   test('невалідний JSON → null', async () => {
     await withTmpDir(async dir => {
-      await writeFile(join(dir, 'meta.json'), '{{{', 'utf8')
+      await writeFile(join(dir, 'main.json'), '{{{', 'utf8')
       expect(readRuleMetaRaw(dir)).toBeNull()
     })
   })

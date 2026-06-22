@@ -28,14 +28,14 @@
     },
     {
       "name": "n-cursor skill meta",
-      "description": "Маніфест skill-пакета n-cursor (npm/skills/<id>/meta.json) — назва, тригери, дозволи",
-      "fileMatch": ["npm/skills/*/meta.json"],
+      "description": "Маніфест skill-пакета n-cursor (npm/skills/<id>/main.json) — назва, тригери, дозволи",
+      "fileMatch": ["npm/skills/*/main.json"],
       "url": "https://unpkg.com/@nitra/cursor/schemas/skill-meta.json"
     },
     {
       "name": "n-cursor rule meta",
-      "description": "Маніфест rule-пакета n-cursor (npm/rules/<id>/meta.json) — назва, опис, версія правила",
-      "fileMatch": ["npm/rules/*/meta.json"],
+      "description": "Маніфест rule-пакета n-cursor (npm/rules/<id>/main.json) — назва, опис, версія правила",
+      "fileMatch": ["npm/rules/*/main.json"],
       "url": "https://unpkg.com/@nitra/cursor/schemas/rule-meta.json"
     }
   ]

@@ -81,7 +81,7 @@ export async function runTemplateSubsetConcern(concernAbsDir, target, files, rul
   for (const file of files) {
     const rel = relative(process.cwd(), file) || file
     const actual = await parseByExt(file)
-    const opts = { targetPath: rel, source: `${ruleId}.mdc` }
+    const opts = { targetPath: rel, source: 'main.mdc' }
     const violations = [
       ...(typeof data.snippet === 'string'
         ? checkTextSubset(actual, data.snippet, opts)
@@ -118,7 +118,7 @@ async function runPolicyConcern(bundledRulesDir, ruleId, concernName, walkCache)
     if (target.files.required && target.files.single) {
       const msg =
         target.missingMessage ??
-        `${target.files.single} не існує — створи згідно ${ruleId}.mdc (${ruleId}.${concernName})`
+        `${target.files.single} не існує — створи згідно main.mdc (${ruleId}.${concernName})`
       reporter.fail(msg)
     }
     return reporter.getExitCode()
@@ -182,11 +182,11 @@ export async function runRule(rule, bundledRulesDir, walkCache) {
   }
 
   const ruleDir = join(bundledRulesDir, rule.id)
-  const missing = await findMissingMdcRefs(ruleDir, rule.id)
+  const missing = await findMissingMdcRefs(ruleDir)
   if (missing.length > 0) {
     const reporter = createCheckReporter()
     for (const rel of missing) {
-      reporter.fail(`${rule.id}.mdc: відсутнє markdown-посилання на template-файл ${rel}`)
+      reporter.fail(`main.mdc: відсутнє markdown-посилання на template-файл ${rel}`)
     }
     if (reporter.getExitCode() !== 0) totalCode = 1
   }

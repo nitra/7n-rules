@@ -70,7 +70,7 @@ export function parseRuleLintSpec(value) {
  * @returns {Record<string, unknown> | null} обʼєкт або `null` (немає файлу / невалідний JSON / не-обʼєкт)
  */
 export function readRuleMetaRaw(ruleDir) {
-  const metaPath = join(ruleDir, 'meta.json')
+  const metaPath = join(ruleDir, 'main.json')
   if (!existsSync(metaPath)) return null
   try {
     const parsed = JSON.parse(readFileSync(metaPath, 'utf8'))

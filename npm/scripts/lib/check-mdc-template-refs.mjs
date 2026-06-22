@@ -45,8 +45,8 @@ async function collectFiles(dir) {
  * @param {string} ruleId basename правила (напр. "security")
  * @returns {Promise<string[]>} відносні шляхи template-файлів без посилань у .mdc
  */
-export async function findMissingMdcRefs(ruleDir, ruleId) {
-  const mdcPath = join(ruleDir, `${ruleId}.mdc`)
+export async function findMissingMdcRefs(ruleDir) {
+  const mdcPath = join(ruleDir, 'main.mdc')
   if (!existsSync(mdcPath)) return []
   const mdc = await readFile(mdcPath, 'utf8')
   const allFiles = await walkTemplateDirs(ruleDir)

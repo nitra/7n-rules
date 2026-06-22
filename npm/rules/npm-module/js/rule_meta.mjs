@@ -17,11 +17,11 @@ function checkAutoField(id, raw, reporter) {
   if (raw.auto === undefined) return true
   const spec = parseRuleAutoSpec(raw.auto)
   if (spec === null) {
-    reporter.fail(`rules/${id}: meta.json.auto нерозпізнане (очікується "завжди" / масив / {glob} / {predicate})`)
+    reporter.fail(`rules/${id}: main.json.auto нерозпізнане (очікується "завжди" / масив / {glob} / {predicate})`)
     return false
   }
   if ('predicate' in spec && !Object.hasOwn(RULE_PREDICATES, spec.predicate)) {
-    reporter.fail(`rules/${id}: невідомий predicate "${spec.predicate}" (немає в RULE_PREDICATES)`)
+    reporter.fail(`rules/${id}: main.json — невідомий predicate "${spec.predicate}" (немає в RULE_PREDICATES)`)
     return false
   }
   return true
@@ -38,7 +38,7 @@ function checkAutoField(id, raw, reporter) {
 function checkLintField(id, ruleDir, raw, reporter) {
   if (raw.lint === undefined) return true
   if (parseRuleLintSpec(raw.lint) === null) {
-    reporter.fail(`rules/${id}: meta.json.lint нерозпізнане (очікується "per-file"|"full")`)
+    reporter.fail(`rules/${id}: main.json.lint нерозпізнане (очікується "per-file"|"full")`)
     return false
   }
   const mainPath = join(ruleDir, 'main.mjs')
@@ -63,19 +63,19 @@ function checkRule(id, ruleDir, reporter) {
   let ruleOk = true
 
   if (existsSync(join(ruleDir, 'auto.md'))) {
-    reporter.fail(`rules/${id}: залишковий auto.md — видали (метадані тепер у meta.json)`)
+    reporter.fail(`rules/${id}: залишковий auto.md — видали (метадані тепер у main.json)`)
     ruleOk = false
   }
 
-  // Канон (scripts.mdc): {rule}.mdc — ОБОВ'ЯЗКОВИЙ у кожному npm/rules/<id>/.
-  if (!existsSync(join(ruleDir, `${id}.mdc`))) {
-    reporter.fail(`rules/${id}: відсутній ${id}.mdc — обов'язковий (scripts.mdc)`)
+  // Канон (scripts.mdc): main.mdc — ОБОВ'ЯЗКОВИЙ у кожному npm/rules/<id>/.
+  if (!existsSync(join(ruleDir, 'main.mdc'))) {
+    reporter.fail(`rules/${id}: відсутній main.mdc — обов'язковий (scripts.mdc)`)
     ruleOk = false
   }
 
   const raw = readRuleMetaRaw(ruleDir)
   if (!raw) {
-    reporter.fail(`rules/${id}: відсутній або невалідний meta.json`)
+    reporter.fail(`rules/${id}: відсутній або невалідний main.json`)
     return
   }
 
@@ -83,7 +83,7 @@ function checkRule(id, ruleDir, reporter) {
   if (!checkLintField(id, ruleDir, raw, reporter)) ruleOk = false
 
   if (ruleOk) {
-    reporter.pass(`rules/${id}: meta.json валідний`)
+    reporter.pass(`rules/${id}: main.json валідний`)
   }
 }
 

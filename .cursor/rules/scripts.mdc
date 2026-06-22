@@ -23,8 +23,8 @@ version: '1.15'
 
 ```
 npm/rules/{rule}/
-├── {rule}.mdc                              ← текст правила (frontmatter + body) — ОБОВ'ЯЗКОВИЙ
-├── meta.json                              ← метадані правила: auto (умова автоактивації)
+├── main.mdc                               ← текст правила (frontmatter + body) — ОБОВ'ЯЗКОВИЙ
+├── main.json                              ← метадані правила: auto (умова автоактивації)
 ├── fix.mjs                                 ← entry-point правила (wrapper навколо runStandardRule)
 ├── js/                                     ← JS-частина (опційно)
 │   ├── <concern>.mjs                       ← FS / cross-file / autofix перевірка концерну
@@ -46,9 +46,9 @@ npm/rules/{rule}/
 
 Іменування директорії правила — **kebab-case** (як id в `.n-cursor.json:rules`). Імена концернів — **snake_case**, помічники — **kebab-case** з префіксом rule/concern (`docker-mirror.mjs`, `vue-forbidden-imports.mjs`).
 
-Автоактивація правила — поле `auto` у `npm/rules/<id>/meta.json`: `"завжди"` | масив id правил-залежностей | `{glob}` (наявність файлів) | `{predicate, arg}` (незводимий предикат із реєстру `npm/scripts/lib/rule-predicates.mjs`). Інтерпретатор — `npm/scripts/auto-rules.mjs`; валідація — концерн `npm-module/js/rule_meta.mjs`.
+Автоактивація правила — поле `auto` у `npm/rules/<id>/main.json`: `"завжди"` | масив id правил-залежностей | `{glob}` (наявність файлів) | `{predicate, arg}` (незводимий предикат із реєстру `npm/scripts/lib/rule-predicates.mjs`). Інтерпретатор — `npm/scripts/auto-rules.mjs`; валідація — концерн `npm-module/js/rule_meta.mjs`.
 
-Lint розділено на дві фази через поле `lint` у `npm/rules/<id>/meta.json`: `quick` (крок у `n-cursor lint` — по змінених файлах working-tree, і в `lint-ci`) та `ci` (лише `n-cursor lint-ci` — по всьому репо, для крос-файлових jscpd/knip/trufflehog та actionlint/conftest). Виконавець кроку — `npm/rules/<id>/js/lint.mjs` з `export function lint(files, cwd)`: `files` — масив змінених (quick) або `undefined` (ci, весь проєкт). Оркестратор — `npm/scripts/lint-cli.mjs` (`runLint`); кроки строго послідовні (заборона паралельного eslint). Валідація — концерн `npm-module/js/rule_meta.mjs`.
+Lint розділено на дві фази через поле `lint` у `npm/rules/<id>/main.json`: `quick` (крок у `n-cursor lint` — по змінених файлах working-tree, і в `lint-ci`) та `ci` (лише `n-cursor lint-ci` — по всьому репо, для крос-файлових jscpd/knip/trufflehog та actionlint/conftest). Виконавець кроку — `npm/rules/<id>/js/lint.mjs` з `export function lint(files, cwd)`: `files` — масив змінених (quick) або `undefined` (ci, весь проєкт). Оркестратор — `npm/scripts/lint-cli.mjs` (`runLint`); кроки строго послідовні (заборона паралельного eslint). Валідація — концерн `npm-module/js/rule_meta.mjs`.
 
 **Discovery** (`listJsConcerns` у `npm/scripts/utils/discover-checkable-rules.mjs`): сканує `js/`, повертає файли `*.mjs` без `.test.mjs`. Підкаталоги (`tests/`, `templates/`, `data/`) скіпаються через `!entry.isFile()`. Каталог `utils/` discovery не бачить — він peer до `js/`.
 
@@ -70,17 +70,17 @@ Lint розділено на дві фази через поле `lint` у `npm/
 ```
 npm/skills/{skill}/
 ├── SKILL.md                       ← інструкція скіла (конвенція Cursor; frontmatter + body)
-├── meta.json                      ← метадані скіла: auto (умова автоактивації), worktree (bool)
+├── main.json                      ← метадані скіла: auto (умова автоактивації), worktree (bool)
 └── js/                            ← скіл-специфічний код (опційно)
     ├── <concern>.mjs              ← детермінований скрипт, що обслуговує лише цей скіл
     └── tests/<concern>.test.mjs   ← тести поруч із джерелом
 ```
 
-`meta.json` тримає `auto` (умова автоактивації: `"завжди"` або масив id правил; опційне) і `worktree` (boolean: чи виконувати скіл в окремому git-worktree — один інстанс, без паралелі). Валідація — концерн `npm-module/js/skill_meta.mjs`.
+`main.json` тримає `auto` (умова автоактивації: `"завжди"` або масив id правил; опційне) і `worktree` (boolean: чи виконувати скіл в окремому git-worktree — один інстанс, без паралелі). Валідація — концерн `npm-module/js/skill_meta.mjs`.
 
 **Контракт розташування скрипта скіла:** код, що обслуговує **лише один скіл** (детермінований сканер, парсер, генератор для цього скіла), живе в `npm/skills/{skill}/js/<concern>.mjs` — **не** в `npm/scripts/`. Імпорти за тією ж конвенцією, що й у правил (`js/<concern>.mjs` → scripts-утиліта: `'../../../scripts/<X>.mjs'`; тест `js/tests/<concern>.test.mjs` → концерн `'../<concern>.mjs'`, scripts-утиліта `'../../../../scripts/<X>.mjs'`). Скіл-скрипт запускається з **установленого пакета** через `npx @nitra/cursor <command>` (підкоманда в `npm/bin/n-cursor.js` робить dynamic import з `'../skills/{skill}/js/<concern>.mjs'`), тож у `package.json:files` каталог `skills/` уже включено, а `*.test.mjs` виключено.
 
-**Синк копіює лише top-level файли скіла.** Під час `npx @nitra/cursor` у проєкт-споживач із `npm/skills/{skill}/` переноситься тільки `SKILL.md` (+ генеровані `.claude/commands/` і `.pi/skills/` стаби); `meta.json` **не** копіюється, підкаталог `js/` **не** копіюється (його код виконується з пакета, як `npm/rules/<id>/js/` ніколи не їде в споживача). Тому `syncSkills` ігнорує підкаталоги — додавання `js/` у скіл не ламає синк. При `worktree:true` у синкнутий `.cursor/skills/n-<id>/SKILL.md` вшивається worktree-блок між маркерами `n-cursor:worktree:start/end` (ідемпотентно).
+**Синк копіює лише top-level файли скіла.** Під час `npx @nitra/cursor` у проєкт-споживач із `npm/skills/{skill}/` переноситься тільки `SKILL.md` (+ генеровані `.claude/commands/` і `.pi/skills/` стаби); `main.json` **не** копіюється, підкаталог `js/` **не** копіюється (його код виконується з пакета, як `npm/rules/<id>/js/` ніколи не їде в споживача). Тому `syncSkills` ігнорує підкаталоги — додавання `js/` у скіл не ламає синк. При `worktree:true` у синкнутий `.cursor/skills/n-<id>/SKILL.md` вшивається worktree-блок між маркерами `n-cursor:worktree:start/end` (ідемпотентно).
 
 **Крос-правильна / крос-скіл інфраструктура** (CLI-диспатч, оркестратори, спільні утиліти, що обслуговують ≥2 правила/скіли) — у `npm/scripts/` (`cli-entry.mjs`, `auto-rules.mjs`, `sync-claude-config.mjs`, `utils/` тощо) + тести поруч з джерелом. Скрипт, прив'язаний до одного скіла, у `npm/scripts/` **не** кладемо — він іде в `npm/skills/{skill}/js/` (див. контракт вище).
 
@@ -155,7 +155,7 @@ npm/skills/{skill}/
 
 **Red flag:** додаєш inline-fenced-блок або inline-string поруч з template-лінком / під JS-перевіркою / в rego — майже завжди це канон, який має бути єдино в `template/<target>.<slot>.<ext>` і читатися звідти.
 
-**Red flag (pure-doc):** у канонічному `npm/rules/<id>/<id>.mdc` зʼявляється fenced-блок з ` ```<ext> title="<filename>" ` — будь-який, навіть якщо поруч **немає** ані template-лінка, ані check'а. `title="<filename>"` сигналізує канон конкретного файлу проєкту, і він має жити в `template/<basename>.snippet.<ext>` з markdown-лінком у `.mdc`, а не дублюватися fenced-блоком inline. Виняток — контрприклади (`title="❌ ..."`, `title="✅ ..."`) і анонімні приклади без `title=`. Перед коммітом `<id>.mdc` з новим `title="<filename>"` fenced-блоком — зупинись і створи концерн з template-файлом.
+**Red flag (pure-doc):** у канонічному `npm/rules/<id>/main.mdc` зʼявляється fenced-блок з ` ```<ext> title="<filename>" ` — будь-який, навіть якщо поруч **немає** ані template-лінка, ані check'а. `title="<filename>"` сигналізує канон конкретного файлу проєкту, і він має жити в `template/<basename>.snippet.<ext>` з markdown-лінком у `.mdc`, а не дублюватися fenced-блоком inline. Виняток — контрприклади (`title="❌ ..."`, `title="✅ ..."`) і анонімні приклади без `title=`. Перед коммітом `main.mdc` з новим `title="<filename>"` fenced-блоком — зупинись і створи концерн з template-файлом.
 
 ## Перш ніж писати / розширювати `check.mjs`
 
@@ -182,7 +182,7 @@ npm/skills/{skill}/
 
 Правило без актуальної перевірки (або з застарілою логікою) дає хибну впевненість: агенти й CI покладаються на `check`.
 
-- **Завжди** тримай узгодженими текст правила (`npm/rules/<id>/<id>.mdc` у пакеті та/або `.cursor/rules/n-<id>.mdc` локально) і відповідну перевірку — `js/<concern>.mjs` та/або `policy/<concern>/<concern>.rego`.
+- **Завжди** тримай узгодженими текст правила (`npm/rules/<id>/main.mdc` у пакеті та/або `.cursor/rules/n-<id>.mdc` локально) і відповідну перевірку — `js/<concern>.mjs` та/або `policy/<concern>/<concern>.rego`.
 - Додав або змінив вимогу в правилі — **у тому ж логічному кроці** онови відповідний `check.mjs` / `<concern>.rego` / `template/<target>.<slot>.<ext>`: умови, повідомлення `fail` / `pass`, deny-rules, drift-тести. Канонічний літерал — у template; перевірка читає його звідти.
 - Якщо нова вимога **перевірювана програмно**, а концерну ще немає — створи концерн за алгоритмом `conftest.mdc` (Rego-first): пер-документні валідації → `policy/<concern>/<concern>.rego` + `template/`; FS / cross-file / AST → `js/<concern>.mjs`.
 - Не закривай задачу лише оновленням `.mdc`, якщо для цього правила вже існує check/policy або з'явилась нова перевірювана умова — check має відображати актуальні критерії.

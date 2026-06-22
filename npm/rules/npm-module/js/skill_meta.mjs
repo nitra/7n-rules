@@ -15,15 +15,15 @@ import { parseSkillAutoSpec, readSkillMetaRaw } from '../../../scripts/lib/skill
 function checkSkillFields(id, raw, reporter) {
   let ok = true
   if (typeof raw.worktree !== 'boolean') {
-    reporter.fail(`skills/${id}: meta.json.worktree має бути boolean`)
+    reporter.fail(`skills/${id}: main.json.worktree має бути boolean`)
     ok = false
   }
   if (raw.auto !== undefined && parseSkillAutoSpec(raw.auto) === null) {
-    reporter.fail(`skills/${id}: meta.json.auto нерозпізнане — очікується "завжди" або непорожній масив правил`)
+    reporter.fail(`skills/${id}: main.json.auto нерозпізнане — очікується "завжди" або непорожній масив правил`)
     ok = false
   }
   if (raw.requireRoot !== undefined && typeof raw.requireRoot !== 'boolean') {
-    reporter.fail(`skills/${id}: meta.json.requireRoot має бути boolean`)
+    reporter.fail(`skills/${id}: main.json.requireRoot має бути boolean`)
     ok = false
   }
   if (raw.worktree === true && raw.requireRoot === false) {
@@ -46,20 +46,20 @@ function checkSkill(id, skillDir, reporter) {
   let skillOk = true
 
   if (existsSync(join(skillDir, 'auto.md'))) {
-    reporter.fail(`skills/${id}: залишковий auto.md — видали (метадані тепер у meta.json)`)
+    reporter.fail(`skills/${id}: залишковий auto.md — видали (метадані тепер у main.json)`)
     skillOk = false
   }
 
   const raw = readSkillMetaRaw(skillDir)
   if (!raw) {
-    reporter.fail(`skills/${id}: відсутній або невалідний meta.json (очікується {"auto"?, "worktree": bool})`)
+    reporter.fail(`skills/${id}: відсутній або невалідний main.json (очікується {"auto"?, "worktree": bool})`)
     return
   }
 
   if (!checkSkillFields(id, raw, reporter)) skillOk = false
 
   if (skillOk) {
-    reporter.pass(`skills/${id}: meta.json валідний`)
+    reporter.pass(`skills/${id}: main.json валідний`)
   }
 }
 

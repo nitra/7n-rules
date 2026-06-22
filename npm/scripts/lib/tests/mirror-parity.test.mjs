@@ -24,7 +24,7 @@ const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..')
 async function seed(dir, canonical, mirror) {
   await mkdir(join(dir, '.cursor/rules'), { recursive: true })
   await mkdir(join(dir, 'npm/rules/x'), { recursive: true })
-  await writeFile(join(dir, 'npm/rules/x/x.mdc'), canonical)
+  await writeFile(join(dir, 'npm/rules/x/main.mdc'), canonical)
   await writeFile(join(dir, '.cursor/rules/n-x.mdc'), mirror)
 }
 

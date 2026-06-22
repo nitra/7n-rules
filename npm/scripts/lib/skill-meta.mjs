@@ -56,7 +56,7 @@ export function skillRequiresRoot(meta) {
  * @returns {Record<string, unknown> | null} розпарсений обʼєкт або `null` (немає файлу / невалідний JSON / не-обʼєкт)
  */
 export function readSkillMetaRaw(skillDir) {
-  const metaPath = join(skillDir, 'meta.json')
+  const metaPath = join(skillDir, 'main.json')
   if (!existsSync(metaPath)) return null
   try {
     const parsed = JSON.parse(readFileSync(metaPath, 'utf8'))
