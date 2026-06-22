@@ -1,5 +1,11 @@
 # Changelog
 
+## [12.8.6] - 2026-06-22
+
+### Changed
+
+- ✨ feat(rules/abie): http_route_base.mdc + активація + ua-домени у ua_http_route.mdc
+
 ## [12.8.5] - 2026-06-22
 
 ### Changed
