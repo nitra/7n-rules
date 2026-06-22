@@ -1,5 +1,11 @@
 # Changelog
 
+## [12.8.9] - 2026-06-22
+
+### Changed
+
+- ♻️ refactor(npm): Вдосконалено логіку `full`-scope правил у delta-режимі
+
 ## [12.8.8] - 2026-06-22
 
 ### Changed
