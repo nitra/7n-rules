@@ -1,5 +1,11 @@
 # Changelog
 
+## [12.8.4] - 2026-06-22
+
+### Changed
+
+- ♻️ refactor(npm): Перехід з `style-lint` на `style` у правил та конфігах
+
 ## [12.8.3] - 2026-06-22
 
 ### Changed
