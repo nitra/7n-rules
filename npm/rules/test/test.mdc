@@ -1,5 +1,5 @@
 ---
-description: JS-тести (*.test.mjs) живуть у tests/. Правило `test` керує stryker.config.mjs + vitest.config.mjs (якщо js-lint enabled) і .cargo/mutants.toml (якщо rust enabled).
+description: JS-тести (*.test.mjs) живуть у tests/. Правило `test` керує stryker.config.mjs + vitest.config.mjs (якщо js enabled) і .cargo/mutants.toml (якщо rust enabled).
 version: '2.8'
 globs: "**/{.n-cursor.json,package.json,Cargo.toml,stryker.config.mjs,vitest.config.mjs,vitest.config.js,.cargo/mutants.toml},**/*.test.mjs"
 alwaysApply: false
@@ -132,7 +132,7 @@ test.skipIf(env.STRYKER_MUTATOR_WORKER)('узгоджені з поточним 
 
 **Scoped-режим `--changed`:** `n-cursor coverage --changed` звужує scope до файлів, змінених від git merge-base поточної гілки з `main` або `origin/main`; якщо обидва refs відсутні — до робочого дерева vs HEAD. `git diff <base>` проти робочого дерева ловить committed і uncommitted однаково, тож результат не залежить від того, чи крок уже закомічено. Недосяжний `base` (rebase/force-update) — fail-closed (помилка, не тихий pass). JS-провайдер ганяє `vitest --changed <base>` (лише зачеплені тести) і Stryker `--mutate` по змінених production-файлах (тест-файли відкидаються); roots без змінених JS пропускаються. Rust-провайдер пропускається, якщо не змінено `.rs`/`Cargo.*` (інакше — повний crate-прогін; per-file scoping cargo-mutants — окремий крок). Порожній scope (нема релевантних змін) — pass. У changed-режимі `COVERAGE.md` **не** перезаписується (рішення гейту — лише exit-код) і LLM-класифікація не запускається. Швидкі gate-и викликають саме `coverage --changed`; повний coverage (увесь проєкт, запис `COVERAGE.md`) лишається для `bun run coverage` / `/n-coverage-fix`.
 
-Провайдери живуть у `npm/rules/<rule>/coverage/coverage.mjs` (постачаються правилами мови/рантайму: `js-lint`, `rust`, у майбутньому `python` тощо). Оркестратор — у `npm/rules/test/coverage/coverage.mjs`.
+Провайдери живуть у `npm/rules/<rule>/coverage/coverage.mjs` (постачаються правилами мови/рантайму: `js`, `rust`, у майбутньому `python` тощо). Оркестратор — у `npm/rules/test/coverage/coverage.mjs`.
 
 У `package.json` (корінь) має бути `scripts.coverage` із викликом `n-cursor coverage`:
 
@@ -144,7 +144,7 @@ test.skipIf(env.STRYKER_MUTATOR_WORKER)('узгоджені з поточним 
 
 ## Налаштування mutation-testing
 
-Якщо у `.n-cursor.json#rules` присутнє правило `js-lint` — правило `test` створює canonical baseline `stryker.config.mjs` + `vitest.config.mjs` у **кожному** JS-root проєкту: у кожному workspace з власним `package.json` (або в корені для single-package). У monorepo з `workspaces: ['app', 'scripts']` отримаєте `app/stryker.config.mjs` + `app/vitest.config.mjs` і `scripts/stryker.config.mjs` + `scripts/vitest.config.mjs`. Якщо у JS-root уже лежить legacy `vitest.config.js` — він лишається валідним, новий `.mjs` поряд не створюється, а `vitest.configFile` у скопійованому `stryker.config.mjs` приводиться до фактичного імені.
+Якщо у `.n-cursor.json#rules` присутнє правило `js` — правило `test` створює canonical baseline `stryker.config.mjs` + `vitest.config.mjs` у **кожному** JS-root проєкту: у кожному workspace з власним `package.json` (або в корені для single-package). У monorepo з `workspaces: ['app', 'scripts']` отримаєте `app/stryker.config.mjs` + `app/vitest.config.mjs` і `scripts/stryker.config.mjs` + `scripts/vitest.config.mjs`. Якщо у JS-root уже лежить legacy `vitest.config.js` — він лишається валідним, новий `.mjs` поряд не створюється, а `vitest.configFile` у скопійованому `stryker.config.mjs` приводиться до фактичного імені.
 
 Канон Stryker config (Vitest runner + perTest): [stryker.config.baseline.mjs](./js/data/stryker_config/stryker.config.baseline.mjs)
 
@@ -202,7 +202,7 @@ Customization (mutate patterns, exclude rules, timeout) — відповідал
 
 Якщо інше правило спеціалізує mutation-behavior — воно зобов'язане **доповнювати** існуючий `.cargo/mutants.toml` без дублювання (додавати лише відсутні ключі) і **не перетирати** ручні налаштування. Послідовний запуск `npx @nitra/cursor fix test` після `fix tauri` не має скидати tauri-tuning, і навпаки — повторний `fix tauri` не дублює секції.
 
-Додатково: коли `js-lint` enabled, концерн `stryker_config` без дублювання додає у кореневий `.gitignore` тест-патерни:
+Додатково: коли `js` enabled, концерн `stryker_config` без дублювання додає у кореневий `.gitignore` тест-патерни:
 
 - `**/reports/stryker/` — увесь каталог Stryker-output-у (backup'и `tempDirName`, `mutation.json`, HTML/dashboard-репорти якщо додасте інші reporter-и).
 - `**/coverage/` — весь output vitest v8 coverage (`lcov.info` + HTML `lcov-report/`). Ефемерний: регенерується кожним прогоном, фінальні метрики живуть у `COVERAGE.md`. Gitignore не заважає `n-cursor coverage` читати `lcov.info` у тому ж прогоні.

@@ -273,7 +273,7 @@ function makeOrchestratorFixture({ rules = [], providers = {} } = {}) {
 
 describe('runCoverageSteps', () => {
   test('один провайдер — без рядка Разом (дублював би єдиний рядок)', async () => {
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': ONE_ROW_PROVIDER } })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(0)
     const md = readFileSync(join(fx.cwd, 'COVERAGE.md'), 'utf8')
@@ -284,8 +284,8 @@ describe('runCoverageSteps', () => {
 
   test('пропускає правила без провайдера (silently)', async () => {
     const fx = makeOrchestratorFixture({
-      rules: ['js-lint', 'no-such-rule'],
-      providers: { 'js-lint': ONE_ROW_PROVIDER }
+      rules: ['js', 'no-such-rule'],
+      providers: { 'js': ONE_ROW_PROVIDER }
     })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(0)
@@ -294,8 +294,8 @@ describe('runCoverageSteps', () => {
 
   test('пропускає правила де detect() === false', async () => {
     const fx = makeOrchestratorFixture({
-      rules: ['js-lint', 'rust'],
-      providers: { 'js-lint': ONE_ROW_PROVIDER, rust: SKIP_PROVIDER }
+      rules: ['js', 'rust'],
+      providers: { 'js': ONE_ROW_PROVIDER, rust: SKIP_PROVIDER }
     })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(0)
@@ -305,7 +305,7 @@ describe('runCoverageSteps', () => {
   })
 
   test('exit 1 коли жоден провайдер не відпрацював', async () => {
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': SKIP_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': SKIP_PROVIDER } })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(1)
     fx.cleanup()
@@ -319,8 +319,8 @@ describe('runCoverageSteps', () => {
       export const otherExport = 42
     `
     const fx = makeOrchestratorFixture({
-      rules: ['test', 'js-lint'],
-      providers: { test: NOT_A_PROVIDER, 'js-lint': ONE_ROW_PROVIDER }
+      rules: ['test', 'js'],
+      providers: { test: NOT_A_PROVIDER, 'js': ONE_ROW_PROVIDER }
     })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(0)
@@ -331,8 +331,8 @@ describe('runCoverageSteps', () => {
 
   test('агрегує два провайдери і рахує total коректно', async () => {
     const fx = makeOrchestratorFixture({
-      rules: ['js-lint', 'rust'],
-      providers: { 'js-lint': ONE_ROW_PROVIDER, rust: ONE_ROW_PROVIDER }
+      rules: ['js', 'rust'],
+      providers: { 'js': ONE_ROW_PROVIDER, rust: ONE_ROW_PROVIDER }
     })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(0)
@@ -624,14 +624,14 @@ describe('runCoverageSteps — disable-rules', () => {
 
   test('правило у disable-rules скіпається, але інші правила працюють', async () => {
     const fx = makeFixtureWithDisable({
-      rules: ['js-lint', 'rust'],
+      rules: ['js', 'rust'],
       disableRules: ['rust'],
-      providers: { 'js-lint': ONE_ROW_PROVIDER, rust: ONE_ROW_PROVIDER }
+      providers: { 'js': ONE_ROW_PROVIDER, rust: ONE_ROW_PROVIDER }
     })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(0)
     const md = readFileSync(join(fx.cwd, 'COVERAGE.md'), 'utf8')
-    // Лише один Test (js-lint), бо rust був disabled
+    // Лише один Test (js), бо rust був disabled
     expect(md.match(/\| Test \|/g)).toHaveLength(1)
     fx.cleanup()
   })
@@ -644,16 +644,16 @@ describe('runCoverageSteps — console output', () => {
 
   test('друкує "→ <ruleId> coverage…" для активного провайдера', async () => {
     const logSpy = vi.spyOn(console, 'log').mockReturnValue()
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': ONE_ROW_PROVIDER } })
     await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     const calls = logSpy.mock.calls.map(args => String(args[0]))
-    expect(calls.some(s => s.includes('→ js-lint coverage…'))).toBe(true)
+    expect(calls.some(s => s.includes('→ js coverage…'))).toBe(true)
     fx.cleanup()
   })
 
   test('друкує "✓ COVERAGE.md" після успішного запису', async () => {
     const logSpy = vi.spyOn(console, 'log').mockReturnValue()
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': ONE_ROW_PROVIDER } })
     await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     const calls = logSpy.mock.calls.map(args => String(args[0]))
     expect(calls).toContain('✓ COVERAGE.md')
@@ -662,7 +662,7 @@ describe('runCoverageSteps — console output', () => {
 
   test('друкує error-повідомлення "Жодного провайдера..." коли rows порожні', async () => {
     const errSpy = vi.spyOn(console, 'error').mockReturnValue()
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': SKIP_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': SKIP_PROVIDER } })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(1)
     const calls = errSpy.mock.calls.map(args => String(args[0]))
@@ -673,7 +673,7 @@ describe('runCoverageSteps — console output', () => {
 
 describe('runCoverageSteps — utf8 кодування', () => {
   test('COVERAGE.md читається як utf8 і містить кирилицю заголовків', async () => {
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': ONE_ROW_PROVIDER } })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(0)
     const md = readFileSync(join(fx.cwd, 'COVERAGE.md'), 'utf8')
@@ -693,7 +693,7 @@ describe('runCoverageSteps — opts.fix=false safe path', () => {
 
   test('opts.fix === false НЕ виконує dynamic import — runCoverageSteps завершується успішно', async () => {
     vi.spyOn(console, 'log').mockReturnValue()
-    const fxNoFix = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    const fxNoFix = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': ONE_ROW_PROVIDER } })
     const code = await runCoverageSteps({ cwd: fxNoFix.cwd, rulesDir: fxNoFix.rulesDir, fix: false })
     expect(code).toBe(0)
     fxNoFix.cleanup()
@@ -777,7 +777,7 @@ describe('runCoverageSteps — writeFile utf8 encoding (вбиває L185:49 "ut
     // Якщо мутант замінить 'utf8' на "" — node може кинути ERR_INVALID_ARG_VALUE
     // (writeFile очікує валідну encoding або null), і тест fail. Або (залежно від версії)
     // запис відбудеться у unknown encoding і кирилиця не збережеться.
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': ONE_ROW_PROVIDER } })
     const code = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(code).toBe(0)
     // Читаємо як utf8 — кириличні заголовки мають збігатися byte-to-byte.
@@ -813,7 +813,7 @@ describe('runCoverageCli — покриття обгортки з withLock', () 
   })
 
   test('runCoverageCli без opts: викликає withLock один раз з ключем "coverage" і callback-функцією', async () => {
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': ONE_ROW_PROVIDER } })
     // runCoverageCli не приймає cwd/rulesDir, тому передаємо через зовнішній виклик…
     // Хак: викликаємо runCoverageCli без opts і чекаємо exit 1 (бо без cwd воно піде в реальний cwd
     // де `.n-cursor.json` може бути або відсутній). Але нам важлива саме обгортка `withLock`.
@@ -854,7 +854,7 @@ describe('runCoverageCli — покриття обгортки з withLock', () 
     // 2-й runner має викликати runCoverageSteps({fix:false}) — перевіряємо побічно:
     // через ще один mock на withLock + захоплення fn недостатньо, тож виконуємо fn у тестовому
     // сендбоксі та перевіряємо, що НЕ було спроби dynamic import (тобто opts.fix === false).
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': ONE_ROW_PROVIDER } })
     // Підмінимо реальну логіку fn: викличемо її напряму у read-only-режимі.
     // Зважаючи, що в реальному CLI fn = () => runCoverageSteps({fix:false}), результат — exit code.
     // Перевіримо через side-effect: stub.fixSurvivedMutants НЕ повинна бути викликана.
@@ -1003,7 +1003,7 @@ describe('runCoverageSteps — opts.fix gate (L189: вмикає/вимикає 
 
   test('opts.fix=false → fixSurvivedMutants НЕ викликається (вбиває L189 → true)', async () => {
     const logSpy = vi.spyOn(console, 'log').mockReturnValue()
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': ONE_ROW_PROVIDER } })
     const code = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir, fix: false })
     expect(code).toBe(0)
     const messages = logSpy.mock.calls.map(args => String(args[0]))
@@ -1013,7 +1013,7 @@ describe('runCoverageSteps — opts.fix gate (L189: вмикає/вимикає 
 
   test('opts.fix=true → fixSurvivedMutants викликається (вбиває L189 → false)', async () => {
     const logSpy = vi.spyOn(console, 'log').mockReturnValue()
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': ONE_ROW_PROVIDER } })
     const code = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir, fix: true })
     expect(code).toBe(0)
     const messages = logSpy.mock.calls.map(args => String(args[0]))
@@ -1179,8 +1179,8 @@ describe('runCoverageSteps — classify повертає verdicts (lines 232-237
     ]
     vi.mocked(classify).mockResolvedValueOnce(verdicts)
     const fx = makeOrchestratorFixture({
-      rules: ['js-lint'],
-      providers: { 'js-lint': SURVIVED_PROVIDER_WITH_SURVIVED }
+      rules: ['js'],
+      providers: { 'js': SURVIVED_PROVIDER_WITH_SURVIVED }
     })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(0)
@@ -1197,10 +1197,10 @@ describe('runCoverageSteps — classify повертає verdicts (lines 232-237
     const cwd = mkdtempSync(join(tmpdir(), 'orchestrator-threshold-'))
     writeFileSync(
       join(cwd, '.n-cursor.json'),
-      JSON.stringify({ rules: ['js-lint'], coverage: { classifyConfidenceThreshold: 0.7 } })
+      JSON.stringify({ rules: ['js'], coverage: { classifyConfidenceThreshold: 0.7 } })
     )
     const rulesDir = mkdtempSync(join(tmpdir(), 'orchestrator-rules-threshold-'))
-    const providerDir = join(rulesDir, 'js-lint', 'coverage')
+    const providerDir = join(rulesDir, 'js', 'coverage')
     mkdirSync(providerDir, { recursive: true })
     writeFileSync(join(providerDir, 'coverage.mjs'), SURVIVED_PROVIDER_WITH_SURVIVED)
     const exitCode = await runCoverageSteps({ cwd, rulesDir })
@@ -1312,10 +1312,10 @@ describe('readClassifyThreshold — invalid threshold (kills L192, L193)', () =>
     const cwd = mkdtempSync(join(tmpdir(), 'threshold-nan-'))
     writeFileSync(
       join(cwd, '.n-cursor.json'),
-      JSON.stringify({ rules: ['js-lint'], coverage: { classifyConfidenceThreshold: NaN } })
+      JSON.stringify({ rules: ['js'], coverage: { classifyConfidenceThreshold: NaN } })
     )
     const rulesDir = mkdtempSync(join(tmpdir(), 'rules-nan-'))
-    const providerDir = join(rulesDir, 'js-lint', 'coverage')
+    const providerDir = join(rulesDir, 'js', 'coverage')
     mkdirSync(providerDir, { recursive: true })
     writeFileSync(join(providerDir, 'coverage.mjs'), SURVIVED_PROVIDER_WITH_SURVIVED)
     await runCoverageSteps({ cwd, rulesDir })
@@ -1334,10 +1334,10 @@ describe('readClassifyThreshold — invalid threshold (kills L192, L193)', () =>
     const cwd = mkdtempSync(join(tmpdir(), 'threshold-str-'))
     writeFileSync(
       join(cwd, '.n-cursor.json'),
-      JSON.stringify({ rules: ['js-lint'], coverage: { classifyConfidenceThreshold: '0.5' } })
+      JSON.stringify({ rules: ['js'], coverage: { classifyConfidenceThreshold: '0.5' } })
     )
     const rulesDir = mkdtempSync(join(tmpdir(), 'rules-str-'))
-    const providerDir = join(rulesDir, 'js-lint', 'coverage')
+    const providerDir = join(rulesDir, 'js', 'coverage')
     mkdirSync(providerDir, { recursive: true })
     writeFileSync(join(providerDir, 'coverage.mjs'), SURVIVED_PROVIDER_WITH_SURVIVED)
     await runCoverageSteps({ cwd, rulesDir })
@@ -1354,9 +1354,9 @@ describe('readClassifyThreshold — invalid threshold (kills L192, L193)', () =>
     ]
     vi.mocked(classify).mockResolvedValueOnce(verdicts)
     const cwd = mkdtempSync(join(tmpdir(), 'threshold-nokey-'))
-    writeFileSync(join(cwd, '.n-cursor.json'), JSON.stringify({ rules: ['js-lint'] }))
+    writeFileSync(join(cwd, '.n-cursor.json'), JSON.stringify({ rules: ['js'] }))
     const rulesDir = mkdtempSync(join(tmpdir(), 'rules-nokey-'))
-    const providerDir = join(rulesDir, 'js-lint', 'coverage')
+    const providerDir = join(rulesDir, 'js', 'coverage')
     mkdirSync(providerDir, { recursive: true })
     writeFileSync(join(providerDir, 'coverage.mjs'), SURVIVED_PROVIDER_WITH_SURVIVED)
     await runCoverageSteps({ cwd, rulesDir })
@@ -1377,7 +1377,7 @@ describe('runCoverageSteps — classify не викликається без sur
 
   test('провайдер без survivors → classify НЕ викликається (вбиває L231:7 ConditionalExpression→true)', async () => {
     vi.mocked(classify).mockResolvedValue([])
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': ONE_ROW_PROVIDER } })
     await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(classify).not.toHaveBeenCalled()
     fx.cleanup()
@@ -1396,7 +1396,7 @@ describe('runCoverageSteps — "Разом" row filtering (L243-L244)', () => {
   `
 
   test('якщо provider вже повертає Разом-рядок, не додається ще один (вбиває L243:33,44 і L244)', async () => {
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': PROVIDER_WITH_RAZOM_ROW } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': PROVIDER_WITH_RAZOM_ROW } })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(0)
     const md = readFileSync(join(fx.cwd, 'COVERAGE.md'), 'utf8')
@@ -1408,8 +1408,8 @@ describe('runCoverageSteps — "Разом" row filtering (L243-L244)', () => {
 
   test('два реальних provider рядки → area Разом дорівнює **Разом** (вбиває StringLiteral→"")', async () => {
     const fx = makeOrchestratorFixture({
-      rules: ['js-lint', 'rust'],
-      providers: { 'js-lint': ONE_ROW_PROVIDER, rust: ONE_ROW_PROVIDER }
+      rules: ['js', 'rust'],
+      providers: { 'js': ONE_ROW_PROVIDER, rust: ONE_ROW_PROVIDER }
     })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(0)
@@ -1434,7 +1434,7 @@ describe('runCoverageSteps — "Разом" row filtering (L243-L244)', () => {
         ]
       }
     `
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': THREE_ROW_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': THREE_ROW_PROVIDER } })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(0)
     const md = readFileSync(join(fx.cwd, 'COVERAGE.md'), 'utf8')
@@ -1492,7 +1492,7 @@ describe('runCoverageSteps — --changed scope', () => {
 
   test('порожній scope (провайдер вернув []) → pass (exit 0), COVERAGE.md не пишеться', async () => {
     vi.spyOn(console, 'log').mockReturnValue()
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': EMPTY_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': EMPTY_PROVIDER } })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir, changed: true })
     expect(exitCode).toBe(0)
     expect(existsSync(join(fx.cwd, 'COVERAGE.md'))).toBe(false)
@@ -1502,7 +1502,7 @@ describe('runCoverageSteps — --changed scope', () => {
   test('порожній scope (detect false) → pass (exit 0), без error «жодного провайдера»', async () => {
     vi.spyOn(console, 'log').mockReturnValue()
     const errSpy = vi.spyOn(console, 'error').mockReturnValue()
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': SKIP_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': SKIP_PROVIDER } })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir, changed: true })
     expect(exitCode).toBe(0)
     const errors = errSpy.mock.calls.map(args => String(args[0]))
@@ -1512,7 +1512,7 @@ describe('runCoverageSteps — --changed scope', () => {
 
   test('full-режим (без changed): порожні rows → exit 1 (регресія збережена)', async () => {
     vi.spyOn(console, 'error').mockReturnValue()
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': EMPTY_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': EMPTY_PROVIDER } })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(1)
     fx.cleanup()
@@ -1520,7 +1520,7 @@ describe('runCoverageSteps — --changed scope', () => {
 
   test('changed + провайдер з даними → exit 0, але COVERAGE.md НЕ перезаписується (gate = exit-код)', async () => {
     vi.spyOn(console, 'log').mockReturnValue()
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': ONE_ROW_PROVIDER } })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir, changed: true })
     expect(exitCode).toBe(0)
     // Changed-режим не клобберить повний COVERAGE.md частковим звітом.
@@ -1530,7 +1530,7 @@ describe('runCoverageSteps — --changed scope', () => {
 
   test('full-режим (без changed) з даними → COVERAGE.md пишеться (регресія)', async () => {
     vi.spyOn(console, 'log').mockReturnValue()
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    const fx = makeOrchestratorFixture({ rules: ['js'], providers: { 'js': ONE_ROW_PROVIDER } })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(0)
     expect(existsSync(join(fx.cwd, 'COVERAGE.md'))).toBe(true)

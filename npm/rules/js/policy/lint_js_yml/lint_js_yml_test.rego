@@ -6,13 +6,13 @@ import rego.v1
 template_data := {"snippet": {"jobs": {"eslint": {"steps": [
 	{"uses": "actions/checkout@v6", "with": {"persist-credentials": false}},
 	{"uses": "./.github/actions/setup-bun-deps"},
-	{"name": "Eslint", "run": "n-cursor lint js-lint js-lint-ci --read-only"},
+	{"name": "Eslint", "run": "n-cursor lint js --read-only"},
 ]}}}}
 
 canonical_input := {"jobs": {"eslint": {"steps": [
 	{"uses": "actions/checkout@v6", "with": {"persist-credentials": false}},
 	{"uses": "./.github/actions/setup-bun-deps"},
-	{"name": "Eslint", "run": "n-cursor lint js-lint js-lint-ci --read-only"},
+	{"name": "Eslint", "run": "n-cursor lint js --read-only"},
 ]}}}
 
 test_allow_canonical if {

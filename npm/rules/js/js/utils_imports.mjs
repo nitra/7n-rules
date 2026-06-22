@@ -153,7 +153,7 @@ export async function check() {
     }
   }
   if (utilsDirSet.size === 0) {
-    reporter.pass('utils-каталогів немає — перевірку пропущено (js-lint.mdc)')
+    reporter.pass('utils-каталогів немає — перевірку пропущено (js.mdc)')
     return reporter.getExitCode()
   }
   let violations = 0
@@ -167,7 +167,7 @@ export async function check() {
       for (const src of imports) {
         if (PARENT_RELATIVE_RE.test(src)) {
           const rel = relative(root, file)
-          reporter.fail(`${rel}: заборонений імпорт '${src}' — utils/-файли мають бути generic (js-lint.mdc)`)
+          reporter.fail(`${rel}: заборонений імпорт '${src}' — utils/-файли мають бути generic (js.mdc)`)
           violations += 1
         }
       }
@@ -175,7 +175,7 @@ export async function check() {
   }
   if (violations === 0) {
     reporter.pass(
-      `utils-каталогів: ${utilsDirSet.size}, перевірено ${checkedFiles} файлів — domain-bound імпортів немає (js-lint.mdc)`
+      `utils-каталогів: ${utilsDirSet.size}, перевірено ${checkedFiles} файлів — domain-bound імпортів немає (js.mdc)`
     )
   }
   return reporter.getExitCode()

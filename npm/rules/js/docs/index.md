@@ -1,10 +1,10 @@
 ---
 type: Directory Index
-title: npm/rules/js-lint
-resource: npm/rules/js-lint/
+title: npm/rules/js
+resource: npm/rules/js/
 ---
 
-# npm/rules/js-lint
+# npm/rules/js
 
 | Файл                | Тип       |
 | ------------------- | --------- |

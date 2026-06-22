@@ -24,7 +24,7 @@ async function checkEslintConfig(passFn, failFn, cwd) {
     eslintPath = 'eslint.config.mjs'
     passFn('eslint.config.mjs існує')
   } else {
-    failFn('Відсутній eslint.config.js або eslint.config.mjs — flat config з getConfig (js-lint.mdc)')
+    failFn('Відсутній eslint.config.js або eslint.config.mjs — flat config з getConfig (js.mdc)')
     return
   }
   const eslintRaw = await readFile(join(cwd, eslintPath), 'utf8')
@@ -32,7 +32,7 @@ async function checkEslintConfig(passFn, failFn, cwd) {
     {
       needle: 'getConfig',
       ok: `${eslintPath}: містить getConfig`,
-      err: `${eslintPath}: потрібен виклик getConfig (js-lint.mdc)`
+      err: `${eslintPath}: потрібен виклик getConfig (js.mdc)`
     },
     {
       needle: '@nitra/eslint-config',
@@ -42,7 +42,7 @@ async function checkEslintConfig(passFn, failFn, cwd) {
     {
       needle: '**/auto-imports.d.ts',
       ok: `${eslintPath}: ignores містить **/auto-imports.d.ts`,
-      err: `${eslintPath}: додай у ignores запис **/auto-imports.d.ts (js-lint.mdc)`
+      err: `${eslintPath}: додай у ignores запис **/auto-imports.d.ts (js.mdc)`
     }
   ]
   for (const { needle, ok, err } of checks) {
@@ -71,7 +71,7 @@ function checkPackageJsonTypeModule(label, pkg, passFn, failFn) {
   if (pkg.type === 'module') {
     passFn(`${label}: "type": "module"`)
   } else {
-    failFn(`${label}: має містити "type": "module" (js-lint.mdc)`)
+    failFn(`${label}: має містити "type": "module" (js.mdc)`)
   }
 }
 
@@ -163,7 +163,7 @@ async function checkPackageJsonJsLint(passFn, failFn, cwd) {
 async function checkOxlintRc(passFn, failFn, cwd) {
   const oxPath = join(cwd, '.oxlintrc.json')
   if (!existsSync(oxPath)) {
-    failFn('.oxlintrc.json не існує — додай конфіг oxlint (js-lint.mdc)')
+    failFn('.oxlintrc.json не існує — додай конфіг oxlint (js.mdc)')
     return
   }
   let oxCfg
@@ -204,14 +204,14 @@ async function checkLintJsWorkflows(passFn, failFn, cwd) {
   if (existsSync(join(cwd, '.github/workflows/lint-js.yml'))) {
     passFn('.github/workflows/lint-js.yml є (структуру перевіряє npx @nitra/cursor fix → js_lint.lint_js_yml)')
   } else {
-    failFn('.github/workflows/lint-js.yml не існує — створи його (js-lint.mdc)')
+    failFn('.github/workflows/lint-js.yml не існує — створи його (js.mdc)')
   }
 
   const lintYmlPath = join(cwd, '.github/workflows/lint.yml')
   if (existsSync(lintYmlPath)) {
     const lintYml = await readFile(lintYmlPath, 'utf8')
     if (lintYml.includes('bunx oxlint') && lintYml.includes('bunx eslint') && lintYml.includes('jscpd')) {
-      failFn('.github/workflows/lint.yml дублює кроки lint-js.yml — залиш один workflow на лінт JS (js-lint.mdc)')
+      failFn('.github/workflows/lint.yml дублює кроки lint-js.yml — залиш один workflow на лінт JS (js.mdc)')
     } else {
       passFn('.github/workflows/lint.yml не дублює oxlint/eslint/jscpd з lint-js.yml')
     }
@@ -223,7 +223,7 @@ async function checkLintJsWorkflows(passFn, failFn, cwd) {
  * копіює канонічний `knip-canonical.json` з пакета `@nitra/cursor` як стартовий
  * baseline; зміст подальших модифікацій локально не валідується (`entry` /
  * `project` / `ignore` / `ignoreDependencies` / `ignoreBinaries` дозволені
- * будь-які; це side effect — описано у js-lint.mdc).
+ * будь-які; це side effect — описано у js.mdc).
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
  * @param {string} cwd корінь репозиторію
@@ -242,11 +242,11 @@ async function checkKnipConfig(passFn, failFn, cwd) {
     return
   }
   await copyFile(KNIP_CANONICAL_JSON_PATH, knipPath)
-  passFn('knip.json створено з канонічного npm/rules/js-lint/js/data/tooling/knip-canonical.json (js-lint.mdc)')
+  passFn('knip.json створено з канонічного npm/rules/js/js/data/tooling/knip-canonical.json (js.mdc)')
 }
 
 /**
- * Перевіряє відповідність проєкту правилам js-lint.mdc
+ * Перевіряє відповідність проєкту правилам js.mdc
  * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */

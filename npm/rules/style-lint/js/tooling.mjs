@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 
 // Зовнішні файли конфігу stylelint, які підхоплює cosmiconfig. Канон нових
-// JS-конфігів — `.mjs`/`.cjs` (js-lint.mdc), legacy `.js` лишається валідним.
+// JS-конфігів — `.mjs`/`.cjs` (js.mdc), legacy `.js` лишається валідним.
 const STYLELINT_CONFIG_FILES = [
   '.stylelintrc.json',
   '.stylelintrc.js',

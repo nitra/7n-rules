@@ -4,5 +4,5 @@
     "single": ".vscode/extensions.json",
     "required": true
   },
-  "missingMessage": ".vscode/extensions.json не існує — додай recommendations з js-lint.mdc"
+  "missingMessage": ".vscode/extensions.json не існує — додай recommendations з js.mdc"
 }

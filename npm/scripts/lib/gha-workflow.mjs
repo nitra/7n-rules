@@ -1,7 +1,7 @@
 /**
  * Допоміжні функції для аналізу GitHub Actions workflow (`.yml`) після структурного розбору YAML.
  *
- * Використовується в check-ga, check-js-lint, check-text, check-style-lint, check-npm-module замість
+ * Використовується в check-ga, check-js, check-text, check-style-lint, check-npm-module замість
  * пошуку підрядків у сирому тексті там, де важливі лише значення `uses:` та `run:` кроків.
  *
  * Для `run:` також виявляється shell-продовження рядка через `\\` перед переносом (антипатерн у ga.mdc).

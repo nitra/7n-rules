@@ -78,6 +78,20 @@ function lintFullProject(cwd, readOnly) {
 }
 
 /**
+ * Крос-файловий аналіз: jscpd (дублікати) + knip (невикористані залежності/експорти).
+ * Ігнорує `files` — завжди по всьому репо.
+ * @param {string} cwd корінь репо
+ * @returns {number} exit code
+ */
+function lintFullCi(cwd) {
+  const jscpd = spawnSync('bunx', ['jscpd', '.'], { cwd, stdio: 'inherit' })
+  const jc = typeof jscpd.status === 'number' ? jscpd.status : 1
+  if (jc !== 0) return jc
+  const knip = spawnSync('bunx', ['knip', '--no-config-hints'], { cwd, stdio: 'inherit' })
+  return typeof knip.status === 'number' ? knip.status : 1
+}
+
+/**
  * Quick-режим: авто-фікс змінених файлів, тоді класифікація лишених findings
  * на introduced / pre-existing (беклог #6/A). Блокування на будь-якому finding.
  * @param {string[]} js js-подібні змінені файли
@@ -102,7 +116,7 @@ function lintChangedClassified(js, cwd, readOnly) {
   // Краш інструмента (ненульовий exit + непарсабельний json) НЕ можна тихо пропустити
   // як «чисто» — це регресія проти старого fail-fast. Фейлимо явно.
   if ((ox === null && oxRes.status !== 0) || (es === null && esRes.status !== 0)) {
-    process.stderr.write('❌ js-lint: інструмент завершився з помилкою (не lint-порушення) — json не розпарсено\n')
+    process.stderr.write('❌ js: інструмент завершився з помилкою (не lint-порушення) — json не розпарсено\n')
     return 1
   }
 
@@ -110,13 +124,14 @@ function lintChangedClassified(js, cwd, readOnly) {
   if (findings.length === 0) return 0
 
   const classified = classifyFindings(findings, addedLinesByFile(js, cwd), cwd)
-  const header = `❌ js-lint: ${findings.length} порушень (introduced ${classified.introduced.length}, pre-existing ${classified.preExisting.length})`
+  const header = `❌ js: ${findings.length} порушень (introduced ${classified.introduced.length}, pre-existing ${classified.preExisting.length})`
   process.stdout.write(`${header}\n${renderFindings(classified, cwd)}\n`)
   return 1
 }
 
 /**
- * Запускає oxlint+eslint. За замовчуванням — з автофіксом; `opts.readOnly` — лише детект.
+ * Запускає oxlint+eslint (per-file або full) + jscpd+knip (лише full).
+ * За замовчуванням — з автофіксом; `opts.readOnly` — лише детект.
  * @param {string[] | undefined} files per-file: лише ці файли; undefined: весь проєкт (--full)
  * @param {string} [cwd] корінь репо
  * @param {{ readOnly?: boolean }} [opts] readOnly → без `--fix` (нуль мутацій)
@@ -125,7 +140,9 @@ function lintChangedClassified(js, cwd, readOnly) {
 export function lint(files, cwd = process.cwd(), opts = {}) {
   const readOnly = opts.readOnly === true
   if (files === undefined) {
-    return Promise.resolve(lintFullProject(cwd, readOnly))
+    const esCode = lintFullProject(cwd, readOnly)
+    if (esCode !== 0) return Promise.resolve(esCode)
+    return Promise.resolve(lintFullCi(cwd))
   }
   const js = filterJsFiles(files)
   if (js.length === 0) return Promise.resolve(0)
@@ -133,6 +150,6 @@ export function lint(files, cwd = process.cwd(), opts = {}) {
 }
 
 if (isRunAsCli(import.meta.url)) {
-  // Standalone: bun rules/js-lint/main.mjs — повний еквівалент `npx @nitra/cursor check js-lint`.
+  // Standalone: bun rules/js/main.mjs — повний еквівалент `npx @nitra/cursor check js`.
   process.exitCode = await runRuleCli(import.meta.dirname)
 }

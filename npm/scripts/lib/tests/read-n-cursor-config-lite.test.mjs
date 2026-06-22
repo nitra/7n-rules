@@ -15,10 +15,10 @@ describe('readNCursorConfigLite', () => {
 
   test('повертає rules і disableRules з файлу', async () => {
     await withTmpDir(async dir => {
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['js-lint', 'docker'], 'disable-rules': ['text'] })
+      await writeJson(join(dir, '.n-cursor.json'), { rules: ['js', 'docker'], 'disable-rules': ['text'] })
       const cfg = await readNCursorConfigLite(dir)
       expect(cfg.exists).toBe(true)
-      expect(cfg.rules).toEqual(['js-lint', 'docker'])
+      expect(cfg.rules).toEqual(['js', 'docker'])
       expect(cfg.disableRules).toEqual(['text'])
     })
   })

@@ -48,8 +48,8 @@ describe('discoverOneRule', () => {
   })
 
   test('правило без policy — повертає пустий policyConcerns', async () => {
-    const ruleDir = makeFakeRule({ id: 'js-lint', jsConcerns: ['tooling'] })
-    const rule = await discoverOneRule(ruleDir, 'js-lint')
+    const ruleDir = makeFakeRule({ id: 'js', jsConcerns: ['tooling'] })
+    const rule = await discoverOneRule(ruleDir, 'js')
     expect(rule.policyConcerns).toEqual([])
   })
 

@@ -1,5 +1,5 @@
 /**
- * Тести концерну `stryker_config` (test.mdc): self-gates через js-lint
+ * Тести концерну `stryker_config` (test.mdc): self-gates через js
  * у `.n-cursor.json#rules`, side-effect-копіює canonical baseline у jsRoot
  * якщо stryker.config.mjs відсутній.
  */
@@ -58,7 +58,7 @@ function runCheckIn(dir) {
 }
 
 describe('stryker_config concern', () => {
-  test('js-lint НЕ в rules — silent skip, exit 0, файл не створюється', async () => {
+  test('js НЕ в rules — silent skip, exit 0, файл не створюється', async () => {
     const proj = makeProj({ rules: ['test'] })
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)
@@ -66,16 +66,16 @@ describe('stryker_config concern', () => {
     proj.cleanup()
   })
 
-  test('js-lint у disable-rules — silent skip', async () => {
-    const proj = makeProj({ rules: ['js-lint', 'test'], disableRules: ['js-lint'] })
+  test('js у disable-rules — silent skip', async () => {
+    const proj = makeProj({ rules: ['js', 'test'], disableRules: ['js'] })
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)
     expect(existsSync(join(proj.dir, 'stryker.config.mjs'))).toBe(false)
     proj.cleanup()
   })
 
-  test('js-lint enabled + stryker.config.mjs відсутній — копіює baseline у cwd (single-package)', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+  test('js enabled + stryker.config.mjs відсутній — копіює baseline у cwd (single-package)', async () => {
+    const proj = makeProj({ rules: ['js'] })
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)
     const target = join(proj.dir, 'stryker.config.mjs')
@@ -90,13 +90,13 @@ describe('stryker_config concern', () => {
     proj.cleanup()
   })
 
-  test('js-lint enabled — копіює також vitest.config.mjs разом зі stryker.config.mjs', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+  test('js enabled — копіює також vitest.config.mjs разом зі stryker.config.mjs', async () => {
+    const proj = makeProj({ rules: ['js'] })
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)
     const vitestTarget = join(proj.dir, 'vitest.config.mjs')
     expect(existsSync(vitestTarget)).toBe(true)
-    // нові файли — `.mjs`, не `.js` (js-lint.mdc)
+    // нові файли — `.mjs`, не `.js` (js.mdc)
     expect(existsSync(join(proj.dir, 'vitest.config.js'))).toBe(false)
     const content = readFileSync(vitestTarget, 'utf8')
     expect(content).toContain("from 'vitest/config'")
@@ -106,8 +106,8 @@ describe('stryker_config concern', () => {
     proj.cleanup()
   })
 
-  test('js-lint enabled + workspace — копіює обидва файли у workspaces[0] (app/)', async () => {
-    const proj = makeProj({ rules: ['js-lint'], workspaceRoot: true })
+  test('js enabled + workspace — копіює обидва файли у workspaces[0] (app/)', async () => {
+    const proj = makeProj({ rules: ['js'], workspaceRoot: true })
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)
     expect(existsSync(join(proj.dir, 'app', 'stryker.config.mjs'))).toBe(true)
@@ -117,9 +117,9 @@ describe('stryker_config concern', () => {
     proj.cleanup()
   })
 
-  test('js-lint enabled + кілька workspaces — копіює обидва baseline у КОЖЕН', async () => {
+  test('js enabled + кілька workspaces — копіює обидва baseline у КОЖЕН', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'stryker-multi-ws-'))
-    writeFileSync(join(dir, '.n-cursor.json'), JSON.stringify({ rules: ['js-lint'] }))
+    writeFileSync(join(dir, '.n-cursor.json'), JSON.stringify({ rules: ['js'] }))
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['app', 'scripts'] }))
     mkdirSync(join(dir, 'app'), { recursive: true })
     mkdirSync(join(dir, 'scripts'), { recursive: true })
@@ -135,8 +135,8 @@ describe('stryker_config concern', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  test('js-lint enabled + stryker.config.mjs існує — не перезаписує', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+  test('js enabled + stryker.config.mjs існує — не перезаписує', async () => {
+    const proj = makeProj({ rules: ['js'] })
     const target = join(proj.dir, 'stryker.config.mjs')
     writeFileSync(target, '// custom config')
     const exitCode = await runCheckIn(proj.dir)
@@ -145,8 +145,8 @@ describe('stryker_config concern', () => {
     proj.cleanup()
   })
 
-  test('js-lint enabled + legacy vitest.config.js існує — не перезаписує, .mjs не плодиться, stryker configFile = .js', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+  test('js enabled + legacy vitest.config.js існує — не перезаписує, .mjs не плодиться, stryker configFile = .js', async () => {
+    const proj = makeProj({ rules: ['js'] })
     const target = join(proj.dir, 'vitest.config.js')
     writeFileSync(target, '// custom vitest config')
     const exitCode = await runCheckIn(proj.dir)
@@ -160,8 +160,8 @@ describe('stryker_config concern', () => {
     proj.cleanup()
   })
 
-  test('js-lint enabled + vitest.config.mjs існує — не перезаписує, .js не плодиться, stryker configFile = .mjs', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+  test('js enabled + vitest.config.mjs існує — не перезаписує, .js не плодиться, stryker configFile = .mjs', async () => {
+    const proj = makeProj({ rules: ['js'] })
     const target = join(proj.dir, 'vitest.config.mjs')
     writeFileSync(target, '// custom vitest config')
     const exitCode = await runCheckIn(proj.dir)
@@ -173,16 +173,16 @@ describe('stryker_config concern', () => {
     proj.cleanup()
   })
 
-  test('js-lint enabled + кореневий package.json відсутній — fail', async () => {
+  test('js enabled + кореневий package.json відсутній — fail', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'stryker-no-pkg-'))
-    writeFileSync(join(dir, '.n-cursor.json'), JSON.stringify({ rules: ['js-lint'] }))
+    writeFileSync(join(dir, '.n-cursor.json'), JSON.stringify({ rules: ['js'] }))
     const exitCode = await runCheckIn(dir)
     expect(exitCode).toBe(1)
     rmSync(dir, { recursive: true, force: true })
   })
 
-  test('js-lint enabled — додає тест-патерни у .gitignore (створює якщо немає)', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+  test('js enabled — додає тест-патерни у .gitignore (створює якщо немає)', async () => {
+    const proj = makeProj({ rules: ['js'] })
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)
     const gitignore = readFileSync(join(proj.dir, '.gitignore'), 'utf8')
@@ -192,8 +192,8 @@ describe('stryker_config concern', () => {
     proj.cleanup()
   })
 
-  test('js-lint enabled + .gitignore вже має тест-патерни — не дублює', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+  test('js enabled + .gitignore вже має тест-патерни — не дублює', async () => {
+    const proj = makeProj({ rules: ['js'] })
     writeFileSync(join(proj.dir, '.gitignore'), 'node_modules/\n**/reports/stryker/\n**/coverage/\n')
     const before = readFileSync(join(proj.dir, '.gitignore'), 'utf8')
     const exitCode = await runCheckIn(proj.dir)
@@ -204,8 +204,8 @@ describe('stryker_config concern', () => {
 
   // ── Vue SFC detection ─────────────────────────────────────────────────────
 
-  test('js-lint enabled + jsRoot з .vue у src/ — ставить vue-варіант baseline + плагін', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+  test('js enabled + jsRoot з .vue у src/ — ставить vue-варіант baseline + плагін', async () => {
+    const proj = makeProj({ rules: ['js'] })
     mkdirSync(join(proj.dir, 'src', 'components'), { recursive: true })
     writeFileSync(join(proj.dir, 'src', 'components', 'X.vue'), '<template><div/></template>')
     const exitCode = await runCheckIn(proj.dir)
@@ -219,8 +219,8 @@ describe('stryker_config concern', () => {
     proj.cleanup()
   })
 
-  test('js-lint enabled + jsRoot БЕЗ .vue — дефолтний baseline без plugins/ignorers і без файлу плагіна', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+  test('js enabled + jsRoot БЕЗ .vue — дефолтний baseline без plugins/ignorers і без файлу плагіна', async () => {
+    const proj = makeProj({ rules: ['js'] })
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)
     const cfg = readFileSync(join(proj.dir, 'stryker.config.mjs'), 'utf8')
@@ -230,9 +230,9 @@ describe('stryker_config concern', () => {
     proj.cleanup()
   })
 
-  test('js-lint enabled + .vue лише у одному workspace — vue-варіант ставиться тільки там', async () => {
+  test('js enabled + .vue лише у одному workspace — vue-варіант ставиться тільки там', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'stryker-mixed-ws-'))
-    writeFileSync(join(dir, '.n-cursor.json'), JSON.stringify({ rules: ['js-lint'] }))
+    writeFileSync(join(dir, '.n-cursor.json'), JSON.stringify({ rules: ['js'] }))
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['gt', 'cli'] }))
     mkdirSync(join(dir, 'gt', 'src'), { recursive: true })
     mkdirSync(join(dir, 'cli', 'src'), { recursive: true })
@@ -251,8 +251,8 @@ describe('stryker_config concern', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  test('js-lint enabled + .vue лише у node_modules — НЕ тригерить vue-варіант', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+  test('js enabled + .vue лише у node_modules — НЕ тригерить vue-варіант', async () => {
+    const proj = makeProj({ rules: ['js'] })
     mkdirSync(join(proj.dir, 'src', 'node_modules', 'dep'), { recursive: true })
     writeFileSync(join(proj.dir, 'src', 'node_modules', 'dep', 'X.vue'), '<template/>')
     const exitCode = await runCheckIn(proj.dir)
@@ -263,8 +263,8 @@ describe('stryker_config concern', () => {
     proj.cleanup()
   })
 
-  test('js-lint enabled + vue-варіант уже повний — augment no-op, плагін не перезаписано', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+  test('js enabled + vue-варіант уже повний — augment no-op, плагін не перезаписано', async () => {
+    const proj = makeProj({ rules: ['js'] })
     mkdirSync(join(proj.dir, 'src'), { recursive: true })
     writeFileSync(join(proj.dir, 'src', 'X.vue'), '<template/>')
     writeFileSync(join(proj.dir, 'stryker.config.mjs'), STRYKER_VUE_BASELINE)
@@ -281,7 +281,7 @@ describe('stryker_config concern', () => {
   // ── Augment існуючого stryker.config.mjs у Vue-root (drift-hole) ──────────────
 
   test('augment(a): Vue-root зі старим non-vue config — вставляє plugins/ignorers, зберігає поля й коментарі', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+    const proj = makeProj({ rules: ['js'] })
     mkdirSync(join(proj.dir, 'src'), { recursive: true })
     writeFileSync(join(proj.dir, 'src', 'App.vue'), '<template><div/></template>')
     const target = join(proj.dir, 'stryker.config.mjs')
@@ -302,7 +302,7 @@ describe('stryker_config concern', () => {
   })
 
   test('augment(b): Vue-root з повним vue-baseline — no-op, файл byte-identical', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+    const proj = makeProj({ rules: ['js'] })
     mkdirSync(join(proj.dir, 'src'), { recursive: true })
     writeFileSync(join(proj.dir, 'src', 'App.vue'), '<template><div/></template>')
     const target = join(proj.dir, 'stryker.config.mjs')
@@ -314,7 +314,7 @@ describe('stryker_config concern', () => {
   })
 
   test('augment(c): частковий config — додає vue-плагін у plugins, створює ignorers, без дублів', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+    const proj = makeProj({ rules: ['js'] })
     mkdirSync(join(proj.dir, 'src'), { recursive: true })
     writeFileSync(join(proj.dir, 'src', 'App.vue'), '<template><div/></template>')
     const target = join(proj.dir, 'stryker.config.mjs')
@@ -335,7 +335,7 @@ describe('stryker_config concern', () => {
   })
 
   test('augment(d): non-vue root зі старим config — augment не викликається, файл не торкнутий', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+    const proj = makeProj({ rules: ['js'] })
     const target = join(proj.dir, 'stryker.config.mjs')
     writeFileSync(target, STRYKER_BASELINE)
     const exitCode = await runCheckIn(proj.dir)
@@ -346,7 +346,7 @@ describe('stryker_config concern', () => {
   })
 
   test('augment(e): idempotency — другий прогон no-op, byte-identical після першого augment', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+    const proj = makeProj({ rules: ['js'] })
     mkdirSync(join(proj.dir, 'src'), { recursive: true })
     writeFileSync(join(proj.dir, 'src', 'App.vue'), '<template><div/></template>')
     const target = join(proj.dir, 'stryker.config.mjs')
@@ -360,7 +360,7 @@ describe('stryker_config concern', () => {
   })
 
   test('augment(f): non-literal export default (factory) — fail, файл не змінено', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+    const proj = makeProj({ rules: ['js'] })
     mkdirSync(join(proj.dir, 'src'), { recursive: true })
     writeFileSync(join(proj.dir, 'src', 'App.vue'), '<template><div/></template>')
     const target = join(proj.dir, 'stryker.config.mjs')
@@ -373,7 +373,7 @@ describe('stryker_config concern', () => {
   })
 
   test('augment(g): syntax error у config — fail, файл не змінено', async () => {
-    const proj = makeProj({ rules: ['js-lint'] })
+    const proj = makeProj({ rules: ['js'] })
     mkdirSync(join(proj.dir, 'src'), { recursive: true })
     writeFileSync(join(proj.dir, 'src', 'App.vue'), '<template><div/></template>')
     const target = join(proj.dir, 'stryker.config.mjs')

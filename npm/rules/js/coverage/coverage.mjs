@@ -1,7 +1,7 @@
 /**
  * JS-провайдер для `n-cursor coverage`: збирає метрики покриття (`vitest run --coverage`)
  * і мутаційного тестування (Stryker з vitest-runner + perTest) для JS/TS коду.
- * Активується через `js-lint` правило в `.n-cursor.json#rules`; реальна applies-логіка
+ * Активується через `js` правило в `.n-cursor.json#rules`; реальна applies-логіка
  * — у `detect(cwd)`.
  *
  * Контракт провайдера — у docs/superpowers/specs/2026-05-24-coverage-rule-design.md.
@@ -42,7 +42,7 @@ export function scopeToRoot(changedFiles, cwd, jsRoot) {
   return out
 }
 const VITEST_HINT =
-  'js-lint coverage: vitest відсутній у package.json — додай `vitest`, `@vitest/coverage-v8` та `@stryker-mutator/vitest-runner` у devDependencies (див. test.mdc)'
+  'js coverage: vitest відсутній у package.json — додай `vitest`, `@vitest/coverage-v8` та `@stryker-mutator/vitest-runner` у devDependencies (див. test.mdc)'
 
 /**
  * Чи у пакеті встановлено vitest (через dependencies або devDependencies).
@@ -334,7 +334,7 @@ async function collectOneRoot(jsRoot, cwd, runner, scope = null) {
   const mutateSrc = scope ? scope.files.filter(f => !TEST_FILE.test(f)) : null
 
   // 1. Coverage через vitest run --passWithNoTests --coverage (+ --changed у changed-режимі)
-  const lcovDir = await mkdtemp(join(tmpdir(), 'js-lint-cov-'))
+  const lcovDir = await mkdtemp(join(tmpdir(), 'js-cov-'))
   let coverage
   try {
     const code = await runner.runJsCoverage(scope ? { cwd: jsRoot, lcovDir, base: scope.base } : { cwd: jsRoot, lcovDir })
@@ -364,7 +364,7 @@ async function collectOneRoot(jsRoot, cwd, runner, scope = null) {
   const mutationPath = join(jsRoot, 'reports', 'stryker', 'mutation.json')
   if (!existsSync(mutationPath)) {
     throw new Error(
-      'js-lint coverage: stryker не залишив mutation.json — ' +
+      'js coverage: stryker не залишив mutation.json — ' +
         'запусти `npx @nitra/cursor fix test` для встановлення canonical stryker.config.mjs, ' +
         'або налаштуй його вручну'
     )
@@ -411,7 +411,7 @@ export async function collect(cwd, opts = {}) {
   const runner = opts.runner ?? defaultRunner
   const changed = Array.isArray(opts.changedFiles)
   const jsRoots = await resolveAllJsRoots(cwd)
-  if (jsRoots.length === 0) throw new Error('js-lint coverage: package.json не знайдено')
+  if (jsRoots.length === 0) throw new Error('js coverage: package.json не знайдено')
 
   const results = []
   for (const jsRoot of jsRoots) {
@@ -429,9 +429,9 @@ export async function collect(cwd, opts = {}) {
     // Changed-режим: нема змінених JS у жодному root → тихо порожньо (це pass, не помилка).
     if (changed) return []
     console.error(
-      'js-lint coverage: жоден workspace не має тестів ' +
+      'js coverage: жоден workspace не має тестів ' +
         '(`*.test.{js,mjs}` у `tests/` або поряд із джерелом) — ' +
-        'додай тести або вилучи `js-lint` з .n-cursor.json#rules'
+        'додай тести або вилучи `js` з .n-cursor.json#rules'
     )
     return []
   }

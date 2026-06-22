@@ -2,7 +2,7 @@
  * Копіює composite GitHub Action `setup-bun-deps` з установленого пакету `@nitra/cursor`
  * у цільовий репозиторій (`.github/actions/setup-bun-deps/action.yml`).
  *
- * Використовується CLI `npx \@nitra/cursor`, щоб workflows з правил `ga` / `js-lint` / `text`
+ * Використовується CLI `npx \@nitra/cursor`, щоб workflows з правил `ga` / `js` / `text`
  * могли одразу викликати `uses: ./.github/actions/setup-bun-deps` після кроку `actions/checkout@v6` (без checkout runner не знайде action.yml).
  *
  * Джерело: каталог `github-actions/setup-bun-deps/` у корені tarball пакету (поруч із `mdc/`, `bin/`).

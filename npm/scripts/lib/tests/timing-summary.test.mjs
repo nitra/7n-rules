@@ -4,7 +4,7 @@ import { formatDurationMs, formatTimingSummary } from '../timing-summary.mjs'
 
 const FIX_BUN_OK_RE = /fix-bun\s+1\.2s$/
 const FIX_GA_FAIL_RE = /fix-ga\s+3\.5s\s+❌$/
-const FIX_JS_LINT_OK_RE = /fix-js-lint\s+0\.8s$/
+const FIX_JS_OK_RE = /fix-js\s+0\.8s$/
 const TOTAL_55_RE = /total\s+5\.5s$/
 
 describe('formatDurationMs', () => {
@@ -43,13 +43,13 @@ describe('formatTimingSummary', () => {
     const out = formatTimingSummary('Fix timing', [
       { id: 'fix-bun', ms: 1200, ok: true },
       { id: 'fix-ga', ms: 3500, ok: false },
-      { id: 'fix-js-lint', ms: 800, ok: true }
+      { id: 'fix-js', ms: 800, ok: true }
     ])
     const lines = out.trim().split('\n')
     expect(lines[0]).toBe('⏱  Fix timing:')
     expect(lines[1]).toMatch(FIX_BUN_OK_RE)
     expect(lines[2]).toMatch(FIX_GA_FAIL_RE)
-    expect(lines[3]).toMatch(FIX_JS_LINT_OK_RE)
+    expect(lines[3]).toMatch(FIX_JS_OK_RE)
     expect(lines.at(-1)).toMatch(TOTAL_55_RE)
   })
 

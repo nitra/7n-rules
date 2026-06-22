@@ -1,7 +1,7 @@
 /**
  * Резолвить корінь JS-коду в проєкті: для workspace-projects — перший workspace
  * (з підтримкою glob-патернів типу `cf/*`), для single-package — корінь cwd.
- * Спільна утиліта для coverage-провайдера js-lint і test-концерну stryker_config (DRY).
+ * Спільна утиліта для coverage-провайдера js і test-концерну stryker_config (DRY).
  */
 import { existsSync } from 'node:fs'
 import { glob, readFile } from 'node:fs/promises'

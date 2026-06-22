@@ -18,7 +18,7 @@ const STRYKER_VUE_PLUGIN_PATH = join(HERE, 'data', 'stryker_config', 'stryker-vu
 const STRYKER_VUE_PLUGIN_FILENAME = 'stryker-vue-macros-ignorer.mjs'
 const VITEST_BASELINE_PATH = join(HERE, 'data', 'vitest_config', 'vitest.config.baseline.js')
 
-// Канонічна назва vitest-конфіга — `.mjs` (нові файли, js-lint.mdc); legacy
+// Канонічна назва vitest-конфіга — `.mjs` (нові файли, js.mdc); legacy
 // `.js` лишається валідним. Перший знайдений виграє (.mjs пріоритетніший).
 const VITEST_CONFIG_NAMES = ['vitest.config.mjs', 'vitest.config.js']
 // Заміна literal `configFile` у скопійованому stryker-baseline на фактичне
@@ -332,14 +332,14 @@ export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const config = await readNCursorConfigLite(cwd)
 
-  // Self-gate: js-lint має бути enabled
-  if (!config.rules.includes('js-lint') || config.disableRules.includes('js-lint')) {
+  // Self-gate: js має бути enabled
+  if (!config.rules.includes('js') || config.disableRules.includes('js')) {
     return reporter.getExitCode()
   }
 
   const jsRoots = await resolveAllJsRoots(cwd)
   if (jsRoots.length === 0) {
-    reporter.fail('test: js-lint enabled, але кореневий package.json не знайдено (test.mdc)')
+    reporter.fail('test: js enabled, але кореневий package.json не знайдено (test.mdc)')
     return reporter.getExitCode()
   }
 

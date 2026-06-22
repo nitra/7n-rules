@@ -1,5 +1,5 @@
 /**
- * Тести JS-coverage-провайдера (js-lint.mdc): detect() читає `package.json` у cwd
+ * Тести JS-coverage-провайдера (js.mdc): detect() читає `package.json` у cwd
  * або workspace, повертає true якщо `vitest` присутній у dependencies/devDependencies.
  * collect() спавнить vitest run --coverage + Stryker (vitest-runner perTest), парсить
  * lcov і mutation.json — тестується з ін'єктованим runner-ом.
@@ -16,13 +16,13 @@ const JS_COVERAGE_EXIT2_RE = /JS coverage.*exit 2/
 const MUTATION_JSON_RE = /запусти `npx @nitra\/cursor fix test`/
 
 /**
- * Тимчасова fixture-директорія з package.json для js-lint coverage-тестів.
+ * Тимчасова fixture-директорія з package.json для js coverage-тестів.
  * @param {Record<string, unknown>} pkg вміст package.json workspace-пакета
  * @param {{workspaceRoot?: boolean}} [opts] чи емулювати monorepo з workspaces: ['app']
  * @returns {string} абсолютний шлях до тимчасового кореня
  */
 function makeFixture(pkg, { workspaceRoot = false } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'js-lint-coverage-'))
+  const dir = mkdtempSync(join(tmpdir(), 'js-coverage-'))
   if (workspaceRoot) {
     mkdirSync(join(dir, 'app'), { recursive: true })
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['app'] }))
@@ -41,7 +41,7 @@ function resetDetectHinted() {
   delete (/** @type {typeof detect & {_hinted?: boolean}} */ (detect)._hinted)
 }
 
-describe('js-lint coverage detect()', () => {
+describe('js coverage detect()', () => {
   beforeEach(() => resetDetectHinted())
   afterEach(() => resetDetectHinted())
 
@@ -58,7 +58,7 @@ describe('js-lint coverage detect()', () => {
   })
 
   test('повертає true коли vitest у кореневому package.json, відсутній у workspace (hoisted bun monorepo)', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'js-lint-coverage-root-'))
+    const dir = mkdtempSync(join(tmpdir(), 'js-coverage-root-'))
     mkdirSync(join(dir, 'app'), { recursive: true })
     writeFileSync(
       join(dir, 'package.json'),
@@ -82,13 +82,13 @@ describe('js-lint coverage detect()', () => {
   })
 
   test('повертає false коли немає package.json', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'js-lint-coverage-empty-'))
+    const dir = mkdtempSync(join(tmpdir(), 'js-coverage-empty-'))
     expect(await detect(dir)).toBe(false)
     rmSync(dir, { recursive: true, force: true })
   })
 })
 
-describe('js-lint coverage collect()', () => {
+describe('js coverage collect()', () => {
   test('парсить lcov + stryker mutation.json і повертає один CoverageRow', async () => {
     const dir = makeFixture({ scripts: { 'test:coverage': 'bun test --coverage' } })
 
@@ -170,7 +170,7 @@ describe('js-lint coverage collect()', () => {
   })
 
   test('агрегує lcov + survived по всіх workspaces у monorepo (glob)', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'js-lint-coverage-mono-'))
+    const dir = mkdtempSync(join(tmpdir(), 'js-coverage-mono-'))
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['cf/*'] }))
     for (const ws of ['a', 'b']) {
       const wsDir = join(dir, 'cf', ws)
@@ -257,7 +257,7 @@ describe('js-lint coverage collect()', () => {
   })
 
   test('monorepo: workspaces без тестів тихо пропускаються; агрегує тільки workspace з тестами', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'js-lint-coverage-mixed-'))
+    const dir = mkdtempSync(join(tmpdir(), 'js-coverage-mixed-'))
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['cf/*', 'gt'] }))
 
     // 2 workspaces без тестів (cf/a, cf/b)
@@ -310,7 +310,7 @@ describe('js-lint coverage collect()', () => {
   })
 
   test('monorepo: усі workspaces без тестів — повертає []', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'js-lint-coverage-allempty-'))
+    const dir = mkdtempSync(join(tmpdir(), 'js-coverage-allempty-'))
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['cf/*'] }))
     for (const ws of ['a', 'b']) {
       mkdirSync(join(dir, 'cf', ws), { recursive: true })
@@ -333,7 +333,7 @@ describe('js-lint coverage collect()', () => {
   })
 
   test('monorepo: vitest exit ≠ 0 в одному workspace — throw (реальні помилки не маскуються)', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'js-lint-coverage-fail-'))
+    const dir = mkdtempSync(join(tmpdir(), 'js-coverage-fail-'))
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['cf/*'] }))
     mkdirSync(join(dir, 'cf', 'a'), { recursive: true })
     writeFileSync(join(dir, 'cf', 'a', 'package.json'), JSON.stringify({ name: 'a' }))
@@ -587,9 +587,9 @@ describe('scopeToRoot', () => {
   })
 })
 
-describe('js-lint coverage collect() — --changed scope', () => {
+describe('js coverage collect() — --changed scope', () => {
   test('передає base у vitest і --mutate (non-test src) у Stryker; пропускає roots без змін', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'js-lint-cov-changed-'))
+    const dir = mkdtempSync(join(tmpdir(), 'js-cov-changed-'))
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['cf/*'] }))
     for (const ws of ['a', 'b']) {
       const wsDir = join(dir, 'cf', ws)

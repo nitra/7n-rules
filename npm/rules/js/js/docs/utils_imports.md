@@ -1,12 +1,12 @@
 ---
 type: JS Module
 title: utils_imports.mjs
-resource: npm/rules/js-lint/js/utils_imports.mjs
+resource: npm/rules/js/js/utils_imports.mjs
 docgen:
   crc: 7eaeaf96
 ---
 
-Модуль `npm/rules/js-lint/js/utils_imports.mjs` реалізує одну з перевірок правила `js-lint.mdc`: жоден файл усередині будь-якого каталогу з ім'ям `utils/` не має імпортувати щось за межами цього самого каталогу через відносні шляхи з префіксом `..`.
+Модуль `npm/rules/js/js/utils_imports.mjs` реалізує одну з перевірок правила `js.mdc`: жоден файл усередині будь-якого каталогу з ім'ям `utils/` не має імпортувати щось за межами цього самого каталогу через відносні шляхи з префіксом `..`.
 
 Філософія перевірки:
 
@@ -150,7 +150,7 @@ docgen:
 
 ### Інтеграція в перевірочний рантайм
 
-Модуль викликається check-runner-ом правила `js-lint.mdc` (зазвичай із `npm/rules/js-lint/js/`). Runner імпортує named export `check` і чекає на її resolved-значення як на process exit-code. Сам файл **не** має top-level executable коду — лише визначення; це дозволяє безпечно імпортувати його у тестах.
+Модуль викликається check-runner-ом правила `js.mdc` (зазвичай із `npm/rules/js/js/`). Runner імпортує named export `check` і чекає на її resolved-значення як на process exit-code. Сам файл **не** має top-level executable коду — лише визначення; це дозволяє безпечно імпортувати його у тестах.
 
 Типовий виклик (псевдокод):
 
@@ -167,7 +167,7 @@ process.exit(exitCode)
 2. `check()` знаходить `utils/` каталоги в усіх package-roots.
 3. Для кожного non-test source файлу витягає імпорти.
 4. Жоден імпорт не починається з `..`.
-5. `reporter.pass('utils-каталогів: N, перевірено M файлів — domain-bound імпортів немає (js-lint.mdc)')`.
+5. `reporter.pass('utils-каталогів: N, перевірено M файлів — domain-bound імпортів немає (js.mdc)')`.
 6. `getExitCode() → 0`.
 
 ### Сценарій "є порушення"
@@ -175,7 +175,7 @@ process.exit(exitCode)
 1. Знайдено файл `packages/foo/utils/helper.mjs`.
 2. У ньому є `import bar from '../lib/bar.mjs'`.
 3. `PARENT_RELATIVE_RE` матчить `../lib/bar.mjs`.
-4. `reporter.fail('packages/foo/utils/helper.mjs: заборонений імпорт \'../lib/bar.mjs\' — utils/-файли мають бути generic (js-lint.mdc)')`.
+4. `reporter.fail('packages/foo/utils/helper.mjs: заборонений імпорт \'../lib/bar.mjs\' — utils/-файли мають бути generic (js.mdc)')`.
 5. `violations` інкрементується.
 6. По завершенню `getExitCode() → 1`.
 
@@ -183,7 +183,7 @@ process.exit(exitCode)
 
 1. У жодному package немає каталогу `utils/`.
 2. `utilsDirSet.size === 0`.
-3. `reporter.pass('utils-каталогів немає — перевірку пропущено (js-lint.mdc)')`.
+3. `reporter.pass('utils-каталогів немає — перевірку пропущено (js.mdc)')`.
 4. `getExitCode() → 0`.
 
 ### Сценарій "файл із синтаксичною помилкою"
@@ -207,6 +207,6 @@ process.exit(exitCode)
 - **De-duplication** через `Set`: якщо monorepo-структура повертає однаковий `utils/`-шлях двічі (наприклад, `.`-root і назва вкладеного пакета перетинаються), він обробиться лише раз.
 - **Помилки `readdir`** глушаться — недоступний каталог просто пропускається без падіння всієї перевірки.
 
-### Залежність від конвенцій правила `js-lint.mdc`
+### Залежність від конвенцій правила `js.mdc`
 
-Файл є технічною реалізацією одного з пунктів правила `js-lint.mdc`. Усі повідомлення `reporter.pass/fail` посилаються на `(js-lint.mdc)`, щоб користувач знав, де читати про сам принцип розділу `utils/` ↔ `lib/`.
+Файл є технічною реалізацією одного з пунктів правила `js.mdc`. Усі повідомлення `reporter.pass/fail` посилаються на `(js.mdc)`, щоб користувач знав, де читати про сам принцип розділу `utils/` ↔ `lib/`.

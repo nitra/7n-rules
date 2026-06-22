@@ -30,7 +30,7 @@ const ALL_RULES = [
   'hasura',
   'image-avif',
   'image-compress',
-  'js-lint',
+  'js',
   'js-mssql',
   'js-bun-db',
   'js-bun-redis',
@@ -91,7 +91,7 @@ describe('detectAutoRules', () => {
         'graphql',
         'image-avif',
         'image-compress',
-        'js-lint',
+        'js',
         'k8s',
         'nginx-default-tpl',
         'npm-module',
@@ -418,16 +418,16 @@ describe('mergeConfigWithAutoDetected', () => {
       config: {
         rules: ['text'],
         skills: ['lint'],
-        'disable-rules': ['js-lint'],
+        'disable-rules': ['js'],
         'disable-skills': ['fix']
       },
-      detectedRules: ['js-lint', 'bun', 'text'],
+      detectedRules: ['js', 'bun', 'text'],
       detectedSkills: ['fix', 'lint']
     })
 
     expect(merged.rules).toEqual(['text', 'bun'])
     expect(merged.skills).toEqual(['lint'])
-    expect(merged['disable-rules']).toEqual(['js-lint'])
+    expect(merged['disable-rules']).toEqual(['js'])
     expect(merged['disable-skills']).toEqual(['fix'])
   })
 

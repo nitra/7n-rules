@@ -4,5 +4,5 @@
     "single": ".jscpd.json",
     "required": true
   },
-  "missingMessage": ".jscpd.json не існує — створи з полями згідно js-lint.mdc"
+  "missingMessage": ".jscpd.json не існує — створи з полями згідно js.mdc"
 }

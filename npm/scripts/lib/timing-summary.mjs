@@ -41,7 +41,7 @@ export function formatDurationMs(ms) {
  * ```
  *
  * Ширина колонки id вирівнюється під найдовший id у списку. Мінімальна ширина risk — 14
- * (узгоджено з типовою довжиною заголовків `fix-js-lint` / `lint-security`).
+ * (узгоджено з типовою довжиною заголовків `fix-js` / `lint-security`).
  * @param {string} title заголовок таблиці (наприклад, `Fix timing` або `Lint timing`)
  * @param {TimingEntry[]} timings записи в порядку запуску — друкуються як є, не сортуються
  * @returns {string} готовий до stdout текст з кінцевим `\n`

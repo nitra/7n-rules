@@ -145,8 +145,8 @@ for (const rule of rules) {
 ```javascript
 import { discoverOneRule } from './discover-checkable-rules.mjs'
 
-const rule = await discoverOneRule('/abs/path/to/npm/rules/n-js-lint', 'n-js-lint')
-// rule.id === 'n-js-lint'
+const rule = await discoverOneRule('/abs/path/to/npm/rules/n-js', 'n-js')
+// rule.id === 'n-js'
 // rule.jsConcerns — список JS-концернів у js/
 // rule.policyConcerns — список policy-концернів у policy/
 ```

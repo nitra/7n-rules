@@ -8,7 +8,7 @@ import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 /** Subтring-pattern: `pool: 'forks'` або `pool: "forks"` (з опційним whitespace). */
 const POOL_FORKS_RE = /pool\s*:\s*['"]forks['"]/u
 
-// Канонічна назва — `.mjs` (нові файли, js-lint.mdc), але legacy `.js` лишається
+// Канонічна назва — `.mjs` (нові файли, js.mdc), але legacy `.js` лишається
 // валідним. Перший знайдений виграє: `.mjs` пріоритетніший.
 const VITEST_CONFIG_NAMES = ['vitest.config.mjs', 'vitest.config.js']
 

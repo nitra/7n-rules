@@ -1,4 +1,4 @@
-# Перевірка `.github/workflows/lint-js.yml` (js-lint.mdc).
+# Перевірка `.github/workflows/lint-js.yml` (js.mdc).
 #
 # Канон надходить через --data: { "template": { "snippet": ... } }
 # Структура --data сформована з template/lint-js.yml.snippet.yml.
@@ -50,7 +50,7 @@ all_run_blob := concat("\n", [r |
 deny contains msg if {
 	some required_use in expected_uses_set
 	not contains(all_uses_blob, required_use)
-	msg := sprintf("lint-js.yml: відсутній крок uses: %s (js-lint.mdc)", [required_use])
+	msg := sprintf("lint-js.yml: відсутній крок uses: %s (js.mdc)", [required_use])
 }
 
 # ── deny: required run substrings ───────────────────────────────────────
@@ -58,26 +58,26 @@ deny contains msg if {
 deny contains msg if {
 	some required_run in expected_run_substrings
 	not contains(all_run_blob, required_run)
-	msg := sprintf("lint-js.yml: у run немає %q (js-lint.mdc)", [required_run])
+	msg := sprintf("lint-js.yml: у run немає %q (js.mdc)", [required_run])
 }
 
 # ── deny: actions/checkout@v6 has persist-credentials: false (inverse) ──
 
 deny contains msg if {
 	not has_checkout_persist_credentials_false
-	msg := "lint-js.yml: actions/checkout@v6 має бути з with.persist-credentials: false (js-lint.mdc)"
+	msg := "lint-js.yml: actions/checkout@v6 має бути з with.persist-credentials: false (js.mdc)"
 }
 
 # ── deny: --fix у CI заборонено (inverse) ───────────────────────────────
 
 deny contains msg if {
 	regex.match(`bunx\s+oxlint[^\n]*--fix`, all_run_blob)
-	msg := "lint-js.yml: у run є oxlint з `--fix` (у CI заборонено) (js-lint.mdc)"
+	msg := "lint-js.yml: у run є oxlint з `--fix` (у CI заборонено) (js.mdc)"
 }
 
 deny contains msg if {
 	contains(all_run_blob, "eslint --fix")
-	msg := "lint-js.yml: у run є `eslint --fix` (у CI заборонено) (js-lint.mdc)"
+	msg := "lint-js.yml: у run є `eslint --fix` (у CI заборонено) (js.mdc)"
 }
 
 # ── helpers ─────────────────────────────────────────────────────────────

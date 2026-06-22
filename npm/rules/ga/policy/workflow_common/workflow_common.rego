@@ -34,7 +34,7 @@ forbidden_step_substrings := {
 }
 
 # Заборонені бінарки у `run:` кроках (ga.mdc). `depcheck` мігровано на `knip`
-# у `lint-js.mdc` — окремий крок у workflow не потрібен. Регексп ловить виклики
+# у `js.mdc` — окремий крок у workflow не потрібен. Регексп ловить виклики
 # через `npx`, `bunx`, `npm exec`, або як standalone-команду на початку рядка.
 forbidden_run_command_patterns := {"depcheck": `(?:^|[\s;&|])(?:npx|bunx|npm exec|pnpm exec)?[ \t]*depcheck\b`}
 
@@ -62,7 +62,7 @@ min_uses_version_template := concat(" ", [
 
 forbidden_run_command_template := concat(" ", [
 	"jobs.%s.steps[%d]: `%s` заборонено у workflow —",
-	"мігровано на knip (js-lint.mdc, ga.mdc)",
+	"мігровано на knip (js.mdc, ga.mdc)",
 ])
 
 # ── Аліаси на input ────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ deny contains msg if {
 
 # ── deny: depcheck у будь-якому `run:` ────────────────────────────────────
 #
-# `depcheck` мігровано на `knip` (js-lint.mdc); `knip` вже запускається у lint-js
+# `depcheck` мігровано на `knip` (js.mdc); `knip` вже запускається у lint-js
 # CI як частина `bunx knip` у скрипті, тож окремий depcheck-крок зайвий і має
 # бути видалений з workflow-файлів.
 

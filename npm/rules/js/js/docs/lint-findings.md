@@ -1,7 +1,7 @@
 ---
 type: JS Module
 title: lint-findings.mjs
-resource: npm/rules/js-lint/js/lint-findings.mjs
+resource: npm/rules/js/js/lint-findings.mjs
 docgen:
   crc: bee587da
   score: 100
