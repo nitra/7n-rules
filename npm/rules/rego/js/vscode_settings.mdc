@@ -1,0 +1,13 @@
+## Налаштування VS Code для Rego
+
+`.vscode/settings.json` має містити `[rego]`-блок з двома ключами:
+
+- `editor.defaultFormatter` = `"tsandall.opa"`
+- `editor.formatOnSave` = `true`
+
+Канонічний сніпет: [settings.json.snippet.json](./policy/vscode_settings/template/settings.json.snippet.json)
+
+Перевірка — leaf-by-leaf: кожен ключ/значення зі сніпету звіряється з файлом.
+Якщо `[rego]`-блок присутній, але не є обʼєктом — окрема помилка типу.
+
+Ціль (`target.json`): `.vscode/settings.json` — обовʼязковий файл.

@@ -4,253 +4,36 @@ alwaysApply: true
 version: '1.30'
 ---
 
-**oxfmt** (`.oxfmtrc.json`, редактор), **cspell**, **shellcheck** (tracked `*.sh` у `lint-text`), **[dotenv-linter](https://dotenv-linter.github.io/)** (`.env*` у `lint-text`), **markdownlint-cli2**, **[v8r](https://chris48s.github.io/v8r/)** ([Schema Store](https://www.schemastore.org/)), розширення **DavidAnson.vscode-markdownlint** / **timonwong.shellcheck**, workflow **`lint-text`**.
+Правило охоплює весь текстовий стек проєкту: форматування (oxfmt), перевірку правопису (cspell), shell-скрипти (shellcheck), `.env`-файли (dotenv-linter), Markdown (markdownlint-cli2), JSON/YAML/TOML-схеми (v8r) та CI-workflow.
 
-```json title=".vscode/extensions.json"
-{
-  "recommendations": [
-    "dbaeumer.vscode-eslint",
-    "github.vscode-github-actions",
-    "oxc.oxc-vscode",
-    "DavidAnson.vscode-markdownlint",
-    "timonwong.shellcheck",
-    "redhat.vscode-yaml",
-    "irongeek.vscode-env"
-  ]
-}
-```
+[text-vscode](./js/vscode.mdc)
 
-Канон `recommendations` (substring requirement): [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
+[text-oxfmt](./js/oxfmt.mdc)
 
-```json title=".vscode/settings.json"
-{
-  "files.associations": {
-    "*.env.*": "env",
-    "*.env": "env"
-  },
-  "editor.formatOnSave": true,
-  "[css]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode"
-  },
-  "[graphql]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode"
-  },
-  "[handlebars]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode"
-  },
-  "[html]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode"
-  },
-  "[javascript]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode"
-  },
-  "[json]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode"
-  },
-  "[json5]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode"
-  },
-  "[jsonc]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode"
-  },
-  "[less]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode"
-  },
-  "[markdown]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode"
-  },
-  "[mdx]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode"
-  },
-  "[scss]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode"
-  },
-  "[toml]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode"
-  },
-  "[typescript]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode"
-  },
-  "[vue]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode"
-  },
-  "[yaml]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode"
-  },
-  "oxc.path.oxfmt": "/opt/homebrew/bin/oxfmt"
-}
-```
+[text-forbidden-prettier](./js/forbidden-prettier.mdc)
 
-Канон `editor.formatOnSave` + `editor.defaultFormatter` для основних мов: [settings.json.snippet.json](./policy/vscode_settings/template/settings.json.snippet.json)
+[text-cspell](./js/cspell.mdc)
 
-У корені проєкту має бути файл з правилами форматування для **oxfmt**:
+[text-markdownlint](./js/markdownlint.mdc)
 
-```json title=".oxfmtrc.json"
-{
-  "ignorePatterns": ["**/hasura/metadata/**", "**/schema.graphql", "**/auto-imports.d.ts"],
-  "arrowParens": "avoid",
-  "printWidth": 120,
-  "bracketSpacing": true,
-  "bracketSameLine": true,
-  "embeddedLanguageFormatting": "auto",
-  "endOfLine": "lf",
-  "htmlWhitespaceSensitivity": "css",
-  "insertPragma": false,
-  "jsxSingleQuote": true,
-  "proseWrap": "preserve",
-  "quoteProps": "as-needed",
-  "requirePragma": false,
-  "semi": false,
-  "singleQuote": true,
-  "tabWidth": 2,
-  "trailingComma": "none",
-  "useTabs": false,
-  "vueIndentScriptAndStyle": false
-}
-```
+[text-shellcheck](./js/shellcheck.mdc)
 
-Канон мінімального набору ключів і `ignorePatterns`: [.oxfmtrc.json.snippet.json](./policy/oxfmtrc/template/.oxfmtrc.json.snippet.json)
+[text-dotenv-linter](./js/dotenv-linter.mdc)
 
-Поле **`ignorePatterns`** обовʼязкове: у масиві мають бути **`**/hasura/metadata/**`**, **`**/schema.graphql`** і **`**/auto-imports.d.ts`**; інші glob-и додавай за потреби (згенеровані каталоги тощо) — канон задає мінімум, локальні розширення дозволені.
+[text-v8r](./js/v8r.mdc)
 
-Також потрібно прибрати, якщо є в проєкті, модуль **`@nitra/prettier-config`**, **prettier** та всі виклики prettier і налаштування для нього. Канон заборонених top-level/`dependencies`/`devDependencies` (prettier, `@nitra/prettier-config`, `markdownlint-cli2`): [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
+[text-package-json](./js/package-json.mdc)
 
-Завжди пиши **JSDoc** до функцій та методів.
+[text-ci-lint-text](./js/ci-lint-text.mdc)
 
-**`package.json`:** у `devDependencies` має бути **`@nitra/cspell-dict`** (**`^2.0.0`** або новіший у лінії 2.x) — з **2.0.0** у пакет транзитивно входять типові **`@cspell/dict-*`**, тому **не** додавай їх окремо в корінь. Окремий `package.json`-скрипт `lint-text` не потрібен: запуск іде через **`n-cursor lint text`**. **`markdownlint-cli2`** запускається rule-адаптером через **`bunx markdownlint-cli2`**, не додавай пакет до devDependencies. **`v8r`** лише через **`bunx v8r`**, не в devDependencies. Окремий пакет **`markdownlint`** не потрібний.
+## Швидкий gate через conftest
 
-**shellcheck:** інструмент лише в **`PATH`** (як у **ga.mdc** для `lint-ga`), **не** додавай до `dependencies` / `devDependencies`. Якщо `shellcheck` відсутній — встанови локально (**macOS:** `brew install shellcheck`; **Debian/Ubuntu:** `sudo apt-get install -y shellcheck`; **Arch:** `sudo pacman -S shellcheck`). Канонічний запуск — **`n-cursor lint text`** (бінарка з `node_modules/.bin/` пакету `@nitra/cursor`): після **`cspell .`** виконується **`runShellcheckText()`** з пакета — циклічно **`shellcheck -f diff`** і **`patch -p1`** для авто-виправлень, потім повний прогін **`shellcheck`** по всіх tracked `*.sh` (у git) або по `**/*.sh` без `node_modules`. Потрібен також **`patch`** у `PATH` (на macOS зазвичай уже є).
+Rego-пакети, що перевіряються через conftest (auto-discovered за `target.json` поряд із `.rego`):
 
-**dotenv-linter:** після shellcheck CLI запускає **`runDotenvLinter()`** з пакета — рекурсивно по `.env*`-файлах проєкту через **`dotenv-linter fix -r --no-backup --quiet . --exclude node_modules --exclude .envrc`**, далі такий самий **`check`** для фінальної перевірки. Інструмент має бути в **`PATH`** і **не** додається в `dependencies` / `devDependencies`. Якщо `dotenv-linter` відсутній — встанови локально (**macOS:** `brew install dotenv-linter`; **Linux:** `curl -sSfL https://git.io/JLbXn | sh -s -- -b /usr/local/bin`; через **cargo:** `cargo install dotenv-linter`).
-
-У v8r **немає** прапорця тихого режиму; rule-адаптер **`n-cursor lint text`** на четвертому кроці викликає **`runV8rWithGlobs()`** з пакета (реалізація — `npm/rules/text/js/run-v8r.mjs`): під капотом послідовні **`bunx v8r`** для кожного типу (**json**, **json5**, **yml**, **yaml**, **toml**), бо один процес v8r з кількома глобами падає з **98**, якщо хоч один glob порожній, і тоді інші розширення не перевіряються. Вивід при кодах **0** і **98** не показується. Каталог схем **`schemas/v8r-catalog.json`** пакета `@nitra/cursor` обгортка підставляє в v8r сама.
-
-```json title="package.json"
-{
-  "devDependencies": {
-    "@nitra/cspell-dict": "^2.1.0"
-  }
-}
-```
-
-**v8r:** без обгортки — чотири виклики `(bunx v8r "<glob>" || [ $? -eq 98 ])` для **`**/*.json`**, **`**/*.yml`**, **`**/*.yaml`**, **`**/*.toml`** (за потреби окремо **json5**). Враховує `.gitignore`. Для **`**/*.json`** опційно додай **власний каталог схем** [`--catalogs`](https://chris48s.github.io/v8r/usage-examples/#using-a-custom-catlog) (наприклад `-c npm/schemas/v8r-catalog.json` у репозиторії пакета `@nitra/cursor` або `-c https://unpkg.com/@nitra/cursor/schemas/v8r-catalog.json`), щоб перевіряти **`.n-cursor.json`** за схемою з [unpkg](https://unpkg.com/@nitra/cursor/schemas/n-cursor.json).
-
-У корені проєкту має бути **`.v8rignore`**: **v8r** шукає схему в [Schema Store](https://www.schemastore.org/); для JSON без запису там перевірка завершується помилкою. Мінімум виключи **`.vscode/extensions.json`** і **`.vscode/settings.json`** (немає стабільної схеми в каталозі). Інші файли без схеми — за тією ж логікою; не розширюй ignore, щоб приховати проблеми там, де схема є. За потреби додай **`.git/**`** (службові JSON під `.git`) та **`npm/schemas/n-cursor.json`** у репозиторії `@nitra/cursor`, якщо для цього файлу немає стабільної схеми в ланцюжку v8r.
-
-```text title=".v8rignore"
-.vscode/extensions.json
-.vscode/settings.json
-.git/**
-```
-
-```json title=".markdownlint-cli2.jsonc"
-{
-  "gitignore": true,
-  "config": {
-    "default": true,
-    "MD013": false,
-    "MD024": {
-      "siblings_only": true
-    },
-    "MD029": false,
-    "MD040": false,
-    "MD041": false
-  }
-}
-```
-
-Канон: [.markdownlint-cli2.jsonc.snippet.jsonc](./policy/markdownlint/template/.markdownlint-cli2.jsonc.snippet.jsonc)
-
-**MD041** off навмисно (`.mdc` з frontmatter). Деталі — [markdownlint-cli2](https://github.com/DavidAnson/markdownlint-cli2).
-
-## Cspell
-
-У корені проєкту має бути `.cspell.json` і залежності для cspell у кореневому `package.json` (зазвичай `devDependencies`).
-
-Додай workflow `.github/workflows/lint-text.yml`:
-
-- Канон: [lint-text.yml.snippet.yml](./policy/lint_text/template/lint-text.yml.snippet.yml)
-
-Перед **`./.github/actions/setup-bun-deps`** — **`actions/checkout@v6`** (див. **ga.mdc**). Після composite — кроки **`Install shellcheck`** (apt) і **`Install dotenv-linter`** (curl), бо `n-cursor lint text` вимагає обидва бінарники в PATH; на ubuntu-latest shellcheck часто вже є, dotenv-linter — ні. Composite: Node 24, Bun, кеш, `bun install --frozen-lockfile`.
-
-Не дублюй окремий workflow з тими самими кроками cspell/markdownlint.
-
-**`.cspell.json`**, `version: "0.2"`, **`language`**, **`import`** з `@nitra/cspell-dict`, **`ignorePaths`**, **`words`** лише для назв/термінів, коли не виправити текстом.
-
-Базово (англійська + українська + корпоративний словник):
-
-```json title=".cspell.json"
-{
-  "version": "0.2",
-  "language": "nitra",
-  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report", "*.svg", "**/k8s/**/*.yaml", "docs/adr/**"],
-  "import": ["@nitra/cspell-dict/cspell-ext.json"],
-  "words": []
-}
-```
-
-Канон базових ключів `.cspell.json` (`version`, `ignorePaths`): [.cspell.json.snippet.json](./policy/cspell/template/.cspell.json.snippet.json). Обовʼязковий запис у `import`: [.cspell.json.contains.json](./policy/cspell/template/.cspell.json.contains.json). Заборонено імпортувати окремі `@cspell/dict-*` у `.cspell.json`: [.cspell.json.deny.json](./policy/cspell/template/.cspell.json.deny.json).
-
-`docs/adr/**` у канонічному `ignorePaths` — машинно-генеровані MADR-документи (драфти `capture-decisions.sh` + clean-ADR-и після `normalize-decisions.sh`). cspell-перевірка там безглузда: чернетка стирається наступним прогоном хук-ланцюжка, а будь-яка ручна правка правопису перезаписується. Локальні розширення `ignorePaths` дозволені — це лише мінімум.
-
-```json title="package.json"
-{
-  "devDependencies": {
-    "@nitra/cspell-dict": "^2.1.0"
-  }
-}
-```
-
-## Проєкт з українською та російською (і суміжні мови)
-
-У **`@nitra/cspell-dict`** від **2.0.0** уже зібрані залежності на **`@cspell/dict-uk-ua`**, **`@cspell/dict-ru_ru`** та інші типові словники — **не** дублюй їх у кореневому `package.json` і **не** імпортуй **`@cspell/dict-*/cspell-ext.json`** у `.cspell.json`.
-
-**1. Залежності** — лише корпоративний пакет:
-
-```json title="package.json"
-{
-  "devDependencies": {
-    "@nitra/cspell-dict": "^2.1.0"
-  }
-}
-```
-
-Встановлення: `bun add -d @nitra/cspell-dict@^2.0.0`.
-
-**2. `.cspell.json`** — у полі **`language`** додай потрібні коди (наприклад **`uk`**, **`ru-ru`** разом з **`en`** та **`nitra`**). У **`import`** залиш лише **`@nitra/cspell-dict/cspell-ext.json`**:
-
-```json title=".cspell.json"
-{
-  "version": "0.2",
-  "language": "en,uk,ru-ru,nitra",
-  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report", "*.svg", "**/k8s/**/*.yaml", "docs/adr/**"],
-  "import": ["@nitra/cspell-dict/cspell-ext.json"],
-  "words": []
-}
-```
-
-Підлаштуй **`language`** під проєкт. Порядок у **`import`** може впливати на пріоритет словників — тримай корпоративний **`@nitra/cspell-dict`** першим, якщо додаєш інші розширення (рідко).
-
-**Український апостроф:** у словах не використовуй прямий символ `'` (U+0027); потрібен типографський апостроф `’` (U+2019). Якщо після цього cspell досі підсвічує слово як невідоме — додай його до масиву `words` у `.cspell.json`.
-
-## Локальні виключення (cspell `words`)
-
-Коли **cspell** підсвічує слово, спочатку **виправ текст**, а не розширюй словник:
-
-- виправ **друкарські помилки** та неправильні форми;
-- **перефразуй коректною українською** (або англійською, залежно від контексту файлу): заміни кальки й випадкові склади на звичні формулювання зі словників;
-- заміни **жаргон**, якщо є природний еквівалент у тому ж стилі документації (наприклад, у коментарях пиши «функція зворотного виклику» замість розмовного запозичення з англійського `callback`).
-
-У секцію `words` у `.cspell.json` додавай записи **лише якщо переписати коректно неможливо** або **недоречно**: власні назви, стабільні технічні терміни без усталеного перекладу в проєкті, ідентифікатори зовнішніх API тощо.
-
-## Інші мови
-
-Якщо потрібна мова вже є в залежностях **`@nitra/cspell-dict`** — додай лише код у **`language`**, без окремих **`@cspell/dict-*`** у споживачі. Якщо мови немає в корпоративному пакеті — розширюй **`@nitra/cspell-dict`**, а не підключай **`@cspell/dict-*`** у корені репозиторію-споживача. Огляд upstream-словників: [streetsidesoftware/cspell-dicts](https://github.com/streetsidesoftware/cspell-dicts).
-
-## Найменування каталогів
-
-kebab-case
-
-## Перевірка
-
-`npx @nitra/cursor fix text` (охоплює oxfmt, cspell, shellcheck, markdownlint, v8r і CI для `n-cursor lint text`). Зокрема падає, якщо у корені є `.prettierignore`, `.prettierrc*`, `prettier.config.*` або у `package.json#scripts` зустрічається команда з `prettier` — Prettier повністю заборонено, форматування лише через **oxfmt**.
+- `text.cspell` — `.cspell.json`: version, ignorePaths, import (@nitra/cspell-dict), language, заборонені @cspell/dict-* у import
+- `text.lint_text` — `.github/workflows/lint-text.yml`: name, on.push/pull_request branches+paths, runs-on, permissions, кроки uses+run
+- `text.markdownlint` — `.markdownlint-cli2.jsonc`: gitignore, config leafs (MD013, MD024.siblings_only, MD029, MD040, MD041)
+- `text.oxfmtrc` — `.oxfmtrc.json`: обовʼязкові ключі (presence), ignorePatterns subset, scalar leafs
+- `text.package_json` — `package.json`: заборонені top-level/deps (prettier, @nitra/prettier-config, markdownlint-cli2), @nitra/cspell-dict ^2.0.0+ у devDependencies, scripts без prettier
+- `text.vscode_extensions` — `.vscode/extensions.json`: recommendations містить канонічні розширення
+- `text.vscode_settings` — `.vscode/settings.json`: editor.formatOnSave, editor.defaultFormatter для мов

@@ -1,0 +1,58 @@
+## GitHub Actions: `lint-js.yml` — CI-лінт JS
+
+Додай workflow для лінту JS у CI:
+
+```yaml title=".github/workflows/lint-js.yml"
+name: Lint JS
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - '**/*.js'
+      - '**/*.mjs'
+      - '**/*.cjs'
+      - '**/*.jsx'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.vue'
+      - '**/eslint.config.*'
+
+  pull_request:
+    branches:
+      - dev
+      - main
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  eslint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-bun-deps
+
+      - name: Eslint
+        run: |
+          bunx oxlint
+          bunx eslint .
+          bunx jscpd .
+          bunx knip --no-config-hints
+```
+
+Канон workflow `.github/workflows/lint-js.yml`: [lint-js.yml.snippet.yml](./policy/lint_js_yml/template/lint-js.yml.snippet.yml)
+
+Перед `./.github/actions/setup-bun-deps` — `actions/checkout@v6` (з `persist-credentials: false`, див. `ga.mdc`). Composite action: Node 24, Bun, кеш, `bun install --frozen-lockfile`.
+
+Один workflow на лінт JS; зайвий `lint.yml` з тими самими кроками (`bunx oxlint`, `bunx eslint`, `jscpd`) — прибери.
+
+У CI `--fix` для oxlint/eslint — **заборонено**: CI лише перевіряє, не виправляє.

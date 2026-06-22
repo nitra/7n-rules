@@ -1,0 +1,65 @@
+## `sql.unsafe(...)` за замовчуванням заборонено
+
+Будь-який виклик `sql.unsafe(...)` (так само `tx.unsafe(...)` всередині `sql.begin`) **заборонено**, окрім випадків, коли **обидві** умови виконані:
+
+1. значення підставляється з **коду** — константа, конфіг, whitelist; **не з user input**;
+2. треба підставити те, що **не можна параметризувати** через tagged template:
+   - назву **таблиці**,
+   - назву **колонки**,
+   - **dynamic SQL / DDL** (`CREATE`, `ALTER`, `DROP`, multi-statement migration, серверні `SET`/`SHOW` і подібне).
+
+В усіх інших випадках — переробити на звичайний tagged template `sql\`...\${value}...\``: значення біндяться як параметри й injection не лишається.
+
+Кожен легітимний `sql.unsafe(...)` має супроводжуватись **маркером-коментарем** з причиною — на тому ж рядку (trailing) або на рядку безпосередньо перед викликом. Маркер — opt-in для перевірки `js-bun-db` і слід для ревʼюера:
+
+```javascript
+import format from '@scaleleap/pg-format'
+
+const query = format('CREATE TABLE %I (id int)', tableName)
+// allow-unsafe: DDL — назву таблиці параметризувати не можна; ідентифікатор екранує pg-format
+await sql.unsafe(query)
+
+await sql.unsafe('SELECT pg_advisory_lock($1)', [lockId]) // allow-unsafe: pg_advisory_lock — окремий шлях, без tagged template
+```
+
+Формат маркера: `allow-unsafe: <непорожня причина>` у line- або block-коментарі. Без причини (`// allow-unsafe:`) і без маркера взагалі — **fail** перевірки.
+
+### `sql.unsafe` з template-літералом і `${...}`-інтерполяцією — заборонено навіть з маркером
+
+`sql.unsafe(\`...\${x}...\`)` — окремий **hard fail**, який не знімається маркером `// allow-unsafe`. Шаблонна підстановка `${x}` у `sql.unsafe`-рядок:
+
+- **не екранує** identifier'ів (reserved words, спецсимволи, пробіли в імені);
+- **не біндить** значень (вони потрапляють у запит сирим текстом, як injection-вектор);
+- виглядає «безпечно» через знайому tagged-template-форму, але не має жодних гарантій Bun SQL.
+
+Канон — побудувати `text` окремо, потім передати в `sql.unsafe(text, [params])`:
+
+- для **identifiers** — `@scaleleap/pg-format` `format('%I', name)` (екранує спецсимволи, reserved words);
+- для **values** — позиційні `$1`, `$2`, … як placeholder'и в тексті + масив значень другим аргументом;
+- для **fragments** з whitelist (`ASC`/`DESC`) — `format('%s', whitelistedValue)`.
+
+```javascript
+// ❌ template-літерал з ${...} — fail навіть з allow-unsafe
+// allow-unsafe: DDL
+await sql.unsafe(`CREATE TABLE ${tableName} (id int)`)
+
+// ✅ format('%I', ...) екранує identifier, sql.unsafe приймає готовий text
+import format from '@scaleleap/pg-format'
+const query = format('CREATE TABLE %I (id int)', tableName)
+// allow-unsafe: DDL — назву таблиці параметризувати не можна
+await sql.unsafe(query)
+```
+
+Статичні `sql.unsafe(\`SELECT 1\`)` (без `${...}`) і `sql.unsafe(text, [params])` зі змінною `text`, зібраною заздалегідь, — допустимі (за наявності `// allow-unsafe`-маркера).
+
+Заборонені кейси (треба переробити на tagged template):
+
+```javascript
+// ❌ дані від користувача — параметризуй через tagged template
+await sql.unsafe(`SELECT * FROM users WHERE id = ${userId}`)
+
+// ❌ навіть у tagged template — динамічний список через .join(',')
+await sql`SELECT * FROM users WHERE id IN (${ids.join(',')})`
+```
+
+Для динамічних списків — `sql([...])` або `sql(rows, 'colA', 'colB')`, **не** `.join(',')`.

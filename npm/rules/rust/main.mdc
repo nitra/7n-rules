@@ -5,44 +5,14 @@ alwaysApply: false
 version: '1.4'
 ---
 
-**rustfmt** ([rust-lang/rustfmt](https://github.com/rust-lang/rustfmt)) — форматер; **clippy** ([rust-lang/rust-clippy](https://github.com/rust-lang/rust-clippy)) — лінтер. Запуск — через **`n-cursor lint rust`** (адаптер `js/lint.mjs`): локально (fix) `cargo fmt --all` → `cargo clippy --fix --allow-staged --allow-dirty --all-targets --all-features` → фінальний `cargo clippy --all-targets --all-features -- -D warnings`; у `--read-only` (детект) — `cargo fmt --all -- --check` + `cargo clippy ... -- -D warnings`. Окремого `package.json`-скрипта немає. У CI cargo викликається напряму (див. `lint-rust.yml`).
+Правило забезпечує форматування (rustfmt), лінт (clippy), CI workflow та покриття для Rust-проєктів.
 
-`cargo`, `rustfmt`, `clippy` не додавай у `devDependencies` — це Rust toolchain, ставиться через `rustup` локально або через `dtolnay/rust-toolchain@stable` у CI.
+[rust-lint](./js/lint.mdc)
+[rust-vscode_extensions](./js/vscode_extensions.mdc)
+[rust-tauri_composition](./js/tauri_composition.mdc)
+[rust-coverage](./js/coverage.mdc)
 
-У `.vscode/extensions.json` `recommendations` мають містити `rust-lang.rust-analyzer` і `tamasfe.even-better-toml`: [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
+## Швидкий gate через conftest
 
-Канон workflow `.github/workflows/lint-rust.yml`: [lint-rust.yml.snippet.yml](./policy/lint_rust_yml/template/lint-rust.yml.snippet.yml)
-
-Перед **`./.github/actions/setup-bun-deps`** в інших workflows йде **`actions/checkout@v6`** (див. **ga.mdc**). У **lint-rust.yml** після checkout — `dtolnay/rust-toolchain@stable` (з `components: rustfmt, clippy`) + `Swatinem/rust-cache@v2` для кешу `~/.cargo` і `target/`. Bun composite дії тут не потрібен — toolchain ставиться напряму.
-
-## Композиція з Tauri
-
-Tauri-проєкт завжди має `src-tauri/Cargo.toml`, тому правило `rust` активується автоматично разом з `tauri`. Поділ обов'язків:
-
-- `rust` — лінт через `n-cursor lint rust`, `rust-analyzer`, `even-better-toml`, CI workflow.
-- `tauri` — `tauri-apps.tauri-vscode` (див. **tauri.mdc**).
-
-Обидва правила перевіряють `.vscode/extensions.json` за `contains`-семантикою; конкурентного запису немає.
-
-## Покриття + мутаційне тестування Rust
-
-Покриття + мутаційне тестування Rust постачаються через `n-cursor coverage` (правило `test.mdc`). Реалізація провайдера — у `npm/rules/rust/coverage/coverage.mjs`: `cargo llvm-cov --json --summary-only` + `cargo mutants --jobs N` (паралельні воркери, дефолт `min(4, cpus/2)`; override через env `CARGO_MUTANTS_JOBS`). Прапорець `--in-place` прибраний — cargo-mutants створює власну sandbox-копію в `target/mutants.<i>/`, що сумісне з `--jobs > 1`. Бінарники: `cargo install cargo-llvm-cov && cargo install cargo-mutants`.
-
-### Incremental mutation через `--in-diff`
-
-cargo-mutants **не** має persistent-кешу вердиктів між прогонами (на відміну від Stryker `incremental.json`). Штатний аналог «не передивляйся незмінений код» — scoping за git-diff. Вмикається env-змінною **`CARGO_MUTANTS_BASE_REF`**:
-
-- **не задано** (дефолт, типово для `main`) — повний прогін усіх мутантів;
-- задано (напр. `origin/main`, типово для feature-гілки в CI) — мутуються лише рядки, змінені у `<baseRef>...HEAD`. Провайдер бере `git diff --relative <baseRef>...HEAD` з каталогу crate (шляхи в diff збігаються з тим, що мутує cargo-mutants навіть у monorepo з `src-tauri/`), пише його у sandbox і передає cargo-mutants `--in-diff`.
-
-Краєві випадки: порожній diff (немає змін під crate) → mutation `0/0` без запуску cargo-mutants; невідомий ref / не git-репо → попередження у stderr і fallback до повного прогону.
-
-### Пропуск baseline через `CARGO_MUTANTS_BASELINE=skip`
-
-cargo-mutants спершу ганяє немутований baseline (повний build+test), щоб переконатися, що suite зелений. Це **фіксована** вартість, незалежна від кількості мутантів — а отже більша частка дрібного `--in-diff`-прогону. **`CARGO_MUTANTS_BASELINE=skip`** прибирає цей крок (cargo-mutants `--baseline skip`), економлячи один повний `cargo test`.
-
-Безпечно **лише** коли тести вже зелені у попередньому CI-степі (типовий порядок: `cargo test` → потім `n-cursor coverage` зі `skip`). Без цієї гарантії всі вердикти стають сміттєвими, тому дефолт — baseline-прогін. Найкорисніше в парі з `--in-diff`.
-
-### CI-кеш `target/` — множник, без якого scoping невидимий
-
-`--in-diff` ріже **кількість** мутантів, кеш `target/` — **вартість кожної** компіляції; вони множаться. Без кешу холодний CI щоразу перебудовує всі залежності, і baseline-build (для Tauri — хвилини) затьмарює економію від меншої кількості мутантів. У workflow, що викликає `n-cursor coverage` для Rust, став `Swatinem/rust-cache@v2` (кеш `~/.cargo` + `target/`) після `dtolnay/rust-toolchain@stable` — так само, як у `lint-rust.yml`. Sandbox-копії `target/mutants.<i>/` самі не кешуються, але деривуються з кешованих залежностей.
+- `rust.lint_rust_yml` — перевіряє `.github/workflows/lint-rust.yml`: наявність обов'язкових `uses` (`actions/checkout@v6`, `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`) та `run`-кроків з канону.
+- `rust.vscode_extensions` — перевіряє `.vscode/extensions.json`: `recommendations` містить `rust-lang.rust-analyzer` і `tamasfe.even-better-toml`.

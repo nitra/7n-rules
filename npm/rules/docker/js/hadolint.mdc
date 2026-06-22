@@ -1,0 +1,50 @@
+## lint-docker: hadolint і CI-workflow
+
+### Область lint-docker
+
+CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE...]` у **`hadolint --help`**); обхід репозиторію робить правило **`n-cursor lint docker`** (реалізація — **`npm/rules/docker/js/lint.mjs`**).
+
+**Область lint-docker (вужча, ніж `check docker`):** лише файли з іменем **`Dockerfile`** та **`*.Dockerfile`** (суфікс **`.dockerfile`** без урахування регістру, наприклад **`api.Dockerfile`**). Файли **`Dockerfile.prod`**, **`Containerfile`** тощо **не** входять у **`lint-docker`**; їх ловить **`check docker`** (`rules/docker/fix.mjs`).
+
+Обхід: **`walkDir`** з тими самими пропусками каталогів, що й **`rules/docker/fix.mjs`**. Виклик **`hadolint`** як **нативного бінарника** через **`ensureTool`** (PATH → кеш → авто-install brew/scoop/GitHub Release; **без** `docker run`) — спільна логіка **`npm/rules/docker/lib/docker-hadolint.mjs`**.
+
+### GitHub Actions workflow
+
+Додай workflow **`.github/workflows/lint-docker.yml`** (гілки **`dev`** і **`main`**, лише **`.yml`**, узгоджено з **`ga.mdc`**):
+
+- Канон: [lint-docker.yml.snippet.yml](./policy/lint_docker_yml/template/lint-docker.yml.snippet.yml)
+
+Локально hadolint авто-встановлюється через **`ensureTool`** (latest, без піну версії). У CI встанови його кроком із workflow-сніпета (curl-download бінарника — без `docker run`).
+
+### Конфігурація hadolint
+
+Кореневий **`.hadolint.yaml`**: вимкнення правил, trusted registries — [документація](https://github.com/hadolint/hadolint#configure). Щоб не додавати **`# hadolint ignore=DL3007`** у кожному **`FROM`** з **`:latest`**, у корені репозиторію задати глобально:
+
+```yaml title=".hadolint.yaml"
+ignored:
+  - DL3007
+  - DL3008
+  - DL3018
+```
+
+Де DL3007 — «Не використовуй тег latest у FROM»
+Де DL3018 — «Піни версії пакетів у apk add»
+
+### Запуск
+
+1. **`n-cursor lint docker`** — **`js/lint.mjs`**: **`Dockerfile`** та **`*.Dockerfile`** (lint-docker); у CI використовуй **`n-cursor lint docker --read-only`** і встанови hadolint (приклад у workflow).
+2. **`npx @nitra/cursor fix docker`** — **`rules/docker/fix.mjs`**, виклик hadolint як у **`docker-hadolint.mjs`** (нативний бінарник через **`ensureTool`**; **без** `docker run`).
+
+Окремий `package.json`-скрипт `lint-docker` не потрібен і не перевіряється — єдина точка входу для правила: **`n-cursor lint docker`**.
+
+Якщо немає файлів у межах відповідного набору (**`lint-docker`** або **`check docker`**) — перевірка пропускається (exit 0).
+
+Винятки: **`# hadolint ignore=DL3008`** (або інший код) у Dockerfile або **`ignored`** у **`.hadolint.yaml`** (наприклад **DL3007** для **`:latest`** — div. вище).
+
+### Rego-перевірка (conftest)
+
+Пакет `docker.lint_docker_yml` перевіряє `.github/workflows/lint-docker.yml` на відповідність канонічному сніпету:
+
+- `on.push.paths` містить обов'язкові шляхи з template;
+- присутні всі `uses:` кроки з template;
+- всі `run:` підрядки з template є у workflow.

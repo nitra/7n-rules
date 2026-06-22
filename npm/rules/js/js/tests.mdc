@@ -1,0 +1,9 @@
+## Тести та покриття
+
+### Unit-тести (Bun test)
+
+Проєкт має бути покритий unit-тестами (**Bun test**). Код: синтаксис Node **24+**, **top level await** (узгоджено з `engines.node` у `package.json`).
+
+### Покриття + мутаційне тестування JS
+
+Покриття + мутаційне тестування JS постачаються через `n-cursor coverage` (правило `test.mdc`). Реалізація провайдера — у `npm/rules/js/coverage/coverage.mjs`: `bun test --coverage --coverage-reporter=lcov` + `bunx stryker run`. Stryker конфігурується в `stryker.config.mjs` у JS-корені (single-package або `workspaces[0]`).

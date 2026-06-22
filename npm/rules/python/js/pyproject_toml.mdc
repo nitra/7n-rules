@@ -1,0 +1,32 @@
+## pyproject.toml: PEP 621 і заборона Poetry
+
+Метадані проєкту — у секції **`[project]`** (PEP 621), а **не** в `[tool.poetry]`.
+
+Обовʼязкові поля:
+- `[project].name` — назва пакета;
+- `[project].version` — статична версія;
+- `[project].requires-python` — мінімальна версія Python;
+- `[project].dependencies` — залежності (навіть порожній список).
+
+Lock-файл — **`uv.lock`** (коммітиться). `poetry.lock` / `poetry.toml` мають бути відсутні.
+
+Залежності: `uv add <pkg>`; dev-залежності: `uv add --dev <pkg>`.
+
+Канонічний цільовий вигляд `pyproject.toml`: [pyproject.toml.snippet.toml](./policy/pyproject_toml/template/pyproject.toml.snippet.toml)
+
+Заборонені під-таблиці `[tool.*]` (Poetry): [pyproject.toml.deny.toml](./policy/pyproject_toml/template/pyproject.toml.deny.toml)
+
+## Міграція з Poetry на uv
+
+1. Прибери `[tool.poetry]` і `poetry.lock` / `poetry.toml`.
+2. Перенеси метадані в `[project]` (name, version, requires-python, dependencies) за PEP 621.
+3. Згенеруй lock: `uv lock` → `uv.lock`.
+4. Dev-залежності: `uv add --dev ruff mypy …`.
+
+## Rego: python.pyproject_toml
+
+Polисі `policy/pyproject_toml/pyproject_toml.rego` — дві групи правил:
+
+**1. Заборона Poetry** — перевіряє, чи є заборонені під-таблиці `[tool.*]` з `pyproject.toml.deny.toml` (drift-safe через `--data template`).
+
+**2. PEP 621** — `[project].name` і `[project].version` мають бути непорожніми рядками.

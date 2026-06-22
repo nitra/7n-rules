@@ -1,0 +1,15 @@
+## CI: workflow lint-text
+
+Додай workflow `.github/workflows/lint-text.yml`:
+
+- Канон: [lint-text.yml.snippet.yml](./policy/lint_text/template/lint-text.yml.snippet.yml)
+
+Перед **`./.github/actions/setup-bun-deps`** — **`actions/checkout@v6`** (див. **ga.mdc**). Після composite — кроки **`Install shellcheck`** (apt) і **`Install dotenv-linter`** (curl), бо `n-cursor lint text` вимагає обидва бінарники в PATH; на ubuntu-latest shellcheck часто вже є, dotenv-linter — ні. Composite: Node 24, Bun, кеш, `bun install --frozen-lockfile`.
+
+Не дублюй окремий workflow з тими самими кроками cspell/markdownlint.
+
+Ключовий крок CI: **`n-cursor lint text --read-only`** (нуль мутацій — авто-фікс вимкнено).
+
+## Перевірка
+
+`npx @nitra/cursor fix text` (охоплює oxfmt, cspell, shellcheck, markdownlint, v8r і CI для `n-cursor lint text`). Зокрема падає, якщо у корені є `.prettierignore`, `.prettierrc*`, `prettier.config.*` або у `package.json#scripts` зустрічається команда з `prettier` — Prettier повністю заборонено, форматування лише через **oxfmt**.

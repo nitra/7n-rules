@@ -1,0 +1,26 @@
+## package.json: вимоги текстового стека
+
+**`package.json`** у `devDependencies` має бути **`@nitra/cspell-dict`** (**`^2.0.0`** або новіший у лінії 2.x). Окремий `package.json`-скрипт `lint-text` не потрібен: запуск іде через **`n-cursor lint text`**.
+
+```json title="package.json"
+{
+  "devDependencies": {
+    "@nitra/cspell-dict": "^2.1.0"
+  }
+}
+```
+
+**Заборонено** у `dependencies` / `devDependencies`:
+- `prettier`, `@nitra/prettier-config` — Prettier повністю заборонено
+- `markdownlint-cli2` — запускається через `bunx markdownlint-cli2`
+- окремі `@cspell/dict-*` пакети — входять транзитивно через `@nitra/cspell-dict`
+
+**Заборонено** у `scripts.*`: команди, що містять виклик `prettier` (будь-який runner: `bunx prettier`, `npx prettier`, `prettier --write` тощо) — використовуй oxfmt.
+
+Канон заборонених пакетів: [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
+
+Завжди пиши **JSDoc** до функцій та методів.
+
+## Найменування каталогів
+
+kebab-case

@@ -7,69 +7,17 @@ version: '2.1'
 
 Проект використовує тільки Bun для керування залежностями та запуску скриптів.
 
-**Одноразові CLI (hasura, eslint, vite, cypress тощо):**
+[bun-layout](./js/layout.mdc)
 
-- Якщо в проєкті вже використовується **`npx`** (скрипти, CI, Dockerfile) — **залишай `npx`**, не замінюй на `bunx`.
-- Якщо новий виклик CLI додається з нуля і в цьому репозиторії прийнято лише Bun — можна `bunx <tool>`.
+[bun-bunfig](./js/bunfig.mdc)
 
-Заборонено використовувати як менеджер пакетів / lockfile:
+[bun-package_json](./js/package_json.mdc)
 
-- `npm install`, `yarn`, `pnpm` (і відповідні lockfile, крім `bun.lock`)
+[bun-lint](./js/lint.mdc)
 
-Дозволені команди:
+## Швидкий gate через conftest
 
-- `bun i`
-- `bun run <script>`
-- `bun add <pkg>`
-- `bun add -d <pkg>`
-- `bun remove <pkg>`
-- `bunx <tool>`
-- `npx <tool>`
-
-**Не додавай** у `dependencies` / `devDependencies` пакети, які **використовуються лише як CLI** і їх достатньо викликати через **`bunx <pkg>`** (або **`npx`**, якщо в проєкті так прийнято): наприклад **oxlint**, **jscpd**, **eslint** у корені тощо. Виняток — пакет потрібен як **бібліотека** (імпорт у коді), peer для іншого пакета, або інструмент **не** покривається `bunx` у вашому CI.
-
-Lockfile у репозиторії: `bun.lock`.
-Не створювати `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`.
-Видалити якщо вони є. Видалити .yarn та .yarnrc.yml якщо вони є.
-
-У корені репозиторію має бути **`bunfig.toml`** з **hoisted** лінкером (пласке `node_modules`, сумісне з інструментами, які не розуміють ізольований layout Bun):
-
-- Канон `bunfig.toml`: [bunfig.toml.snippet.toml](./policy/bunfig/template/bunfig.toml.snippet.toml)
-
-Для Bun monorepo:
-
-- Встановлювати залежності у відповідному пакеті, а не в корені без потреби.
-- Якщо залежність потрібна лише одному пакету, додавати її в директорії цього пакета.
-- У CI та локально запускати скрипти через `bun run`.
-
-В кореневому `package.json` не повинно бути `dependencies`, а в `devDependencies` — тільки модулі `@nitra/*`. **Виняток (root-only)** — Vitest/Stryker peer/tools для `n-cursor coverage`: `vitest`, `@vitest/coverage-v8`, `@stryker-mutator/vitest-runner`; а також `@playwright/test` для e2e-тестів. Тримати їх **у корені** доводиться у будь-якому монорепо-споживачі, бо правило `test` enabled завжди (`test/auto.md` = `завжди`), а класти ці пакети у workspace-и не можна: published пакети (`npm-module.mdc`) не мають мати `devDependencies`, а інші workspace-и однаково запускають coverage оркестратор з кореня. Якщо в package.json є поля `packageManager`, то прибрати їх, також прибрати всі директорії та файли для yarn.
-
-- Заборонені top-level поля у root `package.json` (з причинами): [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
-
-Коли зміна відбувається в Dockerfile, то використовувати
-
-```dockerfile
-FROM oven/bun:alpine AS build-env
-```
-
-замість образу node
-
-У **GitHub Actions** не вставляй у workflow окремі кроки **`actions/setup-node`**, **`oven-sh/setup-bun`**, **`actions/cache`** та **`bun install`** — їх **заборонено** дублювати в кожному job; завжди використовуй **локальний composite** (деталі й заборона дублювання — **ga.mdc**). Під капотом composite уже містить Node **24**, Bun, кеш і **`bun install --frozen-lockfile`**.
-
-Після **`actions/checkout@v6`** (`persist-credentials: false`):
-
-```yaml
-- uses: ./.github/actions/setup-bun-deps
-```
-
-Якщо в репозиторії action збережено під **`./npm/github-actions/setup-bun-deps`**, у `uses:` вкажи цей шлях замість `.github/actions/…` (**ga.mdc**).
-
-## lint
-
-Лінт запускається через CLI **`n-cursor`**, **не** через `package.json`-скрипти:
-
-- **`n-cursor lint --full`** — весь репо: активні у `.n-cursor.json` правила (per-file + full лінтери за `meta.json#lint` scope, конформність) + `oxfmt` у кінці (fix-режим);
-- **`n-cursor lint`** — дельта vs origin (активні у `.n-cursor.json` per-file лінтери лише змінених файлів);
-- **`n-cursor lint <rule…>`** — конкретні правила (лінтер + конформність), напр. **`n-cursor lint ga`**.
-
-У кореневому `package.json` **не повинно бути** `lint`/`lint-*` скриптів — єдина точка лінту — CLI `n-cursor`. У CI кожен workflow викликає **`n-cursor lint <rule> --read-only`** напряму (без обгорток).
+| Namespace | Що перевіряє |
+|---|---|
+| `bun.bunfig` | Відповідність `bunfig.toml` канонічному шаблону (секції + leaf-ключі) |
+| `bun.package_json` | Заборонені top-level поля у root `package.json`; `devDependencies` лише `@nitra/*` + root-only test peers |

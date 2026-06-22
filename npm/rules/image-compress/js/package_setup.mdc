@@ -1,0 +1,13 @@
+## Кеш-файли: що зберігати в git
+
+**`.n-minify-image.tsv`** у корені сканованого каталогу — **має бути в git** (source of truth для sha1-перевірок і lifetime savings). У `.gitignore` його не додавай.
+
+**`node_modules/.cache/@nitra/minify-image/mtime.tsv`** — локальний fast-path; авто-gitignored через `node_modules/`.
+
+Застарілий **`.minify-image-cache.tsv`** у корені (з версій `@nitra/minify-image` < 3.2) — видали після міграції на split-cache:
+
+```sh
+git rm --cached .minify-image-cache.tsv 2>/dev/null || true && rm -f .minify-image-cache.tsv
+```
+
+Також прибери відповідний рядок з `.gitignore`, якщо є.

@@ -1,0 +1,25 @@
+## Заборонено імпортувати Node-нативні модулі у `.vue` SFC
+
+Vue SFC виконується у браузері, тож API Node.js там недоступне. У `<script>` (включно з `<script setup>`)
+заборонено будь-які імпорти вбудованих модулів Node — як з префіксом `node:`, так і bare-ім'ям модуля
+(включно з підшляхами):
+
+```vue title="погано — ламає білд"
+<script setup lang="ts">
+import { setTimeout as sleep } from 'node:timers/promises'
+import fs from 'fs'
+import { readFile } from 'fs/promises'
+import path from 'node:path'
+</script>
+```
+
+Якщо потрібна логіка з Node API — винеси її у server-side утіліту (наприклад, у backend-пакет монорепо)
+та звертайся до неї через HTTP/GraphQL. Браузерні замінники (`window.crypto`, `URL`, `setTimeout` глобальний,
+`AbortController` тощо) використовуй напряму, без import.
+
+Правило стосується саме `.vue` файлів. Допоміжні `.ts`/`.js` модулі, які споживаються лише server-side
+(наприклад, окремий пакет утіліт), можуть імпортувати Node-built-ins без обмежень.
+
+Перевірка реалізована у `npm/rules/vue/lib/vue-forbidden-imports.mjs` через функцію
+`findForbiddenNodeImportsInVueFile` — аналізує лише `<script>` блоки SFC через **oxc-parser**,
+ігноруючи `<template>`.

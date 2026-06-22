@@ -150,10 +150,10 @@ describe('inlineMarkdownIncludes', () => {
     )
   })
 
-  test('integration: abie.mdc — includes inlined, template links and plain text untouched', async () => {
+  test('integration: abie/main.mdc — includes inlined, template links and plain text untouched', async () => {
     const { readFile } = await import('node:fs/promises')
     const abieDir = join(HERE, '..', '..', '..', 'rules', 'abie')
-    const mdc = await readFile(join(abieDir, 'abie.mdc'), 'utf8')
+    const mdc = await readFile(join(abieDir, 'main.mdc'), 'utf8')
     const withTemplates = await inlineTemplateLinks(mdc, abieDir)
     const result = await inlineMarkdownIncludes(withTemplates, abieDir)
 
@@ -164,7 +164,7 @@ describe('inlineMarkdownIncludes', () => {
     expect(result).toContain('## k8s: `hc.yaml` поруч із Deployment')
     expect(result).toContain('## Внутрішньокластерні URL у env-файлах')
 
-    // Template link in abie.mdc (Git branches section) still gets inlined by inlineTemplateLinks
+    // Template link in main.mdc (Git branches section) still gets inlined by inlineTemplateLinks
     expect(result).not.toContain('clean-merged-branch.yml.snippet.yml')
   })
 })

@@ -1,0 +1,15 @@
+## Лінт-тулчейн: actionlint, zizmor, n-cursor lint ga
+
+**Лінт:** [actionlint](https://github.com/rhysd/actionlint) через [github-actionlint](https://www.npmjs.com/package/github-actionlint); [zizmor](https://docs.zizmor.sh) — `uvx`, офлайн. Запуск — через **`n-cursor lint ga`** (CI — `--read-only`; бінарка з `node_modules/.bin/` пакету `@nitra/cursor`), який робить preflight на `shellcheck` і послідовно запускає `actionlint` та `zizmor`. Окремого `package.json`-скрипта немає.
+
+> Виклик через bin-ім'я `n-cursor` (а **не** `npx @nitra/cursor`): `bun x`/`npx` для скоупованого пакету з одним bin-ім'ям повертає 0 без виконання, тому в CI-кроці `run:` використовуй саме `n-cursor lint <rule>`.
+
+CLI робить preflight на `shellcheck` і `uv` (`uvx`) у `PATH`, потім запускає `bunx github-actionlint` і `uvx zizmor --offline --collect=workflows .`.
+
+Послідовність кроків `n-cursor lint ga`:
+
+1. `ensureTool`: `shellcheck` і `conftest` (авто-install або hard-fail)
+2. preflight: `uv` (для `uvx zizmor`) — hint-only, без авто-install
+3. `bunx github-actionlint`
+4. `uvx zizmor --offline --collect=workflows .`
+5. `rules/ga/check()` — Rego-полісі (батч conftest з `npm/policy/ga/`) + JS cross-file перевірки правил `ga.mdc`

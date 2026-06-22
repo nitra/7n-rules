@@ -1,0 +1,20 @@
+## `.oxlintrc.json` — канонічна конфігурація oxlint
+
+У корені має бути `.oxlintrc.json`, який **збігається з каноном** oxlint з пакета `@nitra/cursor`: файл `npm/rules/js/js/data/tooling/oxlint-canonical.json` (plugins, jsPlugins з `@e18e/eslint-plugin`, categories, повний набір `rules` із канону — додаткові записи в `rules` дозволені; також `settings`, `env`, `globals`).
+
+Поле `ignorePatterns` працює як `rules`: канонічні патерни (наразі `**/schema.graphql`, `**/auto-imports.d.ts`) мають бути присутні; додаткові локальні glob-и дозволені.
+
+Мінімум для розуміння структури (реальний корінь конфігу має збігатися з каноном повністю):
+
+```json title=".oxlintrc.json (фрагмент)"
+{
+  "jsPlugins": ["@e18e/eslint-plugin"],
+  "rules": {
+    "e18e/prefer-includes": "error"
+  }
+}
+```
+
+Модуль `@e18e/eslint-plugin` не оголошуй окремо в `package.json` — він уже в залежностях `@nitra/eslint-config` (з **3.8.0**), oxlint підвантажує його з `node_modules`.
+
+Канон `oxlint-canonical.json` — source-of-truth, редагується напряму; у споживачі оновлюється копіюванням файлу з репозиторію пакета.

@@ -5,232 +5,39 @@ alwaysApply: false
 version: '1.30'
 ---
 
-**oxlint**, **ESLint**, **jscpd**, **knip**. Запуск — **`n-cursor lint js`** (локально; у CI — `--read-only`, без **`--fix`** для oxlint/eslint — див. приклад workflow нижче). Без **prettier** і **@nitra/prettier-config**. У **`devDependencies`** має бути **`@nitra/eslint-config`** — версія не нижче канонічного мінімуму зі snippet нижче (semver-поріг, єдине джерело істини) (з **3.8.0** правило `no-restricted-syntax` забороняє `for...in`; з **3.9.2** у `getConfig` вбудовано ignore для **`**/adr/**`** — ADR-документи не валідуються ESLint, локально цей glob додавати не потрібно; також транзитивно йде **`@e18e/eslint-plugin`** для oxlint). Dependency-політика CI-етапу: `@e18e/eslint-plugin` і oxlint/eslint/jscpd/knip окремо не додавати.
+**oxlint**, **ESLint**, **jscpd**, **knip**. Запуск — **`n-cursor lint js`** (локально; у CI — `--read-only`, без **`--fix`** для oxlint/eslint). Без **prettier** і **@nitra/prettier-config**.
 
-У кожному **`package.json`** проєкту (корінь і всі workspace-пакети) має бути **`"type": "module"`** — весь код у ESM.
+[js-file-extensions](./js/file-extensions.mdc)
 
-```json title="package.json"
-{
-  "type": "module",
-  "devDependencies": {
-    "@nitra/eslint-config": "^3.10.0"
-  }
-}
-```
+[js-package-json](./js/package-json.mdc)
 
-Канон `type` і мінімальна `@nitra/eslint-config` (semver-поріг `devDependencies`): [package.json.snippet.json](./policy/package_json/template/package.json.snippet.json). Окремого `lint-js` скрипта немає — лінт через **`n-cursor lint js`** (CI — `--read-only`).
+[js-eslint-config](./js/eslint-config.mdc)
 
-## Розширення нових файлів — `.mjs` / `.cjs`, не `.js`
+[js-oxlintrc](./js/oxlintrc.mdc)
 
-**Нові** JS-файли створюй з явним розширенням модуля:
+[js-extensions](./js/extensions.mdc)
 
-- **`.mjs`** — для ESM (типовий випадок);
-- **`.cjs`** — для CommonJS, де він справді потрібен.
+[js-jscpd](./js/jscpd.mdc)
 
-Голий **`.js`** для нового файлу **заборонено**. Розширення `.js` інтерпретується як ESM чи CJS лише за полем `package.json#type`, тож той самий файл читається по-різному залежно від пакета. Явне `.mjs`/`.cjs` робить тип модуля однозначним **без читання `package.json`** — навіть якщо `type` зміниться або файл перемістять в інший пакет. Це доповнює вимогу `"type": "module"` вище: `type` лишається каноном для всього дерева, а розширення нового файлу прибирає залежність від нього.
+[js-knip](./js/knip.mdc)
 
-Стосується **backend і frontend** — будь-який новий вихідний файл: `src/`, тести `*.test.*`, `scripts/`, `src/conn/` тощо.
+[js-dep-policy](./js/dep-policy.mdc)
 
-**Існуючі `.js` лишаються як є** — масово перейменовувати не треба; це конвенція для нового коду. Автоматичної перевірки тут немає: stateless-скан не відрізнить новий файл від існуючого, тож `.js` нікого не фейлить.
+[js-lint-js-workflow](./js/lint-js-workflow.mdc)
 
-У `.vscode/extensions.json` `recommendations` мають містити `dbaeumer.vscode-eslint`, `github.vscode-github-actions`, `oxc.oxc-vscode`: [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
+[js-utils-lib-structure](./js/utils-lib-structure.mdc)
 
-У корені має бути **`.oxlintrc.json`**, який **збігається з каноном** oxlint з пакета **`@nitra/cursor`**: файл **`npm/rules/js/js/data/tooling/oxlint-canonical.json`** (plugins, jsPlugins з **`@e18e/eslint-plugin`**, categories, повний набір **rules** із канону — додаткові записи в **`rules`** дозволені; також **`settings`**, **`env`**, **`globals`**). Поле **`ignorePatterns`** працює як **`rules`**: канонічні патерни з **`oxlint-canonical.json`** (наразі **`**/schema.graphql`**, **`**/auto-imports.d.ts`**) мають бути присутні, додаткові локальні glob-и дозволені. Канон **`oxlint-canonical.json`** — source-of-truth, редагується напряму; у споживачі оновлюється копіюванням файлу з репозиторію пакета. Модуль **`@e18e/eslint-plugin`** не оголошуй окремо в **`package.json`** — він уже в залежностях **`@nitra/eslint-config`** (з **3.8.0**), oxlint підвантажує його з **`node_modules`**.
+[js-for-in](./js/for-in.mdc)
 
-Мінімум для розуміння структури (реальний корінь конфігу має збігатися з каноном повністю):
+[js-tests](./js/tests.mdc)
 
-```json title=".oxlintrc.json (фрагмент)"
-{
-  "jsPlugins": ["@e18e/eslint-plugin"],
-  "rules": {
-    "e18e/prefer-includes": "error"
-  }
-}
-```
+## Швидкий gate через conftest
 
-У корені проєкту має бути `.jscpd.json`. Мінімум: увімкнути облік `.gitignore`, ненульовий код виходу при знаходженні клонів, консольний звіт. За потреби додай `ignore` (дзеркальні каталоги, шаблони) та `minLines`, щоб відсікти дрібні збіги.
+Rego-пакети у `policy/` — запускаються `npx @nitra/cursor fix js` або `conftest`:
 
-Каталог `.claude/worktrees/` (робочі копії, які Claude Code створює через **superpowers:using-git-worktrees**) має ігноруватися: додай його у кореневий `.gitignore` (це штатне місце для не-комітних робочих копій), а в `.jscpd.json` додай `.claude/worktrees/**` у `ignore` як страховку на випадок запуску без `gitignore: true`. Без цього jscpd сканує паралельну копію репо в worktree і фіксує самозбіги між дзеркальними файлами.
-
-`**/CHANGELOG.md` теж у каноні `ignore`: release-журнали різних пакетів структурно повторюються (заголовки `## [x.y.z] - YYYY-MM-DD`, секції `### Added` / `### Changed` / `### Fixed` за Keep a Changelog), і `jscpd` за `minLines: 25` фіксує їх як клон, хоч це false positive — кожен `CHANGELOG.md` веде свій per-package журнал за каноном `n-changelog`, спільної історії не існує. Без цього в монорепо легко зловити критичне `bun run lint` на парі CHANGELOG-ів довжиною від ~25 рядків.
-
-```json title=".jscpd.json"
-{
-  "gitignore": true,
-  "exitCode": 1,
-  "reporters": ["console"],
-  "minLines": 25,
-  "ignore": [".claude/worktrees/**", "**/dist/**", "**/CHANGELOG.md"]
-}
-```
-
-Канон ключів `.jscpd.json` (`gitignore`, `exitCode`, `reporters`, `minLines`, `ignore` як subset-of): [.jscpd.json.snippet.json](./policy/jscpd/template/.jscpd.json.snippet.json)
-
-```text title=".gitignore (фрагмент)"
-.claude/worktrees/
-```
-
-## Залежнісна політика (що не додавати)
-
-`@e18e/eslint-plugin` окремо не додавай — він уже в залежностях `@nitra/eslint-config` (з **3.8.0**), oxlint підвантажує його з `node_modules`. Пакети oxlint/eslint/jscpd/knip теж не додавай у `devDependencies` без потреби монорепо — `bunx` тягне їх ad-hoc.
-
-## knip
-
-Залежнісний аналіз (knip — невикористані залежності/експорти, `knip.json` канон) крос-файловий; запускається автоматично у `lint --full` разом з jscpd.
-
-У корені проєкту має бути **`knip.json`**, який стартує з канонічного baseline з пакета `@nitra/cursor` — файл [`npm/rules/js/js/tooling/knip-canonical.json`](./js/tooling/knip-canonical.json). Він покриває типові false-positives для наших правил: `entry` зі CLI-конфігами (eslint, stylelint, oxlint, jscpd, markdownlint-cli2, `commitlint`), `project` для `**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}`, `ignore` для `**/__fixtures__/**`, `ignoreDependencies` для пакетів, посилання на які є лише в не-JS-конфігах (`@nitra/cspell-dict`, `/@cspell\/dict-.+/`, `graphql`), і `ignoreBinaries` для CLI, які канон вимагає викликати через `npx`/`bunx` і яких заборонено додавати в `devDependencies` (`actionlint`, `cspell`, `eslint`, `git-ai`, `jscpd`, `markdownlint-cli2`, `oxfmt`, `oxlint`, `shellcheck`, `uvx`, `v8r`, `zizmor`).
-
-Якщо `knip.json` відсутній — `npx @nitra/cursor fix js` копіює канон у корінь проєкту (side effect). Після створення модифікуй файл під свій проєкт як завгодно: перевіряємо лише наявність, зміст подальших змін не валідується.
-
-Пакет `knip` окремо в `devDependencies` не додавай — `bunx knip` тягне його ad-hoc, як oxlint/eslint/jscpd.
-
-## Заборона `@nitra/as-integrations-fastify`
-
-Пакет **`@nitra/as-integrations-fastify`** заборонений у **`dependencies`**, **`peerDependencies`** та в import-specifier-ах. Це чистий републіш upstream, застряглий на peer `@apollo/server: "^4.0.0"`, тож на Apollo 5 `bun install` дає `warn: incorrect peer dependency`. Заміна — upstream **`@as-integrations/fastify`** (**`^3.1.0`**): peer `@apollo/server: "^4.0.0 || ^5.0.0"` + `fastify: "^5.3.0"`.
-
-Міграція — лише specifier у трьох місцях: залежність у `package.json`, `import`, та `vi.mock(...)` / `await import(...)` у тестах. **Код не міняється**, експорти ті самі: `default` → `fastifyApollo`, named → `fastifyApolloDrainPlugin`.
-
-```javascript title="❌ до"
-import fastifyApollo, { fastifyApolloDrainPlugin } from '@nitra/as-integrations-fastify'
-```
-
-```javascript title="✅ після"
-import fastifyApollo, { fastifyApolloDrainPlugin } from '@as-integrations/fastify'
-```
-
-## jscpd: рефакторинг і структура
-
-Коли **jscpd** знаходить клони, спочатку зменшуй дублювання кодом, а не конфігом.
-
-- **Рефакторинг:** винеси спільні фрагменти в функції, модулі, утиліти, composables/hooks, спільні компоненти або базові типи — залежно від контексту.
-- **Структура:** якщо одна й та сама логіка розмазана між файлами чи пакетами, запропонуй зміну структури (наприклад, спільний модуль, `shared/`, внутрішній пакет у monorepo), щоб була **одна канонічна реалізація** і повторні місця лише викликали її.
-
-Так ти уникаєш **хибних обходів** перевірки: розширення `ignore` чи завищення `minLines` лише щоб прибрати звіт — не заміна рефакторингу для справжніх клонів. Якщо збіг **семантично випадковий** (генерований код, формальні шаблони без спільної логіки), після оцінки допустимо точковий `ignore` або зміна порогу — з коротким обґрунтуванням.
-
-Але обов'язково перед рефакторингом перевір чи є тести на блоки які підлягають зміні, а саме Bun.test для js та playwright для vue. Якщо є, то перевір чи вони покривають блоки які підлягають зміні. Якщо не покривають або тестів немає — спочатку створи їх, перевір що вони покривають і відпрацьовують коректно, а потім роби рефакторинг і ще раз запускай тести, але якщо тести не відпрацьовують коректно після рефакторингу, то не роби рефакторинг.
-
-## Структура спільних модулів: `utils/` vs `lib/`
-
-Коли спільні методи виносяться з кількох JS-файлів в окремий каталог — назву каталога обирай за призначенням модулів усередині.
-
-- **`utils/`** — низькорівневі, чисті, generic helpers без бізнес-логіки і без залежностей від домену проєкту. Те, що могло б жити в окремому npm-пакеті. Приклади: `formatDate()`, `chunk(array, size)`, `retry(fn, opts)`, `deepMerge()`, `parseDuration('5m')`, `sleep(ms)`.
-
-- **`lib/`** — внутрішні модулі / підсистеми проєкту, які знають про домен. Більші за `utils/`, часто з власним state, конфігом або side effects. Приклади: `lib/gmail-client.js`, `lib/circuit-breaker.js`, `lib/skill-loader.js`, `lib/safety/dry-run.js`.
-
-Швидкий тест: якщо файл завтра можна опублікувати окремим npm-пакетом без переписування — це `utils/`; якщо він тримає domain-state, читає конфіг проєкту або викликає зовнішні сервіси/файли — це `lib/`. Не плутай із чужими каталогами на кшталт `shared/` чи `common/`: канонічні назви — лише `utils/` і `lib/`.
-
-Автоматично гарантується: `npx @nitra/cursor fix js` (концерн `utils_imports`) обходить кожен `utils/`-каталог у воркспейсах і падає, якщо знаходить relative-імпорт з `..` (вихід за межі каталогу) у будь-якому не-тестовому файлі. Це механічне втілення правила «utils не знає про домен»: тільки same-dir (`./X`), bare-пакети та `node:*` дозволені; cross-rule, конфіги проєкту чи sibling-utils — fail. Якщо потрібна domain-залежність — перенеси файл у `lib/`.
-
-Додай workflow:
-
-```yaml title=".github/workflows/lint-js.yml"
-name: Lint JS
-
-on:
-  push:
-    branches:
-      - dev
-      - main
-    paths:
-      - '**/*.js'
-      - '**/*.mjs'
-      - '**/*.cjs'
-      - '**/*.jsx'
-      - '**/*.ts'
-      - '**/*.tsx'
-      - '**/*.vue'
-      - '**/eslint.config.*'
-
-  pull_request:
-    branches:
-      - dev
-      - main
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  eslint:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-bun-deps
-
-      - name: Eslint
-        run: |
-          bunx oxlint
-          bunx eslint .
-          bunx jscpd .
-          bunx knip --no-config-hints
-```
-
-Канон workflow `.github/workflows/lint-js.yml`: [lint-js.yml.snippet.yml](./policy/lint_js_yml/template/lint-js.yml.snippet.yml)
-
-Перед **`./.github/actions/setup-bun-deps`** — **`actions/checkout@v6`** (див. **ga.mdc**). Composite: Node 24, Bun, кеш, `bun install --frozen-lockfile`.
-
-Один workflow на лінт JS; зайвий `lint.yml` з тими самими кроками — прибери.
-
-```javascript title="eslint.config.js"
-import { getConfig } from '@nitra/eslint-config'
-
-export default [
-  {
-    ignores: ['**/auto-imports.d.ts']
-  },
-  ...getConfig({
-    node: ['npm']
-  })
-]
-```
-
-У монорепо пакети з Vite (frontend) вкажи в секції `vue`, решту — у секції `node` у виклику `getConfig`.
-
-## Додаткові js правила
-
-Завжди додавай до package.json що підтримується 24+ версія node і Bun 1.3+:
-
-```json title="package.json"
-"engines": {
-  "node": ">=24",
-  "bun": ">=1.3"
-}
-```
-
-## `for...in` заборонено — рефакторити на `for...of`
-
-Конструкція `for (const k in obj)` обходить успадковані ключі прототипу, тому майже завжди тягне `Object.hasOwn(obj, k)`-guard. Заборонена у `@nitra/eslint-config` через `no-restricted-syntax` для `ForInStatement` (з версії **3.8.0**). У каноні oxlint лишається `guard-for-in` як часткова страховка (oxlint не підтримує `no-restricted-syntax`). Замість цього обходь масив напряму, а обʼєкт — через `Object.entries` / `Object.keys` / `Object.values`. У такому коді guard за `Object.hasOwn` стає непотрібним і має зникнути разом із `for...in`.
-
-```javascript title="❌ до"
-for (const k in obj) {
-  if (!Object.hasOwn(obj, k)) continue
-  use(k, obj[k])
-}
-
-for (const i in arr) {
-  use(arr[i])
-}
-```
-
-```javascript title="✅ після"
-for (const [k, v] of Object.entries(obj)) {
-  use(k, v)
-}
-
-for (const item of arr) {
-  use(item)
-}
-```
-
-## Тести
-
-Проєкт має бути покритий unit-тестами (**Bun test**). Код: синтаксис Node **24+**, **top level await** (узгоджено з `engines.node` у `package.json`).
-
-## Покриття + мутаційне тестування JS
-
-Покриття + мутаційне тестування JS постачаються через `n-cursor coverage` (правило `test.mdc`). Реалізація провайдера — у `npm/rules/js/coverage/coverage.mjs`: `bun test --coverage --coverage-reporter=lcov` + `bunx stryker run`. Stryker конфігурується в `stryker.config.mjs` у JS-корені (single-package або `workspaces[0]`).
+| Namespace | Що перевіряє |
+|---|---|
+| `js_lint.package_json` | `package.json`: `"type": "module"`, `engines.node >= 24`, `engines.bun >= 1.3`, `@nitra/eslint-config` >= semver-поріг |
+| `js_lint.jscpd` | `.jscpd.json`: `gitignore`, `exitCode`, `reporters` (subset), `minLines >= канон` |
+| `js_lint.lint_js_yml` | `.github/workflows/lint-js.yml`: required uses/run кроки, `persist-credentials: false`, заборона `--fix` у CI |
+| `js_lint.vscode_extensions` | `.vscode/extensions.json`: наявність трьох канонічних recommendations |

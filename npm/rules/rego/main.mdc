@@ -9,31 +9,15 @@ alwaysApply: false
 
 Синтаксичні правила (`rego.v1`, `import rego.v1`, заборона legacy v0) — у `conftest.mdc` (alwaysApply). Цей файл — про **інструментарій**: VS Code, лінтери, форматування.
 
-## Перевірка
+[rego-rego-lint](./js/rego-lint.mdc)
 
-```bash
-n-cursor lint rego
-```
+## Швидкий gate через conftest
 
-Цілі — `npm/rules/` (рекурсивно знаходить `.rego` у `<rule>/policy/<concern>/`). Інші *.rego поза деревом додай у `LINT_TARGETS` у `npm/rules/rego/lint/lint.mjs`.
+| Пакет | Ціль | Що перевіряє |
+|---|---|---|
+| `rego.vscode_extensions` | `.vscode/extensions.json` | `recommendations` містить `tsandall.opa` |
+| `rego.vscode_settings` | `.vscode/settings.json` | `[rego]`-блок з `defaultFormatter` + `formatOnSave` |
 
-`opa` і `regal` — лише у `PATH`, **не** додавай у `dependencies` / `devDependencies`.
+[rego-vscode_extensions](./js/vscode_extensions.mdc)
 
-### `.vscode/extensions.json`
-
-- Канон `recommendations` має містити `tsandall.opa` (LSP, format-on-save через `opa fmt`): [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
-
-### `.vscode/settings.json`
-
-- Канон `[rego]`-block (`editor.defaultFormatter` + `editor.formatOnSave`): [settings.json.snippet.json](./policy/vscode_settings/template/settings.json.snippet.json)
-
-## Конфіг regal
-
-У корені — `.regal/config.yaml`. Дозволено вимикати окремі правила під специфіку репо (наприклад, conftest-полісі — `deny`-правила як де-факто entrypoint-и):
-
-```yaml title=".regal/config.yaml"
-rules:
-  idiomatic:
-    no-defined-entrypoint:
-      level: ignore
-```
+[rego-vscode_settings](./js/vscode_settings.mdc)

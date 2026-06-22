@@ -1,0 +1,28 @@
+## Sandbox-aware тести (Stryker)
+
+Stryker за замовчуванням копіює репо у sandbox-каталог (`reports/stryker/.tmp/sandbox-XXX/`), щоб AST-патчити мутантів без зачеплення робочого дерева. У sandbox **немає `.git/`**, і будь-який тест, що звертається до **реального** git-дерева через `import.meta.url + N≥3 рівнів вгору** (типу `const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..', '..')`) фактично адресує sandbox-корінь, а не справжній репо. Це ламає `git rev-parse`/`git ls-files`/перевірки `.n-cursor.json`/CHANGELOG-співставлення — Stryker dry-run падає, мутаційний прогон не стартує, `mutation.json` лишається stale.
+
+**Канон**: тест не повинен залежати від реального git-дерева через `import.meta.url + N≥3 рівнів вгору`. Якщо тест перевіряє git-логіку — ізолюй **повністю**:
+
+```js
+await withTmpDir(async dir => {
+  execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: dir })
+  await writeFile(join(dir, 'a.sh'), '#!/bin/sh\n', 'utf8')
+  execFileSync('git', ['add', '-A'], { cwd: dir })
+  expect(listShellScriptPaths(dir)).toEqual(['a.sh'])
+})
+```
+
+Приклад у репо: `rules/text/lint/tests/run-shellcheck.test.mjs` — тест `listShellScriptPaths всередині git-репо`.
+
+**Виняток** — top-level smoke-аудит тести, що **за визначенням** перевіряють інваріанти **живого** репо (структура файлів, узгодженість CHANGELOG з `package.json`, кожне правило має fixture). Приклади: `tests/integration-repo-checks.test.mjs`, `tests/check-rule-fixtures.test.mjs`. Такі тести **не дають додаткового coverage у unit-сенсі** — концерни, які вони перевіряють, уже покриті per-rule unit-тестами (`rules/<rule>/js/tests/`). Захищаємо їх `test.skipIf(env.STRYKER_MUTATOR_WORKER)` від запуску всередині Stryker-sandbox:
+
+```js
+import { env } from 'node:process'
+
+test.skipIf(env.STRYKER_MUTATOR_WORKER)('узгоджені з поточним деревом', async () => {
+  // …перевірки на REPO_ROOT
+})
+```
+
+**Перевірка** — концерн `sandbox-aware-test` (`rules/test/js/sandbox-aware-test.mjs`): сканер `*.test.{js,mjs}`, який знаходить тести з `import.meta.url`-deep-relative навігацією (4+ `..`-рівнів) і вимагає або `withTmpDir` у їхніх `test`-блоках, або `test.skipIf(env.STRYKER_MUTATOR_WORKER)`.

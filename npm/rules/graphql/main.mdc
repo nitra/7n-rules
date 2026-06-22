@@ -5,27 +5,8 @@ globs: "**/*.{vue,js,mjs,cjs,ts,tsx,jsx}"
 alwaysApply: false
 ---
 
-Якщо в **`.vue`** або в **JavaScript / TypeScript** джерелах (`.js`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.jsx` тощо) зустрічається **tagged template literal** з тегом **`gql`** (типово `gql\`query …\`` для GraphQL-запиту), у **корені репозиторію** мають бути:
+Якщо у `.vue` або JavaScript / TypeScript джерелах зустрічається **tagged template literal** з тегом **`gql`**, у корені репозиторію мають бути `.graphqlrc.yml` та запис `graphql.vscode-graphql` у `.vscode/extensions.json`.
 
-- файл **`.graphqlrc.yml`** ([GraphQL Config](https://the-guild.dev/graphql/config/docs));
-- у **`.vscode/extensions.json`** в масиві **`recommendations`** — запис **`graphql.vscode-graphql`**.
+[graphql-tooling](./js/tooling.mdc)
 
-## `.graphqlrc.yml`
-
-Підстав свої шляхи до схеми та до файлів з операціями; приклад орієнтиру:
-
-```yaml title=".graphqlrc.yml"
-schema: node_modules/@nitra/efes-shared/schema/maya.graphql
-documents:
-  - '**/*.{vue,js,ts,tsx}'
-```
-
-## `.vscode/extensions.json`
-
-Додай **`graphql.vscode-graphql`** до наявного списку **`recommendations`** (не замінюй інші записи):
-
-```json title=".vscode/extensions.json"
-{
-  "recommendations": ["graphql.vscode-graphql"]
-}
-```
+[graphql-vscode-extensions](./js/vscode_extensions.mdc)

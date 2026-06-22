@@ -1,0 +1,33 @@
+## Vitest: `pool: 'forks'` як захист від race у `process.cwd()`
+
+**`vitest-config-pool-forks`** (`rules/test/js/vitest-config-pool-forks.mjs`) — substring-перевірка `pool: 'forks'` у `vitest.config.mjs` (або legacy `vitest.config.js`; `.mjs` пріоритетніший).
+
+**Чому:** Defense-in-depth проти race у `process.cwd()` між паралельними test файлами. Навіть якщо хтось пропустить заборону `process.chdir`, fork-ізоляція не дасть race у production tree — кожен test-файл отримує власний процес зі своїм `cwd`.
+
+Якщо `vitest.config.mjs` / `vitest.config.js` відсутній — перевірка пропускається (pass без помилки).
+
+**Canonical `vitest.config.mjs`** (для довідки — `pool: 'forks'` + `include` + `coverage`) — у `rules/test/js/data/vitest_config/vitest.config.baseline.js`:
+- `environment: 'node'`
+- `coverage.provider: 'v8'` з lcov+text-summary репортами
+- `include: ['**/*.test.{js,mjs}', 'tests/**/*.test.{js,mjs}']` — підхоплює тести у `tests/`-піддиректоріях і top-level integration suites у `<root>/tests/`
+
+У `package.json#scripts` має бути `"test": "vitest run"` (substring `vitest`; допустимо `vitest run` та інші локальні розширення) та опційно `"test:watch": "vitest"`.
+
+**Frontend-варіант (Vue/Vite + happy-dom):**
+
+Для проєктів зі своїм `vite.config.js` `vitest.config.mjs` має повторно використовувати vite-плагіни та aliases і перемкнути `environment` на `'happy-dom'` (або `'jsdom'`):
+
+```js
+import { defineConfig, mergeConfig } from 'vitest/config'
+import viteConfig from './vite.config.js'
+
+export default mergeConfig(viteConfig, defineConfig({
+  test: {
+    include: ['**/*.test.{js,mjs}', 'tests/**/*.test.{js,mjs}'],
+    environment: 'happy-dom',
+    coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] }
+  }
+}))
+```
+
+Концерн ставить node-варіант baseline; перехід на frontend — ручна модифікація, після якої концерн уже не перетирає (idempotent).

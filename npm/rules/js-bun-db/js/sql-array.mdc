@@ -1,0 +1,88 @@
+## `sql.array(arr, type)` для передачі масивів
+
+Коли JS-масив передається як параметр у Bun SQL template literal всередині `unnest(...)` або іншого контексту, де PostgreSQL очікує типізований масив (`int4[]`, `uuid[]` тощо), — обов'язково використовувати `sql.array(arr, type)` (або `pgWrite.array` / `pgRead.array` — вони є екземплярами `SQL`). Другий аргумент (тип елементів) — обов'язковий.
+
+### Заборонені патерни
+
+```javascript
+// ❌ пряма підстановка масиву — Bun серіалізує як рядок, не як pg-масив
+${ids}
+
+// ❌ cast-синтаксис без .array() — працює в деяких версіях, але не гарантований
+${ids}::int8[]
+
+// ❌ відсутній тип — Bun не може вивести тип pg, можливий mismatch
+sql.array(ids)
+```
+
+### Дозволені патерни
+
+```javascript
+// ✅ pgWrite.array з явним типом
+${pgWrite.array(ids, 'int8')}
+${pgWrite.array(uuids, 'uuid')}
+${pgWrite.array(flags, 'bool')}
+${pgWrite.array(amounts, 'numeric')}
+${pgWrite.array(names, 'text')}
+${pgWrite.array(dates, 'date')}
+${pgWrite.array(timestamps, 'timestamptz')}
+
+// ✅ pgRead.array — те саме правило
+${pgRead.array(ids, 'int4')}
+```
+
+### Таблиця типів
+
+| JS-тип        | PostgreSQL тип | Аргумент        |
+| ------------- | -------------- | --------------- |
+| number (int)  | int4           | `'int4'`        |
+| bigint / id   | int8           | `'int8'`        |
+| UUID string   | uuid           | `'uuid'`        |
+| boolean       | bool           | `'bool'`        |
+| decimal/float | numeric        | `'numeric'`     |
+| string        | text           | `'text'`        |
+| date string   | date           | `'date'`        |
+| ISO datetime  | timestamptz    | `'timestamptz'` |
+
+### `col(arr, key)` — хелпер для unnest-колонок
+
+OXC formatter (oxfmt ≥ 0.49) примусово розгортає будь-який `CallExpression`, де перший аргумент є `CallExpression` з callback, у багаторядковий блок — незалежно від `printWidth`. Тому `pgWrite.array(arr.map(r => r.field), 'type')` всередині tagged template literal завжди стає 4-рядковим блоком. `col(arr, 'field')` (перший аргумент — identifier, другий — string literal) цей тригер не зачіпає і лишається однорядковим.
+
+Канонічне місце хелпера — `src/utils/col.mjs` (або `src/conn/col.mjs` залежно від структури проєкту):
+
+```javascript
+// src/utils/col.mjs
+export const col = (arr, key) => arr.map(r => r[key])
+```
+
+```javascript
+import { pgWrite } from '#src/conn/db.mjs'
+import { col } from '#src/utils/col.mjs'
+
+// ❌ oxfmt розгортає на 4+ рядки незалежно від printWidth
+${pgWrite.array(rows.map(r => r.id), 'int4')}
+
+// ✅ col(arr, key) — перший аргумент не є callback; oxfmt лишає однорядковим
+${pgWrite.array(col(rows, 'id'), 'int4')}
+```
+
+### Повний приклад (UNNEST + MERGE)
+
+```javascript
+await pgWrite`
+  MERGE INTO "order".product p
+  USING (
+    SELECT * FROM unnest(
+      ${pgWrite.array(col(rows, 'order_id'), 'uuid')},
+      ${pgWrite.array(col(rows, 'product_id'), 'int4')},
+      ${pgWrite.array(col(rows, 'qty'), 'numeric')},
+      ${pgWrite.array(col(rows, 'is_refund'), 'bool')}
+    ) AS s(order_id, product_id, qty, is_refund)
+  ) AS s ON p.order_id = s.order_id AND p.product_id = s.product_id
+  WHEN MATCHED THEN
+    UPDATE SET qty = s.qty
+  WHEN NOT MATCHED THEN
+    INSERT (order_id, product_id, qty, is_refund)
+    VALUES (s.order_id, s.product_id, s.qty, s.is_refund)
+`
+```

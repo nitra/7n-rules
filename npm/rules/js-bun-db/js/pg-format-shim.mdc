@@ -1,0 +1,99 @@
+## `pg-format`: повне видалення, без шимів
+
+Міграція з `pg-format` — це **зміна стилю запитів**, а не збереження API. У проєкті після переходу на Bun SQL **заборонено** залишати:
+
+- функцію з іменем `format` (чи `pgFormat`, `sqlFormat`, `pgFmt`), що приймає шаблон з `%L` / `%I` / `%s` і значення;
+- допоміжні `quoteLiteral`, `quoteIdent`, `escapeLiteral`, `escapeIdent` як публічні експорти модуля;
+- обгортки `pgRead.query(text, params)` / `pgWrite.query(text, params)` / `db.query(text, params)`, які складають SQL-рядок (з або без `format`) і викликають `sql.unsafe(text, params)` — це повертає injection-поверхню, від якої ми йдемо, тільки під «зручним» іменем.
+
+Замість цього всі точки використання потрібно перевести на tagged template `sql\`...\${value}...\``. Кожне `${value}` стає окремим параметром bind, без рядкового екранування.
+
+### Типові ідіоми `pg-format` → Bun SQL
+
+| Було (`pg-format`)                                 | Стало (Bun SQL)                                                                                  |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `format('... WHERE id = %L', id)`                  | `sql\`... WHERE id = ${id}\``                                                                    |
+| `format('... IN (%L)', ids)`                       | `sql\`... IN ${sql(ids)}\`` (з guard на пустоту перед запитом)                                   |
+| `format('INSERT ... VALUES %L', [row])` (1 рядок)  | `sql\`INSERT ... VALUES (${a}, ${b}, ...)\``                                                     |
+| `format('INSERT ... VALUES %L', rows)` (N рядків)  | `sql\`INSERT INTO t ${sql(rows, 'a', 'b')}\`` або `unnest($1::T[], $2::T[]) AS t(a, b)`          |
+| `format('MERGE ... USING (VALUES %L) AS d(...)')`  | `sql\`MERGE ... USING (SELECT * FROM unnest(${arrA}::A[], ${arrB}::B[]) AS t(a, b)) AS d\``      |
+| `format('... %I ...', tableName)` (whitelist)      | `@scaleleap/pg-format`: `format('%I', name)` + `sql.unsafe(text, [params])` з маркером           |
+
+Для multi-row `VALUES` у `MERGE` / `INSERT` з конкретними типами — паралельні масиви по колонках і `unnest($1::TYPE[], $2::TYPE[], ...) AS t(col1, col2, ...)`. Кожна колонка передається одним параметром-масивом; типи задаються кастом масиву (`::uuid[]`, `::bigint[]`, `::numeric[]`, `::text[]`, …).
+
+#### Приклад: MERGE з UNNEST і динамічними колонками
+
+```javascript
+// ❌ format + pgWrite.unsafe — N×7 окремих значень, план змінюється при кожному batch.length
+const valuesSql = batch
+  .map(row => format('(%L::int, %L::date, %L::jsonb)', row.id, row.date, JSON.stringify(row.data)))
+  .join(',')
+const sql = format(`MERGE INTO t USING (VALUES %s) AS s(id, date, data) ON ...`, valuesSql)
+await pgWrite.unsafe(sql)
+
+// ✅ UNNEST — 3 параметри незалежно від розміру batch; план стабільний і може кешуватись
+await pgWrite`
+  WITH s(id, date, data) AS (
+    SELECT * FROM unnest(
+      ${pgWrite.array(col(batch, 'id'),   'int4')},
+      ${pgWrite.array(col(batch, 'date'), 'date')},
+      ${pgWrite.array(col(batch, 'data'), 'jsonb')}
+    )
+  )
+  MERGE INTO my_table AS t
+  USING s ON t.id = s.id
+  WHEN MATCHED THEN
+    UPDATE SET date = s.date, data = s.data
+  WHEN NOT MATCHED THEN
+    INSERT (id, date, data) VALUES (s.id, s.date, s.data)
+`
+```
+
+Якщо частина колонок у SET/INSERT залежить від параметра (plan/fact, тип тощо) — динамічні імена колонок не можна параметризувати через `${value}`; використовуй умовні Bun SQL фрагменти:
+
+```javascript
+// ✅ умовні фрагменти для динамічних ідентифікаторів колонок
+const colFrag  = isPlan ? pgWrite`plan_value`  : pgWrite`fact_value`
+const hashFrag = isPlan ? pgWrite`hash = s.hash,` : pgWrite``
+
+await pgWrite`
+  ...
+  WHEN MATCHED THEN
+    UPDATE SET
+      ${colFrag} = s.value,
+      ${hashFrag}
+      updated_by = s.updated_by
+  WHEN NOT MATCHED THEN
+    INSERT (id, ${colFrag}, updated_by)
+    VALUES (s.id, s.value, s.updated_by)
+`
+```
+
+### Заборонений «drop-in» шим
+
+```javascript
+// ❌ pg-format-сумісний шим, що ховає `unsafe` під «безпечним» іменем
+export function format(fmt, ...args) {
+  let i = 0
+  return fmt.replaceAll(/%[LIs]/g, () => quoteLiteral(args[i++]))
+}
+
+// ❌ і його типовий call-site — той самий injection-вектор, що і прямий sql.unsafe із конкатенацією
+await sql.unsafe(format('... WHERE id = %L', userId))
+```
+
+```javascript
+// ❌ pg-сумісна обгортка над Bun SQL — ще один прихований `unsafe`
+export const pgWrite = {
+  query(text, params) {
+    return sql.unsafe(text, params)
+  }
+}
+```
+
+```javascript
+// ✅ напряму tagged template — параметризація через wire-protocol bind
+await sql`... WHERE id = ${userId}`
+```
+
+Виняток для шиму `format()` під час поетапної міграції допускається **тільки** в окремому commit'і з TODO-маркером і дедлайном; готовий код у main з таким шимом — `fail` правила (детектори: `pg-format shim`, `query wrapper over unsafe`).

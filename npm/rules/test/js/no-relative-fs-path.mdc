@@ -1,0 +1,22 @@
+## Заборона відносних шляхів у FS-функціях тестів
+
+**`no-relative-fs-path`** (`rules/test/js/no-relative-fs-path.mjs`) — AST-сканер (`oxc-parser`): знаходить виклики FS-функцій із `node:fs`/`node:fs/promises` (`writeFile`, `copyFile`, `mkdir`, `readFile`, `existsSync`, `rename`, `symlink`, `cp`, … включно з `*Sync`-варіантами та `writeJson`/`ensureDir`-хелперами), де path-аргумент — це **string literal** без префікса `/`, `\`, `file:`, `http(s):`, `data:`, чи Windows-disk-letter `C:\`.
+
+Виклики `copyFile`/`rename`/`symlink`/`link`/`cp` перевіряють **обидва** path-аргументи.
+
+Виклики з обчисленим path (`join(dir, …)`, змінна, template-literal з виразом) пропускаються — припускається, що обчислений шлях абсолютний.
+
+**Чому важливо:** відносний path у FS-виклику означає запис/читання відносно `process.cwd()` на момент виклику. У `pool: 'threads'` (дефолт Vitest) паралельні файли ділять процес — cwd може змінитися між тестами. Інцидент `v1.28.0`: `copyFile(src, 'default.conf.template')` у `tests/check-rule-fixtures.test.mjs` записав файл у production tree замість sandbox.
+
+**Канон:** замінювати відносні шляхи на `join(dir, 'filename')`, де `dir` — абсолютний tmpdir із `withTmpDir`.
+
+**Список FS-функцій, що перевіряються:**
+
+| Функція | Перевірювані аргументи |
+|---|---|
+| `writeFile`, `readFile`, `appendFile`, `mkdir`, `rmdir`, `rm`, `unlink` | 1-й |
+| `access`, `stat`, `lstat`, `chmod`, `chown`, `truncate`, `existsSync`, `readdir` | 1-й |
+| `copyFile`, `rename`, `symlink`, `link`, `cp` | 1-й і 2-й |
+| `writeJson`, `ensureDir` (test-helpers) | 1-й |
+
+Усі `*Sync`-варіанти охоплені аналогічно.

@@ -5,41 +5,17 @@ alwaysApply: false
 version: '1.0'
 ---
 
-Python-проєкти ведуться **виключно** на [uv](https://docs.astral.sh/uv/) — єдиний пакет-менеджер і резолвер. **Poetry заборонено.**
+Python-проєкти ведуться **виключно** на [uv](https://docs.astral.sh/uv/) — єдиний пакет-менеджер і резолвер. **Poetry заборонено.** Середовище: `uv sync --frozen` (строго з `uv.lock`).
 
-- Метадані проєкту — у секції **`[project]`** (PEP 621), а **не** в `[tool.poetry]`.
-- Lock-файл — **`uv.lock`** (коммітиться). `poetry.lock` / `poetry.toml` мають бути відсутні.
-- Залежності: `uv add <pkg>`; dev-залежності: `uv add --dev <pkg>`.
-- Середовище: `uv sync --frozen` (строго з `uv.lock`).
+[python-pyproject_toml](./js/pyproject_toml.mdc)
 
-`uv` / `ruff` / `mypy` **не** додаються в кореневі `devDependencies` споживача — це окремий toolchain і ставиться через `astral-sh/setup-uv` у CI або локально (як `composer` / `regal`).
+[python-lint_python_yml](./js/lint_python_yml.mdc)
 
-## Міграція з Poetry на uv
+[python-tooling](./js/tooling.mdc)
 
-1. Прибери `[tool.poetry]` і `poetry.lock` / `poetry.toml`.
-2. Перенеси метадані в `[project]` (name, version, requires-python, dependencies) за PEP 621.
-3. Згенеруй lock: `uv lock` → `uv.lock`.
-4. Dev-залежності: `uv add --dev ruff mypy …`.
+## Швидкий gate через conftest (Rego)
 
-Канонічний цільовий вигляд `pyproject.toml`: [pyproject.toml.snippet.toml](./policy/pyproject_toml/template/pyproject.toml.snippet.toml)
-
-Заборонені під-таблиці `[tool.*]` (Poetry): [pyproject.toml.deny.toml](./policy/pyproject_toml/template/pyproject.toml.deny.toml)
-
-## lint-python
-
-Інструменти uv-екосистеми не мають єдиного CLI, що сам обходить репозиторій, тому python-лінт делегується у JS-скрипт-обгортку. Запуск — через **`n-cursor lint python`** (CI — `--read-only`); окремого `package.json`-скрипта немає.
-
-Скрипт `rules/python/lint/lint.mjs`:
-
-- якщо `pyproject.toml` у корені відсутній — вихід 0 (перевірка пропущена);
-- якщо `pyproject.toml` є, але `uv` не знайдено в PATH — це помилка;
-- `uv lock --check` і `uv sync --frozen` — обовʼязкові;
-- `uv run ruff check --fix .` + `uv run ruff format .` — auto-fix (мутують робоче дерево, як `markdownlint-cli2 --fix` у lint-text);
-- `uv run mypy .` — статична перевірка типів;
-- усі `ruff`/`mypy`-кроки запускаються лише якщо інструмент доступний у середовищі (інакше крок пропускається з повідомленням).
-
-## CI: `.github/workflows/lint-python.yml`
-
-- Канон: [lint-python.yml.snippet.yml](./policy/lint_python_yml/template/lint-python.yml.snippet.yml)
-
-Без кроків `poetry install` / `snok/install-poetry` — лише `astral-sh/setup-uv@v8.0.0` + `uv sync --frozen`.
+| Namespace | Що перевіряє |
+|-----------|-------------|
+| `python.pyproject_toml` | Заборона `[tool.poetry]`; наявність `[project].name` і `[project].version` (PEP 621) |
+| `python.lint_python_yml` | Обовʼязкові `uses` і `run`-кроки у `.github/workflows/lint-python.yml` |

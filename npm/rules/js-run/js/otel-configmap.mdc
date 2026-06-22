@@ -1,0 +1,6 @@
+## OTEL ConfigMap (k8s)
+
+В **/k8s/base/configmap.yaml** повинен бути заданий `OTEL_RESOURCE_ATTRIBUTES: 'service.name=<project_name>,service.namespace=<project_namespace>'`
+а в директоріях з kustomize повинні бути перевизначені значення `OTEL_RESOURCE_ATTRIBUTES` і в них `service.namespace` повинен відповідати namespace, в якому знаходиться дана директорія.
+
+Канон обовʼязкових substring у `data.OTEL_RESOURCE_ATTRIBUTES` (`service.name=`, `service.namespace=`): [configmap.yaml.contains.yml](./policy/configmap/template/configmap.yaml.contains.yml)

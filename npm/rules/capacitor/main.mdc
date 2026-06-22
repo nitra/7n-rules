@@ -5,30 +5,16 @@ alwaysApply: false
 version: '1.1'
 ---
 
-## Версія Capacitor
+Правило перевіряє версію `@capacitor/core` у `package.json` та коректність використання CocoaPods/SPM у iOS-шарі Capacitor-проєкту.
 
-У `package.json` (у **корені** репозиторію чи **workspace**-пакеті) оголошення **`@capacitor/core`**
-має вказувати діапазон, **сумісний лише з мажорною версією 8 і вище** (наприклад `^8.0.0`).
-**`*`**, `latest` і діапазони, де можлива 7-мажор, — неприйнятні.
+[capacitor-version](./js/version.mdc)
 
-## iOS: зазвичай лише SPM, виняток Podfile
+[capacitor-ios-spm](./js/ios_spm.mdc)
 
-- **Правило за замовчуванням:** не залишай `Podfile` (поза `Pods/`) у вихідному iOS-шарі, **якщо** уся потрібна
-  iOS-функціональність (нативні плагіни/модулі) може працювати **лише** через **SPM** (Swift Package Manager).
+## Швидкий gate через conftest
 
-- **Плагіни зі скоупу @nitra/:** за політикою вони **підтримуюють SPM**; **перевіряти** їх на **SPM** **не
-  потрібно** (і **check** цього **не** робить — **немає** обходу `package.json` на предмет **@nitra/**).
+| namespace | що перевіряє |
+|---|---|
+| `capacitor.package_json` | версія `@capacitor/core` у `dependencies` — мінімум major 8 (спрощений JS-порт для одиничного `package.json`) |
 
-- **Коли `Podfile` дозволений:** якщо **не** вся потрібна iOS-функціональність **поза** **@nitra/** (сторонні
-  **Capacitor**-плагіни, інша нативна залежність) **доступна** через **SPM** — `Podfile` **дозволяється**,
-  але це **обов’язково** треба явно задати в кореневому **`package.json`** або в
-  **`capacitor.config.json` / `capacitor.config.ts` / `capacitor.config.mjs`**
-
-  - **`"iosCocoaPodsBecausePluginsLackSpm": true`** (семантика: **не** **вся** потрібна нативна частина
-    **поза** **@nitra/** **на** **SPM**; **@nitra/** у це **не** входить);
-  - або **`"iosCocoaPodsAllowed": true`** (короткий **alias** для того самого **винятку**);
-
-  Без **одного** з цих прапорів `true` наявний **Podfile** поза **`Pods/`** вважається **порушенням** правила **«лише** **SPM**».
-
-- Перевірка читає **лише** кореневі файли: **`package.json`**, потім **capacitor-конфіги** у **корені** (див. вище).
-  У **`.ts` / `.mjs`**: шукається блок **nitra** `{ ... }` і **на його тілі** перевіряються ці **boolean**-поля.
+JS-перевірка (`platforms.mjs`) — authoritative: підтримує `||`-діапазони, hyphen-range, workspace-monorepo та iOS-специфічну логіку (Podfile).

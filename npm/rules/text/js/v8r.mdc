@@ -1,0 +1,23 @@
+## v8r: валідація JSON/YAML/TOML за Schema Store
+
+**`v8r`** — інструмент валідації файлів за схемами з [Schema Store](https://www.schemastore.org/). Використовуй лише через **`bunx v8r`**, не в `devDependencies`.
+
+### .v8rignore
+
+У корені проєкту має бути **`.v8rignore`**: **v8r** шукає схему в Schema Store; для JSON без запису там перевірка завершується помилкою. Мінімум виключи **`.vscode/extensions.json`** і **`.vscode/settings.json`** (немає стабільної схеми в каталозі).
+
+```text title=".v8rignore"
+.vscode/extensions.json
+.vscode/settings.json
+.git/**
+```
+
+Не розширюй ignore, щоб приховати проблеми там, де схема є. За потреби додай **`.git/**`** (службові JSON під `.git`) та **`npm/schemas/n-cursor.json`** у репозиторії `@nitra/cursor`, якщо для цього файлу немає стабільної схеми в ланцюжку v8r.
+
+### Запуск через обгортку n-cursor
+
+У v8r **немає** прапорця тихого режиму; rule-адаптер **`n-cursor lint text`** на четвертому кроці викликає **`runV8rWithGlobs()`** з пакета (реалізація — `npm/rules/text/js/run-v8r.mjs`): під капотом послідовні **`bunx v8r`** для кожного типу (**json**, **json5**, **yml**, **yaml**, **toml**), бо один процес v8r з кількома глобами падає з **98**, якщо хоч один glob порожній, і тоді інші розширення не перевіряються. Вивід при кодах **0** і **98** не показується. Каталог схем **`schemas/v8r-catalog.json`** пакета `@nitra/cursor` обгортка підставляє в v8r сама.
+
+### Запуск без обгортки
+
+**v8r:** без обгортки — чотири виклики `(bunx v8r "<glob>" || [ $? -eq 98 ])` для **`**/*.json`**, **`**/*.yml`**, **`**/*.yaml`**, **`**/*.toml`** (за потреби окремо **json5**). Враховує `.gitignore`. Для **`**/*.json`** опційно додай **власний каталог схем** [`--catalogs`](https://chris48s.github.io/v8r/usage-examples/#using-a-custom-catlog) (наприклад `-c npm/schemas/v8r-catalog.json` у репозиторії пакета `@nitra/cursor` або `-c https://unpkg.com/@nitra/cursor/schemas/v8r-catalog.json`), щоб перевіряти **`.n-cursor.json`** за схемою з [unpkg](https://unpkg.com/@nitra/cursor/schemas/n-cursor.json).

@@ -1,0 +1,15 @@
+## Заборона `process.chdir` у тестах
+
+`process.chdir(dir)` — **process-wide** мутація. Vitest за замовчуванням ставить `pool: 'threads'`, і всі workers ділять один процес: паралельний test file може перехопити cwd сусіда посеред FS- або `git`-операції. У реальному інциденті це призвело до того, що `git init`+`git commit` із tmp-фікстури потрапив у реальний робочий репозиторій і створив rogue commit з автором `test <test@test>`, знищивши `npm/package.json` / `CHANGELOG.md`.
+
+Тому:
+
+- **У тестах заборонено** `process.chdir(...)` напряму та будь-які хелпери, що його викликають (історичний `withTmpCwd` видалений у `1.28.0`).
+- Канон: `withTmpDir(async dir => { ... })` зі `scripts/utils/test-helpers.mjs` — створює tmpdir і передає **абсолютний** `dir` у callback **без** `process.chdir`.
+- Усі FS-операції у тесті — через `join(dir, …)` і `writeJson(join(dir, …), …)` / `ensureDir(join(dir, …))` (хелпери валідують `isAbsolute`).
+- Усі child-процеси — `execFile(bin, args, { cwd: dir })`, `spawnSync(bin, args, { cwd: dir })`.
+- Concern-функції правил — `await check(dir)`, `await applies(dir)`, `await fix(dir)`; усі production функції приймають перший параметр `cwd = process.cwd()` (default зберігає CLI-сумісність).
+
+**Перевірка** (`rules/test/js/no-process-chdir.mjs`): сканує `**/*.test.{js,mjs}` і падає з ❌ на будь-яке вживання `process.chdir(`.
+
+**Кожен виклик `execFile`/`execFileSync`/`spawn`/`spawnSync`** у `*.test.{js,mjs}` приймає або **явний `{ cwd: dir }`** (де `dir` — змінна, не `process.cwd()`), або працює з **абсолютними шляхами** до бінарників/fixture-файлів. Це гарантує, що мутаційний test-flow у `pool: 'forks'` не страждає від implicit-`process.cwd()`-stride між тестами в одному воркері.

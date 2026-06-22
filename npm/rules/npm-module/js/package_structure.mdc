@@ -1,0 +1,62 @@
+## Структура монорепо та компактний пакет
+
+Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.github/workflows/`**; опційно **`demo/`**.
+
+Мета — **максимально компактний** опублікований пакет: у npm потрапляє тільки те, що потрібно під час `require`/`import` користувачем.
+
+- **`"files"` обовʼязковий** у `npm/package.json` як **whitelist** того, що публікується (без `"files"` npm пакує майже все — це антипатерн для цього правила).
+- **Тести й фікстури не публікуються — через негативні glob-патерни у `"files"`.** Тести можна (і зазвичай зручніше) тримати **поруч з кодом** усередині шляхів, перелічених у `"files"` (наприклад `*.test.mjs` поруч з модулем чи `fixtures/` під `rules/<id>/js/`). Щоб вони не потрапляли у tarball, `"files"` **обовʼязково має містити негативні glob-патерни**, що їх виключають. Покрий усі форми тестового: фреймворк-тести (`bun:test`, `node:test`, `vitest`, `@jest/globals`, `mocha`, …), test-style каталоги (`tests/`, `__tests__/`, `fixtures/`, `__fixtures__/`, `spec/`, `test/`), файли за патернами `*.test.*` / `*.spec.*`. Орієнтовний набір: `"!**/*.test.*"`, `"!**/*.spec.*"`, `"!**/test-helpers.*"`, `"!**/fixtures/**"`, `"!**/__tests__/**"`. **Rego (`*_test.rego`):** за конвенцією conftest юніт-тест лежить поруч з полісі у тому самому `package` — `*_test.rego` усередині опублікованого `policy/` дозволені; якщо потрібна максимальна компактність, додай `"!**/*_test.rego"` явно (як у самому `@nitra/cursor`).
+- **Лише runtime-залежності у `npm/package.json`.** `devDependencies` тримай у **кореневому** `package.json` монорепо — тоді `npm install @nitra/<pkg>` не тягне інструментарій, потрібний лише для розробки самого пакета.
+
+Перевірки JS (`package_structure.mjs`):
+- Наявність `package.json`, `npm/`, `npm/package.json`.
+- Walk шляхів з `"files"` з застосуванням негативних patterns і скан залишку на тест-патерни (walking + AST). Якщо після застосування негативних patterns у tarball лишається test-style файл — `check` падає з вказівкою, який саме негативний glob треба додати у `"files"`.
+
+## TypeScript declaration (`npm/types`)
+
+Файл **`npm/package.json`** має містити **`"types"`** (шлях до головного `.d.ts` або `.d.mts` під **`./types/…`**) і запис **`"types"`** у **`files`**, щоб npm публікував декларації.
+
+Генерація — через **`tsc`** і **`bunx -p typescript`** (окремий пакет **`typescript`** у `devDependencies` не потрібен).
+
+### Варіант A: є вихідний **`.js`** під **`npm/src/`**
+
+Якщо під **`npm/src`** (рекурсивно) є хоча б один файл **`.js`**:
+
+- **`"types": "./types/index.d.ts"`**;
+- у **hk** на **`pre-commit`** з каталогу **`npm/`** викликай:
+
+```bash
+bunx -p typescript tsc src/**/*.js --declaration --allowJs --emitDeclarationOnly --outDir types --skipLibCheck
+```
+
+Якщо glob не розгортається — **`bash -O globstar`** або **`include`** у **`tsconfig`** з тими самими **`compilerOptions`**.
+
+### Варіант B: немає **`npm/src/**/*.js`** (наприклад лише **`bin/`**, **`scripts/**/*.mjs`**)
+
+Не створюй штучний **`src/index.js`**. Замість цього:
+
+1. Додай **`npm/tsconfig.emit-types.json`** з **`include`** на реальні шляхи (`.js` / `.mjs`), **`compilerOptions`**: **`allowJs`**, **`declaration`**, **`emitDeclarationOnly`**, **`outDir`: `"types"`**, **`skipLibCheck`**: **`true`** (за потреби **`rootDir`**, **`module`**, **`moduleResolution`**).
+2. Після першого **`tsc`** подивись, який **`.d.ts`** / **`.d.mts`** відповідає публічному API, і вкажи його в **`types`** (наприклад **`./types/bin/cli.d.ts`**).
+3. У **hk** на **`pre-commit`** з **`npm/`** викликай **`tsc -p tsconfig.emit-types.json`**. Якщо через імпорти **TypeScript** все одно згенерує зайві **`.d.mts`** у **`types/`**, після **`tsc`** обрізай дерево до потрібного entrypoint (наприклад залиш лише **`types/bin/n-cursor.d.ts`** через **`find`**), щоб у пакеті не збирались декларації внутрішніх модулів.
+
+Файл **`tsconfig.emit-types.json`** тримай у репозиторії для **hk** / локальної генерації; у **`files`** його не додавай, якщо не хочеш публікувати його на **npm**.
+
+## Git hooks: hk + pre-commit
+
+У корені репозиторію — **`hk.pkl`** (або **`.config/hk.pkl`**) з **`["pre-commit"]`** і командою з відповідного варіанту (A або B) вище.
+
+Після додавання **`hk.pkl`**: **`hk install`**.
+
+## npm publish
+
+**`npm-publish.yml`:** push у **`main`**, **`on.push.paths`** з **`npm/**`**, **`JS-DevTools/npm-publish@v4.1.5`**, **`with.package: npm/package.json`**, **`permissions.id-token: write`** (OIDC на npm).
+
+Workflow робить **release + publish** одним job (`release-publish`): крок **`Release (bump + CHANGELOG + tag)`** (`bunx n-cursor release` — агрегує change-файли, bump `version`, генерує секцію `CHANGELOG.md`, ставить git-тег) виконується **перед** публікацією. Тому потрібні **`permissions.contents: write`** і **`persist-credentials: true`** з **`fetch-depth: 0`** на `checkout` (release пушить commit-back версії та тег), а також локальний composite **`./.github/actions/setup-bun-deps`** і крок `Configure git identity`. Це узгоджено з **`n-changelog`**: `version`/`CHANGELOG.md` змінює лише `n-cursor release` у CI на `main`. Програмна перевірка (`npm_module.npm_publish_yml`) звіряє **весь канонічний сніпет** напряму (`target.json:"check":"template"`, generic deep-subset): усі поля й кроки сніпета (`on.push.paths`/`branches`, `concurrency`, `permissions.contents/id-token`, `checkout` з `persist-credentials/fetch-depth`, `setup-bun-deps`, `Configure git identity`, `Release`, publish-крок) **обовʼязкові**; зайві кроки/поля дозволені (subset-of), масиви матчаться за наявністю (порядок кроків не важить). Сніпет — єдине джерело істини: його редагування одразу змінює enforce, без правок rego й без міграторів.
+
+- Канон: [npm-publish.yml.snippet.yml](./policy/npm_publish_yml/template/npm-publish.yml.snippet.yml)
+
+## Канонічні конфіги
+
+- Кореневий `package.json` (workspaces): [package.json.snippet.json](./policy/root_package_json/template/package.json.snippet.json)
+- `npm/package.json` (whitelist `files` обовʼязково має містити `types`): [package.json.snippet.json](./policy/npm_package_json/template/package.json.snippet.json)
+- `npm/tsconfig.emit-types.json` (canonical `compilerOptions` для emit-types): [tsconfig.emit-types.json.snippet.json](./policy/emit_types_config/template/tsconfig.emit-types.json.snippet.json)

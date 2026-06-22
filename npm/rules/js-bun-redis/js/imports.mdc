@@ -1,0 +1,47 @@
+## Сканування заборонених redis-імпортів у JS/TS-джерелах
+
+Правило сканує всі JS/TS-файли проєкту (`.js`, `.ts`, `.mjs`, `.cjs`, `.jsx`, `.tsx` тощо, без `.d.ts`) на наявність `import`, `require()` або динамічного `import()` з заборонених пакетів:
+
+- `ioredis` та підшляхи (`ioredis/…`)
+- `node-redis`
+- `redis` та підшляхи (`redis/…`)
+- `@redis/client`, `@redis/json`, `@redis/search`, `@redis/time-series`, `@redis/bloom`
+
+Усі ці пакети слід замінити на **Bun native Redis**: `import { redis } from 'bun'` — документація: <https://bun.com/docs/runtime/redis>.
+
+Сканування виконується через **oxc-parser** по AST (не regex по тексту) — статичні імпорти, `require()`-виклики і динамічні `import()` окремо.
+
+При синтаксичних помилках у файлі результат — порожній (спочатку виправити синтаксис).
+
+Директорії, зазначені у `.n-cursor-ignore` / `cursorignore` конфігурації, повністю пропускаються.
+
+### Повідомлення про порушення
+
+```
+js-bun-redis: src/conn/redis.ts:3 — заміни 'ioredis' на Bun native Redis (import { redis } from 'bun', https://bun.com/docs/runtime/redis): import IORedis from 'ioredis'
+```
+
+### Міграція
+
+```ts
+// До (ioredis)
+import IORedis from 'ioredis'
+const client = new IORedis({ host: 'localhost', port: 6379 })
+await client.set('key', 'value')
+
+// Після (Bun native Redis)
+import { redis } from 'bun'
+await redis.set('key', 'value')
+```
+
+```ts
+// До (node-redis / redis v4)
+import { createClient } from 'redis'
+const client = createClient()
+await client.connect()
+await client.set('key', 'value')
+
+// Після (Bun native Redis)
+import { redis } from 'bun'
+await redis.set('key', 'value')
+```

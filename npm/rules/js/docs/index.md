@@ -6,7 +6,7 @@ resource: npm/rules/js/
 
 # npm/rules/js
 
-| Файл | Тип |
-|---|---|
-| [fix.mjs](fix.md) | JS Module |
+| Файл                | Тип       |
+| ------------------- | --------- |
+| [fix.mjs](fix.md)   | JS Module |
 | [main.mjs](main.md) | JS Module |

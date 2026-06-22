@@ -1,0 +1,32 @@
+## JS-перевірки хуків і конфігурації (`hooks.mjs`)
+
+`js/hooks.mjs` перевіряє відповідність проєкту правилу `adr` через шість незалежних перевірок:
+
+### 1. Канонічність скриптів хуків
+
+Для кожного з двох bash-скриптів (`capture-decisions.sh`, `normalize-decisions.sh`) перевіряє:
+
+- файл `.claude/hooks/<script>.sh` **існує** у проєкті;
+- його вміст **ідентичний** bundled-версії з пакета `@nitra/cursor`.
+
+Якщо файл відсутній або відрізняється — `fail` з підказкою `npx @nitra/cursor`.
+
+### 2. Наявність `.claude/settings.json`
+
+Перевіряє **існування** project-shared файлу `.claude/settings.json`. Структуру хуків всередині (наявність `hooks.Stop[]` з відповідними маркерами) валідує окрема Rego-полісі `adr.settings_json`.
+
+### 3. Cursor hooks config
+
+Читає `.cursor/hooks.json` і перевіряє, чи кожен зі скриптів (`capture-decisions.sh`, `normalize-decisions.sh`) присутній у `hooks.stop[*].command` як підрядок-маркер.
+
+### 4. `.gitignore` для лог-файлів хуків
+
+Перевіряє, чи покриває `.gitignore` лог-файли `.claude/hooks/capture-decisions.log` і `.claude/hooks/normalize-decisions.log`. Допустимі форми покриття:
+
+- точний шлях (`.claude/hooks/capture-decisions.log`)
+- glob `.claude/hooks/*.log` або `.claude/hooks/**/*.log`
+- широкий glob `*.log` або `**/*.log`
+
+### 5. Доступність LLM CLI
+
+Інформативна (завжди `pass`) перевірка наявності хоча б одного з `claude` або `cursor-agent` у `PATH`. Якщо жодного немає — хук просто мовчки no-op'ає, тому це попередження, а не помилка.

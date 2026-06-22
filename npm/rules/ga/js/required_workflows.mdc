@@ -1,0 +1,35 @@
+## Канонічні обов'язкові workflow-файли
+
+Кожен з цих файлів перевіряється окремим Rego-пакетом через conftest з відповідним `--namespace`.
+
+### `clean-ga-workflows.yml`
+
+Очищення старих GitHub Actions workflow runs за розкладом.
+
+- Канон: [clean-ga-workflows.yml.snippet.yml](./policy/clean_ga_workflows/template/clean-ga-workflows.yml.snippet.yml)
+
+Rego-пакет `ga.clean_ga_workflows` перевіряє: `name`, `on.schedule[].cron`, `workflow_dispatch: {}`, `jobs.cleanup_old_workflows`, `runs-on`, `permissions` (actions: write, contents: read), перший крок (`uses`, `with.token`, `with.save_period`, `with.save_min_runs_number`).
+
+### `clean-merged-branch.yml`
+
+Видалення злитих гілок за розкладом та вручну.
+
+- Канон: [clean-merged-branch.yml.snippet.yml](./policy/clean_merged_branch/template/clean-merged-branch.yml.snippet.yml)
+
+Інші гілки в `ignore_branches` — допустимо. Rego-пакет `ga.clean_merged_branch` перевіряє: `name`, `on.schedule[].cron`, `workflow_dispatch: {}`, `jobs.cleanup_old_branches`, `permissions`, крок 0 (`id`, `uses`, `with.github_token`, `with.last_commit_age_days`, `with.ignore_branches`, `with.dry_run: no`), крок 1 (name, env.DELETED_BRANCHES, run з echo Deleted branches).
+
+### `lint-ga.yml`
+
+CI-лінт GitHub Actions workflows через actionlint + zizmor.
+
+- Канон: [lint-ga.yml.snippet.yml](./policy/lint_ga/template/lint-ga.yml.snippet.yml)
+
+Rego-пакет `ga.lint_ga` перевіряє: `name`, `on.push.branches` і `on.pull_request.branches` (мають містити dev і main), `on.push.paths` (мають містити `.github/actions/**` і `.github/workflows/**`), `jobs.lint-ga`, `runs-on`, `permissions.contents`, наявність кроку Install conftest, крок `run: n-cursor lint ga --read-only`.
+
+### `git-ai.yml`
+
+Автоматизація PR-коментарів через git-ai CI.
+
+- Канон: [git-ai.yml.snippet.yml](./policy/git_ai/template/git-ai.yml.snippet.yml)
+
+Rego-пакет `ga.git_ai` перевіряє: `name`, `on.pull_request.types` (має містити `closed`), `jobs.git-ai`, умову `if:` job (merged PR), `permissions.contents`, наявність кроку встановлення (`https://usegitai.com/install.sh`) та запуску (`git-ai ci github run`).

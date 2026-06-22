@@ -1,0 +1,33 @@
+## Безпечний tagged template vs небезпечний `query(...)`
+
+Різниця між `query\`...\`` і `query(\`...\`)` — критична.
+
+### Що НЕ робити: `query(\`...\`)`
+
+```javascript
+// ❌ Це не tagged template — це конкатенація рядка перед викликом
+await pool.request().query(`SELECT * FROM users WHERE id = ${userId}`);
+// ↑ круглі дужки замість бектіків = звичайна інтерполяція = SQL injection
+```
+
+### Що робити: `query\`...\``
+
+```javascript
+// ✅ Tagged template — mssql параметризує ${userId} автоматично
+await pool.request().query`SELECT * FROM users WHERE id = ${userId}`;
+```
+
+### Коментар під час виправлення SQL injection
+
+Коли виправляєш місце з потенційним SQL injection (заміна `query(\`...\`)` на `query\`...\`` або прибирання динамічних списків/конкатенації), **додай поруч короткий коментар** з описом причини.
+
+Вимоги до коментаря:
+
+- вказати **що було небезпечно** (звичайна інтерполяція в рядок, конкатенація, динамічний список);
+- вказати **чому новий варіант безпечний** (tagged template / параметризація / TVP);
+- 1–2 рядки, без дублювання очевидного.
+
+```javascript
+// SQLi fix: query`...` (tagged template) параметризує значення; query(`...`) небезпечний через інтерполяцію.
+await pool.request().query`SELECT * FROM users WHERE id = ${userId}`
+```

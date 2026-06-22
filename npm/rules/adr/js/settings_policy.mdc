@@ -1,0 +1,34 @@
+## Rego-перевірки конфігурації settings.json
+
+### `adr.settings_json` — Stop-хуки у `.claude/settings.json`
+
+Пакет перевіряє, що project-shared `.claude/settings.json` містить **обидві** managed Stop-hook групи (ідентифікуються підрядком у `command`):
+
+| Маркер | Призначення |
+| --- | --- |
+| `.claude/hooks/capture-decisions.sh` | Capture-хук — запис чернеток ADR після сесії |
+| `.claude/hooks/normalize-decisions.sh` | Normalize-хук — батч-нормалізація чернеток |
+
+Помилка, якщо `hooks.Stop[*].hooks[*].command` не містить маркера для будь-якого зі скриптів.
+
+Запуск локально:
+
+```bash
+conftest test .claude/settings.json -p npm/rules/adr/policy \
+  --namespace adr.settings_json
+```
+
+### `adr.settings_local_json` — відсутність дублів у `.claude/settings.local.json`
+
+Пакет перевіряє **зворотне**: якщо `.claude/settings.local.json` існує, він **не повинен** містити жодного зі Stop-хуків `capture-decisions.sh` або `normalize-decisions.sh` — інакше кожен скрипт виконується **двічі** на одну Stop-подію.
+
+Помилка, якщо `hooks.Stop[*].hooks[*].command` знаходить маркер у local-файлі.
+
+Запуск локально:
+
+```bash
+conftest test .claude/settings.local.json -p npm/rules/adr/policy \
+  --namespace adr.settings_local_json
+```
+
+> Якщо хук колись був у `.claude/settings.local.json` — прибери дубль вручну після того, як переніс його до project-shared `settings.json`.

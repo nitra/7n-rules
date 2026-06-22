@@ -5,38 +5,16 @@ globs: "**/hasura/**,**/*.env"
 alwaysApply: false
 ---
 
-## Підключення для оновлення метаданих у CI (Nitra та Abinbevefes)
+Правило охоплює: коректність підключення Hasura у CI-середовищі (внутрішній URL кластера), конвенцію іменування k8s-сервісів та структуру директорій міграцій.
 
-У `*.env` для атрибута `HASURA_GRAPHQL_ENDPOINT` підключення має бути **усередині кластера**, а не через публічний домен — інакше CI кладе метадані через зовнішній бекенд і ламає перевипуск/міграції.
+[hasura-internal_urls](./js/internal_urls.mdc)
 
-Приклад **неправильного** значення:
+[hasura-svc_hl](./js/svc_hl.mdc)
 
-```env
-HASURA_GRAPHQL_ENDPOINT=https://vybeerai.com.ua/contract/ql
-```
+[hasura-migrations](./js/migrations.mdc)
 
-Правильне значення:
+## Швидкий gate через conftest
 
-```env
-HASURA_GRAPHQL_ENDPOINT=http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080
-```
-
-де `contract-h-hl` — це `metadata.name` headless Service з `hasura/k8s/base/svc-hl.yaml` (пара з clusterIP `contract-h` у `svc.yaml`, якщо є; узгоджено з k8s: суфікс `-hl` на базі `-h`), а `ua-contract` — `metadata.name` namespace з `hasura/k8s/base/namespace.yaml`.
-
-Правило застосовується для проєктів **nitra** (у кореневому `package.json` `"repository": "https://github.com/nitra/*"`) і **abie** (`"repository": "https://github.com/abinbevefes/*"`); для інших репозиторіїв перевірка пропускається.
-
-Файл .env це (без імені) це виключення з цього правила, його змінювати не потрібно
-
-## Міграції: лише `up.sql`, без `down.sql`
-
-При створенні будь-якої нової директорії міграції у `hasura/migrations/` **не створювати файл `down.sql`**.
-У директорії міграції має бути **тільки `up.sql`**.
-
-Приклад коректної структури:
-
-```
-hasura/migrations/default/1781247030100_add_foo/
-└── up.sql   ✓
-```
-
-Файл `down.sql` у цьому проєкті **не використовується** і не повинен з'являтися.
+| Пакет | Файл | Що перевіряє |
+|---|---|---|
+| `hasura.svc_hl` | `policy/svc_hl/svc_hl.rego` | Іменування headless/clusterIP Service: суфікси `-h-hl` та `-h` |

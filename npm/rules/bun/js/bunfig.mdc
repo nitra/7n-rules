@@ -1,0 +1,12 @@
+## Конфігурація bunfig.toml
+
+У корені репозиторію має бути **`bunfig.toml`** з **hoisted** лінкером (пласке `node_modules`, сумісне з інструментами, які не розуміють ізольований layout Bun).
+
+Канон `bunfig.toml`: [bunfig.toml.snippet.toml](./policy/bunfig/template/bunfig.toml.snippet.toml)
+
+```toml
+[install]
+linker = "hoisted"
+```
+
+Rego-перевірка (`bun.bunfig`) порівнює кожен leaf-ключ у секції із канонічним значенням зі snippet-шаблону. Якщо секція `[install]` відсутня або не є обʼєктом — повідомляє про відсутність секції; якщо значення ключа не збігається — вказує очікуване.

@@ -1,0 +1,21 @@
+## TruffleHog — налаштування та `.trufflehog-exclude`
+
+[TruffleHog](https://github.com/trufflesecurity/trufflehog) — глобальний CLI (як `shellcheck`, `conftest`); **не** додавай до `dependencies`/`devDependencies`.
+
+Скан запускається через `n-cursor lint security` (CI — `n-cursor lint security --read-only`); окремого `lint-*` скрипта в `package.json` немає.
+
+### Ключові прапори запуску
+
+- `trufflehog filesystem .` — сканує робоче дерево як директорію (включно з untracked/gitignored файлами); підкоманда `git file://.` лишається на CI для аудиту історії.
+- `--no-update` — вимикає self-update check (CI-friendly).
+- `--exclude-paths .trufflehog-exclude` — файл з regex-patterns, які треба пропускати (аналог `[allowlist].paths` із gitleaks).
+- `--results=verified,unknown` — показує лише верифіковані секрети + ті, що TruffleHog не зміг перевірити (`unverified` дублікат відсіюється).
+- `--fail` — exit-code `183` за наявності знахідок (щоб лінт падав).
+
+### `.trufflehog-exclude` (рекомендована основа)
+
+Канон (допускає розширення): [.trufflehog-exclude.snippet.txt](./templates/trufflehog/.trufflehog-exclude.snippet.txt)
+
+**Важливо:** один regex-pattern на рядок, без TOML-обгортки; коментарі починаються з `#`.
+
+Перевірка (JS): `js/trufflehog.mjs` — впевнюється, що файл `.trufflehog-exclude` існує в корені й містить канонічні шаблони.

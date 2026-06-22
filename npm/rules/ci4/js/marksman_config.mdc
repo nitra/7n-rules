@@ -1,0 +1,31 @@
+## Конфіг marksman LSP (`.marksman.toml`)
+
+Правило перевіряє наявність `.marksman.toml` у корені проєкту. Якщо файл відсутній — автоматично створює його з canonical baseline, що постачається разом із пакетом (`js/data/marksman_config/marksman.baseline.toml`). Повторні прогони ідемпотентні: існуючий файл не перетирається, ручні правки зберігаються.
+
+### Baseline-конфіг
+
+Canonical baseline ([data/marksman_config/marksman.baseline.toml](./data/marksman_config/marksman.baseline.toml)) містить такі налаштування:
+
+```toml
+[core]
+markdown.file_extensions = ["md", "markdown"]
+markdown.glfm = true          # GitHub-Flavored Markdown (таблиці, todo, alerts)
+
+[completion]
+wiki.style = "file-stem"      # [[oidc-pkce-flow]] → docs/adr/oidc-pkce-flow.md
+
+[code_action]
+toc.enable = true             # «Insert/Update TOC» для довгих arc42-сторінок
+```
+
+**Чому `file-stem`?** ADR-slug збігається з іменем файлу — стабільний ідентифікатор у AUTOGEN `sources`, `manifest.json` і валідаторі. Якщо заголовок ADR змінюється, посилання `[[wiki-link]]` не ламається. Без явного конфіга marksman використовує `title-slug-ref` і вимкнений GLFM — частина задокументованої навігації працювала б інакше.
+
+### Поведінка перевірки
+
+| Стан                          | Результат                                          |
+| ----------------------------- | -------------------------------------------------- |
+| baseline-файл пакета відсутній | `fail` — перевстанови `@nitra/cursor`              |
+| `.marksman.toml` вже існує    | `pass` — файл не чіпається                        |
+| `.marksman.toml` відсутній    | створює файл з baseline, `pass`                    |
+
+Перевірка запускається як `check`-поверхня; `lint`-поверхні правило не має.

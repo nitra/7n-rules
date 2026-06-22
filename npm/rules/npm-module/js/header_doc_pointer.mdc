@@ -1,0 +1,18 @@
+## Module-level JSDoc як pointer
+
+Якщо поряд із `js/<stem>.mjs` є файл `js/docs/<stem>.md` — module-level JSDoc у `.mjs` має бути **pointer** (не більше одного непорожнього рядка), а не повноцінний наратив.
+
+Логіка перевірки (`header_doc_pointer.mjs`):
+
+- Сканується перший JSDoc-блок (`/** … */`) до першого `import`/`export` у файлі.
+- Підраховуються непорожні рядки тіла (після зрізання `*`-відступу).
+- Якщо їх більше одного — `check` падає з повідомленням про те, що `docs/<stem>.md` вже описує поведінку і module-level JSDoc має залишатись коротким.
+
+**Покриття:** `npm/rules/*/js/*.mjs` і `npm/skills/*/js/*.mjs` (не тестові файли `*.test.mjs`). Якщо `docs/<stem>.md` відсутня — обмежень на довжину JSDoc немає.
+
+**Приклад правильного pointer-JSDoc:**
+
+```js
+/** @see ./docs/package_structure.md */
+import { existsSync } from 'node:fs'
+```

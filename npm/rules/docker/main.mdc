@@ -7,211 +7,30 @@ alwaysApply: false
 
 # Docker — hadolint
 
-Для образів з Docker Hub — **`oven/bun`**, **`alpine`**, **`nginxinc/nginx-unprivileged`**, **`node`** — у **`FROM`** треба вказувати дзеркало GCR, а не pull напряму з Hub: **`mirror.gcr.io/oven/bun`**, **`mirror.gcr.io/library/alpine`**, **`mirror.gcr.io/nginxinc/nginx-unprivileged`**, **`mirror.gcr.io/library/node`**. Перевіряє **`rules/docker/fix.mjs`**, деталі в **`npm/rules/docker/js/lint/docker-mirror.mjs`**.
+Правило перевіряє Dockerfile / Containerfile: GCR-дзеркало замість Docker Hub, multistage build з дозволеними runtime-образами, компіляцію bun-проєктів у бінарник, виняток для нативних `.node`-аддонів, non-root у фінальному stage, nginx-специфічні вимоги та hadolint CI-workflow.
 
-Також Dockerfile/Containerfile **має бути multistage build**: окремий build stage (залежності/компіляція) і окремий runtime stage. У фінальному stage дозволені лише мінімальні базові образи:
+## Активація
 
-- **backend (типово)**: `mirror.gcr.io/library/alpine:*`
-- **ультра-легкі (glibc / одна статична збірка)**: `scratch` — тільки як `FROM scratch` (офіційний порожній базовий шар), коли весь **runtime** уже в `COPY --from=…`
-- **glibc, Debian (slim)**: `mirror.gcr.io/library/debian:*` **лише** з тегом, у якому є `slim` (наприклад `bookworm-slim`, `trixie-slim`), а не `bookworm` без `slim`. Debian-slim виправданий **лише** коли потрібен саме glibc-рантайм (нативні glibc-залежності, prebuilds без musl-варіанта). **Non-root сам по собі не є підставою** переходити сюди: `mirror.gcr.io/oven/bun:alpine` уже має користувача `bun` (uid/gid 1000), тож `USER bun` дає non-root **без зміни бази**. Перехід Alpine→Debian заради лише non-root — **антипатерн** (більший образ + зайва musl→glibc міграція bun-бінарника)
-- **виняток (інтерпретовані стеки)**: `mirror.gcr.io/library/php:*` або `mirror.gcr.io/library/python:*` — якщо сервіс має крутитися в офіційному runtime PHP чи Python, а не як один бінарник на Alpine; інакше лишай **alpine** у фінальному stage
-- **frontend**: `mirror.gcr.io/nginxinc/nginx-unprivileged:*` або `mirror.gcr.io/openresty/openresty:*`
+Спрацьовує на всі файли `Dockerfile*`; `check docker` (`fix.mjs`) обробляє також `Containerfile` та `Containerfile.*`.
 
-Це стримує зайвий build tooling (Bun, **node_modules** зі збірки) у фінальному образі; для **alpine** / **nginx** / **openresty** у **runtime** лишаються лише відповідні вимоги, для **php** / **python** (виняток) — цільовий інтерпретований **stack**; **scratch** і **debian** з тегом **`*slim*`** — коли glibc і мінімальне оточення Debian важливіші за musl в **alpine**.
+## Швидкий gate через conftest
 
-## Мінімальні образи
+| Пакет | Що перевіряє |
+|---|---|
+| `docker.lint_docker_yml` | `.github/workflows/lint-docker.yml` відповідає канонічному сніпету (paths, uses, run-підрядки) |
 
-Якщо використовується nginx, то **використовуй** `mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim` (і не `latest` / `alpine`).
+[docker-mirror](./js/mirror.mdc)
 
-## компіляція
+[docker-multistage](./js/multistage.mdc)
 
-Якщо проект має bun install крок, та не є фронтенд проектом (тобто не має bun build крок), **і не має нативного `.node`-аддона з динамічним завантаженням** (див. наступну секцію), то потрібно щоб була компіляція коду, і далі у фінальному образі був тільки бінарник і Цей образ не містив компілятора, npm, Bun — тільки runtime libs. Наприклад:
+[docker-compile](./js/compile.mdc)
 
-```dockerfile
-FROM mirror.gcr.io/oven/bun:alpine AS build-env
+[docker-native-addon](./js/native-addon.mdc)
 
-WORKDIR /app
+[docker-non-root](./js/non-root.mdc)
 
-ENV NODE_ENV=production
+[docker-nginx-tag](./js/nginx-tag.mdc)
 
-COPY package.json .
-COPY bunfig.toml .
+[docker-nginx-user](./js/nginx-user.mdc)
 
-RUN bun install --production
-
-COPY ./src ./src
-
-# Компілюємо в бінарник
-RUN bun build --compile --outfile app ./src/index.js
-
-FROM mirror.gcr.io/library/alpine:latest
-
-# (libstdc++ libgcc) для Bun runtime, (tzdata) для часового поясу
-RUN apk add --no-cache libstdc++ libgcc tzdata
-
-WORKDIR /app
-
-COPY --from=build-env /app/app ./app
-
-CMD ["./app"]
-```
-
-### виняток: нативний `.node`-аддон (sharp / @img/* / argon2)
-
-Якщо в `package.json#dependencies` є нативний `.node`-аддон, який вантажиться через **динамічний `require`** — передусім **`sharp`**; той самий клас — **`@img/*`**, **`argon2`** — його **не можна** пакувати через `bun build --compile`.
-
-`bun build --compile` не трейсить `require(\`@img/sharp-${platform}/sharp.node\`)` і не вшиває нативний біндинг → компільований бінарник падає в рантаймі: `Could not load the "sharp" module using the linuxmusl-arm64 runtime`. Доведено реальними docker-збірками (bun 1.3.14, sharp 0.34.5); відтворюється і на darwin-arm64 (тобто не musl/glibc-залежне). `apk add vips` **НЕ лікує** — він дає системний libvips, а бракує саме `sharp.node`.
-
-Канон — ship `node_modules` і запускати через `bun <entry>` на базі `mirror.gcr.io/oven/bun:alpine` (це легітимний виняток до правила «лише alpine/scratch у фінальному stage» — тут потрібен саме bun-рантайм). База `oven/bun` уже має non-root користувача `bun` (uid/gid 1000). Entry бери з наявного `--outfile`-таргета / `package.json#main` / `scripts.start`; якщо не визначити — лиши TODO-маркер, не вгадуй.
-
-Перевіряє **`npm/rules/docker/lib/docker-native-addon.mjs`** (підключено в **`npm/rules/docker/js/lint.mjs`**, точка входу обходу — **`npm/rules/docker/fix.mjs`**). Список нативних аддонів — розширювана константа `NATIVE_ADDON_PACKAGES` / `NATIVE_ADDON_SCOPES` у чек-модулі.
-
-#### Антипатерн (це правило ловить)
-
-```dockerfile
-RUN bun build --compile --outfile app ./src/index.js     # ← з sharp у deps
-FROM mirror.gcr.io/library/alpine:latest
-RUN apk add --no-cache ... vips                           # системний vips не рятує
-COPY --from=build-env --chown=app:app /app/app ./app
-USER app
-CMD ["./app"]
-```
-
-#### Канон (привести до цього)
-
-```dockerfile
-FROM mirror.gcr.io/oven/bun:alpine AS build-env
-WORKDIR /app
-ENV NODE_ENV=production
-COPY package.json .
-RUN bun install --production
-COPY ./src ./src
-
-FROM mirror.gcr.io/oven/bun:alpine
-RUN apk add --no-cache tzdata
-WORKDIR /app
-# база oven/bun має non-root користувача bun (uid/gid 1000)
-COPY --from=build-env --chown=bun:bun /app/node_modules ./node_modules
-COPY --from=build-env --chown=bun:bun /app/src ./src
-COPY --from=build-env --chown=bun:bun /app/package.json ./package.json
-USER bun
-CMD ["bun", "src/index.js"]
-```
-
-Для проєктів **без** нативних аддонів standalone-бінарник на alpine лишається каноном (секція «компіляція» вище).
-
-## не превілейований образ
-
-Для всіх образів потрібно щоб використовувся non-root принцип. **Спосіб** досягнення non-root залежить від **бази**, а не від зміни ОС — змінювати дистрибутив (Alpine→Debian) заради лише non-root **не треба**. Два шляхи:
-
-- **standalone-бінарник на `alpine:latest`** (секція «компіляція») — у `alpine` немає готового non-root користувача, тож його створюємо явно: `addgroup -g 1000 app && adduser -D -u 1000 -G app app` + `COPY --chown=app:app` + `USER app` (приклад нижче);
-- **ship `node_modules` на `mirror.gcr.io/oven/bun:alpine`** (секція «виняток: нативний `.node`-аддон») — користувач `bun` (uid/gid 1000) **уже в базі**, тож достатньо `COPY --chown=bun:bun …` + `USER bun`; базу на Debian-slim міняти **не треба** — це той самий антипатерн, що й у переліку фінальних образів вище.
-
-Приклад для standalone-бінарника на alpine:
-
-```dockerfile
-# Stage 1
-FROM oven/bun:alpine AS build-env
-WORKDIR /app
-COPY package.json bunfig.toml .
-RUN bun install --production
-COPY ./src ./src
-RUN bun build --compile --outfile app ./src/index.js
-
-# Stage 2
-FROM alpine:latest
-RUN apk add --no-cache libstdc++ libgcc tzdata
-
-# ✅ Додати non-root user
-RUN addgroup -g 1000 app && adduser -D -u 1000 -G app app
-
-WORKDIR /app
-
-# ✅ Змінити власника файлу
-COPY --from=build-env --chown=app:app /app/app ./app
-
-# ✅ Запускати як non-root
-USER app
-
-CMD ["./app"]
-
-```
-
-### nginx-unprivileged — без USER, із --chown
-
-Окрема гілка для фронтенду на базі **`nginxinc/nginx-unprivileged`** (будь-який тег, з/без `mirror.gcr.io/`-префікса). Цей образ **уже** оголошує `USER 101` і `EXPOSE 8080`, тож у фінальному stage **не потрібні** жодні явні `USER`-інструкції:
-
-- **жодного `USER root` / `USER 0`** для білд-кроків: він перезатирає успадкований `USER 101`, і якщо потім не повернути non-root — фінальний образ лишається root, а k8s із `runAsNonRoot: true` падає з `CreateContainerConfigError`;
-- **жодного switch-back** `USER 101` / `USER nginx` наприкінці stage — це лише симптом зайвого `USER root` на початку (повертати треба саме **числовим** UID, бо kubelet не підтверджує non-root за іменем `nginx`). Канон — взагалі не виходити з-під дефолтного 101;
-- **`COPY`/`ADD` лише з `--chown`** (канон — `--chown=nginx:nginx`): без нього файли копіюються власником root і дефолтний non-root користувач (uid=101) не зможе читати статику.
-
-Build-stage не чіпаємо — там root і tooling норма. Перевіряє **`npm/rules/docker/lib/docker-nginx-user.mjs`** (підключено в **`npm/rules/docker/js/lint.mjs`**, точка входу обходу — **`npm/rules/docker/fix.mjs`**).
-
-#### Антипатерн (це правило ловить)
-
-```dockerfile
-FROM mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim
-USER root
-COPY ./k8s/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist ./
-RUN find ./ -type f -name "*.js" -exec gzip -k {} \;
-USER 101          # повернення назад — симптом того, що був зайвий USER root
-EXPOSE 8080
-```
-
-#### Канон (привести до цього)
-
-```dockerfile
-FROM mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim
-
-COPY --chown=nginx:nginx ./k8s/nginx.conf /etc/nginx/conf.d/default.conf
-
-WORKDIR /usr/share/nginx/html
-
-COPY --from=build --chown=nginx:nginx /app/dist ./
-
-RUN find ./ -type f -name "*.js" -exec gzip -k {} \;
-```
-
-(без жодного `USER`, gzip під дефолтним користувачем 101; `EXPOSE 8080` теж зайвий — база вже його оголошує)
-
-## Область
-
-- Усі файли з іменем **`Dockerfile`** або **`Dockerfile.*`** (наприклад `Dockerfile.prod`) у репозиторії, крім ігнорованих каталогів (`node_modules`, `.git`, `dist`, …) — як у **`rules/docker/fix.mjs`**.
-- Також скрипт перевірки обробляє **`Containerfile`** та **`Containerfile.*`** (Podman / альтернативні імена), навіть якщо glob правила спрацьовує переважно на `Dockerfile*`.
-
-## lint-docker
-
-CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE...]` у **`hadolint --help`**); обхід репозиторію робить правило **`n-cursor lint docker`** (реалізація — **`npm/rules/docker/js/lint.mjs`**).
-
-**Область lint-docker (вужча, ніж `check docker`):** лише файли з іменем **`Dockerfile`** та **`*.Dockerfile`** (суфікс **`.dockerfile`** без урахування регістру, наприклад **`api.Dockerfile`**). Файли **`Dockerfile.prod`**, **`Containerfile`** тощо **не** входять у **`lint-docker`**; їх ловить **`check docker`** (`rules/docker/fix.mjs`).
-
-Обхід: **`walkDir`** з тими самими пропусками каталогів, що й **`rules/docker/fix.mjs`**. Виклик **`hadolint`** як **нативного бінарника** через **`ensureTool`** (PATH → кеш → авто-install brew/scoop/GitHub Release; **без** `docker run`) — спільна логіка **`npm/rules/docker/lib/docker-hadolint.mjs`**.
-
-Окремий `package.json`-скрипт `lint-docker` не потрібен і не перевіряється — єдина точка входу для правила: **`n-cursor lint docker`**.
-
-Додай workflow **`.github/workflows/lint-docker.yml`** (гілки **`dev`** і **`main`**, лише **`.yml`**, узгоджено з **`ga.mdc`**):
-
-- Канон: [lint-docker.yml.snippet.yml](./policy/lint_docker_yml/template/lint-docker.yml.snippet.yml)
-
-Локально hadolint авто-встановлюється через **`ensureTool`** (latest, без піну версії). У CI встанови його кроком із workflow-сніпета (curl-download бінарника — без `docker run`).
-
-## Запуск
-
-1. **`n-cursor lint docker`** — **`js/lint.mjs`**: **`Dockerfile`** та **`*.Dockerfile`** (див. **`lint-docker`**); у CI використовуй **`n-cursor lint docker --read-only`** і встанови hadolint (приклад у workflow).
-2. **`npx @nitra/cursor fix docker`** — **`rules/docker/fix.mjs`**, виклик hadolint як у **`docker-hadolint.mjs`** (нативний бінарник через **`ensureTool`**; **без** `docker run`).
-3. Кореневий **`.hadolint.yaml`**: вимкнення правил, trusted registries — [документація](https://github.com/hadolint/hadolint#configure). Щоб не додавати **`# hadolint ignore=DL3007`** у кожному **`FROM`** з **`:latest`**, у корені репозиторію задати глобально:
-
-```yaml title=".hadolint.yaml"
-ignored:
-  - DL3007
-  - DL3008
-  - DL3018
-```
-
-Де DL3007 - «Не використовуй тег latest у FROM»
-Де DL3018 - «Піни версії пакетів у apk add»
-
-Якщо немає файлів у межах відповідного набору (**`lint-docker`** або **`check docker`**) — перевірка пропускається (exit 0).
-
-Винятки: **`# hadolint ignore=DL3008`** (або інший код) у Dockerfile або **`ignored`** у **`.hadolint.yaml`** (наприклад **DL3007** для **`:latest`** — див. вище).
+[docker-hadolint](./js/hadolint.mdc)

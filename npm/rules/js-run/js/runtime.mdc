@@ -1,0 +1,14 @@
+## Runtime у `package.json#scripts`
+
+У **backend**-пакетах (без `vite` у `devDependencies`) код запускають через **Bun**, не через бінарник **`node`** у значеннях `scripts`:
+
+- `"start": "node src/index.js"` → `"start": "bun src/index.js"` (або `bun run …`, якщо так прийнято в репо);
+- `node --watch app.js` → `bun --watch app.js`;
+- `NODE_OPTIONS=… node app.js` → `NODE_OPTIONS=… bun app.js`.
+- `env $(cat .env .env.local) bun src/index.js` → `bun --env-file=.env --env-file=.env.local src/index.js` (нативне завантаження env у Bun, без `env`/`cat`).
+
+Заборонено викликати **`node`** у ланцюжках (`&&`, `;`, `|`). Заборонено обгортку **`env $(cat …) bun`** — файли з `cat` перелічуй у **`--env-file=`** (по одному прапорцю на файл, порядок як у `cat`). Допустимо: `bun`, `bunx`, `npx` (див. **bun.mdc**), інші CLI, якщо вони не підміняють рантайм на `node`.
+
+Це **не** стосується поля `engines.node` (мінімальна версія Node для сумісності інструментів) і **не** стосується frontend-пакетів з `vite` у `devDependencies`.
+
+Канон заборонених патернів у `scripts`: [package.json.deny.json](./policy/package_json/template/package.json.deny.json) (`scriptsForbidden`).

@@ -1,0 +1,102 @@
+## Динамічна SQL-структура: `@scaleleap/pg-format` для identifiers
+
+Bun SQL **не вміє** параметризувати назви схем, таблиць, колонок, індексів, ролей, БД — а `sql\`SELECT * FROM ${table}\`` забіндив би це як значення і зламав би синтаксис. Для **динамічних identifiers** дозволено окремий пакет:
+
+```bash
+bun add @scaleleap/pg-format
+```
+
+⚠️ Це **scoped `@scaleleap/pg-format`**, а не unscoped `pg-format` (той у [deny-списку](./policy/package_json/template/package.json.deny.json)). Беремо форк `@scaleleap` **тільки** заради `%I` / `%s`-можливостей; значення все одно проходять через Bun parameters, **не** через `%L`.
+
+### Дозволений патерн
+
+- **`%I`** — escape SQL identifier (schema / table / column / index / role / database).
+- **`%s`** — raw fragment, **тільки** для whitelist-значень (`ASC` / `DESC`, тип JOIN'у тощо).
+- Значення — позиційні параметри `$1, $2, …`, які передаються другим аргументом у `sql.unsafe(query, [bindParams])`.
+- На рядку виклику `sql.unsafe(...)` обов'язковий маркер `// allow-unsafe: <причина>` (div. `js/unsafe.mdc`).
+
+```javascript
+import format from '@scaleleap/pg-format'
+import { sql } from 'bun'
+
+const allowedColumns = new Set(['created_at', 'email', 'name'])
+if (!allowedColumns.has(sortBy)) throw new Error('Invalid sort column')
+
+const direction = sortDir === 'asc' ? 'ASC' : 'DESC'
+
+const query = format(
+  'SELECT * FROM %I.%I ORDER BY %I %s LIMIT $1',
+  schemaName,
+  tableName,
+  sortBy,
+  direction
+)
+// allow-unsafe: динамічні schema/table/column; значення біндяться через $N
+const rows = await sql.unsafe(query, [limit])
+```
+
+Multi-row `INSERT` через `VALUES %L` теж типовий легітимний кейс, але передавай значення колонок як паралельні масиви через `unnest(...)` Bun SQL — `format('VALUES %L', rows)` лишай тільки коли альтернатива з `unnest` неможлива:
+
+```javascript
+const query = format(
+  /* sql */ `
+    INSERT INTO "order".delivery_status (order_id, status, changed_at)
+    SELECT v.order_id::uuid, v.status, v.changed_at::timestamptz
+    FROM (VALUES %L) AS v(order_id, status, changed_at)
+  `,
+  values
+)
+// allow-unsafe: multi-row VALUES для бекфілу; values формуються з валідованого input
+await sql.unsafe(query)
+```
+
+### Заборонено й після підключення `@scaleleap/pg-format`
+
+- **`%L` для user input** — це повернення `pg-format`-стилю. Завжди bind через Bun (`sql\`... = ${value}\``) або позиційний параметр `$N` + `sql.unsafe(query, [params])`.
+- Збирати весь `WHERE` через `format(...)` з `%L` — користуйся whitelist полів і ручним складанням `$N`-placeholder'ів (приклад нижче).
+- Власні функції `format` / `pgFormat` / `sqlFormat` / `pgFmt` з тілом, що містить `%L` / `%I` / `%s`, — `fail` сканера (це шим, а не імпорт з бібліотеки).
+- Експортовані `quoteLiteral` / `quoteIdent` / `escapeLiteral` / `escapeIdent` — `fail` сканера (pg-format-специфічні API замість Bun parameters).
+
+### Dynamic `WHERE` — без `format(...)`, через whitelist + `$N`
+
+```javascript
+const conditions = []
+const values = []
+
+if (email) {
+  values.push(email)
+  conditions.push(`email = $${values.length}`)
+}
+if (status) {
+  values.push(status)
+  conditions.push(`status = $${values.length}`)
+}
+
+const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+const query = `SELECT * FROM users ${where}`
+// allow-unsafe: динамічний WHERE з whitelist-полів; значення біндяться через $N
+const rows = await sql.unsafe(query, values)
+```
+
+### Коротка таблиця рішень
+
+| Сценарій                          | Що використовувати                                   |
+| --------------------------------- | ---------------------------------------------------- |
+| `WHERE id = ${...}`               | Bun SQL tagged template                              |
+| `INSERT` одного рядка             | Bun SQL tagged template                              |
+| `INSERT` масиву (object/colset)   | Bun SQL helper `sql(rows, 'a', 'b')` або `unnest`    |
+| `UPDATE field = ${value}`         | Bun SQL tagged template                              |
+| Динамічна назва schema / table    | `@scaleleap/pg-format` `%I` + `sql.unsafe(q, [...])` |
+| Динамічна назва колонки           | `@scaleleap/pg-format` `%I` + bind                   |
+| Динамічний `ORDER BY column`      | whitelist + `%I`                                     |
+| `ASC` / `DESC`, тип JOIN'у        | whitelist + `%s`                                     |
+| Динамічний `WHERE` (полів багато) | whitelist + ручні `$N` + `sql.unsafe(text, vals)`    |
+| Сирий migration / DDL             | `sql.unsafe(text)` з `// allow-unsafe: <причина>`    |
+| User input як value               | **тільки** Bun parameters / `$N` bind                |
+| Масив значень у `unnest(...)`     | `sql.array(arr, type)` — обов'язково з типом         |
+
+Головне правило:
+
+- **SQL values** → Bun SQL parameters (tagged template `${value}` або `$N` + `sql.unsafe(text, values)`).
+- **SQL identifiers** → `@scaleleap/pg-format` `%I` (schema, table, column, index, role, database).
+- **SQL fragments** (`ASC`/`DESC` тощо) → whitelist + `%s`.

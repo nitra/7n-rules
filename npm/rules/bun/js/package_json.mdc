@@ -1,0 +1,19 @@
+## Кореневий package.json
+
+В кореневому `package.json` не повинно бути `dependencies`, а в `devDependencies` — тільки модулі `@nitra/*`.
+
+**Дозволені винятки у `devDependencies` кореня (root-only):**
+
+- `vitest`, `@vitest/coverage-v8`, `@stryker-mutator/vitest-runner` — Vitest/Stryker peer/tools для `n-cursor coverage`
+- `@playwright/test` — для e2e-тестів
+
+Тримати їх **у корені** доводиться у будь-якому монорепо-споживачі, бо правило `test` enabled завжди (`test/auto.md` = `завжди`), а класти ці пакети у workspace-и не можна: published пакети (`npm-module.mdc`) не мають `devDependencies`, а інші workspace-и однаково запускають coverage оркестратор з кореня.
+
+**Заборонені top-level поля** у root `package.json` (з причинами): [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
+
+| Поле | Причина |
+|---|---|
+| `packageManager` | Видали поле — Bun не потребує `packageManager` |
+| `dependencies` | Кореневий `package.json` не повинен містити `dependencies` — додай у workspace-пакети |
+
+Якщо в `package.json` є поле `packageManager` — прибрати його, також прибрати всі директорії та файли для yarn.

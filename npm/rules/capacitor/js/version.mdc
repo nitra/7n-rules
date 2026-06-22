@@ -1,0 +1,29 @@
+## Версія Capacitor
+
+У `package.json` (у **корені** репозиторію чи **workspace**-пакеті) оголошення **`@capacitor/core`**
+має вказувати діапазон, **сумісний лише з мажорною версією 8 і вище** (наприклад `^8.0.0`).
+**`*`**, `latest` і діапазони, де можлива 7-мажор, — неприйнятні.
+
+Перевірка обходить усі `package.json` у дереві (крім `node_modules`, `.git`, `dist`, `coverage`,
+`Pods`, `.turbo`, `.next`, `build`) і перевіряє нижню межу діапазону через `capacitorVersionRangeMinMajor`.
+Підтримуються `||`-частини, hyphen-range (`7 - 9`), `^`, `~`, `>=`, `>`, `=`, bare-version;
+`workspace:*` / `*` / `x` / `latest` — пропускаються (не блокують).
+
+**Приклади допустимих діапазонів:**
+
+```
+"@capacitor/core": "^8.0.0"
+"@capacitor/core": ">=8"
+"@capacitor/core": "8.x"
+"@capacitor/core": "workspace:*"
+```
+
+**Приклади неприйнятних діапазонів:**
+
+```
+"@capacitor/core": "^7.0.0"    // мажор 7 — занадто старий
+"@capacitor/core": "*"         // будь-яка — неприйнятна
+"@capacitor/core": "latest"    // неприйнятна
+"@capacitor/core": ">=6"       // нижня межа 6 — занадто старий
+"@capacitor/core": "6 - 9"     // hyphen-range: нижня межа 6 — неприйнятна
+```

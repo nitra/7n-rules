@@ -1,0 +1,25 @@
+## markdownlint: перевірка Markdown
+
+**`markdownlint-cli2`** запускається rule-адаптером через **`bunx markdownlint-cli2`** — не додавай пакет до `devDependencies`. VSCode-розширення: `DavidAnson.vscode-markdownlint`.
+
+У корені проєкту має бути `.markdownlint-cli2.jsonc`:
+
+```json title=".markdownlint-cli2.jsonc"
+{
+  "gitignore": true,
+  "config": {
+    "default": true,
+    "MD013": false,
+    "MD024": {
+      "siblings_only": true
+    },
+    "MD029": false,
+    "MD040": false,
+    "MD041": false
+  }
+}
+```
+
+Канон: [.markdownlint-cli2.jsonc.snippet.jsonc](./policy/markdownlint/template/.markdownlint-cli2.jsonc.snippet.jsonc)
+
+**MD041** off навмисно (`.mdc` з frontmatter). Деталі — [markdownlint-cli2](https://github.com/DavidAnson/markdownlint-cli2).

@@ -1,0 +1,66 @@
+## PHP-інструменти лінту
+
+Весь код повинен відповідати PHP 8.5, перевірятися через PHPCompatibility і конвертуватися через Rector.
+
+Код має бути добре задокументований через phpDoc:
+
+```php
+/** @param array<int, string> $items */
+function process($items) {
+    foreach ($items as $id => $name) {
+        // PHPStan знає, що $id — int, $name — string
+    }
+}
+```
+
+### PHP_CodeSniffer (phpcs) і пакет `squizlabs/php_codesniffer`
+
+Стиль, базові ризики, за потреби окремі стандарти. Для **SQL injection**, **XSS**, **небезпечні функції** — PHPCS + **php-security-audit** (стандарт `Security`).
+
+```bash
+phpcs --standard=Security app/
+```
+
+### PHPStan
+
+Статичний аналіз типів і смертельних слабких місць; **PHPStan Taint Analysis** (`phpstan/phpstan-taint-analysis`) — для потоку даних (taint) у стилі security-аналізу.
+
+```bash
+vendor/bin/phpstan analyse
+# після підключення розширення taint — у phpstan.neon/ neon.dist
+```
+
+### PHP-CS-Fixer
+
+Форматтер/фіксер коду; у **lint** зазвичай перевірка без змін (`--dry-run`).
+
+```bash
+vendor/bin/php-cs-fixer fix --dry-run --diff
+```
+
+### Psalm
+
+Альтернативний/додатковий аналізатор; **Psalm Security Plugin** (`vimeo/psalm` + пакет на кшталт `psalm/plugin-security` залежно від вибраної збірки) — для security-орієнтованих правил.
+
+```bash
+vendor/bin/psalm
+```
+
+### `composer audit`
+
+Перевірка відомих вразливостей залежностей за даними **Packagist/security-advisories**.
+
+```bash
+composer audit
+```
+
+## Запуск lint-php
+
+`composer`-інструменти не мають єдиного CLI, який сам обходить репозиторій, тому php-лінт делегується у JS-скрипт-обгортку. Запуск — через **`n-cursor lint php`** (CI — `--read-only`); окремого `package.json`-скрипта немає.
+
+Скрипт `run-php.mjs`:
+
+- якщо `composer.json` у корені відсутній — вихід 0 (перевірка пропущена);
+- якщо `composer.json` є, але `composer` не знайдено в PATH — це помилка;
+- `composer audit` — обовʼязковий;
+- `vendor/bin/php-cs-fixer`, `vendor/bin/phpcs`, `vendor/bin/phpstan`, `vendor/bin/psalm` — запускаються лише якщо встановлені (інакше крок пропускається з повідомленням).

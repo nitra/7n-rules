@@ -1,0 +1,44 @@
+## Перевірка `dependencies` у `package.json` (Rego gate)
+
+Rego-полісі `js_bun_redis.package_json` перевіряє `package.json` кожного воркспейсу на наявність заборонених redis-залежностей у полі `dependencies`.
+
+**Namespace:** `js_bun_redis.package_json`
+
+Канон заборонених пакетів надходить через `--data` з файлу-шаблону:
+
+[package.json.deny.json](./policy/package_json/template/package.json.deny.json)
+
+Поточний список заборонених `dependencies`:
+
+| Пакет | Причина |
+|---|---|
+| `ioredis` | заміни на Bun native Redis |
+| `node-redis` | заміни на Bun native Redis |
+| `redis` | заміни на Bun native Redis |
+| `@redis/client` | заміни на Bun native Redis |
+| `@redis/json` | заміни на Bun native Redis |
+| `@redis/search` | заміни на Bun native Redis |
+| `@redis/time-series` | заміни на Bun native Redis |
+| `@redis/bloom` | заміни на Bun native Redis |
+
+### Повідомлення про порушення
+
+```
+dependencies.ioredis — заміни на Bun native Redis (js-bun-redis.mdc)
+```
+
+### Виправлення
+
+```jsonc
+// package.json — видалити зі списку dependencies:
+{
+  "dependencies": {
+    // "ioredis": "...",      ← видалити
+    // "node-redis": "...",   ← видалити
+    // "redis": "...",        ← видалити
+    // "@redis/client": "...",← видалити
+  }
+}
+```
+
+Після видалення пакетів з `dependencies` виконати також сканування джерел на заборонені імпорти — перевірка `js-bun-redis-imports`.

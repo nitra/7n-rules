@@ -1,0 +1,33 @@
+## Рекомендовані розширення VSCode (`.vscode/extensions.json`)
+
+Правило перевіряє, що `.vscode/extensions.json` містить усі обовʼязкові записи з канонічного шаблону. Перевірка реалізована через Rego (пакет `ci4.vscode_extensions`) і запускається `conftest` у фазі `check`.
+
+### Канонічний шаблон
+
+Канон надходить через `--data` як `{ "template": { "snippet": ... } }`. Поточний snippet ([policy/vscode_extensions/template/extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)):
+
+```json
+{
+  "recommendations": ["arr.marksman"]
+}
+```
+
+`arr.marksman` — офіційне VSCode-розширення marksman LSP. Дає ту саму навігацію `cmd+click` / `[[wiki-link]]` / find-references / refactor-перейменування, що й Zed built-in marksman, для контрибʼюторів поза Zed.
+
+### Rego-логіка
+
+Для кожного запису з `data.template.snippet.recommendations` перевіряє, що він присутній у `input.recommendations`. Якщо запис відсутній — deny з повідомленням:
+
+```
+.vscode/extensions.json: recommendations має містити "arr.marksman" (ci4.mdc)
+```
+
+### Приклад коректного файлу
+
+```json title=".vscode/extensions.json"
+{
+  "recommendations": ["arr.marksman"]
+}
+```
+
+Інші розширення в масиві `recommendations` дозволені — перевірка лише на наявність обовʼязкових, без виключення додаткових.

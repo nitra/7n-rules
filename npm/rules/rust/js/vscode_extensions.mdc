@@ -1,0 +1,12 @@
+## Розширення VS Code для Rust
+
+У `.vscode/extensions.json` поле `recommendations` **має містити**:
+
+- `rust-lang.rust-analyzer`
+- `tamasfe.even-better-toml`
+
+Перевірка `contains`-семантики: інші розширення дозволені, усі з канону мають бути присутні.
+
+Канон: [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
+
+Rego-перевірка `rust.vscode_extensions` для кожного запису з канону перевіряє його наявність у `recommendations` вхідного файлу.

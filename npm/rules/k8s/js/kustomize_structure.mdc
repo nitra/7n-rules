@@ -1,0 +1,144 @@
+## Kustomize: структура каталогів (`base` / overlays)
+
+Трансформуй дерева **`**/k8s`**, щоб **винести спільне** через [Kustomize](https://kustomize.io/): один канонічний **`base`** і тонкі **overlays** для інших середовищ.
+
+### Джерело правди — середовище dev
+
+- За основу бери **все, що відповідає середовищу dev** (як воно має виглядати в кластері для dev).
+- У **такому вигляді** цей набір стає каталогом **`base`**: спільні маніфести без окремої директорії **`dev/`**.
+- Окремої директорії **`dev`** **не повинно існувати**: за середовище **dev** відповідає **`base`**.
+
+### Overlays (не-dev)
+
+- У каталозі кожного іншого середовища (наприклад **`ua/`**, **`prod/`**) — мінімум файлів: типово лише **`kustomization.yaml`** і ресурси, **необхідні лише для цього overlay**.
+- Відмінності від dev вносяться **оверрайдами** (patches, `images`, `replicas`, `configMapGenerator` тощо), а не копіюванням повного дерева з `base`.
+
+### Namespace
+
+- **`base/kustomization.yaml`:** поле **`namespace:`** має бути **непорожнім** (перевіряє **check k8s**).
+- **Коли `metadata.namespace` обов'язковий у файлі:** YAML під **`k8s`** — непорожній **`metadata.namespace`** для namespaced **kind** (винятки — кластерні **kind**, перелік **`CLUSTER_SCOPED_KINDS`** у **`rules/k8s/fix.mjs`**).
+- **Не додавай** окремі **patches** Kustomize, які лише змінюють **namespace**.
+
+### Рядки, що змінюються між середовищами
+
+У manifest-файлах у **`base`** для полів, які **будуть відрізнятися** в інших середовищах, на **тому самому рядку** додай коментар:
+
+```yaml
+image: my-app:dev-tag # буде замінено через kustomize
+```
+
+### Зміна image — через `images:`, не через `patches[]`
+
+Підміну image у Pod-шаблоні Deployment в overlay роби директивою `images:`, а не JSON6902-патчем `op: replace` на `/spec/template/spec/containers/<N>/image`.
+
+- У **`name`** — те, що **дослівно** стоїть у `image:` у base **без тегу**.
+- **`newName`** — кінцеве ім'я образу; **`newTag`** — тег для прода.
+- **`digest`** (`@sha256:…`) у `name` / `newName` не чіпай.
+
+```yaml title="k8s/prod/kustomization.yaml (фрагмент)"
+images:
+  - name: europe-west4-docker.pkg.dev/abie-ua/c/apply-on-invoice-discount
+    newName: europe-west4-docker.pkg.dev/abie-ua/c/apply-on-invoice-discount
+    newTag: v2025-04-29
+```
+
+**`check k8s` автоматично** для кожного `kustomization.yaml`:
+
+1. конвертує кожну JSON6902-операцію `op: replace` на `/spec/template/spec/containers/<N>/image` у запис `images:`;
+2. чистить існуючий блок `images:` — зрізає `:tag` з `name` і видаляє `newTag`, який збігається з відрізаним тегом.
+
+### Міграція зі старої структури
+
+Після перенесення у **`base`** та overlays і перевірки (**`check k8s`**, **`lint-k8s`**) **видали** застарілі файли та директорії, що замінені новою схемою.
+
+### `patches[].target`: лише `kind` і `name`
+
+У `patches[].target` залишай **тільки** **`kind`** і **`name`** — поля **`group`** і **`version`** прибирай.
+
+```yaml
+# ❌ зайві group / version
+patches:
+  - target:
+      group: gateway.networking.k8s.io
+      version: v1beta1
+      kind: Gateway
+      name: gw
+
+# ✅
+patches:
+  - target:
+      kind: Gateway
+      name: gw
+```
+
+**Виняток:** залишай `group` / `version`, лише якщо в дереві overlay реально співіснують ресурси з однаковими `kind`+`name`, але різними API-групами/версіями.
+
+### Структурний сорт `patches[]` і inline JSON6902
+
+`patches[]` у `kustomization.yaml` має бути відсортовано за tuple **`target.kind` → `target.name` → `target.namespace` → `path`** (`localeCompare('en', { sensitivity: 'base' })`).
+
+```yaml
+# ❌ atlas йде перед apruv
+patches:
+  - target:
+      kind: ReferenceGrant
+      name: atlas-to-base
+  - target:
+      kind: ReferenceGrant
+      name: apruv-to-base
+
+# ✅
+patches:
+  - target:
+      kind: ReferenceGrant
+      name: apruv-to-base
+  - target:
+      kind: ReferenceGrant
+      name: atlas-to-base
+```
+
+Усередині кожного inline `patches[i].patch` операції теж сортуються за **`path`**, **але лише** коли набір «безпечний»: усі ops — `add` / `replace` і всі `path` попарно дизʼюнктні. Інакше порядок не чіпається.
+
+```yaml
+# ❌ minReplicas перед maxReplicas (за алфавітом max < min)
+patch: |-
+  - op: add
+    path: /spec/minReplicas
+    value: 2
+  - op: replace
+    path: /spec/maxReplicas
+    value: 10
+
+# ✅
+patch: |-
+  - op: replace
+    path: /spec/maxReplicas
+    value: 10
+  - op: add
+    path: /spec/minReplicas
+    value: 2
+```
+
+### Порядок `resources`
+
+Елементи **`resources:`** (лише непорожні рядки) мають бути **відсортовані за алфавітом (англ. локаль, як `localeCompare('en')` у `rules/k8s/fix.mjs`)**. Поля **`bases`**, **`components`**, **`crds`** цією перевіркою **не** впорядковуються.
+
+### Локальні шляхи в `kustomization.yaml`
+
+Кожен запис без `://` (remote) з `resources` / `bases` / `components` / `crds`, `patchesStrategicMerge`, `patches[].path`, `patchesJson6902[].path`, `configurations[]`, `replacements[].path` має вказувати на **існуючий** у репозиторії файл (`.yaml` / `.yml`) або **каталог**; биті посилання — помилка **`check k8s`**.
+
+### JSON patch у kustomization: `op: replace`
+
+Де можливо, змінюй ресурс через **`op: replace`** (одна операція на `path`), а не пару **`remove` + `add`** на той самий шлях.
+
+```yaml title="overlay/kustomization.yaml (фрагмент)"
+patches:
+  - target:
+      kind: Deployment
+      name: x
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/nodeSelector
+        value:
+          preem: "false"
+```

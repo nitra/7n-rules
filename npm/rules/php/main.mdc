@@ -5,73 +5,14 @@ globs: "**/*.php"
 alwaysApply: false
 ---
 
-Весь код повинен відповідати PHP 8.5, перевіряти за допомогою PHPCompatibility, конвертувати за допомогою Rector.
+Весь код повинен відповідати PHP 8.5 (PHPCompatibility + Rector). Лінт запускається через `n-cursor lint php`.
 
-Код повинен бути добре документований за допомогою phpDoc-ів:
+[php-tooling](./js/tooling.mdc)
 
-```php
-/** @param array<int, string> $items */
-function process($items) {
-    foreach ($items as $id => $name) {
-        // PHPStan знає, що $id — int, $name — string
-    }
-}
-```
+[php-lint_php_yml](./js/lint_php_yml.mdc)
 
-## Потрібно додати до lint-php
+## Швидкий gate через conftest
 
-### PHP_CodeSniffer (phpcs) і пакет `squizlabs/php_codesniffer`
-
-Стиль, базові ризики, за потреби окремі стандарти. Для **SQL injection**, **XSS**, **небезпечні функції** — PHPCS + **php-security-audit** (стандарт `Security`).
-
-```bash
-phpcs --standard=Security app/
-```
-
-### PHPStan
-
-Статичний аналіз типів і смертельних слабких місць; **PHPStan Taint Analysis** (`phpstan/phpstan-taint-analysis`) — для потоку даних (taint) у стилі security-аналізу.
-
-```bash
-vendor/bin/phpstan analyse
-# після підключення розширення taint — у phpstan.neon/ neon.dist
-```
-
-### PHP-CS-Fixer
-
-Форматтер/фіксер коду; у **lint** зазвичай перевірка без змін (`--dry-run`).
-
-```bash
-vendor/bin/php-cs-fixer fix --dry-run --diff
-```
-
-### Psalm
-
-Альтернативний/додатковий аналізатор; **Psalm Security Plugin** (`vimeo/psalm` + пакет на кшталт `psalm/plugin-security` залежно від вибраної збірки) — для security-орієнтованих правил.
-
-```bash
-vendor/bin/psalm
-```
-
-### `composer audit`
-
-Перевірка відомих вразливостей залежностей за даними **Packagist/security-advisories**.
-
-```bash
-composer audit
-```
-
-## lint-php
-
-`composer`-інструмененти не мають єдиного CLI, який сам обходить репозиторій, тому php-лінт делегується у JS-скрипт-обгортку. Запуск — через **`n-cursor lint php`** (CI — `--read-only`); окремого `package.json`-скрипта немає.
-
-Скрипт `run-php.mjs`:
-
-- якщо `composer.json` у корені відсутній — вихід 0 (перевірка пропущена);
-- якщо `composer.json` є, але `composer` не знайдено в PATH — це помилка;
-- `composer audit` — обовʼязковий;
-- `vendor/bin/php-cs-fixer`, `vendor/bin/phpcs`, `vendor/bin/phpstan`, `vendor/bin/psalm` — запускаються лише якщо встановлені (інакше крок пропускається з повідомленням).
-
-## CI: `.github/workflows/lint-php.yml`
-
-- Канон: [lint-php.yml.snippet.yml](./policy/lint_php_yml/template/lint-php.yml.snippet.yml)
+| Пакет | Що перевіряє |
+|---|---|
+| `php.lint_php_yml` | Структуру `.github/workflows/lint-php.yml` — наявність канонічних `run:`-кроків |

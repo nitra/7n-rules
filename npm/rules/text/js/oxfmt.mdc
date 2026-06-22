@@ -1,0 +1,35 @@
+## oxfmt: форматування коду
+
+**oxfmt** — єдиний канонічний форматер для проєкту. Prettier повністю заборонено.
+
+У корені проєкту має бути файл `.oxfmtrc.json` з правилами форматування:
+
+```json title=".oxfmtrc.json"
+{
+  "ignorePatterns": ["**/hasura/metadata/**", "**/schema.graphql", "**/auto-imports.d.ts"],
+  "arrowParens": "avoid",
+  "printWidth": 120,
+  "bracketSpacing": true,
+  "bracketSameLine": true,
+  "embeddedLanguageFormatting": "auto",
+  "endOfLine": "lf",
+  "htmlWhitespaceSensitivity": "css",
+  "insertPragma": false,
+  "jsxSingleQuote": true,
+  "proseWrap": "preserve",
+  "quoteProps": "as-needed",
+  "requirePragma": false,
+  "semi": false,
+  "singleQuote": true,
+  "tabWidth": 2,
+  "trailingComma": "none",
+  "useTabs": false,
+  "vueIndentScriptAndStyle": false
+}
+```
+
+Канон мінімального набору ключів і `ignorePatterns`: [.oxfmtrc.json.snippet.json](./policy/oxfmtrc/template/.oxfmtrc.json.snippet.json)
+
+Поле **`ignorePatterns`** обовʼязкове: у масиві мають бути **`**/hasura/metadata/**`**, **`**/schema.graphql`** і **`**/auto-imports.d.ts`**; інші glob-и додавай за потреби (згенеровані каталоги тощо) — канон задає мінімум, локальні розширення дозволені.
+
+Обовʼязкові ключі (наявність без точного значення): `arrowParens`, `printWidth`, `bracketSpacing`, `bracketSameLine`, `semi`, `singleQuote`, `tabWidth`, `trailingComma`, `useTabs`.

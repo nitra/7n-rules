@@ -1,0 +1,51 @@
+## `pg`: виключення для LISTEN/NOTIFY
+
+Bun SQL **поки не реалізує PostgreSQL LISTEN/NOTIFY** (асинхронні нотифікації через `pg_notify` / `LISTEN <channel>`). Тому якщо проєкт справді користується LISTEN/NOTIFY, npm-пакет `pg` дозволено тримати в `dependencies` **виключно** для LISTEN/NOTIFY-клієнта. Усі інші запити (SELECT/INSERT/UPDATE/DELETE/migration) — далі через Bun SQL.
+
+Перевірка `pg` зважує цей сигнал автоматично (тому `pg` прибрано з [denylist](./policy/package_json/template/package.json.deny.json) — Rego не бачить JS-коду, тож зважування LISTEN/NOTIFY перенесено в `check-js-bun-db`).
+
+### Як перевірка визначає, що LISTEN/NOTIFY у проєкті є
+
+AST-сканер шукає будь-який із сигналів:
+
+- `client.query('LISTEN <channel>')` / `client.query('UNLISTEN *')` / `client.query('NOTIFY <channel>, ...')` — string- або template-literal-аргумент, що починається з `LISTEN` / `UNLISTEN` / `NOTIFY` (case-insensitive, leading whitespace допускається). Також покриті `queryArray` / `queryStream`.
+- `client.on('notification', handler)` — listener на pg-події `notification`.
+- TaggedTemplateExpression `<tag>\`LISTEN ...\`` — на випадок, якщо хтось загорнув LISTEN у власний tagged template.
+
+Якщо хоч один сигнал є — `dependencies.pg` зважено як виправдане; інакше — `fail` із посиланням на цю секцію.
+
+### Правила для файлів з `import 'pg'`
+
+Кожен файл, який імпортує `'pg'`, повинен **сам** містити один із LISTEN/NOTIFY-сигналів. Сценарій «один файл слухає, інший виконує `SELECT * FROM users`» — теж `fail`: звичайні запити через `pg` треба переписати на Bun SQL, а LISTEN/NOTIFY-логіку лишити в окремому модулі.
+
+### Приклад — окремий модуль для LISTEN
+
+```javascript
+// src/db/pg-listen.ts — єдине місце, де живе import 'pg'
+import { Client } from 'pg'
+
+const listener = new Client({ connectionString: process.env.DATABASE_URL })
+
+// allow-pg-leftover: pg LISTEN-клієнт не керується Bun SQL пулом
+await listener.connect()
+await listener.query('LISTEN orders_channel')
+listener.on('notification', msg => {
+  // обробка нотифікації
+})
+```
+
+```javascript
+// src/db/users.ts — звичайні запити, через Bun SQL
+import { sql } from 'bun'
+
+export const getUser = id => sql`SELECT * FROM users WHERE id = ${id}`
+```
+
+`pg-listen.ts` буде дозволений завдяки `LISTEN orders_channel` і `.on('notification', ...)`; `users.ts` не має імпорту `'pg'`, тож вільно живе з Bun SQL. `client.connect()` у файлі з Bun SQL потребував би маркер `// allow-pg-leftover: ...`; у файлі, де **Bun SQL не імпортовано**, pg-leftover-сканер не спрацьовує, але маркер як коментар-причина — корисний для рев'ю.
+
+### Що лишається забороненим
+
+- `import 'pg'` у файлі без LISTEN/NOTIFY — `fail` з повідомленням «перенеси на Bun SQL, лиши LISTEN в окремому модулі».
+- `dependencies.pg` без жодного LISTEN/NOTIFY-сигналу у проєкті — `fail` навіть якщо `pg` нібито «потрібен історично».
+- `pg-format` (unscoped) — лишається у [denylist](./policy/package_json/template/package.json.deny.json); виключення для LISTEN/NOTIFY стосується **тільки** самого `pg`.
+- `pg-pool`, `pg-native`, `mysql`, `mysql2` — виключень немає, видаляти повністю.

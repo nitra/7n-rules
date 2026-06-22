@@ -1,0 +1,7 @@
+## `.github/zizmor.yml` — конфігурація zizmor
+
+Для [unpinned-uses](https://docs.zizmor.sh/audits/#unpinned-uses) — політика **`ref-pin`**, якщо в `uses:` семантичні теги. За потреби вимкни [template-injection](https://docs.zizmor.sh/audits/#template-injection).
+
+- Канон `.github/zizmor.yml`: [zizmor.yml.snippet.yml](./policy/zizmor_yml/template/zizmor.yml.snippet.yml)
+
+Rego-пакет `ga.zizmor_yml`: перевіряє `rules.unpinned-uses.config.policies["*"]` відповідно до значення з template.

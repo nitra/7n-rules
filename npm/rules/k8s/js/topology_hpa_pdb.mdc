@@ -1,0 +1,181 @@
+## Deployment: `topologySpreadConstraints`, HPA / PDB через `components/`, NetworkPolicy у `base/`
+
+Для **кожного** `kind: Deployment` у каталозі **`…/k8s/…/base/`** сам Deployment має канонічні **`spec.template.spec.topologySpreadConstraints`**, а **HPA і PDB** живуть у **sibling каталозі** **`…/k8s/…/components/`** (Kustomize Component, фіксована назва каталогу — `components`). У `base/` локальні `hpa.yaml` і `pdb.yaml` **заборонені**. Інші назви каталогу (`scale/`, `hpa-component/`, `pdb-component/`) — fail.
+
+Кожен **Deployment** має явно задавати безпечну rollout strategy:
+
+```yaml
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+```
+
+Це гарантує, що під час оновлення image Kubernetes спершу створить один новий Pod, дочекається його `Ready`, і лише потім прибере один старий Pod.
+
+**NetworkPolicy** лежить **у `base/`** (обмеження мережі мають діяти і на dev). Для **кожного** з **`Deployment`**, **`StatefulSet`**, **`DaemonSet`**, **`Job`**, **`CronJob`** під `k8s` обов'язковий **NetworkPolicy**: у **`…/k8s/…/base/`** — у **`base/networkpolicy.yaml`** поруч з workload-маніфестом (multi-doc, якщо workload-ів кілька). У `base/kustomization.yaml` `resources:` має бути `networkpolicy.yaml`.
+
+### Канонічна структура `<pkg>/k8s/components/`
+
+Лише HPA і PDB:
+
+- **`kustomization.yaml`** — `apiVersion: kustomize.config.k8s.io/v1alpha1`, `kind: Component`, `resources: [hpa.yaml, pdb.yaml]` (відсортовано за алфавітом).
+- **`hpa.yaml`** — `autoscaling/v2`, `HorizontalPodAutoscaler`, **без** `metadata.namespace`, `minReplicas: 1`, `maxReplicas: 1`.
+- **`pdb.yaml`** — `policy/v1`, `PodDisruptionBudget`, **без** `metadata.namespace`, `minAvailable: 0`.
+
+**`<pkg>/k8s/components/kustomization.yaml`** має `kind: Component` (не `kind: Kustomization`) — це **джерело** канонічних HPA/PDB для всіх overlays, а не overlay сам по собі.
+
+### Env-залежні межі (за сегментом після `/k8s/`)
+
+**Dev-like середовища** — сегмент `base`, `dev`, або з суфіксом `-qa`:
+
+- HPA: `minReplicas` — рівно **1**, `maxReplicas` — рівно **1**.
+- PDB: `minAvailable` — рівно **0**.
+
+**Прод-середовища** — усе інше:
+
+- HPA: `minReplicas` — мінімум **2**, `maxReplicas` — мінімум **2**.
+- PDB: `minAvailable` — мінімум **1**.
+
+### Прод-оверрайди у `kustomization.yaml`
+
+У прод-накладенні `kustomization.yaml`, що підключає `components: [- ../components]`, у `patches[]` **обов'язкові** JSON6902-перевизначення прод-значень:
+
+- **`HorizontalPodAutoscaler`**: `/spec/minReplicas` і `/spec/maxReplicas` (мінімум 2).
+- **`PodDisruptionBudget`**: `/spec/minAvailable` (мінімум 1).
+
+```yaml title="k8s/prod/kustomization.yaml (фрагмент)"
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: prod
+resources:
+  - ../base
+components:
+  - ../components
+patches:
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: backend-api
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 2
+      - op: replace
+        path: /spec/maxReplicas
+        value: 10
+  - target:
+      kind: PodDisruptionBudget
+      name: backend-api
+    patch: |-
+      - op: replace
+        path: /spec/minAvailable
+        value: 1
+```
+
+### Приклади: `components/`, HPA, PDB
+
+```yaml title="k8s/components/kustomization.yaml"
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - hpa.yaml
+  - pdb.yaml
+```
+
+```yaml title="k8s/components/hpa.yaml"
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/horizontalpodautoscaler-autoscaling-v2.json
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend-api
+  minReplicas: 1 # прод overlay підіймає до >= 2
+  maxReplicas: 1 # прод overlay підіймає до >= 2
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 15
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+        - type: Pods
+          value: 4
+          periodSeconds: 30
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 25
+          periodSeconds: 120
+      selectPolicy: Min
+```
+
+```yaml title="k8s/components/pdb.yaml"
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/poddisruptionbudget-policy-v1.json
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backend-api
+spec:
+  minAvailable: 0 # прод overlay підіймає до >= 1
+  selector:
+    matchLabels:
+      app: backend-api
+```
+
+```yaml title="k8s/base/deploy.yaml (фрагмент)"
+spec:
+  template:
+    spec:
+      containers:
+        - name: backend-api
+          image: example.registry/backend-api:tag
+          resources:
+            requests:
+              cpu: '0.02'
+              memory: '128Mi'
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: backend-api
+```
+
+### Overlays: HPA, PDB, NetworkPolicy
+
+У **не-base** оверлеях (без `components/`) поруч із `Deployment` лишається звична схема: окремі **`hpa.yaml`**, **`networkpolicy.yaml`** і **`pdb.yaml`**, якщо такі потрібні для цього середовища.
+
+- **`hpa.yaml`** (поза **`…/base/`**) — `autoscaling/v2`, `HorizontalPodAutoscaler`, `spec.scaleTargetRef.name` **= `metadata.name`** Deployment.
+- **`networkpolicy.yaml`** (overlay-specific, опціональний) — той самий канон egress/ingress, що в `base/`.
+- **`pdb.yaml`** — `policy/v1`, `PodDisruptionBudget`, `spec.selector.matchLabels.app` **= `spec.selector.matchLabels.app`** Deployment.
+- **`topologySpreadConstraints`** — запис з `maxSkew: 1`, `topologyKey: kubernetes.io/hostname`, `whenUnsatisfiable: ScheduleAnyway`, `labelSelector.matchLabels.app` рівне тій самій мітці `app`.
+
+**Overlays** підключають `components: [- ../components]` і додають JSON6902-патчі для прод-значень. NetworkPolicy успадковується з base через `resources: [- ../base]`.
+
+Алгоритм перевірки структури `components/` — функція `validateComponentsForBaseDeployment` у **`rules/k8s/fix.mjs`**.
+
+```yaml title="k8s/base/kustomization.yaml (фрагмент)"
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - deploy.yaml
+  - networkpolicy.yaml
+  - svc.yaml
+  - svc-hl.yaml
+```

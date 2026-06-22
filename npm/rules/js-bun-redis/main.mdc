@@ -5,16 +5,8 @@ alwaysApply: false
 version: '1.2'
 ---
 
-## Підтримувані версії redis
+Правило забороняє використання застарілих redis-клієнтів (`ioredis`, `node-redis`, `redis`, `@redis/*`) і вимагає переходу на **Bun native Redis** (`import { redis } from 'bun'`). Підтримувана версія Redis: **7.2+**.
 
-Redis 7.2+
+[js-bun-redis-imports](./js/imports.mdc)
 
-## Заміна на Bun native Redis
-
-Якщо в проєкті використовуються бібліотеки `ioredis`, `node-redis`, їх потрібно замінити на Bun native Redis: <https://bun.com/docs/runtime/redis>.
-
-- Видалити з `dependencies`: `ioredis`, `node-redis`.
-- Видалити з коду: усі `import` / `require` цих пакетів та власні обгортки над ними.
-- Замінити на `import { redis } from 'bun'`
-
-Канон заборонених `dependencies` (`ioredis`, `node-redis`, `redis`, `@redis/*`): [package.json.deny.json](./policy/package_json/template/package.json.deny.json).
+[js-bun-redis-package_json](./js/package_json.mdc)

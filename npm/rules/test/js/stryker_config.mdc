@@ -1,0 +1,26 @@
+## Налаштування mutation-testing: Stryker + Vitest baseline
+
+Якщо у `.n-cursor.json#rules` присутнє правило `js` — правило `test` створює canonical baseline `stryker.config.mjs` + `vitest.config.mjs` у **кожному** JS-root проєкту: у кожному workspace з власним `package.json` (або в корені для single-package). У monorepo з `workspaces: ['app', 'scripts']` отримаєте `app/stryker.config.mjs` + `app/vitest.config.mjs` і `scripts/stryker.config.mjs` + `scripts/vitest.config.mjs`.
+
+Якщо у JS-root уже лежить legacy `vitest.config.js` — він лишається валідним, новий `.mjs` поряд не створюється, а `vitest.configFile` у скопійованому `stryker.config.mjs` приводиться до фактичного імені.
+
+Канон Stryker config (Vitest runner + perTest): [stryker.config.baseline.mjs](./data/stryker_config/stryker.config.baseline.mjs)
+
+### Vue SFC (`<script setup>` macros)
+
+Якщо у JS-root знайдено бодай один `.vue` під `src/` (skip `node_modules`/`dist`/`reports`) — концерн ставить **vue-варіант** baseline ([`stryker.config.vue.baseline.mjs`](./data/stryker_config/stryker.config.vue.baseline.mjs)) замість звичайного і додатково копіює локальний Stryker `Ignore`-плагін [`stryker-vue-macros-ignorer.mjs`](./data/stryker_config/stryker-vue-macros-ignorer.mjs) поряд із конфігом.
+
+Плагін реєструється як `plugins: ['@stryker-mutator/vitest-runner', './stryker-vue-macros-ignorer.mjs']` + `ignorers: ['vue-macros']` і виключає з мутацій виклики `<script setup>`-макросів: **`defineProps`**, **`defineEmits`**, **`defineModel`**, **`defineSlots`**, **`defineExpose`**, **`defineOptions`**. Без плагіна Stryker огортає аргументи макроса у coverage-тернарник (`stryMutAct_9fa48(...) ? {} : (stryCov_9fa48(...), {...})`), а `@vue/compiler-sfc` падає з `defineProps() in <script setup> cannot reference locally declared variables` — макроси мають бути статично-аналізованими на етапі compile-sfc.
+
+JS-root без `.vue` отримує дефолтний baseline без `plugins`/`ignorers` (backward-compatible). Обидва файли копіюються idempotent — наявний `stryker.config.mjs` / `stryker-vue-macros-ignorer.mjs` не перетирається.
+
+**Augment існуючого config.** Якщо у Vue JS-root `stryker.config.mjs` **уже лежить** (наприклад, після апгрейду з версії без Vue-підтримки), концерн `stryker_config` точково вставляє у наявний файл `plugins: [..., './stryker-vue-macros-ignorer.mjs']` і `ignorers: ['vue-macros']`, зберігши решту полів і коментарів. Редагування — string-splice за AST-аналізом (oxc-parser — лише для пошуку offsets, не для re-serialize), тож форматування й коментарі не переписуються; idempotent — повторний `fix test` не дублює entries. Якщо `export default` — **не** object-literal (factory/функція/змінна) або масиви динамічні (spread/computed), augment пропускається з вимогою додати плагін вручну згідно [`stryker.config.vue.baseline.mjs`](./data/stryker_config/stryker.config.vue.baseline.mjs).
+
+### `.gitignore` тест-артефактів
+
+Концерн `stryker_config` без дублювання додає у кореневий `.gitignore` тест-патерни:
+
+- `**/reports/stryker/` — увесь каталог Stryker-output-у (backup'и `tempDirName`, `mutation.json`, HTML/dashboard-репорти якщо додасте інші reporter-и).
+- `**/coverage/` — весь output vitest v8 coverage (`lcov.info` + HTML `lcov-report/`). Ефемерний: регенерується кожним прогоном, фінальні метрики живуть у `COVERAGE.md`.
+
+Це запобігає випадковому коміту build-артефактів.

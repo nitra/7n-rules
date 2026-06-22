@@ -1,0 +1,72 @@
+## lint-k8s: kubeconform і kubescape
+
+Окремо від modeline `$schema` у редакторі варто ганяти CLI-лінтери (**kubeconform** і **kubescape**) по тих самих деревах **`…/k8s`**.
+
+**Залежності:** виконувані файли kubeconform, kubescape і kubectl у **PATH** (kustomize використовуємо як вшиту підкоманду **`kubectl kustomize`** — окремий бінарник `kustomize` не потрібен); не додавай їх у **devDependencies**.
+
+**Версія Kubernetes для kubeconform** — **`-kubernetes-version 1.33.9`** (semver без префікса `v`; набір схем **`v1.33.9-standalone-strict`**). Для CRD додатково підключай реєстр [datreeio/CRDs-catalog](https://github.com/datreeio/CRDs-catalog) другим **`-schema-location`**. За потреби **`-ignore-missing-schemas`**.
+
+**kubescape** — вхід через зібраний kustomize-маніфест: для кожного dir-у з `kustomization.yaml` (`kind: Kustomization`; **`kind: Component`** пропускається) `lint-k8s` виконує **`kubectl kustomize <dir>`** і передає stdout у **`kubescape scan <tmp-file>`** з порогом **`--severity-threshold high`**. Маніфест проходить через тимчасовий файл, бо **`kubescape scan` у v4.x не читає stdin**. Якщо в дереві **`…/k8s`** немає жодного `kustomization.yaml` — fallback на dir-скан **`kubescape scan <каталог-k8s>`**. У kubescape немає прапорця **`-kubernetes-version`**.
+
+Лінт запускається через правило **`n-cursor lint k8s`** (реалізація — **`npm/rules/k8s/js/lint.mjs`**). Окремий `package.json`-скрипт `lint-k8s` не потрібен.
+
+### Винятки kubescape: `.kubescape-exceptions.json`
+
+Якщо в **корені проєкту** є файл **`.kubescape-exceptions.json`** — `lint-k8s` автоматично передає його в `kubescape scan` через **`--exceptions`** ([postureExceptionPolicy](https://github.com/kubescape/kubescape/blob/master/docs/exceptions.md)).
+
+Канонічний кейс — **C-0012** (`Applications credentials in configuration files`, High): control тригериться на **ім'я** env, що містить підрядок `secret`/`password`/`key`/`token`, а **не** на значення. Точкове виключення для ConfigMap із цим env: [.kubescape-exceptions.json.snippet.json](./templates/kubescape_exceptions/.kubescape-exceptions.json.snippet.json)
+
+Виключай контрольно, а не глобально (не додавай винятки без `attributes.name`/`labels`).
+
+### GitHub Actions: `lint-k8s.yml`
+
+Додай workflow **`.github/workflows/lint-k8s.yml`** (гілки **`dev`** і **`main`**, лише **`.yml`**). Після **`checkout`** використовуй локальний composite **`setup-bun-deps`**. Встановлення kubeconform / kubescape — окремі кроки. kustomize не встановлюємо окремо — `kubectl kustomize` вже на github-hosted runner'ах.
+
+```yaml title=".github/workflows/lint-k8s.yml"
+name: Lint K8s
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - '**/k8s/**/*.yaml'
+
+  pull_request:
+    branches:
+      - dev
+      - main
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  lint-k8s:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-bun-deps
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL "https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz" | tar xz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Install kubescape
+        run: |
+          curl -s https://raw.githubusercontent.com/kubescape/kubescape/master/install.sh | /bin/bash
+          echo "$HOME/.kubescape/bin" >> $GITHUB_PATH
+
+      # kustomize не встановлюємо окремо — використовуємо вбудовану підкоманду `kubectl kustomize`
+      # (kubectl уже доступний на github-hosted runner'ах: https://github.com/actions/runner-images).
+
+      - name: Lint K8s
+        run: n-cursor lint k8s --read-only
+```

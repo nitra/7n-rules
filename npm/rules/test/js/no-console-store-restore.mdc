@@ -1,0 +1,11 @@
+## Заборона ручного store/restore `console` у тестах
+
+`console.log` / `console.error` / `console.warn` — **process-wide** мутації, рівно як `process.cwd()`. Якщо тест перехоплює їх через `const orig = console.log; console.log = (...) => …; try { … } finally { console.log = orig }`, паралельний test файл у `pool: 'forks'` (різний процес) ізольований, але в межах **одного** процесу всі тести у файлі ділять єдиний `console`-об'єкт. Якщо try/finally не виконається (наприклад, асинхронна помилка повз `await`), restore не спрацює і наступні тести втрачають вивід.
+
+Тому:
+
+- **Канон**: `vi.spyOn(console, 'log').mockReturnValue()` (та аналоги для `error`/`warn`/`info`) + `afterEach(() => vi.restoreAllMocks())`. Vitest сам слідкує за scope mock-у і гарантовано відновлює оригінал між тестами, навіть якщо тест кинув виняток.
+- **Заборонено**: ручний store/restore (`const orig = console.log; console.log = stub`). Виняток — коли тест **необхідно** перехопити вивід **до** того, як завантажиться модуль із top-level-логуванням; у цьому випадку фіксуй pattern explicit-коментарем.
+- Якщо потрібен лог зі stub-ом — `const logs = []; vi.spyOn(console, 'log').mockImplementation((...args) => logs.push(args.join(' ')))`.
+
+**Перевірка** — концерн `no-console-store-restore` (`rules/test/js/no-console-store-restore.mjs`): AST-сканер, який ловить присвоєння `console.<method> = …` у `*.test.{js,mjs}`.

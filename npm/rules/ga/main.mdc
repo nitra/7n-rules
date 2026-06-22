@@ -5,137 +5,29 @@ globs: ".github/workflows/*.yml"
 alwaysApply: false
 ---
 
-У `.github/workflows/` лише **`.yml`**. Мають бути **`clean-ga-workflows.yml`**, **`clean-merged-branch.yml`**, **`lint-ga.yml`**, **`git-ai.yml`**. Якщо є **`apply-k8s.yml`** / **`apply-nats-consumer.yml`** — paths у тригері як у фрагментах.
+Правило **ga** перевіряє структуру `.github/workflows/`, наявність обов'язкових workflow-файлів і їх відповідність канонам, а також налаштування VS Code та zizmor для роботи з GitHub Actions.
 
-**Кожен** workflow у `.github/workflows/*.yml` **обов'язково** містить блок `concurrency` з фіксованим `group` та `cancel-in-progress: true`:
+[ga-workflows](./js/workflows.mdc)
 
-```yaml
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-```
+[ga-workflow_common](./js/workflow_common.mdc)
 
-Без винятків — у scheduled cleanup-воркфлоу, у `pull_request: types: [closed]`, у publish-воркфлоу теж. Це уникає паралельних запусків того самого workflow на тій самій ref і скасовує попередні в чергу нових.
+[ga-required_workflows](./js/required_workflows.mdc)
 
-Повинен бути файл `.github/workflows/clean-ga-workflows.yml`:
+[ga-vscode](./js/vscode.mdc)
 
-- Канон: [clean-ga-workflows.yml.snippet.yml](./policy/clean_ga_workflows/template/clean-ga-workflows.yml.snippet.yml)
+[ga-zizmor](./js/zizmor.mdc)
 
-Повинен бути файл `.github/workflows/clean-merged-branch.yml`:
+[ga-lint_toolchain](./js/lint_toolchain.mdc)
 
-- Канон: [clean-merged-branch.yml.snippet.yml](./policy/clean_merged_branch/template/clean-merged-branch.yml.snippet.yml)
+## Швидкий gate через conftest
 
-Інші гілки в `ignore_branches` — допустимо.
+Rego-пакети (namespace → що перевіряє):
 
-Повинен бути файл `.github/workflows/lint-ga.yml`:
-
-- Канон: [lint-ga.yml.snippet.yml](./policy/lint_ga/template/lint-ga.yml.snippet.yml)
-
-Повинен бути файл `.github/workflows/git-ai.yml`:
-
-- Канон: [git-ai.yml.snippet.yml](./policy/git_ai/template/git-ai.yml.snippet.yml)
-
-**Мінімальні версії marketplace actions** у `uses:` (перевіряє `ga.workflow_common`):
-
-- `actions/checkout` — **не нижче major `v6`** (`@v6`, `@v6.0.2` тощо дозволені; `@v5` — ні);
-- `Infisical/secrets-action` — **не нижче `v1.0.16`** (Node 24; нижчі теги лишаються на Node 20, deprecated з червня 2026).
-
-Канон: [uses-min-versions.snippet.json](./policy/workflow_common/template/uses-min-versions.snippet.json). SHA-pin (40 hex) semver-політику не застосовує. Для checkout рекомендується **`v6.0.2+`** (Node 24 у action), але мінімум політики — лише major **6**.
-
-**Локальний composite** (`uses: ./.github/actions/setup-bun-deps` або `./npm/github-actions/setup-bun-deps`): **спочатку** обов’язковий крок **`actions/checkout@v6`** (`persist-credentials: false`), інакше runner не знайде `action.yml`. Сам composite: **`actions/setup-node@v6`** (**Node 24**), **Bun**, **`actions/cache@v5`**, **`bun install --frozen-lockfile`**.
-
-**ЗАБОРОНЕНО** дублювати кроки встановлення Bun та кешування безпосередньо у workflow файлах. Завжди використовуй локальний composite action.
-
-**Кроки `run`:** не розбивай команду shell-продовженням через зворотний сліш у кінці рядка (`… \` у `run: |`). Замість багаторядкового буквального блока з `\\` оформ довгу одну shell-команду як **folded block** `>-` (рядки з’єднаються в один рядок із пробілами).
-
-**Читабельність `run: >-` з циклам/умовами:** оскільки `>-` **згортає рядки в один shell-рядок**, відступи потрібні **лише для читабельності** й не впливають на виконання. Але для конструкцій bash на кшталт `while …; do … done` та `if …; then … fi` **обовʼязково**:
-
-- став явні роздільники команд **`;`** або **`&&`** там, де при згортанні рядків інакше “злипнуться” токени (`do`/`then`/`fi`/`done` з наступною командою);
-- тримай `do` і `then` в одному логічному рядку як `…; do` / `…; then`, щоб після згортання це гарантовано лишалось валідним bash;
-- додавай відступи всередині `do/then/else` блоків, навіть якщо це один рядок після згортання — так workflow лишається читабельним у diff.
-
-### Приклад (ПРАВИЛЬНО — читабельно, `run: >-`, з `while`/`if`)
-
-```yaml
-      - name: Apply changes
-        shell: bash
-        run: >-
-          echo "$FILES" |
-          while read -r FILE; do
-            [ -z "$FILE" ] && continue;
-            dirname "$FILE";
-          done |
-          sort -u |
-          while read -r DIR; do
-            (
-              if [ -f "$DIR/kustomization.yaml" ]; then
-                printf 'Applying %s\n' "$DIR" &&
-                cd "$DIR" &&
-                kubectl apply -k .;
-              else
-                echo "Skip $DIR - no kustomization.yaml";
-              fi
-            );
-          done
-```
-
-### Приклад run (НЕПРАВИЛЬНО — `\\` на кінцях)
-
-```yaml
-      - run: |
-          docker build \
-          --push \
-          --build-arg BRANCH=${{ github.ref_name }}
-```
-
-### Приклад run (ПРАВИЛЬНО — `>-`)
-
-```yaml
-      - run: >-
-          docker build
-          --push
-          --build-arg BRANCH=${{ github.ref_name }}
-```
-
-### Приклад (НЕПРАВИЛЬНО)
-
-```yaml
-    steps:
-      - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
-      - uses: actions/cache@v5
-        # ... багато рядків кешування ...
-      - run: bun install --frozen-lockfile
-```
-
-### Приклад (ПРАВИЛЬНО)
-
-```yaml
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-bun-deps
-```
-
-**Лінт:** [actionlint](https://github.com/rhysd/actionlint) через [github-actionlint](https://www.npmjs.com/package/github-actionlint); [zizmor](https://docs.zizmor.sh) — `uvx`, офлайн. Запуск — через **`n-cursor lint ga`** (CI — `--read-only`; бінарка з `node_modules/.bin/` пакету `@nitra/cursor`), який робить preflight на `shellcheck` і послідовно запускає `actionlint` та `zizmor`. Окремого `package.json`-скрипта немає.
-
-> Виклик через bin-ім’я `n-cursor` (а **не** `npx @nitra/cursor`): `bun x`/`npx` для скоупованого пакету з одним bin-ім’ям повертає 0 без виконання, тому в CI-кроці `run:` використовуй саме `n-cursor lint <rule>`.
-
-CLI робить preflight на `shellcheck` і `uv` (`uvx`) у `PATH`, потім запускає `bunx github-actionlint` і `uvx zizmor --offline --collect=workflows .`.
-
-**`.github/zizmor.yml`:** для [unpinned-uses](https://docs.zizmor.sh/audits/#unpinned-uses) — політика **`ref-pin`**, якщо в `uses:` семантичні теги. За потреби вимкни [template-injection](https://docs.zizmor.sh/audits/#template-injection):
-
-- Канон `.github/zizmor.yml`: [zizmor.yml.snippet.yml](./policy/zizmor_yml/template/zizmor.yml.snippet.yml)
-
-**`.vscode/extensions.json`** має рекомендувати `github.vscode-github-actions`:
-
-- Канон: [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
-
-**`.vscode/settings.json`** для мови `github-actions-workflow` має `editor.defaultFormatter = "oxc.oxc-vscode"`:
-
-- Канон: [settings.json.snippet.json](./policy/vscode_settings/template/settings.json.snippet.json)
-
-**MegaLinter:** не використовувати; прибрати workflow, конфіги (`.mega-linter.yml`, `.megalinter.yaml`, `.mega-linter.yaml`), залежності та згадки в CI / pre-commit / документації.
-
-**`depcheck`:** не використовувати у `.github/workflows/*.yml` — мігровано на `knip` (див. `js.mdc`). Перевірка невикористаних залежностей виконується разом з рештою лінтерів у `lint-js`, окремий крок `npx depcheck` у workflow не потрібен і блокується полісі `ga.workflow_common`.
+- `ga.workflow_common` — усі `*.yml`: concurrency, composite setup-bun-deps, run:>-, мінімальні версії actions, заборона depcheck
+- `ga.clean_ga_workflows` — структура `clean-ga-workflows.yml` (cron, permissions, cleanup step)
+- `ga.clean_merged_branch` — структура `clean-merged-branch.yml` (cron, permissions, ignore_branches, dry_run)
+- `ga.lint_ga` — структура `lint-ga.yml` (triggers, conftest install, n-cursor lint ga --read-only)
+- `ga.git_ai` — структура `git-ai.yml` (pr closed trigger, git-ai install + run)
+- `ga.vscode_extensions` — `.vscode/extensions.json`: рекомендація `github.vscode-github-actions`
+- `ga.vscode_settings` — `.vscode/settings.json`: `editor.defaultFormatter` для github-actions-workflow
+- `ga.zizmor_yml` — `.github/zizmor.yml`: `rules.unpinned-uses.config.policies["*"]`

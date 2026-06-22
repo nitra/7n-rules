@@ -1,0 +1,17 @@
+## VS Code — розширення та налаштування для GitHub Actions
+
+### `.vscode/extensions.json`
+
+Має рекомендувати `github.vscode-github-actions`:
+
+- Канон: [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
+
+Rego-пакет `ga.vscode_extensions`: кожне розширення з template має бути в `recommendations`. Додаткові рекомендації від інших правил — допустимі.
+
+### `.vscode/settings.json`
+
+Для мови `github-actions-workflow` має `editor.defaultFormatter = "oxc.oxc-vscode"`:
+
+- Канон: [settings.json.snippet.json](./policy/vscode_settings/template/settings.json.snippet.json)
+
+Rego-пакет `ga.vscode_settings`: перевіряє всі ключі з template у відповідному language-block.

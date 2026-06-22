@@ -1,0 +1,25 @@
+## Виявлення проєкту Tauri та VS Code-розширення
+
+Правило активується, якщо хоч у одному workspace-пакеті (корінь або будь-який пакет з `package.json#workspaces`) виявлений маркер Tauri:
+
+- існує каталог `<ws>/src-tauri/`;
+- існує `<ws>/src-tauri/Cargo.toml`;
+- існує `<ws>/src-tauri/tauri.conf.json`;
+- існує `<ws>/tauri.conf.json` (legacy flat-layout);
+- `<ws>/package.json#dependencies` чи `devDependencies` містить ключ з префіксом `@tauri-apps/`.
+
+Виявлення виконує `js/tooling.mjs` через `getMonorepoPackageRootDirs()`. Це дозволяє Tauri-rule працювати у монорепо, де Tauri живе в одному з пакетів (а не в корені), не вимагаючи кореневих маркерів.
+
+### VS Code розширення
+
+У `.vscode/extensions.json` `recommendations` має містити `tauri-apps.tauri-vscode`:
+
+```json title=".vscode/extensions.json"
+{
+  "recommendations": ["tauri-apps.tauri-vscode"]
+}
+```
+
+Розширені Rust-вимоги (`rust-lang.rust-analyzer`, `tamasfe.even-better-toml`, скрипт `lint-rust`, CI `lint-rust.yml`) — у правилі **`rust`** (`n-rust.mdc`). Tauri-проєкт завжди має `src-tauri/Cargo.toml`, тому `rust` активується автоматично разом з `tauri`.
+
+Перевірка `tauri-apps.tauri-vscode` виконується Rego-пакетом `tauri.vscode_extensions` через `conftest` (умовно — лише після підтвердження маркера Tauri).

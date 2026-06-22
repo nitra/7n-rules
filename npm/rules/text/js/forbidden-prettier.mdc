@@ -1,0 +1,13 @@
+## Заборона Prettier
+
+Prettier **повністю заборонено** — форматування лише через **oxfmt**.
+
+Також потрібно прибрати, якщо є в проєкті, модуль **`@nitra/prettier-config`**, **prettier** та всі виклики prettier і налаштування для нього. Канон заборонених top-level/`dependencies`/`devDependencies` (prettier, `@nitra/prettier-config`, `markdownlint-cli2`): [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
+
+Перевірка `npx @nitra/cursor fix text` падає, якщо у корені є `.prettierignore`, `.prettierrc*`, `prettier.config.*` або у `package.json#scripts` зустрічається команда з `prettier`.
+
+Заборонені файли конфігурації Prettier у корені:
+- `.prettierignore`, `.prettierrc`, `.prettierrc.json`, `.prettierrc.jsonc`, `.prettierrc.json5`
+- `.prettierrc.yaml`, `.prettierrc.yml`, `.prettierrc.toml`
+- `.prettierrc.js`, `.prettierrc.cjs`, `.prettierrc.mjs`, `.prettierrc.ts`, `.prettierrc.cts`, `.prettierrc.mts`
+- `prettier.config.js`, `prettier.config.cjs`, `prettier.config.mjs`, `prettier.config.ts`, `prettier.config.cts`, `prettier.config.mts`

@@ -5,206 +5,40 @@ globs: "**/{.n-cursor.json,package.json,Cargo.toml,stryker.config.mjs,vitest.con
 alwaysApply: false
 ---
 
-## Конвенція розміщення тестів
+Правило **test** керує розміщенням тестових файлів, безпекою ізоляції тестів (заборона `process.chdir`, відносних шляхів у FS, ручного store/restore console), налаштуванням Vitest/Stryker baseline та конфігурацією cargo-mutants для Rust.
 
-JS-тести у пакеті лежать у **піддиректорії `tests/`** поряд із кодом, який тестується, а **не безпосередньо біля джерельного файлу**.
+[test-location](./js/location.mdc)
 
-```
-rules/foo/js/bar/
-├── check.mjs               ← JS-джерело
-└── tests/
-    └── check.test.mjs      ← тест check.mjs
-```
+[test-no-process-chdir](./js/no-process-chdir.mdc)
 
-**Чому так:**
+[test-no-relative-fs-path](./js/no-relative-fs-path.mdc)
 
-- Каталог-з-кодом залишається чистим: продакшен-модулі, политики, темплейти не миготять серед тестових файлів.
-- Один погляд на дерево показує, що піде у npm tarball (все, крім `tests/` і `__fixtures__/` — їх ловить `package.json#files` через негативні globs).
-- Якщо тест переростає у мульти-файловий — він уже у власному каталозі, без хаотичного розкидання.
+[test-no-console-store-restore](./js/no-console-store-restore.mdc)
 
-**Виняток — Rego unit-тести (`*_test.rego`):** лишаються **поряд із полісі-файлом** відповідно до загальноприйнятого OPA/Conftest community-патерну. `conftest verify -p <dir>` рекурсивно підхоплює їх незалежно від місця в каталозі.
+[test-sandbox-aware-test](./js/sandbox-aware-test.mdc)
 
-```
-rules/foo/policy/package_json/
-├── package_json.rego       ← Rego-правило
-├── package_json_test.rego  ← Rego unit-тести (поряд, не у tests/)
-└── target.json
-```
+[test-vitest-config-pool-forks](./js/vitest-config-pool-forks.mdc)
 
-**Спеціальні випадки:**
+[test-stryker-config](./js/stryker_config.mdc)
 
-- **Integration-тести на рівні пакета** — у `<root>/tests/` (наприклад `npm/tests/`). Це не «біля файлу», а виокремлений каталог для тестів, що покривають весь пакет.
-- **Fixtures**: `__fixtures__/` (для shared) і `fixtures/` (для rule-specific) також живуть **усередині `tests/`**: `tests/__fixtures__/...` і `tests/fixtures/...`.
-- **Test helpers** (`test-helpers.mjs`) можуть лишатися у `scripts/utils/` як shared infra — конвенція стосується файлів `*.test.mjs`.
-
-**Гарантії tarball-чистоти** через `package.json#files`:
-
-```json
-"files": [
-  "...",
-  "!**/*.test.mjs",
-  "!**/*_test.rego",
-  "!**/__fixtures__/**",
-  "!**/fixtures/**",
-  "!**/test-helpers.mjs"
-]
-```
-
-Recursive globs ловлять файли всередині `tests/` так само, як ловили б їх біля джерела.
-
-## Що перевіряє правило
-
-`npx @nitra/cursor fix test` (concern `location`) проходить деревом пакета й перевіряє: **кожен `*.test.mjs` файл лежить усередині каталогу з ім'ям `tests`** (точне співпадіння басенейму батьківської директорії). Файли поза цим каталогом репортуються з порадою куди їх перенести.
-
-`*_test.rego` перевіркою **не охоплюються** — вони не переміщуються.
-
-Пропускаються: `node_modules`, `.git`, `dist`, `build`, `.venv`, `venv`, шляхи з `.n-cursor.json:ignore`.
-
-## Заборона `process.chdir` у тестах
-
-`process.chdir(dir)` — **process-wide** мутація. Vitest за замовчуванням ставить `pool: 'threads'`, і всі workers ділять один процес: паралельний test file може перехопити cwd сусіда посеред FS- або `git`-операції. У реальному інциденті це призвело до того, що `git init`+`git commit` із tmp-фікстури потрапив у реальний робочий репозиторій і створив rogue commit з автором `test <test@test>`, знищивши `npm/package.json` / `CHANGELOG.md`.
-
-Тому:
-
-- **У тестах заборонено** `process.chdir(...)` напряму та будь-які хелпери, що його викликають (історичний `withTmpCwd` видалений у `1.28.0`).
-- Канон: `withTmpDir(async dir => { ... })` зі `scripts/utils/test-helpers.mjs` — створює tmpdir і передає **абсолютний** `dir` у callback **без** `process.chdir`.
-- Усі FS-операції у тесті — через `join(dir, …)` і `writeJson(join(dir, …), …)` / `ensureDir(join(dir, …))` (хелпери валідують `isAbsolute`).
-- Усі child-процеси — `execFile(bin, args, { cwd: dir })`, `spawnSync(bin, args, { cwd: dir })`.
-- Concern-функції правил — `await check(dir)`, `await applies(dir)`, `await fix(dir)`; усі production функції приймають перший параметр `cwd = process.cwd()` (default зберігає CLI-сумісність).
-- `vitest.config.mjs` (або legacy `vitest.config.js`) додатково ставить `pool: 'forks'` як defense-in-depth: навіть якщо хтось пропустить правило вище, fork-ізоляція не дасть race у production tree.
-
-Це **обов'язково** і для тестів пакета `@nitra/cursor`, і для кожного проєкту-споживача. Триплет перевірок:
-
-- **`no-process-chdir`** (`rules/test/js/no-process-chdir.mjs`) — сканує `**/*.test.{js,mjs}` і падає з ❌ на будь-яке вживання `process.chdir(`.
-- **`no-relative-fs-path`** (`rules/test/js/no-relative-fs-path.mjs`) — AST-сканер (`oxc-parser`): знаходить виклики FS-функцій із `node:fs`/`node:fs/promises` (`writeFile`, `copyFile`, `mkdir`, `readFile`, `existsSync`, `rename`, `symlink`, `cp`, … включно з `*Sync`-варіантами та `writeJson`/`ensureDir`-хелперами), де path-аргумент — це **string literal** без префікса `/`, `\`, `file:`, `http(s):`, `data:`, чи Windows-disk-letter `C:\`. Виклики `copyFile`/`rename`/`symlink`/`link`/`cp` перевіряють обидва path-аргументи. Виклики з обчисленим path (`join(dir, …)`, змінна, template-literal з виразом) пропускаються. Виловив би інцидент v1.28.0 у `tests/check-rule-fixtures.test.mjs` (`copyFile(src, 'default.conf.template')` → файл у production tree).
-- **`vitest-config-pool-forks`** (`rules/test/js/vitest-config-pool-forks.mjs`) — substring-перевірка `pool: 'forks'` у `vitest.config.mjs` (або legacy `vitest.config.js`; `.mjs` пріоритетніший). Defense-in-depth.
-
-Canonical `vitest.config.mjs` (для довідки — `pool: 'forks'` + `include` + `coverage`) — у `rules/test/js/data/vitest_config/vitest.config.baseline.js` (концерн `stryker_config` копіює його у кожен JS-root; нові файли — `.mjs`, наявний `vitest.config.js` лишається валідним і не дублюється).
-
-## Console mocking у тестах
-
-`console.log` / `console.error` / `console.warn` — **process-wide** мутації, рівно як `process.cwd()`. Якщо тест перехоплює їх через `const orig = console.log; console.log = (...) => …; try { … } finally { console.log = orig }`, паралельний test файл у `pool: 'forks'` (різний процес) ізольований, але в межах **одного** процесу всі тести у файлі ділять єдиний `console`-об'єкт. Якщо try/finally не виконається (наприклад, асинхронний помилка повз `await`), restore не спрацює і наступні тести втрачають вивід.
-
-Тому:
-
-- **Канон**: `vi.spyOn(console, 'log').mockReturnValue()` (та аналоги для `error`/`warn`/`info`) + `afterEach(() => vi.restoreAllMocks())`. Vitest сам слідкує за scope mock-у і гарантовано відновлює оригінал між тестами, навіть якщо тест кинув виняток.
-- **Заборонено**: ручний store/restore (`const orig = console.log; console.log = stub`). Виняток — коли тест **необхідно** перехопити вивід **до** того, як завантажиться модуль із top-level-логуванням; у цьому випадку фіксуй pattern explicit-коментарем.
-- Якщо потрібен лог зі stub-ом — `const logs = []; vi.spyOn(console, 'log').mockImplementation((...args) => logs.push(args.join(' ')))`.
-
-Перевірка — концерн `no-console-store-restore` (`rules/test/js/no-console-store-restore.mjs`): AST-сканер, який ловить присвоєння `console.<method> = …` у `*.test.{js,mjs}`.
-
-## Sandbox-aware тести (Stryker)
-
-Stryker за замовчуванням копіює репо у sandbox-каталог (`reports/stryker/.tmp/sandbox-XXX/`), щоб AST-патчити мутантів без зачеплення робочого дерева. У sandbox **немає `.git/`**, і будь-який тест, що звертається до **реального** git-дерева через `import.meta.url + N≥3 рівнів вгору` (типу `const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..', '..')`) фактично адресує sandbox-корінь, а не справжній репо. Це ламає `git rev-parse`/`git ls-files`/перевірки `.n-cursor.json`/CHANGELOG-співставлення — Stryker dry-run падає, мутаційний прогон не стартує, `mutation.json` лишається stale.
-
-**Канон**: тест не повинен залежати від реального git-дерева через `import.meta.url + N≥3 рівнів вгору`. Якщо тест перевіряє git-логіку — ізолюй **повністю**:
-
-```js
-await withTmpDir(async dir => {
-  execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: dir })
-  await writeFile(join(dir, 'a.sh'), '#!/bin/sh\n', 'utf8')
-  execFileSync('git', ['add', '-A'], { cwd: dir })
-  expect(listShellScriptPaths(dir)).toEqual(['a.sh'])
-})
-```
-
-Приклад у репо: `rules/text/lint/tests/run-shellcheck.test.mjs` — тест `listShellScriptPaths всередині git-репо`.
-
-**Виняток** — top-level smoke-аудит тести, що **за визначенням** перевіряють інваріанти **живого** репо (структура файлів, узгодженість CHANGELOG з `package.json`, кожне правило має fixture). Приклади: `tests/integration-repo-checks.test.mjs`, `tests/check-rule-fixtures.test.mjs`. Такі тести **не дають додаткового coverage у unit-сенсі** — концерни, які вони перевіряють, уже покриті per-rule unit-тестами (`rules/<rule>/js/tests/`). Захищаємо їх `test.skipIf(env.STRYKER_MUTATOR_WORKER)` від запуску всередині Stryker-sandbox:
-
-```js
-import { env } from 'node:process'
-
-test.skipIf(env.STRYKER_MUTATOR_WORKER)('узгоджені з поточним деревом', async () => {
-  // …перевірки на REPO_ROOT
-})
-```
-
-Перевірка — концерн `sandbox-aware-test` (`rules/test/js/sandbox-aware-test.mjs`): сканер `*.test.{js,mjs}`, який знаходить тести з `import.meta.url`-deep-relative навігацією (4+ `..`-рівнів) і вимагає або `withTmpDir` у їхніх `test`-блоках, або `test.skipIf(env.STRYKER_MUTATOR_WORKER)`.
-
-## `child_process` у тестах: явний `cwd`
-
-Уже зазначено в `## Заборона process.chdir у тестах`. Підсилення: **кожен** виклик `execFile`/`execFileSync`/`spawn`/`spawnSync` у `*.test.{js,mjs}` приймає або **явний `{ cwd: dir }`** (де `dir` — змінна, не `process.cwd()`), або працює з **абсолютними шляхами** до бінарників/fixture-файлів (наприклад `spawnSync('node', [absoluteFixturePath])`). Це гарантує, що мутаційний test-flow у `pool: 'forks'` не страждає від implicit-`process.cwd()`-stride між тестами в одному воркері.
+[test-cargo-mutants-config](./js/cargo_mutants_config.mdc)
 
 ## Покриття + мутаційне тестування
 
-Канонічна команда — `n-cursor coverage`: збирає метрики покриття (`vitest run --coverage`, `cargo llvm-cov` тощо) і мутаційного тестування (Stryker з vitest-runner + `coverageAnalysis: 'perTest'`, `cargo-mutants`) з усіх активних провайдерів у `.n-cursor.json#rules` і пише `COVERAGE.md` у корінь проєкту. Лок і дедуп — `withLock('coverage', ...)`.
+Канонічна команда — `n-cursor coverage`: збирає метрики покриття (`vitest run --coverage`, `cargo llvm-cov` тощо) і мутаційного тестування (Stryker з vitest-runner + `coverageAnalysis: 'perTest'`, `cargo-mutants`) з усіх активних провайдерів у `.n-cursor.json#rules` і пише `COVERAGE.md` у корінь проєкту.
 
-**Scoped-режим `--changed`:** `n-cursor coverage --changed` звужує scope до файлів, змінених від git merge-base поточної гілки з `main` або `origin/main`; якщо обидва refs відсутні — до робочого дерева vs HEAD. `git diff <base>` проти робочого дерева ловить committed і uncommitted однаково, тож результат не залежить від того, чи крок уже закомічено. Недосяжний `base` (rebase/force-update) — fail-closed (помилка, не тихий pass). JS-провайдер ганяє `vitest --changed <base>` (лише зачеплені тести) і Stryker `--mutate` по змінених production-файлах (тест-файли відкидаються); roots без змінених JS пропускаються. Rust-провайдер пропускається, якщо не змінено `.rs`/`Cargo.*` (інакше — повний crate-прогін; per-file scoping cargo-mutants — окремий крок). Порожній scope (нема релевантних змін) — pass. У changed-режимі `COVERAGE.md` **не** перезаписується (рішення гейту — лише exit-код) і LLM-класифікація не запускається. Швидкі gate-и викликають саме `coverage --changed`; повний coverage (увесь проєкт, запис `COVERAGE.md`) лишається для `bun run coverage` / `/n-coverage-fix`.
+**Scoped-режим `--changed`:** `n-cursor coverage --changed` звужує scope до файлів, змінених від git merge-base поточної гілки з `main` або `origin/main`. У changed-режимі `COVERAGE.md` **не** перезаписується і LLM-класифікація не запускається.
 
-Провайдери живуть у `npm/rules/<rule>/coverage/coverage.mjs` (постачаються правилами мови/рантайму: `js`, `rust`, у майбутньому `python` тощо). Оркестратор — у `npm/rules/test/coverage/coverage.mjs`.
+Провайдери живуть у `npm/rules/<rule>/coverage/coverage.mjs`. Оркестратор — у `npm/rules/test/coverage/coverage.mjs`.
 
-У `package.json` (корінь) має бути `scripts.coverage` із викликом `n-cursor coverage`:
-
-Канон `scripts.coverage` (substring requirement): [package.json.contains.json](./policy/package_json/template/package.json.contains.json)
+У `package.json` (корінь) має бути `scripts.coverage` із викликом `n-cursor coverage`.
 
 ### Multi-workspace iteration
 
-У monorepo `n-cursor coverage` ітерує усі workspaces з власним `package.json` (через `resolveAllJsRoots()`, з розгортанням glob-патернів `cf/*`/`packages/*`) і агрегує метрики lcov + Stryker у єдиний `JS`-рядок `COVERAGE.md`. Workspace без тестів пропускається без помилки (vitest викликається з `--passWithNoTests`, порожній lcov → skip-сигнал, Stryker не запускається). `n-cursor coverage` падає лише коли тестів немає в **жодному** workspace проєкту або коли vitest повертає non-zero exit (реальний test failure / compile error — це не маскується).
+У monorepo `n-cursor coverage` ітерує усі workspaces з власним `package.json` і агрегує метрики lcov + Stryker у єдиний `JS`-рядок `COVERAGE.md`. Workspace без тестів пропускається без помилки.
 
-## Налаштування mutation-testing
+## Швидкий gate через conftest
 
-Якщо у `.n-cursor.json#rules` присутнє правило `js` — правило `test` створює canonical baseline `stryker.config.mjs` + `vitest.config.mjs` у **кожному** JS-root проєкту: у кожному workspace з власним `package.json` (або в корені для single-package). У monorepo з `workspaces: ['app', 'scripts']` отримаєте `app/stryker.config.mjs` + `app/vitest.config.mjs` і `scripts/stryker.config.mjs` + `scripts/vitest.config.mjs`. Якщо у JS-root уже лежить legacy `vitest.config.js` — він лишається валідним, новий `.mjs` поряд не створюється, а `vitest.configFile` у скопійованому `stryker.config.mjs` приводиться до фактичного імені.
-
-Канон Stryker config (Vitest runner + perTest): [stryker.config.baseline.mjs](./js/data/stryker_config/stryker.config.baseline.mjs)
-
-### Vue SFC (`<script setup>` macros)
-
-Якщо у JS-root знайдено бодай один `.vue` під `src/` (skip `node_modules`/`dist`/`reports`) — концерн ставить **vue-варіант** baseline ([`stryker.config.vue.baseline.mjs`](./js/data/stryker_config/stryker.config.vue.baseline.mjs)) замість звичайного і додатково копіює локальний Stryker `Ignore`-плагін [`stryker-vue-macros-ignorer.mjs`](./js/data/stryker_config/stryker-vue-macros-ignorer.mjs) поряд із конфігом.
-
-Плагін реєструється як `plugins: ['@stryker-mutator/vitest-runner', './stryker-vue-macros-ignorer.mjs']` + `ignorers: ['vue-macros']` і виключає з мутацій виклики `<script setup>`-макросів: **`defineProps`**, **`defineEmits`**, **`defineModel`**, **`defineSlots`**, **`defineExpose`**, **`defineOptions`**. Без плагіна Stryker огортає аргументи макроса у coverage-тернарник (`stryMutAct_9fa48(...) ? {} : (stryCov_9fa48(...), {...})`), а `@vue/compiler-sfc` падає з `defineProps() in <script setup> cannot reference locally declared variables` — макроси мають бути статично-аналізованими на етапі compile-sfc. Альтернатива з boilerplate `// Stryker disable next-line` у кожному SFC не масштабується.
-
-JS-root без `.vue` отримує дефолтний baseline без `plugins`/`ignorers` (backward-compatible). Обидва файли копіюються idempotent — наявний `stryker.config.mjs` / `stryker-vue-macros-ignorer.mjs` не перетирається.
-
-**Augment існуючого config.** Якщо у Vue JS-root `stryker.config.mjs` **уже лежить** (наприклад, після апгрейду з версії без Vue-підтримки — `ensureBaselineFile` його idempotent-skip-ить і baseline-секцій `plugins`/`ignorers` він мовчки не отримує, а Stryker падає у dry-run з `defineProps()` error), концерн `stryker_config` точково вставляє у наявний файл `plugins: [..., './stryker-vue-macros-ignorer.mjs']` і `ignorers: ['vue-macros']`, зберігши решту полів і коментарів. Редагування — string-splice за AST-аналізом (oxc-parser — лише для пошуку offsets, не для re-serialize), тож форматування й коментарі не переписуються; idempotent — повторний `fix test` не дублює entries. Якщо `plugins`/`ignorers` уже частково є — добавляються лише відсутні entries. Якщо `export default` — **не** object-literal (factory/функція/змінна) або масиви динамічні (spread/computed), augment пропускається з вимогою додати плагін вручну згідно [`stryker.config.vue.baseline.mjs`](./js/data/stryker_config/stryker.config.vue.baseline.mjs).
-
-### Vitest baseline та `package.json#scripts`
-
-Поряд зі Stryker концерн `stryker_config` без дублювання копіює `vitest.config.mjs` (тільки якщо немає ні `.mjs`, ні legacy `.js`). Canonical: [vitest.config.baseline.js](./js/data/vitest_config/vitest.config.baseline.js) — `environment: 'node'`, `coverage.provider: 'v8'` з lcov+text-summary репортами, `include: ['**/*.test.{js,mjs}', 'tests/**/*.test.{js,mjs}']` (підхоплює обидві розкладки — тести у `tests/`-піддиректоріях і top-level integration suites у `<root>/tests/`).
-
-У `package.json#scripts` має бути `"test": "vitest run"` (canonical contains-substring `vitest` — допустимо `vitest run` та інші локальні розширення); опційно — `"test:watch": "vitest"`.
-
-Канон scripts: [package.json.contains.json](./policy/package_json/template/package.json.contains.json)
-
-### Frontend-варіант (Vue/Vite + happy-dom)
-
-Для проєктів зі своїм `vite.config.js` `vitest.config.mjs` має повторно використовувати vite-плагіни та aliases і перемкнути `environment` на `'happy-dom'` (або `'jsdom'`):
-
-```js
-import { defineConfig, mergeConfig } from 'vitest/config'
-import viteConfig from './vite.config.js'
-
-export default mergeConfig(viteConfig, defineConfig({
-  test: {
-    include: ['**/*.test.{js,mjs}', 'tests/**/*.test.{js,mjs}'],
-    environment: 'happy-dom',
-    coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] }
-  }
-}))
-```
-
-Концерн ставить **node-варіант** baseline; перехід на frontend — ручна модифікація, після якої концерн уже не перетирає (idempotent).
-
-Аналогічно, якщо `rust` присутнє в `rules` — створюється `.cargo/mutants.toml` у каталозі **кожного** Cargo.toml-маніфесту: кореневий `Cargo.toml`, `<workspace>/src-tauri/Cargo.toml` (Tauri-патерн) і `<workspace>/Cargo.toml` (flat workspace).
-
-Канон cargo-mutants config: [mutants.toml.baseline](./js/data/cargo_mutants_config/mutants.toml.baseline)
-
-Customization (mutate patterns, exclude rules, timeout) — відповідальність проєкту-споживача; концерни лише забезпечують наявність файлу як стартового baseline в кожному з виявлених workspace-каталогів.
-
-### Універсальний baseline і framework-specific tuning
-
-Правило `test` відповідає лише за **універсальний baseline** mutation-testing:
-
-- створює `.cargo/mutants.toml` для Rust crates (порожній, з коментарем);
-- не робить припущень про framework/app shell;
-- не виключає platform glue, generated wrappers або binary entrypoints;
-- framework-specific tuning (`--lib`/`--tests`, `exclude_globs` для app-shell і platform bridge файлів) належить відповідним правилам (`tauri`, `capacitor` тощо).
-
-Якщо інше правило спеціалізує mutation-behavior — воно зобов'язане **доповнювати** існуючий `.cargo/mutants.toml` без дублювання (додавати лише відсутні ключі) і **не перетирати** ручні налаштування. Послідовний запуск `npx @nitra/cursor fix test` після `fix tauri` не має скидати tauri-tuning, і навпаки — повторний `fix tauri` не дублює секції.
-
-Додатково: коли `js` enabled, концерн `stryker_config` без дублювання додає у кореневий `.gitignore` тест-патерни:
-
-- `**/reports/stryker/` — увесь каталог Stryker-output-у (backup'и `tempDirName`, `mutation.json`, HTML/dashboard-репорти якщо додасте інші reporter-и).
-- `**/coverage/` — весь output vitest v8 coverage (`lcov.info` + HTML `lcov-report/`). Ефемерний: регенерується кожним прогоном, фінальні метрики живуть у `COVERAGE.md`. Gitignore не заважає `n-cursor coverage` читати `lcov.info` у тому ж прогоні.
-
-Це запобігає випадковому коміту build-артефактів.
+| Namespace | Що перевіряє |
+|---|---|
+| `test.package_json` | `scripts.coverage` містить `n-cursor coverage`; `scripts.test` містить `vitest` |

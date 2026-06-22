@@ -1,0 +1,31 @@
+## Лінт Rego-файлів (opa / regal / conftest)
+
+```bash
+n-cursor lint rego
+```
+
+Цілі — `npm/rules/` (рекурсивно знаходить `.rego` у `<rule>/policy/<concern>/`).
+Інші `*.rego` поза деревом — додай у `LINT_TARGETS` у `npm/rules/rego/lint/lint.mjs`.
+
+`opa` і `regal` — лише у `PATH`, **не** додавай у `dependencies` / `devDependencies`.
+
+### Кроки лінту
+
+1. **`opa check --strict`** — компіляція з типами і строгим режимом: ловить мертвий код,
+   неоднозначні правила, незадекларовані змінні. Зупиняє пайплайн при помилці.
+2. **`regal lint`** — статичний лінтер: v0-синтаксис, неявні set-rules, відхилення від `rego.v1`,
+   bugs/idiomatic/performance-правила.
+3. **`conftest verify`** (опційно) — виконує `test_*` правила у `*_test.rego`.
+   Якщо `conftest` відсутній у `PATH` — пропускається без помилки (у CI потрібно встановити).
+
+### Конфіг regal
+
+У корені проєкту — `.regal/config.yaml`. Дозволено вимикати окремі правила під специфіку репо
+(наприклад, conftest-полісі — `deny`-правила як де-факто entrypoint-и):
+
+```yaml title=".regal/config.yaml"
+rules:
+  idiomatic:
+    no-defined-entrypoint:
+      level: ignore
+```

@@ -9,18 +9,10 @@ CLI [`@nitra/minify-image`](https://www.npmjs.com/package/@nitra/minify-image) (
 
 Окремий workflow `lint-image.yml` створювати не треба; якщо потрібен CI-gate для зображень, використовуй `n-cursor lint image-compress --read-only`.
 
-## `package.json`
+[image-compress-package_setup](./js/package_setup.mdc)
 
-- Заборонені залежності `@nitra/minify-image` у deps/devDeps: [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
+[image-compress-package_json](./js/package_json.mdc)
 
-Окремий `package.json`-скрипт `lint-image` не потрібен і не перевіряється — єдина точка входу `n-cursor lint image-compress`.
+## Швидкий gate через conftest
 
-## Кеш
-
-- **`.n-minify-image.tsv`** у корені сканованого каталогу — **має бути в git** (source of truth для sha1-перевірок і lifetime savings). У `.gitignore` його не додавай.
-- **`node_modules/.cache/@nitra/minify-image/mtime.tsv`** — локальний fast-path; авто-gitignored через `node_modules/`.
-- Застарілий `.minify-image-cache.tsv` у корені — видали (`git rm --cached`, прибери рядок з `.gitignore`).
-
-## Заборонені залежності
-
-`@nitra/minify-image` не повинен зʼявлятися ні в `dependencies`, ні в `devDependencies` — CLI запускається лише через `npx`. Якщо потрібен явний пін — у самому виклику (`npx @nitra/minify-image@^3 --src=. --write`).
+- `image_compress.package_json` — забороняє `@nitra/minify-image` у `dependencies`/`devDependencies` проєкту

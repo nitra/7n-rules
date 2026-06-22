@@ -1,0 +1,20 @@
+## `jsconfig.json` (редактор / перевірка типів)
+
+Якщо в **backend** workspace-пакеті (без `vite` у `devDependencies`) є каталог **`src/`**, у **корені цього пакета** має бути **`jsconfig.json`**. Якщо файлу ще немає — створи його з таким вмістом (канон js-run):
+
+```json title="jsconfig.json"
+{
+  "compilerOptions": {
+    "lib": ["esnext"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "esnext",
+    "checkJs": false
+  },
+  "include": ["src/**/*"]
+}
+```
+
+Канон: [jsconfig.json.snippet.json](./policy/jsconfig/template/jsconfig.json.snippet.json)
+
+Якщо пакет не слідує структурі з `src/` (наприклад, лише `scripts/` у корені) — ця вимога не застосовується; для типових сервісів із `src/` файл обов'язковий і має збігатися з каноном.

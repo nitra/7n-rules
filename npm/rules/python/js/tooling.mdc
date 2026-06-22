@@ -1,0 +1,23 @@
+## Перевірка наявності uv-toolchain і відсутності Poetry
+
+JS-перевірка (`js/tooling.mjs`) запускається, якщо в корені репо є `pyproject.toml`. Перевіряє:
+
+- `uv.lock` — має існувати (зафіксувати командою `uv lock`);
+- `poetry.lock` / `poetry.toml` — мають **бути відсутніми** (Poetry заборонено);
+- `package.json` — має бути у корені (js-обгортка lint є частиною монорепо);
+- `.github/workflows/lint-python.yml` — має існувати (структуру перевіряє Rego-полісі `python.lint_python_yml`).
+
+Якщо `pyproject.toml` відсутній — перевірка пропускається з кодом 0 (проєкт не Python).
+
+## lint-python: JS-скрипт-обгортка
+
+Інструменти uv-екосистеми не мають єдиного CLI-обходу репо, тому python-лінт делегується у JS-скрипт-обгортку. Запуск — через **`n-cursor lint python`** (CI — `--read-only`); окремого `package.json`-скрипта немає.
+
+Скрипт `rules/python/lint/lint.mjs`:
+
+- якщо `pyproject.toml` у корені відсутній — вихід 0 (перевірка пропущена);
+- якщо `pyproject.toml` є, але `uv` не знайдено в PATH — це помилка;
+- `uv lock --check` і `uv sync --frozen` — обовʼязкові;
+- `uv run ruff check --fix .` + `uv run ruff format .` — auto-fix (мутують робоче дерево, як `markdownlint-cli2 --fix` у lint-text);
+- `uv run mypy .` — статична перевірка типів;
+- усі `ruff`/`mypy`-кроки запускаються лише якщо інструмент доступний у середовищі (інакше крок пропускається з повідомленням).
