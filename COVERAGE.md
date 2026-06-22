@@ -57063,9 +57063,9 @@ console.error(`  ❌ ${err}`)
 | 47 | `` |`false`| ConditionalExpression |
 | 47 |`
 
-`|`{}` | BlockStatement |
-| 48 | `| ```` | StringLiteral |
-| 50 |` | ```` | StringLiteral |
+`|`{}`| BlockStatement |
+| 48 |`| ``| StringLiteral |
+| 50 |` |`` | StringLiteral |
 
 **Приклад тесту** (`npm/rules/abie/js/tests/env_dns.test.mjs`):
 
@@ -57761,9 +57761,9 @@ test('0 — повний валідний setup', async () => {
   | 104 | `: [` | `""` | StringLiteral |
   | 104 | ``|`""`| StringLiteral |
 | 106 |`am {{ pass: (msg: s` | `true` | ConditionalExpression |
-  | 106 | `am {{ pass: (msg: s` | `false` | ConditionalExpression |
-  | 106 | `am {{ pass: (msg: s` | `owners.length !== 1` | EqualityOperator |
-  | 106 | `ing) => void, fail: (msg: string) => void }} reporter callback-и `pass`/`fail` для звіту
+    | 106 | `am {{ pass: (msg: s` | `false` | ConditionalExpression |
+    | 106 | `am {{ pass: (msg: s` | `owners.length !== 1` | EqualityOperator |
+    | 106 | `ing) => void, fail: (msg: string) => void }} reporter callback-и `pass`/`fail` для звіту
 - @param {Record<string, string>} scripts scripts з package.json
 - @param {{ rules: Set<string>, disabled: Set<string> }} cursorRules `rules` та `disable-rules`
   \*/
@@ -58050,9 +58050,9 @@ return firstVersionMajorFromNpmValue(s0)
 | 468 | `` |`""`| StringLiteral |
 | 470 |`
 
-`|`{}` | BlockStatement |
-| 472 | `| ```` | StringLiteral |
-| 476 |` | ```` | StringLiteral |
+`|`{}`| BlockStatement |
+| 472 |`| ``| StringLiteral |
+| 476 |` |`` | StringLiteral |
 
 **Приклад тесту** (`npm/rules/capacitor/js/tests/platforms.test.mjs`):
 
@@ -59355,7 +59355,7 @@ fail(`|`raw.split('\n').map(l => l.trim())`| MethodExpression |
 | 91 | `` | ```| StringLiteral |
 | 105 |` | `false` | ConditionalExpression |
 | 105 | ``| `""` | StringLiteral |
-| 109 |`` | `""` | StringLiteral |
+| 109 |``|`""` | StringLiteral |
 
 **Приклад тесту** (`npm/rules/image-compress/js/tests/package_setup.test.mjs`):
 
@@ -60567,8 +60567,8 @@ test('повертає true коли vitest у devDependencies', async () => {
   const nodeEngine = pkg.engines?.node
   if`|`{}`| BlockStatement |
 | 247 |` {{ engines?: { node` | `true` | ConditionalExpression |
-  | 247 | ` {{ engines?: { node` | `false` | ConditionalExpression |
-  | 247 | ` string } }} pkg розпарсений package.json
+    | 247 | ` {{ engines?: { node` | `false` | ConditionalExpression |
+    | 247 | ` string } }} pkg розпарсений package.json
 - @param {(msg: string) => void} passFn callback при успішній перевірці
 - @param {(msg: string) => void} failFn callback при помилці
   \*/
@@ -62334,7 +62334,7 @@ sensitivity: 'base'
 | 1286 | `` |`false`| ConditionalExpression |
 | 1298 |`ypeof t.kind === 'string' ? t.kind.trim() : ''`|`true`| ConditionalExpression |
 | 1298 |`ypeof t.kind === 'string' ? t.kind.trim() : ''`|`false`| ConditionalExpression |
-| 1298 |`ypeof t.kind === 'string' ? t.kind.trim() : ''`|`lines.length > 0 || MODELINE_RE.test(lines[0])`| LogicalOperator |
+| 1298 |`ypeof t.kind === 'string' ? t.kind.trim() : ''`|`lines.length > 0 || MODELINE*RE.test(lines[0])`| LogicalOperator |
 | 1298 |`ypeof t.kind ===`|`true`| ConditionalExpression |
 | 1298 |`ypeof t.kind ===`|`lines.length >= 0`| EqualityOperator |
 | 1298 |`ypeof t.kind ===`|`lines.length <= 0`| EqualityOperator |
@@ -62380,7 +62380,7 @@ sensitivity: 'base'
 | 1387 |`ng`|`["Stryker was here"]`| ArrayDeclaration |
 | 1395 |`
   }
-  const pr = /\*_ @type {Record<string, unknown>} _/ (p)
+  const pr = /\** @type {Record<string, unknown>} \_/ (p)
   const hasTargetKey = 'target' in pr && pr.target !== undefined && pr.target !== null
   const pathStr = typeof pr.path === 'string' ? pr.path.trim() : ''
   const inlinePatch = typeof pr.patch === 'string' && pr.patch.trim() !== ''
@@ -63942,8 +63942,8 @@ checkK8sYamlFileWithSchemaModeline(abs, rel, baseLower, lines, fail, pass)
   function validateHpaDevLikeReplicas(minR, maxR, errs) {
   if (minR !== null && minR !== 1)
   errs.push(`spec.minReplicas для dev-like (base/dev/_-qa) має бути 1 (зараз: ${minR})`)
-  if (maxR !== null && maxR !== 1)
-    errs.push(`spec.maxReplicas для dev-like (base/dev/\*-qa) має бути 1 (зараз: ${maxR})`)
+if (maxR !== null && maxR !== 1)
+  errs.push(`spec.maxReplicas для dev-like (base/dev/\*-qa) має бути 1 (зараз: ${maxR})`)
   }
 
 /\*\*
@@ -65601,7 +65601,7 @@ return keys
   { msg: 'відсутнє client_body_buffer_size 512M', ok: c => c.includes('client_body_buffer_size 512M') },
   { msg: 'відсутнє listen 8080', ok: c => c.includes('listen 8080') },
   { msg: 'відсутнє server_name *', ok: c => c.includes('server*name *') },
-  { msg: 'відсутнє access*log off', ok: c => c.includes('access_log off') },
+  { msg: 'відсутнє access\*log off', ok: c => c.includes('access*log off') },
   {
   msg: 'відсутнє error_log /dev/null crit (error_log off — НЕ валідний nginx, падає під readOnlyRootFilesystem)',
   ok: c => c.includes('error_log /dev/null crit')
@@ -65658,7 +65658,7 @@ return keys
   { msg: 'відсутнє listen 808`|`c.includes('gif|jpe?g|png|ico|woff2|xlsx') || c.includes('31536000')`| LogicalOperator |
 | 143 |` client_body_buffer_size 512M'`|`""`| StringLiteral |
 | 144 |` listen 80`|`""`| StringLiteral |
-| 145 |` server_name *', ok: c => c.in`|`""`| StringLiteral |
+| 145 |` server_name \*', ok: c => c.in`|`""`| StringLiteral |
 | 148 |`відсутнє error_log /dev/null crit (error_log off — НЕ валідний nginx, падає пі`|`""`| StringLiteral |
 | 149 |`error_log /dev/null crit')`|`""`| StringLiteral |
 | 152 | `` |`""`| StringLiteral |
@@ -65712,7 +65712,7 @@ return keys
 | 195 |`TTPRoute відпов`|`false`| ConditionalExpression |
 | 195 |` патерну Exact→Reque`|`false`| ConditionalExpression |
 | 195 |`direct(301, https) + PathP`|`false`| ConditionalExpression |
-| 206 |`st rules = /\*_ @type {Record<string, unknown>} _/ (spec).rules
+| 206 |`st rules = /\** @type {Record<string, unknown>} \_/ (spec).rules
   if (!Array.isArray(rules) || rules.length < 2) return false
 
 const [first, second] = rules
@@ -66423,9 +66423,9 @@ return filtered
 | 305 |`гу повертаємо `null` — це не наш checker для синтаксису.`|`""`| StringLiteral |
 | 319 |`
   const mod = imp.moduleRequest?.value
-  if (typeof mod === 'string' && TEST_FRAMEWORK_MODULES.has(mod)) return mod
+  if (typeof mod === 'string' && TEST*FRAMEWORK_MODULES.has(mod)) return mod
   }
-  /\*_ @type {string | null} _/
+  /\** @type {string | null} \_/
   let found = null
   walkAstWithAncestors(result.program, [], node => {
   if (found) return
@@ -66787,8 +66787,8 @@ test('returns 0 (skip) when no rego targets exist in cwd', () => {
 - @returns {Promise<string>} відносний шлях створеного файлу (від ws)
   \*/`|`{}`| BlockStatement |
 | 46 |`[params.timestamp] epoch milliseconds для детермінованих тестів`|`""`| StringLiteral |
-| 51 |` serializeChangeFile` | `| StringLiteral |
-| 54 | `` |` | StringLiteral |
+| 51 |` serializeChangeFile`|`| StringLiteral |
+  | 54 | `` |` | StringLiteral |
 
 ### npm/rules/release/lib/aggregate.mjs
 
@@ -67054,9 +67054,9 @@ const { pass, fail } = reporter
 | 69 | `` |`""`| StringLiteral |
 | 73 |`
 
-`|`{}` | BlockStatement |
-| 74 | `| ```` | StringLiteral |
-| 76 |` | ```` | StringLiteral |
+`|`{}`| BlockStatement |
+| 74 |`| ``| StringLiteral |
+| 76 |` |`` | StringLiteral |
 
 **Приклад тесту** (`npm/rules/style-lint/js/tests/tooling.test.mjs`):
 
@@ -67183,9 +67183,9 @@ test('rust НЕ в rules — silent skip', async () => {
 
 }
 
-re`|`{}` | BlockStatement |
-| 67 | `| ```` | StringLiteral |
-| 74 |` | ```` | StringLiteral |
+re`|`{}`| BlockStatement |
+| 67 |`| ``| StringLiteral |
+| 74 |` |`` | StringLiteral |
 
 **Приклад тесту** (`npm/rules/test/js/tests/location.test.mjs`):
 
@@ -67212,9 +67212,9 @@ test('успіх: усі *.test.mjs у tests/ → exit 0', async () => {
 | 77    | ``                       | `false`                       | ConditionalExpression |
 | 77    | `                        |
 
-`|`{}` | BlockStatement |
-| 78 | `| ```` | StringLiteral |
-| 84 |` | ```` | StringLiteral |
+`|`{}`| BlockStatement |
+| 78 |`| ``| StringLiteral |
+| 84 |` |`` | StringLiteral |
 
 **Приклад тесту** (`npm/rules/test/js/tests/no-process-chdir.test.mjs`):
 
@@ -67860,7 +67860,7 @@ test('runDotenvLinter повертає 0 коли .env*-файлів немає'
         return []
       }` | `{}` | BlockStatement |
 
-| 91 | ` => p.includes('node_modules') || p.startsWith(`node_modules/`) || p.split('/').includes('node_modules')` | `() => undefined` | ArrowFunction |
+| 91 | ` => p.includes('node_modules') || p.startsWith(`node*modules/`) || p.split('/').includes('node_modules')` | `() => undefined` | ArrowFunction |
 | 91 | `.includes('node_modules') || p.startsWith(`node_modules/`) || p.split('/').includes('node_modules')` | `false` | ConditionalExpression |
 | 91 | `.includes('node_modules') || p.startsWith(`node_modules/`) || p.split('/').includes('node_modules')` | `(p.includes('node_modules') || p.startsWith(`node_modules/`)) && p.split('/').includes('node_modules')` | LogicalOperator |
 | 91 | `.includes('node_modules') || p.startsWith(`node_modules/`) ` | `false` | ConditionalExpression |
@@ -67889,8 +67889,8 @@ test('runDotenvLinter повертає 0 коли .env*-файлів немає'
 | 187 | `atchRun.stdout?.length)` | `patchRun.stdout.length` | OptionalChaining |
 | 188 | `run-shellcheck-text: patch не застосував diff для ${rel}\n`)`| ```` | StringLiteral |
 | 203 |`utf8',`|`""`| StringLiteral |
-| 205 |`0 _ 1024 _ 1024,`|`10 _ 1024 / 1024`| ArithmeticOperator |
-| 205 |`0 _ 1024 `|`10 / 1024`| ArithmeticOperator |
+| 205 |`0 * 1024 _ 1024,`|`10 _ 1024 / 1024`| ArithmeticOperator |
+| 205 |`0 \_ 1024 `|`10 / 1024`| ArithmeticOperator |
 | 206 |`'ignore', 'pipe', 'pipe']`|`[]`| ArrayDeclaration |
 | 206 |`ignore',`|`""`| StringLiteral |
 | 206 |`pipe',`|`""`| StringLiteral |
@@ -68126,10 +68126,10 @@ test('existsSync → false → повертає 2 і пише в stderr (lines 4
   return
   }
   const envContent = await readFile(envAbs, 'utf8')
-  if (!VITE_CLIENT_REFERENCE_RE.test(envContent)) {
+  if (!VITE*CLIENT_REFERENCE_RE.test(envContent)) {
   fail(
   `|`{}`| BlockStatement |
-| 177 |`heckVit`|`n _ 100`| ArithmeticOperator |
+| 177 |`heckVit`|`n * 100`| ArithmeticOperator |
 | 178 |` envAbs = join(cwd, root`|`true`| ConditionalExpression |
 | 178 |` envAbs = join(cwd, root`|`false`| ConditionalExpression |
 | 178 |` envAbs = join(cwd, root`|`m100 >= 11 || m100 <= 14`| LogicalOperator |
@@ -68251,7 +68251,7 @@ async function checkVueImportViolations(
   | 469 | ``|`""`| StringLiteral |
 | 470 |`unction collectVueRoots(roots`|`ext.recommendations.includes`| OptionalChaining |
 | 470 |`
-  /\*_ @type {Array<{ rootDir: string, isComponentLibrary: boolean }>} _/
+  /\*_ @type {Array<{ rootDir: string, isComponentLibrary: boolean }>} \_/
   co`|`{}`| BlockStatement |
 | 471 |`e {Array<{ rootDir: string, isCompo`|`""`| StringLiteral |
 | 473 |`st r of roots) {`|`""`| StringLiteral |

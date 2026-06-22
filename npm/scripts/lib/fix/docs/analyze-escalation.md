@@ -3,31 +3,44 @@ type: JS Module
 title: analyze-escalation.mjs
 resource: npm/scripts/lib/fix/analyze-escalation.mjs
 docgen:
-  crc: 5a586df6
+  crc: f26cd4c7
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
 
-Аналітика escalation-логу fix-конформності. Читає записи рунгів драбини (`escalation-log.mjs`) — весь лог або записи одного прогону (від байтового зсуву), — ділить на чанки за бюджетом символів і просить хмарну **avg**-модель запропонувати, як зменшити LLM-залежність: нові детерміновані T0-патерни, уточнення `.mdc`-інструкцій або зміни скриптів пакета. Результат — markdown-звіт у `.n-cursor/fix-escalation-analysis.md` (append із timestamp). Викликається CLI `n-cursor analyze-escalation` (весь лог) і наприкінці `lint --full` (записи прогону).
+## Огляд
+
+Аналізує записи рунгів драбини з `escalation-log.mjs` для виявлення шляхів зменшення LLM-залежності у fix-конформності. Лог обробляється за один прогін (від байтового зсуву) або повністю, ділячись на чанки для аналізу хмарною **avg**-моделлю. Мета аналізу — визначити конкретні правки пакета `@nitra/cursor`: (A) новий ДЕТЕРМІНОВАНИЙ T0-патерн (`t0.mjs`), (B) уточнення `.mdc`-інструкцій правила, або (C) зміна скрипта/чека. Результат зберігається у markdown-звіт `.n-cursor/fix-escalation-analysis.md` (append із timestamp) після виклику CLI `n-cursor analyze-escalation`.
 
 ## Поведінка
 
-`readEscalationRecords` читає JSONL від байтового зсуву (зсув на межі рядка — мультибайт не б'ється; биті рядки пропускаються); `escalationLogSize` дає зсув для scope «цей прогін». `chunkRecords` стискає записи й ділить на чанки, щоб JSON кожного не перевищив бюджет. `analyzeEscalations` (синхронний — callLlm spawnSync-based) робить виклик avg-моделі по кожному чанку, а за кількох чанків — фінальний синтез; помилки моделі ковтаються в `null` (аналіз не валить lint). `maybeAnalyzeEscalation` — хук lint: gated kill-switch `N_CURSOR_FIX_ANALYZE`, наявністю `CLOUD_AVG` і записів.
+analysisEnabled визначає, чи дозволено виконувати автоматичний аналіз ескалації наприкінці процесу `lint`.
+escalationLogSize повертає розмір файлу логу ескалації у байтах.
+readEscalationRecords читає записи логу ескалації, починаючи з заданого байтового зсуву, та повертає їх як масив об'єктів.
+summarizeCalls рахує кількість викликів моделей для різних рівнів (локальний, cloud-min, cloud-avg) у наданих записах.
+reportRunStats друкує резюме кількості викликів моделей для поточного прогону, використовуючи заданий байтовий зсув.
+chunkRecords ділить масив стиснених записів на менші чанки, щоб кожен чанк не перевищив заданий бюджет символів.
+analyzeEscalations аналізує надані записи, ділить їх на чанки, викликає модель для аналізу кожного чанка, а потім синтезує фінальний звіт.
+analysisReportPath повертає шлях до файлу, де зберігається звіт аналізу ескалації.
+writeAnalysisReport дописує згенерований звіт у markdown-файл у відповідному шляху, додаючи до нього мітку часу.
+runEscalationAnalysisCli виконує повний аналіз всього логу ескалації та записує звіт.
+maybeAnalyzeEscalation виконує аналіз ескалацій лише для записів поточного прогону, якщо дозволено та є необхідні умови.
 
 ## Публічний API
 
-- `summarizeCalls(records)` — лічильники фактичних викликів за тирами `{ local, cloudMin, cloudAvg }` (skip-записи avg-кепу не рахуються).
-- `reportRunStats(sinceOffset, log)` — друкує резюме викликів моделей за прогін (no-op, якщо викликів не було).
-- `analysisEnabled()` — чи дозволено авто-аналіз (kill-switch `N_CURSOR_FIX_ANALYZE`).
-- `escalationLogSize(path?)` — розмір логу в байтах (since-offset).
-- `readEscalationRecords(path, sinceOffset?)` — записи від зсуву.
-- `chunkRecords(records, maxChars?)` — чанки стиснених записів.
-- `analyzeEscalations(records, opts?)` — `{ report, chunks, reason }`; `opts.callLlm` інжектовний.
-- `analysisReportPath(cwd?)` / `writeAnalysisReport(report, cwd, ts)` — шлях/запис звіту.
-- `runEscalationAnalysisCli(args, cwd?)` — CLI: весь лог → звіт.
-- `maybeAnalyzeEscalation(cwd, sinceOffset, log)` — хук наприкінці `lint --full`.
+analysisEnabled — Вмикає автоматичний аналіз після завершення lint.
+escalationLogSize — Визначає максимальний розмір escalation-логу в байтах.
+readEscalationRecords — Зчитує записи з логу, починаючи з заданого байтового зсуву.
+summarizeCalls — Підраховує реальні виклики моделей за тирами, ігноруючи записи про середнє кешування.
+reportRunStats — Виводить підсумок викликів моделей за поточний запуск.
+chunkRecords — Розбиває записи на менші частини, щоб розмір JSON кожного чанку не перевищував заданий ліміт.
+analyzeEscalations — Обробляє записи: розбиває їх на чанки, викликає модель для кожного чанку та синтезує результат, якщо чанків більше одного.
+analysisReportPath — Вказує шлях для збереження markdown-звіту аналізу.
+writeAnalysisReport — Додає звіт до markdown-файлу, додаючи до нього мітку часу.
+runEscalationAnalysisCli — Виконує повний аналіз всього логу escalation через інтерфейс командного рядка.
+maybeAnalyzeEscalation — Запускає аналіз записів поточного прогону після `lint --full`, якщо це дозволено налаштуваннями.
 
 ## Гарантії поведінки
 
-- Звертається до мережі лише при виклику avg-моделі (через pi/omlx за префіксом model-id).
-- Помилки виклику моделі перехоплює (fail-safe): аналіз не впливає на exit-код lint.
+- Перехоплює помилки і не пропускає винятків назовні (fail-safe).
+- За певних помилок повертає порожнє значення (напр. `null`) замість винятку.

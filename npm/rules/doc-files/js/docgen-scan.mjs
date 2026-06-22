@@ -115,9 +115,11 @@ export function scanOrphanedDocs(root) {
     }
   }
 
-  /** Обходить дерево, шукаючи docs/-директорії для orphan-перевірки.
+  /**
+   * Обходить дерево, шукаючи docs/-директорії для orphan-перевірки.
    *  docs/ — входимо завжди (батьківська пройшла ignore-перевірку);
-   *  інші — перевіряємо через isDocgenIgnored. */
+   *  інші — перевіряємо через isDocgenIgnored.
+   */
   function walk(dir) {
     let entries
     try {

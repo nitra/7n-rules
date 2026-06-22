@@ -4,7 +4,7 @@ import { writeFile } from 'node:fs/promises'
 
 import { withTmpDir, ensureDir } from '../../../../scripts/utils/test-helpers.mjs'
 import { runLintDocFilesSteps } from '../run-lint.mjs'
-import { crc32, stampDoc } from '../../js/docgen-crc.mjs'
+import { crc32, stampDoc } from '../docgen-crc.mjs'
 
 describe('runLintDocFilesSteps (lint-doc-files)', () => {
   test('повний прогін зі stale → exit 1', async () => {
