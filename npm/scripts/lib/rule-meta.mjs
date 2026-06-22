@@ -54,7 +54,8 @@ const LINT_SCOPES = new Set(['per-file', 'full'])
 /**
  * Нормалізує значення `main.json.lint` у scope детектора.
  *  - `"per-file"` — детектор декомпозується на змінені файли (дельта vs origin);
- *  - `"full"`     — нероздільно крос-файловий (лише `--full` / CI).
+ *  - `"full"`     — крос-файловий: у `--full` ганяє весь репо; у delta-режимі тригериться
+ *                   лише якщо змінені файли перетинаються з `auto.glob` правила (whole-repo scan).
  * Об'єктна форма `{scope, ci}` скасована: CI=`--read-only --full` ганяє все повністю,
  * тож per-rule CI-override не потрібен (spec 2026-06-14-lint-rule-consolidation §3-А).
  * @param {unknown} value значення поля `lint`

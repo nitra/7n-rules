@@ -5,7 +5,9 @@ import { fileURLToPath } from 'node:url'
 import { cwd as processCwd } from 'node:process'
 import { spawnSync } from 'node:child_process'
 
-import { parseRuleLintSpec, readRuleMetaRaw } from './rule-meta.mjs'
+import picomatch from 'picomatch'
+
+import { parseRuleAutoSpec, parseRuleLintSpec, readRuleMetaRaw } from './rule-meta.mjs'
 import { collectChangedFilesSince, resolveChangedBase } from './changed-files.mjs'
 import { resolveCmd } from '../utils/resolve-cmd.mjs'
 import { isRuleEnabled, readNCursorConfigLite } from './read-n-cursor-config-lite.mjs'
@@ -74,6 +76,30 @@ export function selectLintRules(metaById, full, enabledRuleIds) {
     if (!enabled.has(id)) continue
     const scope = parseRuleLintSpec(raw?.lint)
     if (scope === 'per-file' || (full && scope === 'full')) out.push(id)
+  }
+  return out.toSorted((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Визначає `full`-scope правила для запуску у delta-режимі.
+ * Правило включається, якщо хоча б один зі змінених файлів відповідає `auto.glob` правила.
+ * Предикат-auto (repo-level сигнал, не file-level) — пропускається.
+ * @param {Record<string, Record<string, unknown>>} metaById
+ * @param {string[]} changed змінені файли (posix-відносні від кореня)
+ * @param {string[]} enabledRuleIds активні rule-id
+ * @returns {string[]} відсортовані id
+ */
+function selectFullRulesForDelta(metaById, changed, enabledRuleIds) {
+  if (changed.length === 0) return []
+  const enabled = new Set(enabledRuleIds)
+  const out = []
+  for (const [id, raw] of Object.entries(metaById)) {
+    if (!enabled.has(id)) continue
+    if (parseRuleLintSpec(raw?.lint) !== 'full') continue
+    const autoSpec = parseRuleAutoSpec(raw?.auto)
+    if (!autoSpec || !('glob' in autoSpec)) continue
+    const isMatch = picomatch(autoSpec.glob, { dot: true })
+    if (changed.some(f => isMatch(f))) out.push(id)
   }
   return out.toSorted((a, b) => a.localeCompare(b))
 }
@@ -243,6 +269,18 @@ export async function runLint(opts = {}) {
   const perFile = await runPerFileRules(ids, { rulesDir, changed, cwd, readOnly, metaById, log })
   if (perFile.stop) return perFile.code
   let worst = perFile.code
+
+  // Delta-режим: `full`-scope правила, чиї glob-и перетинаються з changed.
+  // Запускаємо з `changed=undefined` (whole-repo scan як зазвичай) — так уникаємо
+  // прогону docker/ga/k8s… коли жоден їхній файл не змінився.
+  if (!full && changed.length > 0) {
+    const fullIds = selectFullRulesForDelta(metaById, changed, enabledRuleIds)
+    if (fullIds.length > 0) {
+      const fullResult = await runPerFileRules(fullIds, { rulesDir, changed: undefined, cwd, readOnly, metaById, log })
+      if (fullResult.stop) return fullResult.code
+      if (fullResult.code !== 0) worst = fullResult.code
+    }
+  }
 
   // Конформність-фаза: whole-repo, лише у `--full`. Кастомний rulesDir (юніт-тести
   // селектора) — реальний пакет недоступний, тож пропускаємо.
