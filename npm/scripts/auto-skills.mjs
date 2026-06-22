@@ -1,7 +1,7 @@
 /**
- * Автовизначення skills для `.n-cursor.json` за умовами з `npm/skills/<skill>/meta.json`.
+ * Автовизначення skills для `.n-cursor.json` за умовами з `npm/skills/<skill>/main.json`.
  *
- * `meta.json` — джерело правди (а не hardcoded мапа). Підтримуються три варіанти:
+ * `main.json` — джерело правди (а не hardcoded мапа). Підтримуються три варіанти:
  *
  *  - `auto: "завжди"` — скіл активується незалежно від інших правил
  *    (приклади: `fix`, `lint`, `llm-patch`, `publish-telegram`).
@@ -26,7 +26,7 @@ const SKILLS_DIR = join(PACKAGE_ROOT, 'skills')
  */
 
 /**
- * Сканує `npm/skills/<id>/meta.json`. Скіли без `meta.json` або без розпізнаного
+ * Сканує `npm/skills/<id>/main.json`. Скіли без `main.json` або без розпізнаного
  * `auto` не потрапляють у результат — їх вмикають лише вручну в конфізі.
  * @param {string} [skillsDir] override для тестів
  * @returns {Record<string, SkillAutoSpec>} мапа `skillId → spec`

@@ -1,6 +1,6 @@
 ## k8s: overlay **HTTPRoute** (**ua**)
 
-За наявності **Deployment** під **k8s** і наявності **Vite** (**`vite.config.js`**, **`vite.config.mjs`** або **`vite.config.ts`** у каталозі пакета) у **`ua/kustomization.yaml`** цього пакета потрібні **inline JSON6902** у **`patches`**: **target** **`kind: HTTPRoute`**, **непорожній `name`** (як у маніфесті маршруту). Мають бути зміни **`/spec/hostnames`** (домени abie — у скрипті) та **`/spec/parentRefs/0/namespace`** (**`ua`**, також дозволені префікси **`ua-*`**, наприклад **`ua-b2b`**). Як обирати **`op`** (**add** / **replace** тощо) у patch — **k8s.mdc** (розділ про JSON patch у kustomization).
+За наявності **Deployment** під **k8s** і наявності **Vite** (**`vite.config.js`**, **`vite.config.mjs`** або **`vite.config.ts`** у каталозі пакета) у **`ua/kustomization.yaml`** цього пакета потрібні **inline JSON6902** у **`patches`**: **target** **`kind: HTTPRoute`**, **непорожній `name`** (як у маніфесті маршруту). Мають бути зміни **`/spec/hostnames`** (хоча б один з доменів: **`abie.app`**, **`vybeerai.com.ua`**, **`*.abie.app`**, **`*.vybeerai.com.ua`**) та **`/spec/parentRefs/0/namespace`** (**`ua`**, також дозволені префікси **`ua-*`**, наприклад **`ua-b2b`**). Як обирати **`op`** (**add** / **replace** тощо) у patch — **k8s.mdc** (розділ про JSON patch у kustomization).
 
 ### HTTPRoute: спільні сервіси **`auth-run-hl`**, **`file-link-hl`**
 

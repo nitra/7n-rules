@@ -48,7 +48,7 @@ async function seedProbeRule(dir) {
   const rulesDir = join(dir, 'rules')
   const probeDir = join(rulesDir, 'probe')
   await mkdir(probeDir, { recursive: true })
-  await writeJson(join(probeDir, 'meta.json'), { lint: 'full' })
+  await writeJson(join(probeDir, 'main.json'), { lint: 'full' })
   await writeFile(
     join(probeDir, 'main.mjs'),
     [

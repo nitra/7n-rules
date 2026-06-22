@@ -31,14 +31,14 @@ describe('parseSkillAutoSpec', () => {
 })
 
 describe('readSkillMetaRaw', () => {
-  test('валідний meta.json → обʼєкт', async () => {
+  test('валідний main.json → обʼєкт', async () => {
     await withTmpDir(async dir => {
-      await writeJson(join(dir, 'meta.json'), { auto: 'завжди', worktree: true })
+      await writeJson(join(dir, 'main.json'), { auto: 'завжди', worktree: true })
       expect(readSkillMetaRaw(dir)).toEqual({ auto: 'завжди', worktree: true })
     })
   })
 
-  test('відсутній meta.json → null', async () => {
+  test('відсутній main.json → null', async () => {
     await withTmpDir(dir => {
       expect(readSkillMetaRaw(dir)).toBeNull()
     })
@@ -46,14 +46,14 @@ describe('readSkillMetaRaw', () => {
 
   test('невалідний JSON → null (не кидає)', async () => {
     await withTmpDir(async dir => {
-      await writeFile(join(dir, 'meta.json'), 'NOT JSON{{{', 'utf8')
+      await writeFile(join(dir, 'main.json'), 'NOT JSON{{{', 'utf8')
       expect(readSkillMetaRaw(dir)).toBeNull()
     })
   })
 
   test('масив на верхньому рівні → null', async () => {
     await withTmpDir(async dir => {
-      await writeFile(join(dir, 'meta.json'), '[1,2]', 'utf8')
+      await writeFile(join(dir, 'main.json'), '[1,2]', 'utf8')
       expect(readSkillMetaRaw(dir)).toBeNull()
     })
   })

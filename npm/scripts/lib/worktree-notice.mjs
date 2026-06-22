@@ -1,7 +1,7 @@
 /**
  * Вшивання worktree-інструкції у синкнутий `SKILL.md` (рішення D2 зі spec).
  *
- * Коли `meta.json.worktree === true`, скіл має виконуватись в окремому git-worktree
+ * Коли `main.json.worktree === true`, скіл має виконуватись в окремому git-worktree
  * і не паралелитись. Підказка адресована агенту, який читає `SKILL.md`, тож
  * вставляється в текст між стабільними маркерами — ре-синк ідемпотентний:
  * наявний блок замінюється, при `worktree:false` — видаляється.
@@ -159,7 +159,7 @@ function buildBlock(content) {
 /**
  * Вставляє / оновлює / видаляє worktree-блок у вмісті `SKILL.md`.
  * @param {string} content вміст `SKILL.md`
- * @param {boolean} enabled чи має бути блок (значення `meta.json.worktree`)
+ * @param {boolean} enabled чи має бути блок (значення `main.json.worktree`)
  * @returns {string} оновлений вміст (ідемпотентно)
  */
 export function injectWorktreeNotice(content, enabled) {

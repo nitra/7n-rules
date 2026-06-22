@@ -630,16 +630,16 @@ function buildClaudeLintParallelismSectionLines() {
 }
 
 /**
- * Рендерить секцію для CLAUDE.md: скіли з `meta.json.worktree === true` запускаються
+ * Рендерить секцію для CLAUDE.md: скіли з `main.json.worktree === true` запускаються
  * лише в окремому git-worktree (дублює fail-fast банер `SKILL.md` як завжди-читане правило).
  * @returns {string[]} рядки для вставки (з порожнім рядком на початку)
  */
 function buildClaudeWorktreeEnforcementSectionLines() {
   return [
     '',
-    '## Worktree-only skills (`meta.json` → `worktree: true`)',
+    '## Worktree-only skills (`main.json` → `worktree: true`)',
     '',
-    'Скіл із **`worktree: true`** у `meta.json` запускається **виключно** в окремому git-worktree (`.worktrees/<current-branch>-<suffix>/`) — **не** в основному дереві й **не** паралельно. Перший крок такого скіла (блок `n-cursor:worktree:start` у його `SKILL.md`) — **preflight**: якщо `git rev-parse --show-toplevel` не вказує під `.worktrees/`, **STOP** і не питай користувача про назву гілки; створи worktree від поточної гілки готовим snippet з `SKILL.md` за конвенцією `<current-branch>-<suffix>` і без shell expansion (без command substitution, variable expansion чи backticks). Чисте робоче дерево — **не** привід пропустити preflight.',
+    'Скіл із **`worktree: true`** у `main.json` запускається **виключно** в окремому git-worktree (`.worktrees/<current-branch>-<suffix>/`) — **не** в основному дереві й **не** паралельно. Перший крок такого скіла (блок `n-cursor:worktree:start` у його `SKILL.md`) — **preflight**: якщо `git rev-parse --show-toplevel` не вказує під `.worktrees/`, **STOP** і не питай користувача про назву гілки; створи worktree від поточної гілки готовим snippet з `SKILL.md` за конвенцією `<current-branch>-<suffix>` і без shell expansion (без command substitution, variable expansion чи backticks). Чисте робоче дерево — **не** привід пропустити preflight.',
     ''
   ]
 }
@@ -795,10 +795,10 @@ async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
         const rootOnly = !worktree && meta?.requireRoot === true
         const entries = await readdir(srcDir, { withFileTypes: true })
         for (const entry of entries) {
-          // Лише top-level файли скіла. `meta.json` — метадані (не для споживача);
+          // Лише top-level файли скіла. `main.json` — метадані (не для споживача);
           // підкаталоги (`js/` — скіл-специфічний код) виконуються з пакета через
           // `npx`, у проєкт не копіюються (як `npm/rules/<id>/js/`). Див. scripts.mdc.
-          if (!entry.isFile() || entry.name === 'meta.json') continue
+          if (!entry.isFile() || entry.name === 'main.json') continue
           let content = await readFile(join(srcDir, entry.name), 'utf8')
           if (entry.name === 'SKILL.md') {
             content = injectWorktreeNotice(content, worktree)

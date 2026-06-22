@@ -6,7 +6,19 @@ version: '1.22'
 
 Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**, для спільних сервісів **`auth-run-hl`** / **`file-link-hl`** — **`namespace: dev`** у base та patch **`…/backendRefs/…/namespace`** у **ua**)), гілки **dev**, **ua** у **clean-merged-branch**, а також заборона тримати артефакти **Firebase Hosting** у **підкаталогах першого рівня** (безпосередні діти кореня репозиторію; у самому корені ці імена не вимагаються до видалення).
 
+## Активація
+
+Правило активується через **`.n-cursor.json`** у корені репозиторію:
+
+```json
+{ "rules": ["abie"] }
+```
+
+Без цього запису `@nitra/cursor` пропускає всі abie-перевірки (JS-концерни та rego-полісі).
+
 [k8s-hc-yaml](./js/hc_pairing.mdc)
+
+[k8s-http-route-base](./js/http_route_base.mdc)
 
 [k8s-http-route-ua](./js/ua_http_route.mdc)
 

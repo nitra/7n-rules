@@ -1,7 +1,7 @@
 /**
- * Парсер метаданих правила з `npm/rules/<id>/meta.json` (data-driven автодетект).
+ * Парсер метаданих правила з `npm/rules/<id>/main.json` (data-driven автодетект).
  *
- * `meta.json.auto` має один із чотирьох видів:
+ * `main.json.auto` має один із чотирьох видів:
  *  - `"завжди"`                       → always-on;
  *  - `["rule", …]`                    → активується, коли всі правила-залежності виявлені;
  *  - `{ "glob": "<pat>" | [<pat>] }`  → наявність файлів/каталогів за glob (OR);
@@ -20,7 +20,7 @@ export const RULE_ALWAYS = 'завжди'
  */
 
 /**
- * Нормалізує значення `meta.json.auto` у дискриміновану форму.
+ * Нормалізує значення `main.json.auto` у дискриміновану форму.
  * @param {unknown} value значення поля `auto`
  * @returns {RuleAutoSpec | null} `null` — формат не розпізнано (= opt-in)
  */
@@ -48,11 +48,11 @@ export function parseRuleAutoSpec(value) {
   return null
 }
 
-/** Допустимі значення `meta.json.lint` (вісь scope: чи детектор дробиться на changed-set). */
+/** Допустимі значення `main.json.lint` (вісь scope: чи детектор дробиться на changed-set). */
 const LINT_SCOPES = new Set(['per-file', 'full'])
 
 /**
- * Нормалізує значення `meta.json.lint` у scope детектора.
+ * Нормалізує значення `main.json.lint` у scope детектора.
  *  - `"per-file"` — детектор декомпозується на змінені файли (дельта vs origin);
  *  - `"full"`     — нероздільно крос-файловий (лише `--full` / CI).
  * Об'єктна форма `{scope, ci}` скасована: CI=`--read-only --full` ганяє все повністю,
@@ -65,7 +65,7 @@ export function parseRuleLintSpec(value) {
 }
 
 /**
- * Читає й парсить `meta.json` одного правила.
+ * Читає й парсить `main.json` одного правила.
  * @param {string} ruleDir абсолютний шлях до каталогу правила
  * @returns {Record<string, unknown> | null} обʼєкт або `null` (немає файлу / невалідний JSON / не-обʼєкт)
  */

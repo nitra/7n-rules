@@ -1,5 +1,5 @@
 /**
- * Тести автодетекту скілів для `.n-cursor.json` за `skills/<skill>/meta.json`.
+ * Тести автодетекту скілів для `.n-cursor.json` за `skills/<skill>/main.json`.
  *
  * Скіли залежать від уже виявлених правил (вхід — `detectedRules`), а не безпосередньо
  * від файлів проєкту. Це навмисне: умови `adr-normalize` й `taze` дзеркалять умови
@@ -89,15 +89,15 @@ describe('detectAutoSkills', () => {
   })
 })
 
-describe('discoverSkillAutoActivation (meta.json)', () => {
+describe('discoverSkillAutoActivation (main.json)', () => {
   test('читає auto: завжди / масив / пропуск', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'fix'))
-      await writeJson(join(dir, 'fix', 'meta.json'), { auto: 'завжди', worktree: true })
+      await writeJson(join(dir, 'fix', 'main.json'), { auto: 'завжди', worktree: true })
       await ensureDir(join(dir, 'taze'))
-      await writeJson(join(dir, 'taze', 'meta.json'), { auto: ['bun'], worktree: true })
+      await writeJson(join(dir, 'taze', 'main.json'), { auto: ['bun'], worktree: true })
       await ensureDir(join(dir, 'opt-in'))
-      await writeJson(join(dir, 'opt-in', 'meta.json'), { worktree: false })
+      await writeJson(join(dir, 'opt-in', 'main.json'), { worktree: false })
 
       const map = discoverSkillAutoActivation(dir)
       expect(map.fix).toEqual({ always: true })
@@ -106,7 +106,7 @@ describe('discoverSkillAutoActivation (meta.json)', () => {
     })
   })
 
-  test('скіл без meta.json не потрапляє в автоактивацію', async () => {
+  test('скіл без main.json не потрапляє в автоактивацію', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'bare'))
       expect(discoverSkillAutoActivation(dir).bare).toBeUndefined()

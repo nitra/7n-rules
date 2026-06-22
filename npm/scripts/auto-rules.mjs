@@ -1,7 +1,7 @@
 /**
- * Автовизначення правил для `.n-cursor.json` за meta-даними з `npm/rules/<id>/meta.json`.
+ * Автовизначення правил для `.n-cursor.json` за meta-даними з `npm/rules/<id>/main.json`.
  *
- * Основна роль: `discoverRuleAutoActivation` читає `npm/rules/<id>/meta.json`, виводить
+ * Основна роль: `discoverRuleAutoActivation` читає `npm/rules/<id>/main.json`, виводить
  * `AUTO_RULE_ORDER` (алфавітно) і `AUTO_RULE_DEPENDENCIES` з meta, а потім для кожного правила
  * обчислює spec активації через `specMatches`: `always` — безумовно; `glob` — перевірка
  * файлів через `globToRegex`; `predicate` — незводимий предикат із реєстру `RULE_PREDICATES`
@@ -11,7 +11,7 @@
  *
  * Враховує винятки `disable-rules`: елементи зі списку не додаються автоматично.
  *
- * Автодетект скілів — у `./auto-skills.mjs` (умови — у `npm/skills/<skill>/meta.json`).
+ * Автодетект скілів — у `./auto-skills.mjs` (умови — у `npm/skills/<skill>/main.json`).
  * `mergeConfigWithAutoDetected` нижче приймає вже виявлені rules і skills і вливає
  * їх у конфіг із поправкою на legacy-id (`migrateRuleIds`).
  */
@@ -45,7 +45,7 @@ const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const RULES_DIR = join(PACKAGE_ROOT, 'rules')
 
 /**
- * Скан `npm/rules/<id>/meta.json` → мапа id → RuleAutoSpec (лише правила з розпізнаним auto).
+ * Скан `npm/rules/<id>/main.json` → мапа id → RuleAutoSpec (лише правила з розпізнаним auto).
  * @param {string} [rulesDir] override для тестів
  * @returns {Record<string, import('./lib/rule-meta.mjs').RuleAutoSpec>} мапа автоактивації
  */
@@ -205,7 +205,7 @@ async function processFileEntry(absPath, root, facts) {
  * Обходить дерево проєкту, збираючи content-факти для предикатів автоувімкнення.
  *
  * `hasRegoFile` і `hasTempoDir` лишаються для зворотної сумісності з прямими читачами
- * фактів (тести, зовнішній код); саме автоувімкнення тепер data-driven через meta.json.
+ * фактів (тести, зовнішній код); саме автоувімкнення тепер data-driven через main.json.
  * @param {string} root абсолютний шлях кореня репозиторію
  * @returns {Promise<{
  *   hasBunSqlImport: boolean,
@@ -350,7 +350,7 @@ function specMatches(spec, ctx) {
 }
 
 /**
- * Визначає авто-правила згідно з `rules/<rule>/meta.json`.
+ * Визначає авто-правила згідно з `rules/<rule>/main.json`.
  * @param {object} params параметри аналізу
  * @param {string} params.root абсолютний шлях до кореня репозиторію
  * @param {string[]} params.availableRules перелік доступних правил з пакету

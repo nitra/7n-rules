@@ -1,7 +1,7 @@
 /**
- * Спільний парсер метаданих скіла з `npm/skills/<id>/meta.json`.
+ * Спільний парсер метаданих скіла з `npm/skills/<id>/main.json`.
  *
- * `meta.json` — єдине джерело правди для скіла замість колишнього `auto.md`:
+ * `main.json` — єдине джерело правди для скіла замість колишнього `auto.md`:
  *  - `auto` — умова автоактивації (`"завжди"` | масив id правил), опційне;
  *  - `worktree` — boolean: чи виконувати скіл в окремому git-worktree (один інстанс);
  *  - `requireRoot` — boolean, опційне: чи скіл вимагає запуску з кореня репо.
@@ -24,8 +24,8 @@ export const SKILL_ALWAYS = 'завжди'
  */
 
 /**
- * Перетворює значення поля `auto` з `meta.json` у `SkillAutoSpec`.
- * @param {unknown} value значення `meta.json.auto`
+ * Перетворює значення поля `auto` з `main.json` у `SkillAutoSpec`.
+ * @param {unknown} value значення `main.json.auto`
  * @returns {SkillAutoSpec | null} `null` — формат не розпізнано (= opt-in)
  */
 export function parseSkillAutoSpec(value) {
@@ -43,7 +43,7 @@ export function parseSkillAutoSpec(value) {
 /**
  * Чи вимагає скіл запуску з кореня репо («активовано root-захист»). Єдина похідна
  * ознака: `worktree:true` (корінь гарантує worktree) АБО явний `requireRoot:true`.
- * @param {Record<string, unknown> | null} meta розпарсений `meta.json` (або null)
+ * @param {Record<string, unknown> | null} meta розпарсений `main.json` (або null)
  * @returns {boolean} true — скіл мутує проєкт і має стартувати з кореня
  */
 export function skillRequiresRoot(meta) {
@@ -51,7 +51,7 @@ export function skillRequiresRoot(meta) {
 }
 
 /**
- * Читає й парсить `meta.json` одного скіла.
+ * Читає й парсить `main.json` одного скіла.
  * @param {string} skillDir абсолютний шлях до каталогу скіла
  * @returns {Record<string, unknown> | null} розпарсений обʼєкт або `null` (немає файлу / невалідний JSON / не-обʼєкт)
  */

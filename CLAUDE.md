@@ -34,9 +34,9 @@
 
 Паралельний лінт по **різних** файлах — **дозволено**: диз'юнктні набори (per-file `lint` на змінених vs origin) не конфліктують і не перевантажують диск/CPU. Серіалізувати треба лише **whole-tree** прогони того самого корпусу (`bun run lint`, `n-cursor lint --full` по всьому репо) — щоб не дублювати важкий full-scan. Деталі: `.cursor/skills/n-lint/SKILL.md`.
 
-## Worktree-only skills (`meta.json` → `worktree: true`)
+## Worktree-only skills (`main.json` → `worktree: true`)
 
-Скіл із **`worktree: true`** у `meta.json` запускається **виключно** в окремому git-worktree (`.worktrees/<current-branch>-<suffix>/`) — **не** в основному дереві й **не** паралельно. Перший крок такого скіла (блок `n-cursor:worktree:start` у його `SKILL.md`) — **preflight**: якщо `git rev-parse --show-toplevel` не вказує під `.worktrees/`, **STOP** і не питай користувача про назву гілки; створи worktree від поточної гілки готовим snippet з `SKILL.md` за конвенцією `<current-branch>-<suffix>` і без shell expansion (без command substitution, variable expansion чи backticks). Чисте робоче дерево — **не** привід пропустити preflight.
+Скіл із **`worktree: true`** у `main.json` запускається **виключно** в окремому git-worktree (`.worktrees/<current-branch>-<suffix>/`) — **не** в основному дереві й **не** паралельно. Перший крок такого скіла (блок `n-cursor:worktree:start` у його `SKILL.md`) — **preflight**: якщо `git rev-parse --show-toplevel` не вказує під `.worktrees/`, **STOP** і не питай користувача про назву гілки; створи worktree від поточної гілки готовим snippet з `SKILL.md` за конвенцією `<current-branch>-<suffix>` і без shell expansion (без command substitution, variable expansion чи backticks). Чисте робоче дерево — **не** привід пропустити preflight.
 
 ## Файлова документація (`doc-files` — обовʼязковий крок, як lint)
 
