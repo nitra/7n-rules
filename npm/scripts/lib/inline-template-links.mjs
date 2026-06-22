@@ -4,6 +4,7 @@ import { basename, extname, join } from 'node:path'
 
 const MD_LINK_RE = /\[([^\]]{1,200})\]\((\.\/[^)]{1,500})\)/g
 const TEMPLATE_SEGMENT_RE = /\/templates?\//
+const MDC_EXT_RE = /\.mdc$/
 /** Статичні regexp-літерали `^(.+)\.<slot>\.<ext>$` — без `RegExp(variable)`. */
 const SLOT_SUFFIX_RES = [/^(.+)\.snippet\.[^.]+$/, /^(.+)\.deny\.[^.]+$/, /^(.+)\.contains\.[^.]+$/]
 
@@ -62,6 +63,36 @@ export async function inlineTemplateLinks(text, ruleDir) {
     const targetName = normalizeTargetName(basename(absPath))
     const replacement = `\`${targetName}\`:\n\n\`\`\`${lang}\n${contents}\n\`\`\``
     result = result.replace(fullMatch, () => replacement)
+  }
+
+  return result
+}
+
+/**
+ * Finds markdown links whose href ends with `.mdc` (and is not a /template/ path) and
+ * replaces them with the raw markdown content of the linked file (no fencing).
+ * Intended for per-concern section files living alongside their .mjs implementations.
+ * Throws Error if a matched link target doesn't exist (fail loud).
+ * @param {string} text .mdc file contents (after inlineTemplateLinks)
+ * @param {string} ruleDir absolute path to the rule directory
+ * @returns {Promise<string>} transformed text
+ */
+export async function inlineMarkdownIncludes(text, ruleDir) {
+  const matches = [...text.matchAll(MD_LINK_RE)].filter(m => MDC_EXT_RE.test(m[2]) && !TEMPLATE_SEGMENT_RE.test(m[2]))
+  if (matches.length === 0) return text
+
+  let result = text
+  for (const match of matches) {
+    const [fullMatch, , href] = match
+    const relPath = href.slice(2) // strip leading ./
+    const absPath = join(ruleDir, relPath)
+
+    if (!existsSync(absPath)) {
+      throw new Error(`inlineMarkdownIncludes: file not found: ${absPath} (referenced from .mdc)`)
+    }
+
+    const raw = await readFile(absPath, 'utf8')
+    result = result.replace(fullMatch, () => raw.trim())
   }
 
   return result

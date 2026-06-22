@@ -10,19 +10,19 @@ docgen:
 
 ## Огляд
 
-Модуль визначає шляхи до канонічних JSON-файлів для інструментів oxlint та knip через функції OXLINT_CANONICAL_JSON_PATH та KNIP_CANONICAL_JSON_PATH. Він також надає функцію verifyOxlintRcAgainstCanonical для валідації конфігурацій, перевіряючи, чи відповідає `.oxlintrc.json` правилам, визначеним у oxlint-canonical.json.
+Визначає шляхи до канонічних JSON-файлів для інструментів oxlint та knip через OXLINT_CANONICAL_JSON_PATH та KNIP_CANONICAL_JSON_PATH. Також перевіряє відповідність конфігураційного файлу .oxlintrc.json значенням, встановленим у oxlint-canonical.json, за допомогою verifyOxlintRcAgainstCanonical.
 
 ## Поведінка
 
-OXLINT_CANONICAL_JSON_PATH — Вказує на шлях до канонічного JSON-файлу для oxlint у цьому пакеті.
-KNIP_CANONICAL_JSON_PATH — Вказує на шлях до канонічного JSON-файлу для knip у цьому пакеті.
-verifyOxlintRcAgainstCanonical — Перевіряє конфігурацію `.oxlintrc.json` на відповідність канонічному файлу oxlint-canonical.json, виявляючи відхилення у правилах та інших полях.
+OXLINT_CANONICAL_JSON_PATH — Вказує шлях до канонічного JSON-файлу для oxlint у цьому пакеті.
+KNIP_CANONICAL_JSON_PATH — Вказує шлях до канонічного JSON-файлу для knip у цьому пакеті.
+verifyOxlintRcAgainstCanonical — Перевіряє конфігураційний файл `.oxlintrc.json` на відповідність канонічним значенням, визначеним у `oxlint-canonical.json`.
 
 ## Публічний API
 
-OXLINT_CANONICAL_JSON_PATH — вказує на файл з еталонними налаштуваннями oxlint у пакеті.
-KNIP_CANONICAL_JSON_PATH — вказує на файл з еталонними налаштуваннями knip, який копіюється у корінь проєкту, якщо його там немає.
-verifyOxlintRcAgainstCanonical — порівнює конфігураційний файл `.oxlintrc.json` з еталоном, перевіряючи, чи всі правила з еталону присутні, а інші поля збігаються з `oxlint-canonical.json`.
+OXLINT_CANONICAL_JSON_PATH — Вказує на файл з еталонними налаштуваннями oxlint для валідації.
+KNIP_CANONICAL_JSON_PATH — Шлях до еталонних налаштувань knip, які копіюються у корінь проєкту, якщо їх немає.
+verifyOxlintRcAgainstCanonical — Порівнює конфігураційний файл `.oxlintrc.json` з еталоном, перевіряючи, чи всі правила з еталону присутні, а інші поля збігаються з каноном.
 
 ## Гарантії поведінки
 

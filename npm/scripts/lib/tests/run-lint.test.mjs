@@ -11,7 +11,7 @@ const META = {
   k8s: { lint: 'full' },
   php: { lint: 'full' },
   rust: { lint: 'full' },
-  'style': { lint: 'per-file' },
+  style: { lint: 'per-file' },
   ga: { lint: 'full' },
   adr: {}
 }
@@ -19,14 +19,18 @@ const ignoreLog = text => text
 
 describe('selectLintRules', () => {
   test('default (full=false) → лише per-file правила, алфавітно', () => {
-    expect(
-      selectLintRules(META, false, ['docker', 'ga', 'js', 'k8s', 'php', 'rust', 'style'])
-    ).toEqual(['js', 'style'])
+    expect(selectLintRules(META, false, ['docker', 'ga', 'js', 'k8s', 'php', 'rust', 'style'])).toEqual(['js', 'style'])
   })
   test('full=true → per-file + full, алфавітно', () => {
-    expect(
-      selectLintRules(META, true, ['docker', 'ga', 'js', 'k8s', 'php', 'rust', 'style'])
-    ).toEqual(['docker', 'ga', 'js', 'k8s', 'php', 'rust', 'style'])
+    expect(selectLintRules(META, true, ['docker', 'ga', 'js', 'k8s', 'php', 'rust', 'style'])).toEqual([
+      'docker',
+      'ga',
+      'js',
+      'k8s',
+      'php',
+      'rust',
+      'style'
+    ])
   })
   test('ігнорує правила, не активовані у .n-cursor.json', () => {
     expect(selectLintRules(META, true, ['js'])).toEqual(['js'])

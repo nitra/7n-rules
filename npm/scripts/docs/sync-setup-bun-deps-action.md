@@ -10,19 +10,20 @@ docgen:
 
 ## Огляд
 
-Копіює composite GitHub Action `setup-bun-deps` з каталогу `github-actions/setup-bun-deps/` у цільовий репозиторій (`.github/actions/setup-bun-deps/`). Це забезпечує можливість робочим процесам з правил `ga`, `js` та `text` викликати локально розміщений action (`uses: ./.github/actions/setup-bun-deps`) одразу після виконання `actions/checkout@v6`, використовуючи CLI `npx \@nitra/cursor`.
+Копіює composite GitHub Action `setup-bun-deps` з каталогу `github-actions/setup-bun-deps/` у корені tarball пакету `@nitra/cursor` у цільовий репозиторій за шлях `.github/actions/setup-bun-deps/action.yml`. Це забезпечує можливість для workflow з правил `ga`, `js` або `text` викликати цей action для налаштування залежностей Bun одразу після виконання `actions/checkout@v6`.
 
 ## Поведінка
 
 1. Перевіряє наявність шаблону composite action у корені встановленого пакету `@nitra/cursor`.
-2. Створює необхідну директорію для composite action у корені цільового репозиторію, ігноруючи шляхи `.github` та `.git`.
-3. Зчитує вміст шаблону composite action.
-4. Записує вміст шаблону у цільовий шлях composite action у корені цільового репозиторію, гарантуючи наявність завершального символу нового рядка.
+2. Створює необхідну директорію у корені цільового репозиторію для розміщення composite action.
+3. Зчитує вміст шаблону composite action з кореня встановленого пакету.
+4. Записує вміст шаблону composite action у цільовий шлях у корені репозиторію.
 5. Повертає підтвердження успішного запису та повний шлях до файлу.
+6. Не перевіряє шляхи `.github` чи `.git`.
 
 ## Публічний API
 
-syncSetupBunDepsAction — фіксує в `projectRoot` композитну дію з коренем встановленого `@nitra/cursor`.
+syncSetupBunDepsAction — фіксує у `projectRoot` композитну дію, що вказує на корінь встановленого `@nitra/cursor`.
 
 ## Гарантії поведінки
 
