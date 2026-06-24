@@ -2,6 +2,7 @@
 name: doc-aggregate
 description: >-
   Агрегуюча документація за запитом: module-summary на кожен логічний модуль (docs/ARCHITECTURE.md) і доменні доки бізнес-процесів у кореневій docs/ — синтез поверх готових файлових док (doc-files), батч-диспатч субагентів у worktree
+version: '1.0'
 ---
 
 # doc-aggregate — агрегуюча документація (за запитом)

@@ -3,6 +3,7 @@ name: n-adr-normalize
 description: >-
   Ручний запуск ADR-нормалізації — обхід порогу й min-interval, прогон одного
   батчу чернеток через LLM, перегляд результату через git diff
+version: '1.0'
 ---
 
 # n-adr-normalize — ручна нормалізація ADR-чернеток

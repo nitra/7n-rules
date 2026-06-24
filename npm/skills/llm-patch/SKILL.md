@@ -3,6 +3,7 @@ name: n-llm-patch
 description: >-
   Підготовка самодостатнього текстового промпта для іншого Claude/Cursor-агента —
   read-only аналіз CWD без жодних змін у поточному репо
+version: '1.0'
 ---
 
 <!-- markdownlint-disable-file MD024 MD025 -->

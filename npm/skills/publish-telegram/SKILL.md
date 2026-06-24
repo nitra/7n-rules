@@ -2,6 +2,7 @@
 name: n-publish-telegram
 description: >-
   Підготовка матеріалу з поточного контексту для публікації в Telegram-каналі команди
+version: '1.0'
 ---
 
 # Публікація в Telegram
