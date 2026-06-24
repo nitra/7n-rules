@@ -50,7 +50,7 @@
   Команда: `/n-coverage-fix`
 - `.cursor/skills/n-doc-files/SKILL.md` — Обовʼязковий крок задачі (як lint): для кожного зміненого/нового кодового файлу (js/mjs/ts/vue/py) JS-оркестрована генерація лаконічної поведінкової української md-документації у теку docs/ поряд із кодом, зі звіркою застарілості за CRC у frontmatter
   Команда: `/n-doc-files`
-- `.cursor/skills/n-lint/SKILL.md` — Запустити кореневий bun run lint, виправити порушення й підтвердити чистий вихід
+- `.cursor/skills/n-lint/SKILL.md` — Запустити дельта-лінт (npx @nitra/cursor lint) по змінених файлах vs origin, виправити порушення й підтвердити чистий вихід
   Команда: `/n-lint`
 - `.cursor/skills/n-llm-patch/SKILL.md` — Підготовка самодостатнього текстового промпта для іншого Claude/Cursor-агента — read-only аналіз CWD без жодних змін у поточному репо
   Команда: `/n-llm-patch`

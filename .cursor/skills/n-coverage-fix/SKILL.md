@@ -2,6 +2,7 @@
 name: n-coverage-fix
 description: >-
   Автономна команда: запускає n-cursor coverage → читає вцілілих мутантів → ітеративно пише тести до конвергенції (max 3 ітерації)
+version: '1.0'
 ---
 
 <!-- n-cursor:worktree:start -->
