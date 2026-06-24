@@ -6,7 +6,6 @@ resource: npm/rules/style/
 
 # npm/rules/style
 
-| Файл                | Тип       |
-| ------------------- | --------- |
-| [fix.mjs](fix.md)   | JS Module |
+| Файл | Тип |
+|---|---|
 | [main.mjs](main.md) | JS Module |

@@ -237,16 +237,18 @@ async function runScopedRules(rules, ctx) {
 
 /**
  * Запускає lint-оркестрацію.
- * @param {{ full?: boolean, readOnly?: boolean, rules?: string[], cwd?: string, rulesDir?: string, log?: (s: string) => void }} [opts] параметри
+ * @param {{ full?: boolean, readOnly?: boolean, rules?: string[], files?: string[], cwd?: string, rulesDir?: string, log?: (s: string) => void }} [opts] параметри
  *   - `full` — весь репо (`true`) проти дельти vs origin (`false`, default);
  *   - `readOnly` — лише детект без мутацій (`true`) проти fix (`false`, default);
- *   - `rules` — непорожній scope → повний прогін лише цих правил (лінтер + конформність, whole-repo).
+ *   - `rules` — непорожній scope → повний прогін лише цих правил (лінтер + конформність, whole-repo);
+ *   - `files` — явний список файлів (hook-режим): per-file правила без conformance/format/delta-full.
  * @returns {Promise<number>} exit code
  */
 export async function runLint(opts = {}) {
   const full = opts.full === true
   const readOnly = opts.readOnly === true
   const rules = Array.isArray(opts.rules) ? opts.rules : []
+  const explicitFiles = Array.isArray(opts.files) ? opts.files : null
   const cwd = opts.cwd ?? processCwd()
   const rulesDir = opts.rulesDir ?? RULES_DIR
   const log = opts.log ?? (s => process.stdout.write(s))
@@ -254,6 +256,17 @@ export async function runLint(opts = {}) {
   // Scoped режим (`lint <rule…>`): повний прогін названих правил — лінтер + конформність.
   if (rules.length > 0) {
     return runScopedRules(rules, { cwd, readOnly, rulesDir, conformance: opts.rulesDir === undefined, log })
+  }
+
+  // Hook-режим (явний список файлів): per-file правила, без conformance/format/delta-full.
+  // Правила отримують точний список файлів; пусті files (Stop без змін) — правила однаково
+  // викликаються (orphan-детект у doc-files не залежить від списку джерел).
+  if (explicitFiles !== null) {
+    const metaById = readAllMeta(rulesDir)
+    const enabledRuleIds = await readEnabledLintRuleIds(metaById, cwd)
+    const ids = selectLintRules(metaById, false, enabledRuleIds)
+    const perFile = await runPerFileRules(ids, { rulesDir, changed: explicitFiles, cwd, readOnly, metaById, log })
+    return perFile.stop ? perFile.code : perFile.code
   }
 
   // Default scope — дельта vs origin (merge-base main/origin/main); `--full` — весь репо.

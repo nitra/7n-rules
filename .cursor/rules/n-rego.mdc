@@ -9,40 +9,30 @@ alwaysApply: false
 
 Синтаксичні правила (`rego.v1`, `import rego.v1`, заборона legacy v0) — у `conftest.mdc` (alwaysApply). Цей файл — про **інструментарій**: VS Code, лінтери, форматування.
 
-## Перевірка
+## Лінт Rego-файлів (opa / regal / conftest)
 
 ```bash
 n-cursor lint rego
 ```
 
-Цілі — `npm/rules/` (рекурсивно знаходить `.rego` у `<rule>/policy/<concern>/`). Інші *.rego поза деревом додай у `LINT_TARGETS` у `npm/rules/rego/lint/lint.mjs`.
+Цілі — `npm/rules/` (рекурсивно знаходить `.rego` у `<rule>/policy/<concern>/`).
+Інші `*.rego` поза деревом — додай у `LINT_TARGETS` у `npm/rules/rego/lint/lint.mjs`.
 
 `opa` і `regal` — лише у `PATH`, **не** додавай у `dependencies` / `devDependencies`.
 
-### `.vscode/extensions.json`
+### Кроки лінту
 
-- Канон `recommendations` має містити `tsandall.opa` (LSP, format-on-save через `opa fmt`): `extensions.json`:
+1. **`opa check --strict`** — компіляція з типами і строгим режимом: ловить мертвий код,
+   неоднозначні правила, незадекларовані змінні. Зупиняє пайплайн при помилці.
+2. **`regal lint`** — статичний лінтер: v0-синтаксис, неявні set-rules, відхилення від `rego.v1`,
+   bugs/idiomatic/performance-правила.
+3. **`conftest verify`** (опційно) — виконує `test_*` правила у `*_test.rego`.
+   Якщо `conftest` відсутній у `PATH` — пропускається без помилки (у CI потрібно встановити).
 
-```json
-{ "recommendations": ["tsandall.opa"] }
-```
+### Конфіг regal
 
-### `.vscode/settings.json`
-
-- Канон `[rego]`-block (`editor.defaultFormatter` + `editor.formatOnSave`): `settings.json`:
-
-```json
-{
-  "[rego]": {
-    "editor.defaultFormatter": "tsandall.opa",
-    "editor.formatOnSave": true
-  }
-}
-```
-
-## Конфіг regal
-
-У корені — `.regal/config.yaml`. Дозволено вимикати окремі правила під специфіку репо (наприклад, conftest-полісі — `deny`-правила як де-факто entrypoint-и):
+У корені проєкту — `.regal/config.yaml`. Дозволено вимикати окремі правила під специфіку репо
+(наприклад, conftest-полісі — `deny`-правила як де-факто entrypoint-и):
 
 ```yaml title=".regal/config.yaml"
 rules:
@@ -50,3 +40,68 @@ rules:
     no-defined-entrypoint:
       level: ignore
 ```
+
+## Швидкий gate через conftest
+
+| Пакет | Ціль | Що перевіряє |
+|---|---|---|
+| `rego.vscode_extensions` | `.vscode/extensions.json` | `recommendations` містить `tsandall.opa` |
+| `rego.vscode_settings` | `.vscode/settings.json` | `[rego]`-блок з `defaultFormatter` + `formatOnSave` |
+
+## Розширення VS Code для Rego
+
+`.vscode/extensions.json` має містити `tsandall.opa` у масиві `recommendations` —
+це забезпечує LSP-підтримку та форматування через `opa fmt` при збереженні.
+
+Канонічний сніпет: [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
+
+Перевірка — subset-of: кожне розширення зі сніпету має бути присутнє у `recommendations`.
+Додаткові розширення (від інших правил) — дозволені.
+
+Ціль (`target.json`): `.vscode/extensions.json` — обовʼязковий файл.
+
+## Налаштування VS Code для Rego
+
+`.vscode/settings.json` має містити `[rego]`-блок з двома ключами:
+
+- `editor.defaultFormatter` = `"tsandall.opa"`
+- `editor.formatOnSave` = `true`
+
+Канонічний сніпет: [settings.json.snippet.json](./policy/vscode_settings/template/settings.json.snippet.json)
+
+Перевірка — leaf-by-leaf: кожен ключ/значення зі сніпету звіряється з файлом.
+Якщо `[rego]`-блок присутній, але не є обʼєктом — окрема помилка типу.
+
+Ціль (`target.json`): `.vscode/settings.json` — обовʼязковий файл.
+
+## Rego-перевірка наявності tsandall.opa у recommendations
+
+Rego-пакет: `rego.vscode_extensions`
+
+Цільовий файл: `.vscode/extensions.json`
+
+Перевіряє: поле `recommendations` містить рядок `"tsandall.opa"`. Порожній масив або відсутнє поле — deny. Додаткові записи дозволені.
+
+Канонічний сніпет: [extensions.json.snippet.json](./template/extensions.json.snippet.json)
+
+Логіка: subset-of — кожна рекомендація зі сніпету має бути присутня у `recommendations` вхідного файлу. Канон надходить через `--data` як `data.template.snippet`.
+
+## Rego-gate: налаштування форматера rego у `.vscode/settings.json`
+
+Rego-пакет: `rego.vscode_settings`
+
+Цільовий файл: `.vscode/settings.json`
+
+Перевіряє `[rego]`-блок — два листові ключі:
+
+- `editor.defaultFormatter` має дорівнювати `"tsandall.opa"`
+- `editor.formatOnSave` має бути `true`
+
+Канонічний сніпет: [settings.json.snippet.json](./template/settings.json.snippet.json)
+
+Два незалежні deny-правила:
+
+1. Leaf-by-leaf: якщо `[rego]`-блок є обʼєктом — кожне ключ/значення зі сніпету звіряється з фактичним значенням (відсутнє або відмінне — deny).
+2. Тип: якщо `[rego]`-блок присутній, але не є обʼєктом (наприклад, рядок) — окрема помилка типу.
+
+Канон надходить через `--data` як `data.template.snippet`.

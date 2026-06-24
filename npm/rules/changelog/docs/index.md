@@ -6,7 +6,6 @@ resource: npm/rules/changelog/
 
 # npm/rules/changelog
 
-| Файл                | Тип       |
-| ------------------- | --------- |
-| [fix.mjs](fix.md)   | JS Module |
+| Файл | Тип |
+|---|---|
 | [main.mjs](main.md) | JS Module |

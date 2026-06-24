@@ -6,7 +6,6 @@ resource: npm/rules/ci4/
 
 # npm/rules/ci4
 
-| Файл                | Тип       |
-| ------------------- | --------- |
-| [fix.mjs](fix.md)   | JS Module |
+| Файл | Тип |
+|---|---|
 | [main.mjs](main.md) | JS Module |

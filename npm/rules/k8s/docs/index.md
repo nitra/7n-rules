@@ -6,7 +6,6 @@ resource: npm/rules/k8s/
 
 # npm/rules/k8s
 
-| Файл                | Тип       |
-| ------------------- | --------- |
-| [fix.mjs](fix.md)   | JS Module |
+| Файл | Тип |
+|---|---|
 | [main.mjs](main.md) | JS Module |

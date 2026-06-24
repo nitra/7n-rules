@@ -6,7 +6,6 @@ resource: npm/rules/doc-files/
 
 # npm/rules/doc-files
 
-| Файл                | Тип       |
-| ------------------- | --------- |
-| [fix.mjs](fix.md)   | JS Module |
+| Файл | Тип |
+|---|---|
 | [main.mjs](main.md) | JS Module |

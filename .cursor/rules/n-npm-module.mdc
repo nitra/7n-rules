@@ -7,7 +7,9 @@ version: '1.14'
 
 Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.github/workflows/`**; опційно **`demo/`**.
 
-## Компактний пакет
+## Структура монорепо та компактний пакет
+
+Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.github/workflows/`**; опційно **`demo/`**.
 
 Мета — **максимально компактний** опублікований пакет: у npm потрапляє тільки те, що потрібно під час `require`/`import` користувачем.
 
@@ -15,10 +17,9 @@ Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.g
 - **Тести й фікстури не публікуються — через негативні glob-патерни у `"files"`.** Тести можна (і зазвичай зручніше) тримати **поруч з кодом** усередині шляхів, перелічених у `"files"` (наприклад `*.test.mjs` поруч з модулем чи `fixtures/` під `rules/<id>/js/`). Щоб вони не потрапляли у tarball, `"files"` **обовʼязково має містити негативні glob-патерни**, що їх виключають. Покрий усі форми тестового: фреймворк-тести (`bun:test`, `node:test`, `vitest`, `@jest/globals`, `mocha`, …), test-style каталоги (`tests/`, `__tests__/`, `fixtures/`, `__fixtures__/`, `spec/`, `test/`), файли за патернами `*.test.*` / `*.spec.*`. Орієнтовний набір: `"!**/*.test.*"`, `"!**/*.spec.*"`, `"!**/test-helpers.*"`, `"!**/fixtures/**"`, `"!**/__tests__/**"`. **Rego (`*_test.rego`):** за конвенцією conftest юніт-тест лежить поруч з полісі у тому самому `package` — `*_test.rego` усередині опублікованого `policy/` дозволені; якщо потрібна максимальна компактність, додай `"!**/*_test.rego"` явно (як у самому `@nitra/cursor`).
 - **Лише runtime-залежності у `npm/package.json`.** `devDependencies` тримай у **кореневому** `package.json` монорепо — тоді `npm install @nitra/<pkg>` не тягне інструментарій, потрібний лише для розробки самого пакета.
 
-Деталі алгоритму перевірки:
-
-- Пер-документні правила для `npm/package.json` (whitelist `files`, заборона `devDependencies`, форма `types`) — у rego-пакеті `npm_module.npm_package_json` (`npm/policy/npm_module/npm_package_json/`).
-- Walk шляхів з `"files"` з застосуванням негативних patterns і скан залишку на тест-патерни (walking + AST JS/TS) — у `check.mjs::checkNoTestsInPublishedFiles` (FS / AST не лягають у rego). Якщо після застосування негативних patterns у tarball лишається test-style файл — `check` падає з вказівкою, який саме негативний glob треба додати у `"files"`.
+Перевірки JS (`package_structure.mjs`):
+- Наявність `package.json`, `npm/`, `npm/package.json`.
+- Walk шляхів з `"files"` з застосуванням негативних patterns і скан залишку на тест-патерни (walking + AST). Якщо після застосування негативних patterns у tarball лишається test-style файл — `check` падає з вказівкою, який саме негативний glob треба додати у `"files"`.
 
 ## TypeScript declaration (`npm/types`)
 
@@ -55,82 +56,181 @@ bunx -p typescript tsc src/**/*.js --declaration --allowJs --emitDeclarationOnly
 
 Після додавання **`hk.pkl`**: **`hk install`**.
 
-## Версія та CHANGELOG
-
-Версію (`version` у **`npm/package.json`**) і **`npm/CHANGELOG.md`** **не редагуй вручну** — навіть для hotfix. Єдиний артефакт зміни — **change-файл** (`npx @nitra/cursor change --bump <major|minor|patch> --section <Added|Changed|Fixed|Removed> --message "<…>"`); bump `version` і генерацію секції CHANGELOG робить `n-cursor release` у CI на `main`. Будь-який ручний bump `version` поза CI завалює `check changelog` — навіть із change-файлом.
-
-Повна модель (база порівняння, інверсія шляхів, формат CHANGELOG, post-release-інваріант «верхня секція CHANGELOG == `version`») — у **`n-changelog.mdc`** (джерело істини). Це правило їй підпорядковане й власних інструкцій bump/CHANGELOG не дублює.
-
 ## npm publish
 
 **`npm-publish.yml`:** push у **`main`**, **`on.push.paths`** з **`npm/**`**, **`JS-DevTools/npm-publish@v4.1.5`**, **`with.package: npm/package.json`**, **`permissions.id-token: write`** (OIDC на npm).
 
 Workflow робить **release + publish** одним job (`release-publish`): крок **`Release (bump + CHANGELOG + tag)`** (`bunx n-cursor release` — агрегує change-файли, bump `version`, генерує секцію `CHANGELOG.md`, ставить git-тег) виконується **перед** публікацією. Тому потрібні **`permissions.contents: write`** і **`persist-credentials: true`** з **`fetch-depth: 0`** на `checkout` (release пушить commit-back версії та тег), а також локальний composite **`./.github/actions/setup-bun-deps`** і крок `Configure git identity`. Це узгоджено з **`n-changelog`**: `version`/`CHANGELOG.md` змінює лише `n-cursor release` у CI на `main`. Програмна перевірка (`npm_module.npm_publish_yml`) звіряє **весь канонічний сніпет** напряму (`target.json:"check":"template"`, generic deep-subset): усі поля й кроки сніпета (`on.push.paths`/`branches`, `concurrency`, `permissions.contents/id-token`, `checkout` з `persist-credentials/fetch-depth`, `setup-bun-deps`, `Configure git identity`, `Release`, publish-крок) **обовʼязкові**; зайві кроки/поля дозволені (subset-of), масиви матчаться за наявністю (порядок кроків не важить). Сніпет — єдине джерело істини: його редагування одразу змінює enforce, без правок rego й без міграторів.
 
-- Канон: `npm-publish.yml`:
-
-```yaml
-name: npm-publish
-
-on:
-  push:
-    paths:
-      - 'npm/**'
-    branches:
-      - main
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  release-publish:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # commit-back версії + git-тег
-      id-token: write # КРИТИЧНО для OIDC!
-
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: true # release пушить commit-back + тег
-          fetch-depth: 0
-
-      - uses: ./.github/actions/setup-bun-deps
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24' # includes npm@11.6.0
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Configure git identity
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Release (bump + CHANGELOG + tag)
-        run: bunx n-cursor release
-
-      - name: Publish package
-        uses: JS-DevTools/npm-publish@v4.1.5
-        with:
-          package: npm/package.json
-```
+- Канон: [npm-publish.yml.snippet.yml](./policy/npm_publish_yml/template/npm-publish.yml.snippet.yml)
 
 ## Канонічні конфіги
 
-- Кореневий `package.json` (workspaces): `package.json`:
+- Кореневий `package.json` (workspaces): [package.json.snippet.json](./policy/root_package_json/template/package.json.snippet.json)
+- `npm/package.json` (whitelist `files` обовʼязково має містити `types`): [package.json.snippet.json](./policy/npm_package_json/template/package.json.snippet.json)
+- `npm/tsconfig.emit-types.json` (canonical `compilerOptions` для emit-types): [tsconfig.emit-types.json.snippet.json](./policy/emit_types_config/template/tsconfig.emit-types.json.snippet.json)
 
+## Валідація `main.json` правил
+
+Кожне правило у `npm/rules/<id>/` повинно мати коректний `main.json` (метадані правила).
+
+Перевірки (`rule_meta.mjs`):
+
+- **`main.mdc` обовʼязковий** у кожному `npm/rules/<id>/` — без нього `check` падає.
+- **`auto.md` є пережитком** — якщо такий файл залишився, `check` вимагає його видалити (метадані тепер у `main.json`).
+- **`main.json` має бути валідним JSON** із коректними полями:
+  - **`auto`** (опційне): `"завжди"` / масив glob-рядків / `{ glob }` / `{ predicate }`. Якщо `predicate` вказано — він має бути зареєстрований у `RULE_PREDICATES`.
+  - **`lint`** (опційне): `"per-file"` або `"full"`. Якщо вказано — `main.mjs` повинен експортувати функцію `lint` (або `export { lint } from …`).
+
+## Валідація `main.json` скілів
+
+Кожен скіл у `npm/skills/<id>/` повинен мати коректний `main.json` (метадані скіла).
+
+Перевірки (`skill_meta.mjs`):
+
+- **`auto.md` є пережитком** — якщо такий файл залишився, `check` вимагає його видалити (метадані тепер у `main.json`).
+- **`main.json` має бути валідним JSON** із коректними полями:
+  - **`worktree`** (обовʼязкове): `boolean`. Якщо `true` — скіл запускається виключно в окремому git-worktree.
+  - **`auto`** (опційне): `"завжди"` або непорожній масив ідентифікаторів правил-тригерів.
+  - **`requireRoot`** (опційне): `boolean`. Значення `false` несумісне з `worktree: true` — таку комбінацію `check` відхиляє.
+
+## Module-level JSDoc як pointer
+
+Якщо поряд із `js/<stem>.mjs` є файл `js/docs/<stem>.md` — module-level JSDoc у `.mjs` має бути **pointer** (не більше одного непорожнього рядка), а не повноцінний наратив.
+
+Логіка перевірки (`header_doc_pointer.mjs`):
+
+- Сканується перший JSDoc-блок (`/** … */`) до першого `import`/`export` у файлі.
+- Підраховуються непорожні рядки тіла (після зрізання `*`-відступу).
+- Якщо їх більше одного — `check` падає з повідомленням про те, що `docs/<stem>.md` вже описує поведінку і module-level JSDoc має залишатись коротким.
+
+**Покриття:** `npm/rules/*/js/*.mjs` і `npm/skills/*/js/*.mjs` (не тестові файли `*.test.mjs`). Якщо `docs/<stem>.md` відсутня — обмежень на довжину JSDoc немає.
+
+**Приклад правильного pointer-JSDoc:**
+
+```js
+/** @see ./docs/package_structure.md */
+import { existsSync } from 'node:fs'
+```
+
+## Версія та CHANGELOG
+
+Версію (`version` у **`npm/package.json`**) і **`npm/CHANGELOG.md`** **не редагуй вручну** — навіть для hotfix. Єдиний артефакт зміни — **change-файл** (`npx @nitra/cursor change --bump <major|minor|patch> --section <Added|Changed|Fixed|Removed> --message "<…>"`); bump `version` і генерацію секції CHANGELOG робить `n-cursor release` у CI на `main`. Будь-який ручний bump `version` поза CI завалює `check changelog` — навіть із change-файлом.
+
+Повна модель (база порівняння, інверсія шляхів, формат CHANGELOG, post-release-інваріант «верхня секція CHANGELOG == `version`») — у **`n-changelog.mdc`** (джерело істини). Це правило їй підпорядковане й власних інструкцій bump/CHANGELOG не дублює.
+
+## Швидкий gate через conftest
+
+Rego-пакети (запускаються через `npx @nitra/cursor fix`):
+
+## Rego-gate: валідація `npm/package.json`
+
+Rego-пакет: `npm-module.npm_package_json`
+
+Цільовий файл: `npm/package.json`
+
+### Що перевіряється
+
+**Поле `types`** (логіка в rego, не template-driven):
+- Має відповідати патерну `./types/index.d.ts` або `./types/<назва>.d.ts|.d.mts`.
+- Шляхи поза директорією `types/` або з іншими розширеннями (`.ts` без `.d`) — deny.
+
+**Поле `files`** (частково template-driven):
+- Обовʼязкове, має бути непорожнім масивом.
+- Subset-of перевірка: кожне значення з канонічного сніпету має бути присутнє у `files`. За замовчуванням — `"types"` обовʼязковий.
+
+**Поле `devDependencies`** (inverse-pattern, логіка в rego):
+- Не публікуються користувачам пакета — має бути відсутнє або порожнє `{}`.
+- Наявність будь-яких devDeps → deny з переліком залежностей. Перенести у кореневий `package.json`.
+
+Канонічний сніпет `files`: [package.json.snippet.json](./template/package.json.snippet.json)
+
+FS-перевірки (наявність файлу зі шляху `types`, скан tarball на тест-патерни) — у JS-перевірці, не тут.
+
+### Приклади
+
+✓ Правильно:
+```json
+{
+  "name": "@nitra/cursor",
+  "types": "./types/bin/n-cursor.d.ts",
+  "files": ["types", "mdc", "bin", "CHANGELOG.md"],
+  "dependencies": { "oxc-parser": "^0.128.0" }
+}
+```
+
+✗ Неправильно — `types` поза директорією `types/`:
+```json
+{ "types": "./dist/index.d.ts" }
+```
+
+✗ Неправильно — `files` без `"types"`:
+```json
+{ "files": ["bin", "mdc"] }
+```
+
+✗ Неправильно — наявні `devDependencies`:
+```json
+{ "devDependencies": { "@nitra/cursor": "^1.0.0" } }
+```
+
+## Rego-gate: валідація кореневого `package.json`
+
+Rego-пакет: `npm-module.root_package_json`
+
+Цільовий файл: `package.json` (корінь репозиторію)
+
+### Що перевіряється
+
+Subset-of перевірка масиву `workspaces`: кожне значення з канонічного сніпету має бути присутнє у `workspaces`. За замовчуванням обовʼязковий елемент — `"npm"`.
+
+Якщо `workspaces` відсутнє або не є масивом — окрема deny-помилка.
+
+Канонічний сніпет: [package.json.snippet.json](./template/package.json.snippet.json)
+
+Решта перевірок кореневого `package.json` (заборонені поля, devDeps лише `@nitra/*`) — у пакеті `bun.package_json`. FS-перевірки (наявність директорії `npm/`, `npm/package.json`) — у JS.
+
+### Приклади
+
+✓ Правильно — `workspaces` містить `"npm"`:
 ```json
 { "workspaces": ["npm"] }
 ```
-- `npm/package.json` (whitelist `files` обовʼязково має містити `types`): `package.json`:
 
+✓ Правильно — `workspaces` містить `"npm"` разом з іншими:
 ```json
-{ "files": ["types"] }
+{ "workspaces": ["demo", "npm", "tests"] }
 ```
-- `npm/tsconfig.emit-types.json` (canonical `compilerOptions` для emit-types): `tsconfig.emit-types.json`:
 
+✗ Неправильно — `workspaces` відсутній:
+```json
+{ "name": "monorepo" }
+```
+
+✗ Неправильно — `workspaces` без `"npm"`:
+```json
+{ "workspaces": ["demo"] }
+```
+
+## Rego-gate: конфігурація генерації типів `npm/tsconfig.emit-types.json`
+
+Rego-пакет: `npm-module.emit_types_config`
+
+Цільовий файл: `npm/tsconfig.emit-types.json`
+
+### Що перевіряється
+
+Leaf-by-leaf порівняння з канонічним сніпетом (через `--data`): кожне поле всередині `compilerOptions` має точно відповідати очікуваному значенню. Якщо секція `compilerOptions` відсутня або не є обʼєктом — окрема deny-помилка.
+
+Канонічний сніпет: [tsconfig.emit-types.json.snippet.json](./template/tsconfig.emit-types.json.snippet.json)
+
+### Допустимі відхилення
+
+Додаткові поля у `compilerOptions` (наприклад `rootDir`, `baseUrl`) не спричиняють помилку — перевіряється лише наявність і коректність обовʼязкових ключів зі сніпету.
+
+### Приклади
+
+✓ Правильно:
 ```json
 {
   "compilerOptions": {
@@ -142,3 +242,15 @@ jobs:
   }
 }
 ```
+
+✗ Неправильно — неправильний `outDir`:
+```json
+{ "compilerOptions": { "outDir": "dist" } }
+```
+
+✗ Неправильно — відсутній `compilerOptions`:
+```json
+{}
+```
+
+- `npm_module.npm_publish_yml` — template-driven перевірка `.github/workflows/npm-publish.yml` (deep-subset: усі обовʼязкові поля й кроки з канонічного сніпету).

@@ -5,6 +5,8 @@ globs: "**/*.{css,scss,vue}"
 alwaysApply: false
 ---
 
+Правило **style** для Vue-проєктів: Quasar як стильова система, SCSS-конвенції кольорів і відступів, фікси компонентів, stylelint через `@nitra/stylelint-config`.
+
 ## Quasar як стильова основа
 
 У Vue-проектах використовуй **Quasar** як базову стильову систему:
@@ -93,94 +95,18 @@ $white-a1: color.adjust(white, $alpha: -0.85);
 
 ## Генерація та редагування стилів (Cursor і інші агенти)
 
-- **Джерело правил:** перед тим як писати або суттєво змінювати **`.css`**, **`.scss`** або стилі в **`.vue`**, переглянь у корені проєкту (і в релевантних пакетах монорепо, якщо є) поле **`stylelint`** у **`package.json`** (зокрема `extends`), наявні **`.stylelintrc.*`**, **`stylelint.config.*`** та **`.stylelintignore`**. Не покладайся на «типові» правила stylelint з пам’яті — дотримуйся **проєктного** **`@nitra/stylelint-config`** і будь-яких локальних доповнень у репозиторії.
+- **Джерело правил:** перед тим як писати або суттєво змінювати **`.css`**, **`.scss`** або стилі в **`.vue`**, переглянь у корені проєкту (і в релевантних пакетах монорепо, якщо є) поле **`stylelint`** у **`package.json`** (зокрема `extends`), наявні **`.stylelintrc.*`**, **`stylelint.config.*`** та **`.stylelintignore`**. Не покладайся на «типові» правила stylelint з пам'яті — дотримуйся **проєктного** **`@nitra/stylelint-config`** і будь-яких локальних доповнень у репозиторії.
 - **Форматування** узгоджуй з **`n-text.mdc`** (oxfmt / `.oxfmtrc.json` для css, scss тощо), щоб форматер і stylelint не суперечили один одному.
 - **Запуск stylelint:** лише через **`n-cursor lint style`** (локально — з auto-fix; у CI — `--read-only`, нуль мутацій). Під капотом — `npx stylelint`; **не** використовуй **`bunx stylelint`**. Після змін запускай **`n-cursor lint style`** і виправляй усе, що лишилось після auto-fix; за потреби — повний прогін `n-cursor lint --full`.
 - **Не розширюй винятки:** не додавай зайві **`stylelint-disable`** без потреби; краще підлаштувати стилі під правила проєкту.
 
-## Канон
+## Канон налаштувань
 
 ### `package.json`
 
-- `stylelint.extends`: `package.json`:
-
-```json
-{
-  "stylelint": {
-    "extends": "@nitra/stylelint-config"
-  }
-}
-```
+- `stylelint.extends`: [package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)
 
 Окремого `lint-style` скрипта немає — запуск через **`n-cursor lint style`** (CI — `--read-only`).
-
-### `.vscode/extensions.json`
-
-- Канон `recommendations`: `extensions.json`:
-
-```json
-{ "recommendations": ["stylelint.vscode-stylelint"] }
-```
-
-### `.vscode/settings.json`
-
-- Вимкнення вбудованої CSS-валідації VS Code: `settings.json`:
-
-```json
-{
-  "css.validate": false,
-  "less.validate": false,
-  "scss.validate": false
-}
-```
-
-### CI: `.github/workflows/lint-style.yml`
-
-- Канон: `lint-style.yml`:
-
-```yaml
-name: StyleLint
-
-on:
-  push:
-    branches:
-      - dev
-      - main
-    paths:
-      - '**/*.css'
-      - '**/*.scss'
-      - '**/*.vue'
-
-  pull_request:
-    branches:
-      - dev
-      - main
-    paths:
-      - '**/*.css'
-      - '**/*.scss'
-      - '**/*.vue'
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  stylelint:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-bun-deps
-
-      - name: StyleLint
-        run: n-cursor lint style --read-only
-```
-
-**`package.json`:**
 
 ```json title="package.json"
   "devDependencies": {
@@ -190,6 +116,24 @@ jobs:
     "extends": "@nitra/stylelint-config"
   },
 ```
+
+У корені проєкту має бути **`.stylelintignore`**:
+
+```text title=".stylelintignore"
+dist/
+```
+
+### `.vscode/extensions.json`
+
+- Канон `recommendations`: [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
+
+### `.vscode/settings.json`
+
+- Вимкнення вбудованої CSS-валідації VS Code: [settings.json.snippet.json](./policy/vscode_settings/template/settings.json.snippet.json)
+
+### CI: `.github/workflows/lint-style.yml`
+
+- Канон: [lint-style.yml.snippet.yml](./policy/lint_style_yml/template/lint-style.yml.snippet.yml)
 
 Додай **`.github/workflows/lint-style.yml`** (лише **`.yml`**, **`ga.mdc`**): після **`checkout`** — локальний composite **`setup-bun-deps`**, далі `n-cursor lint style --read-only` у кроці **`run`**. **Не** дублюй окремі кроки **`setup-node`** / **`oven-sh/setup-bun`** / кеш / **`npm install`**.
 
@@ -233,12 +177,6 @@ jobs:
 
       - name: StyleLint
         run: npx stylelint '**/*.{css,scss,vue}'
-```
-
-У корені проєкту має бути **`.stylelintignore`**:
-
-```text title=".stylelintignore"
-dist/
 ```
 
 ## Адмінські таблиці — n-admin-table
@@ -329,3 +267,72 @@ dist/
   }
 }
 ```
+
+## Швидкий gate через conftest (Rego)
+
+## GitHub Actions workflow: lint-style.yml
+
+Rego-пакет: `style_lint.lint_style_yml`
+
+Цільовий файл: `.github/workflows/lint-style.yml`
+
+Перевіряє, що у workflow є крок `run`, який містить команду `n-cursor lint style --read-only` (substring-match по всіх кроках усіх jobs). Канонічний текст береться з template через `--data`.
+
+Канонічний template: [lint-style.yml.snippet.yml](./template/lint-style.yml.snippet.yml)
+
+**✓ Правильно** — крок `run: n-cursor lint style --read-only` присутній у jobs.stylelint.steps.
+
+**✗ Неправильно** — крок відсутній або містить лише `echo nothing` / `npx stylelint` без канонічного рядка.
+
+## package.json: stylelint-конфіг та devDependencies
+
+Rego-пакет: `style_lint.package_json`
+
+Цільовий файл: `package.json`
+
+Дві незалежні перевірки:
+
+1. **snippet-walker** — якщо поле `stylelint` присутнє у `package.json`, перевіряє `stylelint.extends == "@nitra/stylelint-config"` (2-рівневий обхід через template).
+2. **presence-check** — `@nitra/stylelint-config` має бути у `devDependencies` (ця перевірка завжди активна, не залежить від template).
+
+FS-альтернативи (`.stylelintrc.*` файли) та `.stylelintignore` перевіряються у JS, не в Rego.
+
+Канонічний template: [package.json.snippet.json](./template/package.json.snippet.json)
+
+**✓ Правильно** — `devDependencies` містить `@nitra/stylelint-config`; якщо є поле `stylelint` — `extends` дорівнює `"@nitra/stylelint-config"`.
+
+**✗ Неправильно** — відсутній `@nitra/stylelint-config` у `devDependencies`; або поле `stylelint.extends` має інше значення.
+
+## .vscode/extensions.json: розширення для stylelint
+
+Rego-пакет: `style_lint.vscode_extensions`
+
+Цільовий файл: `.vscode/extensions.json`
+
+Перевіряє, що масив `recommendations` містить усі записи з канонічного template (subset-check). Додаткові розширення поза списком — дозволені.
+
+Канонічний template: [extensions.json.snippet.json](./template/extensions.json.snippet.json)
+
+**✓ Правильно** — `recommendations` містить `"stylelint.vscode-stylelint"` (може бути і більше елементів).
+
+**✗ Неправильно** — `recommendations` відсутній або не містить `"stylelint.vscode-stylelint"`.
+
+## .vscode/settings.json: вимкнення вбудованих CSS/SCSS/Less валідаторів
+
+Rego-пакет: `style_lint.vscode_settings`
+
+Цільовий файл: `.vscode/settings.json`
+
+Leaf-by-leaf walker: перевіряє кожен ключ з template — його значення у `settings.json` має точно збігатися. Додаткові ключі у файлі — дозволені.
+
+Канонічний template: [settings.json.snippet.json](./template/settings.json.snippet.json)
+
+Обов'язкові значення:
+
+- `"css.validate": false`
+- `"less.validate": false`
+- `"scss.validate": false`
+
+**✓ Правильно** — усі три ключі присутні зі значенням `false`; можуть бути й інші ключі.
+
+**✗ Неправильно** — будь-який з ключів відсутній, має значення `true` або рядок (`"off"`).

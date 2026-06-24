@@ -6,7 +6,6 @@ resource: npm/rules/rego/
 
 # npm/rules/rego
 
-| Файл                | Тип       |
-| ------------------- | --------- |
-| [fix.mjs](fix.md)   | JS Module |
+| Файл | Тип |
+|---|---|
 | [main.mjs](main.md) | JS Module |

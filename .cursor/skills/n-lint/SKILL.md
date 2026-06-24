@@ -5,7 +5,6 @@ description: >-
 ---
 
 <!-- n-cursor:worktree:start -->
-
 > [!IMPORTANT]
 > **Worktree-only skill.** Виконується **виключно** в окремому git-worktree (`.worktrees/<current-branch>-lint/`) і **не** паралелиться — один інстанс за раз.
 
@@ -33,7 +32,6 @@ cd ".worktrees/feature-x-lint"
 ```bash
 bun install
 ```
-
 <!-- n-cursor:worktree:end -->
 
 # n-lint — лінт проєкту через кореневий скрипт
@@ -84,7 +82,7 @@ bun run lint
 | **oxlint / ESLint** | `.oxlintrc.json` → `ignorePatterns`; `eslint.config.js` → `ignores`; `eslint-disable` / `oxlint-disable` у коді |
 | **інше**            | `.v8rignore`, `.stylelintignore`, `.trufflehog-exclude`, розширення `ignores` у workflow-конфігах               |
 
-Політика узгоджена з **`.cursor/rules/`** (зокрема **n-js-lint**, **n-text**): виняток допустимий лише з **обґрунтованою** причиною, не як заміна рефакторингу для справжніх клонів / дублікатів.
+Політика узгоджена з **`.cursor/rules/`** (зокрема **n-js**, **n-text**): виняток допустимий лише з **обґрунтованою** причиною, не як заміна рефакторингу для справжніх клонів / дублікатів.
 
 ### Коли обовʼязково питати користувача
 
@@ -141,7 +139,7 @@ bun run lint
 - **oxlint**: **`--threads=1`**, якщо потрібно зменшити навантаження на CPU.
 - **ESLint cache**: **`--cache`** / **`--cache-location .eslintcache`** — менше повторного читання з диска.
 
-Канонічний рядок **`lint-js`** у репозиторіях з **`check js-lint`** фіксований; додаткові прапорці — з узгодженням канону або в споживацькому проєкті окремо.
+Канонічний рядок **`lint-js`** у репозиторіях з **`check js`** фіксований; додаткові прапорці — з узгодженням канону або в споживацькому проєкті окремо.
 
 ## Примітка
 

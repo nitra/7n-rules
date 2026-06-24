@@ -5,14 +5,25 @@ alwaysApply: false
 version: '1.0'
 ---
 
-Python-проєкти ведуться **виключно** на [uv](https://docs.astral.sh/uv/) — єдиний пакет-менеджер і резолвер. **Poetry заборонено.**
+Python-проєкти ведуться **виключно** на [uv](https://docs.astral.sh/uv/) — єдиний пакет-менеджер і резолвер. **Poetry заборонено.** Середовище: `uv sync --frozen` (строго з `uv.lock`).
 
-- Метадані проєкту — у секції **`[project]`** (PEP 621), а **не** в `[tool.poetry]`.
-- Lock-файл — **`uv.lock`** (коммітиться). `poetry.lock` / `poetry.toml` мають бути відсутні.
-- Залежності: `uv add <pkg>`; dev-залежності: `uv add --dev <pkg>`.
-- Середовище: `uv sync --frozen` (строго з `uv.lock`).
+## pyproject.toml: PEP 621 і заборона Poetry
 
-`uv` / `ruff` / `mypy` **не** додаються в кореневі `devDependencies` споживача — це окремий toolchain і ставиться через `astral-sh/setup-uv` у CI або локально (як `composer` / `regal`).
+Метадані проєкту — у секції **`[project]`** (PEP 621), а **не** в `[tool.poetry]`.
+
+Обовʼязкові поля:
+- `[project].name` — назва пакета;
+- `[project].version` — статична версія;
+- `[project].requires-python` — мінімальна версія Python;
+- `[project].dependencies` — залежності (навіть порожній список).
+
+Lock-файл — **`uv.lock`** (коммітиться). `poetry.lock` / `poetry.toml` мають бути відсутні.
+
+Залежності: `uv add <pkg>`; dev-залежності: `uv add --dev <pkg>`.
+
+Канонічний цільовий вигляд `pyproject.toml`: [pyproject.toml.snippet.toml](./policy/pyproject_toml/template/pyproject.toml.snippet.toml)
+
+Заборонені під-таблиці `[tool.*]` (Poetry): [pyproject.toml.deny.toml](./policy/pyproject_toml/template/pyproject.toml.deny.toml)
 
 ## Міграція з Poetry на uv
 
@@ -21,33 +32,52 @@ Python-проєкти ведуться **виключно** на [uv](https://do
 3. Згенеруй lock: `uv lock` → `uv.lock`.
 4. Dev-залежності: `uv add --dev ruff mypy …`.
 
-Канонічний цільовий вигляд `pyproject.toml`: `pyproject.toml`:
+## Rego: python.pyproject_toml
 
-```toml
-# Канонічний цільовий вигляд після міграції з Poetry на uv (PEP 621).
-# Метадані — у [project] (а не [tool.poetry]); dev-залежності додавай через
-# `uv add --dev <pkg>` (uv тримає їх у [dependency-groups].dev або [tool.uv]).
-[project]
-name = "your-package"
-version = "0.1.0"
-requires-python = ">=3.12"
-dependencies = []
+Polисі `policy/pyproject_toml/pyproject_toml.rego` — дві групи правил:
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-```
+**1. Заборона Poetry** — перевіряє, чи є заборонені під-таблиці `[tool.*]` з `pyproject.toml.deny.toml` (drift-safe через `--data template`).
 
-Заборонені під-таблиці `[tool.*]` (Poetry): `pyproject.toml`:
+**2. PEP 621** — `[project].name` і `[project].version` мають бути непорожніми рядками.
 
-```toml
-[tool]
-poetry = "Poetry заборонено: мігруй на uv + PEP 621 [project] (python.mdc)"
-```
+## CI: `.github/workflows/lint-python.yml`
 
-## lint-python
+Канонічний workflow: [lint-python.yml.snippet.yml](./policy/lint_python_yml/template/lint-python.yml.snippet.yml)
 
-Інструменти uv-екосистеми не мають єдиного CLI, що сам обходить репозиторій, тому python-лінт делегується у JS-скрипт-обгортку. Запуск — через **`n-cursor lint python`** (CI — `--read-only`); окремого `package.json`-скрипта немає.
+Без кроків `poetry install` / `snok/install-poetry` — лише `astral-sh/setup-uv@v8.0.0` + `uv sync --frozen`.
+
+Обовʼязкові кроки:
+- `actions/checkout@v6` з `persist-credentials: false`;
+- `./.github/actions/setup-bun-deps` — встановлення JS-залежностей (для `n-cursor lint`);
+- `astral-sh/setup-uv@v8.0.0` — встановлення uv;
+- `uv sync --frozen` — встановлення Python-залежностей строго з lock-файлу;
+- `n-cursor lint python --read-only` — запуск lint (без auto-fix у CI).
+
+`uv` / `ruff` / `mypy` **не** додаються в кореневі `devDependencies` споживача — це окремий toolchain, що ставиться через `astral-sh/setup-uv` у CI або локально.
+
+## Rego: python.lint_python_yml
+
+Polісі `policy/lint_python_yml/lint_python_yml.rego` — drift-safe перевірка через `--data template`:
+
+- кожен `uses` з template має бути присутнім у workflow input;
+- кожен `run` з template має бути substring серед run-кроків input.
+
+Заборона Poetry-кроків (`snok/install-poetry`, `poetry install`) забезпечується відсутністю у каноні: правило вимагає uv-кроки, і жодних poetry-кроків у template немає.
+
+## Перевірка наявності uv-toolchain і відсутності Poetry
+
+JS-перевірка (`js/tooling.mjs`) запускається, якщо в корені репо є `pyproject.toml`. Перевіряє:
+
+- `uv.lock` — має існувати (зафіксувати командою `uv lock`);
+- `poetry.lock` / `poetry.toml` — мають **бути відсутніми** (Poetry заборонено);
+- `package.json` — має бути у корені (js-обгортка lint є частиною монорепо);
+- `.github/workflows/lint-python.yml` — має існувати (структуру перевіряє Rego-полісі `python.lint_python_yml`).
+
+Якщо `pyproject.toml` відсутній — перевірка пропускається з кодом 0 (проєкт не Python).
+
+## lint-python: JS-скрипт-обгортка
+
+Інструменти uv-екосистеми не мають єдиного CLI-обходу репо, тому python-лінт делегується у JS-скрипт-обгортку. Запуск — через **`n-cursor lint python`** (CI — `--read-only`); окремого `package.json`-скрипта немає.
 
 Скрипт `rules/python/lint/lint.mjs`:
 
@@ -58,52 +88,31 @@ poetry = "Poetry заборонено: мігруй на uv + PEP 621 [project] 
 - `uv run mypy .` — статична перевірка типів;
 - усі `ruff`/`mypy`-кроки запускаються лише якщо інструмент доступний у середовищі (інакше крок пропускається з повідомленням).
 
-## CI: `.github/workflows/lint-python.yml`
+## Швидкий gate через conftest (Rego)
 
-- Канон: `lint-python.yml`:
+## Rego-gate: перевірка `pyproject.toml`
 
-```yaml
-name: Lint Python
+Rego-пакет: `python.pyproject_toml`
 
-on:
-  push:
-    branches:
-      - dev
-      - main
-    paths:
-      - '**/*.py'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - '.github/workflows/lint-python.yml'
+Цільовий файл: `pyproject.toml`
 
-  pull_request:
-    branches:
-      - dev
-      - main
+Дві групи правил:
 
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
+**1. Заборона Poetry** — перевіряє заборонені під-таблиці `[tool.*]` за deny-template (drift-safe через `--data template`): [pyproject.toml.deny.toml](./template/pyproject.toml.deny.toml)
 
-jobs:
-  python:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
+**2. PEP 621** — `[project].name` і `[project].version` мають бути непорожніми рядками.
 
-      - uses: ./.github/actions/setup-bun-deps
+Канонічний цільовий вигляд: [pyproject.toml.snippet.toml](./template/pyproject.toml.snippet.toml)
 
-      - uses: astral-sh/setup-uv@v8.0.0
+## Rego-gate: перевірка `.github/workflows/lint-python.yml`
 
-      - name: Install dependencies (uv)
-        run: uv sync --frozen
+Rego-пакет: `python.lint_python_yml`
 
-      - name: Lint Python
-        run: n-cursor lint python --read-only
-```
+Цільовий файл: `.github/workflows/lint-python.yml`
 
-Без кроків `poetry install` / `snok/install-poetry` — лише `astral-sh/setup-uv@v8.0.0` + `uv sync --frozen`.
+Перевіряє (drift-safe через `--data template`):
+
+- кожен `uses` з канону (підмножина) присутній у workflow: `actions/checkout@v6`, `./.github/actions/setup-bun-deps`, `astral-sh/setup-uv@v8.0.0`;
+- кожен `run` з канону є substring серед run-кроків: `uv sync --frozen`, `n-cursor lint python --read-only`.
+
+Канонічний workflow: [lint-python.yml.snippet.yml](./template/lint-python.yml.snippet.yml)

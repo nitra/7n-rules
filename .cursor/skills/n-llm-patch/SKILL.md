@@ -242,7 +242,7 @@ description: >-
 
 # Обмеження
 
-- Дотриматись `.cursor/rules/n-js-lint.mdc` і `.cursor/rules/n-changelog.mdc`
+- Дотриматись `.cursor/rules/n-js.mdc` і `.cursor/rules/n-changelog.mdc`
   (зміни у workspace = change-файл, не ручний CHANGELOG/version bump).
 - Якщо `eslint ^9` офіційно не підтримує Node 25 — підняти peer range.
 

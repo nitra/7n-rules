@@ -8,5 +8,4 @@ resource: npm/rules/adr/
 
 | Файл | Тип |
 |---|---|
-| [fix.mjs](fix.md) | JS Module |
 | [main.mjs](main.md) | JS Module |

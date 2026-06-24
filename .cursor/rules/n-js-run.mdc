@@ -5,6 +5,8 @@ alwaysApply: false
 version: '1.12'
 ---
 
+Правило охоплює backend Node.js workspace-пакети (jobs, GraphQL/HTTP-сервери, CLI) — визначення меж застосування, вимоги до runtime, структуру проекту, конфігурацію, логування, підключення до БД/GraphQL і безпечне використання env-змінних.
+
 ## Область застосування
 
 Правило стосується **виключно backend Node.js workspace-пакетів** (jobs, GraphQL/HTTP-сервери, CLI). **Не застосовується** до frontend-пакетів, які бандляться в браузер: маркер — наявність `vite` у `devDependencies` пакета (`site/`, мобільні Capacitor-пакети, будь-яка Vue/Quasar SPA).
@@ -30,38 +32,13 @@ version: '1.12'
 
 Це **не** стосується поля `engines.node` (мінімальна версія Node для сумісності інструментів) і **не** стосується frontend-пакетів з `vite` у `devDependencies`.
 
-## Temporal API
+Канон заборонених патернів у `scripts`: [package.json.deny.json](./policy/package_json/template/package.json.deny.json) (`scriptsForbidden`).
+
+## Temporal API (заборона у Bun runtime)
 
 У backend/Bun runtime-коді **не використовуй `Temporal`** (`Temporal.Now`, `Temporal.Instant`, імпорти з polyfill тощо). Поточний Bun runtime ще не має глобального `Temporal` (`typeof Temporal === "undefined"`), тому агентам треба лишатися на сумісному `Date` API або передавати timestamp у чисті функції через параметр.
 
 Перевірка `npx @nitra/cursor fix js-run` сканує JS/TS AST і падає на identifier `Temporal` у backend workspace-коді.
-
-Канон заборонених патернів у `scripts`: `package.json`:
-
-```json
-{
-  "dependencies": {
-    "bunyan": "використовуй стандартні логери (js-run.mdc)",
-    "@nitra/bunyan": "використовуй стандартні логери (js-run.mdc)"
-  },
-  "devDependencies": {
-    "bunyan": "використовуй стандартні логери (js-run.mdc)",
-    "@nitra/bunyan": "використовуй стандартні логери (js-run.mdc)"
-  },
-  "scriptsForbidden": [
-    {
-      "id": "node-runner",
-      "pattern": "\\bnode(\\s|$)",
-      "message": "заміни `node` на `bun` у scripts — один runtime у dev і prod (js-run.mdc)"
-    },
-    {
-      "id": "env-cat-bun",
-      "pattern": "\\benv\\s+\\$\\(cat\\s+[^)]+\\)\\s+bun\\b",
-      "message": "заміни `env $(cat A B) bun` на `bun --env-file=A --env-file=B` (нативний Bun, js-run.mdc)"
-    }
-  ]
-}
-``` (`scriptsForbidden`).
 
 ## Структура проекту
 
@@ -92,66 +69,25 @@ readme.md
 }
 ```
 
-Канон: `jsconfig.json`:
+Канон: [jsconfig.json.snippet.json](./policy/jsconfig/template/jsconfig.json.snippet.json)
 
-```json
-{
-  "compilerOptions": {
-    "lib": ["esnext"],
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "target": "esnext",
-    "checkJs": false
-  },
-  "include": ["src/**/*"]
-}
-```
+Якщо пакет не слідує структурі з `src/` (наприклад, лише `scripts/` у корені) — ця вимога не застосовується; для типових сервісів із `src/` файл обов'язковий і має збігатися з каноном.
 
-Якщо пакет не слідує структурі з `src/` (наприклад, лише `scripts/` у корені) — ця вимога не застосовується; для типових сервісів із `src/` файл обов’язковий і має збігатися з каноном.
-
-## Використання @nitra/pino
+## Використання @nitra/pino для логування
 
 Проект використовує @nitra/pino для логування.
-Якщо в проекті присутній @nitra/bunyan, то він повинен бути замінений на @nitra/pino — як у `package.json`, так і в коді: усі `import` / `require` / динамічні `import()` з `@nitra/bunyan` (і застарілого `bunyan`) треба замінити на `@nitra/pino` і за потреби адаптувати виклики під його API. Канон заборонених `dependencies` / `devDependencies` (`bunyan`, `@nitra/bunyan`): `package.json`:
+Якщо в проекті присутній @nitra/bunyan, то він повинен бути замінений на @nitra/pino — як у `package.json`, так і в коді: усі `import` / `require` / динамічні `import()` з `@nitra/bunyan` (і застарілого `bunyan`) треба замінити на `@nitra/pino` і за потреби адаптувати виклики під його API.
 
-```json
-{
-  "dependencies": {
-    "bunyan": "використовуй стандартні логери (js-run.mdc)",
-    "@nitra/bunyan": "використовуй стандартні логери (js-run.mdc)"
-  },
-  "devDependencies": {
-    "bunyan": "використовуй стандартні логери (js-run.mdc)",
-    "@nitra/bunyan": "використовуй стандартні логери (js-run.mdc)"
-  },
-  "scriptsForbidden": [
-    {
-      "id": "node-runner",
-      "pattern": "\\bnode(\\s|$)",
-      "message": "заміни `node` на `bun` у scripts — один runtime у dev і prod (js-run.mdc)"
-    },
-    {
-      "id": "env-cat-bun",
-      "pattern": "\\benv\\s+\\$\\(cat\\s+[^)]+\\)\\s+bun\\b",
-      "message": "заміни `env $(cat A B) bun` на `bun --env-file=A --env-file=B` (нативний Bun, js-run.mdc)"
-    }
-  ]
-}
-```
+Канон заборонених `dependencies` / `devDependencies` (`bunyan`, `@nitra/bunyan`): [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
 
-В **/k8s/base/configmap.yaml повинен бути заданий OTEL_RESOURCE_ATTRIBUTES: 'service.name=<project_name>,service.namespace=<project_namespace>'
-а в директоріях з kustomize повинні бути перевизначені значення OTEL_RESOURCE_ATTRIBUTES і в них service.namespace повинен відповідати namespace, в якому знаходиться дана директорія.
+## OTEL ConfigMap (k8s)
 
-Канон обовʼязкових substring у `data.OTEL_RESOURCE_ATTRIBUTES` (`service.name=`, `service.namespace=`): `configmap.yaml`:
+В **/k8s/base/configmap.yaml** повинен бути заданий `OTEL_RESOURCE_ATTRIBUTES: 'service.name=<project_name>,service.namespace=<project_namespace>'`
+а в директоріях з kustomize повинні бути перевизначені значення `OTEL_RESOURCE_ATTRIBUTES` і в них `service.namespace` повинен відповідати namespace, в якому знаходиться дана директорія.
 
-```yaml
-data:
-  OTEL_RESOURCE_ATTRIBUTES:
-    - 'service.name='
-    - 'service.namespace='
-```
+Канон обовʼязкових substring у `data.OTEL_RESOURCE_ATTRIBUTES` (`service.name=`, `service.namespace=`): [configmap.yaml.contains.yml](./policy/configmap/template/configmap.yaml.contains.yml)
 
-## Внутрішні аліаси
+## Внутрішні аліаси для підключень до БД і GraphQL
 
 Якщо в проекті є підключення до баз даних, зовнішніх graphql на кшталт:
 
@@ -259,7 +195,11 @@ export const qlSmart = new GraphQLClient(env.SMART_QL, {
 
 Відповідно: `pg-read.mjs` → `export const pgRead = …`, `pg-write-contract.mjs` → `export const pgWriteContract = …`, `ql-contract.mjs` → `export const qlContract = …`.
 
-## CheckEnv
+Файли `index.*` у conn-каталозі пропускаються як можливий reexport-барель.
+
+## CheckEnv та заборона прямого `process.env`
+
+### CheckEnv
 
 Усі змінні оточення, які використовуються в коді, повинні бути перевірені за допомогою `checkEnv` з пакету `@nitra/check-env`. Це гарантує, що всі необхідні змінні оточення встановлені перед запуском програми.
 
@@ -273,7 +213,7 @@ export const db = new SQL({ url: env.PG_CONN })
 
 ```
 
-## process.env
+### process.env
 
 Прямий доступ до `process.env.X` у коді заборонений — його треба замінити на `env`:
 
@@ -305,4 +245,103 @@ await setTimeout(500)
 
 Імпорт `setTimeout` з `node:timers/promises` затіняє глобальний таймер у файлі — якщо в тому ж файлі потрібен callback-варіант, імпортуй його під іншим іменем (наприклад, `import { setTimeout as setTimeoutCb } from 'node:timers'`).
 
-Файли `index.*` у conn-каталозі пропускаються як можливий reexport-барель.
+## Швидкий gate через conftest
+
+Rego-пакети, які запускає `npx @nitra/cursor fix js-run` / `npx @nitra/cursor check`:
+
+## Rego-gate: package.json (залежності та scripts)
+
+Rego-пакет: `js-run.package_json`
+
+**Цільові файли:** `package.json` у backend workspace-пакетах (без `vite` у `devDependencies`)
+
+Перевіряє три класи порушень за deny-списком із template:
+
+Канон deny-списку: [package.json.deny.json](./template/package.json.deny.json)
+
+**1. Заборонені залежності** (`dependencies` / `devDependencies`)
+
+| Пакет | Причина |
+|-------|---------|
+| `bunyan` | використовуй стандартні логери |
+| `@nitra/bunyan` | використовуй стандартні логери |
+
+**2. Заборонений рантайм у `scripts`** (лише backend-пакети без `vite`)
+
+- Патерн `\bnode(\s|$)` — заміни `node` на `bun`
+- Патерн `\benv\s+\$\(cat\s+[^)]+\)\s+bun\b` — заміни `env $(cat A B) bun` на `bun --env-file=A --env-file=B`
+
+**✓ Правильно**
+
+```json
+{ "scripts": { "start": "bun src/index.js" } }
+{ "scripts": { "start": "bun --env-file=.env src/index.js" } }
+```
+
+**✗ Неправильно**
+
+```json
+{ "scripts": { "start": "node src/index.js" } }
+{ "scripts": { "start": "env $(cat .env .env.local) bun src/index.js" } }
+{ "dependencies": { "bunyan": "^1.0.0" } }
+```
+
+Пакети з `vite` у `devDependencies` — frontend, поза областю js-run, перевірка scripts не застосовується.
+
+## Rego-gate: jsconfig.json
+
+Rego-пакет: `js-run.jsconfig`
+
+**Цільові файли:** `jsconfig.json` у корені backend workspace-пакету
+
+Порівнює `jsconfig.json` з каноном через walker по всіх листах template:
+
+- `compilerOptions.*` — значення мають збігатись точно
+- `include` — масив порівнюється як множина (точний склад)
+
+Канон: [jsconfig.json.snippet.json](./template/jsconfig.json.snippet.json)
+
+Перевірені поля:
+
+| Поле | Очікуване значення |
+|------|--------------------|
+| `compilerOptions.module` | `"NodeNext"` |
+| `compilerOptions.moduleResolution` | `"NodeNext"` |
+| `compilerOptions.target` | `"esnext"` |
+| `compilerOptions.lib` | `["esnext"]` |
+| `compilerOptions.checkJs` | `false` |
+| `include` | `["src/**/*"]` |
+
+Якщо розділ `compilerOptions` відсутній або не є обʼєктом — deny.
+
+## Rego-gate: OTEL ConfigMap (k8s)
+
+Rego-пакет: `js-run.configmap`
+
+**Цільові файли:** `k8s/base/configmap.yaml` (і будь-які ConfigMap у kustomize-оверлеях)
+
+**Умова спрацювання:** `input.kind == "ConfigMap"`
+
+Перевіряє, що поле `data.OTEL_RESOURCE_ATTRIBUTES` містить усі обовʼязкові substring-маркери, визначені у template:
+
+- `service.name=`
+- `service.namespace=`
+
+Канон маркерів: [configmap.yaml.contains.yml](./template/configmap.yaml.contains.yml)
+
+**✓ Правильно**
+
+```yaml
+data:
+  OTEL_RESOURCE_ATTRIBUTES: 'service.name=my-svc,service.namespace=prod'
+```
+
+**✗ Неправильно**
+
+```yaml
+data:
+  OTEL_RESOURCE_ATTRIBUTES: 'service.name=my-svc'
+# Відсутній service.namespace= → deny
+```
+
+Ресурси типу `kind: Deployment` та інші non-ConfigMap — ігноруються.

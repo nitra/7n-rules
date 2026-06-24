@@ -142,7 +142,7 @@ function sortConfigIdArrays(config) {
 
 /**
  * Імена правил з каталогу `rules/` поточної інсталяції пакету. Кожне правило — окремий
- * підкаталог `rules/<id>/`, у якому має бути `<id>.mdc`.
+ * підкаталог `rules/<id>/`, у якому має бути `main.mdc`.
  * @param {string} [bundledRulesDir] каталог `rules/` у корені пакету
  * @returns {Promise<string[]>} відсортовані id правил (імена підкаталогів)
  */
@@ -157,11 +157,11 @@ async function discoverBundledRuleNames(bundledRulesDir = BUNDLED_RULES_DIR) {
   const entries = await readdir(bundledRulesDir, { withFileTypes: true })
   const rules = entries
     .filter(e => e.isDirectory() && !e.name.startsWith('.'))
-    .filter(e => existsSync(join(bundledRulesDir, e.name, `${e.name}.mdc`)))
+    .filter(e => existsSync(join(bundledRulesDir, e.name, 'main.mdc')))
     .map(e => e.name)
     .toSorted((a, b) => a.localeCompare(b))
   if (rules.length === 0) {
-    throw new Error(`У каталозі rules/ пакету немає підкаталогів з <id>.mdc. Створіть ${CONFIG_FILE} вручну.`)
+    throw new Error(`У каталозі rules/ пакету немає підкаталогів з main.mdc. Створіть ${CONFIG_FILE} вручну.`)
   }
   return rules
 }
@@ -407,18 +407,18 @@ function normalizeRuleName(ruleName) {
 }
 
 /**
- * Читає вміст правила з каталогу `rules/<id>/<id>.mdc` установленого пакету
- * (наприклад `node_modules/@nitra/cursor/rules/<id>/<id>.mdc` або кеш npx).
+ * Читає вміст правила з каталогу `rules/<id>/main.mdc` установленого пакету
+ * (наприклад `node_modules/@nitra/cursor/rules/<id>/main.mdc` або кеш npx).
  * @param {string} rule елемент масиву rules з `.n-cursor.json`
  * @param {string} [bundledRulesDir] каталог `rules/` у корені пакету-джерела
  * @returns {Promise<string>} текст правила для запису в `.cursor/rules/n-*.mdc`
  */
 async function readBundledRuleContent(rule, bundledRulesDir = BUNDLED_RULES_DIR) {
   const id = normalizeRuleName(rule)
-  const bundledPath = join(bundledRulesDir, id, `${id}.mdc`)
+  const bundledPath = join(bundledRulesDir, id, 'main.mdc')
   if (!existsSync(bundledPath)) {
     throw new Error(
-      `Немає файлу ${id}/${id}.mdc у ${bundledRulesDir}. Оновіть ${PACKAGE_NAME} або приберіть "${rule}" з rules у ${CONFIG_FILE}.`
+      `Немає файлу ${id}/main.mdc у ${bundledRulesDir}. Оновіть ${PACKAGE_NAME} або приберіть "${rule}" з rules у ${CONFIG_FILE}.`
     )
   }
   const text = await readFile(bundledPath, 'utf8')
@@ -1515,9 +1515,17 @@ try {
 
       break
     }
+    case 'hook': {
+      // Thin hook entrypoint для Claude Code hooks. Делегує в runLint, перекодовує exit 1→2.
+      //   --post-tool-use  PostToolUse: file_path зі stdin JSON
+      //   --stop           Stop: робоче дерево vs HEAD
+      const { runHookCli } = await import('../scripts/hook.mjs')
+      process.exitCode = await runHookCli(args)
+
+      break
+    }
     case 'post-tool-use-check': {
-      // Викликається з .claude/settings.json як PostToolUse hook Claude Code.
-      // Маршрутизує змінений файл у релевантні правила і прокидає `fix` лише з ними.
+      // @deprecated: використовуй `hook --post-tool-use`
       const code = await runPostToolUseCheckCli()
       process.exitCode = code
 
@@ -1661,7 +1669,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, post-tool-use-check, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), lint-doc-files, fix-doc-files, coverage, coverage-fix, analyze-escalation, taze, start-check, change, release, skill, trace, doc-aggregate`
+        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), fix-doc-files, coverage, coverage-fix, analyze-escalation, taze, start-check, change, release, skill, trace, doc-aggregate`
       )
       process.exitCode = 1
     }

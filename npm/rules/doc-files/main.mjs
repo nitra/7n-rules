@@ -101,8 +101,7 @@ function collectStale(files, cwd) {
  */
 export async function lint(files, cwd = process.cwd(), { readOnly = false, llmFix = false } = {}) {
   const stale = collectStale(files, cwd)
-  // Orphan-детект тільки при повному скані; при точковому (files визначено) — не релевантно
-  const orphans = files === undefined ? scanOrphanedDocs(cwd) : []
+  const orphans = scanOrphanedDocs(cwd)
 
   if (stale.length === 0 && orphans.length === 0) return 0
   if (readOnly || !llmFix) {
@@ -132,7 +131,7 @@ export async function lint(files, cwd = process.cwd(), { readOnly = false, llmFi
   }
 
   const stillStale = collectStale(files, cwd)
-  const stillOrphans = files === undefined ? scanOrphanedDocs(cwd) : []
+  const stillOrphans = scanOrphanedDocs(cwd)
   if (stillStale.length === 0 && stillOrphans.length === 0) return 0
   if (stillStale.length > 0) reportStale(stillStale)
   if (stillOrphans.length > 0) {

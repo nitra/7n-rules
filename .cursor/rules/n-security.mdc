@@ -5,22 +5,15 @@ alwaysApply: false
 version: '2.1'
 ---
 
-[TruffleHog](https://github.com/trufflesecurity/trufflehog) — глобальний CLI (як `shellcheck`, `conftest`); **не** додавай до `dependencies`/`devDependencies`.
+Правило **security** забезпечує сканування секретів через [TruffleHog](https://github.com/trufflesecurity/trufflehog) локально та на CI, а також правильне використання placeholder-значень у прикладних файлах.
 
-## Канон `package.json`
+## TruffleHog — налаштування та `.trufflehog-exclude`
+
+[TruffleHog](https://github.com/trufflesecurity/trufflehog) — глобальний CLI (як `shellcheck`, `conftest`); **не** додавай до `dependencies`/`devDependencies`.
 
 Скан запускається через `n-cursor lint security` (CI — `n-cursor lint security --read-only`); окремого `lint-*` скрипта в `package.json` немає.
 
-- Заборонено `trufflehog` у `dependencies`/`devDependencies`: `package.json`:
-
-```json
-{
-  "dependencies": { "trufflehog": "глобальний CLI — не додавай у dependencies" },
-  "devDependencies": { "trufflehog": "глобальний CLI — не додавай у devDependencies" }
-}
-```
-
-**Зауваження:**
+### Ключові прапори запуску
 
 - `trufflehog filesystem .` — сканує робоче дерево як директорію (включно з untracked/gitignored файлами); підкоманда `git file://.` лишається на CI для аудиту історії.
 - `--no-update` — вимикає self-update check (CI-friendly).
@@ -28,62 +21,13 @@ version: '2.1'
 - `--results=verified,unknown` — показує лише верифіковані секрети + ті, що TruffleHog не зміг перевірити (`unverified` дублікат відсіюється).
 - `--fail` — exit-code `183` за наявності знахідок (щоб лінт падав).
 
-## `.trufflehog-exclude` (рекомендована основа)
+### `.trufflehog-exclude` (рекомендована основа)
 
-Канон (допускає розширення): `.trufflehog-exclude`:
-
-```
-(^|/)node_modules(/|$)
-(^|/)\.git(/|$)
-(^|/)dist(/|$)
-(^|/)build(/|$)
-.*\.lock$
-.*fixtures?/.*
-```
+Канон (допускає розширення): [.trufflehog-exclude.snippet.txt](./templates/trufflehog/.trufflehog-exclude.snippet.txt)
 
 **Важливо:** один regex-pattern на рядок, без TOML-обгортки; коментарі починаються з `#`.
 
-## CI: `.github/workflows/lint-security.yml`
-
-Workflow обовʼязковий — забезпечує незалежний скан секретів на push/PR (агрегований `lint` локально + окремий fail-fast job на CI).
-
-- Канон: `lint-security.yml`:
-
-```yaml
-name: Lint Security
-
-on:
-  push:
-    branches:
-      - dev
-      - main
-
-  pull_request:
-    branches:
-      - dev
-      - main
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  security:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - uses: trufflesecurity/trufflehog@main
-        with:
-          extra_args: --results=verified,unknown
-```
-
-Перевіряється policy `security.lint_security_yml`: серед `uses:` має бути крок з `trufflesecurity/trufflehog@main`. Універсальні workflow-перевірки (checkout, permissions, persist-credentials) — у `ga.workflow_common`. Для повного скану історії потрібен `fetch-depth: 0`.
+Перевірка (JS): `js/trufflehog.mjs` — впевнюється, що файл `.trufflehog-exclude` існує в корені й містить канонічні шаблони.
 
 ## Placeholder для секретів — `sample-secret`
 
@@ -91,10 +35,53 @@ jobs:
 
 `sample-secret` містить підрядок `sample` із вшитого списку `DefaultFalsePositives` TruffleHog — таке значення сканер відсіює **гарантовано** й незалежно від версії. Bare `secret` наразі не фіксується сканером лише тому, що випадково присутнє у словнику `fp_words.txt`; це крихка поведінка, що залежить від версії інструмента.
 
+### Приклади
+
 - Правильно: `DB_PASSWORD=sample-secret`, `password: "sample-secret"`
 - Неправильно: `DB_PASSWORD=secret`, `password: "secret"`
 
-Перевіряється лише `secret` у позиції значення (після `=`, `:`, `=>`); імена ключів на кшталт `client_secret` не чіпаються. Concern `security.sample_secret` — деталі скану в `js/sample_secret.mjs`.
+### Що перевіряється
+
+Перевіряється лише `secret` у позиції значення (після `=`, `:`, `=>`); імена ключів на кшталт `client_secret` не чіпаються.
+
+Concern `security.sample_secret` (`js/sample_secret.mjs`) сканує всі прикладні файли:
+- суфікс basename'а: `.example`, `.sample`, `.template`, `.dist`
+- інфікс у basename'і: `.example.`, `.sample.`, `.template.`
+- сегмент шляху: `fixtures/`, `fixture/`, `__fixtures__/`
+
+## Rego-полісі: `package.json` і CI workflow
+
+### `security.package_json` — заборона `trufflehog` у залежностях
+
+Перевіряє, що `trufflehog` не потрапив у `dependencies` або `devDependencies` — він є глобальним CLI і не повинен бути npm-залежністю.
+
+- Канон deny-списку: [package.json.deny.json](../policy/package_json/template/package.json.deny.json)
+
+### `security.lint_security_yml` — CI workflow з TruffleHog
+
+Workflow `.github/workflows/lint-security.yml` обовʼязковий — забезпечує незалежний скан секретів на push/PR (агрегований `lint` локально + окремий fail-fast job на CI).
+
+Перевіряється, що серед `uses:` є крок з `trufflesecurity/trufflehog@main`. Універсальні workflow-перевірки (checkout, permissions, persist-credentials) — у `ga.workflow_common`. Для повного скану історії потрібен `fetch-depth: 0`.
+
+- Канон workflow: [lint-security.yml.snippet.yml](../policy/lint_security_yml/template/lint-security.yml.snippet.yml)
+
+## Швидкий gate через conftest
+
+## Заборона `trufflehog` у залежностях `package.json`
+
+Rego-пакет: `security.package_json`
+
+Цільові файли: `package.json`
+
+Перевіряє, що пакет `trufflehog` відсутній у `dependencies` та `devDependencies` — він є глобальним CLI і не має бути npm-залежністю. Список заборонених пакетів надходить через `--data` з [package.json.deny.json](./template/package.json.deny.json).
+
+## Наявність кроку TruffleHog у CI workflow
+
+Rego-пакет: `security.lint_security_yml`
+
+Цільові файли: `.github/workflows/lint-security.yml`
+
+Перевіряє, що серед `uses:` у workflow присутній крок `trufflesecurity/trufflehog@main`. Очікуваний перелік action-refs (не-`actions/*`) береться з `--data` через [lint-security.yml.snippet.yml](./template/lint-security.yml.snippet.yml). Універсальні кроки (`actions/*`) перевіряє `ga.workflow_common`.
 
 ## Перевірка
 

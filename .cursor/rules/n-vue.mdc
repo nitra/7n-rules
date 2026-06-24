@@ -7,6 +7,8 @@ alwaysApply: false
 
 # Vue 3 Composition API — правила для .cursorrules
 
+Правило охоплює стандарти написання Vue 3 SFC з Composition API, конфігурацію Vite-проєкту, UI-бібліотеки, заборонені патерни та вимоги до тестування.
+
 ## Найкращі практики Vue 3 Composition API
 
 ```javascript
@@ -21,6 +23,75 @@ const vue3CompositionApiBestPractices = [
 ]
 ```
 
+### Патерни та антипатерни
+
+- Для глибоко вкладених залежностей використовуй **composables**, **props/emits** або **store**; **renderless**-компоненти / **slots** — коли логіку відділяєш від розмітки.
+- **HTTP:** окремі модулі **services** або **composables** для API; **async/await**.
+- **Події:** батько–дитина через **emits**; для не пов'язаних гілок — **store**.
+- Не мутуй **props** напряму — оновлення через подію вгору або v-model.
+- Обмежуй зайве в глобальному стані; локальний стан у компоненті — за замовчуванням.
+- Уникай прямої роботи з **DOM**, якщо достатньо реактивного шаблону та ref.
+
+### State management
+
+- **Single source of truth** для спільних даних: у нових проєктах на Vue 3 **Pinia** (модульні stores, actions).
+- Похідний стан — через обчислення в store або **computed** у компонентах, без «тихих» побічних ефектів у getters.
+
+### Обробка помилок
+
+- **try/catch** навколо async-операцій; зрозумілі повідомлення для користувача через notifySuccess, notifyError; логування на сервіс моніторингу за потреби.
+
+### Продуктивність
+
+- **v-for** — стабільні унікальні **`:key`**; не плутай **v-if** (умовний mount) і **v-show** (перемикання visibility).
+- **debounce/throttle** для частих подій.
+- Після ручних **addEventListener** / підписок — прибирай у **onUnmounted**.
+
+### Функції в шаблоні
+
+Виклики функцій у шаблоні дозволені **лише** в обробниках подій (`@click`, `@change` тощо). У всіх інших місцях — `v-if`, `v-show`, атрибутах (`:prop`), інтерполяціях (`{{ }}`) — замінюй функції на `computed`-властивості: функція виконується при **кожному** render-і, тоді як `computed` кешується і перераховується лише при зміні залежностей.
+
+```vue
+<!-- ❌ функція в умові, атрибуті та інтерполяції -->
+<q-item v-if="getItems(order).length" :label="getLabel(item)">
+  {{ formatName(user) }}
+</q-item>
+
+<!-- ✅ реактивні змінні / computed / props -->
+<q-item v-if="itemsMap[order.id].length" :label="item.label">
+  {{ user.displayName }}
+</q-item>
+<!-- обробник події — виклик функції дозволений -->
+<q-btn @click="doSomething(item)" />
+```
+
+### Безпека
+
+- Не довіряй **v-html** без санітизації; для форм/API — **CSRF**-захист за потреби; валідація **на сервері** обов'язкова.
+
+### Приклад компонента
+
+```javascript
+// Приклад Vue 3 компонента з Composition API
+import { computed, onMounted } from 'vue'
+
+export default {
+  setup() {
+    const count = $ref(0)
+    const doubleCount = $computed(() => count * 2)
+
+    onMounted(() => {
+      console.log('Компонент змонтовано')
+    })
+
+    return {
+      count,
+      doubleCount
+    }
+  }
+}
+```
+
 ## Quasar як UI-основа
 
 У Vue-проектах використовуй **Quasar** як базовий UI-фреймворк:
@@ -29,7 +100,30 @@ const vue3CompositionApiBestPractices = [
 - **Плагіни:** `Notify`, `Dialog`, `Loading` та інші Quasar-плагіни.
 - **Кольори:** використовуй Quasar CSS-змінні (`primary`, `secondary`, `accent`, `positive`, `negative`, `warning`, `info`, `dark`) і утиліти (`text-primary`, `bg-accent` тощо).
 - **Утиліти:** flex-layout (`row`, `col`, `items-center`), spacing (`q-pa-md`, `q-mt-sm`), shadow (`shadow-2`) — зі стандартної бібліотеки Quasar.
-- **Кастомні компоненти** `@nitra/components` — **надбудова** над Quasar, а не заміна; їх слід надавати перевагу лише там, де вони є (див. розділ `@nitra/components` нижче).
+- **Кастомні компоненти** `@nitra/components` — **надбудова** над Quasar, а не заміна; їх слід надавати перевагу лише там, де вони є.
+
+## @nitra/components — надавай перевагу перед Quasar-компонентами
+
+При створенні нової функціональності використовуй компоненти `@nitra/components`, якщо логіка компонента дозволяє отримати потрібний функціонал. Заміни:
+
+| Завдання | `@nitra/components` | Замість Quasar |
+| --- | --- | --- |
+| Діалоги | `NDialog` | `q-dialog` |
+| Multi-вибір | `NSelectMulti` | `q-select` (multiple) |
+| Текстовий редактор | `NEditor` | `q-editor` |
+| Вибір дати | `NDate` | — |
+| Вибір місяця/року | `NDateMonthYear` | — |
+| Діапазон дат | `NDateRange` | — |
+| Дата і час | `NDateTime` | — |
+| Drag&drop список | `NDraggableList` | — |
+| Редаговане значення | `NEditableString` | — |
+| Повідомлення | `NCallout` | — |
+| Хедер проекту | `NHeader` | — |
+| Перемикання мов | `NLang` | — (якщо `NHeader` не використовується) |
+| Меню проекту | `NMenu` | — |
+| Зображення (масив / одиночне) | `NImages` | — |
+| Завантаження файлів | `NUploader` | — |
+| Вибір колонок `q-table` | `NTableColumns` | — |
 
 ## Структура папок
 
@@ -86,134 +180,64 @@ const additionalInstructions = `
 6. **Vue macros**: Використовуй Vue macros для більш ефективного розробки компонентів.
 7. **Vue Reactivity Transform**: Використовуй Vue Reactivity Transform для змінних в компонентах.
 
-### Патерни та антипатерни
+## Коментарі в `<template>`
 
-- Для глибоко вкладених залежностей використовуй **composables**, **props/emits** або **store**; **renderless**-компоненти / **slots** — коли логіку відділяєш від розмітки.
-- **HTTP:** окремі модулі **services** або **composables** для API; **async/await**.
-- **Події:** батько–дитина через **emits**; для не пов’язаних гілок — **store**.
-- Не мутуй **props** напряму — оновлення через подію вгору або v-model.
-- Обмежуй зайве в глобальному стані; локальний стан у компоненті — за замовчуванням.
-- Уникай прямої роботи з **DOM**, якщо достатньо реактивного шаблону та ref.
-
-### State management
-
-- **Single source of truth** для спільних даних: у нових проєктах на Vue 3 **Pinia** (модульні stores, actions)
-- Похідний стан — через обчислення в store або **computed** у компонентах, без «тихих» побічних ефектів у getters.
-
-### Обробка помилок (додатково)
-
-- **try/catch** навколо async-операцій; зрозумілі повідомлення для користувача через notifySuccess, notifyError; логування на сервіс моніторингу за потреби.
-
-### Продуктивність
-
-- **v-for** — стабільні унікальні **`:key`**; не плутай **v-if** (умовний mount) і **v-show** (перемикання visibility).
-- **debounce/throttle** для частих подій.
-- Після ручних **addEventListener** / підписок — прибирай у **onUnmounted**.
-
-### Функції в шаблоні
-
-Виклики функцій у шаблоні дозволені **лише** в обробниках подій (`@click`, `@change` тощо). У всіх інших місцях — `v-if`, `v-show`, атрибутах (`:prop`), інтерполяціях (`{{ }}`) — замінюй функції на `computed`-властивості: функція виконується при **кожному** render-і, тоді як `computed` кешується і перераховується лише при зміні залежностей.
+Додавай коментарі в `<template>` відповідно до логічного призначення блоку. Коментарі допомагають швидко орієнтуватися в розмітці.
 
 ```vue
-<!-- ❌ функція в умові, атрибуті та інтерполяції -->
-<q-item v-if="getItems(order).length" :label="getLabel(item)">
-  {{ formatName(user) }}
-</q-item>
+<template>
+  <q-page>
+    <!-- ФІЛЬТРИ В ШАПЦІ -->
+    <teleport v-if="mounted" to="#header-filters">...</teleport>
 
-<!-- ✅ реактивні змінні / computed / props -->
-<q-item v-if="itemsMap[order.id].length" :label="item.label">
-  {{ user.displayName }}
-</q-item>
-<!-- обробник події — виклик функції дозволений -->
-<q-btn @click="doSomething(item)" />
+    <!-- ТАБЛИЦЯ -->
+    <q-table ... />
+
+    <!-- ДІАЛОГ РЕДАГУВАННЯ -->
+    <n-dialog v-model="editDialog">...</n-dialog>
+  </q-page>
+</template>
 ```
 
-### Безпека
+## Pinia store для стану сторінки
 
-- Не довіряй **v-html** без санітизації; для форм/API — **CSRF**-захист за потреби; валідація **на сервері** обов’язкова.
+Зберігай у Pinia store:
 
-### Тестування
+- вибрані значення фільтрів
+- вибрані для відображення колонки (`NTableColumns`)
+- кількість записів на сторінці (pagination)
 
-- **Unit + Component / DOM:** **Vitest** (`vitest`) + **Vue Test Utils** з **happy-dom** як DOM-середовищем. Це канон, узгоджений з `test.mdc` (Stryker з vitest-runner + `perTest`-аналіз покриття). `vitest.config.mjs` повторно використовує `vite.config.js` через `mergeConfig` і перемикає `environment` на `'happy-dom'`:
-
-```js title="vitest.config.mjs"
-import { defineConfig, mergeConfig } from 'vitest/config'
-import viteConfig from './vite.config.js'
-
-export default mergeConfig(viteConfig, defineConfig({
-  test: {
-    include: ['**/*.test.{js,mjs}', 'tests/**/*.test.{js,mjs}'],
-    environment: 'happy-dom',
-    coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] }
-  }
-}))
-```
-
-`jsdom` не використовуй — happy-dom швидший і достатній для типових Vue-компонентних тестів.
-
-У `package.json#scripts` тримай `"test": "vitest run"`; vitest devDeps (`vitest`, `@vitest/coverage-v8`, `@stryker-mutator/vitest-runner`) — у кореневому `devDependencies` (npm-module rule забороняє devDeps у published workspace-у).
-
-- **E2E:** **Playwright** змістовні сценарії користувацьких потоків.
-
-### Інструменти (узгоджено з Vite і цим правилом)
-
-- Якість коду: **ESLint** + **eslint-plugin-vue**; форматування — **oxfmt**, див. `text.mdc`.
-- Збірка та dev-сервер — **Vite**
-- **Vue Devtools** для дебагу; продакшен-збірка — **`vite build`**, оптимізація асетів і кешування на рівні деплою / CDN.
-- **esbuild заборонено:** у проєкті не має бути залежності `esbuild` і згадок `esbuild` у конфігах/коді. Якщо десь є налаштування або інструкції під `esbuild` — заміни на **rolldown**.
-
-### CI/CD
-
-- У pipeline: **install**, **lint**, **test**, **vite build**; артефакти з продакшен-режиму.
-
-### Приклад
+Називай store за назвою сторінки або компонента — `customerPageStore`, `routePageStore` тощо. На сторінці звертайся до нього через змінну `pageStore`.
 
 ```javascript
-// Приклад Vue 3 компонента з Composition API
-import { computed, onMounted } from 'vue'
-
-export default {
-  setup() {
-    const count = $ref(0)
-    const doubleCount = $computed(() => count * 2)
-
-    onMounted(() => {
-      console.log('Компонент змонтовано')
-    })
-
-    return {
-      count,
-      doubleCount
-    }
-  }
-}
+// store/customerPage.mjs
+export const useCustomerPageStore = defineStore('customerPage', {
+  state: () => ({
+    filterName: '',
+    filterStatus: [],
+    columns: [],
+    rowsPerPage: 20
+  })
+})
 ```
 
-в файлі .vscode/extensions.json є налаштування для Vue:
-
-```json title=".vscode/extensions.json"
-{
-  "recommendations": ["Vue.volar"]
-}
+```vue
+<script setup>
+const pageStore = useCustomerPageStore()
+</script>
 ```
 
-мінімальний повний `package.json` для Vite + Vue + `vue-macros` (версії підлаштуй під проєкт):
+## Vite-конфігурація: VueMacros, AutoImport, Layouts
 
-```json title="package.json"
-{
-  "name": "my-vue-app",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "vue": "^3.6.12"
-  },
-  "devDependencies": {
-    "vite": "^8.0.0",
-    "@vitejs/plugin-vue": "^6.0.0",
-    "vue-macros": "^3.1.2"
-  }
-}
-```
+Потрібно використовувати **Vite версії 8 та вище** для frontend проекту на Vue.
+
+Потрібно використовувати **`unplugin-auto-import`** для автоматичного імпортування компонентів, composables, utils та інших функцій і прибирати з файлів усередині Vite проектів відповідні ручні імпорти, зокрема рядки виду `import { … } from 'vue'` — API Vue (`ref`, `computed`, `watch` тощо) мають підставлятися через auto-import, а не дублюватися явним імпортом з модуля `vue`.
+
+**Виняток — бібліотеки компонентів (`vue` у `peerDependencies`).** Увесь стек auto-import застосовується лише коли `vue` підключено як звичайну `dependencies`. Якщо ж пакет оголошує `vue` у `peerDependencies` — це проєкт-бібліотека компонентів: його джерела споживаються Vite-додатками і **не** проходять через `unplugin-auto-import` споживача. Тому до таких пакетів **не** застосовуються: заборона явних `import { ref, computed, … } from 'vue'` (вони обовʼязкові), вимога `'vue'` у `AutoImport.imports`, а також вимоги наявності `VueMacros` / `AutoImport` у `vite.config`. Решта перевірок (заборона `esbuild`, `process.env.npm_lifecycle_event` тощо) лишаються. Тригер винятку — `isVueComponentLibraryPkg` у `npm/rules/vue/js/packages.mjs`.
+
+Потрібно використовувати **`vite-plugin-vue-layouts-next`** для автоматичного імпортування layout компонентів.
+
+### Еталонний `vite.config.js`
 
 ```javascript title="vite.config.js"
 import Vue from '@vitejs/plugin-vue'
@@ -257,11 +281,84 @@ export default defineConfig({
 })
 ```
 
+### Перевірка `npm_lifecycle_event` (Bun-сумісність)
+
+У більшості проектів у файлі `vite.config.js` є конструкція виду:
+
+```javascript
+switch (process.env.npm_lifecycle_event) {
+  case 'start-remote-tr': {
+```
+
+Вона перестала працювати з новим Bun. Тепер її треба обрамити у функцію і передавати `mode`:
+
+```javascript title="vite.config.js"
+function getProxy(mode) {
+  const proxy = {}
+
+  switch (mode) {
+    case 'remote-tr': {
+      proxy['^/auth/.*'] = 'https://tr.efes.cloud'
+      proxy['/file-link/'] = 'https://tr.efes.cloud'
+      break
+    }
+    default: {
+      proxy['^/auth/.*'] = 'https://dev.efes.cloud'
+      proxy['/file-link/'] = 'https://dev.efes.cloud'
+    }
+  }
+  return proxy
+}
+```
+
+```javascript title="vite.config.js"
+export default defineConfig(({ mode, command }) => {
+  // ...
+  server: {
+    proxy: getProxy(mode)
+  }
+})
+```
+
+### esbuild заборонено
+
+У проєкті не має бути залежності `esbuild` і згадок `esbuild` у конфігах/коді. Якщо десь є налаштування або інструкції під `esbuild` — заміни на **rolldown**.
+
+### Еталонний `package.json`
+
+мінімальний повний `package.json` для Vite + Vue + `vue-macros` (версії підлаштуй під проєкт):
+
+```json title="package.json"
+{
+  "name": "my-vue-app",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "vue": "^3.6.12"
+  },
+  "devDependencies": {
+    "vite": "^8.0.0",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "vue-macros": "^3.1.2"
+  }
+}
+```
+
+### VS Code розширення
+
+У файлі `.vscode/extensions.json` потрібна рекомендація для Vue:
+
+```json title=".vscode/extensions.json"
+{
+  "recommendations": ["Vue.volar"]
+}
+```
+
 ## Vite client types (Volar, імпорти асетів)
 
-Без типів **Vite** редактор (Volar / TypeScript) не знає, що імпорт статичного файлу (`import url from './hero.avif'`, `*.png`, `*.svg` тощо) відповідає модулю з `string` URL. Тоді у `.vue` з’являється помилка на кшталт **Cannot find module '…' or its corresponding type declarations**.
+Без типів **Vite** редактор (Volar / TypeScript) не знає, що імпорт статичного файлу (`import url from './hero.avif'`, `*.png`, `*.svg` тощо) відповідає модулю з `string` URL. Тоді у `.vue` з'являється помилка на кшталт **Cannot find module '…' or its corresponding type declarations**.
 
-У **кожному** workspace-пакеті з **Vue + Vite** обов’язково:
+У **кожному** workspace-пакеті з **Vue + Vite** обов'язково:
 
 1. **`src/vite-env.d.ts`** — рівно з посиланням на клієнтські типи Vite (одного рядка достатньо):
 
@@ -296,67 +393,53 @@ export default defineConfig({
 
 **Не** звужуй без потреби **`compilerOptions.types`** до `["vite/client"]`: це може відрізати інші пакети з `@types` і зламати інші підказки. Достатньо `/// <reference types="vite/client" />` у `vite-env.d.ts` і коректного `include`.
 
-## Тести
+## Статичні файли — BASE_URL
 
-Проекту повинен бути покритий тестами E2E за допомогою Playwright.
+Для підключення статичних файлів не використовуй відносні шляхи. Завжди будуй URL через `import.meta.env.BASE_URL`:
 
-### Висновок
+```vue
+<!-- Погано -->
+<img src="/logo.png" />
+<img src="./assets/logo.png" />
 
-Дотримуючись цих практик і правил, можна будувати масштабовані, підтримувані та ефективні застосунки на Vue 3 з Composition API. Завжди звіряйся з офіційною документацією Vue 3 щодо оновлень і нових можливостей.
-
-Потрібно використовувати Vite версії 8 та вище для frontend проекту на Vue.
-
-Потрібно використовувати unplugin-auto-import для автоматичного імпортування компонентів, composables, utils та інших функцій і прибирати з файлів усередині Vite проектів відповідні ручні імпорти, зокрема рядки виду `import { … } from 'vue'` — API Vue (`ref`, `computed`, `watch` тощо) мають підставлятися через auto-import, а не дублюватися явним імпортом з модуля `vue`.
-
-**Виняток — бібліотеки компонентів (`vue` у `peerDependencies`).** Увесь стек auto-import застосовується лише коли `vue` підключено як звичайну `dependencies`. Якщо ж пакет оголошує `vue` у `peerDependencies` — це проєкт-бібліотека компонентів: його джерела споживаються Vite-додатками і **не** проходять через `unplugin-auto-import` споживача (auto-import резолвиться лише в коді самого додатка, не в `node_modules`). Тому до таких пакетів **не** застосовуються: заборона явних `import { ref, computed, … } from 'vue'` (вони обовʼязкові), вимога `'vue'` у `AutoImport.imports`, а також вимоги наявності `VueMacros` / `AutoImport` у `vite.config`. Решта перевірок (заборона `esbuild`, `process.env.npm_lifecycle_event` тощо) лишаються. Тригер винятку — `isVueComponentLibraryPkg` у `npm/rules/vue/js/packages.mjs`.
-
-Потрібно використовувати vite-plugin-vue-layouts-next для автоматичного імпортування layout компонентів.
-
-## npm_lifecycle_event
-
-у більшості проектів в файлі vite.config.js
-є  конструкція виду
-
-switch (process.env.npm_lifecycle_event) {
-  case 'start-remote-tr': {
-
-вона перестала працювати з новим Bun (і за цього не буде працювати bun start-remote-dev та інші)
-
-і тепер її нада обрамити в функцію, наприклад
-
-```javascript title="vite.config.js"
-function getProxy(mode) {
-  const proxy = {}
-
-  switch (mode) {
-    case 'remote-tr': {
-      proxy['^/auth/.*'] = 'https://tr.efes.cloud'
-      proxy['/file-link/'] = 'https://tr.efes.cloud'
-      break
-    }
-    default: {
-      proxy['^/auth/.*'] = 'https://dev.efes.cloud'
-      proxy['/file-link/'] = 'https://dev.efes.cloud'
-    }
-  }
-  return proxy
-}
+<!-- Добре -->
+<img :src="baseUrl + 'logo.png'" />
 ```
 
-і викликати всередині
-
-```javascript title="vite.config.js"
-export default defineConfig(({ mode, command }) => {
-...
-   server: {
-      proxy: getProxy(mode)
-    }
+```javascript
+const baseUrl = import.meta.env.BASE_URL
 ```
+
+## Заборона явних value-імпортів з `vue`
+
+Потрібно використовувати `unplugin-auto-import` для автоматичного імпортування Vue API. Коли `'vue'` додано до `AutoImport.imports` у `vite.config`, явні value-імпорти вигляду `import { ref, computed } from 'vue'` у файлах додатка **заборонені** — API Vue підставляється автоматично.
+
+Дозволені лише:
+- side-effect: `import 'vue'`
+- type-only: `import type { … } from 'vue'` або `import { type Foo } from 'vue'`
+
+```vue
+<!-- ❌ заборонено (auto-import покриває) -->
+<script setup>
+import { ref, computed, watch, onMounted } from 'vue'
+</script>
+
+<!-- ✅ дозволено — не потрібен ручний імпорт -->
+<script setup>
+const count = $ref(0)
+const doubled = $computed(() => count * 2)
+onMounted(() => { /* ... */ })
+</script>
+```
+
+**Виняток:** бібліотеки компонентів (`vue` у `peerDependencies`) — їхні джерела не проходять через `unplugin-auto-import` споживача, тому явні `import { ref } from 'vue'` там обовʼязкові. Визначається через `isVueComponentLibraryPkg` у `npm/rules/vue/js/packages.mjs`.
+
+Перевірка виконується через **oxc-parser** (`module.staticImports`) у `npm/rules/vue/lib/vue-forbidden-imports.mjs`, функція `findForbiddenVueImportsInSourceFile`. Для `.vue` — лише вміст `<script>` тегів, `<template>` ігнорується.
 
 ## Заборонено імпортувати Node-нативні модулі у `.vue` SFC
 
 Vue SFC виконується у браузері, тож API Node.js там недоступне. У `<script>` (включно з `<script setup>`)
-заборонено будь-які імпорти вбудованих модулів Node — як з префіксом `node:`, так і bare-ім’ям модуля
+заборонено будь-які імпорти вбудованих модулів Node — як з префіксом `node:`, так і bare-ім'ям модуля
 (включно з підшляхами):
 
 ```vue title="погано — ламає білд"
@@ -375,28 +458,42 @@ import path from 'node:path'
 Правило стосується саме `.vue` файлів. Допоміжні `.ts`/`.js` модулі, які споживаються лише server-side
 (наприклад, окремий пакет утіліт), можуть імпортувати Node-built-ins без обмежень.
 
-## @nitra/components — надавай перевагу перед Quasar-компонентами
+Перевірка реалізована у `npm/rules/vue/lib/vue-forbidden-imports.mjs` через функцію
+`findForbiddenNodeImportsInVueFile` — аналізує лише `<script>` блоки SFC через **oxc-parser**,
+ігноруючи `<template>`.
 
-При створенні нової функціональності використовуй компоненти `@nitra/components`, якщо логіка компонента дозволяє отримати потрібний функціонал. Заміни:
+## Тестування Vue-компонентів
 
-| Завдання | `@nitra/components` | Замість Quasar |
-| --- | --- | --- |
-| Діалоги | `NDialog` | `q-dialog` |
-| Multi-вибір | `NSelectMulti` | `q-select` (multiple) |
-| Текстовий редактор | `NEditor` | `q-editor` |
-| Вибір дати | `NDate` | — |
-| Вибір місяця/року | `NDateMonthYear` | — |
-| Діапазон дат | `NDateRange` | — |
-| Дата і час | `NDateTime` | — |
-| Drag&drop список | `NDraggableList` | — |
-| Редаговане значення | `NEditableString` | — |
-| Повідомлення | `NCallout` | — |
-| Хедер проекту | `NHeader` | — |
-| Перемикання мов | `NLang` | — (якщо `NHeader` не використовується) |
-| Меню проекту | `NMenu` | — |
-| Зображення (масив / одиночне) | `NImages` | — |
-| Завантаження файлів | `NUploader` | — |
-| Вибір колонок `q-table` | `NTableColumns` | — |
+### Unit + Component / DOM
+
+**Vitest** (`vitest`) + **Vue Test Utils** з **happy-dom** як DOM-середовищем. Це канон, узгоджений з `test.mdc` (Stryker з vitest-runner + `perTest`-аналіз покриття). `vitest.config.mjs` повторно використовує `vite.config.js` через `mergeConfig` і перемикає `environment` на `'happy-dom'`:
+
+```js title="vitest.config.mjs"
+import { defineConfig, mergeConfig } from 'vitest/config'
+import viteConfig from './vite.config.js'
+
+export default mergeConfig(viteConfig, defineConfig({
+  test: {
+    include: ['**/*.test.{js,mjs}', 'tests/**/*.test.{js,mjs}'],
+    environment: 'happy-dom',
+    coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] }
+  }
+}))
+```
+
+`jsdom` не використовуй — happy-dom швидший і достатній для типових Vue-компонентних тестів.
+
+У `package.json#scripts` тримай `"test": "vitest run"`; vitest devDeps (`vitest`, `@vitest/coverage-v8`, `@stryker-mutator/vitest-runner`) — у кореневому `devDependencies` (npm-module rule забороняє devDeps у published workspace-у).
+
+### E2E
+
+**Playwright** — змістовні сценарії користувацьких потоків.
+
+Проекту повинен бути покритий тестами E2E за допомогою Playwright.
+
+### CI/CD
+
+У pipeline: **install**, **lint**, **test**, **vite build**; артефакти з продакшен-режиму.
 
 ## NHeader — телепорт-слоти на сторінках
 
@@ -466,33 +563,6 @@ import path from 'node:path'
 <script setup>
 const mounted = $ref(false)
 onMounted(() => { mounted = true })
-</script>
-```
-
-## @nitra/tfm — переклади
-
-Використовуй `@nitra/tfm` для всіх текстів. Переклади для всіх мов проекту оголошуй наприкінці `<script setup>` у функції `getTr()`. Змінна `lang` із `@nitra/tfm` — для визначення або зміни поточної мови застосунку.
-
-```vue
-<template>
-  {{ lang }}
-  {{ t`Анкеты` }}
-  {{ subtitle }}
-</template>
-<script setup>
-import { lang, tf as tfm } from '@nitra/tfm'
-const t = tfm.bind({ tr: getTr() })
-const subtitle = $computed(() => t`Анкеты`)
-
-/**
- * LOCALIZATION
- * @returns {object} translations
- */
-function getTr() {
-  return {
-    Анкеты: { en: 'Surveys', ro: 'Sondaje', tr: 'Anketler' }
-  }
-}
 </script>
 ```
 
@@ -597,70 +667,68 @@ function getTr() {
 </script>
 ```
 
-## Pinia store для стану сторінки
+## @nitra/tfm — переклади
 
-Зберігай у Pinia store:
-
-- вибрані значення фільтрів
-- вибрані для відображення колонки (`NTableColumns`)
-- кількість записів на сторінці (pagination)
-
-Називай store за назвою сторінки або компонента — `customerPageStore`, `routePageStore` тощо. На сторінці звертайся до нього через змінну `pageStore`.
-
-```javascript
-// store/customerPage.mjs
-export const useCustomerPageStore = defineStore('customerPage', {
-  state: () => ({
-    filterName: '',
-    filterStatus: [],
-    columns: [],
-    rowsPerPage: 20
-  })
-})
-```
-
-```vue
-<script setup>
-const pageStore = useCustomerPageStore()
-</script>
-```
-
-## Коментарі в `<template>`
-
-Додавай коментарі в `<template>` відповідно до логічного призначення блоку. Коментарі допомагають швидко орієнтуватися в розмітці.
+Використовуй `@nitra/tfm` для всіх текстів. Переклади для всіх мов проекту оголошуй наприкінці `<script setup>` у функції `getTr()`. Змінна `lang` із `@nitra/tfm` — для визначення або зміни поточної мови застосунку.
 
 ```vue
 <template>
-  <q-page>
-    <!-- ФІЛЬТРИ В ШАПЦІ -->
-    <teleport v-if="mounted" to="#header-filters">...</teleport>
-
-    <!-- ТАБЛИЦЯ -->
-    <q-table ... />
-
-    <!-- ДІАЛОГ РЕДАГУВАННЯ -->
-    <n-dialog v-model="editDialog">...</n-dialog>
-  </q-page>
+  {{ lang }}
+  {{ t`Анкеты` }}
+  {{ subtitle }}
 </template>
+<script setup>
+import { lang, tf as tfm } from '@nitra/tfm'
+const t = tfm.bind({ tr: getTr() })
+const subtitle = $computed(() => t`Анкеты`)
+
+/**
+ * LOCALIZATION
+ * @returns {object} translations
+ */
+function getTr() {
+  return {
+    Анкеты: { en: 'Surveys', ro: 'Sondaje', tr: 'Anketler' }
+  }
+}
+</script>
 ```
 
-## Статичні файли — BASE_URL
+## Швидкий gate через conftest
 
-Для підключення статичних файлів не використовуй відносні шляхи. Завжди будуй URL через `import.meta.env.BASE_URL`:
+Rego-перевірки (запускаються через `npx @nitra/cursor fix vue`):
 
-```vue
-<!-- Погано -->
-<img src="/logo.png" />
-<img src="./assets/logo.png" />
+## Залежності Vue+Vite пакета — канонічний набір і заборони
 
-<!-- Добре -->
-<img :src="baseUrl + 'logo.png'" />
+Rego-пакет: `vue.package_json`
+
+Цільові файли: `**/package.json`
+
+Перевірка активна лише якщо у `dependencies` присутній `vue`.
+
+**Обов'язкові залежності:**
+
+- `devDependencies.vite` — мажорна версія ≥ 8
+- `devDependencies.@vitejs/plugin-vue`
+- `vue-macros` (dependencies або devDependencies)
+- `unplugin-auto-import` (dependencies або devDependencies)
+- `vite-plugin-vue-layouts-next` (dependencies або devDependencies)
+
+**Заборонені залежності (у будь-якій групі):**
+
+- `esbuild` — замінено на rolldown
+- `vitest` — замінено на Bun Test Runner (`bun test`)
+- `jsdom` — замінено на happy-dom
+
+Приклади:
+
+```
+✓ "devDependencies": { "vite": "^8.0.0", "@vitejs/plugin-vue": "^6.0.0", "vue-macros": "^3.0.0", "unplugin-auto-import": "^20.0.0", "vite-plugin-vue-layouts-next": "^1.0.0" }
+✗ "devDependencies": { "vite": "^7.0.0", "esbuild": "^0.25.0", "vitest": "^3.0.0", "jsdom": "^25.0.0" }
 ```
 
-```javascript
-const baseUrl = import.meta.env.BASE_URL
-```
+Пакети без `vue` у `dependencies` — ігноруються повністю.
 
 ## Перевірка
 
-`npx @nitra/cursor fix vue` — перевіряє залежності, `vite.config`, наявність **`src/vite-env.d.ts`** з `/// <reference types="vite/client" />` та **`jsconfig.json`** у корені Vue-пакета; обходить джерела Vue-пакета (`.vue`, `.ts`, `.js` тощо) на заборонені value-імпорти з модуля `vue` (дозволені лише type-only та side-effect `import 'vue'`) і додатково сканує `.vue` SFC на імпорти Node-нативних модулів (`node:*` префікс або bare-ім’я вбудованого модуля Node — `fs`, `path`, `timers/promises` тощо). Імпорти аналізуються через **oxc-parser** (`module.staticImports`); для `.vue` вміст `<script>` витягується з SFC, далі той самий парсер (логіка в `npm/rules/vue/js/packages/vue-forbidden-imports.mjs`).
+`npx @nitra/cursor fix vue` — перевіряє залежності, `vite.config`, наявність **`src/vite-env.d.ts`** з `/// <reference types="vite/client" />` та **`jsconfig.json`** у корені Vue-пакета; обходить джерела Vue-пакета (`.vue`, `.ts`, `.js` тощо) на заборонені value-імпорти з модуля `vue` (дозволені лише type-only та side-effect `import 'vue'`) і додатково сканує `.vue` SFC на імпорти Node-нативних модулів (`node:*` префікс або bare-ім'я вбудованого модуля Node — `fs`, `path`, `timers/promises` тощо). Імпорти аналізуються через **oxc-parser** (`module.staticImports`); для `.vue` вміст `<script>` витягується з SFC, далі той самий парсер (логіка в `npm/rules/vue/js/packages/vue-forbidden-imports.mjs`).

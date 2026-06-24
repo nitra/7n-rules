@@ -8,8 +8,7 @@
     "doc-files",
     "feedback",
     "ga",
-    "js-lint",
-    "js-lint-ci",
+    "js",
     "js-run",
     "npm-module",
     "python",
@@ -22,8 +21,18 @@
     "vue",
     "worktree"
   ],
-  "ignore": [".claude/worktrees"],
-  "disable-rules": ["docker", "flow", "image-avif", "image-compress", "js-bun-db", "k8s", "nginx-default-tpl"],
+  "ignore": [
+    ".claude/worktrees"
+  ],
+  "disable-rules": [
+    "docker",
+    "flow",
+    "image-avif",
+    "image-compress",
+    "js-bun-db",
+    "k8s",
+    "nginx-default-tpl"
+  ],
   "skills": [
     "adr-normalize",
     "coverage-fix",

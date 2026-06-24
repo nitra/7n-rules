@@ -29,7 +29,7 @@ version: '1.0'
 Кожен пункт — за схемою:
 
 - **target** — `rule` | `skill` | `check`
-- **id** — який саме (`lint`, `text`, `js-lint`, …)
+- **id** — який саме (`lint`, `text`, `js`, …)
 - **kind** — `ambiguous-doc` | `missing-check` | `false-positive` | `no-autofix` | `recurring-pattern`
 - **evidence** — конкретний `файл:рядок` або вивід команди з цього запуску
 - **suggestion** — запропонована зміна
@@ -42,8 +42,8 @@ version: '1.0'
 - skill `n-lint`, `ambiguous-doc` — крок 2 не каже, як діяти при частковому autofix
   evidence: `oxlint --fix` лишив 3 no-autofix-помилки
   suggestion: додати в SKILL.md підпункт про частковий autofix
-- rule `js-lint`, `missing-check` — немає програмної перевірки jscpd-порогу
-  evidence: jscpd впав, але `check js-lint` цього не ловить
+- rule `js`, `missing-check` — немає програмної перевірки jscpd-порогу
+  evidence: jscpd впав, але `check js` цього не ловить
 ```
 
 ## Ефемерність — обовʼязково

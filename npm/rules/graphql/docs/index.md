@@ -6,7 +6,6 @@ resource: npm/rules/graphql/
 
 # npm/rules/graphql
 
-| Файл                | Тип       |
-| ------------------- | --------- |
-| [fix.mjs](fix.md)   | JS Module |
+| Файл | Тип |
+|---|---|
 | [main.mjs](main.md) | JS Module |

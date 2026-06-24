@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx --no @nitra/cursor lint-doc-files --git",
+            "command": "npx --no @nitra/cursor hook --stop",
             "timeout": 120
           }
         ]
@@ -51,18 +51,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx --no @nitra/cursor post-tool-use-check",
+            "command": "npx --no @nitra/cursor hook --post-tool-use",
             "timeout": 300
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "npx --no @nitra/cursor lint-doc-files --hook",
-            "timeout": 120
           }
         ]
       }

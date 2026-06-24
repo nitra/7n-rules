@@ -42,4 +42,3 @@ resource: npm/scripts/lib/
 | [timing-summary.mjs](timing-summary.md) | JS Module |
 | [workspaces.mjs](workspaces.md) | JS Module |
 | [worktree-notice.mjs](worktree-notice.md) | JS Module |
-| [worktree.mjs](worktree.md) | JS Module |

@@ -3,7 +3,6 @@
 ## Захищені директорії
 
 Ніколи не змінюй, не видаляй і не створюй файли у цих директоріях:
-
 - `.claude/worktrees/`
 
 @.cursor/rules/conftest.mdc
@@ -15,9 +14,8 @@
 @.cursor/rules/n-doc-files.mdc
 @.cursor/rules/n-feedback.mdc
 @.cursor/rules/n-ga.mdc
-@.cursor/rules/n-js-lint-ci.mdc
-@.cursor/rules/n-js-lint.mdc
 @.cursor/rules/n-js-run.mdc
+@.cursor/rules/n-js.mdc
 @.cursor/rules/n-npm-module.mdc
 @.cursor/rules/n-python.mdc
 @.cursor/rules/n-rego.mdc
