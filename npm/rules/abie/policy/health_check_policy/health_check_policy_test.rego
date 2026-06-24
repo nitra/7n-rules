@@ -9,7 +9,7 @@ import data.abie.health_check_policy
 valid_hcp := {
 	"apiVersion": "networking.gke.io/v1",
 	"kind": "HealthCheckPolicy",
-	"metadata": {"name": "api"},
+	"metadata": {"name": "api", "namespace": "dev"},
 	"spec": {
 		"default": {"config": {
 			"type": "HTTP",
@@ -36,6 +36,18 @@ test_deny_wrong_api_version if {
 
 test_deny_empty_name if {
 	bad := json.patch(valid_hcp, [{"op": "replace", "path": "/metadata/name", "value": ""}])
+	count(health_check_policy.deny) > 0 with input as bad
+}
+
+# ── metadata.namespace ────────────────────────────────────────────────────
+
+test_deny_wrong_namespace if {
+	bad := json.patch(valid_hcp, [{"op": "replace", "path": "/metadata/namespace", "value": "ua"}])
+	count(health_check_policy.deny) > 0 with input as bad
+}
+
+test_deny_missing_namespace if {
+	bad := json.patch(valid_hcp, [{"op": "remove", "path": "/metadata/namespace"}])
 	count(health_check_policy.deny) > 0 with input as bad
 }
 
@@ -77,6 +89,11 @@ test_deny_port_not_8080 if {
 	count(health_check_policy.deny) > 0 with input as bad
 }
 
+test_deny_missing_port if {
+	bad := json.patch(valid_hcp, [{"op": "remove", "path": "/spec/default/config/httpHealthCheck/port"}])
+	count(health_check_policy.deny) > 0 with input as bad
+}
+
 # ── targetRef ─────────────────────────────────────────────────────────────
 
 test_deny_target_ref_kind_not_service if {
@@ -86,6 +103,11 @@ test_deny_target_ref_kind_not_service if {
 
 test_deny_target_ref_name_without_hl if {
 	bad := json.patch(valid_hcp, [{"op": "replace", "path": "/spec/targetRef/name", "value": "api"}])
+	count(health_check_policy.deny) > 0 with input as bad
+}
+
+test_deny_target_ref_group_non_empty if {
+	bad := json.patch(valid_hcp, [{"op": "replace", "path": "/spec/targetRef/group", "value": "v1"}])
 	count(health_check_policy.deny) > 0 with input as bad
 }
 

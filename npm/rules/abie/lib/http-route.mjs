@@ -27,6 +27,9 @@ function checkSharedBackendRef(br, rel, errors) {
   if (typeof brRec.namespace !== 'string' || brRec.namespace !== 'dev') {
     errors.push(`${rel}: HTTPRoute backendRefs до ${name} має містити namespace: dev (abie.mdc)`)
   }
+  if (brRec.port !== 8080) {
+    errors.push(`${rel}: HTTPRoute backendRefs до ${name} має містити port: 8080 (abie.mdc)`)
+  }
   return 1
 }
 

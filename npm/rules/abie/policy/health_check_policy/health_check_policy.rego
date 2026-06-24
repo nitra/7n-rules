@@ -61,6 +61,15 @@ deny contains "HealthCheckPolicy: metadata.name має бути непорожн
 	trim_space(name) == ""
 }
 
+# ── deny: metadata.namespace ──────────────────────────────────────────────
+
+deny contains msg if {
+	is_health_check_policy
+	ns := object.get(object.get(input, "metadata", {}), "namespace", "")
+	ns != "dev"
+	msg := sprintf("HealthCheckPolicy: metadata.namespace має бути dev (зараз %q) (abie.mdc)", [ns])
+}
+
 # ── deny: spec.default.config.type ────────────────────────────────────────
 
 deny contains "HealthCheckPolicy: spec.default.config.type має бути HTTP (abie.mdc)" if {
@@ -87,6 +96,12 @@ deny contains msg if {
 
 # ── deny: port == 8080 ────────────────────────────────────────────────────
 
+deny contains "HealthCheckPolicy: spec.default.config.httpHealthCheck.port має бути 8080 (abie.mdc)" if {
+	is_health_check_policy
+	is_object(http_health_check)
+	object.get(http_health_check, "port", null) == null
+}
+
 deny contains msg if {
 	is_health_check_policy
 	is_object(http_health_check)
@@ -106,6 +121,18 @@ deny contains msg if {
 	kind != ""
 	kind != "Service"
 	msg := sprintf("HealthCheckPolicy: targetRef.kind має бути Service (зараз %q) (abie.mdc)", [kind])
+}
+
+# ── deny: targetRef.group == '' ───────────────────────────────────────────
+
+deny contains msg if {
+	is_health_check_policy
+	target_ref := object.get(object.get(input, "spec", {}), "targetRef", {})
+	is_object(target_ref)
+	group := object.get(target_ref, "group", null)
+	group != null
+	group != ""
+	msg := sprintf("HealthCheckPolicy: targetRef.group має бути порожнім рядком '' (зараз %q) (abie.mdc)", [group])
 }
 
 # ── deny: targetRef.name = `<hcp.metadata.name>-hl` (exact, з нормалізацією)

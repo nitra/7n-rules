@@ -56,4 +56,51 @@ spec:
       expect(ok.baseErrors.length).toBe(0)
     })
   })
+
+  test('без port: 8080 дає помилку; з неправильним портом — теж', async () => {
+    await withTmpDir(async dir => {
+      const root = dir
+      await ensureDir(join(root, 'p/k8s/base'))
+      const hrPath = join(root, 'p/k8s/base/hr.yaml')
+      await writeFile(
+        hrPath,
+        `apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: x
+spec:
+  rules:
+    - backendRefs:
+        - name: file-link-hl
+          namespace: dev
+`,
+        'utf8'
+      )
+      const yamlFilesAbs = [hrPath]
+      const noPort = await analyzeAbieSharedBackendRefsInPackageK8s(root, join(root, 'p'), yamlFilesAbs)
+      expect(noPort.refCount).toBe(1)
+      expect(noPort.baseErrors.length).toBe(1)
+      expect(noPort.baseErrors[0]).toMatch(/port: 8080/)
+
+      await writeFile(
+        hrPath,
+        `apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: x
+spec:
+  rules:
+    - backendRefs:
+        - name: file-link-hl
+          namespace: dev
+          port: 9090
+`,
+        'utf8'
+      )
+      const wrongPort = await analyzeAbieSharedBackendRefsInPackageK8s(root, join(root, 'p'), yamlFilesAbs)
+      expect(wrongPort.refCount).toBe(1)
+      expect(wrongPort.baseErrors.length).toBe(1)
+      expect(wrongPort.baseErrors[0]).toMatch(/port: 8080/)
+    })
+  })
 })
