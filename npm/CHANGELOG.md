@@ -1,5 +1,12 @@
 # Changelog
 
+## [12.9.0] - 2026-06-24
+
+### Changed
+
+- Додано підтримку hook-режиму для linting через `n-cursor
+- Додано перевірку порту 8080 для HTTPRoute та політики HealthCheckPolicy
+
 ## [12.8.9] - 2026-06-22
 
 ### Changed
