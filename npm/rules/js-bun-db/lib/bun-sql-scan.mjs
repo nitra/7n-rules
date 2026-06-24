@@ -927,3 +927,126 @@ function kindFromListenNotifyMatch(text) {
 export function isBunSqlScanSourceFile(relativePathPosix) {
   return SOURCE_FILE_RE.test(relativePathPosix) && !relativePathPosix.endsWith('.d.ts')
 }
+
+// Імена відомих SQL-інстансів, для яких перевіряємо .array() без типу.
+const SQL_INSTANCE_NAMES = new Set(['sql', 'pgWrite', 'pgRead'])
+
+/**
+ * Чи це виклик `JSON.stringify(...)` (JSON.stringify через MemberExpression).
+ * @param {unknown} node AST node
+ * @returns {boolean}
+ */
+function isJsonStringifyCall(node) {
+  if (!node || typeof node !== 'object' || node.type !== 'CallExpression') return false
+  const callee = node.callee
+  if (!callee || callee.type !== 'MemberExpression' || callee.computed) return false
+  const obj = callee.object
+  const prop = callee.property
+  return (
+    !!obj &&
+    obj.type === 'Identifier' &&
+    obj.name === 'JSON' &&
+    !!prop &&
+    prop.type === 'Identifier' &&
+    prop.name === 'stringify'
+  )
+}
+
+/**
+ * Знаходить виклики `JSON.stringify(...)::jsonb` всередині SQL template literal-ів.
+ * Bun SQL серіалізує об'єкти/масиви у JSON автоматично — явний `JSON.stringify`
+ * перед `::jsonb` призводить до подвійної серіалізації (js-bun-db.mdc).
+ * @param {string} content вихідний код
+ * @param {string} [virtualPath] шлях для вибору lang
+ * @returns {{ line: number, snippet: string }[]} список порушень
+ */
+export function findJsonStringifyBeforeJsonbInText(content, virtualPath = 'scan.ts') {
+  const program = parseProgramOrNull(content, virtualPath)
+  if (!program) return []
+
+  /** @type {{ line: number, snippet: string }[]} */
+  const out = []
+
+  walkAstWithAncestors(program, [], node => {
+    let template = null
+    if (node.type === 'TemplateLiteral') template = node
+    else if (node.type === 'TaggedTemplateExpression') template = node.quasi
+    if (!template || typeof template !== 'object' || template.type !== 'TemplateLiteral') return
+
+    const expressions = template.expressions
+    const quasis = template.quasis
+    if (!Array.isArray(expressions) || !Array.isArray(quasis)) return
+
+    for (const [i, expr] of expressions.entries()) {
+      // Перевіряємо прямий JSON.stringify(...) і JSON.stringify всередині sql.array(...)
+      const isDirectStringify = isJsonStringifyCall(expr)
+      // sql.array(batch.map(r => JSON.stringify(...)), 'jsonb')
+      const hasSqlArrayStringify =
+        !isDirectStringify &&
+        expr.type === 'CallExpression' &&
+        Array.isArray(expr.arguments) &&
+        expr.arguments.some(arg => {
+          if (isJsonStringifyCall(arg)) return true
+          // .map(r => JSON.stringify(...))
+          if (arg.type === 'CallExpression' && Array.isArray(arg.arguments)) {
+            const cb = arg.arguments[0]
+            if (!cb) return false
+            const body = cb.type === 'ArrowFunctionExpression' || cb.type === 'FunctionExpression' ? cb.body : null
+            if (body && isJsonStringifyCall(body)) return true
+          }
+          return false
+        })
+
+      if (!isDirectStringify && !hasSqlArrayStringify) continue
+
+      // Quasi після expr (quasi[i+1]) — текст одразу після закриваючого }
+      const nextQuasi = quasis[i + 1]
+      const rawAfter =
+        nextQuasi && typeof nextQuasi === 'object' && nextQuasi.value && typeof nextQuasi.value.raw === 'string'
+          ? nextQuasi.value.raw
+          : ''
+
+      if (/^\s*::jsonb/u.test(rawAfter) || hasSqlArrayStringify) {
+        out.push({
+          line: offsetToLine(content, expr.start),
+          snippet: normalizeSnippet(content.slice(expr.start, expr.end))
+        })
+      }
+    }
+  })
+  return out
+}
+
+/**
+ * Знаходить виклики `sql.array(arr)` / `pgWrite.array(arr)` / `pgRead.array(arr)` без
+ * обов'язкового другого аргументу (типу pg-елемента). Без типу Bun не може вивести
+ * pg-тип, що призводить до mismatch (js-bun-db.mdc).
+ * @param {string} content вихідний код
+ * @param {string} [virtualPath] шлях для вибору lang
+ * @returns {{ line: number, snippet: string }[]} список порушень
+ */
+export function findSqlArrayWithoutTypeArgInText(content, virtualPath = 'scan.ts') {
+  const program = parseProgramOrNull(content, virtualPath)
+  if (!program) return []
+
+  /** @type {{ line: number, snippet: string }[]} */
+  const out = []
+
+  walkAstWithAncestors(program, [], node => {
+    if (!node || node.type !== 'CallExpression') return
+    const callee = node.callee
+    if (!callee || callee.type !== 'MemberExpression' || callee.computed) return
+    const prop = callee.property
+    if (!prop || prop.type !== 'Identifier' || prop.name !== 'array') return
+    const obj = callee.object
+    if (!obj || obj.type !== 'Identifier' || !SQL_INSTANCE_NAMES.has(obj.name)) return
+    const args = node.arguments
+    if (!Array.isArray(args) || args.length !== 1) return
+
+    out.push({
+      line: offsetToLine(content, node.start),
+      snippet: normalizeSnippet(content.slice(node.start, node.end))
+    })
+  })
+  return out
+}

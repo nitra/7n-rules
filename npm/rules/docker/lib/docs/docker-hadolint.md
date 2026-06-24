@@ -8,8 +8,6 @@ docgen:
   score: 90
 ---
 
-## Огляд
-
 Спільна логіка виклику hadolint для шляхів до Dockerfile. Модуль створює стандартизовані відносні шляхи з прямими слешами. Він ініціює перевірку Dockerfile, використовуючи hadolint як нативний бінарник, який резолвиться через `ensureTool` (PATH → кеш → авто-install brew/scoop/GitHub Release per-platform). Для отримання інформації про встановлення можна звертатися до https://github.com/hadolint/hadolint/releases. Публічна функція `lintDockerfileWithHadolint` виконує перевірку за правилом `n-cursor lint docker` / check-docker.
 
 ## Поведінка

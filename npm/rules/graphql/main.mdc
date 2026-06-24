@@ -7,8 +7,3 @@ alwaysApply: false
 
 Якщо у `.vue` або JavaScript / TypeScript джерелах зустрічається **tagged template literal** з тегом **`gql`**, у корені репозиторію мають бути `.graphqlrc.yml` та запис `graphql.vscode-graphql` у `.vscode/extensions.json`.
 
-[graphql-tooling](./js/tooling.mdc)
-
-[graphql-vscode-extensions](./js/vscode_extensions.mdc)
-
-[graphql-vscode-extensions-policy](./policy/vscode_extensions/vscode_extensions.mdc)

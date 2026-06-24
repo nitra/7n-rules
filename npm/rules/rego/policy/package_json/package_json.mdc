@@ -1,0 +1,12 @@
+## Rego-gate: `opa` та `regal` заборонені у `package.json`
+
+Rego-пакет: `rego.package_json`
+
+Цільовий файл: `package.json`
+
+`opa` і `regal` — це CLI-тули Rego-екосистеми. Вони **не є npm-пакетами** і **не додаються** у `dependencies`, `devDependencies` або `peerDependencies`. Їх встановлюють:
+
+- **локально** — через [Homebrew](https://brew.sh/) / системний пакетний менеджер або вручну в PATH;
+- **у CI** — через крок з GitHub-action або аналог.
+
+Gate видає deny, якщо `opa` або `regal` з'являється у будь-якій секції залежностей `package.json`.

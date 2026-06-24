@@ -6,25 +6,3 @@ version: '1.15'
 ---
 
 Правило забезпечує безпечне підключення й виконання запитів через Bun native SQL замість `pg` / `pg-format` / `mysql2`, із захистом від SQL injection, pg-leftover та небезпечних патернів `sql.unsafe`.
-
-[js-bun-db-bun-sql-migration](./js/bun-sql-migration.mdc)
-
-[js-bun-db-pg-format-shim](./js/pg-format-shim.mdc)
-
-[js-bun-db-pg-listen-notify](./js/pg-listen-notify.mdc)
-
-[js-bun-db-pg-format-identifiers](./js/pg-format-identifiers.mdc)
-
-[js-bun-db-connection](./js/connection.mdc)
-
-[js-bun-db-query-safety](./js/query-safety.mdc)
-
-[js-bun-db-sql-array](./js/sql-array.mdc)
-
-[js-bun-db-unsafe](./js/unsafe.mdc)
-
-[js-bun-db-pg-leftover](./js/pg-leftover.mdc)
-
-## Швидкий gate через conftest
-
-[js-bun-db-package-json](./policy/package_json/package_json.mdc)

@@ -7,28 +7,14 @@ version: '1.14'
 
 Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.github/workflows/`**; опційно **`demo/`**.
 
-[npm-module-package_structure](./js/package_structure.mdc)
-
-[npm-module-rule_meta](./js/rule_meta.mdc)
-
-[npm-module-skill_meta](./js/skill_meta.mdc)
-
-[npm-module-header_doc_pointer](./js/header_doc_pointer.mdc)
-
 ## Версія та CHANGELOG
 
-Версію (`version` у **`npm/package.json`**) і **`npm/CHANGELOG.md`** **не редагуй вручну** — навіть для hotfix. Єдиний артефакт зміни — **change-файл** (`npx @nitra/cursor change --bump <major|minor|patch> --section <Added|Changed|Fixed|Removed> --message "<…>"`); bump `version` і генерацію секції CHANGELOG робить `n-cursor release` у CI на `main`. Будь-який ручний bump `version` поза CI завалює `check changelog` — навіть із change-файлом.
+Версію (`version` у **`npm/package.json`**) і **`npm/CHANGELOG.md`** **не редагуй вручну** — навіть для hotfix. Єдиний артефакт зміни — **change-файл** (`npx @7n/n ch [--bump <major|minor|patch>] [--section <Added|Changed|Fixed|Removed>] [--message "<…>"]`); bump `version` і генерацію секції CHANGELOG робить `n-cursor release` у CI на `main`. Будь-який ручний bump `version` поза CI завалює `check changelog` — навіть із change-файлом.
 
 Повна модель (база порівняння, інверсія шляхів, формат CHANGELOG, post-release-інваріант «верхня секція CHANGELOG == `version`») — у **`n-changelog.mdc`** (джерело істини). Це правило їй підпорядковане й власних інструкцій bump/CHANGELOG не дублює.
 
 ## Швидкий gate через conftest
 
 Rego-пакети (запускаються через `npx @nitra/cursor fix`):
-
-[npm-module-npm_package_json](./policy/npm_package_json/npm_package_json.mdc)
-
-[npm-module-root_package_json](./policy/root_package_json/root_package_json.mdc)
-
-[npm-module-emit_types_config](./policy/emit_types_config/emit_types_config.mdc)
 
 - `npm_module.npm_publish_yml` — template-driven перевірка `.github/workflows/npm-publish.yml` (deep-subset: усі обовʼязкові поля й кроки з канонічного сніпету).

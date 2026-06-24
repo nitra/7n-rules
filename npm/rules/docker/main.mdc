@@ -12,23 +12,3 @@ alwaysApply: false
 ## Активація
 
 Спрацьовує на всі файли `Dockerfile*`; `check docker` (`fix.mjs`) обробляє також `Containerfile` та `Containerfile.*`.
-
-## Швидкий gate через conftest
-
-[docker-lint_docker_yml](./policy/lint_docker_yml/lint_docker_yml.mdc)
-
-[docker-mirror](./js/mirror.mdc)
-
-[docker-multistage](./js/multistage.mdc)
-
-[docker-compile](./js/compile.mdc)
-
-[docker-native-addon](./js/native-addon.mdc)
-
-[docker-non-root](./js/non-root.mdc)
-
-[docker-nginx-tag](./js/nginx-tag.mdc)
-
-[docker-nginx-user](./js/nginx-user.mdc)
-
-[docker-hadolint](./js/hadolint.mdc)

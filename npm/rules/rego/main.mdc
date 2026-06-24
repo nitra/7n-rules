@@ -9,8 +9,6 @@ alwaysApply: false
 
 Синтаксичні правила (`rego.v1`, `import rego.v1`, заборона legacy v0) — у `conftest.mdc` (alwaysApply). Цей файл — про **інструментарій**: VS Code, лінтери, форматування.
 
-[rego-rego-lint](./js/rego-lint.mdc)
-
 ## Швидкий gate через conftest
 
 | Пакет | Ціль | Що перевіряє |
@@ -18,10 +16,3 @@ alwaysApply: false
 | `rego.vscode_extensions` | `.vscode/extensions.json` | `recommendations` містить `tsandall.opa` |
 | `rego.vscode_settings` | `.vscode/settings.json` | `[rego]`-блок з `defaultFormatter` + `formatOnSave` |
 
-[rego-vscode_extensions](./js/vscode_extensions.mdc)
-
-[rego-vscode_settings](./js/vscode_settings.mdc)
-
-[rego-vscode_extensions](./policy/vscode_extensions/vscode_extensions.mdc)
-
-[rego-vscode_settings](./policy/vscode_settings/vscode_settings.mdc)

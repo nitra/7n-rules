@@ -6,8 +6,6 @@ version: '2.2'
 
 Правило `adr` автоматично фіксує архітектурні рішення (ADR) після кожної сесії через Stop-хуки і батч-нормалізує чернетки у канонічний формат MADR v4.
 
-[adr-madr-format](./js/madr_format.mdc)
-
 ## Stop-hook у `.claude/settings.json`
 
 Канонічний запис, який вставляє sync (поряд із PostToolUse fix-хуком — той живе в іншій події, тут не показаний):
@@ -76,10 +74,3 @@ Cursor Agent читає project-level **`.cursor/hooks.json`**. `npx @nitra/curs
 | `adr.settings_json` | `.claude/settings.json` | Наявність обох Stop-хуків у `hooks.Stop[]` |
 | `adr.settings_local_json` | `.claude/settings.local.json` | Відсутність дублів Stop-хуків у local-файлі |
 
-[adr-settings-policy](./js/settings_policy.mdc)
-
-[adr-settings_json-policy](./policy/settings_json/settings_json.mdc)
-
-[adr-settings_local_json-policy](./policy/settings_local_json/settings_local_json.mdc)
-
-[adr-hooks](./js/hooks.mdc)

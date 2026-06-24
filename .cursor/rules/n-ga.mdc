@@ -6,39 +6,75 @@ alwaysApply: false
 ---
 
 Правило **ga** перевіряє структуру `.github/workflows/`, наявність обов'язкових workflow-файлів і їх відповідність канонам, а також налаштування VS Code та zizmor для роботи з GitHub Actions.
+## Лінт-тулчейн: actionlint, zizmor, n-cursor lint ga
 
-## Структура workflow-файлів та обов'язкові workflows
+**Лінт:** [actionlint](https://github.com/rhysd/actionlint) через [github-actionlint](https://www.npmjs.com/package/github-actionlint); [zizmor](https://docs.zizmor.sh) — `uvx`, офлайн. Запуск — через **`n-cursor lint ga`** (CI — `--read-only`; бінарка з `node_modules/.bin/` пакету `@nitra/cursor`), який робить preflight на `shellcheck` і послідовно запускає `actionlint` та `zizmor`. Окремого `package.json`-скрипта немає.
 
-У `.github/workflows/` лише **`.yml`** (не `.yaml`). Обов'язкові файли:
+> Виклик через bin-ім'я `n-cursor` (а **не** `npx @nitra/cursor`): `bun x`/`npx` для скоупованого пакету з одним bin-ім'ям повертає 0 без виконання, тому в CI-кроці `run:` використовуй саме `n-cursor lint <rule>`.
 
-- **`clean-ga-workflows.yml`**
-- **`clean-merged-branch.yml`**
-- **`lint-ga.yml`**
-- **`git-ai.yml`**
+CLI робить preflight на `shellcheck` і `uv` (`uvx`) у `PATH`, потім запускає `bunx github-actionlint` і `uvx zizmor --offline --collect=workflows .`.
 
-Якщо є **`apply-k8s.yml`** — тригер `on.push.paths` має містити `**/k8s/**/*.yaml`.
-Якщо є **`apply-nats-consumer.yml`** — тригер `on.push.paths` має містити `**/consumer.yaml`.
+Послідовність кроків `n-cursor lint ga`:
 
-## Перевірка glob-патернів `on.push.paths`
+1. `ensureTool`: `shellcheck` і `conftest` (авто-install або hard-fail)
+2. preflight: `uv` (для `uvx zizmor`) — hint-only, без авто-install
+3. `bunx github-actionlint`
+4. `uvx zizmor --offline --collect=workflows .`
+5. `rules/ga/check()` — Rego-полісі (батч conftest з `npm/policy/ga/`) + JS cross-file перевірки правил `ga.mdc`
 
-Кожен позитивний glob у `on.push.paths` / `on.pull_request.paths` (крім `!`-негацій та `*`-extension-фільтрів) має матчитися хоча б на один tracked файл у репозиторії (`git ls-files`). Шаблони на кшталт `*.vue` чи `{*.ts,*.js}` пропускаються — вони можуть бути заготовками для майбутніх файлів. Конкретні директорії (`some-dir/**`) — перевіряються.
+## Канонічні обов'язкові workflow-файли
 
-## Заборона MegaLinter
+Кожен з цих файлів перевіряється окремим Rego-пакетом через conftest з відповідним `--namespace`.
 
-**MegaLinter** не використовувати. Треба видалити:
+### `clean-ga-workflows.yml`
 
-- workflow-файли з `oxsecurity/megalinter-action` або `megalinter/megalinter`
-- конфіги: `.mega-linter.yml`, `.megalinter.yaml`, `.mega-linter.yaml`
-- будь-які залежності та згадки в CI / pre-commit / документації
+Очищення старих GitHub Actions workflow runs за розкладом.
 
-## Shellcheck у PATH
+- Канон: [clean-ga-workflows.yml.snippet.yml](./policy/clean_ga_workflows/template/clean-ga-workflows.yml.snippet.yml)
 
-`actionlint` (через `bunx github-actionlint`) запускає shell-перевірки в кроках `run:` лише коли `shellcheck` доступний у PATH — інакше мовчки пропускає SC-правила. Локальний `bun lint-ga` лишається зеленим, а CI на `ubuntu-latest` (де shellcheck передвстановлений) падає.
+Rego-пакет `ga.clean_ga_workflows` перевіряє: `name`, `on.schedule[].cron`, `workflow_dispatch: {}`, `jobs.cleanup_old_workflows`, `runs-on`, `permissions` (actions: write, contents: read), перший крок (`uses`, `with.token`, `with.save_period`, `with.save_min_runs_number`).
 
-Встанови `shellcheck`:
-- macOS: `brew install shellcheck`
-- Debian/Ubuntu: `sudo apt-get install -y shellcheck`
-- Arch: `sudo pacman -S shellcheck`
+### `clean-merged-branch.yml`
+
+Видалення злитих гілок за розкладом та вручну.
+
+- Канон: [clean-merged-branch.yml.snippet.yml](./policy/clean_merged_branch/template/clean-merged-branch.yml.snippet.yml)
+
+Інші гілки в `ignore_branches` — допустимо. Rego-пакет `ga.clean_merged_branch` перевіряє: `name`, `on.schedule[].cron`, `workflow_dispatch: {}`, `jobs.cleanup_old_branches`, `permissions`, крок 0 (`id`, `uses`, `with.github_token`, `with.last_commit_age_days`, `with.ignore_branches`, `with.dry_run: no`), крок 1 (name, env.DELETED_BRANCHES, run з echo Deleted branches).
+
+### `lint-ga.yml`
+
+CI-лінт GitHub Actions workflows через actionlint + zizmor.
+
+- Канон: [lint-ga.yml.snippet.yml](./policy/lint_ga/template/lint-ga.yml.snippet.yml)
+
+Rego-пакет `ga.lint_ga` перевіряє: `name`, `on.push.branches` і `on.pull_request.branches` (мають містити dev і main), `on.push.paths` (мають містити `.github/actions/**` і `.github/workflows/**`), `jobs.lint-ga`, `runs-on`, `permissions.contents`, наявність кроку Install conftest, крок `run: n-cursor lint ga --read-only`.
+
+### `git-ai.yml`
+
+Автоматизація PR-коментарів через git-ai CI.
+
+- Канон: [git-ai.yml.snippet.yml](./policy/git_ai/template/git-ai.yml.snippet.yml)
+
+Rego-пакет `ga.git_ai` перевіряє: `name`, `on.pull_request.types` (має містити `closed`), `jobs.git-ai`, умову `if:` job (merged PR), `permissions.contents`, наявність кроку встановлення (`https://usegitai.com/install.sh`) та запуску (`git-ai ci github run`).
+
+## VS Code — розширення та налаштування для GitHub Actions
+
+### `.vscode/extensions.json`
+
+Має рекомендувати `github.vscode-github-actions`:
+
+- Канон: [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
+
+Rego-пакет `ga.vscode_extensions`: кожне розширення з template має бути в `recommendations`. Додаткові рекомендації від інших правил — допустимі.
+
+### `.vscode/settings.json`
+
+Для мови `github-actions-workflow` має `editor.defaultFormatter = "oxc.oxc-vscode"`:
+
+- Канон: [settings.json.snippet.json](./policy/vscode_settings/template/settings.json.snippet.json)
+
+Rego-пакет `ga.vscode_settings`: перевіряє всі ключі з template у відповідному language-block.
 
 ## Універсальні правила для всіх workflow-файлів
 
@@ -149,59 +185,38 @@ SHA-pin (40 hex) semver-політику не застосовує. Для check
 
 **`depcheck`:** не використовувати у `.github/workflows/*.yml` — мігровано на `knip` (div. `js.mdc`). Перевірка невикористаних залежностей виконується разом з рештою лінтерів у `lint-js`, окремий крок `npx depcheck` у workflow не потрібен і блокується полісі `ga.workflow_common`.
 
-## Канонічні обов'язкові workflow-файли
+## Структура workflow-файлів та обов'язкові workflows
 
-Кожен з цих файлів перевіряється окремим Rego-пакетом через conftest з відповідним `--namespace`.
+У `.github/workflows/` лише **`.yml`** (не `.yaml`). Обов'язкові файли:
 
-### `clean-ga-workflows.yml`
+- **`clean-ga-workflows.yml`**
+- **`clean-merged-branch.yml`**
+- **`lint-ga.yml`**
+- **`git-ai.yml`**
 
-Очищення старих GitHub Actions workflow runs за розкладом.
+Якщо є **`apply-k8s.yml`** — тригер `on.push.paths` має містити `**/k8s/**/*.yaml`.
+Якщо є **`apply-nats-consumer.yml`** — тригер `on.push.paths` має містити `**/consumer.yaml`.
 
-- Канон: [clean-ga-workflows.yml.snippet.yml](./policy/clean_ga_workflows/template/clean-ga-workflows.yml.snippet.yml)
+## Перевірка glob-патернів `on.push.paths`
 
-Rego-пакет `ga.clean_ga_workflows` перевіряє: `name`, `on.schedule[].cron`, `workflow_dispatch: {}`, `jobs.cleanup_old_workflows`, `runs-on`, `permissions` (actions: write, contents: read), перший крок (`uses`, `with.token`, `with.save_period`, `with.save_min_runs_number`).
+Кожен позитивний glob у `on.push.paths` / `on.pull_request.paths` (крім `!`-негацій та `*`-extension-фільтрів) має матчитися хоча б на один tracked файл у репозиторії (`git ls-files`). Шаблони на кшталт `*.vue` чи `{*.ts,*.js}` пропускаються — вони можуть бути заготовками для майбутніх файлів. Конкретні директорії (`some-dir/**`) — перевіряються.
 
-### `clean-merged-branch.yml`
+## Заборона MegaLinter
 
-Видалення злитих гілок за розкладом та вручну.
+**MegaLinter** не використовувати. Треба видалити:
 
-- Канон: [clean-merged-branch.yml.snippet.yml](./policy/clean_merged_branch/template/clean-merged-branch.yml.snippet.yml)
+- workflow-файли з `oxsecurity/megalinter-action` або `megalinter/megalinter`
+- конфіги: `.mega-linter.yml`, `.megalinter.yaml`, `.mega-linter.yaml`
+- будь-які залежності та згадки в CI / pre-commit / документації
 
-Інші гілки в `ignore_branches` — допустимо. Rego-пакет `ga.clean_merged_branch` перевіряє: `name`, `on.schedule[].cron`, `workflow_dispatch: {}`, `jobs.cleanup_old_branches`, `permissions`, крок 0 (`id`, `uses`, `with.github_token`, `with.last_commit_age_days`, `with.ignore_branches`, `with.dry_run: no`), крок 1 (name, env.DELETED_BRANCHES, run з echo Deleted branches).
+## Shellcheck у PATH
 
-### `lint-ga.yml`
+`actionlint` (через `bunx github-actionlint`) запускає shell-перевірки в кроках `run:` лише коли `shellcheck` доступний у PATH — інакше мовчки пропускає SC-правила. Локальний `bun lint-ga` лишається зеленим, а CI на `ubuntu-latest` (де shellcheck передвстановлений) падає.
 
-CI-лінт GitHub Actions workflows через actionlint + zizmor.
-
-- Канон: [lint-ga.yml.snippet.yml](./policy/lint_ga/template/lint-ga.yml.snippet.yml)
-
-Rego-пакет `ga.lint_ga` перевіряє: `name`, `on.push.branches` і `on.pull_request.branches` (мають містити dev і main), `on.push.paths` (мають містити `.github/actions/**` і `.github/workflows/**`), `jobs.lint-ga`, `runs-on`, `permissions.contents`, наявність кроку Install conftest, крок `run: n-cursor lint ga --read-only`.
-
-### `git-ai.yml`
-
-Автоматизація PR-коментарів через git-ai CI.
-
-- Канон: [git-ai.yml.snippet.yml](./policy/git_ai/template/git-ai.yml.snippet.yml)
-
-Rego-пакет `ga.git_ai` перевіряє: `name`, `on.pull_request.types` (має містити `closed`), `jobs.git-ai`, умову `if:` job (merged PR), `permissions.contents`, наявність кроку встановлення (`https://usegitai.com/install.sh`) та запуску (`git-ai ci github run`).
-
-## VS Code — розширення та налаштування для GitHub Actions
-
-### `.vscode/extensions.json`
-
-Має рекомендувати `github.vscode-github-actions`:
-
-- Канон: [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
-
-Rego-пакет `ga.vscode_extensions`: кожне розширення з template має бути в `recommendations`. Додаткові рекомендації від інших правил — допустимі.
-
-### `.vscode/settings.json`
-
-Для мови `github-actions-workflow` має `editor.defaultFormatter = "oxc.oxc-vscode"`:
-
-- Канон: [settings.json.snippet.json](./policy/vscode_settings/template/settings.json.snippet.json)
-
-Rego-пакет `ga.vscode_settings`: перевіряє всі ключі з template у відповідному language-block.
+Встанови `shellcheck`:
+- macOS: `brew install shellcheck`
+- Debian/Ubuntu: `sudo apt-get install -y shellcheck`
+- Arch: `sudo pacman -S shellcheck`
 
 ## `.github/zizmor.yml` — конфігурація zizmor
 
@@ -210,43 +225,6 @@ Rego-пакет `ga.vscode_settings`: перевіряє всі ключі з te
 - Канон `.github/zizmor.yml`: [zizmor.yml.snippet.yml](./policy/zizmor_yml/template/zizmor.yml.snippet.yml)
 
 Rego-пакет `ga.zizmor_yml`: перевіряє `rules.unpinned-uses.config.policies["*"]` відповідно до значення з template.
-
-## Лінт-тулчейн: actionlint, zizmor, n-cursor lint ga
-
-**Лінт:** [actionlint](https://github.com/rhysd/actionlint) через [github-actionlint](https://www.npmjs.com/package/github-actionlint); [zizmor](https://docs.zizmor.sh) — `uvx`, офлайн. Запуск — через **`n-cursor lint ga`** (CI — `--read-only`; бінарка з `node_modules/.bin/` пакету `@nitra/cursor`), який робить preflight на `shellcheck` і послідовно запускає `actionlint` та `zizmor`. Окремого `package.json`-скрипта немає.
-
-> Виклик через bin-ім'я `n-cursor` (а **не** `npx @nitra/cursor`): `bun x`/`npx` для скоупованого пакету з одним bin-ім'ям повертає 0 без виконання, тому в CI-кроці `run:` використовуй саме `n-cursor lint <rule>`.
-
-CLI робить preflight на `shellcheck` і `uv` (`uvx`) у `PATH`, потім запускає `bunx github-actionlint` і `uvx zizmor --offline --collect=workflows .`.
-
-Послідовність кроків `n-cursor lint ga`:
-
-1. `ensureTool`: `shellcheck` і `conftest` (авто-install або hard-fail)
-2. preflight: `uv` (для `uvx zizmor`) — hint-only, без авто-install
-3. `bunx github-actionlint`
-4. `uvx zizmor --offline --collect=workflows .`
-5. `rules/ga/check()` — Rego-полісі (батч conftest з `npm/policy/ga/`) + JS cross-file перевірки правил `ga.mdc`
-
-## Швидкий gate через conftest
-
-## Універсальні Rego-перевірки для всіх workflow-файлів
-
-Rego-пакет: `ga.workflow_common`
-
-**Цільові файли:** `.github/workflows/*.yml` (кожен файл окремо)
-
-### Що перевіряється
-
-- **concurrency** — обов'язкова наявність блоку; `group` = `${{ github.ref }}-${{ github.workflow }}`; `cancel-in-progress: true`
-- **Заборонені кроки** — `oven-sh/setup-bun`, `actions/cache`, `bun install` у будь-якому `uses:`/`run:` (мають бути інкапсульовані у composite `setup-bun-deps`)
-- **Порядок кроків** — якщо є `setup-bun-deps`, перед ним обов'язковий `actions/checkout@`
-- **Shell-продовження** — `\` перед переносом рядка у `run:` заборонено; треба `run: >-`
-- **Заборонені команди** — `depcheck` у `run:` (мігровано на `knip`)
-- **Мінімальні версії** — `uses:` з marketplace-actions перевіряються за канонічним JSON
-
-Канон мінімальних версій: [uses-min-versions.snippet.json](./template/uses-min-versions.snippet.json)
-
-Детальна документація поведінки — у [ga-workflow_common](../../js/workflow_common.mdc).
 
 ## Структура `clean-ga-workflows.yml` — видалення завершених workflow runs
 
@@ -290,6 +268,26 @@ Rego-пакет: `ga.clean_merged_branch`
 
 Канон: [clean-merged-branch.yml.snippet.yml](./template/clean-merged-branch.yml.snippet.yml)
 
+## Структура `git-ai.yml` — автоматичний запуск git-ai після мержу PR
+
+Rego-пакет: `ga.git_ai`
+
+**Цільовий файл:** `.github/workflows/git-ai.yml`
+
+### Що перевіряється
+
+- `name` — точна відповідність значенню з template (`Git AI`)
+- `on.pull_request.types` — має містити `closed`
+- `jobs.git-ai` — job має існувати
+- `jobs.git-ai.if` — містить `github.event.pull_request.merged == true`
+- `jobs.git-ai.permissions.contents` — за template (`write`)
+- `steps[*].run` (сукупно) — містить substring `https://usegitai.com/install.sh` (інсталяція)
+- `steps[*].run` (сукупно) — містить substring `git-ai ci github run` (запуск)
+
+Substring-перевірки замість exact-match через крихкість multi-line `run:` блоків.
+
+Канон: [git-ai.yml.snippet.yml](./template/git-ai.yml.snippet.yml)
+
 ## Структура `lint-ga.yml` — CI-лінт GitHub Actions файлів
 
 Rego-пакет: `ga.lint_ga`
@@ -312,26 +310,6 @@ Rego-пакет: `ga.lint_ga`
 
 Канон: [lint-ga.yml.snippet.yml](./template/lint-ga.yml.snippet.yml)
 
-## Структура `git-ai.yml` — автоматичний запуск git-ai після мержу PR
-
-Rego-пакет: `ga.git_ai`
-
-**Цільовий файл:** `.github/workflows/git-ai.yml`
-
-### Що перевіряється
-
-- `name` — точна відповідність значенню з template (`Git AI`)
-- `on.pull_request.types` — має містити `closed`
-- `jobs.git-ai` — job має існувати
-- `jobs.git-ai.if` — містить `github.event.pull_request.merged == true`
-- `jobs.git-ai.permissions.contents` — за template (`write`)
-- `steps[*].run` (сукупно) — містить substring `https://usegitai.com/install.sh` (інсталяція)
-- `steps[*].run` (сукупно) — містить substring `git-ai ci github run` (запуск)
-
-Substring-перевірки замість exact-match через крихкість multi-line `run:` блоків.
-
-Канон: [git-ai.yml.snippet.yml](./template/git-ai.yml.snippet.yml)
-
 ## `.vscode/extensions.json` — розширення для GitHub Actions
 
 Rego-пакет: `ga.vscode_extensions`
@@ -351,6 +329,25 @@ Rego-пакет: `ga.vscode_settings`
 Перевіряє 2-рівневу структуру: для кожного `<block-key>` з template кожен `<leaf-key>` у відповідному блоці input має точно відповідати очікуваному значенню. Ключі можуть містити дужки та крапки (VS Code-конвенція, наприклад `[github-actions-workflow]`).
 
 Канон: [settings.json.snippet.json](./template/settings.json.snippet.json)
+
+## Універсальні Rego-перевірки для всіх workflow-файлів
+
+Rego-пакет: `ga.workflow_common`
+
+**Цільові файли:** `.github/workflows/*.yml` (кожен файл окремо)
+
+### Що перевіряється
+
+- **concurrency** — обов'язкова наявність блоку; `group` = `${{ github.ref }}-${{ github.workflow }}`; `cancel-in-progress: true`
+- **Заборонені кроки** — `oven-sh/setup-bun`, `actions/cache`, `bun install` у будь-якому `uses:`/`run:` (мають бути інкапсульовані у composite `setup-bun-deps`)
+- **Порядок кроків** — якщо є `setup-bun-deps`, перед ним обов'язковий `actions/checkout@`
+- **Shell-продовження** — `\` перед переносом рядка у `run:` заборонено; треба `run: >-`
+- **Заборонені команди** — `depcheck` у `run:` (мігровано на `knip`)
+- **Мінімальні версії** — `uses:` з marketplace-actions перевіряються за канонічним JSON
+
+Канон мінімальних версій: [uses-min-versions.snippet.json](./template/uses-min-versions.snippet.json)
+
+Детальна документація поведінки — у [ga-workflow_common](../../js/workflow_common.mdc).
 
 ## `.github/zizmor.yml` — конфігурація zizmor для unpinned-uses
 

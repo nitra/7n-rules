@@ -8,8 +8,6 @@ docgen:
   score: 95
 ---
 
-## Огляд
-
 Визначає шляхи до канонічних JSON-файлів для інструментів oxlint та knip через OXLINT_CANONICAL_JSON_PATH та KNIP_CANONICAL_JSON_PATH. Також перевіряє відповідність конфігураційного файлу .oxlintrc.json значенням, встановленим у oxlint-canonical.json, за допомогою verifyOxlintRcAgainstCanonical.
 
 ## Поведінка

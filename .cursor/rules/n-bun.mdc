@@ -6,6 +6,18 @@ version: '2.1'
 ---
 
 Проект використовує тільки Bun для керування залежностями та запуску скриптів.
+## Конфігурація bunfig.toml
+
+У корені репозиторію має бути **`bunfig.toml`** з **hoisted** лінкером (пласке `node_modules`, сумісне з інструментами, які не розуміють ізольований layout Bun).
+
+Канон `bunfig.toml`: [bunfig.toml.snippet.toml](./policy/bunfig/template/bunfig.toml.snippet.toml)
+
+```toml
+[install]
+linker = "hoisted"
+```
+
+Rego-перевірка (`bun.bunfig`) порівнює кожен leaf-ключ у секції із канонічним значенням зі snippet-шаблону. Якщо секція `[install]` відсутня або не є обʼєктом — повідомляє про відсутність секції; якщо значення ключа не збігається — вказує очікуване.
 
 ## Структура lockfile та менеджер пакетів
 
@@ -68,18 +80,15 @@ FROM oven/bun:alpine AS build-env
 
 Якщо в репозиторії action збережено під **`./npm/github-actions/setup-bun-deps`**, у `uses:` вкажи цей шлях замість `.github/actions/…` (**ga.mdc**).
 
-## Конфігурація bunfig.toml
+## Лінт через n-cursor
 
-У корені репозиторію має бути **`bunfig.toml`** з **hoisted** лінкером (пласке `node_modules`, сумісне з інструментами, які не розуміють ізольований layout Bun).
+Лінт запускається через CLI **`n-cursor`**, **не** через `package.json`-скрипти:
 
-Канон `bunfig.toml`: [bunfig.toml.snippet.toml](./policy/bunfig/template/bunfig.toml.snippet.toml)
+- **`n-cursor lint --full`** — весь репо: активні у `.n-cursor.json` правила (per-file + full лінтери за `meta.json#lint` scope, конформність) + `oxfmt` у кінці (fix-режим);
+- **`n-cursor lint`** — дельта vs origin (активні у `.n-cursor.json` per-file лінтери лише змінених файлів);
+- **`n-cursor lint <rule…>`** — конкретні правила (лінтер + конформність), напр. **`n-cursor lint ga`**.
 
-```toml
-[install]
-linker = "hoisted"
-```
-
-Rego-перевірка (`bun.bunfig`) порівнює кожен leaf-ключ у секції із канонічним значенням зі snippet-шаблону. Якщо секція `[install]` відсутня або не є обʼєктом — повідомляє про відсутність секції; якщо значення ключа не збігається — вказує очікуване.
+У кореневому `package.json` **не повинно бути** `lint`/`lint-*` скриптів — єдина точка лінту — CLI `n-cursor`. У CI кожен workflow викликає **`n-cursor lint <rule> --read-only`** напряму (без обгорток).
 
 ## Кореневий package.json
 
@@ -100,18 +109,6 @@ Rego-перевірка (`bun.bunfig`) порівнює кожен leaf-ключ
 | `dependencies` | Кореневий `package.json` не повинен містити `dependencies` — додай у workspace-пакети |
 
 Якщо в `package.json` є поле `packageManager` — прибрати його, також прибрати всі директорії та файли для yarn.
-
-## Лінт через n-cursor
-
-Лінт запускається через CLI **`n-cursor`**, **не** через `package.json`-скрипти:
-
-- **`n-cursor lint --full`** — весь репо: активні у `.n-cursor.json` правила (per-file + full лінтери за `meta.json#lint` scope, конформність) + `oxfmt` у кінці (fix-режим);
-- **`n-cursor lint`** — дельта vs origin (активні у `.n-cursor.json` per-file лінтери лише змінених файлів);
-- **`n-cursor lint <rule…>`** — конкретні правила (лінтер + конформність), напр. **`n-cursor lint ga`**.
-
-У кореневому `package.json` **не повинно бути** `lint`/`lint-*` скриптів — єдина точка лінту — CLI `n-cursor`. У CI кожен workflow викликає **`n-cursor lint <rule> --read-only`** напряму (без обгорток).
-
-## Швидкий gate через conftest
 
 ## Rego-gate: відповідність bunfig.toml канонічному шаблону
 

@@ -45,10 +45,7 @@ describe('check js.dep-policy', () => {
   test(`порушення: dynamic import('${BANNED}') → exit 1`, async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'src'), { recursive: true })
-      await writeFile(
-        join(dir, 'src/server.mjs'),
-        `const m = await import('${BANNED}')\n`
-      )
+      await writeFile(join(dir, 'src/server.mjs'), `const m = await import('${BANNED}')\n`)
       expect(await check(dir)).toBe(1)
     })
   })
@@ -67,10 +64,7 @@ describe('check js.dep-policy', () => {
   test('успіх: node_modules пропускається → exit 0', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, `node_modules/${BANNED}`), { recursive: true })
-      await writeFile(
-        join(dir, `node_modules/${BANNED}/index.mjs`),
-        `import x from '${BANNED}'\nexport default x\n`
-      )
+      await writeFile(join(dir, `node_modules/${BANNED}/index.mjs`), `import x from '${BANNED}'\nexport default x\n`)
       expect(await check(dir)).toBe(0)
     })
   })

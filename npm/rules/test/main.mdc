@@ -7,22 +7,6 @@ alwaysApply: false
 
 Правило **test** керує розміщенням тестових файлів, безпекою ізоляції тестів (заборона `process.chdir`, відносних шляхів у FS, ручного store/restore console), налаштуванням Vitest/Stryker baseline та конфігурацією cargo-mutants для Rust.
 
-[test-location](./js/location.mdc)
-
-[test-no-process-chdir](./js/no-process-chdir.mdc)
-
-[test-no-relative-fs-path](./js/no-relative-fs-path.mdc)
-
-[test-no-console-store-restore](./js/no-console-store-restore.mdc)
-
-[test-sandbox-aware-test](./js/sandbox-aware-test.mdc)
-
-[test-vitest-config-pool-forks](./js/vitest-config-pool-forks.mdc)
-
-[test-stryker-config](./js/stryker_config.mdc)
-
-[test-cargo-mutants-config](./js/cargo_mutants_config.mdc)
-
 ## Покриття + мутаційне тестування
 
 Канонічна команда — `n-cursor coverage`: збирає метрики покриття (`vitest run --coverage`, `cargo llvm-cov` тощо) і мутаційного тестування (Stryker з vitest-runner + `coverageAnalysis: 'perTest'`, `cargo-mutants`) з усіх активних провайдерів у `.n-cursor.json#rules` і пише `COVERAGE.md` у корінь проєкту.
@@ -36,7 +20,3 @@ alwaysApply: false
 ### Multi-workspace iteration
 
 У monorepo `n-cursor coverage` ітерує усі workspaces з власним `package.json` і агрегує метрики lcov + Stryker у єдиний `JS`-рядок `COVERAGE.md`. Workspace без тестів пропускається без помилки.
-
-## Швидкий gate через conftest
-
-[test-package_json](./policy/package_json/package_json.mdc)

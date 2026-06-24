@@ -5,6 +5,7 @@ import { runConformanceCheck } from './run-conformance-check.mjs'
 import { runT0AutoCli } from './t0.mjs'
 import { logEscalation } from './escalation-log.mjs'
 import { runLlmWorker } from './llm-worker.mjs'
+import { printVerboseBlock } from './verbose-block.mjs'
 import { classifyOmlxError } from '../../../lib/llm.mjs'
 import { CLOUD_AVG, CLOUD_MIN, LOCAL_MIN } from '../../../lib/models.mjs'
 
@@ -147,11 +148,20 @@ export async function escalateRule(rule, cwd, deps) {
 
     if (recheckOk) {
       log(`  ✅ ${rung.tier} (${rung.model || 'pi'}): ${rule.ruleId}`)
-      return { resolved: true, avgUsed }
+    } else {
+      const hint = res.error ? ` ❌ ${res.error.slice(0, 120)}` : ' ❌ досі порушено'
+      log(`  ⚡ ${rung.tier} (${rung.model || 'pi'}): ${rule.ruleId}${hint}`)
     }
 
-    const hint = res.error ? ` ❌ ${res.error.slice(0, 120)}` : ' ❌ досі порушено'
-    log(`  ⚡ ${rung.tier} (${rung.model || 'pi'}): ${rule.ruleId}${hint}`)
+    // DEBUG
+    console.error(
+      `[DBG] verbose check: VERBOSE=${env.N_CURSOR_FIX_VERBOSE} promptSummary=${JSON.stringify(res.promptSummary)} reasoning=${res.reasoning}`
+    )
+    if (env.N_CURSOR_FIX_VERBOSE !== 'off' && res.promptSummary) {
+      printVerboseBlock(rule.ruleId, res.promptSummary, res.reasoning ?? null, res.reasoningSource ?? null)
+    }
+
+    if (recheckOk) return { resolved: true, avgUsed }
 
     // Feedback для наступного рунга + оновлений violation.
     feedback = { previousModel: rung.model, previousChanges: res.changes ?? [], previousError: res.error ?? null }

@@ -58,15 +58,14 @@ export async function runHookCli(argv) {
     return 1
   }
 
-  let files
   if (postToolUse) {
     const fp = extractFilePath(await readStdin())
     if (!fp) return 0
-    files = [fp]
-  } else {
-    files = collectChangedFiles(cwd)
+    const code = await runLint({ files: [fp], readOnly: true, cwd })
+    return code !== 0 ? 2 : 0
   }
 
+  const files = collectChangedFiles(cwd)
   const code = await runLint({ files, readOnly: true, cwd })
   return code !== 0 ? 2 : 0
 }

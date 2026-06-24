@@ -8,10 +8,12 @@ import {
   findBunSqlPerRequestConnectionInText,
   findBunSqlUnsafeUseWithoutAllowMarkerInText,
   findBunSqlUnsafeWithInterpolatedTemplateInText,
+  findJsonStringifyBeforeJsonbInText,
   findPgFormatLikeQueryWrapperInText,
   findPgFormatShimDefinitionInText,
   findPgLibImportInText,
   findPgListenNotifyUsageInText,
+  findSqlArrayWithoutTypeArgInText,
   findUnsafeBunSqlDynamicSqlListInText,
   findUnsafeBunSqlInListMissingEmptyGuardInText,
   isBunSqlScanSourceFile,
@@ -567,5 +569,89 @@ async function query(ids) {
 }
 `
     expect(findUnsafeBunSqlInListMissingEmptyGuardInText(code)).toHaveLength(0)
+  })
+})
+
+describe('findJsonStringifyBeforeJsonbInText', () => {
+  test('прямий JSON.stringify перед ::jsonb → знаходить', () => {
+    const code = `
+import { sql } from 'bun'
+const r = sql\`INSERT INTO t (data) VALUES (\${JSON.stringify(obj)}::jsonb)\`
+`
+    const hits = findJsonStringifyBeforeJsonbInText(code)
+    expect(hits.length).toBeGreaterThanOrEqual(1)
+  })
+
+  test('обʼєкт без stringify перед ::jsonb → не знаходить', () => {
+    const code = `
+import { sql } from 'bun'
+const r = sql\`INSERT INTO t (data) VALUES (\${obj}::jsonb)\`
+`
+    expect(findJsonStringifyBeforeJsonbInText(code)).toHaveLength(0)
+  })
+
+  test('JSON.stringify без ::jsonb → не знаходить', () => {
+    const code = `
+import { sql } from 'bun'
+const s = JSON.stringify(obj)
+const r = sql\`SELECT \${s}\`
+`
+    expect(findJsonStringifyBeforeJsonbInText(code)).toHaveLength(0)
+  })
+
+  test('файл без Bun SQL і без TemplateLiteral → порожній результат', () => {
+    const code = `const s = JSON.stringify({ a: 1 })`
+    expect(findJsonStringifyBeforeJsonbInText(code)).toHaveLength(0)
+  })
+})
+
+describe('findSqlArrayWithoutTypeArgInText', () => {
+  test('sql.array(ids) без типу → знаходить', () => {
+    const code = `
+import { sql } from 'bun'
+const r = sql\`SELECT * FROM t WHERE id = ANY(\${sql.array(ids)})\`
+`
+    const hits = findSqlArrayWithoutTypeArgInText(code)
+    expect(hits.length).toBeGreaterThanOrEqual(1)
+  })
+
+  test("sql.array(ids, 'int8') з типом → не знаходить", () => {
+    const code = `
+import { sql } from 'bun'
+const r = sql\`SELECT * FROM t WHERE id = ANY(\${sql.array(ids, 'int8')})\`
+`
+    expect(findSqlArrayWithoutTypeArgInText(code)).toHaveLength(0)
+  })
+
+  test('pgWrite.array(ids) без типу → знаходить', () => {
+    const code = `
+import { pgWrite } from './db.mjs'
+const r = pgWrite\`SELECT * FROM t WHERE id = ANY(\${pgWrite.array(ids)})\`
+`
+    const hits = findSqlArrayWithoutTypeArgInText(code)
+    expect(hits.length).toBeGreaterThanOrEqual(1)
+  })
+
+  test('pgRead.array(ids, type) → не знаходить', () => {
+    const code = `
+import { pgRead } from './db.mjs'
+const r = pgRead\`SELECT \${pgRead.array(ids, 'uuid')}\`
+`
+    expect(findSqlArrayWithoutTypeArgInText(code)).toHaveLength(0)
+  })
+
+  test('someOther.array(ids) — невідомий обʼєкт → не знаходить', () => {
+    const code = `
+const r = someOther.array(ids)
+`
+    expect(findSqlArrayWithoutTypeArgInText(code)).toHaveLength(0)
+  })
+
+  test('sql.array() без жодного аргументу → не знаходить (не 1 arg)', () => {
+    const code = `
+import { sql } from 'bun'
+const r = sql.array()
+`
+    expect(findSqlArrayWithoutTypeArgInText(code)).toHaveLength(0)
   })
 })

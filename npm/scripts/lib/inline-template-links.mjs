@@ -1,10 +1,9 @@
 import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 
 const MD_LINK_RE = /\[([^\]]{1,200})\]\((\.\/[^)]{1,500})\)/g
 const TEMPLATE_SEGMENT_RE = /\/templates?\//
-const MDC_EXT_RE = /\.mdc$/
 /** Статичні regexp-літерали `^(.+)\.<slot>\.<ext>$` — без `RegExp(variable)`. */
 const SLOT_SUFFIX_RES = [/^(.+)\.snippet\.[^.]+$/, /^(.+)\.deny\.[^.]+$/, /^(.+)\.contains\.[^.]+$/]
 
@@ -69,31 +68,42 @@ export async function inlineTemplateLinks(text, ruleDir) {
 }
 
 /**
- * Finds markdown links whose href ends with `.mdc` (and is not a /template/ path) and
- * replaces them with the raw markdown content of the linked file (no fencing).
- * Intended for per-concern section files living alongside their .mjs implementations.
- * Throws Error if a matched link target doesn't exist (fail loud).
- * @param {string} text .mdc file contents (after inlineTemplateLinks)
+ * Appends all *.mdc files auto-discovered in js/ and policy/<concern>/ subdirectories.
+ * js/ direct files come first (alphabetically), then policy concern directories
+ * (alphabetically by concern name, then by file name within each concern).
+ * @param {string} text rule content (after inlineTemplateLinks)
  * @param {string} ruleDir absolute path to the rule directory
- * @returns {Promise<string>} transformed text
+ * @returns {Promise<string>} text with discovered concern docs appended
  */
-export async function inlineMarkdownIncludes(text, ruleDir) {
-  const matches = [...text.matchAll(MD_LINK_RE)].filter(m => MDC_EXT_RE.test(m[2]) && !TEMPLATE_SEGMENT_RE.test(m[2]))
-  if (matches.length === 0) return text
+export async function appendDiscoveredMdcFiles(text, ruleDir) {
+  const sections = []
 
-  let result = text
-  for (const match of matches) {
-    const [fullMatch, , href] = match
-    const relPath = href.slice(2) // strip leading ./
-    const absPath = join(ruleDir, relPath)
-
-    if (!existsSync(absPath)) {
-      throw new Error(`inlineMarkdownIncludes: file not found: ${absPath} (referenced from .mdc)`)
+  const jsDir = join(ruleDir, 'js')
+  if (existsSync(jsDir)) {
+    const entries = await readdir(jsDir, { withFileTypes: true })
+    for (const e of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      if (e.isFile() && e.name.endsWith('.mdc')) {
+        sections.push((await readFile(join(jsDir, e.name), 'utf8')).trim())
+      }
     }
-
-    const raw = await readFile(absPath, 'utf8')
-    result = result.replace(fullMatch, () => raw.trim())
   }
 
-  return result
+  const policyDir = join(ruleDir, 'policy')
+  if (existsSync(policyDir)) {
+    const concerns = (await readdir(policyDir, { withFileTypes: true }))
+      .filter(e => e.isDirectory())
+      .sort((a, b) => a.name.localeCompare(b.name))
+    for (const concern of concerns) {
+      const concernDir = join(policyDir, concern.name)
+      const files = (await readdir(concernDir, { withFileTypes: true }))
+        .filter(e => e.isFile() && e.name.endsWith('.mdc'))
+        .sort((a, b) => a.name.localeCompare(b.name))
+      for (const f of files) {
+        sections.push((await readFile(join(concernDir, f.name), 'utf8')).trim())
+      }
+    }
+  }
+
+  if (sections.length === 0) return text
+  return text.trimEnd() + '\n\n' + sections.join('\n\n') + '\n'
 }

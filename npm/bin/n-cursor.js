@@ -7,17 +7,13 @@
  *   `npx \@nitra/cursor`             — завантажити cursor-правила (синк); якщо в корені вже є `.n-cursor.json`,
  *                                     спочатку зчитується конфіг і за потреби дописується `$schema`
  *   `npx \@nitra/cursor rename-yaml-extensions` — k8s `*.yml` → `*.yaml`, `.github` `*.yaml` → `*.yml` (опції: `--dry-run`, `--root=…`; див. bin/rename-yaml-extensions.mjs)
- *   `npx \@nitra/cursor post-tool-use-check` — точка входу PostToolUse hook Claude Code: читає stdin JSON,
- *                                     дістає `tool_input.file_path`, маршрутизує його у відповідні правила
- *                                     (`*.mjs` → `js-lint`, `*.vue` → `js-lint style vue` тощо) і викликає
- *                                     `fix` лише з ними. Прописується автоматично в `.claude/settings.json`.
+ *   `npx \@nitra/cursor hook --post-tool-use` — PostToolUse hook: per-file lint правила для зміненого файлу (stdin JSON `tool_input.file_path`). Прописується автоматично в `.claude/settings.json`.
+ *   `npx \@nitra/cursor hook --stop`           — Stop hook: per-file lint по всіх змінених файлах (git diff HEAD + untracked).
  *   `npx \@nitra/cursor lint`        — data-driven оркестратор lint+конформності по `rules/<id>/meta.json` (`lint: per-file|full`):
  *                                     за замовчуванням fix-by-default по дельті vs origin (лише `per-file` правила); `--full` =
  *                                     весь репо (`per-file` ∪ `full`); `--read-only` = без мутацій/LLM (CI); позиційні
  *                                     (не-флаг) аргументи — фільтр правил конформності (мапить колишній `fix <rule>`).
  *                                     CI = `lint --read-only --full` (весь репо, нуль мутацій/LLM).
- *   `npx \@nitra/cursor lint-doc-files`  — детермінований детектор застарілості файлових док (`stale`: `missing`|`crc-mismatch`); правило doc-files (ignore-glob у `npm/rules/doc-files/js/docgen-ignore.mjs`; тека `docs/` поряд із джерелом). Режими: повний (exit 1), `--json` (exit 0), `--missing-only`, `--hook`/`--git` (hook-протокол, exit 2), `--degraded`
- *   `npx \@nitra/cursor fix-doc-files`   — JS-оркестрована генерація файлових док (роутинг local/cloud) зі штампом CRC (`--limit`/`--from`/`--overwrite`); `--stamp` — детерміноване перештампування CRC без LLM
  *   `npx \@nitra/cursor doc-aggregate modules` — JSON-лістинг логічних модулів (межі за `package.json`) для Tier 2 скілу doc-aggregate
  *   `npx \@nitra/cursor skill list`     — скіли пакета без синку в проєкт
  *   `npx \@nitra/cursor skill taze`     — промпт на stdout
@@ -74,7 +70,7 @@ import { fileURLToPath } from 'node:url'
 
 import { buildAgentsCommandBulletItems } from '../scripts/build-agents-commands.mjs'
 import { formatGeneratedMarkdownLines, renderAgentsTemplate } from '../scripts/lib/generated-markdown.mjs'
-import { inlineMarkdownIncludes, inlineTemplateLinks } from '../scripts/lib/inline-template-links.mjs'
+import { appendDiscoveredMdcFiles, inlineTemplateLinks } from '../scripts/lib/inline-template-links.mjs'
 import {
   detectAutoRules,
   detectLegacyRuleIds,
@@ -86,7 +82,6 @@ import { detectAutoSkills } from '../scripts/auto-skills.mjs'
 import { readSkillMetaRaw } from '../scripts/lib/skill-meta.mjs'
 import { injectWorktreeNotice } from '../scripts/lib/worktree-notice.mjs'
 import { injectRootNotice } from '../scripts/lib/root-notice.mjs'
-import { runPostToolUseCheckCli } from '../scripts/post-tool-use-check.mjs'
 import { listProjectRulesMdcFiles } from '../scripts/lib/list-project-rules-mdc.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
 import { assertCwdIsProjectRoot } from '../scripts/lib/assert-project-root.mjs'
@@ -423,7 +418,7 @@ async function readBundledRuleContent(rule, bundledRulesDir = BUNDLED_RULES_DIR)
   }
   const text = await readFile(bundledPath, 'utf8')
   const withTemplates = await inlineTemplateLinks(text, dirname(bundledPath))
-  return inlineMarkdownIncludes(withTemplates, dirname(bundledPath))
+  return appendDiscoveredMdcFiles(withTemplates, dirname(bundledPath))
 }
 
 /**
@@ -655,7 +650,7 @@ function buildClaudeDocFilesSectionLines() {
     '',
     '## Файлова документація (`doc-files` — обовʼязковий крок, як lint)',
     '',
-    'Після зміни чи додавання кодового файлу його файлова дока (`<dir>/docs/<stem>.md`) має бути **актуальною** — це **обовʼязковий крок кожної задачі**, нарівні з lint. Застарілість детермінується за **CRC** джерела у frontmatter доки. PostToolUse hook (`lint-doc-files --hook`) **сигналить** про дрейф після правки; Stop-hook (`lint-doc-files --git`) **блокує завершення** задачі за наявності застарілих док (виняток — масовий прогін понад поріг `N_CURSOR_DOC_FILES_GATE_MAX`, дефолт 50). Регенерація — `/doc-files` (JS-оркестрована, не диспатч субагентів). Агрегуюча дока (module-summary, доменні) — окремий скіл `/doc-aggregate`, за запитом.',
+    'Після зміни чи додавання кодового файлу його файлова дока (`<dir>/docs/<stem>.md`) має бути **актуальною** — це **обовʼязковий крок кожної задачі**, нарівні з lint. Застарілість детермінується за **CRC** джерела у frontmatter доки. PostToolUse hook (`hook --post-tool-use`) **сигналить** про дрейф після правки через per-file lint правила. Регенерація — `/doc-files` (JS-оркестрована, не диспатч субагентів). Агрегуюча дока (module-summary, доменні) — окремий скіл `/doc-aggregate`, за запитом.',
     ''
   ]
 }
@@ -1459,7 +1454,7 @@ async function runSync() {
 /**
  * Команди, що мутують проєкт у CWD і вимагають кореня репо. `undefined`/`''` —
  * дефолтний sync; `check` — deprecated-alias `fix`. Решта (read-only `trace`,
- * `--root`-команди `lint-doc-files`/`fix-doc-files`/`doc-files`/`doc-aggregate`/`rename-yaml-extensions`,
+ * `--root`-команди `doc-aggregate`/`rename-yaml-extensions`,
  * sub-лінтери) гард не зачіпає.
  */
 const ROOT_GUARDED_COMMANDS = new Set([undefined, '', 'lint', 'coverage', 'change', 'release'])
@@ -1501,7 +1496,7 @@ try {
   // .n-cursor.json + bun install, а fix/lint/coverage/change/release переписують файли в CWD —
   // усе це ключиться на cwd(). Запуск із піддиректорії git-репо (типово прямий
   // `bun npm/bin/n-cursor.js` не з кореня) зачепив би не той каталог → STOP. Read-only та
-  // `--root`-команди (trace, graph, lint-doc-files, fix-doc-files, doc-aggregate, rename-yaml-extensions) не зачіпаємо.
+  // `--root`-команди (trace, graph, doc-aggregate, rename-yaml-extensions) не зачіпаємо.
   if (ROOT_GUARDED_COMMANDS.has(command)) {
     assertCwdIsProjectRoot(cwd(), describeRootGuardedAction(command))
   }
@@ -1521,13 +1516,6 @@ try {
       //   --stop           Stop: робоче дерево vs HEAD
       const { runHookCli } = await import('../scripts/hook.mjs')
       process.exitCode = await runHookCli(args)
-
-      break
-    }
-    case 'post-tool-use-check': {
-      // @deprecated: використовуй `hook --post-tool-use`
-      const code = await runPostToolUseCheckCli()
-      process.exitCode = code
 
       break
     }
@@ -1614,29 +1602,6 @@ try {
 
       break
     }
-    case 'lint-doc-files': {
-      // n-cursor lint-doc-files — детермінований детектор застарілості файлових док
-      // (missing ∪ crc-mismatch). Режими: (повний) exit 1, --json exit 0, --missing-only,
-      //   --hook/--git/--degraded — hook-протокол (exit 2/0). Деталі — doc-files.mdc.
-      const { runLintDocFilesCli } = await import('../rules/doc-files/main.mjs')
-      process.exitCode = await runLintDocFilesCli(args)
-
-      break
-    }
-    case 'fix-doc-files': {
-      // n-cursor fix-doc-files — local-only генерація файлових док (omlx) + CRC-штамп
-      // (--limit/--from/--overwrite); --stamp — детерміноване
-      // перештампування source+crc без LLM. У CI не запускається (потрібна локальна модель).
-      if (args.includes('--stamp')) {
-        const { runDocFilesStampCli } = await import('../rules/doc-files/js/docgen-files-batch.mjs')
-        process.exitCode = runDocFilesStampCli(args.filter(a => a !== '--stamp'))
-      } else {
-        const { runDocFilesGenCli } = await import('../rules/doc-files/js/docgen-files-batch.mjs')
-        process.exitCode = await runDocFilesGenCli(args)
-      }
-
-      break
-    }
     case 'adr-normalize-local': {
       // Local-backend ADR-нормалізації: викликається з .claude/hooks/normalize-decisions.sh
       // як заміна single-shot LLM-виклику. Проганяє конвеєр (retrieval→edge-judge→
@@ -1669,7 +1634,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), fix-doc-files, coverage, coverage-fix, analyze-escalation, taze, start-check, change, release, skill, trace, doc-aggregate`
+        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), coverage, coverage-fix, analyze-escalation, taze, start-check, release, skill, trace, doc-aggregate`
       )
       process.exitCode = 1
     }

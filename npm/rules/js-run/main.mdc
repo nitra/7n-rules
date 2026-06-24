@@ -7,32 +7,7 @@ version: '1.12'
 
 Правило охоплює backend Node.js workspace-пакети (jobs, GraphQL/HTTP-сервери, CLI) — визначення меж застосування, вимоги до runtime, структуру проекту, конфігурацію, логування, підключення до БД/GraphQL і безпечне використання env-змінних.
 
-[js-run-scope](./js/scope.mdc)
-
-[js-run-runtime](./js/runtime.mdc)
-
-[js-run-temporal](./js/temporal.mdc)
-
-[js-run-project-structure](./js/project-structure.mdc)
-
-[js-run-jsconfig](./js/jsconfig.mdc)
-
-[js-run-pino](./js/pino.mdc)
-
-[js-run-otel-configmap](./js/otel-configmap.mdc)
-
-[js-run-conn-aliases](./js/conn-aliases.mdc)
-
-[js-run-check-env](./js/check-env.mdc)
-
-[js-run-settimeout](./js/settimeout.mdc)
-
 ## Швидкий gate через conftest
 
 Rego-пакети, які запускає `npx @nitra/cursor fix js-run` / `npx @nitra/cursor check`:
 
-[js-run-package_json](./policy/package_json/package_json.mdc)
-
-[js-run-jsconfig](./policy/jsconfig/jsconfig.mdc)
-
-[js-run-configmap](./policy/configmap/configmap.mdc)

@@ -8,8 +8,6 @@ docgen:
   score: 90
 ---
 
-## Огляд
-
 Цей модуль є CLI-обгорткою над канонічним `lint-text` (text.mdc) та викликається через `n-cursor lint text` (оркестраторний адаптер `lint`). Він автоматично встановлює необхідні інструменти (`shellcheck`, `dotenv-linter`) через `ensureTool` (brew/scoop/GitHub Release per-platform) та перевіряє наявність `patch` (для авто-фіксу shellcheck). Функція `runLintTextCli` послідовно виконує: 1) перевірку правопису з `@nitra/cspell-dict` (`cspell .`); 2) авто-фікс та фінальну перевірку `.sh` файлів (`shellcheck`); 3) авто-фікс та фінальну перевірку `.env*` файлів (`dotenv-linter`); 4) авто-фікс Markdown-документів (`markdownlint-cli2 --fix "**\/*.md" "**\/*.mdc"`); 5) schema-валідацію JSON/YAML/TOML через `v8r`. При першому ненульовому коді з ланцюжка повертається код виходу, і наступні кроки не запускаються. Конфігурації, на які спирається код: meta.json.
 
 ## Поведінка

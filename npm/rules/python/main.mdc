@@ -6,15 +6,3 @@ version: '1.0'
 ---
 
 Python-проєкти ведуться **виключно** на [uv](https://docs.astral.sh/uv/) — єдиний пакет-менеджер і резолвер. **Poetry заборонено.** Середовище: `uv sync --frozen` (строго з `uv.lock`).
-
-[python-pyproject_toml](./js/pyproject_toml.mdc)
-
-[python-lint_python_yml](./js/lint_python_yml.mdc)
-
-[python-tooling](./js/tooling.mdc)
-
-## Швидкий gate через conftest (Rego)
-
-[python-pyproject_toml-policy](./policy/pyproject_toml/pyproject_toml.mdc)
-
-[python-lint_python_yml-policy](./policy/lint_python_yml/lint_python_yml.mdc)

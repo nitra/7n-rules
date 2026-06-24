@@ -11,7 +11,7 @@ import {
   dynamicImportModule,
   langFromPath,
   requireCallModule,
-  walkAstWithAncestors,
+  walkAstWithAncestors
 } from '../../../scripts/utils/ast-scan-utils.mjs'
 
 const JS_SOURCE_RE = /\.(?:[cm]?[jt]sx?)$/u
@@ -60,9 +60,13 @@ export async function check(cwdParam = process.cwd()) {
   const ignorePaths = await loadCursorIgnorePaths(cwd)
 
   const files = []
-  await walkDir(cwd, p => {
-    if (JS_SOURCE_RE.test(p)) files.push(p)
-  }, ignorePaths)
+  await walkDir(
+    cwd,
+    p => {
+      if (JS_SOURCE_RE.test(p)) files.push(p)
+    },
+    ignorePaths
+  )
 
   let violations = 0
   for (const absPath of files) {

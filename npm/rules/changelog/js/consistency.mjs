@@ -406,7 +406,7 @@ function workspaceLabel(manifest) {
 function missingChangeFileMessage(label, mf) {
   return (
     `${label}: є релевантні зміни, але немає change-файлу (version у ${mf} не чіпай вручну). ` +
-    `Поклади change-файл: npx @nitra/cursor change --bump <major|minor|patch> --section <Added|Changed|Fixed|Removed> --message "<…>"; ` +
+    `Поклади change-файл: npx @7n/n ch [--bump <major|minor|patch>] [--section <Added|Changed|Fixed|Removed>] [--message "<…>"]; ` +
     `bump зробить CI на main (n-changelog.mdc)`
   )
 }
@@ -574,7 +574,7 @@ async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVers
     fail(
       `${label}: version у ${mf} (${Vcurrent}) випереджає опубліковану (${Vpublished}) — ` +
         `ручний bump поза CI заборонено. Відкоти version і поклади change-файл ` +
-        `(npx @nitra/cursor change …); bump зробить CI на main (n-changelog.mdc)`
+        `(npx @7n/n ch); bump зробить CI на main (n-changelog.mdc)`
     )
     return
   }
@@ -613,7 +613,7 @@ async function checkLocalOnlyChangedWorkspace(comparisonRef, manifest, baseLabel
   if (Vbase !== null && Vcurrent !== null && versionIsAhead(Vcurrent, Vbase)) {
     fail(
       `${label}: version у ${mf} змінено поза CI (${Vbase} → ${Vcurrent}) — ручний bump заборонено (на ${baseLabel} — ${Vbase}). ` +
-        `Відкоти version і поклади change-файл (npx @nitra/cursor change …); bump зробить CI (n-changelog.mdc)`
+        `Відкоти version і поклади change-файл (npx @7n/n ch); bump зробить CI (n-changelog.mdc)`
     )
     return
   }

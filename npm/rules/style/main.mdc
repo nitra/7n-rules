@@ -6,25 +6,3 @@ alwaysApply: false
 ---
 
 Правило **style** для Vue-проєктів: Quasar як стильова система, SCSS-конвенції кольорів і відступів, фікси компонентів, stylelint через `@nitra/stylelint-config`.
-
-[style-quasar](./js/quasar.mdc)
-
-[style-colors](./js/colors.mdc)
-
-[style-gap](./js/gap.mdc)
-
-[style-quasar-fixes](./js/quasar-fixes.mdc)
-
-[style-tooling](./js/tooling.mdc)
-
-[style-admin-table](./js/admin-table.mdc)
-
-## Швидкий gate через conftest (Rego)
-
-[style-lint_style_yml](./policy/lint_style_yml/lint_style_yml.mdc)
-
-[style-package_json](./policy/package_json/package_json.mdc)
-
-[style-vscode_extensions](./policy/vscode_extensions/vscode_extensions.mdc)
-
-[style-vscode_settings](./policy/vscode_settings/vscode_settings.mdc)

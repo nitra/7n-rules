@@ -367,7 +367,13 @@ async function checkWorkspacePackage(rootDir, ignorePaths, fail, passFn, cwd) {
     passFn(`${label}немає Temporal API у Bun runtime-коді`)
   }
 
-  checkOtelConfigmap(rootDir, passFn, cwd)
+  checkOtelConfigmap(rootDir, passFn, fail, cwd)
+
+  const connAliasViolations = checkConnAliasDeclaration(absPackageRoot, sourcePaths, pkgJson, label, fail)
+  if (connAliasViolations === 0) {
+    const connDir = resolveConnDirFromPackageJson(pkgJson)
+    passFn(`${label}package.json.imports["#conn/*"] оголошений (або файлів у '${connDir}/' немає)`)
+  }
 }
 
 /**
@@ -409,9 +415,47 @@ async function loadPackageJson(rootDir, cwd) {
  * @returns {void}
  * @param {string} cwd корінь репозиторію
  */
-function checkOtelConfigmap(rootDir, passFn, cwd) {
-  const configmapPath = join(cwd, rootDir, 'k8s', 'base', 'configmap.yaml')
-  if (!existsSync(configmapPath)) return
+/**
+ * Перевіряє наявність `package.json#imports["#conn/*"]` коли у `connDir` є файли.
+ * @param {string} absPackageRoot абсолютний корінь пакета
+ * @param {string[]} sourcePaths абсолютні шляхи до файлів пакета
+ * @param {unknown} pkgJson розпарсений package.json пакета (або null)
+ * @param {string} label префікс повідомлення
+ * @param {(msg: string) => void} fail callback при помилці
+ * @returns {number} 0 — ок, 1 — порушення
+ */
+function checkConnAliasDeclaration(absPackageRoot, sourcePaths, pkgJson, label, fail) {
+  const connDir = resolveConnDirFromPackageJson(pkgJson)
+  const hasConnFiles = sourcePaths.some(absPath => isInsideConnDir(relPosix(absPackageRoot, absPath), connDir))
+  if (!hasConnFiles) return 0
+
+  const imports =
+    pkgJson && typeof pkgJson === 'object' && !Array.isArray(pkgJson)
+      ? /** @type {Record<string, unknown>} */ (pkgJson).imports
+      : null
+  if (imports && typeof imports === 'object' && !Array.isArray(imports) && imports['#conn/*']) return 0
+
+  fail(
+    `${label}є файли у '${connDir}/', але в package.json відсутній аліас "#conn/*" — ` +
+      `додай "imports": { "#conn/*": "./${connDir}/*" } (js-run.mdc conn-aliases)`
+  )
+  return 1
+}
+
+function checkOtelConfigmap(rootDir, passFn, failFn, cwd) {
+  const k8sDir = join(cwd, rootDir, 'k8s')
+  if (!existsSync(k8sDir)) {
+    passFn(`${rootDir}: немає каталогу k8s/ — перевірку OTEL configmap пропущено`)
+    return
+  }
+  const configmapPath = join(k8sDir, 'base', 'configmap.yaml')
+  if (!existsSync(configmapPath)) {
+    failFn(
+      `${rootDir}/k8s/base/configmap.yaml відсутній — додай з полем OTEL_RESOURCE_ATTRIBUTES ` +
+        `(service.name=, service.namespace=), js-run.mdc`
+    )
+    return
+  }
   passFn(`${rootDir}/k8s/base/configmap.yaml є (OTEL — npx @nitra/cursor fix → js_run.configmap)`)
 }
 

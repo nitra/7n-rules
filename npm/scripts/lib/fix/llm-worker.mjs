@@ -4,13 +4,17 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { env } from 'node:process'
 import { resolveModel } from '../../../lib/models.mjs'
-import { callLlm } from '../../../lib/llm.mjs'
+import { callLlmRich } from '../../../lib/llm.mjs'
 import { applyChanges, parseChangesResponse, readFilesForFix } from './llm-fix-apply.mjs'
 
 // Дефолтна модель, коли викликач не задав `opts.model` (legacy/прямі виклики).
 // Драбина ескалації (`orchestrator.mjs`) завжди передає модель рунга явно, тож
 // тут лишається тільки fallback на min-тир. Перевизначення — `N_CURSOR_FIX_MODEL`.
 const MODEL = env.N_CURSOR_FIX_MODEL ?? resolveModel('min')
+
+// Бюджет thinking-токенів для omlx-моделей (Gemma 4 та ін., що підтримують thinking_budget).
+// Значення 0 вимикає thinking. Перевизначення — `N_CURSOR_OMLX_THINKING_BUDGET`.
+const DEFAULT_THINKING_BUDGET = Number(env.N_CURSOR_OMLX_THINKING_BUDGET ?? 4096)
 
 const API_KEY_RE = /api key/i
 
@@ -112,23 +116,32 @@ function buildPrompt(ruleId, ruleMdc, output, files, feedback = null) {
 }
 
 /**
- * Викликає LLM через спільний `callLlm` (маршрут за префіксом model-id; wire-trace).
+ * Викликає LLM через `callLlmRich` (маршрут за префіксом model-id; wire-trace).
+ * Повертає reasoning поряд із текстом — для verbose-блоку оркестратора.
  * Зберігає дружнє повідомлення про відсутній API-ключ для хмарних провайдерів.
  * @param {string} prompt текст промпта
  * @param {string} model назва моделі (provider/id, `omlx/...` або '')
  * @param {string} caller мітка викликача для wire-trace (`fix:<rule>:<rung>`)
- * @param {number} [timeoutMs] ліміт виклику (драбина задає per-tier; undefined → дефолт callLlm)
- * @returns {{ text: string, error?: string }} текст відповіді або повідомлення про помилку
+ * @param {number} [timeoutMs] ліміт виклику (драбина задає per-tier; undefined → дефолт callLlmRich)
+ * @param {number} [thinkingBudget] бюджет thinking-токенів (лише omlx; 0 = вимкнено)
+ * @returns {{ text: string, reasoning: string|null, reasoningSource: string|null, error?: string }}
  */
-function callModel(prompt, model, caller, timeoutMs) {
+function callModel(prompt, model, caller, timeoutMs, thinkingBudget) {
   try {
-    return { text: callLlm([{ role: 'user', content: prompt }], model, { timeoutMs, caller }) }
+    const { content, reasoning, reasoningSource } = callLlmRich([{ role: 'user', content: prompt }], model, {
+      timeoutMs,
+      caller,
+      thinkingBudget
+    })
+    return { text: content, reasoning, reasoningSource }
   } catch (error) {
     const msg = String(error.message)
     if (API_KEY_RE.test(msg)) {
       const provider = model ? model.split('/')[0] : 'дефолтного провайдера'
       return {
         text: '',
+        reasoning: null,
+        reasoningSource: null,
         error: [
           `pi: немає ключа для ${provider}.`,
           `Встановіть N_CLOUD_MIN_MODEL=provider/model-id`,
@@ -136,7 +149,7 @@ function callModel(prompt, model, caller, timeoutMs) {
         ].join(' ')
       }
     }
-    return { text: '', error: msg }
+    return { text: '', reasoning: null, reasoningSource: null, error: msg }
   }
 }
 
@@ -144,21 +157,24 @@ function callModel(prompt, model, caller, timeoutMs) {
  * LLM-worker: виправляє одне rule-порушення через pi (C1 pattern).
  * Повертає `changes`/`diagnosis` навіть при невдачі — драбина ескалації
  * (`orchestrator.mjs`) логує їх і прокидає як feedback у наступний рунг.
+ * Поля `reasoning`/`reasoningSource`/`promptSummary` використовує оркестратор
+ * для verbose-блоку після кожного рунга (`--full` режим).
  * @param {string} ruleId ID правила
  * @param {string} violationOutput  output з fix check для цього rule
  * @param {string} projectRoot      абсолютний шлях до кореня проєкту
- * @param {{ model?: string, feedback?: object|null, caller?: string, timeoutMs?: number }} opts опції:
+ * @param {{ model?: string, feedback?: object|null, caller?: string, timeoutMs?: number, thinkingBudget?: number }} opts опції:
  *   `model` — перевизначення моделі; `feedback` — контекст попереднього рунга
  *   драбини (retry-with-feedback); `caller` — мітка для wire-trace; `timeoutMs` —
- *   per-tier ліміт виклику (драбина: локалі fail-fast, хмара повний)
- * @returns {{ ok: boolean, error?: string, changes: Array<{path:string}>, diagnosis: string|null }}
- *   статус виправлення, помилка, запропоновані зміни і само-аналіз моделі
+ *   per-tier ліміт виклику (драбина: локалі fail-fast, хмара повний);
+ *   `thinkingBudget` — кількість thinking-токенів для omlx (дефолт `DEFAULT_THINKING_BUDGET`)
+ * @returns {{ ok: boolean, error?: string, changes: Array<{path:string}>, diagnosis: string|null, reasoning: string|null, reasoningSource: string|null, promptSummary: object }}
  */
 export function runLlmWorker(ruleId, violationOutput, projectRoot, opts = {}) {
   const model = opts.model ?? MODEL
   const feedback = opts.feedback ?? null
   const caller = opts.caller ?? 'fix'
   const timeoutMs = opts.timeoutMs
+  const thinkingBudget = opts.thinkingBudget ?? DEFAULT_THINKING_BUDGET
 
   // 1. Читаємо rule .mdc
   const mdcPath = join(projectRoot, '.cursor', 'rules', `n-${ruleId}.mdc`)
@@ -167,24 +183,61 @@ export function runLlmWorker(ruleId, violationOutput, projectRoot, opts = {}) {
   // 2. Витягуємо файли з violation output і читаємо їх
   const files = readFilesForFix(extractFilePaths(violationOutput), projectRoot)
 
-  // 3. Будуємо prompt і викликаємо модель
+  // 3. Будуємо summary промпту (для verbose-блоку) до виклику моделі
+  const promptSummary = {
+    ruleMdcLen: ruleMdc.length,
+    violationLen: violationOutput.length,
+    filesCount: files.length,
+    filesTotalBytes: files.reduce((s, f) => s + f.content.length, 0),
+    hasFeedback: !!feedback,
+    feedbackModel: feedback?.previousModel ?? null,
+    feedbackChangesCount: feedback?.previousChanges?.length ?? 0,
+    feedbackError: feedback?.previousError ?? null
+  }
+
+  // 4. Будуємо prompt і викликаємо модель
   const prompt = buildPrompt(ruleId, ruleMdc, violationOutput, files, feedback)
-  const { text, error: modelError } = callModel(prompt, model, caller, timeoutMs)
+  const {
+    text,
+    error: modelError,
+    reasoning,
+    reasoningSource
+  } = callModel(prompt, model, caller, timeoutMs, thinkingBudget)
 
-  if (modelError) return { ok: false, error: modelError, changes: [], diagnosis: null }
-  if (!text) return { ok: false, error: 'model returned empty response', changes: [], diagnosis: null }
+  if (modelError)
+    return { ok: false, error: modelError, changes: [], diagnosis: null, reasoning, reasoningSource, promptSummary }
+  if (!text)
+    return {
+      ok: false,
+      error: 'model returned empty response',
+      changes: [],
+      diagnosis: null,
+      reasoning,
+      reasoningSource,
+      promptSummary
+    }
 
-  // 4. Парсимо відповідь
+  // 5. Парсимо відповідь
   const parsed = parseChangesResponse(text)
   if (!parsed) {
-    return { ok: false, error: `cannot parse pi response: ${text.slice(0, 200)}`, changes: [], diagnosis: null }
+    return {
+      ok: false,
+      error: `cannot parse pi response: ${text.slice(0, 200)}`,
+      changes: [],
+      diagnosis: null,
+      reasoning,
+      reasoningSource,
+      promptSummary
+    }
   }
   const diagnosis = typeof parsed.diagnosis === 'string' && parsed.diagnosis ? parsed.diagnosis : null
   const changes = parsed.changes ?? []
-  if (parsed.error) return { ok: false, error: parsed.error, changes, diagnosis }
-  if (changes.length === 0) return { ok: false, error: 'pi returned no changes', changes, diagnosis }
+  if (parsed.error)
+    return { ok: false, error: parsed.error, changes, diagnosis, reasoning, reasoningSource, promptSummary }
+  if (changes.length === 0)
+    return { ok: false, error: 'pi returned no changes', changes, diagnosis, reasoning, reasoningSource, promptSummary }
 
-  // 5. Застосовуємо зміни
+  // 6. Застосовуємо зміни
   const applied = applyChanges(changes, projectRoot)
-  return { ...applied, changes, diagnosis }
+  return { ...applied, changes, diagnosis, reasoning, reasoningSource, promptSummary }
 }

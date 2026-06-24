@@ -3,27 +3,28 @@ type: JS Module
 title: hook.mjs
 resource: npm/scripts/hook.mjs
 docgen:
-  crc: 8a19fee4
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  score: 90
+  crc: 602cd023
+  model: claude-sonnet-4-6
+  score: 100
 ---
 
-## Огляд
-
-Модуль є точкою входу для хуків Claude Code. Він зчитує контекст, отримуючи шлях до файлу з вхідного потоку або визначаючи його через Git. У режимі `--post-tool-use` шлях до файлу зчитується з JSON, що надходить у stdin. У режимі `--stop` визначається робоче дерево проти HEAD (`git diff HEAD` + untracked). Після зчитування контексту, він делегує виконання перевірки за допомогою `runLint`. Код виходу, отриманий від перевірки, перекодовується у відповідний протокол хука (1 $\rightarrow$ 2).
+Точка входу для хуків Claude Code. У режимі `--post-tool-use` зчитує `file_path` зі stdin JSON (PostToolUse hook), запускає lint для цього файлу та перевіряє актуальність файлової документації (`doc-files`). У режимі `--stop` визначає змінені файли (`git diff HEAD` + untracked) і запускає lint по всьому робочому дереву. Повертає exit-код у hook-протоколі (ненуль → 2).
 
 ## Поведінка
 
-extractFilePath: Витягує шлях до файлу з JSON, отриманого з вхідного потоку.
-runHookCli: Виконує логіку хука, визначаючи файли для перевірки на основі аргументів командного рядка, запускає перевірку та повертає відповідний код виходу.
+`runHookCli` виконує відповідну логіку залежно від переданого режиму:
+
+- **`--post-tool-use`**: читає stdin JSON → витягує `tool_input.file_path` → запускає `runLint` для цього файлу (read-only, усі per-file правила включно з `doc-files`) → повертає 2 при порушеннях.
+- **`--stop`**: визначає всі змінені файли через `collectChangedFiles` → запускає `runLint` (read-only) → повертає 2 при порушеннях.
+
+Якщо `file_path` відсутній у stdin або stdin порожній — завершується з кодом 0 (нема що перевіряти).
 
 ## Публічний API
 
-extractFilePath — витягує шлях до файлу з вхідних даних JSON хука Claude Code PostToolUse.
-runHookCli — виконує команду для хука n-cursor.
+- `extractFilePath(json)` — витягує `tool_input.file_path` зі stdin JSON Claude Code PostToolUse hook; повертає `null` якщо JSON відсутній або поле не знайдено.
+- `runHookCli(argv)` — CLI-точка входу для `n-cursor hook`; повертає Promise<number> (0 — чисто, 1 — невідомий режим, 2 — є порушення).
 
 ## Гарантії поведінки
 
 - Read-only: не виконує операцій запису (ФС/БД).
-- Перехоплює помилки і не пропускає винятків назовні (fail-safe).
-- За певних помилок повертає порожнє значення (напр. `null`) замість винятку.
+- Не кидає винятків назовні: помилки stdin та parse-помилки повертають null/0.

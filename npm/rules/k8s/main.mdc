@@ -17,52 +17,7 @@ alwaysApply: false
 
 Правило активується автоматично для `**/k8s/**/*.yaml` (через `globs`). Додаткова конфігурація в `.n-cursor.json` не потрібна.
 
-[k8s-schema-modeline](./js/schema_modeline.mdc)
-
-[k8s-lint-k8s](./js/lint_k8s.mdc)
-
-[k8s-deployment-resources](./js/deployment_resources.mdc)
-
-[k8s-hasura-httproute](./js/hasura_httproute.mdc)
-
-[k8s-service](./js/service.mdc)
-
-[k8s-configmap](./js/configmap.mdc)
-
-[k8s-kustomize-structure](./js/kustomize_structure.mdc)
-
-[k8s-topology-hpa-pdb](./js/topology_hpa_pdb.mdc)
-
-[k8s-network-policy](./js/network_policy.mdc)
-
-[k8s-ingress-gateway](./js/ingress_gateway.mdc)
-
-[k8s-hpa-apiversion](./js/hpa_apiversion.mdc)
-
-[k8s-multidoc-yaml](./js/multidoc_yaml.mdc)
-
 ## Швидкий gate через conftest (Rego)
 
 Підмножину пер-документних правил продубльовано як rego-полісі у **`npm/rules/k8s/policy/`** (запускається через **`bun run lint-rego`** для `*_test.rego` юніт-тестів і через **`npx @nitra/cursor fix k8s`** для прогону по реальних YAML). JS authoritative; rego — швидкий gate для одиничного маніфеста.
 
-[k8s-policy-manifest](./policy/manifest/manifest.mdc)
-
-[k8s-policy-base-manifest](./policy/base_manifest/base_manifest.mdc)
-
-[k8s-policy-base-kustomization](./policy/base_kustomization/base_kustomization.mdc)
-
-[k8s-policy-gateway](./policy/gateway/gateway.mdc)
-
-[k8s-policy-hasura-configmap](./policy/hasura_configmap/hasura_configmap.mdc)
-
-[k8s-policy-hasura-httproute](./policy/hasura_httproute/hasura_httproute.mdc)
-
-[k8s-policy-hpa-pdb](./policy/hpa_pdb/hpa_pdb.mdc)
-
-[k8s-policy-kustomization](./policy/kustomization/kustomization.mdc)
-
-[k8s-policy-network-policy](./policy/network_policy/network_policy.mdc)
-
-[k8s-policy-svc-yaml](./policy/svc_yaml/svc_yaml.mdc)
-
-[k8s-policy-svc-hl-yaml](./policy/svc_hl_yaml/svc_hl_yaml.mdc)

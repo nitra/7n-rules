@@ -9,7 +9,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-import { inlineMarkdownIncludes, inlineTemplateLinks } from './inline-template-links.mjs'
+import { appendDiscoveredMdcFiles, inlineTemplateLinks } from './inline-template-links.mjs'
 
 const MIRROR_PREFIX = 'n-'
 const MDC_EXT = '.mdc'
@@ -44,7 +44,7 @@ export function listManagedMirrors(repoRoot) {
 export async function expectedMirrorContent(canonicalPath) {
   const dir = dirname(canonicalPath)
   const withTemplates = await inlineTemplateLinks(readFileSync(canonicalPath, 'utf8'), dir)
-  return inlineMarkdownIncludes(withTemplates, dir)
+  return appendDiscoveredMdcFiles(withTemplates, dir)
 }
 
 /**

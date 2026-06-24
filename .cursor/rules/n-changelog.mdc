@@ -10,7 +10,7 @@ alwaysApply: true
 
 > **Якщо в цій сесії ти змінив(ла) файли в пакетному workspace** (код, rego, правила, скіли, скрипти, конфіги, тести — **не** лише `docs/` / `doc/`) — **не завершуй задачу**, поки не виконаєш **усі три** кроки нижче в **тому ж** наборі змін. Це не «опційно після синку» — це частина PR.
 
-1. **Поклади change-файл** `<ws>/.changes/YYMMDD-HHMM.md` з frontmatter `bump:` (`major|minor|patch`) + `section:` (`Added|Changed|Fixed|Removed`) і текстом опису. Команда: `npx @nitra/cursor change --bump <…> --section <…> --message "<…>" [--ws <шлях>]`. Якщо файл за ту саму хвилину вже існує, CLI атомарно створює `YYMMDD-HHMM-2.md`, потім `-3` тощо.
+1. **Поклади change-файл** `<ws>/.changes/YYMMDD-HHMM.md` з frontmatter `bump:` (`major|minor|patch`) + `section:` (`Added|Changed|Fixed|Removed`) і текстом опису. Команда: `npx @7n/n ch [--bump <…>] [--section <…>] [--message "<…>"]` — автоматично знаходить зачеплені workspaces за git status і пише окремий change-файл у кожен; без `--message` генерує опис через omlx з diff.
 2. **Ніколи** не редагуй `version` і `CHANGELOG.md` вручну — навіть для hotfix. Єдиний артефакт зміни — change-файл; `version`/CHANGELOG формує `n-cursor release` у CI на `main` (агрегує change-файли, ставить git-тег `<name>@<version>`). Будь-яка зміна `version` поза CI (drift від бази чи опублікованої) завалює `check changelog` — навіть якщо поряд є change-файл.
 3. **`npx @nitra/cursor fix changelog`** → exit **`0`** (достатньо наявності change-файлу; `version` лишається незмінним).
 
@@ -21,6 +21,40 @@ alwaysApply: true
 **Інверсія (change-файл не потрібен):** лише `docs/` / `doc/`; синхронізований із `@nitra/cursor` інструментарій (`.cursor/`, `.claude/`); лише `.gitignore`. **Корінь монорепо** (воркспейс `.` за наявності підпакетів) не перевіряється взагалі — отже й кореневі `AGENTS.md` / `CLAUDE.md` та bump `@nitra/cursor` у `devDependencies`. Окремого «релізного кроку» у feature-флоу немає — `version`/`CHANGELOG.md` змінює лише CI.
 
 **Pre-commit (людина):** `hk` у цьому репо запускає `fix changelog` при змінах під `npm/**` в **autofix-режимі** (env `N_CURSOR_CHANGELOG_AUTOFIX=1`): за відсутності change-файлу хук **сам** його створює (дефолти `patch`/`Changed`, опис = subject останнього коміту) і ставить у git-індекс, тож коміт не падає. Це лише підстраховка — агент не покладайся на неї: виконуй кроки 1–3 **до** фінальної відповіді, бо автоген ставить осмислений опис лише випадково (subject попереднього коміту), і `bump`/`section`/текст майже завжди треба відредагувати. Autofix-режим також **не робить мережевих викликів** (`npm view` / PyPI fetch пропускаються) — реєстрова drift-перевірка `version` у хуці не виконується (її ловить CI / ручний `fix`). Поза хуком (CI, ручний `fix`/`check`) autofix вимкнено — поведінка лишається fail-on-missing з повною drift-перевіркою.
+
+## Формат CHANGELOG.md
+
+[Keep a Changelog 1.1.0](https://keepachangelog.com/uk/1.1.0/), мова — українська, новіші версії зверху.
+
+```md title="<ws>/CHANGELOG.md"
+# Changelog
+
+Усі помітні зміни цього пакета документуються тут.
+
+Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
+
+## [1.2.3] - 2026-05-05
+
+### Added
+
+- ...
+
+### Changed
+
+- ...
+
+### Fixed
+
+- ...
+```
+
+Секції — підмножина `### Added`, `### Changed`, `### Fixed`, `### Removed` (одна або кілька).
+
+## Post-release інваріант (гарантує CI)
+
+Перша (верхня) секція `## [version]` у `CHANGELOG.md` дорівнює полю `version` у маніфесті — але це **post-release** твердження, яке забезпечує `n-cursor release` у CI, агрегуючи change-файли (bump `version` + генерація секції + git-тег `<name>@<version>`). **Локально цю рівність руками не підтримують**: у feature-флоу `version`/`CHANGELOG.md` не чіпають, тож верхня секція може відставати від майбутньої версії — це нормально. Drift `version` поза CI (vs реєстр / vs git-база) ловить `check changelog` як заборонений ручний bump.
+
+Інструкції щодо bump `version` і редагування `CHANGELOG.md` живуть **лише** в правилі `changelog` — джерелі істини. Інші правила (зокрема `n-npm-module.mdc`) їй підпорядковані й власних інструкцій bump/CHANGELOG не дублюють.
 
 ## Дві моделі бази порівняння
 
@@ -62,37 +96,3 @@ alwaysApply: true
 **Вимагають change-файл** — усі інші зміни в каталозі workspace (код, rego, правила, скіли, конфіги, тести тощо). Виняток `.cursor/` / `.claude/` **не** поширюється на джерело правил у репо `@nitra/cursor` — воно лежить під `npm/`, тож зміни в ньому далі вимагають change-файлу.
 
 Перевірка програмна (`changelog/js/consistency.mjs`).
-
-## Формат CHANGELOG.md
-
-[Keep a Changelog 1.1.0](https://keepachangelog.com/uk/1.1.0/), мова — українська, новіші версії зверху.
-
-```md title="<ws>/CHANGELOG.md"
-# Changelog
-
-Усі помітні зміни цього пакета документуються тут.
-
-Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
-
-## [1.2.3] - 2026-05-05
-
-### Added
-
-- ...
-
-### Changed
-
-- ...
-
-### Fixed
-
-- ...
-```
-
-Секції — підмножина `### Added`, `### Changed`, `### Fixed`, `### Removed` (одна або кілька).
-
-## Post-release інваріант (гарантує CI)
-
-Перша (верхня) секція `## [version]` у `CHANGELOG.md` дорівнює полю `version` у маніфесті — але це **post-release** твердження, яке забезпечує `n-cursor release` у CI, агрегуючи change-файли (bump `version` + генерація секції + git-тег `<name>@<version>`). **Локально цю рівність руками не підтримують**: у feature-флоу `version`/`CHANGELOG.md` не чіпають, тож верхня секція може відставати від майбутньої версії — це нормально. Drift `version` поза CI (vs реєстр / vs git-база) ловить `check changelog` як заборонений ручний bump.
-
-Інструкції щодо bump `version` і редагування `CHANGELOG.md` живуть **лише** в правилі `changelog` — джерелі істини. Інші правила (зокрема `n-npm-module.mdc`) їй підпорядковані й власних інструкцій bump/CHANGELOG не дублюють.

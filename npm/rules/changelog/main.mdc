@@ -6,8 +6,3 @@ alwaysApply: true
 
 У кожному **пакетному** workspace (каталог із `package.json` або `pyproject.toml`) має бути власний **`CHANGELOG.md`**. Спільного на репозиторій змісту змін **не існує** — кожен пакет веде свій. Маніфест версії: **JS/Bun/npm** — `package.json` (`version`); **Python** — `pyproject.toml` (`[project].version` або `[tool.poetry].version`).
 
-[changelog-agent-workflow](./js/agent-workflow.mdc)
-
-[changelog-comparison-models](./js/comparison-models.mdc)
-
-[changelog-format](./js/changelog-format.mdc)

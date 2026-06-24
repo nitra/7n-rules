@@ -8,8 +8,6 @@ docgen:
   score: 100
 ---
 
-## Огляд
-
 Виконує крос-документну аналітику для підрахунку `backendRefs` до спільних сервісів (`auth-run-hl`, `file-link-hl`) у base-маніфестах пакета, що знаходяться поза overlay `ua`. Використовується фіксований список спільних сервісів, визначений через `ABIE_SHARED_CROSS_NS_BACKEND_NAMES`. Функція `analyzeAbieSharedBackendRefsInPackageK8s` підраховує ці посилання. Це забезпечує синхронізацію числа патчів namespace в overlay із кількістю base-reference, використовуючи `ua_http_route-концерном` для забезпечення узгодженості (abie.mdc).
 
 ## Поведінка

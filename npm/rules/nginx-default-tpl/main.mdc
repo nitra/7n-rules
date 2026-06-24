@@ -7,16 +7,3 @@ alwaysApply: false
 
 Правило забезпечує відповідність `default.conf.template` канонічній структурі nginx для фронтенду зі статичними файлами, а також перевіряє пов'язані артефакти: HTTPRoute (k8s), Dockerfile, ini-файли середовищ і VS Code конфігурацію.
 
-[nginx-default-tpl-template-structure](./js/template-structure.mdc)
-
-[nginx-default-tpl-http-route](./js/http-route.mdc)
-
-[nginx-default-tpl-dockerfile](./js/dockerfile.mdc)
-
-[nginx-default-tpl-ini-keys](./js/ini-keys.mdc)
-
-[nginx-default-tpl-vscode](./js/vscode.mdc)
-
-[nginx-default-tpl-vscode_extensions](./policy/vscode_extensions/vscode_extensions.mdc)
-
-[nginx-default-tpl-vscode_settings](./policy/vscode_settings/vscode_settings.mdc)

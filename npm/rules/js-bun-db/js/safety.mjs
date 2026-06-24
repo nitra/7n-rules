@@ -9,10 +9,12 @@ import {
   findBunSqlPgLeftoverCallInText,
   findBunSqlUnsafeUseWithoutAllowMarkerInText,
   findBunSqlUnsafeWithInterpolatedTemplateInText,
+  findJsonStringifyBeforeJsonbInText,
   findPgFormatLikeQueryWrapperInText,
   findPgFormatShimDefinitionInText,
   findPgLibImportInText,
   findPgListenNotifyUsageInText,
+  findSqlArrayWithoutTypeArgInText,
   findUnsafeBunSqlDynamicSqlListInText,
   findUnsafeBunSqlInListMissingEmptyGuardInText,
   isBunSqlScanSourceFile,
@@ -83,7 +85,9 @@ async function scanSourcesForBunSqlPatterns(sourcePaths, repoRoot, reporter) {
     inListGuard: 0,
     pgLeftover: 0,
     pgFormatShim: 0,
-    queryWrapper: 0
+    queryWrapper: 0,
+    jsonStringifyJsonb: 0,
+    sqlArrayNoType: 0
   }
   let hasBunSqlImport = false
   /** @type {{ rel: string, imports: { line: number, snippet: string }[], listenNotify: { line: number, snippet: string, kind: string }[] }[]} */
@@ -127,7 +131,7 @@ function collectPgUsageForFile(content, rel, pgUsage) {
  * @param {string} content вміст файлу
  * @param {string} rel posix-шлях відносно `repoRoot`
  * @param {(msg: string) => void} fail callback при помилці
- * @param {{ perRequest: number, unsafeCall: number, dynamicList: number, inListGuard: number, pgLeftover: number, pgFormatShim: number, queryWrapper: number }} counts акумулятори
+ * @param {{ perRequest: number, unsafeCall: number, unsafeTemplateInterp: number, dynamicList: number, inListGuard: number, pgLeftover: number, pgFormatShim: number, queryWrapper: number, jsonStringifyJsonb: number, sqlArrayNoType: number }} counts акумулятори
  * @returns {void}
  */
 function scanFileForBunSqlPatterns(content, rel, fail, counts) {
@@ -200,6 +204,22 @@ function scanFileForBunSqlPatterns(content, rel, fail, counts) {
       `js-bun-db: ${rel}:${v.line} — query(text, params)-обгортка над <obj>.unsafe(...) — це прихований ` +
         `pg-сумісний шим. Видали обгортку (pgRead/pgWrite/db.query) і переведи всі call-site на tagged template ` +
         `sql\`...\${value}...\` (js-bun-db.mdc): ${v.snippet}`
+    )
+  }
+  for (const v of findJsonStringifyBeforeJsonbInText(content, rel)) {
+    counts.jsonStringifyJsonb++
+    fail(
+      `js-bun-db: ${rel}:${v.line} — JSON.stringify(...) перед ::jsonb зайвий: Bun SQL серіалізує ` +
+        `об'єкти/масиви у JSON автоматично, явний stringify призводить до подвійної серіалізації ` +
+        `(js-bun-db.mdc query-safety): ${v.snippet}`
+    )
+  }
+  for (const v of findSqlArrayWithoutTypeArgInText(content, rel)) {
+    counts.sqlArrayNoType++
+    fail(
+      `js-bun-db: ${rel}:${v.line} — sql.array(arr) без другого аргументу типу — ` +
+        `вкажи явний pg-тип: sql.array(arr, 'int8') / sql.array(arr, 'uuid') тощо ` +
+        `(js-bun-db.mdc sql-array): ${v.snippet}`
     )
   }
 }
@@ -338,7 +358,9 @@ export async function check(cwd = process.cwd()) {
     inListGuard,
     pgLeftover,
     pgFormatShim,
-    queryWrapper
+    queryWrapper,
+    jsonStringifyJsonb,
+    sqlArrayNoType
   } = await scanSourcesForBunSqlPatterns(sourcePaths, repoRoot, reporter)
 
   const { pgDepFails, pgImportFails, pgDepsFound, listenNotifyEvidence } = await checkPgDependencyAndUsage(
@@ -395,6 +417,12 @@ export async function check(cwd = process.cwd()) {
   }
   if (queryWrapper === 0) {
     pass('js-bun-db: немає query(text, params)-обгорток над unsafe(...) у файлах з Bun SQL')
+  }
+  if (jsonStringifyJsonb === 0) {
+    pass('js-bun-db: немає JSON.stringify(...) перед ::jsonb — Bun SQL серіалізує автоматично')
+  }
+  if (sqlArrayNoType === 0) {
+    pass('js-bun-db: усі sql.array() мають явний аргумент типу')
   }
 
   return reporter.getExitCode()

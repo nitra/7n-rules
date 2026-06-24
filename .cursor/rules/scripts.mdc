@@ -28,6 +28,7 @@ npm/rules/{rule}/
 ├── fix.mjs                                 ← entry-point правила (wrapper навколо runStandardRule)
 ├── js/                                     ← JS-частина (опційно)
 │   ├── <concern>.mjs                       ← FS / cross-file / autofix перевірка концерну
+│   ├── <concern>.mdc                       ← людинозрозумілий гід концерну для агентів (ОБОВ'ЯЗКОВИЙ)
 │   ├── tests/                              ← Bun-тести
 │   │   ├── <concern>.test.mjs              ← single-test concern
 │   │   └── <concern>/                      ← multi-test concern (+ fixtures/)
@@ -39,6 +40,7 @@ npm/rules/{rule}/
 │   └── tests/<helper>.test.mjs             ← тести helpers (як в abie/utils/tests/)
 └── policy/<concern>/                       ← Rego-поліси концерну (один target-файл; опційно)
     ├── <concern>.rego                      ← `package {rule}.<concern>` + `import rego.v1`
+    ├── <concern>.mdc                       ← людинозрозумілий гід policy для агентів (ОБОВ'ЯЗКОВИЙ)
     ├── <concern>_test.rego                 ← тести rego-полісі (запускає `bun run lint-rego` через `conftest verify`)
     ├── target.json                         ← {"files": {"single": "...", "required": true?}, "missingMessage": "..."}
     └── template/<target>.<slot>.<ext>      ← канон концерну для Rego-перевірюваних кейсів (опційно)
@@ -177,6 +179,17 @@ npm/skills/{skill}/
 
 - Запускай **перед** змінами правил або check-скриптів — зафіксуй поточний стан.
 - Запускай **після** змін — підтверди, що перевірки й проєкт узгоджені.
+
+## MDC-супутник для кожного `.mjs` і `.rego` — ОБОВ'ЯЗКОВО
+
+Кожен `js/<concern>.mjs` і кожен `policy/<concern>/<concern>.rego` у `npm/rules/<rule>/` **мають** мати поруч власний `.mdc`-файл:
+
+- `js/<concern>.mdc` — що перевіряє концерн, які артефакти це стосується, що означає fail.
+- `policy/<concern>/<concern>.mdc` — що перевіряє rego-gate, цільовий файл, Rego-пакет, що deny означає для агента.
+
+Ці `.mdc` підхоплюються `npx @nitra/cursor` sync і через markdown-лінки з `main.mdc` інлайняться у `.cursor/rules/n-<rule>.mdc` — без них агенти не бачать змін у правилах після sync.
+
+**Red flag:** написав новий `<concern>.mjs` або `<concern>.rego` — зупинись і одразу напиши поруч `<concern>.mdc`. Без `.mdc`-файлу зміна залишиться невидимою в `.cursor/rules/` і не буде контекстом для агентів споживачів.
 
 ## Синхронізація правил і `check.mjs` / Rego policy
 

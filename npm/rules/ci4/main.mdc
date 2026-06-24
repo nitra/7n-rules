@@ -372,8 +372,3 @@ Rego-перевірки, що запускаються через `conftest` у 
 | --------------------------- | -------------------------------------------------------------------- |
 | `ci4.vscode_extensions`     | `.vscode/extensions.json` містить `arr.marksman` у `recommendations` |
 
-[ci4-marksman_config](./js/marksman_config.mdc)
-
-[ci4-vscode_extensions](./js/vscode_extensions.mdc)
-
-[ci4-vscode_extensions-policy](./policy/vscode_extensions/vscode_extensions.mdc)

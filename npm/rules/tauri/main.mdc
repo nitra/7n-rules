@@ -6,13 +6,3 @@ version: '1.5'
 ---
 
 Правило встановлює канонічні вимоги для Tauri-проєктів: виявлення маркерів у монорепо, VS Code-розширення, налаштування mutation-testing для platform bridge та реалізацію Tool Surface поверх Tauri+Rust.
-
-## Швидкий gate через conftest
-
-[tauri-vscode_extensions](./policy/vscode_extensions/vscode_extensions.mdc)
-
-[tauri-tooling](./js/tooling.mdc)
-
-[tauri-cargo_mutants_config](./js/cargo_mutants_config.mdc)
-
-[tauri-tool_surface](./js/tool_surface.mdc)

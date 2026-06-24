@@ -6,17 +6,3 @@ version: '2.1'
 ---
 
 Проект використовує тільки Bun для керування залежностями та запуску скриптів.
-
-[bun-layout](./js/layout.mdc)
-
-[bun-bunfig](./js/bunfig.mdc)
-
-[bun-package_json](./js/package_json.mdc)
-
-[bun-lint](./js/lint.mdc)
-
-## Швидкий gate через conftest
-
-[bun-policy-bunfig](./policy/bunfig/bunfig.mdc)
-
-[bun-policy-package_json](./policy/package_json/package_json.mdc)

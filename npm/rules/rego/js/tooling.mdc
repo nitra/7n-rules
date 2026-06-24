@@ -1,0 +1,14 @@
+## Rego tooling: `.regal/config.yaml`
+
+У корені проєкту **має бути** файл `.regal/config.yaml` — конфіг лінтера [regal](https://docs.styra.com/regal).
+
+Мінімальний приклад (вимикає `no-defined-entrypoint` для conftest-полісі):
+
+```yaml title=".regal/config.yaml"
+rules:
+  idiomatic:
+    no-defined-entrypoint:
+      level: ignore
+```
+
+`regal lint` запускається через `n-cursor lint rego`; без `.regal/config.yaml` regal використовує дефолти і може помилково флагувати conftest `deny`-правила як entrypoint-порушення.

@@ -30,11 +30,13 @@ import { existsSync } from 'node:fs'
 import { chmod, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-/** Маркер PostToolUse fix-hook'а (`npx --no \@nitra/cursor post-tool-use-check`). */
-export const MANAGED_HOOK_COMMAND_MARKER = '@nitra/cursor post-tool-use-check'
-/** Маркер doc-files staleness-hook'ів (PostToolUse `--hook` і Stop-гейт `--git`). */
+/** Маркер hook-ів пакета (`hook --post-tool-use`, `hook --stop`). */
+export const MANAGED_HOOK_COMMAND_MARKER = '@nitra/cursor hook'
+/** @deprecated — замінено на `hook --post-tool-use`; маркер лишається для cleanup наявних конфігів при ресинку. */
+export const LEGACY_POST_TOOL_USE_HOOK_COMMAND_MARKER = '@nitra/cursor post-tool-use-check'
+/** @deprecated — doc-files hook перенесено до `hook --post-tool-use`; маркер лишається для cleanup наявних конфігів при ресинку. */
 export const DOC_FILES_HOOK_COMMAND_MARKER = '@nitra/cursor lint-doc-files'
-/** Legacy-маркер старих doc-files hook'ів (`doc-files check`) — cleanup при ресинку наявних інсталяцій. */
+/** @deprecated — ще старіший legacy-маркер doc-files hook'ів (`doc-files check`) — cleanup при ресинку. */
 export const LEGACY_DOC_FILES_HOOK_COMMAND_MARKER = '@nitra/cursor doc-files check'
 /** Legacy-маркер старого Stop-hook'а — лишаємо для cleanup-у при оновленні існуючих інсталяцій. */
 export const LEGACY_STOP_HOOK_COMMAND_MARKER = '@nitra/cursor stop-hook'
@@ -52,6 +54,7 @@ export const CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER = '.claude/hooks/normalize
  */
 export const MANAGED_HOOK_COMMAND_MARKERS = Object.freeze([
   MANAGED_HOOK_COMMAND_MARKER,
+  LEGACY_POST_TOOL_USE_HOOK_COMMAND_MARKER,
   DOC_FILES_HOOK_COMMAND_MARKER,
   LEGACY_DOC_FILES_HOOK_COMMAND_MARKER,
   LEGACY_STOP_HOOK_COMMAND_MARKER,

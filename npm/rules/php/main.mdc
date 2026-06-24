@@ -6,11 +6,3 @@ alwaysApply: false
 ---
 
 Весь код повинен відповідати PHP 8.5 (PHPCompatibility + Rector). Лінт запускається через `n-cursor lint php`.
-
-[php-tooling](./js/tooling.mdc)
-
-[php-lint_php_yml](./js/lint_php_yml.mdc)
-
-## Швидкий gate через conftest
-
-[php-lint_php_yml](./policy/lint_php_yml/lint_php_yml.mdc)

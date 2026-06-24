@@ -130,7 +130,7 @@ function parseOmlxResponse(stdout, attempt) {
  * transient-помилки (curl 18/28/52/56 + spawnSync ETIMEDOUT) із backoff 2s→8s.
  * @param {Array<{role:string, content:string}>} messages OpenAI-messages (system+user збережено)
  * @param {string} model model-id (з/без `omlx/`-префікса); порожній і без `fallbackModel` → throw
- * @param {{ url?: string, timeoutMs?: number, temperature?: number, maxTokens?: number, fallbackModel?: string, apiKey?: string, backoffMs?: number[] }} [opts] URL, timeout, температура, ліміт виходу, fallback-модель, API-ключ, backoff між ретраями (мс)
+ * @param {{ url?: string, timeoutMs?: number, temperature?: number, maxTokens?: number, fallbackModel?: string, apiKey?: string, backoffMs?: number[], thinkingBudget?: number }} [opts] URL, timeout, температура, ліміт виходу, fallback-модель, API-ключ, backoff між ретраями (мс), бюджет thinking-токенів (0 = вимкнено)
  * @returns {{ content:string, reasoning:string|null, reasoningSource:string|null, finishReason:string|null, usage:object|null, attempts:number }} багатий результат виклику
  * @throws {Error} на curl-помилці, не-200 exit, поганому JSON чи порожньому контенті
  */
@@ -142,14 +142,21 @@ export function callOmlxRaw(messages, model, opts = {}) {
     maxTokens = 4096,
     fallbackModel = env.N_CURSOR_OMLX_MODEL ?? '',
     apiKey,
-    backoffMs = BACKOFF_MS
+    backoffMs = BACKOFF_MS,
+    thinkingBudget = 0
   } = opts
 
   const m = omlxModelId(model) || fallbackModel
   if (!m) {
     throw new Error('omlx: модель не задано — постав N_LOCAL_MIN_MODEL (або N_CURSOR_OMLX_MODEL)')
   }
-  const body = JSON.stringify({ model: m, messages, max_tokens: maxTokens, temperature })
+  const body = JSON.stringify({
+    model: m,
+    messages,
+    max_tokens: maxTokens,
+    temperature,
+    ...(thinkingBudget > 0 ? { thinking_budget: thinkingBudget } : {})
+  })
   // Ключ локального сервера в argv допустимий: localhost-секрет власної машини,
   // короткоживучий процес; stdin уже зайнятий body (`--data-binary @-`).
   const key = resolveOmlxApiKey(apiKey)

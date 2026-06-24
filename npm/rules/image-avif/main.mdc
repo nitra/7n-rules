@@ -6,11 +6,3 @@ alwaysApply: false
 ---
 
 Правило забезпечує, що кожне raster-зображення (`png`, `jpg`, `jpeg`, `gif`), на яке посилаються `.vue`/`.html` файли, має AVIF-двійник і що посилання переписані на нього. Генерація, rewrite і cleanup AVIF-сиріт виконуються автоматично через `npx @nitra/cursor fix image-avif`.
-
-[image-avif-avif_generation](./js/avif_generation.mdc)
-
-[image-avif-package_json_optout](./js/package_json_optout.mdc)
-
-## Швидкий gate через conftest
-
-[image-avif-package_json](./policy/package_json/package_json.mdc)

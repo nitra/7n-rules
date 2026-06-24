@@ -6,40 +6,7 @@ version: '1.30'
 
 Правило охоплює весь текстовий стек проєкту: форматування (oxfmt), перевірку правопису (cspell), shell-скрипти (shellcheck), `.env`-файли (dotenv-linter), Markdown (markdownlint-cli2), JSON/YAML/TOML-схеми (v8r) та CI-workflow.
 
-[text-vscode](./js/vscode.mdc)
-
-[text-oxfmt](./js/oxfmt.mdc)
-
-[text-forbidden-prettier](./js/forbidden-prettier.mdc)
-
-[text-cspell](./js/cspell.mdc)
-
-[text-markdownlint](./js/markdownlint.mdc)
-
-[text-shellcheck](./js/shellcheck.mdc)
-
-[text-dotenv-linter](./js/dotenv-linter.mdc)
-
-[text-v8r](./js/v8r.mdc)
-
-[text-package-json](./js/package-json.mdc)
-
-[text-ci-lint-text](./js/ci-lint-text.mdc)
-
 ## Швидкий gate через conftest
 
 Rego-пакети, що перевіряються через conftest (auto-discovered за `target.json` поряд із `.rego`):
 
-[text-policy-cspell](./policy/cspell/cspell.mdc)
-
-[text-policy-lint_text](./policy/lint_text/lint_text.mdc)
-
-[text-policy-markdownlint](./policy/markdownlint/markdownlint.mdc)
-
-[text-policy-oxfmtrc](./policy/oxfmtrc/oxfmtrc.mdc)
-
-[text-policy-package_json](./policy/package_json/package_json.mdc)
-
-[text-policy-vscode_extensions](./policy/vscode_extensions/vscode_extensions.mdc)
-
-[text-policy-vscode_settings](./policy/vscode_settings/vscode_settings.mdc)

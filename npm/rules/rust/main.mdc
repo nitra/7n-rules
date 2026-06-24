@@ -6,13 +6,3 @@ version: '1.4'
 ---
 
 Правило забезпечує форматування (rustfmt), лінт (clippy), CI workflow та покриття для Rust-проєктів.
-
-[rust-lint](./js/lint.mdc)
-[rust-vscode_extensions](./js/vscode_extensions.mdc)
-[rust-tauri_composition](./js/tauri_composition.mdc)
-[rust-coverage](./js/coverage.mdc)
-
-## Швидкий gate через conftest
-
-[rust-lint_rust_yml](./policy/lint_rust_yml/lint_rust_yml.mdc)
-[rust-vscode_extensions](./policy/vscode_extensions/vscode_extensions.mdc)

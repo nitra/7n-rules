@@ -52,14 +52,14 @@ function callPi(messages, model, timeoutMs) {
 
 /**
  * Універсальний LLM-виклик з маршрутизацією за префіксом model-id і always-on
- * wire-trace (обидва канали).
+ * wire-trace (обидва канали). Повертає **багатий** обʼєкт із вмістом і reasoning.
  * @param {Array<{role:string, content:string}>} messages OpenAI-style messages (system зберігається на omlx)
  * @param {string} model model-id; `omlx/<m>` → прямий HTTP, інакше → pi CLI
- * @param {{ timeoutMs?: number, temperature?: number, maxTokens?: number, url?: string, caller?: string }} [opts] timeout, температура, ліміт виходу, override URL, мітка викликача для trace
- * @returns {string} текст відповіді (непорожній на omlx; pi може повернути '')
+ * @param {{ timeoutMs?: number, temperature?: number, maxTokens?: number, url?: string, caller?: string, thinkingBudget?: number }} [opts] timeout, температура, ліміт виходу, override URL, мітка викликача для trace, бюджет thinking-токенів (лише omlx)
+ * @returns {{ content: string, reasoning: string|null, reasoningSource: string|null }} вміст відповіді і thinking-монолог
  */
-export function callLlm(messages, model, opts = {}) {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, temperature = 0.2, maxTokens, url, caller } = opts
+export function callLlmRich(messages, model, opts = {}) {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, temperature = 0.2, maxTokens, url, caller, thinkingBudget } = opts
   const backend = pickBackend(model)
   const resolvedCaller = caller ?? env.N_CURSOR_TRACE_CALLER ?? 'unknown'
   const t0 = Date.now()
@@ -71,7 +71,13 @@ export function callLlm(messages, model, opts = {}) {
     let usage = null
     let attempts = 1
     if (backend === 'omlx') {
-      const raw = callOmlxRaw(messages, model, { url, timeoutMs, temperature, ...(maxTokens ? { maxTokens } : {}) })
+      const raw = callOmlxRaw(messages, model, {
+        url,
+        timeoutMs,
+        temperature,
+        ...(maxTokens ? { maxTokens } : {}),
+        ...(thinkingBudget ? { thinkingBudget } : {})
+      })
       ;({ content, reasoning, reasoningSource, finishReason, usage, attempts } = raw)
     } else {
       content = callPi(messages, model, timeoutMs)
@@ -96,7 +102,7 @@ export function callLlm(messages, model, opts = {}) {
         error: null
       })
     )
-    return content
+    return { content, reasoning, reasoningSource }
   } catch (error) {
     writeTrace(
       buildTraceRecord({
@@ -115,6 +121,18 @@ export function callLlm(messages, model, opts = {}) {
     )
     throw error
   }
+}
+
+/**
+ * Тонка обгортка над `callLlmRich` — повертає лише рядок контенту. Зберігає
+ * backward-compatible контракт для споживачів, яким reasoning не потрібен.
+ * @param {Array<{role:string, content:string}>} messages OpenAI-style messages
+ * @param {string} model model-id
+ * @param {{ timeoutMs?: number, temperature?: number, maxTokens?: number, url?: string, caller?: string }} [opts]
+ * @returns {string} текст відповіді
+ */
+export function callLlm(messages, model, opts = {}) {
+  return callLlmRich(messages, model, opts).content
 }
 
 /** Фрагмент повідомлення omlx про memory-guard (динамічна стеля пам'яті). */

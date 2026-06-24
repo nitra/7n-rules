@@ -6,6 +6,107 @@ version: '2.2'
 
 Правило `adr` автоматично фіксує архітектурні рішення (ADR) після кожної сесії через Stop-хуки і батч-нормалізує чернетки у канонічний формат MADR v4.
 
+## Stop-hook у `.claude/settings.json`
+
+Канонічний запис, який вставляє sync (поряд із PostToolUse fix-хуком — той живе в іншій події, тут не показаний):
+
+```json title=".claude/settings.json"
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/capture-decisions.sh\"",
+            "async": true,
+            "timeout": 180
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/normalize-decisions.sh\"",
+            "async": true,
+            "timeout": 600
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Обидві ADR-групи ідентифікуються пакетом за маркером у `command` (`.claude/hooks/capture-decisions.sh`, `.claude/hooks/normalize-decisions.sh`) — користувацькі hook-групи поряд не чіпаються. Якщо `adr` прибрати з `rules`, обидві ADR-групи автоматично видаляються на наступному `npx @nitra/cursor`.
+
+## Stop-hook у `.cursor/hooks.json`
+
+Cursor Agent читає project-level **`.cursor/hooks.json`**. `npx @nitra/cursor` merge-ить файл: користувацькі hooks лишаються, managed entries для `capture-decisions.sh` і `normalize-decisions.sh` перезаписуються або видаляються разом із правилом `adr`.
+
+```json title=".cursor/hooks.json"
+{
+  "version": 1,
+  "hooks": {
+    "stop": [
+      {
+        "command": "bash -lc 'root=\"$PWD\"; if [ ! -f \"$root/.claude/hooks/capture-decisions.sh\" ] && [ -f \"$root/../.claude/hooks/capture-decisions.sh\" ]; then root=\"$root/..\"; fi; bash \"$root/.claude/hooks/capture-decisions.sh\"'",
+        "timeout": 180
+      },
+      {
+        "command": "bash -lc 'root=\"$PWD\"; if [ ! -f \"$root/.claude/hooks/normalize-decisions.sh\" ] && [ -f \"$root/../.claude/hooks/normalize-decisions.sh\" ]; then root=\"$root/..\"; fi; bash \"$root/.claude/hooks/normalize-decisions.sh\"'",
+        "timeout": 600
+      }
+    ]
+  }
+}
+```
+
+Обидва Stop-hook'и ADR живуть у **project-shared** `.claude/settings.json` (закомічений), щоб механізм працював у всіх членів команди. Якщо хук колись був у `.claude/settings.local.json` — прибери дубль вручну: project-shared і local-копія створили б два запуски на одну подію.
+
+## Швидкий gate через conftest
+
+| Namespace | Файл | Що перевіряє |
+| --- | --- | --- |
+| `adr.settings_json` | `.claude/settings.json` | Наявність обох Stop-хуків у `hooks.Stop[]` |
+| `adr.settings_local_json` | `.claude/settings.local.json` | Відсутність дублів Stop-хуків у local-файлі |
+
+## JS-перевірки хуків і конфігурації (`hooks.mjs`)
+
+`js/hooks.mjs` перевіряє відповідність проєкту правилу `adr` через шість незалежних перевірок:
+
+### 1. Канонічність скриптів хуків
+
+Для кожного з двох bash-скриптів (`capture-decisions.sh`, `normalize-decisions.sh`) перевіряє:
+
+- файл `.claude/hooks/<script>.sh` **існує** у проєкті;
+- його вміст **ідентичний** bundled-версії з пакета `@nitra/cursor`.
+
+Якщо файл відсутній або відрізняється — `fail` з підказкою `npx @nitra/cursor`.
+
+### 2. Наявність `.claude/settings.json`
+
+Перевіряє **існування** project-shared файлу `.claude/settings.json`. Структуру хуків всередині (наявність `hooks.Stop[]` з відповідними маркерами) валідує окрема Rego-полісі `adr.settings_json`.
+
+### 3. Cursor hooks config
+
+Читає `.cursor/hooks.json` і перевіряє, чи кожен зі скриптів (`capture-decisions.sh`, `normalize-decisions.sh`) присутній у `hooks.stop[*].command` як підрядок-маркер.
+
+### 4. `.gitignore` для лог-файлів хуків
+
+Перевіряє, чи покриває `.gitignore` лог-файли `.claude/hooks/capture-decisions.log` і `.claude/hooks/normalize-decisions.log`. Допустимі форми покриття:
+
+- точний шлях (`.claude/hooks/capture-decisions.log`)
+- glob `.claude/hooks/*.log` або `.claude/hooks/**/*.log`
+- широкий glob `*.log` або `**/*.log`
+
+### 5. Доступність LLM CLI
+
+Інформативна (завжди `pass`) перевірка наявності хоча б одного з `claude` або `cursor-agent` у `PATH`. Якщо жодного немає — хук просто мовчки no-op'ає, тому це попередження, а не помилка.
+
 ## MADR v4 і дві фази
 
 ADR живуть у єдиному каталозі **`docs/adr/`**. Clean ADR-и мають формат **MADR v4.0.0 minimal** з **OKF v0.1 frontmatter** і точними section headings англійською:
@@ -115,74 +216,6 @@ dist/
 .claude/scheduled_tasks.lock
 ```
 
-## Stop-hook у `.claude/settings.json`
-
-Канонічний запис, який вставляє sync (поряд із PostToolUse fix-хуком — той живе в іншій події, тут не показаний):
-
-```json title=".claude/settings.json"
-{
-  "hooks": {
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/capture-decisions.sh\"",
-            "async": true,
-            "timeout": 180
-          }
-        ]
-      },
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/normalize-decisions.sh\"",
-            "async": true,
-            "timeout": 600
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-Обидві ADR-групи ідентифікуються пакетом за маркером у `command` (`.claude/hooks/capture-decisions.sh`, `.claude/hooks/normalize-decisions.sh`) — користувацькі hook-групи поряд не чіпаються. Якщо `adr` прибрати з `rules`, обидві ADR-групи автоматично видаляються на наступному `npx @nitra/cursor`.
-
-## Stop-hook у `.cursor/hooks.json`
-
-Cursor Agent читає project-level **`.cursor/hooks.json`**. `npx @nitra/cursor` merge-ить файл: користувацькі hooks лишаються, managed entries для `capture-decisions.sh` і `normalize-decisions.sh` перезаписуються або видаляються разом із правилом `adr`.
-
-```json title=".cursor/hooks.json"
-{
-  "version": 1,
-  "hooks": {
-    "stop": [
-      {
-        "command": "bash -lc 'root=\"$PWD\"; if [ ! -f \"$root/.claude/hooks/capture-decisions.sh\" ] && [ -f \"$root/../.claude/hooks/capture-decisions.sh\" ]; then root=\"$root/..\"; fi; bash \"$root/.claude/hooks/capture-decisions.sh\"'",
-        "timeout": 180
-      },
-      {
-        "command": "bash -lc 'root=\"$PWD\"; if [ ! -f \"$root/.claude/hooks/normalize-decisions.sh\" ] && [ -f \"$root/../.claude/hooks/normalize-decisions.sh\" ]; then root=\"$root/..\"; fi; bash \"$root/.claude/hooks/normalize-decisions.sh\"'",
-        "timeout": 600
-      }
-    ]
-  }
-}
-```
-
-Обидва Stop-hook'и ADR живуть у **project-shared** `.claude/settings.json` (закомічений), щоб механізм працював у всіх членів команди. Якщо хук колись був у `.claude/settings.local.json` — прибери дубль вручну: project-shared і local-копія створили б два запуски на одну подію.
-
-## Швидкий gate через conftest
-
-| Namespace | Файл | Що перевіряє |
-| --- | --- | --- |
-| `adr.settings_json` | `.claude/settings.json` | Наявність обох Stop-хуків у `hooks.Stop[]` |
-| `adr.settings_local_json` | `.claude/settings.local.json` | Відсутність дублів Stop-хуків у local-файлі |
-
 ## Rego-перевірки конфігурації settings.json
 
 ### `adr.settings_json` — Stop-хуки у `.claude/settings.json`
@@ -233,36 +266,3 @@ Rego-пакет: `adr.settings_local_json`
 Цільовий файл: `.claude/settings.local.json`
 
 Перевіряє **зворотне** до `adr.settings_json`: local-файл **не повинен** містити маркерів `capture-decisions.sh` або `normalize-decisions.sh` у `hooks.Stop[*].hooks[*].command` — інакше кожен скрипт виконається двічі на одну Stop-подію.
-
-## JS-перевірки хуків і конфігурації (`hooks.mjs`)
-
-`js/hooks.mjs` перевіряє відповідність проєкту правилу `adr` через шість незалежних перевірок:
-
-### 1. Канонічність скриптів хуків
-
-Для кожного з двох bash-скриптів (`capture-decisions.sh`, `normalize-decisions.sh`) перевіряє:
-
-- файл `.claude/hooks/<script>.sh` **існує** у проєкті;
-- його вміст **ідентичний** bundled-версії з пакета `@nitra/cursor`.
-
-Якщо файл відсутній або відрізняється — `fail` з підказкою `npx @nitra/cursor`.
-
-### 2. Наявність `.claude/settings.json`
-
-Перевіряє **існування** project-shared файлу `.claude/settings.json`. Структуру хуків всередині (наявність `hooks.Stop[]` з відповідними маркерами) валідує окрема Rego-полісі `adr.settings_json`.
-
-### 3. Cursor hooks config
-
-Читає `.cursor/hooks.json` і перевіряє, чи кожен зі скриптів (`capture-decisions.sh`, `normalize-decisions.sh`) присутній у `hooks.stop[*].command` як підрядок-маркер.
-
-### 4. `.gitignore` для лог-файлів хуків
-
-Перевіряє, чи покриває `.gitignore` лог-файли `.claude/hooks/capture-decisions.log` і `.claude/hooks/normalize-decisions.log`. Допустимі форми покриття:
-
-- точний шлях (`.claude/hooks/capture-decisions.log`)
-- glob `.claude/hooks/*.log` або `.claude/hooks/**/*.log`
-- широкий glob `*.log` або `**/*.log`
-
-### 5. Доступність LLM CLI
-
-Інформативна (завжди `pass`) перевірка наявності хоча б одного з `claude` або `cursor-agent` у `PATH`. Якщо жодного немає — хук просто мовчки no-op'ає, тому це попередження, а не помилка.

@@ -6,13 +6,3 @@ alwaysApply: false
 ---
 
 Правило охоплює: коректність підключення Hasura у CI-середовищі (внутрішній URL кластера), конвенцію іменування k8s-сервісів та структуру директорій міграцій.
-
-[hasura-internal_urls](./js/internal_urls.mdc)
-
-[hasura-svc_hl](./js/svc_hl.mdc)
-
-[hasura-migrations](./js/migrations.mdc)
-
-## Швидкий gate через conftest
-
-[hasura-svc_hl](./policy/svc_hl/svc_hl.mdc)

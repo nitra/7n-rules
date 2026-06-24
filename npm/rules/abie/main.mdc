@@ -16,16 +16,6 @@ version: '1.22'
 
 Без цього запису `@nitra/cursor` пропускає всі abie-перевірки (JS-концерни та rego-полісі).
 
-[k8s-hc-yaml](./js/hc_pairing.mdc)
-
-[k8s-http-route-base](./js/http_route_base.mdc)
-
-[k8s-http-route-ua](./js/ua_http_route.mdc)
-
-[k8s-nodeselector](./js/ua_node_selector.mdc)
-
-[env-dns](./js/env_dns.mdc)
-
 ## `@nitra/abie-shared` у `devDependencies`
 
 У кореневому **`package.json`** abie-проєкту в **`devDependencies`** має бути **`@nitra/abie-shared`** — пакет зі спільними abie-ресурсами: канонічні GraphQL-схеми, скіли, типи (наприклад, шляхи `node_modules/@nitra/abie-shared/schema/...` для імпорту схем). Версію правило не фіксує — лише presence. Додати:
@@ -33,8 +23,6 @@ version: '1.22'
 ```bash
 bun add -d @nitra/abie-shared
 ```
-
-[firebase](./js/firebase_hosting.mdc)
 
 ## Git branches
 
@@ -47,16 +35,6 @@ bun add -d @nitra/abie-shared
 Підмножину пер-документних правил продубльовано як rego-полісі у **`npm/rules/abie/policy/`** (запускається через **`bun run lint-rego`** для `*_test.rego` юніт-тестів і через **`npx @nitra/cursor fix abie`** для прогону по реальних YAML — деталі в **conftest.mdc** / **n-rego.mdc**). JS у **`js/<concern>.mjs`** authoritative — rego тільки швидкий gate для одиничного маніфеста (зокрема через IDE-розширення `tsandall.opa`).
 
 Пакети (директорія в **`npm/policy/abie/`** → namespace → що перевіряє):
-
-[abie-http-route-base](./policy/http_route_base/http_route_base.mdc)
-
-[abie-health-check-policy](./policy/health_check_policy/health_check_policy.mdc)
-
-[abie-base-deployment-preem](./policy/base_deployment_preem/base_deployment_preem.mdc)
-
-[abie-clean-merged-ignore-branches](./policy/clean_merged_ignore_branches/clean_merged_ignore_branches.mdc)
-
-[abie-package-json-shared](./policy/package_json_shared/package_json_shared.mdc)
 
 Cross-file / FS-логіка лишається у JS-частинах (`js/<concern>.mjs`) — Rego не читає файлову систему й не робить cross-document резолюцію:
 

@@ -10,14 +10,18 @@ import { env } from 'node:process'
 
 import { buildLadder, escalateRule, parseOrchestratorArgs } from '../orchestrator.mjs'
 
-let prevTrace
+let prevTrace, prevVerbose
 beforeAll(() => {
   prevTrace = env.N_CURSOR_FIX_ESCALATION_LOG
   env.N_CURSOR_FIX_ESCALATION_LOG = '0'
+  prevVerbose = env.N_CURSOR_FIX_VERBOSE
+  env.N_CURSOR_FIX_VERBOSE = 'off'
 })
 afterAll(() => {
   if (prevTrace === undefined) delete env.N_CURSOR_FIX_ESCALATION_LOG
   else env.N_CURSOR_FIX_ESCALATION_LOG = prevTrace
+  if (prevVerbose === undefined) delete env.N_CURSOR_FIX_VERBOSE
+  else env.N_CURSOR_FIX_VERBOSE = prevVerbose
 })
 
 // ── фіктивні worker/check ─────────────────────────────────────────────────────

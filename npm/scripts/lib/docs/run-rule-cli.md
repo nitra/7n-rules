@@ -8,8 +8,6 @@ docgen:
   score: 95
 ---
 
-## Огляд
-
 Standalone CLI runner для одного правила. Викликається з `rules/<id>/check.mjs` у блоці `if (import.meta.main)`, що робить його повним еквівалентом `bun rules/<id>/check.mjs` або `npx @nitra/cursor fix <id>`. Цей запуск є свідомим (debug / override) і виконується без whitelist-гейту. Ініціалізує кеш для проходження файлової системи та виконує стандартну перевірку, друкуючи summary результату та повертаючи aggregated exit-code.
 
 ## Поведінка

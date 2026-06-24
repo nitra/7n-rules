@@ -6,6 +6,45 @@ version: '2.1'
 ---
 
 Правило **security** забезпечує сканування секретів через [TruffleHog](https://github.com/trufflesecurity/trufflehog) локально та на CI, а також правильне використання placeholder-значень у прикладних файлах.
+## Перевірка
+
+`npx @nitra/cursor fix security`
+
+## Rego-полісі: `package.json` і CI workflow
+
+### `security.package_json` — заборона `trufflehog` у залежностях
+
+Перевіряє, що `trufflehog` не потрапив у `dependencies` або `devDependencies` — він є глобальним CLI і не повинен бути npm-залежністю.
+
+- Канон deny-списку: [package.json.deny.json](../policy/package_json/template/package.json.deny.json)
+
+### `security.lint_security_yml` — CI workflow з TruffleHog
+
+Workflow `.github/workflows/lint-security.yml` обовʼязковий — забезпечує незалежний скан секретів на push/PR (агрегований `lint` локально + окремий fail-fast job на CI).
+
+Перевіряється, що серед `uses:` є крок з `trufflesecurity/trufflehog@main`. Універсальні workflow-перевірки (checkout, permissions, persist-credentials) — у `ga.workflow_common`. Для повного скану історії потрібен `fetch-depth: 0`.
+
+- Канон workflow: [lint-security.yml.snippet.yml](../policy/lint_security_yml/template/lint-security.yml.snippet.yml)
+
+## Placeholder для секретів — `sample-secret`
+
+Фейкові credential-значення у **прикладних файлах** (`.env.example`, `.env.dist`, `*.example`, `*.sample`, `*.template`, вміст каталогів `fixtures/`) пиши як `sample-secret`, а не як bare `secret`.
+
+`sample-secret` містить підрядок `sample` із вшитого списку `DefaultFalsePositives` TruffleHog — таке значення сканер відсіює **гарантовано** й незалежно від версії. Bare `secret` наразі не фіксується сканером лише тому, що випадково присутнє у словнику `fp_words.txt`; це крихка поведінка, що залежить від версії інструмента.
+
+### Приклади
+
+- Правильно: `DB_PASSWORD=sample-secret`, `password: "sample-secret"`
+- Неправильно: `DB_PASSWORD=secret`, `password: "secret"`
+
+### Що перевіряється
+
+Перевіряється лише `secret` у позиції значення (після `=`, `:`, `=>`); імена ключів на кшталт `client_secret` не чіпаються.
+
+Concern `security.sample_secret` (`js/sample_secret.mjs`) сканує всі прикладні файли:
+- суфікс basename'а: `.example`, `.sample`, `.template`, `.dist`
+- інфікс у basename'і: `.example.`, `.sample.`, `.template.`
+- сегмент шляху: `fixtures/`, `fixture/`, `__fixtures__/`
 
 ## TruffleHog — налаштування та `.trufflehog-exclude`
 
@@ -29,52 +68,6 @@ version: '2.1'
 
 Перевірка (JS): `js/trufflehog.mjs` — впевнюється, що файл `.trufflehog-exclude` існує в корені й містить канонічні шаблони.
 
-## Placeholder для секретів — `sample-secret`
-
-Фейкові credential-значення у **прикладних файлах** (`.env.example`, `.env.dist`, `*.example`, `*.sample`, `*.template`, вміст каталогів `fixtures/`) пиши як `sample-secret`, а не як bare `secret`.
-
-`sample-secret` містить підрядок `sample` із вшитого списку `DefaultFalsePositives` TruffleHog — таке значення сканер відсіює **гарантовано** й незалежно від версії. Bare `secret` наразі не фіксується сканером лише тому, що випадково присутнє у словнику `fp_words.txt`; це крихка поведінка, що залежить від версії інструмента.
-
-### Приклади
-
-- Правильно: `DB_PASSWORD=sample-secret`, `password: "sample-secret"`
-- Неправильно: `DB_PASSWORD=secret`, `password: "secret"`
-
-### Що перевіряється
-
-Перевіряється лише `secret` у позиції значення (після `=`, `:`, `=>`); імена ключів на кшталт `client_secret` не чіпаються.
-
-Concern `security.sample_secret` (`js/sample_secret.mjs`) сканує всі прикладні файли:
-- суфікс basename'а: `.example`, `.sample`, `.template`, `.dist`
-- інфікс у basename'і: `.example.`, `.sample.`, `.template.`
-- сегмент шляху: `fixtures/`, `fixture/`, `__fixtures__/`
-
-## Rego-полісі: `package.json` і CI workflow
-
-### `security.package_json` — заборона `trufflehog` у залежностях
-
-Перевіряє, що `trufflehog` не потрапив у `dependencies` або `devDependencies` — він є глобальним CLI і не повинен бути npm-залежністю.
-
-- Канон deny-списку: [package.json.deny.json](../policy/package_json/template/package.json.deny.json)
-
-### `security.lint_security_yml` — CI workflow з TruffleHog
-
-Workflow `.github/workflows/lint-security.yml` обовʼязковий — забезпечує незалежний скан секретів на push/PR (агрегований `lint` локально + окремий fail-fast job на CI).
-
-Перевіряється, що серед `uses:` є крок з `trufflesecurity/trufflehog@main`. Універсальні workflow-перевірки (checkout, permissions, persist-credentials) — у `ga.workflow_common`. Для повного скану історії потрібен `fetch-depth: 0`.
-
-- Канон workflow: [lint-security.yml.snippet.yml](../policy/lint_security_yml/template/lint-security.yml.snippet.yml)
-
-## Швидкий gate через conftest
-
-## Заборона `trufflehog` у залежностях `package.json`
-
-Rego-пакет: `security.package_json`
-
-Цільові файли: `package.json`
-
-Перевіряє, що пакет `trufflehog` відсутній у `dependencies` та `devDependencies` — він є глобальним CLI і не має бути npm-залежністю. Список заборонених пакетів надходить через `--data` з [package.json.deny.json](./template/package.json.deny.json).
-
 ## Наявність кроку TruffleHog у CI workflow
 
 Rego-пакет: `security.lint_security_yml`
@@ -83,6 +76,10 @@ Rego-пакет: `security.lint_security_yml`
 
 Перевіряє, що серед `uses:` у workflow присутній крок `trufflesecurity/trufflehog@main`. Очікуваний перелік action-refs (не-`actions/*`) береться з `--data` через [lint-security.yml.snippet.yml](./template/lint-security.yml.snippet.yml). Універсальні кроки (`actions/*`) перевіряє `ga.workflow_common`.
 
-## Перевірка
+## Заборона `trufflehog` у залежностях `package.json`
 
-`npx @nitra/cursor fix security`
+Rego-пакет: `security.package_json`
+
+Цільові файли: `package.json`
+
+Перевіряє, що пакет `trufflehog` відсутній у `dependencies` та `devDependencies` — він є глобальним CLI і не має бути npm-залежністю. Список заборонених пакетів надходить через `--data` з [package.json.deny.json](./template/package.json.deny.json).

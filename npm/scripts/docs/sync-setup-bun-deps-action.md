@@ -8,8 +8,6 @@ docgen:
   score: 100
 ---
 
-## Огляд
-
 Копіює composite GitHub Action `setup-bun-deps` з каталогу `github-actions/setup-bun-deps/` у корені tarball пакету `@nitra/cursor` у цільовий репозиторій за шлях `.github/actions/setup-bun-deps/action.yml`. Це забезпечує можливість для workflow з правил `ga`, `js` або `text` викликати цей action для налаштування залежностей Bun одразу після виконання `actions/checkout@v6`.
 
 ## Поведінка

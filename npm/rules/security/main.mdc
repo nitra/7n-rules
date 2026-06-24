@@ -6,19 +6,6 @@ version: '2.1'
 ---
 
 Правило **security** забезпечує сканування секретів через [TruffleHog](https://github.com/trufflesecurity/trufflehog) локально та на CI, а також правильне використання placeholder-значень у прикладних файлах.
-
-[security-trufflehog](./js/trufflehog.mdc)
-
-[security-sample-secret](./js/sample_secret.mdc)
-
-[security-rego-policies](./js/rego_policies.mdc)
-
-## Швидкий gate через conftest
-
-[security-package-json](./policy/package_json/package_json.mdc)
-
-[security-lint-security-yml](./policy/lint_security_yml/lint_security_yml.mdc)
-
 ## Перевірка
 
 `npx @nitra/cursor fix security`

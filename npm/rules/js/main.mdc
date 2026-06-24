@@ -7,38 +7,7 @@ version: '1.30'
 
 **oxlint**, **ESLint**, **jscpd**, **knip**. Запуск — **`n-cursor lint js`** (локально; у CI — `--read-only`, без **`--fix`** для oxlint/eslint). Без **prettier** і **@nitra/prettier-config**.
 
-[js-file-extensions](./js/file-extensions.mdc)
-
-[js-package-json](./js/package-json.mdc)
-
-[js-eslint-config](./js/eslint-config.mdc)
-
-[js-oxlintrc](./js/oxlintrc.mdc)
-
-[js-extensions](./js/extensions.mdc)
-
-[js-jscpd](./js/jscpd.mdc)
-
-[js-knip](./js/knip.mdc)
-
-[js-dep-policy](./js/dep-policy.mdc)
-
-[js-lint-js-workflow](./js/lint-js-workflow.mdc)
-
-[js-utils-lib-structure](./js/utils-lib-structure.mdc)
-
-[js-for-in](./js/for-in.mdc)
-
-[js-tests](./js/tests.mdc)
-
 ## Швидкий gate через conftest
 
 Rego-пакети у `policy/` — запускаються `npx @nitra/cursor fix js` або `conftest`:
 
-[js-policy-package_json](./policy/package_json/package_json.mdc)
-
-[js-policy-jscpd](./policy/jscpd/jscpd.mdc)
-
-[js-policy-lint_js_yml](./policy/lint_js_yml/lint_js_yml.mdc)
-
-[js-policy-vscode_extensions](./policy/vscode_extensions/vscode_extensions.mdc)

@@ -8,8 +8,6 @@ docgen:
   score: 90
 ---
 
-## Огляд
-
 Цей модуль є CLI-обгорткою над канонічним `lint-ga` (ga.mdc). Він автоматично встановлює `shellcheck` та `conftest` через `ensureTool` (використовуючи brew/scoop/GitHub Release залежно від платформи), перевіряє наявність `uv` (для `uvx zizmor`), а потім послідовно виконує `bunx github-actionlint`, `uvx zizmor --offline --collect=workflows .` та делегує до `rules/ga/check.mjs::check`. Функція `lint` викликає `runLintGaCli`, який є частиною оркестраторного адаптера `n-cursor lint ga`. При відсутності `uv`, користувачеві надається підказка з командою встановлення, наприклад, https://astral.sh/uv/install.sh, оскільки `uv` не в реєстрі `ensureTool`.
 
 ## Поведінка

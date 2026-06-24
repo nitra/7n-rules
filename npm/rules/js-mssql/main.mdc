@@ -7,20 +7,8 @@ version: '1.4'
 
 Правило охоплює безпечне використання пакету `mssql` у Node.js: мінімальну версію залежності, singleton ConnectionPool, заборону небезпечних шаблонів запитів і захист від SQL injection через TVP або числовий парсинг IN-списків.
 
-[js-mssql-mssql-version](./js/mssql-version.mdc)
-
-[js-mssql-mssql-pool](./js/mssql-pool.mdc)
-
-[js-mssql-mssql-query-template](./js/mssql-query-template.mdc)
-
-[js-mssql-mssql-tvp](./js/mssql-tvp.mdc)
-
-[js-mssql-mssql-in-list](./js/mssql-in-list.mdc)
-
 ## Швидкий gate через conftest
 
 Rego-перевірки (`policy/`) — швидкий синхронний gate для одиничного `package.json` без JS-рантайму:
-
-[js-mssql-package_json](./policy/package_json/package_json.mdc)
 
 JS-перевірка (`deps.mjs`) — authoritative: охоплює всі `package.json` репо, AST-скан JS/TS-джерел і повний semver-triple-compare. Rego-gate — доповнення, не заміна.

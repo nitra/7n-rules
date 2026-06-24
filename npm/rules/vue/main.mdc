@@ -9,31 +9,9 @@ alwaysApply: false
 
 Правило охоплює стандарти написання Vue 3 SFC з Composition API, конфігурацію Vite-проєкту, UI-бібліотеки, заборонені патерни та вимоги до тестування.
 
-[vue-composition-api](./js/composition-api.mdc)
-
-[vue-quasar-ui](./js/quasar-ui.mdc)
-
-[vue-structure](./js/structure.mdc)
-
-[vue-vite-config](./js/vite-config.mdc)
-
-[vue-vite-env](./js/vite-env.mdc)
-
-[vue-vue-imports](./js/vue-imports.mdc)
-
-[vue-node-imports](./js/node-imports.mdc)
-
-[vue-testing](./js/testing.mdc)
-
-[vue-nheader-layout](./js/nheader-layout.mdc)
-
-[vue-tfm-translations](./js/tfm-translations.mdc)
-
 ## Швидкий gate через conftest
 
 Rego-перевірки (запускаються через `npx @nitra/cursor fix vue`):
-
-[vue-package_json](./policy/package_json/package_json.mdc)
 
 ## Перевірка
 

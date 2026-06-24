@@ -108,6 +108,11 @@ describe('check-js-run (мінімальний проєкт)', () => {
       await writeRootWithWorkspacePkg(dir, { '@nitra/pino': '^1.0.0' })
       await mkdir(join(dir, 'pkg', 'src', 'conn'), { recursive: true })
       await writeJson(join(dir, 'pkg', 'jsconfig.json'), CANONICAL_BACKEND_JSCONFIG)
+      await writeJson(join(dir, 'pkg', 'package.json'), {
+        name: 'pkg',
+        dependencies: { '@nitra/pino': '^1.0.0' },
+        imports: { '#conn/*': './src/conn/*' }
+      })
       await writeFile(
         join(dir, 'pkg', 'src', 'conn', 'pg-write.mjs'),
         `import { checkEnv, env } from '@nitra/check-env'\nimport { SQL } from 'bun'\ncheckEnv(['PG_CONN'])\nexport const pgWrite = new SQL({ url: env.PG_CONN })\n`,
@@ -122,6 +127,11 @@ describe('check-js-run (мінімальний проєкт)', () => {
       await writeRootWithWorkspacePkg(dir, { '@nitra/pino': '^1.0.0' })
       await mkdir(join(dir, 'pkg', 'src', 'conn'), { recursive: true })
       await writeJson(join(dir, 'pkg', 'jsconfig.json'), CANONICAL_BACKEND_JSCONFIG)
+      await writeJson(join(dir, 'pkg', 'package.json'), {
+        name: 'pkg',
+        dependencies: { '@nitra/pino': '^1.0.0' },
+        imports: { '#conn/*': './src/conn/*' }
+      })
       await writeFile(
         join(dir, 'pkg', 'src', 'conn', 'mssql-write.mjs'),
         `import sql from 'mssql'\nexport const mssqlWrite = new sql.ConnectionPool({})\n`,
