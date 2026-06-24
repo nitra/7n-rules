@@ -6,6 +6,6 @@ resource: npm/rules/tool-surface/
 
 # npm/rules/tool-surface
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [main.mjs](main.md) | JS Module |

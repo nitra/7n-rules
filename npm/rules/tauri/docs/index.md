@@ -6,6 +6,6 @@ resource: npm/rules/tauri/
 
 # npm/rules/tauri
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [main.mjs](main.md) | JS Module |

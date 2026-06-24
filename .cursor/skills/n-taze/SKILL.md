@@ -6,7 +6,6 @@ description: >-
 ---
 
 <!-- n-cursor:worktree:start -->
-
 > [!IMPORTANT]
 > **Worktree-only skill.** Виконується **виключно** в окремому git-worktree (`.worktrees/<current-branch>-taze/`) і **не** паралелиться — один інстанс за раз.
 
@@ -34,7 +33,6 @@ cd ".worktrees/feature-x-taze"
 ```bash
 bun install
 ```
-
 <!-- n-cursor:worktree:end -->
 
 # n-taze — Оновлення версій проекту
@@ -113,7 +111,7 @@ rg -n "<імпорт|функція|опція>" --type ts --type js --type vue
 Для кожного несумісного місця — застосувати міграцію згідно з changelog модуля (перейменувати імпорт, оновити сигнатуру виклику, замінити видалену опцію еквівалентом тощо). Після правок:
 
 ```bash
-npx @nitra/cursor lint
+bun run lint
 bun run typecheck   # якщо є
 bun test            # якщо є
 ```
@@ -140,6 +138,6 @@ rm package.json.taze-bak bun.lock.taze-bak
 
 ## Примітка
 
-- Не запускати `npx @nitra/cursor lint` паралельно з іншими ESLint-задачами — діє правило з кореневого `CLAUDE.md`.
+- Не запускати `bun run lint` паралельно з іншими ESLint-задачами — діє правило з кореневого `CLAUDE.md`.
 - Якщо проект — `npm/` пакет цього репо, після змін у `package.json` / коді треба підняти `version` і додати запис у `CHANGELOG.md` згідно з `npm/CLAUDE.md`.
 - При великій кількості major-оновлень розбити PR по одному модулю на коміт — щоб `git bisect` залишався корисним.

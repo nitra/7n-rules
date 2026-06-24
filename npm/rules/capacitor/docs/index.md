@@ -6,6 +6,6 @@ resource: npm/rules/capacitor/
 
 # npm/rules/capacitor
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [main.mjs](main.md) | JS Module |

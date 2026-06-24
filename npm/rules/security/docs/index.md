@@ -6,6 +6,6 @@ resource: npm/rules/security/
 
 # npm/rules/security
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [main.mjs](main.md) | JS Module |

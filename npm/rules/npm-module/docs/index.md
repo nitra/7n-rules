@@ -6,6 +6,6 @@ resource: npm/rules/npm-module/
 
 # npm/rules/npm-module
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [main.mjs](main.md) | JS Module |

@@ -10,7 +10,7 @@
 
 ### Changed
 
-- ✨ feat(rules): policy mdc для всіх npm/rules/*/policy/<concern>/
+- ✨ feat(rules): policy mdc для всіх npm/rules/\*/policy/<concern>/
 
 ## [12.8.7] - 2026-06-22
 

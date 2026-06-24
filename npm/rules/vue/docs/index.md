@@ -6,6 +6,6 @@ resource: npm/rules/vue/
 
 # npm/rules/vue
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [main.mjs](main.md) | JS Module |

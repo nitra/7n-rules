@@ -6,6 +6,6 @@ resource: npm/rules/docker/
 
 # npm/rules/docker
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [main.mjs](main.md) | JS Module |

@@ -6,6 +6,7 @@ resource: npm/rules/hasura/js/
 
 # npm/rules/hasura/js
 
-| Файл                                  | Тип       |
-| ------------------------------------- | --------- |
+| Файл | Тип |
+|---|---|
 | [internal_urls.mjs](internal_urls.md) | JS Module |
+| [migrations.mjs](migrations.md) | JS Module |

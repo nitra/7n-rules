@@ -6,6 +6,6 @@ resource: npm/rules/php/
 
 # npm/rules/php
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [main.mjs](main.md) | JS Module |

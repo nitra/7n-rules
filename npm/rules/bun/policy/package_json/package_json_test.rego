@@ -105,3 +105,33 @@ test_data_template_drives_top_level_deny if {
 		with data.template as {"deny": {"customField": "заборонено для тесту"}}
 	contains(msg, "customField")
 }
+
+# ── deny: scripts.lint / scripts.lint-* ─────────────────────────────────
+
+test_deny_scripts_lint if {
+	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/scripts", "value": {"lint": "bun run lint"}}])
+	some msg in package_json.deny with input as pkg with data.template as template_data
+	contains(msg, "scripts.lint")
+}
+
+test_deny_scripts_lint_prefixed if {
+	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/scripts", "value": {"lint-js": "bunx eslint ."}}])
+	some msg in package_json.deny with input as pkg with data.template as template_data
+	contains(msg, "scripts.lint-js")
+}
+
+test_deny_scripts_lint_full if {
+	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/scripts", "value": {"lint-full": "n-cursor lint --full"}}])
+	some msg in package_json.deny with input as pkg with data.template as template_data
+	contains(msg, "scripts.lint-full")
+}
+
+test_allow_scripts_non_lint if {
+	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/scripts", "value": {"build": "bun build", "test": "vitest"}}])
+	count(package_json.deny) == 0 with input as pkg with data.template as template_data
+}
+
+test_allow_no_scripts if {
+	pkg := json.patch(valid_pkg, [{"op": "remove", "path": "/devDependencies"}])
+	count(package_json.deny) == 0 with input as pkg with data.template as template_data
+}

@@ -6,6 +6,6 @@ resource: npm/rules/feedback/
 
 # npm/rules/feedback
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [main.mjs](main.md) | JS Module |

@@ -6,6 +6,6 @@ resource: npm/rules/abie/
 
 # npm/rules/abie
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [main.mjs](main.md) | JS Module |

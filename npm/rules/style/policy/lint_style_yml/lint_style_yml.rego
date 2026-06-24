@@ -26,6 +26,11 @@ deny contains msg if {
 	msg := sprintf("lint-style.yml: жоден крок run не містить %q (style.mdc)", [expected_run_blob])
 }
 
+deny contains msg if {
+	contains(all_run_text, "bunx stylelint")
+	msg := "lint-style.yml: знайдено bunx stylelint — використовуй n-cursor lint style --read-only (style.mdc)"
+}
+
 step_run_to_text(step) := step.run if is_string(step.run)
 
 else := concat("\n", [s | some s in step.run]) if is_array(step.run)

@@ -61,6 +61,22 @@ deny contains msg if {
 	msg := sprintf("package.json: @nitra/eslint-config має бути >= %s (зараз %q) (js.mdc)", [eslint_min_display, range])
 }
 
+# ── deny: @nitra/as-integrations-fastify заборонений (dep-policy.mdc) ───
+
+banned_fastify_pkg := "@nitra/as-integrations-fastify"
+
+deny contains msg if {
+	deps := object.get(input, "dependencies", {})
+	banned_fastify_pkg in object.keys(deps)
+	msg := sprintf("package.json: dependencies.%s заборонений — використовуй @as-integrations/fastify (js.mdc dep-policy)", [banned_fastify_pkg])
+}
+
+deny contains msg if {
+	deps := object.get(input, "peerDependencies", {})
+	banned_fastify_pkg in object.keys(deps)
+	msg := sprintf("package.json: peerDependencies.%s заборонений — використовуй @as-integrations/fastify (js.mdc dep-policy)", [banned_fastify_pkg])
+}
+
 # ── helpers ──────────────────────────────────────────────────────────────
 
 # Канонічний мін-поріг `@nitra/eslint-config` із snippet (напр. "^3.10.0").

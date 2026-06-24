@@ -6,6 +6,6 @@ resource: npm/rules/efes/
 
 # npm/rules/efes
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [main.mjs](main.md) | JS Module |

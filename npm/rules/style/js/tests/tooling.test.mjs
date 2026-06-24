@@ -99,4 +99,17 @@ describe('check (style tooling)', () => {
       expect(await check(dir)).toBe(0)
     })
   })
+
+  test('exit 1 — .stylelintignore існує, але не містить dist/', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: 'x',
+        stylelint: { extends: '@nitra/stylelint-config' }
+      })
+      await writeFile(join(dir, '.stylelintignore'), 'node_modules/\n', 'utf8')
+      await ensureDir(join(dir, '.github/workflows'))
+      await writeFile(join(dir, '.github/workflows/lint-style.yml'), '# yml\n', 'utf8')
+      expect(await check(dir)).toBe(1)
+    })
+  })
 })

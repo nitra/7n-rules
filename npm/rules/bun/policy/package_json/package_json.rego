@@ -24,6 +24,18 @@ deny contains msg if {
 	msg := sprintf("package.json: поле %s — %s", [field, reason])
 }
 
+# ── deny: scripts.lint / scripts.lint-* заборонені (bun.mdc lint) ────────
+
+deny contains msg if {
+	is_object(input.scripts)
+	some script_name, _ in input.scripts
+	regex.match(`^lint(-.*)?$`, script_name)
+	msg := sprintf(
+		"package.json: scripts.%s заборонений — лінт запускається через n-cursor lint, не через package.json-скрипти (bun.mdc)",
+		[script_name]
+	)
+}
+
 # ── deny: devDependencies — лише `@nitra/*` + root-only тестові peer/tools ─
 
 deny contains msg if {

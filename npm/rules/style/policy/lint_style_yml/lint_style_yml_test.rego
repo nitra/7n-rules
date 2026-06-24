@@ -27,3 +27,17 @@ test_data_template_drives_substring if {
 		with data.template as {"snippet": {"jobs": {"stylelint": {"steps": [{"run": "custom-runner"}]}}}}
 	contains(msg, "custom-runner")
 }
+
+test_deny_bunx_stylelint if {
+	wf := {"jobs": {"stylelint": {"steps": [
+		{"run": "n-cursor lint style --read-only"},
+		{"run": "bunx stylelint '**/*.css'"},
+	]}}}
+	some msg in lint_style_yml.deny with input as wf with data.template as template_data
+	contains(msg, "bunx stylelint")
+}
+
+test_allow_npx_stylelint_without_bunx if {
+	wf := {"jobs": {"stylelint": {"steps": [{"run": "n-cursor lint style --read-only"}]}}}
+	count(lint_style_yml.deny) == 0 with input as wf with data.template as template_data
+}

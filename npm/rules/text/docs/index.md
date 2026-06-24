@@ -6,6 +6,6 @@ resource: npm/rules/text/
 
 # npm/rules/text
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [main.mjs](main.md) | JS Module |

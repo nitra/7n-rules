@@ -6,6 +6,6 @@ resource: npm/rules/test/
 
 # npm/rules/test
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [main.mjs](main.md) | JS Module |

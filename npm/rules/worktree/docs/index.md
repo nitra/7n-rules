@@ -6,6 +6,6 @@ resource: npm/rules/worktree/
 
 # npm/rules/worktree
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [main.mjs](main.md) | JS Module |

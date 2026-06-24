@@ -54,8 +54,14 @@ export async function check(cwd = process.cwd()) {
 
   await checkStylelintConfigPresence(reporter, cwd)
 
-  if (existsSync(join(cwd, '.stylelintignore'))) {
-    pass('.stylelintignore існує')
+  const ignorePath = join(cwd, '.stylelintignore')
+  if (existsSync(ignorePath)) {
+    const ignoreContent = await readFile(ignorePath, 'utf8')
+    if (ignoreContent.split('\n').some(line => line.trim() === 'dist/')) {
+      pass('.stylelintignore існує і містить dist/')
+    } else {
+      fail('.stylelintignore не містить рядка dist/ — додай його (style.mdc)')
+    }
   } else {
     fail('.stylelintignore не існує — створи з вмістом: dist/')
   }

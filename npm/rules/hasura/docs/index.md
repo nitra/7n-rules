@@ -6,6 +6,6 @@ resource: npm/rules/hasura/
 
 # npm/rules/hasura
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [main.mjs](main.md) | JS Module |

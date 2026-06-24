@@ -6,6 +6,6 @@ resource: npm/rules/rust/
 
 # npm/rules/rust
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [main.mjs](main.md) | JS Module |
