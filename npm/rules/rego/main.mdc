@@ -16,3 +16,5 @@ alwaysApply: false
 | `rego.vscode_extensions` | `.vscode/extensions.json` | `recommendations` містить `tsandall.opa` |
 | `rego.vscode_settings` | `.vscode/settings.json` | `[rego]`-блок з `defaultFormatter` + `formatOnSave` |
 
+- [settings.json.snippet.json](./policy/vscode_settings/template/settings.json.snippet.json)
+- [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)

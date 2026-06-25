@@ -9,3 +9,5 @@ version: '2.1'
 ## Перевірка
 
 `npx @nitra/cursor fix security`
+- [lint-security.yml.snippet.yml](./policy/lint_security_yml/template/lint-security.yml.snippet.yml)
+- [package.json.deny.json](./policy/package_json/template/package.json.deny.json)

@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
@@ -19,20 +19,30 @@ export function run(ctx) {
   return runStandardRule(import.meta.dirname, ctx)
 }
 
+/** Дефолтний allowlist: Blue Oak bronze — дозволяє MIT/Apache/BSD/ISC, блокує GPL/AGPL/LGPL. */
+const DEFAULT_LICENSEE_CONFIG = JSON.stringify({ licenses: { blueOak: 'bronze' }, corrections: true }, null, 2) + '\n'
+
 /**
- * Перевірка ліцензій npm-залежностей через `licensee`. Opt-in: пропускається якщо
- * `.licensee.json` відсутній у cwd (проєкт не налаштував allowlist). `bun x licensee`
- * не потребує локальної установки — bunx завантажує пакет ad-hoc.
+ * Перевірка ліцензій npm-залежностей через `licensee`.
+ * У fix-режимі: якщо `.licensee.json` відсутній — генерує його з дефолтним allowlist
+ * (blueOak: bronze) і запускає перевірку. У readOnly (CI): відсутність файлу → fail.
  * @param {string} [cwd] корінь проєкту
+ * @param {{ readOnly?: boolean }} [opts]
  * @returns {number} 0 — OK, 1 — порушення
  */
-function runLicenseeSteps(cwd = process.cwd()) {
+function runLicenseeSteps(cwd = process.cwd(), opts = {}) {
+  const readOnly = opts.readOnly === true
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
-  if (!existsSync(join(cwd, '.licensee.json'))) {
-    pass('lint-bun: licensee — немає .licensee.json, перевірку ліцензій пропущено')
-    return reporter.getExitCode()
+  const configPath = join(cwd, '.licensee.json')
+  if (!existsSync(configPath)) {
+    if (readOnly) {
+      fail('lint-bun: licensee — немає .licensee.json; запустіть `npx @nitra/cursor fix bun` локально для генерації (bun.mdc)')
+      return reporter.getExitCode()
+    }
+    writeFileSync(configPath, DEFAULT_LICENSEE_CONFIG, 'utf8')
+    pass('lint-bun: licensee — створено .licensee.json з дефолтним allowlist (blueOak: bronze)')
   }
 
   const bun = resolveCmd('bun')
@@ -53,14 +63,14 @@ function runLicenseeSteps(cwd = process.cwd()) {
 
 /**
  * Оркестраторний адаптер `n-cursor lint bun`: licensee-перевірка ліцензій npm-залежностей.
- * Whole-repo (ігнорує `_files`). Opt-in через `.licensee.json` у cwd.
+ * Whole-repo (ігнорує `_files`). Fix-режим: auto-генерує `.licensee.json` якщо відсутній.
  * @param {string[] | undefined} _files ігнорується
  * @param {string} [cwd] корінь
- * @param {{ readOnly?: boolean }} [_opts] не використовується (licensee завжди read-only)
+ * @param {{ readOnly?: boolean }} [opts] readOnly → не мутує ФС; відсутність конфігу → fail
  * @returns {Promise<number>} exit code
  */
-export function lint(_files, cwd = process.cwd(), _opts = {}) {
-  return runStandardLint(import.meta.dirname, () => runLicenseeSteps(cwd))
+export function lint(_files, cwd = process.cwd(), opts = {}) {
+  return runStandardLint(import.meta.dirname, () => runLicenseeSteps(cwd, opts))
 }
 
 if (isRunAsCli(import.meta.url)) {

@@ -9,8 +9,8 @@ resource: npm/scripts/lib/
 | Файл | Тип |
 |---|---|
 | [assert-project-root.mjs](assert-project-root.md) | JS Module |
+| [blue-oak.mjs](blue-oak.md) | JS Module |
 | [changed-files.mjs](changed-files.md) | JS Module |
-| [check-mdc-template-refs.mjs](check-mdc-template-refs.md) | JS Module |
 | [check-reporter.mjs](check-reporter.md) | JS Module |
 | [diff-added-lines.mjs](diff-added-lines.md) | JS Module |
 | [discover-check-rules-from-cursor.mjs](discover-check-rules-from-cursor.md) | JS Module |

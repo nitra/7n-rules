@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url'
 import { discoverT0Patterns } from './discover-t0-patterns.mjs'
 import { runConformanceCheck } from './run-conformance-check.mjs'
 
-// Паттерни живуть у rule-level fix-*.mjs файлах; агрегуємо тут через discovery.
 // Top-level await: ініціалізація один раз при завантаженні модуля.
 const RULES_DIR = join(dirname(fileURLToPath(import.meta.url)), '../../../rules')
 const PATTERNS = await discoverT0Patterns(RULES_DIR)
@@ -24,7 +23,7 @@ export async function applyT0Auto(ruleId, violationOutput, cwd) {
   for (const p of PATTERNS) {
     if (!p.test(violationOutput)) continue
     // Патерн може бути sync ({ok,action}) або async (Promise) — await нормалізує обидва.
-    const result = await p.apply(violationOutput, cwd)
+    const result = await p.apply(violationOutput, cwd, { ruleId, rulesDir: RULES_DIR })
     actions.push(`[${p.id}] ${result.action}`)
     if (result.ok) applied = true
   }

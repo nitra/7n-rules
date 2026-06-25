@@ -11,3 +11,7 @@ version: '1.30'
 
 Rego-пакети у `policy/` — запускаються `npx @nitra/cursor fix js` або `conftest`:
 
+- [lint-js.yml.snippet.yml](./policy/lint_js_yml/template/lint-js.yml.snippet.yml)
+- [.jscpd.json.snippet.json](./policy/jscpd/template/.jscpd.json.snippet.json)
+- [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
+- [package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)

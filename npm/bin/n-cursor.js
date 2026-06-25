@@ -1452,11 +1452,11 @@ async function runSync() {
 
 /**
  * Команди, що мутують проєкт у CWD і вимагають кореня репо. `undefined`/`''` —
- * дефолтний sync; `check` — deprecated-alias `fix`. Решта (read-only `trace`,
+ * дефолтний sync; `check` — deprecated-alias `fix`. Решта (read-only,
  * `--root`-команди `doc-aggregate`/`rename-yaml-extensions`,
  * sub-лінтери) гард не зачіпає.
  */
-const ROOT_GUARDED_COMMANDS = new Set([undefined, '', 'lint', 'change', 'release'])
+const ROOT_GUARDED_COMMANDS = new Set([undefined, '', 'lint', 'release'])
 
 /**
  * Короткий опис дії для тексту root-guard помилки за іменем команди.
@@ -1472,9 +1472,6 @@ function describeRootGuardedAction(cmd) {
     case 'lint': {
       return '`lint` за замовчуванням авто-fix лінтерів (oxfmt/eslint --fix/stylelint --fix) і конформності (--full) у поточному каталозі'
     }
-    case 'change': {
-      return '`change` пише change-файл у .changes/ поточного каталогу'
-    }
     case 'release': {
       return '`release` бампає version і переписує CHANGELOG у поточному каталозі'
     }
@@ -1489,10 +1486,10 @@ const [command, ...args] = process.argv.slice(2)
 
 try {
   // Root-guard до перших мутацій: дефолтний sync скаффолдить .cursor/.claude/CLAUDE.md/
-  // .n-cursor.json + bun install, а lint/change/release переписують файли в CWD —
+  // .n-cursor.json + bun install, а lint/release переписують файли в CWD —
   // усе це ключиться на cwd(). Запуск із піддиректорії git-репо (типово прямий
   // `bun npm/bin/n-cursor.js` не з кореня) зачепив би не той каталог → STOP. Read-only та
-  // `--root`-команди (trace, graph, doc-aggregate, rename-yaml-extensions) не зачіпаємо.
+  // `--root`-команди (doc-aggregate, rename-yaml-extensions) не зачіпаємо.
   if (ROOT_GUARDED_COMMANDS.has(command)) {
     assertCwdIsProjectRoot(cwd(), describeRootGuardedAction(command))
   }
@@ -1558,12 +1555,6 @@ try {
 
       break
     }
-    case 'change': {
-      const { runChangeCli } = await import('../rules/release/change.mjs')
-      process.exitCode = await runChangeCli(args)
-
-      break
-    }
     case 'release': {
       const { runReleaseCli } = await import('../rules/release/release.mjs')
       process.exitCode = await runReleaseCli(args)
@@ -1572,14 +1563,6 @@ try {
     }
     case 'skill': {
       process.exitCode = runSkillsCli(args)
-
-      break
-    }
-    case 'trace': {
-      // n-cursor trace — наскрізна простежуваність (spec §5.4/§7): граф
-      // ADR↔spec↔plan↔change за front-matter + флаг розривів. exit 1 на розрив.
-      const { runTraceCli } = await import('../scripts/dispatcher/trace.mjs')
-      process.exitCode = runTraceCli(args)
 
       break
     }
@@ -1601,7 +1584,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), analyze-escalation, taze, start-check, release, skill, trace, doc-aggregate`
+        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), analyze-escalation, taze, start-check, release, skill, doc-aggregate`
       )
       process.exitCode = 1
     }

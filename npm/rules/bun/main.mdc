@@ -6,3 +6,5 @@ version: '2.1'
 ---
 
 Проект використовує тільки Bun для керування залежностями та запуску скриптів.
+- [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
+- [bunfig.toml.snippet.toml](./policy/bunfig/template/bunfig.toml.snippet.toml)

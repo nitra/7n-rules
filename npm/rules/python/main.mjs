@@ -30,6 +30,7 @@ import { resolveCmd } from '../../scripts/utils/resolve-cmd.mjs'
 import { runStandardLint } from '../../scripts/lib/run-standard-lint.mjs'
 import { runRuleCli } from '../../scripts/lib/run-rule-cli.mjs'
 import { runStandardRule } from '../../scripts/lib/run-standard-rule.mjs'
+import { getBronzeAndAbove, isSpdxAllowed } from '../../scripts/lib/blue-oak.mjs'
 
 /**
  * Єдиний entrypoint правила (ADR 2026-06-21). `run()` — check-поверхня (applies → JS-concerns
@@ -112,13 +113,54 @@ export function runLintPythonSteps(cwd = process.cwd(), opts = {}) {
     return runTool(label, uv, ['run', '--frozen', tool, ...args], pass, fail)
   }
 
+  /**
+   * Перевірка ліцензій Python-залежностей через pip-licenses + Blue Oak Bronze+.
+   * Opt-in: пропускається якщо pip-licenses не встановлений у uv-середовищі.
+   * @param {string} uvPath абсолютний шлях до uv
+   * @param {string} cwdPath корінь проєкту
+   * @param {(msg: string) => void} passF
+   * @param {(msg: string) => void} failF
+   * @returns {boolean} true якщо OK або пропущено; false якщо порушення
+   */
+  function checkPipLicenses(uvPath, cwdPath, passF, failF) {
+    if (!uvToolAvailable(uvPath, 'pip-licenses')) {
+      passF('lint-python: pip-licenses недоступний у uv-середовищі — перевірку ліцензій пропущено')
+      return true
+    }
+    const r = spawnSync(uvPath, ['run', '--frozen', 'pip-licenses', '--from=mixed', '--format=spdx-json'], {
+      cwd: cwdPath, stdio: ['ignore', 'pipe', 'inherit'], shell: false,
+    })
+    if (r.status !== 0) {
+      failF('lint-python: pip-licenses — помилка виконання')
+      return false
+    }
+    const allowed = getBronzeAndAbove()
+    let doc
+    try { doc = JSON.parse(r.stdout.toString('utf8')) } catch { doc = null }
+    const packages = doc?.packages ?? []
+    const violations = packages.filter(pkg => {
+      const lic = pkg.licenseDeclared ?? pkg.licenseConcluded ?? 'NOASSERTION'
+      return !isSpdxAllowed(lic, allowed)
+    })
+    if (violations.length > 0) {
+      for (const pkg of violations) {
+        const lic = pkg.licenseDeclared ?? pkg.licenseConcluded ?? 'NOASSERTION'
+        process.stdout.write(`  ✗ ${pkg.name}@${pkg.versionInfo ?? '?'}: ${lic}\n`)
+      }
+      failF(`lint-python: pip-licenses — ${violations.length} пакет(ів) поза Blue Oak Bronze+ (python.mdc)`)
+      return false
+    }
+    passF(`lint-python: pip-licenses — ліцензії OK (Blue Oak Bronze+, ${packages.length} пакетів)`)
+    return true
+  }
+
   const ruffCheck = readOnly ? ['check', '.'] : ['check', '--fix', '.']
   const ruffFormat = readOnly ? ['format', '--check', '.'] : ['format', '.']
   if (!runOptionalUvTool('ruff', readOnly ? 'ruff check' : 'ruff check --fix', ruffCheck)) return reporter.getExitCode()
   if (!runOptionalUvTool('ruff', readOnly ? 'ruff format --check' : 'ruff format', ruffFormat))
     return reporter.getExitCode()
   if (!runOptionalUvTool('mypy', 'mypy', ['.'])) return reporter.getExitCode()
-  if (!runOptionalUvTool('liccheck', 'liccheck', [])) return reporter.getExitCode()
+  if (!checkPipLicenses(uv, cwd, pass, fail)) return reporter.getExitCode()
 
   return reporter.getExitCode()
 }

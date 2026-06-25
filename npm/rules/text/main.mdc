@@ -10,3 +10,12 @@ version: '1.30'
 
 Rego-пакети, що перевіряються через conftest (auto-discovered за `target.json` поряд із `.rego`):
 
+- [settings.json.snippet.json](./policy/vscode_settings/template/settings.json.snippet.json)
+- [.oxfmtrc.json.snippet.json](./policy/oxfmtrc/template/.oxfmtrc.json.snippet.json)
+- [.markdownlint-cli2.jsonc.snippet.jsonc](./policy/markdownlint/template/.markdownlint-cli2.jsonc.snippet.jsonc)
+- [.cspell.json.snippet.json](./policy/cspell/template/.cspell.json.snippet.json)
+- [.cspell.json.deny.json](./policy/cspell/template/.cspell.json.deny.json)
+- [.cspell.json.contains.json](./policy/cspell/template/.cspell.json.contains.json)
+- [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
+- [lint-text.yml.snippet.yml](./policy/lint_text/template/lint-text.yml.snippet.yml)
+- [package.json.deny.json](./policy/package_json/template/package.json.deny.json)

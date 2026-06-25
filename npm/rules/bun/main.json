@@ -1,1 +1,1 @@
-{ "auto": { "glob": "package.json" }, "lint": "full" }
+{ "auto": { "glob": ["package.json", ".licensee.json"] }, "lint": "full" }
