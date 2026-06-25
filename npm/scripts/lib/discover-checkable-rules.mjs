@@ -51,6 +51,7 @@ async function listJsConcerns(jsDir) {
     if (!entry.isFile()) continue
     if (!entry.name.endsWith('.mjs')) continue
     if (entry.name.endsWith('.test.mjs')) continue
+    if (entry.name.startsWith('fix-')) continue
     if (entry.name.startsWith('_')) continue
     if (entry.name.startsWith('.')) continue
     const name = entry.name.slice(0, -'.mjs'.length)
