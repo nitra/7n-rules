@@ -1,5 +1,11 @@
 # Changelog
 
+## [12.11.3] - 2026-06-25
+
+### Changed
+
+- rm doc-aggregate; dep policy
+
 ## [12.11.2] - 2026-06-25
 
 ### Changed
