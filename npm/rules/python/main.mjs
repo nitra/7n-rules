@@ -118,6 +118,7 @@ export function runLintPythonSteps(cwd = process.cwd(), opts = {}) {
   if (!runOptionalUvTool('ruff', readOnly ? 'ruff format --check' : 'ruff format', ruffFormat))
     return reporter.getExitCode()
   if (!runOptionalUvTool('mypy', 'mypy', ['.'])) return reporter.getExitCode()
+  if (!runOptionalUvTool('liccheck', 'liccheck', [])) return reporter.getExitCode()
 
   return reporter.getExitCode()
 }

@@ -82,6 +82,17 @@ function runRustLint(cwd = process.cwd(), opts = {}) {
     pass,
     fail
   )
+
+  // cargo deny check licenses (opt-in): потрібен deny.toml + cargo-deny у PATH
+  if (existsSync(join(cwd, 'deny.toml'))) {
+    const hasDeny = spawnSync(cargo, ['deny', '--version'], { stdio: 'ignore', shell: false }).status === 0
+    if (hasDeny) {
+      runCargo('cargo deny check licenses', cargo, ['deny', 'check', 'licenses'], pass, fail)
+    } else {
+      pass('lint-rust: cargo deny — не встановлений (cargo install cargo-deny), перевірку ліцензій пропущено')
+    }
+  }
+
   return reporter.getExitCode()
 }
 

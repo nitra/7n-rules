@@ -37,29 +37,19 @@ npx @nitra/cursor lint-doc-files --git
 
 ## Крок 1: Tier 2 — module-summary
 
-Зібрати список модулів:
+Зібрати список воркспейсів з кореневого `package.json`:
 
 ```bash
-npx @nitra/cursor doc-aggregate modules
+node -e "const p=JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log(JSON.stringify(p.workspaces))"
 ```
 
-Команда друкує JSON-масив (усі шляхи абсолютні):
+Для кожного воркспейсу `<ws>`:
+- `relRoot` = `<ws>` (напр. `npm`, `demo`)
+- `docPath` = `<ws>/docs/ARCHITECTURE.md`
+- `members` — кодові файли (`.mjs .ts .vue .py`, крім тестів) у `<ws>/`
 
-```json
-[
-  {
-    "moduleRoot": "/abs/npm/rules/adr",
-    "relRoot": "npm/rules/adr",
-    "slug": "npm-rules-adr",
-    "docPath": "/abs/npm/rules/adr/docs/ARCHITECTURE.md",
-    "members": ["npm/rules/adr/index.mjs"],
-    "exists": false
-  }
-]
-```
-
-module-summary **завжди регенерується** (це агрегат — поле `exists` ігноруй). Розбий модулі
-на батчі по 5 і диспатч субагентів. Промпт кожного (підстав `relRoot`, `docPath`, `members`):
+module-summary **завжди регенерується**. Розбий воркспейси на батчі по 5 і диспатч субагентів.
+Промпт кожного (підстав `relRoot`, `docPath`, `members`):
 
 ```
 Напиши module-summary для одного логічного модуля.

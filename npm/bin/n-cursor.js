@@ -14,7 +14,6 @@
  *                                     весь репо (`per-file` ∪ `full`); `--read-only` = без мутацій/LLM (CI); позиційні
  *                                     (не-флаг) аргументи — фільтр правил конформності (мапить колишній `fix <rule>`).
  *                                     CI = `lint --read-only --full` (весь репо, нуль мутацій/LLM).
- *   `npx \@nitra/cursor doc-aggregate modules` — JSON-лістинг логічних модулів (межі за `package.json`) для Tier 2 скілу doc-aggregate
  *   `npx \@nitra/cursor skill list`     — скіли пакета без синку в проєкт
  *   `npx \@nitra/cursor skill taze`     — промпт на stdout
  *   `npx \@nitra/cursor skill cursor taze ["task"]` — Cursor CLI (`cursor-agent -p`)
@@ -1590,20 +1589,6 @@ try {
       // cluster→gen) на малій локальній моделі й друкує `{operations}` JSON у stdout.
       const { runAdrNormalizeLocalCli } = await import('../scripts/lib/adr/normalize-cli.mjs')
       process.exitCode = await runAdrNormalizeLocalCli(args)
-
-      break
-    }
-    case 'doc-aggregate': {
-      // n-cursor doc-aggregate modules — детермінований лістинг логічних модулів
-      // (межі за package.json) для Tier 2 module-summary скілу doc-aggregate.
-      // Друкує JSON; module-summary і доменні доки пише скіл, диспатчачи субагентів.
-      const { runDocAggregateModulesCli } = await import('../skills/doc-aggregate/js/docgen-scan.mjs')
-      if (args[0] === 'modules') {
-        process.exitCode = await runDocAggregateModulesCli(args.slice(1))
-      } else {
-        console.error('Usage: npx @nitra/cursor doc-aggregate <modules> [--root <dir>]')
-        process.exitCode = 1
-      }
 
       break
     }

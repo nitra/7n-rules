@@ -9,4 +9,3 @@ resource: npm/skills/doc-aggregate/js/
 | Файл                                  | Тип       |
 | ------------------------------------- | --------- |
 | [docgen-ignore.mjs](docgen-ignore.md) | JS Module |
-| [docgen-scan.mjs](docgen-scan.md)     | JS Module |
