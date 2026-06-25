@@ -1,5 +1,11 @@
 # Changelog
 
+## [12.11.1] - 2026-06-25
+
+### Changed
+
+- ♻️ refactor(scripts): T0-autofix контракт fix-<concern>.mjs — нова конвенція в scripts.mdc
+
 ## [12.11.0] - 2026-06-25
 
 ### Changed
