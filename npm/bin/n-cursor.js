@@ -64,7 +64,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, readdir, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { cwd, env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
@@ -1457,7 +1457,7 @@ async function runSync() {
  * `--root`-команди `doc-aggregate`/`rename-yaml-extensions`,
  * sub-лінтери) гард не зачіпає.
  */
-const ROOT_GUARDED_COMMANDS = new Set([undefined, '', 'lint', 'coverage', 'change', 'release'])
+const ROOT_GUARDED_COMMANDS = new Set([undefined, '', 'lint', 'change', 'release'])
 
 /**
  * Короткий опис дії для тексту root-guard помилки за іменем команди.
@@ -1472,9 +1472,6 @@ function describeRootGuardedAction(cmd) {
     }
     case 'lint': {
       return '`lint` за замовчуванням авто-fix лінтерів (oxfmt/eslint --fix/stylelint --fix) і конформності (--full) у поточному каталозі'
-    }
-    case 'coverage': {
-      return '`coverage` генерує COVERAGE.md і Stryker-артефакти в поточному каталозі'
     }
     case 'change': {
       return '`change` пише change-файл у .changes/ поточного каталогу'
@@ -1493,7 +1490,7 @@ const [command, ...args] = process.argv.slice(2)
 
 try {
   // Root-guard до перших мутацій: дефолтний sync скаффолдить .cursor/.claude/CLAUDE.md/
-  // .n-cursor.json + bun install, а fix/lint/coverage/change/release переписують файли в CWD —
+  // .n-cursor.json + bun install, а lint/change/release переписують файли в CWD —
   // усе це ключиться на cwd(). Запуск із піддиректорії git-репо (типово прямий
   // `bun npm/bin/n-cursor.js` не з кореня) зачепив би не той каталог → STOP. Read-only та
   // `--root`-команди (trace, graph, doc-aggregate, rename-yaml-extensions) не зачіпаємо.
@@ -1523,30 +1520,15 @@ try {
       // Дві ортогональні осі: --full (scope: весь репо vs дельта vs origin) × --read-only (behavior).
       // Позиційні (не-флаг) аргументи — фільтр правил конформності (напр. `lint changelog`):
       // прогнати лише конформність цих правил, без лінтер-скану (мапить колишній `fix <rule>`).
-      const rules = args.filter(a => !a.startsWith('-'))
+      const cwdIdx = args.indexOf('--cwd')
+      const cwdArg = cwdIdx !== -1 ? resolve(args[cwdIdx + 1]) : undefined
+      const rules = args.filter((a, i) => !a.startsWith('-') && i !== cwdIdx + 1)
       process.exitCode = await runLint({
         full: args.includes('--full'),
         readOnly: args.includes('--read-only'),
-        rules
+        rules,
+        cwd: cwdArg
       })
-
-      break
-    }
-    case 'coverage': {
-      // n-cursor coverage — оркестратор покриття + мутаційного тестування з discovery
-      // провайдерів через .n-cursor.json#rules (test.mdc). --changed звужує scope до
-      // змінених від base файлів (flow-турнікет: лише vitest/Stryker по diff).
-      const { runCoverageCli } = await import('../rules/test/coverage/coverage.mjs')
-      process.exitCode = await runCoverageCli({ fix: args.includes('--fix'), changed: args.includes('--changed') })
-
-      break
-    }
-    case 'coverage-fix': {
-      // n-cursor coverage-fix index|slice — read-only витяг вцілілих мутантів із
-      // COVERAGE.md для скілу n-coverage-fix. Важкий парсинг несе скрипт (0 LLM-
-      // токенів); агент отримує лише компактний index або зріз під один файл.
-      const { runCoverageFixCli } = await import('../scripts/coverage-fix-extract.mjs')
-      process.exitCode = await runCoverageFixCli(args)
 
       break
     }
@@ -1634,7 +1616,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), coverage, coverage-fix, analyze-escalation, taze, start-check, release, skill, trace, doc-aggregate`
+        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), analyze-escalation, taze, start-check, release, skill, trace, doc-aggregate`
       )
       process.exitCode = 1
     }

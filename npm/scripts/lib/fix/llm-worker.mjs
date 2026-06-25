@@ -18,35 +18,44 @@ const DEFAULT_THINKING_BUDGET = Number(env.N_CURSOR_OMLX_THINKING_BUDGET ?? 4096
 
 const API_KEY_RE = /api key/i
 
+const FILE_EXTS = 'json|js|mjs|ts|vue|yml|yaml|toml|mdc|md|sh|py'
+
 /**
  * Витягує відносні шляхи файлів із violation output.
  * Розуміє workspace-prefix: `[npm] skills/foo.mjs` → `npm/skills/foo.mjs`.
+ * Спочатку явно парсить рядки ❌ (найвищий сигнал — файл потребує фіксу),
+ * потім підхоплює решту файлів generic-regex (контекст для читання).
  * @param {string} output violation output з fix check
  * @returns {string[]} унікальні відносні шляхи (від кореня проєкту)
  */
-function extractFilePaths(output) {
+export function extractFilePaths(output) {
   const seen = new Set()
   const results = []
-
-  // Патерн з workspace: [npm] skills/foo.mjs або [demo] src/bar.ts
-  const wsRe = /\[([\w-]+)\]\s+([\w./][\w./-]*\.(?:json|js|mjs|ts|vue|yml|yaml|toml|mdc|md|sh|py))(?::\d+)?/gm
-  for (const m of output.matchAll(wsRe)) {
-    const p = `${m[1]}/${m[2]}`
+  const add = p => {
     if (!seen.has(p)) {
       seen.add(p)
       results.push(p)
     }
   }
 
-  // Патерн без workspace: просто path/to/file.ext або ./file.ext
-  const re = /(?:^|\s)(\.?\w[\w./-]*\.(?:json|js|mjs|ts|vue|yml|yaml|toml|mdc|md|sh|py))(?::\d+)?/gm
-  for (const m of output.matchAll(re)) {
-    const p = m[1]
-    if (!seen.has(p)) {
-      seen.add(p)
-      results.push(p)
-    }
-  }
+  // 1. Явні рядки ❌ — найвищий сигнал: саме ці файли потребують фіксу.
+  //    Формати: `❌ [ws] path/file.ext:line — msg` та `❌ path/file.ext: msg`
+  //    Роздільник після шляху: `:` (з пробілом або цифрою), `—` (em-dash), або кінець рядка.
+  const failSep = `(?::\\d+)?(?::\\s|[\\s—]|$)`
+  const failWsRe = new RegExp(`^\\s*❌\\s+\\[([\\w-]+)\\]\\s+([\\w./][\\w./-]*\\.(?:${FILE_EXTS}))${failSep}`, 'gm')
+  for (const m of output.matchAll(failWsRe)) add(`${m[1]}/${m[2]}`)
+
+  const failRe = new RegExp(`^\\s*❌\\s+(\\.?[\\w][\\w./-]*\\.(?:${FILE_EXTS}))${failSep}`, 'gm')
+  for (const m of output.matchAll(failRe)) add(m[1])
+
+  // 2. Generic-regex: підхоплює файли з ✅-рядків та описів (контекст для читання).
+  //    Workspace: [npm] skills/foo.mjs
+  const wsRe = new RegExp(`\\[([\\w-]+)\\]\\s+([\\w./][\\w./-]*\\.(?:${FILE_EXTS}))(?::\\d+)?`, 'gm')
+  for (const m of output.matchAll(wsRe)) add(`${m[1]}/${m[2]}`)
+
+  //    Без workspace: path/to/file.ext або ./file.ext
+  const re = new RegExp(`(?:^|\\s)(\\.?\\w[\\w./-]*\\.(?:${FILE_EXTS}))(?::\\d+)?`, 'gm')
+  for (const m of output.matchAll(re)) add(m[1])
 
   return results
 }

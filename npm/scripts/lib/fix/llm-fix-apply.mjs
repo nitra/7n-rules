@@ -3,8 +3,9 @@
  * під фікс і застосування змін. Використовують і `llm-worker.mjs` (конформність), і
  * `llm-lint-fix.mjs` (per-tool лінтер-фіксери) — щоб не дублювати парс/apply (knip/jscpd).
  */
+import { execSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
 const JSON_CODE_BLOCK_RE = /```(?:json)?[ \t]{0,8}\n?([\s\S]*?)```/
 
@@ -40,7 +41,29 @@ export function parseChangesResponse(text) {
 }
 
 /**
+ * Шукає файл за basename у дереві проєкту (fallback коли прямий шлях не існує).
+ * Повертає відносний шлях якщо знайдено рівно один матч, інакше `null` (ambiguous/not found).
+ * @param {string} name basename файлу
+ * @param {string} projectRoot абсолютний корінь
+ * @returns {string|null} відносний шлях або null
+ */
+function findByBasename(name, projectRoot) {
+  try {
+    const raw = execSync(
+      `find . -maxdepth 7 -name '${name.replace(/'/g, "'\\''")}' -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.worktrees/*'`,
+      { cwd: projectRoot, encoding: 'utf8', timeout: 3000 }
+    ).trim()
+    const hits = raw.split('\n').filter(Boolean)
+    return hits.length === 1 ? hits[0].replace(/^\.\//, '') : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Читає існуючі файли за відносними шляхами у форму `{path, content}` (для prompt).
+ * Якщо файл не знайдений за прямим шляхом — намагається знайти за basename через `find`.
+ * Повертає resolved path (може відрізнятись від вхідного коли `find` знайшов реальне місце).
  * @param {string[]} filePaths відносні шляхи від кореня
  * @param {string} projectRoot абсолютний корінь
  * @returns {Array<{path:string, content:string}>} наявні файли з вмістом
@@ -48,10 +71,18 @@ export function parseChangesResponse(text) {
 export function readFilesForFix(filePaths, projectRoot) {
   return filePaths
     .map(p => {
-      const abs = join(projectRoot, p)
+      let abs = join(projectRoot, p)
+      let resolvedPath = p
+      if (!existsSync(abs)) {
+        const found = findByBasename(basename(p), projectRoot)
+        if (found) {
+          resolvedPath = found
+          abs = join(projectRoot, found)
+        }
+      }
       if (!existsSync(abs)) return null
       try {
-        return { path: p, content: readFileSync(abs, 'utf8') }
+        return { path: resolvedPath, content: readFileSync(abs, 'utf8') }
       } catch {
         return null
       }

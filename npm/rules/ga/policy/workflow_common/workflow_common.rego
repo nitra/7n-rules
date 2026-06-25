@@ -127,6 +127,21 @@ deny contains msg if {
 	msg := sprintf(setup_bun_no_checkout_template, [job_id])
 }
 
+# ── deny: actions/checkout без persist-credentials: false ─────────────────
+#
+# `persist-credentials: false` запобігає кешуванню git-токена після checkout,
+# що є обов'язковою вимогою безпеки (ga.mdc).
+
+deny contains msg if {
+	some _job_id, job in jobs
+	some step in object.get(job, "steps", [])
+	uses := object.get(step, "uses", "")
+	startswith(uses, "actions/checkout@")
+	creds := object.get(object.get(step, "with", {}), "persist-credentials", true)
+	creds != false
+	msg := sprintf("jobs.%s: actions/checkout@v6 потребує `with: persist-credentials: false` (ga.mdc)", [_job_id])
+}
+
 # ── deny: concurrency блок ─────────────────────────────────────────────────
 #
 # Дублює окремі per-workflow перевірки для clean-ga-workflows / clean-merged-branch /

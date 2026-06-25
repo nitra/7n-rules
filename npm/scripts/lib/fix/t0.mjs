@@ -1,6 +1,6 @@
 /** @see ./docs/t0.md */
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { runConformanceCheck } from './run-conformance-check.mjs'
@@ -115,6 +115,121 @@ const PATTERNS = [
         }
       }
       return { ok: true, action: `створено change-файл (${CHANGE_BUMP}/${CHANGE_SECTION}): ${created.join(', ')}` }
+    }
+  },
+
+  // ── bun-bunfig-create ────────────────────────────────────────────────────────
+  // Violation: «Відсутній bunfig.toml — створи з [install] linker = "hoisted"»
+  // Fix: створити bunfig.toml з канонічним вмістом (bun.mdc)
+  {
+    id: 'bun-bunfig-create',
+    test: out => /Відсутній bunfig\.toml/.test(out),
+    apply: (_out, cwd) => {
+      const target = join(cwd, 'bunfig.toml')
+      if (existsSync(target)) return { ok: false, action: 'bunfig.toml вже існує' }
+      writeFileSync(target, '[install]\nlinker = "hoisted"\n', 'utf8')
+      return { ok: true, action: 'створено bunfig.toml' }
+    }
+  },
+
+  // ── bun-yarn-dir-remove ──────────────────────────────────────────────────────
+  // Violation: «Знайдено директорію .yarn — видали її»
+  // Fix: рекурсивно видалити .yarn/
+  {
+    id: 'bun-yarn-dir-remove',
+    test: out => /Знайдено директорію \.yarn/.test(out),
+    apply: (_out, cwd) => {
+      const target = join(cwd, '.yarn')
+      if (!existsSync(target)) return { ok: false, action: '.yarn не знайдено' }
+      rmSync(target, { recursive: true, force: true })
+      return { ok: true, action: 'видалено .yarn/' }
+    }
+  },
+
+  // ── style-stylelintignore-create ─────────────────────────────────────────────
+  // Violation: «.stylelintignore не існує — створи з вмістом: dist/»
+  // Fix: створити .stylelintignore з рядком dist/
+  {
+    id: 'style-stylelintignore-create',
+    test: out => /\.stylelintignore не існує/.test(out),
+    apply: (_out, cwd) => {
+      writeFileSync(join(cwd, '.stylelintignore'), 'dist/\n', 'utf8')
+      return { ok: true, action: 'створено .stylelintignore' }
+    }
+  },
+
+  // ── style-stylelintignore-dist-add ───────────────────────────────────────────
+  // Violation: «.stylelintignore не містить рядка dist/»
+  // Fix: дописати dist/ до існуючого .stylelintignore
+  {
+    id: 'style-stylelintignore-dist-add',
+    test: out => /\.stylelintignore не містить рядка dist\//.test(out),
+    apply: (_out, cwd) => {
+      const target = join(cwd, '.stylelintignore')
+      appendFileSync(target, '\ndist/\n', 'utf8')
+      return { ok: true, action: 'додано dist/ до .stylelintignore' }
+    }
+  },
+
+  // ── style-pkg-stylelint-add ──────────────────────────────────────────────────
+  // Violation: «Немає конфігу stylelint — додай "stylelint": {...} до package.json»
+  // Fix: додати поле stylelint до кореневого package.json
+  {
+    id: 'style-pkg-stylelint-add',
+    test: out => /Немає конфігу stylelint/.test(out),
+    apply: (_out, cwd) => {
+      const pkgPath = join(cwd, 'package.json')
+      if (!existsSync(pkgPath)) return { ok: false, action: 'package.json не знайдено' }
+      let pkg
+      try {
+        pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
+      } catch {
+        return { ok: false, action: 'package.json: невалідний JSON' }
+      }
+      if (pkg.stylelint) return { ok: false, action: 'stylelint вже є в package.json' }
+      pkg.stylelint = { extends: '@nitra/stylelint-config' }
+      writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8')
+      return { ok: true, action: 'додано stylelint до package.json' }
+    }
+  },
+
+  // ── js-run-jsconfig-create ───────────────────────────────────────────────────
+  // Violation: «[packages/api] є каталог src/, але немає jsconfig.json»
+  // Fix: для кожного воркспейсу з violation створити канонічний jsconfig.json
+  // (NodeNext + include: src/**/*; шаблон: js-run/policy/jsconfig/template/)
+  {
+    id: 'js-run-jsconfig-create',
+    test: out => /є каталог src\/, але немає jsconfig\.json/.test(out),
+    apply: (out, cwd) => {
+      const RE = /\[([^\]]+)\] є каталог src\/, але немає jsconfig\.json/gu
+      const matches = [...out.matchAll(RE)]
+      if (matches.length === 0) return { ok: false, action: 'no match' }
+      const canonical =
+        JSON.stringify(
+          {
+            compilerOptions: {
+              lib: ['esnext'],
+              module: 'NodeNext',
+              moduleResolution: 'NodeNext',
+              target: 'esnext',
+              checkJs: false
+            },
+            include: ['src/**/*']
+          },
+          null,
+          2
+        ) + '\n'
+      const created = []
+      for (const m of matches) {
+        const ws = m[1]
+        const target = join(cwd, ws, 'jsconfig.json')
+        if (!existsSync(target)) {
+          writeFileSync(target, canonical, 'utf8')
+          created.push(ws)
+        }
+      }
+      if (created.length === 0) return { ok: false, action: 'jsconfig.json вже існує в усіх воркспейсах' }
+      return { ok: true, action: `створено jsconfig.json: ${created.join(', ')}` }
     }
   }
 ]

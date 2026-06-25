@@ -1,0 +1,4 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/target.json",
+  "files": { "single": ".github/workflows/lint-k8s.yml" }
+}

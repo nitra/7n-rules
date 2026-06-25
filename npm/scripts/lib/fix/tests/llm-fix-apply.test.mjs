@@ -30,6 +30,27 @@ describe('readFilesForFix', () => {
       expect(files).toEqual([{ path: 'a.txt', content: 'AAA' }])
     })
   })
+
+  test('find-fallback: знаходить файл у піддиректорії за basename', async () => {
+    await withTmpDir(dir => {
+      mkdirSync(join(dir, '.cursor', 'rules'), { recursive: true })
+      writeFileSync(join(dir, '.cursor', 'rules', 'main.mdc'), 'CONTENT')
+      // передаємо лише basename — файл не в корені
+      const files = readFilesForFix(['main.mdc'], dir)
+      expect(files).toEqual([{ path: '.cursor/rules/main.mdc', content: 'CONTENT' }])
+    })
+  })
+
+  test('find-fallback: кілька матчів → ambiguous → пропускає', async () => {
+    await withTmpDir(dir => {
+      mkdirSync(join(dir, 'a'), { recursive: true })
+      mkdirSync(join(dir, 'b'), { recursive: true })
+      writeFileSync(join(dir, 'a', 'main.mdc'), 'A')
+      writeFileSync(join(dir, 'b', 'main.mdc'), 'B')
+      const files = readFilesForFix(['main.mdc'], dir)
+      expect(files).toEqual([])
+    })
+  })
 })
 
 describe('applyChanges', () => {

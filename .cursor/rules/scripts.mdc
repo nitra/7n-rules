@@ -1,7 +1,7 @@
 ---
 description: Програмна перевірка проєкту та flat концерн-лейаут npm/rules/ — концерн = файл, не каталог; helpers у utils/, tests/templates/data усередині js/; скіл-специфічні скрипти в npm/skills/<id>/js/
 alwaysApply: true
-version: '1.15'
+version: '1.16'
 ---
 
 ## Критика користувацького інпуту (доречність та ефективність)
@@ -29,6 +29,7 @@ npm/rules/{rule}/
 ├── js/                                     ← JS-частина (опційно)
 │   ├── <concern>.mjs                       ← FS / cross-file / autofix перевірка концерну
 │   ├── <concern>.mdc                       ← людинозрозумілий гід концерну для агентів (ОБОВ'ЯЗКОВИЙ)
+│   ├── fix-<concern>.mjs                   ← T0-autofix паттерни JS-концерну (не discovery-концерн; опційно)
 │   ├── tests/                              ← Bun-тести
 │   │   ├── <concern>.test.mjs              ← single-test concern
 │   │   └── <concern>/                      ← multi-test concern (+ fixtures/)
@@ -42,6 +43,7 @@ npm/rules/{rule}/
     ├── <concern>.rego                      ← `package {rule}.<concern>` + `import rego.v1`
     ├── <concern>.mdc                       ← людинозрозумілий гід policy для агентів (ОБОВ'ЯЗКОВИЙ)
     ├── <concern>_test.rego                 ← тести rego-полісі (запускає `bun run lint-rego` через `conftest verify`)
+    ├── fix-<concern>.mjs                   ← T0-autofix паттерни для порушень цього rego-концерну (опційно)
     ├── target.json                         ← {"files": {"single": "...", "required": true?}, "missingMessage": "..."}
     └── template/<target>.<slot>.<ext>      ← канон концерну для Rego-перевірюваних кейсів (опційно)
 ```
@@ -52,7 +54,7 @@ npm/rules/{rule}/
 
 Lint розділено на дві фази через поле `lint` у `npm/rules/<id>/main.json`: `quick` (крок у `n-cursor lint` — по змінених файлах working-tree, і в `lint-ci`) та `ci` (лише `n-cursor lint-ci` — по всьому репо, для крос-файлових jscpd/knip/trufflehog та actionlint/conftest). Виконавець кроку — `npm/rules/<id>/js/lint.mjs` з `export function lint(files, cwd)`: `files` — масив змінених (quick) або `undefined` (ci, весь проєкт). Оркестратор — `npm/scripts/lint-cli.mjs` (`runLint`); кроки строго послідовні (заборона паралельного eslint). Валідація — концерн `npm-module/js/rule_meta.mjs`.
 
-**Discovery** (`listJsConcerns` у `npm/scripts/utils/discover-checkable-rules.mjs`): сканує `js/`, повертає файли `*.mjs` без `.test.mjs`. Підкаталоги (`tests/`, `templates/`, `data/`) скіпаються через `!entry.isFile()`. Каталог `utils/` discovery не бачить — він peer до `js/`.
+**Discovery** (`listJsConcerns` у `npm/scripts/utils/discover-checkable-rules.mjs`): сканує `js/`, повертає файли `*.mjs` без `.test.mjs` і без `fix-*.mjs` (T0-autofix супутники — не check-концерни). Підкаталоги (`tests/`, `templates/`, `data/`) скіпаються через `!entry.isFile()`. Каталог `utils/` discovery не бачить — він peer до `js/`.
 
 **Імпорти** (з `js/<concern>.mjs`):
 
@@ -85,6 +87,40 @@ npm/skills/{skill}/
 **Синк копіює лише top-level файли скіла.** Під час `npx @nitra/cursor` у проєкт-споживач із `npm/skills/{skill}/` переноситься тільки `SKILL.md` (+ генеровані `.claude/commands/` і `.pi/skills/` стаби); `main.json` **не** копіюється, підкаталог `js/` **не** копіюється (його код виконується з пакета, як `npm/rules/<id>/js/` ніколи не їде в споживача). Тому `syncSkills` ігнорує підкаталоги — додавання `js/` у скіл не ламає синк. При `worktree:true` у синкнутий `.cursor/skills/n-<id>/SKILL.md` вшивається worktree-блок між маркерами `n-cursor:worktree:start/end` (ідемпотентно).
 
 **Крос-правильна / крос-скіл інфраструктура** (CLI-диспатч, оркестратори, спільні утиліти, що обслуговують ≥2 правила/скіли) — у `npm/scripts/` (`cli-entry.mjs`, `auto-rules.mjs`, `sync-claude-config.mjs`, `utils/` тощо) + тести поруч з джерелом. Скрипт, прив'язаний до одного скіла, у `npm/scripts/` **не** кладемо — він іде в `npm/skills/{skill}/js/` (див. контракт вище).
+
+## T0-autofix: контракт `fix-<concern>.mjs`
+
+**Принцип.** Детермінований авто-фікс (без LLM, ≤кілька рядків FS-операцій) живе **поруч з перевіркою**, що його породжує — **не** у центральному `npm/scripts/lib/fix/t0.mjs`. Кожен концерн із хоча б одним виправним порушенням отримує файл-супутник із префіксом `fix-`:
+
+- JS-концерн: `js/<concern>.mjs` → `js/fix-<concern>.mjs`
+- Rego-концерн: `policy/<concern>/<concern>.rego` → `policy/<concern>/fix-<concern>.mjs`
+
+**Контракт експорту** (однаковий для js- і rego-фіксів):
+
+```js
+export const patterns = [
+  {
+    id: 'rule-concern-action',             // унікальний id (для логу й дебагу)
+    test: (output) => /…/.test(output),    // чи підходить output до паттерну
+    apply: async (output, cwd) =>          // застосувати фікс; може бути sync або async
+      ({ ok: boolean, action: string }),   // ok=true — фікс спрацював
+  },
+]
+```
+
+**Discovery-агрегація** (`npm/scripts/lib/fix/discover-t0-patterns.mjs`): сканує `npm/rules/{rule}/js/fix-*.mjs` і `npm/rules/{rule}/policy/*/fix-*.mjs` по всіх правилах, робить dynamic import кожного, збирає масиви `patterns`. `t0.mjs` споживає цей список замість inline-масиву.
+
+**Крос-правильний shared механізм:** якщо та сама fix-логіка потрібна ≥2 правилам (наприклад, `vscode-ext-add` — однаковий механізм для всіх правил із `vscode_extensions.rego`), спільна утиліта живе в `npm/scripts/lib/fix/<util>.mjs`. Правило-споживач робить тонкий re-export:
+
+```js
+// npm/rules/ga/policy/vscode_extensions/fix-vscode_extensions.mjs
+export { patterns } from '../../../../scripts/lib/fix/vscode-ext-add.mjs'
+```
+
+**Red flags:**
+- Новий fixable violation у правилі — а `fix-<concern>.mjs` немає поруч: паттерн осідає в `t0.mjs` inline, порушуючи інваріант «фікс живе в правилі».
+- `fix-<concern>.mjs` містить `reporter.fail`/`pass` або логіку перевірки — це код `<concern>.mjs`, не фіксу.
+- Однакова fix-логіка продубльована в ≥2 `fix-*.mjs` без shared util у `npm/scripts/lib/fix/`.
 
 ## 🔴 ВИСОКИЙ ПРІОРИТЕТ — детермінований парсинг у скіла: у CLI, не в LLM
 
