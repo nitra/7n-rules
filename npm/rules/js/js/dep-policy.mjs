@@ -16,8 +16,17 @@ import {
 
 const JS_SOURCE_RE = /\.(?:[cm]?[jt]sx?)$/u
 
-/** Пакети, заборонені як import-specifier у будь-якому JS/TS-файлі. */
-const BANNED_SPECIFIERS = new Set(['@nitra/as-integrations-fastify'])
+/**
+ * Пакети, заборонені як import-specifier у будь-якому JS/TS-файлі.
+ * Ключ — specifier, значення — підказка про заміну.
+ */
+const BANNED_SPECIFIERS = new Map([
+  ['@nitra/as-integrations-fastify', 'використовуй @as-integrations/fastify'],
+  [
+    'ua-parser-js',
+    'замінити на bowser (MIT, ~6 KB) — npm i bowser. ua-parser-js v2 змінив ліцензію на AGPL-3.0, несумісну з комерційним використанням'
+  ]
+])
 
 /**
  * Витягає з джерела всі import-specifier'и (static + dynamic + require).
@@ -73,11 +82,10 @@ export async function check(cwdParam = process.cwd()) {
     const source = await readFile(absPath, 'utf8')
     const specifiers = extractImportSpecifiers(source, absPath)
     for (const spec of specifiers) {
-      if (BANNED_SPECIFIERS.has(spec)) {
+      const hint = BANNED_SPECIFIERS.get(spec)
+      if (hint !== undefined) {
         const rel = relative(cwd, absPath)
-        reporter.fail(
-          `${rel}: заборонений import '${spec}' — використовуй @as-integrations/fastify (js.mdc dep-policy)`
-        )
+        reporter.fail(`${rel}: заборонений import '${spec}' — ${hint} (js.mdc dep-policy)`)
         violations += 1
       }
     }
