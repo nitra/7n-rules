@@ -1,5 +1,5 @@
 /** @see ./docs/packages.md */
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
@@ -500,6 +500,45 @@ async function checkVueVolarRecommendation(pass, fail, cwd) {
   }
 }
 
+// Vitest-пакети мусять бути у кореневому devDependencies монорепо,
+// бо npm-module правило забороняє devDeps у published Vue workspace.
+const ROOT_VITEST_DEV_DEPS = ['vitest', '@vitest/coverage-v8', '@stryker-mutator/vitest-runner']
+
+/**
+ * Перевіряє, що кореневий `package.json` монорепо містить vitest-залежності
+ * у `devDependencies`. Викликається тільки коли є Vue-пакети у воркспейсі.
+ * @param {string} cwd корінь репозиторію
+ * @param {(msg: string) => void} pass pass callback
+ * @param {(msg: string) => void} fail fail callback
+ * @returns {void}
+ */
+function checkRootVitestDevDeps(cwd, pass, fail) {
+  const rootPkgPath = join(cwd, 'package.json')
+  if (!existsSync(rootPkgPath)) {
+    fail('vue: кореневий package.json не знайдено — неможливо перевірити vitest devDependencies')
+    return
+  }
+  let rootPkg
+  try {
+    rootPkg = JSON.parse(readFileSync(rootPkgPath, 'utf8'))
+  } catch {
+    fail('vue: кореневий package.json не вдалося розпарсити — неможливо перевірити vitest devDependencies')
+    return
+  }
+  const devDeps =
+    rootPkg.devDependencies && typeof rootPkg.devDependencies === 'object' ? Object.keys(rootPkg.devDependencies) : []
+  const missing = ROOT_VITEST_DEV_DEPS.filter(p => !devDeps.includes(p))
+  if (missing.length === 0) {
+    pass(`vue: кореневий devDependencies містить ${ROOT_VITEST_DEV_DEPS.join(', ')} (vue.mdc testing)`)
+  } else {
+    for (const pkg of missing) {
+      fail(
+        `vue: кореневий devDependencies не містить '${pkg}' — перенеси з Vue workspace у корінь монорепо (vue.mdc testing)`
+      )
+    }
+  }
+}
+
 /**
  * Перевіряє відповідність проєкту правилам vue.mdc (корінь і всі workspace-пакети з `vue` у dependencies).
  * @param {string} [cwd] корінь репозиторію
@@ -519,6 +558,7 @@ export async function check(cwd = process.cwd()) {
   }
 
   await checkVueVolarRecommendation(pass, fail, cwd)
+  checkRootVitestDevDeps(cwd, pass, fail)
 
   const ignorePaths = await loadCursorIgnorePaths(cwd)
   for (const { rootDir, isComponentLibrary } of vueRoots) {

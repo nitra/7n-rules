@@ -55,6 +55,9 @@ function gitignoreLineCoversHookLog(line, logPath) {
   if (line === '.claude/hooks/*.log' || line === '.claude/hooks/**/*.log') {
     return true
   }
+  if (line === '.claude/hooks/*' || line === '.claude/hooks/**') {
+    return true
+  }
   if (line === '*.log' || line === '**/*.log') {
     return true
   }
@@ -264,6 +267,60 @@ function checkLlmCliAvailable(reporter) {
  * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
+/** Файли стану/блокування normalize-хука, які не мають потрапляти в git. */
+const NORMALIZE_STATE_FILES = ['.normalize-state', '.normalize.lock']
+const CLAUDE_HOOKS_REL = '.claude/hooks'
+
+/**
+ * Перевіряє рядок `.gitignore` на покриття конкретного state/lock файлу.
+ * @param {string} line нормалізований (trim) рядок
+ * @param {string} statePath відносний шлях файлу (наприклад `.claude/hooks/.normalize-state`)
+ * @returns {boolean} true — рядок покриває файл
+ */
+function gitignoreLineCoversStatePath(line, statePath) {
+  if (line === statePath) return true
+  // .claude/hooks/* або .claude/hooks/**
+  if (line === `${CLAUDE_HOOKS_REL}/*` || line === `${CLAUDE_HOOKS_REL}/**`) return true
+  return false
+}
+
+/**
+ * Перевіряє `.gitignore` на наявність рядків для файлів стану normalize-хука.
+ * @param {import('../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter
+ * @param {string} cwd корінь репозиторію
+ * @returns {Promise<void>}
+ */
+async function checkGitignoreForStateFiles(reporter, cwd) {
+  const { pass, fail } = reporter
+  const gitignoreAbs = join(cwd, '.gitignore')
+  const content = existsSync(gitignoreAbs) ? await readFile(gitignoreAbs, 'utf8') : ''
+  const lines = content.split(EOL_RE).map(l => l.trim())
+  for (const file of NORMALIZE_STATE_FILES) {
+    const statePath = `${CLAUDE_HOOKS_REL}/${file}`
+    if (lines.some(l => gitignoreLineCoversStatePath(l, statePath))) {
+      pass(`.gitignore покриває ${statePath}`)
+    } else {
+      fail(`.gitignore не ігнорує \`${statePath}\` — додай рядок (adr.mdc)`)
+    }
+  }
+}
+
+/**
+ * Перевіряє наявність каталогу `docs/adr/` — обов'язкового місця зберігання ADR-ів.
+ * @param {import('../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter
+ * @param {string} cwd корінь репозиторію
+ * @returns {void}
+ */
+function checkDocsAdrDir(reporter, cwd) {
+  const { pass, fail } = reporter
+  const adrDir = join(cwd, 'docs', 'adr')
+  if (existsSync(adrDir)) {
+    pass('docs/adr/ існує (каталог ADR-ів)')
+  } else {
+    fail('docs/adr/ відсутній — створи каталог для ADR-ів (adr.mdc)')
+  }
+}
+
 export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   for (const { scriptName } of HOOK_ARTIFACTS) {
@@ -272,6 +329,8 @@ export async function check(cwd = process.cwd()) {
   checkProjectSettings(reporter, cwd)
   await checkCursorHooks(reporter, cwd)
   await checkGitignore(reporter, cwd)
+  await checkGitignoreForStateFiles(reporter, cwd)
+  checkDocsAdrDir(reporter, cwd)
   checkLlmCliAvailable(reporter)
   return reporter.getExitCode()
 }

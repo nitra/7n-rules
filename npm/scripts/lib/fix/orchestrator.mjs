@@ -153,10 +153,6 @@ export async function escalateRule(rule, cwd, deps) {
       log(`  ⚡ ${rung.tier} (${rung.model || 'pi'}): ${rule.ruleId}${hint}`)
     }
 
-    // DEBUG
-    console.error(
-      `[DBG] verbose check: VERBOSE=${env.N_CURSOR_FIX_VERBOSE} promptSummary=${JSON.stringify(res.promptSummary)} reasoning=${res.reasoning}`
-    )
     if (env.N_CURSOR_FIX_VERBOSE !== 'off' && res.promptSummary) {
       printVerboseBlock(rule.ruleId, res.promptSummary, res.reasoning ?? null, res.reasoningSource ?? null)
     }

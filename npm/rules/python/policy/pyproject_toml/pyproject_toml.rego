@@ -21,7 +21,7 @@ deny contains msg if {
 	msg := sprintf("pyproject.toml: [tool.%s] — %s", [key, reason])
 }
 
-# ── PEP 621: обовʼязкові [project].name / [project].version ──────────────────
+# ── PEP 621: обовʼязкові [project].* ─────────────────────────────────────────
 
 deny contains msg if {
 	not project_field_set("name")
@@ -33,7 +33,21 @@ deny contains msg if {
 	msg := "pyproject.toml: відсутній статичний [project].version (PEP 621, python.mdc)"
 }
 
+deny contains msg if {
+	not project_field_set("requires-python")
+	msg := "pyproject.toml: відсутній [project].requires-python (наприклад '>=3.12') (PEP 621, python.mdc)"
+}
+
+deny contains msg if {
+	not project_key_exists("dependencies")
+	msg := "pyproject.toml: відсутній [project].dependencies (навіть порожній список `[]`) (PEP 621, python.mdc)"
+}
+
 project_field_set(key) if {
 	value := object.get(object.get(input, "project", {}), key, "")
 	value != ""
+}
+
+project_key_exists(key) if {
+	key in object.keys(object.get(input, "project", {}))
 }

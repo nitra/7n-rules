@@ -86,7 +86,7 @@ describe('check-changelog (npm-published mode)', () => {
         version: '1.0.0',
         files: ['types']
       })
-      // CHANGELOG взагалі немає — це OK, бо нічого не зрелізнуто і немає git-змін
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
       const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '1.0.0' }) })
       expect(code).toBe(0)
     })
@@ -195,6 +195,7 @@ describe('check-changelog (npm-published mode)', () => {
         version: '3.19.0',
         files: ['types', 'CHANGELOG.md']
       })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('3.19.0'), 'utf8')
       // published 3.20.0 > local 3.19.0 — це не ручний bump, а ще не підтягнутий git pull.
       const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '3.20.0' }) })
       expect(code).toBe(0)
@@ -208,6 +209,7 @@ describe('check-changelog (npm-published mode)', () => {
         version: '3.19.0',
         files: ['lib', 'CHANGELOG.md']
       })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('3.19.0'), 'utf8')
       await mkdir(join(dir, '.changes'), { recursive: true })
       await writeFile(join(dir, '.changes', '1-a.md'), '---\nbump: patch\nsection: Added\n---\nx\n', 'utf8')
       const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '3.20.0' }) })
@@ -263,6 +265,7 @@ describe('check-changelog (npm-published mode)', () => {
         version: '1.0.1',
         files: ['types']
       })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.1'), 'utf8')
       const code = await checkChangelog({ cwd: dir, getPublishedVersion: offlineStub })
       expect(code).toBe(0)
     })
@@ -273,6 +276,7 @@ describe('check-changelog (local-only mode skip-логіка)', () => {
   test('private workspace без git → pass', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
       expect(await checkChangelog({ cwd: dir })).toBe(0)
     })
   })
@@ -281,6 +285,7 @@ describe('check-changelog (local-only mode skip-логіка)', () => {
     await withTmpDir(async dir => {
       await git(['init', '-q', '-b', 'dev'], dir)
       await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
       await git(['add', '-A'], dir)
       await git(['commit', '-q', '-m', 'init'], dir)
       expect(await checkChangelog({ cwd: dir })).toBe(0)
@@ -291,6 +296,7 @@ describe('check-changelog (local-only mode skip-логіка)', () => {
     await withTmpDir(async dir => {
       await git(['init', '-q', '-b', 'main'], dir)
       await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
       await git(['add', '-A'], dir)
       await git(['commit', '-q', '-m', 'init'], dir)
       expect(await checkChangelog({ cwd: dir })).toBe(0)
@@ -500,6 +506,7 @@ describe('check-changelog (local-only merge-base логіка)', () => {
         version: '0.0.0',
         private: true
       })
+      await writeFile(join(dir, 'demo', 'CHANGELOG.md'), '# Changelog\n', 'utf8')
       await writeFile(join(dir, 'demo', 'app.js'), 'x\n', 'utf8')
       await mkdir(join(dir, 'demo', '.changes'), { recursive: true })
       await writeFile(
@@ -726,6 +733,7 @@ describe('check-changelog (npm-published: відсутня version або uncomm
         version: '1.0.0',
         files: ['lib', 'CHANGELOG.md']
       })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
       await mkdir(join(dir, '.changes'), { recursive: true })
       await writeFile(join(dir, '.changes', 'my-change.md'), '---\nbump: patch\nsection: Added\n---\nFix\n', 'utf8')
       const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '1.0.0' }) })
@@ -909,6 +917,48 @@ describe('check-changelog (autofix-режим)', () => {
 
       expect(await checkChangelog({ cwd: dir, autofix: false })).toBe(1)
       expect(await readChangeFiles('.', dir)).toHaveLength(0)
+    })
+  })
+})
+
+describe('check-changelog (CHANGELOG.md existence + format)', () => {
+  test('1 — npm-published: відсутній CHANGELOG.md → fail', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: '@x/lib',
+        version: '1.0.0',
+        files: ['lib', 'CHANGELOG.md']
+      })
+      const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '1.0.0' }) })
+      expect(code).toBe(1)
+    })
+  })
+
+  test('1 — local-only: відсутній CHANGELOG.md → fail', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true })
+      expect(await checkChangelog({ cwd: dir })).toBe(1)
+    })
+  })
+
+  test('1 — npm-published: CHANGELOG.md без рядка "# Changelog" → fail', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: '@x/lib',
+        version: '1.0.0',
+        files: ['lib', 'CHANGELOG.md']
+      })
+      await writeFile(join(dir, 'CHANGELOG.md'), '## [1.0.0] - 2026-01-01\n\n### Added\n\n- x\n', 'utf8')
+      const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '1.0.0' }) })
+      expect(code).toBe(1)
+    })
+  })
+
+  test('0 — local-only: CHANGELOG.md лише з "# Changelog" (новий workspace) → pass', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true })
+      await writeFile(join(dir, 'CHANGELOG.md'), '# Changelog\n', 'utf8')
+      expect(await checkChangelog({ cwd: dir })).toBe(0)
     })
   })
 })

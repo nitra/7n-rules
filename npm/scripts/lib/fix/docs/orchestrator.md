@@ -3,62 +3,32 @@ type: JS Module
 title: orchestrator.mjs
 resource: npm/scripts/lib/fix/orchestrator.mjs
 docgen:
-  crc: 08d96254
-  model: claude-sonnet-4-6
+  crc: c34d0630
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
 
-Оркеструє повний цикл виправлення порушень конформності: детермінований T0-фікс без LLM → LLM-драбина ескалації (local-min → local-min-retry → cloud-min → cloud-avg) → фінальна перевірка. Кожне провальне правило проходить через тири послідовно до першого зеленого re-check або до обриву (no-key, systemic-помилка, cloud transport fail, вичерпаний avg-кеп).
+## Огляд
+
+Модуль відповідає за управління процесом вирішення порушень. Він будує послідовність тирів ескалації за допомогою `buildLadder`. Функція `parseOrchestratorArgs` визначає бюджет LLM та фільтр правил. Далі, `runOrchestratorCli` виконує процес виправлення правил, послідовно застосовуючи `escalateRule` по тирах до досягнення першого успішного вирішення.
 
 ## Поведінка
 
-### `buildLadder`
-
-Будує масив рунгів ескалації з чотирьох тирів:
-
-| Тир               | Модель      | Feedback | Timeout                   |
-| ----------------- | ----------- | -------- | ------------------------- |
-| `local-min`       | `LOCAL_MIN` | ні       | `LOCAL_TIMEOUT_MS` (45s)  |
-| `local-min-retry` | `LOCAL_MIN` | так      | `LOCAL_TIMEOUT_MS`        |
-| `cloud-min`       | `CLOUD_MIN` | так      | `CLOUD_TIMEOUT_MS` (120s) |
-| `cloud-avg`       | `CLOUD_AVG` | так      | `CLOUD_TIMEOUT_MS`        |
-
-Рунги з порожньою моделлю (`''`) відфільтровуються — драбина стискається до доступних тирів.
-
-### `escalateRule`
-
-Проводить одне правило через драбину до першого зеленого re-check. На кожному рунзі:
-
-1. Виклик `worker.runLlmWorker` (синхронно) з feedback від попереднього рунга.
-2. Re-check через `check([ruleId], cwd)`.
-3. Запис у escalation-лог (`logEscalation`).
-4. Якщо re-check зелений → `{ resolved: true }`.
-5. Якщо ні → `decideAfterFailure` визначає дію: `break` (no-key або cloud transport fail), `skip-model` (systemic omlx-помилка), або продовжити.
-6. Avg-рунг пропускається, якщо `avgBudget <= 0` (з фіксацією у лог).
-
-Після кожного рунга виводить verbose-блок (`printVerboseBlock`), якщо `N_CURSOR_FIX_VERBOSE !== 'off'`.
-
-### `parseOrchestratorArgs`
-
-Витягує `--max-avg N` (default: 3) і збирає позиційні аргументи як `ruleFilter`.
-
-### `runOrchestratorCli`
-
-Повний цикл:
-
-1. Початкова conformance-перевірка → якщо чисто, exit 0.
-2. `runT0Step` — детермінований фікс без LLM; якщо після нього чисто, exit 0.
-3. Для кожного правила, що лишилося — `escalateRule` з відстеженням `avgBudget`.
-4. Фінальна перевірка → exit 0 якщо чисто, exit 1 якщо є невирішені.
+buildLadder будує послідовність тирів ескалації для вирішення порушень.
+escalateRule проходить по послідовності тирів, намагаючись вирішити одне правило до першого успішного перевірки.
+parseOrchestratorArgs парсить аргументи командного рядка для визначення максимального бюджету LLM та фільтра правил.
+runOrchestratorCli виконує повний процес виправлення правил, використовуючи послідовність тирів та бюджет LLM.
 
 ## Публічний API
 
-- `buildLadder({ localMin, cloudMin, cloudAvg })` — повертає масив рунгів ескалації.
-- `escalateRule(rule, cwd, deps)` — проводить одне правило через драбину; `deps` дозволяє ін'єкцію worker/check/clock для тестів; повертає `{ resolved, avgUsed }`.
-- `parseOrchestratorArgs(args)` — повертає `{ maxAvg, ruleFilter }`.
-- `runOrchestratorCli(args, cwd)` — CLI-точка входу; повертає `Promise<0|1>`.
+buildLadder — Створює послідовність моделей для ескалації, виходячи з доступних рівнів. Недоступні рівні ігноруються.
+
+escalateRule — Виконує один етап перевірки за драбиною ескалації. Для кожного кроку викликається модель, відбувається повторна перевірка правила, і результат фіксується в лозі. Процес може зупинитися достроково при певних умовах або після вичерпання ліміту.
+
+parseOrchestratorArgs — Витягує максимальне значення для середнього бюджету з аргументів командного рядка та збирає список фільтрів правил.
+
+runOrchestratorCli — Запускає основний процес оркестрації, обробляючи аргументи та керуючи виконанням правил.
 
 ## Гарантії поведінки
 
-- Мутує файли проєкту лише через `worker.runLlmWorker` (apply-changes) і T0-auto.
-- Не кидає винятків назовні: помилки LLM перехоплює worker і повертає як `res.error`.
+- Read-only: не виконує операцій запису (ФС/БД).

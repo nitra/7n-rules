@@ -1,5 +1,7 @@
 /** @see ./docs/consistency.md */
 import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
@@ -379,6 +381,46 @@ function createDefaultGetPublishedVersion() {
  * @param {(msg: string) => void} pass параметр
  * @param {(msg: string) => void} fail параметр
  */
+/**
+ * Перевіряє наявність `CHANGELOG.md` у воркспейсі.
+ * @param {string} ws відносний шлях воркспейсу від кореня репо
+ * @param {string} label мітка для повідомлень
+ * @param {string} cwd корінь репозиторію
+ * @param {(msg: string) => void} pass
+ * @param {(msg: string) => void} fail
+ * @returns {boolean} true — файл існує
+ */
+function checkChangelogFileExists(ws, label, cwd, pass, fail) {
+  const path = join(cwd, ws, 'CHANGELOG.md')
+  if (existsSync(path)) {
+    pass(`${label}: CHANGELOG.md існує`)
+    return true
+  }
+  fail(`${label}: CHANGELOG.md відсутній — створи файл за форматом Keep a Changelog (n-changelog.mdc)`)
+  return false
+}
+
+/**
+ * Перевіряє базовий формат `CHANGELOG.md`: наявність H1 `# Changelog`.
+ * Версійні секції `## [x.y.z]` не вимагаються для нових workspace-ів без релізів.
+ * @param {string} ws відносний шлях воркспейсу від кореня репо
+ * @param {string} label мітка для повідомлень
+ * @param {string} cwd корінь репозиторію
+ * @param {(msg: string) => void} pass
+ * @param {(msg: string) => void} fail
+ * @returns {Promise<void>}
+ */
+async function checkChangelogFormat(ws, label, cwd, pass, fail) {
+  const path = join(cwd, ws, 'CHANGELOG.md')
+  const content = await readFile(path, 'utf8')
+  const hasH1 = content.split('\n').some(l => l.trimEnd() === '# Changelog')
+  if (hasH1) {
+    pass(`${label}: CHANGELOG.md має рядок "# Changelog"`)
+  } else {
+    fail(`${label}: CHANGELOG.md не має рядка "# Changelog" — перший рядок має бути H1-заголовком (n-changelog.mdc)`)
+  }
+}
+
 function checkNpmFilesArrayContainsChangelog(manifest, pass, fail) {
   if (manifest.kind !== 'npm' || !manifest.npmFiles) return
   const pkgPath = manifestFilePath(manifest.ws, manifest)
@@ -542,6 +584,10 @@ async function checkPublishedWorkspacePendingGitChanges(manifest, _Vcurrent, sub
 async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVersion, autofix, pass, fail, cwd) {
   const label = workspaceLabel(manifest)
   const mf = manifestFilePath(manifest.ws, manifest)
+  const changelogExists = checkChangelogFileExists(manifest.ws, label, cwd, pass, fail)
+  if (changelogExists) {
+    await checkChangelogFormat(manifest.ws, label, cwd, pass, fail)
+  }
   const Vcurrent = manifest.version
   if (!Vcurrent) {
     fail(`${label}: у ${mf} відсутнє поле version (registry-published воркспейс)`)
@@ -634,6 +680,14 @@ async function checkLocalOnlyChangedWorkspace(comparisonRef, manifest, baseLabel
  */
 async function runLocalOnlyChecks(localOnly, subWorkspaces, autofix, pass, fail, cwd) {
   if (localOnly.length === 0) return
+
+  for (const manifest of localOnly) {
+    const label = workspaceLabel(manifest)
+    const exists = checkChangelogFileExists(manifest.ws, label, cwd, pass, fail)
+    if (exists) {
+      await checkChangelogFormat(manifest.ws, label, cwd, pass, fail)
+    }
+  }
 
   if (!(await isInsideGitRepo(cwd))) {
     pass('changelog: не git-репозиторій — local-only перевірку пропущено')

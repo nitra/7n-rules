@@ -44,6 +44,15 @@ deny contains msg if {
 }
 
 deny contains msg if {
+	some job in object.get(input, "jobs", {})
+	some step in object.get(job, "steps", [])
+	object.get(step, "uses", "") == "actions/checkout@v6"
+	creds := object.get(object.get(step, "with", {}), "persist-credentials", true)
+	creds != false
+	msg := "lint-python.yml: actions/checkout@v6 потребує `with: persist-credentials: false` (python.mdc)"
+}
+
+deny contains msg if {
 	some job in data.template.snippet.jobs
 	some step in job.steps
 	expected_run := object.get(step, "run", "")

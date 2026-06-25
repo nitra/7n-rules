@@ -66,6 +66,7 @@ function makeValidSettings() {
 async function setupValidProject(dir) {
   await ensureDir(join(dir, '.claude/hooks'))
   await ensureDir(join(dir, '.cursor'))
+  await ensureDir(join(dir, 'docs/adr'))
   await writeFile(join(dir, '.claude/hooks/capture-decisions.sh'), bundledCaptureContent, 'utf8')
   await writeFile(join(dir, '.claude/hooks/normalize-decisions.sh'), bundledNormalizeContent, 'utf8')
   await writeJson(join(dir, '.claude/settings.json'), makeValidSettings())
@@ -80,7 +81,13 @@ async function setupValidProject(dir) {
   })
   await writeFile(
     join(dir, '.gitignore'),
-    'node_modules/\n.claude/hooks/capture-decisions.log\n.claude/hooks/normalize-decisions.log\n',
+    [
+      'node_modules/',
+      '.claude/hooks/capture-decisions.log',
+      '.claude/hooks/normalize-decisions.log',
+      '.claude/hooks/.normalize-state',
+      '.claude/hooks/.normalize.lock',
+    ].join('\n') + '\n',
     'utf8'
   )
 }
@@ -141,18 +148,22 @@ describe('check-adr (інтеграція)', () => {
     })
   })
 
-  test('0 — `.gitignore` через широкий glob `*.log` теж проходить', async () => {
+  test('0 — `.gitignore` через широкий glob `*.log` + явні state-файли проходить', async () => {
     await withTmpDir(async dir => {
       await setupValidProject(dir)
-      await writeFile(join(dir, '.gitignore'), 'node_modules/\n*.log\n', 'utf8')
+      await writeFile(
+        join(dir, '.gitignore'),
+        'node_modules/\n*.log\n.claude/hooks/.normalize-state\n.claude/hooks/.normalize.lock\n',
+        'utf8'
+      )
       expect(await check(dir)).toBe(0)
     })
   })
 
-  test('0 — `.gitignore` через `.claude/hooks/*.log` покриває обидва логи', async () => {
+  test('0 — `.gitignore` через `.claude/hooks/*` покриває логи й state-файли', async () => {
     await withTmpDir(async dir => {
       await setupValidProject(dir)
-      await writeFile(join(dir, '.gitignore'), 'node_modules/\n.claude/hooks/*.log\n', 'utf8')
+      await writeFile(join(dir, '.gitignore'), 'node_modules/\n.claude/hooks/*\n', 'utf8')
       expect(await check(dir)).toBe(0)
     })
   })
@@ -233,6 +244,38 @@ describe('check-adr (інтеграція)', () => {
     await withTmpDir(async dir => {
       await setupValidProject(dir)
       await writeJson(join(dir, '.cursor/hooks.json'), { hooks: { stop: [null] } })
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('1 — .gitignore не покриває .normalize-state', async () => {
+    await withTmpDir(async dir => {
+      await setupValidProject(dir)
+      await writeFile(
+        join(dir, '.gitignore'),
+        'node_modules/\n.claude/hooks/capture-decisions.log\n.claude/hooks/normalize-decisions.log\n.claude/hooks/.normalize.lock\n',
+        'utf8'
+      )
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('1 — .gitignore не покриває .normalize.lock', async () => {
+    await withTmpDir(async dir => {
+      await setupValidProject(dir)
+      await writeFile(
+        join(dir, '.gitignore'),
+        'node_modules/\n.claude/hooks/capture-decisions.log\n.claude/hooks/normalize-decisions.log\n.claude/hooks/.normalize-state\n',
+        'utf8'
+      )
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('1 — docs/adr/ не існує', async () => {
+    await withTmpDir(async dir => {
+      await setupValidProject(dir)
+      await rm(join(dir, 'docs/adr'), { recursive: true })
       expect(await check(dir)).toBe(1)
     })
   })

@@ -3,33 +3,28 @@ type: JS Module
 title: packages.mjs
 resource: npm/rules/vue/js/packages.mjs
 docgen:
-  crc: 6119ae9c
-  score: 85
+  crc: 8589151d
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  score: 100
 ---
 
-isVueComponentLibraryPkg
-Перевіряє, чи є пакет бібліотекою компонентів Vue шляхом перевірки `peerDependencies`.
+## Огляд
 
-check
-Перевіряє залежності та конфігурацію vite.config одного Vue-пакета.
+Модуль визначає, чи є пакет бібліотекою компонентів Vue, виходячи з даних у `package.json`, `jsconfig.json`, `package-lock.json`, `extensions.json`. Він також перевіряє відповідність усіх пакетів, що залежать від `vue`, критеріям, описаним у `vue.mdc`, і повертає код виходу.
 
 ## Поведінка
 
-isVueComponentLibraryPkg
-Визначає, чи є пакет бібліотекою компонентів Vue через peerDependencies
-
-check
-Перевіряє залежності та vite.config одного Vue-пакета
+isVueComponentLibraryPkg визначає, чи є пакет бібліотекою компонентів Vue, перевіряючи наявність `vue` у `peerDependencies` його `package.json`.
+check перевіряє відповідність проєкту правилам vue.mdc для всіх пакетів, що містять `vue` у `dependencies`, і повертає код виходу. При цьому ігноруються шляхи `.git` та `node_modules`.
 
 ## Публічний API
 
-isVueComponentLibraryPkg — забезпечує, що `+` використовується для підхоплення `vite-env.d.ts` та `.vue`.
-passFn — перевіряє наявність `prefixjsconfig.json`.
-check — перевіряє, чи є `vue` у `peerDependencies` пакету бібліотеки. Якщо `vue` є залежністю, то правило авто-імпорту (заборона value-імпортів з `'vue'`) не застосовується до цієї бібліотеки, оскільки імпорти з `'vue'` повинні бути явними.
+isVueComponentLibraryPkg — визначає, чи є пакет бібліотекою компонентів Vue, щоб IDE коректно обробляла файли `.vue` та `vite-env.d.ts`.
+passFn — підтверджує наявність файлу `jsconfig.json` у вказаній директорії.
+check — перевіряє, чи відповідає проєкт вимогам vue.mdc, а саме: чи є `vue` у залежностях кореневого та всіх workspace-пакетів.
 
 ## Гарантії поведінки
 
-- Read-only: файл не виконує операцій запису у файлову систему.
-- За невдачі повертає значення помилки (`false`/`null`/`Err`) замість генерування винятку чи паніки.
+- Read-only: не виконує операцій запису (ФС/БД).
+- Перехоплює помилки і не пропускає винятків назовні (fail-safe).
 - Свідомо пропускає шляхи: `.git`, `node_modules`.
-- Не звертається до мережі.
