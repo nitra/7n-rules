@@ -1,5 +1,11 @@
 # Changelog
 
+## [12.14.0] - 2026-06-26
+
+### Changed
+
+- Заміна picomatch на ignore для обробки glob-ів у docgen та resolve-target-files
+
 ## [12.13.0] - 2026-06-26
 
 ### Changed
