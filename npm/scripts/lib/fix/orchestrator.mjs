@@ -15,16 +15,18 @@ import { CLOUD_AVG, CLOUD_MIN, LOCAL_MIN } from '../../../lib/pi-model-tiers.mjs
 const DEFAULT_MAX_AVG = 3
 
 /**
- * Timeout одного LLM-виклику (або всієї агентної сесії) за тиром.
- * Локальні рунги — 5 хвилин: 4b модель повільна, основний backstop — turn-ceiling (~50).
- * Хмарні — 2 хвилини: API-виклик швидкий, перевищення = transport-помилка.
+ * Timeout усієї агентної сесії за тиром. Агентний фікс — багатоходовий
+ * (read→edit→self_check, кожен turn = окремий API-раунд), тож на правилах із багатьма
+ * порушеннями навіть швидкий cloud не вкладається у пару хвилин (вимір: gpt-5.4-mini
+ * timeout на test/doc-files/npm-module за 120s). Тому cloud — теж 5 хв, як local;
+ * основний backstop усе одно turn-ceiling (~50) у pi-agent-fix.
  * Перевизначення: `N_LOCAL_FIX_TIMEOUT_MS` / `N_CLOUD_FIX_TIMEOUT_MS`.
  */
 const LOCAL_TIMEOUT_MS = Number(env.N_LOCAL_FIX_TIMEOUT_MS) || 300_000
-const CLOUD_TIMEOUT_MS = Number(env.N_CLOUD_FIX_TIMEOUT_MS) || 120_000
+const CLOUD_TIMEOUT_MS = Number(env.N_CLOUD_FIX_TIMEOUT_MS) || 300_000
 
-/** Транспортна стіна (таймаут сесії/мережа) — однакова для всіх cloud-рунгів. */
-const TRANSPORT_RE = /timeout|etimedout|timed out/i
+/** Реальний транспорт-збій провайдера (мережа/сокет) — НЕ наш агентний backstop-timeout. */
+const TRANSPORT_RE = /etimedout|timed out|econnrefused|connection refused/i
 
 /**
  * Systemic — повтор тієї ж моделі марний: нема git, fail-closed guard, відсутня модель,
@@ -40,6 +42,10 @@ const SYSTEMIC_RE = /не git-репо|fail-closed|write-guard|модель не
  */
 export function classifyFixError(error) {
   if (!error) return null
+  // Наш агентний backstop-timeout — НЕ транспорт-збій провайдера: модель працювала, просто
+  // не встигла. Тому quality (а не transport-break) → драбина падає на наступний (сильніший)
+  // rung, замість обриву; для cloud-min це означає шанс cloud-avg.
+  if (/^fix timeout /i.test(error)) return 'quality'
   if (SYSTEMIC_RE.test(error)) return 'systemic'
   if (TRANSPORT_RE.test(error)) return 'transport'
   return 'quality'

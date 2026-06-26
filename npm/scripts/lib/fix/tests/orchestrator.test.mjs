@@ -8,7 +8,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { env } from 'node:process'
 
-import { buildLadder, escalateRule, parseOrchestratorArgs } from '../orchestrator.mjs'
+import { buildLadder, classifyFixError, escalateRule, parseOrchestratorArgs } from '../orchestrator.mjs'
 
 let prevTrace, prevVerbose
 beforeAll(() => {
@@ -87,14 +87,10 @@ describe('buildLadder', () => {
     expect(l.map(r => r.tier)).toEqual(['cloud-min', 'cloud-avg'])
   })
 
-  test('локальні рунги — повний timeout (4b повільна), хмарні — коротший per-turn', () => {
+  test('усі рунги — повний агентний timeout (cloud=local: агентний фікс багатоходовий)', () => {
     const l = buildLadder(FULL)
-    const local = l.filter(r => r.local).map(r => r.timeoutMs)
-    const cloud = l.filter(r => !r.local).map(r => r.timeoutMs)
-    expect(local.every(t => t > 0)).toBe(true)
-    expect(cloud.every(t => t > 0)).toBe(true)
-    // локальні рунги мають більший timeout: основний backstop — turn-ceiling (~50), не час
-    expect(Math.min(...local)).toBeGreaterThan(Math.max(...cloud))
+    // cloud підняли до local-рівня: агентний cloud-фікс теж багатоходовий, не вкладається у 2 хв
+    expect(l.every(r => r.timeoutMs >= 300_000)).toBe(true)
   })
 
   test('жодного тиру → порожня драбина', () => {
@@ -108,6 +104,24 @@ describe('parseOrchestratorArgs', () => {
   })
   test('--max-avg перевизначає і прибирається з фільтра', () => {
     expect(parseOrchestratorArgs(['--max-avg', '1', 'bun'])).toEqual({ maxAvg: 1, ruleFilter: ['bun'] })
+  })
+})
+
+describe('classifyFixError', () => {
+  test('власний агентний "fix timeout" → quality (не transport-break)', () => {
+    expect(classifyFixError('fix timeout 300000ms')).toBe('quality')
+  })
+  test('реальний транспорт → transport', () => {
+    expect(classifyFixError('pi error: spawnSync pi ETIMEDOUT')).toBe('transport')
+    expect(classifyFixError('connection refused')).toBe('transport')
+  })
+  test('systemic (нема git / fail-closed / модель) → systemic', () => {
+    expect(classifyFixError('fix пропущено: не git-репо')).toBe('systemic')
+    expect(classifyFixError('write-guard не приєднався — fail-closed')).toBe('systemic')
+  })
+  test('інше → quality; null → null', () => {
+    expect(classifyFixError('модель видала кривий патч')).toBe('quality')
+    expect(classifyFixError(null)).toBeNull()
   })
 })
 
@@ -201,12 +215,10 @@ describe('escalateRule', () => {
       log: noop
     })
     const timeouts = worker.calls.map(c => c.timeoutMs)
-    expect(timeouts.every(t => typeof t === 'number' && t > 0)).toBe(true)
-    // локальні (перші два) — більший timeout: 4b повільна, backstop — turn-ceiling
-    expect(timeouts[0]).toBeGreaterThan(timeouts[2])
+    expect(timeouts.every(t => typeof t === 'number' && t >= 300_000)).toBe(true)
   })
 
-  test('хмарний транспортний таймаут (pi ETIMEDOUT) обриває драбину — avg не палиться', async () => {
+  test('реальний транспорт (ETIMEDOUT) на cloud-min обриває драбину — avg не палиться', async () => {
     const worker = makeWorker([fail('x'), fail('x'), fail('pi error: spawnSync pi ETIMEDOUT')])
     const r = await escalateRule(rule, '/p', {
       ladder: buildLadder(FULL),
@@ -217,8 +229,23 @@ describe('escalateRule', () => {
       log: noop
     })
     expect(r).toEqual({ resolved: false, avgUsed: 0 })
-    // cloud-avg не пробувався після pi-таймауту на cloud-min
+    // cloud-avg не пробувався після РЕАЛЬНОГО транспорту на cloud-min
     expect(worker.calls.map(c => c.model)).toEqual(['omlx/local', 'omlx/local', 'openai/min'])
+  })
+
+  test('власний агентний "fix timeout" на cloud-min НЕ обриває — падає на cloud-avg', async () => {
+    const worker = makeWorker([fail('x'), fail('x'), fail('fix timeout 300000ms'), ok()])
+    const r = await escalateRule(rule, '/p', {
+      ladder: buildLadder(FULL),
+      worker,
+      check: makeCheck('rego', [false, false, false, true]),
+      avgBudget: 3,
+      clock,
+      log: noop
+    })
+    expect(r.resolved).toBe(true)
+    // fix-timeout = quality (не transport-break) → cloud-avg пробується й закриває
+    expect(worker.calls.map(c => c.model)).toEqual(['omlx/local', 'omlx/local', 'openai/min', 'openai/avg'])
   })
 
   test('відсутній API-ключ на хмарному → драбина обривається', async () => {
