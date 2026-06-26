@@ -1,5 +1,15 @@
 # Changelog
 
+## [12.16.0] - 2026-06-26
+
+### Added
+
+- feat: skills-cli pi-runner + pi-agent-skill — надбудова skills-CLI поверх pi
+
+### Changed
+
+- feat: pi-native agentic fix-engine — міграція з omlx на pi (squash)
+
 ## [12.15.1] - 2026-06-26
 
 ### Changed
