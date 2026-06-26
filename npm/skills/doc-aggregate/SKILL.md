@@ -44,6 +44,7 @@ node -e "const p=JSON.parse(require('fs').readFileSync('package.json','utf8')); 
 ```
 
 Для кожного воркспейсу `<ws>`:
+
 - `relRoot` = `<ws>` (напр. `npm`, `demo`)
 - `docPath` = `<ws>/docs/ARCHITECTURE.md`
 - `members` — кодові файли (`.mjs .ts .vue .py`, крім тестів) у `<ws>/`

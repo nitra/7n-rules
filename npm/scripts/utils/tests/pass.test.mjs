@@ -1,22 +1,26 @@
 /**
  * Тести допоміжного виводу `pass`.
  */
-import { afterEach, describe, expect, vi, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, vi, test } from 'vitest'
 
 import { pass } from '../pass.mjs'
 
 describe('pass', () => {
-  const originalLog = console.log
+  let spy
+  const lines = []
+
+  beforeEach(() => {
+    lines.length = 0
+    spy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      lines.push(args.join(' '))
+    })
+  })
 
   afterEach(() => {
-    console.log = originalLog
+    spy.mockRestore()
   })
 
   test('друкує префікс успіху та повідомлення', () => {
-    const lines = []
-    console.log = vi.fn((...args) => {
-      lines.push(args.join(' '))
-    })
     pass('тест ок')
     expect(lines.length).toBe(1)
     expect(lines[0]).toContain('✅')

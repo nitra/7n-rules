@@ -128,7 +128,9 @@ export function runLintPythonSteps(cwd = process.cwd(), opts = {}) {
       return true
     }
     const r = spawnSync(uvPath, ['run', '--frozen', 'pip-licenses', '--from=mixed', '--format=spdx-json'], {
-      cwd: cwdPath, stdio: ['ignore', 'pipe', 'inherit'], shell: false,
+      cwd: cwdPath,
+      stdio: ['ignore', 'pipe', 'inherit'],
+      shell: false
     })
     if (r.status !== 0) {
       failF('lint-python: pip-licenses — помилка виконання')
@@ -136,7 +138,11 @@ export function runLintPythonSteps(cwd = process.cwd(), opts = {}) {
     }
     const allowed = getBronzeAndAbove()
     let doc
-    try { doc = JSON.parse(r.stdout.toString('utf8')) } catch { doc = null }
+    try {
+      doc = JSON.parse(r.stdout.toString('utf8'))
+    } catch {
+      doc = null
+    }
     const packages = doc?.packages ?? []
     const violations = packages.filter(pkg => {
       const lic = pkg.licenseDeclared ?? pkg.licenseConcluded ?? 'NOASSERTION'

@@ -6,6 +6,6 @@ resource: npm/rules/bun/
 
 # npm/rules/bun
 
-| Файл | Тип |
-|---|---|
+| Файл                | Тип       |
+| ------------------- | --------- |
 | [main.mjs](main.md) | JS Module |

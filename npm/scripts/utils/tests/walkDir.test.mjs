@@ -1,5 +1,5 @@
 /**
- * Тести рекурсивного обходу `walkDir` (пропуск node_modules, .git тощо).
+ * Тести рекурсивного обходу `walkDir` (пропуск node_modules, .git, .gitignore-записів тощо).
  */
 import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -24,19 +24,30 @@ describe('walkDir', () => {
     })
   })
 
-  test('не заходить у node_modules, .git, dist', async () => {
+  test('завжди пропускає node_modules і .git (без .gitignore)', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'node_modules/pkg'), { recursive: true })
       await mkdir(join(dir, '.git/objects'), { recursive: true })
-      await mkdir(join(dir, 'dist'), { recursive: true })
       await writeFile(join(dir, 'root.txt'), 'x', 'utf8')
       await writeFile(join(dir, 'node_modules', 'pkg', 'bad.txt'), 'x', 'utf8')
       await writeFile(join(dir, '.git', 'objects', 'bad.txt'), 'x', 'utf8')
-      await writeFile(join(dir, 'dist', 'bad.txt'), 'x', 'utf8')
       const seen = []
       await walkDir(dir, p => seen.push(p))
       expect(seen.length).toBe(1)
       expect(seen[0].endsWith('root.txt')).toBe(true)
+    })
+  })
+
+  test('поважає .gitignore — пропускає dist та інші записані каталоги', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'dist'), { recursive: true })
+      await writeFile(join(dir, '.gitignore'), 'dist/\n', 'utf8')
+      await writeFile(join(dir, 'root.txt'), 'x', 'utf8')
+      await writeFile(join(dir, 'dist', 'bad.txt'), 'x', 'utf8')
+      const seen = []
+      await walkDir(dir, p => seen.push(p))
+      const rels = seen.map(p => p.slice(dir.length + 1))
+      expect(rels.toSorted()).toEqual(['.gitignore', 'root.txt'].toSorted())
     })
   })
 

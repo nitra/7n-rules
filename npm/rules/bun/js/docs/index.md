@@ -6,7 +6,7 @@ resource: npm/rules/bun/js/
 
 # npm/rules/bun/js
 
-| Файл | Тип |
-|---|---|
+| Файл                            | Тип       |
+| ------------------------------- | --------- |
 | [fix-layout.mjs](fix-layout.md) | JS Module |
-| [layout.mjs](layout.md) | JS Module |
+| [layout.mjs](layout.md)         | JS Module |

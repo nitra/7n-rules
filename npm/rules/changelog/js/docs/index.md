@@ -6,7 +6,7 @@ resource: npm/rules/changelog/js/
 
 # npm/rules/changelog/js
 
-| Файл | Тип |
-|---|---|
-| [consistency.mjs](consistency.md) | JS Module |
+| Файл                                      | Тип       |
+| ----------------------------------------- | --------- |
+| [consistency.mjs](consistency.md)         | JS Module |
 | [fix-consistency.mjs](fix-consistency.md) | JS Module |

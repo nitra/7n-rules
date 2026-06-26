@@ -43,7 +43,7 @@ for (const rating of data.ratings) {
 const out = {
   version: data.version,
   source: BLUE_OAK_URL,
-  bronzeAndAbove,
+  bronzeAndAbove
 }
 
 writeFileSync(OUT_PATH, JSON.stringify(out, null, 2) + '\n', 'utf8')

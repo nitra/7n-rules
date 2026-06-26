@@ -38,7 +38,9 @@ function runLicenseeSteps(cwd = process.cwd(), opts = {}) {
   const configPath = join(cwd, '.licensee.json')
   if (!existsSync(configPath)) {
     if (readOnly) {
-      fail('lint-bun: licensee — немає .licensee.json; запустіть `npx @nitra/cursor fix bun` локально для генерації (bun.mdc)')
+      fail(
+        'lint-bun: licensee — немає .licensee.json; запустіть `npx @nitra/cursor fix bun` локально для генерації (bun.mdc)'
+      )
       return reporter.getExitCode()
     }
     writeFileSync(configPath, DEFAULT_LICENSEE_CONFIG, 'utf8')

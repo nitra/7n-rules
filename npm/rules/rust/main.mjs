@@ -89,7 +89,9 @@ function runRustLint(cwd = process.cwd(), opts = {}) {
   const denyConfigPath = join(cwd, 'deny.toml')
   if (!existsSync(denyConfigPath)) {
     if (readOnly) {
-      fail('lint-rust: cargo deny — немає deny.toml; запустіть `npx @nitra/cursor fix rust` локально для генерації (rust.mdc)')
+      fail(
+        'lint-rust: cargo deny — немає deny.toml; запустіть `npx @nitra/cursor fix rust` локально для генерації (rust.mdc)'
+      )
     } else {
       writeFileSync(denyConfigPath, generateDenyTomlLicenses(), 'utf8')
       pass('lint-rust: cargo deny — створено deny.toml з дефолтним allowlist')

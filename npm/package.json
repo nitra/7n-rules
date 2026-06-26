@@ -54,6 +54,7 @@
   },
   "dependencies": {
     "@7n/mt": "^0.5.1",
+    "globby": "^16.0.0",
     "oxc-parser": "^0.137.0",
     "picomatch": "^4.0.4",
     "smol-toml": "^1.7.0",
