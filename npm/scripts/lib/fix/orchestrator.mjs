@@ -4,10 +4,9 @@ import { env } from 'node:process'
 import { runConformanceCheck } from './run-conformance-check.mjs'
 import { runT0AutoCli } from './t0.mjs'
 import { logEscalation } from './escalation-log.mjs'
-import { runLlmWorker } from './llm-worker.mjs'
-import { printVerboseBlock } from './verbose-block.mjs'
-import { classifyOmlxError } from '../../../lib/llm.mjs'
-import { CLOUD_AVG, CLOUD_MIN, LOCAL_MIN } from '../../../lib/models.mjs'
+import { runPiAgentFix } from '../../../lib/pi-agent-fix.mjs'
+import { recordFixTelemetry } from '../../../lib/pi-telemetry-store.mjs'
+import { CLOUD_AVG, CLOUD_MIN, LOCAL_MIN } from '../../../lib/pi-model-tiers.mjs'
 
 /**
  * Дефолтний кеп на виклики хмарної avg-моделі за один прогін (щоб драбина на N
@@ -24,15 +23,27 @@ const DEFAULT_MAX_AVG = 3
 const LOCAL_TIMEOUT_MS = Number(env.N_LOCAL_FIX_TIMEOUT_MS) || 300_000
 const CLOUD_TIMEOUT_MS = Number(env.N_CLOUD_FIX_TIMEOUT_MS) || 120_000
 
-/** Маркер дружнього повідомлення про відсутній API-ключ (з `llm-worker.callModel`). */
-const NO_KEY_RE = /немає ключа|api key/i
+/** Транспортна стіна (таймаут сесії/мережа) — однакова для всіх cloud-рунгів. */
+const TRANSPORT_RE = /timeout|etimedout|timed out/i
 
 /**
- * Хмарний транспорт (pi) упав на рівні процесу: таймаут/spawn-помилка. Стіна часу
- * однакова для всіх cloud-рунгів (та сама pi-транспортна стіна), а cloud-avg — інша
- * модель, не більший timeout. Ескалація на неї лише спалить avg-бюджет → обрив.
+ * Systemic — повтор тієї ж моделі марний: нема git, fail-closed guard, відсутня модель,
+ * registry/session/auth. Quality — модель видала поганий фікс (retry/escalate може допомогти).
  */
-const CLOUD_TRANSPORT_RE = /etimedout|timed out|pi error/i
+const SYSTEMIC_RE = /не git-репо|fail-closed|write-guard|модель не знайдена|registry:|session:|немає ключа|api key/i
+
+/**
+ * Класифікує помилку pi-agent-fix: systemic | transport | quality (замінює
+ * `classifyOmlxError` після pi-міграції — помилки приходять як винятки з `session.prompt`).
+ * @param {string|null|undefined} error повідомлення помилки
+ * @returns {'systemic'|'transport'|'quality'|null} клас
+ */
+export function classifyFixError(error) {
+  if (!error) return null
+  if (SYSTEMIC_RE.test(error)) return 'systemic'
+  if (TRANSPORT_RE.test(error)) return 'transport'
+  return 'quality'
+}
 
 /**
  * Будує драбину ескалації за наявними тирами (спека 2026-06-19-fix-escalation-cascade):
@@ -73,9 +84,9 @@ export function buildLadder({ localMin, cloudMin, cloudAvg }) {
  */
 function decideAfterFailure(rung, error) {
   if (!error) return null
-  if (NO_KEY_RE.test(error)) return 'break'
-  if (rung.local && classifyOmlxError(error) === 'systemic') return 'skip-model'
-  if (!rung.local && CLOUD_TRANSPORT_RE.test(error)) return 'break'
+  const kind = classifyFixError(error)
+  if (kind === 'systemic') return rung.local ? 'skip-model' : 'break'
+  if (!rung.local && kind === 'transport') return 'break'
   return null
 }
 
@@ -88,7 +99,7 @@ function decideAfterFailure(rung, error) {
  * @param {string} cwd корінь проєкту
  * @param {{
  *   ladder: Array<{tier:string,model:string,feedback:boolean,local:boolean,isAvg:boolean}>,
- *   worker: { runLlmWorker: (ruleId: string, violation: string, cwd: string, opts: object) => object },
+ *   worker: { runFix: (ruleId: string, violation: string, cwd: string, opts: object) => Promise<object> },
  *   check: (rules: string[], cwd: string) => Promise<{rules: Array<{ruleId:string,ok:boolean,output:string}>}>,
  *   avgBudget: number,
  *   clock?: () => number,
@@ -126,42 +137,59 @@ export async function escalateRule(rule, cwd, deps) {
     }
 
     const startedAt = clock()
-    const res = worker.runLlmWorker(rule.ruleId, currentViolation, cwd, {
+    // self_check (advisory §4+5) — той самий verdict-helper, що й зовнішній re-check.
+    const selfCheck = async () => {
+      const r = await check([rule.ruleId], cwd)
+      return { ok: r.rules.every(x => x.ok), output: r.rules.find(x => !x.ok)?.output ?? 'ok' }
+    }
+    const res = await worker.runFix(rule.ruleId, currentViolation, cwd, {
       model: rung.model,
+      tier: rung.tier,
       feedback: rung.feedback ? feedback : null,
       caller: `fix:${rule.ruleId}:${rung.tier}`,
-      timeoutMs: rung.timeoutMs
+      timeoutMs: rung.timeoutMs,
+      deps: { selfCheck }
     })
     if (rung.isAvg) avgUsed++
 
+    // Зовнішній canonical re-check = джерело правди (§4+5).
     const recheck = await check([rule.ruleId], cwd)
     const recheckOk = recheck.rules.every(r => r.ok)
     const remaining = recheckOk ? '' : (recheck.rules.find(r => !r.ok)?.output ?? '')
+
+    // Distillation-стор §13: persist кожну спробу (повні edits + verdict).
+    if (res.telemetry) {
+      recordFixTelemetry({
+        ...res.telemetry,
+        violationSignature: currentViolation,
+        recheck: { external: recheckOk ? 'pass' : 'fail' },
+        escalated: !recheckOk
+      })
+    }
+
     record({
       ...common,
-      callOk: res.ok,
+      callOk: !res.error,
       callError: res.error ?? null,
       recheckOk,
       remainingViolation: remaining,
-      diagnosis: res.diagnosis ?? null,
+      diagnosis: res.telemetry ? `turns=${res.telemetry.turnCount} tools=${res.telemetry.toolCallCount}` : null,
       ms: clock() - startedAt
     })
 
     if (recheckOk) {
       log(`  ✅ ${rung.tier} (${rung.model || 'pi'}): ${rule.ruleId}`)
-    } else {
-      const hint = res.error ? ` ❌ ${res.error.slice(0, 120)}` : ' ❌ досі порушено'
-      log(`  ⚡ ${rung.tier} (${rung.model || 'pi'}): ${rule.ruleId}${hint}`)
+      return { resolved: true, avgUsed }
     }
 
-    if (env.N_CURSOR_FIX_VERBOSE !== 'off' && res.promptSummary) {
-      printVerboseBlock(rule.ruleId, res.promptSummary, res.reasoning ?? null, res.reasoningSource ?? null)
-    }
+    const hint = res.error ? ` ❌ ${res.error.slice(0, 120)}` : ' ❌ досі порушено'
+    log(`  ⚡ ${rung.tier} (${rung.model || 'pi'}): ${rule.ruleId}${hint}`)
 
-    if (recheckOk) return { resolved: true, avgUsed }
+    // Recheck провалився → clean-slate per rung: відкотити правки цього рунга (§12).
+    res.rollback?.()
 
     // Feedback для наступного рунга + оновлений violation.
-    feedback = { previousModel: rung.model, previousChanges: res.changes ?? [], previousError: res.error ?? null }
+    feedback = { previousModel: rung.model, previousError: res.error ?? null }
     currentViolation = remaining || currentViolation
 
     const action = decideAfterFailure(rung, res.error)
@@ -211,7 +239,7 @@ async function runT0Step(cwd, ruleFilter, failed) {
  * @returns {Promise<number>}  0 = all clean, 1 = unresolved
  */
 export async function runOrchestratorCli(args, cwd) {
-  const worker = { runLlmWorker }
+  const worker = { runFix: runPiAgentFix }
   const { maxAvg, ruleFilter } = parseOrchestratorArgs(args)
   const ladder = buildLadder({ localMin: LOCAL_MIN, cloudMin: CLOUD_MIN, cloudAvg: CLOUD_AVG })
 

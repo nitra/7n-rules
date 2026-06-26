@@ -12,8 +12,8 @@
  * `N_CLOUD_MIN_MODEL` → 0 змін поведінки. Патерн дзеркалить `scripts/coverage-classify`.
  */
 import { env } from 'node:process'
-import { callLlm } from '../../../lib/llm.mjs'
-import { CLOUD_MIN } from '../../../lib/models.mjs'
+import { runOneShot } from '../../../lib/pi-one-shot.mjs'
+import { CLOUD_MIN } from '../../../lib/pi-model-tiers.mjs'
 
 /** Модель-суддя = `N_CLOUD_MIN_MODEL` (хмарний cloud-min tier). */
 export const JUDGE_MODEL = CLOUD_MIN
@@ -56,17 +56,19 @@ export function parseDocVerdict(rawText) {
  * @param {{model?: string, timeoutMs?: number}} [opts] override моделі/таймауту
  * @returns {{verdict: string, confidence: number, reason: string}} verdict судді
  */
-export function judgeDoc(src, doc, { model = JUDGE_MODEL, timeoutMs = 120_000 } = {}) {
+export async function judgeDoc(src, doc, { model = JUDGE_MODEL, timeoutMs = 120_000 } = {}) {
   const user = `SOURCE FILE:\n\`\`\`\n${src.slice(0, 12_000)}\n\`\`\`\n\nGENERATED DOC:\n\`\`\`md\n${doc.slice(0, 8000)}\n\`\`\`\n\nReturn the JSON verdict.`
-  const raw = callLlm(
-    [
+  const res = await runOneShot({
+    messages: [
       { role: 'system', content: JUDGE_SYSTEM },
       { role: 'user', content: user }
     ],
-    model,
-    { timeoutMs, temperature: 0 }
-  )
-  return parseDocVerdict(raw)
+    modelSpec: model,
+    timeoutMs,
+    caller: 'docgen-judge'
+  })
+  if (res.error) throw new Error(res.error)
+  return parseDocVerdict(res.content)
 }
 
 /**

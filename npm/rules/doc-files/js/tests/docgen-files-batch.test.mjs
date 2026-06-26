@@ -27,10 +27,8 @@ vi.mock('../docgen-crc.mjs', () => ({
   readDocModel: () => null,
   QUALITY_THRESHOLD: 80
 }))
-vi.mock('../../../../lib/llm.mjs', async importOriginal => ({
-  ...(await importOriginal()),
-  preflightLocalModel: () => null // preflight завжди проходить — тестуємо circuit-breaker, не health-check
-}))
+// (pi-міграція: docgen-files-batch більше не імпортує lib/llm.mjs — preflight прибрано,
+// доступність моделі тепер per-call у generateDoc; circuit-breaker тестуємо через generateDocMock)
 vi.mock('node:fs', () => ({
   readFileSync: () => Buffer.from('x'),
   writeFileSync: vi.fn(),

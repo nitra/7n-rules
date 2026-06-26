@@ -1,6 +1,6 @@
 ---
-name: "source-command-n-coverage-fix"
-description: "Автономна команда: запускає n-cursor coverage → читає вцілілих мутантів → ітеративно пише тести до конвергенції (max 3 ітерації)"
+name: 'source-command-n-coverage-fix'
+description: 'Автономна команда: запускає n-cursor coverage → читає вцілілих мутантів → ітеративно пише тести до конвергенції (max 3 ітерації)'
 ---
 
 # source-command-n-coverage-fix

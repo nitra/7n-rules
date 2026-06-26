@@ -1,6 +1,6 @@
 ---
-name: "source-command-n-lint"
-description: "Запустити дельта-лінт (npx @nitra/cursor lint) по змінених файлах vs origin, виправити порушення й підтвердити чистий вихід"
+name: 'source-command-n-lint'
+description: 'Запустити дельта-лінт (npx @nitra/cursor lint) по змінених файлах vs origin, виправити порушення й підтвердити чистий вихід'
 ---
 
 # source-command-n-lint

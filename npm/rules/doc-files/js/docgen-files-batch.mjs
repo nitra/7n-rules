@@ -12,8 +12,24 @@ import {
 import { basename, dirname, join, relative } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
-import { classifyOmlxError, preflightLocalModel } from '../../../lib/llm.mjs'
 import { generateDoc, DEFAULT_LOCAL_MODEL } from './docgen-gen.mjs'
+
+/**
+ * Класифікує помилку генерації для batch-логіки (замінює `classifyOmlxError` після
+ * pi-міграції — помилки приходять як винятки з generateDoc/pi-one-shot):
+ *   - `permanent` — pre-send guard «Prompt too long» → skip (не ретраїти);
+ *   - `systemic`  — модель/сервер/registry/RAM упали → circuit-breaker abort;
+ *   - `transient` — таймаут (можна було б ретраїти);
+ *   - `infra`     — інше (рахуємо як помилку, але без abort).
+ * @param {string} msg повідомлення помилки
+ * @returns {'permanent'|'systemic'|'transient'|'infra'} клас
+ */
+function classifyDocgenError(msg) {
+  if (/prompt too long|pre-send guard|too long/i.test(msg)) return 'permanent'
+  if (/registry:|session:|не знайдена|memory|enomem|connection refused|econnrefused/i.test(msg)) return 'systemic'
+  if (/timeout|etimedout/i.test(msg)) return 'transient'
+  return 'infra'
+}
 import { crc32, stampDoc, readDocQuality, readDocModel, QUALITY_THRESHOLD } from './docgen-crc.mjs'
 import { resolveRoot, scanForDocFiles, scanOrphanedDocs } from './docgen-scan.mjs'
 
@@ -134,7 +150,7 @@ async function generateOne(file, root, progress, stats) {
     }
     return 'ok'
   } catch (error) {
-    const cls = classifyOmlxError(error.message)
+    const cls = classifyDocgenError(error.message)
     if (cls === 'permanent') {
       stats.skipped.push(file.sourcePath)
       process.stdout.write(`⊘ skip (permanent): ${error.message}\n`)
@@ -307,9 +323,8 @@ export async function runDocFilesGenCli(argv) {
  * @returns {Promise<number>} 0 — без помилок; 1 — фейл preflight або є помилки; 2 — systemic-abort
  */
 export async function runGenerationBatch(targets, root, { headline } = {}) {
-  const problem = preflightLocalModel(DEFAULT_LOCAL_MODEL)
-  if (problem) {
-    console.error(`✗ fix-doc-files: ${problem}`)
+  if (!DEFAULT_LOCAL_MODEL) {
+    console.error('✗ fix-doc-files: локальну модель не задано (N_LOCAL_MIN_MODEL)')
     return 1
   }
 

@@ -110,9 +110,9 @@ function preflight(dep) {
  * Внутрішні кроки `lint-text` без локу.
  * @param {boolean} [readOnly] true → лише детект без авто-фіксу (нуль мутацій — CI/pre-commit)
  * @param {boolean} [llmFix] opt-in omlx-класифікація cspell (інші кроки фіксяться детерміновано за readOnly)
- * @returns {number} 0 — все OK, інакше — код першого кроку, що впав
+ * @returns {Promise<number>} 0 — все OK, інакше — код першого кроку, що впав
  */
-function runLintTextSteps(readOnly = false, llmFix = false) {
+async function runLintTextSteps(readOnly = false, llmFix = false) {
   // Auto-install: throws on failure → propagates as exit 1 from runStandardLint
   ensureTool('shellcheck')
   ensureTool('dotenv-linter')
@@ -120,8 +120,8 @@ function runLintTextSteps(readOnly = false, llmFix = false) {
   // patch потрібен лише для авто-фіксу shellcheck; у read-only пропускаємо preflight.
   if (!readOnly && !preflight(PATCH_PREFLIGHT)) return 1
 
-  console.log(`\n▶ cspell (${!readOnly && llmFix ? 'omlx-класифікація + словник + перевірка' : 'перевірка'})`)
-  const cspellCode = runCspellText(process.cwd(), readOnly, llmFix)
+  console.log(`\n▶ cspell (${!readOnly && llmFix ? 'LLM-класифікація + словник + перевірка' : 'перевірка'})`)
+  const cspellCode = await runCspellText(process.cwd(), readOnly, llmFix)
   if (cspellCode !== 0) return cspellCode
 
   console.log(`\n▶ shellcheck (${readOnly ? 'перевірка' : 'авто-фікс + фінальна перевірка'} *.sh)`)

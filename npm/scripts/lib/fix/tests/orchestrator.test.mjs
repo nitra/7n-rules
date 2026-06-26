@@ -27,18 +27,20 @@ afterAll(() => {
 // ── фіктивні worker/check ─────────────────────────────────────────────────────
 
 /**
- * Worker, що віддає наперед задані результати по черзі й логує виклики.
- * @param {Array<object>} results послідовність результатів runLlmWorker
- * @returns {{ calls: object[], runLlmWorker: (ruleId: string, violation: string, cwd: string, opts: object) => object }} worker із журналом викликів
+ * Worker, що віддає наперед задані результати по черзі й логує виклики (новий pi-seam).
+ * @param {Array<object>} results послідовність результатів runFix
+ * @returns {{ calls: object[], runFix: (ruleId: string, violation: string, cwd: string, opts: object) => Promise<object> }} worker із журналом викликів
  */
 function makeWorker(results) {
   const calls = []
   let i = 0
   return {
     calls,
-    runLlmWorker(ruleId, violation, _cwd, opts) {
+    async runFix(ruleId, violation, _cwd, opts) {
       calls.push({ ruleId, model: opts.model, feedback: opts.feedback, caller: opts.caller, timeoutMs: opts.timeoutMs })
-      return results[i++] ?? { ok: false, error: 'no result', changes: [], diagnosis: null }
+      return (
+        results[i++] ?? { applied: false, touchedFiles: [], telemetry: null, error: 'no result', rollback: () => {} }
+      )
     }
   }
 }
@@ -57,8 +59,8 @@ function makeCheck(ruleId, okSeq) {
   }
 }
 
-const ok = changes => ({ ok: true, changes: changes ?? [{ path: 'f' }], diagnosis: null })
-const fail = (error, diagnosis) => ({ ok: false, error, changes: [], diagnosis: diagnosis ?? null })
+const ok = () => ({ applied: true, touchedFiles: ['f'], telemetry: null, error: null, rollback: () => {} })
+const fail = error => ({ applied: false, touchedFiles: [], telemetry: null, error, rollback: () => {} })
 const clock = () => 0
 const noop = () => {
   /* лог глушимо у тестах */
@@ -174,7 +176,7 @@ describe('escalateRule', () => {
   })
 
   test('systemic-помилка local → пропуск local-min-retry, стрибок на cloud-min', async () => {
-    const worker = makeWorker([fail('omlx curl: connection refused'), ok()])
+    const worker = makeWorker([fail('session: omlx connection refused'), ok()])
     const r = await escalateRule(rule, '/p', {
       ladder: buildLadder(FULL),
       worker,

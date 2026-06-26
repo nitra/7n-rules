@@ -20,7 +20,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
-import { callLlm, preflightLocalModel } from '../../../lib/llm.mjs'
+import { runOneShot } from '../../../lib/pi-one-shot.mjs'
 
 /** Слово у рядку cspell: `<file>:<line>:<col> - Unknown word (xxx)`. */
 const UNKNOWN_WORD_RE = /Unknown word \(([^)]+)\)/u
@@ -114,10 +114,10 @@ export function appendWordsToDict(cwd, words) {
  * cspell-крок lint-text: класифікація → словник (нова схема).
  * @param {string} [cwd] корінь
  * @param {boolean} [readOnly] true → лише детект (нуль мутацій)
- * @param {boolean} [llmFix] opt-in omlx-класифікація (з `meta.json: llmFix:true`); без нього — лише детект
- * @returns {number} 0 — чисто; 1 — лишились знахідки / помилка середовища
+ * @param {boolean} [llmFix] opt-in LLM-класифікація (з `meta.json: llmFix:true`); без нього — лише детект
+ * @returns {Promise<number>} 0 — чисто; 1 — лишились знахідки / помилка середовища
  */
-export function runCspellText(cwd = process.cwd(), readOnly = false, llmFix = false) {
+export async function runCspellText(cwd = process.cwd(), readOnly = false, llmFix = false) {
   const bin = resolveCmd('npx')
   if (!bin) {
     process.stderr.write('❌ npx не знайдено в PATH (cspell).\n')
@@ -133,9 +133,8 @@ export function runCspellText(cwd = process.cwd(), readOnly = false, llmFix = fa
 
   // Fix-режим: класифікація знахідок (bounded JSON-вихід), валідні → у словник.
   const model = fixModel()
-  const problem = preflightLocalModel(model)
-  if (problem) {
-    process.stdout.write(`⚠️  cspell: класифікацію пропущено (${problem})\n`)
+  if (!model) {
+    process.stdout.write('⚠️  cspell: класифікацію пропущено (локальну модель не задано)\n')
     process.stdout.write(first.out)
     return first.code
   }
@@ -148,19 +147,19 @@ export function runCspellText(cwd = process.cwd(), readOnly = false, llmFix = fa
     )
   }
 
-  let text
-  try {
-    text = callLlm([{ role: 'user', content: classifyPrompt(batch) }], model, {
-      caller: 'cspell-classify',
-      maxTokens: 4000
-    })
-  } catch (error) {
-    process.stdout.write(`⚠️  cspell: omlx-класифікація впала (${error.message}) — без авто-словника\n`)
+  const res = await runOneShot({
+    messages: [{ role: 'user', content: classifyPrompt(batch) }],
+    modelSpec: model,
+    caller: 'cspell-classify',
+    cwd
+  })
+  if (res.error) {
+    process.stdout.write(`⚠️  cspell: LLM-класифікація впала (${res.error}) — без авто-словника\n`)
     process.stdout.write(first.out)
     return first.code
   }
 
-  const parsed = parseClassify(text)
+  const parsed = parseClassify(res.content)
   if (!parsed) {
     process.stdout.write('⚠️  cspell: не вдалося розпарсити класифікацію — без авто-словника\n')
     process.stdout.write(first.out)

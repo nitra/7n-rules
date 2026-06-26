@@ -43,7 +43,7 @@ const readLines = (file) =>
  * @param {string[]} argv аргументи після назви команди
  * @returns {number} exit-code (0 — успіх, 1 — помилка вводу)
  */
-export function runAdrNormalizeLocalCli(argv) {
+export async function runAdrNormalizeLocalCli(argv) {
   const args = parseArgs(argv)
   const adrDir = args['adr-dir'] ?? join(process.cwd(), 'docs/adr')
   if (!args.batch) {
@@ -61,7 +61,7 @@ export function runAdrNormalizeLocalCli(argv) {
   const allowCloud = env.ADR_NORMALIZE_ALLOW_CLOUD === '1'
   const votes = Number(env.ADR_NORMALIZE_VOTES) || 2
 
-  const { operations, stats, trace } = normalizePipeline(drafts, cleanList, {
+  const { operations, stats, trace } = await normalizePipeline(drafts, cleanList, {
     allowCloud,
     votes,
     onProgress: (m) => console.error(`adr-normalize-local: ${m}`)

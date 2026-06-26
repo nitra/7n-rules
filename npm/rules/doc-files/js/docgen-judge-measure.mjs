@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { generateDoc } from './docgen-gen.mjs'
-import { callLlm } from '../../../lib/llm.mjs'
+import { runOneShot } from '../../../lib/pi-one-shot.mjs'
 import { QUALITY_THRESHOLD } from './docgen-crc.mjs'
 
 const env = process.env
@@ -43,11 +43,11 @@ function cacheSet(key, val) {
  * @param {string} src вміст файлу
  * @returns {{md: string, score: number|null, issues: string[], degraded: boolean, cached: boolean}} результат генерації
  */
-function genCached(file, src) {
+async function genCached(file, src) {
   const key = 'gen-' + sha(GEN_MODEL + '\0' + src)
   const hit = cacheGet(key)
   if (hit) return { ...hit, cached: true }
-  const r = generateDoc(file, { model: GEN_MODEL })
+  const r = await generateDoc(file, { model: GEN_MODEL })
   const out = { md: r.md, score: r.score, issues: r.issues, degraded: r.degraded }
   cacheSet(key, out)
   return { ...out, cached: false }
@@ -59,19 +59,22 @@ function genCached(file, src) {
  * @param {string} doc згенерована документація
  * @returns {{verdict: string, confidence: number, reason: string, offending?: string[], cached: boolean}} verdict судді
  */
-function judgeCached(src, doc) {
+async function judgeCached(src, doc) {
   const key = 'judge-' + sha(JUDGE_MODEL + '\0' + src + '\0' + doc)
   const hit = cacheGet(key)
   if (hit) return { ...hit, cached: true }
   const user = `SOURCE FILE:\n\`\`\`\n${src.slice(0, 12000)}\n\`\`\`\n\nGENERATED DOC:\n\`\`\`md\n${doc.slice(0, 8000)}\n\`\`\`\n\nReturn the JSON verdict.`
-  const raw = callLlm(
-    [
+  const res = await runOneShot({
+    messages: [
       { role: 'system', content: SYSTEM },
       { role: 'user', content: user }
     ],
-    JUDGE_MODEL,
-    { timeoutMs: JUDGE_TIMEOUT, temperature: 0 }
-  )
+    modelSpec: JUDGE_MODEL,
+    timeoutMs: JUDGE_TIMEOUT,
+    caller: 'docgen-measure'
+  })
+  if (res.error) throw new Error(res.error)
+  const raw = res.content
   const a = raw.indexOf('{'),
     b = raw.lastIndexOf('}')
   if (a === -1 || b === -1) throw new Error('no JSON in judge reply: ' + raw.slice(0, 160))
@@ -83,7 +86,7 @@ function judgeCached(src, doc) {
 /**
  *
  */
-function main() {
+async function main() {
   const files = process.argv.slice(2).filter(f => !f.startsWith('--'))
   if (!files.length) {
     console.error('Usage: node docgen-judge-measure.mjs <file1> <file2> ...')
@@ -106,7 +109,7 @@ function main() {
 
     let gen
     try {
-      gen = genCached(file, src)
+      gen = await genCached(file, src)
     } catch (error) {
       console.error(`[gen-err] ${tag}: ${error.message.slice(0, 120)}`)
       rows.push({ file, error: 'gen', detail: error.message.slice(0, 200) })
@@ -124,7 +127,7 @@ function main() {
 
     if (passed) {
       try {
-        const v = judgeCached(src, gen.md)
+        const v = await judgeCached(src, gen.md)
         row.verdict = v.verdict
         row.confidence = v.confidence
         row.reason = v.reason
@@ -195,4 +198,4 @@ function main() {
   console.log(`report: ${out}`)
 }
 
-main()
+await main()

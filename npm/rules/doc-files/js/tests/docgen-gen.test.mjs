@@ -94,10 +94,11 @@ describe('generateDoc — pre-send byte-guard', () => {
     vi.restoreAllMocks()
   })
 
-  test('джерело понад бюджет → throw Prompt too long (skip, без LLM)', () => {
+  test('джерело понад бюджет → throw Prompt too long (skip, без LLM)', async () => {
     env.N_CURSOR_DOCGEN_CTX = '100' // бюджет = 50 токенів ≈ 200 байтів
     readFileSync.mockReturnValue('x'.repeat(2000)) // ~500 токенів > 50
-    expect(() => generateDoc('/big.js')).toThrow(/Prompt too long/)
+    // generateDoc тепер async (pi-міграція) → pre-send guard реджектить, не кидає синхронно
+    await expect(generateDoc('/big.js')).rejects.toThrow(/Prompt too long/)
   })
 })
 

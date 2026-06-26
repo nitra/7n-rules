@@ -5,7 +5,7 @@
  * правило стало зеленим після цього рунга (`recheckOk` = «чи допомогло»),
  * залишковий violation і `diagnosis` (само-аналіз моделі «чому не вдалося»).
  *
- * Це доповнення до always-on wire-trace (`lib/omlx-trace.mjs`): trace знає
+ * Це доповнення до always-on wire-trace (`lib/pi-trace.mjs`): trace знає
  * `messages`/`reasoning`/`usage` кожного виклику, але **не** знає результату
  * re-check — а саме «чи допомогло» й потрібне для пост-аналізу драбини. Join із
  * trace — за полем `caller` (`fix:<rule>:<rung>`), яке цей модуль і формує.

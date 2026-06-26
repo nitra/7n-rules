@@ -2,8 +2,8 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { basename } from 'node:path'
 import { env } from 'node:process'
-import { resolveModel } from '../../../lib/models.mjs'
-import { callLlm as callLlmRaw } from '../../../lib/llm.mjs'
+import { resolveModel } from '../../../lib/pi-model-tiers.mjs'
+import { runOneShot } from '../../../lib/pi-one-shot.mjs'
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { docPathForSource } from './docgen-scan.mjs'
 import { extractFacts } from './docgen-extract.mjs'
@@ -23,16 +23,25 @@ import {
 let llmMeter = { calls: 0, ms: 0 }
 
 /**
- * Обгортка callLlm з обліком: лічить кількість викликів і сумарний час у них.
- * callLlm синхронний (spawnSync/curl), генерація одного файлу послідовна — лічильник без гонок.
- * Усі виклики `callLlm(...)` у цьому модулі йдуть через неї автоматично (імпорт як callLlmRaw).
- * @param {...any} args ті самі аргументи, що й у callLlm з lib/llm.mjs
- * @returns {string} відповідь моделі
+ * Обгортка LLM-виклику з обліком (тепер async поверх pi-one-shot): лічить кількість
+ * викликів і сумарний час. Генерація одного файлу послідовна — лічильник без гонок.
+ * Зберігає старий інтерфейс accountant'а: повертає рядок-вміст, кидає на помилці.
+ * @param {Array<{role:string,content:string}>} messages чат-повідомлення
+ * @param {string} model model-id (`provider/id`)
+ * @param {{ timeoutMs?: number, caller?: string }} [opts] ліміт/мітка (temperature/maxTokens не підтримуються pi-one-shot)
+ * @returns {Promise<string>} відповідь моделі
  */
-function callLlm(...args) {
+async function callLlm(messages, model, opts = {}) {
   const started = Date.now()
   try {
-    return callLlmRaw(...args)
+    const res = await runOneShot({
+      messages,
+      modelSpec: model,
+      timeoutMs: opts.timeoutMs,
+      caller: opts.caller ?? 'docgen'
+    })
+    if (res.error) throw new Error(res.error)
+    return res.content
   } finally {
     llmMeter.calls += 1
     llmMeter.ms += Date.now() - started
@@ -273,10 +282,12 @@ export function scoreDoc(md, facts, { anchors = null, src = '' } = {}) {
  * @param {number} timeoutMs ліміт на один виклик
  * @returns {string} фінальний текст секції
  */
-function critiqueRefineSection(sectionKey, draft, facts, anchors, model, timeoutMs) {
-  const critique = callLlm(criticMessages(sectionKey, draft, facts, anchors), model, { timeoutMs }).trim()
+async function critiqueRefineSection(sectionKey, draft, facts, anchors, model, timeoutMs) {
+  const critique = (await callLlm(criticMessages(sectionKey, draft, facts, anchors), model, { timeoutMs })).trim()
   if (!critique || CRITIC_NONE_RE.test(critique) || critique.length < 12) return draft
-  const refined = callLlm(refineMessages(sectionKey, draft, critique, facts, anchors), model, { timeoutMs }).trim()
+  const refined = (
+    await callLlm(refineMessages(sectionKey, draft, critique, facts, anchors), model, { timeoutMs })
+  ).trim()
   return stripSignatures(stripSection(refined)) || draft
 }
 
@@ -301,8 +312,8 @@ function apiNeedsRefine(facts) {
  * @param {{ intent?: string|null }} [opts] захищена секція «Призначення» для збереження
  * @returns {{ md: string }} зібраний документ
  */
-function oneShotDoc(facts, src, model, timeoutMs = LOCAL_TIMEOUT_MS, { intent = null } = {}) {
-  const text = callLlm(oneShotMessages(facts, src), model, { timeoutMs })
+async function oneShotDoc(facts, src, model, timeoutMs = LOCAL_TIMEOUT_MS, { intent = null } = {}) {
+  const text = await callLlm(oneShotMessages(facts, src), model, { timeoutMs })
   let md = stripSignatures(stripSection(text))
   if (!md.startsWith('#')) md = `# ${basename(facts.relPath)}\n\n${md}`
   return { md: insertProtected(md + '\n', intent) }
@@ -339,27 +350,33 @@ function assemble(stem, sections) {
  * @param {{ anchors?: object|null, temperature?: number, intent?: string|null }} [opts] анкори, температура, захищена секція як контекст
  * @returns {{ md: string }} зібраний документ
  */
-function orchestratedDoc(facts, src, model, timeoutMs, { anchors = null, temperature = 0.2, intent = null } = {}) {
+async function orchestratedDoc(
+  facts,
+  src,
+  model,
+  timeoutMs,
+  { anchors = null, temperature = 0.2, intent = null } = {}
+) {
   const sections = {}
   const anc = anchors ?? extractAnchors(src)
   // E3: «Гарантії» — детермінований шаблон з markers (0 LLM-запитів, 0 generic-фраз)
   sections.guarantees = guaranteesFromMarkers(facts)
   // Спершу Поведінка (+API) — секції з фактажем
   for (const s of sectionMessages(facts, src, anc, intent)) {
-    let draft = stripSignatures(stripSection(callLlm(s.messages, model, { timeoutMs, temperature })))
+    let draft = stripSignatures(stripSection(await callLlm(s.messages, model, { timeoutMs, temperature })))
     // E2: critique→refine для API, коли всі описи порожні (модель зриває на generic)
     if (s.key === 'api' && apiNeedsRefine(facts)) {
-      draft = critiqueRefineSection(s.key, draft, facts, anc, model, timeoutMs)
+      draft = await critiqueRefineSection(s.key, draft, facts, anc, model, timeoutMs)
     }
     sections[s.key] = draft
   }
   // R3: «Огляд» — ОСТАННІМ, узагальненням уже написаної Поведінки (не голого факт-листа)
   let overview = stripSignatures(
     stripSection(
-      callLlm(overviewMessages(facts, sections.behavior ?? '', anc, intent), model, { timeoutMs, temperature })
+      await callLlm(overviewMessages(facts, sections.behavior ?? '', anc, intent), model, { timeoutMs, temperature })
     )
   )
-  overview = critiqueRefineSection('overview', overview, facts, anc, model, timeoutMs)
+  overview = await critiqueRefineSection('overview', overview, facts, anc, model, timeoutMs)
   sections.overview = overview
   // Варіант B: дослівно повертаємо захищений блок у фіксовану позицію
   return { md: insertProtected(assemble(basename(facts.relPath), sections), intent) }
@@ -398,7 +415,7 @@ export const DEFAULT_LOCAL_MODEL = env.N_CURSOR_DOCGEN_MODEL ?? resolveModel('mi
  * @param {{ model?: string, threshold?: number, existingMd?: string|null }} [opts] model-id, поріг degraded, наявна дока (для збереження захищеної секції)
  * @returns {{ md: string, ms: number, llmMs: number, llmCalls: number, score: number|null, issues: string[], degraded: boolean, model: string }} документ і метадані генерації (ms — увесь файл; llmMs/llmCalls — лише LLM; решта ms — оркестрація)
  */
-export function generateDoc(
+export async function generateDoc(
   file,
   { model = DEFAULT_LOCAL_MODEL, threshold = QUALITY_THRESHOLD, existingMd = null } = {}
 ) {
@@ -421,8 +438,8 @@ export function generateDoc(
   const intent = existingMd ? splitProtected(existingMd).body : null
   const anchors = facts.unsupported ? null : extractAnchors(src)
   let r = facts.unsupported
-    ? oneShotDoc(facts, src, model, LOCAL_TIMEOUT_MS, { intent })
-    : orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, intent })
+    ? await oneShotDoc(facts, src, model, LOCAL_TIMEOUT_MS, { intent })
+    : await orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, intent })
 
   // unsupported (vue/py до юніт-шару): скорер не застосовний — score=null, не degraded
   if (facts.unsupported) {
@@ -444,7 +461,7 @@ export function generateDoc(
   // E4: best-of-2 — один retry з вищою температурою, det-вибір кращого
   if (score < threshold && env.N_CURSOR_DOCGEN_BEST_OF !== '0') {
     try {
-      const r2 = orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, temperature: 0.5, intent })
+      const r2 = await orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, temperature: 0.5, intent })
       const s2 = scoreDoc(r2.md, facts, { anchors, src })
       if (s2.score > score) {
         r = r2
@@ -463,7 +480,7 @@ export function generateDoc(
   let judge = null
   if (JUDGE_ENABLED && score >= threshold) {
     try {
-      judge = { ...judgeDoc(src, r.md), model: JUDGE_MODEL }
+      judge = { ...(await judgeDoc(src, r.md)), model: JUDGE_MODEL }
       if (judgeFailsDoc(judge)) issues = [...issues, `judge:inaccurate:${judge.confidence}`]
     } catch (error) {
       issues = [...issues, `judge:error: ${error.message.slice(0, 80)}`]
@@ -495,7 +512,7 @@ if (isRunAsCli(import.meta.url)) {
   // Зберегти захищену секцію «Призначення», якщо дока вже існує
   const docPath = docPathForSource(file)
   const existingMd = existsSync(docPath) ? readFileSync(docPath, 'utf8') : null
-  const r = generateDoc(file, { model, existingMd })
+  const r = await generateDoc(file, { model, existingMd })
   const issuesTxt = r.issues?.length ? ` issues=${r.issues.join(',')}` : ''
   process.stderr.write(
     `[local ${r.model}] ${r.ms}ms (llm ${r.llmMs}ms/${r.llmCalls} calls, orch ${r.ms - r.llmMs}ms) / score=${r.score}${r.degraded ? ' DEGRADED' : ''}${issuesTxt}\n`

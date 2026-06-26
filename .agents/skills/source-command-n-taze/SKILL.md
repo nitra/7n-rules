@@ -1,6 +1,6 @@
 ---
-name: "source-command-n-taze"
-description: "Оновлення версій модулів проекту з аналізом major-змін і автоматичним рефакторингом несумісного коду"
+name: 'source-command-n-taze'
+description: 'Оновлення версій модулів проекту з аналізом major-змін і автоматичним рефакторингом несумісного коду'
 ---
 
 # source-command-n-taze

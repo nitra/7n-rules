@@ -1,6 +1,6 @@
 ---
-name: "source-command-n-llm-patch"
-description: "Підготовка самодостатнього текстового промпта для іншого Codex/Cursor-агента — read-only аналіз CWD без жодних змін у поточному репо"
+name: 'source-command-n-llm-patch'
+description: 'Підготовка самодостатнього текстового промпта для іншого Codex/Cursor-агента — read-only аналіз CWD без жодних змін у поточному репо'
 ---
 
 # source-command-n-llm-patch

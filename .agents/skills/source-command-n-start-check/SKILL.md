@@ -1,6 +1,6 @@
 ---
-name: "source-command-n-start-check"
-description: "Smoke-перевірка bun-монорепо: зайти в кожен воркспейс зі `start`-скриптом, прогнати `start` і зафіксувати, чи проєкт взагалі запускається без негайного краху"
+name: 'source-command-n-start-check'
+description: 'Smoke-перевірка bun-монорепо: зайти в кожен воркспейс зі `start`-скриптом, прогнати `start` і зафіксувати, чи проєкт взагалі запускається без негайного краху'
 ---
 
 # source-command-n-start-check
