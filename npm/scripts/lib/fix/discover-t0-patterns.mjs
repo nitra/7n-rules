@@ -6,41 +6,12 @@
  * `t0.mjs` ініціалізує результат через top-level await (один раз при завантаженні модуля).
  */
 import { existsSync } from 'node:fs'
-import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
+import { globby } from 'globby'
 
 /**
  * @typedef {{ id: string, test: (output: string) => boolean, apply: (output: string, cwd: string) => Promise<{ok: boolean, action: string}> | {ok: boolean, action: string} }} T0Pattern
  */
-
-/**
- * Повертає абсолютні шляхи до `fix-*.mjs` файлів у директорії (плоско, без рекурсії).
- * @param {string} dir абсолютний шлях до директорії
- * @returns {Promise<string[]>}
- */
-async function findFixFiles(dir) {
-  if (!existsSync(dir)) return []
-  const entries = await readdir(dir, { withFileTypes: true })
-  return entries
-    .filter(e => e.isFile() && e.name.startsWith('fix-') && e.name.endsWith('.mjs'))
-    .map(e => join(dir, e.name))
-}
-
-/**
- * Повертає абсолютні шляхи до `policy/{concern}/fix-*.mjs` у правилі.
- * @param {string} policyDir абсолютний шлях `rules/{rule}/policy/`
- * @returns {Promise<string[]>}
- */
-async function findPolicyFixFiles(policyDir) {
-  if (!existsSync(policyDir)) return []
-  const entries = await readdir(policyDir, { withFileTypes: true })
-  const paths = []
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue
-    paths.push(...(await findFixFiles(join(policyDir, entry.name))))
-  }
-  return paths
-}
 
 /**
  * Збирає всі T0-паттерни з `fix-*.mjs` файлів усіх правил у `rulesDir`.
@@ -49,26 +20,22 @@ async function findPolicyFixFiles(policyDir) {
  */
 export async function discoverT0Patterns(rulesDir) {
   if (!existsSync(rulesDir)) return []
-  const ruleEntries = await readdir(rulesDir, { withFileTypes: true })
+
+  const relPaths = await globby(['*/js/fix-*.mjs', '*/policy/*/fix-*.mjs'], {
+    cwd: rulesDir,
+    onlyFiles: true,
+    gitignore: false
+  })
+
   /** @type {T0Pattern[]} */
   const allPatterns = []
-
-  for (const ruleEntry of ruleEntries) {
-    if (!ruleEntry.isDirectory() || ruleEntry.name.startsWith('.')) continue
-    const ruleDir = join(rulesDir, ruleEntry.name)
-
-    const fixPaths = [
-      ...(await findFixFiles(join(ruleDir, 'js'))),
-      ...(await findPolicyFixFiles(join(ruleDir, 'policy')))
-    ]
-
-    for (const fixPath of fixPaths) {
-      try {
-        const mod = await import(fixPath)
-        if (Array.isArray(mod.patterns)) allPatterns.push(...mod.patterns)
-      } catch (err) {
-        console.error(`[discover-t0-patterns] не вдалося імпортувати ${fixPath}: ${err.message}`)
-      }
+  for (const rel of relPaths) {
+    const fixPath = join(rulesDir, rel)
+    try {
+      const mod = await import(fixPath)
+      if (Array.isArray(mod.patterns)) allPatterns.push(...mod.patterns)
+    } catch (err) {
+      console.error(`[discover-t0-patterns] не вдалося імпортувати ${fixPath}: ${err.message}`)
     }
   }
 

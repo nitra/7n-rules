@@ -3,9 +3,9 @@
  * Винесено зі `bin/n-cursor.js`, щоб ділити між CLI-dispatch і `run-conformance-check` (конформність-детект).
  */
 import { existsSync } from 'node:fs'
-import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { cwd as processCwd } from 'node:process'
+import { globby } from 'globby'
 
 /** Каталог правил у проєкті-споживачі (відносно кореня). */
 export const CURSOR_RULES_DIR = '.cursor/rules'
@@ -17,6 +17,6 @@ export const CURSOR_RULES_DIR = '.cursor/rules'
 export async function listProjectRulesMdcFiles(cwd = processCwd()) {
   const dir = join(cwd, CURSOR_RULES_DIR)
   if (!existsSync(dir)) return []
-  const names = await readdir(dir)
-  return names.filter(n => n.endsWith('.mdc')).toSorted((a, b) => a.localeCompare(b))
+  const names = await globby('*.mdc', { cwd: dir, onlyFiles: true, gitignore: false })
+  return names.toSorted((a, b) => a.localeCompare(b))
 }

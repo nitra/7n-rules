@@ -1,6 +1,6 @@
 /** @see ./docs/llm-worker.md */
 
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { env } from 'node:process'
 import { resolveModel } from '../../../lib/models.mjs'
@@ -19,6 +19,83 @@ const DEFAULT_THINKING_BUDGET = Number(env.N_CURSOR_OMLX_THINKING_BUDGET ?? 4096
 const API_KEY_RE = /api key/i
 
 const FILE_EXTS = 'json|js|mjs|ts|vue|yml|yaml|toml|mdc|md|sh|py'
+
+/**
+ * Каталог `npm/rules/` у пакеті — для вибору sub-check .mdc.
+ * Шлях: <package>/npm/scripts/lib/fix/ → ../../.. → npm/ → rules/.
+ */
+const PACKAGE_RULES_DIR = join(import.meta.dirname, '..', '..', '..', 'rules')
+
+/**
+ * Витягує шляхи файлів лише з рядків ❌ у violation output.
+ * Без workspace-розгортання — повертає bare path для звірки з target.json.
+ * @param {string} output violation output
+ * @returns {string[]} унікальні шляхи з ❌-рядків
+ */
+function extractFailPaths(output) {
+  const seen = new Set()
+  const add = p => {
+    seen.add(p)
+  }
+  const failSep = `(?::\\d+)?(?::\\s|[\\s—]|$)`
+  // ❌ [ws] path/file.ext → strip workspace, зберігаємо bare file
+  const failWsRe = new RegExp(`^\\s*❌\\s+\\[[\\w-]+\\]\\s+([\\w./][\\w./-]*\\.(?:${FILE_EXTS}))${failSep}`, 'gm')
+  for (const m of output.matchAll(failWsRe)) add(m[1])
+  const failRe = new RegExp(`^\\s*❌\\s+(\\.?[\\w][\\w./-]*\\.(?:${FILE_EXTS}))${failSep}`, 'gm')
+  for (const m of output.matchAll(failRe)) add(m[1])
+  return [...seen]
+}
+
+/**
+ * Для правил з `policy/<concern>/` підбирає лише ті concern-.mdc, що відповідають
+ * файлам з ❌-рядків violation output. Читає безпосередньо з пакету (`PACKAGE_RULES_DIR`),
+ * тому не потребує pre-generation. Fallback — null (→ повний n-{id}.mdc у caller).
+ * @param {string} ruleId ID правила
+ * @param {string} violationOutput violation output
+ * @returns {string|null} конкатенація релевантних .mdc або null
+ */
+function selectSubCheckMdc(ruleId, violationOutput) {
+  const policyDir = join(PACKAGE_RULES_DIR, ruleId, 'policy')
+  if (!existsSync(policyDir)) return null
+
+  const failPaths = extractFailPaths(violationOutput)
+  if (failPaths.length === 0) return null
+
+  const matched = []
+  let concerns
+  try {
+    concerns = readdirSync(policyDir, { withFileTypes: true })
+  } catch {
+    return null
+  }
+
+  for (const entry of concerns) {
+    if (!entry.isDirectory()) continue
+    const concernDir = join(policyDir, entry.name)
+    const targetPath = join(concernDir, 'target.json')
+    if (!existsSync(targetPath)) continue
+
+    let target
+    try {
+      target = JSON.parse(readFileSync(targetPath, 'utf8'))
+    } catch {
+      continue
+    }
+
+    const targetFile = target?.files?.single
+    if (!targetFile) continue // walkGlob та інші типи → skip, fallback на main.mdc
+
+    // Перевіряємо чи хоч один failing path закінчується на targetFile
+    const hit = failPaths.some(p => p === targetFile || p.endsWith(`/${targetFile}`))
+    if (!hit) continue
+
+    const mdcEntry = readdirSync(concernDir).find(f => f.endsWith('.mdc'))
+    if (!mdcEntry) continue
+    matched.push(readFileSync(join(concernDir, mdcEntry), 'utf8').trim())
+  }
+
+  return matched.length > 0 ? matched.join('\n\n') : null
+}
 
 /**
  * Витягує відносні шляхи файлів із violation output.
@@ -185,9 +262,11 @@ export function runLlmWorker(ruleId, violationOutput, projectRoot, opts = {}) {
   const timeoutMs = opts.timeoutMs
   const thinkingBudget = opts.thinkingBudget ?? DEFAULT_THINKING_BUDGET
 
-  // 1. Читаємо rule .mdc
+  // 1. Читаємо rule .mdc: спробуємо sub-check mdc для конкретної перевірки,
+  //    якщо не вдалося — fallback на повний n-{id}.mdc.
+  const subMdc = selectSubCheckMdc(ruleId, violationOutput)
   const mdcPath = join(projectRoot, '.cursor', 'rules', `n-${ruleId}.mdc`)
-  const ruleMdc = existsSync(mdcPath) ? readFileSync(mdcPath, 'utf8') : '(rule file not found)'
+  const ruleMdc = subMdc ?? (existsSync(mdcPath) ? readFileSync(mdcPath, 'utf8') : '(rule file not found)')
 
   // 2. Витягуємо файли з violation output і читаємо їх
   const files = readFilesForFix(extractFilePaths(violationOutput), projectRoot)
@@ -195,6 +274,7 @@ export function runLlmWorker(ruleId, violationOutput, projectRoot, opts = {}) {
   // 3. Будуємо summary промпту (для verbose-блоку) до виклику моделі
   const promptSummary = {
     ruleMdcLen: ruleMdc.length,
+    subCheckMdc: !!subMdc,
     violationLen: violationOutput.length,
     filesCount: files.length,
     filesTotalBytes: files.reduce((s, f) => s + f.content.length, 0),

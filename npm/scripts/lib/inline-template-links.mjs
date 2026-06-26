@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
-import { readFile, readdir } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
+import { globby } from 'globby'
 
 const MD_LINK_RE = /\[([^\]]{1,200})\]\((\.\/[^)]{1,500})\)/g
 const TEMPLATE_SEGMENT_RE = /\/templates?\//
@@ -80,27 +81,18 @@ export async function appendDiscoveredMdcFiles(text, ruleDir) {
 
   const jsDir = join(ruleDir, 'js')
   if (existsSync(jsDir)) {
-    const entries = await readdir(jsDir, { withFileTypes: true })
-    for (const e of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-      if (e.isFile() && e.name.endsWith('.mdc')) {
-        sections.push((await readFile(join(jsDir, e.name), 'utf8')).trim())
-      }
+    const files = await globby('*.mdc', { cwd: jsDir, onlyFiles: true, gitignore: false })
+    for (const f of files.toSorted()) {
+      sections.push((await readFile(join(jsDir, f), 'utf8')).trim())
     }
   }
 
   const policyDir = join(ruleDir, 'policy')
   if (existsSync(policyDir)) {
-    const concerns = (await readdir(policyDir, { withFileTypes: true }))
-      .filter(e => e.isDirectory())
-      .sort((a, b) => a.name.localeCompare(b.name))
-    for (const concern of concerns) {
-      const concernDir = join(policyDir, concern.name)
-      const files = (await readdir(concernDir, { withFileTypes: true }))
-        .filter(e => e.isFile() && e.name.endsWith('.mdc'))
-        .sort((a, b) => a.name.localeCompare(b.name))
-      for (const f of files) {
-        sections.push((await readFile(join(concernDir, f.name), 'utf8')).trim())
-      }
+    // '*/*.mdc' → 'concern/file.mdc'; рядкове сортування дає concern-first, потім file
+    const files = await globby('*/*.mdc', { cwd: policyDir, onlyFiles: true, gitignore: false })
+    for (const rel of files.toSorted()) {
+      sections.push((await readFile(join(policyDir, rel), 'utf8')).trim())
     }
   }
 

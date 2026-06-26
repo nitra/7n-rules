@@ -17,6 +17,7 @@
 import { existsSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
+import { globby } from 'globby'
 
 /**
  * @typedef {object} JsConcern
@@ -44,20 +45,12 @@ import { join } from 'node:path'
  */
 async function listJsConcerns(jsDir) {
   if (!existsSync(jsDir)) return []
-  const entries = await readdir(jsDir, { withFileTypes: true })
-  /** @type {JsConcern[]} */
-  const concerns = []
-  for (const entry of entries) {
-    if (!entry.isFile()) continue
-    if (!entry.name.endsWith('.mjs')) continue
-    if (entry.name.endsWith('.test.mjs')) continue
-    if (entry.name.startsWith('fix-')) continue
-    if (entry.name.startsWith('_')) continue
-    if (entry.name.startsWith('.')) continue
-    const name = entry.name.slice(0, -'.mjs'.length)
-    concerns.push({ name })
-  }
-  return concerns.toSorted((a, b) => a.name.localeCompare(b.name))
+  const files = await globby(['*.mjs', '!*.test.mjs', '!fix-*.mjs', '!_*'], {
+    cwd: jsDir,
+    onlyFiles: true,
+    gitignore: false
+  })
+  return files.map(f => ({ name: f.slice(0, -4) })).toSorted((a, b) => a.name.localeCompare(b.name))
 }
 
 /**

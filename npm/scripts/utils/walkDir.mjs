@@ -32,7 +32,7 @@ export async function walkDir(dir, onFile, ignorePaths = []) {
       gitignore: true,
       dot: true,
       onlyFiles: true,
-      ignore: [...ALWAYS_IGNORE, ...extraIgnore],
+      ignore: [...ALWAYS_IGNORE, ...extraIgnore]
     })
   } catch {
     return
