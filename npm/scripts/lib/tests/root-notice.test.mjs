@@ -7,10 +7,10 @@ import { describe, expect, test } from 'vitest'
 import { ROOT_END, ROOT_START, injectRootNotice } from '../root-notice.mjs'
 
 const SKILL = `---
-name: n-start-check
+name: n-taze
 ---
 
-# n-start-check
+# n-taze
 
 Тіло скіла.
 `
@@ -20,8 +20,8 @@ describe('injectRootNotice', () => {
     const out = injectRootNotice(SKILL, true)
     expect(out).toContain(ROOT_START)
     expect(out).toContain(ROOT_END)
-    expect(out.indexOf(ROOT_START)).toBeLessThan(out.indexOf('# n-start-check'))
-    expect(out.indexOf('name: n-start-check')).toBeLessThan(out.indexOf(ROOT_START))
+    expect(out.indexOf(ROOT_START)).toBeLessThan(out.indexOf('# n-taze'))
+    expect(out.indexOf('name: n-taze')).toBeLessThan(out.indexOf(ROOT_START))
   })
 
   test('enabled=true → preflight з pwd + toplevel і STOP на піддиректорії', () => {
@@ -50,8 +50,8 @@ describe('injectRootNotice', () => {
     const withBlock = injectRootNotice(SKILL, true)
     const stripped = injectRootNotice(withBlock, false)
     expect(stripped).not.toContain(ROOT_START)
-    expect(stripped).toContain('# n-start-check')
-    expect(stripped).toContain('name: n-start-check')
+    expect(stripped).toContain('# n-taze')
+    expect(stripped).toContain('name: n-taze')
   })
 
   test('без frontmatter → блок на початку файла', () => {

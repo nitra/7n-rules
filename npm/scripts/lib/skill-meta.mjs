@@ -7,7 +7,7 @@
  *  - `requireRoot` — boolean, опційне: чи скіл вимагає запуску з кореня репо.
  *    Worktree-скіли (`worktree:true`) вимагають кореня неявно (корінь worktree =
  *    його toplevel), тож для них поле зайве. Явний `requireRoot:true` — для
- *    in-place скілів, що мутують CWD без worktree-ізоляції (напр. `n-start-check`).
+ *    in-place скілів, що мутують CWD без worktree-ізоляції (напр. `n-taze`).
  *
  * Цим хелпером користуються `auto-skills.mjs` (автоактивація), `n-cursor.js`
  * (sync + вшивання worktree/root-блоку) і check-концерн `npm-module/js/skill_meta.mjs`,

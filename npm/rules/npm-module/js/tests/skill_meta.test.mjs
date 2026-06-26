@@ -56,8 +56,8 @@ describe('skill_meta check', () => {
 
   test('requireRoot:true без worktree → 0 (валідний in-place root-only скіл)', async () => {
     await withTmpDir(async dir => {
-      await ensureDir(join(dir, 'npm', 'skills', 'start-check'))
-      await writeJson(join(dir, 'npm', 'skills', 'start-check', 'main.json'), {
+      await ensureDir(join(dir, 'npm', 'skills', 'taze'))
+      await writeJson(join(dir, 'npm', 'skills', 'taze', 'main.json'), {
         auto: 'завжди',
         worktree: false,
         requireRoot: true

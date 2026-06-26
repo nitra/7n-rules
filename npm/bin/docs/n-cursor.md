@@ -5,7 +5,7 @@
 Файл `npm/bin/n-cursor.js` — це виконуваний скрипт (shebang `#!/usr/bin/env node`), що слугує єдиною точкою входу CLI пакета `@nitra/cursor`. Скрипт виконує дві ролі:
 
 1. **Синхронізатор пакетних артефактів у проєкті-споживачі** — без аргументів копіює `.mdc`-правила, скіли, slash-команди, генерує `AGENTS.md`, `CLAUDE.md`, синхронізує `.claude/settings.json`, `.cursor/hooks.json`, composite GitHub Action `setup-bun-deps`, `.pi/skills`, а також `.gitignore` для `.worktrees/`.
-2. **Маршрутизатор підкоманд** — диспатчить `fix`, `check`, `rename-yaml-extensions`, `post-tool-use-fix`, `lint`, `lint-ci`, `lint-doc-files`, `fix-doc-files`, `coverage`, `coverage-fix`, `analyze-escalation`, `taze`, `start-check`, `change`, `release`, `skill`, `worktree`, `trace`, `doc-aggregate`, `adr-normalize-local` у відповідні внутрішні модулі пакета.
+2. **Маршрутизатор підкоманд** — диспатчить `rename-yaml-extensions`, `hook`, `lint`, `analyze-escalation`, `taze`, `release`, `skill`, `trace`, `adr-normalize-local`, `doc-aggregate` у відповідні внутрішні модулі пакета.
 
 Скрипт — ES-модуль (`import` синтаксис). Виконує реальні файлові операції в `cwd()` і у каталогах пакету (`BUNDLED_PACKAGE_ROOT`). Усі шляхи відносно поточної робочої директорії проєкту-споживача.
 
@@ -20,7 +20,6 @@
 - `npx @nitra/cursor lint` — data-driven оркестратор lint+конформності: `--full` (весь репо, включно з `full`-правилами), `--read-only` (CI, нуль мутацій); без прапорів — per-file дельта vs origin.
 - `npx @nitra/cursor lint-ci` — те саме у CI-режимі.
 - `npx @nitra/cursor coverage [--fix] [--changed]` — оркестратор покриття та мутаційного тестування.
-- `npx @nitra/cursor change` — створення change-файлу.
 - `npx @nitra/cursor release` — реліз-команда.
 - `npx @nitra/cursor skill list|taze|cursor|claude …` — керування скілами (промпт на stdout, виклик Cursor/Claude CLI).
 - `npx @nitra/cursor worktree …` — керування git-worktree.
@@ -462,7 +461,6 @@ try {
 - `'lint'` → `runLint({ full, readOnly, rules })` (прапори `--full`, `--read-only`; позиційні аргументи — фільтр правил конформності).
 - `'lint-ci'` → `runLint({ ci: true })`.
 - `'coverage'` → динамічний import `../rules/test/coverage/coverage.mjs`, виклик `runCoverageCli({ fix: args.includes('--fix'), changed: args.includes('--changed') })`.
-- `'change'` → динамічний import `../rules/release/change.mjs` → `runChangeCli(args)`.
 - `'release'` → динамічний import `../rules/release/release.mjs` → `runReleaseCli(args)`.
 - `'skill'` → `runSkillsCli(args)` (синхронний).
 - `'worktree'` → `runWorktreeCli(args)`.
@@ -519,7 +517,6 @@ try {
 ### Динамічні (lazy) залежності
 
 - `../rules/test/coverage/coverage.mjs` — `runCoverageCli`.
-- `../rules/release/change.mjs` — `runChangeCli`.
 - `../rules/release/release.mjs` — `runReleaseCli`.
 - `../scripts/dispatcher/trace.mjs` — `runTraceCli`.
 - `../skills/docgen/js/docgen-scan.mjs` — `runDocgenScanCli`, `runDocgenModulesCli`.

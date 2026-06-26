@@ -1546,15 +1546,6 @@ try {
 
       break
     }
-    case 'start-check': {
-      // n-cursor start-check scan|run — детермінована частина smoke-перевірки для
-      // скілу n-start-check: scan виявляє воркспейси зі start і їх тип, run запускає
-      // один із grace-таймаутом і класифікує OK/FAIL. Агент лишається з діагностикою.
-      const { runStartCheckCli } = await import('../skills/start-check/js/check.mjs')
-      process.exitCode = await runStartCheckCli(args)
-
-      break
-    }
     case 'release': {
       const { runReleaseCli } = await import('../rules/release/release.mjs')
       process.exitCode = await runReleaseCli(args)
@@ -1584,7 +1575,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), analyze-escalation, taze, start-check, release, skill, doc-aggregate`
+        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), analyze-escalation, taze, release, skill, doc-aggregate`
       )
       process.exitCode = 1
     }
