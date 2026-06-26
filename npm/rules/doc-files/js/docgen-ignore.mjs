@@ -1,5 +1,5 @@
 /** @see ./docs/docgen-ignore.md */
-import picomatch from 'picomatch'
+import ignore from 'ignore'
 
 /** Базовий список glob-ів для `docgen` ignore. */
 export const DOCGEN_IGNORE_GLOBS = Object.freeze([
@@ -22,7 +22,7 @@ export const DOCGEN_IGNORE_GLOBS = Object.freeze([
   'npm/rules/k8s/js/manifests.mjs'
 ])
 
-const IGNORE_MATCHERS = DOCGEN_IGNORE_GLOBS.map(glob => picomatch(glob, { dot: true }))
+const ig = ignore().add(DOCGEN_IGNORE_GLOBS)
 
 /**
  * Нормалізує відносний шлях до posix-формату для glob-matching.
@@ -36,7 +36,7 @@ function toPosixRelPath(relPath) {
 /**
  * Перевіряє, чи шлях має бути пропущений `docgen`.
  * Для `kind = 'dir'` це працює і на піддерево каталогу, тож glob на кшталт
- * `**\\/demo/**` спрацьовує на `demo/x` під час рекурсивного обходу.
+ * `**\/demo/**` спрацьовує на `demo/x` під час рекурсивного обходу.
  * @param {string} relPath відносний шлях від кореня проєкту
  * @param {'path'|'dir'} [kind] тип перевірки (за замовчуванням `'path'`)
  * @returns {boolean} `true`, якщо шлях ігнорується
@@ -47,7 +47,8 @@ export function isDocgenIgnored(relPath, kind = 'path') {
   }
   const posixRelPath = toPosixRelPath(relPath)
   if (kind === 'dir') {
-    return IGNORE_MATCHERS.some(match => match(posixRelPath) || match(`${posixRelPath}/__docgen__`))
+    // `**/demo/**` не матчить `demo` напряму — перевіряємо фіктивний файл всередині
+    return ig.ignores(posixRelPath) || ig.ignores(`${posixRelPath}/__docgen__`)
   }
-  return IGNORE_MATCHERS.some(match => match(posixRelPath))
+  return ig.ignores(posixRelPath)
 }

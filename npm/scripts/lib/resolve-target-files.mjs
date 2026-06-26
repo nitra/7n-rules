@@ -4,7 +4,7 @@
  * Дві форми у `target.json:files`:
  *   - `{ "single": "<rel>" }` — конкретний відносний шлях. Якщо `existsSync(root/single)` → `[single]`;
  *     інакше `[]` (caller сам вирішує fail vs silent skip за `required`).
- *   - `{ "walkGlob": <glob | glob[]> }` — picomatch проти posix-відносних шляхів, отриманих обходом
+ *   - `{ "walkGlob": <glob | glob[]> }` — `ignore` проти posix-відносних шляхів, отриманих обходом
  *     `walkDir` від `root` із загальними skip-ами та `.n-cursor.json:ignore`. Обхід кешований у
  *     `walkCache` (Map ключ — підпис ignorePaths) — повторні таргети з тим самим набором ignore
  *     перевикористовують список без нового readdir.
@@ -15,7 +15,7 @@
 import { existsSync } from 'node:fs'
 import { isAbsolute, join, normalize, relative, sep } from 'node:path'
 
-import picomatch from 'picomatch'
+import ignore from 'ignore'
 
 import { loadCursorIgnorePaths } from './load-cursor-config.mjs'
 import { walkDir } from '../utils/walkDir.mjs'
@@ -96,14 +96,8 @@ export async function resolveTargetFiles(filesSpec, root, walkCache) {
     const ignorePaths = await loadCursorIgnorePaths(root)
     const all = await getAllFilesCached(root, ignorePaths, walkCache)
     const globs = Array.isArray(filesSpec.walkGlob) ? filesSpec.walkGlob : [filesSpec.walkGlob]
-    // picomatch у масиві трактує `!neg` як ОКРЕМИЙ позитивний матчер «не-neg» (some-OR логіка),
-    // тож наївне `picomatch(['pos','!neg'])` повертає true майже на всьому. Розділяємо вручну:
-    // позитиви join-имо через picomatch(...), негативні фільтруємо окремим isExcluded.
-    const positives = globs.filter(g => !g.startsWith('!'))
-    const negatives = globs.filter(g => g.startsWith('!')).map(g => g.slice(1))
-    const isMatch = positives.length > 0 ? picomatch(positives, { dot: false }) : () => false
-    const isExcluded = negatives.length > 0 ? picomatch(negatives, { dot: false }) : () => false
-    return all.filter(rel => isMatch(rel) && !isExcluded(rel)).map(rel => join(root, rel))
+    const ig = ignore().add(globs)
+    return all.filter(rel => ig.ignores(rel)).map(rel => join(root, rel))
   }
   throw new Error(`target.json: files має містити single або walkGlob (отримано: ${JSON.stringify(filesSpec)})`)
 }

@@ -3,7 +3,7 @@ type: JS Module
 title: docgen-ignore.mjs
 resource: npm/rules/doc-files/js/docgen-ignore.mjs
 docgen:
-  crc: c17cd785
+  crc: 00687334
   score: 100
 ---
 
