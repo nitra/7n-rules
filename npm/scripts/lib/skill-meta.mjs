@@ -19,6 +19,15 @@ import { join } from 'node:path'
 /** Літерал безумовної автоактивації (українською, як у `auto-skills.mjs`). */
 export const SKILL_ALWAYS = 'завжди'
 
+/** Допустимі тири моделі для агентного виконання скіла (`pi`-runner). */
+export const SKILL_TIERS = ['min', 'avg', 'max']
+
+/**
+ * Дефолтна тира за відсутності `main.json.tier`: скіли відкриті й агентні, слабка
+ * локальна модель іде в мета-рамблінг, тож безпечніше дефолтити в найсильніший тир.
+ */
+export const DEFAULT_SKILL_TIER = 'max'
+
 /**
  * @typedef {{ always: true } | { rules: string[] }} SkillAutoSpec
  */
@@ -48,6 +57,19 @@ export function parseSkillAutoSpec(value) {
  */
 export function skillRequiresRoot(meta) {
   return meta?.worktree === true || meta?.requireRoot === true
+}
+
+/**
+ * Тира моделі для агентного виконання скіла (`pi`-runner). Повертає `main.json.tier`,
+ * якщо це валідний тир, інакше — `DEFAULT_SKILL_TIER` (`max`).
+ * @param {Record<string, unknown> | null} meta розпарсений `main.json` (або null)
+ * @returns {'min'|'avg'|'max'} тира
+ */
+export function skillTier(meta) {
+  const tier = meta?.tier
+  return typeof tier === 'string' && SKILL_TIERS.includes(tier)
+    ? /** @type {'min'|'avg'|'max'} */ (tier)
+    : DEFAULT_SKILL_TIER
 }
 
 /**

@@ -92,14 +92,14 @@ describe('listSkillIds / buildSkillPrompt', () => {
 })
 
 describe('runSkillsCli', () => {
-  test('list виводить id скілів', () => {
+  test('list виводить id скілів', async () => {
     const root = join(tmpdir(), `skills-cli-run-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
     mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
     writeFileSync(join(skillsRoot, 'fix', 'SKILL.md'), '# Fix\n')
 
     const lines = []
-    const code = runSkillsCli(['list'], {
+    const code = await runSkillsCli(['list'], {
       packageRoot: root,
       projectDir: root,
       log: line => lines.push(line)
@@ -109,14 +109,14 @@ describe('runSkillsCli', () => {
     expect(lines).toEqual(['Available skills:', '- fix'])
   })
 
-  test('skill <id> — промпт на stdout', () => {
+  test('skill <id> — промпт на stdout', async () => {
     const root = join(tmpdir(), `skills-cli-id-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
     mkdirSync(join(skillsRoot, 'taze'), { recursive: true })
     writeFileSync(join(skillsRoot, 'taze', 'SKILL.md'), '# Taze\n')
 
     const lines = []
-    const code = runSkillsCli(['taze'], {
+    const code = await runSkillsCli(['taze'], {
       packageRoot: root,
       projectDir: root,
       log: line => lines.push(line)
@@ -126,14 +126,14 @@ describe('runSkillsCli', () => {
     expect(lines.join('\n')).toContain('# Taze')
   })
 
-  test('skill <id> "task"', () => {
+  test('skill <id> "task"', async () => {
     const root = join(tmpdir(), `skills-cli-task-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
     mkdirSync(join(skillsRoot, 'lint'), { recursive: true })
     writeFileSync(join(skillsRoot, 'lint', 'SKILL.md'), '# Lint\n')
 
     const lines = []
-    const code = runSkillsCli(['lint', 'run', 'lint'], {
+    const code = await runSkillsCli(['lint', 'run', 'lint'], {
       packageRoot: root,
       projectDir: root,
       log: line => lines.push(line)
@@ -143,12 +143,12 @@ describe('runSkillsCli', () => {
     expect(lines.join('\n')).toContain('run lint')
   })
 
-  test('cursor без skill — помилка', () => {
+  test('cursor без skill — помилка', async () => {
     const root = join(tmpdir(), `skills-cli-cursor-${Date.now()}`)
     mkdirSync(join(root, 'skills'), { recursive: true })
 
     const errors = []
-    const code = runSkillsCli(['cursor'], {
+    const code = await runSkillsCli(['cursor'], {
       packageRoot: root,
       projectDir: root,
       log: () => {
@@ -161,12 +161,12 @@ describe('runSkillsCli', () => {
     expect(errors.join('\n')).toMatch(SKILL_NAME_REQUIRED_RE)
   })
 
-  test('порожній argv → usage + exit 1', () => {
+  test('порожній argv → usage + exit 1', async () => {
     const root = join(tmpdir(), `skills-cli-empty-${Date.now()}`)
     mkdirSync(join(root, 'skills'), { recursive: true })
 
     const errors = []
-    const code = runSkillsCli([], {
+    const code = await runSkillsCli([], {
       packageRoot: root,
       projectDir: root,
       log: () => {
@@ -179,12 +179,12 @@ describe('runSkillsCli', () => {
     expect(errors.join('\n')).toMatch(USAGE_HINT_RE)
   })
 
-  test('невідома підкоманда — usage', () => {
+  test('невідома підкоманда — usage', async () => {
     const root = join(tmpdir(), `skills-cli-usage-${Date.now()}`)
     mkdirSync(join(root, 'skills'), { recursive: true })
 
     const errors = []
-    const code = runSkillsCli(['nope'], {
+    const code = await runSkillsCli(['nope'], {
       packageRoot: root,
       projectDir: root,
       log: () => {
@@ -197,7 +197,79 @@ describe('runSkillsCli', () => {
     expect(errors.join('\n')).toMatch(USAGE_HINT_RE)
   })
 
-  test('claude runner без CLI у PATH → кидає (lines 39-40, 133-135, 202-204)', () => {
+  test('pi runner: викликає runPiAgentSkill і повертає 0 при ok', async () => {
+    const root = join(tmpdir(), `skills-cli-pi-ok-${Date.now()}`)
+    const skillsRoot = join(root, 'skills')
+    mkdirSync(join(skillsRoot, 'taze'), { recursive: true })
+    writeFileSync(join(skillsRoot, 'taze', 'SKILL.md'), '# Taze\n')
+    writeFileSync(join(skillsRoot, 'taze', 'main.json'), '{ "worktree": true, "tier": "avg" }')
+
+    const calls = []
+    const code = await runSkillsCli(['pi', 'n-taze', 'онови'], {
+      packageRoot: root,
+      projectDir: root,
+      log: () => {},
+      deps: {
+        runPiAgentSkill: async (prompt, opts) => {
+          calls.push({ prompt, opts })
+          return { ok: true, telemetry: {}, error: null }
+        }
+      }
+    })
+
+    expect(code).toBe(0)
+    expect(calls).toHaveLength(1)
+    expect(calls[0].prompt).toContain('# Taze')
+    expect(calls[0].prompt).toContain('онови')
+    expect(calls[0].opts.skillId).toBe('taze')
+    expect(calls[0].opts.tier).toBe('avg')
+    expect(calls[0].opts.cwd).toBe(root)
+  })
+
+  test('pi runner: дефолт tier=max за відсутності main.json', async () => {
+    const root = join(tmpdir(), `skills-cli-pi-def-${Date.now()}`)
+    const skillsRoot = join(root, 'skills')
+    mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
+    writeFileSync(join(skillsRoot, 'fix', 'SKILL.md'), '# Fix\n')
+
+    let seenTier
+    await runSkillsCli(['pi', 'fix'], {
+      packageRoot: root,
+      projectDir: root,
+      log: () => {},
+      deps: {
+        runPiAgentSkill: async (_prompt, opts) => {
+          seenTier = opts.tier
+          return { ok: true, telemetry: {}, error: null }
+        }
+      }
+    })
+
+    expect(seenTier).toBe('max')
+  })
+
+  test('pi runner: error → exit 1 + logError', async () => {
+    const root = join(tmpdir(), `skills-cli-pi-err-${Date.now()}`)
+    const skillsRoot = join(root, 'skills')
+    mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
+    writeFileSync(join(skillsRoot, 'fix', 'SKILL.md'), '# Fix\n')
+
+    const errors = []
+    const code = await runSkillsCli(['pi', 'fix'], {
+      packageRoot: root,
+      projectDir: root,
+      log: () => {},
+      logError: line => errors.push(line),
+      deps: {
+        runPiAgentSkill: async () => ({ ok: false, telemetry: null, error: 'модель не знайдена: x/y' })
+      }
+    })
+
+    expect(code).toBe(1)
+    expect(errors.join('\n')).toContain('модель не знайдена')
+  })
+
+  test('claude runner: deprecated-warning + без CLI у PATH → кидає', async () => {
     const root = join(tmpdir(), `skills-cli-claude-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
     mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
@@ -208,7 +280,7 @@ describe('runSkillsCli', () => {
     env.PATH = join(tmpdir(), 'empty-path-isolated')
     let code
     try {
-      code = runSkillsCli(['claude', 'fix'], {
+      code = await runSkillsCli(['claude', 'fix'], {
         packageRoot: root,
         projectDir: root,
         log: () => {
@@ -221,10 +293,11 @@ describe('runSkillsCli', () => {
     }
 
     expect(code).toBe(1)
+    expect(errors.join('\n')).toContain('[deprecated]')
     expect(errors.join('\n')).toContain('claude')
   })
 
-  test('cursor runner без CLI у PATH → кидає (lines 39-40, 147-148)', () => {
+  test('cursor runner: deprecated-warning + без CLI у PATH → кидає', async () => {
     const root = join(tmpdir(), `skills-cli-cursor-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
     mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
@@ -235,7 +308,7 @@ describe('runSkillsCli', () => {
     env.PATH = join(tmpdir(), 'empty-path-isolated')
     let code
     try {
-      code = runSkillsCli(['cursor', 'fix'], {
+      code = await runSkillsCli(['cursor', 'fix'], {
         packageRoot: root,
         projectDir: root,
         log: () => {

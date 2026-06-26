@@ -17,6 +17,14 @@
     "worktree": {
       "type": "boolean",
       "description": "true — виконувати скіл в окремому git-worktree, один інстанс за раз (без паралельного запуску); false — у worktree не виконується."
+    },
+    "requireRoot": {
+      "type": "boolean",
+      "description": "true — скіл мутує CWD без worktree-ізоляції і має стартувати з кореня репо. Для worktree:true поле зайве (корінь гарантує worktree)."
+    },
+    "tier": {
+      "description": "Тира моделі для агентного виконання скіла через pi-runner. За відсутності — \"max\" (відкриті скіли потребують сильної моделі).",
+      "enum": ["min", "avg", "max"]
     }
   }
 }

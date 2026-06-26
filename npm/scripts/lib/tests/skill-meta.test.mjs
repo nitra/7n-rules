@@ -2,7 +2,14 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { SKILL_ALWAYS, parseSkillAutoSpec, readSkillMetaRaw, skillRequiresRoot } from '../skill-meta.mjs'
+import {
+  DEFAULT_SKILL_TIER,
+  SKILL_ALWAYS,
+  parseSkillAutoSpec,
+  readSkillMetaRaw,
+  skillRequiresRoot,
+  skillTier
+} from '../skill-meta.mjs'
 import { withTmpDir, writeJson } from '../../utils/test-helpers.mjs'
 
 describe('parseSkillAutoSpec', () => {
@@ -76,5 +83,21 @@ describe('skillRequiresRoot', () => {
   test('null / порожнє → false', () => {
     expect(skillRequiresRoot(null)).toBe(false)
     expect(skillRequiresRoot({})).toBe(false)
+  })
+})
+
+describe('skillTier', () => {
+  test('валідний tier → повертається як є', () => {
+    expect(skillTier({ tier: 'min' })).toBe('min')
+    expect(skillTier({ tier: 'avg' })).toBe('avg')
+    expect(skillTier({ tier: 'max' })).toBe('max')
+  })
+
+  test('відсутній / невалідний tier → дефолт max', () => {
+    expect(skillTier({})).toBe(DEFAULT_SKILL_TIER)
+    expect(skillTier(null)).toBe(DEFAULT_SKILL_TIER)
+    expect(skillTier({ tier: 'huge' })).toBe(DEFAULT_SKILL_TIER)
+    expect(skillTier({ tier: 5 })).toBe(DEFAULT_SKILL_TIER)
+    expect(DEFAULT_SKILL_TIER).toBe('max')
   })
 })

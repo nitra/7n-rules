@@ -3,7 +3,7 @@ import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
-import { parseSkillAutoSpec, readSkillMetaRaw } from '../../../scripts/lib/skill-meta.mjs'
+import { SKILL_TIERS, parseSkillAutoSpec, readSkillMetaRaw } from '../../../scripts/lib/skill-meta.mjs'
 
 /**
  * Перевіряє поля сирого meta.json одного скіла (без auto.md / відсутності файлу).
@@ -30,6 +30,10 @@ function checkSkillFields(id, raw, reporter) {
     reporter.fail(
       `skills/${id}: requireRoot:false суперечить worktree:true (worktree вже вимагає кореня — прибери поле)`
     )
+    ok = false
+  }
+  if (raw.tier !== undefined && !(typeof raw.tier === 'string' && SKILL_TIERS.includes(raw.tier))) {
+    reporter.fail(`skills/${id}: main.json.tier має бути ${SKILL_TIERS.map(t => `"${t}"`).join(' | ')}`)
     ok = false
   }
   return ok

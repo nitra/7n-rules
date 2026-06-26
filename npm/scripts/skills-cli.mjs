@@ -3,14 +3,16 @@
  *
  * Скіли читаються з `npm/skills/<id>/SKILL.md` установленого пакета (або кешу `npx`).
  * Промпт збирає інструкцію скілу + контекст поточного CWD (`package.json`, `tsconfig.json`,
- * `.n-cursor.json`) — далі stdout або делегування в `cursor-agent` / `claude`.
+ * `.n-cursor.json`) — далі stdout або виконання через вбудований pi-агент
+ * (рекомендовано), чи deprecated-делегування в `cursor-agent` / `claude`.
  *
  * Підтримувані формати:
  *   `npx \@nitra/cursor skill list`
  *   `npx \@nitra/cursor skill taze`
- *   `npx \@nitra/cursor skill cursor taze`
- *   `npx \@nitra/cursor skill cursor taze "онови залежності"`
- *   `npx \@nitra/cursor skill claude taze` — те саме через Claude Code CLI
+ *   `npx \@nitra/cursor skill pi taze` — виконати через вбудований pi-агент (рекомендовано)
+ *   `npx \@nitra/cursor skill pi taze "онови залежності"`
+ *   `npx \@nitra/cursor skill cursor taze` — deprecated: зовнішній Cursor CLI
+ *   `npx \@nitra/cursor skill claude taze` — deprecated: зовнішній Claude Code CLI
  */
 
 import { spawnSync } from 'node:child_process'
@@ -19,14 +21,18 @@ import { dirname, join } from 'node:path'
 import { cwd } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-const RUNNERS = new Set(['cursor', 'claude'])
+import { readSkillMetaRaw, skillTier } from './lib/skill-meta.mjs'
+
+/** Виконавці скіла. `pi` — вбудований (рекомендований); `cursor`/`claude` — deprecated зовнішні CLI. */
+const RUNNERS = new Set(['pi', 'cursor', 'claude'])
 
 const USAGE_LINES = [
   'Usage:',
   '  npx @nitra/cursor skill list',
   '  npx @nitra/cursor skill <skill-id> ["task"]',
-  '  npx @nitra/cursor skill cursor <skill-id> ["task"]',
-  '  npx @nitra/cursor skill claude <skill-id> ["task"]',
+  '  npx @nitra/cursor skill pi <skill-id> ["task"]      # вбудований pi-агент (рекомендовано)',
+  '  npx @nitra/cursor skill cursor <skill-id> ["task"]  # deprecated',
+  '  npx @nitra/cursor skill claude <skill-id> ["task"]  # deprecated',
   '',
   'Skill id: каталог у пакеті (lint, taze, …) або з префіксом n- (n-lint → lint).'
 ]
@@ -124,15 +130,43 @@ export function buildSkillPrompt(skillsRoot, rawSkillName, task, projectDir = cw
 }
 
 /**
+ * Виконує скіл через вбудований pi-агент (рекомендований шлях). Модель — з тиру скіла
+ * (`main.json.tier`, дефолт `max`); `cwd` = каталог виклику (worktree, за потреби,
+ * створює сам скіл за SKILL.md-preflight). Pi вантажиться lazy.
+ * @param {string} prompt готовий `buildSkillPrompt`
+ * @param {string} rawSkillName ім'я скілу з CLI (можливо з префіксом n-)
+ * @param {string} skillsRoot абсолютний шлях до `skills/` пакета
+ * @param {string} projectDir робочий каталог сесії (= каталог виклику)
+ * @param {(line: string) => void} logError вивід помилок
+ * @param {{ runPiAgentSkill?: Function }} deps інжекти для тестів
+ * @returns {Promise<number>} exit code (0 — ok)
+ */
+async function runPiRunner(prompt, rawSkillName, skillsRoot, projectDir, logError, deps = {}) {
+  const skillId = normalizeSkillId(rawSkillName)
+  const tier = skillTier(readSkillMetaRaw(join(skillsRoot, skillId)))
+  const runPiAgentSkill = deps.runPiAgentSkill ?? (await import('../lib/pi-agent-skill.mjs')).runPiAgentSkill
+  const result = await runPiAgentSkill(prompt, { skillId, tier, cwd: projectDir })
+  if (result.error) {
+    logError(result.error)
+  }
+  return result.ok ? 0 : 1
+}
+
+/**
+ * Deprecated: делегує у зовнішній `claude -p` / `cursor-agent -p`. Лишається як fallback
+ * для тих, у кого pi-модель ще не налаштована; буде прибрано (мігруй на `skill pi`).
  * @param {'claude' | 'cursor'} kind який LLM CLI запускати
  * @param {string} prompt промпт для передачі у stdin
  * @param {string} projectDir робочий каталог дочірнього процесу
+ * @param {(line: string) => void} logError вивід попередження/помилок
  * @returns {number} exit code дочірнього процесу
  */
-function runLlmCli(kind, prompt, projectDir) {
+function runLlmCli(kind, prompt, projectDir, logError) {
+  logError(`[deprecated] skill ${kind} → use 'skill pi'; зовнішній CLI буде прибрано`)
+
   if (kind === 'claude') {
     if (!isBinaryInPath('claude')) {
-      throw new Error('`claude` not found in PATH. Install Claude Code CLI or use `skill cursor`.')
+      throw new Error('`claude` not found in PATH. Install Claude Code CLI or use `skill pi`.')
     }
 
     const result = spawnSync('claude', ['-p'], {
@@ -145,7 +179,7 @@ function runLlmCli(kind, prompt, projectDir) {
   }
 
   if (!isBinaryInPath('cursor-agent')) {
-    throw new Error('`cursor-agent` not found in PATH. Install Cursor CLI or use `skill claude`.')
+    throw new Error('`cursor-agent` not found in PATH. Install Cursor CLI or use `skill pi`.')
   }
 
   const result = spawnSync('cursor-agent', ['-p'], {
@@ -168,15 +202,16 @@ export function resolveBundledPackageRoot(fromModuleUrl = import.meta.url) {
 
 /**
  * @param {string[]} argv аргументи після `skill` у `n-cursor`
- * @param {{ packageRoot?: string, projectDir?: string, log?: (line: string) => void, logError?: (line: string) => void }} [options] перевизначення кореня пакета, каталогу проєкту та функцій виводу (для тестів)
- * @returns {number} exit code
+ * @param {{ packageRoot?: string, projectDir?: string, log?: (line: string) => void, logError?: (line: string) => void, deps?: { runPiAgentSkill?: Function } }} [options] перевизначення кореня пакета, каталогу проєкту, функцій виводу та інжектів (для тестів)
+ * @returns {Promise<number>} exit code
  */
-export function runSkillsCli(argv, options = {}) {
+export async function runSkillsCli(argv, options = {}) {
   const log = options.log ?? (line => console.log(line))
   const logError = options.logError ?? (line => console.error(line))
   const packageRoot = options.packageRoot ?? resolveBundledPackageRoot()
   const skillsRoot = join(packageRoot, 'skills')
   const projectDir = options.projectDir ?? cwd()
+  const deps = options.deps ?? {}
 
   const [first, second, ...rest] = argv
   const skillIds = listSkillIds(skillsRoot)
@@ -201,7 +236,10 @@ export function runSkillsCli(argv, options = {}) {
       }
       const task = rest.join(' ')
       const prompt = buildSkillPrompt(skillsRoot, second, task, projectDir)
-      return runLlmCli(/** @type {'claude' | 'cursor'} */ (first), prompt, projectDir)
+      if (first === 'pi') {
+        return await runPiRunner(prompt, second, skillsRoot, projectDir, logError, deps)
+      }
+      return runLlmCli(/** @type {'claude' | 'cursor'} */ (first), prompt, projectDir, logError)
     }
 
     if (skillIds.includes(normalizeSkillId(first))) {
