@@ -57761,9 +57761,9 @@ test('0 — повний валідний setup', async () => {
   | 104 | `: [` | `""` | StringLiteral |
   | 104 | ``|`""`| StringLiteral |
 | 106 |`am {{ pass: (msg: s` | `true` | ConditionalExpression |
-                                                      | 106 | `am {{ pass: (msg: s` | `false` | ConditionalExpression |
-                                                      | 106 | `am {{ pass: (msg: s` | `owners.length !== 1` | EqualityOperator |
-                                                      | 106 | `ing) => void, fail: (msg: string) => void }} reporter callback-и `pass`/`fail` для звіту
+                                                        | 106 | `am {{ pass: (msg: s` | `false` | ConditionalExpression |
+                                                        | 106 | `am {{ pass: (msg: s` | `owners.length !== 1` | EqualityOperator |
+                                                        | 106 | `ing) => void, fail: (msg: string) => void }} reporter callback-и `pass`/`fail` для звіту
 - @param {Record<string, string>} scripts scripts з package.json
 - @param {{ rules: Set<string>, disabled: Set<string> }} cursorRules `rules` та `disable-rules`
   \*/
@@ -60567,8 +60567,8 @@ test('повертає true коли vitest у devDependencies', async () => {
   const nodeEngine = pkg.engines?.node
   if`|`{}`| BlockStatement |
 | 247 |` {{ engines?: { node` | `true` | ConditionalExpression |
-                                                      | 247 | ` {{ engines?: { node` | `false` | ConditionalExpression |
-                                                      | 247 | ` string } }} pkg розпарсений package.json
+                                                        | 247 | ` {{ engines?: { node` | `false` | ConditionalExpression |
+                                                        | 247 | ` string } }} pkg розпарсений package.json
 - @param {(msg: string) => void} passFn callback при успішній перевірці
 - @param {(msg: string) => void} failFn callback при помилці
   \*/

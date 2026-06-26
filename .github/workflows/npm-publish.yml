@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          persist-credentials: true # release пушить commit-back + тег
+          persist-credentials: false
           fetch-depth: 0
 
       - uses: ./.github/actions/setup-bun-deps
