@@ -16,11 +16,12 @@ import { CLOUD_AVG, CLOUD_MIN, LOCAL_MIN } from '../../../lib/models.mjs'
 const DEFAULT_MAX_AVG = 3
 
 /**
- * Timeout одного LLM-виклику за тиром. Локальні рунги **fail-fast**: не палити
- * стіну 120s на повільному 4b (curl exit 28) — швидше абортнути й ескалувати.
- * Хмарні — повний. Перевизначення: `N_LOCAL_FIX_TIMEOUT_MS` / `N_CLOUD_FIX_TIMEOUT_MS`.
+ * Timeout одного LLM-виклику (або всієї агентної сесії) за тиром.
+ * Локальні рунги — 5 хвилин: 4b модель повільна, основний backstop — turn-ceiling (~50).
+ * Хмарні — 2 хвилини: API-виклик швидкий, перевищення = transport-помилка.
+ * Перевизначення: `N_LOCAL_FIX_TIMEOUT_MS` / `N_CLOUD_FIX_TIMEOUT_MS`.
  */
-const LOCAL_TIMEOUT_MS = Number(env.N_LOCAL_FIX_TIMEOUT_MS) || 45_000
+const LOCAL_TIMEOUT_MS = Number(env.N_LOCAL_FIX_TIMEOUT_MS) || 300_000
 const CLOUD_TIMEOUT_MS = Number(env.N_CLOUD_FIX_TIMEOUT_MS) || 120_000
 
 /** Маркер дружнього повідомлення про відсутній API-ключ (з `llm-worker.callModel`). */

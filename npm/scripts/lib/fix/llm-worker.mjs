@@ -47,54 +47,71 @@ function extractFailPaths(output) {
 }
 
 /**
- * Для правил з `policy/<concern>/` підбирає лише ті concern-.mdc, що відповідають
- * файлам з ❌-рядків violation output. Читає безпосередньо з пакету (`PACKAGE_RULES_DIR`),
- * тому не потребує pre-generation. Fallback — null (→ повний n-{id}.mdc у caller).
+ * Збирає .mdc-контекст правила з двох джерел у пакеті (`PACKAGE_RULES_DIR`):
+ *   - `js/<check>.mdc`      — описи check-логіки (завжди всі, відсортовані за іменем);
+ *   - `policy/<c>/<c>.mdc` — concern-специфічний контент: вибираємо лише ті concern/.mdc,
+ *                         чий `target.json → files.single` збігається з failing paths
+ *                         у violation output; якщо жоден не збігається — включаємо всі.
  * @param {string} ruleId ID правила
  * @param {string} violationOutput violation output
- * @returns {string|null} конкатенація релевантних .mdc або null
+ * @returns {string|null} конкатенація зібраних .mdc або null, якщо нічого не знайдено
  */
-function selectSubCheckMdc(ruleId, violationOutput) {
-  const policyDir = join(PACKAGE_RULES_DIR, ruleId, 'policy')
-  if (!existsSync(policyDir)) return null
+function readRuleMdc(ruleId, violationOutput) {
+  const ruleDir = join(PACKAGE_RULES_DIR, ruleId)
+  const parts = []
 
-  const failPaths = extractFailPaths(violationOutput)
-  if (failPaths.length === 0) return null
-
-  const matched = []
-  let concerns
-  try {
-    concerns = readdirSync(policyDir, { withFileTypes: true })
-  } catch {
-    return null
+  // 1. js/**/*.mdc — завжди всі
+  const jsDir = join(ruleDir, 'js')
+  if (existsSync(jsDir)) {
+    let jsFiles
+    try {
+      jsFiles = readdirSync(jsDir)
+        .filter(f => f.endsWith('.mdc'))
+        .sort()
+    } catch {
+      jsFiles = []
+    }
+    for (const f of jsFiles) parts.push(readFileSync(join(jsDir, f), 'utf8').trim())
   }
 
-  for (const entry of concerns) {
-    if (!entry.isDirectory()) continue
-    const concernDir = join(policyDir, entry.name)
-    const targetPath = join(concernDir, 'target.json')
-    if (!existsSync(targetPath)) continue
-
-    let target
+  // 2. policy/**/*.mdc — matched через target.json; fallback — всі
+  const policyDir = join(ruleDir, 'policy')
+  if (existsSync(policyDir)) {
+    const failPaths = extractFailPaths(violationOutput)
+    let concerns
     try {
-      target = JSON.parse(readFileSync(targetPath, 'utf8'))
+      concerns = readdirSync(policyDir, { withFileTypes: true })
     } catch {
-      continue
+      concerns = []
     }
 
-    const targetFile = target?.files?.single
-    if (!targetFile) continue // walkGlob та інші типи → skip, fallback на main.mdc
+    const all = []
+    const matched = []
+    for (const entry of concerns) {
+      if (!entry.isDirectory()) continue
+      const concernDir = join(policyDir, entry.name)
+      const mdcEntry = readdirSync(concernDir).find(f => f.endsWith('.mdc'))
+      if (!mdcEntry) continue
+      const content = readFileSync(join(concernDir, mdcEntry), 'utf8').trim()
+      all.push(content)
 
-    // Перевіряємо чи хоч один failing path закінчується на targetFile
-    const hit = failPaths.some(p => p === targetFile || p.endsWith(`/${targetFile}`))
-    if (!hit) continue
+      const targetPath = join(concernDir, 'target.json')
+      if (!existsSync(targetPath)) continue
+      let target
+      try {
+        target = JSON.parse(readFileSync(targetPath, 'utf8'))
+      } catch {
+        continue
+      }
+      const targetFile = target?.files?.single
+      if (!targetFile) continue
+      if (failPaths.some(p => p === targetFile || p.endsWith(`/${targetFile}`))) matched.push(content)
+    }
 
-    const mdcEntry = readdirSync(concernDir).find(f => f.endsWith('.mdc'))
-    if (!mdcEntry) continue
-    matched.push(readFileSync(join(concernDir, mdcEntry), 'utf8').trim())
+    parts.push(...(matched.length > 0 ? matched : all))
   }
 
-  return matched.length > 0 ? matched.join('\n\n') : null
+  return parts.length > 0 ? parts.join('\n\n') : null
 }
 
 /**
@@ -252,7 +269,8 @@ function callModel(prompt, model, caller, timeoutMs, thinkingBudget) {
  *   `model` — перевизначення моделі; `feedback` — контекст попереднього рунга
  *   драбини (retry-with-feedback); `caller` — мітка для wire-trace; `timeoutMs` —
  *   per-tier ліміт виклику (драбина: локалі fail-fast, хмара повний);
- *   `thinkingBudget` — кількість thinking-токенів для omlx (дефолт `DEFAULT_THINKING_BUDGET`)
+ *   `thinkingBudget` — кількість thinking-токенів для omlx (дефолт `DEFAULT_THINKING_BUDGET`).
+ *   `timeoutMs` — per-tier ліміт: локальні 300s (4b повільна, backstop — turn-ceiling), хмарні 120s.
  * @returns {{ ok: boolean, error?: string, changes: Array<{path:string}>, diagnosis: string|null, reasoning: string|null, reasoningSource: string|null, promptSummary: object }}
  */
 export function runLlmWorker(ruleId, violationOutput, projectRoot, opts = {}) {
@@ -262,11 +280,8 @@ export function runLlmWorker(ruleId, violationOutput, projectRoot, opts = {}) {
   const timeoutMs = opts.timeoutMs
   const thinkingBudget = opts.thinkingBudget ?? DEFAULT_THINKING_BUDGET
 
-  // 1. Читаємо rule .mdc: спробуємо sub-check mdc для конкретної перевірки,
-  //    якщо не вдалося — fallback на повний n-{id}.mdc.
-  const subMdc = selectSubCheckMdc(ruleId, violationOutput)
-  const mdcPath = join(projectRoot, '.cursor', 'rules', `n-${ruleId}.mdc`)
-  const ruleMdc = subMdc ?? (existsSync(mdcPath) ? readFileSync(mdcPath, 'utf8') : '(rule file not found)')
+  // 1. Читаємо rule .mdc з джерела пакету: js/**/*.mdc + policy/**/*.mdc.
+  const ruleMdc = readRuleMdc(ruleId, violationOutput) ?? '(rule file not found)'
 
   // 2. Витягуємо файли з violation output і читаємо їх
   const files = readFilesForFix(extractFilePaths(violationOutput), projectRoot)
@@ -274,7 +289,6 @@ export function runLlmWorker(ruleId, violationOutput, projectRoot, opts = {}) {
   // 3. Будуємо summary промпту (для verbose-блоку) до виклику моделі
   const promptSummary = {
     ruleMdcLen: ruleMdc.length,
-    subCheckMdc: !!subMdc,
     violationLen: violationOutput.length,
     filesCount: files.length,
     filesTotalBytes: files.reduce((s, f) => s + f.content.length, 0),

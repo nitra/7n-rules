@@ -166,22 +166,14 @@ async function runPerFileRules(ids, ctx) {
 }
 
 /**
- * Конформність-фаза `--full` (поглинула `fix`): escalation-аналітику обрамляє зсувом логу
- * (записи саме цього прогону), у fix-режимі по конформності викликає аналіз.
+ * Конформність-фаза `--full`.
  * @param {string} cwd корінь
  * @param {boolean} readOnly лише детект
  * @param {(s: string) => void} log логер
  * @returns {Promise<number>} код конформності
  */
 async function runFullConformancePhase(cwd, readOnly, log) {
-  const { escalationLogSize, maybeAnalyzeEscalation, reportRunStats } = await import('./fix/analyze-escalation.mjs')
-  const escOffset = readOnly ? 0 : escalationLogSize()
-  const conformanceCode = await runConformance(cwd, readOnly, log)
-  if (!readOnly) {
-    reportRunStats(escOffset, log) // резюме викликів моделей (локальна / cloud-min / cloud-avg)
-    maybeAnalyzeEscalation(cwd, escOffset, log)
-  }
-  return conformanceCode
+  return runConformance(cwd, readOnly, log)
 }
 
 /**

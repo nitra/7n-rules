@@ -8,7 +8,6 @@ resource: npm/scripts/lib/fix/
 
 | Файл                                                  | Тип       |
 | ----------------------------------------------------- | --------- |
-| [analyze-escalation.mjs](analyze-escalation.md)       | JS Module |
 | [discover-t0-patterns.mjs](discover-t0-patterns.md)   | JS Module |
 | [escalation-log.mjs](escalation-log.md)               | JS Module |
 | [llm-fix-apply.mjs](llm-fix-apply.md)                 | JS Module |

@@ -85,14 +85,14 @@ describe('buildLadder', () => {
     expect(l.map(r => r.tier)).toEqual(['cloud-min', 'cloud-avg'])
   })
 
-  test('локальні рунги fail-fast (коротший timeout), хмарні — повний', () => {
+  test('локальні рунги — повний timeout (4b повільна), хмарні — коротший per-turn', () => {
     const l = buildLadder(FULL)
     const local = l.filter(r => r.local).map(r => r.timeoutMs)
     const cloud = l.filter(r => !r.local).map(r => r.timeoutMs)
     expect(local.every(t => t > 0)).toBe(true)
     expect(cloud.every(t => t > 0)).toBe(true)
-    // кожен локальний рунг має строго менший timeout, ніж будь-який хмарний
-    expect(Math.max(...local)).toBeLessThan(Math.min(...cloud))
+    // локальні рунги мають більший timeout: основний backstop — turn-ceiling (~50), не час
+    expect(Math.min(...local)).toBeGreaterThan(Math.max(...cloud))
   })
 
   test('жодного тиру → порожня драбина', () => {
@@ -200,8 +200,8 @@ describe('escalateRule', () => {
     })
     const timeouts = worker.calls.map(c => c.timeoutMs)
     expect(timeouts.every(t => typeof t === 'number' && t > 0)).toBe(true)
-    // локальні (перші два) — швидший fail-fast, ніж хмарний (третій)
-    expect(timeouts[0]).toBeLessThan(timeouts[2])
+    // локальні (перші два) — більший timeout: 4b повільна, backstop — turn-ceiling
+    expect(timeouts[0]).toBeGreaterThan(timeouts[2])
   })
 
   test('хмарний транспортний таймаут (pi ETIMEDOUT) обриває драбину — avg не палиться', async () => {
