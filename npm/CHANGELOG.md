@@ -1,5 +1,11 @@
 # Changelog
 
+## [12.16.1] - 2026-06-26
+
+### Changed
+
+- docs(skill-meta): уточнено опис tier — абстрактна тира (capability), не провайдер; кожна каскадить local→cloud
+
 ## [12.16.0] - 2026-06-26
 
 ### Added
