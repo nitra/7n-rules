@@ -16,10 +16,13 @@
  * їх у конфіг із поправкою на legacy-id (`migrateRuleIds`).
  */
 import { readdirSync } from 'node:fs'
-import { readdir, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { basename, dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { globby } from 'globby'
+
+import { ALWAYS_IGNORE } from './utils/walkDir.mjs'
 import { globToRegex } from '../rules/npm-module/js/package_structure.mjs'
 import { textHasBunSqlImport } from '../rules/js-bun-db/lib/bun-sql-scan.mjs'
 import {
@@ -84,8 +87,29 @@ export const AUTO_RULE_DEPENDENCIES = Object.freeze(
 
 const HASURA_CONFIG_MARKER = 'metadata_directory: metadata'
 const REGO_RE = /\.rego$/iu
-const IGNORED_DIR_NAMES = new Set(['node_modules', '.git', '.next', '.turbo'])
 const DEFAULT_DISABLED_LIST = Object.freeze([])
+
+/**
+ * Збирає relative-posix шляхи дерева (файли + директорії), **поважаючи `.gitignore`** —
+ * через той самий `globby`-канон, що й `walkDir` (звідси `ALWAYS_IGNORE`). Спільне джерело
+ * для `collectRepoPaths` (Type A glob-матчинг) і `collectAutoRuleFacts` (content-факти).
+ * Раніше тут був ручний `readdir`-обхід із хардкод skip-набором, який ігнорував `.gitignore`
+ * і помилково активував правила на згенерованих артефактах (`coverage/*.png` → image-compress).
+ * @param {string} root абсолютний шлях кореня репозиторію
+ * @returns {Promise<{ files: string[], dirs: string[] }>} relative-posix шляхи файлів і директорій
+ */
+async function collectTreePaths(root) {
+  const opts = { cwd: root, gitignore: true, dot: true, ignore: ALWAYS_IGNORE }
+  try {
+    const [files, dirs] = await Promise.all([
+      globby('**/*', { ...opts, onlyFiles: true }),
+      globby('**/*', { ...opts, onlyDirectories: true })
+    ])
+    return { files, dirs }
+  } catch {
+    return { files: [], dirs: [] }
+  }
+}
 
 /**
  * Чи містить текст джерела імпорт імені `sql` або `SQL` з `"bun"` (після витягування `<script>` у `.vue`).
@@ -224,35 +248,13 @@ export async function collectAutoRuleFacts(root) {
     hasTempoDir: false
   }
 
-  /**
-   * Рекурсивний обхід каталогу з пропуском службових директорій.
-   * @param {string} dir абсолютний шлях каталогу
-   * @returns {Promise<void>}
-   */
-  async function walk(dir) {
-    let entries
-    try {
-      entries = await readdir(dir, { withFileTypes: true })
-    } catch {
-      return
-    }
-
-    for (const entry of entries) {
-      const absPath = join(dir, entry.name)
-      if (entry.isDirectory()) {
-        if (!IGNORED_DIR_NAMES.has(entry.name)) {
-          if (entry.name === 'tempo') {
-            facts.hasTempoDir = true
-          }
-          await walk(absPath)
-        }
-      } else if (entry.isFile()) {
-        await processFileEntry(absPath, root, facts)
-      }
-    }
+  const { files, dirs } = await collectTreePaths(root)
+  if (dirs.some(d => basename(d) === 'tempo')) {
+    facts.hasTempoDir = true
   }
-
-  await walk(root)
+  for (const rel of files) {
+    await processFileEntry(join(root, rel), root, facts)
+  }
   return facts
 }
 
@@ -266,34 +268,8 @@ export async function collectAutoRuleFacts(root) {
  * @returns {Promise<string[]>} шляхи відносно root у posix-форматі
  */
 async function collectRepoPaths(root) {
-  /** @type {string[]} */
-  const out = []
-  /**
-   * Рекурсивний обхід каталогу з пропуском службових директорій.
-   * @param {string} dir каталог
-   * @returns {Promise<void>}
-   */
-  async function walk(dir) {
-    let entries
-    try {
-      entries = await readdir(dir, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const entry of entries) {
-      const abs = join(dir, entry.name)
-      if (entry.isDirectory()) {
-        if (!IGNORED_DIR_NAMES.has(entry.name)) {
-          out.push(relative(root, abs).split('\\').join('/'))
-          await walk(abs)
-        }
-      } else if (entry.isFile()) {
-        out.push(relative(root, abs).split('\\').join('/'))
-      }
-    }
-  }
-  await walk(root)
-  return out
+  const { files, dirs } = await collectTreePaths(root)
+  return [...dirs, ...files]
 }
 
 /**

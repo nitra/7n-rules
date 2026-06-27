@@ -4,7 +4,7 @@ import { globby } from 'globby'
 
 // .git ніколи не потрапляє в .gitignore — пропускаємо завжди.
 // node_modules — safety net: проєкт може не мати .gitignore або запускатись поза git-репо.
-const ALWAYS_IGNORE = ['.git/**', 'node_modules/**']
+export const ALWAYS_IGNORE = ['.git/**', 'node_modules/**']
 
 /**
  * Рекурсивно обходить каталог, поважаючи .gitignore (включно з вкладеними).
