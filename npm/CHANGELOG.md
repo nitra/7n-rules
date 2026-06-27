@@ -1,5 +1,11 @@
 # Changelog
 
+## [12.16.2] - 2026-06-27
+
+### Changed
+
+- feat(orchestrator): skip non-actionable violation (не годувати агента tool-crash); feat(pi-agent-fix): логувати вхід LLM у trace (violation + розмір промпта)
+
 ## [12.16.1] - 2026-06-26
 
 ### Changed
