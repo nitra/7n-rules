@@ -213,12 +213,11 @@ export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
     }
   })
 
+  const fixPrompt = buildFixPrompt({ ruleId, violation, ruleText, feedback })
   const startedAt = clock()
   let error = null
   try {
-    await withTimeout(session.prompt(buildFixPrompt({ ruleId, violation, ruleText, feedback })), timeoutMs, () =>
-      session.abort?.()
-    )
+    await withTimeout(session.prompt(fixPrompt), timeoutMs, () => session.abort?.())
   } catch (e) {
     error = e.message
   }
@@ -244,9 +243,17 @@ export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
     rung: tier,
     model: modelSpec,
     cwd,
+    // ВХІД LLM (щоб «що подали» було видно у trace, без розкопок escalation-log):
+    // violation — обрізаний (може бути великим); promptChars — повний розмір промпта.
+    violation: typeof violation === 'string' ? violation.slice(0, 4000) : null,
+    violationChars: typeof violation === 'string' ? violation.length : 0,
+    promptChars: fixPrompt.length,
+    // вихід:
     turnCount,
     toolCallCount,
+    touchedFiles,
     backstopHit,
+    wallMs: clock() - startedAt,
     error
   })
   return { applied: touchedFiles.length > 0, touchedFiles, telemetry, error, rollback: guard.rollback }
