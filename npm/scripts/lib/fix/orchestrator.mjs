@@ -52,6 +52,19 @@ export function classifyFixError(error) {
 }
 
 /**
+ * Чи violation придатний для LLM-фіксу: містить хоч одне actionable `❌`-порушення
+ * (формат конформ-чека `❌ <file>: <інструкція>`). Без жодного ❌ — це не список
+ * фіксабельних порушень, а шум/збій тула (Usage, «лок взято», порожньо). Годувати
+ * таким агента = марні turns/timeout (вимір 7n-test: doc-files surface-ив Usage
+ * downstream-тула → агент флоундерив 4 рунги). Тоді LLM-фікс пропускаємо.
+ * @param {string|null|undefined} output violation-вивід правила
+ * @returns {boolean} true — є що фіксити
+ */
+export function hasActionableViolation(output) {
+  return /❌/u.test(output ?? '')
+}
+
+/**
  * Будує драбину ескалації за наявними тирами (спека 2026-06-19-fix-escalation-cascade):
  *  1. `local-min`       — `N_LOCAL_MIN_MODEL`, перший прохід;
  *  2. `local-min-retry` — той самий локальний, але з feedback попереднього рунга;
@@ -123,6 +136,27 @@ export async function escalateRule(rule, cwd, deps) {
   let currentViolation = rule.output
   const skipModels = new Set()
   let avgUsed = 0
+
+  // §2-профілактика: violation без actionable ❌ (tool-crash/Usage/шум) → не годуємо
+  // агента (інакше флоундерить рунги до timeout). Рапортуємо як non-actionable, не фіксимо.
+  if (!hasActionableViolation(rule.output)) {
+    record({
+      rung: -1,
+      tier: 'skip',
+      model: '',
+      withFeedback: false,
+      callOk: false,
+      callError: 'non-actionable violation (нема ❌ — ймовірно check-error/tool-crash)',
+      recheckOk: false,
+      remainingViolation: rule.output,
+      diagnosis: null,
+      ms: 0
+    })
+    log(
+      `  ⏭️  ${rule.ruleId}: LLM-фікс пропущено — у violation немає ❌-порушень (check-error/tool-crash, не фіксабельне)`
+    )
+    return { resolved: false, avgUsed: 0 }
+  }
 
   for (const [idx, rung] of ladder.entries()) {
     if (skipModels.has(rung.model)) continue

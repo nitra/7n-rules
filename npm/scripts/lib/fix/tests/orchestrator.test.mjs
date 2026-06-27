@@ -8,7 +8,13 @@
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { env } from 'node:process'
 
-import { buildLadder, classifyFixError, escalateRule, parseOrchestratorArgs } from '../orchestrator.mjs'
+import {
+  buildLadder,
+  classifyFixError,
+  escalateRule,
+  hasActionableViolation,
+  parseOrchestratorArgs
+} from '../orchestrator.mjs'
 
 let prevTrace, prevVerbose
 beforeAll(() => {
@@ -107,6 +113,33 @@ describe('parseOrchestratorArgs', () => {
   })
 })
 
+describe('hasActionableViolation', () => {
+  test('є ❌-порушення → true', () => {
+    expect(hasActionableViolation('📋 test:\n  ❌ a.mjs: перенеси у tests/')).toBe(true)
+  })
+  test('tool-crash/Usage без ❌ → false', () => {
+    expect(hasActionableViolation('🔒 fix-doc-files: лок взято\nUsage: node x.mjs <file1>')).toBe(false)
+    expect(hasActionableViolation('')).toBe(false)
+    expect(hasActionableViolation(null)).toBe(false)
+  })
+})
+
+describe('escalateRule — non-actionable skip', () => {
+  test('violation без ❌ → LLM-фікс пропущено, worker не кличеться', async () => {
+    const worker = makeWorker([ok()])
+    const r = await escalateRule({ ruleId: 'doc-files', output: 'Usage: node x.mjs <file1>' }, '/p', {
+      ladder: buildLadder(FULL),
+      worker,
+      check: makeCheck('doc-files', [true]),
+      avgBudget: 3,
+      clock,
+      log: noop
+    })
+    expect(r).toEqual({ resolved: false, avgUsed: 0 })
+    expect(worker.calls).toHaveLength(0) // агента не годували непридатним violation
+  })
+})
+
 describe('classifyFixError', () => {
   test('власний агентний "fix timeout" → quality (не transport-break)', () => {
     expect(classifyFixError('fix timeout 300000ms')).toBe('quality')
@@ -126,7 +159,7 @@ describe('classifyFixError', () => {
 })
 
 describe('escalateRule', () => {
-  const rule = { ruleId: 'rego', output: 'violation' }
+  const rule = { ruleId: 'rego', output: '❌ violation' } // actionable (має ❌, інакше skip)
 
   test('local-min закриває на першому рунгу → resolved, без feedback, avgUsed=0', async () => {
     const worker = makeWorker([ok()])
