@@ -56,6 +56,27 @@ export function parseEslint(jsonText) {
 }
 
 /**
+ * Конвертує результати ESLint programmatic API у нормалізовані findings.
+ * @param {import('eslint').ESLint.LintResult[]} results результати `eslint.lintFiles()`
+ * @returns {{ file: string, line: number, rule: string, message: string, tool: string }[]} findings
+ */
+export function eslintResultsToFindings(results) {
+  const out = []
+  for (const r of results) {
+    for (const m of r.messages) {
+      out.push({
+        file: r.filePath,
+        line: m.line ?? 0,
+        rule: m.ruleId ?? '(syntax)',
+        message: m.message ?? '',
+        tool: 'eslint'
+      })
+    }
+  }
+  return out.filter(f => f.file)
+}
+
+/**
  * Розділяє findings на introduced / pre-existing за доданими рядками.
  * @param {{ file: string, line: number }[]} findings нормалізовані findings
  * @param {Map<string, Set<number> | string>} addedLines з `addedLinesByFile`

@@ -20,7 +20,8 @@
  */
 import { platform } from 'node:process'
 
-import { runLintStep } from '../../scripts/lib/run-lint-step.mjs'
+import { main as markdownlintCli2 } from 'markdownlint-cli2'
+
 import { resolveCmd } from '../../scripts/utils/resolve-cmd.mjs'
 import { runStandardLint } from '../../scripts/lib/run-standard-lint.mjs'
 import { ensureTool } from '../../scripts/lib/ensure-tool.mjs'
@@ -132,10 +133,14 @@ async function runLintTextSteps(readOnly = false, llmFix = false) {
   const dotenvCode = runDotenvLinter(process.cwd(), readOnly)
   if (dotenvCode !== 0) return dotenvCode
 
-  const mdArgs = readOnly
-    ? ['markdownlint-cli2', '**/*.md', '**/*.mdc']
-    : ['markdownlint-cli2', '--fix', '**/*.md', '**/*.mdc']
-  const markdownlintCode = runLintStep('markdownlint', 'bunx', mdArgs)
+  console.log('\n▶ markdownlint-cli2')
+  const mdArgs = readOnly ? ['**/*.md', '**/*.mdc'] : ['--fix', '**/*.md', '**/*.mdc']
+  const markdownlintCode = await markdownlintCli2({
+    directory: process.cwd(),
+    argv: mdArgs,
+    logMessage: msg => process.stdout.write(`${msg}\n`),
+    logError: msg => process.stderr.write(`${msg}\n`),
+  })
   if (markdownlintCode !== 0) return markdownlintCode
 
   console.log('\n▶ v8r (schema-валідація json/json5/yaml/yml/toml)')

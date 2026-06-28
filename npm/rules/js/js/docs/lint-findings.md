@@ -3,7 +3,7 @@ type: JS Module
 title: lint-findings.mjs
 resource: npm/rules/js/js/lint-findings.mjs
 docgen:
-  crc: bee587da
+  crc: cb60407d
   score: 100
 ---
 
@@ -37,6 +37,7 @@ renderFindings
 
 parseOxlint — перетворює JSON у дані або повертає null при невдалій обробці.
 parseEslint — перетворює JSON у дані або повертає null при невдалій обробці.
+eslintResultsToFindings — конвертує результати ESLint programmatic API у нормалізовані findings (без JSON-парсингу).
 classifyFindings — групує знайдені проблеми на категорії доданих/існуючих.
 renderFindings — формує звіт, який включає виправлені проблеми та застарілі проблеми.
 

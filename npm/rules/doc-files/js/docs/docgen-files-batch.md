@@ -3,7 +3,7 @@ type: JS Module
 title: docgen-files-batch.mjs
 resource: npm/rules/doc-files/js/docgen-files-batch.mjs
 docgen:
-  crc: 9ac70d78
+  crc: 7d42de41
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
   issues: internal-name:generateOne,judge:inaccurate:0.99

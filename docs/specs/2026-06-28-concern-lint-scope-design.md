@@ -48,13 +48,13 @@ rules/js/
   knip/
     concern.json             ← { "lint": { "scope": "full", ... } }
     main.mjs
-  jscpd-config/
+  jscpd_config/
     concern.json             ← { "policy": { "files": { "single": ".jscpd.json", "required": true } } }
-    jscpd-config.rego
-    jscpd-config_test.rego
+    jscpd_config.rego
+    jscpd_config_test.rego
     template/
-    jscpd-config.mdc
-  jscpd-duplicates/
+    jscpd_config.mdc
+  jscpd_duplicates/
     concern.json             ← { "lint": { "scope": "full", "glob": ["**/*.{js,mjs,cjs,jsx,ts,tsx,vue}"] } }
     main.mjs
   lint_js_yml/
@@ -77,7 +77,9 @@ rules/js/
 
 Каталоги без `concern.json` (`utils/`, `lib/`, `docs/`, `coverage/`) — не concerns, оркестратор їх ігнорує. `js/` і `policy/` — forbidden після міграції, `npm-module` validation це перевіряє.
 
-`jscpd-config/` і `jscpd-duplicates/` — два окремих concerns одного tool-домену: перший перевіряє конфіг-файл `.jscpd.json` через Rego (policy surface), другий запускає `bunx jscpd .` як lint-runner (lint surface, scope full). Multi-surface для них не застосовується — `main.mjs` і `.rego` відповідають різним виконавчим шляхам.
+Concern id — ім'я каталогу з `concern.json` — завжди lower snake_case (`[a-z0-9_]+`). Це відповідає поточному policy inventory: на момент ревізії всі 50 унікальних `policy/<concern>` ids мають snake_case; id з `-` або іншими символами не виявлено. Rule id лишається kebab-case, як у `.n-cursor.json:rules`.
+
+`jscpd_config/` і `jscpd_duplicates/` — два окремих concerns одного tool-домену: перший перевіряє конфіг-файл `.jscpd.json` через Rego (policy surface), другий запускає `bunx jscpd .` як lint-runner (lint surface, scope full). Multi-surface для них не застосовується — `main.mjs` і `.rego` відповідають різним виконавчим шляхам.
 
 ### 2. `concern.json` — схема
 
@@ -191,7 +193,7 @@ export async function main(cwd = process.cwd()) {
 }
 ```
 
-Механізм `applies()`-гейту **видаляється**: умова вже перевірена один раз — `resolveCheckRuleIds` зчитує `.n-cursor.json` і включає лише активні правила; `js/applies.mjs` у `abie`/`python`/`rego`/`rust` — дублікат тієї самої перевірки. Всі 4 файли видаляються без заміни.
+Механізм `applies()`-гейту **видаляється без заміни**. Це свідома втрата runtime shape-gate поведінки: після міграції активне правило у `.n-cursor.json` означає "запускати його `check` concerns", без додаткового rule-level predicate. Поточні `js/applies.mjs` у `abie`/`python`/`rego`/`rust` видаляються; їхні перевірки на root markers або наявність файлів не переносяться в новий центральний gate.
 
 ### Policy surface — Rego/template
 
@@ -201,6 +203,16 @@ export async function main(cwd = process.cwd()) {
 - без `policy.check` → `runConftestBatch` із namespace `<rule_id_snake>.<concern>`
 
 `missingMessage`, `files.required`, `files.single`, `files.walkGlob` мають зберегти поточну семантику.
+
+Канонічний Rego package після міграції: `package <rule_id_snake>.<concern_id>`, де `rule_id_snake` — rule id із заміною `-` на `_`, а `concern_id` — snake_case назва concern-каталогу. Тести мають package `<rule_id_snake>.<concern_id>_test` і import `data.<rule_id_snake>.<concern_id>`. Compatibility shim для старих package names не додається.
+
+Два правила мають legacy prefix-аномалію: `js` → `js_lint.*`, `style` → `style_lint.*` (суфікс `_lint` не є частиною rule id). Міграція виправляє й їх: `js_lint.*` → `js.*`, `style_lint.*` → `style.*`.
+
+Для `jscpd_config` фінальний namespace:
+
+- `rules/js/jscpd_config/jscpd_config.rego` → `package js.jscpd_config`
+- `rules/js/jscpd_config/jscpd_config_test.rego` → `package js.jscpd_config_test`
+- тести імпортують `data.js.jscpd_config`
 
 ### Lint surface — `main.mjs::lint(changed, cwd, opts)`
 
@@ -227,20 +239,20 @@ Fail-fast лишається як зараз:
 
 Мінімальний список змін — усі виконуються разом (один breaking commit):
 
-| зона                | що змінити                                                                                                      |
-| ------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Schema              | додати `npm/schemas/concern.json`; видалити `target.json` schema; оновити `v8r-catalog.json`                    |
-| Metadata parser     | новий `concern-meta.mjs` (parser/normalizer); видалити `parseRuleLintSpec` з `rule-meta.mjs`                    |
-| Lint orchestration  | `run-lint.mjs`: вибирати lint-surfaces з `concern.json`, видалити `readAllMeta` / `selectLintRules` по `main.json.lint` |
-| Check discovery     | `discover-checkable-rules.mjs`: сканувати `*/concern.json`, видалити `js/*.mjs` / `policy/*/target.json` шляхи |
-| Rule runner         | `run-rule.mjs`: запускати `check` і `policy` surfaces з concern descriptor; видалити `resolveJsCheckPath`       |
-| Policy runner       | `run-conftest-batch.mjs:76`: прибрати хардкод `policy/`; приймати `<rule>/<concern>` flat path                 |
-| Templates/docs sync | `appendDiscoveredMdcFiles`: сканувати `*/*.mdc` де є `concern.json`; видалити `js/` і `policy/` гілки          |
-| T0 autofix          | `discover-t0-patterns.mjs`: сканувати `*/fix-*.mjs` у concern dirs (з перевіркою `concern.json`)               |
-| Conformance         | `npm-module/js/rule_meta.mjs`: валідувати `concern.json`; забороняти `js/`, `policy/`, `main.json.lint`        |
-| Docs/rules          | оновити `scripts.mdc`, `conftest.mdc`, `n-bun.mdc`, `n-rego.mdc`, generated `.cursor/rules/*` після sync       |
-| Rule `main.mjs`     | видалити з усіх 38 правил; `run-standard-rule.mjs` видалити; `check-mjs-contract.test.mjs` видалити або переписати як concern-discovery contract test |
-| Conformance runner  | `run-conformance-check.mjs`: замінити спавн `bun rules/<id>/main.mjs` на generic `bun scripts/run-concern-rule.mjs <id>` або inline concern execution без subprocess (вибір реалізації — на impl-фазі) |
+| зона                | що змінити                                                                                                                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Schema              | додати `npm/schemas/concern.json`; видалити `target.json` schema; оновити `v8r-catalog.json`                                                                                                 |
+| Metadata parser     | новий `concern-meta.mjs` (parser/normalizer); видалити `parseRuleLintSpec` з `rule-meta.mjs`                                                                                                 |
+| Lint orchestration  | `run-lint.mjs`: вибирати lint-surfaces з `concern.json`, видалити `readAllMeta` / `selectLintRules` по `main.json.lint`                                                                      |
+| Check discovery     | `discover-checkable-rules.mjs`: сканувати `*/concern.json`, видалити `js/*.mjs` / `policy/*/target.json` шляхи                                                                               |
+| Rule runner         | `run-rule.mjs`: запускати `check` і `policy` surfaces з concern descriptor; видалити `resolveJsCheckPath`                                                                                    |
+| Policy runner       | `run-conftest-batch.mjs:76`: прибрати хардкод `policy/`; приймати `<rule>/<concern>` flat path                                                                                               |
+| Templates/docs sync | `appendDiscoveredMdcFiles`: сканувати `*/*.mdc` де є `concern.json`; видалити `js/` і `policy/` гілки; оновити всі `.mdc`/docs посилання з `./policy/...` і `./js/...` на flat concern paths |
+| T0 autofix          | `discover-t0-patterns.mjs`: сканувати `*/fix-*.mjs` у concern dirs (з перевіркою `concern.json`)                                                                                             |
+| Conformance         | `npm-module/js/rule_meta.mjs`: валідувати `concern.json`; забороняти `js/`, `policy/`, `main.json.lint`                                                                                      |
+| Docs/rules          | оновити `scripts.mdc`, `conftest.mdc`, `n-bun.mdc`, `n-rego.mdc`, generated `.cursor/rules/*` після sync                                                                                     |
+| Rule `main.mjs`     | видалити всі 36 перевірених `rules/<id>/main.mjs`; `run-standard-rule.mjs` видалити; `check-mjs-contract.test.mjs` переписати як concern-discovery contract test                             |
+| Conformance runner  | `run-conformance-check.mjs`: замінити спавн `bun rules/<id>/main.mjs` на inline concern execution без subprocess; зберегти rule-level `withLock(fix-${ruleId})` семантику в новому runner    |
 
 Exit criteria:
 
@@ -260,35 +272,46 @@ Exit criteria:
 | `security`                                                                      | `{ "lint": "per-file" }`                 | `{}`; фактичний concern стає `full`, бо trufflehog ігнорує files |
 | `bun`, `docker`, `ga`, `image-compress`, `k8s`, `php`, `python`, `rego`, `rust` | `{ "lint": "full" }`                     | `{}`                                                             |
 
-### Нові lint-surfaces
+### Concern inventory після міграції
 
 Поточний `js/main.mjs::lint` вже містить три логічні lint concerns: eslint/oxlint, jscpd і knip. Їх треба розділити в межах цієї міграції, інакше `lint --full` втратить наявну функціональність.
 
-| правило          | concern      | scope    | llmFix | glob / trigger                                                                                                            | примітка                                       |
-| ---------------- | ------------ | -------- | ------ | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `doc-files`      | `check/`     | per-file | ✓      | `**/*.{js,mjs,ts,vue,py}` + docs reverse-map у коді                                                                       | зберегти orphan detect                         |
-| `js`             | `eslint/`    | per-file | —      | `**/*.{js,mjs,cjs,jsx,ts,tsx,vue}`                                                                                        | oxlint + eslint по changed                     |
-| `js`             | `jscpd-config/`     | —      | —      | —                                                                                                                   | policy only: Rego-перевірка `.jscpd.json`      |
-| `js`             | `jscpd-duplicates/` | full   | —      | `**/*.{js,mjs,cjs,jsx,ts,tsx,vue}`                                                                                  | lint only: `bunx jscpd .`                      |
-| `js`             | `knip/`      | full     | —      | `package.json`, `**/package.json`, `tsconfig*.json`, `**/*.{js,mjs,cjs,jsx,ts,tsx,vue}`                                   | поточний full branch                           |
-| `security`       | `scan/`      | full     | —      | `**/*`                                                                                                                    | trufflehog filesystem scan ігнорує files       |
-| `style`          | `lint/`      | per-file | —      | `**/*.{css,scss,vue}`                                                                                                     | —                                              |
-| `text`           | `check/`     | full     | ✓      | `**/*.{md,mdc,txt,json,jsonc,yaml,yml,toml,sh,env}`, `.env*`, `.cspell.json`, `.markdownlint-cli2.jsonc`, `.oxfmtrc.json` | поточний lint ігнорує files і сканує весь repo |
-| `bun`            | `licensee/`  | full     | —      | `package.json`, `bun.lock`, `.licensee.json`                                                                              | —                                              |
-| `docker`         | `lint/`      | full     | —      | `**/Dockerfile*`                                                                                                          | —                                              |
-| `ga`             | `workflows/` | full     | —      | `.github/workflows/**`                                                                                                    | —                                              |
-| `image-compress` | `check/`     | full     | —      | `**/*.{jpg,png,svg}`                                                                                                      | —                                              |
-| `k8s`            | `manifests/` | full     | —      | `k8s/**/*.yaml`                                                                                                           | —                                              |
-| `php`            | `check/`     | full     | —      | `**/*.php`                                                                                                                | —                                              |
-| `python`         | `check/`     | full     | —      | `**/*.py`                                                                                                                 | —                                              |
-| `rego`           | `check/`     | full     | —      | `**/*.rego`                                                                                                               | —                                              |
-| `rust`           | `check/`     | full     | —      | `**/*.rs`                                                                                                                 | —                                              |
+| правило          | concern             | scope    | llmFix | glob / trigger                                                                                                            | примітка                                       |
+| ---------------- | ------------------- | -------- | ------ | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `doc-files`      | `check/`            | per-file | ✓      | `**/*.{js,mjs,ts,vue,py}` + docs reverse-map у коді                                                                       | зберегти orphan detect                         |
+| `js`             | `eslint/`           | per-file | —      | `**/*.{js,mjs,cjs,jsx,ts,tsx,vue}`                                                                                        | oxlint + eslint по changed                     |
+| `js`             | `jscpd_config/`     | —        | —      | —                                                                                                                         | policy only: Rego-перевірка `.jscpd.json`      |
+| `js`             | `jscpd_duplicates/` | full     | —      | `**/*.{js,mjs,cjs,jsx,ts,tsx,vue}`                                                                                        | lint only: `bunx jscpd .`                      |
+| `js`             | `knip/`             | full     | —      | `package.json`, `**/package.json`, `tsconfig*.json`, `**/*.{js,mjs,cjs,jsx,ts,tsx,vue}`                                   | поточний full branch                           |
+| `security`       | `scan/`             | full     | —      | `**/*`                                                                                                                    | trufflehog filesystem scan ігнорує files       |
+| `style`          | `lint/`             | per-file | —      | `**/*.{css,scss,vue}`                                                                                                     | —                                              |
+| `text`           | `check/`            | full     | ✓      | `**/*.{md,mdc,txt,json,jsonc,yaml,yml,toml,sh,env}`, `.env*`, `.cspell.json`, `.markdownlint-cli2.jsonc`, `.oxfmtrc.json` | поточний lint ігнорує files і сканує весь repo |
+| `bun`            | `licensee/`         | full     | —      | `package.json`, `bun.lock`, `.licensee.json`                                                                              | —                                              |
+| `docker`         | `lint/`             | full     | —      | `**/Dockerfile*`                                                                                                          | —                                              |
+| `ga`             | `workflows/`        | full     | —      | `.github/workflows/**`                                                                                                    | —                                              |
+| `image-compress` | `check/`            | full     | —      | `**/*.{jpg,png,svg}`                                                                                                      | —                                              |
+| `k8s`            | `manifests/`        | full     | —      | `k8s/**/*.yaml`                                                                                                           | —                                              |
+| `php`            | `check/`            | full     | —      | `**/*.php`                                                                                                                | —                                              |
+| `python`         | `check/`            | full     | —      | `**/*.py`                                                                                                                 | —                                              |
+| `rego`           | `check/`            | full     | —      | `**/*.rego`                                                                                                               | —                                              |
+| `rust`           | `check/`            | full     | —      | `**/*.rs`                                                                                                                 | —                                              |
 
 ### Rule-level `main.mjs` і `applies.mjs`
 
-Всі 38 `rules/<id>/main.mjs` видаляються. Standalone-запуск (`bun rules/<id>/main.mjs`) більше не підтримується; CLI-еквівалент — `n-cursor check <id>`.
+Фактичний inventory на момент ревізії: 36 `rules/<id>/main.mjs`. Усі вони видаляються. Standalone-запуск (`bun rules/<id>/main.mjs`) більше не підтримується; CLI-еквівалент — `n-cursor check <id>`.
 
-4 файли `js/applies.mjs` (`abie`, `python`, `rego`, `rust`) видаляються без заміни — їхня логіка дублює `resolveCheckRuleIds`.
+4 файли `js/applies.mjs` (`abie`, `python`, `rego`, `rust`) видаляються без заміни. Поведінка їхніх root/file predicates свідомо втрачається; після міграції `resolveCheckRuleIds` відповідає лише за active rule list із `.n-cursor.json`.
+
+### Links/templates/docs sweep
+
+Міграція flat concern paths включає обов'язковий sweep посилань:
+
+- `./policy/<concern>/template/...` → `./<concern>/template/...`
+- `./policy/<concern>/<file>` → `./<concern>/<file>`
+- `./js/<concern>.mdc` або `./js/<concern>/...` → `./<concern>/...`
+- generated docs у `npm/rules/*/docs/` оновлюються або регенеруються після переносу
+
+Для `jscpd_config`: посилання на `./policy/jscpd/template/.jscpd.json.snippet.json` переходять на `./jscpd_config/template/.jscpd.json.snippet.json`.
 
 ### Policy migration inventory
 
@@ -305,13 +328,20 @@ Exit criteria:
 - `missingMessage` → `concern.json#policy.missingMessage`
 - `$schema` → новий `$schema` на `concern.json`
 
+Для кожного Rego concern:
+
+- `<concern>.rego` package → `<rule_id_snake>.<concern_id>`
+- `<concern>_test.rego` package → `<rule_id_snake>.<concern_id>_test`
+- test imports → `data.<rule_id_snake>.<concern_id>`
+- старі namespaces не підтримуються compatibility shim-ами
+
 ---
 
 ## Валідація схеми
 
 `npm-module` перевіряє структуру правил (`js/rule_meta.mjs`). Після міграції додати перевірки:
 
-- кожен підкаталог у `rules/<id>/` або має `concern.json`, або є в allowlist non-concern dirs (`utils/`, `lib/`, `docs/`, `coverage/`; `js/` і `policy/` тільки в dual-read фазі)
+- кожен підкаталог у `rules/<id>/` або має `concern.json`, або є в allowlist non-concern dirs (`utils/`, `lib/`, `docs/`, `coverage/`); `js/` і `policy/` не входять в allowlist і є помилкою після one-step migration
 - `concern.json` має хоча б одну surface: `check`, `policy`, `lint`
 - `lint.scope` — тільки `"per-file"` або `"full"`
 - `policy.files` валідний за старою семантикою `target.json`: рівно один із `single` / `walkGlob`
