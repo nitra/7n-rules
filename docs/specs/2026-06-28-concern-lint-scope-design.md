@@ -48,13 +48,15 @@ rules/js/
   knip/
     concern.json             ← { "lint": { "scope": "full", ... } }
     main.mjs
-  jscpd/
-    concern.json             ← { "policy": {...}, "lint": { "scope": "full", ... } }
-    main.mjs
-    jscpd.rego
-    jscpd_test.rego
+  jscpd-config/
+    concern.json             ← { "policy": { "files": { "single": ".jscpd.json", "required": true } } }
+    jscpd-config.rego
+    jscpd-config_test.rego
     template/
-    jscpd.mdc
+    jscpd-config.mdc
+  jscpd-duplicates/
+    concern.json             ← { "lint": { "scope": "full", "glob": ["**/*.{js,mjs,cjs,jsx,ts,tsx,vue}"] } }
+    main.mjs
   lint_js_yml/
     concern.json             ← { "policy": { "files": {...}, "check": "template" } }
     lint_js_yml.rego
@@ -75,7 +77,7 @@ rules/js/
 
 Каталоги без `concern.json` (`utils/`, `lib/`, `docs/`, `coverage/`) — не concerns, оркестратор їх ігнорує. `js/` і `policy/` — forbidden після міграції, `npm-module` validation це перевіряє.
 
-`jscpd/` у прикладі — **multi-surface concern**. Поточний `policy/jscpd` не перетворюється на lint: Rego-перевірка `.jscpd.json` мігрує в `concern.json#policy`, а наявний runtime-крок `bunx jscpd .` із `js/main.mjs::lint(undefined)` стає `concern.json#lint` у тому самому домені. Якщо під час implementation це виявиться незручним для коду, допустима альтернатива — лишити policy concern як `jscpd/`, а lint-runner назвати `duplicates/`; але тоді треба явно зафіксувати, що це два concerns одного tool-домену.
+`jscpd-config/` і `jscpd-duplicates/` — два окремих concerns одного tool-домену: перший перевіряє конфіг-файл `.jscpd.json` через Rego (policy surface), другий запускає `bunx jscpd .` як lint-runner (lint surface, scope full). Multi-surface для них не застосовується — `main.mjs` і `.rego` відповідають різним виконавчим шляхам.
 
 ### 2. `concern.json` — схема
 
@@ -189,7 +191,7 @@ export async function main(cwd = process.cwd()) {
 }
 ```
 
-`applies`-гейт лишається спеціальним concern id: якщо `applies/main.mjs` експортує `applies()` і повертає `false`, решта concerns правила пропускаються.
+Механізм `applies()`-гейту **видаляється**: умова вже перевірена один раз — `resolveCheckRuleIds` зчитує `.n-cursor.json` і включає лише активні правила; `js/applies.mjs` у `abie`/`python`/`rego`/`rust` — дублікат тієї самої перевірки. Всі 4 файли видаляються без заміни.
 
 ### Policy surface — Rego/template
 
@@ -232,11 +234,13 @@ Fail-fast лишається як зараз:
 | Lint orchestration  | `run-lint.mjs`: вибирати lint-surfaces з `concern.json`, видалити `readAllMeta` / `selectLintRules` по `main.json.lint` |
 | Check discovery     | `discover-checkable-rules.mjs`: сканувати `*/concern.json`, видалити `js/*.mjs` / `policy/*/target.json` шляхи |
 | Rule runner         | `run-rule.mjs`: запускати `check` і `policy` surfaces з concern descriptor; видалити `resolveJsCheckPath`       |
-| Policy runner       | `run-conftest-batch.mjs:76`: прибрати хардкод `policy/`; приймати абсолютний шлях або `<rule>/<concern>` flat  |
+| Policy runner       | `run-conftest-batch.mjs:76`: прибрати хардкод `policy/`; приймати `<rule>/<concern>` flat path                 |
 | Templates/docs sync | `appendDiscoveredMdcFiles`: сканувати `*/*.mdc` де є `concern.json`; видалити `js/` і `policy/` гілки          |
 | T0 autofix          | `discover-t0-patterns.mjs`: сканувати `*/fix-*.mjs` у concern dirs (з перевіркою `concern.json`)               |
 | Conformance         | `npm-module/js/rule_meta.mjs`: валідувати `concern.json`; забороняти `js/`, `policy/`, `main.json.lint`        |
 | Docs/rules          | оновити `scripts.mdc`, `conftest.mdc`, `n-bun.mdc`, `n-rego.mdc`, generated `.cursor/rules/*` після sync       |
+| Rule `main.mjs`     | видалити з усіх 38 правил; `run-standard-rule.mjs` видалити; `check-mjs-contract.test.mjs` видалити або переписати як concern-discovery contract test |
+| Conformance runner  | `run-conformance-check.mjs`: замінити спавн `bun rules/<id>/main.mjs` на generic `bun scripts/run-concern-rule.mjs <id>` або inline concern execution без subprocess (вибір реалізації — на impl-фазі) |
 
 Exit criteria:
 
@@ -264,7 +268,8 @@ Exit criteria:
 | ---------------- | ------------ | -------- | ------ | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
 | `doc-files`      | `check/`     | per-file | ✓      | `**/*.{js,mjs,ts,vue,py}` + docs reverse-map у коді                                                                       | зберегти orphan detect                         |
 | `js`             | `eslint/`    | per-file | —      | `**/*.{js,mjs,cjs,jsx,ts,tsx,vue}`                                                                                        | oxlint + eslint по changed                     |
-| `js`             | `jscpd/`     | full     | —      | `**/*.{js,mjs,cjs,jsx,ts,tsx,vue}`                                                                                        | policy `.jscpd.json` + full runner             |
+| `js`             | `jscpd-config/`     | —      | —      | —                                                                                                                   | policy only: Rego-перевірка `.jscpd.json`      |
+| `js`             | `jscpd-duplicates/` | full   | —      | `**/*.{js,mjs,cjs,jsx,ts,tsx,vue}`                                                                                  | lint only: `bunx jscpd .`                      |
 | `js`             | `knip/`      | full     | —      | `package.json`, `**/package.json`, `tsconfig*.json`, `**/*.{js,mjs,cjs,jsx,ts,tsx,vue}`                                   | поточний full branch                           |
 | `security`       | `scan/`      | full     | —      | `**/*`                                                                                                                    | trufflehog filesystem scan ігнорує files       |
 | `style`          | `lint/`      | per-file | —      | `**/*.{css,scss,vue}`                                                                                                     | —                                              |
@@ -278,6 +283,12 @@ Exit criteria:
 | `python`         | `check/`     | full     | —      | `**/*.py`                                                                                                                 | —                                              |
 | `rego`           | `check/`     | full     | —      | `**/*.rego`                                                                                                               | —                                              |
 | `rust`           | `check/`     | full     | —      | `**/*.rs`                                                                                                                 | —                                              |
+
+### Rule-level `main.mjs` і `applies.mjs`
+
+Всі 38 `rules/<id>/main.mjs` видаляються. Standalone-запуск (`bun rules/<id>/main.mjs`) більше не підтримується; CLI-еквівалент — `n-cursor check <id>`.
+
+4 файли `js/applies.mjs` (`abie`, `python`, `rego`, `rust`) видаляються без заміни — їхня логіка дублює `resolveCheckRuleIds`.
 
 ### Policy migration inventory
 
