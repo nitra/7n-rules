@@ -44,7 +44,6 @@ describe('frontmatter', () => {
       model: null,
       score: null,
       issues: [],
-      retried: false,
       judgeModel: null
     })
     expect(body.trim()).toBe('## Огляд')
@@ -146,13 +145,11 @@ describe('readDocQuality / QUALITY_THRESHOLD', () => {
       expect(readDocQuality(join(root, 'absent.md'))).toEqual({
         score: null,
         issues: [],
-        retried: false,
         judgeModel: null
       })
 
       const plain = join(root, 'plain.md')
       await writeFile(plain, stampDoc('## Огляд\n', 'src/a.js', 'deadbeef'))
-      expect(readDocQuality(plain)).toEqual({ score: null, issues: [], retried: false, judgeModel: null })
 
       const degraded = join(root, 'degraded.md')
       await writeFile(
@@ -162,7 +159,6 @@ describe('readDocQuality / QUALITY_THRESHOLD', () => {
       expect(readDocQuality(degraded)).toEqual({
         score: 55,
         issues: ['short-behavior'],
-        retried: false,
         judgeModel: null
       })
     })

@@ -8,10 +8,11 @@
  */
 import { describe, expect, test, vi, beforeEach } from 'vitest'
 
-const { generateDocMock, scanMock, readDocQualityMock } = vi.hoisted(() => ({
+const { generateDocMock, scanMock, readDocQualityMock, readDocTierMock } = vi.hoisted(() => ({
   generateDocMock: vi.fn(),
   scanMock: vi.fn(),
-  readDocQualityMock: vi.fn(() => ({ score: null, issues: [], retried: false, judgeModel: null }))
+  readDocQualityMock: vi.fn(() => ({ score: null, issues: [], judgeModel: null })),
+  readDocTierMock: vi.fn(() => null)
 }))
 
 vi.mock('../docgen-gen.mjs', () => ({ generateDoc: generateDocMock, DEFAULT_LOCAL_MODEL: 'omlx/test-model' }))
@@ -24,6 +25,7 @@ vi.mock('../docgen-crc.mjs', () => ({
   crc32: () => 'crc',
   stampDoc: md => md,
   readDocQuality: readDocQualityMock,
+  readDocTier: readDocTierMock,
   readDocModel: () => null,
   QUALITY_THRESHOLD: 80
 }))
@@ -102,7 +104,7 @@ describe('runDocFilesGenCli — circuit-breaker / класифікація', () 
 describe('selectTargets — stale + degraded-once guard', () => {
   const mk = (sourcePath, docPath, stale) => ({ sourcePath, docPath, stale })
 
-  test('default: stale | degraded-not-retried → обрано; good | degraded-retried → пропущено', () => {
+  test('default: stale | degraded-not-cloud-avg → обрано; good | degraded-cloud-avg → пропущено', () => {
     const all = [
       mk('src/stale.js', 'd/stale.md', true),
       mk('src/good.js', 'd/good.md', false),
@@ -110,10 +112,10 @@ describe('selectTargets — stale + degraded-once guard', () => {
       mk('src/dret.js', 'd/dret.md', false)
     ]
     readDocQualityMock.mockImplementation(p => {
-      if (p.includes('good')) return { score: 90, issues: [], retried: false, judgeModel: null } // ≥ поріг 80
-      // degraded (score < 80); `dret` — уже доретраяний (retried:true), решта — ще ні
-      return { score: 40, issues: [], retried: p.includes('dret'), judgeModel: null }
+      if (p.includes('good')) return { score: 90, issues: [], judgeModel: null } // ≥ поріг 80
+      return { score: 40, issues: [], judgeModel: null } // degraded (score < 80)
     })
+    readDocTierMock.mockImplementation(p => p.includes('dret') ? 'cloud-avg' : null)
     const sel = selectTargets('/root', all, {})
       .map(f => f.sourcePath)
       .toSorted()

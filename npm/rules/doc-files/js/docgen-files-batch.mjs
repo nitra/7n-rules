@@ -31,7 +31,7 @@ function classifyDocgenError(msg) {
   if (/timeout|etimedout/i.test(msg)) return 'transient'
   return 'infra'
 }
-import { crc32, stampDoc, readDocQuality, readDocModel, QUALITY_THRESHOLD } from './docgen-crc.mjs'
+import { crc32, stampDoc, readDocQuality, readDocModel, readDocTier, QUALITY_THRESHOLD } from './docgen-crc.mjs'
 import { resolveRoot, scanForDocFiles, scanOrphanedDocs } from './docgen-scan.mjs'
 
 /**
@@ -67,8 +67,9 @@ export function selectTargets(root, all, { overwrite }) {
   if (overwrite) return all
   return all.filter(f => {
     if (f.stale) return true
-    const { score, retried } = readDocQuality(join(root, f.docPath))
-    return score !== null && score < QUALITY_THRESHOLD && !retried
+    const docAbs = join(root, f.docPath)
+    const { score } = readDocQuality(docAbs)
+    return score !== null && score < QUALITY_THRESHOLD && readDocTier(docAbs) !== 'cloud-avg'
   })
 }
 
@@ -134,13 +135,10 @@ async function generateOne(file, root, progress, stats, { model, tier } = {}) {
     const result = await generateDoc(sourceAbs, { existingMd, model })
     const crc = crc32(readFileSync(sourceAbs))
     mkdirSync(dirname(docAbs), { recursive: true })
-    // retried: НЕ stale (отже це доретрай при тому ж CRC) і лишився degraded → штампуємо,
-    // щоб наступні `gen` його не чіпали до зміни джерела (сходимість без прапора).
-    const retried = !file.stale && result.degraded
     const quality =
       result.score === null
         ? null
-        : { score: result.score, issues: result.degraded ? result.issues : [], retried, judge: result.judge }
+        : { score: result.score, issues: result.degraded ? result.issues : [], judge: result.judge }
     writeFileSync(docAbs, stampDoc(result.md, file.sourcePath, crc, quality, result.model, tier ?? null))
     stats.ok++
     if (result.degraded) {
