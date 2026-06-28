@@ -11,6 +11,55 @@ version: '1.12'
 
 Rego-пакети, які запускає `npx @nitra/cursor fix js-run` / `npx @nitra/cursor check`:
 
+- `jsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "lib": ["esnext"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "esnext",
+    "checkJs": false
+  },
+  "include": ["src/**/*"]
+}
+```
+- `configmap.yaml`:
+
+```yaml
+data:
+  OTEL_RESOURCE_ATTRIBUTES:
+    - 'service.name='
+    - 'service.namespace='
+```
+- `package.json`:
+
+```json
+{
+  "dependencies": {
+    "bunyan": "використовуй стандартні логери (js-run.mdc)",
+    "@nitra/bunyan": "використовуй стандартні логери (js-run.mdc)"
+  },
+  "devDependencies": {
+    "bunyan": "використовуй стандартні логери (js-run.mdc)",
+    "@nitra/bunyan": "використовуй стандартні логери (js-run.mdc)"
+  },
+  "scriptsForbidden": [
+    {
+      "id": "node-runner",
+      "pattern": "\\bnode(\\s|$)",
+      "message": "заміни `node` на `bun` у scripts — один runtime у dev і prod (js-run.mdc)"
+    },
+    {
+      "id": "env-cat-bun",
+      "pattern": "\\benv\\s+\\$\\(cat\\s+[^)]+\\)\\s+bun\\b",
+      "message": "заміни `env $(cat A B) bun` на `bun --env-file=A --env-file=B` (нативний Bun, js-run.mdc)"
+    }
+  ]
+}
+```
+
 ## CheckEnv та заборона прямого `process.env`
 
 ### CheckEnv

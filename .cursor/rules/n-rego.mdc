@@ -16,6 +16,22 @@ alwaysApply: false
 | `rego.vscode_extensions` | `.vscode/extensions.json` | `recommendations` містить `tsandall.opa` |
 | `rego.vscode_settings` | `.vscode/settings.json` | `[rego]`-блок з `defaultFormatter` + `formatOnSave` |
 
+- `settings.json`:
+
+```json
+{
+  "[rego]": {
+    "editor.defaultFormatter": "tsandall.opa",
+    "editor.formatOnSave": true
+  }
+}
+```
+- `extensions.json`:
+
+```json
+{ "recommendations": ["tsandall.opa"] }
+```
+
 ## Лінт Rego-файлів (opa / regal / conftest)
 
 ```bash

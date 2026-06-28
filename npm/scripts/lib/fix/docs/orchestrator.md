@@ -3,7 +3,7 @@ type: JS Module
 title: orchestrator.mjs
 resource: npm/scripts/lib/fix/orchestrator.mjs
 docgen:
-  crc: 49146418
+  crc: c16c34f7
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

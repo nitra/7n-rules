@@ -12,7 +12,7 @@
     "e18e/prefer-nullish-coalescing": "deny",
     "e18e/prefer-spread-syntax": "deny",
     "e18e/prefer-url-canparse": "deny",
-    "e18e/ban-dependencies": "deny",
+    "e18e/ban-dependencies": ["deny", { "allowed": ["globby"] }],
     "e18e/prefer-array-from-map": "deny",
     "e18e/prefer-timer-args": "deny",
     "e18e/prefer-static-regex": "deny",

@@ -6,6 +6,73 @@ alwaysApply: false
 ---
 
 Правило **style** для Vue-проєктів: Quasar як стильова система, SCSS-конвенції кольорів і відступів, фікси компонентів, stylelint через `@nitra/stylelint-config`.
+- `settings.json`:
+
+```json
+{
+  "css.validate": false,
+  "less.validate": false,
+  "scss.validate": false
+}
+```
+- `lint-style.yml`:
+
+```yaml
+name: StyleLint
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - '**/*.css'
+      - '**/*.scss'
+      - '**/*.vue'
+
+  pull_request:
+    branches:
+      - dev
+      - main
+    paths:
+      - '**/*.css'
+      - '**/*.scss'
+      - '**/*.vue'
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  stylelint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-bun-deps
+
+      - name: StyleLint
+        run: n-cursor lint style --read-only
+```
+- `extensions.json`:
+
+```json
+{ "recommendations": ["stylelint.vscode-stylelint"] }
+```
+- `package.json`:
+
+```json
+{
+  "stylelint": {
+    "extends": "@nitra/stylelint-config"
+  }
+}
+```
+
 ## Адмінські таблиці — n-admin-table
 
 Для таблиць, що мають займати всю висоту сторінки (або блоку), додавай клас `n-admin-table` і атрибути `hide-no-data`, `dense`, `flat`. Таблиця автоматично розтягнеться на весь доступний простір. У блоках меншої висоти — задай їм явний `height`.

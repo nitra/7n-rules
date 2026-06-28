@@ -243,7 +243,7 @@ export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
     rung: tier,
     model: modelSpec,
     cwd,
-    // ВХІД LLM (щоб «що подали» було видно у trace, без розкопок escalation-log):
+    // ВХІД LLM (щоб «що подали» було видно прямо у trace):
     // violation — обрізаний (може бути великим); promptChars — повний розмір промпта.
     violation: typeof violation === 'string' ? violation.slice(0, 4000) : null,
     violationChars: typeof violation === 'string' ? violation.length : 0,

@@ -3,7 +3,6 @@
 import { env } from 'node:process'
 import { runConformanceCheck } from './run-conformance-check.mjs'
 import { runT0AutoCli } from './t0.mjs'
-import { logEscalation } from './escalation-log.mjs'
 import { runPiAgentFix } from '../../../lib/pi-agent-fix.mjs'
 import { recordFixTelemetry } from '../../../lib/pi-telemetry-store.mjs'
 import { CLOUD_AVG, CLOUD_MIN, LOCAL_MIN } from '../../../lib/pi-model-tiers.mjs'
@@ -112,7 +111,7 @@ function decideAfterFailure(rung, error) {
 /**
  * Проводить ОДНЕ правило по драбині ескалації до першого зеленого re-check.
  * Кожен рунг: виклик worker (з feedback від попереднього) → re-check цього правила →
- * запис у escalation-лог («чи допомогло» + diagnosis). Достроковий вихід — `decideAfterFailure`
+ * persist у глобальний telemetry-стор (`recordFixTelemetry`). Достроковий вихід — `decideAfterFailure`
  * (обрив на no-key, пропуск моделі на systemic) і вичерпаний avg-кеп (залогувати, не мовчки).
  * @param {{ ruleId: string, output: string }} rule провальне правило з violation-output
  * @param {string} cwd корінь проєкту
@@ -121,16 +120,13 @@ function decideAfterFailure(rung, error) {
  *   worker: { runFix: (ruleId: string, violation: string, cwd: string, opts: object) => Promise<object> },
  *   check: (rules: string[], cwd: string) => Promise<{rules: Array<{ruleId:string,ok:boolean,output:string}>}>,
  *   avgBudget: number,
- *   clock?: () => number,
  *   log?: (s: string) => void
- * }} deps інжектовані залежності (worker/check/clock — для тестів)
+ * }} deps інжектовані залежності (worker/check — для тестів)
  * @returns {Promise<{ resolved: boolean, avgUsed: number }>} чи закрито правило і скільки avg-викликів витрачено
  */
 export async function escalateRule(rule, cwd, deps) {
   const { ladder, worker, check, avgBudget } = deps
-  const clock = deps.clock ?? (() => Date.now())
   const log = deps.log ?? (s => console.log(s))
-  const record = base => logEscalation({ ts: new Date(clock()).toISOString(), ruleId: rule.ruleId, ...base })
 
   let feedback = null
   let currentViolation = rule.output
@@ -140,43 +136,20 @@ export async function escalateRule(rule, cwd, deps) {
   // §2-профілактика: violation без actionable ❌ (tool-crash/Usage/шум) → не годуємо
   // агента (інакше флоундерить рунги до timeout). Рапортуємо як non-actionable, не фіксимо.
   if (!hasActionableViolation(rule.output)) {
-    record({
-      rung: -1,
-      tier: 'skip',
-      model: '',
-      withFeedback: false,
-      callOk: false,
-      callError: 'non-actionable violation (нема ❌ — ймовірно check-error/tool-crash)',
-      recheckOk: false,
-      remainingViolation: rule.output,
-      diagnosis: null,
-      ms: 0
-    })
     log(
       `  ⏭️  ${rule.ruleId}: LLM-фікс пропущено — у violation немає ❌-порушень (check-error/tool-crash, не фіксабельне)`
     )
     return { resolved: false, avgUsed: 0 }
   }
 
-  for (const [idx, rung] of ladder.entries()) {
+  for (const rung of ladder) {
     if (skipModels.has(rung.model)) continue
 
-    const common = { rung: idx, tier: rung.tier, model: rung.model, withFeedback: rung.feedback }
     if (rung.isAvg && avgBudget - avgUsed <= 0) {
-      record({
-        ...common,
-        callOk: false,
-        callError: 'cloud-avg cap reached',
-        recheckOk: false,
-        remainingViolation: currentViolation,
-        diagnosis: null,
-        ms: 0
-      })
       log(`  ⏭️  ${rule.ruleId}: ${rung.tier} пропущено (avg-кеп вичерпано)`)
       continue
     }
 
-    const startedAt = clock()
     // self_check (advisory §4+5) — той самий verdict-helper, що й зовнішній re-check.
     const selfCheck = async () => {
       const r = await check([rule.ruleId], cwd)
@@ -206,16 +179,6 @@ export async function escalateRule(rule, cwd, deps) {
         escalated: !recheckOk
       })
     }
-
-    record({
-      ...common,
-      callOk: !res.error,
-      callError: res.error ?? null,
-      recheckOk,
-      remainingViolation: remaining,
-      diagnosis: res.telemetry ? `turns=${res.telemetry.turnCount} tools=${res.telemetry.toolCallCount}` : null,
-      ms: clock() - startedAt
-    })
 
     if (recheckOk) {
       log(`  ✅ ${rung.tier} (${rung.model || 'pi'}): ${rule.ruleId}`)

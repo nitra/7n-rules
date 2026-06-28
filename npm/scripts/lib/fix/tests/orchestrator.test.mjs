@@ -2,8 +2,8 @@
  * Юніт-тести orchestrator.mjs — драбина ескалації (спека 2026-06-19-fix-escalation-cascade).
  *
  * Стратегія: тестуємо чисті `buildLadder` і `escalateRule` з інжектованими
- * worker/check — без реального spawnSync/LLM. Escalation-лог вимкнено kill-switch-ем,
- * щоб тести не писали в .n-cursor/.
+ * worker/check — без реального spawnSync/LLM. Телеметрія йде у глобальний стор
+ * (`recordFixTelemetry`), тести інжектують `telemetry: null`, тож у репо нічого не пишеться.
  */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { env } from 'node:process'
@@ -16,16 +16,12 @@ import {
   parseOrchestratorArgs
 } from '../orchestrator.mjs'
 
-let prevTrace, prevVerbose
+let prevVerbose
 beforeAll(() => {
-  prevTrace = env.N_CURSOR_FIX_ESCALATION_LOG
-  env.N_CURSOR_FIX_ESCALATION_LOG = '0'
   prevVerbose = env.N_CURSOR_FIX_VERBOSE
   env.N_CURSOR_FIX_VERBOSE = 'off'
 })
 afterAll(() => {
-  if (prevTrace === undefined) delete env.N_CURSOR_FIX_ESCALATION_LOG
-  else env.N_CURSOR_FIX_ESCALATION_LOG = prevTrace
   if (prevVerbose === undefined) delete env.N_CURSOR_FIX_VERBOSE
   else env.N_CURSOR_FIX_VERBOSE = prevVerbose
 })
@@ -67,7 +63,6 @@ function makeCheck(ruleId, okSeq) {
 
 const ok = () => ({ applied: true, touchedFiles: ['f'], telemetry: null, error: null, rollback: () => {} })
 const fail = error => ({ applied: false, touchedFiles: [], telemetry: null, error, rollback: () => {} })
-const clock = () => 0
 const noop = () => {
   /* лог глушимо у тестах */
 }
@@ -132,7 +127,6 @@ describe('escalateRule — non-actionable skip', () => {
       worker,
       check: makeCheck('doc-files', [true]),
       avgBudget: 3,
-      clock,
       log: noop
     })
     expect(r).toEqual({ resolved: false, avgUsed: 0 })
@@ -168,7 +162,6 @@ describe('escalateRule', () => {
       worker,
       check: makeCheck('rego', [true]),
       avgBudget: 3,
-      clock,
       log: noop
     })
     expect(r).toEqual({ resolved: true, avgUsed: 0 })
@@ -185,7 +178,6 @@ describe('escalateRule', () => {
       worker,
       check: makeCheck('rego', [false, true]),
       avgBudget: 3,
-      clock,
       log: noop
     })
     expect(r.resolved).toBe(true)
@@ -201,7 +193,6 @@ describe('escalateRule', () => {
       worker,
       check: makeCheck('rego', [false, false, false, true]),
       avgBudget: 3,
-      clock,
       log: noop
     })
     expect(r).toEqual({ resolved: true, avgUsed: 1 })
@@ -215,7 +206,6 @@ describe('escalateRule', () => {
       worker,
       check: makeCheck('rego', [false, false, false]),
       avgBudget: 0,
-      clock,
       log: noop
     })
     expect(r.resolved).toBe(false)
@@ -229,7 +219,6 @@ describe('escalateRule', () => {
       worker,
       check: makeCheck('rego', [false, true]),
       avgBudget: 3,
-      clock,
       log: noop
     })
     expect(r.resolved).toBe(true)
@@ -244,7 +233,6 @@ describe('escalateRule', () => {
       worker,
       check: makeCheck('rego', [false, false, true]),
       avgBudget: 3,
-      clock,
       log: noop
     })
     const timeouts = worker.calls.map(c => c.timeoutMs)
@@ -258,7 +246,6 @@ describe('escalateRule', () => {
       worker,
       check: makeCheck('rego', [false, false, false]),
       avgBudget: 3,
-      clock,
       log: noop
     })
     expect(r).toEqual({ resolved: false, avgUsed: 0 })
@@ -273,7 +260,6 @@ describe('escalateRule', () => {
       worker,
       check: makeCheck('rego', [false, false, false, true]),
       avgBudget: 3,
-      clock,
       log: noop
     })
     expect(r.resolved).toBe(true)
@@ -288,7 +274,6 @@ describe('escalateRule', () => {
       worker,
       check: makeCheck('rego', [false, false, false]),
       avgBudget: 3,
-      clock,
       log: noop
     })
     expect(r.resolved).toBe(false)

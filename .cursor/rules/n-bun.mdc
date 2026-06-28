@@ -6,6 +6,21 @@ version: '2.1'
 ---
 
 Проект використовує тільки Bun для керування залежностями та запуску скриптів.
+- `package.json`:
+
+```json
+{
+  "packageManager": "видали поле — Bun не потребує packageManager (bun.mdc)",
+  "dependencies": "кореневий package.json не повинен містити dependencies — додай у workspace-пакети (bun.mdc)"
+}
+```
+- `bunfig.toml`:
+
+```toml
+[install]
+linker = "hoisted"
+```
+
 ## Конфігурація bunfig.toml
 
 У корені репозиторію має бути **`bunfig.toml`** з **hoisted** лінкером (пласке `node_modules`, сумісне з інструментами, які не розуміють ізольований layout Bun).

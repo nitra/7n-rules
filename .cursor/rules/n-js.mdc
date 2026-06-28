@@ -11,9 +11,101 @@ version: '1.30'
 
 Rego-пакети у `policy/` — запускаються `npx @nitra/cursor fix js` або `conftest`:
 
+- `lint-js.yml`:
+
+```yaml
+name: Lint JS
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - '**/*.js'
+      - '**/*.mjs'
+      - '**/*.cjs'
+      - '**/*.jsx'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.vue'
+      - '**/eslint.config.*'
+
+  pull_request:
+    branches:
+      - dev
+      - main
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  eslint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-bun-deps
+
+      - name: Eslint
+        run: n-cursor lint js --read-only
+```
+- `.jscpd.json`:
+
+```json
+{
+  "gitignore": true,
+  "exitCode": 1,
+  "reporters": ["console"],
+  "minLines": 25,
+  "ignore": [".claude/worktrees/**", "**/dist/**", "**/CHANGELOG.md"]
+}
+```
+- `extensions.json`:
+
+```json
+{
+  "recommendations": ["dbaeumer.vscode-eslint", "github.vscode-github-actions", "oxc.oxc-vscode"]
+}
+```
+- `package.json`:
+
+```json
+{
+  "type": "module",
+  "devDependencies": {
+    "@nitra/eslint-config": "^3.10.0"
+  }
+}
+```
+
 ## Залежнісна політика (що не додавати)
 
 `@e18e/eslint-plugin` окремо не додавай — він уже в залежностях `@nitra/eslint-config` (з **3.8.0**), oxlint підвантажує його з `node_modules`. Пакети `oxlint`/`eslint`/`jscpd`/`knip` теж не додавай у `devDependencies` без потреби монорепо — `bunx` тягне їх ad-hoc.
+
+### Заборона `ua-parser-js`
+
+Пакет **`ua-parser-js`** заборонений починаючи з версії **2.x**, де ліцензія змінилась з MIT на **AGPL-3.0** — несумісну з комерційним використанням у закритому SaaS. Замінити на **`bowser`** (MIT, ~6 KB gzip):
+
+```javascript title="❌ до"
+import { UAParser } from 'ua-parser-js'
+const parser = new UAParser(userAgent)
+const result = parser.getResult()
+const browserName = result.browser.name
+```
+
+```javascript title="✅ після"
+import Bowser from 'bowser'
+const browser = Bowser.getParser(userAgent)
+const browserName = browser.getBrowserName()
+```
+
+Bowser надає ті самі поля: `getBrowserName()`, `getOSName()`, `getPlatform().vendor`. Міграція займає кілька рядків; логіка не змінюється.
 
 ### Заборона `@nitra/as-integrations-fastify`
 

@@ -372,6 +372,14 @@ Rego-перевірки, що запускаються через `conftest` у 
 | --------------------------- | -------------------------------------------------------------------- |
 | `ci4.vscode_extensions`     | `.vscode/extensions.json` містить `arr.marksman` у `recommendations` |
 
+- `extensions.json`:
+
+```json
+{
+  "recommendations": ["arr.marksman"]
+}
+```
+
 ## Конфіг marksman LSP (`.marksman.toml`)
 
 Правило перевіряє наявність `.marksman.toml` у корені проєкту. Якщо файл відсутній — автоматично створює його з canonical baseline, що постачається разом із пакетом (`js/data/marksman_config/marksman.baseline.toml`). Повторні прогони ідемпотентні: існуючий файл не перетирається, ручні правки зберігаються.

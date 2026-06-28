@@ -6,6 +6,7 @@ version: '1.0'
 ---
 
 Python-проєкти ведуться **виключно** на [uv](https://docs.astral.sh/uv/) — єдиний пакет-менеджер і резолвер. **Poetry заборонено.** Середовище: `uv sync --frozen` (строго з `uv.lock`).
+
 ## CI: `.github/workflows/lint-python.yml`
 
 Канонічний workflow: [lint-python.yml.snippet.yml](./policy/lint_python_yml/template/lint-python.yml.snippet.yml)
