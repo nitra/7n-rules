@@ -3,7 +3,7 @@ type: JS Module
 title: vitest-config-pool-forks.mjs
 resource: npm/rules/test/js/vitest-config-pool-forks.mjs
 docgen:
-  crc: c8640fd7
+  crc: 42efa786
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

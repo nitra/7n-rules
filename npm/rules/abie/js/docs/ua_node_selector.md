@@ -3,7 +3,7 @@ type: JS Module
 title: ua_node_selector.mjs
 resource: npm/rules/abie/js/ua_node_selector.mjs
 docgen:
-  crc: 6cde9837
+  crc: 53c187ec
   score: 100
 ---
 

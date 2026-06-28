@@ -143,7 +143,7 @@ export async function lint(files, cwd = process.cwd(), { readOnly = false, llmFi
   return 1
 }
 
-export { runLintDocFilesCli } from './js/run-lint.mjs'
+export { runLintDocFilesCli } from './js/lint.mjs'
 
 if (isRunAsCli(import.meta.url)) {
   // Standalone: bun rules/doc-files/main.mjs — повний еквівалент `npx @nitra/cursor check doc-files`.

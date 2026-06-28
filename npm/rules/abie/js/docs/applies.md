@@ -3,7 +3,7 @@ type: JS Module
 title: applies.mjs
 resource: npm/rules/abie/js/applies.mjs
 docgen:
-  crc: f5b6777a
+  crc: 1f318315
 ---
 
 Файл надає інструменти для валідації даних. Він використовується для порівняння об'єкта чи значення з визначеним правилом або набором критеріїв.

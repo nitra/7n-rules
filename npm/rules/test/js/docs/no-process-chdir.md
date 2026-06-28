@@ -3,7 +3,7 @@ type: JS Module
 title: no-process-chdir.mjs
 resource: npm/rules/test/js/no-process-chdir.mjs
 docgen:
-  crc: 0ace6be6
+  crc: 2aa7d3cd
   score: 100
 ---
 

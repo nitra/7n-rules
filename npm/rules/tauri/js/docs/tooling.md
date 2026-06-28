@@ -3,7 +3,7 @@ type: JS Module
 title: tooling.mjs
 resource: npm/rules/tauri/js/tooling.mjs
 docgen:
-  crc: 8f7bbb45
+  crc: 0a0ed4fa
   score: 90
 ---
 

@@ -3,7 +3,7 @@ type: JS Module
 title: package_structure.mjs
 resource: npm/rules/npm-module/js/package_structure.mjs
 docgen:
-  crc: 943e3b76
+  crc: b434f785
   score: 85
 ---
 

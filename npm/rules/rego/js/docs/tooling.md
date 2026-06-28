@@ -3,7 +3,7 @@ type: JS Module
 title: tooling.mjs
 resource: npm/rules/rego/js/tooling.mjs
 docgen:
-  crc: 4c098cd0
+  crc: 154bfea0
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

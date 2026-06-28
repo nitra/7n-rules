@@ -3,7 +3,7 @@ type: JS Module
 title: safety.mjs
 resource: npm/rules/js-bun-db/js/safety.mjs
 docgen:
-  crc: e828ee4a
+  crc: f3db6046
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

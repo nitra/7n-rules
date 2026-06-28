@@ -3,7 +3,7 @@ type: JS Module
 title: deps.mjs
 resource: npm/rules/js-mssql/js/deps.mjs
 docgen:
-  crc: d5bc32ba
+  crc: 4cbacb75
   score: 100
 ---
 

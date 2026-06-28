@@ -48,14 +48,14 @@ describe('runRule — applies gate', () => {
         'rego',
         'applies',
         `export const applies = async () => false
-         export const check = async () => { throw new Error('не має викликатись') }
+         export const main = async () => { throw new Error('не має викликатись') }
         `
       )
       await writeConcernJs(
         dir,
         'rego',
         'other',
-        `export const check = async () => { throw new Error('не має викликатись') }`
+        `export const main = async () => { throw new Error('не має викликатись') }`
       )
       const rule = {
         id: 'rego',
@@ -74,7 +74,7 @@ describe('runRule — applies gate', () => {
         'rego',
         'applies',
         `export const applies = async () => true
-         export const check = async () => 0
+         export const main = async () => 0
         `
       )
       await writeConcernJs(
@@ -82,7 +82,7 @@ describe('runRule — applies gate', () => {
         'rego',
         'other',
         `let called = false
-         export const check = async () => { called = true; return 0 }
+         export const main = async () => { called = true; return 0 }
          export const wasCalled = () => called`
       )
       const rule = {
@@ -97,7 +97,7 @@ describe('runRule — applies gate', () => {
 
   test('відсутній applies-концерн → правило просто запускається', async () => {
     await withTmpDir(async dir => {
-      await writeConcernJs(dir, 'text', 'cspell', `export const check = async () => 0`)
+      await writeConcernJs(dir, 'text', 'cspell', `export const main = async () => 0`)
       const rule = {
         id: 'text',
         jsConcerns: [{ name: 'cspell' }],
@@ -112,8 +112,8 @@ describe('runRule — applies gate', () => {
 describe('runRule — exit-код агрегується', () => {
   test('1, якщо хоча б один JS-концерн повернув ненульовий', async () => {
     await withTmpDir(async dir => {
-      await writeConcernJs(dir, 'mix', 'a', `export const check = async () => 0`)
-      await writeConcernJs(dir, 'mix', 'b', `export const check = async () => 1`)
+      await writeConcernJs(dir, 'mix', 'a', `export const main = async () => 0`)
+      await writeConcernJs(dir, 'mix', 'b', `export const main = async () => 1`)
       const rule = {
         id: 'mix',
         jsConcerns: [{ name: 'a' }, { name: 'b' }],
@@ -128,7 +128,7 @@ describe('runRule — exit-код агрегується', () => {
 describe('runRule — applies-gate: applies-модуль без функції applies', () => {
   test('модуль є, але без exports.applies → rules вважається застосовним', async () => {
     await withTmpDir(async dir => {
-      await writeConcernJs(dir, 'noapplies', 'applies', `export const check = async () => 0`)
+      await writeConcernJs(dir, 'noapplies', 'applies', `export const main = async () => 0`)
       const rule = {
         id: 'noapplies',
         jsConcerns: [{ name: 'applies' }],

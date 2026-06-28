@@ -3,7 +3,7 @@ type: JS Module
 title: marksman_config.mjs
 resource: npm/rules/ci4/js/marksman_config.mjs
 docgen:
-  crc: 07883aa5
+  crc: 6c8d3e93
 ---
 
 Модуль `marksman_config.mjs` — це концерн правила `ci4` (`ci4.mdc`), що відповідає за матеріалізацію canonical-конфіга для Marksman LSP у корені проєкту. Модуль експортує єдину функцію `check`, яка перевіряє наявність файлу `.marksman.toml` у заданому робочому каталозі (`cwd`) і, якщо файлу немає, копіює туди baseline-варіант, що поставляється з пакета `@nitra/cursor`.

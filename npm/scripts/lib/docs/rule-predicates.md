@@ -3,7 +3,7 @@ type: JS Module
 title: rule-predicates.mjs
 resource: npm/scripts/lib/rule-predicates.mjs
 docgen:
-  crc: 71fba574
+  crc: 2c7f2b5c
   score: 95
 ---
 

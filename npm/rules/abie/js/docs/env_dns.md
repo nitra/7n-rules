@@ -3,7 +3,7 @@ type: JS Module
 title: env_dns.mjs
 resource: npm/rules/abie/js/env_dns.mjs
 docgen:
-  crc: f2aff16b
+  crc: 211b480e
   score: 100
 ---
 

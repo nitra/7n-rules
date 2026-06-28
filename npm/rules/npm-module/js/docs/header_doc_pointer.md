@@ -3,7 +3,7 @@ type: JS Module
 title: header_doc_pointer.mjs
 resource: npm/rules/npm-module/js/header_doc_pointer.mjs
 docgen:
-  crc: 90fc46dc
+  crc: c0d236e5
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

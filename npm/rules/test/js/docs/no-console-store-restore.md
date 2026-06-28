@@ -3,7 +3,7 @@ type: JS Module
 title: no-console-store-restore.mjs
 resource: npm/rules/test/js/no-console-store-restore.mjs
 docgen:
-  crc: 39f9fb6d
+  crc: 180c92c6
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

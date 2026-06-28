@@ -3,7 +3,7 @@ type: JS Module
 title: auto-rules.mjs
 resource: npm/scripts/auto-rules.mjs
 docgen:
-  crc: ba75c709
+  crc: c94c038d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
 ---

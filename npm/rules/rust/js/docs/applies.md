@@ -3,7 +3,7 @@ type: JS Module
 title: applies.mjs
 resource: npm/rules/rust/js/applies.mjs
 docgen:
-  crc: 4cc601f5
+  crc: e722bdb2
   score: 100
 ---
 

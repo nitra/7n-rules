@@ -3,12 +3,10 @@ type: JS Module
 title: orchestrator.mjs
 resource: npm/scripts/lib/fix/orchestrator.mjs
 docgen:
-  crc: c16c34f7
+  crc: 58d81287
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
-
-## Огляд
 
 Цей модуль керує процесом виправлення порушень. Він виконує функцію `parseOrchestratorArgs` для визначення обсягу роботи з хмарними моделями та фільтрами правил. Модуль забезпечує класифікацію помилок через `classifyFixError` та ескалацію правил за допомогою `escalateRule`. Крім того, він створює структуру для застосування правил за допомогою `buildLadder` і запускає основний клієнтський процес за допомогою `runOrchestratorCli`.
 

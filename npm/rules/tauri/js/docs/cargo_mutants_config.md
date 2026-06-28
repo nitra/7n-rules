@@ -3,7 +3,7 @@ type: JS Module
 title: cargo_mutants_config.mjs
 resource: npm/rules/tauri/js/cargo_mutants_config.mjs
 docgen:
-  crc: 7dc410ce
+  crc: d733bc45
   score: 80
 ---
 

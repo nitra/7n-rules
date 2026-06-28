@@ -3,7 +3,7 @@ type: JS Module
 title: ua_http_route.mjs
 resource: npm/rules/abie/js/ua_http_route.mjs
 docgen:
-  crc: d86624c8
+  crc: 7e1e11f9
   score: 100
 ---
 

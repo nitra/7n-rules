@@ -3,7 +3,7 @@ type: JS Module
 title: location.mjs
 resource: npm/rules/test/js/location.mjs
 docgen:
-  crc: 9ea5f9b8
+  crc: ded2b5cd
   score: 100
 ---
 

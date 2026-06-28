@@ -3,7 +3,7 @@ type: JS Module
 title: runtime.mjs
 resource: npm/rules/js-run/js/runtime.mjs
 docgen:
-  crc: 5b447a0f
+  crc: 1a524399
   model: claude-sonnet-4-6
   score: 100
 ---

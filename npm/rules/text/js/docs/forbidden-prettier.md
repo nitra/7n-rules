@@ -3,7 +3,7 @@ type: JS Module
 title: forbidden-prettier.mjs
 resource: npm/rules/text/js/forbidden-prettier.mjs
 docgen:
-  crc: a5dae608
+  crc: e0c9394b
   score: 100
 ---
 

@@ -3,7 +3,7 @@ type: JS Module
 title: no-relative-fs-path.mjs
 resource: npm/rules/test/js/no-relative-fs-path.mjs
 docgen:
-  crc: 3b8f52db
+  crc: 404c1f0d
   score: 100
 ---
 

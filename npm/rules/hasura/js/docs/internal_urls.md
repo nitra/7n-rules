@@ -3,7 +3,7 @@ type: JS Module
 title: internal_urls.mjs
 resource: npm/rules/hasura/js/internal_urls.mjs
 docgen:
-  crc: 83abefa3
+  crc: cc870e10
   score: 90
 ---
 

@@ -3,12 +3,10 @@ type: JS Module
 title: run-rule.mjs
 resource: npm/scripts/lib/run-rule.mjs
 docgen:
-  crc: 500c35f6
+  crc: 1181d0b5
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
-
-## Огляд
 
 Оркестратор виконує логіку одного правила під CLI `fix`. Він послідовно застосовує фільтр застосовності з `js/applies.mjs`. Далі виконуються JS-концерни для перевірки, а потім запускаються Policy-концерни, що зчитують конфігурації з `target.json` та `.n-cursor.json`. Резолвер ділить кеш між концернами, а їхні коди виходу об'єднуються в єдиний результат правила.
 

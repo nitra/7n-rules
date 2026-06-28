@@ -3,7 +3,7 @@ type: JS Module
 title: check.mjs
 resource: npm/rules/js/js/check.mjs
 docgen:
-  crc: 7ad4aa59
+  crc: f7af0b75
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

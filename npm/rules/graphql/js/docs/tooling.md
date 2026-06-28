@@ -3,7 +3,7 @@ type: JS Module
 title: tooling.mjs
 resource: npm/rules/graphql/js/tooling.mjs
 docgen:
-  crc: eb6b4713
+  crc: f4c453ac
   score: 100
 ---
 

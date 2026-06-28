@@ -3,7 +3,7 @@ type: JS Module
 title: sample_secret.mjs
 resource: npm/rules/security/js/sample_secret.mjs
 docgen:
-  crc: ff1c0de8
+  crc: bff946fb
   score: 90
 ---
 

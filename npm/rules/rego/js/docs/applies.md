@@ -3,7 +3,7 @@ type: JS Module
 title: applies.mjs
 resource: npm/rules/rego/js/applies.mjs
 docgen:
-  crc: 059e378c
+  crc: 2b1fd114
   score: 100
 ---
 

@@ -3,7 +3,7 @@ type: JS Module
 title: cargo_mutants_config.mjs
 resource: npm/rules/test/js/cargo_mutants_config.mjs
 docgen:
-  crc: 4078e955
+  crc: 5e85d886
   score: 100
 ---
 

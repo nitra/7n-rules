@@ -3,7 +3,7 @@ type: JS Module
 title: workflows.mjs
 resource: npm/rules/ga/js/workflows.mjs
 docgen:
-  crc: a9296cf1
+  crc: 18695483
   score: 100
 ---
 

@@ -3,7 +3,7 @@ type: JS Module
 title: layout.mjs
 resource: npm/rules/bun/js/layout.mjs
 docgen:
-  crc: 468d3430
+  crc: 69a0641e
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

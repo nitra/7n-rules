@@ -3,7 +3,7 @@ type: JS Module
 title: applies.mjs
 resource: npm/rules/python/js/applies.mjs
 docgen:
-  crc: ed79bd71
+  crc: baca4b70
   score: 100
 ---
 

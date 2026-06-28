@@ -3,7 +3,7 @@ type: JS Module
 title: hc_pairing.mjs
 resource: npm/rules/abie/js/hc_pairing.mjs
 docgen:
-  crc: 5627bda6
+  crc: 85eb562f
   score: 100
 ---
 

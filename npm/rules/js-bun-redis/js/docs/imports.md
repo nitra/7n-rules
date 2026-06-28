@@ -3,7 +3,7 @@ type: JS Module
 title: imports.mjs
 resource: npm/rules/js-bun-redis/js/imports.mjs
 docgen:
-  crc: 678c233c
+  crc: 95402215
   score: 100
 ---
 

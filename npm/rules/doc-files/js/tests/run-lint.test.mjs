@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
 import { withTmpDir, ensureDir } from '../../../../scripts/utils/test-helpers.mjs'
-import { runLintDocFilesSteps } from '../run-lint.mjs'
+import { runLintDocFilesSteps } from '../lint.mjs'
 import { crc32, stampDoc } from '../docgen-crc.mjs'
 
 describe('runLintDocFilesSteps (lint-doc-files)', () => {

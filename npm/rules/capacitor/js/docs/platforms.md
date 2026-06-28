@@ -3,7 +3,7 @@ type: JS Module
 title: platforms.mjs
 resource: npm/rules/capacitor/js/platforms.mjs
 docgen:
-  crc: d102129c
+  crc: eb46a6ed
   score: 85
 ---
 

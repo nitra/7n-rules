@@ -3,7 +3,7 @@ type: JS Module
 title: utils_imports.mjs
 resource: npm/rules/js/js/utils_imports.mjs
 docgen:
-  crc: 3fc9bf1b
+  crc: f80b1f0c
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

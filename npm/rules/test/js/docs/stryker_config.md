@@ -3,7 +3,7 @@ type: JS Module
 title: stryker_config.mjs
 resource: npm/rules/test/js/stryker_config.mjs
 docgen:
-  crc: be62c446
+  crc: 53e26d13
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

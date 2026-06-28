@@ -3,7 +3,7 @@ type: JS Module
 title: rule_meta.mjs
 resource: npm/rules/npm-module/js/rule_meta.mjs
 docgen:
-  crc: 84394694
+  crc: 2dbb046a
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

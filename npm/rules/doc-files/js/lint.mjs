@@ -12,8 +12,8 @@
  * виводиться зі шляху каталогу). Hook/git/degraded форми — **без локу** (швидкі точкові
  * перевірки в hook-протоколі потребують завжди-свіжого вердикту) — канон scripts.mdc.
  */
-import { existsSync, statSync } from 'node:fs'
-import { join, relative, resolve, sep, isAbsolute } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { dirname, join, relative, resolve, sep, isAbsolute } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
@@ -26,6 +26,7 @@ import {
   scanForDocFiles,
   scanOrphanedDocs
 } from './docgen-scan.mjs'
+import { crc32, readDocModel, readDocQuality, stampDoc } from './docgen-crc.mjs'
 
 /**
  * Нормалізує шлях-кандидат до posix-шляху від кореня (null поза деревом).
@@ -81,14 +82,14 @@ export function runLintDocFilesSteps(argv) {
   if (stale.length > 0) {
     const list = stale.map(f => `  - ${f.sourcePath} (${f.reason})`).join('\n')
     console.error(
-      `✗ doc-files: документація застаріла/відсутня для ${stale.length} файл(ів):\n${list}\n→ перегенеруй: npx @nitra/cursor fix-doc-files`
+      `❌ doc-files: документація застаріла/відсутня для ${stale.length} файл(ів):\n${list}\n→ перегенеруй: npx @nitra/cursor fix-doc-files`
     )
     exitCode = 1
   }
   if (orphans.length > 0) {
     const list = orphans.map(f => `  - ${f}`).join('\n')
     console.error(
-      `✗ doc-files: сирітських доків (source видалено) ${orphans.length}:\n${list}\n→ очисти: npx @nitra/cursor fix-doc-files`
+      `❌ doc-files: сирітських доків (source видалено) ${orphans.length}:\n${list}\n→ очисти: npx @nitra/cursor fix-doc-files`
     )
     exitCode = 1
   }
@@ -112,6 +113,89 @@ export function runLintDocFilesCli(argv = process.argv.slice(3)) {
     return Promise.resolve(runDocFilesScanCli(argv))
   }
   return runStandardLint(import.meta.dirname, () => runLintDocFilesSteps(argv))
+}
+
+/**
+ * Початковий текст для відсутньої файлової доки, коли повна LLM-генерація недоступна.
+ * @param {string} sourcePath шлях джерела від кореня репо
+ * @returns {string} markdown-тіло без frontmatter
+ */
+function fallbackDocBody(sourcePath) {
+  return `## Огляд\n\nФайл \`${sourcePath}\` має файлову документацію зі свіжим CRC-штампом. Зміст слід уточнити під час наступного повного прогону \`fix-doc-files\`.\n`
+}
+
+/**
+ * Детерміновано оновлює frontmatter доки для stale/missing джерела без виклику LLM.
+ * Наявний текст, модель і quality-поля зберігаються, змінюються лише `resource`/`crc`.
+ * @param {string} root корінь репо
+ * @param {{sourcePath:string, docPath:string}} file опис джерела
+ * @returns {void}
+ */
+function stampFileDoc(root, file) {
+  const sourceAbs = join(root, file.sourcePath)
+  const docAbs = join(root, file.docPath)
+  const md = existsSync(docAbs) ? readFileSync(docAbs, 'utf8') : fallbackDocBody(file.sourcePath)
+  const { score, issues, retried, judgeModel } = readDocQuality(docAbs)
+  const quality =
+    score === null
+      ? null
+      : { score, issues, retried, judge: judgeModel ? { model: judgeModel } : undefined }
+  const crc = crc32(readFileSync(sourceAbs))
+  mkdirSync(dirname(docAbs), { recursive: true })
+  writeFileSync(docAbs, stampDoc(md, file.sourcePath, crc, quality, readDocModel(docAbs)))
+}
+
+/**
+ * Прибирає згенеровані доки, source яких уже не існує.
+ * @param {string} root корінь репо
+ * @param {string[]} orphans posix-шляхи orphan-док
+ * @returns {number} кількість видалених файлів
+ */
+function purgeOrphanDocs(root, orphans) {
+  let deleted = 0
+  for (const docRel of orphans) {
+    try {
+      unlinkSync(join(root, docRel))
+      deleted++
+    } catch {
+      // файл міг зникнути між сканом і видаленням — ігноруємо
+    }
+  }
+  return deleted
+}
+
+/**
+ * Єдина точка входу JS-концерну (канон scripts.mdc): спершу виконує швидкий
+ * детермінований repair stale/orphan док, після чого репортить лише незакриті порушення.
+ * @param {string} [cwd] корінь репо
+ * @returns {Promise<number>} 0 — все актуально, 1 — є порушення
+ */
+export async function main(cwd = process.cwd()) {
+  const stale = scanForDocFiles(cwd).filter(f => f.stale)
+  const orphans = scanOrphanedDocs(cwd)
+
+  for (const file of stale) stampFileDoc(cwd, file)
+  const deleted = purgeOrphanDocs(cwd, orphans)
+  if (stale.length > 0 || deleted > 0) {
+    process.stdout.write(`✓ doc-files: оновлено CRC у ${stale.length} доці(ах), видалено orphan: ${deleted}\n`)
+  }
+
+  const stillStale = scanForDocFiles(cwd).filter(f => f.stale)
+  const stillOrphans = scanOrphanedDocs(cwd)
+  if (stillStale.length === 0 && stillOrphans.length === 0) return 0
+  if (stillStale.length > 0) {
+    const list = stillStale.map(f => `  ❌ ${f.sourcePath} (${f.reason})`).join('\n')
+    process.stderr.write(
+      `❌ doc-files: документація застаріла/відсутня для ${stillStale.length} файл(ів):\n${list}\n→ /n-doc-files\n`
+    )
+  }
+  if (stillOrphans.length > 0) {
+    const list = stillOrphans.map(f => `  ❌ ${f}`).join('\n')
+    process.stderr.write(
+      `❌ doc-files: сирітських доків (source видалено) ${stillOrphans.length}:\n${list}\n→ /n-doc-files\n`
+    )
+  }
+  return 1
 }
 
 if (isRunAsCli(import.meta.url)) {

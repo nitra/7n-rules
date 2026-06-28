@@ -3,14 +3,12 @@ type: JS Module
 title: skill_meta.mjs
 resource: npm/rules/npm-module/js/skill_meta.mjs
 docgen:
-  crc: a134317c
+  crc: 276c5ebf
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
 ---
-
-## Огляд
 
 Скрипт проводить валідацію конфігурацій усіх каталогів у `npm/skills`, перевіряючи відповідність кожного скіла встановленому контракту. Аналіз здійснюється з урахуванням конфігурацій `meta.json` та `main.json`, що контролюють надійність полів, таких як `worktree`, `auto` та `requireRoot`. У разі успіху повідомляється про відповідність конфігурацій скілів визначеним правилам; у випадку виявлення помилок інформується про них.
 

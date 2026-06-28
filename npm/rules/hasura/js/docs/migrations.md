@@ -3,7 +3,7 @@ type: JS Module
 title: migrations.mjs
 resource: npm/rules/hasura/js/migrations.mjs
 docgen:
-  crc: a8e2c4c4
+  crc: eb2e1370
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

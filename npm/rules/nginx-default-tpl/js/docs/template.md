@@ -3,7 +3,7 @@ type: JS Module
 title: template.mjs
 resource: npm/rules/nginx-default-tpl/js/template.mjs
 docgen:
-  crc: 2d912e28
+  crc: 7aa326fa
   score: 90
 ---
 

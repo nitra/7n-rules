@@ -3,7 +3,7 @@ type: JS Module
 title: consistency.mjs
 resource: npm/rules/changelog/js/consistency.mjs
 docgen:
-  crc: a9bebf31
+  crc: 30a6f76d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 95
 ---

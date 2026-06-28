@@ -3,7 +3,7 @@ type: JS Module
 title: sandbox-aware-test.mjs
 resource: npm/rules/test/js/sandbox-aware-test.mjs
 docgen:
-  crc: 0c64c75c
+  crc: 2c461023
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
