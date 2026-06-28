@@ -1518,7 +1518,7 @@ try {
       // прогнати лише конформність цих правил, без лінтер-скану (мапить колишній `fix <rule>`).
       const cwdIdx = args.indexOf('--cwd')
       const cwdArg = cwdIdx !== -1 ? resolve(args[cwdIdx + 1]) : undefined
-      const rules = args.filter((a, i) => !a.startsWith('-') && i !== cwdIdx + 1)
+      const rules = args.filter((a, i) => !a.startsWith('-') && !(cwdIdx !== -1 && i === cwdIdx + 1))
       process.exitCode = await runLint({
         full: args.includes('--full'),
         readOnly: args.includes('--read-only'),
