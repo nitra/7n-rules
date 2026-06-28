@@ -2,11 +2,11 @@
 
 **Дата:** 2026-06-28
 **Статус:** Draft
-**Тип:** Breaking — змінює структуру `rules/<id>/`, схему `main.json`, контракт оркестратора; без зворотної сумісності
+**Тип:** Breaking — без зворотної сумісності, міграція одним кроком
 
 **Пов'язані документи:**
 
-- `docs/specs/2026-05-15-npm-rules-concern-and-target-design.md` — перший варіант concern-моделі (JS + policy/target.json); ця спека **замінює** схему `target.json` і скасовує обгортку `policy/`
+- `docs/specs/2026-05-15-npm-rules-concern-and-target-design.md` — перший варіант concern-моделі (JS + policy/target.json); ця спека **замінює** схему `target.json` у фінальному стані
 - `docs/specs/2026-05-31-rule-meta-json-design.md` — `main.json.auto` і поля rule-рівня; ця спека прибирає з `main.json` поля `lint` і `llmFix`
 - `docs/specs/2026-06-14-lint-orchestrator-fix-readonly-unification-design.md` — вісь поведінки fix/read-only; тут лише вісь scope
 
@@ -23,37 +23,47 @@
 
 Паралельна проблема: `policy/<name>/target.json` — окремий JSON-файл із targeting-метаданими поряд із `concern.json`-маркером якого ще не існує. Два JSON на один concern.
 
+Третя проблема, яку треба врахувати під час міграції: у репо вже є **три різні поверхні concern-а**, а не тільки lint/policy:
+
+- JS check-concern: `js/<concern>.mjs::main()` — conformance/fix-поверхня (`n-cursor fix/check`)
+- policy-concern: `policy/<concern>/target.json` + Rego/template
+- lint-concern: `main.mjs::lint()` — зараз rule-level, але фактично може містити кілька concerns
+
+Якщо `concern.json` моделює лише `scope` або `files`, JS check-concerns стають без типу. Тому схема має описувати **surfaces**, а не один взаємовиключний kind.
+
 ---
 
 ## Рішення
 
 ### 1. Concern-каталог як одиниця
 
-Будь-який **плоский підкаталог** у `rules/<id>/` із файлом `concern.json` = concern. Маркер `concern.json` замінює і `main.json.lint` (для lint-concerns), і `target.json` (для policy-concerns).
-
 ```
 rules/js/
-  main.json                  ← { "auto": {...} }  — тільки activation, worktree, requireRoot
+  main.json                  ← { "auto": {...} } — тільки rule activation
   main.mdc
-  js/                        ← helper modules (не concern — немає concern.json)
+  utils/                     ← helper modules (не concern — немає concern.json)
   eslint/
-    concern.json             ← lint concern
+    concern.json             ← { "lint": { "scope": "per-file", ... } }
     main.mjs
   knip/
-    concern.json             ← lint concern
+    concern.json             ← { "lint": { "scope": "full", ... } }
     main.mjs
   jscpd/
-    concern.json             ← policy concern
+    concern.json             ← { "policy": {...}, "lint": { "scope": "full", ... } }
+    main.mjs
     jscpd.rego
     jscpd_test.rego
     template/
     jscpd.mdc
   lint_js_yml/
-    concern.json             ← policy concern
+    concern.json             ← { "policy": { "files": {...}, "check": "template" } }
     lint_js_yml.rego
     lint_js_yml_test.rego
-    target.json              ← ВИДАЛЯЄТЬСЯ (поля переходять у concern.json)
     template/
+  dep_policy/
+    concern.json             ← { "check": true }
+    main.mjs
+    dep_policy.mdc
   package_json/
     concern.json
     package_json.rego
@@ -63,119 +73,226 @@ rules/js/
     ...
 ```
 
-Каталоги без `concern.json` (`js/`, `lib/`, `docs/`, `coverage/`, `policy/`) — не concerns, оркестратор їх ігнорує.
+Каталоги без `concern.json` (`utils/`, `lib/`, `docs/`, `coverage/`) — не concerns, оркестратор їх ігнорує. `js/` і `policy/` — forbidden після міграції, `npm-module` validation це перевіряє.
+
+`jscpd/` у прикладі — **multi-surface concern**. Поточний `policy/jscpd` не перетворюється на lint: Rego-перевірка `.jscpd.json` мігрує в `concern.json#policy`, а наявний runtime-крок `bunx jscpd .` із `js/main.mjs::lint(undefined)` стає `concern.json#lint` у тому самому домені. Якщо під час implementation це виявиться незручним для коду, допустима альтернатива — лишити policy concern як `jscpd/`, а lint-runner назвати `duplicates/`; але тоді треба явно зафіксувати, що це два concerns одного tool-домену.
 
 ### 2. `concern.json` — схема
 
-Дискримінант між типами — набір полів: `scope` → lint-concern, `files` → policy-concern.
+`concern.json` описує поверхні concern-а. Мінімум одна з поверхонь обов'язкова:
+
+- `check` — JS conformance/fix concern (`main.mjs::main(cwd)`)
+- `policy` — Rego або template concern (`<concern>.rego` або `policy.check:"template"`)
+- `lint` — lint concern (`main.mjs::lint(changed, cwd, opts)`)
+
+Одна директорія може мати кілька поверхонь, якщо це справді один домен. Наприклад `ga/workflows` може мати `check:true` для JS/Rego conformance і `lint` для `actionlint`/`zizmor`. Заборонено використовувати multi-surface як спосіб змішати непов'язані перевірки.
 
 **Lint concern:**
 
 ```json
 {
-  "scope": "per-file",
-  "glob": ["**/*.ts", "**/*.mjs"],
-  "llmFix": true
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "lint": {
+    "scope": "per-file",
+    "glob": ["**/*.ts", "**/*.mjs"],
+    "llmFix": true
+  }
 }
 ```
 
-| поле | обов'язковість | значення |
-|---|---|---|
-| `scope` | required | `"per-file"` — детектор декомпозується на changed-set; `"full"` — крос-файловий |
-| `glob` | optional | per-file: фільтр файлів із delta, які передаються в `lint()`; full: delta-тригер — concern запускається лише якщо glob ∩ changed ≠ ∅ |
-| `llmFix` | optional | `true` — concern opt-in у opportunistic LLM-fix (переїхав із `main.json`) |
+| поле          | обов'язковість | значення                                                                                                                |
+| ------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `lint.scope`  | required       | `"per-file"` — детектор декомпозується на changed-set; `"full"` — крос-файловий                                         |
+| `lint.glob`   | optional       | `per-file`: фільтр delta-файлів перед `lint()`; `full`: delta-тригер, concern запускається лише якщо glob ∩ changed ≠ ∅ |
+| `lint.llmFix` | optional       | `true` — concern opt-in у opportunistic LLM-fix                                                                         |
+
+Для `scope:"full"` без `lint.glob` concern **не запускається** у delta-режимі. Якщо потрібен whole-repo safety scan на кожну зміну (наприклад secrets), вказуй `glob:["**/*"]` явно.
 
 **Policy concern:**
 
 ```json
 {
-  "files": { "single": ".jscpd.json", "required": true }
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "policy": {
+    "files": { "single": ".jscpd.json", "required": true },
+    "missingMessage": ".jscpd.json не існує — створи згідно js.mdc"
+  }
 }
 ```
 
 ```json
 {
-  "files": { "walkGlob": "**/package.json" }
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "policy": {
+    "files": { "walkGlob": "**/package.json" },
+    "check": "template"
+  }
 }
 ```
 
-| поле | обов'язковість | значення |
-|---|---|---|
-| `files.single` | один із двох | шлях до конкретного файлу |
-| `files.walkGlob` | один із двох | glob для обходу дерева |
-| `files.required` | optional | `true` — файл обов'язковий (default: `false`) |
+| поле                    | обов'язковість | значення                                                                                     |
+| ----------------------- | -------------- | -------------------------------------------------------------------------------------------- |
+| `policy.files.single`   | один із двох   | шлях до конкретного файлу                                                                    |
+| `policy.files.walkGlob` | один із двох   | glob або масив glob-ів для обходу дерева                                                     |
+| `policy.files.required` | optional       | `true` — файл обов'язковий (default: `false`)                                                |
+| `policy.check`          | optional       | `"template"` — generic template subset-check без власного `.rego`; відсутнє поле = Rego mode |
+| `policy.missingMessage` | optional       | override повідомлення для відсутнього `required:single`                                      |
+
+**JS check concern:**
+
+```json
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "check": true
+}
+```
+
+`check:true` означає, що `main.mjs` експортує `main(cwd = process.cwd())` і виконується conformance-оркестратором (`n-cursor fix/check`). Якщо concern має тільки `lint`, `main()` не потрібен.
 
 ### 3. `main.json` після міграції
 
 Видаляються поля `lint` і `llmFix` — вони переходять у `concern.json`. Залишаються rule-level поля:
 
 ```json
-{ "auto": { "glob": ["**/*.mjs"] }, "worktree": true, "requireRoot": true }
+{ "auto": { "glob": ["**/*.mjs"] } }
 ```
 
-### 4. `policy/` обгортка
+`worktree` і `requireRoot` не додаються до rule `main.json` цією специфікацією: зараз це skill-level вісь у `skill-meta.json`.
 
-Директорія `policy/` зникає. Колишні `policy/<name>/` стають `<name>/` у корені правила. `target.json` видаляється — його поля інтегруються в `concern.json`.
+### 4. `policy/` і `js/` обгортки
+
+Фінально директорії `policy/` і `js/` зникають як discovery roots:
+
+- `policy/<name>/target.json` → `<name>/concern.json#policy`
+- `policy/<name>/<name>.rego` → `<name>/<name>.rego`
+- `policy/<name>/template/` → `<name>/template/`
+- `js/<name>.mjs` → `<name>/main.mjs` + `<name>/concern.json#check`
+- `main.mjs::lint` rule-level → один або кілька `<name>/main.mjs::lint` + `<name>/concern.json#lint`
+
+Helpers не стають concerns: вони живуть у `utils/` або `lib/`.
 
 ---
 
 ## Поведінка оркестратора
 
-Discovery: сканувати `rules/<id>/` для підкаталогів із `concern.json`; читати тип за дискримінантом.
+Discovery: сканувати `rules/<id>/` для підкаталогів із `concern.json`; читати surfaces (`check`, `policy`, `lint`) зі schema-validated JSON. Порядок виконання всередині правила — стабільний алфавітний за concern id, якщо інша залежність не буде додана окремою спеціфікацією.
 
-### Lint concern — `main.mjs::lint(changed, cwd, opts)`
+### Check surface — `main.mjs::main(cwd)`
 
-| scope | mode | `changed` у lint() | умова запуску |
-|---|---|---|---|
-| `per-file` | delta | файли з delta, відфільтровані `concern.glob` | є delta |
-| `per-file` | `--full` | `undefined` | завжди |
-| `full` | `--full` | `undefined` | завжди |
-| `full` | delta | `undefined` (whole-repo) | `concern.glob` ∩ delta ≠ ∅ |
+Conformance runner (`n-cursor fix/check`) виконує concerns із `check:true`.
+
+Контракт:
+
+```js
+export async function main(cwd = process.cwd()) {
+  return 0
+}
+```
+
+`applies`-гейт лишається спеціальним concern id: якщо `applies/main.mjs` експортує `applies()` і повертає `false`, решта concerns правила пропускаються.
+
+### Policy surface — Rego/template
+
+Поведінка незмінна відносно `target.json`: оркестратор резолвить `policy.files`, далі:
+
+- `policy.check:"template"` → `runTemplateSubsetConcern`
+- без `policy.check` → `runConftestBatch` із namespace `<rule_id_snake>.<concern>`
+
+`missingMessage`, `files.required`, `files.single`, `files.walkGlob` мають зберегти поточну семантику.
+
+### Lint surface — `main.mjs::lint(changed, cwd, opts)`
+
+| scope      | mode                | `changed` у lint()                        | умова запуску                                                      |
+| ---------- | ------------------- | ----------------------------------------- | ------------------------------------------------------------------ |
+| `per-file` | delta               | файли з delta, відфільтровані `lint.glob` | після фільтра є файли; якщо `glob` відсутній — передати весь delta |
+| `per-file` | `--full`            | `undefined`                               | завжди                                                             |
+| `full`     | `--full`            | `undefined`                               | завжди                                                             |
+| `full`     | delta               | `undefined` (whole-repo)                  | `lint.glob` ∩ delta ≠ ∅                                            |
+| `full`     | hook/explicit files | не запускається                           | hook-mode лишається per-file-only                                  |
 
 `opts`: `{ readOnly, llmFix }` — як зараз.
 
-### Policy concern
+`lint <rule>` запускає всі lint-surfaces цього rule у whole-repo режимі (`changed = undefined`) + conformance для названого rule, як поточний scoped mode. `lint <rule>/<concern>` не додається цією спеціфікацією.
 
-Поведінка незмінна — `conftest` за `files`-targeting. Оркестратор читає `files` із `concern.json` замість `target.json`.
+Fail-fast лишається як зараз:
+
+- `readOnly:true` — перший ненульовий lint concern завершує прогін
+- fix-mode — збирає найгірший code і продовжує, щоб дати deterministic/LLM fix-крокам шанс
 
 ---
 
+## Implementation impact
+
+Мінімальний список змін — усі виконуються разом (один breaking commit):
+
+| зона                | що змінити                                                                                                      |
+| ------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Schema              | додати `npm/schemas/concern.json`; видалити `target.json` schema; оновити `v8r-catalog.json`                    |
+| Metadata parser     | новий `concern-meta.mjs` (parser/normalizer); видалити `parseRuleLintSpec` з `rule-meta.mjs`                    |
+| Lint orchestration  | `run-lint.mjs`: вибирати lint-surfaces з `concern.json`, видалити `readAllMeta` / `selectLintRules` по `main.json.lint` |
+| Check discovery     | `discover-checkable-rules.mjs`: сканувати `*/concern.json`, видалити `js/*.mjs` / `policy/*/target.json` шляхи |
+| Rule runner         | `run-rule.mjs`: запускати `check` і `policy` surfaces з concern descriptor; видалити `resolveJsCheckPath`       |
+| Policy runner       | `run-conftest-batch.mjs:76`: прибрати хардкод `policy/`; приймати абсолютний шлях або `<rule>/<concern>` flat  |
+| Templates/docs sync | `appendDiscoveredMdcFiles`: сканувати `*/*.mdc` де є `concern.json`; видалити `js/` і `policy/` гілки          |
+| T0 autofix          | `discover-t0-patterns.mjs`: сканувати `*/fix-*.mjs` у concern dirs (з перевіркою `concern.json`)               |
+| Conformance         | `npm-module/js/rule_meta.mjs`: валідувати `concern.json`; забороняти `js/`, `policy/`, `main.json.lint`        |
+| Docs/rules          | оновити `scripts.mdc`, `conftest.mdc`, `n-bun.mdc`, `n-rego.mdc`, generated `.cursor/rules/*` після sync       |
+
+Exit criteria:
+
+- `run-lint` у delta, hook, scoped і `--full` режимах — snapshot-тести по concern selection;
+- `run-rule` — тести для pure `check`, pure `policy`, pure `lint`, і multi-surface concern;
+- `npm-module` validation — fail на будь-який rule з `js/`, `policy/`, `main.json.lint`, `target.json`.
+
 ## Міграція
 
-### `main.json` — прибрати `lint` і `llmFix` (14 правил)
+### `main.json` — прибрати `lint` і `llmFix`
 
-| правило | було | після |
-|---|---|---|
-| `doc-files` | `{ "lint": "per-file", "llmFix": true }` | `{}` |
-| `js`, `security`, `style`, `text` | `{ "lint": "per-file" }` | `{}` |
-| `bun`, `docker`, `ga`, `image-compress`, `k8s`, `php`, `python`, `rego`, `rust` | `{ "lint": "full" }` | `{}` |
+| правило                                                                         | було                                     | після                                                            |
+| ------------------------------------------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------- |
+| `doc-files`                                                                     | `{ "lint": "per-file", "llmFix": true }` | `{}`                                                             |
+| `text`                                                                          | `{ "lint": "per-file", "llmFix": true }` | `{}`                                                             |
+| `js`, `style`                                                                   | `{ "lint": "per-file" }`                 | `{}`                                                             |
+| `security`                                                                      | `{ "lint": "per-file" }`                 | `{}`; фактичний concern стає `full`, бо trufflehog ігнорує files |
+| `bun`, `docker`, `ga`, `image-compress`, `k8s`, `php`, `python`, `rego`, `rust` | `{ "lint": "full" }`                     | `{}`                                                             |
 
-### Нові lint-concern підкаталоги (14 правил)
+### Нові lint-surfaces
 
-Правила з одним поточним lint-concern: один підкаталог із іменем за логікою перевірки.
+Поточний `js/main.mjs::lint` вже містить три логічні lint concerns: eslint/oxlint, jscpd і knip. Їх треба розділити в межах цієї міграції, інакше `lint --full` втратить наявну функціональність.
 
-| правило | concern | scope | llmFix | glob |
-|---|---|---|---|---|
-| `doc-files` | `check/` | per-file | ✓ | — |
-| `js` | `eslint/` | per-file | — | `**/*.{js,mjs,cjs,ts,tsx}` |
-| `security` | `scan/` | per-file | — | — |
-| `style` | `lint/` | per-file | — | `**/*.{css,scss,vue}` |
-| `text` | `check/` | per-file | — | — |
-| `bun` | `check/` | full | — | `package.json` |
-| `docker` | `check/` | full | — | `**/Dockerfile*` |
-| `ga` | `workflows/` | full | — | `.github/workflows/**` |
-| `image-compress` | `check/` | full | — | `**/*.{jpg,png,svg}` |
-| `k8s` | `manifests/` | full | — | `k8s/**/*.yaml` |
-| `php` | `check/` | full | — | `**/*.php` |
-| `python` | `check/` | full | — | `**/*.py` |
-| `rego` | `check/` | full | — | `**/*.rego` |
-| `rust` | `check/` | full | — | `**/*.rs` |
+| правило          | concern      | scope    | llmFix | glob / trigger                                                                                                            | примітка                                       |
+| ---------------- | ------------ | -------- | ------ | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `doc-files`      | `check/`     | per-file | ✓      | `**/*.{js,mjs,ts,vue,py}` + docs reverse-map у коді                                                                       | зберегти orphan detect                         |
+| `js`             | `eslint/`    | per-file | —      | `**/*.{js,mjs,cjs,jsx,ts,tsx,vue}`                                                                                        | oxlint + eslint по changed                     |
+| `js`             | `jscpd/`     | full     | —      | `**/*.{js,mjs,cjs,jsx,ts,tsx,vue}`                                                                                        | policy `.jscpd.json` + full runner             |
+| `js`             | `knip/`      | full     | —      | `package.json`, `**/package.json`, `tsconfig*.json`, `**/*.{js,mjs,cjs,jsx,ts,tsx,vue}`                                   | поточний full branch                           |
+| `security`       | `scan/`      | full     | —      | `**/*`                                                                                                                    | trufflehog filesystem scan ігнорує files       |
+| `style`          | `lint/`      | per-file | —      | `**/*.{css,scss,vue}`                                                                                                     | —                                              |
+| `text`           | `check/`     | full     | ✓      | `**/*.{md,mdc,txt,json,jsonc,yaml,yml,toml,sh,env}`, `.env*`, `.cspell.json`, `.markdownlint-cli2.jsonc`, `.oxfmtrc.json` | поточний lint ігнорує files і сканує весь repo |
+| `bun`            | `licensee/`  | full     | —      | `package.json`, `bun.lock`, `.licensee.json`                                                                              | —                                              |
+| `docker`         | `lint/`      | full     | —      | `**/Dockerfile*`                                                                                                          | —                                              |
+| `ga`             | `workflows/` | full     | —      | `.github/workflows/**`                                                                                                    | —                                              |
+| `image-compress` | `check/`     | full     | —      | `**/*.{jpg,png,svg}`                                                                                                      | —                                              |
+| `k8s`            | `manifests/` | full     | —      | `k8s/**/*.yaml`                                                                                                           | —                                              |
+| `php`            | `check/`     | full     | —      | `**/*.php`                                                                                                                | —                                              |
+| `python`         | `check/`     | full     | —      | `**/*.py`                                                                                                                 | —                                              |
+| `rego`           | `check/`     | full     | —      | `**/*.rego`                                                                                                               | —                                              |
+| `rust`           | `check/`     | full     | —      | `**/*.rs`                                                                                                                 | —                                              |
 
-### `policy/<name>/` → `<name>/` + `concern.json` (всі правила з policy)
+### Policy migration inventory
 
-`target.json` у кожному concern видаляється; поля `files` переїжджають у `concern.json`.
+Фактичний inventory на момент ревізії: **67** auto-discovered `target.json` у **28** rules:
 
-Правила з policy: `abie`, `adr`, `bun`, `capacitor`, `ci4`, `docker`, `efes`, `ga`, `graphql`, `hasura`, `image-avif`, `image-compress`, `js`, `js-bun-db`, `js-bun-redis`, `js-mssql`, `js-run`, `k8s`, `nginx-default-tpl`, `npm-module`, `php`, `python`, `rego`, `rust`, `security`, `style`, `tauri`, `test`, `text`, `vue`, `worktree` — всього 31.
+`abie`, `adr`, `bun`, `capacitor`, `ci4`, `docker`, `efes`, `ga`, `hasura`, `image-avif`, `image-compress`, `js`, `js-bun-db`, `js-bun-redis`, `js-mssql`, `js-run`, `k8s`, `npm-module`, `php`, `python`, `rego`, `rust`, `security`, `style`, `test`, `text`, `vue`, `worktree`.
+
+`graphql`, `nginx-default-tpl`, `tauri` треба окремо audit-нути: у них є policy references / ручні `runConftestBatch`-виклики або policy-директорії без auto-discovered `target.json`. Міграція має або дати їм `concern.json#policy`, або явно залишити як non-discovered helper policy.
+
+Для кожного `target.json`:
+
+- `files` → `concern.json#policy.files`
+- `check` → `concern.json#policy.check`
+- `missingMessage` → `concern.json#policy.missingMessage`
+- `$schema` → новий `$schema` на `concern.json`
 
 ---
 
@@ -183,14 +300,24 @@ Discovery: сканувати `rules/<id>/` для підкаталогів із
 
 `npm-module` перевіряє структуру правил (`js/rule_meta.mjs`). Після міграції додати перевірки:
 
-- кожен підкаталог у `rules/<id>/` або має `concern.json`, або є в allowlist non-concern dirs (`js/`, `lib/`, `docs/`, `coverage/`, `policy/` — але `policy/` зникає)
-- `concern.json` має або `scope`, або `files` — не обидва, не жодного
-- якщо `scope` є `"full"` і `glob` відсутній у delta-режимі — concern не запускається (попередження при розробці)
+- кожен підкаталог у `rules/<id>/` або має `concern.json`, або є в allowlist non-concern dirs (`utils/`, `lib/`, `docs/`, `coverage/`; `js/` і `policy/` тільки в dual-read фазі)
+- `concern.json` має хоча б одну surface: `check`, `policy`, `lint`
+- `lint.scope` — тільки `"per-file"` або `"full"`
+- `policy.files` валідний за старою семантикою `target.json`: рівно один із `single` / `walkGlob`
+- `policy.check` — тільки `"template"` або відсутній
+- `policy.missingMessage` дозволений тільки разом із `policy.files.single`
+- якщо `lint.scope:"full"` і `lint.glob` відсутній — warning/error у `npm-module`, бо concern ніколи не запуститься в delta-режимі
+- якщо concern має `check:true`, у `main.mjs` має бути export `main`
+- якщо concern має `lint`, у `main.mjs` має бути export `lint`
+- якщо concern має `policy` без `check:"template"`, має існувати `<concern>.rego`
+- якщо concern має `policy.check:"template"`, має існувати `template/` з хоча б одним supported template-файлом
+- після cleanup-фази не має лишитися `main.json.lint`, `main.json.llmFix`, `policy/*/target.json`, discovery-concern файлів `js/*.mjs`
 
 ---
 
 ## Не в цій спеці
 
-- **Конкретні нові lint-concerns для `js`** (knip, type-check тощо) — наступна задача після міграції
+- **Нові lint capabilities**, яких зараз немає (наприклад type-check) — наступна задача після міграції. Наявні `jscpd` і `knip` у `js/main.mjs::lint(undefined)` не є новими capabilities і мігруються тут.
 - **Вісь поведінки fix/read-only** — `2026-06-14-lint-orchestrator-fix-readonly-unification-design.md`
 - **LLM-fix деталі** — `2026-06-15-opportunistic-llm-fix-tier.md`
+- **`lint <rule>/<concern>` CLI selector** — не додається тут; ця спека тільки міняє внутрішню одиницю orchestration.

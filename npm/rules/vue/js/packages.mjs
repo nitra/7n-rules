@@ -275,6 +275,11 @@ async function checkViteConfig(rootDir, isComponentLibrary, prefix, passFn, fail
   if (ESBUILD_RE.test(content)) {
     fail(`${prefix}${viteConfig} містить 'esbuild' — заміни на 'rolldown'`)
   }
+  if (!isComponentLibrary && !content.includes('lightningcss')) {
+    fail(
+      `${prefix}${viteConfig} не містить css: { transformer: 'lightningcss' } — додай у vite.config і встанови lightningcss у devDependencies (vue.mdc)`
+    )
+  }
   // VueMacros + AutoImport (і 'vue' у його imports) — інструментарій auto-import Vite-додатка;
   // бібліотека компонентів (vue у peerDependencies) споживається готовою і не потребує цього стеку.
   // npm_lifecycle_event (Bun-compat) перевіряємо нижче незалежно — це не auto-import.

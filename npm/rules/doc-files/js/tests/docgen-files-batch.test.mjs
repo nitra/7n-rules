@@ -115,7 +115,7 @@ describe('selectTargets — stale + degraded-once guard', () => {
       if (p.includes('good')) return { score: 90, issues: [], judgeModel: null } // ≥ поріг 80
       return { score: 40, issues: [], judgeModel: null } // degraded (score < 80)
     })
-    readDocTierMock.mockImplementation(p => p.includes('dret') ? 'cloud-avg' : null)
+    readDocTierMock.mockImplementation(p => (p.includes('dret') ? 'cloud-avg' : null))
     const sel = selectTargets('/root', all, {})
       .map(f => f.sourcePath)
       .toSorted()

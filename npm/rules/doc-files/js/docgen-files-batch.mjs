@@ -338,7 +338,10 @@ export async function runGenerationBatch(targets, root, opts = {}) {
   let aborted = false
   for (const file of targets) {
     done++
-    const status = await generateOne(file, root, { done, total: targets.length }, stats, { model: opts.model, tier: opts.tier })
+    const status = await generateOne(file, root, { done, total: targets.length }, stats, {
+      model: opts.model,
+      tier: opts.tier
+    })
     // Circuit-breaker: K systemic-збоїв підряд → негайний abort (середовище впало,
     // решта файлів так само згорить). Будь-який не-systemic результат скидає лічильник.
     if (status === 'systemic') {

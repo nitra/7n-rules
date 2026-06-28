@@ -38,6 +38,15 @@ deny contains msg if {
 
 deny contains msg if {
 	uses_vue
+	vite_in_dev_dependencies
+	vite_major_at_least_8
+	not vite_at_least_8_1
+	vite_range := input.devDependencies.vite
+	msg := sprintf("Vue-пакет: vite має бути >= 8.1 (зараз %q) (vue.mdc)", [vite_range])
+}
+
+deny contains msg if {
+	uses_vue
 	not "@vitejs/plugin-vue" in dev_dependency_names
 	msg := "Vue-пакет: @vitejs/plugin-vue відсутній у devDependencies (vue.mdc)"
 }
@@ -107,4 +116,25 @@ vite_major_at_least_8 if {
 	match := regex.find_n(`\d+`, range, 1)
 	count(match) > 0
 	to_number(match[0]) >= 8
+}
+
+vite_at_least_8_1 if {
+	range := input.devDependencies.vite
+
+	# Витягуємо першу пару цифр (мажор.мінор) із semver-рядка.
+	# Якщо мажор > 8 — завжди true; якщо мажор = 8 — мінор має бути >= 1.
+	parts := regex.find_n(`\d+`, range, 2)
+	count(parts) >= 1
+	major := to_number(parts[0])
+	major > 8
+}
+
+vite_at_least_8_1 if {
+	range := input.devDependencies.vite
+
+	parts := regex.find_n(`\d+`, range, 2)
+	count(parts) >= 2
+	major := to_number(parts[0])
+	major == 8
+	to_number(parts[1]) >= 1
 }

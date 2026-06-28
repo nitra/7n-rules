@@ -3,7 +3,7 @@ type: JS Module
 title: packages.mjs
 resource: npm/rules/vue/js/packages.mjs
 docgen:
-  crc: 69ea5b6e
+  crc: 57dfbf32
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

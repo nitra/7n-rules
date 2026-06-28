@@ -3,7 +3,7 @@ type: JS Module
 title: run-conformance-check.mjs
 resource: npm/scripts/lib/fix/run-conformance-check.mjs
 docgen:
-  crc: 7a026c26
+  crc: bc99bdd0
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
 ---

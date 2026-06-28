@@ -3,11 +3,10 @@ type: JS Module
 title: docgen-crc.mjs
 resource: npm/rules/doc-files/js/docgen-crc.mjs
 docgen:
-  crc: a198ce42
+  crc: d93704d8
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99
-  retried: true
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 

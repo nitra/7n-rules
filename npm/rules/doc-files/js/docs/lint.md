@@ -3,7 +3,7 @@ type: JS Module
 title: lint.mjs
 resource: npm/rules/doc-files/js/lint.mjs
 docgen:
-  crc: 83e362ca
+  crc: 1497e0d6
 ---
 
 Модуль надає CLI- та rule-entrypoint для перевірки файлової документації. Він знаходить застарілі або відсутні `docs/<stem>.md`, виявляє orphan-доки й у rule-fix режимі виконує детерміноване CRC-оновлення без звернення до LLM.

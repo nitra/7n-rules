@@ -136,8 +136,7 @@ function stampFileDoc(root, file) {
   const docAbs = join(root, file.docPath)
   const md = existsSync(docAbs) ? readFileSync(docAbs, 'utf8') : fallbackDocBody(file.sourcePath)
   const { score, issues, judgeModel } = readDocQuality(docAbs)
-  const quality =
-    score === null ? null : { score, issues, judge: judgeModel ? { model: judgeModel } : undefined }
+  const quality = score === null ? null : { score, issues, judge: judgeModel ? { model: judgeModel } : undefined }
   const crc = crc32(readFileSync(sourceAbs))
   mkdirSync(dirname(docAbs), { recursive: true })
   writeFileSync(docAbs, stampDoc(md, file.sourcePath, crc, quality, readDocModel(docAbs)))

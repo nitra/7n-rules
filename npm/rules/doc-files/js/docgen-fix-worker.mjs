@@ -57,7 +57,11 @@ export async function runDocFilesFixWorker(_ruleId, violation, cwd, opts = {}) {
   }
 
   try {
-    await runGenerationBatch(targets, cwd, { headline: `  📄 doc-files: генерація ${targets.length} доки(ів)`, model: opts.model, tier: opts.tier })
+    await runGenerationBatch(targets, cwd, {
+      headline: `  📄 doc-files: генерація ${targets.length} доки(ів)`,
+      model: opts.model,
+      tier: opts.tier
+    })
 
     // Перевіряємо якість кожного згенерованого файлу.
     // Деградовані файли видаляємо ЗАРАЗ, до return — щоб external recheck

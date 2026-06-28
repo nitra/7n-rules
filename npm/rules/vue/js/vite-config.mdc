@@ -1,6 +1,6 @@
 ## Vite-конфігурація: VueMacros, AutoImport, Layouts
 
-Потрібно використовувати **Vite версії 8 та вище** для frontend проекту на Vue.
+Потрібно використовувати **Vite версії 8.1 та вище** для frontend проекту на Vue.
 
 Потрібно використовувати **`unplugin-auto-import`** для автоматичного імпортування компонентів, composables, utils та інших функцій і прибирати з файлів усередині Vite проектів відповідні ручні імпорти, зокрема рядки виду `import { … } from 'vue'` — API Vue (`ref`, `computed`, `watch` тощо) мають підставлятися через auto-import, а не дублюватися явним імпортом з модуля `vue`.
 
@@ -91,6 +91,23 @@ export default defineConfig(({ mode, command }) => {
 })
 ```
 
+### CSS-трансформер: lightningcss (обов'язково)
+
+У `vite.config` має бути `css: { transformer: 'lightningcss' }`:
+
+```javascript title="vite.config.js"
+export default defineConfig({
+  css: {
+    transformer: 'lightningcss'
+  },
+  // ...
+})
+```
+
+Lightningcss ~18% швидше за sass-трансформер на типовому Vue+Quasar-проєкті. Потрібний `lightningcss` у `devDependencies`.
+
+**Виняток:** бібліотеки компонентів (`vue` у `peerDependencies`) від цієї вимоги звільнені — вони не збираються напряму.
+
 ### esbuild заборонено
 
 У проєкті не має бути залежності `esbuild` і згадок `esbuild` у конфігах/коді. Якщо десь є налаштування або інструкції під `esbuild` — заміни на **rolldown**.
@@ -108,7 +125,7 @@ export default defineConfig(({ mode, command }) => {
     "vue": "^3.6.12"
   },
   "devDependencies": {
-    "vite": "^8.0.0",
+    "vite": "^8.1.0",
     "@vitejs/plugin-vue": "^6.0.0",
     "vue-macros": "^3.1.2"
   }

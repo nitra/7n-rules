@@ -6,7 +6,7 @@ import rego.v1
 valid_vue_package := {
 	"dependencies": {"vue": "^3.5.0"},
 	"devDependencies": {
-		"vite": "^8.0.0",
+		"vite": "^8.1.0",
 		"@vitejs/plugin-vue": "^6.0.0",
 		"vue-macros": "^3.0.0",
 		"unplugin-auto-import": "^20.0.0",
@@ -25,8 +25,26 @@ test_non_vue_package_is_ignored if {
 test_missing_vue_dependencies if {
 	count(package_json.deny) == 4 with input as {
 		"dependencies": {"vue": "^3.5.0"},
-		"devDependencies": {"vite": "^8.0.0"},
+		"devDependencies": {"vite": "^8.1.0"},
 	}
+}
+
+test_rejects_vite_8_0_minor if {
+	count(package_json.deny) == 1 with input as object.union(valid_vue_package, {"devDependencies": object.union(valid_vue_package.devDependencies, {
+		"vite": "^8.0.14",
+	})})
+}
+
+test_accepts_vite_8_1 if {
+	count(package_json.deny) == 0 with input as object.union(valid_vue_package, {"devDependencies": object.union(valid_vue_package.devDependencies, {
+		"vite": "^8.1.0",
+	})})
+}
+
+test_accepts_vite_9 if {
+	count(package_json.deny) == 0 with input as object.union(valid_vue_package, {"devDependencies": object.union(valid_vue_package.devDependencies, {
+		"vite": "^9.0.0",
+	})})
 }
 
 test_rejects_esbuild_and_old_vite if {
