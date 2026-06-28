@@ -174,7 +174,10 @@ export async function main(cwd = process.cwd()) {
   const stale = scanForDocFiles(cwd).filter(f => f.stale)
   const orphans = scanOrphanedDocs(cwd)
 
-  for (const file of stale) stampFileDoc(cwd, file)
+  // Stamp лише crc-mismatch: оновлюємо CRC у наявній доці без LLM.
+  // missing — не чіпаємо: нехай залишаються missing аж поки worker їх згенерує,
+  // щоб recheck теж бачив порушення і оркестратор міг ескалувати до кращої моделі.
+  for (const file of stale.filter(f => f.reason === 'crc-mismatch')) stampFileDoc(cwd, file)
   const deleted = purgeOrphanDocs(cwd, orphans)
   if (stale.length > 0 || deleted > 0) {
     process.stdout.write(`✓ doc-files: оновлено CRC у ${stale.length} доці(ах), видалено orphan: ${deleted}\n`)
@@ -182,7 +185,9 @@ export async function main(cwd = process.cwd()) {
 
   const stillStale = scanForDocFiles(cwd).filter(f => f.stale)
   const stillOrphans = scanOrphanedDocs(cwd)
+
   if (stillStale.length === 0 && stillOrphans.length === 0) return 0
+
   if (stillStale.length > 0) {
     const list = stillStale.map(f => `  ❌ ${f.sourcePath} (${f.reason})`).join('\n')
     process.stderr.write(

@@ -4,30 +4,32 @@ title: upgrade-nitra-cursor-and-install.mjs
 resource: npm/scripts/upgrade-nitra-cursor-and-install.mjs
 docgen:
   crc: b0742ab3
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  score: 100
+  issues: judge:inaccurate:0.98
+  retried: true
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
-Файл автоматично синхронізує правила командного інтерфейсу (CLI) з останньою версією `@nitra/cursor` з npm registry. Це забезпечує, що локальна версія `@nitra/cursor` завжди актуальна, а також інсталює необхідні залежності за допомогою `bun i`. Він використовується для підтримки узгодженості між локальним проєктом та офіційним репозиторієм npm.
+## Огляд
+
+Примусове підтягування останньої опублікованої версії інструменту `@nitra/cursor` з npm registry за адресою https://registry.npmjs.org/@nitra/cursor/latest для забезпечення коректної роботи системи. Якщо залежність вже визначена в `package.json` через механізми `workspace:`, `file:`, або `link:`, зміна в registry не відбувається і `bun i` не викликається, що зберігає конфігурацію монорепозиторію. Після встановлення виводом повертається шлях до `node_modules/@nitra/cursor`, якщо каталог з `package.json` існує, або резервний шлях до коріння поточного процесу CLI.
 
 ## Поведінка
 
-shouldSkipNpmVersionUpgrade: Визначає, чи потрібно оновлювати версію залежності з npm, враховуючи специфікатор залежності та різні типи специфікаторів (workspace, file, link тощо).
-fetchLatestNitraCursorVersionFromNpm: Отримує останню версію пакета `@nitra/cursor` з npm registry та повертає її як рядок.
-resolveInstalledPackageRoot: Повертає шлях до каталогу `node_modules/@nitra/cursor` якщо залежність встановлена, інакше повертає шлях до кореня пакету поточного процесу CLI (кеш npx).
-upgradeNitraCursorToLatestAndBunInstall: Оновлює версію `@nitra/cursor` у `package.json` до останньої з npm, запускає `bun i` та повертає шлях до каталогу `node_modules/@nitra/cursor`.
+Поведінка:
+shouldSkipNpmVersionUpgrade визначає, чи слід ігнорувати оновлення версії з npm для залежності, перевіряючи специфікатори, які вказують на локальні або не-npm джерела.
+fetchLatestNitraCursorVersionFromNpm отримує останню версію пакета `@nitra/cursor` з URL https://registry.npmjs.org/@nitra/cursor/latest, аналізуючи вміст res.json.
+resolveInstalledPackageRoot повертає шлях до каталогу `@nitra/cursor` у `node_modules` або шлях пакета з поточного процесу, якщо перший не знайдений.
+upgradeNitraCursorToLatestAndBunInstall оновлює залежність `@nitra/cursor` у `package.json` до останньої версії з npm, виконує `bun i` у корені проєкту, а потім повертає шлях до встановленого пакета. При цьому процес свідомо не перевіряє каталоги `node_modules`.
 
 ## Публічний API
 
-- shouldSkipNpmVersionUpgrade — Перевіряє можливість оминання оновлення версії npm.
-- fetchLatestNitraCursorVersionFromNpm — Отримує останню версію пакета `@nitra/cursor` з npm.
-- resolveInstalledPackageRoot — Знаходить шлях до встановленого пакета.
-- upgradeNitraCursorToLatestAndBunInstall — Оновлює `@nitra/cursor` до останньої версії та встановлює Bun.
+shouldSkipNpmVersionUpgrade — Визначає, чи можна замінити поточний специфікатор версії залежності на стандарт `semver` з npm, зберігаючи безпеку.
+fetchLatestNitraCursorVersionFromNpm — Отримує актуальну версію пакета `@nitra/cursor` з реєстру npm (через поле `version` у JSON dist-tag `latest`), що доступно на https://registry.npmjs.org/@nitra/cursor/latest.
+resolveInstalledPackageRoot — Знаходить абсолютний шлях до встановленого пакета у директорії `node_modules`, або надає резервний шлях.
+upgradeNitraCursorToLatestAndBunInstall — Оновлює `@nitra/cursor` до останньої версії з npm (якщо це дозволено конфігурацією), виконує встановлення залежностей за допомогою `bun i`, і повертає корінь пакета для подальшої синхронізації конфігураційних файлів, таких як `mdc/`.
 
 ## Гарантії поведінки
 
-- Якщо наявна залежність через `workspace:`, `file:`, `link:` – не змінює версію в npm registry та не запускає `bun i`.
-- Запускає `bun i` у корені проєкту після підтягування останньої версії `@nitra/cursor` з npm registry.
-- Повертає шлях до `node_modules/@nitra/cursor`, якщо каталог існує.
-- В іншому випадку повертає шлях до кореня пакету поточного процесу CLI (наприклад, кеш npx).
-- Не кидає винятки.
-- У разі невдачі повертає `false` або `null`.
-- Не використовує кешування.
+- Свідомо пропускає шляхи: `node_modules`.
