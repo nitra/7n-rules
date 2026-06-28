@@ -87,7 +87,6 @@ export async function runT0AutoCli(args, cwd) {
   const { applied, skipped } = await applyT0ToFailed(failed, cwd)
 
   if (applied.length === 0) {
-    console.log(`⏭️  fix-t0: T0-auto паттерн не підходить для: ${failed.map(r => r.ruleId).join(', ')}`)
     return 1
   }
 

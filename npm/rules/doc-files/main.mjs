@@ -74,7 +74,7 @@ function reportStale(stale) {
   if (stale.length === 0) return 0
   const list = stale.map(f => `  - ${f.sourcePath} (${f.reason})`).join('\n')
   process.stderr.write(
-    `✗ doc-files: документація застаріла/відсутня для ${stale.length} файл(ів):\n${list}\n→ перегенеруй: npx @nitra/cursor fix-doc-files\n`
+    `❌ doc-files: документація застаріла/відсутня для ${stale.length} файл(ів):\n${list}\n→ перегенеруй: npx @nitra/cursor fix-doc-files\n`
   )
   return 1
 }
@@ -109,7 +109,7 @@ export async function lint(files, cwd = process.cwd(), { readOnly = false, llmFi
     if (orphans.length > 0) {
       const list = orphans.map(f => `  - ${f}`).join('\n')
       process.stderr.write(
-        `✗ doc-files: сирітських доків (source видалено) ${orphans.length}:\n${list}\n→ очисти: npx @nitra/cursor fix-doc-files\n`
+        `❌ doc-files: сирітських доків (source видалено) ${orphans.length}:\n${list}\n→ очисти: npx @nitra/cursor fix-doc-files\n`
       )
     }
     return 1
@@ -137,7 +137,7 @@ export async function lint(files, cwd = process.cwd(), { readOnly = false, llmFi
   if (stillOrphans.length > 0) {
     const list = stillOrphans.map(f => `  - ${f}`).join('\n')
     process.stderr.write(
-      `✗ doc-files: сирітських доків (source видалено) ${stillOrphans.length}:\n${list}\n→ очисти: npx @nitra/cursor fix-doc-files\n`
+      `❌ doc-files: сирітських доків (source видалено) ${stillOrphans.length}:\n${list}\n→ очисти: npx @nitra/cursor fix-doc-files\n`
     )
   }
   return 1

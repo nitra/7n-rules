@@ -8,6 +8,27 @@ import { recordFixTelemetry } from '../../../lib/pi-telemetry-store.mjs'
 import { CLOUD_AVG, CLOUD_MIN, LOCAL_MIN } from '../../../lib/pi-model-tiers.mjs'
 
 /**
+ * Підраховує кількість елементів порушення з виводу правила — рядки "  - " як маркер списку.
+ * @param {string} output вивід правила
+ * @returns {number|null} кількість або null якщо не визначено
+ */
+function countViolationItems(output) {
+  if (!output) return null
+  const n = (output.match(/^\s+- /gmu) ?? []).length
+  return n > 0 ? n : null
+}
+
+/**
+ * Форматує ruleId з кількістю елементів якщо відома.
+ * @param {{ ruleId: string, output: string }} rule
+ * @returns {string}
+ */
+function fmtRule(rule) {
+  const n = countViolationItems(rule.output)
+  return n != null ? `${rule.ruleId} (${n})` : rule.ruleId
+}
+
+/**
  * Дефолтний кеп на виклики хмарної avg-моделі за один прогін (щоб драбина на N
  * правил не спалила потужну модель). Перевизначення: `--max-avg N`.
  */
@@ -136,9 +157,8 @@ export async function escalateRule(rule, cwd, deps) {
   // §2-профілактика: violation без actionable ❌ (tool-crash/Usage/шум) → не годуємо
   // агента (інакше флоундерить рунги до timeout). Рапортуємо як non-actionable, не фіксимо.
   if (!hasActionableViolation(rule.output)) {
-    log(
-      `  ⏭️  ${rule.ruleId}: LLM-фікс пропущено — у violation немає ❌-порушень (check-error/tool-crash, не фіксабельне)`
-    )
+    const firstLine = rule.output.split('\n').find(l => l.trim()) ?? '(порожній вивід)'
+    log(`  ⏭️  ${rule.ruleId}: LLM-фікс пропущено (немає ❌) — ${firstLine}`)
     return { resolved: false, avgUsed: 0 }
   }
 
@@ -256,7 +276,7 @@ export async function runOrchestratorCli(args, cwd) {
     return 0
   }
 
-  console.log(`🔄 fix: ${failed.length}/${total} порушень (${failed.map(r => r.ruleId).join(', ')})`)
+  console.log(`🔄 fix: ${failed.map(fmtRule).join(', ')}`)
   if (ruleFilter.length) console.log(`   filter: ${ruleFilter.join(', ')}`)
 
   // ── T0-auto (детермінований, без LLM) ──
@@ -295,6 +315,6 @@ export async function runOrchestratorCli(args, cwd) {
     return 0
   }
 
-  console.log(`❌ fix: ${stillFailed.length} невирішених — ${stillFailed.map(r => r.ruleId).join(', ')}`)
+  console.log(`❌ fix: невирішених — ${stillFailed.map(fmtRule).join(', ')}`)
   return 1
 }
