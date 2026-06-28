@@ -7,7 +7,6 @@ version: '1.0'
 ---
 
 <!-- n-cursor:worktree:start -->
-
 > [!IMPORTANT]
 > **Worktree-only skill.** Виконується **виключно** в окремому git-worktree (`.worktrees/<current-branch>-adr-normal/`) і **не** паралелиться — один інстанс за раз.
 
@@ -35,7 +34,6 @@ cd ".worktrees/feature-x-adr-normal"
 ```bash
 bun install
 ```
-
 <!-- n-cursor:worktree:end -->
 
 # n-adr-normalize — ручна нормалізація ADR-чернеток
