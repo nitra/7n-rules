@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { check } from '../trufflehog.mjs'
+import { main } from '../trufflehog.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 const CANON_EXCLUDE = [

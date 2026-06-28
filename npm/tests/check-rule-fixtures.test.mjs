@@ -6,9 +6,9 @@ import { copyFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { check as checkNginx } from '../rules/nginx-default-tpl/js/template.mjs'
-import { check as checkStyle } from '../rules/style/js/tooling.mjs'
-import { check as checkVue } from '../rules/vue/js/packages.mjs'
+import { main as checkNginx } from '../rules/nginx-default-tpl/js/template.mjs'
+import { main as checkStyle } from '../rules/style/js/tooling.mjs'
+import { main as checkVue } from '../rules/vue/js/packages.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
 
 const nginxFixDir = join(

@@ -13,7 +13,7 @@ import { collectDeploymentDirs, findK8sYamlFiles } from '../lib/k8s-tree.mjs'
  * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} результат
  */
-export async function check(cwd = process.cwd()) {
+export async function main(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
   const root = cwd

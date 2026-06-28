@@ -16,7 +16,7 @@ export function applies(cwd = process.cwd()) {
  * Друкує короткий context-pass — самі перевірки виконують інші concerns.
  * @returns {number} 0 — все ок (фактичні порушення повертають інші концерни)
  */
-export function check() {
+export function main() {
   const reporter = createCheckReporter()
   reporter.pass('pyproject.toml знайдено в корені — застосовую python.mdc')
   return reporter.getExitCode()

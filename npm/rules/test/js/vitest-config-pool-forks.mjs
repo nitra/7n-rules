@@ -17,7 +17,7 @@ const VITEST_CONFIG_NAMES = ['vitest.config.mjs', 'vitest.config.js']
  * @param {string} [cwdParam] корінь репозиторію
  * @returns {Promise<number>} 0 — OK або skip, 1 — config без `pool: 'forks'`
  */
-export async function check(cwdParam = process.cwd()) {
+export async function main(cwdParam = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 

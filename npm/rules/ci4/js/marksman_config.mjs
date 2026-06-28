@@ -14,7 +14,7 @@ const MARKSMAN_TARGET_FILENAME = '.marksman.toml'
  * @param {string} [cwd] корінь проєкту (default: `process.cwd()` — CLI-сумісність)
  * @returns {Promise<number>} 0 — OK (створено або вже існує), 1 — baseline-файл пакета зламаний
  */
-export async function check(cwd = process.cwd()) {
+export async function main(cwd = process.cwd()) {
   const reporter = createCheckReporter()
 
   if (!existsSync(MARKSMAN_BASELINE_PATH)) {

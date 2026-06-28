@@ -5,7 +5,7 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check } from '../vitest-config-pool-forks.mjs'
+import { main } from '../vitest-config-pool-forks.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('check test.vitest-config-pool-forks', () => {

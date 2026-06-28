@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check, checkShellcheckInstalled } from '../workflows.mjs'
+import { main, checkShellcheckInstalled } from '../workflows.mjs'
 import {
   ensureDir,
   withBinRemovedFromPath,
@@ -189,7 +189,7 @@ jobs:
 describe('check-ga: відсутній .github/workflows', () => {
   test('exit 1 — директорія .github/workflows не існує', async () => {
     await withTmpDir(async dir => {
-      expect(await check(dir)).toBe(1)
+      expect(await main(dir)).toBe(1)
     })
   })
 })
@@ -200,7 +200,7 @@ describe('check-ga: .yaml розширення', () => {
       await ensureDir(join(dir, '.github/workflows'))
       await writeFile(join(dir, '.github/workflows', 'test.yaml'), 'name: test\n', 'utf8')
       await withShellcheckStubInPath(async () => {
-        expect(await check(dir)).toBe(1)
+        expect(await main(dir)).toBe(1)
       })
     })
   })
@@ -212,7 +212,7 @@ describe('check-ga: MegaLinter', () => {
       await setupCanonicalGaProject(dir)
       await writeFile(join(dir, '.mega-linter.yml'), 'MEGALINTER_CONFIG:\n', 'utf8')
       await withShellcheckStubInPath(async () => {
-        expect(await check(dir)).toBe(1)
+        expect(await main(dir)).toBe(1)
       })
     })
   })
@@ -240,7 +240,7 @@ describe('check-ga: MegaLinter', () => {
         'utf8'
       )
       await withShellcheckStubInPath(async () => {
-        expect(await check(dir)).toBe(1)
+        expect(await main(dir)).toBe(1)
       })
     })
   })
@@ -274,7 +274,7 @@ describe('check-ga: apply-k8s.yml', () => {
         'utf8'
       )
       await withShellcheckStubInPath(async () => {
-        expect(await check(dir)).toBe(1)
+        expect(await main(dir)).toBe(1)
       })
     })
   })
@@ -285,7 +285,7 @@ describe('check-ga: shellcheck в PATH', () => {
     await withTmpDir(async dir => {
       await setupCanonicalGaProject(dir)
       await withShellcheckStubInPath(async () => {
-        expect(await check(dir)).toBe(0)
+        expect(await main(dir)).toBe(0)
       })
     })
   })

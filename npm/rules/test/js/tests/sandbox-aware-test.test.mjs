@@ -6,7 +6,7 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check } from '../sandbox-aware-test.mjs'
+import { main } from '../sandbox-aware-test.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 // Глибока навігація через import.meta.dirname (≥4 `..`)

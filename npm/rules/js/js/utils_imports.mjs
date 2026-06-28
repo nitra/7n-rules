@@ -138,7 +138,7 @@ function extractImportSources(source, filePath) {
 /**
  * @returns {Promise<number>} 0 — усе чисто, 1 — знайдено заборонені імпорти
  */
-export async function check() {
+export async function main() {
   const reporter = createCheckReporter()
   const root = process.cwd()
   const ignorePaths = await loadCursorIgnorePaths(root)

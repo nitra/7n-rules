@@ -6,7 +6,7 @@ import { join } from 'node:path'
 
 import { describe, expect, test } from 'vitest'
 
-import { check } from '../../../packages.mjs'
+import { main } from '../../../packages.mjs'
 import { withTmpDir, writeJson } from '../../../../../../scripts/utils/test-helpers.mjs'
 
 const VALID_ROOT_DEVDEPS = {

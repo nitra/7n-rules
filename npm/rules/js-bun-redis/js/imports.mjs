@@ -58,7 +58,7 @@ async function scanSourcesForRedisImports(sourcePaths, repoRoot, fail) {
  * Перевіряє відповідність проєкту правилу `js-bun-redis.mdc`.
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
-export async function check() {
+export async function main() {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 

@@ -16,7 +16,7 @@ import { join } from 'node:path'
 
 import { parse as parseToml } from 'smol-toml'
 
-import { check } from '../cargo_mutants_config.mjs'
+import { main } from '../cargo_mutants_config.mjs'
 
 /**
  * Створює тимчасовий проєкт з опційним Tauri-layout-ом.

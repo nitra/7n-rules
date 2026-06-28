@@ -5,7 +5,7 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check, isEnvFile, isNitraOrAbieRepository, parseInternalHasuraEndpoint } from '../internal_urls.mjs'
+import { main, isEnvFile, isNitraOrAbieRepository, parseInternalHasuraEndpoint } from '../internal_urls.mjs'
 import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('parseInternalHasuraEndpoint', () => {

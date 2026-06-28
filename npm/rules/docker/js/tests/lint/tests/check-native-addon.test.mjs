@@ -6,7 +6,7 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check, getMultistageAndRuntimeHint } from '../../../lint.mjs'
+import { main, getMultistageAndRuntimeHint } from '../../../lint.mjs'
 import { withTmpDir } from '../../../../../../scripts/utils/test-helpers.mjs'
 
 const HADOLINT_RELAX = 'failure-threshold: error\n'

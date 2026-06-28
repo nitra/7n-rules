@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
-  check,
+  main as check,
   findDefaultConfTemplatePaths,
   httpRouteMatchesNginxDefaultTpl,
   iniKeysMissingInTemplate,

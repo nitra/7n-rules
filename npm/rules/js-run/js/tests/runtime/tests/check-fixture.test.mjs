@@ -5,7 +5,7 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check } from '../../../runtime.mjs'
+import { main } from '../../../runtime.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../../../scripts/utils/test-helpers.mjs'
 
 /** Канонічний jsconfig для backend-пакетів із `src/` (js-run.mdc). */

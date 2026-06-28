@@ -321,7 +321,7 @@ function checkDocsAdrDir(reporter, cwd) {
   }
 }
 
-export async function check(cwd = process.cwd()) {
+export async function main(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   for (const { scriptName } of HOOK_ARTIFACTS) {
     await checkHookScript(reporter, cwd, scriptName)

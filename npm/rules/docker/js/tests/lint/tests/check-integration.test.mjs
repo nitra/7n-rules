@@ -6,7 +6,7 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check } from '../../../lint.mjs'
+import { main } from '../../../lint.mjs'
 import { withTmpDir } from '../../../../../../scripts/utils/test-helpers.mjs'
 
 const CLEAN_MULTISTAGE = [

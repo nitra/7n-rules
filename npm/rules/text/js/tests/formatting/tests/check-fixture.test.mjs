@@ -5,7 +5,7 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check } from '../../../formatting.mjs'
+import { main } from '../../../formatting.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../../../scripts/utils/test-helpers.mjs'
 
 describe('check-text (мінімальний проєкт)', () => {

@@ -15,7 +15,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { env } from 'node:process'
 
-import { check } from '../avif_generation.mjs'
+import { main } from '../avif_generation.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 beforeAll(() => {

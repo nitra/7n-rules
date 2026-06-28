@@ -12,7 +12,7 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check, classifyPublishedFileAsTest, findTestFrameworkImport, globToRegex } from '../package_structure.mjs'
+import { main, classifyPublishedFileAsTest, findTestFrameworkImport, globToRegex } from '../package_structure.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('globToRegex', () => {

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check } from '../skill_meta.mjs'
+import { main } from '../skill_meta.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('skill_meta check', () => {

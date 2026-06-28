@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import vitestBaseline from '../data/vitest_config/vitest.config.baseline.js'
-import { check } from '../stryker_config.mjs'
+import { main } from '../stryker_config.mjs'
 
 // Канонічні baseline-тексти (читаємо з data/, щоб augment-фікстури не дрейфували
 // від реальних baseline-ів): non-vue (без plugins/ignorers) і повний vue-варіант.

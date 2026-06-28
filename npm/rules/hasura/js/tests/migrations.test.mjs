@@ -6,7 +6,7 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check } from '../migrations.mjs'
+import { main } from '../migrations.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('check hasura.migrations', () => {

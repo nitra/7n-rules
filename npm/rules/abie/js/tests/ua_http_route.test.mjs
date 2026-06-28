@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { chmod, writeFile } from 'node:fs/promises'
 import { platform } from 'node:process'
 
-import { check } from '../ua_http_route.mjs'
+import { main } from '../ua_http_route.mjs'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 const KUSTOMIZATION_WITH_VALID_PATCH = `apiVersion: kustomize.config.k8s.io/v1beta1

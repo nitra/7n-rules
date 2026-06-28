@@ -63,7 +63,7 @@ function extractImportSpecifiers(source, filePath) {
  * @param {string} [cwdParam] корінь репозиторію
  * @returns {Promise<number>} 0 — чисто, 1 — знайдено заборонені specifier'и
  */
-export async function check(cwdParam = process.cwd()) {
+export async function main(cwdParam = process.cwd()) {
   const reporter = createCheckReporter()
   const cwd = cwdParam
   const ignorePaths = await loadCursorIgnorePaths(cwd)

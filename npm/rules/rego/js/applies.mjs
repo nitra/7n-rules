@@ -37,7 +37,7 @@ export async function applies(cwd = process.cwd()) {
  * Друкує короткий context-pass — самі полісі прогонить CLI через `policy/<name>/target.json`.
  * @returns {number} 0 — все ок (фактичні порушення повертають policy-концерни)
  */
-export function check() {
+export function main() {
   const reporter = createCheckReporter()
   reporter.pass('Знайдено *.rego у дереві — перевіряємо канонічні конфіги rego.mdc')
   return reporter.getExitCode()

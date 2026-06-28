@@ -24,7 +24,7 @@ function isTestFile(absPath) {
  * @param {string} [cwdParam] корінь репозиторію
  * @returns {Promise<number>} 0 — чисто, 1 — знайдено `process.chdir(` у тесті
  */
-export async function check(cwdParam = process.cwd()) {
+export async function main(cwdParam = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 

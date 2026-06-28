@@ -263,7 +263,7 @@ async function auditMssqlSources(repoRoot, ignorePaths, pass, fail) {
  * Перевіряє відповідність проєкту правилу js-mssql.mdc
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
-export async function check() {
+export async function main() {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 

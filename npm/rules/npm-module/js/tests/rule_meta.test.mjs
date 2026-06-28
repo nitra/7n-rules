@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check } from '../rule_meta.mjs'
+import { main } from '../rule_meta.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 /** Мінімальний валідний .mdc — щоб тест перевіряв лише свою умову, а не відсутність mdc. */

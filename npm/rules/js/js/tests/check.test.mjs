@@ -9,7 +9,7 @@ import { join } from 'node:path'
 
 import { describe, expect, test } from 'vitest'
 
-import { check } from '../check.mjs'
+import { main } from '../check.mjs'
 import { OXLINT_CANONICAL_JSON_PATH } from '../tooling.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 

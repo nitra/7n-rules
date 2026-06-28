@@ -11,7 +11,7 @@ const SKIP_TOP_DIR_NAMES = new Set(['.git', 'node_modules'])
  * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} результат
  */
-export async function check(cwd = process.cwd()) {
+export async function main(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
   const root = cwd

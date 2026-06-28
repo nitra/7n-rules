@@ -7,7 +7,7 @@ import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-import { check } from '../env_dns.mjs'
+import { main } from '../env_dns.mjs'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('abie env_dns concern', () => {

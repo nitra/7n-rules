@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { check } from '../cargo_mutants_config.mjs'
+import { main } from '../cargo_mutants_config.mjs'
 
 /**
  * Створює тимчасовий проєкт з опційним Cargo-layout-ом.

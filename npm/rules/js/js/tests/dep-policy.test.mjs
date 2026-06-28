@@ -6,7 +6,7 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check } from '../dep-policy.mjs'
+import { main } from '../dep-policy.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 // Ім'я забороненого пакета — через join щоб не тригерити потенційний future-sканер

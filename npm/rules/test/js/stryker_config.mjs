@@ -328,7 +328,7 @@ async function augmentVueStrykerConfig(reporter, cwd, jsRoot) {
  * @param {string} [cwd] корінь проєкту (default: `process.cwd()` — CLI-сумісність)
  * @returns {Promise<number>} 0 — OK або silently skipped, 1 — порушення
  */
-export async function check(cwd = process.cwd()) {
+export async function main(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const config = await readNCursorConfigLite(cwd)
 

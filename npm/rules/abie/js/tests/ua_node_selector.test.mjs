@@ -7,7 +7,7 @@ import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-import { check } from '../ua_node_selector.mjs'
+import { main } from '../ua_node_selector.mjs'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 const DEPLOYMENT_YAML = `apiVersion: apps/v1

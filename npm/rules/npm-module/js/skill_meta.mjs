@@ -72,7 +72,7 @@ function checkSkill(id, skillDir, reporter) {
  * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — OK, 1 — порушення
  */
-export function check(cwd = process.cwd()) {
+export function main(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const skillsDir = join(cwd, 'npm', 'skills')
   if (!existsSync(skillsDir)) {

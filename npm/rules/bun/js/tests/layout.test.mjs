@@ -11,7 +11,7 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check } from '../layout.mjs'
+import { main } from '../layout.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 // Перевірка дозволених кореневих devDependencies (лише `@nitra/*`) — у rego

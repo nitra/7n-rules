@@ -273,7 +273,7 @@ export function getNonRootRuntimeHint(fileContent) {
  * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є зауваження або помилка запуску
  */
-export async function check(cwd = process.cwd()) {
+export async function main(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass } = reporter
 
@@ -372,11 +372,11 @@ async function checkDockerfile(reporter, root, abs) {
 }
 
 /**
- * Оркестраторний адаптер `n-cursor lint docker`: обгортає `check()` у `runStandardLint` (лок).
+ * Оркестраторний адаптер `n-cursor lint docker`: обгортає `main()` у `runStandardLint` (лок).
  * @param {string[] | undefined} _files ігнорується (whole-repo обхід)
  * @param {string} [cwd] корінь
  * @returns {Promise<number>} exit code
  */
 export function lint(_files, cwd = process.cwd()) {
-  return runStandardLint(import.meta.dirname, () => check(cwd))
+  return runStandardLint(import.meta.dirname, () => main(cwd))
 }

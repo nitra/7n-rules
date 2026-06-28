@@ -168,8 +168,8 @@ export async function runRule(rule, bundledRulesDir, walkCache) {
   for (const concern of rule.jsConcerns) {
     const path = resolveJsCheckPath(bundledRulesDir, rule.id, concern)
     const mod = await import(path)
-    if (typeof mod.check === 'function') {
-      const code = await mod.check()
+    if (typeof mod.main === 'function') {
+      const code = await mod.main()
       if (code !== 0) totalCode = 1
     }
   }

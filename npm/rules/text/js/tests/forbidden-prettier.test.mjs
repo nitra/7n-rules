@@ -6,7 +6,7 @@ import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-import { check } from '../forbidden-prettier.mjs'
+import { main } from '../forbidden-prettier.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('check text.forbidden-prettier', () => {

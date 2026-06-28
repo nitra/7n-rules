@@ -7,7 +7,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { check } from '../marksman_config.mjs'
+import { main } from '../marksman_config.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 const CORE_SECTION_RE = /^\[core\]/m

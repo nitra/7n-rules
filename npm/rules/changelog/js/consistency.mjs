@@ -722,7 +722,7 @@ async function runLocalOnlyChecks(localOnly, subWorkspaces, autofix, pass, fail,
  * @param {boolean} [opts.autofix] явний autofix-режим (за замовчуванням — з env `N_CURSOR_CHANGELOG_AUTOFIX`)
  * @returns {Promise<number>} exit-код перевірки
  */
-export async function check(opts = {}) {
+export async function main(opts = {}) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
   const getPublishedVersion = opts.getPublishedVersion ?? createDefaultGetPublishedVersion()

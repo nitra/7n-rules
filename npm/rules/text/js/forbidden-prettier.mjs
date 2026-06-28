@@ -33,7 +33,7 @@ const FORBIDDEN_PRETTIER_FILES = [
  * @param {string} [cwd] корінь репозиторію
  * @returns {number} 0 — все OK, 1 — знайдено заборонений файл
  */
-export function check(cwd = process.cwd()) {
+export function main(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 

@@ -14,7 +14,7 @@ export function applies(cwd = process.cwd()) {
 /**
  * @returns {number} exit-код (0 — OK, 1 — порушення)
  */
-export function check() {
+export function main() {
   const reporter = createCheckReporter()
   reporter.pass('Правило abie увімкнено — виконуємо перевірки')
   return reporter.getExitCode()

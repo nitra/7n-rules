@@ -6,7 +6,7 @@ import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-import { check } from '../hc_pairing.mjs'
+import { main } from '../hc_pairing.mjs'
 import { ABIE_HC_SCHEMA_URL } from '../../lib/hc-yaml.mjs'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 

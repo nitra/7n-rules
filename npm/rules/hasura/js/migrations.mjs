@@ -14,7 +14,7 @@ const MIGRATIONS_REL = 'hasura/migrations'
  * @param {string} [cwdParam] корінь репозиторію
  * @returns {Promise<number>} 0 — чисто, 1 — знайдено `down.sql`
  */
-export async function check(cwdParam = process.cwd()) {
+export async function main(cwdParam = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 

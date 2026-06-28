@@ -13,7 +13,7 @@ import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
  * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
-export function check(cwd = process.cwd()) {
+export function main(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 

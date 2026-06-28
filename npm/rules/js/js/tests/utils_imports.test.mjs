@@ -10,7 +10,7 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
-import { check } from '../utils_imports.mjs'
+import { main } from '../utils_imports.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('utils_imports.check', () => {

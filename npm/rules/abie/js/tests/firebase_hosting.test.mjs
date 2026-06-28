@@ -6,7 +6,7 @@
 import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 
-import { check } from '../firebase_hosting.mjs'
+import { main } from '../firebase_hosting.mjs'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 import { writeFile } from 'node:fs/promises'
 

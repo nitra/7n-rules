@@ -7,7 +7,7 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check } from '../no-console-store-restore.mjs'
+import { main } from '../no-console-store-restore.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 // Зібрано через join, щоб у source не зустрічався точний паттерн присвоєння

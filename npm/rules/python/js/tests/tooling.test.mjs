@@ -8,7 +8,7 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check } from '../tooling.mjs'
+import { main } from '../tooling.mjs'
 import { withTmpDir, writeJson, ensureDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 /**

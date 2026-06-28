@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path'
 import { env, platform } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { check } from '../hooks.mjs'
+import { main } from '../hooks.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))

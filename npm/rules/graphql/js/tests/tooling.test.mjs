@@ -7,7 +7,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { sourceFileHasGqlTaggedTemplate } from '../../lib/graphql-gql-scan.mjs'
-import { check } from '../tooling.mjs'
+import { main } from '../tooling.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('sourceFileHasGqlTaggedTemplate', () => {

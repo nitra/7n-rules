@@ -54,7 +54,31 @@ npm/rules/{rule}/
 
 Lint розділено на дві фази через поле `lint` у `npm/rules/<id>/main.json`: `quick` (крок у `n-cursor lint` — по змінених файлах working-tree, і в `lint-ci`) та `ci` (лише `n-cursor lint-ci` — по всьому репо, для крос-файлових jscpd/knip/trufflehog та actionlint/conftest). Виконавець кроку — `npm/rules/<id>/js/lint.mjs` з `export function lint(files, cwd)`: `files` — масив змінених (quick) або `undefined` (ci, весь проєкт). Оркестратор — `npm/scripts/lint-cli.mjs` (`runLint`); кроки строго послідовні (заборона паралельного eslint). Валідація — концерн `npm-module/js/rule_meta.mjs`.
 
-**Discovery** (`listJsConcerns` у `npm/scripts/utils/discover-checkable-rules.mjs`): сканує `js/`, повертає файли `*.mjs` без `.test.mjs` і без `fix-*.mjs` (T0-autofix супутники — не check-концерни). Підкаталоги (`tests/`, `templates/`, `data/`) скіпаються через `!entry.isFile()`. Каталог `utils/` discovery не бачить — він peer до `js/`.
+**Discovery** (`listJsConcerns` у `npm/scripts/utils/discover-checkable-rules.mjs`): сканує `js/`, повертає файли `*.mjs` без `.test.mjs`, `fix-*.mjs` і `_*.mjs`. Підкаталоги (`tests/`, `templates/`, `data/`) скіпаються через `!entry.isFile()`. Каталог `utils/` discovery не бачить — він peer до `js/`.
+
+**Контракт JS-концерну: `export async function main()`**
+
+Кожен файл `js/<concern>.mjs` що є **перевіркою** мусить експортувати єдину точку входу:
+
+```js
+export async function main(cwd = process.cwd()) {
+  // повертає 0 — OK, 1 — є порушення
+}
+```
+
+`main` — ім'я ролі (єдина точка входу файлу), як `main.mjs` — ім'я ролі файлу правила. Назва концерну + розташування (`js/<concern>.mjs`) вже описують що саме перевіряється; `main()` описує лише що це точка входу.
+
+Для runner-файлів що обгортають зовнішній інструмент — re-export достатній:
+```js
+export const main = runShellcheckText  // вже повертає 0/1
+```
+
+Файли у `js/` без `export function main` — **не концерни**:
+- helpers/утиліти → `utils/` або `_`-префікс у `js/`
+- standalone CLI-інструменти → за межі `js/` або `_`-префікс
+- T0-autofix супутники → `fix-<concern>.mjs` (discovery їх вже ігнорує)
+
+**Red flag:** файл у `js/` без `export function main` і без `_`-префіксу — або утиліта що має переїхати в `utils/`, або концерн з відсутньою точкою входу (перевірка мовчки не виконується).
 
 **Імпорти** (з `js/<concern>.mjs`):
 
@@ -206,6 +230,8 @@ export { patterns } from '../../../../scripts/lib/fix/vscode-ext-add.mjs'
 3. Не впевнений? Подивись референс **`npm/rules/k8s/policy/*`** ↔ **`npm/rules/k8s/js/*/check.mjs`** (Plan B: Rego-authoritative + JS-orchestrator) і список «що Rego об'єктивно не вміє» у `conftest.mdc`.
 
 **Червоний прапор:** дописуєш `if (pkg.<field>) fail(…)` у JS — майже завжди це варто було робити як `deny contains msg if { … }` у відповідному rego-пакеті. Перевір `npm/rules/<rule>/policy/` **перед** редагуванням `js/<concern>.mjs`.
+
+**Червоний прапор:** пишеш новий `js/<concern>.mjs` без `export async function main()` — без точки входу концерн мовчки не виконується (`runRule` шукає `mod.main`).
 
 ## Діагностика
 

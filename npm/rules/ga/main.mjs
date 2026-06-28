@@ -25,7 +25,7 @@
  */
 import { platform } from 'node:process'
 
-import { check as checkGa } from './js/workflows.mjs'
+import { main as checkGa } from './js/workflows.mjs'
 import { resolveCmd } from '../../scripts/utils/resolve-cmd.mjs'
 import { runLintStep } from '../../scripts/lib/run-lint-step.mjs'
 import { runStandardLint } from '../../scripts/lib/run-standard-lint.mjs'

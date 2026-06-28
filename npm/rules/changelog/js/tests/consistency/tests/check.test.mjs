@@ -19,7 +19,7 @@ import { join } from 'node:path'
 import { env } from 'node:process'
 import { promisify } from 'node:util'
 
-import { check as checkChangelog } from '../../../consistency.mjs'
+import { main as checkChangelog } from '../../../consistency.mjs'
 import { readChangeFiles } from '../../../../../release/lib/change-file.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../../../scripts/utils/test-helpers.mjs'
 

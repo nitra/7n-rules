@@ -14,7 +14,7 @@ const SNIPPET_PATH = join(HERE, 'templates', 'trufflehog', '.trufflehog-exclude.
  * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} exit-код перевірки
  */
-export async function check(cwd = process.cwd()) {
+export async function main(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 

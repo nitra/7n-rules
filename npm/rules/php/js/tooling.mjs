@@ -7,7 +7,7 @@ import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
  * Перевіряє відповідність проєкту правилам php.mdc.
  * @returns {number} 0 — все OK, 1 — є проблеми
  */
-export function check() {
+export function main() {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 

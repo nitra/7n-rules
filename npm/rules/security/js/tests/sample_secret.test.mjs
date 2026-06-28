@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
-import { check } from '../sample_secret.mjs'
+import { main } from '../sample_secret.mjs'
 
 describe('security/js/sample_secret/check', () => {
   test('pass: прикладних файлів немає', async () => {

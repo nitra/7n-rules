@@ -21,7 +21,7 @@ import {
  * @returns {Promise<number>} результат
  * @param {string} [cwd] корінь репозиторію
  */
-export async function check(cwd = process.cwd()) {
+export async function main(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
   const root = cwd

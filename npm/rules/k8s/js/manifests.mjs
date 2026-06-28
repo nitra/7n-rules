@@ -6619,7 +6619,7 @@ function runAllK8sRego(root, yamlFiles, fail) {
  * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} `process.exitCode`: 0 при успіху, 1 при будь-якому `fail(...)`
  */
-export async function check(cwd = process.cwd()) {
+export async function main(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 

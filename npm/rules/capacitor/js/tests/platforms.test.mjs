@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import {
   capacitorSegmentMinMajor,
   capacitorVersionRangeMinMajor,
-  check,
+  main as check,
   collectCapacitorDataFromAllPackageJson,
   isCapacitorCoreVersionAtLeast8,
   findFirstPodfileUnderIosExcludingPods,

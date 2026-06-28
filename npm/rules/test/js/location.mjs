@@ -30,7 +30,7 @@ function isInsideTestsDir(absPath) {
  * @param {string} [cwdParam] корінь репозиторію
  * @returns {Promise<number>} 0 — всі тести у `tests/`, 1 — є порушення
  */
-export async function check(cwdParam = process.cwd()) {
+export async function main(cwdParam = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 

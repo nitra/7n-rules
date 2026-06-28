@@ -14,7 +14,6 @@ resource: npm/rules/doc-files/js/
 | [docgen-files-batch.mjs](docgen-files-batch.md)         | JS Module |
 | [docgen-gen.mjs](docgen-gen.md)                         | JS Module |
 | [docgen-ignore.mjs](docgen-ignore.md)                   | JS Module |
-| [docgen-judge-measure.mjs](docgen-judge-measure.md)     | JS Module |
 | [docgen-judge.mjs](docgen-judge.md)                     | JS Module |
 | [docgen-prompts.mjs](docgen-prompts.md)                 | JS Module |
 | [docgen-scan.mjs](docgen-scan.md)                       | JS Module |

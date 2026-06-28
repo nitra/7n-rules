@@ -6,7 +6,7 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check } from '../no-relative-fs-path.mjs'
+import { main } from '../no-relative-fs-path.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 const HEAD = "import { writeFile, copyFile, mkdir } from 'node:fs/promises'\n"

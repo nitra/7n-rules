@@ -47,7 +47,7 @@ const SKIP_IF_STRYKER_RE = /\btest\.skipIf\s*\(\s*(?:env|process\.env)\.STRYKER_
  * @param {string} [cwdParam] корінь репозиторію
  * @returns {Promise<number>} 0 — чисто, 1 — є порушення
  */
-export async function check(cwdParam = process.cwd()) {
+export async function main(cwdParam = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
