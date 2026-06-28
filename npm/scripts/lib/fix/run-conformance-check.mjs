@@ -47,7 +47,7 @@ export async function resolveCheckRuleIds(requestedRules, available, cwd) {
   if (requestedRules.length > 0) {
     const unknown = requestedRules.filter(id => !available.includes(id))
     if (unknown.length > 0) throw new Error(`Unknown rules: ${unknown.join(', ')}`)
-    return requestedRules.filter(id => isRuleEnabled(config, id))
+    return requestedRules
   }
 
   if (config.exists) {
