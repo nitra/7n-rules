@@ -59,7 +59,9 @@ export async function runDocFilesFixWorker(_ruleId, violation, cwd) {
   try {
     await runGenerationBatch(targets, cwd, { headline: `  📄 doc-files: генерація ${targets.length} доки(ів)` })
 
-    // Перевіряємо якість кожного згенерованого файлу
+    // Перевіряємо якість кожного згенерованого файлу.
+    // Деградовані файли видаляємо ЗАРАЗ, до return — щоб external recheck
+    // оркестратора (який іде до rollback) бачив їх як missing і повертав failure.
     const degraded = docPaths.filter(p => {
       if (!existsSync(p)) return true
       const { score } = readDocQuality(p)
@@ -68,11 +70,14 @@ export async function runDocFilesFixWorker(_ruleId, violation, cwd) {
 
     if (degraded.length > 0) {
       const names = degraded.map(p => p.split('/').pop()).join(', ')
+      for (const p of degraded) {
+        if (existsSync(p)) rmSync(p)
+      }
       return {
         applied: false,
         touchedFiles: docPaths.filter(p => existsSync(p)),
         error: `degraded (score < ${QUALITY_THRESHOLD} або null): ${names}`,
-        rollback
+        rollback: () => {} // файли вже видалено вище
       }
     }
 

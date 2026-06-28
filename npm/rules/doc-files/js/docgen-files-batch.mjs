@@ -9,6 +9,7 @@ import {
   unlinkSync,
   writeFileSync
 } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { basename, dirname, join, relative } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
@@ -217,7 +218,9 @@ resource: ${sourceDirRel}/
 |---|---|
 ${rows.join('\n')}
 `
-  writeFileSync(join(docsAbsDir, 'index.md'), content)
+  const indexPath = join(docsAbsDir, 'index.md')
+  writeFileSync(indexPath, content)
+  spawnSync('oxfmt', [indexPath], { stdio: 'ignore' })
 }
 
 /**
