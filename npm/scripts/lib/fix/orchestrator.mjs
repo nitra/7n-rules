@@ -6,6 +6,18 @@ import { runT0AutoCli } from './t0.mjs'
 import { runPiAgentFix } from '../../../lib/pi-agent-fix.mjs'
 import { recordFixTelemetry } from '../../../lib/pi-telemetry-store.mjs'
 import { CLOUD_AVG, CLOUD_MIN, LOCAL_MIN } from '../../../lib/pi-model-tiers.mjs'
+import { runDocFilesFixWorker } from '../../../rules/doc-files/js/docgen-fix-worker.mjs'
+
+/**
+ * Спеціалізований worker для правил із власним fix-пайплайном.
+ * Якщо для ruleId є dedicated worker — повертає його; інакше — pi-agent.
+ * @param {string} ruleId
+ * @returns {(ruleId: string, violation: string, cwd: string, opts: object) => Promise<object>}
+ */
+function selectWorker(ruleId) {
+  if (ruleId === 'doc-files') return runDocFilesFixWorker
+  return runPiAgentFix
+}
 
 /**
  * Підраховує кількість елементів порушення з виводу правила — рядки "  - " як маркер списку.
@@ -138,11 +150,11 @@ function decideAfterFailure(rung, error) {
  * @param {string} cwd корінь проєкту
  * @param {{
  *   ladder: Array<{tier:string,model:string,feedback:boolean,local:boolean,isAvg:boolean}>,
- *   worker: { runFix: (ruleId: string, violation: string, cwd: string, opts: object) => Promise<object> },
  *   check: (rules: string[], cwd: string) => Promise<{rules: Array<{ruleId:string,ok:boolean,output:string}>}>,
  *   avgBudget: number,
+ *   worker?: { runFix: Function },
  *   log?: (s: string) => void
- * }} deps інжектовані залежності (worker/check — для тестів)
+ * }} deps worker — опційний override для тестів; у продакшні обирається через selectWorker(ruleId)
  * @returns {Promise<{ resolved: boolean, avgUsed: number }>} чи закрито правило і скільки avg-викликів витрачено
  */
 export async function escalateRule(rule, cwd, deps) {
@@ -175,7 +187,8 @@ export async function escalateRule(rule, cwd, deps) {
       const r = await check([rule.ruleId], cwd)
       return { ok: r.rules.every(x => x.ok), output: r.rules.find(x => !x.ok)?.output ?? 'ok' }
     }
-    const res = await worker.runFix(rule.ruleId, currentViolation, cwd, {
+    const runFix = deps.worker?.runFix ?? selectWorker(rule.ruleId)
+    const res = await runFix(rule.ruleId, currentViolation, cwd, {
       model: rung.model,
       tier: rung.tier,
       feedback: rung.feedback ? feedback : null,
@@ -262,7 +275,6 @@ async function runT0Step(cwd, ruleFilter, failed) {
  * @returns {Promise<number>}  0 = all clean, 1 = unresolved
  */
 export async function runOrchestratorCli(args, cwd) {
-  const worker = { runFix: runPiAgentFix }
   const { maxAvg, ruleFilter } = parseOrchestratorArgs(args)
   const ladder = buildLadder({ localMin: LOCAL_MIN, cloudMin: CLOUD_MIN, cloudAvg: CLOUD_AVG })
 
@@ -300,7 +312,6 @@ export async function runOrchestratorCli(args, cwd) {
   for (const rule of failed) {
     const { avgUsed } = await escalateRule(rule, cwd, {
       ladder,
-      worker,
       check: runConformanceCheck,
       avgBudget
     })
