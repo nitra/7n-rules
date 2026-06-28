@@ -191,6 +191,7 @@ export async function escalateRule(rule, cwd, deps) {
     const res = await runFix(rule.ruleId, currentViolation, cwd, {
       model: rung.model,
       tier: rung.tier,
+      isAvg: rung.isAvg,
       feedback: rung.feedback ? feedback : null,
       caller: `fix:${rule.ruleId}:${rung.tier}`,
       timeoutMs: rung.timeoutMs,

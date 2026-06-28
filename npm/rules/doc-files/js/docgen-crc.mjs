@@ -107,14 +107,16 @@ function issueCodes(issues) {
  * @param {string} crc CRC32 джерела у hex
  * @param {{ score: number, issues?: string[], retried?: boolean, judge?: {model?: string} }|null} [quality] det-оцінка доки; null — без полів якості
  * @param {string|null} [model] повний id моделі-генератора; null — без поля `model`
+ * @param {string|null} [tier] tier моделі-генератора (`local-min`, `cloud-avg` тощо); null — без поля `tier`
  * @returns {string} OKF-сумісний YAML frontmatter
  */
-export function buildDocFrontmatter(source, crc, quality = null, model = null) {
+export function buildDocFrontmatter(source, crc, quality = null, model = null, tier = null) {
   const okfLines = [`type: ${typeForSource(source)}`, `title: ${basename(source)}`, `resource: ${source}`]
 
   // docgen namespace: лише CRC-механіка і quality (source перенесено у resource)
   const docgenLines = [`crc: ${crc}`]
   if (model) docgenLines.push(`model: ${model}`)
+  if (tier) docgenLines.push(`tier: ${tier}`)
   if (quality && typeof quality.score === 'number') {
     docgenLines.push(`score: ${quality.score}`)
     const codes = issueCodes(quality.issues ?? [])
@@ -140,10 +142,10 @@ const LEADING_H1_RE = /^#[^\n]*\n+/u
 /**
  *
  */
-export function stampDoc(md, source, crc, quality = null, model = null) {
+export function stampDoc(md, source, crc, quality = null, model = null, tier = null) {
   const { body } = parseDocFrontmatter(md)
   const cleanBody = body.replace(LEADING_NEWLINES_RE, '').replace(LEADING_H1_RE, '')
-  return `${buildDocFrontmatter(source, crc, quality, model)}\n${cleanBody}`
+  return `${buildDocFrontmatter(source, crc, quality, model, tier)}\n${cleanBody}`
 }
 
 /**
@@ -181,6 +183,16 @@ export function readDocQuality(docAbsPath) {
 export function readDocModel(docAbsPath) {
   if (!existsSync(docAbsPath)) return null
   return parseDocFrontmatter(readFileSync(docAbsPath, 'utf8')).data?.model ?? null
+}
+
+/**
+ * Tier моделі-генератора зі frontmatter доки; `null` — доки немає або поле відсутнє.
+ * @param {string} docAbsPath абсолютний шлях md-доки
+ * @returns {string|null}
+ */
+export function readDocTier(docAbsPath) {
+  if (!existsSync(docAbsPath)) return null
+  return parseDocFrontmatter(readFileSync(docAbsPath, 'utf8')).data?.tier ?? null
 }
 
 /**

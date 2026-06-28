@@ -3,15 +3,13 @@ type: JS Module
 title: docgen-crc.mjs
 resource: npm/rules/doc-files/js/docgen-crc.mjs
 docgen:
-  crc: 0c277bb7
+  crc: a198ce42
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99
   retried: true
   judgeModel: openai-codex/gpt-5.4-mini
 ---
-
-## Огляд
 
 Please provide the code file you want me to generate the "Огляд" (Overview) documentation for. I need the content of the file to summarize its role based on the provided "Поведінка" section.
 

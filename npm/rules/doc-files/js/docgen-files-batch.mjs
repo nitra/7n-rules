@@ -118,7 +118,7 @@ function fmtSize(bytes) {
  * @param {{ ok: number, degraded: number, err: number, errors: string[], skipped: string[] }} stats акумулятор
  * @returns {Promise<'ok'|'permanent'|'systemic'|'transient'>} результат для керування циклом
  */
-async function generateOne(file, root, progress, stats) {
+async function generateOne(file, root, progress, stats, { model, tier } = {}) {
   const sourceAbs = join(root, file.sourcePath)
   let size = 0
   try {
@@ -131,7 +131,7 @@ async function generateOne(file, root, progress, stats) {
     const docAbs = join(root, file.docPath)
     // Варіант B: передаємо наявну доку, щоб зберегти захищену секцію «Призначення»
     const existingMd = existsSync(docAbs) ? readFileSync(docAbs, 'utf8') : null
-    const result = await generateDoc(sourceAbs, { existingMd })
+    const result = await generateDoc(sourceAbs, { existingMd, model })
     const crc = crc32(readFileSync(sourceAbs))
     mkdirSync(dirname(docAbs), { recursive: true })
     // retried: НЕ stale (отже це доретрай при тому ж CRC) і лишився degraded → штампуємо,
@@ -141,7 +141,7 @@ async function generateOne(file, root, progress, stats) {
       result.score === null
         ? null
         : { score: result.score, issues: result.degraded ? result.issues : [], retried, judge: result.judge }
-    writeFileSync(docAbs, stampDoc(result.md, file.sourcePath, crc, quality, result.model))
+    writeFileSync(docAbs, stampDoc(result.md, file.sourcePath, crc, quality, result.model, tier ?? null))
     stats.ok++
     if (result.degraded) {
       stats.degraded++
@@ -322,11 +322,12 @@ export async function runDocFilesGenCli(argv) {
  * і opportunistic lint-крок doc-files (scoped-набір змінених файлів).
  * @param {Array<object>} targets елементи scanForDocFiles (sourcePath/docPath)
  * @param {string} root абсолютний корінь
- * @param {{ headline?: string }} [opts] headline — рядок-шапка прогону у stdout
+ * @param {{ headline?: string, model?: string, tier?: string }} [opts] headline — рядок-шапка прогону у stdout; model/tier — override моделі і її типу (інакше DEFAULT_LOCAL_MODEL)
  * @returns {Promise<number>} 0 — без помилок; 1 — фейл preflight або є помилки; 2 — systemic-abort
  */
-export async function runGenerationBatch(targets, root, { headline } = {}) {
-  if (!DEFAULT_LOCAL_MODEL) {
+export async function runGenerationBatch(targets, root, opts = {}) {
+  const { headline } = opts
+  if (!opts.model && !DEFAULT_LOCAL_MODEL) {
     console.error('✗ fix-doc-files: локальну модель не задано (N_LOCAL_MIN_MODEL)')
     return 1
   }
@@ -339,7 +340,7 @@ export async function runGenerationBatch(targets, root, { headline } = {}) {
   let aborted = false
   for (const file of targets) {
     done++
-    const status = await generateOne(file, root, { done, total: targets.length }, stats)
+    const status = await generateOne(file, root, { done, total: targets.length }, stats, { model: opts.model, tier: opts.tier })
     // Circuit-breaker: K systemic-збоїв підряд → негайний abort (середовище впало,
     // решта файлів так само згорить). Будь-який не-systemic результат скидає лічильник.
     if (status === 'systemic') {

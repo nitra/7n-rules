@@ -10,10 +10,10 @@
  */
 
 import { join } from 'node:path'
-import { existsSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { runGenerationBatch } from './docgen-files-batch.mjs'
 import { scanForDocFiles } from './docgen-scan.mjs'
-import { QUALITY_THRESHOLD, readDocQuality } from './docgen-crc.mjs'
+import { QUALITY_THRESHOLD, readDocCrc, readDocModel, readDocQuality, readDocTier, stampDoc } from './docgen-crc.mjs'
 
 /**
  * Парсить stale-файли з violation-output рядка `❌ <path> (reason)`.
@@ -43,7 +43,26 @@ function parseStaleFromViolation(violation, cwd) {
  * @param {string} cwd корінь проєкту
  * @returns {Promise<{ applied: boolean, touchedFiles: string[], error: string|null, rollback: () => void }>}
  */
-export async function runDocFilesFixWorker(_ruleId, violation, cwd) {
+/**
+ * @param {string} docPath абсолютний шлях до doc-файлу
+ * @param {string} sourcePath відносний шлях source-файлу від кореня
+ * @returns {void}
+ */
+function markRetried(docPath, sourcePath) {
+  const md = readFileSync(docPath, 'utf8')
+  const { score, issues, judgeModel } = readDocQuality(docPath)
+  const quality = score === null ? null : { score, issues, retried: true, judge: judgeModel ? { model: judgeModel } : undefined }
+  writeFileSync(docPath, stampDoc(md, sourcePath, readDocCrc(docPath), quality, readDocModel(docPath), readDocTier(docPath)))
+}
+
+/**
+ * @param {string} _ruleId 'doc-files'
+ * @param {string} violation violation-output з ❌-рядками
+ * @param {string} cwd корінь проєкту
+ * @param {{ isAvg?: boolean }} [opts]
+ * @returns {Promise<{ applied: boolean, touchedFiles: string[], error: string|null, rollback: () => void }>}
+ */
+export async function runDocFilesFixWorker(_ruleId, violation, cwd, opts = {}) {
   const targets = parseStaleFromViolation(violation, cwd)
   if (targets.length === 0) {
     return { applied: false, touchedFiles: [], error: 'doc-files: жодного stale-файлу у violation', rollback: () => {} }
@@ -57,7 +76,7 @@ export async function runDocFilesFixWorker(_ruleId, violation, cwd) {
   }
 
   try {
-    await runGenerationBatch(targets, cwd, { headline: `  📄 doc-files: генерація ${targets.length} доки(ів)` })
+    await runGenerationBatch(targets, cwd, { headline: `  📄 doc-files: генерація ${targets.length} доки(ів)`, model: opts.model, tier: opts.tier })
 
     // Перевіряємо якість кожного згенерованого файлу.
     // Деградовані файли видаляємо ЗАРАЗ, до return — щоб external recheck
@@ -70,6 +89,16 @@ export async function runDocFilesFixWorker(_ruleId, violation, cwd) {
 
     if (degraded.length > 0) {
       const names = degraded.map(p => p.split('/').pop()).join(', ')
+      if (opts.isAvg) {
+        // Останній рунг — зберігаємо best-effort, позначаємо retried:true щоб
+        // наступний --degraded прогін не намагався перегенерувати з тим самим CRC
+        for (const p of degraded) {
+          if (!existsSync(p)) continue
+          const target = targets.find(f => join(cwd, f.docPath) === p)
+          if (target) markRetried(p, target.sourcePath)
+        }
+        return { applied: true, touchedFiles: docPaths.filter(p => existsSync(p)), error: null, rollback }
+      }
       for (const p of degraded) {
         if (existsSync(p)) rmSync(p)
       }

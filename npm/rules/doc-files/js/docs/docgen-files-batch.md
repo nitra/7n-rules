@@ -3,14 +3,12 @@ type: JS Module
 title: docgen-files-batch.mjs
 resource: npm/rules/doc-files/js/docgen-files-batch.mjs
 docgen:
-  crc: 26217123
+  crc: 942d956b
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
   issues: internal-name:generateOne,judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini
 ---
-
-## Огляд
 
 Я готовий до роботи. Будь ласка, надайте мені файл, який потрібно задокументувати.
 

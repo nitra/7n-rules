@@ -1582,3 +1582,6 @@ try {
     process.exitCode = 1
   }
 }
+
+// Pi-агент тримає TCP keep-alive сокет відкритим — явний вихід, щоб не висіти.
+process.exit(process.exitCode ?? 0)
