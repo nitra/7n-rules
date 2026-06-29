@@ -17,48 +17,51 @@ version: '1.16'
 
 Це **не** привід саботувати чіткі інструкції: коли користувач після дискусії підтвердив напрям — агент виконує без подальшого опору.
 
-## Структура правила (rule-centric, flat concern layout — з 1.14.0)
+## Структура правила (concern-directory layout — з 2026-06-28)
 
-Кожне правило живе в **одній** директорії `npm/rules/{rule}/`, де JS-концерн — це **один файл** `js/<concern>.mjs` (не каталог). Helpers — у peer-каталозі `utils/` (existing convention з `abie/utils/`):
+Кожне правило живе в **одній** директорії `npm/rules/{rule}/`. Кожен концерн — **власна піддиректорія** `{concern}/` з обов'язковим маркером `concern.json`. Helpers — у peer-каталозі `utils/`:
 
 ```
 npm/rules/{rule}/
 ├── main.mdc                               ← текст правила (frontmatter + body) — ОБОВ'ЯЗКОВИЙ
 ├── main.json                              ← метадані правила: auto (умова автоактивації)
-├── fix.mjs                                 ← entry-point правила (wrapper навколо runStandardRule)
-├── js/                                     ← JS-частина (опційно)
-│   ├── <concern>.mjs                       ← FS / cross-file / autofix перевірка концерну
-│   ├── <concern>.mdc                       ← людинозрозумілий гід концерну для агентів (ОБОВ'ЯЗКОВИЙ)
-│   ├── fix-<concern>.mjs                   ← T0-autofix паттерни JS-концерну (не discovery-концерн; опційно)
-│   ├── tests/                              ← Bun-тести
-│   │   ├── <concern>.test.mjs              ← single-test concern
-│   │   └── <concern>/                      ← multi-test concern (+ fixtures/)
-│   │       └── <name>.test.mjs
-│   ├── templates/<concern>/<target>.<slot>.<ext>  ← JS template assets (опційно)
-│   └── data/<concern>/<name>.<ext>         ← JS data (json/tsv, опційно)
-├── utils/                                  ← cross-concern та concern-private helpers (опційно)
-│   ├── <helper>.mjs                        ← плоско, namespace'ованим іменем (`docker-mirror`, `vue-forbidden-imports`)
-│   └── tests/<helper>.test.mjs             ← тести helpers (як в abie/utils/tests/)
-└── policy/<concern>/                       ← Rego-поліси концерну (один target-файл; опційно)
-    ├── <concern>.rego                      ← `package {rule}.<concern>` + `import rego.v1`
-    ├── <concern>.mdc                       ← людинозрозумілий гід policy для агентів (ОБОВ'ЯЗКОВИЙ)
-    ├── <concern>_test.rego                 ← тести rego-полісі (запускає `bun run lint-rego` через `conftest verify`)
-    ├── fix-<concern>.mjs                   ← T0-autofix паттерни для порушень цього rego-концерну (опційно)
-    ├── target.json                         ← {"files": {"single": "...", "required": true?}, "missingMessage": "..."}
-    └── template/<target>.<slot>.<ext>      ← канон концерну для Rego-перевірюваних кейсів (опційно)
+├── {concern}/                             ← кожен концерн — власна піддиректорія
+│   ├── concern.json                       ← маркер концерну + декларація поверхонь (check/policy/lint)
+│   ├── main.mjs                           ← JS entry point: check → main(cwd); lint → lint(files, cwd, opts)
+│   ├── {concern}.mdc                      ← людинозрозумілий гід концерну для агентів (ОБОВ'ЯЗКОВИЙ)
+│   ├── fix-{concern}.mjs                  ← T0-autofix паттерни (не discovery-концерн; опційно)
+│   ├── tests/
+│   │   ├── {concern}.test.mjs             ← single-test concern
+│   │   └── {name}.test.mjs               ← multi-test concern (+ fixtures/)
+│   ├── docs/
+│   │   └── main.md                        ← файлова документація (doc-files)
+│   ├── template/                          ← template assets (слоти snippet/deny/contains)
+│   │   └── <target>.<slot>.<ext>
+│   ├── {concern}.rego                     ← Rego policy (policy surface; опційно)
+│   ├── {concern}_test.rego                ← тести rego (`conftest verify`; опційно)
+│   └── data/<name>.<ext>                  ← статичні дані концерну (json/tsv; опційно)
+└── utils/                                 ← cross-concern helpers (опційно)
+    ├── <helper>.mjs                       ← плоско, namespace'ованим іменем (`docker-mirror`, `vue-forbidden-imports`)
+    └── tests/<helper>.test.mjs            ← тести helpers
 ```
 
-Іменування директорії правила — **kebab-case** (як id в `.n-cursor.json:rules`). Імена концернів — **snake_case**, помічники — **kebab-case** з префіксом rule/concern (`docker-mirror.mjs`, `vue-forbidden-imports.mjs`).
+Іменування директорії правила — **kebab-case** (як id в `.n-cursor.json:rules`). Імена концернів — **snake_case** (`lower_snake_case [a-z0-9_]+`), помічники — **kebab-case** з префіксом rule/concern (`docker-mirror.mjs`, `vue-forbidden-imports.mjs`).
 
-Автоактивація правила — поле `auto` у `npm/rules/<id>/main.json`: `"завжди"` | масив id правил-залежностей | `{glob}` (наявність файлів) | `{predicate, arg}` (незводимий предикат із реєстру `npm/scripts/lib/rule-predicates.mjs`). Інтерпретатор — `npm/scripts/auto-rules.mjs`; валідація — концерн `npm-module/js/rule_meta.mjs`.
+Автоактивація правила — поле `auto` у `npm/rules/<id>/main.json`: `"завжди"` | масив id правил-залежностей | `{glob}` (наявність файлів) | `{predicate, arg}` (незводимий предикат із реєстру `npm/scripts/lib/rule-predicates.mjs`). Інтерпретатор — `npm/scripts/auto-rules.mjs`; валідація — концерн `npm-module/skill_meta`.
 
-Lint розділено на дві фази через поле `lint` у `npm/rules/<id>/main.json`: `quick` (крок у `n-cursor lint` — по змінених файлах working-tree, і в `lint-ci`) та `ci` (лише `n-cursor lint-ci` — по всьому репо, для крос-файлових jscpd/knip/trufflehog та actionlint/conftest). Виконавець кроку — `npm/rules/<id>/js/lint.mjs` з `export function lint(files, cwd)`: `files` — масив змінених (quick) або `undefined` (ci, весь проєкт). Оркестратор — `npm/scripts/lint-cli.mjs` (`runLint`); кроки строго послідовні (заборона паралельного eslint). Валідація — концерн `npm-module/js/rule_meta.mjs`.
+**Поверхні концерну** — `concern.json` декларує одну або кілька з трьох:
 
-**Discovery** (`listJsConcerns` у `npm/scripts/utils/discover-checkable-rules.mjs`): сканує `js/`, повертає файли `*.mjs` без `.test.mjs`, `fix-*.mjs` і `_*.mjs`. Підкаталоги (`tests/`, `templates/`, `data/`) скіпаються через `!entry.isFile()`. Каталог `utils/` discovery не бачить — він peer до `js/`.
+- `"check": true` — JS conformance/fix поверхня; `main.mjs` має `export async function main(cwd)`.
+- `"policy": { "files": { … } }` — Rego або template поверхня; `{concern}.rego` + `{concern}_test.rego` поряд.
+- `"lint": { "scope": "per-file"|"full", "glob": […], "llmFix": bool }` — lint поверхня; `main.mjs` має `export function lint(files, cwd, opts)`.
+
+Lint розділено на дві фази через поле `lint` у **`concern.json`** (не в `main.json`): `per-file` (delta-режим: по змінених файлах vs origin) та `full` (крос-файловий: весь репо для jscpd/knip/trufflehog). Оркестратор — `npm/scripts/lib/run-lint.mjs` (`runLint`); кроки строго послідовні. `--verbose` виводить кожен concern, його scope/glob і кількість відповідних файлів.
+
+**Discovery** (`listConcerns` у `npm/scripts/lib/concern-meta.mjs`): сканує підкаталоги `rules/<id>/`, повертає ті, що мають `concern.json`. Каталог `utils/` — без `concern.json`, тому discovery не бачить.
 
 **Контракт JS-концерну: `export async function main()`**
 
-Кожен файл `js/<concern>.mjs` що є **перевіркою** мусить експортувати єдину точку входу:
+Файл `{concern}/main.mjs` що є **check-перевіркою** мусить експортувати:
 
 ```js
 export async function main(cwd = process.cwd()) {
@@ -66,30 +69,30 @@ export async function main(cwd = process.cwd()) {
 }
 ```
 
-`main` — ім'я ролі (єдина точка входу файлу), як `main.mjs` — ім'я ролі файлу правила. Назва концерну + розташування (`js/<concern>.mjs`) вже описують що саме перевіряється; `main()` описує лише що це точка входу.
-
 Для runner-файлів що обгортають зовнішній інструмент — re-export достатній:
 ```js
 export const main = runShellcheckText  // вже повертає 0/1
 ```
 
-Файли у `js/` без `export function main` — **не концерни**:
-- helpers/утиліти → `utils/` або `_`-префікс у `js/`
-- standalone CLI-інструменти → за межі `js/` або `_`-префікс
-- T0-autofix супутники → `fix-<concern>.mjs` (discovery їх вже ігнорує)
+Для **lint**-концерну (поверхня `lint` у `concern.json`) — `main.mjs` має:
+```js
+export function lint(files, cwd, opts) {
+  // files: string[]|undefined (per-file: відфільтровані; full: undefined)
+  // повертає 0/1
+}
+```
 
-**Red flag:** файл у `js/` без `export function main` і без `_`-префіксу — або утиліта що має переїхати в `utils/`, або концерн з відсутньою точкою входу (перевірка мовчки не виконується).
+**Red flag:** `{concern}/main.mjs` без потрібного export (`main` або `lint`) — концерн мовчки не виконується.
 
-**Імпорти** (з `js/<concern>.mjs`):
+**Імпорти** (з `{concern}/main.mjs`):
 
-- Helper: `from '../utils/<helper>.mjs'`
-- Cross-rule concern: `from '../../<rule>/js/<concern>.mjs'`
-- Scripts util: `from '../../../scripts/utils/<X>.mjs'`
+- Helper: `from '../../utils/<helper>.mjs'`
+- Cross-rule concern: `from '../../<rule>/<concern>/main.mjs'`
+- Scripts util: `from '../../../../scripts/utils/<X>.mjs'`
 
 **Імпорти з тестів:**
 
-- `js/tests/<concern>.test.mjs` → concern: `'../<concern>.mjs'`, helper: `'../../utils/<helper>.mjs'`, scripts: `'../../../../scripts/utils/<X>.mjs'`
-- `js/tests/<concern>/<name>.test.mjs` → concern: `'../../<concern>.mjs'`, helper: `'../../../utils/<helper>.mjs'`, scripts: `'../../../../../scripts/utils/<X>.mjs'`
+- `{concern}/tests/{concern}.test.mjs` → concern: `'../main.mjs'`, helper: `'../../../utils/<helper>.mjs'`, scripts: `'../../../../../scripts/utils/<X>.mjs'`
 
 **Інваріанта:** видалив `npm/rules/{rule}/` → правило зникло без слідів (нема мертвих посилань у `bin/auto-rules.md`, `npm/scripts/`, `.cursor/rules/`).
 
@@ -116,8 +119,7 @@ npm/skills/{skill}/
 
 **Принцип.** Детермінований авто-фікс (без LLM, ≤кілька рядків FS-операцій) живе **поруч з перевіркою**, що його породжує — **не** у центральному `npm/scripts/lib/fix/t0.mjs`. Кожен концерн із хоча б одним виправним порушенням отримує файл-супутник із префіксом `fix-`:
 
-- JS-концерн: `js/<concern>.mjs` → `js/fix-<concern>.mjs`
-- Rego-концерн: `policy/<concern>/<concern>.rego` → `policy/<concern>/fix-<concern>.mjs`
+- Будь-який концерн (JS або Rego): `{concern}/main.mjs` → `{concern}/fix-{concern}.mjs`
 
 **Контракт експорту** (однаковий для js- і rego-фіксів):
 
@@ -132,13 +134,13 @@ export const patterns = [
 ]
 ```
 
-**Discovery-агрегація** (`npm/scripts/lib/fix/discover-t0-patterns.mjs`): сканує `npm/rules/{rule}/js/fix-*.mjs` і `npm/rules/{rule}/policy/*/fix-*.mjs` по всіх правилах, робить dynamic import кожного, збирає масиви `patterns`. `t0.mjs` споживає цей список замість inline-масиву.
+**Discovery-агрегація** (`npm/scripts/lib/fix/discover-t0-patterns.mjs`): сканує glob `*/*/fix-*.mjs` у `npm/rules/` і залишає лише ті, де поряд є `concern.json` (тобто `rules/{rule}/{concern}/fix-*.mjs`). Динамічно імпортує кожен, збирає масиви `patterns`. `t0.mjs` споживає цей список замість inline-масиву.
 
-**Крос-правильний shared механізм:** якщо та сама fix-логіка потрібна ≥2 правилам (наприклад, `vscode-ext-add` — однаковий механізм для всіх правил із `vscode_extensions.rego`), спільна утиліта живе в `npm/scripts/lib/fix/<util>.mjs`. Правило-споживач робить тонкий re-export:
+**Крос-правильний shared механізм:** якщо та сама fix-логіка потрібна ≥2 правилам (наприклад, `vscode-ext-add` — однаковий механізм для всіх правил із `vscode_extensions`), спільна утиліта живе в `npm/scripts/lib/fix/<util>.mjs`. Правило-споживач робить тонкий re-export:
 
 ```js
-// npm/rules/ga/policy/vscode_extensions/fix-vscode_extensions.mjs
-export { patterns } from '../../../../scripts/lib/fix/vscode-ext-add.mjs'
+// npm/rules/ga/vscode_extensions/fix-vscode_extensions.mjs
+export { patterns } from '../../../scripts/lib/fix/vscode-ext-add.mjs'
 ```
 
 **Red flags:**
@@ -242,16 +244,15 @@ export { patterns } from '../../../../scripts/lib/fix/vscode-ext-add.mjs'
 - Запускай **перед** змінами правил або check-скриптів — зафіксуй поточний стан.
 - Запускай **після** змін — підтверди, що перевірки й проєкт узгоджені.
 
-## MDC-супутник для кожного `.mjs` і `.rego` — ОБОВ'ЯЗКОВО
+## MDC-супутник для кожного concern — ОБОВ'ЯЗКОВО
 
-Кожен `js/<concern>.mjs` і кожен `policy/<concern>/<concern>.rego` у `npm/rules/<rule>/` **мають** мати поруч власний `.mdc`-файл:
+Кожен концерн у `npm/rules/<rule>/{concern}/` **має** мати власний `{concern}.mdc`:
 
-- `js/<concern>.mdc` — що перевіряє концерн, які артефакти це стосується, що означає fail.
-- `policy/<concern>/<concern>.mdc` — що перевіряє rego-gate, цільовий файл, Rego-пакет, що deny означає для агента.
+- `{concern}/{concern}.mdc` — що перевіряє концерн (check/policy/lint), які артефакти стосуються, що означає fail, що deny значить для агента.
 
-Ці `.mdc` підхоплюються `npx @nitra/cursor` sync і через markdown-лінки з `main.mdc` інлайняться у `.cursor/rules/n-<rule>.mdc` — без них агенти не бачать змін у правилах після sync.
+`.mdc`-файл підхоплюється `npx @nitra/cursor` sync і через markdown-лінки з `main.mdc` інлайниться у `.cursor/rules/n-<rule>.mdc` — без нього агенти не бачать концерну після sync.
 
-**Red flag:** написав новий `<concern>.mjs` або `<concern>.rego` — зупинись і одразу напиши поруч `<concern>.mdc`. Без `.mdc`-файлу зміна залишиться невидимою в `.cursor/rules/` і не буде контекстом для агентів споживачів.
+**Red flag:** додав `main.mjs` або `{concern}.rego` до нового concern-dir — зупинись і одразу напиши поруч `{concern}.mdc`. Без `.mdc`-файлу зміна залишиться невидимою в `.cursor/rules/`.
 
 ## Синхронізація правил і `check.mjs` / Rego policy
 
