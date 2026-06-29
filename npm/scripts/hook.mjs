@@ -1,6 +1,6 @@
 /**
  * Thin hook entrypoint для Claude Code hooks: зчитує контекст (stdin / git),
- * делегує в `runLint({ readOnly: true })`, перекодовує exit-код у hook-протокол (1 → 2).
+ * делегує в `detectAll` (read-only), перекодовує exit-код у hook-протокол (1 → 2).
  *
  * Режими:
  *   --post-tool-use  PostToolUse: file_path зі stdin JSON Claude Code.
@@ -9,7 +9,7 @@
 import { once } from 'node:events'
 import { cwd as processCwd } from 'node:process'
 
-import { runLint } from './lib/run-lint.mjs'
+import { detectAll } from './lib/lint-surface/run-detectors.mjs'
 import { collectChangedFiles } from './lib/changed-files.mjs'
 
 /**
@@ -61,11 +61,11 @@ export async function runHookCli(argv) {
   if (postToolUse) {
     const fp = extractFilePath(await readStdin())
     if (!fp) return 0
-    const code = await runLint({ files: [fp], readOnly: true, cwd })
-    return code !== 0 ? 2 : 0
+    const { exitCode } = await detectAll({ files: [fp], cwd })
+    return exitCode !== 0 ? 2 : 0
   }
 
   const files = collectChangedFiles(cwd)
-  const code = await runLint({ files, readOnly: true, cwd })
-  return code !== 0 ? 2 : 0
+  const { exitCode } = await detectAll({ files, cwd })
+  return exitCode !== 0 ? 2 : 0
 }

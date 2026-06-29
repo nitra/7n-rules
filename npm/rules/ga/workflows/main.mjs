@@ -5,16 +5,13 @@ import { execFileSync } from 'node:child_process'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { platform } from 'node:process'
-
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { eventPathsIncludeExact, parseWorkflowYaml } from '../../../scripts/lib/gha-workflow.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { runConftestBatch } from '../../../scripts/lib/run-conftest-batch.mjs'
 import { loadTemplate } from '../../../scripts/lib/template.mjs'
 import { ensureTool } from '../../../scripts/lib/ensure-tool.mjs'
 import { runLintStep } from '../../../scripts/lib/run-lint-step.mjs'
-import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GA_POLICY_DIR = join(HERE, '..')
@@ -328,29 +325,36 @@ async function runAllGaRego(wfDir, ymlWorkflows, cwd, pass, fail) {
  * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
+  const cwd = ctx.cwd
+
+  // Зовнішні тули (read-only): actionlint + zizmor. 127 = тул відсутній → skip.
+  ensureTool('shellcheck')
+  ensureTool('conftest')
+  const actionlintCode = runLintStep('actionlint', 'bunx', ['github-actionlint'])
+  if (actionlintCode !== 0 && actionlintCode !== 127) fail('actionlint знайшов порушення (ga.mdc)', 'actionlint')
+  if (resolveCmd('uv')) {
+    const zizmorCode = runLintStep('zizmor', 'uvx', ['zizmor', '--offline', '--collect=workflows', '.'])
+    if (zizmorCode !== 0 && zizmorCode !== 127) fail('zizmor знайшов ризики у workflow (ga.mdc)', 'zizmor')
+  }
 
   const wfDirRel = '.github/workflows'
   const wfDir = join(cwd, wfDirRel)
-
   if (!existsSync(wfDir)) {
     fail(`Директорія ${wfDirRel} не існує`)
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   const files = await readdir(wfDir)
   const ymlWorkflows = files.filter(f => f.endsWith('.yml'))
 
-  // Rego-крок (per-workflow + workflow_common) — на початку, як єдине джерело
-  // істини для пер-документних структурних правил workflow-файлів.
+  // Rego-крок (per-workflow + workflow_common) — оркестрація ga policy sub-concern-ів.
   await runAllGaRego(wfDir, ymlWorkflows, cwd, pass, fail)
 
   const setupBunDepsActionRel = '.github/actions/setup-bun-deps/action.yml'
-  if (existsSync(join(cwd, setupBunDepsActionRel))) {
-    pass(`${setupBunDepsActionRel} існує`)
-  } else {
+  if (!existsSync(join(cwd, setupBunDepsActionRel))) {
     fail(
       `Відсутній ${setupBunDepsActionRel} — запустіть npx @nitra/cursor або скопіюйте з пакету (ga.mdc: composite setup-bun-deps)`
     )
@@ -363,84 +367,14 @@ export async function main(cwd = process.cwd()) {
 
   await checkMegalinter(wfDir, ymlWorkflows, wfDirRel, cwd, pass, fail)
 
-  // git-залежна перевірка `on.push.paths` glob-ів (вимагає `git ls-files`) —
-  // лишається в JS, бо conftest не має доступу до файлової системи репо.
+  // git-залежна перевірка `on.push.paths` glob-ів (вимагає `git ls-files`) — лишається в JS.
   for (const f of ymlWorkflows) {
     const content = await readFile(join(wfDir, f), 'utf8')
     const parsed = parseWorkflowYaml(content)
-    if (parsed) {
-      verifyWorkflowEventPathsGlobsExist(`${wfDirRel}/${f}`, parsed, pass, fail, cwd)
-    }
+    if (parsed) verifyWorkflowEventPathsGlobsExist(`${wfDirRel}/${f}`, parsed, pass, fail, cwd)
   }
 
   checkShellcheckInstalled(pass, fail)
 
-  return reporter.getExitCode()
+  return reporter.result()
 }
-
-/** @type {{ bin: string, winBins: string[], explanation: string, install: string[], successMsg: string }} */
-const UV_PREFLIGHT = {
-  bin: 'uv',
-  winBins: ['uv.exe'],
-  explanation: [
-    'Без `uv` (а отже без `uvx`) не виконається `uvx zizmor` — second-stage аудит',
-    'workflow на ризики GitHub Actions просто не запуститься.'
-  ].join('\n   '),
-  install: [
-    'macOS:        brew install uv',
-    'Universal:    curl -LsSf https://astral.sh/uv/install.sh | sh',
-    'pip:          pip install uv'
-  ],
-  successMsg: '✅ uv знайдено в PATH — uvx zizmor запуститься'
-}
-
-function resolvePreflightBin(dep) {
-  if (platform === 'win32') {
-    for (const name of dep.winBins) {
-      const r = resolveCmd(name)
-      if (r) return r
-    }
-  }
-  return resolveCmd(dep.bin)
-}
-
-function preflight(dep) {
-  if (resolvePreflightBin(dep)) {
-    console.log(dep.successMsg)
-    return true
-  }
-  console.error(`❌ ${dep.bin} не знайдено в PATH.`)
-  console.error(`   ${dep.explanation}`)
-  console.error('   Встанови:')
-  for (const line of dep.install) {
-    console.error(`     ${line}`)
-  }
-  console.error('   Деталі: ga.mdc → секція про lint-ga.')
-  return false
-}
-
-async function runLintGaSteps() {
-  ensureTool('shellcheck')
-  ensureTool('conftest')
-  if (!preflight(UV_PREFLIGHT)) return 1
-
-  const actionlintCode = runLintStep('actionlint', 'bunx', ['github-actionlint'])
-  if (actionlintCode !== 0) return actionlintCode
-
-  const zizmorCode = runLintStep('zizmor', 'uvx', ['zizmor', '--offline', '--collect=workflows', '.'])
-  if (zizmorCode !== 0) return zizmorCode
-
-  console.log('\n▶ check-ga (rego-полісі + JS cross-file перевірки)')
-  return await main()
-}
-
-/**
- * lint-поверхня ga/workflows: actionlint + zizmor + check.
- * @param {string[] | undefined} _files ігнорується
- * @returns {Promise<number>}
- */
-export function lint(_files) {
-  return runStandardLint(import.meta.dirname, runLintGaSteps)
-}
-
-export const runLintGaCli = () => runStandardLint(import.meta.dirname, runLintGaSteps)

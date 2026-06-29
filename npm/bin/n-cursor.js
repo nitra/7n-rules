@@ -1513,19 +1513,21 @@ try {
       break
     }
     case 'lint': {
-      // Дві ортогональні осі: --full (scope: весь репо vs дельта vs origin) × --read-only (behavior).
-      // Позиційні (не-флаг) аргументи — фільтр правил конформності (напр. `lint changelog`):
-      // прогнати лише конформність цих правил, без лінтер-скану (мапить колишній `fix <rule>`).
+      // Unified lint surface (spec 2026-06-29). Осі: --full (весь репо vs дельта) ×
+      // --no-fix (detect-only). Позиційні аргументи — scoped rule/concern фільтр.
+      // Fix-by-default: detect → T0 → LLM-ladder (run-fix). --no-fix: лише detect.
       const cwdIdx = args.indexOf('--cwd')
-      const cwdArg = cwdIdx !== -1 ? resolve(args[cwdIdx + 1]) : undefined
+      const cwdArg = cwdIdx !== -1 ? resolve(args[cwdIdx + 1]) : cwd()
       const rules = args.filter((a, i) => !a.startsWith('-') && !(cwdIdx !== -1 && i === cwdIdx + 1))
-      process.exitCode = await runLint({
-        full: args.includes('--full'),
-        readOnly: args.includes('--read-only'),
-        verbose: args.includes('--verbose'),
-        rules,
-        cwd: cwdArg
-      })
+      const lintOpts = { cwd: cwdArg, full: args.includes('--full'), rules, verbose: args.includes('--verbose') }
+      // --read-only — backward-compat alias на --no-fix (видалиться після міграції викликів).
+      if (args.includes('--no-fix') || args.includes('--read-only')) {
+        const { detectAll } = await import('../scripts/lib/lint-surface/run-detectors.mjs')
+        process.exitCode = (await detectAll(lintOpts)).exitCode
+      } else {
+        const { runFixPipeline } = await import('../scripts/lib/lint-surface/run-fix.mjs')
+        process.exitCode = await runFixPipeline(lintOpts)
+      }
 
       break
     }

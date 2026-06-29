@@ -8,11 +8,10 @@ import { fileURLToPath } from 'node:url'
 
 import { isSeq, parse, parseAllDocuments, parseDocument, stringify } from 'yaml'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { runConftestBatch } from '../../../scripts/lib/run-conftest-batch.mjs'
 import { ensureTool } from '../../../scripts/lib/ensure-tool.mjs'
-import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 
@@ -6620,33 +6619,44 @@ function runAllK8sRego(root, yamlFiles, fail) {
 }
 
 /**
- * Точка входу `check k8s`: повний набір перевірок маніфестів і структури `…/k8s` (див. JSDoc на початку файлу).
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} `process.exitCode`: 0 при успіху, 1 при будь-якому `fail(...)`
+ * Read-only unified-lint-surface детектор k8s/manifests.
+ *
+ * Дві поверхні зведені в один прохід:
+ *  1. Зовнішні тули (kubeconform + kubescape) — read-only прогон через findK8sRoots;
+ *     ненульовий exit → fail-violation (reason 'kubeconform'/'kubescape'),
+ *     127/ENOENT (тул відсутній) → SKIP, не violation.
+ *  2. JS/rego cross-file перевірки (колишній `check`): findK8sYamlFiles,
+ *     assertNoForbiddenK8sDevPaths, runAllK8sRego, checkK8sYamlFile-цикл та всі
+ *     `validate*`. Мутуючі fix-кроки (rewrite/remove/autofix/ensure) ВИЛУЧЕНО —
+ *     детектор не змінює репо; їх поведінка переходить у окрему fix-фазу.
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
+  const root = ctx.cwd
 
-  const root = cwd
   const ignorePaths = await loadCursorIgnorePaths(root)
 
-  await rewriteBatchV1beta1ApiVersionInK8sYamlFiles(root, ignorePaths, fail, pass)
+  // ── Зовнішні тули (read-only): kubeconform + kubescape ──
+  const dirs = await findK8sRoots(root, ignorePaths)
+  if (dirs.length > 0) {
+    const kc = runKubeconform(dirs)
+    if (kc !== 0 && kc !== 127) fail('kubeconform знайшов невалідні маніфести (k8s.mdc)', 'kubeconform')
+    const ks = await runKubescape(dirs, root)
+    if (ks !== 0 && ks !== 127) fail('kubescape знайшов ризики у маніфестах (k8s.mdc)', 'kubescape')
+  }
 
-  await removeBackendConfigOnlyK8sYamlFiles(root, ignorePaths, fail, pass)
-
+  // ── JS/rego cross-file перевірки (колишній check, read-only) ──
   const yamlFiles = await findK8sYamlFiles(root, ignorePaths)
 
   if (yamlFiles.length === 0) {
     pass('Немає *.yaml під k8s — перевірку $schema пропущено')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   pass(`YAML у k8s: ${yamlFiles.length} файл(ів)`)
-
-  await autofixKustomizationImagesYaml(root, yamlFiles, fail, pass)
-
-  await ensureNetworkPoliciesForK8sWorkloads(root, yamlFiles, fail, pass)
 
   assertNoForbiddenK8sDevPaths(yamlFiles, root, fail)
 
@@ -6684,7 +6694,7 @@ export async function main(cwd = process.cwd()) {
 
   await validateHasuraOverlayEnabledApisOverride(root, yamlFiles, fail, pass)
 
-  return reporter.getExitCode()
+  return reporter.result()
 }
 
 // ─── Lint surface (kubeconform + kubescape) ───────────────────────────────────
@@ -6850,28 +6860,3 @@ async function runKubescape(dirs, root) {
   return 0
 }
 
-async function runLintK8sSteps() {
-  const root = process.cwd()
-  const ignorePaths = await loadCursorIgnorePaths(root)
-  const dirs = await findK8sRoots(root, ignorePaths)
-  if (dirs.length === 0) {
-    console.log('run-k8s: немає *.yaml під k8s — kubeconform і kubescape пропущено')
-    return 0
-  }
-  console.log(`run-k8s: каталоги k8s (${dirs.length}):`)
-  for (const d of dirs) console.log(`  ${d}`)
-  const kc = runKubeconform(dirs)
-  if (kc !== 0) return kc
-  return runKubescape(dirs, root)
-}
-
-export const runLintK8s = () => runStandardLint(import.meta.dirname, runLintK8sSteps)
-
-/**
- * lint-поверхня k8s/manifests: kubeconform + kubescape.
- * @param {string[] | undefined} _files ігнорується
- * @returns {Promise<number>}
- */
-export function lint(_files) {
-  return runLintK8s()
-}

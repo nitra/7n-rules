@@ -10,12 +10,18 @@
  * @typedef {import('../concern-meta.mjs').ConcernMeta} ConcernMeta
  * @typedef {{ ruleId: string, concern: ConcernMeta }} LintEntry
  */
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import picomatch from 'picomatch'
 
 import { listConcerns } from '../concern-meta.mjs'
 import { collectChangedFilesSince, resolveChangedBase } from '../changed-files.mjs'
 import { readNCursorConfigLite, isRuleEnabled } from '../read-n-cursor-config-lite.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
+
+// Цей файл: npm/scripts/lib/lint-surface/run-detectors.mjs → PACKAGE_ROOT = npm (4 dirname угору).
+export const DEFAULT_RULES_DIR = join(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))), 'rules')
 import { renderViolations, renderDiagnostics } from './render.mjs'
 
 /**
@@ -112,7 +118,7 @@ function sortEntries(entries) {
  * @returns {Promise<PlanItem[]>}
  */
 export async function buildDetectPlan(opts) {
-  const byRule = await readLintConcernsByRule(opts.rulesDir)
+  const byRule = await readLintConcernsByRule(opts.rulesDir ?? DEFAULT_RULES_DIR)
   return buildPlan({
     byRule,
     full: opts.full === true,
@@ -195,7 +201,8 @@ async function buildPlan({ byRule, full, rules, explicitFiles, cwd }) {
  * @returns {Promise<{ violations: LintViolation[], exitCode: 0|1|2, ran: LintEntry[] }>}
  */
 export async function detectAll(opts) {
-  const { rulesDir, cwd } = opts
+  const rulesDir = opts.rulesDir ?? DEFAULT_RULES_DIR
+  const { cwd } = opts
   const full = opts.full === true
   const rules = Array.isArray(opts.rules) ? opts.rules : []
   const explicitFiles = Array.isArray(opts.files) ? opts.files : null
