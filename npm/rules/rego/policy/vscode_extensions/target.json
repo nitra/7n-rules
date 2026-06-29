@@ -1,5 +1,0 @@
-{
-  "$schema": "https://unpkg.com/@nitra/cursor/schemas/target.json",
-  "files": { "single": ".vscode/extensions.json", "required": true },
-  "missingMessage": ".vscode/extensions.json не існує — створи згідно rego.mdc (rego.vscode_extensions)"
-}

@@ -1,0 +1,54 @@
+/** @see ./docs/docgen-ignore.md */
+import ignore from 'ignore'
+
+/** Базовий список glob-ів для `docgen` ignore. */
+export const DOCGEN_IGNORE_GLOBS = Object.freeze([
+  '**/node_modules/**',
+  '**/dist/**',
+  '**/target/**',
+  '.git/**',
+  '**/__pycache__/**',
+  '**/coverage/**',
+  '.cursor/**',
+  '.claude/**',
+  '.pi/**',
+  '.pi-template/**',
+  '.worktrees/**',
+  '**/benchmarks/**',
+  '**/demo/**',
+  '**/docs/**',
+  'npm/reports/**',
+  'npm/bin/**',
+  'npm/rules/k8s/manifests/main.mjs'
+])
+
+const ig = ignore().add(DOCGEN_IGNORE_GLOBS)
+
+/**
+ * Нормалізує відносний шлях до posix-формату для glob-matching.
+ * @param {string} relPath відносний шлях із path.relative(...)
+ * @returns {string} posix-вигляд шляху
+ */
+function toPosixRelPath(relPath) {
+  return relPath.split('\\').join('/')
+}
+
+/**
+ * Перевіряє, чи шлях має бути пропущений `docgen`.
+ * Для `kind = 'dir'` це працює і на піддерево каталогу, тож glob на кшталт
+ * `**\/demo/**` спрацьовує на `demo/x` під час рекурсивного обходу.
+ * @param {string} relPath відносний шлях від кореня проєкту
+ * @param {'path'|'dir'} [kind] тип перевірки (за замовчуванням `'path'`)
+ * @returns {boolean} `true`, якщо шлях ігнорується
+ */
+export function isDocgenIgnored(relPath, kind = 'path') {
+  if (typeof relPath !== 'string' || relPath.length === 0) {
+    return false
+  }
+  const posixRelPath = toPosixRelPath(relPath)
+  if (kind === 'dir') {
+    // `**/demo/**` не матчить `demo` напряму — перевіряємо фіктивний файл всередині
+    return ig.ignores(posixRelPath) || ig.ignores(`${posixRelPath}/__docgen__`)
+  }
+  return ig.ignores(posixRelPath)
+}

@@ -1,7 +1,0 @@
-## Заборонені залежності у `package.json`
-
-`@nitra/minify-image` не повинен зʼявлятися ні в `dependencies`, ні в `devDependencies` — CLI запускається лише через `npx`. Якщо потрібен явний пін — у самому виклику (`npx @nitra/minify-image@^3 --src=. --write`).
-
-Перевіряється через Rego-пакет `image_compress.package_json`: [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
-
-Окремий `package.json`-скрипт `lint-image` не потрібен і не перевіряється — єдина точка входу `n-cursor lint image-compress`.

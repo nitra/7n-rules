@@ -69,30 +69,33 @@ export async function inlineTemplateLinks(text, ruleDir) {
 }
 
 /**
- * Appends all *.mdc files auto-discovered in js/ and policy/<concern>/ subdirectories.
- * js/ direct files come first (alphabetically), then policy concern directories
- * (alphabetically by concern name, then by file name within each concern).
+ * Appends all *.mdc files from concern subdirectories (those with concern.json).
+ * Concerns ordered alphabetically; files within each concern ordered alphabetically.
  * @param {string} text rule content (after inlineTemplateLinks)
  * @param {string} ruleDir absolute path to the rule directory
  * @returns {Promise<string>} text with discovered concern docs appended
  */
 export async function appendDiscoveredMdcFiles(text, ruleDir) {
+  const { readdir } = await import('node:fs/promises')
   const sections = []
 
-  const jsDir = join(ruleDir, 'js')
-  if (existsSync(jsDir)) {
-    const files = await globby('*.mdc', { cwd: jsDir, onlyFiles: true, gitignore: false })
-    for (const f of files.toSorted()) {
-      sections.push((await readFile(join(jsDir, f), 'utf8')).trim())
-    }
+  let entries
+  try {
+    entries = await readdir(ruleDir, { withFileTypes: true })
+  } catch {
+    return text
   }
 
-  const policyDir = join(ruleDir, 'policy')
-  if (existsSync(policyDir)) {
-    // '*/*.mdc' → 'concern/file.mdc'; рядкове сортування дає concern-first, потім file
-    const files = await globby('*/*.mdc', { cwd: policyDir, onlyFiles: true, gitignore: false })
-    for (const rel of files.toSorted()) {
-      sections.push((await readFile(join(policyDir, rel), 'utf8')).trim())
+  const concernDirs = entries
+    .filter(e => e.isDirectory() && !e.name.startsWith('.') && existsSync(join(ruleDir, e.name, 'concern.json')))
+    .map(e => e.name)
+    .toSorted()
+
+  for (const dir of concernDirs) {
+    const concernDir = join(ruleDir, dir)
+    const files = await globby('*.mdc', { cwd: concernDir, onlyFiles: true, gitignore: false })
+    for (const f of files.toSorted()) {
+      sections.push((await readFile(join(concernDir, f), 'utf8')).trim())
     }
   }
 

@@ -1,8 +1,8 @@
 /**
- * Discovery T0-autofix паттернів з rule-level `fix-*.mjs` файлів.
+ * Discovery T0-autofix паттернів з concern-level `fix-*.mjs` файлів.
  *
- * Сканує `npm/rules/{rule}/js/fix-*.mjs` і `npm/rules/{rule}/policy/{concern}/fix-*.mjs`
- * по всіх правилах, динамічно імпортує кожен і збирає масиви `patterns`.
+ * Сканує glob `{rule}/{concern}/fix-*.mjs` у `npm/rules/`, залишає лише файли де поряд є `concern.json`,
+ * динамічно імпортує кожен і збирає масиви `patterns`.
  * `t0.mjs` ініціалізує результат через top-level await (один раз при завантаженні модуля).
  */
 import { existsSync } from 'node:fs'
@@ -21,10 +21,17 @@ import { globby } from 'globby'
 export async function discoverT0Patterns(rulesDir) {
   if (!existsSync(rulesDir)) return []
 
-  const relPaths = await globby(['*/js/fix-*.mjs', '*/policy/*/fix-*.mjs'], {
+  // Scan fix-*.mjs у concern dirs (підкаталогах із concern.json)
+  const allCandidates = await globby(['*/*/fix-*.mjs'], {
     cwd: rulesDir,
     onlyFiles: true,
     gitignore: false
+  })
+  const { existsSync: fsExistsSync } = await import('node:fs')
+  const relPaths = allCandidates.filter(p => {
+    const parts = p.split('/')
+    if (parts.length < 2) return false
+    return fsExistsSync(join(rulesDir, parts[0], parts[1], 'concern.json'))
   })
 
   /** @type {T0Pattern[]} */

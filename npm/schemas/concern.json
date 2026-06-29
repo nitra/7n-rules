@@ -1,0 +1,86 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "title": "Concern descriptor",
+  "description": "Маркер підкаталогу правила як concern-а. Кожна з поверхонь (check/policy/lint) опційна, але хоча б одна обов'язкова. Concern id = ім'я каталогу (lower snake_case [a-z0-9_]+).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri"
+    },
+    "check": {
+      "type": "boolean",
+      "const": true,
+      "description": "JS conformance/fix поверхня. main.mjs має експортувати main(cwd)."
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files"],
+      "description": "Rego або template поверхня. Відповідає колишньому target.json.",
+      "properties": {
+        "files": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["single"],
+              "properties": {
+                "single": { "type": "string", "minLength": 1 },
+                "required": { "type": "boolean" }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["walkGlob"],
+              "properties": {
+                "walkGlob": {
+                  "oneOf": [
+                    { "type": "string", "minLength": 1 },
+                    { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "check": {
+          "type": "string",
+          "enum": ["template"],
+          "description": "template → generic deep-subset без .rego; без поля → Rego mode."
+        },
+        "missingMessage": {
+          "type": "string",
+          "description": "Override fail-повідомлення при відсутності required:single файла."
+        }
+      }
+    },
+    "lint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope"],
+      "description": "Lint поверхня. main.mjs має експортувати lint(changed, cwd, opts).",
+      "properties": {
+        "scope": {
+          "type": "string",
+          "enum": ["per-file", "full"],
+          "description": "per-file: delta-режим; full: крос-файловий."
+        },
+        "glob": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+          ],
+          "description": "per-file: фільтр delta-файлів; full: delta-тригер."
+        },
+        "llmFix": {
+          "type": "boolean",
+          "description": "true → concern opt-in у opportunistic LLM-fix."
+        }
+      }
+    }
+  }
+}

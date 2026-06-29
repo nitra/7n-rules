@@ -3,15 +3,12 @@ type: JS Module
 title: discover-t0-patterns.mjs
 resource: npm/scripts/lib/fix/discover-t0-patterns.mjs
 docgen:
-  crc: 3f3b47e0
+  crc: b3e2828f
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini
 ---
-
-## Огляд
 
 Цей модуль виявляє паттерни для автоматичного виправлення (autofix) шляхом сканування директорій `npm/rules/{rule}/js/fix-*.mjs` та `npm/rules/{rule}/policy/{concern}/fix-*.mjs` для всіх правил проєкту. Він динамічно імпортує кожен відповідний файл і збирає масиви `patterns` одноразово під час завантаження модуля через top-level await. Модуль не виконує операцій з файловою системою чи БД; він працює в режимі лише для читання та гарантує стійкість роботи шляхом перехоплення помилок, повертаючи `null` замість винятку.
 

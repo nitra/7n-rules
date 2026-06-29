@@ -1,0 +1,9 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "policy": {
+    "files": {
+      "glob": ["k8s/**/*.yaml", "k8s/**/*.yml"]
+    },
+    "namespace": "k8s.network_policy"
+  }
+}

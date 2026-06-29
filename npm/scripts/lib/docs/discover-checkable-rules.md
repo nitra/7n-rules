@@ -3,12 +3,10 @@ type: JS Module
 title: discover-checkable-rules.mjs
 resource: npm/scripts/lib/discover-checkable-rules.mjs
 docgen:
-  crc: d06cd969
+  crc: 16798b52
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
-
-## Огляд
 
 Визначає наявність JS-концернів та policy-концернів у заданому каталозі правила. Сканує всі каталоги правил, шукаючи JS-концерни у файлах `rules/<id>/js/<concern>.mjs` та policy-концерни, що асоціюються з парою `<concern>.rego` та `target.json`. Повертає список правил, які містять такі прогонні частини. Файли з префіксом `_` або `*.test.mjs` ігноруються.
 

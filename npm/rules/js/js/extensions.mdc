@@ -1,8 +1,0 @@
-## `.vscode/extensions.json` — рекомендовані розширення
-
-У `.vscode/extensions.json` поле `recommendations` має містити:
-- `dbaeumer.vscode-eslint`
-- `github.vscode-github-actions`
-- `oxc.oxc-vscode`
-
-Канон: [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)

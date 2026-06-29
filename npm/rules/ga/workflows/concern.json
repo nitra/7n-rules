@@ -1,0 +1,8 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "check": true,
+  "lint": {
+    "scope": "full",
+    "glob": [".github/workflows/**"]
+  }
+}

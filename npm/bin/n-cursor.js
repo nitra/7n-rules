@@ -1522,6 +1522,7 @@ try {
       process.exitCode = await runLint({
         full: args.includes('--full'),
         readOnly: args.includes('--read-only'),
+        verbose: args.includes('--verbose'),
         rules,
         cwd: cwdArg
       })

@@ -6,7 +6,7 @@ import { runT0AutoCli } from './t0.mjs'
 import { runPiAgentFix } from '../../../lib/pi-agent-fix.mjs'
 import { recordFixTelemetry } from '../../../lib/pi-telemetry-store.mjs'
 import { CLOUD_AVG, CLOUD_MIN, LOCAL_MIN } from '../../../lib/pi-model-tiers.mjs'
-import { runDocFilesFixWorker } from '../../../rules/doc-files/js/docgen-fix-worker.mjs'
+import { runDocFilesFixWorker } from '../../../rules/doc-files/docgen-fix-worker/main.mjs'
 
 /**
  * Спеціалізований worker для правил із власним fix-пайплайном.

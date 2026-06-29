@@ -1,0 +1,8 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "policy": {
+    "files": {
+      "walkGlob": ["hasura/k8s/base/svc.yaml", "hasura/k8s/base/svc-hl.yaml"]
+    }
+  }
+}

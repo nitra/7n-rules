@@ -1,5 +1,0 @@
-## Temporal API (заборона у Bun runtime)
-
-У backend/Bun runtime-коді **не використовуй `Temporal`** (`Temporal.Now`, `Temporal.Instant`, імпорти з polyfill тощо). Поточний Bun runtime ще не має глобального `Temporal` (`typeof Temporal === "undefined"`), тому агентам треба лишатися на сумісному `Date` API або передавати timestamp у чисті функції через параметр.
-
-Перевірка `npx @nitra/cursor fix js-run` сканує JS/TS AST і падає на identifier `Temporal` у backend workspace-коді.

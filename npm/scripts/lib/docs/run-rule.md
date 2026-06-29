@@ -3,7 +3,7 @@ type: JS Module
 title: run-rule.mjs
 resource: npm/scripts/lib/run-rule.mjs
 docgen:
-  crc: 1181d0b5
+  crc: 93d8fb78
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

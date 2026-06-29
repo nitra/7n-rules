@@ -130,13 +130,14 @@ describe('appendDiscoveredMdcFiles', () => {
     expect(result.indexOf('# main')).toBeLessThan(result.indexOf('## Section title'))
   })
 
-  test('policy/concern/*.mdc discovered and appended after js/', async () => {
+  test('concern/*.mdc discovered and appended (алфавітно за concern-dir)', async () => {
     const result = await appendDiscoveredMdcFiles('# main\n', FIXTURES)
     expect(result).toContain('## Bar policy section')
     expect(result).toContain('Content from the bar policy concern file.')
-    const jsIdx = result.indexOf('## Section title')
-    const policyIdx = result.indexOf('## Bar policy section')
-    expect(jsIdx).toBeLessThan(policyIdx)
+    // bar/ < section/ алфавітно
+    const barIdx = result.indexOf('## Bar policy section')
+    const sectionIdx = result.indexOf('## Section title')
+    expect(barIdx).toBeLessThan(sectionIdx)
   })
 
   test('template/ subdir .mdc files are NOT discovered (only direct concern files)', async () => {

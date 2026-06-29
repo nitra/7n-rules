@@ -1,0 +1,7 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "lint": {
+    "scope": "full",
+    "glob": ["**/*.py", "pyproject.toml", "uv.lock"]
+  }
+}

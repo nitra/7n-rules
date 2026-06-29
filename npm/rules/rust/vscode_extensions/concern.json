@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "policy": {
+    "files": {
+      "single": ".vscode/extensions.json",
+      "required": true
+    },
+    "missingMessage": ".vscode/extensions.json не існує — створи з recommendations \"rust-lang.rust-analyzer\" і \"tamasfe.even-better-toml\" (rust.mdc)"
+  }
+}

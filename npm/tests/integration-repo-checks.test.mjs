@@ -6,21 +6,20 @@ import { join } from 'node:path'
 import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { applies as appliesAbie } from '../rules/abie/js/applies.mjs'
-import { main as checkAbieFirebase } from '../rules/abie/js/firebase_hosting.mjs'
-import { main as checkAbieHc } from '../rules/abie/js/hc_pairing.mjs'
-import { main as checkAbieEnv } from '../rules/abie/js/env_dns.mjs'
-import { main as checkAbieUaNs } from '../rules/abie/js/ua_node_selector.mjs'
-import { main as checkAbieUaHr } from '../rules/abie/js/ua_http_route.mjs'
-import { main as checkBun } from '../rules/bun/js/layout.mjs'
-import { main as checkDocker } from '../rules/docker/js/lint.mjs'
-import { main as checkGa } from '../rules/ga/js/workflows.mjs'
-import { main as checkGraphql } from '../rules/graphql/js/tooling.mjs'
-import { main as checkJsLint } from '../rules/js/js/check.mjs'
-import { main as checkText } from '../rules/text/js/formatting.mjs'
-import { main as checkJsRun } from '../rules/js-run/js/runtime.mjs'
-import { main as checkK8s } from '../rules/k8s/js/manifests.mjs'
-import { main as checkNpmModule } from '../rules/npm-module/js/package_structure.mjs'
+import { main as checkAbieFirebase } from '../rules/abie/firebase_hosting/main.mjs'
+import { main as checkAbieHc } from '../rules/abie/hc_pairing/main.mjs'
+import { main as checkAbieEnv } from '../rules/abie/env_dns/main.mjs'
+import { main as checkAbieUaNs } from '../rules/abie/ua_node_selector/main.mjs'
+import { main as checkAbieUaHr } from '../rules/abie/ua_http_route/main.mjs'
+import { main as checkBun } from '../rules/bun/layout/main.mjs'
+import { main as checkDocker } from '../rules/docker/lint/main.mjs'
+import { main as checkGa } from '../rules/ga/workflows/main.mjs'
+import { main as checkGraphql } from '../rules/graphql/tooling/main.mjs'
+import { main as checkJsLint } from '../rules/js/check/main.mjs'
+import { main as checkText } from '../rules/text/formatting/main.mjs'
+import { main as checkJsRun } from '../rules/js-run/runtime/main.mjs'
+import { main as checkK8s } from '../rules/k8s/manifests/main.mjs'
+import { main as checkNpmModule } from '../rules/npm-module/package_structure/main.mjs'
 import { withShellcheckStubInPath } from '../scripts/utils/test-helpers.mjs'
 
 const TEST_DIR =
@@ -32,7 +31,6 @@ const REPO_ROOT = join(TEST_DIR, '..', '..')
  * @returns {Promise<number>} exit code abie-check chain на заданому cwd
  */
 async function checkAbie(cwd) {
-  if (!(await appliesAbie(cwd))) return 0
   let code = 0
   for (const fn of [checkAbieFirebase, checkAbieHc, checkAbieEnv, checkAbieUaNs, checkAbieUaHr]) {
     if ((await fn(cwd)) !== 0) code = 1

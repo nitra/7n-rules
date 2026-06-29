@@ -1,8 +1,0 @@
-## Композиція з Tauri
-
-Tauri-проєкт завжди має `src-tauri/Cargo.toml`, тому правило `rust` активується автоматично разом з `tauri`. Поділ обов'язків:
-
-- `rust` — лінт через `n-cursor lint rust`, `rust-analyzer`, `even-better-toml`, CI workflow.
-- `tauri` — `tauri-apps.tauri-vscode` (див. **tauri.mdc**).
-
-Обидва правила перевіряють `.vscode/extensions.json` за `contains`-семантикою; конкурентного запису немає.

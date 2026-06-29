@@ -1,0 +1,457 @@
+/** @see ./docs/template.md */
+import { existsSync } from 'node:fs'
+import { readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
+import { basename, dirname, join, relative } from 'node:path'
+
+import { findDockerfilePaths } from '../../docker/lint/main.mjs'
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
+import { runConftestBatch } from '../../../scripts/lib/run-conftest-batch.mjs'
+import { walkDir } from '../../../scripts/utils/walkDir.mjs'
+
+const LINE_SPLIT_RE = /\r?\n/u
+const INI_KEY_RE = /^([A-Za-z_]\w*)\s*=/u
+const RETURN_200_RE = /return\s+200/u
+const GZIP_STATIC_ON_RE = /gzip_static\s+on/gu
+const PROXY_LIKE_RE =
+  /\b(proxy_pass|proxy_redirect|proxy_set_header|proxy_http_version|fastcgi_pass|grpc_pass|uwsgi_pass)\b/u
+const FIND_CMD_RE = /\bfind\b/u
+const GZIP_CMD_RE = /\bgzip\b/u
+const GZIP_EXTENSION_RE = /\*\.(?:js|css)/u
+
+// `error_log off;` — НЕ валідний nginx: "off" трактується як ім'я файлу (/etc/nginx/off)
+// і падає під readOnlyRootFilesystem. /dev/null — writable device, тому канон — `error_log /dev/null crit;`.
+const ERROR_LOG_OFF_RE = /error_log\s+off\s*;/gu
+const ERROR_LOG_CANONICAL = 'error_log /dev/null crit;'
+
+/**
+ * Збирає абсолютні шляхи до **default.conf.template** у репозиторії; будь-який сегмент
+ * `fixtures/` у шляху виключається — це тестові артефакти (як `tests/fixtures/` так і
+ * co-located `rules/<rule>/js/<concern>/fixtures/`).
+ * @param {string} root корінь cwd
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
+ * @returns {Promise<string[]>} відсортовані абсолютні шляхи до шаблонів
+ */
+export async function findDefaultConfTemplatePaths(root, ignorePaths = []) {
+  /** @type {string[]} */
+  const out = []
+  await walkDir(
+    root,
+    p => {
+      if (basename(p) !== 'default.conf.template') return
+      const rel = relative(root, p).replaceAll('\\', '/')
+      if (rel.split('/').includes('fixtures')) return
+      out.push(p)
+    },
+    ignorePaths
+  )
+  return out.toSorted((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Знаходить у дереві від `root` усі **default.tpl.conf**. Якщо поруч немає **default.conf.template** —
+ * перейменовує файл; якщо є — перезаписує **default.conf.template** вмістом **default.tpl.conf** і видаляє **default.tpl.conf**.
+ * @param {string} root корінь обходу (зазвичай cwd репозиторію)
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
+ * @returns {Promise<{ renamed: string[], overwritten: string[] }>} відносні шляхи до обробленого **default.tpl.conf** (для звіту)
+ */
+export async function migrateDefaultTplConfFiles(root, ignorePaths = []) {
+  /** @type {string[]} */
+  const oldPaths = []
+  await walkDir(
+    root,
+    p => {
+      if (basename(p) === 'default.tpl.conf') oldPaths.push(p)
+    },
+    ignorePaths
+  )
+  oldPaths.sort((a, b) => a.localeCompare(b))
+
+  /** @type {string[]} */
+  const renamed = []
+  /** @type {string[]} */
+  const overwritten = []
+
+  for (const oldPath of oldPaths) {
+    const newPath = join(dirname(oldPath), 'default.conf.template')
+    const relOld = relative(root, oldPath).replaceAll('\\', '/') || oldPath.replaceAll('\\', '/')
+    if (existsSync(newPath)) {
+      const body = await readFile(oldPath, 'utf8')
+      await writeFile(newPath, body, 'utf8')
+      await unlink(oldPath)
+      overwritten.push(relOld)
+    } else {
+      await rename(oldPath, newPath)
+      renamed.push(relOld)
+    }
+  }
+
+  return { renamed, overwritten }
+}
+
+/**
+ * Замінює невалідну директиву `error_log off;` на `error_log /dev/null crit;` у всіх
+ * **default.conf.template** від `root`. `error_log off;` — НЕ валідний nginx: "off" трактується
+ * як ім'я файлу (`/etc/nginx/off`) і падає під readOnlyRootFilesystem; `/dev/null` — writable device.
+ * @param {string} root корінь обходу (зазвичай cwd репозиторію)
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
+ * @returns {Promise<string[]>} відносні шляхи виправлених шаблонів (для звіту)
+ */
+export async function migrateErrorLogOffDirective(root, ignorePaths = []) {
+  const templates = await findDefaultConfTemplatePaths(root, ignorePaths)
+  /** @type {string[]} */
+  const fixed = []
+  for (const abs of templates) {
+    const body = await readFile(abs, 'utf8')
+    const next = body.replace(ERROR_LOG_OFF_RE, ERROR_LOG_CANONICAL)
+    if (next === body) continue
+    await writeFile(abs, next, 'utf8')
+    fixed.push(relative(root, abs).replaceAll('\\', '/') || abs)
+  }
+  return fixed
+}
+
+/**
+ * Імена змінних з ini (рядки KEY=value, без коментарів і порожніх).
+ * @param {string} iniText вміст *.ini
+ * @returns {string[]} імена змінних у порядку появи
+ */
+export function parseIniVariableNames(iniText) {
+  /** @type {string[]} */
+  const keys = []
+  for (const line of iniText.split(LINE_SPLIT_RE)) {
+    const t = line.trim()
+    if (t !== '' && !t.startsWith('#') && !t.startsWith(';')) {
+      const m = t.match(INI_KEY_RE)
+      if (m) keys.push(m[1])
+    }
+  }
+  return keys
+}
+
+/**
+ * Перевіряє вміст **default.conf.template** на відповідність канону з nginx-default-tpl.mdc.
+ * @param {string} content текст шаблону
+ * @returns {string | null} перше порушення або null
+ */
+export function nginxTemplateViolations(content) {
+  /** @type {{ msg: string, ok: (c: string) => boolean }[]} */
+  const rules = [
+    { msg: 'відсутнє server_tokens off', ok: c => c.includes('server_tokens off') },
+    { msg: 'відсутнє port_in_redirect off', ok: c => c.includes('port_in_redirect off') },
+    { msg: 'відсутнє client_max_body_size 0', ok: c => c.includes('client_max_body_size 0') },
+    { msg: 'відсутнє client_body_buffer_size 512M', ok: c => c.includes('client_body_buffer_size 512M') },
+    { msg: 'відсутнє listen 8080', ok: c => c.includes('listen 8080') },
+    { msg: 'відсутнє server_name _', ok: c => c.includes('server_name _') },
+    { msg: 'відсутнє access_log off', ok: c => c.includes('access_log off') },
+    {
+      msg: 'відсутнє error_log /dev/null crit (error_log off — НЕ валідний nginx, падає під readOnlyRootFilesystem)',
+      ok: c => c.includes('error_log /dev/null crit')
+    },
+    { msg: 'відсутнє root /usr/share/nginx/html', ok: c => c.includes('root /usr/share/nginx/html') },
+    {
+      msg: 'location /healthz має повертати healthy (див. nginx-default-tpl.mdc)',
+      ok: c => c.includes('/healthz') && (c.includes('healthy') || RETURN_200_RE.test(c))
+    },
+    {
+      msg: 'відсутній location для статики без gzip (gif|jpeg|png|ico|woff2|xlsx) з Cache-Control 31536000',
+      ok: c =>
+        c.includes('gif|jpe?g|png|ico|woff2|xlsx') &&
+        c.includes('31536000') &&
+        c.includes('alias /usr/share/nginx/html/')
+    },
+    {
+      msg: 'відсутній location для svg|js|css|ttf|map|xml|webmanifest|wasm з gzip_static',
+      ok: c => c.includes('svg|js|css|ttf|map|xml|webmanifest|wasm')
+    },
+    {
+      msg: 'gzip_static on має бути принаймні двічі (два location зі стисненням)',
+      ok: c => (c.match(GZIP_STATIC_ON_RE) ?? []).length >= 2
+    },
+    { msg: 'відсутнє використання $PUBLIC_PATH у location', ok: c => c.includes('$PUBLIC_PATH') },
+    {
+      msg: 'відсутні sendfile on; sendfile_max_chunk 512k; tcp_nopush on',
+      ok: c => c.includes('sendfile on') && c.includes('sendfile_max_chunk 512k') && c.includes('tcp_nopush on')
+    },
+    {
+      msg: 'відсутнє try_files $uri $uri/ /index.html =404',
+      ok: c => c.includes('try_files $uri $uri/ /index.html =404')
+    }
+  ]
+
+  for (const { msg, ok } of rules) {
+    if (!ok(content)) return msg
+  }
+
+  // cspell:ignore fastcgi uwsgi
+  if (PROXY_LIKE_RE.test(content)) {
+    return 'знайдено proxy, gRPC або інший *_pass до бекенду — прибери з шаблону, логіку винеси в HTTPRoute (k8s) (див. nginx-default-tpl.mdc)'
+  }
+
+  return null
+}
+
+/**
+ * Чи HTTPRoute відповідає патерну Exact→RequestRedirect(301, https) + PathPrefix→backendRefs:8080.
+ * @param {unknown} manifest корінь YAML-документа
+ * @returns {boolean} true, якщо структура збігається з прикладом у nginx-default-tpl.mdc
+ */
+export function httpRouteMatchesNginxDefaultTpl(manifest) {
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
+    return false
+  const m = /** @type {Record<string, unknown>} */ (manifest)
+  if (m.kind !== 'HTTPRoute') return false
+  const spec = m.spec
+  if (spec === null || spec === undefined || typeof spec !== 'object' || Array.isArray(spec)) return false
+  const rules = /** @type {Record<string, unknown>} */ (spec).rules
+  if (!Array.isArray(rules) || rules.length < 2) return false
+
+  const [first, second] = rules
+  if (first === null || first === undefined || typeof first !== 'object' || Array.isArray(first)) return false
+  if (second === null || second === undefined || typeof second !== 'object' || Array.isArray(second)) return false
+
+  const r0 = /** @type {Record<string, unknown>} */ (first)
+  const r1 = /** @type {Record<string, unknown>} */ (second)
+
+  const matches0 = r0.matches
+  const filters0 = r0.filters
+  const matches1 = r1.matches
+  const backends1 = r1.backendRefs
+
+  const hasExact =
+    Array.isArray(matches0) &&
+    matches0.some(x => {
+      if (x === null || x === undefined || typeof x !== 'object' || Array.isArray(x)) return false
+      return /** @type {Record<string, unknown>} */ (x).path?.type === 'Exact'
+    })
+
+  const hasRedirect =
+    Array.isArray(filters0) &&
+    filters0.some(f => {
+      if (f === null || f === undefined || typeof f !== 'object' || Array.isArray(f)) return false
+      const fr = /** @type {Record<string, unknown>} */ (f)
+      if (fr.type !== 'RequestRedirect') return false
+      const rr = fr.requestRedirect
+      if (rr === null || rr === undefined || typeof rr !== 'object' || Array.isArray(rr)) return false
+      const red = /** @type {Record<string, unknown>} */ (rr)
+      const code = red.statusCode
+      const okCode = code === 301 || code === '301'
+      return red.scheme === 'https' && red.path?.type === 'ReplaceFullPath' && okCode
+    })
+
+  const hasPrefix =
+    Array.isArray(matches1) &&
+    matches1.some(x => {
+      if (x === null || x === undefined || typeof x !== 'object' || Array.isArray(x)) return false
+      return /** @type {Record<string, unknown>} */ (x).path?.type === 'PathPrefix'
+    })
+
+  const has8080 =
+    Array.isArray(backends1) &&
+    backends1.some(b => {
+      if (b === null || b === undefined || typeof b !== 'object' || Array.isArray(b)) return false
+      const p = /** @type {Record<string, unknown>} */ (b).port
+      return p === 8080 || p === '8080'
+    })
+
+  return hasExact && hasRedirect && hasPrefix && has8080
+}
+
+/**
+ * Кожен ключ з ini має входити в шаблон як `$KEY` (envsubst).
+ * @param {string[]} keys імена змінних
+ * @param {string} template вміст default.conf.template
+ * @returns {string | null} повідомлення або null
+ */
+export function iniKeysMissingInTemplate(keys, template) {
+  for (const k of keys) {
+    if (!template.includes(`$${k}`)) {
+      return `змінна "${k}" з *.ini не використовується в шаблоні — вилучи її з ini або додай у шаблон $${k} (див. nginx-default-tpl.mdc)`
+    }
+  }
+  return null
+}
+
+/**
+ * Чи Dockerfile містить RUN із find/gzip для статики під `/usr/share/nginx/html`.
+ * @param {string} dockerfileContent повний текст Dockerfile
+ * @returns {boolean} true, якщо знайдено типовий крок стиснення
+ */
+function dockerfileHasGzipStaticPipeline(dockerfileContent) {
+  const c = dockerfileContent
+  return (
+    FIND_CMD_RE.test(c) &&
+    c.includes('/usr/share/nginx/html') &&
+    GZIP_CMD_RE.test(c) &&
+    c.includes('-k') &&
+    GZIP_EXTENSION_RE.test(c)
+  )
+}
+
+/**
+ * Чи Dockerfile містить envsubst для **default.conf.template**.
+ * @param {string} dockerfileContent повний текст Dockerfile
+ * @returns {boolean} true, якщо є envsubst і посилання на шаблон
+ */
+function dockerfileHasEnvsSubstTemplate(dockerfileContent) {
+  return dockerfileContent.includes('envsubst') && dockerfileContent.includes('default.conf.template')
+}
+
+/**
+ * Перевіряє один template-файл і поруч *.ini.
+ * @param {string} abs абсолютний шлях до template
+ * @param {string} root cwd
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+async function checkTemplateFile(abs, root, passFn, failFn) {
+  const rel = relative(root, abs) || abs
+  const content = await readFile(abs, 'utf8')
+  const v = nginxTemplateViolations(content)
+  if (v) {
+    failFn(`${rel}: ${v}`)
+  } else {
+    passFn(`${rel}: структура шаблону узгоджена з nginx-default-tpl.mdc`)
+  }
+
+  const dir = dirname(abs)
+  let iniNames
+  try {
+    const dirEntries = await readdir(dir)
+    iniNames = dirEntries.filter(n => n.endsWith('.ini'))
+  } catch {
+    iniNames = []
+  }
+  if (iniNames.length === 0) {
+    failFn(`${rel}: поруч немає жодного *.ini — додай values-*.ini для середовищ (див. nginx-default-tpl.mdc)`)
+    return
+  }
+  passFn(`${rel}: поруч є *.ini (${iniNames.length})`)
+  for (const iniName of iniNames) {
+    const iniPath = `${dir}/${iniName}`
+    const iniRel = relative(root, iniPath) || iniPath
+    try {
+      const iniRaw = await readFile(iniPath, 'utf8')
+      const miss = iniKeysMissingInTemplate(parseIniVariableNames(iniRaw), content)
+      if (miss) failFn(`${iniRel}: ${miss}`)
+    } catch (error) {
+      failFn(`${iniRel}: не вдалося прочитати (${error instanceof Error ? error.message : String(error)})`)
+    }
+  }
+}
+
+/**
+ * Перевіряє Dockerfile на наявність gzip та envsubst.
+ * @param {string} root корінь репозиторію
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+async function checkDockerfiles(root, ignorePaths, passFn, failFn) {
+  const dockerPaths = await findDockerfilePaths(root, ignorePaths)
+  if (dockerPaths.length === 0) {
+    failFn(
+      'Є default.conf.template, але немає Dockerfile / Containerfile — додай gzip для статики та envsubst (див. nginx-default-tpl.mdc)'
+    )
+    return
+  }
+  const bodies = await Promise.all(dockerPaths.map(p => readFile(p, 'utf8')))
+  if (bodies.some(body => dockerfileHasGzipStaticPipeline(body))) {
+    passFn('Dockerfile: знайдено крок стиснення статики (find + gzip -k)')
+  } else {
+    failFn('Dockerfile: потрібен RUN find … /usr/share/nginx/html … gzip -k (див. nginx-default-tpl.mdc)')
+  }
+  if (bodies.some(body => dockerfileHasEnvsSubstTemplate(body))) {
+    passFn('Dockerfile: знайдено envsubst для default.conf.template')
+  } else {
+    failFn('Dockerfile: потрібен envsubst з default.conf.template (див. nginx-default-tpl.mdc)')
+  }
+}
+
+/**
+ * Делегує валідацію `.vscode/extensions.json` і `.vscode/settings.json` rego-пакетам
+ * `nginx_default_tpl.vscode_extensions` і `nginx_default_tpl.vscode_settings`
+ * через `runConftestBatch`. Викликається лише після того, як JS виявив
+ * `default.conf.template` (умовне правило — без шаблона цей крок не запускається).
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ * @param {string} cwd корінь репозиторію
+ * @returns {void}
+ */
+function checkVscodeNginx(passFn, failFn, cwd) {
+  const extPath = join(cwd, '.vscode/extensions.json')
+  if (existsSync(extPath)) {
+    const violations = runConftestBatch({
+      policyDirRel: 'nginx-default-tpl/vscode_extensions',
+      namespace: 'nginx_default_tpl.vscode_extensions',
+      files: [extPath]
+    })
+    if (violations.length === 0) {
+      passFn(`${extPath} відповідає nginx_default_tpl.vscode_extensions (rego)`)
+    } else {
+      for (const v of violations) failFn(v.message)
+    }
+  } else {
+    failFn('Очікується .vscode/extensions.json з ahmadalli.vscode-nginx-conf (див. nginx-default-tpl.mdc)')
+  }
+
+  const setPath = join(cwd, '.vscode/settings.json')
+  if (!existsSync(setPath)) {
+    failFn('Очікується .vscode/settings.json з форматером nginx і formatOnSave (див. nginx-default-tpl.mdc)')
+    return
+  }
+  const violations = runConftestBatch({
+    policyDirRel: 'nginx-default-tpl/vscode_settings',
+    namespace: 'nginx_default_tpl.vscode_settings',
+    files: [setPath]
+  })
+  if (violations.length === 0) {
+    passFn(`${setPath} відповідає nginx_default_tpl.vscode_settings (rego)`)
+  } else {
+    for (const v of violations) failFn(v.message)
+  }
+}
+
+/**
+ * Перевіряє відповідність проєкту правилам nginx-default-tpl.mdc
+ * @param {string} [cwd] корінь репозиторію
+ * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ */
+export async function main(cwd = process.cwd()) {
+  const reporter = createCheckReporter()
+  const { pass, fail } = reporter
+
+  const root = cwd
+  const ignorePaths = await loadCursorIgnorePaths(root)
+
+  const { renamed: tplRenamed, overwritten: tplOverwritten } = await migrateDefaultTplConfFiles(root, ignorePaths)
+  for (const rel of tplRenamed) {
+    pass(`Перейменовано default.tpl.conf → default.conf.template: ${rel}`)
+  }
+  for (const rel of tplOverwritten) {
+    pass(`Перезаписано default.conf.template змістом default.tpl.conf: ${rel}`)
+  }
+
+  const errorLogFixed = await migrateErrorLogOffDirective(root, ignorePaths)
+  for (const rel of errorLogFixed) {
+    pass(`Замінено невалідне error_log off; → error_log /dev/null crit; у ${rel}`)
+  }
+
+  const templates = await findDefaultConfTemplatePaths(root, ignorePaths)
+
+  if (templates.length === 0) {
+    pass('Немає default.conf.template — перевірку nginx-default-tpl пропущено')
+    return reporter.getExitCode()
+  }
+
+  pass(`Знайдено default.conf.template: ${templates.length}`)
+
+  for (const abs of templates) {
+    await checkTemplateFile(abs, root, pass, fail)
+  }
+
+  await checkDockerfiles(root, ignorePaths, pass, fail)
+  checkVscodeNginx(pass, fail, root)
+
+  return reporter.getExitCode()
+}

@@ -1,4 +1,0 @@
-{
-  "$schema": "https://unpkg.com/@nitra/cursor/schemas/target.json",
-  "files": { "single": ".github/workflows/clean-merged-branch.yml" }
-}

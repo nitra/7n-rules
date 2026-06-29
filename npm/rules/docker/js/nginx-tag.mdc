@@ -1,7 +1,0 @@
-## Мінімальний тег для nginx-unprivileged
-
-Якщо використовується nginx, то **використовуй** `mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim` (і не `latest` / `alpine`).
-
-Тег `alpine-slim` є обов'язковим для всіх `FROM` з образом `nginxinc/nginx-unprivileged` — будь-який інший тег (включаючи без тега) прапорцюється як порушення.
-
-Перевіряє `getNginxAlpineSlimTagHint` у **`npm/rules/docker/js/lint.mjs`**.

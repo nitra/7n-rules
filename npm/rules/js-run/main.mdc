@@ -11,6 +11,6 @@ version: '1.12'
 
 Rego-пакети, які запускає `npx @nitra/cursor fix js-run` / `npx @nitra/cursor check`:
 
-- [jsconfig.json.snippet.json](./policy/jsconfig/template/jsconfig.json.snippet.json)
-- [configmap.yaml.contains.yml](./policy/configmap/template/configmap.yaml.contains.yml)
-- [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
+- [jsconfig.json.snippet.json](./jsconfig/template/jsconfig.json.snippet.json)
+- [configmap.yaml.contains.yml](./configmap/template/configmap.yaml.contains.yml)
+- [package.json.deny.json](./package_json/template/package.json.deny.json)

@@ -1,0 +1,7 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "lint": {
+    "scope": "full",
+    "glob": ["**/*.php", "composer.json", "composer.lock"]
+  }
+}

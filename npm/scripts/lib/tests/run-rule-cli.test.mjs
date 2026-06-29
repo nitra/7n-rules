@@ -7,25 +7,23 @@
  * від конфіга, exit-код віддзеркалює результат concern'ів.
  */
 import { describe, expect, test, vi } from 'vitest'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { runRuleCli } from '../run-rule-cli.mjs'
-import { ensureDir, withTmpDir } from '../../utils/test-helpers.mjs'
+import { withTmpDir, writeJson } from '../../utils/test-helpers.mjs'
 
 describe('runRuleCli', () => {
   test('запускається беззастережно (без whitelist-гейту), порожній ruleDir → exit 0 + "Результат"', async () => {
     await withTmpDir(async dir => {
       const logs = []
       vi.spyOn(console, 'log').mockImplementation((...args) => logs.push(args.join(' ')))
-      vi.spyOn(console, 'error').mockImplementation(() => {
-        /* noop: придушуємо вивід помилок у тесті */
-      })
+      vi.spyOn(console, 'error').mockImplementation(() => {})
       try {
         const code = await runRuleCli(dir)
         expect(code).toBe(0)
         expect(logs.some(l => l.includes('перевірка правила'))).toBe(true)
         expect(logs.some(l => l.includes('Результат'))).toBe(true)
-        // Гейту немає — "Пропущено" не друкується ніколи.
         expect(logs.some(l => l.includes('Пропущено'))).toBe(false)
       } finally {
         vi.restoreAllMocks()
@@ -33,18 +31,18 @@ describe('runRuleCli', () => {
     })
   })
 
-  test('js-concern повертає 1 → exit 1', async () => {
+  test('check concern повертає 1 → exit 1', async () => {
     await withTmpDir(async dir => {
-      await ensureDir(join(dir, 'js'))
-      const { writeFile } = await import('node:fs/promises')
-      await writeFile(join(dir, 'js', 'fail.mjs'), `export async function check() { return 1 }\n`, 'utf8')
+      const concernDir = join(dir, 'fail')
+      await mkdir(concernDir, { recursive: true })
+      await writeJson(join(concernDir, 'concern.json'), {
+        $schema: 'https://unpkg.com/@nitra/cursor/schemas/concern.json',
+        check: true
+      })
+      await writeFile(join(concernDir, 'main.mjs'), 'export async function main() { return 1 }\n', 'utf8')
 
-      vi.spyOn(console, 'log').mockImplementation(() => {
-        /* noop: придушуємо вивід у тесті */
-      })
-      vi.spyOn(console, 'error').mockImplementation(() => {
-        /* noop: придушуємо вивід помилок у тесті */
-      })
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+      vi.spyOn(console, 'error').mockImplementation(() => {})
       try {
         const code = await runRuleCli(dir)
         expect(code).toBe(1)

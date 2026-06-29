@@ -1,0 +1,9 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "policy": {
+    "files": {
+      "glob": ["**/.vscode/extensions.json"]
+    },
+    "namespace": "nginx_default_tpl.vscode_extensions"
+  }
+}

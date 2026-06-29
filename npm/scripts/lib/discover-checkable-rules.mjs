@@ -1,95 +1,38 @@
 /**
- * Discovery rules для CLI `fix`. Шукає правила, для яких є щось «прогонне»:
- *   - JS concerns:   `rules/<id>/js/<concern>.mjs` — один файл = один concern.
- *   - Policy concerns: `rules/<id>/policy/<concern>/target.json` — пара з `<concern>.rego`.
- *
- * Файли з префіксом `_` (зокрема каталог `_lib/`) і `*.test.mjs` пропускаються — це хелпери й тести.
- *
- * Намеренно НЕ парсимо `target.json` тут (це робить runner). Discovery — швидкий скан структури:
- * шляхи + назви, без I/O вмісту.
- *
- * Історичний контекст: convention пройшла еволюцію
- *   `js/<concern>/check.mjs` (1.13.80–1.13.89)
- *   → `js/<concern>.mjs` (1.13.90+, flat: концерн = файл, не каталог)
- * Helpers, tests, templates і data винесені в окремі топ-level папки правила (`js/_lib/`,
- * `tests/`, `templates/`, `data/`).
+ * Discovery правил для CLI `fix`/`check`. Сканує `rules/<id>/` для підкаталогів із `concern.json`.
+ * Правила без жодного concern-а (тільки `.mdc`) фільтруються.
  */
 import { existsSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { globby } from 'globby'
+
+import { listConcerns } from './concern-meta.mjs'
 
 /**
- * @typedef {object} JsConcern
- * @property {string} name імʼя концерну (= basename файла `js/<name>.mjs` без розширення)
- */
-
-/**
- * @typedef {object} PolicyConcern
- * @property {string} name імʼя концерну (`<name>` у `policy/<name>/`)
+ * @typedef {import('./concern-meta.mjs').ConcernMeta} ConcernMeta
  */
 
 /**
  * @typedef {object} CheckableRule
- * @property {string} id ідентифікатор правила (імʼя каталогу `rules/<id>/`)
- * @property {JsConcern[]} jsConcerns JS-концерни правила (алфавітно)
- * @property {PolicyConcern[]} policyConcerns policy-концерни правила (алфавітно)
+ * @property {string} id ідентифікатор правила (ім'я каталогу `rules/<id>/`)
+ * @property {ConcernMeta[]} concerns усі concerns правила (алфавітно)
  */
 
 /**
- * Перелічує JS-концерни одного правила: файли `js/<name>.mjs` (один файл — один concern).
- *
- * Файли з префіксом `_` (наприклад каталог `_lib/`) і `*.test.mjs` пропускаються.
- * @param {string} jsDir абсолютний шлях `rules/<id>/js/`
- * @returns {Promise<JsConcern[]>} концерни в алфавітному порядку
- */
-async function listJsConcerns(jsDir) {
-  if (!existsSync(jsDir)) return []
-  const files = await globby(['*.mjs', '!*.test.mjs', '!fix-*.mjs', '!_*'], {
-    cwd: jsDir,
-    onlyFiles: true,
-    gitignore: false
-  })
-  return files.map(f => ({ name: f.slice(0, -4) })).toSorted((a, b) => a.name.localeCompare(b.name))
-}
-
-/**
- * Перелічує policy-концерни: підкаталоги `policy/<name>/` з наявним `target.json`.
- * @param {string} policyDir абсолютний шлях `rules/<id>/policy/`
- * @returns {Promise<PolicyConcern[]>} концерни в алфавітному порядку
- */
-async function listPolicyConcerns(policyDir) {
-  if (!existsSync(policyDir)) return []
-  const entries = await readdir(policyDir, { withFileTypes: true })
-  /** @type {PolicyConcern[]} */
-  const out = []
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith('.')) continue
-    if (existsSync(join(policyDir, entry.name, 'target.json'))) {
-      out.push({ name: entry.name })
-    }
-  }
-  return out.toSorted((a, b) => a.name.localeCompare(b.name))
-}
-
-/**
- * Будує `CheckableRule` для одного каталогу правила (без enumeration по `rules/`).
- * Використовується `runStandardRule` для per-rule entry-point flow.
+ * Будує `CheckableRule` для одного каталогу правила.
  * @param {string} ruleDir абсолютний шлях `rules/<id>/`
- * @param {string} ruleId id правила (= basename(ruleDir))
- * @returns {Promise<CheckableRule>} опис правила (jsConcerns + policyConcerns)
+ * @param {string} ruleId id правила
+ * @returns {Promise<CheckableRule>}
  */
 export async function discoverOneRule(ruleDir, ruleId) {
-  const jsConcerns = await listJsConcerns(join(ruleDir, 'js'))
-  const policyConcerns = await listPolicyConcerns(join(ruleDir, 'policy'))
-  return { id: ruleId, jsConcerns, policyConcerns }
+  const concerns = await listConcerns(ruleDir)
+  return { id: ruleId, concerns }
 }
 
 /**
- * Сканує `rules/` і повертає правила, для яких є JS-концерни (у `js/`) або policy-концерни
- * (у `policy/`). Правила без жодної прогонної частини (тільки `.mdc` + `auto.md`) фільтруються.
+ * Сканує `rules/` і повертає правила з хоча б одним concern-ом, відсортовані за id.
  * @param {string} bundledRulesDir абсолютний шлях до `npm/rules/`
- * @returns {Promise<CheckableRule[]>} відсортовані за id
+ * @returns {Promise<CheckableRule[]>}
  */
 export async function discoverCheckableRules(bundledRulesDir) {
   if (!existsSync(bundledRulesDir)) return []
@@ -100,9 +43,7 @@ export async function discoverCheckableRules(bundledRulesDir) {
     if (!entry.isDirectory() || entry.name.startsWith('.')) continue
     const ruleDir = join(bundledRulesDir, entry.name)
     const rule = await discoverOneRule(ruleDir, entry.name)
-    if (rule.jsConcerns.length > 0 || rule.policyConcerns.length > 0) {
-      out.push(rule)
-    }
+    if (rule.concerns.length > 0) out.push(rule)
   }
   return out.toSorted((a, b) => a.id.localeCompare(b.id))
 }

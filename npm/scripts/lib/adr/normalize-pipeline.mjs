@@ -420,8 +420,12 @@ export function assembleMadr({ title, date, sections: s }) {
   const outcome = s.chosen
     ? `Chosen option: "${s.chosen}"${s.rationale ? `, because ${noDot(s.rationale)}` : ''}.`
     : s.rationale ? `${noDot(s.rationale)}.` : 'Рішення зафіксовано у чернетці.'
+  const titleYaml = title.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
   return [
-    `# ${title}`,
+    '---',
+    'type: ADR',
+    `title: "${titleYaml}"`,
+    '---',
     '',
     '**Status:** Accepted',
     `**Date:** ${date}`,

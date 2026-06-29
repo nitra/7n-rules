@@ -18,7 +18,7 @@ Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.g
 Rego-пакети (запускаються через `npx @nitra/cursor fix`):
 
 - `npm_module.npm_publish_yml` — template-driven перевірка `.github/workflows/npm-publish.yml` (deep-subset: усі обовʼязкові поля й кроки з канонічного сніпету).
-- [package.json.snippet.json](./policy/npm_package_json/template/package.json.snippet.json)
-- [npm-publish.yml.snippet.yml](./policy/npm_publish_yml/template/npm-publish.yml.snippet.yml)
-- [package.json.snippet.json](./policy/root_package_json/template/package.json.snippet.json)
-- [tsconfig.emit-types.json.snippet.json](./policy/emit_types_config/template/tsconfig.emit-types.json.snippet.json)
+- [package.json.snippet.json](./npm_package_json/template/package.json.snippet.json)
+- [npm-publish.yml.snippet.yml](./npm_publish_yml/template/npm-publish.yml.snippet.yml)
+- [package.json.snippet.json](./root_package_json/template/package.json.snippet.json)
+- [tsconfig.emit-types.json.snippet.json](./emit_types_config/template/tsconfig.emit-types.json.snippet.json)

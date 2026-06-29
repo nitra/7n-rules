@@ -77,7 +77,7 @@ rules/js/
 
 Каталоги без `concern.json` (`utils/`, `lib/`, `docs/`, `coverage/`) — не concerns, оркестратор їх ігнорує. `js/` і `policy/` — forbidden після міграції, `npm-module` validation це перевіряє.
 
-Concern id — ім'я каталогу з `concern.json` — завжди lower snake_case (`[a-z0-9_]+`). Це відповідає поточному policy inventory: на момент ревізії всі 50 унікальних `policy/<concern>` ids мають snake_case; id з `-` або іншими символами не виявлено. Rule id лишається kebab-case, як у `.n-cursor.json:rules`.
+Concern id — ім'я каталогу з `concern.json` — завжди lower snake*case (`[a-z0-9*]+`). Це відповідає поточному policy inventory: на момент ревізії всі 50 унікальних `policy/<concern>`ids мають snake_case; id з`-`або іншими символами не виявлено. Rule id лишається kebab-case, як у`.n-cursor.json:rules`.
 
 `jscpd_config/` і `jscpd_duplicates/` — два окремих concerns одного tool-домену: перший перевіряє конфіг-файл `.jscpd.json` через Rego (policy surface), другий запускає `bunx jscpd .` як lint-runner (lint surface, scope full). Multi-surface для них не застосовується — `main.mjs` і `.rego` відповідають різним виконавчим шляхам.
 

@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url'
 import { globby } from 'globby'
 
 import { ALWAYS_IGNORE } from './utils/walkDir.mjs'
-import { globToRegex } from '../rules/npm-module/js/package_structure.mjs'
+import { globToRegex } from '../rules/npm-module/package_structure/main.mjs'
 import { textHasBunSqlImport } from '../rules/js-bun-db/lib/bun-sql-scan.mjs'
 import {
   isGqlScanSourceFile,

@@ -1,0 +1,8 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "lint": {
+    "scope": "per-file",
+    "glob": ["**/*.{js,mjs,ts,vue,py}"],
+    "llmFix": true
+  }
+}

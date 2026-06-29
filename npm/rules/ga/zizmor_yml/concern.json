@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "policy": {
+    "files": {
+      "single": ".github/zizmor.yml",
+      "required": true
+    },
+    "missingMessage": ".github/zizmor.yml не існує — потрібен для zizmor (ga.mdc)"
+  }
+}

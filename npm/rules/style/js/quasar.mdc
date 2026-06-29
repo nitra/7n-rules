@@ -1,7 +1,0 @@
-## Quasar як стильова основа
-
-У Vue-проектах використовуй **Quasar** як базову стильову систему:
-
-- **Класи компонентів:** `q-pa-*`, `q-ma-*`, `q-mt-*`, `q-mb-*`, `row`, `col`, `col-*`, `items-center`, `justify-between`, `text-*`, `bg-*`, `shadow-*` тощо — стандартні утиліти Quasar.
-- **Кольори:** використовуй Quasar CSS-змінні через класи (`text-primary`, `bg-accent`, `text-negative` тощо) або через SCSS-змінні (`$primary`, `$accent`) у `.scss`-файлах.
-- **Не пиши власні утиліти**, якщо є відповідний Quasar-клас.

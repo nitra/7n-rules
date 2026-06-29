@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "policy": {
+    "files": {
+      "single": "package.json",
+      "required": true
+    },
+    "missingMessage": "package.json не існує — створи зі scripts.coverage (test.mdc)"
+  }
+}

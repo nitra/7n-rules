@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "policy": {
+    "files": {
+      "single": ".github/workflows/lint-rust.yml",
+      "required": true
+    },
+    "missingMessage": ".github/workflows/lint-rust.yml не існує — створи з канонічним вмістом (rust.mdc)"
+  }
+}

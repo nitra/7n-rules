@@ -5,8 +5,8 @@ import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-import { main as checkDocker } from '../rules/docker/js/lint.mjs'
-import { main as checkK8s } from '../rules/k8s/js/manifests.mjs'
+import { main as checkDocker } from '../rules/docker/lint/main.mjs'
+import { main as checkK8s } from '../rules/k8s/manifests/main.mjs'
 import { ensureDir, withTmpDir } from '../scripts/utils/test-helpers.mjs'
 
 const YANNH_DEPLOYMENT_APPS_V1_SCHEMA =

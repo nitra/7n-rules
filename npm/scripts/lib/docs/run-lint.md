@@ -3,12 +3,10 @@ type: JS Module
 title: run-lint.mjs
 resource: npm/scripts/lib/run-lint.mjs
 docgen:
-  crc: 3c7deca0
+  crc: 8a8523d2
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
-
-## Огляд
 
 Модуль визначає набір правил лінтування, спираючись на конфігурації `meta.json` та `.n-cursor.json`. Він використовує `selectLintRules` для вибору та сортування цих правил, а потім ініціалізує процес перевірки конформності та форматування за допомогою `runLint` у різних режимах (scoped, hook, delta, full).
 

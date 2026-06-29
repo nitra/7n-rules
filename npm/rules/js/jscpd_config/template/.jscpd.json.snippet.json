@@ -1,0 +1,7 @@
+{
+  "gitignore": true,
+  "exitCode": 1,
+  "reporters": ["console"],
+  "minLines": 25,
+  "ignore": [".claude/worktrees/**", "**/dist/**", "**/CHANGELOG.md"]
+}

@@ -1,23 +1,14 @@
 /**
- * Standalone CLI runner для одного правила. Викликається з `rules/<id>/check.mjs`
- * у блоці `if (import.meta.main)` — це робить `bun rules/<id>/check.mjs` повним
- * еквівалентом `npx \@nitra/cursor fix <id>`: друкує summary, повертає aggregated exit-code.
- *
- * **Без whitelist-гейту.** Гейтинг активних правил — єдине джерело: `resolveCheckRuleIds`
- * (`scripts/lib/fix/run-conformance-check.mjs`) за `.n-cursor.json`. Прямий `bun rules/<id>/check.mjs` —
- * свідомий запуск саме цього правила (debug / override), тож виконується беззастережно;
- * усі автоматичні шляхи (lint-конформність, orchestrator, t0, hook) уже спавнять лише активні.
- *
- * Library-mode виклик з CLI orchestration — інше: див. `runStandardRule` + `fix.mjs::run(ctx)`.
+ * Standalone CLI runner для одного правила (debug / override).
+ * Inline concern execution — без subprocess.
  */
 import { basename } from 'node:path'
 
-import { runStandardRule } from './run-standard-rule.mjs'
+import { discoverOneRule } from './discover-checkable-rules.mjs'
+import { runRule } from './run-rule.mjs'
 import { getOrCreateWalkCache } from '../utils/walk-cache.mjs'
+import { withLock } from '../utils/with-lock.mjs'
 
-// Re-export для зворотної сумісності: уся `rules/<id>/check.mjs` уже імпортує `isRunAsCli`
-// саме звідси. Канонічна реалізація — у `scripts/cli-entry.mjs`. Caller передає
-// `import.meta.url`: `if (isRunAsCli(import.meta.url)) …`.
 export { isRunAsCli } from '../cli-entry.mjs'
 
 const PACKAGE_NAME = '@nitra/cursor'
@@ -28,11 +19,15 @@ const PACKAGE_NAME = '@nitra/cursor'
  */
 export async function runRuleCli(ruleDir) {
   const ruleId = basename(ruleDir)
+  const bundledRulesDir = ruleDir.slice(0, ruleDir.lastIndexOf('/'))
 
   console.log(`\n🔍 ${PACKAGE_NAME} fix ${ruleId} — перевірка правила\n`)
 
-  const walkCache = getOrCreateWalkCache()
-  const exitCode = await runStandardRule(ruleDir, { walkCache })
+  const exitCode = await withLock(`fix-${ruleId}`, async () => {
+    const rule = await discoverOneRule(ruleDir, ruleId)
+    const walkCache = getOrCreateWalkCache()
+    return runRule(rule, bundledRulesDir, walkCache)
+  })
   const ok = exitCode === 0
   console.log(`\n✨ Результат: ${ok ? 1 : 0}/1 правил без зауважень\n`)
   return exitCode

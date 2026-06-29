@@ -1,5 +1,6 @@
 /** @see ./docs/run-lint.md */
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync } from 'node:fs'
+import { readdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { cwd as processCwd } from 'node:process'
@@ -7,46 +8,112 @@ import { spawnSync } from 'node:child_process'
 
 import picomatch from 'picomatch'
 
-import { parseRuleAutoSpec, parseRuleLintSpec, readRuleMetaRaw } from './rule-meta.mjs'
+import { listConcerns } from './concern-meta.mjs'
 import { collectChangedFilesSince, resolveChangedBase } from './changed-files.mjs'
 import { resolveCmd } from '../utils/resolve-cmd.mjs'
 import { isRuleEnabled, readNCursorConfigLite } from './read-n-cursor-config-lite.mjs'
 
-// Цей файл: npm/scripts/lib/run-lint.mjs → PACKAGE_ROOT = npm (два dirname угору).
-const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
+// Цей файл: npm/scripts/lib/run-lint.mjs → PACKAGE_ROOT = npm (три dirname угору).
+const PACKAGE_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
 const RULES_DIR = join(PACKAGE_ROOT, 'rules')
 
 /**
- * Чи має правило лінт-поверхню — `meta.json#lint` задано (`per-file`/`full`).
- * Канонічний сигнал (ADR 2026-06-21): gate за meta, не за наявністю файлу.
- * @param {Record<string, unknown> | undefined} raw meta-обʼєкт правила
- * @returns {boolean} true — правило лінтить
+ * @typedef {import('./concern-meta.mjs').ConcernMeta} ConcernMeta
  */
-function hasLintSurface(raw) {
-  return parseRuleLintSpec(raw?.lint) !== null
+
+/**
+ * @typedef {object} RuleLintEntry
+ * @property {string} ruleId
+ * @property {ConcernMeta} concern
+ */
+
+/**
+ * Сканує всі lint-concerns усіх правил.
+ * @param {string} rulesDir
+ * @returns {Promise<Record<string, ConcernMeta[]>>} ruleId → lint concerns
+ */
+async function readAllLintConcerns(rulesDir) {
+  /** @type {Record<string, ConcernMeta[]>} */
+  const out = {}
+  if (!existsSync(rulesDir)) return out
+  const entries = await readdir(rulesDir, { withFileTypes: true })
+  for (const e of entries) {
+    if (!e.isDirectory() || e.name.startsWith('.')) continue
+    const concerns = await listConcerns(join(rulesDir, e.name))
+    const lintConcerns = concerns.filter(c => c.lint !== undefined)
+    if (lintConcerns.length > 0) out[e.name] = lintConcerns
+  }
+  return out
 }
 
 /**
- * Резолвить лінт-entrypoint правила: `main.mjs` з експортом `lint` (канон, ADR 2026-06-21).
- * @param {string} rulesDir каталог rules
- * @param {string} id rule-id
- * @returns {string | null} шлях до `main.mjs`, або null якщо файлу нема
+ * Вибирає lint-entries для прогону (per-file і, якщо full=true, full concerns).
+ * @param {Record<string, ConcernMeta[]>} lintConcernsByRule
+ * @param {boolean} full
+ * @param {string[]} enabledRuleIds
+ * @returns {RuleLintEntry[]} алфавітно за ruleId, потім за concern name
  */
-function resolveLintEntrypoint(rulesDir, id) {
-  const main = join(rulesDir, id, 'main.mjs')
-  return existsSync(main) ? main : null
+export function selectLintEntries(lintConcernsByRule, full, enabledRuleIds) {
+  const enabled = new Set(enabledRuleIds)
+  /** @type {RuleLintEntry[]} */
+  const out = []
+  for (const [ruleId, concerns] of Object.entries(lintConcernsByRule)) {
+    if (!enabled.has(ruleId)) continue
+    for (const concern of concerns) {
+      const scope = concern.lint.scope
+      if (scope === 'per-file' || (full && scope === 'full')) {
+        out.push({ ruleId, concern })
+      }
+    }
+  }
+  return out.toSorted((a, b) => a.ruleId.localeCompare(b.ruleId) || a.concern.name.localeCompare(b.concern.name))
 }
 
 /**
- * Конформність-фаза lint (whole-repo: config/file/workflow conformance — те, що раніше робив `fix`).
- * Per-file декомпозиції немає, тож виконується лише у `--full`.
- *  - read-only: детект через `_fix-check` (per-rule `fix.mjs run()` = перевірка, без мутацій);
- *  - fix: convergence-движок (check → Tier0 → omlx) через orchestrator.
- * @param {string} cwd корінь
- * @param {boolean} readOnly true → лише детект (нуль мутацій)
- * @param {(s: string) => void} log логер
- * @param {string[]} [filter] фільтр правил (порожній — усі)
- * @returns {Promise<number>} 0 — чисто, 1 — порушення/помилка
+ * Вибирає full-scope lint-entries для запуску в delta-режимі.
+ * Concern включається, якщо lint.glob ∩ changed ≠ ∅.
+ * @param {Record<string, ConcernMeta[]>} lintConcernsByRule
+ * @param {string[]} changed
+ * @param {string[]} enabledRuleIds
+ * @returns {RuleLintEntry[]}
+ */
+function selectFullEntriesForDelta(lintConcernsByRule, changed, enabledRuleIds) {
+  if (changed.length === 0) return []
+  const enabled = new Set(enabledRuleIds)
+  /** @type {RuleLintEntry[]} */
+  const out = []
+  for (const [ruleId, concerns] of Object.entries(lintConcernsByRule)) {
+    if (!enabled.has(ruleId)) continue
+    for (const concern of concerns) {
+      if (concern.lint.scope !== 'full') continue
+      const glob = concern.lint.glob
+      if (glob.length === 0) continue
+      const isMatch = picomatch(glob, { dot: true })
+      if (changed.some(f => isMatch(f))) out.push({ ruleId, concern })
+    }
+  }
+  return out.toSorted((a, b) => a.ruleId.localeCompare(b.ruleId) || a.concern.name.localeCompare(b.concern.name))
+}
+
+/**
+ * Активні rule-id для lint-фази.
+ * @param {Record<string, ConcernMeta[]>} lintConcernsByRule
+ * @param {string} cwd
+ * @returns {Promise<string[]>}
+ */
+async function readEnabledLintRuleIds(lintConcernsByRule, cwd) {
+  const config = await readNCursorConfigLite(cwd)
+  if (!config.exists) return []
+  return Object.keys(lintConcernsByRule).filter(id => isRuleEnabled(config, id))
+}
+
+/**
+ * Конформність-фаза lint.
+ * @param {string} cwd
+ * @param {boolean} readOnly
+ * @param {(s: string) => void} log
+ * @param {string[]} [filter]
+ * @returns {Promise<number>}
  */
 async function runConformance(cwd, readOnly, log, filter = []) {
   if (!readOnly) {
@@ -63,126 +130,47 @@ async function runConformance(cwd, readOnly, log, filter = []) {
 }
 
 /**
- * Вибирає id правил для контексту, алфавітно.
- * @param {Record<string, {lint?: unknown}>} metaById мапа id → meta-обʼєкт
- * @param {boolean} full `false` → лише `per-file` правила; `true` → усі (`per-file` ∪ `full`)
- * @param {string[]} enabledRuleIds активні rule-id з `.n-cursor.json`
- * @returns {string[]} відсортовані id
+ * Запускає список lint-entries. Fail-fast лише у read-only.
+ * @param {RuleLintEntry[]} entries
+ * @param {{ changed: string[]|undefined, cwd: string, readOnly: boolean, verbose?: boolean, log: (s: string) => void }} ctx
+ * @returns {Promise<{ stop: boolean, code: number }>}
  */
-export function selectLintRules(metaById, full, enabledRuleIds) {
-  const enabled = new Set(enabledRuleIds)
-  const out = []
-  for (const [id, raw] of Object.entries(metaById)) {
-    if (!enabled.has(id)) continue
-    const scope = parseRuleLintSpec(raw?.lint)
-    if (scope === 'per-file' || (full && scope === 'full')) out.push(id)
-  }
-  return out.toSorted((a, b) => a.localeCompare(b))
-}
-
-/**
- * Визначає `full`-scope правила для запуску у delta-режимі.
- * Правило включається, якщо хоча б один зі змінених файлів відповідає `auto.glob` правила.
- * Предикат-auto (repo-level сигнал, не file-level) — пропускається.
- * @param {Record<string, Record<string, unknown>>} metaById
- * @param {string[]} changed змінені файли (posix-відносні від кореня)
- * @param {string[]} enabledRuleIds активні rule-id
- * @returns {string[]} відсортовані id
- */
-function selectFullRulesForDelta(metaById, changed, enabledRuleIds) {
-  if (changed.length === 0) return []
-  const enabled = new Set(enabledRuleIds)
-  const out = []
-  for (const [id, raw] of Object.entries(metaById)) {
-    if (!enabled.has(id)) continue
-    if (parseRuleLintSpec(raw?.lint) !== 'full') continue
-    const autoSpec = parseRuleAutoSpec(raw?.auto)
-    if (!autoSpec || !('glob' in autoSpec)) continue
-    const isMatch = picomatch(autoSpec.glob, { dot: true })
-    if (changed.some(f => isMatch(f))) out.push(id)
-  }
-  return out.toSorted((a, b) => a.localeCompare(b))
-}
-
-/**
- * Активні правила для unscoped linter-фази. `.n-cursor.json` — єдине джерело
- * whitelist/disable, `meta.json#lint` нижче використовується лише як scope (`per-file`/`full`).
- * @param {Record<string, unknown>} metaById доступні bundled правила
- * @param {string} cwd корінь
- * @returns {Promise<string[]>} активні rule-id з конфіга, що існують у пакеті
- */
-async function readEnabledLintRuleIds(metaById, cwd) {
-  const config = await readNCursorConfigLite(cwd)
-  if (!config.exists) return []
-  return Object.keys(metaById).filter(id => isRuleEnabled(config, id))
-}
-
-/**
- * Зчитує meta всіх правил пакета.
- * @param {string} rulesDir каталог rules
- * @returns {Record<string, Record<string, unknown>>} id → meta
- */
-function readAllMeta(rulesDir) {
-  /** @type {Record<string, Record<string, unknown>>} */
-  const out = {}
-  if (!existsSync(rulesDir)) return out
-  for (const e of readdirSync(rulesDir, { withFileTypes: true })) {
-    if (!e.isDirectory() || e.name.startsWith('.')) continue
-    const raw = readRuleMetaRaw(join(rulesDir, e.name))
-    if (raw) out[e.name] = raw
-  }
-  return out
-}
-
-/**
- * Per-file фаза: проганяє лінтер кожного правила. Fail-fast лише в read-only.
- * @param {string[]} ids id правил (алфавітно)
- * @param {{ rulesDir: string, changed: string[]|undefined, cwd: string, readOnly: boolean, metaById: Record<string, {llmFix?: boolean}>, log: (s: string) => void }} ctx контекст
- * @returns {Promise<{ stop: boolean, code: number }>} `stop` — read-only fail-fast; `code` — найгірший код
- */
-async function runPerFileRules(ids, ctx) {
-  const { rulesDir, changed, cwd, readOnly, metaById, log } = ctx
+async function runLintEntries(entries, ctx) {
+  const { changed, cwd, readOnly, verbose, log } = ctx
   let worst = 0
-  for (const id of ids) {
-    const lintPath = resolveLintEntrypoint(rulesDir, id)
-    if (!lintPath) {
-      log(`⚠️  lint: правило ${id} має lint-фазу (meta.lint), але немає main.mjs — пропускаю.\n`)
+  for (const { ruleId, concern } of entries) {
+    const lintPath = join(concern.dir, 'main.mjs')
+    if (!existsSync(lintPath)) {
+      log(`⚠️  lint: ${ruleId}/${concern.name} має lint surface але немає main.mjs — пропускаю.\n`)
       continue
     }
-    // lintPath = join(rulesDir, id, …) — суто package-internal (rulesDir пакета + id зі
-    // selectLintRules за власним meta), не зовнішній вхід → ін'єкції немає.
     // eslint-disable-next-line no-unsanitized/method
     const mod = await import(lintPath)
-    // `llmFix` (opt-in opportunistic LLM-fix, спека 2026-06-15): лише правила з
-    // `meta.json: llmFix:true` отримують fix-сходинку; решта — detect-only.
-    const llmFix = metaById[id]?.llmFix === true
-    const code = await mod.lint(changed, cwd, { readOnly, llmFix })
+    if (typeof mod.lint !== 'function') continue
+    const filteredChanged =
+      changed !== undefined && concern.lint.scope === 'per-file' && concern.lint.glob.length > 0
+        ? changed.filter(picomatch(concern.lint.glob, { dot: true }))
+        : changed
+    if (verbose) {
+      const { scope, glob } = concern.lint
+      const globStr = glob.length > 0 ? glob.join(', ') : '—'
+      const countStr = filteredChanged === undefined ? 'весь репо' : `${filteredChanged.length} файл(ів)`
+      log(`  🔍 ${ruleId}/${concern.name}  [${scope}]  glob: ${globStr}  → ${countStr}\n`)
+    }
+    const code = await mod.lint(filteredChanged, cwd, { readOnly, llmFix: concern.lint.llmFix })
     if (code !== 0) {
-      if (readOnly) return { stop: true, code } // read-only — fail-fast (детект для CI)
-      worst = code // fix-режим — фіксуємо, але йдемо далі до кроку виправлення
+      if (readOnly) return { stop: true, code }
+      worst = code
     }
   }
   return { stop: false, code: worst }
 }
 
 /**
- * Конформність-фаза `--full`.
- * @param {string} cwd корінь
- * @param {boolean} readOnly лише детект
- * @param {(s: string) => void} log логер
- * @returns {Promise<number>} код конформності
- */
-async function runFullConformancePhase(cwd, readOnly, log) {
-  return runConformance(cwd, readOnly, log)
-}
-
-/**
- * Формат-крок (`oxfmt .`): whole-tree форматування у fix-режимі. У read-only НЕ викликається
- * (CI/детект — нуль мутацій). `oxfmt` форматує не лише JS, а й root-конфіги (toml тощо), тож
- * крок незалежний від набору правил і scope. Якщо `oxfmt` відсутній у PATH — пропуск (не fail).
- * @param {string} cwd корінь
- * @param {(s: string) => void} log логер
- * @returns {Promise<number>} код виходу oxfmt (0 — OK або пропущено)
+ * Формат-крок (`oxfmt .`).
+ * @param {string} cwd
+ * @param {(s: string) => void} log
+ * @returns {number}
  */
 function runFormat(cwd, log) {
   const oxfmt = resolveCmd('oxfmt')
@@ -197,26 +185,21 @@ function runFormat(cwd, log) {
 }
 
 /**
- * Scoped-режим (`lint <rule…>`): повний прогін НАЗВАНИХ правил — їх лінтер (entrypoint
- * `main.mjs::lint`, whole-repo) для тих, що мають лінт-поверхню
- * (`meta.json#lint`), + конформність для всіх названих. Дзеркалить `--full`, але звужено
- * до правил, тож `lint ga` ≡ standalone `lint-ga`. Конформність-only правила (напр.
- * `changelog` із hk) без `meta.lint` → проганяється лише їх конформність (зворотна
- * сумісність із колишнім `fix <rule>`). oxfmt у scoped НЕ запускається — це
- * таргетований прогін правил, а не глобальне форматування.
+ * Scoped-режим (`lint <rule…>`): повний прогін названих правил (whole-repo) + конформність.
  * @param {string[]} rules id названих правил
- * @param {{ cwd: string, readOnly: boolean, rulesDir: string, conformance: boolean, log: (s: string) => void }} ctx контекст (`conformance` — чи запускати конформність; false для юніт-тестів із кастомним rulesDir, де реальний пакет недоступний)
- * @returns {Promise<number>} найгірший код (read-only — fail-fast на першому ненульовому)
+ * @param {{ cwd: string, readOnly: boolean, rulesDir: string, conformance: boolean, log: (s: string) => void }} ctx
+ * @returns {Promise<number>}
  */
 async function runScopedRules(rules, ctx) {
-  const { cwd, readOnly, rulesDir, conformance, log } = ctx
-  const metaById = readAllMeta(rulesDir)
-  const linterIds = rules.filter(id => hasLintSurface(metaById[id]))
+  const { cwd, readOnly, verbose, rulesDir, conformance, log } = ctx
+  const lintConcernsByRule = await readAllLintConcerns(rulesDir)
+  // Scoped: whole-repo (changed=undefined), usі lint concerns названих правил
+  const entries = rules.flatMap(ruleId => (lintConcernsByRule[ruleId] ?? []).map(concern => ({ ruleId, concern })))
   let worst = 0
-  if (linterIds.length > 0) {
-    const perFile = await runPerFileRules(linterIds, { rulesDir, changed: undefined, cwd, readOnly, metaById, log })
-    if (perFile.stop) return perFile.code
-    worst = perFile.code
+  if (entries.length > 0) {
+    const result = await runLintEntries(entries, { changed: undefined, cwd, readOnly, verbose, log })
+    if (result.stop) return result.code
+    worst = result.code
   }
   if (!conformance) return worst
   const conformanceCode = await runConformance(cwd, readOnly, log, rules)
@@ -229,76 +212,61 @@ async function runScopedRules(rules, ctx) {
 
 /**
  * Запускає lint-оркестрацію.
- * @param {{ full?: boolean, readOnly?: boolean, rules?: string[], files?: string[], cwd?: string, rulesDir?: string, log?: (s: string) => void }} [opts] параметри
- *   - `full` — весь репо (`true`) проти дельти vs origin (`false`, default);
- *   - `readOnly` — лише детект без мутацій (`true`) проти fix (`false`, default);
- *   - `rules` — непорожній scope → повний прогін лише цих правил (лінтер + конформність, whole-repo);
- *   - `files` — явний список файлів (hook-режим): per-file правила без conformance/format/delta-full.
- * @returns {Promise<number>} exit code
+ * @param {{ full?: boolean, readOnly?: boolean, verbose?: boolean, rules?: string[], files?: string[], cwd?: string, rulesDir?: string, log?: (s: string) => void }} [opts]
+ * @returns {Promise<number>}
  */
 export async function runLint(opts = {}) {
   const full = opts.full === true
   const readOnly = opts.readOnly === true
+  const verbose = opts.verbose === true
   const rules = Array.isArray(opts.rules) ? opts.rules : []
   const explicitFiles = Array.isArray(opts.files) ? opts.files : null
   const cwd = opts.cwd ?? processCwd()
   const rulesDir = opts.rulesDir ?? RULES_DIR
   const log = opts.log ?? (s => process.stdout.write(s))
 
-  // Scoped режим (`lint <rule…>`): повний прогін названих правил — лінтер + конформність.
   if (rules.length > 0) {
-    return runScopedRules(rules, { cwd, readOnly, rulesDir, conformance: opts.rulesDir === undefined, log })
+    return runScopedRules(rules, { cwd, readOnly, verbose, rulesDir, conformance: opts.rulesDir === undefined, log })
   }
 
-  // Hook-режим (явний список файлів): per-file правила, без conformance/format/delta-full.
-  // Правила отримують точний список файлів; пусті files (Stop без змін) — правила однаково
-  // викликаються (orphan-детект у doc-files не залежить від списку джерел).
   if (explicitFiles !== null) {
-    const metaById = readAllMeta(rulesDir)
-    const enabledRuleIds = await readEnabledLintRuleIds(metaById, cwd)
-    const ids = selectLintRules(metaById, false, enabledRuleIds)
-    const perFile = await runPerFileRules(ids, { rulesDir, changed: explicitFiles, cwd, readOnly, metaById, log })
-    return perFile.stop ? perFile.code : perFile.code
+    const lintConcernsByRule = await readAllLintConcerns(rulesDir)
+    const enabledRuleIds = await readEnabledLintRuleIds(lintConcernsByRule, cwd)
+    const entries = selectLintEntries(lintConcernsByRule, false, enabledRuleIds)
+    const result = await runLintEntries(entries, { changed: explicitFiles, cwd, readOnly, verbose, log })
+    return result.stop ? result.code : result.code
   }
 
-  // Default scope — дельта vs origin (merge-base main/origin/main); `--full` — весь репо.
   const changed = full ? undefined : collectChangedFilesSince(resolveChangedBase(cwd), cwd)
   if (!full && changed.length === 0) {
     log('\nℹ️  lint: немає змінених файлів відносно origin — нічого перевіряти.\n')
     return 0
   }
 
-  const metaById = readAllMeta(rulesDir)
-  const enabledRuleIds = await readEnabledLintRuleIds(metaById, cwd)
-  const ids = selectLintRules(metaById, full, enabledRuleIds)
-  const perFile = await runPerFileRules(ids, { rulesDir, changed, cwd, readOnly, metaById, log })
-  if (perFile.stop) return perFile.code
-  let worst = perFile.code
+  const lintConcernsByRule = await readAllLintConcerns(rulesDir)
+  const enabledRuleIds = await readEnabledLintRuleIds(lintConcernsByRule, cwd)
+  const entries = selectLintEntries(lintConcernsByRule, full, enabledRuleIds)
+  const result = await runLintEntries(entries, { changed, cwd, readOnly, verbose, log })
+  if (result.stop) return result.code
+  let worst = result.code
 
-  // Delta-режим: `full`-scope правила, чиї glob-и перетинаються з changed.
-  // Запускаємо з `changed=undefined` (whole-repo scan як зазвичай) — так уникаємо
-  // прогону docker/ga/k8s… коли жоден їхній файл не змінився.
-  if (!full && changed.length > 0) {
-    const fullIds = selectFullRulesForDelta(metaById, changed, enabledRuleIds)
-    if (fullIds.length > 0) {
-      const fullResult = await runPerFileRules(fullIds, { rulesDir, changed: undefined, cwd, readOnly, metaById, log })
+  if (!full && changed !== undefined && changed.length > 0) {
+    const fullEntries = selectFullEntriesForDelta(lintConcernsByRule, changed, enabledRuleIds)
+    if (fullEntries.length > 0) {
+      const fullResult = await runLintEntries(fullEntries, { changed: undefined, cwd, readOnly, verbose, log })
       if (fullResult.stop) return fullResult.code
       if (fullResult.code !== 0) worst = fullResult.code
     }
   }
 
-  // Конформність-фаза: whole-repo, лише у `--full`. Кастомний rulesDir (юніт-тести
-  // селектора) — реальний пакет недоступний, тож пропускаємо.
   if (full && opts.rulesDir === undefined) {
-    const conformanceCode = await runFullConformancePhase(cwd, readOnly, log)
+    const conformanceCode = await runConformance(cwd, readOnly, log)
     if (conformanceCode !== 0) {
       if (readOnly) return conformanceCode
       worst = conformanceCode
     }
   }
 
-  // Формат-крок (oxfmt): fix-режим — завжди (будь-який scope); read-only пропускаємо (нуль
-  // мутацій). Кастомний rulesDir (юніт-тести) — реальний пакет недоступний, тож пропускаємо.
   if (!readOnly && opts.rulesDir === undefined) {
     const fmtCode = runFormat(cwd, log)
     if (fmtCode !== 0) worst = fmtCode

@@ -12,6 +12,7 @@ resource: npm/scripts/lib/
 | [blue-oak.mjs](blue-oak.md)                                                 | JS Module |
 | [changed-files.mjs](changed-files.md)                                       | JS Module |
 | [check-reporter.mjs](check-reporter.md)                                     | JS Module |
+| [concern-meta.mjs](concern-meta.md)                                         | JS Module |
 | [diff-added-lines.mjs](diff-added-lines.md)                                 | JS Module |
 | [discover-check-rules-from-cursor.mjs](discover-check-rules-from-cursor.md) | JS Module |
 | [discover-checkable-rules.mjs](discover-checkable-rules.md)                 | JS Module |

@@ -68,12 +68,12 @@ export function buildConftestArgs(p) {
 export function runConftestBatch(opts) {
   if (opts.files.length === 0) return []
   const conftestBin = ensureTool('conftest')
-  // policyDirRel — формат `<rule>/<name>` (наприклад `abie/base_deployment_preem`).
-  // Реальний шлях у новій структурі: `rules/<rule>/policy/<name>`.
+  // policyDirRel — формат `<rule>/<concern>` (наприклад `abie/base_deployment_preem`).
+  // Flat concern path: rules/<rule>/<concern>/ (без проміжного `policy/`).
   const slash = opts.policyDirRel.indexOf('/')
   const ruleId = slash === -1 ? opts.policyDirRel : opts.policyDirRel.slice(0, slash)
   const sub = slash === -1 ? '' : opts.policyDirRel.slice(slash + 1)
-  const policyAbs = sub ? join(RULES_ROOT, ruleId, 'policy', sub) : join(RULES_ROOT, ruleId, 'policy')
+  const policyAbs = sub ? join(RULES_ROOT, ruleId, sub) : join(RULES_ROOT, ruleId)
   if (!existsSync(policyAbs)) {
     throw new Error(`runConftestBatch: rego-каталог не знайдено: ${policyAbs}`)
   }

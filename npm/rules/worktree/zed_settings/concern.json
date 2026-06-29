@@ -1,0 +1,9 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "policy": {
+    "files": {
+      "single": ".zed/settings.json"
+    },
+    "check": "template"
+  }
+}

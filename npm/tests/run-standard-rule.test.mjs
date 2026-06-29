@@ -15,28 +15,36 @@ afterEach(() => {
 })
 
 /**
- * Мінімальне правило з applies() === false для unit-тестів runStandardRule.
+ * Мінімальне правило з одним check concern для unit-тестів runStandardRule.
  * @param {string} id ідентифікатор правила в тимчасовому дереві
+ * @param {string} [mainBody] вміст main.mjs (default: повертає 0)
  * @returns {string} абсолютний шлях до `rules/<id>/`
  */
-function makeMinimalRule(id) {
+function makeMinimalRule(id, mainBody = 'export async function main() { return 0 }') {
   const root = mkdtempSync(join(tmpdir(), 'run-standard-rule-'))
   tmpRoots.push(root)
   const ruleDir = join(root, id)
-  mkdirSync(ruleDir, { recursive: true })
-  mkdirSync(join(ruleDir, 'js', 'applies'), { recursive: true })
+  const concernDir = join(ruleDir, 'check')
+  mkdirSync(concernDir, { recursive: true })
   writeFileSync(
-    join(ruleDir, 'js', 'applies', 'check.mjs'),
-    'export function applies() { return false }\nexport function check() { return 0 }\n'
+    join(concernDir, 'concern.json'),
+    JSON.stringify({ $schema: 'https://unpkg.com/@nitra/cursor/schemas/concern.json', check: true })
   )
+  writeFileSync(join(concernDir, 'main.mjs'), mainBody)
   return ruleDir
 }
 
 describe('runStandardRule', () => {
-  test('повертає 0 коли applies() === false (правило пропущено)', async () => {
+  test('повертає 0 коли check concern проходить', async () => {
     const ruleDir = makeMinimalRule('test-rule')
     const code = await runStandardRule(ruleDir)
     expect(code).toBe(0)
+  })
+
+  test('повертає 1 коли check concern повертає 1', async () => {
+    const ruleDir = makeMinimalRule('fail-rule', 'export async function main() { return 1 }')
+    const code = await runStandardRule(ruleDir)
+    expect(code).toBe(1)
   })
 
   test('використовує переданий walkCache замість singleton', async () => {

@@ -45,7 +45,7 @@ Worktree-каталоги — це вкладені копії всього де
 }
 ```
 
-Канон (subset — інші ключі дозволені): [settings.json.snippet.json](./policy/vscode_settings/template/settings.json.snippet.json)
+Канон (subset — інші ключі дозволені): [settings.json.snippet.json](./vscode_settings/template/settings.json.snippet.json)
 
 ### Zed
 
@@ -68,7 +68,7 @@ Zed **замінює** масив `file_scan_exclusions` цілком (не зл
 }
 ```
 
-Канон (усі елементи обовʼязкові, зайві дозволені): [settings.json.snippet.json](./policy/zed_settings/template/settings.json.snippet.json)
+Канон (усі елементи обовʼязкові, зайві дозволені): [settings.json.snippet.json](./zed_settings/template/settings.json.snippet.json)
 
 `.zed/settings.json` без стабільної схеми в Schema Store — додай його до `.v8rignore` (як `.vscode/*`, див. **text.mdc**).
 

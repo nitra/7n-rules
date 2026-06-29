@@ -9,23 +9,24 @@ import { discoverOneRule } from '../scripts/lib/discover-checkable-rules.mjs'
 const tmpRoots = []
 
 /**
- * Створює тимчасове fake-правило з JS/policy concerns для discoverOneRule.
- * @param {{id: string, jsConcerns?: string[], policyConcerns?: string[]}} opts параметри fake-правила
+ * Створює тимчасове fake-правило з concern-dirs для discoverOneRule.
+ * @param {{id: string, concerns?: Array<{name: string, check?: boolean, policy?: object, lint?: object}>}} opts
  * @returns {string} абсолютний шлях до `rules/<id>/`
  */
-function makeFakeRule({ id, jsConcerns = [], policyConcerns = [] }) {
+function makeFakeRule({ id, concerns = [] }) {
   const root = mkdtempSync(join(tmpdir(), 'discover-one-rule-'))
   tmpRoots.push(root)
   const ruleDir = join(root, id)
   mkdirSync(ruleDir, { recursive: true })
 
-  mkdirSync(join(ruleDir, 'js'), { recursive: true })
-  for (const concern of jsConcerns) {
-    writeFileSync(join(ruleDir, 'js', `${concern}.mjs`), '')
-  }
-  for (const concern of policyConcerns) {
-    mkdirSync(join(ruleDir, 'policy', concern), { recursive: true })
-    writeFileSync(join(ruleDir, 'policy', concern, 'target.json'), '{}')
+  for (const c of concerns) {
+    const concernDir = join(ruleDir, c.name)
+    mkdirSync(concernDir, { recursive: true })
+    const meta = { $schema: 'https://unpkg.com/@nitra/cursor/schemas/concern.json' }
+    if (c.check) meta.check = true
+    if (c.policy) meta.policy = c.policy
+    if (c.lint) meta.lint = c.lint
+    writeFileSync(join(concernDir, 'concern.json'), JSON.stringify(meta))
   }
   return ruleDir
 }
@@ -35,28 +36,39 @@ afterEach(() => {
 })
 
 describe('discoverOneRule', () => {
-  test('повертає JS + policy concerns для правила з обома', async () => {
+  test('повертає concerns для правила з обома (check + policy)', async () => {
     const ruleDir = makeFakeRule({
       id: 'abie',
-      jsConcerns: ['env_dns', 'applies'],
-      policyConcerns: ['http_route_base']
+      concerns: [
+        { name: 'applies', check: true },
+        { name: 'env_dns', check: true },
+        { name: 'http_route_base', policy: { file: 'target.json' } }
+      ]
     })
     const rule = await discoverOneRule(ruleDir, 'abie')
     expect(rule.id).toBe('abie')
-    expect(rule.jsConcerns.map(c => c.name)).toEqual(['applies', 'env_dns'])
-    expect(rule.policyConcerns.map(c => c.name)).toEqual(['http_route_base'])
+    expect(rule.concerns.map(c => c.name)).toEqual(['applies', 'env_dns', 'http_route_base'])
+    expect(rule.concerns.filter(c => c.check === true).map(c => c.name)).toEqual(['applies', 'env_dns'])
+    expect(rule.concerns.filter(c => c.policy != null).map(c => c.name)).toEqual(['http_route_base'])
   })
 
-  test('правило без policy — повертає пустий policyConcerns', async () => {
-    const ruleDir = makeFakeRule({ id: 'js', jsConcerns: ['tooling'] })
+  test('правило без policy-concerns — concerns не містить policy', async () => {
+    const ruleDir = makeFakeRule({
+      id: 'js',
+      concerns: [{ name: 'tooling', check: true }]
+    })
     const rule = await discoverOneRule(ruleDir, 'js')
-    expect(rule.policyConcerns).toEqual([])
+    expect(rule.concerns.filter(c => c.policy != null)).toEqual([])
+    expect(rule.concerns.map(c => c.name)).toEqual(['tooling'])
   })
 
-  test('правило без fix/ — повертає пустий jsConcerns', async () => {
-    const ruleDir = makeFakeRule({ id: 'rego', policyConcerns: ['only_rego'] })
+  test('правило лише з policy-concerns — concerns без check', async () => {
+    const ruleDir = makeFakeRule({
+      id: 'rego',
+      concerns: [{ name: 'only_rego', policy: { file: 'data.rego' } }]
+    })
     const rule = await discoverOneRule(ruleDir, 'rego')
-    expect(rule.jsConcerns).toEqual([])
-    expect(rule.policyConcerns.map(c => c.name)).toEqual(['only_rego'])
+    expect(rule.concerns.filter(c => c.check === true)).toEqual([])
+    expect(rule.concerns.map(c => c.name)).toEqual(['only_rego'])
   })
 })

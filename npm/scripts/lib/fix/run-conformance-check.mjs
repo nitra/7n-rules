@@ -3,14 +3,11 @@
  * Викликають конформність-фаза `lint` (read-only), движок (`orchestrator.mjs`, `t0.mjs`)
  * і PostToolUse-хук.
  *
- * Per-rule ізоляція зберігається: entrypoint `rules/<id>/main.mjs` кожного правила
- * запускається окремим процесом `bun` (crash-isolation). Канон — єдиний `main.mjs`
- * (ADR 2026-06-21); його CLI-блок кличе `runRuleCli(import.meta.dirname)`.
+ * Inline execution (без subprocess): concerns виконуються в поточному процесі;
+ * withLock збережено для race-protection паралельних прогонів того самого правила.
  *
- * Селекція активних правил — виключно тут (`resolveCheckRuleIds` за `.n-cursor.json`);
- * per-rule whitelist у спавнених процесах прибрано як дубль (див. `runRuleCli`).
+ * Селекція активних правил — виключно тут (`resolveCheckRuleIds` за `.n-cursor.json`).
  */
-import { spawnSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { cwd as processCwd } from 'node:process'
@@ -61,18 +58,41 @@ export async function resolveCheckRuleIds(requestedRules, available, cwd) {
 }
 
 /**
- * Прогоняє check-entrypoint кожного правила окремим процесом, захоплюючи output.
+ * Прогоняє check-concerns кожного правила inline (в поточному процесі).
  * @param {string[]} idsToRun правила
  * @param {string} cwd корінь
- * @returns {{ totalFailed:number, rules:Array<{ruleId:string, ok:boolean, output:string}> }} результат
+ * @returns {Promise<{ totalFailed:number, rules:Array<{ruleId:string, ok:boolean, output:string}> }>}
  */
-function runRuleCheckProcesses(idsToRun, cwd) {
+async function runRuleCheckProcesses(idsToRun, cwd) {
+  const { discoverOneRule } = await import('../discover-checkable-rules.mjs')
+  const { runRule } = await import('../run-rule.mjs')
+  const { getOrCreateWalkCache } = await import('../../utils/walk-cache.mjs')
+  const { withLock } = await import('../../utils/with-lock.mjs')
   let totalFailed = 0
   const rules = []
   for (const id of idsToRun) {
-    const r = spawnSync('bun', [join(BUNDLED_RULES_DIR, id, 'main.mjs')], { cwd, encoding: 'utf8' })
-    const ok = r.status === 0
-    rules.push({ ruleId: id, ok, output: `${r.stdout ?? ''}${r.stderr ?? ''}`.trim() })
+    const ruleDir = join(BUNDLED_RULES_DIR, id)
+    const lines = []
+    const origWrite = process.stdout.write.bind(process.stdout)
+    process.stdout.write = chunk => {
+      lines.push(String(chunk))
+      return true
+    }
+    let ok = true
+    try {
+      const exitCode = await withLock(`fix-${id}`, async () => {
+        const rule = await discoverOneRule(ruleDir, id)
+        const walkCache = getOrCreateWalkCache()
+        return runRule(rule, BUNDLED_RULES_DIR, walkCache)
+      })
+      ok = exitCode === 0
+    } catch (err) {
+      lines.push(String(err?.message ?? err))
+      ok = false
+    } finally {
+      process.stdout.write = origWrite
+    }
+    rules.push({ ruleId: id, ok, output: lines.join('').trim() })
     if (!ok) totalFailed++
   }
   return { totalFailed, rules }
@@ -92,6 +112,6 @@ export async function runConformanceCheck(requestedRules = [], cwd = processCwd(
   const idsToRun = await resolveCheckRuleIds(requestedRules, available, cwd)
   if (idsToRun.length === 0) return { total: 0, failed: 0, rules: [] }
 
-  const { totalFailed, rules } = runRuleCheckProcesses(idsToRun, cwd)
+  const { totalFailed, rules } = await runRuleCheckProcesses(idsToRun, cwd)
   return { total: idsToRun.length, failed: totalFailed, rules }
 }

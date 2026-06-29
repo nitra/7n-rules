@@ -1,0 +1,9 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "policy": {
+    "files": {
+      "glob": [".github/workflows/**/*.yml", ".github/workflows/**/*.yaml"]
+    },
+    "namespace": "ga.clean_ga_workflows"
+  }
+}
