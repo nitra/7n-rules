@@ -11,7 +11,7 @@ import {
   requireCallModule,
   walkAstWithAncestors
 } from '../../../scripts/utils/ast-scan-utils.mjs'
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 
@@ -437,11 +437,12 @@ async function checkNpmModuleBasicStructure(pass, fail, cwd) {
 
 /**
  * Перевіряє відповідність проєкту правилам npm-module.mdc
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const cwd = ctx.cwd
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
   await checkNpmModuleBasicStructure(pass, fail, cwd)
@@ -478,5 +479,5 @@ export async function main(cwd = process.cwd()) {
 
   await checkPublishWorkflow(pass, fail, cwd)
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

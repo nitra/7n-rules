@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises'
 import { relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 
 import { collectDeploymentDirs, findK8sYamlFiles } from '../lib/k8s-tree.mjs'
@@ -10,13 +10,13 @@ import { kustomizationHasAbieDeploymentNodeSelectorPatch } from '../lib/kustomiz
 import { abieOverlayK8sTreeHasDeployment, isUaKustomizationPath } from '../lib/overlay-paths.mjs'
 
 /**
- * @returns {Promise<number>} результат
- * @param {string} [cwd] корінь репозиторію
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
-  const root = cwd
+  const root = ctx.cwd
 
   const ignorePaths = await loadCursorIgnorePaths(root)
   const yamls = await findK8sYamlFiles(root, ignorePaths)
@@ -24,7 +24,7 @@ export async function main(cwd = process.cwd()) {
 
   if (deploymentDirs.size === 0) {
     pass('Немає Deployment у дереві k8s — patch nodeSelector (ua) не вимагається')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   const uaAbsList = yamls.filter(abs => isUaKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
@@ -32,7 +32,7 @@ export async function main(cwd = process.cwd()) {
     fail(
       'Є Deployment у k8s — додай ua/kustomization.yaml з patch на Deployment: path /spec/template/spec/nodeSelector, preem false (abie.mdc)'
     )
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   for (const abs of uaAbsList) {
@@ -58,5 +58,5 @@ export async function main(cwd = process.cwd()) {
     pass(`${rel}: nodeSelector patch (ua) відповідає abie.mdc`)
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

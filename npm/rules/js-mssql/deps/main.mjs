@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { findAllPackageJsonPaths } from '../../../scripts/utils/find-package-json-paths.mjs'
 import {
   findMssqlPerRequestConnectionInText,
@@ -261,30 +261,31 @@ async function auditMssqlSources(repoRoot, ignorePaths, pass, fail) {
 
 /**
  * Перевіряє відповідність проєкту правилу js-mssql.mdc
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main() {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
-  const repoRoot = process.cwd()
+  const repoRoot = ctx.cwd
   if (!existsSync(join(repoRoot, 'package.json'))) {
     pass('js-mssql: package.json у корені відсутній — перевірку пропущено')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   const ignorePaths = await loadCursorIgnorePaths(repoRoot)
   const pkgJsonPaths = await findAllPackageJsonPaths(repoRoot, ignorePaths)
   if (pkgJsonPaths.length === 0) {
     pass('js-mssql: package.json не знайдено — перевірку пропущено')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   const { found, bad } = await aggregateMssqlVersionsAcrossPackages(repoRoot, pkgJsonPaths, pass, fail)
 
   if (found === 0) {
     pass('js-mssql: пакет mssql не знайдено в dependencies жодного package.json')
-    return reporter.getExitCode()
+    return reporter.result()
   }
   if (bad === 0) {
     pass(`js-mssql: всі знайдені dependencies.mssql відповідають мінімальній версії 12.5.0 (${found})`)
@@ -292,5 +293,5 @@ export async function main() {
 
   await auditMssqlSources(repoRoot, ignorePaths, pass, fail)
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

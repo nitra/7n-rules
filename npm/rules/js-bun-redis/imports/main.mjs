@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { findRedisImportsInText, isRedisScanSourceFile, shouldSkipFileForRedisScan } from '../lib/redis-imports.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
@@ -56,23 +56,24 @@ async function scanSourcesForRedisImports(sourcePaths, repoRoot, fail) {
 
 /**
  * Перевіряє відповідність проєкту правилу `js-bun-redis.mdc`.
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main() {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
-  const repoRoot = process.cwd()
+  const repoRoot = ctx.cwd
   if (!existsSync(join(repoRoot, 'package.json'))) {
     pass('js-bun-redis: package.json у корені відсутній — перевірку пропущено')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   const ignorePaths = await loadCursorIgnorePaths(repoRoot)
   const sourcePaths = await findAllSourcePathsForRedisScan(repoRoot, ignorePaths)
   if (sourcePaths.length === 0) {
     pass('js-bun-redis: немає JS/TS файлів для скану імпортів ioredis / node-redis / redis')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   const violations = await scanSourcesForRedisImports(sourcePaths, repoRoot, fail)
@@ -83,5 +84,5 @@ export async function main() {
     )
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

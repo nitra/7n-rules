@@ -1,90 +1,80 @@
 /**
- * lint-поверхня rust: cargo fmt/clippy/deny.
+ * lint-поверхня rust: read-only detector (cargo fmt --check + clippy -D warnings +
+ * cargo deny check licenses). Генерація deny.toml — окремий T0-fix, не в detector-і.
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
-import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
-import { generateDenyTomlLicenses } from '../../../scripts/lib/blue-oak.mjs'
 
-function runCargo(label, cargo, args, pass, fail) {
-  const r = spawnSync(cargo, args, { stdio: 'inherit', shell: false })
-  if (r.status === 0) {
-    pass(`lint-rust: ${label} — OK`)
-    return true
-  }
+/**
+ * @param {string} label
+ * @param {string} cargo
+ * @param {string[]} args
+ * @param {string} cwd
+ * @param {(msg: string, reason: string) => void} fail
+ * @param {string} reason
+ * @returns {boolean} true якщо OK
+ */
+function runCargo(label, cargo, args, cwd, fail, reason) {
+  const r = spawnSync(cargo, args, { cwd, encoding: 'utf8', shell: false })
+  if (r.status === 0) return true
   const code = typeof r.status === 'number' ? r.status : 1
-  fail(`lint-rust: ${label} — помилка (код ${code}, rust.mdc)`)
+  const out = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().slice(0, 2000)
+  fail(`lint-rust: ${label} — помилка (код ${code}, rust.mdc)${out ? `\n${out}` : ''}`, reason)
   return false
 }
 
-function runRustLint(cwd = process.cwd(), opts = {}) {
-  const readOnly = opts.readOnly === true
-  const reporter = createCheckReporter()
-  const { pass, fail } = reporter
+/**
+ * Detector rust/check (read-only).
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
+ */
+export function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
+  const { fail } = reporter
+  const cwd = ctx.cwd
 
   if (!existsSync(join(cwd, 'Cargo.toml'))) {
-    pass('lint-rust: немає Cargo.toml — кроки Rust пропущено')
-    return reporter.getExitCode()
+    // немає Cargo.toml → кроки Rust пропущено
+    return reporter.result()
   }
 
   const cargo = resolveCmd('cargo')
   if (!cargo) {
-    fail('lint-rust: `cargo` не знайдено в PATH (Rust toolchain через rustup, rust.mdc)')
-    return reporter.getExitCode()
+    fail('lint-rust: `cargo` не знайдено в PATH (Rust toolchain через rustup, rust.mdc)', 'cargo-missing')
+    return reporter.result()
   }
 
-  const fmtArgs = readOnly ? ['fmt', '--all', '--', '--check'] : ['fmt', '--all']
-  if (!runCargo(readOnly ? 'cargo fmt --check' : 'cargo fmt', cargo, fmtArgs, pass, fail)) {
-    return reporter.getExitCode()
-  }
-
-  if (!readOnly) {
-    const fixArgs = ['clippy', '--fix', '--allow-staged', '--allow-dirty', '--all-targets', '--all-features']
-    if (!runCargo('cargo clippy --fix', cargo, fixArgs, pass, fail)) return reporter.getExitCode()
+  if (!runCargo('cargo fmt --check', cargo, ['fmt', '--all', '--', '--check'], cwd, fail, 'cargo-fmt-violation')) {
+    return reporter.result()
   }
 
   runCargo(
     'cargo clippy -D warnings',
     cargo,
     ['clippy', '--all-targets', '--all-features', '--', '-D', 'warnings'],
-    pass,
-    fail
+    cwd,
+    fail,
+    'cargo-clippy-violation'
   )
 
   const denyConfigPath = join(cwd, 'deny.toml')
   if (!existsSync(denyConfigPath)) {
-    if (readOnly) {
-      fail(
-        'lint-rust: cargo deny — немає deny.toml; запустіть `npx @nitra/cursor fix rust` локально для генерації (rust.mdc)'
-      )
-    } else {
-      writeFileSync(denyConfigPath, generateDenyTomlLicenses(), 'utf8')
-      pass('lint-rust: cargo deny — створено deny.toml з дефолтним allowlist')
-    }
-  }
-  if (existsSync(denyConfigPath)) {
-    const hasDeny = spawnSync(cargo, ['deny', '--version'], { stdio: 'ignore', shell: false }).status === 0
-    if (hasDeny) {
-      runCargo('cargo deny check licenses', cargo, ['deny', 'check', 'licenses'], pass, fail)
-    } else {
-      pass('lint-rust: cargo deny — не встановлений (cargo install cargo-deny), перевірку ліцензій пропущено')
-    }
+    fail(
+      'lint-rust: cargo deny — немає deny.toml; запустіть `npx @nitra/cursor fix rust` локально для генерації (rust.mdc)',
+      'deny-config-missing'
+    )
+    return reporter.result()
   }
 
-  return reporter.getExitCode()
-}
+  const hasDeny = spawnSync(cargo, ['deny', '--version'], { stdio: 'ignore', shell: false }).status === 0
+  if (hasDeny) {
+    runCargo('cargo deny check licenses', cargo, ['deny', 'check', 'licenses'], cwd, fail, 'cargo-deny-violation')
+  }
+  // cargo-deny не встановлено → перевірку ліцензій пропущено (старий код — pass)
 
-/**
- * lint-поверхня rust.
- * @param {string[] | undefined} _files ігнорується
- * @param {string} [cwd] корінь
- * @param {{ readOnly?: boolean }} [opts]
- * @returns {Promise<number>}
- */
-export function lint(_files, cwd = process.cwd(), opts = {}) {
-  return runStandardLint(import.meta.dirname, () => runRustLint(cwd, opts))
+  return reporter.result()
 }

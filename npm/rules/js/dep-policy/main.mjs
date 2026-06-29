@@ -4,7 +4,7 @@ import { join, relative, sep } from 'node:path'
 
 import { parseSync } from 'oxc-parser'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 import {
@@ -60,12 +60,12 @@ function extractImportSpecifiers(source, filePath) {
 
 /**
  * Сканує всі JS/TS-файли проєкту на заборонені import-specifier'и (dep-policy.mdc).
- * @param {string} [cwdParam] корінь репозиторію
- * @returns {Promise<number>} 0 — чисто, 1 — знайдено заборонені specifier'и
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwdParam = process.cwd()) {
-  const reporter = createCheckReporter()
-  const cwd = cwdParam
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
+  const cwd = ctx.cwd
   const ignorePaths = await loadCursorIgnorePaths(cwd)
 
   const files = []
@@ -95,5 +95,5 @@ export async function main(cwdParam = process.cwd()) {
     reporter.pass(`dep-policy: перевірено ${files.length} файлів — заборонених import-specifier'ів немає (js.mdc)`)
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

@@ -1,4 +1,19 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
-  "check": true
+  "lint": {
+    "scope": "full",
+    "glob": [
+      "eslint.config.js",
+      "eslint.config.mjs",
+      "**/package.json",
+      ".oxlintrc.json",
+      ".github/workflows/lint-js.yml",
+      ".github/workflows/lint.yml",
+      "knip.json",
+      ".eslintrc",
+      ".eslintrc.js",
+      ".eslintrc.json",
+      ".eslintrc.yml"
+    ]
+  }
 }

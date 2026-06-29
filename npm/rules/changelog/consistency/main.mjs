@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import {
   getMonorepoProjectRootDirs,
   manifestFilePath,
@@ -716,18 +716,15 @@ async function runLocalOnlyChecks(localOnly, subWorkspaces, autofix, pass, fail,
 }
 
 /**
- * @param {object} [opts] опції перевірки
- * @param {(name: string, kind?: import('../lib/package-manifest.mjs').PackageKind) => Promise<string | null>} [opts.getPublishedVersion] перевизначення npm/PyPI у тестах
- * @param {string} [opts.cwd] корінь репозиторію (за замовчуванням `process.cwd()`)
- * @param {boolean} [opts.autofix] явний autofix-режим (за замовчуванням — з env `N_CURSOR_CHANGELOG_AUTOFIX`)
- * @returns {Promise<number>} exit-код перевірки
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(opts = {}) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
-  const getPublishedVersion = opts.getPublishedVersion ?? createDefaultGetPublishedVersion()
-  const cwd = opts.cwd ?? process.cwd()
-  const autofix = opts.autofix ?? process.env[AUTOFIX_ENV_VAR] === '1'
+  const getPublishedVersion = createDefaultGetPublishedVersion()
+  const cwd = ctx.cwd
+  const autofix = process.env[AUTOFIX_ENV_VAR] === '1'
 
   const workspaces = await getMonorepoProjectRootDirs(cwd)
   const subWorkspaces = workspaces.filter(w => w !== '.')
@@ -768,5 +765,5 @@ export async function main(opts = {}) {
 
   await runLocalOnlyChecks(localOnly, subWorkspaces, autofix, pass, fail, cwd)
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

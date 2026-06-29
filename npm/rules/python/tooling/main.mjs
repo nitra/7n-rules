@@ -2,19 +2,20 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 /**
  * Перевіряє відповідність проєкту правилам python.mdc.
- * @param {string} [cwd] корінь репозиторію (`process.cwd()` у звичайному прогоні)
- * @returns {number} 0 — все OK, 1 — є проблеми
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const cwd = ctx.cwd
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
   if (!existsSync(join(cwd, 'pyproject.toml'))) {
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   if (existsSync(join(cwd, 'uv.lock'))) {
@@ -45,5 +46,5 @@ export function main(cwd = process.cwd()) {
     fail(`${wfPath} не існує — створи згідно python.mdc`)
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

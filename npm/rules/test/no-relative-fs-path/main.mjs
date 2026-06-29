@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises'
 import { basename, relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { parseProgramOrNull, walkAstWithAncestors } from '../../../scripts/utils/ast-scan-utils.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
@@ -194,14 +194,14 @@ function offsetToLineFromCache(offsets, offset) {
  * Перевіряє, що жоден `*.test.{mjs,js}` файл не передає relative-path як 1-й
  * (або для `copyFile`/`rename`/`symlink`/`link`/`cp` — 1-й і 2-й) аргумент
  * у FS-функцію з `node:fs` / `node:fs/promises`.
- * @param {string} [cwdParam] корінь репозиторію
- * @returns {Promise<number>} 0 — чисто, 1 — є порушення
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwdParam = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
-  const cwd = cwdParam
+  const cwd = ctx.cwd
   const ignorePaths = await loadCursorIgnorePaths(cwd)
 
   /** @type {string[]} */
@@ -226,7 +226,7 @@ export async function main(cwdParam = process.cwd()) {
 
   if (offenders.length === 0) {
     pass(`Жоден з ${testFiles.length} тестових файлів не передає relative-path у FS-функції (test.mdc)`)
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   for (const { file, line, fn, path, argPos } of offenders) {
@@ -236,5 +236,5 @@ export async function main(cwdParam = process.cwd()) {
     )
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

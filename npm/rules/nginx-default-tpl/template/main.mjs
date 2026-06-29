@@ -4,7 +4,7 @@ import { readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, relative } from 'node:path'
 
 import { findDockerfilePaths } from '../../docker/lint/main.mjs'
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { runConftestBatch } from '../../../scripts/lib/run-conftest-batch.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
@@ -414,14 +414,14 @@ function checkVscodeNginx(passFn, failFn, cwd) {
 
 /**
  * Перевіряє відповідність проєкту правилам nginx-default-tpl.mdc
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
-  const root = cwd
+  const root = ctx.cwd
   const ignorePaths = await loadCursorIgnorePaths(root)
 
   const { renamed: tplRenamed, overwritten: tplOverwritten } = await migrateDefaultTplConfFiles(root, ignorePaths)
@@ -441,7 +441,7 @@ export async function main(cwd = process.cwd()) {
 
   if (templates.length === 0) {
     pass('Немає default.conf.template — перевірку nginx-default-tpl пропущено')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   pass(`Знайдено default.conf.template: ${templates.length}`)
@@ -453,5 +453,5 @@ export async function main(cwd = process.cwd()) {
   await checkDockerfiles(root, ignorePaths, pass, fail)
   checkVscodeNginx(pass, fail, root)
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

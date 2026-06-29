@@ -4,7 +4,7 @@ import { join, relative, sep } from 'node:path'
 
 import { parseSync } from 'oxc-parser'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 import {
@@ -136,11 +136,12 @@ function extractImportSources(source, filePath) {
 }
 
 /**
- * @returns {Promise<number>} 0 — усе чисто, 1 — знайдено заборонені імпорти
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main() {
-  const reporter = createCheckReporter()
-  const root = process.cwd()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
+  const root = ctx.cwd
   const ignorePaths = await loadCursorIgnorePaths(root)
   const ignorePosix = ignorePaths.map(p => p.split(sep).join('/'))
   const packageRoots = await getMonorepoPackageRootDirs(root)
@@ -154,7 +155,7 @@ export async function main() {
   }
   if (utilsDirSet.size === 0) {
     reporter.pass('utils-каталогів немає — перевірку пропущено (js.mdc)')
-    return reporter.getExitCode()
+    return reporter.result()
   }
   let violations = 0
   let checkedFiles = 0
@@ -178,5 +179,5 @@ export async function main() {
       `utils-каталогів: ${utilsDirSet.size}, перевірено ${checkedFiles} файлів — domain-bound імпортів немає (js.mdc)`
     )
   }
-  return reporter.getExitCode()
+  return reporter.result()
 }

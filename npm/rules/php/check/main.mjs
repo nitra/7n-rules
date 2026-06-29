@@ -1,13 +1,13 @@
 /**
- * lint-поверхня php: composer audit + PHPStan/Psalm/PHP-CS-Fixer/PHPCS.
+ * lint-поверхня php: read-only detector (composer audit + PHPStan/Psalm/PHP-CS-Fixer/PHPCS).
+ * Усі кроки — лише перевірки; PHP-CS-Fixer запускається в --dry-run (без правок).
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
-import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
 
 const PHPCS_CODE_DIR_CANDIDATES = ['app', 'src', 'lib', 'public', 'www']
 
@@ -35,83 +35,91 @@ function vendorBin(root, name) {
 }
 
 /**
+ * Запускає тул і, на ненульовий код, реєструє порушення.
  * @param {string} label назва кроку
  * @param {string} abs абсолютний шлях
  * @param {string[]} args
- * @param {(msg: string) => void} pass
- * @param {(msg: string) => void} fail
- * @returns {boolean}
+ * @param {string} cwd
+ * @param {(msg: string, reason: string) => void} fail
+ * @param {string} reason
+ * @returns {boolean} true якщо OK, false якщо порушення
  */
-function runTool(label, abs, args, pass, fail) {
-  const r = spawnSync(abs, args, { stdio: 'inherit', shell: false })
-  if (r.status === 0) {
-    pass(`lint-php: ${label} — OK`)
-    return true
-  }
+function runTool(label, abs, args, cwd, fail, reason) {
+  const r = spawnSync(abs, args, { cwd, encoding: 'utf8', shell: false })
+  if (r.status === 0) return true
   const code = typeof r.status === 'number' ? r.status : 1
-  fail(`lint-php: ${label} — помилка (код ${code}, php.mdc)`)
+  const out = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().slice(0, 2000)
+  fail(`lint-php: ${label} — помилка (код ${code}, php.mdc)${out ? `\n${out}` : ''}`, reason)
   return false
 }
 
 /**
- * Запускає кроки lint-php.
- * @param {string} [cwd] корінь
- * @returns {number} exit code
+ * Detector php/check (read-only).
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
  */
-export function runPhpLintSteps(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
-  const { pass, fail } = reporter
+export function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
+  const { fail } = reporter
+  const root = ctx.cwd
 
-  const root = cwd
   if (!existsSync(join(root, 'composer.json'))) {
-    pass('lint-php: немає composer.json у корені — кроки PHP пропущено')
-    return reporter.getExitCode()
+    // немає composer.json → кроки PHP пропущено
+    return reporter.result()
   }
 
   const composer = resolveCmd('composer')
   if (!composer) {
-    fail('lint-php: `composer` не знайдено в PATH (потрібен при наявному composer.json, php.mdc)')
-    return reporter.getExitCode()
+    fail('lint-php: `composer` не знайдено в PATH (потрібен при наявному composer.json, php.mdc)', 'composer-missing')
+    return reporter.result()
   }
 
-  if (!runTool('composer audit', composer, ['audit', '--no-interaction'], pass, fail)) return reporter.getExitCode()
+  if (!runTool('composer audit', composer, ['audit', '--no-interaction'], root, fail, 'composer-audit-violation')) {
+    return reporter.result()
+  }
 
-  function runOptionalVendorTool(binName, label, args) {
+  /**
+   * @param {string} binName
+   * @param {string} label
+   * @param {string[]} args
+   * @param {string} reason
+   * @returns {boolean}
+   */
+  function runOptionalVendorTool(binName, label, args, reason) {
     const abs = vendorBin(root, binName)
-    if (!abs) {
-      pass(`lint-php: vendor/bin/${binName} — відсутній, крок пропущено`)
-      return true
-    }
-    return runTool(label, abs, args, pass, fail)
+    if (!abs) return true // тул відсутній у vendor/bin → крок пропущено
+    return runTool(label, abs, args, root, fail, reason)
   }
 
-  if (!runOptionalVendorTool('php-cs-fixer', 'PHP-CS-Fixer (dry-run)', ['fix', '--dry-run', '--diff'])) {
-    return reporter.getExitCode()
+  if (
+    !runOptionalVendorTool(
+      'php-cs-fixer',
+      'PHP-CS-Fixer (dry-run)',
+      ['fix', '--dry-run', '--diff'],
+      'php-cs-fixer-violation'
+    )
+  ) {
+    return reporter.result()
   }
 
   const phpcsPaths = getPhpcsCodePaths(root)
   if (
-    !runOptionalVendorTool('phpcs', 'phpcs (Security)', [
-      '--standard=Security',
-      '--ignore=*/vendor/*,*/node_modules/*,*/.git/*',
-      ...phpcsPaths
-    ])
+    !runOptionalVendorTool(
+      'phpcs',
+      'phpcs (Security)',
+      ['--standard=Security', '--ignore=*/vendor/*,*/node_modules/*,*/.git/*', ...phpcsPaths],
+      'phpcs-violation'
+    )
   ) {
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
-  if (!runOptionalVendorTool('phpstan', 'PHPStan', ['analyse', '--no-progress'])) return reporter.getExitCode()
-  if (!runOptionalVendorTool('psalm', 'Psalm', ['--no-cache'])) return reporter.getExitCode()
+  if (!runOptionalVendorTool('phpstan', 'PHPStan', ['analyse', '--no-progress'], 'phpstan-violation')) {
+    return reporter.result()
+  }
+  if (!runOptionalVendorTool('psalm', 'Psalm', ['--no-cache'], 'psalm-violation')) {
+    return reporter.result()
+  }
 
-  return reporter.getExitCode()
-}
-
-/**
- * lint-поверхня php.
- * @param {string[] | undefined} _files ігнорується
- * @param {string} [cwd] корінь
- * @returns {Promise<number>} exit code
- */
-export function lint(_files, cwd = process.cwd()) {
-  return runStandardLint(import.meta.dirname, () => runPhpLintSteps(cwd))
+  return reporter.result()
 }

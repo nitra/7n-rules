@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 /** Імʼя committed-кешу (sha1 + originalSize + size) у `@nitra/minify-image` ≥ 3.2.0. */
 const HASH_CACHE_FILENAME = '.n-minify-image.tsv'
@@ -77,21 +77,22 @@ async function checkLegacyCacheRemoved(pass, fail, cwd) {
 /**
  * Перевіряє відповідність проєкту правилу `image-compress.mdc`: `.n-minify-image.tsv` НЕ
  * в `.gitignore`, застарілий `.minify-image-cache.tsv` видалений.
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const cwd = ctx.cwd
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
   if (!existsSync(join(cwd, 'package.json'))) {
     fail('package.json не знайдено в корені — додай (image-compress.mdc)')
-    return reporter.getExitCode()
+    return reporter.result()
   }
   pass('package.json є (dependency policy перевіряє npx @nitra/cursor fix → image_compress.package_json)')
 
   await checkHashCacheNotIgnored(pass, fail, cwd)
   await checkLegacyCacheRemoved(pass, fail, cwd)
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

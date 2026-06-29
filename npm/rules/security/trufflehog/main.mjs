@@ -4,30 +4,31 @@ import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { checkTextSubset } from '../../../scripts/lib/template.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SNIPPET_PATH = join(HERE, 'templates', 'trufflehog', '.trufflehog-exclude.snippet.txt')
 
 /**
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} exit-код перевірки
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const cwd = ctx.cwd
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
   if (!existsSync(join(cwd, 'package.json'))) {
     fail('package.json не знайдено в корені — додай (security.mdc)')
-    return reporter.getExitCode()
+    return reporter.result()
   }
   pass('package.json є (структуру перевіряє Rego)')
 
   const trufflePath = join(cwd, '.trufflehog-exclude')
   if (!existsSync(trufflePath)) {
     fail('.trufflehog-exclude не знайдено в корені — додай за каноном (security.mdc)')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   const actual = await readFile(trufflePath, 'utf8')
@@ -39,5 +40,5 @@ export async function main(cwd = process.cwd()) {
   for (const msg of errors) fail(msg)
   if (errors.length === 0) pass('.trufflehog-exclude містить канонічні patterns')
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

@@ -1,7 +1,7 @@
 ---
-description: Програмна перевірка проєкту та flat концерн-лейаут npm/rules/ — концерн = файл, не каталог; helpers у utils/, tests/templates/data усередині js/; скіл-специфічні скрипти в npm/skills/<id>/js/
+description: Програмна перевірка проєкту (unified lint surface) та concern-directory лейаут npm/rules/ — концерн = каталог із concern.json; один detector-контракт lint(ctx)→LintResult; policy-концерни генеруються codegen-ом; helpers у utils/; скіл-специфічні скрипти в npm/skills/<id>/js/
 alwaysApply: true
-version: '1.16'
+version: '1.17'
 ---
 
 ## Критика користувацького інпуту (доречність та ефективність)
@@ -26,10 +26,11 @@ npm/rules/{rule}/
 ├── main.mdc                               ← текст правила (frontmatter + body) — ОБОВ'ЯЗКОВИЙ
 ├── main.json                              ← метадані правила: auto (умова автоактивації)
 ├── {concern}/                             ← кожен концерн — власна піддиректорія
-│   ├── concern.json                       ← маркер концерну + декларація поверхонь (check/policy/lint)
-│   ├── main.mjs                           ← JS entry point: check → main(cwd); lint → lint(files, cwd, opts)
+│   ├── concern.json                       ← маркер концерну + поверхні: lint {scope, glob} (+ policy {engine, files})
+│   ├── main.mjs                           ← detector: export async function lint(ctx) → LintResult (для policy — @generated codegen-ом)
 │   ├── {concern}.mdc                      ← людинозрозумілий гід концерну для агентів (ОБОВ'ЯЗКОВИЙ)
-│   ├── fix-{concern}.mjs                  ← T0-autofix паттерни (не discovery-концерн; опційно)
+│   ├── fix-{concern}.mjs                  ← T0-autofix паттерни (structured: test(violations)/apply(violations,ctx); опційно)
+│   ├── fix-worker.mjs                     ← concern-worker для LLM-ladder (fixWorker(violations,ctx); опційно)
 │   ├── tests/
 │   │   ├── {concern}.test.mjs             ← single-test concern
 │   │   └── {name}.test.mjs               ← multi-test concern (+ fixtures/)
@@ -49,40 +50,37 @@ npm/rules/{rule}/
 
 Автоактивація правила — поле `auto` у `npm/rules/<id>/main.json`: `"завжди"` | масив id правил-залежностей | `{glob}` (наявність файлів) | `{predicate, arg}` (незводимий предикат із реєстру `npm/scripts/lib/rule-predicates.mjs`). Інтерпретатор — `npm/scripts/auto-rules.mjs`; валідація — концерн `npm-module/skill_meta`.
 
-**Поверхні концерну** — `concern.json` декларує одну або кілька з трьох:
+**Unified lint surface (spec `docs/specs/2026-06-29-unified-lint-surface.md`).** Колишні три поверхні (check / policy / lint) зведено до **однієї detector-ролі**: кожен виконуваний концерн експортує `lint(ctx) → LintResult`. Detector **тільки виявляє** порушення — read-only, без LLM, без autofix, без side effects. Fix — окрема роль центрального pipeline (T0 + LLM-ladder), не частина detector-а.
 
-- `"check": true` — JS conformance/fix поверхня; `main.mjs` має `export async function main(cwd)`.
-- `"policy": { "files": { … } }` — Rego або template поверхня; `{concern}.rego` + `{concern}_test.rego` поряд.
-- `"lint": { "scope": "per-file"|"full", "glob": […], "llmFix": bool }` — lint поверхня; `main.mjs` має `export function lint(files, cwd, opts)`.
+**Поверхні в `concern.json`:**
 
-Lint розділено на дві фази через поле `lint` у **`concern.json`** (не в `main.json`): `per-file` (delta-режим: по змінених файлах vs origin) та `full` (крос-файловий: весь репо для jscpd/knip/trufflehog). Оркестратор — `npm/scripts/lib/run-lint.mjs` (`runLint`); кроки строго послідовні. `--verbose` виводить кожен concern, його scope/glob і кількість відповідних файлів.
+- `"lint": { "scope": "per-file"|"full", "glob": […] }` — **обов'язкова** для виконуваного концерну. `per-file` — delta-режим (по змінених файлах vs origin); `full` — крос-файловий (весь репо). Поля `llmFix` **немає** (fix-можливість = наявність `fix-*.mjs`/`fix-worker.mjs`).
+- `"policy": { "engine": "rego"|"template", "files": { … }, "missingMessage"? }` — target-семантика policy-концерну. Його `main.mjs` **генерується codegen-ом** (`@generated`), а не пишеться руками; lint-поверхня деривується з `policy.files` (scope=full). Поле `check` (legacy `"template"`) ще читається для backward-compat.
 
-**Discovery** (`listConcerns` у `npm/scripts/lib/concern-meta.mjs`): сканує підкаталоги `rules/<id>/`, повертає ті, що мають `concern.json`. Каталог `utils/` — без `concern.json`, тому discovery не бачить.
-
-**Контракт JS-концерну: `export async function main()`**
-
-Файл `{concern}/main.mjs` що є **check-перевіркою** мусить експортувати:
+**Контракт detector-а: `export async function lint(ctx)`**
 
 ```js
-export async function main(cwd = process.cwd()) {
-  // повертає 0 — OK, 1 — є порушення
+/**
+ * @param {LintContext} ctx  { cwd, ruleId, concernId, files? }  (files: posix-relative або undefined=весь репо)
+ * @returns {Promise<LintResult>}  { violations: LintViolation[] }
+ */
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)   // drop-in заміна createCheckReporter
+  // ... детекція ... reporter.fail(msg) накопичує violation
+  return reporter.result()
 }
 ```
 
-Для runner-файлів що обгортають зовнішній інструмент — re-export достатній:
-```js
-export const main = runShellcheckText  // вже повертає 0/1
-```
+- `LintViolation` = `{ reason, message, file?, severity?, data? }` — `reason` стабільний machine-code (namespace `(ruleId, concernId, reason)`), `message` людиночитний. Runner сам домішує `ruleId`/`concernId`.
+- Detector **НЕ друкує** violation-report — повертає `{ violations }`, рендерить лише runner (єдиний renderer).
+- Exit code — похідна CLI-семантика: 0 = немає violations, 1 = є, 2 = виняток/невалідний результат/tool-crash.
+- Reporter-адаптер: `createViolationReporter(ctx)` (`npm/scripts/lib/lint-surface/violation-reporter.mjs`) — `pass()` no-op, `fail(msg[, reason|{reason,file,severity,data}])` накопичує, `result()` → `{ violations }`. Default `reason = ctx.concernId`.
 
-Для **lint**-концерну (поверхня `lint` у `concern.json`) — `main.mjs` має:
-```js
-export function lint(files, cwd, opts) {
-  // files: string[]|undefined (per-file: відфільтровані; full: undefined)
-  // повертає 0/1
-}
-```
+Оркестратори: detect-only — `npm/scripts/lib/lint-surface/run-detectors.mjs` (`detectAll`); detect+fix — `run-fix.mjs` (`runFixPipeline`). `--verbose` виводить кожен concern, його scope і кількість файлів.
 
-**Red flag:** `{concern}/main.mjs` без потрібного export (`main` або `lint`) — концерн мовчки не виконується.
+**Discovery** (`listConcerns` у `npm/scripts/lib/concern-meta.mjs`): сканує підкаталоги `rules/<id>/`, повертає ті, що мають `concern.json`. Каталог `utils/` — без `concern.json`, тому discovery не бачить. Новий runner деривує detector і для policy-концернів (поверхня з `policy.files`).
+
+**Red flag:** `{concern}/main.mjs` без `export … lint(ctx)` — концерн мовчки не виконується. `lint`, що друкує report або повертає `number` замість `{ violations }` — старий контракт, не мігрований.
 
 **Імпорти** (з `{concern}/main.mjs`):
 
@@ -121,20 +119,22 @@ npm/skills/{skill}/
 
 - Будь-який концерн (JS або Rego): `{concern}/main.mjs` → `{concern}/fix-{concern}.mjs`
 
-**Контракт експорту** (однаковий для js- і rego-фіксів):
+**Контракт експорту** (structured violations — unified lint surface):
 
 ```js
 export const patterns = [
   {
-    id: 'rule-concern-action',             // унікальний id (для логу й дебагу)
-    test: (output) => /…/.test(output),    // чи підходить output до паттерну
-    apply: async (output, cwd) =>          // застосувати фікс; може бути sync або async
-      ({ ok: boolean, action: string }),   // ok=true — фікс спрацював
+    id: 'rule-concern-action',                    // унікальний id (для логу й дебагу)
+    test: (violations) => violations.some(v => v.reason === '…'),  // чи застосовний до violations свого концерну
+    apply: async (violations, ctx) =>             // застосувати фікс (детерміновано); sync або async
+      ({ touchedFiles: string[], message?: string }),
   },
 ]
 ```
 
-**Discovery-агрегація** (`npm/scripts/lib/fix/discover-t0-patterns.mjs`): сканує glob `*/*/fix-*.mjs` у `npm/rules/` і залишає лише ті, де поряд є `concern.json` (тобто `rules/{rule}/{concern}/fix-*.mjs`). Динамічно імпортує кожен, збирає масиви `patterns`. `t0.mjs` споживає цей список замість inline-масиву.
+T0 отримує **лише violations свого концерну** (runner scope-ить за `(ruleId, concernId)` — `test()` не перевіряє ruleId/concernId). T0 — **детермінований і permanent**: його зміни не відкочуються rollback-ом ladder-а (snapshot S1 береться post-T0). Worker (`fix-worker.mjs`, `fixWorker(violations, ctx) → { touchedFiles }`) — один LLM-attempt; success визначає **виключно** canonical re-detect, не сам worker. Pipeline — `npm/scripts/lib/lint-surface/run-fix.mjs`; pure-ladder helpers — `ladder.mjs`; central rollback — `snapshot.mjs`.
+
+**Discovery-агрегація**: `run-fix.mjs` динамічно імпортує `rules/{rule}/{concern}/fix-{concern}.mjs` (поряд із `concern.json`) і споживає `patterns`.
 
 **Крос-правильний shared механізм:** якщо та сама fix-логіка потрібна ≥2 правилам (наприклад, `vscode-ext-add` — однаковий механізм для всіх правил із `vscode_extensions`), спільна утиліта живе в `npm/scripts/lib/fix/<util>.mjs`. Правило-споживач робить тонкий re-export:
 
@@ -233,11 +233,11 @@ export { patterns } from '../../../scripts/lib/fix/vscode-ext-add.mjs'
 
 **Червоний прапор:** дописуєш `if (pkg.<field>) fail(…)` у JS — майже завжди це варто було робити як `deny contains msg if { … }` у відповідному rego-пакеті. Перевір `npm/rules/<rule>/policy/` **перед** редагуванням `js/<concern>.mjs`.
 
-**Червоний прапор:** пишеш новий `js/<concern>.mjs` без `export async function main()` — без точки входу концерн мовчки не виконується (`runRule` шукає `mod.main`).
+**Червоний прапор:** пишеш новий `{concern}/main.mjs` без `export async function lint(ctx)` — без detector-точки входу концерн мовчки не виконується (runner шукає `mod.lint`).
 
 ## Діагностика
 
-`npx @nitra/cursor fix` — програмна перевірка відповідності проєкту правилам за **`*.mdc` у `.cursor/rules/`** (auto-discovery: правило вмикається, якщо є `js/<concern>.mjs` або `policy/<concern>/target.json` у його каталозі `npm/rules/{rule}/`). Явні приклади: `npx @nitra/cursor fix bun ga`, `npx @nitra/cursor fix changelog npm-module`.
+`npx @nitra/cursor lint` — єдина команда unified lint surface (detect + fix-by-default). `--no-fix` — detect-only (CI-gate); `--full` — весь репо; `<rule>` / `<rule>/<concern>` — scoped. Команд `fix` / `fix-t0` немає. Auto-discovery правил — за `concern.json` у `npm/rules/{rule}/<concern>/`. Явні приклади: `npx @nitra/cursor lint bun ga`, `npx @nitra/cursor lint --no-fix --full` (канонічний CI-gate).
 
 Файл **`.n-cursor.json`** має містити **`$schema`** з посиланням на JSON Schema пакету: `https://unpkg.com/@nitra/cursor/schemas/n-cursor.json`. CLI `@nitra/cursor` записує або оновлює це поле при автоматичному створенні конфігу, при зчитуванні конфігу під час завантаження правил і перед запуском `check`, якщо в корені вже є `.n-cursor.json`.
 
@@ -425,6 +425,6 @@ Download-движок (GitHub-release binary під поточний OS+arch) с
 
 ### Результат
 
-- `✅` — перевірка пройшла
-- `❌` — потребує виправлення
-- Exit code: `0` — все OK, `1` — є проблеми
+- `✅` — немає violations
+- `❌` — є violations (потребує виправлення)
+- Exit code: `0` — немає violations, `1` — є violations, `2` — виняток/невалідний результат detector-а/tool-crash

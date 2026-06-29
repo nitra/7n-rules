@@ -3,20 +3,20 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 
 import { validateAbieHcModeline } from '../lib/hc-yaml.mjs'
 import { collectDeploymentDirs, findK8sYamlFiles } from '../lib/k8s-tree.mjs'
 
 /**
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} результат
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
-  const root = cwd
+  const root = ctx.cwd
 
   const ignorePaths = await loadCursorIgnorePaths(root)
   const yamls = await findK8sYamlFiles(root, ignorePaths)
@@ -24,7 +24,7 @@ export async function main(cwd = process.cwd()) {
 
   if (deploymentDirs.size === 0) {
     pass('Немає Deployment у дереві k8s — перевірку hc.yaml пропущено')
-    return reporter.getExitCode()
+    return reporter.result()
   }
   pass(`Знайдено Deployment у ${deploymentDirs.size} директорія(ї/й) k8s — перевіряємо hc.yaml поруч`)
 
@@ -48,5 +48,5 @@ export async function main(cwd = process.cwd()) {
     else fail(modelineErr)
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

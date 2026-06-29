@@ -2,14 +2,14 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { SKILL_TIERS, parseSkillAutoSpec, readSkillMetaRaw } from '../../../scripts/lib/skill-meta.mjs'
 
 /**
  * Перевіряє поля сирого meta.json одного скіла (без auto.md / відсутності файлу).
  * @param {string} id ідентифікатор скіла
  * @param {Record<string, unknown>} raw сирий meta.json
- * @param {ReturnType<typeof createCheckReporter>} reporter репортер
+ * @param {ReturnType<typeof createViolationReporter>} reporter репортер
  * @returns {boolean} true, якщо всі поля валідні
  */
 function checkSkillFields(id, raw, reporter) {
@@ -43,7 +43,7 @@ function checkSkillFields(id, raw, reporter) {
  * Валідує meta.json одного скіла.
  * @param {string} id ідентифікатор скіла
  * @param {string} skillDir каталог скіла
- * @param {ReturnType<typeof createCheckReporter>} reporter репортер
+ * @param {ReturnType<typeof createViolationReporter>} reporter репортер
  * @returns {void}
  */
 function checkSkill(id, skillDir, reporter) {
@@ -69,15 +69,16 @@ function checkSkill(id, skillDir, reporter) {
 
 /**
  * Валідує всі `npm/skills/<id>/meta.json`.
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — OK, 1 — порушення
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export function lint(ctx) {
+  const cwd = ctx.cwd
+  const reporter = createViolationReporter(ctx)
   const skillsDir = join(cwd, 'npm', 'skills')
   if (!existsSync(skillsDir)) {
     reporter.pass('npm/skills/ відсутній — немає скілів для валідації')
-    return Promise.resolve(reporter.getExitCode())
+    return Promise.resolve(reporter.result())
   }
 
   for (const entry of readdirSync(skillsDir, { withFileTypes: true })) {
@@ -85,5 +86,5 @@ export function main(cwd = process.cwd()) {
     checkSkill(entry.name, join(skillsDir, entry.name), reporter)
   }
 
-  return Promise.resolve(reporter.getExitCode())
+  return Promise.resolve(reporter.result())
 }

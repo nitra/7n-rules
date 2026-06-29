@@ -5,7 +5,7 @@ import { join, relative } from 'node:path'
 
 import { findBunyanImportsInText, isBunyanScanSourceFile, shouldSkipFileForBunyanScan } from '../lib/bunyan-imports.mjs'
 import { findUncheckedProcessEnvInText, isCheckEnvScanSourceFile } from '../lib/check-env-scan.mjs'
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { runConftestBatch } from '../../../scripts/lib/run-conftest-batch.mjs'
 import { findConnFileRuleViolations, isConnFileRulesSourceFile } from '../lib/conn-file-rules.mjs'
 import {
@@ -461,11 +461,12 @@ function checkOtelConfigmap(rootDir, passFn, failFn, cwd) {
 
 /**
  * Перевіряє відповідність проєкту правилам js-run.mdc лише для workspace-пакетів (не корінь репо).
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
- * @param {string} [cwd] корінь репозиторію
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const cwd = ctx.cwd
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
   const roots = await getMonorepoPackageRootDirs(cwd)
@@ -473,7 +474,7 @@ export async function main(cwd = process.cwd()) {
 
   if (workspaceRoots.length === 0) {
     pass('js-run: немає workspace-пакетів у кореневому package.json — перевірку залежностей і k8s у пакетах пропущено')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   const ignorePaths = await loadCursorIgnorePaths(cwd)
@@ -481,5 +482,5 @@ export async function main(cwd = process.cwd()) {
     await checkWorkspacePackage(r, ignorePaths, fail, pass, cwd)
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

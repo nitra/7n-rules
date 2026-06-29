@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises'
 import { relative, sep } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 
 /** Суфікс basename'а прикладного файлу (`config.example`, `.env.dist`). */
@@ -34,11 +34,12 @@ function isExampleFile(relPosix) {
 }
 
 /**
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} exit-код перевірки (0 — OK, 1 — є bare `secret`)
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const cwd = ctx.cwd
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
   /** @type {Array<{ abs: string, rel: string }>} */
@@ -51,7 +52,7 @@ export async function main(cwd = process.cwd()) {
 
   if (examples.length === 0) {
     pass('прикладних файлів не знайдено — placeholder перевіряти нема де')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   let violations = 0
@@ -74,5 +75,5 @@ export async function main(cwd = process.cwd()) {
   if (violations === 0) {
     pass(`прикладні файли (${examples.length}) не містять bare \`secret\``)
   }
-  return reporter.getExitCode()
+  return reporter.result()
 }

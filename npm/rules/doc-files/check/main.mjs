@@ -41,65 +41,47 @@ function sourcesFromChanged(files, cwd) {
   return [...out]
 }
 
-function reportStale(stale) {
-  if (stale.length === 0) return 0
-  const list = stale.map(f => `  - ${f.sourcePath} (${f.reason})`).join('\n')
-  process.stderr.write(
-    `❌ doc-files: документація застаріла/відсутня для ${stale.length} файл(ів):\n${list}\n→ перегенеруй: npx @nitra/cursor fix-doc-files\n`
-  )
-  return 1
-}
-
-function collectStale(files, cwd) {
+/**
+ * @param {string[]|undefined} files
+ * @param {string} cwd
+ * @returns {Array<{ sourcePath: string, docPath?: string, reason: string }>}
+ */
+export function collectStale(files, cwd) {
   if (files === undefined) return scanForDocFiles(cwd).filter(f => f.stale)
   const sources = sourcesFromChanged(files, cwd)
   return sources.map(src => describeFile(cwd, src)).filter(f => f.stale)
 }
 
 /**
- * lint-поверхня doc-files: детект/fix застарілих doc-files (per-file або full).
- * @param {string[] | undefined} files per-file або undefined (full)
- * @param {string} [cwd] корінь
- * @param {{ readOnly?: boolean, llmFix?: boolean }} [opts]
- * @returns {Promise<number>}
+ * Detector doc-files: застарілі (CRC-mismatch/missing/degraded) і сирітські файлові доки.
+ * Read-only — генерація/очистка у fix-worker.mjs (docgen), не тут.
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
  */
-export async function lint(files, cwd = process.cwd(), { readOnly = false, llmFix = false } = {}) {
-  const stale = collectStale(files, cwd)
-  const orphans = scanOrphanedDocs(cwd)
+export function lint(ctx) {
+  const { cwd, files } = ctx
+  /** @type {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation[]} */
+  const violations = []
 
-  if (stale.length === 0 && orphans.length === 0) return 0
-  if (readOnly || !llmFix) {
-    if (stale.length > 0) reportStale(stale)
-    if (orphans.length > 0) {
-      const list = orphans.map(f => `  - ${f}`).join('\n')
-      process.stderr.write(
-        `❌ doc-files: сирітських доків (source видалено) ${orphans.length}:\n${list}\n→ очисти: npx @nitra/cursor fix-doc-files\n`
-      )
-    }
-    return 1
-  }
-
-  if (stale.length > 0) {
-    process.stdout.write(`ℹ️  doc-files: ${stale.length} застарілих — пробую авто-фікс (omlx)…\n`)
-  }
-  const { runGenerationBatch, purgeOrphanedDocs } = await import('../docgen-files-batch/main.mjs')
-  if (stale.length > 0) {
-    await runGenerationBatch(stale, cwd, { headline: `📋 doc-files: генерація ${stale.length} файл(ів)` })
-  }
-  if (orphans.length > 0) {
-    const deleted = purgeOrphanedDocs(cwd)
-    if (deleted > 0) process.stdout.write(`🗑 doc-files: видалено ${deleted} сирітських доки(ів)\n`)
-  }
-
-  const stillStale = collectStale(files, cwd)
-  const stillOrphans = scanOrphanedDocs(cwd)
-  if (stillStale.length === 0 && stillOrphans.length === 0) return 0
-  if (stillStale.length > 0) reportStale(stillStale)
-  if (stillOrphans.length > 0) {
-    const list = stillOrphans.map(f => `  - ${f}`).join('\n')
-    process.stderr.write(
-      `❌ doc-files: сирітських доків (source видалено) ${stillOrphans.length}:\n${list}\n→ очисти: npx @nitra/cursor fix-doc-files\n`
+  for (const f of collectStale(files, cwd)) {
+    violations.push(
+      /** @type {any} */ ({
+        reason: f.reason || 'stale',
+        message: `документація застаріла/відсутня для ${f.sourcePath} (${f.reason})`,
+        file: f.sourcePath,
+        data: f.docPath ? { docPath: f.docPath } : undefined
+      })
     )
   }
-  return 1
+  for (const orphan of scanOrphanedDocs(cwd)) {
+    violations.push(
+      /** @type {any} */ ({
+        reason: 'orphaned-doc',
+        message: `сирітський док (source видалено): ${orphan}`,
+        file: orphan
+      })
+    )
+  }
+
+  return { violations }
 }

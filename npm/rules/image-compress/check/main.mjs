@@ -1,6 +1,11 @@
+/**
+ * lint-поверхня image-compress/check: read-only detector синхронності image-файлів із
+ * `.n-minify-image.tsv` (`@nitra/minify-image --json`). Стиснення (`--write`) — окремий
+ * fix, не в detector-і.
+ */
 import { spawnSync } from 'node:child_process'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 const JSON_MAX_BUFFER = 20 * 1024 * 1024
 
@@ -12,9 +17,15 @@ function parseMinifyJson(stdout) {
   return JSON.parse(stdout)
 }
 
-function runJsonDetect(cwd) {
-  const reporter = createCheckReporter()
-  const { pass, fail } = reporter
+/**
+ * Detector image-compress/check: @nitra/minify-image --json (read-only).
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
+ */
+export function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
+  const { fail } = reporter
+  const cwd = ctx.cwd
 
   const r = spawnSync('npx', ['@nitra/minify-image', '--src=.', '--json'], {
     cwd,
@@ -23,48 +34,33 @@ function runJsonDetect(cwd) {
     maxBuffer: JSON_MAX_BUFFER
   })
   if (r.error) {
-    fail(`image-compress: не вдалося запустити npx @nitra/minify-image --json: ${r.error.message}`)
-    return reporter.getExitCode()
+    fail(`image-compress: не вдалося запустити npx @nitra/minify-image --json: ${r.error.message}`, 'tool-error')
+    return reporter.result()
   }
   if (r.status !== 0) {
     const detail = [r.stdout, r.stderr].filter(Boolean).join('\n').trim()
-    fail(`image-compress: @nitra/minify-image --json завершився з кодом ${r.status}${detail ? `:\n${detail}` : ''}`)
-    return reporter.getExitCode()
+    fail(
+      `image-compress: @nitra/minify-image --json завершився з кодом ${r.status}${detail ? `:\n${detail}` : ''}`,
+      'tool-error'
+    )
+    return reporter.result()
   }
 
   let report
   try {
     report = parseMinifyJson(r.stdout)
   } catch {
-    fail('image-compress: @nitra/minify-image --json повернув невалідний JSON')
-    return reporter.getExitCode()
+    fail('image-compress: @nitra/minify-image --json повернув невалідний JSON', 'tool-error')
+    return reporter.result()
   }
 
   const needsCompression = Number(report.summary?.needsCompression ?? 0)
   const total = Number(report.summary?.total ?? 0)
   if (needsCompression > 0) {
     fail(
-      `image-compress: ${needsCompression}/${total} image-файлів потребують стиснення — запусти \`n-cursor lint image-compress\` локально`
+      `image-compress: ${needsCompression}/${total} image-файлів потребують стиснення — запусти \`n-cursor lint image-compress\` локально`,
+      'needs-compression'
     )
-  } else {
-    pass(`image-compress: ${total} image-файлів синхронізовані з .n-minify-image.tsv`)
   }
-  return reporter.getExitCode()
-}
-
-/**
- * lint-поверхня image-compress: @nitra/minify-image.
- * @param {string[] | undefined} _files ігнорується
- * @param {string} [cwd] корінь
- * @param {{ readOnly?: boolean }} [opts]
- * @returns {Promise<number>} exit code
- */
-export function lint(_files, cwd = process.cwd(), opts = {}) {
-  if (opts.readOnly === true) return Promise.resolve(runJsonDetect(cwd))
-  const r = spawnSync('npx', ['@nitra/minify-image', '--src=.', '--write'], { cwd, env: process.env, stdio: 'inherit' })
-  if (r.error) {
-    console.error(`image-compress: не вдалося запустити npx @nitra/minify-image --write: ${r.error.message}`)
-    return Promise.resolve(1)
-  }
-  return Promise.resolve(typeof r.status === 'number' ? r.status : 1)
+  return reporter.result()
 }

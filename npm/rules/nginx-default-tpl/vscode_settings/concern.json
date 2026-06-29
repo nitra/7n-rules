@@ -1,9 +1,8 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
   "policy": {
-    "files": {
-      "glob": ["**/.vscode/settings.json"]
-    },
-    "namespace": "nginx_default_tpl.vscode_settings"
+    "engine": "rego",
+    "files": { "single": ".vscode/settings.json", "required": true },
+    "missingMessage": ".vscode/settings.json не існує — додай рекомендовані налаштування (nginx-default-tpl.mdc)"
   }
 }

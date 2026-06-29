@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { anyRunStepIncludes, parseWorkflowYaml } from '../../../scripts/lib/gha-workflow.mjs'
 
 /** Заголовок абзацу про апостроф у text.mdc / n-text.mdc. */
@@ -121,13 +121,14 @@ async function checkLintTextWorkflow(passFn, failFn, cwd) {
 
 /**
  * Перевіряє відповідність проєкту правилам text.mdc.
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
+  const cwd = ctx.cwd
   await checkV8rIgnore(pass, fail, cwd)
   await checkTextConfigsExistence(pass, fail, cwd)
 
@@ -144,5 +145,5 @@ export async function main(cwd = process.cwd()) {
 
   await checkLintTextWorkflow(pass, fail, cwd)
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

@@ -5,7 +5,7 @@ import { join, relative } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { env } from 'node:process'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
@@ -390,18 +390,19 @@ async function cleanupOrphanAvifs(usedAvifAbs, optedOutAbs, ignorePaths, cwd) {
 /**
  * Виконує AVIF-етап: запуск AVIF-генерації, авто-заміна raster-посилань у `.vue`/`.html`,
  * видалення AVIF-сиріт. Не валідує image-compress cache/dependency policy — це окреме правило.
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const cwd = ctx.cwd
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
   const ignorePaths = await loadCursorIgnorePaths(cwd)
 
   if (!(await hasAnyVueRasterReference(ignorePaths, cwd))) {
     pass('image-avif: у .vue/.html немає raster-посилань для переписування — AVIF-генерація і cleanup пропущені')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   runAvifGeneration(cwd)
@@ -419,5 +420,5 @@ export async function main(cwd = process.cwd()) {
       `failed to rewrite ${stats.failedRefs} reference${stats.failedRefs === 1 ? '' : 's'}`
   )
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 import { parseSync } from 'oxc-parser'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { readNCursorConfigLite } from '../../../scripts/lib/read-n-cursor-config-lite.mjs'
 import { ensureGitignoreEntries } from '../../../scripts/utils/ensure-gitignore-entries.mjs'
 import { resolveAllJsRoots } from '../../../scripts/utils/resolve-js-root.mjs'
@@ -78,7 +78,7 @@ async function hasVueFiles(jsRoot) {
 
 /**
  * Копіює baseline у target, якщо target ще не існує. Idempotent.
- * @param {ReturnType<typeof createCheckReporter>} reporter check-reporter для логу pass/fail
+ * @param {ReturnType<typeof createViolationReporter>} reporter check-reporter для логу pass/fail
  * @param {string} cwd корінь проєкту (для relative-шляхів у логах)
  * @param {string} baselinePath абсолютний шлях до canonical baseline
  * @param {string} target абсолютний шлях, куди копіювати
@@ -237,7 +237,7 @@ function applyEdits(src, edits) {
  * string-splice-и у вихідному тексті (insert items), щоб НЕ переписати
  * форматування й коментарі користувача (oxc serializer їх не зберігає). Після
  * splice — повторний parse: якщо результат не компілюється → відкат і fail.
- * @param {ReturnType<typeof createCheckReporter>} reporter check-reporter
+ * @param {ReturnType<typeof createViolationReporter>} reporter check-reporter
  * @param {string} cwd корінь проєкту (для relative-шляхів у логах)
  * @param {string} jsRoot абсолютний шлях до Vue workspace-каталогу
  * @returns {Promise<void>}
@@ -325,22 +325,23 @@ async function augmentVueStrykerConfig(reporter, cwd, jsRoot) {
 }
 
 /**
- * @param {string} [cwd] корінь проєкту (default: `process.cwd()` — CLI-сумісність)
- * @returns {Promise<number>} 0 — OK або silently skipped, 1 — порушення
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
+  const cwd = ctx.cwd
   const config = await readNCursorConfigLite(cwd)
 
   // Self-gate: js має бути enabled
   if (!config.rules.includes('js') || config.disableRules.includes('js')) {
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   const jsRoots = await resolveAllJsRoots(cwd)
   if (jsRoots.length === 0) {
     reporter.fail('test: js enabled, але кореневий package.json не знайдено (test.mdc)')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   for (const baselinePath of [
@@ -351,7 +352,7 @@ export async function main(cwd = process.cwd()) {
   ]) {
     if (!existsSync(baselinePath)) {
       reporter.fail(`canonical baseline не знайдено (${baselinePath}) — перевстанови @nitra/cursor`)
-      return reporter.getExitCode()
+      return reporter.result()
     }
   }
 
@@ -396,5 +397,5 @@ export async function main(cwd = process.cwd()) {
   if (added.length > 0) {
     reporter.pass(`.gitignore: додано тест-патерни (${added.join(', ')}) (test.mdc)`)
   }
-  return reporter.getExitCode()
+  return reporter.result()
 }

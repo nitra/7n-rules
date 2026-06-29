@@ -1,4 +1,8 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
-  "policy": {}
+  "policy": {
+    "engine": "rego",
+    "files": { "single": ".jscpd.json", "required": true },
+    "missingMessage": ".jscpd.json не існує — створи з полями згідно js.mdc"
+  }
 }

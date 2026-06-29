@@ -1,4 +1,17 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
-  "check": true
+  "lint": {
+    "scope": "full",
+    "glob": [
+      "**/default.conf.template",
+      "**/default.tpl.conf",
+      "**/*.ini",
+      "**/Dockerfile",
+      "**/Dockerfile.*",
+      "**/Containerfile",
+      "**/*.Dockerfile",
+      ".vscode/extensions.json",
+      ".vscode/settings.json"
+    ]
+  }
 }

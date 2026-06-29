@@ -1,14 +1,15 @@
 /** @see ./docs/tooling.md */
 import { existsSync } from 'node:fs'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 /**
  * Перевіряє відповідність проєкту правилам php.mdc.
- * @returns {number} 0 — все OK, 1 — є проблеми
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export function main() {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
   if (existsSync('composer.json')) {
@@ -30,5 +31,5 @@ export function main() {
     fail(`${wfPath} не існує — створи згідно php.mdc`)
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

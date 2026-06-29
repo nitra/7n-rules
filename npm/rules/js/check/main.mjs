@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { copyFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 import {
   KNIP_CANONICAL_JSON_PATH,
@@ -251,11 +251,12 @@ async function checkKnipConfig(passFn, failFn, cwd) {
 
 /**
  * Перевіряє відповідність проєкту правилам js.mdc
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const cwd = ctx.cwd
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
   await checkEslintConfig(pass, fail, cwd)
@@ -268,5 +269,5 @@ export async function main(cwd = process.cwd()) {
     if (existsSync(join(cwd, dup))) fail(`Знайдено застарілий конфіг ESLint: ${dup} — видали, використовуй flat config`)
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

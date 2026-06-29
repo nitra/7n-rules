@@ -1,9 +1,8 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
   "policy": {
-    "files": {
-      "glob": ["**/.vscode/extensions.json"]
-    },
-    "namespace": "nginx_default_tpl.vscode_extensions"
+    "engine": "rego",
+    "files": { "single": ".vscode/extensions.json", "required": true },
+    "missingMessage": ".vscode/extensions.json не існує — додай рекомендовані розширення (nginx-default-tpl.mdc)"
   }
 }

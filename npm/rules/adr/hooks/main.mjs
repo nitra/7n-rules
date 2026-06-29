@@ -5,7 +5,7 @@ import { delimiter, dirname, join } from 'node:path'
 import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 /** Один hook-артефакт: bash-скрипт + його лог-файл, які перевіряємо однотипно. */
 const HOOK_ARTIFACTS = /** @type {const} */ ([
@@ -262,11 +262,6 @@ function checkLlmCliAvailable(reporter) {
   }
 }
 
-/**
- * Перевіряє відповідність проєкту правилам adr.mdc.
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
- */
 /** Файли стану/блокування normalize-хука, які не мають потрапляти в git. */
 const NORMALIZE_STATE_FILES = ['.normalize-state', '.normalize.lock']
 const CLAUDE_HOOKS_REL = '.claude/hooks'
@@ -321,8 +316,14 @@ function checkDocsAdrDir(reporter, cwd) {
   }
 }
 
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+/**
+ * Перевіряє відповідність проєкту правилам adr.mdc.
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ */
+export async function lint(ctx) {
+  const cwd = ctx.cwd
+  const reporter = createViolationReporter(ctx)
   for (const { scriptName } of HOOK_ARTIFACTS) {
     await checkHookScript(reporter, cwd, scriptName)
   }
@@ -332,5 +333,5 @@ export async function main(cwd = process.cwd()) {
   await checkGitignoreForStateFiles(reporter, cwd)
   checkDocsAdrDir(reporter, cwd)
   checkLlmCliAvailable(reporter)
-  return reporter.getExitCode()
+  return reporter.result()
 }

@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import {
   findForbiddenNodeImportsInVueFile,
   findForbiddenVueImportsInSourceFile,
@@ -546,20 +546,21 @@ function checkRootVitestDevDeps(cwd, pass, fail) {
 
 /**
  * Перевіряє відповідність проєкту правилам vue.mdc (корінь і всі workspace-пакети з `vue` у dependencies).
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
+  const cwd = ctx.cwd
   const roots = await getMonorepoPackageRootDirs(cwd)
   const vueRoots = await collectVueRoots(roots, cwd)
 
   if (vueRoots.length === 0) {
     pass('Vue.volar: пропущено (у repo немає пакетів з vue у dependencies)')
     pass('vue не знайдено в dependencies жодного пакета (перевірка vue пропущена)')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   await checkVueVolarRecommendation(pass, fail, cwd)
@@ -570,5 +571,5 @@ export async function main(cwd = process.cwd()) {
     await checkVuePackage(rootDir, isComponentLibrary, ignorePaths, fail, pass, cwd)
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

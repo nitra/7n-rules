@@ -2,7 +2,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 import { hasCargoTomlInTree } from '../lib/has-cargo-toml.mjs'
 
@@ -18,10 +18,11 @@ export function applies(cwd = process.cwd()) {
 }
 
 /**
- * @returns {number} exit-код (0 — OK, 1 — порушення)
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export function main() {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   reporter.pass('Знайдено Cargo.toml — застосовуємо правила rust.mdc')
-  return reporter.getExitCode()
+  return reporter.result()
 }

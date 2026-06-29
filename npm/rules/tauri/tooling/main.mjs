@@ -3,7 +3,7 @@ import { existsSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { runConftestBatch } from '../../../scripts/lib/run-conftest-batch.mjs'
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 
@@ -45,10 +45,10 @@ async function workspaceHasTauriMarker(cwd, ws) {
 
 /**
  * Чи є у проєкті (root або будь-якому workspace-пакеті) маркер Tauri.
+ * @param {string} cwd корінь репо
  * @returns {Promise<boolean>} true, якщо проєкт використовує Tauri
  */
-async function projectHasTauriMarker() {
-  const cwd = process.cwd()
+async function projectHasTauriMarker(cwd) {
   const roots = await getMonorepoPackageRootDirs(cwd)
   for (const ws of roots) {
     if (await workspaceHasTauriMarker(cwd, ws)) return true
@@ -58,16 +58,18 @@ async function projectHasTauriMarker() {
 
 /**
  * Перевіряє відповідність проєкту правилам tauri.mdc.
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main() {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
-  const hasTauri = await projectHasTauriMarker()
+  const cwd = ctx.cwd
+  const hasTauri = await projectHasTauriMarker(cwd)
   if (!hasTauri) {
     pass('Немає маркера Tauri (src-tauri/, tauri.conf.json, @tauri-apps/*) — tauri-tooling не вимагається')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   pass('Знайдено маркер Tauri — перевіряємо канонічні конфіги tauri.mdc')
@@ -75,7 +77,7 @@ export async function main() {
   const extPath = '.vscode/extensions.json'
   if (!existsSync(extPath)) {
     fail(`${extPath} не існує — створи з recommendations "tauri-apps.tauri-vscode" (tauri.mdc)`)
-    return reporter.getExitCode()
+    return reporter.result()
   }
   const violations = runConftestBatch({
     policyDirRel: 'tauri/vscode_extensions',
@@ -88,5 +90,5 @@ export async function main() {
     for (const v of violations) fail(v.message)
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

@@ -1,109 +1,98 @@
 /**
- * lint-поверхня js/eslint: oxlint + eslint (per-file або full-project).
+ * lint-поверхня js/eslint: read-only detector (oxlint + eslint). Fix (oxlint --fix /
+ * eslint --fix) — окремий T0 `fix-eslint.mjs` (детермінований), не в detector-і.
  */
-import { resolve } from 'node:path'
+import { resolve, relative } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 import { ESLint } from 'eslint'
 
 import { addedLinesByFile } from '../../../scripts/lib/diff-added-lines.mjs'
-import { classifyFindings, eslintResultsToFindings, parseOxlint, renderFindings } from '../lint-findings/main.mjs'
+import { classifyFindings, eslintResultsToFindings, parseOxlint } from '../lint-findings/main.mjs'
 
 const JS_EXT_RE = /\.(?:mjs|cjs|js|jsx|ts|tsx|vue)$/u
+const JSON_MAX_BUFFER = 64 * 1024 * 1024
 
+/**
+ * @param {string[]} files
+ * @returns {string[]}
+ */
 export function filterJsFiles(files) {
   return files.filter(f => JS_EXT_RE.test(f))
 }
 
-function runOxlint(args, cwd) {
-  const r = spawnSync('bunx', args, { cwd, stdio: 'inherit' })
-  return typeof r.status === 'number' ? r.status : 1
-}
-
-function runOxlintFix(args, cwd) {
-  const r = spawnSync('bunx', args, { cwd, stdio: ['ignore', 'ignore', 'inherit'] })
-  return typeof r.status === 'number' ? r.status : 1
-}
-
-const JSON_MAX_BUFFER = 64 * 1024 * 1024
-
+/**
+ * @param {string[]} args
+ * @param {string} cwd
+ * @returns {{ status: number, stdout: string }}
+ */
 function runOxlintJson(args, cwd) {
   const r = spawnSync('bunx', args, { cwd, encoding: 'utf8', maxBuffer: JSON_MAX_BUFFER })
   return { status: typeof r.status === 'number' ? r.status : 1, stdout: r.stdout ?? '' }
 }
 
-async function lintFullProject(cwd, readOnly) {
-  const ox = runOxlint(readOnly ? ['oxlint'] : ['oxlint', '--fix'], cwd)
-  if (ox !== 0) return ox
-
-  const eslint = new ESLint({ fix: !readOnly, cwd })
-  let results
-  try {
-    results = await eslint.lintFiles([cwd])
-    if (!readOnly) await ESLint.outputFixes(results)
-  } catch (err) {
-    process.stderr.write(`❌ js: eslint завершився з помилкою: ${err.message}\n`)
-    return 1
-  }
-  const formatter = await eslint.loadFormatter('stylish')
-  const text = await formatter.format(results)
-  if (text) process.stdout.write(`${text}\n`)
-  return results.some(r => r.errorCount > 0) ? 1 : 0
-}
-
-async function lintChangedClassified(js, cwd, readOnly) {
-  const absJs = js.map(f => resolve(cwd, f))
-
-  let esResults
-  if (readOnly) {
-    const eslint = new ESLint({ cwd })
-    try {
-      esResults = await eslint.lintFiles(absJs)
-    } catch (err) {
-      process.stderr.write(`❌ js: eslint завершився з помилкою: ${err.message}\n`)
-      return 1
-    }
-  } else {
-    runOxlintFix(['oxlint', '--fix', ...js], cwd)
-    const eslint = new ESLint({ fix: true, cwd })
-    try {
-      esResults = await eslint.lintFiles(absJs)
-      await ESLint.outputFixes(esResults)
-    } catch (err) {
-      process.stderr.write(`❌ js: eslint завершився з помилкою: ${err.message}\n`)
-      return 1
-    }
-  }
-
-  const oxRes = runOxlintJson(['oxlint', '--format=json', ...js], cwd)
-  const ox = parseOxlint(oxRes.stdout)
-
-  if (ox === null && oxRes.status !== 0) {
-    process.stderr.write('❌ js: oxlint завершився з помилкою (не lint-порушення) — json не розпарсено\n')
-    return 1
-  }
-
-  const es = eslintResultsToFindings(esResults)
-  const findings = [...(ox ?? []), ...es]
-  if (findings.length === 0) return 0
-
-  const classified = classifyFindings(findings, addedLinesByFile(js, cwd), cwd)
-  const header = `❌ js: ${findings.length} порушень (introduced ${classified.introduced.length}, pre-existing ${classified.preExisting.length})`
-  process.stdout.write(`${header}\n${renderFindings(classified, cwd)}\n`)
-  return 1
+/**
+ * Finding → LintViolation.
+ * @param {{ file: string, line: number, rule: string, message: string, tool: string }} f
+ * @param {string} cwd
+ * @param {'error'|'warn'} severity
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation}
+ */
+function toViolation(f, cwd, severity) {
+  return /** @type {any} */ ({
+    reason: f.rule || `${f.tool}-error`,
+    message: `${f.message} (${f.tool})`,
+    file: relative(cwd, f.file).split('\\').join('/'),
+    severity,
+    data: { line: f.line, tool: f.tool }
+  })
 }
 
 /**
- * lint-поверхня js/eslint: per-file → oxlint+eslint; full → full-project.
- * @param {string[] | undefined} files per-file або undefined (full)
- * @param {string} [cwd] корінь
- * @param {{ readOnly?: boolean }} [opts]
- * @returns {Promise<number>}
+ * Збирає findings (oxlint json + eslint read-only) по заданих файлах або всьому проєкту.
+ * @param {string[]|null} js null → весь проєкт
+ * @param {string} cwd
+ * @returns {Promise<Array<{ file: string, line: number, rule: string, message: string, tool: string }>>}
  */
-export async function lint(files, cwd = process.cwd(), opts = {}) {
-  const readOnly = opts.readOnly === true
-  if (files === undefined) return lintFullProject(cwd, readOnly)
+async function collectFindings(js, cwd) {
+  const eslint = new ESLint({ cwd })
+  const esResults = await eslint.lintFiles(js === null ? [cwd] : js.map(f => resolve(cwd, f)))
+  const es = eslintResultsToFindings(esResults)
+
+  const oxArgs = js === null ? ['oxlint', '--format=json'] : ['oxlint', '--format=json', ...js]
+  const oxRes = runOxlintJson(oxArgs, cwd)
+  const ox = parseOxlint(oxRes.stdout)
+  if (ox === null && oxRes.status !== 0) {
+    throw new Error('oxlint завершився з помилкою (не lint-порушення) — json не розпарсено')
+  }
+  return [...(ox ?? []), ...es]
+}
+
+/**
+ * Detector js/eslint: per-file (classify introduced/pre-existing) або full-project.
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ */
+export async function lint(ctx) {
+  const { cwd, files } = ctx
+
+  if (files === undefined) {
+    const findings = await collectFindings(null, cwd)
+    return { violations: findings.map(f => toViolation(f, cwd, 'error')) }
+  }
+
   const js = filterJsFiles(files)
-  if (js.length === 0) return 0
-  return lintChangedClassified(js, cwd, readOnly)
+  if (js.length === 0) return { violations: [] }
+
+  const findings = await collectFindings(js, cwd)
+  if (findings.length === 0) return { violations: [] }
+
+  // introduced (на доданих рядках) → error; pre-existing → warn.
+  const classified = classifyFindings(findings, addedLinesByFile(js, cwd), cwd)
+  return {
+    violations: [
+      ...classified.introduced.map(f => toViolation(f, cwd, 'error')),
+      ...classified.preExisting.map(f => toViolation(f, cwd, 'warn'))
+    ]
+  }
 }

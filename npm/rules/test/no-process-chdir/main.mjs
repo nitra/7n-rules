@@ -2,7 +2,6 @@
 import { readFile } from 'node:fs/promises'
 import { basename, relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 
@@ -20,15 +19,12 @@ function isTestFile(absPath) {
 }
 
 /**
- * Перевіряє, що жоден `*.test.{mjs,js}` файл не викликає `process.chdir(`.
- * @param {string} [cwdParam] корінь репозиторію
- * @returns {Promise<number>} 0 — чисто, 1 — знайдено `process.chdir(` у тесті
+ * Detector: жоден `*.test.{mjs,js}` не викликає `process.chdir(` (test.mdc).
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwdParam = process.cwd()) {
-  const reporter = createCheckReporter()
-  const { pass, fail } = reporter
-
-  const cwd = cwdParam
+export async function lint(ctx) {
+  const { cwd } = ctx
   const ignorePaths = await loadCursorIgnorePaths(cwd)
 
   /** @type {string[]} */
@@ -41,29 +37,26 @@ export async function main(cwdParam = process.cwd()) {
     ignorePaths
   )
 
-  /** @type {Array<{file: string, line: number}>} */
-  const offenders = []
+  /** @type {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation[]} */
+  const violations = []
   for (const absPath of testFiles) {
     const body = await readFile(absPath, 'utf8')
     if (!CHDIR_CALL_RE.test(body)) continue
-    const lines = body.split('\n')
-    for (const [i, line] of lines.entries()) {
-      if (CHDIR_CALL_RE.test(line)) {
-        offenders.push({ file: relative(cwd, absPath), line: i + 1 })
-      }
+    const file = relative(cwd, absPath).split('\\').join('/')
+    for (const [i, line] of body.split('\n').entries()) {
+      if (!CHDIR_CALL_RE.test(line)) continue
+      violations.push(
+        /** @type {any} */ ({
+          reason: 'process-chdir-in-test',
+          message:
+            `${file}:${i + 1}: process.chdir() у тесті заборонений — використовуй ` +
+            'withTmpDir(async dir => …) + явні join(dir, …) + cwd: dir (test.mdc)',
+          file,
+          data: { line: i + 1 }
+        })
+      )
     }
   }
 
-  if (offenders.length === 0) {
-    pass(`Жоден з ${testFiles.length} тестових файлів не викликає process.chdir() (test.mdc)`)
-    return reporter.getExitCode()
-  }
-
-  for (const { file, line } of offenders) {
-    fail(
-      `${file}:${line}: process.chdir() у тесті заборонений — використовуй withTmpDir(async dir => …) + явні join(dir, …) + cwd: dir (test.mdc)`
-    )
-  }
-
-  return reporter.getExitCode()
+  return { violations }
 }

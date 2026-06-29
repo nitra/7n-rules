@@ -1,4 +1,17 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
-  "check": true
+  "lint": {
+    "scope": "full",
+    "glob": [
+      ".v8rignore",
+      ".oxfmtrc.json",
+      ".cspell.json",
+      ".markdownlint-cli2.jsonc",
+      ".vscode/extensions.json",
+      ".vscode/settings.json",
+      ".cursor/rules/n-text.mdc",
+      "npm/mdc/text.mdc",
+      ".github/workflows/lint-text.yml"
+    ]
+  }
 }

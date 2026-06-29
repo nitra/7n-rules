@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 // Зовнішні файли конфігу stylelint, які підхоплює cosmiconfig. Канон нових
 // JS-конфігів — `.mjs`/`.cjs` (js.mdc), legacy `.js` лишається валідним.
@@ -21,7 +21,7 @@ const STYLELINT_CONFIG_FILES = [
  * Альтернатива полю `stylelint` у `package.json` — зовнішній файл конфігу. Якщо
  * поля немає і файлу немає, фейлимося; якщо є хоч щось — пропускаємо. Поле
  * `stylelint.extends == "@nitra/stylelint-config"` сам формат — у Rego.
- * @param {import('../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter репортер
+ * @param {ReturnType<typeof createViolationReporter>} reporter репортер
  * @param {string} cwd корінь репозиторію
  */
 async function checkStylelintConfigPresence(reporter, cwd) {
@@ -45,11 +45,12 @@ async function checkStylelintConfigPresence(reporter, cwd) {
 
 /**
  * Перевіряє відповідність проєкту правилам style.mdc
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const cwd = ctx.cwd
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
   await checkStylelintConfigPresence(reporter, cwd)
@@ -73,5 +74,5 @@ export async function main(cwd = process.cwd()) {
     fail(`${wfPath} не існує — створи його`)
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

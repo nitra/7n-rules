@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises'
 import { relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 
 import { analyzeAbieSharedBackendRefsInPackageK8s } from '../lib/http-route.mjs'
@@ -18,13 +18,13 @@ import {
 } from '../lib/overlay-paths.mjs'
 
 /**
- * @returns {Promise<number>} результат
- * @param {string} [cwd] корінь репозиторію
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
-  const root = cwd
+  const root = ctx.cwd
 
   const ignorePaths = await loadCursorIgnorePaths(root)
   const yamls = await findK8sYamlFiles(root, ignorePaths)
@@ -32,7 +32,7 @@ export async function main(cwd = process.cwd()) {
   const uaAbsList = yamls.filter(abs => isUaKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
   if (uaAbsList.length === 0) {
     pass('Немає ua/kustomization.yaml у дереві k8s — patch HTTPRoute (ua) не вимагається (abie.mdc, лише Vite-пакети)')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   /** @type {Map<string, Promise<{ refCount: number, baseErrors: string[] }>>} */
@@ -75,5 +75,5 @@ export async function main(cwd = process.cwd()) {
     else fail(`${rel}: ${v}`)
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

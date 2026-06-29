@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import {
   findBunSqlPerRequestConnectionInText,
   findBunSqlPgLeftoverCallInText,
@@ -317,25 +317,26 @@ function messageForBunSqlInListGuard(rel, v) {
 
 /**
  * Перевіряє відповідність проєкту правилу js-bun-db.mdc
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const cwd = ctx.cwd
+  const reporter = createViolationReporter(ctx)
   const { pass } = reporter
 
   const repoRoot = cwd
   const rootPkg = join(repoRoot, 'package.json')
   if (!existsSync(rootPkg)) {
     pass('js-bun-db: package.json у корені відсутній — перевірку пропущено')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   const ignorePaths = await loadCursorIgnorePaths(repoRoot)
   const pkgJsonPaths = await findAllPackageJsonPaths(repoRoot, ignorePaths)
   if (pkgJsonPaths.length === 0) {
     pass('js-bun-db: package.json не знайдено — перевірку пропущено')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   // Заборону `pg-format` / `mysql2` у `dependencies` тримає Rego-поліс
@@ -345,7 +346,7 @@ export async function main(cwd = process.cwd()) {
   const sourcePaths = await findAllSourcePathsForBunSqlScan(repoRoot, ignorePaths)
   if (sourcePaths.length === 0) {
     pass('js-bun-db: немає JS/TS файлів для скану патернів Bun SQL')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   const {
@@ -385,7 +386,7 @@ export async function main(cwd = process.cwd()) {
 
   if (!hasBunSqlImport) {
     pass("js-bun-db: Bun SQL не використовується в коді (немає import { sql|SQL } from 'bun')")
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   if (perRequest === 0) {
@@ -425,5 +426,5 @@ export async function main(cwd = process.cwd()) {
     pass('js-bun-db: усі sql.array() мають явний аргумент типу')
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

@@ -1,13 +1,12 @@
 /** @see ./docs/lint.md */
 import { readFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
-import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
 
 import { getMirrorGcrHint, getFromImageToken } from '../lib/docker-mirror.mjs'
 import { getNativeAddonDeps, getNativeAddonNoCompileHint } from '../lib/docker-native-addon.mjs'
 import { getNginxUnprivilegedUserHint } from '../lib/docker-nginx-user.mjs'
 import { lintDockerfileWithHadolint, posixRel } from '../lib/docker-hadolint.mjs'
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 
@@ -269,30 +268,21 @@ export function getNonRootRuntimeHint(fileContent) {
 }
 
 /**
- * Перевіряє Dockerfile / Containerfile через hadolint (docker.mdc).
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — все OK, 1 — є зауваження або помилка запуску
+ * Detector docker/lint: Dockerfile/Containerfile — mirror/multistage/runtime/non-root + hadolint.
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
-  const { pass } = reporter
-
-  const root = cwd
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
+  const root = ctx.cwd
   const ignorePaths = await loadCursorIgnorePaths(root)
   const files = await findDockerfilePaths(root, ignorePaths)
-
-  if (files.length === 0) {
-    pass('Немає Dockerfile / Containerfile — перевірку hadolint пропущено')
-    return reporter.getExitCode()
-  }
-
-  pass(`Знайдено файлів для hadolint: ${files.length}`)
 
   for (const abs of files) {
     await checkDockerfile(reporter, root, abs)
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }
 
 /**
@@ -323,7 +313,7 @@ async function readNearestDependencies(abs, root) {
 
 /**
  * Перевіряє один Dockerfile/Containerfile: mirror.gcr.io, multistage/runtime, compile/non-root/nginx tag і hadolint.
- * @param {ReturnType<typeof createCheckReporter>} reporter репортер перевірок
+ * @param {ReturnType<typeof createViolationReporter>} reporter репортер violations
  * @param {string} root корінь репозиторію
  * @param {string} abs абсолютний шлях до Dockerfile/Containerfile
  * @returns {Promise<void>}
@@ -363,20 +353,8 @@ async function checkDockerfile(reporter, root, abs) {
 
   const { ok, stdout, stderr, via } = lintDockerfileWithHadolint(root, abs)
   const tail = (stdout + stderr).trim()
-  if (ok) {
-    pass(`${rel} (${via})`)
-  } else {
+  if (!ok) {
     const detail = tail ? `:\n${tail}` : ''
-    fail(`${rel} (${via})${detail}`)
+    fail(`${rel} (${via})${detail}`, { reason: 'hadolint', file: rel })
   }
-}
-
-/**
- * Оркестраторний адаптер `n-cursor lint docker`: обгортає `main()` у `runStandardLint` (лок).
- * @param {string[] | undefined} _files ігнорується (whole-repo обхід)
- * @param {string} [cwd] корінь
- * @returns {Promise<number>} exit code
- */
-export function lint(_files, cwd = process.cwd()) {
-  return runStandardLint(import.meta.dirname, () => main(cwd))
 }

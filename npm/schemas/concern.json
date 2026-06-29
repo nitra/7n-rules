@@ -19,8 +19,13 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["files"],
-      "description": "Rego або template поверхня. Відповідає колишньому target.json.",
+      "description": "Rego або template поверхня. Відповідає колишньому target.json. У unified lint surface (spec 2026-06-29) policy-concern генерує detector main.mjs через codegen; engine обирає Rego чи template.",
       "properties": {
+        "engine": {
+          "type": "string",
+          "enum": ["rego", "template"],
+          "description": "rego → .rego через conftest; template → generic deep-subset. Канонічна заміна поля `check`."
+        },
         "files": {
           "oneOf": [
             {

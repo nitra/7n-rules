@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 /** Subтring-pattern: `pool: 'forks'` або `pool: "forks"` (з опційним whitespace). */
 const POOL_FORKS_RE = /pool\s*:\s*['"]forks['"]/u
@@ -14,17 +14,18 @@ const VITEST_CONFIG_NAMES = ['vitest.config.mjs', 'vitest.config.js']
 
 /**
  * Перевіряє, що `vitest.config.{mjs,js}` (якщо існує) містить `pool: 'forks'`.
- * @param {string} [cwdParam] корінь репозиторію
- * @returns {Promise<number>} 0 — OK або skip, 1 — config без `pool: 'forks'`
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwdParam = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
+  const cwdParam = ctx.cwd
   const configName = VITEST_CONFIG_NAMES.find(name => existsSync(join(cwdParam, name)))
   if (!configName) {
     pass('vitest.config.mjs/.js відсутній — pool-перевірку пропущено')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   const body = await readFile(join(cwdParam, configName), 'utf8')
@@ -36,5 +37,5 @@ export async function main(cwdParam = process.cwd()) {
     )
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

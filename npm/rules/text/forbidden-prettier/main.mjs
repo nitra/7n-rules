@@ -2,7 +2,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 /** Файли, які Prettier шукає у корені; всі заборонені (text.mdc). */
 const FORBIDDEN_PRETTIER_FILES = [
@@ -30,12 +30,14 @@ const FORBIDDEN_PRETTIER_FILES = [
 
 /**
  * Перевіряє, що жоден Prettier-конфіг чи ignore-файл не лежить у корені проєкту.
- * @param {string} [cwd] корінь репозиторію
- * @returns {number} 0 — все OK, 1 — знайдено заборонений файл
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
  */
-export function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
+
+  const cwd = ctx.cwd
 
   let anyFound = false
   for (const file of FORBIDDEN_PRETTIER_FILES) {
@@ -48,5 +50,5 @@ export function main(cwd = process.cwd()) {
     pass('Prettier-конфігів і .prettierignore немає в корені')
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

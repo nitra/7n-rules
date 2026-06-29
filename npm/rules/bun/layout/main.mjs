@@ -2,7 +2,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 // Перевірка `devDependencies` кореневого `package.json` (дозволено лише `@nitra/*`)
 // — у rego (`npm/policy/bun/package_json/`). JS-копії `isAllowedRootDevDependency`
@@ -10,11 +10,12 @@ import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 
 /**
  * Перевіряє відповідність проєкту правилам bun.mdc
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const cwd = ctx.cwd
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
   for (const f of ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', '.yarnrc.yml']) {
@@ -45,8 +46,8 @@ export function main(cwd = process.cwd()) {
   const pkgPath = join(cwd, 'package.json')
   if (!existsSync(pkgPath)) {
     fail('Відсутній package.json у корені')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

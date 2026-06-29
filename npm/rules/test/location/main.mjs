@@ -1,7 +1,7 @@
 /** @see ./docs/location.md */
 import { basename, dirname, relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 
@@ -27,14 +27,14 @@ function isInsideTestsDir(absPath) {
 
 /**
  * Перевіряє розміщення тестових файлів у каталозі `tests/` (test.mdc).
- * @param {string} [cwdParam] корінь репозиторію
- * @returns {Promise<number>} 0 — всі тести у `tests/`, 1 — є порушення
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwdParam = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
-  const cwd = cwdParam
+  const cwd = ctx.cwd
   const ignorePaths = await loadCursorIgnorePaths(cwd)
 
   /** @type {string[]} */
@@ -57,7 +57,7 @@ export async function main(cwdParam = process.cwd()) {
 
   if (offenders.length === 0) {
     pass(`Всі ${totalTests} файлів *.test.mjs у каталозі tests/ (test.mdc)`)
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   for (const offenderPath of offenders) {
@@ -66,5 +66,5 @@ export async function main(cwdParam = process.cwd()) {
     fail(`${offenderPath}: тест має лежати у tests/ — перенеси у ${parentDir}/${TESTS_DIR_NAME}/${base} (test.mdc)`)
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

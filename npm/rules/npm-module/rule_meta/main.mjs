@@ -2,7 +2,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { parseRuleAutoSpec, parseRuleLintSpec, readRuleMetaRaw } from '../../../scripts/lib/rule-meta.mjs'
 import { RULE_PREDICATES } from '../../../scripts/lib/rule-predicates.mjs'
 
@@ -10,7 +10,7 @@ import { RULE_PREDICATES } from '../../../scripts/lib/rule-predicates.mjs'
  * Перевіряє поле `auto` у meta.json одного правила.
  * @param {string} id ідентифікатор правила
  * @param {Record<string, unknown>} raw сирий meta.json
- * @param {ReturnType<typeof createCheckReporter>} reporter репортер
+ * @param {ReturnType<typeof createViolationReporter>} reporter репортер
  * @returns {boolean} true, якщо поле валідне (або відсутнє)
  */
 function checkAutoField(id, raw, reporter) {
@@ -32,7 +32,7 @@ function checkAutoField(id, raw, reporter) {
  * @param {string} id ідентифікатор правила
  * @param {string} ruleDir каталог правила
  * @param {Record<string, unknown>} raw сирий meta.json
- * @param {ReturnType<typeof createCheckReporter>} reporter репортер
+ * @param {ReturnType<typeof createViolationReporter>} reporter репортер
  * @returns {boolean} true, якщо поле валідне (або відсутнє)
  */
 function checkLintField(id, ruleDir, raw, reporter) {
@@ -56,7 +56,7 @@ function checkLintField(id, ruleDir, raw, reporter) {
  * Валідує meta.json одного правила.
  * @param {string} id ідентифікатор правила
  * @param {string} ruleDir каталог правила
- * @param {ReturnType<typeof createCheckReporter>} reporter репортер
+ * @param {ReturnType<typeof createViolationReporter>} reporter репортер
  * @returns {void}
  */
 function checkRule(id, ruleDir, reporter) {
@@ -89,15 +89,16 @@ function checkRule(id, ruleDir, reporter) {
 
 /**
  * Валідує всі `npm/rules/<id>/meta.json`.
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — OK, 1 — порушення
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export function lint(ctx) {
+  const cwd = ctx.cwd
+  const reporter = createViolationReporter(ctx)
   const rulesDir = join(cwd, 'npm', 'rules')
   if (!existsSync(rulesDir)) {
     reporter.pass('npm/rules/ відсутній — немає правил для валідації')
-    return Promise.resolve(reporter.getExitCode())
+    return Promise.resolve(reporter.result())
   }
 
   for (const entry of readdirSync(rulesDir, { withFileTypes: true })) {
@@ -105,5 +106,5 @@ export function main(cwd = process.cwd()) {
     checkRule(entry.name, join(rulesDir, entry.name), reporter)
   }
 
-  return Promise.resolve(reporter.getExitCode())
+  return Promise.resolve(reporter.result())
 }

@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import {
   isGqlScanSourceFile,
   shouldSkipFileForGqlScan,
@@ -94,14 +94,14 @@ function checkExtensionsRecommendation(pass, fail, cwd) {
 /**
  * Перевіряє graphql.mdc: умовна вимога .graphqlrc.yml і graphql.vscode-graphql
  * за наявності gql tagged templates.
- * @returns {Promise<number>} 0 — OK, 1 — порушення
- * @param {string} [cwd] корінь репозиторію
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
-  const root = cwd
+  const root = ctx.cwd
   const ignorePaths = await loadCursorIgnorePaths(root)
   const candidates = await collectScanCandidates(root, ignorePaths)
   const hits = await collectGqlHits(root, candidates)
@@ -110,7 +110,7 @@ export async function main(cwd = process.cwd()) {
     pass(
       `Немає tagged template з тегом gql у .vue / JS / TS джерелах (переглянуто ${candidates.length} файлів) — .graphqlrc.yml не вимагається`
     )
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   pass(`Знайдено gql\`…\` у ${hits.length} файлі(ах): ${hits.slice(0, 5).join(', ')}${hits.length > 5 ? '…' : ''}`)
@@ -125,5 +125,5 @@ export async function main(cwd = process.cwd()) {
 
   checkExtensionsRecommendation(pass, fail, root)
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

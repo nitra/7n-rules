@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { readFile, readdir } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 /** Перший JSDoc-блок у файлі (не-жадібний). */
 const MODULE_JSDOC_RE = /\/\*\*[\s\S]*?\*\//
@@ -56,7 +56,7 @@ function isSourceMjs(fileEntry) {
  * @param {string} jsDir каталог `js/`
  * @param {import('node:fs').Dirent} fileEntry запис файлу
  * @param {string} cwd корінь репозиторію
- * @param {ReturnType<typeof createCheckReporter>} reporter репортер
+ * @param {ReturnType<typeof createViolationReporter>} reporter репортер
  * @returns {Promise<void>}
  */
 async function checkSourceFile(jsDir, fileEntry, cwd, reporter) {
@@ -81,7 +81,7 @@ async function checkSourceFile(jsDir, fileEntry, cwd, reporter) {
  * Перевіряє всі source-файли в одному `js/`-каталозі правила/скіла.
  * @param {string} jsDir каталог `js/`
  * @param {string} cwd корінь репозиторію
- * @param {ReturnType<typeof createCheckReporter>} reporter репортер
+ * @param {ReturnType<typeof createViolationReporter>} reporter репортер
  * @returns {Promise<void>}
  */
 async function checkJsDir(jsDir, cwd, reporter) {
@@ -96,7 +96,7 @@ async function checkJsDir(jsDir, cwd, reporter) {
  * правил/скілів і їхні `js/`-каталоги.
  * @param {string} absBase абсолютний шлях до base-сегмента
  * @param {string} cwd корінь репозиторію
- * @param {ReturnType<typeof createCheckReporter>} reporter репортер
+ * @param {ReturnType<typeof createViolationReporter>} reporter репортер
  * @returns {Promise<void>}
  */
 async function checkBaseSegment(absBase, cwd, reporter) {
@@ -114,11 +114,12 @@ async function checkBaseSegment(absBase, cwd, reporter) {
  * Сканує `npm/rules/*\/js/*.mjs` і `npm/skills/*\/js/*.mjs`.
  * Якщо поряд існує `docs/<stem>.md` — module-level JSDoc має бути pointer (≤1 рядок),
  * а не наратив; якщо docs немає — без обмежень.
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — OK, 1 — порушення
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const cwd = ctx.cwd
+  const reporter = createViolationReporter(ctx)
 
   for (const baseSegment of ['npm/rules', 'npm/skills']) {
     const absBase = join(cwd, baseSegment)
@@ -126,5 +127,5 @@ export async function main(cwd = process.cwd()) {
     await checkBaseSegment(absBase, cwd, reporter)
   }
 
-  return reporter.getExitCode()
+  return reporter.result()
 }

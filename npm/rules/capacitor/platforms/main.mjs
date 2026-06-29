@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 /** Мінімальна допустима мажорна версія Capacitor (capacitor.mdc) */
 const MIN_CAPACITOR_MAJOR = 8
@@ -405,13 +405,13 @@ async function isIosCocoaPodsExemptByNitraConfig(root) {
 }
 
 /**
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} **0** — **ok**; **1** — **fail** (див. **capacitor.mdc**)
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
-  const { pass, fail, getExitCode } = reporter
-  const root = cwd
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
+  const { pass, fail } = reporter
+  const root = ctx.cwd
 
   const acc = { byPath: new Map(), anyCapacitor: false }
   await collectCapacitorDataFromAllPackageJson(root, acc)
@@ -421,7 +421,7 @@ export async function main(cwd = process.cwd()) {
     pass(
       'Capacitor не виявлено (без capacitor.config у корені, без @capacitor/ у package.json) — check capacitor пропущено'
     )
-    return getExitCode()
+    return reporter.result()
   }
 
   pass('Проєкт з ознаками Capacitor — застосовую capacitor.mdc')
@@ -453,5 +453,5 @@ export async function main(cwd = process.cwd()) {
     )
   }
 
-  return getExitCode()
+  return reporter.result()
 }

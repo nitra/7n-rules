@@ -1,60 +1,43 @@
-import { existsSync, writeFileSync } from 'node:fs'
+/**
+ * lint-поверхня bun/licensee: read-only detector ліцензій npm-залежностей (`licensee`).
+ * Генерація дефолтного `.licensee.json` — окремий T0-fix (`fix-licensee.mjs`), не в detector-і.
+ */
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
-import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 
-/** Дефолтний allowlist: Blue Oak bronze — дозволяє MIT/Apache/BSD/ISC, блокує GPL/AGPL/LGPL. */
-const DEFAULT_LICENSEE_CONFIG = JSON.stringify({ licenses: { blueOak: 'bronze' }, corrections: true }, null, 2) + '\n'
-
 /**
- * Перевірка ліцензій npm-залежностей через `licensee`.
- * @param {string} [cwd] корінь проєкту
- * @param {{ readOnly?: boolean }} [opts]
- * @returns {number} 0 — OK, 1 — порушення
+ * Detector bun/licensee: ліцензії npm-залежностей через `licensee` (read-only).
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
  */
-function runLicenseeSteps(cwd = process.cwd(), opts = {}) {
-  const readOnly = opts.readOnly === true
-  const reporter = createCheckReporter()
-  const { pass, fail } = reporter
+export function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
+  const { fail } = reporter
+  const cwd = ctx.cwd
 
   const configPath = join(cwd, '.licensee.json')
   if (!existsSync(configPath)) {
-    if (readOnly) {
-      fail(
-        'lint-bun: licensee — немає .licensee.json; запустіть `npx @nitra/cursor fix bun` локально для генерації (bun.mdc)'
-      )
-      return reporter.getExitCode()
-    }
-    writeFileSync(configPath, DEFAULT_LICENSEE_CONFIG, 'utf8')
-    pass('lint-bun: licensee — створено .licensee.json з дефолтним allowlist (blueOak: bronze)')
+    fail(
+      'lint-bun: licensee — немає .licensee.json; запустіть `npx @nitra/cursor lint bun` локально для генерації (bun.mdc)',
+      'licensee-config-missing'
+    )
+    return reporter.result()
   }
 
   const bun = resolveCmd('bun')
   if (!bun) {
-    fail('lint-bun: `bun` не знайдено в PATH (bun.mdc)')
-    return reporter.getExitCode()
+    fail('lint-bun: `bun` не знайдено в PATH (bun.mdc)', 'bun-missing')
+    return reporter.result()
   }
 
-  const r = spawnSync(bun, ['x', 'licensee', '--production', '--quiet'], { cwd, stdio: 'inherit', shell: false })
-  if (r.status === 0) {
-    pass('lint-bun: licensee — ліцензії OK')
-  } else {
-    const code = typeof r.status === 'number' ? r.status : 1
-    fail(`lint-bun: licensee — порушення ліцензій (код ${code}, bun.mdc)`)
+  const r = spawnSync(bun, ['x', 'licensee', '--production', '--quiet'], { cwd, encoding: 'utf8', shell: false })
+  if (r.status !== 0) {
+    const out = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().slice(0, 2000)
+    fail(`lint-bun: licensee — порушення ліцензій (код ${r.status}, bun.mdc)${out ? `\n${out}` : ''}`, 'license-violation')
   }
-  return reporter.getExitCode()
-}
-
-/**
- * lint-поверхня bun: licensee-перевірка ліцензій npm-залежностей.
- * @param {string[] | undefined} _files ігнорується (whole-repo)
- * @param {string} [cwd] корінь
- * @param {{ readOnly?: boolean }} [opts]
- * @returns {Promise<number>} exit code
- */
-export function lint(_files, cwd = process.cwd(), opts = {}) {
-  return runStandardLint(import.meta.dirname, () => runLicenseeSteps(cwd, opts))
+  return reporter.result()
 }

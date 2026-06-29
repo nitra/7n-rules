@@ -6,7 +6,7 @@ import { basename, join, relative } from 'node:path'
 import { parseAllDocuments } from 'yaml'
 
 import { getRepositoryUrl } from '../../../scripts/auto-rules.mjs'
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 
@@ -178,17 +178,18 @@ export function isNitraOrAbieRepository(url) {
 
 /**
  * Перевіряє hasura.mdc для поточного робочого каталогу.
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — OK / правило не застосовується, 1 — порушення
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const cwd = ctx.cwd
+  const reporter = createViolationReporter(ctx)
   const { pass } = reporter
 
   const repositoryUrl = await readRootRepositoryUrl(cwd)
   if (!isNitraOrAbieRepository(repositoryUrl)) {
     pass('Пропущено: репозиторій не nitra і не abie (hasura.mdc застосовується лише до них)')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   const root = cwd
@@ -201,7 +202,7 @@ export async function main(cwd = process.cwd()) {
   const envFiles = await collectEnvFiles(root, ignorePaths)
   if (envFiles.length === 0) {
     pass('Не знайдено жодного *.env файла — нічого перевіряти')
-    return reporter.getExitCode()
+    return reporter.result()
   }
 
   for (const rel of envFiles) {
@@ -209,10 +210,10 @@ export async function main(cwd = process.cwd()) {
   }
 
   // Якщо у файлах не було жодної згадки HASURA_GRAPHQL_ENDPOINT — повідом про це.
-  const exit = reporter.getExitCode()
-  if (exit === 0) {
+  const res = reporter.result()
+  if (res.violations.length === 0) {
     const names = envFiles.map(p => basename(p)).join(', ')
     pass(`Перевірено ${envFiles.length} *.env файл(ів): ${names}`)
   }
-  return exit
+  return res
 }

@@ -2,7 +2,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 /**
  * @param {string} [cwd] корінь репозиторію (`process.cwd()` у звичайному прогоні)
@@ -14,10 +14,11 @@ export function applies(cwd = process.cwd()) {
 
 /**
  * Друкує короткий context-pass — самі перевірки виконують інші concerns.
- * @returns {number} 0 — все ок (фактичні порушення повертають інші концерни)
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export function main() {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
   reporter.pass('pyproject.toml знайдено в корені — застосовую python.mdc')
-  return reporter.getExitCode()
+  return reporter.result()
 }

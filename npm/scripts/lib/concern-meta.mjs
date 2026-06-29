@@ -15,8 +15,9 @@ import { join } from 'node:path'
 
 /**
  * @typedef {object} PolicySurface
+ * @property {'rego'|'template'} engine канонічне поле; derived з legacy `check:'template'`
  * @property {{ single?: string, walkGlob?: string|string[], required?: boolean }} files
- * @property {'template'|undefined} check
+ * @property {'template'|undefined} check legacy (deprecated) — лишається для backward-compat
  * @property {string|undefined} missingMessage
  */
 
@@ -60,9 +61,16 @@ export async function readConcernMeta(concernDir, name) {
   /** @type {PolicySurface|undefined} */
   let policy
   if (raw.policy && typeof raw.policy === 'object') {
+    const legacyTemplate = raw.policy.check === 'template'
+    const engine = raw.policy.engine === 'template' || raw.policy.engine === 'rego'
+      ? raw.policy.engine
+      : legacyTemplate
+        ? 'template'
+        : 'rego'
     policy = {
+      engine,
       files: raw.policy.files,
-      check: raw.policy.check === 'template' ? 'template' : undefined,
+      check: legacyTemplate ? 'template' : undefined,
       missingMessage: typeof raw.policy.missingMessage === 'string' ? raw.policy.missingMessage : undefined
     }
   }

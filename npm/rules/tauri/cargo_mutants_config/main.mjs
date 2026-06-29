@@ -5,7 +5,7 @@ import { dirname, join, relative } from 'node:path'
 
 import { parse as parseToml } from 'smol-toml'
 
-import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 
 const TAURI_BASELINE_HEADER = `# .cargo/mutants.toml — Tauri canonical cargo-mutants config (tauri.mdc).
@@ -116,17 +116,18 @@ async function processOneSrcTauri(srcTauriDir, cwd, reporter) {
 }
 
 /**
- * @param {string} [cwd] корінь проєкту (default: `process.cwd()` — CLI-сумісність)
- * @returns {Promise<number>} 0 — OK або silently skipped, 1 — порушення
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
-export async function main(cwd = process.cwd()) {
-  const reporter = createCheckReporter()
+export async function lint(ctx) {
+  const cwd = ctx.cwd
+  const reporter = createViolationReporter(ctx)
   const srcTauriDirs = await findSrcTauriDirs(cwd)
   if (srcTauriDirs.length === 0) {
-    return reporter.getExitCode()
+    return reporter.result()
   }
   for (const dir of srcTauriDirs) {
     await processOneSrcTauri(dir, cwd, reporter)
   }
-  return reporter.getExitCode()
+  return reporter.result()
 }

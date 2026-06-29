@@ -1,4 +1,12 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
-  "check": true
+  "lint": {
+    "scope": "full",
+    "glob": [
+      "**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}",
+      "**/package.json",
+      "**/jsconfig.json",
+      "**/k8s/base/configmap.yaml"
+    ]
+  }
 }
