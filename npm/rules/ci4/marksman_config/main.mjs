@@ -1,14 +1,13 @@
 /** @see ./docs/marksman_config.md */
 import { existsSync } from 'node:fs'
-import { copyFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const MARKSMAN_BASELINE_PATH = join(HERE, 'data', 'marksman_config', 'marksman.baseline.toml')
-const MARKSMAN_TARGET_FILENAME = '.marksman.toml'
+export const MARKSMAN_BASELINE_PATH = join(HERE, 'data', 'marksman_config', 'marksman.baseline.toml')
+export const MARKSMAN_TARGET_FILENAME = '.marksman.toml'
 
 /**
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
@@ -29,7 +28,10 @@ export async function lint(ctx) {
     return reporter.result()
   }
 
-  await copyFile(MARKSMAN_BASELINE_PATH, target)
-  reporter.pass(`${MARKSMAN_TARGET_FILENAME} створено з canonical baseline (${relative(cwd, target)}) (ci4.mdc)`)
+  reporter.fail(`${MARKSMAN_TARGET_FILENAME} відсутній — T0 скопіює canonical baseline (ci4.mdc)`, {
+    reason: 'marksman-config-missing',
+    file: MARKSMAN_TARGET_FILENAME,
+    data: { kind: 'marksman-config-missing' }
+  })
   return reporter.result()
 }

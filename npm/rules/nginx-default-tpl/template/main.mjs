@@ -413,6 +413,62 @@ function checkVscodeNginx(passFn, failFn, cwd) {
 }
 
 /**
+ * Read-only детектор: знаходить `default.tpl.conf` — застаріла назва, треба перейменувати
+ * у `default.conf.template`. T0 виконує міграцію через `migrateDefaultTplConfFiles`.
+ * @param {string} root корінь репо
+ * @param {string[]} ignorePaths виключені шляхи
+ * @param {(msg: string, opts?: object) => void} fail колбек порушення
+ * @returns {Promise<void>}
+ */
+async function detectDefaultTplConfFiles(root, ignorePaths, fail) {
+  /** @type {string[]} */
+  const oldPaths = []
+  await walkDir(
+    root,
+    p => {
+      if (basename(p) === 'default.tpl.conf') oldPaths.push(p)
+    },
+    ignorePaths
+  )
+  for (const abs of oldPaths) {
+    const rel = relative(root, abs).replaceAll('\\', '/') || abs
+    fail(`${rel}: застарілий файл default.tpl.conf — перейменуй на default.conf.template (nginx-default-tpl.mdc)`, {
+      reason: 'default-tpl-conf-legacy-name',
+      file: rel,
+      data: { kind: 'default-tpl-conf-legacy-name' }
+    })
+  }
+}
+
+/**
+ * Read-only детектор: знаходить `error_log off;` у `default.conf.template`.
+ * `off` — не валідний nginx-шлях, падає під readOnlyRootFilesystem; канон — `error_log /dev/null crit;`.
+ * T0 виконує заміну через `migrateErrorLogOffDirective`.
+ * @param {string} root корінь репо
+ * @param {string[]} ignorePaths виключені шляхи
+ * @param {(msg: string, opts?: object) => void} fail колбек порушення
+ * @returns {Promise<void>}
+ */
+async function detectErrorLogOffDirective(root, ignorePaths, fail) {
+  const templates = await findDefaultConfTemplatePaths(root, ignorePaths)
+  for (const abs of templates) {
+    let body
+    try {
+      body = await readFile(abs, 'utf8')
+    } catch {
+      continue
+    }
+    if (!body.includes('error_log') || !/error_log\s+off\s*;/u.test(body)) continue
+    const rel = relative(root, abs).replaceAll('\\', '/') || abs
+    fail(`${rel}: невалідна директива error_log off; — замінити на error_log /dev/null crit; (nginx-default-tpl.mdc)`, {
+      reason: 'error-log-off-directive',
+      file: rel,
+      data: { kind: 'error-log-off-directive' }
+    })
+  }
+}
+
+/**
  * Перевіряє відповідність проєкту правилам nginx-default-tpl.mdc
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
  * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
@@ -424,18 +480,8 @@ export async function lint(ctx) {
   const root = ctx.cwd
   const ignorePaths = await loadCursorIgnorePaths(root)
 
-  const { renamed: tplRenamed, overwritten: tplOverwritten } = await migrateDefaultTplConfFiles(root, ignorePaths)
-  for (const rel of tplRenamed) {
-    pass(`Перейменовано default.tpl.conf → default.conf.template: ${rel}`)
-  }
-  for (const rel of tplOverwritten) {
-    pass(`Перезаписано default.conf.template змістом default.tpl.conf: ${rel}`)
-  }
-
-  const errorLogFixed = await migrateErrorLogOffDirective(root, ignorePaths)
-  for (const rel of errorLogFixed) {
-    pass(`Замінено невалідне error_log off; → error_log /dev/null crit; у ${rel}`)
-  }
+  await detectDefaultTplConfFiles(root, ignorePaths, fail)
+  await detectErrorLogOffDirective(root, ignorePaths, fail)
 
   const templates = await findDefaultConfTemplatePaths(root, ignorePaths)
 

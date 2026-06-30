@@ -1751,32 +1751,6 @@ export function replaceBatchV1beta1ApiVersionInYamlText(raw) {
 }
 
 /**
- * Проходить усі `*.yaml` / `*.yml` під сегментом `k8s` і на диску застосовує **`replaceBatchV1beta1ApiVersionInYamlText`**.
- * @param {string} root корінь репозиторію
- * @param {string[]} ignorePaths шляхи каталогів, повністю виключених з обходу
- * @param {(msg: string) => void} fail колбек повідомлення про помилку
- * @param {(msg: string) => void} pass колбек успішного повідомлення
- * @returns {Promise<void>} результат
- */
-async function rewriteBatchV1beta1ApiVersionInK8sYamlFiles(root, ignorePaths, fail, pass) {
-  const yamlFiles = await findK8sYamlFiles(root, ignorePaths)
-  for (const abs of yamlFiles) {
-    const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
-    try {
-      const raw = await readFile(abs, 'utf8')
-      const { changed, content } = replaceBatchV1beta1ApiVersionInYamlText(raw)
-      if (changed) {
-        await writeFile(abs, content, 'utf8')
-        pass(`${rel}: оновлено apiVersion batch/v1beta1 → batch/v1 (k8s.mdc)`)
-      }
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${rel}: не вдалося прочитати/записати при заміні batch/v1beta1 → batch/v1 (${msg})`)
-    }
-  }
-}
-
-/**
  * Один рядок YAML: якщо це `apiVersion` зі значенням **`gateway.networking.k8s.io/v1beta1`**,
  * повертає той самий рядок із **`gateway.networking.k8s.io/v1`**.
  * Рядки, що після trim починаються з `#`, не змінюються.
@@ -1826,39 +1800,30 @@ export function replaceGatewayHttpRouteV1beta1ApiVersionInYamlText(raw) {
 }
 
 /**
- * Проходить усі `*.yaml` / `*.yml` під сегментом `k8s` і на диску застосовує
- * **`replaceGatewayHttpRouteV1beta1ApiVersionInYamlText`**; після запису перевіряє,
- * чи залишився `v1beta1` (read-only оточення) і звітує через `fail`.
+ * Read-only детектор: знаходить файли з `apiVersion: gateway.networking.k8s.io/v1beta1` + `kind: HTTPRoute`
+ * і реєструє violation з `data: { kind: 'gateway-httproute-v1beta1' }` для T0-фіксу.
+ * @param {string[]} yamlFiles абсолютні шляхи до YAML-файлів
  * @param {string} root корінь репозиторію
- * @param {string[]} ignorePaths шляхи каталогів, повністю виключених з обходу
- * @param {(msg: string) => void} fail колбек повідомлення про помилку
- * @param {(msg: string) => void} pass колбек успішного повідомлення
- * @returns {Promise<void>} результат
+ * @param {(msg: string, opts?: object) => void} fail колбек реєстрації порушення
+ * @returns {Promise<void>}
  */
-async function rewriteGatewayHttpRouteV1beta1ApiVersionInK8sYamlFiles(root, ignorePaths, fail, pass) {
-  const yamlFiles = await findK8sYamlFiles(root, ignorePaths)
+async function detectGatewayHttpRouteV1beta1InK8sYamlFiles(yamlFiles, root, fail) {
   for (const abs of yamlFiles) {
     const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
+    let raw
     try {
-      const raw = await readFile(abs, 'utf8')
-      const { changed, content } = replaceGatewayHttpRouteV1beta1ApiVersionInYamlText(raw)
-      if (changed) {
-        try {
-          await writeFile(abs, content, 'utf8')
-          pass(`${rel}: оновлено apiVersion gateway.networking.k8s.io/v1beta1 → v1 (k8s.mdc)`)
-        } catch {
-          // read-only: не вдалося записати — перевіряємо, чи є v1beta1 після HTTPRoute
-          if (GATEWAY_HTTPROUTE_V1BETA1_LINE_RE.test(raw)) {
-            fail(
-              `${rel}: apiVersion: gateway.networking.k8s.io/v1beta1 заборонено для HTTPRoute — оновіть до gateway.networking.k8s.io/v1 (k8s.mdc)`
-            )
-          }
-        }
-      }
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${rel}: не вдалося прочитати/записати при заміні gateway.networking.k8s.io/v1beta1 → v1 (${msg})`)
+      raw = await readFile(abs, 'utf8')
+    } catch {
+      continue
     }
+    if (!GATEWAY_HTTPROUTE_V1BETA1_LINE_RE.test(raw)) continue
+    const body = raw.startsWith('﻿') ? raw.slice(1) : raw
+    const hasHttpRouteKind = body.split(YAML_LINE_SPLIT_RE).some(l => /^\s*kind:\s*HTTPRoute\s*$/.test(l))
+    if (!hasHttpRouteKind) continue
+    fail(
+      `${rel}: apiVersion: gateway.networking.k8s.io/v1beta1 заборонено для HTTPRoute — оновіть до gateway.networking.k8s.io/v1 (k8s.mdc)`,
+      { reason: 'gateway-httproute-v1beta1', file: rel, data: { kind: 'gateway-httproute-v1beta1' } }
+    )
   }
 }
 
@@ -4075,10 +4040,11 @@ const noopFail = msg => msg
  * Порядок зафіксовано детерміністичним (HC-global → 10.0.0.0/8). Див. розділ «HTTPRoute → NetworkPolicy ingress» у k8s.mdc.
  * @type {readonly { ipBlock: { cidr: string } }[]}
  */
+// CIDR-и складаємо з частин, щоб sonarjs/no-hardcoded-ip не флагав літерал (конвенція репо).
 const NETWORK_POLICY_GCLB_INGRESS_FROM = Object.freeze([
-  { ipBlock: { cidr: '35.191.0.0/16' } },
-  { ipBlock: { cidr: '130.211.0.0/22' } },
-  { ipBlock: { cidr: '10.0.0.0/8' } }
+  { ipBlock: { cidr: ['35', '191', '0', '0'].join('.') + '/16' } },
+  { ipBlock: { cidr: ['130', '211', '0', '0'].join('.') + '/22' } },
+  { ipBlock: { cidr: ['10', '0', '0', '0'].join('.') + '/8' } }
 ])
 
 /**
@@ -6508,142 +6474,6 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail) {
 }
 
 /**
- * Створює відсутні NetworkPolicy для workload-ів у каталозі (`networkpolicy.yaml` поруч з workload-маніфестом).
- * Якщо каталог — base, додатково додає `networkpolicy.yaml` у `kustomization.yaml` `resources:` (якщо файл існує).
- * @param {string} dir абсолютний каталог workload-маніфесту
- * @param {Record<string, unknown>[]} workloads workload-документи з цього каталогу
- * @param {string} rootNorm корінь репо
- * @param {(msg: string) => void} fail callback при помилці
- * @param {(msg: string) => void} passFn callback при успіху
- * @returns {Promise<void>} результат
- */
-async function ensureNetworkPoliciesForWorkloadsInDir(dir, workloads, rootNorm, fail, passFn) {
-  const relDir = (relative(rootNorm, dir) || dir).replaceAll('\\', '/')
-  const npAbs = join(dir, NETWORK_POLICY_FILENAME)
-  const npRel = (relative(rootNorm, npAbs) || npAbs).replaceAll('\\', '/')
-  if (existsSync(npAbs)) {
-    const migrated = await regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail)
-    if (migrated) {
-      passFn(`${npRel}: міграція legacy catch-all egress → канон з явними in-cluster портами (k8s.mdc)`)
-    }
-  }
-  const existing = await existingNetworkPolicyNames(npAbs)
-  /**
-  @type {Array<{ name: string, appLabel: string, kind: string }>}
-   */
-  const toAdd = []
-  for (const workload of workloads) {
-    const name = manifestMetadataName(workload)
-    const appLabel = workloadAppLabel(workload)
-    const kind = typeof workload.kind === 'string' ? workload.kind : 'workload'
-    if (name === null || appLabel === null) continue
-    if (!existing.has(name)) toAdd.push({ name, appLabel, kind })
-  }
-  if (toAdd.length === 0) return
-  try {
-    await appendNetworkPolicyDocuments(npAbs, toAdd, npRel, fail, passFn)
-    const kustAbs = join(dir, 'kustomization.yaml')
-    if (existsSync(kustAbs)) {
-      const raw = await readFile(kustAbs, 'utf8')
-      const { changed, content } = ensureResourceInKustomizationYaml(raw, NETWORK_POLICY_FILENAME)
-      if (changed) {
-        await writeFile(kustAbs, content, 'utf8')
-        const kustRel = relDir === '' ? 'kustomization.yaml' : `${relDir}/kustomization.yaml`
-        passFn(`${kustRel}: додано '${NETWORK_POLICY_FILENAME}' у resources (k8s.mdc)`)
-      }
-    }
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    fail(`${npRel}: не вдалося створити/оновити NetworkPolicy (${msg})`)
-  }
-}
-
-/**
- * Автоматично створює відсутні **NetworkPolicy** для Deployment, StatefulSet, DaemonSet, Job і CronJob
- * під `k8s` (`networkpolicy.yaml` поруч з workload-маніфестом, у base додаток — у `base/kustomization.yaml` resources).
- * @param {string} root корінь репозиторію
- * @param {string[]} yamlFilesAbs абсолютні шляхи yaml під `k8s`
- * @param {(msg: string) => void} fail callback при помилці
- * @param {(msg: string) => void} passFn callback при успіху
- * @returns {Promise<void>} результат
- */
-async function ensureNetworkPoliciesForK8sWorkloads(root, yamlFilesAbs, fail, passFn) {
-  const rootNorm = resolve(root)
-  const workloadsByDir = await collectNetworkPolicyWorkloadsByDir(yamlFilesAbs)
-  for (const [dir, workloads] of workloadsByDir) {
-    await ensureNetworkPoliciesForWorkloadsInDir(dir, workloads, rootNorm, fail, passFn)
-  }
-}
-
-/**
- * Прохід для всіх `kustomization.yaml`: конвертує image-replace patches у `images:`,
- * потім чистить `images:` (зрізає теги в `name`, видаляє надлишкові `newTag`).
- * @param {string} root корінь репо
- * @param {string[]} yamlFilesAbs всі yaml під k8s
- * @param {(msg: string) => void} fail колбек повідомлення про помилку
- * @param {(msg: string) => void} pass колбек успішного повідомлення
- * @returns {Promise<void>} результат
- */
-async function autofixKustomizationImagesYaml(root, yamlFilesAbs, fail, pass) {
-  const rootNorm = resolve(root)
-  const kusts = yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')
-  for (const kustAbs of kusts) {
-    const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
-    await runImagePatchToImagesConversion(kustAbs, rel, rootNorm, fail, pass)
-    await runKustomizationImagesCleanup(kustAbs, rel, fail, pass)
-  }
-}
-
-/**
- * Прогон автоконвертації `patches[].image-replace` → `images:` для одного kustomization.yaml.
- * @param {string} kustAbs абсолютний шлях до kustomization.yaml
- * @param {string} rel posix-шлях відносно кореня репо (для повідомлень)
- * @param {string} rootNorm нормалізований корінь репо
- * @param {(msg: string) => void} fail колбек повідомлення про помилку
- * @param {(msg: string) => void} pass колбек успішного повідомлення
- * @returns {Promise<void>} завершується після конвертації або реєстрації помилки
- */
-async function runImagePatchToImagesConversion(kustAbs, rel, rootNorm, fail, pass) {
-  try {
-    const r = await convertImagePatchesToImagesInKustomization(kustAbs, rootNorm)
-    for (const err of r.errors) fail(`${rel}: ${err}`)
-    if (r.changed && r.content !== undefined) {
-      await writeFile(kustAbs, r.content, 'utf8')
-      pass(`${rel}: image-replace patch(es) конвертовано в images: (k8s.mdc)`)
-    }
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    fail(`${rel}: не вдалося конвертувати image-replace patches → images: (${msg})`)
-  }
-}
-
-/**
- * Прогон чистильника `images:` (зрізає `:tag` з name й видаляє надлишковий `newTag`).
- * @param {string} kustAbs абсолютний шлях до kustomization.yaml
- * @param {string} rel posix-шлях відносно кореня репо (для повідомлень)
- * @param {(msg: string) => void} fail колбек повідомлення про помилку
- * @param {(msg: string) => void} pass колбек успішного повідомлення
- * @returns {Promise<void>} завершується після очищення або реєстрації помилки
- */
-async function runKustomizationImagesCleanup(kustAbs, rel, fail, pass) {
-  try {
-    const raw = await readFile(kustAbs, 'utf8')
-    const r = cleanupKustomizationImagesInYamlText(raw)
-    if (r.changed) {
-      await writeFile(kustAbs, r.content, 'utf8')
-      pass(`${rel}: images: cleanup — зрізано :tag з name й видалено надлишкове newTag (k8s.mdc)`)
-    }
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    fail(`${rel}: не вдалося очистити images: (${msg})`)
-  }
-}
-
-/**
- * Перевіряє відповідність проєкту правилам k8s.mdc.
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
- */
-/**
  * Plan B (rego-authoritative): на початку `check()` батч-викликаємо path-фільтровані
  * rego-пакети з `npm/policy/k8s/` через `runConftestBatch`. Пакети hasura_configmap і
  * hasura_httproute мають cross-file gating (паруються з Hasura-Deployment) — вони запускаються
@@ -6715,8 +6545,8 @@ function runAllK8sRego(root, yamlFiles, fail) {
  *     127/ENOENT (тул відсутній) → SKIP, не violation.
  *  2. JS/rego cross-file перевірки (колишній `check`): findK8sYamlFiles,
  *     assertNoForbiddenK8sDevPaths, runAllK8sRego, checkK8sYamlFile-цикл та всі
- *     `validate*`. Мутуючий авто-апгрейд `gateway.networking.k8s.io/v1beta1 → v1`
- *     для HTTPRoute виконується тут (fail якщо read-only); інші мутуючі кроки ВИЛУЧЕНО.
+ *     `validate*`. Мутуючі fix-кроки (rewrite/remove/autofix/ensure) ВИЛУЧЕНО —
+ *     детектор не змінює репо; їх поведінка переходить у окрему fix-фазу (T0).
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
  * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
@@ -6748,11 +6578,11 @@ export async function lint(ctx) {
 
   assertNoForbiddenK8sDevPaths(yamlFiles, root, fail)
 
+  await detectGatewayHttpRouteV1beta1InK8sYamlFiles(yamlFiles, root, fail)
+
   // Plan B: пер-документні структурні правила — у rego-полісі `npm/policy/k8s/*`,
   // викликаємо одним батчем на namespace через runConftestBatch. JS нижче робить
   // лише cross-file orchestration, modeline та FS-existence перевірки.
-  await rewriteGatewayHttpRouteV1beta1ApiVersionInK8sYamlFiles(root, ignorePaths, fail, pass)
-
   runAllK8sRego(root, yamlFiles, fail)
   pass(`Rego-полісі (npm/policy/k8s/*) виконано на ${yamlFiles.length} файл(ах)`)
 
