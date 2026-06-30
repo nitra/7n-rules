@@ -39,7 +39,12 @@ async function setupMinimalVueAppWorkspace(dir, opts = {}) {
   await writeJson(join(dir, 'package.json'), {
     name: 'mono',
     private: true,
-    workspaces: ['app']
+    workspaces: ['app'],
+    devDependencies: {
+      vitest: '^3.0.0',
+      '@vitest/coverage-v8': '^3.0.0',
+      '@stryker-mutator/vitest-runner': '^9.0.0'
+    }
   })
   await ensureDir(join(dir, 'app'))
   await writeJson(join(dir, 'app', 'package.json'), {
