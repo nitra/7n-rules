@@ -1,15 +1,20 @@
 /**
- * T0-autofix для `changelog/js/consistency.mjs` — детерміноване створення
- * change-файлу для воркспейсів з релевантними змінами без change-файлу.
- * Subject останнього git-коміту стає описом; bump завжди `patch`.
+ * T0-autofix для `changelog/consistency` — детерміноване створення change-файлу
+ * для воркспейсів з релевантними змінами без change-файлу. Subject останнього
+ * git-коміту стає описом; bump завжди `patch`.
+ *
+ * Unified lint surface: structured violations (test(violations)/apply(violations,ctx)).
+ * Назви воркспейсів читаються з `v.message` ("<ws>: є релевантні зміни, але немає
+ * change-файлу"), не з агрегованого output-рядка.
  */
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 
 import { writeChange } from '../../release/change.mjs'
 
-const MISSING_CHANGE_RE = /є релевантні зміни, але немає change-файлу/
-const MISSING_CHANGE_MATCH_ALL_RE = /(?:^|\s)([\w./@-]+): є релевантні зміни, але немає change-файлу/gm
+const MISSING_CHANGE_RE = /є релевантні зміни, але немає change-файлу/u
+/** Витягує мітку воркспейсу з message-а одного violation. */
+const MISSING_CHANGE_LABEL_RE = /^(\S+): є релевантні зміни, але немає change-файлу/u
 
 const CHANGE_BUMP = 'patch'
 const CHANGE_SECTION = 'Changed'
@@ -25,26 +30,42 @@ function autoChangeMessage(cwd) {
   return subject || CHANGE_FALLBACK_MESSAGE
 }
 
-/** @type {import('../../../scripts/lib/fix/discover-t0-patterns.mjs').T0Pattern[]} */
+/**
+ * Мітка воркспейсу (`<root>` для кореня) → шлях для `writeChange` (`.` для кореня).
+ * @param {string} label мітка з повідомлення
+ * @returns {string} workspace для writeChange
+ */
+function labelToWorkspace(label) {
+  return label === '<root>' ? '.' : label
+}
+
+/** @type {import('../../../scripts/lib/lint-surface/types.mjs').T0Pattern[]} */
 export const patterns = [
   {
     id: 'changelog-create-change-file',
-    test: out => MISSING_CHANGE_RE.test(out),
-    apply: async (out, cwd) => {
-      const workspaces = Array.from(out.matchAll(MISSING_CHANGE_MATCH_ALL_RE), m => m[1])
-      if (workspaces.length === 0) return { ok: false, action: 'no match' }
+    test: violations => violations.some(v => MISSING_CHANGE_RE.test(v.message)),
+    apply: async (violations, ctx) => {
+      const cwd = ctx.cwd
+      const workspaces = []
+      for (const v of violations) {
+        const m = MISSING_CHANGE_LABEL_RE.exec(v.message)
+        if (m) workspaces.push(labelToWorkspace(m[1]))
+      }
+      if (workspaces.length === 0) return { touchedFiles: [] }
 
       const message = autoChangeMessage(cwd)
-      const created = []
-      for (const ws of workspaces) {
-        try {
-          const rel = await writeChange({ bump: CHANGE_BUMP, section: CHANGE_SECTION, message, ws, cwd })
-          created.push(ws === '.' ? rel : join(ws, rel))
-        } catch (error) {
-          return { ok: false, action: `writeChange ${ws}: ${error.message}` }
-        }
+      const touchedFiles = []
+      for (const ws of new Set(workspaces)) {
+        const rel = await writeChange({ bump: CHANGE_BUMP, section: CHANGE_SECTION, message, ws, cwd })
+        const created = ws === '.' ? rel : join(ws, rel)
+        const abs = join(cwd, created)
+        ctx.recordWrite?.(abs)
+        touchedFiles.push(abs)
       }
-      return { ok: true, action: `створено change-файл (${CHANGE_BUMP}/${CHANGE_SECTION}): ${created.join(', ')}` }
+      return {
+        touchedFiles,
+        message: `створено change-файл (${CHANGE_BUMP}/${CHANGE_SECTION}): ${touchedFiles.join(', ')}`
+      }
     }
   }
 ]

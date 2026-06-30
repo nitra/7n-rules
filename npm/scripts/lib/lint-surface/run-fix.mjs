@@ -114,7 +114,7 @@ export async function fixConcern(item, initialViolations, deps) {
   const concernName = item.entry.concern.name
   const concernDir = item.entry.concern.dir
   /** @type {LintContext} */
-  const lintCtx = { cwd, ruleId, concernId: concernName, files: item.files }
+  const lintCtx = { cwd, ruleId, concernId: concernName, concernDir, files: item.files }
 
   // ── T0 (детермінований, permanent) ──
   const patterns = deps.t0Override ?? (await loadT0Patterns(concernDir, concernName))
@@ -128,8 +128,9 @@ export async function fixConcern(item, initialViolations, deps) {
     initialViolations = afterT0
   }
 
-  // ── Worker ladder ──
-  const worker = deps.workerOverride ?? (await loadFixWorker(concernDir))
+  // ── Worker ladder ── concern-specific fix-worker.mjs, інакше дефолтний pi-agent worker.
+  let worker = deps.workerOverride ?? (await loadFixWorker(concernDir))
+  if (!worker) worker = (await import('./default-worker.mjs')).fixWorker
   if (!worker || ladder.length === 0) return false
 
   // S1: знімок post-T0. Один tracker акумулює pre-images; rollback цілить у S1.

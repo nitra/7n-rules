@@ -1,45 +1,56 @@
 /**
- * Shared T0-autofix паттерн для правил із `vscode_extensions.rego`.
- * Читає назву розширення з violation-message і додає його до
- * `.vscode/extensions.json#recommendations`.
+ * Shared T0-autofix паттерн для правил із `vscode_extensions` policy-поверхнею.
+ * Гарантує, що `.vscode/extensions.json#recommendations` містить усі канонічні
+ * розширення з `template/extensions.json.snippet.json` свого concern-а (створює файл
+ * якщо відсутній, домерджує відсутні). Один механізм для всіх vscode_extensions-правил.
  *
- * Не прив'язаний до конкретного правила — один механізм для всіх правил,
- * що емітують «recommendations має містити "…"».
+ * Unified lint surface: structured violations (test(violations)/apply(violations,ctx)),
+ * канон читається з template концерну (ctx.concernDir), не з тексту violation.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { join, dirname } from 'node:path'
 
-const REC_REQUIRE_RE = /recommendations має містити "[^"]+"/
-const REC_MATCH_ALL_RE = /recommendations має містити "([^"]+)"/g
+const REC_REQUIRE_RE = /recommendations має містити|extensions\.json/u
 
-/** @type {import('./discover-t0-patterns.mjs').T0Pattern[]} */
+/** @type {import('../lint-surface/types.mjs').T0Pattern[]} */
 export const patterns = [
   {
     id: 'vscode-ext-add',
-    test: out => REC_REQUIRE_RE.test(out),
-    apply: (out, cwd) => {
-      const matches = [...out.matchAll(REC_MATCH_ALL_RE)]
-      if (matches.length === 0) return { ok: false, action: 'no match' }
+    test: violations =>
+      violations.some(v => v.reason === 'policy-file-missing' || REC_REQUIRE_RE.test(v.message)),
+    apply: (violations, ctx) => {
+      const snippetPath = ctx.concernDir
+        ? join(ctx.concernDir, 'template', 'extensions.json.snippet.json')
+        : null
+      if (!snippetPath || !existsSync(snippetPath)) return { touchedFiles: [] }
 
-      const extPath = join(cwd, '.vscode/extensions.json')
-      if (!existsSync(extPath)) {
-        return { ok: false, action: '.vscode/extensions.json не знайдено' }
-      }
-
-      let parsed
+      /** @type {string[]} */
+      let canonical = []
       try {
-        parsed = JSON.parse(readFileSync(extPath, 'utf8'))
+        canonical = JSON.parse(readFileSync(snippetPath, 'utf8')).recommendations ?? []
       } catch {
-        return { ok: false, action: '.vscode/extensions.json: невалідний JSON' }
+        return { touchedFiles: [] }
       }
+      if (canonical.length === 0) return { touchedFiles: [] }
 
+      const extPath = join(ctx.cwd, '.vscode/extensions.json')
+      let parsed = {}
+      if (existsSync(extPath)) {
+        try {
+          parsed = JSON.parse(readFileSync(extPath, 'utf8'))
+        } catch {
+          return { touchedFiles: [] } // невалідний JSON — не чіпаємо детермінованим фіксом
+        }
+      }
       const recs = Array.isArray(parsed.recommendations) ? parsed.recommendations : []
-      const toAdd = matches.map(m => m[1]).filter(e => !recs.includes(e))
-      if (toAdd.length === 0) return { ok: false, action: 'вже є' }
+      const toAdd = canonical.filter(e => !recs.includes(e))
+      if (toAdd.length === 0 && existsSync(extPath)) return { touchedFiles: [] }
 
+      ctx.recordWrite?.(extPath)
       parsed.recommendations = [...recs, ...toAdd]
+      mkdirSync(dirname(extPath), { recursive: true })
       writeFileSync(extPath, JSON.stringify(parsed, null, 2) + '\n', 'utf8')
-      return { ok: true, action: `додано до extensions.json: ${toAdd.join(', ')}` }
+      return { touchedFiles: [extPath], message: `extensions.json: +${toAdd.join(', ') || 'created'}` }
     }
   }
 ]

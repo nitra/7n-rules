@@ -83,7 +83,7 @@ function isIgnored(root, abs) {
  *   touchedFiles: () => string[]
  * }} guard
  */
-export function createWriteGuard({ cwd, root, checkIgnore = isIgnored }) {
+export function createWriteGuard({ cwd, root, checkIgnore = isIgnored, onCapture }) {
   const rawRoot = root === undefined ? gitRoot(cwd) : root
   const gitRootDir = rawRoot ? realpathBestEffort(rawRoot) : rawRoot
   // editLog — повні правки агента (oldText/newText / content) для телеметрії §7.
@@ -116,6 +116,8 @@ export function createWriteGuard({ cwd, root, checkIgnore = isIgnored }) {
       // 4. Allow + Snapshot pre-image на перший дотик + лог правки (телеметрія §7).
       if (!state.preImages.has(abs)) {
         state.preImages.set(abs, existsSync(abs) ? readFileSync(abs, 'utf8') : NEW_FILE)
+        // Bridge у central rollback unified lint surface: записати pre-image ДО запису.
+        onCapture?.(abs)
       }
       state.editLog.push({
         path: abs,

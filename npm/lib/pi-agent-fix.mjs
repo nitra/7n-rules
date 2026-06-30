@@ -160,7 +160,8 @@ export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
     return fail(`registry: ${e.message}`)
   }
 
-  const guard = createWriteGuard({ cwd, root })
+  // onCapture — bridge у central rollback unified lint surface (ctx.recordWrite).
+  const guard = createWriteGuard({ cwd, root, onCapture: opts.recordWrite })
   let session
   try {
     session = await createSession({

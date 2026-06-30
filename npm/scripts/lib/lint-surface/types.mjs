@@ -15,6 +15,8 @@
  * @property {string} cwd абсолютний корінь consumer-репо
  * @property {string} ruleId id правила (`rules/<rule>`)
  * @property {string} concernId id concern-а (`rules/<rule>/<concern>`)
+ * @property {string} [concernDir] абсолютний шлях до каталогу concern-а (для T0, що читають
+ *   власний `template/`); runner заповнює, detector зазвичай не потребує
  * @property {string[]} [files] posix-relative файли від `cwd` для per-file запуску;
  *   `undefined` означає whole-repo
  */

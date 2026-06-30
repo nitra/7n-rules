@@ -1,46 +1,54 @@
 /**
- * T0-autofix паттерни для `style/js/tooling.mjs` — детерміновані FS-виправлення:
+ * T0-autofix паттерни для `style/tooling` — детерміновані FS-виправлення:
  * створення або доповнення `.stylelintignore` та додавання `stylelint` до `package.json`.
+ *
+ * Unified lint surface: structured violations (test(violations)/apply(violations,ctx)).
+ * Тип порушення визначається за `v.message`, не за агрегованим output-рядком.
  */
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-/** @type {import('../../../scripts/lib/fix/discover-t0-patterns.mjs').T0Pattern[]} */
+/** @type {import('../../../scripts/lib/lint-surface/types.mjs').T0Pattern[]} */
 export const patterns = [
   {
     id: 'style-stylelintignore-create',
-    test: out => /\.stylelintignore не існує/.test(out),
-    apply: (_out, cwd) => {
-      writeFileSync(join(cwd, '.stylelintignore'), 'dist/\n', 'utf8')
-      return { ok: true, action: 'створено .stylelintignore' }
+    test: violations => violations.some(v => /\.stylelintignore не існує/u.test(v.message)),
+    apply: (_violations, ctx) => {
+      const target = join(ctx.cwd, '.stylelintignore')
+      ctx.recordWrite?.(target)
+      writeFileSync(target, 'dist/\n', 'utf8')
+      return { touchedFiles: [target], message: 'створено .stylelintignore' }
     }
   },
 
   {
     id: 'style-stylelintignore-dist-add',
-    test: out => /\.stylelintignore не містить рядка dist\//.test(out),
-    apply: (_out, cwd) => {
-      appendFileSync(join(cwd, '.stylelintignore'), '\ndist/\n', 'utf8')
-      return { ok: true, action: 'додано dist/ до .stylelintignore' }
+    test: violations => violations.some(v => /\.stylelintignore не містить рядка dist\//u.test(v.message)),
+    apply: (_violations, ctx) => {
+      const target = join(ctx.cwd, '.stylelintignore')
+      ctx.recordWrite?.(target)
+      appendFileSync(target, '\ndist/\n', 'utf8')
+      return { touchedFiles: [target], message: 'додано dist/ до .stylelintignore' }
     }
   },
 
   {
     id: 'style-pkg-stylelint-add',
-    test: out => /Немає конфігу stylelint/.test(out),
-    apply: (_out, cwd) => {
-      const pkgPath = join(cwd, 'package.json')
-      if (!existsSync(pkgPath)) return { ok: false, action: 'package.json не знайдено' }
+    test: violations => violations.some(v => /Немає конфігу stylelint/u.test(v.message)),
+    apply: (_violations, ctx) => {
+      const pkgPath = join(ctx.cwd, 'package.json')
+      if (!existsSync(pkgPath)) return { touchedFiles: [] }
       let pkg
       try {
         pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
       } catch {
-        return { ok: false, action: 'package.json: невалідний JSON' }
+        return { touchedFiles: [] }
       }
-      if (pkg.stylelint) return { ok: false, action: 'stylelint вже є в package.json' }
+      if (pkg.stylelint) return { touchedFiles: [] }
+      ctx.recordWrite?.(pkgPath)
       pkg.stylelint = { extends: '@nitra/stylelint-config' }
       writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8')
-      return { ok: true, action: 'додано stylelint до package.json' }
+      return { touchedFiles: [pkgPath], message: 'додано stylelint до package.json' }
     }
   }
 ]

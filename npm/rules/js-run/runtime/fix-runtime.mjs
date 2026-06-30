@@ -1,14 +1,18 @@
 /**
- * T0-autofix для `js-run/js/runtime.mjs` — детерміноване створення канонічного
+ * T0-autofix для `js-run/runtime` — детерміноване створення канонічного
  * `jsconfig.json` у backend-пакетах із `src/` де він відсутній. Канон читається
  * з `jsconfig/template/jsconfig.json.snippet.json` (єдине джерело істини).
+ *
+ * Unified lint surface: structured violations (test(violations)/apply(violations,ctx)).
+ * Workspace-и читаються з `v.message` ("[<ws>] є каталог src/, але немає jsconfig.json").
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const JSCONFIG_MISSING_RE = /є каталог src\/, але немає jsconfig\.json/
-const JSCONFIG_MISSING_MATCH_ALL_RE = /\[([^\]]+)\] є каталог src\/, але немає jsconfig\.json/gu
+const JSCONFIG_MISSING_RE = /є каталог src\/, але немає jsconfig\.json/u
+/** Витягує workspace із message-а одного violation (`[<ws>] є каталог src/…`). */
+const JSCONFIG_MISSING_WS_RE = /\[([^\]]+)\] є каталог src\/, але немає jsconfig\.json/u
 
 const JSCONFIG_CONTENT =
   readFileSync(
@@ -16,26 +20,27 @@ const JSCONFIG_CONTENT =
     'utf8'
   ).trimEnd() + '\n'
 
-/** @type {import('../../../scripts/lib/fix/discover-t0-patterns.mjs').T0Pattern[]} */
+/** @type {import('../../../scripts/lib/lint-surface/types.mjs').T0Pattern[]} */
 export const patterns = [
   {
     id: 'js-run-jsconfig-create',
-    test: out => JSCONFIG_MISSING_RE.test(out),
-    apply: (out, cwd) => {
-      const matches = [...out.matchAll(JSCONFIG_MISSING_MATCH_ALL_RE)]
-      if (matches.length === 0) return { ok: false, action: 'no match' }
-
-      const created = []
-      for (const m of matches) {
+    test: violations => violations.some(v => JSCONFIG_MISSING_RE.test(v.message)),
+    apply: (violations, ctx) => {
+      const cwd = ctx.cwd
+      const touchedFiles = []
+      for (const v of violations) {
+        const m = JSCONFIG_MISSING_WS_RE.exec(v.message)
+        if (!m) continue
         const ws = m[1]
         const target = join(cwd, ws, 'jsconfig.json')
         if (!existsSync(target)) {
+          ctx.recordWrite?.(target)
           writeFileSync(target, JSCONFIG_CONTENT, 'utf8')
-          created.push(ws)
+          touchedFiles.push(target)
         }
       }
-      if (created.length === 0) return { ok: false, action: 'jsconfig.json вже існує в усіх воркспейсах' }
-      return { ok: true, action: `створено jsconfig.json: ${created.join(', ')}` }
+      if (touchedFiles.length === 0) return { touchedFiles: [] }
+      return { touchedFiles, message: `створено jsconfig.json: ${touchedFiles.join(', ')}` }
     }
   }
 ]
