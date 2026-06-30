@@ -312,7 +312,7 @@ const KUSTOMIZE_CONFIG_API_PREFIX = 'kustomize.config.k8s.io/'
  * @param {string[]} b другий tuple
  * @returns {number} `< 0` якщо `a` менший, `> 0` якщо більший, `0` — рівні
  */
-function compareStringTuplesEn(a, b) {
+export function compareStringTuplesEn(a, b) {
   const n = Math.max(a.length, b.length)
   for (let i = 0; i < n; i++) {
     const av = a[i] ?? ''
@@ -344,7 +344,7 @@ function stringTuplesAreSortedEn(tuples) {
  * @param {unknown} patchItem елемент масиву `patches[]`
  * @returns {string[]} tuple для порівняння
  */
-function kustomizationPatchSortKey(patchItem) {
+export function kustomizationPatchSortKey(patchItem) {
   if (patchItem === null || typeof patchItem !== 'object' || Array.isArray(patchItem)) {
     return ['', '', '', '']
   }
@@ -3468,7 +3468,11 @@ async function checkK8sYamlFile(abs, root, fail, pass) {
     // Але `# yaml-language-server: $schema=…` дозволено **лише** у першому рядку — якщо він
     // зустрічається нижче, це порушення (yaml-language-server чекає на нього у заголовку файлу).
     if (countSchemaModelines(lines) > 0) {
-      fail(`${rel}: рядок # yaml-language-server: $schema=… має бути першим у файлі (без префіксів перед #; k8s.mdc)`)
+      fail(`${rel}: рядок # yaml-language-server: $schema=… має бути першим у файлі (без префіксів перед #; k8s.mdc)`, {
+        reason: 'schema-modeline-first',
+        file: rel,
+        data: { kind: 'schema-modeline-first' }
+      })
       return
     }
     pass(`${rel}: без modeline — перевірка $schema пропущена (немає публічної схеми; k8s.mdc)`)
@@ -6485,6 +6489,29 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail) {
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {void} результат
  */
+/**
+ * Structured fix-hint (#3) для rego-violation із `runAllK8sRego` — щоб T0
+ * (`fix-manifests.mjs`) автофіксив детерміновано, не парсячи message. Класифікація
+ * за namespace пакета + патерном повідомлення. Повертає `{ reason, file, data }` або undefined.
+ * @param {string} ns rego-namespace (`k8s.manifest`, `k8s.network_policy`, `k8s.kustomization`)
+ * @param {string} file posix-relative шлях від cwd
+ * @param {unknown} message текст rego-violation
+ * @returns {{ reason: string, file: string, data: { kind: string } } | undefined}
+ */
+function k8sRegoFixHint(ns, file, message) {
+  const m = String(message ?? '')
+  if (ns === 'k8s.manifest' && /spec\.strategy має бути RollingUpdate/u.test(m)) {
+    return { reason: 'deployment-strategy', file, data: { kind: 'deployment-strategy' } }
+  }
+  if (ns === 'k8s.network_policy' && /відсутнє обовʼязкове egress-правило/u.test(m)) {
+    return { reason: 'networkpolicy-egress', file, data: { kind: 'networkpolicy-egress' } }
+  }
+  if (ns === 'k8s.kustomization' && /patches має бути за алфавітом/u.test(m)) {
+    return { reason: 'kustomization-patches-sort', file, data: { kind: 'kustomization-patches-sort' } }
+  }
+  return undefined
+}
+
 function runAllK8sRego(root, yamlFiles, fail) {
   const relOf = abs => relative(root, abs).replaceAll('\\', '/') || abs
 
@@ -6531,7 +6558,8 @@ function runAllK8sRego(root, yamlFiles, fail) {
       templateData: t.templateData
     })
     for (const v of violations) {
-      fail(`${relOf(v.filename)}: ${v.message}`)
+      const rel = relOf(v.filename)
+      fail(`${rel}: ${v.message}`, k8sRegoFixHint(t.ns, rel, v.message))
     }
   }
 }
