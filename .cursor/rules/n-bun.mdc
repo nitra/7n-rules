@@ -21,18 +21,18 @@ version: '2.1'
 linker = "hoisted"
 ```
 
-## Конфігурація bunfig.toml
+## Rego-gate: відповідність bunfig.toml канонічному шаблону
 
-У корені репозиторію має бути **`bunfig.toml`** з **hoisted** лінкером (пласке `node_modules`, сумісне з інструментами, які не розуміють ізольований layout Bun).
+Rego-пакет: `bun.bunfig`
 
-Канон `bunfig.toml`: [bunfig.toml.snippet.toml](./policy/bunfig/template/bunfig.toml.snippet.toml)
+Цільовий файл: `bunfig.toml` (корінь репо).
 
-```toml
-[install]
-linker = "hoisted"
-```
+Шаблон (leaf-значення, які gate порівнює): [bunfig.toml.snippet.toml](./template/bunfig.toml.snippet.toml)
 
-Rego-перевірка (`bun.bunfig`) порівнює кожен leaf-ключ у секції із канонічним значенням зі snippet-шаблону. Якщо секція `[install]` відсутня або не є обʼєктом — повідомляє про відсутність секції; якщо значення ключа не збігається — вказує очікуване.
+Gate порівнює кожен leaf-ключ у кожній секції шаблону з фактичним значенням у `bunfig.toml`. Зайві ключі та секції — ігноруються. Deny-повідомлення виникає, якщо:
+
+- секція відсутня або не є обʼєктом (`bunfig.toml: відсутня секція [install]`)
+- leaf-ключ має інше значення (`bunfig.toml: у секції [install] має бути linker = "hoisted"`)
 
 ## Структура lockfile та менеджер пакетів
 
@@ -94,49 +94,6 @@ FROM oven/bun:alpine AS build-env
 ```
 
 Якщо в репозиторії action збережено під **`./npm/github-actions/setup-bun-deps`**, у `uses:` вкажи цей шлях замість `.github/actions/…` (**ga.mdc**).
-
-## Лінт через n-cursor
-
-Лінт запускається через CLI **`n-cursor`**, **не** через `package.json`-скрипти:
-
-- **`n-cursor lint --full`** — весь репо: активні у `.n-cursor.json` правила (per-file + full лінтери за `meta.json#lint` scope, конформність) + `oxfmt` у кінці (fix-режим);
-- **`n-cursor lint`** — дельта vs origin (активні у `.n-cursor.json` per-file лінтери лише змінених файлів);
-- **`n-cursor lint <rule…>`** — конкретні правила (лінтер + конформність), напр. **`n-cursor lint ga`**.
-
-У кореневому `package.json` **не повинно бути** `lint`/`lint-*` скриптів — єдина точка лінту — CLI `n-cursor`. У CI кожен workflow викликає **`n-cursor lint <rule> --read-only`** напряму (без обгорток).
-
-## Кореневий package.json
-
-В кореневому `package.json` не повинно бути `dependencies`, а в `devDependencies` — тільки модулі `@nitra/*`.
-
-**Дозволені винятки у `devDependencies` кореня (root-only):**
-
-- `vitest`, `@vitest/coverage-v8`, `@stryker-mutator/vitest-runner` — Vitest/Stryker peer/tools для `n-cursor coverage`
-- `@playwright/test` — для e2e-тестів
-
-Тримати їх **у корені** доводиться у будь-якому монорепо-споживачі, бо правило `test` enabled завжди (`test/auto.md` = `завжди`), а класти ці пакети у workspace-и не можна: published пакети (`npm-module.mdc`) не мають `devDependencies`, а інші workspace-и однаково запускають coverage оркестратор з кореня.
-
-**Заборонені top-level поля** у root `package.json` (з причинами): [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
-
-| Поле | Причина |
-|---|---|
-| `packageManager` | Видали поле — Bun не потребує `packageManager` |
-| `dependencies` | Кореневий `package.json` не повинен містити `dependencies` — додай у workspace-пакети |
-
-Якщо в `package.json` є поле `packageManager` — прибрати його, також прибрати всі директорії та файли для yarn.
-
-## Rego-gate: відповідність bunfig.toml канонічному шаблону
-
-Rego-пакет: `bun.bunfig`
-
-Цільовий файл: `bunfig.toml` (корінь репо).
-
-Шаблон (leaf-значення, які gate порівнює): [bunfig.toml.snippet.toml](./template/bunfig.toml.snippet.toml)
-
-Gate порівнює кожен leaf-ключ у кожній секції шаблону з фактичним значенням у `bunfig.toml`. Зайві ключі та секції — ігноруються. Deny-повідомлення виникає, якщо:
-
-- секція відсутня або не є обʼєктом (`bunfig.toml: відсутня секція [install]`)
-- leaf-ключ має інше значення (`bunfig.toml: у секції [install] має бути linker = "hoisted"`)
 
 ## Rego-gate: заборонені поля та devDependencies у кореневому package.json
 

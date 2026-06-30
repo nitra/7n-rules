@@ -53,21 +53,21 @@ jobs:
 }
 ```
 
-## Rego-полісі: `package.json` і CI workflow
+## Наявність кроку TruffleHog у CI workflow
 
-### `security.package_json` — заборона `trufflehog` у залежностях
+Rego-пакет: `security.lint_security_yml`
 
-Перевіряє, що `trufflehog` не потрапив у `dependencies` або `devDependencies` — він є глобальним CLI і не повинен бути npm-залежністю.
+Цільові файли: `.github/workflows/lint-security.yml`
 
-- Канон deny-списку: [package.json.deny.json](../policy/package_json/template/package.json.deny.json)
+Перевіряє, що серед `uses:` у workflow присутній крок `trufflesecurity/trufflehog@main`. Очікуваний перелік action-refs (не-`actions/*`) береться з `--data` через [lint-security.yml.snippet.yml](./template/lint-security.yml.snippet.yml). Універсальні кроки (`actions/*`) перевіряє `ga.workflow_common`.
 
-### `security.lint_security_yml` — CI workflow з TruffleHog
+## Заборона `trufflehog` у залежностях `package.json`
 
-Workflow `.github/workflows/lint-security.yml` обовʼязковий — забезпечує незалежний скан секретів на push/PR (агрегований `lint` локально + окремий fail-fast job на CI).
+Rego-пакет: `security.package_json`
 
-Перевіряється, що серед `uses:` є крок з `trufflesecurity/trufflehog@main`. Універсальні workflow-перевірки (checkout, permissions, persist-credentials) — у `ga.workflow_common`. Для повного скану історії потрібен `fetch-depth: 0`.
+Цільові файли: `package.json`
 
-- Канон workflow: [lint-security.yml.snippet.yml](../policy/lint_security_yml/template/lint-security.yml.snippet.yml)
+Перевіряє, що пакет `trufflehog` відсутній у `dependencies` та `devDependencies` — він є глобальним CLI і не має бути npm-залежністю. Список заборонених пакетів надходить через `--data` з [package.json.deny.json](./template/package.json.deny.json).
 
 ## Placeholder для секретів — `sample-secret`
 
@@ -110,19 +110,3 @@ Concern `security.sample_secret` (`js/sample_secret.mjs`) сканує всі п
 **Важливо:** один regex-pattern на рядок, без TOML-обгортки; коментарі починаються з `#`.
 
 Перевірка (JS): `js/trufflehog.mjs` — впевнюється, що файл `.trufflehog-exclude` існує в корені й містить канонічні шаблони.
-
-## Наявність кроку TruffleHog у CI workflow
-
-Rego-пакет: `security.lint_security_yml`
-
-Цільові файли: `.github/workflows/lint-security.yml`
-
-Перевіряє, що серед `uses:` у workflow присутній крок `trufflesecurity/trufflehog@main`. Очікуваний перелік action-refs (не-`actions/*`) береться з `--data` через [lint-security.yml.snippet.yml](./template/lint-security.yml.snippet.yml). Універсальні кроки (`actions/*`) перевіряє `ga.workflow_common`.
-
-## Заборона `trufflehog` у залежностях `package.json`
-
-Rego-пакет: `security.package_json`
-
-Цільові файли: `package.json`
-
-Перевіряє, що пакет `trufflehog` відсутній у `dependencies` та `devDependencies` — він є глобальним CLI і не має бути npm-залежністю. Список заборонених пакетів надходить через `--data` з [package.json.deny.json](./template/package.json.deny.json).

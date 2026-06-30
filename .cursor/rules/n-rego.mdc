@@ -32,37 +32,18 @@ alwaysApply: false
 { "recommendations": ["tsandall.opa"] }
 ```
 
-## Лінт Rego-файлів (opa / regal / conftest)
+## Rego-gate: `opa` та `regal` заборонені у `package.json`
 
-```bash
-n-cursor lint rego
-```
+Rego-пакет: `rego.package_json`
 
-Цілі — `npm/rules/` (рекурсивно знаходить `.rego` у `<rule>/policy/<concern>/`).
-Інші `*.rego` поза деревом — додай у `LINT_TARGETS` у `npm/rules/rego/lint/lint.mjs`.
+Цільовий файл: `package.json`
 
-`opa` і `regal` — лише у `PATH`, **не** додавай у `dependencies` / `devDependencies`.
+`opa` і `regal` — це CLI-тули Rego-екосистеми. Вони **не є npm-пакетами** і **не додаються** у `dependencies`, `devDependencies` або `peerDependencies`. Їх встановлюють:
 
-### Кроки лінту
+- **локально** — через [Homebrew](https://brew.sh/) / системний пакетний менеджер або вручну в PATH;
+- **у CI** — через крок з GitHub-action або аналог.
 
-1. **`opa check --strict`** — компіляція з типами і строгим режимом: ловить мертвий код,
-   неоднозначні правила, незадекларовані змінні. Зупиняє пайплайн при помилці.
-2. **`regal lint`** — статичний лінтер: v0-синтаксис, неявні set-rules, відхилення від `rego.v1`,
-   bugs/idiomatic/performance-правила.
-3. **`conftest verify`** (опційно) — виконує `test_*` правила у `*_test.rego`.
-   Якщо `conftest` відсутній у `PATH` — пропускається без помилки (у CI потрібно встановити).
-
-### Конфіг regal
-
-У корені проєкту — `.regal/config.yaml`. Дозволено вимикати окремі правила під специфіку репо
-(наприклад, conftest-полісі — `deny`-правила як де-факто entrypoint-и):
-
-```yaml title=".regal/config.yaml"
-rules:
-  idiomatic:
-    no-defined-entrypoint:
-      level: ignore
-```
+Gate видає deny, якщо `opa` або `regal` з'являється у будь-якій секції залежностей `package.json`.
 
 ## Rego tooling: `.regal/config.yaml`
 
@@ -78,45 +59,6 @@ rules:
 ```
 
 `regal lint` запускається через `n-cursor lint rego`; без `.regal/config.yaml` regal використовує дефолти і може помилково флагувати conftest `deny`-правила як entrypoint-порушення.
-
-## Розширення VS Code для Rego
-
-`.vscode/extensions.json` має містити `tsandall.opa` у масиві `recommendations` —
-це забезпечує LSP-підтримку та форматування через `opa fmt` при збереженні.
-
-Канонічний сніпет: [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
-
-Перевірка — subset-of: кожне розширення зі сніпету має бути присутнє у `recommendations`.
-Додаткові розширення (від інших правил) — дозволені.
-
-Ціль (`target.json`): `.vscode/extensions.json` — обовʼязковий файл.
-
-## Налаштування VS Code для Rego
-
-`.vscode/settings.json` має містити `[rego]`-блок з двома ключами:
-
-- `editor.defaultFormatter` = `"tsandall.opa"`
-- `editor.formatOnSave` = `true`
-
-Канонічний сніпет: [settings.json.snippet.json](./policy/vscode_settings/template/settings.json.snippet.json)
-
-Перевірка — leaf-by-leaf: кожен ключ/значення зі сніпету звіряється з файлом.
-Якщо `[rego]`-блок присутній, але не є обʼєктом — окрема помилка типу.
-
-Ціль (`target.json`): `.vscode/settings.json` — обовʼязковий файл.
-
-## Rego-gate: `opa` та `regal` заборонені у `package.json`
-
-Rego-пакет: `rego.package_json`
-
-Цільовий файл: `package.json`
-
-`opa` і `regal` — це CLI-тули Rego-екосистеми. Вони **не є npm-пакетами** і **не додаються** у `dependencies`, `devDependencies` або `peerDependencies`. Їх встановлюють:
-
-- **локально** — через [Homebrew](https://brew.sh/) / системний пакетний менеджер або вручну в PATH;
-- **у CI** — через крок з GitHub-action або аналог.
-
-Gate видає deny, якщо `opa` або `regal` з'являється у будь-якій секції залежностей `package.json`.
 
 ## Rego-перевірка наявності tsandall.opa у recommendations
 
