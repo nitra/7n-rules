@@ -10,7 +10,6 @@ import { join } from 'node:path'
  * @typedef {object} LintSurface
  * @property {'per-file'|'full'} scope
  * @property {string[]} glob масив glob-ів (нормалізований з string|string[]); порожній якщо не задано
- * @property {boolean} llmFix
  */
 
 /**
@@ -55,7 +54,7 @@ export async function readConcernMeta(concernDir, name) {
     if (scope !== 'per-file' && scope !== 'full') return null
     const rawGlob = raw.lint.glob
     const glob = Array.isArray(rawGlob) ? rawGlob : typeof rawGlob === 'string' ? [rawGlob] : []
-    lint = { scope, glob, llmFix: raw.lint.llmFix === true }
+    lint = { scope, glob }
   }
 
   /** @type {PolicySurface|undefined} */

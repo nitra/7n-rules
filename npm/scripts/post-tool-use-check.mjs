@@ -14,7 +14,7 @@
 import { once } from 'node:events'
 import { cwd as processCwd } from 'node:process'
 
-import { runConformanceCheck } from './lib/fix/run-conformance-check.mjs'
+import { detectAll } from './lib/lint-surface/run-detectors.mjs'
 
 /**
  * Зчитує stdin до EOF як utf8 рядок. На TTY — повертає `''` одразу.
@@ -60,8 +60,8 @@ export function extractFilePath(stdinJson) {
  * Точка входу. Викликається з `bin/n-cursor.js` коли argv[0] === `post-tool-use-check`.
  * Параметри доступні для інʼєкції для тестів: `stdinJson` обходить read від `process.stdin`,
  * `runConformanceCheckFn` — заміна `runConformanceCheck`.
- * @param {{ stdinJson?: string, runConformanceCheckFn?: typeof runConformanceCheck }} [options] параметри для тестів
- * @returns {Promise<number>} exit code (0 — пропущено / конформність ОК; 1 — є порушення)
+ * @param {{ stdinJson?: string, detectFn?: typeof detectAll }} [options] параметри для тестів
+ * @returns {Promise<number>} exit code (0 — пропущено / OK; 1 — є порушення)
  */
 export async function runPostToolUseCheckCli(options = {}) {
   const stdinJson = options.stdinJson ?? (await readStdin())
@@ -70,17 +70,13 @@ export async function runPostToolUseCheckCli(options = {}) {
   if (filePath === null) {
     return 0
   }
-  const check = options.runConformanceCheckFn ?? runConformanceCheck
-  // Один read-only детект конформності всіх активованих правил (пряма функція, без subprocess).
+  const detect = options.detectFn ?? detectAll
+  // Read-only per-file детект (unified lint surface) зміненого файлу; рендер — у runner-і.
   try {
-    const { failed, rules } = await check([], processCwd())
-    if (failed === 0) return 0
-    for (const r of rules.filter(x => !x.ok)) {
-      if (r.output) process.stderr.write(`${r.output}\n`)
-    }
-    return 1
+    const { exitCode } = await detect({ files: [filePath], cwd: processCwd(), log: s => process.stderr.write(s) })
+    return exitCode !== 0 ? 1 : 0
   } catch (error) {
-    process.stderr.write(`post-tool-use-check: не вдалося запустити детект конформності — ${error.message}\n`)
+    process.stderr.write(`post-tool-use-check: не вдалося запустити детект — ${error.message}\n`)
     return 1
   }
 }

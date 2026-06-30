@@ -80,10 +80,6 @@
             { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
           ],
           "description": "per-file: фільтр delta-файлів; full: delta-тригер."
-        },
-        "llmFix": {
-          "type": "boolean",
-          "description": "true → concern opt-in у opportunistic LLM-fix."
         }
       }
     }
