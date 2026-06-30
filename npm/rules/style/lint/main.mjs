@@ -25,7 +25,7 @@ export function filterStyleFiles(files) {
  * @param {string} cwd корінь
  * @returns {string | null} абсолютний шлях або null
  */
-function resolveStylelint(cwd) {
+export function resolveStylelint(cwd) {
   const local = join(cwd, 'node_modules', '.bin', 'stylelint')
   if (existsSync(local)) return local
   return resolveCmd('stylelint')
