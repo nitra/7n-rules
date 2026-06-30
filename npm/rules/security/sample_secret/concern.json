@@ -1,4 +1,11 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
-  "lint": { "scope": "full", "glob": ["**/*.{example,sample,template,dist}", "**/*.{example,sample,template}.*", "**/{fixtures,fixture,__fixtures__}/**"] }
+  "lint": {
+    "scope": "full",
+    "glob": [
+      "**/*.{example,sample,template,dist}",
+      "**/*.{example,sample,template}.*",
+      "**/{fixtures,fixture,__fixtures__}/**"
+    ]
+  }
 }

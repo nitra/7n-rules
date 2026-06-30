@@ -70,7 +70,10 @@ function checkPipLicenses(uv, cwd, fail) {
   })
   if (violations.length > 0) {
     const list = violations
-      .map(pkg => `  ✗ ${pkg.name}@${pkg.versionInfo ?? '?'}: ${pkg.licenseDeclared ?? pkg.licenseConcluded ?? 'NOASSERTION'}`)
+      .map(
+        pkg =>
+          `  ✗ ${pkg.name}@${pkg.versionInfo ?? '?'}: ${pkg.licenseDeclared ?? pkg.licenseConcluded ?? 'NOASSERTION'}`
+      )
       .join('\n')
     fail(
       `lint-python: pip-licenses — ${violations.length} пакет(ів) поза Blue Oak Bronze+ (python.mdc)\n${list}`,

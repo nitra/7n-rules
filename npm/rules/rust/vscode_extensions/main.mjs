@@ -6,9 +6,10 @@ import { evaluatePolicyConcern } from '../../../scripts/lib/lint-surface/policy-
 /** @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx */
 export async function lint(ctx) {
   return evaluatePolicyConcern(ctx, {
-    engine: "rego",
+    engine: 'rego',
     policyDir: import.meta.dirname,
-    files: {"single":".vscode/extensions.json","required":true},
-    missingMessage: ".vscode/extensions.json не існує — створи з recommendations \"rust-lang.rust-analyzer\" і \"tamasfe.even-better-toml\" (rust.mdc)"
+    files: { single: '.vscode/extensions.json', required: true },
+    missingMessage:
+      '.vscode/extensions.json не існує — створи з recommendations "rust-lang.rust-analyzer" і "tamasfe.even-better-toml" (rust.mdc)'
   })
 }

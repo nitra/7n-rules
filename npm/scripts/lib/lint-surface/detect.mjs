@@ -37,14 +37,14 @@ export class DetectorError extends Error {
  */
 function normalizeViolation(raw, ctx) {
   if (typeof raw !== 'object' || raw === null) {
-    throw new DetectorError(ctx.ruleId, ctx.concernId, 'violation не є об\'єктом')
+    throw new DetectorError(ctx.ruleId, ctx.concernId, "violation не є об'єктом")
   }
   const v = /** @type {Record<string, unknown>} */ (raw)
   if (typeof v.reason !== 'string' || v.reason.length === 0) {
-    throw new DetectorError(ctx.ruleId, ctx.concernId, 'violation.reason обов\'язковий (непорожній string)')
+    throw new DetectorError(ctx.ruleId, ctx.concernId, "violation.reason обов'язковий (непорожній string)")
   }
   if (typeof v.message !== 'string' || v.message.length === 0) {
-    throw new DetectorError(ctx.ruleId, ctx.concernId, 'violation.message обов\'язковий (непорожній string)')
+    throw new DetectorError(ctx.ruleId, ctx.concernId, "violation.message обов'язковий (непорожній string)")
   }
   let file
   if (v.file !== undefined) {

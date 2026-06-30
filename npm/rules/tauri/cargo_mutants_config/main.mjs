@@ -1,19 +1,31 @@
-/** @see ./docs/cargo_mutants_config.md */
+/**
+ * @see ./docs/cargo_mutants_config.md
+ *
+ * Read-only detector: лише ЗВІТУЄ про відсутній чи неповний
+ * `<ws>/src-tauri/.cargo/mutants.toml` (відсутні канонічні Tauri-ключі).
+ * Створення/augment baseline — окремий T0-fix (`fix-cargo_mutants_config.mjs`),
+ * не в detector-і (`lint --no-fix` ніколи не мутує дерево). Спільні білдери
+ * baseline/append-блоку експортуємо для T0.
+ */
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join, relative } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join, relative } from 'node:path'
 
 import { parse as parseToml } from 'smol-toml'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 
-const TAURI_BASELINE_HEADER = `# .cargo/mutants.toml — Tauri canonical cargo-mutants config (tauri.mdc).
+/** Стабільні reasons: файл відсутній / у файлі бракує канонічних Tauri-ключів. */
+export const MUTANTS_CONFIG_MISSING = 'mutants-config-missing'
+export const MUTANTS_KEYS_MISSING = 'mutants-keys-missing'
+
+export const TAURI_BASELINE_HEADER = `# .cargo/mutants.toml — Tauri canonical cargo-mutants config (tauri.mdc).
 # Виключаємо --bins і --doc щоб бінарник Tauri та doc-tests не збиралися повторно
 # з нуля під кожного мутанта (секунди → хвилини).
 `
 
-const TAURI_KEY_SNIPPETS = Object.freeze({
+export const TAURI_KEY_SNIPPETS = Object.freeze({
   additional_cargo_test_args: 'additional_cargo_test_args = ["--lib", "--tests"]\n',
   exclude_globs: `# Platform bridge / app shell — boundary-файли (тестуються smoke/e2e, не mutation unit).
 # Якщо у bridge-файлі з'являється pure/business logic — винеси її у platform-neutral
@@ -34,7 +46,7 @@ exclude_globs = [
 `
 })
 
-const TAURI_CANONICAL_KEYS = Object.freeze(Object.keys(TAURI_KEY_SNIPPETS))
+export const TAURI_CANONICAL_KEYS = Object.freeze(Object.keys(TAURI_KEY_SNIPPETS))
 
 /**
  * Знаходить усі `<ws>/src-tauri/` каталоги з власним `Cargo.toml` у монорепо.
@@ -42,7 +54,7 @@ const TAURI_CANONICAL_KEYS = Object.freeze(Object.keys(TAURI_KEY_SNIPPETS))
  * @param {string} cwd корінь проєкту
  * @returns {Promise<string[]>} абсолютні шляхи до знайдених `src-tauri/` каталогів
  */
-async function findSrcTauriDirs(cwd) {
+export async function findSrcTauriDirs(cwd) {
   const roots = await getMonorepoPackageRootDirs(cwd)
   const result = []
   for (const root of roots) {
@@ -59,7 +71,7 @@ async function findSrcTauriDirs(cwd) {
  * @param {string} targetPath абсолютний шлях до файла
  * @returns {Promise<string[]>} список відсутніх канонічних ключів (зі збереженням порядку TAURI_CANONICAL_KEYS)
  */
-async function detectMissingKeys(targetPath) {
+export async function detectMissingKeys(targetPath) {
   const existing = await readFile(targetPath, 'utf8')
   const parsed = parseToml(existing)
   return TAURI_CANONICAL_KEYS.filter(k => !(k in parsed))
@@ -71,7 +83,7 @@ async function detectMissingKeys(targetPath) {
  * @param {string[]} missingKeys ключі, які треба додати
  * @returns {string} новий вміст файла
  */
-function buildAppended(existing, missingKeys) {
+export function buildAppended(existing, missingKeys) {
   const tail = existing.endsWith('\n') ? existing : `${existing}\n`
   const block = ['\n# Tauri canonical cargo-mutants additions (tauri.mdc)\n']
   for (const key of missingKeys) block.push(TAURI_KEY_SNIPPETS[key])
@@ -82,25 +94,27 @@ function buildAppended(existing, missingKeys) {
  * Будує повний Tauri-canonical baseline (для випадку, коли файла ще немає).
  * @returns {string} вміст для нового `.cargo/mutants.toml`
  */
-function buildBaseline() {
+export function buildBaseline() {
   return TAURI_BASELINE_HEADER + TAURI_CANONICAL_KEYS.map(k => TAURI_KEY_SNIPPETS[k]).join('\n')
 }
 
 /**
- * Обробляє один `src-tauri/` каталог: створює або без дублювання доповнює `.cargo/mutants.toml`.
+ * Read-only: звітує стан одного `src-tauri/` каталогу — файла немає
+ * (`mutants-config-missing`) або бракує канонічних ключів (`mutants-keys-missing`).
  * @param {string} srcTauriDir абсолютний шлях до `src-tauri/`
  * @param {string} cwd корінь проєкту (для relative-шляхів у репортах)
- * @param {{ pass: (msg: string) => void, fail: (msg: string) => void }} reporter репортер концерну
+ * @param {ReturnType<typeof createViolationReporter>} reporter репортер концерну
  * @returns {Promise<void>}
  */
-async function processOneSrcTauri(srcTauriDir, cwd, reporter) {
+async function reportOneSrcTauri(srcTauriDir, cwd, reporter) {
   const target = join(srcTauriDir, '.cargo', 'mutants.toml')
   const rel = relative(cwd, target)
 
   if (!existsSync(target)) {
-    await mkdir(dirname(target), { recursive: true })
-    await writeFile(target, buildBaseline())
-    reporter.pass(`.cargo/mutants.toml створено з Tauri canonical baseline (${rel}) (tauri.mdc)`)
+    reporter.fail(
+      `.cargo/mutants.toml відсутній (${rel}) — запусти \`npx @nitra/cursor lint tauri\` для Tauri canonical baseline (tauri.mdc)`,
+      { reason: MUTANTS_CONFIG_MISSING, file: rel }
+    )
     return
   }
 
@@ -110,9 +124,10 @@ async function processOneSrcTauri(srcTauriDir, cwd, reporter) {
     return
   }
 
-  const existing = await readFile(target, 'utf8')
-  await writeFile(target, buildAppended(existing, missing))
-  reporter.pass(`.cargo/mutants.toml: додано відсутні Tauri-ключі [${missing.join(', ')}] (${rel}) (tauri.mdc)`)
+  reporter.fail(
+    `.cargo/mutants.toml: бракує канонічних Tauri-ключів [${missing.join(', ')}] (${rel}) — запусти \`npx @nitra/cursor lint tauri\` (tauri.mdc)`,
+    { reason: MUTANTS_KEYS_MISSING, file: rel, data: { missing } }
+  )
 }
 
 /**
@@ -127,7 +142,7 @@ export async function lint(ctx) {
     return reporter.result()
   }
   for (const dir of srcTauriDirs) {
-    await processOneSrcTauri(dir, cwd, reporter)
+    await reportOneSrcTauri(dir, cwd, reporter)
   }
   return reporter.result()
 }

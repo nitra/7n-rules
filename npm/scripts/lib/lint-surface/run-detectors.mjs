@@ -183,8 +183,7 @@ async function buildPlan({ byRule, full, rules, explicitFiles, cwd }) {
     }
   }
   return plan.toSorted(
-    (a, b) =>
-      a.entry.ruleId.localeCompare(b.entry.ruleId) || a.entry.concern.name.localeCompare(b.entry.concern.name)
+    (a, b) => a.entry.ruleId.localeCompare(b.entry.ruleId) || a.entry.concern.name.localeCompare(b.entry.concern.name)
   )
 }
 

@@ -30,11 +30,11 @@
 
 Поточна модель має три окремі поверхні:
 
-| Surface | Контракт | Виклик | Fix |
-| --- | --- | --- | --- |
-| `lint` | `lint(files, cwd, opts) -> number` | `n-cursor lint` | іноді всередині detector-а |
-| `check` | `main(cwd) -> number` | conformance orchestrator | T0 + LLM tiers |
-| `policy` | Rego + target metadata | conformance orchestrator | template scaffold / ручний fix |
+| Surface  | Контракт                           | Виклик                   | Fix                            |
+| -------- | ---------------------------------- | ------------------------ | ------------------------------ |
+| `lint`   | `lint(files, cwd, opts) -> number` | `n-cursor lint`          | іноді всередині detector-а     |
+| `check`  | `main(cwd) -> number`              | conformance orchestrator | T0 + LLM tiers                 |
+| `policy` | Rego + target metadata             | conformance orchestrator | template scaffold / ручний fix |
 
 Це створює кілька джерел складності:
 
@@ -198,11 +198,11 @@ Template subset concern:
 
 ### `lint.scope`
 
-| Scope | Default `n-cursor lint` | `n-cursor lint --full` | `n-cursor lint <rule>` |
-| --- | --- | --- | --- |
-| `per-file` | changed files filtered by `lint.glob` | `files: undefined` | `files: undefined` |
-| `full` with `glob` | runs whole-repo only if `glob` intersects changed files | always runs | always runs |
-| `full` without `glob` | does not run in delta mode | always runs | always runs |
+| Scope                 | Default `n-cursor lint`                                 | `n-cursor lint --full` | `n-cursor lint <rule>` |
+| --------------------- | ------------------------------------------------------- | ---------------------- | ---------------------- |
+| `per-file`            | changed files filtered by `lint.glob`                   | `files: undefined`     | `files: undefined`     |
+| `full` with `glob`    | runs whole-repo only if `glob` intersects changed files | always runs            | always runs            |
+| `full` without `glob` | does not run in delta mode                              | always runs            | always runs            |
 
 Якщо full detector має бути safety scan на кожну зміну, він явно ставить `glob: ["**/*"]`.
 
@@ -310,9 +310,7 @@ fix-worker.mjs      # concern-specific worker
 Central runner викликає fix-кроки per concern. Перед T0 або worker runner сам scope-ить violations:
 
 ```js
-const concernViolations = allViolations.filter(
-  v => v.ruleId === ctx.ruleId && v.concernId === ctx.concernId
-)
+const concernViolations = allViolations.filter(v => v.ruleId === ctx.ruleId && v.concernId === ctx.concernId)
 ```
 
 `fix-<concern>.mjs` і `fix-worker.mjs` отримують тільки `concernViolations`, а не всі violations правила чи всього lint-прогону.
@@ -505,18 +503,18 @@ rules/<rule>/
 
 ## Migration
 
-| Було | Стає |
-| --- | --- |
-| `lint(files, cwd, opts) -> number` | `lint(ctx) -> { violations }`, read-only |
-| `opts.readOnly` | видалено; detector завжди read-only |
-| `main(cwd)` check concern | `main.mjs::lint(ctx)` з `lint.scope: "full"` |
-| Rego + `target.json` | `concern.json#policy` + generated `main.mjs::lint(ctx)` |
-| template policy | `policy.engine: "template"` + generated detector |
-| `llmFix: true` | видалено; fix capability = `fix-*.mjs` / `fix-worker.mjs` |
-| conformance runner | видалено; усі concerns запускає `run-lint` |
-| `n-cursor fix` | видалено повністю |
-| `n-cursor fix-t0` | видалено як public CLI |
-| `--read-only` | `--no-fix` |
+| Було                               | Стає                                                      |
+| ---------------------------------- | --------------------------------------------------------- |
+| `lint(files, cwd, opts) -> number` | `lint(ctx) -> { violations }`, read-only                  |
+| `opts.readOnly`                    | видалено; detector завжди read-only                       |
+| `main(cwd)` check concern          | `main.mjs::lint(ctx)` з `lint.scope: "full"`              |
+| Rego + `target.json`               | `concern.json#policy` + generated `main.mjs::lint(ctx)`   |
+| template policy                    | `policy.engine: "template"` + generated detector          |
+| `llmFix: true`                     | видалено; fix capability = `fix-*.mjs` / `fix-worker.mjs` |
+| conformance runner                 | видалено; усі concerns запускає `run-lint`                |
+| `n-cursor fix`                     | видалено повністю                                         |
+| `n-cursor fix-t0`                  | видалено як public CLI                                    |
+| `--read-only`                      | `--no-fix`                                                |
 
 Migration виконується одним breaking commit-ом:
 

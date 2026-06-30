@@ -1,6 +1,11 @@
-/** @see ./docs/cargo_mutants_config.md */
+/**
+ * @see ./docs/cargo_mutants_config.md
+ *
+ * Read-only detector: лише ЗВІТУЄ про відсутній `<cargoDir>/.cargo/mutants.toml`.
+ * Створення canonical baseline — окремий T0-fix (`fix-cargo_mutants_config.mjs`),
+ * не в detector-і (`lint --no-fix` ніколи не мутує дерево).
+ */
 import { existsSync } from 'node:fs'
-import { copyFile, mkdir } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -10,6 +15,9 @@ import { resolveAllCargoManifests } from '../../../scripts/utils/resolve-cargo-m
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const BASELINE_PATH = join(HERE, 'data', 'cargo_mutants_config', 'mutants.toml.baseline')
+
+/** Стабільний reason для відсутнього `.cargo/mutants.toml` (T0 матчиться за ним). */
+export const MUTANTS_CONFIG_MISSING = 'mutants-config-missing'
 
 /**
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
@@ -45,9 +53,10 @@ export async function lint(ctx) {
       continue
     }
 
-    await mkdir(dirname(target), { recursive: true })
-    await copyFile(BASELINE_PATH, target)
-    reporter.pass(`.cargo/mutants.toml створено з canonical baseline (${relative(cwd, target)}) (test.mdc)`)
+    reporter.fail(
+      `.cargo/mutants.toml відсутній (${relative(cwd, target)}) — запусти \`npx @nitra/cursor lint test\` для генерації canonical baseline (test.mdc)`,
+      { reason: MUTANTS_CONFIG_MISSING, file: relative(cwd, target) }
+    )
   }
   return reporter.result()
 }

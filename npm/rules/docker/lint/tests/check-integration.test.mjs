@@ -9,8 +9,7 @@ import { join } from 'node:path'
 import { lint } from '../main.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
-const check = dir =>
-  lint({ cwd: dir, ruleId: 'docker', concernId: 'lint', files: undefined }).then(r => r.violations)
+const check = dir => lint({ cwd: dir, ruleId: 'docker', concernId: 'lint', files: undefined }).then(r => r.violations)
 
 const CLEAN_MULTISTAGE = [
   'FROM mirror.gcr.io/library/alpine:3.19 AS build',

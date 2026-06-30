@@ -1,6 +1,14 @@
-/** @see ./docs/stryker_config.md */
+/**
+ * @see ./docs/stryker_config.md
+ *
+ * Read-only detector: планує (НЕ виконує) копіювання stryker/vitest baseline-ів,
+ * vue-plugin-файла, augment існуючого Vue-config-а та `.gitignore`-entries.
+ * Кожна потрібна зміна стає violation із `data` (опис дії для T0). Запис робить
+ * окремий T0-fix (`fix-stryker_config.mjs`) — `lint --no-fix` не мутує дерево.
+ * Планувальник (`planStrykerActions`) і константи шляхів спільні для detector/T0.
+ */
 import { existsSync } from 'node:fs'
-import { copyFile, glob, readFile, writeFile } from 'node:fs/promises'
+import { glob, readFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -8,15 +16,20 @@ import { parseSync } from 'oxc-parser'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { readNCursorConfigLite } from '../../../scripts/lib/read-n-cursor-config-lite.mjs'
-import { ensureGitignoreEntries } from '../../../scripts/utils/ensure-gitignore-entries.mjs'
 import { resolveAllJsRoots } from '../../../scripts/utils/resolve-js-root.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const STRYKER_BASELINE_PATH = join(HERE, 'data', 'stryker_config', 'stryker.config.baseline.mjs')
-const STRYKER_VUE_BASELINE_PATH = join(HERE, 'data', 'stryker_config', 'stryker.config.vue.baseline.mjs')
-const STRYKER_VUE_PLUGIN_PATH = join(HERE, 'data', 'stryker_config', 'stryker-vue-macros-ignorer.mjs')
+export const STRYKER_BASELINE_PATH = join(HERE, 'data', 'stryker_config', 'stryker.config.baseline.mjs')
+export const STRYKER_VUE_BASELINE_PATH = join(HERE, 'data', 'stryker_config', 'stryker.config.vue.baseline.mjs')
+export const STRYKER_VUE_PLUGIN_PATH = join(HERE, 'data', 'stryker_config', 'stryker-vue-macros-ignorer.mjs')
 const STRYKER_VUE_PLUGIN_FILENAME = 'stryker-vue-macros-ignorer.mjs'
-const VITEST_BASELINE_PATH = join(HERE, 'data', 'vitest_config', 'vitest.config.baseline.js')
+export const VITEST_BASELINE_PATH = join(HERE, 'data', 'vitest_config', 'vitest.config.baseline.js')
+
+/** Стабільні reasons. */
+export const STRYKER_CONFIG_MISSING = 'stryker-config-missing'
+export const STRYKER_VUE_AUGMENT = 'stryker-vue-augment'
+export const STRYKER_VUE_AUGMENT_FAIL = 'stryker-vue-augment-fail'
+export const GITIGNORE_MISSING = 'gitignore-missing'
 
 // Канонічна назва vitest-конфіга — `.mjs` (нові файли, js.mdc); legacy
 // `.js` лишається валідним. Перший знайдений виграє (.mjs пріоритетніший).
@@ -77,26 +90,31 @@ async function hasVueFiles(jsRoot) {
 }
 
 /**
- * Копіює baseline у target, якщо target ще не існує. Idempotent.
- * @param {ReturnType<typeof createViolationReporter>} reporter check-reporter для логу pass/fail
- * @param {string} cwd корінь проєкту (для relative-шляхів у логах)
+ * Опис однієї дії-запису baseline-файла (для T0). Читання baseline і запис робить
+ * T0; detector лише планує. `transformKey` — необов'язковий маркер, який трансформ
+ * застосувати до тексту baseline (T0 мапить ключ на функцію); `null` = copy as-is.
+ * @typedef {object} BaselineAction
+ * @property {'baseline'} kind
+ * @property {string} baselinePath абсолютний шлях canonical baseline
+ * @property {string} target абсолютний шлях, куди писати
+ * @property {string} label людиночитна мітка
+ * @property {{ re: string, replacement: string }} [transform] string-replace над текстом baseline
+ */
+
+/**
+ * Будує BaselineAction, якщо target ще не існує (idempotent). Read-only.
  * @param {string} baselinePath абсолютний шлях до canonical baseline
  * @param {string} target абсолютний шлях, куди копіювати
- * @param {string} label зрозуміла для людини мітка ("stryker.config.mjs" / "vitest.config.mjs")
- * @param {(content: string) => string} [transform] опційне перетворення тексту baseline перед записом
- * @returns {Promise<void>}
+ * @param {string} label мітка ("stryker.config.mjs" / "vitest.config.mjs")
+ * @param {{ re: string, replacement: string }} [transform] опційний string-replace baseline-тексту
+ * @returns {BaselineAction | null} дія або null, якщо файл уже є
  */
-async function ensureBaselineFile(reporter, cwd, baselinePath, target, label, transform) {
-  if (existsSync(target)) {
-    reporter.pass(`${label} існує (${relative(cwd, target)})`)
-    return
-  }
-  if (transform) {
-    await writeFile(target, transform(await readFile(baselinePath, 'utf8')), 'utf8')
-  } else {
-    await copyFile(baselinePath, target)
-  }
-  reporter.pass(`${label} створено з canonical baseline (${relative(cwd, target)}) (test.mdc)`)
+function planBaselineFile(baselinePath, target, label, transform) {
+  if (existsSync(target)) return null
+  /** @type {BaselineAction} */
+  const action = { kind: 'baseline', baselinePath, target, label }
+  if (transform) action.transform = transform
+  return action
 }
 
 /**
@@ -237,12 +255,13 @@ function applyEdits(src, edits) {
  * string-splice-и у вихідному тексті (insert items), щоб НЕ переписати
  * форматування й коментарі користувача (oxc serializer їх не зберігає). Після
  * splice — повторний parse: якщо результат не компілюється → відкат і fail.
- * @param {ReturnType<typeof createViolationReporter>} reporter check-reporter
  * @param {string} cwd корінь проєкту (для relative-шляхів у логах)
  * @param {string} jsRoot абсолютний шлях до Vue workspace-каталогу
- * @returns {Promise<void>}
+ * @returns {Promise<{ ok: false, message: string } | { ok: true, target: string, content: string | null }>}
+ *   `ok:false` — augment неможливий (fail-violation); `ok:true, content:null` — no-op;
+ *   `ok:true, content:string` — обчислений новий вміст для запису T0-ом
  */
-async function augmentVueStrykerConfig(reporter, cwd, jsRoot) {
+export async function planVueAugment(cwd, jsRoot) {
   const target = join(jsRoot, 'stryker.config.mjs')
   const rel = relative(cwd, target)
   const src = await readFile(target, 'utf8')
@@ -251,32 +270,32 @@ async function augmentVueStrykerConfig(reporter, cwd, jsRoot) {
   try {
     result = parseSync(target, src, { lang: 'js', sourceType: 'module' })
   } catch (error) {
-    reporter.fail(`stryker.config.mjs не парситься (${rel}): ${error.message} — augment скіпнуто`)
-    return
+    return { ok: false, message: `stryker.config.mjs не парситься (${rel}): ${error.message} — augment скіпнуто` }
   }
   if (result.errors?.length) {
     const msg = result.errors[0]?.message ?? 'syntax error'
-    reporter.fail(`stryker.config.mjs має syntax error (${rel}): ${msg} — augment скіпнуто`)
-    return
+    return { ok: false, message: `stryker.config.mjs має syntax error (${rel}): ${msg} — augment скіпнуто` }
   }
 
   const obj = findDefaultExportObject(result.program)
   if (!obj) {
-    reporter.fail(
-      `stryker.config.mjs has non-literal default export (${rel}) — augment скіпнуто, ` +
+    return {
+      ok: false,
+      message:
+        `stryker.config.mjs has non-literal default export (${rel}) — augment скіпнуто, ` +
         'додай вручну plugins/ignorers згідно stryker.config.vue.baseline.mjs'
-    )
-    return
+    }
   }
 
   const plugins = analyzeArrayProperty(obj, 'plugins')
   const ignorers = analyzeArrayProperty(obj, 'ignorers')
   if (plugins.dynamic || ignorers.dynamic) {
-    reporter.fail(
-      `stryker.config.mjs: plugins/ignorers — динамічний вираз (spread/computed) (${rel}) — ` +
+    return {
+      ok: false,
+      message:
+        `stryker.config.mjs: plugins/ignorers — динамічний вираз (spread/computed) (${rel}) — ` +
         'augment скіпнуто, додай vue-macros ignorer вручну згідно stryker.config.vue.baseline.mjs'
-    )
-    return
+    }
   }
 
   const edits = []
@@ -296,32 +315,122 @@ async function augmentVueStrykerConfig(reporter, cwd, jsRoot) {
     edits.push(newPropertyEdit(src, obj, detectIndent(src, obj), newPropLines))
   }
 
-  if (edits.length === 0) {
-    reporter.pass(`vue-macros ignorer уже зареєстровано (${rel})`)
-    return
-  }
+  if (edits.length === 0) return { ok: true, target, content: null }
 
   const next = applyEdits(src, edits)
 
   // Safety: результат має компілюватися. Якщо string-splice дав невалідний JS
-  // (errors або виняток парсера на патологічному вводі) — відкат (не пишемо) і
-  // fail, щоб користувач не лишився зі зламаним конфігом.
+  // (errors або виняток парсера на патологічному вводі) — fail (не пишемо), щоб
+  // користувач не лишився зі зламаним конфігом.
   let recheck
   try {
     recheck = parseSync(target, next, { lang: 'js', sourceType: 'module' })
   } catch (error) {
-    reporter.fail(
-      `stryker.config.mjs: augment дав некоректний результат (${rel}): ${error.message} — відкат, додай вручну`
-    )
-    return
+    return {
+      ok: false,
+      message: `stryker.config.mjs: augment дав некоректний результат (${rel}): ${error.message} — відкат, додай вручну`
+    }
   }
   if (recheck.errors?.length) {
-    reporter.fail(`stryker.config.mjs: augment дав некоректний результат (${rel}) — відкат, додай вручну`)
-    return
+    return {
+      ok: false,
+      message: `stryker.config.mjs: augment дав некоректний результат (${rel}) — відкат, додай вручну`
+    }
   }
 
-  await writeFile(target, next, 'utf8')
-  reporter.pass(`vue-macros ignorer додано у stryker.config.mjs (${rel}) (test.mdc)`)
+  return { ok: true, target, content: next }
+}
+
+/** Header-коментар для секції тест-артефактів у `.gitignore`. */
+export const GITIGNORE_SECTION_LABEL = 'Test artifacts: Stryker + coverage (test.mdc)'
+
+/**
+ * Read-only: чи відсутні якісь із `TEST_GITIGNORE_ENTRIES` у кореневому `.gitignore`.
+ * Дублює дешеву перевірку `ensureGitignoreEntries` без запису.
+ * @param {string} cwd корінь репо
+ * @returns {Promise<string[]>} відсутні entries (порожній — нічого додавати)
+ */
+async function missingGitignoreEntries(cwd) {
+  const gitignorePath = join(cwd, '.gitignore')
+  const existing = existsSync(gitignorePath) ? await readFile(gitignorePath, 'utf8') : ''
+  const lines = new Set(existing.split('\n').map(l => l.trim()))
+  return TEST_GITIGNORE_ENTRIES.filter(e => !lines.has(e))
+}
+
+/**
+ * @typedef {object} StrykerPlan
+ * @property {string | null} fatal fail-message, що зупиняє план (missing baseline / no root)
+ * @property {BaselineAction[]} baselineActions copy-baseline дії (stryker/vitest/vue-plugin)
+ * @property {Array<{ target: string, content: string }>} augmentWrites augment-записи (computed content)
+ * @property {string[]} augmentFails augment-fail повідомлення (read-only diagnostics)
+ * @property {string[]} gitignoreMissing відсутні `.gitignore`-entries
+ */
+
+/**
+ * Чистий планувальник (read-only): обчислює всі потрібні зміни для stryker_config
+ * без жодного запису. Спільний для detector-а (→ violations) і T0-fix (→ writes).
+ * @param {string} cwd корінь репо
+ * @returns {Promise<StrykerPlan>}
+ */
+export async function planStrykerActions(cwd) {
+  /** @type {StrykerPlan} */
+  const plan = { fatal: null, baselineActions: [], augmentWrites: [], augmentFails: [], gitignoreMissing: [] }
+
+  const jsRoots = await resolveAllJsRoots(cwd)
+  if (jsRoots.length === 0) {
+    plan.fatal = 'test: js enabled, але кореневий package.json не знайдено (test.mdc)'
+    return plan
+  }
+
+  for (const baselinePath of [
+    STRYKER_BASELINE_PATH,
+    STRYKER_VUE_BASELINE_PATH,
+    STRYKER_VUE_PLUGIN_PATH,
+    VITEST_BASELINE_PATH
+  ]) {
+    if (!existsSync(baselinePath)) {
+      plan.fatal = `canonical baseline не знайдено (${baselinePath}) — перевстанови @nitra/cursor`
+      return plan
+    }
+  }
+
+  for (const jsRoot of jsRoots) {
+    const isVueRoot = await hasVueFiles(jsRoot)
+    const strykerTarget = join(jsRoot, 'stryker.config.mjs')
+    // Чи файл уже існує (до будь-якого запису). Якщо ні — baseline (vue-варіант для
+    // Vue-root) уже містить plugins/ignorers, augment не потрібен. Якщо існував —
+    // baseline idempotent-skip, і augment закриває drift-hole.
+    const wasMissing = !existsSync(strykerTarget)
+    const strykerBaseline = isVueRoot ? STRYKER_VUE_BASELINE_PATH : STRYKER_BASELINE_PATH
+    const vitestName = resolveVitestConfigName(jsRoot)
+    const strykerAction = planBaselineFile(strykerBaseline, strykerTarget, 'stryker.config.mjs', {
+      re: STRYKER_CONFIG_FILE_RE.source,
+      replacement: `configFile: '${vitestName}'`
+    })
+    if (strykerAction) plan.baselineActions.push(strykerAction)
+
+    if (isVueRoot) {
+      if (!wasMissing) {
+        const res = await planVueAugment(cwd, jsRoot)
+        if (!res.ok) {
+          plan.augmentFails.push(res.message)
+        } else if (res.content !== null) {
+          plan.augmentWrites.push({ target: res.target, content: res.content })
+        }
+      }
+      const pluginAction = planBaselineFile(
+        STRYKER_VUE_PLUGIN_PATH,
+        join(jsRoot, STRYKER_VUE_PLUGIN_FILENAME),
+        STRYKER_VUE_PLUGIN_FILENAME
+      )
+      if (pluginAction) plan.baselineActions.push(pluginAction)
+    }
+    const vitestAction = planBaselineFile(VITEST_BASELINE_PATH, join(jsRoot, vitestName), vitestName)
+    if (vitestAction) plan.baselineActions.push(vitestAction)
+  }
+
+  plan.gitignoreMissing = await missingGitignoreEntries(cwd)
+  return plan
 }
 
 /**
@@ -338,64 +447,33 @@ export async function lint(ctx) {
     return reporter.result()
   }
 
-  const jsRoots = await resolveAllJsRoots(cwd)
-  if (jsRoots.length === 0) {
-    reporter.fail('test: js enabled, але кореневий package.json не знайдено (test.mdc)')
+  const plan = await planStrykerActions(cwd)
+  if (plan.fatal) {
+    reporter.fail(plan.fatal)
     return reporter.result()
   }
 
-  for (const baselinePath of [
-    STRYKER_BASELINE_PATH,
-    STRYKER_VUE_BASELINE_PATH,
-    STRYKER_VUE_PLUGIN_PATH,
-    VITEST_BASELINE_PATH
-  ]) {
-    if (!existsSync(baselinePath)) {
-      reporter.fail(`canonical baseline не знайдено (${baselinePath}) — перевстанови @nitra/cursor`)
-      return reporter.result()
-    }
-  }
-
-  for (const jsRoot of jsRoots) {
-    const isVueRoot = await hasVueFiles(jsRoot)
-    const strykerTarget = join(jsRoot, 'stryker.config.mjs')
-    // Зчитуємо ДО ensureBaselineFile: чи файл уже існував. Якщо ні — baseline
-    // (vue-варіант для Vue-root) копіюється з уже-присутніми plugins/ignorers,
-    // augment не потрібен. Якщо існував — ensureBaselineFile idempotent-skip-ить,
-    // і саме тут augment закриває drift-hole.
-    const wasMissing = !existsSync(strykerTarget)
-    const strykerBaseline = isVueRoot ? STRYKER_VUE_BASELINE_PATH : STRYKER_BASELINE_PATH
-    // configFile у новоствореному baseline має вказувати на фактичний vitest-конфіг
-    // jsRoot-а (existing `.js`/`.mjs` або дефолтний `.mjs`).
-    const vitestName = resolveVitestConfigName(jsRoot)
-    await ensureBaselineFile(reporter, cwd, strykerBaseline, strykerTarget, 'stryker.config.mjs', content =>
-      content.replace(STRYKER_CONFIG_FILE_RE, `configFile: '${vitestName}'`)
+  for (const a of plan.baselineActions) {
+    reporter.fail(
+      `${a.label} відсутній (${relative(cwd, a.target)}) — запусти \`npx @nitra/cursor lint test\` для canonical baseline (test.mdc)`,
+      { reason: STRYKER_CONFIG_MISSING, file: relative(cwd, a.target) }
     )
-    if (isVueRoot) {
-      if (!wasMissing) {
-        await augmentVueStrykerConfig(reporter, cwd, jsRoot)
-      }
-      await ensureBaselineFile(
-        reporter,
-        cwd,
-        STRYKER_VUE_PLUGIN_PATH,
-        join(jsRoot, STRYKER_VUE_PLUGIN_FILENAME),
-        STRYKER_VUE_PLUGIN_FILENAME
-      )
-    }
-    await ensureBaselineFile(reporter, cwd, VITEST_BASELINE_PATH, join(jsRoot, vitestName), vitestName)
+  }
+  for (const w of plan.augmentWrites) {
+    reporter.fail(
+      `vue-macros ignorer не зареєстровано у stryker.config.mjs (${relative(cwd, w.target)}) — запусти \`npx @nitra/cursor lint test\` (test.mdc)`,
+      { reason: STRYKER_VUE_AUGMENT, file: relative(cwd, w.target) }
+    )
+  }
+  for (const msg of plan.augmentFails) {
+    reporter.fail(msg, STRYKER_VUE_AUGMENT_FAIL)
+  }
+  if (plan.gitignoreMissing.length > 0) {
+    reporter.fail(
+      `.gitignore: бракує тест-патернів (${plan.gitignoreMissing.join(', ')}) — запусти \`npx @nitra/cursor lint test\` (test.mdc)`,
+      GITIGNORE_MISSING
+    )
   }
 
-  // Гарантуємо що тест-артефакти (Stryker output, lcov HTML-звіт) ніколи не
-  // потрапляють у commit. Patterns покривають усі workspaces через `**/`-префікс
-  // (єдиний root .gitignore).
-  const { added } = await ensureGitignoreEntries(
-    cwd,
-    TEST_GITIGNORE_ENTRIES,
-    'Test artifacts: Stryker + coverage (test.mdc)'
-  )
-  if (added.length > 0) {
-    reporter.pass(`.gitignore: додано тест-патерни (${added.join(', ')}) (test.mdc)`)
-  }
   return reporter.result()
 }

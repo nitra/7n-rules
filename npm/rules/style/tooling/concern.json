@@ -1,4 +1,13 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
-  "lint": { "scope": "full", "glob": ["package.json", ".stylelintrc.{json,js,cjs,mjs}", "stylelint.config.{js,cjs,mjs}", ".stylelintignore", ".github/workflows/lint-style.yml"] }
+  "lint": {
+    "scope": "full",
+    "glob": [
+      "package.json",
+      ".stylelintrc.{json,js,cjs,mjs}",
+      "stylelint.config.{js,cjs,mjs}",
+      ".stylelintignore",
+      ".github/workflows/lint-style.yml"
+    ]
+  }
 }

@@ -104,7 +104,7 @@ export function renderWrapper({ engine, files, missingMessage, adapterImport, ha
     '/* eslint-disable */',
     `import { evaluatePolicyConcern } from '${adapterImport}'`,
     '',
-    '/** @param {import(\'' + adapterImport.replace('policy-lint-adapter.mjs', 'types.mjs') + '\').LintContext} ctx */',
+    "/** @param {import('" + adapterImport.replace('policy-lint-adapter.mjs', 'types.mjs') + "').LintContext} ctx */",
     'export async function lint(ctx) {',
     '  return evaluatePolicyConcern(ctx, {',
     ...cfgLines,

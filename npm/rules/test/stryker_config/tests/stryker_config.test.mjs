@@ -1,7 +1,8 @@
 /**
  * Тести концерну `stryker_config` (test.mdc): self-gates через js
- * у `.n-cursor.json#rules`, side-effect-копіює canonical baseline у jsRoot
- * якщо stryker.config.mjs відсутній.
+ * у `.n-cursor.json#rules`. Read-only detector ЗВІТУЄ про відсутні
+ * stryker/vitest baseline-и, vue-plugin, augment та `.gitignore`-патерни;
+ * запис робить T0-fix (`fix-stryker_config.mjs`).
  */
 import { describe, expect, test } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -10,14 +11,32 @@ import { join } from 'node:path'
 
 import vitestBaseline from '../data/vitest_config/vitest.config.baseline.js'
 import { lint } from '../main.mjs'
+import { patterns } from '../fix-stryker_config.mjs'
 
-const check = async dir => {
+const detect = async dir => {
   const { violations } = await lint({
     cwd: dir,
     ruleId: 'test',
     concernId: 'stryker_config',
     files: undefined
   })
+  return violations
+}
+
+const check = async dir => ((await detect(dir)).length > 0 ? 1 : 0)
+
+/** Прогоняє T0-патерни concern-а над violations (як central fix-pipeline). */
+async function applyT0(violations, dir) {
+  const ctx = { cwd: dir, ruleId: 'test', concernId: 'stryker_config', recordWrite() {} }
+  for (const p of patterns) {
+    if (p.test(violations)) await p.apply(violations, ctx)
+  }
+}
+
+/** Detect → T0 apply (як lint --fix робить для T0). Повертає detector exit-code ДО фіксу. */
+async function checkAndFix(dir) {
+  const violations = await detect(dir)
+  await applyT0(violations, dir)
   return violations.length > 0 ? 1 : 0
 }
 
@@ -57,17 +76,31 @@ function makeProj({ rules = [], disableRules = [], workspaceRoot = false } = {})
 }
 
 /**
- * Викликає `check(dir)` без `process.chdir` (test.mdc: усі production functions
- * приймають перший параметр `cwd = process.cwd()`; це і дозволяє Stryker-у крутити
- * тести у threads-pool, де chdir не підтримується).
+ * Detect → T0 apply → re-detect; повертає POST-fix exit code. Емулює `lint --fix`
+ * pipeline: detector звітує, T0 виправляє, canonical re-check дає вердикт.
+ * Без `process.chdir` (test.mdc: production functions приймають `cwd`).
  * @param {string} dir каталог проєкту
- * @returns {Promise<number>} exit code
+ * @returns {Promise<number>} POST-fix exit code (0 = чисто)
  */
-function runCheckIn(dir) {
+async function runCheckIn(dir) {
+  await checkAndFix(dir)
   return check(dir)
 }
 
 describe('stryker_config concern', () => {
+  test('read-only detector: stryker.config.mjs відсутній — звітує violation, файл не пише; T0 створює', async () => {
+    const proj = makeProj({ rules: ['js'] })
+    const violations = await detect(proj.dir)
+    expect(violations.some(v => v.reason === 'stryker-config-missing')).toBe(true)
+    // read-only: detector НЕ створив файл
+    expect(existsSync(join(proj.dir, 'stryker.config.mjs'))).toBe(false)
+    // T0 apply створює
+    await applyT0(violations, proj.dir)
+    expect(existsSync(join(proj.dir, 'stryker.config.mjs'))).toBe(true)
+    expect(await check(proj.dir)).toBe(0)
+    proj.cleanup()
+  })
+
   test('js НЕ в rules — silent skip, exit 0, файл не створюється', async () => {
     const proj = makeProj({ rules: ['test'] })
     const exitCode = await runCheckIn(proj.dir)

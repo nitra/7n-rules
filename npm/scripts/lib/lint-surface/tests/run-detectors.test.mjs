@@ -83,7 +83,8 @@ describe('detectAll — exit codes', () => {
   test('absolute file-path відхиляється → exit 2', async () => {
     await withTmpDir(async dir => {
       const rulesDir = join(dir, 'rules')
-      const body = "export function lint() { return { violations: [{ reason: 'x', message: 'y', file: '/etc/passwd' }] } }\n"
+      const body =
+        "export function lint() { return { violations: [{ reason: 'x', message: 'y', file: '/etc/passwd' }] } }\n"
       await seedDetector(rulesDir, 'probe', 'check', { scope: 'full', glob: ['**/*'] }, body)
       await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
       const r = await detectAll({ rulesDir, cwd: dir, full: true, log: () => {} })

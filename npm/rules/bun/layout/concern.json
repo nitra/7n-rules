@@ -1,4 +1,16 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
-  "lint": { "scope": "full", "glob": ["package-lock.json", "yarn.lock", "pnpm-lock.yaml", ".yarnrc.yml", ".yarn/**", "bun.lock", "bunfig.toml", "package.json"] }
+  "lint": {
+    "scope": "full",
+    "glob": [
+      "package-lock.json",
+      "yarn.lock",
+      "pnpm-lock.yaml",
+      ".yarnrc.yml",
+      ".yarn/**",
+      "bun.lock",
+      "bunfig.toml",
+      "package.json"
+    ]
+  }
 }

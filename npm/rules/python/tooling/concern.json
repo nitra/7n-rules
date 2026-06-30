@@ -1,4 +1,14 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
-  "lint": { "scope": "full", "glob": ["pyproject.toml", "uv.lock", "poetry.lock", "poetry.toml", "package.json", ".github/workflows/lint-python.yml"] }
+  "lint": {
+    "scope": "full",
+    "glob": [
+      "pyproject.toml",
+      "uv.lock",
+      "poetry.lock",
+      "poetry.toml",
+      "package.json",
+      ".github/workflows/lint-python.yml"
+    ]
+  }
 }

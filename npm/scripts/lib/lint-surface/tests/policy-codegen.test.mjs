@@ -3,12 +3,7 @@ import { mkdir, writeFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { evaluatePolicyConcern } from '../policy-lint-adapter.mjs'
-import {
-  generatePolicyWrapper,
-  checkRegoCodegen,
-  isGeneratedFile,
-  computeSourceHash
-} from '../codegen-opa-wrapper.mjs'
+import { generatePolicyWrapper, checkRegoCodegen, isGeneratedFile, computeSourceHash } from '../codegen-opa-wrapper.mjs'
 import { runPolicyUnitTests } from '../policy-test-step.mjs'
 import { withTmpDir, writeJson } from '../../../utils/test-helpers.mjs'
 
@@ -74,7 +69,7 @@ describe('codegen — generatePolicyWrapper', () => {
       const content = await readFile(join(concernDir, 'main.mjs'), 'utf8')
       expect(isGeneratedFile(content)).toBe(true)
       expect(content).toContain(`source-hash: ${res.hash}`)
-      expect(content).toContain("engine: \"rego\"")
+      expect(content).toContain('engine: "rego"')
     })
   })
 

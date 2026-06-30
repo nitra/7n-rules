@@ -61,11 +61,12 @@ export async function readConcernMeta(concernDir, name) {
   let policy
   if (raw.policy && typeof raw.policy === 'object') {
     const legacyTemplate = raw.policy.check === 'template'
-    const engine = raw.policy.engine === 'template' || raw.policy.engine === 'rego'
-      ? raw.policy.engine
-      : legacyTemplate
-        ? 'template'
-        : 'rego'
+    const engine =
+      raw.policy.engine === 'template' || raw.policy.engine === 'rego'
+        ? raw.policy.engine
+        : legacyTemplate
+          ? 'template'
+          : 'rego'
     policy = {
       engine,
       files: raw.policy.files,

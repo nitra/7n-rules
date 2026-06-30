@@ -20,7 +20,10 @@ export function lint(ctx) {
 
   const trufflehog = resolveCmd('trufflehog')
   if (!trufflehog) {
-    return { violations: [], diagnostics: [{ level: 'info', message: 'security/scan: `trufflehog` не знайдено в PATH — скан пропущено' }] }
+    return {
+      violations: [],
+      diagnostics: [{ level: 'info', message: 'security/scan: `trufflehog` не знайдено в PATH — скан пропущено' }]
+    }
   }
 
   const r = spawnSync(

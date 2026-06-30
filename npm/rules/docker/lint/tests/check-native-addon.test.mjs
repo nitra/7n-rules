@@ -9,8 +9,7 @@ import { join } from 'node:path'
 import { lint, getMultistageAndRuntimeHint } from '../main.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
-const check = dir =>
-  lint({ cwd: dir, ruleId: 'docker', concernId: 'lint', files: undefined }).then(r => r.violations)
+const check = dir => lint({ cwd: dir, ruleId: 'docker', concernId: 'lint', files: undefined }).then(r => r.violations)
 
 const HADOLINT_RELAX = 'failure-threshold: error\n'
 

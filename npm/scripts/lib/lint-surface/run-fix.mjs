@@ -180,7 +180,9 @@ export async function fixConcern(item, initialViolations, deps) {
       return true
     }
 
-    log(`  ⚡ ${rung.tier} (${rung.model}): ${ruleId}/${concernName}${error ? ` ❌ ${error.slice(0, 120)}` : ' ❌ досі порушено'}\n`)
+    log(
+      `  ⚡ ${rung.tier} (${rung.model}): ${ruleId}/${concernName}${error ? ` ❌ ${error.slice(0, 120)}` : ' ❌ досі порушено'}\n`
+    )
 
     // Не clean → restore S1 перед наступним rung-ом (degraded не тече далі).
     snapshot.rollback()

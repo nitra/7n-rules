@@ -61,7 +61,10 @@ export function lint(ctx) {
   const r = spawnSync(stylelint, targets, { cwd, encoding: 'utf8', shell: false })
   if (r.status !== 0) {
     const out = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().slice(0, 2000)
-    fail(`lint-style: stylelint — порушення (код ${r.status ?? 1}, style.mdc)${out ? `\n${out}` : ''}`, 'stylelint-violation')
+    fail(
+      `lint-style: stylelint — порушення (код ${r.status ?? 1}, style.mdc)${out ? `\n${out}` : ''}`,
+      'stylelint-violation'
+    )
   }
   return reporter.result()
 }

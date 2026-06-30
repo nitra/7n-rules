@@ -6859,4 +6859,3 @@ async function runKubescape(dirs, root) {
   }
   return 0
 }
-

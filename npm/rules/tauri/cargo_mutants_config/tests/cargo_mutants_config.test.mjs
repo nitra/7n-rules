@@ -16,7 +16,16 @@ import { join } from 'node:path'
 
 import { parse as parseToml } from 'smol-toml'
 
-import { lint } from '../main.mjs'
+import { MUTANTS_CONFIG_MISSING, MUTANTS_KEYS_MISSING, lint } from '../main.mjs'
+import { patterns } from '../fix-cargo_mutants_config.mjs'
+
+/** Прогоняє T0-патерни concern-а над violations (як central fix-pipeline). */
+async function applyT0(violations, dir) {
+  const ctx = { cwd: dir, ruleId: 'tauri', concernId: 'cargo_mutants_config', recordWrite() {} }
+  for (const p of patterns) {
+    if (p.test(violations)) await p.apply(violations, ctx)
+  }
+}
 
 /**
  * Створює тимчасовий проєкт з опційним Tauri-layout-ом.
@@ -80,10 +89,18 @@ describe('tauri cargo_mutants_config concern', () => {
     proj.cleanup()
   })
 
-  test('src-tauri є, mutants.toml відсутній — створено Tauri canonical baseline', async () => {
+  test('src-tauri є, mutants.toml відсутній — detector звітує, нічого не пише', async () => {
     const proj = makeProj({ layout: 'tauri' })
     const violations = await runCheckIn(proj.dir)
-    expect(violations).toEqual([])
+    expect(violations.some(v => v.reason === MUTANTS_CONFIG_MISSING)).toBe(true)
+    expect(existsSync(join(proj.dir, 'app', 'src-tauri', '.cargo', 'mutants.toml'))).toBe(false)
+    proj.cleanup()
+  })
+
+  test('T0 apply: mutants.toml відсутній — створено Tauri canonical baseline', async () => {
+    const proj = makeProj({ layout: 'tauri' })
+    const violations = await runCheckIn(proj.dir)
+    await applyT0(violations, proj.dir)
     const target = join(proj.dir, 'app', 'src-tauri', '.cargo', 'mutants.toml')
     expect(existsSync(target)).toBe(true)
     const parsed = parseToml(readFileSync(target, 'utf8'))
@@ -95,18 +112,19 @@ describe('tauri cargo_mutants_config concern', () => {
     proj.cleanup()
   })
 
-  test('повторний прогон — байт-в-байт ідемпотентний', async () => {
+  test('T0 apply: повторний прогон — байт-в-байт ідемпотентний, detector чистий', async () => {
     const proj = makeProj({ layout: 'tauri' })
-    await runCheckIn(proj.dir)
+    await applyT0(await runCheckIn(proj.dir), proj.dir)
     const target = join(proj.dir, 'app', 'src-tauri', '.cargo', 'mutants.toml')
     const first = readFileSync(target, 'utf8')
-    await runCheckIn(proj.dir)
-    const second = readFileSync(target, 'utf8')
-    expect(second).toBe(first)
+    const violations2 = await runCheckIn(proj.dir)
+    expect(violations2).toEqual([])
+    await applyT0(violations2, proj.dir)
+    expect(readFileSync(target, 'utf8')).toBe(first)
     proj.cleanup()
   })
 
-  test('усі канонічні ключі вже є з manual values — нічого не перетирає', async () => {
+  test('усі канонічні ключі вже є з manual values — detector чистий, T0 нічого не перетирає', async () => {
     const proj = makeProj({ layout: 'tauri' })
     const target = join(proj.dir, 'app', 'src-tauri', '.cargo', 'mutants.toml')
     mkdirSync(join(target, '..'), { recursive: true })
@@ -118,11 +136,12 @@ timeout_multiplier = 5.0
     writeFileSync(target, manual)
     const violations = await runCheckIn(proj.dir)
     expect(violations).toEqual([])
+    await applyT0(violations, proj.dir)
     expect(readFileSync(target, 'utf8')).toBe(manual)
     proj.cleanup()
   })
 
-  test('частково сконфігурований файл — додаються лише відсутні ключі', async () => {
+  test('частково сконфігурований файл — detector звітує keys-missing, T0 додає лише відсутні ключі', async () => {
     const proj = makeProj({ layout: 'tauri' })
     const target = join(proj.dir, 'app', 'src-tauri', '.cargo', 'mutants.toml')
     mkdirSync(join(target, '..'), { recursive: true })
@@ -131,7 +150,10 @@ timeout_multiplier = 5.0
 `
     writeFileSync(target, manual)
     const violations = await runCheckIn(proj.dir)
-    expect(violations).toEqual([])
+    expect(violations.some(v => v.reason === MUTANTS_KEYS_MISSING)).toBe(true)
+    // read-only: detector не торкнувся файла
+    expect(readFileSync(target, 'utf8')).toBe(manual)
+    await applyT0(violations, proj.dir)
     const after = readFileSync(target, 'utf8')
     // Existing keys preserved.
     expect(after).toContain('additional_cargo_test_args = ["--lib"]')
@@ -144,16 +166,17 @@ timeout_multiplier = 5.0
     proj.cleanup()
   })
 
-  test("кілька src-tauri у різних workspaces — у кожному з'являється Tauri-config", async () => {
+  test("T0 apply: кілька src-tauri у різних workspaces — у кожному з'являється Tauri-config", async () => {
     const proj = makeProj({ layout: 'multiTauri' })
     const violations = await runCheckIn(proj.dir)
-    expect(violations).toEqual([])
+    expect(violations.filter(v => v.reason === MUTANTS_CONFIG_MISSING).length).toBe(2)
+    await applyT0(violations, proj.dir)
     expect(existsSync(join(proj.dir, 'app', 'src-tauri', '.cargo', 'mutants.toml'))).toBe(true)
     expect(existsSync(join(proj.dir, 'desktop', 'src-tauri', '.cargo', 'mutants.toml'))).toBe(true)
     proj.cleanup()
   })
 
-  test('test-rule baseline + tauri-rule augmentation: ключі додаються поверх нейтрального файла', async () => {
+  test('T0 apply: test-rule baseline + tauri-rule augmentation — ключі додаються поверх нейтрального файла', async () => {
     const proj = makeProj({ layout: 'tauri' })
     const target = join(proj.dir, 'app', 'src-tauri', '.cargo', 'mutants.toml')
     mkdirSync(join(target, '..'), { recursive: true })
@@ -161,7 +184,8 @@ timeout_multiplier = 5.0
     const neutral = '# .cargo/mutants.toml — universal cargo-mutants baseline (test.mdc).\n'
     writeFileSync(target, neutral)
     const violations = await runCheckIn(proj.dir)
-    expect(violations).toEqual([])
+    expect(violations.some(v => v.reason === MUTANTS_KEYS_MISSING)).toBe(true)
+    await applyT0(violations, proj.dir)
     const after = readFileSync(target, 'utf8')
     expect(after.startsWith(neutral)).toBe(true)
     const parsed = parseToml(after)

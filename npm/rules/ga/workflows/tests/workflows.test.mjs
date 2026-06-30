@@ -17,8 +17,7 @@ import {
   writeJson
 } from '../../../../scripts/utils/test-helpers.mjs'
 
-const main = dir =>
-  lint({ cwd: dir, ruleId: 'ga', concernId: 'workflows', files: undefined }).then(r => r.violations)
+const main = dir => lint({ cwd: dir, ruleId: 'ga', concernId: 'workflows', files: undefined }).then(r => r.violations)
 
 // Зовнішні тули (actionlint/zizmor) тепер виконуються всередині detector-а і залежать від
 // середовища (наявність bunx/uvx, версії правил). Структурні тести фікстур (наявність файлів,

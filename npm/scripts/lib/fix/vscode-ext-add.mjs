@@ -16,12 +16,9 @@ const REC_REQUIRE_RE = /recommendations має містити|extensions\.json/u
 export const patterns = [
   {
     id: 'vscode-ext-add',
-    test: violations =>
-      violations.some(v => v.reason === 'policy-file-missing' || REC_REQUIRE_RE.test(v.message)),
+    test: violations => violations.some(v => v.reason === 'policy-file-missing' || REC_REQUIRE_RE.test(v.message)),
     apply: (violations, ctx) => {
-      const snippetPath = ctx.concernDir
-        ? join(ctx.concernDir, 'template', 'extensions.json.snippet.json')
-        : null
+      const snippetPath = ctx.concernDir ? join(ctx.concernDir, 'template', 'extensions.json.snippet.json') : null
       if (!snippetPath || !existsSync(snippetPath)) return { touchedFiles: [] }
 
       /** @type {string[]} */

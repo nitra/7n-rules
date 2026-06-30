@@ -52,7 +52,12 @@ describe('runFixPipeline — базові вердикти', () => {
         cwd: dir,
         full: true,
         log: () => {},
-        deps: { ladder: ONE_RUNG, workerFor: () => () => { called = true } }
+        deps: {
+          ladder: ONE_RUNG,
+          workerFor: () => () => {
+            called = true
+          }
+        }
       })
       expect(code).toBe(0)
       expect(called).toBe(false)

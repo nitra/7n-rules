@@ -1,4 +1,7 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
-  "lint": { "scope": "full", "glob": ["npm/rules/**/main.json", "npm/rules/**/main.mjs", "npm/rules/**/main.mdc", "npm/rules/**/auto.md"] }
+  "lint": {
+    "scope": "full",
+    "glob": ["npm/rules/**/main.json", "npm/rules/**/main.mjs", "npm/rules/**/main.mdc", "npm/rules/**/auto.md"]
+  }
 }

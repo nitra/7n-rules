@@ -35,7 +35,14 @@ const SYSTEMIC_RE = /не git-репо|fail-closed|write-guard|модель не
 export function buildLadder({ localMin, cloudMin, cloudAvg }) {
   return [
     { tier: 'local-min', model: localMin, feedback: false, local: true, isAvg: false, timeoutMs: LOCAL_TIMEOUT_MS },
-    { tier: 'local-min-retry', model: localMin, feedback: true, local: true, isAvg: false, timeoutMs: LOCAL_TIMEOUT_MS },
+    {
+      tier: 'local-min-retry',
+      model: localMin,
+      feedback: true,
+      local: true,
+      isAvg: false,
+      timeoutMs: LOCAL_TIMEOUT_MS
+    },
     { tier: 'cloud-min', model: cloudMin, feedback: true, local: false, isAvg: false, timeoutMs: CLOUD_TIMEOUT_MS },
     { tier: 'cloud-avg', model: cloudAvg, feedback: true, local: false, isAvg: true, timeoutMs: CLOUD_TIMEOUT_MS }
   ].filter(r => r.model)
