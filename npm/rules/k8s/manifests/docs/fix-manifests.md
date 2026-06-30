@@ -3,7 +3,7 @@ type: JS Module
 title: fix-manifests.mjs
 resource: npm/rules/k8s/manifests/fix-manifests.mjs
 docgen:
-  crc: e82ee52e
+  crc: 8eacb67a
 ---
 
 ## Огляд

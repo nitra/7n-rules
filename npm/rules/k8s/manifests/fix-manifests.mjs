@@ -90,7 +90,16 @@ export function ensureDeploymentStrategy(content) {
     changed = true
   }
   if (!changed) return null
-  return docs.map(d => d.toString().replace(/^---\n/u, '').trimEnd()).join('\n---\n') + '\n'
+  return (
+    docs
+      .map(d =>
+        d
+          .toString()
+          .replace(/^---\n/u, '')
+          .trimEnd()
+      )
+      .join('\n---\n') + '\n'
+  )
 }
 
 /**
@@ -120,7 +129,16 @@ export function ensureNetworkPolicyEgress(content) {
     changed = true
   }
   if (!changed) return null
-  return docs.map(d => d.toString().replace(/^---\n/u, '').trimEnd()).join('\n---\n') + '\n'
+  return (
+    docs
+      .map(d =>
+        d
+          .toString()
+          .replace(/^---\n/u, '')
+          .trimEnd()
+      )
+      .join('\n---\n') + '\n'
+  )
 }
 
 /**

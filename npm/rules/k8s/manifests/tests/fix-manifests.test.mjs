@@ -13,7 +13,9 @@ import {
 
 describe('moveSchemaModelineFirst', () => {
   test('modeline нижче першого рядка → переноситься нагору (без префіксів)', () => {
-    const src = ['apiVersion: v1', '  # yaml-language-server: $schema=https://x/s.json', 'kind: ConfigMap', ''].join('\n')
+    const src = ['apiVersion: v1', '  # yaml-language-server: $schema=https://x/s.json', 'kind: ConfigMap', ''].join(
+      '\n'
+    )
     const out = moveSchemaModelineFirst(src)
     expect(out.split('\n')[0]).toBe('# yaml-language-server: $schema=https://x/s.json')
     expect(out).toContain('apiVersion: v1')
@@ -61,7 +63,15 @@ describe('sortKustomizationPatches', () => {
 
 describe('ensureDeploymentStrategy', () => {
   test('Deployment без strategy → проставляє RollingUpdate 0/1', () => {
-    const src = ['apiVersion: apps/v1', 'kind: Deployment', 'metadata:', '  name: d', 'spec:', '  replicas: 1', ''].join('\n')
+    const src = [
+      'apiVersion: apps/v1',
+      'kind: Deployment',
+      'metadata:',
+      '  name: d',
+      'spec:',
+      '  replicas: 1',
+      ''
+    ].join('\n')
     const out = ensureDeploymentStrategy(src)
     const strat = parse(out).spec.strategy
     expect(strat).toEqual({ type: 'RollingUpdate', rollingUpdate: { maxUnavailable: 0, maxSurge: 1 } })
