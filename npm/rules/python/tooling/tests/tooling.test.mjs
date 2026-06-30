@@ -8,8 +8,16 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { withTmpDir, writeJson, ensureDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+/**
+ * Запускає detector у whole-repo режимі і повертає кількість порушень.
+ * @param {string} dir корінь тимчасового проєкту
+ * @returns {Promise<number>} кількість LintViolation
+ */
+const check = async dir =>
+  (await lint({ cwd: dir, ruleId: 'python', concernId: 'tooling', files: undefined })).violations.length
 
 /**
  * Створює мінімальний валідний uv-проєкт у каталозі.
@@ -28,14 +36,14 @@ describe('check (tooling)', () => {
   test('0 — не Python-проєкт (без pyproject.toml)', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 'x', private: true })
-      expect(check(dir)).toBe(0)
+      expect(await check(dir)).toBe(0)
     })
   })
 
   test('0 — валідний uv-проєкт (PEP 621 + uv.lock + workflow)', async () => {
     await withTmpDir(async dir => {
       await writeValidUvProject(dir)
-      expect(check(dir)).toBe(0)
+      expect(await check(dir)).toBe(0)
     })
   })
 
@@ -43,7 +51,7 @@ describe('check (tooling)', () => {
     await withTmpDir(async dir => {
       await writeValidUvProject(dir)
       await writeFile(join(dir, 'poetry.lock'), '', 'utf8')
-      expect(check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -51,7 +59,7 @@ describe('check (tooling)', () => {
     await withTmpDir(async dir => {
       await writeValidUvProject(dir)
       await writeFile(join(dir, 'poetry.toml'), '', 'utf8')
-      expect(check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -61,7 +69,7 @@ describe('check (tooling)', () => {
       await writeJson(join(dir, 'package.json'), { name: 'demo', private: true })
       await ensureDir(join(dir, '.github', 'workflows'))
       await writeFile(join(dir, '.github', 'workflows', 'lint-python.yml'), 'name: Lint Python\n', 'utf8')
-      expect(check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -70,7 +78,7 @@ describe('check (tooling)', () => {
       await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\nversion = "0.1.0"\n', 'utf8')
       await writeFile(join(dir, 'uv.lock'), 'version = 1\n', 'utf8')
       await writeJson(join(dir, 'package.json'), { name: 'demo', private: true })
-      expect(check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 })

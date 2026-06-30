@@ -5,8 +5,16 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+
+/**
+ * Запускає detector у whole-repo режимі і повертає кількість порушень.
+ * @param {string} dir корінь тимчасового проєкту
+ * @returns {Promise<number>} кількість LintViolation
+ */
+const check = async dir =>
+  (await lint({ cwd: dir, ruleId: 'js-run', concernId: 'runtime', files: undefined })).violations.length
 
 /** Канонічний jsconfig для backend-пакетів із `src/` (js-run.mdc). */
 const CANONICAL_BACKEND_JSCONFIG = {
@@ -53,7 +61,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
   test.skip('1, якщо в workspace-пакеті є bunyan', async () => {
     await withTmpDir(async dir => {
       await writeRootWithWorkspacePkg(dir, { bunyan: '^1.8.0' })
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -61,7 +69,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
     await withTmpDir(async dir => {
       await writeRootWithWorkspacePkg(dir, { '@nitra/pino': '^1.0.0' })
       await writeFile(join(dir, 'pkg', 'index.js'), `import log from '@nitra/bunyan'\nlog.info('start')\n`, 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -99,7 +107,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
         `import { SQL } from 'bun'\nimport { checkEnv, env } from '@nitra/check-env'\ncheckEnv(['PG_CONN'])\nexport const db = new SQL({ url: env.PG_CONN })\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -151,7 +159,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
         `import sql from 'mssql'\nexport const mssqlWriter = new sql.ConnectionPool({})\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -160,7 +168,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
       await writeRootWithWorkspacePkg(dir, { '@nitra/pino': '^1.0.0' })
       await mkdir(join(dir, 'pkg', 'src'), { recursive: true })
       await writeFile(join(dir, 'pkg', 'src', 'app.js'), `export const x = 1\n`, 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -176,7 +184,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
         compilerOptions: { module: 'ESNext', moduleResolution: 'bundler', target: 'esnext' },
         include: ['src/**/*']
       })
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -203,7 +211,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
     await withTmpDir(async dir => {
       await writeRootWithWorkspacePkg(dir, { '@nitra/pino': '^1.0.0' })
       await writeFile(join(dir, 'pkg', 'index.js'), `console.log(process.env.SECRET)\n`, 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -234,7 +242,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
     await withTmpDir(async dir => {
       await writeRootWithWorkspacePkg(dir, { '@nitra/pino': '^1.0.0' })
       await writeFile(join(dir, 'pkg', 'index.js'), `console.log(process.env.PG_CONN)\n`, 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -246,7 +254,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
         `import { checkEnv } from '@nitra/check-env'\ncheckEnv(['SECRET'])\nconsole.log(process.env.SECRET)\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -294,7 +302,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
         `export async function pause() {\n  await new Promise(resolve => setTimeout(resolve, 500))\n}\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -314,7 +322,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
     await withTmpDir(async dir => {
       await writeRootWithWorkspacePkg(dir, { '@nitra/pino': '^1.0.0' })
       await writeFile(join(dir, 'pkg', 'index.js'), `export const now = Temporal.Now.instant()\n`, 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 })

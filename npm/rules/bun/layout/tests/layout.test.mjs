@@ -11,8 +11,21 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+
+const ruleId = 'rules/bun'
+const concernId = 'rules/bun/layout'
+
+/**
+ * Запускає detector у каталозі й повертає exit-подібний код (0 clean / 1 violation).
+ * @param {string} dir корінь репозиторію
+ * @returns {Promise<0 | 1>} код сумісності зі старим контрактом
+ */
+async function check(dir) {
+  const { violations } = await lint({ cwd: dir, ruleId, concernId, files: undefined })
+  return violations.length > 0 ? 1 : 0
+}
 
 // Перевірка дозволених кореневих devDependencies (лише `@nitra/*`) — у rego
 // (`npm/policy/bun/package_json/package_json_test.rego`).

@@ -15,8 +15,11 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { env } from 'node:process'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+
+const runLint = dir => lint({ cwd: dir, ruleId: 'image-avif', concernId: 'avif_generation', files: undefined })
+const check = dir => runLint(dir).then(r => r.violations)
 
 beforeAll(() => {
   env.NITRA_CURSOR_NO_AVIF_RUN = '1'
@@ -44,7 +47,7 @@ describe('check-image-avif', () => {
         `<script setup>\nimport hero from './hero.png'\n</script>\n<template><img :src="hero"/></template>\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect((await check(dir)).length).toBeGreaterThan(0)
     })
   })
 
@@ -63,7 +66,7 @@ describe('check-image-avif', () => {
         `<script setup>\nimport hero from './hero.png.avif'\n</script>\n<template><img :src="hero"/></template>\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -85,7 +88,7 @@ describe('check-image-avif', () => {
         `<script setup>\nimport hero from './hero.png'\n</script>\n<template><img :src="hero"/></template>\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -104,7 +107,7 @@ describe('check-image-avif', () => {
         `<script setup>\nimport icon from './icon.svg'\n</script>\n<template><img :src="icon"/></template>\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -123,7 +126,7 @@ describe('check-image-avif', () => {
         `<template>\n  <img src="./hero.png" alt="hero" />\n</template>\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect((await check(dir)).length).toBeGreaterThan(0)
     })
   })
 
@@ -142,7 +145,7 @@ describe('check-image-avif', () => {
         `<template>\n  <img src="./hero.png.avif" alt="hero" />\n</template>\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -161,7 +164,7 @@ describe('check-image-avif', () => {
         `<script setup>\nimport hero from './hero.png.avif'\n</script>\n<template>\n  <img :src="hero" />\n</template>\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -182,7 +185,7 @@ describe('check-image-avif', () => {
         `<template>\n  <img src="./a.png" alt="a" />\n</template>\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
       const updated = await readFile(join(dir, 'app/src', 'App.vue'), 'utf8')
       expect(updated).toContain(`src="./a.png.avif"`)
       expect(updated).not.toMatch(ORIGINAL_PNG_SRC_RE)
@@ -208,7 +211,7 @@ describe('check-image-avif', () => {
       await writeFile(join(dir, 'app/src', 'lonely.png.avif'), 'fake-avif', 'utf8')
       const vue = `<script setup>\nconst dyn = computed(() => '/whatever')\n</script>\n<template>\n  <img :src="dyn" alt="dynamic" />\n</template>\n`
       await writeFile(join(dir, 'app/src', 'App.vue'), vue, 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
       expect(await readFile(join(dir, 'app/src', 'App.vue'), 'utf8')).toBe(vue)
       expect(existsSync(join(dir, 'app/src', 'lonely.png.avif'))).toBe(true)
       expect(existsSync(join(dir, 'app/src', 'lonely.png'))).toBe(true)
@@ -243,7 +246,7 @@ describe('check-image-avif', () => {
         `  <img data-src="./reactive.png" />\n` +
         `</template>\n`
       await writeFile(join(dir, 'app/src', 'App.vue'), vue, 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
       const updated = await readFile(join(dir, 'app/src', 'App.vue'), 'utf8')
       expect(updated).toContain(`src="./static.png.avif"`)
       expect(updated).toContain(`import imp from './imp.png.avif'`)
@@ -271,7 +274,7 @@ describe('check-image-avif', () => {
       await writeFile(join(dir, 'app/src', 'kept.png'), 'fake-png', 'utf8')
       await writeFile(join(dir, 'app/src', 'kept.png.avif'), 'fake-avif', 'utf8')
       await writeFile(join(dir, 'app/src', 'App.vue'), `<template><div/></template>\n`, 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
       expect(existsSync(join(dir, 'app/src', 'kept.png.avif'))).toBe(true)
     })
   })
@@ -290,11 +293,11 @@ describe('check-image-avif', () => {
       await writeFile(join(dir, 'app/src', 'hero.png.avif'), 'fake', 'utf8')
       const vue = `<script setup>\nimport hero from './hero.png.avif'\n</script>\n<template><img :src="hero"/></template>\n`
       await writeFile(join(dir, 'app/src', 'App.vue'), vue, 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
       const after1 = await readFile(join(dir, 'app/src', 'App.vue'), 'utf8')
       expect(after1).toBe(vue)
       expect(existsSync(join(dir, 'app/src', 'hero.png.avif'))).toBe(true)
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
       const after2 = await readFile(join(dir, 'app/src', 'App.vue'), 'utf8')
       expect(after2).toBe(vue)
       expect(existsSync(join(dir, 'app/src', 'hero.png.avif'))).toBe(true)
@@ -319,7 +322,7 @@ describe('check-image-avif', () => {
         `<template>\n  <q-img src="/api-page/1.png" />\n</template>\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
       const updated = await readFile(join(dir, 'site/src/pages', 'x.vue'), 'utf8')
       expect(updated).toContain(`src="/api-page/1.png.avif"`)
       expect(existsSync(join(dir, 'site/public/api-page', '1.png.avif'))).toBe(true)
@@ -343,7 +346,7 @@ describe('check-image-avif', () => {
         `<html><body>\n  <img src="assets/images/x.png" />\n</body></html>\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
       const updated = await readFile(join(dir, 'docs/guide', 'docs-page.html'), 'utf8')
       expect(updated).toContain(`src="assets/images/x.png.avif"`)
       expect(existsSync(join(dir, 'docs/guide/assets/images', 'x.png.avif'))).toBe(true)
@@ -368,7 +371,7 @@ describe('check-image-avif', () => {
         `<template>\n  <img src="start-page-ua/logo.png" />\n</template>\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
       const updated = await readFile(join(dir, 'site/src/components/login', 'X.vue'), 'utf8')
       expect(updated).toContain(`src="start-page-ua/logo.png.avif"`)
       expect(existsSync(join(dir, 'site/public/start-page-ua', 'logo.png.avif'))).toBe(true)
@@ -390,7 +393,7 @@ describe('check-image-avif', () => {
         await ensureDir(join(dir, 'app', sub))
         await writeFile(join(dir, 'app', sub, 'artifact.png.avif'), 'fake', 'utf8')
       }
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
       for (const sub of ['build', 'android', 'ios', '.output', '.nuxt', '.cache']) {
         expect(existsSync(join(dir, 'app', sub, 'artifact.png.avif'))).toBe(true)
       }
@@ -415,7 +418,7 @@ describe('check-image-avif', () => {
       await writeFile(join(dir, 'app/src', 'orphan.png'), 'fake-png', 'utf8')
       await writeFile(join(dir, 'app/src', 'orphan.png.avif'), 'fake-avif', 'utf8')
       await writeFile(join(dir, 'app/src', 'App.vue'), `<template>\n  <img src="./usage.png" />\n</template>\n`, 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
       expect(existsSync(join(dir, 'app/src', 'orphan.png.avif'))).toBe(false)
       expect(existsSync(join(dir, 'app/src', 'orphan.png'))).toBe(true)
       expect(existsSync(join(dir, 'app/src', 'usage.png.avif'))).toBe(true)
@@ -439,7 +442,7 @@ describe('check-image-avif', () => {
         `<script setup>\nimport hero from './hero.png'\n</script>\n<template><img :src="hero"/></template>\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
       const updated = await readFile(join(dir, 'app/src', 'App.vue'), 'utf8')
       expect(updated).toContain(`'./hero.png.avif'`)
       expect(updated).not.toContain(`'./hero.png'`)
@@ -462,16 +465,9 @@ describe('check-image-avif', () => {
         `<script setup>\nimport hero from './hero.png'\n</script>\n`,
         'utf8'
       )
-      const logs = []
-      const origLog = console.log
-      console.log = msg => logs.push(String(msg))
-      try {
-        await check(dir)
-      } finally {
-        console.log = origLog
-      }
-      const violationLines = logs.filter(l => l.includes('hero.png'))
-      expect(violationLines.length).toBe(1)
+      const violations = await check(dir)
+      const heroViolations = violations.filter(v => v.message.includes('hero.png'))
+      expect(heroViolations.length).toBe(1)
     })
   })
 })

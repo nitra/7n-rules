@@ -7,8 +7,11 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { sourceFileHasGqlTaggedTemplate } from '../../lib/graphql-gql-scan.mjs'
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+
+const check = dir =>
+  lint({ cwd: dir, ruleId: 'graphql', concernId: 'tooling', files: undefined }).then(r => r.violations)
 
 describe('sourceFileHasGqlTaggedTemplate', () => {
   test('true для gql у .ts', () => {
@@ -54,14 +57,14 @@ describe('check (tooling.mjs)', () => {
   test('exit 0 — немає gql шаблонів у джерелах', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'index.js'), 'const x = 1\n', 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
   test('exit 1 — gql знайдено, .graphqlrc.yml відсутній', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'api.js'), 'const q = gql`query { me { id } }`\n', 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect((await check(dir)).length).toBeGreaterThan(0)
     })
   })
 
@@ -73,7 +76,7 @@ describe('check (tooling.mjs)', () => {
       await writeJson(join(dir, '.vscode/extensions.json'), {
         recommendations: ['graphql.vscode-graphql']
       })
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -85,7 +88,7 @@ describe('check (tooling.mjs)', () => {
       await writeJson(join(dir, '.vscode/extensions.json'), {
         recommendations: ['eslint.vscode-eslint']
       })
-      expect(await check(dir)).toBe(1)
+      expect((await check(dir)).length).toBeGreaterThan(0)
     })
   })
 })

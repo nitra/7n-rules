@@ -1,8 +1,8 @@
 /**
  * Тести `post-tool-use-check`: extractFilePath + CLI entry.
  *
- * Хук після редагування файлу робить read-only детект конформності всіх правил —
- * пряма `runConformanceCheck` (без subprocess). У тестах інжектимо `runConformanceCheckFn`.
+ * Хук після редагування файлу робить read-only per-file детект (unified lint surface) —
+ * пряма `detectAll({ files: [fp] })`. У тестах інжектимо `detectFn`.
  */
 import { describe, expect, vi, test } from 'vitest'
 
@@ -22,55 +22,51 @@ describe('extractFilePath', () => {
 })
 
 describe('runPostToolUseCheckCli', () => {
-  test('file_path + конформність чиста → 0', async () => {
-    const runConformanceCheckFn = vi.fn(async () => ({ total: 5, failed: 0, rules: [] }))
-    const code = await runPostToolUseCheckCli({ stdinJson: EDIT, runConformanceCheckFn })
+  test('file_path + детект чистий → 0', async () => {
+    const detectFn = vi.fn(async () => ({ violations: [], exitCode: 0 }))
+    const code = await runPostToolUseCheckCli({ stdinJson: EDIT, detectFn })
     expect(code).toBe(0)
-    expect(runConformanceCheckFn).toHaveBeenCalledTimes(1)
-    expect(runConformanceCheckFn.mock.calls[0][0]).toEqual([]) // усі правила, без фільтра
+    expect(detectFn).toHaveBeenCalledTimes(1)
+    expect(detectFn.mock.calls[0][0].files).toEqual(['src/foo.mjs']) // per-file детект зміненого
   })
 
   test('file_path + є порушення → 1', async () => {
-    const runConformanceCheckFn = vi.fn(async () => ({
-      total: 2,
-      failed: 1,
-      rules: [{ ruleId: 'ga', ok: false, output: 'bad' }]
-    }))
-    const code = await runPostToolUseCheckCli({ stdinJson: EDIT, runConformanceCheckFn })
+    const detectFn = vi.fn(async () => ({ violations: [{ reason: 'x', message: 'bad' }], exitCode: 1 }))
+    const code = await runPostToolUseCheckCli({ stdinJson: EDIT, detectFn })
     expect(code).toBe(1)
   })
 
-  test('немає file_path (Bash) → 0, без перевірки', async () => {
-    const runConformanceCheckFn = vi.fn()
+  test('немає file_path (Bash) → 0, без детекту', async () => {
+    const detectFn = vi.fn()
     const code = await runPostToolUseCheckCli({
       stdinJson: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'echo' } }),
-      runConformanceCheckFn
+      detectFn
     })
     expect(code).toBe(0)
-    expect(runConformanceCheckFn).not.toHaveBeenCalled()
+    expect(detectFn).not.toHaveBeenCalled()
   })
 
-  test('порожній / невалідний stdin → 0, без перевірки', async () => {
-    const runConformanceCheckFn = vi.fn()
-    expect(await runPostToolUseCheckCli({ stdinJson: '', runConformanceCheckFn })).toBe(0)
-    expect(await runPostToolUseCheckCli({ stdinJson: 'not-json', runConformanceCheckFn })).toBe(0)
-    expect(runConformanceCheckFn).not.toHaveBeenCalled()
+  test('порожній / невалідний stdin → 0, без детекту', async () => {
+    const detectFn = vi.fn()
+    expect(await runPostToolUseCheckCli({ stdinJson: '', detectFn })).toBe(0)
+    expect(await runPostToolUseCheckCli({ stdinJson: 'not-json', detectFn })).toBe(0)
+    expect(detectFn).not.toHaveBeenCalled()
   })
 
-  test('runConformanceCheck кидає → 1', async () => {
-    const runConformanceCheckFn = vi.fn(async () => {
+  test('detect кидає → 1', async () => {
+    const detectFn = vi.fn(async () => {
       throw new Error('boom')
     })
-    expect(await runPostToolUseCheckCli({ stdinJson: EDIT, runConformanceCheckFn })).toBe(1)
+    expect(await runPostToolUseCheckCli({ stdinJson: EDIT, detectFn })).toBe(1)
   })
 
-  test('process.stdin.isTTY → 0, без перевірки', async () => {
+  test('process.stdin.isTTY → 0, без детекту', async () => {
     const desc = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY')
     Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true, writable: true })
     try {
-      const runConformanceCheckFn = vi.fn()
-      expect(await runPostToolUseCheckCli({ runConformanceCheckFn })).toBe(0)
-      expect(runConformanceCheckFn).not.toHaveBeenCalled()
+      const detectFn = vi.fn()
+      expect(await runPostToolUseCheckCli({ detectFn })).toBe(0)
+      expect(detectFn).not.toHaveBeenCalled()
     } finally {
       if (desc) Object.defineProperty(process.stdin, 'isTTY', desc)
       else delete process.stdin.isTTY

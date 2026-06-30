@@ -2,8 +2,16 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+
+/**
+ * Запускає detector у whole-repo режимі і повертає кількість порушень.
+ * @param {string} dir корінь тимчасового проєкту
+ * @returns {Promise<number>} кількість LintViolation
+ */
+const check = async dir =>
+  (await lint({ cwd: dir, ruleId: 'npm-module', concernId: 'skill_meta', files: undefined })).violations.length
 
 describe('skill_meta check', () => {
   test('усі скіли з валідним main.json → 0', async () => {
@@ -19,7 +27,7 @@ describe('skill_meta check', () => {
   test('відсутній main.json → 1', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'npm', 'skills', 'fix'))
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -28,7 +36,7 @@ describe('skill_meta check', () => {
       await ensureDir(join(dir, 'npm', 'skills', 'fix'))
       await writeJson(join(dir, 'npm', 'skills', 'fix', 'main.json'), { auto: 'завжди', worktree: true })
       await writeFile(join(dir, 'npm', 'skills', 'fix', 'auto.md'), 'завжди\n', 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -36,7 +44,7 @@ describe('skill_meta check', () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'npm', 'skills', 'fix'))
       await writeJson(join(dir, 'npm', 'skills', 'fix', 'main.json'), { auto: 'завжди', worktree: 'yes' })
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -44,7 +52,7 @@ describe('skill_meta check', () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'npm', 'skills', 'fix'))
       await writeJson(join(dir, 'npm', 'skills', 'fix', 'main.json'), { auto: 'always', worktree: true })
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -74,7 +82,7 @@ describe('skill_meta check', () => {
         worktree: false,
         requireRoot: 'yes'
       })
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -86,7 +94,7 @@ describe('skill_meta check', () => {
         worktree: true,
         requireRoot: false
       })
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 })

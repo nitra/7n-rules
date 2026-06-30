@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 
 /**
  * Створює тимчасовий проєкт з опційним Cargo-layout-ом.
@@ -35,36 +35,36 @@ function makeProj({ rules = [], disableRules = [], layout = 'flat' } = {}) {
 }
 
 /**
- * Викликає `check(dir)` без `process.chdir` (test.mdc canon: production functions
- * приймають перший параметр `cwd = process.cwd()`; Stryker крутить тести у threads-pool,
- * де chdir не підтримується).
+ * Викликає detector `lint(ctx)` без `process.chdir` (test.mdc canon: production functions
+ * приймають `cwd`; Stryker крутить тести у threads-pool, де chdir не підтримується).
  * @param {string} dir каталог проєкту
- * @returns {Promise<number>} exit code
+ * @returns {Promise<import('../../../../scripts/lib/lint-surface/types.mjs').LintViolation[]>} violations
  */
-function runCheckIn(dir) {
-  return check(dir)
+async function runCheckIn(dir) {
+  const { violations } = await lint({ cwd: dir, ruleId: 'test', concernId: 'cargo_mutants_config', files: undefined })
+  return violations
 }
 
 describe('cargo_mutants_config concern', () => {
   test('rust НЕ в rules — silent skip', async () => {
     const proj = makeProj({ rules: ['test'] })
-    const exitCode = await runCheckIn(proj.dir)
-    expect(exitCode).toBe(0)
+    const violations = await runCheckIn(proj.dir)
+    expect(violations).toEqual([])
     expect(existsSync(join(proj.dir, '.cargo', 'mutants.toml'))).toBe(false)
     proj.cleanup()
   })
 
   test('rust у disable-rules — silent skip', async () => {
     const proj = makeProj({ rules: ['rust'], disableRules: ['rust'] })
-    const exitCode = await runCheckIn(proj.dir)
-    expect(exitCode).toBe(0)
+    const violations = await runCheckIn(proj.dir)
+    expect(violations).toEqual([])
     proj.cleanup()
   })
 
   test('rust enabled + Cargo.toml у cwd — копіює baseline у cwd/.cargo/mutants.toml', async () => {
     const proj = makeProj({ rules: ['rust'], layout: 'flat' })
-    const exitCode = await runCheckIn(proj.dir)
-    expect(exitCode).toBe(0)
+    const violations = await runCheckIn(proj.dir)
+    expect(violations).toEqual([])
     const target = join(proj.dir, '.cargo', 'mutants.toml')
     expect(existsSync(target)).toBe(true)
     const content = readFileSync(target, 'utf8')
@@ -77,8 +77,8 @@ describe('cargo_mutants_config concern', () => {
 
   test('rust enabled + Tauri-патерн — копіює у app/src-tauri/.cargo/mutants.toml', async () => {
     const proj = makeProj({ rules: ['rust'], layout: 'tauri' })
-    const exitCode = await runCheckIn(proj.dir)
-    expect(exitCode).toBe(0)
+    const violations = await runCheckIn(proj.dir)
+    expect(violations).toEqual([])
     expect(existsSync(join(proj.dir, 'app', 'src-tauri', '.cargo', 'mutants.toml'))).toBe(true)
     proj.cleanup()
   })
@@ -88,8 +88,8 @@ describe('cargo_mutants_config concern', () => {
     const cargoDir = join(proj.dir, '.cargo')
     mkdirSync(cargoDir, { recursive: true })
     writeFileSync(join(cargoDir, 'config.toml'), '[build]\ntarget = "x86_64-unknown-linux-gnu"\n')
-    const exitCode = await runCheckIn(proj.dir)
-    expect(exitCode).toBe(0)
+    const violations = await runCheckIn(proj.dir)
+    expect(violations).toEqual([])
     expect(existsSync(join(cargoDir, 'mutants.toml'))).toBe(true)
     expect(readFileSync(join(cargoDir, 'config.toml'), 'utf8')).toContain('[build]')
     proj.cleanup()
@@ -100,16 +100,16 @@ describe('cargo_mutants_config concern', () => {
     const cargoDir = join(proj.dir, '.cargo')
     mkdirSync(cargoDir, { recursive: true })
     writeFileSync(join(cargoDir, 'mutants.toml'), '# my custom config')
-    const exitCode = await runCheckIn(proj.dir)
-    expect(exitCode).toBe(0)
+    const violations = await runCheckIn(proj.dir)
+    expect(violations).toEqual([])
     expect(readFileSync(join(cargoDir, 'mutants.toml'), 'utf8')).toBe('# my custom config')
     proj.cleanup()
   })
 
   test('rust enabled, але Cargo.toml відсутній — silent skip (не fail)', async () => {
     const proj = makeProj({ rules: ['rust'], layout: 'noCargo' })
-    const exitCode = await runCheckIn(proj.dir)
-    expect(exitCode).toBe(0)
+    const violations = await runCheckIn(proj.dir)
+    expect(violations).toEqual([])
     proj.cleanup()
   })
 
@@ -123,8 +123,8 @@ describe('cargo_mutants_config concern', () => {
     mkdirSync(join(dir, 'cli'), { recursive: true })
     writeFileSync(join(dir, 'cli', 'Cargo.toml'), '[package]\nname="c"\nversion="0.1.0"\n')
 
-    const exitCode = await runCheckIn(dir)
-    expect(exitCode).toBe(0)
+    const violations = await runCheckIn(dir)
+    expect(violations).toEqual([])
     expect(existsSync(join(dir, '.cargo', 'mutants.toml'))).toBe(true)
     expect(existsSync(join(dir, 'tauri-app', 'src-tauri', '.cargo', 'mutants.toml'))).toBe(true)
     expect(existsSync(join(dir, 'cli', '.cargo', 'mutants.toml'))).toBe(true)

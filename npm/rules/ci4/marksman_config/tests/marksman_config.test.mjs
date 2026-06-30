@@ -7,8 +7,21 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+const ruleId = 'rules/ci4'
+const concernId = 'rules/ci4/marksman_config'
+
+/**
+ * Запускає detector у каталозі й повертає exit-подібний код (0 clean / 1 violation).
+ * @param {string} dir корінь репозиторію
+ * @returns {Promise<0 | 1>} код сумісності зі старим контрактом
+ */
+async function check(dir) {
+  const { violations } = await lint({ cwd: dir, ruleId, concernId, files: undefined })
+  return violations.length > 0 ? 1 : 0
+}
 
 const CORE_SECTION_RE = /^\[core\]/m
 const COMPLETION_SECTION_RE = /^\[completion\]/m

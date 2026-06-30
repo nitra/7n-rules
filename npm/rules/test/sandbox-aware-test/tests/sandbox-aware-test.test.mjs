@@ -6,8 +6,18 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+const check = async dir => {
+  const { violations } = await lint({
+    cwd: dir,
+    ruleId: 'test',
+    concernId: 'sandbox-aware-test',
+    files: undefined
+  })
+  return violations.length > 0 ? 1 : 0
+}
 
 // Глибока навігація через import.meta.dirname (≥4 `..`)
 const DEEP_NAV = "const ROOT = join(import.meta.dirname, '..', '..', '..', '..')\n"

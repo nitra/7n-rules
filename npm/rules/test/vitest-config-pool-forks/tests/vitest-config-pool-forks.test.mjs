@@ -5,8 +5,18 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+const check = async dir => {
+  const { violations } = await lint({
+    cwd: dir,
+    ruleId: 'test',
+    concernId: 'vitest-config-pool-forks',
+    files: undefined
+  })
+  return violations.length > 0 ? 1 : 0
+}
 
 describe('check test.vitest-config-pool-forks', () => {
   test("успіх: config з pool: 'forks' → exit 0", async () => {

@@ -5,8 +5,11 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { main as check, isEnvFile, isNitraOrAbieRepository, parseInternalHasuraEndpoint } from '../main.mjs'
+import { lint, isEnvFile, isNitraOrAbieRepository, parseInternalHasuraEndpoint } from '../main.mjs'
 import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+
+const check = dir =>
+  lint({ cwd: dir, ruleId: 'hasura', concernId: 'internal_urls', files: undefined }).then(r => r.violations)
 
 describe('parseInternalHasuraEndpoint', () => {
   test('валідний внутрішній URL (GKE-style з .internal)', () => {
@@ -84,7 +87,7 @@ describe('check-hasura', () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't', repository: 'https://github.com/other/foo' })
       await writeFile(join(dir, 'dev.env'), 'HASURA_GRAPHQL_ENDPOINT=https://example.com/ql\n', 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -92,7 +95,7 @@ describe('check-hasura', () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't', repository: 'https://github.com/abinbevefes/foo' })
       await writeFile(join(dir, 'dev.env'), 'HASURA_GRAPHQL_ENDPOINT=https://vybeerai.com.ua/contract/ql\n', 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect((await check(dir)).length).toBeGreaterThan(0)
     })
   })
 
@@ -104,7 +107,7 @@ describe('check-hasura', () => {
         'HASURA_GRAPHQL_ENDPOINT=http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
         'utf8'
       )
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -127,7 +130,7 @@ describe('check-hasura', () => {
         'HASURA_GRAPHQL_ENDPOINT=http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
         'utf8'
       )
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -145,7 +148,7 @@ describe('check-hasura', () => {
         'HASURA_GRAPHQL_ENDPOINT=http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect((await check(dir)).length).toBeGreaterThan(0)
     })
   })
 
@@ -153,7 +156,7 @@ describe('check-hasura', () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't', repository: 'https://github.com/nitra/foo' })
       await writeFile(join(dir, 'dev.env'), 'OTHER=value\n', 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -161,14 +164,14 @@ describe('check-hasura', () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't', repository: 'https://github.com/nitra/foo' })
       await writeFile(join(dir, 'shell.env'), 'export HASURA_GRAPHQL_ENDPOINT=https://api.example.com\n', 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect((await check(dir)).length).toBeGreaterThan(0)
     })
   })
 
   test('пропуск без env-файлів', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't', repository: 'https://github.com/nitra/foo' })
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -176,7 +179,7 @@ describe('check-hasura', () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't', repository: 'https://github.com/nitra/foo' })
       await writeFile(join(dir, '.env'), 'HASURA_GRAPHQL_ENDPOINT=https://vybeerai.com.ua/contract/ql\n', 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -184,7 +187,7 @@ describe('check-hasura', () => {
     await withTmpDir(async dir => {
       // Без package.json readRootRepositoryUrl повертає null → isNitraOrAbieRepository(null)=false → pass
       await writeFile(join(dir, 'dev.env'), 'HASURA_GRAPHQL_ENDPOINT=https://vybeerai.com.ua/ql\n', 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -192,7 +195,7 @@ describe('check-hasura', () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'package.json'), '{ broken json', 'utf8')
       await writeFile(join(dir, 'dev.env'), 'HASURA_GRAPHQL_ENDPOINT=https://vybeerai.com.ua/ql\n', 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -207,7 +210,7 @@ describe('check-hasura', () => {
         'HASURA_GRAPHQL_ENDPOINT=http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
         'utf8'
       )
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -230,7 +233,7 @@ describe('check-hasura', () => {
         'HASURA_GRAPHQL_ENDPOINT=http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect((await check(dir)).length).toBeGreaterThan(0)
     })
   })
 })

@@ -6,8 +6,18 @@ import { join } from 'node:path'
 
 import { describe, expect, test } from 'vitest'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+
+const check = async dir => {
+  const { violations } = await lint({
+    cwd: dir,
+    ruleId: 'vue',
+    concernId: 'packages',
+    files: undefined
+  })
+  return violations.length > 0 ? 1 : 0
+}
 
 const VALID_ROOT_DEVDEPS = {
   vitest: '^3.0.0',
@@ -23,7 +33,8 @@ const VALID_VUE_PKG = {
     '@vitejs/plugin-vue': '^6.0.0',
     'vue-macros': '^3.0.0',
     'unplugin-auto-import': '^20.0.0',
-    'vite-plugin-vue-layouts-next': '^1.0.0'
+    'vite-plugin-vue-layouts-next': '^1.0.0',
+    lightningcss: '^1.0.0'
   }
 }
 
@@ -48,7 +59,7 @@ async function writeMinimalVueMonorepo(dir, rootDevDeps = VALID_ROOT_DEVDEPS) {
       `import { defineConfig } from 'vite'`,
       `import VueMacros from 'vue-macros/vite'`,
       `import AutoImport from 'unplugin-auto-import/vite'`,
-      `export default defineConfig({ plugins: [VueMacros(), AutoImport({ imports: ['vue'] })] })`,
+      `export default defineConfig({ css: { transformer: 'lightningcss' }, plugins: [VueMacros(), AutoImport({ imports: ['vue'] })] })`,
       ``
     ].join('\n'),
     'utf8'

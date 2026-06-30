@@ -7,8 +7,10 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+const run = dir => lint({ cwd: dir, ruleId: 'test', concernId: 'no-process-chdir', files: undefined })
 
 // Зібрано через `join`, щоб у source не зустрічався точний паттерн виклику
 // `process.chdir` з відкривною дужкою — інакше сам сканер прапорив би цей файл.
@@ -19,7 +21,7 @@ describe('check test.no-process-chdir', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(join(dir, 'tests/foo.test.mjs'), 'import { test } from "vitest"\ntest("ok", () => {})\n')
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 
@@ -30,7 +32,7 @@ describe('check test.no-process-chdir', () => {
         join(dir, 'tests/foo.test.mjs'),
         `import { test } from "vitest"\ntest("bad", () => { ${CHDIR}("/tmp") })\n`
       )
-      expect(await check(dir)).toBe(1)
+      expect((await run(dir)).violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -38,7 +40,7 @@ describe('check test.no-process-chdir', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(join(dir, 'tests/bar.test.mjs'), `${CHDIR} ("/tmp")\n`)
-      expect(await check(dir)).toBe(1)
+      expect((await run(dir)).violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -55,7 +57,7 @@ describe('check test.no-process-chdir', () => {
 test("ok", () => {})
 `
       )
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 
@@ -63,7 +65,7 @@ test("ok", () => {})
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(join(dir, 'tests/foo.test.mjs'), 'const c = process.cwd()\n')
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 
@@ -71,7 +73,7 @@ test("ok", () => {})
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'src'), { recursive: true })
       await writeFile(join(dir, 'src/helper.mjs'), `export function fn() { ${CHDIR}("/tmp") }\n`)
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 
@@ -85,7 +87,7 @@ ${CHDIR}("/var")
 `
       )
       await writeFile(join(dir, 'tests/b.test.mjs'), `${CHDIR}("/x")\n`)
-      expect(await check(dir)).toBe(1)
+      expect((await run(dir)).violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -93,7 +95,7 @@ ${CHDIR}("/var")
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'node_modules/pkg/tests'), { recursive: true })
       await writeFile(join(dir, 'node_modules/pkg/tests/foo.test.mjs'), `${CHDIR}("/anywhere")\n`)
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 })

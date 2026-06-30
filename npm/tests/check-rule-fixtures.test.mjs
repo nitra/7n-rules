@@ -6,10 +6,18 @@ import { copyFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { main as checkNginx } from '../rules/nginx-default-tpl/template/main.mjs'
-import { main as checkStyle } from '../rules/style/tooling/main.mjs'
-import { main as checkVue } from '../rules/vue/packages/main.mjs'
+import { lint as lintNginx } from '../rules/nginx-default-tpl/template/main.mjs'
+import { lint as lintStyle } from '../rules/style/tooling/main.mjs'
+import { lint as lintVue } from '../rules/vue/packages/main.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
+
+// Адаптери під unified lint surface: detector → 0 (чисто) / 1 (є violations).
+const checkNginx = async dir =>
+  (await lintNginx({ cwd: dir, ruleId: 'nginx-default-tpl', concernId: 'template' })).violations.length === 0 ? 0 : 1
+const checkStyle = async dir =>
+  (await lintStyle({ cwd: dir, ruleId: 'style', concernId: 'tooling' })).violations.length === 0 ? 0 : 1
+const checkVue = async dir =>
+  (await lintVue({ cwd: dir, ruleId: 'vue', concernId: 'packages' })).violations.length === 0 ? 0 : 1
 
 const nginxFixDir = join(
   fileURLToPath(new URL('.', import.meta.url)),
@@ -42,12 +50,13 @@ async function setupMinimalVueAppWorkspace(dir, opts = {}) {
       '@vitejs/plugin-vue': '^6.0.0',
       'vue-macros': '^3.0.0',
       'unplugin-auto-import': '^0.17.0',
-      'vite-plugin-vue-layouts-next': '^1.0.0'
+      'vite-plugin-vue-layouts-next': '^1.0.0',
+      lightningcss: '^1.0.0'
     }
   })
   await writeFile(
     join(dir, 'app', 'vite.config.js'),
-    `import Vue from '@vitejs/plugin-vue'\nimport VueMacros from 'vue-macros/vite'\nimport AutoImport from 'unplugin-auto-import/vite'\nexport default {\n  plugins: [VueMacros({ plugins: { vue: Vue() } }), AutoImport({ imports: ['vue'] })]\n}\n`,
+    `import Vue from '@vitejs/plugin-vue'\nimport VueMacros from 'vue-macros/vite'\nimport AutoImport from 'unplugin-auto-import/vite'\nexport default {\n  css: { transformer: 'lightningcss' },\n  plugins: [VueMacros({ plugins: { vue: Vue() } }), AutoImport({ imports: ['vue'] })]\n}\n`,
     'utf8'
   )
   await ensureDir(join(dir, 'app', 'src'))

@@ -6,10 +6,20 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 const HEAD = "import { writeFile, copyFile, mkdir } from 'node:fs/promises'\n"
+
+const check = async dir => {
+  const { violations } = await lint({
+    cwd: dir,
+    ruleId: 'test',
+    concernId: 'no-relative-fs-path',
+    files: undefined
+  })
+  return violations.length > 0 ? 1 : 0
+}
 
 describe('check test.no-relative-fs-path', () => {
   test('успіх: тест з join(dir, …) → exit 0', async () => {

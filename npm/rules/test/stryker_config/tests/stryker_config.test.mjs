@@ -9,7 +9,17 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import vitestBaseline from '../data/vitest_config/vitest.config.baseline.js'
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
+
+const check = async dir => {
+  const { violations } = await lint({
+    cwd: dir,
+    ruleId: 'test',
+    concernId: 'stryker_config',
+    files: undefined
+  })
+  return violations.length > 0 ? 1 : 0
+}
 
 // Канонічні baseline-тексти (читаємо з data/, щоб augment-фікстури не дрейфували
 // від реальних baseline-ів): non-vue (без plugins/ignorers) і повний vue-варіант.

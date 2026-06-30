@@ -6,8 +6,18 @@ import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+const check = dir => {
+  const { violations } = lint({
+    cwd: dir,
+    ruleId: 'text',
+    concernId: 'forbidden-prettier',
+    files: undefined
+  })
+  return violations.length > 0 ? 1 : 0
+}
 
 describe('check text.forbidden-prettier', () => {
   test('успіх: жодного Prettier-артефакту в корені → exit 0', async () => {

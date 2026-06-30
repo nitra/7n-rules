@@ -2,8 +2,16 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+
+/**
+ * Запускає detector у whole-repo режимі і повертає кількість порушень.
+ * @param {string} dir корінь тимчасового проєкту
+ * @returns {Promise<number>} кількість LintViolation
+ */
+const check = async dir =>
+  (await lint({ cwd: dir, ruleId: 'npm-module', concernId: 'rule_meta', files: undefined })).violations.length
 
 /** Мінімальний валідний .mdc — щоб тест перевіряв лише свою умову, а не відсутність mdc. */
 const MK_MDC = async (dir, id) =>
@@ -31,7 +39,7 @@ describe('rule_meta check', () => {
       await ensureDir(join(dir, 'npm', 'rules', 'adr'))
       await writeJson(join(dir, 'npm', 'rules', 'adr', 'main.json'), { auto: 'завжди' })
       // навмисно без main.mdc
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -39,7 +47,7 @@ describe('rule_meta check', () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'npm', 'rules', 'adr'))
       await MK_MDC(dir, 'adr')
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -49,7 +57,7 @@ describe('rule_meta check', () => {
       await writeJson(join(dir, 'npm', 'rules', 'adr', 'main.json'), { auto: 'завжди' })
       await MK_MDC(dir, 'adr')
       await writeFile(join(dir, 'npm', 'rules', 'adr', 'auto.md'), 'завжди\n', 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -58,7 +66,7 @@ describe('rule_meta check', () => {
       await ensureDir(join(dir, 'npm', 'rules', 'x'))
       await writeJson(join(dir, 'npm', 'rules', 'x', 'main.json'), { auto: 'always' })
       await MK_MDC(dir, 'x')
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -67,7 +75,7 @@ describe('rule_meta check', () => {
       await ensureDir(join(dir, 'npm', 'rules', 'x'))
       await writeJson(join(dir, 'npm', 'rules', 'x', 'main.json'), { auto: { predicate: 'bogusPredicate' } })
       await MK_MDC(dir, 'x')
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -83,7 +91,7 @@ describe('rule_meta check', () => {
       await writeJson(join(dir, 'npm', 'rules', 'x', 'main.json'), { lint: 'per-file' })
       await MK_MDC(dir, 'x')
       await writeFile(join(dir, 'npm', 'rules', 'x', 'main.mjs'), 'export function run(){return 0}\n', 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -112,7 +120,7 @@ describe('rule_meta check', () => {
       await ensureDir(join(dir, 'npm', 'rules', 'x'))
       await writeJson(join(dir, 'npm', 'rules', 'x', 'main.json'), { lint: 'quick' })
       await MK_MDC(dir, 'x')
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 })

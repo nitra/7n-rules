@@ -6,10 +6,14 @@
 import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { chmod, writeFile } from 'node:fs/promises'
-import { platform } from 'node:process'
+import { cwd as processCwd, platform } from 'node:process'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+const ruleId = 'rules/abie'
+const concernId = 'rules/abie/ua_http_route'
+const run = dir => lint({ cwd: dir, ruleId, concernId, files: undefined })
 
 const KUSTOMIZATION_WITH_VALID_PATCH = `apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -40,45 +44,45 @@ patches:
 `
 
 describe('abie ua_http_route concern', () => {
-  test('немає ua/kustomization.yaml → 0 (skip)', async () => {
+  test('немає ua/kustomization.yaml → clean (skip)', async () => {
     await withTmpDir(async dir => {
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 
-  test('ua/kustomization.yaml без vite.config → 0 (skip per-file)', async () => {
+  test('ua/kustomization.yaml без vite.config → clean (skip per-file)', async () => {
     await withTmpDir(async dir => {
       const ua = join(dir, 'pkg/k8s/ua')
       await ensureDir(ua)
       await writeFile(join(ua, 'kustomization.yaml'), KUSTOMIZATION_WITH_VALID_PATCH, 'utf8')
       // У pkg/ немає vite.config.* → HTTPRoute patch не вимагається
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 
-  test('vite.config.js + валідний HTTPRoute patch → 0', async () => {
+  test('vite.config.js + валідний HTTPRoute patch → clean', async () => {
     await withTmpDir(async dir => {
       const pkg = join(dir, 'pkg')
       const ua = join(pkg, 'k8s/ua')
       await ensureDir(ua)
       await writeFile(join(pkg, 'vite.config.js'), 'export default {}\n', 'utf8')
       await writeFile(join(ua, 'kustomization.yaml'), KUSTOMIZATION_WITH_VALID_PATCH, 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 
-  test('vite.config.mjs + patch без hostnames → 1', async () => {
+  test('vite.config.mjs + patch без hostnames → violation', async () => {
     await withTmpDir(async dir => {
       const pkg = join(dir, 'pkg')
       const ua = join(pkg, 'k8s/ua')
       await ensureDir(ua)
       await writeFile(join(pkg, 'vite.config.mjs'), 'export default {}\n', 'utf8')
       await writeFile(join(ua, 'kustomization.yaml'), KUSTOMIZATION_WITHOUT_HOSTNAMES, 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect((await run(dir)).violations.length).toBeGreaterThan(0)
     })
   })
 
-  test('vite.config.ts + ua/kustomization.yaml без жодного HTTPRoute patch → 1', async () => {
+  test('vite.config.ts + ua/kustomization.yaml без жодного HTTPRoute patch → violation', async () => {
     await withTmpDir(async dir => {
       const pkg = join(dir, 'pkg')
       const ua = join(pkg, 'k8s/ua')
@@ -89,16 +93,16 @@ describe('abie ua_http_route concern', () => {
         'apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n  - ../base\n',
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect((await run(dir)).violations.length).toBeGreaterThan(0)
     })
   })
 
-  test('check() — default cwd (line 33)', async () => {
-    // npm/ має немає ua/kustomization.yaml → швидко повертає 0
-    expect(await check()).toBe(0)
+  test('lint() — реальний cwd npm/ (немає ua/kustomization.yaml) → clean', async () => {
+    // npm/ не має ua/kustomization.yaml → швидко повертає clean
+    expect((await run(processCwd())).violations).toEqual([])
   })
 
-  test('readFile fails → catch (lines 77-79)', async () => {
+  test('readFile fails → catch (violation)', async () => {
     if (platform === 'win32') {
       expect(true).toBe(true)
       return
@@ -112,7 +116,7 @@ describe('abie ua_http_route concern', () => {
       await writeFile(kusto, KUSTOMIZATION_WITH_VALID_PATCH, 'utf8')
       await chmod(kusto, 0o000)
       try {
-        expect(await check(dir)).toBe(1)
+        expect((await run(dir)).violations.length).toBeGreaterThan(0)
       } finally {
         await chmod(kusto, 0o644)
       }

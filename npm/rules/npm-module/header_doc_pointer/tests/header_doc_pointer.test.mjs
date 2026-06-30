@@ -2,8 +2,16 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+/**
+ * Запускає detector у whole-repo режимі і повертає кількість порушень.
+ * @param {string} dir корінь тимчасового проєкту
+ * @returns {Promise<number>} кількість LintViolation
+ */
+const check = async dir =>
+  (await lint({ cwd: dir, ruleId: 'npm-module', concernId: 'header_doc_pointer', files: undefined })).violations.length
 
 const MULTI = `/**
  * Довгий наратив рядок перший.
@@ -38,7 +46,7 @@ describe('header_doc_pointer check', () => {
   test('docs + multi-line header → 1', async () => {
     await withTmpDir(async dir => {
       await mkJs(dir, 'npm/rules', 'foo', 'check', MULTI + NO_HEADER, true)
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -77,7 +85,7 @@ describe('header_doc_pointer check', () => {
   test('npm/skills теж перевіряється', async () => {
     await withTmpDir(async dir => {
       await mkJs(dir, 'npm/skills', 'myscill', 'scan', MULTI + NO_HEADER, true)
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -91,7 +99,7 @@ describe('header_doc_pointer check', () => {
     await withTmpDir(async dir => {
       await mkJs(dir, 'npm/rules', 'good', 'check', POINTER + NO_HEADER, true)
       await mkJs(dir, 'npm/rules', 'bad', 'check', MULTI + NO_HEADER, true)
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 })

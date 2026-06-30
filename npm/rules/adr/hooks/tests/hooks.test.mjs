@@ -12,8 +12,22 @@ import { dirname, join } from 'node:path'
 import { env, platform } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+
+const ruleId = 'rules/adr'
+const concernId = 'rules/adr/hooks'
+
+/**
+ * Запускає detector у заданому каталозі та повертає exit-подібний код:
+ * 0 — без violations (clean), 1 — є violations.
+ * @param {string} dir корінь репозиторію
+ * @returns {Promise<0 | 1>} код сумісності зі старим контрактом
+ */
+async function check(dir) {
+  const { violations } = await lint({ cwd: dir, ruleId, concernId, files: undefined })
+  return violations.length > 0 ? 1 : 0
+}
 
 const here = dirname(fileURLToPath(import.meta.url))
 const BUNDLED_HOOKS_DIR = join(here, '..', '..', '..', '..', '.claude-template', 'hooks')

@@ -5,8 +5,16 @@ import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+
+/**
+ * Запускає detector у whole-repo режимі і повертає кількість порушень.
+ * @param {string} dir корінь тимчасового проєкту
+ * @returns {Promise<number>} кількість LintViolation
+ */
+const check = async dir =>
+  (await lint({ cwd: dir, ruleId: 'js-bun-db', concernId: 'safety', files: undefined })).violations.length
 
 describe('check-js-bun-db', () => {
   test('пропускає, якщо немає кореневого package.json', async () => {
@@ -59,7 +67,7 @@ export function getUser(id: number) {
 `,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -76,7 +84,7 @@ export async function find(id: number) {
 `,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -91,7 +99,7 @@ export const ping = () => sql.unsafe('SELECT 1')
 `,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -146,7 +154,7 @@ export async function migrate() {
 `,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -176,7 +184,7 @@ export const ping = () => sql.unsafe('SELECT 1') // allow-unsafe:
 `,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -195,7 +203,7 @@ export async function getOne() {
 `,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -212,7 +220,7 @@ export const ping = () => sql\`SELECT 1\`
 `,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -318,7 +326,7 @@ export const findUser = (id: number) => client.query('SELECT * FROM users WHERE 
 `,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -342,7 +350,7 @@ export const getUser = (id: number) => db.query('SELECT * FROM users WHERE id = 
 `,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -384,7 +392,7 @@ export async function findMany(ids: number[]) {
 `,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -416,7 +424,7 @@ export async function findMany(ids: number[]) {
         "import { sql } from 'bun'\nfunction format(tmpl, ...vals) {\n  return tmpl.replace('%L', vals[0])\n}\n",
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -429,7 +437,7 @@ export async function findMany(ids: number[]) {
         'import { sql } from \'bun\'\nfunction quoteLiteral(val) { return "\'" + String(val) + "\'" }\n',
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -442,7 +450,7 @@ export async function findMany(ids: number[]) {
         "import { sql } from 'bun'\nconst db = { query(text, params) { return sql.unsafe(text, params) } }\n",
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -455,7 +463,7 @@ export async function findMany(ids: number[]) {
         `import { sql } from 'bun'\nexport async function findMany(ids) {\n  return sql\`SELECT * FROM users WHERE id IN (\${ids})\`\n}\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -468,7 +476,7 @@ export async function findMany(ids: number[]) {
         `import { sql } from 'bun'\nexport async function findMany(ids) {\n  return sql\`SELECT * FROM users WHERE id IN (\${sql(ids.filter(Boolean))})\`\n}\n`,
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 })

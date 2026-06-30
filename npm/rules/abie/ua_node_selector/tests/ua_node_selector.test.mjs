@@ -7,8 +7,12 @@ import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+const ruleId = 'rules/abie'
+const concernId = 'rules/abie/ua_node_selector'
+const run = dir => lint({ cwd: dir, ruleId, concernId, files: undefined })
 
 const DEPLOYMENT_YAML = `apiVersion: apps/v1
 kind: Deployment
@@ -39,13 +43,13 @@ resources:
 `
 
 describe('abie ua_node_selector concern', () => {
-  test('немає Deployment у k8s/ → 0 (skip)', async () => {
+  test('немає Deployment у k8s/ → clean (skip)', async () => {
     await withTmpDir(async dir => {
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 
-  test('Deployment + правильний ua/kustomization.yaml patch → 0', async () => {
+  test('Deployment + правильний ua/kustomization.yaml patch → clean', async () => {
     await withTmpDir(async dir => {
       const base = join(dir, 'pkg/k8s/base')
       const ua = join(dir, 'pkg/k8s/ua')
@@ -53,20 +57,20 @@ describe('abie ua_node_selector concern', () => {
       await ensureDir(ua)
       await writeFile(join(base, 'deploy.yaml'), DEPLOYMENT_YAML, 'utf8')
       await writeFile(join(ua, 'kustomization.yaml'), KUSTOMIZATION_WITH_NODE_SELECTOR_PATCH, 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 
-  test('Deployment, але немає жодного ua/kustomization.yaml → 1', async () => {
+  test('Deployment, але немає жодного ua/kustomization.yaml → violation', async () => {
     await withTmpDir(async dir => {
       const base = join(dir, 'pkg/k8s/base')
       await ensureDir(base)
       await writeFile(join(base, 'deploy.yaml'), DEPLOYMENT_YAML, 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect((await run(dir)).violations.length).toBeGreaterThan(0)
     })
   })
 
-  test('Deployment + ua/kustomization.yaml без patch → 1', async () => {
+  test('Deployment + ua/kustomization.yaml без patch → violation', async () => {
     await withTmpDir(async dir => {
       const base = join(dir, 'pkg/k8s/base')
       const ua = join(dir, 'pkg/k8s/ua')
@@ -74,11 +78,11 @@ describe('abie ua_node_selector concern', () => {
       await ensureDir(ua)
       await writeFile(join(base, 'deploy.yaml'), DEPLOYMENT_YAML, 'utf8')
       await writeFile(join(ua, 'kustomization.yaml'), KUSTOMIZATION_WITHOUT_PATCH, 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect((await run(dir)).violations.length).toBeGreaterThan(0)
     })
   })
 
-  test('ua/kustomization.yaml для пакета без Deployment у k8s/ → 0 (skip per-file)', async () => {
+  test('ua/kustomization.yaml для пакета без Deployment у k8s/ → clean (skip per-file)', async () => {
     // Виносимо Deployment у інший пакет, щоб глобально size > 0,
     // але overlay для pkg-b/k8s/ua/kustomization.yaml не вимагає patch.
     await withTmpDir(async dir => {
@@ -89,8 +93,8 @@ describe('abie ua_node_selector concern', () => {
 
       await ensureDir(join(dir, 'pkg-b/k8s/ua'))
       await writeFile(join(dir, 'pkg-b/k8s/ua/kustomization.yaml'), KUSTOMIZATION_WITHOUT_PATCH, 'utf8')
-      // pkg-b не має Deployment → patch не вимагається → exit 0 загалом
-      expect(await check(dir)).toBe(0)
+      // pkg-b не має Deployment → patch не вимагається → clean загалом
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 })

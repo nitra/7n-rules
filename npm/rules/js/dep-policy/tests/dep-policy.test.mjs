@@ -6,8 +6,16 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+/**
+ * Запускає detector у whole-repo режимі і повертає кількість порушень.
+ * @param {string} dir корінь тимчасового проєкту
+ * @returns {Promise<number>} кількість LintViolation
+ */
+const check = async dir =>
+  (await lint({ cwd: dir, ruleId: 'js', concernId: 'dep-policy', files: undefined })).violations.length
 
 // Ім'я забороненого пакета — через join щоб не тригерити потенційний future-sканер
 // на самому цьому файлі (pattern аналогічний до no-console-store-restore).
@@ -38,7 +46,7 @@ describe('check js.dep-policy', () => {
         join(dir, 'src/server.mjs'),
         `import fastifyApollo from '${BANNED}'\nexport default fastifyApollo\n`
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -46,7 +54,7 @@ describe('check js.dep-policy', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'src'), { recursive: true })
       await writeFile(join(dir, 'src/server.mjs'), `const m = await import('${BANNED}')\n`)
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -57,7 +65,7 @@ describe('check js.dep-policy', () => {
         join(dir, 'src/server.ts'),
         `import fastifyApollo, { fastifyApolloDrainPlugin } from '${BANNED}'\n`
       )
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -74,7 +82,7 @@ describe('check js.dep-policy', () => {
       await mkdir(join(dir, 'src'), { recursive: true })
       await writeFile(join(dir, 'src/a.mjs'), `import x from '${BANNED}'\n`)
       await writeFile(join(dir, 'src/b.ts'), `import y from '${BANNED}'\n`)
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 })

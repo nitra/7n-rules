@@ -6,8 +6,11 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+const check = dir =>
+  lint({ cwd: dir, ruleId: 'docker', concernId: 'lint', files: undefined }).then(r => r.violations)
 
 const CLEAN_MULTISTAGE = [
   'FROM mirror.gcr.io/library/alpine:3.19 AS build',
@@ -25,8 +28,8 @@ const SINGLE_STAGE = 'FROM mirror.gcr.io/library/alpine:latest\nCMD ["/bin/sh"]\
 describe('check() integration', () => {
   test('порожній каталог — немає Dockerfile → exit 0', async () => {
     await withTmpDir(async dir => {
-      const code = await check(dir)
-      expect(code).toBe(0)
+      const violations = await check(dir)
+      expect(violations).toEqual([])
     })
   })
 
@@ -35,16 +38,16 @@ describe('check() integration', () => {
       // failure-threshold: error — лише справжні помилки hadolint призводять до fail
       await writeFile(join(dir, '.hadolint.yaml'), 'failure-threshold: error\n', 'utf8')
       await writeFile(join(dir, 'Dockerfile'), CLEAN_MULTISTAGE, 'utf8')
-      const code = await check(dir)
-      expect(code).toBe(0)
+      const violations = await check(dir)
+      expect(violations).toEqual([])
     })
   })
 
   test('single-stage Dockerfile → multistage fail → exit 1', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'Dockerfile'), SINGLE_STAGE, 'utf8')
-      const code = await check(dir)
-      expect(code).toBe(1)
+      const violations = await check(dir)
+      expect(violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -53,8 +56,8 @@ describe('check() integration', () => {
       await writeFile(join(dir, '.hadolint.yaml'), 'failure-threshold: error\n', 'utf8')
       await writeFile(join(dir, 'Dockerfile'), CLEAN_MULTISTAGE, 'utf8')
       await writeFile(join(dir, 'Dockerfile.app'), SINGLE_STAGE, 'utf8')
-      const code = await check(dir)
-      expect(code).toBe(1)
+      const violations = await check(dir)
+      expect(violations.length).toBeGreaterThan(0)
     })
   })
 })

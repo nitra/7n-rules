@@ -3,13 +3,14 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { runLintRegoSteps as runLintRego } from '../check/main.mjs'
+import { lint } from '../check/main.mjs'
 import { withBinRemovedFromPath } from '../../../scripts/utils/test-helpers.mjs'
 
 /**
+ * @template T
  * @param {(cwd: string) => void} prep підготовка фікстур у тимчасовій директорії
- * @param {(cwd: string) => number} body тіло тесту
- * @returns {number} результат body
+ * @param {(cwd: string) => T} body тіло тесту
+ * @returns {T} результат body
  */
 function withTmpRepo(prep, body) {
   const root = mkdtempSync(join(tmpdir(), 'lint-rego-'))
@@ -23,16 +24,23 @@ function withTmpRepo(prep, body) {
 
 const NO_PREP = (/** @type {string} */ _cwd) => null
 
+/**
+ * Викликає detector rego/check для заданого кореня.
+ * @param {string} cwd корінь репозиторію
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
+ */
+const runLintRego = cwd => lint({ cwd, ruleId: 'rego', concernId: 'check', files: undefined })
+
 const OPA_RE = /opa/
 
-describe('runLintRego', () => {
-  test('returns 0 (skip) when no rego targets exist in cwd', () => {
-    const exit = withTmpRepo(NO_PREP, cwd => runLintRego(cwd))
-    expect(exit).toBe(0)
+describe('lint rego/check', () => {
+  test('returns no violations (skip) when no rego targets exist in cwd', () => {
+    const { violations } = withTmpRepo(NO_PREP, runLintRego)
+    expect(violations).toEqual([])
   })
 
   test('detects rego files under npm/rules/* and fails on broken syntax', () => {
-    const exit = withTmpRepo(
+    const { violations } = withTmpRepo(
       cwd => {
         mkdirSync(join(cwd, 'npm/rules/sample/policy/concern'), { recursive: true })
         writeFileSync(
@@ -40,9 +48,9 @@ describe('runLintRego', () => {
           'package sample.concern\n\nthis is not valid rego syntax\n'
         )
       },
-      cwd => runLintRego(cwd)
+      runLintRego
     )
-    expect(exit).not.toBe(0)
+    expect(violations.length).toBeGreaterThan(0)
   })
 
   test('кидає коли opa відсутній у PATH і авто-install відключено (ensureTool hard-fail)', async () => {
@@ -56,14 +64,14 @@ describe('runLintRego', () => {
               'package sample.concern\n\nimport rego.v1\n'
             )
           },
-          cwd => runLintRego(cwd)
+          runLintRego
         )
       ).toThrow(OPA_RE)
     })
   })
 
   test('passes on a well-formed rego under npm/rules/*/policy/', () => {
-    const exit = withTmpRepo(
+    const { violations } = withTmpRepo(
       cwd => {
         mkdirSync(join(cwd, 'npm/rules/sample/policy/concern'), { recursive: true })
         writeFileSync(
@@ -78,8 +86,8 @@ describe('runLintRego', () => {
           'rules:\n  idiomatic:\n    directory-package-mismatch:\n      level: ignore\n  imports:\n    unresolved-reference:\n      level: ignore\n'
         )
       },
-      cwd => runLintRego(cwd)
+      runLintRego
     )
-    expect(exit).toBe(0)
+    expect(violations).toEqual([])
   })
 })

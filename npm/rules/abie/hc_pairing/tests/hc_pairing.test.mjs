@@ -6,9 +6,13 @@ import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { ABIE_HC_SCHEMA_URL } from '../../lib/hc-yaml.mjs'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+const ruleId = 'rules/abie'
+const concernId = 'rules/abie/hc_pairing'
+const run = dir => lint({ cwd: dir, ruleId, concernId, files: undefined })
 
 const DEPLOYMENT_YAML = `apiVersion: apps/v1
 kind: Deployment
@@ -32,32 +36,32 @@ spec: { default: { config: { type: HTTP } } }
 `
 
 describe('abie hc_pairing concern', () => {
-  test('репозиторій без k8s/-дерева → 0 (skip)', async () => {
+  test('репозиторій без k8s/-дерева → clean (skip)', async () => {
     await withTmpDir(async dir => {
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 
-  test('Deployment + валідний hc.yaml поруч → 0', async () => {
+  test('Deployment + валідний hc.yaml поруч → clean', async () => {
     await withTmpDir(async dir => {
       const k8s = join(dir, 'pkg/k8s')
       await ensureDir(k8s)
       await writeFile(join(k8s, 'deploy.yaml'), DEPLOYMENT_YAML, 'utf8')
       await writeFile(join(k8s, 'hc.yaml'), VALID_HC, 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 
-  test('Deployment без hc.yaml поруч → 1', async () => {
+  test('Deployment без hc.yaml поруч → violation', async () => {
     await withTmpDir(async dir => {
       const k8s = join(dir, 'pkg/k8s')
       await ensureDir(k8s)
       await writeFile(join(k8s, 'deploy.yaml'), DEPLOYMENT_YAML, 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect((await run(dir)).violations.length).toBeGreaterThan(0)
     })
   })
 
-  test('Deployment + hc.yaml з невірним $schema → 1', async () => {
+  test('Deployment + hc.yaml з невірним $schema → violation', async () => {
     await withTmpDir(async dir => {
       const k8s = join(dir, 'pkg/k8s')
       await ensureDir(k8s)
@@ -67,20 +71,20 @@ describe('abie hc_pairing concern', () => {
         '# yaml-language-server: $schema=https://example.com/wrong.json\napiVersion: x\n',
         'utf8'
       )
-      expect(await check(dir)).toBe(1)
+      expect((await run(dir)).violations.length).toBeGreaterThan(0)
     })
   })
 
-  test('k8s/-дерево без Deployment (тільки Service) → 0 (skip)', async () => {
+  test('k8s/-дерево без Deployment (тільки Service) → clean (skip)', async () => {
     await withTmpDir(async dir => {
       const k8s = join(dir, 'pkg/k8s')
       await ensureDir(k8s)
       await writeFile(join(k8s, 'svc.yaml'), 'apiVersion: v1\nkind: Service\nmetadata: { name: x }\n', 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 
-  test('два пакети — лише один без hc.yaml → 1', async () => {
+  test('два пакети — лише один без hc.yaml → violation', async () => {
     await withTmpDir(async dir => {
       const a = join(dir, 'pkg-a/k8s')
       const b = join(dir, 'pkg-b/k8s')
@@ -89,7 +93,7 @@ describe('abie hc_pairing concern', () => {
       await writeFile(join(a, 'deploy.yaml'), DEPLOYMENT_YAML, 'utf8')
       await writeFile(join(a, 'hc.yaml'), VALID_HC, 'utf8')
       await writeFile(join(b, 'deploy.yaml'), DEPLOYMENT_YAML, 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect((await run(dir)).violations.length).toBeGreaterThan(0)
     })
   })
 })

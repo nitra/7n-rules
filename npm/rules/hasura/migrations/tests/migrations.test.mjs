@@ -6,13 +6,16 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+const check = dir =>
+  lint({ cwd: dir, ruleId: 'hasura', concernId: 'migrations', files: undefined }).then(r => r.violations)
 
 describe('check hasura.migrations', () => {
   test('успіх: hasura/migrations/ відсутній → exit 0', async () => {
     await withTmpDir(async dir => {
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -21,7 +24,7 @@ describe('check hasura.migrations', () => {
       const migDir = join(dir, 'hasura/migrations/default/1000_add_foo')
       await mkdir(migDir, { recursive: true })
       await writeFile(join(migDir, 'up.sql'), 'CREATE TABLE foo (id INT);\n')
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -31,7 +34,7 @@ describe('check hasura.migrations', () => {
       await mkdir(migDir, { recursive: true })
       await writeFile(join(migDir, 'up.sql'), 'CREATE TABLE foo (id INT);\n')
       await writeFile(join(migDir, 'down.sql'), 'DROP TABLE foo;\n')
-      expect(await check(dir)).toBe(1)
+      expect((await check(dir)).length).toBeGreaterThan(0)
     })
   })
 
@@ -43,7 +46,7 @@ describe('check hasura.migrations', () => {
         await writeFile(join(d, 'up.sql'), '-- up\n')
         await writeFile(join(d, 'down.sql'), '-- down\n')
       }
-      expect(await check(dir)).toBe(1)
+      expect((await check(dir)).length).toBe(2)
     })
   })
 
@@ -52,7 +55,7 @@ describe('check hasura.migrations', () => {
       const deep = join(dir, 'hasura/migrations/other_db/1234_nested/sub')
       await mkdir(deep, { recursive: true })
       await writeFile(join(deep, 'down.sql'), '-- down\n')
-      expect(await check(dir)).toBe(1)
+      expect((await check(dir)).length).toBeGreaterThan(0)
     })
   })
 
@@ -62,7 +65,7 @@ describe('check hasura.migrations', () => {
       await mkdir(migDir, { recursive: true })
       await writeFile(join(migDir, 'up.sql'), '-- up\n')
       await writeFile(join(migDir, 'down.sql.bak'), '-- bak\n')
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -73,7 +76,7 @@ describe('check hasura.migrations', () => {
       await writeFile(join(dir, 'hasura/migrations/default/1_foo/up.sql'), '-- up\n')
       await mkdir(other, { recursive: true })
       await writeFile(join(other, 'down.sql'), '-- irrelevant\n')
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 })

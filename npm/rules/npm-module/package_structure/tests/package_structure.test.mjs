@@ -12,8 +12,16 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { main as check, classifyPublishedFileAsTest, findTestFrameworkImport, globToRegex } from '../main.mjs'
+import { classifyPublishedFileAsTest, findTestFrameworkImport, globToRegex, lint } from '../main.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+
+/**
+ * Запускає detector у whole-repo режимі і повертає кількість порушень.
+ * @param {string} dir корінь тимчасового проєкту
+ * @returns {Promise<number>} кількість LintViolation
+ */
+const check = async dir =>
+  (await lint({ cwd: dir, ruleId: 'npm-module', concernId: 'package_structure', files: undefined })).violations.length
 
 describe('globToRegex', () => {
   test('globstar матчить нуль і більше сегментів', () => {
@@ -203,7 +211,7 @@ describe('check — інтеграційні сценарії', () => {
   test('пуста директорія → 1, fail: package.json не існує, npm/ не існує (lines 549, 561, 567)', async () => {
     await withTmpDir(async dir => {
       const code = await check(dir)
-      expect(code).toBe(1)
+      expect(code).toBeGreaterThan(0)
     })
   })
 
@@ -213,7 +221,7 @@ describe('check — інтеграційні сценарії', () => {
       await ensureDir(join(dir, 'npm'))
       await writeJson(join(dir, 'npm/package.json'), { name: 'pkg', version: '1.0.0' })
       const code = await check(dir)
-      expect(code).toBe(1)
+      expect(code).toBeGreaterThan(0)
     })
   })
 
@@ -225,7 +233,7 @@ describe('check — інтеграційні сценарії', () => {
       await writeJson(join(dir, 'npm/package.json'), { name: 'pkg', version: '1.0.0' })
       await writeFile(join(dir, 'hk.pkl'), 'nothing useful here\n', 'utf8')
       const code = await check(dir)
-      expect(code).toBe(1)
+      expect(code).toBeGreaterThan(0)
     })
   })
 
@@ -235,7 +243,7 @@ describe('check — інтеграційні сценарії', () => {
       await ensureDir(join(dir, 'npm'))
       await writeJson(join(dir, 'npm/package.json'), { name: 'pkg', version: '1.0.0' })
       const code = await check(dir)
-      expect(code).toBe(1)
+      expect(code).toBeGreaterThan(0)
     })
   })
 
@@ -247,7 +255,7 @@ describe('check — інтеграційні сценарії', () => {
       await writeFile(join(dir, 'hk.pkl'), '["pre-commit"]\nbunx -p typescript tsc\ntsconfig.emit-types.json\n', 'utf8')
       await writeFile(join(dir, 'npm/tsconfig.emit-types.json'), '{"compilerOptions":{}}\n', 'utf8')
       const code = await check(dir)
-      expect(code).toBe(1)
+      expect(code).toBeGreaterThan(0)
     })
   })
 
@@ -262,7 +270,7 @@ describe('check — інтеграційні сценарії', () => {
       })
       await writeFile(join(dir, 'npm/lib/foo.test.mjs'), 'export const x = 1\n', 'utf8')
       const code = await check(dir)
-      expect(code).toBe(1)
+      expect(code).toBeGreaterThan(0)
     })
   })
 
@@ -271,7 +279,7 @@ describe('check — інтеграційні сценарії', () => {
       await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })
       await writeFile(join(dir, 'npm'), 'not a dir\n', 'utf8')
       const code = await check(dir)
-      expect(code).toBe(1)
+      expect(code).toBeGreaterThan(0)
     })
   })
 })

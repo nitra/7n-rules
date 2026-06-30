@@ -9,16 +9,24 @@ import { join } from 'node:path'
 
 import { describe, expect, test } from 'vitest'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { OXLINT_CANONICAL_JSON_PATH } from '../../tooling/main.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+/**
+ * Запускає detector у whole-repo режимі і повертає кількість порушень.
+ * @param {string} dir корінь тимчасового проєкту
+ * @returns {Promise<number>} кількість LintViolation
+ */
+const check = async dir =>
+  (await lint({ cwd: dir, ruleId: 'js', concernId: 'check', files: undefined })).violations.length
 
 const canonical = JSON.parse(readFileSync(OXLINT_CANONICAL_JSON_PATH, 'utf8'))
 
 describe('check — відсутні обовʼязкові файли → exit 1', () => {
   test('порожня директорія → exit 1 (немає eslint.config, oxlintrc, lint-js.yml)', async () => {
     await withTmpDir(async dir => {
-      expect(await check(dir)).toBe(1)
+      expect(await check(dir)).toBeGreaterThan(0)
     })
   })
 
@@ -26,7 +34,7 @@ describe('check — відсутні обовʼязкові файли → exit 
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'eslint.config.mjs'), 'export default []\n', 'utf8')
       const code = await check(dir)
-      expect(code).toBe(1)
+      expect(code).toBeGreaterThan(0)
     })
   })
 })
@@ -41,7 +49,7 @@ describe('check — .oxlintrc.json', () => {
         'utf8'
       )
       const code = await check(dir)
-      expect(code).toBe(1)
+      expect(code).toBeGreaterThan(0)
     })
   })
 
@@ -59,7 +67,7 @@ describe('check — .oxlintrc.json', () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, '.oxlintrc.json'), '{ invalid json ]', 'utf8')
       const code = await check(dir)
-      expect(code).toBe(1)
+      expect(code).toBeGreaterThan(0)
     })
   })
 })
@@ -68,7 +76,7 @@ describe('check — lint-js.yml та lint.yml', () => {
   test('відсутній lint-js.yml → fail', async () => {
     await withTmpDir(async dir => {
       const code = await check(dir)
-      expect(code).toBe(1)
+      expect(code).toBeGreaterThan(0)
     })
   })
 
@@ -92,7 +100,7 @@ describe('check — lint-js.yml та lint.yml', () => {
         'utf8'
       )
       const code = await check(dir)
-      expect(code).toBe(1)
+      expect(code).toBeGreaterThan(0)
     })
   })
 
@@ -116,7 +124,7 @@ describe('check — .oxlintrc.json не збігається з каноном',
       }
       await writeFile(join(dir, '.oxlintrc.json'), JSON.stringify(badOxlint), 'utf8')
       const code = await check(dir)
-      expect(code).toBe(1)
+      expect(code).toBeGreaterThan(0)
     })
   })
 })
@@ -151,7 +159,7 @@ describe('check — workspace package.json (type, engines)', () => {
       await mkdir(join(dir, 'packages', 'app'), { recursive: true })
       await writeFile(join(dir, 'packages/app/package.json'), JSON.stringify({ name: 'app', type: 'commonjs' }), 'utf8')
       const code = await check(dir)
-      expect(code).toBe(1)
+      expect(code).toBeGreaterThan(0)
     })
   })
 
@@ -162,7 +170,7 @@ describe('check — workspace package.json (type, engines)', () => {
       await mkdir(join(dir, 'ws'), { recursive: true })
       await writeFile(join(dir, 'ws/package.json'), JSON.stringify({ name: 'ws', type: 'module' }), 'utf8')
       const code = await check(dir)
-      expect(code).toBe(1)
+      expect(code).toBeGreaterThan(0)
     })
   })
 
@@ -177,7 +185,7 @@ describe('check — workspace package.json (type, engines)', () => {
         'utf8'
       )
       const code = await check(dir)
-      expect(code).toBe(1)
+      expect(code).toBeGreaterThan(0)
     })
   })
 
@@ -192,7 +200,7 @@ describe('check — workspace package.json (type, engines)', () => {
         'utf8'
       )
       const code = await check(dir)
-      expect(code).toBe(1)
+      expect(code).toBeGreaterThan(0)
     })
   })
 

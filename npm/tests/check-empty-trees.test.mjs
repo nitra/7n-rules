@@ -5,9 +5,15 @@ import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-import { main as checkDocker } from '../rules/docker/lint/main.mjs'
-import { main as checkK8s } from '../rules/k8s/manifests/main.mjs'
+import { lint as lintDocker } from '../rules/docker/lint/main.mjs'
+import { lint as lintK8s } from '../rules/k8s/manifests/main.mjs'
 import { ensureDir, withTmpDir } from '../scripts/utils/test-helpers.mjs'
+
+// Адаптери під unified lint surface: detector → 0 (чисто) / 1 (є violations).
+const checkDocker = async dir =>
+  (await lintDocker({ cwd: dir, ruleId: 'docker', concernId: 'lint' })).violations.length === 0 ? 0 : 1
+const checkK8s = async dir =>
+  (await lintK8s({ cwd: dir, ruleId: 'k8s', concernId: 'manifests' })).violations.length === 0 ? 0 : 1
 
 const YANNH_DEPLOYMENT_APPS_V1_SCHEMA =
   'https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/deployment-apps-v1.json'

@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import {
   capacitorSegmentMinMajor,
   capacitorVersionRangeMinMajor,
-  main as check,
+  lint,
   collectCapacitorDataFromAllPackageJson,
   isCapacitorCoreVersionAtLeast8,
   findFirstPodfileUnderIosExcludingPods,
@@ -17,6 +17,19 @@ import {
   walkIosForPodfileSkipPods
 } from '../main.mjs'
 import { withTmpDir, writeJson, ensureDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+const ruleId = 'rules/capacitor'
+const concernId = 'rules/capacitor/platforms'
+
+/**
+ * Запускає detector у каталозі й повертає exit-подібний код (0 clean / 1 violation).
+ * @param {string} dir корінь репозиторію
+ * @returns {Promise<0 | 1>} код сумісності зі старим контрактом
+ */
+async function check(dir) {
+  const { violations } = await lint({ cwd: dir, ruleId, concernId, files: undefined })
+  return violations.length > 0 ? 1 : 0
+}
 
 describe('isCapacitorCoreVersionAtLeast8 / semver helpers', () => {
   test('^8.0.0 — ok', () => {

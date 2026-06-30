@@ -2,8 +2,10 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+
+const run = dir => lint({ cwd: dir, ruleId: 'style', concernId: 'tooling', files: undefined })
 
 describe('check (style tooling)', () => {
   test('exit 0 — повний набір конфігів', async () => {
@@ -19,7 +21,7 @@ describe('check (style tooling)', () => {
         'name: lint\non: push\njobs:\n  lint:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npx stylelint\n',
         'utf8'
       )
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 
@@ -30,7 +32,7 @@ describe('check (style tooling)', () => {
       await writeFile(join(dir, '.stylelintignore'), 'dist/\n', 'utf8')
       await ensureDir(join(dir, '.github/workflows'))
       await writeFile(join(dir, '.github/workflows/lint-style.yml'), '# yml\n', 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 
@@ -40,7 +42,7 @@ describe('check (style tooling)', () => {
       await writeFile(join(dir, '.stylelintignore'), 'dist/\n', 'utf8')
       await ensureDir(join(dir, '.github/workflows'))
       await writeFile(join(dir, '.github/workflows/lint-style.yml'), '# yml\n', 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect((await run(dir)).violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -52,7 +54,7 @@ describe('check (style tooling)', () => {
       })
       await ensureDir(join(dir, '.github/workflows'))
       await writeFile(join(dir, '.github/workflows/lint-style.yml'), '# yml\n', 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect((await run(dir)).violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -63,7 +65,7 @@ describe('check (style tooling)', () => {
         stylelint: { extends: '@nitra/stylelint-config' }
       })
       await writeFile(join(dir, '.stylelintignore'), 'dist/\n', 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect((await run(dir)).violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -74,7 +76,7 @@ describe('check (style tooling)', () => {
       await writeFile(join(dir, '.stylelintignore'), 'dist/\n', 'utf8')
       await ensureDir(join(dir, '.github/workflows'))
       await writeFile(join(dir, '.github/workflows/lint-style.yml'), '# yml\n', 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 
@@ -85,7 +87,7 @@ describe('check (style tooling)', () => {
       await writeFile(join(dir, '.stylelintignore'), 'dist/\n', 'utf8')
       await ensureDir(join(dir, '.github/workflows'))
       await writeFile(join(dir, '.github/workflows/lint-style.yml'), '# yml\n', 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 
@@ -96,7 +98,7 @@ describe('check (style tooling)', () => {
       await writeFile(join(dir, '.stylelintignore'), 'dist/\n', 'utf8')
       await ensureDir(join(dir, '.github/workflows'))
       await writeFile(join(dir, '.github/workflows/lint-style.yml'), '# yml\n', 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect((await run(dir)).violations).toEqual([])
     })
   })
 
@@ -109,7 +111,7 @@ describe('check (style tooling)', () => {
       await writeFile(join(dir, '.stylelintignore'), 'node_modules/\n', 'utf8')
       await ensureDir(join(dir, '.github/workflows'))
       await writeFile(join(dir, '.github/workflows/lint-style.yml'), '# yml\n', 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect((await run(dir)).violations.length).toBeGreaterThan(0)
     })
   })
 })

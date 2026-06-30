@@ -1,23 +1,16 @@
-import { describe, expect, test, vi, beforeEach } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
-import { writeFile, readFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 
 import { withTmpDir, ensureDir } from '../../../scripts/utils/test-helpers.mjs'
 import { crc32, stampDoc } from '../docgen-crc/main.mjs'
 
-// Стабільний wrapper над спільним ядром генерації: opportunistic-шлях lint() ліниво
-// імпортує runGenerationBatch — підмінюємо стабільною функцією, що делегує у мутабельний
-// state.impl (кожен тест задає свій), щоб юніт-тести лишались герметичними (без omlx).
-const { state } = vi.hoisted(() => ({ state: { impl: async () => 0, calls: [] } }))
-vi.mock('../docgen-files-batch/main.mjs', () => ({
-  runGenerationBatch: (...args) => {
-    state.calls.push(args)
-    return state.impl(...args)
-  },
-  purgeOrphanedDocs: () => state.purgeImpl?.() ?? 0
-}))
+import { lint } from '../check/main.mjs'
 
-const { lint } = await import('../check/main.mjs')
+// Detector-контракт: lint(ctx) → { violations }. Хелпери нижче конвертують у старі семантики
+// (0 = чисто, ≥1 = stale) для лаконічних асертів.
+const ctxFor = (cwd, files) => ({ cwd, ruleId: 'doc-files', concernId: 'check', files })
+const violationsCount = async (cwd, files) => (await lint(ctxFor(cwd, files))).violations.length
 
 /**
  * Пише джерело й свіжу доку (CRC збігається) у тимчасовому корені.
@@ -41,34 +34,28 @@ async function writeSourceWithFreshDoc(root, rel, body) {
   await writeFile(join(root, docRel), stampDoc('# x\n\n## Огляд\n\nтест\n', rel, crc32(Buffer.from(body))))
 }
 
-beforeEach(() => {
-  state.impl = async () => 0
-  state.calls = []
-})
-
-describe('lint — детект (readOnly: CI/hook, 0 LLM)', () => {
+describe('lint — детект (read-only detector)', () => {
   test('ci (files=undefined): ловить відсутню доку у дереві', async () => {
     await withTmpDir(async root => {
       await ensureDir(join(root, 'src'))
       await writeFile(join(root, 'src', 'a.mjs'), 'export const a = 1\n')
-      expect(await lint(undefined, root, { readOnly: true })).toBe(1)
-      expect(state.calls).toHaveLength(0)
+      expect(await violationsCount(root, undefined)).toBeGreaterThan(0)
     })
   })
 
-  test('ci: свіжа дока → 0', async () => {
+  test('ci: свіжа дока → 0 violations', async () => {
     await withTmpDir(async root => {
       await writeSourceWithFreshDoc(root, 'src/a.mjs', 'export const a = 1\n')
-      expect(await lint(undefined, root, { readOnly: true })).toBe(0)
+      expect(await violationsCount(root, undefined)).toBe(0)
     })
   })
 
-  test('quick: змінене джерело без доки → 1; порожній набір → 0', async () => {
+  test('quick: змінене джерело без доки → violation; порожній набір → 0', async () => {
     await withTmpDir(async root => {
       await ensureDir(join(root, 'src'))
       await writeFile(join(root, 'src', 'a.mjs'), 'export const a = 1\n')
-      expect(await lint(['src/a.mjs'], root, { readOnly: true })).toBe(1)
-      expect(await lint([], root, { readOnly: true })).toBe(0)
+      expect(await violationsCount(root, ['src/a.mjs'])).toBeGreaterThan(0)
+      expect(await violationsCount(root, [])).toBe(0)
     })
   })
 
@@ -77,7 +64,7 @@ describe('lint — детект (readOnly: CI/hook, 0 LLM)', () => {
       await writeSourceWithFreshDoc(root, 'src/a.mjs', 'export const a = 1\n')
       // Джерело змінилось, але у наборі лише шлях доки → мапінг має знайти джерело й виявити mismatch.
       await writeFile(join(root, 'src', 'a.mjs'), 'export const a = 2\n')
-      expect(await lint(['src/docs/a.md'], root, { readOnly: true })).toBe(1)
+      expect(await violationsCount(root, ['src/docs/a.md'])).toBeGreaterThan(0)
     })
   })
 
@@ -85,55 +72,24 @@ describe('lint — детект (readOnly: CI/hook, 0 LLM)', () => {
     await withTmpDir(async root => {
       await ensureDir(join(root, 'src'))
       await writeFile(join(root, 'src', 'a.test.mjs'), 'test\n')
-      expect(await lint(['src/a.test.mjs'], root, { readOnly: true })).toBe(0)
-    })
-  })
-})
-
-describe('lint — opportunistic LLM-fix (fix-by-default)', () => {
-  test('omlx up: генерує stale → re-detect 0', async () => {
-    await withTmpDir(async root => {
-      await ensureDir(join(root, 'src'))
-      await writeFile(join(root, 'src', 'a.mjs'), 'export const a = 1\n')
-      // «Генерація» = записати свіжу доку для кожної цілі (CRC збігається з джерелом).
-      state.impl = async (targets, r) => {
-        for (const t of targets) {
-          const body = await readFile(join(r, t.sourcePath))
-          await ensureDir(join(r, t.docPath, '..'))
-          await writeFile(join(r, t.docPath), stampDoc('# x\n\n## Огляд\n\nтест\n', t.sourcePath, crc32(body)))
-        }
-        return 0
-      }
-      expect(await lint(['src/a.mjs'], root, { llmFix: true })).toBe(0)
-      expect(state.calls).toHaveLength(1)
-      expect(state.calls[0][0]).toHaveLength(1) // targets = 1 stale
+      expect(await violationsCount(root, ['src/a.test.mjs'])).toBe(0)
     })
   })
 
-  test('omlx down: fix пропущено → exit 1 (гейт тримається)', async () => {
-    await withTmpDir(async root => {
-      await ensureDir(join(root, 'src'))
-      await writeFile(join(root, 'src', 'a.mjs'), 'export const a = 1\n')
-      state.impl = async () => 1 // preflight-фейл: нічого не згенеровано
-      expect(await lint(['src/a.mjs'], root, { llmFix: true })).toBe(1)
-      expect(state.calls).toHaveLength(1)
-    })
-  })
-
-  test('свіже дерево: генерацію не чіпаємо', async () => {
+  test('свіже дерево: stale не репортуються', async () => {
     await withTmpDir(async root => {
       await writeSourceWithFreshDoc(root, 'src/a.mjs', 'export const a = 1\n')
-      expect(await lint(['src/a.mjs'], root, { llmFix: true })).toBe(0)
-      expect(state.calls).toHaveLength(0)
+      expect(await violationsCount(root, ['src/a.mjs'])).toBe(0)
     })
   })
 
-  test('без llmFix: detect-only (stale → 1, генерацію не чіпаємо)', async () => {
+  test('violation несе reason і шлях джерела у message', async () => {
     await withTmpDir(async root => {
       await ensureDir(join(root, 'src'))
       await writeFile(join(root, 'src', 'a.mjs'), 'export const a = 1\n')
-      expect(await lint(['src/a.mjs'], root)).toBe(1) // llmFix=undefined → opt-out
-      expect(state.calls).toHaveLength(0)
+      const { violations } = await lint(ctxFor(root, ['src/a.mjs']))
+      expect(violations.some(v => v.message.includes('src/a.mjs'))).toBe(true)
+      expect(violations[0].file).toBe('src/a.mjs')
     })
   })
 })

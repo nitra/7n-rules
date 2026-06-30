@@ -14,8 +14,11 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+
+const check = dir =>
+  lint({ cwd: dir, ruleId: 'image-compress', concernId: 'package_setup', files: undefined }).then(r => r.violations)
 
 /**
  * Створює мінімальний валідний проєкт під image-compress у вказаному каталозі.
@@ -31,7 +34,7 @@ describe('check-image-compress', () => {
   test('успіх: чисте дерево без застарілих файлів', async () => {
     await withTmpDir(async dir => {
       await setupValidImageProject(dir)
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -39,7 +42,7 @@ describe('check-image-compress', () => {
     await withTmpDir(async dir => {
       await setupValidImageProject(dir)
       await writeFile(join(dir, '.n-minify-image.tsv'), 'src/hero.png\tabc123\t1024\t800\n', 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -47,7 +50,7 @@ describe('check-image-compress', () => {
     await withTmpDir(async dir => {
       await setupValidImageProject(dir)
       await writeFile(join(dir, '.gitignore'), 'node_modules/\n.n-minify-image.tsv\n', 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect((await check(dir)).length).toBeGreaterThan(0)
     })
   })
 
@@ -55,7 +58,7 @@ describe('check-image-compress', () => {
     await withTmpDir(async dir => {
       await setupValidImageProject(dir)
       await writeFile(join(dir, '.minify-image-cache.tsv'), 'src/hero.png\t1700000000000\t1024\t800\n', 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect((await check(dir)).length).toBeGreaterThan(0)
     })
   })
 
@@ -63,7 +66,7 @@ describe('check-image-compress', () => {
     await withTmpDir(async dir => {
       await setupValidImageProject(dir)
       await writeFile(join(dir, '.gitignore'), 'node_modules/\n.minify-image-cache.tsv\n', 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect((await check(dir)).length).toBeGreaterThan(0)
     })
   })
 })

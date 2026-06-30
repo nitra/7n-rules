@@ -16,7 +16,7 @@ import { join } from 'node:path'
 
 import { parse as parseToml } from 'smol-toml'
 
-import { main as check } from '../main.mjs'
+import { lint } from '../main.mjs'
 
 /**
  * Створює тимчасовий проєкт з опційним Tauri-layout-ом.
@@ -62,28 +62,28 @@ function makeProj({ layout = 'tauri', tauriManifest = '[package]\nname="t"\nvers
 }
 
 /**
- * Викликає `check(dir)` без `process.chdir` (test.mdc canon: production functions
- * приймають перший параметр `cwd = process.cwd()`; Stryker крутить тести у threads-pool,
- * де chdir не підтримується).
+ * Викликає detector `lint(ctx)` без `process.chdir` (test.mdc canon: production functions
+ * приймають `cwd`; Stryker крутить тести у threads-pool, де chdir не підтримується).
  * @param {string} dir каталог проєкту
- * @returns {Promise<number>} exit code
+ * @returns {Promise<import('../../../../scripts/lib/lint-surface/types.mjs').LintViolation[]>} violations
  */
-function runCheckIn(dir) {
-  return check(dir)
+async function runCheckIn(dir) {
+  const { violations } = await lint({ cwd: dir, ruleId: 'tauri', concernId: 'cargo_mutants_config', files: undefined })
+  return violations
 }
 
 describe('tauri cargo_mutants_config concern', () => {
   test('немає src-tauri/ — silent skip', async () => {
     const proj = makeProj({ layout: 'noTauri' })
-    const exitCode = await runCheckIn(proj.dir)
-    expect(exitCode).toBe(0)
+    const violations = await runCheckIn(proj.dir)
+    expect(violations).toEqual([])
     proj.cleanup()
   })
 
   test('src-tauri є, mutants.toml відсутній — створено Tauri canonical baseline', async () => {
     const proj = makeProj({ layout: 'tauri' })
-    const exitCode = await runCheckIn(proj.dir)
-    expect(exitCode).toBe(0)
+    const violations = await runCheckIn(proj.dir)
+    expect(violations).toEqual([])
     const target = join(proj.dir, 'app', 'src-tauri', '.cargo', 'mutants.toml')
     expect(existsSync(target)).toBe(true)
     const parsed = parseToml(readFileSync(target, 'utf8'))
@@ -116,8 +116,8 @@ exclude_globs = ["src/custom.rs"]
 timeout_multiplier = 5.0
 `
     writeFileSync(target, manual)
-    const exitCode = await runCheckIn(proj.dir)
-    expect(exitCode).toBe(0)
+    const violations = await runCheckIn(proj.dir)
+    expect(violations).toEqual([])
     expect(readFileSync(target, 'utf8')).toBe(manual)
     proj.cleanup()
   })
@@ -130,8 +130,8 @@ timeout_multiplier = 5.0
 timeout_multiplier = 5.0
 `
     writeFileSync(target, manual)
-    const exitCode = await runCheckIn(proj.dir)
-    expect(exitCode).toBe(0)
+    const violations = await runCheckIn(proj.dir)
+    expect(violations).toEqual([])
     const after = readFileSync(target, 'utf8')
     // Existing keys preserved.
     expect(after).toContain('additional_cargo_test_args = ["--lib"]')
@@ -146,8 +146,8 @@ timeout_multiplier = 5.0
 
   test("кілька src-tauri у різних workspaces — у кожному з'являється Tauri-config", async () => {
     const proj = makeProj({ layout: 'multiTauri' })
-    const exitCode = await runCheckIn(proj.dir)
-    expect(exitCode).toBe(0)
+    const violations = await runCheckIn(proj.dir)
+    expect(violations).toEqual([])
     expect(existsSync(join(proj.dir, 'app', 'src-tauri', '.cargo', 'mutants.toml'))).toBe(true)
     expect(existsSync(join(proj.dir, 'desktop', 'src-tauri', '.cargo', 'mutants.toml'))).toBe(true)
     proj.cleanup()
@@ -160,8 +160,8 @@ timeout_multiplier = 5.0
     // Симулюємо нейтральний test-rule baseline (тільки коментар).
     const neutral = '# .cargo/mutants.toml — universal cargo-mutants baseline (test.mdc).\n'
     writeFileSync(target, neutral)
-    const exitCode = await runCheckIn(proj.dir)
-    expect(exitCode).toBe(0)
+    const violations = await runCheckIn(proj.dir)
+    expect(violations).toEqual([])
     const after = readFileSync(target, 'utf8')
     expect(after.startsWith(neutral)).toBe(true)
     const parsed = parseToml(after)

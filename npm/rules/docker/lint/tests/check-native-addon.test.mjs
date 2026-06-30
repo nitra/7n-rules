@@ -6,8 +6,11 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { main as check, getMultistageAndRuntimeHint } from '../main.mjs'
+import { lint, getMultistageAndRuntimeHint } from '../main.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+const check = dir =>
+  lint({ cwd: dir, ruleId: 'docker', concernId: 'lint', files: undefined }).then(r => r.violations)
 
 const HADOLINT_RELAX = 'failure-threshold: error\n'
 
@@ -50,7 +53,7 @@ describe('check() — нативний аддон + compile', () => {
       await writeFile(join(dir, '.hadolint.yaml'), HADOLINT_RELAX, 'utf8')
       await writeFile(join(dir, 'package.json'), JSON.stringify({ dependencies: { sharp: '^0.34.5' } }), 'utf8')
       await writeFile(join(dir, 'Dockerfile'), ANTIPATTERN_DOCKERFILE, 'utf8')
-      expect(await check(dir)).toBe(1)
+      expect((await check(dir)).length).toBeGreaterThan(0)
     })
   })
 
@@ -59,7 +62,7 @@ describe('check() — нативний аддон + compile', () => {
       await writeFile(join(dir, '.hadolint.yaml'), HADOLINT_RELAX, 'utf8')
       await writeFile(join(dir, 'package.json'), JSON.stringify({ dependencies: { sharp: '^0.34.5' } }), 'utf8')
       await writeFile(join(dir, 'Dockerfile'), CANON_DOCKERFILE, 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 
@@ -68,7 +71,7 @@ describe('check() — нативний аддон + compile', () => {
       await writeFile(join(dir, '.hadolint.yaml'), HADOLINT_RELAX, 'utf8')
       await writeFile(join(dir, 'package.json'), JSON.stringify({ dependencies: { pino: '^9' } }), 'utf8')
       await writeFile(join(dir, 'Dockerfile'), ANTIPATTERN_DOCKERFILE, 'utf8')
-      expect(await check(dir)).toBe(0)
+      expect(await check(dir)).toEqual([])
     })
   })
 })
