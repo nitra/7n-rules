@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.0.1] - 2026-06-30
+
+### Changed
+
+- Merge remote-tracking branch 'origin/main' into unified-lint-surface
+
 ## [13.0.0] - 2026-06-30
 
 ### Changed
