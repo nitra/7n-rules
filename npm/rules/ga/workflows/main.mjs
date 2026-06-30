@@ -2,7 +2,7 @@
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
@@ -24,6 +24,20 @@ const MEGALINTER_CONFIG_NAMES = ['.mega-linter.yml', '.megalinter.yaml', '.mega-
 
 /** Обовʼязкові workflow-файли (ga.mdc). */
 const REQUIRED_WORKFLOWS = ['clean-ga-workflows.yml', 'clean-merged-branch.yml', 'lint-ga.yml', 'git-ai.yml']
+
+/**
+ * Structured fix-hint (#3) для rego-violation про `actions/checkout` без
+ * `persist-credentials: false` — щоб T0 (`fix-workflows.mjs`) автофіксив детерміновано,
+ * не парсячи message. Повертає `{ reason, file, data }` або undefined.
+ * @param {string} file posix-relative шлях workflow-файла від cwd
+ * @param {unknown} message текст rego-violation
+ * @returns {{ reason: string, file: string, data: { kind: string } } | undefined}
+ */
+function checkoutPersistHint(file, message) {
+  return /persist-credentials/u.test(String(message ?? ''))
+    ? { reason: 'checkout-persist-credentials', file, data: { kind: 'checkout-persist-credentials' } }
+    : undefined
+}
 
 /**
  * Повертає true, якщо glob у GitHub Actions `on.*.paths` матчитсья хоча б на один tracked файл у репозиторії.
@@ -84,7 +98,11 @@ function verifyOnePathsGlob(relPath, eventName, raw, passFn, failFn, cwd) {
   if (gitHasAnyTrackedFileMatchingGlob(p, cwd)) {
     passFn(`${relPath}: on.${eventName}.paths glob матчитсья: ${JSON.stringify(p)}`)
   } else {
-    failFn(`${relPath}: on.${eventName}.paths glob не матчитсья ні на один файл: ${JSON.stringify(p)}`)
+    failFn(`${relPath}: on.${eventName}.paths glob не матчитсья ні на один файл: ${JSON.stringify(p)}`, {
+      reason: 'unmatched-paths-glob',
+      file: relPath,
+      data: { kind: 'unmatched-paths-glob', event: eventName, glob: p }
+    })
   }
 }
 
@@ -289,7 +307,8 @@ async function runAllGaRego(wfDir, ymlWorkflows, cwd, pass, fail) {
       files: [targetAbs],
       templateData
     })
-    for (const v of violations) fail(`${target.workflow}: ${v.message}`)
+    for (const v of violations)
+      fail(`${target.workflow}: ${v.message}`, checkoutPersistHint(target.workflow, v.message))
     if (violations.length === 0) {
       pass(`${target.workflow}: відповідає ${target.namespace} (rego)`)
     }
@@ -306,7 +325,9 @@ async function runAllGaRego(wfDir, ymlWorkflows, cwd, pass, fail) {
     files: wfFiles,
     templateData: usesMinVersionsSnippet ? { snippet: usesMinVersionsSnippet } : undefined
   })
-  for (const v of violations) fail(`${v.filename}: ${v.message}`)
+  for (const v of violations) {
+    fail(`${v.filename}: ${v.message}`, checkoutPersistHint(relative(cwd, v.filename), v.message))
+  }
   if (violations.length === 0) {
     pass(`${wfFiles.length} workflow(s) відповідають ga.workflow_common (rego)`)
   }
@@ -322,8 +343,8 @@ async function runAllGaRego(wfDir, ymlWorkflows, cwd, pass, fail) {
  * config, megalinter залишки тощо). `bun run lint-ga` додатково запускає
  * `actionlint` + `zizmor` зовнішніми тулчейнами і **викликає цю ж `check()`** —
  * тобто rego-частина живе тут, не в `lint-ga.mjs`.
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx detector-контекст (cwd, ruleId, concernId)
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} порушення concern-а
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

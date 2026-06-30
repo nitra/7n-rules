@@ -15,3 +15,17 @@ Rego-пакет: `k8s.gateway`
 ✓ `backendRef.name: my-svc-hl` (headless)
 ✗ `backendRef.name: my-svc` (без суфікса `-hl`)
 ✗ `backendRef.namespace: dev` при `metadata.namespace: dev` (redundant)
+
+## Визначення схеми YAML
+
+`kind: HTTPRoute` потребує `apiVersion: gateway.networking.k8s.io/v1` (підтримується GKE 1.26+, gateway class `gke-l7-regional-external-managed`; містить поле `timeouts`). `v1beta1` — deprecated, **заборонено**: `check k8s` автоматично апгрейдить до `v1`.
+
+**Приклад (Gateway API):**
+
+```yaml
+# yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+```
+
+✗ `apiVersion: gateway.networking.k8s.io/v1beta1` — заборонено; `$schema` вказував би на `httproute_v1beta1.json`

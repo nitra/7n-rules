@@ -208,6 +208,8 @@ function stripTrailingNewlines(s) {
   return end === s.length ? s : s.slice(0, end)
 }
 const BATCH_V1BETA1_API_VERSION_LINE_RE = /^(\s*apiVersion:\s*)["']?batch\/v1beta1["']?(\s*)$/u
+const GATEWAY_HTTPROUTE_V1BETA1_LINE_RE = /^(\s*apiVersion:\s*)["']?gateway\.networking\.k8s\.io\/v1beta1["']?(\s*)$/u
+const GATEWAY_HTTPROUTE_SCHEMA_V1BETA1_RE = /\bhttproute_v1beta1\.json\b/gu
 
 /**
  * Чи містить шлях сегмент директорії `k8s` (рівно ця назва компонента).
@@ -1770,6 +1772,92 @@ async function rewriteBatchV1beta1ApiVersionInK8sYamlFiles(root, ignorePaths, fa
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
       fail(`${rel}: не вдалося прочитати/записати при заміні batch/v1beta1 → batch/v1 (${msg})`)
+    }
+  }
+}
+
+/**
+ * Один рядок YAML: якщо це `apiVersion` зі значенням **`gateway.networking.k8s.io/v1beta1`**,
+ * повертає той самий рядок із **`gateway.networking.k8s.io/v1`**.
+ * Рядки, що після trim починаються з `#`, не змінюються.
+ * @param {string} line один рядок YAML
+ * @returns {string} той самий рядок або з заміною apiVersion gateway.networking.k8s.io/v1beta1 на v1
+ */
+function rewriteLineGatewayHttpRouteV1beta1ApiVersion(line) {
+  const t = line.trimStart()
+  if (t.startsWith('#')) {
+    return line
+  }
+  const m = line.match(GATEWAY_HTTPROUTE_V1BETA1_LINE_RE)
+  if (m) {
+    return `${m[1]}gateway.networking.k8s.io/v1${m[2]}`
+  }
+  return line
+}
+
+/**
+ * У повному тексті YAML замінює всі **цілі** рядки `apiVersion: gateway.networking.k8s.io/v1beta1`
+ * на `apiVersion: gateway.networking.k8s.io/v1`, а також оновлює `$schema`-modeline URL
+ * `httproute_v1beta1.json` → `httproute_v1.json`. Зберігає **CRLF** / **LF** як у вихідному рядку.
+ * @param {string} raw вміст файлу
+ * @returns {{ changed: boolean, content: string }} прапорець зміни та оновлений текст
+ */
+export function replaceGatewayHttpRouteV1beta1ApiVersionInYamlText(raw) {
+  const eol = raw.includes('\r\n') ? '\r\n' : '\n'
+  const lines = raw.split(YAML_LINE_SPLIT_RE)
+  let changed = false
+  const out = lines.map(line => {
+    let n = rewriteLineGatewayHttpRouteV1beta1ApiVersion(line)
+    if (n !== line) {
+      changed = true
+    }
+    // Оновлюємо $schema-modeline: httproute_v1beta1.json → httproute_v1.json
+    const schemaFixed = n.replace(GATEWAY_HTTPROUTE_SCHEMA_V1BETA1_RE, 'httproute_v1.json')
+    if (schemaFixed !== n) {
+      changed = true
+      n = schemaFixed
+    }
+    return n
+  })
+  if (!changed) {
+    return { changed: false, content: raw }
+  }
+  return { changed: true, content: out.join(eol) }
+}
+
+/**
+ * Проходить усі `*.yaml` / `*.yml` під сегментом `k8s` і на диску застосовує
+ * **`replaceGatewayHttpRouteV1beta1ApiVersionInYamlText`**; після запису перевіряє,
+ * чи залишився `v1beta1` (read-only оточення) і звітує через `fail`.
+ * @param {string} root корінь репозиторію
+ * @param {string[]} ignorePaths шляхи каталогів, повністю виключених з обходу
+ * @param {(msg: string) => void} fail колбек повідомлення про помилку
+ * @param {(msg: string) => void} pass колбек успішного повідомлення
+ * @returns {Promise<void>} результат
+ */
+async function rewriteGatewayHttpRouteV1beta1ApiVersionInK8sYamlFiles(root, ignorePaths, fail, pass) {
+  const yamlFiles = await findK8sYamlFiles(root, ignorePaths)
+  for (const abs of yamlFiles) {
+    const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
+    try {
+      const raw = await readFile(abs, 'utf8')
+      const { changed, content } = replaceGatewayHttpRouteV1beta1ApiVersionInYamlText(raw)
+      if (changed) {
+        try {
+          await writeFile(abs, content, 'utf8')
+          pass(`${rel}: оновлено apiVersion gateway.networking.k8s.io/v1beta1 → v1 (k8s.mdc)`)
+        } catch {
+          // read-only: не вдалося записати — перевіряємо, чи є v1beta1 після HTTPRoute
+          if (GATEWAY_HTTPROUTE_V1BETA1_LINE_RE.test(raw)) {
+            fail(
+              `${rel}: apiVersion: gateway.networking.k8s.io/v1beta1 заборонено для HTTPRoute — оновіть до gateway.networking.k8s.io/v1 (k8s.mdc)`
+            )
+          }
+        }
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      fail(`${rel}: не вдалося прочитати/записати при заміні gateway.networking.k8s.io/v1beta1 → v1 (${msg})`)
     }
   }
 }
@@ -6627,8 +6715,8 @@ function runAllK8sRego(root, yamlFiles, fail) {
  *     127/ENOENT (тул відсутній) → SKIP, не violation.
  *  2. JS/rego cross-file перевірки (колишній `check`): findK8sYamlFiles,
  *     assertNoForbiddenK8sDevPaths, runAllK8sRego, checkK8sYamlFile-цикл та всі
- *     `validate*`. Мутуючі fix-кроки (rewrite/remove/autofix/ensure) ВИЛУЧЕНО —
- *     детектор не змінює репо; їх поведінка переходить у окрему fix-фазу.
+ *     `validate*`. Мутуючий авто-апгрейд `gateway.networking.k8s.io/v1beta1 → v1`
+ *     для HTTPRoute виконується тут (fail якщо read-only); інші мутуючі кроки ВИЛУЧЕНО.
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
  * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
  */
@@ -6663,6 +6751,8 @@ export async function lint(ctx) {
   // Plan B: пер-документні структурні правила — у rego-полісі `npm/policy/k8s/*`,
   // викликаємо одним батчем на namespace через runConftestBatch. JS нижче робить
   // лише cross-file orchestration, modeline та FS-existence перевірки.
+  await rewriteGatewayHttpRouteV1beta1ApiVersionInK8sYamlFiles(root, ignorePaths, fail, pass)
+
   runAllK8sRego(root, yamlFiles, fail)
   pass(`Rego-полісі (npm/policy/k8s/*) виконано на ${yamlFiles.length} файл(ах)`)
 

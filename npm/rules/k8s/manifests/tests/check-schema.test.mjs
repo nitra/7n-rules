@@ -43,6 +43,7 @@ import {
   metadataNamespaceRequiredViolation,
   pathHasK8sSegment,
   replaceBatchV1beta1ApiVersionInYamlText,
+  replaceGatewayHttpRouteV1beta1ApiVersionInYamlText,
   SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS,
   collectGatewayApiRouteBackendRefsWithRedundantNamespace,
   collectGatewayApiRouteBackendServiceNames,
@@ -199,6 +200,56 @@ describe('replaceBatchV1beta1ApiVersionInYamlText', () => {
     const y = 'apiVersion: batch/v1beta1\r\n'
     const { content } = replaceBatchV1beta1ApiVersionInYamlText(y)
     expect(content).toBe('apiVersion: batch/v1\r\n')
+  })
+})
+
+describe('replaceGatewayHttpRouteV1beta1ApiVersionInYamlText', () => {
+  test('замінює apiVersion: gateway.networking.k8s.io/v1beta1 на v1', () => {
+    const y = 'apiVersion: gateway.networking.k8s.io/v1beta1\nkind: HTTPRoute\n'
+    const { changed, content } = replaceGatewayHttpRouteV1beta1ApiVersionInYamlText(y)
+    expect(changed).toBe(true)
+    expect(content).toBe('apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\n')
+  })
+
+  test('у multi-doc обох документах', () => {
+    const y = 'apiVersion: gateway.networking.k8s.io/v1beta1\n---\napiVersion: gateway.networking.k8s.io/v1beta1\n'
+    const { content } = replaceGatewayHttpRouteV1beta1ApiVersionInYamlText(y)
+    expect(content).toBe('apiVersion: gateway.networking.k8s.io/v1\n---\napiVersion: gateway.networking.k8s.io/v1\n')
+  })
+
+  test('у лапках', () => {
+    const y = 'apiVersion: "gateway.networking.k8s.io/v1beta1"\n'
+    const { content } = replaceGatewayHttpRouteV1beta1ApiVersionInYamlText(y)
+    expect(content).toBe('apiVersion: gateway.networking.k8s.io/v1\n')
+  })
+
+  test('не змінює # коментар', () => {
+    const y = '# apiVersion: gateway.networking.k8s.io/v1beta1\n'
+    const { changed, content } = replaceGatewayHttpRouteV1beta1ApiVersionInYamlText(y)
+    expect(changed).toBe(false)
+    expect(content).toBe(y)
+  })
+
+  test('зберігає CRLF', () => {
+    const y = 'apiVersion: gateway.networking.k8s.io/v1beta1\r\n'
+    const { content } = replaceGatewayHttpRouteV1beta1ApiVersionInYamlText(y)
+    expect(content).toBe('apiVersion: gateway.networking.k8s.io/v1\r\n')
+  })
+
+  test('оновлює $schema httproute_v1beta1.json → httproute_v1.json', () => {
+    const y =
+      '# yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/httproute_v1beta1.json\napiVersion: gateway.networking.k8s.io/v1beta1\nkind: HTTPRoute\n'
+    const { changed, content } = replaceGatewayHttpRouteV1beta1ApiVersionInYamlText(y)
+    expect(changed).toBe(true)
+    expect(content).toContain('httproute_v1.json')
+    expect(content).not.toContain('httproute_v1beta1.json')
+    expect(content).toContain('gateway.networking.k8s.io/v1\n')
+  })
+
+  test('не змінює v1 (без v1beta1)', () => {
+    const y = 'apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\n'
+    const { changed } = replaceGatewayHttpRouteV1beta1ApiVersionInYamlText(y)
+    expect(changed).toBe(false)
   })
 })
 
