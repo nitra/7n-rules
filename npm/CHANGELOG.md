@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.1.0] - 2026-06-30
+
+### Changed
+
+- k8s: auto-upgrade HTTPRoute apiVersion v1beta1 → v1, forbid v1beta1
+
 ## [13.0.3] - 2026-06-30
 
 ### Fixed
