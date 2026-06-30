@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.0.2] - 2026-06-30
+
+### Fixed
+
+- changelog/consistency: detector пропускає merge-коміти (HEAD з 2-м предком) — merge інтегрує вже задокументовану роботу, тож autofix більше не створює шумний «Merge…» changeset, який CI commit-back каскадив у зайвий patch-реліз.
+
 ## [13.0.1] - 2026-06-30
 
 ### Changed
