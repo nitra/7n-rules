@@ -134,7 +134,7 @@ export function buildDocFrontmatter(source, crc, quality = null, model = null, t
  * @param {string|null} [model] повний id моделі-генератора; null — без поля `model`
  * @returns {string} md зі свіжим frontmatter
  */
-const LEADING_H1_RE = /^#[^\n]*\n+/u
+const LEADING_H1_RE = /^# [^\n]*\n+/u
 
 /**
  *
