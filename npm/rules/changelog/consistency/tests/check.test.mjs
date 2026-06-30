@@ -1020,3 +1020,24 @@ describe('check-changelog (CHANGELOG.md existence + format)', () => {
     })
   })
 })
+
+describe('check-changelog (merge-коміт)', () => {
+  test('HEAD — merge-коміт → pass (changeset не вимагається, документують feature-коміти)', async () => {
+    await withTmpDir(async dir => {
+      // publishable-пакет; зміна без changeset на feature-гілці, влита через --no-ff merge.
+      await writeJson(join(dir, 'package.json'), { name: '@x/lib', version: '1.0.0', files: ['lib'] })
+      await writeFile(join(dir, 'CHANGELOG.md'), '# Changelog\n', 'utf8')
+      await git(['init', '-q', '-b', 'main'], dir)
+      await git(['add', '-A'], dir)
+      await git(['commit', '-qm', 'init'], dir)
+      await git(['checkout', '-qb', 'feat'], dir)
+      await writeFile(join(dir, 'lib.mjs'), 'export const x = 1\n', 'utf8')
+      await git(['add', '-A'], dir)
+      await git(['commit', '-qm', 'feat: add lib'], dir)
+      await git(['checkout', '-q', 'main'], dir)
+      await git(['merge', '--no-ff', '-q', 'feat', '-m', "Merge branch 'feat'"], dir)
+      // На merge-HEAD — пропуск, попри недокументовану зміну lib.mjs.
+      expect(await check(dir)).toBe(0)
+    })
+  })
+})

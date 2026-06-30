@@ -83,6 +83,18 @@ async function currentBranchName(cwd) {
 }
 
 /**
+ * Чи HEAD — merge-коміт (має 2-го предка). Merge інтегрує вже задокументовану роботу
+ * (changeset створено в feature-комітах), тож власного changeset не потребує — інакше
+ * autofix створив би шумний «Merge…» changeset, який CI commit-back каскадить у patch-реліз.
+ * @param {string} cwd робочий каталог
+ * @returns {Promise<boolean>}
+ */
+async function isMergeCommit(cwd) {
+  const out = await gitOrNull(['rev-parse', '--verify', '--quiet', 'HEAD^2'], cwd)
+  return typeof out === 'string' && out.trim().length > 0
+}
+
+/**
  * @param {string} ref параметр
  * @returns {string} результат
  */
@@ -725,6 +737,13 @@ export async function lint(ctx) {
   const getPublishedVersion = createDefaultGetPublishedVersion()
   const cwd = ctx.cwd
   const autofix = process.env[AUTOFIX_ENV_VAR] === '1'
+
+  // Merge-коміт інтегрує вже задокументовану роботу — changeset не потрібен (інакше
+  // autofix створює шумний «Merge…» changeset → CI commit-back каскадить patch-реліз).
+  if (await isMergeCommit(cwd)) {
+    pass('HEAD — merge-коміт: changelog-перевірку пропущено (changeset документують feature-коміти)')
+    return reporter.result()
+  }
 
   const workspaces = await getMonorepoProjectRootDirs(cwd)
   const subWorkspaces = workspaces.filter(w => w !== '.')
