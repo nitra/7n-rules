@@ -1,5 +1,15 @@
 # Changelog
 
+## [13.0.0] - 2026-06-30
+
+### Changed
+
+- vue rule: vite >=8.1 + css.transformer lightningcss
+- Додано нові devDependencies та оновлено правила для Vite >= 8.1
+- Додано підтримку ESLint та markdownlint-cli2 для лінтування
+- Міграція concern-структури: `rules/<id>/js/<concern>.mjs` → `rules/<id>/<concern>/main.mjs` + `concern.json`; fix-\*.mjs і шаблони перенесено у concern-теки
+- Unified lint surface: усі concern-и зведено до одного detector-контракту `lint(ctx) → { violations }` (read-only); fix став окремою роллю central pipeline (T0 → tier-ladder). Policy-concern-и генеруються codegen-ом (`@generated main.mjs` + source-hash drift-gate). CLI: `n-cursor lint` (fix-by-default) / `lint --no-fix` (detect-only); прибрано `fix`, `fix-t0`, `--read-only`, `llmFix`. Видалено старий conformance/orchestrator-стек (`run-lint`, `run-rule`, `orchestrator`, `run-conformance-check`, `t0`).
+
 ## [12.19.0] - 2026-06-28
 
 ### Added
