@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.2.3] - 2026-07-01
+
+### Changed
+
+- fix(text): add Ukrainian apostrophe paragraph to text rule mdc (+mirror)
+
 ## [13.2.2] - 2026-07-01
 
 ### Fixed
