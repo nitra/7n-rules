@@ -41,10 +41,12 @@ export function lint(ctx) {
 
   let anyFound = false
   for (const file of FORBIDDEN_PRETTIER_FILES) {
-    if (existsSync(join(cwd, file))) {
-      fail(`${file} заборонено — Prettier не використовуємо, перейди на oxfmt (text.mdc)`)
-      anyFound = true
+    if (!existsSync(join(cwd, file))) {
+      continue
     }
+
+    fail(`${file} заборонено — Prettier не використовуємо, перейди на oxfmt (text.mdc)`)
+    anyFound = true
   }
   if (!anyFound) {
     pass('Prettier-конфігів і .prettierignore немає в корені')

@@ -8,7 +8,6 @@
  *
  * `fail(msg)` за замовчуванням дає `reason = ctx.concernId`. Для кількох типів порушень
  * у одному concern-і — `fail(msg, 'specific-reason')` або `fail(msg, { reason, file, data })`.
- *
  * @typedef {import('./types.mjs').LintContext} LintContext
  * @typedef {import('./types.mjs').LintViolation} LintViolation
  * @typedef {import('./types.mjs').LintResult} LintResult

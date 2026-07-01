@@ -62,10 +62,10 @@ export async function runHookCli(argv) {
     const fp = extractFilePath(await readStdin())
     if (!fp) return 0
     const { exitCode } = await detectAll({ files: [fp], cwd })
-    return exitCode !== 0 ? 2 : 0
+    return exitCode === 0 ? 0 : 2
   }
 
   const files = collectChangedFiles(cwd)
   const { exitCode } = await detectAll({ files, cwd })
-  return exitCode !== 0 ? 2 : 0
+  return exitCode === 0 ? 0 : 2
 }

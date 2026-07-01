@@ -5,7 +5,6 @@
  *
  * Переоформлює перевірену логіку run-rule.mjs у структуровані violations — НЕ дублює її:
  * та сама `resolveTargetFiles` / `runConftestBatch` / template-checks.
- *
  * @typedef {import('./types.mjs').LintContext} LintContext
  * @typedef {import('./types.mjs').LintResult} LintResult
  * @typedef {import('./types.mjs').LintViolation} LintViolation

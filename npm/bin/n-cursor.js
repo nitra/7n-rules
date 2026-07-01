@@ -186,18 +186,20 @@ async function migrateLegacyManagedRuleFilenames(rulesDir) {
   }
   const names = await readdir(rulesDir)
   for (const name of names) {
-    if (name.endsWith('.mdc') && name.startsWith('nitra-')) {
-      const rest = name.slice('nitra-'.length)
-      const newName = `${RULE_PREFIX}${rest}`
-      const from = join(rulesDir, name)
-      const to = join(rulesDir, newName)
-      if (existsSync(to)) {
-        await unlink(from)
-        console.log(`📝 Видалено застарілий ${RULES_DIR}/${name} (вже є ${newName})\n`)
-      } else {
-        await rename(from, to)
-        console.log(`📝 Перейменовано ${RULES_DIR}/${name} → ${RULES_DIR}/${newName}\n`)
-      }
+    if (!(name.endsWith('.mdc') && name.startsWith('nitra-'))) {
+      continue
+    }
+
+    const rest = name.slice('nitra-'.length)
+    const newName = `${RULE_PREFIX}${rest}`
+    const from = join(rulesDir, name)
+    const to = join(rulesDir, newName)
+    if (existsSync(to)) {
+      await unlink(from)
+      console.log(`📝 Видалено застарілий ${RULES_DIR}/${name} (вже є ${newName})\n`)
+    } else {
+      await rename(from, to)
+      console.log(`📝 Перейменовано ${RULES_DIR}/${name} → ${RULES_DIR}/${newName}\n`)
     }
   }
 }
@@ -533,10 +535,12 @@ async function removeOrphanManagedRuleFiles(rulesDir, configRules) {
   const names = await readdir(rulesDir)
   const removed = []
   for (const name of names) {
-    if (name.endsWith('.mdc') && name.startsWith(RULE_PREFIX) && !expected.has(name)) {
-      await unlink(join(rulesDir, name))
-      removed.push(name)
+    if (!(name.endsWith('.mdc') && name.startsWith(RULE_PREFIX) && !expected.has(name))) {
+      continue
     }
+
+    await unlink(join(rulesDir, name))
+    removed.push(name)
   }
   return removed.toSorted((a, b) => a.localeCompare(b))
 }
@@ -880,10 +884,12 @@ async function removeOrphanManagedCommandFiles(commandsDir, configSkills) {
   const names = await readdir(commandsDir)
   const removed = []
   for (const name of names) {
-    if (name.endsWith('.md') && name.startsWith(RULE_PREFIX) && !expected.has(name)) {
-      await unlink(join(commandsDir, name))
-      removed.push(name)
+    if (!(name.endsWith('.md') && name.startsWith(RULE_PREFIX) && !expected.has(name))) {
+      continue
     }
+
+    await unlink(join(commandsDir, name))
+    removed.push(name)
   }
   return removed.toSorted((a, b) => a.localeCompare(b))
 }
@@ -1072,10 +1078,12 @@ async function removeOrphanManagedPiSkillDirs(piSkillsDir, configSkills) {
   const entries = await readdir(piSkillsDir, { withFileTypes: true })
   const removed = []
   for (const entry of entries) {
-    if (entry.isDirectory() && entry.name.startsWith(RULE_PREFIX) && !expected.has(entry.name)) {
-      await rm(join(piSkillsDir, entry.name), { recursive: true, force: true })
-      removed.push(entry.name)
+    if (!(entry.isDirectory() && entry.name.startsWith(RULE_PREFIX) && !expected.has(entry.name))) {
+      continue
     }
+
+    await rm(join(piSkillsDir, entry.name), { recursive: true, force: true })
+    removed.push(entry.name)
   }
   return removed.toSorted((a, b) => a.localeCompare(b))
 }
@@ -1516,7 +1524,7 @@ try {
       // --no-fix (detect-only). Позиційні аргументи — scoped rule/concern фільтр.
       // Fix-by-default: detect → T0 → LLM-ladder (run-fix). --no-fix: лише detect.
       const cwdIdx = args.indexOf('--cwd')
-      const cwdArg = cwdIdx !== -1 ? resolve(args[cwdIdx + 1]) : cwd()
+      const cwdArg = cwdIdx === -1 ? cwd() : resolve(args[cwdIdx + 1])
       const rules = args.filter((a, i) => !a.startsWith('-') && !(cwdIdx !== -1 && i === cwdIdx + 1))
       const lintOpts = { cwd: cwdArg, full: args.includes('--full'), rules, verbose: args.includes('--verbose') }
       // --read-only — backward-compat alias на --no-fix (видалиться після міграції викликів).

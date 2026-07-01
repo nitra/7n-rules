@@ -142,8 +142,5 @@ export function shouldSkipFileForGqlScan(relativePosix) {
   if (base === 'auto-imports.d.ts' || base === 'components.d.ts') {
     return true
   }
-  if (relativePosix.endsWith('.d.ts')) {
-    return true
-  }
-  return false
+  return Boolean(relativePosix.endsWith('.d.ts'))
 }

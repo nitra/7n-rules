@@ -442,6 +442,9 @@ function checkConnAliasDeclaration(absPackageRoot, sourcePaths, pkgJson, label, 
   return 1
 }
 
+/**
+ *
+ */
 function checkOtelConfigmap(rootDir, passFn, failFn, cwd) {
   const k8sDir = join(cwd, rootDir, 'k8s')
   if (!existsSync(k8sDir)) {

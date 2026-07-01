@@ -8,6 +8,9 @@ import { describeFile, isDocCandidate, isSourceFile, scanForDocFiles, scanOrphan
 
 const DOC_MD_RE = /(?:^|\/)docs\/[^/]+\.md$/u
 
+/**
+ *
+ */
 function sourceForDoc(cwd, docRel) {
   const docsDir = dirname(docRel)
   const srcDir = dirname(docsDir)
@@ -27,6 +30,9 @@ function sourceForDoc(cwd, docRel) {
   return null
 }
 
+/**
+ *
+ */
 function sourcesFromChanged(files, cwd) {
   const out = new Set()
   for (const raw of files) {

@@ -37,7 +37,7 @@ function stripFromImageQuotes(t) {
  * @returns {string | null} токен образу або null, якщо рядок не `FROM`
  */
 export function getFromImageToken(line) {
-  const withoutComment = line.split('#')[0].trim()
+  const withoutComment = line.split('#', 1)[0].trim()
   if (!withoutComment) return null
   const m = withoutComment.match(FROM_LINE_RE)
   if (!m) return null
@@ -76,18 +76,15 @@ export function getFromImageToken(line) {
 export function isDockerHubStyleImageRef(imageToken) {
   if (!imageToken) return false
   if (MIRROR_GCR_RE.test(imageToken)) return false
-  const noDigest = imageToken.split('@')[0] || ''
+  const noDigest = imageToken.split('@', 1)[0] || ''
   if (!noDigest.includes('/')) {
     return true
   }
-  const first = noDigest.split('/')[0] || ''
+  const first = noDigest.split('/', 1)[0] || ''
   if (first === 'docker.io' || first === 'index.docker.io') return true
   if (first.includes('.')) return false
   if (first === 'localhost' || IP_LIKE_RE.test(first)) return false
-  if (first.includes(':') && HOST_PORT_RE.test(first)) {
-    return false
-  }
-  return true
+  return !(first.includes(':') && HOST_PORT_RE.test(first))
 }
 
 /**
@@ -96,10 +93,10 @@ export function isDockerHubStyleImageRef(imageToken) {
  * @returns {string} нормалізований шлях репозиторію без тега
  */
 export function normalizeHubRepoPath(imageToken) {
-  let s = (imageToken.split('@')[0] || '').toLowerCase()
+  let s = (imageToken.split('@', 1)[0] || '').toLowerCase()
   s = s.replace(DOCKER_IO_PREFIX_RE, '')
   if (!s.includes('/')) {
-    return `library/${s.split(':')[0]}`
+    return `library/${s.split(':', 1)[0]}`
   }
   const lastSl = s.lastIndexOf('/')
   const lastCol = s.lastIndexOf(':')

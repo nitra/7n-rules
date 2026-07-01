@@ -107,7 +107,7 @@ export function verifyLintJsWorkflowStructure(root) {
   const usesList = steps.map(s => getStepUses(s.step))
   const runBlob = steps.map(s => getStepRun(s.step)).join('\n')
 
-  if (!usesList.some(u => u.includes(CHECKOUT_V6_USES))) {
+  if (usesList.every(u => !u.includes(CHECKOUT_V6_USES))) {
     failures.push('немає кроку uses: actions/checkout@v6')
   }
 
@@ -115,7 +115,7 @@ export function verifyLintJsWorkflowStructure(root) {
     failures.push('checkout@v6 без with.persist-credentials: false')
   }
 
-  if (!usesList.some(u => u.includes(LOCAL_SETUP_BUN_DEPS_MARKER))) {
+  if (usesList.every(u => !u.includes(LOCAL_SETUP_BUN_DEPS_MARKER))) {
     failures.push('немає uses: ./.github/actions/setup-bun-deps')
   }
 

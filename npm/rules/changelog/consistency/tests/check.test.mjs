@@ -88,7 +88,7 @@ async function checkWithPublishedNpm(map, dir) {
  * @returns {Promise<0 | 1>} код сумісності зі старим контрактом
  */
 async function checkWithPublishedPyPi(map, dir) {
-  const prev = globalThis.fetch
+  const prev = fetch
   globalThis.fetch = async url => {
     const m = String(url).match(/\/pypi\/([^/]+)\/json/u)
     const name = m ? decodeURIComponent(m[1]) : null

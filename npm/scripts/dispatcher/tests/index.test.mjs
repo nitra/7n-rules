@@ -59,19 +59,19 @@ describe('видалені команди — flow, graph, watch, mt', () => {
   test('help output не містить flow', () => {
     const { stderr } = runCli(['bogus-cmd-to-trigger-help'])
     // Список допустимих команд — у stderr після "Очікується:"
-    const after = stderr.split('Очікується:')[1] ?? stderr
+    const after = stderr.split('Очікується:', 2)[1] ?? stderr
     expect(after).not.toMatch(RE_WORD_FLOW)
   })
 
   test('help output не містить graph', () => {
     const { stderr } = runCli(['bogus-cmd-to-trigger-help'])
-    const after = stderr.split('Очікується:')[1] ?? stderr
+    const after = stderr.split('Очікується:', 2)[1] ?? stderr
     expect(after).not.toMatch(RE_WORD_GRAPH)
   })
 
   test('help output не містить watch', () => {
     const { stderr } = runCli(['bogus-cmd-to-trigger-help'])
-    const after = stderr.split('Очікується:')[1] ?? stderr
+    const after = stderr.split('Очікується:', 2)[1] ?? stderr
     expect(after).not.toMatch(RE_WORD_WATCH)
   })
 })

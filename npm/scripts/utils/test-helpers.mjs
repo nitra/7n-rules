@@ -116,7 +116,7 @@ export async function withBinRemovedFromPath(bin, fn) {
   const prevNoInstall = env['N_CURSOR_NO_AUTO_INSTALL']
   const filtered = (prevPath ?? '')
     .split(delimiter)
-    .filter(d => d && !candidates.some(name => existsSync(join(d, name))))
+    .filter(d => d && candidates.every(name => !existsSync(join(d, name))))
     .join(delimiter)
   env.PATH = filtered
   env['N_CURSOR_NO_AUTO_INSTALL'] = '1'

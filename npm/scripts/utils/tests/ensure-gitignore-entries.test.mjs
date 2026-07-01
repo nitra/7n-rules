@@ -48,7 +48,7 @@ describe('ensureGitignoreEntries', () => {
     writeFileSync(join(dir, '.gitignore'), 'a\n')
     await ensureGitignoreEntries(dir, ['b'], 'X')
     const content = readFileSync(join(dir, '.gitignore'), 'utf8')
-    expect(content).not.toContain('\n\n\n')
+    expect(content).not.toContain('\n'.repeat(3))
     expect(content.endsWith('\n')).toBe(true)
     expect(content).toContain('a\n')
     expect(content).toContain('b\n')

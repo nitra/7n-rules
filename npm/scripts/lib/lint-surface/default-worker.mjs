@@ -6,7 +6,6 @@
  * Central rollback: pi write-guard міст через `onCapture = ctx.recordWrite` (pre-image
  * у central snapshot ДО запису), тож rollback rung-а відкочує і LLM-правки. Worker —
  * один attempt; success визначає canonical re-detect runner-а, не сам worker.
- *
  * @typedef {import('./types.mjs').FixWorkerFn} FixWorkerFn
  */
 import { renderViolations } from './render.mjs'

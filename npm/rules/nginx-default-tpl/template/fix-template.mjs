@@ -48,11 +48,13 @@ export const patterns = [
       /** @type {string[]} */
       const touchedFiles = []
       for (const rel of fixed) {
-        if (files.length === 0 || files.includes(rel)) {
-          const abs = join(ctx.cwd, rel)
-          ctx.recordWrite?.(abs)
-          touchedFiles.push(abs)
+        if (!(files.length === 0 || files.includes(rel))) {
+          continue
         }
+
+        const abs = join(ctx.cwd, rel)
+        ctx.recordWrite?.(abs)
+        touchedFiles.push(abs)
       }
       return touchedFiles.length > 0
         ? { touchedFiles, message: `error_log off → /dev/null crit: ${touchedFiles.length} файл(ів)` }

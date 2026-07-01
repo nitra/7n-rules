@@ -101,6 +101,9 @@ export function resolveModelSpec(registry, spec) {
  * @returns {Promise<object>} pi ModelRegistry
  */
 let _registry = null
+/**
+ *
+ */
 export async function getRegistry() {
   if (_registry) return _registry
   const { ModelRegistry, AuthStorage } = await import('@earendil-works/pi-coding-agent')

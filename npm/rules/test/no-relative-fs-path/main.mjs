@@ -96,8 +96,7 @@ function isRelativeString(s) {
     if (s.startsWith(prefix)) return false
   }
   // Windows drive letter, наприклад `C:\foo` або `C:/foo`.
-  if (WINDOWS_DRIVE_RE.test(s)) return false
-  return true
+  return !WINDOWS_DRIVE_RE.test(s)
 }
 
 /**

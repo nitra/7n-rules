@@ -16,19 +16,19 @@ describe('abieEnvNameFromBasename', () => {
 
 describe('validateAbieEnvInternalUrls', () => {
   test('узгоджений dev URL (Hasura + KVCMS) — без помилок', () => {
-    const env = `HASURA_GRAPHQL_ENDPOINT=http://apruv-h-hl.dev-apruv.svc.abie-dev.internal:8080
-KVCMS_URL=http://kvcms-hl.dev-apruv.svc.abie-dev.internal:8080
+    const env = `HASURA_GRAPHQL_ENDPOINT=https://apruv-h-hl.dev-apruv.svc.abie-dev.internal:8080
+KVCMS_URL=https://kvcms-hl.dev-apruv.svc.abie-dev.internal:8080
 `
     expect(validateAbieEnvInternalUrls(env, 'dev')).toEqual([])
   })
 
   test('ua URL без порту також ловиться', () => {
-    const env = `KVCMS_URL=http://kvcms-hl.ua-apruv.svc.abie-ua.internal\n`
+    const env = `KVCMS_URL=https://kvcms-hl.ua-apruv.svc.abie-ua.internal\n`
     expect(validateAbieEnvInternalUrls(env, 'ua')).toEqual([])
   })
 
   test('некоректний кластер для env (dev URL у .ua.env) — fail', () => {
-    const env = `KVCMS_URL=http://kvcms-hl.dev-apruv.svc.abie-dev.internal:8080\n`
+    const env = `KVCMS_URL=https://kvcms-hl.dev-apruv.svc.abie-dev.internal:8080\n`
     const errs = validateAbieEnvInternalUrls(env, 'ua')
     expect(errs.length).toBeGreaterThanOrEqual(2)
     expect(errs.some(e => e.includes('abie-ua.internal'))).toBe(true)
@@ -41,8 +41,8 @@ KVCMS_URL=http://kvcms-hl.dev-apruv.svc.abie-dev.internal:8080
   })
 
   test('кілька URL з різними порушеннями', () => {
-    const env = `A=http://a-hl.dev-foo.svc.abie-dev.internal:8080
-B=http://b-hl.ua-foo.svc.abie-ua.internal:8080
+    const env = `A=https://a-hl.dev-foo.svc.abie-dev.internal:8080
+B=https://b-hl.ua-foo.svc.abie-ua.internal:8080
 `
     const errs = validateAbieEnvInternalUrls(env, 'ua')
     expect(errs.length).toBe(2) // 1 URL × 2 проблеми (DNS + namespace)

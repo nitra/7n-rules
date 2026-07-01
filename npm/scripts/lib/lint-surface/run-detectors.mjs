@@ -4,7 +4,6 @@
  * Discovery → scope-selection → `lint(ctx)` per concern → нормалізовані violations.
  * Без мутацій, без LLM. Fix-pipeline (T0 + ladder) обгортає цей модуль і споживає
  * його violations; сам detect ніколи не пише в дерево.
- *
  * @typedef {import('./types.mjs').LintContext} LintContext
  * @typedef {import('./types.mjs').LintViolation} LintViolation
  * @typedef {import('../concern-meta.mjs').ConcernMeta} ConcernMeta

@@ -57,10 +57,12 @@ function calleeName(node) {
 function collectCalls(node) {
   const names = new Set()
   walkAstWithAncestors(node, [], n => {
-    if (n.type === 'CallExpression') {
-      const name = calleeName(n)
-      if (name) names.add(name)
+    if (!(n.type === 'CallExpression')) {
+      return
     }
+
+    const name = calleeName(n)
+    if (name) names.add(name)
   })
   return names
 }

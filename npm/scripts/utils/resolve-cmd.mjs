@@ -20,6 +20,6 @@ export function resolveCmd(cmd) {
   if (result.status !== 0 || result.error) {
     return null
   }
-  const line = result.stdout.trim().split('\n')[0].trim()
+  const line = result.stdout.trim().split('\n', 1)[0].trim()
   return line || null
 }

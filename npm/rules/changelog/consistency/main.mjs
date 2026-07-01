@@ -433,6 +433,9 @@ async function checkChangelogFormat(ws, label, cwd, pass, fail) {
   }
 }
 
+/**
+ *
+ */
 function checkNpmFilesArrayContainsChangelog(manifest, pass, fail) {
   if (manifest.kind !== 'npm' || !manifest.npmFiles) return
   const pkgPath = manifestFilePath(manifest.ws, manifest)

@@ -47,7 +47,7 @@ function toRelSource(root, candidate) {
  */
 function positionalPaths(argv) {
   const rootIdx = argv.indexOf('--root')
-  const skip = rootIdx !== -1 ? rootIdx + 1 : -1
+  const skip = rootIdx === -1 ? -1 : rootIdx + 1
   return argv.filter((a, i) => !a.startsWith('--') && i !== skip)
 }
 

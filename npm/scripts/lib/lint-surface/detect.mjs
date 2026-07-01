@@ -1,7 +1,6 @@
 /**
  * Detect-крок unified lint surface: запуск одного concern-detector-а і нормалізація
  * його `LintResult`. Detector — read-only; тут немає LLM, autofix чи мутацій дерева.
- *
  * @typedef {import('./types.mjs').LintContext} LintContext
  * @typedef {import('./types.mjs').LintResult} LintResult
  * @typedef {import('./types.mjs').LintViolation} LintViolation

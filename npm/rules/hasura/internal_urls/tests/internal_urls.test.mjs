@@ -13,7 +13,7 @@ const check = dir =>
 
 describe('parseInternalHasuraEndpoint', () => {
   test('валідний внутрішній URL (GKE-style з .internal)', () => {
-    const r = parseInternalHasuraEndpoint('http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080')
+    const r = parseInternalHasuraEndpoint('https://contract-h-hl.ua-contract.svc.abie-ua.internal:8080')
     expect(r).toEqual({
       ok: true,
       service: 'contract-h-hl',
@@ -24,7 +24,7 @@ describe('parseInternalHasuraEndpoint', () => {
   })
 
   test('абі-кластери для dev і ua (.internal)', () => {
-    const dev = parseInternalHasuraEndpoint('http://apruv-h-hl.dev-apruv.svc.abie-dev.internal:8080')
+    const dev = parseInternalHasuraEndpoint('https://apruv-h-hl.dev-apruv.svc.abie-dev.internal:8080')
     expect(dev).toEqual({
       ok: true,
       service: 'apruv-h-hl',
@@ -32,7 +32,7 @@ describe('parseInternalHasuraEndpoint', () => {
       cluster: 'abie-dev',
       port: '8080'
     })
-    const ua = parseInternalHasuraEndpoint('http://apruv-h-hl.ua-apruv.svc.abie-ua.internal:8080')
+    const ua = parseInternalHasuraEndpoint('https://apruv-h-hl.ua-apruv.svc.abie-ua.internal:8080')
     expect(ua).toEqual({
       ok: true,
       service: 'apruv-h-hl',
@@ -51,11 +51,11 @@ describe('parseInternalHasuraEndpoint', () => {
   })
 
   test('вимагає явний порт', () => {
-    expect(parseInternalHasuraEndpoint('http://h.ns.svc.cl.internal').ok).toBe(false)
+    expect(parseInternalHasuraEndpoint('https://h.ns.svc.cl.internal').ok).toBe(false)
   })
 
   test('відхиляє неочікувані суфікси (svc.example.com)', () => {
-    expect(parseInternalHasuraEndpoint('http://h.ns.svc.example.com:8080').ok).toBe(false)
+    expect(parseInternalHasuraEndpoint('https://h.ns.svc.example.com:8080').ok).toBe(false)
   })
 })
 
@@ -104,7 +104,7 @@ describe('check-hasura', () => {
       await writeJson(join(dir, 'package.json'), { name: 't', repository: 'https://github.com/nitra/foo' })
       await writeFile(
         join(dir, 'production.env'),
-        'HASURA_GRAPHQL_ENDPOINT=http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
+        'HASURA_GRAPHQL_ENDPOINT=https://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
         'utf8'
       )
       expect(await check(dir)).toEqual([])
@@ -127,7 +127,7 @@ describe('check-hasura', () => {
       )
       await writeFile(
         join(dir, 'production.env'),
-        'HASURA_GRAPHQL_ENDPOINT=http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
+        'HASURA_GRAPHQL_ENDPOINT=https://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
         'utf8'
       )
       expect(await check(dir)).toEqual([])
@@ -145,7 +145,7 @@ describe('check-hasura', () => {
       )
       await writeFile(
         join(dir, 'dev.env'),
-        'HASURA_GRAPHQL_ENDPOINT=http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
+        'HASURA_GRAPHQL_ENDPOINT=https://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
         'utf8'
       )
       expect((await check(dir)).length).toBeGreaterThan(0)
@@ -207,7 +207,7 @@ describe('check-hasura', () => {
       await writeFile(join(dir, 'hasura', 'k8s', 'base', 'svc-hl.yaml'), 'foo: bar\n', 'utf8')
       await writeFile(
         join(dir, 'production.env'),
-        'HASURA_GRAPHQL_ENDPOINT=http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
+        'HASURA_GRAPHQL_ENDPOINT=https://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
         'utf8'
       )
       expect(await check(dir)).toEqual([])
@@ -230,7 +230,7 @@ describe('check-hasura', () => {
       )
       await writeFile(
         join(dir, 'production.env'),
-        'HASURA_GRAPHQL_ENDPOINT=http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
+        'HASURA_GRAPHQL_ENDPOINT=https://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
         'utf8'
       )
       expect((await check(dir)).length).toBeGreaterThan(0)

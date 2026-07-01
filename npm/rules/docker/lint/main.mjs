@@ -33,8 +33,7 @@ const NGINX_UNPRIVILEGED_MIRROR_PREFIX = 'mirror.gcr.io/nginxinc/nginx-unprivile
 export function isDockerfileName(name) {
   const n = name.toLowerCase()
   if (n === 'dockerfile' || n === 'containerfile') return true
-  if (n.startsWith('dockerfile.') || n.startsWith('containerfile.')) return true
-  return false
+  return Boolean(n.startsWith('dockerfile.') || n.startsWith('containerfile.'))
 }
 
 /**
@@ -147,7 +146,7 @@ export function getMultistageAndRuntimeHint(fileContent, { hasNativeAddon = fals
   }
 
   const last = stages.at(-1)
-  const lastImage = (last?.image || '').split('@')[0] || ''
+  const lastImage = (last?.image || '').split('@', 1)[0] || ''
   const lastLower = lastImage.toLowerCase()
 
   if (!isAllowedFinalRuntimeImage(lastLower, hasNativeAddon)) {
@@ -175,7 +174,7 @@ export function getBunCompileHint(fileContent) {
   if (stages.length === 0) return null
 
   const last = stages.at(-1)
-  const lastImage = (last?.from.image || '').split('@')[0] || ''
+  const lastImage = (last?.from.image || '').split('@', 1)[0] || ''
   const lastLower = lastImage.toLowerCase()
 
   const hasBunInstall = BUN_INSTALL_RE.test(fileContent)
@@ -210,7 +209,7 @@ export function getBunCompileHint(fileContent) {
 export function getNginxAlpineSlimTagHint(fileContent) {
   const prefixes = [NGINX_UNPRIVILEGED_MIRROR_PREFIX]
   for (const { line, image } of parseFromStages(fileContent)) {
-    const noDigest = (image.split('@')[0] || '').trim()
+    const noDigest = (image.split('@', 1)[0] || '').trim()
     const d = noDigest.toLowerCase()
     const prefix = prefixes.find(p => d.startsWith(`${p}:`) || d === p)
     if (prefix) {
@@ -240,7 +239,7 @@ export function getNonRootRuntimeHint(fileContent) {
   if (stages.length === 0) return null
 
   const last = stages.at(-1)
-  const lastImage = (last?.from.image || '').split('@')[0] || ''
+  const lastImage = (last?.from.image || '').split('@', 1)[0] || ''
   const lastLower = lastImage.toLowerCase()
   const lastStageContent = last?.stageContent || ''
 
@@ -249,7 +248,7 @@ export function getNonRootRuntimeHint(fileContent) {
   for (const line of lastStageContent.split(NEWLINE_RE)) {
     const m = line.match(USER_LINE_RE)
     if (m) {
-      lastUserToken = (m[1] || '').replaceAll('"', '').replaceAll("'", '')
+      lastUserToken = (m[1] || '').replaceAll(/["']/g, '')
     }
   }
 

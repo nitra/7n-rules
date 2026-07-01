@@ -26,7 +26,7 @@ describe('abie env_dns concern', () => {
       await ensureDir(join(dir, 'pkg'))
       await writeFile(
         join(dir, 'pkg/dev.env'),
-        'API_URL=http://auth-run-hl.dev-pkg.svc.abie-dev.internal:8080\n',
+        'API_URL=https://auth-run-hl.dev-pkg.svc.abie-dev.internal:8080\n',
         'utf8'
       )
       expect((await run(dir)).violations).toEqual([])
@@ -36,7 +36,7 @@ describe('abie env_dns concern', () => {
   test('коректний ua.env з валідним URL → clean', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'pkg'))
-      await writeFile(join(dir, 'pkg/ua.env'), 'API_URL=http://file-link-hl.ua-pkg.svc.abie-ua.internal\n', 'utf8')
+      await writeFile(join(dir, 'pkg/ua.env'), 'API_URL=https://file-link-hl.ua-pkg.svc.abie-ua.internal\n', 'utf8')
       expect((await run(dir)).violations).toEqual([])
     })
   })
@@ -44,7 +44,7 @@ describe('abie env_dns concern', () => {
   test('dev.env з URL для іншого кластера (abie-ua) → violation', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'pkg'))
-      await writeFile(join(dir, 'pkg/dev.env'), 'API_URL=http://x.dev-y.svc.abie-ua.internal\n', 'utf8')
+      await writeFile(join(dir, 'pkg/dev.env'), 'API_URL=https://x.dev-y.svc.abie-ua.internal\n', 'utf8')
       expect((await run(dir)).violations.length).toBeGreaterThan(0)
     })
   })
@@ -52,7 +52,7 @@ describe('abie env_dns concern', () => {
   test('ua.env з намспейсом без префікса ua- → violation', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'pkg'))
-      await writeFile(join(dir, 'pkg/ua.env'), 'API_URL=http://x.dev-y.svc.abie-ua.internal\n', 'utf8')
+      await writeFile(join(dir, 'pkg/ua.env'), 'API_URL=https://x.dev-y.svc.abie-ua.internal\n', 'utf8')
       expect((await run(dir)).violations.length).toBeGreaterThan(0)
     })
   })
@@ -60,7 +60,7 @@ describe('abie env_dns concern', () => {
   test('файл `.env` (локальний без імені) — НЕ перевіряється', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'pkg'))
-      await writeFile(join(dir, 'pkg/.env'), 'API_URL=http://x.y.svc.bad.internal\n', 'utf8')
+      await writeFile(join(dir, 'pkg/.env'), 'API_URL=https://x.y.svc.bad.internal\n', 'utf8')
       expect((await run(dir)).violations).toEqual([])
     })
   })
@@ -69,8 +69,8 @@ describe('abie env_dns concern', () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'a'))
       await ensureDir(join(dir, 'b'))
-      await writeFile(join(dir, 'a/dev.env'), 'API_URL=http://x.dev-a.svc.abie-dev.internal\n', 'utf8')
-      await writeFile(join(dir, 'b/ua.env'), 'API_URL=http://x.dev-b.svc.abie-ua.internal\n', 'utf8')
+      await writeFile(join(dir, 'a/dev.env'), 'API_URL=https://x.dev-a.svc.abie-dev.internal\n', 'utf8')
+      await writeFile(join(dir, 'b/ua.env'), 'API_URL=https://x.dev-b.svc.abie-ua.internal\n', 'utf8')
       expect((await run(dir)).violations.length).toBeGreaterThan(0)
     })
   })

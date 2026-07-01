@@ -67,7 +67,7 @@ describe('loadCursorIgnorePaths', () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, '.n-cursor.json'), {
         rules: [],
-        ignore: ['vendor', '', '   ', 42, null, { x: 1 }, 'ok']
+        ignore: ['vendor', '', ' '.repeat(3), 42, null, { x: 1 }, 'ok']
       })
       const out = await loadCursorIgnorePaths(dir)
       const expectedDir = dir.split(sep).join('/').replace(TRAILING_SLASH_RE, '')

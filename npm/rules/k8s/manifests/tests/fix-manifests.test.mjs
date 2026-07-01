@@ -17,7 +17,7 @@ describe('moveSchemaModelineFirst', () => {
       '\n'
     )
     const out = moveSchemaModelineFirst(src)
-    expect(out.split('\n')[0]).toBe('# yaml-language-server: $schema=https://x/s.json')
+    expect(out.split('\n', 1)[0]).toBe('# yaml-language-server: $schema=https://x/s.json')
     expect(out).toContain('apiVersion: v1')
   })
 

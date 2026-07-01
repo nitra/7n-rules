@@ -147,7 +147,7 @@ export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
   }
 
   // §12 git-precondition: нема git → fix пропускається.
-  const root = deps.root !== undefined ? deps.root : gitRoot(cwd)
+  const root = deps.root === undefined ? gitRoot(cwd) : deps.root
   if (!root) return fail('fix пропущено: не git-репо (§12 precondition)')
 
   let registry

@@ -51,12 +51,14 @@ function httpRouteDocSharedCrossNsBackendStats(obj, rel) {
   if (!Array.isArray(rules)) return { refCount: 0, errors }
   let refCount = 0
   for (const rule of rules) {
-    if (rule !== null && typeof rule === 'object' && !Array.isArray(rule)) {
-      const brs = /** @type {Record<string, unknown>} */ (rule).backendRefs
-      if (Array.isArray(brs)) {
-        for (const br of brs) {
-          refCount += checkSharedBackendRef(br, rel, errors)
-        }
+    if (!(rule !== null && typeof rule === 'object' && !Array.isArray(rule))) {
+      continue
+    }
+
+    const brs = /** @type {Record<string, unknown>} */ (rule).backendRefs
+    if (Array.isArray(brs)) {
+      for (const br of brs) {
+        refCount += checkSharedBackendRef(br, rel, errors)
       }
     }
   }
@@ -82,12 +84,14 @@ export async function analyzeAbieSharedBackendRefsInPackageK8s(root, pkgAbs, yam
       const docs = await readAndParseYamlDocs(abs, rel, silentFail)
       if (docs) {
         for (const doc of docs) {
-          if (doc.errors.length === 0) {
-            const json = doc.toJSON()
-            const st = httpRouteDocSharedCrossNsBackendStats(json, rel)
-            refCount += st.refCount
-            baseErrors.push(...st.errors)
+          if (!(doc.errors.length === 0)) {
+            continue
           }
+
+          const json = doc.toJSON()
+          const st = httpRouteDocSharedCrossNsBackendStats(json, rel)
+          refCount += st.refCount
+          baseErrors.push(...st.errors)
         }
       }
     }

@@ -71,7 +71,7 @@ function getFinalStage(fileContent) {
  * @returns {string} нормалізований токен
  */
 function normalizeUserToken(token) {
-  return token.replaceAll('"', '').replaceAll("'", '').trim().toLowerCase()
+  return token.replaceAll(/["']/g, '').trim().toLowerCase()
 }
 
 /**

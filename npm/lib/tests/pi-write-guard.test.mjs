@@ -34,6 +34,9 @@ afterEach(() => {
 })
 
 describe('veto-логіка (інжектований root + checkIgnore)', () => {
+  /**
+   *
+   */
   function guardFor() {
     return createWriteGuard({ cwd: dir, root: dir, checkIgnore: (_r, abs) => abs.includes('ignored') })
   }

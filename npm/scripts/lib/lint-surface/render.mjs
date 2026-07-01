@@ -2,7 +2,6 @@
  * Єдиний renderer unified lint surface. Detector-и НЕ друкують основний violation-report —
  * вони повертають `LintResult`, а runner рендерить тут. Це гарантує однаковий вигляд
  * для всіх concern-ів і єдину точку форматування.
- *
  * @typedef {import('./types.mjs').LintViolation} LintViolation
  * @typedef {import('./types.mjs').LintDiagnostic} LintDiagnostic
  */

@@ -636,7 +636,7 @@ export function findUnsafeBunSqlDynamicSqlListInText(content, virtualPath = 'sca
     if (!isSqlListContextTemplate(template)) return
     const expressions = template.expressions
     if (!Array.isArray(expressions) || expressions.length === 0) return
-    if (!expressions.some(expr => isJoinCall(expr))) return
+    if (expressions.every(expr => !isJoinCall(expr))) return
     out.push({
       line: offsetToLine(content, template.start),
       snippet: normalizeSnippet(content.slice(template.start, template.end))

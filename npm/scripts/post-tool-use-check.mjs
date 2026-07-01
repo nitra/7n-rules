@@ -74,7 +74,7 @@ export async function runPostToolUseCheckCli(options = {}) {
   // Read-only per-file детект (unified lint surface) зміненого файлу; рендер — у runner-і.
   try {
     const { exitCode } = await detect({ files: [filePath], cwd: processCwd(), log: s => process.stderr.write(s) })
-    return exitCode !== 0 ? 1 : 0
+    return exitCode === 0 ? 0 : 1
   } catch (error) {
     process.stderr.write(`post-tool-use-check: не вдалося запустити детект — ${error.message}\n`)
     return 1

@@ -38,6 +38,9 @@ const VALID_VUE_PKG = {
   }
 }
 
+/**
+ *
+ */
 async function writeMinimalVueMonorepo(dir, rootDevDeps = VALID_ROOT_DEVDEPS) {
   await writeJson(join(dir, 'package.json'), {
     name: 'root',

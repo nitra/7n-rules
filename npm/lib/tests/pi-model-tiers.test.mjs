@@ -70,6 +70,9 @@ describe('resolveModel (каскад, ізольований re-import з stubEn
     vi.resetModules()
   })
 
+  /**
+   *
+   */
   async function freshResolveModel(envVars) {
     vi.resetModules()
     for (const [k, v] of Object.entries(envVars)) vi.stubEnv(k, v)

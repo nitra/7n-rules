@@ -8,7 +8,6 @@
  *
  * Запуск (зі специфікації): у `lint --no-fix --full`, або в delta якщо змінився
  * concern.json/.rego/_test.rego/template/ концерну; перед policy codegen/evaluate.
- *
  * @typedef {import('./types.mjs').LintViolation} LintViolation
  */
 import { spawnSync } from 'node:child_process'

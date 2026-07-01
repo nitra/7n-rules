@@ -7,7 +7,6 @@
  *
  * Ролі чесні: detector тільки виявляє; T0 і worker тільки змінюють; success визначає
  * ВИКЛЮЧНО canonical re-detect. Worker не володіє rollback/tier/ladder — лише один attempt.
- *
  * @typedef {import('./types.mjs').LintContext} LintContext
  * @typedef {import('./types.mjs').LintViolation} LintViolation
  * @typedef {import('./types.mjs').FixContext} FixContext

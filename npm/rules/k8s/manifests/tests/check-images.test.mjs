@@ -504,7 +504,7 @@ patches:
     )
     const r = await convertImagePatchesToImagesInKustomization(prodKust, resolve(root))
     expect(r.changed).toBe(true)
-    expect(r.content.split('\n')[0]).toBe(
+    expect(r.content.split('\n', 1)[0]).toBe(
       '# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json'
     )
   })

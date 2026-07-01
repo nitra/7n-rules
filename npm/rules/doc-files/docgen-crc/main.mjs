@@ -92,7 +92,7 @@ function typeForSource(sourcePath) {
  */
 function issueCodes(issues) {
   return issues
-    .map(i => String(i).split(' ')[0].replace(ISSUE_CODE_TAIL_RE, ''))
+    .map(i => String(i).split(' ', 1)[0].replace(ISSUE_CODE_TAIL_RE, ''))
     .filter(Boolean)
     .slice(0, MAX_ISSUE_CODES)
 }

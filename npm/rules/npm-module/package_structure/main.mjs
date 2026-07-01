@@ -293,7 +293,7 @@ async function collectPublishedFiles(filesField, cwd) {
       collected.add(rel)
     })
   }
-  const filtered = [...collected].filter(rel => !negatives.some(re => re.test(rel)))
+  const filtered = [...collected].filter(rel => negatives.every(re => !re.test(rel)))
   filtered.sort()
   return filtered
 }

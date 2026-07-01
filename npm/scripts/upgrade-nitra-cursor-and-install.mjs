@@ -59,10 +59,7 @@ export function shouldSkipNpmVersionUpgrade(specifier) {
   if (HTTP_RE.test(s)) {
     return true
   }
-  if (s.startsWith('./') || s.startsWith('../')) {
-    return true
-  }
-  return false
+  return Boolean(s.startsWith('./') || s.startsWith('../'))
 }
 
 /**

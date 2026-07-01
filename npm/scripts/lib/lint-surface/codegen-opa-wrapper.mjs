@@ -19,7 +19,7 @@ import { readConcernMeta } from '../concern-meta.mjs'
 export const CODEGEN_VERSION = '1'
 
 const GENERATED_MARK = '// @generated — do not edit'
-const ADAPTER_ABS = fileURLToPath(new URL('./policy-lint-adapter.mjs', import.meta.url))
+const ADAPTER_ABS = fileURLToPath(new URL('policy-lint-adapter.mjs', import.meta.url))
 
 /**
  * @param {string} content вміст main.mjs

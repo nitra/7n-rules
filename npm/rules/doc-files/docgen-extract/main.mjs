@@ -156,7 +156,7 @@ function extractImports(src) {
     stdlib = new Set()
   for (const m of src.matchAll(IMPORT_FROM_RE)) {
     const s = m[1]
-    if (s.startsWith('node:') || BUILTIN_MODULES.has(s.split('/')[0])) stdlib.add(s.replace(NODE_PREFIX_RE, ''))
+    if (s.startsWith('node:') || BUILTIN_MODULES.has(s.split('/', 1)[0])) stdlib.add(s.replace(NODE_PREFIX_RE, ''))
     else if (s.startsWith('.') || s.startsWith('/')) internal.add(s)
     else npm.add(s)
   }
@@ -179,7 +179,7 @@ function extractInternalSymbols(src) {
         if (name) out.add(name)
       }
     }
-    const defName = clause.replace(NAMED_BRACES_RE, '').replaceAll(',', ' ').trim().split(' ')[0]
+    const defName = clause.replace(NAMED_BRACES_RE, '').replaceAll(',', ' ').trim().split(' ', 1)[0]
     if (defName && IDENT_RE.test(defName)) out.add(defName)
   }
   return [...out]
@@ -355,7 +355,7 @@ function extractFactsRust(src, relPath) {
   const localSymbols = []
   for (const line of srcLines) {
     const m = line.match(RS_PRIVATE_FN_RE)
-    if (m && !exports.some(e => e.name === m[1])) localSymbols.push(m[1])
+    if (m && exports.every(e => !(e.name === m[1]))) localSymbols.push(m[1])
   }
 
   // imports — use-рядки, класифіковані на std / external / internal
@@ -363,7 +363,7 @@ function extractFactsRust(src, relPath) {
   const external = new Set()
   for (const m of src.matchAll(RS_USE_RE)) {
     const path = m[1]
-    const root = path.split('::')[0]
+    const root = path.split('::', 1)[0]
     if (root === 'std' || root === 'core' || root === 'alloc') stdlib.add(path)
     else external.add(path)
   }

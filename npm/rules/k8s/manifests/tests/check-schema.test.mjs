@@ -1299,7 +1299,7 @@ spec:
 
   test('Порожній / не-YAML — порожній результат', () => {
     expect(kustomizePatchModifiedPaths('').size).toBe(0)
-    expect(kustomizePatchModifiedPaths('   ').size).toBe(0)
+    expect(kustomizePatchModifiedPaths(' '.repeat(3)).size).toBe(0)
   })
 })
 
@@ -2638,7 +2638,7 @@ describe('enabledApisValueFromPatchText', () => {
 
   test('порожній / нечитабельний patch → null', () => {
     expect(enabledApisValueFromPatchText('')).toBeNull()
-    expect(enabledApisValueFromPatchText('   ')).toBeNull()
+    expect(enabledApisValueFromPatchText(' '.repeat(3))).toBeNull()
   })
 })
 

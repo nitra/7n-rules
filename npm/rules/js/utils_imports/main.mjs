@@ -166,11 +166,13 @@ export async function lint(ctx) {
       const content = await readFile(file, 'utf8')
       const imports = extractImportSources(content, file)
       for (const src of imports) {
-        if (PARENT_RELATIVE_RE.test(src)) {
-          const rel = relative(root, file)
-          reporter.fail(`${rel}: заборонений імпорт '${src}' — utils/-файли мають бути generic (js.mdc)`)
-          violations += 1
+        if (!PARENT_RELATIVE_RE.test(src)) {
+          continue
         }
+
+        const rel = relative(root, file)
+        reporter.fail(`${rel}: заборонений імпорт '${src}' — utils/-файли мають бути generic (js.mdc)`)
+        violations += 1
       }
     }
   }

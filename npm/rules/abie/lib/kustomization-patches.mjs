@@ -30,8 +30,7 @@ const ABIE_UA_HTTPROUTE_HOST_MARKERS = ['abie.app', 'vybeerai.com.ua', '*.abie.a
 function jsonPatchTextHasUaDeploymentNodeSelector(patchText) {
   if (typeof patchText !== 'string' || patchText.trim() === '') return false
   if (!PATCH_NODE_SELECTOR_PATH_RE.test(patchText)) return false
-  if (!PATCH_PREEM_FALSE_RE.test(patchText)) return false
-  return true
+  return !!PATCH_PREEM_FALSE_RE.test(patchText)
 }
 
 /**
@@ -49,8 +48,7 @@ function inlineKustomizationPatchMatchesAbieMode(p, mode) {
   if (tg.kind !== 'Deployment') return false
   const patchStr = pr.patch
   if (typeof patchStr !== 'string') return false
-  if (mode === 'ua' && jsonPatchTextHasUaDeploymentNodeSelector(patchStr)) return true
-  return false
+  return Boolean(mode === 'ua' && jsonPatchTextHasUaDeploymentNodeSelector(patchStr))
 }
 
 /**
@@ -193,7 +191,7 @@ export function validateAbieNginxRunHttpRoutePatches(
     return 'HTTPRoute: потрібен path /spec/hostnames у patch (abie.mdc)'
   }
   const markers = ABIE_UA_HTTPROUTE_HOST_MARKERS
-  if (!markers.some(m => combined.includes(m))) {
+  if (markers.every(m => !combined.includes(m))) {
     return `HTTPRoute: у value для /spec/hostnames має бути один із доменів abie (${markers.join(', ')}) — abie.mdc`
   }
   if (!PATCH_PARENT_REF_NS_UA_RE.test(combined)) {

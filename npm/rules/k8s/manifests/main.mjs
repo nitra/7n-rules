@@ -521,11 +521,13 @@ function pathsFromKustomizationObject(obj) {
 function collectObjectPathFields(arr, out) {
   if (!Array.isArray(arr)) return
   for (const item of arr) {
-    if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
-      const pth = /** @type {Record<string, unknown>} */ (item).path
-      if (typeof pth === 'string' && pth.trim() !== '') {
-        out.push(pth.trim())
-      }
+    if (!(item !== null && typeof item === 'object' && !Array.isArray(item))) {
+      continue
+    }
+
+    const pth = /** @type {Record<string, unknown>} */ (item).path
+    if (typeof pth === 'string' && pth.trim() !== '') {
+      out.push(pth.trim())
     }
   }
 }
@@ -657,13 +659,15 @@ export function kustomizationSvcYamlMissingSvcHlViolation(kustomizationDir, path
     }
   }
   for (const ref of pathRefs) {
-    if (typeof ref === 'string' && !ref.includes('://')) {
-      const abs = resolve(kustomizationDir, ref)
-      if (basename(abs).toLowerCase() === 'svc.yaml') {
-        const hlAbs = resolve(dirname(abs), 'svc-hl.yaml')
-        if (!resolved.has(hlAbs)) {
-          return `kustomization посилається на «${ref}» — додай у тому ж kustomization.yaml посилання на відповідний svc-hl.yaml (очікуваний шлях поруч, наприклад той самий префікс каталогу + svc-hl.yaml; див. k8s.mdc)`
-        }
+    if (!(typeof ref === 'string' && !ref.includes('://'))) {
+      continue
+    }
+
+    const abs = resolve(kustomizationDir, ref)
+    if (basename(abs).toLowerCase() === 'svc.yaml') {
+      const hlAbs = resolve(dirname(abs), 'svc-hl.yaml')
+      if (!resolved.has(hlAbs)) {
+        return `kustomization посилається на «${ref}» — додай у тому ж kustomization.yaml посилання на відповідний svc-hl.yaml (очікуваний шлях поруч, наприклад той самий префікс каталогу + svc-hl.yaml; див. k8s.mdc)`
       }
     }
   }
@@ -785,16 +789,13 @@ function patchTargetUsesSelector(t) {
     return true
   }
   const asel = t.annotationSelector
-  if (
+  return (
     asel !== undefined &&
     asel !== null &&
     asel !== '' &&
     ((typeof asel === 'object' && !Array.isArray(asel) && Object.keys(asel).length > 0) ||
       (typeof asel === 'string' && asel.trim() !== ''))
-  ) {
-    return true
-  }
-  return false
+  )
 }
 
 /**
@@ -843,10 +844,7 @@ export function kustomizePatchTargetMatchesDescriptor(target, res) {
     return false
   }
   const tgtNs = rec.namespace
-  if (typeof tgtNs === 'string' && tgtNs.trim() !== '' && res.namespace !== tgtNs.trim()) {
-    return false
-  }
-  return true
+  return !(typeof tgtNs === 'string' && tgtNs.trim() !== '' && res.namespace !== tgtNs.trim())
 }
 
 /**
@@ -1347,7 +1345,7 @@ async function failIfYamlFileRootsMissingFromCatalog(
   for (const o of roots) {
     docIdx++
     const d = kustomizeResourceDescriptorFromManifest(o, kustNs)
-    if (d !== null && !catalog.some(c => kustomizeResourceDescriptorsIdentityEqual(c, d))) {
+    if (d !== null && catalog.every(c => !kustomizeResourceDescriptorsIdentityEqual(c, d))) {
       const relPatch = (relative(root, resolvedAbs) || relPatchFallback).replaceAll('\\', '/')
       fail(
         `${rel}: ${violationIntro} «${relPatch}» документ ${docIdx} — у каталозі resources немає ресурсу ${d.kind}/${d.name} (namespace=${d.namespace || '(порожньо)'}, apiVersion group/version=${d.group || 'core'}/${d.version})`
@@ -1655,11 +1653,13 @@ export function classifyBackendConfigManifestPresence(body) {
 
   const acc = { hasBc: false, hasOther: false }
   for (const doc of docs) {
-    if (doc.errors.length === 0) {
-      const obj = doc.toJSON()
-      if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
-        updateBackendConfigKindFlags(obj.kind, acc)
-      }
+    if (!(doc.errors.length === 0)) {
+      continue
+    }
+
+    const obj = doc.toJSON()
+    if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+      updateBackendConfigKindFlags(obj.kind, acc)
     }
   }
 
@@ -1833,7 +1833,7 @@ async function detectGatewayHttpRouteV1beta1InK8sYamlFiles(yamlFiles, root, fail
  * @returns {string[]} рядки без BOM на початку
  */
 function toLines(content) {
-  const body = content.startsWith('\uFEFF') ? content.slice(1) : content
+  const body = content.startsWith('\u{FEFF}') ? content.slice(1) : content
   return body.split(YAML_LINE_SPLIT_RE)
 }
 
@@ -1978,15 +1978,17 @@ function extractJson6902OpsFromArray(arr) {
    */
   const out = []
   for (const item of arr) {
-    if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
-      const rec = /** @type {Record<string, unknown>} */ (item)
-      const op = rec.op
-      const path = rec.path
-      if (typeof op === 'string' && typeof path === 'string') {
-        const p = normalizeJsonPatchPath(path)
-        if (p !== '') {
-          out.push({ op: op.trim().toLowerCase(), path: p })
-        }
+    if (!(item !== null && typeof item === 'object' && !Array.isArray(item))) {
+      continue
+    }
+
+    const rec = /** @type {Record<string, unknown>} */ (item)
+    const op = rec.op
+    const path = rec.path
+    if (typeof op === 'string' && typeof path === 'string') {
+      const p = normalizeJsonPatchPath(path)
+      if (p !== '') {
+        out.push({ op: op.trim().toLowerCase(), path: p })
       }
     }
   }
@@ -2007,11 +2009,13 @@ export function collectJson6902OperationsFromPatchText(patchText) {
   try {
     const docs = parseAllDocuments(t)
     for (const d of docs) {
-      if (d.errors.length === 0) {
-        const j = d.toJSON()
-        if (Array.isArray(j)) {
-          return extractJson6902OpsFromArray(j)
-        }
+      if (!(d.errors.length === 0)) {
+        continue
+      }
+
+      const j = d.toJSON()
+      if (Array.isArray(j)) {
+        return extractJson6902OpsFromArray(j)
       }
     }
   } catch {
@@ -2242,10 +2246,12 @@ function isHasuraGraphqlEngineImageRef(image) {
 function containerListHasHasuraImage(containers) {
   if (!Array.isArray(containers)) return false
   for (const c of containers) {
-    if (c !== null && typeof c === 'object' && !Array.isArray(c)) {
-      const image = /** @type {Record<string, unknown>} */ (c).image
-      if (typeof image === 'string' && image !== '' && isHasuraGraphqlEngineImageRef(image)) return true
+    if (!(c !== null && typeof c === 'object' && !Array.isArray(c))) {
+      continue
     }
+
+    const image = /** @type {Record<string, unknown>} */ (c).image
+    if (typeof image === 'string' && image !== '' && isHasuraGraphqlEngineImageRef(image)) return true
   }
   return false
 }
@@ -2319,12 +2325,14 @@ function tryParseAllYamlDocs(raw) {
  */
 function findFirstDocByKind(docs, kind) {
   for (const doc of docs) {
-    if (doc.errors.length === 0) {
-      const obj = doc.toJSON()
-      if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
-        const rec = /** @type {Record<string, unknown>} */ (obj)
-        if (rec.kind === kind) return rec
-      }
+    if (!(doc.errors.length === 0)) {
+      continue
+    }
+
+    const obj = doc.toJSON()
+    if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+      const rec = /** @type {Record<string, unknown>} */ (obj)
+      if (rec.kind === kind) return rec
     }
   }
   return null
@@ -2342,12 +2350,14 @@ function collectDocsByKind(docs, kind) {
    */
   const out = []
   for (const doc of docs) {
-    if (doc.errors.length === 0) {
-      const obj = doc.toJSON()
-      if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
-        const rec = /** @type {Record<string, unknown>} */ (obj)
-        if (rec.kind === kind) out.push(rec)
-      }
+    if (!(doc.errors.length === 0)) {
+      continue
+    }
+
+    const obj = doc.toJSON()
+    if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+      const rec = /** @type {Record<string, unknown>} */ (obj)
+      if (rec.kind === kind) out.push(rec)
     }
   }
   return out
@@ -2388,10 +2398,12 @@ async function readFirstDocByKindFromFile(filePath, kind) {
 export async function findDeploymentDocInDir(dirPath) {
   const entries = await tryReaddir(dirPath)
   for (const entry of entries) {
-    if (K8S_YAML_EXT_RE.test(entry)) {
-      const found = await readFirstDocByKindFromFile(join(dirPath, entry), 'Deployment')
-      if (found !== null) return found
+    if (!K8S_YAML_EXT_RE.test(entry)) {
+      continue
     }
+
+    const found = await readFirstDocByKindFromFile(join(dirPath, entry), 'Deployment')
+    if (found !== null) return found
   }
   return null
 }
@@ -2590,8 +2602,7 @@ function isGatewayApiBackendRefToService(obj) {
   const kind = o.kind
   if (kind !== undefined && kind !== 'Service') return false
   const group = o.group
-  if (typeof group === 'string' && group !== '' && group !== 'core') return false
-  return true
+  return !(typeof group === 'string' && group !== '' && group !== 'core')
 }
 
 /**
@@ -3119,14 +3130,16 @@ async function indexOneK8sYamlForHasuraCanon(abs, hasuraByDir, httpRoutes) {
   const dir = dirname(abs)
 
   for (const [di, doc] of docs.entries()) {
-    if (doc.errors.length === 0) {
-      const rec = asPlainRecord(doc.toJSON())
-      if (rec !== null) {
-        recordHasuraDeploymentName(rec, dir, hasuraByDir)
-        const av = rec.apiVersion
-        if (rec.kind === 'HTTPRoute' && typeof av === 'string' && av.startsWith(GATEWAY_API_GROUP_PREFIX)) {
-          httpRoutes.push({ abs, dir, docIndex: di + 1, obj: rec })
-        }
+    if (!(doc.errors.length === 0)) {
+      continue
+    }
+
+    const rec = asPlainRecord(doc.toJSON())
+    if (rec !== null) {
+      recordHasuraDeploymentName(rec, dir, hasuraByDir)
+      const av = rec.apiVersion
+      if (rec.kind === 'HTTPRoute' && typeof av === 'string' && av.startsWith(GATEWAY_API_GROUP_PREFIX)) {
+        httpRoutes.push({ abs, dir, docIndex: di + 1, obj: rec })
       }
     }
   }
@@ -3297,7 +3310,7 @@ function expectedSchemaUrlForTypedManifest(doc, apiVersion, kind) {
     // лише перший сегмент `group` до першої крапки: `networking.k8s.io` → `networking`,
     // `rbac.authorization.k8s.io` → `rbac`, `flowcontrol.apiserver.k8s.io` → `flowcontrol`.
     // Для груп без крапок (`apps`, `batch`, `autoscaling`, `policy`) це збігається з group.
-    const groupPart = group.split('.')[0]
+    const groupPart = group.split('.', 1)[0]
     const url = `${YANNH_BASE}${kindPart}-${groupPart}-${version}.json`
     return { expected: url, reason: 'вбудований API Kubernetes (yannh)' }
   }
@@ -4346,10 +4359,12 @@ async function readDocsByKindInDir(dirPath, kind, filenameFilter) {
   const out = []
   const entries = await tryReaddir(dirPath)
   for (const entry of entries) {
-    if (matchesYamlFilter(entry, filenameFilter)) {
-      const found = await readAllDocsByKindFromFile(join(dirPath, entry), kind)
-      for (const rec of found) out.push(rec)
+    if (!matchesYamlFilter(entry, filenameFilter)) {
+      continue
     }
+
+    const found = await readAllDocsByKindFromFile(join(dirPath, entry), kind)
+    for (const rec of found) out.push(rec)
   }
   return out
 }
@@ -4418,12 +4433,14 @@ function strategicMergePatchKind(patchText) {
   if (t === '') return null
   try {
     for (const d of parseAllDocuments(t)) {
-      if (d.errors.length === 0) {
-        const obj = d.toJSON()
-        if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
-          const k = /** @type {Record<string, unknown>} */ (obj).kind
-          if (typeof k === 'string' && k !== '') return k
-        }
+      if (!(d.errors.length === 0)) {
+        continue
+      }
+
+      const obj = d.toJSON()
+      if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+        const k = /** @type {Record<string, unknown>} */ (obj).kind
+        if (typeof k === 'string' && k !== '') return k
       }
     }
   } catch {
@@ -4493,11 +4510,13 @@ async function readFirstYamlObject(absPath) {
   const docs = tryParseAllYamlDocs(raw)
   if (docs === undefined) return null
   for (const doc of docs) {
-    if (doc.errors.length === 0) {
-      const obj = doc.toJSON()
-      if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
-        return /** @type {Record<string, unknown>} */ (obj)
-      }
+    if (!(doc.errors.length === 0)) {
+      continue
+    }
+
+    const obj = doc.toJSON()
+    if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+      return /** @type {Record<string, unknown>} */ (obj)
     }
   }
   return null
@@ -4582,11 +4601,13 @@ async function k8sBaseDirsFromKustomizeResourcePathRefs(kustDir, pathRefs, rootN
    */
   const out = []
   for (const ref of pathRefs) {
-    if (typeof ref === 'string' && !ref.includes('://') && ref.trim() !== '') {
-      const resolved = resolve(kustDir, ref.trim())
-      if (resolvedFilePathIsUnderRoot(rootNorm, resolved) && (await isK8sBaseDir(resolved, rootNorm))) {
-        out.push(resolved)
-      }
+    if (!(typeof ref === 'string' && !ref.includes('://') && ref.trim() !== '')) {
+      continue
+    }
+
+    const resolved = resolve(kustDir, ref.trim())
+    if (resolvedFilePathIsUnderRoot(rootNorm, resolved) && (await isK8sBaseDir(resolved, rootNorm))) {
+      out.push(resolved)
     }
   }
   return out
@@ -6512,6 +6533,9 @@ function k8sRegoFixHint(ns, file, message) {
   return undefined
 }
 
+/**
+ *
+ */
 function runAllK8sRego(root, yamlFiles, fail) {
   const relOf = abs => relative(root, abs).replaceAll('\\', '/') || abs
 
@@ -6647,6 +6671,9 @@ export async function lint(ctx) {
 
 // ─── Lint surface (kubeconform + kubescape) ───────────────────────────────────
 
+/**
+ *
+ */
 export function k8sRootFromFile(absFile) {
   let dir = dirname(absFile)
   for (let i = 0; i < 64; i++) {
@@ -6658,6 +6685,9 @@ export function k8sRootFromFile(absFile) {
   return null
 }
 
+/**
+ *
+ */
 export async function findK8sRoots(root, ignorePaths = []) {
   const roots = new Set()
   const YAML_EXT_RE_INNER = /\.yaml$/iu
@@ -6683,6 +6713,9 @@ const KUBERNETES_VERSION = '1.33.9'
 const DATREE_CRD_SCHEMA_LOCATION =
   'https://datreeio.github.io/CRDs-catalog/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 
+/**
+ *
+ */
 function runKubeconform(dirs) {
   const args = [
     '-summary',
@@ -6704,11 +6737,17 @@ function runKubeconform(dirs) {
   return r.status ?? 1
 }
 
+/**
+ *
+ */
 export function buildKubescapeExceptionsArgs(root) {
   const exceptionsPath = join(root, KUBESCAPE_EXCEPTIONS_FILE)
   return existsSync(exceptionsPath) ? ['--exceptions', exceptionsPath] : []
 }
 
+/**
+ *
+ */
 export async function findKustomizationDirs(dir) {
   const candidates = []
   await walkDir(dir, p => {
@@ -6734,11 +6773,17 @@ export async function findKustomizationDirs(dir) {
   return [...result].toSorted((a, b) => a.localeCompare(b))
 }
 
+/**
+ *
+ */
 function runKustomizeBuild(kubectlPath, dir) {
   const r = spawnSync(kubectlPath, ['kustomize', dir], { stdio: ['ignore', 'pipe', 'inherit'], shell: false })
   return { status: r.status ?? 1, stdout: r.stdout ?? Buffer.alloc(0) }
 }
 
+/**
+ *
+ */
 function runKubescapeManifest(kubescapePath, manifest, exceptionsArgs) {
   const dir = mkdtempSync(join(tmpdir(), 'nitra-cursor-k8s-'))
   const file = join(dir, 'manifest.yaml')
@@ -6755,6 +6800,9 @@ function runKubescapeManifest(kubescapePath, manifest, exceptionsArgs) {
   }
 }
 
+/**
+ *
+ */
 function scanRawK8sDir(kubescapePath, dir, exceptionsArgs) {
   console.log(`run-k8s: kubescape scan ${dir} (без kustomization — сирий dir-скан)`)
   const r = spawnSync(kubescapePath, ['scan', dir, '--severity-threshold', 'high', ...exceptionsArgs], {
@@ -6768,6 +6816,9 @@ function scanRawK8sDir(kubescapePath, dir, exceptionsArgs) {
   return r.status ?? 1
 }
 
+/**
+ *
+ */
 function scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exceptionsArgs) {
   for (const kdir of kdirs) {
     console.log(`run-k8s: kubectl kustomize ${kdir} | kubescape scan <tmp>`)
@@ -6783,6 +6834,9 @@ function scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exceptionsArgs)
   return 0
 }
 
+/**
+ *
+ */
 async function runKubescape(dirs, root) {
   const exceptionsArgs = buildKubescapeExceptionsArgs(root)
   if (exceptionsArgs.length > 0) console.log(`run-k8s: kubescape exceptions — ${KUBESCAPE_EXCEPTIONS_FILE}`)

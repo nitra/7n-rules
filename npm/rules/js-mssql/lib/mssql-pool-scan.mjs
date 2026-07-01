@@ -374,10 +374,7 @@ function isLiteralNumericArrayExpression(node) {
   return elements.every(el => {
     if (!el || typeof el !== 'object') return false
     if (el.type === 'NumericLiteral' || el.type === 'BigIntLiteral') return true
-    if (el.type === 'Literal' && (typeof el.value === 'number' || typeof el.value === 'bigint')) {
-      return true
-    }
-    return false
+    return el.type === 'Literal' && (typeof el.value === 'number' || typeof el.value === 'bigint')
   })
 }
 

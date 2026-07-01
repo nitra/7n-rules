@@ -62,10 +62,12 @@ export async function buildAgentsCommandBulletItems(projectRoot) {
   const added = new Set()
 
   for (const key of SCRIPT_KEYS_ORDER) {
-    if (typeof scripts[key] === 'string' && scripts[key].length > 0) {
-      items.push({ name: `- **${key}**: \`bun run ${key}\`` })
-      added.add(key)
+    if (!(typeof scripts[key] === 'string' && scripts[key].length > 0)) {
+      continue
     }
+
+    items.push({ name: `- **${key}**: \`bun run ${key}\`` })
+    added.add(key)
   }
 
   const lintExtraKeys = Object.keys(scripts)

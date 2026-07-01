@@ -5,7 +5,6 @@
  * Один attempt одного rung-а — tier/model беруться з ctx, success визначає canonical
  * re-detect runner-а. Central rollback: pre-image кожної доки реєструється через
  * ctx.recordWrite ДО запису/видалення.
- *
  * @typedef {import('../../../scripts/lib/lint-surface/types.mjs').FixWorkerFn} FixWorkerFn
  */
 import { join } from 'node:path'

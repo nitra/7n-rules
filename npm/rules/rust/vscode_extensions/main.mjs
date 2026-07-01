@@ -1,6 +1,6 @@
 // @generated — do not edit
 // source-hash: 2486ae129847bb39
-/* eslint-disable */
+
 import { evaluatePolicyConcern } from '../../../scripts/lib/lint-surface/policy-lint-adapter.mjs'
 
 /** @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx */

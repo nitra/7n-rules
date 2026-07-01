@@ -50,8 +50,7 @@ function makeRelease(lockDir) {
 export function shouldDedup(result, fingerprint, ttl) {
   if (result.exitCode !== 0) return false
   if (fingerprint === null || result.fingerprint !== fingerprint) return false
-  if (Date.now() - result.finishedAt >= ttl) return false
-  return true
+  return !(Date.now() - result.finishedAt >= ttl)
 }
 
 /**

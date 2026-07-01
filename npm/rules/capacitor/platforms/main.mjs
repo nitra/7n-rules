@@ -314,10 +314,7 @@ export function nitrAObjectAllowsIosCocoaPods(o) {
   if (r.iosCocoaPodsBecausePluginsLackSpm === true) {
     return true
   }
-  if (r.iosCocoaPodsAllowed === true) {
-    return true
-  }
-  return false
+  return r.iosCocoaPodsAllowed === true
 }
 
 /**
@@ -352,7 +349,7 @@ function extractNitraObjectBodySource(source) {
  * @returns {boolean} **true**, якщо в тілі є **iosCocoaPods**…**:** **true**
  */
 function nitraObjectBodyStringAllowsCocoaPodsExempt(objectBody) {
-  return RE_COCOAPODS_EXEMPT_SPM.test(objectBody) === true || RE_COCOAPODS_EXEMPT_ALLOW.test(objectBody) === true
+  return RE_COCOAPODS_EXEMPT_SPM.test(objectBody) || RE_COCOAPODS_EXEMPT_ALLOW.test(objectBody)
 }
 
 /**
@@ -382,7 +379,7 @@ async function capacitorConfigTsMjsNitraCocoapodsExempt(root) {
     if (existsSync(p) === true) {
       const text = await readFile(p, 'utf8')
       const body = extractNitraObjectBodySource(text)
-      if (body !== null && nitraObjectBodyStringAllowsCocoaPodsExempt(body) === true) {
+      if (body !== null && nitraObjectBodyStringAllowsCocoaPodsExempt(body)) {
         return true
       }
     }
