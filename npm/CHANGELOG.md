@@ -1,5 +1,25 @@
 # Changelog
 
+## [13.2.0] - 2026-07-01
+
+### Added
+
+- T0 детермінований автофікс без LLM для механічних родин порушень: ga/workflows
+(persist-credentials, paths-glob), k8s/manifests (spec.strategy, networkpolicy egress,
+schema-modeline, kustomization sort), а також прогін лінтерів у fix-режимі —
+oxlint/eslint `--fix`, oxfmt `--write` (новий концерн text/oxfmt), stylelint `--fix`,
+markdownlint `--fix`, ruff `check --fix`/`format`, cargo fmt, shellcheck, dotenv-linter.
+
+### Changed
+
+- c4
+
+### Fixed
+
+- Резолюція залежностей markdownlint: примусова інсталяція micromark 4.0.2 (bun не
+вкладав його для markdownlint@0.40, через що text/check падав на `import { parse }`).
+Оновлено @nitra/eslint-config до 3.10.3 (прибирає транзитивну micromark 2.x).
+
 ## [13.1.0] - 2026-06-30
 
 ### Changed
