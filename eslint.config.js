@@ -96,6 +96,7 @@ export default [
   },
   // Тести: prefer-specific-assertions — стилістика тест-асертів (toHaveLength/toBeNull замість
   // toBe(n)). Читабельність `expect(x).toBe(0)` у тестах прийнятна; не блокуємо CI на цьому.
+  // (нове правило @nitra/eslint-config 3.10.3 — послаблено лише для тестових файлів.)
   {
     files: ['**/*.test.mjs', '**/tests/**/*.mjs'],
     rules: {

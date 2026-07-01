@@ -14,6 +14,7 @@ on:
       - '**/*.tsx'
       - '**/*.vue'
       - '**/eslint.config.*'
+      - '**/.oxlintrc.json'
   pull_request:
     branches:
       - dev
