@@ -19,7 +19,6 @@
     "@nitra/stylelint-config": "^1.4.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@vitest/coverage-v8": "^4.1.9",
-    "markdownlint-cli2": "^0.22.1",
     "vitest": "^4.1.9"
   },
   "stylelint": {
