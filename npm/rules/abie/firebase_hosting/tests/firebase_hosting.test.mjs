@@ -17,7 +17,8 @@ const run = dir => lint({ cwd: dir, ruleId, concernId, files: undefined })
 describe('abie firebase_hosting concern', () => {
   test('порожній каталог → clean', async () => {
     await withTmpDir(async dir => {
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 
@@ -26,7 +27,8 @@ describe('abie firebase_hosting concern', () => {
       await writeFile(join(dir, '.firebaserc'), '{}', 'utf8')
       await writeFile(join(dir, 'firebase.json'), '{}', 'utf8')
       await ensureDir(join(dir, '.firebase'))
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 
@@ -34,7 +36,8 @@ describe('abie firebase_hosting concern', () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'pkg'))
       await writeFile(join(dir, 'pkg/.firebaserc'), '{}', 'utf8')
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const result = await run(dir)
+      expect(result.violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -42,14 +45,16 @@ describe('abie firebase_hosting concern', () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'pkg'))
       await writeFile(join(dir, 'pkg/firebase.json'), '{}', 'utf8')
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const result = await run(dir)
+      expect(result.violations.length).toBeGreaterThan(0)
     })
   })
 
   test('.firebase/ директорія у підкаталозі → violation', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'pkg/.firebase'))
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const result = await run(dir)
+      expect(result.violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -60,7 +65,8 @@ describe('abie firebase_hosting concern', () => {
       await writeFile(join(dir, '.git/.firebaserc'), '{}', 'utf8')
       await writeFile(join(dir, 'node_modules/firebase.json'), '{}', 'utf8')
       await ensureDir(join(dir, 'node_modules/.firebase'))
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 
@@ -68,7 +74,8 @@ describe('abie firebase_hosting concern', () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'pkg/nested'))
       await writeFile(join(dir, 'pkg/nested/firebase.json'), '{}', 'utf8')
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 
@@ -77,12 +84,14 @@ describe('abie firebase_hosting concern', () => {
       await ensureDir(join(dir, 'pkg-a'))
       await ensureDir(join(dir, 'pkg-b'))
       await writeFile(join(dir, 'pkg-b/.firebaserc'), '{}', 'utf8')
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const result = await run(dir)
+      expect(result.violations.length).toBeGreaterThan(0)
     })
   })
 
   test('readdir на неіснуючому шляху → violation (помилка читання)', async () => {
     const fakePath = join('/no-such-path', `n-cursor-test-${Date.now()}`)
-    expect((await run(fakePath)).violations.length).toBeGreaterThan(0)
+    const result = await run(fakePath)
+    expect(result.violations.length).toBeGreaterThan(0)
   })
 })

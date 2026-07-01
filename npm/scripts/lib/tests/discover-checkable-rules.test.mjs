@@ -13,14 +13,15 @@ import { ensureDir, withTmpDir, writeJson } from '../../utils/test-helpers.mjs'
  * @param {string} dir tmp-корінь
  * @param {string} ruleId id правила
  * @param {string} concern ім'я concern-а
- * @param {object} [meta] поля для concern.json (окрім $schema)
+ * @param {object} [meta] поля для concern.json (окрім $schema); за замовчуванням `{ check: true }`
  */
-async function addConcern(dir, ruleId, concern, meta = { check: true }) {
+async function addConcern(dir, ruleId, concern, meta) {
+  const resolvedMeta = meta ?? { check: true }
   const concernDir = join(dir, 'rules', ruleId, concern)
   await mkdir(concernDir, { recursive: true })
   await writeJson(join(concernDir, 'concern.json'), {
     $schema: 'https://unpkg.com/@nitra/cursor/schemas/concern.json',
-    ...meta
+    ...resolvedMeta
   })
 }
 

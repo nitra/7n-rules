@@ -39,7 +39,10 @@ const VALID_VUE_PKG = {
 }
 
 /**
- *
+ * Створює мінімальний Vue-моно-репо у tmp-каталозі для тестів.
+ * @param {string} dir корінь tmp-каталогу
+ * @param {object} [rootDevDeps] root devDependencies (дефолт — валідний набір)
+ * @returns {Promise<void>}
  */
 async function writeMinimalVueMonorepo(dir, rootDevDeps = VALID_ROOT_DEVDEPS) {
   await writeJson(join(dir, 'package.json'), {

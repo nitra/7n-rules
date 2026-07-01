@@ -64,7 +64,10 @@ export function collectChangedFilesSince(base, cwd = process.cwd()) {
   if (!base) return collectChangedFiles(cwd)
   // Fail-closed: недосяжний base (rebase/force-update/shallow prune) інакше дав би `git diff`
   // exit 128 → порожній список → gate мовчки пройшов би без перевірки. Краще явна помилка.
-  const verify = spawnSync('git', ['rev-parse', '--verify', '--quiet', `${base}^` + '{commit}'], {
+  // `^{commit}` — git peel-синтаксис (літерал), не template-інтерполяція; окрема строкова
+  // константа тримає обидва правила тихими (no-useless-concat і no-incorrect-template-string-interpolation).
+  const commitPeel = '^{commit}'
+  const verify = spawnSync('git', ['rev-parse', '--verify', '--quiet', `${base}${commitPeel}`], {
     cwd,
     encoding: 'utf8'
   })

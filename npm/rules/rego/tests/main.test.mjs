@@ -27,7 +27,7 @@ const NO_PREP = (/** @type {string} */ _cwd) => null
 /**
  * Викликає detector rego/check для заданого кореня.
  * @param {string} cwd корінь репозиторію
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат detector-а зі зібраними violations
  */
 const runLintRego = cwd => lint({ cwd, ruleId: 'rego', concernId: 'check', files: undefined })
 

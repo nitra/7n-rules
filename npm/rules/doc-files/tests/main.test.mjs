@@ -9,8 +9,12 @@ import { lint } from '../check/main.mjs'
 
 // Detector-контракт: lint(ctx) → { violations }. Хелпери нижче конвертують у старі семантики
 // (0 = чисто, ≥1 = stale) для лаконічних асертів.
+const EXT_RE = /\.\w+$/u
 const ctxFor = (cwd, files) => ({ cwd, ruleId: 'doc-files', concernId: 'check', files })
-const violationsCount = async (cwd, files) => (await lint(ctxFor(cwd, files))).violations.length
+const violationsCount = async (cwd, files) => {
+  const { violations } = await lint(ctxFor(cwd, files))
+  return violations.length
+}
 
 /**
  * Пише джерело й свіжу доку (CRC збігається) у тимчасовому корені.
@@ -28,7 +32,7 @@ async function writeSourceWithFreshDoc(root, rel, body) {
     `${rel
       .split('/')
       .at(-1)
-      .replace(/\.\w+$/u, '')}.md`
+      .replace(EXT_RE, '')}.md`
   )
   await ensureDir(join(root, docRel, '..'))
   await writeFile(join(root, docRel), stampDoc('# x\n\n## Огляд\n\nтест\n', rel, crc32(Buffer.from(body))))
@@ -39,14 +43,14 @@ describe('lint — детект (read-only detector)', () => {
     await withTmpDir(async root => {
       await ensureDir(join(root, 'src'))
       await writeFile(join(root, 'src', 'a.mjs'), 'export const a = 1\n')
-      expect(await violationsCount(root, undefined)).toBeGreaterThan(0)
+      expect(await violationsCount(root)).toBeGreaterThan(0)
     })
   })
 
   test('ci: свіжа дока → 0 violations', async () => {
     await withTmpDir(async root => {
       await writeSourceWithFreshDoc(root, 'src/a.mjs', 'export const a = 1\n')
-      expect(await violationsCount(root, undefined)).toBe(0)
+      expect(await violationsCount(root)).toBe(0)
     })
   })
 

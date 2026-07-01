@@ -131,8 +131,8 @@ async function reportOneSrcTauri(srcTauriDir, cwd, reporter) {
 }
 
 /**
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінт-прогону.
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат перевірки `.cargo/mutants.toml`.
  */
 export async function lint(ctx) {
   const cwd = ctx.cwd

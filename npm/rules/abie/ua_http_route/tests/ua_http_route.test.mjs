@@ -46,7 +46,8 @@ patches:
 describe('abie ua_http_route concern', () => {
   test('немає ua/kustomization.yaml → clean (skip)', async () => {
     await withTmpDir(async dir => {
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 
@@ -56,7 +57,8 @@ describe('abie ua_http_route concern', () => {
       await ensureDir(ua)
       await writeFile(join(ua, 'kustomization.yaml'), KUSTOMIZATION_WITH_VALID_PATCH, 'utf8')
       // У pkg/ немає vite.config.* → HTTPRoute patch не вимагається
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 
@@ -67,7 +69,8 @@ describe('abie ua_http_route concern', () => {
       await ensureDir(ua)
       await writeFile(join(pkg, 'vite.config.js'), 'export default {}\n', 'utf8')
       await writeFile(join(ua, 'kustomization.yaml'), KUSTOMIZATION_WITH_VALID_PATCH, 'utf8')
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 
@@ -78,7 +81,8 @@ describe('abie ua_http_route concern', () => {
       await ensureDir(ua)
       await writeFile(join(pkg, 'vite.config.mjs'), 'export default {}\n', 'utf8')
       await writeFile(join(ua, 'kustomization.yaml'), KUSTOMIZATION_WITHOUT_HOSTNAMES, 'utf8')
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const result = await run(dir)
+      expect(result.violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -93,13 +97,15 @@ describe('abie ua_http_route concern', () => {
         'apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n  - ../base\n',
         'utf8'
       )
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const result = await run(dir)
+      expect(result.violations.length).toBeGreaterThan(0)
     })
   })
 
   test('lint() — реальний cwd npm/ (немає ua/kustomization.yaml) → clean', async () => {
     // npm/ не має ua/kustomization.yaml → швидко повертає clean
-    expect((await run(processCwd())).violations).toEqual([])
+    const result = await run(processCwd())
+    expect(result.violations).toEqual([])
   })
 
   test('readFile fails → catch (violation)', async () => {
@@ -116,7 +122,8 @@ describe('abie ua_http_route concern', () => {
       await writeFile(kusto, KUSTOMIZATION_WITH_VALID_PATCH, 'utf8')
       await chmod(kusto, 0o000)
       try {
-        expect((await run(dir)).violations.length).toBeGreaterThan(0)
+        const result = await run(dir)
+        expect(result.violations.length).toBeGreaterThan(0)
       } finally {
         await chmod(kusto, 0o644)
       }

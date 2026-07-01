@@ -11,6 +11,8 @@ import { join } from 'node:path'
 
 const FORBIDDEN_FILE_RE = /Знайдено заборонений файл: \S+/u
 const FORBIDDEN_FILE_NAME_RE = /Знайдено заборонений файл: (\S+)/u
+const BUNFIG_MISSING_RE = /Відсутній bunfig\.toml/u
+const YARN_DIR_RE = /Знайдено директорію \.yarn/u
 
 /** @type {import('../../../scripts/lib/lint-surface/types.mjs').T0Pattern[]} */
 export const patterns = [
@@ -37,7 +39,7 @@ export const patterns = [
 
   {
     id: 'bun-bunfig-create',
-    test: violations => violations.some(v => /Відсутній bunfig\.toml/u.test(v.message)),
+    test: violations => violations.some(v => BUNFIG_MISSING_RE.test(v.message)),
     apply: (_violations, ctx) => {
       const target = join(ctx.cwd, 'bunfig.toml')
       if (existsSync(target)) return { touchedFiles: [] }
@@ -49,7 +51,7 @@ export const patterns = [
 
   {
     id: 'bun-yarn-dir-remove',
-    test: violations => violations.some(v => /Знайдено директорію \.yarn/u.test(v.message)),
+    test: violations => violations.some(v => YARN_DIR_RE.test(v.message)),
     apply: (_violations, ctx) => {
       const target = join(ctx.cwd, '.yarn')
       if (!existsSync(target)) return { touchedFiles: [] }

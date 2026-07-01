@@ -179,7 +179,7 @@ export function isNitraOrAbieRepository(url) {
 /**
  * Перевіряє hasura.mdc для поточного робочого каталогу.
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} Результат лінту зі списком violations.
  */
 export async function lint(ctx) {
   const cwd = ctx.cwd

@@ -26,7 +26,7 @@
  * тому різні concerns можуть мати однакові `reason` (`missing`, `crc-mismatch`, ...).
  * @typedef {object} LintViolation
  * @property {string} ruleId заповнюється detector-ом із ctx або normalizer-ом runner-а
- * @property {string} concernId
+ * @property {string} concernId id concern-а, до якого належить порушення
  * @property {string} reason стабільний machine code (`crc-mismatch`, `no-unused-vars`)
  * @property {string} message людиночитний опис (єдине джерело для runner-render)
  * @property {string} [file] posix-relative шлях від cwd; absolute і `..` заборонені
@@ -38,16 +38,16 @@
 /**
  * Технічна діагностика (не основний violation-report). Runner показує у verbose/debug.
  * @typedef {object} LintDiagnostic
- * @property {'info'|'warn'} level
- * @property {string} message
+ * @property {'info'|'warn'} level рівень діагностики
+ * @property {string} message текст діагностики
  */
 
 /**
  * Результат detector-а. Не містить exit code — exit це похідна CLI-семантика
  * (0 = немає violations, 1 = є, 2 = exception/invalid result/tool crash).
  * @typedef {object} LintResult
- * @property {LintViolation[]} violations
- * @property {LintDiagnostic[]} [diagnostics]
+ * @property {LintViolation[]} violations перелік виявлених порушень
+ * @property {LintDiagnostic[]} [diagnostics] технічні діагностики для verbose/debug
  */
 
 /**
@@ -63,7 +63,7 @@
  * @typedef {object} T0Pattern
  * @property {string} id унікальний id патерну (дедуп за ним при re-export)
  * @property {(violations: LintViolation[]) => boolean} test чи застосовний патерн
- * @property {(violations: LintViolation[], ctx: LintContext) => Promise<T0Result> | T0Result} apply
+ * @property {(violations: LintViolation[], ctx: LintContext) => Promise<T0Result> | T0Result} apply застосовує детерміноване виправлення й повертає результат
  */
 
 /**
@@ -77,13 +77,13 @@
  * Worker знає поточний tier/model і feedback попереднього rung-а, але не вирішує,
  * який tier буде наступним, не володіє rollback і не визначає success.
  * @typedef {object} FixContext
- * @property {string} cwd
- * @property {string} ruleId
- * @property {string} concernId
- * @property {string[]} [files]
- * @property {'local-min'|'local-min-retry'|'cloud-min'|'cloud-avg'} tier
+ * @property {string} cwd абсолютний корінь consumer-репо
+ * @property {string} ruleId id правила поточного concern-а
+ * @property {string} concernId id concern-а, який виправляється
+ * @property {string[]} [files] posix-relative файли для per-file виправлення; `undefined` — whole-repo
+ * @property {'local-min'|'local-min-retry'|'cloud-min'|'cloud-avg'} tier поточний rung ladder-а
  * @property {string} [model] "provider/model-id"
- * @property {AbortSignal} [signal]
+ * @property {AbortSignal} [signal] сигнал скасування rung-а
  * @property {object} [feedback] structured diagnosis попереднього rung-а
  * @property {(absPath: string) => void} recordWrite worker ЗОБОВ'ЯЗАНИЙ викликати
  *   перед будь-яким записом у файл — runner так знімає pre-image для central rollback.
@@ -108,15 +108,15 @@
 /**
  * Поверхня policy-concern-а у concern.json (target-семантика для generated detector-а).
  * @typedef {object} PolicySurface
- * @property {'rego'|'template'} engine
- * @property {{ single?: string, walkGlob?: string|string[], required?: boolean }} files
+ * @property {'rego'|'template'} engine рушій перевірки policy-concern-а
+ * @property {{ single?: string, walkGlob?: string|string[], required?: boolean }} files цільові файли concern-а (одиничний, glob-обхід, обовʼязковість)
  * @property {string} [missingMessage] override fail-повідомлення для required:single
  */
 
 /**
  * Lint-поверхня concern-а (коли concern запускається).
  * @typedef {object} LintSurface
- * @property {'per-file'|'full'} scope
+ * @property {'per-file'|'full'} scope режим запуску concern-а (пофайлово чи по всьому дереву)
  * @property {string[]} glob нормалізований масив; порожній якщо не задано
  */
 

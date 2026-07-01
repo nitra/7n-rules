@@ -16,14 +16,16 @@ const DETECTOR = [
   "  const p = join(ctx.cwd, 'out.txt')",
   "  const v = existsSync(p) ? readFileSync(p, 'utf8') : ''",
   "  if (v === 'done') return { violations: [] }",
-  "  return { violations: [{ reason: 'not-done', message: `out.txt=${v || 'absent'}` }] }",
+  "  return { violations: [{ reason: 'not-done', message: 'out.txt=' + (v || 'absent') }] }",
   '}',
   ''
 ].join('\n')
 
 /**
- * @param {string} dir
- * @param {string} body
+ * Створює тестовий concern-detector у тимчасовій теці.
+ * @param {string} dir Корінь тимчасової теки.
+ * @param {string} body Вихідний код `main.mjs` детектора.
+ * @returns {Promise<string>} Абсолютний шлях до теки `rules`.
  */
 async function seedConcern(dir, body = DETECTOR) {
   const concernDir = join(dir, 'rules', 'probe', 'check')
@@ -41,6 +43,30 @@ const TWO_RUNG = [
   { tier: 'cloud-min', model: 'fake/cloud', feedback: true, local: false, isAvg: false, timeoutMs: 1000 }
 ]
 
+/**
+ * Worker, що записує 'done' у out.txt (закриває детектор на першому rung-у).
+ * @param {unknown} _violations Порушення (не використовуються).
+ * @param {object} ctx Контекст fix-а з `cwd` і `recordWrite`.
+ * @returns {void}
+ */
+function writeDoneWorker(_violations, ctx) {
+  const p = join(ctx.cwd, 'out.txt')
+  ctx.recordWrite(p)
+  writeFileSync(p, 'done')
+}
+
+/**
+ * Worker, що завжди пише 'wrong' (ніколи не задовольняє детектор → rollback щораз).
+ * @param {unknown} _v Порушення (не використовуються).
+ * @param {object} ctx Контекст fix-а з `cwd` і `recordWrite`.
+ * @returns {void}
+ */
+function writeWrongWorker(_v, ctx) {
+  const p = join(ctx.cwd, 'out.txt')
+  ctx.recordWrite(p)
+  writeFileSync(p, 'wrong')
+}
+
 describe('runFixPipeline — базові вердикти', () => {
   test('clean → 0, worker не викликається', async () => {
     await withTmpDir(async dir => {
@@ -51,7 +77,9 @@ describe('runFixPipeline — базові вердикти', () => {
         rulesDir,
         cwd: dir,
         full: true,
-        log: () => {},
+        log: () => {
+          /* no-op logger */
+        },
         deps: {
           ladder: ONE_RUNG,
           workerFor: () => () => {
@@ -67,16 +95,14 @@ describe('runFixPipeline — базові вердикти', () => {
   test('worker закриває на першому rung → 0', async () => {
     await withTmpDir(async dir => {
       const rulesDir = await seedConcern(dir)
-      const worker = async (_violations, ctx) => {
-        const p = join(ctx.cwd, 'out.txt')
-        ctx.recordWrite(p)
-        writeFileSync(p, 'done')
-      }
+      const worker = writeDoneWorker
       const code = await runFixPipeline({
         rulesDir,
         cwd: dir,
         full: true,
-        log: () => {},
+        log: () => {
+          /* no-op logger */
+        },
         deps: { ladder: ONE_RUNG, workerFor: () => worker }
       })
       expect(code).toBe(0)
@@ -103,8 +129,16 @@ describe('runFixPipeline — T0 permanent', () => {
         rulesDir,
         cwd: dir,
         full: true,
-        log: () => {},
-        deps: { ladder: ONE_RUNG, t0For: () => t0, workerFor: () => () => {} }
+        log: () => {
+          /* no-op logger */
+        },
+        deps: {
+          ladder: ONE_RUNG,
+          t0For: () => t0,
+          workerFor: () => () => {
+            /* no-op worker */
+          }
+        }
       })
       expect(code).toBe(0)
     })
@@ -125,16 +159,14 @@ describe('runFixPipeline — T0 permanent', () => {
         }
       ]
       // Worker завжди пише 'wrong' (ніколи не задовольняє) → rollback щораз.
-      const worker = async (_v, ctx) => {
-        const p = join(ctx.cwd, 'out.txt')
-        ctx.recordWrite(p)
-        writeFileSync(p, 'wrong')
-      }
+      const worker = writeWrongWorker
       const code = await runFixPipeline({
         rulesDir,
         cwd: dir,
         full: true,
-        log: () => {},
+        log: () => {
+          /* no-op logger */
+        },
         deps: { ladder: TWO_RUNG, t0For: () => t0, workerFor: () => worker }
       })
       expect(code).toBe(1)
@@ -149,7 +181,7 @@ describe('runFixPipeline — ladder escalation + S1 isolation', () => {
     await withTmpDir(async dir => {
       const rulesDir = await seedConcern(dir)
       const observed = []
-      const worker = async (_v, ctx) => {
+      const worker = (_v, ctx) => {
         const p = join(ctx.cwd, 'out.txt')
         observed.push({ tier: ctx.tier, before: existsSync(p) ? readFileSync(p, 'utf8') : 'absent' })
         ctx.recordWrite(p)
@@ -159,7 +191,9 @@ describe('runFixPipeline — ladder escalation + S1 isolation', () => {
         rulesDir,
         cwd: dir,
         full: true,
-        log: () => {},
+        log: () => {
+          /* no-op logger */
+        },
         deps: { ladder: TWO_RUNG, workerFor: () => worker }
       })
       expect(code).toBe(0)
@@ -176,7 +210,7 @@ describe('runFixPipeline — ladder escalation + S1 isolation', () => {
     await withTmpDir(async dir => {
       const rulesDir = await seedConcern(dir)
       const feedbacks = []
-      const worker = async (_v, ctx) => {
+      const worker = (_v, ctx) => {
         feedbacks.push(ctx.feedback ?? null)
         const p = join(ctx.cwd, 'out.txt')
         ctx.recordWrite(p)
@@ -186,7 +220,9 @@ describe('runFixPipeline — ladder escalation + S1 isolation', () => {
         rulesDir,
         cwd: dir,
         full: true,
-        log: () => {},
+        log: () => {
+          /* no-op logger */
+        },
         deps: { ladder: TWO_RUNG, workerFor: () => worker }
       })
       expect(feedbacks[0]).toBeNull() // local-min: feedback:false → ctx.feedback undefined → `?? null`

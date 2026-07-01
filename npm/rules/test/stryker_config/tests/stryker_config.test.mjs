@@ -23,17 +23,36 @@ const detect = async dir => {
   return violations
 }
 
-const check = async dir => ((await detect(dir)).length > 0 ? 1 : 0)
+const check = async dir => {
+  const violations = await detect(dir)
+  return violations.length > 0 ? 1 : 0
+}
 
-/** Прогоняє T0-патерни concern-а над violations (як central fix-pipeline). */
+/**
+ * Прогоняє T0-патерни concern-а над violations (як central fix-pipeline).
+ * @param {object[]} violations Список порушень від detector-а.
+ * @param {string} dir Каталог проєкту (cwd для fix-контексту).
+ * @returns {Promise<void>}
+ */
 async function applyT0(violations, dir) {
-  const ctx = { cwd: dir, ruleId: 'test', concernId: 'stryker_config', recordWrite() {} }
+  const ctx = {
+    cwd: dir,
+    ruleId: 'test',
+    concernId: 'stryker_config',
+    recordWrite() {
+      /* no-op у тестовому контексті */
+    }
+  }
   for (const p of patterns) {
     if (p.test(violations)) await p.apply(violations, ctx)
   }
 }
 
-/** Detect → T0 apply (як lint --fix робить для T0). Повертає detector exit-code ДО фіксу. */
+/**
+ * Detect → T0 apply (як lint --fix робить для T0). Повертає detector exit-code ДО фіксу.
+ * @param {string} dir Каталог проєкту.
+ * @returns {Promise<number>} Exit-code detector-а ДО застосування T0 (0 = чисто).
+ */
 async function checkAndFix(dir) {
   const violations = await detect(dir)
   await applyT0(violations, dir)

@@ -19,9 +19,21 @@ import { parse as parseToml } from 'smol-toml'
 import { MUTANTS_CONFIG_MISSING, MUTANTS_KEYS_MISSING, lint } from '../main.mjs'
 import { patterns } from '../fix-cargo_mutants_config.mjs'
 
-/** Прогоняє T0-патерни concern-а над violations (як central fix-pipeline). */
+/**
+ * Прогоняє T0-патерни concern-а над violations (як central fix-pipeline).
+ * @param {import('../../../../scripts/lib/lint-surface/types.mjs').LintViolation[]} violations порушення для фіксу.
+ * @param {string} dir корінь тимчасового проєкту.
+ * @returns {Promise<void>} завершується після застосування всіх патернів.
+ */
 async function applyT0(violations, dir) {
-  const ctx = { cwd: dir, ruleId: 'tauri', concernId: 'cargo_mutants_config', recordWrite() {} }
+  const ctx = {
+    cwd: dir,
+    ruleId: 'tauri',
+    concernId: 'cargo_mutants_config',
+    recordWrite() {
+      // no-op: тест не відстежує записи fix-pipeline
+    }
+  }
   for (const p of patterns) {
     if (p.test(violations)) await p.apply(violations, ctx)
   }

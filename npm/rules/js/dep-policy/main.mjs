@@ -61,7 +61,7 @@ function extractImportSpecifiers(source, filePath) {
 /**
  * Сканує всі JS/TS-файли проєкту на заборонені import-specifier'и (dep-policy.mdc).
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} Результат лінту з переліком порушень.
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

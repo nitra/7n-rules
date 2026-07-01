@@ -17,14 +17,20 @@ import {
   writeJson
 } from '../../../../scripts/utils/test-helpers.mjs'
 
-const main = async dir => (await lint({ cwd: dir, ruleId: 'ga', concernId: 'workflows', files: undefined })).violations
+const main = async dir => {
+  const result = await lint({ cwd: dir, ruleId: 'ga', concernId: 'workflows', files: undefined })
+  return result.violations
+}
 
 // Зовнішні тули (actionlint/zizmor) тепер виконуються всередині detector-а і залежать від
 // середовища (наявність bunx/uvx, версії правил). Структурні тести фікстур (наявність файлів,
 // розширення, MegaLinter, paths) їх не стосуються — фільтруємо ці reason-и, щоб лишити
 // детермінований структурний сигнал.
 const EXTERNAL_TOOL_REASONS = new Set(['actionlint', 'zizmor'])
-const mainStructural = async dir => (await main(dir)).filter(v => !EXTERNAL_TOOL_REASONS.has(v.reason))
+const mainStructural = async dir => {
+  const violations = await main(dir)
+  return violations.filter(v => !EXTERNAL_TOOL_REASONS.has(v.reason))
+}
 
 const BREW_INSTALL_SHELLCHECK_RE = /brew install shellcheck/
 
@@ -198,7 +204,8 @@ jobs:
 describe('check-ga: відсутній .github/workflows', () => {
   test('exit 1 — директорія .github/workflows не існує', async () => {
     await withTmpDir(async dir => {
-      expect((await mainStructural(dir)).length).toBeGreaterThan(0)
+      const violations = await mainStructural(dir)
+      expect(violations.length).toBeGreaterThan(0)
     })
   })
 })
@@ -209,7 +216,8 @@ describe('check-ga: .yaml розширення', () => {
       await ensureDir(join(dir, '.github/workflows'))
       await writeFile(join(dir, '.github/workflows', 'test.yaml'), 'name: test\n', 'utf8')
       await withShellcheckStubInPath(async () => {
-        expect((await mainStructural(dir)).length).toBeGreaterThan(0)
+        const violations = await mainStructural(dir)
+        expect(violations.length).toBeGreaterThan(0)
       })
     })
   })
@@ -221,7 +229,8 @@ describe('check-ga: MegaLinter', () => {
       await setupCanonicalGaProject(dir)
       await writeFile(join(dir, '.mega-linter.yml'), 'MEGALINTER_CONFIG:\n', 'utf8')
       await withShellcheckStubInPath(async () => {
-        expect((await mainStructural(dir)).length).toBeGreaterThan(0)
+        const violations = await mainStructural(dir)
+        expect(violations.length).toBeGreaterThan(0)
       })
     })
   })
@@ -249,7 +258,8 @@ describe('check-ga: MegaLinter', () => {
         'utf8'
       )
       await withShellcheckStubInPath(async () => {
-        expect((await mainStructural(dir)).length).toBeGreaterThan(0)
+        const violations = await mainStructural(dir)
+        expect(violations.length).toBeGreaterThan(0)
       })
     })
   })
@@ -283,7 +293,8 @@ describe('check-ga: apply-k8s.yml', () => {
         'utf8'
       )
       await withShellcheckStubInPath(async () => {
-        expect((await mainStructural(dir)).length).toBeGreaterThan(0)
+        const violations = await mainStructural(dir)
+        expect(violations.length).toBeGreaterThan(0)
       })
     })
   })

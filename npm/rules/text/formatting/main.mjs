@@ -121,8 +121,8 @@ async function checkLintTextWorkflow(passFn, failFn, cwd) {
 
 /**
  * Перевіряє відповідність проєкту правилам text.mdc.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат лінту
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

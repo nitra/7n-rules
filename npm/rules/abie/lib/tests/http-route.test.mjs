@@ -5,6 +5,8 @@ import { join } from 'node:path'
 import { ABIE_SHARED_CROSS_NS_BACKEND_NAMES, analyzeAbieSharedBackendRefsInPackageK8s } from '../http-route.mjs'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
+const PORT_8080_RE = /port: 8080/
+
 describe('ABIE_SHARED_CROSS_NS_BACKEND_NAMES', () => {
   test('канонічні імена', () => {
     expect(ABIE_SHARED_CROSS_NS_BACKEND_NAMES).toContain('auth-run-hl')
@@ -80,7 +82,7 @@ spec:
       const noPort = await analyzeAbieSharedBackendRefsInPackageK8s(root, join(root, 'p'), yamlFilesAbs)
       expect(noPort.refCount).toBe(1)
       expect(noPort.baseErrors.length).toBe(1)
-      expect(noPort.baseErrors[0]).toMatch(/port: 8080/)
+      expect(noPort.baseErrors[0]).toMatch(PORT_8080_RE)
 
       await writeFile(
         hrPath,
@@ -100,7 +102,7 @@ spec:
       const wrongPort = await analyzeAbieSharedBackendRefsInPackageK8s(root, join(root, 'p'), yamlFilesAbs)
       expect(wrongPort.refCount).toBe(1)
       expect(wrongPort.baseErrors.length).toBe(1)
-      expect(wrongPort.baseErrors[0]).toMatch(/port: 8080/)
+      expect(wrongPort.baseErrors[0]).toMatch(PORT_8080_RE)
     })
   })
 })

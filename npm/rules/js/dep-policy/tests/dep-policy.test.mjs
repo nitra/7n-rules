@@ -14,8 +14,10 @@ import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
  * @param {string} dir корінь тимчасового проєкту
  * @returns {Promise<number>} кількість LintViolation
  */
-const check = async dir =>
-  (await lint({ cwd: dir, ruleId: 'js', concernId: 'dep-policy', files: undefined })).violations.length
+const check = async dir => {
+  const result = await lint({ cwd: dir, ruleId: 'js', concernId: 'dep-policy', files: undefined })
+  return result.violations.length
+}
 
 // Ім'я забороненого пакета — через join щоб не тригерити потенційний future-sканер
 // на самому цьому файлі (pattern аналогічний до no-console-store-restore).

@@ -45,8 +45,8 @@ async function checkStylelintConfigPresence(reporter, cwd) {
 
 /**
  * Перевіряє відповідність проєкту правилам style.mdc
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону (cwd тощо)
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат зі зібраними violations
  */
 export async function lint(ctx) {
   const cwd = ctx.cwd

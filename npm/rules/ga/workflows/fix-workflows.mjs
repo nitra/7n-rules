@@ -18,6 +18,7 @@ const CHECKOUT_USES_RE = /uses:\s*actions\/checkout@/u
 const WITH_LINE_RE = /^\s*with:\s*$/u
 const PERSIST_KEY_RE = /^\s*persist-credentials\s*:/u
 const QUOTE_EDGE_RE = /^['"]|['"]$/gu
+const PATHS_KEY_RE = /^\s*paths:\s*$/u
 
 /**
  * Індекс першого непорожнього рядка з `from` (включно).
@@ -79,7 +80,7 @@ export function addPersistCredentials(content) {
   const inserts = []
   for (let i = 0; i < lines.length; i++) {
     const col = lines[i].indexOf('uses:')
-    if (col < 0 || !CHECKOUT_USES_RE.test(lines[i])) continue
+    if (col === -1 || !CHECKOUT_USES_RE.test(lines[i])) continue
     const ins = persistInsertFor(lines, i, col)
     if (ins) inserts.push(ins)
   }
@@ -105,7 +106,7 @@ export function removePathsGlobs(content, globs) {
   let pathsCol = -1 // колонка ключа `paths:` поточного блоку; -1 = поза блоком
   let changed = false
   for (const line of lines) {
-    if (/^\s*paths:\s*$/u.test(line)) {
+    if (PATHS_KEY_RE.test(line)) {
       pathsCol = line.indexOf('paths:')
       out.push(line)
       continue
@@ -163,8 +164,8 @@ export function prefixBunxNCursor(content) {
 
 /**
  * Застосовує текстовий трансформер до унікальних файлів із violations і пише зміни.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation[]} violations
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation[]} violations порушення (джерело переліку файлів)
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту (cwd, recordWrite)
  * @param {(file: string) => (content: string) => string|null} transformerFor
  *   фабрика трансформера для конкретного relative-file (дає доступ до per-file даних)
  * @returns {string[]} абсолютні шляхи змінених файлів

@@ -14,8 +14,8 @@ const VITEST_CONFIG_NAMES = ['vitest.config.mjs', 'vitest.config.js']
 
 /**
  * Перевіряє, що `vitest.config.{mjs,js}` (якщо існує) містить `pool: 'forks'`.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінт-прогону.
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат перевірки наявності `pool: 'forks'`.
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

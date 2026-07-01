@@ -20,8 +20,10 @@ import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test
  * @param {string} dir корінь тимчасового проєкту
  * @returns {Promise<number>} кількість LintViolation
  */
-const check = async dir =>
-  (await lint({ cwd: dir, ruleId: 'npm-module', concernId: 'package_structure', files: undefined })).violations.length
+const check = async dir => {
+  const res = await lint({ cwd: dir, ruleId: 'npm-module', concernId: 'package_structure', files: undefined })
+  return res.violations.length
+}
 
 describe('globToRegex', () => {
   test('globstar матчить нуль і більше сегментів', () => {

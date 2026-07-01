@@ -7,9 +7,26 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { describe, expect, test, vi } from 'vitest'
 import { runOneShot } from '../pi-one-shot.mjs'
 
-/** Fake AgentSession: емітить text_delta + message_end, опційно кидає/затримує. */
+const RE_NOT_FOUND = /не знайдена/
+const RE_TIMEOUT = /timeout/
+const RE_REGISTRY_ERR = /registry: no reg/
+
+/** No-op placeholder для subscribe-хендлера до реєстрації. */
+const noop = () => {
+  /* no-op */
+}
+
+/**
+ * Fake AgentSession: емітить text_delta + message_end, опційно кидає/затримує.
+ * @param {object} [opts] опції
+ * @param {string[]} [opts.deltas] text_delta-фрагменти для стріму
+ * @param {object|null} [opts.usage] usage у message_end (або без нього)
+ * @param {string|null} [opts.promptError] якщо задано — prompt кидає з цим текстом
+ * @param {number} [opts.delayMs] затримка перед емісією (для timeout-тесту)
+ * @returns {object} fake AgentSession
+ */
 function fakeSession({ deltas = [], usage = null, promptError = null, delayMs = 0 } = {}) {
-  let cb = () => {}
+  let cb = noop
   return {
     subscribe: fn => {
       cb = fn
@@ -28,7 +45,7 @@ function fakeSession({ deltas = [], usage = null, promptError = null, delayMs = 
 }
 
 const registry = { find: (p, id) => ({ provider: p, id }) }
-const baseDeps = session => ({ registry, trace: vi.fn(), createSession: vi.fn(async () => session) })
+const baseDeps = session => ({ registry, trace: vi.fn(), createSession: vi.fn(() => Promise.resolve(session)) })
 
 describe('runOneShot', () => {
   test('happy path: збирає текст + usage', async () => {
@@ -48,7 +65,7 @@ describe('runOneShot', () => {
 
   test('усі messages (system+user) зливаються в один prompt; без replaceInstructions', async () => {
     const session = fakeSession({ deltas: ['ok'] })
-    const deps = { registry, trace: vi.fn(), createSession: vi.fn(async () => session) }
+    const deps = { registry, trace: vi.fn(), createSession: vi.fn(() => Promise.resolve(session)) }
     await runOneShot({
       messages: [
         { role: 'system', content: 'SYS' },
@@ -70,7 +87,7 @@ describe('runOneShot', () => {
       createSession: vi.fn()
     }
     const r = await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: 'omlx/missing', deps })
-    expect(r.error).toMatch(/не знайдена/)
+    expect(r.error).toMatch(RE_NOT_FOUND)
     expect(deps.createSession).not.toHaveBeenCalled()
   })
 
@@ -89,18 +106,16 @@ describe('runOneShot', () => {
       timeoutMs: 20,
       deps
     })
-    expect(r.error).toMatch(/timeout/)
+    expect(r.error).toMatch(RE_TIMEOUT)
   })
 
   test('registry кидає → error', async () => {
     const deps = {
-      getRegistry: async () => {
-        throw new Error('no reg')
-      },
+      getRegistry: () => Promise.reject(new Error('no reg')),
       trace: vi.fn(),
       createSession: vi.fn()
     }
     const r = await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: 'omlx/x', deps })
-    expect(r.error).toMatch(/registry: no reg/)
+    expect(r.error).toMatch(RE_REGISTRY_ERR)
   })
 })

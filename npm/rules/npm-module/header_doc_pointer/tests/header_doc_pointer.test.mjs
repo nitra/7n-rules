@@ -10,8 +10,10 @@ import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mj
  * @param {string} dir корінь тимчасового проєкту
  * @returns {Promise<number>} кількість LintViolation
  */
-const check = async dir =>
-  (await lint({ cwd: dir, ruleId: 'npm-module', concernId: 'header_doc_pointer', files: undefined })).violations.length
+const check = async dir => {
+  const result = await lint({ cwd: dir, ruleId: 'npm-module', concernId: 'header_doc_pointer', files: undefined })
+  return result.violations.length
+}
 
 const MULTI = `/**
  * Довгий наратив рядок перший.

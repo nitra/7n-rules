@@ -9,16 +9,30 @@ import { runPiAgentSkill } from '../pi-agent-skill.mjs'
 
 const registry = { find: (p, id) => ({ provider: p, id }) }
 
-/** Fake pi-сесія: драйвить задані події у subscribe-хендлер і (опц.) кидає у prompt. */
+const RE_NOT_FOUND = /не знайдена/
+
+/** No-op placeholder для subscribe-хендлера до реєстрації. */
+const noop = () => {
+  /* no-op */
+}
+
+/**
+ * Fake pi-сесія: драйвить задані події у subscribe-хендлер і (опц.) кидає у prompt.
+ * @param {object} [opts] опції
+ * @param {Array<object>} [opts.events] події, що емітяться у subscribe-хендлер
+ * @param {string|null} [opts.promptError] якщо задано — prompt кидає з цим текстом
+ * @returns {{ session: object, abort: import('vitest').Mock }} fake-сесія + abort-spy
+ */
 function fakeSession({ events = [], promptError = null } = {}) {
   const abort = vi.fn()
-  let handler = () => {}
+  let handler = noop
   const session = {
     subscribe: fn => {
       handler = fn
     },
     abort,
     prompt: async () => {
+      await Promise.resolve()
       for (const e of events) handler(e)
       if (promptError) throw new Error(promptError)
     }
@@ -48,7 +62,7 @@ describe('runPiAgentSkill', () => {
       cwd: '/proj',
       deps: {
         registry,
-        createSession: async () => session,
+        createSession: () => Promise.resolve(session),
         trace,
         clock: () => 0,
         out: s => {
@@ -74,7 +88,7 @@ describe('runPiAgentSkill', () => {
 
   test('createSession отримує тиру → thinkingLevel і cwd', async () => {
     const { session } = fakeSession()
-    const createSession = vi.fn(async () => session)
+    const createSession = vi.fn(() => Promise.resolve(session))
     await runPiAgentSkill('P', {
       skillId: 's',
       tier: 'max',
@@ -88,7 +102,7 @@ describe('runPiAgentSkill', () => {
     const { session } = fakeSession({ events: [{ type: 'turn_start' }], promptError: 'boom' })
     const r = await runPiAgentSkill('P', {
       skillId: 's',
-      deps: { registry, createSession: async () => session, trace: vi.fn() }
+      deps: { registry, createSession: () => Promise.resolve(session), trace: vi.fn() }
     })
     expect(r.ok).toBe(false)
     expect(r.error).toBe('boom')
@@ -99,7 +113,7 @@ describe('runPiAgentSkill', () => {
     const { session, abort } = fakeSession({ events })
     const r = await runPiAgentSkill('P', {
       skillId: 's',
-      deps: { registry, createSession: async () => session, trace: vi.fn() }
+      deps: { registry, createSession: () => Promise.resolve(session), trace: vi.fn() }
     })
     expect(abort).toHaveBeenCalled()
     expect(r.telemetry.backstopHit).toBe(true)
@@ -113,6 +127,6 @@ describe('runPiAgentSkill', () => {
       deps: { registry: { find: () => null }, createSession: vi.fn(), trace: vi.fn() }
     })
     expect(r.ok).toBe(false)
-    expect(r.error).toMatch(/не знайдена/)
+    expect(r.error).toMatch(RE_NOT_FOUND)
   })
 })

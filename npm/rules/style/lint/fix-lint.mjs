@@ -30,7 +30,7 @@ function readOrNull(abs) {
  * Перелік цільових style-файлів: у дельті — з ctx.files; у повному режимі — tracked
  * css/scss/vue через `git ls-files`.
  * @param {string} cwd корінь
- * @param {string[]|undefined} ctxFiles
+ * @param {string[]|undefined} ctxFiles файли з контексту (дельта) або undefined (повний режим)
  * @returns {string[]} posix-relative шляхи
  */
 function listStyleFiles(cwd, ctxFiles) {

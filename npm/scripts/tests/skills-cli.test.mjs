@@ -220,11 +220,13 @@ describe('runSkillsCli', () => {
     const code = await runSkillsCli(['pi', 'n-taze', 'онови'], {
       packageRoot: root,
       projectDir: root,
-      log: () => {},
+      log: () => {
+        // no-op: тест не перевіряє звичайний лог
+      },
       deps: {
-        runPiAgentSkill: async (prompt, opts) => {
+        runPiAgentSkill: (prompt, opts) => {
           calls.push({ prompt, opts })
-          return { ok: true, telemetry: {}, error: null }
+          return Promise.resolve({ ok: true, telemetry: {}, error: null })
         }
       }
     })
@@ -248,11 +250,13 @@ describe('runSkillsCli', () => {
     await runSkillsCli(['pi', 'fix'], {
       packageRoot: root,
       projectDir: root,
-      log: () => {},
+      log: () => {
+        // no-op: тест не перевіряє звичайний лог
+      },
       deps: {
-        runPiAgentSkill: async (_prompt, opts) => {
+        runPiAgentSkill: (_prompt, opts) => {
           seenTier = opts.tier
-          return { ok: true, telemetry: {}, error: null }
+          return Promise.resolve({ ok: true, telemetry: {}, error: null })
         }
       }
     })
@@ -270,12 +274,14 @@ describe('runSkillsCli', () => {
     const code = await runSkillsCli(['pi', 'fix'], {
       packageRoot: root,
       projectDir: root,
-      log: () => {},
+      log: () => {
+        // no-op: тест перевіряє лише logError
+      },
       logError: line => {
         errors.push(line)
       },
       deps: {
-        runPiAgentSkill: async () => ({ ok: false, telemetry: null, error: 'модель не знайдена: x/y' })
+        runPiAgentSkill: () => Promise.resolve({ ok: false, telemetry: null, error: 'модель не знайдена: x/y' })
       }
     })
 

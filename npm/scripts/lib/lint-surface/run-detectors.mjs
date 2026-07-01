@@ -18,16 +18,16 @@ import { listConcerns } from '../concern-meta.mjs'
 import { collectChangedFilesSince, resolveChangedBase } from '../changed-files.mjs'
 import { readNCursorConfigLite, isRuleEnabled } from '../read-n-cursor-config-lite.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
+import { renderViolations, renderDiagnostics } from './render.mjs'
 
 // Цей файл: npm/scripts/lib/lint-surface/run-detectors.mjs → PACKAGE_ROOT = npm (4 dirname угору).
 export const DEFAULT_RULES_DIR = join(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))), 'rules')
-import { renderViolations, renderDiagnostics } from './render.mjs'
 
 /**
  * Похідна lint-поверхня для policy-concern-а (коли немає явного `lint` блоку).
  * scope=full; glob із policy.files — щоб delta-режим тригерив concern на зміні таргета.
- * @param {import('../concern-meta.mjs').PolicySurface} policy
- * @returns {import('../concern-meta.mjs').LintSurface}
+ * @param {import('../concern-meta.mjs').PolicySurface} policy policy-поверхня concern-а.
+ * @returns {import('../concern-meta.mjs').LintSurface} похідна lint-поверхня (scope=full).
  */
 function deriveLintFromPolicy(policy) {
   const f = policy.files ?? {}
@@ -42,7 +42,7 @@ function deriveLintFromPolicy(policy) {
 /**
  * Concern → виконуваний detector-entry. Concern із явним `lint` бере його;
  * policy-concern без `lint` отримує похідну поверхню (детектор = generated main.mjs).
- * @param {ConcernMeta} c
+ * @param {ConcernMeta} c вхідний concern.
  * @returns {ConcernMeta|null} концерн із гарантованим `lint`, або null якщо не виконуваний
  */
 function asDetectorConcern(c) {
@@ -59,8 +59,8 @@ function asDetectorConcern(c) {
 
 /**
  * Скан усіх concern-ів-detector-ів у `rulesDir` (із lint-поверхнею або policy).
- * @param {string} rulesDir
- * @returns {Promise<Record<string, ConcernMeta[]>>}
+ * @param {string} rulesDir корінь із правилами.
+ * @returns {Promise<Record<string, ConcernMeta[]>>} concerns згруповані за rule-id.
  */
 async function readLintConcernsByRule(rulesDir) {
   const { readdir } = await import('node:fs/promises')
@@ -75,7 +75,8 @@ async function readLintConcernsByRule(rulesDir) {
   }
   for (const e of entries) {
     if (!e.isDirectory() || e.name.startsWith('.')) continue
-    const concerns = (await listConcerns(join(rulesDir, e.name))).map(c => asDetectorConcern(c)).filter(Boolean)
+    const listed = await listConcerns(join(rulesDir, e.name))
+    const concerns = listed.map(c => asDetectorConcern(c)).filter(Boolean)
     if (concerns.length > 0) out[e.name] = /** @type {ConcernMeta[]} */ (concerns)
   }
   return out
@@ -83,9 +84,9 @@ async function readLintConcernsByRule(rulesDir) {
 
 /**
  * Активні rule-id з `.n-cursor.json` (для delta/full режимів).
- * @param {Record<string, ConcernMeta[]>} byRule
- * @param {string} cwd
- * @returns {Promise<string[]>}
+ * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
+ * @param {string} cwd робоча директорія прогону.
+ * @returns {Promise<string[]>} перелік активних rule-id.
  */
 async function enabledRuleIds(byRule, cwd) {
   const config = await readNCursorConfigLite(cwd)
@@ -94,7 +95,7 @@ async function enabledRuleIds(byRule, cwd) {
 }
 
 /**
- * @param {LintEntry[]} entries
+ * @param {LintEntry[]} entries вхідні lint-entries.
  * @returns {LintEntry[]} стабільний алфавітний порядок
  */
 function sortEntries(entries) {
@@ -108,13 +109,13 @@ function sortEntries(entries) {
 /**
  * Будує план прогону для заданих опцій (discovery + scope-table).
  * Спільне джерело для detect-only і fix-pipeline.
- * @param {object} opts
- * @param {string} opts.rulesDir
- * @param {string} opts.cwd
- * @param {boolean} [opts.full]
- * @param {string[]} [opts.rules]
- * @param {string[]|null} [opts.files]
- * @returns {Promise<PlanItem[]>}
+ * @param {object} opts опції прогону.
+ * @param {string} opts.rulesDir корінь із правилами.
+ * @param {string} opts.cwd робоча директорія прогону.
+ * @param {boolean} [opts.full] whole-repo режим (усі enabled-concerns).
+ * @param {string[]} [opts.rules] scoped rule-id (порожній → delta/full).
+ * @param {string[]|null} [opts.files] явний перелік файлів або null.
+ * @returns {Promise<PlanItem[]>} впорядкований план прогону.
  */
 export async function buildDetectPlan(opts) {
   const byRule = await readLintConcernsByRule(opts.rulesDir ?? DEFAULT_RULES_DIR)
@@ -130,13 +131,13 @@ export async function buildDetectPlan(opts) {
 /**
  * Будує план: список entries + чи кожен запускається whole-repo (files=undefined)
  * чи per-file (files=[...]). Реалізує таблицю lint.scope зі специфікації.
- * @param {object} args
- * @param {Record<string, ConcernMeta[]>} args.byRule
- * @param {boolean} args.full
- * @param {string[]} args.rules scoped rule-id (порожній → delta/full)
- * @param {string[]|null} args.explicitFiles
- * @param {string} args.cwd
- * @returns {Promise<PlanItem[]>}
+ * @param {object} args аргументи побудови плану.
+ * @param {Record<string, ConcernMeta[]>} args.byRule concerns згруповані за rule-id.
+ * @param {boolean} args.full whole-repo режим.
+ * @param {string[]} args.rules scoped rule-id (порожній → delta/full).
+ * @param {string[]|null} args.explicitFiles явний перелік файлів або null.
+ * @param {string} args.cwd робоча директорія прогону.
+ * @returns {Promise<PlanItem[]>} впорядкований план прогону.
  */
 async function buildPlan({ byRule, full, rules, explicitFiles, cwd }) {
   // scoped: усі lint-concerns названих правил, whole-repo
@@ -188,15 +189,15 @@ async function buildPlan({ byRule, full, rules, explicitFiles, cwd }) {
 
 /**
  * Запускає detect-only прохід. Повертає всі violations і похідний exitCode.
- * @param {object} opts
- * @param {string} opts.rulesDir
- * @param {string} opts.cwd
- * @param {boolean} [opts.full]
- * @param {string[]} [opts.rules]
- * @param {string[]|null} [opts.files]
- * @param {boolean} [opts.verbose]
- * @param {(s: string) => void} [opts.log]
- * @returns {Promise<{ violations: LintViolation[], exitCode: 0|1|2, ran: LintEntry[] }>}
+ * @param {object} opts опції прогону.
+ * @param {string} opts.rulesDir корінь із правилами.
+ * @param {string} opts.cwd робоча директорія прогону.
+ * @param {boolean} [opts.full] whole-repo режим.
+ * @param {string[]} [opts.rules] scoped rule-id (порожній → delta/full).
+ * @param {string[]|null} [opts.files] явний перелік файлів або null.
+ * @param {boolean} [opts.verbose] докладний лог прогону.
+ * @param {(s: string) => void} [opts.log] функція логування.
+ * @returns {Promise<{ violations: LintViolation[], exitCode: 0|1|2, ran: LintEntry[] }>} violations, exitCode і виконані entries.
  */
 export async function detectAll(opts) {
   const rulesDir = opts.rulesDir ?? DEFAULT_RULES_DIR
@@ -225,12 +226,12 @@ export async function detectAll(opts) {
     let result
     try {
       result = await runConcernDetector(entry.concern, ctx)
-    } catch (err) {
-      if (err instanceof DetectorError) {
-        log(`💥 ${err.message}\n`)
+    } catch (error) {
+      if (error instanceof DetectorError) {
+        log(`💥 ${error.message}\n`)
         return { violations: allViolations, exitCode: 2, ran }
       }
-      throw err
+      throw error
     }
     ran.push(entry)
     allViolations.push(...result.violations)

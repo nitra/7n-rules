@@ -27,7 +27,7 @@ export function getPhpcsCodePaths(root) {
 /**
  * @param {string} root корінь
  * @param {string} name ім'я у vendor/bin
- * @returns {string | null}
+ * @returns {string | null} абсолютний шлях до бінарника або null, якщо відсутній
  */
 function vendorBin(root, name) {
   const p = resolve(root, 'vendor', 'bin', name)
@@ -38,10 +38,10 @@ function vendorBin(root, name) {
  * Запускає тул і, на ненульовий код, реєструє порушення.
  * @param {string} label назва кроку
  * @param {string} abs абсолютний шлях
- * @param {string[]} args
- * @param {string} cwd
- * @param {(msg: string, reason: string) => void} fail
- * @param {string} reason
+ * @param {string[]} args аргументи команди.
+ * @param {string} cwd робочий каталог.
+ * @param {(msg: string, reason: string) => void} fail колбек реєстрації порушення.
+ * @param {string} reason машиночитна причина порушення.
  * @returns {boolean} true якщо OK, false якщо порушення
  */
 function runTool(label, abs, args, cwd, fail, reason) {
@@ -56,8 +56,8 @@ function runTool(label, abs, args, cwd, fail, reason) {
 
 /**
  * Detector php/check (read-only).
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат із порушеннями
  */
 export function lint(ctx) {
   const reporter = createViolationReporter(ctx)
@@ -80,11 +80,11 @@ export function lint(ctx) {
   }
 
   /**
-   * @param {string} binName
-   * @param {string} label
-   * @param {string[]} args
-   * @param {string} reason
-   * @returns {boolean}
+   * @param {string} binName ім'я бінарника у vendor/bin.
+   * @param {string} label назва кроку.
+   * @param {string[]} args аргументи інструменту.
+   * @param {string} reason машиночитна причина порушення.
+   * @returns {boolean} true якщо OK / пропущено
    */
   function runOptionalVendorTool(binName, label, args, reason) {
     const abs = vendorBin(root, binName)

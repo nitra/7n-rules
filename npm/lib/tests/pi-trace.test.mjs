@@ -8,6 +8,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { tracePath, writeTrace } from '../pi-trace.mjs'
 
+const RE_DEFAULT_TRACE_PATH = /\.n-cursor[/\\]llm-trace\.jsonl$/
+
 let dir
 afterEach(() => {
   if (dir) rmSync(dir, { recursive: true, force: true })
@@ -45,6 +47,6 @@ describe('tracePath', () => {
 
   test('дефолт — під ~/.n-cursor/', () => {
     vi.stubEnv('N_CURSOR_TRACE_PATH', '')
-    expect(tracePath()).toMatch(/\.n-cursor[/\\]llm-trace\.jsonl$/)
+    expect(tracePath()).toMatch(RE_DEFAULT_TRACE_PATH)
   })
 })

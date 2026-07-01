@@ -16,7 +16,8 @@ describe('check test.location', () => {
       await mkdir(join(dir, 'rules/foo/js/bar/tests'), { recursive: true })
       await writeFile(join(dir, 'rules/foo/js/bar/check.mjs'), 'export function check() {}\n')
       await writeFile(join(dir, 'rules/foo/js/bar/tests/check.test.mjs'), 'import { test } from "bun:test"\n')
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 
@@ -25,7 +26,8 @@ describe('check test.location', () => {
       await mkdir(join(dir, 'rules/foo/js/bar'), { recursive: true })
       await writeFile(join(dir, 'rules/foo/js/bar/check.mjs'), 'export function check() {}\n')
       await writeFile(join(dir, 'rules/foo/js/bar/check.test.mjs'), 'import { test } from "bun:test"\n')
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const result = await run(dir)
+      expect(result.violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -33,7 +35,8 @@ describe('check test.location', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'scripts/spec'), { recursive: true })
       await writeFile(join(dir, 'scripts/spec/foo.test.mjs'), 'import { test } from "bun:test"\n')
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const result = await run(dir)
+      expect(result.violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -41,7 +44,8 @@ describe('check test.location', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'src'), { recursive: true })
       await writeFile(join(dir, 'src/index.mjs'), 'export const x = 1\n')
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 
@@ -49,7 +53,8 @@ describe('check test.location', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(join(dir, 'tests/integration.test.mjs'), 'import { test } from "bun:test"\n')
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 
@@ -57,7 +62,8 @@ describe('check test.location', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'node_modules/some-pkg'), { recursive: true })
       await writeFile(join(dir, 'node_modules/some-pkg/foo.test.mjs'), 'import { test } from "bun:test"\n')
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 
@@ -66,7 +72,8 @@ describe('check test.location', () => {
       await mkdir(join(dir, 'rules/foo/policy/bar'), { recursive: true })
       await writeFile(join(dir, 'rules/foo/policy/bar/bar.rego'), 'package foo.bar\n')
       await writeFile(join(dir, 'rules/foo/policy/bar/bar_test.rego'), 'package foo.bar_test\n')
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 })

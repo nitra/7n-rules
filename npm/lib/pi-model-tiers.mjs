@@ -94,15 +94,13 @@ export function resolveModelSpec(registry, spec) {
   return Reflect.apply(registry.find, registry, [parsed.provider, parsed.id]) ?? null
 }
 
+let _registry = null
+
 /**
  * Lazy singleton pi `ModelRegistry` (вантажить `~/.pi/agent/models.json` + `auth.json`).
  * **Єдина** точка, де модуль торкається pi — dynamic import тримає `--read-only`
  * шлях pi-free (тверда межа CI). Кешується на процес.
  * @returns {Promise<object>} pi ModelRegistry
- */
-let _registry = null
-/**
- *
  */
 export async function getRegistry() {
   if (_registry) return _registry

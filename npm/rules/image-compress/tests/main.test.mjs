@@ -37,7 +37,7 @@ describe('image-compress lint adapter', () => {
       await withFakeNpx(
         dir,
         String.raw`printf '{"summary":{"needsCompression":0,"processed":1,"total":1,"unsupported":0},"files":[]}\n'`,
-        async () => {
+        () => {
           expect(run(dir)).toEqual([])
         }
       )
@@ -49,7 +49,7 @@ describe('image-compress lint adapter', () => {
       await withFakeNpx(
         dir,
         String.raw`printf '{"summary":{"needsCompression":2,"processed":1,"total":3,"unsupported":0},"files":[]}\n'`,
-        async () => {
+        () => {
           const violations = run(dir)
           expect(violations.length).toBeGreaterThan(0)
           expect(violations.some(v => v.reason === 'needs-compression')).toBe(true)

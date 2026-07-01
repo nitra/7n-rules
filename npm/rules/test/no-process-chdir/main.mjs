@@ -20,8 +20,8 @@ function isTestFile(absPath) {
 
 /**
  * Detector: жоден `*.test.{mjs,js}` не викликає `process.chdir(` (test.mdc).
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx Контекст лінту (`cwd` тощо).
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} Результат лінту зі списком violations.
  */
 export async function lint(ctx) {
   const { cwd } = ctx

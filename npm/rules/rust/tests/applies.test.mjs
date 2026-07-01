@@ -47,6 +47,7 @@ describe('rust applies', () => {
 describe('rust check', () => {
   test('lint() завжди чистий (лише context-pass)', async () => {
     const ctx = { cwd: process.cwd(), ruleId: 'rust', concernId: 'applies', files: undefined }
-    expect((await lint(ctx)).violations).toEqual([])
+    const result = await lint(ctx)
+    expect(result.violations).toEqual([])
   })
 })

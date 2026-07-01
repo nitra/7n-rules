@@ -45,6 +45,57 @@ describe('ensureNitraCursorInRootDevDependencies', () => {
     })
   })
 
+  test('апгрейдить пін у devDependencies, коли bundled новіша', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: 'x',
+        workspaces: ['npm'],
+        devDependencies: { '@nitra/cursor': '^12.19.0' }
+      })
+      const ok = await ensureNitraCursorInRootDevDependencies(dir, {
+        bundledVersion: '13.2.6',
+        silent: true
+      })
+      expect(ok).toBe(true)
+      const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
+      expect(pkg.devDependencies['@nitra/cursor']).toBe('^13.2.6')
+    })
+  })
+
+  test('не понижує пін, коли bundled старіша за поточний', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: 'x',
+        workspaces: ['npm'],
+        devDependencies: { '@nitra/cursor': '^13.5.0' }
+      })
+      const ok = await ensureNitraCursorInRootDevDependencies(dir, {
+        bundledVersion: '13.2.6',
+        silent: true
+      })
+      expect(ok).toBe(false)
+      const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
+      expect(pkg.devDependencies['@nitra/cursor']).toBe('^13.5.0')
+    })
+  })
+
+  test('не чіпає нечисловий специфікатор (workspace:*/latest)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: 'x',
+        workspaces: ['npm'],
+        devDependencies: { '@nitra/cursor': 'workspace:*' }
+      })
+      const ok = await ensureNitraCursorInRootDevDependencies(dir, {
+        bundledVersion: '13.2.6',
+        silent: true
+      })
+      expect(ok).toBe(false)
+      const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
+      expect(pkg.devDependencies['@nitra/cursor']).toBe('workspace:*')
+    })
+  })
+
   test('не дописує, якщо @nitra/cursor лише в dependencies', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), {

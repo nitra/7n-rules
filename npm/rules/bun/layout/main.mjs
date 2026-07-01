@@ -10,10 +10,10 @@ import { createViolationReporter } from '../../../scripts/lib/lint-surface/viola
 
 /**
  * Перевіряє відповідність проєкту правилам bun.mdc
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат перевірки
  */
-export async function lint(ctx) {
+export function lint(ctx) {
   const cwd = ctx.cwd
   const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter

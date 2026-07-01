@@ -3,33 +3,36 @@ type: JS Module
 title: ensure-nitra-cursor-dev-dependencies.mjs
 resource: npm/scripts/ensure-nitra-cursor-dev-dependencies.mjs
 docgen:
-  crc: c3df2c0e
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  crc: 30811526
+  model: hand
   score: 100
-  issues: judge:inaccurate:0.98
-  retried: true
-  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Файл гарантує присутність інструменту `\@nitra/cursor` у кореневому `package.json` проєкту лише якщо проєкт ідентифікується як workspace-root за наявністю поля `workspaces` у `package.json` поруч із точкою запуску. Це робиться для забезпечення відтворюваності команд `npx \@nitra/cursor` та скриптів з `node_modules/\@nitra/cursor/scripts/` після виконання `bun install` / `npm install`.
+Файл гарантує присутність інструменту `@nitra/cursor` у кореневому `package.json` проєкту — лише якщо проєкт ідентифікується як workspace-root за наявністю поля `workspaces` у `package.json` поруч із точкою запуску. Це забезпечує відтворюваність команд `npx @nitra/cursor` і скриптів з `node_modules/@nitra/cursor/scripts/` після `bun install` / `npm install`.
 
-readBundledPackageVersion надає версію пакета `\@nitra/cursor` з його власного `package.json`, або повертає `null`, якщо файл не знайдено або неможливо його розпарсити.
-
-ensureNitraCursorInRootDevDependencies визначає кореневий `package.json` проєкту, якщо він є workspace-root, та, якщо `\@nitra/cursor` відсутній у `devDependencies` або `dependencies`, додає його до `devDependencies`, використовуючи версію, взяту з пакета `\@nitra/cursor`.
+Крім дописування відсутнього пакета, реалізовано **self-upgrade**: якщо `@nitra/cursor` уже присутній у `devDependencies` зі старішим числовим піном, він апгрейдиться до `^<версія встановленого CLI>` при кожному запуску. Це прибирає дрейф версії self-lint у споживачів.
 
 ## Поведінка
 
-readBundledPackageVersion повертає версію пакета `\@nitra/cursor` з його власного `package.json` або `null`, якщо файл не знайдено чи неможливо його розпарсити.
-ensureNitraCursorInRootDevDependencies знаходить кореневий `package.json` проєкту, якщо він є workspace-root, і якщо `\@nitra/cursor` відсутній у `devDependencies` або `dependencies`, він дописує цей пакет у `devDependencies` із версією, взятою з пакета `\@nitra/cursor`.
+`readBundledPackageVersion` повертає версію пакета `@nitra/cursor` з його власного `package.json` або `null`, якщо файл не знайдено чи не вдалося розпарсити.
+
+`ensureNitraCursorInRootDevDependencies` знаходить кореневий `package.json` (workspace-root) і:
+
+- якщо `@nitra/cursor` **відсутній** у `devDependencies`/`dependencies` — дописує його в `devDependencies` як `^<bundledVersion>`;
+- якщо вже **присутній у `devDependencies`** зі старішим числовим піном — апгрейдить пін до `^<bundledVersion>` (ніколи не понижує; нечислові піни `workspace:*`/`latest`/git не чіпаються);
+- якщо присутній у `dependencies` (нестандартне розміщення) — лишає незмінним.
+
+Порівняння версій — за числовими компонентами `major.minor.patch` (`parseVersionParts` розбирає діапазон із опційним оператором `^`/`~`/`>=`/`<=`/`>`/`<`/`=`/`v`; `isBundledNewer` порівнює покомпонентно).
 
 ## Публічний API
 
-readBundledPackageVersion — Витягує версію пакета `@nitra/cursor` з `package.json` у корені репозиторію.
-ensureNitraCursorInRootDevDependencies — Гарантує наявність пакета `@nitra/cursor` у залежностях (devDependencies або dependencies) кореневого `package.json`, додаючи його, якщо його немає. При цьому використовується версія, отримана з `package.json` пакета `@nitra/cursor` та опція `silent` при успішному внесенні змін.
+`readBundledPackageVersion` — витягує `version` пакета `@nitra/cursor` з його `package.json`, або `null`.
+`ensureNitraCursorInRootDevDependencies(root, options?)` — гарантує актуальний пін `@nitra/cursor` у `devDependencies` кореневого `package.json`: додає за відсутності або апгрейдить старіший числовий пін. `options.bundledVersion` — версія для тестів; `options.silent` — не логувати. Повертає `true`, якщо `package.json` змінено на диску.
 
 ## Гарантії поведінки
 
-- Перехоплює помилки і не пропускає винятків назовні (fail-safe).
-- За певних помилок повертає порожнє значення (напр. `null`) замість винятку.
+- Перехоплює помилки читання/парсингу і не пропускає винятків назовні (fail-safe).
+- За помилок повертає `false`/`null` замість винятку.
+- Ніколи не понижує пін і не чіпає нечислові специфікатори версій.

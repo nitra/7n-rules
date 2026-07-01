@@ -9,9 +9,16 @@ import { fileURLToPath } from 'node:url'
 const DATA_PATH = join(dirname(dirname(dirname(fileURLToPath(import.meta.url)))), 'data', 'blue-oak.json')
 
 /**
+ * Прибирає обрамлювальні дужки й пробіли навколо SPDX-ідентифікатора.
+ * @param {string} s SPDX-фрагмент (можливо у дужках)
+ * @returns {string} нормалізований ідентифікатор без обрамлення
+ */
+const clean = s => s.trim().replaceAll(/^\(|\)$/g, '')
+
+/**
  * Множина SPDX-ідентифікаторів Blue Oak Bronze і вище (Model+Gold+Silver+Bronze).
  * Ліцензії з цього списку вважаються permissive-safe для комерційного проєкту.
- * @returns {Set<string>}
+ * @returns {Set<string>} множина дозволених SPDX-ідентифікаторів
  */
 export function getBronzeAndAbove() {
   const { bronzeAndAbove } = JSON.parse(readFileSync(DATA_PATH, 'utf8'))
@@ -20,7 +27,7 @@ export function getBronzeAndAbove() {
 
 /**
  * Генерує TOML-рядок `[licenses]` для `deny.toml` (cargo-deny) на основі Blue Oak Bronze+.
- * @returns {string}
+ * @returns {string} TOML-блок `[licenses]` з allow-списком
  */
 export function generateDenyTomlLicenses() {
   const ids = [...getBronzeAndAbove()].toSorted()
@@ -34,11 +41,10 @@ export function generateDenyTomlLicenses() {
  * `NOASSERTION` і `NONE` завжди → false.
  * @param {string} expression SPDX-вираз з pip-licenses або іншого інструмента
  * @param {Set<string>} allowed множина дозволених SPDX-ідентифікаторів
- * @returns {boolean}
+ * @returns {boolean} чи дозволений вираз згідно allowlist
  */
 export function isSpdxAllowed(expression, allowed) {
   if (!expression || expression === 'NOASSERTION' || expression === 'NONE') return false
-  const clean = s => s.trim().replace(/^\(|\)$/g, '')
   if (expression.includes(' AND ')) return expression.split(' AND ').every(p => allowed.has(clean(p)))
   if (expression.includes(' OR ')) return expression.split(' OR ').some(p => allowed.has(clean(p)))
   return allowed.has(clean(expression))

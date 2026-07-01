@@ -125,6 +125,8 @@ export function buildDocFrontmatter(source, crc, quality = null, model = null, t
   return `---\n${okfLines.join('\n')}\ndocgen:\n${indented}\n---\n`
 }
 
+const LEADING_H1_RE = /^# [^\n]*\n+/u
+
 /**
  * (Пере)штампує frontmatter у md-доку: знімає наявний блок і додає свіжий.
  * @param {string} md тіло доки (з frontmatter або без)
@@ -132,12 +134,8 @@ export function buildDocFrontmatter(source, crc, quality = null, model = null, t
  * @param {string} crc CRC32 джерела у hex
  * @param {{ score: number, issues?: string[], judge?: {model?: string} }|null} [quality] det-оцінка доки (+ опц. `judge.model` хмарного судді)
  * @param {string|null} [model] повний id моделі-генератора; null — без поля `model`
+ * @param {string|null} [tier] тир моделі-генератора; null — без поля `tier`
  * @returns {string} md зі свіжим frontmatter
- */
-const LEADING_H1_RE = /^# [^\n]*\n+/u
-
-/**
- *
  */
 export function stampDoc(md, source, crc, quality = null, model = null, tier = null) {
   const { body } = parseDocFrontmatter(md)
@@ -184,7 +182,7 @@ export function readDocModel(docAbsPath) {
 /**
  * Tier моделі-генератора зі frontmatter доки; `null` — доки немає або поле відсутнє.
  * @param {string} docAbsPath абсолютний шлях md-доки
- * @returns {string|null}
+ * @returns {string|null} tier моделі з frontmatter або null
  */
 export function readDocTier(docAbsPath) {
   if (!existsSync(docAbsPath)) return null

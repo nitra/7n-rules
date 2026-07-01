@@ -10,10 +10,11 @@ export const MARKSMAN_BASELINE_PATH = join(HERE, 'data', 'marksman_config', 'mar
 export const MARKSMAN_TARGET_FILENAME = '.marksman.toml'
 
 /**
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * Перевіряє наявність `.marksman.toml` у корені; сигналить копіювання canonical baseline.
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту (cwd, репортер).
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат перевірки з pass/fail.
  */
-export async function lint(ctx) {
+export function lint(ctx) {
   const cwd = ctx.cwd
   const reporter = createViolationReporter(ctx)
 

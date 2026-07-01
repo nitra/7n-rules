@@ -24,7 +24,7 @@ const TRIGGER_REASONS = new Set([STRYKER_CONFIG_MISSING, STRYKER_VUE_AUGMENT, GI
 
 /**
  * Виконує одну BaselineAction: copy as-is або string-replace baseline-тексту.
- * @param {import('./main.mjs').StrykerPlan['baselineActions'][number]} a
+ * @param {import('./main.mjs').StrykerPlan['baselineActions'][number]} a одна baseline-дія (copy або string-replace).
  * @returns {Promise<void>}
  */
 async function writeBaseline(a) {

@@ -11,12 +11,12 @@ import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { getBronzeAndAbove, isSpdxAllowed } from '../../../scripts/lib/blue-oak.mjs'
 
 /**
- * @param {string} label
- * @param {string} cmd
- * @param {string[]} args
- * @param {string} cwd
- * @param {(msg: string, reason: string) => void} fail
- * @param {string} reason
+ * @param {string} label назва кроку.
+ * @param {string} cmd команда для запуску.
+ * @param {string[]} args аргументи команди.
+ * @param {string} cwd робочий каталог.
+ * @param {(msg: string, reason: string) => void} fail колбек реєстрації порушення.
+ * @param {string} reason машиночитна причина порушення.
  * @returns {boolean} true якщо OK
  */
 function runTool(label, cmd, args, cwd, fail, reason) {
@@ -30,9 +30,9 @@ function runTool(label, cmd, args, cwd, fail, reason) {
 }
 
 /**
- * @param {string} uv
- * @param {string} tool
- * @returns {boolean}
+ * @param {string} uv шлях до бінарника uv.
+ * @param {string} tool ім'я інструменту в uv-середовищі.
+ * @returns {boolean} true якщо інструмент доступний
  */
 function uvToolAvailable(uv, tool) {
   const r = spawnSync(uv, ['run', '--frozen', tool, '--version'], { stdio: 'ignore', shell: false })
@@ -41,9 +41,9 @@ function uvToolAvailable(uv, tool) {
 
 /**
  * Перевірка ліцензій залежностей через pip-licenses (read-only).
- * @param {string} uv
- * @param {string} cwd
- * @param {(msg: string, reason: string) => void} fail
+ * @param {string} uv шлях до бінарника uv.
+ * @param {string} cwd робочий каталог.
+ * @param {(msg: string, reason: string) => void} fail колбек реєстрації порушення.
  * @returns {boolean} true якщо OK / пропущено
  */
 function checkPipLicenses(uv, cwd, fail) {
@@ -87,8 +87,8 @@ function checkPipLicenses(uv, cwd, fail) {
 
 /**
  * Detector python/check (read-only).
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат із порушеннями
  */
 export function lint(ctx) {
   const reporter = createViolationReporter(ctx)
@@ -110,11 +110,11 @@ export function lint(ctx) {
   if (!runTool('uv sync --frozen', uv, ['sync', '--frozen'], cwd, fail, 'uv-sync-violation')) return reporter.result()
 
   /**
-   * @param {string} tool
-   * @param {string} label
-   * @param {string[]} args
-   * @param {string} reason
-   * @returns {boolean}
+   * @param {string} tool ім'я інструменту в uv-середовищі.
+   * @param {string} label назва кроку.
+   * @param {string[]} args аргументи інструменту.
+   * @param {string} reason машиночитна причина порушення.
+   * @returns {boolean} true якщо OK / пропущено
    */
   function runOptionalUvTool(tool, label, args, reason) {
     if (!uvToolAvailable(uv, tool)) return true // недоступний у uv-середовищі → пропущено

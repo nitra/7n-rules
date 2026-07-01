@@ -7,8 +7,8 @@
  */
 
 /**
- * @param {LintViolation} v
- * @returns {string}
+ * @param {LintViolation} v порушення для форматування у рядок.
+ * @returns {string} відформатований рядок порушення.
  */
 function formatViolation(v) {
   const mark = v.severity === 'warn' ? '⚠' : '❌'
@@ -18,8 +18,8 @@ function formatViolation(v) {
 
 /**
  * Рендерить порушення згруповані за concern-ом. Повертає текст (не друкує сам).
- * @param {LintViolation[]} violations
- * @returns {string}
+ * @param {LintViolation[]} violations перелік порушень для рендеру.
+ * @returns {string} згрупований текст порушень (порожній рядок, якщо їх немає).
  */
 export function renderViolations(violations) {
   if (violations.length === 0) return ''
@@ -41,8 +41,8 @@ export function renderViolations(violations) {
 
 /**
  * Рендерить diagnostics (тех. інфа) — лише у verbose.
- * @param {LintDiagnostic[]} diagnostics
- * @returns {string}
+ * @param {LintDiagnostic[]} diagnostics перелік diagnostics для рендеру.
+ * @returns {string} текст diagnostics (порожній рядок, якщо їх немає).
  */
 export function renderDiagnostics(diagnostics) {
   if (diagnostics.length === 0) return ''
@@ -52,8 +52,8 @@ export function renderDiagnostics(diagnostics) {
 /**
  * Похідна exit-code семантика від фінального набору порушень.
  * 0 = немає; 1 = є; 2 — окремо для DetectorError (тут не обробляється).
- * @param {LintViolation[]} violations
- * @returns {0|1}
+ * @param {LintViolation[]} violations фінальний набір порушень.
+ * @returns {0|1} exit-code: 0 без порушень, 1 за наявності.
  */
 export function exitCodeFor(violations) {
   return violations.length > 0 ? 1 : 0

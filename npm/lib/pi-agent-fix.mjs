@@ -18,6 +18,8 @@
  * Pi вантажиться lazy (тверда межа CI). Логіка інжектована через `deps` для unit-тестів.
  */
 
+import { setTimeout as sleep } from 'node:timers/promises'
+
 import { env } from 'node:process'
 import { homedir } from 'node:os'
 import { resolve } from 'node:path'
@@ -29,10 +31,15 @@ import { extractContext } from '../scripts/utils/ast-extract.mjs'
 /** Аварійна стеля turns на одну сесію (runaway-backstop §4+5). Override: `N_CURSOR_FIX_TURN_CEILING`. */
 const TURN_CEILING = Number(env.N_CURSOR_FIX_TURN_CEILING) || 50
 
+/** No-op rollback для fail-шляхів, коли сесія ще не створена. */
+function noop() {
+  /* навмисно порожньо: нема чого відкочувати */
+}
+
 /**
  * Будує fix-промпт для рунга: правило + порушення + (опц.) feedback попереднього провалу
  * + інструкція «ast_facts перед edit, self_check після».
- * @param {{ ruleId: string, violation: string, ruleText?: string, feedback?: object }} args
+ * @param {{ ruleId: string, violation: string, ruleText?: string, feedback?: object }} args параметри промпта.
  * @returns {string} промпт
  */
 export function buildFixPrompt({ ruleId, violation, ruleText, feedback }) {
@@ -50,25 +57,44 @@ export function buildFixPrompt({ ruleId, violation, ruleText, feedback }) {
   return parts.join('\n\n')
 }
 
-/** Гонка з таймаутом; на таймаут кличе `onTimeout` (abort) і реджектить. */
+/**
+ * Гонка з таймаутом; на таймаут кличе `onTimeout` (abort) і реджектить.
+ * @param {Promise<unknown>} promise проміс, який чекаємо.
+ * @param {number} ms ліміт у мілісекундах (≤ 0 → без таймауту).
+ * @param {(() => void)} [onTimeout] колбек, що викликається на таймаут (abort).
+ * @returns {Promise<unknown>} результат `promise` або reject із timeout-помилкою.
+ */
 async function withTimeout(promise, ms, onTimeout) {
   if (!ms || ms <= 0) return promise
-  let timer
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => {
-      onTimeout?.()
-      reject(new Error(`fix timeout ${ms}ms`))
-    }, ms)
-  })
+  const controller = new AbortController()
+  // Таймер-гілка чекає sleep і кидає timeout-помилку. У finally abort скасовує sleep;
+  // його AbortError свідомо ковтаємо (isTimeout), щоб не спливти unhandled після
+  // того, як race уже виграв основний promise.
+  let isTimeout = false
+  const timeout = (async () => {
+    await sleep(ms, null, { signal: controller.signal })
+    isTimeout = true
+    onTimeout?.()
+    throw new Error(`fix timeout ${ms}ms`)
+  })()
   try {
     return await Promise.race([Promise.resolve(promise), timeout])
   } finally {
-    clearTimeout(timer)
+    controller.abort()
+    if (!isTimeout) {
+      try {
+        await timeout
+      } catch {
+        // очікувано: AbortError скасованого sleep-таймера — не помилка виклику
+      }
+    }
   }
 }
 
 /**
  * Дефолтна фабрика pi-сесії: loader із write-guard, custom-tools ast_facts+self_check.
+ * @param {{ registry: object, model: object, thinkingLevel?: string, cwd: string,
+ *   factory: Function, astContext: Function, selfCheck: Function }} args параметри сесії.
  * @returns {Promise<object>} pi AgentSession
  */
 async function defaultCreateSession({ registry, model, thinkingLevel, cwd, factory, astContext, selfCheck }) {
@@ -93,7 +119,7 @@ async function defaultCreateSession({ registry, model, thinkingLevel, cwd, facto
       properties: { path: { type: 'string', description: 'file path' } },
       required: ['path']
     },
-    execute: async (_id, { path }) => ({
+    execute: (_id, { path }) => ({
       content: [{ type: 'text', text: JSON.stringify(astContext(path)) }],
       details: {}
     })
@@ -132,8 +158,8 @@ async function defaultCreateSession({ registry, model, thinkingLevel, cwd, facto
  *   model: string, tier?: string, feedback?: object, caller?: string, timeoutMs?: number, ruleText?: string,
  *   deps?: { createSession?: Function, getRegistry?: Function, registry?: object, root?: string|null,
  *            astContext?: Function, selfCheck?: Function, trace?: Function, clock?: () => number }
- * }} opts
- * @returns {Promise<{ applied: boolean, touchedFiles: string[], telemetry: object|null, error: string|null, rollback: () => void }>}
+ * }} opts опції fix-спроби (модель, тир, feedback, таймаут, ін'єкції для тестів).
+ * @returns {Promise<{ applied: boolean, touchedFiles: string[], telemetry: object|null, error: string|null, rollback: () => void }>} результат fix-спроби.
  */
 export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
   const { model: modelSpec, tier = null, feedback, caller = `fix:${ruleId}`, timeoutMs, ruleText, deps = {} } = opts
@@ -142,8 +168,7 @@ export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
   const trace = deps.trace ?? writeTrace
   const clock = deps.clock ?? (() => Date.now())
   const astContext = deps.astContext ?? (p => extractContext(resolve(cwd, p)))
-  const selfCheck = deps.selfCheck ?? (async () => ({ ok: false, output: 'self_check недоступний' }))
-  const noop = () => {}
+  const selfCheck = deps.selfCheck ?? (() => ({ ok: false, output: 'self_check недоступний' }))
 
   const fail = error => {
     trace({ caller, backend: 'pi-ai', kind: 'agent', rule: ruleId, rung: tier, model: modelSpec, cwd, error })
@@ -160,8 +185,8 @@ export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
     registry = deps.registry ?? (await getReg())
     model = resolveModelSpec(registry, modelSpec)
     if (!model) return fail(`модель не знайдена: ${modelSpec}`)
-  } catch (e) {
-    return fail(`registry: ${e.message}`)
+  } catch (error) {
+    return fail(`registry: ${error.message}`)
   }
 
   // onCapture — bridge у central rollback unified lint surface (ctx.recordWrite).
@@ -177,8 +202,8 @@ export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
       astContext,
       selfCheck
     })
-  } catch (e) {
-    return fail(`session: ${e.message}`)
+  } catch (error) {
+    return fail(`session: ${error.message}`)
   }
 
   // §12 fail-closed canary: guard мусив приєднатись через loader.
@@ -191,7 +216,7 @@ export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
   let backstopHit = false
   session.subscribe(event => {
     switch (event.type) {
-      case 'turn_start':
+      case 'turn_start': {
         turnCount++
         turns.push({ i: turnCount, toolCalls: [], usage: null, finish: null })
         if (turnCount > TURN_CEILING) {
@@ -199,12 +224,15 @@ export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
           session.abort?.()
         }
         break
-      case 'tool_execution_start':
+      }
+      case 'tool_execution_start': {
         toolCallCount++
         break
-      case 'tool_execution_end':
+      }
+      case 'tool_execution_end': {
         turns.at(-1)?.toolCalls.push({ name: event.toolName, status: event.isError ? 'error' : 'ok' })
         break
+      }
       case 'message_end': {
         const t = turns.at(-1)
         if (t && event.message?.usage) {
@@ -213,8 +241,9 @@ export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
         }
         break
       }
-      default:
+      default: {
         break
+      }
     }
   })
 
@@ -223,8 +252,8 @@ export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
   let error = null
   try {
     await withTimeout(session.prompt(fixPrompt), timeoutMs, () => session.abort?.())
-  } catch (e) {
-    error = e.message
+  } catch (promptError) {
+    error = promptError.message
   }
 
   const touchedFiles = guard.touchedFiles()

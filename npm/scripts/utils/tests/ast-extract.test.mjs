@@ -7,6 +7,8 @@
 import { describe, expect, test } from 'vitest'
 import { extractContext, extractContextFromSource } from '../ast-extract.mjs'
 
+const RE_READ_FAILED = /read failed/
+
 describe('extractContextFromSource', () => {
   test('imports із джерелом і локальними іменами', () => {
     const src = `import { readFileSync, writeFileSync } from 'node:fs'
@@ -65,7 +67,7 @@ export { a, b }`
 describe('extractContext (file IO)', () => {
   test('неіснуючий файл → empty з read error (не кидає)', () => {
     const r = extractContext('/nonexistent/path/nope.mjs')
-    expect(r.error).toMatch(/read failed/)
+    expect(r.error).toMatch(RE_READ_FAILED)
     expect(r.topLevelFunctions).toEqual([])
   })
 })

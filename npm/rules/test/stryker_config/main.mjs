@@ -94,7 +94,7 @@ async function hasVueFiles(jsRoot) {
  * T0; detector лише планує. `transformKey` — необов'язковий маркер, який трансформ
  * застосувати до тексту baseline (T0 мапить ключ на функцію); `null` = copy as-is.
  * @typedef {object} BaselineAction
- * @property {'baseline'} kind
+ * @property {'baseline'} kind дискримінатор виду дії (завжди `'baseline'`).
  * @property {string} baselinePath абсолютний шлях canonical baseline
  * @property {string} target абсолютний шлях, куди писати
  * @property {string} label людиночитна мітка
@@ -370,7 +370,7 @@ async function missingGitignoreEntries(cwd) {
  * Чистий планувальник (read-only): обчислює всі потрібні зміни для stryker_config
  * без жодного запису. Спільний для detector-а (→ violations) і T0-fix (→ writes).
  * @param {string} cwd корінь репо
- * @returns {Promise<StrykerPlan>}
+ * @returns {Promise<StrykerPlan>} план змін (baseline/augment/gitignore) без запису.
  */
 export async function planStrykerActions(cwd) {
   /** @type {StrykerPlan} */
@@ -434,8 +434,9 @@ export async function planStrykerActions(cwd) {
 }
 
 /**
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * Виконує планувальник і транслює план у pass/fail-звіт лінту.
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту (cwd, репортер).
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат перевірки з pass/fail.
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

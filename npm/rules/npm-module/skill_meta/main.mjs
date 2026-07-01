@@ -70,8 +70,8 @@ function checkSkill(id, skillDir, reporter) {
 
 /**
  * Валідує всі `npm/skills/<id>/meta.json`.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат перевірки з порушеннями.
  */
 export function lint(ctx) {
   const cwd = ctx.cwd

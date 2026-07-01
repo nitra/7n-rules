@@ -18,8 +18,10 @@ import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
  * @param {string} dir корінь тимчасового проєкту
  * @returns {Promise<number>} кількість LintViolation
  */
-const check = async dir =>
-  (await lint({ cwd: dir, ruleId: 'js', concernId: 'utils_imports', files: undefined })).violations.length
+const check = async dir => {
+  const result = await lint({ cwd: dir, ruleId: 'js', concernId: 'utils_imports', files: undefined })
+  return result.violations.length
+}
 
 describe('utils_imports.check', () => {
   test('без utils-каталогів → exit 0 (перевірку пропущено)', async () => {

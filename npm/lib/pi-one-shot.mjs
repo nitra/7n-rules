@@ -14,6 +14,8 @@
  * (тверда межа CI). Повертає structured `{ content, usage, error, model, caller }`.
  */
 
+import { setTimeout as sleep } from 'node:timers/promises'
+
 import { getRegistry, resolveModel, resolveModelSpec } from './pi-model-tiers.mjs'
 import { writeTrace } from './pi-trace.mjs'
 
@@ -26,6 +28,11 @@ const DEFAULT_TIMEOUT_MS = 120_000
  * трактують system-prompt-інструкції як «правила для підтвердження» й мета-рамблять
  * замість виконувати. Тому system-повідомлення зливаються у prompt (див. runOneShot) —
  * перевірено: інлайн-інструкції модель ВИКОНУЄ, у system-промпті — переказує.
+ * @param {object} args параметри створення сесії
+ * @param {object} args.registry ModelRegistry pi
+ * @param {object|null} args.model розвʼязана модель (spec → об'єкт)
+ * @param {string} [args.cwd] робочий каталог сесії
+ * @param {string} [args.thinkingLevel] рівень thinking (дефолт 'off')
  * @returns {Promise<object>} pi AgentSession
  */
 async function defaultCreateSession({ registry, model, cwd, thinkingLevel }) {
@@ -41,17 +48,35 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel }) {
   return session
 }
 
-/** Гонка проміса з таймаутом (мс ≤ 0 → без таймауту). */
+/**
+ * Гонка проміса з таймаутом (мс ≤ 0 → без таймауту).
+ * @param {Promise<unknown>} promise проміс, який чекаємо
+ * @param {number} ms ліміт у мілісекундах (≤ 0 → без таймауту)
+ * @returns {Promise<unknown>} результат `promise` або reject із timeout-помилкою
+ */
 async function withTimeout(promise, ms) {
   if (!ms || ms <= 0) return promise
-  let timer
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`one-shot timeout ${ms}ms`)), ms)
-  })
+  const controller = new AbortController()
+  // Таймер-гілка чекає sleep і кидає timeout-помилку. У finally abort скасовує sleep;
+  // його AbortError свідомо ковтаємо (isTimeout), щоб не спливти unhandled після
+  // того, як race уже виграв основний promise.
+  let isTimeout = false
+  const timeout = (async () => {
+    await sleep(ms, null, { signal: controller.signal })
+    isTimeout = true
+    throw new Error(`one-shot timeout ${ms}ms`)
+  })()
   try {
     return await Promise.race([Promise.resolve(promise), timeout])
   } finally {
-    clearTimeout(timer)
+    controller.abort()
+    if (!isTimeout) {
+      try {
+        await timeout
+      } catch {
+        // очікувано: AbortError скасованого sleep-таймера — не помилка виклику
+      }
+    }
   }
 }
 
@@ -100,15 +125,15 @@ export async function runOneShot({
     spec = modelSpec ?? resolveModel(modelTier)
     model = spec ? resolveModelSpec(registry, spec) : null
     if (spec && !model) return fail(`модель не знайдена: ${spec}`, spec)
-  } catch (e) {
-    return fail(`registry: ${e.message}`, null)
+  } catch (error) {
+    return fail(`registry: ${error.message}`, null)
   }
 
   let session
   try {
     session = await createSession({ registry, model, cwd, thinkingLevel })
-  } catch (e) {
-    return fail(`session: ${e.message}`, spec)
+  } catch (error) {
+    return fail(`session: ${error.message}`, spec)
   }
 
   let text = ''
@@ -121,13 +146,13 @@ export async function runOneShot({
     }
   })
 
-  let error = null
+  let promptError = null
   try {
     await withTimeout(session.prompt(userText), timeoutMs)
-  } catch (e) {
-    error = e.message
+  } catch (error) {
+    promptError = error.message
   }
 
-  trace({ caller, backend: 'pi-ai', kind: 'one-shot', model: spec, cwd: cwd ?? null, usage, error })
-  return { content: text.trim(), usage, error, model: spec, caller }
+  trace({ caller, backend: 'pi-ai', kind: 'one-shot', model: spec, cwd: cwd ?? null, usage, error: promptError })
+  return { content: text.trim(), usage, error: promptError, model: spec, caller }
 }

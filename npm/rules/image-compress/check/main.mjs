@@ -11,7 +11,7 @@ const JSON_MAX_BUFFER = 20 * 1024 * 1024
 
 /**
  * @param {string} stdout stdout
- * @returns {{ summary?: { needsCompression?: unknown, total?: unknown } }}
+ * @returns {{ summary?: { needsCompression?: unknown, total?: unknown } }} розпарсений JSON `--json`
  */
 function parseMinifyJson(stdout) {
   return JSON.parse(stdout)
@@ -19,8 +19,8 @@ function parseMinifyJson(stdout) {
 
 /**
  * Detector image-compress/check: @nitra/minify-image --json (read-only).
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат detector-а
  */
 export function lint(ctx) {
   const reporter = createViolationReporter(ctx)

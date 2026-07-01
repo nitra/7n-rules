@@ -16,9 +16,9 @@ import { pathToFileURL } from 'node:url'
  */
 export class DetectorError extends Error {
   /**
-   * @param {string} ruleId
-   * @param {string} concernId
-   * @param {string} detail
+   * @param {string} ruleId id правила, у контексті якого стався збій
+   * @param {string} concernId id concern-а, у контексті якого стався збій
+   * @param {string} detail деталізація причини збою для повідомлення
    */
   constructor(ruleId, concernId, detail) {
     super(`detector ${ruleId}/${concernId}: ${detail}`)
@@ -30,9 +30,9 @@ export class DetectorError extends Error {
 
 /**
  * Нормалізує одне порушення: домішує ruleId/concernId з ctx, валідує file-path.
- * @param {unknown} raw
- * @param {LintContext} ctx
- * @returns {LintViolation}
+ * @param {unknown} raw сире порушення від detector-а
+ * @param {LintContext} ctx контекст лінту (джерело ruleId/concernId)
+ * @returns {LintViolation} нормалізоване порушення
  */
 function normalizeViolation(raw, ctx) {
   if (typeof raw !== 'object' || raw === null) {
@@ -73,9 +73,9 @@ function normalizeViolation(raw, ctx) {
 
 /**
  * Нормалізує сирий результат detector-а.
- * @param {unknown} raw
- * @param {LintContext} ctx
- * @returns {LintResult}
+ * @param {unknown} raw сирий результат виклику lint()
+ * @param {LintContext} ctx контекст лінту (джерело ruleId/concernId)
+ * @returns {LintResult} нормалізований результат із violations (і diagnostics)
  */
 function normalizeResult(raw, ctx) {
   if (typeof raw !== 'object' || raw === null || !Array.isArray(/** @type {any} */ (raw).violations)) {
@@ -99,9 +99,9 @@ function normalizeResult(raw, ctx) {
 /**
  * Запускає detector одного concern-а. Завантажує `main.mjs`, викликає `lint(ctx)`,
  * нормалізує результат. Кидає `DetectorError` при будь-якій аномалії (→ exit 2).
- * @param {ConcernMeta} concern
- * @param {LintContext} ctx
- * @returns {Promise<LintResult>}
+ * @param {ConcernMeta} concern метадані concern-а, чий detector запускаємо
+ * @param {LintContext} ctx контекст лінту, що передається у lint()
+ * @returns {Promise<LintResult>} нормалізований результат detector-а
  */
 export async function runConcernDetector(concern, ctx) {
   const mainPath = join(concern.dir, 'main.mjs')
@@ -113,8 +113,8 @@ export async function runConcernDetector(concern, ctx) {
     // file:// URL — інакше відносний шлях трактується як bare package specifier
     // eslint-disable-next-line no-unsanitized/method
     mod = await import(pathToFileURL(mainPath).href)
-  } catch (err) {
-    throw new DetectorError(ctx.ruleId, ctx.concernId, `import впав: ${err.message}`)
+  } catch (error) {
+    throw new DetectorError(ctx.ruleId, ctx.concernId, `import впав: ${error.message}`)
   }
   if (typeof mod.lint !== 'function') {
     throw new DetectorError(ctx.ruleId, ctx.concernId, 'main.mjs не експортує lint(ctx)')
@@ -122,8 +122,8 @@ export async function runConcernDetector(concern, ctx) {
   let raw
   try {
     raw = await mod.lint(ctx)
-  } catch (err) {
-    throw new DetectorError(ctx.ruleId, ctx.concernId, `lint() кинув: ${err.message}`)
+  } catch (error) {
+    throw new DetectorError(ctx.ruleId, ctx.concernId, `lint() кинув: ${error.message}`)
   }
   return normalizeResult(raw, ctx)
 }

@@ -1,6 +1,6 @@
 /** @see ./docs/manifests.md */
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
+import { readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, relative, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -210,6 +210,7 @@ function stripTrailingNewlines(s) {
 const BATCH_V1BETA1_API_VERSION_LINE_RE = /^(\s*apiVersion:\s*)["']?batch\/v1beta1["']?(\s*)$/u
 const GATEWAY_HTTPROUTE_V1BETA1_LINE_RE = /^(\s*apiVersion:\s*)["']?gateway\.networking\.k8s\.io\/v1beta1["']?(\s*)$/u
 const GATEWAY_HTTPROUTE_SCHEMA_V1BETA1_RE = /\bhttproute_v1beta1\.json\b/gu
+const HTTPROUTE_KIND_LINE_RE = /^\s*kind:\s*HTTPRoute\s*$/
 
 /**
  * Чи містить шлях сегмент директорії `k8s` (рівно ця назва компонента).
@@ -1676,42 +1677,6 @@ export function classifyBackendConfigManifestPresence(body) {
 }
 
 /**
- * Видаляє під **`k8s`** YAML-файли, що містять **лише** ресурси **BackendConfig**; змішані файли — `fail`.
- * @param {string} root корінь репозиторію
- * @param {string[]} ignorePaths шляхи каталогів, повністю виключених з обходу
- * @param {(msg: string) => void} fail реєстрація порушення
- * @param {(msg: string) => void} pass реєстрація успіху
- * @returns {Promise<void>} результат
- */
-async function removeBackendConfigOnlyK8sYamlFiles(root, ignorePaths, fail, pass) {
-  const yamlFiles = await findK8sYamlFiles(root, ignorePaths)
-  for (const abs of yamlFiles) {
-    const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
-    try {
-      const raw = await readFile(abs, 'utf8')
-      const lines = toLines(raw)
-      const body = k8sYamlBodyForDocumentParse(lines)
-      const bcPresence = classifyBackendConfigManifestPresence(body)
-
-      if (bcPresence === 'mixed') {
-        fail(
-          `${rel}: у файлі разом BackendConfig та інші kind — винеси BackendConfig окремо або прибери вручну; автоматичне видалення не застосовується (див. k8s.mdc)`
-        )
-      } else if (bcPresence === 'only') {
-        try {
-          await unlink(abs)
-          pass(`${rel}: видалено (лише kind: BackendConfig; див. k8s.mdc)`)
-        } catch (error) {
-          fail(`${rel}: не вдалося видалити BackendConfig-файл (${error.message})`)
-        }
-      }
-    } catch (error) {
-      fail(`${rel}: не вдалося прочитати для перевірки BackendConfig (${error.message})`)
-    }
-  }
-}
-
-/**
  * Один рядок YAML: якщо це `apiVersion` зі значенням **`batch/v1beta1`**, повертає той самий рядок із **`batch/v1`**
  * (з тими самими відступами/пробілами після `apiVersion:`, крім випадків з лапками — нормалізується до `apiVersion: batch/v1`).
  * Рядки, що після trim починаються з `#`, не змінюються.
@@ -1821,7 +1786,7 @@ async function detectGatewayHttpRouteV1beta1InK8sYamlFiles(yamlFiles, root, fail
     }
     if (!GATEWAY_HTTPROUTE_V1BETA1_LINE_RE.test(raw)) continue
     const body = raw.startsWith('﻿') ? raw.slice(1) : raw
-    const hasHttpRouteKind = body.split(YAML_LINE_SPLIT_RE).some(l => /^\s*kind:\s*HTTPRoute\s*$/.test(l))
+    const hasHttpRouteKind = body.split(YAML_LINE_SPLIT_RE).some(l => HTTPROUTE_KIND_LINE_RE.test(l))
     if (!hasHttpRouteKind) continue
     fail(
       `${rel}: apiVersion: gateway.networking.k8s.io/v1beta1 заборонено для HTTPRoute — оновіть до gateway.networking.k8s.io/v1 (k8s.mdc)`,
@@ -6345,59 +6310,6 @@ function stripYamlLanguageServerModeline(yamlText) {
 }
 
 /**
- * Імена NetworkPolicy, уже присутні у файлі.
- * @param {string} npAbs абсолютний шлях до `networkpolicy.yaml`
- * @returns {Promise<Set<string>>} результат
- */
-async function existingNetworkPolicyNames(npAbs) {
-  if (!existsSync(npAbs)) return new Set()
-  const docs = await readAllDocsByKindFromFile(npAbs, 'NetworkPolicy')
-  /**
-  @type {Set<string>}
-   */
-  const names = new Set()
-  for (const doc of docs) {
-    const n = manifestMetadataName(doc)
-    if (n !== null) names.add(n)
-  }
-  return names
-}
-
-/**
- * Дописує відсутні NetworkPolicy-документи у `networkpolicy.yaml` (multi-doc через `---`).
- * Перед побудовою YAML для кожного workload викликає `collectHttpRouteIngressForWorkload`,
- * щоб додати GCLB-aware ingress-правило, якщо в каталозі є paired HTTPRoute (k8s.mdc).
- * @param {string} npAbs абсолютний шлях до файлу
- * @param {Array<{ name: string, appLabel: string, kind: string }>} toAdd workload-и без NP
- * @param {string} npRel відносний шлях для повідомлень
- * @param {(msg: string) => void} fail callback при read/parse-помилках HTTPRoute/Service
- * @param {(msg: string) => void} passFn callback при успіху
- * @returns {Promise<void>} результат
- */
-async function appendNetworkPolicyDocuments(npAbs, toAdd, npRel, fail, passFn) {
-  if (toAdd.length === 0) return
-  let content = ''
-  if (existsSync(npAbs)) {
-    const raw = await readFile(npAbs, 'utf8')
-    content = raw.trimEnd()
-  }
-  const dir = dirname(npAbs)
-  const blocks = []
-  for (const [i, { name, appLabel, kind }] of toAdd.entries()) {
-    const gclb = await collectHttpRouteIngressForWorkload(dir, appLabel, fail)
-    const gclbPorts = gclb === null ? undefined : gclb.ports
-    const block = buildNetworkPolicyYaml(name, appLabel, kind, gclbPorts)
-    blocks.push(i === 0 && content === '' ? block.trimEnd() : stripYamlLanguageServerModeline(block).trimEnd())
-  }
-  const joined = blocks.join('\n---\n')
-  content = content === '' ? `${joined}\n` : `${content}\n---\n${joined}\n`
-  await writeFile(npAbs, content, 'utf8')
-  for (const { name, kind } of toAdd) {
-    passFn(`${npRel}: додано NetworkPolicy для ${kind} '${name}' (k8s.mdc)`)
-  }
-}
-
-/**
  * Перевіряє, чи `spec.egress` містить in-cluster rule з порожнім namespaceSelector БЕЗ ports
  * (legacy catch-all — заборонено новим каноном k8s.mdc).
  * @param {unknown} doc розпарсений NetworkPolicy-документ
@@ -6525,24 +6437,32 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail) {
  * @param {string} ns rego-namespace (`k8s.manifest`, `k8s.network_policy`, `k8s.kustomization`)
  * @param {string} file posix-relative шлях від cwd
  * @param {unknown} message текст rego-violation
- * @returns {{ reason: string, file: string, data: { kind: string } } | undefined}
+ * @returns {{ reason: string, file: string, data: { kind: string } } | undefined} fix-hint для T0 або undefined.
  */
+// Module-scope (prefer-static-regex): патерни класифікації rego-повідомлень.
+const REGO_HINT_DEPLOYMENT_STRATEGY_RE = /spec\.strategy має бути RollingUpdate/u
+const REGO_HINT_NETWORKPOLICY_EGRESS_RE = /відсутнє обовʼязкове egress-правило/u
+const REGO_HINT_KUSTOMIZATION_PATCHES_RE = /patches має бути за алфавітом/u
 function k8sRegoFixHint(ns, file, message) {
   const m = String(message ?? '')
-  if (ns === 'k8s.manifest' && /spec\.strategy має бути RollingUpdate/u.test(m)) {
+  if (ns === 'k8s.manifest' && REGO_HINT_DEPLOYMENT_STRATEGY_RE.test(m)) {
     return { reason: 'deployment-strategy', file, data: { kind: 'deployment-strategy' } }
   }
-  if (ns === 'k8s.network_policy' && /відсутнє обовʼязкове egress-правило/u.test(m)) {
+  if (ns === 'k8s.network_policy' && REGO_HINT_NETWORKPOLICY_EGRESS_RE.test(m)) {
     return { reason: 'networkpolicy-egress', file, data: { kind: 'networkpolicy-egress' } }
   }
-  if (ns === 'k8s.kustomization' && /patches має бути за алфавітом/u.test(m)) {
+  if (ns === 'k8s.kustomization' && REGO_HINT_KUSTOMIZATION_PATCHES_RE.test(m)) {
     return { reason: 'kustomization-patches-sort', file, data: { kind: 'kustomization-patches-sort' } }
   }
-  return undefined
+  // немає збігу — implicit undefined (без trailing return: no-redundant-jump + no-useless-undefined тихі)
 }
 
 /**
- *
+ * Прогоняє всі rego-полісі `npm/policy/k8s/*` батчами per-namespace над знайденими YAML.
+ * @param {string} root корінь репозиторію.
+ * @param {string[]} yamlFiles абсолютні шляхи *.yaml під `…/k8s/`.
+ * @param {(msg: string, hint?: unknown) => void} fail callback реєстрації порушення.
+ * @returns {void}
  */
 function runAllK8sRego(root, yamlFiles, fail) {
   const relOf = abs => relative(root, abs).replaceAll('\\', '/') || abs
@@ -6607,8 +6527,8 @@ function runAllK8sRego(root, yamlFiles, fail) {
  *     assertNoForbiddenK8sDevPaths, runAllK8sRego, checkK8sYamlFile-цикл та всі
  *     `validate*`. Мутуючі fix-кроки (rewrite/remove/autofix/ensure) ВИЛУЧЕНО —
  *     детектор не змінює репо; їх поведінка переходить у окрему fix-фазу (T0).
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту (cwd, репортер).
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат перевірки з pass/fail.
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
@@ -6680,7 +6600,9 @@ export async function lint(ctx) {
 // ─── Lint surface (kubeconform + kubescape) ───────────────────────────────────
 
 /**
- *
+ * Піднімається каталогами від файла, повертаючи найближчий предок з іменем `k8s`.
+ * @param {string} absFile абсолютний шлях до файла.
+ * @returns {string|null} абсолютний шлях до `k8s`-кореня або null.
  */
 export function k8sRootFromFile(absFile) {
   let dir = dirname(absFile)
@@ -6693,19 +6615,24 @@ export function k8sRootFromFile(absFile) {
   return null
 }
 
+// Module-scope (prefer-static-regex): розширення .yaml для findK8sRoots.
+const FIND_K8S_ROOTS_YAML_EXT_RE = /\.yaml$/iu
+
 /**
- *
+ * Обходить дерево від `root` і збирає унікальні `k8s`-корені з-під валідних *.yaml.
+ * @param {string} root корінь репозиторію.
+ * @param {string[]} [ignorePaths] шляхи каталогів, повністю виключених з обходу.
+ * @returns {Promise<string[]>} відсортований масив абсолютних шляхів `k8s`-коренів.
  */
 export async function findK8sRoots(root, ignorePaths = []) {
   const roots = new Set()
-  const YAML_EXT_RE_INNER = /\.yaml$/iu
   await walkDir(
     root,
     p => {
       const rel = relative(root, p).replaceAll('\\', '/')
       if (rel.startsWith('.github/')) return
       if (!pathHasK8sSegment(p, root)) return
-      if (!YAML_EXT_RE_INNER.test(p)) return
+      if (!FIND_K8S_ROOTS_YAML_EXT_RE.test(p)) return
       const k8sRoot = k8sRootFromFile(p)
       if (k8sRoot) roots.add(k8sRoot)
     },
@@ -6722,7 +6649,9 @@ const DATREE_CRD_SCHEMA_LOCATION =
   'https://datreeio.github.io/CRDs-catalog/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 
 /**
- *
+ * Прогоняє `kubeconform` по k8s-каталогах (read-only валідація схем).
+ * @param {string[]} dirs абсолютні шляхи k8s-коренів.
+ * @returns {number} exit-код процесу (127 якщо тул відсутній).
  */
 function runKubeconform(dirs) {
   const args = [
@@ -6746,7 +6675,9 @@ function runKubeconform(dirs) {
 }
 
 /**
- *
+ * Будує CLI-аргументи `--exceptions`, якщо в корені є `.kubescape-exceptions.json`.
+ * @param {string} root корінь репозиторію.
+ * @returns {string[]} масив аргументів (порожній, якщо файла винятків немає).
  */
 export function buildKubescapeExceptionsArgs(root) {
   const exceptionsPath = join(root, KUBESCAPE_EXCEPTIONS_FILE)
@@ -6754,7 +6685,9 @@ export function buildKubescapeExceptionsArgs(root) {
 }
 
 /**
- *
+ * Знаходить каталоги з `kustomization.yaml` (окрім `kind: Component`) під `dir`.
+ * @param {string} dir абсолютний шлях кореня обходу.
+ * @returns {Promise<string[]>} відсортований масив каталогів з kustomization.
  */
 export async function findKustomizationDirs(dir) {
   const candidates = []
@@ -6782,7 +6715,10 @@ export async function findKustomizationDirs(dir) {
 }
 
 /**
- *
+ * Виконує `kubectl kustomize <dir>`, захоплюючи stdout зібраного маніфеста.
+ * @param {string} kubectlPath шлях до бінарника kubectl.
+ * @param {string} dir каталог з kustomization.
+ * @returns {{ status: number, stdout: Buffer }} exit-код і зібраний YAML.
  */
 function runKustomizeBuild(kubectlPath, dir) {
   const r = spawnSync(kubectlPath, ['kustomize', dir], { stdio: ['ignore', 'pipe', 'inherit'], shell: false })
@@ -6790,7 +6726,11 @@ function runKustomizeBuild(kubectlPath, dir) {
 }
 
 /**
- *
+ * Сканує один зібраний маніфест через `kubescape scan` (пише у tmp-файл, чистить його).
+ * @param {string} kubescapePath шлях до бінарника kubescape.
+ * @param {string|Buffer} manifest вміст маніфеста для сканування.
+ * @param {string[]} exceptionsArgs додаткові CLI-аргументи (`--exceptions ...`).
+ * @returns {{ status: number, enoent: boolean }} exit-код і прапорець відсутнього тула.
  */
 function runKubescapeManifest(kubescapePath, manifest, exceptionsArgs) {
   const dir = mkdtempSync(join(tmpdir(), 'nitra-cursor-k8s-'))
@@ -6809,7 +6749,11 @@ function runKubescapeManifest(kubescapePath, manifest, exceptionsArgs) {
 }
 
 /**
- *
+ * Сканує сирий k8s-каталог (без kustomization) через `kubescape scan <dir>`.
+ * @param {string} kubescapePath шлях до бінарника kubescape.
+ * @param {string} dir каталог для сканування.
+ * @param {string[]} exceptionsArgs додаткові CLI-аргументи (`--exceptions ...`).
+ * @returns {number} exit-код (127 якщо тул відсутній).
  */
 function scanRawK8sDir(kubescapePath, dir, exceptionsArgs) {
   console.log(`run-k8s: kubescape scan ${dir} (без kustomization — сирий dir-скан)`)
@@ -6825,7 +6769,12 @@ function scanRawK8sDir(kubescapePath, dir, exceptionsArgs) {
 }
 
 /**
- *
+ * Для кожного kustomization-каталогу: `kubectl kustomize` → `kubescape scan`; перший ненульовий код перериває.
+ * @param {string} kubectlPath шлях до бінарника kubectl.
+ * @param {string} kubescapePath шлях до бінарника kubescape.
+ * @param {string[]} kdirs каталоги з kustomization.
+ * @param {string[]} exceptionsArgs додаткові CLI-аргументи (`--exceptions ...`).
+ * @returns {number} 0 якщо всі чисті, інакше перший ненульовий exit-код (127 — тул відсутній).
  */
 function scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exceptionsArgs) {
   for (const kdir of kdirs) {
@@ -6843,7 +6792,10 @@ function scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exceptionsArgs)
 }
 
 /**
- *
+ * Оркеструє kubescape-скан по k8s-коренях: kustomize-каталоги збираються, решта — сирий скан.
+ * @param {string[]} dirs абсолютні шляхи k8s-коренів.
+ * @param {string} root корінь репозиторію (для файла винятків).
+ * @returns {Promise<number>} 0 якщо все чисто, інакше перший ненульовий exit-код (127 — тул відсутній).
  */
 async function runKubescape(dirs, root) {
   const exceptionsArgs = buildKubescapeExceptionsArgs(root)

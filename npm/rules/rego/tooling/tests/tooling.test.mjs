@@ -18,20 +18,23 @@ describe('check rego.tooling', () => {
         join(dir, '.regal', 'config.yaml'),
         'rules:\n  idiomatic:\n    no-defined-entrypoint:\n      level: ignore\n'
       )
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 
   test('порушення: .regal/config.yaml відсутній → violation', async () => {
     await withTmpDir(async dir => {
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const result = await run(dir)
+      expect(result.violations.length).toBeGreaterThan(0)
     })
   })
 
   test('порушення: є .regal/ без config.yaml → violation', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, '.regal'), { recursive: true })
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const result = await run(dir)
+      expect(result.violations.length).toBeGreaterThan(0)
     })
   })
 })

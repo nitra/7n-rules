@@ -9,6 +9,18 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { parseModelId, resolveModelSpec, thinkingLevelForTier } from '../pi-model-tiers.mjs'
 
+/**
+ * Ізольований re-import pi-model-tiers зі свіжими env-стабами.
+ * @param {Record<string, string>} envVars env-змінні для stubEnv перед імпортом
+ * @returns {Promise<Function>} свіжа resolveModel із перечитаного модуля
+ */
+async function freshResolveModel(envVars) {
+  vi.resetModules()
+  for (const [k, v] of Object.entries(envVars)) vi.stubEnv(k, v)
+  const mod = await import('../pi-model-tiers.mjs')
+  return mod.resolveModel
+}
+
 describe('parseModelId', () => {
   test('звичайна пара', () => {
     expect(parseModelId('omlx/gemma-4-e4b-it-OptiQ-4bit')).toEqual({
@@ -59,7 +71,7 @@ describe('resolveModelSpec', () => {
   })
 
   test('registry не знайшов → null (а не undefined)', () => {
-    const registry = { find: vi.fn(() => undefined) }
+    const registry = { find: vi.fn() }
     expect(resolveModelSpec(registry, 'openai/gpt-5.4')).toBeNull()
   })
 })
@@ -69,15 +81,6 @@ describe('resolveModel (каскад, ізольований re-import з stubEn
     vi.unstubAllEnvs()
     vi.resetModules()
   })
-
-  /**
-   *
-   */
-  async function freshResolveModel(envVars) {
-    vi.resetModules()
-    for (const [k, v] of Object.entries(envVars)) vi.stubEnv(k, v)
-    return (await import('../pi-model-tiers.mjs')).resolveModel
-  }
 
   test('min: LOCAL_MIN має пріоритет', async () => {
     const resolveModel = await freshResolveModel({

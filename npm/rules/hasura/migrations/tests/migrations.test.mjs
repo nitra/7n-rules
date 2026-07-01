@@ -36,7 +36,8 @@ describe('check hasura.migrations', () => {
       await mkdir(migDir, { recursive: true })
       await writeFile(join(migDir, 'up.sql'), 'CREATE TABLE foo (id INT);\n')
       await writeFile(join(migDir, 'down.sql'), 'DROP TABLE foo;\n')
-      expect((await check(dir)).length).toBeGreaterThan(0)
+      const result = await check(dir)
+      expect(result.length).toBeGreaterThan(0)
     })
   })
 
@@ -48,7 +49,8 @@ describe('check hasura.migrations', () => {
         await writeFile(join(d, 'up.sql'), '-- up\n')
         await writeFile(join(d, 'down.sql'), '-- down\n')
       }
-      expect((await check(dir)).length).toBe(2)
+      const result = await check(dir)
+      expect(result.length).toBe(2)
     })
   })
 
@@ -57,7 +59,8 @@ describe('check hasura.migrations', () => {
       const deep = join(dir, 'hasura/migrations/other_db/1234_nested/sub')
       await mkdir(deep, { recursive: true })
       await writeFile(join(deep, 'down.sql'), '-- down\n')
-      expect((await check(dir)).length).toBeGreaterThan(0)
+      const result = await check(dir)
+      expect(result.length).toBeGreaterThan(0)
     })
   })
 

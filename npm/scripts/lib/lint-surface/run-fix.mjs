@@ -27,9 +27,9 @@ import { buildLadder, decideAfterFailure, DEFAULT_MAX_AVG } from './ladder.mjs'
 
 /**
  * Завантажує structured T0-патерни concern-а з `fix-<concern>.mjs`.
- * @param {string} concernDir
- * @param {string} concernName
- * @returns {Promise<T0Pattern[]>}
+ * @param {string} concernDir Директорія concern-а, де шукати fix-модуль.
+ * @param {string} concernName Ім'я concern-а для формування назви fix-файлу.
+ * @returns {Promise<T0Pattern[]>} Масив T0-патернів або порожній, якщо файл відсутній.
  */
 async function loadT0Patterns(concernDir, concernName) {
   const fixPath = join(concernDir, `fix-${concernName}.mjs`)
@@ -45,8 +45,8 @@ async function loadT0Patterns(concernDir, concernName) {
 
 /**
  * Резолвить fix-worker concern-а з `fix-worker.mjs` (експорт `fixWorker`).
- * @param {string} concernDir
- * @returns {Promise<import('./types.mjs').FixWorkerFn|null>}
+ * @param {string} concernDir Директорія concern-а, де шукати fix-worker.mjs.
+ * @returns {Promise<import('./types.mjs').FixWorkerFn|null>} Функція-worker або null, якщо відсутня.
  */
 async function loadFixWorker(concernDir) {
   const workerPath = join(concernDir, 'fix-worker.mjs')
@@ -62,11 +62,11 @@ async function loadFixWorker(concernDir) {
 
 /**
  * Застосовує T0-патерни (детерміновано, permanent — поза rollback).
- * @param {T0Pattern[]} patterns
- * @param {LintViolation[]} violations свого concern-а
- * @param {LintContext} ctx
- * @param {(s: string) => void} log
- * @returns {Promise<boolean>} чи щось застосовано
+ * @param {T0Pattern[]} patterns Список T0-патернів для перевірки й застосування.
+ * @param {LintViolation[]} violations Порушення свого concern-а.
+ * @param {LintContext} ctx Контекст лінту (cwd, ruleId, concernId тощо).
+ * @param {(s: string) => void} log Логер для повідомлень про застосовані патерни.
+ * @returns {Promise<boolean>} Чи було застосовано хоча б один патерн.
  */
 async function applyT0(patterns, violations, ctx, log) {
   let applied = false
@@ -83,9 +83,9 @@ async function applyT0(patterns, violations, ctx, log) {
 
 /**
  * Re-detect одного concern-а (canonical verdict). Кидає DetectorError → пробрасується.
- * @param {PlanItem} item
- * @param {string} cwd
- * @returns {Promise<LintViolation[]>}
+ * @param {PlanItem} item Елемент плану з entry та переліком файлів.
+ * @param {string} cwd Робоча директорія для запуску детектора.
+ * @returns {Promise<LintViolation[]>} Актуальні порушення concern-а після re-detect.
  */
 async function reDetect(item, cwd) {
   const ctx = { cwd, ruleId: item.entry.ruleId, concernId: item.entry.concern.name, files: item.files }
@@ -95,17 +95,17 @@ async function reDetect(item, cwd) {
 
 /**
  * Проводить ОДИН concern по pipeline: T0 → S1 → ladder. Повертає чи закрито.
- * @param {PlanItem} item
- * @param {LintViolation[]} initialViolations
- * @param {object} deps
- * @param {string} deps.cwd
- * @param {Rung[]} deps.ladder
- * @param {() => number} deps.avgRemaining
- * @param {(n: number) => void} deps.spendAvg
- * @param {import('./types.mjs').FixWorkerFn|null} [deps.workerOverride] для тестів
- * @param {T0Pattern[]} [deps.t0Override] для тестів
- * @param {(s: string) => void} deps.log
- * @returns {Promise<boolean>}
+ * @param {PlanItem} item Елемент плану з entry та переліком файлів.
+ * @param {LintViolation[]} initialViolations Початкові порушення concern-а до fix.
+ * @param {object} deps Залежності pipeline.
+ * @param {string} deps.cwd Робоча директорія.
+ * @param {Rung[]} deps.ladder Сходинки ladder-а (tier/model послідовність).
+ * @param {() => number} deps.avgRemaining Скільки avg-бюджету лишилось.
+ * @param {(n: number) => void} deps.spendAvg Списати n одиниць avg-бюджету.
+ * @param {import('./types.mjs').FixWorkerFn|null} [deps.workerOverride] Worker-override для тестів.
+ * @param {T0Pattern[]} [deps.t0Override] T0-патерни override для тестів.
+ * @param {(s: string) => void} deps.log Логер прогресу.
+ * @returns {Promise<boolean>} Чи закрито concern (усі порушення усунено).
  */
 export async function fixConcern(item, initialViolations, deps) {
   const { cwd, ladder, log } = deps
@@ -129,7 +129,10 @@ export async function fixConcern(item, initialViolations, deps) {
 
   // ── Worker ladder ── concern-specific fix-worker.mjs, інакше дефолтний pi-agent worker.
   let worker = deps.workerOverride ?? (await loadFixWorker(concernDir))
-  if (!worker) worker = (await import('./default-worker.mjs')).fixWorker
+  if (!worker) {
+    const defaultWorkerMod = await import('./default-worker.mjs')
+    worker = defaultWorkerMod.fixWorker
+  }
   if (!worker || ladder.length === 0) return false
 
   // S1: знімок post-T0. Один tracker акумулює pre-images; rollback цілить у S1.
@@ -160,8 +163,8 @@ export async function fixConcern(item, initialViolations, deps) {
     let error = null
     try {
       await worker(violations, fixCtx)
-    } catch (err) {
-      error = err.message
+    } catch (workerError) {
+      error = workerError.message
     }
     if (rung.isAvg) deps.spendAvg(1)
 
@@ -169,9 +172,9 @@ export async function fixConcern(item, initialViolations, deps) {
     let after
     try {
       after = await reDetect(item, cwd)
-    } catch (err) {
-      if (err instanceof DetectorError) throw err
-      throw err
+    } catch (detectError) {
+      if (detectError instanceof DetectorError) throw detectError
+      throw detectError
     }
 
     if (after.length === 0 && !error) {
@@ -197,17 +200,17 @@ export async function fixConcern(item, initialViolations, deps) {
 
 /**
  * Повний fix-pipeline: detect усе → fix кожен провальний concern → exit code.
- * @param {object} opts
- * @param {string} opts.rulesDir
- * @param {string} opts.cwd
- * @param {boolean} [opts.full]
- * @param {string[]} [opts.rules]
- * @param {string[]|null} [opts.files]
- * @param {boolean} [opts.verbose]
- * @param {number} [opts.maxAvg]
- * @param {(s: string) => void} [opts.log]
- * @param {object} [opts.deps] інжекти для тестів: { ladder, workerFor, t0For }
- * @returns {Promise<0|1|2>}
+ * @param {object} opts Опції запуску pipeline.
+ * @param {string} opts.rulesDir Директорія з правилами.
+ * @param {string} opts.cwd Робоча директорія.
+ * @param {boolean} [opts.full] Прогін по всьому репо замість дельти.
+ * @param {string[]} [opts.rules] Перелік ruleId для обмеження прогону.
+ * @param {string[]|null} [opts.files] Перелік файлів або null для повного набору.
+ * @param {boolean} [opts.verbose] Детальний вивід плану детекції.
+ * @param {number} [opts.maxAvg] Ліміт avg-бюджету.
+ * @param {(s: string) => void} [opts.log] Логер виводу.
+ * @param {object} [opts.deps] Інжекти для тестів: { ladder, workerFor, t0For }.
+ * @returns {Promise<0|1|2>} Exit code: 0 — чисто, 1 — лишились порушення, 2 — DetectorError.
  */
 export async function runFixPipeline(opts) {
   const { cwd } = opts
@@ -229,12 +232,12 @@ export async function runFixPipeline(opts) {
     try {
       const res = await runConcernDetector(item.entry.concern, ctx)
       detected.push({ item, violations: res.violations })
-    } catch (err) {
-      if (err instanceof DetectorError) {
-        log(`💥 ${err.message}\n`)
+    } catch (detectError) {
+      if (detectError instanceof DetectorError) {
+        log(`💥 ${detectError.message}\n`)
         return 2
       }
-      throw err
+      throw detectError
     }
   }
 

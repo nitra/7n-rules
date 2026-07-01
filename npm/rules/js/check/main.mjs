@@ -252,7 +252,7 @@ async function checkKnipConfig(passFn, failFn, cwd) {
 /**
  * Перевіряє відповідність проєкту правилам js.mdc
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} перелік порушень
  */
 export async function lint(ctx) {
   const cwd = ctx.cwd

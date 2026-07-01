@@ -13,8 +13,8 @@ import { runV8rWithGlobs } from '../run-v8r/main.mjs'
  * Detector text: read-only прогін cspell/shellcheck/dotenv-linter/markdownlint/v8r.
  * Кожен крок read-only; failing крок → одна violation. Fix (cspell LLM, shellcheck/dotenv
  * auto-fix, markdownlint --fix) — окремий fix-worker, не тут.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону (cwd тощо)
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат із зібраними violations
  */
 export async function lint(ctx) {
   const cwd = ctx.cwd
@@ -23,7 +23,11 @@ export async function lint(ctx) {
 
   /** @type {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation[]} */
   const violations = []
-  /** @param {string} reason @param {string} message */
+  /**
+   * Додає violation до акумулятора.
+   * @param {string} reason reason-код порушення
+   * @param {string} message людиночитне повідомлення
+   */
   const add = (reason, message) => {
     violations.push(/** @type {any} */ ({ reason, message }))
   }
@@ -35,8 +39,12 @@ export async function lint(ctx) {
   const markdownlintCode = await markdownlintCli2({
     directory: cwd,
     argv: ['**/*.md', '**/*.mdc'],
-    logMessage: () => {},
-    logError: () => {}
+    logMessage: () => {
+      // вивід markdownlint-cli2 глушимо — detector лише повертає код
+    },
+    logError: () => {
+      // помилки markdownlint-cli2 глушимо — detector лише повертає код
+    }
   })
   if (markdownlintCode !== 0) add('markdownlint', 'markdownlint знайшов порушення у *.md/*.mdc (text.mdc)')
 

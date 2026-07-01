@@ -12,7 +12,11 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { createWriteGuard, gitRoot, NEW_FILE } from '../pi-write-guard.mjs'
 
-/** Дістає зареєстрований `tool_call`-хендлер із фабрики (fake pi). */
+/**
+ * Дістає зареєстрований `tool_call`-хендлер із фабрики (fake pi).
+ * @param {object} guard write-guard із `.factory`
+ * @returns {Function} зареєстрований tool_call-хендлер
+ */
 function attach(guard) {
   let handler
   guard.factory({
@@ -35,7 +39,8 @@ afterEach(() => {
 
 describe('veto-логіка (інжектований root + checkIgnore)', () => {
   /**
-   *
+   * Write-guard на поточну tmp-дир з фейковим checkIgnore (шлях містить "ignored").
+   * @returns {object} write-guard
    */
   function guardFor() {
     return createWriteGuard({ cwd: dir, root: dir, checkIgnore: (_r, abs) => abs.includes('ignored') })

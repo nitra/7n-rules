@@ -24,6 +24,8 @@ import { basename } from 'node:path'
 
 import { withLock } from '../utils/with-lock.mjs'
 
+const RE_PATH_SEP = /[/\\]/u
+
 /**
  * Виводить `<id>` зі шляху каталогу правила незалежно від глибини: сегмент одразу після
  * останнього `rules/`. Fallback — `basename(dir)`, якщо `rules/` у шляху немає.
@@ -31,7 +33,7 @@ import { withLock } from '../utils/with-lock.mjs'
  * @returns {string} rule-id
  */
 function ruleIdFromDir(dir) {
-  const parts = dir.split(/[/\\]/u)
+  const parts = dir.split(RE_PATH_SEP)
   const i = parts.lastIndexOf('rules')
   return i !== -1 && parts[i + 1] ? parts[i + 1] : basename(dir)
 }

@@ -1,13 +1,16 @@
 // @generated — do not edit
-// source-hash: 9bf69881c794ef26
-
+// source-hash: 18d2903a740595d2
 import { evaluatePolicyConcern } from '../../../scripts/lib/lint-surface/policy-lint-adapter.mjs'
 
-/** @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx */
-export async function lint(ctx) {
+/**
+ * Detector policy-concern-а (згенеровано codegen-обгорткою).
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx Контекст лінту (`cwd`, `ruleId`, `concernId`).
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} Уніфікований результат лінту зі списком violations.
+ */
+export function lint(ctx) {
   return evaluatePolicyConcern(ctx, {
-    engine: 'rego',
+    engine: "rego",
     policyDir: import.meta.dirname,
-    files: { walkGlob: ['**/k8s/**/*.yaml'] }
+    files: {"walkGlob":["**/k8s/**/*.yaml"]}
   })
 }

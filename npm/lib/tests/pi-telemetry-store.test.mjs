@@ -9,6 +9,8 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { openCount, recordFixTelemetry, signatureOf } from '../pi-telemetry-store.mjs'
 
+const RE_SECRET = /sk-abcdef/
+
 let dir
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'tel-'))
@@ -70,7 +72,7 @@ describe('recordFixTelemetry', () => {
     expect(r.redacted).toBe(true)
     const files = readdirSync(join(dir, 'n-ci4', 'open'))
     const raw = readFileSync(join(dir, 'n-ci4', 'open', files[0]), 'utf8')
-    expect(raw).not.toMatch(/sk-abcdef/)
+    expect(raw).not.toMatch(RE_SECRET)
     expect(JSON.parse(raw).redacted).toBe(true)
   })
 

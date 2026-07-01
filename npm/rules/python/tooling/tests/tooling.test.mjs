@@ -16,8 +16,10 @@ import { withTmpDir, writeJson, ensureDir } from '../../../../scripts/utils/test
  * @param {string} dir корінь тимчасового проєкту
  * @returns {Promise<number>} кількість LintViolation
  */
-const check = async dir =>
-  (await lint({ cwd: dir, ruleId: 'python', concernId: 'tooling', files: undefined })).violations.length
+const check = async dir => {
+  const result = await lint({ cwd: dir, ruleId: 'python', concernId: 'tooling', files: undefined })
+  return result.violations.length
+}
 
 /**
  * Створює мінімальний валідний uv-проєкт у каталозі.

@@ -10,8 +10,8 @@ import { kustomizationHasAbieDeploymentNodeSelectorPatch } from '../lib/kustomiz
 import { abieOverlayK8sTreeHasDeployment, isUaKustomizationPath } from '../lib/overlay-paths.mjs'
 
 /**
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат перевірки з порушеннями.
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

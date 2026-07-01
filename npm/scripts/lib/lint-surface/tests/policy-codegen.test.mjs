@@ -7,6 +7,12 @@ import { generatePolicyWrapper, checkRegoCodegen, isGeneratedFile } from '../cod
 import { runPolicyUnitTests } from '../policy-test-step.mjs'
 import { withTmpDir, writeJson } from '../../../utils/test-helpers.mjs'
 
+/**
+ * Stub-runner conftest: завжди повертає одне падіння unit-тесту.
+ * @returns {{ ok: boolean, failures: Array<{ name: string, msg: string }> }} штучний результат прогону.
+ */
+const fakeRunner = () => ({ ok: false, failures: [{ name: 'k8s.manifest_test', msg: 'test_deny failed' }] })
+
 describe('evaluatePolicyConcern — template engine', () => {
   test('missing required:single → policy-file-missing', async () => {
     await withTmpDir(async dir => {
@@ -121,7 +127,8 @@ describe('codegen — checkRegoCodegen drift gate', () => {
       const fixed = await checkRegoCodegen(rulesDir, { fix: true })
       expect(fixed.regenerated).toEqual(['k8s/manifest'])
       // після fix — чисто
-      expect((await checkRegoCodegen(rulesDir)).stale).toEqual([])
+      const afterFix = await checkRegoCodegen(rulesDir)
+      expect(afterFix.stale).toEqual([])
     })
   })
 
@@ -152,7 +159,8 @@ describe('codegen — checkRegoCodegen drift gate', () => {
         policy: { engine: 'rego', files: { walkGlob: 'k8s/**/*.yaml' } }
       })
       await writeFile(join(concernDir, 'main.mjs'), 'export async function lint(){return {violations:[]}}\n', 'utf8')
-      expect((await checkRegoCodegen(rulesDir)).stale).toEqual([])
+      const report = await checkRegoCodegen(rulesDir)
+      expect(report.stale).toEqual([])
     })
   })
 })
@@ -167,7 +175,6 @@ describe('policy unit-test step', () => {
         policy: { engine: 'rego', files: { walkGlob: 'k8s/**/*.yaml' } }
       })
       await writeFile(join(concernDir, 'manifest_test.rego'), 'package k8s.manifest_test\n', 'utf8')
-      const fakeRunner = () => ({ ok: false, failures: [{ name: 'k8s.manifest_test', msg: 'test_deny failed' }] })
       const r = await runPolicyUnitTests(rulesDir, dir, { runner: fakeRunner })
       expect(r.ran).toBe(1)
       expect(r.violations).toHaveLength(1)

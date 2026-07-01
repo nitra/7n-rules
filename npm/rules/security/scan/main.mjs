@@ -10,8 +10,8 @@ import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 /**
  * Detector security/scan: trufflehog filesystem скан (read-only). Якщо бінарника немає —
  * скан пропускається (як і раніше при відсутності інструмента).
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат detector-а
  */
 export function lint(ctx) {
   const reporter = createViolationReporter(ctx)

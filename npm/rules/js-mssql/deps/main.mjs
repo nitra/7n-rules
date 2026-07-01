@@ -262,7 +262,7 @@ async function auditMssqlSources(repoRoot, ignorePaths, pass, fail) {
 /**
  * Перевіряє відповідність проєкту правилу js-mssql.mdc
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} перелік порушень
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

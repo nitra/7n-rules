@@ -41,7 +41,10 @@ vi.mock('node:fs', () => ({
 
 const { runDocFilesGenCli, selectTargets } = await import('../main.mjs')
 
-/** @param {number} n кількість stale-цілей */
+/**
+ * @param {number} n кількість stale-цілей.
+ * @returns {Array<{sourcePath: string, docPath: string, stale: boolean}>} масив stale-цілей.
+ */
 const targets = n =>
   Array.from({ length: n }, (_, i) => ({ sourcePath: `src/f${i}.js`, docPath: `src/docs/f${i}.md`, stale: true }))
 
@@ -67,8 +70,12 @@ describe('runDocFilesGenCli — circuit-breaker / класифікація', () 
     generateDocMock.mockReset()
     scanMock.mockReset()
     vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
-    vi.spyOn(console, 'log').mockImplementation(() => {})
-    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'log').mockImplementation(() => {
+      // навмисний no-op: глушимо console.log у тесті
+    })
+    vi.spyOn(console, 'error').mockImplementation(() => {
+      // навмисний no-op: глушимо console.error у тесті
+    })
   })
 
   test('3 systemic підряд → abort, exit 2, решта не обробляється', async () => {
@@ -101,9 +108,15 @@ describe('runDocFilesGenCli — circuit-breaker / класифікація', () 
   })
 })
 
-describe('selectTargets — stale + degraded-once guard', () => {
-  const mk = (sourcePath, docPath, stale) => ({ sourcePath, docPath, stale })
+/**
+ * @param {string} sourcePath шлях до джерела.
+ * @param {string} docPath шлях до доки.
+ * @param {boolean} stale чи ціль застаріла.
+ * @returns {{sourcePath: string, docPath: string, stale: boolean}} ціль для selectTargets.
+ */
+const mk = (sourcePath, docPath, stale) => ({ sourcePath, docPath, stale })
 
+describe('selectTargets — stale + degraded-once guard', () => {
   test('default: stale | degraded-not-cloud-avg → обрано; good | degraded-cloud-avg → пропущено', () => {
     const all = [
       mk('src/stale.js', 'd/stale.md', true),

@@ -8,8 +8,10 @@ import { join } from 'node:path'
 import { lint, isEnvFile, isNitraOrAbieRepository, parseInternalHasuraEndpoint } from '../main.mjs'
 import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
-const check = async dir =>
-  (await lint({ cwd: dir, ruleId: 'hasura', concernId: 'internal_urls', files: undefined })).violations
+const check = async dir => {
+  const result = await lint({ cwd: dir, ruleId: 'hasura', concernId: 'internal_urls', files: undefined })
+  return result.violations
+}
 
 describe('parseInternalHasuraEndpoint', () => {
   test('валідний внутрішній URL (GKE-style з .internal)', () => {
@@ -95,7 +97,8 @@ describe('check-hasura', () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't', repository: 'https://github.com/abinbevefes/foo' })
       await writeFile(join(dir, 'dev.env'), 'HASURA_GRAPHQL_ENDPOINT=https://vybeerai.com.ua/contract/ql\n', 'utf8')
-      expect((await check(dir)).length).toBeGreaterThan(0)
+      const violations = await check(dir)
+      expect(violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -148,7 +151,8 @@ describe('check-hasura', () => {
         'HASURA_GRAPHQL_ENDPOINT=https://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
         'utf8'
       )
-      expect((await check(dir)).length).toBeGreaterThan(0)
+      const violations = await check(dir)
+      expect(violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -164,7 +168,8 @@ describe('check-hasura', () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't', repository: 'https://github.com/nitra/foo' })
       await writeFile(join(dir, 'shell.env'), 'export HASURA_GRAPHQL_ENDPOINT=https://api.example.com\n', 'utf8')
-      expect((await check(dir)).length).toBeGreaterThan(0)
+      const violations = await check(dir)
+      expect(violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -233,7 +238,8 @@ describe('check-hasura', () => {
         'HASURA_GRAPHQL_ENDPOINT=https://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
         'utf8'
       )
-      expect((await check(dir)).length).toBeGreaterThan(0)
+      const violations = await check(dir)
+      expect(violations.length).toBeGreaterThan(0)
     })
   })
 })

@@ -17,20 +17,23 @@ const TRANSPORT_RE = /etimedout|timed out|econnrefused|connection refused/i
 /** Systemic — повтор тієї ж моделі марний (нема git, fail-closed guard, відсутня модель, auth). */
 const SYSTEMIC_RE = /не git-репо|fail-closed|write-guard|модель не знайдена|registry:|session:|немає ключа|api key/i
 
+/** Агентний backstop-timeout worker-а — класифікуємо як quality (ladder ескалює, не обриває). */
+const FIX_TIMEOUT_RE = /^fix timeout /i
+
 /**
  * @typedef {object} Rung
- * @property {'local-min'|'local-min-retry'|'cloud-min'|'cloud-avg'} tier
- * @property {string} model
- * @property {boolean} feedback використати feedback попереднього rung-а
- * @property {boolean} local
- * @property {boolean} isAvg під avg-кепом
- * @property {number} timeoutMs
+ * @property {'local-min'|'local-min-retry'|'cloud-min'|'cloud-avg'} tier назва тиру сходинки.
+ * @property {string} model ідентифікатор моделі для цього rung-а.
+ * @property {boolean} feedback використати feedback попереднього rung-а.
+ * @property {boolean} local чи це локальний (не cloud) rung.
+ * @property {boolean} isAvg під avg-кепом.
+ * @property {number} timeoutMs таймаут виклику rung-а в мс.
  */
 
 /**
  * Будує ladder за наявними тирами; rung-и з порожнім model відсіюються.
- * @param {{ localMin: string, cloudMin: string, cloudAvg: string }} models
- * @returns {Rung[]}
+ * @param {{ localMin: string, cloudMin: string, cloudAvg: string }} models моделі по тирах.
+ * @returns {Rung[]} відфільтрований список rung-ів для ескалації.
  */
 export function buildLadder({ localMin, cloudMin, cloudAvg }) {
   return [
@@ -51,12 +54,12 @@ export function buildLadder({ localMin, cloudMin, cloudAvg }) {
 /**
  * Класифікує помилку worker-а: systemic | transport | quality.
  * Агентний backstop-timeout → quality (ladder падає на сильніший rung, не обрив).
- * @param {string|null|undefined} error
- * @returns {'systemic'|'transport'|'quality'|null}
+ * @param {string|null|undefined} error текст помилки worker-а.
+ * @returns {'systemic'|'transport'|'quality'|null} категорія помилки або null якщо помилки нема.
  */
 export function classifyFixError(error) {
   if (!error) return null
-  if (/^fix timeout /i.test(error)) return 'quality'
+  if (FIX_TIMEOUT_RE.test(error)) return 'quality'
   if (SYSTEMIC_RE.test(error)) return 'systemic'
   if (TRANSPORT_RE.test(error)) return 'transport'
   return 'quality'
@@ -64,9 +67,9 @@ export function classifyFixError(error) {
 
 /**
  * Рішення після провального rung-а: обірвати ladder / пропустити модель.
- * @param {Rung} rung
- * @param {string|null|undefined} error
- * @returns {'break'|'skip-model'|null}
+ * @param {Rung} rung rung, що провалився.
+ * @param {string|null|undefined} error текст помилки worker-а.
+ * @returns {'break'|'skip-model'|null} рішення про ескалацію або null для продовження.
  */
 export function decideAfterFailure(rung, error) {
   if (!error) return null

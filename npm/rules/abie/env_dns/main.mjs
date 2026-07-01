@@ -8,8 +8,8 @@ import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.m
 import { abieEnvNameFromBasename, collectAbieEnvFiles, validateAbieEnvInternalUrls } from '../lib/env-dns.mjs'
 
 /**
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат detector-а
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

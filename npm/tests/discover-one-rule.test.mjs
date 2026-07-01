@@ -10,7 +10,7 @@ const tmpRoots = []
 
 /**
  * Створює тимчасове fake-правило з concern-dirs для discoverOneRule.
- * @param {{id: string, concerns?: Array<{name: string, check?: boolean, policy?: object, lint?: object}>}} opts
+ * @param {{id: string, concerns?: Array<{name: string, check?: boolean, policy?: object, lint?: object}>}} opts параметри fake-правила
  * @returns {string} абсолютний шлях до `rules/<id>/`
  */
 function makeFakeRule({ id, concerns = [] }) {
@@ -49,7 +49,9 @@ describe('discoverOneRule', () => {
     expect(rule.id).toBe('abie')
     expect(rule.concerns.map(c => c.name)).toEqual(['applies', 'env_dns', 'http_route_base'])
     expect(rule.concerns.filter(c => c.check === true).map(c => c.name)).toEqual(['applies', 'env_dns'])
-    expect(rule.concerns.filter(c => c.policy != null).map(c => c.name)).toEqual(['http_route_base'])
+    expect(rule.concerns.filter(c => c.policy !== undefined && c.policy !== null).map(c => c.name)).toEqual([
+      'http_route_base'
+    ])
   })
 
   test('правило без policy-concerns — concerns не містить policy', async () => {
@@ -58,7 +60,7 @@ describe('discoverOneRule', () => {
       concerns: [{ name: 'tooling', check: true }]
     })
     const rule = await discoverOneRule(ruleDir, 'js')
-    expect(rule.concerns.filter(c => c.policy != null)).toEqual([])
+    expect(rule.concerns.filter(c => c.policy !== undefined && c.policy !== null)).toEqual([])
     expect(rule.concerns.map(c => c.name)).toEqual(['tooling'])
   })
 

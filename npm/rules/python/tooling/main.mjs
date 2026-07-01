@@ -6,16 +6,16 @@ import { createViolationReporter } from '../../../scripts/lib/lint-surface/viola
 
 /**
  * Перевіряє відповідність проєкту правилам python.mdc.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат із порушеннями
  */
-export async function lint(ctx) {
+export function lint(ctx) {
   const cwd = ctx.cwd
   const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
   if (!existsSync(join(cwd, 'pyproject.toml'))) {
-    return reporter.result()
+    return Promise.resolve(reporter.result())
   }
 
   if (existsSync(join(cwd, 'uv.lock'))) {
@@ -46,5 +46,5 @@ export async function lint(ctx) {
     fail(`${wfPath} не існує — створи згідно python.mdc`)
   }
 
-  return reporter.result()
+  return Promise.resolve(reporter.result())
 }

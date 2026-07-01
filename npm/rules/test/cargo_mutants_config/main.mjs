@@ -20,8 +20,8 @@ const BASELINE_PATH = join(HERE, 'data', 'cargo_mutants_config', 'mutants.toml.b
 export const MUTANTS_CONFIG_MISSING = 'mutants-config-missing'
 
 /**
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx Контекст лінту (cwd, перелік файлів тощо).
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} Результат лінту з переліком порушень.
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

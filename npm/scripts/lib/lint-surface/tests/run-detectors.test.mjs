@@ -7,9 +7,9 @@ import { withTmpDir, writeJson } from '../../../utils/test-helpers.mjs'
 
 /**
  * Створює concern із заданим тілом lint(ctx) у tmp rulesDir.
- * @param {string} rulesDir
- * @param {string} rule
- * @param {string} concern
+ * @param {string} rulesDir корінь tmp rulesDir
+ * @param {string} rule id правила
+ * @param {string} concern id concern-а
  * @param {object} lintSurface lint-блок concern.json
  * @param {string} lintBody тіло main.mjs (рядок із `export function lint(ctx){...}`)
  */
@@ -28,7 +28,7 @@ describe('detectAll — exit codes', () => {
       const rulesDir = join(dir, 'rules')
       await seedDetector(rulesDir, 'probe', 'check', { scope: 'full', glob: ['**/*'] }, CLEAN)
       await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
-      const r = await detectAll({ rulesDir, cwd: dir, full: true, log: () => {} })
+      const r = await detectAll({ rulesDir, cwd: dir, full: true, log: () => {/* no-op */} })
       expect(r.exitCode).toBe(0)
       expect(r.violations).toEqual([])
     })
@@ -43,7 +43,7 @@ describe('detectAll — exit codes', () => {
         '}\n'
       await seedDetector(rulesDir, 'probe', 'check', { scope: 'full', glob: ['**/*'] }, body)
       await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
-      const r = await detectAll({ rulesDir, cwd: dir, full: true, log: () => {} })
+      const r = await detectAll({ rulesDir, cwd: dir, full: true, log: () => {/* no-op */} })
       expect(r.exitCode).toBe(1)
       expect(r.violations).toHaveLength(1)
       expect(r.violations[0]).toMatchObject({
@@ -63,7 +63,7 @@ describe('detectAll — exit codes', () => {
       const body = "export function lint() { throw new Error('boom') }\n"
       await seedDetector(rulesDir, 'probe', 'check', { scope: 'full', glob: ['**/*'] }, body)
       await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
-      const r = await detectAll({ rulesDir, cwd: dir, full: true, log: () => {} })
+      const r = await detectAll({ rulesDir, cwd: dir, full: true, log: () => {/* no-op */} })
       expect(r.exitCode).toBe(2)
     })
   })
@@ -74,7 +74,7 @@ describe('detectAll — exit codes', () => {
       const body = "export function lint() { return { violations: [{ message: 'x' }] } }\n"
       await seedDetector(rulesDir, 'probe', 'check', { scope: 'full', glob: ['**/*'] }, body)
       await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
-      const r = await detectAll({ rulesDir, cwd: dir, full: true, log: () => {} })
+      const r = await detectAll({ rulesDir, cwd: dir, full: true, log: () => {/* no-op */} })
       expect(r.exitCode).toBe(2)
     })
   })
@@ -86,7 +86,7 @@ describe('detectAll — exit codes', () => {
         "export function lint() { return { violations: [{ reason: 'x', message: 'y', file: '/etc/passwd' }] } }\n"
       await seedDetector(rulesDir, 'probe', 'check', { scope: 'full', glob: ['**/*'] }, body)
       await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
-      const r = await detectAll({ rulesDir, cwd: dir, full: true, log: () => {} })
+      const r = await detectAll({ rulesDir, cwd: dir, full: true, log: () => {/* no-op */} })
       expect(r.exitCode).toBe(2)
     })
   })
@@ -102,7 +102,7 @@ describe('detectAll — scoping', () => {
         "  return { violations: [{ reason: 'probe', message: f }] }\n" +
         '}\n'
       await seedDetector(rulesDir, 'probe', 'check', { scope: 'per-file', glob: ['**/*.mjs'] }, body)
-      const r = await detectAll({ rulesDir, cwd: dir, rules: ['probe'], log: () => {} })
+      const r = await detectAll({ rulesDir, cwd: dir, rules: ['probe'], log: () => {/* no-op */} })
       expect(r.violations[0].message).toBe('whole')
     })
   })
@@ -116,7 +116,7 @@ describe('detectAll — scoping', () => {
         '}\n'
       await seedDetector(rulesDir, 'probe', 'check', { scope: 'per-file', glob: ['**/*.mjs'] }, body)
       await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
-      const r = await detectAll({ rulesDir, cwd: dir, files: ['a.mjs', 'b.txt', 'c.mjs'], log: () => {} })
+      const r = await detectAll({ rulesDir, cwd: dir, files: ['a.mjs', 'b.txt', 'c.mjs'], log: () => {/* no-op */} })
       expect(r.violations[0].message).toBe('a.mjs,c.mjs')
     })
   })

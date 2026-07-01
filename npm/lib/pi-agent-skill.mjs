@@ -15,6 +15,8 @@
  * Pi вантажиться lazy (тверда межа CI). Логіка інжектована через `deps` для unit-тестів.
  */
 
+import { setTimeout as sleep } from 'node:timers/promises'
+
 import { env, stdout } from 'node:process'
 import { getRegistry, resolveModel, resolveModelSpec } from './pi-model-tiers.mjs'
 import { writeTrace } from './pi-trace.mjs'
@@ -33,6 +35,7 @@ const THINKING_BY_TIER = { min: 'low', avg: 'medium', max: 'high' }
 
 /**
  * Дефолтна фабрика pi-сесії: повний tool-set із `bash`, БЕЗ custom-tools і write-guard.
+ * @param {{ registry: object, model: object|null, cwd?: string, thinkingLevel?: string }} args параметри сесії.
  * @returns {Promise<object>} pi AgentSession
  */
 async function defaultCreateSession({ registry, model, cwd, thinkingLevel }) {
@@ -48,26 +51,43 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel }) {
   return session
 }
 
-/** Гонка з таймаутом; на таймаут кличе `onTimeout` (abort) і реджектить. */
+/**
+ * Гонка з таймаутом; на таймаут кличе `onTimeout` (abort) і реджектить.
+ * @param {Promise<unknown>} promise проміс, який чекаємо.
+ * @param {number} ms ліміт у мілісекундах (≤ 0 → без таймауту).
+ * @param {(() => void)} [onTimeout] колбек, що викликається на таймаут (abort).
+ * @returns {Promise<unknown>} результат `promise` або reject із timeout-помилкою.
+ */
 async function withTimeout(promise, ms, onTimeout) {
   if (!ms || ms <= 0) return promise
-  let timer
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => {
-      onTimeout?.()
-      reject(new Error(`skill timeout ${ms}ms`))
-    }, ms)
-  })
+  const controller = new AbortController()
+  // Таймер-гілка чекає sleep і кидає timeout-помилку. У finally abort скасовує sleep;
+  // його AbortError свідомо ковтаємо (isTimeout), щоб не спливти unhandled після
+  // того, як race уже виграв основний promise.
+  let isTimeout = false
+  const timeout = (async () => {
+    await sleep(ms, null, { signal: controller.signal })
+    isTimeout = true
+    onTimeout?.()
+    throw new Error(`skill timeout ${ms}ms`)
+  })()
   try {
     return await Promise.race([Promise.resolve(promise), timeout])
   } finally {
-    clearTimeout(timer)
+    controller.abort()
+    if (!isTimeout) {
+      try {
+        await timeout
+      } catch {
+        // очікувано: AbortError скасованого sleep-таймера — не помилка виклику
+      }
+    }
   }
 }
 
 /**
  * Виконує ОДИН скіл агентно через pi.
- * @param {string} prompt готовий промпт (`buildSkillPrompt`)
+ * @param {string} prompt готовий промпт (`buildSkillPrompt`).
  * @param {{
  *   skillId?: string,
  *   tier?: 'min'|'avg'|'max',
@@ -77,8 +97,8 @@ async function withTimeout(promise, ms, onTimeout) {
  *   timeoutMs?: number,
  *   caller?: string,
  *   deps?: { createSession?: Function, getRegistry?: Function, registry?: object, trace?: Function, clock?: () => number, out?: (s: string) => void }
- * }} [opts]
- * @returns {Promise<{ ok: boolean, telemetry: object|null, error: string|null }>}
+ * }} [opts] опції виконання скіла.
+ * @returns {Promise<{ ok: boolean, telemetry: object|null, error: string|null }>} результат прогону скіла.
  */
 export async function runPiAgentSkill(prompt, opts = {}) {
   const {
@@ -110,8 +130,8 @@ export async function runPiAgentSkill(prompt, opts = {}) {
     spec = modelSpec ?? resolveModel(tier) // '' допустимо → дефолт провайдера pi
     model = spec ? resolveModelSpec(registry, spec) : null
     if (spec && !model) return fail(`модель не знайдена: ${spec}`, spec)
-  } catch (e) {
-    return fail(`registry: ${e.message}`, null)
+  } catch (error) {
+    return fail(`registry: ${error.message}`, null)
   }
 
   let session
@@ -122,8 +142,8 @@ export async function runPiAgentSkill(prompt, opts = {}) {
       cwd,
       thinkingLevel: thinkingLevel ?? THINKING_BY_TIER[tier] ?? 'medium'
     })
-  } catch (e) {
-    return fail(`session: ${e.message}`, spec)
+  } catch (error) {
+    return fail(`session: ${error.message}`, spec)
   }
 
   let turnCount = 0
@@ -131,23 +151,27 @@ export async function runPiAgentSkill(prompt, opts = {}) {
   let backstopHit = false
   session.subscribe(event => {
     switch (event.type) {
-      case 'turn_start':
+      case 'turn_start': {
         turnCount++
         if (turnCount > TURN_CEILING) {
           backstopHit = true
           session.abort?.()
         }
         break
-      case 'tool_execution_start':
+      }
+      case 'tool_execution_start': {
         toolCallCount++
         break
-      case 'message_update':
+      }
+      case 'message_update': {
         if (event.assistantMessageEvent?.type === 'text_delta') {
           out(event.assistantMessageEvent.delta ?? '')
         }
         break
-      default:
+      }
+      default: {
         break
+      }
     }
   })
 
@@ -155,8 +179,8 @@ export async function runPiAgentSkill(prompt, opts = {}) {
   let error = null
   try {
     await withTimeout(session.prompt(prompt), timeoutMs, () => session.abort?.())
-  } catch (e) {
-    error = e.message
+  } catch (promptError) {
+    error = promptError.message
   }
 
   const telemetry = {

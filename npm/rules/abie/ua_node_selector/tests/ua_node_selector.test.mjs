@@ -45,7 +45,8 @@ resources:
 describe('abie ua_node_selector concern', () => {
   test('немає Deployment у k8s/ → clean (skip)', async () => {
     await withTmpDir(async dir => {
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 
@@ -57,7 +58,8 @@ describe('abie ua_node_selector concern', () => {
       await ensureDir(ua)
       await writeFile(join(base, 'deploy.yaml'), DEPLOYMENT_YAML, 'utf8')
       await writeFile(join(ua, 'kustomization.yaml'), KUSTOMIZATION_WITH_NODE_SELECTOR_PATCH, 'utf8')
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 
@@ -66,7 +68,8 @@ describe('abie ua_node_selector concern', () => {
       const base = join(dir, 'pkg/k8s/base')
       await ensureDir(base)
       await writeFile(join(base, 'deploy.yaml'), DEPLOYMENT_YAML, 'utf8')
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const result = await run(dir)
+      expect(result.violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -78,7 +81,8 @@ describe('abie ua_node_selector concern', () => {
       await ensureDir(ua)
       await writeFile(join(base, 'deploy.yaml'), DEPLOYMENT_YAML, 'utf8')
       await writeFile(join(ua, 'kustomization.yaml'), KUSTOMIZATION_WITHOUT_PATCH, 'utf8')
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const result = await run(dir)
+      expect(result.violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -94,7 +98,8 @@ describe('abie ua_node_selector concern', () => {
       await ensureDir(join(dir, 'pkg-b/k8s/ua'))
       await writeFile(join(dir, 'pkg-b/k8s/ua/kustomization.yaml'), KUSTOMIZATION_WITHOUT_PATCH, 'utf8')
       // pkg-b не має Deployment → patch не вимагається → clean загалом
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 })

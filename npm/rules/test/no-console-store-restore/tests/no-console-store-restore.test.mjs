@@ -23,7 +23,8 @@ describe('check test.no-console-store-restore', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(join(dir, 'tests/foo.test.mjs'), 'import { test } from "vitest"\ntest("ok", () => {})\n')
-      expect((await run(dir)).violations).toEqual([])
+      const res = await run(dir)
+      expect(res.violations).toEqual([])
     })
   })
 
@@ -31,7 +32,8 @@ describe('check test.no-console-store-restore', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(join(dir, 'tests/bad.test.mjs'), `const orig = ${CON_ASSIGN} fn\n`)
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const res = await run(dir)
+      expect(res.violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -39,7 +41,8 @@ describe('check test.no-console-store-restore', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(join(dir, 'tests/bad.test.mjs'), `${CON_ERR_ASSIGN} () => {}\n`)
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const res = await run(dir)
+      expect(res.violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -47,7 +50,8 @@ describe('check test.no-console-store-restore', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(join(dir, 'tests/bad.test.mjs'), `${CON_WARN_ASSIGN} vi.fn()\n`)
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const res = await run(dir)
+      expect(res.violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -55,7 +59,8 @@ describe('check test.no-console-store-restore', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(join(dir, 'tests/ok.test.mjs'), 'vi.spyOn(console, "log").mockReturnValue()\n')
-      expect((await run(dir)).violations).toEqual([])
+      const res = await run(dir)
+      expect(res.violations).toEqual([])
     })
   })
 
@@ -63,7 +68,8 @@ describe('check test.no-console-store-restore', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(join(dir, 'tests/ok.test.mjs'), 'console.log("msg")\nconsole.error("err")\n')
-      expect((await run(dir)).violations).toEqual([])
+      const res = await run(dir)
+      expect(res.violations).toEqual([])
     })
   })
 
@@ -71,7 +77,8 @@ describe('check test.no-console-store-restore', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(join(dir, 'tests/ok.test.mjs'), 'if (console.log === undefined) {}\n')
-      expect((await run(dir)).violations).toEqual([])
+      const res = await run(dir)
+      expect(res.violations).toEqual([])
     })
   })
 
@@ -79,7 +86,8 @@ describe('check test.no-console-store-restore', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'src'), { recursive: true })
       await writeFile(join(dir, 'src/helper.mjs'), `${CON_ASSIGN} vi.fn()\n`)
-      expect((await run(dir)).violations).toEqual([])
+      const res = await run(dir)
+      expect(res.violations).toEqual([])
     })
   })
 
@@ -87,7 +95,8 @@ describe('check test.no-console-store-restore', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(join(dir, 'tests/bad.test.js'), `${CON_ASSIGN} stub\n`)
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const res = await run(dir)
+      expect(res.violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -96,7 +105,8 @@ describe('check test.no-console-store-restore', () => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(join(dir, 'tests/a.test.mjs'), `${CON_ASSIGN} fn1\n`)
       await writeFile(join(dir, 'tests/b.test.mjs'), `${CON_ERR_ASSIGN} fn2\n`)
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const res = await run(dir)
+      expect(res.violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -104,7 +114,8 @@ describe('check test.no-console-store-restore', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'node_modules/pkg/tests'), { recursive: true })
       await writeFile(join(dir, 'node_modules/pkg/tests/bad.test.mjs'), `${CON_ASSIGN} vi.fn()\n`)
-      expect((await run(dir)).violations).toEqual([])
+      const res = await run(dir)
+      expect(res.violations).toEqual([])
     })
   })
 })

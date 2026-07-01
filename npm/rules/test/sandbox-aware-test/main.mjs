@@ -44,8 +44,8 @@ const SKIP_IF_STRYKER_RE = /\btest\.skipIf\s*\(\s*(?:env|process\.env)\.STRYKER_
  * захищені `withTmpDir` або `test.skipIf(env.STRYKER_MUTATOR_WORKER)`.
  * Без ізоляції Stryker-sandbox (`reports/stryker/.tmp/sandbox-XXX/`) не має `.git/`,
  * тому git-операції у таких тестах падають і мутаційний прогін не стартує.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону.
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат із порушеннями.
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

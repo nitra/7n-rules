@@ -13,8 +13,10 @@ import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test
  * @param {string} dir корінь тимчасового проєкту
  * @returns {Promise<number>} кількість LintViolation
  */
-const check = async dir =>
-  (await lint({ cwd: dir, ruleId: 'js-bun-db', concernId: 'safety', files: undefined })).violations.length
+const check = async dir => {
+  const { violations } = await lint({ cwd: dir, ruleId: 'js-bun-db', concernId: 'safety', files: undefined })
+  return violations.length
+}
 
 describe('check-js-bun-db', () => {
   test('пропускає, якщо немає кореневого package.json', async () => {

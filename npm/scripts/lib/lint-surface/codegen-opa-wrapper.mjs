@@ -16,14 +16,14 @@ import { fileURLToPath } from 'node:url'
 import { readConcernMeta } from '../concern-meta.mjs'
 
 /** Версія codegen-шаблону — входить у source-hash, щоб зміна шаблону тригерила регенерацію. */
-export const CODEGEN_VERSION = '1'
+export const CODEGEN_VERSION = '2'
 
 const GENERATED_MARK = '// @generated — do not edit'
 const ADAPTER_ABS = fileURLToPath(new URL('policy-lint-adapter.mjs', import.meta.url))
 
 /**
- * @param {string} content вміст main.mjs
- * @returns {boolean} чи це згенерований (а не ручний) файл
+ * @param {string} content вміст main.mjs.
+ * @returns {boolean} чи це згенерований (а не ручний) файл.
  */
 export function isGeneratedFile(content) {
   return content.startsWith(GENERATED_MARK)
@@ -33,8 +33,8 @@ export function isGeneratedFile(content) {
  * Чи policy.files резолвиться у конкретні таргети (single або walkGlob).
  * Концерни без цього — або orchestrated parent-концерном (rego-бібліотека), або
  * incomplete; standalone detector для них генерувати НЕ можна (кидав би на resolve).
- * @param {object|undefined} files
- * @returns {boolean}
+ * @param {object|undefined} files об'єкт policy.files concern-а.
+ * @returns {boolean} true, якщо files резолвиться у конкретні таргети.
  */
 export function hasResolvableFiles(files) {
   if (!files || typeof files !== 'object') return false
@@ -43,9 +43,9 @@ export function hasResolvableFiles(files) {
 
 /**
  * Збирає всі source-входи concern-а у відсортований масив [шлях, вміст] для хешу.
- * @param {string} concernDir
- * @param {string} concernName
- * @returns {Array<[string, string]>}
+ * @param {string} concernDir тека concern-а.
+ * @param {string} concernName назва concern-а.
+ * @returns {Array<[string, string]>} відсортований масив пар [шлях, вміст] source-входів.
  */
 function collectSources(concernDir, concernName) {
   /** @type {Array<[string, string]>} */
@@ -66,9 +66,9 @@ function collectSources(concernDir, concernName) {
 
 /**
  * source-hash = sha256(CODEGEN_VERSION + усі sources). Детермінований.
- * @param {string} concernDir
- * @param {string} concernName
- * @returns {string}
+ * @param {string} concernDir тека concern-а.
+ * @param {string} concernName назва concern-а.
+ * @returns {string} детермінований source-hash (16 hex-символів).
  */
 export function computeSourceHash(concernDir, concernName) {
   const h = createHash('sha256')
@@ -82,13 +82,13 @@ export function computeSourceHash(concernDir, concernName) {
 
 /**
  * Рендерить вміст generated main.mjs.
- * @param {object} args
- * @param {'rego'|'template'} args.engine
- * @param {object} args.files policy.files
- * @param {string} [args.missingMessage]
- * @param {string} args.adapterImport relative import до policy-lint-adapter.mjs
- * @param {string} args.hash source-hash
- * @returns {string}
+ * @param {object} args параметри рендеру.
+ * @param {'rego'|'template'} args.engine двигун policy.
+ * @param {object} args.files policy.files.
+ * @param {string} [args.missingMessage] повідомлення для відсутнього таргету.
+ * @param {string} args.adapterImport relative import до policy-lint-adapter.mjs.
+ * @param {string} args.hash source-hash.
+ * @returns {string} вміст generated main.mjs.
  */
 export function renderWrapper({ engine, files, missingMessage, adapterImport, hash }) {
   const cfgLines = [
@@ -98,14 +98,18 @@ export function renderWrapper({ engine, files, missingMessage, adapterImport, ha
   ]
   if (missingMessage) cfgLines[cfgLines.length - 1] += ','
   if (missingMessage) cfgLines.push(`    missingMessage: ${JSON.stringify(missingMessage)}`)
+  const typesImport = adapterImport.replace('policy-lint-adapter.mjs', 'types.mjs')
   return [
     GENERATED_MARK,
     `// source-hash: ${hash}`,
-    '/* eslint-disable */',
     `import { evaluatePolicyConcern } from '${adapterImport}'`,
     '',
-    "/** @param {import('" + adapterImport.replace('policy-lint-adapter.mjs', 'types.mjs') + "').LintContext} ctx */",
-    'export async function lint(ctx) {',
+    '/**',
+    ' * Detector policy-concern-а (згенеровано codegen-обгорткою).',
+    ` * @param {import('${typesImport}').LintContext} ctx Контекст лінту (\`cwd\`, \`ruleId\`, \`concernId\`).`,
+    ` * @returns {Promise<import('${typesImport}').LintResult>} Уніфікований результат лінту зі списком violations.`,
+    ' */',
+    'export function lint(ctx) {',
     '  return evaluatePolicyConcern(ctx, {',
     ...cfgLines,
     '  })',
@@ -116,8 +120,8 @@ export function renderWrapper({ engine, files, missingMessage, adapterImport, ha
 
 /**
  * Генерує/оновлює main.mjs для одного policy-concern-а.
- * @param {string} concernDir
- * @param {string} concernName
+ * @param {string} concernDir тека concern-а.
+ * @param {string} concernName назва concern-а.
  * @returns {Promise<{ action: 'written'|'manual'|'fresh'|'skip', hash?: string }>}
  *   written — записано/оновлено; manual — є ручний main.mjs (не чіпаємо); fresh — hash збігся;
  *   skip — concern без policy-поверхні.
@@ -153,10 +157,10 @@ export async function generatePolicyWrapper(concernDir, concernName) {
 
 /**
  * Drift-gate по всіх policy-concern-ах у `rulesDir`.
- * @param {string} rulesDir
- * @param {object} [opts]
- * @param {boolean} [opts.fix] true → регенерувати stale; false → лише репорт
- * @returns {Promise<{ stale: Array<{ ruleId: string, concernId: string, reason: string }>, regenerated: string[] }>}
+ * @param {string} rulesDir коренева тека rule-ів.
+ * @param {object} [opts] опції прогону.
+ * @param {boolean} [opts.fix] true → регенерувати stale; false → лише репорт.
+ * @returns {Promise<{ stale: Array<{ ruleId: string, concernId: string, reason: string }>, regenerated: string[] }>} перелік застарілих concern-ів і регенерованих шляхів.
  */
 export async function checkRegoCodegen(rulesDir, opts = {}) {
   const fix = opts.fix === true

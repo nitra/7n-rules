@@ -19,8 +19,8 @@ const FMT_GLOB = '**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,vue,css,scss}'
 
 /**
  * Detector: повертає по одному violation на кожен неформатований файл.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону (cwd, files)
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат із violation на кожен неформатований файл
  */
 export function lint(ctx) {
   const { cwd, files } = ctx

@@ -98,7 +98,8 @@ export async function appendDiscoveredMdcFiles(text, ruleDir) {
     const concernDir = join(ruleDir, dir)
     const files = await globby('*.mdc', { cwd: concernDir, onlyFiles: true, gitignore: false })
     for (const f of files.toSorted()) {
-      sections.push((await readFile(join(concernDir, f), 'utf8')).trim())
+      const raw = await readFile(join(concernDir, f), 'utf8')
+      sections.push(raw.trim())
     }
   }
 

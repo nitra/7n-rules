@@ -26,6 +26,8 @@ import {
 } from './main.mjs'
 
 const SCHEMA_MODELINE_RE = /^\s*#\s*yaml-language-server:\s*\$schema=\S+/u
+const LEADING_WHITESPACE_RE = /^\s+/u
+const LEADING_DOC_SEPARATOR_RE = /^---\n/u
 
 /**
  * Переміщує рядок `# yaml-language-server: $schema=…` у перший рядок файла (без префіксів).
@@ -36,7 +38,7 @@ export function moveSchemaModelineFirst(content) {
   const lines = content.split('\n')
   const idx = lines.findIndex(l => SCHEMA_MODELINE_RE.test(l))
   if (idx <= 0) return null
-  const modeline = lines.splice(idx, 1)[0].replace(/^\s+/u, '')
+  const modeline = lines.splice(idx, 1)[0].replace(LEADING_WHITESPACE_RE, '')
   lines.unshift(modeline)
   return lines.join('\n')
 }
@@ -95,7 +97,7 @@ export function ensureDeploymentStrategy(content) {
       .map(d =>
         d
           .toString()
-          .replace(/^---\n/u, '')
+          .replace(LEADING_DOC_SEPARATOR_RE, '')
           .trimEnd()
       )
       .join('\n---\n') + '\n'
@@ -134,7 +136,7 @@ export function ensureNetworkPolicyEgress(content) {
       .map(d =>
         d
           .toString()
-          .replace(/^---\n/u, '')
+          .replace(LEADING_DOC_SEPARATOR_RE, '')
           .trimEnd()
       )
       .join('\n---\n') + '\n'
@@ -143,9 +145,9 @@ export function ensureNetworkPolicyEgress(content) {
 
 /**
  * Застосовує текстовий трансформер до унікальних файлів із targets і пише зміни.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation[]} targets
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @param {(content: string) => string|null} transform
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation[]} targets violations із файлами для правки
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
+ * @param {(content: string) => string|null} transform чистий трансформер вмісту (null → без змін)
  * @returns {string[]} абсолютні шляхи змінених файлів
  */
 function applyToFiles(targets, ctx, transform) {
@@ -181,7 +183,7 @@ function applyToFiles(targets, ctx, transform) {
  * @param {string} kind очікуваний `data.kind`
  * @param {(content: string) => string|null} transform чистий трансформер вмісту
  * @param {(n: number) => string} message звіт для debug
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').T0Pattern}
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').T0Pattern} T0-патерн автофіксу
  */
 function fileTransformPattern(id, kind, transform, message) {
   return {

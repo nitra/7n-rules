@@ -24,13 +24,13 @@ const DEEP_NAV = "const ROOT = join(import.meta.dirname, '..', '..', '..', '..')
 
 // Та ж навігація, але захищена withTmpDir
 const DEEP_WITH_TMP =
-  "const ROOT = join(import.meta.dirname, '..', '..', '..', '..')\n" + 'withTmpDir(async dir => {})\n'
+  "const ROOT = join(import.meta.dirname, '..', '..', '..', '..')\nwithTmpDir(async dir => {})\n"
 
 // Та ж навігація, але захищена test.skipIf(env.STRYKER_MUTATOR_WORKER)
-const DEEP_WITH_SKIP_IF =
-  "const ROOT = join(import.meta.dirname, '..', '..', '..', '..')\n" +
-  'import { env } from "node:process"\n' +
-  'test.skipIf(env.STRYKER_MUTATOR_WORKER)("live-repo", async () => {})\n'
+const DEEP_WITH_SKIP_IF = `const ROOT = join(import.meta.dirname, '..', '..', '..', '..')
+import { env } from "node:process"
+test.skipIf(env.STRYKER_MUTATOR_WORKER)("live-repo", async () => {})
+`
 
 // Мілка навігація (3 рівні — нижче порогу 4)
 const SHALLOW_NAV = "const DIR = join(import.meta.dirname, '..', '..', '..')\n"
@@ -81,7 +81,7 @@ describe('check test.sandbox-aware-test', () => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(
         join(dir, 'tests/very-deep.test.mjs'),
-        "const R = join(import.meta.dirname, '..', '..', '..', '..', '..')\n" + 'withTmpDir(async dir => {})\n'
+        "const R = join(import.meta.dirname, '..', '..', '..', '..', '..')\nwithTmpDir(async dir => {})\n"
       )
       expect(await check(dir)).toBe(0)
     })
@@ -116,7 +116,7 @@ describe('check test.sandbox-aware-test', () => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(
         join(dir, 'tests/url-based.test.mjs'),
-        'const d = dirname(fileURLToPath(import.meta.url))\n' + "const R = join(d, '..', '..', '..', '..')\n"
+        "const d = dirname(fileURLToPath(import.meta.url))\nconst R = join(d, '..', '..', '..', '..')\n"
       )
       expect(await check(dir)).toBe(1)
     })

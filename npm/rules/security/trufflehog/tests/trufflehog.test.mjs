@@ -19,14 +19,16 @@ const CANON_EXCLUDE = [
 describe('security/js/trufflehog/check', () => {
   test('fails when package.json missing', async () => {
     await withTmpDir(async dir => {
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const res = await run(dir)
+      expect(res.violations.length).toBeGreaterThan(0)
     })
   })
 
   test('fails when .trufflehog-exclude missing', async () => {
     await withTmpDir(async dir => {
       writeFileSync(join(dir, 'package.json'), '{}')
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const res = await run(dir)
+      expect(res.violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -34,7 +36,8 @@ describe('security/js/trufflehog/check', () => {
     await withTmpDir(async dir => {
       writeFileSync(join(dir, 'package.json'), '{}')
       writeFileSync(join(dir, '.trufflehog-exclude'), 'foo\n')
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const res = await run(dir)
+      expect(res.violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -42,7 +45,8 @@ describe('security/js/trufflehog/check', () => {
     await withTmpDir(async dir => {
       writeFileSync(join(dir, 'package.json'), '{}')
       writeFileSync(join(dir, '.trufflehog-exclude'), CANON_EXCLUDE + '\n')
-      expect((await run(dir)).violations).toEqual([])
+      const res = await run(dir)
+      expect(res.violations).toEqual([])
     })
   })
 })

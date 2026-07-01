@@ -33,7 +33,7 @@ async function readStdin() {
 /**
  * Дістає `tool_input.file_path` зі stdin JSON Claude Code PostToolUse hook.
  * @param {string} json сирий stdin
- * @returns {string|null}
+ * @returns {string|null} шлях до файлу або null, якщо відсутній/невалідний JSON
  */
 export function extractFilePath(json) {
   if (!json) return null

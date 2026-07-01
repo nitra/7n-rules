@@ -52,7 +52,8 @@ describe('check-image-compress', () => {
     await withTmpDir(async dir => {
       await setupValidImageProject(dir)
       await writeFile(join(dir, '.gitignore'), 'node_modules/\n.n-minify-image.tsv\n', 'utf8')
-      expect((await check(dir)).length).toBeGreaterThan(0)
+      const violations = await check(dir)
+      expect(violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -60,7 +61,8 @@ describe('check-image-compress', () => {
     await withTmpDir(async dir => {
       await setupValidImageProject(dir)
       await writeFile(join(dir, '.minify-image-cache.tsv'), 'src/hero.png\t1700000000000\t1024\t800\n', 'utf8')
-      expect((await check(dir)).length).toBeGreaterThan(0)
+      const violations = await check(dir)
+      expect(violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -68,7 +70,8 @@ describe('check-image-compress', () => {
     await withTmpDir(async dir => {
       await setupValidImageProject(dir)
       await writeFile(join(dir, '.gitignore'), 'node_modules/\n.minify-image-cache.tsv\n', 'utf8')
-      expect((await check(dir)).length).toBeGreaterThan(0)
+      const violations = await check(dir)
+      expect(violations.length).toBeGreaterThan(0)
     })
   })
 })

@@ -82,7 +82,8 @@ async function pushReleaseWithRetry(runGit, tags, attempts = 5) {
     if (pushed !== null) return
     if (attempt === attempts) break
     // push відхилено (найімовірніше non-fast-forward — апстрім пішов уперед) → інтегруємо й пробуємо ще
-    const upstream = (await runGit(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']))?.trim()
+    const upstreamRaw = await runGit(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'])
+    const upstream = upstreamRaw?.trim()
     if (!upstream) {
       throw new Error('release: git push відхилено, а upstream для rebase немає — commit-back не приземлився')
     }

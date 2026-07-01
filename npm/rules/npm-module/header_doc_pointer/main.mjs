@@ -114,8 +114,8 @@ async function checkBaseSegment(absBase, cwd, reporter) {
  * Сканує `npm/rules/*\/js/*.mjs` і `npm/skills/*\/js/*.mjs`.
  * Якщо поряд існує `docs/<stem>.md` — module-level JSDoc має бути pointer (≤1 рядок),
  * а не наратив; якщо docs немає — без обмежень.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту (cwd, репортер).
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат перевірки з pass/fail.
  */
 export async function lint(ctx) {
   const cwd = ctx.cwd

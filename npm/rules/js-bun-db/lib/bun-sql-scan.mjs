@@ -931,10 +931,13 @@ export function isBunSqlScanSourceFile(relativePathPosix) {
 // Імена відомих SQL-інстансів, для яких перевіряємо .array() без типу.
 const SQL_INSTANCE_NAMES = new Set(['sql', 'pgWrite', 'pgRead'])
 
+// Текст одразу після ${...} починається з `::jsonb`-касту.
+const JSONB_CAST_RE = /^\s*::jsonb/u
+
 /**
  * Чи це виклик `JSON.stringify(...)` (JSON.stringify через MemberExpression).
  * @param {unknown} node AST node
- * @returns {boolean}
+ * @returns {boolean} true, якщо node — виклик `JSON.stringify(...)`.
  */
 function isJsonStringifyCall(node) {
   if (!node || typeof node !== 'object' || node.type !== 'CallExpression') return false
@@ -1006,7 +1009,7 @@ export function findJsonStringifyBeforeJsonbInText(content, virtualPath = 'scan.
           ? nextQuasi.value.raw
           : ''
 
-      if (/^\s*::jsonb/u.test(rawAfter) || hasSqlArrayStringify) {
+      if (JSONB_CAST_RE.test(rawAfter) || hasSqlArrayStringify) {
         out.push({
           line: offsetToLine(content, expr.start),
           snippet: normalizeSnippet(content.slice(expr.start, expr.end))

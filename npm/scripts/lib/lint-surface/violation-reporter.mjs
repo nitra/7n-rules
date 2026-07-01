@@ -14,12 +14,12 @@
  */
 
 /**
- * @param {LintContext} ctx
+ * @param {LintContext} ctx контекст concern-а (джерело дефолтного reason).
  * @returns {{
  *   pass: (...args: unknown[]) => void,
  *   fail: (msg: string, opts?: string | { reason?: string, file?: string, severity?: 'error'|'warn', data?: object }) => void,
  *   result: () => LintResult
- * }}
+ * }} reporter, що накопичує порушення й повертає LintResult.
  */
 export function createViolationReporter(ctx) {
   /** @type {LintViolation[]} */
@@ -27,7 +27,9 @@ export function createViolationReporter(ctx) {
   const defaultReason = ctx?.concernId ?? 'violation'
   return {
     // detector не друкує — pass стає no-op (успіхи рендерить runner відсутністю violations)
-    pass() {},
+    pass() {
+      // навмисний no-op: успіх не накопичує violation
+    },
     fail(msg, opts) {
       const o = typeof opts === 'string' ? { reason: opts } : (opts ?? {})
       /** @type {any} */

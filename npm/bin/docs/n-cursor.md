@@ -477,7 +477,7 @@ try {
 
 ### Передумова перед switch
 
-`await ensureNitraCursorInRootDevDependencies(cwd())` — якщо у корені проєкту є `package.json` без `@nitra/cursor` у `devDependencies`/`dependencies`, додається запис `^<currentVersion>` (зручно після `npx`). Виконується для **всіх** команд, не лише для `runSync`.
+`await ensureNitraCursorInRootDevDependencies(cwd())` — у корені проєкту (`package.json` із `workspaces`): якщо `@nitra/cursor` відсутній у `devDependencies`/`dependencies`, додається `^<currentVersion>`; якщо вже присутній у `devDependencies` зі старішим числовим піном — **self-upgrade** до `^<currentVersion>` (ніколи не понижує; нечислові піни `workspace:*`/`latest`/git і записи в `dependencies` не чіпаються). Зручно після `npx` і прибирає дрейф версії self-lint. Виконується для **всіх** команд, не лише для `runSync`.
 
 ## Залежності
 

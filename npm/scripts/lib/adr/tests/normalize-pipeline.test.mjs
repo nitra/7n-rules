@@ -15,6 +15,8 @@ import {
   validateMadr
 } from '../normalize-pipeline.mjs'
 
+const RE_STRIP_FRONTMATTER = /^---[\s\S]*?---\n\n/
+
 describe('tokenize / jaccard', () => {
   it('відкидає стоп-слова, timestamp-префікс і короткі токени', () => {
     const t = tokenize('260607-2151-маршрутизація-локальних-моделей-pi-vs-ollama.md')
@@ -87,7 +89,7 @@ Chosen option: "X", because Y.
   })
 
   it('ловить відсутній OKF type: ADR (немає frontmatter)', () => {
-    const noFm = good.replace(/^---[\s\S]*?---\n\n/, '')
+    const noFm = good.replace(RE_STRIP_FRONTMATTER, '')
     const r = validateMadr(noFm)
     expect(r.ok).toBe(false)
     expect(r.errors).toContain('missing OKF type: ADR frontmatter')

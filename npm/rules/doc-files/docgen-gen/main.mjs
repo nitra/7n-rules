@@ -283,11 +283,11 @@ export function scoreDoc(md, facts, { anchors = null, src = '' } = {}) {
  * @returns {string} фінальний текст секції
  */
 async function critiqueRefineSection(sectionKey, draft, facts, anchors, model, timeoutMs) {
-  const critique = (await callLlm(criticMessages(sectionKey, draft, facts, anchors), model, { timeoutMs })).trim()
+  const critiqueRaw = await callLlm(criticMessages(sectionKey, draft, facts, anchors), model, { timeoutMs })
+  const critique = critiqueRaw.trim()
   if (!critique || CRITIC_NONE_RE.test(critique) || critique.length < 12) return draft
-  const refined = (
-    await callLlm(refineMessages(sectionKey, draft, critique, facts, anchors), model, { timeoutMs })
-  ).trim()
+  const refinedRaw = await callLlm(refineMessages(sectionKey, draft, critique, facts, anchors), model, { timeoutMs })
+  const refined = refinedRaw.trim()
   return stripSignatures(stripSection(refined)) || draft
 }
 

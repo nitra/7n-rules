@@ -12,9 +12,21 @@ import { join } from 'node:path'
 import { MUTANTS_CONFIG_MISSING, lint } from '../main.mjs'
 import { patterns } from '../fix-cargo_mutants_config.mjs'
 
-/** Прогоняє T0-патерни concern-а над violations (як central fix-pipeline). */
+/**
+ * Прогоняє T0-патерни concern-а над violations (як central fix-pipeline).
+ * @param {object[]} violations Список порушень від detector-а.
+ * @param {string} dir Каталог проєкту (cwd для fix-контексту).
+ * @returns {Promise<void>}
+ */
 async function applyT0(violations, dir) {
-  const ctx = { cwd: dir, ruleId: 'test', concernId: 'cargo_mutants_config', recordWrite() {} }
+  const ctx = {
+    cwd: dir,
+    ruleId: 'test',
+    concernId: 'cargo_mutants_config',
+    recordWrite() {
+      /* no-op у тестовому контексті */
+    }
+  }
   for (const p of patterns) {
     if (p.test(violations)) await p.apply(violations, ctx)
   }

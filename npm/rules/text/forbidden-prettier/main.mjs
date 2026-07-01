@@ -30,8 +30,8 @@ const FORBIDDEN_PRETTIER_FILES = [
 
 /**
  * Перевіряє, що жоден Prettier-конфіг чи ignore-файл не лежить у корені проєкту.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту (cwd, репортер).
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат перевірки з pass/fail.
  */
 export function lint(ctx) {
   const reporter = createViolationReporter(ctx)

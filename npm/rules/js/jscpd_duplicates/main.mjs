@@ -15,8 +15,8 @@ import { join } from 'node:path'
 
 /**
  * Один клон → LintViolation.
- * @param {JscpdClone} clone
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation}
+ * @param {JscpdClone} clone дубльований фрагмент
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation} нормалізоване порушення
  */
 function cloneToViolation(clone) {
   const a = clone.firstFile
@@ -39,8 +39,8 @@ function cloneToViolation(clone) {
 
 /**
  * Detector js/jscpd_duplicates: дублікати коду через `jscpd` (read-only).
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} перелік порушень
  */
 export function lint(ctx) {
   const cwd = ctx.cwd

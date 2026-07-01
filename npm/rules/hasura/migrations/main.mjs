@@ -12,7 +12,7 @@ const MIGRATIONS_REL = 'hasura/migrations'
  * Перевіряє, що у `hasura/migrations/` відсутні файли `down.sql`.
  * Директорія міграції має містити лише `up.sql` — `down.sql` у проєкті не використовується.
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат перевірки
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

@@ -37,6 +37,9 @@ const execFileAsync = promisify(execFile)
 const ruleId = 'rules/changelog'
 const concernId = 'rules/changelog/consistency'
 
+/** Витягує ім'я пакета з PyPI-URL `.../pypi/<name>/json` (module-scope: без re-compile). */
+const PYPI_URL_RE = /\/pypi\/([^/]+)\/json/u
+
 /**
  * Запускає detector у каталозі й повертає exit-подібний код (0 clean / 1 violation).
  * @param {string} dir корінь репозиторію
@@ -89,13 +92,13 @@ async function checkWithPublishedNpm(map, dir) {
  */
 async function checkWithPublishedPyPi(map, dir) {
   const prev = fetch
-  const fakeFetch = async url => {
-    const m = String(url).match(/\/pypi\/([^/]+)\/json/u)
+  const fakeFetch = url => {
+    const m = String(url).match(PYPI_URL_RE)
     const name = m ? decodeURIComponent(m[1]) : null
     if (name && Object.hasOwn(map, name)) {
-      return { ok: true, json: async () => ({ info: { version: map[name] } }) }
+      return { ok: true, json: () => ({ info: { version: map[name] } }) }
     }
-    return { ok: false, json: async () => ({}) }
+    return { ok: false, json: () => ({}) }
   }
   Reflect.defineProperty(globalThis, 'fetch', { value: fakeFetch, configurable: true, writable: true })
   try {

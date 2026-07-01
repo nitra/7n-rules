@@ -16,6 +16,7 @@ import {
 } from '../main.mjs'
 
 const HEX8_RE = /^[0-9a-f]{8}$/u
+const CRC_MODEL_FM_RE = /crc: a3f1c9e0\n {2}model: omlx\/gemma-4-e4b-it-OptiQ-4bit/u
 
 describe('crc32', () => {
   test('детермінований, 8-символьний hex', () => {
@@ -51,7 +52,7 @@ describe('frontmatter', () => {
 
   test('model: повний id пишеться після crc і парситься назад', () => {
     const fm = buildDocFrontmatter('src/foo.js', 'a3f1c9e0', null, 'omlx/gemma-4-e4b-it-OptiQ-4bit')
-    expect(fm).toMatch(/crc: a3f1c9e0\n {2}model: omlx\/gemma-4-e4b-it-OptiQ-4bit/u)
+    expect(fm).toMatch(CRC_MODEL_FM_RE)
     expect(parseDocFrontmatter(fm).data.model).toBe('omlx/gemma-4-e4b-it-OptiQ-4bit')
   })
 

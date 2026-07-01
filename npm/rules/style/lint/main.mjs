@@ -33,8 +33,8 @@ export function resolveStylelint(cwd) {
 
 /**
  * Detector style/lint (read-only).
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону (cwd, files)
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат зі зібраними violations
  */
 export function lint(ctx) {
   const reporter = createViolationReporter(ctx)

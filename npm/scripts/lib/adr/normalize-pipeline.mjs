@@ -45,13 +45,14 @@ const RE_DECISION_SECTION = /##\s*Decision Outcome\s*([\s\S]{0,500})/i
 const RE_NO_DECISION = /(не\s+обрано|не\s+прийнят|рішення\s+не\s+прийн|не\s+зроблен|no\s+decision|undecided)/i
 const RE_FENCE_LEAD = /^\s*```/
 const RE_FENCE_TRAIL = /```\s*$/
-const RE_FRONTMATTER = /^---\s*$/m
 const RE_SESSION = /\bsession:\s/
-const RE_H1 = /^#\s+\S/m
 const RE_STATUS = /\*\*Status:\*\*/
 const RE_DATE = /\*\*Date:\*\*\s*\d{4}-\d{2}-\d{2}/
 const RE_TOKEN_SPLIT = /[^a-zа-яіїєґ0-9]+/i
 const RE_DRAFT_ADR_TITLE = /^#{1,2}\s+ADR\s+(.+)$/m
+const RE_INFRA_ERROR = /registry:|session:|не знайдена/i
+const RE_YAML_FRONTMATTER = /^---\n([\s\S]*?)\n---/
+const RE_TYPE_ADR = /^type:\s*ADR\s*$/m
 
 /**
  * Прибирає code-fence-обгортку з LLM-відповіді.
@@ -187,7 +188,7 @@ async function callWithCascade(messages, parse, cfg) {
     }
     lastErr = new Error(res.error)
     // infra (registry/session/модель недоступна) → ретрай локально марний.
-    if (/registry:|session:|не знайдена/i.test(res.error)) break
+    if (RE_INFRA_ERROR.test(res.error)) break
   }
   if (cfg.allowCloud && CLOUD_MIN) {
     cfg.stats.cloudCalls++
@@ -198,14 +199,14 @@ async function callWithCascade(messages, parse, cfg) {
       timeoutMs: 120_000,
       caller: `adr-pipe:${cfg.label}:cloud`
     })
-    if (!res.error) {
+    if (res.error) {
+      lastErr = new Error(res.error)
+    } else {
       try {
         return parse(res.content)
       } catch (error) {
         lastErr = error
       }
-    } else {
-      lastErr = new Error(res.error)
     }
   }
   cfg.stats.failures++
@@ -324,8 +325,8 @@ export function validateMadr(content) {
   if (!content || content.length < 80) errors.push('too short')
   if (RE_FENCE_LEAD.test(content) || RE_FENCE_TRAIL.test(content.trim())) errors.push('code-fence wrapper')
   // OKF conformance: must have YAML frontmatter with type: ADR (not draft session: fields)
-  const fmMatch = /^---\n([\s\S]*?)\n---/.exec(content)
-  if (!fmMatch || !/^type:\s*ADR\s*$/m.test(fmMatch[1])) errors.push('missing OKF type: ADR frontmatter')
+  const fmMatch = RE_YAML_FRONTMATTER.exec(content)
+  if (!fmMatch || !RE_TYPE_ADR.test(fmMatch[1])) errors.push('missing OKF type: ADR frontmatter')
   if (RE_SESSION.test(content)) errors.push('leaked session: field')
   if (!RE_STATUS.test(content)) errors.push('missing Status')
   if (!RE_DATE.test(content)) errors.push('missing/!ISO Date')
@@ -420,7 +421,7 @@ export function assembleMadr({ title, date, sections: s }) {
   const outcome = s.chosen
     ? `Chosen option: "${s.chosen}"${s.rationale ? `, because ${noDot(s.rationale)}` : ''}.`
     : s.rationale ? `${noDot(s.rationale)}.` : 'Рішення зафіксовано у чернетці.'
-  const titleYaml = title.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  const titleYaml = title.replaceAll('\\', String.raw`\\`).replaceAll('"', String.raw`\"`)
   return [
     '---',
     'type: ADR',

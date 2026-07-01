@@ -11,30 +11,79 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { buildFixPrompt, runPiAgentFix } from '../pi-agent-fix.mjs'
 
+const RE_AST_FACTS = /ast_facts/
+const RE_SELF_CHECK = /self_check/
+const RE_PREVIOUS_ATTEMPT = /Попередня спроба/
+const RE_NOT_GIT = /не git-репо/
+const RE_NOT_FOUND = /не знайдена/
+const RE_FAIL_CLOSED = /fail-closed/
+
+const registry = { find: (p, id) => ({ provider: p, id }) }
+
+/** No-op placeholder для subscribe-хендлера до реєстрації. */
+const noop = () => {
+  /* no-op */
+}
+
+/**
+ * Fake pi-сесія, що приєднує guard через factory і драйвить події + один edit.
+ * @param {object} [opts] опції
+ * @param {string|null} [opts.promptError] якщо задано — prompt кидає з цим текстом
+ * @returns {import('vitest').Mock} vi.fn-фабрика createSession
+ */
+function fakeCreate({ promptError = null } = {}) {
+  return vi.fn(async ({ factory }) => {
+    await Promise.resolve()
+    let toolCb = null
+    factory({
+      on: (ev, h) => {
+        if (ev === 'tool_call') toolCb = h
+      }
+    })
+    let sub = noop
+    return {
+      subscribe: fn => {
+        sub = fn
+      },
+      abort: vi.fn(),
+      prompt: async () => {
+        await Promise.resolve()
+        sub({ type: 'turn_start' })
+        sub({ type: 'tool_execution_start', toolName: 'edit' })
+        toolCb?.({ toolName: 'edit', input: { path: 'src.mjs', edits: [{ oldText: 'OLD', newText: 'NEW' }] } })
+        sub({ type: 'tool_execution_end', toolName: 'edit', isError: false })
+        sub({
+          type: 'message_end',
+          message: { usage: { input: 100, output: 10, totalTokens: 110 }, stopReason: 'stop' }
+        })
+        if (promptError) throw new Error(promptError)
+      }
+    }
+  })
+}
+
 describe('buildFixPrompt', () => {
   test('містить правило, порушення, інструкцію ast_facts/self_check', () => {
     const p = buildFixPrompt({ ruleId: 'n-ci4', violation: '❌ bad', ruleText: 'правило X' })
     expect(p).toContain('n-ci4')
     expect(p).toContain('❌ bad')
     expect(p).toContain('правило X')
-    expect(p).toMatch(/ast_facts/)
-    expect(p).toMatch(/self_check/)
+    expect(p).toMatch(RE_AST_FACTS)
+    expect(p).toMatch(RE_SELF_CHECK)
   })
 
   test('feedback додається лише за наявності', () => {
-    expect(buildFixPrompt({ ruleId: 'r', violation: 'v' })).not.toMatch(/Попередня спроба/)
+    expect(buildFixPrompt({ ruleId: 'r', violation: 'v' })).not.toMatch(RE_PREVIOUS_ATTEMPT)
     expect(buildFixPrompt({ ruleId: 'r', violation: 'v', feedback: { previousError: 'E' } })).toMatch(
-      /Попередня спроба/
+      RE_PREVIOUS_ATTEMPT
     )
   })
 })
 
-const registry = { find: (p, id) => ({ provider: p, id }) }
-
 describe('error-шляхи (без git/pi)', () => {
   test('не git-репо → fix пропущено', async () => {
     const r = await runPiAgentFix('r', 'v', '/tmp', { model: 'omlx/x', deps: { root: null, trace: vi.fn() } })
-    expect(r.error).toMatch(/не git-репо/)
+    expect(r.error).toMatch(RE_NOT_GIT)
     expect(r.applied).toBe(false)
   })
 
@@ -43,16 +92,26 @@ describe('error-шляхи (без git/pi)', () => {
       model: 'omlx/missing',
       deps: { root: '/tmp', registry: { find: () => null }, trace: vi.fn(), createSession: vi.fn() }
     })
-    expect(r.error).toMatch(/не знайдена/)
+    expect(r.error).toMatch(RE_NOT_FOUND)
   })
 
   test('fail-closed canary: factory не викликана → fix скасовано', async () => {
-    const createSession = vi.fn(async () => ({ subscribe() {}, prompt: async () => {}, abort() {} }))
+    const createSession = vi.fn(() =>
+      Promise.resolve({
+        subscribe() {
+          /* no-op */
+        },
+        prompt: () => Promise.resolve(),
+        abort() {
+          /* no-op */
+        }
+      })
+    )
     const r = await runPiAgentFix('r', 'v', '/tmp', {
       model: 'omlx/x',
       deps: { root: '/tmp', registry, createSession, trace: vi.fn() }
     })
-    expect(r.error).toMatch(/fail-closed/)
+    expect(r.error).toMatch(RE_FAIL_CLOSED)
   })
 })
 
@@ -66,36 +125,6 @@ describe('happy-path (справжній write-guard на temp git-репо)', (
     writeFileSync(join(dir, 'src.mjs'), 'export const X = "OLD"\n')
   })
   afterEach(() => rmSync(dir, { recursive: true, force: true }))
-
-  /** Fake session, що приєднує guard через factory і драйвить події + один edit. */
-  function fakeCreate({ promptError = null } = {}) {
-    return vi.fn(async ({ factory }) => {
-      let toolCb = null
-      factory({
-        on: (ev, h) => {
-          if (ev === 'tool_call') toolCb = h
-        }
-      })
-      let sub = () => {}
-      return {
-        subscribe: fn => {
-          sub = fn
-        },
-        abort: vi.fn(),
-        prompt: async () => {
-          sub({ type: 'turn_start' })
-          sub({ type: 'tool_execution_start', toolName: 'edit' })
-          toolCb?.({ toolName: 'edit', input: { path: 'src.mjs', edits: [{ oldText: 'OLD', newText: 'NEW' }] } })
-          sub({ type: 'tool_execution_end', toolName: 'edit', isError: false })
-          sub({
-            type: 'message_end',
-            message: { usage: { input: 100, output: 10, totalTokens: 110 }, stopReason: 'stop' }
-          })
-          if (promptError) throw new Error(promptError)
-        }
-      }
-    })
-  }
 
   test('контракт {applied,touchedFiles,telemetry,error,rollback}', async () => {
     const trace = vi.fn()

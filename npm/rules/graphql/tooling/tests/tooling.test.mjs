@@ -66,7 +66,8 @@ describe('check (tooling.mjs)', () => {
   test('exit 1 — gql знайдено, .graphqlrc.yml відсутній', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'api.js'), 'const q = gql`query { me { id } }`\n', 'utf8')
-      expect((await check(dir)).length).toBeGreaterThan(0)
+      const violations = await check(dir)
+      expect(violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -90,7 +91,8 @@ describe('check (tooling.mjs)', () => {
       await writeJson(join(dir, '.vscode/extensions.json'), {
         recommendations: ['eslint.vscode-eslint']
       })
-      expect((await check(dir)).length).toBeGreaterThan(0)
+      const violations = await check(dir)
+      expect(violations.length).toBeGreaterThan(0)
     })
   })
 })

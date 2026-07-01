@@ -8,16 +8,16 @@ import { join } from 'node:path'
 
 /**
  * @typedef {object} LintSurface
- * @property {'per-file'|'full'} scope
+ * @property {'per-file'|'full'} scope область лінту: per-file чи повний прогін.
  * @property {string[]} glob масив glob-ів (нормалізований з string|string[]); порожній якщо не задано
  */
 
 /**
  * @typedef {object} PolicySurface
  * @property {'rego'|'template'} engine канонічне поле; derived з legacy `check:'template'`
- * @property {{ single?: string, walkGlob?: string|string[], required?: boolean }} files
+ * @property {{ single?: string, walkGlob?: string|string[], required?: boolean }} files опис файлів policy-поверхні.
  * @property {'template'|undefined} check legacy (deprecated) — лишається для backward-compat
- * @property {string|undefined} missingMessage
+ * @property {string|undefined} missingMessage повідомлення про відсутній файл (опційно).
  */
 
 /**
@@ -25,8 +25,8 @@ import { join } from 'node:path'
  * @property {string} name ім'я concern-а (= basename каталогу)
  * @property {string} dir абсолютний шлях до каталогу concern-а
  * @property {boolean} check чи є JS check поверхня
- * @property {PolicySurface|undefined} policy
- * @property {LintSurface|undefined} lint
+ * @property {PolicySurface|undefined} policy policy-поверхня concern-а (rego/template) або undefined.
+ * @property {LintSurface|undefined} lint lint-поверхня concern-а або undefined.
  */
 
 /**
@@ -34,7 +34,7 @@ import { join } from 'node:path'
  * Повертає `null` якщо файл відсутній або не валідний.
  * @param {string} concernDir абсолютний шлях до підкаталогу concern-а
  * @param {string} name ім'я concern-а (basename)
- * @returns {Promise<ConcernMeta|null>}
+ * @returns {Promise<ConcernMeta|null>} нормалізований meta або `null` якщо файл відсутній/невалідний.
  */
 export async function readConcernMeta(concernDir, name) {
   const metaPath = join(concernDir, 'concern.json')
@@ -91,7 +91,7 @@ export async function readConcernMeta(concernDir, name) {
  * Сканує підкаталоги `ruleDir` і повертає всі concern-и (у алфавітному порядку).
  * Каталоги без `concern.json` ігноруються.
  * @param {string} ruleDir абсолютний шлях до `rules/<id>/`
- * @returns {Promise<ConcernMeta[]>}
+ * @returns {Promise<ConcernMeta[]>} масив concern-ів у алфавітному порядку.
  */
 export async function listConcerns(ruleDir) {
   const { readdir } = await import('node:fs/promises')

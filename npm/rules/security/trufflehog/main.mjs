@@ -11,8 +11,9 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const SNIPPET_PATH = join(HERE, 'templates', 'trufflehog', '.trufflehog-exclude.snippet.txt')
 
 /**
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * Перевіряє наявність і канонічний вміст `.trufflehog-exclude` у корені проєкту.
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту (cwd, репортер).
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат перевірки з pass/fail.
  */
 export async function lint(ctx) {
   const cwd = ctx.cwd

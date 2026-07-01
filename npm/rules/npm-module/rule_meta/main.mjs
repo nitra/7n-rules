@@ -6,6 +6,10 @@ import { createViolationReporter } from '../../../scripts/lib/lint-surface/viola
 import { parseRuleAutoSpec, parseRuleLintSpec, readRuleMetaRaw } from '../../../scripts/lib/rule-meta.mjs'
 import { RULE_PREDICATES } from '../../../scripts/lib/rule-predicates.mjs'
 
+// Канон (ADR 2026-06-21): lint-поверхня — це експорт `lint` із `main.mjs` (інлайн або
+// `export { lint } from './js/…'`), а не окремий `js/lint.mjs`.
+const LINT_EXPORT_RE = /export\s+(?:async\s+)?function\s+lint\b|export\s*\{[^}]*\blint\b/u
+
 /**
  * Перевіряє поле `auto` у meta.json одного правила.
  * @param {string} id ідентифікатор правила
@@ -44,9 +48,7 @@ function checkLintField(id, ruleDir, raw, reporter) {
   }
   const mainPath = join(ruleDir, 'main.mjs')
   const src = existsSync(mainPath) ? readFileSync(mainPath, 'utf8') : ''
-  // Канон (ADR 2026-06-21): lint-поверхня — це експорт `lint` із `main.mjs` (інлайн або
-  // `export { lint } from './js/…'`), а не окремий `js/lint.mjs`.
-  if (!/export\s+(?:async\s+)?function\s+lint\b|export\s*\{[^}]*\blint\b/u.test(src)) {
+  if (!LINT_EXPORT_RE.test(src)) {
     reporter.fail(`rules/${id}: lint:"${raw.lint}" але main.mjs не експортує lint`)
     return false
   }
@@ -90,8 +92,8 @@ function checkRule(id, ruleDir, reporter) {
 
 /**
  * Валідує всі `npm/rules/<id>/meta.json`.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx Контекст лінту (`cwd` тощо).
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} Результат лінту зі списком violations.
  */
 export function lint(ctx) {
   const cwd = ctx.cwd

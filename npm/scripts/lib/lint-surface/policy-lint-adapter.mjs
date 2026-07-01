@@ -25,28 +25,34 @@ import {
 
 /**
  * posix-relative шлях від cwd (для LintViolation.file).
- * @param {string} abs
- * @param {string} cwd
- * @returns {string}
+ * @param {string} abs Абсолютний шлях до файлу.
+ * @param {string} cwd Корінь, відносно якого рахувати шлях.
+ * @returns {string} Posix-relative шлях (або сам `abs`, якщо relative порожній).
  */
 function toRel(abs, cwd) {
   return (relative(cwd, abs) || abs).split('\\').join('/')
 }
 
 /**
- * @param {object} cfg
- * @param {'rego'|'template'} cfg.engine
- * @param {string} cfg.policyDir абсолютний шлях до теки concern-а
- * @param {PolicySurface['files']} cfg.files target-семантика
- * @param {string} [cfg.missingMessage]
- * @param {LintContext} ctx
- * @returns {Promise<LintResult>}
+ * @param {LintContext} ctx Контекст лінту (`cwd`, `ruleId`, `concernId`).
+ * @param {object} cfg Конфіг оцінки policy-concern-а.
+ * @param {'rego'|'template'} cfg.engine Рушій перевірки: Rego (conftest) або template deep-subset.
+ * @param {string} cfg.policyDir Абсолютний шлях до теки concern-а.
+ * @param {PolicySurface['files']} cfg.files Target-семантика (які файли перевіряти).
+ * @param {string} [cfg.missingMessage] Повідомлення, коли обовʼязковий single-файл відсутній.
+ * @returns {Promise<LintResult>} Уніфікований результат лінту зі списком violations.
  */
 export async function evaluatePolicyConcern(ctx, cfg) {
   const { cwd, ruleId, concernId } = ctx
   /** @type {LintViolation[]} */
   const violations = []
-  /** @param {string} reason @param {string} message @param {string} [file] */
+  /**
+   * Додає violation до акумулятора.
+   * @param {string} reason Машинний код причини порушення.
+   * @param {string} message Людиночитане повідомлення.
+   * @param {string} [file] Relative-шлях до файлу-порушника (опційно).
+   * @returns {void}
+   */
   const add = (reason, message, file) => {
     const v = { ruleId, concernId, reason, message, severity: 'error' }
     if (file) v.file = file

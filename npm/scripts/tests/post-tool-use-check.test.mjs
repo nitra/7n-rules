@@ -23,7 +23,7 @@ describe('extractFilePath', () => {
 
 describe('runPostToolUseCheckCli', () => {
   test('file_path + детект чистий → 0', async () => {
-    const detectFn = vi.fn(async () => ({ violations: [], exitCode: 0 }))
+    const detectFn = vi.fn(() => Promise.resolve({ violations: [], exitCode: 0 }))
     const code = await runPostToolUseCheckCli({ stdinJson: EDIT, detectFn })
     expect(code).toBe(0)
     expect(detectFn).toHaveBeenCalledTimes(1)
@@ -31,7 +31,7 @@ describe('runPostToolUseCheckCli', () => {
   })
 
   test('file_path + є порушення → 1', async () => {
-    const detectFn = vi.fn(async () => ({ violations: [{ reason: 'x', message: 'bad' }], exitCode: 1 }))
+    const detectFn = vi.fn(() => Promise.resolve({ violations: [{ reason: 'x', message: 'bad' }], exitCode: 1 }))
     const code = await runPostToolUseCheckCli({ stdinJson: EDIT, detectFn })
     expect(code).toBe(1)
   })
@@ -54,9 +54,7 @@ describe('runPostToolUseCheckCli', () => {
   })
 
   test('detect кидає → 1', async () => {
-    const detectFn = vi.fn(async () => {
-      throw new Error('boom')
-    })
+    const detectFn = vi.fn(() => Promise.reject(new Error('boom')))
     expect(await runPostToolUseCheckCli({ stdinJson: EDIT, detectFn })).toBe(1)
   })
 

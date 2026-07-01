@@ -12,12 +12,18 @@ import { lint as lintVue } from '../rules/vue/packages/main.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
 
 // Адаптери під unified lint surface: detector → 0 (чисто) / 1 (є violations).
-const checkNginx = async dir =>
-  (await lintNginx({ cwd: dir, ruleId: 'nginx-default-tpl', concernId: 'template' })).violations.length === 0 ? 0 : 1
-const checkStyle = async dir =>
-  (await lintStyle({ cwd: dir, ruleId: 'style', concernId: 'tooling' })).violations.length === 0 ? 0 : 1
-const checkVue = async dir =>
-  (await lintVue({ cwd: dir, ruleId: 'vue', concernId: 'packages' })).violations.length === 0 ? 0 : 1
+const checkNginx = async dir => {
+  const result = await lintNginx({ cwd: dir, ruleId: 'nginx-default-tpl', concernId: 'template' })
+  return result.violations.length === 0 ? 0 : 1
+}
+const checkStyle = async dir => {
+  const result = await lintStyle({ cwd: dir, ruleId: 'style', concernId: 'tooling' })
+  return result.violations.length === 0 ? 0 : 1
+}
+const checkVue = async dir => {
+  const result = await lintVue({ cwd: dir, ruleId: 'vue', concernId: 'packages' })
+  return result.violations.length === 0 ? 0 : 1
+}
 
 const nginxFixDir = join(
   fileURLToPath(new URL('.', import.meta.url)),

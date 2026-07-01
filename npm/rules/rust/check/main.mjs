@@ -10,12 +10,12 @@ import { createViolationReporter } from '../../../scripts/lib/lint-surface/viola
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 
 /**
- * @param {string} label
- * @param {string} cargo
- * @param {string[]} args
- * @param {string} cwd
- * @param {(msg: string, reason: string) => void} fail
- * @param {string} reason
+ * @param {string} label назва кроку.
+ * @param {string} cargo шлях до бінарника cargo.
+ * @param {string[]} args аргументи cargo.
+ * @param {string} cwd робочий каталог.
+ * @param {(msg: string, reason: string) => void} fail колбек реєстрації порушення.
+ * @param {string} reason машиночитна причина порушення.
  * @returns {boolean} true якщо OK
  */
 function runCargo(label, cargo, args, cwd, fail, reason) {
@@ -30,8 +30,8 @@ function runCargo(label, cargo, args, cwd, fail, reason) {
 
 /**
  * Detector rust/check (read-only).
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат із порушеннями
  */
 export function lint(ctx) {
   const reporter = createViolationReporter(ctx)

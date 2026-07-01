@@ -22,6 +22,8 @@ const GZIP_EXTENSION_RE = /\*\.(?:js|css)/u
 // `error_log off;` — НЕ валідний nginx: "off" трактується як ім'я файлу (/etc/nginx/off)
 // і падає під readOnlyRootFilesystem. /dev/null — writable device, тому канон — `error_log /dev/null crit;`.
 const ERROR_LOG_OFF_RE = /error_log\s+off\s*;/gu
+// Non-global варіант для одноразового .test() (без stateful lastIndex, як у глобального ERROR_LOG_OFF_RE).
+const ERROR_LOG_OFF_TEST_RE = /error_log\s+off\s*;/u
 const ERROR_LOG_CANONICAL = 'error_log /dev/null crit;'
 
 /**
@@ -458,7 +460,7 @@ async function detectErrorLogOffDirective(root, ignorePaths, fail) {
     } catch {
       continue
     }
-    if (!body.includes('error_log') || !/error_log\s+off\s*;/u.test(body)) continue
+    if (!body.includes('error_log') || !ERROR_LOG_OFF_TEST_RE.test(body)) continue
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
     fail(`${rel}: невалідна директива error_log off; — замінити на error_log /dev/null crit; (nginx-default-tpl.mdc)`, {
       reason: 'error-log-off-directive',
@@ -471,7 +473,7 @@ async function detectErrorLogOffDirective(root, ignorePaths, fail) {
 /**
  * Перевіряє відповідність проєкту правилам nginx-default-tpl.mdc
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат зі зібраними violations
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

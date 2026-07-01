@@ -6,7 +6,11 @@ import { globby } from 'globby'
 // node_modules — safety net: проєкт може не мати .gitignore або запускатись поза git-репо.
 export const ALWAYS_IGNORE = ['.git/**', 'node_modules/**']
 
-/** Прибирає всі кінцеві `/` без regex-бектрекінгу. */
+/**
+ * Прибирає всі кінцеві `/` без regex-бектрекінгу.
+ * @param {string} p вхідний шлях.
+ * @returns {string} шлях без кінцевих слешів.
+ */
 function stripTrailingSlashes(p) {
   let end = p.length
   while (end > 0 && p[end - 1] === '/') end -= 1

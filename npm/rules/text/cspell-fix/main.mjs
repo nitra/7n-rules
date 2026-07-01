@@ -27,7 +27,10 @@ const UNKNOWN_WORD_RE = /Unknown word \(([^)]+)\)/u
 /** Максимум distinct-слів під класифікацію за прогін (без тихого обрізання — логуємо надлишок). */
 const MAX_CLASSIFY_WORDS = 80
 
-/** Локальна fix-модель (рішення: єдиний knob `N_LOCAL_MIN_MODEL`). */
+/**
+ * Локальна fix-модель (рішення: єдиний knob `N_LOCAL_MIN_MODEL`).
+ * @returns {string} ідентифікатор моделі з env або порожній рядок.
+ */
 const fixModel = () => env.N_LOCAL_MIN_MODEL || ''
 
 /**

@@ -23,8 +23,10 @@ import { lint as _npmModule } from '../rules/npm-module/package_structure/main.m
 import { withShellcheckStubInPath } from '../scripts/utils/test-helpers.mjs'
 
 // Адаптери під unified lint surface: detector → 0 (чисто) / 1 (є violations).
-const mk = (fn, ruleId, concernId) => async cwd =>
-  (await fn({ cwd, ruleId, concernId })).violations.length === 0 ? 0 : 1
+const mk = (fn, ruleId, concernId) => async cwd => {
+  const result = await fn({ cwd, ruleId, concernId })
+  return result.violations.length === 0 ? 0 : 1
+}
 const checkAbieFirebase = mk(_abieFirebase, 'abie', 'firebase_hosting')
 const checkAbieHc = mk(_abieHc, 'abie', 'hc_pairing')
 const checkAbieEnv = mk(_abieEnv, 'abie', 'env_dns')

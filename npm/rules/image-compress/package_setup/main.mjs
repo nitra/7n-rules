@@ -78,7 +78,7 @@ async function checkLegacyCacheRemoved(pass, fail, cwd) {
  * Перевіряє відповідність проєкту правилу `image-compress.mdc`: `.n-minify-image.tsv` НЕ
  * в `.gitignore`, застарілий `.minify-image-cache.tsv` видалений.
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} Результат лінту зі списком violations.
  */
 export async function lint(ctx) {
   const cwd = ctx.cwd

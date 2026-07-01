@@ -18,11 +18,11 @@ export function applies(cwd = process.cwd()) {
 }
 
 /**
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат context-pass
  */
-export async function lint(ctx) {
+export function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   reporter.pass('Знайдено Cargo.toml — застосовуємо правила rust.mdc')
-  return reporter.result()
+  return Promise.resolve(reporter.result())
 }

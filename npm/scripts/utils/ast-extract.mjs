@@ -16,12 +16,20 @@
 import { readFileSync } from 'node:fs'
 import { parseProgramOrNull } from './ast-scan-utils.mjs'
 
-/** Порожній результат із причиною (read/parse fail). @param {string} error причина */
+/**
+ * Порожній результат із причиною (read/parse fail).
+ * @param {string} error причина деградації
+ * @returns {{ error: string, imports: [], exports: [], topLevelFunctions: [] }} порожній зріз із причиною
+ */
 function empty(error) {
   return { error, imports: [], exports: [], topLevelFunctions: [] }
 }
 
-/** Чи init-вираз — функція (для `export const f = () => …`). @param {unknown} node init */
+/**
+ * Чи init-вираз — функція (для `export const f = () => …`).
+ * @param {unknown} node init-вузол оголошення змінної
+ * @returns {boolean} true якщо вузол — arrow/function expression
+ */
 function isFunctionInit(node) {
   return !!node && (node.type === 'ArrowFunctionExpression' || node.type === 'FunctionExpression')
 }
@@ -42,16 +50,18 @@ export function extractContextFromSource(content, virtualPath) {
 
   for (const node of program.body ?? []) {
     switch (node?.type) {
-      case 'ImportDeclaration':
+      case 'ImportDeclaration': {
         imports.push({
           source: node.source?.value ?? '',
           names: (node.specifiers ?? []).map(s => s.local?.name).filter(Boolean)
         })
         break
+      }
 
-      case 'FunctionDeclaration':
+      case 'FunctionDeclaration': {
         if (node.id?.name) topLevelFunctions.push(node.id.name)
         break
+      }
 
       case 'ExportNamedDeclaration': {
         const d = node.declaration
@@ -73,16 +83,19 @@ export function extractContextFromSource(content, virtualPath) {
         break
       }
 
-      case 'ExportDefaultDeclaration':
+      case 'ExportDefaultDeclaration': {
         exports.push('default')
         break
+      }
 
-      case 'ExportAllDeclaration':
+      case 'ExportAllDeclaration': {
         exports.push(node.exported?.name ?? '*')
         break
+      }
 
-      default:
+      default: {
         break
+      }
     }
   }
 
@@ -98,8 +111,8 @@ export function extractContext(filePath) {
   let content
   try {
     content = readFileSync(filePath, 'utf8')
-  } catch (e) {
-    return empty(`read failed: ${e.message}`)
+  } catch (error) {
+    return empty(`read failed: ${error.message}`)
   }
   return extractContextFromSource(content, filePath)
 }

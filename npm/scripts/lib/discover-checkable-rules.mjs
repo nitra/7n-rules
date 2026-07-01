@@ -22,7 +22,7 @@ import { listConcerns } from './concern-meta.mjs'
  * Будує `CheckableRule` для одного каталогу правила.
  * @param {string} ruleDir абсолютний шлях `rules/<id>/`
  * @param {string} ruleId id правила
- * @returns {Promise<CheckableRule>}
+ * @returns {Promise<CheckableRule>} правило з переліком його concerns
  */
 export async function discoverOneRule(ruleDir, ruleId) {
   const concerns = await listConcerns(ruleDir)
@@ -32,7 +32,7 @@ export async function discoverOneRule(ruleDir, ruleId) {
 /**
  * Сканує `rules/` і повертає правила з хоча б одним concern-ом, відсортовані за id.
  * @param {string} bundledRulesDir абсолютний шлях до `npm/rules/`
- * @returns {Promise<CheckableRule[]>}
+ * @returns {Promise<CheckableRule[]>} правила з ≥1 concern-ом, відсортовані за id
  */
 export async function discoverCheckableRules(bundledRulesDir) {
   if (!existsSync(bundledRulesDir)) return []

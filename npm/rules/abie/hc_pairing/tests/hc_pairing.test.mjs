@@ -38,7 +38,8 @@ spec: { default: { config: { type: HTTP } } }
 describe('abie hc_pairing concern', () => {
   test('репозиторій без k8s/-дерева → clean (skip)', async () => {
     await withTmpDir(async dir => {
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 
@@ -48,7 +49,8 @@ describe('abie hc_pairing concern', () => {
       await ensureDir(k8s)
       await writeFile(join(k8s, 'deploy.yaml'), DEPLOYMENT_YAML, 'utf8')
       await writeFile(join(k8s, 'hc.yaml'), VALID_HC, 'utf8')
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 
@@ -57,7 +59,8 @@ describe('abie hc_pairing concern', () => {
       const k8s = join(dir, 'pkg/k8s')
       await ensureDir(k8s)
       await writeFile(join(k8s, 'deploy.yaml'), DEPLOYMENT_YAML, 'utf8')
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const result = await run(dir)
+      expect(result.violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -71,7 +74,8 @@ describe('abie hc_pairing concern', () => {
         '# yaml-language-server: $schema=https://example.com/wrong.json\napiVersion: x\n',
         'utf8'
       )
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const result = await run(dir)
+      expect(result.violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -80,7 +84,8 @@ describe('abie hc_pairing concern', () => {
       const k8s = join(dir, 'pkg/k8s')
       await ensureDir(k8s)
       await writeFile(join(k8s, 'svc.yaml'), 'apiVersion: v1\nkind: Service\nmetadata: { name: x }\n', 'utf8')
-      expect((await run(dir)).violations).toEqual([])
+      const result = await run(dir)
+      expect(result.violations).toEqual([])
     })
   })
 
@@ -93,7 +98,8 @@ describe('abie hc_pairing concern', () => {
       await writeFile(join(a, 'deploy.yaml'), DEPLOYMENT_YAML, 'utf8')
       await writeFile(join(a, 'hc.yaml'), VALID_HC, 'utf8')
       await writeFile(join(b, 'deploy.yaml'), DEPLOYMENT_YAML, 'utf8')
-      expect((await run(dir)).violations.length).toBeGreaterThan(0)
+      const result = await run(dir)
+      expect(result.violations.length).toBeGreaterThan(0)
     })
   })
 })

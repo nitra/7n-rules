@@ -1,14 +1,17 @@
 // @generated — do not edit
-// source-hash: 4768e72cd8b98472
-
+// source-hash: 88cd323d91e1c479
 import { evaluatePolicyConcern } from '../../../scripts/lib/lint-surface/policy-lint-adapter.mjs'
 
-/** @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx */
-export async function lint(ctx) {
+/**
+ * Detector policy-concern-а (згенеровано codegen-обгорткою).
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx Контекст лінту (`cwd`, `ruleId`, `concernId`).
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} Уніфікований результат лінту зі списком violations.
+ */
+export function lint(ctx) {
   return evaluatePolicyConcern(ctx, {
-    engine: 'rego',
+    engine: "rego",
     policyDir: import.meta.dirname,
-    files: { single: '.github/workflows/lint-security.yml', required: true },
-    missingMessage: '.github/workflows/lint-security.yml не знайдено — створи за каноном security.mdc'
+    files: {"single":".github/workflows/lint-security.yml","required":true},
+    missingMessage: ".github/workflows/lint-security.yml не знайдено — створи за каноном security.mdc"
   })
 }

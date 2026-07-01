@@ -144,7 +144,11 @@ export function buildSkillPrompt(skillsRoot, rawSkillName, task, projectDir = cw
 async function runPiRunner(prompt, rawSkillName, skillsRoot, projectDir, logError, deps = {}) {
   const skillId = normalizeSkillId(rawSkillName)
   const tier = skillTier(readSkillMetaRaw(join(skillsRoot, skillId)))
-  const runPiAgentSkill = deps.runPiAgentSkill ?? (await import('../lib/pi-agent-skill.mjs')).runPiAgentSkill
+  let runPiAgentSkill = deps.runPiAgentSkill
+  if (runPiAgentSkill === undefined || runPiAgentSkill === null) {
+    const piAgentSkillModule = await import('../lib/pi-agent-skill.mjs')
+    runPiAgentSkill = piAgentSkillModule.runPiAgentSkill
+  }
   const result = await runPiAgentSkill(prompt, { skillId, tier, cwd: projectDir })
   if (result.error) {
     logError(result.error)

@@ -165,9 +165,9 @@ function purgeOrphanDocs(root, orphans) {
  * Єдина точка входу JS-концерну (канон scripts.mdc): спершу виконує швидкий
  * детермінований repair stale/orphan док, після чого репортить лише незакриті порушення.
  * @param {string} [cwd] корінь репо
- * @returns {Promise<number>} 0 — все актуально, 1 — є порушення
+ * @returns {number} 0 — все актуально, 1 — є порушення
  */
-export async function main(cwd = process.cwd()) {
+export function main(cwd = process.cwd()) {
   const stale = scanForDocFiles(cwd).filter(f => f.stale)
   const orphans = scanOrphanedDocs(cwd)
 

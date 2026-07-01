@@ -17,7 +17,7 @@ const LINT_TARGETS = ['npm/rules']
  * @param {string} bin абсолютний шлях до бінарника
  * @param {string[]} args аргументи
  * @param {string} cwd робоча директорія
- * @returns {{ status: number, output: string }}
+ * @returns {{ status: number, output: string }} код завершення й обрізаний stdout+stderr
  */
 function runStep(bin, args, cwd) {
   const result = spawnSync(bin, args, { cwd, encoding: 'utf8', env: process.env, shell: false })
@@ -30,8 +30,8 @@ function runStep(bin, args, cwd) {
 
 /**
  * Detector rego/check: opa check --strict, regal lint, conftest verify (read-only).
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону (cwd тощо)
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат зі зібраними violations
  */
 export function lint(ctx) {
   const reporter = createViolationReporter(ctx)

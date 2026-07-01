@@ -14,6 +14,13 @@ import { basename, dirname, join, relative } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { generateDoc, DEFAULT_LOCAL_MODEL } from '../docgen-gen/main.mjs'
+import { crc32, stampDoc, readDocQuality, readDocModel, readDocTier, QUALITY_THRESHOLD } from '../docgen-crc/main.mjs'
+import { resolveRoot, scanForDocFiles, scanOrphanedDocs } from '../docgen-scan/main.mjs'
+
+/** Regex-класифікатори помилки генерації (module-scope, без ре-компіляції на виклик). */
+const ERR_PERMANENT_RE = /prompt too long|pre-send guard|too long/i
+const ERR_SYSTEMIC_RE = /registry:|session:|не знайдена|memory|enomem|connection refused|econnrefused/i
+const ERR_TRANSIENT_RE = /timeout|etimedout/i
 
 /**
  * Класифікує помилку генерації для batch-логіки (замінює `classifyOmlxError` після
@@ -26,13 +33,11 @@ import { generateDoc, DEFAULT_LOCAL_MODEL } from '../docgen-gen/main.mjs'
  * @returns {'permanent'|'systemic'|'transient'|'infra'} клас
  */
 function classifyDocgenError(msg) {
-  if (/prompt too long|pre-send guard|too long/i.test(msg)) return 'permanent'
-  if (/registry:|session:|не знайдена|memory|enomem|connection refused|econnrefused/i.test(msg)) return 'systemic'
-  if (/timeout|etimedout/i.test(msg)) return 'transient'
+  if (ERR_PERMANENT_RE.test(msg)) return 'permanent'
+  if (ERR_SYSTEMIC_RE.test(msg)) return 'systemic'
+  if (ERR_TRANSIENT_RE.test(msg)) return 'transient'
   return 'infra'
 }
-import { crc32, stampDoc, readDocQuality, readDocModel, readDocTier, QUALITY_THRESHOLD } from '../docgen-crc/main.mjs'
-import { resolveRoot, scanForDocFiles, scanOrphanedDocs } from '../docgen-scan/main.mjs'
 
 /**
  * Парсить `--limit N` / `--from N` / прапори режимів для дозапуску великого прогону.
@@ -83,6 +88,15 @@ function modeSuffix({ overwrite }) {
 }
 
 /**
+ * Форматує мілісекунди у секунди з одним знаком (`1234` → `1.2s`).
+ * @param {number} ms тривалість у мілісекундах
+ * @returns {string} напр. `1.2s`
+ */
+function fmtSeconds(ms) {
+  return `${(ms / 1000).toFixed(1)}s`
+}
+
+/**
  * Рядок таймінгу одного файлу: загальний час, час у LLM (і кількість викликів)
  * та залишок — оркестрація (екстракт фактів, скоринг, парсинг, IO). Дає зрозуміти,
  * скільки коштує сама модель проти JS-оркестрації.
@@ -90,9 +104,8 @@ function modeSuffix({ overwrite }) {
  * @returns {string} напр. `12.3s (llm 11.8s/7 calls, orch 0.5s)`
  */
 function fmtTiming(r) {
-  const s = ms => `${(ms / 1000).toFixed(1)}s`
   const llmMs = r.llmMs ?? 0
-  return `${s(r.ms)} (llm ${s(llmMs)}/${r.llmCalls ?? 0} calls, orch ${s(r.ms - llmMs)})`
+  return `${fmtSeconds(r.ms)} (llm ${fmtSeconds(llmMs)}/${r.llmCalls ?? 0} calls, orch ${fmtSeconds(r.ms - llmMs)})`
 }
 
 /** Скільки systemic-збоїв підряд → негайний abort батчу (fail-fast, без cooldown). */
@@ -117,6 +130,7 @@ function fmtSize(bytes) {
  * @param {string} root абсолютний корінь
  * @param {{ done: number, total: number }} progress позиція у прогресі
  * @param {{ ok: number, degraded: number, err: number, errors: string[], skipped: string[] }} stats акумулятор
+ * @param {{ model?: string, tier?: string|null }} [opts] модель і тир для штампу
  * @returns {Promise<'ok'|'permanent'|'systemic'|'transient'>} результат для керування циклом
  */
 async function generateOne(file, root, progress, stats, { model, tier } = {}) {
@@ -166,6 +180,8 @@ async function generateOne(file, root, progress, stats, { model, tier } = {}) {
 const OKF_TITLE_RE = /^title: (.+)$/mu
 const OKF_TYPE_RE = /^type: (.+)$/mu
 const OKF_RESOURCE_RE = /^resource:[ \t]+(\S[^\n]*)$/mu
+/** Суфікс `.md` для деривації заголовка з імені файлу. */
+const MD_SUFFIX_RE = /\.md$/u
 
 /**
  * Витягує тіло YAML-frontmatter (між першим `---\n` та наступним рядком `---`).
@@ -212,7 +228,7 @@ function generateDirIndex(docsAbsDir, root) {
     const md = readFileSync(join(docsAbsDir, f), 'utf8')
     const fm = extractFrontmatter(md)
     const resource = fm.match(OKF_RESOURCE_RE)?.[1]?.trim()
-    const title = fm.match(OKF_TITLE_RE)?.[1]?.trim() ?? (resource ? basename(resource) : f.replace(/\.md$/, ''))
+    const title = fm.match(OKF_TITLE_RE)?.[1]?.trim() ?? (resource ? basename(resource) : f.replace(MD_SUFFIX_RE, ''))
     const type = fm.match(OKF_TYPE_RE)?.[1]?.trim() ?? 'Source File'
     return `| [${title}](${f}) | ${type} |`
   })
@@ -301,7 +317,7 @@ export function purgeOrphanedDocs(root) {
  * @param {string[]} argv аргументи після назви субкоманди
  * @returns {Promise<number>} exit-код: 0 — без помилок; 1 — помилки/фейл preflight; 2 — systemic-abort
  */
-export async function runDocFilesGenCli(argv) {
+export function runDocFilesGenCli(argv) {
   const root = resolveRoot(argv)
   const { from, limit, overwrite } = parseGenArgs(argv)
 

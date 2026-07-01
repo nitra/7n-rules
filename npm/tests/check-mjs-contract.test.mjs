@@ -18,8 +18,8 @@ const ruleIds = rulesEntries
   .toSorted((a, b) => a.localeCompare(b))
 
 /**
- * @param {string} ruleDir
- * @returns {Promise<Array<{name: string, dir: string, meta: object}>>}
+ * @param {string} ruleDir шлях до каталогу правила
+ * @returns {Promise<Array<{name: string, dir: string, meta: object}>>} список concern-ів із метаданими
  */
 async function listConcerns(ruleDir) {
   let entries
@@ -81,7 +81,7 @@ describe('concern contract — усі правила', () => {
 
     test(`${id}: lint-concerns мають main.mjs з lint()`, async () => {
       const concerns = await listConcerns(ruleDir)
-      const lintConcerns = concerns.filter(c => c.meta.lint != null)
+      const lintConcerns = concerns.filter(c => c.meta.lint !== undefined && c.meta.lint !== null)
       for (const c of lintConcerns) {
         const mainPath = join(c.dir, 'main.mjs')
         expect(existsSync(mainPath), `${id}/${c.name}/main.mjs відсутній`).toBe(true)

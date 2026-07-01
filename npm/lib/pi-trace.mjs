@@ -17,7 +17,10 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { env } from 'node:process'
 
-/** Шлях глобального trace (env-override `N_CURSOR_TRACE_PATH`). @returns {string} */
+/**
+ * Шлях глобального trace (env-override `N_CURSOR_TRACE_PATH`).
+ * @returns {string} абсолютний шлях до `llm-trace.jsonl`.
+ */
 export function tracePath() {
   return env.N_CURSOR_TRACE_PATH || join(homedir(), '.n-cursor', 'llm-trace.jsonl')
 }

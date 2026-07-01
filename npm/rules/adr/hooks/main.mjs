@@ -281,7 +281,7 @@ function gitignoreLineCoversStatePath(line, statePath) {
 
 /**
  * Перевіряє `.gitignore` на наявність рядків для файлів стану normalize-хука.
- * @param {import('../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter
+ * @param {import('../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter репортер pass/fail
  * @param {string} cwd корінь репозиторію
  * @returns {Promise<void>}
  */
@@ -302,7 +302,7 @@ async function checkGitignoreForStateFiles(reporter, cwd) {
 
 /**
  * Перевіряє наявність каталогу `docs/adr/` — обов'язкового місця зберігання ADR-ів.
- * @param {import('../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter
+ * @param {import('../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter репортер pass/fail
  * @param {string} cwd корінь репозиторію
  * @returns {void}
  */
@@ -318,8 +318,8 @@ function checkDocsAdrDir(reporter, cwd) {
 
 /**
  * Перевіряє відповідність проєкту правилам adr.mdc.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат із порушеннями
  */
 export async function lint(ctx) {
   const cwd = ctx.cwd

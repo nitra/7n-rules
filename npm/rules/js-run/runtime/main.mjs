@@ -443,7 +443,12 @@ function checkConnAliasDeclaration(absPackageRoot, sourcePaths, pkgJson, label, 
 }
 
 /**
- *
+ * Перевіряє наявність OTEL configmap для workspace-пакета.
+ * @param {string} rootDir корінь пакета відносно cwd
+ * @param {(msg: string) => void} passFn репортер успішної перевірки
+ * @param {(msg: string) => void} failFn репортер порушення
+ * @param {string} cwd робочий каталог
+ * @returns {void}
  */
 function checkOtelConfigmap(rootDir, passFn, failFn, cwd) {
   const k8sDir = join(cwd, rootDir, 'k8s')
@@ -465,7 +470,7 @@ function checkOtelConfigmap(rootDir, passFn, failFn, cwd) {
 /**
  * Перевіряє відповідність проєкту правилам js-run.mdc лише для workspace-пакетів (не корінь репо).
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} перелік порушень
  */
 export async function lint(ctx) {
   const cwd = ctx.cwd

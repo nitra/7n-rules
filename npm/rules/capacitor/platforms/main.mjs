@@ -26,6 +26,9 @@ const NPM_OR_PARTS_RE = /\|\|/
 /** Один роздільник `<ws>-<ws>` у npm hyphen-діапазоні `a - b` (лінійний пошук). */
 const NPM_HYPHEN_SEPARATOR_RE = /\s-\s/
 
+/** Один whitespace-символ (для розширення меж hyphen-діапазону). */
+const WHITESPACE_RE = /\s/
+
 /**
  * Ліва межа npm hyphen-діапазону `low - high`.
  * Роздільник — `\s+-\s+`; знаходимо його першу появу лінійно (без backtracking),
@@ -39,11 +42,11 @@ function npmHyphenRangeLeft(s) {
     return null
   }
   let start = m.index
-  while (start > 0 && /\s/.test(s[start - 1])) {
+  while (start > 0 && WHITESPACE_RE.test(s[start - 1])) {
     start -= 1
   }
   let end = m.index + m[0].length
-  while (end < s.length && /\s/.test(s[end])) {
+  while (end < s.length && WHITESPACE_RE.test(s[end])) {
     end += 1
   }
   const left = s.slice(0, start)
@@ -430,8 +433,9 @@ async function isIosCocoaPodsExemptByNitraConfig(root) {
 }
 
 /**
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * Перевіряє відповідність проєкту правилам capacitor.mdc.
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат лінту
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

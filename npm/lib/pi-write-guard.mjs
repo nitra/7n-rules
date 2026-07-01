@@ -61,13 +61,23 @@ function realpathBestEffort(p) {
   }
 }
 
-/** Чи `abs` під `root` (захист від `..`-escape). @param {string} root @param {string} abs */
+/**
+ * Чи `abs` під `root` (захист від `..`-escape).
+ * @param {string} root корінь-каталог.
+ * @param {string} abs абсолютний шлях, що перевіряється.
+ * @returns {boolean} true, якщо `abs` лежить під `root`.
+ */
 function isUnder(root, abs) {
   const rel = relative(root, abs)
   return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel)
 }
 
-/** Чи `abs` ігнорований git'ом (`git check-ignore -q`, exit 0 = ignored). */
+/**
+ * Чи `abs` ігнорований git'ом (`git check-ignore -q`, exit 0 = ignored).
+ * @param {string} root git-корінь, у якому запускається `git check-ignore`.
+ * @param {string} abs абсолютний шлях, що перевіряється.
+ * @returns {boolean} true, якщо шлях git-ignored.
+ */
 function isIgnored(root, abs) {
   return spawnSync('git', ['check-ignore', '-q', '--', abs], { cwd: root }).status === 0
 }
@@ -94,9 +104,9 @@ export function createWriteGuard({ cwd, root, checkIgnore = isIgnored, onCapture
     // Синхронний хендлер: уся робота (spawnSync/fs) синхронна; pi коректно
     // awaitить і не-Promise return (Спайк 3). Так veto детерміновано тестується.
     pi.on('tool_call', event => {
-      if (!WRITE_TOOLS.has(event?.toolName)) return undefined
+      if (!WRITE_TOOLS.has(event?.toolName)) return
       const raw = event?.input?.path
-      if (typeof raw !== 'string' || raw === '') return undefined // не резолвимо — хай pi сам
+      if (typeof raw !== 'string' || raw === '') return // не резолвимо — хай pi сам
 
       // realpath-нормалізація: edit-шлях агента може бути symlink-варіантом root'а.
       const abs = realpathBestEffort(isAbsolute(raw) ? raw : resolve(cwd, raw))
@@ -125,7 +135,6 @@ export function createWriteGuard({ cwd, root, checkIgnore = isIgnored, onCapture
         edits: event.input?.edits ?? null, // edit: [{oldText,newText}]
         content: event.input?.content ?? null // write: повний вміст
       })
-      return undefined
     })
   }
 
@@ -140,7 +149,10 @@ export function createWriteGuard({ cwd, root, checkIgnore = isIgnored, onCapture
     }
   }
 
-  /** Список абсолютних шляхів, яких агент торкнувся (для scoped re-check verdict §4+5). */
+  /**
+   * Список абсолютних шляхів, яких агент торкнувся (для scoped re-check verdict §4+5).
+   * @returns {string[]} масив абсолютних шляхів зачеплених файлів.
+   */
   function touchedFiles() {
     return state.preImages.keys().toArray()
   }

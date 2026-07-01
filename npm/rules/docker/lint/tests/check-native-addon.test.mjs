@@ -55,7 +55,8 @@ describe('check() — нативний аддон + compile', () => {
       await writeFile(join(dir, '.hadolint.yaml'), HADOLINT_RELAX, 'utf8')
       await writeFile(join(dir, 'package.json'), JSON.stringify({ dependencies: { sharp: '^0.34.5' } }), 'utf8')
       await writeFile(join(dir, 'Dockerfile'), ANTIPATTERN_DOCKERFILE, 'utf8')
-      expect((await check(dir)).length).toBeGreaterThan(0)
+      const violations = await check(dir)
+      expect(violations.length).toBeGreaterThan(0)
     })
   })
 

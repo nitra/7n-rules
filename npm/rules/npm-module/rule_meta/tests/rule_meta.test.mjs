@@ -10,11 +10,18 @@ import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test
  * @param {string} dir корінь тимчасового проєкту
  * @returns {Promise<number>} кількість LintViolation
  */
-const check = async dir =>
-  (await lint({ cwd: dir, ruleId: 'npm-module', concernId: 'rule_meta', files: undefined })).violations.length
+const check = async dir => {
+  const result = await lint({ cwd: dir, ruleId: 'npm-module', concernId: 'rule_meta', files: undefined })
+  return result.violations.length
+}
 
-/** Мінімальний валідний .mdc — щоб тест перевіряв лише свою умову, а не відсутність mdc. */
-const MK_MDC = async (dir, id) =>
+/**
+ * Мінімальний валідний .mdc — щоб тест перевіряв лише свою умову, а не відсутність mdc.
+ * @param {string} dir корінь тимчасового проєкту.
+ * @param {string} id id правила (тека під npm/rules/).
+ * @returns {Promise<void>} проміс запису main.mdc.
+ */
+const MK_MDC = (dir, id) =>
   writeFile(join(dir, 'npm', 'rules', id, 'main.mdc'), `---\ndescription: stub\n---\n`, 'utf8')
 
 describe('rule_meta check', () => {

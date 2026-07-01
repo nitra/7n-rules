@@ -43,8 +43,8 @@ function findOffenders(body) {
 /**
  * Перевіряє, що жоден `*.test.{mjs,js}` файл не перевизначає `console.<method>`
  * через пряме присвоєння. Канон — `vi.spyOn(console, 'log').mockReturnValue()`.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат перевірки з порушеннями.
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

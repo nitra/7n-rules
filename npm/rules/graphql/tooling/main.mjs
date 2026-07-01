@@ -94,8 +94,8 @@ function checkExtensionsRecommendation(pass, fail, cwd) {
 /**
  * Перевіряє graphql.mdc: умовна вимога .graphqlrc.yml і graphql.vscode-graphql
  * за наявності gql tagged templates.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону (cwd тощо)
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат зі зібраними violations
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

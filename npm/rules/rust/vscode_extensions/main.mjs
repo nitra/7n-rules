@@ -1,15 +1,17 @@
 // @generated — do not edit
-// source-hash: 2486ae129847bb39
-
+// source-hash: cb56c6a950b66d8d
 import { evaluatePolicyConcern } from '../../../scripts/lib/lint-surface/policy-lint-adapter.mjs'
 
-/** @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx */
-export async function lint(ctx) {
+/**
+ * Detector policy-concern-а (згенеровано codegen-обгорткою).
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx Контекст лінту (`cwd`, `ruleId`, `concernId`).
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} Уніфікований результат лінту зі списком violations.
+ */
+export function lint(ctx) {
   return evaluatePolicyConcern(ctx, {
-    engine: 'rego',
+    engine: "rego",
     policyDir: import.meta.dirname,
-    files: { single: '.vscode/extensions.json', required: true },
-    missingMessage:
-      '.vscode/extensions.json не існує — створи з recommendations "rust-lang.rust-analyzer" і "tamasfe.even-better-toml" (rust.mdc)'
+    files: {"single":".vscode/extensions.json","required":true},
+    missingMessage: ".vscode/extensions.json не існує — створи з recommendations \"rust-lang.rust-analyzer\" і \"tamasfe.even-better-toml\" (rust.mdc)"
   })
 }

@@ -193,8 +193,8 @@ function offsetToLineFromCache(offsets, offset) {
  * Перевіряє, що жоден `*.test.{mjs,js}` файл не передає relative-path як 1-й
  * (або для `copyFile`/`rename`/`symlink`/`link`/`cp` — 1-й і 2-й) аргумент
  * у FS-функцію з `node:fs` / `node:fs/promises`.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx Контекст лінту (cwd, перелік файлів тощо).
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} Результат лінту з переліком порушень.
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

@@ -27,8 +27,8 @@ function isInsideTestsDir(absPath) {
 
 /**
  * Перевіряє розміщення тестових файлів у каталозі `tests/` (test.mdc).
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат перевірки
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

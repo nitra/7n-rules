@@ -6,10 +6,10 @@ import { createViolationReporter } from '../../../scripts/lib/lint-surface/viola
 
 /**
  * Перевіряє наявність `.regal/config.yaml` у корені проєкту.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону (cwd тощо)
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат зі зібраними violations
  */
-export async function lint(ctx) {
+export function lint(ctx) {
   const cwd = ctx.cwd
   const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter

@@ -26,7 +26,7 @@ const ABSENT = Symbol('absent')
 
 /**
  * Створює tracker зі свіжим (порожнім) набором pre-images — це і є snapshot S1.
- * @returns {PreImageTracker}
+ * @returns {PreImageTracker} трекер pre-images із методами capture/touched.
  */
 export function createSnapshot() {
   /** @type {Map<string, string | typeof ABSENT>} */

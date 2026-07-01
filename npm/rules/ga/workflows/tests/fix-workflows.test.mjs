@@ -8,6 +8,26 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { addPersistCredentials, prefixBunxNCursor, removePathsGlobs, patterns } from '../fix-workflows.mjs'
 
+const COMPOSER_LOCK_RE = /composer\.lock/u
+const PSALM_XML_RE = /psalm\.xml/u
+const GLOB_PHP_RE = /\*\*\/\*\.php/u
+const COMPOSER_JSON_RE = /composer\.json/u
+const ENV_COMPOSER_LOCK_RE = /X: 'composer\.lock'/u
+const PERSIST_CREDENTIALS_RE = /persist-credentials: false/u
+
+/**
+ * @param {(dir: string) => unknown} fn тіло тесту, що отримує шлях до temp-каталогу
+ * @returns {unknown} результат `fn`
+ */
+function withTmp(fn) {
+  const dir = mkdtempSync(join(tmpdir(), 'gawf-'))
+  try {
+    return fn(dir)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
 describe('prefixBunxNCursor', () => {
   test('inline `run: n-cursor …` → `bunx n-cursor …`', () => {
     const src = ['      - name: lint', '        run: n-cursor lint text --read-only', ''].join('\n')
@@ -103,10 +123,10 @@ describe('removePathsGlobs', () => {
 
   test('видаляє лише задані глоби в обох paths-блоках, решту лишає', () => {
     const out = removePathsGlobs(SRC, new Set(['composer.lock', 'psalm.xml']))
-    expect(out).not.toMatch(/composer\.lock/u)
-    expect(out).not.toMatch(/psalm\.xml/u)
-    expect(out).toMatch(/\*\*\/\*\.php/u)
-    expect(out).toMatch(/composer\.json/u)
+    expect(out).not.toMatch(COMPOSER_LOCK_RE)
+    expect(out).not.toMatch(PSALM_XML_RE)
+    expect(out).toMatch(GLOB_PHP_RE)
+    expect(out).toMatch(COMPOSER_JSON_RE)
   })
 
   test('значення поза paths-блоком не зачіпається', () => {
@@ -121,7 +141,7 @@ describe('removePathsGlobs', () => {
       ''
     ].join('\n')
     const out = removePathsGlobs(src, new Set(['composer.lock']))
-    expect(out).toMatch(/X: 'composer\.lock'/u) // env лишився
+    expect(out).toMatch(ENV_COMPOSER_LOCK_RE) // env лишився
     expect(out.match(/composer\.lock/gu)).toHaveLength(1) // лише в env
   })
 
@@ -131,20 +151,6 @@ describe('removePathsGlobs', () => {
 })
 
 describe('patterns (інтеграція на temp-файлах)', () => {
-  /**
-   * Виконує `fn(dir)` у свіжому temp-каталозі й гарантовано прибирає його.
-   * @param {(dir: string) => unknown} fn тіло тесту
-   * @returns {unknown} результат `fn`
-   */
-  function withTmp(fn) {
-    const dir = mkdtempSync(join(tmpdir(), 'gawf-'))
-    try {
-      return fn(dir)
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  }
-
   test('checkout-persist-credentials: test+apply пише файл', () =>
     withTmp(dir => {
       const rel = 'wf.yml'
@@ -163,7 +169,7 @@ describe('patterns (інтеграція на temp-файлах)', () => {
       expect(p.test(violations)).toBe(true)
       const res = p.apply(violations, { cwd: dir, ruleId: 'ga', concernId: 'workflows' })
       expect(res.touchedFiles).toHaveLength(1)
-      expect(readFileSync(join(dir, rel), 'utf8')).toMatch(/persist-credentials: false/u)
+      expect(readFileSync(join(dir, rel), 'utf8')).toMatch(PERSIST_CREDENTIALS_RE)
     }))
 
   test('unmatched-paths-glob: прибирає glob лише в адресованому файлі', () =>
@@ -188,8 +194,8 @@ describe('patterns (інтеграція на temp-файлах)', () => {
       const res = p.apply(violations, { cwd: dir, ruleId: 'ga', concernId: 'workflows' })
       expect(res.touchedFiles).toHaveLength(1)
       const txt = readFileSync(join(dir, rel), 'utf8')
-      expect(txt).not.toMatch(/psalm\.xml/u)
-      expect(txt).toMatch(/\*\*\/\*\.php/u)
+      expect(txt).not.toMatch(PSALM_XML_RE)
+      expect(txt).toMatch(GLOB_PHP_RE)
     }))
 
   test('test=false коли нема відповідного data.kind', () => {

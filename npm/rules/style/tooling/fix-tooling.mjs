@@ -8,11 +8,15 @@
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+const STYLELINTIGNORE_MISSING_RE = /\.stylelintignore не існує/u
+const STYLELINTIGNORE_NO_DIST_RE = /\.stylelintignore не містить рядка dist\//u
+const NO_STYLELINT_CONFIG_RE = /Немає конфігу stylelint/u
+
 /** @type {import('../../../scripts/lib/lint-surface/types.mjs').T0Pattern[]} */
 export const patterns = [
   {
     id: 'style-stylelintignore-create',
-    test: violations => violations.some(v => /\.stylelintignore не існує/u.test(v.message)),
+    test: violations => violations.some(v => STYLELINTIGNORE_MISSING_RE.test(v.message)),
     apply: (_violations, ctx) => {
       const target = join(ctx.cwd, '.stylelintignore')
       ctx.recordWrite?.(target)
@@ -23,7 +27,7 @@ export const patterns = [
 
   {
     id: 'style-stylelintignore-dist-add',
-    test: violations => violations.some(v => /\.stylelintignore не містить рядка dist\//u.test(v.message)),
+    test: violations => violations.some(v => STYLELINTIGNORE_NO_DIST_RE.test(v.message)),
     apply: (_violations, ctx) => {
       const target = join(ctx.cwd, '.stylelintignore')
       ctx.recordWrite?.(target)
@@ -34,7 +38,7 @@ export const patterns = [
 
   {
     id: 'style-pkg-stylelint-add',
-    test: violations => violations.some(v => /Немає конфігу stylelint/u.test(v.message)),
+    test: violations => violations.some(v => NO_STYLELINT_CONFIG_RE.test(v.message)),
     apply: (_violations, ctx) => {
       const pkgPath = join(ctx.cwd, 'package.json')
       if (!existsSync(pkgPath)) return { touchedFiles: [] }

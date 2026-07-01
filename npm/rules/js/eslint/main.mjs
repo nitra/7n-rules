@@ -14,17 +14,17 @@ const JS_EXT_RE = /\.(?:mjs|cjs|js|jsx|ts|tsx|vue)$/u
 const JSON_MAX_BUFFER = 64 * 1024 * 1024
 
 /**
- * @param {string[]} files
- * @returns {string[]}
+ * @param {string[]} files список шляхів
+ * @returns {string[]} лише JS-подібні файли
  */
 export function filterJsFiles(files) {
   return files.filter(f => JS_EXT_RE.test(f))
 }
 
 /**
- * @param {string[]} args
- * @param {string} cwd
- * @returns {{ status: number, stdout: string }}
+ * @param {string[]} args аргументи запуску oxlint
+ * @param {string} cwd робочий каталог
+ * @returns {{ status: number, stdout: string }} код завершення й stdout процесу
  */
 function runOxlintJson(args, cwd) {
   const r = spawnSync('bunx', args, { cwd, encoding: 'utf8', maxBuffer: JSON_MAX_BUFFER })
@@ -33,10 +33,10 @@ function runOxlintJson(args, cwd) {
 
 /**
  * Finding → LintViolation.
- * @param {{ file: string, line: number, rule: string, message: string, tool: string }} f
- * @param {string} cwd
- * @param {'error'|'warn'} severity
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation}
+ * @param {{ file: string, line: number, rule: string, message: string, tool: string }} f знахідка лінтера
+ * @param {string} cwd робочий каталог
+ * @param {'error'|'warn'} severity рівень порушення
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation} нормалізоване порушення
  */
 function toViolation(f, cwd, severity) {
   return /** @type {any} */ ({
@@ -51,8 +51,8 @@ function toViolation(f, cwd, severity) {
 /**
  * Збирає findings (oxlint json + eslint read-only) по заданих файлах або всьому проєкту.
  * @param {string[]|null} js null → весь проєкт
- * @param {string} cwd
- * @returns {Promise<Array<{ file: string, line: number, rule: string, message: string, tool: string }>>}
+ * @param {string} cwd робочий каталог
+ * @returns {Promise<Array<{ file: string, line: number, rule: string, message: string, tool: string }>>} зібрані знахідки oxlint+eslint
  */
 async function collectFindings(js, cwd) {
   const eslint = new ESLint({ cwd })
@@ -70,8 +70,8 @@ async function collectFindings(js, cwd) {
 
 /**
  * Detector js/eslint: per-file (classify introduced/pre-existing) або full-project.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} перелік порушень
  */
 export async function lint(ctx) {
   const { cwd, files } = ctx

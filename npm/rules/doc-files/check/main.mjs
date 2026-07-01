@@ -9,7 +9,10 @@ import { describeFile, isDocCandidate, isSourceFile, scanForDocFiles, scanOrphan
 const DOC_MD_RE = /(?:^|\/)docs\/[^/]+\.md$/u
 
 /**
- *
+ * Знаходить вихідний файл, якому належить доку.
+ * @param {string} cwd робочий каталог
+ * @param {string} docRel відносний шлях до .md-доки
+ * @returns {string|null} відносний шлях джерела або null
  */
 function sourceForDoc(cwd, docRel) {
   const docsDir = dirname(docRel)
@@ -31,7 +34,10 @@ function sourceForDoc(cwd, docRel) {
 }
 
 /**
- *
+ * Зводить перелік змінених файлів до множини вихідних кодових файлів.
+ * @param {string[]} files змінені шляхи (джерела або .md-доки)
+ * @param {string} cwd робочий каталог
+ * @returns {string[]} відносні шляхи джерел
  */
 function sourcesFromChanged(files, cwd) {
   const out = new Set()
@@ -48,9 +54,9 @@ function sourcesFromChanged(files, cwd) {
 }
 
 /**
- * @param {string[]|undefined} files
- * @param {string} cwd
- * @returns {Array<{ sourcePath: string, docPath?: string, reason: string }>}
+ * @param {string[]|undefined} files змінені шляхи; undefined → повний скан
+ * @param {string} cwd робочий каталог
+ * @returns {Array<{ sourcePath: string, docPath?: string, reason: string }>} застарілі доки
  */
 export function collectStale(files, cwd) {
   if (files === undefined) return scanForDocFiles(cwd).filter(f => f.stale)
@@ -61,8 +67,8 @@ export function collectStale(files, cwd) {
 /**
  * Detector doc-files: застарілі (CRC-mismatch/missing/degraded) і сирітські файлові доки.
  * Read-only — генерація/очистка у fix-worker.mjs (docgen), не тут.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} перелік порушень
  */
 export function lint(ctx) {
   const { cwd, files } = ctx

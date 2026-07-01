@@ -1534,7 +1534,8 @@ try {
       // --read-only — backward-compat alias на --no-fix (видалиться після міграції викликів).
       if (args.includes('--no-fix') || args.includes('--read-only')) {
         const { detectAll } = await import('../scripts/lib/lint-surface/run-detectors.mjs')
-        process.exitCode = (await detectAll(lintOpts)).exitCode
+        const detectResult = await detectAll(lintOpts)
+        process.exitCode = detectResult.exitCode
       } else {
         const { runFixPipeline } = await import('../scripts/lib/lint-surface/run-fix.mjs')
         process.exitCode = await runFixPipeline(lintOpts)

@@ -18,8 +18,10 @@ import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
  * @param {string} dir корінь тимчасового проєкту
  * @returns {Promise<number>} кількість LintViolation
  */
-const check = async dir =>
-  (await lint({ cwd: dir, ruleId: 'js', concernId: 'check', files: undefined })).violations.length
+const check = async dir => {
+  const { violations } = await lint({ cwd: dir, ruleId: 'js', concernId: 'check', files: undefined })
+  return violations.length
+}
 
 const canonical = JSON.parse(readFileSync(OXLINT_CANONICAL_JSON_PATH, 'utf8'))
 

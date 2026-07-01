@@ -87,7 +87,7 @@ async function currentBranchName(cwd) {
  * (changeset створено в feature-комітах), тож власного changeset не потребує — інакше
  * autofix створив би шумний «Merge…» changeset, який CI commit-back каскадить у patch-реліз.
  * @param {string} cwd робочий каталог
- * @returns {Promise<boolean>}
+ * @returns {Promise<boolean>} true, якщо HEAD — merge-коміт (має 2-го предка).
  */
 async function isMergeCommit(cwd) {
   const out = await gitOrNull(['rev-parse', '--verify', '--quiet', 'HEAD^2'], cwd)
@@ -398,8 +398,8 @@ function createDefaultGetPublishedVersion() {
  * @param {string} ws відносний шлях воркспейсу від кореня репо
  * @param {string} label мітка для повідомлень
  * @param {string} cwd корінь репозиторію
- * @param {(msg: string) => void} pass
- * @param {(msg: string) => void} fail
+ * @param {(msg: string) => void} pass колбек успішної перевірки.
+ * @param {(msg: string) => void} fail колбек провалу перевірки.
  * @returns {boolean} true — файл існує
  */
 function checkChangelogFileExists(ws, label, cwd, pass, fail) {
@@ -418,8 +418,8 @@ function checkChangelogFileExists(ws, label, cwd, pass, fail) {
  * @param {string} ws відносний шлях воркспейсу від кореня репо
  * @param {string} label мітка для повідомлень
  * @param {string} cwd корінь репозиторію
- * @param {(msg: string) => void} pass
- * @param {(msg: string) => void} fail
+ * @param {(msg: string) => void} pass колбек успішної перевірки.
+ * @param {(msg: string) => void} fail колбек провалу перевірки.
  * @returns {Promise<void>}
  */
 async function checkChangelogFormat(ws, label, cwd, pass, fail) {
@@ -434,7 +434,11 @@ async function checkChangelogFormat(ws, label, cwd, pass, fail) {
 }
 
 /**
- *
+ * Перевіряє, що масив `files` npm-маніфесту містить `CHANGELOG.md`.
+ * @param {object} manifest дескриптор воркспейсу (з kind/npmFiles).
+ * @param {(msg: string) => void} pass колбек успішної перевірки.
+ * @param {(msg: string) => void} fail колбек провалу перевірки.
+ * @returns {void}
  */
 function checkNpmFilesArrayContainsChangelog(manifest, pass, fail) {
   if (manifest.kind !== 'npm' || !manifest.npmFiles) return
@@ -731,8 +735,8 @@ async function runLocalOnlyChecks(localOnly, subWorkspaces, autofix, pass, fail,
 }
 
 /**
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінт-прогону.
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат перевірки consistency changelog.
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

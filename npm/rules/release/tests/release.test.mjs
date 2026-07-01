@@ -21,6 +21,34 @@ const runGitFallbackStub = args => {
   return Promise.resolve('')
 }
 
+const RE_PUSH = /push/u
+const RE_REBASE = /rebase/u
+const RE_COMMIT_BACK = /commit-back/u
+
+/**
+ * Stub runGit: push завжди non-ff, rev-parse → upstream, решта успішні (push не приземлюється).
+ * @param {string[]} args аргументи git-команди
+ * @returns {Promise<string|null>} результат або null (відхилено)
+ */
+const runGitPushNonFfStub = args => {
+  const key = args.join(' ')
+  if (key.startsWith('push')) return Promise.resolve(null) // завжди non-ff
+  if (key.startsWith('rev-parse')) return Promise.resolve('origin/main\n')
+  return Promise.resolve('') // fetch/rebase успішні, але push не приземлюється
+}
+
+/**
+ * Stub runGit: push non-ff, upstream не налаштовано (rev-parse → порожньо).
+ * @param {string[]} args аргументи git-команди
+ * @returns {Promise<string|null>} результат або null (відхилено)
+ */
+const runGitPushNoUpstreamStub = args => {
+  const key = args.join(' ')
+  if (key.startsWith('push')) return Promise.resolve(null)
+  if (key.startsWith('rev-parse')) return Promise.resolve('') // upstream не налаштовано
+  return Promise.resolve('')
+}
+
 describe('release', () => {
   test('бампить version, дописує CHANGELOG, видаляє change-файли, планує тег', async () => {
     await withTmpDir(async dir => {
@@ -165,13 +193,7 @@ describe('release', () => {
       await writeFile(join(dir, 'CHANGELOG.md'), '# Changelog\n')
       await mkdir(join(dir, '.changes'), { recursive: true })
       await writeFile(join(dir, '.changes', '1.md'), '---\nbump: patch\nsection: Fixed\n---\nfix\n')
-      const runGit = args => {
-        const key = args.join(' ')
-        if (key.startsWith('push')) return Promise.resolve(null) // завжди non-ff
-        if (key.startsWith('rev-parse')) return Promise.resolve('origin/main\n')
-        return Promise.resolve('') // fetch/rebase успішні, але push не приземлюється
-      }
-      await expect(release({ cwd: dir, date: '2026-05-29', runGit })).rejects.toThrow(/push/u)
+      await expect(release({ cwd: dir, date: '2026-05-29', runGit: runGitPushNonFfStub })).rejects.toThrow(RE_PUSH)
     })
   })
 
@@ -191,7 +213,7 @@ describe('release', () => {
         if (key.startsWith('rebase')) return Promise.resolve(null) // конфлікт
         return Promise.resolve('')
       }
-      await expect(release({ cwd: dir, date: '2026-05-29', runGit })).rejects.toThrow(/rebase/u)
+      await expect(release({ cwd: dir, date: '2026-05-29', runGit })).rejects.toThrow(RE_REBASE)
       expect(calls).toContain('rebase --abort')
     })
   })
@@ -202,13 +224,9 @@ describe('release', () => {
       await writeFile(join(dir, 'CHANGELOG.md'), '# Changelog\n')
       await mkdir(join(dir, '.changes'), { recursive: true })
       await writeFile(join(dir, '.changes', '1.md'), '---\nbump: patch\nsection: Fixed\n---\nfix\n')
-      const runGit = args => {
-        const key = args.join(' ')
-        if (key.startsWith('push')) return Promise.resolve(null)
-        if (key.startsWith('rev-parse')) return Promise.resolve('') // upstream не налаштовано
-        return Promise.resolve('')
-      }
-      await expect(release({ cwd: dir, date: '2026-05-29', runGit })).rejects.toThrow(/commit-back/u)
+      await expect(release({ cwd: dir, date: '2026-05-29', runGit: runGitPushNoUpstreamStub })).rejects.toThrow(
+        RE_COMMIT_BACK
+      )
     })
   })
 

@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { env } from 'node:process'
+import { readFileSync } from 'node:fs'
+
+import { generateDoc, insertProtected, scoreDoc, splitProtected } from '../main.mjs'
 
 vi.mock('node:fs', async importOriginal => ({ ...(await importOriginal()), readFileSync: vi.fn() }))
 
-import { readFileSync } from 'node:fs'
-import { generateDoc, insertProtected, scoreDoc, splitProtected } from '../main.mjs'
-
 const FACTS = { markers: { caches: false }, internalSymbols: [], localSymbols: [] }
+
+// Матчер помилки pre-send byte-guard (module scope — без ре-компіляції).
+const PROMPT_TOO_LONG = /Prompt too long/
 
 // Чистий, конкретний документ — еталон 100
 const CLEAN = `# foo.mjs
@@ -98,7 +101,7 @@ describe('generateDoc — pre-send byte-guard', () => {
     env.N_CURSOR_DOCGEN_CTX = '100' // бюджет = 50 токенів ≈ 200 байтів
     readFileSync.mockReturnValue('x'.repeat(2000)) // ~500 токенів > 50
     // generateDoc тепер async (pi-міграція) → pre-send guard реджектить, не кидає синхронно
-    await expect(generateDoc('/big.js')).rejects.toThrow(/Prompt too long/)
+    await expect(generateDoc('/big.js')).rejects.toThrow(PROMPT_TOO_LONG)
   })
 })
 

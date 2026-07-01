@@ -7,11 +7,11 @@ import { withTmpDir, writeJson } from '../../utils/test-helpers.mjs'
 
 /**
  * Записує concern.json у `<dir>/<rule>/<concern>/` і повертає шлях до concern-теки.
- * @param {string} dir
- * @param {string} rule
- * @param {string} concern
- * @param {object} json
- * @returns {Promise<string>}
+ * @param {string} dir корінь тимчасового каталогу тесту
+ * @param {string} rule id правила
+ * @param {string} concern id concern-а
+ * @param {object} json вміст concern.json
+ * @returns {Promise<string>} шлях до створеної concern-теки
  */
 async function seedConcern(dir, rule, concern, json) {
   const concernDir = join(dir, rule, concern)

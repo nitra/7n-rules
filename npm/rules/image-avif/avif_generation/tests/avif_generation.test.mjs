@@ -25,9 +25,21 @@ const check = async dir => {
   return r.violations
 }
 
-/** Прогоняє T0-патерни concern-а над violations (як central fix-pipeline). */
+/**
+ * Прогоняє T0-патерни concern-а над violations (як central fix-pipeline).
+ * @param {object[]} violations перелік порушень для застосування T0-патернів.
+ * @param {string} dir каталог тимчасового проєкту.
+ * @returns {Promise<void>}
+ */
 async function applyT0(violations, dir) {
-  const ctx = { cwd: dir, ruleId: 'image-avif', concernId: 'avif_generation', recordWrite() {} }
+  const ctx = {
+    cwd: dir,
+    ruleId: 'image-avif',
+    concernId: 'avif_generation',
+    recordWrite() {
+      // навмисний no-op: у тесті запис не відстежується
+    }
+  }
   for (const p of patterns) {
     if (p.test(violations)) await p.apply(violations, ctx)
   }
@@ -116,7 +128,8 @@ describe('check-image-avif', () => {
         `<script setup>\nimport hero from './hero.png'\n</script>\n<template><img :src="hero"/></template>\n`,
         'utf8'
       )
-      expect((await check(dir)).length).toBeGreaterThan(0)
+      const violations = await check(dir)
+      expect(violations.length).toBeGreaterThan(0)
     })
   })
 
@@ -195,7 +208,8 @@ describe('check-image-avif', () => {
         `<template>\n  <img src="./hero.png" alt="hero" />\n</template>\n`,
         'utf8'
       )
-      expect((await check(dir)).length).toBeGreaterThan(0)
+      const violations = await check(dir)
+      expect(violations.length).toBeGreaterThan(0)
     })
   })
 

@@ -19,8 +19,8 @@ import { resolveCmd } from '../../utils/resolve-cmd.mjs'
 
 /**
  * Дефолтний раннер conftest verify. Інжектиться у тестах.
- * @param {string} concernDir
- * @returns {{ ok: boolean, failures: Array<{ name: string, msg: string }>, skipped?: boolean }}
+ * @param {string} concernDir тека concern-а для conftest verify.
+ * @returns {{ ok: boolean, failures: Array<{ name: string, msg: string }>, skipped?: boolean }} результат прогону: успіх, перелік провалів, skipped якщо conftest відсутній.
  */
 function defaultRunner(concernDir) {
   const conftest = resolveCmd('conftest')
@@ -44,9 +44,9 @@ function defaultRunner(concernDir) {
 
 /**
  * Чи має concern policy.engine:'rego' + `<concern>_test.rego`.
- * @param {string} concernDir
- * @param {string} concernName
- * @returns {Promise<boolean>}
+ * @param {string} concernDir тека concern-а.
+ * @param {string} concernName назва concern-а.
+ * @returns {Promise<boolean>} true, якщо concern rego-двигуна має `<concern>_test.rego`.
  */
 async function hasRegoTests(concernDir, concernName) {
   if (!existsSync(join(concernDir, `${concernName}_test.rego`))) return false
@@ -56,12 +56,12 @@ async function hasRegoTests(concernDir, concernName) {
 
 /**
  * Запускає policy unit-tests по всіх (або вибраних) rego-concern-ах.
- * @param {string} rulesDir
- * @param {string} cwd для posix-relative file у violation
- * @param {object} [opts]
- * @param {string[]} [opts.rules] обмежити цими rule-id
- * @param {(concernDir: string) => { ok: boolean, failures: Array<{ name: string, msg: string }>, skipped?: boolean }} [opts.runner]
- * @returns {Promise<{ violations: LintViolation[], skipped: boolean, ran: number }>}
+ * @param {string} rulesDir коренева тека rule-ів.
+ * @param {string} cwd для posix-relative file у violation.
+ * @param {object} [opts] опції запуску.
+ * @param {string[]} [opts.rules] обмежити цими rule-id.
+ * @param {(concernDir: string) => { ok: boolean, failures: Array<{ name: string, msg: string }>, skipped?: boolean }} [opts.runner] інжектований раннер (для тестів).
+ * @returns {Promise<{ violations: LintViolation[], skipped: boolean, ran: number }>} порушення, прапорець skipped і кількість прогонів.
  */
 export async function runPolicyUnitTests(rulesDir, cwd, opts = {}) {
   const runner = opts.runner ?? defaultRunner

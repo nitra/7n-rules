@@ -11,8 +11,8 @@ import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 
 /**
  * Detector bun/licensee: ліцензії npm-залежностей через `licensee` (read-only).
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат detector-а
  */
 export function lint(ctx) {
   const reporter = createViolationReporter(ctx)

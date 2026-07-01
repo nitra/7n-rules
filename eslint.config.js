@@ -11,6 +11,8 @@ export default [
       '.claude/worktrees/**',
       // git-worktree чекаути (gitignored): повні копії репо + handoff-доки, не лінтимо.
       '.worktrees/**',
+      // локальні артефакти fix-движка (gitignored): trace/аналіз із JS-snippets, не runnable-код.
+      '.n-cursor/**',
       // Згенеровані артефакти (gitignored): coverage report і Stryker mutation sandbox/output.
       '**/coverage/**',
       '**/reports/stryker/**',
@@ -59,6 +61,7 @@ export default [
       'npm/scripts/lint-cli.mjs',
       'npm/scripts/lib/run-rule.mjs',
       'npm/tests/fix-mjs-contract.test.mjs',
+      'npm/tests/check-mjs-contract.test.mjs',
       'npm/rules/test/coverage/coverage.mjs'
     ],
     rules: {

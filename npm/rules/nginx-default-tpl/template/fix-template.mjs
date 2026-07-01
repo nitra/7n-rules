@@ -10,6 +10,9 @@ import { join } from 'node:path'
 import { migrateDefaultTplConfFiles, migrateErrorLogOffDirective } from './main.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 
+const LEGACY_TPL_CONF_SUFFIX_RE = /default\.tpl\.conf$/
+const CONF_TEMPLATE_SUFFIX_RE = /default\.conf\.template$/
+
 /** @type {import('../../../scripts/lib/lint-surface/types.mjs').T0Pattern[]} */
 export const patterns = [
   {
@@ -21,13 +24,13 @@ export const patterns = [
       /** @type {string[]} */
       const touchedFiles = []
       for (const rel of renamed) {
-        const abs = join(ctx.cwd, rel.replace(/default\.tpl\.conf$/, 'default.conf.template'))
-        ctx.recordWrite?.(join(ctx.cwd, rel.replace(/default\.conf\.template$/, 'default.tpl.conf')))
+        const abs = join(ctx.cwd, rel.replace(LEGACY_TPL_CONF_SUFFIX_RE, 'default.conf.template'))
+        ctx.recordWrite?.(join(ctx.cwd, rel.replace(CONF_TEMPLATE_SUFFIX_RE, 'default.tpl.conf')))
         touchedFiles.push(abs)
       }
       for (const rel of overwritten) {
-        const abs = join(ctx.cwd, rel.replace(/default\.tpl\.conf$/, 'default.conf.template'))
-        ctx.recordWrite?.(join(ctx.cwd, rel.replace(/default\.conf\.template$/, 'default.tpl.conf')))
+        const abs = join(ctx.cwd, rel.replace(LEGACY_TPL_CONF_SUFFIX_RE, 'default.conf.template'))
+        ctx.recordWrite?.(join(ctx.cwd, rel.replace(CONF_TEMPLATE_SUFFIX_RE, 'default.tpl.conf')))
         touchedFiles.push(abs)
       }
       const count = renamed.length + overwritten.length

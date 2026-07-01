@@ -356,7 +356,7 @@ async function collectOrphanAvifs(usedAvifAbs, optedOutAbs, ignorePaths, cwd) {
  * Чистий read-only скан усього AVIF-етапу (без npx, без запису, без unlink). Спільний
  * для detector-а (→ violations) і T0-fix (виконує генерацію, потім rescan + write/unlink).
  * @param {string} cwd корінь репозиторію
- * @returns {Promise<AvifScan>}
+ * @returns {Promise<AvifScan>} результат скану AVIF-етапу.
  */
 export async function scanAvif(cwd) {
   const ignorePaths = await loadCursorIgnorePaths(cwd)
@@ -379,7 +379,7 @@ export async function scanAvif(cwd) {
  * відсутні `.avif`-двійники (`avif-missing`) і `.avif`-сироти (`avif-orphan`).
  * Не валідує image-compress cache/dependency policy — це окреме правило.
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат із порушеннями.
  */
 export async function lint(ctx) {
   const cwd = ctx.cwd

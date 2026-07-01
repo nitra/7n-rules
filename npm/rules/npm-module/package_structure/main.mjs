@@ -437,8 +437,8 @@ async function checkNpmModuleBasicStructure(pass, fail, cwd) {
 
 /**
  * Перевіряє відповідність проєкту правилам npm-module.mdc
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат лінту
  */
 export async function lint(ctx) {
   const cwd = ctx.cwd

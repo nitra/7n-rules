@@ -11,9 +11,9 @@ import { main as knipMain } from 'knip'
 
 /**
  * Один knip-issue → LintViolation.
- * @param {{ type: string, filePath?: string, symbol?: string, symbolType?: string, line?: number, col?: number, severity?: string }} issue
- * @param {string} cwd
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation}
+ * @param {{ type: string, filePath?: string, symbol?: string, symbolType?: string, line?: number, col?: number, severity?: string }} issue knip-issue
+ * @param {string} cwd робочий каталог
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation} нормалізоване порушення
  */
 function issueToViolation(issue, cwd) {
   const abs = issue.filePath
@@ -35,8 +35,8 @@ function issueToViolation(issue, cwd) {
 
 /**
  * Detector js/knip: невикористані deps/exports/files через programmatic API knip (read-only).
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>}
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} перелік порушень
  */
 export async function lint(ctx) {
   const cwd = ctx.cwd

@@ -82,7 +82,7 @@ function listEnvFiles(cwd) {
  * @param {(cwd: string) => string[]} listFiles перелік файлів-кандидатів
  * @param {(cwd: string) => unknown} runFix виклик тулу у fix-режимі
  * @param {string} label префікс debug-повідомлення
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').T0Pattern}
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').T0Pattern} готовий T0-патерн авто-fix
  */
 function toolFixPattern(id, reason, listFiles, runFix, label) {
   return {
@@ -110,8 +110,12 @@ export const patterns = [
       markdownlintCli2({
         directory: cwd,
         argv: ['--fix', '**/*.md', '**/*.mdc'],
-        logMessage: () => {},
-        logError: () => {}
+        logMessage: () => {
+          // вивід markdownlint-cli2 глушимо — цікавлять лише змінені файли
+        },
+        logError: () => {
+          // помилки markdownlint-cli2 глушимо — цікавлять лише змінені файли
+        }
       }),
     'markdownlint --fix'
   ),

@@ -25,16 +25,19 @@ const MEGALINTER_CONFIG_NAMES = ['.mega-linter.yml', '.megalinter.yaml', '.mega-
 /** Обовʼязкові workflow-файли (ga.mdc). */
 const REQUIRED_WORKFLOWS = ['clean-ga-workflows.yml', 'clean-merged-branch.yml', 'lint-ga.yml', 'git-ai.yml']
 
+/** Патерн rego-violation про відсутній `persist-credentials`. */
+const CHECKOUT_PERSIST_RE = /persist-credentials/u
+
 /**
  * Structured fix-hint (#3) для rego-violation про `actions/checkout` без
  * `persist-credentials: false` — щоб T0 (`fix-workflows.mjs`) автофіксив детерміновано,
  * не парсячи message. Повертає `{ reason, file, data }` або undefined.
  * @param {string} file posix-relative шлях workflow-файла від cwd
  * @param {unknown} message текст rego-violation
- * @returns {{ reason: string, file: string, data: { kind: string } } | undefined}
+ * @returns {{ reason: string, file: string, data: { kind: string } } | undefined} fix-hint або undefined
  */
 function checkoutPersistHint(file, message) {
-  return /persist-credentials/u.test(String(message ?? ''))
+  return CHECKOUT_PERSIST_RE.test(String(message ?? ''))
     ? { reason: 'checkout-persist-credentials', file, data: { kind: 'checkout-persist-credentials' } }
     : undefined
 }
