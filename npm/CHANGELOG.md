@@ -1,5 +1,13 @@
 # Changelog
 
+## [13.2.2] - 2026-07-01
+
+### Fixed
+
+- CI-воркфлоу lint-*: усі шаблони lint-*.yml.snippet кличуть `bunx n-cursor` (не bare —
+падало exit 127 у CI). Виправлено ім'я правила у lint-js.yml (`js` замість неіснуючих
+`js-lint js-lint-ci`). jscpd_config_test.rego: аліас import (unsafe var під OPA 1.15).
+
 ## [13.2.1] - 2026-07-01
 
 ### Added
