@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.2.5] - 2026-07-01
+
+### Changed
+
+- chore(eslint): disable prefer-specific-assertions for tests (3.10.3)
+
 ## [13.2.4] - 2026-07-01
 
 ### Changed
