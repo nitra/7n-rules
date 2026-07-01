@@ -17,14 +17,14 @@ import {
   writeJson
 } from '../../../../scripts/utils/test-helpers.mjs'
 
-const main = dir => lint({ cwd: dir, ruleId: 'ga', concernId: 'workflows', files: undefined }).then(r => r.violations)
+const main = async dir => (await lint({ cwd: dir, ruleId: 'ga', concernId: 'workflows', files: undefined })).violations
 
 // Зовнішні тули (actionlint/zizmor) тепер виконуються всередині detector-а і залежать від
 // середовища (наявність bunx/uvx, версії правил). Структурні тести фікстур (наявність файлів,
 // розширення, MegaLinter, paths) їх не стосуються — фільтруємо ці reason-и, щоб лишити
 // детермінований структурний сигнал.
 const EXTERNAL_TOOL_REASONS = new Set(['actionlint', 'zizmor'])
-const mainStructural = dir => main(dir).then(vs => vs.filter(v => !EXTERNAL_TOOL_REASONS.has(v.reason)))
+const mainStructural = async dir => (await main(dir)).filter(v => !EXTERNAL_TOOL_REASONS.has(v.reason))
 
 const BREW_INSTALL_SHELLCHECK_RE = /brew install shellcheck/
 
@@ -309,8 +309,12 @@ describe('check-ga: shellcheck в PATH', () => {
       const passes = []
       const fails = []
       checkShellcheckInstalled(
-        m => passes.push(m),
-        m => fails.push(m)
+        m => {
+          passes.push(m)
+        },
+        m => {
+          fails.push(m)
+        }
       )
       expect(passes).toEqual([])
       expect(fails.length).toBe(1)

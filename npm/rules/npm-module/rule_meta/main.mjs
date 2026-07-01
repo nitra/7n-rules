@@ -17,7 +17,8 @@ function checkAutoField(id, raw, reporter) {
   if (raw.auto === undefined) return true
   const spec = parseRuleAutoSpec(raw.auto)
   if (spec === null) {
-    reporter.fail(`rules/${id}: main.json.auto нерозпізнане (очікується "завжди" / масив / {glob} / {predicate})`)
+    const autoHint = 'нерозпізнане (очікується "завжди" / масив / {glob} / {predicate})'
+    reporter.fail(`rules/${id}: main.json.auto ${autoHint}`)
     return false
   }
   if ('predicate' in spec && !Object.hasOwn(RULE_PREDICATES, spec.predicate)) {

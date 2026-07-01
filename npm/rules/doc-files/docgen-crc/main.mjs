@@ -20,7 +20,7 @@ export function crc32(input) {
 
 /** Провідний YAML-frontmatter-блок `---\n…\n---`. */
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?/u
-const RESOURCE_RE = /^resource:[ \t]+(.+)$/mu
+const RESOURCE_RE = /^resource:[ \t]+(\S.*)$/mu
 const CRC_RE = /^[ \t]{0,8}crc:[ \t]{0,8}(.+)$/mu
 const MODEL_RE = /^[ \t]{0,8}model:[ \t]{0,8}(.+)$/mu
 const SCORE_RE = /^[ \t]{0,8}score:[ \t]{0,8}(\d+)$/mu

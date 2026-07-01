@@ -142,7 +142,7 @@ export function createWriteGuard({ cwd, root, checkIgnore = isIgnored, onCapture
 
   /** Список абсолютних шляхів, яких агент торкнувся (для scoped re-check verdict §4+5). */
   function touchedFiles() {
-    return [...state.preImages.keys()]
+    return state.preImages.keys().toArray()
   }
 
   return { factory, state, rollback, touchedFiles }

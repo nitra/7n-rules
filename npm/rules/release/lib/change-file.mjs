@@ -40,7 +40,6 @@ export function parseChangeFile(text) {
   const m = FRONTMATTER_RE.exec(text)
   if (!m) throw new Error('change-файл: відсутній frontmatter `---`')
   const fm = parseFrontmatterBlock(m[1])
-  const description = m[2].trim()
   if (!VALID_BUMPS.includes(fm.bump)) {
     throw new Error(`change-файл: bump має бути одним із ${VALID_BUMPS.join('|')} (отримано «${fm.bump ?? ''}»)`)
   }
@@ -49,6 +48,7 @@ export function parseChangeFile(text) {
       `change-файл: section має бути одним із ${VALID_SECTIONS.join('|')} (отримано «${fm.section ?? ''}»)`
     )
   }
+  const description = m[2].trim()
   if (!description) throw new Error('change-файл: порожній опис')
   return { bump: fm.bump, section: fm.section, description }
 }

@@ -636,7 +636,8 @@ async function validateOneKustomizationPathRefsExist(root, kustAbs, rootNorm, fa
  */
 async function validateKustomizationPathRefsExistOnDisk(root, yamlFilesAbs, fail) {
   const rootNorm = resolve(root)
-  for (const kustAbs of yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')) {
+  const kustFiles = yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')
+  for (const kustAbs of kustFiles) {
     await validateOneKustomizationPathRefsExist(root, kustAbs, rootNorm, fail)
   }
 }
@@ -723,7 +724,8 @@ async function validateOneKustomizationSvcHlWithSvc(root, kustAbs, fail) {
  * @returns {Promise<void>} результат
  */
 async function validateKustomizationIncludesSvcHlWithSvc(root, yamlFiles, fail) {
-  for (const kustAbs of yamlFiles.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')) {
+  const kustFiles = yamlFiles.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')
+  for (const kustAbs of kustFiles) {
     await validateOneKustomizationSvcHlWithSvc(root, kustAbs, fail)
   }
 }
@@ -1547,7 +1549,8 @@ async function validatePatchTargetsOneKustomizationFile(root, kustAbs, rootNorm,
  */
 async function validateKustomizationPatchTargetsResolved(root, yamlFilesAbs, fail) {
   const rootNorm = resolve(root)
-  for (const kustAbs of yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')) {
+  const kustFiles = yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')
+  for (const kustAbs of kustFiles) {
     await validatePatchTargetsOneKustomizationFile(root, kustAbs, rootNorm, fail)
   }
 }
@@ -1653,7 +1656,7 @@ export function classifyBackendConfigManifestPresence(body) {
 
   const acc = { hasBc: false, hasOther: false }
   for (const doc of docs) {
-    if (!(doc.errors.length === 0)) {
+    if (doc.errors.length !== 0) {
       continue
     }
 
@@ -2009,7 +2012,7 @@ export function collectJson6902OperationsFromPatchText(patchText) {
   try {
     const docs = parseAllDocuments(t)
     for (const d of docs) {
-      if (!(d.errors.length === 0)) {
+      if (d.errors.length !== 0) {
         continue
       }
 
@@ -2113,13 +2116,13 @@ function isValidMemoryRequestValue(mem) {
  */
 function isBaseCanonCpuValue(cpu) {
   if (typeof cpu === 'number' && Number.isFinite(cpu)) {
-    return cpu === 0.02
+    return Math.abs(cpu - 0.02) < Number.EPSILON
   }
   if (typeof cpu === 'string' && cpu.trim() !== '') {
     const t = cpu.trim()
     if (t === K8S_BASE_CONTAINER_CPU_REQUEST) return true
     const n = Number(t)
-    return Number.isFinite(n) && n === 0.02
+    return Number.isFinite(n) && Math.abs(n - 0.02) < Number.EPSILON
   }
   return false
 }
@@ -2325,7 +2328,7 @@ function tryParseAllYamlDocs(raw) {
  */
 function findFirstDocByKind(docs, kind) {
   for (const doc of docs) {
-    if (!(doc.errors.length === 0)) {
+    if (doc.errors.length !== 0) {
       continue
     }
 
@@ -2350,7 +2353,7 @@ function collectDocsByKind(docs, kind) {
    */
   const out = []
   for (const doc of docs) {
-    if (!(doc.errors.length === 0)) {
+    if (doc.errors.length !== 0) {
       continue
     }
 
@@ -3007,7 +3010,8 @@ function validateSvcHlServiceNamePairing(relSvc, relHl, svcNames, hlNames, fail)
  * @returns {void} результат
  */
 function failIfSvcHlWithoutSiblingSvc(root, yamlFiles, absSet, fail) {
-  for (const abs of yamlFiles.filter(p => basename(p).toLowerCase() === 'svc-hl.yaml')) {
+  const svcHlFiles = yamlFiles.filter(p => basename(p).toLowerCase() === 'svc-hl.yaml')
+  for (const abs of svcHlFiles) {
     const svcAbs = join(dirname(abs), 'svc.yaml')
     if (!absSet.has(svcAbs)) {
       const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
@@ -3071,7 +3075,8 @@ async function validateOneSvcYamlHlPair(root, absSet, svcAbs, fail) {
 async function validateSvcYamlAndSvcHlPairs(root, yamlFiles, fail) {
   const absSet = new Set(yamlFiles)
   failIfSvcHlWithoutSiblingSvc(root, yamlFiles, absSet, fail)
-  for (const svcAbs of yamlFiles.filter(p => basename(p).toLowerCase() === 'svc.yaml')) {
+  const svcFiles = yamlFiles.filter(p => basename(p).toLowerCase() === 'svc.yaml')
+  for (const svcAbs of svcFiles) {
     await validateOneSvcYamlHlPair(root, absSet, svcAbs, fail)
   }
 }
@@ -3130,7 +3135,7 @@ async function indexOneK8sYamlForHasuraCanon(abs, hasuraByDir, httpRoutes) {
   const dir = dirname(abs)
 
   for (const [di, doc] of docs.entries()) {
-    if (!(doc.errors.length === 0)) {
+    if (doc.errors.length !== 0) {
       continue
     }
 
@@ -3387,13 +3392,12 @@ function checkK8sYamlFileWithSchemaModeline(abs, rel, baseLower, lines, fail, pa
     fail(`${rel}: некоректний modeline $schema у першому рядку`)
     return
   }
-  const schemaUrl = match[1]
   if (countSchemaModelines(lines) > 1) {
     fail(`${rel}: кілька рядків yaml-language-server $schema — лиш один modeline на файл (див. k8s.mdc)`)
     return
   }
 
-  const body = yamlBodyAfterModeline(lines)
+  const schemaUrl = match[1]
 
   // Per-document валідація (Ingress/autoscaling/v1 заборонено, Gateway API backendRef,
   // metadata.namespace правила, Service GCP-анотації, Deployment resources/Hasura image,
@@ -3407,6 +3411,7 @@ function checkK8sYamlFileWithSchemaModeline(abs, rel, baseLower, lines, fail, pa
     return
   }
   if (HTTPS_SCHEMA_RE.test(schemaUrl)) {
+    const body = yamlBodyAfterModeline(lines)
     const doc = firstYamlDocument(body)
     const { expected, reason } = expectedSchemaUrl(abs, doc)
 
@@ -3788,8 +3793,8 @@ export function workloadAppLabel(manifest) {
  * @returns {number | null} ціле або null, якщо не читається як ціле
  */
 function coerceInteger(v) {
-  if (typeof v === 'number' && Number.isInteger(v)) return v
-  if (typeof v === 'string' && INTEGER_STRING_RE.test(v.trim())) return Number.parseInt(v, 10)
+  if (typeof v === 'number' && Number.isSafeInteger(v)) return v
+  if (typeof v === 'string' && INTEGER_STRING_RE.test(v.trim())) return Number(v.trim())
   return null
 }
 
@@ -4433,7 +4438,7 @@ function strategicMergePatchKind(patchText) {
   if (t === '') return null
   try {
     for (const d of parseAllDocuments(t)) {
-      if (!(d.errors.length === 0)) {
+      if (d.errors.length !== 0) {
         continue
       }
 
@@ -4510,7 +4515,7 @@ async function readFirstYamlObject(absPath) {
   const docs = tryParseAllYamlDocs(raw)
   if (docs === undefined) return null
   for (const doc of docs) {
-    if (!(doc.errors.length === 0)) {
+    if (doc.errors.length !== 0) {
       continue
     }
 
@@ -5328,11 +5333,11 @@ function validateSingleDeploymentHpaPdbTopology(
   passFn
 ) {
   const deployName = manifestMetadataName(deployment)
-  const appLabel = deploymentAppLabel(deployment)
   if (deployName === null) {
     fail(`${deployRel}: Deployment без metadata.name — не можу перевірити HPA/PDB (k8s.mdc)`)
     return
   }
+  const appLabel = deploymentAppLabel(deployment)
   if (appLabel === null) {
     fail(`${deployRel}: Deployment '${deployName}' без spec.selector.matchLabels.app — додай мітку (k8s.mdc)`)
     return
@@ -6252,7 +6257,10 @@ function groupConversionsByPatchIndex(conversions) {
  * @param {Map<number, { totalOps: number, opIdx: number[] }>} byPatch згруповані конвертації
  */
 function applyPatchConversionsToPatchesNode(patchesNode, byPatch) {
-  const sortedIdx = [...byPatch.keys()].toSorted((a, b) => b - a)
+  const sortedIdx = byPatch
+    .keys()
+    .toArray()
+    .toSorted((a, b) => b - a)
   for (const i of sortedIdx) {
     const slot = byPatch.get(i)
     if (slot === undefined) continue

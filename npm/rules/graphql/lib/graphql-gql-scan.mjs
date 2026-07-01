@@ -93,8 +93,8 @@ function astContainsGqlTag(node) {
       return true
     }
   }
-  for (const key of Object.keys(node)) {
-    if (key !== 'loc' && key !== 'range' && astContainsGqlTag(node[key])) {
+  for (const [key, value] of Object.entries(node)) {
+    if (key !== 'loc' && key !== 'range' && astContainsGqlTag(value)) {
       return true
     }
   }

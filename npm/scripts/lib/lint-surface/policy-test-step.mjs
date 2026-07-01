@@ -72,12 +72,12 @@ export async function runPolicyUnitTests(rulesDir, cwd, opts = {}) {
   let ran = 0
 
   if (!existsSync(rulesDir)) return { violations, skipped, ran }
-  for (const ruleName of readdirSync(rulesDir).sort()) {
+  for (const ruleName of readdirSync(rulesDir).toSorted()) {
     if (ruleName.startsWith('.')) continue
     if (ruleFilter && !ruleFilter.has(ruleName)) continue
     const ruleDir = join(rulesDir, ruleName)
     if (!statSync(ruleDir).isDirectory()) continue
-    for (const concernName of readdirSync(ruleDir).sort()) {
+    for (const concernName of readdirSync(ruleDir).toSorted()) {
       if (concernName.startsWith('.')) continue
       const concernDir = join(ruleDir, concernName)
       if (!statSync(concernDir).isDirectory()) continue

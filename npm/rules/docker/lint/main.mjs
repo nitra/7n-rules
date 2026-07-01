@@ -178,13 +178,14 @@ export function getBunCompileHint(fileContent) {
   const lastLower = lastImage.toLowerCase()
 
   const hasBunInstall = BUN_INSTALL_RE.test(fileContent)
+  if (!hasBunInstall) return null
+
   const isFinalAlpine = lastLower.startsWith('mirror.gcr.io/library/alpine:')
+  if (!isFinalAlpine) return null
+
   const isFinalFrontend =
     lastLower.startsWith(`${NGINX_UNPRIVILEGED_MIRROR_PREFIX}:`) ||
     lastLower.startsWith('mirror.gcr.io/openresty/openresty:')
-
-  if (!hasBunInstall) return null
-  if (!isFinalAlpine) return null
   if (isFinalFrontend) return null
 
   const hasCompile = BUN_BUILD_COMPILE_RE.test(fileContent)
@@ -318,7 +319,7 @@ async function readNearestDependencies(abs, root) {
  * @returns {Promise<void>}
  */
 async function checkDockerfile(reporter, root, abs) {
-  const { pass, fail } = reporter
+  const { fail } = reporter
   const rel = posixRel(root, abs) || basename(abs)
   const content = await readFile(abs, 'utf8')
 

@@ -46,7 +46,15 @@ describe('runPiAgentSkill', () => {
       skillId: 'taze',
       tier: 'avg',
       cwd: '/proj',
-      deps: { registry, createSession: async () => session, trace, clock: () => 0, out: s => out.push(s) }
+      deps: {
+        registry,
+        createSession: async () => session,
+        trace,
+        clock: () => 0,
+        out: s => {
+          out.push(s)
+        }
+      }
     })
 
     expect(r.ok).toBe(true)

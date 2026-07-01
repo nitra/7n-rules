@@ -33,7 +33,8 @@ function checkSkillFields(id, raw, reporter) {
     ok = false
   }
   if (raw.tier !== undefined && !(typeof raw.tier === 'string' && SKILL_TIERS.includes(raw.tier))) {
-    reporter.fail(`skills/${id}: main.json.tier має бути ${SKILL_TIERS.map(t => `"${t}"`).join(' | ')}`)
+    const tierList = SKILL_TIERS.map(t => `"${t}"`).join(' | ')
+    reporter.fail(`skills/${id}: main.json.tier має бути ${tierList}`)
     ok = false
   }
   return ok

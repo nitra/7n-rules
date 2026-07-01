@@ -9,8 +9,10 @@ import { join } from 'node:path'
 import { lint } from '../main.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
-const check = dir =>
-  lint({ cwd: dir, ruleId: 'hasura', concernId: 'migrations', files: undefined }).then(r => r.violations)
+const check = async dir => {
+  const r = await lint({ cwd: dir, ruleId: 'hasura', concernId: 'migrations', files: undefined })
+  return r.violations
+}
 
 describe('check hasura.migrations', () => {
   test('успіх: hasura/migrations/ відсутній → exit 0', async () => {

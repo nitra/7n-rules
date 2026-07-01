@@ -64,7 +64,10 @@ export function collectChangedFilesSince(base, cwd = process.cwd()) {
   if (!base) return collectChangedFiles(cwd)
   // Fail-closed: недосяжний base (rebase/force-update/shallow prune) інакше дав би `git diff`
   // exit 128 → порожній список → gate мовчки пройшов би без перевірки. Краще явна помилка.
-  const verify = spawnSync('git', ['rev-parse', '--verify', '--quiet', `${base}^{commit}`], { cwd, encoding: 'utf8' })
+  const verify = spawnSync('git', ['rev-parse', '--verify', '--quiet', `${base}^` + '{commit}'], {
+    cwd,
+    encoding: 'utf8'
+  })
   if (verify.status !== 0 || verify.error) {
     throw new Error(
       `collectChangedFilesSince: base-комміт «${base}» недосяжний у ${cwd} ` +

@@ -53,8 +53,16 @@ const NETWORK_RE =
 // Будь-який `throw` назовні → НЕ можна гарантувати «fail-safe / без винятків».
 const THROW_RE = /\bthrow\s/
 // Запис у БД / зовнішню мутацію → НЕ read-only (навіть якщо нема ФС-запису).
-const MUTATION_RE =
-  /\b(insert|update|delete|upsert|drop|destroy|save)[A-Za-z]*\s*[(,]|[Mm]utation\b|\bmut[A-Z]\w*|\.(save|create|update|delete|insert|destroy|mutate)\(/
+// Розбито на кілька простіших патернів (та сама семантика через OR у `isMutation`),
+// щоб уникнути надмірної складності одного великого regex.
+const MUTATION_CALL_RE = /\b(insert|update|delete|upsert|drop|destroy|save)[A-Za-z]*\s*[(,]/
+const MUTATION_NAME_RE = /[Mm]utation\b|\bmut[A-Z]\w*/
+const MUTATION_METHOD_RE = /\.(save|create|update|delete|insert|destroy|mutate)\(/
+/**
+ * @param {string} src вміст файлу
+ * @returns {boolean} чи є ознаки мутації БД / зовнішнього стану
+ */
+const isMutation = src => MUTATION_CALL_RE.test(src) || MUTATION_NAME_RE.test(src) || MUTATION_METHOD_RE.test(src)
 // Кеш — лише за ІМЕНОВАНИМ маркером (`cache`/`Cache`/`memoize`), не за будь-яким
 // `new Map()`: акумулятор (напр. `byPath = new Map()`) — не кеш, а хибна гарантія
 // «Кешує результати» гірша за пропуск (фабрикація > мовчання).
@@ -88,13 +96,13 @@ function parseJsDoc(raw) {
   let ret = ''
   for (const l of lines) {
     const pm = l.match(PARAM_LINE_RE)
-    const rm = l.match(RETURNS_LINE_RE)
     if (pm) {
       const desc = pm[2].trim()
       // «опис.» — JSDoc-заглушка без сенсу; не тягнемо її як факт
       params.push({ name: pm[1], desc: desc === 'опис.' ? '' : desc })
       continue
     }
+    const rm = l.match(RETURNS_LINE_RE)
     if (rm) {
       ret = rm[1].trim()
       continue
@@ -215,7 +223,7 @@ function extractMarkers(src) {
   return {
     // «Фабрикація > мовчання»: прапорець true лише за high-confidence; інакше
     // guaranteesFromMarkers/factsSummary його ОПУСКАЮТЬ (не стверджують протилежне).
-    readOnly: !WRITE_FS_RE.test(src) && !MUTATION_RE.test(src), // ні ФС-запису, ні DB-мутацій
+    readOnly: !WRITE_FS_RE.test(src) && !isMutation(src), // ні ФС-запису, ні DB-мутацій
     catchesErrors: (CATCH_RE.test(src) || TRY_RE.test(src)) && !THROW_RE.test(src), // fail-safe лише якщо НЕ кидає
     returnsFalsyOnFail: FALSY_RETURN_RE.test(src) && !THROW_RE.test(src),
     network: NETWORK_RE.test(src),
@@ -355,7 +363,7 @@ function extractFactsRust(src, relPath) {
   const localSymbols = []
   for (const line of srcLines) {
     const m = line.match(RS_PRIVATE_FN_RE)
-    if (m && exports.every(e => !(e.name === m[1]))) localSymbols.push(m[1])
+    if (m && exports.every(e => e.name !== m[1])) localSymbols.push(m[1])
   }
 
   // imports — use-рядки, класифіковані на std / external / internal

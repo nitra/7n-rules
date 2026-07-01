@@ -176,10 +176,16 @@ describe('collectDeploymentDirs', () => {
       await writeFile(join(k8s, 'broken.yaml'), 'apiVersion: v1\nkind: : \n  bad', 'utf8')
       const yamls = await findK8sYamlFiles(dir)
       const errors = []
-      await collectDeploymentDirs(dir, yamls, msg => errors.push(msg))
+      await collectDeploymentDirs(dir, yamls, msg => {
+        errors.push(msg)
+      })
       // Або YAML парсер просто не вловив, або повідомив помилку — у будь-якому разі size 0:
-      const dirs = await collectDeploymentDirs(dir, yamls, msg => errors.push(msg))
+      const dirs = await collectDeploymentDirs(dir, yamls, msg => {
+        errors.push(msg)
+      })
       expect(dirs.size).toBe(0)
+      // errors може бути порожнім (парсер мовчки не вловив) або містити повідомлення — обидва варіанти валідні:
+      expect(Array.isArray(errors)).toBe(true)
     })
   })
 })

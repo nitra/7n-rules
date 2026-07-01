@@ -53,7 +53,12 @@ export async function readConcernMeta(concernDir, name) {
     const scope = raw.lint.scope
     if (scope !== 'per-file' && scope !== 'full') return null
     const rawGlob = raw.lint.glob
-    const glob = Array.isArray(rawGlob) ? rawGlob : typeof rawGlob === 'string' ? [rawGlob] : []
+    let glob = []
+    if (Array.isArray(rawGlob)) {
+      glob = rawGlob
+    } else if (typeof rawGlob === 'string') {
+      glob = [rawGlob]
+    }
     lint = { scope, glob }
   }
 
@@ -61,12 +66,12 @@ export async function readConcernMeta(concernDir, name) {
   let policy
   if (raw.policy && typeof raw.policy === 'object') {
     const legacyTemplate = raw.policy.check === 'template'
-    const engine =
-      raw.policy.engine === 'template' || raw.policy.engine === 'rego'
-        ? raw.policy.engine
-        : legacyTemplate
-          ? 'template'
-          : 'rego'
+    let engine
+    if (raw.policy.engine === 'template' || raw.policy.engine === 'rego') {
+      engine = raw.policy.engine
+    } else {
+      engine = legacyTemplate ? 'template' : 'rego'
+    }
     policy = {
       engine,
       files: raw.policy.files,

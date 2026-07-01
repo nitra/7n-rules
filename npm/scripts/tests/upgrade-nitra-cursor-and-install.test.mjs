@@ -58,54 +58,68 @@ describe('resolveInstalledPackageRoot', () => {
 })
 
 describe('fetchLatestNitraCursorVersionFromNpm', () => {
-  const originalFetch = fetch
-
   afterEach(() => {
-    globalThis.fetch = originalFetch
+    vi.unstubAllGlobals()
   })
 
   test('повертає version з тіла відповіді', async () => {
-    globalThis.fetch = vi.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({ version: '1.2.99' })
-      })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ version: '1.2.99' })
+        })
+      )
     )
 
     await expect(fetchLatestNitraCursorVersionFromNpm()).resolves.toBe('1.2.99')
   })
 
   test('кидає при не-ok', async () => {
-    globalThis.fetch = vi.fn(() =>
-      Promise.resolve({
-        ok: false,
-        status: 500,
-        statusText: 'err'
-      })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          status: 500,
+          statusText: 'err'
+        })
+      )
     )
 
     await expect(fetchLatestNitraCursorVersionFromNpm()).rejects.toThrow('npm registry')
   })
 
   test('кидає коли у відповіді немає version', async () => {
-    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }))
+    )
     await expect(fetchLatestNitraCursorVersionFromNpm()).rejects.toThrow('немає поля version')
   })
 
   test('кидає коли version — порожній рядок', async () => {
-    globalThis.fetch = vi.fn(() =>
-      Promise.resolve({ ok: true, json: () => Promise.resolve({ version: ' '.repeat(3) }) })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ version: ' '.repeat(3) }) }))
     )
     await expect(fetchLatestNitraCursorVersionFromNpm()).rejects.toThrow('немає поля version')
   })
 
   test('кидає коли version — не string', async () => {
-    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ version: 123 }) }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ version: 123 }) }))
+    )
     await expect(fetchLatestNitraCursorVersionFromNpm()).rejects.toThrow('немає поля version')
   })
 
   test('кидає коли body=null', async () => {
-    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(null) }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(null) }))
+    )
     await expect(fetchLatestNitraCursorVersionFromNpm()).rejects.toThrow('немає поля version')
   })
 })
@@ -140,12 +154,11 @@ describe('shouldSkipNpmVersionUpgrade — додаткові гілки', () => 
 })
 
 describe('upgradeNitraCursorToLatestAndBunInstall — early-returns без fetch', () => {
-  const originalFetch = fetch
   beforeEach(() => {
     vi.spyOn(console, 'log').mockReturnValue()
   })
   afterEach(() => {
-    globalThis.fetch = originalFetch
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 
@@ -179,9 +192,12 @@ describe('upgradeNitraCursorToLatestAndBunInstall — early-returns без fetch
   })
 
   test('@nitra/cursor через workspace:* у devDeps → skip + fallback, без fetch', async () => {
-    globalThis.fetch = vi.fn(() => {
-      throw new Error('fetch не повинен викликатись для workspace:')
-    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => {
+        throw new Error('fetch не повинен викликатись для workspace:')
+      })
+    )
     await withTmpDir(async dir => {
       await writeFile(
         join(dir, 'package.json'),
@@ -197,9 +213,12 @@ describe('upgradeNitraCursorToLatestAndBunInstall — early-returns без fetch
   })
 
   test('@nitra/cursor через file:.. у deps → skip + fallback', async () => {
-    globalThis.fetch = vi.fn(() => {
-      throw new Error('fetch не повинен викликатись для file:')
-    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => {
+        throw new Error('fetch не повинен викликатись для file:')
+      })
+    )
     await withTmpDir(async dir => {
       await writeFile(
         join(dir, 'package.json'),
@@ -218,9 +237,12 @@ describe('upgradeNitraCursorToLatestAndBunInstall — early-returns без fetch
     // Перетинаємось з гілкою `if (dev && typeof dev === 'object' && !Array.isArray(dev) ...)`.
     // Якщо devDependencies — масив, findNitraCursorDependency повертає null → залежність буде додана.
     // Щоб уникнути fetch + bun i, передамо невалідний pkg як string (теж типу!=object) — fallback.
-    globalThis.fetch = vi.fn(() => {
-      throw new Error('fetch не повинен викликатись')
-    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => {
+        throw new Error('fetch не повинен викликатись')
+      })
+    )
     await withTmpDir(async dir => {
       // Pkg = "literal-string" — JSON.parse дає string, не object → fallback.
       await writeFile(join(dir, 'package.json'), '"not-an-object"', 'utf8')
@@ -236,7 +258,10 @@ describe('upgradeNitraCursorToLatestAndBunInstall — early-returns без fetch
     // Гілка: typeof value === 'string' інакше повертаємо null → fallback або новий запис.
     // Якщо викинути на додавання — fetch обов'язково викликається. Тому перевіримо лише,
     // що findNitraCursorDependency повертає null коли value не-string і fall-through.
-    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ version: '5.0.0' }) }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ version: '5.0.0' }) }))
+    )
     await withTmpDir(async dir => {
       await writeFile(
         join(dir, 'package.json'),
@@ -247,7 +272,11 @@ describe('upgradeNitraCursorToLatestAndBunInstall — early-returns без fetch
       await mkdir(fb, { recursive: true })
       // bun i буде кинуто (нема bun у sandbox-середовищі без PATH), тому очікуємо реджект — обходимо це
       // через те, що fetch уже викликаний, що достатньо як signal про потрапляння у гілку «додавання».
-      await upgradeNitraCursorToLatestAndBunInstall(dir, fb).catch(() => null)
+      try {
+        await upgradeNitraCursorToLatestAndBunInstall(dir, fb)
+      } catch {
+        // bun i кидає у sandbox без PATH — ігноруємо, нас цікавить лише виклик fetch
+      }
       expect(fetch).toHaveBeenCalled()
       // І перевіряємо, що package.json було оновлено (запис у devDependencies @nitra/cursor = "^5.0.0")
       const updated = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
@@ -267,13 +296,15 @@ describe('upgradeNitraCursorToLatestAndBunInstall — early-returns без fetch
 })
 
 describe('upgradeNitraCursorToLatestAndBunInstall — version upgrade paths', () => {
-  const originalFetch = fetch
   beforeEach(() => {
     vi.spyOn(console, 'log').mockReturnValue()
-    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ version: '5.0.0' }) }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ version: '5.0.0' }) }))
+    )
   })
   afterEach(() => {
-    globalThis.fetch = originalFetch
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 
@@ -282,7 +313,11 @@ describe('upgradeNitraCursorToLatestAndBunInstall — version upgrade paths', ()
       await writeFile(join(dir, 'package.json'), JSON.stringify({}), 'utf8')
       const fb = join(dir, 'fb')
       await mkdir(fb, { recursive: true })
-      await upgradeNitraCursorToLatestAndBunInstall(dir, fb).catch(() => null)
+      try {
+        await upgradeNitraCursorToLatestAndBunInstall(dir, fb)
+      } catch {
+        // bun i недоступний у sandbox — ігноруємо
+      }
       const updated = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
       expect(updated.devDependencies['@nitra/cursor']).toBe('^5.0.0')
     })
@@ -294,7 +329,11 @@ describe('upgradeNitraCursorToLatestAndBunInstall — version upgrade paths', ()
       await writeFile(join(dir, 'package.json'), original, 'utf8')
       const fb = join(dir, 'fb')
       await mkdir(fb, { recursive: true })
-      await upgradeNitraCursorToLatestAndBunInstall(dir, fb).catch(() => null)
+      try {
+        await upgradeNitraCursorToLatestAndBunInstall(dir, fb)
+      } catch {
+        // bun i недоступний у sandbox — ігноруємо
+      }
       const content = await readFile(join(dir, 'package.json'), 'utf8')
       expect(JSON.parse(content).devDependencies['@nitra/cursor']).toBe('^5.0.0')
     })
@@ -309,7 +348,11 @@ describe('upgradeNitraCursorToLatestAndBunInstall — version upgrade paths', ()
       )
       const fb = join(dir, 'fb')
       await mkdir(fb, { recursive: true })
-      await upgradeNitraCursorToLatestAndBunInstall(dir, fb).catch(() => null)
+      try {
+        await upgradeNitraCursorToLatestAndBunInstall(dir, fb)
+      } catch {
+        // bun i недоступний у sandbox — ігноруємо
+      }
       const updated = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
       expect(updated.devDependencies['@nitra/cursor']).toBe('^5.0.0')
     })
@@ -324,7 +367,11 @@ describe('upgradeNitraCursorToLatestAndBunInstall — version upgrade paths', ()
       )
       const fb = join(dir, 'fb')
       await mkdir(fb, { recursive: true })
-      await upgradeNitraCursorToLatestAndBunInstall(dir, fb).catch(() => null)
+      try {
+        await upgradeNitraCursorToLatestAndBunInstall(dir, fb)
+      } catch {
+        // bun i недоступний у sandbox — ігноруємо
+      }
       const updated = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
       expect(updated.dependencies['@nitra/cursor']).toBe('^5.0.0')
     })

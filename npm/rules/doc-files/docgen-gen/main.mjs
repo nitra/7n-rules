@@ -504,11 +504,11 @@ export async function generateDoc(
 if (isRunAsCli(import.meta.url)) {
   const args = process.argv.slice(2)
   const file = args.find(a => !a.startsWith('--'))
-  const mi = args.indexOf('--model')
-  const model = mi === -1 ? DEFAULT_LOCAL_MODEL : args[mi + 1]
   if (!file) {
     throw new Error('Usage: node docgen-gen.mjs <file> [--model <m>]')
   }
+  const mi = args.indexOf('--model')
+  const model = mi === -1 ? DEFAULT_LOCAL_MODEL : args[mi + 1]
   // Зберегти захищену секцію «Призначення», якщо дока вже існує
   const docPath = docPathForSource(file)
   const existingMd = existsSync(docPath) ? readFileSync(docPath, 'utf8') : null

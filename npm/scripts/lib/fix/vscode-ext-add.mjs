@@ -22,7 +22,7 @@ export const patterns = [
       if (!snippetPath || !existsSync(snippetPath)) return { touchedFiles: [] }
 
       /** @type {string[]} */
-      let canonical = []
+      let canonical
       try {
         canonical = JSON.parse(readFileSync(snippetPath, 'utf8')).recommendations ?? []
       } catch {

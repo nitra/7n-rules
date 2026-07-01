@@ -28,8 +28,7 @@ describe('detectAll — exit codes', () => {
       const rulesDir = join(dir, 'rules')
       await seedDetector(rulesDir, 'probe', 'check', { scope: 'full', glob: ['**/*'] }, CLEAN)
       await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
-      const logs = []
-      const r = await detectAll({ rulesDir, cwd: dir, full: true, log: s => logs.push(s) })
+      const r = await detectAll({ rulesDir, cwd: dir, full: true, log: () => {} })
       expect(r.exitCode).toBe(0)
       expect(r.violations).toEqual([])
     })
@@ -128,7 +127,15 @@ describe('detectAll — scoping', () => {
       await seedDetector(rulesDir, 'probe', 'check', { scope: 'per-file', glob: ['**/*.mjs'] }, CLEAN)
       await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
       const logs = []
-      await detectAll({ rulesDir, cwd: dir, files: ['a.mjs'], verbose: true, log: s => logs.push(s) })
+      await detectAll({
+        rulesDir,
+        cwd: dir,
+        files: ['a.mjs'],
+        verbose: true,
+        log: s => {
+          logs.push(s)
+        }
+      })
       const line = logs.find(l => l.includes('probe/check'))
       expect(line).toBeDefined()
       expect(line).toContain('per-file')

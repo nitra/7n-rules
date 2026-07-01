@@ -24,7 +24,9 @@ export async function lint(ctx) {
   /** @type {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation[]} */
   const violations = []
   /** @param {string} reason @param {string} message */
-  const add = (reason, message) => violations.push(/** @type {any} */ ({ reason, message }))
+  const add = (reason, message) => {
+    violations.push(/** @type {any} */ ({ reason, message }))
+  }
 
   if ((await runCspellText(cwd, true, false)) !== 0) add('cspell', 'cspell знайшов порушення правопису (text.mdc)')
   if (runShellcheckText(cwd, true) !== 0) add('shellcheck', 'shellcheck знайшов порушення у *.sh (text.mdc)')

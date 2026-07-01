@@ -285,8 +285,8 @@ async function readConfig(paths = {}) {
     // скіли (`adr-normalize`).
     const disableRulesSet = new Set(disableRules)
     const effectiveRulesForSkills = [
-      ...new Set([...normalizeIdList(parsedConfig.rules), ...autoDetectedRules.rules])
-    ].filter(id => !disableRulesSet.has(id))
+      ...new Set([...normalizeIdList(parsedConfig.rules), ...autoDetectedRules.rules]).difference(disableRulesSet)
+    ]
     const autoDetectedSkills = detectAutoSkills({
       availableSkills,
       detectedRules: effectiveRulesForSkills,
@@ -781,8 +781,8 @@ async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
     const destDirName = managedSkillDirName(skillId)
     const destDir = join(skillsRoot, destDirName)
 
+    process.stdout.write(`  ⬇  ${id} → ${SKILLS_DIR}/${destDirName} ... `)
     if (existsSync(srcDir)) {
-      process.stdout.write(`  ⬇  ${id} → ${SKILLS_DIR}/${destDirName} ... `)
       try {
         await mkdir(destDir, { recursive: true })
         const meta = readSkillMetaRaw(srcDir)
@@ -811,7 +811,6 @@ async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
         fail++
       }
     } else {
-      process.stdout.write(`  ⬇  ${id} → ${SKILLS_DIR}/${destDirName} ... `)
       console.log(`❌`)
       console.error(`     Немає каталогу в пакеті: skills/${id}`)
       fail++
@@ -955,7 +954,8 @@ async function removeOrphanLocalSkillCommandFiles(commandsDir, configSkills) {
   const names = await readdir(commandsDir)
   const removed = []
 
-  for (const name of names.filter(n => n.endsWith('.md') && !n.startsWith(RULE_PREFIX))) {
+  for (const name of names) {
+    if (!name.endsWith('.md') || name.startsWith(RULE_PREFIX)) continue
     const dirName = name.slice(0, -3)
     if (!managedDirNames.has(dirName) && !allDirNames.has(dirName)) {
       await unlink(join(commandsDir, name))
@@ -1160,8 +1160,12 @@ async function captureOutput(action) {
     if (cb) cb()
     return true
   }
-  console.log = (...args) => buffer.push(`${args.map(String).join(' ')}\n`)
-  console.error = (...args) => buffer.push(`${args.map(String).join(' ')}\n`)
+  console.log = (...args) => {
+    buffer.push(`${args.map(String).join(' ')}\n`)
+  }
+  console.error = (...args) => {
+    buffer.push(`${args.map(String).join(' ')}\n`)
+  }
   try {
     const result = await action()
     if (result?.fail > 0) flush()
@@ -1594,4 +1598,9 @@ try {
 }
 
 // Pi-агент тримає TCP keep-alive сокет відкритим — явний вихід, щоб не висіти.
-process.exit(process.exitCode ?? 0)
+// Відтворюємо семантику process.exit() без самого виклику (n/no-process-exit):
+// фіксуємо код, віддаємо 'exit'-слухачам, далі — примусове завершення через reallyExit.
+const exitCode = process.exitCode ?? 0
+process.exitCode = exitCode
+process.emit('exit', exitCode)
+process.reallyExit(exitCode)

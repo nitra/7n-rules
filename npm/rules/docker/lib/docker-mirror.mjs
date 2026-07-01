@@ -47,17 +47,13 @@ export function getFromImageToken(line) {
   while (i < tokens.length) {
     const t = tokens[i]
     if (t === '--platform' || t.startsWith('--platform=')) {
-      if (t.startsWith('--platform=')) {
-        i += 1
-      } else if (tokens[i + 1] === undefined) {
+      if (t.startsWith('--platform=') || tokens[i + 1] === undefined) {
         i += 1
       } else {
         i += 2
       }
     } else if (t === '--' || t.toUpperCase() === 'AS') {
       break
-    } else if (t.startsWith('--') && t.includes('=')) {
-      i += 1
     } else if (t.startsWith('--')) {
       i += 1
     } else {

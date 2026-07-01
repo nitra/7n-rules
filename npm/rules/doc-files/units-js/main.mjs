@@ -57,7 +57,7 @@ function calleeName(node) {
 function collectCalls(node) {
   const names = new Set()
   walkAstWithAncestors(node, [], n => {
-    if (!(n.type === 'CallExpression')) {
+    if (n.type !== 'CallExpression') {
       return
     }
 
@@ -125,9 +125,9 @@ export function extractUnitsJs(src, relPath = 'scan.ts') {
 
   const units = []
   for (const node of program.body) {
-    if (node.type === 'ExportNamedDeclaration' && node.declaration) {
-      pushUnits(node.declaration, true, node.start, src, units)
-    } else if (node.type === 'ExportDefaultDeclaration' && node.declaration) {
+    const isExport =
+      (node.type === 'ExportNamedDeclaration' || node.type === 'ExportDefaultDeclaration') && node.declaration
+    if (isExport) {
       pushUnits(node.declaration, true, node.start, src, units)
     } else {
       pushUnits(node, false, node.start, src, units)

@@ -57,13 +57,8 @@ describe('check-js-run (мінімальний проєкт)', () => {
 
   // `bunyan` / `@nitra/bunyan` у dependencies/devDependencies тепер у Rego
   // (`npm/policy/js_run/package_json/`); JS-перевірка через AST-скан коду лишилася.
-
-  test.skip('1, якщо в workspace-пакеті є bunyan', async () => {
-    await withTmpDir(async dir => {
-      await writeRootWithWorkspacePkg(dir, { bunyan: '^1.8.0' })
-      expect(await check(dir)).toBeGreaterThan(0)
-    })
-  })
+  // (Колишній `test.skip('1, якщо в workspace-пакеті є bunyan')` прибрано — сценарій
+  // покриває Rego; JS-перевірка більше його не виконує.)
 
   test('1, якщо у джерелах workspace-пакета лишився import з @nitra/bunyan', async () => {
     await withTmpDir(async dir => {
@@ -174,19 +169,8 @@ describe('check-js-run (мінімальний проєкт)', () => {
 
   // Структуру `jsconfig.json` тепер валідує Rego (`npm/policy/js_run/jsconfig/`);
   // JS-перевірка лише наявність файлу.
-
-  test.skip('1, якщо jsconfig.json не збігається з каноном js-run', async () => {
-    await withTmpDir(async dir => {
-      await writeRootWithWorkspacePkg(dir, { '@nitra/pino': '^1.0.0' })
-      await mkdir(join(dir, 'pkg', 'src'), { recursive: true })
-      await writeFile(join(dir, 'pkg', 'src', 'app.js'), `export const x = 1\n`, 'utf8')
-      await writeJson(join(dir, 'pkg', 'jsconfig.json'), {
-        compilerOptions: { module: 'ESNext', moduleResolution: 'bundler', target: 'esnext' },
-        include: ['src/**/*']
-      })
-      expect(await check(dir)).toBeGreaterThan(0)
-    })
-  })
+  // (Колишній `test.skip('1, якщо jsconfig.json не збігається з каноном js-run')`
+  // прибрано — канонічність структури перевіряє Rego, а не JS-check.)
 
   test("враховує package.json#imports['#conn/*']", async () => {
     await withTmpDir(async dir => {

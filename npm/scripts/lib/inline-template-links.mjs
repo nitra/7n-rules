@@ -43,7 +43,10 @@ function normalizeTargetName(fileBasename) {
  * @returns {Promise<string>} transformed text
  */
 export async function inlineTemplateLinks(text, ruleDir) {
-  const matches = [...text.matchAll(MD_LINK_RE)].filter(m => TEMPLATE_SEGMENT_RE.test(m[2]))
+  const matches = text
+    .matchAll(MD_LINK_RE)
+    .filter(m => TEMPLATE_SEGMENT_RE.test(m[2]))
+    .toArray()
   if (matches.length === 0) return text
 
   let result = text

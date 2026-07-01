@@ -49,7 +49,8 @@ function runTool(label, abs, args, cwd, fail, reason) {
   if (r.status === 0) return true
   const code = typeof r.status === 'number' ? r.status : 1
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().slice(0, 2000)
-  fail(`lint-php: ${label} — помилка (код ${code}, php.mdc)${out ? `\n${out}` : ''}`, reason)
+  const outSuffix = out ? `\n${out}` : ''
+  fail(`lint-php: ${label} — помилка (код ${code}, php.mdc)${outSuffix}`, reason)
   return false
 }
 

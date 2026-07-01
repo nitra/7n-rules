@@ -21,10 +21,38 @@ const IGNORED_DIRS_FOR_PACKAGE_JSON = new Set([
 ])
 
 /** `||` у діапазоні npm-версій */
-const NPM_OR_PARTS_RE = /\s*\|\|\s*/
+const NPM_OR_PARTS_RE = /\|\|/
 
-/** `a - b` (діапазон діапазонів) */
-const NPM_HYPHEN_RANGE_RE = /^(.+?)\s+-\s+(.+)$/
+/** Один роздільник `<ws>-<ws>` у npm hyphen-діапазоні `a - b` (лінійний пошук). */
+const NPM_HYPHEN_SEPARATOR_RE = /\s-\s/
+
+/**
+ * Ліва межа npm hyphen-діапазону `low - high`.
+ * Роздільник — `\s+-\s+`; знаходимо його першу появу лінійно (без backtracking),
+ * потім розширюємо на суміжні пробіли з обох боків, як робив `\s+`.
+ * @param {string} s рядок сегмента
+ * @returns {string | null} ліва частина (`low`) або `null`, якщо не hyphen-діапазон
+ */
+function npmHyphenRangeLeft(s) {
+  const m = NPM_HYPHEN_SEPARATOR_RE.exec(s)
+  if (!m) {
+    return null
+  }
+  let start = m.index
+  while (start > 0 && /\s/.test(s[start - 1])) {
+    start -= 1
+  }
+  let end = m.index + m[0].length
+  while (end < s.length && /\s/.test(s[end])) {
+    end += 1
+  }
+  const left = s.slice(0, start)
+  const right = s.slice(end)
+  if (!left || !right) {
+    return null
+  }
+  return left
+}
 
 const FIRST_VERSION_NUM_RE = /^(?:v)?(\d+)/i
 
@@ -35,7 +63,7 @@ const STRIP_CARET_TILDE_EQ_RE = /^[=^~]+\s*/u
 /**
  * Початок блока **nitra: {** у **.ts** / **.mjs** (**capacitor.config**; ключ **nitra**).
  */
-const RE_NITRA_CONFIG_OBJECT_LEAD_IN = /\bnitra\b\s*:\s*\{|[\u0027"]nitra[\u0027"]\s*:\s*\{/
+const RE_NITRA_CONFIG_OBJECT_LEAD_IN = /\bnitra\b\s*:\s*\{|[\u{27}"]nitra[\u{27}"]\s*:\s*\{/u
 
 const RE_COCOAPODS_EXEMPT_SPM = /\biosCocoaPodsBecausePluginsLackSpm\s*:\s*true\b/
 const RE_COCOAPODS_EXEMPT_ALLOW = /\biosCocoaPodsAllowed\s*:\s*true\b/
@@ -63,9 +91,9 @@ export function capacitorSegmentMinMajor(segment) {
   if (s0.startsWith('>') && !s0.startsWith('>=')) {
     return firstVersionMajorFromNpmValue(s0.replace(PREFIX_GT_RE, ''))
   }
-  const rangeHyphen = s0.match(NPM_HYPHEN_RANGE_RE)
-  if (rangeHyphen) {
-    return firstVersionMajorFromNpmValue(rangeHyphen[1].trim())
+  const hyphenLeft = npmHyphenRangeLeft(s0)
+  if (hyphenLeft !== null) {
+    return firstVersionMajorFromNpmValue(hyphenLeft.trim())
   }
   if (s0.startsWith('^') || s0.startsWith('~') || s0.startsWith('=')) {
     return firstVersionMajorFromNpmValue(s0.replace(STRIP_CARET_TILDE_EQ_RE, ''))
@@ -90,7 +118,7 @@ function firstVersionMajorFromNpmValue(t) {
   if (!m) {
     return null
   }
-  return Number.parseInt(m[1], 10)
+  return Number(m[1])
 }
 
 /**

@@ -89,7 +89,7 @@ async function checkWithPublishedNpm(map, dir) {
  */
 async function checkWithPublishedPyPi(map, dir) {
   const prev = fetch
-  globalThis.fetch = async url => {
+  const fakeFetch = async url => {
     const m = String(url).match(/\/pypi\/([^/]+)\/json/u)
     const name = m ? decodeURIComponent(m[1]) : null
     if (name && Object.hasOwn(map, name)) {
@@ -97,10 +97,11 @@ async function checkWithPublishedPyPi(map, dir) {
     }
     return { ok: false, json: async () => ({}) }
   }
+  Reflect.defineProperty(globalThis, 'fetch', { value: fakeFetch, configurable: true, writable: true })
   try {
     return await check(dir)
   } finally {
-    globalThis.fetch = prev
+    Reflect.defineProperty(globalThis, 'fetch', { value: prev, configurable: true, writable: true })
   }
 }
 

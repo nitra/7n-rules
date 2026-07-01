@@ -56,7 +56,7 @@ function collectSources(concernDir, concernName) {
   if (existsSync(rego)) parts.push([`${concernName}.rego`, readFileSync(rego, 'utf8')])
   const tmplDir = join(concernDir, 'template')
   if (existsSync(tmplDir) && statSync(tmplDir).isDirectory()) {
-    for (const name of readdirSync(tmplDir).sort()) {
+    for (const name of readdirSync(tmplDir).toSorted()) {
       const p = join(tmplDir, name)
       if (statSync(p).isFile()) parts.push([`template/${name}`, readFileSync(p, 'utf8')])
     }
@@ -65,13 +65,13 @@ function collectSources(concernDir, concernName) {
 }
 
 /**
- * source-hash = sha1(CODEGEN_VERSION + усі sources). Детермінований.
+ * source-hash = sha256(CODEGEN_VERSION + усі sources). Детермінований.
  * @param {string} concernDir
  * @param {string} concernName
  * @returns {string}
  */
 export function computeSourceHash(concernDir, concernName) {
-  const h = createHash('sha1')
+  const h = createHash('sha256')
   h.update(`v${CODEGEN_VERSION}\n`)
   for (const [name, content] of collectSources(concernDir, concernName)) {
     h.update(`--- ${name} ---\n`)

@@ -174,7 +174,9 @@ export async function main(cwd = process.cwd()) {
   // Stamp лише crc-mismatch: оновлюємо CRC у наявній доці без LLM.
   // missing — не чіпаємо: нехай залишаються missing аж поки worker їх згенерує,
   // щоб recheck теж бачив порушення і оркестратор міг ескалувати до кращої моделі.
-  for (const file of stale.filter(f => f.reason === 'crc-mismatch')) stampFileDoc(cwd, file)
+  for (const file of stale) {
+    if (file.reason === 'crc-mismatch') stampFileDoc(cwd, file)
+  }
   const deleted = purgeOrphanDocs(cwd, orphans)
   if (stale.length > 0 || deleted > 0) {
     process.stdout.write(`✓ doc-files: оновлено CRC у ${stale.length} доці(ах), видалено orphan: ${deleted}\n`)

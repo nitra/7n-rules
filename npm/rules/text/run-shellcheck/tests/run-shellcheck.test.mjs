@@ -40,7 +40,7 @@ describe('run-shellrules/text/check.mjs', () => {
 
   test('runShellcheckText виправляє тривіальне SC2086 і завершується з 0', async () => {
     if (!resolveCmd('shellcheck') || !resolveCmd('patch')) {
-      expect(true).toBe(true)
+      expect(resolveCmd('shellcheck') && resolveCmd('patch')).toBeFalsy()
       return
     }
     await withTmpDir(async dir => {
@@ -81,7 +81,7 @@ echo $1
 
   test('runShellcheckText повертає 1 коли shellcheck знаходить незмінні попередження (lines 213-215)', async () => {
     if (!resolveCmd('shellcheck') || !resolveCmd('patch')) {
-      expect(true).toBe(true)
+      expect(resolveCmd('shellcheck') && resolveCmd('patch')).toBeFalsy()
       return
     }
     const origOut = process.stdout.write.bind(process.stdout)

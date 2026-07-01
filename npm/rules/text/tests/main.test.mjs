@@ -56,7 +56,7 @@ describe('text.check lint(ctx)', () => {
     // Перевіряє, що ensureTool кидає з посиланням на dotenv-linter коли shellcheck присутній,
     // але dotenv-linter відсутній і N_CURSOR_NO_AUTO_INSTALL=1
     if (platform === 'win32') {
-      expect(true).toBe(true)
+      expect(platform).toBe('win32')
       return
     }
 

@@ -64,7 +64,8 @@ export function addedLinesByFile(files, cwd = process.cwd(), deps = {}) {
   const run = deps.git ?? git
   const map = parseAddedLines(run(['diff', '--unified=0', 'HEAD', '--', ...files], cwd))
   const untracked = run(['ls-files', '--others', '--exclude-standard', '--', ...files], cwd)
-  for (const f of untracked.split('\n').filter(Boolean)) {
+  for (const f of untracked.split('\n')) {
+    if (!f) continue
     map.set(f, ALL_LINES)
   }
   return map

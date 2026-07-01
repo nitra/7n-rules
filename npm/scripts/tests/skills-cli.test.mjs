@@ -102,7 +102,9 @@ describe('runSkillsCli', () => {
     const code = await runSkillsCli(['list'], {
       packageRoot: root,
       projectDir: root,
-      log: line => lines.push(line)
+      log: line => {
+        lines.push(line)
+      }
     })
 
     expect(code).toBe(0)
@@ -119,7 +121,9 @@ describe('runSkillsCli', () => {
     const code = await runSkillsCli(['taze'], {
       packageRoot: root,
       projectDir: root,
-      log: line => lines.push(line)
+      log: line => {
+        lines.push(line)
+      }
     })
 
     expect(code).toBe(0)
@@ -136,7 +140,9 @@ describe('runSkillsCli', () => {
     const code = await runSkillsCli(['lint', 'run', 'lint'], {
       packageRoot: root,
       projectDir: root,
-      log: line => lines.push(line)
+      log: line => {
+        lines.push(line)
+      }
     })
 
     expect(code).toBe(0)
@@ -154,7 +160,9 @@ describe('runSkillsCli', () => {
       log: () => {
         /* stdout не перевіряється в цьому тесті */
       },
-      logError: line => errors.push(line)
+      logError: line => {
+        errors.push(line)
+      }
     })
 
     expect(code).toBe(1)
@@ -172,7 +180,9 @@ describe('runSkillsCli', () => {
       log: () => {
         /* noop: stdout не перевіряється в цьому тесті */
       },
-      logError: line => errors.push(line)
+      logError: line => {
+        errors.push(line)
+      }
     })
 
     expect(code).toBe(1)
@@ -190,7 +200,9 @@ describe('runSkillsCli', () => {
       log: () => {
         /* stdout не перевіряється в цьому тесті */
       },
-      logError: line => errors.push(line)
+      logError: line => {
+        errors.push(line)
+      }
     })
 
     expect(code).toBe(1)
@@ -259,7 +271,9 @@ describe('runSkillsCli', () => {
       packageRoot: root,
       projectDir: root,
       log: () => {},
-      logError: line => errors.push(line),
+      logError: line => {
+        errors.push(line)
+      },
       deps: {
         runPiAgentSkill: async () => ({ ok: false, telemetry: null, error: 'модель не знайдена: x/y' })
       }
@@ -286,7 +300,9 @@ describe('runSkillsCli', () => {
         log: () => {
           /* noop: stdout не перевіряється в цьому тесті */
         },
-        logError: line => errors.push(line)
+        logError: line => {
+          errors.push(line)
+        }
       })
     } finally {
       env.PATH = prevPath
@@ -314,7 +330,9 @@ describe('runSkillsCli', () => {
         log: () => {
           /* noop: stdout не перевіряється в цьому тесті */
         },
-        logError: line => errors.push(line)
+        logError: line => {
+          errors.push(line)
+        }
       })
     } finally {
       env.PATH = prevPath

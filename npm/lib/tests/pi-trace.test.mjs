@@ -38,8 +38,9 @@ describe('writeTrace', () => {
 
 describe('tracePath', () => {
   test('env-override N_CURSOR_TRACE_PATH', () => {
-    vi.stubEnv('N_CURSOR_TRACE_PATH', '/tmp/custom-trace.jsonl')
-    expect(tracePath()).toBe('/tmp/custom-trace.jsonl')
+    const custom = join(tmpdir(), 'custom-trace.jsonl')
+    vi.stubEnv('N_CURSOR_TRACE_PATH', custom)
+    expect(tracePath()).toBe(custom)
   })
 
   test('дефолт — під ~/.n-cursor/', () => {

@@ -24,7 +24,8 @@ function runTool(label, cmd, args, cwd, fail, reason) {
   if (r.status === 0) return true
   const code = typeof r.status === 'number' ? r.status : 1
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().slice(0, 2000)
-  fail(`lint-python: ${label} — помилка (код ${code}, python.mdc)${out ? `\n${out}` : ''}`, reason)
+  const outSuffix = out ? `\n${out}` : ''
+  fail(`lint-python: ${label} — помилка (код ${code}, python.mdc)${outSuffix}`, reason)
   return false
 }
 

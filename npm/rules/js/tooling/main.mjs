@@ -72,10 +72,10 @@ function asRecordOrEmpty(v) {
 function compareOxlintRules(expected, actual, failures) {
   const er = asRecordOrEmpty(expected)
   const ar = asRecordOrEmpty(actual)
-  for (const ruleKey of Object.keys(er)) {
-    if (ar[ruleKey] !== er[ruleKey]) {
+  for (const [ruleKey, expectedValue] of Object.entries(er)) {
+    if (ar[ruleKey] !== expectedValue) {
       failures.push(
-        `.oxlintrc.json: rules["${ruleKey}"] очікується ${JSON.stringify(er[ruleKey])}, зараз ${JSON.stringify(ar[ruleKey])}`
+        `.oxlintrc.json: rules["${ruleKey}"] очікується ${JSON.stringify(expectedValue)}, зараз ${JSON.stringify(ar[ruleKey])}`
       )
     }
   }
@@ -115,18 +115,17 @@ function compareOxlintIgnorePatterns(expected, actual, failures) {
  * @returns {{ ok: boolean, failures: string[] }} статус і повідомлення для `fail`
  */
 export function verifyOxlintRcAgainstCanonical(cfg, canonical) {
-  const failures = []
   if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) {
     return { ok: false, failures: ['.oxlintrc.json: корінь має бути значенням типу object'] }
   }
   if (!canonical || typeof canonical !== 'object' || Array.isArray(canonical)) {
     return { ok: false, failures: ['внутрішня помилка: канон oxlint має бути object'] }
   }
+  const failures = []
   const o = /** @type {Record<string, unknown>} */ (cfg)
   const c = /** @type {Record<string, unknown>} */ (canonical)
 
-  for (const key of Object.keys(c)) {
-    const expected = c[key]
+  for (const [key, expected] of Object.entries(c)) {
     const actual = o[key]
 
     if (key === 'rules') {

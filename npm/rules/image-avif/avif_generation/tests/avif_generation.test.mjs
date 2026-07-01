@@ -20,7 +20,10 @@ import { patterns } from '../fix-avif_generation.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 const runLint = dir => lint({ cwd: dir, ruleId: 'image-avif', concernId: 'avif_generation', files: undefined })
-const check = dir => runLint(dir).then(r => r.violations)
+const check = async dir => {
+  const r = await runLint(dir)
+  return r.violations
+}
 
 /** Прогоняє T0-патерни concern-а над violations (як central fix-pipeline). */
 async function applyT0(violations, dir) {

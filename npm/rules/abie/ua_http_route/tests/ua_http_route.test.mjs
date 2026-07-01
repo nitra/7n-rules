@@ -104,7 +104,7 @@ describe('abie ua_http_route concern', () => {
 
   test('readFile fails → catch (violation)', async () => {
     if (platform === 'win32') {
-      expect(true).toBe(true)
+      expect(platform).toBe('win32')
       return
     }
     await withTmpDir(async dir => {

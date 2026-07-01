@@ -249,7 +249,9 @@ async function readStdin() {
   if (process.stdin.isTTY) return ''
   process.stdin.setEncoding('utf8')
   const chunks = []
-  process.stdin.on('data', chunk => chunks.push(chunk))
+  process.stdin.on('data', chunk => {
+    chunks.push(chunk)
+  })
   try {
     await once(process.stdin, 'end')
   } catch {

@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 
 const JSCONFIG_MISSING_RE = /є каталог src\/, але немає jsconfig\.json/u
 /** Витягує workspace із message-а одного violation (`[<ws>] є каталог src/…`). */
-const JSCONFIG_MISSING_WS_RE = /\[([^\]]+)\] є каталог src\/, але немає jsconfig\.json/u
+const JSCONFIG_MISSING_WS_RE = /^\[([^\]]*)\] є каталог src\/, але немає jsconfig\.json/u
 
 const JSCONFIG_CONTENT =
   readFileSync(

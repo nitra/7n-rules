@@ -16,7 +16,9 @@ describe('walkDir', () => {
       await writeFile(join(dir, 'src', 'b.txt'), 'b', 'utf8')
       await writeFile(join(dir, 'src', 'nested', 'c.txt'), 'c', 'utf8')
       const seen = []
-      await walkDir(dir, p => seen.push(p))
+      await walkDir(dir, p => {
+        seen.push(p)
+      })
       expect(seen.length).toBe(3)
       expect(seen.some(p => p.endsWith('a.txt'))).toBe(true)
       expect(seen.filter(p => p.endsWith('b.txt')).length).toBe(1)
@@ -32,7 +34,9 @@ describe('walkDir', () => {
       await writeFile(join(dir, 'node_modules', 'pkg', 'bad.txt'), 'x', 'utf8')
       await writeFile(join(dir, '.git', 'objects', 'bad.txt'), 'x', 'utf8')
       const seen = []
-      await walkDir(dir, p => seen.push(p))
+      await walkDir(dir, p => {
+        seen.push(p)
+      })
       expect(seen.length).toBe(1)
       expect(seen[0].endsWith('root.txt')).toBe(true)
     })
@@ -45,7 +49,9 @@ describe('walkDir', () => {
       await writeFile(join(dir, 'root.txt'), 'x', 'utf8')
       await writeFile(join(dir, 'dist', 'bad.txt'), 'x', 'utf8')
       const seen = []
-      await walkDir(dir, p => seen.push(p))
+      await walkDir(dir, p => {
+        seen.push(p)
+      })
       const rels = seen.map(p => p.slice(dir.length + 1))
       expect(rels.toSorted()).toEqual(['.gitignore', 'root.txt'].toSorted())
     })
@@ -69,7 +75,13 @@ describe('walkDir', () => {
       await writeFile(join(dir, 'vendor', 'chart', 'values.yaml'), 'v', 'utf8')
       await writeFile(join(dir, 'vendor', 'chart', 'templates', 'deploy.yaml'), 'd', 'utf8')
       const seen = []
-      await walkDir(dir, p => seen.push(p), [join(dir, 'vendor', 'chart')])
+      await walkDir(
+        dir,
+        p => {
+          seen.push(p)
+        },
+        [join(dir, 'vendor', 'chart')]
+      )
       const rels = seen.map(p => p.slice(dir.length + 1))
       expect(rels.toSorted()).toEqual(['keep.txt', 'src/a.txt'].toSorted())
     })
@@ -84,7 +96,13 @@ describe('walkDir', () => {
       await writeFile(join(dir, 'postgres-master-test', 'cfg.yaml'), 'b', 'utf8')
       const seen = []
       const root = dir
-      await walkDir(root, p => seen.push(p), [join(root, 'postgres-master')])
+      await walkDir(
+        root,
+        p => {
+          seen.push(p)
+        },
+        [join(root, 'postgres-master')]
+      )
       const rels = seen.map(p => p.slice(root.length + 1))
       expect(rels).toEqual(['postgres-master-test/cfg.yaml'])
     })
@@ -98,7 +116,13 @@ describe('walkDir', () => {
       const seen = []
       const root = dir
       // абсолютний шлях `<dir>/a/b` має бути виключений
-      await walkDir(root, p => seen.push(p), [join(root, 'a/b')])
+      await walkDir(
+        root,
+        p => {
+          seen.push(p)
+        },
+        [join(root, 'a/b')]
+      )
       const rels = seen.map(p => p.slice(root.length + 1))
       expect(rels).toEqual(['root.txt'])
     })
@@ -110,7 +134,13 @@ describe('walkDir', () => {
       await writeFile(join(dir, 'skip', 'x.txt'), 'x', 'utf8')
       await writeFile(join(dir, 'keep.txt'), 'k', 'utf8')
       const seen = []
-      await walkDir(dir, p => seen.push(p), [`${join(dir, 'skip')}/`])
+      await walkDir(
+        dir,
+        p => {
+          seen.push(p)
+        },
+        [`${join(dir, 'skip')}/`]
+      )
       const rels = seen.map(p => p.slice(dir.length + 1))
       expect(rels).toEqual(['keep.txt'])
     })
@@ -122,8 +152,16 @@ describe('walkDir', () => {
       await writeFile(join(dir, 'x', 'a.txt'), 'a', 'utf8')
       const seenA = []
       const seenB = []
-      await walkDir(dir, p => seenA.push(p))
-      await walkDir(dir, p => seenB.push(p), [])
+      await walkDir(dir, p => {
+        seenA.push(p)
+      })
+      await walkDir(
+        dir,
+        p => {
+          seenB.push(p)
+        },
+        []
+      )
       expect(seenB.toSorted()).toEqual(seenA.toSorted())
     })
   })

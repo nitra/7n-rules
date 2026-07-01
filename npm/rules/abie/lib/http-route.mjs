@@ -84,7 +84,7 @@ export async function analyzeAbieSharedBackendRefsInPackageK8s(root, pkgAbs, yam
       const docs = await readAndParseYamlDocs(abs, rel, silentFail)
       if (docs) {
         for (const doc of docs) {
-          if (!(doc.errors.length === 0)) {
+          if (doc.errors.length !== 0) {
             continue
           }
 

@@ -56,13 +56,14 @@ export function lint(ctx) {
     } catch {
       // jscpd не зміг сформувати звіт (інструмент відсутній / краш) — пропускаємо
       const detail = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().slice(0, 500)
+      const suffix = detail ? `: ${detail}` : ''
       return {
         violations: [],
-        diagnostics: [{ level: 'warn', message: `jscpd: не вдалося прочитати JSON-звіт${detail ? `: ${detail}` : ''}` }]
+        diagnostics: [{ level: 'warn', message: `jscpd: не вдалося прочитати JSON-звіт${suffix}` }]
       }
     }
     const clones = Array.isArray(report.duplicates) ? report.duplicates : []
-    return { violations: clones.map(cloneToViolation) }
+    return { violations: clones.map(clone => cloneToViolation(clone)) }
   } finally {
     rmSync(outDir, { recursive: true, force: true })
   }

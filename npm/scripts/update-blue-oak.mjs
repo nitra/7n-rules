@@ -26,8 +26,7 @@ const KEEP_RATINGS = new Set(['Model', 'Gold', 'Silver', 'Bronze'])
 console.log(`⬇  Fetching ${BLUE_OAK_URL} …`)
 const res = await fetch(BLUE_OAK_URL)
 if (!res.ok) {
-  console.error(`✗ HTTP ${res.status}`)
-  process.exit(1)
+  throw new Error(`✗ HTTP ${res.status}`)
 }
 
 /** @type {{ version: string, ratings: Array<{ name: string, licenses: Array<{ id: string, name: string, url: string }> }> }} */

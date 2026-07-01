@@ -1,6 +1,6 @@
 /** @see ./docs/dep-policy.md */
 import { readFile } from 'node:fs/promises'
-import { join, relative, sep } from 'node:path'
+import { relative } from 'node:path'
 
 import { parseSync } from 'oxc-parser'
 

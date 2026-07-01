@@ -174,10 +174,10 @@ function isNewConnectionPool(node) {
   const callee = node.callee
   if (!callee || callee.type !== 'MemberExpression') return false
   if (callee.computed) return false
-  const obj = callee.object
   const prop = callee.property
-  if (!obj || obj.type !== 'Identifier') return false
   if (!prop || prop.type !== 'Identifier' || prop.name !== 'ConnectionPool') return false
+  const obj = callee.object
+  if (!obj || obj.type !== 'Identifier') return false
   return obj.name === 'sql' || obj.name === 'mssql'
 }
 
@@ -298,9 +298,9 @@ export function findSharedMssqlRequestInText(content, virtualPath = 'scan.ts') {
   walkAstWithAncestors(result.program, [], node => {
     if (node.type !== 'VariableDeclarator') return
     const id = node.id
-    const init = node.init
     if (!id || id.type !== 'Identifier') return
     if (id.name !== 'request') return
+    const init = node.init
     if (!init || typeof init !== 'object') return
     if (!isRequestFactoryCall(init)) return
 
@@ -410,9 +410,8 @@ function subtreeHasNumericParseCall(node) {
   if (isNumericParseCallExpression(node)) return true
   if (node.type === 'UnaryExpression' && node.operator === '+') return true
 
-  for (const key of Object.keys(node)) {
+  for (const [key, v] of Object.entries(node)) {
     if (key === 'parent') continue
-    const v = node[key]
     if (v && typeof v === 'object' && subtreeHasNumericParseCall(v)) return true
   }
   return false
@@ -498,7 +497,7 @@ function collectInListUnparsedFromTemplate(node, content, declarators, out) {
     if (isJoinCall(expr)) continue
     if (isInListExpressionParsed(expr, declarators)) continue
 
-    const startOffset = typeof expr.start === 'number' ? expr.start : node.start
+    const startOffset = (typeof expr.start === 'number' ? expr : node).start
     out.push({
       line: offsetToLine(content, startOffset),
       snippet: normalizeSnippet(content.slice(node.start, node.end))

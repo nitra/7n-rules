@@ -42,13 +42,17 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel }) {
 }
 
 /** Гонка проміса з таймаутом (мс ≤ 0 → без таймауту). */
-function withTimeout(promise, ms) {
+async function withTimeout(promise, ms) {
   if (!ms || ms <= 0) return promise
   let timer
   const timeout = new Promise((_, reject) => {
     timer = setTimeout(() => reject(new Error(`one-shot timeout ${ms}ms`)), ms)
   })
-  return Promise.race([Promise.resolve(promise).finally(() => clearTimeout(timer)), timeout])
+  try {
+    return await Promise.race([Promise.resolve(promise), timeout])
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /**

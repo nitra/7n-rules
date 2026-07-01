@@ -48,7 +48,7 @@ async function withFakeDotenvLinter(fn) {
 describe('run-dotenv-linter.mjs', () => {
   test('runDotenvLinter повертає 0 коли .env*-файлів немає', async () => {
     if (!resolveCmd('dotenv-linter')) {
-      expect(true).toBe(true)
+      expect(resolveCmd('dotenv-linter')).toBeFalsy()
       return
     }
     await withTmpDir(dir => {
@@ -58,7 +58,7 @@ describe('run-dotenv-linter.mjs', () => {
 
   test('runDotenvLinter авто-виправляє LowercaseKey і завершується з 0', async () => {
     if (!resolveCmd('dotenv-linter')) {
-      expect(true).toBe(true)
+      expect(resolveCmd('dotenv-linter')).toBeFalsy()
       return
     }
     await withTmpDir(async dir => {
@@ -71,7 +71,7 @@ describe('run-dotenv-linter.mjs', () => {
 
   test('runDotenvLinter не перевіряє файли в node_modules і .envrc', async () => {
     if (!resolveCmd('dotenv-linter')) {
-      expect(true).toBe(true)
+      expect(resolveCmd('dotenv-linter')).toBeFalsy()
       return
     }
     await withTmpDir(async dir => {

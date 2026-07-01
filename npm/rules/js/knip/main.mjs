@@ -18,8 +18,10 @@ import { main as knipMain } from 'knip'
 function issueToViolation(issue, cwd) {
   const abs = issue.filePath
   const file = abs ? relative(cwd, abs).split('\\').join('/') : undefined
-  const where = file ? `${file}${issue.line ? `:${issue.line}` : ''}` : '<unknown>'
-  const sym = issue.symbol ? ` \`${issue.symbol}\`${issue.symbolType ? ` (${issue.symbolType})` : ''}` : ''
+  const lineSuffix = issue.line ? `:${issue.line}` : ''
+  const where = file ? `${file}${lineSuffix}` : '<unknown>'
+  const symbolType = issue.symbolType ? ` (${issue.symbolType})` : ''
+  const sym = issue.symbol ? ` \`${issue.symbol}\`${symbolType}` : ''
   /** @type {any} */
   const v = {
     reason: issue.type || 'knip-issue',
@@ -43,6 +45,7 @@ export async function lint(ctx) {
   // від головного entry і імпортуємо `create-options` за абсолютним file:// URL.
   const require = createRequire(import.meta.url)
   const distDir = dirname(require.resolve('knip'))
+  // eslint-disable-next-line no-unsanitized/method -- URL from resolved package path, not user input
   const { createOptions } = await import(pathToFileURL(join(distDir, 'util/create-options.js')).href)
 
   const options = await createOptions({ cwd, isDisableConfigHints: true })

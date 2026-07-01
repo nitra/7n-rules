@@ -49,7 +49,7 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel }) {
 }
 
 /** Гонка з таймаутом; на таймаут кличе `onTimeout` (abort) і реджектить. */
-function withTimeout(promise, ms, onTimeout) {
+async function withTimeout(promise, ms, onTimeout) {
   if (!ms || ms <= 0) return promise
   let timer
   const timeout = new Promise((_, reject) => {
@@ -58,7 +58,11 @@ function withTimeout(promise, ms, onTimeout) {
       reject(new Error(`skill timeout ${ms}ms`))
     }, ms)
   })
-  return Promise.race([Promise.resolve(promise).finally(() => clearTimeout(timer)), timeout])
+  try {
+    return await Promise.race([Promise.resolve(promise), timeout])
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /**

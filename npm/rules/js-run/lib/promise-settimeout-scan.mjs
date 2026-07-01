@@ -90,9 +90,8 @@ function walkAst(node, visit) {
   if (typeof node.type === 'string') {
     visit(node)
   }
-  for (const key of Object.keys(node)) {
+  for (const [key, v] of Object.entries(node)) {
     if (key === 'parent') continue
-    const v = node[key]
     if (v && typeof v === 'object') walkAst(v, visit)
   }
 }

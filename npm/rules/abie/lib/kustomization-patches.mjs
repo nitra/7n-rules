@@ -167,7 +167,7 @@ function countAbieHttpRouteBackendRefNamespacePatchesInCombined(combined, mode) 
   if (mode !== 'ua') return 0
   const re =
     /path:\s*\/spec\/rules\/\d+\/backendRefs\/\d+\/namespace\b[\s\S]{0,200}?value:\s*['"]?ua(?:-[a-z0-9][a-z0-9-]*)?['"]?(?:\s|$)/gimu
-  return [...combined.matchAll(re)].length
+  return combined.matchAll(re).toArray().length
 }
 
 /**

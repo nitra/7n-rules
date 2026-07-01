@@ -179,9 +179,8 @@ export async function fixConcern(item, initialViolations, deps) {
       return true
     }
 
-    log(
-      `  ⚡ ${rung.tier} (${rung.model}): ${ruleId}/${concernName}${error ? ` ❌ ${error.slice(0, 120)}` : ' ❌ досі порушено'}\n`
-    )
+    const errorSuffix = error ? ` ❌ ${error.slice(0, 120)}` : ' ❌ досі порушено'
+    log(`  ⚡ ${rung.tier} (${rung.model}): ${ruleId}/${concernName}${errorSuffix}\n`)
 
     // Не clean → restore S1 перед наступним rung-ом (degraded не тече далі).
     snapshot.rollback()
@@ -211,7 +210,7 @@ export async function fixConcern(item, initialViolations, deps) {
  * @returns {Promise<0|1|2>}
  */
 export async function runFixPipeline(opts) {
-  const { rulesDir, cwd } = opts
+  const { cwd } = opts
   const log = opts.log ?? (s => process.stdout.write(s))
   const verbose = opts.verbose === true
   const deps = opts.deps ?? {}

@@ -8,8 +8,8 @@ import { join } from 'node:path'
 import { lint, isEnvFile, isNitraOrAbieRepository, parseInternalHasuraEndpoint } from '../main.mjs'
 import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
-const check = dir =>
-  lint({ cwd: dir, ruleId: 'hasura', concernId: 'internal_urls', files: undefined }).then(r => r.violations)
+const check = async dir =>
+  (await lint({ cwd: dir, ruleId: 'hasura', concernId: 'internal_urls', files: undefined })).violations
 
 describe('parseInternalHasuraEndpoint', () => {
   test('валідний внутрішній URL (GKE-style з .internal)', () => {

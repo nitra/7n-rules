@@ -89,10 +89,10 @@ export async function ensureNitraCursorInRootDevDependencies(root, options = {})
   const { path: pkgPath, pkg } = workspaceRoot
 
   const devDeps = pkg.devDependencies
-  const deps = pkg.dependencies
   if (devDeps && typeof devDeps === 'object' && PACKAGE_NAME in devDeps) {
     return false
   }
+  const deps = pkg.dependencies
   if (deps && typeof deps === 'object' && PACKAGE_NAME in deps) {
     return false
   }

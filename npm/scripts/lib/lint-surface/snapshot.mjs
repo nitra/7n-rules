@@ -48,7 +48,7 @@ export function createSnapshot() {
       }
     },
     touched() {
-      return [...preImages.keys()]
+      return preImages.keys().toArray()
     }
   }
 }

@@ -103,7 +103,7 @@ export async function migrateErrorLogOffDirective(root, ignorePaths = []) {
   const fixed = []
   for (const abs of templates) {
     const body = await readFile(abs, 'utf8')
-    const next = body.replace(ERROR_LOG_OFF_RE, ERROR_LOG_CANONICAL)
+    const next = body.replace(ERROR_LOG_OFF_RE, () => ERROR_LOG_CANONICAL)
     if (next === body) continue
     await writeFile(abs, next, 'utf8')
     fixed.push(relative(root, abs).replaceAll('\\', '/') || abs)

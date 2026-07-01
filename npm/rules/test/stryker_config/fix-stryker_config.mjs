@@ -30,7 +30,12 @@ const TRIGGER_REASONS = new Set([STRYKER_CONFIG_MISSING, STRYKER_VUE_AUGMENT, GI
 async function writeBaseline(a) {
   if (a.transform) {
     const src = await readFile(a.baselinePath, 'utf8')
-    await writeFile(a.target, src.replace(new RegExp(a.transform.re, 'u'), a.transform.replacement), 'utf8')
+    const { replacement } = a.transform
+    await writeFile(
+      a.target,
+      src.replace(new RegExp(a.transform.re, 'u'), () => replacement),
+      'utf8'
+    )
   } else {
     await copyFile(a.baselinePath, a.target)
   }

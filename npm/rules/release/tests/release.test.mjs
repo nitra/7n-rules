@@ -242,7 +242,9 @@ describe('runReleaseCli', () => {
   test('повертає 0 і логує повідомлення коли немає змін (lines 124-126, 130)', async () => {
     const logs = []
     const origLog = console.log
-    console.log = (...args) => logs.push(args.join(' '))
+    console.log = (...args) => {
+      logs.push(args.join(' '))
+    }
     try {
       await withTmpDir(async dir => {
         await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.0.0', files: ['CHANGELOG.md'] })
@@ -259,7 +261,9 @@ describe('runReleaseCli', () => {
   test('повертає 1 і логує помилку коли release() кидає (lines 131-133)', async () => {
     const errs = []
     const origErr = console.error
-    console.error = (...args) => errs.push(args.join(' '))
+    console.error = (...args) => {
+      errs.push(args.join(' '))
+    }
     try {
       await withTmpDir(async dir => {
         // pyproject.toml з одинарними лапками → writeManifestVersion кидає
@@ -269,9 +273,12 @@ describe('runReleaseCli', () => {
         await mkdir(join(dir, 'svc', '.changes'), { recursive: true })
         await writeFile(join(dir, 'svc', '.changes', '1.md'), '---\nbump: patch\nsection: Fixed\n---\nfix\n')
         // runReleaseCli() uses process.cwd(), so we test release() directly via error path
-        const err = await release({ cwd: dir, date: '2026-05-29', runGit: () => Promise.resolve('') }).catch(
-          error => error
-        )
+        let err
+        try {
+          await release({ cwd: dir, date: '2026-05-29', runGit: () => Promise.resolve('') })
+        } catch (error) {
+          err = error
+        }
         // Simulate what runReleaseCli does with the error
         console.error(`❌ ${err instanceof Error ? err.message : String(err)}`)
         const code = err instanceof Error ? 1 : 0

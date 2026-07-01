@@ -6,6 +6,13 @@ import { globby } from 'globby'
 // node_modules — safety net: проєкт може не мати .gitignore або запускатись поза git-репо.
 export const ALWAYS_IGNORE = ['.git/**', 'node_modules/**']
 
+/** Прибирає всі кінцеві `/` без regex-бектрекінгу. */
+function stripTrailingSlashes(p) {
+  let end = p.length
+  while (end > 0 && p[end - 1] === '/') end -= 1
+  return p.slice(0, end)
+}
+
 /**
  * Рекурсивно обходить каталог, поважаючи .gitignore (включно з вкладеними).
  * @param {string} dir абсолютний або відносний шлях до кореня обходу
@@ -18,7 +25,7 @@ export async function walkDir(dir, onFile, ignorePaths = []) {
 
   const extraIgnore = ignorePaths
     .map(p => {
-      const abs = resolve(p.replace(/\/+$/, ''))
+      const abs = resolve(stripTrailingSlashes(p))
       const rel = relative(absDir, abs).split(sep).join('/')
       if (rel.startsWith('..') || rel === '') return null
       return `${rel}/**`

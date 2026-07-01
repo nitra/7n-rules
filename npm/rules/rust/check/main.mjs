@@ -23,7 +23,8 @@ function runCargo(label, cargo, args, cwd, fail, reason) {
   if (r.status === 0) return true
   const code = typeof r.status === 'number' ? r.status : 1
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().slice(0, 2000)
-  fail(`lint-rust: ${label} — помилка (код ${code}, rust.mdc)${out ? `\n${out}` : ''}`, reason)
+  const outTail = out ? `\n${out}` : ''
+  fail(`lint-rust: ${label} — помилка (код ${code}, rust.mdc)${outTail}`, reason)
   return false
 }
 

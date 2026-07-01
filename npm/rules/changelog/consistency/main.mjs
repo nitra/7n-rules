@@ -739,7 +739,6 @@ export async function lint(ctx) {
   const { pass, fail } = reporter
   const getPublishedVersion = createDefaultGetPublishedVersion()
   const cwd = ctx.cwd
-  const autofix = process.env[AUTOFIX_ENV_VAR] === '1'
 
   // Merge-коміт інтегрує вже задокументовану роботу — changeset не потрібен (інакше
   // autofix створює шумний «Merge…» changeset → CI commit-back каскадить patch-реліз).
@@ -747,6 +746,8 @@ export async function lint(ctx) {
     pass('HEAD — merge-коміт: changelog-перевірку пропущено (changeset документують feature-коміти)')
     return reporter.result()
   }
+
+  const autofix = process.env[AUTOFIX_ENV_VAR] === '1'
 
   const workspaces = await getMonorepoProjectRootDirs(cwd)
   const subWorkspaces = workspaces.filter(w => w !== '.')

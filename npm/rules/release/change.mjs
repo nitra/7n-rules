@@ -70,13 +70,13 @@ export async function runChangeCli(args) {
   const bump = get('--bump')
   const section = get('--section')
   const message = get('--message')
-  const ws = get('--ws') ?? '.'
   if (!bump || !section || !message) {
     console.error(
       '❌ Використання: n-cursor change --bump <major|minor|patch> --section <Added|Changed|Fixed|Removed> --message "<опис>" [--ws <шлях>]'
     )
     return 1
   }
+  const ws = get('--ws') ?? '.'
   try {
     const rel = await writeChange({ bump, section, message, ws })
     console.log(`✅ ${join(ws, rel)}`)

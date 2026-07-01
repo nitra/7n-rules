@@ -97,12 +97,12 @@ export function eventPathsIncludeExact(root, event, exact) {
  * @returns {{ ok: boolean, failures: string[] }} результат перевірки та список причин відмови
  */
 export function verifyLintJsWorkflowStructure(root) {
-  /** @type {string[]} */
-  const failures = []
   if (!root) {
     return { ok: false, failures: ['YAML не вдалося розібрати — перевір синтаксис workflow'] }
   }
 
+  /** @type {string[]} */
+  const failures = []
   const steps = flattenWorkflowSteps(root)
   const usesList = steps.map(s => getStepUses(s.step))
   const runBlob = steps.map(s => getStepRun(s.step)).join('\n')

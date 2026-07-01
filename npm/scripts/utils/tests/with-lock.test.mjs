@@ -51,8 +51,22 @@ describe('withLock integration', () => {
     // не короткий замикач через однаковий fingerprint (для цього є окремий тест нижче).
     const opts = { cacheDir: join(tmpDir, 'a'), pollInterval: 50, getFingerprint: () => null }
     await Promise.all([
-      withLock('test', () => sleep(200).then(() => 0), opts),
-      withLock('test', () => sleep(200).then(() => 0), opts)
+      withLock(
+        'test',
+        async () => {
+          await sleep(200)
+          return 0
+        },
+        opts
+      ),
+      withLock(
+        'test',
+        async () => {
+          await sleep(200)
+          return 0
+        },
+        opts
+      )
     ])
     expect(Date.now() - start).toBeGreaterThanOrEqual(400)
   }, 10_000)

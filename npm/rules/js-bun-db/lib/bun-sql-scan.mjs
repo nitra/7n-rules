@@ -266,11 +266,11 @@ function hasMarkerCommentNear(callNode, comments, content, markerRe) {
     if (!c || (c.type !== 'Line' && c.type !== 'Block')) continue
     if (typeof c.value !== 'string' || !markerRe.test(c.value)) continue
     const startLine = offsetToLine(content, c.start)
-    const endLine = offsetToLine(content, c.end)
     // trailing-коментар на тому ж рядку (`<call> // marker: ...`)
     if (startLine === callStartLine) return true
     // коментар на рядку, що безпосередньо передує виклику — для блокових
     // коментарів важливим є саме `endLine`, бо block може займати кілька рядків.
+    const endLine = offsetToLine(content, c.end)
     if (endLine === callStartLine - 1) return true
   }
   return false
@@ -655,8 +655,8 @@ export function findUnsafeBunSqlDynamicSqlListInText(content, virtualPath = 'sca
  */
 function collectInListGuardViolationsFromTemplate(template, ancestors, content, out) {
   const expressions = template.expressions
-  const quasis = template.quasis
   if (!Array.isArray(expressions) || expressions.length === 0) return
+  const quasis = template.quasis
   if (!Array.isArray(quasis) || quasis.length === 0) return
 
   for (const [i, expr] of expressions.entries()) {

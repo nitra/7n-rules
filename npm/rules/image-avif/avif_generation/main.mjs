@@ -191,7 +191,7 @@ async function scanVueAvifInPackage(packageRoot, otherRootsAbs, ignorePaths, use
           return full
         }
         const newImportPath = `${importPath}.avif`
-        const replaced = full.replace(importPath, newImportPath)
+        const replaced = full.replace(importPath, () => newImportPath)
         const found = candidates.find(c => existsSync(`${c}.avif`))
         if (found) {
           usedAvifAbs.add(`${found}.avif`)

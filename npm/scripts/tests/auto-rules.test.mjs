@@ -643,8 +643,8 @@ describe('detectAutoRules — workspace без devDependencies (line 217)', () =
 
 describe('catch-блоки при помилці readdir (lines 195, 245, 546)', () => {
   test('collectAutoRuleFacts — readdir кидає у піддиректорії (line 546)', async () => {
+    // chmod 0o000 не блокує readdir під Windows — сценарій нерелевантний, пропускаємо.
     if (platform === 'win32') {
-      expect(true).toBe(true)
       return
     }
     await withTmpDir(async dir => {
@@ -660,8 +660,8 @@ describe('catch-блоки при помилці readdir (lines 195, 245, 546)',
   })
 
   test('detectAutoRules — readdir кидає в піддиректорії (lines 195, 245)', async () => {
+    // chmod 0o000 не блокує readdir під Windows — сценарій нерелевантний, пропускаємо.
     if (platform === 'win32') {
-      expect(true).toBe(true)
       return
     }
     await withTmpDir(async dir => {

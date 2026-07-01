@@ -37,10 +37,8 @@ export function lint(ctx) {
   const r = spawnSync(bun, ['x', 'licensee', '--production', '--quiet'], { cwd, encoding: 'utf8', shell: false })
   if (r.status !== 0) {
     const out = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().slice(0, 2000)
-    fail(
-      `lint-bun: licensee — порушення ліцензій (код ${r.status}, bun.mdc)${out ? `\n${out}` : ''}`,
-      'license-violation'
-    )
+    const detail = out ? `\n${out}` : ''
+    fail(`lint-bun: licensee — порушення ліцензій (код ${r.status}, bun.mdc)${detail}`, 'license-violation')
   }
   return reporter.result()
 }

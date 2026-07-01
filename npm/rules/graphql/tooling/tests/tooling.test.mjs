@@ -10,8 +10,10 @@ import { sourceFileHasGqlTaggedTemplate } from '../../lib/graphql-gql-scan.mjs'
 import { lint } from '../main.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
-const check = dir =>
-  lint({ cwd: dir, ruleId: 'graphql', concernId: 'tooling', files: undefined }).then(r => r.violations)
+const check = async dir => {
+  const r = await lint({ cwd: dir, ruleId: 'graphql', concernId: 'tooling', files: undefined })
+  return r.violations
+}
 
 describe('sourceFileHasGqlTaggedTemplate', () => {
   test('true для gql у .ts', () => {

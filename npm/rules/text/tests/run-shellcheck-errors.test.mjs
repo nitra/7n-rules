@@ -21,7 +21,7 @@ describe('run-shellcheck error paths', () => {
 
   test('runShellcheckText returns 1 + prints patch hint when patch absent (lines 53, 110-111)', async () => {
     if (!resolveCmd('shellcheck')) {
-      expect(true).toBe(true)
+      expect(resolveCmd('shellcheck')).toBeFalsy()
       return
     }
     const actual = await vi.importActual('node:child_process')
@@ -49,7 +49,7 @@ describe('run-shellcheck error paths', () => {
 
   test('runShellcheckText returns 0 when no .sh files (line 116)', async () => {
     if (!resolveCmd('shellcheck') || !resolveCmd('patch')) {
-      expect(true).toBe(true)
+      expect(resolveCmd('shellcheck') && resolveCmd('patch')).toBeFalsy()
       return
     }
     await withTmpDir(async dir => {
@@ -73,7 +73,7 @@ describe('run-shellcheck error paths', () => {
 
   test('autofixOneFile: diffResult.error => stderr + return 1 (lines 145-146)', async () => {
     if (!resolveCmd('shellcheck') || !resolveCmd('patch')) {
-      expect(true).toBe(true)
+      expect(resolveCmd('shellcheck') && resolveCmd('patch')).toBeFalsy()
       return
     }
     const actual = await vi.importActual('node:child_process')
@@ -113,7 +113,7 @@ describe('run-shellcheck error paths', () => {
 
   test('runFinalShellcheck: finalRun.error => stderr + return 1 (lines 209-210)', async () => {
     if (!resolveCmd('shellcheck') || !resolveCmd('patch')) {
-      expect(true).toBe(true)
+      expect(resolveCmd('shellcheck') && resolveCmd('patch')).toBeFalsy()
       return
     }
     const actual = await vi.importActual('node:child_process')
@@ -154,7 +154,7 @@ describe('run-shellcheck error paths', () => {
 
   test('applyShellcheckDiff: patch fails => stderr + return 1 (lines 186-188)', async () => {
     if (!resolveCmd('shellcheck') || !resolveCmd('patch')) {
-      expect(true).toBe(true)
+      expect(resolveCmd('shellcheck') && resolveCmd('patch')).toBeFalsy()
       return
     }
     const actual = await vi.importActual('node:child_process')

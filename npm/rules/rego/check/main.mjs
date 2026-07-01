@@ -44,20 +44,16 @@ export function lint(ctx) {
   const opa = ensureTool('opa')
   const opaRes = runStep(opa, ['check', '--strict', ...targets], root)
   if (opaRes.status !== 0) {
-    fail(
-      `lint-rego: opa check --strict — помилка (код ${opaRes.status})${opaRes.output ? `\n${opaRes.output}` : ''}`,
-      'opa-check-violation'
-    )
+    const opaSuffix = opaRes.output ? `\n${opaRes.output}` : ''
+    fail(`lint-rego: opa check --strict — помилка (код ${opaRes.status})${opaSuffix}`, 'opa-check-violation')
     return reporter.result()
   }
 
   const regal = ensureTool('regal')
   const regalRes = runStep(regal, ['lint', ...targets], root)
   if (regalRes.status !== 0) {
-    fail(
-      `lint-rego: regal lint — помилка (код ${regalRes.status})${regalRes.output ? `\n${regalRes.output}` : ''}`,
-      'regal-lint-violation'
-    )
+    const regalSuffix = regalRes.output ? `\n${regalRes.output}` : ''
+    fail(`lint-rego: regal lint — помилка (код ${regalRes.status})${regalSuffix}`, 'regal-lint-violation')
     return reporter.result()
   }
 
@@ -68,10 +64,8 @@ export function lint(ctx) {
   }
   const verifyRes = runStep(conftest, ['verify', ...targets.flatMap(t => ['-p', t])], root)
   if (verifyRes.status !== 0) {
-    fail(
-      `lint-rego: conftest verify — помилка (код ${verifyRes.status})${verifyRes.output ? `\n${verifyRes.output}` : ''}`,
-      'conftest-verify-violation'
-    )
+    const verifySuffix = verifyRes.output ? `\n${verifyRes.output}` : ''
+    fail(`lint-rego: conftest verify — помилка (код ${verifyRes.status})${verifySuffix}`, 'conftest-verify-violation')
   }
   return reporter.result()
 }

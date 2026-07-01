@@ -75,7 +75,7 @@ async function readLintConcernsByRule(rulesDir) {
   }
   for (const e of entries) {
     if (!e.isDirectory() || e.name.startsWith('.')) continue
-    const concerns = (await listConcerns(join(rulesDir, e.name))).map(asDetectorConcern).filter(Boolean)
+    const concerns = (await listConcerns(join(rulesDir, e.name))).map(c => asDetectorConcern(c)).filter(Boolean)
     if (concerns.length > 0) out[e.name] = /** @type {ConcernMeta[]} */ (concerns)
   }
   return out
@@ -145,7 +145,7 @@ async function buildPlan({ byRule, full, rules, explicitFiles, cwd }) {
     for (const ruleId of rules) {
       for (const concern of byRule[ruleId] ?? []) plan.push({ entry: { ruleId, concern }, files: undefined })
     }
-    return plan.map(p => p).sort((a, b) => a.entry.ruleId.localeCompare(b.entry.ruleId))
+    return plan.toSorted((a, b) => a.entry.ruleId.localeCompare(b.entry.ruleId))
   }
 
   const enabled = await enabledRuleIds(byRule, cwd)

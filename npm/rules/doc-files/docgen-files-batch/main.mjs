@@ -165,8 +165,21 @@ async function generateOne(file, root, progress, stats, { model, tier } = {}) {
 /** Regex для витягу OKF-полів із frontmatter існуючої доки (швидкий, без YAML-парсера). */
 const OKF_TITLE_RE = /^title: (.+)$/mu
 const OKF_TYPE_RE = /^type: (.+)$/mu
-const OKF_FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?/u
-const OKF_RESOURCE_RE = /^resource:[ \t]+(.+)$/mu
+const OKF_RESOURCE_RE = /^resource:[ \t]+(\S[^\n]*)$/mu
+
+/**
+ * Витягує тіло YAML-frontmatter (між першим `---\n` та наступним рядком `---`).
+ * Лінійний пошук по рядках без backtracking-regex.
+ * @param {string} md вміст markdown-файлу
+ * @returns {string} тіло frontmatter (без обгортаючих `---`) або `''` якщо frontmatter відсутній
+ */
+function extractFrontmatter(md) {
+  if (!md.startsWith('---\n')) return ''
+  const lines = md.slice(4).split('\n')
+  const closeIdx = lines.findIndex(line => line.startsWith('---'))
+  if (closeIdx === -1) return ''
+  return lines.slice(0, closeIdx).join('\n')
+}
 
 /**
  * Генерує/оновлює `index.md` у директорії `docs/` — OKF Directory Index із таблицею
@@ -179,11 +192,11 @@ const OKF_RESOURCE_RE = /^resource:[ \t]+(.+)$/mu
 function generateDirIndex(docsAbsDir, root) {
   const allMd = readdirSync(docsAbsDir)
     .filter(f => f.endsWith('.md'))
-    .sort()
+    .toSorted()
 
   // Якщо index.md вже є дока для source-файлу (має docgen.source → index.*) — не чіпаємо
   if (allMd.includes('index.md')) {
-    const existingFm = readFileSync(join(docsAbsDir, 'index.md'), 'utf8').match(OKF_FRONTMATTER_RE)?.[1] ?? ''
+    const existingFm = extractFrontmatter(readFileSync(join(docsAbsDir, 'index.md'), 'utf8'))
     const existingSource = existingFm.match(OKF_RESOURCE_RE)?.[1]?.trim() ?? ''
     const existingType = existingFm.match(OKF_TYPE_RE)?.[1]?.trim() ?? ''
     // Пропускаємо якщо це дока source-файлу, а не Directory Index
@@ -197,7 +210,7 @@ function generateDirIndex(docsAbsDir, root) {
 
   const rows = files.map(f => {
     const md = readFileSync(join(docsAbsDir, f), 'utf8')
-    const fm = md.match(OKF_FRONTMATTER_RE)?.[1] ?? ''
+    const fm = extractFrontmatter(md)
     const resource = fm.match(OKF_RESOURCE_RE)?.[1]?.trim()
     const title = fm.match(OKF_TITLE_RE)?.[1]?.trim() ?? (resource ? basename(resource) : f.replace(/\.md$/, ''))
     const type = fm.match(OKF_TYPE_RE)?.[1]?.trim() ?? 'Source File'

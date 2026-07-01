@@ -91,7 +91,7 @@ export function parseModelId(spec) {
 export function resolveModelSpec(registry, spec) {
   const parsed = parseModelId(spec)
   if (!parsed) return null
-  return registry.find(parsed.provider, parsed.id) ?? null
+  return Reflect.apply(registry.find, registry, [parsed.provider, parsed.id]) ?? null
 }
 
 /**

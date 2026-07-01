@@ -653,9 +653,13 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
   const gitignoreAdr = includeAdrHook
     ? await syncGitignoreAdrFragment(projectRoot, bundledPackageRoot)
     : { written: false, path: '' }
-  const piExtension = includeAdrHook
-    ? await syncPiExtensions(projectRoot, bundledPackageRoot)
-    : await removeOrphanPiExtension(projectRoot).then(r => ({ written: false, path: r.path }))
+  let piExtension
+  if (includeAdrHook) {
+    piExtension = await syncPiExtensions(projectRoot, bundledPackageRoot)
+  } else {
+    const removed = await removeOrphanPiExtension(projectRoot)
+    piExtension = { written: false, path: removed.path }
+  }
   const settings = await syncClaudeSettings(projectRoot, templateDir, { includeAdrHook })
   const cursorHooks = await syncCursorHooksConfig(projectRoot, { includeAdrHook })
   const commands = await syncClaudeCommands(projectRoot, templateDir)

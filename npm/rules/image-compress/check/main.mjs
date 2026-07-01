@@ -39,10 +39,8 @@ export function lint(ctx) {
   }
   if (r.status !== 0) {
     const detail = [r.stdout, r.stderr].filter(Boolean).join('\n').trim()
-    fail(
-      `image-compress: @nitra/minify-image --json завершився з кодом ${r.status}${detail ? `:\n${detail}` : ''}`,
-      'tool-error'
-    )
+    const detailSuffix = detail ? `:\n${detail}` : ''
+    fail(`image-compress: @nitra/minify-image --json завершився з кодом ${r.status}${detailSuffix}`, 'tool-error')
     return reporter.result()
   }
 

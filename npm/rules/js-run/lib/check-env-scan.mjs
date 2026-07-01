@@ -118,8 +118,8 @@ function hasCheckEnvImport(programNode) {
     for (const s of specifiers) {
       if (!s || typeof s !== 'object' || s.type !== 'ImportSpecifier') continue
       const imported = s.imported
-      const local = s.local
       if (!imported || imported.name !== 'env') continue
+      const local = s.local
       if (!local || local.name !== 'env') continue
       found = true
       return

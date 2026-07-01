@@ -20,7 +20,8 @@ export const patterns = [
       /** @type {string[]} */
       const touchedFiles = []
 
-      for (const file of scanForDocFiles(cwd).filter(f => f.stale && f.reason === 'crc-mismatch')) {
+      const staleFiles = scanForDocFiles(cwd).filter(f => f.stale && f.reason === 'crc-mismatch')
+      for (const file of staleFiles) {
         const sourceAbs = join(cwd, file.sourcePath)
         const docAbs = join(cwd, file.docPath)
         if (!existsSync(docAbs)) continue // missing → worker, не T0

@@ -17,8 +17,10 @@ import { join } from 'node:path'
 import { lint } from '../main.mjs'
 import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
-const check = dir =>
-  lint({ cwd: dir, ruleId: 'image-compress', concernId: 'package_setup', files: undefined }).then(r => r.violations)
+const check = async dir => {
+  const r = await lint({ cwd: dir, ruleId: 'image-compress', concernId: 'package_setup', files: undefined })
+  return r.violations
+}
 
 /**
  * Створює мінімальний валідний проєкт під image-compress у вказаному каталозі.

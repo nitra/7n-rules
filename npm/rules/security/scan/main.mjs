@@ -41,7 +41,8 @@ export function lint(ctx) {
   )
   if (r.status !== 0) {
     const out = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().slice(0, 4000)
-    fail(`security/scan: trufflehog знайшов секрети (код ${r.status})${out ? `\n${out}` : ''}`, 'secret-found')
+    const outSuffix = out ? `\n${out}` : ''
+    fail(`security/scan: trufflehog знайшов секрети (код ${r.status})${outSuffix}`, 'secret-found')
   }
   return reporter.result()
 }
