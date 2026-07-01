@@ -1,6 +1,6 @@
 package js.jscpd_config_test
 
-import data.js.jscpd_config
+import data.js.jscpd_config as jscpd
 import rego.v1
 
 template_data := {"snippet": {
