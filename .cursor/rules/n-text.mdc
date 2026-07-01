@@ -356,3 +356,5 @@ Rego-пакет: `text.vscode_settings`
 - Якщо блок відсутній або не є об'єктом — deny
 
 Канонічний snippet: [settings.json.snippet.json](./template/settings.json.snippet.json)
+
+**Український апостроф:** у словах вживай прямий апостроф U+0027 (`'`, як в `об'єкт`), а не типографський U+2019 (`’`); слова з апострофом додавай у масив `words` cspell-конфігу.
