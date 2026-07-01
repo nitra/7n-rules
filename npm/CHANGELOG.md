@@ -1,5 +1,12 @@
 # Changelog
 
+## [13.3.0] - 2026-07-01
+
+### Changed
+
+- feat(cli): `npx @nitra/cursor` self-upgrade — якщо `@nitra/cursor` уже в `devDependencies` зі старішим числовим піном, він апгрейдиться до `^<версія CLI>` при кожному запуску (ніколи не понижує; `workspace:*`/`latest`/git-піни й записи в `dependencies` не чіпаються). Прибирає дрейф версії self-lint у споживачів.
+- chore(js): кодова база `@nitra/cursor` тепер чиста під власним 13.x oxlint+eslint-каноном (jsdoc-описи, no-await-expression-member, switch-case-braces, prefer-static-regex, prefer-await тощо). Розблоковує self-lint після апгрейду root-devDep до `^13.2.6`; поведінка не змінилась.
+
 ## [13.2.6] - 2026-07-01
 
 ### Changed
