@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.2.4] - 2026-07-01
+
+### Changed
+
+- fix(deps): drop root markdownlint-cli2 workaround (violated text policy)
+
 ## [13.2.3] - 2026-07-01
 
 ### Changed
