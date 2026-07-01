@@ -3,12 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/ga/workflows/main.mjs
 docgen:
-  crc: 9cfc5553
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
-  score: 80
-  issues: anchor-miss:https://astral.sh/uv/install.sh,anchor-miss:(ga.mdc),surzhik,judge:inaccurate:0.99
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: a5da7e2f
 ---
 
 ## Огляд

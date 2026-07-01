@@ -6,7 +6,28 @@ import { describe, expect, test } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { addPersistCredentials, removePathsGlobs, patterns } from '../fix-workflows.mjs'
+import { addPersistCredentials, prefixBunxNCursor, removePathsGlobs, patterns } from '../fix-workflows.mjs'
+
+describe('prefixBunxNCursor', () => {
+  test('inline `run: n-cursor …` → `bunx n-cursor …`', () => {
+    const src = ['      - name: lint', '        run: n-cursor lint text --read-only', ''].join('\n')
+    expect(prefixBunxNCursor(src)).toContain('run: bunx n-cursor lint text --read-only')
+  })
+
+  test('bare-рядок у run-блоці → префіксується', () => {
+    const src = ['        run: |', '          n-cursor lint ga --read-only', ''].join('\n')
+    expect(prefixBunxNCursor(src)).toContain('          bunx n-cursor lint ga --read-only')
+  })
+
+  test('уже `bunx`/`npx n-cursor` → без змін (null)', () => {
+    expect(prefixBunxNCursor('        run: bunx n-cursor release\n')).toBeNull()
+    expect(prefixBunxNCursor('        run: npx n-cursor lint\n')).toBeNull()
+  })
+
+  test('без n-cursor → null', () => {
+    expect(prefixBunxNCursor('        run: echo hi\n')).toBeNull()
+  })
+})
 
 describe('addPersistCredentials', () => {
   test('bare `- uses: checkout` без with → створює with-блок', () => {

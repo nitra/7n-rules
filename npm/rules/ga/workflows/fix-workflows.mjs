@@ -132,6 +132,35 @@ export function removePathsGlobs(content, globs) {
   return changed ? out.join('\n') : null
 }
 
+const WRAPPED_NCURSOR_RE = /\b(?:bunx|npx)\s+n-cursor/u
+const RUN_INLINE_NCURSOR_MATCH = /^(\s*(?:-\s*)?run:\s*)(n-cursor\s.*)$/u
+const BARE_LINE_NCURSOR_MATCH = /^(\s+)(n-cursor\s.*)$/u
+
+/**
+ * Префіксує bare `n-cursor …` у `run`-кроках через `bunx` (у CI n-cursor не на PATH).
+ * Пропускає рядки, де вже є `bunx`/`npx n-cursor`. Покриває inline `run:` і рядок у run-блоці.
+ * @param {string} content вміст workflow-файла
+ * @returns {string|null} новий вміст або null, якщо нічого не змінилось
+ */
+export function prefixBunxNCursor(content) {
+  let changed = false
+  const out = content.split('\n').map(line => {
+    if (WRAPPED_NCURSOR_RE.test(line)) return line
+    const inline = RUN_INLINE_NCURSOR_MATCH.exec(line)
+    if (inline) {
+      changed = true
+      return `${inline[1]}bunx ${inline[2]}`
+    }
+    const bare = BARE_LINE_NCURSOR_MATCH.exec(line)
+    if (bare) {
+      changed = true
+      return `${bare[1]}bunx ${bare[2]}`
+    }
+    return line
+  })
+  return changed ? out.join('\n') : null
+}
+
 /**
  * Застосовує текстовий трансформер до унікальних файлів із violations і пише зміни.
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation[]} violations
@@ -196,6 +225,17 @@ export const patterns = [
       )
       return touchedFiles.length > 0
         ? { touchedFiles, message: `прибрано не-матчені paths-glob у ${touchedFiles.length} файл(ах)` }
+        : { touchedFiles: [] }
+    }
+  },
+  {
+    id: 'ga-workflows-bare-n-cursor',
+    test: violations => violations.some(v => v.data?.kind === 'bare-n-cursor' && v.file),
+    apply: (violations, ctx) => {
+      const targets = violations.filter(v => v.data?.kind === 'bare-n-cursor' && v.file)
+      const touchedFiles = applyToFiles(targets, ctx, () => prefixBunxNCursor)
+      return touchedFiles.length > 0
+        ? { touchedFiles, message: `bunx-префікс n-cursor → ${touchedFiles.length} workflow(s)` }
         : { touchedFiles: [] }
     }
   }

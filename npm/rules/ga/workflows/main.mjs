@@ -74,9 +74,7 @@ function shouldValidateWorkflowPathsGlob(p) {
   if (p.startsWith('!')) return false
 
   // “Розширення-фільтри” (або brace-варіанти) пропускаємо: вони можуть бути заготовками.
-  if (p.includes('*.')) return false
-
-  return true
+  return !p.includes('*.')
 }
 
 /**
@@ -132,6 +130,33 @@ function verifyWorkflowEventPathsGlobsExist(relPath, root, passFn, failFn, cwd) 
   }
 }
 
+const RUN_INLINE_NCURSOR_RE = /^\s*(?:-\s*)?run:\s*n-cursor\s/u
+const BARE_LINE_NCURSOR_RE = /^\s+n-cursor\s/u
+const WRAPPED_NCURSOR_RE = /\b(?:bunx|npx)\s+n-cursor/u
+
+/**
+ * Прапорить кроки, що інвокають **bare `n-cursor`** (не `bunx`/`npx n-cursor`): у CI-раннері
+ * `n-cursor` не на PATH (`node_modules/.bin` не додається), тож `run: n-cursor …` падає з
+ * exit 127. Канон — `bunx n-cursor …` (як у npm-publish.yml). Structured fix-hint для T0.
+ * @param {string} relPath posix-relative шлях workflow
+ * @param {string} content сирий вміст workflow
+ * @param {(msg: string, opts?: object) => void} failFn реєстрація порушення
+ */
+function verifyNoBareNCursor(relPath, content, failFn) {
+  for (const [i, line] of content.split('\n').entries()) {
+    if (WRAPPED_NCURSOR_RE.test(line)) continue
+    if (!RUN_INLINE_NCURSOR_RE.test(line) && !BARE_LINE_NCURSOR_RE.test(line)) continue
+    failFn(
+      `${relPath}: \`n-cursor …\` (рядок ${i + 1}) має бути \`bunx n-cursor …\` — n-cursor не на PATH у CI (ga.mdc)`,
+      {
+        reason: 'bare-n-cursor',
+        file: relPath,
+        data: { kind: 'bare-n-cursor' }
+      }
+    )
+  }
+}
+
 /**
  * Безпечний доступ до вкладеного поля (лише для обʼєктів).
  * @param {unknown} obj значення-кандидат на обʼєкт
@@ -184,10 +209,12 @@ async function checkMegalinter(wfDir, ymlWorkflows, wfDirRel, cwd, passFn, failF
     }
   }
   for (const name of MEGALINTER_CONFIG_NAMES) {
-    if (existsSync(join(cwd, name))) {
-      found = true
-      failFn(`Файл ${name} — видали конфіг MegaLinter (ga.mdc: MegaLinter)`)
+    if (!existsSync(join(cwd, name))) {
+      continue
     }
+
+    found = true
+    failFn(`Файл ${name} — видали конфіг MegaLinter (ga.mdc: MegaLinter)`)
   }
   if (!found) passFn('Залишків MegaLinter не виявлено')
 }
@@ -298,7 +325,7 @@ async function runAllGaRego(wfDir, ymlWorkflows, cwd, pass, fail) {
   for (const target of GA_PER_WORKFLOW_REGO_TARGETS) {
     const targetAbs = join(cwd, target.workflow)
     if (!existsSync(targetAbs)) continue
-    const concernDir = join(GA_POLICY_DIR, target.policyDirRel.split('/')[1])
+    const concernDir = join(GA_POLICY_DIR, target.policyDirRel.split('/', 2)[1])
     const tpl = await loadTemplate(concernDir)
     const templateData = tpl[basename(target.workflow)]
     const violations = runConftestBatch({
@@ -393,6 +420,7 @@ export async function lint(ctx) {
     const content = await readFile(join(wfDir, f), 'utf8')
     const parsed = parseWorkflowYaml(content)
     if (parsed) verifyWorkflowEventPathsGlobsExist(`${wfDirRel}/${f}`, parsed, pass, fail, cwd)
+    verifyNoBareNCursor(`${wfDirRel}/${f}`, content, fail)
   }
 
   checkShellcheckInstalled(pass, fail)
