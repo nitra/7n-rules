@@ -1,5 +1,12 @@
 # Changelog
 
+## [13.2.1] - 2026-07-01
+
+### Added
+
+- ga/workflows: детекція + T0-фікс bare `n-cursor` у run-кроках → `bunx n-cursor`
+(у CI n-cursor не на PATH, `run: n-cursor …` падав exit 127). Оновлено шаблон lint-ga.
+
 ## [13.2.0] - 2026-07-01
 
 ### Added
