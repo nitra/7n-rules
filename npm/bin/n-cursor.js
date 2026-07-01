@@ -1534,6 +1534,7 @@ try {
       // --read-only — backward-compat alias на --no-fix (видалиться після міграції викликів).
       if (args.includes('--no-fix') || args.includes('--read-only')) {
         const { detectAll } = await import('../scripts/lib/lint-surface/run-detectors.mjs')
+        // окрема змінна замість (await detectAll(...)).exitCode — no-await-expression-member (oxlint)
         const detectResult = await detectAll(lintOpts)
         process.exitCode = detectResult.exitCode
       } else {
