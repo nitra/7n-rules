@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.2.6] - 2026-07-01
+
+### Changed
+
+- chore(ci): lint-js re-runs on .oxlintrc.json change; clarify test override
+
 ## [13.2.5] - 2026-07-01
 
 ### Changed
