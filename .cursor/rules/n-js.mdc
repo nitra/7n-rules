@@ -53,7 +53,7 @@ jobs:
       - uses: ./.github/actions/setup-bun-deps
 
       - name: Eslint
-        run: n-cursor lint js --read-only
+        run: bunx n-cursor lint js --read-only
 ```
 - `.jscpd.json`:
 

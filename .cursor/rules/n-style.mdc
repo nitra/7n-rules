@@ -56,7 +56,7 @@ jobs:
       - uses: ./.github/actions/setup-bun-deps
 
       - name: StyleLint
-        run: n-cursor lint style --read-only
+        run: bunx n-cursor lint style --read-only
 ```
 - `extensions.json`:
 
