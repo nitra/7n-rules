@@ -73,7 +73,7 @@ function compareOxlintRules(expected, actual, failures) {
   const er = asRecordOrEmpty(expected)
   const ar = asRecordOrEmpty(actual)
   for (const [ruleKey, expectedValue] of Object.entries(er)) {
-    if (ar[ruleKey] !== expectedValue) {
+    if (!deepEqualOxlintCanonical(ar[ruleKey], expectedValue)) {
       failures.push(
         `.oxlintrc.json: rules["${ruleKey}"] очікується ${JSON.stringify(expectedValue)}, зараз ${JSON.stringify(ar[ruleKey])}`
       )
