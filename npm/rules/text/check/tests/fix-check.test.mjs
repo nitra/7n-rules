@@ -1,25 +1,32 @@
 /**
- * Тести T0-codemod `fix-check.mjs`. Реальний `markdownlint --fix` зав'язаний на
- * markdownlint-cli2 + git (перевірено вручну/e2e); тут — контракт патерну: test-предикат.
+ * Тести T0-codemod `fix-check.mjs`. Реальні fix-прогони (markdownlint/shellcheck/dotenv)
+ * зав'язані на зовнішні тули + git (перевірено e2e); тут — контракт патернів: test-предикати
+ * (кожен реагує лише на свій reason).
  */
 import { describe, expect, test } from 'vitest'
 import { patterns } from '../fix-check.mjs'
 
-const P = patterns[0]
+const byId = id => patterns.find(p => p.id === id)
 
-describe('text-markdownlint-fix pattern', () => {
-  test('єдиний патерн з очікуваним id', () => {
-    expect(patterns).toHaveLength(1)
-    expect(P.id).toBe('text-markdownlint-fix')
+describe('text/check fix patterns', () => {
+  test('три патерни: markdownlint / shellcheck / dotenv', () => {
+    expect(patterns.map(p => p.id)).toEqual(['text-markdownlint-fix', 'text-shellcheck-fix', 'text-dotenv-fix'])
   })
 
-  test('test: true на markdownlint-порушенні', () => {
-    expect(P.test([{ reason: 'markdownlint', message: 'm' }])).toBe(true)
+  test('кожен реагує лише на свій reason', () => {
+    expect(byId('text-markdownlint-fix').test([{ reason: 'markdownlint', message: 'm' }])).toBe(true)
+    expect(byId('text-shellcheck-fix').test([{ reason: 'shellcheck', message: 'm' }])).toBe(true)
+    expect(byId('text-dotenv-fix').test([{ reason: 'dotenv-linter', message: 'm' }])).toBe(true)
+    // крос-негатив
+    expect(byId('text-markdownlint-fix').test([{ reason: 'shellcheck', message: 'm' }])).toBe(false)
+    expect(byId('text-shellcheck-fix').test([{ reason: 'cspell', message: 'm' }])).toBe(false)
+    expect(byId('text-dotenv-fix').test([{ reason: 'v8r', message: 'm' }])).toBe(false)
   })
 
-  test('test: false на інших під-тулах text/check', () => {
-    expect(P.test([{ reason: 'cspell', message: 'm' }])).toBe(false)
-    expect(P.test([{ reason: 'v8r', message: 'm' }])).toBe(false)
-    expect(P.test([])).toBe(false)
+  test('cspell/v8r (без fix-режиму) не тригерять жоден патерн', () => {
+    for (const p of patterns) {
+      expect(p.test([{ reason: 'cspell', message: 'm' }])).toBe(false)
+      expect(p.test([{ reason: 'v8r', message: 'm' }])).toBe(false)
+    }
   })
 })

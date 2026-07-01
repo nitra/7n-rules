@@ -3,25 +3,28 @@ type: JS Module
 title: fix-check.mjs
 resource: npm/rules/text/check/fix-check.mjs
 docgen:
-  crc: 66cdaaec
+  crc: 477227d1
 ---
 
 ## Огляд
 
-T0-autofix для `text/check`: авто-fix кроки тулчейну, що їх read-only детектор не виконує.
-Наразі — `markdownlint --fix` для *.md/*.mdc (markdownlint-cli2 у fix-режимі). Інші під-тули
-text/check само-фіксяться у власних детекторах (dotenv-linter, shellcheck) або не мають
-fix-режиму (cspell, v8r). Запис незворотний (поза rollback).
+T0-autofix для `text/check`: детерміновані авто-fix кроки тулчейну, що їх read-only детектор
+не виконує — `markdownlint --fix` (*.md/*.mdc), `shellcheck -f diff | patch` (*.sh) і
+`dotenv-linter fix` (.env*). cspell/v8r fix-режиму не мають. Запис незворотний (поза rollback).
 
 ## Поведінка
 
-- Перелічує tracked *.md/*.mdc через git, форматує їх `markdownlint --fix`.
-- До списку змінених потрапляють лише файли з фактичною зміною.
+- **markdownlint**: tracked *.md/*.mdc (git) → markdownlint-cli2 у fix-режимі.
+- **shellcheck**: *.sh → ітеративний `shellcheck -f diff` + `patch` (runShellcheckText, не-readOnly).
+- **dotenv-linter**: .env* (fs-walk, бо часто git-ignored) → `dotenv-linter fix`.
+- До списку змінених у кожному разі — лише файли з фактичною зміною (порівняння до/після).
 
 ## Публічний API
 
-- `patterns` — масив T0-патернів; `text-markdownlint-fix` спрацьовує на порушенні з reason `markdownlint`.
+- `patterns` — три T0-патерни; кожен реагує лише на свій reason детектора
+  (`markdownlint` / `shellcheck` / `dotenv-linter`).
 
 ## Гарантії поведінки
 
 - Записуються лише фактично змінені файли; кожен реєструється через `recordWrite`.
+- Відсутній тул (shellcheck/patch/dotenv-linter) → відповідна fix-функція завершується без змін.
