@@ -93,5 +93,13 @@ export default [
     rules: {
       'security/detect-non-literal-regexp': 'off'
     }
+  },
+  // Тести: prefer-specific-assertions — стилістика тест-асертів (toHaveLength/toBeNull замість
+  // toBe(n)). Читабельність `expect(x).toBe(0)` у тестах прийнятна; не блокуємо CI на цьому.
+  {
+    files: ['**/*.test.mjs', '**/tests/**/*.mjs'],
+    rules: {
+      'sonarjs/prefer-specific-assertions': 'off'
+    }
   }
 ]
