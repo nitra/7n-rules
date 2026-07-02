@@ -46,6 +46,7 @@ function listEnvFiles(cwd) {
 export const patterns = [
   {
     id: 'text-dotenv-fix',
+    standalone: true, // §8 Phase 2: dotenv-linter fix сам ре-аналізує, test() не потрібен
     test: violations => violations.some(v => v.reason === 'dotenv-linter'),
     apply: (violations, ctx) => {
       const files = listEnvFiles(ctx.cwd)

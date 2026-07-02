@@ -26,6 +26,7 @@ function readOrNull(abs) {
 export const patterns = [
   {
     id: 'text-shellcheck-fix',
+    standalone: true, // §8 Phase 2: shellcheck diff+patch цикл сам ре-аналізує, test() не потрібен
     test: violations => violations.some(v => v.reason === 'shellcheck'),
     apply: (violations, ctx) => {
       const files = listShellScriptPaths(ctx.cwd)

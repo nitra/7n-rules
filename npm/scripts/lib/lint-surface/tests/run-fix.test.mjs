@@ -282,3 +282,147 @@ describe('runFixPipeline — fixability gate', () => {
     })
   })
 })
+
+/**
+ * Детектор, що рахує власні виклики у `detect-calls.txt` (по одному символу за виклик) —
+ * дозволяє перевірити, скільки разів реально викликано `lint()` за весь fix-прогін.
+ */
+const COUNTING_DETECTOR = [
+  "import { existsSync, readFileSync, appendFileSync } from 'node:fs'",
+  "import { join } from 'node:path'",
+  'export function lint(ctx) {',
+  "  appendFileSync(join(ctx.cwd, 'detect-calls.txt'), 'x')",
+  "  const p = join(ctx.cwd, 'out.txt')",
+  "  const v = existsSync(p) ? readFileSync(p, 'utf8') : ''",
+  "  if (v === 'done') return { violations: [] }",
+  "  return { violations: [{ reason: 'not-done', message: 'out.txt=' + (v || 'absent') }] }",
+  '}',
+  ''
+].join('\n')
+
+/**
+ * @param {string} dir Корінь тимчасової теки.
+ * @returns {number} к-сть символів у `detect-calls.txt` (= к-сть викликів `lint()`), 0 якщо файл відсутній.
+ */
+function detectCallCount(dir) {
+  const p = join(dir, 'detect-calls.txt')
+  return existsSync(p) ? readFileSync(p, 'utf8').length : 0
+}
+
+describe('runFixPipeline — standalone T0 (§8 Phase 2: merge detect+fix)', () => {
+  test('standalone: apply без початкового detect — лише 1 виклик lint() (post-T0 re-detect)', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir, COUNTING_DETECTOR)
+      const t0 = [
+        {
+          id: 'standalone-write-done',
+          standalone: true,
+          test: () => false, // навмисно false — доводить, що test() ігнорується для standalone
+          apply: (_v, ctx) => {
+            writeFileSync(join(ctx.cwd, 'out.txt'), 'done')
+            return { touchedFiles: [join(ctx.cwd, 'out.txt')], message: 'standalone wrote done' }
+          }
+        }
+      ]
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: { ladder: ONE_RUNG, t0For: () => t0 }
+      })
+      expect(code).toBe(0)
+      expect(readFileSync(join(dir, 'out.txt'), 'utf8')).toBe('done')
+      expect(detectCallCount(dir)).toBe(1) // лише post-T0 re-detect, без початкового detect
+    })
+  })
+
+  test('еквівалентний non-standalone T0 (той самий concern) — 2 виклики lint() (detect + re-detect)', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir, COUNTING_DETECTOR)
+      const t0 = [
+        {
+          id: 'normal-write-done',
+          test: violations => violations.some(v => v.reason === 'not-done'),
+          apply: (_v, ctx) => {
+            writeFileSync(join(ctx.cwd, 'out.txt'), 'done')
+            return { touchedFiles: [join(ctx.cwd, 'out.txt')], message: 'wrote done' }
+          }
+        }
+      ]
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: { ladder: ONE_RUNG, t0For: () => t0 }
+      })
+      expect(code).toBe(0)
+      expect(readFileSync(join(dir, 'out.txt'), 'utf8')).toBe('done')
+      expect(detectCallCount(dir)).toBe(2) // початковий detect (виявляє not-done) + post-T0 re-detect
+    })
+  })
+
+  test('standalone на вже чистому concern — apply-noop, 1 виклик lint(), code=0', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir, COUNTING_DETECTOR)
+      writeFileSync(join(dir, 'out.txt'), 'done')
+      let applyCalled = false
+      const t0 = [
+        {
+          id: 'standalone-noop',
+          standalone: true,
+          test: () => false,
+          apply: () => {
+            applyCalled = true
+            return { touchedFiles: [] } // ідемпотентний no-op на вже чистому файлі
+          }
+        }
+      ]
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: { ladder: ONE_RUNG, t0For: () => t0 }
+      })
+      expect(code).toBe(0)
+      expect(applyCalled).toBe(true) // apply() викликається безумовно (ідемпотентно), навіть на чистому concern-і
+      expect(detectCallCount(dir)).toBe(1)
+    })
+  })
+
+  test('мішаний набір (standalone + звичайний патерн) — НЕ standalone, початковий detect лишається', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir, COUNTING_DETECTOR)
+      const t0 = [
+        { id: 'standalone-one', standalone: true, test: () => false, apply: () => ({ touchedFiles: [] }) },
+        {
+          id: 'normal-two',
+          test: violations => violations.some(v => v.reason === 'not-done'),
+          apply: (_v, ctx) => {
+            writeFileSync(join(ctx.cwd, 'out.txt'), 'done')
+            return { touchedFiles: [join(ctx.cwd, 'out.txt')] }
+          }
+        }
+      ]
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: { ladder: ONE_RUNG, t0For: () => t0 }
+      })
+      expect(code).toBe(0)
+      expect(detectCallCount(dir)).toBe(2) // мішаний набір → не standalone-eligible, звичайний потік
+    })
+  })
+})

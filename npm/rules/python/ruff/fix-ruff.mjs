@@ -38,6 +38,7 @@ function listPyFiles(cwd) {
 export const patterns = [
   {
     id: 'python-ruff-fix',
+    standalone: true, // §8 Phase 2: ruff check --fix + format самі ре-аналізують, test() не потрібен
     test: violations =>
       violations.some(v => v.reason === 'ruff-check-violation' || v.reason === 'ruff-format-violation'),
     apply: (violations, ctx) => {

@@ -61,7 +61,10 @@ async function loadFixWorker(concernDir) {
 }
 
 /**
- * Застосовує T0-патерни (детерміновано, permanent — поза rollback).
+ * Застосовує T0-патерни (детерміновано, permanent — поза rollback). `standalone: true`
+ * (spec docs/specs/2026-07-02-text-check-per-file-split-design.md §8, Phase 2) обходить
+ * `test()`-гейт: патерн сам ідемпотентний і самоаналізуючий (напр. `oxfmt --write`) — не
+ * потребує per-violation даних, щоб вирішити, чи запускати `apply()`.
  * @param {T0Pattern[]} patterns Список T0-патернів для перевірки й застосування.
  * @param {LintViolation[]} violations Порушення свого concern-а.
  * @param {LintContext} ctx Контекст лінту (cwd, ruleId, concernId тощо).
@@ -71,7 +74,7 @@ async function loadFixWorker(concernDir) {
 async function applyT0(patterns, violations, ctx, log) {
   let applied = false
   for (const p of patterns) {
-    if (!p.test(violations)) continue
+    if (!p.standalone && !p.test(violations)) continue
     const res = await p.apply(violations, ctx)
     if (res && Array.isArray(res.touchedFiles)) {
       applied = true
@@ -79,6 +82,20 @@ async function applyT0(patterns, violations, ctx, log) {
     }
   }
   return applied
+}
+
+/**
+ * Чи всі T0-патерни concern-а позначені `standalone: true` (і їх принаймні один) —
+ * такий concern пропускає початковий detect у fix-режимі: `apply()` викликається
+ * безумовно (ідемпотентно), а post-T0 re-detect сам стає джерелом правди "чи були
+ * порушення" (spec §8, Phase 2). Змішаний набір (частина standalone, частина ні) —
+ * НЕ підпадає: бодай один патерн, якому потрібні реальні violations, вимагає
+ * початкового detect для всього concern-а.
+ * @param {T0Pattern[]} patterns T0-патерни concern-а.
+ * @returns {boolean} true — concern можна фіксити без початкового detect.
+ */
+function isStandaloneConcern(patterns) {
+  return patterns.length > 0 && patterns.every(p => p.standalone === true)
 }
 
 /**
@@ -340,19 +357,40 @@ export async function runFixPipeline(opts) {
 
   const plan = await buildDetectPlan(opts)
 
-  // ── Detect усе ──
-  const detectResult = await detectAllForFix(plan, cwd, verbose, log)
+  // Преloadимо T0-патерни разом із планом — потрібно, щоб класифікувати standalone-концерни
+  // (spec docs/specs/2026-07-02-text-check-per-file-split-design.md §8, Phase 2) ДО початкового
+  // detect. Той самий preload передається далі в fixConcern як t0Override — без повторного
+  // dynamic import().
+  const patternsByItem = new Map(
+    await Promise.all(
+      plan.map(async item => [
+        item,
+        deps.t0For
+          ? (deps.t0For(item.entry) ?? [])
+          : await loadT0Patterns(item.entry.concern.dir, item.entry.concern.name)
+      ])
+    )
+  )
+  const standaloneItems = plan.filter(item => isStandaloneConcern(patternsByItem.get(item)))
+  const normalPlan = plan.filter(item => !standaloneItems.includes(item))
+
+  // ── Detect лише для normal-концернів; standalone апляє одразу (без початкового detect) ──
+  const detectResult = await detectAllForFix(normalPlan, cwd, verbose, log)
   if ('code' in detectResult) return detectResult.code
 
   const failing = detectResult.detected.filter(d => d.violations.length > 0)
-  if (failing.length === 0) return 0
+  if (failing.length === 0 && standaloneItems.length === 0) return 0
 
   const ladder = deps.ladder ?? buildLadder({ localMin: LOCAL_MIN, cloudMin: CLOUD_MIN, cloudAvg: CLOUD_AVG })
   let avgBudget = typeof opts.maxAvg === 'number' ? opts.maxAvg : DEFAULT_MAX_AVG
 
-  let worst = 0
-  for (const { item, violations } of failing) {
-    const resolved = await fixConcern(item, violations, {
+  /**
+   * @param {PlanItem} item Елемент плану.
+   * @param {LintViolation[]} violations Початкові порушення (порожньо для standalone).
+   * @returns {Promise<boolean>} Чи закрито concern.
+   */
+  const runOne = (item, violations) =>
+    fixConcern(item, violations, {
       cwd,
       ladder,
       log,
@@ -361,13 +399,32 @@ export async function runFixPipeline(opts) {
         avgBudget -= n
       },
       workerOverride: deps.workerFor ? deps.workerFor(item.entry) : undefined,
-      t0Override: deps.t0For ? deps.t0For(item.entry) : undefined
+      t0Override: patternsByItem.get(item)
     })
-    if (!resolved) worst = 1
+
+  let worst = 0
+  const attemptedForRender = []
+
+  for (const { item, violations } of failing) {
+    if (!(await runOne(item, violations))) {
+      worst = 1
+      attemptedForRender.push({ item })
+    }
+  }
+
+  for (const item of standaloneItems) {
+    if (verbose) {
+      const label = `${item.entry.ruleId}/${item.entry.concern.name}`
+      log(`  🔍 ${label}  [standalone-merge]  → apply без початкового detect\n`)
+    }
+    if (!(await runOne(item, []))) {
+      worst = 1
+      attemptedForRender.push({ item })
+    }
   }
 
   // Фінальний render невирішених.
-  if (worst === 1) await renderRemaining(failing, cwd, log)
+  if (worst === 1) await renderRemaining(attemptedForRender, cwd, log)
 
   return worst
 }

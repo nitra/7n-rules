@@ -40,6 +40,7 @@ function listRsFiles(cwd) {
 export const patterns = [
   {
     id: 'rust-cargo-fmt',
+    standalone: true, // §8 Phase 2: apply самостійно перелічує *.rs (git ls-files), cargo fmt сам ре-аналізує
     test: violations => violations.some(v => v.reason === 'cargo-fmt-violation'),
     apply: (violations, ctx) => {
       const cargo = resolveCmd('cargo')

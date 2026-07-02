@@ -44,6 +44,7 @@ function listStyleFiles(cwd, ctxFiles) {
 export const patterns = [
   {
     id: 'style-stylelint-fix',
+    standalone: true, // §8 Phase 2: apply бере ctx.files (не violations), stylelint --fix сам ре-аналізує
     test: violations => violations.some(v => v.reason === 'stylelint-violation'),
     apply: (violations, ctx) => {
       const stylelint = resolveStylelint(ctx.cwd)

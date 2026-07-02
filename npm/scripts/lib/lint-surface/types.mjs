@@ -64,6 +64,12 @@
  * @property {string} id унікальний id патерну (дедуп за ним при re-export)
  * @property {(violations: LintViolation[]) => boolean} test чи застосовний патерн
  * @property {(violations: LintViolation[], ctx: LintContext) => Promise<T0Result> | T0Result} apply застосовує детерміноване виправлення й повертає результат
+ * @property {boolean} [standalone] true — патерн сам ідемпотентний і самоаналізуючий (напр.
+ *   `oxfmt --write`, `ruff --fix`): не потребує per-violation даних, щоб вирішити, чи
+ *   запускати `apply()` — runner обходить `test()` і, якщо ВСІ патерни concern-а standalone,
+ *   пропускає початковий detect у fix-режимі (spec
+ *   docs/specs/2026-07-02-text-check-per-file-split-design.md §8, Phase 2). Не стосується
+ *   `--no-fix` (detect-only) шляху.
  */
 
 /**

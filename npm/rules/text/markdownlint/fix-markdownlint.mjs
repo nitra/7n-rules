@@ -37,6 +37,7 @@ function listMarkdownFiles(cwd) {
 export const patterns = [
   {
     id: 'text-markdownlint-fix',
+    standalone: true, // §8 Phase 2: markdownlint-cli2 --fix сам ре-аналізує, test() не потрібен
     test: violations => violations.some(v => v.reason === 'markdownlint'),
     apply: async (violations, ctx) => {
       const files = listMarkdownFiles(ctx.cwd)
