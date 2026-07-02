@@ -22,7 +22,7 @@ function issueToViolation(issue, cwd) {
   const where = file ? `${file}${lineSuffix}` : '<unknown>'
   const symbolType = issue.symbolType ? ` (${issue.symbolType})` : ''
   const sym = issue.symbol ? ` \`${issue.symbol}\`${symbolType}` : ''
-  /** @type {any} */
+  /** @type {Partial<import('../../../scripts/lib/lint-surface/types.mjs').LintViolation>} */
   const v = {
     reason: issue.type || 'knip-issue',
     message: `knip: ${issue.type}${sym} — ${where}`,
@@ -57,7 +57,7 @@ export async function lint(ctx) {
   for (const byFile of Object.values(results.issues)) {
     for (const byKey of Object.values(byFile)) {
       for (const issue of Object.values(byKey)) {
-        violations.push(issueToViolation(/** @type {any} */ (issue), cwd))
+        violations.push(issueToViolation(/** @type {Parameters<typeof issueToViolation>[0]} */ (issue), cwd))
       }
     }
   }

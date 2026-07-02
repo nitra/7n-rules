@@ -9,8 +9,8 @@ import { evaluatePolicyConcern } from '../../../scripts/lib/lint-surface/policy-
  */
 export function lint(ctx) {
   return evaluatePolicyConcern(ctx, {
-    engine: "rego",
+    engine: 'rego',
     policyDir: import.meta.dirname,
-    files: {"single":".github/workflows/clean-merged-branch.yml"}
+    files: { single: '.github/workflows/clean-merged-branch.yml' }
   })
 }

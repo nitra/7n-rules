@@ -156,6 +156,43 @@ export async function generatePolicyWrapper(concernDir, concernName) {
 }
 
 /**
+ * @typedef {{ stale?: { ruleId: string, concernId: string, reason: string }, regenerated?: string }} DriftConcernResult
+ */
+
+/**
+ * Drift-перевірка одного concern-а. Non-policy/orchestrated/ручний/fresh → `{}`.
+ * @param {string} ruleName назва rule-а (= ruleId).
+ * @param {string} concernName назва concern-а (= concernId).
+ * @param {string} concernDir тека concern-а.
+ * @param {boolean} fix true → регенерувати stale; false → лише репорт.
+ * @returns {Promise<DriftConcernResult>} `regenerated` (шлях) або `stale` (запис), або `{}` якщо нічого не потрібно.
+ */
+async function checkConcernDrift(ruleName, concernName, concernDir, fix) {
+  const meta = await readConcernMeta(concernDir, concernName)
+  if (!meta || !meta.policy) return {}
+  if (!hasResolvableFiles(meta.policy.files)) return {} // orchestrated/incomplete — не standalone
+
+  const mainPath = join(concernDir, 'main.mjs')
+  if (existsSync(mainPath) && !isGeneratedFile(readFileSync(mainPath, 'utf8'))) return {} // ручний — escape-hatch
+
+  const hash = computeSourceHash(concernDir, concernName)
+  const fresh = existsSync(mainPath) && readFileSync(mainPath, 'utf8').includes(`// source-hash: ${hash}`)
+  if (fresh) return {}
+
+  if (fix) {
+    await generatePolicyWrapper(concernDir, concernName)
+    return { regenerated: `${ruleName}/${concernName}` }
+  }
+  return {
+    stale: {
+      ruleId: ruleName,
+      concernId: concernName,
+      reason: existsSync(mainPath) ? 'policy-codegen-stale' : 'policy-codegen-missing'
+    }
+  }
+}
+
+/**
  * Drift-gate по всіх policy-concern-ах у `rulesDir`.
  * @param {string} rulesDir коренева тека rule-ів.
  * @param {object} [opts] опції прогону.
@@ -186,27 +223,9 @@ export async function checkRegoCodegen(rulesDir, opts = {}) {
     for (const cEnt of concernEntries) {
       if (!cEnt.isDirectory() || cEnt.name.startsWith('.')) continue
       const concernDir = join(ruleDir, cEnt.name)
-      const meta = await readConcernMeta(concernDir, cEnt.name)
-      if (!meta || !meta.policy) continue
-      if (!hasResolvableFiles(meta.policy.files)) continue // orchestrated/incomplete — не standalone
-
-      const mainPath = join(concernDir, 'main.mjs')
-      if (existsSync(mainPath) && !isGeneratedFile(readFileSync(mainPath, 'utf8'))) continue // ручний — escape-hatch
-
-      const hash = computeSourceHash(concernDir, cEnt.name)
-      const fresh = existsSync(mainPath) && readFileSync(mainPath, 'utf8').includes(`// source-hash: ${hash}`)
-      if (fresh) continue
-
-      if (fix) {
-        await generatePolicyWrapper(concernDir, cEnt.name)
-        regenerated.push(`${ruleEnt.name}/${cEnt.name}`)
-      } else {
-        stale.push({
-          ruleId: ruleEnt.name,
-          concernId: cEnt.name,
-          reason: existsSync(mainPath) ? 'policy-codegen-stale' : 'policy-codegen-missing'
-        })
-      }
+      const res = await checkConcernDrift(ruleEnt.name, cEnt.name, concernDir, fix)
+      if (res.regenerated) regenerated.push(res.regenerated)
+      if (res.stale) stale.push(res.stale)
     }
   }
   return { stale, regenerated }

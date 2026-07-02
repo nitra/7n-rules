@@ -18,7 +18,7 @@ function parseMinifyJson(stdout) {
 }
 
 /**
- * Detector image-compress/check: @nitra/minify-image --json (read-only).
+ * Detector image-compress/check: \@nitra/minify-image --json (read-only).
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
  * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат detector-а
  */

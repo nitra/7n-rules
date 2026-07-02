@@ -316,7 +316,7 @@ Cache key: `user:profile:{userId}:v2`.
 - Hash у `manifest.json` відповідає фактичному контенту зон
 - Жоден `<details>`-блок з `<summary>` що починається на `Engineer:` / `Ops:` / `Security:` не з'являється в manager-only проекціях
 - Кожен `<details>` має оточуючі порожні рядки (інакше `<summary>`-вміст рендериться як plain HTML, не collapsible)
-- У `docs/` немає заборонених framework-specific конструкцій: `!!! note`, `??? `, `::: tip`, `::: details`, MDX-теги `<[A-Z][a-zA-Z]*`, Hugo shortcodes `{{< `
+- У `docs/` немає заборонених framework-specific конструкцій: `!!! note`, `???`, `::: tip`, `::: details`, MDX-теги `<[A-Z][a-zA-Z]*`, Hugo shortcodes `{{<`
 - Усі inter-doc посилання працюють для `marksman` LSP (відносні шляхи `[text](./other.md)` або `[[wiki-link]]`, не absolute URLs усередині `docs/`)
 - Якщо в зоні згадано компонент — він є в `docs/glossary.md`
 - ADR без `**Status:** Accepted` не потрапили у проекцію

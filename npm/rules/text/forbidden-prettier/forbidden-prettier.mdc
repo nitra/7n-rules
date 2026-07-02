@@ -7,6 +7,7 @@ Prettier **повністю заборонено** — форматування 
 Перевірка `npx @nitra/cursor fix text` падає, якщо у корені є `.prettierignore`, `.prettierrc*`, `prettier.config.*` або у `package.json#scripts` зустрічається команда з `prettier`.
 
 Заборонені файли конфігурації Prettier у корені:
+
 - `.prettierignore`, `.prettierrc`, `.prettierrc.json`, `.prettierrc.jsonc`, `.prettierrc.json5`
 - `.prettierrc.yaml`, `.prettierrc.yml`, `.prettierrc.toml`
 - `.prettierrc.js`, `.prettierrc.cjs`, `.prettierrc.mjs`, `.prettierrc.ts`, `.prettierrc.cts`, `.prettierrc.mts`

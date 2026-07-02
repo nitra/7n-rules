@@ -96,7 +96,7 @@ async function withTimeout(promise, ms, onTimeout) {
  *   thinkingLevel?: 'off'|'minimal'|'low'|'medium'|'high'|'xhigh',
  *   timeoutMs?: number,
  *   caller?: string,
- *   deps?: { createSession?: Function, getRegistry?: Function, registry?: object, trace?: Function, clock?: () => number, out?: (s: string) => void }
+ *   deps?: { createSession?: (args: object) => Promise<object>, getRegistry?: () => Promise<object>, registry?: object, trace?: (entry: object) => void, clock?: () => number, out?: (s: string) => void }
  * }} [opts] опції виконання скіла.
  * @returns {Promise<{ ok: boolean, telemetry: object|null, error: string|null }>} результат прогону скіла.
  */

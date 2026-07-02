@@ -106,6 +106,58 @@ async function pushReleaseWithRetry(runGit, tags, attempts = 5) {
 }
 
 /**
+ * Обробляє один workspace: агрегує зміни, бампає версію, дописує changelog, прибирає
+ * consumed-файли. Повертає запис релізу + tag (або null, якщо релізити нічого).
+ * @param {string} ws шлях workspace відносно cwd
+ * @param {string} cwd корінь монорепо
+ * @param {string} date `YYYY-MM-DD`
+ * @param {(args: string[]) => Promise<string | null>} runGit git-раннер
+ * @returns {Promise<{ entry: { ws: string, name: string | null, newVersion: string }, tag: string | null } | null>} результат або null
+ */
+async function processReleaseWorkspace(ws, cwd, date, runGit) {
+  const manifest = await readPackageManifest(ws, cwd)
+  if (!manifest || !manifest.version) return null
+
+  const changeFiles = await collectChangeFiles(cwd, manifest, runGit)
+  const agg = aggregateWorkspace({ currentVersion: manifest.version, changeFiles, date })
+  if (!agg) return null
+
+  await writeManifestVersion(cwd, manifest, agg.newVersion)
+  await prependWorkspaceChangelog(cwd, ws, agg.sectionBlock)
+  for (const file of agg.consumedFiles) {
+    if (!file) continue
+    await rm(join(cwd, ws, CHANGES_DIR, file))
+  }
+  return {
+    entry: { ws, name: manifest.name, newVersion: agg.newVersion },
+    tag: manifest.name ? `${manifest.name}@${agg.newVersion}` : null
+  }
+}
+
+/**
+ * Commit-back + анотовані теги + push з ретраями для зрелізованих пакетів.
+ * @param {Array<{ ws: string, name: string | null, newVersion: string }>} released зрелізовані пакети
+ * @param {string[]} tags анотовані теги для push
+ * @param {(args: string[]) => Promise<string | null>} runGit git-раннер
+ * @returns {Promise<void>} завершення після push
+ */
+async function commitAndPushRelease(released, tags, runGit) {
+  const subject = tags.length > 0 ? tags.join(', ') : released.map(r => `${r.ws}@${r.newVersion}`).join(', ')
+  await runGit(['add', '-A'])
+  const committed = await runGit(['commit', '-m', `release: ${subject}`])
+  if (committed === null) {
+    throw new Error('release: git commit не вдався — теги та push скасовано')
+  }
+  // АНОТОВАНІ теги (`-a -m`), бо `git push --follow-tags` доправляє на remote лише
+  // анотовані теги; легкі (`git tag <name>`) лишалися б локальними. `-m` обов'язкове
+  // в non-interactive CI, інакше git відкрив би редактор; повідомлення — сам `<name>@<version>`.
+  for (const tag of tags) {
+    await runGit(['tag', '-a', tag, '-m', tag])
+  }
+  await pushReleaseWithRetry(runGit, tags)
+}
+
+/**
  * @param {object} [opts] опції
  * @param {string} [opts.cwd] корінь
  * @param {string} [opts.date] `YYYY-MM-DD` (за замовчуванням сьогодні)
@@ -127,37 +179,14 @@ export async function release(opts = {}) {
 
   for (const ws of workspaces) {
     if (ws === '.' && isMonorepoRoot) continue
-    const manifest = await readPackageManifest(ws, cwd)
-    if (!manifest || !manifest.version) continue
-
-    const changeFiles = await collectChangeFiles(cwd, manifest, runGit)
-    const agg = aggregateWorkspace({ currentVersion: manifest.version, changeFiles, date })
-    if (!agg) continue
-
-    await writeManifestVersion(cwd, manifest, agg.newVersion)
-    await prependWorkspaceChangelog(cwd, ws, agg.sectionBlock)
-    for (const file of agg.consumedFiles) {
-      if (!file) continue
-      await rm(join(cwd, ws, CHANGES_DIR, file))
-    }
-    released.push({ ws, name: manifest.name, newVersion: agg.newVersion })
-    if (manifest.name) tags.push(`${manifest.name}@${agg.newVersion}`)
+    const result = await processReleaseWorkspace(ws, cwd, date, runGit)
+    if (!result) continue
+    released.push(result.entry)
+    if (result.tag) tags.push(result.tag)
   }
 
   if (released.length > 0) {
-    const subject = tags.length > 0 ? tags.join(', ') : released.map(r => `${r.ws}@${r.newVersion}`).join(', ')
-    await runGit(['add', '-A'])
-    const committed = await runGit(['commit', '-m', `release: ${subject}`])
-    if (committed === null) {
-      throw new Error('release: git commit не вдався — теги та push скасовано')
-    }
-    // АНОТОВАНІ теги (`-a -m`), бо `git push --follow-tags` доправляє на remote лише
-    // анотовані теги; легкі (`git tag <name>`) лишалися б локальними. `-m` обов'язкове
-    // в non-interactive CI, інакше git відкрив би редактор; повідомлення — сам `<name>@<version>`.
-    for (const tag of tags) {
-      await runGit(['tag', '-a', tag, '-m', tag])
-    }
-    await pushReleaseWithRetry(runGit, tags)
+    await commitAndPushRelease(released, tags, runGit)
   }
   return released
 }

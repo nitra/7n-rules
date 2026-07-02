@@ -9,8 +9,8 @@ import { evaluatePolicyConcern } from '../../../scripts/lib/lint-surface/policy-
  */
 export function lint(ctx) {
   return evaluatePolicyConcern(ctx, {
-    engine: "rego",
+    engine: 'rego',
     policyDir: import.meta.dirname,
-    files: {"single":".github/workflows/lint-docker.yml"}
+    files: { single: '.github/workflows/lint-docker.yml' }
   })
 }

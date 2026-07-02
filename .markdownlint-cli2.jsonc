@@ -1,6 +1,19 @@
 {
   "gitignore": true,
-  "ignores": ["**/adr/**", "docs/superpowers/**", ".claude/plans/**"],
+  "ignores": [
+    "**/adr/**",
+    "docs/superpowers/**",
+    ".claude/plans/**",
+    "**/docs/**",
+    ".cursor/**",
+    "docs/plans/**",
+    "docs/specs/**",
+    ".agents/**",
+    ".changes/**",
+    "**/CHANGELOG.md",
+    "**/COVERAGE.md",
+    "COVERAGE.md"
+  ],
   "config": {
     "default": true,
     "MD013": false,
@@ -8,6 +21,8 @@
     "MD040": false,
     "MD041": false,
     "MD024": { "siblings_only": true },
-    "MD033": { "allowed_elements": ["a"] }
+    "MD033": { "allowed_elements": ["a"] },
+    "MD036": false,
+    "MD060": false
   }
 }

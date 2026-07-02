@@ -9,8 +9,8 @@ import { evaluatePolicyConcern } from '../../../scripts/lib/lint-surface/policy-
  */
 export function lint(ctx) {
   return evaluatePolicyConcern(ctx, {
-    engine: "rego",
+    engine: 'rego',
     policyDir: import.meta.dirname,
-    files: {"walkGlob":["hasura/k8s/base/svc.yaml","hasura/k8s/base/svc-hl.yaml"]}
+    files: { walkGlob: ['hasura/k8s/base/svc.yaml', 'hasura/k8s/base/svc-hl.yaml'] }
   })
 }

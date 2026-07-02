@@ -6,4 +6,3 @@ version: '1.2'
 ---
 
 Правило забороняє використання застарілих redis-клієнтів (`ioredis`, `node-redis`, `redis`, `@redis/*`) і вимагає переходу на **Bun native Redis** (`import { redis } from 'bun'`). Підтримувана версія Redis: **7.2+**.
-

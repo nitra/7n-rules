@@ -304,13 +304,11 @@ function rsDocBefore(lines, lineIdx) {
 }
 
 /**
- * Витягує факт-лист для `.rs` файлу.
+ * Витягує module-level doc (`//!`) із голови `.rs` файлу.
  * @param {string} src вміст файлу
- * @param {string} relPath відносний шлях
- * @returns {object} факт-лист без `unsupported`
+ * @returns {string} злитий header-текст
  */
-function extractFactsRust(src, relPath) {
-  // header — //! module-level doc
+function rsExtractHeader(src) {
   const headerLines = []
   for (const line of src.split('\n')) {
     const t = line.trim()
@@ -318,10 +316,16 @@ function extractFactsRust(src, relPath) {
     else if (t === '' || t.startsWith('//')) continue
     else break
   }
-  const header = headerLines.join(' ').trim()
+  return headerLines.join(' ').trim()
+}
 
-  // Exposure-атрибути: рядки, після яких fn стає фактично pub
-  const srcLines = src.split('\n')
+/**
+ * Обчислює номери рядків із `fn`, які стають фактично `pub` через exposure-атрибути.
+ * @param {string} src вміст файлу
+ * @param {string[]} srcLines рядки файлу
+ * @returns {Set<number>} індекси exposure-exposed fn-рядків
+ */
+function rsExposedLineSet(src, srcLines) {
   const exposedLineSet = new Set()
   for (const m of src.matchAll(RS_EXPOSURE_ATTR_RE)) {
     // Знаходимо, який рядок містить цей атрибут
@@ -340,13 +344,19 @@ function extractFactsRust(src, relPath) {
       pos += srcLines[li].length + 1
     }
   }
+  return exposedLineSet
+}
 
-  // exports — pub items + exposure-exposed fns
+/**
+ * Збирає публічні items (`pub` + exposure-exposed) `.rs` файлу.
+ * @param {string[]} srcLines рядки файлу
+ * @param {Set<number>} exposedLineSet індекси exposure-exposed fn-рядків
+ * @returns {Array<{name:string, kind:string, desc:string}>} перелік exports
+ */
+function rsCollectExports(srcLines, exposedLineSet) {
   const exports = []
-  let lineOffset = 0
   for (let li = 0; li < srcLines.length; li++) {
-    const line = srcLines[li]
-    const trimmed = line.trimStart()
+    const trimmed = srcLines[li].trimStart()
     const pubM = trimmed.match(RS_PUB_PREFIX_RE)
     const m = (pubM ? trimmed.slice(pubM[0].length) : trimmed).match(RS_ITEM_DECL_RE)
     if (m) {
@@ -356,17 +366,16 @@ function extractFactsRust(src, relPath) {
         exports.push({ name: m[2], kind: m[1], desc })
       }
     }
-    lineOffset += line.length + 1
   }
+  return exports
+}
 
-  // localSymbols — приватні fn (не pub і не exposed) — не документуємо як публічний API
-  const localSymbols = []
-  for (const line of srcLines) {
-    const m = line.match(RS_PRIVATE_FN_RE)
-    if (m && exports.every(e => e.name !== m[1])) localSymbols.push(m[1])
-  }
-
-  // imports — use-рядки, класифіковані на std / external / internal
+/**
+ * Класифікує `use`-рядки `.rs` файлу на std / external / internal.
+ * @param {string} src вміст файлу
+ * @returns {{stdlib:string[], external:string[], internal:string[]}} згруповані imports
+ */
+function rsExtractImports(src) {
   const stdlib = new Set()
   const external = new Set()
   for (const m of src.matchAll(RS_USE_RE)) {
@@ -375,7 +384,29 @@ function extractFactsRust(src, relPath) {
     if (root === 'std' || root === 'core' || root === 'alloc') stdlib.add(path)
     else external.add(path)
   }
-  const imports = { stdlib: [...stdlib], external: [...external], internal: [] }
+  return { stdlib: [...stdlib], external: [...external], internal: [] }
+}
+
+/**
+ * Витягує факт-лист для `.rs` файлу.
+ * @param {string} src вміст файлу
+ * @param {string} relPath відносний шлях
+ * @returns {object} факт-лист без `unsupported`
+ */
+function extractFactsRust(src, relPath) {
+  const header = rsExtractHeader(src)
+  const srcLines = src.split('\n')
+  const exposedLineSet = rsExposedLineSet(src, srcLines)
+  const exports = rsCollectExports(srcLines, exposedLineSet)
+
+  // localSymbols — приватні fn (не pub і не exposed) — не документуємо як публічний API
+  const localSymbols = []
+  for (const line of srcLines) {
+    const m = line.match(RS_PRIVATE_FN_RE)
+    if (m && exports.every(e => e.name !== m[1])) localSymbols.push(m[1])
+  }
+
+  const imports = rsExtractImports(src)
 
   // markers
   const markers = {

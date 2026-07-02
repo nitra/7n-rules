@@ -4,11 +4,11 @@
  * Fetching: https://blueoakcouncil.org/list.json
  * Виводить: npm/data/blue-oak.json — SPDX-ідентифікатори рівнів Model+Gold+Silver+Bronze.
  *
- * Запуск (вручну, у @nitra/cursor):
+ * Запуск (вручну, у \@nitra/cursor):
  *   bun npm/scripts/update-blue-oak.mjs
  *
  * Коли запускати:
- *   - При апгрейді @nitra/cursor (n-taze або вручну) — Blue Oak список змінюється рідко,
+ *   - При апгрейді \@nitra/cursor (n-taze або вручну) — Blue Oak список змінюється рідко,
  *     але нові permissive ліцензії зʼявляються раз на кілька місяців;
  *   - Якщо проєкт падає на license-check через ліцензію якої нема в списку,
  *     а вона точно permissive — спочатку перевір, чи вона в Bronze+ на blueoakcouncil.org.

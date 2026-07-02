@@ -6,6 +6,7 @@ alwaysApply: false
 ---
 
 Правило **ga** перевіряє структуру `.github/workflows/`, наявність обов'язкових workflow-файлів і їх відповідність канонам, а також налаштування VS Code та zizmor для роботи з GitHub Actions.
+
 - [settings.json.snippet.json](./vscode_settings/template/settings.json.snippet.json)
 - [git-ai.yml.snippet.yml](./git_ai/template/git-ai.yml.snippet.yml)
 - [clean-ga-workflows.yml.snippet.yml](./clean_ga_workflows/template/clean-ga-workflows.yml.snippet.yml)

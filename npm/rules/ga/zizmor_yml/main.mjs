@@ -9,9 +9,9 @@ import { evaluatePolicyConcern } from '../../../scripts/lib/lint-surface/policy-
  */
 export function lint(ctx) {
   return evaluatePolicyConcern(ctx, {
-    engine: "rego",
+    engine: 'rego',
     policyDir: import.meta.dirname,
-    files: {"single":".github/zizmor.yml","required":true},
-    missingMessage: ".github/zizmor.yml не існує — потрібен для zizmor (ga.mdc)"
+    files: { single: '.github/zizmor.yml', required: true },
+    missingMessage: '.github/zizmor.yml не існує — потрібен для zizmor (ga.mdc)'
   })
 }

@@ -12,7 +12,7 @@ import { parseModelId, resolveModelSpec, thinkingLevelForTier } from '../pi-mode
 /**
  * Ізольований re-import pi-model-tiers зі свіжими env-стабами.
  * @param {Record<string, string>} envVars env-змінні для stubEnv перед імпортом
- * @returns {Promise<Function>} свіжа resolveModel із перечитаного модуля
+ * @returns {Promise<(tier: 'min'|'avg'|'max') => string>} свіжа resolveModel із перечитаного модуля
  */
 async function freshResolveModel(envVars) {
   vi.resetModules()

@@ -35,26 +35,26 @@
 
 ### Fixed
 
-- CI-воркфлоу lint-*: усі шаблони lint-*.yml.snippet кличуть `bunx n-cursor` (не bare —
-падало exit 127 у CI). Виправлено ім'я правила у lint-js.yml (`js` замість неіснуючих
-`js-lint js-lint-ci`). jscpd_config_test.rego: аліас import (unsafe var під OPA 1.15).
+- CI-воркфлоу lint-_: усі шаблони lint-_.yml.snippet кличуть `bunx n-cursor` (не bare —
+  падало exit 127 у CI). Виправлено ім'я правила у lint-js.yml (`js` замість неіснуючих
+  `js-lint js-lint-ci`). jscpd_config_test.rego: аліас import (unsafe var під OPA 1.15).
 
 ## [13.2.1] - 2026-07-01
 
 ### Added
 
 - ga/workflows: детекція + T0-фікс bare `n-cursor` у run-кроках → `bunx n-cursor`
-(у CI n-cursor не на PATH, `run: n-cursor …` падав exit 127). Оновлено шаблон lint-ga.
+  (у CI n-cursor не на PATH, `run: n-cursor …` падав exit 127). Оновлено шаблон lint-ga.
 
 ## [13.2.0] - 2026-07-01
 
 ### Added
 
 - T0 детермінований автофікс без LLM для механічних родин порушень: ga/workflows
-(persist-credentials, paths-glob), k8s/manifests (spec.strategy, networkpolicy egress,
-schema-modeline, kustomization sort), а також прогін лінтерів у fix-режимі —
-oxlint/eslint `--fix`, oxfmt `--write` (новий концерн text/oxfmt), stylelint `--fix`,
-markdownlint `--fix`, ruff `check --fix`/`format`, cargo fmt, shellcheck, dotenv-linter.
+  (persist-credentials, paths-glob), k8s/manifests (spec.strategy, networkpolicy egress,
+  schema-modeline, kustomization sort), а також прогін лінтерів у fix-режимі —
+  oxlint/eslint `--fix`, oxfmt `--write` (новий концерн text/oxfmt), stylelint `--fix`,
+  markdownlint `--fix`, ruff `check --fix`/`format`, cargo fmt, shellcheck, dotenv-linter.
 
 ### Changed
 
@@ -63,8 +63,8 @@ markdownlint `--fix`, ruff `check --fix`/`format`, cargo fmt, shellcheck, dotenv
 ### Fixed
 
 - Резолюція залежностей markdownlint: примусова інсталяція micromark 4.0.2 (bun не
-вкладав його для markdownlint@0.40, через що text/check падав на `import { parse }`).
-Оновлено @nitra/eslint-config до 3.10.3 (прибирає транзитивну micromark 2.x).
+  вкладав його для markdownlint@0.40, через що text/check падав на `import { parse }`).
+  Оновлено @nitra/eslint-config до 3.10.3 (прибирає транзитивну micromark 2.x).
 
 ## [13.1.0] - 2026-06-30
 

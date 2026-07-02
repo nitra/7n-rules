@@ -9,6 +9,7 @@ Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.g
 - **Лише runtime-залежності у `npm/package.json`.** `devDependencies` тримай у **кореневому** `package.json` монорепо — тоді `npm install @nitra/<pkg>` не тягне інструментарій, потрібний лише для розробки самого пакета.
 
 Перевірки JS (`package_structure.mjs`):
+
 - Наявність `package.json`, `npm/`, `npm/package.json`.
 - Walk шляхів з `"files"` з застосуванням негативних patterns і скан залишку на тест-патерни (walking + AST). Якщо після застосування негативних patterns у tarball лишається test-style файл — `check` падає з вказівкою, який саме негативний glob треба додати у `"files"`.
 

@@ -129,6 +129,79 @@ export async function buildDetectPlan(opts) {
 }
 
 /**
+ * scoped-режим: усі lint-concerns названих правил, whole-repo.
+ * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
+ * @param {string[]} rules scoped rule-id.
+ * @returns {PlanItem[]} впорядкований план (за ruleId).
+ */
+function buildScopedPlan(byRule, rules) {
+  const plan = []
+  for (const ruleId of rules) {
+    for (const concern of byRule[ruleId] ?? []) plan.push({ entry: { ruleId, concern }, files: undefined })
+  }
+  return plan.toSorted((a, b) => a.entry.ruleId.localeCompare(b.entry.ruleId))
+}
+
+/**
+ * full-режим: усі per-file + full concerns enabled-правил, whole-repo.
+ * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
+ * @param {Set<string>} enabledSet активні rule-id.
+ * @returns {PlanItem[]} впорядкований план (whole-repo для кожного entry).
+ */
+function buildFullPlan(byRule, enabledSet) {
+  /** @type {LintEntry[]} */
+  const entries = []
+  for (const [ruleId, concerns] of Object.entries(byRule)) {
+    if (!enabledSet.has(ruleId)) continue
+    for (const concern of concerns) entries.push({ ruleId, concern })
+  }
+  return sortEntries(entries).map(entry => ({ entry, files: undefined }))
+}
+
+/**
+ * Планує один concern у delta/explicit-files режимі за його lint.scope.
+ * @param {string} ruleId rule-id concern-а.
+ * @param {ConcernMeta} concern concern із lint-поверхнею.
+ * @param {string[]} changed перелік змінених файлів.
+ * @returns {PlanItem|null} plan-item concern-а або null, якщо concern не тригериться.
+ */
+function planConcernForDelta(ruleId, concern, changed) {
+  const { scope, glob } = concern.lint
+  const isMatch = glob.length > 0 ? picomatch(glob, { dot: true }) : () => false
+  if (scope === 'per-file') {
+    const files = glob.length > 0 ? changed.filter(f => isMatch(f)) : changed
+    return files.length > 0 ? { entry: { ruleId, concern }, files } : null
+  }
+  // full: запускається whole-repo лише якщо glob ∩ changed ≠ ∅
+  if (glob.length > 0 && changed.some(f => isMatch(f))) {
+    return { entry: { ruleId, concern }, files: undefined }
+  }
+  return null
+}
+
+/**
+ * delta/explicit-files режим: concern-и enabled-правил, зіставлені зі зміненими файлами.
+ * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
+ * @param {Set<string>} enabledSet активні rule-id.
+ * @param {string[]} changed перелік змінених файлів.
+ * @returns {PlanItem[]} впорядкований план (за ruleId, потім concern.name).
+ */
+function buildDeltaPlan(byRule, enabledSet, changed) {
+  /** @type {PlanItem[]} */
+  const plan = []
+  for (const [ruleId, concerns] of Object.entries(byRule)) {
+    if (!enabledSet.has(ruleId)) continue
+    for (const concern of concerns) {
+      const item = planConcernForDelta(ruleId, concern, changed)
+      if (item) plan.push(item)
+    }
+  }
+  return plan.toSorted(
+    (a, b) => a.entry.ruleId.localeCompare(b.entry.ruleId) || a.entry.concern.name.localeCompare(b.entry.concern.name)
+  )
+}
+
+/**
  * Будує план: список entries + чи кожен запускається whole-repo (files=undefined)
  * чи per-file (files=[...]). Реалізує таблицю lint.scope зі специфікації.
  * @param {object} args аргументи побудови плану.
@@ -141,50 +214,17 @@ export async function buildDetectPlan(opts) {
  */
 async function buildPlan({ byRule, full, rules, explicitFiles, cwd }) {
   // scoped: усі lint-concerns названих правил, whole-repo
-  if (rules.length > 0) {
-    const plan = []
-    for (const ruleId of rules) {
-      for (const concern of byRule[ruleId] ?? []) plan.push({ entry: { ruleId, concern }, files: undefined })
-    }
-    return plan.toSorted((a, b) => a.entry.ruleId.localeCompare(b.entry.ruleId))
-  }
+  if (rules.length > 0) return buildScopedPlan(byRule, rules)
 
   const enabled = await enabledRuleIds(byRule, cwd)
   const enabledSet = new Set(enabled)
 
   // full: усі per-file + full concerns enabled-правил, whole-repo
-  if (full && explicitFiles === null) {
-    /** @type {LintEntry[]} */
-    const entries = []
-    for (const [ruleId, concerns] of Object.entries(byRule)) {
-      if (!enabledSet.has(ruleId)) continue
-      for (const concern of concerns) entries.push({ ruleId, concern })
-    }
-    return sortEntries(entries).map(entry => ({ entry, files: undefined }))
-  }
+  if (full && explicitFiles === null) return buildFullPlan(byRule, enabledSet)
 
   // delta / explicit-files
   const changed = explicitFiles ?? (await collectChangedFilesSince(await resolveChangedBase(cwd), cwd))
-
-  /** @type {Array<{ entry: LintEntry, files: string[]|undefined }>} */
-  const plan = []
-  for (const [ruleId, concerns] of Object.entries(byRule)) {
-    if (!enabledSet.has(ruleId)) continue
-    for (const concern of concerns) {
-      const { scope, glob } = concern.lint
-      const isMatch = glob.length > 0 ? picomatch(glob, { dot: true }) : () => false
-      if (scope === 'per-file') {
-        const files = glob.length > 0 ? changed.filter(f => isMatch(f)) : changed
-        if (files.length > 0) plan.push({ entry: { ruleId, concern }, files })
-      } else if (glob.length > 0 && changed.some(f => isMatch(f))) {
-        // full: запускається whole-repo лише якщо glob ∩ changed ≠ ∅
-        plan.push({ entry: { ruleId, concern }, files: undefined })
-      }
-    }
-  }
-  return plan.toSorted(
-    (a, b) => a.entry.ruleId.localeCompare(b.entry.ruleId) || a.entry.concern.name.localeCompare(b.entry.concern.name)
-  )
+  return buildDeltaPlan(byRule, enabledSet, changed)
 }
 
 /**

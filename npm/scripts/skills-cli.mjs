@@ -138,7 +138,7 @@ export function buildSkillPrompt(skillsRoot, rawSkillName, task, projectDir = cw
  * @param {string} skillsRoot абсолютний шлях до `skills/` пакета
  * @param {string} projectDir робочий каталог сесії (= каталог виклику)
  * @param {(line: string) => void} logError вивід помилок
- * @param {{ runPiAgentSkill?: Function }} deps інжекти для тестів
+ * @param {{ runPiAgentSkill?: (prompt: string, opts?: object) => Promise<{ ok: boolean, error: string|null }> }} deps інжекти для тестів
  * @returns {Promise<number>} exit code (0 — ok)
  */
 async function runPiRunner(prompt, rawSkillName, skillsRoot, projectDir, logError, deps = {}) {
@@ -206,7 +206,7 @@ export function resolveBundledPackageRoot(fromModuleUrl = import.meta.url) {
 
 /**
  * @param {string[]} argv аргументи після `skill` у `n-cursor`
- * @param {{ packageRoot?: string, projectDir?: string, log?: (line: string) => void, logError?: (line: string) => void, deps?: { runPiAgentSkill?: Function } }} [options] перевизначення кореня пакета, каталогу проєкту, функцій виводу та інжектів (для тестів)
+ * @param {{ packageRoot?: string, projectDir?: string, log?: (line: string) => void, logError?: (line: string) => void, deps?: { runPiAgentSkill?: (prompt: string, opts?: object) => Promise<{ ok: boolean, error: string|null }> } }} [options] перевизначення кореня пакета, каталогу проєкту, функцій виводу та інжектів (для тестів)
  * @returns {Promise<number>} exit code
  */
 export async function runSkillsCli(argv, options = {}) {

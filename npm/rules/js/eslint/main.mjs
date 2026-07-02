@@ -39,7 +39,7 @@ function runOxlintJson(args, cwd) {
  * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation} нормалізоване порушення
  */
 function toViolation(f, cwd, severity) {
-  return /** @type {any} */ ({
+  return /** @type {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation} */ ({
     reason: f.rule || `${f.tool}-error`,
     message: `${f.message} (${f.tool})`,
     file: relative(cwd, f.file).split('\\').join('/'),

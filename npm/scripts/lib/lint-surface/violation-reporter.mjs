@@ -32,12 +32,12 @@ export function createViolationReporter(ctx) {
     },
     fail(msg, opts) {
       const o = typeof opts === 'string' ? { reason: opts } : (opts ?? {})
-      /** @type {any} */
+      /** @type {Record<string, unknown>} */
       const v = { reason: o.reason ?? defaultReason, message: msg }
       if (o.file) v.file = o.file
       if (o.severity) v.severity = o.severity
       if (o.data) v.data = o.data
-      violations.push(v)
+      violations.push(/** @type {LintViolation} */ (v))
     },
     result() {
       return { violations }

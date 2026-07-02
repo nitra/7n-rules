@@ -9,9 +9,9 @@ import { evaluatePolicyConcern } from '../../../scripts/lib/lint-surface/policy-
  */
 export function lint(ctx) {
   return evaluatePolicyConcern(ctx, {
-    engine: "rego",
+    engine: 'rego',
     policyDir: import.meta.dirname,
-    files: {"single":".vscode/settings.json","required":true},
-    missingMessage: ".vscode/settings.json не існує — створи згідно rego.mdc (rego.vscode_settings)"
+    files: { single: '.vscode/settings.json', required: true },
+    missingMessage: '.vscode/settings.json не існує — створи згідно rego.mdc (rego.vscode_settings)'
   })
 }

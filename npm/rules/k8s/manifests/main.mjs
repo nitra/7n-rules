@@ -4903,13 +4903,19 @@ export async function kustomizationTreeHasHasuraDeployment(kustAbs, rootNorm) {
  * @returns {unknown} JSON першого валідного документа або undefined
  */
 function firstValidYamlJsonFromPatchText(patchText) {
+  /** @type {unknown} */
+  let result
   try {
     for (const d of parseAllDocuments(patchText)) {
-      if (d.errors.length === 0) return d.toJSON()
+      if (d.errors.length === 0) {
+        result = d.toJSON()
+        break
+      }
     }
   } catch {
     // ignore parse errors
   }
+  return result
 }
 
 /**
@@ -6430,6 +6436,10 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail) {
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {void} результат
  */
+// Module-scope (prefer-static-regex): патерни класифікації rego-повідомлень.
+const REGO_HINT_DEPLOYMENT_STRATEGY_RE = /spec\.strategy має бути RollingUpdate/u
+const REGO_HINT_NETWORKPOLICY_EGRESS_RE = /відсутнє обовʼязкове egress-правило/u
+const REGO_HINT_KUSTOMIZATION_PATCHES_RE = /patches має бути за алфавітом/u
 /**
  * Structured fix-hint (#3) для rego-violation із `runAllK8sRego` — щоб T0
  * (`fix-manifests.mjs`) автофіксив детерміновано, не парсячи message. Класифікація
@@ -6439,10 +6449,6 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail) {
  * @param {unknown} message текст rego-violation
  * @returns {{ reason: string, file: string, data: { kind: string } } | undefined} fix-hint для T0 або undefined.
  */
-// Module-scope (prefer-static-regex): патерни класифікації rego-повідомлень.
-const REGO_HINT_DEPLOYMENT_STRATEGY_RE = /spec\.strategy має бути RollingUpdate/u
-const REGO_HINT_NETWORKPOLICY_EGRESS_RE = /відсутнє обовʼязкове egress-правило/u
-const REGO_HINT_KUSTOMIZATION_PATCHES_RE = /patches має бути за алфавітом/u
 function k8sRegoFixHint(ns, file, message) {
   const m = String(message ?? '')
   if (ns === 'k8s.manifest' && REGO_HINT_DEPLOYMENT_STRATEGY_RE.test(m)) {

@@ -78,7 +78,11 @@ function normalizeViolation(raw, ctx) {
  * @returns {LintResult} нормалізований результат із violations (і diagnostics)
  */
 function normalizeResult(raw, ctx) {
-  if (typeof raw !== 'object' || raw === null || !Array.isArray(/** @type {any} */ (raw).violations)) {
+  if (
+    typeof raw !== 'object' ||
+    raw === null ||
+    !Array.isArray(/** @type {Record<string, unknown>} */ (raw).violations)
+  ) {
     throw new DetectorError(ctx.ruleId, ctx.concernId, 'lint() має повернути { violations: [...] }')
   }
   const r = /** @type {{ violations: unknown[], diagnostics?: unknown[] }} */ (raw)
@@ -87,7 +91,9 @@ function normalizeResult(raw, ctx) {
   let diagnostics = []
   if (Array.isArray(r.diagnostics)) {
     diagnostics = r.diagnostics
-      .filter(d => d && typeof d === 'object' && typeof (/** @type {any} */ (d).message) === 'string')
+      .filter(
+        d => d && typeof d === 'object' && typeof (/** @type {Record<string, unknown>} */ (d).message) === 'string'
+      )
       .map(d => {
         const dd = /** @type {{ level?: unknown, message: string }} */ (d)
         return { level: dd.level === 'warn' ? 'warn' : 'info', message: dd.message }

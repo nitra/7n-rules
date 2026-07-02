@@ -15,16 +15,19 @@ bun add -d @nitra/efes-shared
 **Приклади:**
 
 ✓ правильно — `devDependencies` містить пакет:
+
 ```json
 { "devDependencies": { "@nitra/efes-shared": "^1.0.0" } }
 ```
 
 ✗ неправильно — `devDependencies` відсутній або порожній:
+
 ```json
 { "name": "my-project" }
 ```
 
 ✗ неправильно — пакет лише у `dependencies`:
+
 ```json
 { "dependencies": { "@nitra/efes-shared": "^1.0.0" } }
 ```

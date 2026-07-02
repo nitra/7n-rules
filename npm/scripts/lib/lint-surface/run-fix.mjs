@@ -94,6 +94,114 @@ async function reDetect(item, cwd) {
 }
 
 /**
+ * Резолвить worker concern-а: override → concern-specific fix-worker.mjs → дефолтний pi-agent.
+ * @param {string} concernDir Директорія concern-а.
+ * @param {import('./types.mjs').FixWorkerFn|null} [workerOverride] Worker-override для тестів.
+ * @returns {Promise<import('./types.mjs').FixWorkerFn|null>} Резолвлений worker або null.
+ */
+async function resolveWorker(concernDir, workerOverride) {
+  const worker = workerOverride ?? (await loadFixWorker(concernDir))
+  if (worker) return worker
+  const defaultWorkerMod = await import('./default-worker.mjs')
+  return defaultWorkerMod.fixWorker
+}
+
+/**
+ * Фаза T0: застосовує детерміновані патерни й re-detect. Повертає стан фази.
+ * @param {PlanItem} item Елемент плану.
+ * @param {LintViolation[]} initialViolations Порушення до T0.
+ * @param {T0Pattern[]} patterns T0-патерни concern-а.
+ * @param {LintContext} lintCtx Контекст лінту.
+ * @param {string} cwd Робоча директорія.
+ * @param {(s: string) => void} log Логер.
+ * @returns {Promise<{ closed: boolean, violations: LintViolation[] }>} closed=true якщо concern закрито T0; інакше актуальні violations.
+ */
+async function runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log) {
+  if (patterns.length === 0) return { closed: false, violations: initialViolations }
+  await applyT0(patterns, initialViolations, lintCtx, log)
+  const afterT0 = await reDetect(item, cwd)
+  if (afterT0.length === 0) {
+    log(`  ✅ T0: ${lintCtx.ruleId}/${lintCtx.concernId}\n`)
+    return { closed: true, violations: afterT0 }
+  }
+  return { closed: false, violations: afterT0 }
+}
+
+/**
+ * @typedef {{ previousModel: string, previousError: string|null }} FixFeedback
+ */
+
+/**
+ * @typedef {{ action: 'break'|'skip-model'|null, violations: LintViolation[], feedback: FixFeedback }} RungOutcome
+ */
+
+/**
+ * Проводить один rung ladder-а: worker → canonical re-detect → rollback при провалі.
+ * @param {Rung} rung Поточна сходинка ladder-а.
+ * @param {import('./types.mjs').FixWorkerFn} worker Fix-worker concern-а.
+ * @param {LintViolation[]} violations Актуальні порушення на вході в rung.
+ * @param {FixFeedback|null} feedback Feedback з попереднього rung-а.
+ * @param {object} rungDeps Залежності rung-а.
+ * @param {PlanItem} rungDeps.item Елемент плану.
+ * @param {string} rungDeps.cwd Робоча директорія.
+ * @param {ReturnType<typeof createSnapshot>} rungDeps.snapshot Snapshot S1.
+ * @param {(s: string) => void} rungDeps.log Логер.
+ * @returns {Promise<{ closed: true } | { closed: false, outcome: RungOutcome }>} closed=true якщо concern закрито; інакше результат для наступного кроку.
+ */
+async function runRung(rung, worker, violations, feedback, rungDeps) {
+  const { item, cwd, snapshot, log } = rungDeps
+  const { ruleId } = item.entry
+  const concernName = item.entry.concern.name
+
+  /** @type {FixContext} */
+  const fixCtx = {
+    cwd,
+    ruleId,
+    concernId: concernName,
+    files: item.files,
+    tier: rung.tier,
+    model: rung.model,
+    feedback: rung.feedback ? feedback : undefined,
+    recordWrite: absPath => snapshot.record(absPath)
+  }
+
+  let error = null
+  try {
+    await worker(violations, fixCtx)
+  } catch (workerError) {
+    error = workerError.message
+  }
+
+  // Canonical re-detect = джерело правди.
+  let after
+  try {
+    after = await reDetect(item, cwd)
+  } catch (detectError) {
+    if (detectError instanceof DetectorError) throw detectError
+    throw detectError
+  }
+
+  if (after.length === 0 && !error) {
+    log(`  ✅ ${rung.tier} (${rung.model}): ${ruleId}/${concernName}\n`)
+    return { closed: true }
+  }
+
+  const errorSuffix = error ? ` ❌ ${error.slice(0, 120)}` : ' ❌ досі порушено'
+  log(`  ⚡ ${rung.tier} (${rung.model}): ${ruleId}/${concernName}${errorSuffix}\n`)
+
+  // Не clean → restore S1 перед наступним rung-ом (degraded не тече далі).
+  snapshot.rollback()
+  return {
+    closed: false,
+    outcome: {
+      action: decideAfterFailure(rung, error),
+      violations: after.length > 0 ? after : violations,
+      feedback: { previousModel: rung.model, previousError: error }
+    }
+  }
+}
+
+/**
  * Проводить ОДИН concern по pipeline: T0 → S1 → ladder. Повертає чи закрито.
  * @param {PlanItem} item Елемент плану з entry та переліком файлів.
  * @param {LintViolation[]} initialViolations Початкові порушення concern-а до fix.
@@ -117,22 +225,12 @@ export async function fixConcern(item, initialViolations, deps) {
 
   // ── T0 (детермінований, permanent) ──
   const patterns = deps.t0Override ?? (await loadT0Patterns(concernDir, concernName))
-  if (patterns.length > 0) {
-    await applyT0(patterns, initialViolations, lintCtx, log)
-    const afterT0 = await reDetect(item, cwd)
-    if (afterT0.length === 0) {
-      log(`  ✅ T0: ${ruleId}/${concernName}\n`)
-      return true
-    }
-    initialViolations = afterT0
-  }
+  const t0 = await runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log)
+  if (t0.closed) return true
+  initialViolations = t0.violations
 
   // ── Worker ladder ── concern-specific fix-worker.mjs, інакше дефолтний pi-agent worker.
-  let worker = deps.workerOverride ?? (await loadFixWorker(concernDir))
-  if (!worker) {
-    const defaultWorkerMod = await import('./default-worker.mjs')
-    worker = defaultWorkerMod.fixWorker
-  }
+  const worker = await resolveWorker(concernDir, deps.workerOverride)
   if (!worker || ladder.length === 0) return false
 
   // S1: знімок post-T0. Один tracker акумулює pre-images; rollback цілить у S1.
@@ -148,54 +246,67 @@ export async function fixConcern(item, initialViolations, deps) {
       continue
     }
 
-    /** @type {FixContext} */
-    const fixCtx = {
-      cwd,
-      ruleId,
-      concernId: concernName,
-      files: item.files,
-      tier: rung.tier,
-      model: rung.model,
-      feedback: rung.feedback ? feedback : undefined,
-      recordWrite: absPath => snapshot.record(absPath)
-    }
-
-    let error = null
-    try {
-      await worker(violations, fixCtx)
-    } catch (workerError) {
-      error = workerError.message
-    }
+    const res = await runRung(rung, worker, violations, feedback, { item, cwd, snapshot, log })
     if (rung.isAvg) deps.spendAvg(1)
+    if (res.closed) return true
 
-    // Canonical re-detect = джерело правди.
-    let after
-    try {
-      after = await reDetect(item, cwd)
-    } catch (detectError) {
-      if (detectError instanceof DetectorError) throw detectError
-      throw detectError
-    }
-
-    if (after.length === 0 && !error) {
-      log(`  ✅ ${rung.tier} (${rung.model}): ${ruleId}/${concernName}\n`)
-      return true
-    }
-
-    const errorSuffix = error ? ` ❌ ${error.slice(0, 120)}` : ' ❌ досі порушено'
-    log(`  ⚡ ${rung.tier} (${rung.model}): ${ruleId}/${concernName}${errorSuffix}\n`)
-
-    // Не clean → restore S1 перед наступним rung-ом (degraded не тече далі).
-    snapshot.rollback()
-    violations = after.length > 0 ? after : violations
-    feedback = { previousModel: rung.model, previousError: error }
-
-    const action = decideAfterFailure(rung, error)
-    if (action === 'break') break
-    if (action === 'skip-model') skipModels.add(rung.model)
+    violations = res.outcome.violations
+    feedback = res.outcome.feedback
+    if (res.outcome.action === 'break') break
+    if (res.outcome.action === 'skip-model') skipModels.add(rung.model)
   }
 
   return false
+}
+
+/**
+ * Detect-фаза: прогін усіх concern-ів плану. При `DetectorError` — сигнал коду 2.
+ * @param {PlanItem[]} plan План прогону.
+ * @param {string} cwd Робоча директорія.
+ * @param {boolean} verbose Детальний вивід плану.
+ * @param {(s: string) => void} log Логер.
+ * @returns {Promise<{ code: 2 } | { detected: Array<{ item: PlanItem, violations: LintViolation[] }> }>} код 2 при DetectorError або зібрані результати detect.
+ */
+async function detectAllForFix(plan, cwd, verbose, log) {
+  /** @type {Array<{ item: PlanItem, violations: LintViolation[] }>} */
+  const detected = []
+  for (const item of plan) {
+    const ctx = { cwd, ruleId: item.entry.ruleId, concernId: item.entry.concern.name, files: item.files }
+    if (verbose) {
+      const countStr = item.files === undefined ? 'весь репо' : `${item.files.length} файл(ів)`
+      log(`  🔍 ${ctx.ruleId}/${ctx.concernId}  [${item.entry.concern.lint.scope}]  → ${countStr}\n`)
+    }
+    try {
+      const res = await runConcernDetector(item.entry.concern, ctx)
+      detected.push({ item, violations: res.violations })
+    } catch (detectError) {
+      if (detectError instanceof DetectorError) {
+        log(`💥 ${detectError.message}\n`)
+        return { code: 2 }
+      }
+      throw detectError
+    }
+  }
+  return { detected }
+}
+
+/**
+ * Фінальний render невирішених порушень (після провального fix-проходу).
+ * @param {Array<{ item: PlanItem, violations: LintViolation[] }>} failing Провальні concern-и.
+ * @param {string} cwd Робоча директорія.
+ * @param {(s: string) => void} log Логер.
+ * @returns {Promise<void>} нічого не повертає (тільки лог).
+ */
+async function renderRemaining(failing, cwd, log) {
+  const remaining = []
+  for (const { item } of failing) {
+    try {
+      remaining.push(...(await reDetect(item, cwd)))
+    } catch {
+      /* DetectorError на фінальному render — ігноруємо, основний verdict уже worst=1 */
+    }
+  }
+  if (remaining.length > 0) log(renderViolations(remaining))
 }
 
 /**
@@ -221,27 +332,10 @@ export async function runFixPipeline(opts) {
   const plan = await buildDetectPlan(opts)
 
   // ── Detect усе ──
-  /** @type {Array<{ item: PlanItem, violations: LintViolation[] }>} */
-  const detected = []
-  for (const item of plan) {
-    const ctx = { cwd, ruleId: item.entry.ruleId, concernId: item.entry.concern.name, files: item.files }
-    if (verbose) {
-      const countStr = item.files === undefined ? 'весь репо' : `${item.files.length} файл(ів)`
-      log(`  🔍 ${ctx.ruleId}/${ctx.concernId}  [${item.entry.concern.lint.scope}]  → ${countStr}\n`)
-    }
-    try {
-      const res = await runConcernDetector(item.entry.concern, ctx)
-      detected.push({ item, violations: res.violations })
-    } catch (detectError) {
-      if (detectError instanceof DetectorError) {
-        log(`💥 ${detectError.message}\n`)
-        return 2
-      }
-      throw detectError
-    }
-  }
+  const detectResult = await detectAllForFix(plan, cwd, verbose, log)
+  if ('code' in detectResult) return detectResult.code
 
-  const failing = detected.filter(d => d.violations.length > 0)
+  const failing = detectResult.detected.filter(d => d.violations.length > 0)
   if (failing.length === 0) return 0
 
   const ladder = deps.ladder ?? buildLadder({ localMin: LOCAL_MIN, cloudMin: CLOUD_MIN, cloudAvg: CLOUD_AVG })
@@ -264,17 +358,7 @@ export async function runFixPipeline(opts) {
   }
 
   // Фінальний render невирішених.
-  if (worst === 1) {
-    const remaining = []
-    for (const { item } of failing) {
-      try {
-        remaining.push(...(await reDetect(item, cwd)))
-      } catch {
-        /* DetectorError на фінальному render — ігноруємо, основний verdict уже worst=1 */
-      }
-    }
-    if (remaining.length > 0) log(renderViolations(remaining))
-  }
+  if (worst === 1) await renderRemaining(failing, cwd, log)
 
   return worst
 }

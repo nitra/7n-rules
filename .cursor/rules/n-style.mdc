@@ -6,6 +6,7 @@ alwaysApply: false
 ---
 
 Правило **style** для Vue-проєктів: Quasar як стильова система, SCSS-конвенції кольорів і відступів, фікси компонентів, stylelint через `@nitra/stylelint-config`.
+
 - `settings.json`:
 
 ```json

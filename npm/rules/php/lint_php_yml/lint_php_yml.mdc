@@ -9,12 +9,14 @@ Rego-пакет: `php.lint_php_yml`
 Канонічний template-сніпет: [lint-php.yml.snippet.yml](./template/lint-php.yml.snippet.yml)
 
 **✓ Правильно** — job `php` містить крок:
+
 ```yaml
 - name: Lint PHP
   run: n-cursor lint php --read-only
 ```
 
 **✗ Неправильно** — крок відсутній або містить інший run-рядок:
+
 ```yaml
 - name: Lint PHP
   run: echo something

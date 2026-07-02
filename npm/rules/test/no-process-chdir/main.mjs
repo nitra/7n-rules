@@ -46,7 +46,7 @@ export async function lint(ctx) {
     for (const [i, line] of body.split('\n').entries()) {
       if (!CHDIR_CALL_RE.test(line)) continue
       violations.push(
-        /** @type {any} */ ({
+        /** @type {Partial<import('../../../scripts/lib/lint-surface/types.mjs').LintViolation>} */ ({
           reason: 'process-chdir-in-test',
           message:
             `${file}:${i + 1}: process.chdir() у тесті заборонений — використовуй ` +

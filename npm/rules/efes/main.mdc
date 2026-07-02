@@ -19,4 +19,3 @@ bun add -d @nitra/efes-shared
 Пер-документні перевірки efes — rego-полісі у **`npm/rules/efes/policy/`** (запускається через **`npx @nitra/cursor fix efes`**; синтаксичний lint — через **`bun run lint-rego`**). Деталі шаблону — у **conftest.mdc** / **n-rego.mdc**.
 
 Пакети (директорія в **`npm/rules/efes/policy/`** → namespace → що перевіряє):
-

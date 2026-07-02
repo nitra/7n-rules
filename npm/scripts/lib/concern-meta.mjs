@@ -30,6 +30,48 @@ import { join } from 'node:path'
  */
 
 /**
+ * Нормалізує `raw.lint` у `LintSurface`. Повертає `null` при невалідному scope,
+ * `undefined` якщо lint-блок відсутній.
+ * @param {unknown} rawLint сирий блок `raw.lint`
+ * @returns {LintSurface|null|undefined} нормалізована lint-поверхня, `null` (невалідний scope) або `undefined` (немає блоку)
+ */
+function parseLintSurface(rawLint) {
+  if (!rawLint || typeof rawLint !== 'object') return
+  const scope = rawLint.scope
+  if (scope !== 'per-file' && scope !== 'full') return null
+  const rawGlob = rawLint.glob
+  let glob = []
+  if (Array.isArray(rawGlob)) {
+    glob = rawGlob
+  } else if (typeof rawGlob === 'string') {
+    glob = [rawGlob]
+  }
+  return { scope, glob }
+}
+
+/**
+ * Нормалізує `raw.policy` у `PolicySurface` (engine derived з legacy `check:'template'`).
+ * @param {unknown} rawPolicy сирий блок `raw.policy`
+ * @returns {PolicySurface|undefined} нормалізована policy-поверхня або `undefined` якщо блоку немає
+ */
+function parsePolicySurface(rawPolicy) {
+  if (!rawPolicy || typeof rawPolicy !== 'object') return
+  const legacyTemplate = rawPolicy.check === 'template'
+  let engine
+  if (rawPolicy.engine === 'template' || rawPolicy.engine === 'rego') {
+    engine = rawPolicy.engine
+  } else {
+    engine = legacyTemplate ? 'template' : 'rego'
+  }
+  return {
+    engine,
+    files: rawPolicy.files,
+    check: legacyTemplate ? 'template' : undefined,
+    missingMessage: typeof rawPolicy.missingMessage === 'string' ? rawPolicy.missingMessage : undefined
+  }
+}
+
+/**
  * Читає і нормалізує `concern.json` з каталогу.
  * Повертає `null` якщо файл відсутній або не валідний.
  * @param {string} concernDir абсолютний шлях до підкаталогу concern-а
@@ -47,38 +89,10 @@ export async function readConcernMeta(concernDir, name) {
   }
   if (typeof raw !== 'object' || raw === null) return null
 
-  /** @type {LintSurface|undefined} */
-  let lint
-  if (raw.lint && typeof raw.lint === 'object') {
-    const scope = raw.lint.scope
-    if (scope !== 'per-file' && scope !== 'full') return null
-    const rawGlob = raw.lint.glob
-    let glob = []
-    if (Array.isArray(rawGlob)) {
-      glob = rawGlob
-    } else if (typeof rawGlob === 'string') {
-      glob = [rawGlob]
-    }
-    lint = { scope, glob }
-  }
+  const lint = parseLintSurface(raw.lint)
+  if (lint === null) return null
 
-  /** @type {PolicySurface|undefined} */
-  let policy
-  if (raw.policy && typeof raw.policy === 'object') {
-    const legacyTemplate = raw.policy.check === 'template'
-    let engine
-    if (raw.policy.engine === 'template' || raw.policy.engine === 'rego') {
-      engine = raw.policy.engine
-    } else {
-      engine = legacyTemplate ? 'template' : 'rego'
-    }
-    policy = {
-      engine,
-      files: raw.policy.files,
-      check: legacyTemplate ? 'template' : undefined,
-      missingMessage: typeof raw.policy.missingMessage === 'string' ? raw.policy.missingMessage : undefined
-    }
-  }
+  const policy = parsePolicySurface(raw.policy)
 
   const check = raw.check === true
 

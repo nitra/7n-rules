@@ -144,6 +144,7 @@ export { patterns } from '../../../scripts/lib/fix/vscode-ext-add.mjs'
 ```
 
 **Red flags:**
+
 - Новий fixable violation у правилі — а `fix-<concern>.mjs` немає поруч: паттерн осідає в `t0.mjs` inline, порушуючи інваріант «фікс живе в правилі».
 - `fix-<concern>.mjs` містить `reporter.fail`/`pass` або логіку перевірки — це код `<concern>.mjs`, не фіксу.
 - Однакова fix-логіка продубльована в ≥2 `fix-*.mjs` без shared util у `npm/scripts/lib/fix/`.

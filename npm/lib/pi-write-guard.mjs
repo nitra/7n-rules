@@ -87,7 +87,7 @@ function isIgnored(root, abs) {
  * @param {{ cwd: string, root?: string|null, checkIgnore?: (root: string, abs: string) => boolean }} opts
  *   cwd — робоча директорія; root — git-root (за替замовч. обчислюється); checkIgnore — інжекція для тестів
  * @returns {{
- *   factory: (pi: { on: Function }) => void,
+ *   factory: (pi: { on: (event: string, handler: (event: object) => void) => void }) => void,
  *   state: { attached: boolean, root: string|null, preImages: Map<string, string|symbol>, blocks: Array<{path:string,reason:string}> },
  *   rollback: () => void,
  *   touchedFiles: () => string[]

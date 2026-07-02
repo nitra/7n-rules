@@ -7,6 +7,7 @@ Rego-пакет: `k8s.hpa_pdb`
 **Що перевіряється:**
 
 HPA (`kind: HorizontalPodAutoscaler` або `apiVersion: autoscaling/…`):
+
 - `apiVersion: autoscaling/v2` (не v1)
 - `kind: HorizontalPodAutoscaler`
 - `spec` — присутній об'єкт
@@ -14,6 +15,7 @@ HPA (`kind: HorizontalPodAutoscaler` або `apiVersion: autoscaling/…`):
 - `spec.metrics` — непорожній масив
 
 PDB (`kind: PodDisruptionBudget` або `apiVersion: policy/v1`):
+
 - `apiVersion: policy/v1`
 - `kind: PodDisruptionBudget`
 - `spec` — присутній об'єкт

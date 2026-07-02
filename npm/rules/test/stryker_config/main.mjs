@@ -367,6 +367,61 @@ async function missingGitignoreEntries(cwd) {
  */
 
 /**
+ * Vue-специфічні дії для одного js-root: augment існуючого stryker-конфіга (drift-hole)
+ * та baseline vue-plugin. Мутує `plan` (append до baselineActions/augmentWrites/augmentFails).
+ * @param {StrykerPlan} plan план, що накопичує дії
+ * @param {string} cwd корінь репо
+ * @param {string} jsRoot корінь js-workspace
+ * @param {boolean} wasMissing чи stryker.config.mjs був відсутній до планування
+ * @returns {Promise<void>} завершення після append
+ */
+async function planVueRootActions(plan, cwd, jsRoot, wasMissing) {
+  if (!wasMissing) {
+    const res = await planVueAugment(cwd, jsRoot)
+    if (!res.ok) {
+      plan.augmentFails.push(res.message)
+    } else if (res.content !== null) {
+      plan.augmentWrites.push({ target: res.target, content: res.content })
+    }
+  }
+  const pluginAction = planBaselineFile(
+    STRYKER_VUE_PLUGIN_PATH,
+    join(jsRoot, STRYKER_VUE_PLUGIN_FILENAME),
+    STRYKER_VUE_PLUGIN_FILENAME
+  )
+  if (pluginAction) plan.baselineActions.push(pluginAction)
+}
+
+/**
+ * Планує baseline/augment-дії для одного js-root. Мутує `plan`.
+ * @param {StrykerPlan} plan план, що накопичує дії
+ * @param {string} cwd корінь репо
+ * @param {string} jsRoot корінь js-workspace
+ * @returns {Promise<void>} завершення після append
+ */
+async function planJsRootActions(plan, cwd, jsRoot) {
+  const isVueRoot = await hasVueFiles(jsRoot)
+  const strykerTarget = join(jsRoot, 'stryker.config.mjs')
+  // Чи файл уже існує (до будь-якого запису). Якщо ні — baseline (vue-варіант для
+  // Vue-root) уже містить plugins/ignorers, augment не потрібен. Якщо існував —
+  // baseline idempotent-skip, і augment закриває drift-hole.
+  const wasMissing = !existsSync(strykerTarget)
+  const strykerBaseline = isVueRoot ? STRYKER_VUE_BASELINE_PATH : STRYKER_BASELINE_PATH
+  const vitestName = resolveVitestConfigName(jsRoot)
+  const strykerAction = planBaselineFile(strykerBaseline, strykerTarget, 'stryker.config.mjs', {
+    re: STRYKER_CONFIG_FILE_RE.source,
+    replacement: `configFile: '${vitestName}'`
+  })
+  if (strykerAction) plan.baselineActions.push(strykerAction)
+
+  if (isVueRoot) {
+    await planVueRootActions(plan, cwd, jsRoot, wasMissing)
+  }
+  const vitestAction = planBaselineFile(VITEST_BASELINE_PATH, join(jsRoot, vitestName), vitestName)
+  if (vitestAction) plan.baselineActions.push(vitestAction)
+}
+
+/**
  * Чистий планувальник (read-only): обчислює всі потрібні зміни для stryker_config
  * без жодного запису. Спільний для detector-а (→ violations) і T0-fix (→ writes).
  * @param {string} cwd корінь репо
@@ -395,38 +450,7 @@ export async function planStrykerActions(cwd) {
   }
 
   for (const jsRoot of jsRoots) {
-    const isVueRoot = await hasVueFiles(jsRoot)
-    const strykerTarget = join(jsRoot, 'stryker.config.mjs')
-    // Чи файл уже існує (до будь-якого запису). Якщо ні — baseline (vue-варіант для
-    // Vue-root) уже містить plugins/ignorers, augment не потрібен. Якщо існував —
-    // baseline idempotent-skip, і augment закриває drift-hole.
-    const wasMissing = !existsSync(strykerTarget)
-    const strykerBaseline = isVueRoot ? STRYKER_VUE_BASELINE_PATH : STRYKER_BASELINE_PATH
-    const vitestName = resolveVitestConfigName(jsRoot)
-    const strykerAction = planBaselineFile(strykerBaseline, strykerTarget, 'stryker.config.mjs', {
-      re: STRYKER_CONFIG_FILE_RE.source,
-      replacement: `configFile: '${vitestName}'`
-    })
-    if (strykerAction) plan.baselineActions.push(strykerAction)
-
-    if (isVueRoot) {
-      if (!wasMissing) {
-        const res = await planVueAugment(cwd, jsRoot)
-        if (!res.ok) {
-          plan.augmentFails.push(res.message)
-        } else if (res.content !== null) {
-          plan.augmentWrites.push({ target: res.target, content: res.content })
-        }
-      }
-      const pluginAction = planBaselineFile(
-        STRYKER_VUE_PLUGIN_PATH,
-        join(jsRoot, STRYKER_VUE_PLUGIN_FILENAME),
-        STRYKER_VUE_PLUGIN_FILENAME
-      )
-      if (pluginAction) plan.baselineActions.push(pluginAction)
-    }
-    const vitestAction = planBaselineFile(VITEST_BASELINE_PATH, join(jsRoot, vitestName), vitestName)
-    if (vitestAction) plan.baselineActions.push(vitestAction)
+    await planJsRootActions(plan, cwd, jsRoot)
   }
 
   plan.gitignoreMissing = await missingGitignoreEntries(cwd)

@@ -6,8 +6,10 @@ version: '2.1'
 ---
 
 Правило **security** забезпечує сканування секретів через [TruffleHog](https://github.com/trufflesecurity/trufflehog) локально та на CI, а також правильне використання placeholder-значень у прикладних файлах.
+
 ## Перевірка
 
 `npx @nitra/cursor fix security`
+
 - [lint-security.yml.snippet.yml](./lint_security_yml/template/lint-security.yml.snippet.yml)
 - [package.json.deny.json](./package_json/template/package.json.deny.json)

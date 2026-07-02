@@ -90,9 +90,16 @@ export default [
       'sonarjs/slow-regex': 'off'
     }
   },
-  // glob→RegExp з попередньо екранованим glob-pattern (REGEX_SPECIAL_IN_GLOB).
+  // Динамічний RegExp із НЕ-user-input джерела (не ReDoS-вектор): glob із екранованими
+  // спецсимволами (package_structure), reconstruct module-const `.source` з іншим прапором
+  // (units-rs), regex із канонічного transform-спеку (stryker fix). Джерела — package.json/
+  // канон/константи, не ввід користувача.
   {
-    files: ['npm/rules/npm-module/js/package_structure.mjs'],
+    files: [
+      'npm/rules/npm-module/package_structure/main.mjs',
+      'npm/rules/doc-files/units-rs/main.mjs',
+      'npm/rules/test/stryker_config/fix-stryker_config.mjs'
+    ],
     rules: {
       'security/detect-non-literal-regexp': 'off'
     }

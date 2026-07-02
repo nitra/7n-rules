@@ -20,4 +20,3 @@ alwaysApply: false
 ## Швидкий gate через conftest (Rego)
 
 Підмножину пер-документних правил продубльовано як rego-полісі у **`npm/rules/k8s/policy/`** (запускається через **`bun run lint-rego`** для `*_test.rego` юніт-тестів і через **`npx @nitra/cursor fix k8s`** для прогону по реальних YAML). JS authoritative; rego — швидкий gate для одиничного маніфеста.
-

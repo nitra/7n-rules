@@ -9,8 +9,8 @@ import { evaluatePolicyConcern } from '../../../scripts/lib/lint-surface/policy-
  */
 export function lint(ctx) {
   return evaluatePolicyConcern(ctx, {
-    engine: "template",
+    engine: 'template',
     policyDir: import.meta.dirname,
-    files: {"single":".github/workflows/npm-publish.yml"}
+    files: { single: '.github/workflows/npm-publish.yml' }
   })
 }

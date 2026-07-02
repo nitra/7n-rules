@@ -1,6 +1,6 @@
 /**
  * Тести правила js.mdc (concern dep-policy): сканер заборонених import-specifier'ів
- * (наразі — @nitra/as-integrations-fastify).
+ * (наразі — `@nitra/as-integrations-fastify`).
  */
 import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'

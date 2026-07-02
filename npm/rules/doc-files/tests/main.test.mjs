@@ -25,15 +25,7 @@ const violationsCount = async (cwd, files) => {
 async function writeSourceWithFreshDoc(root, rel, body) {
   await ensureDir(join(root, rel, '..'))
   await writeFile(join(root, rel), body)
-  const docRel = join(
-    rel,
-    '..',
-    'docs',
-    `${rel
-      .split('/')
-      .at(-1)
-      .replace(EXT_RE, '')}.md`
-  )
+  const docRel = join(rel, '..', 'docs', `${rel.split('/').at(-1).replace(EXT_RE, '')}.md`)
   await ensureDir(join(root, docRel, '..'))
   await writeFile(join(root, docRel), stampDoc('# x\n\n## Огляд\n\nтест\n', rel, crc32(Buffer.from(body))))
 }

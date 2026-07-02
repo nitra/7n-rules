@@ -90,7 +90,7 @@ async function withTimeout(promise, ms) {
  *   timeoutMs?: number,
  *   caller?: string,
  *   cwd?: string,
- *   deps?: { createSession?: Function, getRegistry?: Function, registry?: object, trace?: Function }
+ *   deps?: { createSession?: (args: object) => Promise<object>, getRegistry?: () => Promise<object>, registry?: object, trace?: (entry: object) => void }
  * }} args параметри
  * @returns {Promise<{ content: string, usage: object|null, error: string|null, model: string|null, caller: string }>} результат
  */

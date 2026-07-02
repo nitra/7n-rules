@@ -20,6 +20,25 @@ function skipString(src, i) {
 }
 
 /**
+ * Пропускає рядковий (`//`) чи блочний коментар на позиції `i`.
+ * @param {string} src вміст файлу
+ * @param {number} i позиція `/` початку коментаря
+ * @returns {number} позиція ПІСЛЯ коментаря, або `-1` якщо на `i` не коментар
+ */
+function skipComment(src, i) {
+  if (src[i] !== '/') return -1
+  if (src[i + 1] === '/') {
+    const nl = src.indexOf('\n', i)
+    return nl === -1 ? src.length : nl + 1
+  }
+  if (src[i + 1] === '*') {
+    const end = src.indexOf('*/', i + 2)
+    return end === -1 ? src.length : end + 2
+  }
+  return -1
+}
+
+/**
  * Знаходить індекс закриваючої `}` для відкриваючої `{` на позиції `start`.
  * Правильно пропускає рядки/блочні коментарі та рядкові літерали.
  * @param {string} src вміст файлу
@@ -31,14 +50,9 @@ function findClosingBrace(src, start) {
   let i = start
   while (i < src.length) {
     const ch = src[i]
-    if (ch === '/' && src[i + 1] === '/') {
-      const nl = src.indexOf('\n', i)
-      i = nl === -1 ? src.length : nl + 1
-      continue
-    }
-    if (ch === '/' && src[i + 1] === '*') {
-      const end = src.indexOf('*/', i + 2)
-      i = end === -1 ? src.length : end + 2
+    const afterComment = skipComment(src, i)
+    if (afterComment !== -1) {
+      i = afterComment
       continue
     }
     if (ch === '"') {
@@ -102,6 +116,146 @@ const EXPOSURE_ATTR_RE = /#\[(?:tauri::command|wasm_bindgen|uniffi::export|pyo3:
 const CALL_RE = /\b([a-z_]\w*)\s*\(/g
 
 /**
+ * Рахує дельту глибини `{}` в рядку, пропускаючи `//`-коментарі й рядкові літерали.
+ * @param {string} line рядок коду
+ * @returns {number} приріст глибини (додатний — відкрито більше, ніж закрито)
+ */
+function braceDeltaInLine(line) {
+  let delta = 0
+  let j = 0
+  while (j < line.length) {
+    const ch = line[j]
+    if (ch === '/' && line[j + 1] === '/') break
+    if (ch === '"') {
+      j++
+      while (j < line.length && line[j] !== '"') {
+        if (line[j] === '\\') j++
+        j++
+      }
+      j++
+      continue
+    }
+    if (ch === '{') delta++
+    else if (ch === '}') delta--
+    j++
+  }
+  return delta
+}
+
+/**
+ * Оновлює impl-стек за поточним рядком: прибирає закриті impl і, якщо рядок — impl-
+ * декларація на глибині ≤1, додає новий запис.
+ * @param {Array<{typeName:string, openDepth:number}>} implStack стек відкритих impl (мутується)
+ * @param {string} line сирий рядок
+ * @param {string} trimmed рядок без лідируючих пробілів
+ * @param {number} depth глибина ПІСЛЯ обробки рядка
+ * @param {number} depthAtStart глибина ДО обробки рядка
+ * @returns {void}
+ */
+function updateImplStack(implStack, line, trimmed, depth, depthAtStart) {
+  while (implStack.length > 0 && implStack.at(-1).openDepth > depth) {
+    implStack.pop()
+  }
+  if (depthAtStart <= 1) {
+    const headM = trimmed.match(IMPL_HEAD_RE)
+    if (headM && line.includes('{')) {
+      const rest = trimmed.slice(headM[0].length)
+      const typeM = rest.match(IMPL_FOR_TYPE_RE) ?? rest.match(TYPE_NAME_RE)
+      if (typeM) implStack.push({ typeName: typeM[1], openDepth: depth })
+    }
+  }
+}
+
+/**
+ * Витягує тіло item-а (fn/struct/enum/trait) через `findClosingBrace`.
+ * @param {string} src вміст файлу
+ * @param {string[]} lines рядки файлу
+ * @param {number} li індекс рядка декларації
+ * @param {number} lineOffset зсув початку рядка в `src`
+ * @param {string} kind вид item-а
+ * @returns {{body:string, itemEnd:number}} тіло та зсув кінця item-а
+ */
+function extractItemBody(src, lines, li, lineOffset, kind) {
+  let body = ''
+  let itemEnd = lineOffset + lines[li].length
+  if (kind !== 'type') {
+    const openBraceIdx = src.indexOf('{', lineOffset)
+    // Шукаємо `{` не далі ніж через 3 рядки від початку декларації
+    const threeLines = lines.slice(li, li + 3).join('\n').length
+    if (openBraceIdx !== -1 && openBraceIdx - lineOffset <= threeLines) {
+      const closeIdx = findClosingBrace(src, openBraceIdx)
+      if (closeIdx !== -1) {
+        itemEnd = closeIdx + 1
+        body = src.slice(lineOffset, itemEnd)
+      }
+    }
+  }
+  return { body, itemEnd }
+}
+
+/**
+ * Заповнює `calls` кожного юніта викликами інших юнітів цього ж файлу.
+ * @param {Array<{name:string, body:string, calls:string[]}>} units юніти файлу (мутуються)
+ * @returns {void}
+ */
+function fillCallGraph(units) {
+  const unitNames = new Set(units.map(u => u.name))
+  for (const u of units) {
+    if (!u.body) continue
+    const calls = new Set()
+    let cm
+    const re = new RegExp(CALL_RE.source, 'g')
+    while ((cm = re.exec(u.body)) !== null) {
+      if (unitNames.has(cm[1]) && cm[1] !== u.name) calls.add(cm[1])
+    }
+    u.calls = [...calls]
+  }
+}
+
+/**
+ * Обробляє рядок на глибині ≤1: якщо це декларація item-а — додає юніт у `units`;
+ * інакше скидає exposure-флаг на не-атрибутних рядках. Повертає новий стан флага.
+ * @param {object} p параметри
+ * @param {string} p.src вміст файлу
+ * @param {string[]} p.lines рядки файлу
+ * @param {number} p.li індекс рядка
+ * @param {number} p.lineOffset зсув початку рядка в `src`
+ * @param {number} p.depthAtStart глибина ДО обробки рядка
+ * @param {string|null} p.currentImpl тип поточного impl або `null`
+ * @param {boolean} p.nextFnExposed чи наступний fn exposure-exposed
+ * @param {Array<object>} p.units акумулятор юнітів (мутується)
+ * @returns {boolean} новий стан `nextFnExposed`
+ */
+function processItemLine({ src, lines, li, lineOffset, depthAtStart, currentImpl, nextFnExposed, units }) {
+  const line = lines[li]
+  const trimmed = line.trimStart()
+  const pubM = trimmed.match(PUB_PREFIX_RE)
+  const m = (pubM ? trimmed.slice(pubM[0].length) : trimmed).match(ITEM_DECL_RE)
+  if (!m) {
+    // Рядок не є item — скидаємо exposure-флаг якщо не атрибут
+    const t = line.trim()
+    if (!t.startsWith('#[') && !t.startsWith('#![') && !t.startsWith('///') && t !== '') return false
+    return nextFnExposed
+  }
+  const kind = m[1]
+  const isPub = Boolean(pubM) || (kind === 'fn' && nextFnExposed)
+  const doc = docBefore(lines, li)
+  // Витягуємо тіло через findClosingBrace для fn/struct/enum/trait
+  const { body, itemEnd } = extractItemBody(src, lines, li, lineOffset, kind)
+  units.push({
+    name: m[2],
+    kind,
+    exported: isPub,
+    implName: depthAtStart === 1 ? currentImpl : null,
+    span: { start: lineOffset, end: itemEnd },
+    body,
+    calls: [],
+    doc
+  })
+  return kind === 'fn' ? false : nextFnExposed
+}
+
+/**
  * Юніт-екстрактор для `.rs` файлів.
  * Визначає top-level і impl-методи через підрахунок дужок по рядках.
  * Відомі обмеження: рядкові літерали з `{`/`}` всередині `{}` можуть дати
@@ -123,31 +277,9 @@ export function extractUnitsRs(src, _relPath) {
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li]
     const depthAtStart = depth
+    depth += braceDeltaInLine(line)
 
-    // Підраховуємо `{` і `}` в рядку (пропускаємо рядкові коментарі та рядки)
-    let j = 0
-    while (j < line.length) {
-      const ch = line[j]
-      if (ch === '/' && line[j + 1] === '/') break
-      if (ch === '"') {
-        j++
-        while (j < line.length && line[j] !== '"') {
-          if (line[j] === '\\') j++
-          j++
-        }
-        j++
-        continue
-      }
-      if (ch === '{') depth++
-      else if (ch === '}') depth--
-      j++
-    }
-
-    // Закриті impl-блоки прибираємо зі стека
-    while (implStack.length > 0 && implStack.at(-1).openDepth > depth) {
-      implStack.pop()
-    }
-
+    updateImplStack(implStack, line, line.trimStart(), depth, depthAtStart)
     const currentImpl = implStack.at(-1)?.typeName ?? null
 
     // Перевіряємо exposure-атрибути
@@ -155,79 +287,25 @@ export function extractUnitsRs(src, _relPath) {
       nextFnExposed = true
     }
 
-    const trimmed = line.trimStart()
-
-    // Impl-декларація (зазвичай глибина 0, але може бути в mod)
-    if (depthAtStart <= 1) {
-      const headM = trimmed.match(IMPL_HEAD_RE)
-      if (headM && line.includes('{')) {
-        const rest = trimmed.slice(headM[0].length)
-        const typeM = rest.match(IMPL_FOR_TYPE_RE) ?? rest.match(TYPE_NAME_RE)
-        if (typeM) implStack.push({ typeName: typeM[1], openDepth: depth })
-      }
-    }
-
     // Елементи на глибині 0 (top-level) і 1 (всередині impl)
     if (depthAtStart <= 1) {
-      const pubM = trimmed.match(PUB_PREFIX_RE)
-      const m = (pubM ? trimmed.slice(pubM[0].length) : trimmed).match(ITEM_DECL_RE)
-      if (m) {
-        const isPub = Boolean(pubM) || (m[1] === 'fn' && nextFnExposed)
-        if (m[1] === 'fn') nextFnExposed = false
-        const kind = m[1]
-        const name = m[2]
-        const doc = docBefore(lines, li)
-
-        // Витягуємо тіло через findClosingBrace для fn/struct/enum/trait
-        let body = ''
-        let itemEnd = lineOffset + line.length
-        if (kind !== 'type') {
-          const openBraceIdx = src.indexOf('{', lineOffset)
-          // Шукаємо `{` не далі ніж через 3 рядки від початку декларації
-          const threeLines = lines.slice(li, li + 3).join('\n').length
-          if (openBraceIdx !== -1 && openBraceIdx - lineOffset <= threeLines) {
-            const closeIdx = findClosingBrace(src, openBraceIdx)
-            if (closeIdx !== -1) {
-              itemEnd = closeIdx + 1
-              body = src.slice(lineOffset, itemEnd)
-            }
-          }
-        }
-
-        units.push({
-          name,
-          kind,
-          exported: isPub,
-          implName: depthAtStart === 1 ? currentImpl : null,
-          span: { start: lineOffset, end: itemEnd },
-          body,
-          calls: [],
-          doc
-        })
-      } else {
-        // Рядок не є item — скидаємо exposure-флаг якщо не атрибут
-        const t = line.trim()
-        if (!t.startsWith('#[') && !t.startsWith('#![') && !t.startsWith('///') && t !== '') {
-          nextFnExposed = false
-        }
-      }
+      nextFnExposed = processItemLine({
+        src,
+        lines,
+        li,
+        lineOffset,
+        depthAtStart,
+        currentImpl,
+        nextFnExposed,
+        units
+      })
     }
 
     lineOffset += line.length + 1 // +1 для '\n'
   }
 
   // Базовий call-graph: виклики інших юнітів цього файлу
-  const unitNames = new Set(units.map(u => u.name))
-  for (const u of units) {
-    if (!u.body) continue
-    const calls = new Set()
-    let cm
-    const re = new RegExp(CALL_RE.source, 'g')
-    while ((cm = re.exec(u.body)) !== null) {
-      if (unitNames.has(cm[1]) && cm[1] !== u.name) calls.add(cm[1])
-    }
-    u.calls = [...calls]
-  }
+  fillCallGraph(units)
 
   return units.length > 0 ? units : null
 }

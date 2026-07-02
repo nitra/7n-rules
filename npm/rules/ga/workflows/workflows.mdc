@@ -27,6 +27,7 @@
 `actionlint` (через `bunx github-actionlint`) запускає shell-перевірки в кроках `run:` лише коли `shellcheck` доступний у PATH — інакше мовчки пропускає SC-правила. Локальний `bun lint-ga` лишається зеленим, а CI на `ubuntu-latest` (де shellcheck передвстановлений) падає.
 
 Встанови `shellcheck`:
+
 - macOS: `brew install shellcheck`
 - Debian/Ubuntu: `sudo apt-get install -y shellcheck`
 - Arch: `sudo pacman -S shellcheck`

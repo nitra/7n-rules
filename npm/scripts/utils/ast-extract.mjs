@@ -35,6 +35,55 @@ function isFunctionInit(node) {
 }
 
 /**
+ * Обробляє `ImportDeclaration`: додає `{ source, names }` до акумулятора `imports`.
+ * @param {unknown} node вузол import-декларації
+ * @param {Array<{source: string, names: string[]}>} imports акумулятор import-ів
+ * @returns {void}
+ */
+function handleImport(node, imports) {
+  imports.push({
+    source: node.source?.value ?? '',
+    names: (node.specifiers ?? []).map(s => s.local?.name).filter(Boolean)
+  })
+}
+
+/**
+ * Обробляє `declaration` частину `ExportNamedDeclaration` (function/class/interface/const).
+ * @param {unknown} d вузол declaration (може бути null для re-export без declaration)
+ * @param {string[]} exports акумулятор імен exports
+ * @param {string[]} topLevelFunctions акумулятор імен top-level функцій
+ * @returns {void}
+ */
+function handleExportedDeclaration(d, exports, topLevelFunctions) {
+  if (d?.type === 'FunctionDeclaration' && d.id?.name) {
+    exports.push(d.id.name)
+    topLevelFunctions.push(d.id.name)
+  } else if ((d?.type === 'ClassDeclaration' || d?.type === 'TSInterfaceDeclaration') && d.id?.name) {
+    exports.push(d.id.name)
+  } else if (d?.type === 'VariableDeclaration') {
+    for (const decl of d.declarations ?? []) {
+      if (!decl.id?.name) continue
+      exports.push(decl.id.name)
+      if (isFunctionInit(decl.init)) topLevelFunctions.push(decl.id.name)
+    }
+  }
+}
+
+/**
+ * Обробляє `ExportNamedDeclaration`: declaration-частину + re-export specifiers.
+ * @param {unknown} node вузол named-export
+ * @param {string[]} exports акумулятор імен exports
+ * @param {string[]} topLevelFunctions акумулятор імен top-level функцій
+ * @returns {void}
+ */
+function handleExportNamed(node, exports, topLevelFunctions) {
+  handleExportedDeclaration(node.declaration, exports, topLevelFunctions)
+  for (const spec of node.specifiers ?? []) {
+    if (spec.exported?.name) exports.push(spec.exported.name)
+  }
+}
+
+/**
  * Витягає AST-факти з вихідного коду (без файлового IO — для тестів і reuse).
  * @param {string} content вихідний код
  * @param {string} virtualPath шлях (визначає мову js/ts/jsx/tsx)
@@ -51,10 +100,7 @@ export function extractContextFromSource(content, virtualPath) {
   for (const node of program.body ?? []) {
     switch (node?.type) {
       case 'ImportDeclaration': {
-        imports.push({
-          source: node.source?.value ?? '',
-          names: (node.specifiers ?? []).map(s => s.local?.name).filter(Boolean)
-        })
+        handleImport(node, imports)
         break
       }
 
@@ -64,22 +110,7 @@ export function extractContextFromSource(content, virtualPath) {
       }
 
       case 'ExportNamedDeclaration': {
-        const d = node.declaration
-        if (d?.type === 'FunctionDeclaration' && d.id?.name) {
-          exports.push(d.id.name)
-          topLevelFunctions.push(d.id.name)
-        } else if ((d?.type === 'ClassDeclaration' || d?.type === 'TSInterfaceDeclaration') && d.id?.name) {
-          exports.push(d.id.name)
-        } else if (d?.type === 'VariableDeclaration') {
-          for (const decl of d.declarations ?? []) {
-            if (!decl.id?.name) continue
-            exports.push(decl.id.name)
-            if (isFunctionInit(decl.init)) topLevelFunctions.push(decl.id.name)
-          }
-        }
-        for (const spec of node.specifiers ?? []) {
-          if (spec.exported?.name) exports.push(spec.exported.name)
-        }
+        handleExportNamed(node, exports, topLevelFunctions)
         break
       }
 

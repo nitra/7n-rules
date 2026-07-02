@@ -9,11 +9,13 @@ Rego-пакет: `tauri.vscode_extensions`
 Запускається умовно — лише якщо JS-перевірка (`tooling.mjs`) виявила маркер Tauri-проєкту (`src-tauri/`, `tauri.conf.json` або залежність `@tauri-apps/*`). Розширення `rust-lang.rust-analyzer` і `tamasfe.even-better-toml` вимагаються окремо правилом `rust` (rust.mdc).
 
 **✓ Правильно:**
+
 ```json
 { "recommendations": ["tauri-apps.tauri-vscode"] }
 ```
 
 **✗ Неправильно:**
+
 ```json
 { "recommendations": ["rust-lang.rust-analyzer"] }
 { "recommendations": [] }

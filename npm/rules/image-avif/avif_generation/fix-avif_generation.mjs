@@ -1,6 +1,6 @@
 /**
  * T0-autofix для `image-avif/avif_generation` — AVIF-етап: генерація `.avif`-двійників
- * (`npx @nitra/minify-image --avif`), переписування raster-посилань у `.vue`/`.html` на
+ * (`npx \@nitra/minify-image --avif`), переписування raster-посилань у `.vue`/`.html` на
  * `<path>.avif` і прибирання `.avif`-сиріт. Логіку перенесено з detector-а (read-only
  * contract: detector лише ЗВІТУЄ rewrite/missing/orphan, мутації — тут).
  *
@@ -20,7 +20,7 @@ import { AVIF_MISSING, AVIF_NEEDS_REWRITE, AVIF_ORPHAN, MINIFY_PACKAGE_NAME, sca
 const TRIGGER_REASONS = new Set([AVIF_NEEDS_REWRITE, AVIF_MISSING, AVIF_ORPHAN])
 
 /**
- * Запускає `npx @nitra/minify-image --src=. --write --avif` для генерації AVIF-двійників.
+ * Запускає `npx \@nitra/minify-image --src=. --write --avif` для генерації AVIF-двійників.
  * Best-effort: відсутній npx / помилка / ненульовий код — лог-варн без падіння (rewrite/
  * missing з наступного скану покажуть, де `.avif` все ще бракує). `NITRA_CURSOR_NO_AVIF_RUN=1`
  * — no-op (тести й ізольовані середовища).

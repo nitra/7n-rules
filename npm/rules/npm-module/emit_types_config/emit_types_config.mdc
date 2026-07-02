@@ -17,6 +17,7 @@ Leaf-by-leaf порівняння з канонічним сніпетом (че
 ### Приклади
 
 ✓ Правильно:
+
 ```json
 {
   "compilerOptions": {
@@ -30,11 +31,13 @@ Leaf-by-leaf порівняння з канонічним сніпетом (че
 ```
 
 ✗ Неправильно — неправильний `outDir`:
+
 ```json
 { "compilerOptions": { "outDir": "dist" } }
 ```
 
 ✗ Неправильно — відсутній `compilerOptions`:
+
 ```json
 {}
 ```

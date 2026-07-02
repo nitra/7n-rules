@@ -9,9 +9,9 @@ import { evaluatePolicyConcern } from '../../../scripts/lib/lint-surface/policy-
  */
 export function lint(ctx) {
   return evaluatePolicyConcern(ctx, {
-    engine: "rego",
+    engine: 'rego',
     policyDir: import.meta.dirname,
-    files: {"single":".github/workflows/lint-rust.yml","required":true},
-    missingMessage: ".github/workflows/lint-rust.yml не існує — створи з канонічним вмістом (rust.mdc)"
+    files: { single: '.github/workflows/lint-rust.yml', required: true },
+    missingMessage: '.github/workflows/lint-rust.yml не існує — створи з канонічним вмістом (rust.mdc)'
   })
 }

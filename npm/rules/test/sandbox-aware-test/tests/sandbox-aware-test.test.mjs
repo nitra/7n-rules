@@ -23,8 +23,7 @@ const check = async dir => {
 const DEEP_NAV = "const ROOT = join(import.meta.dirname, '..', '..', '..', '..')\n"
 
 // Та ж навігація, але захищена withTmpDir
-const DEEP_WITH_TMP =
-  "const ROOT = join(import.meta.dirname, '..', '..', '..', '..')\nwithTmpDir(async dir => {})\n"
+const DEEP_WITH_TMP = "const ROOT = join(import.meta.dirname, '..', '..', '..', '..')\nwithTmpDir(async dir => {})\n"
 
 // Та ж навігація, але захищена test.skipIf(env.STRYKER_MUTATOR_WORKER)
 const DEEP_WITH_SKIP_IF = `const ROOT = join(import.meta.dirname, '..', '..', '..', '..')

@@ -77,7 +77,7 @@ export function lint(ctx) {
 
   for (const f of collectStale(files, cwd)) {
     violations.push(
-      /** @type {any} */ ({
+      /** @type {Partial<import('../../../scripts/lib/lint-surface/types.mjs').LintViolation>} */ ({
         reason: f.reason || 'stale',
         message: `документація застаріла/відсутня для ${f.sourcePath} (${f.reason})`,
         file: f.sourcePath,
@@ -87,7 +87,7 @@ export function lint(ctx) {
   }
   for (const orphan of scanOrphanedDocs(cwd)) {
     violations.push(
-      /** @type {any} */ ({
+      /** @type {Partial<import('../../../scripts/lib/lint-surface/types.mjs').LintViolation>} */ ({
         reason: 'orphaned-doc',
         message: `сирітський док (source видалено): ${orphan}`,
         file: orphan

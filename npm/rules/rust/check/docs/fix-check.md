@@ -14,7 +14,7 @@ T0-autofix для `rust/check`: детермінований `cargo fmt --all` (
 
 ## Поведінка
 
-- Перелічує tracked *.rs через git, застосовує `cargo fmt --all`.
+- Перелічує tracked \*.rs через git, застосовує `cargo fmt --all`.
 - До списку змінених — лише файли з фактичною зміною.
 
 ## Публічний API

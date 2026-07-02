@@ -7,6 +7,7 @@
 Якщо `vitest.config.mjs` / `vitest.config.js` відсутній — перевірка пропускається (pass без помилки).
 
 **Canonical `vitest.config.mjs`** (для довідки — `pool: 'forks'` + `include` + `coverage`) — у `rules/test/js/data/vitest_config/vitest.config.baseline.js`:
+
 - `environment: 'node'`
 - `coverage.provider: 'v8'` з lcov+text-summary репортами
 - `include: ['**/*.test.{js,mjs}', 'tests/**/*.test.{js,mjs}']` — підхоплює тести у `tests/`-піддиректоріях і top-level integration suites у `<root>/tests/`

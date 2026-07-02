@@ -9,14 +9,14 @@ docgen:
 ## Огляд
 
 T0-autofix для `text/check`: детерміновані авто-fix кроки тулчейну, що їх read-only детектор
-не виконує — `markdownlint --fix` (*.md/*.mdc), `shellcheck -f diff | patch` (*.sh) і
-`dotenv-linter fix` (.env*). cspell/v8r fix-режиму не мають. Запис незворотний (поза rollback).
+не виконує — `markdownlint --fix` (_.md/_.mdc), `shellcheck -f diff | patch` (_.sh) і
+`dotenv-linter fix` (.env_). cspell/v8r fix-режиму не мають. Запис незворотний (поза rollback).
 
 ## Поведінка
 
-- **markdownlint**: tracked *.md/*.mdc (git) → markdownlint-cli2 у fix-режимі.
-- **shellcheck**: *.sh → ітеративний `shellcheck -f diff` + `patch` (runShellcheckText, не-readOnly).
-- **dotenv-linter**: .env* (fs-walk, бо часто git-ignored) → `dotenv-linter fix`.
+- **markdownlint**: tracked _.md/_.mdc (git) → markdownlint-cli2 у fix-режимі.
+- **shellcheck**: \*.sh → ітеративний `shellcheck -f diff` + `patch` (runShellcheckText, не-readOnly).
+- **dotenv-linter**: .env\* (fs-walk, бо часто git-ignored) → `dotenv-linter fix`.
 - До списку змінених у кожному разі — лише файли з фактичною зміною (порівняння до/після).
 
 ## Публічний API

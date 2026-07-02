@@ -1,6 +1,6 @@
 ## Умовна вимога `.graphqlrc.yml`
 
-Якщо у `.vue` або в JavaScript / TypeScript джерелах (`.js`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.jsx` тощо) зустрічається **tagged template literal** з тегом **`gql`** (типово `gql\`query …\`` для GraphQL-запиту), у **корені репозиторію** має бути файл **`.graphqlrc.yml`** ([GraphQL Config](https://the-guild.dev/graphql/config/docs)).
+Якщо у `.vue` або в JavaScript / TypeScript джерелах (`.js`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.jsx` тощо) зустрічається **tagged template literal** з тегом **`gql`** (типово `gql\`query …\``для GraphQL-запиту), у **корені репозиторію** має бути файл **`.graphqlrc.yml`** ([GraphQL Config](https://the-guild.dev/graphql/config/docs)).
 
 Перевірка є **умовною**: якщо жодного `gql\`…\`` у дереві не знайдено — `.graphqlrc.yml` не вимагається.
 

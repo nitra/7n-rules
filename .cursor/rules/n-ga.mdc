@@ -6,6 +6,7 @@ alwaysApply: false
 ---
 
 Правило **ga** перевіряє структуру `.github/workflows/`, наявність обов'язкових workflow-файлів і їх відповідність канонам, а також налаштування VS Code та zizmor для роботи з GitHub Actions.
+
 - `settings.json`:
 
 ```json
@@ -336,6 +337,7 @@ Rego-пакет: `ga.workflow_common`
 `actionlint` (через `bunx github-actionlint`) запускає shell-перевірки в кроках `run:` лише коли `shellcheck` доступний у PATH — інакше мовчки пропускає SC-правила. Локальний `bun lint-ga` лишається зеленим, а CI на `ubuntu-latest` (де shellcheck передвстановлений) падає.
 
 Встанови `shellcheck`:
+
 - macOS: `brew install shellcheck`
 - Debian/Ubuntu: `sudo apt-get install -y shellcheck`
 - Arch: `sudo pacman -S shellcheck`

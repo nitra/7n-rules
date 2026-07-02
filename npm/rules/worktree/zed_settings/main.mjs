@@ -9,8 +9,8 @@ import { evaluatePolicyConcern } from '../../../scripts/lib/lint-surface/policy-
  */
 export function lint(ctx) {
   return evaluatePolicyConcern(ctx, {
-    engine: "template",
+    engine: 'template',
     policyDir: import.meta.dirname,
-    files: {"single":".zed/settings.json"}
+    files: { single: '.zed/settings.json' }
   })
 }

@@ -29,7 +29,9 @@ export async function lint(ctx) {
    * @param {string} message людиночитне повідомлення
    */
   const add = (reason, message) => {
-    violations.push(/** @type {any} */ ({ reason, message }))
+    violations.push(
+      /** @type {Partial<import('../../../scripts/lib/lint-surface/types.mjs').LintViolation>} */ ({ reason, message })
+    )
   }
 
   if ((await runCspellText(cwd, true, false)) !== 0) add('cspell', 'cspell знайшов порушення правопису (text.mdc)')

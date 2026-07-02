@@ -149,8 +149,7 @@ export async function ensureNitraCursorInRootDevDependencies(root, options = {})
   }
 
   const devDeps = pkg.devDependencies
-  const current =
-    devDeps && typeof devDeps === 'object' && !Array.isArray(devDeps) ? devDeps[PACKAGE_NAME] : undefined
+  const current = devDeps && typeof devDeps === 'object' && !Array.isArray(devDeps) ? devDeps[PACKAGE_NAME] : undefined
 
   // Уже присутній у devDependencies: self-upgrade піна лише якщо bundled строго новіша
   // (ніколи не понижуємо; нечислові піни — workspace:*/latest/git — лишаємо як є).

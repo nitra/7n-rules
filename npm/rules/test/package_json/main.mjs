@@ -9,9 +9,9 @@ import { evaluatePolicyConcern } from '../../../scripts/lib/lint-surface/policy-
  */
 export function lint(ctx) {
   return evaluatePolicyConcern(ctx, {
-    engine: "rego",
+    engine: 'rego',
     policyDir: import.meta.dirname,
-    files: {"single":"package.json","required":true},
-    missingMessage: "package.json не існує — створи зі scripts.coverage (test.mdc)"
+    files: { single: 'package.json', required: true },
+    missingMessage: 'package.json не існує — створи зі scripts.coverage (test.mdc)'
   })
 }

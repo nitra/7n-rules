@@ -94,7 +94,9 @@ async function withTimeout(promise, ms, onTimeout) {
 /**
  * Дефолтна фабрика pi-сесії: loader із write-guard, custom-tools ast_facts+self_check.
  * @param {{ registry: object, model: object, thinkingLevel?: string, cwd: string,
- *   factory: Function, astContext: Function, selfCheck: Function }} args параметри сесії.
+ *   factory: (pi: { on: (event: string, handler: (event: object) => void) => void }) => void,
+ *   astContext: (path: string) => object,
+ *   selfCheck: (files: string[]) => Promise<{ ok: boolean, output: string }> | { ok: boolean, output: string } }} args параметри сесії.
  * @returns {Promise<object>} pi AgentSession
  */
 async function defaultCreateSession({ registry, model, thinkingLevel, cwd, factory, astContext, selfCheck }) {
@@ -156,8 +158,11 @@ async function defaultCreateSession({ registry, model, thinkingLevel, cwd, facto
  * @param {string} cwd корінь проєкту
  * @param {{
  *   model: string, tier?: string, feedback?: object, caller?: string, timeoutMs?: number, ruleText?: string,
- *   deps?: { createSession?: Function, getRegistry?: Function, registry?: object, root?: string|null,
- *            astContext?: Function, selfCheck?: Function, trace?: Function, clock?: () => number }
+ *   deps?: { createSession?: (args: object) => Promise<object>, getRegistry?: () => Promise<object>,
+ *            registry?: object, root?: string|null,
+ *            astContext?: (path: string) => object,
+ *            selfCheck?: (files: string[]) => Promise<{ ok: boolean, output: string }> | { ok: boolean, output: string },
+ *            trace?: (entry: object) => void, clock?: () => number }
  * }} opts опції fix-спроби (модель, тир, feedback, таймаут, ін'єкції для тестів).
  * @returns {Promise<{ applied: boolean, touchedFiles: string[], telemetry: object|null, error: string|null, rollback: () => void }>} результат fix-спроби.
  */

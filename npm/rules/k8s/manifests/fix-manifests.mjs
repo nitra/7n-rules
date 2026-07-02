@@ -92,16 +92,7 @@ export function ensureDeploymentStrategy(content) {
     changed = true
   }
   if (!changed) return null
-  return (
-    docs
-      .map(d =>
-        d
-          .toString()
-          .replace(LEADING_DOC_SEPARATOR_RE, '')
-          .trimEnd()
-      )
-      .join('\n---\n') + '\n'
-  )
+  return docs.map(d => d.toString().replace(LEADING_DOC_SEPARATOR_RE, '').trimEnd()).join('\n---\n') + '\n'
 }
 
 /**
@@ -131,16 +122,7 @@ export function ensureNetworkPolicyEgress(content) {
     changed = true
   }
   if (!changed) return null
-  return (
-    docs
-      .map(d =>
-        d
-          .toString()
-          .replace(LEADING_DOC_SEPARATOR_RE, '')
-          .trimEnd()
-      )
-      .join('\n---\n') + '\n'
-  )
+  return docs.map(d => d.toString().replace(LEADING_DOC_SEPARATOR_RE, '').trimEnd()).join('\n---\n') + '\n'
 }
 
 /**

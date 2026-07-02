@@ -23,7 +23,7 @@ function cloneToViolation(clone) {
   const b = clone.secondFile
   const aLoc = `${a.name}:${a.start}-${a.end}`
   const bLoc = `${b.name}:${b.start}-${b.end}`
-  return /** @type {any} */ ({
+  return /** @type {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation} */ ({
     reason: 'duplicate-clone',
     message: `jscpd: дубльований фрагмент (${clone.lines} рядків, ${clone.format}) ${aLoc} ↔ ${bLoc}`,
     file: a.name,
