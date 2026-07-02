@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.3.5] - 2026-07-02
+
+### Fixed
+
+- fix(text): схема `concern.json` покриває реальні flat-concern форми — порожній `policy: {}` (маркер policy-поверхні), `policy.namespace` (rego-namespace), `policy.files.glob`. Разом із catalog-мапінгом усі 166 concern.json проходять v8r (замість «could not find a schema»); завершує self-lint `lint text --full` по v8r.
+
 ## [13.3.4] - 2026-07-02
 
 ### Changed
