@@ -13,7 +13,7 @@
     "coverage": "n-cursor coverage"
   },
   "devDependencies": {
-    "@nitra/cspell-dict": "^2.2.1",
+    "@nitra/cspell-dict": "^2.2.2",
     "@nitra/cursor": "^13.3.6",
     "@nitra/eslint-config": "^3.10.3",
     "@nitra/stylelint-config": "^1.4.1",
