@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.3.2] - 2026-07-02
+
+### Fixed
+
+- fix(text): v8r-каталог мапить `concern.json` (flat-concern layout) на схему `@nitra/cursor/schemas/concern.json` — прибирає «could not find a schema» на self-lint репо-джерела (`lint text --full`), де існують `npm/rules/*/*/concern.json`. У споживачів таких файлів немає — поведінка не змінюється.
+
 ## [13.3.1] - 2026-07-02
 
 ### Changed
