@@ -97,6 +97,12 @@
       "description": "action.yml/action.yaml (GitHub composite/JS actions)",
       "url": "vendor/github-action.json",
       "fileMatch": ["action.yml", "**/action.yml", "action.yaml", "**/action.yaml"]
+    },
+    {
+      "name": "bunfig",
+      "description": "bunfig.toml (конфігурація Bun runtime)",
+      "url": "vendor/bunfig.json",
+      "fileMatch": ["bunfig.toml", "**/bunfig.toml"]
     }
   ]
 }
