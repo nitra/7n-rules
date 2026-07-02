@@ -14,10 +14,9 @@
  * (тверда межа CI). Повертає structured `{ content, usage, error, model, caller }`.
  */
 
-import { setTimeout as sleep } from 'node:timers/promises'
-
 import { getRegistry, resolveModel, resolveModelSpec } from './pi-model-tiers.mjs'
 import { writeTrace } from './pi-trace.mjs'
+import { withTimeout } from './pi-with-timeout.mjs'
 
 /** Дефолтний timeout одного one-shot виклику. */
 const DEFAULT_TIMEOUT_MS = 120_000
@@ -46,38 +45,6 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel }) {
     sessionManager: SessionManager.inMemory()
   })
   return session
-}
-
-/**
- * Гонка проміса з таймаутом (мс ≤ 0 → без таймауту).
- * @param {Promise<unknown>} promise проміс, який чекаємо
- * @param {number} ms ліміт у мілісекундах (≤ 0 → без таймауту)
- * @returns {Promise<unknown>} результат `promise` або reject із timeout-помилкою
- */
-async function withTimeout(promise, ms) {
-  if (!ms || ms <= 0) return promise
-  const controller = new AbortController()
-  // Таймер-гілка чекає sleep і кидає timeout-помилку. У finally abort скасовує sleep;
-  // його AbortError свідомо ковтаємо (isTimeout), щоб не спливти unhandled після
-  // того, як race уже виграв основний promise.
-  let isTimeout = false
-  const timeout = (async () => {
-    await sleep(ms, null, { signal: controller.signal })
-    isTimeout = true
-    throw new Error(`one-shot timeout ${ms}ms`)
-  })()
-  try {
-    return await Promise.race([Promise.resolve(promise), timeout])
-  } finally {
-    controller.abort()
-    if (!isTimeout) {
-      try {
-        await timeout
-      } catch {
-        // очікувано: AbortError скасованого sleep-таймера — не помилка виклику
-      }
-    }
-  }
 }
 
 /**
@@ -148,7 +115,7 @@ export async function runOneShot({
 
   let promptError = null
   try {
-    await withTimeout(session.prompt(userText), timeoutMs)
+    await withTimeout(session.prompt(userText), timeoutMs, { label: 'one-shot' })
   } catch (error) {
     promptError = error.message
   }

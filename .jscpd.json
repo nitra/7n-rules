@@ -6,6 +6,7 @@
   "ignore": [
     ".git/**",
     ".claude/worktrees/**",
+    ".codex/hooks/**",
     "**/dist/**",
     "**/CHANGELOG.md",
     "**/COVERAGE.md",
@@ -16,17 +17,19 @@
     "npm/.pi-template/**",
     ".github/actions/setup-bun-deps/action.yml",
     "npm/github-actions/setup-bun-deps/action.yml",
-    "npm/rules/js-lint/js/data/tooling/oxlint-canonical.json",
-    "npm/rules/js-lint/js/data/tooling/knip-canonical.json",
+    "npm/rules/js/tooling/data/tooling/oxlint-canonical.json",
+    "npm/rules/js/tooling/data/tooling/knip-canonical.json",
+    "npm/schemas/vendor/**",
     "demo/stryker-vue-macros-ignorer.mjs",
     "npm/skills/llm-patch/SKILL.md",
     "npm/rules/js-mssql/lib/mssql-pool-scan.mjs",
-    "npm/rules/k8s/js/manifests.mjs",
-    "npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs",
-    "npm/rules/test/js/no-relative-fs-path.mjs",
+    "npm/rules/k8s/manifests/main.mjs",
+    "npm/rules/k8s/manifests/tests/check-schema.test.mjs",
+    "npm/rules/test/no-relative-fs-path/main.mjs",
+    "npm/rules/adr/tests/capture-decisions-tooling-only.test.mjs",
     "docs/**",
     "**/docs/*.md",
-    "npm/rules/*/policy/*/template/*.yml.snippet.yml",
-    "npm/rules/*/policy/*/template/*.snippet.yaml"
+    "npm/rules/*/*/template/*.snippet.yml",
+    "npm/rules/*/*/template/*.snippet.yaml"
   ]
 }

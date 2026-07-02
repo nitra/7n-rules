@@ -15,11 +15,10 @@
  * Pi вантажиться lazy (тверда межа CI). Логіка інжектована через `deps` для unit-тестів.
  */
 
-import { setTimeout as sleep } from 'node:timers/promises'
-
 import { env, stdout } from 'node:process'
 import { getRegistry, resolveModel, resolveModelSpec } from './pi-model-tiers.mjs'
 import { writeTrace } from './pi-trace.mjs'
+import { withTimeout } from './pi-with-timeout.mjs'
 
 /** Аварійна стеля turns на сесію скіла (runaway-backstop). Override: `N_CURSOR_SKILL_TURN_CEILING`. */
 const TURN_CEILING = Number(env.N_CURSOR_SKILL_TURN_CEILING) || 80
@@ -49,40 +48,6 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel }) {
     sessionManager: SessionManager.inMemory()
   })
   return session
-}
-
-/**
- * Гонка з таймаутом; на таймаут кличе `onTimeout` (abort) і реджектить.
- * @param {Promise<unknown>} promise проміс, який чекаємо.
- * @param {number} ms ліміт у мілісекундах (≤ 0 → без таймауту).
- * @param {(() => void)} [onTimeout] колбек, що викликається на таймаут (abort).
- * @returns {Promise<unknown>} результат `promise` або reject із timeout-помилкою.
- */
-async function withTimeout(promise, ms, onTimeout) {
-  if (!ms || ms <= 0) return promise
-  const controller = new AbortController()
-  // Таймер-гілка чекає sleep і кидає timeout-помилку. У finally abort скасовує sleep;
-  // його AbortError свідомо ковтаємо (isTimeout), щоб не спливти unhandled після
-  // того, як race уже виграв основний promise.
-  let isTimeout = false
-  const timeout = (async () => {
-    await sleep(ms, null, { signal: controller.signal })
-    isTimeout = true
-    onTimeout?.()
-    throw new Error(`skill timeout ${ms}ms`)
-  })()
-  try {
-    return await Promise.race([Promise.resolve(promise), timeout])
-  } finally {
-    controller.abort()
-    if (!isTimeout) {
-      try {
-        await timeout
-      } catch {
-        // очікувано: AbortError скасованого sleep-таймера — не помилка виклику
-      }
-    }
-  }
 }
 
 /**
@@ -178,7 +143,7 @@ export async function runPiAgentSkill(prompt, opts = {}) {
   const startedAt = clock()
   let error = null
   try {
-    await withTimeout(session.prompt(prompt), timeoutMs, () => session.abort?.())
+    await withTimeout(session.prompt(prompt), timeoutMs, { onTimeout: () => session.abort?.(), label: 'skill' })
   } catch (promptError) {
     error = promptError.message
   }
