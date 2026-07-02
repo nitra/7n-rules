@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.4.0] - 2026-07-02
+
+### Changed
+
+- feat(fix): fixability-маршрутизація fix-движка — config/structural concern-и більше не палять LLM-ladder. Нове поле `fixability` (`code`|`config`|`structural`, дефолт `code`) у `concern.json` (+ схема, + парсинг у concern-meta). `fixConcern` після фази T0 гейтить: `config` (canon/settings/tooling — детермінований regen) і `structural` (дублікати/розташування — ризикована авто-правка) повертають fail-fast без входу в pi-agent-драбину, замість марного ескалювання local→cloud tier-ів. Розмічено 76 config + 3 structural concern-и; 87 code-concern-ів (джерельні лінти, включно з k8s/abie yaml-маніфестами) лишаються ladder-eligible.
+
 ## [13.3.7] - 2026-07-02
 
 ### Fixed
