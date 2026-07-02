@@ -2,8 +2,9 @@
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
   "policy": {
     "files": {
-      "glob": [".github/workflows/**/*.yml", ".github/workflows/**/*.yaml"]
+      "single": ".github/workflows/clean-ga-workflows.yml",
+      "required": true
     },
-    "namespace": "ga.clean_ga_workflows"
+    "missingMessage": ".github/workflows/clean-ga-workflows.yml не існує — створи за каноном ga.mdc"
   }
 }

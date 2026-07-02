@@ -1,4 +1,10 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
-  "policy": {}
+  "policy": {
+    "files": {
+      "single": ".github/workflows/clean-merged-branch.yml",
+      "required": true
+    },
+    "missingMessage": ".github/workflows/clean-merged-branch.yml не існує — створи за каноном ga.mdc"
+  }
 }

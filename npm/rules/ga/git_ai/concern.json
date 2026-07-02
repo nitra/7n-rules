@@ -1,4 +1,10 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
-  "policy": {}
+  "policy": {
+    "files": {
+      "single": ".github/workflows/git-ai.yml",
+      "required": true
+    },
+    "missingMessage": ".github/workflows/git-ai.yml не існує — створи за каноном ga.mdc"
+  }
 }

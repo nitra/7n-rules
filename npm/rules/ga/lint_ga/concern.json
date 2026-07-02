@@ -1,4 +1,10 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
-  "policy": {}
+  "policy": {
+    "files": {
+      "single": ".github/workflows/lint-ga.yml",
+      "required": true
+    },
+    "missingMessage": ".github/workflows/lint-ga.yml не існує — створи за каноном ga.mdc"
+  }
 }
