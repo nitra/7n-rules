@@ -2,7 +2,7 @@
 
 **Дата:** 2026-07-02
 **Статус:** Draft
-**Тип:** Breaking — без зворотної сумісності, міграція одним кроком
+**Тип:** Breaking — без зворотної сумісності; phase 1 (§1-7, split + scope-політика) — міграція одним кроком, phase 2 (§8, merge detect+fix) — окремий крок після стабілізації phase 1
 
 **Пов'язані документи:**
 
@@ -39,15 +39,21 @@
 
 | concern (dir)                                    | інструмент     | scope    | glob                                                      |
 | ------------------------------------------------- | -------------- | -------- | ---------------------------------------------------------- |
-| `text/cspell-fix/`                                 | cspell         | per-file | `**/*.{md,mdc,txt,js,mjs,ts,vue,...}` (поточний cspell-скоуп) |
+| `text/cspell-fix/`                                 | cspell         | per-file | `**/*` (скоуп файлів визначає сам cspell через `.cspell.json` — glob лише гейтить delta-тригер; звузити можна пізніше за профілюванням) |
 | `text/run-shellcheck/`                              | shellcheck     | per-file | `**/*.sh`                                                  |
-| `text/run-dotenv-linter/`                           | dotenv-linter  | per-file | `**/.env`, `**/.env.*`                                     |
+| `text/run-dotenv-linter/`                           | dotenv-linter  | per-file | `**/.env`, `**/.env.*` — див. застереження нижче            |
 | `text/markdownlint/` (multi-surface: `policy`+`lint`) | markdownlint-cli2 | per-file | `**/*.md`, `**/*.mdc`                                      |
 | `text/run-v8r/`                                     | v8r            | per-file | `**/*.json`, `**/*.json5`, `**/*.yml`, `**/*.yaml`, `**/*.toml` |
 
-`text/check/` видаляється — його `lint()` розпадається на 5 export'ів `lint(ctx)` у відповідних dirs, кожен читає `ctx.files` замість ігнорування.
+`text/check/` видаляється — його `lint()` розпадається на 5 export'ів `lint(ctx)` у відповідних dirs, кожен читає `ctx.files` замість ігнорування. **Разом із ним переносяться і T0-патерни**: `text/check/fix-check.mjs` містить 3 `toolFixPattern` (markdownlint-fix, shellcheck-fix, dotenv-fix) — вони мігрують у `fix-markdownlint.mjs` / `fix-run-shellcheck.mjs` / `fix-run-dotenv-linter.mjs` у відповідних нових concern-dirs (інакше видалення `text/check/` мовчки втратить fix capability цих трьох тулів ще у phase 1, до §8).
+
+**Застереження `run-dotenv-linter`:** `.env`-файли зазвичай git-ignored (див. коментар у [fix-check.mjs:60](npm/rules/text/check/fix-check.mjs:60) — саме тому там fs-walk, а не `git ls-files`), а delta-список — це `git diff` vs origin, тож ignored-файли туди не потрапляють → per-file concern на `**/.env*` у delta фактично ніколи не спрацює. Це **прийнято свідомо**: dotenv-перевірка в delta і раніше спрацьовувала лише опосередковано (через широкий glob `text/check`), реальна перевірка `.env` жила у whole-repo прогонах — після спліту вона житиме у full/scoped, а tracked `.env.example`-подібні файли delta таки ловитиме.
 
 `markdownlint/` — приклад multi-surface: `policy` (перевірка, що `.markdownlint-cli2.jsonc` існує) + `lint` (сам прогін markdownlint-cli2) в одному каталозі, той самий домен — дозволено спекою 2026-06-28 (§1, аналог `jscpd_config`/`jscpd_duplicates`, тільки тут одна директорія замість двох).
+
+**Bonus-кандидат `text/oxfmt/`:** його `main.mjs` **уже** підтримує `ctx.files` ([oxfmt/main.mjs:29](npm/rules/text/oxfmt/main.mjs:29) — еталонний контракт §2), але `concern.json` досі каже `scope: "full"` ([oxfmt/concern.json](npm/rules/text/oxfmt/concern.json)) — тобто delta-план завжди передає `files: undefined` і oxfmt сканує весь glob. Виправлення — одна metadata-зміна: `scope: "full"` → `"per-file"` (glob без змін). Включено в цю спеку, бо це найдешевший виграш усього документа.
+
+**cspell fix-шлях (обовʼязковий супровід видалення `text/check/`):** за unified-спекою ([2026-06-29-unified-lint-surface.md:306](docs/specs/2026-06-29-unified-lint-surface.md:306)) fix capability concern-а — це наявність `fix-<concern>.mjs` (T0) або `fix-worker.mjs`; `llmFix`-прапора немає. Сьогодні cspell-класифікація слів (omlx, дописування у `.cspell.json#words`) живе як helper `runCspellText(cwd, readOnly, fix)` у [cspell-fix/main.mjs](npm/rules/text/cspell-fix/main.mjs) і викликається з fix-пайплайна правила `text` через `text/check`. Після видалення `text/check/` цей шлях зникає — треба **створити `text/cspell-fix/fix-worker.mjs`**, який загортає наявну класифікаційну логіку (не T0 `fix-*.mjs` — крок недетермінований, LLM-класифікація), інакше cspell лишиться detect-only без fix.
 
 ### 2. Кожен detector приймає `files`
 
@@ -68,18 +74,22 @@ if (targets.length === 0) return reporter.result()
 В межах цієї ж спеки (рішення після брейншторму — не виносити окремо):
 
 - `runV8rWithGlobs` → `runV8rWithFiles(files)`: один прогін на **фактичний список файлів** (не 5 послідовних `bun x v8r <glob>`), або мінімум `Promise.all` замість послідовного `for` ([run-v8r/main.mjs:134](npm/rules/text/run-v8r/main.mjs:134)), якщо API v8r вимагає groupBy-розширення для коду 98 (порожній glob).
-- Додати до `npm/schemas/v8r-catalog.json` запис для `concern.json` (`customCatalog`, навіть заглушка-схема `{}` або мінімальна) — прибирає ~166 файлів з мережевого fallback-шляху.
+- ~~Додати до `npm/schemas/v8r-catalog.json` запис для `concern.json`~~ — **запис уже існує**: "n-cursor concern meta" з `fileMatch: npm/rules/*/*/concern.json` є і в [v8r-catalog.json](npm/schemas/v8r-catalog.json), і в installed-копії `node_modules/@nitra/cursor/schemas/`, схема `concern.json` — теж. Проте спостережений прогін hook-а все одно видавав "Could not find a schema" на всі ~166 `concern.json` — тобто catalog-запис є, але **не спрацьовує** (ймовірно fileMatch/шлях-резолюція у v8r). Пункт спеки переформульовано: не "додати запис", а **задебажити, чому наявний запис не матчиться**, і полагодити (це й прибере мережевий fallback).
 - `full`-режим (`--full`) лишається whole-repo (`files: undefined` → дефолтні глоби, як зараз) — це свідомо CI-безпечний прогін, оптимізація стосується лише кількості процесів і catalog-lookup, не скоупу.
 
 ### 4. Прийнята втрата: delta більше не whole-repo safety-net
 
 Delta-режим ловитиме порушення (typo, markdownlint, невалідний json) **лише** у змінених файлах. Раніше будь-яка зміна тексту тригерила прогін по всьому репо (і теоретично могла зловити чужі старі порушення) — це прибирається свідомо (підтверджено брейнштормом): whole-repo перевірка — відповідальність `--full`/CI, не задачного delta.
 
-### 5. Політика: усе, що не може коректно працювати лише на delta-підмножині → лише `--full`, без `lint.glob`
+### 5. Політика: усе, що не може коректно працювати лише на delta-підмножині → поза delta-планом, без `lint.glob`
 
-Рішення, прийняте після брейншторму (і посилене другим раундом — правило застосовується без винятків на основі severity): якщо механізм — зовнішній CLI-тул **або власна JS/rego-логіка** — **принципово не може дати коректний результат**, обмежившись підмножиною змінених файлів (потрібен весь проєкт/репо — lockfile-аудит, dependency-graph, secret-scan по дереву, конвенція пакета загалом, git/registry-стан тощо), його concern **не повинен мати `lint.glob` взагалі**. За правилом spec 2026-06-28 (`docs/specs/2026-06-28-concern-lint-scope-design.md:113`): "для `scope:"full"` без `lint.glob` concern не запускається у delta-режимі" — тобто такий concern спрацьовує **виключно** через `n-cursor lint --full` (CI), ніколи в задачному delta, незалежно від того, який файл змінили.
+Рішення, прийняте після брейншторму (і посилене другим раундом — правило застосовується без винятків на основі severity): якщо механізм — зовнішній CLI-тул **або власна JS/rego-логіка** — **принципово не може дати коректний результат**, обмежившись підмножиною змінених файлів (потрібен весь проєкт/репо — lockfile-аудит, dependency-graph, secret-scan по дереву, конвенція пакета загалом, git/registry-стан тощо), його concern **не повинен мати `lint.glob` взагалі**. За правилом spec 2026-06-28 (`docs/specs/2026-06-28-concern-lint-scope-design.md:113`): "для `scope:"full"` без `lint.glob` concern не запускається у delta-режимі".
 
-Це відрізняється від "просто full": full+glob (як було в `text/check`) — теж whole-repo прогін, але **щоразу** в delta на будь-яку дотичну зміну; full-без-glob — прогін лише в CI/`--full`, delta його взагалі не бачить.
+**Точне формулювання семантики** (важливо для імплементації): full-без-glob означає "**не входить у delta-план**; запускається у `--full` та scoped (`n-cursor lint <rule>`) режимах". Scoped-запуск ([run-detectors.mjs:137](npm/scripts/lib/lint-surface/run-detectors.mjs:137), `buildScopedPlan`) виконує всі concerns названого правила whole-repo незалежно від glob — тож `n-cursor lint js` все одно запустить `js/knip`. Це бажано: явний запит правила = явна згода на його повну ціну.
+
+**Amendment до spec 2026-06-28:** правило валідації з §"Валідація схеми" тієї спеки ("якщо `lint.scope:"full"` і `lint.glob` відсутній — warning/error у `npm-module`", [2026-06-28:350](docs/specs/2026-06-28-concern-lint-scope-design.md:350)) **скасовується** цією спекою: full-без-glob відтепер — легітимний і рекомендований стан для concerns, що не можуть працювати на підмножині. `npm-module`-валідація має прибрати цю перевірку (або інвертувати: warning на full+glob з широким glob-ом, який дублює per-file домен).
+
+Це відрізняється від "просто full": full+glob (як було в `text/check`) — теж whole-repo прогін, але **щоразу** в delta на будь-яку дотичну зміну; full-без-glob — не входить у delta-план узагалі.
 
 Критерій — **не** "чи це зовнішній CLI", а "чи можна коректно проаналізувати підмножину файлів": якщо ні (bundle CLI без file-arg, чи власна JS-перевірка, що завжди обходить усе дерево/git-історію/registry незалежно від того, що змінилось) — **--full-only**. Якщо механізм **приймає** список файлів і дає коректний результат на підмножині — він **per-file**, не сюди (це вже §1-3 і "Рішення python/php/rego").
 
@@ -89,11 +99,11 @@ Delta-режим ловитиме порушення (typo, markdownlint, нев
 
 | concern | тули | було (glob) | стає |
 | ------- | ---- | ----------- | ---- |
-| `python/project/` | `uv lock --check`, `uv sync --frozen`, `pip-licenses` | `pyproject.toml`, `uv.lock` | **без glob** — лише `--full` |
-| `php/project/` | composer audit, phpstan, psalm | `composer.json`, `composer.lock` | **без glob** — лише `--full` |
-| `rego/conftest-verify/` | `conftest verify` | `**/*.rego` | **без glob** — лише `--full` |
+| `python/project/` | `uv lock --check`, `uv sync --frozen`, `pip-licenses` | `pyproject.toml`, `uv.lock` | **без glob** — поза delta (full/scoped) |
+| `php/project/` | composer audit, phpstan, psalm | `composer.json`, `composer.lock` | **без glob** — поза delta (full/scoped) |
+| `rego/conftest_verify/` | `conftest verify` | `**/*.rego` | **без glob** — поза delta (full/scoped) |
 
-Наслідок: редагування `pyproject.toml`/`composer.json`/будь-якого `.rego`-файлу більше **не** тригерить lockfile-audit/phpstan/psalm/conftest-verify в задачному прогоні — ці перевірки живуть тільки в CI `--full`. `ruff`/`mypy`/`php-cs-fixer`/`phpcs`/`opa check`/`regal lint` (per-file, §1-3) продовжують спрацьовувати в delta як і раніше — safety-net не втрачається для того, що реально per-file-перевіряється.
+Наслідок: редагування `pyproject.toml`/`composer.json`/будь-якого `.rego`-файлу більше **не** тригерить lockfile-audit/phpstan/psalm/conftest-verify в задачному прогоні — ці перевірки живуть тільки у full/scoped прогонах. `ruff`/`mypy`/`php-cs-fixer`/`phpcs`/`opa check`/`regal lint` (per-file, §1-3) продовжують спрацьовувати в delta як і раніше — safety-net не втрачається для того, що реально per-file-перевіряється.
 
 **B. Уже існуючі GENUINELY-FULL concerns поза цією спекою** (зовнішній CLI без file-arg) — та сама механічна зміна (прибрати `lint.glob`), без зміни `main.mjs`:
 
@@ -108,9 +118,9 @@ Delta-режим ловитиме порушення (typo, markdownlint, нев
 
 | concern | механізм | було (glob) | стає | чому не можна обмежити файлами |
 | ------- | -------- | ----------- | ---- | -------------------------------- |
-| `vue/packages` ([main.mjs:552](npm/rules/vue/packages/main.mjs:552)) | fs/regex над `getMonorepoPackageRootDirs()` | `**/package.json`, `**/vite.config.*`, `**/jsconfig.json`, `**/src/vite-env.d.ts`, `**/*.vue`, `.vscode/extensions.json` | **без glob** — лише `--full` | перевіряє конвенцію Vue-пакета **загалом** (forbidden imports, volar-рекомендація, vitest devDeps), не окремий файл — `ctx.files` вже й так ігнорується |
-| `k8s/manifests/` (залишок після §6-спліту) | kubescape (kustomize-build) + ~15 крос-файлових JS/rego валідаторів | `k8s/**/*.yaml`, `k8s/**/*.yml` | **без glob** — лише `--full` | svc↔svc_hl pairing, kustomization path-refs, hpa/pdb↔deployment matching — реально крос-файлові, кожен окремий yaml без сусідів не перевірити коректно |
-| `changelog/consistency` ([main.mjs:741](npm/rules/changelog/consistency/main.mjs:741)) | git (`isMergeCommit`) + registry (`npm view`/PyPI) стан на workspace | `**/*` | **без glob** — лише `--full` | не аналізує вміст файлів узагалі — перевіряє git/registry-стан per workspace незалежно від `ctx.files`; **свідомо прийнята втрата**: changeset-гейт більше не спрацьовує в задачному delta, лише в CI `--full` — рішення підтверджене явно, не default |
+| `vue/packages` ([main.mjs:552](npm/rules/vue/packages/main.mjs:552)) | fs/regex над `getMonorepoPackageRootDirs()` | `**/package.json`, `**/vite.config.*`, `**/jsconfig.json`, `**/src/vite-env.d.ts`, `**/*.vue`, `.vscode/extensions.json` | **без glob** — поза delta (full/scoped) | перевіряє конвенцію Vue-пакета **загалом** (forbidden imports, volar-рекомендація, vitest devDeps), не окремий файл — `ctx.files` вже й так ігнорується |
+| `k8s/manifests/` (залишок після §6-спліту) | kubescape (kustomize-build) + ~15 крос-файлових JS/rego валідаторів | `k8s/**/*.yaml`, `k8s/**/*.yml` | **без glob** — поза delta (full/scoped) | svc↔svc_hl pairing, kustomization path-refs, hpa/pdb↔deployment matching — реально крос-файлові, кожен окремий yaml без сусідів не перевірити коректно |
+| `changelog/consistency` ([main.mjs:741](npm/rules/changelog/consistency/main.mjs:741)) | git (`isMergeCommit`) + registry (`npm view`/PyPI) стан на workspace | `**/*` | **без glob** — поза delta (full/scoped) | не аналізує вміст файлів узагалі — перевіряє git/registry-стан per workspace незалежно від `ctx.files`; **свідомо прийнята втрата**: changeset-гейт більше не спрацьовує в задачному delta, лише у full/scoped — рішення підтверджене явно, не default |
 
 Якщо профілювання пізніше виявить інші full-concerns з такою ж природою (CLI без file-arg чи власна логіка, що завжди обходить усе дерево/git/registry незалежно від `ctx.files`), додавати до цієї таблиці — механізм той самий (прибрати `lint.glob`).
 
@@ -121,9 +131,9 @@ Delta-режим ловитиме порушення (typo, markdownlint, нев
 | concern (dir)                | тул         | scope    | glob |
 | ------------------------------ | ----------- | -------- | ---- |
 | `k8s/kubeconform/` (новий)      | kubeconform | per-file | `k8s/**/*.{yaml,yml}` |
-| `k8s/manifests/` (залишок)    | kubescape + ~15 крос-файлових JS/rego валідаторів | full | **без glob** — лише `--full` (див. §5-C) |
+| `k8s/manifests/` (залишок)    | kubescape + ~15 крос-файлових JS/rego валідаторів | full | **без glob** — поза delta (див. §5-C) |
 
-`kubeconform` приймає список конкретних файлів аргументом (замість директорій) — контракт як у `oxfmt`: `files === undefined ? [...dirs] : files.filter(f => YAML_RE.test(f))`. `kubescape` лишається в `k8s/manifests`, бо сканує **зібраний** маніфест через `kubectl kustomize <dir>` ([`runKustomizeBuild`](npm/rules/k8s/manifests/main.mjs:6726)) — це вихід kustomize-графу, не окремий файл, тому per-file тут неможливий за природою тулу; а крос-файлові валідатори (svc↔svc_hl, kustomization refs, hpa/pdb) за §5-C втрачають `lint.glob` і переходять у `--full`-only — delta ловить лише schema-порушення через новий `k8s/kubeconform/`, решта — тільки в CI.
+`kubeconform` приймає список конкретних файлів аргументом (замість директорій) — контракт як у `oxfmt`: `files === undefined ? [...dirs] : files.filter(f => YAML_RE.test(f))`. `kubescape` лишається в `k8s/manifests`, бо сканує **зібраний** маніфест через `kubectl kustomize <dir>` ([`runKustomizeBuild`](npm/rules/k8s/manifests/main.mjs:6726)) — це вихід kustomize-графу, не окремий файл, тому per-file тут неможливий за природою тулу; а крос-файлові валідатори (svc↔svc_hl, kustomization refs, hpa/pdb) за §5-C втрачають `lint.glob` і виходять з delta-плану (full/scoped only) — delta ловить лише schema-порушення через новий `k8s/kubeconform/`.
 
 ### 7. changelog/consistency: паралелізація registry-викликів (не scope, а performance)
 
@@ -139,9 +149,22 @@ for (const manifest of published) {
 
 **Рішення:** замінити послідовний `for` на `Promise.all` (як у v8r §3) — `published.map(manifest => checkPublishedWorkspace(...))`, без зміни семантики (кожен виклик незалежний, `pass`/`fail` — накопичувальні колбеки, порядок репортів не критичний). Autofix/hook-режим (`AUTOFIX_ENV_VAR`) і так пропускає мережу ([main.mjs:626](npm/rules/changelog/consistency/main.mjs:626)) — паралелізація стосується лише звичайного (non-autofix) lint-прогону.
 
-Ця оптимізація незалежна від §5-C: `changelog/consistency` втрачає `lint.glob` (стає `--full`-only), але коли `--full` таки запускається (CI), паралелізація реєстрових викликів так само зменшує його тривалість — обидві зміни сумісні й виконуються разом.
+Ця оптимізація незалежна від §5-C: `changelog/consistency` втрачає `lint.glob` (поза delta-планом), але коли full/scoped таки запускається (CI), паралелізація реєстрових викликів так само зменшує його тривалість — обидві зміни сумісні й виконуються разом.
 
-### 8. Merge detect+fix (T0) — де окремий "спочатку перевір" зайвий
+**Companion-concern `changelog/presence` (компенсація втрати delta-гейта).** Рішення після ревʼю: замість повної втрати миттєвого "потрібен changeset"-фідбека створюється **новий дешевий per-file concern** `changelog/presence/`:
+
+| властивість | значення |
+| ------------ | -------- |
+| scope / glob | `per-file`, glob `**/*` мінус `CHANGELOG_IGNORE_PATH_PREFIXES` (`docs/`, `doc/`, `.cursor/`, `.claude/` — та сама інверсія, що в consistency) |
+| що робить | суто локально (без мережі, без git-історії): мапить `ctx.files` на workspace-и (`getMonorepoProjectRootDirs`) і перевіряє, що для кожного зачепленого не-root workspace існує незакомічений/новий change-файл (`readChangeFiles` з `release/lib/change-file.mjs`) |
+| чого НЕ робить | жодного `npm view`/PyPI/`git log` — версійна коректність, registry-дрейф, merge-детекція лишаються у `changelog/consistency` (full-only) |
+
+Так delta знову має миттєвий changeset-гейт (дешевий, файловий), а важка registry/git-звірка виконується лише у full/scoped — розподіл відповідальності замість компромісу "все або нічого".
+
+### 8. Phase 2: merge detect+fix (T0) — де окремий "спочатку перевір" зайвий
+
+> [!IMPORTANT]
+> **Phase 2 — не входить в one-step міграцію phase 1 (§1-7).** На відміну від §1-7 (метадані concern-ів + перенесення коду detector-ів), merge detect+fix — це зміна **оркестратора**: поточний fix-пайплайн структурно починається з detect і передає violations у T0 (`run-fix.mjs`); "одразу apply без detect" вимагає нового шляху в оркестраторі (наприклад, `T0Pattern.standalone: true` — патерн, що запускається без попереднього детекту в fix-режимі), а не лише перенесення `fix-*.mjs`. Виконується окремим кроком після стабілізації phase 1; аналіз нижче — готова вхідна специфікація для нього.
 
 Окремий аудит поточного T0-пайплайна (`detect → T0 patterns → LLM-ladder`, `.cursor/skills/n-lint/SKILL.md`) з ~167 concern'ів у `npm/rules/` знайшов **6** правил, де `T0Pattern.apply()` — це наскрізний виклик зовнішнього CLI, що **сам** проводить повний повторний аналіз при `--fix`/`--write`/`--all`, а `test()`/`apply()` не використовує жодних per-violation полів (`line`/`offset`/`kind`) з детекту — лише сам факт "цей `reason` траплявся" (щоб вирішити, чи взагалі викликати fix) і список файлів-кандидатів (який до того ж T0 будує **заново** через `git ls-files`/`readdirSync`, а не бере зі списку violations). Тобто детект дає T0-кроку рівно одну біту інформації ("чи запускати fix"), а сам fix — незалежний, ідемпотентний, самоаналізуючий виклик.
 
@@ -173,10 +196,17 @@ for (const manifest of published) {
 | `text/run-shellcheck/` | те саме — `lint(ctx)` з `ctx.files`, glob `**/*.sh`                                                         |
 | `text/run-dotenv-linter/` | те саме — glob `**/.env`, `**/.env.*`                                                                     |
 | `text/markdownlint/`  | додати `lint` surface поряд з наявним `policy`; `main.mjs` — новий export `lint(ctx)` з `markdownlintCli2({ argv: files ?? ['**/*.md','**/*.mdc'] })` |
-| `text/run-v8r/`     | `concern.json` → `lint.scope: per-file` + json/json5/yml/yaml/toml glob; `runV8rWithGlobs` → `runV8rWithFiles`, паралелізація, catalog-запис для `concern.json` |
-| `npm/schemas/v8r-catalog.json` | додати `customCatalog`-запис для `concern.json`                                                    |
+| `text/run-v8r/`     | `concern.json` → `lint.scope: per-file` + json/json5/yml/yaml/toml glob; `runV8rWithGlobs` → `runV8rWithFiles`, паралелізація |
+| v8r catalog       | задебажити, чому наявний запис "n-cursor concern meta" у `v8r-catalog.json` не матчить `concern.json`-файли (§3) — записи й схема існують, але hook-прогін дає "Could not find a schema" |
+| `text/oxfmt/`       | `concern.json`: `scope: "full"` → `"per-file"` (main.mjs вже підтримує `ctx.files` — лише metadata) |
+| `text/cspell-fix/fix-worker.mjs` | новий: загорнути наявну omlx-класифікацію з `runCspellText` у fix-worker контракт unified-спеки (замість fix-шляху через видалений `text/check`) |
+| §5 A/B/C concerns | прибрати `lint.glob` у: `python/project`, `php/project`, `rego/conftest_verify`, `js/knip`, `js/jscpd_duplicates`, `bun/licensee`, `security/scan`, `security/trufflehog`, `vue/packages`, `k8s/manifests`, `changelog/consistency` |
+| T0-патерни `text/check/fix-check.mjs` | перенести 3 `toolFixPattern` у `fix-*.mjs` нових concern-dirs (markdownlint / run-shellcheck / run-dotenv-linter) — phase 1, інакше fix capability втрачається з видаленням `text/check/` |
+| `changelog/presence/` | новий per-file companion-concern (§7): локальний changeset-гейт без мережі/git-історії |
+| `k8s/kubeconform/`  | новий per-file concern (§6): kubeconform по file-list замість dirs |
+| `npm-module` validation | amendment §5: прибрати warning/error на `scope:"full"` без `lint.glob` (правило з 2026-06-28:350 скасоване) |
 | Тести             | `run-fix.test.mjs` / `run-detectors.test.mjs` — прибрати fixtures на `text/check`, додати per-concern snapshot-и |
-| Docs              | `docs/specs/2026-06-28-concern-lint-scope-design.md:288` — оновити рядок `text` на 5 нових рядків (як `js`-приклад) |
+| Docs              | `docs/specs/2026-06-28-concern-lint-scope-design.md:288` — оновити рядок `text` на 5 нових рядків (як `js`-приклад); там само §"Валідація схеми" — позначити правило full-без-glob скасованим |
 
 ## Рішення (python/php/rego)
 
@@ -188,17 +218,17 @@ for (const manifest of published) {
 | --------------------------- | --------------------------------------- | -------- | ---- |
 | `python/ruff/` (новий)       | `ruff check` + `ruff format --check`     | per-file | `**/*.py` |
 | `python/mypy/` (новий)       | `mypy`                                  | per-file | `**/*.py` |
-| `python/project/` (перейменований `check/`) | `uv lock --check`, `uv sync --frozen`, `pip-licenses` | full | `pyproject.toml`, `uv.lock` (без `**/*.py`) |
+| `python/project/` (перейменований `check/`) | `uv lock --check`, `uv sync --frozen`, `pip-licenses` | full | **без glob** — поза delta (§5-A) |
 
-`ruff` і `mypy` приймають список файлів аргументом (`ruff check <files...>`, `mypy <files...>`) — розділяються на 2 окремих per-file concerns, бо це логічно різні інструменти (лінт/формат vs типізація), а не штучний одна-директорія-два-тули хак. `uv lock/sync` і `pip-licenses` лишаються full — вони по природі project-wide (lockfile, залежності), і не мають `**/*.py` у glob після спліту, тож не тригеряться на кожен файловий edit.
+`ruff` і `mypy` приймають список файлів аргументом (`ruff check <files...>`, `mypy <files...>`) — розділяються на 2 окремих per-file concerns, бо це логічно різні інструменти (лінт/формат vs типізація), а не штучний одна-директорія-два-тули хак. Відмінність від phpstan/psalm (які лишаються full): `mypy <files>` сам транзитивно підвантажує імпортовані модулі (follow-imports), тож на підмножині дає коректні діагнози для переданих файлів; phpstan/psalm без повного autoload-графу дають хибні результати. `uv lock/sync` і `pip-licenses` — по природі project-wide (lockfile, залежності), тому за §5-A `python/project/` лишається без glob і не входить у delta-план.
 
 ### php/check → 3 concerns
 
 | concern (dir)              | інструмент(и)                          | scope    | glob |
 | --------------------------- | --------------------------------------- | -------- | ---- |
-| `php/cs-fixer/` (новий)      | php-cs-fixer (`--dry-run --diff`)        | per-file | `**/*.php` |
+| `php/cs_fixer/` (новий)      | php-cs-fixer (`--dry-run --diff`)        | per-file | `**/*.php` |
 | `php/phpcs/` (новий)         | phpcs (`--standard=Security`)            | per-file | `**/*.php` |
-| `php/project/` (перейменований `check/`) | composer audit, phpstan, psalm     | full     | `composer.json`, `composer.lock` (без `**/*.php`) |
+| `php/project/` (перейменований `check/`) | composer audit, phpstan, psalm     | full     | **без glob** — поза delta (§5-A) |
 
 phpstan/psalm лишаються full — обидва статичні аналізатори типів потребують повного project-graph (autoload, class hierarchy), запуск на одному файлі дає неповний/хибний результат.
 
@@ -206,16 +236,16 @@ phpstan/psalm лишаються full — обидва статичні анал
 
 | concern (dir)              | інструмент      | scope    | glob |
 | --------------------------- | ---------------- | -------- | ---- |
-| `rego/opa-check/` (новий)    | `opa check --strict` | per-file | `**/*.rego` |
+| `rego/opa_check/` (новий)    | `opa check --strict` | per-file | `**/*.rego` |
 | `rego/regal/` (новий)        | `regal lint`      | per-file | `**/*.rego` |
-| `rego/conftest-verify/` (новий) | `conftest verify` | full  | `**/*.rego` (лишається full — verify виконує rego-тести, які часто крос-package (`import data.<pkg>`), безпечніше ганяти на весь `npm/rules`) |
+| `rego/conftest_verify/` (новий) | `conftest verify` | full  | **без glob** — поза delta (§5-A); verify виконує rego-тести, часто крос-package (`import data.<pkg>`) — ганяється на весь `npm/rules` лише у full/scoped |
 
-`opa check` і `regal lint` per-file-безпечні (синтаксис/стиль одного файлу), `conftest verify` — обережніше: тести можуть імпортувати сусідні package, тому лишається full, але вже без bundling з двома іншими тулами (кожен окремо швидший і трасується окремо в звіті).
+`opa check` і `regal lint` per-file-безпечні (синтаксис/стиль одного файлу), `conftest verify` — крос-package за природою, тому за §5-A без glob і поза delta-планом, і вже без bundling з двома іншими тулами (кожен окремо швидший і трасується окремо в звіті).
 
 ## Не в цій спеці
 
 - **`rust/check`** — свідомо виключений. `cargo fmt --check` per-file-безпечний, але `cargo clippy` і `cargo deny check licenses` реально потребують всього crate compilation graph (borrow-checker/type-inference через модулі) — розділяти лінт/формат від clippy дає малий виграш (clippy й так домінує за часом), а сам bundling тут менш штучний, ніж у python/php/rego. Можна переглянути окремо, якщо профілювання покаже інше.
 - Зміна `full`-семантики (`--full` лишається whole-repo для всіх concerns) — тільки delta-скоуп і v8r internals.
 - LLM-fix (opportunistic tier) логіка cspell-класифікації — лишається як є, тільки джерело файлів змінюється.
-- Нові v8r-схеми для інших типів файлів без local catalog (окрім `concern.json`) — окремий backlog, якщо знайдуться інші гарячі точки.
+- Нові v8r-схеми для інших типів файлів без catalog-запису — окремий backlog, якщо знайдуться інші гарячі точки (для `concern.json` запис уже існує — §3 дебажить, чому він не матчиться).
 - Namespace/package rename для `rego/check` (`package rego.check` → 3 нових) — рефакторинг Rego test-namespaces за конвенцією з `docs/specs/2026-06-28-concern-lint-scope-design.md` §"Policy surface", виконати разом зі split, не окремим кроком.
