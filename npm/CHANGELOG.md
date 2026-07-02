@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.3.3] - 2026-07-02
+
+### Fixed
+
+- fix(text): `v8r`-крок self-lint (`lint text --full`) тепер повністю офлайн — усі схеми (власні: `n-cursor.json`, `rule-meta.json`, `skill-meta.json`, `concern.json`, `target.json`; сторонні: `package.json`, `tsconfig.json`, `jsconfig.json`, `.oxlintrc.json`, `.oxfmtrc.json`, `.cspell.json`, `knip.json`, `.jscpd.json`, `.claude/settings.json`, `.codex/hooks.json`, `action.yml` — вендорені в `npm/schemas/vendor/`) резолвляться локально через `customCatalog` замість мережевого `-c`-каталогу. Прогін ~7хв → ~5с. Якщо файл усе ж не покритий локальним каталогом, v8r іде мережевим fallback (schemastore.org) без фейлу, але тепер друкує попередження в stdout із порадою додати схему в `npm/schemas/v8r-catalog.json`. У споживачів немає нових вимог — фікс лише self-lint репозиторію-джерела.
+
 ## [13.3.2] - 2026-07-02
 
 ### Fixed
