@@ -5,17 +5,38 @@
  * кожного glob окремий `bunx v8r`, бо v8r у одному процесі падає з кодом 98, якщо хоч один із
  * переданих глобів не знаходить файлів — тоді решта розширень не перевіряються.
  *
- * Каталог схем `@nitra/cursor` (`v8r-catalog.json` у каталозі `schemas` пакета) передається в v8r
- * як `-c` автоматично (те саме, що в репозиторії шлях `npm/schemas/v8r-catalog.json` від кореня).
+ * Каталог схем `@nitra/cursor` (`v8r-catalog.json` у каталозі `schemas` пакета) вказує локальні
+ * (не-http) схеми як шляхи ВІДНОСНО `npm/schemas/` (наприклад `"n-cursor.json"`,
+ * `"vendor/tsconfig.json"`) — так каталог лишається портативним у репозиторії. Ці схеми вендорені
+ * в `npm/schemas/` (власні) і `npm/schemas/vendor/` (сторонні: package.json, tsconfig, oxlintrc,
+ * cspell тощо) — v8r ніколи не фетчить їх по мережі.
+ *
+ * Передаємо каталог у v8r НЕ через `-c` (файловий шлях), а через `customCatalog` у тимчасовому
+ * v8r-конфіг-файлі (`V8R_CONFIG_FILE`): `-c` змушує v8r на кожен файл валідувати сам каталог проти
+ * schema-catalog.json мета-схеми, яка вимагає `format: "uri"` для `url` — абсолютний локальний шлях
+ * (потрібен, бо v8r резолвить `url` відносно CWD процесу, не каталогу) цій вимозі не відповідає,
+ * а `file://`-URI задовольнив би формат, але v8r фетчить `url` через `got` (лише http/https, без
+ * підтримки `file:`) — глухий кут. `customCatalog` (ключ `location`, не `url`) не має format:uri
+ * обмеження і геть пропускає цю мета-валідацію (v8r код: `if (!rec.catalog) {...validate...}` —
+ * для `customCatalog` `rec.catalog` завжди truthy).
+ *
  * Опційно можна передати власні glob-и як аргументи; якщо їх немає — типові для `.json`, `.json5`,
  * `.yml`, `.yaml`, `.toml` у дереві проєкту.
  *
  * Якщо код виходу 0 або 98 (успіх або порожній glob), вивід v8r не показується; інакше
  * вивід друкується, процес завершується з тим самим кодом, що й перший невдалий v8r.
+ *
+ * v8r завжди дописує `https://www.schemastore.org/api/json/catalog.json` останнім fallback-
+ * каталогом (безумовно, без опції вимкнути) — якщо файл не збігається з нашим `customCatalog`, v8r
+ * піде по мережу за ним. Це НЕ блокується: файл валідується (мережевий фетч спрацьовує), але
+ * `main.mjs` парсить stderr v8r (рядки `ℹ Found schema in <url>` — цей `info`-рівень v8r друкує
+ * завжди, незалежно від verbosity) і виводить у stdout окреме попередження на кожен такий файл із
+ * порадою додати схему в `npm/schemas/v8r-catalog.json`.
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
@@ -26,6 +47,74 @@ export const DEFAULT_V8R_GLOBS = ['**/*.json', '**/*.json5', '**/*.yml', '**/*.y
 
 /** Абсолютний шлях до `schemas/v8r-catalog.json` у корені пакета `@nitra/cursor` (`npm/schemas/`). */
 export const V8R_CATALOG_PATH = join(dirname(fileURLToPath(import.meta.url)), '../../../schemas/v8r-catalog.json')
+
+/** Шлях до тимчасового v8r-конфіг-файлу з `customCatalog` — генерується щоразу перед запуском. */
+export const RESOLVED_V8R_CONFIG_PATH = join(tmpdir(), 'n-cursor-v8r-config.resolved.json')
+
+const REMOTE_URL_RE = /^https?:\/\//u
+
+/**
+ * Чи є значення локальним шляхом (не http/https-адресою).
+ * @param {string} url значення поля `url` у записі джерельного каталогу
+ * @returns {boolean} true — локальний шлях, false — http(s)-адреса
+ */
+function isLocalSchemaPath(url) {
+  return !REMOTE_URL_RE.test(url)
+}
+
+/**
+ * Читає джерельний каталог (`V8R_CATALOG_PATH`, ключ `url`, локальні шляхи відносні до
+ * `npm/schemas/`) і повертає масив схем у форматі v8r `customCatalog.schemas` (ключ `location`,
+ * локальні шляхи — абсолютні, обчислені через `import.meta.url`, тож коректні незалежно від CWD
+ * процесу й від того, чи це repo-dev копія, чи встановлена в `node_modules/@nitra/cursor`).
+ * @returns {Array<{name: string, description?: string, location: string, fileMatch: string[]}>} схеми customCatalog
+ */
+export function resolveCustomCatalogSchemas() {
+  const raw = readFileSync(V8R_CATALOG_PATH, 'utf8')
+  const catalog = JSON.parse(raw)
+  const schemasDir = dirname(V8R_CATALOG_PATH)
+  return catalog.schemas.map(({ url, ...rest }) => ({
+    ...rest,
+    location: isLocalSchemaPath(url) && !isAbsolute(url) ? join(schemasDir, url) : url
+  }))
+}
+
+/**
+ * Матеріалізує тимчасовий v8r-конфіг (`{ customCatalog: { schemas } }`) у `RESOLVED_V8R_CONFIG_PATH`.
+ * @returns {string} шлях до записаного файлу
+ */
+export function writeResolvedV8rConfig() {
+  const config = { customCatalog: { schemas: resolveCustomCatalogSchemas() } }
+  writeFileSync(RESOLVED_V8R_CONFIG_PATH, JSON.stringify(config), 'utf8')
+  return RESOLVED_V8R_CONFIG_PATH
+}
+
+const PROCESSING_LINE_RE = /^ℹ Processing (.+)$/u
+const FOUND_REMOTE_SCHEMA_RE = /^ℹ Found schema in (https?:\/\/\S+)/u
+
+/**
+ * Парсить stderr v8r (рядки `ℹ Processing <file>` / `ℹ Found schema in <url>`, які v8r друкує
+ * завжди на info-рівні незалежно від verbosity) і для кожного файлу, чию схему знайдено через
+ * мережевий fallback (schemastore.org, а не наш `customCatalog`), пише в stdout попередження.
+ * @param {string} stderrText захоплений stderr одного запуску v8r
+ * @returns {void}
+ */
+export function warnAboutRemoteSchemaFallback(stderrText) {
+  let currentFile = null
+  for (const line of stderrText.split('\n')) {
+    const processingMatch = PROCESSING_LINE_RE.exec(line)
+    if (processingMatch) {
+      currentFile = processingMatch[1]
+      continue
+    }
+    const remoteMatch = FOUND_REMOTE_SCHEMA_RE.exec(line)
+    if (remoteMatch && currentFile) {
+      process.stdout.write(
+        `⚠ run-v8r: ${currentFile} — схему знайдено через мережевий fallback (${remoteMatch[1]}), а не в локальному каталозі @nitra/cursor. Додай схему в npm/schemas/v8r-catalog.json (+ npm/schemas/vendor/ за потреби), щоб прогін лишався офлайн.\n`
+      )
+    }
+  }
+}
 
 /**
  * Запускає послідовні виклики v8r по glob-ам; не змінює process.exitCode (лише повертає код).
@@ -40,19 +129,24 @@ export function runV8rWithGlobs(globs = DEFAULT_V8R_GLOBS) {
     return 2
   }
 
+  const configPath = writeResolvedV8rConfig()
+
   for (const pattern of globs) {
     const bunPath = resolveCmd('bun') ?? process.execPath
-    const result = spawnSync(bunPath, ['x', 'v8r', pattern, '-c', V8R_CATALOG_PATH], {
+    const result = spawnSync(bunPath, ['x', 'v8r', pattern], {
       encoding: 'utf8',
       maxBuffer: 50 * 1024 * 1024,
       shell: false,
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, V8R_CONFIG_FILE: configPath }
     })
 
     if (result.error) {
       process.stderr.write(`${result.error.message}\n`)
       return 1
     }
+
+    warnAboutRemoteSchemaFallback(result.stderr ?? '')
 
     const exitCode = result.status ?? 1
     if (exitCode !== 0 && exitCode !== 98) {

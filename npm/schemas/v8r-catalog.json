@@ -5,44 +5,98 @@
     {
       "name": "n-cursor.json",
       "description": "Конфігурація @nitra/cursor (.n-cursor.json у корені репозиторію)",
-      "url": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json",
+      "url": "n-cursor.json",
       "fileMatch": [".n-cursor.json", "**/.n-cursor.json", ".n-cursor.example.json", "**/.n-cursor.example.json"]
     },
     {
       "name": "rego-target.json",
       "description": "Маніфест rego-полісі (npm/rules/<id>/policy/<name>/target.json) — які файли проєкту фідити в conftest",
-      "url": "https://unpkg.com/@nitra/cursor/schemas/target.json",
+      "url": "target.json",
       "fileMatch": ["npm/rules/*/policy/*/target.json", "rules/*/policy/*/target.json"]
     },
     {
-      "name": "schema-catalog",
-      "description": "Каталог схем Schema Store (v8r-catalog.json у пакеті)",
-      "url": "https://json.schemastore.org/schema-catalog.json",
-      "fileMatch": ["npm/schemas/v8r-catalog.json"]
+      "name": "tsconfig",
+      "description": "TypeScript config (tsconfig.json та tsconfig.*.json) у всьому проєкті",
+      "url": "vendor/tsconfig.json",
+      "fileMatch": ["tsconfig.json", "**/tsconfig.json", "tsconfig.*.json", "**/tsconfig.*.json"]
     },
     {
-      "name": "tsconfig",
-      "description": "TypeScript config для pi extension templates, які Schema Store не матчить через вкладений/прихований шлях",
-      "url": "https://json.schemastore.org/tsconfig.json",
-      "fileMatch": [".pi/extensions/*/tsconfig.json", "npm/.pi-template/extensions/*/tsconfig.json"]
+      "name": "jsconfig",
+      "description": "jsconfig.json у всьому проєкті",
+      "url": "vendor/jsconfig.json",
+      "fileMatch": ["jsconfig.json", "**/jsconfig.json"]
     },
     {
       "name": "n-cursor skill meta",
       "description": "Маніфест skill-пакета n-cursor (npm/skills/<id>/main.json) — назва, тригери, дозволи",
-      "fileMatch": ["npm/skills/*/main.json"],
-      "url": "https://unpkg.com/@nitra/cursor/schemas/skill-meta.json"
+      "fileMatch": ["npm/skills/*/main.json", "skills/*/main.json"],
+      "url": "skill-meta.json"
     },
     {
       "name": "n-cursor rule meta",
       "description": "Маніфест rule-пакета n-cursor (npm/rules/<id>/main.json) — назва, опис, версія правила",
-      "fileMatch": ["npm/rules/*/main.json"],
-      "url": "https://unpkg.com/@nitra/cursor/schemas/rule-meta.json"
+      "fileMatch": ["npm/rules/*/main.json", "rules/*/main.json"],
+      "url": "rule-meta.json"
     },
     {
       "name": "n-cursor concern meta",
       "description": "Маніфест concern-а n-cursor (npm/rules/<id>/<concern>/concern.json) — flat-concern layout: check/policy/lint-поверхні",
       "fileMatch": ["npm/rules/*/*/concern.json", "rules/*/*/concern.json"],
-      "url": "https://unpkg.com/@nitra/cursor/schemas/concern.json"
+      "url": "concern.json"
+    },
+    {
+      "name": "package.json",
+      "description": "npm package.json у всьому проєкті",
+      "url": "vendor/package.json",
+      "fileMatch": ["package.json", "**/package.json"]
+    },
+    {
+      "name": "knip",
+      "description": "knip.json (unused-code detector config)",
+      "url": "vendor/knip.json",
+      "fileMatch": ["knip.json", "**/knip.json"]
+    },
+    {
+      "name": "jscpd",
+      "description": ".jscpd.json (copy-paste detector config)",
+      "url": "vendor/jscpd.json",
+      "fileMatch": [".jscpd.json", "**/.jscpd.json"]
+    },
+    {
+      "name": "cspell",
+      "description": ".cspell.json (spell-checker config)",
+      "url": "vendor/cspell.json",
+      "fileMatch": [".cspell.json", "**/.cspell.json"]
+    },
+    {
+      "name": "oxlintrc",
+      "description": ".oxlintrc.json (oxlint config)",
+      "url": "vendor/oxlintrc.json",
+      "fileMatch": [".oxlintrc.json", "**/.oxlintrc.json"]
+    },
+    {
+      "name": "oxfmtrc",
+      "description": ".oxfmtrc.json (oxfmt config)",
+      "url": "vendor/oxfmtrc.json",
+      "fileMatch": [".oxfmtrc.json", "**/.oxfmtrc.json"]
+    },
+    {
+      "name": "claude-code-settings",
+      "description": ".claude/settings.json (Claude Code hooks/permissions)",
+      "url": "vendor/claude-code-settings.json",
+      "fileMatch": [".claude/settings.json", "**/.claude/settings.json"]
+    },
+    {
+      "name": "codex-hooks",
+      "description": ".codex/hooks.json (Codex CLI hooks)",
+      "url": "vendor/codex-hooks.json",
+      "fileMatch": [".codex/hooks.json", "**/.codex/hooks.json"]
+    },
+    {
+      "name": "github-action",
+      "description": "action.yml/action.yaml (GitHub composite/JS actions)",
+      "url": "vendor/github-action.json",
+      "fileMatch": ["action.yml", "**/action.yml", "action.yaml", "**/action.yaml"]
     }
   ]
 }
