@@ -1,9 +1,12 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
-  "fixability": "config",
   "policy": {
     "files": {
       "single": ".markdownlint-cli2.jsonc"
     }
+  },
+  "lint": {
+    "scope": "per-file",
+    "glob": ["**/*.md", "**/*.mdc"]
   }
 }

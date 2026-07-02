@@ -21,6 +21,10 @@ import { resolve } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
+
+/** Розширення shell-скриптів — фільтр delta-списку файлів у `lint(ctx)`. */
+const SH_EXT_RE = /\.sh$/u
 
 /** Підрядок у stderr ShellCheck, коли є зауваження, але без авто-виправлення у форматі diff. */
 const NON_AUTOFIXABLE_HINT = 'none were auto-fixable'
@@ -97,9 +101,10 @@ export function listShellScriptPaths(cwd) {
  * Запускає shellcheck із авто-виправленнями і фінальною перевіркою.
  * @param {string} [cwd] робочий каталог (за замовчуванням `process.cwd()`)
  * @param {boolean} [readOnly] true → пропустити авто-фікс (diff+patch), лише фінальна перевірка
+ * @param {string[]} [scopeFiles] явний перелік файлів (delta) — якщо не задано, шукає всі `*.sh` через `listShellScriptPaths`
  * @returns {number} 0 — OK; 1 — помилка середовища або залишкові зауваження shellcheck
  */
-export function runShellcheckText(cwd = process.cwd(), readOnly = false) {
+export function runShellcheckText(cwd = process.cwd(), readOnly = false, scopeFiles) {
   const root = resolve(cwd)
   const shellcheck = resolveCmd('shellcheck')
   if (!shellcheck) {
@@ -113,7 +118,7 @@ export function runShellcheckText(cwd = process.cwd(), readOnly = false) {
     return 1
   }
 
-  const files = listShellScriptPaths(root)
+  const files = scopeFiles ?? listShellScriptPaths(root)
   if (files.length === 0) {
     return 0
   }
@@ -126,6 +131,22 @@ export function runShellcheckText(cwd = process.cwd(), readOnly = false) {
   }
 
   return runFinalShellcheck(shellcheck, files, root)
+}
+
+/**
+ * Detector text/run-shellcheck: read-only shellcheck по `ctx.files` (delta) або по всіх `*.sh` (full).
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат detector-а
+ */
+export function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
+  const { fail } = reporter
+  const scopeFiles = ctx.files === undefined ? undefined : ctx.files.filter(f => SH_EXT_RE.test(f))
+  if (scopeFiles !== undefined && scopeFiles.length === 0) return reporter.result()
+
+  const code = runShellcheckText(ctx.cwd, true, scopeFiles)
+  if (code !== 0) fail('shellcheck знайшов порушення у *.sh (text.mdc)', 'shellcheck')
+  return reporter.result()
 }
 
 /**

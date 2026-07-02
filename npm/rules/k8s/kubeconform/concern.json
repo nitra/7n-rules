@@ -1,0 +1,7 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "lint": {
+    "scope": "per-file",
+    "glob": ["k8s/**/*.yaml", "k8s/**/*.yml"]
+  }
+}

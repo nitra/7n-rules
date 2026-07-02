@@ -1,14 +1,6 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
   "lint": {
-    "scope": "full",
-    "glob": [
-      "**/package.json",
-      "**/vite.config.{js,ts,mjs}",
-      "**/jsconfig.json",
-      "**/src/vite-env.d.ts",
-      "**/*.vue",
-      ".vscode/extensions.json"
-    ]
+    "scope": "full"
   }
 }

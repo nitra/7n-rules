@@ -20,9 +20,13 @@ import { resolve } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 /** Каталоги/файли, які виключаємо з рекурсивного сканування dotenv-linter. */
 const EXCLUDED_PATHS = ['node_modules', '.envrc']
+
+/** `.env`-файли — фільтр delta-списку файлів у `lint(ctx)` (basename, не розширення). */
+const ENV_BASENAME_RE = /(?:^|\/)\.env(?:\.|$)/u
 
 /**
  * Друкує підказки встановлення dotenv-linter у stderr.
@@ -42,20 +46,24 @@ function printDotenvLinterInstallHints() {
 }
 
 /**
- * Будує перелік аргументів `--exclude <path>` для dotenv-linter.
- * @returns {string[]} плоский масив `['--exclude', 'node_modules', '--exclude', '.envrc']`
+ * Будує позиційні аргументи-цілі для dotenv-linter: явний список файлів (delta) або
+ * рекурсивний `-r . --exclude …` (full — поточна поведінка без змін).
+ * @param {string[]} [scopeFiles] явний перелік файлів
+ * @returns {string[]} аргументи для `fix`/`check`
  */
-function buildExcludeArgs() {
-  return EXCLUDED_PATHS.flatMap(p => ['--exclude', p])
+function buildTargetArgs(scopeFiles) {
+  if (scopeFiles !== undefined) return scopeFiles
+  return ['-r', ...EXCLUDED_PATHS.flatMap(p => ['--exclude', p]), '.']
 }
 
 /**
  * Запускає dotenv-linter з авто-фіксом і фінальною перевіркою.
  * @param {string} [cwd] робочий каталог (за замовчуванням `process.cwd()`)
  * @param {boolean} [readOnly] true → пропустити авто-фікс (`fix`), лише `check` (нуль мутацій)
+ * @param {string[]} [scopeFiles] явний перелік `.env*`-файлів (delta) — якщо не задано, рекурсивний `-r .`
  * @returns {number} 0 — OK; 1 — інструмент відсутній або є залишкові порушення
  */
-export function runDotenvLinter(cwd = process.cwd(), readOnly = false) {
+export function runDotenvLinter(cwd = process.cwd(), readOnly = false, scopeFiles) {
   const root = resolve(cwd)
   const bin = resolveCmd('dotenv-linter')
   if (!bin) {
@@ -63,9 +71,9 @@ export function runDotenvLinter(cwd = process.cwd(), readOnly = false) {
     return 1
   }
 
-  const exclude = buildExcludeArgs()
+  const targets = buildTargetArgs(scopeFiles)
   if (!readOnly) {
-    const fixRun = spawnSync(bin, ['fix', '-r', '--no-backup', '--quiet', ...exclude, '.'], {
+    const fixRun = spawnSync(bin, ['fix', '--no-backup', '--quiet', ...targets], {
       cwd: root,
       encoding: 'utf8',
       env: process.env,
@@ -77,7 +85,7 @@ export function runDotenvLinter(cwd = process.cwd(), readOnly = false) {
     }
   }
 
-  const checkRun = spawnSync(bin, ['check', '-r', '--quiet', ...exclude, '.'], {
+  const checkRun = spawnSync(bin, ['check', '--quiet', ...targets], {
     cwd: root,
     encoding: 'utf8',
     env: process.env,
@@ -91,6 +99,22 @@ export function runDotenvLinter(cwd = process.cwd(), readOnly = false) {
   if (checkRun.stdout?.length) process.stdout.write(checkRun.stdout)
   if (checkRun.stderr?.length) process.stderr.write(checkRun.stderr)
   return 1
+}
+
+/**
+ * Detector text/run-dotenv-linter: read-only dotenv-linter по `ctx.files` (delta) або по всіх `.env*` (full).
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат detector-а
+ */
+export function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
+  const { fail } = reporter
+  const scopeFiles = ctx.files === undefined ? undefined : ctx.files.filter(f => ENV_BASENAME_RE.test(f))
+  if (scopeFiles !== undefined && scopeFiles.length === 0) return reporter.result()
+
+  const code = runDotenvLinter(ctx.cwd, true, scopeFiles)
+  if (code !== 0) fail('dotenv-linter знайшов порушення у .env* (text.mdc)', 'dotenv-linter')
+  return reporter.result()
 }
 
 if (isRunAsCli(import.meta.url)) {

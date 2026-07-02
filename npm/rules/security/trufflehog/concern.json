@@ -1,4 +1,4 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
-  "lint": { "scope": "full", "glob": ["package.json", ".trufflehog-exclude"] }
+  "lint": { "scope": "full" }
 }

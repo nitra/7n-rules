@@ -786,9 +786,14 @@ export async function lint(ctx) {
     }
   }
 
-  for (const manifest of published) {
-    await checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVersion, autofix, pass, fail, cwd)
-  }
+  // Promise.all, не послідовний for (spec docs/specs/2026-07-02-text-check-per-file-split-design.md
+  // §7): кожен виклик — незалежний мережевий запит (npm view/PyPI), послідовність тут не давала
+  // жодної переваги, лише сумувала worst-case timeout на кожен published workspace.
+  await Promise.all(
+    published.map(manifest =>
+      checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVersion, autofix, pass, fail, cwd)
+    )
+  )
 
   await runLocalOnlyChecks(localOnly, subWorkspaces, autofix, pass, fail, cwd)
 

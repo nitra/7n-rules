@@ -1,7 +1,7 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
   "lint": {
-    "scope": "full",
+    "scope": "per-file",
     "glob": ["**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,vue,css,scss}"]
   }
 }

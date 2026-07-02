@@ -6543,11 +6543,10 @@ export async function lint(ctx) {
 
   const ignorePaths = await loadCursorIgnorePaths(root)
 
-  // ── Зовнішні тули (read-only): kubeconform + kubescape ──
+  // ── kubescape (read-only) — kubeconform виділено в окремий per-file concern k8s/kubeconform
+  // (spec docs/specs/2026-07-02-text-check-per-file-split-design.md §6) ──
   const dirs = await findK8sRoots(root, ignorePaths)
   if (dirs.length > 0) {
-    const kc = runKubeconform(dirs)
-    if (kc !== 0 && kc !== 127) fail('kubeconform знайшов невалідні маніфести (k8s.mdc)', 'kubeconform')
     const ks = await runKubescape(dirs, root)
     if (ks !== 0 && ks !== 127) fail('kubescape знайшов ризики у маніфестах (k8s.mdc)', 'kubescape')
   }
@@ -6659,7 +6658,7 @@ const DATREE_CRD_SCHEMA_LOCATION =
  * @param {string[]} dirs абсолютні шляхи k8s-коренів.
  * @returns {number} exit-код процесу (127 якщо тул відсутній).
  */
-function runKubeconform(dirs) {
+export function runKubeconform(dirs) {
   const args = [
     '-summary',
     '-kubernetes-version',

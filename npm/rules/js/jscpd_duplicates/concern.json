@@ -2,7 +2,6 @@
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
   "fixability": "structural",
   "lint": {
-    "scope": "full",
-    "glob": ["**/*.{js,mjs,cjs,jsx,ts,tsx,vue}"]
+    "scope": "full"
   }
 }

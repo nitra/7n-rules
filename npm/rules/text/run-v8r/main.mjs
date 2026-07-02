@@ -41,6 +41,10 @@ import { fileURLToPath } from 'node:url'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
+
+/** Розширення, які валідує v8r — фільтр delta-списку файлів у `lint(ctx)`. */
+const V8R_EXT_RE = /\.(?:json|json5|ya?ml|toml)$/iu
 
 /** Типові glob-и для форматів, які обробляє v8r (див. опис CLI v8r). */
 export const DEFAULT_V8R_GLOBS = ['**/*.json', '**/*.json5', '**/*.yml', '**/*.yaml', '**/*.toml']
@@ -117,7 +121,40 @@ export function warnAboutRemoteSchemaFallback(stderrText) {
 }
 
 /**
- * Запускає послідовні виклики v8r по glob-ам; не змінює process.exitCode (лише повертає код).
+ * Один виклик `bun x v8r <targets...>` з підготовленим `customCatalog`-конфігом.
+ * @param {string[]} targets glob-и або конкретні шляхи файлів
+ * @param {string} configPath шлях до `V8R_CONFIG_FILE`
+ * @returns {{ exitError: true } | { exitError: false, code: number }} помилка spawn або код v8r (0/98 — трактує викликач)
+ */
+function runOneV8rInvocation(targets, configPath) {
+  const bunPath = resolveCmd('bun') ?? process.execPath
+  const result = spawnSync(bunPath, ['x', 'v8r', ...targets], {
+    encoding: 'utf8',
+    maxBuffer: 50 * 1024 * 1024,
+    shell: false,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, V8R_CONFIG_FILE: configPath }
+  })
+
+  if (result.error) {
+    process.stderr.write(`${result.error.message}\n`)
+    return { exitError: true }
+  }
+
+  warnAboutRemoteSchemaFallback(result.stderr ?? '')
+
+  const exitCode = result.status ?? 1
+  if (exitCode !== 0 && exitCode !== 98) {
+    if (result.stdout?.length) process.stdout.write(result.stdout)
+    if (result.stderr?.length) process.stderr.write(result.stderr)
+  }
+  return { exitError: false, code: exitCode }
+}
+
+/**
+ * Запускає послідовні виклики v8r по glob-ам (full-режим); не змінює process.exitCode.
+ * Один виклик на glob навмисно (не batch) — v8r падає з кодом 98, якщо хоч один переданий
+ * glob не знаходить файлів, і тоді решта розширень не перевіряються в тому ж виклику.
  * @param {string[]} [globs] патерни; за замовчуванням DEFAULT_V8R_GLOBS
  * @returns {number} 0 — OK, 1 — помилка spawn, 2 — немає каталогу схем, інше — код v8r
  */
@@ -132,34 +169,54 @@ export function runV8rWithGlobs(globs = DEFAULT_V8R_GLOBS) {
   const configPath = writeResolvedV8rConfig()
 
   for (const pattern of globs) {
-    const bunPath = resolveCmd('bun') ?? process.execPath
-    const result = spawnSync(bunPath, ['x', 'v8r', pattern], {
-      encoding: 'utf8',
-      maxBuffer: 50 * 1024 * 1024,
-      shell: false,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, V8R_CONFIG_FILE: configPath }
-    })
-
-    if (result.error) {
-      process.stderr.write(`${result.error.message}\n`)
-      return 1
-    }
-
-    warnAboutRemoteSchemaFallback(result.stderr ?? '')
-
-    const exitCode = result.status ?? 1
-    if (exitCode !== 0 && exitCode !== 98) {
-      if (result.stdout?.length) {
-        process.stdout.write(result.stdout)
-      }
-      if (result.stderr?.length) {
-        process.stderr.write(result.stderr)
-      }
-      return exitCode
-    }
+    const r = runOneV8rInvocation([pattern], configPath)
+    if (r.exitError) return 1
+    if (r.code !== 0 && r.code !== 98) return r.code
   }
   return 0
+}
+
+/**
+ * Запускає v8r по конкретному списку файлів (delta-режим) — один виклик, не по одному glob-у,
+ * бо кожен переданий шлях уже існує (не glob), тож код 98 "порожній glob" тут не виникає.
+ * @param {string[]} files абсолютні або відносні до cwd v8r-процесу шляхи файлів
+ * @returns {number} 0 — OK, 1 — помилка spawn, 2 — немає каталогу схем, інше — код v8r
+ */
+export function runV8rWithFiles(files) {
+  if (files.length === 0) return 0
+  if (!existsSync(V8R_CATALOG_PATH)) {
+    process.stderr.write(
+      `run-v8r: не знайдено каталог схем за шляхом ${V8R_CATALOG_PATH} (очікується npm/schemas/v8r-catalog.json у пакеті)\n`
+    )
+    return 2
+  }
+
+  const configPath = writeResolvedV8rConfig()
+  const r = runOneV8rInvocation(files, configPath)
+  if (r.exitError) return 1
+  return r.code === 98 ? 0 : r.code
+}
+
+/**
+ * Detector text/run-v8r: read-only v8r по `ctx.files` (delta) або за дефолтними glob-ами (full).
+ * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
+ * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат detector-а
+ */
+export function lint(ctx) {
+  const reporter = createViolationReporter(ctx)
+  const { fail } = reporter
+
+  if (ctx.files === undefined) {
+    const code = runV8rWithGlobs()
+    if (code !== 0) fail('v8r schema-валідація json/yaml/toml не пройшла (text.mdc)', 'v8r')
+    return reporter.result()
+  }
+
+  const files = ctx.files.filter(f => V8R_EXT_RE.test(f))
+  if (files.length === 0) return reporter.result()
+  const code = runV8rWithFiles(files)
+  if (code !== 0) fail('v8r schema-валідація json/yaml/toml не пройшла (text.mdc)', 'v8r')
+  return reporter.result()
 }
 
 if (isRunAsCli(import.meta.url)) {

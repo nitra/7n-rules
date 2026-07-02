@@ -1,7 +1,0 @@
-{
-  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
-  "lint": {
-    "scope": "full",
-    "glob": ["**/*.{md,mdc,txt,sh,env,env.*,.env,.env.*,json,json5,yaml,yml,toml}"]
-  }
-}
