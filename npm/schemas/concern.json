@@ -13,7 +13,7 @@
     "fixability": {
       "type": "string",
       "enum": ["code", "config", "structural"],
-      "description": "Маршрутизація fix-движка. `code` (дефолт, поле можна опускати) — джерельні порушення, які LLM може осмислено правити → повна ladder. `config` — canon/settings/tooling конфіг: фікс детермінований (T0/regen), LLM марний → ladder пропускається. `structural` — дублікати/розташування/структура: авто-правка ризикована → fail-fast без ladder."
+      "description": "Маршрутизація fix-движка. Усі мітки виконують детерміновану фазу T0; різниця — що після неї. `code` (дефолт, поле можна опускати) — джерельні порушення, які LLM може осмислено переписати → повна pi-agent-ladder (local→cloud) до чистого re-detect. `config` — canon/settings/tooling конфіг з єдиною правильною формою (jscpd/oxfmtrc/tooling/package_json/*_yml): фікс детермінований (T0/regen з канону), LLM лише вгадав би невалідне → після T0 fail-fast без ladder. `structural` — дублікати/розташування/структура (jscpd_duplicates/test-location/package-structure): авто-правка ризикована й потребує людського розсуду → після T0 fail-fast без ladder. config vs structural різняться мотивом пропуску (детермінований канон vs надто ризиковано) — для телеметрії й майбутнього routing."
     },
     "check": {
       "type": "boolean",
