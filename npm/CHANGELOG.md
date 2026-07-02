@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.3.1] - 2026-07-02
+
+### Changed
+
+- chore(lint): кодова база та конфіги `@nitra/cursor` чисті під власним 13.x full-scan self-lint — eslint warn-advisory (jsdoc-типи, cognitive-complexity extraction), markdownlint (генеровані/дзеркальні теки в ignores, MD036/MD060 off), oxfmt, knip entry-патерни під flat-concern layout, cspell-словник (укр. форми). Поведінка не змінилась.
+
 ## [13.3.0] - 2026-07-01
 
 ### Changed
