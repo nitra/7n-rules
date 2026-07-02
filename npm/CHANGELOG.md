@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.4.1] - 2026-07-02
+
+### Changed
+
+- docs(fix): загострено опис `fixability` у схемі concern.json — per-category семантика (усі мітки виконують T0, різниця після неї: `code` → повна pi-agent-ladder; `config` — детермінований канон-фікс → fail-fast; `structural` — ризикована авто-правка → fail-fast), + мотив config-vs-structural розрізнення.
+
 ## [13.4.0] - 2026-07-02
 
 ### Changed
