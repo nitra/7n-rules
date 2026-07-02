@@ -1,5 +1,6 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "fixability": "config",
   "lint": {
     "scope": "full",
     "glob": ["npm/rules/**/main.json", "npm/rules/**/main.mjs", "npm/rules/**/main.mdc", "npm/rules/**/auto.md"]

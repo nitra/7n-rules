@@ -1,5 +1,6 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "fixability": "config",
   "lint": {
     "scope": "full",
     "glob": ["**/*.{vue,js,jsx,mjs,cjs,ts,tsx,mts,cts}", ".graphqlrc.yml", ".vscode/extensions.json"]

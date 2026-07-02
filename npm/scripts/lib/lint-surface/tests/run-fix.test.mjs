@@ -25,12 +25,13 @@ const DETECTOR = [
  * Створює тестовий concern-detector у тимчасовій теці.
  * @param {string} dir Корінь тимчасової теки.
  * @param {string} body Вихідний код `main.mjs` детектора.
+ * @param {object} [concernExtra] Додаткові поля concern.json (напр. `{ fixability: 'structural' }`).
  * @returns {Promise<string>} Абсолютний шлях до теки `rules`.
  */
-async function seedConcern(dir, body = DETECTOR) {
+async function seedConcern(dir, body = DETECTOR, concernExtra = {}) {
   const concernDir = join(dir, 'rules', 'probe', 'check')
   await mkdir(concernDir, { recursive: true })
-  await writeJson(join(concernDir, 'concern.json'), { lint: { scope: 'full', glob: ['**/*'] } })
+  await writeJson(join(concernDir, 'concern.json'), { lint: { scope: 'full', glob: ['**/*'] }, ...concernExtra })
   await writeFile(join(concernDir, 'main.mjs'), body, 'utf8')
   await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
   return join(dir, 'rules')
@@ -227,6 +228,57 @@ describe('runFixPipeline — ladder escalation + S1 isolation', () => {
       })
       expect(feedbacks[0]).toBeNull() // local-min: feedback:false → ctx.feedback undefined → `?? null`
       expect(feedbacks[1]).toMatchObject({ previousModel: 'fake/min' }) // cloud-min: feedback:true
+    })
+  })
+})
+
+describe('runFixPipeline — fixability gate', () => {
+  test('fixability=structural → LLM-ladder пропущено, worker не викликається, порушення лишається', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir, DETECTOR, { fixability: 'structural' })
+      // out.txt відсутній → детектор порушено; worker закрив би, але gate не має його викликати.
+      let called = false
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: {
+          ladder: ONE_RUNG,
+          workerFor: () => (v, ctx) => {
+            called = true
+            writeDoneWorker(v, ctx)
+          }
+        }
+      })
+      expect(called).toBe(false)
+      expect(code).toBe(1)
+    })
+  })
+
+  test('fixability=code (дефолт) → gate пропускає, worker відпрацьовує як звичайно', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir) // без fixability → code
+      let called = false
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: {
+          ladder: ONE_RUNG,
+          workerFor: () => (v, ctx) => {
+            called = true
+            writeDoneWorker(v, ctx)
+          }
+        }
+      })
+      expect(called).toBe(true)
+      expect(code).toBe(0)
     })
   })
 })

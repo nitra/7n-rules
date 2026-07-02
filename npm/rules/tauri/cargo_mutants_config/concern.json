@@ -1,4 +1,5 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "fixability": "config",
   "lint": { "scope": "full", "glob": ["**/src-tauri/Cargo.toml", "**/src-tauri/.cargo/mutants.toml"] }
 }

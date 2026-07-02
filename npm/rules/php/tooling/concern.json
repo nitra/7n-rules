@@ -1,4 +1,5 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "fixability": "config",
   "lint": { "scope": "full", "glob": ["composer.json", "package.json", ".github/workflows/lint-php.yml"] }
 }

@@ -21,13 +21,27 @@ import { join } from 'node:path'
  */
 
 /**
+ * @typedef {'code'|'config'|'structural'} Fixability
+ */
+
+/**
  * @typedef {object} ConcernMeta
  * @property {string} name ім'я concern-а (= basename каталогу)
  * @property {string} dir абсолютний шлях до каталогу concern-а
  * @property {boolean} check чи є JS check поверхня
  * @property {PolicySurface|undefined} policy policy-поверхня concern-а (rego/template) або undefined.
  * @property {LintSurface|undefined} lint lint-поверхня concern-а або undefined.
+ * @property {Fixability} fixability маршрутизація fix-движка (дефолт `code`): `config`/`structural` пропускають LLM-ladder.
  */
+
+/**
+ * Нормалізує `raw.fixability`. Невідоме/відсутнє значення → `code` (ladder-eligible дефолт).
+ * @param {unknown} rawFixability сире поле `raw.fixability`
+ * @returns {Fixability} нормалізована fixability-мітка
+ */
+function parseFixability(rawFixability) {
+  return rawFixability === 'config' || rawFixability === 'structural' ? rawFixability : 'code'
+}
 
 /**
  * Нормалізує `raw.lint` у `LintSurface`. Повертає `null` при невалідному scope,
@@ -98,7 +112,7 @@ export async function readConcernMeta(concernDir, name) {
 
   if (!check && !policy && !lint) return null
 
-  return { name, dir: concernDir, check, policy, lint }
+  return { name, dir: concernDir, check, policy, lint, fixability: parseFixability(raw.fixability) }
 }
 
 /**

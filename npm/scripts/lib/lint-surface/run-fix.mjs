@@ -229,6 +229,15 @@ export async function fixConcern(item, initialViolations, deps) {
   if (t0.closed) return true
   initialViolations = t0.violations
 
+  // ── Fixability-гейт ── config/structural concern-и НЕ йдуть у LLM-ladder: їхній фікс
+  // детермінований (T0/regen) або ризикований для авто-правки. T0 уже відпрацював вище —
+  // якщо не закрив, це сигнал ручного/config-фіксу, а не привід палити tier-и (fail-fast).
+  const fixability = item.entry.concern.fixability ?? 'code'
+  if (fixability !== 'code') {
+    log(`  ⏹️  ${ruleId}/${concernName}: fixability=${fixability} — LLM-ladder пропущено (T0/manual)\n`)
+    return false
+  }
+
   // ── Worker ladder ── concern-specific fix-worker.mjs, інакше дефолтний pi-agent worker.
   const worker = await resolveWorker(concernDir, deps.workerOverride)
   if (!worker || ladder.length === 0) return false

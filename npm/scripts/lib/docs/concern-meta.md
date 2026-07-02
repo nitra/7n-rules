@@ -3,7 +3,7 @@ type: JS Module
 title: concern-meta.mjs
 resource: npm/scripts/lib/concern-meta.mjs
 docgen:
-  crc: da6ece6c
+  crc: 85be92d0
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 100
@@ -20,6 +20,7 @@ docgen:
 Поведінка
 readConcernMeta зчитує і перевіряє файл concern.json у вказаній директорії concern-а, повертаючи метадані або null, якщо файл відсутній чи не валідний.
 listConcerns сканує директорію правил і повертає список усіх знайдених concern-ів у алфавітному порядку, ігноруючи каталоги без concern.json.
+Нормалізований meta несе `fixability` (`code`|`config`|`structural`); невідоме/відсутнє значення зводиться до `code` — дефолт, за яким concern лишається eligible для LLM-fix-ladder.
 
 ## Публічний API
 

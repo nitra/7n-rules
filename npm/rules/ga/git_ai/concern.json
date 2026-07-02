@@ -1,5 +1,6 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "fixability": "config",
   "policy": {
     "files": {
       "single": ".github/workflows/git-ai.yml",
