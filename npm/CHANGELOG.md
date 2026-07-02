@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.3.4] - 2026-07-02
+
+### Changed
+
+- release: @nitra/cursor@13.3.2
+
 ## [13.3.3] - 2026-07-02
 
 ### Fixed
