@@ -137,7 +137,7 @@ export function overviewMessages(facts, behaviorText, anchors = null, intent = n
  * @param {'overview'|'behavior'|'api'} sectionKey ключ секції
  * @param {string} draft вже згенерована чорнетка секції
  * @param {object} facts факт-лист
- * @param {ReturnType<import('./docgen-extract-anchors.mjs').extractAnchors>} anchors анкори файлу
+ * @param {ReturnType<import('../docgen-extract-anchors/main.mjs').extractAnchors>} anchors анкори файлу
  * @returns {Array<{role:string,content:string}>} messages-масив для критика
  */
 export function criticMessages(sectionKey, draft, facts, anchors) {
@@ -168,7 +168,7 @@ export function criticMessages(sectionKey, draft, facts, anchors) {
  * @param {string} draft чорнетка секції
  * @param {string} issues список issues від critic
  * @param {object} facts факт-лист
- * @param {ReturnType<import('./docgen-extract-anchors.mjs').extractAnchors>} anchors анкори файлу
+ * @param {ReturnType<import('../docgen-extract-anchors/main.mjs').extractAnchors>} anchors анкори файлу
  * @returns {Array<{role:string,content:string}>} messages-масив для переписування
  */
 export function refineMessages(sectionKey, draft, issues, facts, anchors) {

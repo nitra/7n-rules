@@ -38,7 +38,7 @@
         "scripts/auto-*.mjs",
         "scripts/build-*.mjs",
         "scripts/claude-stop-hook.mjs",
-        "scripts/coverage-fix.mjs",
+        "scripts/update-blue-oak.mjs",
         "scripts/ensure-nitra-cursor-dev-dependencies.mjs",
         "scripts/rename-yaml-extensions.mjs",
         "scripts/sync-*.mjs",
@@ -54,7 +54,7 @@
         "stryker.config.mjs"
       ],
       "project": ["**/*.{js,mjs}"],
-      "ignoreDependencies": ["@anthropic-ai/claude-code", "@anthropic-ai/sdk"]
+      "ignoreDependencies": ["@anthropic-ai/claude-code", "@anthropic-ai/sdk", "@7n/mt", "github-actionlint", "v8r"]
     },
     "demo": {
       "ignoreDependencies": ["vite-plugin-vue-layouts-next"],

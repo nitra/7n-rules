@@ -48,13 +48,3 @@ export function renderDiagnostics(diagnostics) {
   if (diagnostics.length === 0) return ''
   return diagnostics.map(d => `  ${d.level === 'warn' ? '⚠' : 'ℹ'} ${d.message}`).join('\n') + '\n'
 }
-
-/**
- * Похідна exit-code семантика від фінального набору порушень.
- * 0 = немає; 1 = є; 2 — окремо для DetectorError (тут не обробляється).
- * @param {LintViolation[]} violations фінальний набір порушень.
- * @returns {0|1} exit-code: 0 без порушень, 1 за наявності.
- */
-export function exitCodeFor(violations) {
-  return violations.length > 0 ? 1 : 0
-}

@@ -26,16 +26,6 @@ export function getBronzeAndAbove() {
 }
 
 /**
- * Генерує TOML-рядок `[licenses]` для `deny.toml` (cargo-deny) на основі Blue Oak Bronze+.
- * @returns {string} TOML-блок `[licenses]` з allow-списком
- */
-export function generateDenyTomlLicenses() {
-  const ids = [...getBronzeAndAbove()].toSorted()
-  const lines = ids.map(id => `    "${id}",`).join('\n')
-  return `[licenses]\nallow = [\n${lines}\n]\n`
-}
-
-/**
  * Перевіряє SPDX-вираз проти Blue Oak Bronze+ allowlist.
  * Підтримує: одиночний ID, `A OR B` (будь-який дозволений = OK), `A AND B` (усі мають бути дозволені).
  * `NOASSERTION` і `NONE` завжди → false.
