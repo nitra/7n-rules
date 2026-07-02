@@ -18,13 +18,16 @@
     "policy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["files"],
-      "description": "Rego або template поверхня. Відповідає колишньому target.json. У unified lint surface (spec 2026-06-29) policy-concern генерує detector main.mjs через codegen; engine обирає Rego чи template.",
+      "description": "Rego або template поверхня. Відповідає колишньому target.json. У unified lint surface (spec 2026-06-29) policy-concern генерує detector main.mjs через codegen; engine обирає Rego чи template. `files` опційне: порожній `policy: {}` — маркер policy-поверхні без явного файл-скоупу (скоуп резолвиться правилом).",
       "properties": {
         "engine": {
           "type": "string",
           "enum": ["rego", "template"],
           "description": "rego → .rego через conftest; template → generic deep-subset. Канонічна заміна поля `check`."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Rego package/namespace concern-а (напр. `k8s.network_policy`) — для fix-hint маршрутизації по rego-повідомленнях."
         },
         "files": {
           "oneOf": [
@@ -43,6 +46,19 @@
               "required": ["walkGlob"],
               "properties": {
                 "walkGlob": {
+                  "oneOf": [
+                    { "type": "string", "minLength": 1 },
+                    { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["glob"],
+              "properties": {
+                "glob": {
                   "oneOf": [
                     { "type": "string", "minLength": 1 },
                     { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
