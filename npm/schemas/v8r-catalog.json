@@ -37,6 +37,12 @@
       "description": "Маніфест rule-пакета n-cursor (npm/rules/<id>/main.json) — назва, опис, версія правила",
       "fileMatch": ["npm/rules/*/main.json"],
       "url": "https://unpkg.com/@nitra/cursor/schemas/rule-meta.json"
+    },
+    {
+      "name": "n-cursor concern meta",
+      "description": "Маніфест concern-а n-cursor (npm/rules/<id>/<concern>/concern.json) — flat-concern layout: check/policy/lint-поверхні",
+      "fileMatch": ["npm/rules/*/*/concern.json", "rules/*/*/concern.json"],
+      "url": "https://unpkg.com/@nitra/cursor/schemas/concern.json"
     }
   ]
 }
