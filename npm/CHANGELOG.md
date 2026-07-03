@@ -1,5 +1,16 @@
 # Changelog
 
+## [14.4.3] - 2026-07-03
+
+### Changed
+
+- md
+
+### Fixed
+
+- fix(sync): AGENTS.template.md і build-agents-commands — застарілі команди npx @nitra/cursor fix / fix changelog замінено на lint / lint changelog (команд fix немає з unified lint surface); генерований AGENTS.md у споживачах більше не радить неіснуючу команду
+- fix(js): прибрано дубльований концерн js/jscpd (старий namespace js_lint.jscpd) — повний двійник js/jscpd_config по тому ж .jscpd.json; дубль давав два однакові заголовки в згенерованому n-js.mdc (MD024 у споживачах) і подвійну policy-оцінку
+
 ## [14.4.2] - 2026-07-03
 
 ### Changed
