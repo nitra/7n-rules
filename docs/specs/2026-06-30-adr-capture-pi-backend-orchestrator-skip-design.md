@@ -2,7 +2,7 @@
 
 **Дата:** 2026-06-30
 **Статус:** Draft
-**Тип:** Behavior change - `capture-decisions.sh` переходить з `claude`/`cursor-agent` fallback на `pi`-only; оркестраторні сесії повністю скіпають ADR hooks
+**Тип:** Behavior change - `capture-decisions.sh` переходить з жорсткої драбини `claude -> cursor-agent` на селектор `CAPTURE_DECISIONS_BACKEND` з дефолтом `pi` (cloud-бекенди лишаються як явний opt-in); оркестраторні сесії повністю скіпають ADR hooks
 
 ---
 
@@ -46,19 +46,28 @@ fi
 
 ---
 
-### Частина B - `pi` як єдиний capture-бекенд
+### Частина B - `pi` як дефолтний capture-бекенд, cloud як opt-in
 
-#### Новий пріоритет бекендів
+#### Селектор бекенду: `CAPTURE_DECISIONS_BACKEND`
 
-```text
-pi (local/npm/system) -> skip
-```
+Замість жорсткої драбини `claude -> cursor-agent -> skip` - env-селектор:
 
-`claude` і `cursor-agent` **прибираємо** саме з `capture-decisions.sh`. Якщо `pi` недоступний або повернув порожньо, hook завершується `exit 0` без fallback.
+| Значення | Поведінка |
+|---|---|
+| `pi` (дефолт) | Тільки локальний `pi`; недоступний/без моделі -> `exit 0`, без fallback |
+| `claude` | Примусово `claude -p` (як у поточному скрипті) |
+| `cursor-agent` | Примусово `cursor-agent -p --mode ask` (як у поточному скрипті) |
+| `auto` | Драбина за доступністю: `pi -> claude -> cursor-agent -> skip` |
+
+Гілки `claude`/`cursor-agent` **не видаляються** - існуючий код інвокацій лишається, змінюється лише механізм вибору. Legacy env `CAPTURE_DECISIONS_CLAUDE_MODEL` і `CAPTURE_DECISIONS_CURSOR_MODEL` продовжують працювати для відповідних бекендів.
+
+**Семантика `auto`:** fallback відбувається **за доступністю** (немає `pi`-бінарника або не задана локальна модель -> пробуємо `claude`), а **не** за результатом виклику. Порожня відповідь від обраного бекенду - фінальний результат: каскад на наступний бекенд після порожньої відповіді дублював би кожен "нема рішень у сесії" прогін платним cloud-викликом.
+
+**Дефолт `pi`:** cloud вмикається лише свідомо (наприклад, `CAPTURE_DECISIONS_BACKEND=auto` у `~/.zshenv` того, кому потрібен capture без omlx). Це зберігає головну мету спеки - нуль випадкових cloud-витрат - і водночас дає повну сумісність зі старим поведінковим контрактом через одну змінну.
 
 `normalize-decisions.sh` не змінює свій backend ladder у цій спеці, крім `ADR_HOOKS_SKIP` guard. Normalize важчий і вже має власний local pipeline / threshold; ця зміна стосується low-criticality capture-чернеток.
 
-**Ратіонал:** capture - найменш критичний процес. Краще не зловити одну чернетку, ніж витратити хмарний баланс, сповільнити user session або створити рекурсивний шум. Локальна модель достатня для витягнення заголовків, контексту і conservative ADR draft.
+**Ратіонал:** capture - найменш критичний процес. Краще не зловити одну чернетку, ніж витратити хмарний баланс, сповільнити user session або створити рекурсивний шум. Локальна модель достатня для витягнення заголовків, контексту і conservative ADR draft. Кому потрібен capture на машині без omlx - вмикає cloud-бекенд явно.
 
 #### Чи можна використовувати `pi` через npm
 
@@ -101,7 +110,12 @@ fi
 #### Виклик
 
 ```bash
-CAPTURE_PI_MODEL="${CAPTURE_DECISIONS_PI_MODEL:-omlx/gemma-4-e4b-it-OptiQ-4bit}"
+CAPTURE_PI_MODEL="${CAPTURE_DECISIONS_PI_MODEL:-${N_LOCAL_MIN_MODEL:-}}"
+
+if [[ -z "$CAPTURE_PI_MODEL" ]]; then
+  log "  -> no local model configured (CAPTURE_DECISIONS_PI_MODEL / N_LOCAL_MIN_MODEL), skipping capture"
+  exit 0
+fi
 
 log "  -> using pi (model: $CAPTURE_PI_MODEL)"
 RESPONSE=$(printf '%s' "$PROMPT_FULL" \
@@ -110,6 +124,10 @@ RESPONSE=$(printf '%s' "$PROMPT_FULL" \
       --mode text \
       --no-tools \
       --no-context-files \
+      --no-extensions \
+      --no-skills \
+      --no-prompt-templates \
+      --offline \
       --model "$CAPTURE_PI_MODEL" \
   2>>"$LOG" || true)
 ```
@@ -117,11 +135,14 @@ RESPONSE=$(printf '%s' "$PROMPT_FULL" \
 Обов'язкові прапори:
 
 - `--no-session` - capture є one-shot аналізом transcript, без накопичення history;
-- `--mode text` - потрібен plain Markdown output, не agent/task режим;
+- `--mode text` - plain Markdown output, не agent/task режим (це pi-дефолт, лишаємо для явності);
 - `--no-tools` - модель не має читати/редагувати repo для capture;
-- `--no-context-files` - без `AGENTS.md`/`CLAUDE.md` у prompt, щоб не забруднювати transcript analysis.
+- `--no-context-files` - без `AGENTS.md`/`CLAUDE.md` у prompt, щоб не забруднювати transcript analysis;
+- `--no-extensions` - без discovery `.pi/extensions`: інакше pi завантажить сам `n-cursor-adr` extension (рекурсію прикриває успадкований `CAPTURE_DECISIONS_RUNNING`, але discovery - зайвий startup-час в async hook і залежність від сторонніх extension'ів, які можуть реєструвати тули/прапори);
+- `--no-skills` / `--no-prompt-templates` - та сама герметичність для skills і prompt templates discovery;
+- `--offline` - pi робить startup network operations; без цього прапора ціль "no-network hook" виконана лише наполовину (відмова від `npx` прибирає мережу package manager'а, але не самого pi).
 
-Модель перемикається через `CAPTURE_DECISIONS_PI_MODEL`. Значення за замовчуванням лишається explicit local omlx model, а не pi subscription default, щоб capture не йшов у cloud випадково.
+**Модель: канон `N_LOCAL_MIN_MODEL`, без хардкоду.** Репо вже свідомо прибрало хардкод `DEFAULT_OMLX_MODEL` з docgen і cspell-fix на користь єдиного knob'а `N_LOCAL_MIN_MODEL` (`npm/lib/pi-model-tiers.mjs`). Capture слідує тому ж канону: специфічний override через `CAPTURE_DECISIONS_PI_MODEL`, інакше `N_LOCAL_MIN_MODEL`. Якщо жодна не задана - миттєвий silent skip з log-рядком (fail-loud, як у docgen, для async hook недоречний). Бонус: на машинах без omlx skip миттєвий, без плати за конект-таймаут на кожен Stop. Явна модель, а не pi subscription default - щоб capture не йшов у cloud випадково.
 
 #### Поведінка при порожній відповіді
 
@@ -132,7 +153,7 @@ if [[ -z "$RESPONSE_TRIMMED" ]]; then
 fi
 ```
 
-Без fallback. Логіка валідації відповіді (`NONE`, перевірка `## `, slug-генерація, запис draft-файлу) лишається без змін.
+Без каскаду на інший бекенд - і для `pi`, і для `auto`: порожня відповідь обраного бекенду фінальна. Логіка валідації відповіді (`NONE`, перевірка `## `, slug-генерація, запис draft-файлу) лишається без змін і спільна для всіх бекендів.
 
 ---
 
@@ -141,19 +162,20 @@ fi
 | Файл | Зміна |
 |---|---|
 | `npm/bin/n-cursor.js` | Виставити `process.env.ADR_HOOKS_SKIP = '1'` перед CLI `switch` |
-| `npm/.claude-template/hooks/capture-decisions.sh` | Guard `ADR_HOOKS_SKIP`; замінити `claude`/`cursor-agent` на `pi`-only backend; оновити header-коментарі |
+| `npm/.claude-template/hooks/capture-decisions.sh` | Guard `ADR_HOOKS_SKIP`; селектор `CAPTURE_DECISIONS_BACKEND` (дефолт `pi`) з новою `pi`-гілкою, існуючі `claude`/`cursor-agent` гілки за селектором; оновити header-коментарі |
 | `.claude/hooks/capture-decisions.sh` | Синхронізована project copy після зміни bundled template |
 | `npm/.claude-template/hooks/normalize-decisions.sh` | Додати silent `ADR_HOOKS_SKIP` guard після `ADR_NORMALIZE_RUNNING` guard |
 | `.claude/hooks/normalize-decisions.sh` | Синхронізована project copy після зміни bundled template |
 | `npm/.pi-template/extensions/n-cursor-adr/index.ts` | Додати `env.ADR_HOOKS_SKIP` у top-level guard, щоб не спавнити обидва hooks |
-| `npm/rules/adr/main.mdc` | Описати `pi`-only capture backend і `ADR_HOOKS_SKIP` |
-| `npm/rules/adr/hooks/hooks.mdc` | Оновити розділ availability check з `claude`/`cursor-agent` на `pi` |
-| `npm/rules/adr/hooks/main.mjs` | Інформативна перевірка `pi`: root `.bin`, nested `@nitra/cursor` `.bin`, `PATH` |
-| `npm/rules/adr/hooks/tests/hooks.test.mjs` | Переписати LLM CLI availability tests з `claude`/`cursor-agent` на `pi` |
-| `npm/rules/adr/tests/capture-decisions-cross-project.test.mjs` | Очікувати `pi not found` замість `no LLM CLI found` |
-| `npm/rules/adr/tests/capture-decisions-tooling-only.test.mjs` | Fake `pi` замість fake `claude`; перевірити flags і запис draft |
+| `npm/rules/adr/main.mdc` | Описати селектор `CAPTURE_DECISIONS_BACKEND` (дефолт `pi`) і `ADR_HOOKS_SKIP` |
+| `npm/rules/adr/hooks/hooks.mdc` | Оновити розділ availability check: дефолтний бекенд `pi`, cloud-бекенди за селектором |
+| `npm/rules/adr/hooks/main.mjs` | Інформативна перевірка `pi`: root `.bin`, nested `@nitra/cursor` `.bin`, `PATH`; враховувати `CAPTURE_DECISIONS_BACKEND` |
+| `npm/rules/adr/hooks/tests/hooks.test.mjs` | Доповнити LLM CLI availability tests: `pi` як дефолт, `claude`/`cursor-agent` за селектором |
+| `npm/rules/adr/tests/capture-decisions-cross-project.test.mjs` | Очікувати `pi not found` замість `no LLM CLI found` (дефолтний бекенд) |
+| `npm/rules/adr/tests/capture-decisions-tooling-only.test.mjs` | Матриця бекендів: fake `pi` (дефолт, flags і запис draft), `CAPTURE_DECISIONS_BACKEND=claude` -> fake `claude`, `auto` без `pi` -> fallback на fake `claude` |
 | `npm/rules/adr/tests/normalize-decisions-tooling-only.test.mjs` | Додати тест `ADR_HOOKS_SKIP=1` для silent normalize skip |
 | `npm/scripts/tests/sync-pi-extensions.test.mjs` | Додати assertion на `ADR_HOOKS_SKIP` у bundled extension |
+| `npm/scripts/dispatcher/tests/index.test.mjs` | Source test: `ADR_HOOKS_SKIP = '1'` виставлено до CLI `switch` |
 | `docs/ci4/01-context.md`, `docs/ci4/02-containers.md`, `docs/ci4/03-components.md`, `docs/ci4/04-code.md` | Оновити architecture docs: capture backend `pi`, selector semantics, env guard |
 | `npm/CHANGELOG.md` | Change entry через `npx @nitra/cursor fix changelog` |
 
@@ -166,9 +188,13 @@ fi
 | Змінна | Дефолт | Опис |
 |---|---|---|
 | `ADR_HOOKS_SKIP` | - | Якщо виставлено, `capture-decisions.sh`, `normalize-decisions.sh` і pi-extension виходять без роботи |
-| `CAPTURE_DECISIONS_PI_MODEL` | `omlx/gemma-4-e4b-it-OptiQ-4bit` | Explicit local model для `pi` capture-бекенду |
+| `CAPTURE_DECISIONS_BACKEND` | `pi` | Селектор бекенду: `pi` \| `claude` \| `cursor-agent` \| `auto` (драбина за доступністю `pi -> claude -> cursor-agent -> skip`) |
+| `CAPTURE_DECISIONS_PI_MODEL` | `$N_LOCAL_MIN_MODEL` | Override local model для `pi` capture-бекенду; без обох змінних `pi`-бекенд недоступний (silent skip або, при `auto`, fallback далі) |
+| `N_LOCAL_MIN_MODEL` | - | Існуючий канон локальної min-tier моделі (`npm/lib/pi-model-tiers.mjs`); capture перевикористовує, не вводить власний хардкод |
+| `CAPTURE_DECISIONS_CLAUDE_MODEL` | `sonnet` | Модель для `claude`-бекенду (існуюча змінна, поведінка без змін) |
+| `CAPTURE_DECISIONS_CURSOR_MODEL` | `claude-4.6-sonnet-medium` | Модель для `cursor-agent`-бекенду (існуюча змінна, поведінка без змін) |
 
-Legacy env `CAPTURE_DECISIONS_CLAUDE_MODEL` і `CAPTURE_DECISIONS_CURSOR_MODEL` перестають впливати на `capture-decisions.sh`. Вони можуть лишатися релевантними лише для інших старих шляхів, якщо такі є поза capture.
+Legacy model-env не деприкейтяться: вони діють щоразу, коли відповідний бекенд обрано явно або через `auto`. Змінюється лише те, що без явного `CAPTURE_DECISIONS_BACKEND` cloud-бекенди більше не вмикаються самі.
 
 ---
 
@@ -186,12 +212,17 @@ Legacy env `CAPTURE_DECISIONS_CLAUDE_MODEL` і `CAPTURE_DECISIONS_CURSOR_MODEL` 
 
 1. `capture-decisions.sh`: `ADR_HOOKS_SKIP=1` завершується `0`, не створює `docs/adr`, не створює log-файл.
 2. `normalize-decisions.sh`: `ADR_HOOKS_SKIP=1` завершується `0`, не бере lock і не пише normalize log/state.
-3. `capture-decisions.sh`: без `pi` у root `.bin`, nested `.bin` і `PATH` пише `pi not found, skipping capture`, не викликає `claude` навіть якщо fake `claude` є в `PATH`.
-4. `capture-decisions.sh`: fake `pi` у `$PROJECT_ROOT/node_modules/.bin/pi` отримує `--no-session --mode text --no-tools --no-context-files --model <...>` і stdout із `## ADR ...` записується у файл з `YYMMDD-HHMM-<slug>.md`.
+3. `capture-decisions.sh` (дефолтний бекенд `pi`): без `pi` у root `.bin`, nested `.bin` і `PATH` пише `pi not found, skipping capture`, не викликає `claude` навіть якщо fake `claude` є в `PATH`.
+4. `capture-decisions.sh`: fake `pi` у `$PROJECT_ROOT/node_modules/.bin/pi` отримує `--no-session --mode text --no-tools --no-context-files --no-extensions --no-skills --no-prompt-templates --offline --model <...>` і stdout із `## ADR ...` записується у файл з `YYMMDD-HHMM-<slug>.md`.
 5. `capture-decisions.sh`: fake `pi` повертає порожній stdout -> hook exit `0`, log `empty response from pi`, draft не створюється.
-6. Cross-project і tooling-only тести лишаються, але очікування backend-log оновлюються з `no LLM CLI found` на `pi not found`.
-7. `npm/rules/adr/hooks/main.mjs`: availability check проходить для root `node_modules/.bin/pi`, nested `node_modules/@nitra/cursor/node_modules/.bin/pi`, system `PATH`, і no-pi стану.
-8. `npm/.pi-template/extensions/n-cursor-adr/index.ts`: source test підтверджує `ADR_HOOKS_SKIP` guard разом із `CAPTURE_DECISIONS_RUNNING` / `ADR_NORMALIZE_RUNNING`.
+6. `capture-decisions.sh`: без `CAPTURE_DECISIONS_PI_MODEL` і `N_LOCAL_MIN_MODEL` -> миттєвий exit `0` з log `no local model configured`, fake `pi` **не викликається**.
+7. Cross-project і tooling-only тести лишаються, але очікування backend-log оновлюються з `no LLM CLI found` на `pi not found`.
+8. `npm/rules/adr/hooks/main.mjs`: availability check проходить для root `node_modules/.bin/pi`, nested `node_modules/@nitra/cursor/node_modules/.bin/pi`, system `PATH`, і no-pi стану.
+9. `npm/.pi-template/extensions/n-cursor-adr/index.ts`: source test підтверджує `ADR_HOOKS_SKIP` guard разом із `CAPTURE_DECISIONS_RUNNING` / `ADR_NORMALIZE_RUNNING`.
+10. `npm/bin/n-cursor.js`: source test у `npm/scripts/dispatcher/tests/index.test.mjs` підтверджує, що `process.env.ADR_HOOKS_SKIP = '1'` виставляється **до** CLI `switch` (інакше переміщення рядка в окремий case пройде повз тести bash/extension-сторони, які перевіряють лише реакцію на вже виставлену змінну).
+11. `CAPTURE_DECISIONS_BACKEND=claude` + fake `claude` у `PATH`: викликається `claude -p --model $CAPTURE_DECISIONS_CLAUDE_MODEL`, `pi` не викликається навіть якщо fake `pi` присутній.
+12. `CAPTURE_DECISIONS_BACKEND=auto` без `pi` (нема бінарника або не задана модель) + fake `claude`: fallback на `claude`, лог фіксує обраний бекенд.
+13. `CAPTURE_DECISIONS_BACKEND=auto` + fake `pi`, що повертає порожній stdout: hook exit `0`, fake `claude` **не викликається** - порожня відповідь не каскадить на cloud.
 
 Реальний `pi`/omlx інтеграційний тест не потрібен у CI: достатньо fake executable. Це стабільніше, не залежить від локальної моделі, auth і availability `omlx serve`.
 
@@ -199,10 +230,11 @@ Legacy env `CAPTURE_DECISIONS_CLAUDE_MODEL` і `CAPTURE_DECISIONS_CURSOR_MODEL` 
 
 ## Ризики і компроміси
 
-- Capture може пропустити рішення, якщо `pi` не встановився як optionalDependency або локальна omlx model недоступна. Це прийнятий компроміс: capture - чернеткова автоматика, не blocking quality gate.
+- **Capture за замовчуванням вимикається всюди, крім машин із налаштованим локальним стеком.** Stop hook стріляє всередині Claude Code сесії, тож `claude` CLI на `PATH` є завжди - сьогодні capture працює у ~100% сесій. Після зміни дефолтний бекенд `pi` працює лише там, де є `pi` + `N_LOCAL_MIN_MODEL`/`CAPTURE_DECISIONS_PI_MODEL` + запущений локальний inference (omlx serve). Для консьюмерів без omlx (інші машини, CI) capture з коробки стає **повністю неактивним**, не "інколи пропускає". Це усвідомлений компроміс: capture - чернеткова автоматика, не blocking quality gate, і хмарний баланс на неї не витрачаємо. Пом'якшення: старий поведінковий контракт доступний однією змінною - `CAPTURE_DECISIONS_BACKEND=auto` (або `claude`) повертає cloud-capture свідомим opt-in, без правки скрипту.
+- **Дефолт `pi` перекладає відповідальність на конфігурацію користувача.** Хто очікує capture без omlx - має сам виставити `CAPTURE_DECISIONS_BACKEND`; тихий skip легко не помітити. Мітигація: інформативна підказка в `adr` check (`npm/rules/adr/hooks/main.mjs`) про відсутній `pi`/модель і про селектор.
 - `optionalDependencies` можуть бути вимкнені (`--omit=optional`, package-manager policy). У такому разі hook має тихо skipнути, а `adr` check має лише інформативно підказати про відсутній `pi`.
-- `CAPTURE_DECISIONS_PI_MODEL` з explicit `omlx/...` не має cloud fallback. Це навмисно, щоб capture не витрачав subscription/cloud balance.
-- Зміна ламає очікування користувачів, які покладалися на `claude`/`cursor-agent` capture fallback. Саме тому тип спеки - Behavior change, не Non-breaking.
+- `CAPTURE_DECISIONS_PI_MODEL`/`N_LOCAL_MIN_MODEL` з explicit `omlx/...` не має cloud fallback. Це навмисно, щоб capture не витрачав subscription/cloud balance.
+- Зміна ламає очікування користувачів, які покладалися на автоматичний `claude`/`cursor-agent` fallback без конфігурації: дефолт стає `pi`. Міграція - одна змінна (`CAPTURE_DECISIONS_BACKEND=auto`), але вона потребує свідомої дії. Саме тому тип спеки - Behavior change, не Non-breaking.
 
 ---
 
@@ -211,3 +243,8 @@ Legacy env `CAPTURE_DECISIONS_CLAUDE_MODEL` і `CAPTURE_DECISIONS_CURSOR_MODEL` 
 - `ADR_HOOKS_SKIP` не логувати: silent early-exit.
 - Тестувати `pi` через fake executable, не через справжній локальний inference.
 - `pi` брати npm-first: root `.bin`, nested `@nitra/cursor` `.bin`, потім system `PATH`; `npx`/`npm exec` у hook не використовувати.
+- Модель без хардкоду: `CAPTURE_DECISIONS_PI_MODEL` -> `N_LOCAL_MIN_MODEL` -> silent skip. Канон із `npm/lib/pi-model-tiers.mjs`, не власний дефолт (репо вже прибирало хардкод `DEFAULT_OMLX_MODEL` з docgen/cspell-fix).
+- Виклик `pi` герметичний і офлайн: `--no-extensions --no-skills --no-prompt-templates --offline` обовʼязкові, discovery і startup network ops у Stop-hook недопустимі.
+- Сумісність із cloud-бекендами через селектор: `CAPTURE_DECISIONS_BACKEND` = `pi` (дефолт) | `claude` | `cursor-agent` | `auto`. Гілки `claude`/`cursor-agent` не видаляються, legacy model-env продовжують діяти для відповідних бекендів.
+- Дефолт - `pi`, не `auto`: cloud-capture лише свідомим opt-in, нуль випадкових cloud-витрат з коробки.
+- `auto`-fallback - за доступністю бекенду, не за порожньою відповіддю: порожній результат обраного бекенду фінальний, без каскаду на платний виклик.

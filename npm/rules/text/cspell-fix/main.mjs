@@ -25,6 +25,8 @@ import { createViolationReporter } from '../../../scripts/lib/lint-surface/viola
 
 /** Слово у рядку cspell: `<file>:<line>:<col> - Unknown word (xxx)`. */
 const UNKNOWN_WORD_RE = /Unknown word \(([^)]+)\)/u
+/** Підсумковий рядок cspell: `CSpell: Files checked: N, Issues found: M in K files.` */
+const FILES_CHECKED_RE = /Files checked:\s*(\d+)/u
 /** Максимум distinct-слів під класифікацію за прогін (без тихого обрізання — логуємо надлишок). */
 export const MAX_CLASSIFY_WORDS = 80
 
@@ -51,7 +53,13 @@ export function detectCspell(cwd, bin, files) {
     maxBuffer: 32 * 1024 * 1024,
     env: process.env
   })
-  return { code: typeof r.status === 'number' ? r.status : 1, out: `${r.stdout ?? ''}${r.stderr ?? ''}` }
+  const out = `${r.stdout ?? ''}${r.stderr ?? ''}`
+  const code = typeof r.status === 'number' ? r.status : 1
+  // cspell повертає !=0 і коли жоден переданий файл не пройшов ignorePaths
+  // (`.cspell.json`) — «Files checked: 0» означає «нічого перевіряти», не порушення.
+  const checked = FILES_CHECKED_RE.exec(out)
+  if (checked && Number(checked[1]) === 0) return { code: 0, out }
+  return { code, out }
 }
 
 /**
