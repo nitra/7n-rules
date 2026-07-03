@@ -612,8 +612,8 @@ async function removeOrphanManagedSkillDirs(skillsRoot, configSkills) {
 }
 
 /**
- * Рендерить коротку секцію для CLAUDE.md: паралелізм лінту — по диз'юнктних файлах дозволено,
- * серіалізувати лише whole-tree прогони того самого корпусу.
+ * Рендерить коротку секцію для CLAUDE.md: у lint вбудована глобальна черга —
+ * паралельні запуски серіалізуються самі, координація вручну не потрібна.
  * @returns {string[]} рядки для вставки (з порожнім рядком на початку)
  */
 function buildClaudeLintParallelismSectionLines() {
@@ -621,7 +621,7 @@ function buildClaudeLintParallelismSectionLines() {
     '',
     '## Лінт і ESLint (паралелізм)',
     '',
-    "Паралельний лінт по **різних** файлах — **дозволено**: диз'юнктні набори (per-file `lint` на змінених vs origin) не конфліктують і не перевантажують диск/CPU. Серіалізувати треба лише **whole-tree** прогони того самого корпусу (`bun run lint`, `n-cursor lint --full` по всьому репо) — щоб не дублювати важкий full-scan. Деталі: `.cursor/skills/n-lint/SKILL.md`.",
+    '`npx @nitra/cursor lint` має **вбудовану глобальну чергу** (spec 2026-07-03): один lint-процес на машину, паралельні запуски самі чекають лока (`⏳ lint-global: чекаю…` — штатна черга, не зависання; fail-closed таймаут 20 хв), ідентичний повтор на незміненому дереві дедуплікується (`♻️ … пропускаю`). Координувати запуски вручну не треба. Деталі: `.cursor/skills/n-lint/SKILL.md`.',
     ''
   ]
 }
@@ -1532,15 +1532,20 @@ try {
       const rules = args.filter((a, i) => !a.startsWith('-') && !(cwdIdx !== -1 && i === cwdIdx + 1))
       const lintOpts = { cwd: cwdArg, full: args.includes('--full'), rules, verbose: args.includes('--verbose') }
       // --read-only — backward-compat alias на --no-fix (видалиться після міграції викликів).
-      if (args.includes('--no-fix') || args.includes('--read-only')) {
-        const { detectAll } = await import('../scripts/lib/lint-surface/run-detectors.mjs')
-        // окрема змінна замість (await detectAll(...)).exitCode — no-await-expression-member (oxlint)
-        const detectResult = await detectAll(lintOpts)
-        process.exitCode = detectResult.exitCode
-      } else {
+      const noFix = args.includes('--no-fix') || args.includes('--read-only')
+      // Глобальна черга (spec 2026-07-03): одночасно виконується один lint-процес
+      // на машину, паралельні запуски чекають лока (див. lint-lock.mjs).
+      const { withGlobalLintLock } = await import('../scripts/lib/lint-surface/lint-lock.mjs')
+      process.exitCode = await withGlobalLintLock({ ...lintOpts, noFix }, async () => {
+        if (noFix) {
+          const { detectAll } = await import('../scripts/lib/lint-surface/run-detectors.mjs')
+          // окрема змінна замість (await detectAll(...)).exitCode — no-await-expression-member (oxlint)
+          const detectResult = await detectAll(lintOpts)
+          return detectResult.exitCode
+        }
         const { runFixPipeline } = await import('../scripts/lib/lint-surface/run-fix.mjs')
-        process.exitCode = await runFixPipeline(lintOpts)
-      }
+        return runFixPipeline(lintOpts)
+      })
 
       break
     }

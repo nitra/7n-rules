@@ -3,7 +3,7 @@ type: JS Module
 title: hook.mjs
 resource: npm/scripts/hook.mjs
 docgen:
-  crc: 602cd023
+  crc: a1ba5318
   model: claude-sonnet-4-6
   score: 100
 ---

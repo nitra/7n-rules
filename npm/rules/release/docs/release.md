@@ -3,7 +3,7 @@ type: JS Module
 title: release.mjs
 resource: npm/rules/release/release.mjs
 docgen:
-  crc: 06d3556b
+  crc: 50197d62
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

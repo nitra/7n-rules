@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/tauri/tooling/main.mjs
 docgen:
-  crc: 0a0ed4fa
+  crc: 7c892c9b
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 95
   issues: anchor-miss:(tauri.mdc),judge:inaccurate:0.97
   judgeModel: openai-codex/gpt-5.4-mini

@@ -3,7 +3,7 @@ type: JS Module
 title: update-blue-oak.mjs
 resource: npm/scripts/update-blue-oak.mjs
 docgen:
-  crc: dac30fed
+  crc: 83f26045
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 95
 ---

@@ -3,11 +3,10 @@ type: JS Module
 title: upgrade-nitra-cursor-and-install.mjs
 resource: npm/scripts/upgrade-nitra-cursor-and-install.mjs
 docgen:
-  crc: b0742ab3
+  crc: 5544ffc3
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.98
-  retried: true
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 

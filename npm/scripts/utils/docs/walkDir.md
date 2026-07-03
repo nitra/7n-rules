@@ -3,7 +3,7 @@ type: JS Module
 title: walkDir.mjs
 resource: npm/scripts/utils/walkDir.mjs
 docgen:
-  crc: c7143308
+  crc: f205f003
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

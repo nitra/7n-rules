@@ -3,7 +3,7 @@ type: JS Module
 title: graphql-gql-scan.mjs
 resource: npm/rules/graphql/lib/graphql-gql-scan.mjs
 docgen:
-  crc: e110f9dd
+  crc: 3743391b
 ---
 
 Модуль `graphql-gql-scan.mjs` — це сканер сирцевих файлів проєкту, який визначає, чи містить файл tagged template літерал із тегом `gql` (тобто конструкцію виду `` gql`…` ``). Сканер призначений для роботи разом із правилом `graphql.mdc` і використовується інфраструктурою лінту/правил для виявлення місць, де описано GraphQL-запити у форматі вкладених шаблонних рядків.

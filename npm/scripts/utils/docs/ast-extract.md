@@ -3,7 +3,7 @@ type: JS Module
 title: ast-extract.mjs
 resource: npm/scripts/utils/ast-extract.mjs
 docgen:
-  crc: 61e8c7bc
+  crc: 08ce9aec
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

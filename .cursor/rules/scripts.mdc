@@ -1,7 +1,7 @@
 ---
 description: Програмна перевірка проєкту (unified lint surface) та concern-directory лейаут npm/rules/ — концерн = каталог із concern.json; один detector-контракт lint(ctx)→LintResult; policy-концерни генеруються codegen-ом; helpers у utils/; скіл-специфічні скрипти в npm/skills/<id>/js/
 alwaysApply: true
-version: '1.17'
+version: '1.20'
 ---
 
 ## Критика користувацького інпуту (доречність та ефективність)
@@ -54,7 +54,9 @@ npm/rules/{rule}/
 
 **Поверхні в `concern.json`:**
 
-- `"lint": { "scope": "per-file"|"full", "glob": […] }` — **обов'язкова** для виконуваного концерну. `per-file` — delta-режим (по змінених файлах vs origin); `full` — крос-файловий (весь репо). Поля `llmFix` **немає** (fix-можливість = наявність `fix-*.mjs`/`fix-worker.mjs`).
+- `"lint": { "scope": "per-file"|"full", "glob"?: […] }` — **обов'язкова** для виконуваного концерну (крім `scope`). `per-file` — delta-режим (по змінених файлах vs origin); `full` — крос-файловий (весь репо). Поля `llmFix` **немає** (fix-можливість = наявність `fix-*.mjs`/`fix-worker.mjs`).
+  - `full` **з** `glob` — тригерить whole-repo прогін і в delta (щойно змінений файл під glob), і в `--full`/scoped.
+  - `full` **без** `glob` (поле відсутнє взагалі, не порожній масив) — concern **не входить у delta-план**, спрацьовує лише через `n-cursor lint --full` або scoped `n-cursor lint <rule>`. Для механізмів, що принципово не можуть дати коректний результат на підмножині змінених файлів (lockfile-аудит, dependency-graph, secret-scan по дереву/git-історії, registry-звірка) — свідомий вибір, не помилка конфігурації (spec `docs/specs/2026-07-02-text-check-per-file-split-design.md` §5). Приклади: `js/knip`, `bun/licensee`, `security/scan`, `python/project`, `changelog/consistency`.
 - `"policy": { "engine": "rego"|"template", "files": { … }, "missingMessage"? }` — target-семантика policy-концерну. Його `main.mjs` **генерується codegen-ом** (`@generated`), а не пишеться руками; lint-поверхня деривується з `policy.files` (scope=full). Поле `check` (legacy `"template"`) ще читається для backward-compat.
 
 **Контракт detector-а: `export async function lint(ctx)`**
@@ -125,6 +127,7 @@ npm/skills/{skill}/
 export const patterns = [
   {
     id: 'rule-concern-action',                    // унікальний id (для логу й дебагу)
+    standalone: false,                            // опційно; true → apply() ідемпотентний, обходить test()
     test: (violations) => violations.some(v => v.reason === '…'),  // чи застосовний до violations свого концерну
     apply: async (violations, ctx) =>             // застосувати фікс (детерміновано); sync або async
       ({ touchedFiles: string[], message?: string }),
@@ -133,6 +136,10 @@ export const patterns = [
 ```
 
 T0 отримує **лише violations свого концерну** (runner scope-ить за `(ruleId, concernId)` — `test()` не перевіряє ruleId/concernId). T0 — **детермінований і permanent**: його зміни не відкочуються rollback-ом ladder-а (snapshot S1 береться post-T0). Worker (`fix-worker.mjs`, `fixWorker(violations, ctx) → { touchedFiles }`) — один LLM-attempt; success визначає **виключно** canonical re-detect, не сам worker. Pipeline — `npm/scripts/lib/lint-surface/run-fix.mjs`; pure-ladder helpers — `ladder.mjs`; central rollback — `snapshot.mjs`.
+
+**`standalone: true` — merge detect+fix (spec `docs/specs/2026-07-02-text-check-per-file-split-design.md` §8).** Патерн, чий `apply()` сам re-invoke'ить самоаналізуючий CLI (`oxfmt --write`, `ruff --fix`, `stylelint --fix`, `cargo fmt`) і **самостійно перелічує** цільові файли (`ctx.files`/`git ls-files`/glob) — **не** з `violations` — може бути `standalone`. Якщо **всі** T0-патерни концерну standalone, `runFixPipeline` пропускає початковий detect для цього концерну взагалі: `apply()` викликається безумовно (ідемпотентно, `test()` обходиться), а post-T0 re-detect стає єдиним джерелом правди — економить один зайвий detect-прохід тим самим тулом на "брудному" шляху.
+
+**Критерій standalone (усі три обов'язкові):** (а) `apply()` re-invoke'ить CLI, що сам re-scan'ить вміст; (б) жодне поле `violation.data` не читається; (в) **сам список цільових файлів `apply()` бере не з `violations`, а самостійно**. Пункт (в) — найчастіша пастка: `apply()`, що деривує файли з `violations.map(v => v.file)` (як у `js/eslint`, `text/oxfmt`), **не** standalone — виклик із порожнім `violations: []` (без початкового detect) ніколи не знайде, що фіксити. Еталони: `text/markdownlint`, `text/run-shellcheck`, `text/run-dotenv-linter`, `python/ruff`, `style/lint`, `rust/check` (лише fmt-патерн). Змішаний набір (частина standalone, частина ні) — початковий detect лишається для всього концерну.
 
 **Discovery-агрегація**: `run-fix.mjs` динамічно імпортує `rules/{rule}/{concern}/fix-{concern}.mjs` (поряд із `concern.json`) і споживає `patterns`.
 
@@ -177,8 +184,8 @@ export { patterns } from '../../../scripts/lib/fix/vscode-ext-add.mjs'
 
 **Контракт** (обов'язковий для будь-якого скіл-оркестратора, що фіксує правила / стан файлів):
 
-1. **Convergence-loop.** Оркестратор диспатчить воркера → після завершення запускає `n-cursor fix <rule> --json` → якщо `{ok: false}` — диспатчить знову (наступний tier або повтор). Цикл завершується лише якщо `ok: true` або вичерпано всі tier-спроби. Модель **не може** «вважати себе готовою» — тільки check підтверджує.
-2. **Check-gate.** Одиниця закриття підзадачі = `fix <rule> --json → ok: true`. Це модель-агностичний механізм: модель будь-якого розміру чи провайдера підпорядковується одному й тому ж check-gate.
+1. **Convergence-loop.** Оркестратор диспатчить воркера → після завершення запускає `n-cursor lint <rule>` → якщо exit code ≠ 0 — диспатчить знову (наступний tier або повтор). Цикл завершується лише якщо exit code `0` або вичерпано всі tier-спроби. Модель **не може** «вважати себе готовою» — тільки check підтверджує.
+2. **Check-gate.** Одиниця закриття підзадачі = `lint <rule>` → exit code `0`. Це модель-агностичний механізм: модель будь-якого розміру чи провайдера підпорядковується одному й тому ж check-gate.
 3. **Escalation ladder.** Кожна підзадача проходить tier-и послідовно (`local → haiku → sonnet`); якщо tier кидає (maxTurns, ETIMEDOUT, будь-яка помилка) — це `tier-fail → escalate`, не крах оркестратора.
 4. **Error handling.** Кожен виклик воркера обгорнутий `try/catch`; SDK кидає на `maxTurns`, не повертає — без обгортки оркестратор крашиться замість ескалації.
 5. **Fail-fast локаль.** Локальний tier отримує **≤60 с timeout** і **одну спробу**; при ETIMEDOUT — негайна ескалація. (Обґрунтування: 4B-модель на M2 8GB потребує ~97 с/крок, типовий coding-фікс — 5+ кроків = ~485 с >> будь-який розумний timeout. Довгі таймаути поглинають ~89 % wall-time без результату — підтверджено бенчем D: localSec 2847 з 3192 с.)
@@ -187,7 +194,7 @@ export { patterns } from '../../../scripts/lib/fix/vscode-ext-add.mjs'
 
 **Red flags:**
 
-- Воркер повідомляє «done» без `fix --json → ok` перевірки — не довіряй, запусти check.
+- Воркер повідомляє «done» без `lint <rule>` → exit `0` перевірки — не довіряй, запусти check.
 - Fixed cap N без check-gate (цикл без перевірки) — антипатерн B: неповний (2/3 замість 3/3).
 - `try/catch` відсутній навколо tier-виклику — SDK кидає на `maxTurns`; без нього оркестратор паде.
 - Локальний tier з timeout >60 с або N>1 спробами — з'їдає wall-time без результату (бенч D: 89 %).
@@ -220,19 +227,19 @@ export { patterns } from '../../../scripts/lib/fix/vscode-ext-add.mjs'
 
 **Red flag:** додаєш inline-fenced-блок або inline-string поруч з template-лінком / під JS-перевіркою / в rego — майже завжди це канон, який має бути єдино в `template/<target>.<slot>.<ext>` і читатися звідти.
 
-**Red flag (pure-doc):** у канонічному `npm/rules/<id>/main.mdc` зʼявляється fenced-блок з ` ```<ext> title="<filename>" ` — будь-який, навіть якщо поруч **немає** ані template-лінка, ані check'а. `title="<filename>"` сигналізує канон конкретного файлу проєкту, і він має жити в `template/<basename>.snippet.<ext>` з markdown-лінком у `.mdc`, а не дублюватися fenced-блоком inline. Виняток — контрприклади (`title="❌ ..."`, `title="✅ ..."`) і анонімні приклади без `title=`. Перед коммітом `main.mdc` з новим `title="<filename>"` fenced-блоком — зупинись і створи концерн з template-файлом.
+**Red flag (pure-doc):** у канонічному `npm/rules/<id>/main.mdc` зʼявляється fenced-блок з ` ```<ext> title="<filename>" ` — будь-який, навіть якщо поруч **немає** ані template-лінка, ані check'а. `title="<filename>"` сигналізує канон конкретного файлу проєкту, і він має жити в `template/<basename>.snippet.<ext>` з markdown-лінком у `.mdc`, а не дублюватися fenced-блоком inline. Виняток — контрприклади (`title="❌ ..."`, `title="✅ ..."`) і анонімні приклади без `title=`. Перед комітом `main.mdc` з новим `title="<filename>"` fenced-блоком — зупинись і створи концерн з template-файлом.
 
-## Перш ніж писати / розширювати `check.mjs`
+## Перш ніж писати / розширювати `{concern}/main.mjs`
 
-**STOP — спершу пройди алгоритм Rego-first** (`.cursor/rules/conftest.mdc`, alwaysApply). Це стосується **і нової** перевірки, **і додавання нового deny у вже існуючий** `js/<concern>.mjs`: подивись `npm/rules/<rule>/policy/`, чи задача не лягає у вже існуючий rego-пакет як ще одне `deny contains`.
+**STOP — спершу пройди алгоритм Rego-first** (`.cursor/rules/conftest.mdc`, alwaysApply; наразі описує дореформену `policy/`/`js/`-структуру — читай крізь призму flat concern-directory лейауту цього файлу). Це стосується **і нової** перевірки, **і додавання нового deny у вже існуючий** `{concern}/main.mjs`: подивись сусідні концерни того ж правила (`npm/rules/<rule>/*/concern.json` з `policy`-поверхнею), чи задача не лягає у вже існуючий rego-пакет як ще одне `deny contains`.
 
 Швидкий self-check для нової перевірки (порядок важливий):
 
-1. **Це пер-документна перевірка одного JSON/YAML?** (наявність / форма поля, regex по значенню, перелік дозволених літералів). → **Rego, без JS-коду.** Пиши у `npm/rules/<rule>/policy/<concern>/<concern>.rego` + `<concern>_test.rego`.
-2. Потрібен `readdir`, `stat`, парність файлів, AST-парсинг JS/TS, autofix, modeline до YAML-body? → **JS** у `js/<concern>.mjs`. Per-document частина (якщо є) усе одно лишається у rego — JS викликає її через `runConftestBatch`.
-3. Не впевнений? Подивись референс **`npm/rules/k8s/policy/*`** ↔ **`npm/rules/k8s/js/*/check.mjs`** (Plan B: Rego-authoritative + JS-orchestrator) і список «що Rego об'єктивно не вміє» у `conftest.mdc`.
+1. **Це пер-документна перевірка одного JSON/YAML?** (наявність / форма поля, regex по значенню, перелік дозволених літералів). → **Rego, без JS-коду.** Створи (або розшир) концерн `npm/rules/<rule>/<concern>/` з `concern.json#policy` + `<concern>.rego` + `<concern>_test.rego`.
+2. Потрібен `readdir`, `stat`, парність файлів, AST-парсинг JS/TS, autofix, modeline до YAML-body? → **JS** у `{concern}/main.mjs` (`concern.json#lint` / `#check`). Per-document частина (якщо є) усе одно лишається у rego — JS викликає її через `runConftestBatch`/`evaluatePolicyConcern`.
+3. Не впевнений? Подивись референс **`npm/rules/js/jscpd_config/`** (чисто policy: `.jscpd.json` існує) ↔ **`npm/rules/js/jscpd_duplicates/`** (чисто lint: `bunx jscpd .`, cross-file) — два concerns одного tool-домену, кожен своя поверхня — і список «що Rego об'єктивно не вміє» у `conftest.mdc`.
 
-**Червоний прапор:** дописуєш `if (pkg.<field>) fail(…)` у JS — майже завжди це варто було робити як `deny contains msg if { … }` у відповідному rego-пакеті. Перевір `npm/rules/<rule>/policy/` **перед** редагуванням `js/<concern>.mjs`.
+**Червоний прапор:** дописуєш `if (pkg.<field>) fail(…)` у JS-концерні — майже завжди це варто було робити як `deny contains msg if { … }` у відповідному rego-пакеті сусіднього концерну. Перевір `npm/rules/<rule>/*/concern.json` з `policy`-поверхнею **перед** редагуванням JS-детектора.
 
 **Червоний прапор:** пишеш новий `{concern}/main.mjs` без `export async function lint(ctx)` — без detector-точки входу концерн мовчки не виконується (runner шукає `mod.lint`).
 
@@ -245,6 +252,16 @@ export { patterns } from '../../../scripts/lib/fix/vscode-ext-add.mjs'
 - Запускай **перед** змінами правил або check-скриптів — зафіксуй поточний стан.
 - Запускай **після** змін — підтверди, що перевірки й проєкт узгоджені.
 
+## Прогрес довгих lint/fix-прогонів — ОБОВ'ЯЗКОВО через спільний reporter
+
+Будь-який довгий прогін unified lint surface (fix-pipeline, `--full`, батчеві генератори типу `doc-files`) **звітує живий прогрес** через спільний `ProgressReporter` (`npm/scripts/lib/lint-surface/progress.mjs`; spec `docs/specs/2026-07-03-lint-progress-bar-design.md`):
+
+- **Одиниця прогресу — гібрид**: монотонний бар по **концернах** (total відомий з плану детекції) + тикер порушень `знайдено / виправлено` поряд. Батчеві концерни з одним concern-ом (doc-files) — бар по своїх одиницях (`unitLabel`).
+- **Семантика лічильників не бреше вниз**: `found = max(found, remaining + fixed)` пер-концерн — re-detect, що відкрив нові порушення (маскування, standalone-T0), **збільшує** `found`, а не ховається. Класичний `X/Y %` по порушеннях заборонено — total не монотонний.
+- **TTY-розгалуження авто**: `isTTY` → однорядковий бар (рендер — `cli-progress`, існуючі log-рядки через `multibar.log()`, інакше рвуть перемальовування); не-TTY (CI, hooks, пайпи) → append-only рядки без ANSI.
+- **Reporter інжектиться** через `opts` (як `log`) — тести семантики лічильників не залежать від рендер-lib і TTY.
+- **Red flag:** новий довгий цикл (по концернах/файлах/tier-ах) із власним ad-hoc `[done/total]`-виводом замість спільного reporter-а; `\r`/ANSI-запис у не-TTY.
+
 ## MDC-супутник для кожного concern — ОБОВ'ЯЗКОВО
 
 Кожен концерн у `npm/rules/<rule>/{concern}/` **має** мати власний `{concern}.mdc`:
@@ -255,14 +272,14 @@ export { patterns } from '../../../scripts/lib/fix/vscode-ext-add.mjs'
 
 **Red flag:** додав `main.mjs` або `{concern}.rego` до нового concern-dir — зупинись і одразу напиши поруч `{concern}.mdc`. Без `.mdc`-файлу зміна залишиться невидимою в `.cursor/rules/`.
 
-## Синхронізація правил і `check.mjs` / Rego policy
+## Синхронізація правил і `{concern}/main.mjs` / Rego policy
 
-Правило без актуальної перевірки (або з застарілою логікою) дає хибну впевненість: агенти й CI покладаються на `check`.
+Правило без актуальної перевірки (або з застарілою логікою) дає хибну впевненість: агенти й CI покладаються на detector.
 
-- **Завжди** тримай узгодженими текст правила (`npm/rules/<id>/main.mdc` у пакеті та/або `.cursor/rules/n-<id>.mdc` локально) і відповідну перевірку — `js/<concern>.mjs` та/або `policy/<concern>/<concern>.rego`.
-- Додав або змінив вимогу в правилі — **у тому ж логічному кроці** онови відповідний `check.mjs` / `<concern>.rego` / `template/<target>.<slot>.<ext>`: умови, повідомлення `fail` / `pass`, deny-rules, drift-тести. Канонічний літерал — у template; перевірка читає його звідти.
-- Якщо нова вимога **перевірювана програмно**, а концерну ще немає — створи концерн за алгоритмом `conftest.mdc` (Rego-first): пер-документні валідації → `policy/<concern>/<concern>.rego` + `template/`; FS / cross-file / AST → `js/<concern>.mjs`.
-- Не закривай задачу лише оновленням `.mdc`, якщо для цього правила вже існує check/policy або з'явилась нова перевірювана умова — check має відображати актуальні критерії.
+- **Завжди** тримай узгодженими текст правила (`npm/rules/<id>/main.mdc` у пакеті та/або `.cursor/rules/n-<id>.mdc` локально) і відповідну перевірку — `{concern}/main.mjs` (`concern.json#lint`/`#check`) та/або `{concern}/{concern}.rego` (`concern.json#policy`).
+- Додав або змінив вимогу в правилі — **у тому ж логічному кроці** онови відповідний `main.mjs` / `<concern>.rego` / `template/<target>.<slot>.<ext>`: умови, повідомлення `fail`, deny-rules, drift-тести. Канонічний літерал — у template; перевірка читає його звідти.
+- Якщо нова вимога **перевірювана програмно**, а концерну ще немає — створи концерн за алгоритмом `conftest.mdc` (Rego-first, читай крізь flat-лейаут): пер-документні валідації → `{concern}/{concern}.rego` + `template/`; FS / cross-file / AST → `{concern}/main.mjs`.
+- Не закривай задачу лише оновленням `.mdc`, якщо для цього правила вже існує concern або з'явилась нова перевірювана умова — detector має відображати актуальні критерії.
 
 При створенні або редагуванні правил перенось максимум логіки в скрипти / rego / `template/`, щоб LLM зосереджувалась на виправленні порушень, а не на ручному відтворенні правил.
 
@@ -283,7 +300,7 @@ export { patterns } from '../../../scripts/lib/fix/vscode-ext-add.mjs'
 **Що це дає:**
 
 - Кілька паралельних агентів / субагентів / shell'ів у тому самому проєкті, які запускають той самий тяжкий процес (eslint/oxlint/jscpd, kubeconform, opa+regal, hadolint, per-rule fix.mjs), **не** перевантажують CPU/диск на macOS — другий і далі чекають у черзі.
-- При збігу stан-у git-дерева й TTL — другий прогон **дедуплікується** (`♻️ <key>: …`) і повертає `0` без виконання.
+- При збігу стан-у git-дерева й TTL — другий прогон **дедуплікується** (`♻️ <key>: …`) і повертає `0` без виконання.
 
 **Алгоритм всередині `withLock`** — атомарний `mkdirSync`-lock, перевірка живості PID на `process.kill(pid, 0)` (той самий host) + межовий вік 30 хв проти зависань; невдалі прогони (`exitCode !== 0`) НЕ дедупляться; fingerprint = sha256(`git rev-parse HEAD` + `git diff HEAD` + untracked-файли); поза git-репо дедуп вимикається, лок лишається.
 
@@ -334,7 +351,7 @@ case 'lint-foo': {
 
 ### Коли потрібна **інша** експортна форма без локу
 
-Якщо тести або інший код викликають перевірку напряму з нестандартним cwd / у тимчасовій директорії — фінgerprint все одно обчислюється від `process.cwd()`, а не від переданого cwd. Тоді другий тестовий виклик з тим самим `process.cwd()` дедуплікується проти першого, і реальна логіка **не виконається** → тест не перевіряє те, що мав. Експортуй обидві форми:
+Якщо тести або інший код викликають перевірку напряму з нестандартним cwd / у тимчасовій директорії — fingerprint все одно обчислюється від `process.cwd()`, а не від переданого cwd. Тоді другий тестовий виклик з тим самим `process.cwd()` дедуплікується проти першого, і реальна логіка **не виконається** → тест не перевіряє те, що мав. Експортуй обидві форми:
 
 ```js
 export function runLintFooSteps(cwd = process.cwd()) { /* … */ }   // для тестів

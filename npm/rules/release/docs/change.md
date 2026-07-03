@@ -3,7 +3,7 @@ type: JS Module
 title: change.mjs
 resource: npm/rules/release/change.mjs
 docgen:
-  crc: 1ff4f816
+  crc: c9f1f131
 ---
 
 Модуль реалізує CLI-команду `n-cursor change`, яка створює **один** change-файл у каталозі `<ws>/.changes/<timestamp>-<rand>.md` усередині конкретного workspace монорепо. Файл містить мінімальний YAML-frontmatter (`bump`, `section`) та текст опису зміни.

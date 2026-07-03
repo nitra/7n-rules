@@ -3,9 +3,8 @@ type: JS Module
 title: vscode-ext-add.mjs
 resource: npm/scripts/lib/fix/vscode-ext-add.mjs
 docgen:
-  crc: 950e9098
+  crc: 8b3e27a9
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

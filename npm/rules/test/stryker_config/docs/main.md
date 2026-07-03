@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/test/stryker_config/main.mjs
 docgen:
-  crc: 53e26d13
+  crc: ce146909
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 90
   issues: anchor-miss:(test.mdc),anchor-miss:mutation.json,judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

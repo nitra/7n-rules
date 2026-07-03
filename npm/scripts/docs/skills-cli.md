@@ -3,7 +3,7 @@ type: JS Module
 title: skills-cli.mjs
 resource: npm/scripts/skills-cli.mjs
 docgen:
-  crc: e2d5fac6
+  crc: 0425b4b8
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99

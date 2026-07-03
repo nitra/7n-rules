@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/text/forbidden-prettier/main.mjs
 docgen:
-  crc: e0c9394b
+  crc: 23cf1482
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

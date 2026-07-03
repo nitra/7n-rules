@@ -3,7 +3,7 @@ type: JS Module
 title: bun-sql-scan.mjs
 resource: npm/rules/js-bun-db/lib/bun-sql-scan.mjs
 docgen:
-  crc: 76151470
+  crc: fad96162
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

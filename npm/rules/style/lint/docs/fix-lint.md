@@ -3,7 +3,7 @@ type: JS Module
 title: fix-lint.mjs
 resource: npm/rules/style/lint/fix-lint.mjs
 docgen:
-  crc: ba567b7e
+  crc: ef3a0112
 ---
 
 ## Огляд

@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/capacitor/platforms/main.mjs
 docgen:
-  crc: eb46a6ed
+  crc: a25bb28b
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 95
 ---
 

@@ -3,7 +3,7 @@ type: JS Module
 title: blue-oak.mjs
 resource: npm/scripts/lib/blue-oak.mjs
 docgen:
-  crc: 9039e57f
+  crc: 18c24b0c
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

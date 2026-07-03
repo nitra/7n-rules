@@ -23,7 +23,17 @@ import { buildDetectPlan } from './run-detectors.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
 import { renderViolations } from './render.mjs'
 import { createSnapshot } from './snapshot.mjs'
+import { createProgressReporter } from './progress.mjs'
 import { buildLadder, decideAfterFailure, DEFAULT_MAX_AVG } from './ladder.mjs'
+
+/**
+ * Стабільний ключ одиниці прогресу для ProgressReporter.
+ * @param {PlanItem} item Елемент плану.
+ * @returns {string} `rule/concern`
+ */
+function progressKey(item) {
+  return `${item.entry.ruleId}/${item.entry.concern.name}`
+}
 
 /**
  * Завантажує structured T0-патерни concern-а з `fix-<concern>.mjs`.
@@ -100,13 +110,17 @@ function isStandaloneConcern(patterns) {
 
 /**
  * Re-detect одного concern-а (canonical verdict). Кидає DetectorError → пробрасується.
+ * Кожен знімок живить ProgressReporter — тикер «знайдено/виправлено» оновлюється
+ * саме тут, після кожного canonical detect.
  * @param {PlanItem} item Елемент плану з entry та переліком файлів.
  * @param {string} cwd Робоча директорія для запуску детектора.
+ * @param {import('./progress.mjs').ProgressReporter|null} [progress] Reporter прогресу.
  * @returns {Promise<LintViolation[]>} Актуальні порушення concern-а після re-detect.
  */
-async function reDetect(item, cwd) {
+async function reDetect(item, cwd, progress = null) {
   const ctx = { cwd, ruleId: item.entry.ruleId, concernId: item.entry.concern.name, files: item.files }
   const res = await runConcernDetector(item.entry.concern, ctx)
+  progress?.detectSnapshot(progressKey(item), res.violations.length)
   return res.violations
 }
 
@@ -131,12 +145,14 @@ async function resolveWorker(concernDir, workerOverride) {
  * @param {LintContext} lintCtx Контекст лінту.
  * @param {string} cwd Робоча директорія.
  * @param {(s: string) => void} log Логер.
+ * @param {import('./progress.mjs').ProgressReporter|null} [progress] Reporter прогресу.
  * @returns {Promise<{ closed: boolean, violations: LintViolation[] }>} closed=true якщо concern закрито T0; інакше актуальні violations.
  */
-async function runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log) {
+async function runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log, progress = null) {
   if (patterns.length === 0) return { closed: false, violations: initialViolations }
+  progress?.concernStart(progressKey(item), 'T0')
   await applyT0(patterns, initialViolations, lintCtx, log)
-  const afterT0 = await reDetect(item, cwd)
+  const afterT0 = await reDetect(item, cwd, progress)
   if (afterT0.length === 0) {
     log(`  ✅ T0: ${lintCtx.ruleId}/${lintCtx.concernId}\n`)
     return { closed: true, violations: afterT0 }
@@ -163,12 +179,14 @@ async function runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log) 
  * @param {string} rungDeps.cwd Робоча директорія.
  * @param {ReturnType<typeof createSnapshot>} rungDeps.snapshot Snapshot S1.
  * @param {(s: string) => void} rungDeps.log Логер.
+ * @param {import('./progress.mjs').ProgressReporter|null} [rungDeps.progress] Reporter прогресу.
  * @returns {Promise<{ closed: true } | { closed: false, outcome: RungOutcome }>} closed=true якщо concern закрито; інакше результат для наступного кроку.
  */
 async function runRung(rung, worker, violations, feedback, rungDeps) {
-  const { item, cwd, snapshot, log } = rungDeps
+  const { item, cwd, snapshot, log, progress = null } = rungDeps
   const { ruleId } = item.entry
   const concernName = item.entry.concern.name
+  progress?.concernStart(progressKey(item), rung.tier)
 
   /** @type {FixContext} */
   const fixCtx = {
@@ -192,7 +210,7 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
   // Canonical re-detect = джерело правди.
   let after
   try {
-    after = await reDetect(item, cwd)
+    after = await reDetect(item, cwd, progress)
   } catch (detectError) {
     if (detectError instanceof DetectorError) throw detectError
     throw detectError
@@ -230,10 +248,11 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
  * @param {import('./types.mjs').FixWorkerFn|null} [deps.workerOverride] Worker-override для тестів.
  * @param {T0Pattern[]} [deps.t0Override] T0-патерни override для тестів.
  * @param {(s: string) => void} deps.log Логер прогресу.
+ * @param {import('./progress.mjs').ProgressReporter|null} [deps.progress] Reporter прогресу.
  * @returns {Promise<boolean>} Чи закрито concern (усі порушення усунено).
  */
 export async function fixConcern(item, initialViolations, deps) {
-  const { cwd, ladder, log } = deps
+  const { cwd, ladder, log, progress = null } = deps
   const { ruleId } = item.entry
   const concernName = item.entry.concern.name
   const concernDir = item.entry.concern.dir
@@ -242,7 +261,7 @@ export async function fixConcern(item, initialViolations, deps) {
 
   // ── T0 (детермінований, permanent) ──
   const patterns = deps.t0Override ?? (await loadT0Patterns(concernDir, concernName))
-  const t0 = await runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log)
+  const t0 = await runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log, progress)
   if (t0.closed) return true
   initialViolations = t0.violations
 
@@ -272,7 +291,7 @@ export async function fixConcern(item, initialViolations, deps) {
       continue
     }
 
-    const res = await runRung(rung, worker, violations, feedback, { item, cwd, snapshot, log })
+    const res = await runRung(rung, worker, violations, feedback, { item, cwd, snapshot, log, progress })
     if (rung.isAvg) deps.spendAvg(1)
     if (res.closed) return true
 
@@ -291,19 +310,22 @@ export async function fixConcern(item, initialViolations, deps) {
  * @param {string} cwd Робоча директорія.
  * @param {boolean} verbose Детальний вивід плану.
  * @param {(s: string) => void} log Логер.
+ * @param {import('./progress.mjs').ProgressReporter|null} [progress] Reporter прогресу.
  * @returns {Promise<{ code: 2 } | { detected: Array<{ item: PlanItem, violations: LintViolation[] }> }>} код 2 при DetectorError або зібрані результати detect.
  */
-async function detectAllForFix(plan, cwd, verbose, log) {
+async function detectAllForFix(plan, cwd, verbose, log, progress = null) {
   /** @type {Array<{ item: PlanItem, violations: LintViolation[] }>} */
   const detected = []
   for (const item of plan) {
     const ctx = { cwd, ruleId: item.entry.ruleId, concernId: item.entry.concern.name, files: item.files }
+    progress?.concernStart(progressKey(item), 'detect')
     if (verbose) {
       const countStr = item.files === undefined ? 'весь репо' : `${item.files.length} файл(ів)`
       log(`  🔍 ${ctx.ruleId}/${ctx.concernId}  [${item.entry.concern.lint.scope}]  → ${countStr}\n`)
     }
     try {
       const res = await runConcernDetector(item.entry.concern, ctx)
+      progress?.detectSnapshot(progressKey(item), res.violations.length)
       detected.push({ item, violations: res.violations })
     } catch (detectError) {
       if (detectError instanceof DetectorError) {
@@ -346,16 +368,22 @@ async function renderRemaining(failing, cwd, log) {
  * @param {boolean} [opts.verbose] Детальний вивід плану детекції.
  * @param {number} [opts.maxAvg] Ліміт avg-бюджету.
  * @param {(s: string) => void} [opts.log] Логер виводу.
+ * @param {boolean} [opts.isTTY] Override TTY-режиму ProgressReporter (тести); типово isTTY stdout.
  * @param {object} [opts.deps] Інжекти для тестів: { ladder, workerFor, t0For }.
  * @returns {Promise<0|1|2>} Exit code: 0 — чисто, 1 — лишились порушення, 2 — DetectorError.
  */
 export async function runFixPipeline(opts) {
   const { cwd } = opts
-  const log = opts.log ?? (s => process.stdout.write(s))
+  const baseLog = opts.log ?? (s => process.stdout.write(s))
   const verbose = opts.verbose === true
   const deps = opts.deps ?? {}
 
   const plan = await buildDetectPlan(opts)
+
+  // ProgressReporter (канон scripts.mdc «Прогрес довгих lint/fix-прогонів»):
+  // бар по концернах + тикер порушень; TTY/не-TTY розгалуження всередині.
+  const progress = createProgressReporter({ total: plan.length, log: baseLog, isTTY: opts.isTTY })
+  const log = progress.log
 
   // Преloadимо T0-патерни разом із планом — потрібно, щоб класифікувати standalone-концерни
   // (spec docs/specs/2026-07-02-text-check-per-file-split-design.md §8, Phase 2) ДО початкового
@@ -374,57 +402,71 @@ export async function runFixPipeline(opts) {
   const standaloneItems = plan.filter(item => isStandaloneConcern(patternsByItem.get(item)))
   const normalPlan = plan.filter(item => !standaloneItems.includes(item))
 
-  // ── Detect лише для normal-концернів; standalone апляє одразу (без початкового detect) ──
-  const detectResult = await detectAllForFix(normalPlan, cwd, verbose, log)
-  if ('code' in detectResult) return detectResult.code
+  // try/finally: stop() гарантовано звільняє TTY-рядок (hideCursor) навіть при
+  // DetectorError з глибини fix-циклу; сам stop() ідемпотентний.
+  try {
+    // ── Detect лише для normal-концернів; standalone апляє одразу (без початкового detect) ──
+    const detectResult = await detectAllForFix(normalPlan, cwd, verbose, log, progress)
+    if ('code' in detectResult) return detectResult.code
 
-  const failing = detectResult.detected.filter(d => d.violations.length > 0)
-  if (failing.length === 0 && standaloneItems.length === 0) return 0
-
-  const ladder = deps.ladder ?? buildLadder({ localMin: LOCAL_MIN, cloudMin: CLOUD_MIN, cloudAvg: CLOUD_AVG })
-  let avgBudget = typeof opts.maxAvg === 'number' ? opts.maxAvg : DEFAULT_MAX_AVG
-
-  /**
-   * @param {PlanItem} item Елемент плану.
-   * @param {LintViolation[]} violations Початкові порушення (порожньо для standalone).
-   * @returns {Promise<boolean>} Чи закрито concern.
-   */
-  const runOne = (item, violations) =>
-    fixConcern(item, violations, {
-      cwd,
-      ladder,
-      log,
-      avgRemaining: () => avgBudget,
-      spendAvg: n => {
-        avgBudget -= n
-      },
-      workerOverride: deps.workerFor ? deps.workerFor(item.entry) : undefined,
-      t0Override: patternsByItem.get(item)
-    })
-
-  let worst = 0
-  const attemptedForRender = []
-
-  for (const { item, violations } of failing) {
-    if (!(await runOne(item, violations))) {
-      worst = 1
-      attemptedForRender.push({ item })
+    const failing = detectResult.detected.filter(d => d.violations.length > 0)
+    // Чисті концерни закриваються одразу — бар рухається без очікування fix-фази.
+    for (const d of detectResult.detected) {
+      if (d.violations.length === 0) progress.concernDone(progressKey(d.item))
     }
+    if (failing.length === 0 && standaloneItems.length === 0) return 0
+
+    const ladder = deps.ladder ?? buildLadder({ localMin: LOCAL_MIN, cloudMin: CLOUD_MIN, cloudAvg: CLOUD_AVG })
+    let avgBudget = typeof opts.maxAvg === 'number' ? opts.maxAvg : DEFAULT_MAX_AVG
+
+    /**
+     * @param {PlanItem} item Елемент плану.
+     * @param {LintViolation[]} violations Початкові порушення (порожньо для standalone).
+     * @returns {Promise<boolean>} Чи закрито concern.
+     */
+    const runOne = (item, violations) =>
+      fixConcern(item, violations, {
+        cwd,
+        ladder,
+        log,
+        progress,
+        avgRemaining: () => avgBudget,
+        spendAvg: n => {
+          avgBudget -= n
+        },
+        workerOverride: deps.workerFor ? deps.workerFor(item.entry) : undefined,
+        t0Override: patternsByItem.get(item)
+      })
+
+    let worst = 0
+    const attemptedForRender = []
+
+    for (const { item, violations } of failing) {
+      if (!(await runOne(item, violations))) {
+        worst = 1
+        attemptedForRender.push({ item })
+      }
+      progress.concernDone(progressKey(item))
+    }
+
+    for (const item of standaloneItems) {
+      if (verbose) {
+        const label = `${item.entry.ruleId}/${item.entry.concern.name}`
+        log(`  🔍 ${label}  [standalone-merge]  → apply без початкового detect\n`)
+      }
+      if (!(await runOne(item, []))) {
+        worst = 1
+        attemptedForRender.push({ item })
+      }
+      progress.concernDone(progressKey(item))
+    }
+
+    // Бар звільняє TTY-рядок ДО фінального render-у невирішених порушень.
+    progress.stop()
+    if (worst === 1) await renderRemaining(attemptedForRender, cwd, baseLog)
+
+    return worst
+  } finally {
+    progress.stop()
   }
-
-  for (const item of standaloneItems) {
-    if (verbose) {
-      const label = `${item.entry.ruleId}/${item.entry.concern.name}`
-      log(`  🔍 ${label}  [standalone-merge]  → apply без початкового detect\n`)
-    }
-    if (!(await runOne(item, []))) {
-      worst = 1
-      attemptedForRender.push({ item })
-    }
-  }
-
-  // Фінальний render невирішених.
-  if (worst === 1) await renderRemaining(attemptedForRender, cwd, log)
-
-  return worst
 }

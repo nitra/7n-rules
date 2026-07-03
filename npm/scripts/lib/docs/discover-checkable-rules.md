@@ -3,7 +3,7 @@ type: JS Module
 title: discover-checkable-rules.mjs
 resource: npm/scripts/lib/discover-checkable-rules.mjs
 docgen:
-  crc: 16798b52
+  crc: 5c278c6f
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

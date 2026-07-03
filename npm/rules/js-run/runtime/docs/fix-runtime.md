@@ -3,7 +3,7 @@ type: JS Module
 title: fix-runtime.mjs
 resource: npm/rules/js-run/runtime/fix-runtime.mjs
 docgen:
-  crc: a3832381
+  crc: e7f2ea89
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   judgeModel: openai-codex/gpt-5.4-mini

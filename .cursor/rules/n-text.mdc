@@ -1,7 +1,7 @@
 ---
 description: Обробка та перевірка текстових файлів, oxfmt, cspell, shellcheck (sh), dotenv-linter (.env*), markdownlint-cli2, v8r, CI
 alwaysApply: true
-version: '1.30'
+version: '1.31'
 ---
 
 Правило охоплює весь текстовий стек проєкту: форматування (oxfmt), перевірку правопису (cspell), shell-скрипти (shellcheck), `.env`-файли (dotenv-linter), Markdown (markdownlint-cli2), JSON/YAML/TOML-схеми (v8r) та CI-workflow.
@@ -221,7 +221,7 @@ Prettier **повністю заборонено** — форматування 
 
 Також потрібно прибрати, якщо є в проєкті, модуль **`@nitra/prettier-config`**, **prettier** та всі виклики prettier і налаштування для нього. Канон заборонених top-level/`dependencies`/`devDependencies` (prettier, `@nitra/prettier-config`, `markdownlint-cli2`): [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
 
-Перевірка `npx @nitra/cursor fix text` падає, якщо у корені є `.prettierignore`, `.prettierrc*`, `prettier.config.*` або у `package.json#scripts` зустрічається команда з `prettier`.
+Перевірка `npx @nitra/cursor lint text` падає, якщо у корені є `.prettierignore`, `.prettierrc*`, `prettier.config.*` або у `package.json#scripts` зустрічається команда з `prettier`.
 
 Заборонені файли конфігурації Prettier у корені:
 

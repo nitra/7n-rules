@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/js-mssql/deps/main.mjs
 docgen:
-  crc: 4cbacb75
+  crc: 74137bca
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 85
   issues: anchor-miss:(js-mssql.mdc),surzhik,judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini

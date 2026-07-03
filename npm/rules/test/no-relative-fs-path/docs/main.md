@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/test/no-relative-fs-path/main.mjs
 docgen:
-  crc: 404c1f0d
+  crc: 3b1b4bd1
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 95
   issues: anchor-miss:(test.mdc),judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini

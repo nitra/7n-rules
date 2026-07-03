@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/bun/layout/main.mjs
 docgen:
-  crc: 69a0641e
+  crc: 65f63306
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 95
   issues: anchor-miss:(bun.mdc),judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini

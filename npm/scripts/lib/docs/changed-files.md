@@ -3,7 +3,7 @@ type: JS Module
 title: changed-files.mjs
 resource: npm/scripts/lib/changed-files.mjs
 docgen:
-  crc: 8148d84e
+  crc: 792d3942
   score: 100
 ---
 

@@ -1,10 +1,10 @@
 ---
 type: Directory Index
-title: npm/rules/ci4/policy/vscode_extensions
-resource: npm/rules/ci4/policy/vscode_extensions/
+title: npm/rules/ci4/vscode_extensions
+resource: npm/rules/ci4/vscode_extensions/
 ---
 
-# npm/rules/ci4/policy/vscode_extensions
+# npm/rules/ci4/vscode_extensions
 
 | Файл                                                  | Тип       |
 | ----------------------------------------------------- | --------- |

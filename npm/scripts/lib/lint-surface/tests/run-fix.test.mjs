@@ -426,3 +426,45 @@ describe('runFixPipeline — standalone T0 (§8 Phase 2: merge detect+fix)', () 
     })
   })
 })
+
+describe('runFixPipeline — ProgressReporter (spec 2026-07-03)', () => {
+  test('не-TTY: ⏱-зведення на закриття концерну з тикером знайдено/виправлено', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir)
+      const lines = []
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        isTTY: false,
+        log: s => lines.push(s),
+        deps: { ladder: ONE_RUNG, workerFor: () => writeDoneWorker }
+      })
+      expect(code).toBe(0)
+      const ticker = lines.find(l => l.includes('⏱'))
+      expect(ticker).toContain('1/1 концернів')
+      expect(ticker).toContain('знайдено 1')
+      expect(ticker).toContain('виправлено 1')
+    })
+  })
+
+  test('не-TTY: чистий концерн — ⏱ 1/1 без порушень', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir)
+      writeFileSync(join(dir, 'out.txt'), 'done')
+      const lines = []
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        isTTY: false,
+        log: s => lines.push(s),
+        deps: { ladder: ONE_RUNG, workerFor: () => () => {} }
+      })
+      expect(code).toBe(0)
+      const ticker = lines.find(l => l.includes('⏱'))
+      expect(ticker).toContain('1/1 концернів')
+      expect(ticker).toContain('знайдено 0')
+    })
+  })
+})

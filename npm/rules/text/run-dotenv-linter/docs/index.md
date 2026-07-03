@@ -6,6 +6,7 @@ resource: npm/rules/text/run-dotenv-linter/
 
 # npm/rules/text/run-dotenv-linter
 
-| Файл                | Тип       |
-| ------------------- | --------- |
-| [main.mjs](main.md) | JS Module |
+| Файл                                                  | Тип       |
+| ----------------------------------------------------- | --------- |
+| [fix-run-dotenv-linter.mjs](fix-run-dotenv-linter.md) | JS Module |
+| [main.mjs](main.md)                                   | JS Module |

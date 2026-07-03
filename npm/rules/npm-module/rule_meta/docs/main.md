@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/npm-module/rule_meta/main.mjs
 docgen:
-  crc: 2dbb046a
+  crc: 4037509e
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 95
   issues: anchor-miss:(scripts.mdc),judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

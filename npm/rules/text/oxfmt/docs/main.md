@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/text/oxfmt/main.mjs
 docgen:
-  crc: 4874d927
+  crc: 40c037c0
 ---
 
 ## Огляд

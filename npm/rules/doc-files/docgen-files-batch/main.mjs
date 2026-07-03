@@ -13,6 +13,7 @@ import { spawnSync } from 'node:child_process'
 import { basename, dirname, join, relative } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
+import { createProgressReporter } from '../../../scripts/lib/lint-surface/progress.mjs'
 import { generateDoc, DEFAULT_LOCAL_MODEL } from '../docgen-gen/main.mjs'
 import { crc32, stampDoc, readDocQuality, readDocModel, readDocTier, QUALITY_THRESHOLD } from '../docgen-crc/main.mjs'
 import { resolveRoot, scanForDocFiles, scanOrphanedDocs } from '../docgen-scan/main.mjs'
@@ -126,14 +127,18 @@ function fmtSize(bytes) {
  * Помилку класифікує (`classifyOmlxError`): `permanent` → skip (не «помилка для
  * перегону»), `systemic`/`transient` → у `errors`. Повертає клас для циклу
  * (circuit-breaker рахує systemic-підряд).
+ * Рядок результату складається цілком і друкується один раз через `emit` — у TTY
+ * він іде над прогрес-баром (multibar.log), тому часткові write-и на тому ж рядку
+ * неможливі.
  * @param {object} file елемент scanForDocFiles
  * @param {string} root абсолютний корінь
  * @param {{ done: number, total: number }} progress позиція у прогресі
  * @param {{ ok: number, degraded: number, err: number, errors: string[], skipped: string[] }} stats акумулятор
- * @param {{ model?: string, tier?: string|null }} [opts] модель і тир для штампу
+ * @param {{ model?: string, tier?: string|null, emit?: (s: string) => void }} [opts] модель/тир для штампу; emit — логер рядка результату
  * @returns {Promise<'ok'|'permanent'|'systemic'|'transient'>} результат для керування циклом
  */
-async function generateOne(file, root, progress, stats, { model, tier } = {}) {
+async function generateOne(file, root, progress, stats, { model, tier, emit } = {}) {
+  const out = emit ?? (s => process.stdout.write(s))
   const sourceAbs = join(root, file.sourcePath)
   let size = 0
   try {
@@ -141,7 +146,7 @@ async function generateOne(file, root, progress, stats, { model, tier } = {}) {
   } catch {
     // файл зник між скануванням і генерацією — лишаємо розмір 0
   }
-  process.stdout.write(`  [${progress.done}/${progress.total}] ${file.sourcePath} [${fmtSize(size)}] … `)
+  const prefix = `  [${progress.done}/${progress.total}] ${file.sourcePath} [${fmtSize(size)}] … `
   try {
     const docAbs = join(root, file.docPath)
     // Варіант B: передаємо наявну доку, щоб зберегти захищену секцію «Призначення»
@@ -157,20 +162,20 @@ async function generateOne(file, root, progress, stats, { model, tier } = {}) {
     stats.ok++
     if (result.degraded) {
       stats.degraded++
-      process.stdout.write(`⚠ degraded score=${result.score} crc=${crc}  ${fmtTiming(result)}\n`)
+      out(`${prefix}⚠ degraded score=${result.score} crc=${crc}  ${fmtTiming(result)}\n`)
     } else {
-      process.stdout.write(`✓ score=${result.score ?? '—'} crc=${crc}  ${fmtTiming(result)}\n`)
+      out(`${prefix}✓ score=${result.score ?? '—'} crc=${crc}  ${fmtTiming(result)}\n`)
     }
     return 'ok'
   } catch (error) {
     const cls = classifyDocgenError(error.message)
     if (cls === 'permanent') {
       stats.skipped.push(file.sourcePath)
-      process.stdout.write(`⊘ skip (permanent): ${error.message}\n`)
+      out(`${prefix}⊘ skip (permanent): ${error.message}\n`)
     } else {
       stats.err++
       stats.errors.push(file.sourcePath)
-      process.stdout.write(`✗ ${cls}: ${error.message}\n`)
+      out(`${prefix}✗ ${cls}: ${error.message}\n`)
     }
     return cls
   }
@@ -362,28 +367,51 @@ export async function runGenerationBatch(targets, root, opts = {}) {
   if (headline) console.log(headline)
   const stats = { ok: 0, degraded: 0, err: 0, errors: [], skipped: [] }
 
+  // ProgressReporter (канон scripts.mdc): бар по файлах лише в TTY; не-TTY лишає
+  // поточні append-рядки [done/total] без дубльованого ⏱-зведення.
+  const isTTY = process.stdout.isTTY === true
+  const reporter = isTTY
+    ? createProgressReporter({
+        total: targets.length,
+        log: s => process.stdout.write(s),
+        isTTY,
+        unitLabel: 'файлів',
+        withFixed: false
+      })
+    : null
+  const emit = reporter ? reporter.log : undefined
+
   let done = 0
   let systemicStreak = 0
   let aborted = false
-  for (const file of targets) {
-    done++
-    const status = await generateOne(file, root, { done, total: targets.length }, stats, {
-      model: opts.model,
-      tier: opts.tier
-    })
-    // Circuit-breaker: K systemic-збоїв підряд → негайний abort (середовище впало,
-    // решта файлів так само згорить). Будь-який не-systemic результат скидає лічильник.
-    if (status === 'systemic') {
-      if (++systemicStreak >= SYSTEMIC_ABORT_STREAK) {
-        aborted = true
-        console.error(
-          `\n✗ doc-files: ${SYSTEMIC_ABORT_STREAK} systemic-збої підряд (omlx memory-guard / сервер) — abort на ${done}/${targets.length}.\n  Звільни RAM або перезапусти omlx і повтори — зроблене лишилось, решта підбереться за CRC.`
-        )
-        break
+  try {
+    for (const file of targets) {
+      done++
+      reporter?.concernStart(file.sourcePath)
+      const status = await generateOne(file, root, { done, total: targets.length }, stats, {
+        model: opts.model,
+        tier: opts.tier,
+        emit
+      })
+      reporter?.concernDone(file.sourcePath)
+      // Circuit-breaker: K systemic-збоїв підряд → негайний abort (середовище впало,
+      // решта файлів так само згорить). Будь-який не-systemic результат скидає лічильник.
+      if (status === 'systemic') {
+        if (++systemicStreak >= SYSTEMIC_ABORT_STREAK) {
+          aborted = true
+          break
+        }
+      } else {
+        systemicStreak = 0
       }
-    } else {
-      systemicStreak = 0
     }
+  } finally {
+    reporter?.stop()
+  }
+  if (aborted) {
+    console.error(
+      `\n✗ doc-files: ${SYSTEMIC_ABORT_STREAK} systemic-збої підряд (omlx memory-guard / сервер) — abort на ${done}/${targets.length}.\n  Звільни RAM або перезапусти omlx і повтори — зроблене лишилось, решта підбереться за CRC.`
+    )
   }
 
   reportStats(stats)

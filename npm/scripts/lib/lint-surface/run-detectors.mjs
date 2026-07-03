@@ -19,6 +19,7 @@ import { collectChangedFilesSince, resolveChangedBase } from '../changed-files.m
 import { readNCursorConfigLite, isRuleEnabled } from '../read-n-cursor-config-lite.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
 import { renderViolations, renderDiagnostics } from './render.mjs'
+import { createProgressReporter } from './progress.mjs'
 
 // Цей файл: npm/scripts/lib/lint-surface/run-detectors.mjs → PACKAGE_ROOT = npm (4 dirname угору).
 export const DEFAULT_RULES_DIR = join(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))), 'rules')
@@ -237,6 +238,7 @@ async function buildPlan({ byRule, full, rules, explicitFiles, cwd }) {
  * @param {string[]|null} [opts.files] явний перелік файлів або null.
  * @param {boolean} [opts.verbose] докладний лог прогону.
  * @param {(s: string) => void} [opts.log] функція логування.
+ * @param {boolean} [opts.isTTY] override TTY-режиму ProgressReporter (тести); типово isTTY stdout.
  * @returns {Promise<{ violations: LintViolation[], exitCode: 0|1|2, ran: LintEntry[] }>} violations, exitCode і виконані entries.
  */
 export async function detectAll(opts) {
@@ -246,40 +248,57 @@ export async function detectAll(opts) {
   const rules = Array.isArray(opts.rules) ? opts.rules : []
   const explicitFiles = Array.isArray(opts.files) ? opts.files : null
   const verbose = opts.verbose === true
-  const log = opts.log ?? (s => process.stdout.write(s))
+  const baseLog = opts.log ?? (s => process.stdout.write(s))
 
   const byRule = await readLintConcernsByRule(rulesDir)
   const plan = await buildPlan({ byRule, full, rules, explicitFiles, cwd })
+
+  // Detect-only бар — ЛИШЕ в TTY (без тикера «виправлено»). У не-TTY (hooks, CI-gate,
+  // пайпи) поведінка без змін: append-рядки ⏱ на кожен концерн засмітили б вивід
+  // кожного PostToolUse-хука.
+  const isTTY = opts.isTTY ?? process.stdout.isTTY === true
+  const progress = isTTY
+    ? createProgressReporter({ total: plan.length, log: baseLog, isTTY, withFixed: false })
+    : null
+  const log = progress ? progress.log : baseLog
 
   /** @type {LintViolation[]} */
   const allViolations = []
   /** @type {LintEntry[]} */
   const ran = []
 
-  for (const { entry, files } of plan) {
-    /** @type {LintContext} */
-    const ctx = { cwd, ruleId: entry.ruleId, concernId: entry.concern.name, files }
-    if (verbose) {
-      const countStr = files === undefined ? 'весь репо' : `${files.length} файл(ів)`
-      log(`  🔍 ${entry.ruleId}/${entry.concern.name}  [${entry.concern.lint.scope}]  → ${countStr}\n`)
-    }
-    let result
-    try {
-      result = await runConcernDetector(entry.concern, ctx)
-    } catch (error) {
-      if (error instanceof DetectorError) {
-        log(`💥 ${error.message}\n`)
-        return { violations: allViolations, exitCode: 2, ran }
+  try {
+    for (const { entry, files } of plan) {
+      /** @type {LintContext} */
+      const ctx = { cwd, ruleId: entry.ruleId, concernId: entry.concern.name, files }
+      const key = `${entry.ruleId}/${entry.concern.name}`
+      progress?.concernStart(key)
+      if (verbose) {
+        const countStr = files === undefined ? 'весь репо' : `${files.length} файл(ів)`
+        log(`  🔍 ${key}  [${entry.concern.lint.scope}]  → ${countStr}\n`)
       }
-      throw error
+      let result
+      try {
+        result = await runConcernDetector(entry.concern, ctx)
+      } catch (error) {
+        if (error instanceof DetectorError) {
+          log(`💥 ${error.message}\n`)
+          return { violations: allViolations, exitCode: 2, ran }
+        }
+        throw error
+      }
+      ran.push(entry)
+      allViolations.push(...result.violations)
+      progress?.detectSnapshot(key, result.violations.length)
+      progress?.concernDone(key)
+      if (verbose && result.diagnostics && result.diagnostics.length > 0) {
+        log(renderDiagnostics(result.diagnostics))
+      }
     }
-    ran.push(entry)
-    allViolations.push(...result.violations)
-    if (verbose && result.diagnostics && result.diagnostics.length > 0) {
-      log(renderDiagnostics(result.diagnostics))
-    }
+  } finally {
+    progress?.stop()
   }
 
-  if (allViolations.length > 0) log(renderViolations(allViolations))
+  if (allViolations.length > 0) baseLog(renderViolations(allViolations))
   return { violations: allViolations, exitCode: allViolations.length > 0 ? 1 : 0, ran }
 }

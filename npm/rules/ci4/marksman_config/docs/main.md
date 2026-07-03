@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/ci4/marksman_config/main.mjs
 docgen:
-  crc: 6c8d3e93
+  crc: 181f311c
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini

@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/hasura/migrations/main.mjs
 docgen:
-  crc: eb2e1370
+  crc: 21194bcf
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.95
   judgeModel: openai-codex/gpt-5.4-mini

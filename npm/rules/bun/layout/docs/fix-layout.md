@@ -3,9 +3,8 @@ type: JS Module
 title: fix-layout.mjs
 resource: npm/rules/bun/layout/fix-layout.mjs
 docgen:
-  crc: 168821f1
+  crc: 14f58bce
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

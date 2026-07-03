@@ -3,7 +3,7 @@ type: JS Module
 title: run-standard-lint.mjs
 resource: npm/scripts/lib/run-standard-lint.mjs
 docgen:
-  crc: 2b275963
+  crc: f9016a9a
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
 ---

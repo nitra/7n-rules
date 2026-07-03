@@ -1,10 +1,10 @@
 ---
 type: Directory Index
-title: npm/rules/ga/policy/vscode_extensions
-resource: npm/rules/ga/policy/vscode_extensions/
+title: npm/rules/ga/vscode_extensions
+resource: npm/rules/ga/vscode_extensions/
 ---
 
-# npm/rules/ga/policy/vscode_extensions
+# npm/rules/ga/vscode_extensions
 
 | Файл                                                  | Тип       |
 | ----------------------------------------------------- | --------- |

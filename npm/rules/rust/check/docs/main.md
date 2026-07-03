@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/rust/check/main.mjs
 docgen:
-  crc: e999fbd2
+  crc: 06055f8e
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   judgeModel: openai-codex/gpt-5.4-mini
 ---

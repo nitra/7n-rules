@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/text/formatting/main.mjs
 docgen:
-  crc: 14aa1bb9
+  crc: 835c3f3b
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: best-of-2:retry-won,judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini

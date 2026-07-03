@@ -22,11 +22,11 @@ Rego — **default** для нових перевірок у цьому репо
 
 ### Алгоритм рішення для нової перевірки
 
-> **STOP перед `Edit` будь-якого `rules/<rule>/js/<concern>.mjs`.** Спершу подивись `npm/rules/<rule>/policy/` — чи нова deny-умова не лягає у вже існуючий rego-пакет як ще одне `deny contains msg if { … }`. Цей алгоритм стосується **і нових** перевірок, **і розширення вже існуючих**: додати `if (pkg.<field>) fail(…)` у JS — типовий ляп, коли пер-документна перевірка випадково потрапляє у JS замість rego.
+> **STOP перед `Edit` будь-якого `rules/<rule>/<concern>/main.mjs`.** Спершу подивись `npm/rules/<rule>/` — чи нова deny-умова не лягає у вже існуючий rego-пакет (сусідній concern-каталог з `<name>.rego`) як ще одне `deny contains msg if { … }`. Цей алгоритм стосується **і нових** перевірок, **і розширення вже існуючих**: додати `if (pkg.<field>) fail(…)` у JS — типовий ляп, коли пер-документна перевірка випадково потрапляє у JS замість rego.
 
-Перед тим як писати / розширювати `npm/rules/<rule>/js/<concern>.mjs`, дай відповіді у такому порядку:
+Перед тим як писати / розширювати `npm/rules/<rule>/<concern>/main.mjs`, дай відповіді у такому порядку:
 
-1. **Це пер-документна перевірка одного YAML/JSON-документа?** (структура полів, kind/apiVersion, форма масивів, regex по значенню, заборона/наявність ключа верхнього рівня типу `devDependencies` / `scripts.<name>`) → **пиши rego** у `npm/rules/<rule>/policy/<name>/<name>.rego` + `<name>_test.rego`. Точка. JS-код для цього не потрібен. Якщо `npm/rules/<rule>/policy/<name>/` уже існує — додай ще одне `deny contains` туди (а не новий блок у `js/<concern>.mjs`).
+1. **Це пер-документна перевірка одного YAML/JSON-документа?** (структура полів, kind/apiVersion, форма масивів, regex по значенню, заборона/наявність ключа верхнього рівня типу `devDependencies` / `scripts.<name>`) → **пиши rego** у `npm/rules/<rule>/<name>/<name>.rego` + `<name>_test.rego`. Точка. JS-код для цього не потрібен. Якщо `npm/rules/<rule>/<name>/` уже існує — додай ще одне `deny contains` туди (а не новий блок у сусідньому `<concern>/main.mjs`).
 2. **Перевірка потребує одного з нижче — rego ці кейси не вміє, тому JS:**
    - **cross-file resolution**: треба прочитати інші YAML / lookup між файлами (резолюція kustomize-tree, парність `svc.yaml`/`svc-hl.yaml`, прив'язка ConfigMap/HTTPRoute до Deployment у тому ж каталозі);
    - **file-system access**: потрібен `readdir`, `stat`, перевірка existence шляху на диску, walk дерева опублікованих файлів;
@@ -34,19 +34,19 @@ Rego — **default** для нових перевірок у цьому репо
    - **autofix / rewrite**: треба змінити файл (`replace_all`, переписати YAML, перейменувати, видалити) — Rego read-only;
    - **парсинг тексту до YAML-body**: yaml-language-server modeline (`# yaml-language-server: $schema=…`), regex по сирому файлу до парсингу;
    - **стан між викликами / агрегація по дереву**: треба зібрати дані з усіх файлів і потім фейлити (узгодженість HPA/PDB по dir, env-залежні ліміти за сегментом шляху).
-3. **Гібрид (типовий випадок)**: пер-документна частина + cross-file частина. Працює патерн **Rego-authoritative + JS-orchestrator** (Plan B) — див. розділ нижче. Якщо в одній фічі є **і** пер-документні deny (приклад: «`files` whitelist обовʼязковий», «без `devDependencies`»), **і** FS / AST-частина (приклад: «жодних тест-імпортів у tarball») — **обидві** мають жити у своїх місцях, не одна великою купою у `js/<concern>.mjs`.
+3. **Гібрид (типовий випадок)**: пер-документна частина + cross-file частина. Працює патерн **Rego-authoritative + JS-orchestrator** (Plan B) — див. розділ нижче. Якщо в одній фічі є **і** пер-документні deny (приклад: «`files` whitelist обовʼязковий», «без `devDependencies`»), **і** FS / AST-частина (приклад: «жодних тест-імпортів у tarball») — **обидві** мають жити у своїх місцях (окремі concern-каталоги), не одна великою купою в одному `main.mjs`.
 
 ### Канонічний патерн «Rego-authoritative + JS-orchestrator»
 
-**Принцип.** Кожне пер-документне правило існує **рівно в одному місці** — у rego-полісі. JS у `rules/<rule>/js/<concern>.mjs` НЕ дублює цю логіку: він робить лише cross-file-частину (walking, path-фільтрацію, парність файлів) і **батч-викликає conftest** для делегування пер-документного валідаційного ядра. Один спавн `conftest` на (`namespace`, `policyDir`) — незалежно від кількості файлів. Це закриває дублювання JS↔rego і прибирає ризик дрифту.
+**Принцип.** Кожне пер-документне правило існує **рівно в одному місці** — у rego-полісі (свій concern-каталог `npm/rules/<rule>/<name>/<name>.rego`). JS-orchestrator concern (`npm/rules/<rule>/<concern>/main.mjs`) НЕ дублює цю логіку: він робить лише cross-file-частину (walking, path-фільтрацію, парність файлів) і **батч-викликає conftest** для делегування пер-документного валідаційного ядра. Один спавн `conftest` на (`namespace`, `policyDir`) — незалежно від кількості файлів. Це закриває дублювання JS↔rego і прибирає ризик дрифту.
 
-**Інструмент.** `runConftestBatch` із `npm/scripts/utils/run-conftest-batch.mjs`:
+**Інструмент.** `runConftestBatch` із `npm/scripts/lib/run-conftest-batch.mjs`:
 
 ```js
-import { runConftestBatch } from './utils/run-conftest-batch.mjs'
+import { runConftestBatch } from '../../../scripts/lib/run-conftest-batch.mjs'
 
 const violations = runConftestBatch({
-  policyDirRel: '<rule>/<name>',     // піддиректорія в npm/rules/<rule>/policy/
+  policyDirRel: '<rule>/<name>',     // concern-каталог в npm/rules/<rule>/
   namespace: '<rule>.<name>',         // повне ім'я rego-пакета
   files: [...absPaths],               // батч файлів — один спавн на namespace
 })
@@ -55,62 +55,57 @@ for (const v of violations) fail(`${rel(v.filename)}: ${v.message}`)
 
 Hard-fail без `conftest` у PATH (з install-hint) — узгоджено з рішенням Plan B: якщо правило делегує свою логіку Rego, тиха відмова приховує реальні порушення.
 
-**Структура `rules/<rule>/js/<concern>.mjs::check()`.** Rego-крок — **перший** (на початку); далі — JS cross-file:
+**Структура `rules/<rule>/<concern>/main.mjs::lint(ctx)`.** Rego-крок — **перший** (на початку); далі — JS cross-file:
 
 ```js
-export async function check() {
-  const reporter = createCheckReporter()
-  const { pass, fail } = reporter
+export async function lint(ctx) {
+  const reporter = createViolationReporter()
 
-  // 1. Rego-крок: всі rule-пакети з npm/rules/<rule>/policy/ через runConftestBatch.
+  // 1. Rego-крок: суміжні rego-пакети з npm/rules/<rule>/ через runConftestBatch.
   await runAllRego(reporter, files)
 
   // 2. JS cross-file: walking, парність, kustomize-tree, env-resolution тощо.
   await crossFileChecks(...)
 
-  return reporter.getExitCode()
+  return reporter.build()
 }
 ```
 
-**Інтеграція з `rules/<rule>/lint/lint.mjs`.** Скрипт `lint-<rule>` (якщо є) — це wrapper навколо external-tool ланцюга (`actionlint`/`zizmor`/`kubeconform`/`hadolint`/…). Він **викликає `check()`** з відповідного `rules/<rule>/js/<concern>.mjs` як фінальний крок — без власного conftest-кроку. Так одне джерело істини для пер-документних правил, без дублювання між `lint-<rule>` і `fix <rule>`. Референс — [`rules/ga/lint/lint.mjs`](../../npm/rules/ga/lint/lint.mjs) ↔ [`rules/ga/js/workflows.mjs`](../../npm/rules/ga/js/workflows.mjs).
+**Tests.** Додавай `_test.rego` фікстури в кожному rego-пакеті — вони покриваються lint-поверхнями `rego/regal` і `rego/opa_check` (per-file, запускаються і на дельті, і в `--full`). JS unit-тести у `<concern>/tests/main.test.mjs` тестують лише cross-file частину (rego покривають свої `_test.rego`). Коли pure-предикат уже в rego — JS-функцію видаляєш разом з її тестом.
 
-**Tests.** Додавай `_test.rego` фікстури в кожному пакеті — вони запускаються `bun run lint-rego` (через `conftest verify`). JS unit-тести у `rules/<rule>/js/tests/<concern>.test.mjs` (single) або `rules/<rule>/js/tests/<concern>/<name>.test.mjs` (multi) тестують лише cross-file частину (rego покривають свої `_test.rego`). Коли pure-предикат уже в rego — JS-функцію видаляєш разом з її тестом.
+**Реальні приклади:**
 
-**Реальні приклади (порядок упровадження):**
-
-- **abie** (пілот) — пер-документна валідація винесена в Rego (`abie.base_deployment_preem`, `abie.clean_merged_ignore_branches`, `abie.health_check_policy`, `abie.http_route_base`, `abie.package_json_shared`) і запускається CLI `@nitra/cursor fix abie` через `policy/<pkg>/target.json`. JS-частини в `rules/abie/js/<concern>.mjs` лишають лише cross-file / FS-логіку: env→cluster DNS (`env_dns/`), HCP↔Deployment pairing і modeline `hc.yaml` (`hc_pairing/`), ua-overlay JSON6902 patches на HTTPRoute + cross-namespace `backendRefs` (`ua_http_route/`), nodeSelector у Deployment (`ua_node_selector/`), Firebase Hosting артефакти (`firebase_hosting/`).
-- **ga** — `rules/ga/js/workflows.mjs::check()` починає з `runAllGaRego` (4 per-workflow + 1 batch для `ga.workflow_common`), далі — JS cross-file. `rules/ga/lint/lint.mjs` — `actionlint` + `zizmor` + `await checkGa()`. Раніше `lint-ga` сам спавнив conftest, а `fix ga` цього не робив — тепер централізовано.
+- **abie** — пер-документна валідація винесена в Rego (`abie.base_deployment_preem`, `abie.clean_merged_ignore_branches`, `abie.health_check_policy`, `abie.http_route_base`, `abie.package_json_shared`) — кожне у власному concern-каталозі `npm/rules/abie/<name>/` з `concern.json`. Cross-file / FS-частини — теж окремі concern-каталоги з `main.mjs`: env→cluster DNS (`env_dns/`), HCP↔Deployment pairing і modeline `hc.yaml` (`hc_pairing/`), ua-overlay JSON6902 patches на HTTPRoute + cross-namespace `backendRefs` (`ua_http_route/`), nodeSelector у Deployment (`ua_node_selector/`), Firebase Hosting артефакти (`firebase_hosting/`).
+- **ga** — `rules/ga/workflows/main.mjs::lint(ctx)` викликає `runConftestBatch` по суміжних rego-концернах (`lint_ga`, `workflow_common` тощо), далі — JS cross-file (MegaLinter-присутність, обов'язкові workflow-файли). T0-автофікс — `fix-workflows.mjs` поруч.
 
 ### Workflow для нової перевірки
 
 1. Спершу намалюй вхід: один документ чи декілька? Файлова система потрібна?
-2. Якщо **один документ** — починаєш з `npm/rules/<rule>/policy/<name>/<name>.rego` + `_test.rego` фікстури. JS не пишемо.
-3. Якщо **cross-file / FS / autofix** — пишеш JS у `npm/rules/<rule>/js/<concern>.mjs`. Per-document частина (якщо є) — окремо як rego, JS викликає її через `runConftestBatch` (див. патерн вище). НЕ дублюй пер-документну логіку в JS — рего authoritative.
-4. У JSDoc на початку `js/<concern>.mjs` фіксуй: «Per-document валідація делегована rego-пакетам у `rules/<rule>/policy/`; JS — cross-file». У rego-файлі — обернений напрямок: «JS-частина (cross-file) лишається в `rules/<rule>/js/<concern>.mjs`».
-5. Реєстрація: новий пакет автоматично підхоплюється `discoverCheckableRules` за наявності `target.json` поруч з `.rego`. Окремої реєстрації в TARGETS не потрібно — `npx @nitra/cursor fix` запустить його через `runConftestBatch`. Окремий `bun run lint-conftest`-канал прибрано (1.11.11 — усував дублювання з `n-cursor fix`).
+2. Якщо **один документ** — починаєш з `npm/rules/<rule>/<name>/<name>.rego` + `_test.rego` фікстури і `concern.json` (policy fixability). JS не пишемо.
+3. Якщо **cross-file / FS / autofix** — пишеш JS у `npm/rules/<rule>/<concern>/main.mjs`. Per-document частина (якщо є) — окремо як rego у сусідньому concern-каталозі, JS викликає її через `runConftestBatch` (див. патерн вище). НЕ дублюй пер-документну логіку в JS — rego authoritative.
+4. У JSDoc на початку `<concern>/main.mjs` фіксуй: «Per-document валідація делегована rego-концерну `rules/<rule>/<name>/`; цей файл — cross-file». У rego-файлі — обернений напрямок: «JS cross-file — у `rules/<rule>/<concern>/main.mjs`».
+5. Реєстрація: новий concern автоматично підхоплюється `discoverCheckableRules` за наявності `concern.json` у каталозі. Окремої реєстрації не потрібно — `npx @nitra/cursor lint <rule>` підхопить його як частину unified lint surface.
 
 ### Червоні прапори
 
 - «Це швидше у JS»: майже завжди ілюзія. Rego-полісі з 5 рядків + `_test.rego` пишеться за пару хвилин і дає IDE-інтеграцію (`tsandall.opa`).
 - «Rego не вміє X»: перевір список вище. Якщо X не у списку — швидше за все вміє (`walk`, `regex.match`, `yaml.unmarshal`, `object.get`).
-- «Я допишу в існуючий `js/<concern>.mjs`» — спершу подивись, чи відповідний `npm/rules/<rule>/policy/` уже є, і чи нова перевірка лягає туди як ще одне `deny contains`.
+- «Я допишу в існуючий `<concern>/main.mjs`» — спершу подивись, чи відповідний rego concern-каталог `npm/rules/<rule>/<name>/` уже є, і чи нова перевірка лягає туди як ще одне `deny contains`.
 - «Залишимо JS-функцію як копію rego — про всяк випадок» — ні. Плодить дрифт (як bug `spec.config` vs `spec.default.config` у `health_check_policy.rego`, що ми ловили cross-check тестами). JS викликає conftest — і це єдиний шлях.
 
 ## Перевірка
 
 Лінт Rego-полісі робиться через [regal](https://docs.styra.com/regal) — він якраз і ловить v0-синтаксис, неявні set-rules та інші відхилення від `rego.v1`.
 
-Канонічна команда (запускається кореневим `bun run lint`):
+Канонічна команда — unified lint surface (детальніше — `scripts.mdc`):
 
 ```bash
-bun run lint-rego
+npx @nitra/cursor lint rego
 ```
 
-Скрипт делегує до `bun ./npm/rules/rego/lint/lint.mjs`, який робить preflight на наявність `regal` у `PATH` і виконує `regal lint` по всіх `*.rego` у репозиторії (зокрема `npm/rules/<rule>/policy/`).
+Дельта-режим запускає `rego/regal` (`regal lint`) і `rego/opa_check` (`opa check`/`conftest verify`, детально — `rego/conftest_verify`) per-file по змінених `*.rego`; `--full` покриває все дерево. Preflight на наявність `regal`/`opa`/`conftest` у `PATH` — через `ensureTool` (install-hint при відсутності).
 
 Встановлення `regal`:
 
 - macOS: `brew install regal`
 - Інші платформи / способи: <https://docs.styra.com/regal#installation>
-
-Якщо `regal` відсутній у `PATH`, скрипт завершиться з кодом 1 і надрукує підказку зі встановленням — як `lint-ga` з `shellcheck` / `uv`.

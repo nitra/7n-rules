@@ -3,7 +3,7 @@ type: JS Module
 title: promise-settimeout-scan.mjs
 resource: npm/rules/js-run/lib/promise-settimeout-scan.mjs
 docgen:
-  crc: a7cea379
+  crc: e69e8800
 ---
 
 Модуль `promise-settimeout-scan.mjs` — це AST-сканер, який виявляє у вихідному коді JavaScript/TypeScript антипаттерн «обгортка `setTimeout` у `new Promise`» виду:

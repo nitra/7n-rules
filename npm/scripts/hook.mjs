@@ -7,10 +7,26 @@
  *   --stop           Stop: робоче дерево vs HEAD (`git diff HEAD` + untracked).
  */
 import { once } from 'node:events'
+import { relative, resolve } from 'node:path'
 import { cwd as processCwd } from 'node:process'
 
 import { detectAll } from './lib/lint-surface/run-detectors.mjs'
 import { collectChangedFiles } from './lib/changed-files.mjs'
+
+const RE_BACKSLASH = /\\/gu
+
+/**
+ * Абсолютний або відносний `file_path` від Claude Code → posix-relative до `cwd`, як і
+ * решта `ctx.files` (контракт `collectChangedFiles`). Без цього конкретні детектори
+ * (напр. `text/run-v8r`), що спавнять зовнішні тули, отримують абсолютний шлях і падають
+ * (`ignore`-залежність v8r вимагає `path.relative()`d pathname).
+ * @param {string} fp сирий `file_path` зі stdin
+ * @param {string} cwd корінь репо
+ * @returns {string} posix-шлях відносно cwd
+ */
+function toRelativePosix(fp, cwd) {
+  return relative(cwd, resolve(cwd, fp)).replace(RE_BACKSLASH, '/')
+}
 
 /**
  * @returns {Promise<string>} вміст stdin або '' на TTY
@@ -63,7 +79,7 @@ export async function runHookCli(argv) {
   if (postToolUse) {
     const fp = extractFilePath(await readStdin())
     if (!fp) return 0
-    const { exitCode } = await detectAll({ files: [fp], cwd })
+    const { exitCode } = await detectAll({ files: [toRelativePosix(fp, cwd)], cwd })
     return exitCode === 0 ? 0 : 2
   }
 

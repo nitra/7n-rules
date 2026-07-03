@@ -6,6 +6,7 @@ resource: npm/rules/text/cspell-fix/
 
 # npm/rules/text/cspell-fix
 
-| Файл                | Тип       |
-| ------------------- | --------- |
-| [main.mjs](main.md) | JS Module |
+| Файл                            | Тип       |
+| ------------------------------- | --------- |
+| [fix-worker.mjs](fix-worker.md) | JS Module |
+| [main.mjs](main.md)             | JS Module |

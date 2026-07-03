@@ -3,7 +3,7 @@ type: JS Module
 title: ensure-nitra-cursor-dev-dependencies.mjs
 resource: npm/scripts/ensure-nitra-cursor-dev-dependencies.mjs
 docgen:
-  crc: 30811526
+  crc: 369e91db
   model: hand
   score: 100
 ---

@@ -3,7 +3,7 @@ type: JS Module
 title: check-env-scan.mjs
 resource: npm/rules/js-run/lib/check-env-scan.mjs
 docgen:
-  crc: 56c971d4
+  crc: 657e1905
 ---
 
 Модуль `npm/rules/js-run/lib/check-env-scan.mjs` — це **статичний AST-сканер**,

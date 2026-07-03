@@ -3,7 +3,7 @@ type: JS Module
 title: inline-template-links.mjs
 resource: npm/scripts/lib/inline-template-links.mjs
 docgen:
-  crc: f8c45628
+  crc: 35230d2d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

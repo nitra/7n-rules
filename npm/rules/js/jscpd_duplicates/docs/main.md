@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/js/jscpd_duplicates/main.mjs
 docgen:
-  crc: 6700ac6a
+  crc: 8480cba8
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini

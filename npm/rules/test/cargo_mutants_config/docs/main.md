@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/test/cargo_mutants_config/main.mjs
 docgen:
-  crc: 5e85d886
+  crc: 24266b9d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 95
   judgeModel: openai-codex/gpt-5.4-mini
 ---

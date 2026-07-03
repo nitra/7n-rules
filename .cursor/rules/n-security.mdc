@@ -2,14 +2,14 @@
 description: Локальний та CI-секюріті-лінт через TruffleHog — `.trufflehog-exclude`, канонічний placeholder `sample-secret` у прикладних файлах
 globs: "**/.trufflehog-exclude,**/package.json,**/.github/workflows/**/*.yml"
 alwaysApply: false
-version: '2.1'
+version: '2.2'
 ---
 
 Правило **security** забезпечує сканування секретів через [TruffleHog](https://github.com/trufflesecurity/trufflehog) локально та на CI, а також правильне використання placeholder-значень у прикладних файлах.
 
 ## Перевірка
 
-`npx @nitra/cursor fix security`
+`npx @nitra/cursor lint security`
 
 - `lint-security.yml`:
 

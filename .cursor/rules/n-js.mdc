@@ -2,14 +2,14 @@
 description: Перевірка JavaScript коду
 globs: "**/{.oxlintrc.json,eslint.config.js,.jscpd.json,knip.json,package.json},**/*.{js,mjs,cjs,jsx,ts,tsx}"
 alwaysApply: false
-version: '1.30'
+version: '1.31'
 ---
 
 **oxlint**, **ESLint**, **jscpd**, **knip**. Запуск — **`n-cursor lint js`** (локально; у CI — `--read-only`, без **`--fix`** для oxlint/eslint). Без **prettier** і **@nitra/prettier-config**.
 
 ## Швидкий gate через conftest
 
-Rego-пакети у `policy/` — запускаються `npx @nitra/cursor fix js` або `conftest`:
+Rego-пакети — запускаються `npx @nitra/cursor lint js` або `conftest`:
 
 - `lint-js.yml`:
 

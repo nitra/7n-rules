@@ -2,14 +2,14 @@
 description: Це правила для backend проектів на JavaScript/Node.js, сюди входять і job і WEB сервери.
 globs: "**/package.json,**/jsconfig.json,**/src/**/*.{js,mjs,cjs,ts,tsx}"
 alwaysApply: false
-version: '1.12'
+version: '1.13'
 ---
 
 Правило охоплює backend Node.js workspace-пакети (jobs, GraphQL/HTTP-сервери, CLI) — визначення меж застосування, вимоги до runtime, структуру проекту, конфігурацію, логування, підключення до БД/GraphQL і безпечне використання env-змінних.
 
 ## Швидкий gate через conftest
 
-Rego-пакети, які запускає `npx @nitra/cursor fix js-run` / `npx @nitra/cursor check`:
+Rego-пакети, які запускає `npx @nitra/cursor lint js-run`:
 
 - `jsconfig.json`:
 

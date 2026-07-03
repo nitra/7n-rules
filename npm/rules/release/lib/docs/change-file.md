@@ -3,7 +3,7 @@ type: JS Module
 title: change-file.mjs
 resource: npm/rules/release/lib/change-file.mjs
 docgen:
-  crc: 9284bc96
+  crc: 1540b895
 ---
 
 Модуль для роботи з одиничним **change-файлом** релізного процесу — невеликою markdown-нотаткою, що описує одну зміну в межах workspace і агрегується пізніше при формуванні CHANGELOG / bump версії.

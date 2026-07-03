@@ -3,7 +3,7 @@ type: JS Module
 title: post-tool-use-check.mjs
 resource: npm/scripts/post-tool-use-check.mjs
 docgen:
-  crc: 7d2faa18
+  crc: fa7c12c0
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
