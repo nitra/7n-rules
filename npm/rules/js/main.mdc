@@ -9,9 +9,9 @@ version: '1.30'
 
 ## Швидкий gate через conftest
 
-Rego-пакети у `policy/` — запускаються `npx @nitra/cursor fix js` або `conftest`:
+Rego-пакети — запускаються `npx @nitra/cursor lint js` або `conftest`:
 
 - [lint-js.yml.snippet.yml](./lint_js_yml/template/lint-js.yml.snippet.yml)
-- [.jscpd.json.snippet.json](./jscpd/template/.jscpd.json.snippet.json)
+- [.jscpd.json.snippet.json](./jscpd_config/template/.jscpd.json.snippet.json)
 - [extensions.json.snippet.json](./vscode_extensions/template/extensions.json.snippet.json)
 - [package.json.snippet.json](./package_json/template/package.json.snippet.json)
