@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.4.4] - 2026-07-03
+
+### Fixed
+
+- fix(js): main.mdc — битий template-лінк на видалений js/jscpd (→ js/jscpd_config); синк правила js падав у споживачах на inlineTemplateLinks після 14.4.3
+
 ## [14.4.3] - 2026-07-03
 
 ### Changed
