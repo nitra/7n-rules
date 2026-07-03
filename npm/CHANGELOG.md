@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.4.2] - 2026-07-03
+
+### Changed
+
+- docs(doc-files): full-регенерація док lint-surface після черги lint --full
+
 ## [14.4.1] - 2026-07-03
 
 ### Fixed
