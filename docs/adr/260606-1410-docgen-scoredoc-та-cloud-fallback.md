@@ -49,3 +49,11 @@ Stage 2.5 scoreDoc deterministic → score < 70?
 ```
 
 Змінені в сесії файли перед цим рішенням: `npm/skills/docgen/js/docgen-gen.mjs`, `npm/skills/docgen/js/docgen-prompts.mjs`, `npm/skills/docgen/js/docgen-extract.mjs`.
+
+## Update 2026-06-06
+
+- Додано опційний cloud referee `cloudScoreDoc(md, facts, src)` на Claude Haiku для семантичної оцінки якості docgen-виходу.
+- Режими: `scoreCloud=false` за замовчуванням використовує детермінований gate; `scoreCloud=true` запускає Haiku-оцінку й при score нижче `QUALITY_THRESHOLD=70` робить Tier-2 regeneration через `claudeOneShot`.
+- Рубрика повертає JSON із критеріями `огляд`, `поведінка`, `гарантії`, `стиль` по шкалі 1–3 та `issues`.
+- Cloud referee потрібен, бо локальний self-judge і детермінований scoring не виявляли частину semantic hallucinations.
+- Обмеження: потрібен `ANTHROPIC_API_KEY`; latency у production-потоці transcript не вимірював.

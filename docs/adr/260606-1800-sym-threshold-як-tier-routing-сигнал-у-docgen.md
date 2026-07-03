@@ -28,3 +28,11 @@ Chosen option: "`sym ≥ 4` → cloud, інакше local", because Pearson r = 
 * Бенч-скрипти: `~/docgen-bench3/tier_audit.mjs`, `score_a.mjs`, `complexity.mjs`
 * Cloud vs local порівняння (git diff): `~/docgen-bench3/comparison/` — база cloud (Claude), diff local (gemma3:4b) на `commands.mjs` (sym=15) і `safety.mjs` (sym=17)
 * Commit: `6436a901` — 58 нових docs-файлів у репозиторії
+
+## Update 2026-06-06
+
+- Для docgen зафіксовано routing за складністю: якщо `facts.internalSymbols.length >= 3`, файл краще спрямовувати в cloud tier.
+- Локальний LLM-суддя відхилено: `gemma3:4b` завищував власний score приблизно на 25 п.п. і не ловив очевидні витоки implementation details.
+- Чистий детермінований scoring теж недостатній для semantic defects: після виправлення false positives він завищував результат приблизно на 35 п.п.
+- `sym >= 3` обрано як дешевий routing-сигнал: 0 токенів, <1 ms, Pearson −0.651 з якістю на bench-наборі.
+- Відомий компроміс: threshold консервативний і може відправити в cloud файли з прийнятною локальною якістю, наприклад `k8s-tree`.

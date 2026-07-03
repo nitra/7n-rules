@@ -83,7 +83,7 @@ export async function buildAgentsCommandBulletItems(projectRoot) {
     {
       name: `- **Оновити правила та ${AGENTS_MD}** (після змін у правилах/шаблоні CLI): \`npx ${PACKAGE_NAME}\``
     },
-    { name: `- **Перевірки правил (programmatic)**: \`npx ${PACKAGE_NAME} fix\`` },
+    { name: `- **Перевірки правил (programmatic)**: \`npx ${PACKAGE_NAME} lint\`` },
     { name: `- **knip (невикористані залежності та експорти)**: \`bunx knip\`` }
   )
 

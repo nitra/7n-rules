@@ -140,3 +140,12 @@ Exit 0 = структура проєкту відповідає правилам
 ## Scope цього ADR
 
 Перша реалізація: `fix` і `taze`. `lint` — наступна ітерація (складніша: source code refactoring at scale).
+
+## Update 2026-06-06
+
+- `npx @nitra/cursor fix` без `--json` запускає автономний orchestrator, а `--json` лишається check-only режимом для CI й машинного аналізу.
+- Orchestrator виконує convergence-loop: T0-auto → LLM-worker haiku→sonnet → recheck, максимум 3 ітерації або до `failed === 0`.
+- Scoped запуск на кшталт `fix bun rego` обмежує оркестратор вказаними rules.
+- `fix-run` лишається як застарілий псевдонім; основний UX — саме `n-cursor fix`.
+- Demo з transcript: 3 violations (`bun`, `rego`, `style-lint`) закрито T0-auto за одну ітерацію, 0 LLM-викликів.
+- Змінені точки інтеграції: `npm/bin/n-cursor.js`, `npm/skills/fix/js/orchestrator.mjs`, `npm/skills/fix/SKILL.md`, `.cursor/skills/n-fix/SKILL.md`.

@@ -102,3 +102,12 @@ Transcript зафіксував інверсію керування у docgen-к
 - Stage 2 виконує детермінований post-processing `stripSignatures()` для зрізання сигнатур з прозового тексту.
 
 Бенч у transcript показав, що `gemma3:4b` orchestrated v2 + Stage 2 був кращим за `gemma4:4b` one-shot за співвідношенням якості й часу. Це підтверджує попереднє рішення про CLI-orchestrated docgen.
+
+## Update 2026-06-06
+
+- Оркестрований docgen v2 використовує секційно-мінімальний контекст: повний код надсилається лише в секцію `Поведінка`, а `Огляд`, `API` і `Гарантії` отримують компактний fact-list.
+- Причина: KV-cache між stateless `/api/chat` запитами ненадійний на 8 GB, а повний код у кожній секції давав 4× інгест і 2–5× більший час.
+- Реалізація: `sectionMessages(facts, src)` у `npm/skills/docgen/js/docgen-prompts.mjs` та `generateOrchestrated` у `npm/skills/docgen/js/docgen-gen.mjs`.
+- Додано детермінований Stage-2 lint `stripSignatures(text)`: regex прибирає сигнатури виду `name(args)` після генерації без додаткових токенів.
+- Додано `scoreDoc(md, facts)` і fallback до `claudeOneShot`, якщо score нижче порогу й доступний `ANTHROPIC_API_KEY`.
+- Відомий false positive cache-detector виправлено: згадки на кшталт «Не використовує кешування» не мають трактуватись як hallucinated cache.
