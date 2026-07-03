@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.2.0] - 2026-07-03
+
+### Added
+
+- Додано experiment-only harness для tier sampling/consensus у lint fix ladder.
+
 ## [14.1.0] - 2026-07-02
 
 ### Added
