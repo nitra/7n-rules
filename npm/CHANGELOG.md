@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.4.1] - 2026-07-03
+
+### Fixed
+
+- fix(lint): повернуто залежність cli-progress у dependencies — 14.3.0 падав у проєктах-споживачах на імпорті progress.mjs (Cannot find package 'cli-progress'); залежність загубилась при злитті гілок роботи над прогрес-баром
+
 ## [14.4.0] - 2026-07-03
 
 ### Added
