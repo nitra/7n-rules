@@ -32,7 +32,7 @@ deny contains msg if {
 	regex.match(`^lint(-.*)?$`, script_name)
 	msg := sprintf(
 		"package.json: scripts.%s заборонений — лінт запускається через n-cursor lint, не через package.json-скрипти (bun.mdc)",
-		[script_name]
+		[script_name],
 	)
 }
 
@@ -47,7 +47,8 @@ deny contains msg if {
 
 # ── helpers ────────────────────────────────────────────────────────────────
 
-allowed_root_test_deps := {"vitest", "@vitest/coverage-v8", "@stryker-mutator/vitest-runner", "@playwright/test"}
+# @stryker-mutator/core — обов'язковий exact-pin peer vitest-runner@9+ (раніше тягнувся транзитивно)
+allowed_root_test_deps := {"vitest", "@vitest/coverage-v8", "@stryker-mutator/vitest-runner", "@stryker-mutator/core", "@playwright/test"}
 
 allowed_root_dev_dependency(name) if {
 	startswith(name, "@nitra/")

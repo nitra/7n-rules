@@ -42,6 +42,7 @@ test_allow_root_test_peer_deps if {
 		"path": "/devDependencies",
 		"value": {
 			"@nitra/eslint-config": "^3.9.2",
+			"@stryker-mutator/core": "9.6.1",
 			"@stryker-mutator/vitest-runner": "^9.6.1",
 			"@vitest/coverage-v8": "^4.1.7",
 			"vitest": "^4.1.7",
