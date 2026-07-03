@@ -1,9 +1,8 @@
 import { describe, expect, test } from 'vitest'
-import { mkdir, writeFile, readFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { evaluatePolicyConcern } from '../policy-lint-adapter.mjs'
-import { generatePolicyWrapper, checkRegoCodegen, isGeneratedFile } from '../codegen-opa-wrapper.mjs'
 import { runPolicyUnitTests } from '../policy-test-step.mjs'
 import { withTmpDir, writeJson } from '../../../utils/test-helpers.mjs'
 
@@ -57,110 +56,6 @@ describe('evaluatePolicyConcern — template engine', () => {
         { engine: 'template', policyDir: concernDir, files: { single: '.vscode/settings.json' } }
       )
       expect(r.violations).toEqual([])
-    })
-  })
-})
-
-describe('codegen — generatePolicyWrapper', () => {
-  test('генерує @generated main.mjs з source-hash', async () => {
-    await withTmpDir(async dir => {
-      const concernDir = join(dir, 'rules', 'k8s', 'manifest')
-      await mkdir(concernDir, { recursive: true })
-      await writeJson(join(concernDir, 'concern.json'), {
-        policy: { engine: 'rego', files: { walkGlob: 'k8s/**/*.yaml' } }
-      })
-      await writeFile(join(concernDir, 'manifest.rego'), 'package k8s.manifest\n', 'utf8')
-      const res = await generatePolicyWrapper(concernDir, 'manifest')
-      expect(res.action).toBe('written')
-      const content = await readFile(join(concernDir, 'main.mjs'), 'utf8')
-      expect(isGeneratedFile(content)).toBe(true)
-      expect(content).toContain(`source-hash: ${res.hash}`)
-      expect(content).toContain('engine: "rego"')
-    })
-  })
-
-  test('повторний виклик із тим самим джерелом → fresh (не переписує)', async () => {
-    await withTmpDir(async dir => {
-      const concernDir = join(dir, 'rules', 'k8s', 'manifest')
-      await mkdir(concernDir, { recursive: true })
-      await writeJson(join(concernDir, 'concern.json'), {
-        policy: { engine: 'rego', files: { walkGlob: 'k8s/**/*.yaml' } }
-      })
-      await generatePolicyWrapper(concernDir, 'manifest')
-      const second = await generatePolicyWrapper(concernDir, 'manifest')
-      expect(second.action).toBe('fresh')
-    })
-  })
-
-  test('ручний main.mjs (без @generated) не чіпається → manual', async () => {
-    await withTmpDir(async dir => {
-      const concernDir = join(dir, 'rules', 'k8s', 'manifest')
-      await mkdir(concernDir, { recursive: true })
-      await writeJson(join(concernDir, 'concern.json'), {
-        policy: { engine: 'rego', files: { walkGlob: 'k8s/**/*.yaml' } }
-      })
-      const manual = 'export async function lint() { return { violations: [] } }\n'
-      await writeFile(join(concernDir, 'main.mjs'), manual, 'utf8')
-      const res = await generatePolicyWrapper(concernDir, 'manifest')
-      expect(res.action).toBe('manual')
-      expect(await readFile(join(concernDir, 'main.mjs'), 'utf8')).toBe(manual)
-    })
-  })
-})
-
-describe('codegen — checkRegoCodegen drift gate', () => {
-  test('відсутній main.mjs → stale policy-codegen-missing; fix регенерує', async () => {
-    await withTmpDir(async dir => {
-      const rulesDir = join(dir, 'rules')
-      const concernDir = join(rulesDir, 'k8s', 'manifest')
-      await mkdir(concernDir, { recursive: true })
-      await writeJson(join(concernDir, 'concern.json'), {
-        policy: { engine: 'rego', files: { walkGlob: 'k8s/**/*.yaml' } }
-      })
-      const report = await checkRegoCodegen(rulesDir)
-      expect(report.stale).toHaveLength(1)
-      expect(report.stale[0]).toMatchObject({
-        ruleId: 'k8s',
-        concernId: 'manifest',
-        reason: 'policy-codegen-missing'
-      })
-      const fixed = await checkRegoCodegen(rulesDir, { fix: true })
-      expect(fixed.regenerated).toEqual(['k8s/manifest'])
-      // після fix — чисто
-      const afterFix = await checkRegoCodegen(rulesDir)
-      expect(afterFix.stale).toEqual([])
-    })
-  })
-
-  test('зміна .rego → stale policy-codegen-stale', async () => {
-    await withTmpDir(async dir => {
-      const rulesDir = join(dir, 'rules')
-      const concernDir = join(rulesDir, 'k8s', 'manifest')
-      await mkdir(concernDir, { recursive: true })
-      await writeJson(join(concernDir, 'concern.json'), {
-        policy: { engine: 'rego', files: { walkGlob: 'k8s/**/*.yaml' } }
-      })
-      await writeFile(join(concernDir, 'manifest.rego'), 'package k8s.manifest\n', 'utf8')
-      await checkRegoCodegen(rulesDir, { fix: true })
-      // змінюємо джерело → hash інший
-      await writeFile(join(concernDir, 'manifest.rego'), 'package k8s.manifest\ndeny[x]{x:=1}\n', 'utf8')
-      const report = await checkRegoCodegen(rulesDir)
-      expect(report.stale).toHaveLength(1)
-      expect(report.stale[0].reason).toBe('policy-codegen-stale')
-    })
-  })
-
-  test('ручний main.mjs ігнорується drift-gate-ом', async () => {
-    await withTmpDir(async dir => {
-      const rulesDir = join(dir, 'rules')
-      const concernDir = join(rulesDir, 'k8s', 'manifest')
-      await mkdir(concernDir, { recursive: true })
-      await writeJson(join(concernDir, 'concern.json'), {
-        policy: { engine: 'rego', files: { walkGlob: 'k8s/**/*.yaml' } }
-      })
-      await writeFile(join(concernDir, 'main.mjs'), 'export async function lint(){return {violations:[]}}\n', 'utf8')
-      const report = await checkRegoCodegen(rulesDir)
-      expect(report.stale).toEqual([])
     })
   })
 })

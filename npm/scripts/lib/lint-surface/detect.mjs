@@ -7,9 +7,12 @@
  * @typedef {import('./types.mjs').LintDiagnostic} LintDiagnostic
  * @typedef {import('../concern-meta.mjs').ConcernMeta} ConcernMeta
  */
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+
+import { hasResolvableFiles, isGeneratedFile } from './codegen-opa-wrapper.mjs'
+import { evaluatePolicyConcern } from './policy-lint-adapter.mjs'
 
 /**
  * Сигнал, що detector кинув виняток / повернув невалідний результат → exit 2.
@@ -103,14 +106,45 @@ function normalizeResult(raw, ctx) {
 }
 
 /**
- * Запускає detector одного concern-а. Завантажує `main.mjs`, викликає `lint(ctx)`,
- * нормалізує результат. Кидає `DetectorError` при будь-якій аномалії (→ exit 2).
+ * Чи має concern ручний (не-`@generated`) `main.mjs`, що перекриває policy-adapter.
+ * @param {string} mainPath абсолютний шлях до `main.mjs` concern-а.
+ * @returns {boolean} true, якщо файл існує і не є codegen-артефактом.
+ */
+function hasHandWrittenMain(mainPath) {
+  if (!existsSync(mainPath)) return false
+  return !isGeneratedFile(readFileSync(mainPath, 'utf8'))
+}
+
+/**
+ * Запускає detector одного concern-а і нормалізує результат. Кидає `DetectorError`
+ * при будь-якій аномалії (→ exit 2).
+ *
+ * Чисті policy-concern-и (rego/template, без ручного `main.mjs`) оцінюються напряму
+ * через `evaluatePolicyConcern` з даних `concern.json` — генерований `main.mjs`
+ * для них не потрібен. Ручний (не-`@generated`) `main.mjs` — escape-hatch, він
+ * завжди має пріоритет. Concern-и без policy й без main.mjs — помилка конфігурації.
  * @param {ConcernMeta} concern метадані concern-а, чий detector запускаємо
  * @param {LintContext} ctx контекст лінту, що передається у lint()
  * @returns {Promise<LintResult>} нормалізований результат detector-а
  */
 export async function runConcernDetector(concern, ctx) {
   const mainPath = join(concern.dir, 'main.mjs')
+
+  if (!hasHandWrittenMain(mainPath) && concern.policy && hasResolvableFiles(concern.policy.files)) {
+    let raw
+    try {
+      raw = await evaluatePolicyConcern(ctx, {
+        engine: concern.policy.engine,
+        policyDir: concern.dir,
+        files: concern.policy.files,
+        missingMessage: concern.policy.missingMessage
+      })
+    } catch (error) {
+      throw new DetectorError(ctx.ruleId, ctx.concernId, `policy-adapter кинув: ${error.message}`)
+    }
+    return normalizeResult(raw, ctx)
+  }
+
   if (!existsSync(mainPath)) {
     throw new DetectorError(ctx.ruleId, ctx.concernId, 'немає main.mjs')
   }
