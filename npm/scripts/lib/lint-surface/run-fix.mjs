@@ -369,6 +369,7 @@ async function renderRemaining(failing, cwd, log) {
  * @param {number} [opts.maxAvg] Ліміт avg-бюджету.
  * @param {(s: string) => void} [opts.log] Логер виводу.
  * @param {boolean} [opts.isTTY] Override TTY-режиму ProgressReporter (тести); типово isTTY stdout.
+ * @param {(snap: object) => void} [opts.onProgress] Публікація знімків прогресу назовні (черга lint --full).
  * @param {object} [opts.deps] Інжекти для тестів: { ladder, workerFor, t0For }.
  * @returns {Promise<0|1|2>} Exit code: 0 — чисто, 1 — лишились порушення, 2 — DetectorError.
  */
@@ -382,7 +383,13 @@ export async function runFixPipeline(opts) {
 
   // ProgressReporter (канон scripts.mdc «Прогрес довгих lint/fix-прогонів»):
   // бар по концернах + тикер порушень; TTY/не-TTY розгалуження всередині.
-  const progress = createProgressReporter({ total: plan.length, log: baseLog, isTTY: opts.isTTY })
+  // onUpdate → publisher черги (--full): процеси в черзі бачать живий прогрес.
+  const progress = createProgressReporter({
+    total: plan.length,
+    log: baseLog,
+    isTTY: opts.isTTY,
+    onUpdate: opts.onProgress
+  })
   const log = progress.log
 
   // Преloadимо T0-патерни разом із планом — потрібно, щоб класифікувати standalone-концерни

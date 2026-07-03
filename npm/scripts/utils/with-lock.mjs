@@ -22,7 +22,7 @@ const DEFAULTS = {
  * @param {number} pid ідентифікатор процесу з owner.json
  * @returns {boolean} true, якщо process.kill(pid, 0) не кинув помилку
  */
-function isAlive(pid) {
+export function isPidAlive(pid) {
   try {
     process.kill(pid, 0)
     return true
@@ -55,9 +55,15 @@ export function shouldDedup(result, fingerprint, ttl) {
 
 /**
  * Серіалізує важку команду через атомарний lock і dedup за fingerprint.
+ *
+ * Хуки очікування (усі опційні; кастомний UI черги — див. `lint-lock.mjs`):
+ * `onWaitStart(owner)` — один раз, коли лок виявився зайнятим живим власником;
+ * `onWaitTick(owner)` — кожен poll-цикл очікування (заміняє дефолтний
+ * `⏳ …: чекаю` console.error-рядок); `onWaitEnd()` — по виходу з очікування
+ * (лок взято, таймаут або stale-очистка) — викликається лише якщо був `onWaitStart`.
  * @param {string} key ключ локу (наприклад `lint-ga`, `fix-bun`)
  * @param {() => number | Promise<number>} runFn основна робота; повертає exit code
- * @param {{ttl?:number, staleThreshold?:number, waitTimeout?:number, pollInterval?:number, onWaitTimeout?:'run-unlocked'|'fail', cacheDir?:string, getFingerprint?:() => string | null}} [opts] TTL, шлях кешу, поведінка на таймаут (default `run-unlocked`; `fail` = fail-closed) та override fingerprint
+ * @param {{ttl?:number, staleThreshold?:number, waitTimeout?:number, pollInterval?:number, onWaitTimeout?:'run-unlocked'|'fail', cacheDir?:string, getFingerprint?:() => string | null, onWaitStart?:(owner:object)=>void, onWaitTick?:(owner:object)=>void, onWaitEnd?:()=>void}} [opts] TTL, шлях кешу, поведінка на таймаут (default `run-unlocked`; `fail` = fail-closed), override fingerprint та хуки очікування
  * @returns {Promise<number>} exit code виконаної або дедуплікованої команди
  */
 export async function withLock(key, runFn, opts = {}) {
@@ -73,9 +79,17 @@ export async function withLock(key, runFn, opts = {}) {
   fs.mkdirSync(cacheDir, { recursive: true })
 
   const loopStart = Date.now()
+  let waiting = false
+  /** Викликає `onWaitEnd` один раз, якщо очікування взагалі починалось. */
+  const endWait = () => {
+    if (!waiting) return
+    waiting = false
+    opts.onWaitEnd?.()
+  }
 
   while (true) {
     if (Date.now() - loopStart >= waitTimeout) {
+      endWait()
       if (onWaitTimeout === 'fail') {
         throw new Error(`${key}: не вдалося взяти лок за ${waitTimeout / 60_000} хв — fail-closed`)
       }
@@ -86,8 +100,16 @@ export async function withLock(key, runFn, opts = {}) {
       fs.mkdirSync(lockDir)
       fs.writeFileSync(
         ownerFile,
-        JSON.stringify({ pid: process.pid, host: os.hostname(), startedAt: Date.now(), fingerprint })
+        // cwd — для UI черги (lint-lock.mjs показує, звідки запущений власник лока)
+        JSON.stringify({
+          pid: process.pid,
+          host: os.hostname(),
+          startedAt: Date.now(),
+          fingerprint,
+          cwd: process.cwd()
+        })
       )
+      endWait()
       break
     } catch (error) {
       if (error.code !== 'EEXIST') throw error
@@ -99,13 +121,21 @@ export async function withLock(key, runFn, opts = {}) {
         continue
       }
       const stale =
-        Date.now() - owner.startedAt > staleThreshold || (os.hostname() === owner.host && !isAlive(owner.pid))
+        Date.now() - owner.startedAt > staleThreshold || (os.hostname() === owner.host && !isPidAlive(owner.pid))
       if (stale) {
         console.error(`🧹 ${key}: знайдено застарілий лок — очищаю`)
         fs.rmSync(lockDir, { recursive: true, force: true })
         continue
       }
-      console.error(`⏳ ${key}: чекаю, лок тримає pid ${owner.pid}…`)
+      if (!waiting) {
+        waiting = true
+        opts.onWaitStart?.(owner)
+      }
+      if (opts.onWaitTick) {
+        opts.onWaitTick(owner)
+      } else {
+        console.error(`⏳ ${key}: чекаю, лок тримає pid ${owner.pid}…`)
+      }
       await sleep(pollInterval)
     }
   }

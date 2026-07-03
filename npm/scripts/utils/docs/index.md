@@ -8,6 +8,7 @@ resource: npm/scripts/utils/
 
 | Файл                                                        | Тип       |
 | ----------------------------------------------------------- | --------- |
+| [ast-extract.mjs](ast-extract.md)                           | JS Module |
 | [ast-scan-utils.mjs](ast-scan-utils.md)                     | JS Module |
 | [ensure-gitignore-entries.mjs](ensure-gitignore-entries.md) | JS Module |
 | [find-package-json-paths.mjs](find-package-json-paths.md)   | JS Module |

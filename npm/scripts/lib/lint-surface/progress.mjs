@@ -19,19 +19,40 @@ import cliProgress from 'cli-progress'
 const BAR_WIDTH = 20
 
 /**
+ * Рендерить один рядок прогресу — спільний формат для TTY-бара цього reporter-а
+ * та для прогресу чужого прогону, який показує процес у черзі
+ * (`lint-lock.mjs` читає знімок зі стан-файлу і показує його тим самим рядком).
+ * @param {{ done: number, total: number, found: number, fixed: number, current: string, unitLabel?: string, withFixed?: boolean }} snap знімок прогресу
+ * @returns {string} готовий рядок бара
+ */
+export function renderProgressLine(snap) {
+  const unitLabel = snap.unitLabel ?? 'концернів'
+  const progress = snap.total > 0 ? Math.min(1, snap.done / snap.total) : 0
+  const filled = Math.round(progress * BAR_WIDTH)
+  const bar = '█'.repeat(filled) + '░'.repeat(BAR_WIDTH - filled)
+  const ticker = (snap.withFixed ?? true) ? ` · знайдено ${snap.found} · виправлено ${snap.fixed}` : ''
+  return `[${bar}] ${snap.done}/${snap.total} ${unitLabel}${ticker} · ${snap.current}`
+}
+
+/**
  * Кастомний formatter (функція, не format-рядок): дефолтний formatter cli-progress
  * тягне CJS `require('string-width')`, який під bun-хойстингом отримує ESM-only v8
  * і падає (`_stringWidth is not a function`). Функція-formatter обходить його повністю.
- * @param {object} options опції бара (barCompleteChar/barIncompleteChar)
+ * @param {object} _options опції бара (не використовуються — символи фіксовані в renderProgressLine)
  * @param {object} params стан бара (value/total/progress)
  * @param {object} payload наш payload (unitLabel/found/fixed/current/withFixed)
  * @returns {string} готовий рядок бара
  */
-function formatBar(options, params, payload) {
-  const filled = Math.round(params.progress * BAR_WIDTH)
-  const bar = options.barCompleteChar.repeat(filled) + options.barIncompleteChar.repeat(BAR_WIDTH - filled)
-  const ticker = payload.withFixed ? ` · знайдено ${payload.found} · виправлено ${payload.fixed}` : ''
-  return `[${bar}] ${params.value}/${params.total} ${payload.unitLabel}${ticker} · ${payload.current}`
+function formatBar(_options, params, payload) {
+  return renderProgressLine({
+    done: params.value,
+    total: params.total,
+    found: payload.found,
+    fixed: payload.fixed,
+    current: payload.current,
+    unitLabel: payload.unitLabel,
+    withFixed: payload.withFixed
+  })
 }
 
 /**
@@ -52,6 +73,8 @@ function formatBar(options, params, payload) {
  * @param {boolean} [opts.isTTY] явний override TTY-режиму; типово process.stdout.isTTY
  * @param {string} [opts.unitLabel] підпис одиниці в барі (типово 'концернів')
  * @param {boolean} [opts.withFixed] чи показувати тикер «знайдено/виправлено» (типово true)
+ * @param {(snap: { done: number, total: number, found: number, fixed: number, current: string }) => void} [opts.onUpdate] колбек на кожну зміну стану — для публікації прогресу назовні (черга lint)
+ * @param {boolean} [opts.appendInNonTTY] чи друкувати append-рядки ⏱ у не-TTY (типово true); false — «мовчазний» reporter лише для onUpdate-публікації
  * @returns {ProgressReporter} reporter
  */
 export function createProgressReporter(opts) {
@@ -60,6 +83,7 @@ export function createProgressReporter(opts) {
   const isTTY = opts.isTTY ?? process.stdout.isTTY === true
   const unitLabel = opts.unitLabel ?? 'концернів'
   const withFixed = opts.withFixed !== false
+  const appendInNonTTY = opts.appendInNonTTY !== false
 
   /** @type {Map<string, { found: number, remaining: number }>} */
   const counters = new Map()
@@ -112,10 +136,11 @@ export function createProgressReporter(opts) {
     bar = multibar.create(total, 0, { unitLabel, withFixed, found: 0, fixed: 0, current })
   }
 
-  /** Перемальовує бар актуальним payload-ом (тільки TTY). */
+  /** Перемальовує бар актуальним payload-ом (TTY) і публікує знімок назовні. */
   function redraw() {
-    if (!bar) return
     const { found, fixed } = tally()
+    opts.onUpdate?.({ done, total, found, fixed, current })
+    if (!bar) return
     bar.update(done, { unitLabel, withFixed, found, fixed, current })
   }
 
@@ -147,7 +172,7 @@ export function createProgressReporter(opts) {
       // щоб summary().found був повним.
       stateFor(key)
       redraw()
-      if (!bar) {
+      if (!bar && appendInNonTTY) {
         const { found, fixed } = tally()
         const ticker = withFixed ? ` · знайдено ${found} · виправлено ${fixed}` : ''
         baseLog(`  ⏱ ${done}/${total} ${unitLabel}${ticker}\n`)

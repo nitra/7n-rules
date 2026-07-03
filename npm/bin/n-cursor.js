@@ -612,8 +612,8 @@ async function removeOrphanManagedSkillDirs(skillsRoot, configSkills) {
 }
 
 /**
- * Рендерить коротку секцію для CLAUDE.md: у lint вбудована глобальна черга —
- * паралельні запуски серіалізуються самі, координація вручну не потрібна.
+ * Рендерить коротку секцію для CLAUDE.md: full-прогони lint мають вбудовану
+ * глобальну чергу з видимим прогресом, дельта-запуски йдуть паралельно без лока.
  * @returns {string[]} рядки для вставки (з порожнім рядком на початку)
  */
 function buildClaudeLintParallelismSectionLines() {
@@ -621,7 +621,7 @@ function buildClaudeLintParallelismSectionLines() {
     '',
     '## Лінт і ESLint (паралелізм)',
     '',
-    '`npx @nitra/cursor lint` має **вбудовану глобальну чергу** (spec 2026-07-03): один lint-процес на машину, паралельні запуски самі чекають лока (`⏳ lint-global: чекаю…` — штатна черга, не зависання; fail-closed таймаут 20 хв), ідентичний повтор на незміненому дереві дедуплікується (`♻️ … пропускаю`). Координувати запуски вручну не треба. Деталі: `.cursor/skills/n-lint/SKILL.md`.',
+    'Дельта-`lint` (типовий задачний прогін) — **без черги**, паралельні запуски по різних файлах дозволені. `npx @nitra/cursor lint --full` має **вбудовану глобальну чергу** (spec 2026-07-03): один full-прогін на машину; запуск у черзі показує свою позицію, решту черги і живий прогрес-бар активного прогону (`⏳ lint --full у черзі #… · працює pid … [██…] 5/12 · …` — штатна черга, не зависання; fail-closed таймаут 45 хв). Ідентичний повтор --full на незміненому дереві дедуплікується (`♻️ … пропускаю`). Координувати запуски вручну не треба. Деталі: `.cursor/skills/n-lint/SKILL.md`.',
     ''
   ]
 }
@@ -1533,18 +1533,26 @@ try {
       const lintOpts = { cwd: cwdArg, full: args.includes('--full'), rules, verbose: args.includes('--verbose') }
       // --read-only — backward-compat alias на --no-fix (видалиться після міграції викликів).
       const noFix = args.includes('--no-fix') || args.includes('--read-only')
-      // Глобальна черга (spec 2026-07-03): одночасно виконується один lint-процес
-      // на машину, паралельні запуски чекають лока (див. lint-lock.mjs).
-      const { withGlobalLintLock } = await import('../scripts/lib/lint-surface/lint-lock.mjs')
+      // Глобальна черга full-прогонів (spec 2026-07-03): одночасно виконується один
+      // `lint --full` на машину, паралельні --full чекають лока і бачать чергу та
+      // живий прогрес активного прогону; не-full запуски йдуть без лока
+      // (див. lint-lock.mjs). Publisher пише знімки прогресу для черги.
+      const { withGlobalLintLock, createProgressPublisher } = await import('../scripts/lib/lint-surface/lint-lock.mjs')
       process.exitCode = await withGlobalLintLock({ ...lintOpts, noFix }, async () => {
-        if (noFix) {
-          const { detectAll } = await import('../scripts/lib/lint-surface/run-detectors.mjs')
-          // окрема змінна замість (await detectAll(...)).exitCode — no-await-expression-member (oxlint)
-          const detectResult = await detectAll(lintOpts)
-          return detectResult.exitCode
+        const publisher = lintOpts.full ? createProgressPublisher() : null
+        const runOpts = publisher ? { ...lintOpts, onProgress: publisher.onUpdate } : lintOpts
+        try {
+          if (noFix) {
+            const { detectAll } = await import('../scripts/lib/lint-surface/run-detectors.mjs')
+            // окрема змінна замість (await detectAll(...)).exitCode — no-await-expression-member (oxlint)
+            const detectResult = await detectAll(runOpts)
+            return detectResult.exitCode
+          }
+          const { runFixPipeline } = await import('../scripts/lib/lint-surface/run-fix.mjs')
+          return await runFixPipeline(runOpts)
+        } finally {
+          publisher?.stop()
         }
-        const { runFixPipeline } = await import('../scripts/lib/lint-surface/run-fix.mjs')
-        return runFixPipeline(lintOpts)
       })
 
       break

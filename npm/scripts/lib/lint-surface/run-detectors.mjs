@@ -239,6 +239,7 @@ async function buildPlan({ byRule, full, rules, explicitFiles, cwd }) {
  * @param {boolean} [opts.verbose] докладний лог прогону.
  * @param {(s: string) => void} [opts.log] функція логування.
  * @param {boolean} [opts.isTTY] override TTY-режиму ProgressReporter (тести); типово isTTY stdout.
+ * @param {(snap: object) => void} [opts.onProgress] публікація знімків прогресу назовні (черга lint --full).
  * @returns {Promise<{ violations: LintViolation[], exitCode: 0|1|2, ran: LintEntry[] }>} violations, exitCode і виконані entries.
  */
 export async function detectAll(opts) {
@@ -254,12 +255,21 @@ export async function detectAll(opts) {
   const plan = await buildPlan({ byRule, full, rules, explicitFiles, cwd })
 
   // Detect-only бар — ЛИШЕ в TTY (без тикера «виправлено»). У не-TTY (hooks, CI-gate,
-  // пайпи) поведінка без змін: append-рядки ⏱ на кожен концерн засмітили б вивід
-  // кожного PostToolUse-хука.
+  // пайпи) append-рядки ⏱ на кожен концерн засмітили б вивід кожного PostToolUse-хука,
+  // тож там reporter створюється лише за наявності onProgress і «мовчазним»
+  // (appendInNonTTY: false) — publisher черги (--full) отримує знімки без шуму.
   const isTTY = opts.isTTY ?? process.stdout.isTTY === true
-  const progress = isTTY
-    ? createProgressReporter({ total: plan.length, log: baseLog, isTTY, withFixed: false })
-    : null
+  const progress =
+    isTTY || opts.onProgress
+      ? createProgressReporter({
+          total: plan.length,
+          log: baseLog,
+          isTTY,
+          withFixed: false,
+          onUpdate: opts.onProgress,
+          appendInNonTTY: false
+        })
+      : null
   const log = progress ? progress.log : baseLog
 
   /** @type {LintViolation[]} */

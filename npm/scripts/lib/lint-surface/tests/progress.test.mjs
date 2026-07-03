@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import { createProgressReporter } from '../progress.mjs'
 
@@ -106,5 +106,33 @@ describe('progress reporter — не-TTY фолбек', () => {
   test('stop() у не-TTY — no-op без падіння', () => {
     const { r } = makeReporter(1)
     expect(() => r.stop()).not.toThrow()
+  })
+
+  test('appendInNonTTY:false — «мовчазний» reporter: без ⏱-рядків, onUpdate публікує', () => {
+    const snaps = []
+    const { r, lines } = makeReporter(2, {
+      appendInNonTTY: false,
+      onUpdate: s => {
+        snaps.push(s)
+      }
+    })
+    r.detectSnapshot('a', 3)
+    r.concernDone('a')
+    expect(lines.filter(l => l.includes('⏱'))).toHaveLength(0)
+    expect(snaps.at(-1)).toMatchObject({ done: 1, total: 2, found: 3 })
+  })
+
+  test('onUpdate отримує знімок на кожну зміну стану (публікація для черги lint)', () => {
+    const snaps = []
+    const { r } = makeReporter(2, {
+      onUpdate: s => {
+        snaps.push(s)
+      }
+    })
+    r.concernStart('js/eslint', 'haiku')
+    r.detectSnapshot('a', 5)
+    r.detectSnapshot('a', 2)
+    r.concernDone('a')
+    expect(snaps.at(-1)).toMatchObject({ done: 1, total: 2, found: 5, fixed: 3, current: 'js/eslint (haiku)' })
   })
 })
