@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.2.3] - 2026-07-03
+
+### Changed
+
+- docs(cspell-fix): актуалізувати доку main.mjs — detectCspell zero-files fix
+
 ## [14.2.2] - 2026-07-03
 
 ### Changed
