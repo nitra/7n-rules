@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.5.0] - 2026-07-03
+
+### Added
+
+- feat(adr): ADR_HOOKS_SKIP пропускає сесії оркестраторів (lint/skill/taze/release) в ADR Stop-хуках; capture-decisions.sh переходить на селектор CAPTURE_DECISIONS_BACKEND з дефолтом pi (npm-first, офлайн, герметичні прапори) — claude/cursor-agent лишаються opt-in через явний CAPTURE_DECISIONS_BACKEND=claude|cursor-agent|auto (spec 2026-06-30)
+
 ## [14.4.6] - 2026-07-03
 
 ### Changed
