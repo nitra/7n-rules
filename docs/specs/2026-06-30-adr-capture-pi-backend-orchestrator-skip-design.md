@@ -177,7 +177,7 @@ fi
 | `npm/scripts/tests/sync-pi-extensions.test.mjs` | Додати assertion на `ADR_HOOKS_SKIP` у bundled extension |
 | `npm/scripts/dispatcher/tests/index.test.mjs` | Source test: `ADR_HOOKS_SKIP = '1'` виставлено до CLI `switch` |
 | `docs/ci4/01-context.md`, `docs/ci4/02-containers.md`, `docs/ci4/03-components.md`, `docs/ci4/04-code.md` | Оновити architecture docs: capture backend `pi`, selector semantics, env guard |
-| `npm/CHANGELOG.md` | Change entry через `npx @nitra/cursor fix changelog` |
+| `npm/CHANGELOG.md` | Change entry через `npx @nitra/cursor lint changelog` |
 
 `lib/tooling-only.sh` не змінюємо.
 

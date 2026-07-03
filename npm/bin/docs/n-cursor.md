@@ -444,6 +444,7 @@
 const [command, ...args] = process.argv.slice(2)
 try {
   await ensureNitraCursorInRootDevDependencies(cwd())
+  env.ADR_HOOKS_SKIP = '1'
   switch (command) { … }
 } catch (error) {
   if (error instanceof ReexecHandoff) process.exitCode = error.code
@@ -451,6 +452,8 @@ try {
   else { console.error(error); process.exitCode = 1 }
 }
 ```
+
+`env.ADR_HOOKS_SKIP = '1'` виставляється **до** `switch (command)` — покриває всі підкоманди-оркестратори (`hook`, `lint`, `skill`, `adr-normalize-local`, `taze`, `release` тощо) одним викликом без пер-case дублювання. ADR Stop-хуки (`capture-decisions.sh`, `normalize-decisions.sh`) і `pi`-extension (`n-cursor-adr`) перевіряють цей прапор і мовчки виходять, щоб технічна LLM-сесія оркестратора не потрапляла в ADR-захоплення рішень (spec `2026-06-30`).
 
 ### Алгоритм маршрутизації команд (switch)
 
