@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.4.5] - 2026-07-03
+
+### Fixed
+
+- fix(bun): @stryker-mutator/core додано в allowed_root_test_deps — vitest-runner@9 вимагає core як exact-pin peer явною залежністю; без цього bun/package_json та npm-module/npm_package_json заганяли споживача у глухий кут (root забороняє, workspace виганяє в root)
+
 ## [14.4.4] - 2026-07-03
 
 ### Fixed
