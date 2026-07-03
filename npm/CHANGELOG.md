@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.4.0] - 2026-07-03
+
+### Added
+
+- feat(lint): глобальна черга `lint --full` з видимим прогресом (spec docs/specs/2026-07-03-lint-global-queue-design.md) — один full-прогін на машину через machine-wide лок у tmpdir (lint-surface/lint-lock.mjs поверх withLock: PID-живість, перехоплення лока мертвого процесу, TTL-дедуплікація за деревом+варіантом виклику, fail-closed таймаут 45 хв). Процес у черзі показує позицію, список черги і живий прогрес-бар активного прогону (publisher пише знімки ProgressReporter у progress.json). Дельта/scoped/--no-fix — без лока, паралельно як раніше.
+
 ## [14.3.0] - 2026-07-03
 
 ### Added
