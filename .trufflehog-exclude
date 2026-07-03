@@ -8,3 +8,4 @@
 .*fixtures?/.*
 ^npm/rules/.*/(fix|policy)/.*\.test\.mjs$
 ^npm/rules/.*/policy/.*_test\.rego$
+^\.n-cursor/llm-trace\.jsonl$

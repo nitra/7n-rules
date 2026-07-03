@@ -46,6 +46,8 @@
         "scripts/lib/run-rule-cli.mjs",
         "scripts/lib/run-rule.mjs",
         "scripts/lib/run-standard-rule.mjs",
+        "scripts/lib/lint-surface/tier-sampling-bench.mjs",
+        "scripts/lib/lint-surface/tier-sampling-experiment.mjs",
         "rules/**/*.test.mjs",
         "scripts/**/*.test.mjs",
         "tests/**/*.test.mjs",

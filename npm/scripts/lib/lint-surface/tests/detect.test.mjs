@@ -21,7 +21,14 @@ describe('runConcernDetector — policy-concern без main.mjs', () => {
       }
       const r = await runConcernDetector(concern, { cwd: dir, ruleId: 'ga', concernId: 'lint_ga' })
       expect(r.violations).toEqual([
-        { ruleId: 'ga', concernId: 'lint_ga', reason: 'policy-file-missing', message: 'не існує', severity: 'error', file: '.github/workflows/lint-ga.yml' }
+        {
+          ruleId: 'ga',
+          concernId: 'lint_ga',
+          reason: 'policy-file-missing',
+          message: 'не існує',
+          severity: 'error',
+          file: '.github/workflows/lint-ga.yml'
+        }
       ])
     })
   })

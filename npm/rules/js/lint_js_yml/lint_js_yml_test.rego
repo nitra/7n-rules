@@ -1,6 +1,6 @@
 package js.lint_js_yml_test
 
-import data.js_lint.lint_js_yml
+import data.js.lint_js_yml
 import rego.v1
 
 template_data := {"snippet": {"jobs": {"eslint": {"steps": [

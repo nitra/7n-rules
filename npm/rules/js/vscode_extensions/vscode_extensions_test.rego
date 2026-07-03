@@ -1,6 +1,6 @@
 package js.vscode_extensions_test
 
-import data.js_lint.vscode_extensions
+import data.js.vscode_extensions
 import rego.v1
 
 template_data := {"snippet": {"recommendations": ["dbaeumer.vscode-eslint", "github.vscode-github-actions", "oxc.oxc-vscode"]}}

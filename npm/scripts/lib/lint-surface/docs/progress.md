@@ -3,7 +3,7 @@ type: JS Module
 title: progress.mjs
 resource: npm/scripts/lib/lint-surface/progress.mjs
 docgen:
-  crc: 7ccfc1da
+  crc: c442f348
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   judgeModel: openai-codex/gpt-5.4-mini

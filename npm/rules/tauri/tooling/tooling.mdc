@@ -22,4 +22,6 @@
 
 Розширені Rust-вимоги (`rust-lang.rust-analyzer`, `tamasfe.even-better-toml`, скрипт `lint-rust`, CI `lint-rust.yml`) — у правилі **`rust`** (`n-rust.mdc`). Tauri-проєкт завжди має `src-tauri/Cargo.toml`, тому `rust` активується автоматично разом з `tauri`.
 
+Це також покриває CI/release-build job'и, що збирають Tauri-додаток через `tauri-apps/tauri-action`: будь-який job з кроком `dtolnay/rust-toolchain@…` (лінт, coverage чи release/build — не лише `lint-rust.yml`) повинен мати `Swatinem/rust-cache@v2` одразу після нього, інакше CI щоразу заново качає весь cargo registry. Перевірка й автофікс — concern `rust/toolchain_cache` (rust.mdc), не дублюється тут.
+
 Перевірка `tauri-apps.tauri-vscode` виконується Rego-пакетом `tauri.vscode_extensions` через `conftest` (умовно — лише після підтвердження маркера Tauri).

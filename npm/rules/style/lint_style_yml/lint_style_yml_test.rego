@@ -1,6 +1,6 @@
 package style.lint_style_yml_test
 
-import data.style_lint.lint_style_yml
+import data.style.lint_style_yml
 import rego.v1
 
 template_data := {"snippet": {"jobs": {"stylelint": {"steps": [{"run": "n-cursor lint style --read-only"}]}}}}

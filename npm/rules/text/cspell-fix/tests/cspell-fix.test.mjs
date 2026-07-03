@@ -1,3 +1,4 @@
+// cspell:ignore wrod — навмисний тайпо-фікстур для перевірки detectCspell/unknownWords
 import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { writeFile, readFile } from 'node:fs/promises'

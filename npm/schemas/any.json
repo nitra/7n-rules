@@ -1,0 +1,4 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Заглушка-схема: приймає будь-який валідний JSON. Для файлів без офіційної схеми (bespoke tool-конфіги, one-off артефакти), щоб v8r не падав через 'Could not find a schema'."
+}

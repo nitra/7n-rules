@@ -1,6 +1,6 @@
 package style.vscode_extensions_test
 
-import data.style_lint.vscode_extensions
+import data.style.vscode_extensions
 import rego.v1
 
 template_data := {"snippet": {"recommendations": ["stylelint.vscode-stylelint"]}}

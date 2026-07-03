@@ -32,12 +32,8 @@ async function lintWithIsolatedPath(cwd) {
   env['N_CURSOR_NO_AUTO_INSTALL'] = '1'
   const origErr = console.error
   const origLog = console.log
-  console.error = () => {
-    /* noop */
-  }
-  console.log = () => {
-    /* noop */
-  }
+  console.error = vi.spyOn(console, 'error').mockReturnValue()
+  console.log = vi.spyOn(console, 'log').mockReturnValue()
   let caughtError
   try {
     await lint({ cwd, ruleId: 'ga', concernId: 'workflows', files: undefined })

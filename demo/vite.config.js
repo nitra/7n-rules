@@ -14,5 +14,5 @@ export default defineConfig({
       imports: ['vue'],
       dts: 'src/auto-imports.d.ts'
     })
-  ]
+  css: { transformer: 'lightningcss' }
 })

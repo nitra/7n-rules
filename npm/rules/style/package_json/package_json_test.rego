@@ -1,6 +1,6 @@
 package style.package_json_test
 
-import data.style_lint.package_json
+import data.style.package_json
 import rego.v1
 
 template_data := {"snippet": {"stylelint": {"extends": "@nitra/stylelint-config"}}}

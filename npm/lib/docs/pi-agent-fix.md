@@ -3,7 +3,7 @@ type: JS Module
 title: pi-agent-fix.mjs
 resource: npm/lib/pi-agent-fix.mjs
 docgen:
-  crc: ca1ed273
+  crc: 62dc77cf
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

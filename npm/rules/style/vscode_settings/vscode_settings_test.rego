@@ -1,6 +1,6 @@
 package style.vscode_settings_test
 
-import data.style_lint.vscode_settings
+import data.style.vscode_settings
 import rego.v1
 
 template_data := {"snippet": {"css.validate": false, "less.validate": false, "scss.validate": false}}

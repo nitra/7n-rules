@@ -1,6 +1,6 @@
 package js.package_json_test
 
-import data.js_lint.package_json
+import data.js.package_json
 import rego.v1
 
 template_data := {"snippet": {

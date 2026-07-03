@@ -144,7 +144,17 @@ export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
   const thinkingLevel = thinkingLevelForTier(tier ?? '')
 
   const fail = error => {
-    trace({ caller, backend: 'pi-ai', kind: 'agent', rule: ruleId, rung: tier, model: modelSpec, thinkingLevel, cwd, error })
+    trace({
+      caller,
+      backend: 'pi-ai',
+      kind: 'agent',
+      rule: ruleId,
+      rung: tier,
+      model: modelSpec,
+      thinkingLevel,
+      cwd,
+      error
+    })
     return { applied: false, touchedFiles: [], telemetry: null, error, rollback: noop }
   }
 

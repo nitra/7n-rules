@@ -1,0 +1,23 @@
+## Rust-cache після rust-toolchain — у будь-якому workflow
+
+Concern: `rust/toolchain_cache` (JS-detector, `main.mjs` — не rego)
+
+Цільові файли: `.github/workflows/*.yml`, `.github/workflows/*.yaml` (кожен файл окремо)
+
+У кожному job-і, що ставить Rust toolchain через `dtolnay/rust-toolchain@stable`
+(або будь-яку іншу версію), одразу після цього кроку має бути `Swatinem/rust-cache@v2` —
+незалежно від того, lint це, coverage чи release/build job, що збирає Tauri-додаток
+через `tauri-apps/tauri-action`. Без кешу CI щоразу заново качає весь cargo registry.
+
+Це узагальнення перевірки `rust/lint_rust_yml` (яка звіряє канонічний
+`.github/workflows/lint-rust.yml` цілком) — той concern лишається specific до
+lint-workflow, цей — universal per-job перевірка для решти workflow-файлів
+(coverage, release, будь-який кастомний).
+
+Якщо job також викликає `tauri-apps/tauri-action`, а `Cargo.toml` лежить не в
+корені репо, а під `<ws>/src-tauri/` (типовий Tauri-layout) — крок
+`Swatinem/rust-cache@v2` має мати `with.workspaces: <ws>/src-tauri`.
+
+Автофікс (`fix-toolchain_cache.mjs`, T0, `fixability: config`) вставляє відсутній
+крок одразу після `dtolnay/rust-toolchain@…` (і `with.workspaces`, де потрібно)
+текстовим splice-ом — зберігає формат/коментарі, ідемпотентно.

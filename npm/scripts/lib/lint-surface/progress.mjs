@@ -186,7 +186,7 @@ export function createProgressReporter(opts) {
 
     stop: () => {
       if (!multibar) {
-      	return;
+        return
       }
 
       redraw()

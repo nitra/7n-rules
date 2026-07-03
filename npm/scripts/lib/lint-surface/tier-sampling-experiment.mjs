@@ -59,7 +59,6 @@ const DEFAULT_PROFILES_BY_TIER = Object.freeze({
 
 /**
  * Будує experiment-only ladder із `cloud-max`. Production ladder це не змінює.
- *
  * @param {{ localMin?: string, cloudMin?: string, cloudAvg?: string, cloudMax?: string }} models - Об'єくと, що містить імена моделей для кожного tier.
  * @param {{ localTimeoutMs?: number, cloudTimeoutMs?: number }} [opts] - Опції для встановлення timeout для локального та хмарного етапу.
  * @returns {ExperimentRung[]} Масив експериментальних rung'ів (етапів).
@@ -113,7 +112,6 @@ export function buildExperimentLadder(models, opts = {}) {
 
 /**
  * Повертає можливі sampling profiles для заданого tier-а.
- *
  * @param {string} tier - Назва tier (наприклад, 'local-min').
  * @param {Record<string, Array<string|SamplingCandidate>>} [overrides] - Об'єкт з перевизначеними profiles для конкретного tier.
  * @returns {SamplingCandidate[]} Масив об'єктів SamplingCandidate для даного tier.
@@ -150,7 +148,6 @@ export function chooseCleanCandidate(attempts) {
  * Виконує послідовність випробувань (sampling) для одного tier.
  * Для кожного кандидата виконується rollback до S1, запускається worker,
  * оцінюється чистота, і якщо кандидат обраний, застосовується його patch.
- *
  * @param {object} args - Аргументи для експерименту.
  * @param {import('./types.mjs').LintViolation[]} args.violations - Початкові порушення для перевірки.
  * @param {object} args.ctx - Базовий контекст для фіксації.

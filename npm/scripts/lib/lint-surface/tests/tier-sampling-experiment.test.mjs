@@ -29,10 +29,7 @@ describe('tier sampling experiment', () => {
   })
 
   test('sampling profiles можна override-ити per tier', () => {
-    expect(samplingProfilesForTier('cloud-min').map(p => p.samplingProfile)).toEqual([
-      'conservative',
-      'exploratory'
-    ])
+    expect(samplingProfilesForTier('cloud-min').map(p => p.samplingProfile)).toEqual(['conservative', 'exploratory'])
     expect(
       samplingProfilesForTier('cloud-max', {
         'cloud-max': [{ id: 'judge-max', samplingProfile: 'judge' }]

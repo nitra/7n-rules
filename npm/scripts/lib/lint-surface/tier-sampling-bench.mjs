@@ -14,7 +14,11 @@ import { env, exit, stdout } from 'node:process'
 
 import { CLOUD_AVG, CLOUD_MAX, CLOUD_MIN, LOCAL_MIN } from '../../../lib/pi-model-tiers.mjs'
 import { runPiAgentFix } from '../../../lib/pi-agent-fix.mjs'
-import { buildExperimentLadder, runTierSamplingExperiment, samplingProfilesForTier } from './tier-sampling-experiment.mjs'
+import {
+  buildExperimentLadder,
+  runTierSamplingExperiment,
+  samplingProfilesForTier
+} from './tier-sampling-experiment.mjs'
 
 const DEFAULT_OUT = 'docs/specs/2026-06-30-lint-tier-sampling-consensus-results.json'
 const DEFAULT_TIMEOUT_MS = Number(env.N_CURSOR_TIER_BENCH_TIMEOUT_MS) || 180_000
@@ -180,7 +184,8 @@ export async function runTierSamplingBench(opts = {}) {
                 },
                 // samplingProfile/candidateId — концепт runner-а, worker про них не знає,
                 // тому в trace вони дописуються тут, а не в runPiAgentFix.
-                trace: event => traceEvents.push({ ...event, samplingProfile: ctx.samplingProfile, candidateId: ctx.candidateId })
+                trace: event =>
+                  traceEvents.push({ ...event, samplingProfile: ctx.samplingProfile, candidateId: ctx.candidateId })
               }
             })
             if (res.error) throw new Error(res.error)
@@ -228,7 +233,12 @@ export async function runTierSamplingBench(opts = {}) {
           tier: rung.tier,
           clean: row.clean,
           selected: row.selected?.samplingProfile ?? null,
-          attempts: row.attempts.map(a => ({ profile: a.samplingProfile, clean: a.clean, ms: a.wallMs, error: a.error }))
+          attempts: row.attempts.map(a => ({
+            profile: a.samplingProfile,
+            clean: a.clean,
+            ms: a.wallMs,
+            error: a.error
+          }))
         })
       } finally {
         await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
@@ -303,7 +313,15 @@ function summarizeTelemetry(t) {
  */
 function aggregateUsage(usages) {
   if (usages.length === 0) return null
-  const sum = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, costTotal: 0, turnsCounted: usages.length }
+  const sum = {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 0,
+    costTotal: 0,
+    turnsCounted: usages.length
+  }
   for (const u of usages) {
     sum.input += u.input ?? 0
     sum.output += u.output ?? 0
@@ -378,19 +396,19 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     switch (a) {
-    case '--out': {
-    opts.out = argv[++i]
-    break;
-    }
-    case '--tier': {
-    opts.tiers = [...opts.tiers ?? [], ...argv[++i].split(',')]
-    break;
-    }
-    case '--fixture': {
-    opts.fixtures = [...opts.fixtures ?? [], ...argv[++i].split(',')]
-    // No default
-    break;
-    }
+      case '--out': {
+        opts.out = argv[++i]
+        break
+      }
+      case '--tier': {
+        opts.tiers = [...(opts.tiers ?? []), ...argv[++i].split(',')]
+        break
+      }
+      case '--fixture': {
+        opts.fixtures = [...(opts.fixtures ?? []), ...argv[++i].split(',')]
+        // No default
+        break
+      }
     }
   }
   return opts

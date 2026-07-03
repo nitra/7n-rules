@@ -3,35 +3,33 @@ type: JS Module
 title: tier-sampling-experiment.mjs
 resource: npm/scripts/lib/lint-surface/tier-sampling-experiment.mjs
 docgen:
-  crc: 11de8f6b
-  model: manual
+  crc: 7bb8d134
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
+  issues: judge:inaccurate:0.98
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Модуль описує experiment-only harness для перевірки sampling/consensus поверх lint fix ladder. Він не підключається до production `runFixPipeline`, а дає окрему програмну точку для bench/smoke: побудувати експериментальні тири, підібрати sampling profiles і прогнати кілька isolated candidates для одного tier-а.
+Файл слугує експериментальною обгорткою для перевірки процесу виправлення (lint fix ladder). Він моделює ізольовані потенційні рішення для певного рівня, відкочуючи робоче дерево до початкового стану S1 перед кожною спробою. Мета модуля — ізольовано протестувати кандидати, які пройшли автоматичне виявлення чистоти, щоб оцінити їхню цінність через механізм зворотного зв'язку.
 
 ## Поведінка
 
-`buildExperimentLadder` будує список `local-min`, `cloud-min`, `cloud-avg`, `cloud-max` тільки з моделей, які задані. Усі rungs позначені як `experimentOnly`, а `cloud-max` має окремий маркер `isMax`, щоб не змішувати його з production `cloud-avg` budget.
-
-`samplingProfilesForTier` повертає дефолтні профілі для tier-а або приймає override. Для `cloud-min` і `cloud-avg` дефолт — `conservative` + `exploratory`; для `local-min` і `cloud-max` — один `conservative` профіль.
-
-`runTierSamplingExperiment` запускає candidates послідовно. Перед кожним candidate-ом робоче дерево відкочується до `S1`; worker отримує `samplingProfile`, `candidateId` і `recordWrite`; після worker-а викликається injected canonical `detect`. Clean candidate-и порівнюються за кількістю touched files, розміром patch і latency. Вибраний patch застосовується повторно і ще раз перевіряється final detect.
-
-Якщо clean candidate-а немає, optional `judge` може повернути тільки feedback. Judge не може override-ити detector і не може зробити failed candidate успішним.
+EXPERIMENT_TIER_ORDER визначає фіксований порядок експериментальних рівнів.
+buildExperimentLadder конструює список експериментальних етапів на основі наданих моделей для кожного tier.
+samplingProfilesForTier генерує список можливих профілів відбору для певного tier.
+chooseCleanCandidate вибирає найкращий кандидат серед усіх спроб, які пройшли перевірку на чистоту.
+runTierSamplingExperiment виконує послідовність випробувань (sampling) для заданого tier, тестуючи кандидатів, обираючи найкращого та застосовуючи його патч для фінальної перевірки.
 
 ## Публічний API
 
-- `buildExperimentLadder` — будує experiment-only ladder із `cloud-max`.
-- `samplingProfilesForTier` — повертає sampling profiles для tier-а.
-- `chooseCleanCandidate` — вибирає найменший clean candidate.
-- `runTierSamplingExperiment` — виконує ізольовані candidates і повертає selected attempt, attempts telemetry, final violations та judge feedback.
+* EXPERIMENT_TIER_ORDER — Визначає пріоритетність випробувань (tiers).
+* buildExperimentLadder — Створює ієрархію для експериментів, не впливаючи на конфігурацію продакшену.
+* samplingProfilesForTier — Повідомляє про доступні варіанти збору зразків для конкретного рівня випробувань.
+* chooseCleanCandidate — Вибирає оптимальний варіант з усіх тестових спроб, базуючись на мінімальній кількості змін у файлах, розмірі патчу та латентності.
+* runTierSamplingExperiment — Проводить комплекс випробувань для одного рівня: для кожного варіанту повертається до початкового стану, запускається робочий процес, оцінюється якість, а при виборі — застосовується відповідний виправлення.
 
 ## Гарантії поведінки
 
-- Не змінює production ladder і не імпортується production `run-fix`.
-- Не використовує LLM напряму; worker/detect/judge інжектуються.
-- Success визначає тільки canonical detect.
-- Кожен candidate стартує з однакового `S1`, тому degraded patch одного профілю не тече в інший.
+- Перехоплює помилки і не пропускає винятків назовні (fail-safe).
