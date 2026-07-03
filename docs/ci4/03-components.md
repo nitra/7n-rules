@@ -148,19 +148,21 @@ C4Component
     title Components — Capture-Decisions Hook (cnt-capture-decisions)
 
     Person_Ext(claude, "Claude Code")
-    System_Ext(llm, "LLM CLI (claude/cursor-agent)")
+    System_Ext(llm, "LLM CLI (pi дефолт; claude/cursor-agent opt-in)")
     System_Ext(targetRepo, "docs/adr/_inbox/")
 
     Container_Boundary(b, "Capture-Decisions Hook (bash)") {
         Component(envGuard, "recursion guard", ".claude/hooks/capture-decisions.sh", "Перевіряє CAPTURE_DECISIONS_RUNNING=1, exit 0 якщо встановлено")
+        Component(hooksSkipGuard, "orchestrator guard", ".claude/hooks/capture-decisions.sh", "Перевіряє ADR_HOOKS_SKIP=1 (виставлено n-cursor.js для підкоманд-оркестраторів), silent exit 0")
         Component(jq, "jq pipeline", "інлайн jq у скрипті", "Витягає text/thinking/tool_use з JSONL-транскрипту")
-        Component(selector, "LLM CLI selector", "інлайн bash detect", "claude → cursor-agent fallback за наявністю в PATH")
+        Component(selector, "capture backend selector", "CAPTURE_DECISIONS_BACKEND", "pi (дефолт, npm-first lookup) → claude/cursor-agent (opt-in) → auto-каскад за доступністю")
         Component(promptBuilder, "prompt builder", "інлайн heredoc", "Українська інструкція з compact digest")
         Component(writer, "inbox writer", "інлайн bash", "Якщо вивід має блок ## ADR|Runbook|Knowledge — пише в _inbox/<ts>-<sid>.md")
     }
 
     Rel(claude, envGuard, "Stop event (async)")
-    Rel(envGuard, jq, "якщо НЕ рекурсія")
+    Rel(envGuard, hooksSkipGuard, "якщо НЕ рекурсія")
+    Rel(hooksSkipGuard, jq, "якщо сесія не від оркестратора")
     Rel(jq, promptBuilder, "compact digest")
     Rel(promptBuilder, selector, "промпт")
     Rel(selector, llm, "spawn з env CAPTURE_DECISIONS_RUNNING=1")
@@ -168,13 +170,14 @@ C4Component
     Rel(writer, targetRepo, "якщо ## ADR|Runbook|Knowledge")
 ```
 
-| Component ID             | Файл                                                                         | Опис                                                                      | Tests |
-| ------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ----- |
-| `cmp-cd-recursion-guard` | `.claude/hooks/capture-decisions.sh` (env-check `CAPTURE_DECISIONS_RUNNING`) | Запобігає циклу: внутрішній виклик LLM не повинен спричинити свій же hook | —     |
-| `cmp-cd-jq-pipeline`     | `.claude/hooks/capture-decisions.sh` (jq-команди)                            | Парсинг JSONL транскрипту                                                 | —     |
-| `cmp-cd-cli-selector`    | `.claude/hooks/capture-decisions.sh` (`command -v` chain)                    | Вибір `claude` → `cursor-agent` за наявністю в `PATH`                     | —     |
-| `cmp-cd-prompt-builder`  | `.claude/hooks/capture-decisions.sh` (heredoc)                               | Український промпт з digest                                               | —     |
-| `cmp-cd-inbox-writer`    | `.claude/hooks/capture-decisions.sh` (heuristic + write)                     | Збереження ADR/Runbook/Knowledge у `_inbox/`                              | —     |
+| Component ID             | Файл                                                                         | Опис                                                                              | Tests |
+| ------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ----- |
+| `cmp-cd-recursion-guard` | `.claude/hooks/capture-decisions.sh` (env-check `CAPTURE_DECISIONS_RUNNING`) | Запобігає циклу: внутрішній виклик LLM не повинен спричинити свій же hook          | —     |
+| `cmp-cd-hooks-skip-guard`| `.claude/hooks/capture-decisions.sh` (env-check `ADR_HOOKS_SKIP`)            | Пропускає сесії оркестраторів (`lint`/`skill`/`taze`/`release`/...), silent exit 0 | —     |
+| `cmp-cd-jq-pipeline`     | `.claude/hooks/capture-decisions.sh` (jq-команди)                            | Парсинг JSONL транскрипту                                                          | —     |
+| `cmp-cd-cli-selector`    | `.claude/hooks/capture-decisions.sh` (`case "$CAPTURE_DECISIONS_BACKEND"`)   | `pi` (дефолт) / `claude` / `cursor-agent` / `auto`-каскад за доступністю           | —     |
+| `cmp-cd-prompt-builder`  | `.claude/hooks/capture-decisions.sh` (heredoc)                               | Український промпт з digest                                                        | —     |
+| `cmp-cd-inbox-writer`    | `.claude/hooks/capture-decisions.sh` (heuristic + write)                     | Збереження ADR/Runbook/Knowledge у `_inbox/`                                       | —     |
 
 Контейнер Capture-Decisions написаний на bash і не має одиничних тестів — також технічний борг ([`decisions.md`](decisions.md)). Канонічне джерело скрипта — у пакеті (інстальований Rule Sync); вихідний шлях канонізованої копії в репозиторії пакета — TBD (потенційно `npm/.claude-template/hooks/capture-decisions.sh`); подивіться `cmp-sync-claude` для деталей інсталяції.
 

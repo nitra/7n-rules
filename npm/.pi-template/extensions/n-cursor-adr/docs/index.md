@@ -3,7 +3,7 @@ type: TS Module
 title: index.ts
 resource: npm/.pi-template/extensions/n-cursor-adr/index.ts
 docgen:
-  crc: 3233716f
+  crc: 62d0f799
   score: 100
 ---
 

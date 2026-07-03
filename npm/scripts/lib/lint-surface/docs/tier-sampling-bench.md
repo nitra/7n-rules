@@ -3,7 +3,7 @@ type: JS Module
 title: tier-sampling-bench.mjs
 resource: npm/scripts/lib/lint-surface/tier-sampling-bench.mjs
 docgen:
-  crc: 2b9d4fa8
+  crc: d4055c6e
   model: manual
   score: 100
 ---

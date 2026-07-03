@@ -67,6 +67,23 @@ Cursor Agent читає project-level **`.cursor/hooks.json`**. `npx @nitra/curs
 
 Обидва Stop-hook'и ADR живуть у **project-shared** `.claude/settings.json` (закомічений), щоб механізм працював у всіх членів команди. Якщо хук колись був у `.claude/settings.local.json` — прибери дубль вручну: project-shared і local-копія створили б два запуски на одну подію.
 
+## ADR_HOOKS_SKIP — оркестраторні сесії не потрапляють у ADR hooks
+
+Підкоманди-оркестратори (`npx @nitra/cursor lint`, `/n-lint`, `/n-doc-files`, `/n-taze`, `/n-release` тощо) можуть спавнити внутрішню agent/LLM-сесію. Такий транскрипт — технічний шум, не людська думка, тому JS-оркестратор (`npm/bin/n-cursor.js`) виставляє `ADR_HOOKS_SKIP=1` перед `switch (command)`, до будь-якого дочірнього процесу. `capture-decisions.sh`, `normalize-decisions.sh` і `pi`-extension (`n-cursor-adr`) перевіряють прапор одразу після власних recursion guards і мовчки виходять (`exit 0` / `return`) — без запису в лог.
+
+## Capture-бекенд: `CAPTURE_DECISIONS_BACKEND`
+
+`capture-decisions.sh` вибирає LLM-бекенд через env-селектор (дефолт `pi`):
+
+| Значення | Поведінка |
+| --- | --- |
+| `pi` (дефолт) | Тільки локальний `pi` (npm-first lookup: root `.bin`, nested `@nitra/cursor` `.bin`, `PATH`); без бінарника або без моделі (`CAPTURE_DECISIONS_PI_MODEL`/`N_LOCAL_MIN_MODEL`) — мовчки `exit 0`, без cloud-фолбеку |
+| `claude` | Примусово `claude -p --model "$CAPTURE_DECISIONS_CLAUDE_MODEL"` |
+| `cursor-agent` | Примусово `cursor-agent -p --mode ask --model "$CAPTURE_DECISIONS_CURSOR_MODEL"` |
+| `auto` | Каскад за доступністю: `pi` -> `claude` -> `cursor-agent` -> skip (не за результатом виклику — порожня відповідь обраного бекенду фінальна) |
+
+Дефолт `pi` тримає capture локальним і безкоштовним; cloud вмикається лише свідомим `CAPTURE_DECISIONS_BACKEND=auto` (або `claude`/`cursor-agent`). Виклик `pi` герметичний і офлайн: `--no-session --mode text --no-tools --no-context-files --no-extensions --no-skills --no-prompt-templates --offline`.
+
 ## Швидкий gate через conftest
 
 | Namespace | Файл | Що перевіряє |

@@ -48,10 +48,17 @@ const NORMALIZE_HOOK = '.claude/hooks/normalize-decisions.sh'
  */
 export default function (pi: PiExec): void {
   pi.on('agent_end', async (_event, ctx) => {
-    // Recursion guard: bash спавнить LLM CLI (claude/cursor-agent), той може
+    // Recursion guard: bash спавнить LLM CLI (claude/cursor-agent/pi), той може
     // стартувати pi-сесію. Bash виставляє ці env-vars перед спавном — child
     // inheritance ловить рекурсивний trigger тут.
     if (env.CAPTURE_DECISIONS_RUNNING || env.ADR_NORMALIZE_RUNNING) {
+      return
+    }
+
+    // Підкоманди-оркестратори (JS-orchestrated lint/skill/taze/release/...) виставляють
+    // ADR_HOOKS_SKIP=1 перед запуском — не серіалізуємо transcript і не запускаємо
+    // жоден із hooks (spec 2026-06-30).
+    if (env.ADR_HOOKS_SKIP) {
       return
     }
 

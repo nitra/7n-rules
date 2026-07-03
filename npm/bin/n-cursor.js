@@ -1505,6 +1505,10 @@ try {
     assertCwdIsProjectRoot(cwd(), describeRootGuardedAction(command))
   }
   await ensureNitraCursorInRootDevDependencies(cwd())
+  // Підкоманди-оркестратори (hook/lint/skill/adr-normalize-local/taze/release тощо)
+  // можуть спавнити внутрішню agent/LLM-сесію — ADR Stop-hooks (capture/normalize)
+  // мають пропустити її як технічний шум, не людську думку (spec 2026-06-30).
+  env.ADR_HOOKS_SKIP = '1'
   switch (command) {
     case 'rename-yaml-extensions': {
       const code = await runRenameYamlExtensionsCli(args)

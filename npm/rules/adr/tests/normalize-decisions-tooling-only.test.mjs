@@ -168,3 +168,23 @@ describe('normalize-decisions.sh — structural tooling-only delete', () => {
     })
   })
 })
+
+describe('normalize-decisions.sh — ADR_HOOKS_SKIP (оркестраторні сесії)', () => {
+  test('ADR_HOOKS_SKIP=1 → exit 0, silent skip: без логу, без lock/state-файлів, чернетки незмінні', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'docs/adr'), { recursive: true })
+      const tpath = join(dir, 'transcript.jsonl')
+      await writeFile(tpath, transcriptJsonl([{ name: 'Edit', file: join(dir, '.cspell.json') }]))
+      const draftPath = join(dir, 'docs/adr/20260520-101010-foo.md')
+      await writeFile(
+        draftPath,
+        draftMd({ session: 'sess1', captured: '2026-05-20T10:10:10+00:00', transcript: tpath })
+      )
+      const { exitCode, drafts } = runNormalizeHook(dir, { ADR_HOOKS_SKIP: '1' })
+      expect(exitCode).toBe(0)
+      // Гвард — до створення LOG_DIR: жодних hook-файлів (лог, lock, state) не з'являється.
+      expect(existsSync(join(dir, '.claude/hooks'))).toBe(false)
+      expect(drafts).toContain('20260520-101010-foo.md')
+    })
+  })
+})

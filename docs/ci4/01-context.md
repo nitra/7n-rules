@@ -16,7 +16,7 @@ C4Context
     System_Ext(targetRepo, "Цільовий репозиторій", "git-репо, де живуть .cursor/, .claude/, AGENTS.md, .n-cursor.json, docs/adr/_inbox/")
     System_Ext(npm, "npm Registry / npx-кеш", "Звідки витягується tarball пакету")
     System_Ext(linters, "Зовнішні CLI-лінтери", "oxlint, eslint, jscpd, stylelint, cspell, markdownlint-cli2, v8r, hadolint, kubeconform, regal, conftest, shellcheck, oxfmt")
-    System_Ext(llm, "LLM CLI", "claude (Anthropic) → cursor-agent (Cursor) — fallback chain для capture-decisions")
+    System_Ext(llm, "LLM CLI", "pi (дефолт, local) → claude/cursor-agent (opt-in, CAPTURE_DECISIONS_BACKEND) — capture-decisions")
     System_Ext(gha, "GitHub Actions runner", "Виконує composite action setup-bun-deps у workflow цільового репо")
 
     Rel(dev, ncursor, "Запускає", "npx @nitra/cursor [cmd]")
@@ -93,13 +93,14 @@ Tarball пакету розпаковується в кеш npx або в `node_
 
 ### LLM CLI
 
-Тільки в `cnt-capture-decisions` (Stop-hook, який пише ADR-чернетки):
+Тільки в `cnt-capture-decisions` (Stop-hook, який пише ADR-чернетки). Бекенд обирається селектором `CAPTURE_DECISIONS_BACKEND` (дефолт `pi`, spec `2026-06-30`):
 
-1. `claude` (Anthropic Claude Code CLI) — `claude -p --model "$CAPTURE_DECISIONS_CLAUDE_MODEL"` (default `sonnet`)
-2. `cursor-agent` — `cursor-agent -p --mode ask --output-format text --model "$CAPTURE_DECISIONS_CURSOR_MODEL"` (default `claude-4.6-sonnet-medium`)
-3. Якщо ні `claude`, ні `cursor-agent` не доступні — hook виходить кодом `0` без запису.
+1. `pi` (дефолт) — локальний `pi` (npm-first lookup: root `.bin` → nested `@nitra/cursor` `.bin` → `PATH`), герметичний офлайн-виклик `--no-session --mode text --no-tools --no-context-files --no-extensions --no-skills --no-prompt-templates --offline --model "$CAPTURE_DECISIONS_PI_MODEL"` (модель — `CAPTURE_DECISIONS_PI_MODEL` або канон `N_LOCAL_MIN_MODEL`); без бінарника/моделі — `exit 0` без переходу на cloud-бекенд.
+2. `claude` — примусово `claude -p --model "$CAPTURE_DECISIONS_CLAUDE_MODEL"` (default `sonnet`), якщо `CAPTURE_DECISIONS_BACKEND=claude`.
+3. `cursor-agent` — примусово `cursor-agent -p --mode ask --output-format text --model "$CAPTURE_DECISIONS_CURSOR_MODEL"` (default `claude-4.6-sonnet-medium`), якщо `CAPTURE_DECISIONS_BACKEND=cursor-agent`.
+4. `auto` — каскад за доступністю `pi` → `claude` → `cursor-agent` → skip (не за результатом виклику: порожня відповідь обраного бекенду фінальна, без каскаду).
 
-Інших звертань до LLM з `n-cursor` немає.
+`ADR_HOOKS_SKIP=1` (виставляється `npm/bin/n-cursor.js` перед CLI `switch` для будь-якої підкоманди-оркестратора) змушує і `capture-decisions.sh`, і `normalize-decisions.sh`, і `pi`-extension мовчки вийти до будь-якого LLM-звернення. Інших звертань до LLM з `n-cursor` немає.
 
 <a id="ctx-gha-runner"></a>
 

@@ -27,6 +27,6 @@
 - glob `.claude/hooks/*.log` або `.claude/hooks/**/*.log`
 - широкий glob `*.log` або `**/*.log`
 
-### 5. Доступність LLM CLI
+### 5. Доступність capture-бекенду
 
-Інформативна (завжди `pass`) перевірка наявності хоча б одного з `claude` або `cursor-agent` у `PATH`. Якщо жодного немає — хук просто мовчки no-op'ає, тому це попередження, а не помилка.
+Інформативна (завжди `pass`) перевірка стану дефолтного бекенду `pi` — npm-first пошук бінарника (root `node_modules/.bin/pi`, nested `node_modules/@nitra/cursor/node_modules/.bin/pi`, system `PATH`) і наявність локальної моделі (`CAPTURE_DECISIONS_PI_MODEL` або `N_LOCAL_MIN_MODEL`) — разом зі станом cloud-фолбеку `claude`/`cursor-agent`, доступного через `CAPTURE_DECISIONS_BACKEND=claude|cursor-agent|auto`. Якщо жоден бекенд не готовий — хук просто мовчки no-op'ає, тому це попередження, а не помилка.

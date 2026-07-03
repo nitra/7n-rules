@@ -156,18 +156,28 @@ flowchart TD
 flowchart TD
     enter(["Claude Code Stop event (async)"]) --> envCheck{"$CAPTURE_DECISIONS_RUNNING === 1?"}
     envCheck -- yes --> exitGuard(["exit 0 — рекурсія, мовчки"])
-    envCheck -- no --> findTranscript["знайти JSONL у ~/.claude/projects/.../<sid>.jsonl"]
+    envCheck -- no --> skipCheck{"$ADR_HOOKS_SKIP === 1?"}
+    skipCheck -- yes --> exitSkip(["exit 0 — сесія оркестратора, мовчки, без логу"])
+    skipCheck -- no --> findTranscript["знайти JSONL у ~/.claude/projects/.../<sid>.jsonl"]
     findTranscript --> jq["jq: витягнути text/thinking/tool_use → digest"]
-    jq --> haveTools{"$(command -v claude || command -v cursor-agent)?"}
-    haveTools -- none --> exitNoTool(["exit 0 — немає LLM CLI"])
-    haveTools -- claude --> spawnClaude["claude -p --model $CAPTURE_DECISIONS_CLAUDE_MODEL"]
-    haveTools -- cursor-agent --> spawnCursor["cursor-agent -p --mode ask --output-format text --model $CAPTURE_DECISIONS_CURSOR_MODEL"]
-    spawnClaude --> output["модельний відгук"]
+    jq --> backend{"$CAPTURE_DECISIONS_BACKEND (дефолт pi)"}
+    backend -- pi --> tryPi["pi: npm-first lookup + модель?"]
+    tryPi -- ні --> exitNoPi(["exit 0 — pi not found / no local model configured"])
+    tryPi -- так --> spawnPi["pi -p --no-session --mode text --no-tools --no-context-files --no-extensions --no-skills --no-prompt-templates --offline --model $CAPTURE_DECISIONS_PI_MODEL"]
+    backend -- claude --> spawnClaude["claude -p --model $CAPTURE_DECISIONS_CLAUDE_MODEL"]
+    backend -- cursor-agent --> spawnCursor["cursor-agent -p --mode ask --output-format text --model $CAPTURE_DECISIONS_CURSOR_MODEL"]
+    backend -- auto --> autoCascade["каскад за доступністю: pi → claude → cursor-agent → skip"]
+    autoCascade --> spawnPi
+    autoCascade --> spawnClaude
+    autoCascade --> spawnCursor
+    spawnPi --> output["відгук обраного бекенду (порожній — фінал, без каскаду)"]
+    spawnClaude --> output
     spawnCursor --> output
     output --> hasBlock{"має '## ADR' / '## Runbook' / '## Knowledge'?"}
     hasBlock -- no --> exitNone(["exit 0 — нічого не пишемо"])
     hasBlock -- yes --> writeFile["fs: docs/adr/_inbox/&lt;ts&gt;-&lt;sid&gt;.md"]
     writeFile --> done(["exit 0"])
+    spawnPi -. "env CAPTURE_DECISIONS_RUNNING=1" .-> spawnPi
     spawnClaude -. "env CAPTURE_DECISIONS_RUNNING=1" .-> spawnClaude
     spawnCursor -. "env CAPTURE_DECISIONS_RUNNING=1" .-> spawnCursor
 ```
@@ -175,8 +185,10 @@ flowchart TD
 **Властивості:**
 
 - Скрипт **завжди** завершує `exit 0` (за винятком ранніх hard-fail) — щоб не блокувати агента.
+- `$ADR_HOOKS_SKIP` виставляє `npm/bin/n-cursor.js` перед CLI `switch` для будь-якої підкоманди-оркестратора (`lint`/`skill`/`taze`/`release`/...) — перевіряється одразу після recursion guard, до `mkdir`/логування (spec `2026-06-30`).
+- `$CAPTURE_DECISIONS_BACKEND` — дефолт `pi` (локальний, npm-first lookup: root `.bin` → nested `@nitra/cursor` `.bin` → `PATH`; герметичні офлайн-прапори). `claude`/`cursor-agent` — примусовий opt-in; `auto` — каскад за доступністю бекенду (НЕ за результатом виклику — порожня відповідь обраного бекенду фінальна).
 - `--mode ask` для `cursor-agent` навмисний: read-only Q&A режим без shell/edit.
-- Дефолтні моделі: `claude → sonnet`, `cursor-agent → claude-4.6-sonnet-medium`. Перевизначення — env-vars `CAPTURE_DECISIONS_CLAUDE_MODEL`, `CAPTURE_DECISIONS_CURSOR_MODEL`.
+- Дефолтні моделі: `pi → $CAPTURE_DECISIONS_PI_MODEL або $N_LOCAL_MIN_MODEL` (без обох — skip), `claude → sonnet`, `cursor-agent → claude-4.6-sonnet-medium`. Перевизначення — env-vars `CAPTURE_DECISIONS_PI_MODEL`, `CAPTURE_DECISIONS_CLAUDE_MODEL`, `CAPTURE_DECISIONS_CURSOR_MODEL`.
 - Канонічне джерело bash-скрипта — у пакеті; інстальоване [`cmp-sync-claude`](03-components.md#cnt-rule-sync) при правилі `adr` у `.n-cursor.json`.
 
 ## Related decisions

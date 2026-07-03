@@ -13,7 +13,7 @@ C4Container
     System_Ext(targetRepo, "Цільовий репозиторій", "файлова система")
     System_Ext(npm, "npm Registry / npx-кеш")
     System_Ext(linters, "Зовнішні CLI-лінтери")
-    System_Ext(llm, "LLM CLI (claude / cursor-agent)")
+    System_Ext(llm, "LLM CLI (pi дефолт; claude / cursor-agent opt-in)")
     System_Ext(gha, "GitHub Actions runner")
 
     System_Boundary(b, "n-cursor (npm package)") {
@@ -86,7 +86,7 @@ C4Container
 ### Capture-Decisions Hook
 
 **Тригер:** Claude Code Stop event (друга hook-група, `async: true`), окремо від `cnt-stop-hook`.
-**Що робить:** читає JSONL-транскрипт сесії з `~/.claude/projects/...`, через `jq` витягає текст / thinking / tool_use, передає компактний дайджест в LLM CLI (`claude` → `cursor-agent` fallback), записує результат у `docs/adr/_inbox/<timestamp>-<sid>.md`, якщо модель повернула блок з шапкою `## ADR|Runbook|Knowledge …`. На `NONE` нічого не пишеться.
+**Що робить:** `ADR_HOOKS_SKIP=1` (виставлено підкомандою-оркестратором) — мовчки виходить одразу. Інакше читає JSONL-транскрипт сесії з `~/.claude/projects/...`, через `jq` витягає текст / thinking / tool_use, передає компактний дайджест в LLM CLI, обраний селектором `CAPTURE_DECISIONS_BACKEND` (дефолт `pi`, opt-in `claude`/`cursor-agent`/`auto`-каскад), записує результат у `docs/adr/_inbox/<timestamp>-<sid>.md`, якщо модель повернула блок з шапкою `## ADR|Runbook|Knowledge …`. На `NONE` нічого не пишеться.
 **Файл:** [`.claude/hooks/capture-decisions.sh`](../../.claude/hooks/capture-decisions.sh) (інстальований [`scripts/sync-claude-config.mjs`](../../npm/scripts/sync-claude-config.mjs) при правилі `adr`).
 **Деталі:** [03-components.md#cnt-capture-decisions](03-components.md#cnt-capture-decisions), [04-code.md#code-capture-decisions](04-code.md#code-capture-decisions).
 

@@ -185,12 +185,14 @@ export function createProgressReporter(opts) {
     },
 
     stop: () => {
-      if (multibar) {
-        redraw()
-        multibar.stop()
-        multibar = null
-        bar = null
+      if (!multibar) {
+      	return;
       }
+
+      redraw()
+      multibar.stop()
+      multibar = null
+      bar = null
     }
   }
 }

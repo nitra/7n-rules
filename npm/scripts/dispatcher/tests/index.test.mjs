@@ -7,10 +7,14 @@
  */
 import { describe, expect, test } from 'vitest'
 import { spawnSync } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const binPath = join(dirname(fileURLToPath(import.meta.url)), '../../../bin/n-cursor.js')
+
+const ADR_HOOKS_SKIP_RE = /ADR_HOOKS_SKIP\s*=\s*['"]1['"]/
+const SWITCH_COMMAND_RE = /switch\s*\(\s*command\s*\)/
 
 const RE_UNKNOWN_COMMAND = /невідома команда|unknown/i
 const RE_WORD_FLOW = /\bflow\b/
@@ -73,5 +77,16 @@ describe('видалені команди — flow, graph, watch, mt', () => {
     const { stderr } = runCli(['bogus-cmd-to-trigger-help'])
     const after = stderr.split('Очікується:', 2)[1] ?? stderr
     expect(after).not.toMatch(RE_WORD_WATCH)
+  })
+})
+
+describe('ADR_HOOKS_SKIP (spec 2026-06-30)', () => {
+  test('виставляється ДО switch (command) — покриває всі підкоманди-оркестратори без пер-case дублювання', async () => {
+    const src = await readFile(binPath, 'utf8')
+    const skipIdx = src.search(ADR_HOOKS_SKIP_RE)
+    const switchIdx = src.search(SWITCH_COMMAND_RE)
+    expect(skipIdx).toBeGreaterThan(-1)
+    expect(switchIdx).toBeGreaterThan(-1)
+    expect(skipIdx).toBeLessThan(switchIdx)
   })
 })

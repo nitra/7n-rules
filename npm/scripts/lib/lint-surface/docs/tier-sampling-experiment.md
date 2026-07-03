@@ -3,7 +3,7 @@ type: JS Module
 title: tier-sampling-experiment.mjs
 resource: npm/scripts/lib/lint-surface/tier-sampling-experiment.mjs
 docgen:
-  crc: 1723486a
+  crc: 11de8f6b
   model: manual
   score: 100
 ---

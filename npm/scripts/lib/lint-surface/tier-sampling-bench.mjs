@@ -243,6 +243,9 @@ export async function runTierSamplingBench(opts = {}) {
   return result
 }
 
+/**
+ *
+ */
 function initGitFixture(root, fixture) {
   fixture.seed(root)
   spawnSync('git', ['init'], { cwd: root, stdio: 'ignore' })
@@ -250,15 +253,24 @@ function initGitFixture(root, fixture) {
   spawnSync('git', ['config', 'user.name', 'Bench'], { cwd: root, stdio: 'ignore' })
 }
 
+/**
+ *
+ */
 function writeJson(path, data) {
   mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`)
 }
 
+/**
+ *
+ */
 function renderViolations(violations) {
   return violations.map(v => `- ${v.file ?? '(repo)'} [${v.reason}]: ${v.message}`).join('\n')
 }
 
+/**
+ *
+ */
 function profileInstruction(profile) {
   if (profile === 'exploratory') {
     return 'Sampling profile: exploratory. Якщо прямий мінімальний патч не спрацює, спробуй альтернативний підхід, але не змінюй unrelated files.'
@@ -266,6 +278,9 @@ function profileInstruction(profile) {
   return 'Sampling profile: conservative. Зроби найменший точний patch без unrelated changes.'
 }
 
+/**
+ *
+ */
 function summarizeTelemetry(t) {
   if (!t) return null
   return {
@@ -300,6 +315,9 @@ function aggregateUsage(usages) {
   return sum
 }
 
+/**
+ *
+ */
 function summarizeTraceEvent(event) {
   return {
     caller: event.caller,
@@ -321,6 +339,9 @@ function summarizeTraceEvent(event) {
   }
 }
 
+/**
+ *
+ */
 function summarizeBench(rows) {
   const byTier = {}
   for (const row of rows) {
@@ -342,17 +363,35 @@ function summarizeBench(rows) {
   return { byTier }
 }
 
+/**
+ *
+ */
 function logProgress(event) {
   stdout.write(`${JSON.stringify({ ts: new Date().toISOString(), ...event })}\n`)
 }
 
+/**
+ *
+ */
 function parseArgs(argv) {
   const opts = {}
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
-    if (a === '--out') opts.out = argv[++i]
-    else if (a === '--tier') opts.tiers = (opts.tiers ?? []).concat(argv[++i].split(','))
-    else if (a === '--fixture') opts.fixtures = (opts.fixtures ?? []).concat(argv[++i].split(','))
+    switch (a) {
+    case '--out': {
+    opts.out = argv[++i]
+    break;
+    }
+    case '--tier': {
+    opts.tiers = [...opts.tiers ?? [], ...argv[++i].split(',')]
+    break;
+    }
+    case '--fixture': {
+    opts.fixtures = [...opts.fixtures ?? [], ...argv[++i].split(',')]
+    // No default
+    break;
+    }
+    }
   }
   return opts
 }
@@ -362,8 +401,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const result = await runTierSamplingBench(parseArgs(process.argv.slice(2)))
     logProgress({ event: 'summary', summary: result.summary })
     exit(0)
-  } catch (err) {
-    console.error(err)
+  } catch (error) {
+    console.error(error)
     exit(1)
   }
 }

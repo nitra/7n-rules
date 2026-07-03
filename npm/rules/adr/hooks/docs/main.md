@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/adr/hooks/main.mjs
 docgen:
-  crc: 0cfba85b
+  crc: 89b68c68
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.98

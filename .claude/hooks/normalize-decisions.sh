@@ -27,6 +27,13 @@ if [ -n "${ADR_NORMALIZE_RUNNING:-}" ]; then
 fi
 export ADR_NORMALIZE_RUNNING=1
 
+# Orchestrator sessions (JS-orchestrated lint/skill/taze/release/... that spawn an
+# internal agent/LLM session) set ADR_HOOKS_SKIP=1 before spawning — exit silently,
+# no log, before touching hook directories (spec 2026-06-30).
+if [ -n "${ADR_HOOKS_SKIP:-}" ]; then
+  exit 0
+fi
+
 INPUT=$(cat || true)
 CURSOR_WORKSPACE_ROOT=$(printf '%s' "$INPUT" | jq -r '.workspace_roots[0] // empty' 2>/dev/null || true)
 PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-${CURSOR_WORKSPACE_ROOT:-$PWD}}"

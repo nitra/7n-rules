@@ -59,9 +59,10 @@ const DEFAULT_PROFILES_BY_TIER = Object.freeze({
 
 /**
  * Будує experiment-only ladder із `cloud-max`. Production ladder це не змінює.
- * @param {{ localMin?: string, cloudMin?: string, cloudAvg?: string, cloudMax?: string }} models
- * @param {{ localTimeoutMs?: number, cloudTimeoutMs?: number }} [opts]
- * @returns {ExperimentRung[]}
+ *
+ * @param {{ localMin?: string, cloudMin?: string, cloudAvg?: string, cloudMax?: string }} models - Об'єくと, що містить імена моделей для кожного tier.
+ * @param {{ localTimeoutMs?: number, cloudTimeoutMs?: number }} [opts] - Опції для встановлення timeout для локального та хмарного етапу.
+ * @returns {ExperimentRung[]} Масив експериментальних rung'ів (етапів).
  */
 export function buildExperimentLadder(models, opts = {}) {
   const localTimeoutMs = opts.localTimeoutMs ?? DEFAULT_LOCAL_TIMEOUT_MS
@@ -111,10 +112,11 @@ export function buildExperimentLadder(models, opts = {}) {
 }
 
 /**
- * Повертає sampling profiles для tier-а, з опційним override-ом для smoke/bench.
- * @param {string} tier
- * @param {Record<string, Array<string|SamplingCandidate>>} [overrides]
- * @returns {SamplingCandidate[]}
+ * Повертає можливі sampling profiles для заданого tier-а.
+ *
+ * @param {string} tier - Назва tier (наприклад, 'local-min').
+ * @param {Record<string, Array<string|SamplingCandidate>>} [overrides] - Об'єкт з перевизначеними profiles для конкретного tier.
+ * @returns {SamplingCandidate[]} Масив об'єктів SamplingCandidate для даного tier.
  */
 export function samplingProfilesForTier(tier, overrides = {}) {
   const raw = overrides[tier] ?? DEFAULT_PROFILES_BY_TIER[tier] ?? ['conservative']
@@ -125,9 +127,10 @@ export function samplingProfilesForTier(tier, overrides = {}) {
 }
 
 /**
- * Дефолтний вибір серед clean candidates: менше touched files, менший patch, нижча latency.
- * @param {CandidateAttempt[]} attempts
- * @returns {CandidateAttempt|null}
+ * Дефолтний вибір найкращого (clean) кандидата серед усіх спроб.
+ * Вибір відбувається за критеріями: менша кількість змінених файлів, менший розмір patch, менша латентність.
+ * @param {CandidateAttempt[]} attempts - Масив усіх спроб (candidates).
+ * @returns {CandidateAttempt|null} Найкращий чистий кандидат, або null, якщо жоден не знайдено.
  */
 export function chooseCleanCandidate(attempts) {
   const clean = attempts.filter(a => a.clean)
@@ -144,18 +147,21 @@ export function chooseCleanCandidate(attempts) {
 }
 
 /**
- * Запускає candidates одного experiment tier-а із rollback до S1 між спробами.
- * @param {object} args
- * @param {import('./types.mjs').LintViolation[]} args.violations
- * @param {object} args.ctx базовий FixContext без samplingProfile
- * @param {ExperimentRung} args.rung
- * @param {SamplingCandidate[]} args.candidates
- * @param {(violations: import('./types.mjs').LintViolation[], ctx: object) => Promise<{ touchedFiles?: string[], telemetry?: object }|void>} args.worker
- * @param {(ctx: object) => Promise<import('./types.mjs').LintViolation[]> | import('./types.mjs').LintViolation[]} args.detect
- * @param {(attempts: CandidateAttempt[]) => CandidateAttempt|null} [args.choose]
- * @param {(ctx: object) => Promise<object|null> | object | null} [args.judge]
- * @param {() => number} [args.clock]
- * @returns {Promise<{ clean: boolean, selected: CandidateAttempt|null, attempts: CandidateAttempt[], finalViolations: import('./types.mjs').LintViolation[], judgeFeedback: object|null }>}
+ * Виконує послідовність випробувань (sampling) для одного tier.
+ * Для кожного кандидата виконується rollback до S1, запускається worker,
+ * оцінюється чистота, і якщо кандидат обраний, застосовується його patch.
+ *
+ * @param {object} args - Аргументи для експерименту.
+ * @param {import('./types.mjs').LintViolation[]} args.violations - Початкові порушення для перевірки.
+ * @param {object} args.ctx - Базовий контекст для фіксації.
+ * @param {ExperimentRung} args.rung - Конфігурація поточного експерименту.
+ * @param {SamplingCandidate[]} args.candidates - Список кандидатів для тестування.
+ * @param {(violations: import('./types.mjs').LintViolation[], ctx: object) => Promise<{ touchedFiles?: string[], telemetry?: object }|void>} args.worker - Функція для виконання фіксу.
+ * @param {(ctx: object) => Promise<import('./types.mjs').LintViolation[]> | import('./types.mjs').LintViolation[]} args.detect - Функція для перевірки порушень після застосування/умовами.
+ * @param {(attempts: CandidateAttempt[]) => CandidateAttempt|null} [args.choose] - Стратегія вибору найкращого кандидата.
+ * @param {(ctx: object) => Promise<object|null> | object | null} [args.judge] - Функція для відгуку судді (judge).
+ * @param {() => number} [args.clock] - Функція для отримання часу.
+ * @returns {Promise<{ clean: boolean, selected: CandidateAttempt|null, attempts: CandidateAttempt[], finalViolations: import('./types.mjs').LintViolation[], judgeFeedback: object|null }>} Результат виконання експерименту.
  */
 export async function runTierSamplingExperiment(args) {
   const choose = args.choose ?? chooseCleanCandidate
@@ -190,8 +196,8 @@ export async function runTierSamplingExperiment(args) {
       const res = await args.worker(args.violations, candidateCtx)
       touchedFiles = uniqueStrings(res?.touchedFiles?.length ? res.touchedFiles : [...recordedThisCandidate])
       telemetry = res?.telemetry
-    } catch (err) {
-      error = err.message
+    } catch (error) {
+      error = error.message
       touchedFiles = uniqueStrings([...recordedThisCandidate])
     }
 
@@ -237,10 +243,20 @@ export async function runTierSamplingExperiment(args) {
   return { clean: true, selected, attempts, finalViolations, judgeFeedback: null }
 }
 
+/**
+ * Видаляє дублікати з масиву рядків.
+ * @param {string[]} values - Вхідний масив рядків.
+ * @returns {string[]} Масив унікальних рядків.
+ */
 function uniqueStrings(values) {
   return [...new Set(values.filter(v => typeof v === 'string' && v.length > 0))]
 }
 
+/**
+ * Збирає вміст файлів, зазначених у шляхах.
+ * @param {string[]} paths - Масив абсолютних шляхів до файлів.
+ * @returns {Array<{ absPath: string, exists: boolean, content: string }>} Масив об'єктів з інформацією про файли.
+ */
 function captureFiles(paths) {
   return paths.map(absPath => ({
     absPath,
@@ -249,6 +265,11 @@ function captureFiles(paths) {
   }))
 }
 
+/**
+ * Застосовує зміни (patch) до робочого дерева через snapshot.
+ * @param {Array<{ absPath: string, exists: boolean, content: string }>} patch - Патч для застосування.
+ * @param {object} snapshot - Об'єкт з функцією для запису змін.
+ */
 function applyCapturedFiles(patch, snapshot) {
   for (const file of patch) {
     snapshot.record(file.absPath)
@@ -261,6 +282,11 @@ function applyCapturedFiles(patch, snapshot) {
   }
 }
 
+/**
+ * Обчислює загальний розмір патчу.
+ * @param {Array<{ absPath: string, exists: boolean, content: string }>} patch - Масив файлів патчу.
+ * @returns {number} Загальна кількість байтів.
+ */
 function patchSize(patch) {
   return patch.reduce((sum, file) => sum + file.content.length, 0)
 }

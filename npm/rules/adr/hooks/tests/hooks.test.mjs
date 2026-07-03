@@ -322,7 +322,91 @@ async function withSingleBinPath(present, fn) {
   })
 }
 
-describe('checkLlmCliAvailable — PATH scenarios', () => {
+/**
+ * Створює stub-виконуваний `pi` в одному з npm-first lookup місць (root `.bin`, nested
+ * `@nitra/cursor` `.bin`) або на `PATH`, або взагалі ніде — для перевірки `findPiCmd`.
+ * @param {'root'|'nested'|'path'|'none'} location де розмістити stub
+ * @param {string} dir корінь проєкту (від `withTmpDir`)
+ * @returns {Promise<() => void>} cleanup-функція, що відновлює `PATH`
+ */
+async function placePiStub(location, dir) {
+  const isWin = platform === 'win32'
+  const mkStub = async binDir => {
+    await ensureDir(binDir)
+    const stub = join(binDir, isWin ? 'pi.exe' : 'pi')
+    await writeFile(stub, isWin ? '@echo off\n' : '#!/bin/sh\n', 'utf8')
+    if (!isWin) await chmod(stub, 0o755)
+  }
+  const prevPath = env.PATH
+  if (location === 'root') {
+    await mkStub(join(dir, 'node_modules', '.bin'))
+  } else if (location === 'nested') {
+    await mkStub(join(dir, 'node_modules', '@nitra', 'cursor', 'node_modules', '.bin'))
+  } else if (location === 'path') {
+    await withTmpDir(async binDir => {
+      await mkStub(binDir)
+      env.PATH = binDir
+    })
+  }
+  return () => {
+    if (prevPath === undefined) delete env.PATH
+    else env.PATH = prevPath
+  }
+}
+
+describe('checkCaptureBackendAvailable — pi npm-first lookup', () => {
+  test('root node_modules/.bin/pi знайдено', async () => {
+    await withTmpDir(async dir => {
+      await setupValidProject(dir)
+      const restore = await placePiStub('root', dir)
+      try {
+        expect(await check(dir)).toBe(0)
+      } finally {
+        restore()
+      }
+    })
+  })
+
+  test('nested node_modules/@nitra/cursor/node_modules/.bin/pi знайдено', async () => {
+    await withTmpDir(async dir => {
+      await setupValidProject(dir)
+      const restore = await placePiStub('nested', dir)
+      try {
+        expect(await check(dir)).toBe(0)
+      } finally {
+        restore()
+      }
+    })
+  })
+
+  test('system PATH: pi знайдено', async () => {
+    await withTmpDir(async dir => {
+      await setupValidProject(dir)
+      const restore = await placePiStub('path', dir)
+      try {
+        expect(await check(dir)).toBe(0)
+      } finally {
+        restore()
+      }
+    })
+  })
+
+  test('pi відсутній ніде — інформативний pass, не fail', async () => {
+    await withTmpDir(async dir => {
+      await setupValidProject(dir)
+      const prevPath = env.PATH
+      env.PATH = ''
+      try {
+        expect(await check(dir)).toBe(0)
+      } finally {
+        if (prevPath === undefined) delete env.PATH
+        else env.PATH = prevPath
+      }
+    })
+  })
+})
+
+describe('checkCaptureBackendAvailable — cloud-фолбек PATH scenarios', () => {
   test('isBinaryInPath повертає false коли PATH порожній (line 247)', async () => {
     await withTmpDir(async dir => {
       await setupValidProject(dir)

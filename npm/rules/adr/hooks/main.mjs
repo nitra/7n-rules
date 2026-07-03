@@ -240,26 +240,56 @@ function isBinaryInPath(name) {
 }
 
 /**
- * Інформативна перевірка: чи доступний бодай один LLM CLI (`claude` або `cursor-agent`).
- * Якщо жодного немає — це warning (`pass` з підказкою), бо хук просто мовчки no-op'ає.
+ * npm-first пошук `pi`-бінарника (як `find_pi_cmd` у capture-decisions.sh): root
+ * `.bin` (hoisted) -> nested `@nitra/cursor` `.bin` -> system `PATH`.
+ * @param {string} cwd корінь репозиторію
+ * @returns {string | null} шлях/ім'я бінарника або `null`, якщо не знайдено
+ */
+function findPiCmd(cwd) {
+  const candidates = [
+    join(cwd, 'node_modules', '.bin', 'pi'),
+    join(cwd, 'node_modules', '@nitra', 'cursor', 'node_modules', '.bin', 'pi')
+  ]
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate
+    }
+  }
+  return isBinaryInPath('pi') ? 'pi' : null
+}
+
+/**
+ * Інформативна перевірка (завжди `pass`) capture-бекенду: дефолтний `pi` (npm-first
+ * lookup + локальна модель) і cloud-фолбек `claude`/`cursor-agent`, доступний через
+ * `CAPTURE_DECISIONS_BACKEND=claude|cursor-agent|auto`. Жоден стан не блокує — capture
+ * best-effort, hook мовчки no-op'ає без доступного бекенду (spec 2026-06-30).
  * @param {import('../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
+ * @param {string} cwd корінь репозиторію
  * @returns {void}
  */
-function checkLlmCliAvailable(reporter) {
+function checkCaptureBackendAvailable(reporter, cwd) {
   const { pass } = reporter
+  const backend = env.CAPTURE_DECISIONS_BACKEND || 'pi'
+  const piCmd = findPiCmd(cwd)
+  const hasLocalModel = Boolean(env.CAPTURE_DECISIONS_PI_MODEL || env.N_LOCAL_MIN_MODEL)
   const hasClaude = isBinaryInPath('claude')
   const hasCursor = isBinaryInPath('cursor-agent')
-  if (hasClaude && hasCursor) {
-    pass('LLM CLI: знайдено `claude` і `cursor-agent`')
-  } else if (hasClaude) {
-    pass('LLM CLI: знайдено `claude` (cursor-agent відсутній — fallback не використовується)')
-  } else if (hasCursor) {
-    pass('LLM CLI: знайдено `cursor-agent` (claude відсутній — буде використано fallback)')
-  } else {
-    pass(
-      'LLM CLI: жодного з `claude`/`cursor-agent` не знайдено у PATH — Stop-hook буде мовчки no-op до встановлення CLI'
-    )
-  }
+
+  const piStatus = piCmd
+    ? hasLocalModel
+      ? `pi знайдено (${piCmd}), локальна модель сконфігурована`
+      : `pi знайдено (${piCmd}), але CAPTURE_DECISIONS_PI_MODEL/N_LOCAL_MIN_MODEL не задано — capture skipне`
+    : 'pi не знайдено (root .bin, nested @nitra/cursor .bin, PATH) — capture skipне'
+  const cloudStatus =
+    hasClaude && hasCursor
+      ? 'claude і cursor-agent доступні'
+      : hasClaude
+        ? 'claude доступний, cursor-agent відсутній'
+        : hasCursor
+          ? 'cursor-agent доступний, claude відсутній'
+          : 'жодного cloud-бекенду не знайдено'
+
+  pass(`Capture backend (CAPTURE_DECISIONS_BACKEND=${backend}): ${piStatus}; cloud-фолбек: ${cloudStatus}`)
 }
 
 /** Файли стану/блокування normalize-хука, які не мають потрапляти в git. */
@@ -332,6 +362,6 @@ export async function lint(ctx) {
   await checkGitignore(reporter, cwd)
   await checkGitignoreForStateFiles(reporter, cwd)
   checkDocsAdrDir(reporter, cwd)
-  checkLlmCliAvailable(reporter)
+  checkCaptureBackendAvailable(reporter, cwd)
   return reporter.result()
 }

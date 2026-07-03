@@ -28,6 +28,8 @@ const NORMALIZE_DECISIONS_SH_RE = /normalize-decisions\.sh/
 const CLAUDE_PROJECT_DIR_RE = /CLAUDE_PROJECT_DIR/
 const CAPTURE_DECISIONS_RUNNING_RE = /CAPTURE_DECISIONS_RUNNING/
 const ADR_NORMALIZE_RUNNING_RE = /ADR_NORMALIZE_RUNNING/
+const ADR_HOOKS_SKIP_RE = /ADR_HOOKS_SKIP/
+const GET_ENTRIES_CALL_RE = /ctx\.sessionManager\.getEntries\(\)/
 
 /**
  * Створює мінімальний bundled-пакет із `.pi-template/extensions/n-cursor-adr/index.ts`.
@@ -68,6 +70,16 @@ describe('.pi-template/extensions/n-cursor-adr/index.ts (bundled)', () => {
     const src = await readFile(PI_TEMPLATE_PATH, 'utf8')
     expect(src).toMatch(CAPTURE_DECISIONS_RUNNING_RE)
     expect(src).toMatch(ADR_NORMALIZE_RUNNING_RE)
+  })
+
+  test('має ADR_HOOKS_SKIP guard ПЕРЕД серіалізацією transcript (getEntries)', async () => {
+    const src = await readFile(PI_TEMPLATE_PATH, 'utf8')
+    expect(src).toMatch(ADR_HOOKS_SKIP_RE)
+    const skipIdx = src.search(ADR_HOOKS_SKIP_RE)
+    expect(skipIdx).toBeGreaterThan(-1)
+    // Коментар нагорі файлу теж згадує `getEntries()` — перевіряємо реальний виклик
+    // саме після guard-у (у підрядку, що йде за ним), а не позицію першої згадки.
+    expect(src.slice(skipIdx)).toMatch(GET_ENTRIES_CALL_RE)
   })
 })
 

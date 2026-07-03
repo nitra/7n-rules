@@ -3,7 +3,7 @@ type: JS Module
 title: build-agents-commands.mjs
 resource: npm/scripts/build-agents-commands.mjs
 docgen:
-  crc: cfeec37e
+  crc: 3c3a5acb
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.98

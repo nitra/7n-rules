@@ -2,8 +2,9 @@
  * Інтеграційний тест capture-decisions.sh: cross-project skip.
  * Сесія з паралельною роботою в кількох проєктах має транскрипт із tool_use-правками
  * файлів інших репо. Якщо ЖОДЕН змінений файл не під $CLAUDE_PROJECT_DIR — ADR сюди не
- * пишемо. Запускає реальний bash-скрипт; LLM-виклик блокуємо порожнім PATH (без `claude`/
- * `cursor-agent` хук виходить мовчки). Розрізнюємо по логу + факту створення `docs/adr/*.md`.
+ * пишемо. Запускає реальний bash-скрипт; LLM-виклик блокуємо відсутністю `pi` (дефолтний
+ * бекенд `CAPTURE_DECISIONS_BACKEND=pi`) — хук виходить мовчки. Розрізнюємо по логу + факту
+ * створення `docs/adr/*.md`.
  */
 import { describe, expect, test } from 'vitest'
 import { spawnSync } from 'node:child_process'
@@ -97,7 +98,7 @@ describe('capture-decisions.sh — cross-project skip', () => {
       )
       const { log } = runCaptureHook(dir, JSON.stringify({ transcript_path: tpath, session_id: 'cross002' }))
       expect(log).not.toContain('cross-project session')
-      expect(log).toContain('no LLM CLI found')
+      expect(log).toContain('pi not found')
     })
   })
 
@@ -108,7 +109,7 @@ describe('capture-decisions.sh — cross-project skip', () => {
       await writeFile(tpath, transcriptJsonl([{ name: 'Edit', file: join(dir, 'src/foo.ts') }]))
       const { log } = runCaptureHook(dir, JSON.stringify({ transcript_path: tpath, session_id: 'cross003' }))
       expect(log).not.toContain('cross-project session')
-      expect(log).toContain('no LLM CLI found')
+      expect(log).toContain('pi not found')
     })
   })
 
