@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.2.2] - 2026-07-03
+
+### Changed
+
+- fix(lint-surface): policy-концерни оцінюються напряму з concern.json — прибрано generated main.mjs
+
 ## [14.2.1] - 2026-07-03
 
 ### Changed
