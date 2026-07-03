@@ -2,8 +2,8 @@
 
 Дата: 2026-06-30
 Власник: @vitaliytv
-Статус: Draft
-Пов'язано: [unified lint surface](2026-06-29-unified-lint-surface.md), [pi fix-engine migration](2026-06-26-pi-fix-engine-migration.md)
+Статус: Completed 2026-07-02 — рішення зафіксовано у [experiment results](2026-07-02-lint-tier-sampling-consensus-results-spec.md)
+Пов'язано: [unified lint surface](2026-06-29-unified-lint-surface.md), [pi fix-engine migration](2026-06-26-pi-fix-engine-migration.md), [experiment results](2026-07-02-lint-tier-sampling-consensus-results-spec.md)
 
 ## Мета
 

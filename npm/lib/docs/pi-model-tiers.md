@@ -3,7 +3,7 @@ type: JS Module
 title: pi-model-tiers.mjs
 resource: npm/lib/pi-model-tiers.mjs
 docgen:
-  crc: 05b8d5cd
+  crc: 19b9af2b
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

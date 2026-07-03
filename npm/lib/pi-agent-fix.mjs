@@ -139,9 +139,12 @@ export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
   const clock = deps.clock ?? (() => Date.now())
   const astContext = deps.astContext ?? (p => extractContext(resolve(cwd, p)))
   const selfCheck = deps.selfCheck ?? (() => ({ ok: false, output: 'self_check недоступний' }))
+  // Фактичний sampling knob payload-а: провайдер отримує лише model + thinkingLevel
+  // (temperature не задається), тому trace фіксує саме їх.
+  const thinkingLevel = thinkingLevelForTier(tier ?? '')
 
   const fail = error => {
-    trace({ caller, backend: 'pi-ai', kind: 'agent', rule: ruleId, rung: tier, model: modelSpec, cwd, error })
+    trace({ caller, backend: 'pi-ai', kind: 'agent', rule: ruleId, rung: tier, model: modelSpec, thinkingLevel, cwd, error })
     return { applied: false, touchedFiles: [], telemetry: null, error, rollback: noop }
   }
 
@@ -166,7 +169,7 @@ export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
     session = await createSession({
       registry,
       model,
-      thinkingLevel: thinkingLevelForTier(tier ?? ''),
+      thinkingLevel,
       cwd,
       factory: guard.factory,
       astContext,
@@ -246,6 +249,7 @@ export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
     rule: ruleId,
     rung: tier,
     model: modelSpec,
+    thinkingLevel,
     cwd,
     // ВХІД LLM (щоб «що подали» було видно прямо у trace):
     // violation — обрізаний (може бути великим); promptChars — повний розмір промпта.

@@ -55,12 +55,14 @@ export function resolveModel(tier) {
 
 /**
  * pi `thinkingLevel` за rung-тиром fix-драбини: слабка локальна — `low`,
- * cloud-min — `medium`, cloud-avg (найдорожча, найскладніше) — `high`. Замінює
- * ручний числовий `thinkingBudget`-плюмбінг старого omlx-каналу.
- * @param {string} tier rung-тир (`local-min` | `local-min-retry` | `cloud-min` | `cloud-avg`)
+ * cloud-min — `medium`, cloud-avg — `high`, cloud-max (experiment-only tier,
+ * не в production ladder) — `xhigh`. Замінює ручний числовий
+ * `thinkingBudget`-плюмбінг старого omlx-каналу.
+ * @param {string} tier rung-тир (`local-min` | `local-min-retry` | `cloud-min` | `cloud-avg` | `cloud-max`)
  * @returns {'off'|'minimal'|'low'|'medium'|'high'|'xhigh'} дискретний рівень
  */
 export function thinkingLevelForTier(tier) {
+  if (tier === 'cloud-max') return 'xhigh'
   if (tier === 'cloud-avg') return 'high'
   if (tier === 'cloud-min') return 'medium'
   return 'low' // local-min, local-min-retry

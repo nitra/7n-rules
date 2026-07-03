@@ -46,6 +46,7 @@ describe('parseModelId', () => {
 
 describe('thinkingLevelForTier', () => {
   test.each([
+    ['cloud-max', 'xhigh'],
     ['cloud-avg', 'high'],
     ['cloud-min', 'medium'],
     ['local-min', 'low'],

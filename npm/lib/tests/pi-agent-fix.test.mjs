@@ -95,6 +95,18 @@ describe('error-шляхи (без git/pi)', () => {
     expect(r.error).toMatch(RE_NOT_FOUND)
   })
 
+  test('trace фіксує sampling knobs payload-а: model + thinkingLevel від tier', async () => {
+    const trace = vi.fn()
+    await runPiAgentFix('r', 'v', '/tmp', {
+      model: 'openai-codex/gpt-5.5',
+      tier: 'cloud-max',
+      deps: { root: '/tmp', registry: { find: () => null }, trace, createSession: vi.fn() }
+    })
+    expect(trace).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'openai-codex/gpt-5.5', thinkingLevel: 'xhigh', rung: 'cloud-max' })
+    )
+  })
+
   test('fail-closed canary: factory не викликана → fix скасовано', async () => {
     const createSession = vi.fn(() =>
       Promise.resolve({

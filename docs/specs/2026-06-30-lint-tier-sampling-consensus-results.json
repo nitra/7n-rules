@@ -1,0 +1,845 @@
+{
+  "startedAt": "2026-06-30T07:11:22.454Z",
+  "finishedAt": "2026-06-30T07:13:46.362Z",
+  "timeoutMs": 180000,
+  "models": {
+    "localMin": "omlx/gemma-4-e4b-it-OptiQ-4bit",
+    "cloudMin": "openai-codex/gpt-5.4-mini",
+    "cloudAvg": "openai-codex/gpt-5.5",
+    "cloudMax": "openai-codex/gpt-5.5"
+  },
+  "fixtures": [
+    {
+      "fixture": "package-script-no-fix",
+      "description": "existing package.json script contains forbidden --fix",
+      "tier": "local-min",
+      "model": "omlx/gemma-4-e4b-it-OptiQ-4bit",
+      "clean": true,
+      "selected": {
+        "id": "local-min:conservative:0",
+        "samplingProfile": "conservative",
+        "wallMs": 12151,
+        "touchedFiles": [
+          "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-package-script-no-fix-local-min-4oP9PM/package.json"
+        ],
+        "changedBytes": 93
+      },
+      "attempts": [
+        {
+          "id": "local-min:conservative:0",
+          "samplingProfile": "conservative",
+          "clean": true,
+          "wallMs": 12151,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-package-script-no-fix-local-min-4oP9PM/package.json"
+          ],
+          "changedBytes": 93,
+          "error": null,
+          "violations": [],
+          "telemetry": {
+            "turnCount": 5,
+            "toolCallCount": 4,
+            "backstopHit": false,
+            "wallMs": 11724,
+            "edits": 1,
+            "blocks": 0,
+            "usage": {
+              "input": 238,
+              "output": 27,
+              "cacheRead": 2048,
+              "cacheWrite": 0,
+              "totalTokens": 2313,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            }
+          }
+        }
+      ],
+      "traceEvents": [
+        {
+          "caller": "tier-bench:package-script-no-fix:local-min:conservative",
+          "backend": "pi-ai",
+          "kind": "agent",
+          "rule": "bench",
+          "rung": "local-min",
+          "model": "omlx/gemma-4-e4b-it-OptiQ-4bit",
+          "promptChars": 571,
+          "turnCount": 5,
+          "toolCallCount": 4,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-package-script-no-fix-local-min-4oP9PM/package.json"
+          ],
+          "backstopHit": false,
+          "wallMs": 11724,
+          "error": null
+        }
+      ],
+      "judgeFeedback": null,
+      "finalViolations": []
+    },
+    {
+      "fixture": "package-script-no-fix",
+      "description": "existing package.json script contains forbidden --fix",
+      "tier": "cloud-min",
+      "model": "openai-codex/gpt-5.4-mini",
+      "clean": true,
+      "selected": {
+        "id": "cloud-min:exploratory:1",
+        "samplingProfile": "exploratory",
+        "wallMs": 11578,
+        "touchedFiles": [
+          "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-package-script-no-fix-cloud-min-NcNeYF/package.json"
+        ],
+        "changedBytes": 93
+      },
+      "attempts": [
+        {
+          "id": "cloud-min:conservative:0",
+          "samplingProfile": "conservative",
+          "clean": true,
+          "wallMs": 12792,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-package-script-no-fix-cloud-min-NcNeYF/package.json"
+          ],
+          "changedBytes": 93,
+          "error": null,
+          "violations": [],
+          "telemetry": {
+            "turnCount": 4,
+            "toolCallCount": 3,
+            "backstopHit": false,
+            "wallMs": 12783,
+            "edits": 1,
+            "blocks": 0,
+            "usage": {
+              "input": 345,
+              "output": 39,
+              "cacheRead": 1536,
+              "cacheWrite": 0,
+              "totalTokens": 1920,
+              "cost": {
+                "input": 0.00025875000000000003,
+                "output": 0.0001755,
+                "cacheRead": 0.0001152,
+                "cacheWrite": 0,
+                "total": 0.00054945
+              }
+            }
+          }
+        },
+        {
+          "id": "cloud-min:exploratory:1",
+          "samplingProfile": "exploratory",
+          "clean": true,
+          "wallMs": 11578,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-package-script-no-fix-cloud-min-NcNeYF/package.json"
+          ],
+          "changedBytes": 93,
+          "error": null,
+          "violations": [],
+          "telemetry": {
+            "turnCount": 4,
+            "toolCallCount": 3,
+            "backstopHit": false,
+            "wallMs": 11559,
+            "edits": 1,
+            "blocks": 0,
+            "usage": {
+              "input": 349,
+              "output": 26,
+              "cacheRead": 1536,
+              "cacheWrite": 0,
+              "totalTokens": 1911,
+              "cost": {
+                "input": 0.00026175,
+                "output": 0.000117,
+                "cacheRead": 0.0001152,
+                "cacheWrite": 0,
+                "total": 0.0004939499999999999
+              }
+            }
+          }
+        }
+      ],
+      "traceEvents": [
+        {
+          "caller": "tier-bench:package-script-no-fix:cloud-min:conservative",
+          "backend": "pi-ai",
+          "kind": "agent",
+          "rule": "bench",
+          "rung": "cloud-min",
+          "model": "openai-codex/gpt-5.4-mini",
+          "promptChars": 571,
+          "turnCount": 4,
+          "toolCallCount": 3,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-package-script-no-fix-cloud-min-NcNeYF/package.json"
+          ],
+          "backstopHit": false,
+          "wallMs": 12783,
+          "error": null
+        },
+        {
+          "caller": "tier-bench:package-script-no-fix:cloud-min:exploratory",
+          "backend": "pi-ai",
+          "kind": "agent",
+          "rule": "bench",
+          "rung": "cloud-min",
+          "model": "openai-codex/gpt-5.4-mini",
+          "promptChars": 621,
+          "turnCount": 4,
+          "toolCallCount": 3,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-package-script-no-fix-cloud-min-NcNeYF/package.json"
+          ],
+          "backstopHit": false,
+          "wallMs": 11559,
+          "error": null
+        }
+      ],
+      "judgeFeedback": null,
+      "finalViolations": []
+    },
+    {
+      "fixture": "package-script-no-fix",
+      "description": "existing package.json script contains forbidden --fix",
+      "tier": "cloud-avg",
+      "model": "openai-codex/gpt-5.5",
+      "clean": true,
+      "selected": {
+        "id": "cloud-avg:conservative:0",
+        "samplingProfile": "conservative",
+        "wallMs": 9437,
+        "touchedFiles": [
+          "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-package-script-no-fix-cloud-avg-9hYlNd/package.json"
+        ],
+        "changedBytes": 93
+      },
+      "attempts": [
+        {
+          "id": "cloud-avg:conservative:0",
+          "samplingProfile": "conservative",
+          "clean": true,
+          "wallMs": 9437,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-package-script-no-fix-cloud-avg-9hYlNd/package.json"
+          ],
+          "changedBytes": 93,
+          "error": null,
+          "violations": [],
+          "telemetry": {
+            "turnCount": 4,
+            "toolCallCount": 3,
+            "backstopHit": false,
+            "wallMs": 9423,
+            "edits": 1,
+            "blocks": 0,
+            "usage": {
+              "input": 309,
+              "output": 39,
+              "cacheRead": 1536,
+              "cacheWrite": 0,
+              "totalTokens": 1884,
+              "cost": {
+                "input": 0.0015450000000000001,
+                "output": 0.00117,
+                "cacheRead": 0.000768,
+                "cacheWrite": 0,
+                "total": 0.0034830000000000004
+              }
+            }
+          }
+        },
+        {
+          "id": "cloud-avg:exploratory:1",
+          "samplingProfile": "exploratory",
+          "clean": true,
+          "wallMs": 19336,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-package-script-no-fix-cloud-avg-9hYlNd/package.json"
+          ],
+          "changedBytes": 93,
+          "error": null,
+          "violations": [],
+          "telemetry": {
+            "turnCount": 4,
+            "toolCallCount": 3,
+            "backstopHit": false,
+            "wallMs": 19308,
+            "edits": 1,
+            "blocks": 0,
+            "usage": {
+              "input": 341,
+              "output": 37,
+              "cacheRead": 1536,
+              "cacheWrite": 0,
+              "totalTokens": 1914,
+              "cost": {
+                "input": 0.0017050000000000001,
+                "output": 0.00111,
+                "cacheRead": 0.000768,
+                "cacheWrite": 0,
+                "total": 0.0035830000000000002
+              }
+            }
+          }
+        }
+      ],
+      "traceEvents": [
+        {
+          "caller": "tier-bench:package-script-no-fix:cloud-avg:conservative",
+          "backend": "pi-ai",
+          "kind": "agent",
+          "rule": "bench",
+          "rung": "cloud-avg",
+          "model": "openai-codex/gpt-5.5",
+          "promptChars": 571,
+          "turnCount": 4,
+          "toolCallCount": 3,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-package-script-no-fix-cloud-avg-9hYlNd/package.json"
+          ],
+          "backstopHit": false,
+          "wallMs": 9423,
+          "error": null
+        },
+        {
+          "caller": "tier-bench:package-script-no-fix:cloud-avg:exploratory",
+          "backend": "pi-ai",
+          "kind": "agent",
+          "rule": "bench",
+          "rung": "cloud-avg",
+          "model": "openai-codex/gpt-5.5",
+          "promptChars": 621,
+          "turnCount": 4,
+          "toolCallCount": 3,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-package-script-no-fix-cloud-avg-9hYlNd/package.json"
+          ],
+          "backstopHit": false,
+          "wallMs": 19308,
+          "error": null
+        }
+      ],
+      "judgeFeedback": null,
+      "finalViolations": []
+    },
+    {
+      "fixture": "package-script-no-fix",
+      "description": "existing package.json script contains forbidden --fix",
+      "tier": "cloud-max",
+      "model": "openai-codex/gpt-5.5",
+      "clean": true,
+      "selected": {
+        "id": "cloud-max:conservative:0",
+        "samplingProfile": "conservative",
+        "wallMs": 10230,
+        "touchedFiles": [
+          "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-package-script-no-fix-cloud-max-0dW1wk/package.json"
+        ],
+        "changedBytes": 93
+      },
+      "attempts": [
+        {
+          "id": "cloud-max:conservative:0",
+          "samplingProfile": "conservative",
+          "clean": true,
+          "wallMs": 10230,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-package-script-no-fix-cloud-max-0dW1wk/package.json"
+          ],
+          "changedBytes": 93,
+          "error": null,
+          "violations": [],
+          "telemetry": {
+            "turnCount": 4,
+            "toolCallCount": 3,
+            "backstopHit": false,
+            "wallMs": 10198,
+            "edits": 1,
+            "blocks": 0,
+            "usage": {
+              "input": 382,
+              "output": 39,
+              "cacheRead": 1536,
+              "cacheWrite": 0,
+              "totalTokens": 1957,
+              "cost": {
+                "input": 0.0019100000000000002,
+                "output": 0.00117,
+                "cacheRead": 0.000768,
+                "cacheWrite": 0,
+                "total": 0.0038480000000000003
+              }
+            }
+          }
+        }
+      ],
+      "traceEvents": [
+        {
+          "caller": "tier-bench:package-script-no-fix:cloud-max:conservative",
+          "backend": "pi-ai",
+          "kind": "agent",
+          "rule": "bench",
+          "rung": "cloud-max",
+          "model": "openai-codex/gpt-5.5",
+          "promptChars": 571,
+          "turnCount": 4,
+          "toolCallCount": 3,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-package-script-no-fix-cloud-max-0dW1wk/package.json"
+          ],
+          "backstopHit": false,
+          "wallMs": 10198,
+          "error": null
+        }
+      ],
+      "judgeFeedback": null,
+      "finalViolations": []
+    },
+    {
+      "fixture": "missing-jscpd-config",
+      "description": "missing .jscpd.json config must be created exactly",
+      "tier": "local-min",
+      "model": "omlx/gemma-4-e4b-it-OptiQ-4bit",
+      "clean": true,
+      "selected": {
+        "id": "local-min:conservative:0",
+        "samplingProfile": "conservative",
+        "wallMs": 12256,
+        "touchedFiles": [
+          "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-missing-jscpd-config-local-min-LrSOE4/.jscpd.json"
+        ],
+        "changedBytes": 86
+      },
+      "attempts": [
+        {
+          "id": "local-min:conservative:0",
+          "samplingProfile": "conservative",
+          "clean": true,
+          "wallMs": 12256,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-missing-jscpd-config-local-min-LrSOE4/.jscpd.json"
+          ],
+          "changedBytes": 86,
+          "error": null,
+          "violations": [],
+          "telemetry": {
+            "turnCount": 4,
+            "toolCallCount": 3,
+            "backstopHit": false,
+            "wallMs": 12245,
+            "edits": 1,
+            "blocks": 0,
+            "usage": {
+              "input": 254,
+              "output": 38,
+              "cacheRead": 2048,
+              "cacheWrite": 0,
+              "totalTokens": 2340,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            }
+          }
+        }
+      ],
+      "traceEvents": [
+        {
+          "caller": "tier-bench:missing-jscpd-config:local-min:conservative",
+          "backend": "pi-ai",
+          "kind": "agent",
+          "rule": "bench",
+          "rung": "local-min",
+          "model": "omlx/gemma-4-e4b-it-OptiQ-4bit",
+          "promptChars": 611,
+          "turnCount": 4,
+          "toolCallCount": 3,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-missing-jscpd-config-local-min-LrSOE4/.jscpd.json"
+          ],
+          "backstopHit": false,
+          "wallMs": 12245,
+          "error": null
+        }
+      ],
+      "judgeFeedback": null,
+      "finalViolations": []
+    },
+    {
+      "fixture": "missing-jscpd-config",
+      "description": "missing .jscpd.json config must be created exactly",
+      "tier": "cloud-min",
+      "model": "openai-codex/gpt-5.4-mini",
+      "clean": true,
+      "selected": {
+        "id": "cloud-min:conservative:0",
+        "samplingProfile": "conservative",
+        "wallMs": 13661,
+        "touchedFiles": [
+          "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-missing-jscpd-config-cloud-min-mJ3a8y/.jscpd.json"
+        ],
+        "changedBytes": 78
+      },
+      "attempts": [
+        {
+          "id": "cloud-min:conservative:0",
+          "samplingProfile": "conservative",
+          "clean": true,
+          "wallMs": 13661,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-missing-jscpd-config-cloud-min-mJ3a8y/.jscpd.json"
+          ],
+          "changedBytes": 78,
+          "error": null,
+          "violations": [],
+          "telemetry": {
+            "turnCount": 4,
+            "toolCallCount": 3,
+            "backstopHit": false,
+            "wallMs": 13653,
+            "edits": 1,
+            "blocks": 0,
+            "usage": {
+              "input": 375,
+              "output": 31,
+              "cacheRead": 1536,
+              "cacheWrite": 0,
+              "totalTokens": 1942,
+              "cost": {
+                "input": 0.00028125000000000003,
+                "output": 0.0001395,
+                "cacheRead": 0.0001152,
+                "cacheWrite": 0,
+                "total": 0.00053595
+              }
+            }
+          }
+        },
+        {
+          "id": "cloud-min:exploratory:1",
+          "samplingProfile": "exploratory",
+          "clean": true,
+          "wallMs": 9876,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-missing-jscpd-config-cloud-min-mJ3a8y/.jscpd.json"
+          ],
+          "changedBytes": 87,
+          "error": null,
+          "violations": [],
+          "telemetry": {
+            "turnCount": 3,
+            "toolCallCount": 2,
+            "backstopHit": false,
+            "wallMs": 9860,
+            "edits": 1,
+            "blocks": 0,
+            "usage": {
+              "input": 346,
+              "output": 35,
+              "cacheRead": 1536,
+              "cacheWrite": 0,
+              "totalTokens": 1917,
+              "cost": {
+                "input": 0.0002595,
+                "output": 0.0001575,
+                "cacheRead": 0.0001152,
+                "cacheWrite": 0,
+                "total": 0.0005322
+              }
+            }
+          }
+        }
+      ],
+      "traceEvents": [
+        {
+          "caller": "tier-bench:missing-jscpd-config:cloud-min:conservative",
+          "backend": "pi-ai",
+          "kind": "agent",
+          "rule": "bench",
+          "rung": "cloud-min",
+          "model": "openai-codex/gpt-5.4-mini",
+          "promptChars": 611,
+          "turnCount": 4,
+          "toolCallCount": 3,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-missing-jscpd-config-cloud-min-mJ3a8y/.jscpd.json"
+          ],
+          "backstopHit": false,
+          "wallMs": 13653,
+          "error": null
+        },
+        {
+          "caller": "tier-bench:missing-jscpd-config:cloud-min:exploratory",
+          "backend": "pi-ai",
+          "kind": "agent",
+          "rule": "bench",
+          "rung": "cloud-min",
+          "model": "openai-codex/gpt-5.4-mini",
+          "promptChars": 661,
+          "turnCount": 3,
+          "toolCallCount": 2,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-missing-jscpd-config-cloud-min-mJ3a8y/.jscpd.json"
+          ],
+          "backstopHit": false,
+          "wallMs": 9860,
+          "error": null
+        }
+      ],
+      "judgeFeedback": null,
+      "finalViolations": []
+    },
+    {
+      "fixture": "missing-jscpd-config",
+      "description": "missing .jscpd.json config must be created exactly",
+      "tier": "cloud-avg",
+      "model": "openai-codex/gpt-5.5",
+      "clean": true,
+      "selected": {
+        "id": "cloud-avg:exploratory:1",
+        "samplingProfile": "exploratory",
+        "wallMs": 10205,
+        "touchedFiles": [
+          "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-missing-jscpd-config-cloud-avg-crIPgM/.jscpd.json"
+        ],
+        "changedBytes": 70
+      },
+      "attempts": [
+        {
+          "id": "cloud-avg:conservative:0",
+          "samplingProfile": "conservative",
+          "clean": true,
+          "wallMs": 12817,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-missing-jscpd-config-cloud-avg-crIPgM/.jscpd.json"
+          ],
+          "changedBytes": 79,
+          "error": null,
+          "violations": [],
+          "telemetry": {
+            "turnCount": 3,
+            "toolCallCount": 2,
+            "backstopHit": false,
+            "wallMs": 12810,
+            "edits": 1,
+            "blocks": 0,
+            "usage": {
+              "input": 1828,
+              "output": 46,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 1874,
+              "cost": {
+                "input": 0.00914,
+                "output": 0.00138,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0.01052
+              }
+            }
+          }
+        },
+        {
+          "id": "cloud-avg:exploratory:1",
+          "samplingProfile": "exploratory",
+          "clean": true,
+          "wallMs": 10205,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-missing-jscpd-config-cloud-avg-crIPgM/.jscpd.json"
+          ],
+          "changedBytes": 70,
+          "error": null,
+          "violations": [],
+          "telemetry": {
+            "turnCount": 3,
+            "toolCallCount": 2,
+            "backstopHit": false,
+            "wallMs": 10189,
+            "edits": 1,
+            "blocks": 0,
+            "usage": {
+              "input": 1846,
+              "output": 37,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 1883,
+              "cost": {
+                "input": 0.00923,
+                "output": 0.00111,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0.01034
+              }
+            }
+          }
+        }
+      ],
+      "traceEvents": [
+        {
+          "caller": "tier-bench:missing-jscpd-config:cloud-avg:conservative",
+          "backend": "pi-ai",
+          "kind": "agent",
+          "rule": "bench",
+          "rung": "cloud-avg",
+          "model": "openai-codex/gpt-5.5",
+          "promptChars": 611,
+          "turnCount": 3,
+          "toolCallCount": 2,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-missing-jscpd-config-cloud-avg-crIPgM/.jscpd.json"
+          ],
+          "backstopHit": false,
+          "wallMs": 12810,
+          "error": null
+        },
+        {
+          "caller": "tier-bench:missing-jscpd-config:cloud-avg:exploratory",
+          "backend": "pi-ai",
+          "kind": "agent",
+          "rule": "bench",
+          "rung": "cloud-avg",
+          "model": "openai-codex/gpt-5.5",
+          "promptChars": 661,
+          "turnCount": 3,
+          "toolCallCount": 2,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-missing-jscpd-config-cloud-avg-crIPgM/.jscpd.json"
+          ],
+          "backstopHit": false,
+          "wallMs": 10189,
+          "error": null
+        }
+      ],
+      "judgeFeedback": null,
+      "finalViolations": []
+    },
+    {
+      "fixture": "missing-jscpd-config",
+      "description": "missing .jscpd.json config must be created exactly",
+      "tier": "cloud-max",
+      "model": "openai-codex/gpt-5.5",
+      "clean": true,
+      "selected": {
+        "id": "cloud-max:conservative:0",
+        "samplingProfile": "conservative",
+        "wallMs": 9214,
+        "touchedFiles": [
+          "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-missing-jscpd-config-cloud-max-WXwNEK/.jscpd.json"
+        ],
+        "changedBytes": 70
+      },
+      "attempts": [
+        {
+          "id": "cloud-max:conservative:0",
+          "samplingProfile": "conservative",
+          "clean": true,
+          "wallMs": 9214,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-missing-jscpd-config-cloud-max-WXwNEK/.jscpd.json"
+          ],
+          "changedBytes": 70,
+          "error": null,
+          "violations": [],
+          "telemetry": {
+            "turnCount": 3,
+            "toolCallCount": 2,
+            "backstopHit": false,
+            "wallMs": 9203,
+            "edits": 1,
+            "blocks": 0,
+            "usage": {
+              "input": 1861,
+              "output": 49,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 1910,
+              "cost": {
+                "input": 0.009305,
+                "output": 0.00147,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0.010775
+              }
+            }
+          }
+        }
+      ],
+      "traceEvents": [
+        {
+          "caller": "tier-bench:missing-jscpd-config:cloud-max:conservative",
+          "backend": "pi-ai",
+          "kind": "agent",
+          "rule": "bench",
+          "rung": "cloud-max",
+          "model": "openai-codex/gpt-5.5",
+          "promptChars": 611,
+          "turnCount": 3,
+          "toolCallCount": 2,
+          "touchedFiles": [
+            "/private/var/folders/w8/cqkj8zm93sl5my29yplf5kqr0000gn/T/n-cursor-tier-bench-missing-jscpd-config-cloud-max-WXwNEK/.jscpd.json"
+          ],
+          "backstopHit": false,
+          "wallMs": 9203,
+          "error": null
+        }
+      ],
+      "judgeFeedback": null,
+      "finalViolations": []
+    }
+  ],
+  "summary": {
+    "byTier": {
+      "local-min": {
+        "total": 2,
+        "clean": 2,
+        "attempts": 2,
+        "cleanAttempts": 2,
+        "wallMs": 24407,
+        "cleanRate": 1,
+        "cleanAttemptRate": 1,
+        "avgAttemptMs": 12204
+      },
+      "cloud-min": {
+        "total": 2,
+        "clean": 2,
+        "attempts": 4,
+        "cleanAttempts": 4,
+        "wallMs": 47907,
+        "cleanRate": 1,
+        "cleanAttemptRate": 1,
+        "avgAttemptMs": 11977
+      },
+      "cloud-avg": {
+        "total": 2,
+        "clean": 2,
+        "attempts": 4,
+        "cleanAttempts": 4,
+        "wallMs": 51795,
+        "cleanRate": 1,
+        "cleanAttemptRate": 1,
+        "avgAttemptMs": 12949
+      },
+      "cloud-max": {
+        "total": 2,
+        "clean": 2,
+        "attempts": 2,
+        "cleanAttempts": 2,
+        "wallMs": 19444,
+        "cleanRate": 1,
+        "cleanAttemptRate": 1,
+        "avgAttemptMs": 9722
+      }
+    }
+  }
+}
