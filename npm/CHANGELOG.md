@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.3.0] - 2026-07-03
+
+### Added
+
+- feat(lint): живий прогрес-бар для довгих lint/fix-прогонів — гібрид «бар по концернах + тикер порушень (знайдено/виправлено)» за spec docs/specs/2026-07-03-lint-progress-bar-design.md. Спільний ProgressReporter (lint-surface/progress.mjs) із семантикою лічильників «не бреше вниз»; TTY → однорядковий бар (cli-progress, функція-formatter — обхід несумісності з ESM-only string-width), не-TTY → append-рядки без ANSI (hooks/CI без змін). doc-files батч-генерація мігрована на той самий reporter (бар по файлах).
+
 ## [14.2.4] - 2026-07-03
 
 ### Changed
