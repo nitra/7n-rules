@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.6] - 2026-07-03
+
+### Fixed
+
+- fix(js): прибрано дубльований концерн js/jscpd (старий namespace js_lint.jscpd) — повний двійник js/jscpd_config по тому ж .jscpd.json; дубль давав два однакові заголовки в згенерованому n-js.mdc (MD024 у споживачах) і подвійну policy-оцінку
+- fix(js): main.mdc — битий template-лінк на видалений js/jscpd (→ js/jscpd_config); синк правила js падав у споживачах на inlineTemplateLinks після 14.4.3
+- fix(bun): @stryker-mutator/core додано в allowed_root_test_deps — vitest-runner@9 вимагає core як exact-pin peer явною залежністю; без цього bun/package_json та npm-module/npm_package_json заганяли споживача у глухий кут (root забороняє, workspace виганяє в root)
+
 ## [0.0.5] - 2026-07-03
 
 ### Changed
