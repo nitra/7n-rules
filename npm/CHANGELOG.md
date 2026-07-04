@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.6.1] - 2026-07-04
+
+### Changed
+
+- fix(pi-lib): omlx memory-guard rejection terminates instead of retrying
+
 ## [14.6.0] - 2026-07-04
 
 ### Changed
