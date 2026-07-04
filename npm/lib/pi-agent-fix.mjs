@@ -29,6 +29,7 @@ import { createWriteGuard, gitRoot } from './pi-write-guard.mjs'
 import { failOnMemoryGuard } from './pi-memory-guard.mjs'
 import { writeTrace } from './pi-trace.mjs'
 import { withTimeout } from './pi-with-timeout.mjs'
+import { applyMaxTokens } from './pi-max-tokens.mjs'
 import { extractContext } from '../scripts/utils/ast-extract.mjs'
 
 /** Аварійна стеля turns на одну сесію (runaway-backstop §4+5). Override: `N_CURSOR_FIX_TURN_CEILING`. */
@@ -117,7 +118,7 @@ async function defaultCreateSession({ registry, model, thinkingLevel, cwd, facto
     sessionManager: SessionManager.inMemory(),
     resourceLoader: loader
   })
-  return session
+  return applyMaxTokens(session)
 }
 
 /**

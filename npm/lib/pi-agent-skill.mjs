@@ -22,6 +22,7 @@ import { env, stdout } from 'node:process'
 import { getRegistry, resolveModel, resolveModelSpec } from './pi-model-tiers.mjs'
 import { failOnMemoryGuard } from './pi-memory-guard.mjs'
 import { writeTrace } from './pi-trace.mjs'
+import { applyMaxTokens } from './pi-max-tokens.mjs'
 import { withTimeout } from './pi-with-timeout.mjs'
 
 /** Аварійна стеля turns на сесію скіла (runaway-backstop). Override: `N_CURSOR_SKILL_TURN_CEILING`. */
@@ -51,7 +52,7 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel }) {
     cwd: cwd ?? process.cwd(),
     sessionManager: SessionManager.inMemory()
   })
-  return session
+  return applyMaxTokens(session)
 }
 
 /**

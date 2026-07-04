@@ -22,6 +22,7 @@ import { getRegistry, resolveModel, resolveModelSpec } from './pi-model-tiers.mj
 import { failOnMemoryGuard } from './pi-memory-guard.mjs'
 import { writeTrace } from './pi-trace.mjs'
 import { withTimeout } from './pi-with-timeout.mjs'
+import { applyMaxTokens } from './pi-max-tokens.mjs'
 
 /** Дефолтний timeout одного one-shot виклику. */
 const DEFAULT_TIMEOUT_MS = 120_000
@@ -49,7 +50,7 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel }) {
     cwd: cwd ?? process.cwd(),
     sessionManager: SessionManager.inMemory()
   })
-  return session
+  return applyMaxTokens(session)
 }
 
 /**
