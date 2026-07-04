@@ -1,5 +1,19 @@
 # Changelog
 
+## [14.7.0] - 2026-07-04
+
+### Added
+
+- OKF-сумісний frontmatter (type/title/description/resource/tags/timestamp) у файлових доках та автогенерація index.md у кожній docs/-директорії
+
+### Changed
+
+- lint-оркестрація: scoped `lint <rule>` тепер ганяє лінтер+конформність (= standalone lint-<rule>); oxfmt інтегровано в `n-cursor lint` (fix-режим); CI-воркфлоу (ga/text/js/style) переведено на `n-cursor lint <rule> --read-only`; python-правило в оркестраторі з readOnly
+
+### Removed
+
+- package_json-конформність більше не вимагає lint-\* обгорток: видалено script-вимоги у ga/rego/docker/python (теки package_json), js-lint/style-lint/security (script-частини), прибрано bun-агрегат (umbrella lint + oxfmt-суфікс). Єдина точка лінту — n-cursor lint --full; php/rust/image-compress лишаються (справжні тул-команди, не обгортки)
+
 ## [14.6.1] - 2026-07-04
 
 ### Changed
