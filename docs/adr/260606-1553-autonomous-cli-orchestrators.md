@@ -149,3 +149,24 @@ Exit 0 = структура проєкту відповідає правилам
 - `fix-run` лишається як застарілий псевдонім; основний UX — саме `n-cursor fix`.
 - Demo з transcript: 3 violations (`bun`, `rego`, `style-lint`) закрито T0-auto за одну ітерацію, 0 LLM-викликів.
 - Змінені точки інтеграції: `npm/bin/n-cursor.js`, `npm/skills/fix/js/orchestrator.mjs`, `npm/skills/fix/SKILL.md`, `.cursor/skills/n-fix/SKILL.md`.
+
+## Update 2026-06-06
+
+- `n-cursor fix` має бути автономним CLI-виконавцем, а не лише checker-ом: агент викликає `npx @nitra/cursor fix` і оцінює exit code.
+- Логіка convergence-loop, T0-auto, LLM-tier і ескалації переноситься у CLI; SKILL.md зводиться до однієї команди.
+- T0-auto — детермінований рівень виправлень через regex-парсинг structured violation-output без LLM-токенів; зафіксований приклад: `vscode-ext-add`, `rm-forbidden-file` у `npm/skills/fix/js/t0.mjs`.
+- Для `fix + lint` обрано послідовне виконання в одному worktree, бо lint має бачити конфіги, створені fix; паралельні під-worktree відхилено через конфлікти на спільних файлах.
+- LLM-виклики orchestration-tier мають іти через `pi` у C1-патерні: orchestrator збирає контекст, `pi` повертає replacement, orchestrator застосовує його програмно; tool-use на стороні LLM не використовується.
+
+## Update 2026-06-06
+
+Уточнено реалізаційний контракт автономних CLI-оркестраторів:
+
+- `npm/skills/fix/meta.json` містить `{ "auto": "завжди", "worktree": true, "orchestrator": true }`.
+- `npm/skills/fix/js/orchestrator.mjs` реалізує convergence-loop: T0-check → T0-auto (`fix-t0`) → LLM-worker через `pi` → recheck.
+- `npm/skills/fix/js/llm-worker.mjs` використовує C1 pattern: script збирає rule `.mdc` і файли з violation, викликає `pi`, отримує JSON зі змінами і застосовує їх.
+- `fix --json` вилучено з публічного API; для внутрішнього JSON-check використовується `_fix-check`.
+- `fix-run` лишається deprecated alias.
+- Перевірка `bun test npm/skills/fix/js/tests/t0.test.mjs` пройшла: 11/11 pass.
+
+Порядок подальшої реалізації скілів: `fix` → `taze` → `lint`.

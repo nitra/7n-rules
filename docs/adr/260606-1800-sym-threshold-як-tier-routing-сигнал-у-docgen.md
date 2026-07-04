@@ -36,3 +36,74 @@ Chosen option: "`sym ≥ 4` → cloud, інакше local", because Pearson r = 
 - Чистий детермінований scoring теж недостатній для semantic defects: після виправлення false positives він завищував результат приблизно на 35 п.п.
 - `sym >= 3` обрано як дешевий routing-сигнал: 0 токенів, <1 ms, Pearson −0.651 з якістю на bench-наборі.
 - Відомий компроміс: threshold консервативний і може відправити в cloud файли з прийнятною локальною якістю, наприклад `k8s-tree`.
+
+## Update 2026-06-06
+
+Уточнено hybrid routing у `generateDoc`:
+
+- `sym < 2` → Tier 1 local без рефері.
+- `sym ∈ [2, 4)` → Tier 1 + `cloudScoreDoc` як judge.
+- `sym ≥ 4` → Tier 2 cloud pre-routing через Sonnet.
+
+`cloudScoreDoc` за замовчуванням використовує `claude-haiku-4-5-20251001` як дешевий хмарний варіант для ролі рефері.
+
+Додано параметри `scoreModel` для рефері, `cloudModel` для Tier 2 генерації, CLI `--score-model <m>`; `--tier-only` показує три routing-зони. Реалізація зафіксована у `npm/skills/docgen/js/docgen-gen.mjs`, commit `470182fa`.
+
+## Update 2026-06-06
+
+Зафіксовано роль `cloudScoreDoc` як хмарного рефері якості:
+
+- локальна `gemma3:4b` для складних файлів галюцинує інваріанти, плутає internal/public API та може інвертувати логіку;
+- LLM-суддя і детермінований post-hoc скорер показали систематичний bias (`+25 пп` і `+35 пп`) і не виявляли частину семантичних помилок;
+- `sym = facts.internalSymbols.length` має Pearson `r = -0.651` з ручною оцінкою якості та лишається основним routing-сигналом;
+- при `sym ≥ 4` cloud-група становить приблизно 52 файли з 241 (~22%), орієнтовно `$1.5` за повний проєкт.
+
+Додаткові transcript facts:
+
+- `DEFAULT_SYM_THRESHOLD` у `npm/skills/docgen/js/docgen-gen.mjs` має бути `4`.
+- Відомий дефект аудиту: `npm/reports/stryker/.tmp/sandbox-*` і `npm/bin/**` роздували вибірку з 241 до 938 файлів.
+- Бенч-скрипти: `~/docgen-bench3/complexity.mjs`, `~/docgen-bench3/tier_audit.mjs`, `~/docgen-bench3/judge_b.mjs`, `~/docgen-bench3/score_a.mjs`.
+
+## Update 2026-06-06
+
+Порівняльна перевірка граничних `sym`-рівнів уточнила ризики routing-порогу:
+
+- `sym=4`, `k8s-tree.mjs`: локальна документація загалом прийнятна, але містила неправду про ігнорування `.git` і не описувала ключ кешу за сортованим списком аргументів.
+- `sym=5`, `lint.mjs`: локальна версія вже дала хибну гарантію про return value і неправильний крок про `uv`.
+- `sym=6`, `workflows.mjs`: детермінований скорер дав `100/100`, хоча документ містив масовий витік internal names, неправильний public API та хибну гарантію кешування.
+- `sym=7`, `consistency.mjs`: локальна версія неповно описала умови помилки для version comparison і не згадала `registry-published`, `local-only`, `REGISTRY_DISABLED`.
+
+Висновок transcript: `sym ≥ 5` виглядає більш консервативним щодо якості, але наявний поріг `sym ≥ 4` лишається безпечним conservative routing; `sym=4` є граничною зоною.
+
+## Update 2026-06-06
+
+Додано audit facts для docgen routing:
+
+- `DEFAULT_SYM_THRESHOLD = 4` у `npm/skills/docgen/js/docgen-gen.mjs`.
+- `extractFacts()` повертає `facts.internalSymbols[]` на Stage 0 без LLM-токенів.
+- Routing формула: `facts.internalSymbols.length >= symThreshold ? 'cloud' : 'local'`.
+- Аудит реального проєкту після виключення `npm/reports/**` і `npm/bin/**`: 241 файл.
+- Розподіл `sym`: `0→81`, `1→40`, `2→17`, `3→51`, `4→44`.
+
+Також зафіксовано, що `DOCGEN_IGNORE_GLOBS` має виключати `npm/bin/**`, бо `npm/bin/n-cursor.js` є зібраним бандлом, а не вихідним кодом для поведінкової документації.
+
+## Update 2026-06-06
+
+Фіналізовано двотировий routing у `docgen`:
+
+- `sym ≥ 4` → cloud через Claude Sonnet.
+- `sym < 4` → local через `gemma3:4b orchestrated`.
+- `sym ∈ [2, 4)` → local + `cloudScoreDoc` Haiku judge і fallback при `score < QUALITY_THRESHOLD`.
+
+Відхилені альтернативи з transcript:
+
+- combo score `sym + exp*2 + imp`, бо `exp` має позитивну кореляцію з якістю (`+0.384`) і послаблює сигнал;
+- deterministic scorer, бо після виправлення false positives мав bias `+35 пп` і пропустив критично зламаний `workflows.mjs`;
+- LLM judge, бо мав bias `+25 пп` і займав `109s/файл`.
+
+Implementation facts:
+
+- `DEFAULT_SYM_THRESHOLD = 4` у `npm/skills/docgen/js/docgen-gen.mjs`.
+- Pre-routing у `docgen-gen.mjs`: при complexity >= threshold і наявному cloud env викликається cloud path.
+- `npm/bin/**` додано до `DOCGEN_IGNORE_GLOBS` у `npm/skills/docgen/js/docgen-ignore.mjs`, commit `6436a901`.
+- Tier audit після виключення stryker/bin/tests: local `189` (78%), cloud `52` (22%).

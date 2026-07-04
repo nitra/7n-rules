@@ -2,7 +2,7 @@
 description: Перевірка JavaScript коду
 globs: "**/{.oxlintrc.json,eslint.config.js,.jscpd.json,knip.json,package.json},**/*.{js,mjs,cjs,jsx,ts,tsx}"
 alwaysApply: false
-version: '1.31'
+version: '1.30'
 ---
 
 **oxlint**, **ESLint**, **jscpd**, **knip**. Запуск — **`n-cursor lint js`** (локально; у CI — `--read-only`, без **`--fix`** для oxlint/eslint). Без **prettier** і **@nitra/prettier-config**.
@@ -120,21 +120,6 @@ import fastifyApollo, { fastifyApolloDrainPlugin } from '@nitra/as-integrations-
 ```javascript title="✅ після"
 import fastifyApollo, { fastifyApolloDrainPlugin } from '@as-integrations/fastify'
 ```
-
-## Rego-gate `.jscpd.json`
-
-Rego-пакет: `js_lint.jscpd`
-
-Цільовий файл: `.jscpd.json` у корені проєкту.
-
-Що перевіряється:
-
-- `gitignore` — точна відповідність (`true`)
-- `exitCode` — точна відповідність (`1`)
-- `reporters` — subset-of: масив має містити всі елементи з канону (`["console"]`)
-- `minLines` — число, значення >= канонічного порогу (`25`); більше дозволено
-
-Канон-snippet: [.jscpd.json.snippet.json](./template/.jscpd.json.snippet.json)
 
 ## Rego-gate `.jscpd.json`
 

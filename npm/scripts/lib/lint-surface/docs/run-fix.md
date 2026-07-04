@@ -3,9 +3,8 @@ type: JS Module
 title: run-fix.mjs
 resource: npm/scripts/lib/lint-surface/run-fix.mjs
 docgen:
-  crc: d986995f
+  crc: d85d951f
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

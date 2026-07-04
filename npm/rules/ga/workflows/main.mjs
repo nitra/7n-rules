@@ -384,10 +384,11 @@ export async function lint(ctx) {
   // Зовнішні тули (read-only): actionlint + zizmor. 127 = тул відсутній → skip.
   ensureTool('shellcheck')
   ensureTool('conftest')
-  const actionlintCode = runLintStep('actionlint', 'bunx', ['github-actionlint'])
+  const stepOpts = { verbose: ctx.verbose === true }
+  const actionlintCode = runLintStep('actionlint', 'bunx', ['github-actionlint'], stepOpts)
   if (actionlintCode !== 0 && actionlintCode !== 127) fail('actionlint знайшов порушення (ga.mdc)', 'actionlint')
   if (resolveCmd('uv')) {
-    const zizmorCode = runLintStep('zizmor', 'uvx', ['zizmor', '--offline', '--collect=workflows', '.'])
+    const zizmorCode = runLintStep('zizmor', 'uvx', ['zizmor', '--offline', '--collect=workflows', '.'], stepOpts)
     if (zizmorCode !== 0 && zizmorCode !== 127) fail('zizmor знайшов ризики у workflow (ga.mdc)', 'zizmor')
   }
 

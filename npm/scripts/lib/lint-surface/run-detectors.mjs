@@ -280,7 +280,7 @@ export async function detectAll(opts) {
   try {
     for (const { entry, files } of plan) {
       /** @type {LintContext} */
-      const ctx = { cwd, ruleId: entry.ruleId, concernId: entry.concern.name, files }
+      const ctx = { cwd, ruleId: entry.ruleId, concernId: entry.concern.name, files, verbose }
       const key = `${entry.ruleId}/${entry.concern.name}`
       progress?.concernStart(key)
       if (verbose) {

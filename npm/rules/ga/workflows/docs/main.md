@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/ga/workflows/main.mjs
 docgen:
-  crc: b015b5c9
+  crc: ae2ba593
 ---
 
 ## Огляд

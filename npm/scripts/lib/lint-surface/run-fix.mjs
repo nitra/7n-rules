@@ -115,10 +115,11 @@ function isStandaloneConcern(patterns) {
  * @param {PlanItem} item Елемент плану з entry та переліком файлів.
  * @param {string} cwd Робоча директорія для запуску детектора.
  * @param {import('./progress.mjs').ProgressReporter|null} [progress] Reporter прогресу.
+ * @param {boolean} [verbose] Детальний вивід (прокидається у ctx concern-а).
  * @returns {Promise<LintViolation[]>} Актуальні порушення concern-а після re-detect.
  */
-async function reDetect(item, cwd, progress = null) {
-  const ctx = { cwd, ruleId: item.entry.ruleId, concernId: item.entry.concern.name, files: item.files }
+async function reDetect(item, cwd, progress = null, verbose = false) {
+  const ctx = { cwd, ruleId: item.entry.ruleId, concernId: item.entry.concern.name, files: item.files, verbose }
   const res = await runConcernDetector(item.entry.concern, ctx)
   progress?.detectSnapshot(progressKey(item), res.violations.length)
   return res.violations
@@ -146,13 +147,14 @@ async function resolveWorker(concernDir, workerOverride) {
  * @param {string} cwd Робоча директорія.
  * @param {(s: string) => void} log Логер.
  * @param {import('./progress.mjs').ProgressReporter|null} [progress] Reporter прогресу.
+ * @param {boolean} [verbose] Детальний вивід (прокидається у ctx concern-а).
  * @returns {Promise<{ closed: boolean, violations: LintViolation[] }>} closed=true якщо concern закрито T0; інакше актуальні violations.
  */
-async function runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log, progress = null) {
+async function runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log, progress = null, verbose = false) {
   if (patterns.length === 0) return { closed: false, violations: initialViolations }
   progress?.concernStart(progressKey(item), 'T0')
   await applyT0(patterns, initialViolations, lintCtx, log)
-  const afterT0 = await reDetect(item, cwd, progress)
+  const afterT0 = await reDetect(item, cwd, progress, verbose)
   if (afterT0.length === 0) {
     log(`  ✅ T0: ${lintCtx.ruleId}/${lintCtx.concernId}\n`)
     return { closed: true, violations: afterT0 }
@@ -180,10 +182,11 @@ async function runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log, 
  * @param {ReturnType<typeof createSnapshot>} rungDeps.snapshot Snapshot S1.
  * @param {(s: string) => void} rungDeps.log Логер.
  * @param {import('./progress.mjs').ProgressReporter|null} [rungDeps.progress] Reporter прогресу.
+ * @param {boolean} [rungDeps.verbose] Детальний вивід (прокидається у ctx concern-а).
  * @returns {Promise<{ closed: true } | { closed: false, outcome: RungOutcome }>} closed=true якщо concern закрито; інакше результат для наступного кроку.
  */
 async function runRung(rung, worker, violations, feedback, rungDeps) {
-  const { item, cwd, snapshot, log, progress = null } = rungDeps
+  const { item, cwd, snapshot, log, progress = null, verbose = false } = rungDeps
   const { ruleId } = item.entry
   const concernName = item.entry.concern.name
   progress?.concernStart(progressKey(item), rung.tier)
@@ -210,7 +213,7 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
   // Canonical re-detect = джерело правди.
   let after
   try {
-    after = await reDetect(item, cwd, progress)
+    after = await reDetect(item, cwd, progress, verbose)
   } catch (detectError) {
     if (detectError instanceof DetectorError) throw detectError
     throw detectError
@@ -249,19 +252,20 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
  * @param {T0Pattern[]} [deps.t0Override] T0-патерни override для тестів.
  * @param {(s: string) => void} deps.log Логер прогресу.
  * @param {import('./progress.mjs').ProgressReporter|null} [deps.progress] Reporter прогресу.
+ * @param {boolean} [deps.verbose] Детальний вивід (прокидається у ctx concern-а).
  * @returns {Promise<boolean>} Чи закрито concern (усі порушення усунено).
  */
 export async function fixConcern(item, initialViolations, deps) {
-  const { cwd, ladder, log, progress = null } = deps
+  const { cwd, ladder, log, progress = null, verbose = false } = deps
   const { ruleId } = item.entry
   const concernName = item.entry.concern.name
   const concernDir = item.entry.concern.dir
   /** @type {LintContext} */
-  const lintCtx = { cwd, ruleId, concernId: concernName, concernDir, files: item.files }
+  const lintCtx = { cwd, ruleId, concernId: concernName, concernDir, files: item.files, verbose }
 
   // ── T0 (детермінований, permanent) ──
   const patterns = deps.t0Override ?? (await loadT0Patterns(concernDir, concernName))
-  const t0 = await runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log, progress)
+  const t0 = await runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log, progress, verbose)
   if (t0.closed) return true
   initialViolations = t0.violations
 
@@ -291,7 +295,7 @@ export async function fixConcern(item, initialViolations, deps) {
       continue
     }
 
-    const res = await runRung(rung, worker, violations, feedback, { item, cwd, snapshot, log, progress })
+    const res = await runRung(rung, worker, violations, feedback, { item, cwd, snapshot, log, progress, verbose })
     if (rung.isAvg) deps.spendAvg(1)
     if (res.closed) return true
 
@@ -317,7 +321,7 @@ async function detectAllForFix(plan, cwd, verbose, log, progress = null) {
   /** @type {Array<{ item: PlanItem, violations: LintViolation[] }>} */
   const detected = []
   for (const item of plan) {
-    const ctx = { cwd, ruleId: item.entry.ruleId, concernId: item.entry.concern.name, files: item.files }
+    const ctx = { cwd, ruleId: item.entry.ruleId, concernId: item.entry.concern.name, files: item.files, verbose }
     progress?.concernStart(progressKey(item), 'detect')
     if (verbose) {
       const countStr = item.files === undefined ? 'весь репо' : `${item.files.length} файл(ів)`
@@ -343,13 +347,14 @@ async function detectAllForFix(plan, cwd, verbose, log, progress = null) {
  * @param {Array<{ item: PlanItem, violations: LintViolation[] }>} failing Провальні concern-и.
  * @param {string} cwd Робоча директорія.
  * @param {(s: string) => void} log Логер.
+ * @param {boolean} [verbose] Детальний вивід (прокидається у ctx concern-а).
  * @returns {Promise<void>} нічого не повертає (тільки лог).
  */
-async function renderRemaining(failing, cwd, log) {
+async function renderRemaining(failing, cwd, log, verbose = false) {
   const remaining = []
   for (const { item } of failing) {
     try {
-      remaining.push(...(await reDetect(item, cwd)))
+      remaining.push(...(await reDetect(item, cwd, null, verbose)))
     } catch {
       /* DetectorError на фінальному render — ігноруємо, основний verdict уже worst=1 */
     }
@@ -437,6 +442,7 @@ export async function runFixPipeline(opts) {
         ladder,
         log,
         progress,
+        verbose,
         avgRemaining: () => avgBudget,
         spendAvg: n => {
           avgBudget -= n
@@ -470,7 +476,7 @@ export async function runFixPipeline(opts) {
 
     // Бар звільняє TTY-рядок ДО фінального render-у невирішених порушень.
     progress.stop()
-    if (worst === 1) await renderRemaining(attemptedForRender, cwd, baseLog)
+    if (worst === 1) await renderRemaining(attemptedForRender, cwd, baseLog, verbose)
 
     return worst
   } finally {

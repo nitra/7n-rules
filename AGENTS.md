@@ -49,7 +49,7 @@ Generated from the root `package.json` on each `npx @nitra/cursor` sync. Prefer 
 - **test**: `bun run test`
 - **start**: `bun run start`
 - **Оновити правила та AGENTS.md** (після змін у правилах/шаблоні CLI): `npx @nitra/cursor`
-- **Перевірки правил (programmatic)**: `npx @nitra/cursor fix`
+- **Перевірки правил (programmatic)**: `npx @nitra/cursor lint`
 - **knip (невикористані залежності та експорти)**: `bunx knip`
 
 ## Instructions for all agents
@@ -58,7 +58,7 @@ Before making changes, read the relevant rule files for the area you are working
 
 ## Інваріант після змін
 
-`n-changelog.mdc` (alwaysApply) релевантне після **будь-якої** зміни файлів, не лише для релізу. Перед фінальною відповіддю виконай `npx @nitra/cursor fix changelog` (exit `0`) і познач результат рядком `Changelog: …` у відповіді.
+`n-changelog.mdc` (alwaysApply) релевантне після **будь-якої** зміни файлів, не лише для релізу. Перед фінальною відповіддю виконай `npx @nitra/cursor lint changelog` (exit `0`) і познач результат рядком `Changelog: …` у відповіді.
 
 ## Priority
 

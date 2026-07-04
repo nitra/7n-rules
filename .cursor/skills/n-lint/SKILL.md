@@ -6,7 +6,6 @@ version: '1.0'
 ---
 
 <!-- n-cursor:worktree:start -->
-
 > [!IMPORTANT]
 > **Worktree-only skill.** Виконується **виключно** в окремому git-worktree (`.worktrees/<current-branch>-lint/`) і **не** паралелиться — один інстанс за раз.
 
@@ -34,7 +33,6 @@ cd ".worktrees/feature-x-lint"
 ```bash
 bun install
 ```
-
 <!-- n-cursor:worktree:end -->
 
 # n-lint — лінт проєкту по змінених файлах
@@ -148,6 +146,6 @@ npx @nitra/cursor lint
 
 ## Примітка
 
-Цей скіл **не** замінює **`npx @nitra/cursor fix`**: **`lint`** перевіряє лінтери/формат (eslint, oxlint, rego тощо), а **`check`** / **`fix`** — програмні правила пакета **`@nitra/cursor`**. За потреби запускай обидва.
+Окремих команд **`check`** / **`fix`** немає — **`npx @nitra/cursor lint`** це unified lint surface: detect + fix-by-default (авто-fix лінтерів/формату і програмних правил пакета **`@nitra/cursor`** в одному проході). **`--no-fix`** (аліас **`--read-only`**) — лише detect, без записів.
 
 Для CI або явного повного сканування всього репо незалежно від змін — `npx @nitra/cursor lint --full`. Але в рамках задачі це **зайво**.

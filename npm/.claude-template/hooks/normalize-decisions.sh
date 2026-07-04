@@ -7,7 +7,8 @@
 # tree. Never invokes git — developer reviews via `git status` / `git diff`.
 #
 # LLM CLI selection (first available wins):
-#   1. claude        — `claude -p --model "$ADR_NORMALIZE_MODEL"` (default: sonnet)
+#   1. pi            — `pi -p --model "$ADR_NORMALIZE_PI_MODEL"` (default: N_CLOUD_AVG_MODEL)
+#   2. claude        — `claude -p --model "$ADR_NORMALIZE_MODEL"` (default: sonnet)
 #   2. cursor-agent  — `cursor-agent -p --mode ask --output-format text --model …`
 #                      (default: claude-4.6-sonnet-medium)
 #   neither          — exit 0 silently
@@ -285,18 +286,21 @@ date +%s > "$STATE_FILE"
 
 CLAUDE_MODEL="${ADR_NORMALIZE_MODEL:-sonnet}"
 CURSOR_MODEL="${ADR_NORMALIZE_CURSOR_MODEL:-claude-4.6-sonnet-medium}"
+PI_MODEL="${ADR_NORMALIZE_PI_MODEL:-${N_CLOUD_AVG_MODEL:-openai-codex/gpt-5.5}}"
 
 RESPONSE_FILE="$TMP_DIR/response.txt"
 
 # Backend selection. `local` — конвеєр на малій локальній моделі (privacy + $0,
-# `npm/scripts/lib/adr/normalize-pipeline.mjs`); `claude`/`cursor` — single-shot
+# `npm/scripts/lib/adr/normalize-pipeline.mjs`); `pi`/`claude`/`cursor` — single-shot
 # у хмару. Auto-default: local, якщо налаштовано `N_LOCAL_MIN_MODEL`, інакше
-# claude → cursor. Команда local-бекенда override-иться через ADR_NORMALIZE_LOCAL_CMD
+# pi → claude → cursor. Команда local-бекенда override-иться через ADR_NORMALIZE_LOCAL_CMD
 # (для тестів/in-repo: `node npm/bin/n-cursor.js adr-normalize-local`).
 BACKEND="${ADR_NORMALIZE_BACKEND:-}"
 if [ -z "$BACKEND" ]; then
   if [ -n "${N_LOCAL_MIN_MODEL:-}" ]; then
     BACKEND=local
+  elif command -v pi >/dev/null 2>&1; then
+    BACKEND=pi
   elif command -v claude >/dev/null 2>&1; then
     BACKEND=claude
   elif command -v cursor-agent >/dev/null 2>&1; then
@@ -314,6 +318,10 @@ case "$BACKEND" in
     # local-бекенд будує власні дрібні промпти з батча — FULL_PROMPT_FILE не потрібен.
     # shellcheck disable=SC2086
     $ADR_LOCAL_CMD --batch "$BATCH_LIST" --clean "$CLEAN_LIST" --adr-dir "$ADR_DIR" > "$RESPONSE_FILE" 2>>"$LOG" || true
+    ;;
+  pi)
+    log "using pi CLI (model: $PI_MODEL)"
+    pi -p --model "$PI_MODEL" --no-prompt-templates < "$FULL_PROMPT_FILE" > "$RESPONSE_FILE" 2>>"$LOG" || true
     ;;
   claude)
     log "using claude CLI (model: $CLAUDE_MODEL)"

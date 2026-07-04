@@ -105,6 +105,23 @@
       "fileMatch": ["action.yml", "**/action.yml", "action.yaml", "**/action.yaml"]
     },
     {
+      "name": "github-workflow",
+      "description": ".github/workflows/*.yml (GitHub Actions workflow-файли)",
+      "url": "vendor/github-workflow.json",
+      "fileMatch": [
+        ".github/workflows/*.yml",
+        "**/.github/workflows/*.yml",
+        ".github/workflows/*.yaml",
+        "**/.github/workflows/*.yaml"
+      ]
+    },
+    {
+      "name": "zizmor",
+      "description": ".github/zizmor.yml (конфігурація zizmor — статичний аналізатор GitHub Actions)",
+      "url": "vendor/zizmor.json",
+      "fileMatch": [".github/zizmor.yml", "**/.github/zizmor.yml", ".github/zizmor.yaml", "**/.github/zizmor.yaml"]
+    },
+    {
       "name": "bunfig",
       "description": "bunfig.toml (конфігурація Bun runtime)",
       "url": "vendor/bunfig.json",

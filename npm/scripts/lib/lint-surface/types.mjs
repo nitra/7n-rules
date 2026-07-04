@@ -19,6 +19,8 @@
  *   власний `template/`); runner заповнює, detector зазвичай не потребує
  * @property {string[]} [files] posix-relative файли від `cwd` для per-file запуску;
  *   `undefined` означає whole-repo
+ * @property {boolean} [verbose] `--verbose` CLI-прапорець; concern-и із зовнішніми
+ *   інструментами (напр. `ga/workflows`) звіряються з ним, щоб не засмічувати прогрес-бар `lint --full`
  */
 
 /**
