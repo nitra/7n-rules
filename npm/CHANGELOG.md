@@ -1,5 +1,12 @@
 # Changelog
 
+## [14.6.0] - 2026-07-04
+
+### Changed
+
+- rust-cache required for all rust-toolchain CI jobs, not only lint
+- Додано підтримку PI CLI та оновлено схеми для GitHub Actions та zizmor
+
 ## [14.5.0] - 2026-07-03
 
 ### Added

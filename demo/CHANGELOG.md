@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.7] - 2026-07-04
+
+### Changed
+
+- ADR_HOOKS_SKIP
+
 ## [0.0.6] - 2026-07-03
 
 ### Fixed
