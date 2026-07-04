@@ -10,6 +10,7 @@ resource: npm/lib/
 | ----------------------------------------------- | --------- |
 | [pi-agent-fix.mjs](pi-agent-fix.md)             | JS Module |
 | [pi-agent-skill.mjs](pi-agent-skill.md)         | JS Module |
+| [pi-memory-guard.mjs](pi-memory-guard.md)       | JS Module |
 | [pi-model-tiers.mjs](pi-model-tiers.md)         | JS Module |
 | [pi-one-shot.mjs](pi-one-shot.md)               | JS Module |
 | [pi-telemetry-store.mjs](pi-telemetry-store.md) | JS Module |

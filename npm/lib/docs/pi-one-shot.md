@@ -3,7 +3,7 @@ type: JS Module
 title: pi-one-shot.mjs
 resource: npm/lib/pi-one-shot.mjs
 docgen:
-  crc: ad10c580
+  crc: b24229ee
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

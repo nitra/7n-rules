@@ -16,6 +16,9 @@
  * verdict-recheck і за провалу кличе `rollback()` (clean-slate per rung).
  *
  * Pi вантажиться lazy (тверда межа CI). Логіка інжектована через `deps` для unit-тестів.
+ *
+ * Виняток — memory-guard rejection локального model-сервера ([pi-memory-guard]):
+ * друк fix-промпту в stdout і негайний `process.exit(1)` замість structured error.
  */
 
 import { env } from 'node:process'
@@ -23,6 +26,7 @@ import { homedir } from 'node:os'
 import { resolve } from 'node:path'
 import { getRegistry, resolveModelSpec, thinkingLevelForTier } from './pi-model-tiers.mjs'
 import { createWriteGuard, gitRoot } from './pi-write-guard.mjs'
+import { failOnMemoryGuard } from './pi-memory-guard.mjs'
 import { writeTrace } from './pi-trace.mjs'
 import { withTimeout } from './pi-with-timeout.mjs'
 import { extractContext } from '../scripts/utils/ast-extract.mjs'
@@ -237,6 +241,7 @@ export async function runPiAgentFix(ruleId, violation, cwd, opts = {}) {
     await withTimeout(session.prompt(fixPrompt), timeoutMs, { onTimeout: () => session.abort?.(), label: 'fix' })
   } catch (promptError) {
     error = promptError.message
+    failOnMemoryGuard(error, fixPrompt)
   }
 
   const touchedFiles = guard.touchedFiles()

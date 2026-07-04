@@ -12,9 +12,14 @@
  *
  * Замінює `callLlm`/прямий omlx-канал для не-agent задач. Pi вантажиться lazy
  * (тверда межа CI). Повертає structured `{ content, usage, error, model, caller }`.
+ *
+ * Виняток — memory-guard rejection локального model-сервера (нема RAM на prefill):
+ * не structured-error-повернення, а негайний друк тіла запиту в stdout і
+ * `process.exit(1)` — ретраїти нема куди, RAM-стеля фіксована.
  */
 
 import { getRegistry, resolveModel, resolveModelSpec } from './pi-model-tiers.mjs'
+import { failOnMemoryGuard } from './pi-memory-guard.mjs'
 import { writeTrace } from './pi-trace.mjs'
 import { withTimeout } from './pi-with-timeout.mjs'
 
@@ -118,6 +123,7 @@ export async function runOneShot({
     await withTimeout(session.prompt(userText), timeoutMs, { label: 'one-shot' })
   } catch (error) {
     promptError = error.message
+    failOnMemoryGuard(promptError, userText)
   }
 
   trace({ caller, backend: 'pi-ai', kind: 'one-shot', model: spec, cwd: cwd ?? null, usage, error: promptError })

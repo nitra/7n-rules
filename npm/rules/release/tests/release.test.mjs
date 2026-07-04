@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -259,10 +259,9 @@ describe('release', () => {
 describe('runReleaseCli', () => {
   test('повертає 0 і логує повідомлення коли немає змін (lines 124-126, 130)', async () => {
     const logs = []
-    const origLog = console.log
-    console.log = (...args) => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((...args) => {
       logs.push(args.join(' '))
-    }
+    })
     try {
       await withTmpDir(async dir => {
         await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.0.0', files: ['CHANGELOG.md'] })
@@ -272,16 +271,15 @@ describe('runReleaseCli', () => {
         expect(logs.join('\n')).toContain('немає змін')
       })
     } finally {
-      console.log = origLog
+      logSpy.mockRestore()
     }
   })
 
   test('повертає 1 і логує помилку коли release() кидає (lines 131-133)', async () => {
     const errs = []
-    const origErr = console.error
-    console.error = (...args) => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation((...args) => {
       errs.push(args.join(' '))
-    }
+    })
     try {
       await withTmpDir(async dir => {
         // pyproject.toml з одинарними лапками → writeManifestVersion кидає
@@ -303,7 +301,7 @@ describe('runReleaseCli', () => {
         expect(code).toBe(1)
       })
     } finally {
-      console.error = origErr
+      errorSpy.mockRestore()
     }
     expect(errs.join('\n')).toContain('патерн version не знайдено')
   })

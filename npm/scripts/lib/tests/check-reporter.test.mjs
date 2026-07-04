@@ -6,10 +6,8 @@ import { afterEach, describe, expect, vi, test } from 'vitest'
 import { createCheckReporter } from '../check-reporter.mjs'
 
 describe('createCheckReporter', () => {
-  const originalLog = console.log
-
   afterEach(() => {
-    console.log = originalLog
+    vi.restoreAllMocks()
   })
 
   test('getExitCode 0 доки не було fail', () => {
@@ -20,7 +18,7 @@ describe('createCheckReporter', () => {
 
   test('після fail getExitCode 1 і друкується ❌', () => {
     const lines = []
-    console.log = vi.fn((...args) => {
+    vi.spyOn(console, 'log').mockImplementation((...args) => {
       lines.push(args.join(' '))
     })
     const r = createCheckReporter()

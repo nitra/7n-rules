@@ -8,7 +8,7 @@
  * (відсутній `uv` → zizmor просто пропускається, 127 → skip без violation). Тести на ці коди
  * прибрані разом із `runLintGaCli`.
  */
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -30,18 +30,16 @@ async function lintWithIsolatedPath(cwd) {
   const prevNoInstall = env['N_CURSOR_NO_AUTO_INSTALL']
   env.PATH = isolatedDir
   env['N_CURSOR_NO_AUTO_INSTALL'] = '1'
-  const origErr = console.error
-  const origLog = console.log
-  console.error = vi.spyOn(console, 'error').mockReturnValue()
-  console.log = vi.spyOn(console, 'log').mockReturnValue()
+  const errorSpy = vi.spyOn(console, 'error').mockReturnValue()
+  const logSpy = vi.spyOn(console, 'log').mockReturnValue()
   let caughtError
   try {
     await lint({ cwd, ruleId: 'ga', concernId: 'workflows', files: undefined })
   } catch (error) {
     caughtError = error
   } finally {
-    console.error = origErr
-    console.log = origLog
+    errorSpy.mockRestore()
+    logSpy.mockRestore()
     if (prevPath === undefined) {
       delete env.PATH
     } else {

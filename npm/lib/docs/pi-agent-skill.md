@@ -3,7 +3,7 @@ type: JS Module
 title: pi-agent-skill.mjs
 resource: npm/lib/pi-agent-skill.mjs
 docgen:
-  crc: b0c9a73f
+  crc: 6bf4c832
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99

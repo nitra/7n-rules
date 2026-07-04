@@ -13,10 +13,14 @@
  * глобальний trace ([pi-trace]).
  *
  * Pi вантажиться lazy (тверда межа CI). Логіка інжектована через `deps` для unit-тестів.
+ *
+ * Виняток — memory-guard rejection локального model-сервера ([pi-memory-guard]):
+ * друк скіл-промпту в stdout і негайний `process.exit(1)` замість structured error.
  */
 
 import { env, stdout } from 'node:process'
 import { getRegistry, resolveModel, resolveModelSpec } from './pi-model-tiers.mjs'
+import { failOnMemoryGuard } from './pi-memory-guard.mjs'
 import { writeTrace } from './pi-trace.mjs'
 import { withTimeout } from './pi-with-timeout.mjs'
 
@@ -146,6 +150,7 @@ export async function runPiAgentSkill(prompt, opts = {}) {
     await withTimeout(session.prompt(prompt), timeoutMs, { onTimeout: () => session.abort?.(), label: 'skill' })
   } catch (promptError) {
     error = promptError.message
+    failOnMemoryGuard(error, prompt)
   }
 
   const telemetry = {

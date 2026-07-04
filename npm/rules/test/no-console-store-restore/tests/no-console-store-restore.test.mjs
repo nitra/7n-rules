@@ -12,8 +12,7 @@ import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 const run = dir => lint({ cwd: dir, ruleId: 'test', concernId: 'no-console-store-restore', files: undefined })
 
-// Зібрано через join, щоб у source не зустрічався точний паттерн присвоєння
-// `console.log =` — інакше сам сканер прапорив би цей тестовий файл.
+// Зібрано через join, щоб у source не було дослівного assignment-патерну.
 const CON_ASSIGN = ['console.lo', 'g ='].join('')
 const CON_ERR_ASSIGN = ['console.err', 'or ='].join('')
 const CON_WARN_ASSIGN = ['console.wa', 'rn ='].join('')

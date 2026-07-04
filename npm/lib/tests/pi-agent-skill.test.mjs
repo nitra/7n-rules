@@ -11,10 +11,11 @@ const registry = { find: (p, id) => ({ provider: p, id }) }
 
 const RE_NOT_FOUND = /не знайдена/
 
-/** No-op placeholder для subscribe-хендлера до реєстрації. */
-const noop = () => {
-  /* no-op */
-}
+/**
+ * No-op placeholder для subscribe-хендлера до реєстрації.
+ * @returns {null} маркер відсутньої дії
+ */
+const noop = () => null
 
 /**
  * Fake pi-сесія: драйвить задані події у subscribe-хендлер і (опц.) кидає у prompt.
@@ -118,6 +119,21 @@ describe('runPiAgentSkill', () => {
     expect(abort).toHaveBeenCalled()
     expect(r.telemetry.backstopHit).toBe(true)
     expect(r.ok).toBe(false)
+  })
+
+  test('memory-guard rejection → друкує скіл-промпт у stdout і кидає Error', async () => {
+    const memoryMsg = 'Prefill would require ~12.32 GB peak but metal_cap ceiling is 11.84 GB.'
+    const { session } = fakeSession({ events: [{ type: 'turn_start' }], promptError: memoryMsg })
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => null)
+
+    await expect(
+      runPiAgentSkill('PROMPT', {
+        skillId: 's',
+        deps: { registry, createSession: () => Promise.resolve(session), trace: vi.fn() }
+      })
+    ).rejects.toThrow('omlx memory-guard')
+
+    expect(logSpy).toHaveBeenCalledWith('PROMPT')
   })
 
   test('модель не знайдена (modelSpec непорожній, registry → null) → error', async () => {

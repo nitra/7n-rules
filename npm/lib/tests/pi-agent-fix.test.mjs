@@ -20,10 +20,11 @@ const RE_FAIL_CLOSED = /fail-closed/
 
 const registry = { find: (p, id) => ({ provider: p, id }) }
 
-/** No-op placeholder для subscribe-хендлера до реєстрації. */
-const noop = () => {
-  /* no-op */
-}
+/**
+ * No-op placeholder для subscribe-хендлера до реєстрації.
+ * @returns {null} маркер відсутньої дії
+ */
+const noop = () => null
 
 /**
  * Fake pi-сесія, що приєднує guard через factory і драйвить події + один edit.
@@ -110,13 +111,9 @@ describe('error-шляхи (без git/pi)', () => {
   test('fail-closed canary: factory не викликана → fix скасовано', async () => {
     const createSession = vi.fn(() =>
       Promise.resolve({
-        subscribe() {
-          /* no-op */
-        },
+        subscribe: vi.fn(),
         prompt: () => Promise.resolve(),
-        abort() {
-          /* no-op */
-        }
+        abort: vi.fn()
       })
     )
     const r = await runPiAgentFix('r', 'v', '/tmp', {
@@ -167,5 +164,23 @@ describe('happy-path (справжній write-guard на temp git-репо)', (
     })
     expect(r.error).toBe('boom')
     expect(r.touchedFiles).toContain(join(dir, 'src.mjs'))
+  })
+
+  test('memory-guard rejection → друкує fix-промпт у stdout і кидає Error', async () => {
+    const memoryMsg = 'Prefill would require ~12.32 GB peak but metal_cap ceiling is 11.84 GB.'
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => null)
+
+    try {
+      await expect(
+        runPiAgentFix('n-ci4', '❌ v', dir, {
+          model: 'omlx/gemma',
+          deps: { root: dir, registry, createSession: fakeCreate({ promptError: memoryMsg }), trace: vi.fn() }
+        })
+      ).rejects.toThrow('omlx memory-guard')
+
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Виправ порушення правила "n-ci4"'))
+    } finally {
+      logSpy.mockRestore()
+    }
   })
 })

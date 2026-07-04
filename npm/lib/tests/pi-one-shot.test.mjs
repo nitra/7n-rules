@@ -11,10 +11,11 @@ const RE_NOT_FOUND = /не знайдена/
 const RE_TIMEOUT = /timeout/
 const RE_REGISTRY_ERR = /registry: no reg/
 
-/** No-op placeholder для subscribe-хендлера до реєстрації. */
-const noop = () => {
-  /* no-op */
-}
+/**
+ * No-op placeholder для subscribe-хендлера до реєстрації.
+ * @returns {null} маркер відсутньої дії
+ */
+const noop = () => null
 
 /**
  * Fake AgentSession: емітить text_delta + message_end, опційно кидає/затримує.
@@ -107,6 +108,26 @@ describe('runOneShot', () => {
       deps
     })
     expect(r.error).toMatch(RE_TIMEOUT)
+  })
+
+  test('memory-guard rejection → друкує тіло запиту в stdout і кидає Error, без structured error', async () => {
+    const memoryMsg = 'Prefill would require ~12.32 GB peak but metal_cap ceiling is 11.84 GB.'
+    const deps = baseDeps(fakeSession({ deltas: [], promptError: memoryMsg }))
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => null)
+
+    try {
+      await expect(
+        runOneShot({
+          messages: [{ role: 'user', content: 'Summarize this huge source file...' }],
+          modelSpec: 'omlx/x',
+          deps
+        })
+      ).rejects.toThrow('omlx memory-guard')
+
+      expect(logSpy).toHaveBeenCalledWith('Summarize this huge source file...')
+    } finally {
+      logSpy.mockRestore()
+    }
   })
 
   test('registry кидає → error', async () => {
