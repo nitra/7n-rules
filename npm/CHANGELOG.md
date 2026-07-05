@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.8.3] - 2026-07-05
+
+### Changed
+
+- npm-module/npm_publish_yml: шаблон npm-publish.yml переведено на hardened push-auth патерн (checkout з persist-credentials: false + крок «Configure git identity + push auth» із job-scoped GITHUB_TOKEN через git remote set-url)
+
 ## [14.8.2] - 2026-07-05
 
 ### Changed

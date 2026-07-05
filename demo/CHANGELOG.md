@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.8] - 2026-07-05
+
+### Changed
+
+- chore(demo): оновлено vite ^8.0.16 → ^8.1.3 (вимога vue/package_json ≥ 8.1)
+
 ## [0.0.7] - 2026-07-04
 
 ### Changed
