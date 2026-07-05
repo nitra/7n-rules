@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.9.2] - 2026-07-05
+
+### Changed
+
+- rule_meta: rule-level main.json.llmFix скасовано — заборона залишкового поля (fix-можливість концерну = наявність `fix-*.mjs`/`fix-worker.mjs`, канон scripts.mdc); поле llmFix прибрано зі схеми rule-meta.json і з main.json правил doc-files/text; text/cspell-fix: мертву inline LLM-гілку `runCspellText` видалено (класифікація живе у fix-worker.mjs, Central Runner Pipeline), сигнатура спрощена до `(cwd, files)`
+
 ## [14.9.1] - 2026-07-05
 
 ### Fixed
