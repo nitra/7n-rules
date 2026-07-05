@@ -40,7 +40,13 @@ export async function lint(ctx) {
   }
 
   for (const file of offenders) {
-    fail(`${file}: down.sql заборонений у ${MIGRATIONS_REL}/ — у директорії міграції має бути лише up.sql (hasura.mdc)`)
+    fail(
+      `${file}: down.sql заборонений у ${MIGRATIONS_REL}/ — у директорії міграції має бути лише up.sql (hasura.mdc)`,
+      {
+        file,
+        reason: 'down-sql-forbidden'
+      }
+    )
   }
 
   return reporter.result()

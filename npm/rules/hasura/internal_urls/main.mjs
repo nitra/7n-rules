@@ -18,7 +18,8 @@ const HASURA_SVC_HL_FILE = `${HASURA_BASE_DIR}/svc-hl.yaml`
 const HASURA_NAMESPACE_FILE = `${HASURA_BASE_DIR}/namespace.yaml`
 
 const ENV_FILE_RE = /\.env$/u
-const HASURA_ENDPOINT_LINE_RE = /^[ \t]*(?:export[ \t]+)?HASURA_GRAPHQL_ENDPOINT[ \t]*=[ \t]*['"]?([^'"\r\n#]+)/mu
+export const HASURA_ENDPOINT_LINE_RE =
+  /^[ \t]*(?:export[ \t]+)?HASURA_GRAPHQL_ENDPOINT[ \t]*=[ \t]*['"]?([^'"\r\n#]+)/mu
 // Дозволяємо лише DNS-суфікс кластера `<name>.internal` (GKE/GCP).
 const INTERNAL_HASURA_URL_RE = /^http:\/\/([^./]+)\.([^./]+)\.svc\.([^./:]+\.internal):(\d+)\/?$/u
 const INTERNAL_DNS_SUFFIX = '.internal'
@@ -122,23 +123,26 @@ async function checkEnvFile(relPath, cwd, expected, reporter) {
   const value = m[1].trim()
   const parsed = parseInternalHasuraEndpoint(value)
   if (!parsed.ok) {
-    const example = 'https://<service>.<namespace>.svc.<cluster>.internal:<port>'
+    const example = 'http://<service>.<namespace>.svc.<cluster>.internal:<port>'
     fail(
-      `${relPath}: HASURA_GRAPHQL_ENDPOINT="${value}" — потрібен внутрішній кластерний URL виду ${example} (hasura.mdc)`
+      `${relPath}: HASURA_GRAPHQL_ENDPOINT="${value}" — потрібен внутрішній кластерний URL виду ${example} (hasura.mdc)`,
+      { file: relPath, reason: 'internal-url-invalid' }
     )
     return
   }
   if (expected.service && parsed.service !== expected.service) {
     fail(
       `${relPath}: HASURA_GRAPHQL_ENDPOINT — сервіс "${parsed.service}" не збігається з ` +
-        `metadata.name "${expected.service}" із ${HASURA_SVC_HL_FILE} (hasura.mdc)`
+        `metadata.name "${expected.service}" із ${HASURA_SVC_HL_FILE} (hasura.mdc)`,
+      { file: relPath, reason: 'internal-url-service-mismatch' }
     )
     return
   }
   if (expected.namespace && parsed.namespace !== expected.namespace) {
     fail(
       `${relPath}: HASURA_GRAPHQL_ENDPOINT — namespace "${parsed.namespace}" не збігається з ` +
-        `metadata.name "${expected.namespace}" із ${HASURA_NAMESPACE_FILE} (hasura.mdc)`
+        `metadata.name "${expected.namespace}" із ${HASURA_NAMESPACE_FILE} (hasura.mdc)`,
+      { file: relPath, reason: 'internal-url-namespace-mismatch' }
     )
     return
   }
@@ -177,6 +181,19 @@ export function isNitraOrAbieRepository(url) {
 }
 
 /**
+ * Обчислює очікувані `service`/`namespace` з `hasura/k8s/base/{svc-hl,namespace}.yaml`.
+ * Використовується і детектором, і T0-фіксом (щоб не дублювати YAML-читання).
+ * @param {string} root корінь репозиторію
+ * @returns {Promise<{ service: string | null, namespace: string | null }>} очікувані сегменти URL
+ */
+export async function computeExpectedEndpointSegments(root) {
+  return {
+    service: await readYamlMetadataName(join(root, HASURA_SVC_HL_FILE), 'Service'),
+    namespace: await readYamlMetadataName(join(root, HASURA_NAMESPACE_FILE), 'Namespace')
+  }
+}
+
+/**
  * Перевіряє hasura.mdc для поточного робочого каталогу.
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
  * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} Результат лінту зі списком violations.
@@ -193,10 +210,7 @@ export async function lint(ctx) {
   }
 
   const root = cwd
-  const expected = {
-    service: await readYamlMetadataName(join(root, HASURA_SVC_HL_FILE), 'Service'),
-    namespace: await readYamlMetadataName(join(root, HASURA_NAMESPACE_FILE), 'Namespace')
-  }
+  const expected = await computeExpectedEndpointSegments(root)
 
   const ignorePaths = await loadCursorIgnorePaths(root)
   const envFiles = await collectEnvFiles(root, ignorePaths)

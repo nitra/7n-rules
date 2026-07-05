@@ -2,13 +2,13 @@
 
 /**
  * T0-autofix для `rust/check` — детермінований `cargo fmt --all`, що його read-only детектор
- * виконує лише з `--check`. Виправляє форматування Rust-коду перед LLM-ладдером. clippy не
- * автофіксимо (його `--fix` потенційно небезпечний); deny.toml-генерація — окремо. Запис
- * permanent. Відсутній `cargo` → no-op.
+ * виконує лише з `--check`, плюс канонічна генерація `deny.toml` через `cargo deny init`
+ * (`deny-config-missing`). clippy не автофіксимо (його `--fix` потенційно небезпечний) — ці
+ * порушення й далі йдуть у LLM-ladder. Запис permanent. Відсутній `cargo`/`cargo-deny` → no-op.
  */
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 
@@ -57,6 +57,23 @@ export const patterns = [
       return touchedFiles.length > 0
         ? { touchedFiles, message: `cargo fmt: ${touchedFiles.length} файл(ів)` }
         : { touchedFiles: [] }
+    }
+  },
+  {
+    id: 'rust-cargo-deny-init',
+    test: violations => violations.some(v => v.reason === 'deny-config-missing'),
+    apply: (violations, ctx) => {
+      const cargo = resolveCmd('cargo')
+      if (!cargo) return { touchedFiles: [] }
+      const hasDeny = spawnSync(cargo, ['deny', '--version'], { stdio: 'ignore', shell: false }).status === 0
+      if (!hasDeny) return { touchedFiles: [] }
+
+      const denyConfigPath = join(ctx.cwd, 'deny.toml')
+      spawnSync(cargo, ['deny', 'init'], { cwd: ctx.cwd, encoding: 'utf8', shell: false })
+      if (!existsSync(denyConfigPath)) return { touchedFiles: [] }
+
+      ctx.recordWrite?.(denyConfigPath)
+      return { touchedFiles: [denyConfigPath], message: 'cargo deny init: deny.toml' }
     }
   }
 ]
