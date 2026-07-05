@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.8.7] - 2026-07-05
+
+### Changed
+
+- rule_meta: rule-level main.json.lint скасовано — заборона залишкового поля (lint-scope декларується у `<concern>/concern.json#lint`); прибрано parseRuleLintSpec і поле lint зі схеми rule-meta.json; поле lint видалено з main.json 14 правил
+
 ## [14.8.6] - 2026-07-05
 
 ### Fixed
