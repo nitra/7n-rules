@@ -3,7 +3,7 @@ type: JS Module
 title: run-fix.mjs
 resource: npm/scripts/lib/lint-surface/run-fix.mjs
 docgen:
-  crc: af932d7c
+  crc: d11cfe0c
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 
@@ -16,6 +16,7 @@ docgen:
 Поведінка:
 fixConcern застосовує детерміновані патерни (T0), а потім, якщо це можливо, послідовно виконує ланцюжок фікс-операцій (ladder) для виявлення та усунення порушень певного concern-а.
 runFixPipeline керує повним циклом виправлення: він детектирує всі порушення, застосовує виправлення для кожного знайденого concern-а через `fixConcern`, і виводить фінальний звіт про нездоланні порушення.
+Semantic-collateral veto (spec pi-fix-engine-migration §12, addendum 2026-07-05): clean-вердикт rung-а не приймається, якщо rung змінив наявні файли поза target-set порушення (`violations[].file ∪ item.files`, звірка через `collateral-veto.mjs` за `snapshot.modifiedExisting()`); наслідок — rollback S1, `🚫`-лог, feedback наступному rung-у й телеметрія `kind:"collateral-veto"` у глобальний llm-trace. Нові файли дозволені; порожній target-set → veto незастосовний (fail-open).
 
 ## Публічний API
 
@@ -24,4 +25,4 @@ runFixPipeline — Запускає повний цикл виправлення
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
+- Сам не редагує кодові файли (мутації роблять T0/worker); пише лише телеметрію collateral-veto у глобальний llm-trace (best-effort, ніколи не валить прогін).

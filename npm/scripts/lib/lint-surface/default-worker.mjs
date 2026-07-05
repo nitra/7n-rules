@@ -8,23 +8,28 @@
  * один attempt; success визначає canonical re-detect runner-а, не сам worker.
  * @typedef {import('./types.mjs').FixWorkerFn} FixWorkerFn
  */
+import { resolve } from 'node:path'
+
 import { renderViolations } from './render.mjs'
 
 /** @type {FixWorkerFn} */
 export async function fixWorker(violations, ctx) {
   // lazy import — тримає detect-шлях вільним від pi/oxc (read-only --no-fix не вантажить їх).
-  const [{ runAgentFix }, { extractContext }, { resolve }] = await Promise.all([
+  const [{ runAgentFix }, { extractContext }] = await Promise.all([
     import('@nitra/llm-lib/agent-fix'),
-    import('../../utils/ast-extract.mjs'),
-    import('node:path')
+    import('../../utils/ast-extract.mjs')
   ])
   const violationText = renderViolations(violations)
+  // Target-set порушення → явний перелік у промпті (semantic-collateral guard §12,
+  // addendum 2026-07-05); verdict-veto runner-а звіряє фактичні правки з тим самим набором.
+  const targetFiles = [...new Set(violations.map(v => v.file).filter(Boolean))]
   const res = await runAgentFix(ctx.ruleId, violationText, ctx.cwd, {
     model: ctx.model,
     tier: ctx.tier,
     feedback: ctx.feedback ?? null,
     caller: `fix:${ctx.ruleId}/${ctx.concernId}:${ctx.tier}`,
     recordWrite: ctx.recordWrite,
+    targetFiles,
     // n-cursor-специфічний AST-екстрактор (oxc) — пакет цього дефолту не має.
     deps: { astContext: p => extractContext(resolve(ctx.cwd, p)) }
   })
