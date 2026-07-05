@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url'
 import {
   ADR_GITIGNORE_SNIPPET_REL,
   ADR_HOOK_COMMAND_MARKER,
+  LEGACY_POST_TOOL_USE_FIX_HOOK_COMMAND_MARKER,
   LEGACY_STOP_HOOK_COMMAND_MARKER,
   MANAGED_HOOK_COMMAND_MARKER,
   mergeAllowList,
@@ -207,6 +208,37 @@ describe('mergeHooks', () => {
   test('LEGACY_STOP_HOOK_COMMAND_MARKER експортовано як константа', () => {
     expect(LEGACY_STOP_HOOK_COMMAND_MARKER).toBe('@nitra/cursor stop-hook')
   })
+
+  test('LEGACY_POST_TOOL_USE_FIX_HOOK_COMMAND_MARKER експортовано як константа', () => {
+    expect(LEGACY_POST_TOOL_USE_FIX_HOOK_COMMAND_MARKER).toBe('@nitra/cursor post-tool-use-fix')
+  })
+
+  test('legacy мутуюча група `post-tool-use-fix` видаляється, лишається лише detect-only з темплейту', () => {
+    // Сценарій nitra/task: стара fix-група лежить поруч із новою detect-only після попереднього ресинку
+    const existing = {
+      PostToolUse: [
+        {
+          matcher: 'Edit|Write|MultiEdit',
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-fix', timeout: 300 }]
+        },
+        {
+          matcher: 'Edit|Write|MultiEdit',
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use', timeout: 300 }]
+        }
+      ]
+    }
+    const fromTemplate = {
+      PostToolUse: [
+        {
+          matcher: 'Edit|Write|MultiEdit',
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use', timeout: 300 }]
+        }
+      ]
+    }
+    const merged = mergeHooks(existing, fromTemplate)
+    expect(merged.PostToolUse).toHaveLength(1)
+    expect(merged.PostToolUse[0].hooks[0].command).toBe('npx --no @nitra/cursor hook --post-tool-use')
+  })
 })
 
 describe('mergeSettings', () => {
@@ -225,6 +257,32 @@ describe('mergeSettings', () => {
     const merged = mergeSettings(existing, template)
     expect(merged.permissions?.allow).toEqual(['x', 'z'])
     expect(merged.permissions?.deny).toEqual(['y'])
+  })
+
+  test('прибирає legacy `post-tool-use-fix` групу при ресинку на detect-only hook', () => {
+    const existing = {
+      hooks: {
+        PostToolUse: [
+          {
+            matcher: 'Edit|Write|MultiEdit',
+            hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-fix', timeout: 300 }]
+          }
+        ]
+      }
+    }
+    const template = {
+      hooks: {
+        PostToolUse: [
+          {
+            matcher: 'Edit|Write|MultiEdit',
+            hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use', timeout: 300 }]
+          }
+        ]
+      }
+    }
+    const merged = mergeSettings(existing, template)
+    expect(merged.hooks?.PostToolUse).toHaveLength(1)
+    expect(merged.hooks?.PostToolUse?.[0].hooks[0].command).toBe('npx --no @nitra/cursor hook --post-tool-use')
   })
 })
 

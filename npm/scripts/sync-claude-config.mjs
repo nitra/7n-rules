@@ -34,6 +34,8 @@ import { join } from 'node:path'
 export const MANAGED_HOOK_COMMAND_MARKER = '@nitra/cursor hook'
 /** @deprecated — замінено на `hook --post-tool-use`; маркер лишається для cleanup наявних конфігів при ресинку. */
 export const LEGACY_POST_TOOL_USE_HOOK_COMMAND_MARKER = '@nitra/cursor post-tool-use-check'
+/** @deprecated — ще старіша мутуюча PostToolUse-команда (`post-tool-use-fix`); маркер лишається для cleanup наявних конфігів при ресинку. */
+export const LEGACY_POST_TOOL_USE_FIX_HOOK_COMMAND_MARKER = '@nitra/cursor post-tool-use-fix'
 /** @deprecated — doc-files hook перенесено до `hook --post-tool-use`; маркер лишається для cleanup наявних конфігів при ресинку. */
 export const DOC_FILES_HOOK_COMMAND_MARKER = '@nitra/cursor lint-doc-files'
 /** @deprecated — ще старіший legacy-маркер doc-files hook'ів (`doc-files check`) — cleanup при ресинку. */
@@ -55,6 +57,7 @@ export const CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER = '.claude/hooks/normalize
 export const MANAGED_HOOK_COMMAND_MARKERS = Object.freeze([
   MANAGED_HOOK_COMMAND_MARKER,
   LEGACY_POST_TOOL_USE_HOOK_COMMAND_MARKER,
+  LEGACY_POST_TOOL_USE_FIX_HOOK_COMMAND_MARKER,
   DOC_FILES_HOOK_COMMAND_MARKER,
   LEGACY_DOC_FILES_HOOK_COMMAND_MARKER,
   LEGACY_STOP_HOOK_COMMAND_MARKER,
