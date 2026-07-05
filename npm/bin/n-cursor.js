@@ -1492,116 +1492,153 @@ function describeRootGuardedAction(cmd) {
   }
 }
 
+/**
+ * Довідка для `n-cursor lint --help`: прапори unified lint surface
+ * (spec 2026-06-29 fix-by-default, spec 2026-07-03 глобальна черга --full).
+ */
+function printLintHelp() {
+  console.log(`Використання: npx @nitra/cursor lint [rule|concern ...] [прапори]
+
+За замовчуванням лінт іде дельтою (змінені файли vs origin) і одразу
+виправляє (auto-fix: oxfmt/eslint --fix/stylelint --fix + LLM-ladder).
+
+Прапори:
+  --full          Прогін по всьому репозиторію (конформність), не лише дельта.
+                  Один --full на машину: паралельні запуски стають у чергу
+                  й бачать живий прогрес активного прогону.
+  --no-fix        Лише детекція, без мутацій (аліас: --read-only).
+  --cwd <path>    Робочий каталог замість поточного.
+  --verbose       Розширений вивід детекції та виправлення.
+  --help, -h      Ця довідка.
+
+Позиційні аргументи — фільтр за назвою правила чи concern, наприклад:
+  npx @nitra/cursor lint ga rego k8s docker text
+
+Приклади:
+  npx @nitra/cursor lint
+  npx @nitra/cursor lint --full
+  npx @nitra/cursor lint --no-fix eslint
+  npx @nitra/cursor lint --cwd ./packages/foo --verbose
+`)
+}
+
 // CLI: маршрутизація команд
 const [command, ...args] = process.argv.slice(2)
+// `lint --help`/`-h` — чиста довідка, без root-guard і без мутації devDependencies.
+const isLintHelp = command === 'lint' && (args.includes('--help') || args.includes('-h'))
 
 try {
-  // Root-guard до перших мутацій: дефолтний sync скаффолдить .cursor/.claude/CLAUDE.md/
-  // .n-cursor.json + bun install, а lint/release переписують файли в CWD —
-  // усе це ключиться на cwd(). Запуск із піддиректорії git-репо (типово прямий
-  // `bun npm/bin/n-cursor.js` не з кореня) зачепив би не той каталог → STOP. Read-only та
-  // `--root`-команди (doc-aggregate, rename-yaml-extensions) не зачіпаємо.
-  if (ROOT_GUARDED_COMMANDS.has(command)) {
-    assertCwdIsProjectRoot(cwd(), describeRootGuardedAction(command))
-  }
-  await ensureNitraCursorInRootDevDependencies(cwd())
-  // Підкоманди-оркестратори (hook/lint/skill/adr-normalize-local/taze/release тощо)
-  // можуть спавнити внутрішню agent/LLM-сесію — ADR Stop-hooks (capture/normalize)
-  // мають пропустити її як технічний шум, не людську думку (spec 2026-06-30).
-  env.ADR_HOOKS_SKIP = '1'
-  switch (command) {
-    case 'rename-yaml-extensions': {
-      const code = await runRenameYamlExtensionsCli(args)
-      if (code !== 0) {
+  if (isLintHelp) {
+    printLintHelp()
+  } else {
+    // Root-guard до перших мутацій: дефолтний sync скаффолдить .cursor/.claude/CLAUDE.md/
+    // .n-cursor.json + bun install, а lint/release переписують файли в CWD —
+    // усе це ключиться на cwd(). Запуск із піддиректорії git-репо (типово прямий
+    // `bun npm/bin/n-cursor.js` не з кореня) зачепив би не той каталог → STOP. Read-only та
+    // `--root`-команди (doc-aggregate, rename-yaml-extensions) не зачіпаємо.
+    if (ROOT_GUARDED_COMMANDS.has(command)) {
+      assertCwdIsProjectRoot(cwd(), describeRootGuardedAction(command))
+    }
+    await ensureNitraCursorInRootDevDependencies(cwd())
+    // Підкоманди-оркестратори (hook/lint/skill/adr-normalize-local/taze/release тощо)
+    // можуть спавнити внутрішню agent/LLM-сесію — ADR Stop-hooks (capture/normalize)
+    // мають пропустити її як технічний шум, не людську думку (spec 2026-06-30).
+    env.ADR_HOOKS_SKIP = '1'
+    switch (command) {
+      case 'rename-yaml-extensions': {
+        const code = await runRenameYamlExtensionsCli(args)
+        if (code !== 0) {
+          process.exitCode = 1
+        }
+
+        break
+      }
+      case 'hook': {
+        // Thin hook entrypoint для Claude Code hooks. Делегує в runLint, перекодовує exit 1→2.
+        //   --post-tool-use  PostToolUse: file_path зі stdin JSON
+        //   --stop           Stop: робоче дерево vs HEAD
+        const { runHookCli } = await import('../scripts/hook.mjs')
+        process.exitCode = await runHookCli(args)
+
+        break
+      }
+      case 'lint': {
+        // Unified lint surface (spec 2026-06-29). Осі: --full (весь репо vs дельта) ×
+        // --no-fix (detect-only). Позиційні аргументи — scoped rule/concern фільтр.
+        // Fix-by-default: detect → T0 → LLM-ladder (run-fix). --no-fix: лише detect.
+        const cwdIdx = args.indexOf('--cwd')
+        const cwdArg = cwdIdx === -1 ? cwd() : resolve(args[cwdIdx + 1])
+        const rules = args.filter((a, i) => !a.startsWith('-') && !(cwdIdx !== -1 && i === cwdIdx + 1))
+        const lintOpts = { cwd: cwdArg, full: args.includes('--full'), rules, verbose: args.includes('--verbose') }
+        // --read-only — backward-compat alias на --no-fix (видалиться після міграції викликів).
+        const noFix = args.includes('--no-fix') || args.includes('--read-only')
+        // Глобальна черга full-прогонів (spec 2026-07-03): одночасно виконується один
+        // `lint --full` на машину, паралельні --full чекають лока і бачать чергу та
+        // живий прогрес активного прогону; не-full запуски йдуть без лока
+        // (див. lint-lock.mjs). Publisher пише знімки прогресу для черги.
+        const { withGlobalLintLock, createProgressPublisher } =
+          await import('../scripts/lib/lint-surface/lint-lock.mjs')
+        process.exitCode = await withGlobalLintLock({ ...lintOpts, noFix }, async () => {
+          const publisher = lintOpts.full ? createProgressPublisher() : null
+          const runOpts = publisher ? { ...lintOpts, onProgress: publisher.onUpdate } : lintOpts
+          try {
+            if (noFix) {
+              const { detectAll } = await import('../scripts/lib/lint-surface/run-detectors.mjs')
+              // окрема змінна замість (await detectAll(...)).exitCode — no-await-expression-member (oxlint)
+              const detectResult = await detectAll(runOpts)
+              return detectResult.exitCode
+            }
+            const { runFixPipeline } = await import('../scripts/lib/lint-surface/run-fix.mjs')
+            return await runFixPipeline(runOpts)
+          } finally {
+            publisher?.stop()
+          }
+        })
+
+        break
+      }
+      case 'taze': {
+        // n-cursor taze diff — read-only semver-diff package.json ↔ package.json.taze-bak
+        // (root + воркспейси) для скілу n-taze: скрипт класифікує major-оновлення,
+        // агент отримує готовий список замість ручного порівняння бекапів.
+        const { runTazeCli } = await import('../skills/taze/js/diff.mjs')
+        process.exitCode = await runTazeCli(args)
+
+        break
+      }
+      case 'release': {
+        const { runReleaseCli } = await import('../rules/release/release.mjs')
+        process.exitCode = await runReleaseCli(args)
+
+        break
+      }
+      case 'skill': {
+        process.exitCode = await runSkillsCli(args)
+
+        break
+      }
+      case 'adr-normalize-local': {
+        // Local-backend ADR-нормалізації: викликається з .claude/hooks/normalize-decisions.sh
+        // як заміна single-shot LLM-виклику. Проганяє конвеєр (retrieval→edge-judge→
+        // cluster→gen) на малій локальній моделі й друкує `{operations}` JSON у stdout.
+        const { runAdrNormalizeLocalCli } = await import('../scripts/lib/adr/normalize-cli.mjs')
+        process.exitCode = await runAdrNormalizeLocalCli(args)
+
+        break
+      }
+      case undefined:
+      case '': {
+        await runSync()
+
+        break
+      }
+      default: {
+        console.error(`❌ Невідома команда: ${command}`)
+        console.error(
+          `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), taze, release, skill, doc-aggregate`
+        )
         process.exitCode = 1
       }
-
-      break
-    }
-    case 'hook': {
-      // Thin hook entrypoint для Claude Code hooks. Делегує в runLint, перекодовує exit 1→2.
-      //   --post-tool-use  PostToolUse: file_path зі stdin JSON
-      //   --stop           Stop: робоче дерево vs HEAD
-      const { runHookCli } = await import('../scripts/hook.mjs')
-      process.exitCode = await runHookCli(args)
-
-      break
-    }
-    case 'lint': {
-      // Unified lint surface (spec 2026-06-29). Осі: --full (весь репо vs дельта) ×
-      // --no-fix (detect-only). Позиційні аргументи — scoped rule/concern фільтр.
-      // Fix-by-default: detect → T0 → LLM-ladder (run-fix). --no-fix: лише detect.
-      const cwdIdx = args.indexOf('--cwd')
-      const cwdArg = cwdIdx === -1 ? cwd() : resolve(args[cwdIdx + 1])
-      const rules = args.filter((a, i) => !a.startsWith('-') && !(cwdIdx !== -1 && i === cwdIdx + 1))
-      const lintOpts = { cwd: cwdArg, full: args.includes('--full'), rules, verbose: args.includes('--verbose') }
-      // --read-only — backward-compat alias на --no-fix (видалиться після міграції викликів).
-      const noFix = args.includes('--no-fix') || args.includes('--read-only')
-      // Глобальна черга full-прогонів (spec 2026-07-03): одночасно виконується один
-      // `lint --full` на машину, паралельні --full чекають лока і бачать чергу та
-      // живий прогрес активного прогону; не-full запуски йдуть без лока
-      // (див. lint-lock.mjs). Publisher пише знімки прогресу для черги.
-      const { withGlobalLintLock, createProgressPublisher } = await import('../scripts/lib/lint-surface/lint-lock.mjs')
-      process.exitCode = await withGlobalLintLock({ ...lintOpts, noFix }, async () => {
-        const publisher = lintOpts.full ? createProgressPublisher() : null
-        const runOpts = publisher ? { ...lintOpts, onProgress: publisher.onUpdate } : lintOpts
-        try {
-          if (noFix) {
-            const { detectAll } = await import('../scripts/lib/lint-surface/run-detectors.mjs')
-            // окрема змінна замість (await detectAll(...)).exitCode — no-await-expression-member (oxlint)
-            const detectResult = await detectAll(runOpts)
-            return detectResult.exitCode
-          }
-          const { runFixPipeline } = await import('../scripts/lib/lint-surface/run-fix.mjs')
-          return await runFixPipeline(runOpts)
-        } finally {
-          publisher?.stop()
-        }
-      })
-
-      break
-    }
-    case 'taze': {
-      // n-cursor taze diff — read-only semver-diff package.json ↔ package.json.taze-bak
-      // (root + воркспейси) для скілу n-taze: скрипт класифікує major-оновлення,
-      // агент отримує готовий список замість ручного порівняння бекапів.
-      const { runTazeCli } = await import('../skills/taze/js/diff.mjs')
-      process.exitCode = await runTazeCli(args)
-
-      break
-    }
-    case 'release': {
-      const { runReleaseCli } = await import('../rules/release/release.mjs')
-      process.exitCode = await runReleaseCli(args)
-
-      break
-    }
-    case 'skill': {
-      process.exitCode = await runSkillsCli(args)
-
-      break
-    }
-    case 'adr-normalize-local': {
-      // Local-backend ADR-нормалізації: викликається з .claude/hooks/normalize-decisions.sh
-      // як заміна single-shot LLM-виклику. Проганяє конвеєр (retrieval→edge-judge→
-      // cluster→gen) на малій локальній моделі й друкує `{operations}` JSON у stdout.
-      const { runAdrNormalizeLocalCli } = await import('../scripts/lib/adr/normalize-cli.mjs')
-      process.exitCode = await runAdrNormalizeLocalCli(args)
-
-      break
-    }
-    case undefined:
-    case '': {
-      await runSync()
-
-      break
-    }
-    default: {
-      console.error(`❌ Невідома команда: ${command}`)
-      console.error(
-        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), taze, release, skill, doc-aggregate`
-      )
-      process.exitCode = 1
     }
   }
 } catch (error) {

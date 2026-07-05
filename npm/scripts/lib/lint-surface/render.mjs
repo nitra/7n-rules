@@ -12,7 +12,7 @@
  */
 function formatViolation(v) {
   const mark = v.severity === 'warn' ? '⚠' : '❌'
-  const loc = v.file ? ` ${v.file}` : ''
+  const loc = v.file ? ` → ${v.file}` : ''
   return `  ${mark} ${v.ruleId}/${v.concernId}${loc} (${v.reason}): ${v.message}`
 }
 

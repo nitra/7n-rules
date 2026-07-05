@@ -3,9 +3,8 @@ type: JS Module
 title: render.mjs
 resource: npm/scripts/lib/lint-surface/render.mjs
 docgen:
-  crc: 4c335233
+  crc: 932ebe4d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.94
   judgeModel: openai-codex/gpt-5.4-mini

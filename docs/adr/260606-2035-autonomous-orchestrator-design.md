@@ -72,3 +72,12 @@ Chosen option: "послідовно в одному worktree", because `fix` і
 ## More Information
 - Агент у своєму worktree: `npx @nitra/cursor fix && npx @nitra/cursor lint`
 - Правило "без паралельних `eslint`-запусків" закріплено в кореневому `CLAUDE.md`
+
+## Update 2026-06-06
+
+- Публічний контракт skill має бути автономною CLI-командою: агент викликає `npx @nitra/cursor fix` і отримує exit `0` або `1`, а convergence-loop живе всередині CLI.
+- `meta.json` використовує ознаку `"orchestrator": true` для таких скілів.
+- `fix --json` прибрано з публічного API; внутрішня перевірка винесена в `_fix-check`, а `fix-run` лишається deprecated alias на `fix`.
+- LLM-tier оркестратора викликається через `pi -p "..." --no-session`, без прямої залежності від `ANTHROPIC_API_KEY`; моделі перемикаються через `N_CURSOR_FIX_MODEL_HAIKU` / `N_CURSOR_FIX_MODEL_SONNET`.
+- Якщо в `pi` не налаштовано provider, LLM-tier падає з `No API key found`; користувачу потрібен `pi /login`.
+- `fix` і `lint` виконуються послідовно в одному worktree, бо `fix` змінює конфіги, які потім має бачити `lint`; паралельні під-worktree створювали б конфлікти.

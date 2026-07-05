@@ -107,3 +107,29 @@ Implementation facts:
 - Pre-routing у `docgen-gen.mjs`: при complexity >= threshold і наявному cloud env викликається cloud path.
 - `npm/bin/**` додано до `DOCGEN_IGNORE_GLOBS` у `npm/skills/docgen/js/docgen-ignore.mjs`, commit `6436a901`.
 - Tier audit після виключення stryker/bin/tests: local `189` (78%), cloud `52` (22%).
+
+## Update 2026-06-06
+
+- Підтверджено поріг `sym ≥ 4` як pre-routing сигнал для docgen: transcript фіксує Pearson r = −0.651 між `sym` і якістю документації та split 78% local / 22% cloud на 241 файлі.
+- Відхилено LLM-суддю як основний quality gate: transcript фіксує систематичний зсув оцінок і повільність (`109 с/файл`).
+- Відхилено regex-based deterministic scorer як основний gate: після виправлення false-positive він все одно не ловив семантичні помилки.
+- `npm/reports/**` і `npm/bin/**` мають бути виключені з docgen-аудиту: `npm/reports/stryker/.tmp/` дублює source-файли, а `npm/bin/n-cursor.js` є bundle, не джерельним кодом.
+
+## Update 2026-06-06
+
+- Для docgen зафіксовано routing: `sym ≥ 4` → cloud tier, `sym < 4` → local tier; transcript також згадує Haiku-referee/timeout для local-гілки.
+- `combo = sym + exp*2 + imp` і `sym + imp` відхилено, бо `exp` має позитивну кореляцію з якістю (+0.384) і погіршує routing-сигнал.
+- `sym=4` визнано граничною зоною: transcript містить приклад `k8s-tree.mjs` з якістю 90%, який все одно потрапляє у cloud за обраним порогом.
+- Timeout local-generation 5 хв має ескалювати до Tier 2; transcript фіксує це як захист від зависань.
+- `BORDERLINE_SYM_LOW` прибрано; Haiku-referee застосовується до `sym < 4` за описом драфта.
+
+## Update 2026-06-06
+
+- Для docgen підтверджено threshold `sym ≥ 4 → cloud`: `sym` має Pearson `r = −0.651` з якістю документації, сильніший сигнал за `exp` (`+0.384`) і `imp` (`−0.585`).
+- Аудит проєкту після фільтрації показав 241 файл: `sym ≥ 4` дає 52 cloud-файли (22%), `sym < 4` — 189 local-файлів (78%).
+- `commands.mjs` (`sym=15`) і `safety.mjs` (`sym=17`) у local-версії показали хибні гарантії й перевернуту семантику; `sym=5–7` також мав критичні семантичні помилки.
+- Haiku-рефері для borderline local-файлів прибрано: у прогоні 52 local-файлів він жодного разу не тригерив ескалацію, мінімальний score був 80 при порозі 70.
+- Нова схема: `sym < 4` → Tier 1 + deterministic `scoreDoc()` → `score < 70` або timeout `LOCAL_TIMEOUT_MS = 5 * 60 * 1000` → Tier 2; `sym ≥ 4` → Tier 2 одразу.
+- Видалено `BORDERLINE_SYM_LOW`, `scoreModel`, `scoreCloud`, `cloudScoreDoc`; додано `withTimeout(promise, ms)`.
+- `DOCGEN_IGNORE_GLOBS` доповнено `npm/reports/**` і `npm/bin/**`, щоб не документувати Stryker sandbox-дублікати та згенеровані bundle-артефакти.
+- `generateDoc` повертає поле `model`, щоб batch-runner і CLI бачили фактичну модель генерації (`gemma3:4b` або `claude-sonnet-4-6`) без інспекції внутрішнього стану.

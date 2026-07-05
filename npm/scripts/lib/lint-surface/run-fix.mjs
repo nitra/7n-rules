@@ -203,9 +203,10 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
     recordWrite: absPath => snapshot.record(absPath)
   }
 
+  let workerResult = null
   let error = null
   try {
-    await worker(violations, fixCtx)
+    workerResult = await worker(violations, fixCtx)
   } catch (workerError) {
     error = workerError.message
   }
@@ -229,12 +230,23 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
 
   // Не clean → restore S1 перед наступним rung-ом (degraded не тече далі).
   snapshot.rollback()
+
+  // Мовчазна невдача (worker не кинув виняток, але порушення лишилось) — без цього
+  // наступний rung стартує без жодного знання про попередню спробу (buildFixPrompt
+  // додає `## Попередня спроба` лише коли previousError truthy).
+  const touchedFiles = workerResult?.touchedFiles ?? []
+  const silentFailureNote =
+    touchedFiles.length === 0
+      ? `Попередня спроба (${rung.model}) не внесла жодної зміни у файли; порушення досі активне.`
+      : `Попередня спроба (${rung.model}) торкнулась файлів (${touchedFiles.join(', ')}), ` +
+        'але порушення досі активне — той самий підхід не спрацював, спробуй інакше.'
+
   return {
     closed: false,
     outcome: {
       action: decideAfterFailure(rung, error),
       violations: after.length > 0 ? after : violations,
-      feedback: { previousModel: rung.model, previousError: error }
+      feedback: { previousModel: rung.model, previousError: error ?? silentFailureNote }
     }
   }
 }
