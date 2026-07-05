@@ -19,4 +19,6 @@ Rego-пакет: `ga.clean_merged_branch`
 - `steps[1].name` — за template; `steps[1].env.DELETED_BRANCHES` — за template
 - `steps[1].run` — містить `Deleted branches:` та `${DELETED_BRANCHES}`
 
+**Pin-aware `uses`:** SHA-пін того самого action (`owner/action@<40-hex SHA>`, з тег-коментарем `# vX` чи без) задовольняє канонічний тег із template. Якщо в репо вже SHA-пін (zizmor-політика ref-pin) — НЕ замінюй його тегом.
+
 Канон: [clean-merged-branch.yml.snippet.yml](./template/clean-merged-branch.yml.snippet.yml)

@@ -7,7 +7,11 @@
 #
 # Логіка, що ЛИШАЄТЬСЯ у rego (inverse anti-patterns):
 #  - `oxlint --fix` / `eslint --fix` у CI заборонено;
-#  - actions/checkout@v6 має мати `with.persist-credentials: false`.
+#  - actions/checkout (будь-який ref) має мати `with.persist-credentials: false`.
+#
+# Pin-aware: SHA-пін `owner/action@<40-hex>` (zizmor ref-pin; тег-коментар після
+# `#` YAML-парсер відкидає) ЗАДОВОЛЬНЯЄ канонічний `owner/action@vN` з template —
+# не вимагаємо (і не даунгрейдимо) назад до тега.
 package js.lint_js_yml
 
 import rego.v1
@@ -35,10 +39,11 @@ all_steps contains step if {
 	some step in object.get(job, "steps", [])
 }
 
-all_uses_blob := concat("\n", [u |
+all_uses_set contains u if {
 	some step in all_steps
 	u := object.get(step, "uses", "")
-])
+	u != ""
+}
 
 all_run_blob := concat("\n", [r |
 	some step in all_steps
@@ -49,7 +54,7 @@ all_run_blob := concat("\n", [r |
 
 deny contains msg if {
 	some required_use in expected_uses_set
-	not contains(all_uses_blob, required_use)
+	not has_use_satisfying(required_use)
 	msg := sprintf("lint-js.yml: відсутній крок uses: %s (js.mdc)", [required_use])
 }
 
@@ -61,11 +66,11 @@ deny contains msg if {
 	msg := sprintf("lint-js.yml: у run немає %q (js.mdc)", [required_run])
 }
 
-# ── deny: actions/checkout@v6 has persist-credentials: false (inverse) ──
+# ── deny: actions/checkout has persist-credentials: false (inverse) ─────
 
 deny contains msg if {
 	not has_checkout_persist_credentials_false
-	msg := "lint-js.yml: actions/checkout@v6 має бути з with.persist-credentials: false (js.mdc)"
+	msg := "lint-js.yml: actions/checkout має бути з with.persist-credentials: false (js.mdc)"
 }
 
 # ── deny: --fix у CI заборонено (inverse) ───────────────────────────────
@@ -84,8 +89,25 @@ deny contains msg if {
 
 has_checkout_persist_credentials_false if {
 	some step in all_steps
-	contains(object.get(step, "uses", ""), "actions/checkout@v6")
+	startswith(object.get(step, "uses", ""), "actions/checkout@")
 	step.with["persist-credentials"] == false
+}
+
+# `uses:` з input задовольняє канонічний `owner/action@tag`: точний збіг…
+uses_satisfies(actual, expected) if actual == expected
+
+# …або той самий action-slug і ref — повний 40-hex commit SHA (zizmor ref-pin).
+# Відповідність версії гарантує сам пін (тег-коментар `# vX` парсер відкидає).
+uses_satisfies(actual, expected) if {
+	slug := split(expected, "@")[0]
+	startswith(actual, concat("", [slug, "@"]))
+	parts := split(actual, "@")
+	regex.match(`^[0-9a-fA-F]{40}$`, parts[count(parts) - 1])
+}
+
+has_use_satisfying(required) if {
+	some u in all_uses_set
+	uses_satisfies(u, required)
 }
 
 step_run_text(step) := step.run if is_string(step.run)

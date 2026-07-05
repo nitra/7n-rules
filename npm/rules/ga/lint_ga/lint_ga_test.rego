@@ -87,6 +87,33 @@ test_deny_missing_run_command if {
 	contains(msg, "n-cursor lint ga --read-only")
 }
 
+# SHA-пін (zizmor ref-pin) задовольняє канонічний тег — фіксер не даунгрейдить.
+sha_pinned_input := json.patch(canonical_input, [
+	{
+		"op": "replace",
+		"path": "/jobs/lint-ga/steps/0/uses",
+		"value": "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10",
+	},
+	{
+		"op": "replace",
+		"path": "/jobs/lint-ga/steps/2/uses",
+		"value": "astral-sh/setup-uv@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	},
+])
+
+test_allow_sha_pinned_uses if {
+	count(lint_ga.deny) == 0 with input as sha_pinned_input with data.template as template_data
+}
+
+test_deny_short_sha_is_not_pin if {
+	bad := json.patch(
+		canonical_input,
+		[{"op": "replace", "path": "/jobs/lint-ga/steps/0/uses", "value": "actions/checkout@df4cb1c"}],
+	)
+	some msg in lint_ga.deny with input as bad with data.template as template_data
+	contains(msg, "actions/checkout@v6")
+}
+
 # Drift test.
 test_data_template_drives_name if {
 	drifted := {"snippet": object.union(template_data.snippet, {"name": "Custom"})}

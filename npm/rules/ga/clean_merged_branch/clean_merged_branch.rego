@@ -67,7 +67,8 @@ deny contains msg if {
 }
 
 deny contains msg if {
-	step0.uses != expected_step0.uses
+	actual := step0.uses
+	not uses_satisfies(actual, expected_step0.uses)
 	msg := sprintf("clean-merged-branch.yml: перший крок має uses: %s (ga.mdc)", [expected_step0.uses])
 }
 
@@ -120,6 +121,18 @@ deny contains msg if {
 }
 
 # ── helpers ────────────────────────────────────────────────────────────────
+
+# `uses:` з input задовольняє канонічний `owner/action@tag`: точний збіг…
+uses_satisfies(actual, expected) if actual == expected
+
+# …або той самий action-slug і ref — повний 40-hex commit SHA (zizmor ref-pin).
+# SHA-пін відповідної версії задовольняє вимогу тега — не даунгрейдимо до тега.
+uses_satisfies(actual, expected) if {
+	slug := split(expected, "@")[0]
+	startswith(actual, concat("", [slug, "@"]))
+	parts := split(actual, "@")
+	regex.match(`^[0-9a-fA-F]{40}$`, parts[count(parts) - 1])
+}
 
 has_expected_cron if {
 	gha_on.schedule[_].cron == expected_cron

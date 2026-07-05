@@ -89,6 +89,26 @@ test_deny_wrong_save_period if {
 	contains(msg, "save_period")
 }
 
+# SHA-пін (zizmor ref-pin) задовольняє канонічний тег — фіксер не даунгрейдить.
+test_allow_sha_pinned_uses if {
+	pinned := json.patch(canonical_input, [{
+		"op": "replace",
+		"path": "/jobs/cleanup_old_workflows/steps/0/uses",
+		"value": "dmvict/clean-workflow-runs@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+	}])
+	count(clean_ga_workflows.deny) == 0 with input as pinned with data.template as template_data
+}
+
+test_deny_sha_pin_of_other_action if {
+	bad := json.patch(canonical_input, [{
+		"op": "replace",
+		"path": "/jobs/cleanup_old_workflows/steps/0/uses",
+		"value": "someone/else@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+	}])
+	some msg in clean_ga_workflows.deny with input as bad with data.template as template_data
+	contains(msg, "uses")
+}
+
 # Drift test: ensures rego reads expected values from data.template.
 test_data_template_drives_name if {
 	drifted := {"snippet": object.union(

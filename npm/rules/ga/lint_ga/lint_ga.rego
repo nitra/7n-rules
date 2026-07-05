@@ -88,7 +88,7 @@ deny contains msg if {
 
 deny contains msg if {
 	some required_use in expected_uses_set
-	not required_use in job_uses_set
+	not job_has_use_satisfying(required_use)
 	msg := sprintf("lint-ga.yml: має бути uses: %s (ga.mdc)", [required_use])
 }
 
@@ -105,6 +105,23 @@ deny contains msg if {
 }
 
 # ── helpers ────────────────────────────────────────────────────────────────
+
+# `uses:` з input задовольняє канонічний `owner/action@tag`: точний збіг…
+uses_satisfies(actual, expected) if actual == expected
+
+# …або той самий action-slug і ref — повний 40-hex commit SHA (zizmor ref-pin).
+# SHA-пін відповідної версії задовольняє вимогу тега — не даунгрейдимо до тега.
+uses_satisfies(actual, expected) if {
+	slug := split(expected, "@")[0]
+	startswith(actual, concat("", [slug, "@"]))
+	parts := split(actual, "@")
+	regex.match(`^[0-9a-fA-F]{40}$`, parts[count(parts) - 1])
+}
+
+job_has_use_satisfying(required) if {
+	some u in job_uses_set
+	uses_satisfies(u, required)
+}
 
 branches_superset_of(actual, expected) if {
 	expected & {b | some b in actual} == expected

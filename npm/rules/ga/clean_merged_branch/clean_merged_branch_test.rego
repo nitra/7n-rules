@@ -114,6 +114,26 @@ test_deny_ignore_branches_missing_dev if {
 	contains(msg, "ignore_branches")
 }
 
+# SHA-пін (zizmor ref-pin) задовольняє канонічний тег — фіксер не даунгрейдить.
+test_allow_sha_pinned_uses if {
+	pinned := json.patch(canonical_input, [{
+		"op": "replace",
+		"path": "/jobs/cleanup_old_branches/steps/0/uses",
+		"value": "phpdocker-io/github-actions-delete-abandoned-branches@cccccccccccccccccccccccccccccccccccccccc",
+	}])
+	count(clean_merged_branch.deny) == 0 with input as pinned with data.template as template_data
+}
+
+test_deny_sha_pin_of_other_action if {
+	bad := json.patch(canonical_input, [{
+		"op": "replace",
+		"path": "/jobs/cleanup_old_branches/steps/0/uses",
+		"value": "someone/else@cccccccccccccccccccccccccccccccccccccccc",
+	}])
+	some msg in clean_merged_branch.deny with input as bad with data.template as template_data
+	contains(msg, "uses")
+}
+
 # Drift test.
 test_data_template_drives_name if {
 	drifted := {"snippet": object.union(template_data.snippet, {"name": "Custom"})}
