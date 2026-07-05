@@ -22,6 +22,8 @@ const ABSENT = Symbol('absent')
  * @property {(absPath: string) => void} record зафіксувати pre-image (idempotent per path)
  * @property {() => void} rollback відновити всі записані pre-images
  * @property {() => string[]} touched список абсолютних шляхів, для яких знято pre-image
+ * @property {() => string[]} modifiedExisting наявні на момент S1 файли, чий поточний
+ *   вміст відрізняється від pre-image (вхід semantic-collateral veto; нові файли не входять)
  */
 
 /**
@@ -49,6 +51,13 @@ export function createSnapshot() {
     },
     touched() {
       return preImages.keys().toArray()
+    },
+    modifiedExisting() {
+      // Кожен rung стартує з S1 (rollback на провалі), тому diff проти pre-image —
+      // це правки саме поточного rung-а. Видалений наявний файл теж «змінений».
+      return [...preImages]
+        .filter(([abs, pre]) => pre !== ABSENT && (!existsSync(abs) || readFileSync(abs, 'utf8') !== pre))
+        .map(([abs]) => abs)
     }
   }
 }

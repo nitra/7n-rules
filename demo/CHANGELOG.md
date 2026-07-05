@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.12] - 2026-07-05
+
+### Changed
+
+- feat(lint): semantic-collateral guard — жорсткіший fix-промпт + verdict-veto поза target-set
+
+## [0.0.11] - 2026-07-05
+
+### Changed
+
+- fix(rule_meta): скасування rule-level main.json.llmFix — мертвий конфіг видалено
+
 ## [0.0.10] - 2026-07-05
 
 ### Changed

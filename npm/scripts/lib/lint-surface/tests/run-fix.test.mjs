@@ -1,7 +1,8 @@
-import { describe, expect, test, vi } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { env } from 'node:process'
 
 import { runFixPipeline } from '../run-fix.mjs'
 import { withTmpDir, writeJson } from '../../../utils/test-helpers.mjs'
@@ -427,6 +428,162 @@ describe('runFixPipeline — standalone T0 (§8 Phase 2: merge detect+fix)', () 
   })
 })
 
+/**
+ * Detector як DETECTOR, але з file-атрибуцією порушення (`file: 'target.txt'`) —
+ * вмикає semantic-collateral veto (без file target-set порожній і veto незастосовний).
+ */
+const TARGETED_DETECTOR = [
+  "import { existsSync, readFileSync } from 'node:fs'",
+  "import { join } from 'node:path'",
+  'export function lint(ctx) {',
+  "  const p = join(ctx.cwd, 'target.txt')",
+  "  const v = existsSync(p) ? readFileSync(p, 'utf8') : ''",
+  "  if (v === 'done') return { violations: [] }",
+  "  return { violations: [{ reason: 'not-done', message: 'target.txt=' + (v || 'absent'), file: 'target.txt' }] }",
+  '}',
+  ''
+].join('\n')
+
+/**
+ * Фікстура «App.vue collateral» (spec pi-fix-engine-migration §12, addendum 2026-07-05):
+ * реальний кейс — gemma-4b «виправила» правило в consumer-репо, захардкодивши версію
+ * замість виклику getVersion у сторонньому src/App.vue.
+ */
+const APP_VUE_ORIGINAL = [
+  '<script setup>',
+  "import { getVersion } from '@tauri-apps/api/app'",
+  "const appVersion = ref('')",
+  'appVersion.value = await getVersion()',
+  '</script>',
+  ''
+].join('\n')
+
+const APP_VUE_HARDCODED = [
+  '<script setup>',
+  "const appVersion = ref('')",
+  "appVersion.value = '0.3.0' // we simulate it being available",
+  '</script>',
+  ''
+].join('\n')
+
+/**
+ * Worker, що закриває порушення у target.txt і додатково СТВОРЮЄ новий файл поза
+ * target-set — легітимний клас (scaffold/доки), який veto пропускає.
+ * @param {unknown} _v Порушення (не використовуються).
+ * @param {object} ctx Контекст fix-а з `cwd` і `recordWrite`.
+ * @returns {void}
+ */
+function writeTargetPlusScaffoldWorker(_v, ctx) {
+  const target = join(ctx.cwd, 'target.txt')
+  ctx.recordWrite(target)
+  writeFileSync(target, 'done')
+  const scaffold = join(ctx.cwd, 'docs-note.md')
+  ctx.recordWrite(scaffold)
+  writeFileSync(scaffold, 'новий файл — легітимний scaffold')
+}
+
+describe('runFixPipeline — semantic-collateral veto (App.vue case, §12 addendum)', () => {
+  test('правка наявного файлу поза target-set → veto, rollback, ескалація; телеметрія collateral-veto', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir, TARGETED_DETECTOR)
+      const appVue = join(dir, 'src', 'App.vue')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      writeFileSync(appVue, APP_VUE_ORIGINAL)
+
+      const tracePath = join(dir, 'llm-trace.jsonl')
+      const prevTrace = env.N_LLM_TRACE_PATH
+      env.N_LLM_TRACE_PATH = tracePath
+      try {
+        const feedbacks = []
+        const worker = (_v, ctx) => {
+          feedbacks.push(ctx.feedback ?? null)
+          const target = join(ctx.cwd, 'target.txt')
+          ctx.recordWrite(target)
+          writeFileSync(target, 'done')
+          if (ctx.tier === 'local-min') {
+            // Слабка модель «заодно» хардкодить версію у сторонньому наявному файлі.
+            ctx.recordWrite(appVue)
+            writeFileSync(appVue, APP_VUE_HARDCODED)
+          }
+        }
+        const code = await runFixPipeline({
+          rulesDir,
+          cwd: dir,
+          full: true,
+          log: () => {
+            /* no-op logger */
+          },
+          deps: { ladder: TWO_RUNG, workerFor: () => worker }
+        })
+        expect(code).toBe(0)
+        // Порушення закрито cloud-rung-ом, а collateral local-rung-а відкочено.
+        expect(readFileSync(join(dir, 'target.txt'), 'utf8')).toBe('done')
+        expect(readFileSync(appVue, 'utf8')).toBe(APP_VUE_ORIGINAL)
+        // Feedback наступному rung-у пояснює причину відхилення.
+        expect(feedbacks[1]?.previousError).toContain('відхилено')
+        expect(feedbacks[1]?.previousError).toContain('App.vue')
+        // Телеметрія відхилених правок у llm-trace.
+        const traceLines = readFileSync(tracePath, 'utf8')
+          .trim()
+          .split('\n')
+          .map(l => JSON.parse(l))
+        const veto = traceLines.find(r => r.kind === 'collateral-veto')
+        expect(veto).toMatchObject({ rule: 'probe', rung: 'local-min', cleanDetect: true })
+        expect(veto.rejectedFiles).toEqual(['src/App.vue'])
+        expect(veto.targetFiles).toEqual(['target.txt'])
+      } finally {
+        if (prevTrace === undefined) delete env.N_LLM_TRACE_PATH
+        else env.N_LLM_TRACE_PATH = prevTrace
+      }
+    })
+  })
+
+  test('створення НОВОГО файлу поза target-set дозволене → закривається першим rung-ом', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir, TARGETED_DETECTOR)
+      const worker = writeTargetPlusScaffoldWorker
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: { ladder: ONE_RUNG, workerFor: () => worker }
+      })
+      expect(code).toBe(0)
+      expect(existsSync(join(dir, 'docs-note.md'))).toBe(true)
+    })
+  })
+
+  test('без file-атрибуції порушення target-set порожній → veto незастосовний (fail-open)', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir) // DETECTOR без `file` у violation
+      const unrelated = join(dir, 'unrelated.txt')
+      writeFileSync(unrelated, 'original')
+      const worker = (_v, ctx) => {
+        const out = join(ctx.cwd, 'out.txt')
+        ctx.recordWrite(out)
+        writeFileSync(out, 'done')
+        ctx.recordWrite(unrelated)
+        writeFileSync(unrelated, 'collateral')
+      }
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: { ladder: ONE_RUNG, workerFor: () => worker }
+      })
+      // Свідомий fail-open: без target-set veto не втручається.
+      expect(code).toBe(0)
+      expect(readFileSync(unrelated, 'utf8')).toBe('collateral')
+    })
+  })
+})
+
 describe('runFixPipeline — ProgressReporter (spec 2026-07-03)', () => {
   test('не-TTY: ⏱-зведення на закриття концерну з тикером знайдено/виправлено', async () => {
     await withTmpDir(async dir => {
@@ -463,7 +620,12 @@ describe('runFixPipeline — ProgressReporter (spec 2026-07-03)', () => {
         log: s => {
           lines.push(s)
         },
-        deps: { ladder: ONE_RUNG, workerFor: () => vi.fn() }
+        deps: {
+          ladder: ONE_RUNG,
+          workerFor: () => () => {
+            /* no-op worker */
+          }
+        }
       })
       expect(code).toBe(0)
       const ticker = lines.find(l => l.includes('⏱'))
