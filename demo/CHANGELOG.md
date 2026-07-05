@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.13] - 2026-07-05
+
+### Changed
+
+- style: oxfmt — формат changelog/presence tests
+
 ## [0.0.12] - 2026-07-05
 
 ### Changed
