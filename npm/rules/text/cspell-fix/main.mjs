@@ -139,7 +139,8 @@ export function appendWordsToDict(cwd, words) {
  * @param {string[]} [files] явний перелік файлів (delta); без нього — `cspell .`
  * @returns {Promise<number>} 0 — чисто; 1 — лишились знахідки / помилка середовища
  */
-export async function runCspellText(cwd = process.cwd(), readOnly = false, llmFix = false, files) {
+export async function runCspellText(cwd, readOnly, llmFix, files) {
+  cwd ??= process.cwd()
   const bin = resolveCmd('npx')
   if (!bin) {
     process.stderr.write('❌ npx не знайдено в PATH (cspell).\n')

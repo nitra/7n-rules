@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -437,7 +437,9 @@ describe('runFixPipeline — ProgressReporter (spec 2026-07-03)', () => {
         cwd: dir,
         full: true,
         isTTY: false,
-        log: s => lines.push(s),
+        log: s => {
+          lines.push(s)
+        },
         deps: { ladder: ONE_RUNG, workerFor: () => writeDoneWorker }
       })
       expect(code).toBe(0)
@@ -458,8 +460,10 @@ describe('runFixPipeline — ProgressReporter (spec 2026-07-03)', () => {
         cwd: dir,
         full: true,
         isTTY: false,
-        log: s => lines.push(s),
-        deps: { ladder: ONE_RUNG, workerFor: () => () => {} }
+        log: s => {
+          lines.push(s)
+        },
+        deps: { ladder: ONE_RUNG, workerFor: () => vi.fn() }
       })
       expect(code).toBe(0)
       const ticker = lines.find(l => l.includes('⏱'))

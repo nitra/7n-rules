@@ -59,12 +59,13 @@
       "ignoreDependencies": ["@anthropic-ai/claude-code", "@anthropic-ai/sdk", "@7n/mt", "github-actionlint", "v8r"]
     },
     "demo": {
-      "ignoreDependencies": ["vite-plugin-vue-layouts-next"],
+      "ignoreDependencies": ["vite-plugin-vue-layouts-next", "lightningcss"],
       "entry": ["stryker.config.mjs"]
     },
     "llm-lib": {
-      "entry": ["lib/*.mjs", "tests/**/*.test.mjs"],
-      "project": ["**/*.mjs"]
+      "entry": ["lib/*.mjs", "tests/**/*.test.mjs", "stryker.config.mjs"],
+      "project": ["**/*.mjs"],
+      "ignoreDependencies": ["@earendil-works/pi-coding-agent"]
     }
   }
 }

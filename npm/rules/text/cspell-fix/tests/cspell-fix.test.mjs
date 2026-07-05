@@ -7,6 +7,9 @@ import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 import { resolveCmd } from '../../../../scripts/utils/resolve-cmd.mjs'
 import { unknownWords, appendWordsToDict, detectCspell } from '../main.mjs'
 
+const FILES_CHECKED_ZERO_RE = /Files checked:\s*0/u
+const UNKNOWN_WORD_RE = /Unknown word/u
+
 describe('unknownWords', () => {
   test('витягує distinct-слова з виводу cspell', () => {
     const out = [
@@ -53,7 +56,7 @@ describe('detectCspell', () => {
       await writeFile(join(root, 'typo.md'), 'This is teh wrong wrod.')
       const result = detectCspell(root, bin, ['typo.md'])
       expect(result.code).toBe(0)
-      expect(result.out).toMatch(/Files checked:\s*0/u)
+      expect(result.out).toMatch(FILES_CHECKED_ZERO_RE)
     })
   })
 
@@ -64,7 +67,7 @@ describe('detectCspell', () => {
       await writeFile(join(root, 'typo.md'), 'This is teh wrong wrod.')
       const result = detectCspell(root, bin, ['typo.md'])
       expect(result.code).not.toBe(0)
-      expect(result.out).toMatch(/Unknown word/u)
+      expect(result.out).toMatch(UNKNOWN_WORD_RE)
     })
   })
 })
