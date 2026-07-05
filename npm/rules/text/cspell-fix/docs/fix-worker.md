@@ -3,12 +3,8 @@ type: JS Module
 title: fix-worker.mjs
 resource: npm/rules/text/cspell-fix/fix-worker.mjs
 docgen:
-  crc: 0535e0c6
+  crc: 1ec9f8b2
   model: openai-codex/gpt-5.5
-  tier: cloud-avg
-  score: 100
-  issues: judge:inaccurate:0.98
-  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд

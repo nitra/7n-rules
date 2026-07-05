@@ -3,12 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/doc-files/docgen-judge/main.mjs
 docgen:
-  crc: d20a0bc7
+  crc: 14b432fd
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
-  score: 100
-  issues: judge:inaccurate:0.98
-  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд

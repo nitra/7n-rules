@@ -12,7 +12,7 @@
 import { join } from 'node:path'
 
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
-import { runOneShot } from '../../../lib/pi-one-shot.mjs'
+import { runOneShot } from '@nitra/llm-lib/one-shot'
 import {
   MAX_CLASSIFY_WORDS,
   appendWordsToDict,

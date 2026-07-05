@@ -24,8 +24,8 @@
  * Повертає той самий operations[]-контракт, що й single-shot — apply-логіка спільна.
  */
 import { z } from 'zod'
-import { runOneShot } from '../../../lib/pi-one-shot.mjs'
-import { CLOUD_MIN, resolveModel } from '../../../lib/pi-model-tiers.mjs'
+import { runOneShot } from '@nitra/llm-lib/one-shot'
+import { CLOUD_MIN, resolveModel } from '@nitra/llm-lib/model-tiers'
 
 // ─────────────────────────── Stage 0: retrieval (JS) ───────────────────────────
 

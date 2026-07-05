@@ -3,18 +3,17 @@ type: JS Module
 title: tier-sampling-bench.mjs
 resource: npm/scripts/lib/lint-surface/tier-sampling-bench.mjs
 docgen:
-  crc: f2146e1d
+  crc: 9a681d55
   model: manual
-  score: 100
 ---
 
 ## Огляд
 
-Модуль запускає реальний bench для experiment-only tier sampling поверх lint fix ladder. Він створює тимчасові git-fixtures, викликає `runPiAgentFix` через `runTierSamplingExperiment`, перевіряє результат deterministic detector-ом і записує JSON із підсумками clean/rescue/latency.
+Модуль запускає реальний bench для experiment-only tier sampling поверх lint fix ladder. Він створює тимчасові git-fixtures, викликає `runAgentFix` через `runTierSamplingExperiment`, перевіряє результат deterministic detector-ом і записує JSON із підсумками clean/rescue/latency.
 
 ## Поведінка
 
-Runner будує experiment ladder із `local-min`, `cloud-min`, `cloud-avg`, `cloud-max` за поточними env-моделями. Для кожної fixture/tier пари створюється окремий тимчасовий git repo, щоб write-guard `runPiAgentFix` мав git-root і щоб результати різних tier-ів не впливали один на одного.
+Runner будує experiment ladder із `local-min`, `cloud-min`, `cloud-avg`, `cloud-max` за поточними env-моделями. Для кожної fixture/tier пари створюється окремий тимчасовий git repo, щоб write-guard `runAgentFix` мав git-root і щоб результати різних tier-ів не впливали один на одного.
 
 Для `cloud-min` і `cloud-avg` запускаються два sampling profiles: `conservative` і `exploratory`. Для `local-min` і `cloud-max` запускається один conservative candidate. Профіль потрапляє у rule text як інструкція до агента; success все одно визначає тільки injected detector.
 

@@ -18,7 +18,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { LOCAL_MIN, CLOUD_MIN, CLOUD_AVG } from '../../../lib/pi-model-tiers.mjs'
+import { LOCAL_MIN, CLOUD_MIN, CLOUD_AVG } from '@nitra/llm-lib/model-tiers'
 import { buildDetectPlan } from './run-detectors.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
 import { renderViolations } from './render.mjs'
