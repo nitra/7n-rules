@@ -9,7 +9,8 @@
  *   detect → omlx-класифікація distinct-слів (bounded JSON-вихід) → валідні слова
  *   авто-дописуються у `.cspell.json#words` (sorted/dedup, видно в diff) → ймовірні
  *   одруки лишаються списком на рев'ю (НЕ авто-виправляються — апплай небезпечний) →
- *   re-detect. read-only: лише детект (нуль мутацій).
+ *   re-detect. Класифікація виконується у `fix-worker.mjs` (Central Runner Pipeline);
+ *   тут — лише read-only детект і shared-хелпери класифікації.
  *
  * Гейт: валідні слова після дописування у словник зникають; нерозкласифіковані та
  * typo лишаються → cspell повертає !=0 → exit 1 (людина доправляє одруки вручну).
@@ -20,7 +21,6 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
-import { runOneShot } from '@nitra/llm-lib/one-shot'
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 /** Слово у рядку cspell: `<file>:<line>:<col> - Unknown word (xxx)`. */
@@ -132,14 +132,13 @@ export function appendWordsToDict(cwd, words) {
 }
 
 /**
- * cspell-крок lint-text: класифікація → словник (нова схема).
- * @param {string} [cwd] корінь
- * @param {boolean} [readOnly] true → лише детект (нуль мутацій)
- * @param {boolean} [llmFix] opt-in LLM-класифікація (з `meta.json: llmFix:true`); без нього — лише детект
+ * cspell-крок lint-text: read-only детект (нуль мутацій). LLM-класифікація знахідок
+ * і поповнення `.cspell.json#words` живуть у `fix-worker.mjs` (Central Runner Pipeline).
  * @param {string[]} [files] явний перелік файлів (delta); без нього — `cspell .`
- * @returns {Promise<number>} 0 — чисто; 1 — лишились знахідки / помилка середовища
+ * @param {string} [cwd] корінь
+ * @returns {number} 0 — чисто; 1 — лишились знахідки / помилка середовища
  */
-export async function runCspellText(cwd = process.cwd(), readOnly = false, llmFix = false, files) {
+export function runCspellText(files, cwd = process.cwd()) {
   const bin = resolveCmd('npx')
   if (!bin) {
     process.stderr.write('❌ npx не знайдено в PATH (cspell).\n')
@@ -148,62 +147,8 @@ export async function runCspellText(cwd = process.cwd(), readOnly = false, llmFi
 
   const first = detectCspell(cwd, bin, files)
   if (first.code === 0) return 0
-  if (readOnly || !llmFix) {
-    process.stdout.write(first.out)
-    return first.code
-  }
-
-  // Fix-режим: класифікація знахідок (bounded JSON-вихід), валідні → у словник.
-  const model = fixModel()
-  if (!model) {
-    process.stdout.write('⚠️  cspell: класифікацію пропущено (локальну модель не задано)\n')
-    process.stdout.write(first.out)
-    return first.code
-  }
-
-  const words = unknownWords(first.out)
-  const batch = words.slice(0, MAX_CLASSIFY_WORDS)
-  if (words.length > MAX_CLASSIFY_WORDS) {
-    process.stdout.write(
-      `ℹ️  cspell: класифікація перших ${MAX_CLASSIFY_WORDS}/${words.length} слів (решта — наступний прогін)\n`
-    )
-  }
-
-  const res = await runOneShot({
-    messages: [{ role: 'user', content: classifyPrompt(batch) }],
-    modelSpec: model,
-    caller: 'cspell-classify',
-    cwd
-  })
-  if (res.error) {
-    process.stdout.write(`⚠️  cspell: LLM-класифікація впала (${res.error}) — без авто-словника\n`)
-    process.stdout.write(first.out)
-    return first.code
-  }
-
-  const parsed = parseClassify(res.content)
-  if (!parsed) {
-    process.stdout.write('⚠️  cspell: не вдалося розпарсити класифікацію — без авто-словника\n')
-    process.stdout.write(first.out)
-    return first.code
-  }
-
-  const valid = parsed.filter(x => x.verdict === 'valid' && typeof x.w === 'string').map(x => x.w)
-  const typos = parsed.filter(x => x.verdict === 'typo' && typeof x.w === 'string')
-  const added = appendWordsToDict(cwd, valid)
-  process.stdout.write(`✓ cspell: +${added} валідних слів у .cspell.json (з ${valid.length} класифікованих)\n`)
-  if (typos.length > 0) {
-    process.stdout.write("⚠️  cspell: ймовірні одруки на рев'ю (НЕ виправлено авто):\n")
-    for (const t of typos) {
-      const arrow = t.fix ? ` → ${t.fix}` : ''
-      process.stdout.write(`  - ${t.w}${arrow}\n`)
-    }
-  }
-
-  // Re-detect: валідні тепер у словнику → лишаються одруки/нерозкласифіковане → exit 1.
-  const second = detectCspell(cwd, bin, files)
-  if (second.code !== 0) process.stdout.write(second.out)
-  return second.code
+  process.stdout.write(first.out)
+  return first.code
 }
 
 /**
@@ -213,12 +158,12 @@ export async function runCspellText(cwd = process.cwd(), readOnly = false, llmFi
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
  * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат detector-а
  */
-export async function lint(ctx) {
+export function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { fail } = reporter
   if (ctx.files !== undefined && ctx.files.length === 0) return reporter.result()
 
-  const code = await runCspellText(ctx.cwd, true, false, ctx.files)
+  const code = runCspellText(ctx.files, ctx.cwd)
   if (code !== 0) fail('cspell знайшов порушення правопису (text.mdc)', 'cspell')
   return reporter.result()
 }

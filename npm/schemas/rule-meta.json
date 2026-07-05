@@ -6,10 +6,6 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "llmFix": {
-      "type": "boolean",
-      "description": "Opt-in opportunistic LLM-fix: у fix-by-default (не --read-only) lint-крок намагається виправити порушення локальною моделлю (omlx), якщо її піднято; інакше пропускає й лишає exit 1. Лише для контент-правил (doc-files, cspell) — НЕ для логічних лінтерів (зміна коду може змінити поведінку). Деталі: docs/specs/2026-06-15-opportunistic-llm-fix-tier.md."
-    },
     "auto": {
       "description": "Умова автоактивації правила: \"завжди\", масив id правил-залежностей, glob, або іменований предикат.",
       "oneOf": [

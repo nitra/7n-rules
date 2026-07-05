@@ -100,4 +100,13 @@ describe('rule_meta check', () => {
       expect(await check(dir)).toBeGreaterThan(0)
     })
   })
+
+  test('залишковий main.json.llmFix → 1 (fix-можливість = fix-*.mjs у концерні)', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm', 'rules', 'x'))
+      await writeJson(join(dir, 'npm', 'rules', 'x', 'main.json'), { llmFix: true })
+      await MK_MDC(dir, 'x')
+      expect(await check(dir)).toBeGreaterThan(0)
+    })
+  })
 })

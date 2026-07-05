@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.9.1] - 2026-07-05
+
+### Fixed
+
+- sync: legacy-маркер `@nitra/cursor post-tool-use-fix` у MANAGED_HOOK_COMMAND_MARKERS — resync тепер прибирає стару мутуючу PostToolUse-групу з `.claude/settings.json` споживацьких репо
+
 ## [14.9.0] - 2026-07-05
 
 ### Fixed
