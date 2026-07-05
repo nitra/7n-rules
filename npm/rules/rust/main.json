@@ -1,1 +1,1 @@
-{ "auto": { "glob": ["**/Cargo.toml", "deny.toml"] }, "lint": "full" }
+{ "auto": { "glob": ["**/Cargo.toml", "deny.toml"] } }

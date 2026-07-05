@@ -6,11 +6,6 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "lint": {
-      "type": "string",
-      "enum": ["per-file", "full"],
-      "description": "Scope lint-кроку: per-file (декомпозиція по змінених файлах, дельта vs origin) або full (нероздільно крос-файловий, лише `lint --full`)."
-    },
     "llmFix": {
       "type": "boolean",
       "description": "Opt-in opportunistic LLM-fix: у fix-by-default (не --read-only) lint-крок намагається виправити порушення локальною моделлю (omlx), якщо її піднято; інакше пропускає й лишає exit 1. Лише для контент-правил (doc-files, cspell) — НЕ для логічних лінтерів (зміна коду може змінити поведінку). Деталі: docs/specs/2026-06-15-opportunistic-llm-fix-tier.md."

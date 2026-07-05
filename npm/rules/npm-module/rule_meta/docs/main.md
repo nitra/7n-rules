@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/npm-module/rule_meta/main.mjs
 docgen:
-  crc: 4037509e
+  crc: 13b53dcf
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 95
   issues: anchor-miss:(scripts.mdc),judge:inaccurate:0.98
@@ -12,24 +12,22 @@ docgen:
 
 ## Огляд
 
-Please provide the code file you would like me to document. I need the code to write the "Огляд" section based on the provided "Поведінка".
+Lint-детектор concern-а `npm-module/rule_meta`: валідує метадані кожного правила у `npm/rules/<id>/` — файл `main.json` та супутні конвенції каталогу правила.
 
 ## Поведінка
 
-Поведінка:
-
-1. Ініціює процес валідації, перевіряючи директорію `npm/rules/`.
-2. Для кожної піддиректорії правил:
-   a. Перевіряє відсутність файлу `auto.md`, видаючи попередження, якщо знайдений.
-   b. Перевіряє наявність обов'язкового файлу `main.mdc` згідно з конвенцією `scripts.mdc`.
-   c. Зчитує метадані за допомогою `main.json`.
-   d. Валідує налаштування автоматичного режиму правила, використовуючи `meta.json`.
-   e. Валідує налаштування лінтування правила, перевіряючи `meta.json` та вміст `main.mjs` на відповідність експорту `lint`.
-3. Повертає код завершення, який відображає результат валідації.
+1. Якщо `npm/rules/` відсутній — pass (немає правил для валідації).
+2. Для кожної теки правила:
+   - `auto.md` є пережитком — якщо файл лишився, порушення (метадані тепер у `main.json`).
+   - `main.mdc` обовʼязковий (канон scripts.mdc) — відсутність = порушення.
+   - `main.json` має існувати і бути валідним JSON-обʼєктом.
+   - Поле `auto` (опційне) має відповідати одній з форм: `"завжди"` / масив / `{ glob }` / `{ predicate }`; предикат має бути зареєстрований у `RULE_PREDICATES`.
+   - Поле `lint` заборонене: rule-level lint-scope скасовано (spec 2026-06-28-concern-lint-scope-design) — lint-поверхня декларується у `<rule>/<concern>/concern.json#lint`.
+3. Повертає `LintResult` зі списком порушень; валідні правила репортяться як pass.
 
 ## Публічний API
 
-main — перевіряє, чи всі метадані у файлах `npm/rules/<id>/meta.json` коректні.
+lint — перевіряє `main.json` усіх правил у `npm/rules/` і повертає `{ violations }`.
 
 ## Гарантії поведінки
 

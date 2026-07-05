@@ -48,23 +48,6 @@ export function parseRuleAutoSpec(value) {
   return null
 }
 
-/** Допустимі значення `main.json.lint` (вісь scope: чи детектор дробиться на changed-set). */
-const LINT_SCOPES = new Set(['per-file', 'full'])
-
-/**
- * Нормалізує значення `main.json.lint` у scope детектора.
- *  - `"per-file"` — детектор декомпозується на змінені файли (дельта vs origin);
- *  - `"full"`     — крос-файловий: у `--full` ганяє весь репо; у delta-режимі тригериться
- *                   лише якщо змінені файли перетинаються з `auto.glob` правила (whole-repo scan).
- * Об'єктна форма `{scope, ci}` скасована: CI=`--read-only --full` ганяє все повністю,
- * тож per-rule CI-override не потрібен (spec 2026-06-14-lint-rule-consolidation §3-А).
- * @param {unknown} value значення поля `lint`
- * @returns {'per-file' | 'full' | null} scope або `null` (відсутнє/невалідне = не lint-крок)
- */
-export function parseRuleLintSpec(value) {
-  return typeof value === 'string' && LINT_SCOPES.has(value) ? /** @type {'per-file'|'full'} */ (value) : null
-}
-
 /**
  * Читає й парсить `main.json` одного правила.
  * @param {string} ruleDir абсолютний шлях до каталогу правила

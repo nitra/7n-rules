@@ -1,1 +1,1 @@
-{ "auto": { "glob": ["**/Dockerfile", "**/Dockerfile.*"] }, "lint": "full" }
+{ "auto": { "glob": ["**/Dockerfile", "**/Dockerfile.*"] } }
