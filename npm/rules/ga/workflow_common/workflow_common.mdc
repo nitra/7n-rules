@@ -11,7 +11,7 @@ Rego-пакет: `ga.workflow_common`
 - **Порядок кроків** — якщо є `setup-bun-deps`, перед ним обов'язковий `actions/checkout@`
 - **Shell-продовження** — `\` перед переносом рядка у `run:` заборонено; треба `run: >-`
 - **Заборонені команди** — `depcheck` у `run:` (мігровано на `knip`)
-- **Мінімальні версії** — `uses:` з marketplace-actions перевіряються за канонічним JSON
+- **Мінімальні версії** — `uses:` з marketplace-actions перевіряються за канонічним JSON; SHA-пін (`owner/action@<40-hex SHA>`) задовольняє вимогу мінімальної версії — НЕ замінюй наявний SHA-пін тегом
 
 Канон мінімальних версій: [uses-min-versions.snippet.json](./template/uses-min-versions.snippet.json)
 

@@ -1,5 +1,29 @@
 # Changelog
 
+## [14.8.6] - 2026-07-05
+
+### Fixed
+
+- text/cspell: T0 cspell-merge — merge-запис .cspell.json замість wholesale-перезапису (існуючі words/flagWords/ignorePaths зберігаються, канон лише дописується)
+
+## [14.8.5] - 2026-07-05
+
+### Fixed
+
+- ga/js workflow-політики стали pin-aware: SHA-пін `owner/action@<40-hex>` (zizmor ref-pin, з тег-коментарем чи без) задовольняє канонічний `@vN` з template — фіксер більше не даунгрейдить SHA-піни до тегів (lint_ga, clean_ga_workflows, clean_merged_branch, lint_js_yml)
+
+## [14.8.4] - 2026-07-05
+
+### Changed
+
+- fix(deps): bunx-тули lint-оркестрації (github-actionlint, jscpd, oxlint, v8r) перенесено з devDependencies у dependencies — devDeps опублікованого пакета споживачам не встановлюються, тож піни версій у consumer-репо не діяли (bunx тягнув latest); тепер bunx резолвить пінені версії з node_modules споживача. Узгоджено підказки правил npm-module/npm_package_json і bun/package_json (dev-тулзи → root, bunx-тули → dependencies)
+
+## [14.8.3] - 2026-07-05
+
+### Changed
+
+- npm-module/npm_publish_yml: шаблон npm-publish.yml переведено на hardened push-auth патерн (checkout з persist-credentials: false + крок «Configure git identity + push auth» із job-scoped GITHUB_TOKEN через git remote set-url)
+
 ## [14.8.2] - 2026-07-05
 
 ### Changed

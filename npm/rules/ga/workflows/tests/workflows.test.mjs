@@ -5,7 +5,7 @@
  */
 import { describe, expect, test } from 'vitest'
 import { execFileSync } from 'node:child_process'
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { lint, checkShellcheckInstalled } from '../main.mjs'
@@ -295,6 +295,35 @@ describe('check-ga: apply-k8s.yml', () => {
       await withShellcheckStubInPath(async () => {
         const violations = await mainStructural(dir)
         expect(violations.length).toBeGreaterThan(0)
+      })
+    })
+  })
+})
+
+// SHA-піни `owner/action@<40-hex> # vX.Y.Z` (zizmor-політика ref-pin) замість тегів.
+// Фейкові SHA достатні: rego перевіряє лише формат 40-hex, не існування коміта.
+const SHA_PINS = {
+  'actions/checkout@v6': 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3',
+  'astral-sh/setup-uv@v8.0.0': 'astral-sh/setup-uv@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa # v8.0.0',
+  'dmvict/clean-workflow-runs@v1': 'dmvict/clean-workflow-runs@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb # v1',
+  'phpdocker-io/github-actions-delete-abandoned-branches@v2.0.3':
+    'phpdocker-io/github-actions-delete-abandoned-branches@cccccccccccccccccccccccccccccccccccccccc # v2.0.3'
+}
+
+describe('check-ga: SHA-піновані uses (zizmor ref-pin)', () => {
+  test('exit 0 — SHA-пін з тег-коментарем задовольняє канонічні uses, без даунгрейду до тега', async () => {
+    await withTmpDir(async dir => {
+      await setupCanonicalGaProject(dir)
+      for (const name of ['clean-ga-workflows.yml', 'clean-merged-branch.yml', 'lint-ga.yml']) {
+        const file = join(dir, '.github/workflows', name)
+        let content = await readFile(file, 'utf8')
+        for (const [tagged, pinned] of Object.entries(SHA_PINS)) {
+          content = content.split(tagged).join(pinned)
+        }
+        await writeFile(file, content, 'utf8')
+      }
+      await withShellcheckStubInPath(async () => {
+        expect(await mainStructural(dir)).toEqual([])
       })
     })
   })
