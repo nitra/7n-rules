@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.8.1] - 2026-07-05
+
+### Changed
+
+- chore: regenerate n-cursor.d.ts after lint --help addition; chore: self-lint sync — ADR consolidation, doc CRC restamp, lint --help; fix(lint-rules): T0-fixers for licensee/deny.toml/hasura config gaps
+
 ## [14.8.0] - 2026-07-04
 
 ### Changed
