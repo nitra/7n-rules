@@ -7,7 +7,7 @@
  */
 
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { parseModelId, thinkingLevelForTier } from '../lib/model-tiers.mjs'
+import { isLocalModel, parseModelId, thinkingLevelForTier } from '../lib/model-tiers.mjs'
 import { resolveModelSpec } from '../lib/internal/registry.mjs'
 
 /**
@@ -21,6 +21,30 @@ async function freshResolveModel(envVars) {
   const mod = await import('../lib/model-tiers.mjs')
   return mod.resolveModel
 }
+
+describe('isLocalModel', () => {
+  test('omlx-провайдер — локальний (дефолт N_LLM_LOCAL_PROVIDERS)', () => {
+    expect(isLocalModel('omlx/gemma-4-e4b')).toBe(true)
+    expect(isLocalModel('openai/gpt-5.5')).toBe(false)
+    expect(isLocalModel('anthropic/claude-fable-5')).toBe(false)
+  })
+
+  test('порожній/malformed spec — не локальний', () => {
+    expect(isLocalModel('')).toBe(false)
+    expect(isLocalModel('no-slash')).toBe(false)
+    expect(isLocalModel(null)).toBe(false)
+  })
+
+  test('кастомний список провайдерів через env (ізольований re-import)', async () => {
+    vi.resetModules()
+    vi.stubEnv('N_LLM_LOCAL_PROVIDERS', 'ollama, lmstudio')
+    const mod = await import('../lib/model-tiers.mjs')
+    expect(mod.isLocalModel('ollama/llama3')).toBe(true)
+    expect(mod.isLocalModel('omlx/gemma')).toBe(false)
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+})
 
 describe('parseModelId', () => {
   test('звичайна пара', () => {

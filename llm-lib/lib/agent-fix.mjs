@@ -26,12 +26,14 @@
 import { env } from 'node:process'
 import { homedir } from 'node:os'
 import { getRegistry, resolveModelSpec } from './internal/registry.mjs'
-import { thinkingLevelForTier } from './model-tiers.mjs'
+import { isLocalModel, thinkingLevelForTier } from './model-tiers.mjs'
 import { createWriteGuard, gitRoot } from './write-guard.mjs'
 import { failOnMemoryGuard } from './internal/memory-guard.mjs'
 import { writeTrace } from './trace.mjs'
 import { withTimeout } from './with-timeout.mjs'
 import { applyMaxTokens } from './internal/max-tokens.mjs'
+import { applyChainHeaders } from './internal/chain-headers.mjs'
+import { promptHash } from './chain.mjs'
 
 /** Аварійна стеля turns на одну сесію (runaway-backstop). Override: `N_LLM_FIX_TURN_CEILING` (legacy `N_CURSOR_FIX_TURN_CEILING`). */
 const TURN_CEILING = Number(env.N_LLM_FIX_TURN_CEILING ?? env.N_CURSOR_FIX_TURN_CEILING) || 50
@@ -81,7 +83,7 @@ export function buildFixPrompt({ ruleId, violation, ruleText, feedback }) {
  *   selfCheck: (files: string[]) => Promise<{ ok: boolean, output: string }> | { ok: boolean, output: string } }} args параметри сесії.
  * @returns {Promise<object>} pi AgentSession
  */
-async function defaultCreateSession({ registry, model, thinkingLevel, cwd, factory, astContext, selfCheck }) {
+async function defaultCreateSession({ registry, model, thinkingLevel, cwd, factory, astContext, selfCheck, chain }) {
   const { createAgentSession, SessionManager, DefaultResourceLoader, SettingsManager, defineTool } =
     await import('@earendil-works/pi-coding-agent')
   const agentDir = `${homedir()}/.pi/agent`
@@ -130,6 +132,7 @@ async function defaultCreateSession({ registry, model, thinkingLevel, cwd, facto
     sessionManager: SessionManager.inMemory(),
     resourceLoader: loader
   })
+  applyChainHeaders(session, chain)
   return applyMaxTokens(session)
 }
 
@@ -140,6 +143,7 @@ async function defaultCreateSession({ registry, model, thinkingLevel, cwd, facto
  * @param {string} cwd корінь проєкту
  * @param {{
  *   model: string, tier?: string, feedback?: object, caller?: string, timeoutMs?: number, ruleText?: string,
+ *   chain?: object,
  *   deps?: { createSession?: (args: object) => Promise<object>, getRegistry?: () => Promise<object>,
  *            registry?: object, root?: string|null,
  *            astContext?: (path: string) => object,
@@ -149,7 +153,16 @@ async function defaultCreateSession({ registry, model, thinkingLevel, cwd, facto
  * @returns {Promise<{ applied: boolean, touchedFiles: string[], telemetry: object|null, error: string|null, rollback: () => void }>} результат fix-спроби.
  */
 export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
-  const { model: modelSpec, tier = null, feedback, caller = `fix:${ruleId}`, timeoutMs, ruleText, deps = {} } = opts
+  const {
+    model: modelSpec,
+    tier = null,
+    feedback,
+    caller = `fix:${ruleId}`,
+    timeoutMs,
+    ruleText,
+    chain = null,
+    deps = {}
+  } = opts
   const createSession = deps.createSession ?? defaultCreateSession
   const getReg = deps.getRegistry ?? getRegistry
   const trace = deps.trace ?? writeTrace
@@ -160,7 +173,10 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
   // (temperature не задається), тому trace фіксує саме їх.
   const thinkingLevel = thinkingLevelForTier(tier ?? '')
 
+  chain?.nextStep()
+
   const fail = error => {
+    chain?.note({ model: modelSpec ?? null, error })
     trace({
       caller,
       backend: 'pi-ai',
@@ -170,7 +186,8 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
       model: modelSpec,
       thinkingLevel,
       cwd,
-      error
+      error,
+      ...chain?.traceFields()
     })
     return { applied: false, touchedFiles: [], telemetry: null, error, rollback: noop }
   }
@@ -200,7 +217,9 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
       cwd,
       factory: guard.factory,
       astContext,
-      selfCheck
+      selfCheck,
+      // Заголовки кореляції — лише локальним моделям (myllm стоїть тільки перед ними).
+      chain: modelSpec && isLocalModel(modelSpec) ? chain : null
     })
   } catch (error) {
     return fail(`session: ${error.message}`)
@@ -248,6 +267,7 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
   })
 
   const fixPrompt = buildFixPrompt({ ruleId, violation, ruleText, feedback })
+  const pHash = promptHash(fixPrompt)
   const startedAt = clock()
   let error = null
   try {
@@ -270,6 +290,14 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     backstopHit,
     wallMs: clock() - startedAt
   }
+  // Usage кроку для chain-агрегатів: сума по turns агентної сесії.
+  const stepUsage = { input: 0, output: 0, totalTokens: 0 }
+  for (const t of turns) {
+    stepUsage.input += t.usage?.input ?? 0
+    stepUsage.output += t.usage?.output ?? 0
+    stepUsage.totalTokens += t.usage?.totalTokens ?? 0
+  }
+  chain?.note({ model: modelSpec, usage: stepUsage, error })
   trace({
     caller,
     backend: 'pi-ai',
@@ -284,13 +312,15 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     violation: typeof violation === 'string' ? violation.slice(0, 4000) : null,
     violationChars: typeof violation === 'string' ? violation.length : 0,
     promptChars: fixPrompt.length,
+    promptHash: pHash,
     // вихід:
     turnCount,
     toolCallCount,
     touchedFiles,
     backstopHit,
     wallMs: clock() - startedAt,
-    error
+    error,
+    ...chain?.traceFields()
   })
   return { applied: touchedFiles.length > 0, touchedFiles, telemetry, error, rollback: guard.rollback }
 }

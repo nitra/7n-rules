@@ -25,6 +25,7 @@
  */
 import { z } from 'zod'
 import { runOneShot } from '@nitra/llm-lib/one-shot'
+import { startChain } from '@nitra/llm-lib/chain'
 import { CLOUD_MIN, resolveModel } from '@nitra/llm-lib/model-tiers'
 
 // ─────────────────────────── Stage 0: retrieval (JS) ───────────────────────────
@@ -177,7 +178,13 @@ async function callWithCascade(messages, parse, cfg) {
   let lastErr = null
   for (let a = 0; a < attempts; a++) {
     cfg.stats.localCalls++
-    const res = await runOneShot({ messages, modelSpec: LOCAL(), timeoutMs: 120_000, caller: `adr-pipe:${cfg.label}` })
+    const res = await runOneShot({
+      messages,
+      modelSpec: LOCAL(),
+      timeoutMs: 120_000,
+      caller: `adr-pipe:${cfg.label}`,
+      chain: cfg.chain ?? null
+    })
     if (!res.error) {
       try {
         return parse(res.content)
@@ -197,7 +204,8 @@ async function callWithCascade(messages, parse, cfg) {
       messages,
       modelSpec: CLOUD_MIN,
       timeoutMs: 120_000,
-      caller: `adr-pipe:${cfg.label}:cloud`
+      caller: `adr-pipe:${cfg.label}:cloud`,
+      chain: cfg.chain ?? null
     })
     if (res.error) {
       lastErr = new Error(res.error)
@@ -534,14 +542,44 @@ const noop = () => {
  * Головний конвеєр. Повертає operations[] (контракт single-shot) + stats.
  * @param {{file:string, body:string}[]} drafts батч чернеток
  * @param {string[]} cleanList clean basename-и
- * @param {{allowCloud?:boolean, votes?:number, onProgress?:(m:string)=>void}} [opts] хмарна ескалація, кількість голосів і колбек прогресу
+ * @param {{allowCloud?:boolean, votes?:number, onProgress?:(m:string)=>void, chainFactory?:typeof startChain}} [opts] хмарна ескалація, кількість голосів, колбек прогресу, фабрика ланцюжка (інжект для тестів)
  * @returns {{operations:object[], stats:object, trace:object}} операції apply-ops, лічильники та діагностичний trace
  */
 export async function normalizePipeline(drafts, cleanList, opts = {}) {
+  // Один ланцюжок на весь прогін: edge-judge працює по ребрах ДО утворення
+  // кластерів, тож per-cluster chain не покрив би першу половину викликів;
+  // per-stage розріз аналітика бере з caller (`adr-pipe:<label>`).
+  const chain = (opts.chainFactory ?? startChain)({
+    kind: 'adr-normalize',
+    unit: `batch:${drafts.length}`,
+    cwd: process.cwd()
+  })
+  try {
+    const result = await normalizePipelineCore(drafts, cleanList, opts, chain)
+    chain.end({
+      outcome: result.stats.failures > 0 || result.stats.madrInvalid > 0 ? 'partial' : 'success',
+      extra: { drafts: drafts.length, ops: result.operations.length, stats: result.stats }
+    })
+    return result
+  } catch (error) {
+    chain.end({ outcome: 'fail', extra: { drafts: drafts.length, error: String(error.message ?? error).slice(0, 200) } })
+    throw error
+  }
+}
+
+/**
+ * Тіло конвеєра (chain належить обгортці normalizePipeline).
+ * @param {{file:string, body:string}[]} drafts батч чернеток
+ * @param {string[]} cleanList clean basename-и
+ * @param {{allowCloud?:boolean, votes?:number, onProgress?:(m:string)=>void}} opts опції прогону
+ * @param {object} chain chain handle
+ * @returns {Promise<{operations:object[], stats:object, trace:object}>} результат конвеєра
+ */
+async function normalizePipelineCore(drafts, cleanList, opts, chain) {
   const allowCloud = opts.allowCloud ?? false
   const log = opts.onProgress ?? noop
   const stats = { localCalls: 0, cloudCalls: 0, escalations: 0, failures: 0, madrInvalid: 0 }
-  const cfg = { allowCloud, votes: opts.votes ?? 2, stats }
+  const cfg = { allowCloud, votes: opts.votes ?? 2, stats, chain }
 
   const titles = drafts.map((d) => draftTitle(d.body) || d.file.replace(RE_MD_EXT, ''))
   const captured = drafts.map((d) => captureField(d.body, 'captured'))

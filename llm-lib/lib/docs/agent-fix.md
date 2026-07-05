@@ -3,7 +3,7 @@ type: JS Module
 title: agent-fix.mjs
 resource: llm-lib/lib/agent-fix.mjs
 docgen:
-  crc: 09b6d122
+  crc: dfbeb858
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 
