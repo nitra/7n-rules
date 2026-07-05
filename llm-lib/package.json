@@ -1,6 +1,6 @@
 {
   "name": "@nitra/llm-lib",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Тонкий шар роботи з LLM (локальні omlx + хмарні провайдери) поверх pi: model tiers, one-shot, agentic-раннери, write-guard, trace, telemetry, prompt-budget",
   "keywords": [
     "nitra",
@@ -21,7 +21,11 @@
     "directory": "llm-lib"
   },
   "type": "module",
+  "bin": {
+    "n-llm-chains-report": "./bin/chains-report.mjs"
+  },
   "files": [
+    "bin",
     "lib",
     "CHANGELOG.md",
     "README.md",
@@ -29,6 +33,8 @@
   ],
   "exports": {
     "./model-tiers": "./lib/model-tiers.mjs",
+    "./chain": "./lib/chain.mjs",
+    "./chains-report": "./lib/chains-report.mjs",
     "./one-shot": "./lib/one-shot.mjs",
     "./agent-fix": "./lib/agent-fix.mjs",
     "./agent-skill": "./lib/agent-skill.mjs",

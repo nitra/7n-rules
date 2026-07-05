@@ -17,12 +17,14 @@
  * ретраїти нема куди, RAM-стеля фіксована (fail-fast політика пакета).
  */
 
-import { resolveModel } from './model-tiers.mjs'
+import { isLocalModel, resolveModel } from './model-tiers.mjs'
 import { getRegistry, resolveModelSpec } from './internal/registry.mjs'
 import { failOnMemoryGuard } from './internal/memory-guard.mjs'
 import { writeTrace } from './trace.mjs'
 import { withTimeout } from './with-timeout.mjs'
 import { applyMaxTokens } from './internal/max-tokens.mjs'
+import { applyChainHeaders } from './internal/chain-headers.mjs'
+import { promptHash } from './chain.mjs'
 
 // Частина error-контракту fail-fast: consumers класифікують memory-guard помилку
 // (пробити нагору й завершити процес) окремо від звичайних per-item помилок.
@@ -43,9 +45,10 @@ const DEFAULT_TIMEOUT_MS = 120_000
  * @param {string} [args.cwd] робочий каталог сесії
  * @param {string} [args.thinkingLevel] рівень thinking (дефолт 'off')
  * @param {number} [args.maxTokens] per-call стеля відповіді (undefined → дефолт пакета, 0 → без стелі)
+ * @param {object|null} [args.chain] chain handle — домішує X-Chain-* заголовки (лише локальні моделі)
  * @returns {Promise<object>} pi AgentSession
  */
-async function defaultCreateSession({ registry, model, cwd, thinkingLevel, maxTokens }) {
+async function defaultCreateSession({ registry, model, cwd, thinkingLevel, maxTokens, chain }) {
   const { createAgentSession, SessionManager } = await import('@earendil-works/pi-coding-agent')
   const { session } = await createAgentSession({
     modelRegistry: registry,
@@ -55,6 +58,7 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel, maxTo
     cwd: cwd ?? process.cwd(),
     sessionManager: SessionManager.inMemory()
   })
+  applyChainHeaders(session, chain)
   return maxTokens === undefined ? applyMaxTokens(session) : applyMaxTokens(session, maxTokens)
 }
 
@@ -69,8 +73,10 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel, maxTo
  *   maxTokens?: number,
  *   caller?: string,
  *   cwd?: string,
+ *   chain?: object,
  *   deps?: { createSession?: (args: object) => Promise<object>, getRegistry?: () => Promise<object>, registry?: object, trace?: (entry: object) => void }
- * }} args параметри; `maxTokens` — per-call стеля відповіді (undefined → дефолт пакета, 0 → без стелі)
+ * }} args параметри; `maxTokens` — per-call стеля відповіді (undefined → дефолт пакета, 0 → без стелі);
+ *   `chain` — handle зі startChain: виклик стає кроком ланцюжка (chain-поля у trace, X-Chain-* заголовки локальним моделям)
  * @returns {Promise<{ content: string, usage: object|null, error: string|null, model: string|null, stopReason: string|null, caller: string }>} результат;
  *   `stopReason` — фініш останнього assistant-повідомлення (`'length'` = відповідь обрізана стелею; політика повтору — за колером)
  */
@@ -83,6 +89,7 @@ export async function runOneShot({
   maxTokens,
   caller = 'one-shot',
   cwd,
+  chain = null,
   deps = {}
 } = {}) {
   const createSession = deps.createSession ?? defaultCreateSession
@@ -92,9 +99,21 @@ export async function runOneShot({
   // Усі повідомлення (system+user) зливаються в один prompt — інлайн-інструкції
   // слабка локальна модель ВИКОНУЄ, а в system-промпті (replaceInstructions) — переказує.
   const userText = messages.map(m => m.content).join('\n\n')
+  chain?.nextStep()
+  const pHash = promptHash(userText)
 
   const fail = (error, model) => {
-    trace({ caller, backend: 'pi-ai', kind: 'one-shot', model: model ?? null, cwd: cwd ?? null, error })
+    chain?.note({ model: model ?? null, error })
+    trace({
+      caller,
+      backend: 'pi-ai',
+      kind: 'one-shot',
+      model: model ?? null,
+      cwd: cwd ?? null,
+      error,
+      promptHash: pHash,
+      ...chain?.traceFields()
+    })
     return { content: '', usage: null, error, model: model ?? null, stopReason: null, caller }
   }
 
@@ -112,7 +131,9 @@ export async function runOneShot({
 
   let session
   try {
-    session = await createSession({ registry, model, cwd, thinkingLevel, maxTokens })
+    // Заголовки кореляції — лише локальним моделям (myllm стоїть тільки перед ними).
+    const headerChain = spec && isLocalModel(spec) ? chain : null
+    session = await createSession({ registry, model, cwd, thinkingLevel, maxTokens, chain: headerChain })
   } catch (error) {
     return fail(`session: ${error.message}`, spec)
   }
@@ -137,6 +158,18 @@ export async function runOneShot({
     failOnMemoryGuard(promptError, userText)
   }
 
-  trace({ caller, backend: 'pi-ai', kind: 'one-shot', model: spec, cwd: cwd ?? null, usage, stopReason, error: promptError })
+  chain?.note({ model: spec, usage, error: promptError, stopReason })
+  trace({
+    caller,
+    backend: 'pi-ai',
+    kind: 'one-shot',
+    model: spec,
+    cwd: cwd ?? null,
+    usage,
+    stopReason,
+    error: promptError,
+    promptHash: pHash,
+    ...chain?.traceFields()
+  })
   return { content: text.trim(), usage, error: promptError, model: spec, stopReason, caller }
 }

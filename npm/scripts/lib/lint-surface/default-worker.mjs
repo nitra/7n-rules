@@ -32,6 +32,8 @@ export async function fixWorker(violations, ctx) {
     feedback: ctx.feedback ?? null,
     caller: `fix:${ctx.ruleId}/${ctx.concernId}:${ctx.tier}`,
     recordWrite: ctx.recordWrite,
+    // Ланцюжок concern-а (fix-драбина) — рунг стає кроком ланцюжка.
+    chain: ctx.chain ?? null,
     targetFiles,
     // n-cursor-специфічний AST-екстрактор (oxc) — пакет цього дефолту не має.
     deps: { astContext: p => extractContext(resolve(ctx.cwd, p)) }

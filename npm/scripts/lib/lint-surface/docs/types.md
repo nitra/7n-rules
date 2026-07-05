@@ -3,11 +3,8 @@ type: JS Module
 title: types.mjs
 resource: npm/scripts/lib/lint-surface/types.mjs
 docgen:
-  crc: 1f21bf7c
+  crc: c9f67db8
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  score: 100
-  issues: judge:inaccurate:0.98
-  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд

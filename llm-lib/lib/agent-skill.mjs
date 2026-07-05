@@ -18,11 +18,13 @@
  */
 
 import { env, stdout } from 'node:process'
-import { resolveModel } from './model-tiers.mjs'
+import { isLocalModel, resolveModel } from './model-tiers.mjs'
 import { getRegistry, resolveModelSpec } from './internal/registry.mjs'
 import { failOnMemoryGuard } from './internal/memory-guard.mjs'
 import { writeTrace } from './trace.mjs'
 import { applyMaxTokens } from './internal/max-tokens.mjs'
+import { applyChainHeaders } from './internal/chain-headers.mjs'
+import { promptHash } from './chain.mjs'
 import { withTimeout } from './with-timeout.mjs'
 
 /** Аварійна стеля turns на сесію скіла (runaway-backstop). Override: `N_LLM_SKILL_TURN_CEILING` (legacy `N_CURSOR_SKILL_TURN_CEILING`). */
@@ -40,10 +42,11 @@ const THINKING_BY_TIER = { min: 'low', avg: 'medium', max: 'high' }
 /**
  * Дефолтна фабрика pi-сесії: повний tool-set із `bash`, БЕЗ custom-tools і write-guard.
  * @param {{ registry: object, model: object|null, cwd?: string, thinkingLevel?: string,
- *   maxTokens?: number }} args параметри сесії (`maxTokens`: undefined → дефолт пакета, 0 → без стелі).
+ *   maxTokens?: number, chain?: object|null }} args параметри сесії (`maxTokens`: undefined → дефолт пакета,
+ *   0 → без стелі; `chain` — домішує X-Chain-* заголовки).
  * @returns {Promise<object>} pi AgentSession
  */
-async function defaultCreateSession({ registry, model, cwd, thinkingLevel, maxTokens }) {
+async function defaultCreateSession({ registry, model, cwd, thinkingLevel, maxTokens, chain }) {
   const { createAgentSession, SessionManager } = await import('@earendil-works/pi-coding-agent')
   const { session } = await createAgentSession({
     modelRegistry: registry,
@@ -53,6 +56,7 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel, maxTo
     cwd: cwd ?? process.cwd(),
     sessionManager: SessionManager.inMemory()
   })
+  applyChainHeaders(session, chain)
   return maxTokens === undefined ? applyMaxTokens(session) : applyMaxTokens(session, maxTokens)
 }
 
@@ -68,8 +72,10 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel, maxTo
  *   timeoutMs?: number,
  *   maxTokens?: number,
  *   caller?: string,
+ *   chain?: object,
  *   deps?: { createSession?: (args: object) => Promise<object>, getRegistry?: () => Promise<object>, registry?: object, trace?: (entry: object) => void, clock?: () => number, out?: (s: string) => void }
- * }} [opts] опції виконання скіла; `maxTokens` — per-call стеля відповіді (undefined → дефолт пакета, 0 → без стелі).
+ * }} [opts] опції виконання скіла; `maxTokens` — per-call стеля відповіді (undefined → дефолт пакета, 0 → без стелі);
+ *   `chain` — handle зі startChain: виклик стає кроком ланцюжка.
  * @returns {Promise<{ ok: boolean, telemetry: object|null, error: string|null }>} результат прогону скіла.
  */
 export async function runAgentSkill(prompt, opts = {}) {
@@ -82,6 +88,7 @@ export async function runAgentSkill(prompt, opts = {}) {
     timeoutMs = DEFAULT_TIMEOUT_MS,
     maxTokens,
     caller = `skill:${skillId}`,
+    chain = null,
     deps = {}
   } = opts
   const createSession = deps.createSession ?? defaultCreateSession
@@ -90,8 +97,23 @@ export async function runAgentSkill(prompt, opts = {}) {
   const clock = deps.clock ?? (() => Date.now())
   const out = deps.out ?? (s => stdout.write(s))
 
+  chain?.nextStep()
+  const pHash = promptHash(prompt)
+
   const fail = (error, model) => {
-    trace({ caller, backend: 'pi-ai', kind: 'skill', skill: skillId, tier, model: model ?? null, cwd, error })
+    chain?.note({ model: model ?? null, error })
+    trace({
+      caller,
+      backend: 'pi-ai',
+      kind: 'skill',
+      skill: skillId,
+      tier,
+      model: model ?? null,
+      cwd,
+      error,
+      promptHash: pHash,
+      ...chain?.traceFields()
+    })
     return { ok: false, telemetry: null, error }
   }
 
@@ -109,12 +131,14 @@ export async function runAgentSkill(prompt, opts = {}) {
 
   let session
   try {
+    // Заголовки кореляції — лише локальним моделям (myllm стоїть тільки перед ними).
     session = await createSession({
       registry,
       model,
       cwd,
       thinkingLevel: thinkingLevel ?? THINKING_BY_TIER[tier] ?? 'medium',
-      maxTokens
+      maxTokens,
+      chain: spec && isLocalModel(spec) ? chain : null
     })
   } catch (error) {
     return fail(`session: ${error.message}`, spec)
@@ -123,6 +147,7 @@ export async function runAgentSkill(prompt, opts = {}) {
   let turnCount = 0
   let toolCallCount = 0
   let backstopHit = false
+  let usage = null
   session.subscribe(event => {
     switch (event.type) {
       case 'turn_start': {
@@ -140,6 +165,14 @@ export async function runAgentSkill(prompt, opts = {}) {
       case 'message_update': {
         if (event.assistantMessageEvent?.type === 'text_delta') {
           out(event.assistantMessageEvent.delta ?? '')
+        }
+        break
+      }
+      case 'message_end': {
+        if (event.message?.usage) {
+          // Останній message несе usage сесії; сумувати по turns не треба —
+          // для chain-агрегатів достатньо фінального значення кроку.
+          usage = event.message.usage
         }
         break
       }
@@ -167,6 +200,7 @@ export async function runAgentSkill(prompt, opts = {}) {
     backstopHit,
     wallMs: clock() - startedAt
   }
+  chain?.note({ model: spec || null, usage, error })
   trace({
     caller,
     backend: 'pi-ai',
@@ -178,7 +212,10 @@ export async function runAgentSkill(prompt, opts = {}) {
     turnCount,
     toolCallCount,
     backstopHit,
-    error
+    usage,
+    error,
+    promptHash: pHash,
+    ...chain?.traceFields()
   })
   return { ok: !error && !backstopHit, telemetry, error }
 }

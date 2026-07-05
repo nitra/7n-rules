@@ -10,6 +10,7 @@ import { MEMORY_ERROR_RE, runOneShot } from '../lib/one-shot.mjs'
 const RE_NOT_FOUND = /не знайдена/
 const RE_TIMEOUT = /timeout/
 const RE_REGISTRY_ERR = /registry: no reg/
+const RE_HEX16 = /^[0-9a-f]{16}$/
 
 /**
  * No-op placeholder для subscribe-хендлера до реєстрації.
@@ -159,5 +160,45 @@ describe('runOneShot', () => {
     }
     const r = await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: 'omlx/x', deps })
     expect(r.error).toMatch(RE_REGISTRY_ERR)
+  })
+
+  test('з chain: step/note/trace-поля + headerChain лише для локальної моделі', async () => {
+    const usage = { totalTokens: 7 }
+    const deps = baseDeps(fakeSession({ deltas: ['ok'], usage }))
+    const chain = {
+      nextStep: vi.fn(() => 3),
+      note: vi.fn(),
+      traceFields: () => ({ chainId: 'cid1', chainKind: 'k', chainUnit: 'u', chainStep: 3 }),
+      headers: () => ({ 'X-Chain-Id': 'cid1' })
+    }
+    await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: 'omlx/x', chain, deps })
+    expect(chain.nextStep).toHaveBeenCalledTimes(1)
+    expect(chain.note).toHaveBeenCalledWith(expect.objectContaining({ model: 'omlx/x', usage }))
+    // omlx — локальний провайдер → chain пішов у createSession (для headers-mixin)
+    expect(deps.createSession).toHaveBeenCalledWith(expect.objectContaining({ chain }))
+    expect(deps.trace).toHaveBeenCalledWith(
+      expect.objectContaining({ chainId: 'cid1', chainStep: 3, promptHash: expect.stringMatching(RE_HEX16) })
+    )
+  })
+
+  test('з chain на хмарній моделі: headers НЕ йдуть у сесію, note — йде', async () => {
+    const deps = baseDeps(fakeSession({ deltas: ['ok'] }))
+    const chain = {
+      nextStep: vi.fn(() => 1),
+      note: vi.fn(),
+      traceFields: () => ({ chainId: 'cid2', chainKind: 'k', chainUnit: 'u', chainStep: 1 }),
+      headers: () => ({})
+    }
+    await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: 'openai/gpt-5.5', chain, deps })
+    expect(deps.createSession).toHaveBeenCalledWith(expect.objectContaining({ chain: null }))
+    expect(chain.note).toHaveBeenCalled()
+  })
+
+  test('без chain: у trace нема chain-полів, але є promptHash (сумісність)', async () => {
+    const deps = baseDeps(fakeSession({ deltas: ['ok'] }))
+    await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: 'omlx/x', deps })
+    const record = deps.trace.mock.calls.at(-1)[0]
+    expect(record).not.toHaveProperty('chainId')
+    expect(record.promptHash).toMatch(RE_HEX16)
   })
 })

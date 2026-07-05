@@ -4,6 +4,7 @@ import { basename } from 'node:path'
 import { env } from 'node:process'
 import { resolveModel } from '@nitra/llm-lib/model-tiers'
 import { runOneShot } from '@nitra/llm-lib/one-shot'
+import { startChain } from '@nitra/llm-lib/chain'
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { docPathForSource } from '../docgen-scan/main.mjs'
 import { extractFacts } from '../docgen-extract/main.mjs'
@@ -23,6 +24,13 @@ import {
 let llmMeter = { calls: 0, ms: 0 }
 
 /**
+ * Ланцюжок поточної генерації (@nitra/llm-lib/chain) — той самий lifecycle, що й
+ * llmMeter: виставляється на старті generateDoc, скидається у finally. Генерація
+ * одного файлу послідовна, тому module-level стан без гонок.
+ */
+let activeChain = null
+
+/**
  * Обгортка LLM-виклику з обліком (тепер async поверх pi-one-shot): лічить кількість
  * викликів і сумарний час. Генерація одного файлу послідовна — лічильник без гонок.
  * Зберігає старий інтерфейс accountant'а: повертає рядок-вміст, кидає на помилці.
@@ -38,7 +46,8 @@ async function callLlm(messages, model, opts = {}) {
       messages,
       modelSpec: model,
       timeoutMs: opts.timeoutMs,
-      caller: opts.caller ?? 'docgen'
+      caller: opts.caller ?? 'docgen',
+      chain: activeChain
     })
     if (res.error) throw new Error(res.error)
     return res.content
@@ -412,17 +421,18 @@ export const DEFAULT_LOCAL_MODEL = env.N_CURSOR_DOCGEN_MODEL ?? resolveModel('mi
  * з вищою температурою (best-of-2); якщо й він не допоміг — результат
  * позначається `degraded`, рішення про перегенерацію приймає batch/користувач.
  * @param {string} file абсолютний шлях джерела
- * @param {{ model?: string, threshold?: number, existingMd?: string|null }} [opts] model-id, поріг degraded, наявна дока (для збереження захищеної секції)
+ * @param {{ model?: string, threshold?: number, existingMd?: string|null, chainFactory?: typeof startChain }} [opts] model-id, поріг degraded, наявна дока (для збереження захищеної секції), фабрика ланцюжка (інжект для тестів)
  * @returns {{ md: string, ms: number, llmMs: number, llmCalls: number, score: number|null, issues: string[], degraded: boolean, model: string }} документ і метадані генерації (ms — увесь файл; llmMs/llmCalls — лише LLM; решта ms — оркестрація)
  */
 export async function generateDoc(
   file,
-  { model = DEFAULT_LOCAL_MODEL, threshold = QUALITY_THRESHOLD, existingMd = null } = {}
+  { model = DEFAULT_LOCAL_MODEL, threshold = QUALITY_THRESHOLD, existingMd = null, chainFactory = startChain } = {}
 ) {
   const src = readFileSync(file, 'utf8')
   // Pre-send guard: весь src вшивається у промпт як є (екстракт фактів його НЕ
   // замінює). Для гігантів (vendored/генерат) це переповнює контекст → інстант-skip
   // без LLM-виклику. Маркер «Prompt too long» → classifyOmlxError → permanent → skip.
+  // Guard ДО створення ланцюжка: skip без LLM — не задача.
   const estTokens = Math.round(Buffer.byteLength(src, 'utf8') / 4)
   const budget = srcTokenBudget()
   if (estTokens > budget) {
@@ -433,70 +443,98 @@ export async function generateDoc(
   const facts = extractFacts(src, file)
   const t0 = Date.now()
   llmMeter = { calls: 0, ms: 0 }
+  const chain = chainFactory({ kind: 'doc-generate', unit: facts.relPath, cwd: process.cwd() })
+  activeChain = chain
+  const chainExtra = {}
+  try {
+    return await generateDocCore()
+  } catch (error) {
+    chainExtra.error = String(error.message ?? error).slice(0, 200)
+    throw error
+  } finally {
+    activeChain = null
+    let outcome = 'success'
+    if (chainExtra.error) outcome = 'fail'
+    else if (chainExtra.degraded) outcome = 'partial'
+    chain.end({ outcome, extra: chainExtra })
+  }
 
-  // Варіант B: захищена секція «Призначення» з наявної доки — зберегти й подати як контекст
-  const intent = existingMd ? splitProtected(existingMd).body : null
-  const anchors = facts.unsupported ? null : extractAnchors(src)
-  let r = facts.unsupported
-    ? await oneShotDoc(facts, src, model, LOCAL_TIMEOUT_MS, { intent })
-    : await orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, intent })
+  /**
+   * Тіло генерації (замикання над generateDoc-локалами); заповнює chainExtra.
+   * @returns {Promise<object>} результат generateDoc
+   */
+  async function generateDocCore() {
+    // Варіант B: захищена секція «Призначення» з наявної доки — зберегти й подати як контекст
+    const intent = existingMd ? splitProtected(existingMd).body : null
+    const anchors = facts.unsupported ? null : extractAnchors(src)
+    let r = facts.unsupported
+      ? await oneShotDoc(facts, src, model, LOCAL_TIMEOUT_MS, { intent })
+      : await orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, intent })
 
-  // unsupported (vue/py до юніт-шару): скорер не застосовний — score=null, не degraded
-  if (facts.unsupported) {
+    // unsupported (vue/py до юніт-шару): скорер не застосовний — score=null, не degraded
+    if (facts.unsupported) {
+      chainExtra.unsupported = true
+      chainExtra.degraded = false
+      return {
+        ...r,
+        ms: Date.now() - t0,
+        llmMs: llmMeter.ms,
+        llmCalls: llmMeter.calls,
+        score: null,
+        issues: [],
+        degraded: false,
+        model
+      }
+    }
+
+    // Stage 2.5: детермінований скоринг (0 токенів)
+    let { score, issues } = scoreDoc(r.md, facts, { anchors, src })
+
+    // E4: best-of-2 — один retry з вищою температурою, det-вибір кращого
+    if (score < threshold && env.N_CURSOR_DOCGEN_BEST_OF !== '0') {
+      try {
+        const r2 = await orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, temperature: 0.5, intent })
+        const s2 = scoreDoc(r2.md, facts, { anchors, src })
+        if (s2.score > score) {
+          r = r2
+          score = s2.score
+          issues = [...s2.issues, 'best-of-2:retry-won']
+        } else {
+          issues = [...issues, 'best-of-2:retry-lost']
+        }
+      } catch (error) {
+        issues = [...issues, `best-of-2:retry-error: ${error.message}`]
+      }
+    }
+
+    // Stage 3 (опц.): семантичний judge-гейт — лише за N_CURSOR_DOCGEN_JUDGE=1 і на
+    // доках, що ПРОЙШЛИ det-скорер (там ховаються false-positives). Scope: inaccurate.
+    let judge = null
+    if (JUDGE_ENABLED && score >= threshold) {
+      try {
+        judge = { ...(await judgeDoc(src, r.md, { chain })), model: JUDGE_MODEL }
+        if (judgeFailsDoc(judge)) issues = [...issues, `judge:inaccurate:${judge.confidence}`]
+      } catch (error) {
+        issues = [...issues, `judge:error: ${error.message.slice(0, 80)}`]
+      }
+    }
+
+    const degraded = score < threshold || judgeFailsDoc(judge)
+    chainExtra.score = score
+    chainExtra.degraded = degraded
+    chainExtra.bestOf2Won = issues.includes('best-of-2:retry-won')
+    if (judge) chainExtra.judge = { inaccurate: judgeFailsDoc(judge), confidence: judge.confidence ?? null }
     return {
       ...r,
       ms: Date.now() - t0,
       llmMs: llmMeter.ms,
       llmCalls: llmMeter.calls,
-      score: null,
-      issues: [],
-      degraded: false,
+      score,
+      issues,
+      judge,
+      degraded,
       model
     }
-  }
-
-  // Stage 2.5: детермінований скоринг (0 токенів)
-  let { score, issues } = scoreDoc(r.md, facts, { anchors, src })
-
-  // E4: best-of-2 — один retry з вищою температурою, det-вибір кращого
-  if (score < threshold && env.N_CURSOR_DOCGEN_BEST_OF !== '0') {
-    try {
-      const r2 = await orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, temperature: 0.5, intent })
-      const s2 = scoreDoc(r2.md, facts, { anchors, src })
-      if (s2.score > score) {
-        r = r2
-        score = s2.score
-        issues = [...s2.issues, 'best-of-2:retry-won']
-      } else {
-        issues = [...issues, 'best-of-2:retry-lost']
-      }
-    } catch (error) {
-      issues = [...issues, `best-of-2:retry-error: ${error.message}`]
-    }
-  }
-
-  // Stage 3 (опц.): семантичний judge-гейт — лише за N_CURSOR_DOCGEN_JUDGE=1 і на
-  // доках, що ПРОЙШЛИ det-скорер (там ховаються false-positives). Scope: inaccurate.
-  let judge = null
-  if (JUDGE_ENABLED && score >= threshold) {
-    try {
-      judge = { ...(await judgeDoc(src, r.md)), model: JUDGE_MODEL }
-      if (judgeFailsDoc(judge)) issues = [...issues, `judge:inaccurate:${judge.confidence}`]
-    } catch (error) {
-      issues = [...issues, `judge:error: ${error.message.slice(0, 80)}`]
-    }
-  }
-
-  return {
-    ...r,
-    ms: Date.now() - t0,
-    llmMs: llmMeter.ms,
-    llmCalls: llmMeter.calls,
-    score,
-    issues,
-    judge,
-    degraded: score < threshold || judgeFailsDoc(judge),
-    model
   }
 }
 
