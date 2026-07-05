@@ -1,5 +1,12 @@
 # Changelog
 
+## [14.8.2] - 2026-07-05
+
+### Changed
+
+- LLM-шар npm/lib/pi-* винесено в окремий workspace-пакет @nitra/llm-lib (Ф1 спеки docs/specs/2026-07-05-llm-lib-extraction-spec.md); на місці лишились тимчасові re-export shims (pi-model-tiers, pi-one-shot, pi-agent-fix з інʼєкцією ast-extract, pi-agent-skill) до Ф2 import-rewrite. Поведінка consumers не змінилась.
+- Ф2 виносу @nitra/llm-lib: усі consumers (docgen-gen/judge, cspell-fix, adr/normalize-pipeline, lint-surface default-worker/run-fix/tier-sampling-bench, skills-cli) переведено на прямі імпорти @nitra/llm-lib; тимчасові shims npm/lib/pi-* видалено разом із текою npm/lib. default-worker інʼєктить oxc ast-extract як deps.astContext (n-cursor-специфічний дефолт, який пакет свідомо не має).
+
 ## [14.8.1] - 2026-07-05
 
 ### Changed
