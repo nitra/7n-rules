@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.8.4] - 2026-07-05
+
+### Changed
+
+- fix(deps): bunx-тули lint-оркестрації (github-actionlint, jscpd, oxlint, v8r) перенесено з devDependencies у dependencies — devDeps опублікованого пакета споживачам не встановлюються, тож піни версій у consumer-репо не діяли (bunx тягнув latest); тепер bunx резолвить пінені версії з node_modules споживача. Узгоджено підказки правил npm-module/npm_package_json і bun/package_json (dev-тулзи → root, bunx-тули → dependencies)
+
 ## [14.8.3] - 2026-07-05
 
 ### Changed
