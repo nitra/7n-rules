@@ -56,7 +56,7 @@ export function parseDocVerdict(rawText) {
  * @param {{model?: string, timeoutMs?: number}} [opts] override моделі/таймауту
  * @returns {{verdict: string, confidence: number, reason: string}} verdict судді
  */
-export async function judgeDoc(src, doc, { model = JUDGE_MODEL, timeoutMs = 120_000 } = {}) {
+export async function judgeDoc(src, doc, { model = JUDGE_MODEL, timeoutMs = 120_000, chain = null } = {}) {
   const user = `SOURCE FILE:\n\`\`\`\n${src.slice(0, 12_000)}\n\`\`\`\n\nGENERATED DOC:\n\`\`\`md\n${doc.slice(0, 8000)}\n\`\`\`\n\nReturn the JSON verdict.`
   const res = await runOneShot({
     messages: [
@@ -65,7 +65,8 @@ export async function judgeDoc(src, doc, { model = JUDGE_MODEL, timeoutMs = 120_
     ],
     modelSpec: model,
     timeoutMs,
-    caller: 'docgen-judge'
+    caller: 'docgen-judge',
+    chain
   })
   if (res.error) throw new Error(res.error)
   return parseDocVerdict(res.content)

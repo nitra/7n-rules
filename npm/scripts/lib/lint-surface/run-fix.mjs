@@ -19,6 +19,7 @@ import { join, relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { LOCAL_MIN, CLOUD_MIN, CLOUD_AVG } from '@nitra/llm-lib/model-tiers'
+import { startChain } from '@nitra/llm-lib/chain'
 import { writeTrace } from '@nitra/llm-lib/trace'
 import { buildDetectPlan } from './run-detectors.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
@@ -188,7 +189,7 @@ async function runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log, 
  * @returns {Promise<{ closed: true } | { closed: false, outcome: RungOutcome }>} closed=true якщо concern закрито; інакше результат для наступного кроку.
  */
 async function runRung(rung, worker, violations, feedback, rungDeps) {
-  const { item, cwd, snapshot, log, progress = null, verbose = false } = rungDeps
+  const { item, cwd, snapshot, log, progress = null, verbose = false, chain = null } = rungDeps
   const { ruleId } = item.entry
   const concernName = item.entry.concern.name
   progress?.concernStart(progressKey(item), rung.tier)
@@ -202,7 +203,8 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
     tier: rung.tier,
     model: rung.model,
     feedback: rung.feedback ? feedback : undefined,
-    recordWrite: absPath => snapshot.record(absPath)
+    recordWrite: absPath => snapshot.record(absPath),
+    chain
   }
 
   let workerResult = null
@@ -303,9 +305,43 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
  * @param {(s: string) => void} deps.log Логер прогресу.
  * @param {import('./progress.mjs').ProgressReporter|null} [deps.progress] Reporter прогресу.
  * @param {boolean} [deps.verbose] Детальний вивід (прокидається у ctx concern-а).
+ * @param {typeof startChain} [deps.chainFactory] Фабрика ланцюжка (інжект для тестів).
  * @returns {Promise<boolean>} Чи закрито concern (усі порушення усунено).
  */
 export async function fixConcern(item, initialViolations, deps) {
+  const { ruleId } = item.entry
+  const concernName = item.entry.concern.name
+  // Ланцюжок concern-а охоплює і T0: закриття без жодного LLM-виклику (steps:0,
+  // t0Closed) — золотий baseline для метрики дистиляції.
+  const chain = (deps.chainFactory ?? startChain)({
+    kind: 'fix-concern',
+    unit: `${ruleId}/${concernName}`,
+    cwd: deps.cwd
+  })
+  const chainExtra = { t0Closed: false, stop: null, rungs: [], rollbacks: 0, avgCapSkipped: 0 }
+  let closed = false
+  try {
+    closed = await fixConcernCore(item, initialViolations, deps, chain, chainExtra)
+    return closed
+  } finally {
+    let outcome = 'fail'
+    if (closed) outcome = 'success'
+    else if (chainExtra.stop) outcome = 'partial'
+    chain.end({ outcome, extra: chainExtra })
+  }
+}
+
+/**
+ * Тіло fix-pipeline одного concern-а (T0 → S1 → ladder); chain/chainExtra — акумулятори
+ * телеметрії ланцюжка (володіє ними fixConcern-обгортка).
+ * @param {PlanItem} item Елемент плану.
+ * @param {LintViolation[]} initialViolations Початкові порушення.
+ * @param {object} deps Залежності pipeline (див. fixConcern).
+ * @param {object} chain Chain handle.
+ * @param {{ t0Closed: boolean, stop: string|null, rungs: object[], rollbacks: number, avgCapSkipped: number }} chainExtra Акумулятор extra.
+ * @returns {Promise<boolean>} Чи закрито concern.
+ */
+async function fixConcernCore(item, initialViolations, deps, chain, chainExtra) {
   const { cwd, ladder, log, progress = null, verbose = false } = deps
   const { ruleId } = item.entry
   const concernName = item.entry.concern.name
@@ -316,7 +352,10 @@ export async function fixConcern(item, initialViolations, deps) {
   // ── T0 (детермінований, permanent) ──
   const patterns = deps.t0Override ?? (await loadT0Patterns(concernDir, concernName))
   const t0 = await runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log, progress, verbose)
-  if (t0.closed) return true
+  if (t0.closed) {
+    chainExtra.t0Closed = true
+    return true
+  }
   initialViolations = t0.violations
 
   // ── Fixability-гейт ── config/structural concern-и НЕ йдуть у LLM-ladder: їхній фікс
@@ -325,12 +364,16 @@ export async function fixConcern(item, initialViolations, deps) {
   const fixability = item.entry.concern.fixability ?? 'code'
   if (fixability !== 'code') {
     log(`  ⏹️  ${ruleId}/${concernName}: fixability=${fixability} — LLM-ladder пропущено (T0/manual)\n`)
+    chainExtra.stop = 'fixability'
     return false
   }
 
   // ── Worker ladder ── concern-specific fix-worker.mjs, інакше дефолтний pi-agent worker.
   const worker = await resolveWorker(concernDir, deps.workerOverride)
-  if (!worker || ladder.length === 0) return false
+  if (!worker || ladder.length === 0) {
+    chainExtra.stop = 'no-worker'
+    return false
+  }
 
   // S1: знімок post-T0. Один tracker акумулює pre-images; rollback цілить у S1.
   const snapshot = createSnapshot()
@@ -342,12 +385,27 @@ export async function fixConcern(item, initialViolations, deps) {
     if (skipModels.has(rung.model)) continue
     if (rung.isAvg && deps.avgRemaining() <= 0) {
       log(`  ⏭️  ${ruleId}/${concernName}: ${rung.tier} пропущено (avg-кеп вичерпано)\n`)
+      chainExtra.avgCapSkipped++
       continue
     }
 
-    const res = await runRung(rung, worker, violations, feedback, { item, cwd, snapshot, log, progress, verbose })
+    const res = await runRung(rung, worker, violations, feedback, {
+      item,
+      cwd,
+      snapshot,
+      log,
+      progress,
+      verbose,
+      chain
+    })
     if (rung.isAvg) deps.spendAvg(1)
+    chainExtra.rungs.push({
+      tier: rung.tier,
+      model: rung.model,
+      error: res.closed ? null : (res.outcome.feedback.previousError ?? '').slice(0, 200)
+    })
     if (res.closed) return true
+    chainExtra.rollbacks++
 
     violations = res.outcome.violations
     feedback = res.outcome.feedback

@@ -3,7 +3,7 @@ type: JS Module
 title: normalize-pipeline.mjs
 resource: npm/scripts/lib/adr/normalize-pipeline.mjs
 docgen:
-  crc: d4248f52
+  crc: 537ac371
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 

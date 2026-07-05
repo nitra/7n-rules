@@ -7,6 +7,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { runAgentSkill } from '../lib/agent-skill.mjs'
 
+const RE_HEX16 = /^[0-9a-f]{16}$/
 const registry = { find: (p, id) => ({ provider: p, id }) }
 
 const RE_NOT_FOUND = /не знайдена/
@@ -109,6 +110,30 @@ describe('runAgentSkill', () => {
       deps: { registry, createSession, trace: vi.fn() }
     })
     expect(createSession).toHaveBeenCalledWith(expect.objectContaining({ maxTokens: 0 }))
+  })
+
+  test('з chain: step/note/chain-поля у trace; хмарна модель → chain:null у сесію', async () => {
+    const { session } = fakeSession()
+    const createSession = vi.fn(() => Promise.resolve(session))
+    const trace = vi.fn()
+    const chain = {
+      nextStep: vi.fn(() => 1),
+      note: vi.fn(),
+      traceFields: () => ({ chainId: 'cs1', chainKind: 'k', chainUnit: 'u', chainStep: 1 }),
+      headers: () => ({})
+    }
+    await runAgentSkill('P', {
+      skillId: 's',
+      modelSpec: 'openai/gpt-5.5',
+      chain,
+      deps: { registry, createSession, trace }
+    })
+    expect(chain.nextStep).toHaveBeenCalledTimes(1)
+    expect(chain.note).toHaveBeenCalledWith(expect.objectContaining({ model: 'openai/gpt-5.5' }))
+    expect(createSession).toHaveBeenCalledWith(expect.objectContaining({ chain: null }))
+    expect(trace).toHaveBeenCalledWith(
+      expect.objectContaining({ chainId: 'cs1', promptHash: expect.stringMatching(RE_HEX16) })
+    )
   })
 
   test('prompt кидає → ok:false + error', async () => {

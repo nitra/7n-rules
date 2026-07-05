@@ -3,7 +3,7 @@ type: JS Module
 title: model-tiers.mjs
 resource: llm-lib/lib/model-tiers.mjs
 docgen:
-  crc: 955dc627
+  crc: 3782c06a
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 

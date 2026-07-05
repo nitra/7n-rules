@@ -3,7 +3,7 @@ type: JS Module
 title: run-fix.mjs
 resource: npm/scripts/lib/lint-surface/run-fix.mjs
 docgen:
-  crc: d11cfe0c
+  crc: d6c39cb4
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 

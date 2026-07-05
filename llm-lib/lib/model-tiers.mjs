@@ -76,3 +76,27 @@ export function parseModelId(spec) {
   if (i < 1 || i === spec.length - 1) return null
   return { provider: spec.slice(0, i), id: spec.slice(i + 1) }
 }
+
+// ── Класифікація local vs cloud ──────────────────────────────────────────────
+
+/** Провайдери, що вважаються локальними. Override: `N_LLM_LOCAL_PROVIDERS` (кома-список). */
+const LOCAL_PROVIDERS = new Set(
+  (env.N_LLM_LOCAL_PROVIDERS ?? 'omlx')
+    .split(',')
+    .map(p => p.trim())
+    .filter(Boolean)
+)
+
+/**
+ * Чи model-spec вказує на локальну модель: збіг з одним із LOCAL_* тирів
+ * АБО провайдер з `N_LLM_LOCAL_PROVIDERS` (дефолт `omlx`). Використовується
+ * для local/cloud-агрегатів ланцюжків і рішення про chain-заголовки.
+ * @param {string} spec `"provider/model-id"`
+ * @returns {boolean} true — локальна модель
+ */
+export function isLocalModel(spec) {
+  if (typeof spec !== 'string' || !spec) return false
+  if (spec === LOCAL_MIN || spec === LOCAL_AVG || spec === LOCAL_MAX) return true
+  const parsed = parseModelId(spec)
+  return parsed ? LOCAL_PROVIDERS.has(parsed.provider) : false
+}

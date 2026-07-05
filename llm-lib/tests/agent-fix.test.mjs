@@ -14,6 +14,7 @@ import { buildFixPrompt, runAgentFix } from '../lib/agent-fix.mjs'
 const RE_AST_FACTS = /ast_facts/
 const RE_SELF_CHECK = /self_check/
 const RE_PREVIOUS_ATTEMPT = /Попередня спроба/
+const RE_HEX16 = /^[0-9a-f]{16}$/
 const RE_NOT_GIT = /не git-репо/
 const RE_NOT_FOUND = /не знайдена/
 const RE_FAIL_CLOSED = /fail-closed/
@@ -173,6 +174,40 @@ describe('happy-path (справжній write-guard на temp git-репо)', (
     expect(r.telemetry.edits[0]).toMatchObject({ tool: 'edit', edits: [{ oldText: 'OLD', newText: 'NEW' }] })
     expect(typeof r.rollback).toBe('function')
     expect(trace).toHaveBeenCalledWith(expect.objectContaining({ kind: 'agent', rule: 'n-ci4', backend: 'pi-ai' }))
+  })
+
+  test('з chain: step/note/chain-поля у trace + usage з turns', async () => {
+    const trace = vi.fn()
+    const chain = {
+      nextStep: vi.fn(() => 2),
+      note: vi.fn(),
+      traceFields: () => ({ chainId: 'cf1', chainKind: 'fix-concern', chainUnit: 'r/c', chainStep: 2 }),
+      headers: () => ({ 'X-Chain-Id': 'cf1' })
+    }
+    await runAgentFix('n-ci4', '❌ v', dir, {
+      model: 'omlx/gemma',
+      tier: 'local-min',
+      chain,
+      deps: { root: dir, registry, createSession: fakeCreate(), trace }
+    })
+    expect(chain.nextStep).toHaveBeenCalledTimes(1)
+    expect(chain.note).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'omlx/gemma', usage: { input: 100, output: 10, totalTokens: 110 } })
+    )
+    expect(trace).toHaveBeenCalledWith(
+      expect.objectContaining({ chainId: 'cf1', chainStep: 2, promptHash: expect.stringMatching(RE_HEX16) })
+    )
+  })
+
+  test('без chain: trace без chain-полів (сумісність), promptHash присутній', async () => {
+    const trace = vi.fn()
+    await runAgentFix('n-ci4', '❌ v', dir, {
+      model: 'omlx/gemma',
+      deps: { root: dir, registry, createSession: fakeCreate(), trace }
+    })
+    const record = trace.mock.calls.at(-1)[0]
+    expect(record).not.toHaveProperty('chainId')
+    expect(record.promptHash).toMatch(RE_HEX16)
   })
 
   test('prompt кидає → error, але touched зафіксовані', async () => {

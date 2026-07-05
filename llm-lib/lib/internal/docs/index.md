@@ -11,6 +11,7 @@ INTERNAL-модулі `@nitra/llm-lib` — substrate-coupled (pi) частини
 
 | Файл                                | Тип       |
 | ----------------------------------- | --------- |
+| [chain-headers.mjs](chain-headers.md) | JS Module |
 | [max-tokens.mjs](max-tokens.md)     | JS Module |
 | [memory-guard.mjs](memory-guard.md) | JS Module |
 | [registry.mjs](registry.md)         | JS Module |
