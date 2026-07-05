@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/npm-module/rule_meta/main.mjs
 docgen:
-  crc: 13b53dcf
+  crc: 3c4c2ca7
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 95
   issues: anchor-miss:(scripts.mdc),judge:inaccurate:0.98
@@ -23,6 +23,7 @@ Lint-детектор concern-а `npm-module/rule_meta`: валідує мета
    - `main.json` має існувати і бути валідним JSON-обʼєктом.
    - Поле `auto` (опційне) має відповідати одній з форм: `"завжди"` / масив / `{ glob }` / `{ predicate }`; предикат має бути зареєстрований у `RULE_PREDICATES`.
    - Поле `lint` заборонене: rule-level lint-scope скасовано (spec 2026-06-28-concern-lint-scope-design) — lint-поверхня декларується у `<rule>/<concern>/concern.json#lint`.
+   - Поле `llmFix` заборонене: opt-in-прапорця немає — fix-можливість концерну визначається наявністю `fix-*.mjs`/`fix-worker.mjs`.
 3. Повертає `LintResult` зі списком порушень; валідні правила репортяться як pass.
 
 ## Публічний API
