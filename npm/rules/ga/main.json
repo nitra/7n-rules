@@ -1,1 +1,1 @@
-{ "auto": { "glob": ".github/workflows/**" }, "lint": "full" }
+{ "auto": { "glob": ".github/workflows/**" } }
