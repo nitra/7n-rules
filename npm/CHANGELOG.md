@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.9.0] - 2026-07-05
+
+### Fixed
+
+- js/check: детекція воркспейс-типів (node/vue) для eslint.config — T0 scaffold/merge замість LLM-перезапису; vue-воркспейс обовʼязково у vue: [...] getConfig
+
 ## [14.8.7] - 2026-07-05
 
 ### Changed
