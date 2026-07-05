@@ -11,6 +11,15 @@ import {
   verifyOxlintRcAgainstCanonical
 } from '../tooling/main.mjs'
 
+import {
+  AUTO_IMPORTS_IGNORE,
+  ESLINT_CONFIG_IGNORES,
+  ESLINT_CONFIG_MISSING,
+  ESLINT_CONFIG_VUE_WORKSPACE,
+  detectWorkspaceTypes,
+  parseVueList
+} from './eslint-config.mjs'
+
 const NON_DIGITS_RE = /\D+/u
 
 /**
@@ -28,7 +37,7 @@ async function checkEslintConfig(passFn, failFn, cwd) {
     eslintPath = 'eslint.config.mjs'
     passFn('eslint.config.mjs існує')
   } else {
-    failFn('Відсутній eslint.config.js або eslint.config.mjs — flat config з getConfig (js.mdc)')
+    failFn('Відсутній eslint.config.js або eslint.config.mjs — flat config з getConfig (js.mdc)', ESLINT_CONFIG_MISSING)
     return
   }
   const eslintRaw = await readFile(join(cwd, eslintPath), 'utf8')
@@ -44,16 +53,46 @@ async function checkEslintConfig(passFn, failFn, cwd) {
       err: `${eslintPath}: імпортуй getConfig з @nitra/eslint-config`
     },
     {
-      needle: '**/auto-imports.d.ts',
-      ok: `${eslintPath}: ignores містить **/auto-imports.d.ts`,
-      err: `${eslintPath}: додай у ignores запис **/auto-imports.d.ts (js.mdc)`
+      needle: AUTO_IMPORTS_IGNORE,
+      ok: `${eslintPath}: ignores містить ${AUTO_IMPORTS_IGNORE}`,
+      err: `${eslintPath}: додай у ignores запис ${AUTO_IMPORTS_IGNORE} (js.mdc)`,
+      reason: ESLINT_CONFIG_IGNORES
     }
   ]
-  for (const { needle, ok, err } of checks) {
+  for (const { needle, ok, err, reason } of checks) {
     if (eslintRaw.includes(needle)) {
       passFn(ok)
     } else {
-      failFn(err)
+      failFn(err, reason)
+    }
+  }
+  await checkEslintWorkspaceTypes(eslintRaw, eslintPath, passFn, failFn, cwd)
+}
+
+/**
+ * Кожен vue-воркспейс (детекція: `workspaces` root package.json + vue-залежність
+ * або `.vue` файли) має бути у `vue: [...]` аргументах getConfig — інакше eslint
+ * не підключає vue-parser і всі `.vue` файли воркспейсу не парсяться. Ловить
+ * хибний scaffold типу `getConfig({ node: ['npm'] })` у vue-монорепо.
+ * @param {string} eslintRaw вміст eslint.config
+ * @param {string} eslintPath ім'я файлу конфігу для повідомлень
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string, reason?: string) => void} failFn callback при помилці
+ * @param {string} cwd корінь репозиторію
+ */
+async function checkEslintWorkspaceTypes(eslintRaw, eslintPath, passFn, failFn, cwd) {
+  const types = await detectWorkspaceTypes(cwd)
+  if (types.vue.length === 0) return
+  const vueEntries = parseVueList(eslintRaw)
+  for (const ws of types.vue) {
+    if (vueEntries.includes(ws)) {
+      passFn(`${eslintPath}: vue-воркспейс '${ws}' у vue: [...]`)
+    } else {
+      failFn(
+        `${eslintPath}: воркспейс '${ws}' містить Vue-код, але відсутній у vue: [...] getConfig — ` +
+          '.vue файли не парсяться (js.mdc)',
+        ESLINT_CONFIG_VUE_WORKSPACE
+      )
     }
   }
 }

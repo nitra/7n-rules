@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.10] - 2026-07-05
+
+### Changed
+
+- 🔥 chore(demo): прибрати дубльований change-файл — vite-бамп уже релізнуто в 0.0.8 upstream; ✨ feat(js/check): детекція воркспейс-типів для eslint.config — T0 scaffold/merge замість LLM-перезапису
+
+## [0.0.9] - 2026-07-05
+
+### Changed
+
+- fix(rule_meta): скасування rule-level main.json.lint — lint-scope живе в concern.json
+
 ## [0.0.8] - 2026-07-05
 
 ### Changed
