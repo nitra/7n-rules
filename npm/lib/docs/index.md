@@ -6,15 +6,13 @@ resource: npm/lib/
 
 # npm/lib
 
-| Файл                                            | Тип       |
-| ----------------------------------------------- | --------- |
-| [pi-agent-fix.mjs](pi-agent-fix.md)             | JS Module |
-| [pi-agent-skill.mjs](pi-agent-skill.md)         | JS Module |
-| [pi-max-tokens.mjs](pi-max-tokens.md)           | JS Module |
-| [pi-memory-guard.mjs](pi-memory-guard.md)       | JS Module |
-| [pi-model-tiers.mjs](pi-model-tiers.md)         | JS Module |
-| [pi-one-shot.mjs](pi-one-shot.md)               | JS Module |
-| [pi-telemetry-store.mjs](pi-telemetry-store.md) | JS Module |
-| [pi-trace.mjs](pi-trace.md)                     | JS Module |
-| [pi-with-timeout.mjs](pi-with-timeout.md)       | JS Module |
-| [pi-write-guard.mjs](pi-write-guard.md)         | JS Module |
+Тимчасові shims Ф1 виносу `@nitra/llm-lib` (спека
+docs/specs/2026-07-05-llm-lib-extraction-spec.md) — зникнуть на Ф2 після
+import-rewrite consumers.
+
+| Файл                                    | Тип                |
+| --------------------------------------- | ------------------ |
+| [pi-agent-fix.mjs](pi-agent-fix.md)     | JS Module (shim)   |
+| [pi-agent-skill.mjs](pi-agent-skill.md) | JS Module (shim)   |
+| [pi-model-tiers.mjs](pi-model-tiers.md) | JS Module (shim)   |
+| [pi-one-shot.mjs](pi-one-shot.md)       | JS Module (shim)   |

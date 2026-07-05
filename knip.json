@@ -61,6 +61,10 @@
     "demo": {
       "ignoreDependencies": ["vite-plugin-vue-layouts-next"],
       "entry": ["stryker.config.mjs"]
+    },
+    "llm-lib": {
+      "entry": ["lib/*.mjs", "tests/**/*.test.mjs"],
+      "project": ["**/*.mjs"]
     }
   }
 }
