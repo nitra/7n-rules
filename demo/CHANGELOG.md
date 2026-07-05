@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.9] - 2026-07-05
+
+### Changed
+
+- fix(rule_meta): скасування rule-level main.json.lint — lint-scope живе в concern.json
+
 ## [0.0.8] - 2026-07-05
 
 ### Changed
