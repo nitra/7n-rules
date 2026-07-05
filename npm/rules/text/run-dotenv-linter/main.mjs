@@ -63,8 +63,8 @@ function buildTargetArgs(scopeFiles) {
  * @param {string[]} [scopeFiles] явний перелік `.env*`-файлів (delta) — якщо не задано, рекурсивний `-r .`
  * @returns {number} 0 — OK; 1 — інструмент відсутній або є залишкові порушення
  */
-export function runDotenvLinter(cwd = process.cwd(), readOnly = false, scopeFiles) {
-  const root = resolve(cwd)
+export function runDotenvLinter(cwd, readOnly, scopeFiles) {
+  const root = resolve(cwd ?? process.cwd())
   const bin = resolveCmd('dotenv-linter')
   if (!bin) {
     printDotenvLinterInstallHints()

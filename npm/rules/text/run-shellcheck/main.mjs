@@ -104,8 +104,8 @@ export function listShellScriptPaths(cwd) {
  * @param {string[]} [scopeFiles] явний перелік файлів (delta) — якщо не задано, шукає всі `*.sh` через `listShellScriptPaths`
  * @returns {number} 0 — OK; 1 — помилка середовища або залишкові зауваження shellcheck
  */
-export function runShellcheckText(cwd = process.cwd(), readOnly = false, scopeFiles) {
-  const root = resolve(cwd)
+export function runShellcheckText(cwd, readOnly, scopeFiles) {
+  const root = resolve(cwd ?? process.cwd())
   const shellcheck = resolveCmd('shellcheck')
   if (!shellcheck) {
     printShellcheckInstallHints()

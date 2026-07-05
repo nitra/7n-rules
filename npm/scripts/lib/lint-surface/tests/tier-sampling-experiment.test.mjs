@@ -11,6 +11,8 @@ import { withTmpDir } from '../../../utils/test-helpers.mjs'
 
 const VIOLATIONS = [{ ruleId: 'probe', concernId: 'check', reason: 'not-done', message: 'out.txt is not done' }]
 
+const detectStillBad = () => [{ ruleId: 'probe', concernId: 'check', reason: 'not-done', message: 'still bad' }]
+
 describe('tier sampling experiment', () => {
   test('experiment ladder включає cloud-max, але маркує всі rungs як experiment-only', () => {
     const ladder = buildExperimentLadder(
@@ -52,7 +54,7 @@ describe('tier sampling experiment', () => {
         experimentOnly: true,
         timeoutMs: 1000
       }
-      const worker = async (_violations, ctx) => {
+      const worker = (_violations, ctx) => {
         observed.push({
           profile: ctx.samplingProfile,
           before: existsSync(out) ? readFileSync(out, 'utf8') : 'absent'
@@ -109,12 +111,11 @@ describe('tier sampling experiment', () => {
         experimentOnly: true,
         timeoutMs: 1000
       }
-      const worker = async (_violations, ctx) => {
+      const worker = (_violations, ctx) => {
         ctx.recordWrite(out)
         writeFileSync(out, 'still-bad')
         return { touchedFiles: [out] }
       }
-      const detect = () => [{ ruleId: 'probe', concernId: 'check', reason: 'not-done', message: 'still bad' }]
 
       const result = await runTierSamplingExperiment({
         violations: VIOLATIONS,
@@ -122,7 +123,7 @@ describe('tier sampling experiment', () => {
         rung,
         candidates: [{ id: 'max-judge', samplingProfile: 'judge' }],
         worker,
-        detect,
+        detect: detectStillBad,
         judge: ({ attempts }) => ({ advice: 'try a narrower patch', attempts: attempts.length })
       })
 
