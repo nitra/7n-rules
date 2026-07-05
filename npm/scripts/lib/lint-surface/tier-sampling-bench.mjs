@@ -254,7 +254,7 @@ export async function runTierSamplingBench(opts = {}) {
 }
 
 /**
- * Сідить fixture у тимчасовий каталог і ініціалізує в ньому git-репозиторій.
+ * Наповнює тимчасовий каталог файлами fixture і ініціалізує в ньому git-репозиторій.
  * @param {string} root Корінь тимчасового каталогу fixture.
  * @param {{ seed: (root: string) => void }} fixture Fixture з функцією seed для наповнення каталогу.
  */
