@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.8.5] - 2026-07-05
+
+### Fixed
+
+- ga/js workflow-політики стали pin-aware: SHA-пін `owner/action@<40-hex>` (zizmor ref-pin, з тег-коментарем чи без) задовольняє канонічний `@vN` з template — фіксер більше не даунгрейдить SHA-піни до тегів (lint_ga, clean_ga_workflows, clean_merged_branch, lint_js_yml)
+
 ## [14.8.4] - 2026-07-05
 
 ### Changed
