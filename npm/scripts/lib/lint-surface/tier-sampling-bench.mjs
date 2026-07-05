@@ -1,7 +1,7 @@
 /**
  * Реальний bench-runner для experiment-only tier sampling поверх lint fix ladder.
  *
- * Створює тимчасові git-fixtures, запускає `runPiAgentFix` через
+ * Створює тимчасові git-fixtures, запускає `runAgentFix` через
  * `runTierSamplingExperiment` для local/cloud tier-ів, перевіряє кожен candidate
  * deterministic detector-ом і пише machine-readable JSON із clean/rescue/latency.
  */
@@ -12,8 +12,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { env, exit, stdout } from 'node:process'
 
-import { CLOUD_AVG, CLOUD_MAX, CLOUD_MIN, LOCAL_MIN } from '../../../lib/pi-model-tiers.mjs'
-import { runPiAgentFix } from '../../../lib/pi-agent-fix.mjs'
+import { CLOUD_AVG, CLOUD_MAX, CLOUD_MIN, LOCAL_MIN } from '@nitra/llm-lib/model-tiers'
+import { runAgentFix } from '@nitra/llm-lib/agent-fix'
 import {
   buildExperimentLadder,
   runTierSamplingExperiment,
@@ -169,7 +169,7 @@ export async function runTierSamplingBench(opts = {}) {
           rung,
           candidates,
           worker: async (violations, ctx) => {
-            const res = await runPiAgentFix('bench', renderViolations(violations), root, {
+            const res = await runAgentFix('bench', renderViolations(violations), root, {
               model: ctx.model,
               tier: ctx.tier,
               timeoutMs: DEFAULT_TIMEOUT_MS,
@@ -183,7 +183,7 @@ export async function runTierSamplingBench(opts = {}) {
                   return { ok: current.length === 0, violations: current }
                 },
                 // samplingProfile/candidateId — концепт runner-а, worker про них не знає,
-                // тому в trace вони дописуються тут, а не в runPiAgentFix.
+                // тому в trace вони дописуються тут, а не в runAgentFix.
                 trace: event =>
                   traceEvents.push({ ...event, samplingProfile: ctx.samplingProfile, candidateId: ctx.candidateId })
               }

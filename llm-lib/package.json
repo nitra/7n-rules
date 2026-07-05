@@ -1,0 +1,60 @@
+{
+  "name": "@nitra/llm-lib",
+  "version": "1.0.0",
+  "description": "Тонкий шар роботи з LLM (локальні omlx + хмарні провайдери) поверх pi: model tiers, one-shot, agentic-раннери, write-guard, trace, telemetry, prompt-budget",
+  "keywords": [
+    "nitra",
+    "llm",
+    "pi",
+    "omlx",
+    "bun"
+  ],
+  "homepage": "https://github.com/n/cursor#readme",
+  "bugs": {
+    "url": "https://github.com/n/cursor/issues"
+  },
+  "license": "ISC",
+  "author": "v@nitra.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/n/cursor.git",
+    "directory": "llm-lib"
+  },
+  "type": "module",
+  "files": [
+    "lib",
+    "CHANGELOG.md",
+    "README.md",
+    "!**/*.test.mjs"
+  ],
+  "exports": {
+    "./model-tiers": "./lib/model-tiers.mjs",
+    "./one-shot": "./lib/one-shot.mjs",
+    "./agent-fix": "./lib/agent-fix.mjs",
+    "./agent-skill": "./lib/agent-skill.mjs",
+    "./write-guard": "./lib/write-guard.mjs",
+    "./trace": "./lib/trace.mjs",
+    "./telemetry-store": "./lib/telemetry-store.mjs",
+    "./with-timeout": "./lib/with-timeout.mjs",
+    "./prompt-budget": "./lib/prompt-budget.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "~0.80.2",
+    "@earendil-works/pi-coding-agent": "~0.80.2"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-ai": {
+      "optional": true
+    },
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "bun": ">=1.3",
+    "node": ">=24"
+  }
+}

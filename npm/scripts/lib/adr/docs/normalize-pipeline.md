@@ -3,11 +3,8 @@ type: JS Module
 title: normalize-pipeline.mjs
 resource: npm/scripts/lib/adr/normalize-pipeline.mjs
 docgen:
-  crc: 386ec210
+  crc: d4248f52
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  score: 100
-  issues: judge:inaccurate:0.99
-  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 Реалізує локально-орієнтований конвеєр для нормалізації ADR. У цій системі JavaScript виконує оркестрацію, тоді як LLM відповідає виключно на вузькі, верифіковані питання. Процес включає відбір кандидатів на основі лексичної схожості (Stage 0: retrieval), бінарне судження між записами (Stage 1: edge-judge) та класифікацію драфтів (Stage 1b: kind-judge). Система об'єднує підтверджені ребра через алгоритм Union-Find (Stage 1c: cluster) для вибору опорного елемента (anchor) та призначення операцій. Далі, LLM вилучає секції в JSON (Stage 2: gen-MADR), після чого JS збирає канон. На фінальній стадії, LLM створює прозу про змін (Stage 3: gen-merge), яку JS додає до документа з відповідним заголовком.

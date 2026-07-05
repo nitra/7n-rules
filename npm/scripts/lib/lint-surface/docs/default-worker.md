@@ -3,17 +3,13 @@ type: JS Module
 title: default-worker.mjs
 resource: npm/scripts/lib/lint-surface/default-worker.mjs
 docgen:
-  crc: 089e226b
+  crc: 2cbeefb2
   model: openai-codex/gpt-5.5
-  tier: cloud-avg
-  score: 100
-  issues: judge:inaccurate:0.93
-  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Файл надає дефолтний LLM fix-worker для unified lint surface: `fixWorker` є адаптером до `runPiAgentFix` під контракт `fixWorker → { touchedFiles, telemetry? }`. Він існує як запасний обробник для concern-ів без власного `fix-worker.mjs`, повертає central pipeline-у змінені файли й опційну telemetry та не пише самостійно у ФС/БД. Записи LLM-процесу проходять через central write-guard як `onCapture = ctx.recordWrite`, щоб `pre-image` потрапляв у central snapshot до запису, а rollback міг відкочувати ці правки. Worker виконує один attempt, а успіх визначає повторний canonical re-detect runner-а.
+Файл надає дефолтний LLM fix-worker для unified lint surface: `fixWorker` є адаптером до `runAgentFix` під контракт `fixWorker → { touchedFiles, telemetry? }`. Він існує як запасний обробник для concern-ів без власного `fix-worker.mjs`, повертає central pipeline-у змінені файли й опційну telemetry та не пише самостійно у ФС/БД. Записи LLM-процесу проходять через central write-guard як `onCapture = ctx.recordWrite`, щоб `pre-image` потрапляв у central snapshot до запису, а rollback міг відкочувати ці правки. Worker виконує один attempt, а успіх визначає повторний canonical re-detect runner-а.
 
 ## Поведінка
 

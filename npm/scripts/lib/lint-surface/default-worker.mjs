@@ -12,15 +12,21 @@ import { renderViolations } from './render.mjs'
 
 /** @type {FixWorkerFn} */
 export async function fixWorker(violations, ctx) {
-  // lazy import — тримає detect-шлях вільним від pi (read-only --no-fix не вантажить pi).
-  const { runPiAgentFix } = await import('../../../lib/pi-agent-fix.mjs')
+  // lazy import — тримає detect-шлях вільним від pi/oxc (read-only --no-fix не вантажить їх).
+  const [{ runAgentFix }, { extractContext }, { resolve }] = await Promise.all([
+    import('@nitra/llm-lib/agent-fix'),
+    import('../../utils/ast-extract.mjs'),
+    import('node:path')
+  ])
   const violationText = renderViolations(violations)
-  const res = await runPiAgentFix(ctx.ruleId, violationText, ctx.cwd, {
+  const res = await runAgentFix(ctx.ruleId, violationText, ctx.cwd, {
     model: ctx.model,
     tier: ctx.tier,
     feedback: ctx.feedback ?? null,
     caller: `fix:${ctx.ruleId}/${ctx.concernId}:${ctx.tier}`,
-    recordWrite: ctx.recordWrite
+    recordWrite: ctx.recordWrite,
+    // n-cursor-специфічний AST-екстрактор (oxc) — пакет цього дефолту не має.
+    deps: { astContext: p => extractContext(resolve(ctx.cwd, p)) }
   })
   if (res.error) throw new Error(res.error)
   return { touchedFiles: res.touchedFiles ?? [], telemetry: res.telemetry ?? undefined }

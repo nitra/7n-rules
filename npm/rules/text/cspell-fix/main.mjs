@@ -20,7 +20,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
-import { runOneShot } from '../../../lib/pi-one-shot.mjs'
+import { runOneShot } from '@nitra/llm-lib/one-shot'
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 /** Слово у рядку cspell: `<file>:<line>:<col> - Unknown word (xxx)`. */

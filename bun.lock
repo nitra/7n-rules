@@ -6,7 +6,7 @@
       "name": "mono",
       "devDependencies": {
         "@nitra/cspell-dict": "^2.2.2",
-        "@nitra/cursor": "^14.5.0",
+        "@nitra/cursor": "^14.8.1",
         "@nitra/eslint-config": "^3.10.3",
         "@nitra/stylelint-config": "^1.4.1",
         "@stryker-mutator/vitest-runner": "^9.6.1",
@@ -16,7 +16,7 @@
     },
     "demo": {
       "name": "demo",
-      "version": "0.0.6",
+      "version": "0.0.7",
       "dependencies": {
         "vue": "^3.5.38",
       },
@@ -29,14 +29,27 @@
         "vue-macros": "^3.1.2",
       },
     },
+    "llm-lib": {
+      "name": "@nitra/llm-lib",
+      "version": "1.0.0",
+      "peerDependencies": {
+        "@earendil-works/pi-ai": "~0.80.2",
+        "@earendil-works/pi-coding-agent": "~0.80.2",
+      },
+      "optionalPeers": [
+        "@earendil-works/pi-ai",
+        "@earendil-works/pi-coding-agent",
+      ],
+    },
     "npm": {
       "name": "@nitra/cursor",
-      "version": "14.5.0",
+      "version": "14.8.1",
       "bin": {
         "n-cursor": "./bin/n-cursor.js",
       },
       "dependencies": {
         "@7n/mt": "^0.5.1",
+        "@nitra/llm-lib": "^1.0.0",
         "cli-progress": "^3.12.0",
         "eslint": "^10.4.1",
         "globby": "^16.0.0",
@@ -433,6 +446,8 @@
     "@nitra/cursor": ["@nitra/cursor@workspace:npm"],
 
     "@nitra/eslint-config": ["@nitra/eslint-config@3.10.3", "", { "dependencies": { "@e18e/eslint-plugin": "^0.5.1", "@eslint/compat": "^2.1.0", "@eslint/js": "^10.0.1", "@eslint/markdown": "^8.0.2", "@graphql-eslint/eslint-plugin": "^4.4.0", "@graphql-tools/code-file-loader": "^8.1.32", "@graphql-tools/graphql-tag-pluck": "^8.3.31", "@graphql-tools/utils": "^11.1.0", "@microsoft/eslint-plugin-sdl": "^1.1.0", "eslint": "^10.6.0", "eslint-merge-processors": "^2.0.0", "eslint-plugin-import-x": "^4.17.0", "eslint-plugin-jsdoc": "^63.0.10", "eslint-plugin-jsonc": "^3.2.0", "eslint-plugin-n": "^18.2.1", "eslint-plugin-no-unsanitized": "^4.1.5", "eslint-plugin-oxlint": "^1.71.0", "eslint-plugin-security": "^4.0.1", "eslint-plugin-sonarjs": "^4.1.0", "eslint-plugin-unicorn": "^69.0.0", "eslint-plugin-vue": "^10.9.2", "eslint-plugin-yml": "^3.5.0", "eslint-processor-vue-blocks": "^2.0.0", "globals": "^17.7.0", "graphql": "^16.14.0", "vue-eslint-parser": "^10.4.1" } }, "sha512-QSHs6k6kOFUdq6ZGxjyKsLsNLBllXjAeG4sEt+b0Hw6fg4dVV+5w4omtqtChJRTJdxzPm2vQDkCjtkoY8TxzMw=="],
+
+    "@nitra/llm-lib": ["@nitra/llm-lib@workspace:llm-lib"],
 
     "@nitra/stylelint-config": ["@nitra/stylelint-config@1.4.1", "", { "dependencies": { "postcss-html": "^1.8.1", "stylelint": "^17.6.0", "stylelint-config-recommended-vue": "^1.6.1", "stylelint-config-standard-scss": "^17.0.0" } }, "sha512-m5hPuFft/SogWxCooz3oESDYQfF6YhsZjVDnf1/+nteDDTrtXSaIb11nWJ9ZlG7DOeXPCtuZELf06nLK1GtSNw=="],
 

@@ -12,8 +12,8 @@
  * `N_CLOUD_MIN_MODEL` → 0 змін поведінки. Патерн дзеркалить `scripts/coverage-classify`.
  */
 import { env } from 'node:process'
-import { runOneShot } from '../../../lib/pi-one-shot.mjs'
-import { CLOUD_MIN } from '../../../lib/pi-model-tiers.mjs'
+import { runOneShot } from '@nitra/llm-lib/one-shot'
+import { CLOUD_MIN } from '@nitra/llm-lib/model-tiers'
 
 /** Модель-суддя = `N_CLOUD_MIN_MODEL` (хмарний cloud-min tier). */
 export const JUDGE_MODEL = CLOUD_MIN
