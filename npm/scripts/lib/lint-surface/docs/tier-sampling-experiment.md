@@ -3,7 +3,7 @@ type: JS Module
 title: tier-sampling-experiment.mjs
 resource: npm/scripts/lib/lint-surface/tier-sampling-experiment.mjs
 docgen:
-  crc: 7bb8d134
+  crc: f6a46f92
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.98

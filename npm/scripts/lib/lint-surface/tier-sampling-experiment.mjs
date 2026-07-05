@@ -24,42 +24,42 @@ const DEFAULT_PROFILES_BY_TIER = Object.freeze({
 
 /**
  * @typedef {object} ExperimentRung
- * @property {'local-min'|'cloud-min'|'cloud-avg'|'cloud-max'} tier
- * @property {string} model
- * @property {boolean} feedback
- * @property {boolean} local
- * @property {boolean} isAvg
- * @property {boolean} isMax
- * @property {boolean} experimentOnly
- * @property {number} timeoutMs
+ * @property {'local-min'|'cloud-min'|'cloud-avg'|'cloud-max'} tier Ідентифікатор tier-а в експериментальному ladder.
+ * @property {string} model Назва моделі, що виконує fix на цьому rung-і.
+ * @property {boolean} feedback Чи передавати judge-feedback у контекст fix-у.
+ * @property {boolean} local Чи виконується rung локальною моделлю.
+ * @property {boolean} isAvg Чи це rung рівня cloud-avg.
+ * @property {boolean} isMax Чи це rung рівня cloud-max.
+ * @property {boolean} experimentOnly Позначка, що rung існує лише в експерименті, не в production ladder.
+ * @property {number} timeoutMs Стеля часу виконання одного кандидата, мс.
  */
 
 /**
  * @typedef {object} SamplingCandidate
- * @property {string} id
- * @property {'conservative'|'exploratory'|'judge'|string} samplingProfile
+ * @property {string} id Унікальний ідентифікатор кандидата в межах прогону.
+ * @property {'conservative'|'exploratory'|'judge'|string} samplingProfile Sampling-профіль, з яким запускається кандидат.
  */
 
 /**
  * @typedef {object} CandidateAttempt
- * @property {number} index
- * @property {string} id
- * @property {string} samplingProfile
- * @property {string} tier
- * @property {string} model
- * @property {boolean} clean
- * @property {string[]} touchedFiles
- * @property {number} changedBytes
- * @property {number} wallMs
- * @property {string|null} error
- * @property {import('./types.mjs').LintViolation[]} violations
- * @property {object|undefined} telemetry
- * @property {Array<{ absPath: string, exists: boolean, content: string }>} patch
+ * @property {number} index Порядковий номер кандидата у списку.
+ * @property {string} id Ідентифікатор кандидата.
+ * @property {string} samplingProfile Sampling-профіль кандидата.
+ * @property {string} tier Tier rung-а, на якому виконувався кандидат.
+ * @property {string} model Модель, що виконувала fix.
+ * @property {boolean} clean Чи пройшов кандидат canonical detect без залишкових порушень.
+ * @property {string[]} touchedFiles Абсолютні шляхи файлів, які кандидат змінив.
+ * @property {number} changedBytes Сумарний розмір captured patch у байтах.
+ * @property {number} wallMs Тривалість спроби, мс.
+ * @property {string|null} error Повідомлення помилки worker-а або null.
+ * @property {import('./types.mjs').LintViolation[]} violations Порушення, що лишилися після спроби.
+ * @property {object|undefined} telemetry Телеметрія worker-а, якщо він її повернув.
+ * @property {Array<{ absPath: string, exists: boolean, content: string }>} patch Знімок змінених файлів чистого кандидата.
  */
 
 /**
  * Будує experiment-only ladder із `cloud-max`. Production ladder це не змінює.
- * @param {{ localMin?: string, cloudMin?: string, cloudAvg?: string, cloudMax?: string }} models - Об'єくと, що містить імена моделей для кожного tier.
+ * @param {{ localMin?: string, cloudMin?: string, cloudAvg?: string, cloudMax?: string }} models - Об'єкт, що містить імена моделей для кожного tier.
  * @param {{ localTimeoutMs?: number, cloudTimeoutMs?: number }} [opts] - Опції для встановлення timeout для локального та хмарного етапу.
  * @returns {ExperimentRung[]} Масив експериментальних rung'ів (етапів).
  */
@@ -174,7 +174,7 @@ export async function runTierSamplingExperiment(args) {
     let error = null
     let telemetry
     /** @type {string[]} */
-    let touchedFiles = []
+    let touchedFiles
 
     const candidateCtx = {
       ...args.ctx,
@@ -193,8 +193,8 @@ export async function runTierSamplingExperiment(args) {
       const res = await args.worker(args.violations, candidateCtx)
       touchedFiles = uniqueStrings(res?.touchedFiles?.length ? res.touchedFiles : [...recordedThisCandidate])
       telemetry = res?.telemetry
-    } catch (error) {
-      error = error.message
+    } catch (workerError) {
+      error = workerError.message
       touchedFiles = uniqueStrings([...recordedThisCandidate])
     }
 

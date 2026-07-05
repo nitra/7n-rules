@@ -124,8 +124,8 @@ const FIXTURES = [
 
 /**
  * Запускає повний bench і пише JSON-результат.
- * @param {{ out?: string, tiers?: string[], fixtures?: string[] }} [opts]
- * @returns {Promise<object>}
+ * @param {{ out?: string, tiers?: string[], fixtures?: string[] }} [opts] Фільтри прогону: шлях вихідного файлу, перелік tiers і fixtures.
+ * @returns {Promise<object>} Підсумковий об'єкт bench-результату (він же записується у файл out).
  */
 export async function runTierSamplingBench(opts = {}) {
   const out = opts.out ?? DEFAULT_OUT
@@ -148,7 +148,8 @@ export async function runTierSamplingBench(opts = {}) {
     summary: null
   }
 
-  for (const fixture of FIXTURES.filter(f => wantedFixtures.has(f.id))) {
+  for (const fixture of FIXTURES) {
+    if (!wantedFixtures.has(fixture.id)) continue
     for (const rung of ladder) {
       const root = await mkdtemp(join(tmpdir(), `n-cursor-tier-bench-${fixture.id}-${rung.tier}-`))
       try {
@@ -178,14 +179,15 @@ export async function runTierSamplingBench(opts = {}) {
               caller: `tier-bench:${fixture.id}:${ctx.tier}:${ctx.samplingProfile}`,
               recordWrite: ctx.recordWrite,
               deps: {
-                selfCheck: async () => {
+                selfCheck: () => {
                   const current = fixture.detect(root)
                   return { ok: current.length === 0, violations: current }
                 },
                 // samplingProfile/candidateId — концепт runner-а, worker про них не знає,
                 // тому в trace вони дописуються тут, а не в runAgentFix.
-                trace: event =>
+                trace: event => {
                   traceEvents.push({ ...event, samplingProfile: ctx.samplingProfile, candidateId: ctx.candidateId })
+                }
               }
             })
             if (res.error) throw new Error(res.error)
@@ -222,7 +224,7 @@ export async function runTierSamplingBench(opts = {}) {
             violations: a.violations.map(v => ({ reason: v.reason, file: v.file, message: v.message })),
             telemetry: summarizeTelemetry(a.telemetry)
           })),
-          traceEvents: traceEvents.map(summarizeTraceEvent),
+          traceEvents: traceEvents.map(event => summarizeTraceEvent(event)),
           judgeFeedback: bench.judgeFeedback,
           finalViolations: bench.finalViolations.map(v => ({ reason: v.reason, file: v.file, message: v.message }))
         }
@@ -254,7 +256,9 @@ export async function runTierSamplingBench(opts = {}) {
 }
 
 /**
- *
+ * Наповнює тимчасовий каталог файлами fixture і ініціалізує в ньому git-репозиторій.
+ * @param {string} root Корінь тимчасового каталогу fixture.
+ * @param {{ seed: (root: string) => void }} fixture Fixture з функцією seed для наповнення каталогу.
  */
 function initGitFixture(root, fixture) {
   fixture.seed(root)
@@ -264,7 +268,9 @@ function initGitFixture(root, fixture) {
 }
 
 /**
- *
+ * Пише дані як pretty-printed JSON, створюючи проміжні каталоги.
+ * @param {string} path Шлях до вихідного файлу.
+ * @param {object} data Дані для серіалізації.
  */
 function writeJson(path, data) {
   mkdirSync(dirname(path), { recursive: true })
@@ -272,14 +278,18 @@ function writeJson(path, data) {
 }
 
 /**
- *
+ * Форматує порушення в текстовий список для промпта агента.
+ * @param {import('./types.mjs').LintViolation[]} violations Порушення для рендеру.
+ * @returns {string} Markdown-список порушень, по рядку на кожне.
  */
 function renderViolations(violations) {
   return violations.map(v => `- ${v.file ?? '(repo)'} [${v.reason}]: ${v.message}`).join('\n')
 }
 
 /**
- *
+ * Повертає інструкцію промпта для заданого sampling-профілю.
+ * @param {string} profile Sampling-профіль кандидата ('conservative' або 'exploratory').
+ * @returns {string} Рядок-інструкція для промпта агента.
  */
 function profileInstruction(profile) {
   if (profile === 'exploratory') {
@@ -289,7 +299,9 @@ function profileInstruction(profile) {
 }
 
 /**
- *
+ * Стискає телеметрію worker-а до компактного зведення для JSON-результату.
+ * @param {object|undefined} t Телеметрія спроби від worker-а.
+ * @returns {object|null} Зведення (лічильники, usage) або null, якщо телеметрії немає.
  */
 function summarizeTelemetry(t) {
   if (!t) return null
@@ -308,8 +320,8 @@ function summarizeTelemetry(t) {
  * Сумує per-turn usage у загальний usage attempt-а. Попередній прогін брав лише
  * останній turn і недооцінював tokens — final verdict це не міняло, але ламало
  * cost-порівняння між tiers.
- * @param {Array<{ input?: number, output?: number, cacheRead?: number, cacheWrite?: number, totalTokens?: number }>} usages
- * @returns {object|null}
+ * @param {Array<{ input?: number, output?: number, cacheRead?: number, cacheWrite?: number, totalTokens?: number }>} usages Per-turn usage-записи спроби.
+ * @returns {object|null} Сумарний usage по всіх turns або null, якщо записів немає.
  */
 function aggregateUsage(usages) {
   if (usages.length === 0) return null
@@ -334,7 +346,9 @@ function aggregateUsage(usages) {
 }
 
 /**
- *
+ * Вибирає з trace-події лише поля, потрібні для JSON-результату bench-а.
+ * @param {object} event Повна trace-подія від runAgentFix.
+ * @returns {object} Компактний запис події без важких payload-ів.
  */
 function summarizeTraceEvent(event) {
   return {
@@ -358,7 +372,9 @@ function summarizeTraceEvent(event) {
 }
 
 /**
- *
+ * Агрегує rows у per-tier зведення: clean-rate, clean-attempt-rate, середній час спроби.
+ * @param {Array<{ tier: string, clean: boolean, attempts: Array<{ clean: boolean, wallMs: number }> }>} rows Результати всіх пар fixture×tier.
+ * @returns {{ byTier: object }} Зведення метрик, згруповане за tier.
  */
 function summarizeBench(rows) {
   const byTier = {}
@@ -382,14 +398,17 @@ function summarizeBench(rows) {
 }
 
 /**
- *
+ * Пише прогрес-подію одним JSON-рядком у stdout (NDJSON).
+ * @param {object} event Подія прогресу з довільними полями.
  */
 function logProgress(event) {
   stdout.write(`${JSON.stringify({ ts: new Date().toISOString(), ...event })}\n`)
 }
 
 /**
- *
+ * Розбирає CLI-аргументи bench-а (--out, --tier, --fixture).
+ * @param {string[]} argv Аргументи командного рядка без node і шляху скрипта.
+ * @returns {{ out?: string, tiers?: string[], fixtures?: string[] }} Опції для runTierSamplingBench.
  */
 function parseArgs(argv) {
   const opts = {}
