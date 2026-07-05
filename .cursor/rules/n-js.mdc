@@ -2,10 +2,12 @@
 description: Перевірка JavaScript коду
 globs: "**/{.oxlintrc.json,eslint.config.js,.jscpd.json,knip.json,package.json},**/*.{js,mjs,cjs,jsx,ts,tsx}"
 alwaysApply: false
-version: '1.30'
+version: '1.31'
 ---
 
 **oxlint**, **ESLint**, **jscpd**, **knip**. Запуск — **`n-cursor lint js`** (локально; у CI — `--read-only`, без **`--fix`** для oxlint/eslint). Без **prettier** і **@nitra/prettier-config**.
+
+`eslint.config.js` — flat config з `getConfig` (`@nitra/eslint-config`). Аргументи `node: [...]`/`vue: [...]` мають відповідати воркспейс-типам репо (`workspaces` root `package.json`; vue-воркспейс = Vue-залежність у deps або `.vue` файли) — інакше `.vue` файли не парсяться. Відсутній конфіг створюється (scaffold), наявний — зазнає хірургічного merge (fix не перезаписує файл цілком).
 
 ## Швидкий gate через conftest
 
