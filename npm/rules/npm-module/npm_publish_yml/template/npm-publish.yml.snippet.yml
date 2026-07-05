@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          persist-credentials: true # release пушить commit-back + тег
+          persist-credentials: false
           fetch-depth: 0
 
       - uses: ./.github/actions/setup-bun-deps
@@ -31,10 +31,14 @@ jobs:
           node-version: '24' # includes npm@11.6.0
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Configure git identity
+      - name: Configure git identity + push auth
+        # persist-credentials лишається false (ga-rule, безпека): checkout не зберігає токен.
+        # Release робить commit-back `git push`, тож даємо job-scoped ephemeral GITHUB_TOKEN
+        # явно через remote-url (а не persisted у git config усього прогону).
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
 
       - name: Release (bump + CHANGELOG + tag)
         run: bunx n-cursor release

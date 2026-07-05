@@ -19,7 +19,7 @@ Rego-пакет: `npm-module.npm_package_json`
 **Поле `devDependencies`** (inverse-pattern, логіка в rego):
 
 - Не публікуються користувачам пакета — має бути відсутнє або порожнє `{}`.
-- Наявність будь-яких devDeps → deny з переліком залежностей. Перенести у кореневий `package.json`.
+- Наявність будь-яких devDeps → deny з переліком залежностей. Dev-інструментарій переноситься у кореневий `package.json`; CLI-тули, які пакет спавнить через `bunx` у репозиторіях-споживачах (пінінг версій), — у `dependencies` (кореневе bun-правило `package_json` такі пакети в root devDeps не пускає).
 
 Канонічний сніпет `files`: [package.json.snippet.json](./template/package.json.snippet.json)
 

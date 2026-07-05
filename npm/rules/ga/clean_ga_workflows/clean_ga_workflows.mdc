@@ -15,4 +15,6 @@ Rego-пакет: `ga.clean_ga_workflows`
 - `steps[0].name` і `steps[0].uses` — відповідно до template (`dmvict/clean-workflow-runs@v1`)
 - `steps[0].with` — `token`, `save_period`, `save_min_runs_number` як у template
 
+**Pin-aware `uses`:** SHA-пін того самого action (`owner/action@<40-hex SHA>`, з тег-коментарем `# vX` чи без) задовольняє канонічний тег із template. Якщо в репо вже SHA-пін (zizmor-політика ref-pin) — НЕ замінюй його тегом.
+
 Канон: [clean-ga-workflows.yml.snippet.yml](./template/clean-ga-workflows.yml.snippet.yml)

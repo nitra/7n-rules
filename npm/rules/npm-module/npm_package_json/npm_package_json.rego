@@ -20,7 +20,8 @@ types_field_template := concat(" ", [
 
 dev_deps_template := concat(" ", [
 	"npm/package.json: \"devDependencies\" не публікуються користувачам пакета —",
-	"перенеси у кореневий package.json: %v (npm-module.mdc: компактний пакет)",
+	"dev-інструментарій перенеси у кореневий package.json, а CLI-тули, які пакет",
+	"спавнить через bunx у споживачів, — у \"dependencies\": %v (npm-module.mdc)",
 ])
 
 # ── deny: types (regex — лишається в rego) ───────────────────────────────

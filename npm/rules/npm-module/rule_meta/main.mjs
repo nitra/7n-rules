@@ -1,14 +1,10 @@
-/** @see ./docs/rule_meta.md */
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+/** @see ./docs/main.md */
+import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
-import { parseRuleAutoSpec, parseRuleLintSpec, readRuleMetaRaw } from '../../../scripts/lib/rule-meta.mjs'
+import { parseRuleAutoSpec, readRuleMetaRaw } from '../../../scripts/lib/rule-meta.mjs'
 import { RULE_PREDICATES } from '../../../scripts/lib/rule-predicates.mjs'
-
-// Канон (ADR 2026-06-21): lint-поверхня — це експорт `lint` із `main.mjs` (інлайн або
-// `export { lint } from './js/…'`), а не окремий `js/lint.mjs`.
-const LINT_EXPORT_RE = /export\s+(?:async\s+)?function\s+lint\b|export\s*\{[^}]*\blint\b/u
 
 /**
  * Перевіряє поле `auto` у meta.json одного правила.
@@ -33,26 +29,18 @@ function checkAutoField(id, raw, reporter) {
 }
 
 /**
- * Перевіряє поле `lint` у meta.json одного правила.
+ * Забороняє залишкове поле `lint` у meta.json правила.
+ * Канон (spec 2026-06-28-concern-lint-scope-design): lint-scope живе у
+ * `<rule>/<concern>/concern.json#lint`, rule-level `main.json.lint` скасовано.
  * @param {string} id ідентифікатор правила
- * @param {string} ruleDir каталог правила
  * @param {Record<string, unknown>} raw сирий meta.json
  * @param {ReturnType<typeof createViolationReporter>} reporter репортер
- * @returns {boolean} true, якщо поле валідне (або відсутнє)
+ * @returns {boolean} true, якщо поле відсутнє
  */
-function checkLintField(id, ruleDir, raw, reporter) {
+function checkLintField(id, raw, reporter) {
   if (raw.lint === undefined) return true
-  if (parseRuleLintSpec(raw.lint) === null) {
-    reporter.fail(`rules/${id}: main.json.lint нерозпізнане (очікується "per-file"|"full")`)
-    return false
-  }
-  const mainPath = join(ruleDir, 'main.mjs')
-  const src = existsSync(mainPath) ? readFileSync(mainPath, 'utf8') : ''
-  if (!LINT_EXPORT_RE.test(src)) {
-    reporter.fail(`rules/${id}: lint:"${raw.lint}" але main.mjs не експортує lint`)
-    return false
-  }
-  return true
+  reporter.fail(`rules/${id}: main.json.lint скасовано — lint-scope декларується у <concern>/concern.json#lint`)
+  return false
 }
 
 /**
@@ -83,7 +71,7 @@ function checkRule(id, ruleDir, reporter) {
   }
 
   if (!checkAutoField(id, raw, reporter)) ruleOk = false
-  if (!checkLintField(id, ruleDir, raw, reporter)) ruleOk = false
+  if (!checkLintField(id, raw, reporter)) ruleOk = false
 
   if (ruleOk) {
     reporter.pass(`rules/${id}: main.json валідний`)

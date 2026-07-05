@@ -6,7 +6,7 @@
       "name": "mono",
       "devDependencies": {
         "@nitra/cspell-dict": "^2.2.2",
-        "@nitra/cursor": "^14.8.5",
+        "@nitra/cursor": "^14.8.2",
         "@nitra/eslint-config": "^3.10.3",
         "@nitra/stylelint-config": "^1.4.1",
         "@stryker-mutator/vitest-runner": "^9.6.1",
@@ -24,7 +24,7 @@
         "@vitejs/plugin-vue": "^6.0.7",
         "lightningcss": "^1.0.0",
         "unplugin-auto-import": "^21.0.0",
-        "vite": "^8.1.0",
+        "vite": "^8.1.3",
         "vite-plugin-vue-layouts-next": "^2.1.0",
         "vue-macros": "^3.1.2",
       },
@@ -40,6 +40,36 @@
         "@earendil-works/pi-ai",
         "@earendil-works/pi-coding-agent",
       ],
+    },
+    "npm": {
+      "name": "@nitra/cursor",
+      "version": "14.8.2",
+      "bin": {
+        "n-cursor": "./bin/n-cursor.js",
+      },
+      "dependencies": {
+        "@7n/mt": "^0.5.1",
+        "@nitra/llm-lib": "^1.0.0",
+        "cli-progress": "^3.12.0",
+        "eslint": "^10.4.1",
+        "github-actionlint": "^1.7.12",
+        "globby": "^16.0.0",
+        "ignore": "^7.0.5",
+        "jscpd": "^5.0.11",
+        "knip": "^6.22.0",
+        "markdownlint-cli2": "^0.22.1",
+        "oxc-parser": "^0.137.0",
+        "oxlint": "^1.68.0",
+        "picomatch": "^4.0.4",
+        "smol-toml": "^1.7.0",
+        "v8r": "^6.1.0",
+        "yaml": "^2.9.0",
+        "zod": "^4.4.3",
+      },
+      "optionalDependencies": {
+        "@earendil-works/pi-ai": "0.80.2",
+        "@earendil-works/pi-coding-agent": "0.80.2",
+      },
     },
   },
   "packages": {
@@ -411,7 +441,7 @@
 
     "@nitra/cspell-dict": ["@nitra/cspell-dict@2.2.2", "", { "dependencies": { "@cspell/dict-bash": "^4.2.2", "@cspell/dict-csharp": "^4.0.8", "@cspell/dict-css": "^4.1.1", "@cspell/dict-docker": "^1.1.17", "@cspell/dict-html": "^4.0.15", "@cspell/dict-k8s": "^1.0.12", "@cspell/dict-kotlin": "^1.1.1", "@cspell/dict-lua": "^4.0.8", "@cspell/dict-markdown": "^2.0.16", "@cspell/dict-php": "^4.1.1", "@cspell/dict-python": "^4.2.26", "@cspell/dict-ro-ro": "^2.0.6", "@cspell/dict-ru_ru": "^2.3.2", "@cspell/dict-sql": "^2.2.1", "@cspell/dict-swift": "^2.0.6", "@cspell/dict-tr-tr": "^3.0.6", "@cspell/dict-uk-ua": "^4.0.6", "@cspell/dict-vue": "^3.0.5" } }, "sha512-BQvJ4qGRJLeGezIXNe2sGdG4dVaT/BpCUVYvQbxbqg9wEqcDCPjGRPuoTKLpz8YxahEa4i7Usme8vipitQ0d2A=="],
 
-    "@nitra/cursor": ["@nitra/cursor@14.8.6", "", { "dependencies": { "@7n/mt": "^0.5.1", "@nitra/llm-lib": "^1.0.0", "cli-progress": "^3.12.0", "eslint": "^10.4.1", "github-actionlint": "^1.7.12", "globby": "^16.0.0", "ignore": "^7.0.5", "jscpd": "^5.0.11", "knip": "^6.22.0", "markdownlint-cli2": "^0.22.1", "oxc-parser": "^0.137.0", "oxlint": "^1.68.0", "picomatch": "^4.0.4", "smol-toml": "^1.7.0", "v8r": "^6.1.0", "yaml": "^2.9.0", "zod": "^4.4.3" }, "optionalDependencies": { "@earendil-works/pi-ai": "0.80.2", "@earendil-works/pi-coding-agent": "0.80.2" }, "bin": { "n-cursor": "bin/n-cursor.js" } }, "sha512-cce5FVB9ku8INpgh4n8PkXXUe3sqAqXH5PQn63na5JkK8fuFxYzSfJhlumaWIAUX0VgPwIqpWL967tAgFS3e0A=="],
+    "@nitra/cursor": ["@nitra/cursor@workspace:npm"],
 
     "@nitra/eslint-config": ["@nitra/eslint-config@3.10.3", "", { "dependencies": { "@e18e/eslint-plugin": "^0.5.1", "@eslint/compat": "^2.1.0", "@eslint/js": "^10.0.1", "@eslint/markdown": "^8.0.2", "@graphql-eslint/eslint-plugin": "^4.4.0", "@graphql-tools/code-file-loader": "^8.1.32", "@graphql-tools/graphql-tag-pluck": "^8.3.31", "@graphql-tools/utils": "^11.1.0", "@microsoft/eslint-plugin-sdl": "^1.1.0", "eslint": "^10.6.0", "eslint-merge-processors": "^2.0.0", "eslint-plugin-import-x": "^4.17.0", "eslint-plugin-jsdoc": "^63.0.10", "eslint-plugin-jsonc": "^3.2.0", "eslint-plugin-n": "^18.2.1", "eslint-plugin-no-unsanitized": "^4.1.5", "eslint-plugin-oxlint": "^1.71.0", "eslint-plugin-security": "^4.0.1", "eslint-plugin-sonarjs": "^4.1.0", "eslint-plugin-unicorn": "^69.0.0", "eslint-plugin-vue": "^10.9.2", "eslint-plugin-yml": "^3.5.0", "eslint-processor-vue-blocks": "^2.0.0", "globals": "^17.7.0", "graphql": "^16.14.0", "vue-eslint-parser": "^10.4.1" } }, "sha512-QSHs6k6kOFUdq6ZGxjyKsLsNLBllXjAeG4sEt+b0Hw6fg4dVV+5w4omtqtChJRTJdxzPm2vQDkCjtkoY8TxzMw=="],
 
