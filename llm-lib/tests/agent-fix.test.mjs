@@ -175,6 +175,28 @@ describe('happy-path (справжній write-guard на temp git-репо)', (
     expect(trace).toHaveBeenCalledWith(expect.objectContaining({ kind: 'agent', rule: 'n-ci4', backend: 'pi-ai' }))
   })
 
+  test('timeoutMs: зависла сесія (prompt ніколи не резолвиться) → fix timeout + session.abort', async () => {
+    const abort = vi.fn()
+    const createSession = vi.fn(async ({ factory }) => {
+      await Promise.resolve()
+      factory({ on: () => null })
+      return {
+        subscribe: () => null,
+        abort,
+        // Модель зависшої cloud-SSE: без timeout-гонки виклик стояв би вічно.
+        prompt: () => Promise.race([])
+      }
+    })
+    const r = await runAgentFix('n-ci4', '❌ v', dir, {
+      model: 'omlx/gemma',
+      timeoutMs: 20,
+      deps: { root: dir, registry, createSession, trace: vi.fn() }
+    })
+    expect(r.error).toBe('fix timeout 20ms')
+    expect(r.applied).toBe(false)
+    expect(abort).toHaveBeenCalled()
+  })
+
   test('prompt кидає → error, але touched зафіксовані', async () => {
     const r = await runAgentFix('n-ci4', '❌ v', dir, {
       model: 'omlx/gemma',

@@ -26,6 +26,9 @@ export async function fixWorker(violations, ctx) {
   const res = await runAgentFix(ctx.ruleId, violationText, ctx.cwd, {
     model: ctx.model,
     tier: ctx.tier,
+    // Per-tier таймаут rung-а (ADR 260620-0556): без нього withTimeout у runAgentFix
+    // не влаштовує гонки і зависла cloud-SSE тримає весь lint (спостережено 1г41хв).
+    timeoutMs: ctx.timeoutMs,
     feedback: ctx.feedback ?? null,
     caller: `fix:${ctx.ruleId}/${ctx.concernId}:${ctx.tier}`,
     recordWrite: ctx.recordWrite,

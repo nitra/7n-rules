@@ -37,6 +37,14 @@ import { applyMaxTokens } from './internal/max-tokens.mjs'
 const TURN_CEILING = Number(env.N_LLM_FIX_TURN_CEILING ?? env.N_CURSOR_FIX_TURN_CEILING) || 50
 
 /**
+ * Дефолтний таймаут fix-спроби, коли consumer не передав `opts.timeoutMs`.
+ * `withTimeout` при falsy `ms` НЕ влаштовує гонки — без дефолту зависла SSE-сесія
+ * (спостережено: ESTABLISHED TCP годинами) блокувала виклик назавжди. Consumer-и
+ * з per-tier таймаутами (ladder, ADR 260620-0556) передають власні значення.
+ */
+const DEFAULT_TIMEOUT_MS = 300_000
+
+/**
  * Порожній rollback для fail-шляхів.
  * @returns {void}
  */
@@ -175,7 +183,7 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     tier = null,
     feedback,
     caller = `fix:${ruleId}`,
-    timeoutMs,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
     ruleText,
     targetFiles,
     deps = {}

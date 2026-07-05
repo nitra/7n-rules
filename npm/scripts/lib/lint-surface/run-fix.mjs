@@ -20,6 +20,7 @@ import { pathToFileURL } from 'node:url'
 
 import { LOCAL_MIN, CLOUD_MIN, CLOUD_AVG } from '@nitra/llm-lib/model-tiers'
 import { writeTrace } from '@nitra/llm-lib/trace'
+import { withTimeout } from '@nitra/llm-lib/with-timeout'
 import { buildDetectPlan } from './run-detectors.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
 import { renderViolations } from './render.mjs'
@@ -201,6 +202,7 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
     files: item.files,
     tier: rung.tier,
     model: rung.model,
+    timeoutMs: rung.timeoutMs,
     feedback: rung.feedback ? feedback : undefined,
     recordWrite: absPath => snapshot.record(absPath)
   }
@@ -208,7 +210,13 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
   let workerResult = null
   let error = null
   try {
-    workerResult = await worker(violations, fixCtx)
+    // Первинний таймаут — у самому worker-і (ctx.timeoutMs → runAgentFix abort-ить
+    // сесію). Backstop ×1.25 страхує від worker-а, що ігнорує ctx.timeoutMs
+    // (ADR 260620-0556: зависла cloud-SSE без гонки блокувала lint назавжди);
+    // запас гарантує, що штатно першим спрацьовує внутрішній abort-шлях.
+    workerResult = await withTimeout(worker(violations, fixCtx), Math.round(rung.timeoutMs * 1.25), {
+      label: 'fix'
+    })
   } catch (workerError) {
     error = workerError.message
   }

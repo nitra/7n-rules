@@ -91,6 +91,10 @@
  * @property {string[]} [files] posix-relative файли для per-file виправлення; `undefined` — whole-repo
  * @property {'local-min'|'local-min-retry'|'cloud-min'|'cloud-avg'} tier поточний rung ladder-а
  * @property {string} [model] "provider/model-id"
+ * @property {number} [timeoutMs] per-tier таймаут rung-а (ADR 260620-0556) — worker
+ *   ЗОБОВ'ЯЗАНИЙ прокинути його у свій LLM-виклик (напр. `runAgentFix`/`runOneShot`
+ *   opts.timeoutMs), щоб зависла сесія переривалась зсередини (abort); runner додатково тримає
+ *   backstop ×1.25 навколо всього worker-виклику
  * @property {AbortSignal} [signal] сигнал скасування rung-а
  * @property {object} [feedback] structured diagnosis попереднього rung-а
  * @property {(absPath: string) => void} recordWrite worker ЗОБОВ'ЯЗАНИЙ викликати

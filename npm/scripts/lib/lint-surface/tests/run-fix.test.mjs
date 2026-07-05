@@ -38,6 +38,9 @@ async function seedConcern(dir, body = DETECTOR, concernExtra = {}) {
   return join(dir, 'rules')
 }
 
+const RE_LOCAL_TIMEOUT = /local-min.*fix timeout 50ms/
+const RE_FIX_TIMEOUT = /^fix timeout/
+
 /** Ladder з одним фейковим local rung-ом. */
 const ONE_RUNG = [{ tier: 'local-min', model: 'fake/min', feedback: false, local: true, isAvg: false, timeoutMs: 1000 }]
 const TWO_RUNG = [
@@ -229,6 +232,47 @@ describe('runFixPipeline — ladder escalation + S1 isolation', () => {
       })
       expect(feedbacks[0]).toBeNull() // local-min: feedback:false → ctx.feedback undefined → `?? null`
       expect(feedbacks[1]).toMatchObject({ previousModel: 'fake/min' }) // cloud-min: feedback:true
+    })
+  })
+})
+
+describe('runFixPipeline — per-tier timeout (ADR 260620-0556)', () => {
+  test('worker, що ніколи не резолвиться → fix timeout, ladder іде далі; ctx несе rung.timeoutMs', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir)
+      const seen = []
+      // Малі таймаути, щоб backstop (×1.25) спрацював швидко: 40ms → 50ms.
+      const ladder = [
+        { tier: 'local-min', model: 'fake/min', feedback: false, local: true, isAvg: false, timeoutMs: 40 },
+        { tier: 'cloud-min', model: 'fake/cloud', feedback: true, local: false, isAvg: false, timeoutMs: 40 }
+      ]
+      const worker = (_v, ctx) => {
+        seen.push({ tier: ctx.tier, timeoutMs: ctx.timeoutMs, feedback: ctx.feedback ?? null })
+        // Модель зависшої cloud-SSE: promise без resolve/reject (спостережено live —
+        // ESTABLISHED TCP, lint висів 1г41хв). Без backstop-гонки ladder стояла б вічно.
+        if (ctx.tier === 'local-min') return Promise.race([])
+        const p = join(ctx.cwd, 'out.txt')
+        ctx.recordWrite(p)
+        writeFileSync(p, 'done')
+      }
+      const logs = []
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: s => {
+          logs.push(s)
+        },
+        deps: { ladder, workerFor: () => worker }
+      })
+      expect(code).toBe(0)
+      // rung.timeoutMs прокинуто у FixContext — шлях default-worker → runAgentFix opts.timeoutMs.
+      expect(seen[0]).toMatchObject({ tier: 'local-min', timeoutMs: 40 })
+      // Backstop обірвав зависший rung timeout-помилкою — outcome fail, не вічне очікування.
+      expect(logs.join('')).toMatch(RE_LOCAL_TIMEOUT)
+      // Timeout-помилка стала feedback-ом наступного rung-а, і ladder закрила concern.
+      expect(seen[1].feedback).toMatchObject({ previousModel: 'fake/min' })
+      expect(seen[1].feedback.previousError).toMatch(RE_FIX_TIMEOUT)
     })
   })
 })

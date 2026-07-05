@@ -5,8 +5,11 @@
  */
 import { env } from 'node:process'
 
-const LOCAL_TIMEOUT_MS = Number(env.N_LOCAL_FIX_TIMEOUT_MS) || 300_000
-const CLOUD_TIMEOUT_MS = Number(env.N_CLOUD_FIX_TIMEOUT_MS) || 300_000
+// Per-tier дефолти — ADR 260620-0556 (fail-fast escalation): локальний 4b-рунг
+// об'єктивно не закінчить важкий промпт за хвилини (curl 28), хмарний SSE без
+// таймауту здатен висіти годинами на ESTABLISHED TCP — драбина має рухатись далі.
+const LOCAL_TIMEOUT_MS = Number(env.N_LOCAL_FIX_TIMEOUT_MS) || 45_000
+const CLOUD_TIMEOUT_MS = Number(env.N_CLOUD_FIX_TIMEOUT_MS) || 120_000
 
 /** Дефолтний кеп на виклики cloud-avg за прогін (щоб ladder на N concern-ів не спалив avg). */
 export const DEFAULT_MAX_AVG = 3

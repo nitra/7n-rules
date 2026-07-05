@@ -3,9 +3,8 @@ type: JS Module
 title: ladder.mjs
 resource: npm/scripts/lib/lint-surface/ladder.mjs
 docgen:
-  crc: c75c638e
+  crc: 44fcfbee
   model: openai-codex/gpt-5.5
-  tier: cloud-avg
   score: 100
   issues: judge:inaccurate:0.97
   judgeModel: openai-codex/gpt-5.4-mini
@@ -19,6 +18,7 @@ docgen:
 
 - `DEFAULT_MAX_AVG` задає типовий ліміт звернень до середнього cloud-рівня за один прогін, щоб ескалація не витрачала надмірно дорогий ресурс.
 - `buildLadder` формує послідовність рівнів виправлення від локального мінімального до cloud-avg і відкидає недоступні рівні без моделі.
+- Кожен rung несе `timeoutMs` — per-tier таймаут виклику (ADR 260620-0556): локальні рівні 45s, хмарні 120s; override без зміни коду — env `N_LOCAL_FIX_TIMEOUT_MS` / `N_CLOUD_FIX_TIMEOUT_MS`. Runner прокидає його worker-у через `FixContext`, щоб зависла LLM-сесія переривалась, а ladder рухався далі.
 - `classifyFixError` визначає характер помилки виправлення: системна причина, транспортний збій або якісна невдача агента.
 - `decideAfterFailure` вирішує, чи продовжувати ескалацію після невдалого рівня, чи пропустити локальну модель, чи зупинити процес.
 
