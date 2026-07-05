@@ -55,19 +55,39 @@ function astUnavailable() {
 }
 
 /**
- * Будує fix-промпт для рунга: правило + порушення + (опц.) feedback попереднього провалу
- * + інструкція «ast_facts перед edit, self_check після».
- * @param {{ ruleId: string, violation: string, ruleText?: string, feedback?: object }} args параметри промпта.
+ * Будує fix-промпт для рунга: правило + порушення + (опц.) target-файли + (опц.) feedback
+ * попереднього провалу + жорсткий блок обмежень (лише механічні зміни) + інструкція
+ * «ast_facts перед edit, self_check після».
+ *
+ * Блок обмежень — перший шар semantic-collateral guard (спека pi-migration §12,
+ * addendum 2026-07-05): слабкі локальні моделі схильні «виправляти» правило семантичною
+ * правкою (хардкод значення, симуляція поведінки) — промпт явно це забороняє, а
+ * verdict-veto consumer-а (re-check) відхиляє такі правки поза target-файлами.
+ * @param {{ ruleId: string, violation: string, ruleText?: string, feedback?: object,
+ *   targetFiles?: string[] }} args параметри промпта; `targetFiles` — файли порушення,
+ *   єдині наявні файли, які дозволено редагувати (порожньо/відсутнє — без переліку).
  * @returns {string} промпт
  */
-export function buildFixPrompt({ ruleId, violation, ruleText, feedback }) {
+export function buildFixPrompt({ ruleId, violation, ruleText, feedback, targetFiles }) {
   const parts = [`Виправ порушення правила "${ruleId}" у цьому проєкті.`]
   if (ruleText) parts.push(`## Правило\n${ruleText}`)
   parts.push(`## Порушення\n${violation}`)
+  if (Array.isArray(targetFiles) && targetFiles.length > 0) {
+    parts.push(
+      '## Target-файли (єдині наявні файли, які дозволено редагувати)\n' + targetFiles.map(f => `- ${f}`).join('\n')
+    )
+  }
   if (feedback?.previousError) {
     parts.push(`## Попередня спроба не спрацювала\n${feedback.previousError}\nСпробуй інший підхід.`)
   }
   parts.push(
+    '## Обмеження (обовʼязкові)\n' +
+      'Дозволені ЛИШЕ механічні зміни, що прямо усувають наведене порушення правила:\n' +
+      '- НЕ змінюй бізнес-логіку і поведінку коду.\n' +
+      '- НЕ хардкодь значення замість викликів функцій чи обчислень.\n' +
+      '- НЕ симулюй і не заглушуй поведінку (stub/mock/"simulate").\n' +
+      '- НЕ редагуй наявні файли поза порушенням; нові файли створюй лише якщо цього прямо вимагає правило.\n' +
+      'Якщо порушення не усувається механічною правкою — зупинись, нічого не змінюючи.',
     'Перед редагуванням JS/TS-файлу спершу виклич `ast_facts` на ньому. ' +
       'Після правок виклич `self_check`, щоб підтвердити, що порушення зникло. ' +
       'Редагуй лише потрібне, не чіпай стороннє.'
@@ -144,6 +164,7 @@ async function defaultCreateSession({ registry, model, thinkingLevel, cwd, facto
  * @param {{
  *   model: string, tier?: string, feedback?: object, caller?: string, timeoutMs?: number, ruleText?: string,
  *   chain?: object,
+ *   targetFiles?: string[],
  *   deps?: { createSession?: (args: object) => Promise<object>, getRegistry?: () => Promise<object>,
  *            registry?: object, root?: string|null,
  *            astContext?: (path: string) => object,
@@ -161,6 +182,7 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     timeoutMs,
     ruleText,
     chain = null,
+    targetFiles,
     deps = {}
   } = opts
   const createSession = deps.createSession ?? defaultCreateSession
@@ -266,7 +288,7 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     }
   })
 
-  const fixPrompt = buildFixPrompt({ ruleId, violation, ruleText, feedback })
+  const fixPrompt = buildFixPrompt({ ruleId, violation, ruleText, feedback, targetFiles })
   const pHash = promptHash(fixPrompt)
   const startedAt = clock()
   let error = null

@@ -44,6 +44,23 @@ function checkLintField(id, raw, reporter) {
 }
 
 /**
+ * Забороняє залишкове поле `llmFix` у meta.json правила.
+ * Канон (scripts.mdc, spec 2026-06-28-concern-lint-scope-design): opt-in-прапорця
+ * llmFix немає — fix-можливість концерну визначається наявністю `fix-*.mjs`/`fix-worker.mjs`.
+ * @param {string} id ідентифікатор правила
+ * @param {Record<string, unknown>} raw сирий meta.json
+ * @param {ReturnType<typeof createViolationReporter>} reporter репортер
+ * @returns {boolean} true, якщо поле відсутнє
+ */
+function checkLlmFixField(id, raw, reporter) {
+  if (raw.llmFix === undefined) return true
+  reporter.fail(
+    `rules/${id}: main.json.llmFix скасовано — fix-можливість = наявність fix-*.mjs/fix-worker.mjs у концерні`
+  )
+  return false
+}
+
+/**
  * Валідує meta.json одного правила.
  * @param {string} id ідентифікатор правила
  * @param {string} ruleDir каталог правила
@@ -72,6 +89,7 @@ function checkRule(id, ruleDir, reporter) {
 
   if (!checkAutoField(id, raw, reporter)) ruleOk = false
   if (!checkLintField(id, raw, reporter)) ruleOk = false
+  if (!checkLlmFixField(id, raw, reporter)) ruleOk = false
 
   if (ruleOk) {
     reporter.pass(`rules/${id}: main.json валідний`)

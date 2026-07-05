@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { runConcernDetector } from '../detect.mjs'
-import { withTmpDir, writeJson } from '../../../utils/test-helpers.mjs'
+import { withTmpDir } from '../../../utils/test-helpers.mjs'
 
 describe('runConcernDetector — policy-concern без main.mjs', () => {
   test('required:single відсутній → policy-file-missing, без main.mjs на диску', async () => {

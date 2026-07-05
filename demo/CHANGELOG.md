@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.0.13] - 2026-07-05
+
+### Changed
+
+- style: oxfmt — формат changelog/presence tests
+
+## [0.0.12] - 2026-07-05
+
+### Changed
+
+- feat(lint): semantic-collateral guard — жорсткіший fix-промпт + verdict-veto поза target-set
+
+## [0.0.11] - 2026-07-05
+
+### Changed
+
+- fix(rule_meta): скасування rule-level main.json.llmFix — мертвий конфіг видалено
+
+## [0.0.10] - 2026-07-05
+
+### Changed
+
+- 🔥 chore(demo): прибрати дубльований change-файл — vite-бамп уже релізнуто в 0.0.8 upstream; ✨ feat(js/check): детекція воркспейс-типів для eslint.config — T0 scaffold/merge замість LLM-перезапису
+
 ## [0.0.9] - 2026-07-05
 
 ### Changed

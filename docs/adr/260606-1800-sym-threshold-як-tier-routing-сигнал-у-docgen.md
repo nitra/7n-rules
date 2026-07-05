@@ -133,3 +133,12 @@ Implementation facts:
 - Видалено `BORDERLINE_SYM_LOW`, `scoreModel`, `scoreCloud`, `cloudScoreDoc`; додано `withTimeout(promise, ms)`.
 - `DOCGEN_IGNORE_GLOBS` доповнено `npm/reports/**` і `npm/bin/**`, щоб не документувати Stryker sandbox-дублікати та згенеровані bundle-артефакти.
 - `generateDoc` повертає поле `model`, щоб batch-runner і CLI бачили фактичну модель генерації (`gemma3:4b` або `claude-sonnet-4-6`) без інспекції внутрішнього стану.
+
+## Update 2026-06-06
+
+Уточнення до docgen routing:
+
+- Порогове правило: `sym >= 4` маршрутизується у Tier 2 cloud, `sym < 4` — у Tier 1 local.
+- Для Tier 1 використовується `LOCAL_TIMEOUT_MS = 5 * 60 * 1000`; timeout ескалує файл у Tier 2.
+- Haiku-рефері прибрано: після Tier 1 лишається deterministic `scoreDoc()` gate з ескалацією при score < 70.
+- Transcript фіксує аналіз: `sym` мав найсильнішу кореляцію з якістю (Pearson r = −0.651), а Haiku-judge мав bias і високу latency.

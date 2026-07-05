@@ -3,7 +3,7 @@ type: JS Module
 title: default-worker.mjs
 resource: npm/scripts/lib/lint-surface/default-worker.mjs
 docgen:
-  crc: 2a2fde4b
+  crc: b2fac809
   model: openai-codex/gpt-5.5
 ---
 
@@ -15,7 +15,7 @@ docgen:
 
 1. `fixWorker` приймає набір lint-порушень і контекст виправлення як дефолтний LLM-обробник для unified lint surface.
 
-2. Перетворює знайдені порушення на текстове завдання для LLM, щоб агент отримав зрозумілий опис проблем, які треба виправити.
+2. Перетворює знайдені порушення на текстове завдання для LLM, щоб агент отримав зрозумілий опис проблем, які треба виправити; додатково збирає target-set порушення (унікальні `violations[].file`) і передає його як `targetFiles` у промпт — перший шар semantic-collateral guard (§12, addendum 2026-07-05), verdict-veto runner-а звіряє фактичні правки з тим самим набором.
 
 3. Запускає Pi-агента для внесення правок за правилом, concern-ом, робочою текою, вибраною моделлю, tier-ом і доступним feedback.
 

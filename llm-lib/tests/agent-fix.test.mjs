@@ -80,6 +80,24 @@ describe('buildFixPrompt', () => {
       RE_PREVIOUS_ATTEMPT
     )
   })
+
+  test('блок обмежень: лише механічні зміни, без хардкоду/симуляції (semantic-collateral guard)', () => {
+    const p = buildFixPrompt({ ruleId: 'r', violation: 'v' })
+    expect(p).toContain('## Обмеження')
+    expect(p).toContain('механічні зміни')
+    expect(p).toContain('НЕ хардкодь значення')
+    expect(p).toContain('НЕ симулюй')
+    expect(p).toContain('НЕ змінюй бізнес-логіку')
+  })
+
+  test('targetFiles: перелік додається лише за наявності', () => {
+    expect(buildFixPrompt({ ruleId: 'r', violation: 'v' })).not.toContain('Target-файли')
+    expect(buildFixPrompt({ ruleId: 'r', violation: 'v', targetFiles: [] })).not.toContain('Target-файли')
+    const p = buildFixPrompt({ ruleId: 'r', violation: 'v', targetFiles: ['src/a.mjs', 'src/b.vue'] })
+    expect(p).toContain('## Target-файли')
+    expect(p).toContain('- src/a.mjs')
+    expect(p).toContain('- src/b.vue')
+  })
 })
 
 describe('error-шляхи (без git/pi)', () => {

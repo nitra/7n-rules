@@ -2,9 +2,9 @@
  * Тести sync-claude-config: merge-логіка settings.json, опт-аут,
  * синхронізація slash-команд і ADR Stop-hook'ів.
  *
- * Управлений хук пакета зараз — PostToolUse (`@nitra/cursor post-tool-use-check`).
- * Legacy Stop-hook (`@nitra/cursor stop-hook`) усе ще ідентифікується як managed,
- * щоб при оновленні старих інсталяцій автоматично прибиратись.
+ * Управлений хук пакета зараз — PostToolUse (`npx --no \@nitra/cursor hook --post-tool-use`).
+ * Legacy-команди (`stop-hook`, `post-tool-use-check`, `post-tool-use-fix`) усе ще
+ * ідентифікуються як managed, щоб при оновленні старих інсталяцій автоматично прибиратись.
  */
 import { describe, expect, test } from 'vitest'
 import { spawnSync } from 'node:child_process'
@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url'
 import {
   ADR_GITIGNORE_SNIPPET_REL,
   ADR_HOOK_COMMAND_MARKER,
+  LEGACY_POST_TOOL_USE_FIX_HOOK_COMMAND_MARKER,
   LEGACY_STOP_HOOK_COMMAND_MARKER,
   MANAGED_HOOK_COMMAND_MARKER,
   mergeAllowList,
@@ -58,7 +59,7 @@ async function setupTemplate(cwdAbs, tpl = {}) {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-check', timeout: 300 }]
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use', timeout: 300 }]
         }
       ]
     }
@@ -111,11 +112,12 @@ describe('mergeAllowList', () => {
 })
 
 describe('mergeHooks', () => {
-  test('видаляє managed-групу і вставляє актуальну з темплейту', () => {
+  test('видаляє managed-групу (у т.ч. legacy `post-tool-use-check`) і вставляє актуальну з темплейту', () => {
     const existing = {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
+          // legacy detect-команда з попередніх релізів — managed, має замінитись
           hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-check' }]
         }
       ]
@@ -124,13 +126,13 @@ describe('mergeHooks', () => {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-check --updated' }]
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use' }]
         }
       ]
     }
     const merged = mergeHooks(existing, fromTemplate)
     expect(merged.PostToolUse).toHaveLength(1)
-    expect(merged.PostToolUse[0].hooks[0].command).toBe('npx --no @nitra/cursor post-tool-use-check --updated')
+    expect(merged.PostToolUse[0].hooks[0].command).toBe('npx --no @nitra/cursor hook --post-tool-use')
   })
 
   test('зберігає користувацькі групи поряд з managed', () => {
@@ -141,7 +143,7 @@ describe('mergeHooks', () => {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-check' }]
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use' }]
         }
       ]
     }
@@ -164,7 +166,7 @@ describe('mergeHooks', () => {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-check' }]
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use' }]
         }
       ]
     }
@@ -186,7 +188,7 @@ describe('mergeHooks', () => {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-check' }]
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use' }]
         }
       ]
     }
@@ -207,6 +209,37 @@ describe('mergeHooks', () => {
   test('LEGACY_STOP_HOOK_COMMAND_MARKER експортовано як константа', () => {
     expect(LEGACY_STOP_HOOK_COMMAND_MARKER).toBe('@nitra/cursor stop-hook')
   })
+
+  test('LEGACY_POST_TOOL_USE_FIX_HOOK_COMMAND_MARKER експортовано як константа', () => {
+    expect(LEGACY_POST_TOOL_USE_FIX_HOOK_COMMAND_MARKER).toBe('@nitra/cursor post-tool-use-fix')
+  })
+
+  test('legacy мутуюча група `post-tool-use-fix` видаляється, лишається лише detect-only з темплейту', () => {
+    // Сценарій nitra/task: стара fix-група лежить поруч із новою detect-only після попереднього ресинку
+    const existing = {
+      PostToolUse: [
+        {
+          matcher: 'Edit|Write|MultiEdit',
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-fix', timeout: 300 }]
+        },
+        {
+          matcher: 'Edit|Write|MultiEdit',
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use', timeout: 300 }]
+        }
+      ]
+    }
+    const fromTemplate = {
+      PostToolUse: [
+        {
+          matcher: 'Edit|Write|MultiEdit',
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use', timeout: 300 }]
+        }
+      ]
+    }
+    const merged = mergeHooks(existing, fromTemplate)
+    expect(merged.PostToolUse).toHaveLength(1)
+    expect(merged.PostToolUse[0].hooks[0].command).toBe('npx --no @nitra/cursor hook --post-tool-use')
+  })
 })
 
 describe('mergeSettings', () => {
@@ -225,6 +258,32 @@ describe('mergeSettings', () => {
     const merged = mergeSettings(existing, template)
     expect(merged.permissions?.allow).toEqual(['x', 'z'])
     expect(merged.permissions?.deny).toEqual(['y'])
+  })
+
+  test('прибирає legacy `post-tool-use-fix` групу при ресинку на detect-only hook', () => {
+    const existing = {
+      hooks: {
+        PostToolUse: [
+          {
+            matcher: 'Edit|Write|MultiEdit',
+            hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-fix', timeout: 300 }]
+          }
+        ]
+      }
+    }
+    const template = {
+      hooks: {
+        PostToolUse: [
+          {
+            matcher: 'Edit|Write|MultiEdit',
+            hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use', timeout: 300 }]
+          }
+        ]
+      }
+    }
+    const merged = mergeSettings(existing, template)
+    expect(merged.hooks?.PostToolUse).toHaveLength(1)
+    expect(merged.hooks?.PostToolUse?.[0].hooks[0].command).toBe('npx --no @nitra/cursor hook --post-tool-use')
   })
 })
 

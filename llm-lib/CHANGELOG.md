@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.1] - 2026-07-05
+
+### Changed
+
+- style: oxfmt — формат changelog/presence tests
+
+## [1.1.0] - 2026-07-05
+
+### Added
+
+- Додано підтримку targetFiles та посилено обмеження у buildFixPrompt
+
 ## [1.0.1] - 2026-07-05
 
 ### Added

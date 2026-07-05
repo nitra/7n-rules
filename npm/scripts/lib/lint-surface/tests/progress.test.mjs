@@ -2,6 +2,9 @@ import { describe, expect, test } from 'vitest'
 
 import { createProgressReporter } from '../progress.mjs'
 
+// ANSI CSI-послідовності починаються з ESC[ — у не-TTY виводі `[` бути не повинно.
+const ANSI_CSI_RE = /\[/u
+
 /**
  * Reporter із захопленням виводу (не-TTY, без cli-progress бара).
  * @param {number} total кількість одиниць
@@ -10,7 +13,14 @@ import { createProgressReporter } from '../progress.mjs'
  */
 function makeReporter(total, extra = {}) {
   const lines = []
-  const r = createProgressReporter({ total, log: s => lines.push(s), isTTY: false, ...extra })
+  const r = createProgressReporter({
+    total,
+    log: s => {
+      lines.push(s)
+    },
+    isTTY: false,
+    ...extra
+  })
   return { r, lines }
 }
 
@@ -80,7 +90,7 @@ describe('progress reporter — не-TTY фолбек', () => {
     expect(progressLines[0]).toContain('знайдено 3')
     expect(progressLines[0]).toContain('виправлено 3')
     expect(progressLines[1]).toContain('2/2 концернів')
-    for (const l of lines) expect(l).not.toMatch(/\[/u)
+    for (const l of lines) expect(l).not.toMatch(ANSI_CSI_RE)
   })
 
   test('log проксіюється напряму (без multibar)', () => {

@@ -15,15 +15,17 @@
  * @typedef {import('./ladder.mjs').Rung} Rung
  */
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { LOCAL_MIN, CLOUD_MIN, CLOUD_AVG } from '@nitra/llm-lib/model-tiers'
 import { startChain } from '@nitra/llm-lib/chain'
+import { writeTrace } from '@nitra/llm-lib/trace'
 import { buildDetectPlan } from './run-detectors.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
 import { renderViolations } from './render.mjs'
 import { createSnapshot } from './snapshot.mjs'
+import { findCollateralEdits, realpathBestEffort } from './collateral-veto.mjs'
 import { createProgressReporter } from './progress.mjs'
 import { buildLadder, decideAfterFailure, DEFAULT_MAX_AVG } from './ladder.mjs'
 
@@ -222,12 +224,40 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
     throw detectError
   }
 
-  if (after.length === 0 && !error) {
+  // Semantic-collateral veto (§12 addendum 2026-07-05): clean-вердикт не приймається,
+  // якщо rung ЗМІНИВ наявні файли поза target-set порушення (клас «App.vue: хардкод
+  // версії замість getVersion»). Нові файли дозволені (scaffold/доки); порожній
+  // target-set (whole-repo концерни без file-атрибуції) → veto незастосовний.
+  const targetFiles = [...new Set([...violations.map(v => v.file).filter(Boolean), ...(item.files ?? [])])]
+  const collateral = findCollateralEdits({ modifiedExisting: snapshot.modifiedExisting(), targetFiles, cwd })
+  // relative — від так само realpath-нормалізованого cwd, інакше symlink-cwd (macOS
+  // /var → /private/var) дає `../../…`-шляхи у телеметрії та feedback.
+  const rejectedRel = collateral.map(p => relative(realpathBestEffort(cwd), p))
+  if (collateral.length > 0) {
+    // Телеметрія відхилених правок — той самий глобальний llm-trace, що й fix-виклики.
+    writeTrace({
+      caller: `fix:${ruleId}/${concernName}:${rung.tier}`,
+      backend: 'pi-ai',
+      kind: 'collateral-veto',
+      rule: ruleId,
+      rung: rung.tier,
+      model: rung.model,
+      cwd,
+      rejectedFiles: rejectedRel,
+      targetFiles,
+      cleanDetect: after.length === 0
+    })
+  }
+  const vetoed = after.length === 0 && !error && collateral.length > 0
+
+  if (after.length === 0 && !error && !vetoed) {
     log(`  ✅ ${rung.tier} (${rung.model}): ${ruleId}/${concernName}\n`)
     return { closed: true }
   }
 
-  const errorSuffix = error ? ` ❌ ${error.slice(0, 120)}` : ' ❌ досі порушено'
+  let errorSuffix = ' ❌ досі порушено'
+  if (error) errorSuffix = ` ❌ ${error.slice(0, 120)}`
+  else if (vetoed) errorSuffix = ` 🚫 collateral-veto: ${rejectedRel.join(', ')}`
   log(`  ⚡ ${rung.tier} (${rung.model}): ${ruleId}/${concernName}${errorSuffix}\n`)
 
   // Не clean → restore S1 перед наступним rung-ом (degraded не тече далі).
@@ -237,11 +267,19 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
   // наступний rung стартує без жодного знання про попередню спробу (buildFixPrompt
   // додає `## Попередня спроба` лише коли previousError truthy).
   const touchedFiles = workerResult?.touchedFiles ?? []
-  const silentFailureNote =
-    touchedFiles.length === 0
-      ? `Попередня спроба (${rung.model}) не внесла жодної зміни у файли; порушення досі активне.`
-      : `Попередня спроба (${rung.model}) торкнулась файлів (${touchedFiles.join(', ')}), ` +
-        'але порушення досі активне — той самий підхід не спрацював, спробуй інакше.'
+  let silentFailureNote
+  if (vetoed) {
+    silentFailureNote =
+      `Попередня спроба (${rung.model}) закрила порушення, але змінила наявні файли поза ` +
+      `target-set (${rejectedRel.join(', ')}) — усі правки відхилено. ` +
+      `Редагуй ЛИШЕ файли порушення: ${targetFiles.join(', ')}.`
+  } else if (touchedFiles.length === 0) {
+    silentFailureNote = `Попередня спроба (${rung.model}) не внесла жодної зміни у файли; порушення досі активне.`
+  } else {
+    silentFailureNote =
+      `Попередня спроба (${rung.model}) торкнулась файлів (${touchedFiles.join(', ')}), ` +
+      'але порушення досі активне — той самий підхід не спрацював, спробуй інакше.'
+  }
 
   return {
     closed: false,

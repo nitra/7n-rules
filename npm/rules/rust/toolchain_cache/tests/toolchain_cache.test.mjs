@@ -11,7 +11,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 
 import { MISSING_RUST_CACHE, MISSING_RUST_CACHE_WORKSPACES, lint } from '../main.mjs'
 import { addCacheWorkspaces, insertRustCache, patterns } from '../fix-toolchain_cache.mjs'
@@ -40,7 +40,7 @@ function writeWorkflow(root, name, content) {
  * @returns {Promise<void>}
  */
 async function applyT0(violations, dir) {
-  const ctx = { cwd: dir, ruleId: 'rust', concernId: 'toolchain_cache', recordWrite() {} }
+  const ctx = { cwd: dir, ruleId: 'rust', concernId: 'toolchain_cache', recordWrite: vi.fn() }
   for (const p of patterns) {
     if (p.test(violations)) await p.apply(violations, ctx)
   }
