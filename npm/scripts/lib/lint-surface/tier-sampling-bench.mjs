@@ -148,7 +148,8 @@ export async function runTierSamplingBench(opts = {}) {
     summary: null
   }
 
-  for (const fixture of FIXTURES.filter(f => wantedFixtures.has(f.id))) {
+  for (const fixture of FIXTURES) {
+    if (!wantedFixtures.has(fixture.id)) continue
     for (const rung of ladder) {
       const root = await mkdtemp(join(tmpdir(), `n-cursor-tier-bench-${fixture.id}-${rung.tier}-`))
       try {
@@ -184,8 +185,9 @@ export async function runTierSamplingBench(opts = {}) {
                 },
                 // samplingProfile/candidateId — концепт runner-а, worker про них не знає,
                 // тому в trace вони дописуються тут, а не в runAgentFix.
-                trace: event =>
+                trace: event => {
                   traceEvents.push({ ...event, samplingProfile: ctx.samplingProfile, candidateId: ctx.candidateId })
+                }
               }
             })
             if (res.error) throw new Error(res.error)
@@ -222,7 +224,7 @@ export async function runTierSamplingBench(opts = {}) {
             violations: a.violations.map(v => ({ reason: v.reason, file: v.file, message: v.message })),
             telemetry: summarizeTelemetry(a.telemetry)
           })),
-          traceEvents: traceEvents.map(summarizeTraceEvent),
+          traceEvents: traceEvents.map(event => summarizeTraceEvent(event)),
           judgeFeedback: bench.judgeFeedback,
           finalViolations: bench.finalViolations.map(v => ({ reason: v.reason, file: v.file, message: v.message }))
         }

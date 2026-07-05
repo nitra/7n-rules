@@ -174,7 +174,7 @@ export async function runTierSamplingExperiment(args) {
     let error = null
     let telemetry
     /** @type {string[]} */
-    let touchedFiles = []
+    let touchedFiles
 
     const candidateCtx = {
       ...args.ctx,

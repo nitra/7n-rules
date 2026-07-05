@@ -13,7 +13,14 @@ const ANSI_CSI_RE = /\[/u
  */
 function makeReporter(total, extra = {}) {
   const lines = []
-  const r = createProgressReporter({ total, log: s => lines.push(s), isTTY: false, ...extra })
+  const r = createProgressReporter({
+    total,
+    log: s => {
+      lines.push(s)
+    },
+    isTTY: false,
+    ...extra
+  })
   return { r, lines }
 }
 
