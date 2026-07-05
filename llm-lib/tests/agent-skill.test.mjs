@@ -99,6 +99,18 @@ describe('runAgentSkill', () => {
     expect(createSession).toHaveBeenCalledWith(expect.objectContaining({ cwd: '/here', thinkingLevel: 'high' }))
   })
 
+  test('maxTokens прокидається у createSession (0 = без стелі)', async () => {
+    const { session } = fakeSession()
+    const createSession = vi.fn(() => Promise.resolve(session))
+    await runAgentSkill('P', {
+      skillId: 's',
+      modelSpec: 'omlx/x',
+      maxTokens: 0,
+      deps: { registry, createSession, trace: vi.fn() }
+    })
+    expect(createSession).toHaveBeenCalledWith(expect.objectContaining({ maxTokens: 0 }))
+  })
+
   test('prompt кидає → ok:false + error', async () => {
     const { session } = fakeSession({ events: [{ type: 'turn_start' }], promptError: 'boom' })
     const r = await runAgentSkill('P', {

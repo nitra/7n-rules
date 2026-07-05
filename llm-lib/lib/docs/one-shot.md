@@ -3,7 +3,7 @@ type: JS Module
 title: one-shot.mjs
 resource: llm-lib/lib/one-shot.mjs
 docgen:
-  crc: f3932a9f
+  crc: 6cf14a72
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 
@@ -25,9 +25,10 @@ docgen:
 
 ## Публічний API
 
-- runOneShot — виконує обмежений LLM-виклик одноразово.
+- runOneShot — виконує обмежений LLM-виклик одноразово; опція `maxTokens` задає per-call стелю відповіді (undefined → дефолт пакета, 0 → без стелі); у результаті додатково повертається `stopReason` (`'length'` = відповідь обрізана стелею — політика повтору за колером).
+- MEMORY_ERROR_RE — публічна частина fail-fast error-контракту: regex для класифікації memory-guard помилки локального model-сервера (пробити нагору й завершити процес, а не ковтати як per-item помилку).
 
 ## Гарантії поведінки
 
 - Read-only: не виконує операцій запису (ФС/БД).
-- Перехоплює помилки і не пропускає винятків назовні (fail-safe).
+- Перехоплює помилки і не пропускає винятків назовні (fail-safe); виняток — memory-guard rejection, який свідомо кидає Error після друку тіла запиту.

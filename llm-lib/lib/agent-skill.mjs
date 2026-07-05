@@ -39,10 +39,11 @@ const THINKING_BY_TIER = { min: 'low', avg: 'medium', max: 'high' }
 
 /**
  * Дефолтна фабрика pi-сесії: повний tool-set із `bash`, БЕЗ custom-tools і write-guard.
- * @param {{ registry: object, model: object|null, cwd?: string, thinkingLevel?: string }} args параметри сесії.
+ * @param {{ registry: object, model: object|null, cwd?: string, thinkingLevel?: string,
+ *   maxTokens?: number }} args параметри сесії (`maxTokens`: undefined → дефолт пакета, 0 → без стелі).
  * @returns {Promise<object>} pi AgentSession
  */
-async function defaultCreateSession({ registry, model, cwd, thinkingLevel }) {
+async function defaultCreateSession({ registry, model, cwd, thinkingLevel, maxTokens }) {
   const { createAgentSession, SessionManager } = await import('@earendil-works/pi-coding-agent')
   const { session } = await createAgentSession({
     modelRegistry: registry,
@@ -52,7 +53,7 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel }) {
     cwd: cwd ?? process.cwd(),
     sessionManager: SessionManager.inMemory()
   })
-  return applyMaxTokens(session)
+  return maxTokens === undefined ? applyMaxTokens(session) : applyMaxTokens(session, maxTokens)
 }
 
 /**
@@ -65,9 +66,10 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel }) {
  *   cwd?: string,
  *   thinkingLevel?: 'off'|'minimal'|'low'|'medium'|'high'|'xhigh',
  *   timeoutMs?: number,
+ *   maxTokens?: number,
  *   caller?: string,
  *   deps?: { createSession?: (args: object) => Promise<object>, getRegistry?: () => Promise<object>, registry?: object, trace?: (entry: object) => void, clock?: () => number, out?: (s: string) => void }
- * }} [opts] опції виконання скіла.
+ * }} [opts] опції виконання скіла; `maxTokens` — per-call стеля відповіді (undefined → дефолт пакета, 0 → без стелі).
  * @returns {Promise<{ ok: boolean, telemetry: object|null, error: string|null }>} результат прогону скіла.
  */
 export async function runAgentSkill(prompt, opts = {}) {
@@ -78,6 +80,7 @@ export async function runAgentSkill(prompt, opts = {}) {
     cwd = process.cwd(),
     thinkingLevel,
     timeoutMs = DEFAULT_TIMEOUT_MS,
+    maxTokens,
     caller = `skill:${skillId}`,
     deps = {}
   } = opts
@@ -110,7 +113,8 @@ export async function runAgentSkill(prompt, opts = {}) {
       registry,
       model,
       cwd,
-      thinkingLevel: thinkingLevel ?? THINKING_BY_TIER[tier] ?? 'medium'
+      thinkingLevel: thinkingLevel ?? THINKING_BY_TIER[tier] ?? 'medium',
+      maxTokens
     })
   } catch (error) {
     return fail(`session: ${error.message}`, spec)

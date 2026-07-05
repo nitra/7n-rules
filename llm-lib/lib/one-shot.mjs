@@ -24,6 +24,10 @@ import { writeTrace } from './trace.mjs'
 import { withTimeout } from './with-timeout.mjs'
 import { applyMaxTokens } from './internal/max-tokens.mjs'
 
+// Частина error-контракту fail-fast: consumers класифікують memory-guard помилку
+// (пробити нагору й завершити процес) окремо від звичайних per-item помилок.
+export { MEMORY_ERROR_RE } from './internal/memory-guard.mjs'
+
 /** Дефолтний timeout одного one-shot виклику. */
 const DEFAULT_TIMEOUT_MS = 120_000
 
@@ -38,9 +42,10 @@ const DEFAULT_TIMEOUT_MS = 120_000
  * @param {object|null} args.model розвʼязана модель (spec → об'єкт)
  * @param {string} [args.cwd] робочий каталог сесії
  * @param {string} [args.thinkingLevel] рівень thinking (дефолт 'off')
+ * @param {number} [args.maxTokens] per-call стеля відповіді (undefined → дефолт пакета, 0 → без стелі)
  * @returns {Promise<object>} pi AgentSession
  */
-async function defaultCreateSession({ registry, model, cwd, thinkingLevel }) {
+async function defaultCreateSession({ registry, model, cwd, thinkingLevel, maxTokens }) {
   const { createAgentSession, SessionManager } = await import('@earendil-works/pi-coding-agent')
   const { session } = await createAgentSession({
     modelRegistry: registry,
@@ -50,7 +55,7 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel }) {
     cwd: cwd ?? process.cwd(),
     sessionManager: SessionManager.inMemory()
   })
-  return applyMaxTokens(session)
+  return maxTokens === undefined ? applyMaxTokens(session) : applyMaxTokens(session, maxTokens)
 }
 
 /**
@@ -61,11 +66,13 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel }) {
  *   modelSpec?: string,
  *   thinkingLevel?: 'off'|'minimal'|'low'|'medium'|'high'|'xhigh',
  *   timeoutMs?: number,
+ *   maxTokens?: number,
  *   caller?: string,
  *   cwd?: string,
  *   deps?: { createSession?: (args: object) => Promise<object>, getRegistry?: () => Promise<object>, registry?: object, trace?: (entry: object) => void }
- * }} args параметри
- * @returns {Promise<{ content: string, usage: object|null, error: string|null, model: string|null, caller: string }>} результат
+ * }} args параметри; `maxTokens` — per-call стеля відповіді (undefined → дефолт пакета, 0 → без стелі)
+ * @returns {Promise<{ content: string, usage: object|null, error: string|null, model: string|null, stopReason: string|null, caller: string }>} результат;
+ *   `stopReason` — фініш останнього assistant-повідомлення (`'length'` = відповідь обрізана стелею; політика повтору — за колером)
  */
 export async function runOneShot({
   messages,
@@ -73,6 +80,7 @@ export async function runOneShot({
   modelSpec,
   thinkingLevel,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  maxTokens,
   caller = 'one-shot',
   cwd,
   deps = {}
@@ -87,7 +95,7 @@ export async function runOneShot({
 
   const fail = (error, model) => {
     trace({ caller, backend: 'pi-ai', kind: 'one-shot', model: model ?? null, cwd: cwd ?? null, error })
-    return { content: '', usage: null, error, model: model ?? null, caller }
+    return { content: '', usage: null, error, model: model ?? null, stopReason: null, caller }
   }
 
   let registry
@@ -104,18 +112,20 @@ export async function runOneShot({
 
   let session
   try {
-    session = await createSession({ registry, model, cwd, thinkingLevel })
+    session = await createSession({ registry, model, cwd, thinkingLevel, maxTokens })
   } catch (error) {
     return fail(`session: ${error.message}`, spec)
   }
 
   let text = ''
   let usage = null
+  let stopReason = null
   session.subscribe(event => {
     if (event.type === 'message_update' && event.assistantMessageEvent?.type === 'text_delta') {
       text += event.assistantMessageEvent.delta ?? ''
-    } else if (event.type === 'message_end' && event.message?.usage) {
-      usage = event.message.usage
+    } else if (event.type === 'message_end' && event.message) {
+      if (event.message.usage) usage = event.message.usage
+      stopReason = event.message.stopReason ?? null
     }
   })
 
@@ -127,6 +137,6 @@ export async function runOneShot({
     failOnMemoryGuard(promptError, userText)
   }
 
-  trace({ caller, backend: 'pi-ai', kind: 'one-shot', model: spec, cwd: cwd ?? null, usage, error: promptError })
-  return { content: text.trim(), usage, error: promptError, model: spec, caller }
+  trace({ caller, backend: 'pi-ai', kind: 'one-shot', model: spec, cwd: cwd ?? null, usage, stopReason, error: promptError })
+  return { content: text.trim(), usage, error: promptError, model: spec, stopReason, caller }
 }

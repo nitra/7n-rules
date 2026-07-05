@@ -3,7 +3,7 @@ type: JS Module
 title: agent-skill.mjs
 resource: llm-lib/lib/agent-skill.mjs
 docgen:
-  crc: f5722247
+  crc: ea51598b
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 
@@ -23,7 +23,7 @@ docgen:
 
 ## Публічний API
 
-runAgentSkill — Викликає певний агентський функціонал (скіл) через платформу pi з визначеними параметрами складності та обмеженнями виконання.
+runAgentSkill — Викликає певний агентський функціонал (скіл) через платформу pi з визначеними параметрами складності та обмеженнями виконання; опція `maxTokens` задає per-call стелю відповіді сесії (undefined → дефолт пакета, 0 → без стелі).
 
 ## Гарантії поведінки
 

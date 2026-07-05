@@ -5,7 +5,7 @@
 
 import { setTimeout as sleep } from 'node:timers/promises'
 import { describe, expect, test, vi } from 'vitest'
-import { runOneShot } from '../lib/one-shot.mjs'
+import { MEMORY_ERROR_RE, runOneShot } from '../lib/one-shot.mjs'
 
 const RE_NOT_FOUND = /не знайдена/
 const RE_TIMEOUT = /timeout/
@@ -24,9 +24,10 @@ const noop = () => null
  * @param {object|null} [opts.usage] usage у message_end (або без нього)
  * @param {string|null} [opts.promptError] якщо задано — prompt кидає з цим текстом
  * @param {number} [opts.delayMs] затримка перед емісією (для timeout-тесту)
+ * @param {string|null} [opts.stopReason] stopReason у message_end (напр. 'length')
  * @returns {object} fake AgentSession
  */
-function fakeSession({ deltas = [], usage = null, promptError = null, delayMs = 0 } = {}) {
+function fakeSession({ deltas = [], usage = null, promptError = null, delayMs = 0, stopReason = null } = {}) {
   let cb = noop
   return {
     subscribe: fn => {
@@ -38,7 +39,7 @@ function fakeSession({ deltas = [], usage = null, promptError = null, delayMs = 
       return (async () => {
         if (delayMs) await sleep(delayMs)
         for (const d of deltas) cb({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: d } })
-        if (usage) cb({ type: 'message_end', message: { usage } })
+        if (usage || stopReason) cb({ type: 'message_end', message: { usage, stopReason } })
         if (promptError) throw new Error(promptError)
       })()
     }
@@ -128,6 +129,26 @@ describe('runOneShot', () => {
     } finally {
       logSpy.mockRestore()
     }
+  })
+
+  test('maxTokens прокидається у createSession; stopReason length повертається', async () => {
+    const usage = { totalTokens: 5 }
+    const session = fakeSession({ deltas: ['cut'], usage, stopReason: 'length' })
+    const deps = { registry, trace: vi.fn(), createSession: vi.fn(() => Promise.resolve(session)) }
+    const r = await runOneShot({
+      messages: [{ role: 'user', content: 'x' }],
+      modelSpec: 'omlx/x',
+      maxTokens: 2048,
+      deps
+    })
+    expect(deps.createSession).toHaveBeenCalledWith(expect.objectContaining({ maxTokens: 2048 }))
+    expect(r.stopReason).toBe('length')
+    expect(r.content).toBe('cut')
+  })
+
+  test('MEMORY_ERROR_RE — публічна частина error-контракту', () => {
+    expect(MEMORY_ERROR_RE.test('omlx memory-guard: prefill would require 12GB')).toBe(true)
+    expect(MEMORY_ERROR_RE.test('звичайна помилка')).toBe(false)
   })
 
   test('registry кидає → error', async () => {
