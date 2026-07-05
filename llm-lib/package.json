@@ -1,6 +1,6 @@
 {
   "name": "@nitra/llm-lib",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Тонкий шар роботи з LLM (локальні omlx + хмарні провайдери) поверх pi: model tiers, one-shot, agentic-раннери, write-guard, trace, telemetry, prompt-budget",
   "keywords": [
     "nitra",

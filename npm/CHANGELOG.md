@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.10.4] - 2026-07-05
+
+### Fixed
+
+- lint fix-ladder: відновлено per-tier таймаути ADR 260620-0556 (`N_LOCAL_FIX_TIMEOUT_MS`=45s, `N_CLOUD_FIX_TIMEOUT_MS`=120s) — `rung.timeoutMs` прокидається через `fixCtx` у default-worker → `runAgentFix`, runner тримає backstop ×1.25 навколо worker-виклику; зависла cloud-SSE більше не блокує lint назавжди
+
 ## [14.10.3] - 2026-07-05
 
 ### Changed
