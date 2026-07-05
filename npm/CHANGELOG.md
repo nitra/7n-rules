@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.8.6] - 2026-07-05
+
+### Fixed
+
+- text/cspell: T0 cspell-merge — merge-запис .cspell.json замість wholesale-перезапису (існуючі words/flagWords/ignorePaths зберігаються, канон лише дописується)
+
 ## [14.8.5] - 2026-07-05
 
 ### Fixed
