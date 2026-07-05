@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.10.3] - 2026-07-05
+
+### Changed
+
+- release: demo@0.0.9, @nitra/cursor@14.8.7
+
 ## [14.10.2] - 2026-07-05
 
 ### Changed
