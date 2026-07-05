@@ -26,9 +26,8 @@ async function withTmpRepo(prep, body) {
 
 describe('changelog/presence lint(ctx)', () => {
   test('full-режим (files: undefined) — нічого не перевіряє', async () => {
-    const { violations } = await withTmpRepo(
-      vi.fn(),
-      cwd => lint({ cwd, ruleId: 'changelog', concernId: 'presence', files: undefined })
+    const { violations } = await withTmpRepo(vi.fn(), cwd =>
+      lint({ cwd, ruleId: 'changelog', concernId: 'presence', files: undefined })
     )
     expect(violations).toEqual([])
   })
