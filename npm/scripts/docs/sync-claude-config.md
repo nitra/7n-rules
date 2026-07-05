@@ -3,7 +3,7 @@ type: JS Module
 title: sync-claude-config.mjs
 resource: npm/scripts/sync-claude-config.mjs
 docgen:
-  crc: f423b14c
+  crc: 0dc348cd
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 85
 ---
@@ -12,7 +12,9 @@ docgen:
 
 ## Поведінка
 
-MANAGED_HOOK_COMMAND_MARKER — Визначає маркер для хука `post-tool-use-check`.
+MANAGED_HOOK_COMMAND_MARKER — Визначає маркер актуальних hook-ів пакета (`hook --post-tool-use`, `hook --stop`).
+LEGACY_POST_TOOL_USE_HOOK_COMMAND_MARKER — Визначає маркер застарілого хука `post-tool-use-check` для cleanup при ресинку.
+LEGACY_POST_TOOL_USE_FIX_HOOK_COMMAND_MARKER — Визначає маркер ще старішої мутуючої команди `post-tool-use-fix` для cleanup при ресинку.
 DOC_FILES_HOOK_COMMAND_MARKER — Визначає маркер для хука `lint-doc-files`.
 LEGACY_DOC_FILES_HOOK_COMMAND_MARKER — Визначає маркер для застарілого хука `doc-files check`.
 LEGACY_STOP_HOOK_COMMAND_MARKER — Визначає маркер для застарілого Stop-hook'а.
@@ -44,7 +46,9 @@ syncClaudeConfig — Виконує повну синхронізацію Claude
 
 ## Публічний API
 
-MANAGED_HOOK_COMMAND_MARKER — Позначає хук для перевірки після використання інструменту.
+MANAGED_HOOK_COMMAND_MARKER — Позначає актуальні hook-и пакета.
+LEGACY_POST_TOOL_USE_HOOK_COMMAND_MARKER — Позначає застарілий хук `post-tool-use-check`, який прибирається при ресинку.
+LEGACY_POST_TOOL_USE_FIX_HOOK_COMMAND_MARKER — Позначає застарілу мутуючу команду `post-tool-use-fix`, яка прибирається при ресинку.
 DOC_FILES_HOOK_COMMAND_MARKER — Позначає хук для перевірки актуальності файлів документації.
 LEGACY_DOC_FILES_HOOK_COMMAND_MARKER — Позначає старий маркер для очищення хуків документації.
 LEGACY_STOP_HOOK_COMMAND_MARKER — Позначає старий маркер для очищення хука зупинки.
