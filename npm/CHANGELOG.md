@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.10.0] - 2026-07-05
+
+### Added
+
+- Додано semantic-collateral veto для відхилення змін поза target-set
+
 ## [14.9.2] - 2026-07-05
 
 ### Changed
