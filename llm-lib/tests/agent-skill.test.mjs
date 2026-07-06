@@ -146,6 +146,25 @@ describe('runAgentSkill', () => {
     expect(r.error).toBe('boom')
   })
 
+  test('captureBody кличеться з prompt і накопиченим output (усі text_delta)', async () => {
+    const { session } = fakeSession({
+      events: [
+        { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Ста' } },
+        { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'ло' } },
+        { type: 'message_end', message: { usage: { totalTokens: 7 } } }
+      ]
+    })
+    const captureBody = vi.fn()
+    await runAgentSkill('пітч', {
+      skillId: 's',
+      modelSpec: 'omlx/x',
+      deps: { registry, createSession: () => Promise.resolve(session), trace: vi.fn(), captureBody, out: () => null }
+    })
+    expect(captureBody).toHaveBeenCalledWith(
+      expect.objectContaining({ prompt: 'пітч', output: 'Стало', usage: { totalTokens: 7 }, model: 'omlx/x' })
+    )
+  })
+
   test('turn-ceiling backstop → abort + ok:false', async () => {
     const events = Array.from({ length: 81 }, () => ({ type: 'turn_start' }))
     const { session, abort } = fakeSession({ events })

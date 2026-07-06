@@ -33,6 +33,8 @@ import { writeTrace } from './trace.mjs'
 import { withTimeout } from './with-timeout.mjs'
 import { applyMaxTokens } from './internal/max-tokens.mjs'
 import { applyChainHeaders } from './internal/chain-headers.mjs'
+import { applyCompression } from './internal/apply-compression.mjs'
+import { captureBody } from './body-capture.mjs'
 import { promptHash } from './chain.mjs'
 
 /** Аварійна стеля turns на одну сесію (runaway-backstop). Override: `N_LLM_FIX_TURN_CEILING` (legacy `N_CURSOR_FIX_TURN_CEILING`). */
@@ -161,6 +163,7 @@ async function defaultCreateSession({ registry, model, thinkingLevel, cwd, facto
     resourceLoader: loader
   })
   applyChainHeaders(session, chain)
+  applyCompression(session)
   return applyMaxTokens(session)
 }
 
@@ -196,6 +199,7 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
   const createSession = deps.createSession ?? defaultCreateSession
   const getReg = deps.getRegistry ?? getRegistry
   const trace = deps.trace ?? writeTrace
+  const capture = deps.captureBody ?? captureBody
   const clock = deps.clock ?? (() => Date.now())
   const astContext = deps.astContext ?? astUnavailable
   const selfCheck = deps.selfCheck ?? (() => ({ ok: false, output: 'self_check недоступний' }))
@@ -351,6 +355,17 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     wallMs: clock() - startedAt,
     error,
     ...chain?.traceFields()
+  })
+  capture({
+    chainId: chain?.traceFields()?.chainId,
+    caller,
+    step: chain?.traceFields()?.chainStep,
+    model: modelSpec,
+    promptHash: pHash,
+    prompt: fixPrompt,
+    output: { touchedFiles, edits: guard.state.editLog },
+    usage: stepUsage,
+    error
   })
   return { applied: touchedFiles.length > 0, touchedFiles, telemetry, error, rollback: guard.rollback }
 }

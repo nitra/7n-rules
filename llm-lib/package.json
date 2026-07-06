@@ -42,7 +42,8 @@
     "./trace": "./lib/trace.mjs",
     "./telemetry-store": "./lib/telemetry-store.mjs",
     "./with-timeout": "./lib/with-timeout.mjs",
-    "./prompt-budget": "./lib/prompt-budget.mjs"
+    "./prompt-budget": "./lib/prompt-budget.mjs",
+    "./body-capture": "./lib/body-capture.mjs"
   },
   "publishConfig": {
     "access": "public"

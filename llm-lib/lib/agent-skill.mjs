@@ -24,6 +24,8 @@ import { failOnMemoryGuard } from './internal/memory-guard.mjs'
 import { writeTrace } from './trace.mjs'
 import { applyMaxTokens } from './internal/max-tokens.mjs'
 import { applyChainHeaders } from './internal/chain-headers.mjs'
+import { applyCompression } from './internal/apply-compression.mjs'
+import { captureBody } from './body-capture.mjs'
 import { promptHash } from './chain.mjs'
 import { withTimeout } from './with-timeout.mjs'
 
@@ -57,6 +59,7 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel, maxTo
     sessionManager: SessionManager.inMemory()
   })
   applyChainHeaders(session, chain)
+  applyCompression(session)
   return maxTokens === undefined ? applyMaxTokens(session) : applyMaxTokens(session, maxTokens)
 }
 
@@ -94,6 +97,7 @@ export async function runAgentSkill(prompt, opts = {}) {
   const createSession = deps.createSession ?? defaultCreateSession
   const getReg = deps.getRegistry ?? getRegistry
   const trace = deps.trace ?? writeTrace
+  const capture = deps.captureBody ?? captureBody
   const clock = deps.clock ?? (() => Date.now())
   const out = deps.out ?? (s => stdout.write(s))
 
@@ -148,6 +152,7 @@ export async function runAgentSkill(prompt, opts = {}) {
   let toolCallCount = 0
   let backstopHit = false
   let usage = null
+  let outputText = ''
   session.subscribe(event => {
     switch (event.type) {
       case 'turn_start': {
@@ -164,7 +169,9 @@ export async function runAgentSkill(prompt, opts = {}) {
       }
       case 'message_update': {
         if (event.assistantMessageEvent?.type === 'text_delta') {
-          out(event.assistantMessageEvent.delta ?? '')
+          const delta = event.assistantMessageEvent.delta ?? ''
+          out(delta)
+          outputText += delta
         }
         break
       }
@@ -216,6 +223,17 @@ export async function runAgentSkill(prompt, opts = {}) {
     error,
     promptHash: pHash,
     ...chain?.traceFields()
+  })
+  capture({
+    chainId: chain?.traceFields()?.chainId,
+    caller,
+    step: chain?.traceFields()?.chainStep,
+    model: spec || null,
+    promptHash: pHash,
+    prompt,
+    output: outputText,
+    usage,
+    error
   })
   return { ok: !error && !backstopHit, telemetry, error }
 }

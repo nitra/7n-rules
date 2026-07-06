@@ -201,4 +201,35 @@ describe('runOneShot', () => {
     expect(record).not.toHaveProperty('chainId')
     expect(record.promptHash).toMatch(RE_HEX16)
   })
+
+  test('captureBody кличеться з prompt/output/usage/model і chain-полями', async () => {
+    const usage = { totalTokens: 3 }
+    const deps = baseDeps(fakeSession({ deltas: ['goo', 'dbye'], usage }))
+    deps.captureBody = vi.fn()
+    const chain = {
+      nextStep: vi.fn(() => 1),
+      note: vi.fn(),
+      traceFields: () => ({ chainId: 'cb1', chainKind: 'k', chainUnit: 'u', chainStep: 1 }),
+      headers: () => ({})
+    }
+    await runOneShot({ messages: [{ role: 'user', content: 'say goodbye' }], modelSpec: 'omlx/x', chain, deps })
+    expect(deps.captureBody).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chainId: 'cb1',
+        step: 1,
+        model: 'omlx/x',
+        prompt: 'say goodbye',
+        output: 'goodbye',
+        usage,
+        error: null
+      })
+    )
+  })
+
+  test('captureBody не падає без chain (chainId/step — undefined)', async () => {
+    const deps = baseDeps(fakeSession({ deltas: ['ok'] }))
+    deps.captureBody = vi.fn()
+    await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: 'omlx/x', deps })
+    expect(deps.captureBody).toHaveBeenCalledWith(expect.objectContaining({ chainId: undefined, step: undefined }))
+  })
 })

@@ -24,6 +24,8 @@ import { writeTrace } from './trace.mjs'
 import { withTimeout } from './with-timeout.mjs'
 import { applyMaxTokens } from './internal/max-tokens.mjs'
 import { applyChainHeaders } from './internal/chain-headers.mjs'
+import { applyCompression } from './internal/apply-compression.mjs'
+import { captureBody } from './body-capture.mjs'
 import { promptHash } from './chain.mjs'
 
 // Частина error-контракту fail-fast: consumers класифікують memory-guard помилку
@@ -59,6 +61,7 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel, maxTo
     sessionManager: SessionManager.inMemory()
   })
   applyChainHeaders(session, chain)
+  applyCompression(session)
   return maxTokens === undefined ? applyMaxTokens(session) : applyMaxTokens(session, maxTokens)
 }
 
@@ -95,6 +98,7 @@ export async function runOneShot({
   const createSession = deps.createSession ?? defaultCreateSession
   const getReg = deps.getRegistry ?? getRegistry
   const trace = deps.trace ?? writeTrace
+  const capture = deps.captureBody ?? captureBody
 
   // Усі повідомлення (system+user) зливаються в один prompt — інлайн-інструкції
   // слабка локальна модель ВИКОНУЄ, а в system-промпті (replaceInstructions) — переказує.
@@ -170,6 +174,17 @@ export async function runOneShot({
     error: promptError,
     promptHash: pHash,
     ...chain?.traceFields()
+  })
+  capture({
+    chainId: chain?.traceFields()?.chainId,
+    caller,
+    step: chain?.traceFields()?.chainStep,
+    model: spec,
+    promptHash: pHash,
+    prompt: userText,
+    output: text.trim(),
+    usage,
+    error: promptError
   })
   return { content: text.trim(), usage, error: promptError, model: spec, stopReason, caller }
 }
