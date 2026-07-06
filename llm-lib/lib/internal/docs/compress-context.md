@@ -12,7 +12,7 @@ docgen:
 
 ## Поведінка
 
-compressContext — мінімізує вбудований pretty-printed JSON у текстових частинах messages і systemPrompt; обрізає (truncate-middle) старі непротектовані блоки довші за поріг; захищає останні PROTECTED_TAIL_MESSAGES messages від truncation (лише minify); systemPrompt захищений від truncation, доки сумарний розмір контексту не перевищить SYSTEM_TRUNCATION_SIZE_THRESHOLD; повідомлення з tool-викликом (toolCall part / role toolResult) лишаються byte-exact.
+compressContext — мінізує вбудований pretty-printed JSON у текстових частинах messages і systemPrompt; обрізає (truncate-middle) старі непротектовані блоки довші за поріг; захищає останні PROTECTED_TAIL_MESSAGES messages від truncation (лише minify); systemPrompt захищений від truncation, доки сумарний розмір контексту не перевищить SYSTEM_TRUNCATION_SIZE_THRESHOLD; повідомлення з tool-викликом (toolCall part / role toolResult) лишаються byte-exact.
 
 ## Публічний API
 

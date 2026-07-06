@@ -27,7 +27,7 @@ const PROTECTED_TAIL_MESSAGES = 2
 const TRUNCATE_THRESHOLD = 4000
 const TRUNCATE_HEAD = 1500
 const TRUNCATE_TAIL = 500
-/** Мінімальна довжина вбудованого JSON-блоку, щоб турбуватись мінімізацією. */
+/** Мінімальна довжина вбудованого JSON-блоку, щоб турбуватись мінізацією. */
 const MIN_JSON_MINIFY_LEN = 40
 /**
  * Поріг сумарного розміру контексту (символів, серіалізований проксі —
@@ -59,10 +59,10 @@ function truncateMiddle(text) {
 
 /**
  * Знаходить top-level JSON-значення, вбудовані у вільний текст (напр.
- * pretty-printed тіло запиту в аналітичному промпті), і мінімізує їх —
+ * pretty-printed тіло запиту в аналітичному промпті), і мінізує їх —
  * прибирає форматувальні пробіли без втрати даних. Решта тексту незмінна.
  * @param {string} text вихідний текст
- * @returns {{text: string, changed: boolean}} мінімізований текст і чи змінено
+ * @returns {{text: string, changed: boolean}} мінізований текст і чи змінено
  */
 function minifyEmbeddedJson(text) {
   let result = ''
@@ -92,9 +92,9 @@ function minifyEmbeddedJson(text) {
 
 /**
  * Мінімізує валідний JSON-блок, якщо він досить великий/багаторядковий і
- * мінімізація справді коротша за оригінал — інакше не варто турбуватись.
+ * мінізація справді коротша за оригінал — інакше не варто турбуватись.
  * @param {string} raw валідний JSON-текст
- * @returns {string|null} мінімізований текст, або null (не застосовано)
+ * @returns {string|null} мінізований текст, або null (не застосовано)
  */
 function minifyJsonBlock(raw) {
   if (raw.length < MIN_JSON_MINIFY_LEN || !raw.includes('\n')) return null

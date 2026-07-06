@@ -36,7 +36,7 @@ const toolResultMsg = text => ({ role: 'toolResult', content: [{ type: 'text', t
 const bigJson = n => `{\n  "data": "${'x'.repeat(n)}"\n}`
 
 describe('minify (через compressContext, одне text-message)', () => {
-  test('мінімізує вбудований pretty-printed JSON-блок', () => {
+  test('мінізує вбудований pretty-printed JSON-блок', () => {
     const text = 'Запит:\n{\n  "a": 1,\n  "b": [1, 2, 3],\n  "c": "hello world"\n}\n\nдалі текст'
     const out = compressContext({ messages: [msg('user', text), msg('user', 'x'), msg('user', 'y')] })
     const compressedText = out.messages[0].content[0].text
@@ -103,7 +103,7 @@ describe('без messages — no-op', () => {
 })
 
 describe('truncation старих блоків і захист хвоста', () => {
-  test('мінімізує старе повідомлення і обрізає великий старий блок', () => {
+  test('мінізує старе повідомлення і обрізає великий старий блок', () => {
     const context = {
       messages: [msg('user', bigJson(6000)), msg('assistant', 'остання відповідь'), msg('user', 'останнє питання')]
     }
