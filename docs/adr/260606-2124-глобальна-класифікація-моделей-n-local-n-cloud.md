@@ -63,3 +63,9 @@ Per-skill override (`N_CURSOR_FIX_MODEL`) залишається як power-user
 - `npm/lib/models.mjs` — імплементація
 - `npm/skills/fix/js/llm-worker.mjs` — перший скіл, що використовує тири
 - Майбутні скіли (docgen, taze) посилатимуться на той самий модуль
+
+## Update 2026-06-06
+
+Transcript уточнює застосування глобальної класифікації моделей у `npm/lib/models.mjs`: модуль експортує `LOCAL_MIN`, `LOCAL_AVG`, `LOCAL_MAX`, `CLOUD_MIN`, `CLOUD_AVG`, `CLOUD_MAX` і читає відповідні env vars `N_LOCAL_MIN_MODEL` … `N_CLOUD_MAX_MODEL`. Формат значення — `provider/model-id`, наприклад `ollama/gemma3:4b` або `openai/gpt-5.4-mini`.
+
+Для `npm/skills/fix/js/llm-worker.mjs` зафіксовано дефолти `MODEL = CLOUD_MIN` і `MODEL_HEAVY = CLOUD_AVG`; після двох невдач на одному правилі оркестратор переходить з `MODEL` на `MODEL_HEAVY`. При відсутньому ключі повідомлення має підказувати налаштувати відповідний tier env var.
