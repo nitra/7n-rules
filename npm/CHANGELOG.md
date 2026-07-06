@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.10.6] - 2026-07-06
+
+### Changed
+
+- feat(tauri): add core_test_isolation rule for LLM agent/app-shell decoupling
+
 ## [14.10.5] - 2026-07-06
 
 ### Changed
