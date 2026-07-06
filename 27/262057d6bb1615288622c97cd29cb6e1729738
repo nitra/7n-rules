@@ -1,0 +1,29 @@
+npm/rules/tauri/core_test_isolation/concern.json
+  s_09bae649c48c77::t_dede7a30541e60 1-5
+npm/rules/tauri/core_test_isolation/main.mjs
+  s_09bae649c48c77::t_6bd3893d82e522 1-165
+npm/rules/tauri/main.mdc
+  s_09bae649c48c77::t_9bd95e026d2eea 5,8
+npm/rules/tauri/core_test_isolation/tests/core_test_isolation.test.mjs
+  s_09bae649c48c77::t_122a72abb6a0e0 1-102
+npm/rules/tauri/core_test_isolation/core_test_isolation.mdc
+  s_09bae649c48c77::t_e876a5941f665f 1-43
+npm/package.json
+  s_09bae649c48c77::t_10e9e2a5360e0d 56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "27262057d6bb1615288622c97cd29cb6e1729738",
+  "prompts": {},
+  "sessions": {
+    "s_09bae649c48c77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "411e643c-76a7-4c42-9f07-42be1fb52e47",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
