@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.10.5] - 2026-07-06
+
+### Changed
+
+- changelog: додано change-файл для наявних змін у npm workspace
+
 ## [14.10.4] - 2026-07-05
 
 ### Fixed
