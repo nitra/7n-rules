@@ -44,9 +44,9 @@ jobs:
       - name: Release (bump + CHANGELOG + tag)
         run: bunx n-cursor release
 
-      # llm-lib публікується ПЕРШИМ: @nitra/cursor залежить від @nitra/llm-lib,
+      # llm-lib публікується ПЕРШИМ: @nitra/cursor залежить від @7n/llm-lib,
       # тож інсталяція свіжого @nitra/cursor мусить знаходити пакет у registry.
-      - name: Publish @nitra/llm-lib
+      - name: Publish @7n/llm-lib
         uses: JS-DevTools/npm-publish@v4.1.5
         with:
           package: llm-lib/package.json

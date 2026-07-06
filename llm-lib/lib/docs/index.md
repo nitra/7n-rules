@@ -6,7 +6,7 @@ resource: llm-lib/lib/
 
 # llm-lib/lib
 
-Публічні модулі пакета `@nitra/llm-lib` (див. README пакета; спека
+Публічні модулі пакета `@7n/llm-lib` (див. README пакета; спека
 docs/specs/2026-07-05-llm-lib-extraction-spec.md).
 
 | Файл                                      | Тип       |

@@ -3,7 +3,7 @@ type: JS Module
 title: types.mjs
 resource: npm/scripts/lib/lint-surface/types.mjs
 docgen:
-  crc: e412139a
+  crc: 65ed1dac
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 

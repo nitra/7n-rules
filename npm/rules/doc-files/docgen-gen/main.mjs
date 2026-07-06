@@ -2,9 +2,9 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { basename } from 'node:path'
 import { env } from 'node:process'
-import { resolveModel } from '@nitra/llm-lib/model-tiers'
-import { runOneShot } from '@nitra/llm-lib/one-shot'
-import { startChain } from '@nitra/llm-lib/chain'
+import { resolveModel } from '@7n/llm-lib/model-tiers'
+import { runOneShot } from '@7n/llm-lib/one-shot'
+import { startChain } from '@7n/llm-lib/chain'
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { docPathForSource } from '../docgen-scan/main.mjs'
 import { extractFacts } from '../docgen-extract/main.mjs'
@@ -24,7 +24,7 @@ import {
 let llmMeter = { calls: 0, ms: 0 }
 
 /**
- * Ланцюжок поточної генерації (@nitra/llm-lib/chain) — той самий lifecycle, що й
+ * Ланцюжок поточної генерації (@7n/llm-lib/chain) — той самий lifecycle, що й
  * llmMeter: виставляється на старті generateDoc, скидається у finally. Генерація
  * одного файлу послідовна, тому module-level стан без гонок.
  */

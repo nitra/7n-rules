@@ -3,7 +3,7 @@ type: JS Module
 title: compress-context.mjs
 resource: llm-lib/lib/internal/compress-context.mjs
 docgen:
-  crc: 5f0b3416
+  crc: 61b94b7d
 ---
 
 ## Огляд

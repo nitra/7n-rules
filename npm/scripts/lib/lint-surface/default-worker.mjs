@@ -16,7 +16,7 @@ import { renderViolations } from './render.mjs'
 export async function fixWorker(violations, ctx) {
   // lazy import — тримає detect-шлях вільним від pi/oxc (read-only --no-fix не вантажить їх).
   const [{ runAgentFix }, { extractContext }] = await Promise.all([
-    import('@nitra/llm-lib/agent-fix'),
+    import('@7n/llm-lib/agent-fix'),
     import('../../utils/ast-extract.mjs')
   ])
   const violationText = renderViolations(violations)

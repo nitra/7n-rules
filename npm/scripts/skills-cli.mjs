@@ -146,7 +146,7 @@ async function runPiRunner(prompt, rawSkillName, skillsRoot, projectDir, logErro
   const tier = skillTier(readSkillMetaRaw(join(skillsRoot, skillId)))
   let runPiAgentSkill = deps.runPiAgentSkill
   if (runPiAgentSkill === undefined || runPiAgentSkill === null) {
-    const piAgentSkillModule = await import('@nitra/llm-lib/agent-skill')
+    const piAgentSkillModule = await import('@7n/llm-lib/agent-skill')
     runPiAgentSkill = piAgentSkillModule.runAgentSkill
   }
   const result = await runPiAgentSkill(prompt, { skillId, tier, cwd: projectDir })

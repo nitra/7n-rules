@@ -1,4 +1,4 @@
-# Винесення LLM-шару в окремий пакет `@nitra/llm-lib`
+# Винесення LLM-шару в окремий пакет `@7n/llm-lib`
 
 - Дата: 2026-07-05
 - Статус: специфікація (код не змінювався)
@@ -88,13 +88,13 @@ lint-surface/default-worker + run-fix) ходять через чисті вик
 Env-канон `N_LOCAL_MIN_MODEL`/`N_CLOUD_{MIN,MAX}_MODEL` уже спільний між проєктами —
 контракт де-факто існує, бракує спільного коду.
 
-## 4. Пакет `@nitra/llm-lib`
+## 4. Пакет `@7n/llm-lib`
 
 ### 4.1 Розташування і пакування
 
 - Новий workspace-пакет **`llm-lib/`** у корені монорепо cursor
   (root `package.json` → `"workspaces": ["npm", "demo", "llm-lib"]`).
-- Публікується окремо в npm як `@nitra/llm-lib`, semver незалежний від `@nitra/cursor`.
+- Публікується окремо в npm як `@7n/llm-lib`, semver незалежний від `@nitra/cursor`.
 - `@earendil-works/pi-ai` + `@earendil-works/pi-coding-agent` — **peerDependencies
   (peerDependenciesMeta: optional)**: consumer сам вирішує, ставити їх завжди
   (@7n/test — dependencies) чи як optionalDependencies з lazy import
@@ -192,9 +192,9 @@ Definition of done для substrate-незалежності: `grep` по consum
 
 **Ф1 — пакет + publish.** Створити `llm-lib/` (git mv з `npm/lib/`, rename, internal/),
 перенести тести й доки, README з API-таблицею §4.3, налаштувати release/CI (§7),
-опублікувати `@nitra/llm-lib@1.0.0`. Vitest зелений у новому розташуванні.
+опублікувати `@7n/llm-lib@1.0.0`. Vitest зелений у новому розташуванні.
 
-**Ф2 — cursor на пакет (механічна).** `@nitra/cursor` додає `@nitra/llm-lib` у
+**Ф2 — cursor на пакет (механічна).** `@nitra/cursor` додає `@7n/llm-lib` у
 dependencies (workspace-протокол локально, semver у publish); import-rewrite у consumers:
 `npm/rules/doc-files/docgen-gen/main.mjs`, `npm/rules/doc-files/docgen-judge/main.mjs`,
 `npm/rules/text/cspell-fix/fix-worker.mjs`, `npm/scripts/lib/adr/normalize-pipeline.mjs`,
@@ -207,7 +207,7 @@ dependencies (workspace-протокол локально, semver у publish); i
 - `pi-client.mjs` видаляється: `callText` → `runOneShot` (мапінг: prompt →
   `messages:[{role:'user',...}]`, повернення `.content` замість рядка);
   `callAgent` → `runAgentSkill`;
-- `prompt-budget.mjs` видаляється → імпорт з `@nitra/llm-lib`;
+- `prompt-budget.mjs` видаляється → імпорт з `@7n/llm-lib`;
 - розсіяна резолюція моделей (gen-tests, coverage-classify, fix-tests, coverage-fix)
   → `resolveModel(tier)` / явний `modelSpec` з env;
 - backoff/retry-код і його env-knobs — на викид (§5.1);
@@ -233,7 +233,7 @@ Rollback = git-історія (як у pi-міграції: hard cutover без 
 
 | Ризик/питання | Позиція |
 | --- | --- |
-| Version-skew `@nitra/cursor` ↔ `@nitra/llm-lib` | cursor пінить `^major`; breaking-зміни API llm-lib = major-бамп + одночасний PR у consumers |
+| Version-skew `@nitra/cursor` ↔ `@7n/llm-lib` | cursor пінить `^major`; breaking-зміни API llm-lib = major-бамп + одночасний PR у consumers |
 | Bus-factor pi / зміна npm-scope | Мітигується §4.3 (малий нейтральний API-surface); контроль — DoD-grep у Ф2/Ф3 |
 | 7n-test без memory-retry падає на зайнятому omlx | Свідомий трейд-оф (§5.1); за потреби retry живе в оркестраторі 7n-test, не в llm-lib |
 | Виносити llm-lib у власний репо | Відкладено, не блокує: publish-контракт уже окремий, переїзд репо — механіка |

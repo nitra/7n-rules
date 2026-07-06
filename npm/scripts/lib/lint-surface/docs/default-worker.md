@@ -3,7 +3,7 @@ type: JS Module
 title: default-worker.mjs
 resource: npm/scripts/lib/lint-surface/default-worker.mjs
 docgen:
-  crc: 3ac03a0f
+  crc: 0eb7ba45
   model: openai-codex/gpt-5.5
 ---
 

@@ -100,7 +100,7 @@
  * @property {(absPath: string) => void} recordWrite worker ЗОБОВ'ЯЗАНИЙ викликати
  *   перед будь-яким записом у файл — runner так знімає pre-image для central rollback.
  *   Це обов'язок реєстрації, НЕ володіння rollback-ом (rollback лишається в runner).
- * @property {object} [chain] chain handle concern-а (@nitra/llm-lib/chain) — worker
+ * @property {object} [chain] chain handle concern-а (@7n/llm-lib/chain) — worker
  *   прокидає його у runAgentFix/runOneShot, щоб рунг став кроком ланцюжка.
  */
 

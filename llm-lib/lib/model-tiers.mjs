@@ -1,7 +1,7 @@
 /** @see ./docs/model-tiers.md */
 
 /**
- * Тир-конфіг моделей для LLM-шару (@nitra/llm-lib) і його consumers.
+ * Тир-конфіг моделей для LLM-шару (@7n/llm-lib) і його consumers.
  *
  * Тири — політика споживача (які env-моделі = який тир); резолвінг у Model-обʼєкт
  * substrate-у живе окремо в [internal/registry] — цей модуль substrate-free і

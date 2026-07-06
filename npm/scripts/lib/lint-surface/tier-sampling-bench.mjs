@@ -12,8 +12,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { env, exit, stdout } from 'node:process'
 
-import { CLOUD_AVG, CLOUD_MAX, CLOUD_MIN, LOCAL_MIN } from '@nitra/llm-lib/model-tiers'
-import { runAgentFix } from '@nitra/llm-lib/agent-fix'
+import { CLOUD_AVG, CLOUD_MAX, CLOUD_MIN, LOCAL_MIN } from '@7n/llm-lib/model-tiers'
+import { runAgentFix } from '@7n/llm-lib/agent-fix'
 import {
   buildExperimentLadder,
   runTierSamplingExperiment,
