@@ -1,0 +1,43 @@
+## Компіляційний цикл: agent/LLM-логіка окремо від app-shell
+
+Якщо Tauri-застосунок говорить з LLM (agent, tool-calling, chat), agent-логіка **не** живе
+у `src-tauri` разом з app-shell — вона винесена в окремий workspace crate (`agent-core` чи
+подібний), який:
+
+- **не залежить від `tauri`** — інакше будь-який `cargo test -p <crate>` все одно тягне повну
+  збірку Tauri runtime;
+- тестується **без** rebuild застосунку: `cargo test -p agent-core`;
+- має **fake/mock реалізацію LLM-провайдера** для інтеграційних тестів — prompt/tool ітерації
+  перевіряються без мережевого виклику до реального провайдера.
+
+**Чому так:** без розділення кожна ітерація промпта чи tool-виклику коштує повний Tauri
+rebuild (лінковка, bundling, іноді webview) замість секундного `cargo test`.
+
+```
+my-tauri-app/
+├── src-tauri/           ← app-shell: Tauri runtime, window/AppHandle, НЕ містить LLM-залежностей
+│   └── Cargo.toml       ← [workspace] members = [".", "../agent-core"]
+└── agent-core/          ← agent/LLM-логіка: prompt building, tool dispatch, provider abstraction
+    ├── Cargo.toml       ← без залежності на tauri
+    └── tests/
+        └── fake_provider.rs   ← FakeLlmProvider / MockLlmClient — без мережі
+```
+
+Концерн `tauri/core_test_isolation.mjs` (read-only detector, `structural`, авто-фікс ризикований)
+для кожного `src-tauri/Cargo.toml` перевіряє:
+
+1. **LLM-залежність не в app-shell.** Якщо сам `src-tauri/Cargo.toml` має залежність на відомий
+   LLM SDK (напр. `async-openai`, `anthropic`, `ollama-rs`, `rig-core`, ...) — фейл: винеси
+   agent-логіку в окремий crate.
+2. **Окремий crate не тягне tauri.** Якщо у `[workspace] members` є crate з LLM-залежністю, і
+   цей crate сам залежить від `tauri`/`tauri-*` — фейл: `cargo test -p` цього крейту все одно
+   перезбирає Tauri runtime.
+3. **Є fake-провайдер.** Якщо такий crate є і не залежить від tauri, але ніде в його дереві
+   (`**/*.rs`) немає маркера `Fake*Llm`/`Mock*Provider`/`Stub*Client` — фейл: інтеграційні тести
+   на prompt/tool ітерації або мовчки пропускають LLM-логіку, або б'ють по реальному провайдеру.
+
+**Область застосування:** концерн активується лише коли у Tauri-воркспейсі є crate з
+LLM-залежністю — Tauri-проєкти без LLM/agent-логіки не порушують це правило.
+
+**Не автофіксується:** виділення crate, перенесення коду і написання fake-провайдера потребують
+людського розсуду — детектор лише репортує з посиланням на це правило.
