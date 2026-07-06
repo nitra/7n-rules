@@ -3,7 +3,7 @@ type: JS Module
 title: one-shot.mjs
 resource: llm-lib/lib/one-shot.mjs
 docgen:
-  crc: 39445c48
+  crc: 437d9cd7
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 

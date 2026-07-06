@@ -232,6 +232,22 @@ describe('happy-path (справжній write-guard на temp git-репо)', (
     expect(record.promptHash).toMatch(RE_HEX16)
   })
 
+  test('captureBody кличеться з prompt/output(touchedFiles+edits)/usage', async () => {
+    const captureBody = vi.fn()
+    const r = await runAgentFix('n-ci4', '❌ v', dir, {
+      model: 'omlx/gemma',
+      deps: { root: dir, registry, createSession: fakeCreate(), trace: vi.fn(), captureBody }
+    })
+    expect(captureBody).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'omlx/gemma',
+        prompt: expect.stringContaining('n-ci4'),
+        output: expect.objectContaining({ touchedFiles: r.touchedFiles }),
+        usage: { input: 100, output: 10, totalTokens: 110 }
+      })
+    )
+  })
+
   test('prompt кидає → error, але touched зафіксовані', async () => {
     const r = await runAgentFix('n-ci4', '❌ v', dir, {
       model: 'omlx/gemma',
