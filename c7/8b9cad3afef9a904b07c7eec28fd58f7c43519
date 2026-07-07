@@ -1,0 +1,27 @@
+.cursor/rules/n-js.mdc
+  s_7077186e4294df::t_1ce7cb07e9afdf 149,151
+.cursor/rules/n-npm-module.mdc
+  s_7077186e4294df::t_1ce7cb07e9afdf 16-29,66,76-79,83,349
+.cursor/rules/n-doc-files.mdc
+  s_7077186e4294df::t_1ce7cb07e9afdf 2,5,12,14-15,17-24,29-34,38-42,46-49
+.cursor/rules/n-ga.mdc
+  s_7077186e4294df::t_1ce7cb07e9afdf 205-206,230-231,270,309
+docs/adr/20260530-115652-заборона-ручного-бампу-version-лише-ci.md
+  s_7077186e4294df::t_abb5498b5664ee 80-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c78b9cad3afef9a904b07c7eec28fd58f7c43519",
+  "prompts": {},
+  "sessions": {
+    "s_7077186e4294df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b608ee0e-997d-4727-882b-933696e35b81",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
