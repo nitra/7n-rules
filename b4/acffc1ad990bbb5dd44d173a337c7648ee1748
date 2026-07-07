@@ -1,0 +1,34 @@
+npm/skills/doc-aggregate/SKILL.md
+  s_bd87b6da9937cf::t_9288b08c147e03 33,36
+npm/rules/doc-files/docgen-files-batch/main.mjs
+  s_bd87b6da9937cf::t_9288b08c147e03 363,450
+npm/rules/doc-files/docgen-files-batch/docs/main.md
+  s_bd87b6da9937cf::t_944bb538c27236 6
+npm/rules/doc-files/main.mdc
+  s_bd87b6da9937cf::t_9288b08c147e03 2,5,12,14-15,17-24,29-34,38-42,46-49
+npm/rules/doc-files/docgen-scan/docs/main.md
+  s_bd87b6da9937cf::t_e124f3684b0df9 6
+npm/.changes/260707-0827.md
+  s_bd87b6da9937cf::t_74e6cf087f3ccf 5
+  s_bd87b6da9937cf::t_12b02aee1769e9 1-4
+npm/rules/doc-files/docgen-scan/tests/docgen-scan.test.mjs
+  s_bd87b6da9937cf::t_9288b08c147e03 13
+npm/rules/doc-files/docgen-scan/main.mjs
+  s_bd87b6da9937cf::t_9288b08c147e03 2-3,7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b4acffc1ad990bbb5dd44d173a337c7648ee1748",
+  "prompts": {},
+  "sessions": {
+    "s_bd87b6da9937cf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "95a12a0a-a438-4eef-84f6-414d5190a4e1",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
