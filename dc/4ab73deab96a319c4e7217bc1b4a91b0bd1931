@@ -1,0 +1,19 @@
+docs/adr/260618-0647-js-оркестрована-генерація-доки-через-doc-files-з-crc-frontma.md
+  s_f384989250d724::t_7a7250179bbb4e 2-4,7-12,14,16,18-22,24,26,28-29,31,34,37-38,41,44-46,50-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "dc4ab73deab96a319c4e7217bc1b4a91b0bd1931",
+  "prompts": {},
+  "sessions": {
+    "s_f384989250d724": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bb2b25ab-1e10-4a32-a309-d48313831e87",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
