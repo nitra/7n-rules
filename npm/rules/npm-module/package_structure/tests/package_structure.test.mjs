@@ -249,6 +249,55 @@ describe('check — інтеграційні сценарії', () => {
     })
   })
 
+  test('hk.pkl зі застарілим "check changelog" → fail (npm-module.mdc: команду check прибрано в v14)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })
+      await ensureDir(join(dir, 'npm'))
+      await writeJson(join(dir, 'npm/package.json'), { name: 'pkg', version: '1.0.0' })
+      await writeFile(
+        dir + '/hk.pkl',
+        '["pre-commit"]\nbunx -p typescript tsc\ntsconfig.emit-types.json\n' +
+          '["npm-changelog"]\ncheck = "npx @nitra/cursor check changelog"\n',
+        'utf8'
+      )
+      await writeFile(join(dir, 'npm/tsconfig.emit-types.json'), '{"compilerOptions":{}}\n', 'utf8')
+      const res = await lint({ cwd: dir, ruleId: 'npm-module', concernId: 'package_structure' })
+      expect(res.violations.some(v => v.message.includes('check changelog'))).toBe(true)
+    })
+  })
+
+  test('hk.pkl без кроку npm-changelog → fail (npm-module.mdc: канонічний крок відсутній)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })
+      await ensureDir(join(dir, 'npm'))
+      await writeJson(join(dir, 'npm/package.json'), { name: 'pkg', version: '1.0.0' })
+      await writeFile(join(dir, 'hk.pkl'), '["pre-commit"]\nbunx -p typescript tsc\ntsconfig.emit-types.json\n', 'utf8')
+      await writeFile(join(dir, 'npm/tsconfig.emit-types.json'), '{"compilerOptions":{}}\n', 'utf8')
+      const res = await lint({ cwd: dir, ruleId: 'npm-module', concernId: 'package_structure' })
+      expect(res.violations.some(v => v.message.includes('npm-changelog'))).toBe(true)
+    })
+  })
+
+  test('hk.pkl з канонічним кроком npm-changelog → pass (крок не дає violation)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })
+      await ensureDir(join(dir, 'npm'))
+      await writeJson(join(dir, 'npm/package.json'), { name: 'pkg', version: '1.0.0' })
+      await writeFile(
+        dir + '/hk.pkl',
+        '["pre-commit"]\nbunx -p typescript tsc\ntsconfig.emit-types.json\n' +
+          '["npm-changelog"]\nfix = "N_CURSOR_CHANGELOG_AUTOFIX=1 bun ./npm/bin/n-cursor.js lint changelog"\n',
+        'utf8'
+      )
+      await writeFile(join(dir, 'npm/tsconfig.emit-types.json'), '{"compilerOptions":{}}\n', 'utf8')
+      await ensureDir(join(dir, '.github/workflows'))
+      const res = await lint({ cwd: dir, ruleId: 'npm-module', concernId: 'package_structure' })
+      expect(res.violations.some(v => v.message.includes('npm-changelog') || v.message.includes('check changelog'))).toBe(
+        false
+      )
+    })
+  })
+
   test('немає .github/workflows/ → fail (line 609)', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })

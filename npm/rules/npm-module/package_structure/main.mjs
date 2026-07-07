@@ -124,6 +124,24 @@ function missingHkEmitTypesConfigFragments(hkText) {
 }
 
 /**
+ * Застаріла інвокація команди `check`, прибраної в v14 (уніфікована поверхня `lint`).
+ * Матч на підрядок "check changelog" незалежно від того, яким бінарем/шляхом викликано.
+ */
+const DEPRECATED_CHECK_CHANGELOG_RE = /\bcheck\s+changelog\b/u
+
+/**
+ * Підрядки канонічного кроку `npm-changelog` у hk.pkl (fix-only, autofix через env
+ * `N_CURSOR_CHANGELOG_AUTOFIX=1`; сам крок ставить change-файл у git-індекс, `stage`
+ * не потрібен). Див. npm-module.mdc.
+ * @param {string} hkText текст конфігурації hk
+ * @returns {string[]} відсутні фрагменти
+ */
+function missingHkNpmChangelogFragments(hkText) {
+  const need = ['["npm-changelog"]', 'N_CURSOR_CHANGELOG_AUTOFIX=1', 'lint changelog']
+  return need.filter(s => !hkText.includes(s))
+}
+
+/**
  * Шлях на дискі до файлу з поля `types` у `npm/package.json` (значення на кшталт `./types/bin/x.d.ts`).
  * @param {string} typesField значення поля `types` з `package.json`
  * @returns {string | null} абсолютний шлях або `null`
@@ -466,6 +484,20 @@ export async function lint(ctx) {
       pass(`${hk.path}: pre-commit містить очікуваний виклик tsc (${layoutLabel})`)
     } else {
       fail(`${hk.path}: онови pre-commit крок (npm-module.mdc); не знайдено: ${missing.join(', ')}`)
+    }
+
+    if (DEPRECATED_CHECK_CHANGELOG_RE.test(hk.text)) {
+      fail(
+        `${hk.path}: крок містить застарілий виклик "check changelog" — команду \`check\` прибрано в v14 ` +
+          '(уніфікована поверхня `lint`). Заміни на "npx @nitra/cursor lint changelog" (npm-module.mdc)'
+      )
+    } else {
+      const missingChangelogStep = missingHkNpmChangelogFragments(hk.text)
+      if (missingChangelogStep.length === 0) {
+        pass(`${hk.path}: pre-commit містить крок npm-changelog (npm-module.mdc)`)
+      } else {
+        fail(`${hk.path}: онови крок npm-changelog (npm-module.mdc); не знайдено: ${missingChangelogStep.join(', ')}`)
+      }
     }
   } else {
     fail('Очікується hk.pkl або .config/hk.pkl з pre-commit і tsc (npm-module.mdc)')
