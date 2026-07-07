@@ -72,22 +72,4 @@ Transcript уточнює застосування глобальної клас
 
 ## Update 2026-06-06
 
-Додано єдину точку вирішення моделі `resolveModel(tier)` у `npm/lib/models.mjs`, щоб споживачі не зверталися напряму до сирих констант тирів і могли прозоро fallback-итись, якщо локальні моделі не налаштовані.
-
-Каскад fallback-ів:
-
-- `min` → `LOCAL_MIN` → `LOCAL_AVG` → `LOCAL_MAX` → `CLOUD_MIN`
-- `avg` → `LOCAL_AVG` → `LOCAL_MAX` → `CLOUD_AVG`
-- `max` → `LOCAL_MAX` → `CLOUD_MAX`
-
-Оновлені споживачі з transcript:
-
-- `npm/scripts/coverage-classify/index.mjs` — Tier 1 перейшов з `LOCAL_MIN` на `resolveModel('min')`; cache key оновлено.
-- `npm/skills/fix/js/llm-worker.mjs` — `CLOUD_MIN`/`CLOUD_AVG` замінені на `resolveModel('min')`/`resolveModel('avg')`.
-- `npm/scripts/coverage-fix.mjs` — `CLOUD_MAX` замінено на `resolveModel('max')`.
-- `npm/scripts/dispatcher/lib/subagent-runner.mjs` — `CLOUD_AVG` замінено на `resolveModel('avg')`.
-- `npm/skills/docgen/js/docgen-gen.mjs` — `CLOUD_AVG` замінено на `resolveModel('avg')`.
-
-Виняток: у `docgen-gen.mjs` `LOCAL_MIN` для прямого ollama HTTP-виклику залишено без `resolveModel('min')`, щоб не передати cloud-ідентифікатор у ollama API.
-
-Change-файл: `npm/.changes/260606-2204.md`.
+Додатково зафіксовано, що per-skill env vars і provider-specific назви моделей призводили до помилки `No API key found for anthropic` на машинах без Anthropic-ключа. Спільний модуль `npm/lib/models.mjs` має бути єдиним контрактом для `CLOUD_MIN` / `CLOUD_AVG`, щоб скіли не оголошували власні змінні середовища.
