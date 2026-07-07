@@ -1,0 +1,31 @@
+docs/adr/260606-2124-глобальна-класифікація-моделей-n-local-n-cloud.md
+  s_c2cafd7e268ef6::t_16fe7bcfb1a35e 72-93
+docs/adr/260606-2137-спрощення-tier-routing-у-docgen.md
+  s_c2cafd7e268ef6::t_16fe7bcfb1a35e 58-68
+docs/adr/260606-2156-реформа-flow-під-архітектуру-думка-md.md
+  s_bd87b6da9937cf::t_7461fd2bb4137b 2-4,7-8,12,14,17-29,33,35,37,39,41,43-52,54,56,58-62,64,66,68-73,75,77,79-82,84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f140bb57839ae24c0a6af4cf7b163e6f057e0f49",
+  "prompts": {},
+  "sessions": {
+    "s_bd87b6da9937cf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "95a12a0a-a438-4eef-84f6-414d5190a4e1",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_c2cafd7e268ef6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1df485e2-91c6-4eb6-8f07-3326f46e5d4b",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
