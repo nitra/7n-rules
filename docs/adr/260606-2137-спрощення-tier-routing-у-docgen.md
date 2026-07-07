@@ -55,3 +55,14 @@ Transcript додатково зафіксував, що залежність `@
 ## Update 2026-06-06
 
 Transcript уточнив стару routing-схему: `sym < 2` ішов у Tier 1 без cloud-рефері, `sym ∈ [2, 4)` ішов у Tier 1 із `cloudScoreDoc` через Haiku, `sym ≥ 4` ішов одразу в Tier 2. Після спрощення схема стала: `sym < 4` → Tier 1 local + det-scorer із порогом 70 + timeout → Tier 2 при fail; `sym ≥ 4` → Tier 2 одразу.
+
+## Update 2026-06-06
+
+- Уточнено, що після видалення Haiku-рефері gate для локального docgen складається з детермінованого `scoreDoc()` і timeout `LOCAL_TIMEOUT_MS = 5 * 60 * 1000` через `Promise.race`.
+- При `scoreDoc() < 70` або `local-timeout` генерація ескалюється на Tier 2.
+- `generateDoc` повертає поле `model` у всіх return-гілках, щоб batch-скрипт міг показувати фактичну модель для кожного файлу та окремо рахувати Tier1→Tier2 ескалації.
+- Batch stats включають `{ ok, err, localOk, cloudOk, escalated }`; рядок ескалації виводиться лише коли `escalated > 0`.
+- Transcript також фіксує міграцію LLM-викликів у `docgen`, `coverage-classify`, `coverage-fix` і `subagent-runner` з Anthropic SDK на `pi` transport з глобальними тирами моделей. Це доповнює ADR про глобальну класифікацію моделей, але не змінює рішення про видалення Haiku-рефері в docgen.
+- Змінені файли з transcript: `npm/skills/docgen/js/docgen-gen.mjs`, `npm/scripts/coverage-classify/index.mjs`, `npm/scripts/coverage-fix.mjs`, `npm/scripts/dispatcher/lib/subagent-runner.mjs`, `npm/package.json`.
+- Видалені залежності з transcript: `@anthropic-ai/sdk`, `@anthropic-ai/claude-agent-sdk`.
+- Зафіксований негативний наслідок: `spawnSync('pi', ...)` є синхронним, тому не дає реального паралелізму в контекстах, які очікують async-виконання.
