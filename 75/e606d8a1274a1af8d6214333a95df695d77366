@@ -1,0 +1,19 @@
+npm/.changes/260707-2127.md
+  s_7077186e4294df::t_b320fb65b0fa9e 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "75e606d8a1274a1af8d6214333a95df695d77366",
+  "prompts": {},
+  "sessions": {
+    "s_7077186e4294df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b608ee0e-997d-4727-882b-933696e35b81",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
