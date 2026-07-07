@@ -1,5 +1,15 @@
 # Changelog
 
+## [14.11.1] - 2026-07-07
+
+### Changed
+
+- chore: sync root devDependency @nitra/cursor to ^14.11.0
+
+### Fixed
+
+- npm-publish CI: очистити NODE_AUTH_TOKEN перед публікацією, щоб npm trusted publishing (OIDC) не падав з ENEEDAUTH (setup-node сам проставляє порожній/невалідний token, який перебиває OIDC-обмін).
+
 ## [14.11.0] - 2026-07-07
 
 ### Changed
