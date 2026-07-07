@@ -17,7 +17,11 @@ import { readChangeFiles } from '../../release/lib/change-file.mjs'
 
 const execFileAsync = promisify(execFile)
 
-/** Env-прапорець, що вмикає autofix (виставляється кроком `npm-changelog` у `hk.pkl`). */
+/**
+ * Env-прапорець, що вмикає autofix. Виставляється кроком `npm-changelog` у `hk.pkl`
+ * (канонічний fix-only snippet із `stage` не потребує — див. npm-module.mdc);
+ * наявність самого кроку валідує `npm-module`/`package_structure`.
+ */
 const AUTOFIX_ENV_VAR = 'N_CURSOR_CHANGELOG_AUTOFIX'
 
 /** Дефолтний `bump` для autofix-створеного change-файлу (вищий bump редагуєш вручну). */
