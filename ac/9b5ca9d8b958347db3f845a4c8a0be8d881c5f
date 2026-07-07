@@ -1,0 +1,41 @@
+.n-cursor.json
+  s_7d155178ebe6fe::t_019b8389dec4e5 24-44
+npm/skills/brainstorming/main.json
+  s_7d155178ebe6fe::t_d3c5b3666c0385 1
+.cursor/skills/n-brainstorming/SKILL.md
+  s_7d155178ebe6fe::t_019b8389dec4e5 1-165
+.claude/commands/n-brainstorming.md
+  s_7d155178ebe6fe::t_019b8389dec4e5 1-8
+.cursor/rules/n-doc-files.mdc
+  s_7d155178ebe6fe::t_019b8389dec4e5 2,5,12,14-15,17-24,29-34,38-42,46-49
+AGENTS.md
+  s_7d155178ebe6fe::t_019b8389dec4e5 38
+.cursor/rules/n-npm-module.mdc
+  s_7d155178ebe6fe::t_019b8389dec4e5 16-29,66,76-79,83,349
+.cursor/rules/n-ga.mdc
+  s_7d155178ebe6fe::t_019b8389dec4e5 205-206,230-231,270,309
+.pi/skills/n-brainstorming/SKILL.md
+  s_7d155178ebe6fe::t_019b8389dec4e5 1-9
+.cursor/rules/n-js.mdc
+  s_7d155178ebe6fe::t_019b8389dec4e5 149,151
+package.json
+  s_7d155178ebe6fe::t_019b8389dec4e5 19
+CLAUDE.md
+  s_7d155178ebe6fe::t_019b8389dec4e5 49-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ac9b5ca9d8b958347db3f845a4c8a0be8d881c5f",
+  "prompts": {},
+  "sessions": {
+    "s_7d155178ebe6fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b077736-e341-4171-8569-382e91ef7f42",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
