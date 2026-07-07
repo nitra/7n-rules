@@ -1,0 +1,25 @@
+.cspell.json
+  s_7d155178ebe6fe::t_bde9400296f46f 182,185
+  s_7d155178ebe6fe::t_8aec2fb987c452 215
+  s_7d155178ebe6fe::t_35f8a8c3c97d79 174
+npm/skills/brainstorming/main.json
+  s_7d155178ebe6fe::t_5c3f1353fddb8f 1
+npm/.changes/260707-1321.md
+  s_7d155178ebe6fe::t_15f7497db42091 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f1c21f022f51c2a9bb1f90a65e293a144b585e19",
+  "prompts": {},
+  "sessions": {
+    "s_7d155178ebe6fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b077736-e341-4171-8569-382e91ef7f42",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
