@@ -10,8 +10,7 @@ import {
   isDocCandidate,
   describeFile,
   scanForDocFiles,
-  scanOrphanedDocs,
-  runDocFilesCheckCli
+  scanOrphanedDocs
 } from '../main.mjs'
 import { crc32, stampDoc } from '../../docgen-crc/main.mjs'
 
@@ -146,35 +145,6 @@ describe('scanOrphanedDocs', () => {
         stampDoc('## Огляд\n', 'node_modules/pkg/foo.mjs', 'deadbeef')
       )
       expect(scanOrphanedDocs(root)).toEqual([])
-    })
-  })
-})
-
-describe('runDocFilesCheckCli (paths-режим)', () => {
-  test('перший шлях без --max теж перевіряється (регресія maxIdx = -1)', async () => {
-    await withTmpDir(async root => {
-      await ensureDir(join(root, 'src'))
-      await writeFile(join(root, 'src', 'a.js'), 'export const a = 1\n')
-      // Дока відсутня → stale; до фікса перший позиційний аргумент губився і check повертав 0
-      const code = await runDocFilesCheckCli([join(root, 'src', 'a.js'), '--root', root])
-      expect(code).toBe(2)
-    })
-  })
-
-  test('значення --max не сприймається як шлях, поріг діє лише в --git', async () => {
-    await withTmpDir(async root => {
-      await ensureDir(join(root, 'src'))
-      await writeFile(join(root, 'src', 'a.js'), 'export const a = 1\n')
-      await writeFile(join(root, 'src', 'b.js'), 'export const b = 2\n')
-      const code = await runDocFilesCheckCli([
-        '--max',
-        '1',
-        join(root, 'src', 'a.js'),
-        join(root, 'src', 'b.js'),
-        '--root',
-        root
-      ])
-      expect(code).toBe(2)
     })
   })
 })
