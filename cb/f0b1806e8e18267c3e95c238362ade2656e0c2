@@ -1,0 +1,28 @@
+npm/.changes/260707-0841.md
+  s_c2cafd7e268ef6::t_f4a5edb1f12d94 1-5
+npm/rules/npm-module/package_structure/main.mjs
+  s_c2cafd7e268ef6::t_7bccc7068cbce6 126-143
+  s_c2cafd7e268ef6::t_30ead3113fe8c3 488-501
+npm/rules/npm-module/main.mdc
+  s_c2cafd7e268ef6::t_21044d16dbf630 16-29
+npm/rules/npm-module/package_structure/tests/package_structure.test.mjs
+  s_c2cafd7e268ef6::t_33273e5d8c1fd4 252-300
+npm/rules/changelog/consistency/main.mjs
+  s_c2cafd7e268ef6::t_eee948b8ad4f56 20-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cbf0b1806e8e18267c3e95c238362ade2656e0c2",
+  "prompts": {},
+  "sessions": {
+    "s_c2cafd7e268ef6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1df485e2-91c6-4eb6-8f07-3326f46e5d4b",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
