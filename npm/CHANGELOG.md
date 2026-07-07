@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.11.0] - 2026-07-07
+
+### Changed
+
+- doc-files: правило мігровано на unified lint surface — видалено дублюючий legacy-концерн `doc-files/lint` (`lint-doc-files`/`fix-doc-files` як окремі CLI-команди більше не існують, детект+fix-by-default тепер лише через `npx @nitra/cursor lint doc-files [--no-fix]`); прибрано мертвий CLI-обгортковий код (`runDocFilesScanCli`/`runDocFilesCheckCli`/`runDegradedReport`) з `docgen-scan.mjs`, оновлено підказки в `docgen-files-batch.mjs`, `main.mdc` і скіл `doc-aggregate`
+
 ## [14.10.7] - 2026-07-07
 
 ### Changed
