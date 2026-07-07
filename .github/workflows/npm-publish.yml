@@ -32,6 +32,11 @@ jobs:
           node-version: '24' # includes npm@11.6.0
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Clear NODE_AUTH_TOKEN (щоб npm publish пішов через OIDC, а не порожній token)
+        # setup-node з registry-url сам проставляє NODE_AUTH_TOKEN як job-env навіть без секрету;
+        # це блокує trusted-publishing OIDC-обмін і призводить до ENEEDAUTH на npm publish.
+        run: echo "NODE_AUTH_TOKEN=" >> "$GITHUB_ENV"
+
       - name: Configure git identity + push auth
         # persist-credentials лишається false (ga-rule, безпека): checkout не зберігає токен.
         # Release робить commit-back `git push`, тож даємо job-scoped ephemeral GITHUB_TOKEN

@@ -15,6 +15,7 @@
     "coverage": "n-cursor coverage"
   },
   "devDependencies": {
+    "ajv": "^8.20.0",
     "@nitra/cspell-dict": "^2.2.2",
     "@nitra/cursor": "^14.11.0",
     "@nitra/eslint-config": "^3.10.3",

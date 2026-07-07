@@ -37,3 +37,7 @@ Chosen option: "Двотировий routing: LOCAL_MIN → якщо fail → CL
 - Cache key: `` `${LOCAL_MIN}+${CLOUD_MIN}` ``.
 - Тести з transcript: tier-1 success, tier-1 fail → tier-2, обидва fail, cache hit/miss, write.
 - Commit: `a883b44d`.
+
+## Update 2026-06-06
+
+Додатково зафіксовано, що `coverage-classify` переходить з прямого Anthropic SDK і `claude-sonnet-4-6` на `pi` two-tier routing: `LOCAL_MIN` спочатку, при помилці `parseVerdict()` або Zod validation — `CLOUD_MIN`. Cache key включає `${LOCAL_MIN}+${CLOUD_MIN}`, а тести використовують `opts.callPi` injection замість mock-у `@anthropic-ai/sdk`. У тому ж напрямку прибрано Anthropic SDK-залежності з `coverage-fix.mjs` і `subagent-runner.mjs`; runner-контракт збережено як `{ backend: 'pi', runStep(prompt, { cwd }) }`.
