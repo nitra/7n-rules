@@ -1,0 +1,19 @@
+npm/skills/brainstorming/SKILL.md
+  s_7d155178ebe6fe::t_fcd6f2cf34a08b 65,67,70-73,75,77-84,86-88,90-103,105-106,109-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1c3d364420514e6e071e8074a7d4f6fe1655fc11",
+  "prompts": {},
+  "sessions": {
+    "s_7d155178ebe6fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b077736-e341-4171-8569-382e91ef7f42",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
