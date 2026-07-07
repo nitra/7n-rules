@@ -202,6 +202,8 @@ Rego-пакет: `ga.clean_ga_workflows`
 - `steps[0].name` і `steps[0].uses` — відповідно до template (`dmvict/clean-workflow-runs@v1`)
 - `steps[0].with` — `token`, `save_period`, `save_min_runs_number` як у template
 
+**Pin-aware `uses`:** SHA-пін того самого action (`owner/action@<40-hex SHA>`, з тег-коментарем `# vX` чи без) задовольняє канонічний тег із template. Якщо в репо вже SHA-пін (zizmor-політика ref-pin) — НЕ замінюй його тегом.
+
 Канон: [clean-ga-workflows.yml.snippet.yml](./template/clean-ga-workflows.yml.snippet.yml)
 
 ## Структура `clean-merged-branch.yml` — видалення злитих гілок
@@ -224,6 +226,8 @@ Rego-пакет: `ga.clean_merged_branch`
 - `steps[0].with.dry_run` — `no` (нормалізується: YAML 1.1 `no` → boolean `false` у conftest)
 - `steps[1].name` — за template; `steps[1].env.DELETED_BRANCHES` — за template
 - `steps[1].run` — містить `Deleted branches:` та `${DELETED_BRANCHES}`
+
+**Pin-aware `uses`:** SHA-пін того самого action (`owner/action@<40-hex SHA>`, з тег-коментарем `# vX` чи без) задовольняє канонічний тег із template. Якщо в репо вже SHA-пін (zizmor-політика ref-pin) — НЕ замінюй його тегом.
 
 Канон: [clean-merged-branch.yml.snippet.yml](./template/clean-merged-branch.yml.snippet.yml)
 
@@ -263,7 +267,7 @@ Rego-пакет: `ga.lint_ga`
 - `jobs.lint-ga.runs-on` — за template (`ubuntu-latest`)
 - `jobs.lint-ga.permissions.contents` — `read`
 - `jobs.lint-ga.steps` — не порожній
-- `steps[*].uses` — кожен `uses:` з template має бути присутнім у кроках
+- `steps[*].uses` — кожен `uses:` з template має бути присутнім у кроках; SHA-пін того самого action (`owner/action@<40-hex SHA>`, з тег-коментарем `# vX` чи без) задовольняє канонічний тег — НЕ замінюй наявний SHA-пін тегом
 - `steps[*].run` (сукупно) — містить `open-policy-agent/conftest` (Install conftest)
 - `steps[*].run` (сукупно) — містить `n-cursor lint ga --read-only`
 
@@ -302,7 +306,7 @@ Rego-пакет: `ga.workflow_common`
 - **Порядок кроків** — якщо є `setup-bun-deps`, перед ним обов'язковий `actions/checkout@`
 - **Shell-продовження** — `\` перед переносом рядка у `run:` заборонено; треба `run: >-`
 - **Заборонені команди** — `depcheck` у `run:` (мігровано на `knip`)
-- **Мінімальні версії** — `uses:` з marketplace-actions перевіряються за канонічним JSON
+- **Мінімальні версії** — `uses:` з marketplace-actions перевіряються за канонічним JSON; SHA-пін (`owner/action@<40-hex SHA>`) задовольняє вимогу мінімальної версії — НЕ замінюй наявний SHA-пін тегом
 
 Канон мінімальних версій: [uses-min-versions.snippet.json](./template/uses-min-versions.snippet.json)
 
