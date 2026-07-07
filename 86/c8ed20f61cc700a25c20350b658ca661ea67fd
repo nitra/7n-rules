@@ -1,0 +1,63 @@
+npm/skills/brainstorming/SKILL.md
+  s_7d155178ebe6fe::t_5e000c063f2b1c 1-9,11-22,24-27,29-51,53-57,59,61-62,72,74,78-79,84,108,112-114,124,148-149,152-153,157-163
+  s_7d155178ebe6fe::t_fcd6f2cf34a08b 80-83,85,88-94,96-98,100-101,103-113,115-116,121
+  s_7d155178ebe6fe::t_f1d495a20b7315 28
+  s_7d155178ebe6fe::t_74aed35267ef9d 67-69
+  s_7d155178ebe6fe::t_ef3d346dc68c9a 71-73,75,77,87,119-120,123-124,126-141,143-155,164
+  s_7d155178ebe6fe::t_bc5ca5a6624af5 157
+  s_7d155178ebe6fe::t_6daf428f56f18d 23
+  s_7d155178ebe6fe::t_5873a26d0ce15a 70
+  s_7d155178ebe6fe::t_1e81a51e926046 125,156
+  s_7d155178ebe6fe::t_06c634d6404aaf 142
+  s_7d155178ebe6fe::t_7cc676658c1f11 165
+  s_7d155178ebe6fe::t_58ac50a610ee8c 10
+  s_7d155178ebe6fe::t_3aab24abce9c02 52,58,60,63-66
+  s_7d155178ebe6fe::t_288f7a9aae7614 102
+package.json
+  s_7d155178ebe6fe::t_0d11655ab94851 20
+  s_7d155178ebe6fe::t_12b0f009076d52 20
+.cspell.json
+  s_7d155178ebe6fe::t_bde9400296f46f 182,185
+  s_7d155178ebe6fe::t_8aec2fb987c452 215
+  s_7d155178ebe6fe::t_35f8a8c3c97d79 174
+npm/.changes/260707-1321.md
+  s_7d155178ebe6fe::t_15f7497db42091 1-5
+.n-cursor.json
+  s_7d155178ebe6fe::t_019b8389dec4e5 24-44
+npm/skills/brainstorming/main.json
+  s_7d155178ebe6fe::t_d3c5b3666c0385 1
+.cursor/skills/n-brainstorming/SKILL.md
+  s_7d155178ebe6fe::t_019b8389dec4e5 1-165
+.claude/commands/n-brainstorming.md
+  s_7d155178ebe6fe::t_019b8389dec4e5 1-8
+.cursor/rules/n-doc-files.mdc
+  s_7d155178ebe6fe::t_019b8389dec4e5 2,5,12,14-15,17-24,29-34,38-42,46-49
+AGENTS.md
+  s_7d155178ebe6fe::t_019b8389dec4e5 38
+.cursor/rules/n-npm-module.mdc
+  s_7d155178ebe6fe::t_019b8389dec4e5 16-29,66,76-79,83,349
+.cursor/rules/n-ga.mdc
+  s_7d155178ebe6fe::t_019b8389dec4e5 205-206,230-231,270,309
+.pi/skills/n-brainstorming/SKILL.md
+  s_7d155178ebe6fe::t_019b8389dec4e5 1-9
+.cursor/rules/n-js.mdc
+  s_7d155178ebe6fe::t_019b8389dec4e5 149,151
+CLAUDE.md
+  s_7d155178ebe6fe::t_019b8389dec4e5 49-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "86c8ed20f61cc700a25c20350b658ca661ea67fd",
+  "prompts": {},
+  "sessions": {
+    "s_7d155178ebe6fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b077736-e341-4171-8569-382e91ef7f42",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
