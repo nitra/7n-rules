@@ -1,0 +1,24 @@
+package.json
+  s_7077186e4294df::t_ebc96ccaed7fb5 18
+  s_7077186e4294df::t_ff7a9573a22dfc 20
+.github/workflows/npm-publish.yml
+  s_7077186e4294df::t_71b63cdb2e33d5 35-39
+bun.lock
+  s_7077186e4294df::t_e532c710220282 9,14,35,50,892,1526,2336-2337,2508-2509
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4b27472db249331c53668aac3902ccea78843e37",
+  "prompts": {},
+  "sessions": {
+    "s_7077186e4294df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b608ee0e-997d-4727-882b-933696e35b81",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
