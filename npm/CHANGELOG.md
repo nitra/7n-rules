@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.10.7] - 2026-07-07
+
+### Changed
+
+- npm-module: задокументовано канонічний hk.pkl-крок `npm-changelog` (fix-only, autofix через `N_CURSOR_CHANGELOG_AUTOFIX=1`) і додано валідацію в `package_structure` — fail на застарілий `check changelog` (команду `check` прибрано в v14) та fail, якщо кроку `npm-changelog` немає взагалі.
+
 ## [14.10.6] - 2026-07-06
 
 ### Changed
