@@ -360,7 +360,7 @@ export function runDocFilesGenCli(argv) {
 export async function runGenerationBatch(targets, root, opts = {}) {
   const { headline } = opts
   if (!opts.model && !DEFAULT_LOCAL_MODEL) {
-    console.error('✗ fix-doc-files: локальну модель не задано (N_LOCAL_MIN_MODEL)')
+    console.error('✗ doc-files: локальну модель не задано (N_LOCAL_MIN_MODEL)')
     return 1
   }
 
@@ -447,7 +447,7 @@ export function runDocFilesStampCli(argv) {
     writeFileSync(docAbs, stampDoc(md, file.sourcePath, crc, score === null ? null : { score, issues }, model))
     stamped++
   }
-  console.log(`✓ fix-doc-files --stamp: оновлено frontmatter у ${stamped} доці(ах).`)
+  console.log(`✓ doc-files stamp: оновлено frontmatter у ${stamped} доці(ах).`)
 
   // Після stamp — оновити index.md у всіх docs/-директоріях
   const docsDirs = new Set(

@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/doc-files/docgen-files-batch/main.mjs
 docgen:
-  crc: e99150f3
+  crc: 4559551b
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99
