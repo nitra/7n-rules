@@ -628,6 +628,104 @@ describe('runFixPipeline — semantic-collateral veto (App.vue case, §12 addend
   })
 })
 
+/**
+ * Detector «doc-беклог»: порушення на кожен відсутній docs/{a,b}.md — модель
+ * doc-files-worker-а, де кожен файл — самодостатній кінцевий стан (issue #16).
+ */
+const DOCS_BACKLOG_DETECTOR = [
+  "import { existsSync } from 'node:fs'",
+  "import { join } from 'node:path'",
+  'export function lint(ctx) {',
+  '  const violations = []',
+  "  for (const f of ['docs/a.md', 'docs/b.md']) {",
+  '    if (!existsSync(join(ctx.cwd, f)))',
+  "      violations.push({ reason: 'missing', message: f + ' відсутня', file: f })",
+  '  }',
+  '  return { violations }',
+  '}',
+  ''
+].join('\n')
+
+/**
+ * Worker-модель issue #16 для timeout-кейсу: local-min устигає одну durable-доку
+ * й зависає (батч довший за таймаут рунга); cloud-min durable-дописує решту.
+ * @param {Array<{file: string}>} violations Порушення (залишок doc-черги).
+ * @param {object} ctx Контекст fix-а з `cwd`, `tier` і `recordDurableWrite`.
+ * @returns {Promise<never>|void} local-min — вічний pending; інакше void.
+ */
+function durableOneThenHangWorker(violations, ctx) {
+  if (ctx.tier === 'local-min') {
+    const abs = join(ctx.cwd, 'docs', 'a.md')
+    ctx.recordDurableWrite(abs)
+    writeFileSync(abs, '# дока\n')
+    return Promise.race([])
+  }
+  for (const v of violations) {
+    const abs = join(ctx.cwd, v.file)
+    ctx.recordDurableWrite(abs)
+    writeFileSync(abs, '# дока\n')
+  }
+}
+
+describe('runFixPipeline — durable-write worker (issue #16: doc-черга не стирається)', () => {
+  test('часткова робота durable-worker-а переживає rollback; наступний rung продовжує з решти', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir, DOCS_BACKLOG_DETECTOR)
+      await mkdir(join(dir, 'docs'), { recursive: true })
+      const seen = []
+      // Кожен rung устигає рівно ОДНУ доку з черги (як batch під м'яким дедлайном).
+      const worker = (violations, ctx) => {
+        seen.push(violations.map(v => v.file))
+        const next = violations[0]
+        const abs = join(ctx.cwd, next.file)
+        ctx.recordDurableWrite(abs)
+        writeFileSync(abs, '# дока\n')
+      }
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: { ladder: TWO_RUNG, workerFor: () => worker }
+      })
+      expect(code).toBe(0)
+      // Прогрес по файлах: rung 1 бачив увесь беклог, rung 2 — лише залишок.
+      expect(seen).toEqual([['docs/a.md', 'docs/b.md'], ['docs/b.md']])
+      expect(existsSync(join(dir, 'docs', 'a.md'))).toBe(true)
+      expect(existsSync(join(dir, 'docs', 'b.md'))).toBe(true)
+    })
+  })
+
+  test('fix timeout посеред doc-черги: записані durable-доки лишаються, ескалація закриває решту', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir, DOCS_BACKLOG_DETECTOR)
+      await mkdir(join(dir, 'docs'), { recursive: true })
+      const ladder = [
+        { tier: 'local-min', model: 'fake/min', feedback: false, local: true, isAvg: false, timeoutMs: 40 },
+        { tier: 'cloud-min', model: 'fake/cloud', feedback: true, local: false, isAvg: false, timeoutMs: 1000 }
+      ]
+      const worker = durableOneThenHangWorker
+      const logs = []
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: s => {
+          logs.push(s)
+        },
+        deps: { ladder, workerFor: () => worker }
+      })
+      expect(code).toBe(0)
+      expect(logs.join('')).toMatch(RE_LOCAL_TIMEOUT)
+      // Ключове (issue #16): дока, записана ДО таймауту, НЕ стерта rollback-ом.
+      expect(readFileSync(join(dir, 'docs', 'a.md'), 'utf8')).toBe('# дока\n')
+      expect(existsSync(join(dir, 'docs', 'b.md'))).toBe(true)
+    })
+  })
+})
+
 describe('runFixPipeline — ProgressReporter (spec 2026-07-03)', () => {
   test('не-TTY: ⏱-зведення на закриття концерну з тикером знайдено/виправлено', async () => {
     await withTmpDir(async dir => {

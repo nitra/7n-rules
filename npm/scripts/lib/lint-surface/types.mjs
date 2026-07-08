@@ -100,6 +100,13 @@
  * @property {(absPath: string) => void} recordWrite worker ЗОБОВ'ЯЗАНИЙ викликати
  *   перед будь-яким записом у файл — runner так знімає pre-image для central rollback.
  *   Це обов'язок реєстрації, НЕ володіння rollback-ом (rollback лишається в runner).
+ * @property {(absPath: string) => void} [recordDurableWrite] durable-реєстрація для
+ *   worker-ів, чиї записи — самодостатні кінцеві стани (файл або записаний повністю й
+ *   валідний, або не записаний; напр. doc-files: кожна дока зі свіжим CRC, degraded теж
+ *   валідна). Durable-файли переживають rollback провального rung-а — прогрес великого
+ *   батчу не стирається, canonical re-detect рахує лише те, що реально лишилось; у
+ *   semantic-collateral veto вони не входять. Для правок наявного стороннього коду —
+ *   ЗАВЖДИ recordWrite (rollback-контракт незмінний).
  * @property {object} [chain] chain handle concern-а (@7n/llm-lib/chain) — worker
  *   прокидає його у runAgentFix/runOneShot, щоб рунг став кроком ланцюжка.
  */

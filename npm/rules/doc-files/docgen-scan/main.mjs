@@ -4,7 +4,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 
 import { isDocgenIgnored } from '../docgen-ignore/main.mjs'
-import { parseDocFrontmatter, staleness } from '../docgen-crc/main.mjs'
+import { parseDocFrontmatter, readDocCrc, staleness } from '../docgen-crc/main.mjs'
 
 /** Кодові розширення, для яких генеруємо документацію. */
 const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.vue', '.py', '.rs'])
@@ -62,14 +62,24 @@ export function isDocCandidate(root, relPath) {
 
 /**
  * Описує один кодовий файл: шлях джерела, шлях доки, стан застарілості за CRC.
+ *
+ * `foreign: true` — docPath існує, але БЕЗ `docgen:`-CRC у frontmatter: рукописна
+ * (людська) дока. Така дока вважається чинною документацією файлу (`stale: false`) —
+ * генерація її мовчки не перезаписує (перезапис лише explicit `--overwrite`, який
+ * бере всі цілі без фільтра). Живий кейс: `npm/docs/index.md` — людський зміст модуля
+ * у проєкті-споживачі; сканер бачив його як `missing` і затирав чат-філером моделі.
  * @param {string} root абсолютний корінь
  * @param {string} sourcePath posix-шлях джерела від кореня
- * @returns {{sourcePath:string, docPath:string, stale:boolean, reason:'missing'|'crc-mismatch'|null}} опис файлу
+ * @returns {{sourcePath:string, docPath:string, stale:boolean, reason:'missing'|'crc-mismatch'|null, foreign:boolean}} опис файлу
  */
 export function describeFile(root, sourcePath) {
   const docPath = docPathForSource(sourcePath)
-  const { stale, reason } = staleness(join(root, sourcePath), join(root, docPath))
-  return { sourcePath, docPath, stale, reason }
+  const docAbsPath = join(root, docPath)
+  if (existsSync(docAbsPath) && readDocCrc(docAbsPath) === null) {
+    return { sourcePath, docPath, stale: false, reason: null, foreign: true }
+  }
+  const { stale, reason } = staleness(join(root, sourcePath), docAbsPath)
+  return { sourcePath, docPath, stale, reason, foreign: false }
 }
 
 /**

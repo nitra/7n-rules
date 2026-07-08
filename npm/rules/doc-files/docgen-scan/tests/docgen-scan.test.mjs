@@ -76,6 +76,38 @@ describe('scanForDocFiles (CRC staleness)', () => {
     })
   })
 
+  test('foreign: docPath існує без docgen-frontmatter (рукописна дока) → stale:false, foreign:true', async () => {
+    await withTmpDir(async root => {
+      await ensureDir(join(root, 'npm', 'docs'))
+      await writeFile(join(root, 'npm', 'index.js'), 'export const x = 1\n')
+      // Людський зміст без frontmatter — живий кейс тихого перезапису (issue #16).
+      await writeFile(join(root, 'npm', 'docs', 'index.md'), '# Nitra MT — документація\n\nЗміст.\n')
+
+      expect(describeFile(root, 'npm/index.js')).toMatchObject({ stale: false, reason: null, foreign: true })
+    })
+  })
+
+  test('foreign: frontmatter без docgen-CRC (OKF-дока людини) → теж foreign, не stale', async () => {
+    await withTmpDir(async root => {
+      await ensureDir(join(root, 'src', 'docs'))
+      await writeFile(join(root, 'src', 'foo.js'), 'export const a = 1\n')
+      await writeFile(join(root, 'src', 'docs', 'foo.md'), '---\ntitle: Foo\nresource: src/foo.js\n---\n\n# Foo\n')
+
+      expect(describeFile(root, 'src/foo.js')).toMatchObject({ stale: false, foreign: true })
+    })
+  })
+
+  test('docgen-дока (є CRC) → foreign:false, CRC-семантика незмінна', async () => {
+    await withTmpDir(async root => {
+      const body = 'export const a = 1\n'
+      await ensureDir(join(root, 'src', 'docs'))
+      await writeFile(join(root, 'src', 'foo.js'), body)
+      await writeFile(join(root, 'src', 'docs', 'foo.md'), stampDoc('## Огляд\n', 'src/foo.js', crc32(body)))
+
+      expect(describeFile(root, 'src/foo.js')).toMatchObject({ stale: false, foreign: false })
+    })
+  })
+
   test('поважає .gitignore: ignored-файл випадає, решта лишається', async () => {
     await withTmpDir(async root => {
       await ensureDir(join(root, 'src'))

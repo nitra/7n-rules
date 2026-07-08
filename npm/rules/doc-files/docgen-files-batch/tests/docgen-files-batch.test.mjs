@@ -39,7 +39,7 @@ vi.mock('node:fs', () => ({
   statSync: () => ({ size: 100 })
 }))
 
-const { runDocFilesGenCli, selectTargets } = await import('../main.mjs')
+const { runDocFilesGenCli, runGenerationBatch, selectTargets } = await import('../main.mjs')
 
 /**
  * @param {number} n кількість stale-цілей.
@@ -138,5 +138,61 @@ describe('selectTargets — stale + degraded-once guard', () => {
   test('--overwrite → усі цілі незалежно від стану', () => {
     const all = [mk('a.js', 'd/a.md', false), mk('b.js', 'd/b.md', false)]
     expect(selectTargets('/root', all, { overwrite: true })).toHaveLength(2)
+  })
+
+  test('foreign (рукописна дока): без --overwrite не ціль, з --overwrite — explicit перезапис', () => {
+    readDocQualityMock.mockReturnValue({ score: null, issues: [], judgeModel: null })
+    const all = [{ sourcePath: 'npm/index.js', docPath: 'npm/docs/index.md', stale: false, foreign: true }]
+    expect(selectTargets('/root', all, {})).toHaveLength(0)
+    expect(selectTargets('/root', all, { overwrite: true })).toHaveLength(1)
+  })
+})
+
+describe("runGenerationBatch — м'який дедлайн (issue #16)", () => {
+  beforeEach(() => {
+    generateDocMock.mockReset()
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    vi.spyOn(console, 'log').mockImplementation(() => {
+      // навмисний no-op: глушимо console.log у тесті
+    })
+  })
+
+  test('дедлайн у минулому → перший файл обробляється, решта відкладається, штатний exit 0', async () => {
+    generateDocMock.mockImplementation(OK)
+    const code = await runGenerationBatch(targets(5), '/fake-root', { deadlineAt: Date.now() - 1 })
+    expect(code).toBe(0)
+    // Перший файл стартує завжди (гарантія прогресу), далі — стоп до наступного прогону.
+    expect(generateDocMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('без deadlineAt → увесь беклог, як раніше', async () => {
+    generateDocMock.mockImplementation(OK)
+    const code = await runGenerationBatch(targets(3), '/fake-root', {})
+    expect(code).toBe(0)
+    expect(generateDocMock).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('runDocFilesGenCli — foreign-доки (захист людського змісту)', () => {
+  beforeEach(() => {
+    generateDocMock.mockReset()
+    scanMock.mockReset()
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    vi.spyOn(console, 'log').mockImplementation(() => {
+      // навмисний no-op: глушимо console.log у тесті
+    })
+  })
+
+  test('docPath існує без docgen-frontmatter → skip із попередженням, генерація не викликається', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {
+      // навмисний no-op: глушимо console.warn у тесті
+    })
+    scanMock.mockReturnValue([
+      { sourcePath: 'npm/index.js', docPath: 'npm/docs/index.md', stale: false, foreign: true }
+    ])
+    const code = await runDocFilesGenCli([])
+    expect(code).toBe(0)
+    expect(generateDocMock).not.toHaveBeenCalled()
+    expect(warnSpy.mock.calls.flat().join('\n')).toContain('npm/docs/index.md')
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { JUDGE_CONFIDENCE, judgeFailsDoc, parseDocVerdict } from '../main.mjs'
+import { JUDGE_CONFIDENCE, detectRefusalFiller, judgeFailsDoc, parseDocVerdict } from '../main.mjs'
 
 describe('parseDocVerdict', () => {
   test('витягує valid verdict з обрамленого тексту', () => {
@@ -40,5 +40,34 @@ describe('judgeFailsDoc', () => {
 
   test('null → false', () => {
     expect(judgeFailsDoc(null)).toBe(false)
+  })
+})
+
+describe('detectRefusalFiller — детермінований пре-гейт (issue #16)', () => {
+  test('живий кейс gemma: «Я готовий писати… Надайте мені код» → зловлено', () => {
+    const filler =
+      '## Огляд\n\nЯ готовий писати поведінкову документацію для вашого файлу. ' +
+      'Надайте мені код, і я створю розділи.\n'
+    expect(detectRefusalFiller(filler)).toBeTruthy()
+  })
+
+  test('окремі refusal-фрази (укр/англ) → зловлено', () => {
+    for (const s of [
+      'Будь ласка, надайте вміст файлу.',
+      'Не можу згенерувати документацію без коду.',
+      'Чекаю на код для аналізу.',
+      'As an AI model, I cannot inspect files.',
+      "I'm ready to write the documentation.",
+      'Please provide the code first.'
+    ]) {
+      expect(detectRefusalFiller(s)).toBeTruthy()
+    }
+  })
+
+  test('нормальна поведінкова дока → null', () => {
+    const normal =
+      '## Огляд\n\nПеревіряє наявність bun.lock і забороняє yarn.lock у корені монорепо.\n\n' +
+      '## Поведінка\n\n1. Шукає заборонені lockfile-и.\n2. Готовий список порушень повертає викликачу.\n'
+    expect(detectRefusalFiller(normal)).toBeNull()
   })
 })

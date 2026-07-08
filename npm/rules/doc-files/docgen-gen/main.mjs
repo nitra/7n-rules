@@ -10,7 +10,7 @@ import { docPathForSource } from '../docgen-scan/main.mjs'
 import { extractFacts } from '../docgen-extract/main.mjs'
 import { extractAnchors, anchorTokens } from '../docgen-extract-anchors/main.mjs'
 import { QUALITY_THRESHOLD } from '../docgen-crc/main.mjs'
-import { JUDGE_ENABLED, JUDGE_MODEL, judgeDoc, judgeFailsDoc } from '../docgen-judge/main.mjs'
+import { JUDGE_ENABLED, JUDGE_MODEL, detectRefusalFiller, judgeDoc, judgeFailsDoc } from '../docgen-judge/main.mjs'
 import {
   oneShotMessages,
   sectionMessages,
@@ -236,6 +236,15 @@ export function scoreDoc(md, facts, { anchors = null, src = '' } = {}) {
   const issues = []
   const overview = s['огляд'] ?? ''
 
+  // R8: refusal/чат-філер моделі («Я готовий писати…», «Надайте мені код…») —
+  // детермінований пре-гейт перед judge: форсує degraded незалежно від решти оцінки
+  // (штраф −100 → score 0), і judge (що працює лише на score ≥ поріг) не викликається.
+  // Захищене людське «Призначення» виключене з перевірки.
+  if (detectRefusalFiller(splitProtected(md).without)) {
+    score -= 100
+    issues.push('refusal-filler')
+  }
+
   if (!s['огляд']) {
     score -= 25
     issues.push('no-overview')
@@ -414,6 +423,29 @@ function srcTokenBudget() {
 export const DEFAULT_LOCAL_MODEL = env.N_CURSOR_DOCGEN_MODEL ?? resolveModel('min')
 
 /**
+ * Фініш unsupported-джерела (vue/py до юніт-шару): скорер не застосовний — score=null,
+ * не degraded. Виняток — refusal-пре-гейт: чат-філер замість доки детектується й тут;
+ * score=0, щоб degraded-доретрай батчу (score < поріг) підібрав файл наступним прогоном.
+ * @param {{ md: string }} r результат oneShotDoc
+ * @param {{ t0: number, model: string, chainExtra: object }} genCtx контекст генерації (chainExtra мутується)
+ * @returns {object} результат generateDoc для unsupported-файлу
+ */
+function finishUnsupported(r, { t0, model, chainExtra }) {
+  const refusal = detectRefusalFiller(splitProtected(r.md).without)
+  chainExtra.degraded = Boolean(refusal)
+  return {
+    ...r,
+    ms: Date.now() - t0,
+    llmMs: llmMeter.ms,
+    llmCalls: llmMeter.calls,
+    score: refusal ? 0 : null,
+    issues: refusal ? ['refusal-filler'] : [],
+    degraded: Boolean(refusal),
+    model
+  }
+}
+
+/**
  * Головний API: файл → md-дока з det-оцінкою.
  *
  * Local-only (ADR 260610-2228): жодних cloud-ескалацій і pre-route — будь-який
@@ -472,19 +504,10 @@ export async function generateDoc(
       : await orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, intent })
 
     // unsupported (vue/py до юніт-шару): скорер не застосовний — score=null, не degraded
+    // (окрім refusal-пре-гейта — див. finishUnsupported).
     if (facts.unsupported) {
       chainExtra.unsupported = true
-      chainExtra.degraded = false
-      return {
-        ...r,
-        ms: Date.now() - t0,
-        llmMs: llmMeter.ms,
-        llmCalls: llmMeter.calls,
-        score: null,
-        issues: [],
-        degraded: false,
-        model
-      }
+      return finishUnsupported(r, { t0, model, chainExtra })
     }
 
     // Stage 2.5: детермінований скоринг (0 токенів)

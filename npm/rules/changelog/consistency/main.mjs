@@ -87,26 +87,27 @@ async function currentBranchName(cwd) {
 }
 
 /**
- * Чи HEAD — merge-коміт (має 2-го предка). Merge інтегрує вже задокументовану роботу
- * (changeset створено в feature-комітах), тож власного changeset не потребує — інакше
- * autofix створив би шумний «Merge…» changeset, який CI commit-back каскадить у patch-реліз.
+ * Чи HEAD — merge-коміт (має 2-го предка) АБО merge зараз у процесі (`MERGE_HEAD`).
+ * Merge інтегрує вже задокументовану роботу (changeset створено в feature-комітах),
+ * тож власного changeset не потребує — інакше autofix створив би шумний «Merge…»
+ * changeset, який CI commit-back каскадить у patch-реліз.
+ *
+ * `MERGE_HEAD` критичний для pre-commit: під час `git commit` незавершеного merge
+ * коміт ще НЕ створено, `HEAD^2` не існує — без цієї гілки перевірка хибно валила
+ * merge-коміт легітимним вмістом бази (обхід через `HK=0`).
  * @param {string} cwd робочий каталог
- * @returns {Promise<boolean>} true, якщо HEAD — merge-коміт (має 2-го предка).
+ * @returns {Promise<boolean>} true — HEAD merge-коміт або merge у процесі.
  */
 async function isMergeCommit(cwd) {
   const out = await gitOrNull(['rev-parse', '--verify', '--quiet', 'HEAD^2'], cwd)
-  return typeof out === 'string' && out.trim().length > 0
+  if (typeof out === 'string' && out.trim().length > 0) return true
+  const mergeHead = await gitOrNull(['rev-parse', '--verify', '--quiet', 'MERGE_HEAD'], cwd)
+  return typeof mergeHead === 'string' && mergeHead.trim().length > 0
 }
 
 /**
- * @param {string} ref параметр
- * @returns {string} результат
- */
-function baseRefLabel(ref) {
-  return ref.startsWith('origin/') ? ref.slice('origin/'.length) : ref
-}
-
-/**
+ * Чи `ancestor` — предок `descendant`. `git merge-base --is-ancestor` нічого не друкує:
+ * вердикт несе exit-код (0 → так), тож успіх = будь-який string від gitOrNull.
  * @param {string} ancestor предок
  * @param {string} descendant нащадок
  * @param {string} cwd робочий каталог
@@ -114,22 +115,36 @@ function baseRefLabel(ref) {
  */
 async function isGitAncestor(ancestor, descendant, cwd) {
   const out = await gitOrNull(['merge-base', '--is-ancestor', ancestor, descendant], cwd)
-  return typeof out === 'string' && out.trim() === 'true'
+  return typeof out === 'string'
 }
 
 /**
- * @param {string} branchName локальна або remote-tracking гілка
+ * Merge-base найновішої з локальної та origin-версії базової гілки проти HEAD.
+ *
+ * Порядок «локальна виграє» тут не працює: застарілий локальний `main` (позаду
+ * `origin/main`) давав старіший merge-base — реліз-коміти, що вже інтегровані в
+ * origin і влиті у feature-гілку, виглядали як «ручний bump поза CI». Симетрично
+ * валідний і локальний `main` попереду origin — тому беремо НОВІШУ з двох баз
+ * (та, чиїм предком є інша), а репо без remote природно лишається на локальній.
+ * @param {string} branchName ім'я базової гілки (`dev`/`main`)
  * @param {string} cwd робочий каталог
- * @returns {Promise<string | null>} ref для git або null
+ * @returns {Promise<string | null>} SHA новішого merge-base або null (жоден ref не існує)
  */
-async function resolveBranchRef(branchName, cwd) {
+async function resolveNewestMergeBase(branchName, cwd) {
+  /** @type {string[]} */
+  const bases = []
   for (const ref of [branchName, `origin/${branchName}`]) {
-    const out = await gitOrNull(['rev-parse', '--verify', '--quiet', ref], cwd)
-    if (typeof out === 'string' && out.trim().length > 0) {
-      return ref
-    }
+    const exists = await gitOrNull(['rev-parse', '--verify', '--quiet', ref], cwd)
+    if (typeof exists !== 'string' || exists.trim().length === 0) continue
+    const mergeBase = await resolveMergeBase(ref, cwd)
+    if (mergeBase) bases.push(mergeBase)
   }
-  return null
+  if (bases.length === 0) return null
+  let newest = bases[0]
+  for (const candidate of bases.slice(1)) {
+    if (candidate !== newest && (await isGitAncestor(newest, candidate, cwd))) newest = candidate
+  }
+  return newest
 }
 
 /**
@@ -193,16 +208,14 @@ async function resolveChangelogComparisonPoint(branch, cwd) {
     return null
   }
 
+  // Feature-гілка: база — новіший merge-base серед локальної та origin-версії кандидата
+  // (див. resolveNewestMergeBase; застарілий локальний main не має перекривати origin).
   for (const name of FEATURE_BASE_BRANCH_CANDIDATES) {
-    const baseRef = await resolveBranchRef(name, cwd)
-    if (!baseRef) {
-      continue
-    }
-    const mergeBase = await resolveMergeBase(baseRef, cwd)
+    const mergeBase = await resolveNewestMergeBase(name, cwd)
     if (!mergeBase) {
       continue
     }
-    return { ref: mergeBase, label: baseRefLabel(baseRef) }
+    return { ref: mergeBase, label: name }
   }
   return null
 }
