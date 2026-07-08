@@ -1,0 +1,39 @@
+package.json
+  s_4d09a6ce8e52f6::t_6641aee0b488eb 19
+npm/rules/doc-files/docgen-files-batch/tests/docgen-files-stamp.test.mjs
+  s_4d09a6ce8e52f6::t_e9e48df504ab42 1-75
+npm/.changes/260708-0820.md
+  s_4d09a6ce8e52f6::t_93480e0a0a0d79 1-5
+npm/rules/doc-files/docgen-files-batch/main.mjs
+  s_4d09a6ce8e52f6::t_5be7e95ec323f8 432-433
+  s_4d09a6ce8e52f6::t_ccd44af78c0940 449
+  s_4d09a6ce8e52f6::t_d191768e28f61c 446,448,450
+npm/rules/doc-files/docgen-crc/tests/docgen-crc.test.mjs
+  s_4d09a6ce8e52f6::t_a6b75a996411d5 46
+  s_4d09a6ce8e52f6::t_37b87a618e85cb 60-68
+.cspell.json
+  s_4d09a6ce8e52f6::t_6641aee0b488eb 188
+npm/rules/doc-files/docgen-crc/main.mjs
+  s_4d09a6ce8e52f6::t_894d89d05f60e5 26
+  s_4d09a6ce8e52f6::t_2cf8c273463331 52
+npm/rules/doc-files/docgen-crc/docs/main.md
+  s_4d09a6ce8e52f6::t_a91883ece2ab6c 6
+npm/rules/doc-files/docgen-files-batch/docs/main.md
+  s_4d09a6ce8e52f6::t_b7dcf89272992b 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c8c1e50b9474b5232f3a6d159f68d70a40d2b5b3",
+  "prompts": {},
+  "sessions": {
+    "s_4d09a6ce8e52f6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dfd4fa5e-3828-44a1-ad37-bd6483dd1762",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
