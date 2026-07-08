@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.12.0] - 2026-07-08
+
+### Added
+
+- text/run-v8r: схема vendor/mt-config.json для .mt.json/.mt-override.json (@7n/mt) + запис у v8r-catalog.json
+
 ## [14.11.2] - 2026-07-08
 
 ### Fixed
