@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.12.2] - 2026-07-08
+
+### Fixed
+
+- doc-files: parseDocFrontmatter не парсив tier (readDocTier завжди null) — doc-files stamp губив tier: і judgeModel: з frontmatter усіх док; тепер stamp зберігає tier/judgeModel, guard cloud-avg працює
+
 ## [14.12.1] - 2026-07-08
 
 ### Fixed
