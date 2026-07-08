@@ -1,0 +1,95 @@
+## Реліз-flow: change-файли → тег → DMG/updater-артефакти
+
+Версія Tauri-застосунку — **єдина**, керується change-файлами за конвенцією `n-changelog.mdc`. Ручні v-теги і ручний bump `version` у `tauri.conf.json`/`package.json` **заборонені**: у CI версію проставляє `npx @nitra/cursor release`, а release-build синхронізує її з тегу (нижче).
+
+Канон складається з двох workflow-файлів і відповідного `tauri.conf.json`-конфігу; референс — `.github/workflows/{changelog-release,release}.yml` та `src-tauri/tauri.conf.json` чотирьох production Tauri-репо, де цей flow вже впроваджено.
+
+### `changelog-release.yml` — бамп версії з change-файлів
+
+Тригериться на push у `main` за наявності change-файлів і на ручний dispatch:
+
+```yaml title=".github/workflows/changelog-release.yml"
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/.changes/**'
+  workflow_dispatch: {}
+
+jobs:
+  release:
+    if: "!startsWith(github.event.head_commit.message, 'release:')"
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - run: npx @nitra/cursor release
+      # якщо HEAD став release:* — прочитати нову версію з app/package.json,
+      # тегнути app@$VER і v$VER, запушити, тоді dispatch release.yml
+```
+
+- `paths: [app/.changes/**]` (шлях підставляється під реальний workspace, де лежить `src-tauri`) — тригер лише на change-файли, не на будь-який push у `main`.
+- `if: "!startsWith(github.event.head_commit.message, 'release:')"` — страховка від циклу: коміт `release:*` теж матче `paths` (він видаляє change-файли), тому job має пропускати сам себе.
+- `permissions: {contents: write, actions: write}` — `actions: write` потрібен для останнього кроку.
+- Після успішного `npx @nitra/cursor release` (детектується за `git log -1 --pretty=%s` що починається з `release:`) — тегнути `app@$VER` і `v$VER`, запушити обидва.
+- **Останній крок — явний `gh workflow run release.yml --ref "v$VER"`.** Тег пушиться токеном `GITHUB_TOKEN`, а GitHub не тригерить `on.push.tags` workflow-и для push-подій від `GITHUB_TOKEN` — тому без явного dispatch `release.yml` ніколи не запуститься.
+
+Детальна модель change-файлів (база порівняння, формат CHANGELOG, post-release-інваріант) — у `n-changelog.mdc`; тут лише інтеграція з Tauri release-циклом.
+
+### `release.yml` — build/publish DMG й updater-артефактів
+
+Тригериться на push тегів `v*` **і** на ручний dispatch (для випадку, коли автоматичний тригер не спрацював):
+
+```yaml title=".github/workflows/release.yml"
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  build-desktop:
+    permissions:
+      contents: write
+      id-token: write # OIDC для Infisical
+    steps:
+      # ... checkout, rust-toolchain, Swatinem/rust-cache@v2 (rust.mdc)
+      - name: Sync app version from tag
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          # записати VER у src-tauri/tauri.conf.json ПЕРЕД tauri-action
+      - uses: Infisical/secrets-action@v1
+        with: { secret-path: '/apple' }
+      - uses: Infisical/secrets-action@v1
+        with: { secret-path: '/updater' }
+      - uses: tauri-apps/tauri-action@v0
+        with: { projectPath: app }
+```
+
+- **«Sync app version from tag» має йти перед кроком `tauri-apps/tauri-action`** — тег `vX.Y.Z` є єдиним джерелом версії для build-артефактів; `tauri.conf.json#version` у робочому дереві не редагується вручну (він там лишається тим, що востаннє поставив `n-cursor release`, і синхронізується цим кроком лише в CI, не в git).
+- Секрети підпису — з Infisical: Apple-сертифікати (`secret-path: /apple`) і `TAURI_SIGNING_PRIVATE_KEY` (`secret-path: /updater`) — обидва потрібні `tauri-apps/tauri-action`, щоб зібрати підписаний DMG з updater-артефактами.
+
+### `tauri.conf.json` — updater-артефакти й endpoint
+
+```json title="src-tauri/tauri.conf.json"
+{
+  "bundle": {
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "…",
+      "endpoints": ["https://github.com/<owner>/<repo>/releases/latest/download/latest.json"]
+    }
+  }
+}
+```
+
+- `bundle.createUpdaterArtifacts: true` — без цього `tauri-action` не генерує `.sig`/`latest.json`, і клієнтський `check()` (updater.mdc) ніколи не знаходить оновлення.
+- `plugins.updater.endpoints` вказує на GitHub Releases `latest.json` того самого репозиторію, куди `release.yml` публікує реліз.
