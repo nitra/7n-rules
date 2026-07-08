@@ -1,5 +1,13 @@
 # Changelog
 
+## [14.11.2] - 2026-07-08
+
+### Fixed
+
+- npm-publish CI: release більше не пушить тег/коміт до підтвердження успішного publish; фейл одного пакета (llm-lib) не блокує публікацію іншого (@nitra/cursor).
+- Виправлено bin[n-cursor] шлях (без зайвого ./), додано ajv як прямий dependency для стабільного bun-hoisting у споживачів, і smoke-check-imports.mjs для раннього виявлення регресій named export.
+- PostToolUse hook: звіт про порушення тепер іде у stderr, а не stdout — агент бачить причину блокування замість порожнього «blocking error».
+
 ## [14.11.1] - 2026-07-07
 
 ### Changed
