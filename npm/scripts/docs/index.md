@@ -4,8 +4,6 @@ title: npm/scripts
 resource: npm/scripts/
 ---
 
-# npm/scripts
-
 | Файл                                                                                | Тип       |
 | ----------------------------------------------------------------------------------- | --------- |
 | [auto-rules.mjs](auto-rules.md)                                                     | JS Module |
