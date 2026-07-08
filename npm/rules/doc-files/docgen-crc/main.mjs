@@ -23,6 +23,7 @@ const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?/u
 const RESOURCE_RE = /^resource:[ \t]+(\S.*)$/mu
 const CRC_RE = /^[ \t]{0,8}crc:[ \t]{0,8}(.+)$/mu
 const MODEL_RE = /^[ \t]{0,8}model:[ \t]{0,8}(.+)$/mu
+const TIER_RE = /^[ \t]{0,8}tier:[ \t]{0,8}(.+)$/mu
 const SCORE_RE = /^[ \t]{0,8}score:[ \t]{0,8}(\d+)$/mu
 const ISSUES_RE = /^[ \t]{0,8}issues:[ \t]{0,8}(.+)$/mu
 const JUDGE_MODEL_RE = /^[ \t]{0,8}judgeModel:[ \t]{0,8}(.+)$/mu
@@ -48,6 +49,7 @@ export function parseDocFrontmatter(md) {
       source,
       crc: block.match(CRC_RE)?.[1].trim() ?? null,
       model: block.match(MODEL_RE)?.[1].trim() ?? null,
+      tier: block.match(TIER_RE)?.[1].trim() ?? null,
       score: scoreRaw === undefined ? null : Number(scoreRaw),
       issues: issuesRaw
         ? issuesRaw

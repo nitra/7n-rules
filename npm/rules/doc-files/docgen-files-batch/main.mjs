@@ -429,7 +429,8 @@ export async function runGenerationBatch(targets, root, opts = {}) {
 /**
  * `doc-files stamp` — детерміновано (пере)штампувати frontmatter `source`+`crc`
  * у НАЯВНИХ доках без виклику LLM. Для міграції док, які ще не мають CRC.
- * Поля `model` та якості (`score`/`issues`) при цьому зберігаються з наявного frontmatter.
+ * Поля `model`, `tier` та якості (`score`/`issues`/`judgeModel`) при цьому зберігаються
+ * з наявного frontmatter.
  * @param {string[]} argv аргументи після назви субкоманди
  * @returns {number} exit-код: 0 — успіх
  */
@@ -442,9 +443,11 @@ export function runDocFilesStampCli(argv) {
     const sourceAbs = join(root, file.sourcePath)
     const crc = crc32(readFileSync(sourceAbs))
     const md = readFileSync(docAbs, 'utf8')
-    const { score, issues } = readDocQuality(docAbs)
+    const { score, issues, judgeModel } = readDocQuality(docAbs)
     const model = readDocModel(docAbs)
-    writeFileSync(docAbs, stampDoc(md, file.sourcePath, crc, score === null ? null : { score, issues }, model))
+    const tier = readDocTier(docAbs)
+    const quality = score === null ? null : { score, issues, ...(judgeModel && { judge: { model: judgeModel } }) }
+    writeFileSync(docAbs, stampDoc(md, file.sourcePath, crc, quality, model, tier))
     stamped++
   }
   console.log(`✓ doc-files stamp: оновлено frontmatter у ${stamped} доці(ах).`)

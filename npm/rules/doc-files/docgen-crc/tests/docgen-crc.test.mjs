@@ -43,6 +43,7 @@ describe('frontmatter', () => {
       source: 'src/lib/foo.js',
       crc: 'a3f1c9e0',
       model: null,
+      tier: null,
       score: null,
       issues: [],
       judgeModel: null
@@ -54,6 +55,15 @@ describe('frontmatter', () => {
     const fm = buildDocFrontmatter('src/foo.js', 'a3f1c9e0', null, 'omlx/gemma-4-e4b-it-OptiQ-4bit')
     expect(fm).toMatch(CRC_MODEL_FM_RE)
     expect(parseDocFrontmatter(fm).data.model).toBe('omlx/gemma-4-e4b-it-OptiQ-4bit')
+  })
+
+  test('tier: пишеться після model і парситься назад (регресія: TIER_RE був відсутній)', () => {
+    const fm = buildDocFrontmatter('src/foo.js', 'a3f1c9e0', null, 'omlx/m', 'local-min')
+    expect(parseDocFrontmatter(fm).data.tier).toBe('local-min')
+
+    const noTier = buildDocFrontmatter('src/foo.js', 'a3f1c9e0')
+    expect(noTier).not.toContain('tier:')
+    expect(parseDocFrontmatter(noTier).data.tier).toBeNull()
   })
 
   test('model: відсутній аргумент → поля model немає, парситься як null', () => {
