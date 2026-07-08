@@ -1,0 +1,131 @@
+npm/scripts/lib/lint-surface/snapshot.mjs
+  s_7d780c1b9906d1::t_58837117daed0e 13-19
+  s_7d780c1b9906d1::t_13b79716f431c8 77-79
+  s_7d780c1b9906d1::t_e8116ea75a24fe 30-32,34,46-47,54-56,59,69,74-75
+npm/scripts/lib/lint-surface/types.mjs
+  s_7d780c1b9906d1::t_dbd95a3fb3de21 103-109
+npm/rules/doc-files/docgen-gen/docs/main.md
+  s_7d780c1b9906d1::t_5c2ebec22042ae 26,28,32-35
+  s_7d780c1b9906d1::t_dd03e8b5d216f4 36
+  s_7d780c1b9906d1::t_d59ece7e326f92 6
+npm/rules/doc-files/docgen-files-batch/main.mjs
+  s_7d780c1b9906d1::t_c8e7556120962e 395-397,399,402
+  s_7d780c1b9906d1::t_180b9304478a3e 432,435,437-439
+  s_7d780c1b9906d1::t_fb4e78e0944099 371-373
+  s_7d780c1b9906d1::t_b043e61220aba1 224
+  s_7d780c1b9906d1::t_cd9aece7d39553 270-288
+  s_7d780c1b9906d1::t_ce87cd31284059 116-125
+  s_7d780c1b9906d1::t_fb86f4d907493c 462
+  s_7d780c1b9906d1::t_be00459e4e552f 367-370,374-375
+  s_7d780c1b9906d1::t_421a3301158864 398
+  s_7d780c1b9906d1::t_482ae183cb9d6c 229-231,235,252-253
+  s_7d780c1b9906d1::t_b5620ff30c69c9 436
+  s_7d780c1b9906d1::t_6c96d875355371 115,269
+CLAUDE.md
+  s_7d780c1b9906d1::t_2d78876baa02d6 6
+npm/.changes/260708-0808.md
+  s_7d780c1b9906d1::t_523238d7094e40 1-5
+npm/scripts/lib/lint-surface/docs/ladder.md
+  s_7d780c1b9906d1::t_15c3d8b0f0264e 20
+  s_7d780c1b9906d1::t_d59ece7e326f92 6
+npm/scripts/lib/lint-surface/run-fix.mjs
+  s_7d780c1b9906d1::t_20da8e1f4b8c51 273-275
+  s_7d780c1b9906d1::t_f42a3ca14daaf8 209
+npm/rules/doc-files/check/fix-worker.mjs
+  s_7d780c1b9906d1::t_389b5101f8fe40 9
+  s_7d780c1b9906d1::t_5948d221921fba 6-8,10,15-17,26,34,37-39,43-44
+npm/rules/doc-files/check/docs/fix-worker.md
+  s_7d780c1b9906d1::t_d59ece7e326f92 6
+  s_7d780c1b9906d1::t_a64c45fe0e7e19 14,19-22,24,28
+npm/rules/changelog/consistency/docs/main.md
+  s_7d780c1b9906d1::t_5b31f36c142f12 25-28
+  s_7d780c1b9906d1::t_d59ece7e326f92 6
+  s_7d780c1b9906d1::t_9940ae3d5fba75 29-35
+npm/rules/changelog/consistency/tests/check.test.mjs
+  s_7d780c1b9906d1::t_f79ab3b51fb4e1 1086-1112
+  s_7d780c1b9906d1::t_0cb2735ba9d9dd 847-903
+.cspell.json
+  s_7d780c1b9906d1::t_2d78876baa02d6 128,189,214
+npm/scripts/lib/lint-surface/docs/types.md
+  s_7d780c1b9906d1::t_73745c738385e1 20
+  s_7d780c1b9906d1::t_d59ece7e326f92 6
+npm/scripts/lib/lint-surface/docs/run-fix.md
+  s_7d780c1b9906d1::t_d59ece7e326f92 6
+  s_7d780c1b9906d1::t_076a0b238ca0b6 21
+npm/rules/doc-files/docgen-scan/tests/docgen-scan.test.mjs
+  s_7d780c1b9906d1::t_953770dfa8f706 79-110
+npm/scripts/lib/lint-surface/docs/snapshot.md
+  s_7d780c1b9906d1::t_d59ece7e326f92 6
+  s_7d780c1b9906d1::t_da8ee3870a7eb9 13,19-22
+npm/scripts/lib/lint-surface/ladder.mjs
+  s_7d780c1b9906d1::t_67e2285be636e4 17
+  s_7d780c1b9906d1::t_18df1b302fe99e 11-16,18-19
+npm/scripts/lib/lint-surface/tests/snapshot.test.mjs
+  s_7d780c1b9906d1::t_953ca005ae23a4 12
+  s_7d780c1b9906d1::t_0e2e8effd9c950 1-11,13-57,59-104
+  s_7d780c1b9906d1::t_7e68e48dd9d31e 58
+npm/rules/doc-files/docgen-judge/tests/docgen-judge.test.mjs
+  s_7d780c1b9906d1::t_f62245907f5820 45-73
+  s_7d780c1b9906d1::t_b08eda09008d63 3
+npm/rules/doc-files/docgen-judge/docs/main.md
+  s_7d780c1b9906d1::t_d59ece7e326f92 6
+  s_7d780c1b9906d1::t_da54f956a51ad0 39
+  s_7d780c1b9906d1::t_f6fb295bc278af 12
+npm/rules/doc-files/docgen-scan/docs/main.md
+  s_7d780c1b9906d1::t_944f1055aa84db 33
+  s_7d780c1b9906d1::t_d59ece7e326f92 6
+  s_7d780c1b9906d1::t_bdb61beb0e1c0a 21
+npm/rules/doc-files/docgen-files-batch/docs/main.md
+  s_7d780c1b9906d1::t_389051b1d0bd31 19,21-23
+  s_7d780c1b9906d1::t_d59ece7e326f92 6
+  s_7d780c1b9906d1::t_09047fcb61204c 31-32
+npm/rules/doc-files/docgen-files-batch/tests/generate-dir-index.test.mjs
+  s_7d780c1b9906d1::t_c970a067a8ee91 1-30,34-42,46-48,51-68,70-138
+  s_7d780c1b9906d1::t_a2661f0b022150 31-33,43-45,49-50
+  s_7d780c1b9906d1::t_be73636aab0ca8 69
+npm/rules/doc-files/docgen-gen/main.mjs
+  s_7d780c1b9906d1::t_5fdf82c07eb856 13
+  s_7d780c1b9906d1::t_d33afe1a465b25 426-447
+  s_7d780c1b9906d1::t_7c967ccc083aca 507,510
+  s_7d780c1b9906d1::t_bd83da9f469f88 239-247
+  s_7d780c1b9906d1::t_b07c6c20251e19 425
+npm/rules/doc-files/docgen-scan/main.mjs
+  s_7d780c1b9906d1::t_21a73ddd32f6ac 65-68,73,77-82
+  s_7d780c1b9906d1::t_12483ce70a638e 7
+  s_7d780c1b9906d1::t_2ec66213f2a25e 69-70
+npm/.changes/260708-0808-2.md
+  s_7d780c1b9906d1::t_523238d7094e40 1-5
+npm/scripts/lib/lint-surface/tests/run-fix.test.mjs
+  s_7d780c1b9906d1::t_65298699dc09eb 701,709
+  s_7d780c1b9906d1::t_6adff601ae08a4 631-648,671-675,677-700,702-708,710-728
+  s_7d780c1b9906d1::t_c02a67fbeaf92f 649-670,676
+npm/rules/changelog/consistency/main.mjs
+  s_7d780c1b9906d1::t_7a80705ba6b9a3 211-212,214,218
+  s_7d780c1b9906d1::t_a8d84ce61e5ef6 90-95,97,99,103-105
+  s_7d780c1b9906d1::t_79908cd7e2039c 96
+  s_7d780c1b9906d1::t_f4a7b835a499af 109-110,118,122-129,131,133-135,137-140,142-147
+npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs
+  s_7d780c1b9906d1::t_7c7334e824a173 94-111
+npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs
+  s_7d780c1b9906d1::t_2d78876baa02d6 151
+  s_7d780c1b9906d1::t_636120a41d53aa 142-150,152-197
+  s_7d780c1b9906d1::t_bf95b6c0bf7f47 42
+npm/rules/doc-files/docgen-judge/main.mjs
+  s_7d780c1b9906d1::t_613da64d3588fc 34-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8ca5494571f80405f8357e7c232b57a9aea0df8b",
+  "prompts": {},
+  "sessions": {
+    "s_7d780c1b9906d1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f40bc272-a212-4f15-aea0-6ce5a6ea6e60",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
