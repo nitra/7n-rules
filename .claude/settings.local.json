@@ -32,7 +32,8 @@
       "WebFetch(domain:vitest.dev)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(cp /Users/vitalii/www/nitra/cursor/npm/.claude-template/hooks/capture-decisions.sh /Users/vitalii/www/nitra/cursor/.claude/hooks/capture-decisions.sh *)",
-      "Bash(cp /Users/vitalii/www/nitra/cursor/npm/.claude-template/hooks/normalize-decisions.sh /Users/vitalii/www/nitra/cursor/.claude/hooks/normalize-decisions.sh *)"
+      "Bash(cp /Users/vitalii/www/nitra/cursor/npm/.claude-template/hooks/normalize-decisions.sh /Users/vitalii/www/nitra/cursor/.claude/hooks/normalize-decisions.sh *)",
+      "WebFetch(domain:docs.npmjs.com)"
     ]
   }
 }

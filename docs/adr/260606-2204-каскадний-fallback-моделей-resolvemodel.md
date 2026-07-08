@@ -45,3 +45,9 @@ Chosen option: "Додати helper `resolveModel(tier)` у `npm/lib/models.mjs`
 * `npm/skills/docgen/js/docgen-gen.mjs` — `CLOUD_AVG` замінено на `resolveModel('avg')`; `LOCAL_MIN` залишено для ollama HTTP.
 
 Change-файл: `npm/.changes/260606-2204.md` з bump `minor` і section `Added`.
+
+## Update 2026-06-07
+
+- Зафіксовано споживачів, переведених із raw-констант на `resolveModel()`: `npm/scripts/coverage-classify/index.mjs`, `npm/skills/fix/js/llm-worker.mjs`, `npm/scripts/coverage-fix.mjs`, `npm/scripts/dispatcher/lib/subagent-runner.mjs`, `npm/skills/docgen/js/docgen-gen.mjs`.
+- `docgen-gen.mjs` Tier 1 залишено на `LOCAL_MIN`, бо цей шлях напряму викликає ollama HTTP і cloud-модель там не застосовна.
+- Change-файл для рішення: `npm/.changes/260606-2204.md` з bump `minor`, section `Added`.
