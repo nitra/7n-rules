@@ -8,6 +8,15 @@ import { env } from 'node:process'
 // Per-tier дефолти — ADR 260620-0556 (fail-fast escalation): локальний 4b-рунг
 // об'єктивно не закінчить важкий промпт за хвилини (curl 28), хмарний SSE без
 // таймауту здатен висіти годинами на ESTABLISHED TCP — драбина має рухатись далі.
+//
+// Override без зміни коду — env `N_LOCAL_FIX_TIMEOUT_MS` / `N_CLOUD_FIX_TIMEOUT_MS`:
+// мілісекунди на ОДИН rung відповідного класу (local-min/local-min-retry та
+// cloud-min/cloud-avg). Значення потрапляє worker-у як `ctx.timeoutMs` (внутрішній
+// abort LLM-виклику; batch-worker-и, як doc-files, ріжуть під нього беклог м'яким
+// дедлайном), а runner додатково тримає backstop ×1.25 навколо всього worker-виклику.
+// Робочий важіль для повільної локальної моделі чи великої черги batch-концерну:
+// підняти локальний таймаут понад вартість одного файлу. Невалідне значення
+// (NaN/0/порожньо) → дефолт.
 const LOCAL_TIMEOUT_MS = Number(env.N_LOCAL_FIX_TIMEOUT_MS) || 45_000
 const CLOUD_TIMEOUT_MS = Number(env.N_CLOUD_FIX_TIMEOUT_MS) || 120_000
 

@@ -91,6 +91,24 @@ describe('scoreDoc — еталон', () => {
   })
 })
 
+describe('scoreDoc — R8 refusal/чат-філер (пре-гейт перед judge, issue #16)', () => {
+  test('«Я готовий писати… Надайте мені код» → refusal-filler, degraded попри валідну структуру', () => {
+    // Структурно валідна дока (всі секції на місці) — саме так живий кейс отримав score=95.
+    const md = CLEAN.replace(
+      'Перевіряє наявність bun.lock і забороняє yarn.lock у корені монорепо.',
+      'Я готовий писати поведінкову документацію. Надайте мені код, і я почну.'
+    )
+    const { score, issues } = scoreDoc(md, FACTS)
+    expect(issues).toContain('refusal-filler')
+    expect(score).toBeLessThan(70)
+  })
+
+  test('refusal-фраза лише в захищеному людському «Призначенні» → не штрафується', () => {
+    const md = insertProtected(CLEAN, 'Я готовий доповнити цю секцію пізніше.')
+    expect(scoreDoc(md, FACTS).issues).not.toContain('refusal-filler')
+  })
+})
+
 describe('generateDoc — pre-send byte-guard', () => {
   afterEach(() => {
     delete env.N_CURSOR_DOCGEN_CTX

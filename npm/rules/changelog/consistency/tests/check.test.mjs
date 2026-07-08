@@ -844,6 +844,63 @@ describe('check-changelog (npm-published: відсутня version або uncomm
   })
 })
 
+describe('check-changelog (origin-aware база feature-гілки)', () => {
+  test('локальний main ПОЗАДУ origin/main: реліз-коміт з origin, влитий у гілку, — не «ручний bump»', async () => {
+    await withTmpDir(async dir => {
+      // init на main: v1.0.0
+      await git(['init', '-q', '-b', 'main'], dir)
+      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'init'], dir)
+      // «CI-реліз» уже на origin/main (bump version + CHANGELOG), локальний main лишився позаду
+      await git(['checkout', '-q', '-b', 'release-sim'], dir)
+      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.1', private: true })
+      await writeFile(
+        join(dir, 'CHANGELOG.md'),
+        `${changelogWithVersion('1.0.1')}\n${changelogWithVersion('1.0.0')}`,
+        'utf8'
+      )
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'release: mono@1.0.1'], dir)
+      await git(['update-ref', 'refs/remotes/origin/main', 'HEAD'], dir)
+      // feature-гілка від застарілого локального main + merge origin/main (репро nitra/mt)
+      await git(['checkout', '-q', 'main'], dir)
+      await git(['checkout', '-q', '-b', 'claude/task'], dir)
+      await git(['merge', '-q', 'origin/main'], dir)
+      // звичайний коміт зверху (не merge-HEAD), лише ignore-шлях docs/
+      await ensureDir(join(dir, 'docs'))
+      await writeFile(join(dir, 'docs', 'note.md'), 'x\n', 'utf8')
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'docs: note'], dir)
+
+      // База = merge-base(origin/main, HEAD) (новіша), НЕ застарілий локальний main:
+      // version 1.0.1 уже інтегровано в origin → не «ручний bump поза CI».
+      expect(await check(dir)).toBe(0)
+    })
+  })
+
+  test('локальний main ПОПЕРЕДУ origin/main: новіша локальна база лишається виграшною', async () => {
+    await withTmpDir(async dir => {
+      await git(['init', '-q', '-b', 'main'], dir)
+      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'init'], dir)
+      await git(['update-ref', 'refs/remotes/origin/main', 'HEAD'], dir)
+      // локальний main пішов уперед (звичайна робоча зміна, вже з change-файлом у гілці нижче не важлива)
+      await writeFile(join(dir, 'app.js'), 'x\n', 'utf8')
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'work'], dir)
+      // feature-гілка від НОВІШОГО локального main, без власних змін
+      await git(['checkout', '-q', '-b', 'feat/x'], dir)
+
+      // Якби база впала на застарілий origin/main — diff показав би app.js і зажадав change-файл.
+      expect(await check(dir)).toBe(0)
+    })
+  })
+})
+
 describe('check-changelog (edge cases — coverage)', () => {
   test('воркспейс із невалідним package.json → пропускається', async () => {
     await withTmpDir(async dir => {
@@ -1026,6 +1083,33 @@ describe('check-changelog (CHANGELOG.md existence + format)', () => {
 })
 
 describe('check-changelog (merge-коміт)', () => {
+  test('merge У ПРОЦЕСІ (MERGE_HEAD існує, HEAD^2 ще ні) → pass без autofix-шуму', async () => {
+    await withTmpDir(async dir => {
+      // pre-commit кейс: `git commit` незавершеного merge — коміт ще не створено,
+      // HEAD^2 не існує; маркер стану merge — MERGE_HEAD (issue-репро: HK=0-обхід).
+      await git(['init', '-q', '-b', 'main'], dir)
+      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'init'], dir)
+      await writeFile(join(dir, 'base.js'), 'base\n', 'utf8')
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'base'], dir)
+      // feature-гілка зі зміною БЕЗ change-файлу (легітимний вміст, задокументований деінде)
+      await git(['checkout', '-q', '-b', 'feat'], dir)
+      await writeFile(join(dir, 'app.js'), 'x\n', 'utf8')
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'feat: app'], dir)
+      await git(['checkout', '-q', 'main'], dir)
+      // --no-commit лишає merge у процесі: MERGE_HEAD існує, HEAD^2 — ні.
+      await git(['merge', '--no-ff', '--no-commit', '-q', 'feat'], dir)
+
+      expect(await checkWithAutofix(dir)).toBe(0)
+      // Без autofix-шуму: change-файл для merge НЕ створюється.
+      expect(await readChangeFiles('.', dir)).toHaveLength(0)
+    })
+  })
+
   test('HEAD — merge-коміт → pass (changeset не вимагається, документують feature-коміти)', async () => {
     await withTmpDir(async dir => {
       // publishable-пакет; зміна без changeset на feature-гілці, влита через --no-ff merge.
