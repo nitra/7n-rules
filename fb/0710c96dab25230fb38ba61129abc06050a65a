@@ -1,0 +1,83 @@
+npm/rules/changelog/consistency/docs/main.md
+  s_7077186e4294df::t_30283e262d07af 6
+npm/scripts/smoke-check-imports.mjs
+  s_7077186e4294df::t_317780a5f96f8d 49
+  s_7077186e4294df::t_83a17a8d36e7ad 19
+  s_7077186e4294df::t_319c8be6a78919 10
+  s_7077186e4294df::t_62c65a8a9ccded 48
+  s_7077186e4294df::t_8e64ae6cbf8e02 61
+  s_7077186e4294df::t_2eb8a2d64c5a33 1-2,5-9,11-16,22-25,27-28,30,34-47,50-60,62-66
+  s_7077186e4294df::t_c6ed57f0d92de3 32
+  s_7077186e4294df::t_dbfd8bfe3d34e3 17-18,20,26,29,31,33
+  s_7077186e4294df::t_8771b778d61b82 21
+  s_7077186e4294df::t_70cdde30db7484 3-4
+npm/.changes/260707-2226.md
+  s_7077186e4294df::t_9c81b690265ad1 1,4
+  s_7077186e4294df::t_3fa9c97bcc301e 2-3
+  s_7077186e4294df::t_bce8f657816bd4 5
+package.json
+  s_7077186e4294df::t_ec99724ad01d93 19
+npm/scripts/hook.mjs
+  s_7077186e4294df::t_b0ca9b61c374b1 93,98
+  s_7077186e4294df::t_9acf5a63e886da 65-74
+  s_7077186e4294df::t_92cd02c1da6416 64
+npm/rules/release/release.mjs
+  s_7077186e4294df::t_01597afb9e5183 208
+  s_7077186e4294df::t_dc9013cc191f0d 9
+  s_7077186e4294df::t_8cd4e01d4d5ec8 139,143-144,146,159
+  s_7077186e4294df::t_0028b2de5215f8 167,174,193,200,205-207,209
+.github/workflows/npm-publish.yml
+  s_7077186e4294df::t_25984cafdafea1 42-43,50,66-67,73-74,78-87
+  s_7077186e4294df::t_586c031a7a71ec 49
+  s_7077186e4294df::t_a861ae184c3539 64
+  s_7077186e4294df::t_a394761cb351e6 55
+  s_7077186e4294df::t_e4077a2171cfe4 37
+  s_7e5f9d7306be1a::t_842967f87cf6dc 51,53-54,56-57,59-60
+llm-lib/.changes/260707-2226.md
+  s_7077186e4294df::t_9c81b690265ad1 1,4
+  s_7077186e4294df::t_3fa9c97bcc301e 2-3
+  s_7077186e4294df::t_bce8f657816bd4 5
+npm/.changes/260707-2226-2.md
+  s_7077186e4294df::t_bce8f657816bd4 1-5
+npm/package.json
+  s_7077186e4294df::t_26778790652eda 57
+  s_7077186e4294df::t_6b889d066c7e46 24
+npm/rules/release/tests/release.test.mjs
+  s_7077186e4294df::t_a08a2adc459819 78-98
+npm/.changes/260707-2226-3.md
+  s_7077186e4294df::t_bce8f657816bd4 1-5
+npm/scripts/docs/hook.md
+  s_7077186e4294df::t_30283e262d07af 6
+llm-lib/package.json
+  s_7077186e4294df::t_d6413f56595239 25
+npm/rules/npm-module/package_structure/docs/main.md
+  s_7077186e4294df::t_30283e262d07af 6
+npm/rules/release/docs/release.md
+  s_7077186e4294df::t_30283e262d07af 6
+bun.lock
+  s_7077186e4294df::t_f5698a97d4acb2 9,49,54,56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fb0710c96dab25230fb38ba61129abc06050a65a",
+  "prompts": {},
+  "sessions": {
+    "s_7077186e4294df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b608ee0e-997d-4727-882b-933696e35b81",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_7e5f9d7306be1a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3b7adc3c-e391-459a-858c-cbd5e4f9d809",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
