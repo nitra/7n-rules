@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": ".mt.json — конфігурація Nitra MT",
+  "description": "Конфігурація @7n/mt (.mt.json у корені репозиторію та per-node mt/<node>/.mt-override.json). Довідник ключів: npm/docs/architecture/operations.md у nitra/mt.",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "mt_dir": { "type": "string" },
+    "worktrees_dir": { "type": "string" },
+    "warn_worktrees_above": { "type": "integer", "minimum": 0 },
+    "max_worktrees": { "type": "integer", "minimum": 1 },
+    "default_budget_sec": { "type": "integer", "minimum": 1 },
+    "default_mode": { "enum": ["agent", "human"] },
+    "default_model_tier": { "enum": ["MIM", "AVG", "MAX"] },
+    "budget_hard_sec_multiplier": { "type": "number", "exclusiveMinimum": 0 },
+    "progress_timeout_sec": { "type": "integer", "minimum": 0 },
+    "agent_concurrency": { "type": "integer", "minimum": 1 },
+    "agent_retry_max": { "type": "integer", "minimum": 0 },
+    "engineer_retry_max": { "type": "integer", "minimum": 0 },
+    "plan_reject_max": { "type": "integer", "minimum": 0 },
+    "retry_ladder": { "type": "array", "items": { "type": "object" } },
+    "run_summary_threshold": { "type": "integer", "minimum": 1 },
+    "audit_model": { "type": "string" },
+    "audit_retry_max": { "type": "integer", "minimum": 0 },
+    "audit_schedule_days": { "type": "integer", "minimum": 1 },
+    "audit_on_patch": { "type": "boolean" },
+    "clarification_timeout_sec": { "type": "integer", "minimum": 0 },
+    "claim_lease_sec": { "type": "integer", "minimum": 1 },
+    "claim_grace_sec": { "type": "integer", "minimum": 0 },
+    "claim_renew_sec": { "type": "integer", "minimum": 1 },
+    "publish_retry_max": { "type": "integer", "minimum": 0 },
+    "publish_retry_base_ms": { "type": "integer", "minimum": 1 },
+    "claude_model": { "type": "string" },
+    "model_map": {
+      "type": "object",
+      "properties": {
+        "MIM": { "type": "string" },
+        "AVG": { "type": "string" },
+        "MAX": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "stale_worktree_min": { "type": "integer", "minimum": 0 },
+    "system_prompt": { "type": "string" },
+    "relay_url": { "type": "string" },
+    "server_port_file": { "type": "string" },
+    "device_key_path": { "type": "string" },
+    "interactive_claim_lease_sec": { "type": "integer", "minimum": 1 },
+    "interactive_claim_renew_sec": { "type": "integer", "minimum": 1 },
+    "session_archive": { "type": "boolean" },
+    "archive_ref_prefix": { "type": "string" },
+    "archive_ttl_days": { "type": "integer", "minimum": 0 },
+    "run_ref_ttl_days": { "type": "integer", "minimum": 0 },
+    "require_signed_approvals": { "type": "boolean" },
+    "surface_profiles": { "type": "object" },
+    "provider_profiles": { "type": "object" },
+    "mcp_servers": { "type": "object" },
+    "skill_profiles": { "type": "object" },
+    "i18n": {
+      "type": "object",
+      "properties": {
+        "base_lang": { "type": "string" },
+        "eager": {},
+        "publish_langs": { "type": "array", "items": { "type": "string" } },
+        "include": { "type": "array", "items": { "type": "string" } },
+        "exclude": { "type": "array", "items": { "type": "string" } },
+        "model_tier": { "enum": ["MIM", "AVG", "MAX"] },
+        "ttl_days": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "retro": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "schedule_days": { "type": "integer", "minimum": 1 },
+        "min_resolved": { "type": "integer", "minimum": 0 },
+        "model_tier": { "enum": ["MIM", "AVG", "MAX"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}

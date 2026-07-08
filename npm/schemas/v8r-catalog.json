@@ -126,6 +126,12 @@
       "description": "bunfig.toml (конфігурація Bun runtime)",
       "url": "vendor/bunfig.json",
       "fileMatch": ["bunfig.toml", "**/bunfig.toml"]
+    },
+    {
+      "name": "mt-config",
+      "description": ".mt.json / .mt-override.json — конфігурація @7n/mt (Nitra MT)",
+      "url": "vendor/mt-config.json",
+      "fileMatch": [".mt.json", "**/.mt.json", "**/.mt-override.json"]
     }
   ]
 }
