@@ -1,0 +1,35 @@
+npm/.changes/260708-0804.md
+  s_c60a19311a7a5e::t_1931c02bec49ac 1-5
+npm/schemas/v8r-catalog.json
+  s_c60a19311a7a5e::t_4240e5c1262956 129-134
+CLAUDE.md
+  s_c60a19311a7a5e::t_d9ba3f759a89b6 6
+npm/schemas/vendor/mt-config.json
+  s_7d780c1b9906d1::t_b8933c1377c563 1-85
+package.json
+  s_7d780c1b9906d1::t_a6fbe751c41f28 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "be9cb64cc730fa2c4d050ee8d02b92f7af6873cd",
+  "prompts": {},
+  "sessions": {
+    "s_7d780c1b9906d1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f40bc272-a212-4f15-aea0-6ce5a6ea6e60",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_c60a19311a7a5e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5557119f-dc5a-482d-84d1-9bfea7be436e",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
