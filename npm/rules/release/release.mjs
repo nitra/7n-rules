@@ -6,6 +6,7 @@
 import { existsSync } from 'node:fs'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { env } from 'node:process'
 
 import { getMonorepoProjectRootDirs, readPackageManifest } from '../changelog/lib/package-manifest.mjs'
 import { aggregateWorkspace, prependChangelogSection } from './lib/aggregate.mjs'
@@ -135,13 +136,14 @@ async function processReleaseWorkspace(ws, cwd, date, runGit) {
 }
 
 /**
- * Commit-back + анотовані теги + push з ретраями для зрелізованих пакетів.
+ * Commit-back + анотовані теги + (опційно) push з ретраями для зрелізованих пакетів.
  * @param {Array<{ ws: string, name: string | null, newVersion: string }>} released зрелізовані пакети
  * @param {string[]} tags анотовані теги для push
  * @param {(args: string[]) => Promise<string | null>} runGit git-раннер
- * @returns {Promise<void>} завершення після push
+ * @param {boolean} push якщо `false` — лише commit+tag локально, без push (CI пушить сам після успішного publish)
+ * @returns {Promise<void>} завершення після (опційного) push
  */
-async function commitAndPushRelease(released, tags, runGit) {
+async function commitAndPushRelease(released, tags, runGit, push) {
   const subject = tags.length > 0 ? tags.join(', ') : released.map(r => `${r.ws}@${r.newVersion}`).join(', ')
   await runGit(['add', '-A'])
   const committed = await runGit(['commit', '-m', `release: ${subject}`])
@@ -154,7 +156,7 @@ async function commitAndPushRelease(released, tags, runGit) {
   for (const tag of tags) {
     await runGit(['tag', '-a', tag, '-m', tag])
   }
-  await pushReleaseWithRetry(runGit, tags)
+  if (push) await pushReleaseWithRetry(runGit, tags)
 }
 
 /**
@@ -162,12 +164,14 @@ async function commitAndPushRelease(released, tags, runGit) {
  * @param {string} [opts.cwd] корінь
  * @param {string} [opts.date] `YYYY-MM-DD` (за замовчуванням сьогодні)
  * @param {(args: string[]) => Promise<string | null>} [opts.runGit] git-раннер
+ * @param {boolean} [opts.push] `false` — лише commit+tag локально, без push (типово `true`)
  * @returns {Promise<Array<{ ws: string, name: string | null, newVersion: string }>>} зрелізовані пакети
  */
 export async function release(opts = {}) {
   const cwd = opts.cwd ?? process.cwd()
   const date = opts.date ?? new Date().toISOString().slice(0, 10)
   const runGit = opts.runGit ?? defaultRunGit(cwd)
+  const push = opts.push ?? true
 
   const workspaces = await getMonorepoProjectRootDirs(cwd)
   const subWorkspaces = workspaces.filter(w => w !== '.')
@@ -186,19 +190,23 @@ export async function release(opts = {}) {
   }
 
   if (released.length > 0) {
-    await commitAndPushRelease(released, tags, runGit)
+    await commitAndPushRelease(released, tags, runGit, push)
   }
   return released
 }
 
 /**
  * @param {string[]} _args аргументи CLI (наразі без опцій)
- * @param {import('./release.mjs').ReleaseOpts} [opts] опції для тестів (cwd, date, runGit)
+ * @param {import('./release.mjs').ReleaseOpts} [opts] опції для тестів (cwd, date, runGit, push)
  * @returns {Promise<number>} exit-код
  */
 export async function runReleaseCli(_args, opts = {}) {
   try {
-    const released = await release(opts)
+    // env, не CLI-флаг: канонічний крок workflow `run: bunx n-cursor release` (npm-module.mdc
+    // template-policy звіряє точний текст) лишається незмінним; deferred-push вмикається лише
+    // через `env:` на кроці — поле, якого немає в канонічному сніпеті, тож subset-перевірка не ламається.
+    const push = opts.push ?? env.N_CURSOR_RELEASE_PUSH !== '0'
+    const released = await release({ ...opts, push })
     if (released.length === 0) {
       console.log('release: немає змін для релізу')
     } else {

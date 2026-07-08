@@ -34,29 +34,54 @@ jobs:
 
       - name: Clear NODE_AUTH_TOKEN (щоб npm publish пішов через OIDC, а не порожній token)
         # setup-node з registry-url сам проставляє NODE_AUTH_TOKEN як job-env навіть без секрету;
-        # це блокує trusted-publishing OIDC-обмін і призводить до ENEEDAUTH на npm publish.
+        # це блокує trusted-publishing OIDC-обмін і призводить до помилки автентифікації на npm publish.
         run: echo "NODE_AUTH_TOKEN=" >> "$GITHUB_ENV"
 
       - name: Configure git identity + push auth
         # persist-credentials лишається false (ga-rule, безпека): checkout не зберігає токен.
-        # Release робить commit-back `git push`, тож даємо job-scoped ephemeral GITHUB_TOKEN
-        # явно через remote-url (а не persisted у git config усього прогону).
+        # Push release-коміту робимо окремим кроком нижче (лише якщо publish пройшов), тож
+        # даємо job-scoped ephemeral GITHUB_TOKEN явно через remote-url заздалегідь.
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
 
+      - name: Smoke-check CLI-модулів (ловить hoisting-регресії залежностей до релізу)
+        run: node npm/scripts/smoke-check-imports.mjs
+
       - name: Release (bump + CHANGELOG + tag)
+        # N_CURSOR_RELEASE_PUSH=0: bump/CHANGELOG/тег лишаються локальними в цьому checkout,
+        # доки не підтвердиться хоч один успішний publish нижче — інакше git version
+        # випереджає registry на кожній невдачі (саме так CI дійшов до 14.11.1 у git при
+        # 14.10.4 на npm). `run` — канонічний текст кроку (npm-module.mdc template-policy),
+        # тож push вимикається через env, а не зміну команди.
         run: bunx n-cursor release
+        env:
+          N_CURSOR_RELEASE_PUSH: '0'
 
       # llm-lib публікується ПЕРШИМ: @nitra/cursor залежить від @7n/llm-lib,
       # тож інсталяція свіжого @nitra/cursor мусить знаходити пакет у registry.
+      # continue-on-error: невдача одного з пакетів не має блокувати публікацію іншого.
       - name: Publish @7n/llm-lib
+        id: publish-llm-lib
+        continue-on-error: true
         uses: JS-DevTools/npm-publish@v4.1.5
         with:
           package: llm-lib/package.json
 
       - name: Publish package
+        id: publish-cursor
+        continue-on-error: true
         uses: JS-DevTools/npm-publish@v4.1.5
         with:
           package: npm/package.json
+
+      - name: Push release-коміт + теги (лише якщо бодай один publish пройшов)
+        if: steps.publish-llm-lib.outcome == 'success' || steps.publish-cursor.outcome == 'success'
+        run: git push --follow-tags
+
+      - name: Fail job, якщо публікація хоч одного пакета впала
+        if: steps.publish-llm-lib.outcome == 'failure' || steps.publish-cursor.outcome == 'failure'
+        run: |
+          echo "::error::npm publish не пройшов — llm-lib=${{ steps.publish-llm-lib.outcome }}, cursor=${{ steps.publish-cursor.outcome }}"
+          exit 1

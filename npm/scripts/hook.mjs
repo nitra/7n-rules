@@ -62,6 +62,17 @@ export function extractFilePath(json) {
 }
 
 /**
+ * Claude Code при exit 2 показує агенту лише stderr (stdout hook-протоколом ігнорується),
+ * тож звіт про порушення мусить іти саме туди — інакше агент бачить «blocking error»
+ * без жодного пояснення, що саме заблокувало tool-виклик.
+ * @param {string} s фрагмент звіту
+ * @returns {void} результат
+ */
+function logToStderr(s) {
+  process.stderr.write(s)
+}
+
+/**
  * CLI для `n-cursor hook`.
  * @param {string[]} argv аргументи після 'hook'
  * @returns {Promise<number>} exit-код (0 — чисто; 2 — є порушення hook-протокол)
@@ -79,11 +90,11 @@ export async function runHookCli(argv) {
   if (postToolUse) {
     const fp = extractFilePath(await readStdin())
     if (!fp) return 0
-    const { exitCode } = await detectAll({ files: [toRelativePosix(fp, cwd)], cwd })
+    const { exitCode } = await detectAll({ files: [toRelativePosix(fp, cwd)], cwd, log: logToStderr })
     return exitCode === 0 ? 0 : 2
   }
 
   const files = collectChangedFiles(cwd)
-  const { exitCode } = await detectAll({ files, cwd })
+  const { exitCode } = await detectAll({ files, cwd, log: logToStderr })
   return exitCode === 0 ? 0 : 2
 }

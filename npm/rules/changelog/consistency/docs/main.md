@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/changelog/consistency/main.mjs
 docgen:
-  crc: 0fdd8622
+  crc: b2787281
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 75
   issues: internal-name:checkPublishedWorkspace,internal-name:runLocalOnlyChecks,anchor-miss:(n-changelog.mdc),judge:inaccurate:0.99

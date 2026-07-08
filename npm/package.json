@@ -21,7 +21,7 @@
     "url": "git+https://github.com/n/cursor.git"
   },
   "bin": {
-    "n-cursor": "./bin/n-cursor.js"
+    "n-cursor": "bin/n-cursor.js"
   },
   "files": [
     "docs",
@@ -54,6 +54,7 @@
   "dependencies": {
     "@7n/mt": "^0.5.1",
     "@7n/llm-lib": "^2.0.0",
+    "ajv": "^8.20.0",
     "cli-progress": "^3.12.0",
     "eslint": "^10.4.1",
     "github-actionlint": "^1.7.12",

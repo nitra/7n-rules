@@ -75,6 +75,27 @@ describe('release', () => {
     })
   })
 
+  test('push: false — комітить і тегує локально, але не пушить (CI пушить сам після publish)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.2.3', files: ['CHANGELOG.md'] })
+      await writeFile(join(dir, 'CHANGELOG.md'), '# Changelog\n')
+      await mkdir(join(dir, '.changes'), { recursive: true })
+      await writeFile(join(dir, '.changes', '1-a.md'), '---\nbump: patch\nsection: Fixed\n---\nФікс\n')
+
+      const gitCalls = []
+      const runGit = args => {
+        gitCalls.push(args.join(' '))
+        return Promise.resolve('')
+      }
+      const released = await release({ cwd: dir, date: '2026-05-29', runGit, push: false })
+
+      expect(released).toEqual([{ ws: '.', name: 'p', newVersion: '1.2.4' }])
+      expect(gitCalls).toContain('tag -a p@1.2.4 -m p@1.2.4')
+      expect(gitCalls.some(c => c.startsWith('commit'))).toBe(true)
+      expect(gitCalls.some(c => c.startsWith('push'))).toBe(false)
+    })
+  })
+
   test('нуль change-файлів і нуль fallback-комітів → нічого не релізить', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.0.0', files: ['CHANGELOG.md'] })
