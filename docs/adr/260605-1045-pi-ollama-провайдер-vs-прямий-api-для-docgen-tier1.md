@@ -59,3 +59,17 @@ Chosen option: "pi (ollama-провайдер)", because на однакових
 **Оркестрований JS-конвеєр (Stage 0–3):** детермінована екстракція фактів → секційні LLM-виклики → пост-лінт → зборка підняла якість gemma3:4b з ~80% до ~86% (+6 п.п.). v1 shared-context: регрес ×3.8 по часу (overlay 310 с vs 57 с one-shot). v2 секційно-мінімальний контекст прибрав регрес (overlay 77 с, k8s 55 с).
 
 **Модельний trade-off (8 GB RAM):** gemma3:4b (~85%, ~20 tok/s, 100% GPU, 3.3 GB) — швидкі/чорнові прогони; gemma4:4b / batiai/gemma4-e4b:q4 (~92%, ~11 tok/s, 56% CPU/44% GPU, 5.3 GB) — якість-first генерація для документації що читається людьми. Аліас: `ollama cp batiai/gemma4-e4b:q4 gemma4:4b`. Blob `d682bf87e3a3` спільний — диск не подвоюється. Бенч-скрипти: `~/docgen-bench3/duel.py`, `~/docgen-bench3/confirm.py`.
+
+## Update 2026-06-07
+
+- Для `docgen` Tier 1 перевірено заміну прямого ollama HTTP + orchestrated mode на `piOneShot(resolveModel('min'))`.
+- Рішення: залишити ollama HTTP + orchestrated mode для Tier 1, бо benchmark показав регресію якості з score `100` до `65–75` при переході на one-shot через `pi`.
+- Benchmark для Tier 1: old ollama HTTP + orchestrated — `44–47s`, score `100`; `pi` + `gemma3:4b` one-shot — `35–51s`, score `65–75`, issues `no-overview`, `internal-name`; `pi` + cloud default one-shot — близько `12s`, score `75`, issue `no-overview`.
+- Причина регресії: втрата orchestrated режиму, де секції документації генеруються окремими промптами з `numPredict`-обмеженнями.
+
+## Update 2026-06-07
+
+- Додатково виміряно `pi orchestrated` для docgen Tier 1.
+- Порівняння benchmark: old ollama HTTP orchestrated — `discover-check-rules` `44s / score=100`, `trufflehog` `47s / score=100`; new `pi orchestrated` (`gemma3:4b`) — `71s / score=100`, `61s / score=90`; new `pi one-shot` — `51s / score=75`, `35s / score=65`.
+- Висновок transcript: `pi orchestrated` значно кращий за one-shot за якістю, але повільніший за прямий ollama HTTP через overhead N×`spawnSync(pi)` замість streaming HTTP socket.
+- На момент transcript фінальний вибір між old ollama HTTP і `pi orchestrated` ще очікував підтвердження користувача.

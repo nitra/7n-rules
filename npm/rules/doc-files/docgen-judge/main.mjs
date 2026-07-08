@@ -32,6 +32,40 @@ Prefer "inaccurate" if any claim is wrong. Respond with ONLY a JSON object, no p
 const VERDICTS = new Set(['accurate', 'generic', 'inaccurate'])
 
 /**
+ * Детермінований пре-гейт (0 токенів) ПЕРЕД LLM-суддею: чат-філер/refusal локальної
+ * моделі замість документації. Живий кейс: дока зі score=95, де секції — суцільне
+ * «Я готовий писати поведінкову документацію… Надайте мені код» (gemma) — судді
+ * структура здалась валідною. Курований безпечний список (перша особа/імператив до
+ * користувача не трапляються у нормальній поведінковій доці); без `\b` — кирилиця
+ * не ASCII-`\w`, JS-межі слова не спрацьовують.
+ */
+const REFUSAL_FILLER_RES = [
+  /я готов(?:ий|а)/iu,
+  /надайте(?:\s+мені)?\s+(?:код|файл|вміст|джерело)/iu,
+  /надішліть(?:\s+мені)?\s+(?:код|файл)/iu,
+  /будь ласка,?\s+надайте/iu,
+  /не можу\s+(?:згенерувати|створити|написати)/iu,
+  /чекаю на\s+(?:код|файл|вміст)/iu,
+  /давайте почнемо/iu,
+  /as an ai(?: language)? model/iu,
+  /i(?:['’]m| am)\s+(?:ready to|unable to)/iu,
+  /please provide(?: the| me)?\s+(?:code|file|source)/iu
+]
+
+/**
+ * Шукає у тексті доки refusal/filler-фразу моделі.
+ * @param {string} text машинні секції доки (без захищеного людського «Призначення»)
+ * @returns {string|null} перший збіг (для issue/діагностики) або null — фраз немає
+ */
+export function detectRefusalFiller(text) {
+  for (const re of REFUSAL_FILLER_RES) {
+    const m = text.match(re)
+    if (m) return m[0]
+  }
+  return null
+}
+
+/**
  * Витягує й валідує verdict-JSON із сирої відповіді LLM (як `parseVerdict` у coverage-classify).
  * @param {string} rawText сира текстова відповідь судді
  * @returns {{verdict: string, confidence: number, reason: string}} провалідований verdict

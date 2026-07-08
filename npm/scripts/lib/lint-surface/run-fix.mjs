@@ -206,6 +206,7 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
     timeoutMs: rung.timeoutMs,
     feedback: rung.feedback ? feedback : undefined,
     recordWrite: absPath => snapshot.record(absPath),
+    recordDurableWrite: absPath => snapshot.recordDurable(absPath),
     chain
   }
 
@@ -269,6 +270,9 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
   log(`  ⚡ ${rung.tier} (${rung.model}): ${ruleId}/${concernName}${errorSuffix}\n`)
 
   // Не clean → restore S1 перед наступним rung-ом (degraded не тече далі).
+  // Durable-write-и worker-а (recordDurableWrite) rollback НЕ чіпає: кожен такий файл —
+  // самодостатній кінцевий стан (doc-files-батч), і прогрес по ньому вже зарахований
+  // canonical re-detect-ом вище — наступний rung/прогін продовжує з решти, не з нуля.
   snapshot.rollback()
 
   // Мовчазна невдача (worker не кинув виняток, але порушення лишилось) — без цього

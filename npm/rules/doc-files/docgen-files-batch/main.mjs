@@ -113,6 +113,17 @@ function fmtTiming(r) {
 const SYSTEMIC_ABORT_STREAK = 3
 
 /**
+ * Чи настав м'який дедлайн батчу. Перший файл стартує завжди (done=0) — інакше
+ * прогін без жодного прогресу ніколи не зійдеться.
+ * @param {number|null|undefined} deadlineAt дедлайн (epoch ms) або null/undefined
+ * @param {number} done скільки файлів уже оброблено
+ * @returns {boolean} true — наступний файл не стартуємо
+ */
+function deadlineReached(deadlineAt, done) {
+  return Boolean(deadlineAt) && done > 0 && Date.now() >= deadlineAt
+}
+
+/**
  * Діагностика розміру джерела (для дослідження, що роздуває контекст):
  * байти + груба оцінка токенів (~bytes/4). Без size-guard-гейта — лише вивід.
  * @param {number} bytes розмір файлу в байтах
@@ -210,18 +221,18 @@ function extractFrontmatter(md) {
  * @param {string} root абсолютний корінь проєкту
  * @returns {void}
  */
-function generateDirIndex(docsAbsDir, root) {
+export function generateDirIndex(docsAbsDir, root) {
   const allMd = readdirSync(docsAbsDir)
     .filter(f => f.endsWith('.md'))
     .toSorted()
 
-  // Якщо index.md вже є дока для source-файлу (має docgen.source → index.*) — не чіпаємо
+  // Чужий index.md — не чіпаємо: дока source-файлу (`index.*` → type JS Module тощо)
+  // або людський зміст (без OKF-frontmatter взагалі). Перезаписуємо лише власний
+  // Directory Index (детекція за frontmatter `type:`, не за H1).
   if (allMd.includes('index.md')) {
     const existingFm = extractFrontmatter(readFileSync(join(docsAbsDir, 'index.md'), 'utf8'))
-    const existingSource = existingFm.match(OKF_RESOURCE_RE)?.[1]?.trim() ?? ''
     const existingType = existingFm.match(OKF_TYPE_RE)?.[1]?.trim() ?? ''
-    // Пропускаємо якщо це дока source-файлу, а не Directory Index
-    if (existingSource && existingType !== 'Directory Index') return
+    if (existingType !== 'Directory Index') return
   }
 
   const files = allMd.filter(f => f !== 'index.md')
@@ -238,13 +249,13 @@ function generateDirIndex(docsAbsDir, root) {
     return `| [${title}](${f}) | ${type} |`
   })
 
+  // Без H1: frontmatter `title:` вже є top-level заголовком для MD025 (single-title) —
+  // H1 у тілі давав `MD025 Multiple top-level headings` на кожному згенерованому індексі.
   const content = `---
 type: Directory Index
 title: ${sourceDirRel}
 resource: ${sourceDirRel}/
 ---
-
-# ${sourceDirRel}
 
 | Файл | Тип |
 |---|---|
@@ -253,6 +264,26 @@ ${rows.join('\n')}
   const indexPath = join(docsAbsDir, 'index.md')
   writeFileSync(indexPath, content)
   spawnSync('oxfmt', [indexPath], { stdio: 'ignore' })
+}
+
+/**
+ * Повідомлення про дострокову зупинку батчу: systemic-abort (середовище впало) або
+ * м'який дедлайн рунга fix-pipeline. В обох випадках зроблене лишилось на диску
+ * (свіжі CRC) — наступний прогін підбирає решту.
+ * @param {{ aborted: boolean, deadlineHit: boolean, done: number, total: number }} state стан зупинки
+ * @returns {void}
+ */
+function reportEarlyStop({ aborted, deadlineHit, done, total }) {
+  if (aborted) {
+    console.error(
+      `\n✗ doc-files: ${SYSTEMIC_ABORT_STREAK} systemic-збої підряд (omlx memory-guard / сервер) — abort на ${done}/${total}.\n  Звільни RAM або перезапусти omlx і повтори — зроблене лишилось, решта підбереться за CRC.`
+    )
+  }
+  if (deadlineHit) {
+    console.log(
+      `\n⏸ doc-files: м'який дедлайн рунга — зупинка на ${done}/${total}; зроблене лишилось (свіжі CRC), решту підбере наступний rung/прогін.`
+    )
+  }
 }
 
 /**
@@ -333,6 +364,15 @@ export function runDocFilesGenCli(argv) {
   }
 
   const all = scanForDocFiles(root)
+  // Рукописні доки (docPath існує без docgen:-frontmatter) — чужі: без --overwrite не
+  // чіпаємо і попереджаємо, щоб перезапис людського змісту не пройшов мовчки.
+  const foreign = all.filter(f => f.foreign)
+  if (foreign.length > 0 && !overwrite) {
+    console.warn(
+      `⚠ doc-files: ${foreign.length} рукописна(их) дока(и) без docgen-frontmatter — пропускаю (перезапис лише з --overwrite):`
+    )
+    for (const f of foreign) console.warn(`  - ${f.docPath}`)
+  }
   const targets = selectTargets(root, all, { overwrite }).slice(from, from + limit)
 
   if (targets.length === 0) {
@@ -352,9 +392,14 @@ export function runDocFilesGenCli(argv) {
  * `targets` через `generateOne` з circuit-breaker'ом (K systemic-збоїв підряд →
  * abort) → підсумковий звіт. Перевикористовують і батч-CLI (`runDocFilesGenCli`),
  * і opportunistic lint-крок doc-files (scoped-набір змінених файлів).
+ *
+ * `deadlineAt` (epoch ms): м'який дедлайн fix-pipeline — перед стартом КОЖНОГО
+ * наступного файлу (перший стартує завжди) батч звіряється з дедлайном і, коли час
+ * вийшов, завершується штатно з частковим прогресом. Зроблене записано по одному
+ * файлу (durable, свіжий CRC) — наступний прогін підбирає решту за CRC.
  * @param {Array<object>} targets елементи scanForDocFiles (sourcePath/docPath)
  * @param {string} root абсолютний корінь
- * @param {{ headline?: string, model?: string, tier?: string }} [opts] headline — рядок-шапка прогону у stdout; model/tier — override моделі і її типу (інакше DEFAULT_LOCAL_MODEL)
+ * @param {{ headline?: string, model?: string, tier?: string, deadlineAt?: number|null }} [opts] headline — рядок-шапка прогону у stdout; model/tier — override моделі і її типу (інакше DEFAULT_LOCAL_MODEL); deadlineAt — м'який дедлайн (epoch ms)
  * @returns {Promise<number>} 0 — без помилок; 1 — фейл preflight або є помилки; 2 — systemic-abort
  */
 export async function runGenerationBatch(targets, root, opts = {}) {
@@ -384,8 +429,14 @@ export async function runGenerationBatch(targets, root, opts = {}) {
   let done = 0
   let systemicStreak = 0
   let aborted = false
+  let deadlineHit = false
   try {
     for (const file of targets) {
+      // М'який дедлайн (fix-pipeline): не стартуємо наступний файл після дедлайну.
+      if (deadlineReached(opts.deadlineAt, done)) {
+        deadlineHit = true
+        break
+      }
       done++
       reporter?.concernStart(file.sourcePath)
       const status = await generateOne(file, root, { done, total: targets.length }, stats, {
@@ -408,11 +459,7 @@ export async function runGenerationBatch(targets, root, opts = {}) {
   } finally {
     reporter?.stop()
   }
-  if (aborted) {
-    console.error(
-      `\n✗ doc-files: ${SYSTEMIC_ABORT_STREAK} systemic-збої підряд (omlx memory-guard / сервер) — abort на ${done}/${targets.length}.\n  Звільни RAM або перезапусти omlx і повтори — зроблене лишилось, решта підбереться за CRC.`
-    )
-  }
+  reportEarlyStop({ aborted, deadlineHit, done, total: targets.length })
 
   reportStats(stats)
 

@@ -3,7 +3,7 @@ type: JS Module
 title: run-fix.mjs
 resource: npm/scripts/lib/lint-surface/run-fix.mjs
 docgen:
-  crc: 212d1106
+  crc: b314c2ef
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 
@@ -18,6 +18,7 @@ fixConcern застосовує детерміновані патерни (T0), 
 runFixPipeline керує повним циклом виправлення: він детектирує всі порушення, застосовує виправлення для кожного знайденого concern-а через `fixConcern`, і виводить фінальний звіт про нездоланні порушення.
 Per-tier timeout (ADR 260620-0556): кожен rung передає worker-у свій `timeoutMs` через `FixContext` (шлях до `runAgentFix opts.timeoutMs`, який abort-ить LLM-сесію), а сам виклик worker-а додатково огорнутий backstop-гонкою ×1.25 від `rung.timeoutMs` — worker, що ігнорує таймаут (зокрема зависла cloud-SSE), фейлить rung помилкою `fix timeout …` замість блокувати lint назавжди; така помилка класифікується як quality і ladder ескалює далі.
 Semantic-collateral veto (spec pi-fix-engine-migration §12, addendum 2026-07-05): clean-вердикт rung-а не приймається, якщо rung змінив наявні файли поза target-set порушення (`violations[].file ∪ item.files`, звірка через `collateral-veto.mjs` за `snapshot.modifiedExisting()`); наслідок — rollback S1, `🚫`-лог, feedback наступному rung-у й телеметрія `kind:"collateral-veto"` у глобальний llm-trace. Нові файли дозволені; порожній target-set → veto незастосовний (fail-open).
+Durable-write-и (issue nitra/cursor#16): worker отримує у `FixContext` поруч із `recordWrite` опційний `recordDurableWrite` — для записів, кожен з яких є самодостатнім кінцевим станом (doc-files: дока зі свіжим CRC). Такі файли переживають rollback провального rung-а і не входять у collateral-veto: частковий прогрес великого батчу не стирається, canonical re-detect наступного rung-а/прогону рахує лише те, що реально лишилось.
 
 ## Публічний API
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [14.12.1] - 2026-07-08
+
+### Fixed
+
+- changelog/consistency: skip merge-коміту працює і під час git commit незавершеного merge (MERGE_HEAD); база порівняння feature-гілки — новіший merge-base з локальної та origin-версії базової гілки (застарілий локальний main більше не фейлить реліз-коміти з origin/main)
+- lint doc-files у fix-режимі: durable-write семантика — rollback після fix-timeout більше не стирає вже згенеровані доки, батч ріже беклог під м'який дедлайн рунга (resumable); index.md без H1 (MD025 clean); детермінований refusal/filler пре-гейт перед docgen-judge; рукописні доки без docgen-frontmatter не перезаписуються без --overwrite (issue #16)
+
 ## [14.12.0] - 2026-07-08
 
 ### Added

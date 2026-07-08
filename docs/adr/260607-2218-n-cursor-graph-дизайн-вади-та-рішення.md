@@ -354,3 +354,11 @@ Transcript зафіксував варіант інтеграції `flow` із 
 - `mode:` у frontmatter `task.md` керує режимом: `human` для інтерактивного діалогу, `agent` для автономної роботи.
 - Вихід Stage 1: або `plan_001.md` для атомарного вузла, або дочірні `task.md` і `graph spawn` для складеного вузла.
 - Stage 2 виконує роботу, запускає `flow verify` за критеріями `## Done when`, пише `outputs_NNN.md` і сигналізує `graph done|audit|failed`.
+
+## Update 2026-06-07
+
+- Зафіксовано межу відповідальності: `graph` оркеструє DAG, merge і worktrees; `flow` стає execution engine/protocol всередині одного graph-вузла.
+- `docs/думка.MD` лишається living spec і джерелом правди; `.n-cursor/system-prompt.md`, `.n-cursor/engineer-prompt.md`, `.n-cursor/actors.md` деривуються з нього для runtime-агентів.
+- Додано модель файлової черги аудиту: `pending-audit_NNN.md`, де `NNN` відповідає `outputs_NNN.md`; `n-cursor watch` сканує вузли зі станом `pending-audit` і запускає `flow verify`.
+- Додано capability manifest `.n-cursor/actors.md` і поле `actors:` у `task.md`; `graph run --actor X` має перевіряти дозволені actor-и перед стартом.
+- Новий набір станів вузла включає `waiting`, `plan-pending`, `running`, `pending-audit`, `resolved`, `failed`, `invalidated`.
