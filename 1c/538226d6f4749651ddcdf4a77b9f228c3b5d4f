@@ -1,0 +1,111 @@
+package.json
+  s_4d09a6ce8e52f6::t_6641aee0b488eb 19
+npm/rules/doc-files/docgen-files-batch/tests/docgen-files-stamp.test.mjs
+  s_4d09a6ce8e52f6::t_e9e48df504ab42 1-75
+npm/.changes/260708-0820.md
+  s_4d09a6ce8e52f6::t_93480e0a0a0d79 1-5
+npm/rules/doc-files/docgen-files-batch/main.mjs
+  s_4d09a6ce8e52f6::t_5be7e95ec323f8 479-480
+  s_4d09a6ce8e52f6::t_ccd44af78c0940 496
+  s_4d09a6ce8e52f6::t_d191768e28f61c 493,495,497
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 115-125,224,229-231,235,252-253,269-288,367-375,395-399,402,432,435-439,462
+npm/rules/doc-files/docgen-crc/tests/docgen-crc.test.mjs
+  s_4d09a6ce8e52f6::t_a6b75a996411d5 46
+  s_4d09a6ce8e52f6::t_37b87a618e85cb 60-68
+.cspell.json
+  s_4d09a6ce8e52f6::t_6641aee0b488eb 189
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 128,214
+npm/rules/doc-files/docgen-crc/main.mjs
+  s_4d09a6ce8e52f6::t_894d89d05f60e5 26
+  s_4d09a6ce8e52f6::t_2cf8c273463331 52
+npm/rules/doc-files/docgen-crc/docs/main.md
+  s_4d09a6ce8e52f6::t_a91883ece2ab6c 6
+npm/rules/doc-files/docgen-gen/docs/main.md
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 6,26,28,32-36
+npm/rules/doc-files/docgen-scan/main.mjs
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 7,65-70,73,77-82
+npm/scripts/lib/lint-surface/docs/ladder.md
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 6,20
+npm/rules/changelog/consistency/docs/main.md
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 6,25-35
+npm/scripts/lib/lint-surface/run-fix.mjs
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 209,273-275
+npm/scripts/lib/lint-surface/snapshot.mjs
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 13-19,30-32,34,46-47,54-56,59,69,74-75,77-79
+npm/package.json
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 3
+npm/rules/changelog/consistency/tests/check.test.mjs
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 847-903,1086-1112
+npm/rules/doc-files/docgen-scan/docs/main.md
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 6,21,33
+npm/rules/changelog/consistency/main.mjs
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 90-97,99,103-105,109-110,118,122-129,131,133-135,137-140,142-147,211-212,214,218
+npm/rules/doc-files/docgen-scan/tests/docgen-scan.test.mjs
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 79-110
+npm/scripts/lib/lint-surface/tests/run-fix.test.mjs
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 631-728
+npm/rules/doc-files/check/fix-worker.mjs
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 6-10,15-17,26,34,37-39,43-44
+npm/rules/doc-files/docgen-gen/main.mjs
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 13,239-247,425-447,507,510
+docs/adr/260607-2218-n-cursor-graph-дизайн-вади-та-рішення.md
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 357-364
+npm/scripts/lib/lint-surface/types.mjs
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 103-109
+npm/rules/doc-files/check/docs/fix-worker.md
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 6,14,19-22,24,28
+npm/rules/doc-files/docgen-judge/main.mjs
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 34-67
+npm/scripts/lib/lint-surface/docs/types.md
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 6,20
+npm/rules/doc-files/docgen-files-batch/docs/main.md
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 20,22-24,32-33
+  s_4d09a6ce8e52f6::t_7a31e3338104e9 6
+npm/rules/doc-files/docgen-judge/tests/docgen-judge.test.mjs
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 3,45-72
+  s_4d09a6ce8e52f6::t_e0d886e5610f60 73
+npm/rules/doc-files/docgen-judge/docs/main.md
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 6,12,39
+npm/scripts/lib/lint-surface/docs/run-fix.md
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 6,21
+docs/adr/260607-0543-шрифти-zed-для-редактора-терміналу-та-preview.md
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 65-71
+npm/scripts/lib/lint-surface/tests/snapshot.test.mjs
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 1-104
+npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 94-111
+npm/CHANGELOG.md
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 3-9
+npm/rules/doc-files/docgen-files-batch/tests/generate-dir-index.test.mjs
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 1-138
+npm/scripts/lib/lint-surface/docs/snapshot.md
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 6,13,19-22
+docs/adr/260606-2204-каскадний-fallback-моделей-resolvemodel.md
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 48-53
+npm/scripts/lib/lint-surface/ladder.mjs
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 11-19
+docs/adr/260605-1045-pi-ollama-провайдер-vs-прямий-api-для-docgen-tier1.md
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 62-75
+npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 42,142-197
+docs/adr/260606-2156-реформа-flow-під-архітектуру-думка-md.md
+  s_4d09a6ce8e52f6::t_b1072198ddcb8d 85-100
+.claude/settings.local.json
+  s_4d09a6ce8e52f6::t_85364234be4fe5 35-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1c538226d6f4749651ddcdf4a77b9f228c3b5d4f",
+  "prompts": {},
+  "sessions": {
+    "s_4d09a6ce8e52f6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dfd4fa5e-3828-44a1-ad37-bd6483dd1762",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
