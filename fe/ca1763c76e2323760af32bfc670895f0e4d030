@@ -1,0 +1,29 @@
+.claude/settings.local.json
+  s_7077186e4294df::t_0240c85f0c332e 35-36
+docs/adr/260605-1045-pi-ollama-провайдер-vs-прямий-api-для-docgen-tier1.md
+  s_7077186e4294df::t_a72c1f32fd351d 62-75
+docs/adr/260606-2156-реформа-flow-під-архітектуру-думка-md.md
+  s_7077186e4294df::t_c41886f9227f6e 85-100
+docs/adr/260606-2204-каскадний-fallback-моделей-resolvemodel.md
+  s_7077186e4294df::t_d4939af4db8447 48-53
+docs/adr/260607-0543-шрифти-zed-для-редактора-терміналу-та-preview.md
+  s_7077186e4294df::t_44d1c717a7c18c 65-71
+docs/adr/260607-2218-n-cursor-graph-дизайн-вади-та-рішення.md
+  s_7077186e4294df::t_70445ac7eb4e10 357-364
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "feca1763c76e2323760af32bfc670895f0e4d030",
+  "prompts": {},
+  "sessions": {
+    "s_7077186e4294df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b608ee0e-997d-4727-882b-933696e35b81",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
