@@ -4,6 +4,7 @@ title: npm/rules/tauri/release
 resource: npm/rules/tauri/release/
 ---
 
-| Файл                | Тип       |
-| ------------------- | --------- |
-| [main.mjs](main.md) | JS Module |
+| Файл                              | Тип       |
+| --------------------------------- | --------- |
+| [fix-release.mjs](fix-release.md) | JS Module |
+| [main.mjs](main.md)               | JS Module |

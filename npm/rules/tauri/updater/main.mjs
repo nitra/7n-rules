@@ -8,12 +8,14 @@ import { globby } from 'globby'
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 
-const MIN_TAURI_COMPONENTS_VERSION = [0, 8, 0]
+export const MIN_TAURI_COMPONENTS_VERSION = [0, 8, 0]
 const CARGO_TABLE_HEADER_RE = /^\[(.+)\]\s*$/u
 const CARGO_DEP_KEY_RE = /^([A-Za-z0-9_-]+)\s*=/u
 const SEMVER_FLOOR_RE = /(\d+)(?:\.(\d+))?(?:\.(\d+))?/u
-const CARGO_TARGET_SECTION_RE = /target\./u
-const CARGO_MOBILE_SECTION_RE = /android|ios/u
+export const CARGO_TARGET_SECTION_RE = /target\./u
+export const CARGO_MOBILE_SECTION_RE = /android|ios/u
+export const CARGO_DESKTOP_TARGET_HEADER =
+  'target.\'cfg(not(any(target_os = "android", target_os = "ios")))\'.dependencies'
 
 /**
  * Звітує pass/fail через reporter за булевим предикатом — спільна форма для всіх canon-перевірок нижче.
@@ -38,7 +40,7 @@ function reportCheck(ok, passMessage, failMessage, reason, file, reporter) {
  * @param {string} cwd корінь репо
  * @returns {Promise<string[]>} відносні шляхи workspace-каталогів
  */
-async function findTauriAppWorkspaces(cwd) {
+export async function findTauriAppWorkspaces(cwd) {
   const roots = await getMonorepoPackageRootDirs(cwd)
   const found = []
   for (const ws of roots) {
@@ -67,7 +69,7 @@ function parseRangeFloor(range) {
  * @param {number[]} min мінімальна версія [major, minor, patch]
  * @returns {boolean} true, якщо range задовольняє мінімум
  */
-function meetsMinVersion(range, min) {
+export function meetsMinVersion(range, min) {
   const v = parseRangeFloor(range)
   for (const [i, minPart] of min.entries()) {
     if (v[i] !== minPart) return v[i] > minPart
@@ -81,7 +83,7 @@ function meetsMinVersion(range, min) {
  * @param {number} major очікувана мажорна версія
  * @returns {boolean} true, якщо збігається
  */
-function hasMajor(range, major) {
+export function hasMajor(range, major) {
   return parseRangeFloor(range)[0] === major
 }
 
@@ -133,7 +135,7 @@ async function checkPackageJson(ws, cwd, reporter) {
  * @param {string} content вміст Cargo.toml
  * @returns {Map<string, string[]>} секція → список ключів-залежностей у ній
  */
-function groupCargoDepsBySection(content) {
+export function groupCargoDepsBySection(content) {
   const bySection = new Map()
   let current = null
   for (const rawLine of content.split('\n')) {
@@ -156,7 +158,7 @@ function groupCargoDepsBySection(content) {
  * @param {string} depName ім'я залежності
  * @returns {string | null} назва секції або null, якщо не знайдено
  */
-function findSectionDeclaring(bySection, depName) {
+export function findSectionDeclaring(bySection, depName) {
   for (const [section, keys] of bySection) {
     if (keys.includes(depName)) return section
   }
