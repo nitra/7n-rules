@@ -7,8 +7,8 @@ import { flattenWorkflowSteps, getStepRun, getStepUses, parseWorkflowYaml } from
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 
-const CHANGELOG_RELEASE_WORKFLOW = '.github/workflows/changelog-release.yml'
-const RELEASE_WORKFLOW = '.github/workflows/release.yml'
+export const CHANGELOG_RELEASE_WORKFLOW = '.github/workflows/changelog-release.yml'
+export const RELEASE_WORKFLOW = '.github/workflows/release.yml'
 const VERSION_WORD_RE = /version/iu
 
 /**
@@ -16,7 +16,7 @@ const VERSION_WORD_RE = /version/iu
  * @param {string} cwd корінь репо
  * @returns {Promise<{ws: string, tauriConfPath: string}[]>} знайдені застосунки
  */
-async function findTauriAppDirs(cwd) {
+export async function findTauriAppDirs(cwd) {
   const roots = await getMonorepoPackageRootDirs(cwd)
   const found = []
   for (const ws of roots) {
@@ -34,7 +34,7 @@ async function findTauriAppDirs(cwd) {
  * @param {Record<string, unknown> | null} root корінь workflow
  * @returns {boolean} true, якщо ключ присутній (значення може бути `{}`)
  */
-function hasWorkflowDispatch(root) {
+export function hasWorkflowDispatch(root) {
   const on = root?.on
   return Boolean(on && typeof on === 'object' && 'workflow_dispatch' in on)
 }
