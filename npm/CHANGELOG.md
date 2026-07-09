@@ -1,5 +1,15 @@
 # Changelog
 
+## [14.14.0] - 2026-07-09
+
+### Added
+
+- tauri: T0-autofix для release/updater concern-ів — деталізований append-only канон у package.json, Cargo.toml, capabilities/*.json, tauri.conf.json, changelog-release.yml, release.yml і #[cfg(desktop)]-guard у lib.rs
+
+### Fixed
+
+- прибрати накопичений js/eslint-борг, що блокував Lint JS CI по всьому репо (падав на `main` кілька комітів поспіль, не по діапазону конкретного PR): early-exit у changelog/presence, застарілий glob-виняток hasura/js/tests (правило переїхало в hasura/internal_urls, ловило http:// у внутрішніх cluster-URL як insecure), cognitive-complexity у rust/toolchain_cache і scripts/utils/with-lock.mjs (обидва >20 — розбито на менші функції), negated-array-predicate у tauri/core_test_isolation, дубльований код rego/opa_check↔regal і python/mypy↔ruff (винесено в npm/rules/{rego,python}/lib/), knip-хибний "unused" для навмисно непрямої залежності ajv (пінінг для стабільного bun-hoisting v8r/ajv-draft-04, fb0710c9)
+
 ## [14.13.0] - 2026-07-09
 
 ### Added

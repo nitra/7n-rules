@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.2] - 2026-07-09
+
+### Fixed
+
+- виправити невалідний JS-синтаксис у прикладі README (парсинг падав у CI eslint)
+- усунути дублікат коду (jscpd) фабрик pi-сесії між one-shot/agent-fix/agent-skill — спільний streamFn-mixin хвіст винесено в internal/apply-session-mixins.mjs
+
 ## [2.0.1] - 2026-07-08
 
 ### Fixed
