@@ -2,7 +2,7 @@
 description: Tauri
 globs: "**/src-tauri/**,**/tauri.conf.json"
 alwaysApply: false
-version: '1.6'
+version: '1.7'
 ---
 
-Правило встановлює канонічні вимоги для Tauri-проєктів: виявлення маркерів у монорепо, VS Code-розширення, налаштування mutation-testing для platform bridge, компіляційну ізоляцію agent/LLM-логіки від app-shell та реалізацію Tool Surface поверх Tauri+Rust.
+Правило встановлює канонічні вимоги для Tauri-проєктів: виявлення маркерів у монорепо, VS Code-розширення, налаштування mutation-testing для platform bridge, компіляційну ізоляцію agent/LLM-логіки від app-shell, реалізацію Tool Surface поверх Tauri+Rust, реліз-flow через change-файли (тег → DMG/updater-артефакти) та автооновлення через спільний `useUpdater()` з `@7n/tauri-components`.

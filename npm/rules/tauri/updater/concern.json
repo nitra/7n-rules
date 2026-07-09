@@ -1,0 +1,14 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "fixability": "structural",
+  "lint": {
+    "scope": "full",
+    "glob": [
+      "**/package.json",
+      "**/src-tauri/Cargo.toml",
+      "**/src-tauri/src/lib.rs",
+      "**/src-tauri/capabilities/*.json",
+      "**/src/**/*.vue"
+    ]
+  }
+}

@@ -15,6 +15,7 @@ resource: npm/scripts/
 | [post-tool-use-check.mjs](post-tool-use-check.md)                                   | JS Module |
 | [rename-yaml-extensions.mjs](rename-yaml-extensions.md)                             | JS Module |
 | [skills-cli.mjs](skills-cli.md)                                                     | JS Module |
+| [smoke-check-imports.mjs](smoke-check-imports.md)                                   | JS Module |
 | [sync-claude-config.mjs](sync-claude-config.md)                                     | JS Module |
 | [sync-setup-bun-deps-action.mjs](sync-setup-bun-deps-action.md)                     | JS Module |
 | [update-blue-oak.mjs](update-blue-oak.md)                                           | JS Module |

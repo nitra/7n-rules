@@ -1,0 +1,76 @@
+## Автооновлення: `useUpdater()` з `@7n/tauri-components`
+
+Кожен Tauri-застосунок вмикає автооновлення через **спільний** Vue-хук `useUpdater()` з `@7n/tauri-components/vue` — локальні копії цього хука (власна реалізація перевірки/встановлення оновлень) **заборонені**. Джерело канону — `@7n/tauri-components` `npm/src/vue/use-updater.js` і його виклики у чотирьох production Tauri-репо.
+
+### Що робить `useUpdater()`
+
+- **No-op у dev-збірці** (`import.meta.env.DEV`): версія в `tauri.conf.json` — та, що востаннє проставив CI-реліз, а не те, що реально запущено локально, тому dev-збірка завжди вважала б себе застарілою. Це поведінка хука, не місце для локальних обходів.
+- Перша перевірка — через 3 секунди після монтування (`onMounted`), далі — щогодини (`setInterval`).
+- Якщо знайдено оновлення — показує діалог, після згоди завантажує й встановлює, тоді пропонує `relaunch()` (з `@tauri-apps/plugin-process`).
+- Помилки `check()` (мережа, відсутній permission) лише йдуть у `console.error` — без діалогу, щоб не турбувати користувача на кожній мережевій помилці.
+
+### Вимоги до застосунку
+
+Кореневий Vue-компонент (`App.vue`) імпортує й викликає хук без аргументів:
+
+```vue title="src/App.vue"
+<script setup>
+import { useUpdater } from '@7n/tauri-components/vue'
+
+useUpdater()
+</script>
+```
+
+`package.json`:
+
+```json title="package.json"
+{
+  "dependencies": {
+    "@7n/tauri-components": "^0.8.0",
+    "@tauri-apps/plugin-updater": "^2",
+    "@tauri-apps/plugin-process": "^2"
+  }
+}
+```
+
+`src-tauri/Cargo.toml` — `tauri-plugin-updater` реєструється лише для desktop-таргетів (мобільний плагін не існує), `tauri-plugin-process` — безумовно:
+
+```toml title="src-tauri/Cargo.toml"
+[dependencies]
+tauri-plugin-process = "2.3.1"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+```
+
+`src-tauri/src/lib.rs` — реєстрація плагінів дзеркалить ту саму platform-межу: `tauri-plugin-updater` під `#[cfg(desktop)]`, `tauri-plugin-process` — без cfg-guard (потрібен на будь-якій платформі для `relaunch()`):
+
+```rust title="src-tauri/src/lib.rs"
+#[cfg(desktop)]
+let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+
+let builder = builder.plugin(tauri_plugin_process::init());
+```
+
+### Capability: без `updater:default` — тихий фейл
+
+`capabilities/*.json` має надавати `updater:default` і `process:allow-restart`. Обидва permission можна класти прямо в `default.json` (як у застосунках без мобільних таргетів), але якщо в проєкті є мобільні capability-файли — `updater:default` винось в **окремий** capability, обмежений `platforms`, щоб мобільна збірка не тягла desktop-only permission:
+
+```json title="src-tauri/capabilities/updater.json"
+{
+  "identifier": "updater",
+  "windows": ["main"],
+  "platforms": ["macOS", "windows", "linux"],
+  "permissions": ["updater:default"]
+}
+```
+
+```json title="src-tauri/capabilities/default.json"
+{
+  "identifier": "default",
+  "windows": ["main"],
+  "permissions": ["core:default", "process:allow-restart"]
+}
+```
+
+**Без `updater:default` `check()` падає мовчазним permission-denied** — жодного діалогу, жодної помітної помилки користувачу, лише рядок у `console.error`. Це найнебезпечніший режим відмови автооновлення: застосунок виглядає робочим, але жоден користувач ніколи не отримає наступний реліз. Перевіряй `capabilities/*.json` явно після кожної зміни.
