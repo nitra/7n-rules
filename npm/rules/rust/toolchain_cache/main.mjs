@@ -60,6 +60,48 @@ function dashColFor(usesCol) {
  */
 
 /**
+ * Сканує job від рядка ОДРАЗУ ПІСЛЯ toolchain-кроку до dedent-у: шукає перший
+ * `Swatinem/rust-cache@…` крок і чи job також викликає `tauri-apps/tauri-action`.
+ * @param {string[]} lines усі рядки файла
+ * @param {number} fromLine рядок, з якого починати сканування (i + 1)
+ * @param {number} dashCol колонка dash-а step-list-а job-а (межа dedent-у)
+ * @returns {{hasCache: boolean, cacheLine: number, jobHasTauriAction: boolean}} результат сканування job-а
+ */
+function scanJobForCache(lines, fromLine, dashCol) {
+  let hasCache = false
+  let cacheLine = -1
+  let jobHasTauriAction = false
+  for (let j = fromLine; j < lines.length; j++) {
+    const line = lines[j]
+    if (line.trim() === '') continue
+    if (indentOf(line) < dashCol) break // dedent → вийшли зі step-list-а цього job-а
+    if (!hasCache && CACHE_RE.test(line)) {
+      hasCache = true
+      cacheLine = j
+    }
+    if (TAURI_ACTION_RE.test(line)) jobHasTauriAction = true
+  }
+  return { hasCache, cacheLine, jobHasTauriAction }
+}
+
+/**
+ * Чи кеш-крок (`cacheLine`) уже має ключ `with.workspaces` у своєму блоці (до dedent-у).
+ * @param {string[]} lines усі рядки файла
+ * @param {number} cacheLine рядок кеш-кроку
+ * @param {number} dashCol колонка dash-а step-list-а job-а (межа dedent-у)
+ * @returns {boolean} true — ключ `workspaces` уже є
+ */
+function cacheStepHasWorkspaces(lines, cacheLine, dashCol) {
+  for (let j = cacheLine + 1; j < lines.length; j++) {
+    const line = lines[j]
+    if (line.trim() === '') continue
+    if (indentOf(line) < dashCol) break
+    if (WORKSPACES_KEY_RE.test(line)) return true
+  }
+  return false
+}
+
+/**
  * Сканує вміст workflow-файла й повертає по одному запису на кожен
  * `dtolnay/rust-toolchain@…` крок, з інформацією про cache-крок і tauri-action
  * у тому самому job-і (обмежено indentation-dedent-ом).
@@ -74,31 +116,8 @@ export function scanToolchainSteps(content) {
     const usesCol = lines[i].indexOf('uses:')
     if (usesCol === -1 || !TOOLCHAIN_RE.test(lines[i])) continue
     const dashCol = dashColFor(usesCol)
-    let hasCache = false
-    let cacheLine = -1
-    let cacheHasWorkspaces = false
-    let jobHasTauriAction = false
-    for (let j = i + 1; j < lines.length; j++) {
-      const line = lines[j]
-      if (line.trim() === '') continue
-      if (indentOf(line) < dashCol) break // dedent → вийшли зі step-list-а цього job-а
-      if (!hasCache && CACHE_RE.test(line)) {
-        hasCache = true
-        cacheLine = j
-      }
-      if (TAURI_ACTION_RE.test(line)) jobHasTauriAction = true
-    }
-    if (hasCache) {
-      for (let j = cacheLine + 1; j < lines.length; j++) {
-        const line = lines[j]
-        if (line.trim() === '') continue
-        if (indentOf(line) < dashCol) break
-        if (WORKSPACES_KEY_RE.test(line)) {
-          cacheHasWorkspaces = true
-          break
-        }
-      }
-    }
+    const { hasCache, cacheLine, jobHasTauriAction } = scanJobForCache(lines, i + 1, dashCol)
+    const cacheHasWorkspaces = hasCache && cacheStepHasWorkspaces(lines, cacheLine, dashCol)
     out.push({ line: i, dashCol, hasCache, cacheLine, cacheHasWorkspaces, jobHasTauriAction })
   }
   return out

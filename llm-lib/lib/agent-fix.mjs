@@ -31,9 +31,7 @@ import { createWriteGuard, gitRoot } from './write-guard.mjs'
 import { failOnMemoryGuard } from './internal/memory-guard.mjs'
 import { writeTrace } from './trace.mjs'
 import { withTimeout } from './with-timeout.mjs'
-import { applyMaxTokens } from './internal/max-tokens.mjs'
-import { applyChainHeaders } from './internal/chain-headers.mjs'
-import { applyCompression } from './internal/apply-compression.mjs'
+import { applySessionMixins } from './internal/apply-session-mixins.mjs'
 import { captureBody } from './body-capture.mjs'
 import { promptHash } from './chain.mjs'
 
@@ -162,9 +160,7 @@ async function defaultCreateSession({ registry, model, thinkingLevel, cwd, facto
     sessionManager: SessionManager.inMemory(),
     resourceLoader: loader
   })
-  applyChainHeaders(session, chain)
-  applyCompression(session)
-  return applyMaxTokens(session)
+  return applySessionMixins(session, chain)
 }
 
 /**

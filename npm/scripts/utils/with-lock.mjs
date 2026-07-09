@@ -54,6 +54,44 @@ export function shouldDedup(result, fingerprint, ttl) {
 }
 
 /**
+ * Один крок узяття лока: пробує `mkdirSync`. При `EEXIST` перевіряє, чи власник
+ * ще живий і чи не протермінований TTL (stale) — якщо так, очищає лок і просить
+ * повторити спробу негайно; інакше повертає owner для wait-хуків виклику.
+ * @param {string} key ключ локу (для console.error-повідомлень).
+ * @param {string} lockDir абсолютний шлях до lock-директорії.
+ * @param {string} ownerFile шлях до owner.json усередині lockDir.
+ * @param {string|null} fingerprint поточний fingerprint робочого дерева (пишеться в owner.json).
+ * @param {number} staleThreshold поріг (мс), понад який лок вважається застарілим незалежно від PID.
+ * @returns {{status:'acquired'}|{status:'retry'}|{status:'busy', owner:object}} результат однієї спроби
+ */
+function tryAcquireOnce(key, lockDir, ownerFile, fingerprint, staleThreshold) {
+  try {
+    fs.mkdirSync(lockDir)
+    fs.writeFileSync(
+      ownerFile,
+      // cwd — для UI черги (lint-lock.mjs показує, звідки запущений власник лока)
+      JSON.stringify({ pid: process.pid, host: os.hostname(), startedAt: Date.now(), fingerprint, cwd: process.cwd() })
+    )
+    return { status: 'acquired' }
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error
+  }
+  let owner
+  try {
+    owner = JSON.parse(fs.readFileSync(ownerFile, 'utf8'))
+  } catch {
+    fs.rmSync(lockDir, { recursive: true, force: true })
+    return { status: 'retry' }
+  }
+  const stale =
+    Date.now() - owner.startedAt > staleThreshold || (os.hostname() === owner.host && !isPidAlive(owner.pid))
+  if (!stale) return { status: 'busy', owner }
+  console.error(`🧹 ${key}: знайдено застарілий лок — очищаю`)
+  fs.rmSync(lockDir, { recursive: true, force: true })
+  return { status: 'retry' }
+}
+
+/**
  * Серіалізує важку команду через атомарний lock і dedup за fingerprint.
  *
  * Хуки очікування (усі опційні; кастомний UI черги — див. `lint-lock.mjs`):
@@ -96,48 +134,22 @@ export async function withLock(key, runFn, opts = {}) {
       console.error(`⚠️ ${key}: чекав ${waitTimeout / 60_000} хв — запускаю без локу`)
       return await runFn()
     }
-    try {
-      fs.mkdirSync(lockDir)
-      fs.writeFileSync(
-        ownerFile,
-        // cwd — для UI черги (lint-lock.mjs показує, звідки запущений власник лока)
-        JSON.stringify({
-          pid: process.pid,
-          host: os.hostname(),
-          startedAt: Date.now(),
-          fingerprint,
-          cwd: process.cwd()
-        })
-      )
+    const attempt = tryAcquireOnce(key, lockDir, ownerFile, fingerprint, staleThreshold)
+    if (attempt.status === 'acquired') {
       endWait()
       break
-    } catch (error) {
-      if (error.code !== 'EEXIST') throw error
-      let owner
-      try {
-        owner = JSON.parse(fs.readFileSync(ownerFile, 'utf8'))
-      } catch {
-        fs.rmSync(lockDir, { recursive: true, force: true })
-        continue
-      }
-      const stale =
-        Date.now() - owner.startedAt > staleThreshold || (os.hostname() === owner.host && !isPidAlive(owner.pid))
-      if (stale) {
-        console.error(`🧹 ${key}: знайдено застарілий лок — очищаю`)
-        fs.rmSync(lockDir, { recursive: true, force: true })
-        continue
-      }
-      if (!waiting) {
-        waiting = true
-        opts.onWaitStart?.(owner)
-      }
-      if (opts.onWaitTick) {
-        opts.onWaitTick(owner)
-      } else {
-        console.error(`⏳ ${key}: чекаю, лок тримає pid ${owner.pid}…`)
-      }
-      await sleep(pollInterval)
     }
+    if (attempt.status === 'retry') continue
+    if (!waiting) {
+      waiting = true
+      opts.onWaitStart?.(attempt.owner)
+    }
+    if (opts.onWaitTick) {
+      opts.onWaitTick(attempt.owner)
+    } else {
+      console.error(`⏳ ${key}: чекаю, лок тримає pid ${attempt.owner.pid}…`)
+    }
+    await sleep(pollInterval)
   }
 
   console.error(`🔒 ${key}: лок взято`)

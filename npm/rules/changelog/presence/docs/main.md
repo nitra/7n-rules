@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/changelog/presence/main.mjs
 docgen:
-  crc: 3807ce1b
+  crc: 31b8d9fe
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 90
   issues: internal-name:readChangeFiles,judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

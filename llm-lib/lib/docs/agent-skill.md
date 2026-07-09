@@ -3,7 +3,7 @@ type: JS Module
 title: agent-skill.mjs
 resource: llm-lib/lib/agent-skill.mjs
 docgen:
-  crc: 98ff1d64
+  crc: 196f6fcf
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 

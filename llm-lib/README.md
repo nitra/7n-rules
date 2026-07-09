@@ -63,14 +63,22 @@ myllm-проксі, тепер живе в клієнтському mixin-сте
 local→cloud і T0-дистиляції:
 
 ```js
+import { runOneShot } from '@7n/llm-lib/one-shot'
 import { startChain } from '@7n/llm-lib/chain'
 
+const cwd = process.cwd()
 const chain = startChain({ kind: 'fix-concern', unit: 'rule/concern', cwd })
+let outcome = 'fail'
 try {
-  await runOneShot({ ..., chain })      // кожен виклик = крок ланцюжка
-  await runAgentFix(rule, v, cwd, { chain })
+  const { content } = await runOneShot({
+    messages: [{ role: 'user', content: 'запит' }],
+    modelTier: 'min',
+    caller: 'my-tool:fix',
+    chain // кожен виклик = крок ланцюжка
+  })
+  outcome = content ? 'success' : 'fail'
 } finally {
-  chain.end({ outcome: ok ? 'success' : 'fail', extra: { ... } })
+  chain.end({ outcome })
 }
 ```
 

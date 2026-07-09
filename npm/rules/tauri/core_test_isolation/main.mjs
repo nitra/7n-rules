@@ -21,7 +21,8 @@ export const CORE_CRATE_DEPENDS_ON_TAURI = 'core-crate-depends-on-tauri'
 export const MISSING_FAKE_LLM_PROVIDER = 'missing-fake-llm-provider'
 
 /** Евристичний allowlist назв LLM SDK-крейтів (без версій/scope). */
-const LLM_DEP_RE = /^(async-openai|openai(-api)?|anthropic|claude|genai|llm(-chain)?|ollama-rs|rig-core|langchain|mistralai)/i
+const LLM_DEP_RE =
+  /^(async-openai|openai(-api)?|anthropic|claude|genai|llm(-chain)?|ollama-rs|rig-core|langchain|mistralai)/i
 const TAURI_DEP_RE = /^tauri(-|$)/i
 const FAKE_PROVIDER_RE = /\b(Fake|Mock|Stub)\w*(Llm|Provider|Client)\b/
 
@@ -127,7 +128,7 @@ async function checkOneSrcTauri(srcTauriDir, cwd, reporter) {
     const memberCargoPath = join(memberDir, 'Cargo.toml')
     const memberParsed = parseToml(await readFile(memberCargoPath, 'utf8'))
     const memberDeps = dependencyNames(memberParsed)
-    if (!memberDeps.some(d => LLM_DEP_RE.test(d))) continue
+    if (memberDeps.every(d => !LLM_DEP_RE.test(d))) continue
 
     const relMemberCargo = relative(cwd, memberCargoPath)
     if (memberDeps.some(d => TAURI_DEP_RE.test(d))) {

@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/rego/opa_check/main.mjs
 docgen:
-  crc: 45245f8e
+  crc: e2f54bd8
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.96
   judgeModel: openai-codex/gpt-5.4-mini

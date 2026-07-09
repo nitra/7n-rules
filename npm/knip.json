@@ -11,7 +11,7 @@
   ],
   "project": ["**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}"],
   "ignore": ["**/__fixtures__/**"],
-  "ignoreDependencies": ["@nitra/cspell-dict", "/@cspell\\/dict-.+/", "graphql"],
+  "ignoreDependencies": ["@nitra/cspell-dict", "/@cspell\\/dict-.+/", "graphql", "ajv"],
   "ignoreBinaries": [
     "actionlint",
     "cspell",

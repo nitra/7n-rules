@@ -3,7 +3,7 @@ type: JS Module
 title: with-lock.mjs
 resource: npm/scripts/utils/with-lock.mjs
 docgen:
-  crc: a3240637
+  crc: 45df57fc
   score: 95
 ---
 

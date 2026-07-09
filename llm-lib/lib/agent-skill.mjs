@@ -22,9 +22,7 @@ import { isLocalModel, resolveModel } from './model-tiers.mjs'
 import { getRegistry, resolveModelSpec } from './internal/registry.mjs'
 import { failOnMemoryGuard } from './internal/memory-guard.mjs'
 import { writeTrace } from './trace.mjs'
-import { applyMaxTokens } from './internal/max-tokens.mjs'
-import { applyChainHeaders } from './internal/chain-headers.mjs'
-import { applyCompression } from './internal/apply-compression.mjs'
+import { applySessionMixins } from './internal/apply-session-mixins.mjs'
 import { captureBody } from './body-capture.mjs'
 import { promptHash } from './chain.mjs'
 import { withTimeout } from './with-timeout.mjs'
@@ -58,9 +56,7 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel, maxTo
     cwd: cwd ?? process.cwd(),
     sessionManager: SessionManager.inMemory()
   })
-  applyChainHeaders(session, chain)
-  applyCompression(session)
-  return maxTokens === undefined ? applyMaxTokens(session) : applyMaxTokens(session, maxTokens)
+  return applySessionMixins(session, chain, maxTokens)
 }
 
 /**

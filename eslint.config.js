@@ -75,12 +75,15 @@ export default [
       'sonarjs/no-hardcoded-ip': 'off'
     }
   },
-  // Hasura: кластерний endpoint мусить бути http:// (hasura.mdc визначає схему).
+  // Hasura: кластерний endpoint мусить бути http:// (internal_urls.mdc визначає схему;
+  // rule перенесено з колишнього hasura/js/ у hasura/internal_urls/ — glob звірено з
+  // поточною структурою).
   {
-    files: ['npm/rules/hasura/js/tests/**/*.mjs'],
+    files: ['npm/rules/hasura/internal_urls/**/*.mjs'],
     rules: {
       '@microsoft/sdl/no-insecure-url': 'off',
-      'sonarjs/no-clear-text-protocols': 'off'
+      'sonarjs/no-clear-text-protocols': 'off',
+      'unicorn/prefer-https': 'off'
     }
   },
   // Semver-рядки в npm version range — короткі (< 100 символів), не ReDoS-загроза.

@@ -6,24 +6,9 @@
  * діагнози й на підмножині переданих файлів. Немає fix capability (mypy — detect-only).
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
-import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
-
-/** Розширення `.py` — фільтр delta-списку файлів у `lint(ctx)`. */
-const PY_EXT_RE = /\.py$/u
-
-/**
- * @param {string} uv шлях до бінарника uv.
- * @param {string} tool ім'я інструменту в uv-середовищі.
- * @returns {boolean} true якщо інструмент доступний
- */
-function uvToolAvailable(uv, tool) {
-  const r = spawnSync(uv, ['run', '--frozen', tool, '--version'], { stdio: 'ignore', shell: false })
-  return r.status === 0
-}
+import { preparePythonRun } from '../lib/uv-run.mjs'
 
 /**
  * Detector python/mypy (read-only).
@@ -35,17 +20,9 @@ export function lint(ctx) {
   const { fail } = reporter
   const cwd = ctx.cwd
 
-  if (!existsSync(join(cwd, 'pyproject.toml'))) return reporter.result()
-
-  const targets = ctx.files === undefined ? ['.'] : ctx.files.filter(f => PY_EXT_RE.test(f))
-  if (targets.length === 0) return reporter.result()
-
-  const uv = resolveCmd('uv')
-  if (!uv) {
-    fail('lint-python: `uv` не знайдено в PATH (потрібен при наявному pyproject.toml, python.mdc)', 'uv-missing')
-    return reporter.result()
-  }
-  if (!uvToolAvailable(uv, 'mypy')) return reporter.result() // mypy недоступний у uv-середовищі → пропущено
+  const prepared = preparePythonRun(ctx, fail, 'mypy')
+  if (!prepared) return reporter.result()
+  const { uv, targets } = prepared
 
   const r = spawnSync(uv, ['run', '--frozen', 'mypy', ...targets], { cwd, encoding: 'utf8', shell: false })
   if (r.status !== 0) {

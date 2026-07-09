@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/rego/regal/main.mjs
 docgen:
-  crc: 56178311
+  crc: c628819a
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min-retry
   score: 100
   issues: judge:inaccurate:0.96
   judgeModel: openai-codex/gpt-5.4-mini

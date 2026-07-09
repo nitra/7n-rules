@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/rust/toolchain_cache/main.mjs
 docgen:
-  crc: 360e0286
+  crc: bcb01136
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99

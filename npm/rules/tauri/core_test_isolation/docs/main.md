@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/tauri/core_test_isolation/main.mjs
 docgen:
-  crc: 0eea8270
+  crc: 24103e8b
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min-retry
   score: 100
   issues: best-of-2:retry-won,judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

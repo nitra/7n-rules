@@ -56,10 +56,10 @@ function workspaceForFile(relFile, workspaces) {
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { fail } = reporter
-  const cwd = ctx.cwd
 
   if (ctx.files === undefined || ctx.files.length === 0) return reporter.result()
 
+  const cwd = ctx.cwd
   const workspaces = await getMonorepoProjectRootDirs(cwd)
   const subWorkspaces = workspaces.filter(w => w !== '.')
   const isMonorepoRoot = subWorkspaces.length > 0

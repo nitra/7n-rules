@@ -4,16 +4,12 @@ title: llm-lib/lib/internal
 resource: llm-lib/lib/internal/
 ---
 
-# llm-lib/lib/internal
-
-INTERNAL-модулі `@7n/llm-lib` — substrate-coupled (pi) частини, що НЕ входять
-у публічний API пакета (subpath-експортів на них нема).
-
-| Файл                                | Тип       |
-| ----------------------------------- | --------- |
-| [apply-compression.mjs](apply-compression.md) | JS Module |
-| [chain-headers.mjs](chain-headers.md) | JS Module |
-| [compress-context.mjs](compress-context.md) | JS Module |
-| [max-tokens.mjs](max-tokens.md)     | JS Module |
-| [memory-guard.mjs](memory-guard.md) | JS Module |
-| [registry.mjs](registry.md)         | JS Module |
+| Файл                                                | Тип       |
+| --------------------------------------------------- | --------- |
+| [apply-compression.mjs](apply-compression.md)       | JS Module |
+| [apply-session-mixins.mjs](apply-session-mixins.md) | JS Module |
+| [chain-headers.mjs](chain-headers.md)               | JS Module |
+| [compress-context.mjs](compress-context.md)         | JS Module |
+| [max-tokens.mjs](max-tokens.md)                     | JS Module |
+| [memory-guard.mjs](memory-guard.md)                 | JS Module |
+| [registry.mjs](registry.md)                         | JS Module |
