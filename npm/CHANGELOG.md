@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.13.0] - 2026-07-09
+
+### Added
+
+- tauri: регламент випуску версій (changelog-release → app@X/vX → DMG) і автооновлення через @7n/tauri-components useUpdater
+
 ## [14.12.2] - 2026-07-08
 
 ### Fixed
