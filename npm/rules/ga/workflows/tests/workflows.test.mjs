@@ -162,7 +162,7 @@ jobs:
           https://github.com/open-policy-agent/conftest/releases/download/v0.62.0/conftest_0.62.0_Linux_x86_64.tar.gz
           | sudo tar -xz -C /usr/local/bin conftest
       - name: Lint GA
-        run: bunx n-cursor lint ga --read-only
+        run: bunx n-cursor lint ga --no-fix
 `,
     'utf8'
   )

@@ -56,7 +56,7 @@
         "stryker.config.mjs"
       ],
       "project": ["**/*.{js,mjs}"],
-      "ignoreDependencies": ["@anthropic-ai/claude-code", "@anthropic-ai/sdk", "@7n/mt", "github-actionlint", "v8r"]
+      "ignoreDependencies": ["@anthropic-ai/claude-code", "@anthropic-ai/sdk", "@7n/mt", "github-actionlint", "v8r", "ajv"]
     },
     "demo": {
       "ignoreDependencies": ["vite-plugin-vue-layouts-next", "lightningcss"],

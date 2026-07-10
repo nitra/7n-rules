@@ -116,6 +116,6 @@ npx @nitra/cursor lint
 
 ## Примітка
 
-Окремих команд **`check`** / **`fix`** немає — **`npx @nitra/cursor lint`** це unified lint surface: detect + fix-by-default (авто-fix лінтерів/формату і програмних правил пакета **`@nitra/cursor`** в одному проході). **`--no-fix`** (аліас **`--read-only`**) — лише detect, без записів.
+Окремих команд **`check`** / **`fix`** немає — **`npx @nitra/cursor lint`** це unified lint surface: detect + fix-by-default (авто-fix лінтерів/формату і програмних правил пакета **`@nitra/cursor`** в одному проході). **`--no-fix`** — лише detect, без записів.
 
 Для CI або явного повного сканування всього репо незалежно від змін — `npx @nitra/cursor lint --full`. Але в рамках задачі це **зайво**.

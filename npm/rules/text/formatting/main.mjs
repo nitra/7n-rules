@@ -94,7 +94,7 @@ function checkTextConfigsExistence(passFn, failFn, cwd) {
 }
 
 /**
- * Перевіряє CI-workflow текстового стека: крок `n-cursor lint text --read-only` у
+ * Перевіряє CI-workflow текстового стека: крок `n-cursor lint text --no-fix` у
  * `.github/workflows/lint-text.yml` (CI — нуль мутацій). Окремого `lint-text` скрипта в
  * `package.json` немає — лінт через `n-cursor lint text`. Решта package.json-перевірок
  * (Prettier-заборона, `@nitra/cspell-dict`, `@nitra/*` гейт) — у Rego (`text.package_json`, `bun.package_json`).
@@ -107,7 +107,7 @@ async function checkLintTextWorkflow(passFn, failFn, cwd) {
   if (existsSync(lintTextWf)) {
     const wf = await readFile(lintTextWf, 'utf8')
     const root = parseWorkflowYaml(wf)
-    const canonRun = 'n-cursor lint text --read-only'
+    const canonRun = 'n-cursor lint text --no-fix'
     const ok = root ? anyRunStepIncludes(root, canonRun) : wf.includes(canonRun)
     if (ok) {
       passFn(`lint-text.yml викликає ${canonRun}`)

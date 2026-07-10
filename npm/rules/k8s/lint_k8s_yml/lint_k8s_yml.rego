@@ -5,7 +5,7 @@
 # Перевіряємо (drift-safe — усе ведеться з template, без inline-літералів):
 #   - кожен `uses` з template: actions/checkout@v6, setup-bun-deps;
 #   - кожен `run` з template (як substring): install kubeconform, kubescape,
-#     n-cursor lint k8s --read-only.
+#     n-cursor lint k8s --no-fix.
 # Універсальні workflow-перевірки (name, concurrency, branches,
 # persist-credentials) — у `ga.workflow_common`.
 package k8s.lint_k8s_yml

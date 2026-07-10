@@ -30,13 +30,13 @@ function withTmp(fn) {
 
 describe('prefixBunxNCursor', () => {
   test('inline `run: n-cursor …` → `bunx n-cursor …`', () => {
-    const src = ['      - name: lint', '        run: n-cursor lint text --read-only', ''].join('\n')
-    expect(prefixBunxNCursor(src)).toContain('run: bunx n-cursor lint text --read-only')
+    const src = ['      - name: lint', '        run: n-cursor lint text --no-fix', ''].join('\n')
+    expect(prefixBunxNCursor(src)).toContain('run: bunx n-cursor lint text --no-fix')
   })
 
   test('bare-рядок у run-блоці → префіксується', () => {
-    const src = ['        run: |', '          n-cursor lint ga --read-only', ''].join('\n')
-    expect(prefixBunxNCursor(src)).toContain('          bunx n-cursor lint ga --read-only')
+    const src = ['        run: |', '          n-cursor lint ga --no-fix', ''].join('\n')
+    expect(prefixBunxNCursor(src)).toContain('          bunx n-cursor lint ga --no-fix')
   })
 
   test('уже `bunx`/`npx n-cursor` → без змін (null)', () => {

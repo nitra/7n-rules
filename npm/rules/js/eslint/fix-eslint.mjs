@@ -6,8 +6,8 @@
  * Виправляє лише авто-fixable правила; решта лишається детектору на re-check
  * (далі — LLM-ладдер). Запис permanent (поза rollback).
  *
- * Межа CI: цей модуль — частина fix-фази (`lint` без `--read-only`); сам по собі
- * detector-шлях його не вантажить. У CI (`--read-only`) fix не запускається —
+ * Межа CI: цей модуль — частина fix-фази (`lint` без `--no-fix`); сам по собі
+ * detector-шлях його не вантажить. У CI (`--no-fix`) fix не запускається —
  * узгоджено із забороною `oxlint --fix`/`eslint --fix` у CI (js.mdc / lint_js_yml).
  */
 import { spawnSync } from 'node:child_process'

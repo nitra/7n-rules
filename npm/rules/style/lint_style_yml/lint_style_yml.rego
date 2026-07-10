@@ -28,7 +28,7 @@ deny contains msg if {
 
 deny contains msg if {
 	contains(all_run_text, "bunx stylelint")
-	msg := "lint-style.yml: знайдено bunx stylelint — використовуй n-cursor lint style --read-only (style.mdc)"
+	msg := "lint-style.yml: знайдено bunx stylelint — використовуй n-cursor lint style --no-fix (style.mdc)"
 }
 
 step_run_to_text(step) := step.run if is_string(step.run)

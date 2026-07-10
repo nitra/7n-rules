@@ -17,7 +17,7 @@
 - `npx @nitra/cursor check` — deprecated alias для `fix` (виводить попередження).
 - `npx @nitra/cursor rename-yaml-extensions` — перейменування `*.yml`/`*.yaml` у k8s/.github (підтримує `--dry-run`, `--root=…`).
 - `npx @nitra/cursor post-tool-use-fix` — entry point PostToolUse hook Claude Code: читає JSON зі stdin, маршрутизує `tool_input.file_path` у релевантні правила.
-- `npx @nitra/cursor lint` — data-driven оркестратор lint+конформності: `--full` (весь репо, включно з `full`-правилами), `--read-only` (CI, нуль мутацій); без прапорів — per-file дельта vs origin.
+- `npx @nitra/cursor lint` — data-driven оркестратор lint+конформності: `--full` (весь репо, включно з `full`-правилами), `--no-fix` (CI, нуль мутацій); без прапорів — per-file дельта vs origin.
 - `npx @nitra/cursor lint-ci` — те саме у CI-режимі.
 - `npx @nitra/cursor coverage [--fix] [--changed]` — оркестратор покриття та мутаційного тестування.
 - `npx @nitra/cursor release` — реліз-команда.
@@ -461,7 +461,7 @@ try {
 - `'check'` → друкує deprecated-попередження й виконує `runFixCommand(args)`.
 - `'rename-yaml-extensions'` → `runRenameYamlExtensionsCli(args)`; якщо повернений код `!== 0`, `process.exitCode = 1`.
 - `'post-tool-use-fix'` → `runPostToolUseFixCli()` (PostToolUse hook Claude Code, читає stdin); `process.exitCode` = повернений код.
-- `'lint'` → `runLint({ full, readOnly, rules })` (прапори `--full`, `--read-only`; позиційні аргументи — фільтр правил конформності).
+- `'lint'` → `runLint({ full, readOnly, rules })` (прапори `--full`, `--no-fix`; позиційні аргументи — фільтр правил конформності).
 - `'lint-ci'` → `runLint({ ci: true })`.
 - `'coverage'` → динамічний import `../rules/test/coverage/coverage.mjs`, виклик `runCoverageCli({ fix: args.includes('--fix'), changed: args.includes('--changed') })`.
 - `'release'` → динамічний import `../rules/release/release.mjs` → `runReleaseCli(args)`.

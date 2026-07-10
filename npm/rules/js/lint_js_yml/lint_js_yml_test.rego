@@ -6,13 +6,13 @@ import rego.v1
 template_data := {"snippet": {"jobs": {"eslint": {"steps": [
 	{"uses": "actions/checkout@v6", "with": {"persist-credentials": false}},
 	{"uses": "./.github/actions/setup-bun-deps"},
-	{"name": "Eslint", "run": "n-cursor lint js --read-only"},
+	{"name": "Eslint", "run": "n-cursor lint js --no-fix"},
 ]}}}}
 
 canonical_input := {"jobs": {"eslint": {"steps": [
 	{"uses": "actions/checkout@v6", "with": {"persist-credentials": false}},
 	{"uses": "./.github/actions/setup-bun-deps"},
-	{"name": "Eslint", "run": "n-cursor lint js --read-only"},
+	{"name": "Eslint", "run": "n-cursor lint js --no-fix"},
 ]}}}
 
 test_allow_canonical if {
@@ -46,7 +46,7 @@ test_deny_eslint_fix_in_ci if {
 sha_pinned_input := {"jobs": {"eslint": {"steps": [
 	{"uses": "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10", "with": {"persist-credentials": false}},
 	{"uses": "./.github/actions/setup-bun-deps"},
-	{"name": "Eslint", "run": "n-cursor lint js --read-only"},
+	{"name": "Eslint", "run": "n-cursor lint js --no-fix"},
 ]}}}
 
 test_allow_sha_pinned_checkout if {

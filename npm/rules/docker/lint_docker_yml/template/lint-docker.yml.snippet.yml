@@ -38,4 +38,4 @@ jobs:
       - uses: ./.github/actions/setup-bun-deps
 
       - name: Lint Docker
-        run: bunx n-cursor lint docker --read-only
+        run: bunx n-cursor lint docker --no-fix

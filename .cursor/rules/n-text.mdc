@@ -153,7 +153,7 @@ jobs:
           | sh -s -- -b /usr/local/bin
 
       - name: Lint text
-        run: bunx n-cursor lint text --read-only
+        run: bunx n-cursor lint text --no-fix
 ```
 - `package.json`:
 
@@ -299,7 +299,7 @@ Rego-пакет: `text.markdownlint`
 
 `npx @nitra/cursor lint text` повідомляє неформатовані файли (`oxfmt --list-different`). Fix-режим
 (`npx @nitra/cursor lint`) виправляє їх детерміновано через `oxfmt --write` (T0, поза LLM). У CI
-(`--read-only`) неформатовані файли — порушення без мутацій.
+(`--no-fix`) неформатовані файли — порушення без мутацій.
 
 Типи поза формату-доменою (`.md`, `.json`, `.yaml` тощо), де діє інше тулінг, цей концерн не зачіпає.
 

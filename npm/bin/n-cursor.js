@@ -11,9 +11,9 @@
  *   `npx \@nitra/cursor hook --stop`           — Stop hook: per-file lint по всіх змінених файлах (git diff HEAD + untracked).
  *   `npx \@nitra/cursor lint`        — data-driven оркестратор lint+конформності по `rules/<id>/meta.json` (`lint: per-file|full`):
  *                                     за замовчуванням fix-by-default по дельті vs origin (лише `per-file` правила); `--full` =
- *                                     весь репо (`per-file` ∪ `full`); `--read-only` = без мутацій/LLM (CI); позиційні
+ *                                     весь репо (`per-file` ∪ `full`); `--no-fix` = без мутацій/LLM (CI); позиційні
  *                                     (не-флаг) аргументи — фільтр правил конформності (мапить колишній `fix <rule>`).
- *                                     CI = `lint --read-only --full` (весь репо, нуль мутацій/LLM).
+ *                                     CI = `lint --no-fix --full` (весь репо, нуль мутацій/LLM).
  *   `npx \@nitra/cursor skill list`     — скіли пакета без синку в проєкт
  *   `npx \@nitra/cursor skill taze`     — промпт на stdout
  *   `npx \@nitra/cursor skill cursor taze ["task"]` — Cursor CLI (`cursor-agent -p`)
@@ -1506,7 +1506,7 @@ function printLintHelp() {
   --full          Прогін по всьому репозиторію (конформність), не лише дельта.
                   Один --full на машину: паралельні запуски стають у чергу
                   й бачать живий прогрес активного прогону.
-  --no-fix        Лише детекція, без мутацій (аліас: --read-only).
+  --no-fix        Лише детекція, без мутацій.
   --cwd <path>    Робочий каталог замість поточного.
   --verbose       Розширений вивід детекції та виправлення.
   --help, -h      Ця довідка.
@@ -1570,8 +1570,7 @@ try {
         const cwdArg = cwdIdx === -1 ? cwd() : resolve(args[cwdIdx + 1])
         const rules = args.filter((a, i) => !a.startsWith('-') && !(cwdIdx !== -1 && i === cwdIdx + 1))
         const lintOpts = { cwd: cwdArg, full: args.includes('--full'), rules, verbose: args.includes('--verbose') }
-        // --read-only — backward-compat alias на --no-fix (видалиться після міграції викликів).
-        const noFix = args.includes('--no-fix') || args.includes('--read-only')
+        const noFix = args.includes('--no-fix')
         // Глобальна черга full-прогонів (spec 2026-07-03): одночасно виконується один
         // `lint --full` на машину, паралельні --full чекають лока і бачать чергу та
         // живий прогрес активного прогону; не-full запуски йдуть без лока

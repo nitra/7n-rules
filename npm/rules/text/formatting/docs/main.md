@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/text/formatting/main.mjs
 docgen:
-  crc: 835c3f3b
+  crc: 692bcd4d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: best-of-2:retry-won,judge:inaccurate:0.99
