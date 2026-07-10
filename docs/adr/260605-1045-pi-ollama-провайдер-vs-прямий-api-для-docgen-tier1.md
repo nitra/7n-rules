@@ -73,3 +73,15 @@ Chosen option: "pi (ollama-провайдер)", because на однакових
 - Порівняння benchmark: old ollama HTTP orchestrated — `discover-check-rules` `44s / score=100`, `trufflehog` `47s / score=100`; new `pi orchestrated` (`gemma3:4b`) — `71s / score=100`, `61s / score=90`; new `pi one-shot` — `51s / score=75`, `35s / score=65`.
 - Висновок transcript: `pi orchestrated` значно кращий за one-shot за якістю, але повільніший за прямий ollama HTTP через overhead N×`spawnSync(pi)` замість streaming HTTP socket.
 - На момент transcript фінальний вибір між old ollama HTTP і `pi orchestrated` ще очікував підтвердження користувача.
+
+## Update 2026-06-07
+
+- Для 6-тирної моделі додано helper `resolveModel(tier)` у `npm/lib/models.mjs`, щоб споживачі не читали env-константи напряму.
+- Зафіксований каскад:
+  - `resolveModel('min')` → `LOCAL_MIN || LOCAL_AVG || LOCAL_MAX || CLOUD_MIN`
+  - `resolveModel('avg')` → `LOCAL_AVG || LOCAL_MAX || CLOUD_AVG`
+  - `resolveModel('max')` → `LOCAL_MAX || CLOUD_MAX`
+- Споживачі, згадані в transcript: `docgen-gen.mjs`, `llm-worker.mjs`, `coverage-fix.mjs`, `subagent-runner.mjs`, `coverage-classify/index.mjs`.
+- Для docgen Tier 1 прямий streaming HTTP до `localhost:11434/api/chat` замінено на `pi` orchestrated: окремий `pi -p ... --model ... --no-session --mode text --no-tools` виклик на кожну секцію з `sectionMessages()`.
+- Причина вибору pi orchestrated: pi one-shot дав регресію якості, а orchestrated повернув якість до рівня прямого ollama HTTP при provider-neutral транспорті.
+- Негативний наслідок з transcript: pi orchestrated на частині benchmark повільніший за прямий ollama HTTP; також стара реалізація мала проблему з `setTimeout(5min)`, який тримав Node.js event loop живим.

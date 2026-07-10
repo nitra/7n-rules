@@ -46,3 +46,32 @@ Dev pod має монтувати той самий PVC, що й worker-поди
 - Рекомендований dev-доступ у transcript: pod із SSH-сервером і `zed --headless`; приклад тимчасового доступу — `kubectl port-forward pod/n-graph-dev 2222:22`, але цей варіант не підходить для розробників без `kubectl` прав.
 - UI задач не має напряму монтувати `tasks/`; він читає стан через API на базі `graph scan --json`, REST або SSE.
 - Запропоновані назви UI: `n-graph`, `graphwatch`, `taskflow`; остаточний вибір назви transcript не підтвердив.
+
+## Update 2026-06-07
+
+- Teleport обрано як identity-aware SSH gateway для доступу розробників до dev pod-ів без видачі `kubectl`-прав.
+- Відхилено `kubectl port-forward`, because він вимагає прямого `kubectl`-доступу у розробника.
+- Бекенд `nitra/task` контролює доступ через label-и pod-ів: `task: <node-name>`, `owner: <email>`, `project: nitra-cursor`.
+- Teleport Role використовує `{{internal.logins}}` для зіставлення користувача з `owner` label.
+- Zed підключається через стандартний SSH: `~/.ssh/config` + `ProxyCommand tsh proxy ssh --cluster=nitra %h:%p`.
+- Teleport додає short-lived SSH-сертифікати, SSO через GitHub OAuth або Google і audit log.
+- Операційний наслідок: потрібно задеплоїти Teleport Auth Server + Proxy, transcript згадує Helm chart.
+
+## Update 2026-06-07
+
+- Для UX доступу розробників до task-nodes додано on-demand spawning dev pod-ів через бекенд `nitra/task`.
+- Потік: UI-запит → перевірка прав у бекенді → `kubectl apply dev-pod.yaml` з labels `task=<name>`, `owner=<email>` → очікування `pod Ready` → Teleport node-agent реєструється → бекенд повертає connection string.
+- Dev pod монтує `tasks-pvc`, тому розробник бачить актуальні `task.md`, `run_NNN.md`, `outputs_NNN.md`.
+- Lifecycle: grace period після закриття SSH-сесії, auto-delete по timeout або при переході task-node у `resolved`.
+- Назву UI-проєкту зафіксовано як `nitra/task`; transcript згадує розташування `/Users/vitaliytv/www/nitra/task`.
+
+## Update 2026-06-07
+
+- Підтверджено, що dev pod-и створюються on-demand, а не тримаються постійно для кожного task-node.
+- Подія `Developer відкрив сесію` запускає pod spawn; після закриття SSH-сесії pod живе grace period; після timeout або переходу task-node у `resolved` pod видаляється.
+- Для кількох редакторів запропоновано `Open in editor` UX:
+  - VS Code: `vscode://vscode-remote/ssh-remote+<hostname>.teleport.nitra.com/tasks`
+  - Cursor: `cursor://vscode-remote/ssh-remote+<hostname>.teleport.nitra.com/tasks`
+  - Zed: copy hostname, because transcript не фіксує підтримку URI deep link у Zed.
+- Всі редактори використовують однаковий `~/.ssh/config` з `ProxyCommand tsh proxy ssh`.
+- Конфіг SSH з transcript: `Host *.teleport.nitra.com`, `ProxyCommand tsh proxy ssh --cluster=nitra %h:%p`, `User dev`.
