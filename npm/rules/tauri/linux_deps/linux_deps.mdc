@@ -1,0 +1,18 @@
+## Системні залежності Tauri (Linux) у `lint-rust.yml`
+
+Clippy (`cargo clippy --all-targets --all-features`) компілює весь граф залежностей, включно з build-скриптами `-sys`-крейтів (`webkit2gtk-sys`, `gtk-sys`, `libappindicator-sys`). Ці build-скрипти шукають системні `.pc`-файли через pkg-config, тож на `ubuntu-latest` без dev-пакетів крок Clippy падає ще на збірці залежностей. Rustfmt нічого не компілює — вимога стосується саме Clippy.
+
+Правило активується, якщо хоч у одному workspace-пакеті є `src-tauri/Cargo.toml` (Rust-крейт Tauri, який CI компілює). Тоді `.github/workflows/lint-rust.yml` повинен містити крок встановлення системних залежностей:
+
+```yaml
+- name: Системні залежності Tauri (Linux)
+  run: |
+    sudo apt-get update
+    sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+```
+
+Канонічні пакети (Tauri v2): `libwebkit2gtk-4.1-dev` (WebView), `libayatana-appindicator3-dev` (tray), `librsvg2-dev` (іконки). Перевірка — підмножина: додаткові пакети в `apt-get install` дозволені.
+
+Автофікс (T0): якщо apt-кроку немає — вставляє канонічний блок перед `dtolnay/rust-toolchain@…`; якщо крок є, але бракує пакетів — дописує відсутні в наявний `apt-get install`-рядок.
+
+Існування самого `lint-rust.yml` і решту канону файла перевіряє `rust.lint_rust_yml` (rust.mdc) — тут лише Tauri-специфічний apt-крок. Перевірювана логіка — у `main.mjs`/`fix-linux_deps.mjs` цього концерну.
