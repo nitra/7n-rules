@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.17.3] - 2026-07-10
+
+### Changed
+
+- fix(test): стаб kubescape у PATH — check-k8s kustomization-тести без мережевих зависань (#25)
+
 ## [14.17.2] - 2026-07-10
 
 ### Removed
