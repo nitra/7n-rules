@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.16.0] - 2026-07-10
+
+### Added
+
+- fix-concern chain: телеметрія шапки ланцюжка у фінальному записі — extra.problem (зведення порушень: кількість/reasons/files/sample), extra.resolvedBy ('t0' | tier:model), extra.t0Applied, extra.touchedFiles/touchedTotal (cwd-relative зміни permanent T0 + closing rung; rollback-нуті rung-и не рахуються)
+
 ## [14.15.0] - 2026-07-10
 
 ### Changed
