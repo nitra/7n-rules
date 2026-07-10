@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.3] - 2026-07-10
+
+### Changed
+
+- chain.mjs: задокументовано конвенцію extra-полів фінального chain-запису (problem/resolvedBy/t0Applied/touchedFiles/touchedTotal) для шапки ланцюжка в UI/звітах
+
 ## [2.0.2] - 2026-07-09
 
 ### Fixed
