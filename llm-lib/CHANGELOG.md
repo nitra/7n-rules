@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.4] - 2026-07-10
+
+### Changed
+
+- fix(test): ізоляція LLM wire-trace у vitest — N_LLM_TRACE_PATH у tmp
+
 ## [2.0.3] - 2026-07-10
 
 ### Changed

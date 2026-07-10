@@ -3,7 +3,7 @@ type: JS Module
 title: chain.mjs
 resource: llm-lib/lib/chain.mjs
 docgen:
-  crc: 3953cb0a
+  crc: c9259fcb
 ---
 
 ## Огляд
