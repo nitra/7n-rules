@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.17.1] - 2026-07-10
+
+### Fixed
+
+- тести: env_dns детектор матчить https:// internal URL; прибрано осиротілий rules/js/coverage після видалення coverage-підсистеми; build-agents-commands тест оновлено до канонічної lint-поверхні
+
 ## [14.17.0] - 2026-07-10
 
 ### Added
