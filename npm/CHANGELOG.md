@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.16.1] - 2026-07-10
+
+### Fixed
+
+- тести run-fix: oxlint no-empty-function/consistent-function-scoping у нових chain-телеметрія тестах (зелений Lint JS на main)
+
 ## [14.16.0] - 2026-07-10
 
 ### Added
