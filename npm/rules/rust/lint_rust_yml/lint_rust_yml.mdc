@@ -13,3 +13,5 @@ Rego-пакет: `rust.lint_rust_yml`
 Канонічний template: [lint-rust.yml.snippet.yml](./template/lint-rust.yml.snippet.yml)
 
 Вимога `Swatinem/rust-cache@v2` після `dtolnay/rust-toolchain@…` тут перевіряється лише для цього конкретного файлу (як частина канону). Та сама вимога для **будь-якого** іншого workflow (coverage, release/build через `tauri-apps/tauri-action`, кастомні) — concern `rust/toolchain_cache`.
+
+Tauri-проєкти (`src-tauri/Cargo.toml`) додатково потребують у цьому файлі apt-кроку системних залежностей Linux перед Clippy — concern `tauri/linux_deps` (tauri.mdc), не частина канону тут.
