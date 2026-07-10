@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.18.0] - 2026-07-10
+
+### Added
+
+- Новий concern `tauri/linux_deps`: у Tauri-проєктах (`src-tauri/Cargo.toml`) вимагає в `.github/workflows/lint-rust.yml` крок встановлення системних залежностей Linux (`libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev`), без яких Clippy падає на збірці `-sys`-крейтів. T0-автофікс вставляє канонічний apt-крок перед `dtolnay/rust-toolchain@…` або дописує відсутні пакети в наявний `apt-get install`.
+
 ## [14.17.3] - 2026-07-10
 
 ### Changed
