@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.15.0] - 2026-07-10
+
+### Changed
+
+- lint: видалено --read-only alias, канонічний прапорець --no-fix (docs/rules/rego/workflows синхронізовано)
+
 ## [14.14.0] - 2026-07-09
 
 ### Added
