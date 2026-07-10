@@ -1,5 +1,17 @@
 # Changelog
 
+## [14.17.0] - 2026-07-10
+
+### Added
+
+- tauri: секція про MCP-міст для LLM-верифікації
+
+## [14.16.3] - 2026-07-10
+
+### Fixed
+
+- Тести fix-pipeline більше не засмічують реальний `~/.n-cursor/llm-trace.jsonl`: у vitest-конфізі `N_LLM_TRACE_PATH` відводить wire-trace (`@7n/llm-lib/trace`) у tmp — фейкові chain-записи (probe/check, fake/min, fake/cloud) не потрапляють в аналітику myllm і chains-report
+
 ## [14.16.2] - 2026-07-10
 
 ### Changed

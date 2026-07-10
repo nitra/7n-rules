@@ -2,7 +2,85 @@
 description: Tauri
 globs: "**/src-tauri/**,**/tauri.conf.json"
 alwaysApply: false
-version: '1.7'
+version: '1.8'
 ---
 
-Правило встановлює канонічні вимоги для Tauri-проєктів: виявлення маркерів у монорепо, VS Code-розширення, налаштування mutation-testing для platform bridge, компіляційну ізоляцію agent/LLM-логіки від app-shell, реалізацію Tool Surface поверх Tauri+Rust, реліз-flow через change-файли (тег → DMG/updater-артефакти) та автооновлення через спільний `useUpdater()` з `@7n/tauri-components`.
+Правило встановлює канонічні вимоги для Tauri-проєктів: виявлення маркерів у монорепо, VS Code-розширення, налаштування mutation-testing для platform bridge, компіляційну ізоляцію agent/LLM-логіки від app-shell, реалізацію Tool Surface поверх Tauri+Rust, реліз-flow через change-файли (тег → DMG/updater-артефакти), автооновлення через спільний `useUpdater()` з `@7n/tauri-components` та верифікацію застосунку LLM-агентом через `tauri-plugin-mcp-bridge`.
+
+## Верифікація LLM-агентом через MCP-міст (замість скриншотів)
+
+Якщо над Tauri-застосунком працює LLM-агент (Claude Code, Cursor тощо), він
+верифікує зміни **програмно** — деревом доступності DOM, кліками за `ref`,
+прямими викликами Rust-команд — а не лише скриншотами. Це забезпечує
+`tauri-plugin-mcp-bridge`: debug-плагін, що піднімає WS-сервер моста
+всередині застосунку, до якого зовні підключається MCP-сервер tauri.
+(Не плутати з **Tool Surface** — `tool-surface.mdc`: той про production
+call surface для UI/оркестратора/LLM, цей — про dev-time верифікацію
+запущеного застосунку.)
+
+### Dev-setup
+
+`src-tauri/Cargo.toml`:
+
+```toml
+[dependencies]
+tauri-plugin-mcp-bridge = "0.11"
+```
+
+Реєстрація плагіна — **лише в debug-збірці** (у release-збірці моста немає):
+
+```rust
+let builder = tauri::Builder::default();
+#[cfg(debug_assertions)]
+let builder = builder.plugin(tauri_plugin_mcp_bridge::init());
+```
+
+WS-сервер моста слухає `0.0.0.0:9223`.
+
+`tauri.conf.json` → `app.withGlobalTauri: true` — **обовʼязково**:
+
+```json title="src-tauri/tauri.conf.json"
+{
+  "app": {
+    "withGlobalTauri": true
+  }
+}
+```
+
+Без `withGlobalTauri` fallback-канал `execute_js` не має як повернути результат — будь-який
+async-скрипт (з `await`/`.then(`/`Promise.`, див. евристику нижче) впаде через
+5с у `Script execution timeout`. `withGlobalTauri` відкриває Tauri API всьому
+JS у webview — прийнятно, бо capabilities однаково обмежують surface;
+проєкти зі стороннім/untrusted контентом у webview мають зважити це окремо.
+
+### Цикл верифікації
+
+Замість скриншотів — послідовність MCP-викликів:
+
+1. `driver_session start` — підключення до моста вже запущеного застосунку (`tauri dev`).
+2. `webview_dom_snapshot type=accessibility` — YAML-дерево з `ref=eN` для кожного елемента.
+3. `webview_interact` — клік/ввід за `ref` з кроку 2.
+4. `webview_execute_js` з `await window.__TAURI__.core.invoke('<команда>', {…})` —
+   пряма звірка бекенд-стану повз UI (Rust-команда, не рендер).
+5. `read_logs source=console` — перевірка консольних помилок/попереджень.
+
+Скриншот — лише щоб показати результат людині, не джерело правди для агента:
+native-скриншот моста не відображає portal-оверлеї (нижче).
+
+### Відомі обмеження моста 0.11.x
+
+- **`ipc_execute_command` не реалізований** — WS-сервер моста дозволяє лише
+  внутрішні команди `plugin:mcp-bridge|*`. Виклик команд застосунку — тільки
+  через `webview_execute_js` + `invoke`, не напряму через `ipc_execute_command`.
+- **`ipc_monitor` перехоплює лише виклики через глобал `window.__TAURI__`.**
+  Стандартний `import { invoke } from '@tauri-apps/api/core'` іде через
+  `__TAURI_INTERNALS__` і в перехоплення не потрапляє.
+- **Евристика native-eval відкидає async-скрипти** — за підрядками `await`,
+  `.then(`, `Promise.` скрипт іде у fallback-канал `execute_js`; без
+  `withGlobalTauri` (вище) fallback не має як повернути результат, і
+  async-скрипт для агента взагалі недоступний.
+- **Native-скриншот не захоплює Quasar/portal-оверлеї** (діалоги, меню) — вони
+  рендеряться поза основним деревом. Перевіряй їх стан через DOM
+  (`document.querySelector('.q-dialog')`), не через скриншот.
+
+Перевірено вживу на проєкті myllm, `tauri-plugin-mcp-bridge` 0.11.2, macOS.
