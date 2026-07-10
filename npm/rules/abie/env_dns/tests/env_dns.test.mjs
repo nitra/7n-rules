@@ -1,6 +1,6 @@
 /**
  * Тести concern-а abie/js/env_dns: для кожного `*.dev.env`/`*.ua.env` усі URL
- * `http://<svc>.<ns>.svc.<dns>` мають відповідати кластеру за іменем файла.
+ * `http(s)://<svc>.<ns>.svc.<dns>` мають відповідати кластеру за іменем файла.
  * Помилки виявлення/читання спливають як violation, відсутність файлів — clean.
  */
 import { describe, expect, test } from 'vitest'

@@ -3,10 +3,10 @@ type: JS Module
 title: env-dns.mjs
 resource: npm/rules/abie/lib/env-dns.mjs
 docgen:
-  crc: 91aa8ee4
+  crc: 6ffce198
 ---
 
-Файл перевіряє конфігураційні файли середовища (`*.dev.env`, `*.ua.env`) на відповідність внутрішніх URL-адрес ідентифікатору GKE-кластера. Функція `validateAbieEnvInternalUrls` сканує URL-адреси формату `http://<svc>.<ns>.<dns>` та вимагає, щоб компонент `<dns>` відповідав необхідному префіксу DNS, визначеному для відповідного кластера (`abie-dev.internal` або `abie-ua.internal`).
+Файл перевіряє конфігураційні файли середовища (`*.dev.env`, `*.ua.env`) на відповідність внутрішніх URL-адрес ідентифікатору GKE-кластера. Функція `validateAbieEnvInternalUrls` сканує URL-адреси формату `http(s)://<svc>.<ns>.svc.<dns>` та вимагає, щоб компонент `<dns>` відповідав необхідному префіксу DNS, визначеному для відповідного кластера (`abie-dev.internal` або `abie-ua.internal`).
 
 ## Поведінка
 
