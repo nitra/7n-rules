@@ -24,6 +24,15 @@
  * `chain.headers()` у HTTP-виклики локальних моделей; плюс кожен trace-запис
  * несе `promptHash` — офлайн-fallback джойн.
  *
+ * КОНВЕНЦІЯ extra для шапки ланцюжка в UI/звітах (пише producer, напр.
+ * fix-pipeline n-cursor; читають myllm ChainsPanel і chains-report; всі поля
+ * опційні — старі записи без них валідні):
+ *   extra.problem      — { violations, reasons[], files[], sample } — ЩО вирішували;
+ *   extra.resolvedBy   — 't0' | '<tier>:<model>' — ХТО закрив (null якщо не закрито);
+ *   extra.t0Applied    — [{ id, message }] — застосовані T0-патерни;
+ *   extra.touchedFiles — cwd-relative шляхи реально збережених змін (кеп 20),
+ *   extra.touchedTotal — повна кількість (кеп не читається як «це всі файли»).
+ *
  * КОНТРАКТ promptHash (дзеркальна реалізація в myllm chains.rs — не міняти
  * односторонньо): sha256(trim(text))[0..16] lowercase, де text — content
  * ОСТАННЬОГО повідомлення з role=='user' (рядок як є; масив parts —

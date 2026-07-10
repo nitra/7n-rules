@@ -83,15 +83,15 @@ async function loadFixWorker(concernDir) {
  * @param {LintViolation[]} violations Порушення свого concern-а.
  * @param {LintContext} ctx Контекст лінту (cwd, ruleId, concernId тощо).
  * @param {(s: string) => void} log Логер для повідомлень про застосовані патерни.
- * @returns {Promise<boolean>} Чи було застосовано хоча б один патерн.
+ * @returns {Promise<Array<{ id: string, message: string|null, touchedFiles: string[] }>>} Застосовані патерни з їхніми змінами.
  */
 async function applyT0(patterns, violations, ctx, log) {
-  let applied = false
+  const applied = []
   for (const p of patterns) {
     if (!p.standalone && !p.test(violations)) continue
     const res = await p.apply(violations, ctx)
     if (res && Array.isArray(res.touchedFiles)) {
-      applied = true
+      applied.push({ id: p.id, message: res.message ?? null, touchedFiles: res.touchedFiles })
       if (res.message) log(`  ⚙️  T0 ${ctx.ruleId}/${ctx.concernId}: ${res.message}\n`)
     }
   }
@@ -152,18 +152,18 @@ async function resolveWorker(concernDir, workerOverride) {
  * @param {(s: string) => void} log Логер.
  * @param {import('./progress.mjs').ProgressReporter|null} [progress] Reporter прогресу.
  * @param {boolean} [verbose] Детальний вивід (прокидається у ctx concern-а).
- * @returns {Promise<{ closed: boolean, violations: LintViolation[] }>} closed=true якщо concern закрито T0; інакше актуальні violations.
+ * @returns {Promise<{ closed: boolean, violations: LintViolation[], applied: Array<{ id: string, message: string|null, touchedFiles: string[] }> }>} closed=true якщо concern закрито T0; applied — застосовані патерни з їхніми змінами.
  */
 async function runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log, progress = null, verbose = false) {
-  if (patterns.length === 0) return { closed: false, violations: initialViolations }
+  if (patterns.length === 0) return { closed: false, violations: initialViolations, applied: [] }
   progress?.concernStart(progressKey(item), 'T0')
-  await applyT0(patterns, initialViolations, lintCtx, log)
+  const applied = await applyT0(patterns, initialViolations, lintCtx, log)
   const afterT0 = await reDetect(item, cwd, progress, verbose)
   if (afterT0.length === 0) {
     log(`  ✅ T0: ${lintCtx.ruleId}/${lintCtx.concernId}\n`)
-    return { closed: true, violations: afterT0 }
+    return { closed: true, violations: afterT0, applied }
   }
-  return { closed: false, violations: afterT0 }
+  return { closed: false, violations: afterT0, applied }
 }
 
 /**
@@ -187,7 +187,7 @@ async function runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log, 
  * @param {(s: string) => void} rungDeps.log Логер.
  * @param {import('./progress.mjs').ProgressReporter|null} [rungDeps.progress] Reporter прогресу.
  * @param {boolean} [rungDeps.verbose] Детальний вивід (прокидається у ctx concern-а).
- * @returns {Promise<{ closed: true } | { closed: false, outcome: RungOutcome }>} closed=true якщо concern закрито; інакше результат для наступного кроку.
+ * @returns {Promise<{ closed: true, touchedFiles: string[] } | { closed: false, outcome: RungOutcome }>} closed=true якщо concern закрито (touchedFiles — зміни worker-а); інакше результат для наступного кроку.
  */
 async function runRung(rung, worker, violations, feedback, rungDeps) {
   const { item, cwd, snapshot, log, progress = null, verbose = false, chain = null } = rungDeps
@@ -258,10 +258,11 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
     })
   }
   const vetoed = after.length === 0 && !error && collateral.length > 0
+  const touchedFiles = workerResult?.touchedFiles ?? []
 
   if (after.length === 0 && !error && !vetoed) {
     log(`  ✅ ${rung.tier} (${rung.model}): ${ruleId}/${concernName}\n`)
-    return { closed: true }
+    return { closed: true, touchedFiles }
   }
 
   let errorSuffix = ' ❌ досі порушено'
@@ -278,7 +279,6 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
   // Мовчазна невдача (worker не кинув виняток, але порушення лишилось) — без цього
   // наступний rung стартує без жодного знання про попередню спробу (buildFixPrompt
   // додає `## Попередня спроба` лише коли previousError truthy).
-  const touchedFiles = workerResult?.touchedFiles ?? []
   let silentFailureNote
   if (vetoed) {
     silentFailureNote =
@@ -300,6 +300,26 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
       violations: after.length > 0 ? after : violations,
       feedback: { previousModel: rung.model, previousError: error ?? silentFailureNote }
     }
+  }
+}
+
+/** Кеп telemetry-списку змінених файлів у extra ланцюжка (повний обсяг — touchedTotal). */
+const TOUCHED_FILES_CAP = 20
+
+/**
+ * Стислий опис проблеми concern-а для шапки ланцюжка (`extra.problem` фінального
+ * chain-запису) — щоб в аналітиці (myllm, chains-report) було видно, ЩО саме
+ * вирішував ланцюжок, а не лише rule/concern.
+ * @param {LintViolation[]} violations Порушення concern-а.
+ * @returns {{ violations: number, reasons: string[], files: string[], sample: string|null }|null} Зведення або null, якщо порушень нема.
+ */
+function summarizeProblem(violations) {
+  if (!violations?.length) return null
+  return {
+    violations: violations.length,
+    reasons: [...new Set(violations.map(v => v.reason))].slice(0, 5),
+    files: [...new Set(violations.map(v => v.file).filter(Boolean))].slice(0, 10),
+    sample: violations[0]?.message?.slice(0, 200) ?? null
   }
 }
 
@@ -330,16 +350,57 @@ export async function fixConcern(item, initialViolations, deps) {
     unit: `${ruleId}/${concernName}`,
     cwd: deps.cwd
   })
-  const chainExtra = { t0Closed: false, stop: null, rungs: [], rollbacks: 0, avgCapSkipped: 0 }
+  const chainExtra = {
+    t0Closed: false,
+    stop: null,
+    rungs: [],
+    rollbacks: 0,
+    avgCapSkipped: 0,
+    // Шапка ланцюжка в аналітиці: яку проблему вирішували, хто закрив (t0 |
+    // tier:model), і до яких змін файлів це привело (permanent T0 + closing rung;
+    // rollback-нуті rung-и сюди не потрапляють).
+    problem: summarizeProblem(initialViolations),
+    resolvedBy: null,
+    t0Applied: [],
+    touchedFiles: [],
+    touchedTotal: 0
+  }
+  // Абсолютні шляхи змін накопичуються тут і нормалізуються один раз у finally
+  // (cwd-relative, дедуп, кеп) — щоб у trace не текли абсолютні шляхи машини.
+  const touchedAbs = []
   let closed = false
   try {
-    closed = await fixConcernCore(item, initialViolations, deps, chain, chainExtra)
+    closed = await fixConcernCore(item, initialViolations, deps, chain, chainExtra, touchedAbs)
     return closed
   } finally {
+    const base = realpathBestEffort(deps.cwd)
+    const rel = [...new Set(touchedAbs.map(p => relative(base, realpathBestEffort(p))))]
+    chainExtra.touchedTotal = rel.length
+    chainExtra.touchedFiles = rel.slice(0, TOUCHED_FILES_CAP)
     let outcome = 'fail'
     if (closed) outcome = 'success'
     else if (chainExtra.stop) outcome = 'partial'
     chain.end({ outcome, extra: chainExtra })
+  }
+}
+
+/**
+ * Фіксує результат T0-фази в телеметрії ланцюжка: застосовані патерни, їхні
+ * зміни (permanent — рахуються навіть якщо concern далі не закрився) і
+ * resolvedBy='t0' при закритті.
+ * @param {{ closed: boolean, applied: Array<{ id: string, message: string|null, touchedFiles: string[] }> }} t0 Результат runT0Phase.
+ * @param {{ t0Closed: boolean, resolvedBy: string|null, t0Applied: object[] }} chainExtra Акумулятор extra.
+ * @param {string[]} touchedAbs Акумулятор абсолютних шляхів змін.
+ * @returns {void}
+ */
+function noteT0Phase(t0, chainExtra, touchedAbs) {
+  if (t0.applied.length > 0) {
+    chainExtra.t0Applied = t0.applied.map(a => ({ id: a.id, message: a.message }))
+    touchedAbs.push(...t0.applied.flatMap(a => a.touchedFiles))
+  }
+  if (t0.closed) {
+    chainExtra.t0Closed = true
+    chainExtra.resolvedBy = 't0'
   }
 }
 
@@ -350,10 +411,11 @@ export async function fixConcern(item, initialViolations, deps) {
  * @param {LintViolation[]} initialViolations Початкові порушення.
  * @param {object} deps Залежності pipeline (див. fixConcern).
  * @param {object} chain Chain handle.
- * @param {{ t0Closed: boolean, stop: string|null, rungs: object[], rollbacks: number, avgCapSkipped: number }} chainExtra Акумулятор extra.
+ * @param {{ t0Closed: boolean, stop: string|null, rungs: object[], rollbacks: number, avgCapSkipped: number, problem: object|null, resolvedBy: string|null, t0Applied: object[] }} chainExtra Акумулятор extra.
+ * @param {string[]} touchedAbs Акумулятор абсолютних шляхів реально збережених змін (T0 + closing rung).
  * @returns {Promise<boolean>} Чи закрито concern.
  */
-async function fixConcernCore(item, initialViolations, deps, chain, chainExtra) {
+async function fixConcernCore(item, initialViolations, deps, chain, chainExtra, touchedAbs) {
   const { cwd, ladder, log, progress = null, verbose = false } = deps
   const { ruleId } = item.entry
   const concernName = item.entry.concern.name
@@ -364,11 +426,12 @@ async function fixConcernCore(item, initialViolations, deps, chain, chainExtra) 
   // ── T0 (детермінований, permanent) ──
   const patterns = deps.t0Override ?? (await loadT0Patterns(concernDir, concernName))
   const t0 = await runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log, progress, verbose)
-  if (t0.closed) {
-    chainExtra.t0Closed = true
-    return true
-  }
+  noteT0Phase(t0, chainExtra, touchedAbs)
+  if (t0.closed) return true
   initialViolations = t0.violations
+  // Standalone-концерни стартують без початкового detect (problem=null) — перший
+  // canonical detect відбувається тут, після T0; фіксуємо його як проблему ланцюжка.
+  if (!chainExtra.problem) chainExtra.problem = summarizeProblem(initialViolations)
 
   // ── Fixability-гейт ── config/structural concern-и НЕ йдуть у LLM-ladder: їхній фікс
   // детермінований (T0/regen) або ризикований для авто-правки. T0 уже відпрацював вище —
@@ -416,7 +479,11 @@ async function fixConcernCore(item, initialViolations, deps, chain, chainExtra) 
       model: rung.model,
       error: res.closed ? null : (res.outcome.feedback.previousError ?? '').slice(0, 200)
     })
-    if (res.closed) return true
+    if (res.closed) {
+      chainExtra.resolvedBy = `${rung.tier}:${rung.model}`
+      touchedAbs.push(...res.touchedFiles)
+      return true
+    }
     chainExtra.rollbacks++
 
     violations = res.outcome.violations
@@ -495,7 +562,7 @@ async function renderRemaining(failing, cwd, log, verbose = false) {
  * @param {(s: string) => void} [opts.log] Логер виводу.
  * @param {boolean} [opts.isTTY] Override TTY-режиму ProgressReporter (тести); типово isTTY stdout.
  * @param {(snap: object) => void} [opts.onProgress] Публікація знімків прогресу назовні (черга lint --full).
- * @param {object} [opts.deps] Інжекти для тестів: { ladder, workerFor, t0For }.
+ * @param {object} [opts.deps] Інжекти для тестів: { ladder, workerFor, t0For, chainFactory }.
  * @returns {Promise<0|1|2>} Exit code: 0 — чисто, 1 — лишились порушення, 2 — DetectorError.
  */
 export async function runFixPipeline(opts) {
@@ -568,7 +635,8 @@ export async function runFixPipeline(opts) {
           avgBudget -= n
         },
         workerOverride: deps.workerFor ? deps.workerFor(item.entry) : undefined,
-        t0Override: patternsByItem.get(item)
+        t0Override: patternsByItem.get(item),
+        chainFactory: deps.chainFactory
       })
 
     let worst = 0

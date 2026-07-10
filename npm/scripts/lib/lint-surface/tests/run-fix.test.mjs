@@ -776,3 +776,122 @@ describe('runFixPipeline — ProgressReporter (spec 2026-07-03)', () => {
     })
   })
 })
+
+/**
+ * Фабрика фейкових chain-handle-ів: збирає end()-payload-и у sink для асертів.
+ * @param {object[]} sink Масив, куди складаються фінальні записи ланцюжків.
+ * @returns {(args: { kind: string, unit: string, cwd?: string }) => object} chainFactory для deps.
+ */
+function captureChainFactory(sink) {
+  return ({ kind, unit, cwd }) => ({
+    id: 'test-chain',
+    kind,
+    unit,
+    cwd: cwd ?? null,
+    nextStep: () => 1,
+    note: () => {},
+    headers: () => ({}),
+    traceFields: () => ({ chainId: 'test-chain', chainKind: kind, chainUnit: unit, chainStep: 1 }),
+    end(args) {
+      sink.push({ kind, unit, cwd: cwd ?? null, ...args })
+      return args
+    }
+  })
+}
+
+describe('runFixPipeline — телеметрія ланцюжка (problem/resolvedBy/touchedFiles)', () => {
+  test('T0 закриває: resolvedBy=t0, t0Applied, touchedFiles cwd-relative, problem зі стартового detect', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir)
+      const ends = []
+      const t0 = [
+        {
+          id: 'write-done',
+          test: () => true,
+          apply: (_v, ctx) => {
+            const p = join(ctx.cwd, 'out.txt')
+            writeFileSync(p, 'done')
+            return { touchedFiles: [p], message: 'out.txt → done' }
+          }
+        }
+      ]
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: {
+          ladder: ONE_RUNG,
+          t0For: () => t0,
+          workerFor: () => () => {
+            /* no-op worker */
+          },
+          chainFactory: captureChainFactory(ends)
+        }
+      })
+      expect(code).toBe(0)
+      expect(ends).toHaveLength(1)
+      expect(ends[0].outcome).toBe('success')
+      expect(ends[0].extra.t0Closed).toBe(true)
+      expect(ends[0].extra.resolvedBy).toBe('t0')
+      expect(ends[0].extra.t0Applied).toEqual([{ id: 'write-done', message: 'out.txt → done' }])
+      expect(ends[0].extra.touchedFiles).toEqual(['out.txt'])
+      expect(ends[0].extra.touchedTotal).toBe(1)
+      expect(ends[0].extra.problem).toMatchObject({ violations: 1, reasons: ['not-done'] })
+      expect(ends[0].extra.problem.sample).toContain('out.txt=absent')
+    })
+  })
+
+  test('worker закриває: resolvedBy=tier:model, touchedFiles closing rung-а', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir)
+      const ends = []
+      const worker = (_v, ctx) => {
+        const p = join(ctx.cwd, 'out.txt')
+        ctx.recordWrite(p)
+        writeFileSync(p, 'done')
+        return { touchedFiles: [p] }
+      }
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: { ladder: ONE_RUNG, workerFor: () => worker, chainFactory: captureChainFactory(ends) }
+      })
+      expect(code).toBe(0)
+      expect(ends).toHaveLength(1)
+      expect(ends[0].outcome).toBe('success')
+      expect(ends[0].extra.resolvedBy).toBe('local-min:fake/min')
+      expect(ends[0].extra.touchedFiles).toEqual(['out.txt'])
+      expect(ends[0].extra.problem).toMatchObject({ violations: 1 })
+    })
+  })
+
+  test('провал ladder-а: resolvedBy=null, touchedFiles порожні (правки rollback-нуто)', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir)
+      const ends = []
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: { ladder: ONE_RUNG, workerFor: () => writeWrongWorker, chainFactory: captureChainFactory(ends) }
+      })
+      expect(code).toBe(1)
+      expect(ends).toHaveLength(1)
+      expect(ends[0].outcome).toBe('fail')
+      expect(ends[0].extra.resolvedBy).toBeNull()
+      expect(ends[0].extra.touchedFiles).toEqual([])
+      expect(ends[0].extra.touchedTotal).toBe(0)
+      expect(ends[0].extra.problem).toMatchObject({ violations: 1, reasons: ['not-done'] })
+    })
+  })
+})
