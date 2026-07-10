@@ -72,6 +72,19 @@ function writeWrongWorker(_v, ctx) {
   writeFileSync(p, 'wrong')
 }
 
+/**
+ * Worker, що закриває детектор і чесно репортує touchedFiles (FixWorkerResult).
+ * @param {unknown} _v Порушення (не використовуються).
+ * @param {object} ctx Контекст fix-а з `cwd` і `recordWrite`.
+ * @returns {{ touchedFiles: string[] }} Змінені файли worker-а.
+ */
+function writeDoneReportingWorker(_v, ctx) {
+  const p = join(ctx.cwd, 'out.txt')
+  ctx.recordWrite(p)
+  writeFileSync(p, 'done')
+  return { touchedFiles: [p] }
+}
+
 describe('runFixPipeline — базові вердикти', () => {
   test('clean → 0, worker не викликається', async () => {
     await withTmpDir(async dir => {
@@ -789,7 +802,9 @@ function captureChainFactory(sink) {
     unit,
     cwd: cwd ?? null,
     nextStep: () => 1,
-    note: () => {},
+    note: () => {
+      /* no-op акумуляція */
+    },
     headers: () => ({}),
     traceFields: () => ({ chainId: 'test-chain', chainKind: kind, chainUnit: unit, chainStep: 1 }),
     end(args) {
@@ -848,12 +863,6 @@ describe('runFixPipeline — телеметрія ланцюжка (problem/reso
     await withTmpDir(async dir => {
       const rulesDir = await seedConcern(dir)
       const ends = []
-      const worker = (_v, ctx) => {
-        const p = join(ctx.cwd, 'out.txt')
-        ctx.recordWrite(p)
-        writeFileSync(p, 'done')
-        return { touchedFiles: [p] }
-      }
       const code = await runFixPipeline({
         rulesDir,
         cwd: dir,
@@ -861,7 +870,7 @@ describe('runFixPipeline — телеметрія ланцюжка (problem/reso
         log: () => {
           /* no-op logger */
         },
-        deps: { ladder: ONE_RUNG, workerFor: () => worker, chainFactory: captureChainFactory(ends) }
+        deps: { ladder: ONE_RUNG, workerFor: () => writeDoneReportingWorker, chainFactory: captureChainFactory(ends) }
       })
       expect(code).toBe(0)
       expect(ends).toHaveLength(1)
