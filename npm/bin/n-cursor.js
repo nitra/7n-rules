@@ -1523,7 +1523,20 @@ function printLintHelp() {
 }
 
 // CLI: маршрутизація команд
-const [command, ...args] = process.argv.slice(2)
+let [command, ...args] = process.argv.slice(2)
+
+// Deprecated-аліаси до уніфікації lint-поверхні (spec 2026-06-29): старі
+// підкоманди `lint-<scope>` замінені на `lint <scope>`. Аліас тут — щоб
+// існуючі package.json/CI споживачів (lint-text/lint-ga тощо) не ламались
+// мовчки з непрозорим "Невідома команда" при мажорному бампі пакету.
+const LEGACY_LINT_COMMAND_ALIASES = { 'lint-ga': 'ga', 'lint-text': 'text', 'lint-rego': 'rego', 'lint-k8s': 'k8s', 'lint-docker': 'docker' }
+if (command in LEGACY_LINT_COMMAND_ALIASES) {
+  const scope = LEGACY_LINT_COMMAND_ALIASES[command]
+  console.error(`⚠️  "${command}" застаріла назва команди — використовуйте "n-cursor lint ${scope}"`)
+  args = [scope, ...args]
+  command = 'lint'
+}
+
 // `lint --help`/`-h` — чиста довідка, без root-guard і без мутації devDependencies.
 const isLintHelp = command === 'lint' && (args.includes('--help') || args.includes('-h'))
 
