@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.16.2] - 2026-07-10
+
+### Changed
+
+- fix(cli): backward-compat аліаси lint-text/lint-ga → lint text/lint ga
+
 ## [14.16.1] - 2026-07-10
 
 ### Fixed
