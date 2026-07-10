@@ -7,7 +7,7 @@ import { writeFile } from 'node:fs/promises'
 
 import { lint as lintDocker } from '../rules/docker/lint/main.mjs'
 import { lint as lintK8s } from '../rules/k8s/manifests/main.mjs'
-import { ensureDir, withTmpDir } from '../scripts/utils/test-helpers.mjs'
+import { ensureDir, withBinStubInPath, withTmpDir } from '../scripts/utils/test-helpers.mjs'
 
 // Адаптери під unified lint surface: detector → 0 (чисто) / 1 (є violations).
 const checkDocker = async dir => {
@@ -63,11 +63,17 @@ describe('check без цільових файлів', () => {
     })
   })
 
+  // Стаб kubescape (exit 0) у PATH: реальний `kubescape scan` на старті тягне
+  // артефакти/конфіг із хмарних API — на повільній чи закритій мережі це
+  // десятки секунд wall-time і зрив testTimeout. Очікуване порушення тут
+  // продукують rego-політика k8s.kustomization (remove+add) та JS-перевірка
+  // validateKustomizationPatchTargetsResolved (ghost target), не kubescape.
   test('check-k8s — 1, якщо kustomization з remove+add на той самий path', async () => {
-    await withTmpDir(async dir => {
-      await ensureDir(join(dir, 'app/k8s/ua'))
-      const dep = minimalDeploymentWithSchema(YANNH_DEPLOYMENT_APPS_V1_SCHEMA)
-      const k = `# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+    await withBinStubInPath('kubescape', async () => {
+      await withTmpDir(async dir => {
+        await ensureDir(join(dir, 'app/k8s/ua'))
+        const dep = minimalDeploymentWithSchema(YANNH_DEPLOYMENT_APPS_V1_SCHEMA)
+        const k = `# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: ns1
@@ -85,17 +91,19 @@ patches:
         value:
           preem: "false"
 `
-      await writeFile(join(dir, 'app/k8s/ua/deploy.yaml'), dep, 'utf8')
-      await writeFile(join(dir, 'app/k8s/ua/kustomization.yaml'), k, 'utf8')
-      expect(await checkK8s(dir)).toBe(1)
+        await writeFile(join(dir, 'app/k8s/ua/deploy.yaml'), dep, 'utf8')
+        await writeFile(join(dir, 'app/k8s/ua/kustomization.yaml'), k, 'utf8')
+        expect(await checkK8s(dir)).toBe(1)
+      })
     })
   })
 
   test('check-k8s — 1, якщо patch.target вказує на неіснуючий ресурс', async () => {
-    await withTmpDir(async dir => {
-      await ensureDir(join(dir, 'app/k8s/ua'))
-      const dep = minimalDeploymentWithSchema(YANNH_DEPLOYMENT_APPS_V1_SCHEMA)
-      const k = `# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+    await withBinStubInPath('kubescape', async () => {
+      await withTmpDir(async dir => {
+        await ensureDir(join(dir, 'app/k8s/ua'))
+        const dep = minimalDeploymentWithSchema(YANNH_DEPLOYMENT_APPS_V1_SCHEMA)
+        const k = `# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: ns1
@@ -110,9 +118,10 @@ patches:
         path: /spec/replicas
         value: 2
 `
-      await writeFile(join(dir, 'app/k8s/ua/deploy.yaml'), dep, 'utf8')
-      await writeFile(join(dir, 'app/k8s/ua/kustomization.yaml'), k, 'utf8')
-      expect(await checkK8s(dir)).toBe(1)
+        await writeFile(join(dir, 'app/k8s/ua/deploy.yaml'), dep, 'utf8')
+        await writeFile(join(dir, 'app/k8s/ua/kustomization.yaml'), k, 'utf8')
+        expect(await checkK8s(dir)).toBe(1)
+      })
     })
   })
 })

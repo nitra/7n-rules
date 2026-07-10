@@ -68,18 +68,22 @@ export async function ensureDir(path) {
 }
 
 /**
- * Створює тимчасовий каталог із порожнім виконуваним `shellcheck` (`shellcheck.exe` на Windows),
- * додає каталог на початок `PATH` для тривалості `fn` і потім відновлює оригінальний `PATH`.
+ * Створює тимчасовий каталог із порожнім виконуваним стабом `<bin>` (`<bin>.exe` на Windows,
+ * `exit 0`), додає каталог на початок `PATH` для тривалості `fn` і потім відновлює оригінальний `PATH`.
  *
- * Дозволяє ганяти `check ga` у тестах на машинах без реального shellcheck — `resolveCmd('shellcheck')`
- * усе одно знайде стаб через PATH і `which`/`where`. Реальний shellcheck не запускається.
- * @param {() => void | Promise<void>} fn виконується з підставленим shellcheck-стабом
+ * Дозволяє ганяти перевірки, що спавнять зовнішні тули, на машинах без реального бінарника
+ * (`resolveCmd(bin)`/`ensureTool(bin)` знайдуть стаб через PATH) і, головне, детерміновано
+ * замінює повільні мережево-залежні тули у тестах: наприклад, реальний `kubescape scan`
+ * на старті тягне артефакти/конфіг із хмарних API (десятки секунд wall-time на
+ * повільній або закритій мережі), що ламає `testTimeout`.
+ * @param {string} bin ім'я виконуваного файлу стаба (без `.exe`)
+ * @param {() => void | Promise<void>} fn виконується з підставленим стабом у PATH
  * @returns {Promise<void>}
  */
-export async function withShellcheckStubInPath(fn) {
-  const dir = await mkdtemp(join(tmpdir(), 'n-cursor-shellcheck-stub-'))
+export async function withBinStubInPath(bin, fn) {
+  const dir = await mkdtemp(join(tmpdir(), `n-cursor-${bin}-stub-`))
   const isWin = platform === 'win32'
-  const stub = join(dir, isWin ? 'shellcheck.exe' : 'shellcheck')
+  const stub = join(dir, isWin ? `${bin}.exe` : bin)
   await writeFile(stub, isWin ? '' : '#!/bin/sh\nexit 0\n', 'utf8')
   if (!isWin) await chmod(stub, 0o755)
   const prevPath = env.PATH
@@ -94,6 +98,16 @@ export async function withShellcheckStubInPath(fn) {
     }
     await rm(dir, { recursive: true, force: true })
   }
+}
+
+/**
+ * Спеціалізація {@link withBinStubInPath} для shellcheck: дозволяє ганяти `check ga`
+ * у тестах на машинах без реального shellcheck. Реальний shellcheck не запускається.
+ * @param {() => void | Promise<void>} fn виконується з підставленим shellcheck-стабом
+ * @returns {Promise<void>}
+ */
+export async function withShellcheckStubInPath(fn) {
+  await withBinStubInPath('shellcheck', fn)
 }
 
 /**
