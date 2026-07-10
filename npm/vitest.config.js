@@ -1,3 +1,6 @@
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
@@ -26,7 +29,15 @@ export default defineConfig({
     // Env-змінна `GIT_TRACE2_EVENT` має пріоритет над config `trace2.eventtarget`;
     // значення `0` повністю вимикає stream. Тестові git-операції синтетичні
     // (tmp-репо, фейкові коміти) — трасувати їх AI-даемоном і сенсу нема.
-    env: { GIT_TRACE2_EVENT: '0' },
+    //
+    // `N_LLM_TRACE_PATH` — відводить глобальний LLM wire-trace (`@7n/llm-lib/trace`)
+    // у tmp: тести fix-pipeline (run-fix.test.mjs та ін.) ганяють реальний
+    // startChain/writeTrace, і без override кожен прогін дописує фейкові
+    // chain-записи (probe/check, fake/min, fake/cloud) у справжній
+    // `~/.n-cursor/llm-trace.jsonl`, засмічуючи аналітику myllm і chains-report.
+    // Тест, якому потрібен власний trace-файл, перевизначає env локально
+    // (див. collateral-veto у run-fix.test.mjs).
+    env: { GIT_TRACE2_EVENT: '0', N_LLM_TRACE_PATH: join(tmpdir(), 'n-cursor-vitest-llm-trace.jsonl') },
     // `testTimeout` піднято з дефолтних 5000ms до 20000ms як defence-in-depth.
     // Root-cause git-латентності прибирає `GIT_TRACE2_EVENT=0` вище, але git-важкі
     // тести (`changelog/check.test.mjs`, `ga/workflows.test.mjs`) роблять 5-7 git-
