@@ -3,7 +3,7 @@
  *
  * abie живе у двох GKE-кластерах (`abie-dev.internal`, `abie-ua.internal`); внутрішньокластерні
  * URL у env-файлі мусять відповідати кластеру за іменем файла. `validateAbieEnvInternalUrls`
- * сканує всі URL виду `http://<svc>.<ns>.svc.<dns>` і вимагає коректний `<dns>` + namespace-префікс.
+ * сканує всі URL виду `http(s)://<svc>.<ns>.svc.<dns>` і вимагає коректний `<dns>` + namespace-префікс.
  * Файл `.env` без імені (локальний для розробника) виключено.
  */
 import { basename } from 'node:path'
@@ -13,7 +13,7 @@ import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 const ABIE_ENV_FILE_BASENAME_RE = /^\.?(dev|ua)\.env$/u
 
 const ABIE_INTERNAL_URL_GLOBAL_RE =
-  /\bhttp:\/\/([a-z0-9][a-z0-9-]*)\.([a-z0-9][a-z0-9-]*)\.svc\.([a-z0-9][a-z0-9-]*\.internal)(?::\d+)?(?:\/[^\s"'`]*)?/giu
+  /\bhttps?:\/\/([a-z0-9][a-z0-9-]*)\.([a-z0-9][a-z0-9-]*)\.svc\.([a-z0-9][a-z0-9-]*\.internal)(?::\d+)?(?:\/[^\s"'`]*)?/giu
 
 const ABIE_ENV_CLUSTER_DNS_MAP = Object.freeze({
   dev: Object.freeze({ clusterDns: 'abie-dev.internal', namespacePrefix: 'dev-' }),

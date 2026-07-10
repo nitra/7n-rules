@@ -17,7 +17,7 @@ describe('buildAgentsCommandBulletItems', () => {
       const text = items.map(i => i.name).join('\n')
       expect(text).toContain('bun i')
       expect(text).toContain('npx @nitra/cursor')
-      expect(text).toContain('npx @nitra/cursor fix')
+      expect(text).toContain('npx @nitra/cursor lint')
       expect(text).toContain('bunx knip')
       expect(items.length).toBe(4)
     } finally {
