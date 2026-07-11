@@ -99,6 +99,30 @@
       "fileMatch": [".codex/hooks.json", "**/.codex/hooks.json"]
     },
     {
+      "name": "mcp",
+      "description": ".mcp.json (MCP-сервери проєкту: Claude Code/Cursor)",
+      "url": "vendor/mcp.json",
+      "fileMatch": [".mcp.json", "**/.mcp.json"]
+    },
+    {
+      "name": "marksman",
+      "description": ".marksman.toml — офіційної схеми нема (permissive any.json)",
+      "url": "any.json",
+      "fileMatch": [".marksman.toml", "**/.marksman.toml"]
+    },
+    {
+      "name": "cargo-deny",
+      "description": "deny.toml (cargo-deny) — у schemastore схеми нема (permissive any.json)",
+      "url": "any.json",
+      "fileMatch": ["deny.toml", "**/deny.toml"]
+    },
+    {
+      "name": "tauri-conf-overlay",
+      "description": "tauri.conf.<variant>.json — частковий merge-overlay базового tauri.conf.json (повна tauri-схема відхиляє partial), тому permissive any.json",
+      "url": "any.json",
+      "fileMatch": ["tauri.conf.*.json", "**/tauri.conf.*.json"]
+    },
+    {
       "name": "github-action",
       "description": "action.yml/action.yaml (GitHub composite/JS actions)",
       "url": "vendor/github-action.json",
