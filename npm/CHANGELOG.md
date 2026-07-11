@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.26.0] - 2026-07-11
+
+### Added
+
+- B1 mt-tail: матеріалізація lint-хвоста у вузли MT-графа (клас materializeTail — плаский root-level вузол task.md/a.md за контрактом graph.md, ідемпотентність за сигнатурою, fail-open коли MT недоступний, env-гейт N_LINT_MT_TAIL); чисте ядро без MT-залежності, wiring у драбину — окремо
+
 ## [14.25.2] - 2026-07-11
 
 ### Fixed
