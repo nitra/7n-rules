@@ -261,7 +261,13 @@ export const patterns = [
   {
     id: 'bun-package_json-strip-denied',
     test: violations => violations.some(v => v.reason === 'policy-deny' && v.file),
-    apply: async (violations, ctx) => {
+    apply: /**
+     * Видаляє deny-поля package.json і безпечно адаптує/прибирає lint-скрипти.
+     * @param {Array<{ reason?: string, file?: string }>} violations знайдені policy-порушення
+     * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст autofix-а
+     * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').T0Result>} результат застосування fix-а
+     */
+    async (violations, ctx) => {
       const denyFields = readDenyTemplate(join(ctx.concernDir ?? '', 'template', 'package.json.deny.json'))
       const files = [...new Set(violations.filter(v => v.file).map(v => v.file))]
       const touchedFiles = []
