@@ -362,3 +362,60 @@ Transcript зафіксував варіант інтеграції `flow` із 
 - Додано модель файлової черги аудиту: `pending-audit_NNN.md`, де `NNN` відповідає `outputs_NNN.md`; `n-cursor watch` сканує вузли зі станом `pending-audit` і запускає `flow verify`.
 - Додано capability manifest `.n-cursor/actors.md` і поле `actors:` у `task.md`; `graph run --actor X` має перевіряти дозволені actor-и перед стартом.
 - Новий набір станів вузла включає `waiting`, `plan-pending`, `running`, `pending-audit`, `resolved`, `failed`, `invalidated`.
+
+## Update 2026-06-07
+
+- Для аудиту обрано окремий файл `audit-result_NNN.md` замість запису auditor-результату в `run_NNN.md`.
+- `pending-audit_NNN.md` вважається consumed, якщо існує `audit-result_NNN.md` з тим самим `NNN`; це прибирає потребу порівнювати timestamps або парсити `audit_ref`.
+- Composite-вузол вважається `resolved` через implicit aggregation дітей: усі діти `resolved` → батько `resolved`; `fact_NNN.md` у composite-вузлі не потрібен.
+- `graph run --auto` і `n-cursor watch` координуються через worktree-директорію як atomic FS lock: `mkdir .worktrees/<node>-<hash>/`; конкурент отримує `EEXIST` і пропускає spawn.
+- `graph run --actor auditor` є wrapper: запускає auditor subprocess, читає `audit-result_NNN.md`, при `result: success` виконує merge і видаляє worktree.
+- `mode: human` вузли без `plan_001.md` пропускаються `--auto`; людина запускає `graph plan <path>` вручну, а `graph status` показує явний `human-pending` стан.
+- Transcript фіксує ризики: orphan worktree після crash має прибиратися idempotent наступним `--auto` тiком; Telegram-нагадування для human-pending залишено TODO.
+
+## Update 2026-06-07
+
+- Файл результату виконання вузла перейменовано з `outputs_NNN.md` на `fact_NNN.md`, щоб утворити семантичну пару `plan_NNN.md` / `fact_NNN.md`.
+- У `task.md` додано поля оцінки виконавця: `executor: agent|human`, `model_tier: MIM|AVG|MAX`, `skills: [...]`, `qualification: ""`; `plan_NNN.md` може override ці значення аналогічно до budget-полів.
+- Нумерація `plan_NNN.md` продовжується для merged або active вузлів, але після `graph kill` скидається до `001`, бо `graph kill` видаляє `plan_*.md` як повний reset вузла.
+- `n-cursor watch` на початковому етапі визначено як periodic rescan раз на 5 хвилин, а не persistent daemon з file-watching.
+- У цій чернетці також було зафіксовано рішення залишити stall implicit, але воно пізніше в цьому ж батчі замінене рішенням про `running_until_<ts>` sentinel-файл.
+- Файл, у якому вносилися зміни дизайну: `docs/думка.MD`.
+
+## Update 2026-06-07
+
+- Стан `stalled` зроблено явним через sentinel-файл `running_until_<unix_ts>` у директорії task-вузла.
+- `running` визначається як наявність `running_until_<ts>` з `ts > now()`, а `stalled` — як наявність такого файлу з `ts ≤ now()`.
+- Deadline кодується в імені файлу, тому `n-cursor watch` може визначати `running`/`stalled` через filename parse без читання вмісту task/worktree файлів.
+- Wrapper пише sentinel після `git worktree add`, видаляє його при success, failed cleanup і `graph kill`.
+- Це оновлення замінює попередній варіант, де stall залишався implicit через аналіз mtime worktree та budget-полів.
+
+## Update 2026-06-07
+
+Драфт фіксує пакет рішень для `n-cursor graph` після аналізу вад і ризиків:
+
+- стан вузла має визначатися через file listing: presence файлів, директорій і parse filename, без читання вмісту;
+- `a.md`/`h.md` лишають `task.md` стабільним і кодують виконавця як mutable sentinel;
+- `deps/` замінює `deps:` frontmatter, щоб список залежностей отримувався через `ls deps/`;
+- `fact_NNN.md` лишається окремим sentinel успіху, зокрема для composite-вузлів, щоб `resolved` визначався O(1);
+- `running_<pid>_until_<ts>` кодує running/stalled deadline і PID у назві файлу;
+- audit FAIL переходить у `invalidated` і запускає новий цикл з новим NNN;
+- context агента обмежується `max_context_runs`, щоб не завалювати prompt історією невдалих запусків;
+- `max_worktrees: 4` + FIFO queue обмежує паралельні worktrees;
+- `graph invalidate --cascade` лишається explicit manual-командою для каскадної інвалідації;
+- `graph pin` стабілізує composite-топологію після першого planning;
+- distributed multi-machine clock skew не входить у scope, але `stale_grace_sec: 60` може бути safety buffer для NTP jitter.
+
+Transcript явно фіксує trade-off: більше sentinel-файлів і явних CLI-команд, зате scan, recovery і зовнішній monitoring працюють без YAML parsing і без прихованої БД стану.
+
+## Update 2026-06-07
+
+Драфт уточнює фінальну модель станів graph-вузла:
+
+- `running_<pid>_until_<ts>` є git-ignored sentinel для `running`/`stalled`;
+- wrapper і `n-cursor watch` виконують `kill -0 <pid>`; якщо процес мертвий — прибирають sentinel і orphan worktree та пишуть `run_NNN.md` з failure reason;
+- `budget_hard_sec: 0` потребує спеціальної конвенції: не створювати deadline у минулому або трактувати `0` як `без ліміту`;
+- `a.md`/`h.md` лишаються mutable mode-sentinels, а `deps/` — listing-based залежностями;
+- попередні стани `waiting`, `human-pending` і `needs-plan` замінюються ортогональною парою `waiting-plan` / `waiting-run`: стан відповідає на питання `що потрібно далі`, а `a.md`/`h.md` — `хто виконує`.
+
+Нова таблиця станів з transcript: `unassigned`, `waiting-plan`, `waiting-run`, `blocked`, `running`, `stalled`, `pending-audit`, `resolved`, `failed`, `invalidated`. Runner-логіка: `waiting-plan + a.md` → auto plan, `waiting-plan + h.md` → notify/skip, `waiting-run + a.md` → auto run, `waiting-run + h.md` → notify/skip.
