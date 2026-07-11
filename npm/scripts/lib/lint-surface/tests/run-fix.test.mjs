@@ -110,6 +110,36 @@ describe('runFixPipeline — базові вердикти', () => {
     })
   })
 
+  test('ctx.verify (Фаза A1): item-scoped canonical вердикт доступний worker-у, verifyMax заданий', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir)
+      const seen = { before: null, after: null, verifyMax: null }
+      /** @type {import('../types.mjs').FixWorkerFn} */
+      const worker = async (_v, ctx) => {
+        seen.verifyMax = ctx.verifyMax
+        seen.before = await ctx.verify({ touchedFiles: [] })
+        const p = join(ctx.cwd, 'out.txt')
+        ctx.recordWrite(p)
+        writeFileSync(p, 'done')
+        seen.after = await ctx.verify({ touchedFiles: [p] })
+      }
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: { ladder: ONE_RUNG, workerFor: () => worker }
+      })
+      expect(code).toBe(0)
+      expect(seen.before.ok).toBe(false)
+      expect(seen.before.output).toContain('not-done')
+      expect(seen.after).toEqual({ ok: true, output: expect.any(String) })
+      expect(seen.verifyMax).toBe(2) // 'fake/min' не є local-моделлю за env-тирами → cloud-гілка (2)
+    })
+  })
+
   test('worker закриває на першому rung → 0', async () => {
     await withTmpDir(async dir => {
       const rulesDir = await seedConcern(dir)

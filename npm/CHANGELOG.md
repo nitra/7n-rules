@@ -1,5 +1,21 @@
 # Changelog
 
+## [14.23.1] - 2026-07-11
+
+### Changed
+
+- fix(text): прибрати шумні "unknown format" попередження ajv/v8r для vendored oxc-схем (oxfmtrc/oxlintrc/cargo/zizmor)
+
+### Fixed
+
+- тестові фікстури no-bun-test-import/location/package_structure збираються динамічно — T0-autofix більше не переписує навмисні bun:test-рядки
+
+## [14.23.0] - 2026-07-11
+
+### Added
+
+- lint fix: evidence-гейт рунга (Фаза A1) — fixCtx.verify (item-scoped canonical re-detect) + verifyMax per tier прокидаються у runAgentFix; провал verify інʼєктиться фідбеком у ту саму pi-сесію замість одразу нового рунга
+
 ## [14.22.1] - 2026-07-11
 
 ### Fixed

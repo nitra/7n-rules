@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.1.0] - 2026-07-11
+
+### Added
+
+- agent-fix: evidence-гейт verify-loop (Фаза A1) — opts.verify/verifyMax, фідбек провалу у ту саму сесію, телеметрія verifyAttempts
+
 ## [2.0.4] - 2026-07-10
 
 ### Changed

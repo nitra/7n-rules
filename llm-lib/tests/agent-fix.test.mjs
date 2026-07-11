@@ -9,7 +9,7 @@ import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { buildFixPrompt, runAgentFix } from '../lib/agent-fix.mjs'
+import { buildFixPrompt, buildVerifyFeedbackPrompt, runAgentFix } from '../lib/agent-fix.mjs'
 
 const RE_AST_FACTS = /ast_facts/
 const RE_SELF_CHECK = /self_check/
@@ -59,6 +59,26 @@ function fakeCreate({ promptError = null } = {}) {
           message: { usage: { input: 100, output: 10, totalTokens: 110 }, stopReason: 'stop' }
         })
         if (promptError) throw new Error(promptError)
+      }
+    }
+  })
+}
+
+/**
+ * Fake pi-сесія verify-тестів: приєднує guard, збирає prompt-и в масив.
+ * @param {string[]} prompts акумулятор prompt-ів
+ * @returns {import('vitest').Mock} vi.fn-фабрика createSession
+ */
+function fakeVerifyCreate(prompts) {
+  return vi.fn(async ({ factory }) => {
+    await Promise.resolve()
+    factory({ on: () => null })
+    return {
+      subscribe: () => null,
+      abort: vi.fn(),
+      prompt: p => {
+        prompts.push(p)
+        return Promise.resolve()
       }
     }
   })
@@ -273,5 +293,124 @@ describe('happy-path (справжній write-guard на temp git-репо)', (
     } finally {
       logSpy.mockRestore()
     }
+  })
+})
+
+describe('verify-loop (evidence-гейт, Фаза A1)', () => {
+  let dir
+  beforeEach(() => {
+    dir = realpathSync(mkdtempSync(join(tmpdir(), 'agf-')))
+    spawnSync('git', ['init', '-q'], { cwd: dir })
+    spawnSync('git', ['config', 'user.email', 't@t'], { cwd: dir })
+    spawnSync('git', ['config', 'user.name', 't'], { cwd: dir })
+    writeFileSync(join(dir, 'src.mjs'), 'export const X = "OLD"\n')
+  })
+  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+
+  test('buildVerifyFeedbackPrompt: вивід перевірки + нагадування обмежень', () => {
+    const p = buildVerifyFeedbackPrompt('❌ лишилось 2 порушення')
+    expect(p).toContain('❌ лишилось 2 порушення')
+    expect(p).toContain('ДОСІ активне')
+    expect(p).toContain('механічні зміни')
+  })
+
+  test('verify ok одразу → один prompt, error null, verifyAttempts=[ok]', async () => {
+    const prompts = []
+    const verify = vi.fn(() => ({ ok: true }))
+    const r = await runAgentFix('r', 'v', dir, {
+      model: 'omlx/gemma',
+      verify,
+      deps: { root: dir, registry, createSession: fakeVerifyCreate(prompts), trace: vi.fn() }
+    })
+    expect(r.error).toBeNull()
+    expect(prompts).toHaveLength(1)
+    expect(verify).toHaveBeenCalledWith({ touchedFiles: [] })
+    expect(r.telemetry.verifyAttempts).toEqual([{ ok: true }])
+  })
+
+  test('verify fail → фідбек у ту саму сесію → ok: два prompt-и, другий несе вивід перевірки', async () => {
+    const prompts = []
+    const verify = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, output: '❌ ще порушено у src.mjs' })
+      .mockResolvedValue({ ok: true })
+    const trace = vi.fn()
+    const r = await runAgentFix('r', 'v', dir, {
+      model: 'omlx/gemma',
+      verify,
+      deps: { root: dir, registry, createSession: fakeVerifyCreate(prompts), trace }
+    })
+    expect(r.error).toBeNull()
+    expect(prompts).toHaveLength(2)
+    expect(prompts[1]).toContain('❌ ще порушено у src.mjs')
+    expect(r.telemetry.verifyAttempts).toEqual([{ ok: false }, { ok: true }])
+    expect(trace).toHaveBeenCalledWith(expect.objectContaining({ verifyAttempts: 2, verifyOk: true }))
+  })
+
+  test('verify стабільно fail + verifyMax=1 → два prompt-и, чесний error', async () => {
+    const prompts = []
+    const verify = vi.fn(() => ({ ok: false, output: '❌' }))
+    const r = await runAgentFix('r', 'v', dir, {
+      model: 'omlx/gemma',
+      verify,
+      verifyMax: 1,
+      deps: { root: dir, registry, createSession: fakeVerifyCreate(prompts), trace: vi.fn() }
+    })
+    expect(r.error).toBe('verify: порушення лишилось після 2 перевірок')
+    expect(prompts).toHaveLength(2)
+    expect(r.telemetry.verifyAttempts).toEqual([{ ok: false }, { ok: false }])
+  })
+
+  test('verify кидає → інфраструктурний error без додаткових ітерацій', async () => {
+    const prompts = []
+    const verify = vi.fn(() => {
+      throw new Error('detector exploded')
+    })
+    const r = await runAgentFix('r', 'v', dir, {
+      model: 'omlx/gemma',
+      verify,
+      deps: { root: dir, registry, createSession: fakeVerifyCreate(prompts), trace: vi.fn() }
+    })
+    expect(r.error).toBe('verify: detector exploded')
+    expect(prompts).toHaveLength(1)
+    expect(r.telemetry.verifyAttempts).toEqual([{ ok: false, infra: true }])
+  })
+
+  test('бюджет часу рунга вичерпано → без фідбек-prompt-а, чесний error', async () => {
+    const prompts = []
+    let now = 0
+    const verify = vi.fn(() => {
+      now = 299_000 // майже весь дефолтний timeoutMs 300_000 — залишок < VERIFY_MIN_BUDGET_MS
+      return { ok: false, output: '❌' }
+    })
+    const r = await runAgentFix('r', 'v', dir, {
+      model: 'omlx/gemma',
+      verify,
+      deps: { root: dir, registry, createSession: fakeVerifyCreate(prompts), trace: vi.fn(), clock: () => now }
+    })
+    expect(r.error).toBe('verify: бюджет часу рунга вичерпано')
+    expect(prompts).toHaveLength(1)
+  })
+
+  test('без verify — поведінка попередня: жодних verify-полів у роботі, attempts порожні', async () => {
+    const prompts = []
+    const r = await runAgentFix('r', 'v', dir, {
+      model: 'omlx/gemma',
+      deps: { root: dir, registry, createSession: fakeVerifyCreate(prompts), trace: vi.fn() }
+    })
+    expect(r.error).toBeNull()
+    expect(prompts).toHaveLength(1)
+    expect(r.telemetry.verifyAttempts).toEqual([])
+  })
+
+  test('prompt-error першого проходу → verify не запускається', async () => {
+    const verify = vi.fn()
+    const r = await runAgentFix('r', 'v', dir, {
+      model: 'omlx/gemma',
+      verify,
+      deps: { root: dir, registry, createSession: fakeCreate({ promptError: 'boom' }), trace: vi.fn() }
+    })
+    expect(r.error).toBe('boom')
+    expect(verify).not.toHaveBeenCalled()
   })
 })

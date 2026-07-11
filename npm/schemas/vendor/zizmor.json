@@ -44,7 +44,6 @@
         "days": {
           "description": "The minimum acceptable `default-days` value for Dependabot's cooldown setting.\n\nSettings beneath this value will produce findings.",
           "type": "integer",
-          "format": "uint",
           "default": 7,
           "minimum": 1
         }

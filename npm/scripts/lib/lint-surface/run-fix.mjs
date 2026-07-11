@@ -18,7 +18,7 @@ import { existsSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { LOCAL_MIN, CLOUD_MIN, CLOUD_AVG } from '@7n/llm-lib/model-tiers'
+import { LOCAL_MIN, CLOUD_MIN, CLOUD_AVG, isLocalModel } from '@7n/llm-lib/model-tiers'
 import { startChain } from '@7n/llm-lib/chain'
 import { writeTrace } from '@7n/llm-lib/trace'
 import { withTimeout } from '@7n/llm-lib/with-timeout'
@@ -207,7 +207,21 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
     feedback: rung.feedback ? feedback : undefined,
     recordWrite: absPath => snapshot.record(absPath),
     recordDurableWrite: absPath => snapshot.recordDurable(absPath),
-    chain
+    chain,
+    // Evidence-гейт рунга (Фаза A1): item-scoped canonical re-detect для verify-петлі
+    // всередині worker-а. ДетекторError тут ковтається у {ok:false} — зовнішній
+    // canonical re-detect нижче вдарить у той самий детектор і кине штатно.
+    verify: async () => {
+      let after
+      try {
+        after = await reDetect(item, cwd, progress, verbose)
+      } catch (detectError) {
+        return { ok: false, output: `detector error: ${detectError.message}` }
+      }
+      return { ok: after.length === 0, output: renderViolations(after) }
+    },
+    // Local-тири повільні — одна додаткова ітерація; cloud тягне дві.
+    verifyMax: isLocalModel(rung.model) ? 1 : 2
   }
 
   let workerResult = null
