@@ -8,7 +8,10 @@ local linters = new Mapping<String, Step> {
             "npm/types/bin/n-cursor.d.ts"
         )
         check_first = false
-        fix = "cd npm && bunx -p typescript tsc -p tsconfig.emit-types.json && find types -type f ! -path 'types/bin/n-cursor.d.ts' -delete && find types -depth -type d -empty -delete"
+        // oxfmt --write наприкінці: tsc завжди генерує `export {};` (із `;`), oxfmt канон
+        // хоче без — без цього кроку кожна регенерація одразу "розфарматовує" d.ts і
+        // наступний lint-прогін (text/oxfmt) червонів би на щойно згенерованому файлі.
+        fix = "cd npm && bunx -p typescript tsc -p tsconfig.emit-types.json && find types -type f ! -path 'types/bin/n-cursor.d.ts' -delete && find types -depth -type d -empty -delete && bunx oxfmt types/bin/n-cursor.d.ts --write"
     }
     ["npm-changelog"] {
         glob = List("npm/**")

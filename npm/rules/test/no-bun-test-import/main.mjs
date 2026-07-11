@@ -1,9 +1,7 @@
 /** @see ./docs/no-bun-test-import.md */
 import { readFile } from 'node:fs/promises'
-import { basename, relative } from 'node:path'
 
-import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
-import { walkDir } from '../../../scripts/utils/walkDir.mjs'
+import { collectTestFiles, toRelPosix } from '../../../scripts/lib/collect-test-files.mjs'
 
 /**
  * Іменовані експорти `bun:test`, що мають прямий 1:1 еквівалент у vitest (той самий
@@ -23,20 +21,14 @@ const SAFE_SPECIFIERS = new Set([
   'afterAll'
 ])
 
-/** Іменований import з `bun:test`; специфікатор-секція може бути багаторядковою. */
-const BUN_TEST_IMPORT_RE = /import\s*\{([\s\S]*?)\}\s*from\s*(['"])bun:test\2/gu
-/** Розділювач `imported as local` у специфікаторі. */
-const AS_ALIAS_RE = /\s+as\s+/u
-
 /**
- * Чи файл — JS-тест (`*.test.mjs` або `*.test.js`).
- * @param {string} absPath абсолютний шлях
- * @returns {boolean} `true` для імен з `.test.{mjs,js}` суфіксом
+ * Іменований import з `bun:test`; специфікатор-секція може бути багаторядковою.
+ * `[^}]*` замість `[\s\S]*?` — уникає super-linear backtracking (sonarjs) при `\s*`
+ * навколо групи: символьний клас без альтернативи backtrack-у на межі `}`.
  */
-function isTestFile(absPath) {
-  const name = basename(absPath)
-  return name.endsWith('.test.mjs') || name.endsWith('.test.js')
-}
+const BUN_TEST_IMPORT_RE = /import\s*\{([^}]*)\}\s*from\s*(['"])bun:test\2/gu
+/** Розділювач токенів специфікатора (замість `\s+as\s+`-regex, sonarjs/super-linear-regex). */
+const WHITESPACE_RE = /\s+/u
 
 /**
  * Розбирає список іменованих специфікаторів `{ a, b as c }` на `{imported, local}`.
@@ -49,8 +41,12 @@ function parseSpecifiers(raw) {
     .map(s => s.trim())
     .filter(Boolean)
     .map(s => {
-      const [imported, local] = s.split(AS_ALIAS_RE).map(x => x.trim())
-      return { imported, local: local ?? imported }
+      // Токенізація замість `\s+as\s+`-regex (sonarjs/super-linear-regex на подвійному `\s+`).
+      const tokens = s.split(WHITESPACE_RE).filter(Boolean)
+      const asIndex = tokens.indexOf('as')
+      const imported = asIndex === -1 ? tokens.join(' ') : tokens.slice(0, asIndex).join(' ')
+      const local = asIndex === -1 ? imported : tokens.slice(asIndex + 1).join(' ')
+      return { imported, local }
     })
 }
 
@@ -79,17 +75,7 @@ export function findBunTestImports(content) {
  */
 export async function lint(ctx) {
   const { cwd } = ctx
-  const ignorePaths = await loadCursorIgnorePaths(cwd)
-
-  /** @type {string[]} */
-  const testFiles = []
-  await walkDir(
-    cwd,
-    absPath => {
-      if (isTestFile(absPath)) testFiles.push(absPath)
-    },
-    ignorePaths
-  )
+  const testFiles = await collectTestFiles(cwd)
 
   /** @type {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation[]} */
   const violations = []
@@ -97,7 +83,7 @@ export async function lint(ctx) {
     const body = await readFile(absPath, 'utf8')
     const found = findBunTestImports(body)
     if (found.length === 0) continue
-    const file = relative(cwd, absPath).split('\\').join('/')
+    const file = toRelPosix(cwd, absPath)
     for (const imp of found) {
       const line = body.slice(0, imp.start).split('\n').length
       const specNames = imp.specifiers.map(s => s.imported).join(', ')

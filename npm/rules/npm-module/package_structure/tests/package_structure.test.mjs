@@ -292,9 +292,9 @@ describe('check — інтеграційні сценарії', () => {
       await writeFile(join(dir, 'npm/tsconfig.emit-types.json'), '{"compilerOptions":{}}\n', 'utf8')
       await ensureDir(join(dir, '.github/workflows'))
       const res = await lint({ cwd: dir, ruleId: 'npm-module', concernId: 'package_structure' })
-      expect(res.violations.some(v => v.message.includes('npm-changelog') || v.message.includes('check changelog'))).toBe(
-        false
-      )
+      expect(
+        res.violations.some(v => v.message.includes('npm-changelog') || v.message.includes('check changelog'))
+      ).toBe(false)
     })
   })
 

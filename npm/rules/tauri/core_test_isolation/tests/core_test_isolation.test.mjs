@@ -5,12 +5,7 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import {
-  CORE_CRATE_DEPENDS_ON_TAURI,
-  LLM_DEP_IN_APP_SHELL,
-  MISSING_FAKE_LLM_PROVIDER,
-  lint
-} from '../main.mjs'
+import { CORE_CRATE_DEPENDS_ON_TAURI, LLM_DEP_IN_APP_SHELL, MISSING_FAKE_LLM_PROVIDER, lint } from '../main.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 const run = dir => lint({ cwd: dir, ruleId: 'tauri', concernId: 'core_test_isolation', files: undefined })
