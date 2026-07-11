@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.27.0] - 2026-07-11
+
+### Added
+
+- B1-wiring: run-fix кличе materializeTail на невиправленому хвості за env-гейтом N_LINT_MT_TAIL (fail-open, дефолт off) — завершує B1 на n-cursor-боці; renderRemaining повертає зібрані порушення
+
 ## [14.26.0] - 2026-07-11
 
 ### Added
