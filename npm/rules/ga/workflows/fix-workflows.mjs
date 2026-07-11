@@ -11,8 +11,7 @@
  * семантичну коректність гарантує canonical re-detect runner-а (T0 permanent, поза rollback).
  * Чисті трансформери експортуються для unit-тестів.
  */
-import { readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { applyToFiles } from '../../../scripts/utils/apply-to-files.mjs'
 
 const CHECKOUT_USES_RE = /uses:\s*actions\/checkout@/u
 const WITH_LINE_RE = /^\s*with:\s*$/u
@@ -160,36 +159,6 @@ export function prefixBunxNCursor(content) {
     return line
   })
   return changed ? out.join('\n') : null
-}
-
-/**
- * Застосовує текстовий трансформер до унікальних файлів із violations і пише зміни.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation[]} violations порушення (джерело переліку файлів)
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту (cwd, recordWrite)
- * @param {(file: string) => (content: string) => string|null} transformerFor
- *   фабрика трансформера для конкретного relative-file (дає доступ до per-file даних)
- * @returns {string[]} абсолютні шляхи змінених файлів
- */
-function applyToFiles(violations, ctx, transformerFor) {
-  const files = [...new Set(violations.map(v => v.file).filter(Boolean))]
-  /** @type {string[]} */
-  const touchedFiles = []
-  for (const rel of files) {
-    const abs = join(ctx.cwd, rel)
-    let content
-    try {
-      content = readFileSync(abs, 'utf8')
-    } catch {
-      continue
-    }
-    const next = transformerFor(rel)(content)
-    if (next && next !== content) {
-      ctx.recordWrite?.(abs)
-      writeFileSync(abs, next)
-      touchedFiles.push(abs)
-    }
-  }
-  return touchedFiles
 }
 
 /** @type {import('../../../scripts/lib/lint-surface/types.mjs').T0Pattern[]} */

@@ -4,10 +4,9 @@ title: npm/scripts/utils
 resource: npm/scripts/utils/
 ---
 
-# npm/scripts/utils
-
 | Файл                                                        | Тип       |
 | ----------------------------------------------------------- | --------- |
+| [apply-to-files.mjs](apply-to-files.md)                     | JS Module |
 | [ast-extract.mjs](ast-extract.md)                           | JS Module |
 | [ast-scan-utils.mjs](ast-scan-utils.md)                     | JS Module |
 | [ensure-gitignore-entries.mjs](ensure-gitignore-entries.md) | JS Module |
