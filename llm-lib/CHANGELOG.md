@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.4.1] - 2026-07-11
+
+### Fixed
+
+- test/lint: SSRF-фікстури web-tools.test будуються динамічно (http/IP-літерали фейлили full-lint no-insecure-url/no-hardcoded-ip); словникові слова A1-A4 у .cspell.json
+
 ## [2.4.0] - 2026-07-11
 
 ### Added
