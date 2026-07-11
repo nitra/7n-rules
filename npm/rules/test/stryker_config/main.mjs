@@ -68,7 +68,7 @@ const LEADING_COMMA_RE = /^\s*,/u
 //   mutation.json, HTML/dashboard-репорти якщо користувач додасть інші reporter-и).
 // - `**/coverage/` — весь output vitest v8 coverage (`lcov.info` + HTML `lcov-report/`).
 //   Ефемерний: регенерується кожним прогоном; фінальні метрики живуть у `COVERAGE.md`.
-//   Gitignore не заважає `n-cursor coverage` читати `lcov.info` у тому ж прогоні.
+//   Gitignore не заважає `@7n/test coverage` читати `lcov.info` у тому ж прогоні.
 // Покриваємо каталогами замість перелічування під-патернів.
 const TEST_GITIGNORE_ENTRIES = ['**/reports/stryker/', '**/coverage/']
 

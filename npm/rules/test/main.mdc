@@ -9,16 +9,18 @@ alwaysApply: false
 
 ## Покриття + мутаційне тестування
 
-Канонічна команда — `n-cursor coverage`: збирає метрики покриття (`vitest run --coverage`, `cargo llvm-cov` тощо) і мутаційного тестування (Stryker з vitest-runner + `coverageAnalysis: 'perTest'`, `cargo-mutants`) з усіх активних провайдерів у `.n-cursor.json#rules` і пише `COVERAGE.md` у корінь проєкту.
+Канонічна команда — `npx @7n/test coverage` (пакет `@7n/test`, **не** `@nitra/cursor` — цей пакет лише постачає providers, оркестратор живе окремо): збирає метрики покриття (`vitest run --coverage`, `cargo llvm-cov` тощо) і мутаційного тестування (Stryker з vitest-runner + `coverageAnalysis: 'perTest'`, `cargo-mutants`) з усіх активних провайдерів у `.n-cursor.json#rules` і пише `COVERAGE.md` у корінь проєкту.
 
-**Scoped-режим `--changed`:** `n-cursor coverage --changed` звужує scope до файлів, змінених від git merge-base поточної гілки з `main` або `origin/main`. У changed-режимі `COVERAGE.md` **не** перезаписується і LLM-класифікація не запускається.
+**Scoped-режим `--changed`:** `npx @7n/test coverage --changed` звужує scope до файлів, змінених від git merge-base поточної гілки з `main` або `origin/main`. У changed-режимі `COVERAGE.md` **не** перезаписується і LLM-класифікація не запускається.
 
-Провайдери живуть у `npm/rules/<rule>/coverage/coverage.mjs`. Оркестратор — у `npm/rules/test/coverage/coverage.mjs`.
+**`--fix`:** `npx @7n/test coverage --fix` — після збору метрик агент виправляє survived-мутанти й повторює coverage.
 
-У `package.json` (корінь) має бути `scripts.coverage` із викликом `n-cursor coverage`.
+Провайдери живуть у `npm/rules/<rule>/coverage/coverage.mjs` (цей пакет, `@nitra/cursor`). Оркестратор — у `@7n/test` (`npm/src/coverage/coverage.mjs`), який резолвить providers з `node_modules/@nitra/cursor/rules`. Проєкт-споживач має мати `@7n/test` як devDependency, аби `npx @7n/test coverage` резолвився без мережевого fetch щоразу.
+
+У `package.json` (корінь) має бути `scripts.coverage` із викликом `npx @7n/test coverage`.
 
 ### Multi-workspace iteration
 
-У monorepo `n-cursor coverage` ітерує усі workspaces з власним `package.json` і агрегує метрики lcov + Stryker у єдиний `JS`-рядок `COVERAGE.md`. Workspace без тестів пропускається без помилки.
+У monorepo `@7n/test coverage` ітерує усі workspaces з власним `package.json` і агрегує метрики lcov + Stryker у єдиний `JS`-рядок `COVERAGE.md`. Workspace без тестів пропускається без помилки.
 
 - [package.json.contains.json](./package_json/template/package.json.contains.json)

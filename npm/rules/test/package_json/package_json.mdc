@@ -8,9 +8,9 @@ Rego-пакет: `test.package_json`
 
 | Поле | Має містити |
 |---|---|
-| `scripts.coverage` | `n-cursor coverage` |
+| `scripts.coverage` | `@7n/test coverage` |
 | `scripts.test` | `vitest` |
 
-Substring-семантика: команди-обгортки (наприклад `bun run pre-coverage && n-cursor coverage`) дозволені — головне, щоб потрібний рядок був присутній.
+Substring-семантика: команди-обгортки (наприклад `bun run pre-coverage && npx @7n/test coverage`) дозволені — головне, щоб потрібний рядок був присутній.
 
 Канон підтягується через `--data`: [package.json.contains.json](./template/package.json.contains.json)

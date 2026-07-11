@@ -4,12 +4,12 @@ import data.test.package_json
 import rego.v1
 
 template_data := {"contains": {"scripts": {
-	"coverage": ["n-cursor coverage"],
+	"coverage": ["@7n/test coverage"],
 	"test": ["vitest"],
 }}}
 
 valid_pkg := {"scripts": {
-	"coverage": "n-cursor coverage",
+	"coverage": "@7n/test coverage",
 	"test": "vitest run",
 }}
 
@@ -25,14 +25,14 @@ test_deny_missing_coverage_script if {
 test_deny_wrong_coverage_command if {
 	bad := json.patch(valid_pkg, [{"op": "replace", "path": "/scripts/coverage", "value": "echo nope"}])
 	some msg in package_json.deny with input as bad with data.template as template_data
-	contains(msg, "n-cursor coverage")
+	contains(msg, "@7n/test coverage")
 }
 
 test_allow_extended_coverage_command if {
 	# substring-семантика: дозволяємо локальні розширення
 	extended := json.patch(valid_pkg, [{
 		"op": "replace", "path": "/scripts/coverage",
-		"value": "bun run pre-coverage && n-cursor coverage",
+		"value": "bun run pre-coverage && @7n/test coverage",
 	}])
 	count(package_json.deny) == 0 with input as extended with data.template as template_data
 }

@@ -60,6 +60,15 @@ test_allow_playwright_test if {
 	count(package_json.deny) == 0 with input as pkg with data.template as template_data
 }
 
+test_allow_7n_test_coverage_orchestrator if {
+	pkg := json.patch(valid_pkg, [{
+		"op": "replace",
+		"path": "/devDependencies",
+		"value": {"@nitra/eslint-config": "^3.9.2", "@7n/test": "^0.13.0"},
+	}])
+	count(package_json.deny) == 0 with input as pkg with data.template as template_data
+}
+
 # ── deny: devDependencies лише @nitra/* або root-only test peers ─
 
 test_deny_non_nitra_devdep if {
