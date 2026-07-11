@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.19.0] - 2026-07-11
+
+### Added
+
+- tauri/release: три нові перевірки + T0-autofix із реального факапу myllm — (1) push-auth крок у changelog-release.yml (git remote set-url з GITHUB_TOKEN; checkout@v6/ga-канон persist-credentials:false не лишає токена і release-push мовчки падає), (2) <app>/.changes/.gitkeep (після релізу порожній .changes/ ламає unmatched-paths-glob), (3) zizmor ignore[cache-poisoning] на Swatinem/rust-cache у release.yml (конфлікт rust-канону з zizmor)
+
 ## [14.18.1] - 2026-07-11
 
 ### Fixed
