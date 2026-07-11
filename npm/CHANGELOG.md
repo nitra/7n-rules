@@ -1,5 +1,20 @@
 # Changelog
 
+## [14.22.0] - 2026-07-11
+
+### Added
+
+- image-compress/check: T0-фіксер (npx @nitra/minify-image --write) закриває needs-compression детерміновано, без LLM-ladder
+- bun/package_json, js-run/jsconfig: T0-фіксери (canon merge/strip) закривають policy-deny детерміновано, без ручного втручання
+
+### Changed
+
+- bun/package_json: fix-package_json.mjs адаптує (не лише видаляє) виклики scripts.lint* — шукає й переписує bun/npm/yarn/pnpm-виклики у workflow yml, інших package.json та власних chained-скриптах на bunx n-cursor lint; скрипт лишається, якщо десь є нерозпізнаний виклик
+
+### Fixed
+
+- прибрано jscpd-дублікат applyToFiles (rust/toolchain_cache, tauri/linux_deps, ga/workflows → спільна npm/scripts/utils/apply-to-files.mjs), додано cspell-слова (бампі, джобі, тригереному)
+
 ## [14.21.3] - 2026-07-11
 
 ### Changed
