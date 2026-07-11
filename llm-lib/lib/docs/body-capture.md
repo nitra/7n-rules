@@ -3,12 +3,12 @@ type: JS Module
 title: body-capture.mjs
 resource: llm-lib/lib/body-capture.mjs
 docgen:
-  crc: 795b58e0
+  crc: 3e3be25e
 ---
 
 ## Огляд
 
-Opt-in захоплення повних тіл LLM-викликів (prompt+response) — заміна колишнього requests.jsonl myllm-проксі, з перевагою: працює і для CLOUD-викликів (проксі бачив лише local), і не залежить від запущеного myllm. Вимкнено за замовчуванням (тіла важкі) — вмикається N_LLM_TRACE_BODIES=1. Не pi-coupled — публічний модуль пакета.
+Захоплення повних тіл LLM-викликів (prompt+response) — заміна колишнього requests.jsonl myllm-проксі, з перевагою: працює і для CLOUD-викликів (проксі бачив лише local), і не залежить від запущеного myllm. Увімкнено за замовчуванням — вимикається N_LLM_TRACE_BODIES=0. Не pi-coupled — публічний модуль пакета.
 
 ## Поведінка
 
@@ -17,7 +17,7 @@ captureBody — пише JSON-файл у ~/.n-cursor/llm-bodies/<chainId або
 ## Публічний API
 
 bodiesDir() — корінь стору (env N_LLM_BODIES_DIR).
-bodyCaptureEnabled() — чи увімкнено (N_LLM_TRACE_BODIES==='1').
+bodyCaptureEnabled() — чи увімкнено (N_LLM_TRACE_BODIES!=='0').
 captureBody(record, opts?) — шлях збереженого файлу або null.
 
 ## Гарантії поведінки
