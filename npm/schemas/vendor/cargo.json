@@ -1049,7 +1049,6 @@
     "CodegenUnits": {
       "description": "The `codegen-units` setting controls the [`-C codegen-units` flag](https://doc.rust-lang.org/rustc/codegen-options/index.html#codegen-units) which\ncontrols how many \"code generation units\" a crate will be split into. More\ncode generation units allows more of a crate to be processed in parallel\npossibly reducing compile time, but may produce slower code.\n\nThis option takes an integer greater than 0.\n\nThe default is 256 for [incremental](https://doc.rust-lang.org/cargo/reference/profiles.html#incremental) builds, and 16 for\nnon-incremental builds.",
       "type": "integer",
-      "format": "uint32",
       "minimum": 0,
       "x-taplo": {
         "links": {

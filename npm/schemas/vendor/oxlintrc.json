@@ -527,7 +527,6 @@
         {
           "description": "Oxlint rule.\n    \n- 0: Turn off the rule.\n- 1: Turn the rule on as a warning (doesn't affect exit code).\n- 2: Turn the rule on as an error (will exit with a failure code).",
           "type": "integer",
-          "format": "uint32",
           "maximum": 2.0,
           "minimum": 0.0,
           "markdownDescription": "Oxlint rule.\n    \n- 0: Turn off the rule.\n- 1: Turn the rule on as a warning (doesn't affect exit code).\n- 2: Turn the rule on as an error (will exit with a failure code)."
@@ -1030,7 +1029,6 @@
           "description": "Minimum description length required when using directives with `allow-with-description`.",
           "default": 3,
           "type": "integer",
-          "format": "uint64",
           "minimum": 0.0,
           "markdownDescription": "Minimum description length required when using directives with `allow-with-description`."
         },
@@ -1471,7 +1469,6 @@
           "description": "Maximum amount of cyclomatic complexity",
           "default": 20,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "Maximum amount of cyclomatic complexity"
         },
@@ -1492,7 +1489,6 @@
       "anyOf": [
         {
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0
         },
         {
@@ -1770,7 +1766,6 @@
           "description": "Maximum depth to search for an accessible label within the element.\nDefaults to `2`.",
           "default": 2,
           "type": "integer",
-          "format": "uint8",
           "maximum": 25.0,
           "minimum": 0.0,
           "markdownDescription": "Maximum depth to search for an accessible label within the element.\nDefaults to `2`."
@@ -11277,7 +11272,6 @@
           "description": "The maximum number of graphemes allowed in an identifier.\nDefaults to no maximum (effectively unlimited).",
           "default": 18446744073709551615,
           "type": "integer",
-          "format": "uint64",
           "minimum": 0.0,
           "markdownDescription": "The maximum number of graphemes allowed in an identifier.\nDefaults to no maximum (effectively unlimited)."
         },
@@ -11285,7 +11279,6 @@
           "description": "The minimum number of graphemes required in an identifier.",
           "default": 2,
           "type": "integer",
-          "format": "uint64",
           "minimum": 0.0,
           "markdownDescription": "The minimum number of graphemes required in an identifier."
         },
@@ -11748,7 +11741,6 @@
       "anyOf": [
         {
           "type": "integer",
-          "format": "uint",
           "minimum": 0.0
         },
         {
@@ -11994,7 +11986,6 @@
           "description": "The maximum allowed depth of nested JSX elements and fragments.",
           "default": 2,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "The maximum allowed depth of nested JSX elements and fragments."
         }
@@ -12244,7 +12235,6 @@
           "description": "Maximum depth to search for a nested control.",
           "default": 2,
           "type": "integer",
-          "format": "uint8",
           "minimum": 0.0,
           "markdownDescription": "Maximum depth to search for a nested control."
         },
@@ -12386,7 +12376,6 @@
           "description": "The maximum number of classes allowed per file.",
           "default": 1,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "The maximum number of classes allowed per file."
         }
@@ -12397,7 +12386,6 @@
       "anyOf": [
         {
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0
         },
         {
@@ -12418,7 +12406,6 @@
           "description": "Maximum number of dependencies allowed in a file.",
           "default": 10,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "Maximum number of dependencies allowed in a file."
         }
@@ -12429,7 +12416,6 @@
       "anyOf": [
         {
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0
         },
         {
@@ -12444,7 +12430,6 @@
           "description": "The `max` enforces a maximum depth that blocks can be nested",
           "default": 4,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "The `max` enforces a maximum depth that blocks can be nested"
         }
@@ -12455,7 +12440,6 @@
       "anyOf": [
         {
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0
         },
         {
@@ -12470,7 +12454,6 @@
           "description": "Maximum number of `expect()` assertion calls allowed within a single test.",
           "default": 5,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "Maximum number of `expect()` assertion calls allowed within a single test."
         }
@@ -12484,7 +12467,6 @@
           "description": "Maximum number of lines allowed per file.",
           "default": 300,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "Maximum number of lines allowed per file."
         },
@@ -12507,7 +12489,6 @@
       "anyOf": [
         {
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0
         },
         {
@@ -12528,7 +12509,6 @@
           "description": "Maximum number of lines allowed in a function.",
           "default": 50,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "Maximum number of lines allowed in a function."
         },
@@ -12551,7 +12531,6 @@
       "anyOf": [
         {
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0
         },
         {
@@ -12566,7 +12545,6 @@
           "description": "The `max` enforces a maximum depth that callbacks can be nested.",
           "default": 10,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "The `max` enforces a maximum depth that callbacks can be nested."
         }
@@ -12577,7 +12555,6 @@
       "anyOf": [
         {
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0
         },
         {
@@ -12592,7 +12569,6 @@
           "description": "The maximum allowed nested call depth.",
           "default": 3,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "The maximum allowed nested call depth."
         }
@@ -12606,7 +12582,6 @@
           "description": "Maximum allowed depth of nested describe calls.",
           "default": 5,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "Maximum allowed depth of nested describe calls."
         }
@@ -12635,7 +12610,6 @@
           "description": "Maximum number of parameters allowed in function definitions.",
           "default": 3,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "Maximum number of parameters allowed in function definitions."
         }
@@ -12646,7 +12620,6 @@
       "anyOf": [
         {
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0
         },
         {
@@ -12661,7 +12634,6 @@
           "description": "The maximum number of props allowed in a Vue SFC.",
           "default": 1,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "The maximum number of props allowed in a Vue SFC."
         }
@@ -12681,7 +12653,6 @@
           "description": "Maximum number of statements allowed per function.",
           "default": 10,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "Maximum number of statements allowed per function."
         }
@@ -12692,7 +12663,6 @@
       "anyOf": [
         {
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0
         },
         {
@@ -13033,7 +13003,6 @@
         "count": {
           "default": 1,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0
         },
         "exactCount": {
@@ -13253,7 +13222,6 @@
           "description": "The maximum number of modules that can be re-exported via `export *`\nbefore the rule is triggered.",
           "default": 100,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "The maximum number of modules that can be re-exported via `export *`\nbefore the rule is triggered."
         }
@@ -13452,7 +13420,6 @@
           "description": "Maximum dependency depth to traverse",
           "default": 4294967295,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "Maximum dependency depth to traverse"
         }
@@ -14201,7 +14168,6 @@
           "description": "Maximum number of lines allowed for inline snapshots.",
           "default": 50,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "Maximum number of lines allowed for inline snapshots."
         },
@@ -14209,7 +14175,6 @@
           "description": "Maximum number of lines allowed for external snapshot files.",
           "default": 50,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "Maximum number of lines allowed for external snapshot files."
         }
@@ -14789,7 +14754,6 @@
           "description": "Vue major version whose reserved attribute set is applied. Vue 2 reserves\nmore names (`is`, `slot`, `class`, `style`, ...) than Vue 3.",
           "default": 3,
           "type": "integer",
-          "format": "uint8",
           "minimum": 0.0,
           "markdownDescription": "Vue major version whose reserved attribute set is applied. Vue 2 reserves\nmore names (`is`, `slot`, `class`, `style`, ...) than Vue 3."
         }
@@ -15870,7 +15834,6 @@
           "description": "The number of digits per group when inserting numeric separators.\nFor example, a `groupLength` of 3 formats `1234567` as `1_234_567`.",
           "default": 0,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "The number of digits per group when inserting numeric separators.\nFor example, a `groupLength` of 3 formats `1234567` as `1_234_567`."
         },
@@ -15878,7 +15841,6 @@
           "description": "The minimum number of digits required before grouping is applied.\nValues with fewer digits than this threshold will not be grouped.",
           "default": 0,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "The minimum number of digits required before grouping is applied.\nValues with fewer digits than this threshold will not be grouped."
         },
@@ -15897,7 +15859,6 @@
           "description": "The size a group of digits in the fractional part (after the decimal point) should be.",
           "default": 4294967295,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "The size a group of digits in the fractional part (after the decimal point) should be."
         },
@@ -15905,7 +15866,6 @@
           "description": "The number of digits per group when inserting numeric separators.\nFor example, a `groupLength` of 3 formats `1234567` as `1_234_567`.",
           "default": 0,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "The number of digits per group when inserting numeric separators.\nFor example, a `groupLength` of 3 formats `1234567` as `1_234_567`."
         },
@@ -15913,7 +15873,6 @@
           "description": "The minimum number of digits required before grouping is applied.\nValues with fewer digits than this threshold will not be grouped.",
           "default": 0,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "The minimum number of digits required before grouping is applied.\nValues with fewer digits than this threshold will not be grouped."
         },
@@ -16239,7 +16198,6 @@
         "maxWarnings": {
           "description": "Specify a warning threshold. Exits with an error status if warnings exceed this value.\n\nEquivalent to passing `--max-warnings` on the CLI.",
           "type": "integer",
-          "format": "uint",
           "minimum": 0.0,
           "markdownDescription": "Specify a warning threshold. Exits with an error status if warnings exceed this value.\n\nEquivalent to passing `--max-warnings` on the CLI."
         },
@@ -17692,7 +17650,6 @@
           "description": "The maximum number of top-level `describe` blocks allowed in a test file.",
           "default": 4294967295,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "The maximum number of top-level `describe` blocks allowed in a test file."
         }
@@ -18157,7 +18114,6 @@
           "description": "Minimum number of properties required in an object before sorting is enforced.",
           "default": 2,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "Minimum number of properties required in an object before sorting is enforced."
         },
@@ -18613,7 +18569,6 @@
           "description": "Maximum number of arguments `expect` should be called with.",
           "default": 1,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "Maximum number of arguments `expect` should be called with."
         },
@@ -18621,7 +18576,6 @@
           "description": "Minimum number of arguments `expect` should be called with.",
           "default": 1,
           "type": "integer",
-          "format": "uint32",
           "minimum": 0.0,
           "markdownDescription": "Minimum number of arguments `expect` should be called with."
         }
