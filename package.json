@@ -12,7 +12,7 @@
   "scripts": {
     "start": "bun ./npm/bin/n-cursor.js",
     "test": "vitest run",
-    "coverage": "n-cursor coverage"
+    "coverage": "npx @7n/test coverage"
   },
   "devDependencies": {
     "@nitra/cspell-dict": "^2.2.2",
