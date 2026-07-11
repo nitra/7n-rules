@@ -32,6 +32,7 @@
 
 import { env } from 'node:process'
 import { homedir } from 'node:os'
+import { createAnchoredTools } from './anchored-edit.mjs'
 import { getRegistry, resolveModelSpec } from './internal/registry.mjs'
 import { isLocalModel, thinkingLevelForTier } from './model-tiers.mjs'
 import { createWriteGuard, gitRoot } from './write-guard.mjs'
@@ -152,7 +153,7 @@ async function runVerifyLoop({ session, verify, verifyMax, timeoutMs, startedAt,
  *   єдині наявні файли, які дозволено редагувати (порожньо/відсутнє — без переліку).
  * @returns {string} промпт
  */
-export function buildFixPrompt({ ruleId, violation, ruleText, feedback, targetFiles }) {
+export function buildFixPrompt({ ruleId, violation, ruleText, feedback, targetFiles, anchoredEdits = false }) {
   const parts = [`Виправ порушення правила "${ruleId}" у цьому проєкті.`]
   if (ruleText) parts.push(`## Правило\n${ruleText}`)
   parts.push(`## Порушення\n${violation}`)
@@ -176,6 +177,13 @@ export function buildFixPrompt({ ruleId, violation, ruleText, feedback, targetFi
       'Після правок виклич `self_check`, щоб підтвердити, що порушення зникло. ' +
       'Редагуй лише потрібне, не чіпай стороннє.'
   )
+  if (anchoredEdits) {
+    parts.push(
+      'Наявні файли читай і редагуй ЛИШЕ через `read_anchored` → `edit_anchored` ' +
+        '(кожна правка = {anchor, line, newText} з якорями від read_anchored; ' +
+        'stale anchor = перечитай файл і повтори). `write` — лише для НОВИХ файлів.'
+    )
+  }
   return parts.join('\n\n')
 }
 
@@ -187,7 +195,17 @@ export function buildFixPrompt({ ruleId, violation, ruleText, feedback, targetFi
  *   selfCheck: (files: string[]) => Promise<{ ok: boolean, output: string }> | { ok: boolean, output: string } }} args параметри сесії.
  * @returns {Promise<object>} pi AgentSession
  */
-async function defaultCreateSession({ registry, model, thinkingLevel, cwd, factory, astContext, selfCheck, chain }) {
+async function defaultCreateSession({
+  registry,
+  model,
+  thinkingLevel,
+  cwd,
+  factory,
+  astContext,
+  selfCheck,
+  chain,
+  anchoredEdits = false
+}) {
   const { createAgentSession, SessionManager, DefaultResourceLoader, SettingsManager, defineTool } =
     await import('@earendil-works/pi-coding-agent')
   const agentDir = `${homedir()}/.pi/agent`
@@ -226,13 +244,23 @@ async function defaultCreateSession({ registry, model, thinkingLevel, cwd, facto
     })
   })
 
+  // A2: anchored-профіль заміняє built-in read/edit на строгі read_anchored/edit_anchored
+  // (write лишається для НОВИХ файлів, під тим самим write-guard).
+  let tools = ['read', 'grep', 'find', 'edit', 'write', 'ls', 'ast_facts', 'self_check']
+  const customTools = [astTool, checkTool]
+  if (anchoredEdits) {
+    const { readTool, editTool } = createAnchoredTools({ cwd, defineTool })
+    tools = ['grep', 'find', 'write', 'ls', 'ast_facts', 'self_check', 'read_anchored', 'edit_anchored']
+    customTools.push(readTool, editTool)
+  }
+
   const { session } = await createAgentSession({
     modelRegistry: registry,
     model,
     thinkingLevel,
     cwd,
-    tools: ['read', 'grep', 'find', 'edit', 'write', 'ls', 'ast_facts', 'self_check'],
-    customTools: [astTool, checkTool],
+    tools,
+    customTools,
     sessionManager: SessionManager.inMemory(),
     resourceLoader: loader
   })
@@ -250,6 +278,7 @@ async function defaultCreateSession({ registry, model, thinkingLevel, cwd, facto
  *   targetFiles?: string[],
  *   verify?: (args: { touchedFiles: string[] }) => Promise<{ ok: boolean, output?: string }> | { ok: boolean, output?: string },
  *   verifyMax?: number,
+ *   anchoredEdits?: boolean,
  *   deps?: { createSession?: (args: object) => Promise<object>, getRegistry?: () => Promise<object>,
  *            registry?: object, root?: string|null,
  *            astContext?: (path: string) => object,
@@ -270,6 +299,7 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     targetFiles,
     verify = null,
     verifyMax = VERIFY_MAX_DEFAULT,
+    anchoredEdits = false,
     deps = {}
   } = opts
   const createSession = deps.createSession ?? defaultCreateSession
@@ -328,6 +358,7 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
       factory: guard.factory,
       astContext,
       selfCheck,
+      anchoredEdits,
       // Заголовки кореляції — лише локальним моделям (myllm стоїть тільки перед ними).
       chain: modelSpec && isLocalModel(modelSpec) ? chain : null
     })
@@ -376,7 +407,7 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     }
   })
 
-  const fixPrompt = buildFixPrompt({ ruleId, violation, ruleText, feedback, targetFiles })
+  const fixPrompt = buildFixPrompt({ ruleId, violation, ruleText, feedback, targetFiles, anchoredEdits })
   const pHash = promptHash(fixPrompt)
   const startedAt = clock()
   let error = null
@@ -439,6 +470,7 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     backstopHit,
     verifyAttempts: verifyAttempts.length,
     verifyOk: verifyAttempts.length > 0 ? verifyAttempts.at(-1).ok : null,
+    anchoredEdits,
     wallMs: clock() - startedAt,
     error,
     ...chain?.traceFields()

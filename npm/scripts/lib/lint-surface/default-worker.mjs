@@ -9,14 +9,32 @@
  * @typedef {import('./types.mjs').FixWorkerFn} FixWorkerFn
  */
 import { resolve } from 'node:path'
+import { env } from 'node:process'
 
 import { renderViolations } from './render.mjs'
+
+/**
+ * Anchored-edits opt-in (Фаза A2, дефолт OFF до bench-валідації):
+ * `N_LLM_FIX_ANCHORED=1` — усі тири; `=cloud` — лише не-local моделі
+ * (гіпотеза дизайну: строгий протокол якорів піднімає точність cloud і
+ * заскладний для слабкої 4B).
+ * @param {string|undefined} model "provider/model-id" рунга
+ * @param {(spec: string) => boolean} isLocal предикат local-моделі
+ * @returns {boolean} чи вмикати anchored-профіль для цього рунга
+ */
+function anchoredEnabled(model, isLocal) {
+  const mode = env.N_LLM_FIX_ANCHORED ?? ''
+  if (mode === '1') return true
+  if (mode === 'cloud') return Boolean(model) && !isLocal(model)
+  return false
+}
 
 /** @type {FixWorkerFn} */
 export async function fixWorker(violations, ctx) {
   // lazy import — тримає detect-шлях вільним від pi/oxc (read-only --no-fix не вантажить їх).
-  const [{ runAgentFix }, { extractContext }] = await Promise.all([
+  const [{ runAgentFix }, { isLocalModel }, { extractContext }] = await Promise.all([
     import('@7n/llm-lib/agent-fix'),
+    import('@7n/llm-lib/model-tiers'),
     import('../../utils/ast-extract.mjs')
   ])
   const violationText = renderViolations(violations)
@@ -39,6 +57,7 @@ export async function fixWorker(violations, ctx) {
     // verify інʼєктиться фідбеком у ту саму pi-сесію замість одразу нового рунга.
     verify: ctx.verify,
     verifyMax: ctx.verifyMax,
+    anchoredEdits: anchoredEnabled(ctx.model, isLocalModel),
     // n-cursor-специфічний AST-екстрактор (oxc) — пакет цього дефолту не має.
     deps: { astContext: p => extractContext(resolve(ctx.cwd, p)) }
   })

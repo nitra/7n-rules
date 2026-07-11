@@ -3,7 +3,7 @@ type: JS Module
 title: write-guard.mjs
 resource: llm-lib/lib/write-guard.mjs
 docgen:
-  crc: b95012fc
+  crc: b5110048
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 
@@ -16,6 +16,7 @@ docgen:
 NEW_FILE позначає файл, якого до запису не існувало.
 gitRoot визначає кореневий каталог репозиторію Git, якщо він є.
 createWriteGuard створює механізм захисту записів до файлової системи, який перевіряє, чи запис знаходиться в межах кореневого каталогу Git, чи не стосується він директорій `.git` або ігнорованих файлів Git, і робить резервні копії файлів перед будь-якою зміною.
+Під veto/snapshot підпадають tool-виклики `edit`, `write` і `edit_anchored` (anchored-профіль Фази A2, див. anchored-edit.md) — кастомний anchored-tool проходить той самий контроль, що й built-in write-tools.
 
 ## Публічний API
 
