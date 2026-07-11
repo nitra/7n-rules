@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.23.0] - 2026-07-11
+
+### Added
+
+- lint fix: evidence-гейт рунга (Фаза A1) — fixCtx.verify (item-scoped canonical re-detect) + verifyMax per tier прокидаються у runAgentFix; провал verify інʼєктиться фідбеком у ту саму pi-сесію замість одразу нового рунга
+
 ## [14.22.1] - 2026-07-11
 
 ### Fixed
