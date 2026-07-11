@@ -1,0 +1,9 @@
+## Заборона `import ... from 'bun:test'`
+
+Тести проєкту виконуються через **vitest** (`vitest run`, а також `@7n/test coverage`, який ганяє `vitest run --coverage` + Stryker з `vitest-runner`) — `bun:test` там не резолвиться взагалі: `Cannot find package 'bun:test'`. Файл з таким імпортом ламає весь coverage/mutation-прогін workspace-а (реальні помилки не маскуються — одна `bun:test`-згадка валить весь `@7n/test coverage`).
+
+- **Заборонено** `import { ... } from 'bun:test'` у будь-якому `*.test.{mjs,js}`.
+- **Auto-fix (T0):** якщо всі імпортовані специфікатори мають прямий 1:1 еквівалент у vitest — `describe`, `test`, `it`, `expect`, `beforeEach`, `beforeAll`, `afterEach`, `afterAll` — джерело переписується на `'vitest'` без зміни специфікаторів чи call-sites.
+- **Без auto-fix:** якщо import містить `mock`, `spyOn`, `jest` чи інший специфікатор без прямого еквіваленту — T0 файл не чіпає. У vitest ці API живуть під `vi.*` namespace (`vi.fn()`, `vi.spyOn(...)`), тож самого перезапису джерела недостатньо — потрібне ручне (або LLM-ladder) виправлення call-sites. Violation залишається до фіксу.
+
+**Перевірка** (`rules/test/no-bun-test-import/main.mjs`): сканує `**/*.test.{mjs,js}`, шукає `import { ... } from 'bun:test'` (можливо багаторядковий), парсить специфікатори і визначає `fixable`.
