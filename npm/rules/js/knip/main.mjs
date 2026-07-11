@@ -48,7 +48,10 @@ export async function lint(ctx) {
   // eslint-disable-next-line no-unsanitized/method -- URL from resolved package path, not user input
   const { createOptions } = await import(pathToFileURL(join(distDir, 'util/create-options.js')).href)
 
-  const options = await createOptions({ cwd, isDisableConfigHints: true })
+  // knip вмикає власний прогрес-репортер ("Analyzing workspace …") автоматично в TTY,
+  // незалежно від наших verbose-прапорців — глушимо його поза `--verbose`, щоб не
+  // засмічувати вивід `lint --full`.
+  const options = await createOptions({ cwd, isDisableConfigHints: true, isShowProgress: ctx.verbose === true })
   const results = await knipMain(options)
 
   /** @type {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation[]} */

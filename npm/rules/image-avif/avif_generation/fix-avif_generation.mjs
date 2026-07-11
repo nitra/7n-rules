@@ -35,7 +35,6 @@ function runAvifGeneration(cwd) {
     return
   }
   const result = spawnSync(npxPath, [MINIFY_PACKAGE_NAME, '--src=.', '--write', '--avif'], {
-    stdio: 'inherit',
     cwd,
     env
   })

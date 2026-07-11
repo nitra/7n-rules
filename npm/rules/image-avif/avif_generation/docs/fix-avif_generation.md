@@ -3,9 +3,8 @@ type: JS Module
 title: fix-avif_generation.mjs
 resource: npm/rules/image-avif/avif_generation/fix-avif_generation.mjs
 docgen:
-  crc: eeda96fe
+  crc: 2e6cec6f
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 90
   judgeModel: openai-codex/gpt-5.4-mini
 ---

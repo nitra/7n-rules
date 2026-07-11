@@ -6540,6 +6540,7 @@ export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
   const root = ctx.cwd
+  const verbose = ctx.verbose === true
 
   const ignorePaths = await loadCursorIgnorePaths(root)
 
@@ -6547,7 +6548,7 @@ export async function lint(ctx) {
   // (spec docs/specs/2026-07-02-text-check-per-file-split-design.md §6) ──
   const dirs = await findK8sRoots(root, ignorePaths)
   if (dirs.length > 0) {
-    const ks = await runKubescape(dirs, root)
+    const ks = await runKubescape(dirs, root, verbose)
     if (ks !== 0 && ks !== 127) fail('kubescape знайшов ризики у маніфестах (k8s.mdc)', 'kubescape')
   }
 
@@ -6656,9 +6657,10 @@ const DATREE_CRD_SCHEMA_LOCATION =
 /**
  * Прогоняє `kubeconform` по k8s-каталогах (read-only валідація схем).
  * @param {string[]} dirs абсолютні шляхи k8s-коренів.
+ * @param {boolean} [verbose] показати повний нативний вивід kubeconform (`stdio: 'inherit'`).
  * @returns {number} exit-код процесу (127 якщо тул відсутній).
  */
-export function runKubeconform(dirs) {
+export function runKubeconform(dirs, verbose = false) {
   const args = [
     '-summary',
     '-kubernetes-version',
@@ -6671,7 +6673,7 @@ export function runKubeconform(dirs) {
     ...dirs
   ]
   const kubeconformPath = ensureTool('kubeconform')
-  const r = spawnSync(kubeconformPath, args, { stdio: 'inherit', shell: false })
+  const r = spawnSync(kubeconformPath, args, { stdio: verbose ? 'inherit' : 'pipe', shell: false })
   if (r.error && 'code' in r.error && r.error.code === 'ENOENT') {
     console.error('kubeconform не знайдено в PATH. Встанови з https://github.com/yannh/kubeconform#readme')
     return 127
@@ -6723,10 +6725,14 @@ export async function findKustomizationDirs(dir) {
  * Виконує `kubectl kustomize <dir>`, захоплюючи stdout зібраного маніфеста.
  * @param {string} kubectlPath шлях до бінарника kubectl.
  * @param {string} dir каталог з kustomization.
+ * @param {boolean} [verbose] показати stderr тула напряму (`stdio: 'inherit'`).
  * @returns {{ status: number, stdout: Buffer }} exit-код і зібраний YAML.
  */
-function runKustomizeBuild(kubectlPath, dir) {
-  const r = spawnSync(kubectlPath, ['kustomize', dir], { stdio: ['ignore', 'pipe', 'inherit'], shell: false })
+function runKustomizeBuild(kubectlPath, dir, verbose = false) {
+  const r = spawnSync(kubectlPath, ['kustomize', dir], {
+    stdio: ['ignore', 'pipe', verbose ? 'inherit' : 'pipe'],
+    shell: false
+  })
   return { status: r.status ?? 1, stdout: r.stdout ?? Buffer.alloc(0) }
 }
 
@@ -6735,15 +6741,16 @@ function runKustomizeBuild(kubectlPath, dir) {
  * @param {string} kubescapePath шлях до бінарника kubescape.
  * @param {string|Buffer} manifest вміст маніфеста для сканування.
  * @param {string[]} exceptionsArgs додаткові CLI-аргументи (`--exceptions ...`).
+ * @param {boolean} [verbose] показати повний нативний вивід kubescape (`stdio: 'inherit'`).
  * @returns {{ status: number, enoent: boolean }} exit-код і прапорець відсутнього тула.
  */
-function runKubescapeManifest(kubescapePath, manifest, exceptionsArgs) {
+function runKubescapeManifest(kubescapePath, manifest, exceptionsArgs, verbose = false) {
   const dir = mkdtempSync(join(tmpdir(), 'nitra-cursor-k8s-'))
   const file = join(dir, 'manifest.yaml')
   try {
     writeFileSync(file, manifest)
     const r = spawnSync(kubescapePath, ['scan', file, '--severity-threshold', 'high', ...exceptionsArgs], {
-      stdio: 'inherit',
+      stdio: verbose ? 'inherit' : 'pipe',
       shell: false
     })
     const enoent = Boolean(r.error && 'code' in r.error && r.error.code === 'ENOENT')
@@ -6758,12 +6765,13 @@ function runKubescapeManifest(kubescapePath, manifest, exceptionsArgs) {
  * @param {string} kubescapePath шлях до бінарника kubescape.
  * @param {string} dir каталог для сканування.
  * @param {string[]} exceptionsArgs додаткові CLI-аргументи (`--exceptions ...`).
+ * @param {boolean} [verbose] показати повний нативний вивід kubescape (`stdio: 'inherit'`) і хід сканування.
  * @returns {number} exit-код (127 якщо тул відсутній).
  */
-function scanRawK8sDir(kubescapePath, dir, exceptionsArgs) {
-  console.log(`run-k8s: kubescape scan ${dir} (без kustomization — сирий dir-скан)`)
+function scanRawK8sDir(kubescapePath, dir, exceptionsArgs, verbose = false) {
+  if (verbose) console.log(`run-k8s: kubescape scan ${dir} (без kustomization — сирий dir-скан)`)
   const r = spawnSync(kubescapePath, ['scan', dir, '--severity-threshold', 'high', ...exceptionsArgs], {
-    stdio: 'inherit',
+    stdio: verbose ? 'inherit' : 'pipe',
     shell: false
   })
   if (r.error && 'code' in r.error && r.error.code === 'ENOENT') {
@@ -6779,14 +6787,15 @@ function scanRawK8sDir(kubescapePath, dir, exceptionsArgs) {
  * @param {string} kubescapePath шлях до бінарника kubescape.
  * @param {string[]} kdirs каталоги з kustomization.
  * @param {string[]} exceptionsArgs додаткові CLI-аргументи (`--exceptions ...`).
+ * @param {boolean} [verbose] показати повний нативний вивід kubectl/kubescape і хід сканування.
  * @returns {number} 0 якщо всі чисті, інакше перший ненульовий exit-код (127 — тул відсутній).
  */
-function scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exceptionsArgs) {
+function scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exceptionsArgs, verbose = false) {
   for (const kdir of kdirs) {
-    console.log(`run-k8s: kubectl kustomize ${kdir} | kubescape scan <tmp>`)
-    const build = runKustomizeBuild(kubectlPath, kdir)
+    if (verbose) console.log(`run-k8s: kubectl kustomize ${kdir} | kubescape scan <tmp>`)
+    const build = runKustomizeBuild(kubectlPath, kdir, verbose)
     if (build.status !== 0) return build.status
-    const ks = runKubescapeManifest(kubescapePath, build.stdout, exceptionsArgs)
+    const ks = runKubescapeManifest(kubescapePath, build.stdout, exceptionsArgs, verbose)
     if (ks.enoent) {
       console.error(KUBESCAPE_MISSING_HINT)
       return 127
@@ -6800,17 +6809,18 @@ function scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exceptionsArgs)
  * Оркеструє kubescape-скан по k8s-коренях: kustomize-каталоги збираються, решта — сирий скан.
  * @param {string[]} dirs абсолютні шляхи k8s-коренів.
  * @param {string} root корінь репозиторію (для файла винятків).
+ * @param {boolean} [verbose] показати повний нативний вивід kubectl/kubescape (`stdio: 'inherit'`) і хід сканування.
  * @returns {Promise<number>} 0 якщо все чисто, інакше перший ненульовий exit-код (127 — тул відсутній).
  */
-async function runKubescape(dirs, root) {
+async function runKubescape(dirs, root, verbose = false) {
   const exceptionsArgs = buildKubescapeExceptionsArgs(root)
-  if (exceptionsArgs.length > 0) console.log(`run-k8s: kubescape exceptions — ${KUBESCAPE_EXCEPTIONS_FILE}`)
+  if (verbose && exceptionsArgs.length > 0) console.log(`run-k8s: kubescape exceptions — ${KUBESCAPE_EXCEPTIONS_FILE}`)
   const kubescapePath = ensureTool('kubescape')
   let kubectlPath = null
   for (const d of dirs) {
     const kdirs = await findKustomizationDirs(d)
     if (kdirs.length === 0) {
-      const rawStatus = scanRawK8sDir(kubescapePath, d, exceptionsArgs)
+      const rawStatus = scanRawK8sDir(kubescapePath, d, exceptionsArgs, verbose)
       if (rawStatus !== 0) return rawStatus
       continue
     }
@@ -6821,7 +6831,7 @@ async function runKubescape(dirs, root) {
         return 127
       }
     }
-    const buildStatus = scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exceptionsArgs)
+    const buildStatus = scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exceptionsArgs, verbose)
     if (buildStatus !== 0) return buildStatus
   }
   return 0

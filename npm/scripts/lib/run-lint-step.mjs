@@ -1,9 +1,9 @@
 /**
  * Спільний хелпер для CLI-обгорток `lint-<rule>`: запускає один крок ланцюжка з логуванням
  * команди. У `verbose` прокидає stdout/stderr на користувацькі stream-и (`stdio: 'inherit'`),
- * щоб виглядало як прямий виклик у shell; без `verbose` — тихо (captured stdio), щоб не
- * засмічувати прогрес-бар `lint --full`, і друкує captured вивід лише при реальному
- * порушенні (для контексту `fail()`).
+ * щоб виглядало як прямий виклик у shell; без `verbose` — тихо (captured stdio, не друкується),
+ * щоб не засмічувати прогрес-бар `lint --full` сирим виводом тулу — `fail()` вже дає
+ * лаконічне повідомлення про порушення, без потреби в raw stdout/stderr.
  *
  * Використовується з rule-адаптерів `n-cursor lint <rule>`, щоб не дублювати
  * одну й ту саму обгортку у кожному `rules/<id>/js/lint.mjs` (jscpd-clone).
@@ -34,11 +34,5 @@ export function runLintStep(title, cmd, args, opts = {}) {
     console.error(`❌ Не вдалося запустити ${cmd}: ${r.error.message}`)
     return 1
   }
-  const code = r.status ?? 1
-  if (!verbose && code !== 0 && code !== 127) {
-    console.log(header)
-    if (r.stdout) process.stdout.write(r.stdout)
-    if (r.stderr) process.stderr.write(r.stderr)
-  }
-  return code
+  return r.status ?? 1
 }
