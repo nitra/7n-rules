@@ -6,6 +6,7 @@ import rego.v1
 template_data := {
 	"snippet": {
 		"version": "0.2",
+		"useGitignore": true,
 		"ignorePaths": [
 			"**/node_modules/**",
 			"**/vscode-extension/**",
@@ -24,6 +25,7 @@ template_data := {
 valid_cfg := {
 	"version": "0.2",
 	"language": "en,uk",
+	"useGitignore": true,
 	"import": ["@nitra/cspell-dict/cspell-ext.json"],
 	"ignorePaths": [
 		"**/node_modules/**",
@@ -67,6 +69,12 @@ test_deny_legacy_dict_import if {
 test_deny_missing_ignore_path if {
 	bad := json.patch(valid_cfg, [{"op": "replace", "path": "/ignorePaths", "value": ["**/.git/**"]}])
 	count(cspell.deny) > 0 with input as bad with data.template as template_data
+}
+
+test_deny_missing_use_gitignore if {
+	bad := json.patch(valid_cfg, [{"op": "remove", "path": "/useGitignore"}])
+	some msg in cspell.deny with input as bad with data.template as template_data
+	contains(msg, "useGitignore")
 }
 
 # Drift test.
