@@ -12,11 +12,11 @@
   "scripts": {
     "start": "bun ./npm/bin/n-cursor.js",
     "test": "vitest run",
-    "coverage": "n-cursor coverage"
+    "coverage": "npx @7n/test coverage"
   },
   "devDependencies": {
     "@nitra/cspell-dict": "^2.2.2",
-    "@nitra/cursor": "^14.22.1",
+    "@nitra/cursor": "^14.23.0",
     "@nitra/eslint-config": "^3.10.3",
     "@nitra/stylelint-config": "^1.4.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
