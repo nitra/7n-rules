@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.21.0] - 2026-07-11
+
+### Added
+
+- text/cspell: useGitignore:true у каноні .cspell.json — cspell поважає .gitignore, білд-артефакти (target/, dist/) не потрапляють у full-прогін
+
 ## [14.20.0] - 2026-07-11
 
 ### Added
