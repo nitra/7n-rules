@@ -3,7 +3,7 @@ type: JS Module
 title: agent-fix.mjs
 resource: llm-lib/lib/agent-fix.mjs
 docgen:
-  crc: 730809af
+  crc: 83a189d4
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 
@@ -17,6 +17,8 @@ docgen:
 buildFixPrompt готує текстовий промпт, що містить інструкції для агента щодо виправлення порушення правила.
 runAgentFix виконує повний агентний цикл для спроби виправлення порушення правила, включаючи взаємодію з інструментами, застосування патча та фіксацію телеметрії.
 Виклик сесії огорнутий timeout-гонкою: `opts.timeoutMs` (дефолт 300s, коли consumer не передав значення) на спрацюванні abort-ить сесію і повертає помилку `fix timeout …` — зависла LLM-сесія (напр. мертва SSE) не блокує виклик назавжди.
+
+Web-профіль (опційний `opts.webTools`, Фаза A3): додає read-only tools `web_search`/`web_fetch` (див. web-tools.md; SSRF-guard, ліміти розміру) — для правил із зовнішнім знанням на cloud-тирах; прапорець у трейсі, дефолт вимкнено.
 
 Anchored-профіль (опційний `opts.anchoredEdits`, Фаза A2): toolset сесії заміняє built-in `read`/`edit` на строгі `read_anchored`/`edit_anchored` (див. anchored-edit.md; `write` лишається для нових файлів, під тим самим write-guard), а промпт отримує інструкцію anchored-циклу. Прапорець фіксується у трейсі (`anchoredEdits`) для A/B-аналізу; дефолт вимкнено.
 
