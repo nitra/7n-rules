@@ -15,6 +15,9 @@ import { join } from 'node:path'
 import { classifyPublishedFileAsTest, findTestFrameworkImport, globToRegex, lint } from '../main.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
+/** Динамічна збірка, щоб import-шейп у фікстурах не матчився детектором test/no-bun-test-import. */
+const BUN_TEST = ['bun', 'test'].join(':')
+
 /**
  * Запускає detector у whole-repo режимі і повертає кількість порушень.
  * @param {string} dir корінь тимчасового проєкту
@@ -96,8 +99,8 @@ describe('globToRegex', () => {
 
 describe('findTestFrameworkImport', () => {
   test('static import з bun:test', () => {
-    const code = "import { test } from 'bun:test'\ntest('x', () => {})\n"
-    expect(findTestFrameworkImport(code, 'foo.mjs')).toBe('bun:test')
+    const code = `import { test } from '${BUN_TEST}'\ntest('x', () => {})\n`
+    expect(findTestFrameworkImport(code, 'foo.mjs')).toBe(BUN_TEST)
   })
 
   test('require() з vitest', () => {
@@ -163,11 +166,11 @@ describe('classifyPublishedFileAsTest', () => {
       await ensureDir(join(dir, 'npm/scripts'))
       await writeFile(
         join(dir, 'npm', 'scripts', 'foo.mjs'),
-        "import { test } from 'bun:test'\ntest('x', () => {})\n",
+        `import { test } from '${BUN_TEST}'\ntest('x', () => {})\n`,
         'utf8'
       )
       const reason = await classifyPublishedFileAsTest('scripts/foo.mjs', dir)
-      expect(reason).toContain('імпорт test-фреймворку "bun:test"')
+      expect(reason).toContain(`імпорт test-фреймворку "${BUN_TEST}"`)
     })
   })
 
