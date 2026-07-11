@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.5.0] - 2026-07-11
+
+### Changed
+
+- body-capture (N_LLM_TRACE_BODIES) увімкнено за замовчуванням; N_LLM_TRACE_BODIES=0 вимикає
+
 ## [2.4.1] - 2026-07-11
 
 ### Fixed
