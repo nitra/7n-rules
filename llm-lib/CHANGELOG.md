@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.3.0] - 2026-07-11
+
+### Added
+
+- web-tools (Фаза A3): web_search/web_fetch для cloud-профілів — SSRF-guard (кожен redirect-hop), мінімальна html→text екстракція без нових залежностей, один search-провайдер за ключем (Brave/Tavily/Exa, N_LLM_SEARCH_PROVIDER); opts.webTools у runAgentFix (дефолт off)
+
 ## [2.2.1] - 2026-07-11
 
 ### Changed
