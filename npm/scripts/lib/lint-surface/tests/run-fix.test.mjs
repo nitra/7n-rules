@@ -224,51 +224,42 @@ describe('runFixPipeline — T0 permanent', () => {
   })
 })
 
-describe('runFixPipeline — B1 MT-tail (env-гейт, fail-open)', () => {
-  test('N_LINT_MT_TAIL вимкнено (дефолт) → жодного mt/ навіть при невиправленому хвості', async () => {
+describe('runFixPipeline — MT-tail (гейт = onboarded-репо, fail-open)', () => {
+  test('не-MT-репо (нема .mt.json) → жодного mt/ навіть при невиправленому хвості', async () => {
     await withTmpDir(async dir => {
       const rulesDir = await seedConcern(dir)
-      const prev = env.N_LINT_MT_TAIL
-      delete env.N_LINT_MT_TAIL
-      try {
-        const code = await runFixPipeline({
-          rulesDir,
-          cwd: dir,
-          full: true,
-          log: () => {
-            /* no-op logger */
-          },
-          deps: { ladder: ONE_RUNG, workerFor: () => writeWrongWorker }
-        })
-        expect(code).toBe(1)
-        expect(existsSync(join(dir, 'mt'))).toBe(false)
-      } finally {
-        if (prev !== undefined) env.N_LINT_MT_TAIL = prev
-      }
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: { ladder: ONE_RUNG, workerFor: () => writeWrongWorker }
+      })
+      expect(code).toBe(1)
+      // Preflight (.mt.json відсутній) → skip; fail-open, verdict не змінюється.
+      expect(existsSync(join(dir, 'mt'))).toBe(false)
     })
   })
 
-  test('N_LINT_MT_TAIL=1 без .mt.json → fail-open: exit 1, mt/ не створюється, lint не падає', async () => {
+  test('MT-onboarded репо → материалізація не міняє verdict (fail-open, exit 1)', async () => {
     await withTmpDir(async dir => {
       const rulesDir = await seedConcern(dir)
-      const prev = env.N_LINT_MT_TAIL
-      env.N_LINT_MT_TAIL = '1'
-      try {
-        const code = await runFixPipeline({
-          rulesDir,
-          cwd: dir,
-          full: true,
-          log: () => {
-            /* no-op logger */
-          },
-          deps: { ladder: ONE_RUNG, workerFor: () => writeWrongWorker }
-        })
-        expect(code).toBe(1) // fail-open: MT-матеріалізація не змінює verdict
-        expect(existsSync(join(dir, 'mt'))).toBe(false) // preflight (.mt.json відсутній) → skip
-      } finally {
-        if (prev === undefined) delete env.N_LINT_MT_TAIL
-        else env.N_LINT_MT_TAIL = prev
-      }
+      // .mt.json робить репо onboarded; чи MT CLI резолвиться — залежить від оточення,
+      // тому асертуємо лише інваріант fail-open: MT-матеріалізація НІКОЛИ не змінює
+      // verdict lint-у (детермінований re-detect лишається джерелом правди).
+      await writeJson(join(dir, '.mt.json'), { mt_dir: './mt' })
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: { ladder: ONE_RUNG, workerFor: () => writeWrongWorker }
+      })
+      expect(code).toBe(1)
     })
   })
 })

@@ -3,7 +3,7 @@ type: JS Module
 title: mt-tail.mjs
 resource: npm/scripts/lib/lint-surface/mt-tail.mjs
 docgen:
-  crc: 0d41b6d5
+  crc: 939b00bf
   model: openai-codex/gpt-5.4-mini
   score: 100
   judgeModel: openai-codex/gpt-5.4-mini
