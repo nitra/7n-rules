@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.19.1] - 2026-07-11
+
+### Fixed
+
+- v8r-каталог: vendored-схеми для Cargo.toml і .cargo/mutants.toml (без мережевого fallback)
+
 ## [14.19.0] - 2026-07-11
 
 ### Added
