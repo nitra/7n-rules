@@ -9,7 +9,12 @@
  * (не-http) схеми як шляхи ВІДНОСНО `npm/schemas/` (наприклад `"n-cursor.json"`,
  * `"vendor/tsconfig.json"`) — так каталог лишається портативним у репозиторії. Ці схеми вендорені
  * в `npm/schemas/` (власні) і `npm/schemas/vendor/` (сторонні: package.json, tsconfig, oxlintrc,
- * cspell тощо) — v8r ніколи не фетчить їх по мережі.
+ * cspell тощо) — v8r ніколи не фетчить їх по мережі. Вендоровані схеми мають бути self-contained:
+ * усі `$ref` — внутрішні (`#…`), бо зовнішні v8r резолвить через `got` (лише http/https) відносно
+ * `$id` схеми, тобто мережею на кожен прогін; зовнішні залежності інлайняться при вендорингу
+ * (наприклад, у `vendor/package.json` вкладено eslintrc/prettierrc/ava/… як
+ * `definitions.vendored-<name>`). Інваріант — під guard-тестом у
+ * `npm/rules/text/tests/run-v8r-catalog.test.mjs`.
  *
  * Передаємо каталог у v8r НЕ через `-c` (файловий шлях), а через `customCatalog` у тимчасовому
  * v8r-конфіг-файлі (`V8R_CONFIG_FILE`): `-c` змушує v8r на кожен файл валідувати сам каталог проти
@@ -28,10 +33,12 @@
  *
  * v8r завжди дописує `https://www.schemastore.org/api/json/catalog.json` останнім fallback-
  * каталогом (безумовно, без опції вимкнути) — якщо файл не збігається з нашим `customCatalog`, v8r
- * піде по мережу за ним. Це НЕ блокується: файл валідується (мережевий фетч спрацьовує), але
- * `main.mjs` парсить stderr v8r (рядки `ℹ Found schema in <url>` — цей `info`-рівень v8r друкує
- * завжди, незалежно від verbosity) і виводить у stdout окреме попередження на кожен такий файл із
- * порадою додати схему в `npm/schemas/v8r-catalog.json`.
+ * піде по мережу за ним. Мережа — передумова коректної роботи (офлайн-захисту нема), але щоб не
+ * фетчити те саме на кожен прогін, конфіг задає `cacheTtl` доба замість дефолтних 600 с (v8r кешує
+ * HTTP-відповіді у flat-cache в tmpdir). Fallback НЕ блокується: файл валідується, а `main.mjs`
+ * парсить stderr v8r (рядки `ℹ Found schema in <url>` — цей `info`-рівень v8r друкує завжди,
+ * незалежно від verbosity) і виводить у stdout окреме попередження на кожен такий файл із порадою
+ * додати схему в `npm/schemas/v8r-catalog.json`.
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -84,11 +91,18 @@ export function resolveCustomCatalogSchemas() {
 }
 
 /**
- * Матеріалізує тимчасовий v8r-конфіг (`{ customCatalog: { schemas } }`) у `RESOLVED_V8R_CONFIG_PATH`.
+ * TTL HTTP-кешу v8r (секунди): доба замість дефолтних 600 с — fallback-фетчі schemastore-каталогу
+ * для незматчених файлів і remote-схеми не тягнуться мережею на кожен прогін (flat-cache у tmpdir).
+ */
+export const V8R_CACHE_TTL_SECONDS = 86_400
+
+/**
+ * Матеріалізує тимчасовий v8r-конфіг (`{ cacheTtl, customCatalog: { schemas } }`) у
+ * `RESOLVED_V8R_CONFIG_PATH`.
  * @returns {string} шлях до записаного файлу
  */
 export function writeResolvedV8rConfig() {
-  const config = { customCatalog: { schemas: resolveCustomCatalogSchemas() } }
+  const config = { cacheTtl: V8R_CACHE_TTL_SECONDS, customCatalog: { schemas: resolveCustomCatalogSchemas() } }
   writeFileSync(RESOLVED_V8R_CONFIG_PATH, JSON.stringify(config), 'utf8')
   return RESOLVED_V8R_CONFIG_PATH
 }
