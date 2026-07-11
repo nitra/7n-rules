@@ -28,6 +28,7 @@ function attach(guard) {
 }
 
 const edit = path => ({ toolName: 'edit', input: { path } })
+const anchored = (path, edits) => ({ toolName: 'edit_anchored', input: { path, edits } })
 
 let dir
 beforeEach(() => {
@@ -53,6 +54,19 @@ describe('veto-логіка (інжектований root + checkIgnore)', () =
     expect(guard.state.attached).toBe(true)
     expect(h(edit('src.mjs'))).toBeUndefined()
     expect(guard.state.preImages.get(join(dir, 'src.mjs'))).toBe('OLD')
+  })
+
+  test('edit_anchored (A2) — той самий veto/snapshot, що й built-in edit', () => {
+    writeFileSync(join(dir, 'src.mjs'), 'OLD')
+    const guard = guardFor()
+    const h = attach(guard)
+    // allow + pre-image + editLog з anchored-формою правок
+    expect(h(anchored('src.mjs', [{ anchor: 'abc', line: 1, newText: 'NEW' }]))).toBeUndefined()
+    expect(guard.state.preImages.get(join(dir, 'src.mjs'))).toBe('OLD')
+    expect(guard.state.editLog.at(-1)).toMatchObject({ tool: 'edit_anchored', edits: [{ anchor: 'abc', line: 1 }] })
+    // veto поза root і на git-ignored — ідентичний built-in
+    expect(h(anchored('/etc/passwd', []))).toMatchObject({ block: true })
+    expect(h(anchored('ignored/x.mjs', []))).toMatchObject({ block: true })
   })
 
   test('git-ignored → block, без pre-image', () => {

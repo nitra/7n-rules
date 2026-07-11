@@ -110,6 +110,14 @@ describe('buildFixPrompt', () => {
     expect(p).toContain('НЕ змінюй бізнес-логіку')
   })
 
+  test('anchoredEdits: інструкція read_anchored/edit_anchored лише при увімкненому профілі', () => {
+    expect(buildFixPrompt({ ruleId: 'r', violation: 'v' })).not.toContain('read_anchored')
+    const p = buildFixPrompt({ ruleId: 'r', violation: 'v', anchoredEdits: true })
+    expect(p).toContain('read_anchored')
+    expect(p).toContain('edit_anchored')
+    expect(p).toContain('НОВИХ файлів')
+  })
+
   test('targetFiles: перелік додається лише за наявності', () => {
     expect(buildFixPrompt({ ruleId: 'r', violation: 'v' })).not.toContain('Target-файли')
     expect(buildFixPrompt({ ruleId: 'r', violation: 'v', targetFiles: [] })).not.toContain('Target-файли')
@@ -401,6 +409,18 @@ describe('verify-loop (evidence-гейт, Фаза A1)', () => {
     expect(r.error).toBeNull()
     expect(prompts).toHaveLength(1)
     expect(r.telemetry.verifyAttempts).toEqual([])
+  })
+
+  test('anchoredEdits прокидається у createSession і в trace (A/B-аналіз)', async () => {
+    const trace = vi.fn()
+    const createSession = fakeVerifyCreate([])
+    await runAgentFix('r', 'v', dir, {
+      model: 'omlx/gemma',
+      anchoredEdits: true,
+      deps: { root: dir, registry, createSession, trace }
+    })
+    expect(createSession).toHaveBeenCalledWith(expect.objectContaining({ anchoredEdits: true }))
+    expect(trace).toHaveBeenCalledWith(expect.objectContaining({ anchoredEdits: true }))
   })
 
   test('prompt-error першого проходу → verify не запускається', async () => {

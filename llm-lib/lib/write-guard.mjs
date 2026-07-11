@@ -27,8 +27,8 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 /** Sentinel pre-image для файлу, якого до запису не існувало (rollback = видалити). */
 export const NEW_FILE = Symbol('new-file')
 
-/** Tool-и, що пишуть на диск і підлягають veto. */
-const WRITE_TOOLS = new Set(['edit', 'write'])
+/** Tool-и, що пишуть на диск і підлягають veto (включно з anchored-варіантом A2). */
+const WRITE_TOOLS = new Set(['edit', 'write', 'edit_anchored'])
 
 /**
  * git-root для cwd (`git rev-parse --show-toplevel`) або null, якщо не git-репо.
