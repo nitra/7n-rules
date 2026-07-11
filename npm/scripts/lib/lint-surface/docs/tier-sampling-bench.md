@@ -3,7 +3,7 @@ type: JS Module
 title: tier-sampling-bench.mjs
 resource: npm/scripts/lib/lint-surface/tier-sampling-bench.mjs
 docgen:
-  crc: c1bfcb3c
+  crc: db8f0cb2
   model: manual
 ---
 
@@ -18,6 +18,8 @@ Runner будує experiment ladder із `local-min`, `cloud-min`, `cloud-avg`, 
 Для `cloud-min` і `cloud-avg` запускаються два sampling profiles: `conservative` і `exploratory`. Для `local-min` і `cloud-max` запускається один conservative candidate. Профіль потрапляє у rule text як інструкція до агента; success все одно визначає тільки injected detector.
 
 Після кожного tier-а runner пише progress JSONL у stdout. Наприкінці він записує повний JSON-result у `docs/specs/2026-06-30-lint-tier-sampling-consensus-results.json` або шлях із `--out`.
+
+A/B-прапорці Фази A run-harness: bench шанує той самий env-опт-ін, що й default-worker — `N_LLM_FIX_ANCHORED` (`1` — anchored-профіль на всіх тирах, `cloud` — лише не-local) — і додатково `N_LLM_FIX_BENCH_VERIFY=1`, який вмикає evidence-гейт A1 у worker-і бенча (verify = injected detector фікстури, фідбек провалу у ту саму сесію). Це дозволяє порівнювати baseline / anchored / verify конфігурації тим самим прогоном.
 CLI-запуск завершується після summary, щоб відкриті агентські handle-и не тримали процес живим після запису результату.
 
 ## Публічний API

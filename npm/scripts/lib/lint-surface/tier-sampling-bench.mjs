@@ -12,8 +12,9 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { env, exit, stdout } from 'node:process'
 
-import { CLOUD_AVG, CLOUD_MAX, CLOUD_MIN, LOCAL_MIN } from '@7n/llm-lib/model-tiers'
+import { CLOUD_AVG, CLOUD_MAX, CLOUD_MIN, LOCAL_MIN, isLocalModel } from '@7n/llm-lib/model-tiers'
 import { runAgentFix } from '@7n/llm-lib/agent-fix'
+import { anchoredEnabled } from './default-worker.mjs'
 import {
   buildExperimentLadder,
   runTierSamplingExperiment,
@@ -178,6 +179,17 @@ export async function runTierSamplingBench(opts = {}) {
               feedback: ctx.feedback,
               caller: `tier-bench:${fixture.id}:${ctx.tier}:${ctx.samplingProfile}`,
               recordWrite: ctx.recordWrite,
+              // A/B-прапорці Фази A: той самий env-опт-ін, що й у default-worker
+              // (N_LLM_FIX_ANCHORED=1|cloud), + verify-loop бенча за N_LLM_FIX_BENCH_VERIFY=1
+              // (evidence-гейт A1: фідбек детектора у ту саму сесію).
+              anchoredEdits: anchoredEnabled(ctx.model, isLocalModel),
+              verify:
+                env.N_LLM_FIX_BENCH_VERIFY === '1'
+                  ? () => {
+                      const current = fixture.detect(root)
+                      return { ok: current.length === 0, output: renderViolations(current) }
+                    }
+                  : undefined,
               deps: {
                 selfCheck: () => {
                   const current = fixture.detect(root)
