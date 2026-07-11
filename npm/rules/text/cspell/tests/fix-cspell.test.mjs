@@ -76,6 +76,7 @@ describe('fix-cspell T0 (cspell-merge)', () => {
       const canonical = {
         version: '0.2',
         language: 'en,uk',
+        useGitignore: true,
         ignorePaths: [...SNIPPET_IGNORE, 'target/**'],
         import: ['@nitra/cspell-dict/cspell-ext.json'],
         words: ['омлх']

@@ -1,6 +1,7 @@
 {
   "version": "0.2",
   "language": "en,uk,ru-ru,nitra",
+  "useGitignore": true,
   "ignorePaths": [
     "**/node_modules/**",
     "**/vscode-extension/**",
