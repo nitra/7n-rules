@@ -122,3 +122,23 @@ Chosen option: "pi (ollama-провайдер)", because на однакових
 - `OLLAMA_HOST` має default `http://localhost:11434` і сумісний з kubeai у K8s.
 - `ollamaModelName()` прибирає prefix `ollama/`, наприклад `ollama/gemma3:4b` → `gemma3:4b`.
 - CLI показує активний backend як `[tier1 ollama-orchestrated]` або `[tier1 pi-orchestrated]`.
+
+## Update 2026-06-07
+
+- Реалізація на диску підтверджена в `npm/skills/docgen/js/docgen-gen.mjs`.
+- `checkOllama()` кешує доступність Ollama через `_ollamaAvailable`, виконує GET `/api/tags` з `AbortSignal.timeout(3000)` і використовує `OLLAMA_HOST` з дефолтом `http://localhost:11434`.
+- Routing у docgen: якщо модель задана і `await checkOllama()` повертає `true`, використовується прямий Ollama HTTP; якщо Ollama недоступна, виконується `piOrchestrated` fallback.
+- Benchmark з transcript: локальний Ollama HTTP був приблизно вдвічі швидший за pure pi path у чистих умовах (`68s` проти `135s`), але pi fallback дав рівнозначну або трохи кращу якість (`97.0%` проти `96.1%`) і не показав `cache-hallucination` на `events.mjs`.
+- Для K8s deployment достатньо виставити `OLLAMA_HOST=http://kubeai-svc.kubeai.svc:11434`, якщо використовується kubeai OllamaEngine.
+
+## Update 2026-06-07
+
+Драфт додає benchmark-факти для вибору direct Ollama HTTP як primary backend для Tier 1 docgen:
+
+- порівнювалися прямі HTTP POST до `localhost:11434/api/chat` через `node:http`, серійні `pi` CLI виклики через `spawnSync`, і hybrid `ollama primary + pi fallback` через `checkOllama()`;
+- Round 1 на 10 файлах з `ollama/gemma3:4b` показав однакову якість `94.0/100`, але HTTP path був приблизно у 2× швидший за `pi` path;
+- для sym=0–1 файлів transcript фіксує прискорення 2.9×–3.4×, для sym=2 — близько 1.3×;
+- `pi` spawn overhead домінує на малих файлах і лишається помітним у K8s, якщо не перейти на direct HTTP;
+- fallback через `checkOllama()` додає до 3 секунд latency, коли `OLLAMA_HOST` недоступний.
+
+Окремо зафіксовано інфраструктурний варіант для K8s: `kubeai + NVIDIA T4 spot` як Ollama-compatible API endpoint через `OLLAMA_HOST`. Transcript оцінює T4 як прийнятний компроміс для `gemma3:4b` через ціну, autoscale-to-zero і відсутність потреби змінювати docgen-код.

@@ -87,3 +87,14 @@ Dev pod має монтувати той самий PVC, що й worker-поди
 - Кнопка `Open in Editor` створює dev pod on-demand і повертає connection string.
 - VS Code і Cursor відкриваються через `vscode://vscode-remote/ssh-remote+<host>/tasks` та `cursor://vscode-remote/ssh-remote+<host>/tasks`; Zed використовує hostname copy fallback.
 - Маніфести згадані в transcript: `k8s/teleport/configmap.yaml`, `deployment.yaml`, `service.yaml`, `ingress.yaml`, `pvc.yaml`, `rbac.yaml`, `roles.yaml`, `k8s/dev-pod/template.yaml`, `k8s/dev-pod/rbac.yaml`, `k8s/README.md`.
+
+## Update 2026-06-07
+
+Драфт уточнює реалізацію SSH-доступу до dev pods через Teleport:
+
+- розробники не отримують прямі права `kubectl`; backend `nitra/task` сам вирішує доступ до dev pod;
+- Teleport використовується як identity-aware SSH proxy з label-based RBAC, де `owner: email` звіряється з GitHub identity користувача;
+- редактори Zed, VS Code і Cursor підключаються через стандартний SSH та `ProxyCommand tsh proxy ssh`; VS Code і Cursor можуть відкриватися через deep links;
+- dev pod містить sidecar `teleport-node`, монтує `tasks-pvc`, а backend flow `POST /api/tasks/:id/open-editor` створює pod і повертає hostname після реєстрації Teleport node.
+
+Також зафіксовано інфраструктурне уточнення: Teleport Auth/Proxy переводиться зі SQLite на CloudNativePG PostgreSQL backend, щоб дозволити `replicas: 2`, rolling update і failover. CNPG створює secret `teleport-postgres-app` з `uri`, який Teleport отримує через `PG_CONN_STRING`; SQLite PVC/deployment при цьому замінюються StatefulSet-конфігурацією.
