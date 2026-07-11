@@ -85,3 +85,40 @@ Chosen option: "pi (ollama-провайдер)", because на однакових
 - Для docgen Tier 1 прямий streaming HTTP до `localhost:11434/api/chat` замінено на `pi` orchestrated: окремий `pi -p ... --model ... --no-session --mode text --no-tools` виклик на кожну секцію з `sectionMessages()`.
 - Причина вибору pi orchestrated: pi one-shot дав регресію якості, а orchestrated повернув якість до рівня прямого ollama HTTP при provider-neutral транспорті.
 - Негативний наслідок з transcript: pi orchestrated на частині benchmark повільніший за прямий ollama HTTP; також стара реалізація мала проблему з `setTimeout(5min)`, який тримав Node.js event loop живим.
+
+## Update 2026-06-07
+
+Уточнено рішення для docgen Tier 1:
+
+- Основний шлях: direct ollama HTTP orchestrated через `/api/chat`.
+- Fallback: `checkOllama()` → якщо ollama недоступна, використовувати pi orchestrated.
+- `checkOllama()` перевіряє `${OLLAMA_HOST}/api/tags` з timeout 3s і кешує результат на рівні процесу.
+- `OLLAMA_HOST` має дозволяти K8s-сценарій з kubeai без зміни коду.
+- Для K8s inference обрано kubeai з OllamaEngine, бо він надає Ollama-сумісний API і підтримує scale-to-zero.
+- Transcript фіксує, що реалізація fallback у цій сесії ще не була виконана.
+
+## Update 2026-06-07
+
+Зафіксовано валідний Round 1 benchmark для Tier 1 docgen:
+
+- OLD: direct ollama HTTP.
+- NEW: pi orchestrated.
+- Середній час: OLD 68s, NEW 135s, тобто pi orchestrated приблизно вдвічі повільніший.
+- Середній score: 94 проти 94.
+- Для `sym=1` OLD кращий на 20 points через cache-hallucination у pi orchestrated.
+- Для `sym=2` NEW кращий на 10 points через менше internal-name витоків.
+- Round 2 визнано невалідним, бо обидві фази фактично тестували одну й ту саму версію.
+- Env benchmark: `N_LOCAL_MIN_MODEL=ollama/gemma3:4b`, M2 8GB unified memory.
+
+Цей update суперечить висновку чернетки про вибір pi orchestrated як основного шляху; надійні числові дані transcript підтримують direct ollama HTTP як швидший primary path із pi як fallback.
+
+## Update 2026-06-07
+
+Реалізовано автоматичний вибір backend для `npm/skills/docgen/js/docgen-gen.mjs`:
+
+- `checkOllama() → true` використовує `ollamaOrchestrated` / `ollamaOneShot`.
+- `checkOllama() → false` використовує `piOrchestrated` / `piOneShot`.
+- `checkOllama()` виконує `fetch(OLLAMA_HOST/api/tags)` з timeout 3s і кешує результат на процес.
+- `OLLAMA_HOST` має default `http://localhost:11434` і сумісний з kubeai у K8s.
+- `ollamaModelName()` прибирає prefix `ollama/`, наприклад `ollama/gemma3:4b` → `gemma3:4b`.
+- CLI показує активний backend як `[tier1 ollama-orchestrated]` або `[tier1 pi-orchestrated]`.

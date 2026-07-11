@@ -25,13 +25,20 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          persist-credentials: false
           fetch-depth: 0
+      - name: Configure git identity + push auth
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
       - run: npx @nitra/cursor release
       # якщо HEAD став release:* — прочитати нову версію з app/package.json,
       # тегнути app@$VER і v$VER, запушити, тоді dispatch release.yml
 ```
 
-- `paths: [app/.changes/**]` (шлях підставляється під реальний workspace, де лежить `src-tauri`) — тригер лише на change-файли, не на будь-який push у `main`.
+- `paths: [app/.changes/**]` (шлях підставляється під реальний workspace, де лежить `src-tauri`) — тригер лише на change-файли, не на будь-який push у `main`. **У `<app>/.changes/` має жити tracked `.gitkeep`**: реліз споживає всі change-файли, і без нього glob перестає матчити tracked-файли — ga/workflows (`unmatched-paths-glob`) червоніє.
+- **Push-auth обовʼязковий**: `persist-credentials: false` — ga-канон (і дефолт `checkout@v6`), тож без явного `git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@…"` push із `n-cursor release` мовчки відхиляється, а тихий git-раннер маскує причину («git push не вдався після 5 спроб (non-fast-forward?)»).
 - `if: "!startsWith(github.event.head_commit.message, 'release:')"` — страховка від циклу: коміт `release:*` теж матче `paths` (він видаляє change-файли), тому job має пропускати сам себе.
 - `permissions: {contents: write, actions: write}` — `actions: write` потрібен для останнього кроку.
 - Після успішного `npx @nitra/cursor release` (детектується за `git log -1 --pretty=%s` що починається з `release:`) — тегнути `app@$VER` і `v$VER`, запушити обидва.
@@ -59,7 +66,9 @@ jobs:
       contents: write
       id-token: write # OIDC для Infisical
     steps:
-      # ... checkout, rust-toolchain, Swatinem/rust-cache@v2 (rust.mdc)
+      # ... checkout, rust-toolchain, потім (rust.mdc вимагає кеш, zizmor фейлить
+      # cache-poisoning у тег-тригереному release — прийнятий ризик приглушуємо inline):
+      - uses: Swatinem/rust-cache@v2 # zizmor: ignore[cache-poisoning]
       - name: Sync app version from tag
         run: |
           VER="${GITHUB_REF_NAME#v}"

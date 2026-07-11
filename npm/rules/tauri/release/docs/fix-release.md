@@ -3,9 +3,8 @@ type: JS Module
 title: fix-release.mjs
 resource: npm/rules/tauri/release/fix-release.mjs
 docgen:
-  crc: f18c9232
+  crc: ed3a25bb
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 100
   issues: judge:inaccurate:0.97
   judgeModel: openai-codex/gpt-5.4-mini

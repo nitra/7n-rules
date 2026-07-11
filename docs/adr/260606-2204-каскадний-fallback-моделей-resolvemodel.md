@@ -51,3 +51,15 @@ Change-файл: `npm/.changes/260606-2204.md` з bump `minor` і section `Added
 - Зафіксовано споживачів, переведених із raw-констант на `resolveModel()`: `npm/scripts/coverage-classify/index.mjs`, `npm/skills/fix/js/llm-worker.mjs`, `npm/scripts/coverage-fix.mjs`, `npm/scripts/dispatcher/lib/subagent-runner.mjs`, `npm/skills/docgen/js/docgen-gen.mjs`.
 - `docgen-gen.mjs` Tier 1 залишено на `LOCAL_MIN`, бо цей шлях напряму викликає ollama HTTP і cloud-модель там не застосовна.
 - Change-файл для рішення: `npm/.changes/260606-2204.md` з bump `minor`, section `Added`.
+
+## Update 2026-06-07
+
+Додано конкретний контракт `resolveModel(tier)` і список споживачів:
+
+- `resolveModel('min')` каскадує `LOCAL_MIN → LOCAL_AVG → LOCAL_MAX → CLOUD_MIN`.
+- `resolveModel('avg')` каскадує `LOCAL_AVG → LOCAL_MAX → CLOUD_AVG`.
+- `resolveModel('max')` каскадує `LOCAL_MAX → CLOUD_MAX`.
+- Контракт розміщено в `npm/lib/models.mjs`.
+- Прямі звернення до tier-констант замінено у `npm/scripts/coverage-classify/index.mjs`, `npm/skills/fix/js/llm-worker.mjs`, `npm/scripts/coverage-fix.mjs`, `npm/scripts/dispatcher/lib/subagent-runner.mjs`, `npm/skills/docgen/js/docgen-gen.mjs`.
+
+Також зафіксовано docgen Tier 1 benchmark: прямий ollama HTTP мав однаковий середній score з pi orchestrated, але був приблизно вдвічі швидший у Round 1; pi orchestrated лишається fallback-кандидатом для середовищ без доступного ollama/kubeai.
