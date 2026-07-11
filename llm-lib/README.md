@@ -23,6 +23,7 @@ pi свідомо лишає на caller-а: model tiers, fail-fast політи
 
 | Імпорт | Що дає |
 | --- | --- |
+| `@7n/llm-lib/harness` | `createHarness({profiles})` → `{run(spec), profileNames()}` — декларативний фасад над раннерами (профіль-обʼєкт `{schema_version, kind, ...}` → делегація); `validateProfile(p)`, `HARNESS_SCHEMA_VERSION` |
 | `@7n/llm-lib/one-shot` | `runOneShot({messages, modelTier?, modelSpec?, ...})` → `{content, usage, error, model, caller}` |
 | `@7n/llm-lib/agent-fix` | `runAgentFix(ruleId, violation, cwd, opts)` → `{applied, touchedFiles, telemetry, error, rollback}`; `buildFixPrompt(...)` |
 | `@7n/llm-lib/agent-skill` | `runAgentSkill(prompt, opts)` → `{ok, telemetry, error}` |
@@ -35,6 +36,8 @@ pi свідомо лишає на caller-а: model tiers, fail-fast політи
 | `@7n/llm-lib/with-timeout` | `withTimeout(promise, ms, {onTimeout?, label?})` |
 | `@7n/llm-lib/prompt-budget` | `budgetFor(kind)`, `fitToBudget(chunks, maxChars)`, `packBatch(items, maxChars)`, `capText(text, maxChars)` |
 | `@7n/llm-lib/body-capture` | `captureBody(record, opts?)` (opt-in, `N_LLM_TRACE_BODIES=1`), `bodiesDir()`, `bodyCaptureEnabled()` |
+| `@7n/llm-lib/anchored-edit` | `createAnchoredTools({cwd, defineTool})`, `applyAnchoredEdits(content, edits)`, `lineAnchor(text)`, `renderAnchored(content, range?)` — hash-anchored строгі edit-tools (профіль `anchoredEdits`) |
+| `@7n/llm-lib/web-tools` | `createWebTools({defineTool})`, `fetchPage(url, opts?)`, `assertPublicHttpUrl(url)`, `resolveSearchProvider(env)` — web_search/web_fetch із SSRF-guard (профіль `webTools`) |
 
 `lib/internal/` (registry, memory-guard, max-tokens, chain-headers, compress-context,
 apply-compression) — НЕ публічний API: не імпортувати зовні пакета, subpath-експортів

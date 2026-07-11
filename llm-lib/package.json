@@ -32,6 +32,9 @@
     "!**/*.test.mjs"
   ],
   "exports": {
+    "./harness": "./lib/harness.mjs",
+    "./anchored-edit": "./lib/anchored-edit.mjs",
+    "./web-tools": "./lib/web-tools.mjs",
     "./model-tiers": "./lib/model-tiers.mjs",
     "./chain": "./lib/chain.mjs",
     "./chains-report": "./lib/chains-report.mjs",
