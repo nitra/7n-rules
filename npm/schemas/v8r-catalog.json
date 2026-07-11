@@ -111,6 +111,18 @@
       "fileMatch": [".marksman.toml", "**/.marksman.toml"]
     },
     {
+      "name": "cargo",
+      "description": "Cargo.toml (маніфест Rust-крейта/воркспейса)",
+      "url": "vendor/cargo.json",
+      "fileMatch": ["Cargo.toml", "**/Cargo.toml"]
+    },
+    {
+      "name": "cargo-mutants",
+      "description": ".cargo/mutants.toml (конфігурація cargo-mutants)",
+      "url": "vendor/cargo-mutants-config.json",
+      "fileMatch": [".cargo/mutants.toml", "**/.cargo/mutants.toml"]
+    },
+    {
       "name": "cargo-deny",
       "description": "deny.toml (cargo-deny) — у schemastore схеми нема (permissive any.json)",
       "url": "any.json",
