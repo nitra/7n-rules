@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.25.2] - 2026-07-11
+
+### Fixed
+
+- гейтувати raw stdout v8r (run-v8r) за --verbose у lint
+
 ## [14.25.1] - 2026-07-11
 
 ### Changed
