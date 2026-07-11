@@ -13,8 +13,7 @@ import {
   ensureNodeExecutor,
   fixNodeName,
   fixNodeSignature,
-  materializeTail,
-  mtTailEnabled
+  materializeTail
 } from '../mt-tail.mjs'
 
 const V = (ruleId, concernId, file) => (file === undefined ? { ruleId, concernId } : { ruleId, concernId, file })
@@ -42,14 +41,6 @@ function fakeDeps({ ok = true, existing = new Set() } = {}) {
   }
   return { deps, writes, mkdirs }
 }
-
-describe('mtTailEnabled', () => {
-  test('лише N_LINT_MT_TAIL=1', () => {
-    expect(mtTailEnabled({ N_LINT_MT_TAIL: '1' })).toBe(true)
-    expect(mtTailEnabled({ N_LINT_MT_TAIL: '0' })).toBe(false)
-    expect(mtTailEnabled({})).toBe(false)
-  })
-})
 
 describe('clusterTail', () => {
   test('групує за rule×concern, files унікальні й відсортовані', () => {

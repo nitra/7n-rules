@@ -565,17 +565,20 @@ async function renderRemaining(failing, cwd, log, verbose = false) {
 }
 
 /**
- * B1 (Фаза B): матеріалізує невиправлений хвіст у вузли MT-графа. Активно лише за
- * env-гейтом `N_LINT_MT_TAIL=1`; fail-open (MT недоступний → лог, lint не падає).
- * Прод-enable — після MT-передумов (executor-міст + addon-підпакети).
+ * Фаза B: матеріалізує невиправлений хвіст у вузли MT-графа. Єдиний гейт —
+ * **onboarded-репо** (наявність `.mt.json`, перевіряє preflight у materializeTail):
+ * не-MT-репо → fail-open skip; MT-репо → хвіст стає графом задач, executor яких —
+ * наш pi-harness (`ensureNodeExecutor` конфігурує `node_executor`). Env-прапорець
+ * скасовано (rollout-guard більше не потрібен — B2/executor-міст у main). Fail-open
+ * на всіх рівнях: lint ніколи не падає через MT.
  * @param {LintViolation[]} remaining Невиправлені порушення (з renderRemaining).
  * @param {string} cwd Робоча директорія.
  * @param {(s: string) => void} log Логер.
  * @returns {Promise<void>} нічого не повертає (side-effect: вузли у mt/).
  */
 async function materializeTailToMt(remaining, cwd, log) {
-  const { mtTailEnabled, materializeTail } = await import('./mt-tail.mjs')
-  if (!mtTailEnabled() || remaining.length === 0) return
+  if (remaining.length === 0) return
+  const { materializeTail } = await import('./mt-tail.mjs')
   try {
     materializeTail({ violations: remaining, cwd, createdAt: new Date().toISOString(), log })
   } catch (error) {
