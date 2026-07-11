@@ -74,3 +74,17 @@ let builder = builder.plugin(tauri_plugin_process::init());
 ```
 
 **Без `updater:default` `check()` падає мовчазним permission-denied** — жодного діалогу, жодної помітної помилки користувачу, лише рядок у `console.error`. Це найнебезпечніший режим відмови автооновлення: застосунок виглядає робочим, але жоден користувач ніколи не отримає наступний реліз. Перевіряй `capabilities/*.json` явно після кожної зміни.
+
+### Quasar `Dialog` plugin — друга тиха відмова
+
+`useUpdater()` показує знайдене оновлення через `$q.dialog(...)` (`useQuasar()` з `quasar`). Це вимагає підключеного Quasar-плагіна **`Dialog`** у `src/main.{js,ts}`:
+
+```js title="src/main.js"
+import { Quasar, Dialog, Notify } from 'quasar'
+
+createApp(App).use(Quasar, {
+  plugins: { Dialog, Notify }
+})
+```
+
+**Без `Dialog` у `plugins: {...}`** `check()` і навіть `downloadAndInstall()` відпрацьовують штатно — оновлення реально знаходиться й завантажується, — але виклик `$q.dialog(...)` кидає `TypeError: e.dialog is not a function`. Ця помилка ловиться тим самим catch, що й мережеві — йде в `console.error`, і користувач не бачить **нічого**: ні діалогу пропозиції оновитись, ні діалогу "перезапустити зараз". На відміну від відсутнього permission (де хоча б check() явно падає з помилкою), тут увесь конвеєр до install() працює — тому цей режим відмови важче запідозрити з логів CI/білда. Перевіряй `plugins: { Dialog }` поруч із перевіркою `updater:default` — обидва ламають однаково: мовчки.

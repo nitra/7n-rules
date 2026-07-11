@@ -341,6 +341,43 @@ async function checkUseUpdaterCall(ws, cwd, reporter) {
   )
 }
 
+const QUASAR_DIALOG_IMPORT_RE = /import\s*\{[^}]*\bDialog\b[^}]*\}\s*from\s*['"]quasar['"]/u
+const QUASAR_DIALOG_PLUGIN_RE = /plugins\s*:\s*\{[^}]*\bDialog\b/u
+
+/**
+ * Перевіряє, що Quasar-плагін `Dialog` підключено в `src/main.{js,ts}`. Без нього
+ * `useUpdater()` знаходить і навіть завантажує оновлення, але виклик `$q.dialog(...)`
+ * падає з `TypeError: e.dialog is not a function` — помилка тихо ковтається у власному
+ * catch хука, і жоден користувач ніколи не бачить діалог оновлення (виявлено реальним
+ * інцидентом 2026-07-11: check() працював, install() працював, діалогу не було ніде).
+ * @param {string} ws відносний шлях workspace
+ * @param {string} cwd корінь репо
+ * @param {ReturnType<typeof createViolationReporter>} reporter репортер концерну
+ * @returns {Promise<void>} завершується після перевірки
+ */
+async function checkQuasarDialogPlugin(ws, cwd, reporter) {
+  const base = ws === '.' ? cwd : join(cwd, ws)
+  const srcDir = join(base, 'src')
+  if (!existsSync(srcDir)) return
+  const relDir = srcDir.slice(cwd.length + 1)
+
+  const entryFiles = await globby(['main.js', 'main.ts'], { cwd: srcDir, onlyFiles: true, gitignore: false })
+  for (const file of entryFiles) {
+    const content = await readFile(join(srcDir, file), 'utf8')
+    if (!content.includes('Quasar')) continue // не Quasar-застосунок — поза межами цього чека
+
+    const ok = QUASAR_DIALOG_IMPORT_RE.test(content) && QUASAR_DIALOG_PLUGIN_RE.test(content)
+    reportCheck(
+      ok,
+      `${relDir}/${file}: Quasar Dialog plugin підключено`,
+      `${relDir}/${file}: useUpdater() показує оновлення через $q.dialog(...), але Quasar-плагін "Dialog" не в списку plugins: {...} — check()/downloadAndInstall() відпрацьовують, та $q.dialog(...) падає з "e.dialog is not a function"; помилка тихо ковтається в catch, діалог оновлення не з'являється ніколи`,
+      'quasar-dialog-plugin-missing',
+      relDir,
+      reporter
+    )
+  }
+}
+
 /**
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
  * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат перевірки
@@ -359,6 +396,7 @@ export async function lint(ctx) {
     await checkLibRs(ws, cwd, reporter)
     await checkCapabilities(ws, cwd, reporter)
     await checkUseUpdaterCall(ws, cwd, reporter)
+    await checkQuasarDialogPlugin(ws, cwd, reporter)
   }
 
   return reporter.result()

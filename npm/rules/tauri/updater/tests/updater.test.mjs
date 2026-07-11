@@ -56,6 +56,16 @@ useUpdater()
 </script>
 `
 
+const MAIN_JS = `import { Quasar, Dialog, Notify } from 'quasar'
+import App from './App.vue'
+
+createApp(App)
+  .use(Quasar, {
+    plugins: { Dialog, Notify }
+  })
+  .mount('#app')
+`
+
 const DEFAULT_CAPABILITY = JSON.stringify({
   identifier: 'default',
   windows: ['main'],
@@ -77,6 +87,7 @@ const UPDATER_CAPABILITY = JSON.stringify({
  *   cargoToml?: string,
  *   libRs?: string,
  *   appVue?: string|null,
+ *   mainJs?: string|null,
  *   capabilities?: Record<string, string>
  * }} [opts] параметри layout'а
  * @returns {{dir: string, cleanup: () => void}} шлях до проєкту і cleanup
@@ -87,6 +98,7 @@ function makeProj({
   cargoToml = CARGO_TOML,
   libRs = LIB_RS,
   appVue = APP_VUE,
+  mainJs = MAIN_JS,
   capabilities = { 'default.json': DEFAULT_CAPABILITY, 'updater.json': UPDATER_CAPABILITY }
 } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'tauri-updater-'))
@@ -106,6 +118,9 @@ function makeProj({
   }
   if (appVue !== null) {
     writeFileSync(join(dir, 'app', 'src', 'App.vue'), appVue)
+  }
+  if (mainJs !== null) {
+    writeFileSync(join(dir, 'app', 'src', 'main.js'), mainJs)
   }
   return { dir, cleanup: () => rmSync(dir, { recursive: true, force: true }) }
 }
@@ -243,6 +258,31 @@ tauri-plugin-updater = "2"
     const proj = makeProj({ appVue: '<script setup>\n// no updater here\n</script>\n' })
     const violations = await runCheckIn(proj.dir)
     expect(violations.some(v => v.reason === 'use-updater-not-called')).toBe(true)
+    proj.cleanup()
+  })
+
+  test('main.js: Quasar без Dialog у plugins — quasar-dialog-plugin-missing', async () => {
+    const noDialog = MAIN_JS.replace('plugins: { Dialog, Notify }', 'plugins: { Notify }').replace(
+      'import { Quasar, Dialog, Notify }',
+      'import { Quasar, Notify }'
+    )
+    const proj = makeProj({ mainJs: noDialog })
+    const violations = await runCheckIn(proj.dir)
+    expect(violations.some(v => v.reason === 'quasar-dialog-plugin-missing')).toBe(true)
+    proj.cleanup()
+  })
+
+  test('main.js без Quasar (не Quasar-застосунок) — quasar-dialog-plugin-missing не звітується', async () => {
+    const proj = makeProj({ mainJs: "createApp(App).mount('#app')\n" })
+    const violations = await runCheckIn(proj.dir)
+    expect(violations.some(v => v.reason === 'quasar-dialog-plugin-missing')).toBe(false)
+    proj.cleanup()
+  })
+
+  test('main.js відсутній — quasar-dialog-plugin-missing не звітується', async () => {
+    const proj = makeProj({ mainJs: null })
+    const violations = await runCheckIn(proj.dir)
+    expect(violations.some(v => v.reason === 'quasar-dialog-plugin-missing')).toBe(false)
     proj.cleanup()
   })
 })
