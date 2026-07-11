@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.18.1] - 2026-07-11
+
+### Fixed
+
+- v8r-каталог: .mcp.json (vendor-схема), tauri.conf.*.json overlay, .marksman.toml і deny.toml → permissive any.json — офлайн-резолв без schemastore-fallback
+
 ## [14.18.0] - 2026-07-10
 
 ### Added
