@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.21.1] - 2026-07-11
+
+### Fixed
+
+- v8r: вендорована схема package.json забандлена self-contained (eslintrc/prettierrc/stylelintrc/ava/semantic-release/jscpd/nodemon/quikrun інлайн — без per-run мережевих фетчів $ref), cacheTtl HTTP-кешу v8r піднято до доби; guard-тест на внутрішні $ref у vendor-схемах і валідні шляхи каталогу
+
 ## [14.21.0] - 2026-07-11
 
 ### Added
