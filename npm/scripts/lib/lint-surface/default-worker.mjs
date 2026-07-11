@@ -14,16 +14,17 @@ import { env } from 'node:process'
 import { renderViolations } from './render.mjs'
 
 /**
- * Anchored-edits opt-in (Фаза A2, дефолт OFF до bench-валідації):
- * `N_LLM_FIX_ANCHORED=1` — усі тири; `=cloud` — лише не-local моделі
- * (гіпотеза дизайну: строгий протокол якорів піднімає точність cloud і
- * заскладний для слабкої 4B).
+ * Anchored-edits профіль (Фаза A2). Дефолт `cloud` — за bench A/B 2026-07-11
+ * (docs/specs/2026-07-11-anchored-verify-bench-results.md): на cloud паритет
+ * коректності при ~+10% латентності = дешева страховка від collateral-класу;
+ * на local-4B протокол 9× повільніший на edit-фікстурі — off.
+ * Env `N_LLM_FIX_ANCHORED`: `1` — усі тири; `cloud` — лише не-local; `0` — вимкнено.
  * @param {string|undefined} model "provider/model-id" рунга
  * @param {(spec: string) => boolean} isLocal предикат local-моделі
  * @returns {boolean} чи вмикати anchored-профіль для цього рунга
  */
-function anchoredEnabled(model, isLocal) {
-  const mode = env.N_LLM_FIX_ANCHORED ?? ''
+export function anchoredEnabled(model, isLocal) {
+  const mode = env.N_LLM_FIX_ANCHORED ?? 'cloud'
   if (mode === '1') return true
   if (mode === 'cloud') return Boolean(model) && !isLocal(model)
   return false
