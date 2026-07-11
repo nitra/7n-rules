@@ -224,6 +224,55 @@ describe('runFixPipeline — T0 permanent', () => {
   })
 })
 
+describe('runFixPipeline — B1 MT-tail (env-гейт, fail-open)', () => {
+  test('N_LINT_MT_TAIL вимкнено (дефолт) → жодного mt/ навіть при невиправленому хвості', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir)
+      const prev = env.N_LINT_MT_TAIL
+      delete env.N_LINT_MT_TAIL
+      try {
+        const code = await runFixPipeline({
+          rulesDir,
+          cwd: dir,
+          full: true,
+          log: () => {
+            /* no-op logger */
+          },
+          deps: { ladder: ONE_RUNG, workerFor: () => writeWrongWorker }
+        })
+        expect(code).toBe(1)
+        expect(existsSync(join(dir, 'mt'))).toBe(false)
+      } finally {
+        if (prev !== undefined) env.N_LINT_MT_TAIL = prev
+      }
+    })
+  })
+
+  test('N_LINT_MT_TAIL=1 без .mt.json → fail-open: exit 1, mt/ не створюється, lint не падає', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir)
+      const prev = env.N_LINT_MT_TAIL
+      env.N_LINT_MT_TAIL = '1'
+      try {
+        const code = await runFixPipeline({
+          rulesDir,
+          cwd: dir,
+          full: true,
+          log: () => {
+            /* no-op logger */
+          },
+          deps: { ladder: ONE_RUNG, workerFor: () => writeWrongWorker }
+        })
+        expect(code).toBe(1) // fail-open: MT-матеріалізація не змінює verdict
+        expect(existsSync(join(dir, 'mt'))).toBe(false) // preflight (.mt.json відсутній) → skip
+      } finally {
+        if (prev === undefined) delete env.N_LINT_MT_TAIL
+        else env.N_LINT_MT_TAIL = prev
+      }
+    })
+  })
+})
+
 describe('runFixPipeline — ladder escalation + S1 isolation', () => {
   test('local-min фейлить → cloud-min закриває; rung стартує з S1, не з degraded', async () => {
     await withTmpDir(async dir => {

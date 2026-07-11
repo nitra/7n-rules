@@ -561,6 +561,27 @@ async function renderRemaining(failing, cwd, log, verbose = false) {
     }
   }
   if (remaining.length > 0) log(renderViolations(remaining))
+  return remaining
+}
+
+/**
+ * B1 (Фаза B): матеріалізує невиправлений хвіст у вузли MT-графа. Активно лише за
+ * env-гейтом `N_LINT_MT_TAIL=1`; fail-open (MT недоступний → лог, lint не падає).
+ * Прод-enable — після MT-передумов (executor-міст + addon-підпакети).
+ * @param {LintViolation[]} remaining Невиправлені порушення (з renderRemaining).
+ * @param {string} cwd Робоча директорія.
+ * @param {(s: string) => void} log Логер.
+ * @returns {Promise<void>} нічого не повертає (side-effect: вузли у mt/).
+ */
+async function materializeTailToMt(remaining, cwd, log) {
+  const { mtTailEnabled, materializeTail } = await import('./mt-tail.mjs')
+  if (!mtTailEnabled() || remaining.length === 0) return
+  try {
+    materializeTail({ violations: remaining, cwd, createdAt: new Date().toISOString(), log })
+  } catch (error) {
+    // Ніколи не валимо lint через MT-матеріалізацію (fail-open навіть на неочікуваному).
+    log(`  ⏭️  MT-tail помилка (проігноровано): ${error.message}\n`)
+  }
 }
 
 /**
@@ -678,7 +699,11 @@ export async function runFixPipeline(opts) {
 
     // Бар звільняє TTY-рядок ДО фінального render-у невирішених порушень.
     progress.stop()
-    if (worst === 1) await renderRemaining(attemptedForRender, cwd, baseLog, verbose)
+    if (worst === 1) {
+      const remaining = await renderRemaining(attemptedForRender, cwd, baseLog, verbose)
+      // B1: невиправлений хвіст → вузли MT (за env-гейтом, fail-open).
+      await materializeTailToMt(remaining, cwd, baseLog)
+    }
 
     return worst
   } finally {

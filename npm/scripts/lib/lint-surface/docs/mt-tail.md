@@ -34,7 +34,7 @@ docgen:
 - fixNodeName — формує root-level імʼя fix-вузла в `mt/` у kebab-safe форматі.
 - buildCheckCommand — створює `## Check` для вузла: повторно знаходить правило, а `exit 0` означає, що порушення вже зникло.
 - buildTaskMd — генерує канонічний `task.md` для fix-вузла за контрактом `graph.md`; час не вставляє, `budgetSec` може бути заданий окремо.
-- buildAgentFlag — пише прапор `a.md`, який позначає агента-виqконавця; tier перетворює на `model_tier`.
+- buildAgentFlag — пише прапор `a.md`, який позначає агента-виконавця; tier перетворює на `model_tier`.
 - mtPreflight — перевіряє, чи є MT CLI+addon і чи репо вже onboarded через `.mt.json`.
 - materializeTail — перетворює хвіст порушень на MT fix-вузли; якщо MT недоступний, не валить lint і повертає `{ materialized: false }`.
 
