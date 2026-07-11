@@ -15,6 +15,13 @@
  * error, rollback }` — застосуванням володіє worker, orchestrator робить лише зовнішній
  * verdict-recheck і за провалу кличе `rollback()` (clean-slate per rung).
  *
+ * Evidence-гейт (дизайн 2026-07-11, Фаза A1): опційний `opts.verify` — canonical
+ * перевірка від consumer-а. Після prompt-у harness сам жене verify; провал →
+ * вивід перевірки інʼєктиться фідбеком у ТУ САМУ сесію (до `verifyMax` додаткових
+ * ітерацій, у межах загального `timeoutMs` рунга). Гейт структурний, а не
+ * model-контракт: заяви агента про успіх не важать — джерело правди лишається
+ * зовнішнім. Без `verify` поведінка попередня (один прохід).
+ *
  * Pi вантажиться lazy (top-level import модуля pi-free). Логіка інжектована через
  * `deps` для unit-тестів; `deps.astContext` — споживацький AST-екстрактор (напр.
  * oxc-based у `@nitra/cursor`), без нього tool чесно відповідає «недоступний».
@@ -47,6 +54,18 @@ const TURN_CEILING = Number(env.N_LLM_FIX_TURN_CEILING ?? env.N_CURSOR_FIX_TURN_
 const DEFAULT_TIMEOUT_MS = 300_000
 
 /**
+ * Дефолт додаткових verify-ітерацій (фідбек у ту саму сесію) при заданому `opts.verify`.
+ * Consumer-и тюнять per tier (local — менше, cloud — більше).
+ */
+const VERIFY_MAX_DEFAULT = 2
+
+/**
+ * Мінімальний залишок бюджету часу рунга, з яким ще є сенс запускати verify-ітерацію
+ * (менше — фідбек-prompt майже гарантовано не встигне, чесніше зупинитись одразу).
+ */
+const VERIFY_MIN_BUDGET_MS = 5000
+
+/**
  * Порожній rollback для fail-шляхів.
  * @returns {void}
  */
@@ -55,11 +74,68 @@ function noop() {
 }
 
 /**
+ * Будує фідбек-prompt verify-ітерації: точний вивід canonical-перевірки + нагадування
+ * обмежень (той самий semantic-collateral guard, що й у buildFixPrompt).
+ * @param {string} output вивід перевірки (порушення, що лишились)
+ * @returns {string} prompt для тієї самої сесії
+ */
+export function buildVerifyFeedbackPrompt(output) {
+  return (
+    'Перевірка правила показує, що порушення ДОСІ активне після твоїх правок:\n\n' +
+    `${output}\n\n` +
+    'Виправ залишок. Обмеження ті самі: лише механічні зміни, лише target-файли, ' +
+    'без хардкоду значень і симуляції поведінки.'
+  )
+}
+
+/**
  * Маркер недоступності `astContext`.
  * @returns {{ error: string }} повідомлення про недоступність AST facts
  */
 function astUnavailable() {
   return { error: 'ast_facts недоступний: consumer не надав astContext' }
+}
+
+/**
+ * Evidence-петля: canonical verify → (не ok) → фідбек у ТУ САМУ сесію, поки не ok /
+ * вичерпано `verifyMax` / вичерпано бюджет часу рунга (`timeoutMs` спільний з першим
+ * prompt-ом — нових таймерів не вводимо). Помилка самої перевірки — інфраструктурна:
+ * ітерації не палимо, чесний error. Зовнішній canonical re-detect consumer-а лишається
+ * джерелом правди — тут лише рання й точніша петля всередині рунга.
+ * @param {{ session: object, verify: (args: { touchedFiles: string[] }) => Promise<{ ok: boolean, output?: string }> | { ok: boolean, output?: string },
+ *   verifyMax: number, timeoutMs: number, startedAt: number, clock: () => number,
+ *   guard: { touchedFiles: () => string[] }, fixPrompt: string }} args контекст петлі.
+ * @returns {Promise<{ verifyAttempts: Array<{ ok: boolean, infra?: boolean }>, error: string|null }>} результат петлі.
+ */
+async function runVerifyLoop({ session, verify, verifyMax, timeoutMs, startedAt, clock, guard, fixPrompt }) {
+  const verifyAttempts = []
+  for (let attempt = 0; ; attempt++) {
+    let evidence
+    try {
+      evidence = await verify({ touchedFiles: guard.touchedFiles() })
+    } catch (verifyError) {
+      verifyAttempts.push({ ok: false, infra: true })
+      return { verifyAttempts, error: `verify: ${verifyError.message}` }
+    }
+    verifyAttempts.push({ ok: evidence?.ok === true })
+    if (evidence?.ok === true) return { verifyAttempts, error: null }
+    if (attempt >= verifyMax) {
+      return { verifyAttempts, error: `verify: порушення лишилось після ${attempt + 1} перевірок` }
+    }
+    const remainingMs = timeoutMs - (clock() - startedAt)
+    if (remainingMs < VERIFY_MIN_BUDGET_MS) {
+      return { verifyAttempts, error: 'verify: бюджет часу рунга вичерпано' }
+    }
+    try {
+      await withTimeout(session.prompt(buildVerifyFeedbackPrompt(evidence?.output ?? '')), remainingMs, {
+        onTimeout: () => session.abort?.(),
+        label: 'fix-verify'
+      })
+    } catch (promptError) {
+      failOnMemoryGuard(promptError.message, fixPrompt)
+      return { verifyAttempts, error: promptError.message }
+    }
+  }
 }
 
 /**
@@ -172,6 +248,8 @@ async function defaultCreateSession({ registry, model, thinkingLevel, cwd, facto
  *   model: string, tier?: string, feedback?: object, caller?: string, timeoutMs?: number, ruleText?: string,
  *   chain?: object,
  *   targetFiles?: string[],
+ *   verify?: (args: { touchedFiles: string[] }) => Promise<{ ok: boolean, output?: string }> | { ok: boolean, output?: string },
+ *   verifyMax?: number,
  *   deps?: { createSession?: (args: object) => Promise<object>, getRegistry?: () => Promise<object>,
  *            registry?: object, root?: string|null,
  *            astContext?: (path: string) => object,
@@ -190,6 +268,8 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     ruleText,
     chain = null,
     targetFiles,
+    verify = null,
+    verifyMax = VERIFY_MAX_DEFAULT,
     deps = {}
   } = opts
   const createSession = deps.createSession ?? defaultCreateSession
@@ -307,6 +387,14 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     failOnMemoryGuard(error, fixPrompt)
   }
 
+  // Evidence-гейт: verify → (не ok) → фідбек у ТУ САМУ сесію (див. runVerifyLoop).
+  let verifyAttempts = []
+  if (verify && !error) {
+    const loop = await runVerifyLoop({ session, verify, verifyMax, timeoutMs, startedAt, clock, guard, fixPrompt })
+    verifyAttempts = loop.verifyAttempts
+    error = loop.error
+  }
+
   const touchedFiles = guard.touchedFiles()
   const telemetry = {
     rule: ruleId,
@@ -318,6 +406,7 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     edits: guard.state.editLog,
     blocks: guard.state.blocks,
     backstopHit,
+    verifyAttempts,
     wallMs: clock() - startedAt
   }
   // Usage кроку для chain-агрегатів: сума по turns агентної сесії.
@@ -348,6 +437,8 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     toolCallCount,
     touchedFiles,
     backstopHit,
+    verifyAttempts: verifyAttempts.length,
+    verifyOk: verifyAttempts.length > 0 ? verifyAttempts.at(-1).ok : null,
     wallMs: clock() - startedAt,
     error,
     ...chain?.traceFields()

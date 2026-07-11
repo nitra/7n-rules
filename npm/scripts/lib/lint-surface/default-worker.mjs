@@ -35,6 +35,10 @@ export async function fixWorker(violations, ctx) {
     // Ланцюжок concern-а (fix-драбина) — рунг стає кроком ланцюжка.
     chain: ctx.chain ?? null,
     targetFiles,
+    // Evidence-гейт (Фаза A1): item-scoped canonical re-detect від runner-а — провал
+    // verify інʼєктиться фідбеком у ту саму pi-сесію замість одразу нового рунга.
+    verify: ctx.verify,
+    verifyMax: ctx.verifyMax,
     // n-cursor-специфічний AST-екстрактор (oxc) — пакет цього дефолту не має.
     deps: { astContext: p => extractContext(resolve(ctx.cwd, p)) }
   })

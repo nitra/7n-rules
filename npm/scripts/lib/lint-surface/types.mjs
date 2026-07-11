@@ -109,6 +109,12 @@
  *   ЗАВЖДИ recordWrite (rollback-контракт незмінний).
  * @property {object} [chain] chain handle concern-а (@7n/llm-lib/chain) — worker
  *   прокидає його у runAgentFix/runOneShot, щоб рунг став кроком ланцюжка.
+ * @property {(args: { touchedFiles: string[] }) => Promise<{ ok: boolean, output?: string }>} [verify]
+ *   evidence-гейт рунга (дизайн 2026-07-11 Фаза A1): item-scoped canonical re-detect.
+ *   Worker прокидає у `runAgentFix` opts.verify — провал інʼєктиться фідбеком у ту саму
+ *   pi-сесію (до `verifyMax` ітерацій). Це НЕ заміна зовнішнього canonical re-detect
+ *   runner-а (він лишається вердиктом) — лише рання петля всередині рунга.
+ * @property {number} [verifyMax] додаткові verify-ітерації рунга (local — менше, cloud — більше).
  */
 
 /**
