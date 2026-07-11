@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.25.1] - 2026-07-11
+
+### Changed
+
+- fix(lint): гейтувати raw stdout зовнішніх тулів за --verbose (#42)
+
 ## [14.25.0] - 2026-07-11
 
 ### Changed
