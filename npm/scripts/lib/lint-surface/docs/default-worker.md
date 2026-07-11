@@ -3,7 +3,7 @@ type: JS Module
 title: default-worker.mjs
 resource: npm/scripts/lib/lint-surface/default-worker.mjs
 docgen:
-  crc: 0eb7ba45
+  crc: 8516c424
   model: openai-codex/gpt-5.5
 ---
 
@@ -17,7 +17,7 @@ docgen:
 
 2. Перетворює знайдені порушення на текстове завдання для LLM, щоб агент отримав зрозумілий опис проблем, які треба виправити; додатково збирає target-set порушення (унікальні `violations[].file`) і передає його як `targetFiles` у промпт — перший шар semantic-collateral guard (§12, addendum 2026-07-05), verdict-veto runner-а звіряє фактичні правки з тим самим набором.
 
-3. Запускає Pi-агента для внесення правок за правилом, concern-ом, робочою текою, вибраною моделлю, tier-ом і доступним feedback; прокидає per-tier `ctx.timeoutMs` (ADR 260620-0556) у `runAgentFix opts.timeoutMs`, щоб зависла LLM-сесія переривалась зсередини, а не блокувала lint.
+3. Запускає Pi-агента для внесення правок за правилом, concern-ом, робочою текою, вибраною моделлю, tier-ом і доступним feedback; прокидає per-tier `ctx.timeoutMs` (ADR 260620-0556) у `runAgentFix opts.timeoutMs`, щоб зависла LLM-сесія переривалась зсередини, а не блокувала lint; прокидає також evidence-гейт (`ctx.verify`/`ctx.verifyMax`, Фаза A1 run-harness) — провал canonical-перевірки інʼєктиться фідбеком у ту саму pi-сесію замість одразу нового рунга.
 
 4. Передає механізм фіксації записів у central pipeline, щоб write-guard зберігав pre-image до зміни файлів і rollback rung-а міг відкочувати також LLM-правки.
 
