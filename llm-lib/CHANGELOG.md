@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.4.0] - 2026-07-11
+
+### Added
+
+- harness (Фаза A4): createHarness — декларативний фасад над runOneShot/runAgentFix/runAgentSkill (профіль-обʼєкт {schema_version, kind, ...} → делегація в раннер, per-виклик поля перекривають); + subpath-експорти anchored-edit, web-tools
+
 ## [2.3.0] - 2026-07-11
 
 ### Added
