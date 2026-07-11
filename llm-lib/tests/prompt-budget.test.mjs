@@ -48,7 +48,7 @@ describe('capText', () => {
 })
 
 describe('fitToBudget', () => {
-  test('усе влазить — текст join через \\n, dropped порожній', () => {
+  test(String.raw`усе влазить — текст join через \n, dropped порожній`, () => {
     const { text, dropped } = fitToBudget(
       [
         { text: 'контекст', priority: 1 },

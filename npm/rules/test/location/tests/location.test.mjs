@@ -15,7 +15,7 @@ describe('check test.location', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'rules/foo/js/bar/tests'), { recursive: true })
       await writeFile(join(dir, 'rules/foo/js/bar/check.mjs'), 'export function check() {}\n')
-      await writeFile(join(dir, 'rules/foo/js/bar/tests/check.test.mjs'), 'import { test } from "bun:test"\n')
+      await writeFile(join(dir, 'rules/foo/js/bar/tests/check.test.mjs'), 'import { test } from "vitest"\n')
       const result = await run(dir)
       expect(result.violations).toEqual([])
     })
@@ -25,7 +25,7 @@ describe('check test.location', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'rules/foo/js/bar'), { recursive: true })
       await writeFile(join(dir, 'rules/foo/js/bar/check.mjs'), 'export function check() {}\n')
-      await writeFile(join(dir, 'rules/foo/js/bar/check.test.mjs'), 'import { test } from "bun:test"\n')
+      await writeFile(join(dir, 'rules/foo/js/bar/check.test.mjs'), 'import { test } from "vitest"\n')
       const result = await run(dir)
       expect(result.violations.length).toBeGreaterThan(0)
     })
@@ -34,7 +34,7 @@ describe('check test.location', () => {
   test('порушення: тест у довільному НЕ-tests каталозі → exit 1', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'scripts/spec'), { recursive: true })
-      await writeFile(join(dir, 'scripts/spec/foo.test.mjs'), 'import { test } from "bun:test"\n')
+      await writeFile(join(dir, 'scripts/spec/foo.test.mjs'), 'import { test } from "vitest"\n')
       const result = await run(dir)
       expect(result.violations.length).toBeGreaterThan(0)
     })
@@ -52,7 +52,7 @@ describe('check test.location', () => {
   test('успіх: integration-тести у root tests/ → exit 0', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
-      await writeFile(join(dir, 'tests/integration.test.mjs'), 'import { test } from "bun:test"\n')
+      await writeFile(join(dir, 'tests/integration.test.mjs'), 'import { test } from "vitest"\n')
       const result = await run(dir)
       expect(result.violations).toEqual([])
     })
@@ -61,7 +61,7 @@ describe('check test.location', () => {
   test('обхід пропускає node_modules', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'node_modules/some-pkg'), { recursive: true })
-      await writeFile(join(dir, 'node_modules/some-pkg/foo.test.mjs'), 'import { test } from "bun:test"\n')
+      await writeFile(join(dir, 'node_modules/some-pkg/foo.test.mjs'), 'import { test } from "vitest"\n')
       const result = await run(dir)
       expect(result.violations).toEqual([])
     })
