@@ -6,7 +6,7 @@
  * і для CLOUD-викликів (проксі бачив лише local), (2) не залежить від
  * запущеного myllm.
  *
- * Вимкнено за замовчуванням (тіла важкі) — вмикається `N_LLM_TRACE_BODIES=1`.
+ * Увімкнено за замовчуванням — вимикається `N_LLM_TRACE_BODIES=0`.
  * Не pi-coupled (чиста FS-утиліта, як [trace]/[telemetry-store]) — публічний
  * модуль пакета; основні консюмери — самі раннери (кличуть напряму), зовнішні
  * читачі (напр. myllm) читають файли зі стору за тією ж конвенцією шляху.
@@ -39,11 +39,11 @@ function maxBytes() {
 }
 
 /**
- * Чи body-capture увімкнено (дефолт вимкнено — важкі тіла, вмикають свідомо).
+ * Чи body-capture увімкнено (дефолт увімкнено — вимикають свідомо `N_LLM_TRACE_BODIES=0`).
  * @returns {boolean} true — захоплення увімкнено.
  */
 export function bodyCaptureEnabled() {
-  return env.N_LLM_TRACE_BODIES === '1'
+  return env.N_LLM_TRACE_BODIES !== '0'
 }
 
 /**

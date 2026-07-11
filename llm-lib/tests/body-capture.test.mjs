@@ -20,13 +20,13 @@ afterEach(() => {
 })
 
 describe('bodyCaptureEnabled/bodiesDir', () => {
-  test('вимкнено за замовчуванням', () => {
-    expect(bodyCaptureEnabled()).toBe(false)
+  test('увімкнено за замовчуванням', () => {
+    expect(bodyCaptureEnabled()).toBe(true)
   })
 
-  test('N_LLM_TRACE_BODIES=1 вмикає', () => {
-    vi.stubEnv('N_LLM_TRACE_BODIES', '1')
-    expect(bodyCaptureEnabled()).toBe(true)
+  test('N_LLM_TRACE_BODIES=0 вимикає', () => {
+    vi.stubEnv('N_LLM_TRACE_BODIES', '0')
+    expect(bodyCaptureEnabled()).toBe(false)
   })
 
   test('bodiesDir — env-override', () => {
@@ -39,6 +39,7 @@ describe('bodyCaptureEnabled/bodiesDir', () => {
 
 describe('captureBody', () => {
   test('no-op (null) коли вимкнено', () => {
+    vi.stubEnv('N_LLM_TRACE_BODIES', '0')
     dir = mkdtempSync(join(tmpdir(), 'llm-bodies-'))
     const result = captureBody({ caller: 'x', prompt: 'p', output: 'o' }, { dir })
     expect(result).toBeNull()
