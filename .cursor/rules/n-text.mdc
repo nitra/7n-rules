@@ -55,6 +55,7 @@ Rego-пакети, що перевіряються через conftest (auto-dis
 ```json
 {
   "version": "0.2",
+  "useGitignore": true,
   "ignorePaths": [
     "**/node_modules/**",
     "**/vscode-extension/**",
@@ -186,6 +187,7 @@ Rego-пакет: `text.cspell`
 **Що перевіряється:**
 
 - `version` — має відповідати канону (наразі `"0.2"`)
+- `useGitignore` — має бути `true`: cspell поважає всі `.gitignore` репо, тож білд-артефакти (`target/`, `dist/` тощо) не потрапляють у прогін і не потребують дублювання в `ignorePaths`
 - `language` — поле обов'язкове (presence-only, значення довільне, наприклад `"en,uk"`)
 - `ignorePaths` — масив має бути надмножиною канонічних glob-ів, включно з `docs/adr/**`
 - `import` — має містити підрядок `@nitra/cspell-dict`; заборонені будь-які записи з підрядком `@cspell/dict-` (використовуй лише `@nitra/cspell-dict`)
@@ -198,6 +200,7 @@ Rego-пакет: `text.cspell`
 {
   "version": "0.2",
   "language": "en,uk",
+  "useGitignore": true,
   "import": ["@nitra/cspell-dict/cspell-ext.json"],
   "ignorePaths": ["**/node_modules/**", "**/.git/**", "docs/adr/**"]
 }
