@@ -33,6 +33,7 @@
 import { env } from 'node:process'
 import { homedir } from 'node:os'
 import { createAnchoredTools } from './anchored-edit.mjs'
+import { createWebTools } from './web-tools.mjs'
 import { getRegistry, resolveModelSpec } from './internal/registry.mjs'
 import { isLocalModel, thinkingLevelForTier } from './model-tiers.mjs'
 import { createWriteGuard, gitRoot } from './write-guard.mjs'
@@ -204,7 +205,8 @@ async function defaultCreateSession({
   astContext,
   selfCheck,
   chain,
-  anchoredEdits = false
+  anchoredEdits = false,
+  webTools = false
 }) {
   const { createAgentSession, SessionManager, DefaultResourceLoader, SettingsManager, defineTool } =
     await import('@earendil-works/pi-coding-agent')
@@ -253,6 +255,12 @@ async function defaultCreateSession({
     tools = ['grep', 'find', 'write', 'ls', 'ast_facts', 'self_check', 'read_anchored', 'edit_anchored']
     customTools.push(readTool, editTool)
   }
+  // A3: web-доступ — лише за явним профілем (cloud-тири за дизайном); read-only tools.
+  if (webTools) {
+    const { searchTool, fetchTool } = createWebTools({ defineTool })
+    tools = [...tools, 'web_search', 'web_fetch']
+    customTools.push(searchTool, fetchTool)
+  }
 
   const { session } = await createAgentSession({
     modelRegistry: registry,
@@ -279,6 +287,7 @@ async function defaultCreateSession({
  *   verify?: (args: { touchedFiles: string[] }) => Promise<{ ok: boolean, output?: string }> | { ok: boolean, output?: string },
  *   verifyMax?: number,
  *   anchoredEdits?: boolean,
+ *   webTools?: boolean,
  *   deps?: { createSession?: (args: object) => Promise<object>, getRegistry?: () => Promise<object>,
  *            registry?: object, root?: string|null,
  *            astContext?: (path: string) => object,
@@ -300,6 +309,7 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     verify = null,
     verifyMax = VERIFY_MAX_DEFAULT,
     anchoredEdits = false,
+    webTools = false,
     deps = {}
   } = opts
   const createSession = deps.createSession ?? defaultCreateSession
@@ -359,6 +369,7 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
       astContext,
       selfCheck,
       anchoredEdits,
+      webTools,
       // Заголовки кореляції — лише локальним моделям (myllm стоїть тільки перед ними).
       chain: modelSpec && isLocalModel(modelSpec) ? chain : null
     })
@@ -471,6 +482,7 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     verifyAttempts: verifyAttempts.length,
     verifyOk: verifyAttempts.length > 0 ? verifyAttempts.at(-1).ok : null,
     anchoredEdits,
+    webTools,
     wallMs: clock() - startedAt,
     error,
     ...chain?.traceFields()

@@ -423,6 +423,25 @@ describe('verify-loop (evidence-гейт, Фаза A1)', () => {
     expect(trace).toHaveBeenCalledWith(expect.objectContaining({ anchoredEdits: true }))
   })
 
+  test('webTools (A3) прокидається у createSession і в trace; дефолт false', async () => {
+    const trace = vi.fn()
+    const createSession = fakeVerifyCreate([])
+    await runAgentFix('r', 'v', dir, {
+      model: 'openai-codex/gpt-5.5',
+      webTools: true,
+      deps: { root: dir, registry, createSession, trace }
+    })
+    expect(createSession).toHaveBeenCalledWith(expect.objectContaining({ webTools: true }))
+    expect(trace).toHaveBeenCalledWith(expect.objectContaining({ webTools: true }))
+
+    const createDefault = fakeVerifyCreate([])
+    await runAgentFix('r', 'v', dir, {
+      model: 'omlx/gemma',
+      deps: { root: dir, registry, createSession: createDefault, trace: vi.fn() }
+    })
+    expect(createDefault).toHaveBeenCalledWith(expect.objectContaining({ webTools: false }))
+  })
+
   test('prompt-error першого проходу → verify не запускається', async () => {
     const verify = vi.fn()
     const r = await runAgentFix('r', 'v', dir, {
