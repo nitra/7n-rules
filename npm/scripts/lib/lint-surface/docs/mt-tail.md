@@ -3,9 +3,8 @@ type: JS Module
 title: mt-tail.mjs
 resource: npm/scripts/lib/lint-surface/mt-tail.mjs
 docgen:
-  crc: 1df05ce7
+  crc: 0d41b6d5
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 100
   judgeModel: openai-codex/gpt-5.4-mini
 ---
@@ -36,6 +35,7 @@ docgen:
 - buildTaskMd — генерує канонічний `task.md` для fix-вузла за контрактом `graph.md`; час не вставляє, `budgetSec` може бути заданий окремо.
 - buildAgentFlag — пише прапор `a.md`, який позначає агента-виконавця; tier перетворює на `model_tier`.
 - mtPreflight — перевіряє, чи є MT CLI+addon і чи репо вже onboarded через `.mt.json`.
+- ensureNodeExecutor — гарантує, що `.mt.json` задає `node_executor` = наша команда (B2), щоб вузли виконувались нашим harness, а не Claude-шляхом MT; ідемпотентно, не перезаписує наявне налаштування.
 - materializeTail — перетворює хвіст порушень на MT fix-вузли; якщо MT недоступний, не валить lint і повертає `{ materialized: false }`.
 
 ## Гарантії поведінки
