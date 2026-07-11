@@ -15,6 +15,7 @@
     "coverage": "npx @7n/test coverage"
   },
   "devDependencies": {
+    "@7n/test": "^0.14.3",
     "@nitra/cspell-dict": "^2.2.2",
     "@nitra/cursor": "^14.23.1",
     "@nitra/eslint-config": "^3.10.3",
