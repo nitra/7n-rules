@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.20.0] - 2026-07-11
+
+### Added
+
+- tauri/updater concern: новий чек `quasar-dialog-plugin-missing` — застосунок з `useUpdater()`, але без Quasar-плагіна `Dialog` у `src/main.{js,ts}`, отримує явне порушення. Без цього чека `check()`/`downloadAndInstall()` відпрацьовували штатно, а `$q.dialog(...)` мовчки падав з `TypeError: e.dialog is not a function` — реальний production-інцидент 2026-07-11.
+
 ## [14.19.1] - 2026-07-11
 
 ### Fixed
