@@ -168,6 +168,46 @@ async function checkChangelogReleaseWorkflow(cwd, apps, reporter) {
       { reason: 'changelog-release-permissions-missing', file: CHANGELOG_RELEASE_WORKFLOW }
     )
   }
+
+  // ga-канон тримає persist-credentials: false на checkout (а checkout@v6 і без
+  // нього більше не зберігає токен), тож `n-cursor release`/`git push` у джобі
+  // мовчки відхиляється («після 5 спроб (non-fast-forward?)») без явного
+  // push-auth через job-scoped GITHUB_TOKEN у remote-url.
+  const hasPushAuth = flattenWorkflowSteps(root).some(s => {
+    const run = getStepRun(s.step)
+    return run.includes('remote set-url') && run.includes('x-access-token')
+  })
+  if (hasPushAuth) {
+    reporter.pass(`${CHANGELOG_RELEASE_WORKFLOW}: push-auth через remote set-url присутній`)
+  } else {
+    reporter.fail(
+      `${CHANGELOG_RELEASE_WORKFLOW}: бракує кроку push-auth \`git remote set-url origin "https://x-access-token:\${{ secrets.GITHUB_TOKEN }}@github.com/\${{ github.repository }}.git"\` — checkout з persist-credentials: false не лишає токена, і release-push мовчки падає (tauri.mdc release)`,
+      { reason: 'changelog-release-push-auth-missing', file: CHANGELOG_RELEASE_WORKFLOW }
+    )
+  }
+}
+
+/**
+ * Перевіряє `<ws>/.changes/.gitkeep`: тригер `on.push.paths: <ws>/.changes/**` живе лише
+ * доки glob матчить бодай один tracked-файл (ga/workflows unmatched-paths-glob), а після
+ * релізу каталог порожніє — без `.gitkeep` два канони конфліктують.
+ * @param {string} cwd корінь репо
+ * @param {{ws: string}[]} apps знайдені Tauri-застосунки
+ * @param {ReturnType<typeof createViolationReporter>} reporter репортер концерну
+ * @returns {void}
+ */
+function checkChangesGitkeep(cwd, apps, reporter) {
+  for (const app of apps) {
+    const rel = app.ws === '.' ? '.changes/.gitkeep' : `${app.ws}/.changes/.gitkeep`
+    if (existsSync(join(cwd, rel))) {
+      reporter.pass(`${rel}: присутній — paths-glob релізного тригера завжди матчиться`)
+    } else {
+      reporter.fail(
+        `${rel} відсутній — після релізу .changes/ порожніє і on.push.paths glob перестає матчити tracked-файли (ga/workflows unmatched-paths-glob) (tauri.mdc release)`,
+        { reason: 'changes-gitkeep-missing', file: rel }
+      )
+    }
+  }
 }
 
 /**
@@ -185,7 +225,8 @@ async function checkReleaseWorkflow(cwd, reporter) {
     )
     return
   }
-  const root = parseWorkflowYaml(await readFile(path, 'utf8'))
+  const raw = await readFile(path, 'utf8')
+  const root = parseWorkflowYaml(raw)
   if (!root) {
     reporter.fail(`${RELEASE_WORKFLOW}: YAML не вдалося розібрати (tauri.mdc release)`, {
       reason: 'release-workflow-invalid-yaml',
@@ -233,6 +274,22 @@ async function checkReleaseWorkflow(cwd, reporter) {
       )
     }
   }
+
+  // rust/toolchain_cache вимагає Swatinem/rust-cache після rust-toolchain, а zizmor
+  // (ga/workflows) фейлить cache-poisoning high для кешу в тег-тригереному release —
+  // канон розвʼязки: inline-приглушення з задокументованим прийнятим ризиком.
+  // Коментарі не живуть у розпарсеному YAML, тож перевірка по сирих рядках.
+  const unsuppressedCache = raw
+    .split('\n')
+    .some(line => line.includes('Swatinem/rust-cache') && !line.includes('zizmor: ignore[cache-poisoning]'))
+  if (unsuppressedCache) {
+    reporter.fail(
+      `${RELEASE_WORKFLOW}: рядок із Swatinem/rust-cache без "# zizmor: ignore[cache-poisoning]" — zizmor (ga/workflows) фейлить cache-poisoning у тег-тригереному release, а rust-канон вимагає кеш (tauri.mdc release)`,
+      { reason: 'release-workflow-rust-cache-zizmor', file: RELEASE_WORKFLOW }
+    )
+  } else if (raw.includes('Swatinem/rust-cache')) {
+    reporter.pass(`${RELEASE_WORKFLOW}: rust-cache із zizmor-приглушенням cache-poisoning`)
+  }
 }
 
 /**
@@ -250,6 +307,7 @@ export async function lint(ctx) {
   for (const app of apps) {
     await checkTauriConf(app, cwd, reporter)
   }
+  checkChangesGitkeep(cwd, apps, reporter)
   await checkChangelogReleaseWorkflow(cwd, apps, reporter)
   await checkReleaseWorkflow(cwd, reporter)
 

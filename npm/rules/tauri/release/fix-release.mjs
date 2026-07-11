@@ -12,9 +12,9 @@
  * заново (idempotent), як cargo_mutants_config.
  */
 import { existsSync } from 'node:fs'
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import { parseDocument } from 'yaml'
 
@@ -138,8 +138,83 @@ async function fixChangelogReleaseWorkflow(cwd) {
     changed = true
   }
 
+  if (targetJobId && insertPushAuthStep(doc, parsedRoot, targetJobId)) changed = true
+
   if (!changed) return []
   await writeFile(path, doc.toString(), 'utf8')
+  return [path]
+}
+
+/**
+ * Вставляє канонічний push-auth крок перед першим run-кроком job-а (release-командою),
+ * якщо його ще нема: checkout із persist-credentials: false (ga-канон; у checkout@v6 це
+ * й дефолт) не лишає токена — release-push мовчки падає.
+ * @param {import('yaml').Document} doc YAML-документ changelog-release.yml
+ * @param {Record<string, unknown>} parsedRoot розпарсений workflow
+ * @param {string} targetJobId job, куди вставляти крок
+ * @returns {boolean} чи було вставлено крок
+ */
+function insertPushAuthStep(doc, parsedRoot, targetJobId) {
+  const allSteps = flattenWorkflowSteps(parsedRoot)
+  const hasPushAuth = allSteps.some(s => {
+    const run = getStepRun(s.step)
+    return run.includes('remote set-url') && run.includes('x-access-token')
+  })
+  if (hasPushAuth) return false
+  const jobSteps = doc.getIn(['jobs', targetJobId, 'steps'])
+  if (!jobSteps?.items) return false
+  const authStep = doc.createNode({
+    name: 'Configure git identity + push auth',
+    run:
+      'git config user.name "github-actions[bot]"\n' +
+      'git config user.email "github-actions[bot]@users.noreply.github.com"\n' +
+      `git remote set-url origin "https://x-access-token:\${{ secrets.GITHUB_TOKEN }}@github.com/\${{ github.repository }}.git"`
+  })
+  const steps = allSteps.filter(s => s.jobId === targetJobId)
+  const firstRunIdx = steps.findIndex(s => getStepRun(s.step) !== '')
+  jobSteps.items.splice(firstRunIdx === -1 ? jobSteps.items.length : firstRunIdx, 0, authStep)
+  return true
+}
+
+/**
+ * Створює `<ws>/.changes/.gitkeep` для кожного Tauri-застосунку — щоб paths-glob
+ * релізного тригера матчив tracked-файл і після того, як реліз спожив change-файли.
+ * @param {string} cwd корінь репо
+ * @returns {Promise<string[]>} абсолютні шляхи створених файлів
+ */
+async function fixChangesGitkeep(cwd) {
+  const apps = await findTauriAppDirs(cwd)
+  const touched = []
+  for (const app of apps) {
+    const rel = app.ws === '.' ? '.changes/.gitkeep' : `${app.ws}/.changes/.gitkeep`
+    const abs = join(cwd, rel)
+    if (existsSync(abs)) continue
+    await mkdir(dirname(abs), { recursive: true })
+    await writeFile(abs, '', 'utf8')
+    touched.push(abs)
+  }
+  return touched
+}
+
+/**
+ * Додає `# zizmor: ignore[cache-poisoning]` до рядків `Swatinem/rust-cache` у release.yml —
+ * текстова трансформація (коментарі не живуть у розпарсеному YAML), idempotent.
+ * @param {string} cwd корінь репо
+ * @returns {Promise<string[]>} абсолютні шляхи змінених файлів (0 чи 1 елемент)
+ */
+async function fixRustCacheZizmorIgnore(cwd) {
+  const path = join(cwd, RELEASE_WORKFLOW)
+  if (!existsSync(path)) return []
+  const raw = await readFile(path, 'utf8')
+  const lines = raw.split('\n')
+  let changed = false
+  const next = lines.map(line => {
+    if (!line.includes('Swatinem/rust-cache') || line.includes('zizmor: ignore[cache-poisoning]')) return line
+    changed = true
+    return `${line.trimEnd()} # zizmor: ignore[cache-poisoning]`
+  })
+  if (!changed) return []
+  await writeFile(path, next.join('\n'), 'utf8')
   return [path]
 }
 
@@ -223,7 +298,8 @@ export const patterns = [
           'changelog-release-paths-missing',
           'changelog-release-no-dispatch',
           'changelog-release-no-guard',
-          'changelog-release-permissions-missing'
+          'changelog-release-permissions-missing',
+          'changelog-release-push-auth-missing'
         ].includes(v.reason)
       ),
     apply: async (_violations, ctx) => {
@@ -249,6 +325,28 @@ export const patterns = [
       for (const f of touchedFiles) ctx.recordWrite?.(f)
       return touchedFiles.length > 0
         ? { touchedFiles, message: `${RELEASE_WORKFLOW}: канонічні ключі доповнено` }
+        : { touchedFiles: [] }
+    }
+  },
+  {
+    id: 'release-changes-gitkeep',
+    test: violations => violations.some(v => v.reason === 'changes-gitkeep-missing'),
+    apply: async (_violations, ctx) => {
+      const touchedFiles = await fixChangesGitkeep(ctx.cwd)
+      for (const f of touchedFiles) ctx.recordWrite?.(f)
+      return touchedFiles.length > 0
+        ? { touchedFiles, message: `.changes/.gitkeep створено: ${touchedFiles.length} файл(ів)` }
+        : { touchedFiles: [] }
+    }
+  },
+  {
+    id: 'release-rust-cache-zizmor-ignore',
+    test: violations => violations.some(v => v.reason === 'release-workflow-rust-cache-zizmor'),
+    apply: async (_violations, ctx) => {
+      const touchedFiles = await fixRustCacheZizmorIgnore(ctx.cwd)
+      for (const f of touchedFiles) ctx.recordWrite?.(f)
+      return touchedFiles.length > 0
+        ? { touchedFiles, message: `${RELEASE_WORKFLOW}: zizmor ignore[cache-poisoning] на rust-cache` }
         : { touchedFiles: [] }
     }
   }

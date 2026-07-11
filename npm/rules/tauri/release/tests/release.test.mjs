@@ -32,6 +32,11 @@ jobs:
       actions: write
     steps:
       - uses: actions/checkout@v6
+      - name: Configure git identity + push auth
+        run: |
+          git config user.name "github-actions[bot]"
+          git remote set-url origin "https://x-access-token:\${{ secrets.GITHUB_TOKEN }}@github.com/\${{ github.repository }}.git"
+      - run: npx @nitra/cursor release
 `
 
 const RELEASE_YML = `on:
@@ -77,6 +82,8 @@ function makeProj({
   writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['app'] }))
   writeFileSync(join(dir, 'app', 'package.json'), JSON.stringify({ name: 'app', version: '0.0.0' }))
   writeFileSync(join(dir, 'app', 'src-tauri', 'tauri.conf.json'), tauriConf)
+  mkdirSync(join(dir, 'app', '.changes'), { recursive: true })
+  writeFileSync(join(dir, 'app', '.changes', '.gitkeep'), '')
   mkdirSync(join(dir, '.github', 'workflows'), { recursive: true })
   if (changelogReleaseYml !== null) {
     writeFileSync(join(dir, '.github', 'workflows', 'changelog-release.yml'), changelogReleaseYml)
@@ -365,6 +372,91 @@ jobs:
     const before = readFileSync(join(proj.dir, '.github', 'workflows', 'release.yml'), 'utf8')
     await applyT0(await runCheckIn(proj.dir), proj.dir)
     expect(readFileSync(join(proj.dir, '.github', 'workflows', 'release.yml'), 'utf8')).toBe(before)
+    proj.cleanup()
+  })
+})
+
+describe('tauri release — push-auth / .gitkeep / zizmor-приглушення rust-cache', () => {
+  const NO_AUTH_CHANGELOG_YML = `on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/.changes/**'
+  workflow_dispatch: {}
+jobs:
+  release:
+    if: "!startsWith(github.event.head_commit.message, 'release:')"
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+      - run: npx @nitra/cursor release
+`
+
+  test('без remote set-url — changelog-release-push-auth-missing; T0 вставляє крок перед release-командою', async () => {
+    const proj = makeProj({ changelogReleaseYml: NO_AUTH_CHANGELOG_YML })
+    const violations = await runCheckIn(proj.dir)
+    expect(violations.some(v => v.reason === 'changelog-release-push-auth-missing')).toBe(true)
+
+    await applyT0(violations, proj.dir)
+    const path = join(proj.dir, '.github', 'workflows', 'changelog-release.yml')
+    const parsed = parseYaml(readFileSync(path, 'utf8'))
+    const steps = parsed.jobs.release.steps
+    const authIdx = steps.findIndex(s => s.run?.includes('x-access-token'))
+    const releaseIdx = steps.findIndex(s => s.run?.includes('@nitra/cursor release'))
+    expect(authIdx).toBeGreaterThanOrEqual(0)
+    expect(authIdx).toBeLessThan(releaseIdx)
+    expect(await runCheckIn(proj.dir)).toEqual([])
+
+    const afterFirstFix = readFileSync(path, 'utf8')
+    await applyT0(await runCheckIn(proj.dir), proj.dir)
+    expect(readFileSync(path, 'utf8')).toBe(afterFirstFix)
+    proj.cleanup()
+  })
+
+  test('без app/.changes/.gitkeep — changes-gitkeep-missing; T0 створює файл', async () => {
+    const proj = makeProj()
+    rmSync(join(proj.dir, 'app', '.changes', '.gitkeep'))
+    const violations = await runCheckIn(proj.dir)
+    expect(violations.some(v => v.reason === 'changes-gitkeep-missing')).toBe(true)
+
+    await applyT0(violations, proj.dir)
+    expect(readFileSync(join(proj.dir, 'app', '.changes', '.gitkeep'), 'utf8')).toBe('')
+    expect(await runCheckIn(proj.dir)).toEqual([])
+    proj.cleanup()
+  })
+
+  test('rust-cache без zizmor-приглушення — release-workflow-rust-cache-zizmor; T0 дописує коментар', async () => {
+    const withCache = `on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: {}
+jobs:
+  build-desktop:
+    steps:
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+      - name: Sync app version from tag
+        run: |
+          VER="\${GITHUB_REF_NAME#v}"
+          node -e "sync tauri.conf.json version"
+      - uses: tauri-apps/tauri-action@v0
+`
+    const proj = makeProj({ releaseYml: withCache })
+    const violations = await runCheckIn(proj.dir)
+    expect(violations.some(v => v.reason === 'release-workflow-rust-cache-zizmor')).toBe(true)
+
+    await applyT0(violations, proj.dir)
+    const path = join(proj.dir, '.github', 'workflows', 'release.yml')
+    const raw = readFileSync(path, 'utf8')
+    expect(raw).toContain('Swatinem/rust-cache@v2 # zizmor: ignore[cache-poisoning]')
+    expect(await runCheckIn(proj.dir)).toEqual([])
+
+    const afterFirstFix = raw
+    await applyT0(await runCheckIn(proj.dir), proj.dir)
+    expect(readFileSync(path, 'utf8')).toBe(afterFirstFix)
     proj.cleanup()
   })
 })
