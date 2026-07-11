@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/k8s/kubeconform/main.mjs
 docgen:
-  crc: 8f13afb8
+  crc: 76d8d01b
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.98

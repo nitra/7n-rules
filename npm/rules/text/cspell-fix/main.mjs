@@ -39,15 +39,19 @@ export const fixModel = () => env.N_LOCAL_MIN_MODEL || ''
 /**
  * Запускає `cspell` над `files` (delta) або над `.` (full), захоплюючи вивід. Скоуп файлів, які
  * cspell реально перевіряє, і так визначає сам `.cspell.json` (globs/ignorePaths) — переданий
- * `files` лише звужує аргументи CLI, не дублює цю логіку.
+ * `files` лише звужує аргументи CLI, не дублює цю логіку. Без `verbose` вимикає власний
+ * per-file прогрес-репортер cspell (`--no-progress`), щоб не засмічувати `lint --full`; підсумковий
+ * рядок (`--no-summary` НЕ передається) лишається — з нього парситься `FILES_CHECKED_RE`.
  * @param {string} cwd корінь
  * @param {string} bin шлях до cspell (npx/локальний)
  * @param {string[]} [files] явний перелік файлів (delta); без нього — `cspell .`
+ * @param {boolean} [verbose] показати повний нативний вивід cspell (включно з прогресом)
  * @returns {{ code:number, out:string }} код + обʼєднаний stdout/stderr
  */
-export function detectCspell(cwd, bin, files) {
+export function detectCspell(cwd, bin, files, verbose = false) {
   const targets = files === undefined ? ['.'] : files
-  const r = spawnSync(bin, ['cspell', ...targets], {
+  const quietArgs = verbose ? [] : ['--no-progress']
+  const r = spawnSync(bin, ['cspell', ...quietArgs, ...targets], {
     cwd,
     encoding: 'utf8',
     maxBuffer: 32 * 1024 * 1024,
@@ -136,16 +140,17 @@ export function appendWordsToDict(cwd, words) {
  * і поповнення `.cspell.json#words` живуть у `fix-worker.mjs` (Central Runner Pipeline).
  * @param {string[]} [files] явний перелік файлів (delta); без нього — `cspell .`
  * @param {string} [cwd] корінь
+ * @param {boolean} [verbose] показати повний нативний вивід cspell (включно з прогресом)
  * @returns {number} 0 — чисто; 1 — лишились знахідки / помилка середовища
  */
-export function runCspellText(files, cwd = process.cwd()) {
+export function runCspellText(files, cwd = process.cwd(), verbose = false) {
   const bin = resolveCmd('npx')
   if (!bin) {
     process.stderr.write('❌ npx не знайдено в PATH (cspell).\n')
     return 1
   }
 
-  const first = detectCspell(cwd, bin, files)
+  const first = detectCspell(cwd, bin, files, verbose)
   if (first.code === 0) return 0
   process.stdout.write(first.out)
   return first.code
@@ -156,14 +161,14 @@ export function runCspellText(files, cwd = process.cwd()) {
  * Скоуп файлів, які реально перевіряються, керується `.cspell.json` (glob/ignorePaths) — тут
  * лише звужуємо аргументи CLI до `ctx.files`, коли вони задані.
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат detector-а
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат детектора
  */
 export function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { fail } = reporter
   if (ctx.files !== undefined && ctx.files.length === 0) return reporter.result()
 
-  const code = runCspellText(ctx.files, ctx.cwd)
+  const code = runCspellText(ctx.files, ctx.cwd, ctx.verbose === true)
   if (code !== 0) fail('cspell знайшов порушення правопису (text.mdc)', 'cspell')
   return reporter.result()
 }

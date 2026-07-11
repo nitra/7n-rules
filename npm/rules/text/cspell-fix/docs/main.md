@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/text/cspell-fix/main.mjs
 docgen:
-  crc: 8dc85c3a
+  crc: 1806dfe3
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 

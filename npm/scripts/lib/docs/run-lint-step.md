@@ -3,7 +3,7 @@ type: JS Module
 title: run-lint-step.mjs
 resource: npm/scripts/lib/run-lint-step.mjs
 docgen:
-  crc: fe65fd1a
+  crc: 17e653e1
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
