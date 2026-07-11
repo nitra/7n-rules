@@ -4,14 +4,13 @@ title: npm/scripts/lib
 resource: npm/scripts/lib/
 ---
 
-# npm/scripts/lib
-
 | Файл                                                                        | Тип       |
 | --------------------------------------------------------------------------- | --------- |
 | [assert-project-root.mjs](assert-project-root.md)                           | JS Module |
 | [blue-oak.mjs](blue-oak.md)                                                 | JS Module |
 | [changed-files.mjs](changed-files.md)                                       | JS Module |
 | [check-reporter.mjs](check-reporter.md)                                     | JS Module |
+| [collect-test-files.mjs](collect-test-files.md)                             | JS Module |
 | [concern-meta.mjs](concern-meta.md)                                         | JS Module |
 | [diff-added-lines.mjs](diff-added-lines.md)                                 | JS Module |
 | [discover-check-rules-from-cursor.mjs](discover-check-rules-from-cursor.md) | JS Module |
