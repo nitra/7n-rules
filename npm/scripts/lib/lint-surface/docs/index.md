@@ -4,15 +4,16 @@ title: npm/scripts/lib/lint-surface
 resource: npm/scripts/lib/lint-surface/
 ---
 
-# npm/scripts/lib/lint-surface
-
 | Файл                                                        | Тип       |
 | ----------------------------------------------------------- | --------- |
 | [codegen-opa-wrapper.mjs](codegen-opa-wrapper.md)           | JS Module |
+| [collateral-veto.mjs](collateral-veto.md)                   | JS Module |
 | [default-worker.mjs](default-worker.md)                     | JS Module |
 | [detect.mjs](detect.md)                                     | JS Module |
 | [ladder.mjs](ladder.md)                                     | JS Module |
 | [lint-lock.mjs](lint-lock.md)                               | JS Module |
+| [mt-run-node.mjs](mt-run-node.md)                           | JS Module |
+| [mt-tail.mjs](mt-tail.md)                                   | JS Module |
 | [policy-lint-adapter.mjs](policy-lint-adapter.md)           | JS Module |
 | [policy-test-step.mjs](policy-test-step.md)                 | JS Module |
 | [progress.mjs](progress.md)                                 | JS Module |

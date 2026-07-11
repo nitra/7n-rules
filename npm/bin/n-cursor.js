@@ -1644,6 +1644,14 @@ try {
 
         break
       }
+      case 'mt-run-node': {
+        // B2 executor-міст (Фаза B): MT node_executor спавнить це для fix-вузла.
+        // Виконує вузол нашим pi-harness (тир-канон); stdout={applied,touchedFiles}.
+        const { runNodeCli } = await import('../scripts/lib/lint-surface/mt-run-node.mjs')
+        process.exitCode = await runNodeCli(args)
+
+        break
+      }
       case undefined:
       case '': {
         await runSync()
