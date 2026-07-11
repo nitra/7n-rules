@@ -13,7 +13,7 @@ docgen:
 
 ## Огляд
 
-Цей файл є executor-містом для fix-вузла MT у pi-harness: MT-runner (`@7n/mt#29`) спавнить цю команду замість вбудованого Claude-шляху для actor=agent вузлів. `argv[0]` і `MT_NODE_DIR` вказують на директорію вузла з `task.md` та `a.md`, `MT_WORKTREE` задає дерево, у якому застосовуються зміни, а `MT_MODEL_TIER` дублює `a.md` у значеннях `MIM|AVG|MAX`. Команда повертає stdout у форматі JSON `{"applied","touchedFiles"}`; `exit 0` означає, що MT сам запускає `## Check` і синтезує fact, а ненульовий exit означає `failed-run`. Її роль — виконати лише застосування змін у межах канонів тирів `omlx/pi-tiri llm-lib`, тоді як claim/lease, worktree-ізоляція, budget/timeout, `## Check` і publish залишаються на стороні MT.
+Цей файл є executor-містом для fix-вузла MT у pi-harness: MT-runner (`@7n/mt#29`) спавнить цю команду замість вбудованого Claude-шляху для actor=agent вузлів. `argv[0]` і `MT_NODE_DIR` вказують на директорію вузла з `task.md` та `a.md`, `MT_WORKTREE` задає дерево, у якому застосовуються зміни, а `MT_MODEL_TIER` дублює `a.md` у значеннях `MIM|AVG|MAX`. Команда повертає stdout у форматі JSON `{"applied","touchedFiles"}`; `exit 0` означає, що MT сам запускає `## Check` і синтезує fact, а ненульовий exit означає `failed-run`. Її роль — виконати лише застосування змін у межах канонів тирів `omlx/pi-тири llm-lib`, тоді як claim/lease, worktree-ізоляція, budget/timeout, `## Check` і publish залишаються на стороні MT.
 
 ## Поведінка
 
