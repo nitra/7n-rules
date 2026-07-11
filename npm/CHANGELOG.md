@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.28.0] - 2026-07-11
+
+### Added
+
+- B2 executor-міст: mt-run-node — MT node_executor виконує fix-вузол нашим pi-harness (тир-канон omlx/pi замість Claude); парсинг контракту вузла, tier-мапінг MIM/AVG/MAX, stdout {applied,touchedFiles}. CLI-субкоманда npx @nitra/cursor mt-run-node. ensureNodeExecutor у mt-tail автоконфігурує .mt.json node_executor при матеріалізації
+
 ## [14.27.0] - 2026-07-11
 
 ### Added
