@@ -3,7 +3,7 @@ type: JS Module
 title: fix-linux_deps.mjs
 resource: npm/rules/tauri/linux_deps/fix-linux_deps.mjs
 docgen:
-  crc: 9b6951e2
+  crc: df80d475
 ---
 
 ## Огляд

@@ -3,9 +3,8 @@ type: JS Module
 title: fix-toolchain_cache.mjs
 resource: npm/rules/rust/toolchain_cache/fix-toolchain_cache.mjs
 docgen:
-  crc: 9390ef78
+  crc: 8b6e47aa
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.97
   judgeModel: openai-codex/gpt-5.4-mini
