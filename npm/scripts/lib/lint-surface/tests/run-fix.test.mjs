@@ -243,11 +243,11 @@ describe('runFixPipeline — MT-tail (гейт = onboarded-репо, fail-open)'
     })
   })
 
-  test('MT-onboarded репо → материалізація не міняє verdict (fail-open, exit 1)', async () => {
+  test('MT-onboarded репо → матеріалізація не міняє verdict (fail-open, exit 1)', async () => {
     await withTmpDir(async dir => {
       const rulesDir = await seedConcern(dir)
       // .mt.json робить репо onboarded; чи MT CLI резолвиться — залежить від оточення,
-      // тому асертуємо лише інваріант fail-open: MT-матеріалізація НІКОЛИ не змінює
+      // тому перевіряємо лише інваріант fail-open: MT-матеріалізація НІКОЛИ не змінює
       // verdict lint-у (детермінований re-detect лишається джерелом правди).
       await writeJson(join(dir, '.mt.json'), { mt_dir: './mt' })
       const code = await runFixPipeline({
