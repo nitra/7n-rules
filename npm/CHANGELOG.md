@@ -1,5 +1,14 @@
 # Changelog
 
+## [14.22.1] - 2026-07-11
+
+### Fixed
+
+- test/no-bun-test-import, test/no-process-chdir: винесено спільну isTestFile/collectTestFiles у scripts/lib/collect-test-files.mjs (jscpd-дублікат); text/oxfmt: відформатовано n-cursor.js, n-cursor.d.ts, package_structure.test.mjs, core_test_isolation.test.mjs (CI на main після PR #30)
+- test/no-bun-test-import: спростити AS-regex і винести prefer-static-regex у module scope (CI на PR #30)
+- cspell: додано слова 'виносено', 'фіксери'; oxfmt --write повторно для 4 файлів (drift після попереднього коміту)
+- hk.pkl: npm-tsc-types fix-команда додатково прогонить oxfmt --write на n-cursor.d.ts — усуває нескінченний цикл tsc-регенерація/oxfmt-дрейф на кожному коміті
+
 ## [14.22.0] - 2026-07-11
 
 ### Added
