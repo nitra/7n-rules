@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.25.0] - 2026-07-11
+
+### Changed
+
+- lint fix: anchored-edits дефолт → cloud (bench A/B 2026-07-11: паритет коректності, +10% латентності = страховка від collateral; off-switch N_LLM_FIX_ANCHORED=0); bench навчився A/B-прапорців N_LLM_FIX_ANCHORED / N_LLM_FIX_BENCH_VERIFY
+
 ## [14.24.0] - 2026-07-11
 
 ### Added

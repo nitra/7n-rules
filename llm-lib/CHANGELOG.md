@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.2.1] - 2026-07-11
+
+### Changed
+
+- release: @7n/llm-lib@2.2.0, @nitra/cursor@14.24.0; feat(llm-lib,lint): Фаза A2 — hash-anchored edits (read_anchored/edit_anchored) як opt-in fix-профіль (#38)
+
 ## [2.2.0] - 2026-07-11
 
 ### Added

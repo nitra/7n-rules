@@ -17,7 +17,7 @@
   "devDependencies": {
     "@7n/test": "^0.14.3",
     "@nitra/cspell-dict": "^2.2.2",
-    "@nitra/cursor": "^14.23.1",
+    "@nitra/cursor": "^14.24.0",
     "@nitra/eslint-config": "^3.10.3",
     "@nitra/stylelint-config": "^1.4.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
