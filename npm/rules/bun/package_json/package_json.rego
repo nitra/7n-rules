@@ -5,7 +5,7 @@
 # (top-level fields заборонені у root).
 #
 # Логіка, що ЛИШАЄТЬСЯ у rego (inverse-patterns, не виносяться у template):
-#  - `devDependencies` лише `@nitra/*` + root-only тестові peer/tools для `n-cursor coverage`
+#  - `devDependencies` лише `@nitra/*` + root-only тестові peer/tools для `@7n/test coverage`
 #    (правило `test` enabled завжди — див. `test/auto.md`; published workspace-и не мають
 #     `devDependencies` за `npm-module.mdc`)
 #
@@ -48,13 +48,15 @@ deny contains msg if {
 # ── helpers ────────────────────────────────────────────────────────────────
 
 # @stryker-mutator/core — обов'язковий exact-pin peer vitest-runner@9+ (раніше тягнувся транзитивно)
-allowed_root_test_deps := {"vitest", "@vitest/coverage-v8", "@stryker-mutator/vitest-runner", "@stryker-mutator/core", "@playwright/test"}
+# @7n/test — оркестратор `coverage` (npx @7n/test coverage); devDependency, щоб npx резолвив
+# локально без мережевого fetch щоразу.
+allowed_root_test_deps := {"vitest", "@vitest/coverage-v8", "@stryker-mutator/vitest-runner", "@stryker-mutator/core", "@playwright/test", "@7n/test"}
 
 allowed_root_dev_dependency(name) if {
 	startswith(name, "@nitra/")
 } else if {
-	# Vitest/Stryker peer/tools для `n-cursor coverage` живуть у корені будь-якого
-	# монорепо-споживача: правило `test` enabled завжди, а published workspace-и
+	# Vitest/Stryker peer/tools + @7n/test (`coverage`) для `@7n/test coverage` живуть у корені
+	# будь-якого монорепо-споживача: правило `test` enabled завжди, а published workspace-и
 	# не мають `devDependencies` (`npm-module.mdc`).
 	name in allowed_root_test_deps
 }

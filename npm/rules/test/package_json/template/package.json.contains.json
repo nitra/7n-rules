@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "coverage": ["n-cursor coverage"],
+    "coverage": ["@7n/test coverage"],
     "test": ["vitest"]
   }
 }

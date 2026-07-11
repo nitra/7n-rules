@@ -1,5 +1,17 @@
 # Changelog
 
+## [14.21.3] - 2026-07-11
+
+### Changed
+
+- feat(test): concern no-bun-test-import — T0 auto-fix bun:test → vitest
+
+## [14.21.2] - 2026-07-11
+
+### Changed
+
+- release: @nitra/cursor@14.21.1
+
 ## [14.21.1] - 2026-07-11
 
 ### Fixed

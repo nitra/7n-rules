@@ -3,7 +3,7 @@
 # Канон надходить через --data: { "template": { "contains": ... } }
 # Структура --data сформована з template/package.json.contains.json.
 # Перевіряємо substring-вимоги до scripts.coverage:
-# рядок має містити "n-cursor coverage" (локальні розширення дозволені).
+# рядок має містити "@7n/test coverage" (локальні розширення дозволені).
 package test.package_json
 
 import rego.v1
