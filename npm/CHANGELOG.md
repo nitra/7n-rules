@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.21.3] - 2026-07-11
+
+### Changed
+
+- feat(test): concern no-bun-test-import — T0 auto-fix bun:test → vitest
+
 ## [14.21.2] - 2026-07-11
 
 ### Changed
