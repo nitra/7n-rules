@@ -8,8 +8,7 @@
  * зберігають коментарі/формат, мінімальний diff. Ідемпотентно: `scanLinuxDeps`
  * заново перевіряє стан файла на кожному прогоні.
  */
-import { readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { applyToFiles } from '../../../scripts/utils/apply-to-files.mjs'
 
 import {
   MISSING_LINUX_DEPS_PACKAGES,
@@ -63,35 +62,6 @@ export function appendMissingPackages(content) {
   return lines.join('\n')
 }
 
-/**
- * Застосовує трансформер до унікальних файлів із violations і пише зміни.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation[]} violations порушення (джерело переліку файлів)
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту (cwd, recordWrite)
- * @param {(content: string) => string|null} transformer текстовий трансформер
- * @returns {string[]} абсолютні шляхи змінених файлів
- */
-function applyToFiles(violations, ctx, transformer) {
-  const files = [...new Set(violations.map(v => v.file).filter(Boolean))]
-  /** @type {string[]} */
-  const touchedFiles = []
-  for (const rel of files) {
-    const abs = join(ctx.cwd, rel)
-    let content
-    try {
-      content = readFileSync(abs, 'utf8')
-    } catch {
-      continue
-    }
-    const next = transformer(content)
-    if (next && next !== content) {
-      ctx.recordWrite?.(abs)
-      writeFileSync(abs, next)
-      touchedFiles.push(abs)
-    }
-  }
-  return touchedFiles
-}
-
 /** @type {import('../../../scripts/lib/lint-surface/types.mjs').T0Pattern[]} */
 export const patterns = [
   {
@@ -99,7 +69,7 @@ export const patterns = [
     test: violations => violations.some(v => v.data?.kind === MISSING_LINUX_DEPS_STEP && v.file),
     apply: (violations, ctx) => {
       const targets = violations.filter(v => v.data?.kind === MISSING_LINUX_DEPS_STEP && v.file)
-      const touchedFiles = applyToFiles(targets, ctx, insertLinuxDepsStep)
+      const touchedFiles = applyToFiles(targets, ctx, () => insertLinuxDepsStep)
       return touchedFiles.length > 0
         ? { touchedFiles, message: `apt-крок системних залежностей Tauri → ${touchedFiles.length} workflow(s)` }
         : { touchedFiles: [] }
@@ -110,7 +80,7 @@ export const patterns = [
     test: violations => violations.some(v => v.data?.kind === MISSING_LINUX_DEPS_PACKAGES && v.file),
     apply: (violations, ctx) => {
       const targets = violations.filter(v => v.data?.kind === MISSING_LINUX_DEPS_PACKAGES && v.file)
-      const touchedFiles = applyToFiles(targets, ctx, appendMissingPackages)
+      const touchedFiles = applyToFiles(targets, ctx, () => appendMissingPackages)
       return touchedFiles.length > 0
         ? { touchedFiles, message: `канонічні Tauri-пакети → ${touchedFiles.length} workflow(s)` }
         : { touchedFiles: [] }
