@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.29.0] - 2026-07-11
+
+### Changed
+
+- MT-tail: колапс гейта — прибрано env-прапорець N_LINT_MT_TAIL, єдиний гейт тепер наявність .mt.json (onboarded-репо); rollout-guard більше не потрібен (B2 executor-міст у main). Cursor не onboarded → нуль ефекту тут; спрацьовує лише в MT-репо
+
 ## [14.28.0] - 2026-07-11
 
 ### Added
