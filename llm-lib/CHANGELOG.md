@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.2.0] - 2026-07-11
+
+### Added
+
+- anchored-edit (Фаза A2): строгі hash-anchored read_anchored/edit_anchored tools, opts.anchoredEdits у runAgentFix (toolset-профіль без built-in read/edit), edit_anchored під write-guard veto/snapshot
+
 ## [2.1.1] - 2026-07-11
 
 ### Changed

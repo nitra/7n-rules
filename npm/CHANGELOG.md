@@ -1,5 +1,15 @@
 # Changelog
 
+## [14.24.0] - 2026-07-11
+
+### Added
+
+- lint fix: anchored-edits opt-in (Фаза A2) — env N_LLM_FIX_ANCHORED (1 = усі тири, cloud = лише не-local) вмикає строгий hash-anchored edit-профіль рунга; дефолт OFF до bench-валідації
+
+### Fixed
+
+- fix(text): завендорити зовнішні $ref у schemas/vendor/cargo.json (cargo-lints-*, quikrun) — v8r більше не фетчить їх мережею на кожен прогін
+
 ## [14.23.1] - 2026-07-11
 
 ### Changed
