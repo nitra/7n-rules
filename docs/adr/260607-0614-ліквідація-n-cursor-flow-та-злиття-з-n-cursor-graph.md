@@ -82,3 +82,36 @@ Stage 1: `graph plan` читає `task.md`, враховує `mode: human|agent`
 - Усі згадки `flow plan` замінено на `graph plan`.
 - `graph verify` видалено: перевірка замінена аудитом з черги.
 - Таблиця команд `graph` включає `graph plan [<path>]`, `graph audit <path>`, `n-cursor watch`; `n-cursor flow` позначено як видалений.
+
+## Update 2026-06-07
+
+Додатково зафіксовано деталізацію злиття `flow` у `graph`:
+
+- `flow plan` стає `graph plan`, а окремий namespace `flow` зникає.
+- `graph plan` поєднує попередні `spec` і `decompose`: агент або пише `plan_001.md` для atomic-вузла, або створює дочірні `task.md` для composite-вузла.
+- `mode: human` означає, що `watch` пропускає вузол, а людина запускає `graph plan` вручну; `graph status` показує `human-pending`.
+- Async-аудит замінює `flow verify`/`flow gate`: агент створює `pending-audit_NNN.md`, аудитор пише `audit-result_NNN.md` з тим самим `NNN`.
+- Composite-вузол не пише власний `outputs_NNN.md`; його стан деривується bottom-up зі станів дочірніх вузлів.
+- Для post-merge інтеграції зафіксовано варіант, де hook лише створює `.n-cursor/wake`, а оркестрацію виконує `n-cursor watch`.
+
+## Update 2026-06-07
+
+Уточнено командний контракт після ліквідації `flow`:
+
+- Видаляються команди `flow init`, `flow spec`, `flow release`, `flow review`, `flow gate`, `flow run`, `flow resume`, `flow cancel`, `flow repair`, `flow verify`.
+- Новий набір команд під `graph`: `graph setup`, `graph init`, `graph plan`, `graph status`, `graph scan`, `graph run`, `graph kill`, `graph invalidate`, `graph done`, `graph audit`, `graph failed`, `graph spawn`.
+- `pending-audit_NNN.md` і `audit-result_NNN.md` мають matching `NNN`; аудитор пише лише `audit-result_NNN.md`.
+- Composite resolved визначається implicit-агрегацією дітей, без roll-up агента і без автоматичного `outputs_NNN.md` у батька.
+- Для координації runners додано варіант `mkdir` worktree як atomic lock: перший runner створює `.worktrees/<node>-<hash>/`, другий отримує `EEXIST` і пропускає вузол.
+
+## Update 2026-06-07
+
+Додано implementation-oriented деталізацію ліквідації `flow` namespace:
+
+- `npm/bin/n-cursor.js`: `case 'flow'` має бути видалений, `case 'graph'` має вести на новий `npm/scripts/graph/index.mjs`.
+- `flow-plan.mjs` переноситься в `graph plan`.
+- `flow-signals.mjs` розкладається на `graph done`, `graph audit`, `graph failed`, `graph spawn`.
+- Obsolete-файли: `state-store.mjs`, `events.mjs`, `flow-verify.mjs`, `flow-resolve.mjs`, `executor.mjs`, стара `dispatcher/graph.mjs`.
+- Файловий контракт вузла: `run_NNN.md`, `outputs_NNN.md`, `pending-audit_NNN.md`, `audit-result_NNN.md`.
+- `audit-result_NNN.md` є marker-ом consumed для `pending-audit_NNN.md`; timestamp-порівняння не потрібне.
+- `graph kill <path>` видаляє worktree та каскадно інвалідує наступників.

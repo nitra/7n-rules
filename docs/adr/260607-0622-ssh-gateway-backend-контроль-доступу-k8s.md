@@ -75,3 +75,15 @@ Dev pod має монтувати той самий PVC, що й worker-поди
   - Zed: copy hostname, because transcript не фіксує підтримку URI deep link у Zed.
 - Всі редактори використовують однаковий `~/.ssh/config` з `ProxyCommand tsh proxy ssh`.
 - Конфіг SSH з transcript: `Host *.teleport.nitra.com`, `ProxyCommand tsh proxy ssh --cluster=nitra %h:%p`, `User dev`.
+
+## Update 2026-06-07
+
+Додано деталізацію backend-controlled SSH доступу для `nitra/task`:
+
+- Розробник не отримує `kubectl`; доступ до dev pod контролюється бекендом через Teleport labels.
+- Teleport RBAC використовує label `owner: {{internal.logins}}`, щоб розробник бачив лише власні pod-и.
+- Dev pod монтує `tasks-pvc`, спільний із worker pods `n-cursor graph`.
+- Join method: Kubernetes ServiceAccount JWT, без статичних токенів.
+- Кнопка `Open in Editor` створює dev pod on-demand і повертає connection string.
+- VS Code і Cursor відкриваються через `vscode://vscode-remote/ssh-remote+<host>/tasks` та `cursor://vscode-remote/ssh-remote+<host>/tasks`; Zed використовує hostname copy fallback.
+- Маніфести згадані в transcript: `k8s/teleport/configmap.yaml`, `deployment.yaml`, `service.yaml`, `ingress.yaml`, `pvc.yaml`, `rbac.yaml`, `roles.yaml`, `k8s/dev-pod/template.yaml`, `k8s/dev-pod/rbac.yaml`, `k8s/README.md`.
