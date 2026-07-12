@@ -1,5 +1,15 @@
 # Changelog
 
+## [14.31.0] - 2026-07-12
+
+### Changed
+
+- text/cspell канон: gitignoreRoot: «.» у snippet-шаблоні — обмежує збір .gitignore коренем репо, щоб cspell у git-worktree не тягнув .gitignore основного дерева і не ігнорував мовчки всі файли; T0 cspell-merge розкатує поле на споживацькі проєкти
+
+### Fixed
+
+- cspell у git-worktree мовчки ігнорував усі файли (gitignore основного репо через межу worktree): .cspell.json#gitignoreRoot обмежено коренем конфіга; runCspellText попереджає, коли 0 із переданих delta-файлів перевірено
+
 ## [14.30.0] - 2026-07-12
 
 ### Added
