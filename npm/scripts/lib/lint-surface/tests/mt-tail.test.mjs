@@ -94,7 +94,7 @@ describe('buildTaskMd / buildCheckCommand / buildAgentFlag', () => {
     expect(md).toContain('## Done when')
     expect(md).toContain('## Check')
     expect(md).toContain('## Inputs')
-    expect(md).toContain('npx @nitra/cursor lint --no-fix n-ci4')
+    expect(md).toContain('npx @nitra/cursor lint --no-fix --cwd ../.. n-ci4')
     expect(md).toContain('- `app.vue`')
     expect(md).not.toContain('## Mission') // старий канон не пишемо
   })
@@ -117,12 +117,18 @@ describe('buildTaskMd / buildCheckCommand / buildAgentFlag', () => {
   })
 
   test('buildCheckCommand скоупить правило', () => {
-    expect(buildCheckCommand(cluster)).toBe('npx @nitra/cursor lint --no-fix n-ci4')
+    // --cwd ../..: MT ганяє ## Check із node-dir (mt/<node>, глибина 2 від кореня worktree).
+    expect(buildCheckCommand(cluster)).toBe('npx @nitra/cursor lint --no-fix --cwd ../.. n-ci4')
   })
 
   test('a.md: агент-прапор із тиром', () => {
-    expect(buildAgentFlag({ createdAt: CREATED, modelTier: 'MAX' })).toContain('model_tier: MAX')
-    expect(buildAgentFlag({ createdAt: CREATED })).toContain('model_tier: AVG')
+    // Канонічна section-форма MT: runner читає tier ЛИШЕ з "## Model tier"
+    // (YAML model_tier: він не парсить — live e2e знахідка 2026-07-12).
+    const max = buildAgentFlag({ modelTier: 'MAX' })
+    expect(max).toContain('## Model tier')
+    expect(max).toContain('MAX')
+    expect(max).toContain('## Skills')
+    expect(buildAgentFlag()).toContain('AVG')
   })
 })
 
@@ -183,7 +189,7 @@ describe('materializeTail', () => {
     const dir = `/p/mt/${res.nodes[0]}`
     expect(mkdirs).toContain(dir)
     expect(writes.get(`${dir}/task.md`)).toContain('## Check')
-    expect(writes.get(`${dir}/a.md`)).toContain('model_tier: AVG')
+    expect(writes.get(`${dir}/a.md`)).toContain('## Model tier')
   })
 
   test('ідемпотентність: наявний вузол пропускається, не переписується', () => {

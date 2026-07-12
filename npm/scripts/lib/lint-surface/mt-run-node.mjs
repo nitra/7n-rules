@@ -25,19 +25,29 @@ import { env } from 'node:process'
 /** MT model_tier → llm-lib tier-label (для resolveModel/thinkingLevel). */
 const TIER_MAP = { MIM: 'min', AVG: 'avg', MAX: 'max' }
 
-/** Правило з `## Check`-команди (`lint --no-fix <rule>`). */
-const RE_CHECK_RULE = /lint\s+--no-fix\s+(\S+)/
+/** Маркер `## Check`-команди (індексний пошук — без regex-backtracking). */
+const CHECK_MARKER = 'lint --no-fix'
+/** Розділювач токенів команди. */
+const RE_TOKEN_SPLIT = /\s+/
 /** Рядок target-файлу в `## Inputs` (`- \`path\``). */
 const RE_INPUT_FILE = /^- `([^`]+)`/
 
 /**
- * Витягує правило з `## Check`-команди вузла (`lint --no-fix <rule>`).
+ * Витягує правило з `## Check`-команди вузла. Правило — ОСТАННІЙ токен рядка
+ * (перед ним можуть стояти флаги на кшталт `--cwd ../..`, які додає
+ * buildCheckCommand, бо MT ганяє `## Check` із node-dir). Токен-флаг (`-…`)
+ * останнім бути не може — тоді правило відсутнє.
  * @param {string} taskMd вміст task.md
  * @returns {string|null} id правила або null
  */
 function parseRule(taskMd) {
-  const m = RE_CHECK_RULE.exec(taskMd)
-  return m ? m[1] : null
+  const idx = taskMd.indexOf(CHECK_MARKER)
+  if (idx === -1) return null
+  const eol = taskMd.indexOf('\n', idx)
+  const rest = taskMd.slice(idx + CHECK_MARKER.length, eol === -1 ? undefined : eol).trim()
+  const tokens = rest.length > 0 ? rest.split(RE_TOKEN_SPLIT) : []
+  const last = tokens.at(-1)
+  return last && !last.startsWith('-') ? last : null
 }
 
 /**

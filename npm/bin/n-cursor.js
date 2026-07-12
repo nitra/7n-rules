@@ -1555,10 +1555,17 @@ try {
     // усе це ключиться на cwd(). Запуск із піддиректорії git-репо (типово прямий
     // `bun npm/bin/n-cursor.js` не з кореня) зачепив би не той каталог → STOP. Read-only та
     // `--root`-команди (doc-aggregate, rename-yaml-extensions) не зачіпаємо.
+    // `lint` з явним `--cwd` — свідомий вибір кореня (MT ганяє `## Check` вузла з
+    // node-dir усередині worktree, live e2e 2026-07-12): guard і devDeps-ensure
+    // цілять у ЦІЛЬОВИЙ каталог, а не процесний cwd.
+    const lintCwdIdx = command === 'lint' ? args.indexOf('--cwd') : -1
+    const effectiveRoot = lintCwdIdx !== -1 && args[lintCwdIdx + 1] ? resolve(args[lintCwdIdx + 1]) : cwd()
     if (ROOT_GUARDED_COMMANDS.has(command)) {
-      assertCwdIsProjectRoot(cwd(), describeRootGuardedAction(command))
+      assertCwdIsProjectRoot(effectiveRoot, describeRootGuardedAction(command))
     }
-    await ensureNitraCursorInRootDevDependencies(cwd())
+    // mt-run-node — MT-екзекутор у worktree вузла: жодних side-effect-ів поза фіксом
+    // (devDeps-ensure мутив би package.json чужого worktree).
+    if (command !== 'mt-run-node') await ensureNitraCursorInRootDevDependencies(effectiveRoot)
     // Підкоманди-оркестратори (hook/lint/skill/adr-normalize-local/taze/release тощо)
     // можуть спавнити внутрішню agent/LLM-сесію — ADR Stop-hooks (capture/normalize)
     // мають пропустити її як технічний шум, не людську думку (spec 2026-06-30).
