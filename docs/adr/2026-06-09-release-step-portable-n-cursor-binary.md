@@ -34,3 +34,16 @@ Chosen option: "`n-cursor release` з PATH", because бінарник `n-cursor`
 - Enforce: `npm_module.npm_publish_yml` (`target.json:"check":"template"`, deep-subset) — перевірено: `.github/workflows/npm-publish.yml` відповідає канону (template subset, exit 0).
 - Inline-снапшот `.cursor/rules/n-npm-module.mdc` перегенеровано через `npm/scripts/lib/inline-template-links.mjs` (підхопив і прозу, і inline-сніпет).
 - Узгоджено з `n-changelog`: `version`/`CHANGELOG.md` змінює лише `n-cursor release` у CI на `main`; нова версія `@nitra/cursor` публікується через change-файл `npm/.changes/260609-0925.md` (`bump: patch`, `section: Fixed`).
+
+## Update 2026-06-09
+
+Додаткові transcript-факти щодо portable release step:
+
+- Канонічне джерело workflow snippet: `npm/rules/npm-module/policy/npm_publish_yml/template/npm-publish.yml.snippet.yml`.
+- Власний workflow репозиторію: `.github/workflows/npm-publish.yml`.
+- Правило: `npm/rules/npm-module/npm-module.mdc`; inline snapshot: `.cursor/rules/n-npm-module.mdc`.
+- Усі релевантні місця змінено з `node npm/bin/n-cursor.js release` на `n-cursor release`.
+- Conformance-перевірка `npm_module.npm_publish_yml` через `runTemplateSubsetConcern` після правок повернула exit code 0.
+- Change-файл: `npm/.changes/260609-0925.md` з bump `patch` і section `Fixed`.
+
+Окреме операційне уточнення з тієї ж сесії: для точкового оновлення inline snapshot `.cursor/rules/n-npm-module.mdc` дефолтний `n-cursor` sync був небажаний, бо self-upgrade, ADR-нормалізація, оновлення skills і `CLAUDE.md` створювали побічні зміни. Було використано одноразовий скрипт `/tmp/regen-npm-module.mjs`, який викликав `inlineTemplateLinks` з `npm/scripts/lib/inline-template-links.mjs` для одного правила. Transcript фіксує негативний наслідок цього підходу: скрипт залежить від внутрішнього API і не є офіційним інтерфейсом.

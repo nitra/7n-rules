@@ -111,3 +111,21 @@ Transcript зафіксував інверсію керування у docgen-к
 - Додано детермінований Stage-2 lint `stripSignatures(text)`: regex прибирає сигнатури виду `name(args)` після генерації без додаткових токенів.
 - Додано `scoreDoc(md, facts)` і fallback до `claudeOneShot`, якщо score нижче порогу й доступний `ANTHROPIC_API_KEY`.
 - Відомий false positive cache-detector виправлено: згадки на кшталт «Не використовує кешування» не мають трактуватись як hallucinated cache.
+
+## Update 2026-06-09
+
+Уточнено межу відповідальності між JS і LLM-агентом у `docgen`:
+
+- JS-шар має виконувати детермінований scan, ignore-фільтрацію та формування JSON-лістингу файлів.
+- Рішення про overwrite/skip і власне LLM-генерацію документації виконує скіл/Claude-агент, який може dispatch-ити субагентів.
+- Коментар у `npm/bin/n-cursor.js:1729–1732` фіксує: scanner лише лістить і ставить прапор `exists`; LLM/merge-генерацію документації робить скіл.
+
+Transcript-файли:
+
+- `npm/skills/docgen/js/docgen-scan.mjs` — JSON `{sourcePath, docPath, exists}`.
+- `npm/skills/docgen/js/docgen-ignore.mjs` — glob-ігнорування через `picomatch`.
+- `npm/bin/n-cursor.js:1728–1732` — CLI dispatcher `n-cursor docgen scan|modules`.
+- `npm/skills/docgen/SKILL.md` — скіл запускає окремий субагент на кожен файл.
+- `npm/skills/docgen/meta.json` — метадані скілу, включно з `worktree: true`.
+
+Негативних наслідків transcript не зафіксував.
