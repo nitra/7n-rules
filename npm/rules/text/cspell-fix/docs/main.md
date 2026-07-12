@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/text/cspell-fix/main.mjs
 docgen:
-  crc: 1806dfe3
+  crc: 22853b73
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 
@@ -15,7 +15,7 @@ docgen:
 
 `detectCspell` запускає `cspell` над переданими файлами (або всім репо) і повертає код виходу разом із виводом. Якщо cspell перевірив **нуль файлів** (усі цілі підпадають під `ignorePaths` з `.cspell.json`, напр. `docs/specs/**`) — це трактується як чисто (`code: 0`), а не як порушення: інакше файли поза скоупом cspell хибно блокували б PostToolUse hook.
 
-`unknownWords` видобуває унікальні невідомі слова з виводу `cspell`. `runCspellText` виконує read-only детект: чисто → `0`; інакше друкує вивід cspell і повертає його код. `lint` загортає це у `LintResult` (порожній delta-перелік файлів → одразу чисто).
+`unknownWords` видобуває унікальні невідомі слова з виводу `cspell`. `runCspellText` виконує read-only детект: чисто → `0`; інакше друкує вивід cspell і повертає його код. Коли delta явно передала файли, а cspell перевірив нуль із них, у stderr друкується попередження (без фейлу): та сама сигнатура буває і легітимною (усі файли під `ignorePaths`), і симптомом зламаного скоупу — напр., у git-worktree без `gitignoreRoot` у `.cspell.json` cspell застосовував `.gitignore` основного репо і мовчки ігнорував усе. `lint` загортає це у `LintResult` (порожній delta-перелік файлів → одразу чисто).
 
 ## Публічний API
 

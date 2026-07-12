@@ -2,6 +2,7 @@
   "version": "0.2",
   "language": "en,uk,ru-ru,nitra",
   "useGitignore": true,
+  "gitignoreRoot": ".",
   "ignorePaths": [
     "**/node_modules/**",
     "**/vscode-extension/**",

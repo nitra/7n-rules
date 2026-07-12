@@ -151,7 +151,18 @@ export function runCspellText(files, cwd = process.cwd(), verbose = false) {
   }
 
   const first = detectCspell(cwd, bin, files, verbose)
-  if (first.code === 0) return 0
+  if (first.code === 0) {
+    // «Files checked: 0» при явно переданих файлах — легітимно (усі під ignorePaths),
+    // але так само виглядає зламане середовище (спостережено 2026-07-12: cspell-gitignore
+    // у git-worktree застосовував .gitignore основного репо і мовчки ігнорував УСЕ,
+    // поки .cspell.json#gitignoreRoot не обмежив обхід коренем конфіга). Сигналимо
+    // в stderr, щоб розрив local/CI не був німим, — без фейлу.
+    if (files !== undefined && files.length > 0 && FILES_CHECKED_RE.exec(first.out)?.[1] === '0')
+      process.stderr.write(
+        `⚠️ cspell: 0 із ${files.length} переданих файлів перевірено — або всі під ignorePaths, або зламаний скоуп (gitignore/worktree).\n`
+      )
+    return 0
+  }
   process.stdout.write(first.out)
   return first.code
 }
