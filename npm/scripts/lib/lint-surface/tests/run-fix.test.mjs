@@ -276,7 +276,8 @@ describe('runFixPipeline — MT-tail (гейт = onboarded-репо, fail-open)'
           deps: { ladder: ONE_RUNG, workerFor: () => writeDoneTelemetryWorker }
         })
         expect(code).toBe(0)
-        // Запис у глобальному сторі: telemetry/<rule>/open/<sig>.json (дублікати колапсуються).
+        // Запис у глобальному сторі: telemetry/<rule>/open/<sig>.json
+        // (ідентичний повтор не створює нового файлу — лише збільшує occurrences).
         const openDir = join(storeDir, 'probe', 'open')
         expect(existsSync(openDir)).toBe(true)
         const files = readdirSync(openDir)
