@@ -142,3 +142,13 @@ Chosen option: "pi (ollama-провайдер)", because на однакових
 - fallback через `checkOllama()` додає до 3 секунд latency, коли `OLLAMA_HOST` недоступний.
 
 Окремо зафіксовано інфраструктурний варіант для K8s: `kubeai + NVIDIA T4 spot` як Ollama-compatible API endpoint через `OLLAMA_HOST`. Transcript оцінює T4 як прийнятний компроміс для `gemma3:4b` через ціну, autoscale-to-zero і відсутність потреби змінювати docgen-код.
+
+## Update 2026-06-07
+
+Зафіксовано відкритий дизайн маршрутизації локальних моделей між `pi --model` і прямим Ollama HTTP API:
+
+- `npm/lib/models.mjs` повертає local tiers у форматі `ollama/gemma3:Xb`, сумісному з `pi`.
+- Поточні callsite проходять через `pi`, зокрема docgen і coverage-classify сценарії.
+- Для direct Ollama REST API потрібно прибирати prefix `ollama/`, наприклад `ollama/gemma3:4b` → `gemma3:4b`.
+- Розглядалися варіанти: поле `backend` у `resolveModel`, окрема `callLocal()` з `N_LOCAL_BACKEND=pi|direct`, або per-tier env override `N_LOCAL_MIN_BACKEND` / `N_LOCAL_AVG_BACKEND` / `N_LOCAL_MAX_BACKEND`.
+- Фінальний вибір у transcript не зроблено.
