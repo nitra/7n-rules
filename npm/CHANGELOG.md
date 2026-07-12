@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.31.2] - 2026-07-12
+
+### Fixed
+
+- doc-files/docgen-extract: розпізнавати raw-SQL tagged-template мутації (pgWrite`UPDATE ...`) як не-read-only
+
 ## [14.31.1] - 2026-07-12
 
 ### Fixed
