@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { openCount, recordFixTelemetry, signatureOf } from '../lib/telemetry-store.mjs'
+import { openCount, pruneNoopEdits, recordFixTelemetry, signatureOf } from '../lib/telemetry-store.mjs'
 
 const RE_SECRET = /sk-abcdef/
 
@@ -78,6 +78,58 @@ describe('recordFixTelemetry', () => {
 
   test('best-effort: невалідний dir не кидає', () => {
     expect(() => recordFixTelemetry(rec(), { dir: '\0invalid' })).not.toThrow()
+  })
+})
+
+describe('pruneNoopEdits / no-op гейт стора (live e2e 2026-07-12)', () => {
+  test('пара oldText===newText (після trim) відкидається; значущі лишаються', () => {
+    const pruned = pruneNoopEdits([
+      {
+        path: 'a',
+        edits: [
+          { oldText: 'X', newText: 'X' },
+          { oldText: 'A', newText: 'B' }
+        ]
+      },
+      { path: 'b', edits: [{ oldText: ' S ', newText: 'S' }] } // trim-рівність → no-op
+    ])
+    expect(pruned).toEqual([{ path: 'a', edits: [{ oldText: 'A', newText: 'B' }] }])
+  })
+
+  test('content-блок (write) виживає навіть без edit-пар', () => {
+    const pruned = pruneNoopEdits([{ path: 'new.mjs', content: 'export const x = 1', edits: [] }])
+    expect(pruned).toHaveLength(1)
+  })
+
+  test('recordFixTelemetry: чистий no-op запис НЕ пишеться у стор', () => {
+    const res = recordFixTelemetry(
+      rec({ edits: [{ path: 'a.mjs', tool: 'edit', edits: [{ oldText: 'same', newText: 'same' }] }] }),
+      { dir }
+    )
+    expect(res).toBeNull()
+    expect(openCount('n-ci4', { dir })).toBe(0)
+  })
+
+  test('recordFixTelemetry: змішаний запис пишеться без no-op пар', () => {
+    const res = recordFixTelemetry(
+      rec({
+        edits: [
+          {
+            path: 'a.mjs',
+            tool: 'edit',
+            edits: [
+              { oldText: 'same', newText: 'same' },
+              { oldText: 'O', newText: 'N' }
+            ]
+          }
+        ]
+      }),
+      { dir }
+    )
+    expect(res).not.toBeNull()
+    const openDir = join(dir, 'n-ci4', 'open')
+    const entry = JSON.parse(readFileSync(join(openDir, readdirSync(openDir)[0]), 'utf8'))
+    expect(entry.edits[0].edits).toEqual([{ oldText: 'O', newText: 'N' }])
   })
 })
 

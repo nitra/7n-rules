@@ -3,7 +3,7 @@ type: JS Module
 title: mt-run-node.mjs
 resource: npm/scripts/lib/lint-surface/mt-run-node.mjs
 docgen:
-  crc: a5da3cb9
+  crc: 01c3876b
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.98

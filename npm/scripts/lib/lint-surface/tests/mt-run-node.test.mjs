@@ -30,7 +30,7 @@ const TASK_MD = [
   '',
   '## Check',
   '',
-  'npx @nitra/cursor lint --no-fix n-ci4',
+  'npx @nitra/cursor lint --no-fix --cwd ../.. n-ci4',
   '',
   '## Inputs',
   '',
