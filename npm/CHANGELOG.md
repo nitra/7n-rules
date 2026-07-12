@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.31.1] - 2026-07-12
+
+### Fixed
+
+- live-e2e фікси петлі lint-хвіст→MT→pi-harness (2026-07-12, реальний прогін довів фікс bun:test→vitest локальною omlx): a.md у канонічній section-формі MT (## Model tier/## Skills — runner не парсив YAML model_tier); ## Check несе --cwd ../.. (MT ганяє його з node-dir); root-guard cwd-aware при явному lint --cwd; mt-run-node пропускає devDeps-ensure; parseRule бере правило як останній токен Check-рядка (стійко до флагів)
+
 ## [14.31.0] - 2026-07-12
 
 ### Changed

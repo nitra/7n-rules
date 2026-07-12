@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.5.1] - 2026-07-12
+
+### Fixed
+
+- live-e2e фікси петлі MT→pi-harness (2026-07-12): telemetry-store pruneNoopEdits — no-op пари (oldText===newText, слабка 4B переклеює рядок сам на себе) не пишуться у distillation-стор
+
 ## [2.5.0] - 2026-07-11
 
 ### Changed
