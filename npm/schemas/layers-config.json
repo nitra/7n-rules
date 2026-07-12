@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://unpkg.com/@nitra/cursor/schemas/layers-config.json",
+  "title": "Конфіг шарової документації @7n/layers (<docsDir>/layers.json)",
+  "description": "Конфіг рушія шарової документації @7n/layers (репо nitra/mt, layers/schemas/layers.schema.json) — лежить у теці документації полігона (напр. npm/docs/layers.json).",
+  "type": "object",
+  "required": ["version", "docs"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1 },
+    "tier": { "enum": ["min", "avg", "max"] },
+    "maxTokens": { "type": "integer", "minimum": 256 },
+    "i18n": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "baseLang": { "type": "string", "minLength": 2 },
+        "langs": { "type": "array", "items": { "type": "string", "minLength": 2 } }
+      }
+    },
+    "docs": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["layer", "sources"],
+        "additionalProperties": false,
+        "properties": {
+          "layer": { "type": "string", "pattern": "^L\\d+$" },
+          "title": { "type": "string" },
+          "mode": { "enum": ["fragment"] },
+          "tier": { "enum": ["min", "avg", "max"] },
+          "sources": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+        }
+      }
+    }
+  }
+}

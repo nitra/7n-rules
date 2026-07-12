@@ -168,6 +168,12 @@
       "description": ".mt.json / .mt-override.json — конфігурація @7n/mt (Nitra MT)",
       "url": "vendor/mt-config.json",
       "fileMatch": [".mt.json", "**/.mt.json", "**/.mt-override.json"]
+    },
+    {
+      "name": "layers-config",
+      "description": "Конфіг рушія шарової документації @7n/layers (<docsDir>/layers.json, напр. npm/docs/layers.json у репо mt)",
+      "url": "layers-config.json",
+      "fileMatch": ["**/docs/layers.json", "layers.json"]
     }
   ]
 }
