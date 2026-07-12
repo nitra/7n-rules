@@ -7,6 +7,7 @@ template_data := {
 	"snippet": {
 		"version": "0.2",
 		"useGitignore": true,
+		"gitignoreRoot": ".",
 		"ignorePaths": [
 			"**/node_modules/**",
 			"**/vscode-extension/**",
@@ -26,6 +27,7 @@ valid_cfg := {
 	"version": "0.2",
 	"language": "en,uk",
 	"useGitignore": true,
+	"gitignoreRoot": ".",
 	"import": ["@nitra/cspell-dict/cspell-ext.json"],
 	"ignorePaths": [
 		"**/node_modules/**",
@@ -75,6 +77,14 @@ test_deny_missing_use_gitignore if {
 	bad := json.patch(valid_cfg, [{"op": "remove", "path": "/useGitignore"}])
 	some msg in cspell.deny with input as bad with data.template as template_data
 	contains(msg, "useGitignore")
+}
+
+# gitignoreRoot обмежує обхід .gitignore коренем репо: без нього cspell у
+# git-worktree тягне .gitignore основного дерева і мовчки ігнорує все.
+test_deny_missing_gitignore_root if {
+	bad := json.patch(valid_cfg, [{"op": "remove", "path": "/gitignoreRoot"}])
+	some msg in cspell.deny with input as bad with data.template as template_data
+	contains(msg, "gitignoreRoot")
 }
 
 # Drift test.

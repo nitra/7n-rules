@@ -8,6 +8,7 @@ Rego-пакет: `text.cspell`
 
 - `version` — має відповідати канону (наразі `"0.2"`)
 - `useGitignore` — має бути `true`: cspell поважає всі `.gitignore` репо, тож білд-артефакти (`target/`, `dist/` тощо) не потрапляють у прогін і не потребують дублювання в `ignorePaths`
+- `gitignoreRoot` — має бути `"."`: обмежує збір `.gitignore` коренем репо. Без цього cspell підіймається каталогами вище і в git-worktree застосовує `.gitignore` основного дерева (патерн на кшталт `.claude/worktrees/` матчить усе) → «Files checked: 0», делта-лінт мовчки зелений при червоному CI
 - `language` — поле обов'язкове (presence-only, значення довільне, наприклад `"en,uk"`)
 - `ignorePaths` — масив має бути надмножиною канонічних glob-ів, включно з `docs/adr/**`
 - `import` — має містити підрядок `@nitra/cspell-dict`; заборонені будь-які записи з підрядком `@cspell/dict-` (використовуй лише `@nitra/cspell-dict`)
@@ -21,6 +22,7 @@ Rego-пакет: `text.cspell`
   "version": "0.2",
   "language": "en,uk",
   "useGitignore": true,
+  "gitignoreRoot": ".",
   "import": ["@nitra/cspell-dict/cspell-ext.json"],
   "ignorePaths": ["**/node_modules/**", "**/.git/**", "docs/adr/**"]
 }

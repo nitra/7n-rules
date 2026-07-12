@@ -77,6 +77,7 @@ describe('fix-cspell T0 (cspell-merge)', () => {
         version: '0.2',
         language: 'en,uk',
         useGitignore: true,
+        gitignoreRoot: '.',
         ignorePaths: [...SNIPPET_IGNORE, 'target/**'],
         import: ['@nitra/cspell-dict/cspell-ext.json'],
         words: ['омлх']
