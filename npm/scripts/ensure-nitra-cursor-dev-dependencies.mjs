@@ -160,7 +160,7 @@ export async function ensureNitraCursorInRootDevDependencies(root, options = {})
     pkg.devDependencies[PACKAGE_NAME] = `^${ver}`
     await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8')
     if (!options.silent) {
-      console.log(`⬆️  Оновлено ${PACKAGE_NAME} ${current} → ^${ver} у devDependencies у package.json\n`)
+      console.error(`⬆️  Оновлено ${PACKAGE_NAME} ${current} → ^${ver} у devDependencies у package.json\n`)
     }
     return true
   }
@@ -176,7 +176,7 @@ export async function ensureNitraCursorInRootDevDependencies(root, options = {})
   await writeFile(pkgPath, out, 'utf8')
 
   if (!options.silent) {
-    console.log(`📝 Додано ${PACKAGE_NAME}@^${ver} у devDependencies у package.json\n`)
+    console.error(`📝 Додано ${PACKAGE_NAME}@^${ver} у devDependencies у package.json\n`)
   }
 
   return true
