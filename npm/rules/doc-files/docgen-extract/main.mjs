@@ -58,11 +58,21 @@ const THROW_RE = /\bthrow\s/
 const MUTATION_CALL_RE = /\b(insert|update|delete|upsert|drop|destroy|save)[A-Za-z]*\s*[(,]/
 const MUTATION_NAME_RE = /[Mm]utation\b|\bmut[A-Z]\w*/
 const MUTATION_METHOD_RE = /\.(save|create|update|delete|insert|destroy|mutate)\(/
+// Raw-SQL tagged-template виклики (напр. `pgWrite\`UPDATE ...\``) — DML-ключове
+// слово стоїть на початку тіла шаблону, не перед `(`, тож JS-орієнтовані
+// патерни вище його не ловлять. Сигнал мінімальний, але навмисний: тег-функція
+// (ідентифікатор впритул перед `` ` ``) + DML-keyword одразу після відкриття —
+// уникає false positive на звичайних рядках/коментарях, де немає теg-виклику.
+const SQL_TAGGED_MUTATION_RE = /\b\w+`\s*(?:UPDATE|INSERT|MERGE\s+INTO|DELETE\s+FROM|UPSERT)\b/i
 /**
  * @param {string} src вміст файлу
  * @returns {boolean} чи є ознаки мутації БД / зовнішнього стану
  */
-const isMutation = src => MUTATION_CALL_RE.test(src) || MUTATION_NAME_RE.test(src) || MUTATION_METHOD_RE.test(src)
+const isMutation = src =>
+  MUTATION_CALL_RE.test(src) ||
+  MUTATION_NAME_RE.test(src) ||
+  MUTATION_METHOD_RE.test(src) ||
+  SQL_TAGGED_MUTATION_RE.test(src)
 // Кеш — лише за ІМЕНОВАНИМ маркером (`cache`/`Cache`/`memoize`), не за будь-яким
 // `new Map()`: акумулятор (напр. `byPath = new Map()`) — не кеш, а хибна гарантія
 // «Кешує результати» гірша за пропуск (фабрикація > мовчання).
@@ -255,6 +265,11 @@ const RS_USE_RE = /^[ \t]*use\s+([\w:]+(?:::\{[^}]+\})?(?:::\*)?(?:::\w+)?)\s*;/
 // Файловий запис: fs::write / File::create / remove_file / create_dir / write_all
 const RS_WRITE_RE = /fs::write|File::create|remove_file|create_dir|BufWriter::new|OpenOptions[^;]*\.write\s*\(\s*true/
 
+// Raw-SQL запис через sqlx-подібні макро/виклики (query!/query/execute) — DML-
+// keyword одразу після відкриваючої лапки рядкового літералу (той самий
+// мінімальний тег+вміст сигнал, що й для JS tagged-template, SQL_TAGGED_MUTATION_RE)
+const RS_SQL_WRITE_RE = /\b(?:query!?|execute)\s*\(\s*"\s*(?:UPDATE|INSERT|MERGE\s+INTO|DELETE\s+FROM|UPSERT)\b/i
+
 // Обробка помилок (але не просто `?`): прості маркери; випадок
 // «match … з Err(-гілкою» — віконним обходом рядків у rsHasMatchWithErrArm
 const RS_CATCH_SIMPLE_RES = [/\.unwrap_or(?:_else|_default)?/, /if\s+let\s+Err\s*\(/, /\.map_err\s*\(/, /\.ok\s*\(\)/]
@@ -410,7 +425,7 @@ function extractFactsRust(src, relPath) {
 
   // markers
   const markers = {
-    readOnly: !RS_WRITE_RE.test(src),
+    readOnly: !RS_WRITE_RE.test(src) && !RS_SQL_WRITE_RE.test(src),
     catchesErrors: RS_CATCH_SIMPLE_RES.some(re => re.test(src)) || rsHasMatchWithErrArm(srcLines),
     returnsFalsyOnFail: RS_RESULT_RE.test(src),
     network: RS_NETWORK_RE.test(src),
