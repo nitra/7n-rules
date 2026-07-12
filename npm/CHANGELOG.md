@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.30.0] - 2026-07-12
+
+### Added
+
+- Фаза C: маховик телеметрії — успішні agentic-фікси (інлайн-драбина + MT-вузли через mt-run-node) пишуть oldText→newText у глобальний distillation-стор (~/.n-cursor/telemetry, recordFixTelemetry з Ф1 нарешті підключено); широкі fix-вузли (≥4 файлів або whole-repo) отримують audit: required (collateral-контроль штатним MT-аудитом, поріг N_LINT_MT_AUDIT_FILES)
+
 ## [14.29.0] - 2026-07-11
 
 ### Changed
