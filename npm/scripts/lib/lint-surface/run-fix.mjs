@@ -276,6 +276,23 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
 
   if (after.length === 0 && !error && !vetoed) {
     log(`  ✅ ${rung.tier} (${rung.model}): ${ruleId}/${concernName}\n`)
+    // Фаза C: успішний agentic-фікс (canonical clean, без veto) → глобальний
+    // distillation-стор (§13 pi-migration: корпус oldText→newText для маховика T0).
+    // Best-effort і лише за наявності реальних правок (T0/manual-фікси не пишемо).
+    const edits = workerResult?.telemetry?.edits
+    if (Array.isArray(edits) && edits.length > 0) {
+      const { recordFixTelemetry } = await import('@7n/llm-lib/telemetry-store')
+      recordFixTelemetry({
+        rule: ruleId,
+        concern: concernName,
+        rung: rung.tier,
+        model: rung.model,
+        cwd,
+        edits,
+        verifyAttempts: workerResult?.telemetry?.verifyAttempts?.length ?? 0,
+        anchoredEdits: workerResult?.telemetry?.anchoredEdits ?? false
+      })
+    }
     return { closed: true, touchedFiles }
   }
 

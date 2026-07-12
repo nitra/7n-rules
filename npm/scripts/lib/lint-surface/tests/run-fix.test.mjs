@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { env } from 'node:process'
 
@@ -83,6 +83,22 @@ function writeDoneReportingWorker(_v, ctx) {
   ctx.recordWrite(p)
   writeFileSync(p, 'done')
   return { touchedFiles: [p] }
+}
+
+/**
+ * Worker, що закриває детектор і повертає telemetry з правками (Фаза C, distillation).
+ * @param {unknown} _v Порушення (не використовуються).
+ * @param {object} ctx Контекст fix-а з `cwd` і `recordWrite`.
+ * @returns {{ touchedFiles: string[], telemetry: object }} Результат із телеметрією.
+ */
+function writeDoneTelemetryWorker(_v, ctx) {
+  const p = join(ctx.cwd, 'out.txt')
+  ctx.recordWrite(p)
+  writeFileSync(p, 'done')
+  return {
+    touchedFiles: [p],
+    telemetry: { edits: [{ path: p, tool: 'edit', edits: [{ oldText: 'absent', newText: 'done' }] }] }
+  }
 }
 
 describe('runFixPipeline — базові вердикти', () => {
@@ -240,6 +256,39 @@ describe('runFixPipeline — MT-tail (гейт = onboarded-репо, fail-open)'
       expect(code).toBe(1)
       // Preflight (.mt.json відсутній) → skip; fail-open, verdict не змінюється.
       expect(existsSync(join(dir, 'mt'))).toBe(false)
+    })
+  })
+
+  test('Фаза C: успішний agentic-фікс пише запис у distillation-стор', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir)
+      const storeDir = join(dir, 'telemetry-store')
+      const prevStore = env.N_LLM_TELEMETRY_DIR
+      env.N_LLM_TELEMETRY_DIR = storeDir
+      try {
+        const code = await runFixPipeline({
+          rulesDir,
+          cwd: dir,
+          full: true,
+          log: () => {
+            /* no-op logger */
+          },
+          deps: { ladder: ONE_RUNG, workerFor: () => writeDoneTelemetryWorker }
+        })
+        expect(code).toBe(0)
+        // Запис у глобальному сторі: telemetry/<rule>/open/<sig>.json
+        // (ідентичний повтор не створює нового файлу — лише збільшує occurrences).
+        const openDir = join(storeDir, 'probe', 'open')
+        expect(existsSync(openDir)).toBe(true)
+        const files = readdirSync(openDir)
+        expect(files).toHaveLength(1)
+        const entry = JSON.parse(readFileSync(join(openDir, files[0]), 'utf8'))
+        expect(entry).toMatchObject({ rule: 'probe', rung: 'local-min', occurrences: 1, status: 'open' })
+        expect(entry.edits[0].edits[0]).toEqual({ oldText: 'absent', newText: 'done' })
+      } finally {
+        if (prevStore === undefined) delete env.N_LLM_TELEMETRY_DIR
+        else env.N_LLM_TELEMETRY_DIR = prevStore
+      }
     })
   })
 

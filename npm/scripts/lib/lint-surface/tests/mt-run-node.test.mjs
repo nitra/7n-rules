@@ -4,7 +4,14 @@
  */
 
 import { describe, expect, test, vi } from 'vitest'
-import { buildViolationText, parseNodeContract, resolveTierLabel, runNode, runNodeCli } from '../mt-run-node.mjs'
+import {
+  buildViolationText,
+  parseNodeContract,
+  recordNodeFixTelemetry,
+  resolveTierLabel,
+  runNode,
+  runNodeCli
+} from '../mt-run-node.mjs'
 
 const TASK_MD = [
   '---',
@@ -105,6 +112,43 @@ describe('runNode', () => {
   test('task.md без ## Check → помилка "не знайдено правило"', async () => {
     const res = await runNode({ nodeDir: '/x', worktree: '/wt', deps: { readFile: () => '## Task\n\nno check\n' } })
     expect(res.error).toContain('не знайдено правило')
+  })
+})
+
+describe('recordNodeFixTelemetry (Фаза C)', () => {
+  const okRes = {
+    applied: true,
+    error: null,
+    telemetry: {
+      edits: [{ path: 'a.vue', edits: [{ oldText: 'X', newText: 'Y' }] }],
+      verifyAttempts: [{ ok: true }],
+      anchoredEdits: true
+    }
+  }
+
+  test('успішний фікс із правками → запис у стор (rule/rung/edits/прапорці)', async () => {
+    const record = vi.fn()
+    await recordNodeFixTelemetry({ rule: 'n-ci4', tier: 'max', model: 'x/y', cwd: '/wt', res: okRes, record })
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rule: 'n-ci4',
+        rung: 'mt-max',
+        model: 'x/y',
+        edits: okRes.telemetry.edits,
+        verifyAttempts: 1,
+        anchoredEdits: true
+      })
+    )
+  })
+
+  test.each([
+    ['не applied', { ...okRes, applied: false }],
+    ['error', { ...okRes, error: 'boom' }],
+    ['без правок', { ...okRes, telemetry: { edits: [] } }]
+  ])('%s → запис не робиться', async (_label, res) => {
+    const record = vi.fn()
+    await recordNodeFixTelemetry({ rule: 'r', tier: 'avg', model: 'm', cwd: '/wt', res, record })
+    expect(record).not.toHaveBeenCalled()
   })
 })
 

@@ -95,6 +95,9 @@ export function buildViolationText(contract) {
 
 /**
  * Дефолтний fix через pi-harness (lazy import — тримає top-level pi-free).
+ * Успішний фікс пише запис у глобальний distillation-стор (Фаза C, §13
+ * pi-migration): MT-вузли живлять той самий корпус oldText→newText, що й
+ * інлайн-драбина — крос-репо маховик T0 не розрізняє шлях фіксу.
  * @param {{ rule: string, violation: string, cwd: string, tier: string, targetFiles: string[] }} args параметри
  * @returns {Promise<{ applied: boolean, touchedFiles: string[], error: string|null }>} результат
  */
@@ -103,13 +106,42 @@ async function defaultFix({ rule, violation, cwd, tier, targetFiles }) {
     import('@7n/llm-lib/agent-fix'),
     import('@7n/llm-lib/model-tiers')
   ])
+  const model = resolveModel(tier)
   const res = await runAgentFix(rule, violation, cwd, {
-    model: resolveModel(tier),
+    model,
     tier,
     targetFiles,
     caller: `mt-run-node:${rule}`
   })
+  await recordNodeFixTelemetry({ rule, tier, model, cwd, res })
   return { applied: res.applied, touchedFiles: res.touchedFiles ?? [], error: res.error }
+}
+
+/**
+ * Пише успішний MT-фікс у глобальний distillation-стор (Фаза C). Лише applied без
+ * error і з реальними правками; best-effort (стор сам ковтає IO-помилки).
+ * @param {{ rule: string, tier: string, model: string|undefined, cwd: string,
+ *   res: { applied: boolean, error: string|null, telemetry?: object|null },
+ *   record?: (r: object) => object|null }} args контекст (record — інʼєкція для тестів)
+ * @returns {Promise<void>} нічого не повертає
+ */
+export async function recordNodeFixTelemetry({ rule, tier, model, cwd, res, record }) {
+  const edits = res.telemetry?.edits
+  if (!res.applied || res.error || !Array.isArray(edits) || edits.length === 0) return
+  let rec = record
+  if (!rec) {
+    const mod = await import('@7n/llm-lib/telemetry-store')
+    rec = mod.recordFixTelemetry
+  }
+  rec({
+    rule,
+    rung: `mt-${tier}`,
+    model,
+    cwd,
+    edits,
+    verifyAttempts: res.telemetry?.verifyAttempts?.length ?? 0,
+    anchoredEdits: res.telemetry?.anchoredEdits ?? false
+  })
 }
 
 /**

@@ -3,7 +3,7 @@ type: JS Module
 title: mt-tail.mjs
 resource: npm/scripts/lib/lint-surface/mt-tail.mjs
 docgen:
-  crc: 939b00bf
+  crc: d936d37f
   model: openai-codex/gpt-5.4-mini
   score: 100
   judgeModel: openai-codex/gpt-5.4-mini
@@ -11,11 +11,10 @@ docgen:
 
 ## Огляд
 
-Файл матеріалізує lint-хвіст у пласкі root-level MT-вузли `mt/<node>/task.md` і `a.md` без composite-плану й `spawn-approve`, щоб окремі fix-правки далі виконував orchestrator MT за контрактом `graph.md` з `Task`, `Done when` і `Check`. Ядро модулю охоплює кластеризацію, сигнатуру вузла та формування `buildTaskMd`, `buildCheckCommand` і `buildAgentFlag`, а конфіг, на який він спирається, — `.mt.json`. Він існує як opt-in гілка для `N_LINT_MT_TAIL`; до настання MT-передумов модуль лише логує й не валить lint. Якщо MT недоступний, він працює fail-open і повертає `{ materialized: false }`.
+Файл матеріалізує lint-хвіст у пласкі root-level MT-вузли `mt/<node>/task.md` і `a.md` без composite-плану й `spawn-approve`, щоб окремі fix-правки далі виконував orchestrator MT за контрактом `graph.md` з `Task`, `Done when` і `Check`. Ядро модулю охоплює кластеризацію, сигнатуру вузла та формування `buildTaskMd`, `buildCheckCommand` і `buildAgentFlag`, а конфіг, на який він спирається, — `.mt.json`. Єдиний гейт — onboarded-репо (наявність `.mt.json`, перевіряє `mtPreflight`); якщо MT недоступний, він працює fail-open і повертає `{ materialized: false }`, не валячи lint. Широкі фікси (кількість target-файлів від порога `N_LINT_MT_AUDIT_FILES`, дефолт 4, або whole-repo) отримують `audit: required` — collateral-контроль штатним MT-аудитом (Фаза C); вузькі — `optional`.
 
 ## Поведінка
 
-- `mtTailEnabled` — визначає, чи ввімкнено матеріалізацію lint-хвоста в MT через `N_LINT_MT_TAIL`.
 - `clusterTail` — групує порушення в окремі fix-одиниці за правилом і concern та збирає список пов’язаних файлів.
 - `fixNodeSignature` — будує стабільну коротку сигнатуру кластера для відтворюваного імені вузла.
 - `fixNodeName` — формує канонічну назву root-level MT-вузла для fix-роботи.
@@ -27,7 +26,6 @@ docgen:
 
 ## Публічний API
 
-- mtTailEnabled — вмикає MT-tail лише за env-гейтом; за замовчуванням вимкнено.
 - clusterTail — зводить хвостові порушення в fix-одиниці за парою `rule × concern`.
 - fixNodeSignature — дає стабільний підпис кластера, щоб той самий хвіст завжди мапився на той самий вузол.
 - fixNodeName — формує root-level імʼя fix-вузла в `mt/` у kebab-safe форматі.
