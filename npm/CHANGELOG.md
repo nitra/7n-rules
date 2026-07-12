@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.32.1] - 2026-07-12
+
+### Fixed
+
+- adr-normalize-local: self-upgrade нотифікація ensureNitraCursorInRootDevDependencies писала у stdout і псувала JSON-контракт n-cursor adr-normalize-local — перенесено у stderr
+
 ## [14.32.0] - 2026-07-12
 
 ### Changed
