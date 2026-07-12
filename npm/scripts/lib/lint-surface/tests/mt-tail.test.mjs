@@ -104,6 +104,18 @@ describe('buildTaskMd / buildCheckCommand / buildAgentFlag', () => {
     expect(md).toContain('(whole-repo concern)')
   })
 
+  test('audit-поріг (Фаза C): вузький фікс optional, широкий/whole-repo — required', () => {
+    const narrow = buildTaskMd(cluster, { createdAt: CREATED }) // 1 файл
+    expect(narrow).toContain('audit: optional')
+    const wide = buildTaskMd(
+      { rule: 'r', concern: 'c', files: ['a', 'b', 'c', 'd'] }, // >= порога (4)
+      { createdAt: CREATED }
+    )
+    expect(wide).toContain('audit: required')
+    const wholeRepo = buildTaskMd({ rule: 'r', concern: 'c', files: [] }, { createdAt: CREATED })
+    expect(wholeRepo).toContain('audit: required')
+  })
+
   test('buildCheckCommand скоупить правило', () => {
     expect(buildCheckCommand(cluster)).toBe('npx @nitra/cursor lint --no-fix n-ci4')
   })

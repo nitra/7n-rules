@@ -3,9 +3,8 @@ type: JS Module
 title: mt-run-node.mjs
 resource: npm/scripts/lib/lint-surface/mt-run-node.mjs
 docgen:
-  crc: db34a5ca
+  crc: a5da3cb9
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
@@ -22,6 +21,7 @@ docgen:
 - `buildViolationText` — формує текст порушення для agent-fix із задачі та, за наявності, додає перелік target-файлів; canonical-check лишається за `## Check`.
 - `runNode` — читає `task.md`, парсить контракт вузла, підбирає tier і запускає виправлення в заданому worktree через інʼєкований або стандартний fix.
 - `runNodeCli` — бере `node-dir` з argv або `MT_NODE_DIR`, запускає обробку вузла, друкує JSON зі станом виконання та повертає код завершення без пробросу винятків назовні.
+- `recordNodeFixTelemetry` — успішний фікс із реальними правками пише запис `oldText→newText` у глобальний distillation-стор (Фаза C): MT-вузли живлять той самий крос-репо корпус маховика T0, що й інлайн-драбина; best-effort, лише applied без error.
 
 ## Публічний API
 
