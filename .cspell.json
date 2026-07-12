@@ -89,6 +89,7 @@
     "quikrun",
     "recompiles",
     "rsvg",
+    "sqlx",
     "Statsig",
     "statusline",
     "Streamfn",
