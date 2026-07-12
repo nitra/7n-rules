@@ -152,3 +152,15 @@ Chosen option: "pi (ollama-провайдер)", because на однакових
 - Для direct Ollama REST API потрібно прибирати prefix `ollama/`, наприклад `ollama/gemma3:4b` → `gemma3:4b`.
 - Розглядалися варіанти: поле `backend` у `resolveModel`, окрема `callLocal()` з `N_LOCAL_BACKEND=pi|direct`, або per-tier env override `N_LOCAL_MIN_BACKEND` / `N_LOCAL_AVG_BACKEND` / `N_LOCAL_MAX_BACKEND`.
 - Фінальний вибір у transcript не зроблено.
+
+## Update 2026-06-09
+
+Пілот Tier 1 docgen через `omlx` підтвердив працездатність прямого OpenAI-compatible endpoint замість `pi + ollama`.
+
+- Backend: `N_CURSOR_DOCGEN_BACKEND=omlx`.
+- Endpoint: `http://127.0.0.1:8000/v1/chat/completions`.
+- Модель: `mlx-community--gemma-4-e2b-it-4bit`.
+- Пілот: 9 файлів, avg score приблизно `95/100`, усі `tier=1`, приблизно `48–71s/файл`.
+- Якість за transcript: коротша поведінкова структура без TypeScript-сигнатур; стара версія `pi+gemma3` була значно довша і містила більше внутрішніх деталей.
+- Тимчасовий запуск: `N_CURSOR_DOCGEN_BACKEND=omlx node npm/skills/docgen/js/docgen-batch-omlx.mjs [--limit N] [--from N]`.
+- Обмеження з transcript: повний прогон 175 файлів оцінено приблизно у 2.5 години; batch-скрипт ще не інтегрований у стандартний docgen CLI.
