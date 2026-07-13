@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.6.0] - 2026-07-13
+
+### Added
+
+- Новий Rust-крейт `crates/llm-cascade` — той самий env-контракт (`N_LOCAL_*`/`N_CLOUD_*` тири) для проєктів без Bun/Node (Tauri webview, agent-server). Три fail-fast примітиви без вбудованого retry: `tiers::resolve_model` (порт `model-tiers.mjs`), `local_cloud::LocalCloud` (один HTTP-виклик через `genai`, кастомний ендпоінт для omlx), `acp::one_shot_acp` (доступ до потужних моделей через особисту підписку — Cursor CLI нативно, Codex через офіційний міст `@agentclientprotocol/codex-acp` — без API-ключа). Обидва бекенди перевірено живими викликами.
+
 ## [2.5.1] - 2026-07-12
 
 ### Fixed
