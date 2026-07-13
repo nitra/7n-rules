@@ -3,7 +3,7 @@ type: JS Module
 title: vitest.config.js
 resource: npm/vitest.config.js
 docgen:
-  crc: 45333a6b
+  crc: 01d03a02
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99
@@ -32,3 +32,5 @@ docgen:
 
 - Read-only: не виконує операцій запису (ФС/БД).
 - Свідомо пропускає шляхи: `.git`, `node_modules`.
+
+Виключаються також git-worktree чекаути (`.worktrees/**`, `.claude/worktrees/**`) — повні копії репо, чиї тести дублюють основні.

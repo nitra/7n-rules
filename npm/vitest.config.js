@@ -11,7 +11,9 @@ export default defineConfig({
     // reports/stryker/.tmp/ містить sandbox-копії тестів від Stryker (incremental
     // або aborted-runs); без exclude vitest run --coverage їх підхоплює і вони
     // фейляться, бо запускаються поза реальним repo root.
-    exclude: ['**/node_modules/**', '**/dist/**', '**/reports/stryker/**'],
+    // Git-worktree чекаути (.worktrees/ і session-worktree Claude у .claude/worktrees/) —
+    // повні копії репо; їх тести дублюють основні й фейляться через інший node_modules/стан.
+    exclude: ['**/node_modules/**', '**/dist/**', '**/reports/stryker/**', '**/.worktrees/**', '**/.claude/worktrees/**'],
     environment: 'node',
     // `GIT_TRACE2_EVENT=0` — вимикає git Trace2 event-stream для всіх git-процесів,
     // що їх спавнять тести (`execFile`/`spawnSync` успадковують `process.env` воркера).

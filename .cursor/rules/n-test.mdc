@@ -29,7 +29,7 @@ alwaysApply: false
 {
   "scripts": {
     "coverage": ["@7n/test coverage"],
-    "test": ["vitest"]
+    "test": ["vitest", "--bun"]
   }
 }
 ```
@@ -178,9 +178,11 @@ Rego-пакет: `test.package_json`
 | Поле | Має містити |
 |---|---|
 | `scripts.coverage` | `@7n/test coverage` |
-| `scripts.test` | `vitest` |
+| `scripts.test` | `vitest` і `--bun` (напр. `"bun run --bun vitest run"`) |
 
-Substring-семантика: команди-обгортки (наприклад `bun run pre-coverage && npx @7n/test coverage`) дозволені — головне, щоб потрібний рядок був присутній.
+Substring-семантика: команди-обгортки (наприклад `bun run pre-coverage && npx @7n/test coverage`, `bun run pre-test && bun run --bun vitest run`) дозволені — головне, щоб потрібні рядки були присутні.
+
+**Чому `--bun` для `scripts.test`:** без Bun-рушія (`bun run vitest` без `--bun`, чи vitest під Node) `import { SQL } from 'bun'` та інші Bun-нативні built-in модулі не резолвуються у forked test-процесах — консьюмери змушені тримати exclude-списки для тестів, що їх торкаються. Під `bun run --bun vitest run` forked pool-процеси успадковують Bun-рушій і резолюція працює без жодних exclude.
 
 Канон підтягується через `--data`: [package.json.contains.json](./template/package.json.contains.json)
 
@@ -254,7 +256,7 @@ JS-root без `.vue` отримує дефолтний baseline без `plugins
 - `coverage.provider: 'v8'` з lcov+text-summary репортами
 - `include: ['**/*.test.{js,mjs}', 'tests/**/*.test.{js,mjs}']` — підхоплює тести у `tests/`-піддиректоріях і top-level integration suites у `<root>/tests/`
 
-У `package.json#scripts` має бути `"test": "vitest run"` (substring `vitest`; допустимо `vitest run` та інші локальні розширення) та опційно `"test:watch": "vitest"`.
+У `package.json#scripts` має бути `"test": "bun run --bun vitest run"` (substring `vitest` + `--bun`; допустимі локальні розширення-обгортки) та опційно `"test:watch": "vitest"`.
 
 **Frontend-варіант (Vue/Vite + happy-dom):**
 
