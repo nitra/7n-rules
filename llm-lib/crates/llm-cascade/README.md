@@ -45,7 +45,27 @@ async fn ask(local_cloud: &LocalCloud, prompt: &str) -> Result<String, llm_casca
 ```bash
 cargo run --example cursor_live   # потребує залогіненого `agent login`
 N_LOCAL_MIN_MODEL=omlx/<model> OMLX_API_KEY=<ключ> cargo run --example local_live
+N_LOCAL_MIN_MODEL=omlx/<model> OMLX_API_KEY=<ключ> cargo run --example ladder_live  # драбина з README цілком
 ```
+
+## Обкатано (2026-07-13)
+
+Драбина `ladder_live` перевірена в обох сценаріях, не лише happy path:
+
+- Cursor залогінений на PATH → відповідає перший рунг (`acp:cursor`, ~7.6с).
+- Cursor свідомо прибрано з PATH → `acp:cursor` падає з `No such file or
+  directory`, драбина коректно йде далі, а не висить і не панікує.
+- Спавн свідомо неіснуючого бінарника — автотест
+  (`spawn_of_missing_binary_fails_fast_not_hangs`) підтверджує провал
+  за секунди, не зависання.
+
+**Відома шорсткість:** `acp:codex` (`@agentclientprotocol/codex-acp` через
+`npx`) у прогоні з прибраним Cursor впав з `Internal error: "Not
+initialized"` — драбина коректно пішла на `local` далі, тож поведінка
+крейта правильна, але сам bridge-процес codex-acp у цьому середовищі
+потребує окремого розслідування (можливо, гонка на cold-start `npx`, чи
+інша передумова ініціалізації) перед тим, як покладатись на цей рунг у
+проді.
 
 ## Чому не `pi_agent_rust`
 
