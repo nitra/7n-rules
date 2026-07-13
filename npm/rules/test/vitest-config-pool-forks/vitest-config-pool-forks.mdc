@@ -12,7 +12,7 @@
 - `coverage.provider: 'v8'` з lcov+text-summary репортами
 - `include: ['**/*.test.{js,mjs}', 'tests/**/*.test.{js,mjs}']` — підхоплює тести у `tests/`-піддиректоріях і top-level integration suites у `<root>/tests/`
 
-У `package.json#scripts` має бути `"test": "vitest run"` (substring `vitest`; допустимо `vitest run` та інші локальні розширення) та опційно `"test:watch": "vitest"`.
+У `package.json#scripts` має бути `"test": "bun run --bun vitest run"` (substring `vitest` + `--bun`; допустимі локальні розширення-обгортки) та опційно `"test:watch": "vitest"`.
 
 **Frontend-варіант (Vue/Vite + happy-dom):**
 

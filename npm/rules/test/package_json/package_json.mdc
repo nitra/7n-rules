@@ -9,8 +9,10 @@ Rego-пакет: `test.package_json`
 | Поле | Має містити |
 |---|---|
 | `scripts.coverage` | `@7n/test coverage` |
-| `scripts.test` | `vitest` |
+| `scripts.test` | `vitest` і `--bun` (напр. `"bun run --bun vitest run"`) |
 
-Substring-семантика: команди-обгортки (наприклад `bun run pre-coverage && npx @7n/test coverage`) дозволені — головне, щоб потрібний рядок був присутній.
+Substring-семантика: команди-обгортки (наприклад `bun run pre-coverage && npx @7n/test coverage`, `bun run pre-test && bun run --bun vitest run`) дозволені — головне, щоб потрібні рядки були присутні.
+
+**Чому `--bun` для `scripts.test`:** без Bun-рушія (`bun run vitest` без `--bun`, чи vitest під Node) `import { SQL } from 'bun'` та інші Bun-нативні built-in модулі не резолвуються у forked test-процесах — консьюмери змушені тримати exclude-списки для тестів, що їх торкаються. Під `bun run --bun vitest run` forked pool-процеси успадковують Bun-рушій і резолюція працює без жодних exclude.
 
 Канон підтягується через `--data`: [package.json.contains.json](./template/package.json.contains.json)
