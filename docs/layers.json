@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "tier": "min",
+  "maxTokens": 4096,
+  "i18n": { "baseLang": "uk", "langs": ["en"] },
+  "docs": {
+    "overview.md": {
+      "layer": "L1",
+      "title": "Огляд: інструменти й скіли @nitra/cursor",
+      "sources": [
+        "coverage-fix-skill.md",
+        "doc-files-skill.md",
+        "eslint.config.md",
+        "fix-cursor-skill.md",
+        "programmatic-checks-for-llm.md"
+      ]
+    }
+  }
+}
