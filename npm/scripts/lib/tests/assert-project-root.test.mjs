@@ -15,7 +15,7 @@ import { assertCwdIsProjectRoot, gitToplevel } from '../assert-project-root.mjs'
  * @returns {string} realpath кореня нового репо
  */
 function initRepo() {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'n-cursor-root-')))
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'n-rules-root-')))
   execFileSync('git', ['init', '-q'], { cwd: dir })
   return dir
 }
@@ -42,7 +42,7 @@ describe('assertCwdIsProjectRoot', () => {
   })
 
   test('каталог поза git-репо → не кидає (корінь невизначений)', () => {
-    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'n-cursor-nogit-')))
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'n-rules-nogit-')))
     try {
       expect(gitToplevel(dir)).toBeNull()
       expect(() => assertCwdIsProjectRoot(dir)).not.toThrow()

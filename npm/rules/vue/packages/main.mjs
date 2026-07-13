@@ -441,7 +441,7 @@ async function checkVueImportViolations(
  */
 async function checkVuePackage(rootDir, isComponentLibrary, ignorePaths, fail, passFn, cwd) {
   const prefix = `[${packageLabel(rootDir)}] `
-  passFn(`${prefix}package.json залежності перевіряє npx @nitra/cursor fix → vue.package_json`)
+  passFn(`${prefix}package.json залежності перевіряє npx @7n/rules fix → vue.package_json`)
 
   await checkViteClientEnvAndEditorConfig(rootDir, prefix, passFn, fail, cwd)
 

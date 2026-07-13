@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url'
 import { ensureTool } from './ensure-tool.mjs'
 
 /**
-  Каталог пакета `@nitra/cursor`, від якого ресолвимо вшиті директорії правил.
+  Каталог пакета `@7n/rules`, від якого ресолвимо вшиті директорії правил.
  */
 const PACKAGE_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
 
@@ -80,7 +80,7 @@ export function runConftestBatch(opts) {
   let tmpDataDir = null
   let tmpDataFile = null
   if (opts.templateData) {
-    tmpDataDir = mkdtempSync(join(tmpdir(), 'n-cursor-tpl-'))
+    tmpDataDir = mkdtempSync(join(tmpdir(), 'n-rules-tpl-'))
     tmpDataFile = join(tmpDataDir, 'template-data.json')
     writeFileSync(tmpDataFile, JSON.stringify({ template: opts.templateData }))
   }

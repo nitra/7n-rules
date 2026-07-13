@@ -5,4 +5,4 @@ globs: "**/*.php"
 alwaysApply: false
 ---
 
-Весь код повинен відповідати PHP 8.5 (PHPCompatibility + Rector). Лінт запускається через `n-cursor lint php`.
+Весь код повинен відповідати PHP 8.5 (PHPCompatibility + Rector). Лінт запускається через `n-rules lint php`.

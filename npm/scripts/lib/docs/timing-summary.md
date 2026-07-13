@@ -3,7 +3,7 @@ type: JS Module
 title: timing-summary.mjs
 resource: npm/scripts/lib/timing-summary.mjs
 docgen:
-  crc: 47660e16
+  crc: 847290f1
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 95
 ---

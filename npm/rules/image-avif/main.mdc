@@ -5,4 +5,4 @@ globs: "**/*.{png,jpg,jpeg,gif,avif,vue,html}"
 alwaysApply: false
 ---
 
-Правило забезпечує, що кожне raster-зображення (`png`, `jpg`, `jpeg`, `gif`), на яке посилаються `.vue`/`.html` файли, має AVIF-двійник і що посилання переписані на нього. Генерація, rewrite і cleanup AVIF-сиріт виконуються автоматично через `npx @nitra/cursor fix image-avif`.
+Правило забезпечує, що кожне raster-зображення (`png`, `jpg`, `jpeg`, `gif`), на яке посилаються `.vue`/`.html` файли, має AVIF-двійник і що посилання переписані на нього. Генерація, rewrite і cleanup AVIF-сиріт виконуються автоматично через `npx @7n/rules fix image-avif`.

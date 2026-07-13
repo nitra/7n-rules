@@ -3,7 +3,7 @@ type: JS Module
 title: run-external-tool.mjs
 resource: npm/rules/rego/lib/run-external-tool.mjs
 docgen:
-  crc: 92bf810b
+  crc: 298f9908
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100
@@ -32,3 +32,5 @@ docgen:
 ## Гарантії поведінки
 
 - Read-only: не виконує операцій запису (ФС/БД).
+
+**Сусідній policy-файл для тестів.** У delta-режимі `resolveTargets` для кожного `X_test.rego` додає наявний сусідній `X.rego`: тест-файл імпортує свій policy-пакет, і без нього regal хибно флагує `unresolved-import`.

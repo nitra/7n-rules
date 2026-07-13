@@ -1,5 +1,5 @@
 /**
- * `n-cursor change` — пише один change-файл `<ws>/.changes/YYMMDD-HHMM.md`.
+ * `n-rules change` — пише один change-файл `<ws>/.changes/YYMMDD-HHMM.md`.
  * Якщо файл за ту саму хвилину вже існує, додає `-2`, `-3` тощо.
  * Замінює ручне редагування CHANGELOG у feature-флоу (n-changelog.mdc v3.0).
  */
@@ -72,7 +72,7 @@ export async function runChangeCli(args) {
   const message = get('--message')
   if (!bump || !section || !message) {
     console.error(
-      '❌ Використання: n-cursor change --bump <major|minor|patch> --section <Added|Changed|Fixed|Removed> --message "<опис>" [--ws <шлях>]'
+      '❌ Використання: n-rules change --bump <major|minor|patch> --section <Added|Changed|Fixed|Removed> --message "<опис>" [--ws <шлях>]'
     )
     return 1
   }

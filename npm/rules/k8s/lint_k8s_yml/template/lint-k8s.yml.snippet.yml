@@ -40,4 +40,4 @@ jobs:
           echo "$HOME/.kubescape/bin" >> $GITHUB_PATH
 
       - name: Lint K8s
-        run: bunx n-cursor lint k8s --no-fix
+        run: bunx n-rules lint k8s --no-fix

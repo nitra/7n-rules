@@ -3,7 +3,7 @@
  * колишнього bundled `rego/check` (spec docs/specs/2026-07-02-text-check-per-file-split-design.md
  * §5-A). `full`, без `lint.glob` — verify виконує rego-тести, які часто крос-package
  * (`import data.<pkg>`), тож коректний лише на всьому `npm/rules`. Не входить у delta-план
- * (§5): спрацьовує лише через `n-cursor lint --full` або scoped `n-cursor lint rego`.
+ * (§5): спрацьовує лише через `n-rules lint --full` або scoped `n-rules lint rego`.
  */
 import { resolve } from 'node:path'
 import { existsSync } from 'node:fs'

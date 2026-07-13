@@ -3,7 +3,7 @@
 # Канон надходить через --data: { "template": { "snippet": ... } }
 # Структура --data сформована з template/lint-docker.yml.snippet.yml.
 # Path-маркери, hadolint версія (substring "v2.12.0" у run), setup-bun-deps
-# composite, `n-cursor lint docker --no-fix` substring — все читається з template's snippet.
+# composite, `n-rules lint docker --no-fix` substring — все читається з template's snippet.
 # Універсальні workflow-перевірки — у `ga.workflow_common`.
 package docker.lint_docker_yml
 

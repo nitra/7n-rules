@@ -1,11 +1,14 @@
 /**
- * Перед синхронізацією правил CLI підтягує останню опубліковану версію `@nitra/cursor` з npm registry
+ * Перед синхронізацією правил CLI підтягує останню опубліковану версію `@7n/rules` з npm registry
  * у кореневий `package.json` і запускає `bun i` у корені проєкту.
  *
  * Якщо залежність уже задана через `workspace:`, `file:`, `link:` тощо, запис у registry не
  * змінюється і `bun i` не викликається — так зберігається робота монорепо та сценаріїв з `workspace:`, `file:` чи `link:`.
  *
- * Після встановлення повертається шлях до `node_modules/@nitra/cursor`, якщо каталог з
+ * Міграція перейменування: якщо у package.json ще оголошено legacy-пакет `@nitra/cursor`
+ * (а `@7n/rules` немає), запис переноситься на нову назву в тій самій секції.
+ *
+ * Після встановлення повертається шлях до `node_modules/@7n/rules`, якщо каталог з
  * `package.json` існує; інакше — fallback (корінь пакету поточного процесу CLI, наприклад кеш npx).
  */
 
@@ -15,8 +18,9 @@ import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-const PACKAGE_NAME = '@nitra/cursor'
-const NPM_LATEST_URL = 'https://registry.npmjs.org/@nitra/cursor/latest'
+const PACKAGE_NAME = '@7n/rules'
+const LEGACY_PACKAGE_NAME = '@nitra/cursor'
+const NPM_LATEST_URL = 'https://registry.npmjs.org/@7n/rules/latest'
 
 const execFileAsync = promisify(execFile)
 
@@ -66,7 +70,7 @@ export function shouldSkipNpmVersionUpgrade(specifier) {
  * Остання версія пакета з npm (поле `version` у JSON dist-tag `latest`).
  * @returns {Promise<string>} semver без префікса `^`
  */
-export async function fetchLatestNitraCursorVersionFromNpm() {
+export async function fetchLatestNRulesVersionFromNpm() {
   const res = await fetch(NPM_LATEST_URL, {
     headers: { accept: 'application/json' }
   })
@@ -78,6 +82,20 @@ export async function fetchLatestNitraCursorVersionFromNpm() {
     throw new Error(`npm registry: у відповіді для ${PACKAGE_NAME} немає поля version`)
   }
   return data.version.trim()
+}
+
+/**
+ * Версія з package.json вказаного кореня пакету (fallback, коли registry недоступний).
+ * @param {string} packageRoot корінь пакету поточного процесу CLI
+ * @returns {Promise<string | null>} semver або null, якщо файл нечитабельний
+ */
+async function readPackageVersionSafe(packageRoot) {
+  try {
+    const pkg = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'))
+    return typeof pkg?.version === 'string' && pkg.version.trim() ? pkg.version.trim() : null
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -112,11 +130,36 @@ async function runBunInstall(projectRoot) {
 }
 
 /**
- * Де зараз оголошено `@nitra/cursor` у package.json.
+ * Міграція перейменування: переносить `@nitra/cursor` → `@7n/rules` у тій самій секції
+ * package.json (devDependencies або dependencies), якщо нова назва ще не оголошена.
+ * @param {Record<string, unknown>} pkg вміст package.json (мутується in-place)
+ * @returns {boolean} true, якщо запис перенесено
+ */
+export function migrateLegacyDependencyName(pkg) {
+  let migrated = false
+  for (const section of ['devDependencies', 'dependencies']) {
+    const deps = pkg[section]
+    if (!deps || typeof deps !== 'object' || Array.isArray(deps)) {
+      continue
+    }
+    if (!(LEGACY_PACKAGE_NAME in deps) || typeof deps[LEGACY_PACKAGE_NAME] !== 'string') {
+      continue
+    }
+    if (!(PACKAGE_NAME in deps)) {
+      deps[PACKAGE_NAME] = deps[LEGACY_PACKAGE_NAME]
+    }
+    delete deps[LEGACY_PACKAGE_NAME]
+    migrated = true
+  }
+  return migrated
+}
+
+/**
+ * Де зараз оголошено `@7n/rules` у package.json.
  * @param {Record<string, unknown>} pkg вміст package.json як об'єкт після читання JSON
  * @returns {{ section: 'devDependencies' | 'dependencies', value: string } | null} секція та специфікатор або null, якщо залежності немає
  */
-function findNitraCursorDependency(pkg) {
+function findNRulesDependency(pkg) {
   const dev = pkg.devDependencies
   if (dev && typeof dev === 'object' && !Array.isArray(dev) && PACKAGE_NAME in dev) {
     const value = dev[PACKAGE_NAME]
@@ -135,13 +178,13 @@ function findNitraCursorDependency(pkg) {
 }
 
 /**
- * Оновлює `@nitra/cursor` до `^<latest>` з npm (якщо дозволено специфікатором), виконує `bun i`,
+ * Оновлює `@7n/rules` до `^<latest>` з npm (якщо дозволено специфікатором), виконує `bun i`,
  * повертає корінь пакету для читання `mdc/` та інших файлів синхронізації.
  * @param {string} projectRoot корінь цільового репозиторію (`cwd()`)
  * @param {string} fallbackPackageRoot корінь пакету з `import.meta.url` (кеш npx або workspace)
- * @returns {Promise<string>} абсолютний шлях до кореня `@nitra/cursor` для копіювання файлів
+ * @returns {Promise<string>} абсолютний шлях до кореня `@7n/rules` для копіювання файлів
  */
-export async function upgradeNitraCursorToLatestAndBunInstall(projectRoot, fallbackPackageRoot) {
+export async function upgradeNRulesToLatestAndBunInstall(projectRoot, fallbackPackageRoot) {
   const pkgPath = join(projectRoot, 'package.json')
   if (!existsSync(pkgPath)) {
     return resolveInstalledPackageRoot(projectRoot, fallbackPackageRoot)
@@ -165,14 +208,29 @@ export async function upgradeNitraCursorToLatestAndBunInstall(projectRoot, fallb
     return resolveInstalledPackageRoot(projectRoot, fallbackPackageRoot)
   }
 
-  const found = findNitraCursorDependency(pkg)
+  if (migrateLegacyDependencyName(pkg)) {
+    await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8')
+    console.log(`📝 Мігровано ${LEGACY_PACKAGE_NAME} → ${PACKAGE_NAME} у package.json\n`)
+  }
+
+  const found = findNRulesDependency(pkg)
 
   if (found && shouldSkipNpmVersionUpgrade(found.value)) {
     console.log(`⏭️  ${PACKAGE_NAME}: специфікатор «${found.value}» — без оновлення з npm та без bun i\n`)
     return resolveInstalledPackageRoot(projectRoot, fallbackPackageRoot)
   }
 
-  const latest = await fetchLatestNitraCursorVersionFromNpm()
+  let latest
+  try {
+    latest = await fetchLatestNRulesVersionFromNpm()
+  } catch (error) {
+    // До першої публікації @7n/rules registry віддає 404 — fallback на версію пакету поточного процесу
+    latest = await readPackageVersionSafe(fallbackPackageRoot)
+    if (!latest) {
+      throw error
+    }
+    console.log(`⚠️  npm registry недоступний для ${PACKAGE_NAME} — використовую bundled-версію ${latest}\n`)
+  }
   const desired = `^${latest}`
 
   if (!found) {

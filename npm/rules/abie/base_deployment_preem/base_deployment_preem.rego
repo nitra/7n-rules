@@ -11,7 +11,7 @@
 #
 # Cross-file gating: шлях `…/k8s/.../base/…` фільтрується через
 # `policy/base_deployment_preem/target.json` (glob). Rule-level applies-гейт —
-# `js/applies.mjs` (поле `rules` у `.n-cursor.json`).
+# `js/applies.mjs` (поле `rules` у `.n-rules.json`).
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 # Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`

@@ -50,17 +50,17 @@ jobs:
         run: node npm/scripts/smoke-check-imports.mjs
 
       - name: Release (bump + CHANGELOG + tag)
-        # N_CURSOR_RELEASE_PUSH=0: bump/CHANGELOG/тег лишаються локальними в цьому checkout,
+        # N_RULES_RELEASE_PUSH=0: bump/CHANGELOG/тег лишаються локальними в цьому checkout,
         # доки не підтвердиться хоч один успішний publish нижче — інакше git version
         # випереджає registry на кожній невдачі (саме так CI дійшов до 14.11.1 у git при
         # 14.10.4 на npm). `run` — канонічний текст кроку (npm-module.mdc template-policy),
         # тож push вимикається через env, а не зміну команди.
-        run: bunx n-cursor release
+        run: bunx n-rules release
         env:
-          N_CURSOR_RELEASE_PUSH: '0'
+          N_RULES_RELEASE_PUSH: '0'
 
-      # llm-lib публікується ПЕРШИМ: @nitra/cursor залежить від @7n/llm-lib,
-      # тож інсталяція свіжого @nitra/cursor мусить знаходити пакет у registry.
+      # llm-lib публікується ПЕРШИМ: @7n/rules залежить від @7n/llm-lib,
+      # тож інсталяція свіжого @7n/rules мусить знаходити пакет у registry.
       # continue-on-error: невдача одного з пакетів не має блокувати публікацію іншого.
       - name: Publish @7n/llm-lib
         id: publish-llm-lib

@@ -94,12 +94,12 @@ describe('utils_imports.check', () => {
     })
   })
 
-  test('utils/ у .n-cursor.json ignore → ігнорується (isIgnored returns true)', async () => {
+  test('utils/ у .n-rules.json ignore → ігнорується (isIgnored returns true)', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'utils'), { recursive: true })
       await writeFile(join(dir, 'utils', 'bad.mjs'), "import { x } from '../lib.mjs'\nexport const y = x\n", 'utf8')
       // ignoring the utils directory → check() повинен пройти без порушень
-      await writeFile(join(dir, '.n-cursor.json'), JSON.stringify({ ignore: ['utils'] }), 'utf8')
+      await writeFile(join(dir, '.n-rules.json'), JSON.stringify({ ignore: ['utils'] }), 'utf8')
       expect(await check(dir)).toBe(0)
     })
   })

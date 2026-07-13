@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/js-run/runtime/main.mjs
 docgen:
-  crc: 733d5b72
+  crc: e50892ad
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99

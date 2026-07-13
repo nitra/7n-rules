@@ -6,16 +6,28 @@ import rego.v1
 # Mirrors template/uses-min-versions.snippet.json
 template_data := {"snippet": {"actions/checkout": "6", "Infisical/secrets-action": "1.0.16"}}
 
-wf_ok_v6 := {"concurrency": {"group": "${{ github.ref }}-${{ github.workflow }}", "cancel-in-progress": true}, "jobs": {"build": {"steps": [
-	{"uses": "actions/checkout@v6", "with": {"persist-credentials": false}},
-	{"uses": "Infisical/secrets-action@v1.0.16"},
-]}}}
+wf_ok_v6 := {
+	"concurrency": {"group": "${{ github.ref }}-${{ github.workflow }}", "cancel-in-progress": true},
+	"jobs": {"build": {"steps": [
+		{"uses": "actions/checkout@v6", "with": {"persist-credentials": false}},
+		{"uses": "Infisical/secrets-action@v1.0.16"},
+	]}},
+}
 
-wf_ok_v6_patch := {"concurrency": {"group": "${{ github.ref }}-${{ github.workflow }}", "cancel-in-progress": true}, "jobs": {"build": {"steps": [{"uses": "actions/checkout@v6.0.2", "with": {"persist-credentials": false}}]}}}
+wf_ok_v6_patch := {
+	"concurrency": {"group": "${{ github.ref }}-${{ github.workflow }}", "cancel-in-progress": true},
+	"jobs": {"build": {"steps": [{"uses": "actions/checkout@v6.0.2", "with": {"persist-credentials": false}}]}},
+}
 
-wf_old_checkout := {"concurrency": {"group": "${{ github.ref }}-${{ github.workflow }}", "cancel-in-progress": true}, "jobs": {"build": {"steps": [{"uses": "actions/checkout@v5"}]}}}
+wf_old_checkout := {
+	"concurrency": {"group": "${{ github.ref }}-${{ github.workflow }}", "cancel-in-progress": true},
+	"jobs": {"build": {"steps": [{"uses": "actions/checkout@v5"}]}},
+}
 
-wf_old_infisical := {"concurrency": {"group": "${{ github.ref }}-${{ github.workflow }}", "cancel-in-progress": true}, "jobs": {"build": {"steps": [{"uses": "Infisical/secrets-action@v1.0.8"}]}}}
+wf_old_infisical := {
+	"concurrency": {"group": "${{ github.ref }}-${{ github.workflow }}", "cancel-in-progress": true},
+	"jobs": {"build": {"steps": [{"uses": "Infisical/secrets-action@v1.0.8"}]}},
+}
 
 test_min_versions_pass_v6 if {
 	count(workflow_common.deny) == 0 with input as wf_ok_v6
@@ -41,7 +53,10 @@ test_infisical_below_min if {
 	contains(msg, "1.0.16")
 }
 
-wf_sha_checkout := {"concurrency": {"group": "${{ github.ref }}-${{ github.workflow }}", "cancel-in-progress": true}, "jobs": {"build": {"steps": [{"uses": "actions/checkout@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "with": {"persist-credentials": false}}]}}}
+wf_sha_checkout := {
+	"concurrency": {"group": "${{ github.ref }}-${{ github.workflow }}", "cancel-in-progress": true},
+	"jobs": {"build": {"steps": [{"uses": "actions/checkout@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "with": {"persist-credentials": false}}]}},
+}
 
 test_sha_pin_skips_min_version if {
 	count(workflow_common.deny) == 0 with input as wf_sha_checkout
@@ -55,17 +70,19 @@ test_data_template_drives_checkout_min if {
 }
 
 test_deny_checkout_without_persist_credentials if {
-	wf := {"concurrency": {"group": "${{ github.ref }}-${{ github.workflow }}", "cancel-in-progress": true}, "jobs": {"ci": {"steps": [
-		{"uses": "actions/checkout@v6"},
-	]}}}
+	wf := {
+		"concurrency": {"group": "${{ github.ref }}-${{ github.workflow }}", "cancel-in-progress": true},
+		"jobs": {"ci": {"steps": [{"uses": "actions/checkout@v6"}]}},
+	}
 	some msg in workflow_common.deny with input as wf with data.template as template_data
 	contains(msg, "persist-credentials")
 }
 
 test_deny_checkout_with_persist_credentials_true if {
-	wf := {"concurrency": {"group": "${{ github.ref }}-${{ github.workflow }}", "cancel-in-progress": true}, "jobs": {"ci": {"steps": [
-		{"uses": "actions/checkout@v6", "with": {"persist-credentials": true}},
-	]}}}
+	wf := {
+		"concurrency": {"group": "${{ github.ref }}-${{ github.workflow }}", "cancel-in-progress": true},
+		"jobs": {"ci": {"steps": [{"uses": "actions/checkout@v6", "with": {"persist-credentials": true}}]}},
+	}
 	some msg in workflow_common.deny with input as wf with data.template as template_data
 	contains(msg, "persist-credentials")
 }

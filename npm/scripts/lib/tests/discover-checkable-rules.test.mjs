@@ -20,7 +20,7 @@ async function addConcern(dir, ruleId, concern, meta) {
   const concernDir = join(dir, 'rules', ruleId, concern)
   await mkdir(concernDir, { recursive: true })
   await writeJson(join(concernDir, 'concern.json'), {
-    $schema: 'https://unpkg.com/@nitra/cursor/schemas/concern.json',
+    $schema: 'https://unpkg.com/@7n/rules/schemas/concern.json',
     ...resolvedMeta
   })
 }

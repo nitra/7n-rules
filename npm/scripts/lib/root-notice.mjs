@@ -14,12 +14,13 @@
  */
 
 /** Маркер початку root-блоку. */
-export const ROOT_START = '<!-- n-cursor:root:start -->'
+export const ROOT_START = '<!-- n-rules:root:start -->'
 /** Маркер кінця root-блоку. */
-export const ROOT_END = '<!-- n-cursor:root:end -->'
+export const ROOT_END = '<!-- n-rules:root:end -->'
 
 /** Наявний блок разом із сусідніми порожніми рядками (для чистого видалення). */
-const BLOCK_RE = /\n{0,8}<!-- n-cursor:root:start -->[\s\S]*?<!-- n-cursor:root:end -->\n{0,8}/u
+// Матчить і legacy `n-rules:`-маркери, щоб ре-синк замінював блоки, згенеровані до перейменування пакету
+const BLOCK_RE = /\n{0,8}<!-- n-(?:cursor|rules):root:start -->[\s\S]*?<!-- n-(?:cursor|rules):root:end -->\n{0,8}/u
 
 /** Закриття YAML-frontmatter на початку файла. */
 const FRONTMATTER_RE = /^(---\n[\s\S]*?\n---\n)/u

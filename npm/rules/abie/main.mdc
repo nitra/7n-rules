@@ -4,17 +4,17 @@ alwaysApply: true
 version: '1.22'
 ---
 
-Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**, для спільних сервісів **`auth-run-hl`** / **`file-link-hl`** — **`namespace: dev`** у base та patch **`…/backendRefs/…/namespace`** у **ua**)), гілки **dev**, **ua** у **clean-merged-branch**, а також заборона тримати артефакти **Firebase Hosting** у **підкаталогах першого рівня** (безпосередні діти кореня репозиторію; у самому корені ці імена не вимагаються до видалення).
+Правило **abie** для споживачів **@7n/rules**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**, для спільних сервісів **`auth-run-hl`** / **`file-link-hl`** — **`namespace: dev`** у base та patch **`…/backendRefs/…/namespace`** у **ua**)), гілки **dev**, **ua** у **clean-merged-branch**, а також заборона тримати артефакти **Firebase Hosting** у **підкаталогах першого рівня** (безпосередні діти кореня репозиторію; у самому корені ці імена не вимагаються до видалення).
 
 ## Активація
 
-Правило активується через **`.n-cursor.json`** у корені репозиторію:
+Правило активується через **`.n-rules.json`** у корені репозиторію:
 
 ```json
 { "rules": ["abie"] }
 ```
 
-Без цього запису `@nitra/cursor` пропускає всі abie-перевірки (JS-концерни та rego-полісі).
+Без цього запису `@7n/rules` пропускає всі abie-перевірки (JS-концерни та rego-полісі).
 
 ## `@nitra/abie-shared` у `devDependencies`
 
@@ -32,7 +32,7 @@ bun add -d @nitra/abie-shared
 
 ## Швидкий gate через conftest (Rego)
 
-Підмножину пер-документних правил продубльовано як rego-полісі у **`npm/rules/abie/policy/`** (запускається через **`bun run lint-rego`** для `*_test.rego` юніт-тестів і через **`npx @nitra/cursor fix abie`** для прогону по реальних YAML — деталі в **conftest.mdc** / **n-rego.mdc**). JS у **`js/<concern>.mjs`** authoritative — rego тільки швидкий gate для одиничного маніфеста (зокрема через IDE-розширення `tsandall.opa`).
+Підмножину пер-документних правил продубльовано як rego-полісі у **`npm/rules/abie/policy/`** (запускається через **`bun run lint-rego`** для `*_test.rego` юніт-тестів і через **`npx @7n/rules fix abie`** для прогону по реальних YAML — деталі в **conftest.mdc** / **n-rego.mdc**). JS у **`js/<concern>.mjs`** authoritative — rego тільки швидкий gate для одиничного маніфеста (зокрема через IDE-розширення `tsandall.opa`).
 
 Пакети (директорія в **`npm/policy/abie/`** → namespace → що перевіряє):
 

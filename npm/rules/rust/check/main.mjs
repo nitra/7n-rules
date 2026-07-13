@@ -65,7 +65,7 @@ export function lint(ctx) {
   const denyConfigPath = join(cwd, 'deny.toml')
   if (!existsSync(denyConfigPath)) {
     fail(
-      'lint-rust: cargo deny — немає deny.toml; запустіть `npx @nitra/cursor fix rust` локально для генерації (rust.mdc)',
+      'lint-rust: cargo deny — немає deny.toml; запустіть `npx @7n/rules fix rust` локально для генерації (rust.mdc)',
       'deny-config-missing'
     )
     return reporter.result()

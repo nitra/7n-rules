@@ -4,8 +4,8 @@
   },
   "json.schemas": [
     {
-      "fileMatch": [".n-cursor.json", "**/.n-cursor.example.json"],
-      "url": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json"
+      "fileMatch": [".n-rules.json", "**/.n-rules.example.json"],
+      "url": "https://unpkg.com/@7n/rules/schemas/n-rules.json"
     }
   ],
   "editor.formatOnSave": true,

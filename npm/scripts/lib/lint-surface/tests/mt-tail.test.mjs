@@ -94,7 +94,7 @@ describe('buildTaskMd / buildCheckCommand / buildAgentFlag', () => {
     expect(md).toContain('## Done when')
     expect(md).toContain('## Check')
     expect(md).toContain('## Inputs')
-    expect(md).toContain('npx @nitra/cursor lint --no-fix --cwd ../.. n-ci4')
+    expect(md).toContain('npx @7n/rules lint --no-fix --cwd ../.. n-ci4')
     expect(md).toContain('- `app.vue`')
     expect(md).not.toContain('## Mission') // старий канон не пишемо
   })
@@ -118,7 +118,7 @@ describe('buildTaskMd / buildCheckCommand / buildAgentFlag', () => {
 
   test('buildCheckCommand скоупить правило', () => {
     // --cwd ../..: MT ганяє ## Check із node-dir (mt/<node>, глибина 2 від кореня worktree).
-    expect(buildCheckCommand(cluster)).toBe('npx @nitra/cursor lint --no-fix --cwd ../.. n-ci4')
+    expect(buildCheckCommand(cluster)).toBe('npx @7n/rules lint --no-fix --cwd ../.. n-ci4')
   })
 
   test('a.md: агент-прапор із тиром', () => {
@@ -143,7 +143,7 @@ describe('ensureNodeExecutor', () => {
       }
     })
     expect(set).toBe(true)
-    expect(JSON.parse(written).node_executor).toBe('npx @nitra/cursor mt-run-node')
+    expect(JSON.parse(written).node_executor).toBe('npx @7n/rules mt-run-node')
   })
 
   test('не перезаписує наявний node_executor (повага до ручного)', () => {

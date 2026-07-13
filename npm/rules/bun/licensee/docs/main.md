@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/bun/licensee/main.mjs
 docgen:
-  crc: cea5eeb9
+  crc: bbaca446
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
   issues: surzhik,judge:inaccurate:0.96
@@ -20,7 +20,7 @@ docgen:
 
 1. Викликається `lint` для запуску перевірки ліцензій npm-залежностей.
 2. Якщо файл конфігурації `.licensee.json` відсутній:
-   a. Якщо режим читання лише (`readOnly`) увімкнено, повідомляється, що необхідно запустити `npx @nitra/cursor fix bun` локально для генерації (bun.mdc).
+   a. Якщо режим читання лише (`readOnly`) увімкнено, повідомляється, що необхідно запустити `npx @7n/rules fix bun` локально для генерації (bun.mdc).
    b. Якщо режим читання лише вимкнено, створюється `.licensee.json` з дефолтним allowlist (`blueOak: bronze`) та повідомляється про створення конфігурації.
 3. Визначається команда `bun`. Якщо `bun` не знайдена у системному шляху, повідомляється про це (bun.mdc).
 4. Виконується команда `bun x licensee --production --quiet` у корені проєкту.

@@ -20,7 +20,11 @@ export default [
       'COVERAGE.md',
       '**/COVERAGE.md',
       // Згенеровані doc-files доки (<dir>/docs/<stem>.md) — ілюстративні snippets, не runnable-код.
-      '**/docs/*.md'
+      '**/docs/*.md',
+      // Синковані pi.dev TS-extensions (fully-owned копії з пакету) і згенеровані d.ts — не лінтимо.
+      '.pi/extensions/**',
+      'npm/.pi-template/**',
+      'npm/types/**'
     ]
   },
   ...getConfig({

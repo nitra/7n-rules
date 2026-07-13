@@ -21,7 +21,7 @@ template_data := {"snippet": {
 				"name": "Install conftest",
 				"run": "curl -fsSL https://github.com/open-policy-agent/conftest/releases/download/v0.62.0/conftest_0.62.0_Linux_x86_64.tar.gz | sudo tar -xz -C /usr/local/bin conftest",
 			},
-			{"name": "Lint GA", "run": "n-cursor lint ga --no-fix"},
+			{"name": "Lint GA", "run": "n-rules lint ga --no-fix"},
 		],
 	}},
 }}
@@ -43,7 +43,7 @@ canonical_input := {
 				"name": "Install conftest",
 				"run": "curl -fsSL https://github.com/open-policy-agent/conftest/releases/download/v0.62.0/conftest_0.62.0_Linux_x86_64.tar.gz | sudo tar -xz -C /usr/local/bin conftest",
 			},
-			{"name": "Lint GA", "run": "n-cursor lint ga --no-fix"},
+			{"name": "Lint GA", "run": "n-rules lint ga --no-fix"},
 		],
 	}},
 }
@@ -73,7 +73,7 @@ test_deny_missing_required_path if {
 test_deny_missing_required_uses if {
 	bad := json.patch(
 		canonical_input,
-		[{"op": "replace", "path": "/jobs/lint-ga/steps", "value": [{"name": "Lint GA", "run": "n-cursor lint ga --no-fix"}]}],
+		[{"op": "replace", "path": "/jobs/lint-ga/steps", "value": [{"name": "Lint GA", "run": "n-rules lint ga --no-fix"}]}],
 	)
 	count(lint_ga.deny) > 0 with input as bad with data.template as template_data
 }
@@ -84,7 +84,7 @@ test_deny_missing_run_command if {
 		[{"op": "replace", "path": "/jobs/lint-ga/steps/4/run", "value": "echo nothing"}],
 	)
 	some msg in lint_ga.deny with input as bad with data.template as template_data
-	contains(msg, "n-cursor lint ga --no-fix")
+	contains(msg, "n-rules lint ga --no-fix")
 }
 
 # SHA-пін (zizmor ref-pin) задовольняє канонічний тег — фіксер не даунгрейдить.

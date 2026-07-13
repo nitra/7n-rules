@@ -9,9 +9,9 @@ import rego.v1
 template_data := {"snippet": {"files": ["types"]}}
 
 valid_pkg := {
-	"name": "@nitra/cursor",
+	"name": "@7n/rules",
 	"version": "1.9.5",
-	"types": "./types/bin/n-cursor.d.ts",
+	"types": "./types/bin/n-rules.d.ts",
 	"files": ["types", "mdc", "bin", "CHANGELOG.md"],
 	"dependencies": {"oxc-parser": "^0.128.0"},
 }
@@ -74,7 +74,7 @@ test_allow_empty_dev_dependencies if {
 }
 
 test_deny_dev_dependencies_present if {
-	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/devDependencies", "value": {"@nitra/cursor": "^1.9.5"}}])
+	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/devDependencies", "value": {"@7n/rules": "^1.9.5"}}])
 	count(npm_package_json.deny) > 0 with input as pkg with data.template as template_data
 }
 

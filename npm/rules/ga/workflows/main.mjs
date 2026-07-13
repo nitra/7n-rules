@@ -133,14 +133,14 @@ function verifyWorkflowEventPathsGlobsExist(relPath, root, passFn, failFn, cwd) 
   }
 }
 
-const RUN_INLINE_NCURSOR_RE = /^\s*(?:-\s*)?run:\s*n-cursor\s/u
-const BARE_LINE_NCURSOR_RE = /^\s+n-cursor\s/u
-const WRAPPED_NCURSOR_RE = /\b(?:bunx|npx)\s+n-cursor/u
+const RUN_INLINE_NCURSOR_RE = /^\s*(?:-\s*)?run:\s*n-(?:cursor|rules)\s/u
+const BARE_LINE_NCURSOR_RE = /^\s+n-(?:cursor|rules)\s/u
+const WRAPPED_NCURSOR_RE = /\b(?:bunx|npx)\s+n-(?:cursor|rules)/u
 
 /**
- * Прапорить кроки, що інвокають **bare `n-cursor`** (не `bunx`/`npx n-cursor`): у CI-раннері
- * `n-cursor` не на PATH (`node_modules/.bin` не додається), тож `run: n-cursor …` падає з
- * exit 127. Канон — `bunx n-cursor …` (як у npm-publish.yml). Structured fix-hint для T0.
+ * Прапорить кроки, що інвокають **bare `n-rules`** (чи legacy `n-rules`, не `bunx`/`npx`): у CI-раннері
+ * `n-rules` не на PATH (`node_modules/.bin` не додається), тож `run: n-rules …` падає з
+ * exit 127. Канон — `bunx n-rules …` (як у npm-publish.yml). Structured fix-hint для T0.
  * @param {string} relPath posix-relative шлях workflow
  * @param {string} content сирий вміст workflow
  * @param {(msg: string, opts?: object) => void} failFn реєстрація порушення
@@ -150,11 +150,11 @@ function verifyNoBareNCursor(relPath, content, failFn) {
     if (WRAPPED_NCURSOR_RE.test(line)) continue
     if (!RUN_INLINE_NCURSOR_RE.test(line) && !BARE_LINE_NCURSOR_RE.test(line)) continue
     failFn(
-      `${relPath}: \`n-cursor …\` (рядок ${i + 1}) має бути \`bunx n-cursor …\` — n-cursor не на PATH у CI (ga.mdc)`,
+      `${relPath}: \`n-rules …\` (рядок ${i + 1}) має бути \`bunx n-rules …\` — n-rules не на PATH у CI (ga.mdc)`,
       {
-        reason: 'bare-n-cursor',
+        reason: 'bare-n-rules',
         file: relPath,
-        data: { kind: 'bare-n-cursor' }
+        data: { kind: 'bare-n-rules' }
       }
     )
   }
@@ -408,7 +408,7 @@ export async function lint(ctx) {
   const setupBunDepsActionRel = '.github/actions/setup-bun-deps/action.yml'
   if (!existsSync(join(cwd, setupBunDepsActionRel))) {
     fail(
-      `Відсутній ${setupBunDepsActionRel} — запустіть npx @nitra/cursor або скопіюйте з пакету (ga.mdc: composite setup-bun-deps)`
+      `Відсутній ${setupBunDepsActionRel} — запустіть npx @7n/rules або скопіюйте з пакету (ga.mdc: composite setup-bun-deps)`
     )
   }
 

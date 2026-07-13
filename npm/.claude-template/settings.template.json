@@ -5,8 +5,8 @@
       "Bash(bun run *)",
       "Bash(bun test *)",
       "Bash(bunx *)",
-      "Bash(npx --no @nitra/cursor *)",
-      "Bash(npx @nitra/cursor *)"
+      "Bash(npx --no @7n/rules *)",
+      "Bash(npx @7n/rules *)"
     ]
   },
   "hooks": {
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx --no @nitra/cursor hook --post-tool-use",
+            "command": "npx --no @7n/rules hook --post-tool-use",
             "timeout": 300
           }
         ]

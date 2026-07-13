@@ -1,5 +1,5 @@
 /**
- * Fallback (n-cursor-release-design рішення 3): коли в workspace є релевантні зміни,
+ * Fallback (n-rules-release-design рішення 3): коли в workspace є релевантні зміни,
  * але жодного change-файлу — синтезуємо один запис із commit-subjects від останнього
  * релізного тегу `<name>@*`. Усі git-виклики через `runGit` (ін'єкція для тестів).
  */

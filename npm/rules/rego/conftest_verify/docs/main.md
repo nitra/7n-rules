@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/rego/conftest_verify/main.mjs
 docgen:
-  crc: a7fdd76a
+  crc: 2ef485ea
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 100
@@ -12,7 +12,7 @@ docgen:
 
 ## Огляд
 
-Виконує `conftest verify` (read-only detector) для верифікації Rego-правил. Механізм контролює відповідність правил на рівні всього каталогу `npm/rules`, оскільки це повний запуск, який не входить до delta-плану і спрацьовує лише через `n-cursor lint --full` або цільовий `n-cursor lint rego`.
+Виконує `conftest verify` (read-only detector) для верифікації Rego-правил. Механізм контролює відповідність правил на рівні всього каталогу `npm/rules`, оскільки це повний запуск, який не входить до delta-плану і спрацьовує лише через `n-rules lint --full` або цільовий `n-rules lint rego`.
 
 ## Поведінка
 

@@ -1,11 +1,11 @@
 /**
- * Авто-встановлення зовнішніх CLI-залежностей пакету `@nitra/cursor`.
+ * Авто-встановлення зовнішніх CLI-залежностей пакету `@7n/rules`.
  *
  * `ensureTool(toolId)` — єдиний seam резолву зовнішніх бінарників: PATH → кеш → авто-install → hard-fail.
  * Новий тул = один запис у реєстрі `TOOLS`, без дублювання install-логіки в кожному `lint.mjs`/`fix.mjs`.
  *
  * Per-platform matrix: macOS → brew, Windows → scoop (fallback: GitHub Release), Linux → GitHub Release binary.
- * Бінарники кешуються у `~/.cache/@nitra/cursor/bin/` (Linux/Mac), `%LOCALAPPDATA%\@nitra\cursor\bin\` (Win).
+ * Бінарники кешуються у `~/.cache/@7n/rules/bin/` (Linux/Mac), `%LOCALAPPDATA%\@7n\cursor\bin\` (Win).
  *
  * `ensureHkInstall(hkBin)` — реєструє git pre-commit hook через `hk install`; пропускається в CI.
  */
@@ -27,9 +27,9 @@ const TAG_V_PREFIX_RE = /^v/
 function getCacheDir() {
   if (platform === 'win32') {
     const localAppData = env['LOCALAPPDATA'] ?? join(homedir(), 'AppData', 'Local')
-    return join(localAppData, '@nitra', 'cursor', 'bin')
+    return join(localAppData, '@7n', 'rules', 'bin')
   }
-  return join(homedir(), '.cache', '@nitra', 'cursor', 'bin')
+  return join(homedir(), '.cache', '@7n', 'rules', 'bin')
 }
 
 /**

@@ -20,7 +20,7 @@
 #   - Claude Code Stop: `transcript_path`, `session_id`, `CLAUDE_PROJECT_DIR`
 #   - Cursor stop: `transcript_path`, `conversation_id` / `generation_id`, `workspace_roots[]`
 #
-# Bundled with @nitra/cursor; project copy is auto-synced by the `adr` rule.
+# Bundled with @7n/rules; project copy is auto-synced by the `adr` rule.
 set -euo pipefail
 
 if [[ -n "${CAPTURE_DECISIONS_RUNNING:-}" ]]; then
@@ -201,11 +201,12 @@ CURSOR_MODEL="${CAPTURE_DECISIONS_CURSOR_MODEL:-claude-4.6-sonnet-medium}"
 BACKEND="${CAPTURE_DECISIONS_BACKEND:-pi}"
 
 # npm-first pi lookup: без npx/npm exec/bunx у hook (мережа, кеш, package-manager locks
-# сповільнили б async hook). Root .bin (hoisted) -> nested @nitra/cursor .bin -> system PATH.
+# сповільнили б async hook). Root .bin (hoisted) -> nested @7n/rules .bin -> system PATH.
 find_pi_cmd() {
   local candidate
   for candidate in \
     "$PROJECT_ROOT/node_modules/.bin/pi" \
+    "$PROJECT_ROOT/node_modules/@7n/rules/node_modules/.bin/pi" \
     "$PROJECT_ROOT/node_modules/@nitra/cursor/node_modules/.bin/pi"
   do
     if [[ -x "$candidate" ]]; then

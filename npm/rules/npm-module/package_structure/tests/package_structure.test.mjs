@@ -65,9 +65,9 @@ describe('globToRegex', () => {
   })
 
   test('буквальний шлях без wildcard', () => {
-    const re = globToRegex('bin/n-cursor.js')
-    expect(re.test('bin/n-cursor.js')).toBe(true)
-    expect(re.test('other/n-cursor.js')).toBe(false)
+    const re = globToRegex('bin/n-rules.js')
+    expect(re.test('bin/n-rules.js')).toBe(true)
+    expect(re.test('other/n-rules.js')).toBe(false)
   })
 
   test('trailing **', () => {
@@ -260,7 +260,7 @@ describe('check — інтеграційні сценарії', () => {
       await writeFile(
         dir + '/hk.pkl',
         '["pre-commit"]\nbunx -p typescript tsc\ntsconfig.emit-types.json\n' +
-          '["npm-changelog"]\ncheck = "npx @nitra/cursor check changelog"\n',
+          '["npm-changelog"]\ncheck = "npx @7n/rules check changelog"\n',
         'utf8'
       )
       await writeFile(join(dir, 'npm/tsconfig.emit-types.json'), '{"compilerOptions":{}}\n', 'utf8')
@@ -289,7 +289,7 @@ describe('check — інтеграційні сценарії', () => {
       await writeFile(
         dir + '/hk.pkl',
         '["pre-commit"]\nbunx -p typescript tsc\ntsconfig.emit-types.json\n' +
-          '["npm-changelog"]\nfix = "N_CURSOR_CHANGELOG_AUTOFIX=1 bun ./npm/bin/n-cursor.js lint changelog"\n',
+          '["npm-changelog"]\nfix = "N_RULES_CHANGELOG_AUTOFIX=1 bun ./npm/bin/n-rules.js lint changelog"\n',
         'utf8'
       )
       await writeFile(join(dir, 'npm/tsconfig.emit-types.json'), '{"compilerOptions":{}}\n', 'utf8')

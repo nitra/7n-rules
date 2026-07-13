@@ -10,7 +10,7 @@ import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
-import { readNCursorConfigLite } from '../../../scripts/lib/read-n-cursor-config-lite.mjs'
+import { readNRulesConfigLite } from '../../../scripts/lib/read-n-rules-config-lite.mjs'
 import { resolveAllCargoManifests } from '../../../scripts/utils/resolve-cargo-manifest.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -26,7 +26,7 @@ export const MUTANTS_CONFIG_MISSING = 'mutants-config-missing'
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const cwd = ctx.cwd
-  const config = await readNCursorConfigLite(cwd)
+  const config = await readNRulesConfigLite(cwd)
 
   // Self-gate: rust має бути enabled
   if (!config.rules.includes('rust') || config.disableRules.includes('rust')) {
@@ -40,7 +40,7 @@ export async function lint(ctx) {
   }
 
   if (!existsSync(BASELINE_PATH)) {
-    reporter.fail(`.cargo/mutants.toml canonical baseline не знайдено (${BASELINE_PATH}) — перевстанови @nitra/cursor`)
+    reporter.fail(`.cargo/mutants.toml canonical baseline не знайдено (${BASELINE_PATH}) — перевстанови @7n/rules`)
     return reporter.result()
   }
 
@@ -54,7 +54,7 @@ export async function lint(ctx) {
     }
 
     reporter.fail(
-      `.cargo/mutants.toml відсутній (${relative(cwd, target)}) — запусти \`npx @nitra/cursor lint test\` для генерації canonical baseline (test.mdc)`,
+      `.cargo/mutants.toml відсутній (${relative(cwd, target)}) — запусти \`npx @7n/rules lint test\` для генерації canonical baseline (test.mdc)`,
       { reason: MUTANTS_CONFIG_MISSING, file: relative(cwd, target) }
     )
   }

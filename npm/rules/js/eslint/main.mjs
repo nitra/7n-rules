@@ -55,7 +55,8 @@ function toViolation(f, cwd, severity) {
  * @returns {Promise<Array<{ file: string, line: number, rule: string, message: string, tool: string }>>} зібрані знахідки oxlint+eslint
  */
 async function collectFindings(js, cwd) {
-  const eslint = new ESLint({ cwd })
+  // warnIgnored:false — файли з delta, що матчать ignore-патерни конфігу, не є порушеннями
+  const eslint = new ESLint({ cwd, warnIgnored: false })
   const esResults = await eslint.lintFiles(js === null ? [cwd] : js.map(f => resolve(cwd, f)))
   const es = eslintResultsToFindings(esResults)
 

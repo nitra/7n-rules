@@ -3,7 +3,7 @@ type: JS Module
 title: post-tool-use-check.mjs
 resource: npm/scripts/post-tool-use-check.mjs
 docgen:
-  crc: fa7c12c0
+  crc: 08b09b60
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
@@ -18,7 +18,7 @@ runPostToolUseCheckCli зчитує вхідні дані, визначає шл
 ## Публічний API
 
 extractFilePath — витягує шлях до файлу з вхідних даних JSON, повертаючи `null`, якщо JSON недійсний або поле відсутнє.
-runPostToolUseCheckCli — ініціює перевірку після використання інструменту при запуску з `bin/n-cursor.js` з аргументом `post-tool-use-check`.
+runPostToolUseCheckCli — ініціює перевірку після використання інструменту при запуску з `bin/n-rules.js` з аргументом `post-tool-use-check`.
 
 ## Гарантії поведінки
 

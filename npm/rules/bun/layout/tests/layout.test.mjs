@@ -61,7 +61,7 @@ describe('check-bun', () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'bun.lock'), '', 'utf8')
       await writeFile(join(dir, 'bunfig.toml'), '[install]\nlinker = "hoisted"\n', 'utf8')
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['docker', 'k8s', 'image-compress', 'image-avif'] })
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['docker', 'k8s', 'image-compress', 'image-avif'] })
       await writeJson(join(dir, 'package.json'), { name: 't', scripts: {} })
       expect(await check(dir)).toBe(0)
     })
@@ -93,11 +93,11 @@ describe('check-bun', () => {
     })
   })
 
-  test('.n-cursor.json з невалідним JSON — повертає empty (line 48)', async () => {
+  test('.n-rules.json з невалідним JSON — повертає empty (line 48)', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'bun.lock'), '', 'utf8')
       await writeFile(join(dir, 'bunfig.toml'), '[install]\nlinker = "hoisted"\n', 'utf8')
-      await writeFile(join(dir, '.n-cursor.json'), 'NOT VALID JSON', 'utf8')
+      await writeFile(join(dir, '.n-rules.json'), 'NOT VALID JSON', 'utf8')
       await writeJson(join(dir, 'package.json'), { name: 't', private: true })
       expect(await check(dir)).toBe(0)
     })

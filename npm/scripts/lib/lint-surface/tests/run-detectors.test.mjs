@@ -27,7 +27,7 @@ describe('detectAll — exit codes', () => {
     await withTmpDir(async dir => {
       const rulesDir = join(dir, 'rules')
       await seedDetector(rulesDir, 'probe', 'check', { scope: 'full', glob: ['**/*'] }, CLEAN)
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['probe'] })
       const r = await detectAll({
         rulesDir,
         cwd: dir,
@@ -49,7 +49,7 @@ describe('detectAll — exit codes', () => {
         "  return { violations: [{ reason: 'missing', message: 'no file', file: 'a/b.txt' }] }\n" +
         '}\n'
       await seedDetector(rulesDir, 'probe', 'check', { scope: 'full', glob: ['**/*'] }, body)
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['probe'] })
       const r = await detectAll({
         rulesDir,
         cwd: dir,
@@ -76,7 +76,7 @@ describe('detectAll — exit codes', () => {
       const rulesDir = join(dir, 'rules')
       const body = "export function lint() { throw new Error('boom') }\n"
       await seedDetector(rulesDir, 'probe', 'check', { scope: 'full', glob: ['**/*'] }, body)
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['probe'] })
       const r = await detectAll({
         rulesDir,
         cwd: dir,
@@ -94,7 +94,7 @@ describe('detectAll — exit codes', () => {
       const rulesDir = join(dir, 'rules')
       const body = "export function lint() { return { violations: [{ message: 'x' }] } }\n"
       await seedDetector(rulesDir, 'probe', 'check', { scope: 'full', glob: ['**/*'] }, body)
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['probe'] })
       const r = await detectAll({
         rulesDir,
         cwd: dir,
@@ -113,7 +113,7 @@ describe('detectAll — exit codes', () => {
       const body =
         "export function lint() { return { violations: [{ reason: 'x', message: 'y', file: '/etc/passwd' }] } }\n"
       await seedDetector(rulesDir, 'probe', 'check', { scope: 'full', glob: ['**/*'] }, body)
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['probe'] })
       const r = await detectAll({
         rulesDir,
         cwd: dir,
@@ -157,7 +157,7 @@ describe('detectAll — scoping', () => {
         "  return { violations: [{ reason: 'probe', message: (ctx.files || []).join(',') }] }\n" +
         '}\n'
       await seedDetector(rulesDir, 'probe', 'check', { scope: 'per-file', glob: ['**/*.mjs'] }, body)
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['probe'] })
       const r = await detectAll({
         rulesDir,
         cwd: dir,
@@ -174,7 +174,7 @@ describe('detectAll — scoping', () => {
     await withTmpDir(async dir => {
       const rulesDir = join(dir, 'rules')
       await seedDetector(rulesDir, 'probe', 'check', { scope: 'per-file', glob: ['**/*.mjs'] }, CLEAN)
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['probe'] })
       const logs = []
       await detectAll({
         rulesDir,

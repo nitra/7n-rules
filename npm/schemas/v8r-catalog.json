@@ -3,10 +3,10 @@
   "version": 1,
   "schemas": [
     {
-      "name": "n-cursor.json",
-      "description": "Конфігурація @nitra/cursor (.n-cursor.json у корені репозиторію)",
-      "url": "n-cursor.json",
-      "fileMatch": [".n-cursor.json", "**/.n-cursor.json", ".n-cursor.example.json", "**/.n-cursor.example.json"]
+      "name": "n-rules.json",
+      "description": "Конфігурація @7n/rules (.n-rules.json у корені репозиторію)",
+      "url": "n-rules.json",
+      "fileMatch": [".n-rules.json", "**/.n-rules.json", ".n-rules.example.json", "**/.n-rules.example.json"]
     },
     {
       "name": "any.json",
@@ -33,20 +33,20 @@
       "fileMatch": ["jsconfig.json", "**/jsconfig.json"]
     },
     {
-      "name": "n-cursor skill meta",
-      "description": "Маніфест skill-пакета n-cursor (npm/skills/<id>/main.json) — назва, тригери, дозволи",
+      "name": "n-rules skill meta",
+      "description": "Маніфест skill-пакета n-rules (npm/skills/<id>/main.json) — назва, тригери, дозволи",
       "fileMatch": ["npm/skills/*/main.json", "skills/*/main.json"],
       "url": "skill-meta.json"
     },
     {
-      "name": "n-cursor rule meta",
-      "description": "Маніфест rule-пакета n-cursor (npm/rules/<id>/main.json) — назва, опис, версія правила",
+      "name": "n-rules rule meta",
+      "description": "Маніфест rule-пакета n-rules (npm/rules/<id>/main.json) — назва, опис, версія правила",
       "fileMatch": ["npm/rules/*/main.json", "rules/*/main.json"],
       "url": "rule-meta.json"
     },
     {
-      "name": "n-cursor concern meta",
-      "description": "Маніфест concern-а n-cursor (npm/rules/<id>/<concern>/concern.json) — flat-concern layout: check/policy/lint-поверхні",
+      "name": "n-rules concern meta",
+      "description": "Маніфест concern-а n-rules (npm/rules/<id>/<concern>/concern.json) — flat-concern layout: check/policy/lint-поверхні",
       "fileMatch": ["npm/rules/*/*/concern.json", "rules/*/*/concern.json"],
       "url": "concern.json"
     },

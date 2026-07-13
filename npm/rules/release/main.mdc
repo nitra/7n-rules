@@ -1,10 +1,10 @@
 ---
-description: n-cursor release та @7n/n ch — автоматичний version-bump і CHANGELOG із change-файлів
+description: n-rules release та @7n/n ch — автоматичний version-bump і CHANGELOG із change-файлів
 version: '1.0'
 globs: "**/package.json,**/pyproject.toml,**/CHANGELOG.md,**/.changes/*.md"
 alwaysApply: false
 ---
 
-Версія та CHANGELOG **не редагуються вручну**. Єдиний артефакт зміни — **change-файл** (`npx @7n/n ch [--bump <major|minor|patch>] [--section <Added|Changed|Fixed|Removed>] [--message "<…>"]`). Bump `version` і генерацію секції CHANGELOG виконує `n-cursor release` у CI на `main`.
+Версія та CHANGELOG **не редагуються вручну**. Єдиний артефакт зміни — **change-файл** (`npx @7n/n ch [--bump <major|minor|patch>] [--section <Added|Changed|Fixed|Removed>] [--message "<…>"]`). Bump `version` і генерацію секції CHANGELOG виконує `n-rules release` у CI на `main`.
 
 Детальна модель (база порівняння, формат CHANGELOG, post-release-інваріант) — у `n-changelog.mdc`.

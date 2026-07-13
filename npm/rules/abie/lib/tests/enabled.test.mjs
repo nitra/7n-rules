@@ -15,22 +15,22 @@ describe('isAbieRuleEnabled', () => {
     expect(await isAbieRuleEnabled(REPO_ROOT)).toBe(false)
   })
 
-  test('true, коли abie присутній у .n-cursor.json:rules', async () => {
+  test('true, коли abie присутній у .n-rules.json:rules', async () => {
     await withTmpDir(async dir => {
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['abie', 'bun'] })
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['abie', 'bun'] })
       expect(await isAbieRuleEnabled(dir)).toBe(true)
     })
   })
 
-  test('false, коли .n-cursor.json відсутній', async () => {
+  test('false, коли .n-rules.json відсутній', async () => {
     await withTmpDir(async dir => {
       expect(await isAbieRuleEnabled(dir)).toBe(false)
     })
   })
 
-  test('false, коли .n-cursor.json містить недійсний JSON', async () => {
+  test('false, коли .n-rules.json містить недійсний JSON', async () => {
     await withTmpDir(async dir => {
-      await writeFile(join(dir, '.n-cursor.json'), 'invalid json{{', 'utf8')
+      await writeFile(join(dir, '.n-rules.json'), 'invalid json{{', 'utf8')
       expect(await isAbieRuleEnabled(dir)).toBe(false)
     })
   })

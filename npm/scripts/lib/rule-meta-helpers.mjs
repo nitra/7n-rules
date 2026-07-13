@@ -7,7 +7,7 @@
  */
 
 /**
- * Карта міграції застарілих rule-id у `.n-cursor.json` на актуальні.
+ * Карта міграції застарілих rule-id у `.n-rules.json` на актуальні.
  * Застосовується автоматично при читанні конфігу (як для `rules`, так і для `disable-rules`).
  * Приклад: `image` → `image-compress` + `image-avif` (правило розщеплене у 1.8.197).
  */
@@ -47,7 +47,7 @@ export function detectLegacyRuleIds(ids) {
 
 /**
  * Нормалізує список ідентифікаторів (trim + lowercase + унікальність збереженням порядку).
- * @param {unknown} value вихідне значення з `.n-cursor.json`
+ * @param {unknown} value вихідне значення з `.n-rules.json`
  * @returns {string[]} масив id у нормалізованому вигляді
  */
 export function normalizeIdList(value) {

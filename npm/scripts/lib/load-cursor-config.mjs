@@ -1,5 +1,6 @@
 /**
- * Утиліта читання `.n-cursor.json` у корені репозиторію.
+ * Утиліта читання `.n-rules.json` у корені репозиторію (fallback — legacy `.n-cursor.json`
+ * до першого синку, який мігрує ім'я файлу).
  *
  * Зараз експортує `loadCursorIgnorePaths(root)` — список абсолютних posix-шляхів каталогів,
  * які check-скрипти повністю виключають з обходу (поле `ignore` у конфізі).
@@ -8,7 +9,8 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve, sep } from 'node:path'
 
-const CONFIG_FILE = '.n-cursor.json'
+const CONFIG_FILE = '.n-rules.json'
+const LEGACY_CONFIG_FILE = '.n-cursor.json'
 
 /**
  * Нормалізує шлях до абсолютного posix-формату без trailing-slash.
@@ -26,14 +28,15 @@ function toAbsPosix(root, p) {
 }
 
 /**
- * Читає `.n-cursor.json` з кореня та повертає нормалізовані ignore-шляхи.
+ * Читає `.n-rules.json` з кореня та повертає нормалізовані ignore-шляхи.
  * Якщо файлу нема, поле `ignore` відсутнє чи має невалідний формат — повертає порожній масив.
  * Сам конфіг не валідується (це робить v8r/окрема перевірка) — лише поле `ignore`.
  * @param {string} root абсолютний корінь репозиторію
  * @returns {Promise<string[]>} абсолютні posix-шляхи без trailing-slash
  */
 export async function loadCursorIgnorePaths(root) {
-  const file = join(root, CONFIG_FILE)
+  let file = join(root, CONFIG_FILE)
+  if (!existsSync(file)) file = join(root, LEGACY_CONFIG_FILE)
   if (!existsSync(file)) return []
   let raw
   try {

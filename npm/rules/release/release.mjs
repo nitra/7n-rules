@@ -1,7 +1,7 @@
 /**
- * `n-cursor release` — агрегує per-workspace change-файли у version-bump + CHANGELOG,
+ * `n-rules release` — агрегує per-workspace change-файли у version-bump + CHANGELOG,
  * комітить, ставить тег `<name>@<version>`, видаляє use-up change-файли. Запускається
- * у CI на `main` (n-cursor-release-design, варіант A). Сам нічого не публікує.
+ * у CI на `main` (n-rules-release-design, варіант A). Сам нічого не публікує.
  */
 import { existsSync } from 'node:fs'
 import { readFile, rm, writeFile } from 'node:fs/promises'
@@ -202,10 +202,10 @@ export async function release(opts = {}) {
  */
 export async function runReleaseCli(_args, opts = {}) {
   try {
-    // env, не CLI-флаг: канонічний крок workflow `run: bunx n-cursor release` (npm-module.mdc
+    // env, не CLI-флаг: канонічний крок workflow `run: bunx n-rules release` (npm-module.mdc
     // template-policy звіряє точний текст) лишається незмінним; deferred-push вмикається лише
     // через `env:` на кроці — поле, якого немає в канонічному сніпеті, тож subset-перевірка не ламається.
-    const push = opts.push ?? env.N_CURSOR_RELEASE_PUSH !== '0'
+    const push = opts.push ?? (env.N_RULES_RELEASE_PUSH ?? env.N_CURSOR_RELEASE_PUSH) !== '0'
     const released = await release({ ...opts, push })
     if (released.length === 0) {
       console.log('release: немає змін для релізу')

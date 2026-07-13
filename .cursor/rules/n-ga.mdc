@@ -119,7 +119,7 @@ jobs:
           | sudo tar -xz -C /usr/local/bin conftest
 
       - name: Lint GA
-        run: bunx n-cursor lint ga --no-fix
+        run: bunx n-rules lint ga --no-fix
 ```
 - `zizmor.yml`:
 
@@ -269,7 +269,7 @@ Rego-пакет: `ga.lint_ga`
 - `jobs.lint-ga.steps` — не порожній
 - `steps[*].uses` — кожен `uses:` з template має бути присутнім у кроках; SHA-пін того самого action (`owner/action@<40-hex SHA>`, з тег-коментарем `# vX` чи без) задовольняє канонічний тег — НЕ замінюй наявний SHA-пін тегом
 - `steps[*].run` (сукупно) — містить `open-policy-agent/conftest` (Install conftest)
-- `steps[*].run` (сукупно) — містить `n-cursor lint ga --no-fix`
+- `steps[*].run` (сукупно) — містить `n-rules lint ga --no-fix`
 
 Канон: [lint-ga.yml.snippet.yml](./template/lint-ga.yml.snippet.yml)
 

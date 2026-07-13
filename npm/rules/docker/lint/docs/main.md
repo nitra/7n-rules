@@ -39,7 +39,7 @@ getBunCompileHint — перевіряє, чи вимагає проєкт на 
 getNginxAlpineSlimTagHint — для Nginx-образів перевіряє, чи вказано тег `alpine-slim` у відповідному `FROM`, згідно з `docker.mdc`.
 getNonRootRuntimeHint — перевіряє, чи фінальний етап виконання використовує інструкцію `USER` для роботи від імені не-root користувача, згідно з `docker.mdc`.
 main — проводить лінт-перевірку Dockerfile/Containerfile із використанням hadolint відповідно до `docker.mdc`.
-lint — є адаптером, що викликає стандартний лінтер `n-cursor lint docker` для обгортання основної логіки.
+lint — є адаптером, що викликає стандартний лінтер `n-rules lint docker` для обгортання основної логіки.
 
 ## Гарантії поведінки
 

@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/tauri/release/main.mjs
 docgen:
-  crc: ff516245
+  crc: 91e1c73d
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.98

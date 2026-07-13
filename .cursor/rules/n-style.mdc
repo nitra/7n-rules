@@ -57,7 +57,7 @@ jobs:
       - uses: ./.github/actions/setup-bun-deps
 
       - name: StyleLint
-        run: bunx n-cursor lint style --no-fix
+        run: bunx n-rules lint style --no-fix
 ```
 - `extensions.json`:
 
@@ -80,11 +80,11 @@ Rego-пакет: `style_lint.lint_style_yml`
 
 Цільовий файл: `.github/workflows/lint-style.yml`
 
-Перевіряє, що у workflow є крок `run`, який містить команду `n-cursor lint style --no-fix` (substring-match по всіх кроках усіх jobs). Канонічний текст береться з template через `--data`.
+Перевіряє, що у workflow є крок `run`, який містить команду `n-rules lint style --no-fix` (substring-match по всіх кроках усіх jobs). Канонічний текст береться з template через `--data`.
 
 Канонічний template: [lint-style.yml.snippet.yml](./template/lint-style.yml.snippet.yml)
 
-**✓ Правильно** — крок `run: n-cursor lint style --no-fix` присутній у jobs.stylelint.steps.
+**✓ Правильно** — крок `run: n-rules lint style --no-fix` присутній у jobs.stylelint.steps.
 
 **✗ Неправильно** — крок відсутній або містить лише `echo nothing` / `npx stylelint` без канонічного рядка.
 
@@ -111,7 +111,7 @@ FS-альтернативи (`.stylelintrc.*` файли) та `.stylelintignore
 
 - **Джерело правил:** перед тим як писати або суттєво змінювати **`.css`**, **`.scss`** або стилі в **`.vue`**, переглянь у корені проєкту (і в релевантних пакетах монорепо, якщо є) поле **`stylelint`** у **`package.json`** (зокрема `extends`), наявні **`.stylelintrc.*`**, **`stylelint.config.*`** та **`.stylelintignore`**. Не покладайся на «типові» правила stylelint з пам'яті — дотримуйся **проєктного** **`@nitra/stylelint-config`** і будь-яких локальних доповнень у репозиторії.
 - **Форматування** узгоджуй з **`n-text.mdc`** (oxfmt / `.oxfmtrc.json` для css, scss тощо), щоб форматер і stylelint не суперечили один одному.
-- **Запуск stylelint:** лише через **`n-cursor lint style`** (локально — з auto-fix; у CI — `--no-fix`, нуль мутацій). Під капотом — `npx stylelint`; **не** використовуй **`bunx stylelint`**. Після змін запускай **`n-cursor lint style`** і виправляй усе, що лишилось після auto-fix; за потреби — повний прогін `n-cursor lint --full`.
+- **Запуск stylelint:** лише через **`n-rules lint style`** (локально — з auto-fix; у CI — `--no-fix`, нуль мутацій). Під капотом — `npx stylelint`; **не** використовуй **`bunx stylelint`**. Після змін запускай **`n-rules lint style`** і виправляй усе, що лишилось після auto-fix; за потреби — повний прогін `n-rules lint --full`.
 - **Не розширюй винятки:** не додавай зайві **`stylelint-disable`** без потреби; краще підлаштувати стилі під правила проєкту.
 
 ## Канон налаштувань
@@ -120,7 +120,7 @@ FS-альтернативи (`.stylelintrc.*` файли) та `.stylelintignore
 
 - `stylelint.extends`: [package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)
 
-Окремого `lint-style` скрипта немає — запуск через **`n-cursor lint style`** (CI — `--no-fix`).
+Окремого `lint-style` скрипта немає — запуск через **`n-rules lint style`** (CI — `--no-fix`).
 
 ```json title="package.json"
   "devDependencies": {
@@ -149,7 +149,7 @@ dist/
 
 - Канон: [lint-style.yml.snippet.yml](./policy/lint_style_yml/template/lint-style.yml.snippet.yml)
 
-Додай **`.github/workflows/lint-style.yml`** (лише **`.yml`**, **`ga.mdc`**): після **`checkout`** — локальний composite **`setup-bun-deps`**, далі `n-cursor lint style --no-fix` у кроці **`run`**. **Не** дублюй окремі кроки **`setup-node`** / **`oven-sh/setup-bun`** / кеш / **`npm install`**.
+Додай **`.github/workflows/lint-style.yml`** (лише **`.yml`**, **`ga.mdc`**): після **`checkout`** — локальний composite **`setup-bun-deps`**, далі `n-rules lint style --no-fix` у кроці **`run`**. **Не** дублюй окремі кроки **`setup-node`** / **`oven-sh/setup-bun`** / кеш / **`npm install`**.
 
 ```yaml title=".github/workflows/lint-style.yml"
 name: StyleLint

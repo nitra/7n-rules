@@ -131,13 +131,13 @@ const DEPRECATED_CHECK_CHANGELOG_RE = /\bcheck\s+changelog\b/u
 
 /**
  * Підрядки канонічного кроку `npm-changelog` у hk.pkl (fix-only, autofix через env
- * `N_CURSOR_CHANGELOG_AUTOFIX=1`; сам крок ставить change-файл у git-індекс, `stage`
+ * `N_RULES_CHANGELOG_AUTOFIX=1`; сам крок ставить change-файл у git-індекс, `stage`
  * не потрібен). Див. npm-module.mdc.
  * @param {string} hkText текст конфігурації hk
  * @returns {string[]} відсутні фрагменти
  */
 function missingHkNpmChangelogFragments(hkText) {
-  const need = ['["npm-changelog"]', 'N_CURSOR_CHANGELOG_AUTOFIX=1', 'lint changelog']
+  const need = ['["npm-changelog"]', 'N_RULES_CHANGELOG_AUTOFIX=1', 'lint changelog']
   return need.filter(s => !hkText.includes(s))
 }
 
@@ -194,7 +194,7 @@ function checkEmitTypesConfig(passFn, failFn, cwd) {
     )
     return
   }
-  passFn(`${EMIT_TYPES_CONFIG} є (структуру перевіряє npx @nitra/cursor fix → npm_module.emit_types_config)`)
+  passFn(`${EMIT_TYPES_CONFIG} є (структуру перевіряє npx @7n/rules fix → npm_module.emit_types_config)`)
 }
 
 /**
@@ -208,7 +208,7 @@ function checkEmitTypesConfig(passFn, failFn, cwd) {
 function checkPublishWorkflow(passFn, failFn, cwd) {
   const publishWf = '.github/workflows/npm-publish.yml'
   if (existsSync(join(cwd, publishWf))) {
-    passFn(`${publishWf} є (структуру перевіряє npx @nitra/cursor fix → npm_module.npm_publish_yml)`)
+    passFn(`${publishWf} є (структуру перевіряє npx @7n/rules fix → npm_module.npm_publish_yml)`)
   } else {
     failFn(`Відсутній ${publishWf} (npm-module.mdc: npm publish)`)
   }
@@ -489,7 +489,7 @@ export async function lint(ctx) {
     if (DEPRECATED_CHECK_CHANGELOG_RE.test(hk.text)) {
       fail(
         `${hk.path}: крок містить застарілий виклик "check changelog" — команду \`check\` прибрано в v14 ` +
-          '(уніфікована поверхня `lint`). Заміни на "npx @nitra/cursor lint changelog" (npm-module.mdc)'
+          '(уніфікована поверхня `lint`). Заміни на "npx @7n/rules lint changelog" (npm-module.mdc)'
       )
     } else {
       const missingChangelogStep = missingHkNpmChangelogFragments(hk.text)

@@ -107,6 +107,6 @@ Rego-пакет: `bun.package_json`
 Gate виносить два класи deny:
 
 1. **Заборонені top-level поля** — будь-яке поле з `package.json.deny.json` присутнє у файлі (навіть із порожнім значенням `{}`).
-2. **devDependencies не з білого списку** — дозволені лише `@nitra/*` та root-only тестові peer/tools (`vitest`, `@vitest/coverage-v8`, `@stryker-mutator/vitest-runner`, `@playwright/test`). Будь-який інший пакет → deny. CLI-тули, які `n-cursor lint` спавнить через `bunx` (oxlint, jscpd, v8r, github-actionlint тощо), у root не пінуються — вони приїжджають як `dependencies` пакета `@nitra/cursor` (npm-module.mdc).
+2. **devDependencies не з білого списку** — дозволені лише `@nitra/*`/`@7n/*` та root-only тестові peer/tools (`vitest`, `@vitest/coverage-v8`, `@stryker-mutator/vitest-runner`, `@playwright/test`). Будь-який інший пакет → deny. CLI-тули, які `n-rules lint` спавнить через `bunx` (oxlint, jscpd, v8r, github-actionlint тощо), у root не пінуються — вони приїжджають як `dependencies` пакета `@7n/rules` (npm-module.mdc).
 
 Перевірки, що потребують FS або cross-file контексту (наприклад наявність `yarn.lock`), лишаються у JS-шарі.

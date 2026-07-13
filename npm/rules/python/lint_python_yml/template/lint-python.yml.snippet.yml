@@ -38,4 +38,4 @@ jobs:
         run: uv sync --frozen
 
       - name: Lint Python
-        run: bunx n-cursor lint python --no-fix
+        run: bunx n-rules lint python --no-fix

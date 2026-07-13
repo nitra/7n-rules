@@ -44,7 +44,7 @@ function makeValidSettings() {
   return {
     hooks: {
       Stop: [
-        { matcher: '', hooks: [{ type: 'command', command: 'npx --no @nitra/cursor stop-hook', timeout: 60 }] },
+        { matcher: '', hooks: [{ type: 'command', command: 'npx --no @7n/rules stop-hook', timeout: 60 }] },
         {
           matcher: '',
           hooks: [
@@ -324,7 +324,7 @@ async function withSingleBinPath(present, fn) {
 
 /**
  * Створює stub-виконуваний `pi` в одному з npm-first lookup місць (root `.bin`, nested
- * `@nitra/cursor` `.bin`) або на `PATH`, або взагалі ніде — для перевірки `findPiCmd`.
+ * `@7n/rules` `.bin`) або на `PATH`, або взагалі ніде — для перевірки `findPiCmd`.
  * @param {'root'|'nested'|'path'|'none'} location де розмістити stub
  * @param {string} dir корінь проєкту (від `withTmpDir`)
  * @returns {Promise<() => void>} cleanup-функція, що відновлює `PATH`
@@ -367,7 +367,7 @@ describe('checkCaptureBackendAvailable — pi npm-first lookup', () => {
     })
   })
 
-  test('nested node_modules/@nitra/cursor/node_modules/.bin/pi знайдено', async () => {
+  test('nested node_modules/@7n/rules/node_modules/.bin/pi знайдено', async () => {
     await withTmpDir(async dir => {
       await setupValidProject(dir)
       const restore = await placePiStub('nested', dir)

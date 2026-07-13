@@ -2,7 +2,7 @@
 .vscode/settings.json
 .zed/settings.json
 .git/**
-npm/schemas/n-cursor.json
+npm/schemas/n-rules.json
 npm/schemas/target.json
 npm/schemas/rule-meta.json
 npm/schemas/skill-meta.json

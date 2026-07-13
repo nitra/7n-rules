@@ -30,21 +30,15 @@ test_missing_vue_dependencies if {
 }
 
 test_rejects_vite_8_0_minor if {
-	count(package_json.deny) == 1 with input as object.union(valid_vue_package, {"devDependencies": object.union(valid_vue_package.devDependencies, {
-		"vite": "^8.0.14",
-	})})
+	count(package_json.deny) == 1 with input as object.union(valid_vue_package, {"devDependencies": object.union(valid_vue_package.devDependencies, {"vite": "^8.0.14"})})
 }
 
 test_accepts_vite_8_1 if {
-	count(package_json.deny) == 0 with input as object.union(valid_vue_package, {"devDependencies": object.union(valid_vue_package.devDependencies, {
-		"vite": "^8.1.0",
-	})})
+	count(package_json.deny) == 0 with input as object.union(valid_vue_package, {"devDependencies": object.union(valid_vue_package.devDependencies, {"vite": "^8.1.0"})})
 }
 
 test_accepts_vite_9 if {
-	count(package_json.deny) == 0 with input as object.union(valid_vue_package, {"devDependencies": object.union(valid_vue_package.devDependencies, {
-		"vite": "^9.0.0",
-	})})
+	count(package_json.deny) == 0 with input as object.union(valid_vue_package, {"devDependencies": object.union(valid_vue_package.devDependencies, {"vite": "^9.0.0"})})
 }
 
 test_rejects_esbuild_and_old_vite if {

@@ -3,7 +3,7 @@ type: JS Module
 title: worktree-notice.mjs
 resource: npm/scripts/lib/worktree-notice.mjs
 docgen:
-  crc: b4358793
+  crc: 174d1f15
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

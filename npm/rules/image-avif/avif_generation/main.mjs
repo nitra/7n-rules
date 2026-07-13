@@ -206,7 +206,7 @@ async function scanVueAvifInPackage(packageRoot, otherRootsAbs, ignorePaths, use
       VUE_RASTER_IMPORT_RE,
       importPath =>
         `[${label}] ${rel}: import з '${importPath}' має посилатись на AVIF-двійник '${importPath}.avif' ` +
-        `(\`npx @nitra/cursor fix image-avif\` створює його поряд, якщо оригінал є на диску). Вимкнути локально: "@nitra/minify-image": { "disable-avif": true } у package.json пакета`
+        `(\`npx @7n/rules fix image-avif\` створює його поряд, якщо оригінал є на диску). Вимкнути локально: "@nitra/minify-image": { "disable-avif": true } у package.json пакета`
     )
     processMatches(
       VUE_RASTER_STATIC_SRC_RE,
@@ -390,7 +390,7 @@ export async function lint(ctx) {
 
   for (const r of scan.rewrites) {
     reporter.fail(
-      `${relative(cwd, r.file).split('\\').join('/')}: raster-посилання має вживати AVIF-двійник — запусти \`npx @nitra/cursor fix image-avif\` (image-avif.mdc)`,
+      `${relative(cwd, r.file).split('\\').join('/')}: raster-посилання має вживати AVIF-двійник — запусти \`npx @7n/rules fix image-avif\` (image-avif.mdc)`,
       { reason: AVIF_NEEDS_REWRITE, file: relative(cwd, r.file).split('\\').join('/') }
     )
   }
@@ -402,7 +402,7 @@ export async function lint(ctx) {
   }
   for (const orphan of scan.orphans) {
     reporter.fail(
-      `${relative(cwd, orphan).split('\\').join('/')}: AVIF-сирота без живих посилань — запусти \`npx @nitra/cursor fix image-avif\` (image-avif.mdc)`,
+      `${relative(cwd, orphan).split('\\').join('/')}: AVIF-сирота без живих посилань — запусти \`npx @7n/rules fix image-avif\` (image-avif.mdc)`,
       { reason: AVIF_ORPHAN, file: relative(cwd, orphan).split('\\').join('/') }
     )
   }

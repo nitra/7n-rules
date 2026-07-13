@@ -4,14 +4,14 @@
  * Джерело істини — `package.json` у корені цільового репозиторію: з поля `scripts` беруться відомі ключі
  * у стабільному порядку, додатково — усі `lint-*`, яких не було в основному списку.
  *
- * Наприкінці завжди додаються рядки про CLI `@nitra/cursor` (синхрон правил / programmatic check),
+ * Наприкінці завжди додаються рядки про CLI `@7n/rules` (синхрон правил / programmatic check),
  * на початку — рекомендована команда `bun i` за конвенціями monorepo.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-const PACKAGE_NAME = '@nitra/cursor'
+const PACKAGE_NAME = '@7n/rules'
 const AGENTS_MD = 'AGENTS.md'
 
 /** Порядок виводу скриптів із `package.json` (лише ті, що реально існують). */

@@ -5,7 +5,7 @@ description: >-
 version: '1.0'
 ---
 
-<!-- n-cursor:root:start -->
+<!-- n-rules:root:start -->
 > [!IMPORTANT]
 > **Root-only skill.** Скіл мутує проєкт у поточному каталозі й має запускатися **з кореня репозиторію**.
 
@@ -17,7 +17,7 @@ git rev-parse --show-toplevel
 ```
 
 Якщо `pwd` **не** збігається з виводом `git rev-parse --show-toplevel` — ти в **піддиректорії**. **STOP**: перейди в корінь (`cd <toplevel>`, literal-шлях із виводу) і лише тоді виконуй наступні кроки скіла. Поза git-репо (команда без виводу) — продовжуй (корінь визначити неможливо).
-<!-- n-cursor:root:end -->
+<!-- n-rules:root:end -->
 
 # doc-files — файлова документація (обовʼязковий крок)
 
@@ -58,14 +58,14 @@ docgen:
 ## Передумова
 
 - Поточна директорія — корінь проєкту (`requireRoot`), не worktree.
-- Доступний `npx @nitra/cursor`.
+- Доступний `npx @7n/rules`.
 
 ## Workflow
 
 ### Крок 1: Генерація застарілих/відсутніх док
 
 ```bash
-npx @nitra/cursor lint doc-files
+npx @7n/rules lint doc-files
 ```
 
 Команда запускає doc-files лінтер у fix-режимі (весь репо): перевіряє omlx

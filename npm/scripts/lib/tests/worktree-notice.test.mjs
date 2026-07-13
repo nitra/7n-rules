@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 
 import { WORKTREE_END, WORKTREE_START, injectWorktreeNotice } from '../worktree-notice.mjs'
 
-const WORKTREE_BLOCK_RE = /<!-- n-cursor:worktree:start -->[\s\S]*?<!-- n-cursor:worktree:end -->/u
+const WORKTREE_BLOCK_RE = /<!-- n-rules:worktree:start -->[\s\S]*?<!-- n-rules:worktree:end -->/u
 
 const SKILL = `---
 name: fix
@@ -48,8 +48,8 @@ describe('injectWorktreeNotice', () => {
     const out = injectWorktreeNotice(SKILL, true)
     expect(out).toContain('bun install')
     // ETARGET-обгортка прибрана: `mt worktree create` — бінарник, не npx-резолв.
-    expect(out).not.toContain('n_cursor_npx')
-    expect(out).not.toContain('N_CURSOR_NPX_RETRY_MAX_MIN')
+    expect(out).not.toContain('n_rules_npx')
+    expect(out).not.toContain('N_RULES_NPX_RETRY_MAX_MIN')
     expect(out).not.toContain('sleep 30')
   })
 
@@ -77,6 +77,18 @@ describe('injectWorktreeNotice', () => {
     expect(stripped).not.toContain(WORKTREE_START)
     expect(stripped).toContain('# n-fix')
     expect(stripped).toContain('name: fix')
+  })
+
+  test('legacy n-cursor:-маркери замінюються новим блоком при ре-синку', () => {
+    const legacy = SKILL.replace(
+      '# n-fix',
+      '<!-- n-cursor:worktree:start -->\n> старий блок згенерований @nitra/cursor\n<!-- n-cursor:worktree:end -->\n\n# n-fix'
+    )
+    const resynced = injectWorktreeNotice(legacy, true)
+    expect(resynced).not.toContain('n-cursor:worktree')
+    expect(resynced).not.toContain('старий блок')
+    expect(resynced.split(WORKTREE_START)).toHaveLength(2)
+    expect(resynced).toContain('# n-fix')
   })
 
   test('зміна тексту всередині маркерів не ламає ре-синк', () => {

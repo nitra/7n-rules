@@ -7,25 +7,27 @@
  * наявний блок замінюється, при `worktree:false` — видаляється.
  *
  * Крок 0.1 блоку додає `bun install` у щойно створеному дереві (локальна копія
- * CLI усуває гонку з CDN) і shell-обгортку `n_cursor_npx` навколо bootstrap-виклику
+ * CLI усуває гонку з CDN) і shell-обгортку `n_rules_npx` навколо bootstrap-виклику
  * `npx`: на ETARGET/notarget та мережевих помилках npm падає ДО запуску бінарника,
  * тож retry мусить жити на рівні shell-інструкції, а не в JS-хендлерах CLI.
  * Обгортка ретраїть лише транзитні помилки реєстру/мережі (30с інтервал, дефолт
- * 5 хв, env `N_CURSOR_NPX_RETRY_MAX_MIN`, ceiling 10 хв) і віддає реальний nonzero
+ * 5 хв, env `N_RULES_NPX_RETRY_MAX_MIN`, ceiling 10 хв) і віддає реальний nonzero
  * CLI одразу. Команди винесені окремим кроком ПІСЛЯ worktree-створення, бо
  * вимагають command substitution, заборонену у «без-expansion» preflight-снипеті
  * (узгоджено з worktree.mdc).
  */
 
 /** Маркер початку worktree-блоку (стабільний, не залежить від тексту всередині). */
-export const WORKTREE_START = '<!-- n-cursor:worktree:start -->'
+export const WORKTREE_START = '<!-- n-rules:worktree:start -->'
 /** Маркер кінця worktree-блоку. */
-export const WORKTREE_END = '<!-- n-cursor:worktree:end -->'
+export const WORKTREE_END = '<!-- n-rules:worktree:end -->'
 
 const FALLBACK_SUFFIX = 'task'
 
 /** Наявний блок разом із сусідніми порожніми рядками (для чистого видалення). */
-const BLOCK_RE = /\n{0,8}<!-- n-cursor:worktree:start -->[\s\S]*?<!-- n-cursor:worktree:end -->\n{0,8}/u
+// Матчить і legacy `n-rules:`-маркери, щоб ре-синк замінював блоки, згенеровані до перейменування пакету
+const BLOCK_RE =
+  /\n{0,8}<!-- n-(?:cursor|rules):worktree:start -->[\s\S]*?<!-- n-(?:cursor|rules):worktree:end -->\n{0,8}/u
 
 /** Закриття YAML-frontmatter на початку файла. */
 const FRONTMATTER_RE = /^(---\n[\s\S]*?\n---\n)/u
@@ -140,7 +142,7 @@ cd ".worktrees/feature-x-${suffix}"
 
 Тобто branch-argument лишає slash як у git-гілці, а шлях для \`cd\` бере sanitized форму: slash → \`-\`.
 
-**Крок 0.1 — bootstrap у новому дереві (після \`cd\`).** Дерево щойно створене й **без** \`node_modules\`. Постав залежності локально — тоді \`npx @nitra/cursor <cmd>\` бере локальну копію без походу в реєстр:
+**Крок 0.1 — bootstrap у новому дереві (після \`cd\`).** Дерево щойно створене й **без** \`node_modules\`. Постав залежності локально — тоді \`npx @7n/rules <cmd>\` бере локальну копію без походу в реєстр:
 
 \`\`\`bash
 bun install

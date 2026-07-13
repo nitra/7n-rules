@@ -4,8 +4,8 @@
  * docs/specs/2026-07-02-text-check-per-file-split-design.md §5-A). `full`, без `lint.glob` —
  * phpstan/psalm потребують повного project-graph (autoload, class hierarchy), запуск на
  * одному файлі дає неповний/хибний результат; composer audit — project-wide dependency
- * audit. Не входять у delta-план (§5): спрацьовують лише через `n-cursor lint --full` або
- * scoped `n-cursor lint php`.
+ * audit. Не входять у delta-план (§5): спрацьовують лише через `n-rules lint --full` або
+ * scoped `n-rules lint php`.
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'

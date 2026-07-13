@@ -11,7 +11,7 @@
  * - `.claude/commands/*.md` — fully owned slash-команди з темплейту
  *   `.claude-template/commands/` (зараз порожньо; sync no-op).
  * - `.claude/hooks/capture-decisions.sh` — fully owned bash-скрипт ADR capture Stop-hook;
- *   копіюється з `.claude-template/hooks/`, лише коли в `.n-cursor.json` `rules`
+ *   копіюється з `.claude-template/hooks/`, лише коли в `.n-rules.json` `rules`
  *   присутнє `adr` (правило увімкнене за замовчуванням; вимикається через
  *   `disable-rules: ["adr"]`). Якщо правила немає, керована ADR-група в hooks
  *   так само автоматично прибирається з settings.json.
@@ -24,14 +24,16 @@
  *   `*.secret`, логи capture/normalize, `.normalize-state`, `.normalize.lock`,
  *   `.claude/scheduled_tasks.lock`); існуючі рядки не перезаписуються.
  *
- * Опт-аут — `claude-config: false` у `.n-cursor.json`.
+ * Опт-аут — `claude-config: false` у `.n-rules.json`.
  */
 import { existsSync } from 'node:fs'
 import { chmod, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 /** Маркер hook-ів пакета (`hook --post-tool-use`, `hook --stop`). */
-export const MANAGED_HOOK_COMMAND_MARKER = '@nitra/cursor hook'
+export const MANAGED_HOOK_COMMAND_MARKER = '@7n/rules hook'
+/** @deprecated — маркер hook-ів до перейменування пакету на `@7n/rules`; лишається для cleanup наявних конфігів при ресинку. */
+export const LEGACY_PACKAGE_HOOK_COMMAND_MARKER = '@nitra/cursor hook'
 /** @deprecated — замінено на `hook --post-tool-use`; маркер лишається для cleanup наявних конфігів при ресинку. */
 export const LEGACY_POST_TOOL_USE_HOOK_COMMAND_MARKER = '@nitra/cursor post-tool-use-check'
 /** @deprecated — ще старіша мутуюча PostToolUse-команда (`post-tool-use-fix`); маркер лишається для cleanup наявних конфігів при ресинку. */
@@ -56,6 +58,7 @@ export const CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER = '.claude/hooks/normalize
  */
 export const MANAGED_HOOK_COMMAND_MARKERS = Object.freeze([
   MANAGED_HOOK_COMMAND_MARKER,
+  LEGACY_PACKAGE_HOOK_COMMAND_MARKER,
   LEGACY_POST_TOOL_USE_HOOK_COMMAND_MARKER,
   LEGACY_POST_TOOL_USE_FIX_HOOK_COMMAND_MARKER,
   DOC_FILES_HOOK_COMMAND_MARKER,
@@ -80,10 +83,12 @@ const TEMPLATE_DIR_NAME = '.claude-template'
 export const PI_DIR = '.pi'
 /** Директорія pi.dev TS-extensions у проєкті-споживачі. */
 export const PI_EXTENSIONS_DIR = `${PI_DIR}/extensions`
-/** Назва bundled-директорії pi-template у пакеті `@nitra/cursor`. */
+/** Назва bundled-директорії pi-template у пакеті `@7n/rules`. */
 export const PI_TEMPLATE_DIR_NAME = '.pi-template'
 /** Імʼя bundled pi-extension'а для ADR capture/normalize. */
-export const PI_EXTENSION_NAME = 'n-cursor-adr'
+export const PI_EXTENSION_NAME = 'n-rules-adr'
+/** @deprecated — ім'я extension-теки до перейменування пакету; лишається для cleanup при ресинку. */
+export const LEGACY_PI_EXTENSION_NAME = 'n-cursor-adr'
 /** Відносний шлях до канонічного фрагмента `.gitignore` для ADR Stop-hook'ів у tarball пакета. */
 export const ADR_GITIGNORE_SNIPPET_REL = 'rules/adr/js/templates/hooks/.gitignore.snippet'
 const GITIGNORE_FILE = '.gitignore'
@@ -181,7 +186,7 @@ function isManagedHookGroup(group) {
 }
 
 /**
- * Чи Cursor hook entry належить пакету `@nitra/cursor`.
+ * Чи Cursor hook entry належить пакету `@7n/rules`.
  * @param {CursorHookEntry} entry один entry з `.cursor/hooks.json`
  * @returns {boolean} `true`, якщо command містить managed ADR marker
  */
@@ -198,7 +203,7 @@ function isManagedCursorHookEntry(entry) {
  * Зливає список allow-permissions: union існуючого і темплейтного без дублікатів,
  * порядок — спочатку існуючі (щоб не міняти користувацький порядок), потім нові.
  * @param {string[] | undefined} existing існуючий список з `.claude/settings.json` користувача
- * @param {string[] | undefined} fromTemplate список з темплейту пакета `@nitra/cursor`
+ * @param {string[] | undefined} fromTemplate список з темплейту пакета `@7n/rules`
  * @returns {string[]} об'єднаний список без дублікатів (порядок: існуючі, потім нові)
  */
 export function mergeAllowList(existing, fromTemplate) {
@@ -266,9 +271,9 @@ function templateWithAdrHook(template) {
 /**
  * Повертає об'єднаний об'єкт settings.json.
  * @param {ClaudeSettings | undefined} existing існуючий вміст `.claude/settings.json` користувача (або undefined, якщо файла нема)
- * @param {ClaudeSettings} template settings із темплейту пакета `@nitra/cursor`
+ * @param {ClaudeSettings} template settings із темплейту пакета `@7n/rules`
  * @param {object} [options] опції merge-у
- * @param {boolean} [options.includeAdrHook] чи додати ADR Stop-hook групу до managed-hooks (коли в `.n-cursor.json` `rules` присутнє `adr`)
+ * @param {boolean} [options.includeAdrHook] чи додати ADR Stop-hook групу до managed-hooks (коли в `.n-rules.json` `rules` присутнє `adr`)
  * @returns {ClaudeSettings} результат merge-у (користувацькі поля збережено, наші перевизначено)
  */
 export function mergeSettings(existing, template, options = {}) {
@@ -473,9 +478,9 @@ export async function removeOrphanAdrHookLib(projectRoot) {
 }
 
 /**
- * Копіює bundled pi.dev TS-extension `npm/.pi-template/extensions/n-cursor-adr/` (усі файли —
+ * Копіює bundled pi.dev TS-extension `npm/.pi-template/extensions/n-rules-adr/` (усі файли —
  * `index.ts`, `tsconfig.json`, потенційні `package.json`/`.gitignore` тощо) у
- * `.pi/extensions/n-cursor-adr/` проєкту-споживача. Тека fully-owned: при кожному sync-у
+ * `.pi/extensions/n-rules-adr/` проєкту-споживача (legacy `n-cursor-adr/` видаляється). Тека fully-owned: при кожному sync-у
  * перезаписується. Якщо bundled template відсутній (legacy-версії пакета без `.pi-template/`)
  * або в ньому немає `index.ts` — повертаємо `{written: false}` без помилки.
  *
@@ -483,7 +488,7 @@ export async function removeOrphanAdrHookLib(projectRoot) {
  * у проєкти-споживачі, а IDE/TS-сервер мусить резолвити `node:*` модулі без додаткових
  * project-wide конфігів.
  * @param {string} projectRoot корінь проєкту-споживача
- * @param {string} bundledPackageRoot корінь установленого `@nitra/cursor` (із `.pi-template/`)
+ * @param {string} bundledPackageRoot корінь установленого `@7n/rules` (із `.pi-template/`)
  * @returns {Promise<{ written: boolean, path: string, files: string[] }>} чи писали; відносний шлях до теки розширення; список скопійованих базових імен (відсортований)
  */
 export async function syncPiExtensions(projectRoot, bundledPackageRoot) {
@@ -491,6 +496,10 @@ export async function syncPiExtensions(projectRoot, bundledPackageRoot) {
   const indexPath = join(srcDir, 'index.ts')
   if (!existsSync(indexPath)) {
     return { written: false, path: '', files: [] }
+  }
+  const legacyDir = join(projectRoot, PI_EXTENSIONS_DIR, LEGACY_PI_EXTENSION_NAME)
+  if (existsSync(legacyDir)) {
+    await rm(legacyDir, { recursive: true, force: true })
   }
   const destDir = join(projectRoot, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME)
   await mkdir(destDir, { recursive: true })
@@ -511,13 +520,17 @@ export async function syncPiExtensions(projectRoot, bundledPackageRoot) {
 }
 
 /**
- * Видаляє `.pi/extensions/n-cursor-adr/` директорію з проєкту-споживача.
- * Викликається коли правило `adr` вимкнено у `.n-cursor.json` (симетрично до
+ * Видаляє `.pi/extensions/n-rules-adr/` (і legacy `n-cursor-adr/`) директорію з проєкту-споживача.
+ * Викликається коли правило `adr` вимкнено у `.n-rules.json` (симетрично до
  * cleanup-у `.claude/hooks/{capture,normalize}-decisions.sh`).
  * @param {string} projectRoot корінь проєкту-споживача
  * @returns {Promise<{ removed: boolean, path: string }>} чи було щось видалено та відносний шлях
  */
 export async function removeOrphanPiExtension(projectRoot) {
+  const legacyDir = join(projectRoot, PI_EXTENSIONS_DIR, LEGACY_PI_EXTENSION_NAME)
+  if (existsSync(legacyDir)) {
+    await rm(legacyDir, { recursive: true, force: true })
+  }
   const extDir = join(projectRoot, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME)
   if (!existsSync(extDir)) {
     return { removed: false, path: '' }
@@ -541,7 +554,7 @@ function parseGitignoreFragmentLines(raw) {
 /**
  * Дописує в кореневий `.gitignore` проєкту відсутні рядки з канонічного ADR-фрагмента.
  * @param {string} projectRoot корінь проєкту-споживача
- * @param {string} bundledPackageRoot корінь установленого `@nitra/cursor`
+ * @param {string} bundledPackageRoot корінь установленого `@7n/rules`
  * @returns {Promise<{ written: boolean, path: string }>} чи змінено файл і відносний шлях
  */
 export async function syncGitignoreAdrFragment(projectRoot, bundledPackageRoot) {
@@ -568,7 +581,7 @@ export async function syncGitignoreAdrFragment(projectRoot, bundledPackageRoot) 
     return { written: false, path: GITIGNORE_FILE }
   }
 
-  const sectionHeader = '# @nitra/cursor (adr) — локальні артефакти Stop-hook, не коміти'
+  const sectionHeader = '# @7n/rules (adr) — локальні артефакти Stop-hook, не коміти'
   const hasHeader = existing.split(EOL_RE).some(l => l.trim() === sectionHeader)
   const block = hasHeader ? missing.join('\n') : [sectionHeader, ...missing].join('\n')
   let prefix = ''
@@ -585,7 +598,7 @@ export async function syncGitignoreAdrFragment(projectRoot, bundledPackageRoot) 
  * Команди ідентифікуються тим, що вони лежать у темплейті — не перетинаються
  * з командами скілів (n-fix, n-lint, ...).
  * @param {string} projectRoot корінь проєкту-споживача
- * @param {string} templateDir каталог `.claude-template/` усередині пакету `@nitra/cursor`
+ * @param {string} templateDir каталог `.claude-template/` усередині пакету `@7n/rules`
  * @returns {Promise<string[]>} масив відносних шляхів записаних файлів
  */
 export async function syncClaudeCommands(projectRoot, templateDir) {
@@ -609,12 +622,12 @@ export async function syncClaudeCommands(projectRoot, templateDir) {
 
 /**
  * Виконує повну синхронізацію Claude Code-конфігу з темплейту пакету в проєкт.
- * Використовується з `bin/n-cursor.js` після інших синків.
+ * Використовується з `bin/n-rules.js` після інших синків.
  * @param {object} options опції синку
  * @param {string} options.projectRoot корінь проєкту-споживача
- * @param {string} options.bundledPackageRoot корінь установленого `@nitra/cursor`
- * @param {boolean} options.enabled чи увімкнено sync (з `.n-cursor.json` `claude-config`)
- * @param {string[]} [options.rules] список увімкнених правил із `.n-cursor.json` — впливає на ADR Stop-hook (`adr`)
+ * @param {string} options.bundledPackageRoot корінь установленого `@7n/rules`
+ * @param {boolean} options.enabled чи увімкнено sync (з `.n-rules.json` `claude-config`)
+ * @param {string[]} [options.rules] список увімкнених правил із `.n-rules.json` — впливає на ADR Stop-hook (`adr`)
  * @returns {Promise<{ settings: boolean, cursorHooks: boolean, commands: string[], adrHook: boolean, adrNormalizeHook: boolean, adrHookLib: string[], gitignoreAdr: boolean, piExtension: boolean }>} прапорці записів settings/Cursor hooks/ADR-hook(s)/`.gitignore`/pi-extension, перелік lib-файлів і список slash-команд
  */
 export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enabled, rules = [] }) {

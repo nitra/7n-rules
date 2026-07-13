@@ -1,16 +1,16 @@
 /**
- * Дописує `\@nitra/cursor` у `devDependencies` workspace-root `package.json` проєкту, якщо пакет ще
+ * Дописує `@7n/rules` у `devDependencies` workspace-root `package.json` проєкту, якщо пакет ще
  * не оголошено ні в `devDependencies`, ні в `dependencies`.
  *
- * Використовується CLI `n-cursor` при кожному запуску (`npx \@nitra/cursor`, зокрема `check`), щоб
- * команда `check` і скрипти з `node_modules/\@nitra/cursor/scripts/` були відтворювані після
+ * Використовується CLI `n-rules` при кожному запуску (`npx \@7n/rules`, зокрема `check`), щоб
+ * команда `check` і скрипти з `node_modules/@7n/rules/scripts/` були відтворювані після
  * `bun install` / `npm install`, а не лише з кешу npx. Корінь визначається тільки за наявністю поля
  * `workspaces` у `package.json` поруч із поточною директорією запуску.
  *
- * Версія діапазону: `^<version>` з поля `version` установленого пакету `\@nitra/cursor`.
+ * Версія діапазону: `^<version>` з поля `version` установленого пакету `@7n/rules`.
  *
  * Self-upgrade: якщо пакет уже присутній у `devDependencies` зі **старішим** числовим піном,
- * пін апгрейдиться до `^<version>` (щоб `npx \@nitra/cursor` завжди підтягував devDep до версії CLI,
+ * пін апгрейдиться до `^<version>` (щоб `npx \@7n/rules` завжди підтягував devDep до версії CLI,
  * а self-lint не відставав). Нижчі за bundled або нечислові піни (`workspace:*`, `latest`, git-url)
  * не чіпаються; запис у `dependencies` (нестандартне розміщення) теж лишається незмінним.
  */
@@ -20,7 +20,8 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const PACKAGE_NAME = '@nitra/cursor'
+const PACKAGE_NAME = '@7n/rules'
+const LEGACY_PACKAGE_NAME = '@nitra/cursor'
 
 // Числовий semver-діапазон: опційний (оператор + його пробіли) одним блоком + major[.minor[.patch]].
 // Пробіли після оператора всередині опційної групи (не окремим `\s*`), щоб прибрати неоднозначне
@@ -70,7 +71,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url))
 const bundledPkgPath = join(scriptDir, '..', 'package.json')
 
 /**
- * Версія з `package.json` пакету `\@nitra/cursor` (каталог на рівень вище за `scripts/`).
+ * Версія з `package.json` пакету `@7n/rules` (каталог на рівень вище за `scripts/`).
  * @returns {Promise<string | null>} поле `version` рядком або `null`, якщо файлу немає / помилка парсингу
  */
 export async function readBundledPackageVersion() {
@@ -123,14 +124,40 @@ async function readAdjacentWorkspaceRootPackageJson(startDir) {
 }
 
 /**
- * Якщо у workspace-root `package.json` немає `\@nitra/cursor` у `devDependencies` і `dependencies`,
- * дописує `devDependencies["\@nitra/cursor"]` зі значенням `^<bundledVersion>`.
+ * Переносить legacy-ключ `@nitra/cursor` на `@7n/rules` у devDependencies/dependencies (in-place).
+ * Пін зберігається; якщо нова назва вже оголошена у секції — legacy-ключ просто видаляється.
+ * @param {Record<string, unknown>} pkg вміст package.json (мутується)
+ * @param {{ silent?: boolean }} options `silent` — не писати в консоль
+ * @returns {boolean} `true`, якщо було що мігрувати
+ */
+function migrateLegacyPackageKey(pkg, options) {
+  let migrated = false
+  for (const section of ['devDependencies', 'dependencies']) {
+    const deps = pkg[section]
+    if (!deps || typeof deps !== 'object' || Array.isArray(deps) || !(LEGACY_PACKAGE_NAME in deps)) {
+      continue
+    }
+    if (!(PACKAGE_NAME in deps) && typeof deps[LEGACY_PACKAGE_NAME] === 'string') {
+      deps[PACKAGE_NAME] = deps[LEGACY_PACKAGE_NAME]
+    }
+    delete deps[LEGACY_PACKAGE_NAME]
+    migrated = true
+    if (!options.silent) {
+      console.error(`📝 Мігровано ${LEGACY_PACKAGE_NAME} → ${PACKAGE_NAME} у ${section}\n`)
+    }
+  }
+  return migrated
+}
+
+/**
+ * Якщо у workspace-root `package.json` немає `@7n/rules` у `devDependencies` і `dependencies`,
+ * дописує `devDependencies["@7n/rules"]` зі значенням `^<bundledVersion>`.
  * @param {string} root стартова директорія проєкту (зазвичай `process.cwd()`)
  * @param {{ bundledVersion?: string | null, silent?: boolean }} [options] `bundledVersion` — для тестів;
  *   `silent` — не писати в консоль при успішному оновленні
  * @returns {Promise<boolean>} `true`, якщо `package.json` змінено на диску
  */
-export async function ensureNitraCursorInRootDevDependencies(root, options = {}) {
+export async function ensureNRulesInRootDevDependencies(root, options = {}) {
   const workspaceRoot = await readAdjacentWorkspaceRootPackageJson(root)
   if (!workspaceRoot) {
     return false
@@ -142,10 +169,17 @@ export async function ensureNitraCursorInRootDevDependencies(root, options = {})
     return false
   }
 
-  // @nitra/cursor у dependencies — нестандартне розміщення, не чіпаємо.
+  // Міграція перейменування: legacy-ключ @nitra/cursor → @7n/rules у тій самій секції
+  // (пін зберігається; гілка self-upgrade нижче за потреби його підніме).
+  const legacyMigrated = migrateLegacyPackageKey(pkg, options)
+  if (legacyMigrated) {
+    await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8')
+  }
+
+  // @7n/rules у dependencies — нестандартне розміщення, не чіпаємо.
   const deps = pkg.dependencies
   if (deps && typeof deps === 'object' && PACKAGE_NAME in deps) {
-    return false
+    return legacyMigrated
   }
 
   const devDeps = pkg.devDependencies
@@ -155,7 +189,7 @@ export async function ensureNitraCursorInRootDevDependencies(root, options = {})
   // (ніколи не понижуємо; нечислові піни — workspace:*/latest/git — лишаємо як є).
   if (current !== undefined) {
     if (!isBundledNewer(ver, current)) {
-      return false
+      return legacyMigrated
     }
     pkg.devDependencies[PACKAGE_NAME] = `^${ver}`
     await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8')

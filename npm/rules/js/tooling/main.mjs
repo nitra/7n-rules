@@ -108,7 +108,7 @@ function compareOxlintIgnorePatterns(expected, actual, failures) {
 }
 
 /**
- * Перевіряє `.oxlintrc.json` проти канону пакета `@nitra/cursor` (усі правила з канону та інші поля з `oxlint-canonical.json`).
+ * Перевіряє `.oxlintrc.json` проти канону пакета `@7n/rules` (усі правила з канону та інші поля з `oxlint-canonical.json`).
  * Додаткові ключі лише в `rules` дозволені; інші поля мають збігатися з каноном.
  * @param {unknown} cfg корінь JSON з `.oxlintrc.json`
  * @param {unknown} canonical розпарений `oxlint-canonical.json`
@@ -140,7 +140,7 @@ export function verifyOxlintRcAgainstCanonical(cfg, canonical) {
 
     if (!deepEqualOxlintCanonical(actual, expected)) {
       failures.push(
-        `.oxlintrc.json: поле "${key}" має збігатися з каноном пакета @nitra/cursor (npm/rules/js/js/data/tooling/oxlint-canonical.json)`
+        `.oxlintrc.json: поле "${key}" має збігатися з каноном пакета @7n/rules (npm/rules/js/js/data/tooling/oxlint-canonical.json)`
       )
     }
   }

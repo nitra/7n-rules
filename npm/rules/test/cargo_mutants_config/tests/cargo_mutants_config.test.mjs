@@ -1,6 +1,6 @@
 /**
  * Тести концерну `cargo_mutants_config` (test.mdc): self-gates через rust
- * у `.n-cursor.json#rules`, read-only detector ЗВІТУЄ про відсутній
+ * у `.n-rules.json#rules`, read-only detector ЗВІТУЄ про відсутній
  * <cargoDir>/.cargo/mutants.toml (`mutants-config-missing`), а T0-fix
  * (`fix-cargo_mutants_config.mjs`) копіює canonical baseline.
  */
@@ -39,7 +39,7 @@ async function applyT0(violations, dir) {
  */
 function makeProj({ rules = [], disableRules = [], layout = 'flat' } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'mutants-config-concern-'))
-  writeFileSync(join(dir, '.n-cursor.json'), JSON.stringify({ rules, 'disable-rules': disableRules }))
+  writeFileSync(join(dir, '.n-rules.json'), JSON.stringify({ rules, 'disable-rules': disableRules }))
   if (layout === 'flat') {
     writeFileSync(join(dir, 'Cargo.toml'), '[package]\nname="x"\nversion="0.1.0"\n')
   } else if (layout === 'tauri') {
@@ -147,7 +147,7 @@ describe('cargo_mutants_config concern', () => {
 
   test('T0 apply: кілька Cargo.toml (root + Tauri + flat workspace) — створює у КОЖЕН', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mutants-multi-'))
-    writeFileSync(join(dir, '.n-cursor.json'), JSON.stringify({ rules: ['rust'] }))
+    writeFileSync(join(dir, '.n-rules.json'), JSON.stringify({ rules: ['rust'] }))
     writeFileSync(join(dir, 'Cargo.toml'), '[package]\nname="r"\nversion="0.1.0"\n')
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['tauri-app', 'cli'] }))
     mkdirSync(join(dir, 'tauri-app', 'src-tauri'), { recursive: true })

@@ -3,12 +3,12 @@ type: JS Module
 title: run-lint-step.mjs
 resource: npm/scripts/lib/run-lint-step.mjs
 docgen:
-  crc: 17e653e1
+  crc: c180cb39
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
 
-Спільний хелпер для CLI-обгорток `lint-<rule>`. Він запускає один крок ланцюжка з логуванням команди та прокидає stdout/stderr на користувацькі stream-и (`stdio: 'inherit'`). Це дозволяє rule-адаптерам `n-cursor lint <rule>` уникнути дублювання логіки обгортки у файлах `rules/<id>/js/lint.mjs`. Функція не виконує операцій з файловою системою чи базою даних.
+Спільний хелпер для CLI-обгорток `lint-<rule>`. Він запускає один крок ланцюжка з логуванням команди та прокидає stdout/stderr на користувацькі stream-и (`stdio: 'inherit'`). Це дозволяє rule-адаптерам `n-rules lint <rule>` уникнути дублювання логіки обгортки у файлах `rules/<id>/js/lint.mjs`. Функція не виконує операцій з файловою системою чи базою даних.
 
 ## Поведінка
 

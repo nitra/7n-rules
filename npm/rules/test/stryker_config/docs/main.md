@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/test/stryker_config/main.mjs
 docgen:
-  crc: 83d6eeec
+  crc: 1c595e61
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
   issues: anchor-miss:(test.mdc),anchor-miss:mutation.json,judge:inaccurate:0.98

@@ -16,8 +16,8 @@ version: '1.0'
 
 ## Передумови
 
-- Правило `adr` увімкнене у `.n-cursor.json` (`"adr"` у `rules`).
-- `.claude/hooks/normalize-decisions.sh` існує (`npx @nitra/cursor` поклав його сюди).
+- Правило `adr` увімкнене у `.n-rules.json` (`"adr"` у `rules`).
+- `.claude/hooks/normalize-decisions.sh` існує (`npx @7n/rules` поклав його сюди).
 - У `PATH` доступний `claude` або `cursor-agent` (інакше скрипт мовчки вийде).
 - У `docs/adr/` є чернетки — файли з `session: …` у YAML frontmatter.
 

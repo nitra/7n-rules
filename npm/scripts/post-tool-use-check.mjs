@@ -57,7 +57,7 @@ export function extractFilePath(stdinJson) {
 }
 
 /**
- * Точка входу. Викликається з `bin/n-cursor.js` коли argv[0] === `post-tool-use-check`.
+ * Точка входу. Викликається з `bin/n-rules.js` коли argv[0] === `post-tool-use-check`.
  * Параметри доступні для інʼєкції для тестів: `stdinJson` обходить read від `process.stdin`,
  * `runConformanceCheckFn` — заміна `runConformanceCheck`.
  * @param {{ stdinJson?: string, detectFn?: typeof detectAll }} [options] параметри для тестів

@@ -34,7 +34,7 @@ async function seedConcern(dir, body = DETECTOR, concernExtra = {}) {
   await mkdir(concernDir, { recursive: true })
   await writeJson(join(concernDir, 'concern.json'), { lint: { scope: 'full', glob: ['**/*'] }, ...concernExtra })
   await writeFile(join(concernDir, 'main.mjs'), body, 'utf8')
-  await writeJson(join(dir, '.n-cursor.json'), { rules: ['probe'] })
+  await writeJson(join(dir, '.n-rules.json'), { rules: ['probe'] })
   return join(dir, 'rules')
 }
 

@@ -1,6 +1,6 @@
 /**
  * Перейменовує розширення YAML за домовленістю репозиторію (k8s.mdc, ga.mdc). Лише логіка; **CLI** — **`bin/rename-yaml-extensions.mjs`**
- * Підкоманда **`npx \@nitra/cursor rename-yaml-extensions`** у головному CLI (**`bin/n-cursor.js`**).
+ * Підкоманда **`npx \@7n/rules rename-yaml-extensions`** у головному CLI (**`bin/n-rules.js`**).
  *
  * - Файли з сегментом шляху `k8s` та суфіксом `.yml` → `.yaml` (маніфести під k8s).
  * - Файли з сегментом `.github` та суфіксом `.yaml` → `.yml` (workflows тощо; у workflows лише `.yml`).

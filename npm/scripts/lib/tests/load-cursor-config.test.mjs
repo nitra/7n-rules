@@ -1,5 +1,5 @@
 /**
- * Тести `loadCursorIgnorePaths` — читання поля `ignore` з `.n-cursor.json`,
+ * Тести `loadCursorIgnorePaths` — читання поля `ignore` з `.n-rules.json`,
  * нормалізація шляхів, безпечна поведінка за відсутності файлу/поля.
  */
 import { describe, expect, test } from 'vitest'
@@ -20,7 +20,7 @@ function nativeJoin(...p) {
 }
 
 describe('loadCursorIgnorePaths', () => {
-  test('повертає [] якщо .n-cursor.json відсутній', async () => {
+  test('повертає [] якщо .n-rules.json відсутній', async () => {
     await withTmpDir(async dir => {
       const out = await loadCursorIgnorePaths(dir)
       expect(out).toEqual([])
@@ -29,7 +29,7 @@ describe('loadCursorIgnorePaths', () => {
 
   test('повертає [] якщо поле ignore відсутнє', async () => {
     await withTmpDir(async dir => {
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['k8s'] })
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['k8s'] })
       const out = await loadCursorIgnorePaths(dir)
       expect(out).toEqual([])
     })
@@ -37,15 +37,15 @@ describe('loadCursorIgnorePaths', () => {
 
   test('повертає [] якщо ignore не масив', async () => {
     await withTmpDir(async dir => {
-      await writeJson(join(dir, '.n-cursor.json'), { rules: [], ignore: 'oops' })
+      await writeJson(join(dir, '.n-rules.json'), { rules: [], ignore: 'oops' })
       const out = await loadCursorIgnorePaths(dir)
       expect(out).toEqual([])
     })
   })
 
-  test('повертає [] якщо .n-cursor.json — невалідний JSON', async () => {
+  test('повертає [] якщо .n-rules.json — невалідний JSON', async () => {
     await withTmpDir(async dir => {
-      await writeFile(join(dir, '.n-cursor.json'), '{ not: json', 'utf8')
+      await writeFile(join(dir, '.n-rules.json'), '{ not: json', 'utf8')
       const out = await loadCursorIgnorePaths(dir)
       expect(out).toEqual([])
     })
@@ -53,7 +53,7 @@ describe('loadCursorIgnorePaths', () => {
 
   test('нормалізує відносні шляхи в абсолютні posix без trailing-slash', async () => {
     await withTmpDir(async dir => {
-      await writeJson(join(dir, '.n-cursor.json'), {
+      await writeJson(join(dir, '.n-rules.json'), {
         rules: [],
         ignore: ['vendor/chart', 'postgres-master/', 'a/b/c']
       })
@@ -65,7 +65,7 @@ describe('loadCursorIgnorePaths', () => {
 
   test('пропускає не-рядкові й порожні елементи', async () => {
     await withTmpDir(async dir => {
-      await writeJson(join(dir, '.n-cursor.json'), {
+      await writeJson(join(dir, '.n-rules.json'), {
         rules: [],
         ignore: ['vendor', '', ' '.repeat(3), 42, null, { x: 1 }, 'ok']
       })
@@ -78,7 +78,7 @@ describe('loadCursorIgnorePaths', () => {
   test('абсолютні шляхи з конфігу залишаються абсолютними', async () => {
     await withTmpDir(async dir => {
       const abs = nativeJoin(dir, 'absolute-target')
-      await writeJson(join(dir, '.n-cursor.json'), { rules: [], ignore: [abs] })
+      await writeJson(join(dir, '.n-rules.json'), { rules: [], ignore: [abs] })
       const out = await loadCursorIgnorePaths(dir)
       const expected = abs.split(sep).join('/').replace(TRAILING_SLASH_RE, '')
       expect(out).toEqual([expected])

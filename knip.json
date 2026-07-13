@@ -29,7 +29,7 @@
     },
     "npm": {
       "entry": [
-        "bin/n-cursor.js",
+        "bin/n-rules.js",
         "bin/rename-yaml-extensions.mjs",
         "rules/*/lib/*.mjs",
         "rules/*/*/main.mjs",
@@ -39,10 +39,10 @@
         "scripts/build-*.mjs",
         "scripts/claude-stop-hook.mjs",
         "scripts/update-blue-oak.mjs",
-        "scripts/ensure-nitra-cursor-dev-dependencies.mjs",
+        "scripts/ensure-n-rules-dev-dependencies.mjs",
         "scripts/rename-yaml-extensions.mjs",
         "scripts/sync-*.mjs",
-        "scripts/upgrade-nitra-cursor-and-install.mjs",
+        "scripts/upgrade-n-rules-and-install.mjs",
         "scripts/lib/run-rule-cli.mjs",
         "scripts/lib/run-rule.mjs",
         "scripts/lib/run-standard-rule.mjs",

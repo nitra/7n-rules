@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/ci4/marksman_config/main.mjs
 docgen:
-  crc: 181f311c
+  crc: c34fa8be
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99

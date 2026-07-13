@@ -5,13 +5,13 @@ alwaysApply: false
 version: '1.31'
 ---
 
-**oxlint**, **ESLint**, **jscpd**, **knip**. Запуск — **`n-cursor lint js`** (локально; у CI — `--no-fix`, без **`--fix`** для oxlint/eslint). Без **prettier** і **@nitra/prettier-config**.
+**oxlint**, **ESLint**, **jscpd**, **knip**. Запуск — **`n-rules lint js`** (локально; у CI — `--no-fix`, без **`--fix`** для oxlint/eslint). Без **prettier** і **@nitra/prettier-config**.
 
 `eslint.config.js` — flat config з `getConfig` (`@nitra/eslint-config`). Аргументи `node: [...]`/`vue: [...]` мають відповідати воркспейс-типам репо (`workspaces` root `package.json`; vue-воркспейс = Vue-залежність у deps або `.vue` файли) — інакше `.vue` файли не парсяться. Відсутній конфіг створюється (scaffold), наявний — зазнає хірургічного merge (fix не перезаписує файл цілком).
 
 ## Швидкий gate через conftest
 
-Rego-пакети — запускаються `npx @nitra/cursor lint js` або `conftest`:
+Rego-пакети — запускаються `npx @7n/rules lint js` або `conftest`:
 
 - `lint-js.yml`:
 
@@ -55,7 +55,7 @@ jobs:
       - uses: ./.github/actions/setup-bun-deps
 
       - name: Eslint
-        run: bunx n-cursor lint js --no-fix
+        run: bunx n-rules lint js --no-fix
 ```
 - `.jscpd.json`:
 

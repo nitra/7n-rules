@@ -3,10 +3,10 @@ type: JS Module
 title: generated-markdown.mjs
 resource: npm/scripts/lib/generated-markdown.mjs
 docgen:
-  crc: 14b85a57
+  crc: 8ac3c916
 ---
 
-Модуль `generated-markdown.mjs` містить набір чистих утиліт для генерації згенерованих маркдаун-файлів (зокрема `AGENTS.md` та `CLAUDE.md`) у межах CLI `n-cursor`. Він виконує дві основні задачі:
+Модуль `generated-markdown.mjs` містить набір чистих утиліт для генерації згенерованих маркдаун-файлів (зокрема `AGENTS.md` та `CLAUDE.md`) у межах CLI `n-rules`. Він виконує дві основні задачі:
 
 1. Розгортає Mustache-подібні блоки `{{#section}}…{{/section}}` із простою підстановкою одного поля `{{prop}}` для кожного елемента переданого масиву.
 2. Нормалізує підсумковий markdown, не лишаючи послідовностей із трьох і більше `\n` (тобто двох і більше порожніх рядків поспіль), щоб результат відповідав правилу markdownlint **MD012** (no multiple blank lines).
@@ -197,7 +197,7 @@ export function formatGeneratedMarkdownLines(lines)
 
 Типовий потік генерації `AGENTS.md`:
 
-1. Викликач (CLI `n-cursor`) читає шаблон `AGENTS.template.md` з файлової системи.
+1. Викликач (CLI `n-rules`) читає шаблон `AGENTS.template.md` з файлової системи.
 2. Збирає три масиви даних:
    - список `*.mdc`-файлів із `.cursor/rules` (через `fs.readdir` або еквівалент);
    - метадані скілів (`name` уже з bullet/описом);

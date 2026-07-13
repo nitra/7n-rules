@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/changelog/presence/main.mjs
 docgen:
-  crc: 31b8d9fe
+  crc: ede34018
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
   issues: internal-name:readChangeFiles,judge:inaccurate:0.98

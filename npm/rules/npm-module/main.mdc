@@ -9,27 +9,27 @@ Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.g
 
 ## Версія та CHANGELOG
 
-Версію (`version` у **`npm/package.json`**) і **`npm/CHANGELOG.md`** **не редагуй вручну** — навіть для hotfix. Єдиний артефакт зміни — **change-файл** (`npx @7n/n ch [--bump <major|minor|patch>] [--section <Added|Changed|Fixed|Removed>] [--message "<…>"]`); bump `version` і генерацію секції CHANGELOG робить `n-cursor release` у CI на `main`. Будь-який ручний bump `version` поза CI завалює `check changelog` — навіть із change-файлом.
+Версію (`version` у **`npm/package.json`**) і **`npm/CHANGELOG.md`** **не редагуй вручну** — навіть для hotfix. Єдиний артефакт зміни — **change-файл** (`npx @7n/n ch [--bump <major|minor|patch>] [--section <Added|Changed|Fixed|Removed>] [--message "<…>"]`); bump `version` і генерацію секції CHANGELOG робить `n-rules release` у CI на `main`. Будь-який ручний bump `version` поза CI завалює `check changelog` — навіть із change-файлом.
 
 Повна модель (база порівняння, інверсія шляхів, формат CHANGELOG, post-release-інваріант «верхня секція CHANGELOG == `version`») — у **`n-changelog.mdc`** (джерело істини). Це правило їй підпорядковане й власних інструкцій bump/CHANGELOG не дублює.
 
 ### Канонічний крок `npm-changelog` у hk.pkl
 
-У v14 команду `check` прибрано (уніфікована поверхня `lint`) — виклик `npx @nitra/cursor check changelog` у hk.pkl **завалить** кожен коміт з `❌ Невідома команда: check`. Канонічний pre-commit-крок (hk `amends hk@1.42.0`):
+У v14 команду `check` прибрано (уніфікована поверхня `lint`) — виклик `npx @7n/rules check changelog` у hk.pkl **завалить** кожен коміт з `❌ Невідома команда: check`. Канонічний pre-commit-крок (hk `amends hk@1.42.0`):
 
 ```pkl
 ["npm-changelog"] {
     glob = List("npm/**")
     check_first = false
-    fix = "N_CURSOR_CHANGELOG_AUTOFIX=1 bun ./npm/bin/n-cursor.js lint changelog"
+    fix = "N_RULES_CHANGELOG_AUTOFIX=1 bun ./npm/bin/n-rules.js lint changelog"
 }
 ```
 
-Лише `fix` (без `check`): env-прапорець `N_CURSOR_CHANGELOG_AUTOFIX=1` вмикає autofix-режим — за відсутності change-файлу правило само створює його (`patch`/`Changed`, subject останнього коміту) і одразу ставить у git-індекс (`git add`) через `writeChange`/`reportOrFixMissingChangeFile`. Тому додатковий `stage = List("npm/.changes/**")` у цьому wiring **не потрібен** — індексація вже всередині JS-кроку. `package_structure` (`npx @nitra/cursor lint npm-module`) валідує цей крок: fail на застарілий `check changelog` і fail, якщо кроку `npm-changelog` немає взагалі.
+Лише `fix` (без `check`): env-прапорець `N_RULES_CHANGELOG_AUTOFIX=1` вмикає autofix-режим — за відсутності change-файлу правило само створює його (`patch`/`Changed`, subject останнього коміту) і одразу ставить у git-індекс (`git add`) через `writeChange`/`reportOrFixMissingChangeFile`. Тому додатковий `stage = List("npm/.changes/**")` у цьому wiring **не потрібен** — індексація вже всередині JS-кроку. `package_structure` (`npx @7n/rules lint npm-module`) валідує цей крок: fail на застарілий `check changelog` і fail, якщо кроку `npm-changelog` немає взагалі.
 
 ## Швидкий gate через conftest
 
-Rego-пакети (запускаються через `npx @nitra/cursor fix`):
+Rego-пакети (запускаються через `npx @7n/rules fix`):
 
 - `npm_module.npm_publish_yml` — template-driven перевірка `.github/workflows/npm-publish.yml` (deep-subset: усі обовʼязкові поля й кроки з канонічного сніпету).
 - [package.json.snippet.json](./npm_package_json/template/package.json.snippet.json)

@@ -75,7 +75,7 @@ version: '1.0'
 - **Change-file flow,** якщо завдання змінює файли у пакетному workspace (код,
   правила, скіли, конфіги, тести — не лише `docs/`): промпт має вимагати
   `npx @7n/n ch [--bump <major|minor|patch>] [--section <Added|Changed|Fixed|Removed>] [--message "<опис>"]`
-  і `npx @nitra/cursor lint changelog`. **Ніколи** не інструктуй ручне редагування
+  і `npx @7n/rules lint changelog`. **Ніколи** не інструктуй ручне редагування
   `CHANGELOG.md` чи bump `version` — це робить release flow / CI (деталь —
   `.cursor/rules/n-changelog.mdc`, не дублюй її текст). Якщо потрібна реліз-нота —
   це change-файл `<ws>/.changes/<timestamp>-<rand>.md` з `bump:` і `section:`,
@@ -197,7 +197,7 @@ version: '1.0'
 - **Без ручного changelog/version у промпті:** не формулюй у виводі інструкції
   на кшталт "додати запис у `CHANGELOG.md`", "bump `version` вручну" чи
   "оновити `package.json#version`". Зміни у workspace фіксуються винятково
-  через change-file flow (`npx @7n/n ch` → `npx @nitra/cursor lint changelog`);
+  через change-file flow (`npx @7n/n ch` → `npx @7n/rules lint changelog`);
   `version`/`CHANGELOG.md` формує CI.
 - **Не вмикай у промпт:** секрети, `.env`, `node_modules`, бінарні файли,
   довгі логи, дампи `tree`, повні JSON конфігів, цитати існуючих
@@ -251,7 +251,7 @@ version: '1.0'
 
 - `bun test` — зелений
 - `node -p "require('./package.json').engines.node"` → `>=25`
-- `npx @nitra/cursor lint changelog` → exit `0`
+- `npx @7n/rules lint changelog` → exit `0`
 ```
 ````
 

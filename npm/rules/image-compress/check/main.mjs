@@ -56,7 +56,7 @@ export function lint(ctx) {
   const total = Number(report.summary?.total ?? 0)
   if (needsCompression > 0) {
     fail(
-      `image-compress: ${needsCompression}/${total} image-файлів потребують стиснення — запусти \`n-cursor lint image-compress\` локально`,
+      `image-compress: ${needsCompression}/${total} image-файлів потребують стиснення — запусти \`n-rules lint image-compress\` локально`,
       'needs-compression'
     )
   }

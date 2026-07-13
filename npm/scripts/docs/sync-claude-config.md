@@ -3,12 +3,12 @@ type: JS Module
 title: sync-claude-config.mjs
 resource: npm/scripts/sync-claude-config.mjs
 docgen:
-  crc: 0dc348cd
+  crc: 35cf216c
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 85
 ---
 
-Синхронізує конфігурацію Claude Code (`.claude/settings.json`, slash-команди з `commands/` темплейту, ADR Stop-hook) та Cursor hooks (`.cursor/hooks.json`) у поточний проєкт із темплейтів пакету `npm/.claude-template/`. Здійснює злиття конфігурацій: користувацькі поля зберігаються у `.claude/settings.json`, а дозволи (`permissions.allow`) зливаються через union. Керовані хуки, ідентифіковані командою-маркером `MANAGED_HOOK_COMMAND_MARKERS`, перезаписуються. Копіює ADR Stop-hook (`.claude/hooks/capture-decisions.sh`) та ADR normalize Stop-hook (`.claude/hooks/normalize-decisions.sh`) залежно від налаштувань у `.n-cursor.json`. Також зливає фрагмент `.gitignore` з канонічного шаблону, додаючи необхідні записи для ADR.
+Синхронізує конфігурацію Claude Code (`.claude/settings.json`, slash-команди з `commands/` темплейту, ADR Stop-hook) та Cursor hooks (`.cursor/hooks.json`) у поточний проєкт із темплейтів пакету `npm/.claude-template/`. Здійснює злиття конфігурацій: користувацькі поля зберігаються у `.claude/settings.json`, а дозволи (`permissions.allow`) зливаються через union. Керовані хуки, ідентифіковані командою-маркером `MANAGED_HOOK_COMMAND_MARKERS`, перезаписуються. Копіює ADR Stop-hook (`.claude/hooks/capture-decisions.sh`) та ADR normalize Stop-hook (`.claude/hooks/normalize-decisions.sh`) залежно від налаштувань у `.n-rules.json`. Також зливає фрагмент `.gitignore` з канонічного шаблону, додаючи необхідні записи для ADR.
 
 ## Поведінка
 
@@ -38,8 +38,8 @@ syncAdrHookScript — Копіює канонічний bash-скрипт ADR ca
 syncAdrNormalizeHookScript — Копіює канонічний bash-скрипт ADR normalize Stop-hook з темплейту пакета у `.claude/hooks/`.
 syncAdrHookLibScripts — Копіює всі bash-скрипти з `lib/` темплейту у `.claude/hooks/lib/` проєкту.
 removeOrphanAdrHookLib — Видаляє директорію `.claude/hooks/lib/` з проєкту, якщо ADR-хуки вимкнені.
-syncPiExtensions — Копіює bundled pi.dev TS-extension `n-cursor-adr` у `.pi/extensions/n-cursor-adr/` проєкту.
-removeOrphanPiExtension — Видаляє директорію `.pi/extensions/n-cursor-adr/` з проєкту, якщо ADR-хуки вимкнені.
+syncPiExtensions — Копіює bundled pi.dev TS-extension `n-rules-adr` у `.pi/extensions/n-rules-adr/` проєкту.
+removeOrphanPiExtension — Видаляє директорію `.pi/extensions/n-rules-adr/` з проєкту, якщо ADR-хуки вимкнені.
 syncGitignoreAdrFragment — Дописує відсутні рядки з канонічного ADR-фрагмента до кореневого `.gitignore` проєкту.
 syncClaudeCommands — Копіює всі slash-команди з `.claude-template/commands/` у `.claude/commands/` проєкту.
 syncClaudeConfig — Виконує повну синхронізацію Claude Code-конфігу, включаючи ADR-хуки, `.gitignore` та pi-extension, залежно від правил.

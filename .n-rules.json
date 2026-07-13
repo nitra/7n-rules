@@ -1,5 +1,5 @@
 {
-  "$schema": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json",
+  "$schema": "https://unpkg.com/@7n/rules/schemas/n-rules.json",
   "rules": [
     "adr",
     "bun",
@@ -13,6 +13,7 @@
     "npm-module",
     "python",
     "rego",
+    "rust",
     "security",
     "style",
     "test",

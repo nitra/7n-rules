@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/image-compress/check/main.mjs
 docgen:
-  crc: cfb480d0
+  crc: 7b0d7f7d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.98

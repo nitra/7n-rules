@@ -58,7 +58,7 @@ async function check(dir) {
  * @returns {Promise<0 | 1>} код сумісності зі старим контрактом
  */
 async function checkWithPublishedNpm(map, dir) {
-  const binDir = await mkdtemp(join(tmpdir(), 'n-cursor-fake-npm-'))
+  const binDir = await mkdtemp(join(tmpdir(), 'n-rules-fake-npm-'))
   const isWin = platform === 'win32'
   const lookup = JSON.stringify(map)
   // Fake `npm`: відповідає лише на `npm view <name> version`. Для відомого імені друкує
@@ -969,7 +969,7 @@ describe('check-changelog (autofix-режим)', () => {
       await writeFile(join(dir, 'lib/x.js'), 'changed\n', 'utf8')
 
       // fake-npm з лічильником: autofix-шлях НЕ має викликати `npm view`.
-      const binDir = await mkdtemp(join(tmpdir(), 'n-cursor-spy-npm-'))
+      const binDir = await mkdtemp(join(tmpdir(), 'n-rules-spy-npm-'))
       const callLog = join(binDir, 'called')
       const stub = join(binDir, 'npm')
       await writeFile(

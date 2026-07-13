@@ -1,41 +1,38 @@
 /**
- * Тести дописування `\@nitra/cursor` у `devDependencies` workspace-root package.json.
+ * Тести дописування `\@7n/rules` у `devDependencies` workspace-root package.json.
  */
 import { describe, expect, test } from 'vitest'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import {
-  ensureNitraCursorInRootDevDependencies,
-  readBundledPackageVersion
-} from '../ensure-nitra-cursor-dev-dependencies.mjs'
+import { ensureNRulesInRootDevDependencies, readBundledPackageVersion } from '../ensure-n-rules-dev-dependencies.mjs'
 import { withTmpDir, writeJson } from '../utils/test-helpers.mjs'
 
 const SEMVER_RE = /^\d+\.\d+\.\d+/u
 
-describe('ensureNitraCursorInRootDevDependencies', () => {
+describe('ensureNRulesInRootDevDependencies', () => {
   test('дописує devDependencies, якщо пакету ще немає', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 'x', version: '0.0.0', workspaces: ['npm'] })
-      const ok = await ensureNitraCursorInRootDevDependencies(dir, {
+      const ok = await ensureNRulesInRootDevDependencies(dir, {
         bundledVersion: '1.2.3',
         silent: true
       })
       expect(ok).toBe(true)
       const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
-      expect(pkg.devDependencies['@nitra/cursor']).toBe('^1.2.3')
+      expect(pkg.devDependencies['@7n/rules']).toBe('^1.2.3')
     })
   })
 
-  test('не змінює package.json, якщо @nitra/cursor уже в devDependencies', async () => {
+  test('не змінює package.json, якщо @7n/rules уже в devDependencies', async () => {
     await withTmpDir(async dir => {
       const before = {
         name: 'x',
         workspaces: ['npm'],
-        devDependencies: { '@nitra/cursor': '^9.0.0' }
+        devDependencies: { '@7n/rules': '^9.0.0' }
       }
       await writeJson(join(dir, 'package.json'), before)
-      const ok = await ensureNitraCursorInRootDevDependencies(dir, {
+      const ok = await ensureNRulesInRootDevDependencies(dir, {
         bundledVersion: '1.2.3',
         silent: true
       })
@@ -50,15 +47,15 @@ describe('ensureNitraCursorInRootDevDependencies', () => {
       await writeJson(join(dir, 'package.json'), {
         name: 'x',
         workspaces: ['npm'],
-        devDependencies: { '@nitra/cursor': '^12.19.0' }
+        devDependencies: { '@7n/rules': '^12.19.0' }
       })
-      const ok = await ensureNitraCursorInRootDevDependencies(dir, {
+      const ok = await ensureNRulesInRootDevDependencies(dir, {
         bundledVersion: '13.2.6',
         silent: true
       })
       expect(ok).toBe(true)
       const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
-      expect(pkg.devDependencies['@nitra/cursor']).toBe('^13.2.6')
+      expect(pkg.devDependencies['@7n/rules']).toBe('^13.2.6')
     })
   })
 
@@ -67,15 +64,15 @@ describe('ensureNitraCursorInRootDevDependencies', () => {
       await writeJson(join(dir, 'package.json'), {
         name: 'x',
         workspaces: ['npm'],
-        devDependencies: { '@nitra/cursor': '^13.5.0' }
+        devDependencies: { '@7n/rules': '^13.5.0' }
       })
-      const ok = await ensureNitraCursorInRootDevDependencies(dir, {
+      const ok = await ensureNRulesInRootDevDependencies(dir, {
         bundledVersion: '13.2.6',
         silent: true
       })
       expect(ok).toBe(false)
       const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
-      expect(pkg.devDependencies['@nitra/cursor']).toBe('^13.5.0')
+      expect(pkg.devDependencies['@7n/rules']).toBe('^13.5.0')
     })
   })
 
@@ -84,26 +81,26 @@ describe('ensureNitraCursorInRootDevDependencies', () => {
       await writeJson(join(dir, 'package.json'), {
         name: 'x',
         workspaces: ['npm'],
-        devDependencies: { '@nitra/cursor': 'workspace:*' }
+        devDependencies: { '@7n/rules': 'workspace:*' }
       })
-      const ok = await ensureNitraCursorInRootDevDependencies(dir, {
+      const ok = await ensureNRulesInRootDevDependencies(dir, {
         bundledVersion: '13.2.6',
         silent: true
       })
       expect(ok).toBe(false)
       const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
-      expect(pkg.devDependencies['@nitra/cursor']).toBe('workspace:*')
+      expect(pkg.devDependencies['@7n/rules']).toBe('workspace:*')
     })
   })
 
-  test('не дописує, якщо @nitra/cursor лише в dependencies', async () => {
+  test('не дописує, якщо @7n/rules лише в dependencies', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), {
         name: 'x',
         workspaces: ['npm'],
-        dependencies: { '@nitra/cursor': '1.0.0' }
+        dependencies: { '@7n/rules': '1.0.0' }
       })
-      const ok = await ensureNitraCursorInRootDevDependencies(dir, {
+      const ok = await ensureNRulesInRootDevDependencies(dir, {
         bundledVersion: '1.2.3',
         silent: true
       })
@@ -115,7 +112,7 @@ describe('ensureNitraCursorInRootDevDependencies', () => {
 
   test('без package.json — false', async () => {
     await withTmpDir(async dir => {
-      const ok = await ensureNitraCursorInRootDevDependencies(dir, {
+      const ok = await ensureNRulesInRootDevDependencies(dir, {
         bundledVersion: '1.0.0',
         silent: true
       })
@@ -126,7 +123,7 @@ describe('ensureNitraCursorInRootDevDependencies', () => {
   test('не дописує у package.json без workspaces', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 'leaf', version: '0.0.0' })
-      const ok = await ensureNitraCursorInRootDevDependencies(dir, {
+      const ok = await ensureNRulesInRootDevDependencies(dir, {
         bundledVersion: '1.2.3',
         silent: true
       })
@@ -140,9 +137,9 @@ describe('ensureNitraCursorInRootDevDependencies', () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })
       await mkdir(join(dir, 'npm'))
-      await writeJson(join(dir, 'npm', 'package.json'), { name: '@nitra/cursor', version: '0.0.0' })
+      await writeJson(join(dir, 'npm', 'package.json'), { name: '@7n/rules', version: '0.0.0' })
 
-      const ok = await ensureNitraCursorInRootDevDependencies(join(dir, 'npm'), {
+      const ok = await ensureNRulesInRootDevDependencies(join(dir, 'npm'), {
         bundledVersion: '1.2.3',
         silent: true
       })
@@ -158,7 +155,7 @@ describe('ensureNitraCursorInRootDevDependencies', () => {
   test('не дописує коли package.json з недійсним JSON', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'package.json'), 'invalid json{{{', 'utf8')
-      const ok = await ensureNitraCursorInRootDevDependencies(dir, { bundledVersion: '1.2.3', silent: true })
+      const ok = await ensureNRulesInRootDevDependencies(dir, { bundledVersion: '1.2.3', silent: true })
       expect(ok).toBe(false)
     })
   })
@@ -166,7 +163,7 @@ describe('ensureNitraCursorInRootDevDependencies', () => {
   test('дописує і виводить у консоль коли silent не задано', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 'x', workspaces: ['npm'] })
-      const ok = await ensureNitraCursorInRootDevDependencies(dir, { bundledVersion: '1.2.3' })
+      const ok = await ensureNRulesInRootDevDependencies(dir, { bundledVersion: '1.2.3' })
       expect(ok).toBe(true)
     })
   })

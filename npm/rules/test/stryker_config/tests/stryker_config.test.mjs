@@ -1,6 +1,6 @@
 /**
  * Тести концерну `stryker_config` (test.mdc): self-gates через js
- * у `.n-cursor.json#rules`. Read-only detector ЗВІТУЄ про відсутні
+ * у `.n-rules.json#rules`. Read-only detector ЗВІТУЄ про відсутні
  * stryker/vitest baseline-и, vue-plugin, augment та `.gitignore`-патерни;
  * запис робить T0-fix (`fix-stryker_config.mjs`).
  */
@@ -71,14 +71,14 @@ const STRYKER_VUE_BASELINE = readFileSync(
 )
 
 /**
- * Створює тимчасовий проєкт із заданим `.n-cursor.json#rules` і опційним
+ * Створює тимчасовий проєкт із заданим `.n-rules.json#rules` і опційним
  * workspace-layout.
  * @param {{rules?: string[], disableRules?: string[], workspaceRoot?: boolean}} [opts] параметри генерації проєкту
  * @returns {{dir: string, cleanup: () => void}} шлях до проєкту і cleanup
  */
 function makeProj({ rules = [], disableRules = [], workspaceRoot = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'stryker-config-concern-'))
-  writeFileSync(join(dir, '.n-cursor.json'), JSON.stringify({ rules, 'disable-rules': disableRules }))
+  writeFileSync(join(dir, '.n-rules.json'), JSON.stringify({ rules, 'disable-rules': disableRules }))
   if (workspaceRoot) {
     mkdirSync(join(dir, 'app'), { recursive: true })
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['app'] }))
@@ -181,7 +181,7 @@ describe('stryker_config concern', () => {
 
   test('js enabled + кілька workspaces — копіює обидва baseline у КОЖЕН', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'stryker-multi-ws-'))
-    writeFileSync(join(dir, '.n-cursor.json'), JSON.stringify({ rules: ['js'] }))
+    writeFileSync(join(dir, '.n-rules.json'), JSON.stringify({ rules: ['js'] }))
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['app', 'scripts'] }))
     mkdirSync(join(dir, 'app'), { recursive: true })
     mkdirSync(join(dir, 'scripts'), { recursive: true })
@@ -237,7 +237,7 @@ describe('stryker_config concern', () => {
 
   test('js enabled + кореневий package.json відсутній — fail', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'stryker-no-pkg-'))
-    writeFileSync(join(dir, '.n-cursor.json'), JSON.stringify({ rules: ['js'] }))
+    writeFileSync(join(dir, '.n-rules.json'), JSON.stringify({ rules: ['js'] }))
     const exitCode = await runCheckIn(dir)
     expect(exitCode).toBe(1)
     rmSync(dir, { recursive: true, force: true })
@@ -294,7 +294,7 @@ describe('stryker_config concern', () => {
 
   test('js enabled + .vue лише у одному workspace — vue-варіант ставиться тільки там', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'stryker-mixed-ws-'))
-    writeFileSync(join(dir, '.n-cursor.json'), JSON.stringify({ rules: ['js'] }))
+    writeFileSync(join(dir, '.n-rules.json'), JSON.stringify({ rules: ['js'] }))
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['gt', 'cli'] }))
     mkdirSync(join(dir, 'gt', 'src'), { recursive: true })
     mkdirSync(join(dir, 'cli', 'src'), { recursive: true })

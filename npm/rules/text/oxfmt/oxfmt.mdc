@@ -4,8 +4,8 @@
 `.scss`) мають бути відформатовані **oxfmt**. Prettier заборонено — див. `forbidden-prettier`. Канон
 формату — `.oxfmtrc.json` у корені проєкту (включно з `ignorePatterns`).
 
-`npx @nitra/cursor lint text` повідомляє неформатовані файли (`oxfmt --list-different`). Fix-режим
-(`npx @nitra/cursor lint`) виправляє їх детерміновано через `oxfmt --write` (T0, поза LLM). У CI
+`npx @7n/rules lint text` повідомляє неформатовані файли (`oxfmt --list-different`). Fix-режим
+(`npx @7n/rules lint`) виправляє їх детерміновано через `oxfmt --write` (T0, поза LLM). У CI
 (`--no-fix`) неформатовані файли — порушення без мутацій.
 
 Типи поза формату-доменою (`.md`, `.json`, `.yaml` тощо), де діє інше тулінг, цей концерн не зачіпає.

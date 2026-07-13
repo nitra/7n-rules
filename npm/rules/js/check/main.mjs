@@ -221,12 +221,12 @@ async function checkOxlintRc(passFn, failFn, cwd) {
   try {
     canonical = JSON.parse(await readFile(OXLINT_CANONICAL_JSON_PATH, 'utf8'))
   } catch {
-    failFn('внутрішня помилка: не вдалося прочитати канон oxlint з пакета @nitra/cursor')
+    failFn('внутрішня помилка: не вдалося прочитати канон oxlint з пакета @7n/rules')
     return
   }
   const oxV = verifyOxlintRcAgainstCanonical(oxCfg, canonical)
   if (oxV.ok) {
-    passFn('.oxlintrc.json збігається з каноном oxlint (@nitra/cursor)')
+    passFn('.oxlintrc.json збігається з каноном oxlint (@7n/rules)')
   } else {
     for (const msg of oxV.failures) {
       failFn(msg)
@@ -245,7 +245,7 @@ async function checkOxlintRc(passFn, failFn, cwd) {
  */
 async function checkLintJsWorkflows(passFn, failFn, cwd) {
   if (existsSync(join(cwd, '.github/workflows/lint-js.yml'))) {
-    passFn('.github/workflows/lint-js.yml є (структуру перевіряє npx @nitra/cursor fix → js_lint.lint_js_yml)')
+    passFn('.github/workflows/lint-js.yml є (структуру перевіряє npx @7n/rules fix → js_lint.lint_js_yml)')
   } else {
     failFn('.github/workflows/lint-js.yml не існує — створи його (js.mdc)')
   }
@@ -263,7 +263,7 @@ async function checkLintJsWorkflows(passFn, failFn, cwd) {
 
 /**
  * Перевіряє наявність `knip.json` у корені проєкту. Якщо файл відсутній —
- * копіює канонічний `knip-canonical.json` з пакета `@nitra/cursor` як стартовий
+ * копіює канонічний `knip-canonical.json` з пакета `@7n/rules` як стартовий
  * baseline; зміст подальших модифікацій локально не валідується (`entry` /
  * `project` / `ignore` / `ignoreDependencies` / `ignoreBinaries` дозволені
  * будь-які; це side effect — описано у js.mdc).
@@ -280,7 +280,7 @@ async function checkKnipConfig(passFn, failFn, cwd) {
   if (!existsSync(KNIP_CANONICAL_JSON_PATH)) {
     failFn(
       `knip.json відсутній, і канонічний шаблон у пакеті не знайдено (${KNIP_CANONICAL_JSON_PATH}) — ` +
-        'перевстанови @nitra/cursor'
+        'перевстанови @7n/rules'
     )
     return
   }

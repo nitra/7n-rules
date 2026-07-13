@@ -3,7 +3,7 @@ type: JS Module
 title: check-env-scan.mjs
 resource: npm/rules/js-run/lib/check-env-scan.mjs
 docgen:
-  crc: 657e1905
+  crc: 8597def6
 ---
 
 Модуль `npm/rules/js-run/lib/check-env-scan.mjs` — це **статичний AST-сканер**,
@@ -27,7 +27,7 @@ docgen:
 **безпосередньо перед** порушенням:
 
 ```
-// @nitra/cursor ignore-next-line checkEnv
+// @7n/rules ignore-next-line checkEnv
 ```
 
 Сканер працює тільки через AST (`parseProgramOrNull` з `oxc-parser` через
@@ -166,7 +166,7 @@ Aliased-варіанти (наприклад, `{ env as x }` де `local.name !=
 ### `hasIgnoreDirective(lines, oneBasedLine) → boolean`
 
 Перевіряє, чи попередній рядок містить маркер
-`// @nitra/cursor ignore-next-line checkEnv`.
+`// @7n/rules ignore-next-line checkEnv`.
 
 - **Параметри:**
   - `lines: string[]` — рядки файлу (split за `\n`, без trailing `\r`);
@@ -404,7 +404,7 @@ const { DB_USER } = env // kind: 'check-env-missing-checkEnv', name: 'DB_USER'
 **Приглушення:**
 
 ```ts
-// @nitra/cursor ignore-next-line checkEnv
+// @7n/rules ignore-next-line checkEnv
 const host = process.env.DB_HOST // НЕ реєструється
 ```
 

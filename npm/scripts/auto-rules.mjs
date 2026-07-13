@@ -1,5 +1,5 @@
 /**
- * Автовизначення правил для `.n-cursor.json` за meta-даними з `npm/rules/<id>/main.json`.
+ * Автовизначення правил для `.n-rules.json` за meta-даними з `npm/rules/<id>/main.json`.
  *
  * Основна роль: `discoverRuleAutoActivation` читає `npm/rules/<id>/main.json`, виводить
  * `AUTO_RULE_ORDER` (алфавітно) і `AUTO_RULE_DEPENDENCIES` з meta, а потім для кожного правила
@@ -390,10 +390,10 @@ function partitionByAvailability(ids, available) {
  * Доповнює конфіг автодетектом (лише додає; існуючі вручну задані елементи не прибирає),
  * а за наявності `availableRules`/`availableSkills` ще й прибирає з `rules`/`skills`
  * неактуальні id, яких уже немає у пакеті (наприклад, правило чи скіл видалено з нової
- * версії \@nitra/cursor) — інакше sync щоразу падав би на завантаженні відсутнього
+ * версії \@7n/rules) — інакше sync щоразу падав би на завантаженні відсутнього
  * `rules/<id>.mdc` чи `skills/<id>/`. Прибрані id повертаються у полі `pruned` (для логу).
  * @param {object} params параметри оновлення
- * @param {{ rules: unknown, skills?: unknown, ['disable-rules']?: unknown, ['disable-skills']?: unknown }} params.config розпарсений `.n-cursor.json`
+ * @param {{ rules: unknown, skills?: unknown, ['disable-rules']?: unknown, ['disable-skills']?: unknown }} params.config розпарсений `.n-rules.json`
  * @param {string[]} params.detectedRules правила, визначені автодетектом
  * @param {string[]} params.detectedSkills skills, визначені автодетектом
  * @param {string[]} [params.availableRules] id правил, наявних у каталозі `rules/` пакета (для відсіву неактуальних)

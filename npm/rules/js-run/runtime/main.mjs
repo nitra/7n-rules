@@ -249,7 +249,7 @@ async function checkProcessEnvUsage(absPackageRoot, sourcePaths, label, fail) {
       const message =
         v.kind === 'process-env'
           ? `${label}${rel}:${v.line} — process.env.${v.name}: заміни на env з '@nitra/check-env' (обов'язкова змінна + checkEnv(['${v.name}'])) або з 'node:process' (опційна)`
-          : `${label}${rel}:${v.line} — env.${v.name} (з '@nitra/check-env') без checkEnv(['${v.name}']) (або '// @nitra/cursor ignore-next-line checkEnv' попереду)`
+          : `${label}${rel}:${v.line} — env.${v.name} (з '@nitra/check-env') без checkEnv(['${v.name}']) (або '// @7n/rules ignore-next-line checkEnv' попереду)`
       fail(message)
     }
   }
@@ -321,7 +321,7 @@ async function checkWorkspacePackage(rootDir, ignorePaths, fail, passFn, cwd) {
   // Frontend-пакети (vite у devDependencies) виходять за межі js-run:
   // браузерний бандл не має `node:process`, а `process.env.*` бандлер
   // обробляє самостійно. Перевірку process.env / conn-аліасів пропускаємо;
-  // bunyan-залежність валідується в Rego (`npx @nitra/cursor fix`).
+  // bunyan-залежність валідується в Rego (`npx @7n/rules fix`).
   if (packageJsonHasViteDevDependency(pkgJson)) {
     passFn(`${label}vite-пакет (frontend) — js-run пропущено (process.env / conn-aliases / OTEL configmap)`)
     return
@@ -353,7 +353,7 @@ async function checkWorkspacePackage(rootDir, ignorePaths, fail, passFn, cwd) {
   const envViolations = await checkProcessEnvUsage(absPackageRoot, sourcePaths, label, fail)
   if (envViolations === 0) {
     passFn(
-      `${label}немає прямого process.env.*; усі env.* з '@nitra/check-env' закриті checkEnv(['…']) (або '// @nitra/cursor ignore-next-line checkEnv')`
+      `${label}немає прямого process.env.*; усі env.* з '@nitra/check-env' закриті checkEnv(['…']) (або '// @7n/rules ignore-next-line checkEnv')`
     )
   }
 
@@ -393,7 +393,7 @@ function packageJsonHasViteDevDependency(pkgJson) {
 /**
  * Завантажує `package.json` пакета (якщо є). Заборону `@nitra/bunyan` / `bunyan`
  * у dependencies/devDependencies перенесено в Rego (`npm/policy/js_run/package_json/`);
- * `npx \@nitra/cursor check` запускає її по всіх workspace `package.json`. Тут лишилася
+ * `npx \@7n/rules check` запускає її по всіх workspace `package.json`. Тут лишилася
  * лише AST-перевірка імпортів.
  * @param {string} rootDir відносний шлях workspace
  * @returns {Promise<unknown>} розпарсений package.json або null
@@ -408,7 +408,7 @@ async function loadPackageJson(rootDir, cwd) {
 /**
  * Перевіряє наявність `k8s/base/configmap.yaml` пакета. Структуру (наявність
  * `OTEL_RESOURCE_ATTRIBUTES` з обов'язковими `service.name=` / `service.namespace=`)
- * перенесено в Rego (`npm/policy/js_run/configmap/`); `npx \@nitra/cursor check`
+ * перенесено в Rego (`npm/policy/js_run/configmap/`); `npx \@7n/rules check`
  * запускає її на всіх `k8s/base/configmap.yaml`.
  * @param {string} rootDir відносний шлях workspace
  * @param {(msg: string) => void} passFn успішне повідомлення
@@ -464,7 +464,7 @@ function checkOtelConfigmap(rootDir, passFn, failFn, cwd) {
     )
     return
   }
-  passFn(`${rootDir}/k8s/base/configmap.yaml є (OTEL — npx @nitra/cursor fix → js_run.configmap)`)
+  passFn(`${rootDir}/k8s/base/configmap.yaml є (OTEL — npx @7n/rules fix → js_run.configmap)`)
 }
 
 /**

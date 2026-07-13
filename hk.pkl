@@ -4,21 +4,21 @@ local linters = new Mapping<String, Step> {
     ["npm-tsc-types"] {
         glob = List(
             "npm/tsconfig.emit-types.json",
-            "npm/bin/n-cursor.js",
-            "npm/types/bin/n-cursor.d.ts"
+            "npm/bin/n-rules.js",
+            "npm/types/bin/n-rules.d.ts"
         )
         check_first = false
         // oxfmt --write наприкінці: tsc завжди генерує `export {};` (із `;`), oxfmt канон
         // хоче без — без цього кроку кожна регенерація одразу "розфарматовує" d.ts і
         // наступний lint-прогін (text/oxfmt) червонів би на щойно згенерованому файлі.
-        fix = "cd npm && bunx -p typescript tsc -p tsconfig.emit-types.json && find types -type f ! -path 'types/bin/n-cursor.d.ts' -delete && find types -depth -type d -empty -delete && bunx oxfmt types/bin/n-cursor.d.ts --write"
+        fix = "cd npm && bunx -p typescript tsc -p tsconfig.emit-types.json && find types -type f ! -path 'types/bin/n-rules.d.ts' -delete && find types -depth -type d -empty -delete && bunx oxfmt types/bin/n-rules.d.ts --write"
     }
     ["npm-changelog"] {
         glob = List("npm/**")
         check_first = false
         // Autofix-режим (env): за відсутності change-файлу правило саме його створює
         // (patch/Changed, subject останнього коміту) і ставить у індекс — коміт не падає.
-        fix = "N_CURSOR_CHANGELOG_AUTOFIX=1 bun ./npm/bin/n-cursor.js lint changelog"
+        fix = "N_RULES_CHANGELOG_AUTOFIX=1 bun ./npm/bin/n-rules.js lint changelog"
     }
 }
 

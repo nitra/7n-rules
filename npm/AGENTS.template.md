@@ -20,7 +20,7 @@ The primary development rules are stored in the Cursor rules directory:
 
 ## Commands
 
-Generated from the root `package.json` on each `npx @nitra/cursor` sync. Prefer `bun run <script>` for project scripts.
+Generated from the root `package.json` on each `npx @7n/rules` sync. Prefer `bun run <script>` for project scripts.
 
 {{#commands}}
 {{name}}
@@ -32,7 +32,7 @@ Before making changes, read the relevant rule files for the area you are working
 
 ## Інваріант після змін
 
-`n-changelog.mdc` (alwaysApply) релевантне після **будь-якої** зміни файлів, не лише для релізу. Перед фінальною відповіддю виконай `npx @nitra/cursor lint changelog` (exit `0`) і познач результат рядком `Changelog: …` у відповіді.
+`n-changelog.mdc` (alwaysApply) релевантне після **будь-якої** зміни файлів, не лише для релізу. Перед фінальною відповіддю виконай `npx @7n/rules lint changelog` (exit `0`) і познач результат рядком `Changelog: …` у відповіді.
 
 ## Priority
 

@@ -5,7 +5,7 @@ import rego.v1
 
 valid_pkg := {
 	"name": "my-tauri-app",
-	"devDependencies": {"@nitra/cursor": "workspace:*"},
+	"devDependencies": {"@7n/rules": "workspace:*"},
 }
 
 test_allow_no_rust_tools if {

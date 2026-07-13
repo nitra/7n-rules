@@ -5,9 +5,9 @@
     "": {
       "name": "mono",
       "devDependencies": {
+        "@7n/rules": "^1.0.0",
         "@7n/test": "^0.14.3",
         "@nitra/cspell-dict": "^2.2.2",
-        "@nitra/cursor": "^14.23.1",
         "@nitra/eslint-config": "^3.10.3",
         "@nitra/stylelint-config": "^1.4.1",
         "@stryker-mutator/vitest-runner": "^9.6.1",
@@ -32,9 +32,9 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.1.1",
+      "version": "2.6.0",
       "bin": {
-        "n-llm-chains-report": "./bin/chains-report.mjs",
+        "n-llm-chains-report": "bin/chains-report.mjs",
       },
       "peerDependencies": {
         "@earendil-works/pi-ai": "~0.80.2",
@@ -46,10 +46,11 @@
       ],
     },
     "npm": {
-      "name": "@nitra/cursor",
-      "version": "14.23.1",
+      "name": "@7n/rules",
+      "version": "1.0.0",
       "bin": {
-        "n-cursor": "./bin/n-cursor.js",
+        "n-rules": "bin/n-rules.js",
+        "n-cursor": "bin/n-rules.js",
       },
       "dependencies": {
         "@7n/llm-lib": "^2.0.0",
@@ -85,6 +86,8 @@
     "@7n/mt-darwin-arm64": ["@7n/mt-darwin-arm64@0.5.1", "", { "os": "darwin", "cpu": "arm64" }, "sha512-ozofQxbsdrv7cVZJeb9P9MLwzpdNxdqTcmzRQjwSf316TK8ptxzZhU0b24CsoH/Ia98zhbJLBPsdK/ueHWFl4Q=="],
 
     "@7n/mt-linux-x64": ["@7n/mt-linux-x64@0.5.1", "", { "os": "linux", "cpu": "x64" }, "sha512-c4b1c435vfGZcRKkLnWcoKs8O6KTATFFx6gPGnid4ee+JDqzyhtxb5kzxYkcTQySO8iBHPAtUMEOBCHDrF1UjQ=="],
+
+    "@7n/rules": ["@7n/rules@workspace:npm"],
 
     "@7n/test": ["@7n/test@0.14.3", "", { "dependencies": { "@7n/llm-lib": "^2.0.2", "@earendil-works/pi-coding-agent": "^0.80.3", "@nitra/check-env": "^4.2.1", "@vitest/coverage-v8": "^4.1.9", "rollup": "^4.62.2", "vitest": "^4.1.9", "zod": "^4.4.3" }, "bin": { "7n-test": "bin/7n-test.js" } }, "sha512-74Sypjz3j4Dam0TAjqckUPzNz+qaKP0UzLfTV1w7KLCjMcx6OXcWqkDyRi/+5wzSddJlwnIFxPm9XYXAtsq/Gw=="],
 
@@ -457,8 +460,6 @@
     "@nitra/check-env": ["@nitra/check-env@4.2.1", "", { "dependencies": { "@nitra/pino": "^2.12.0" } }, "sha512-EAIoLjs94JjiBdkiVegyWqf1lDN5AtST1r+ygyTgi+44EOQpSdz2SLCz7/5SkmOP0OauVVwOnRTCimD8KcJNQQ=="],
 
     "@nitra/cspell-dict": ["@nitra/cspell-dict@2.2.2", "", { "dependencies": { "@cspell/dict-bash": "^4.2.2", "@cspell/dict-csharp": "^4.0.8", "@cspell/dict-css": "^4.1.1", "@cspell/dict-docker": "^1.1.17", "@cspell/dict-html": "^4.0.15", "@cspell/dict-k8s": "^1.0.12", "@cspell/dict-kotlin": "^1.1.1", "@cspell/dict-lua": "^4.0.8", "@cspell/dict-markdown": "^2.0.16", "@cspell/dict-php": "^4.1.1", "@cspell/dict-python": "^4.2.26", "@cspell/dict-ro-ro": "^2.0.6", "@cspell/dict-ru_ru": "^2.3.2", "@cspell/dict-sql": "^2.2.1", "@cspell/dict-swift": "^2.0.6", "@cspell/dict-tr-tr": "^3.0.6", "@cspell/dict-uk-ua": "^4.0.6", "@cspell/dict-vue": "^3.0.5" } }, "sha512-BQvJ4qGRJLeGezIXNe2sGdG4dVaT/BpCUVYvQbxbqg9wEqcDCPjGRPuoTKLpz8YxahEa4i7Usme8vipitQ0d2A=="],
-
-    "@nitra/cursor": ["@nitra/cursor@workspace:npm"],
 
     "@nitra/eslint-config": ["@nitra/eslint-config@3.10.3", "", { "dependencies": { "@e18e/eslint-plugin": "^0.5.1", "@eslint/compat": "^2.1.0", "@eslint/js": "^10.0.1", "@eslint/markdown": "^8.0.2", "@graphql-eslint/eslint-plugin": "^4.4.0", "@graphql-tools/code-file-loader": "^8.1.32", "@graphql-tools/graphql-tag-pluck": "^8.3.31", "@graphql-tools/utils": "^11.1.0", "@microsoft/eslint-plugin-sdl": "^1.1.0", "eslint": "^10.6.0", "eslint-merge-processors": "^2.0.0", "eslint-plugin-import-x": "^4.17.0", "eslint-plugin-jsdoc": "^63.0.10", "eslint-plugin-jsonc": "^3.2.0", "eslint-plugin-n": "^18.2.1", "eslint-plugin-no-unsanitized": "^4.1.5", "eslint-plugin-oxlint": "^1.71.0", "eslint-plugin-security": "^4.0.1", "eslint-plugin-sonarjs": "^4.1.0", "eslint-plugin-unicorn": "^69.0.0", "eslint-plugin-vue": "^10.9.2", "eslint-plugin-yml": "^3.5.0", "eslint-processor-vue-blocks": "^2.0.0", "globals": "^17.7.0", "graphql": "^16.14.0", "vue-eslint-parser": "^10.4.1" } }, "sha512-QSHs6k6kOFUdq6ZGxjyKsLsNLBllXjAeG4sEt+b0Hw6fg4dVV+5w4omtqtChJRTJdxzPm2vQDkCjtkoY8TxzMw=="],
 

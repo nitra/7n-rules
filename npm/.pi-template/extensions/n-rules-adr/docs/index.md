@@ -1,9 +1,9 @@
 ---
 type: TS Module
 title: index.ts
-resource: npm/.pi-template/extensions/n-cursor-adr/index.ts
+resource: npm/.pi-template/extensions/n-rules-adr/index.ts
 docgen:
-  crc: 62d0f799
+  crc: 4e82955e
   score: 100
 ---
 
@@ -13,7 +13,7 @@ docgen:
 
 1. Виклик події agent_end.
 2. Перевірка захисту від рекурсії через змінні середовища (`CAPTURE_DECISIONS_RUNNING`/`ADR_NORMALIZE_RUNNING`). Якщо встановлено змінні, виконання зупиняється.
-3. Перевірка `ADR_HOOKS_SKIP` — прапор виставляє `npm/bin/n-cursor.js` для підкоманд-оркестраторів (`lint`/`skill`/`taze`/`release`/...). Якщо встановлено, виконання мовчки зупиняється до серіалізації транскрипту (spec `2026-06-30`).
+3. Перевірка `ADR_HOOKS_SKIP` — прапор виставляє `npm/bin/n-rules.js` для підкоманд-оркестраторів (`lint`/`skill`/`taze`/`release`/...). Якщо встановлено, виконання мовчки зупиняється до серіалізації транскрипту (spec `2026-06-30`).
 4. Серіалізація записів сесії. Зчитування записів з sessionManager та формування рядка JSONL.
 5. Запис JSONL файлу. Запис серіалізованого тексту у тимчасову директорію.
 6. Формування вхідного навантаження. Створення JSON об'єкта для передачі у башку.

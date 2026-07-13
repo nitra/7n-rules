@@ -112,7 +112,7 @@ async function reportOneSrcTauri(srcTauriDir, cwd, reporter) {
 
   if (!existsSync(target)) {
     reporter.fail(
-      `.cargo/mutants.toml відсутній (${rel}) — запусти \`npx @nitra/cursor lint tauri\` для Tauri canonical baseline (tauri.mdc)`,
+      `.cargo/mutants.toml відсутній (${rel}) — запусти \`npx @7n/rules lint tauri\` для Tauri canonical baseline (tauri.mdc)`,
       { reason: MUTANTS_CONFIG_MISSING, file: rel }
     )
     return
@@ -125,7 +125,7 @@ async function reportOneSrcTauri(srcTauriDir, cwd, reporter) {
   }
 
   reporter.fail(
-    `.cargo/mutants.toml: бракує канонічних Tauri-ключів [${missing.join(', ')}] (${rel}) — запусти \`npx @nitra/cursor lint tauri\` (tauri.mdc)`,
+    `.cargo/mutants.toml: бракує канонічних Tauri-ключів [${missing.join(', ')}] (${rel}) — запусти \`npx @7n/rules lint tauri\` (tauri.mdc)`,
     { reason: MUTANTS_KEYS_MISSING, file: rel, data: { missing } }
   )
 }

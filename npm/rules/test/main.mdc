@@ -1,7 +1,7 @@
 ---
 description: JS-тести (*.test.mjs) живуть у tests/. Правило `test` керує stryker.config.mjs + vitest.config.mjs (якщо js enabled) і .cargo/mutants.toml (якщо rust enabled).
 version: '2.8'
-globs: "**/{.n-cursor.json,package.json,Cargo.toml,stryker.config.mjs,vitest.config.mjs,vitest.config.js,.cargo/mutants.toml},**/*.test.mjs"
+globs: "**/{.n-rules.json,package.json,Cargo.toml,stryker.config.mjs,vitest.config.mjs,vitest.config.js,.cargo/mutants.toml},**/*.test.mjs"
 alwaysApply: false
 ---
 
@@ -9,13 +9,13 @@ alwaysApply: false
 
 ## Покриття + мутаційне тестування
 
-Канонічна команда — `npx @7n/test coverage` (пакет `@7n/test`, **не** `@nitra/cursor` — цей пакет лише постачає providers, оркестратор живе окремо): збирає метрики покриття (`vitest run --coverage`, `cargo llvm-cov` тощо) і мутаційного тестування (Stryker з vitest-runner + `coverageAnalysis: 'perTest'`, `cargo-mutants`) з усіх активних провайдерів у `.n-cursor.json#rules` і пише `COVERAGE.md` у корінь проєкту.
+Канонічна команда — `npx @7n/test coverage` (пакет `@7n/test`, **не** `@7n/rules` — цей пакет лише постачає providers, оркестратор живе окремо): збирає метрики покриття (`vitest run --coverage`, `cargo llvm-cov` тощо) і мутаційного тестування (Stryker з vitest-runner + `coverageAnalysis: 'perTest'`, `cargo-mutants`) з усіх активних провайдерів у `.n-rules.json#rules` і пише `COVERAGE.md` у корінь проєкту.
 
 **Scoped-режим `--changed`:** `npx @7n/test coverage --changed` звужує scope до файлів, змінених від git merge-base поточної гілки з `main` або `origin/main`. У changed-режимі `COVERAGE.md` **не** перезаписується і LLM-класифікація не запускається.
 
 **`--fix`:** `npx @7n/test coverage --fix` — після збору метрик агент виправляє survived-мутанти й повторює coverage.
 
-Провайдери живуть у `npm/rules/<rule>/coverage/coverage.mjs` (цей пакет, `@nitra/cursor`). Оркестратор — у `@7n/test` (`npm/src/coverage/coverage.mjs`), який резолвить providers з `node_modules/@nitra/cursor/rules`. Проєкт-споживач має мати `@7n/test` як devDependency, аби `npx @7n/test coverage` резолвився без мережевого fetch щоразу.
+Провайдери живуть у `npm/rules/<rule>/coverage/coverage.mjs` (цей пакет, `@7n/rules`). Оркестратор — у `@7n/test` (`npm/src/coverage/coverage.mjs`), який резолвить providers з `node_modules/@7n/rules/rules`. Проєкт-споживач має мати `@7n/test` як devDependency, аби `npx @7n/test coverage` резолвився без мережевого fetch щоразу.
 
 У `package.json` (корінь) має бути `scripts.coverage` із викликом `npx @7n/test coverage`.
 

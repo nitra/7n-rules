@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/python/project/main.mjs
 docgen:
-  crc: a1e2aeb4
+  crc: b47f2997
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 100

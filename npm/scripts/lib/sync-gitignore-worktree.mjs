@@ -1,11 +1,11 @@
 /**
  * Гарантує, що кореневий `.gitignore` проєкту ігнорує локальні git-worktree
- * (`.worktrees/`). Викликається з дефолтного sync (`npx \@nitra/cursor`) окремим
+ * (`.worktrees/`). Викликається з дефолтного sync (`npx \@7n/rules`) окремим
  * top-level кроком — поза `syncClaudeConfig`, бо `.worktrees/` — артефакт
  * завжди-активного worktree-tooling, а не Claude/Cursor-конфігу.
  *
  * Один запис `.worktrees/` покриває checkout-и та локальні описи worktree.
- * Запис безумовний (без гейта за `.n-cursor.json`-правилами), щоб config не міг
+ * Запис безумовний (без гейта за `.n-rules.json`-правилами), щоб config не міг
  * розсинхронитися з реальною поведінкою worktree-команд.
  *
  * Делегує наявній idempotent+append-only утиліті `ensureGitignoreEntries` (header-
@@ -14,7 +14,7 @@
 import { ensureGitignoreEntries } from '../utils/ensure-gitignore-entries.mjs'
 
 /** Header-секція для керованого запису у `.gitignore`. */
-const WORKTREE_SECTION_LABEL = '@nitra/cursor — локальні git-worktree, не коміти'
+const WORKTREE_SECTION_LABEL = '@7n/rules — локальні git-worktree, не коміти'
 
 /**
  * Дописує `.worktrees/` у кореневий `.gitignore`, якщо рядка ще немає.

@@ -1,5 +1,5 @@
 /**
- * Тести pi.dev-extension синку: bundled TS-template у `.pi-template/extensions/n-cursor-adr/`,
+ * Тести pi.dev-extension синку: bundled TS-template у `.pi-template/extensions/n-rules-adr/`,
  * `syncPiExtensions` (copy), `removeOrphanPiExtension` (cleanup), інтеграція у `syncClaudeConfig`.
  */
 import { describe, expect, test } from 'vitest'
@@ -19,7 +19,7 @@ import {
 import { withTmpDir } from '../utils/test-helpers.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const PI_TEMPLATE_PATH = join(HERE, '..', '..', '.pi-template', 'extensions', 'n-cursor-adr', 'index.ts')
+const PI_TEMPLATE_PATH = join(HERE, '..', '..', '.pi-template', 'extensions', 'n-rules-adr', 'index.ts')
 
 const EXPORT_DEFAULT_FN_RE = /export default function/
 const PI_ON_AGENT_END_RE = /pi\.on\(['"]agent_end['"]/
@@ -32,7 +32,7 @@ const ADR_HOOKS_SKIP_RE = /ADR_HOOKS_SKIP/
 const GET_ENTRIES_CALL_RE = /ctx\.sessionManager\.getEntries\(\)/
 
 /**
- * Створює мінімальний bundled-пакет із `.pi-template/extensions/n-cursor-adr/index.ts`.
+ * Створює мінімальний bundled-пакет із `.pi-template/extensions/n-rules-adr/index.ts`.
  * @param {string} cwdAbs корінь тимчасового проєкту
  * @returns {Promise<string>} абсолютний шлях до bundledPackageRoot
  */
@@ -44,7 +44,7 @@ async function setupPiTemplate(cwdAbs) {
   return pkgRoot
 }
 
-describe('.pi-template/extensions/n-cursor-adr/index.ts (bundled)', () => {
+describe('.pi-template/extensions/n-rules-adr/index.ts (bundled)', () => {
   test('файл існує у пакеті', () => {
     expect(existsSync(PI_TEMPLATE_PATH)).toBe(true)
   })
@@ -136,7 +136,7 @@ describe('syncPiExtensions', () => {
 })
 
 describe('removeOrphanPiExtension', () => {
-  test('видаляє .pi/extensions/n-cursor-adr/ якщо існує', async () => {
+  test('видаляє .pi/extensions/n-rules-adr/ якщо існує', async () => {
     await withTmpDir(async cwd => {
       const extDir = join(cwd, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME)
       await mkdir(extDir, { recursive: true })
@@ -187,7 +187,7 @@ async function setupFullTemplate(cwdAbs) {
 }
 
 describe('syncClaudeConfig + pi extension gating', () => {
-  test('коли adr ∈ rules — створює .pi/extensions/n-cursor-adr/index.ts', async () => {
+  test('коли adr ∈ rules — створює .pi/extensions/n-rules-adr/index.ts', async () => {
     await withTmpDir(async cwd => {
       const pkgRoot = await setupFullTemplate(cwd)
       const result = await syncClaudeConfig({
@@ -201,7 +201,7 @@ describe('syncClaudeConfig + pi extension gating', () => {
     })
   })
 
-  test('коли adr ∉ rules — видаляє існуючий .pi/extensions/n-cursor-adr/', async () => {
+  test('коли adr ∉ rules — видаляє існуючий .pi/extensions/n-rules-adr/', async () => {
     await withTmpDir(async cwd => {
       const pkgRoot = await setupFullTemplate(cwd)
       const existing = join(cwd, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME)

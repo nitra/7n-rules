@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/adr/hooks/main.mjs
 docgen:
-  crc: 89b68c68
+  crc: 6a8dd3b2
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.98
@@ -25,7 +25,7 @@ docgen:
 6. Перевіряється файл `.gitignore` на відповідність для всіх лог-файлів хуків, щоб гарантувати їхнє ігнорування.
 7. Перевіряється файл `.gitignore` на відповідність для всіх файлів стану (state files) хуків нормалізації, щоб гарантувати їхнє ігнорування.
 8. Перевіряється наявність каталогу `docs/adr/`, який є обов'язковим місцем для розміщення ADR-ів.
-9. Виконується інформативна перевірка стану capture-бекенду: дефолтний `pi` (npm-first lookup — root `.bin`, nested `@nitra/cursor` `.bin`, системний шлях — і наявність локальної моделі) разом зі станом cloud-фолбеку `claude`/`cursor-agent`, доступного через `CAPTURE_DECISIONS_BACKEND`.
+9. Виконується інформативна перевірка стану capture-бекенду: дефолтний `pi` (npm-first lookup — root `.bin`, nested `@7n/rules` `.bin`, системний шлях — і наявність локальної моделі) разом зі станом cloud-фолбеку `claude`/`cursor-agent`, доступного через `CAPTURE_DECISIONS_BACKEND`.
 10. Механізм збору результатів повертає кінцевий код виходу.
 11. Код не перевіряє шляхи, що стосуються `.git`.
 12. Функція main не здійснює жодного запису у файлову систему чи бази даних.

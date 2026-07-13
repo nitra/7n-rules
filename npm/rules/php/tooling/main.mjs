@@ -26,7 +26,7 @@ export function lint(ctx) {
 
   const wfPath = '.github/workflows/lint-php.yml'
   if (existsSync(wfPath)) {
-    pass(`${wfPath} є (структуру перевіряє npx @nitra/cursor fix → php.lint_php_yml)`)
+    pass(`${wfPath} є (структуру перевіряє npx @7n/rules fix → php.lint_php_yml)`)
   } else {
     fail(`${wfPath} не існує — створи згідно php.mdc`)
   }

@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/bun/layout/main.mjs
 docgen:
-  crc: 65f63306
+  crc: 457e5fcd
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 95
   issues: anchor-miss:(bun.mdc),judge:inaccurate:0.99
