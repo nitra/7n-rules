@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.0] - 2026-07-13
+
+### Changed
+
+- Пакет перейменовано: `@nitra/cursor` → `@7n/rules` (bin `n-rules` + перехідний alias `n-cursor`, конфіг `.n-rules.json` з авто-міграцією з `.n-cursor.json`, маркери блоків `n-rules:*`, `$schema` на `unpkg.com/@7n/rules/...`); legacy-назви читаються як fallback для безшовної міграції споживачів
+
 ## [14.33.0] - 2026-07-13
 
 ### Changed
