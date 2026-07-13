@@ -9,15 +9,15 @@
     "omlx",
     "bun"
   ],
-  "homepage": "https://github.com/n/cursor#readme",
+  "homepage": "https://github.com/nitra/7n-rules#readme",
   "bugs": {
-    "url": "https://github.com/n/cursor/issues"
+    "url": "https://github.com/nitra/7n-rules/issues"
   },
   "license": "ISC",
   "author": "v@nitra.ai",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/n/cursor.git",
+    "url": "git+https://github.com/nitra/7n-rules.git",
     "directory": "llm-lib"
   },
   "type": "module",

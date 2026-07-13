@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/nitra/cursor/main/npm/schemas/vendor/mcp.json",
+  "$id": "https://raw.githubusercontent.com/nitra/7n-rules/main/npm/schemas/vendor/mcp.json",
   "title": "MCP servers config (.mcp.json)",
   "description": "Конфіг MCP-серверів проєкту (Claude Code, Cursor тощо): mcpServers — мапа <ім'я> → опис запуску (stdio command/args/env або url для sse/http).",
   "type": "object",
