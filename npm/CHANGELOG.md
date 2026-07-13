@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.33.0] - 2026-07-13
+
+### Changed
+
+- test.package_json: scripts.test має містити --bun разом з vitest (bun run --bun vitest run) — без Bun-рушія forked pool-процеси не резолвлять Bun-нативні built-in модулі (напр. import { SQL } from 'bun'); explain-повідомлення при violation пояснює причину
+
 ## [14.32.1] - 2026-07-12
 
 ### Fixed
