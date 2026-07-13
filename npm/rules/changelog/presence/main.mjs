@@ -13,7 +13,7 @@ import { createViolationReporter } from '../../../scripts/lib/lint-surface/viola
 /**
  * Префікси шляхів (posix), які не вважаються релізними змінами — та сама інверсія, що в
  * `changelog/consistency` (`CHANGELOG_IGNORE_PATH_PREFIXES`): документація й синхронізований
- * із `@nitra/cursor` інструментарій (`.cursor/`, `.claude/`).
+ * із `@7n/rules` інструментарій (`.cursor/`, `.claude/`).
  */
 const CHANGELOG_IGNORE_PATH_PREFIXES = ['docs/', 'doc/', '.cursor/', '.claude/']
 

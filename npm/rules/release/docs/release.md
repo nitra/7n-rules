@@ -3,12 +3,12 @@ type: JS Module
 title: release.mjs
 resource: npm/rules/release/release.mjs
 docgen:
-  crc: 8cb6e35d
+  crc: 475bce65
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
 
-Файл автоматизує процес випуску версій. Він агрегує зміна-файли для всіх робочих просторів у `version-bump` та `CHANGELOG`, комітить зміни, ставить тег `<name>@<version>` та видаляє використані зміна-файли. Цей процес виконується у CI на гілці `main` (n-cursor-release-design, варіант A). Публічні функції, що надає модуль, — `release` та `runReleaseCli`.
+Файл автоматизує процес випуску версій. Він агрегує зміна-файли для всіх робочих просторів у `version-bump` та `CHANGELOG`, комітить зміни, ставить тег `<name>@<version>` та видаляє використані зміна-файли. Цей процес виконується у CI на гілці `main` (n-rules-release-design, варіант A). Публічні функції, що надає модуль, — `release` та `runReleaseCli`.
 
 ## Поведінка
 

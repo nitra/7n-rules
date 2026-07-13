@@ -34,6 +34,12 @@ all_run_text := concat("\n", [run_text |
 	run_text := step_run_to_text(step)
 ])
 
+# Крок dtolnay/rust-toolchain@stable має мати with.components з rustfmt і clippy.
+toolchain_step(step) if {
+	uses := object.get(step, "uses", "")
+	startswith(uses, "dtolnay/rust-toolchain@")
+}
+
 deny contains msg if {
 	some required_use in expected_uses
 	not required_use in actual_uses
@@ -48,28 +54,22 @@ deny contains msg if {
 	msg := sprintf("lint-rust.yml: жоден крок run не містить %q (rust.mdc)", [expected_run])
 }
 
-# Крок dtolnay/rust-toolchain@stable має мати with.components з rustfmt і clippy.
-toolchain_step(step) if {
-	uses := object.get(step, "uses", "")
-	startswith(uses, "dtolnay/rust-toolchain@")
-}
-
 deny contains msg if {
+	msg := "lint-rust.yml: dtolnay/rust-toolchain step потребує with.components: rustfmt, clippy (rust.mdc)"
 	some job in object.get(input, "jobs", {})
 	some step in object.get(job, "steps", [])
 	toolchain_step(step)
 	components := object.get(object.get(step, "with", {}), "components", "")
 	not contains(components, "rustfmt")
-	msg := "lint-rust.yml: dtolnay/rust-toolchain step потребує with.components: rustfmt, clippy (rust.mdc)"
 }
 
 deny contains msg if {
+	msg := "lint-rust.yml: dtolnay/rust-toolchain step потребує with.components: rustfmt, clippy (rust.mdc)"
 	some job in object.get(input, "jobs", {})
 	some step in object.get(job, "steps", [])
 	toolchain_step(step)
 	components := object.get(object.get(step, "with", {}), "components", "")
 	not contains(components, "clippy")
-	msg := "lint-rust.yml: dtolnay/rust-toolchain step потребує with.components: rustfmt, clippy (rust.mdc)"
 }
 
 step_run_to_text(step) := step.run if is_string(step.run)

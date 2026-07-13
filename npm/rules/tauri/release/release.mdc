@@ -1,6 +1,6 @@
 ## Реліз-flow: change-файли → тег → DMG/updater-артефакти
 
-Версія Tauri-застосунку — **єдина**, керується change-файлами за конвенцією `n-changelog.mdc`. Ручні v-теги і ручний bump `version` у `tauri.conf.json`/`package.json` **заборонені**: у CI версію проставляє `npx @nitra/cursor release`, а release-build синхронізує її з тегу (нижче).
+Версія Tauri-застосунку — **єдина**, керується change-файлами за конвенцією `n-changelog.mdc`. Ручні v-теги і ручний bump `version` у `tauri.conf.json`/`package.json` **заборонені**: у CI версію проставляє `npx @7n/rules release`, а release-build синхронізує її з тегу (нижче).
 
 Канон складається з двох workflow-файлів і відповідного `tauri.conf.json`-конфігу; референс — `.github/workflows/{changelog-release,release}.yml` та `src-tauri/tauri.conf.json` чотирьох production Tauri-репо, де цей flow вже впроваджено.
 
@@ -32,16 +32,16 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
-      - run: npx @nitra/cursor release
+      - run: npx @7n/rules release
       # якщо HEAD став release:* — прочитати нову версію з app/package.json,
       # тегнути app@$VER і v$VER, запушити, тоді dispatch release.yml
 ```
 
 - `paths: [app/.changes/**]` (шлях підставляється під реальний workspace, де лежить `src-tauri`) — тригер лише на change-файли, не на будь-який push у `main`. **У `<app>/.changes/` має жити tracked `.gitkeep`**: реліз споживає всі change-файли, і без нього glob перестає матчити tracked-файли — ga/workflows (`unmatched-paths-glob`) червоніє.
-- **Push-auth обовʼязковий**: `persist-credentials: false` — ga-канон (і дефолт `checkout@v6`), тож без явного `git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@…"` push із `n-cursor release` мовчки відхиляється, а тихий git-раннер маскує причину («git push не вдався після 5 спроб (non-fast-forward?)»).
+- **Push-auth обовʼязковий**: `persist-credentials: false` — ga-канон (і дефолт `checkout@v6`), тож без явного `git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@…"` push із `n-rules release` мовчки відхиляється, а тихий git-раннер маскує причину («git push не вдався після 5 спроб (non-fast-forward?)»).
 - `if: "!startsWith(github.event.head_commit.message, 'release:')"` — страховка від циклу: коміт `release:*` теж матче `paths` (він видаляє change-файли), тому job має пропускати сам себе.
 - `permissions: {contents: write, actions: write}` — `actions: write` потрібен для останнього кроку.
-- Після успішного `npx @nitra/cursor release` (детектується за `git log -1 --pretty=%s` що починається з `release:`) — тегнути `app@$VER` і `v$VER`, запушити обидва.
+- Після успішного `npx @7n/rules release` (детектується за `git log -1 --pretty=%s` що починається з `release:`) — тегнути `app@$VER` і `v$VER`, запушити обидва.
 - **Останній крок — явний `gh workflow run release.yml --ref "v$VER"`.** Тег пушиться токеном `GITHUB_TOKEN`, а GitHub не тригерить `on.push.tags` workflow-и для push-подій від `GITHUB_TOKEN` — тому без явного dispatch `release.yml` ніколи не запуститься.
 
 Детальна модель change-файлів (база порівняння, формат CHANGELOG, post-release-інваріант) — у `n-changelog.mdc`; тут лише інтеграція з Tauri release-циклом.
@@ -81,7 +81,7 @@ jobs:
         with: { projectPath: app }
 ```
 
-- **«Sync app version from tag» має йти перед кроком `tauri-apps/tauri-action`** — тег `vX.Y.Z` є єдиним джерелом версії для build-артефактів; `tauri.conf.json#version` у робочому дереві не редагується вручну (він там лишається тим, що востаннє поставив `n-cursor release`, і синхронізується цим кроком лише в CI, не в git).
+- **«Sync app version from tag» має йти перед кроком `tauri-apps/tauri-action`** — тег `vX.Y.Z` є єдиним джерелом версії для build-артефактів; `tauri.conf.json#version` у робочому дереві не редагується вручну (він там лишається тим, що востаннє поставив `n-rules release`, і синхронізується цим кроком лише в CI, не в git).
 - Секрети підпису — з Infisical: Apple-сертифікати (`secret-path: /apple`) і `TAURI_SIGNING_PRIVATE_KEY` (`secret-path: /updater`) — обидва потрібні `tauri-apps/tauri-action`, щоб зібрати підписаний DMG з updater-артефактами.
 
 ### `tauri.conf.json` — updater-артефакти й endpoint

@@ -12,6 +12,6 @@
     "skipLibCheck": true,
     "target": "ESNext"
   },
-  "include": ["bin/n-cursor.js"],
+  "include": ["bin/n-rules.js"],
   "exclude": ["**/node_modules/**", "**/tests/**", "types/**"]
 }

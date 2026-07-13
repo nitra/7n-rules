@@ -3,7 +3,7 @@ type: JS Module
 title: hook.mjs
 resource: npm/scripts/hook.mjs
 docgen:
-  crc: 0cb6041e
+  crc: ea16c864
   model: claude-sonnet-4-6
   score: 100
 ---
@@ -22,7 +22,7 @@ docgen:
 ## Публічний API
 
 - `extractFilePath(json)` — витягує `tool_input.file_path` зі stdin JSON Claude Code PostToolUse hook; повертає `null` якщо JSON відсутній або поле не знайдено.
-- `runHookCli(argv)` — CLI-точка входу для `n-cursor hook`; повертає Promise<number> (0 — чисто, 1 — невідомий режим, 2 — є порушення).
+- `runHookCli(argv)` — CLI-точка входу для `n-rules hook`; повертає Promise<number> (0 — чисто, 1 — невідомий режим, 2 — є порушення).
 
 ## Гарантії поведінки
 

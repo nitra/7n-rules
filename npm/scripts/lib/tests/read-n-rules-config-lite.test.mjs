@@ -2,21 +2,21 @@ import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-import { isRuleEnabled, readNCursorConfigLite } from '../read-n-cursor-config-lite.mjs'
+import { isRuleEnabled, readNRulesConfigLite } from '../read-n-rules-config-lite.mjs'
 import { withTmpDir, writeJson } from '../../utils/test-helpers.mjs'
 
-describe('readNCursorConfigLite', () => {
+describe('readNRulesConfigLite', () => {
   test('повертає exists:false коли файл відсутній', async () => {
     await withTmpDir(async dir => {
-      const cfg = await readNCursorConfigLite(dir)
+      const cfg = await readNRulesConfigLite(dir)
       expect(cfg).toEqual({ exists: false, rules: [], disableRules: [] })
     })
   })
 
   test('повертає rules і disableRules з файлу', async () => {
     await withTmpDir(async dir => {
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['js', 'docker'], 'disable-rules': ['text'] })
-      const cfg = await readNCursorConfigLite(dir)
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['js', 'docker'], 'disable-rules': ['text'] })
+      const cfg = await readNRulesConfigLite(dir)
       expect(cfg.exists).toBe(true)
       expect(cfg.rules).toEqual(['js', 'docker'])
       expect(cfg.disableRules).toEqual(['text'])
@@ -25,8 +25,8 @@ describe('readNCursorConfigLite', () => {
 
   test('повертає порожні масиви коли поля відсутні', async () => {
     await withTmpDir(async dir => {
-      await writeJson(join(dir, '.n-cursor.json'), { name: 'x' })
-      const cfg = await readNCursorConfigLite(dir)
+      await writeJson(join(dir, '.n-rules.json'), { name: 'x' })
+      const cfg = await readNRulesConfigLite(dir)
       expect(cfg.exists).toBe(true)
       expect(cfg.rules).toEqual([])
       expect(cfg.disableRules).toEqual([])
@@ -35,8 +35,8 @@ describe('readNCursorConfigLite', () => {
 
   test('фільтрує нерядкові елементи з rules', async () => {
     await withTmpDir(async dir => {
-      await writeFile(join(dir, '.n-cursor.json'), '{"rules":["a",42,null,"b"]}', 'utf8')
-      const cfg = await readNCursorConfigLite(dir)
+      await writeFile(join(dir, '.n-rules.json'), '{"rules":["a",42,null,"b"]}', 'utf8')
+      const cfg = await readNRulesConfigLite(dir)
       expect(cfg.rules).toEqual(['a', 'b'])
     })
   })

@@ -1,5 +1,5 @@
 /**
- * Допоміжні функції для тестів скриптів пакета `@nitra/cursor`: тимчасові
+ * Допоміжні функції для тестів скриптів пакета `@7n/rules`: тимчасові
  * каталоги (без мутації `process.cwd()`) та запис JSON у абсолютний шлях.
  *
  * **Без `process.chdir`.** Глобальна мутація `process.cwd()` ламає паралельні
@@ -28,7 +28,7 @@ import { env, platform } from 'node:process'
  * @returns {Promise<void>} завершується після виконання `fn` і прибирання тимчасової директорії
  */
 export async function withTmpDir(fn) {
-  const dir = await mkdtemp(join(tmpdir(), 'n-cursor-test-'))
+  const dir = await mkdtemp(join(tmpdir(), 'n-rules-test-'))
   try {
     await fn(dir)
   } finally {
@@ -81,7 +81,7 @@ export async function ensureDir(path) {
  * @returns {Promise<void>}
  */
 export async function withBinStubInPath(bin, fn) {
-  const dir = await mkdtemp(join(tmpdir(), `n-cursor-${bin}-stub-`))
+  const dir = await mkdtemp(join(tmpdir(), `n-rules-${bin}-stub-`))
   const isWin = platform === 'win32'
   const stub = join(dir, isWin ? `${bin}.exe` : bin)
   await writeFile(stub, isWin ? '' : '#!/bin/sh\nexit 0\n', 'utf8')

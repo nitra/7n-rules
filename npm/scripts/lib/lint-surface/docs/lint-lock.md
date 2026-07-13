@@ -3,7 +3,7 @@ type: JS Module
 title: lint-lock.mjs
 resource: npm/scripts/lib/lint-surface/lint-lock.mjs
 docgen:
-  crc: ff6f505d
+  crc: 23bf1b2c
   model: openai-codex/gpt-5.5
   tier: cloud-avg
   score: 100
@@ -13,7 +13,7 @@ docgen:
 
 ## Огляд
 
-Файл серіалізує лише довгі machine-wide запуски `n-cursor lint --full`, щоб на машині одночасно виконувався щонайбільше один full-прогін. Delta, scoped і `--no-fix` запуски не беруть глобальний лок і не стають у цю чергу.
+Файл серіалізує лише довгі machine-wide запуски `n-rules lint --full`, щоб на машині одночасно виконувався щонайбільше один full-прогін. Delta, scoped і `--no-fix` запуски не беруть глобальний лок і не стають у цю чергу.
 
 Активний full-прогін записує власника лока в `owner.json` і публікує живий стан у `progress.json`, щоб процеси в очікуванні бачили поточного виконавця та прогрес. Процеси в черзі реєструються у `queue/<enqueuedAt>-<pid>.json`, що дає видимий список очікування й позицію кожного запуску.
 

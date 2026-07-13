@@ -3,13 +3,13 @@ type: JS Module
 title: ensure-tool.mjs
 resource: npm/scripts/lib/ensure-tool.mjs
 docgen:
-  crc: 230254b3
+  crc: 42b0cd01
 ---
 
-Модуль `ensure-tool.mjs` — єдина точка резолву зовнішніх CLI-залежностей пакета `@nitra/cursor`. Він гарантує, що потрібний бінарник (`hk`, `conftest`, `shellcheck`, `actionlint`, `dotenv-linter`, `opa`, `regal`, `hadolint`, `kubeconform`, `kubescape`) доступний у системі, виконуючи послідовний пошук:
+Модуль `ensure-tool.mjs` — єдина точка резолву зовнішніх CLI-залежностей пакета `@7n/rules`. Він гарантує, що потрібний бінарник (`hk`, `conftest`, `shellcheck`, `actionlint`, `dotenv-linter`, `opa`, `regal`, `hadolint`, `kubeconform`, `kubescape`) доступний у системі, виконуючи послідовний пошук:
 
 1. У системному `PATH` (через `resolveCmd`).
-2. У керованому кеші бінарників (`~/.cache/@nitra/cursor/bin/` на Linux/macOS або `%LOCALAPPDATA%\@nitra\cursor\bin\` на Windows).
+2. У керованому кеші бінарників (`~/.cache/@7n/rules/bin/` на Linux/macOS або `%LOCALAPPDATA%\@nitra\cursor\bin\` на Windows).
 3. Авто-встановлення відповідно до OS (`brew` для macOS, `scoop` для Windows із fallback на GitHub Release, прямий завантажувач GitHub Release для Linux).
 4. Hard-fail з персоналізованою підказкою, якщо авто-встановлення вимкнено змінною середовища `N_CURSOR_NO_AUTO_INSTALL`.
 
@@ -38,8 +38,8 @@ docgen:
 - **Параметри:** немає.
 - **Повертає:** абсолютний шлях до каталогу кешу бінарників.
 - **Логіка:**
-  - На `win32` бере `process.env.LOCALAPPDATA` (fallback `homedir()/AppData/Local`) і додає `@nitra/cursor/bin`.
-  - На інших платформах повертає `homedir()/.cache/@nitra/cursor/bin`.
+  - На `win32` бере `process.env.LOCALAPPDATA` (fallback `homedir()/AppData/Local`) і додає `@7n/rules/bin`.
+  - На інших платформах повертає `homedir()/.cache/@7n/rules/bin`.
 - **Side effects:** немає (тільки читає env / `os.homedir`).
 
 ### `mapArch(nodeArch, style)`
@@ -202,8 +202,8 @@ docgen:
 
 1. Викликається `ensureTool('shellcheck')`.
 2. `resolveCmd('shellcheck')` — не знайдено в `PATH`.
-3. `getCacheDir()` повертає `/home/<user>/.cache/@nitra/cursor/bin`.
-4. Перевірка `/home/<user>/.cache/@nitra/cursor/bin/shellcheck` — не існує.
+3. `getCacheDir()` повертає `/home/<user>/.cache/@7n/rules/bin`.
+4. Перевірка `/home/<user>/.cache/@7n/rules/bin/shellcheck` — не існує.
 5. `N_CURSOR_NO_AUTO_INSTALL` не виставлено → `autoInstall(...)`.
 6. На Linux диспетчер викликає `installFromGithub('shellcheck', entry, cacheDir)`:
    - `fetchLatestVersion('koalaman/shellcheck', curl)` → наприклад `0.10.0`.

@@ -16,8 +16,8 @@ describe("configRefs — повне ім'я файлу, без зрізу все
   })
 
   test('дотфайл-конфіг лишається цілим', () => {
-    const a = extractAnchors("import cfg from '.n-cursor.json'\n")
-    expect(a.configRefs).toContain('.n-cursor.json')
+    const a = extractAnchors("import cfg from '.n-rules.json'\n")
+    expect(a.configRefs).toContain('.n-rules.json')
   })
 
   test('звичайний package.json захоплюється цілим', () => {
@@ -49,12 +49,12 @@ describe('anchorTokens — плоский список для перевірки
       '// https://example.com/doc',
       "export const TAG = 'x-tag'",
       "throw new Error('погано (foo.mdc)')",
-      "readFile('.n-cursor.json')"
+      "readFile('.n-rules.json')"
     ].join('\n')
     const tokens = anchorTokens(extractAnchors(src))
     expect(tokens).toContain('https://example.com/doc')
     expect(tokens).toContain('TAG')
     expect(tokens).toContain('(foo.mdc)')
-    expect(tokens).toContain('.n-cursor.json')
+    expect(tokens).toContain('.n-rules.json')
   })
 })

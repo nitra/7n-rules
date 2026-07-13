@@ -3,12 +3,12 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/text/run-v8r/main.mjs
 docgen:
-  crc: c94e0552
+  crc: f6f78d26
 ---
 
 ## Огляд
 
-Пакетна перевірка синтаксису та відповідності JSON-схем для файлів `json`/`json5`/`yaml`/`yml`/`toml` за один виклик `lint-text`, замість п'яти окремих `v8r`-процесів (по одному на розширення, бо `v8r` завершується кодом 98, якщо хоч один із переданих `glob` не знаходить файлів). Каталог схем `@nitra/cursor` (`npm/schemas/v8r-catalog.json`) описує локальні (не-http) схеми як шляхи ВІДНОСНО `npm/schemas/` — усі власні (`n-cursor.json`, `rule-meta.json`, `skill-meta.json`, `concern.json`, `target.json`) і сторонні (`npm/schemas/vendor/`: `package.json`, `tsconfig.json`, `oxlintrc.json`, `cspell.json`, `knip.json`, `jscpd.json` тощо) схеми вендорені — `v8r` ніколи не фетчить їх по мережі. Вендоровані схеми self-contained: усі `$ref` внутрішні (зовнішні `v8r` резолвив би через `got` відносно `$id` — мережею на кожен прогін); зовнішні залежності інлайняться при вендорингу (у `vendor/package.json` вкладено eslintrc/prettierrc/ava/… як `definitions.vendored-<name>`), інваріант закріплено guard-тестом `npm/rules/text/tests/run-v8r-catalog.test.mjs`.
+Пакетна перевірка синтаксису та відповідності JSON-схем для файлів `json`/`json5`/`yaml`/`yml`/`toml` за один виклик `lint-text`, замість п'яти окремих `v8r`-процесів (по одному на розширення, бо `v8r` завершується кодом 98, якщо хоч один із переданих `glob` не знаходить файлів). Каталог схем `@7n/rules` (`npm/schemas/v8r-catalog.json`) описує локальні (не-http) схеми як шляхи ВІДНОСНО `npm/schemas/` — усі власні (`n-rules.json`, `rule-meta.json`, `skill-meta.json`, `concern.json`, `target.json`) і сторонні (`npm/schemas/vendor/`: `package.json`, `tsconfig.json`, `oxlintrc.json`, `cspell.json`, `knip.json`, `jscpd.json` тощо) схеми вендорені — `v8r` ніколи не фетчить їх по мережі. Вендоровані схеми self-contained: усі `$ref` внутрішні (зовнішні `v8r` резолвив би через `got` відносно `$id` — мережею на кожен прогін); зовнішні залежності інлайняться при вендорингу (у `vendor/package.json` вкладено eslintrc/prettierrc/ava/… як `definitions.vendored-<name>`), інваріант закріплено guard-тестом `npm/rules/text/tests/run-v8r-catalog.test.mjs`.
 
 Перед кожним запуском модуль матеріалізує тимчасовий v8r-конфіг-файл із полем `customCatalog` (абсолютні локальні шляхи, обчислені через `import.meta.url`) і передає його через змінну середовища `V8R_CONFIG_FILE`, а не через прапор `-c` — `-c`-каталог `v8r` на кожен файл валідує проти `schema-catalog.json`-метасхеми, яка вимагає `format: "uri"` для `url`; абсолютний локальний шлях цій вимозі не відповідає, а `file://`-URI відповідав би формату, але `v8r` фетчить `url` через `got` (лише http/https). `customCatalog` (ключ `location`, без `format: "uri"`-обмеження) пропускає цю метавалідацію.
 

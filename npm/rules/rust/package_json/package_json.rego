@@ -15,6 +15,6 @@ deny contains msg if {
 	name in banned_rust_tools
 	msg := sprintf(
 		"package.json: %s.%s заборонений — Rust toolchain встановлюється через rustup / dtolnay/rust-toolchain@stable, не через npm (rust.mdc)",
-		[field, name]
+		[field, name],
 	)
 }

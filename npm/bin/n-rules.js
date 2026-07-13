@@ -1,33 +1,33 @@
 #!/usr/bin/env node
 
 /**
- * n-cursor — CLI завантаження правил та перевірки проєкту
+ * n-rules — CLI завантаження правил та перевірки проєкту
  *
  * Використання:
- *   `npx \@nitra/cursor`             — завантажити cursor-правила (синк); якщо в корені вже є `.n-cursor.json`,
+ *   `npx \@7n/rules`             — завантажити cursor-правила (синк); якщо в корені вже є `.n-rules.json`,
  *                                     спочатку зчитується конфіг і за потреби дописується `$schema`
- *   `npx \@nitra/cursor rename-yaml-extensions` — k8s `*.yml` → `*.yaml`, `.github` `*.yaml` → `*.yml` (опції: `--dry-run`, `--root=…`; див. bin/rename-yaml-extensions.mjs)
- *   `npx \@nitra/cursor hook --post-tool-use` — PostToolUse hook: per-file lint правила для зміненого файлу (stdin JSON `tool_input.file_path`). Прописується автоматично в `.claude/settings.json`.
- *   `npx \@nitra/cursor hook --stop`           — Stop hook: per-file lint по всіх змінених файлах (git diff HEAD + untracked).
- *   `npx \@nitra/cursor lint`        — data-driven оркестратор lint+конформності по `rules/<id>/meta.json` (`lint: per-file|full`):
+ *   `npx \@7n/rules rename-yaml-extensions` — k8s `*.yml` → `*.yaml`, `.github` `*.yaml` → `*.yml` (опції: `--dry-run`, `--root=…`; див. bin/rename-yaml-extensions.mjs)
+ *   `npx \@7n/rules hook --post-tool-use` — PostToolUse hook: per-file lint правила для зміненого файлу (stdin JSON `tool_input.file_path`). Прописується автоматично в `.claude/settings.json`.
+ *   `npx \@7n/rules hook --stop`           — Stop hook: per-file lint по всіх змінених файлах (git diff HEAD + untracked).
+ *   `npx \@7n/rules lint`        — data-driven оркестратор lint+конформності по `rules/<id>/meta.json` (`lint: per-file|full`):
  *                                     за замовчуванням fix-by-default по дельті vs origin (лише `per-file` правила); `--full` =
  *                                     весь репо (`per-file` ∪ `full`); `--no-fix` = без мутацій/LLM (CI); позиційні
  *                                     (не-флаг) аргументи — фільтр правил конформності (мапить колишній `fix <rule>`).
  *                                     CI = `lint --no-fix --full` (весь репо, нуль мутацій/LLM).
- *   `npx \@nitra/cursor skill list`     — скіли пакета без синку в проєкт
- *   `npx \@nitra/cursor skill taze`     — промпт на stdout
- *   `npx \@nitra/cursor skill cursor taze ["task"]` — Cursor CLI (`cursor-agent -p`)
- *   `npx \@nitra/cursor skill claude taze ["task"]` — Claude Code CLI (`claude -p`)
+ *   `npx \@7n/rules skill list`     — скіли пакета без синку в проєкт
+ *   `npx \@7n/rules skill taze`     — промпт на stdout
+ *   `npx \@7n/rules skill cursor taze ["task"]` — Cursor CLI (`cursor-agent -p`)
+ *   `npx \@7n/rules skill claude taze ["task"]` — Claude Code CLI (`claude -p`)
  *
  * Agent інтеграція: під час синку, окрім `.cursor/rules` і `.claude/commands` (з skills), CLI ще раз
  * синхронізує `.claude/settings.json` (hooks + permissions; merge — користувацькі поля зберігаються)
  * і `.cursor/hooks.json` (Cursor Agent hooks; merge — користувацькі hooks зберігаються).
- * Опт-аут — поле `claude-config: false` у `.n-cursor.json`.
+ * Опт-аут — поле `claude-config: false` у `.n-rules.json`.
  * Pi.dev інтеграція: для кожного skill у `.cursor/skills/<dir>/` CLI генерує
  * `.pi/skills/<dir>/SKILL.md` із frontmatter `name`+`description` (формат pi.dev). Тіло — делегат
  * на джерельний `.cursor/skills/<dir>/SKILL.md`. Always-on, симетрично до `.claude/commands/`.
  *
- * Якщо у корені репозиторію немає .n-cursor.json, спочатку перейменовується за наявності nitra-cursor.json;
+ * Якщо у корені репозиторію немає .n-rules.json, спочатку перейменовується за наявності nitra-cursor.json;
  * у `.cursor/rules` файли `nitra-*.mdc` перейменовуються на `n-*.mdc`; інакше конфіг створюється автоматично
  * з усіма правилами з каталогу rules/ пакету (їх можна відредагувати після створення). У файлі завжди має бути
  * поле `$schema` з посиланням на JSON Schema пакету (публічний URL для IDE); при зчитуванні конфігу воно додається або виправляється на диску, якщо відсутнє або некоректне.
@@ -38,12 +38,12 @@
  * Секція команд — з кореневого package.json (scripts) та фіксовані рядки про CLI синхрону/перевірок.
  *
  * Після завантаження: у .cursor/rules видаляються файли *.mdc з префіксом «n-» (керовані
- * пакетом), яких немає у списку rules у .n-cursor.json. Інші .mdc у цій директорії залишаються.
+ * пакетом), яких немає у списку rules у .n-rules.json. Інші .mdc у цій директорії залишаються.
  *
  * Composite GitHub Action `.github/actions/setup-bun-deps/action.yml` копіюється з каталогу
  * `github-actions/` пакету при кожному успішному синку (workflows з правил ga / js-lint / text).
  *
- * Skills копіюються з npm/skills пакету лише для id з масиву «skills» у .n-cursor.json
+ * Skills копіюються з npm/skills пакету лише для id з масиву «skills» у .n-rules.json
  * (у JSON — без префікса, як імена каталогів у rules/ без n-). У пакеті джерело — каталоги
  * skills/<id>/ (без префікса); у проєкті — .cursor/skills/n-<id>/ (префікс n-, як n-*.mdc).
  * Якщо ключа skills немає, за замовчуванням підтягуються всі підкаталоги skills/ (лише імена без префікса n-).
@@ -52,12 +52,12 @@
  * і у проєкт не копіюється; раніше синхронізовані `auto.md` у `.cursor/skills/n-<id>/` CLI
  * не чіпає — їх потрібно прибрати вручну.
  *
- * Якщо в корені є package.json і в ньому ще немає \@nitra/cursor у devDependencies (і не оголошено
+ * Якщо в корені є package.json і в ньому ще немає \@7n/rules у devDependencies (і не оголошено
  * в dependencies), CLI дописує devDependencies з діапазоном ^<version> поточного пакету — зручно після npx.
  *
- * Перед копіюванням правил (режим без підкоманди): оновлення \@nitra/cursor у package.json до
+ * Перед копіюванням правил (режим без підкоманди): оновлення \@7n/rules у package.json до
  * останньої версії з npm (крім workspace:/file:/link: тощо), `bun i`, далі файли беруться з
- * `node_modules/@nitra/cursor`, якщо пакет з’явився після встановлення.
+ * `node_modules/@7n/rules`, якщо пакет з’явився після встановлення.
  */
 
 import { spawnSync } from 'node:child_process'
@@ -82,19 +82,19 @@ import { readSkillMetaRaw } from '../scripts/lib/skill-meta.mjs'
 import { injectWorktreeNotice } from '../scripts/lib/worktree-notice.mjs'
 import { injectRootNotice } from '../scripts/lib/root-notice.mjs'
 import { listProjectRulesMdcFiles } from '../scripts/lib/list-project-rules-mdc.mjs'
-import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
+import { ensureNRulesInRootDevDependencies } from '../scripts/ensure-n-rules-dev-dependencies.mjs'
 import { assertCwdIsProjectRoot } from '../scripts/lib/assert-project-root.mjs'
 import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { syncGitignoreWorktree } from '../scripts/lib/sync-gitignore-worktree.mjs'
-import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitra-cursor-and-install.mjs'
+import { upgradeNRulesToLatestAndBunInstall } from '../scripts/upgrade-n-rules-and-install.mjs'
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
 import { runSkillsCli } from '../scripts/skills-cli.mjs'
 import { syncSetupBunDepsAction } from '../scripts/sync-setup-bun-deps-action.mjs'
 
-const PACKAGE_NAME = '@nitra/cursor'
-const CONFIG_FILE = '.n-cursor.json'
-/** Публічний URL JSON Schema для поля `$schema` у `.n-cursor.json` (IDE); вміст правил CLI читає лише з диска пакету */
-const CONFIG_SCHEMA_URL = 'https://unpkg.com/@nitra/cursor/schemas/n-cursor.json'
+const PACKAGE_NAME = '@7n/rules'
+const CONFIG_FILE = '.n-rules.json'
+/** Публічний URL JSON Schema для поля `$schema` у `.n-rules.json` (IDE); вміст правил CLI читає лише з диска пакету */
+const CONFIG_SCHEMA_URL = 'https://unpkg.com/@7n/rules/schemas/n-rules.json'
 const AGENTS_FILE = 'AGENTS.md'
 const AGENTS_TEMPLATE_FILE = 'AGENTS.template.md'
 const RULES_DIR = '.cursor/rules'
@@ -114,7 +114,7 @@ const YAML_FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/
 const NEWLINE_RE = /\r?\n/
 const LEADING_SPACES_RE = /^\s+/
 
-/** Ключі `.n-cursor.json`, де значення — масиви id; після запуску CLI сортуються за алфавітом */
+/** Ключі `.n-rules.json`, де значення — масиви id; після запуску CLI сортуються за алфавітом */
 const CONFIG_SORTED_ARRAY_KEYS = /** @type {const} */ (['rules', 'skills', 'disable-rules', 'disable-skills'])
 
 /**
@@ -205,7 +205,8 @@ async function migrateLegacyManagedRuleFilenames(rulesDir) {
 }
 
 /**
- * Міграція legacy: `nitra-*.mdc` → `n-*.mdc` у `.cursor/rules`; якщо немає `.n-cursor.json`, але є `nitra-cursor.json` — перейменовує його в `.n-cursor.json`
+ * Міграція legacy: `nitra-*.mdc` → `n-*.mdc` у `.cursor/rules`; якщо немає `.n-rules.json`, конфіг
+ * береться з legacy-імен (`.n-rules.json`, потім `nitra-cursor.json`) з переписуванням `$schema` на новий URL
  * @returns {Promise<void>}
  */
 async function migrateLegacyConfigIfNeeded() {
@@ -216,10 +217,23 @@ async function migrateLegacyConfigIfNeeded() {
   if (existsSync(target)) {
     return
   }
-  const legacyPath = join(root, 'nitra-cursor.json')
-  if (existsSync(legacyPath)) {
+  for (const legacyName of ['.n-cursor.json', 'nitra-cursor.json']) {
+    const legacyPath = join(root, legacyName)
+    if (!existsSync(legacyPath)) {
+      continue
+    }
     await rename(legacyPath, target)
-    console.log(`📝 Перейменовано nitra-cursor.json → ${CONFIG_FILE}\n`)
+    console.log(`📝 Перейменовано ${legacyName} → ${CONFIG_FILE}\n`)
+    try {
+      const parsed = JSON.parse(await readFile(target, 'utf8'))
+      if (typeof parsed?.$schema === 'string' && parsed.$schema.includes('@nitra/cursor')) {
+        parsed.$schema = CONFIG_SCHEMA_URL
+        await writeFile(target, `${JSON.stringify(parsed, null, 2)}\n`)
+      }
+    } catch {
+      /* некоректний JSON — $schema виправить подальший readConfig */
+    }
+    return
   }
 }
 
@@ -240,8 +254,8 @@ async function readRootPackageJsonSafe() {
 }
 
 /**
- * Зчитує конфіг .n-cursor.json з поточної директорії
- * @param {{ bundledRulesDir?: string, bundledSkillsDir?: string }} [paths] каталоги з пакету-джерела (після `bun i` — зазвичай `node_modules/@nitra/cursor`)
+ * Зчитує конфіг .n-rules.json з поточної директорії
+ * @param {{ bundledRulesDir?: string, bundledSkillsDir?: string }} [paths] каталоги з пакету-джерела (після `bun i` — зазвичай `node_modules/@7n/rules`)
  * @returns {Promise<{ $schema: string, rules: string[], skills: string[], version?: string } & Record<string, unknown>>} rules, skills (id без префікса n-); поле version у файлі за наявності ігнорується при синхронізації правил
  */
 async function readConfig(paths = {}) {
@@ -367,7 +381,7 @@ async function readConfig(paths = {}) {
  * Якщо у `rules` чи `disable-rules` є застарілі rule-id з `RULE_MIGRATIONS`,
  * виводить пояснювальний лог про автоматичну заміну (саму заміну виконує
  * `migrateRuleIds` у `mergeConfigWithAutoDetected` — тут лише користувацька комунікація).
- * @param {Record<string, unknown>} parsedConfig сирий обʼєкт `.n-cursor.json` після `JSON.parse`
+ * @param {Record<string, unknown>} parsedConfig сирий обʼєкт `.n-rules.json` після `JSON.parse`
  * @returns {void}
  */
 function logRuleMigrationsIfAny(parsedConfig) {
@@ -403,8 +417,8 @@ function normalizeRuleName(ruleName) {
 
 /**
  * Читає вміст правила з каталогу `rules/<id>/main.mdc` установленого пакету
- * (наприклад `node_modules/@nitra/cursor/rules/<id>/main.mdc` або кеш npx).
- * @param {string} rule елемент масиву rules з `.n-cursor.json`
+ * (наприклад `node_modules/@7n/rules/rules/<id>/main.mdc` або кеш npx).
+ * @param {string} rule елемент масиву rules з `.n-rules.json`
  * @param {string} [bundledRulesDir] каталог `rules/` у корені пакету-джерела
  * @returns {Promise<string>} текст правила для запису в `.cursor/rules/n-*.mdc`
  */
@@ -512,7 +526,7 @@ function formatPiSkillFrontmatter(skillName, descriptionRaw) {
 }
 
 /**
- * Базові імена файлів .mdc, які очікуються згідно з .n-cursor.json (префікс n-).
+ * Базові імена файлів .mdc, які очікуються згідно з .n-rules.json (префікс n-).
  * @param {string[]} configRules елементи масиву rules з конфігу
  * @returns {Set<string>} множина очікуваних імен файлів (наприклад n-bun.mdc)
  */
@@ -524,7 +538,7 @@ function expectedManagedRuleBasenames(configRules) {
  * Видаляє з каталогу правил файли *.mdc з префіксом n-, яких немає у конфігурації.
  * Файли без префікса n- не змінює.
  * @param {string} rulesDir абсолютний шлях до .cursor/rules
- * @param {string[]} configRules елементи масиву rules з .n-cursor.json
+ * @param {string[]} configRules елементи масиву rules з .n-rules.json
  * @returns {Promise<string[]>} відсортовані імена видалених файлів
  */
 async function removeOrphanManagedRuleFiles(rulesDir, configRules) {
@@ -590,7 +604,7 @@ async function buildSkillBulletItems() {
 /**
  * Видаляє каталоги n-* у .cursor/skills, яких немає у конфігурації skills
  * @param {string} skillsRoot абсолютний шлях до .cursor/skills
- * @param {string[]} configSkills елементи масиву skills з .n-cursor.json
+ * @param {string[]} configSkills елементи масиву skills з .n-rules.json
  * @returns {Promise<string[]>} імена видалених каталогів
  */
 async function removeOrphanManagedSkillDirs(skillsRoot, configSkills) {
@@ -621,7 +635,7 @@ function buildClaudeLintParallelismSectionLines() {
     '',
     '## Лінт і ESLint (паралелізм)',
     '',
-    'Дельта-`lint` (типовий задачний прогін) — **без черги**, паралельні запуски по різних файлах дозволені. `npx @nitra/cursor lint --full` має **вбудовану глобальну чергу** (spec 2026-07-03): один full-прогін на машину; запуск у черзі показує свою позицію, решту черги і живий прогрес-бар активного прогону (`⏳ lint --full у черзі #… · працює pid … [██…] 5/12 · …` — штатна черга, не зависання; fail-closed таймаут 45 хв). Ідентичний повтор --full на незміненому дереві дедуплікується (`♻️ … пропускаю`). Координувати запуски вручну не треба. Деталі: `.cursor/skills/n-lint/SKILL.md`.',
+    'Дельта-`lint` (типовий задачний прогін) — **без черги**, паралельні запуски по різних файлах дозволені. `npx @7n/rules lint --full` має **вбудовану глобальну чергу** (spec 2026-07-03): один full-прогін на машину; запуск у черзі показує свою позицію, решту черги і живий прогрес-бар активного прогону (`⏳ lint --full у черзі #… · працює pid … [██…] 5/12 · …` — штатна черга, не зависання; fail-closed таймаут 45 хв). Ідентичний повтор --full на незміненому дереві дедуплікується (`♻️ … пропускаю`). Координувати запуски вручну не треба. Деталі: `.cursor/skills/n-lint/SKILL.md`.',
     ''
   ]
 }
@@ -636,7 +650,7 @@ function buildClaudeWorktreeEnforcementSectionLines() {
     '',
     '## Worktree-only skills (`main.json` → `worktree: true`)',
     '',
-    'Скіл із **`worktree: true`** у `main.json` запускається **виключно** в окремому git-worktree (`.worktrees/<current-branch>-<suffix>/`) — **не** в основному дереві й **не** паралельно. Перший крок такого скіла (блок `n-cursor:worktree:start` у його `SKILL.md`) — **preflight**: якщо `git rev-parse --show-toplevel` не вказує під `.worktrees/`, **STOP** і не питай користувача про назву гілки; створи worktree від поточної гілки готовим snippet з `SKILL.md` за конвенцією `<current-branch>-<suffix>` і без shell expansion (без command substitution, variable expansion чи backticks). Чисте робоче дерево — **не** привід пропустити preflight.',
+    'Скіл із **`worktree: true`** у `main.json` запускається **виключно** в окремому git-worktree (`.worktrees/<current-branch>-<suffix>/`) — **не** в основному дереві й **не** паралельно. Перший крок такого скіла (блок `n-rules:worktree:start` у його `SKILL.md`) — **preflight**: якщо `git rev-parse --show-toplevel` не вказує під `.worktrees/`, **STOP** і не питай користувача про назву гілки; створи worktree від поточної гілки готовим snippet з `SKILL.md` за конвенцією `<current-branch>-<suffix>` і без shell expansion (без command substitution, variable expansion чи backticks). Чисте робоче дерево — **не** привід пропустити preflight.',
     ''
   ]
 }
@@ -1244,12 +1258,12 @@ async function readBundledVersionAt(packageRoot) {
 }
 
 /**
- * Якщо `upgradeNitraCursorToLatestAndBunInstall` встановив у `node_modules/@nitra/cursor` версію,
+ * Якщо `upgradeNRulesToLatestAndBunInstall` встановив у `node_modules/@7n/rules` версію,
  * відмінну від тієї, з якої стартував поточний процес (наприклад, з npx-кешу), запускає бінар нової
  * версії через `spawnSync` і завершує поточний процес із успадкованим exit-кодом. Re-exec потрібен,
  * бо ES-модулі вже завантажені у V8 (RULE_MIGRATIONS, detectAutoRules тощо) і нова логіка
  * без повної заміни процесу не підхопиться. Захист від нескінченного циклу — env `NITRA_CURSOR_REEXEC=1`.
- * @param {string} effectivePackageRoot шлях, повернутий `upgradeNitraCursorToLatestAndBunInstall`
+ * @param {string} effectivePackageRoot шлях, повернутий `upgradeNRulesToLatestAndBunInstall`
  * @returns {Promise<void>} повертається лише якщо re-exec не потрібен; інакше кидає `ReexecHandoff`,
  *   який ловить top-level catch і прокидає exit-код у `process.exitCode`
  */
@@ -1265,7 +1279,7 @@ async function reexecIfPackageVersionChanged(effectivePackageRoot) {
   if (!currentVersion || !installedVersion || currentVersion === installedVersion) {
     return
   }
-  const newBinPath = join(effectivePackageRoot, 'bin', 'n-cursor.js')
+  const newBinPath = join(effectivePackageRoot, 'bin', 'n-rules.js')
   if (!existsSync(newBinPath)) {
     return
   }
@@ -1309,7 +1323,7 @@ async function runSync() {
 
   const projectRoot = cwd()
   const effectivePackageRoot = await runSyncStep(`❌ Не вдалося оновити ${PACKAGE_NAME} або виконати bun i: `, () =>
-    upgradeNitraCursorToLatestAndBunInstall(projectRoot, BUNDLED_PACKAGE_ROOT)
+    upgradeNRulesToLatestAndBunInstall(projectRoot, BUNDLED_PACKAGE_ROOT)
   )
 
   await reexecIfPackageVersionChanged(effectivePackageRoot)
@@ -1428,7 +1442,7 @@ async function runSync() {
         rules
       })
       if (!claudeConfigEnabled) {
-        console.log('🤖 Claude-конфіг: пропущено (claude-config: false у .n-cursor.json)')
+        console.log('🤖 Claude-конфіг: пропущено (claude-config: false у .n-rules.json)')
         return
       }
       const parts = []
@@ -1443,7 +1457,7 @@ async function runSync() {
         }
       }
       if (result.gitignoreAdr) parts.push('.gitignore (adr fragment)')
-      if (result.piExtension) parts.push('.pi/extensions/n-cursor-adr/')
+      if (result.piExtension) parts.push('.pi/extensions/n-rules-adr/')
       if (parts.length > 0) {
         console.log(`🤖 Claude-конфіг: ${parts.join(', ')}`)
       }
@@ -1478,7 +1492,7 @@ function describeRootGuardedAction(cmd) {
   switch (cmd) {
     case undefined:
     case '': {
-      return 'Дефолтна синхронізація скаффолдить .cursor/, .claude/, CLAUDE.md, .n-cursor.json і робить bun install у поточному каталозі'
+      return 'Дефолтна синхронізація скаффолдить .cursor/, .claude/, CLAUDE.md, .n-rules.json і робить bun install у поточному каталозі'
     }
     case 'lint': {
       return '`lint` за замовчуванням авто-fix лінтерів (oxfmt/eslint --fix/stylelint --fix) і конформності (--full) у поточному каталозі'
@@ -1487,17 +1501,17 @@ function describeRootGuardedAction(cmd) {
       return '`release` бампає version і переписує CHANGELOG у поточному каталозі'
     }
     default: {
-      return 'Команда @nitra/cursor мутує проєкт у поточному каталозі'
+      return 'Команда @7n/rules мутує проєкт у поточному каталозі'
     }
   }
 }
 
 /**
- * Довідка для `n-cursor lint --help`: прапори unified lint surface
+ * Довідка для `n-rules lint --help`: прапори unified lint surface
  * (spec 2026-06-29 fix-by-default, spec 2026-07-03 глобальна черга --full).
  */
 function printLintHelp() {
-  console.log(`Використання: npx @nitra/cursor lint [rule|concern ...] [прапори]
+  console.log(`Використання: npx @7n/rules lint [rule|concern ...] [прапори]
 
 За замовчуванням лінт іде дельтою (змінені файли vs origin) і одразу
 виправляє (auto-fix: oxfmt/eslint --fix/stylelint --fix + LLM-ladder).
@@ -1512,13 +1526,13 @@ function printLintHelp() {
   --help, -h      Ця довідка.
 
 Позиційні аргументи — фільтр за назвою правила чи concern, наприклад:
-  npx @nitra/cursor lint ga rego k8s docker text
+  npx @7n/rules lint ga rego k8s docker text
 
 Приклади:
-  npx @nitra/cursor lint
-  npx @nitra/cursor lint --full
-  npx @nitra/cursor lint --no-fix eslint
-  npx @nitra/cursor lint --cwd ./packages/foo --verbose
+  npx @7n/rules lint
+  npx @7n/rules lint --full
+  npx @7n/rules lint --no-fix eslint
+  npx @7n/rules lint --cwd ./packages/foo --verbose
 `)
 }
 
@@ -1538,7 +1552,7 @@ const LEGACY_LINT_COMMAND_ALIASES = {
 }
 if (command in LEGACY_LINT_COMMAND_ALIASES) {
   const scope = LEGACY_LINT_COMMAND_ALIASES[command]
-  console.error(`⚠️  "${command}" застаріла назва команди — використовуйте "n-cursor lint ${scope}"`)
+  console.error(`⚠️  "${command}" застаріла назва команди — використовуйте "n-rules lint ${scope}"`)
   args = [scope, ...args]
   command = 'lint'
 }
@@ -1551,9 +1565,9 @@ try {
     printLintHelp()
   } else {
     // Root-guard до перших мутацій: дефолтний sync скаффолдить .cursor/.claude/CLAUDE.md/
-    // .n-cursor.json + bun install, а lint/release переписують файли в CWD —
+    // .n-rules.json + bun install, а lint/release переписують файли в CWD —
     // усе це ключиться на cwd(). Запуск із піддиректорії git-репо (типово прямий
-    // `bun npm/bin/n-cursor.js` не з кореня) зачепив би не той каталог → STOP. Read-only та
+    // `bun npm/bin/n-rules.js` не з кореня) зачепив би не той каталог → STOP. Read-only та
     // `--root`-команди (doc-aggregate, rename-yaml-extensions) не зачіпаємо.
     // `lint` з явним `--cwd` — свідомий вибір кореня (MT ганяє `## Check` вузла з
     // node-dir усередині worktree, live e2e 2026-07-12): guard і devDeps-ensure
@@ -1565,7 +1579,7 @@ try {
     }
     // mt-run-node — MT-екзекутор у worktree вузла: жодних side-effect-ів поза фіксом
     // (devDeps-ensure мутив би package.json чужого worktree).
-    if (command !== 'mt-run-node') await ensureNitraCursorInRootDevDependencies(effectiveRoot)
+    if (command !== 'mt-run-node') await ensureNRulesInRootDevDependencies(effectiveRoot)
     // Підкоманди-оркестратори (hook/lint/skill/adr-normalize-local/taze/release тощо)
     // можуть спавнити внутрішню agent/LLM-сесію — ADR Stop-hooks (capture/normalize)
     // мають пропустити її як технічний шум, не людську думку (spec 2026-06-30).
@@ -1623,7 +1637,7 @@ try {
         break
       }
       case 'taze': {
-        // n-cursor taze diff — read-only semver-diff package.json ↔ package.json.taze-bak
+        // n-rules taze diff — read-only semver-diff package.json ↔ package.json.taze-bak
         // (root + воркспейси) для скілу n-taze: скрипт класифікує major-оновлення,
         // агент отримує готовий список замість ручного порівняння бекапів.
         const { runTazeCli } = await import('../skills/taze/js/diff.mjs')

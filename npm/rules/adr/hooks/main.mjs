@@ -77,18 +77,18 @@ async function checkHookScript(reporter, cwd, scriptName) {
   const projectAbs = join(cwd, projectRel)
   const bundledPath = join(BUNDLED_HOOKS_DIR, scriptName)
   if (!existsSync(projectAbs)) {
-    fail(`${projectRel} не існує — запусти \`npx @nitra/cursor\` (правило adr копіює канонічний скрипт)`)
+    fail(`${projectRel} не існує — запусти \`npx @7n/rules\` (правило adr копіює канонічний скрипт)`)
     return
   }
   if (!existsSync(bundledPath)) {
-    fail(`канонічний скрипт у пакеті не знайдено: ${bundledPath} — перевстанови @nitra/cursor`)
+    fail(`канонічний скрипт у пакеті не знайдено: ${bundledPath} — перевстанови @7n/rules`)
     return
   }
   const [project, bundled] = await Promise.all([readFile(projectAbs, 'utf8'), readFile(bundledPath, 'utf8')])
   if (project === bundled) {
     pass(`${projectRel} збігається з канонічним`)
   } else {
-    fail(`${projectRel} відрізняється від канонічного — запусти \`npx @nitra/cursor\` для повторного синку`)
+    fail(`${projectRel} відрізняється від канонічного — запусти \`npx @7n/rules\` для повторного синку`)
   }
 }
 
@@ -103,9 +103,9 @@ async function checkHookScript(reporter, cwd, scriptName) {
 function checkProjectSettings(reporter, cwd) {
   const { pass, fail } = reporter
   if (existsSync(join(cwd, PROJECT_SETTINGS_REL))) {
-    pass(`${PROJECT_SETTINGS_REL} є (Stop-hook перевіряє npx @nitra/cursor fix → adr.settings_json)`)
+    pass(`${PROJECT_SETTINGS_REL} є (Stop-hook перевіряє npx @7n/rules fix → adr.settings_json)`)
   } else {
-    fail(`${PROJECT_SETTINGS_REL} не існує — запусти \`npx @nitra/cursor\``)
+    fail(`${PROJECT_SETTINGS_REL} не існує — запусти \`npx @7n/rules\``)
   }
 }
 
@@ -159,12 +159,12 @@ async function checkCursorHooks(reporter, cwd) {
   const { pass, fail } = reporter
   const cursorHooksAbs = join(cwd, CURSOR_HOOKS_REL)
   if (!existsSync(cursorHooksAbs)) {
-    fail(`${CURSOR_HOOKS_REL} не існує — запусти \`npx @nitra/cursor\``)
+    fail(`${CURSOR_HOOKS_REL} не існує — запусти \`npx @7n/rules\``)
     return
   }
   const config = await readJsonSafe(cursorHooksAbs)
   if (config === null) {
-    fail(`${CURSOR_HOOKS_REL} не парситься як JSON — запусти \`npx @nitra/cursor\` або виправ файл`)
+    fail(`${CURSOR_HOOKS_REL} не парситься як JSON — запусти \`npx @7n/rules\` або виправ файл`)
     return
   }
   for (const { scriptName } of HOOK_ARTIFACTS) {
@@ -241,7 +241,7 @@ function isBinaryInPath(name) {
 
 /**
  * npm-first пошук `pi`-бінарника (як `find_pi_cmd` у capture-decisions.sh): root
- * `.bin` (hoisted) -> nested `@nitra/cursor` `.bin` -> system `PATH`.
+ * `.bin` (hoisted) -> nested `@7n/rules` `.bin` -> system `PATH`.
  * @param {string} cwd корінь репозиторію
  * @returns {string | null} шлях/ім'я бінарника або `null`, якщо не знайдено
  */
@@ -279,7 +279,7 @@ function checkCaptureBackendAvailable(reporter, cwd) {
     ? hasLocalModel
       ? `pi знайдено (${piCmd}), локальна модель сконфігурована`
       : `pi знайдено (${piCmd}), але CAPTURE_DECISIONS_PI_MODEL/N_LOCAL_MIN_MODEL не задано — capture skipне`
-    : 'pi не знайдено (root .bin, nested @nitra/cursor .bin, PATH) — capture skipне'
+    : 'pi не знайдено (root .bin, nested @7n/rules .bin, PATH) — capture skipне'
   const cloudStatus =
     hasClaude && hasCursor
       ? 'claude і cursor-agent доступні'

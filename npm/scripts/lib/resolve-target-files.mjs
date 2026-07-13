@@ -5,7 +5,7 @@
  *   - `{ "single": "<rel>" }` — конкретний відносний шлях. Якщо `existsSync(root/single)` → `[single]`;
  *     інакше `[]` (caller сам вирішує fail vs silent skip за `required`).
  *   - `{ "walkGlob": <glob | glob[]> }` — `ignore` проти posix-відносних шляхів, отриманих обходом
- *     `walkDir` від `root` із загальними skip-ами та `.n-cursor.json:ignore`. Обхід кешований у
+ *     `walkDir` від `root` із загальними skip-ами та `.n-rules.json:ignore`. Обхід кешований у
  *     `walkCache` (Map ключ — підпис ignorePaths) — повторні таргети з тим самим набором ignore
  *     перевикористовують список без нового readdir.
  *
@@ -40,7 +40,7 @@ function assertSafeSinglePath(singlePath) {
 
 /**
  * Збирає всі файли (posix-відносні шляхи від `root`) одним обходом дерева.
- * Скіпи: загальні з `walkDir` + `.n-cursor.json:ignore`.
+ * Скіпи: загальні з `walkDir` + `.n-rules.json:ignore`.
  * @param {string} root абсолютний корінь репозиторію
  * @param {string[]} ignorePaths абсолютні posix-шляхи виключених каталогів
  * @returns {Promise<string[]>} відсортовані posix-відносні шляхи

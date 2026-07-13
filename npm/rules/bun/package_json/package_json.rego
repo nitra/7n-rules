@@ -31,18 +31,18 @@ deny contains msg if {
 	some script_name, _ in input.scripts
 	regex.match(`^lint(-.*)?$`, script_name)
 	msg := sprintf(
-		"package.json: scripts.%s заборонений — лінт запускається через n-cursor lint, не через package.json-скрипти (bun.mdc)",
+		"package.json: scripts.%s заборонений — лінт запускається через n-rules lint, не через package.json-скрипти (bun.mdc)",
 		[script_name],
 	)
 }
 
-# ── deny: devDependencies — лише `@nitra/*` + root-only тестові peer/tools ─
+# ── deny: devDependencies — лише `@nitra/*`/`@7n/*` + root-only тестові peer/tools ─
 
 deny contains msg if {
 	is_object(input.devDependencies)
 	some name, _ in input.devDependencies
 	not allowed_root_dev_dependency(name)
-	msg := sprintf("Кореневі devDependencies: дозволені лише @nitra/* або root-only test peers — прибери або перенеси: %s (bun.mdc)", [name])
+	msg := sprintf("Кореневі devDependencies: дозволені лише @nitra/*/@7n/* або root-only test peers — прибери або перенеси: %s (bun.mdc)", [name])
 }
 
 # ── helpers ────────────────────────────────────────────────────────────────
@@ -54,6 +54,8 @@ allowed_root_test_deps := {"vitest", "@vitest/coverage-v8", "@stryker-mutator/vi
 
 allowed_root_dev_dependency(name) if {
 	startswith(name, "@nitra/")
+} else if {
+	startswith(name, "@7n/")
 } else if {
 	# Vitest/Stryker peer/tools + @7n/test (`coverage`) для `@7n/test coverage` живуть у корені
 	# будь-якого монорепо-споживача: правило `test` enabled завжди, а published workspace-и

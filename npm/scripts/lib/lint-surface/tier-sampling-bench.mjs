@@ -152,7 +152,7 @@ export async function runTierSamplingBench(opts = {}) {
   for (const fixture of FIXTURES) {
     if (!wantedFixtures.has(fixture.id)) continue
     for (const rung of ladder) {
-      const root = await mkdtemp(join(tmpdir(), `n-cursor-tier-bench-${fixture.id}-${rung.tier}-`))
+      const root = await mkdtemp(join(tmpdir(), `n-rules-tier-bench-${fixture.id}-${rung.tier}-`))
       try {
         initGitFixture(root, fixture)
         const initialViolations = fixture.detect(root)

@@ -3,7 +3,7 @@ type: JS Module
 title: fix-workflows.mjs
 resource: npm/rules/ga/workflows/fix-workflows.mjs
 docgen:
-  crc: 89c778fc
+  crc: 5f7fc736
 ---
 
 ## Огляд

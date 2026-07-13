@@ -2,9 +2,9 @@
  * CLI для перейменування розширень YAML (k8s та `.github`). Бізнес-логіка — у **`scripts/rename-yaml-extensions.mjs`**.
  *
  * Публічна точка входу — лише головний CLI пакета:
- * **`npx \@nitra/cursor rename-yaml-extensions`** [опції] (або **`bun ./bin/n-cursor.js rename-yaml-extensions`** у репозиторії пакета).
+ * **`npx \@7n/rules rename-yaml-extensions`** [опції] (або **`bun ./bin/n-rules.js rename-yaml-extensions`** у репозиторії пакета).
  *
- * Цей файл лишається модулем для **`n-cursor.js`**; прямий запуск **`node ./bin/rename-yaml-extensions.mjs`** — лише для розробки/тестів.
+ * Цей файл лишається модулем для **`n-rules.js`**; прямий запуск **`node ./bin/rename-yaml-extensions.mjs`** — лише для розробки/тестів.
  *
  * Опції: **`--dry-run`**, **`--root=<шлях>`** (корінь обходу; за замовчуванням **`process.cwd()`**).
  */
@@ -12,8 +12,8 @@ import { isRunAsCli } from '../scripts/cli-entry.mjs'
 import { parseRenameYamlArgs, renameYamlExtensions } from '../scripts/rename-yaml-extensions.mjs'
 
 /**
- * Запускає перейменування з виводом у консоль (для підкоманди **`n-cursor`** або прямого bin).
- * @param {string[]} argv аргументи без імені команди (усі після `rename-yaml-extensions` у **`n-cursor`**)
+ * Запускає перейменування з виводом у консоль (для підкоманди **`n-rules`** або прямого bin).
+ * @param {string[]} argv аргументи без імені команди (усі після `rename-yaml-extensions` у **`n-rules`**)
  * @returns {Promise<number>} **0** — успіх; **1** — були помилки (існуючий цільовий файл тощо)
  */
 export async function runRenameYamlExtensionsCli(argv) {

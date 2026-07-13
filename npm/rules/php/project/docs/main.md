@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/php/project/main.mjs
 docgen:
-  crc: 9f638bab
+  crc: 0a3716eb
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 100
@@ -13,7 +13,7 @@ docgen:
 
 ## Огляд
 
-Цей файл реалізує `read-only` детектор якості проекту, який виконує аудит залежностей за допомогою `composer audit` та статичний аналіз коду PHP за допомогою `phpstan` та `psalm`. Функціонал взято з `spec docs/specs/2026-07-02-text-check-per-file-split-design.md §5-A`. Перевірки є read-only та не здійснюють змін у файловій системі чи базах даних. Статичний аналіз вимагає повного project-graph для коректного виявлення логічних помилок та проблем із залежностями, тоді як `composer audit` виконує аудит на рівні проекту. Виклик цих інструментів можливий лише через `n-cursor lint --full` або scoped `n-cursor lint php`.
+Цей файл реалізує `read-only` детектор якості проекту, який виконує аудит залежностей за допомогою `composer audit` та статичний аналіз коду PHP за допомогою `phpstan` та `psalm`. Функціонал взято з `spec docs/specs/2026-07-02-text-check-per-file-split-design.md §5-A`. Перевірки є read-only та не здійснюють змін у файловій системі чи базах даних. Статичний аналіз вимагає повного project-graph для коректного виявлення логічних помилок та проблем із залежностями, тоді як `composer audit` виконує аудит на рівні проекту. Виклик цих інструментів можливий лише через `n-rules lint --full` або scoped `n-rules lint php`.
 
 ## Поведінка
 

@@ -1,15 +1,15 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json",
-  "title": "n-cursor project config",
-  "description": "Конфігурація правил і skills для CLI @nitra/cursor (файл .n-cursor.json у корені репозиторію).",
+  "$id": "https://unpkg.com/@7n/rules/schemas/n-rules.json",
+  "title": "n-rules project config",
+  "description": "Конфігурація правил і skills для CLI @7n/rules (файл .n-rules.json у корені репозиторію).",
   "type": "object",
   "additionalProperties": false,
   "properties": {
     "$schema": {
       "type": "string",
       "format": "uri",
-      "description": "Посилання на JSON Schema для автодоповнення та валідації в IDE; очікувано https://unpkg.com/@nitra/cursor/schemas/n-cursor.json"
+      "description": "Посилання на JSON Schema для автодоповнення та валідації в IDE; очікувано https://unpkg.com/@7n/rules/schemas/n-rules.json"
     },
     "rules": {
       "type": "array",
@@ -29,7 +29,7 @@
     },
     "disable-rules": {
       "type": "array",
-      "description": "Список rule id (без префікса n-), які не потрібно автододавати в `.n-cursor.json` під час запуску CLI.",
+      "description": "Список rule id (без префікса n-), які не потрібно автододавати в `.n-rules.json` під час запуску CLI.",
       "items": {
         "type": "string",
         "minLength": 1
@@ -37,7 +37,7 @@
     },
     "disable-skills": {
       "type": "array",
-      "description": "Список skill id (без префікса n-), які не потрібно автододавати в `.n-cursor.json` під час запуску CLI.",
+      "description": "Список skill id (без префікса n-), які не потрібно автододавати в `.n-rules.json` під час запуску CLI.",
       "items": {
         "type": "string",
         "minLength": 1
@@ -45,7 +45,7 @@
     },
     "ignore": {
       "type": "array",
-      "description": "Директорії, що повністю виключаються з обходу check-скриптів CLI (npx @nitra/cursor fix ...) і AI-модифікацій (AI не редагує, не видаляє, не створює файли). Шляхи відносно кореня репозиторію (posix). Приклади: vendored Helm-чарти, генеровані маніфести, legacy-дерева. Стандартні виключення (node_modules, .git, dist, coverage, .turbo, .next) застосовуються завжди — додавати їх не треба.",
+      "description": "Директорії, що повністю виключаються з обходу check-скриптів CLI (npx @7n/rules fix ...) і AI-модифікацій (AI не редагує, не видаляє, не створює файли). Шляхи відносно кореня репозиторію (posix). Приклади: vendored Helm-чарти, генеровані маніфести, legacy-дерева. Стандартні виключення (node_modules, .git, dist, coverage, .turbo, .next) застосовуються завжди — додавати їх не треба.",
       "items": {
         "type": "string",
         "minLength": 1

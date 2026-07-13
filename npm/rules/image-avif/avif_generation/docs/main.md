@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/image-avif/avif_generation/main.mjs
 docgen:
-  crc: 7f9f2d4a
+  crc: 658146c1
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99

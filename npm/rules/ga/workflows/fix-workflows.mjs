@@ -132,13 +132,13 @@ export function removePathsGlobs(content, globs) {
   return changed ? out.join('\n') : null
 }
 
-const WRAPPED_NCURSOR_RE = /\b(?:bunx|npx)\s+n-cursor/u
-const RUN_INLINE_NCURSOR_MATCH = /^(\s*(?:-\s*)?run:\s*)(n-cursor\s.*)$/u
-const BARE_LINE_NCURSOR_MATCH = /^(\s+)(n-cursor\s.*)$/u
+const WRAPPED_NCURSOR_RE = /\b(?:bunx|npx)\s+n-(?:cursor|rules)/u
+const RUN_INLINE_NCURSOR_MATCH = /^(\s*(?:-\s*)?run:\s*)n-(?:cursor|rules)(\s.*)$/u
+const BARE_LINE_NCURSOR_MATCH = /^(\s+)n-(?:cursor|rules)(\s.*)$/u
 
 /**
- * Префіксує bare `n-cursor …` у `run`-кроках через `bunx` (у CI n-cursor не на PATH).
- * Пропускає рядки, де вже є `bunx`/`npx n-cursor`. Покриває inline `run:` і рядок у run-блоці.
+ * Префіксує bare `n-rules …` (чи legacy `n-rules …`) у `run`-кроках через `bunx n-rules` (у CI
+ * бінарник не на PATH). Пропускає рядки, де вже є `bunx`/`npx`. Покриває inline `run:` і рядок у run-блоці.
  * @param {string} content вміст workflow-файла
  * @returns {string|null} новий вміст або null, якщо нічого не змінилось
  */
@@ -149,12 +149,12 @@ export function prefixBunxNCursor(content) {
     const inline = RUN_INLINE_NCURSOR_MATCH.exec(line)
     if (inline) {
       changed = true
-      return `${inline[1]}bunx ${inline[2]}`
+      return `${inline[1]}bunx n-rules${inline[2]}`
     }
     const bare = BARE_LINE_NCURSOR_MATCH.exec(line)
     if (bare) {
       changed = true
-      return `${bare[1]}bunx ${bare[2]}`
+      return `${bare[1]}bunx n-rules${bare[2]}`
     }
     return line
   })
@@ -199,13 +199,13 @@ export const patterns = [
     }
   },
   {
-    id: 'ga-workflows-bare-n-cursor',
-    test: violations => violations.some(v => v.data?.kind === 'bare-n-cursor' && v.file),
+    id: 'ga-workflows-bare-n-rules',
+    test: violations => violations.some(v => v.data?.kind === 'bare-n-rules' && v.file),
     apply: (violations, ctx) => {
-      const targets = violations.filter(v => v.data?.kind === 'bare-n-cursor' && v.file)
+      const targets = violations.filter(v => v.data?.kind === 'bare-n-rules' && v.file)
       const touchedFiles = applyToFiles(targets, ctx, () => prefixBunxNCursor)
       return touchedFiles.length > 0
-        ? { touchedFiles, message: `bunx-префікс n-cursor → ${touchedFiles.length} workflow(s)` }
+        ? { touchedFiles, message: `bunx-префікс n-rules → ${touchedFiles.length} workflow(s)` }
         : { touchedFiles: [] }
     }
   }

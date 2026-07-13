@@ -9,27 +9,27 @@ Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.g
 
 ## Версія та CHANGELOG
 
-Версію (`version` у **`npm/package.json`**) і **`npm/CHANGELOG.md`** **не редагуй вручну** — навіть для hotfix. Єдиний артефакт зміни — **change-файл** (`npx @7n/n ch [--bump <major|minor|patch>] [--section <Added|Changed|Fixed|Removed>] [--message "<…>"]`); bump `version` і генерацію секції CHANGELOG робить `n-cursor release` у CI на `main`. Будь-який ручний bump `version` поза CI завалює `check changelog` — навіть із change-файлом.
+Версію (`version` у **`npm/package.json`**) і **`npm/CHANGELOG.md`** **не редагуй вручну** — навіть для hotfix. Єдиний артефакт зміни — **change-файл** (`npx @7n/n ch [--bump <major|minor|patch>] [--section <Added|Changed|Fixed|Removed>] [--message "<…>"]`); bump `version` і генерацію секції CHANGELOG робить `n-rules release` у CI на `main`. Будь-який ручний bump `version` поза CI завалює `check changelog` — навіть із change-файлом.
 
 Повна модель (база порівняння, інверсія шляхів, формат CHANGELOG, post-release-інваріант «верхня секція CHANGELOG == `version`») — у **`n-changelog.mdc`** (джерело істини). Це правило їй підпорядковане й власних інструкцій bump/CHANGELOG не дублює.
 
 ### Канонічний крок `npm-changelog` у hk.pkl
 
-У v14 команду `check` прибрано (уніфікована поверхня `lint`) — виклик `npx @nitra/cursor check changelog` у hk.pkl **завалить** кожен коміт з `❌ Невідома команда: check`. Канонічний pre-commit-крок (hk `amends hk@1.42.0`):
+У v14 команду `check` прибрано (уніфікована поверхня `lint`) — виклик `npx @7n/rules check changelog` у hk.pkl **завалить** кожен коміт з `❌ Невідома команда: check`. Канонічний pre-commit-крок (hk `amends hk@1.42.0`):
 
 ```pkl
 ["npm-changelog"] {
     glob = List("npm/**")
     check_first = false
-    fix = "N_CURSOR_CHANGELOG_AUTOFIX=1 bun ./npm/bin/n-cursor.js lint changelog"
+    fix = "N_RULES_CHANGELOG_AUTOFIX=1 bun ./npm/bin/n-rules.js lint changelog"
 }
 ```
 
-Лише `fix` (без `check`): env-прапорець `N_CURSOR_CHANGELOG_AUTOFIX=1` вмикає autofix-режим — за відсутності change-файлу правило само створює його (`patch`/`Changed`, subject останнього коміту) і одразу ставить у git-індекс (`git add`) через `writeChange`/`reportOrFixMissingChangeFile`. Тому додатковий `stage = List("npm/.changes/**")` у цьому wiring **не потрібен** — індексація вже всередині JS-кроку. `package_structure` (`npx @nitra/cursor lint npm-module`) валідує цей крок: fail на застарілий `check changelog` і fail, якщо кроку `npm-changelog` немає взагалі.
+Лише `fix` (без `check`): env-прапорець `N_RULES_CHANGELOG_AUTOFIX=1` вмикає autofix-режим — за відсутності change-файлу правило само створює його (`patch`/`Changed`, subject останнього коміту) і одразу ставить у git-індекс (`git add`) через `writeChange`/`reportOrFixMissingChangeFile`. Тому додатковий `stage = List("npm/.changes/**")` у цьому wiring **не потрібен** — індексація вже всередині JS-кроку. `package_structure` (`npx @7n/rules lint npm-module`) валідує цей крок: fail на застарілий `check changelog` і fail, якщо кроку `npm-changelog` немає взагалі.
 
 ## Швидкий gate через conftest
 
-Rego-пакети (запускаються через `npx @nitra/cursor fix`):
+Rego-пакети (запускаються через `npx @7n/rules fix`):
 
 - `npm_module.npm_publish_yml` — template-driven перевірка `.github/workflows/npm-publish.yml` (deep-subset: усі обовʼязкові поля й кроки з канонічного сніпету).
 - `package.json`:
@@ -83,7 +83,7 @@ jobs:
           git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
 
       - name: Release (bump + CHANGELOG + tag)
-        run: bunx n-cursor release
+        run: bunx n-rules release
 
       - name: Publish package
         uses: JS-DevTools/npm-publish@v4.1.5
@@ -205,8 +205,8 @@ FS-перевірки (наявність файлу зі шляху `types`, с
 
 ```json
 {
-  "name": "@nitra/cursor",
-  "types": "./types/bin/n-cursor.d.ts",
+  "name": "@7n/rules",
+  "types": "./types/bin/n-rules.d.ts",
   "files": ["types", "mdc", "bin", "CHANGELOG.md"],
   "dependencies": { "oxc-parser": "^0.128.0" }
 }
@@ -227,7 +227,7 @@ FS-перевірки (наявність файлу зі шляху `types`, с
 ✗ Неправильно — наявні `devDependencies`:
 
 ```json
-{ "devDependencies": { "@nitra/cursor": "^1.0.0" } }
+{ "devDependencies": { "@7n/rules": "^1.0.0" } }
 ```
 
 ## Структура монорепо та компактний пакет
@@ -237,7 +237,7 @@ Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.g
 Мета — **максимально компактний** опублікований пакет: у npm потрапляє тільки те, що потрібно під час `require`/`import` користувачем.
 
 - **`"files"` обовʼязковий** у `npm/package.json` як **whitelist** того, що публікується (без `"files"` npm пакує майже все — це антипатерн для цього правила).
-- **Тести й фікстури не публікуються — через негативні glob-патерни у `"files"`.** Тести можна (і зазвичай зручніше) тримати **поруч з кодом** усередині шляхів, перелічених у `"files"` (наприклад `*.test.mjs` поруч з модулем чи `fixtures/` під `rules/<id>/js/`). Щоб вони не потрапляли у tarball, `"files"` **обовʼязково має містити негативні glob-патерни**, що їх виключають. Покрий усі форми тестового: фреймворк-тести (`bun:test`, `node:test`, `vitest`, `@jest/globals`, `mocha`, …), test-style каталоги (`tests/`, `__tests__/`, `fixtures/`, `__fixtures__/`, `spec/`, `test/`), файли за патернами `*.test.*` / `*.spec.*`. Орієнтовний набір: `"!**/*.test.*"`, `"!**/*.spec.*"`, `"!**/test-helpers.*"`, `"!**/fixtures/**"`, `"!**/__tests__/**"`. **Rego (`*_test.rego`):** за конвенцією conftest юніт-тест лежить поруч з полісі у тому самому `package` — `*_test.rego` усередині опублікованого `policy/` дозволені; якщо потрібна максимальна компактність, додай `"!**/*_test.rego"` явно (як у самому `@nitra/cursor`).
+- **Тести й фікстури не публікуються — через негативні glob-патерни у `"files"`.** Тести можна (і зазвичай зручніше) тримати **поруч з кодом** усередині шляхів, перелічених у `"files"` (наприклад `*.test.mjs` поруч з модулем чи `fixtures/` під `rules/<id>/js/`). Щоб вони не потрапляли у tarball, `"files"` **обовʼязково має містити негативні glob-патерни**, що їх виключають. Покрий усі форми тестового: фреймворк-тести (`bun:test`, `node:test`, `vitest`, `@jest/globals`, `mocha`, …), test-style каталоги (`tests/`, `__tests__/`, `fixtures/`, `__fixtures__/`, `spec/`, `test/`), файли за патернами `*.test.*` / `*.spec.*`. Орієнтовний набір: `"!**/*.test.*"`, `"!**/*.spec.*"`, `"!**/test-helpers.*"`, `"!**/fixtures/**"`, `"!**/__tests__/**"`. **Rego (`*_test.rego`):** за конвенцією conftest юніт-тест лежить поруч з полісі у тому самому `package` — `*_test.rego` усередині опублікованого `policy/` дозволені; якщо потрібна максимальна компактність, додай `"!**/*_test.rego"` явно (як у самому `@7n/rules`).
 - **Лише runtime-залежності у `npm/package.json`.** `devDependencies` тримай у **кореневому** `package.json` монорепо — тоді `npm install @nitra/<pkg>` не тягне інструментарій, потрібний лише для розробки самого пакета.
 
 Перевірки JS (`package_structure.mjs`):
@@ -270,7 +270,7 @@ bunx -p typescript tsc src/**/*.js --declaration --allowJs --emitDeclarationOnly
 
 1. Додай **`npm/tsconfig.emit-types.json`** з **`include`** на реальні шляхи (`.js` / `.mjs`), **`compilerOptions`**: **`allowJs`**, **`declaration`**, **`emitDeclarationOnly`**, **`outDir`: `"types"`**, **`skipLibCheck`**: **`true`** (за потреби **`rootDir`**, **`module`**, **`moduleResolution`**).
 2. Після першого **`tsc`** подивись, який **`.d.ts`** / **`.d.mts`** відповідає публічному API, і вкажи його в **`types`** (наприклад **`./types/bin/cli.d.ts`**).
-3. У **hk** на **`pre-commit`** з **`npm/`** викликай **`tsc -p tsconfig.emit-types.json`**. Якщо через імпорти **TypeScript** все одно згенерує зайві **`.d.mts`** у **`types/`**, після **`tsc`** обрізай дерево до потрібного entrypoint (наприклад залиш лише **`types/bin/n-cursor.d.ts`** через **`find`**), щоб у пакеті не збирались декларації внутрішніх модулів.
+3. У **hk** на **`pre-commit`** з **`npm/`** викликай **`tsc -p tsconfig.emit-types.json`**. Якщо через імпорти **TypeScript** все одно згенерує зайві **`.d.mts`** у **`types/`**, після **`tsc`** обрізай дерево до потрібного entrypoint (наприклад залиш лише **`types/bin/n-rules.d.ts`** через **`find`**), щоб у пакеті не збирались декларації внутрішніх модулів.
 
 Файл **`tsconfig.emit-types.json`** тримай у репозиторії для **hk** / локальної генерації; у **`files`** його не додавай, якщо не хочеш публікувати його на **npm**.
 
@@ -284,7 +284,7 @@ bunx -p typescript tsc src/**/*.js --declaration --allowJs --emitDeclarationOnly
 
 **`npm-publish.yml`:** push у **`main`**, **`on.push.paths`** з **`npm/**`**, **`JS-DevTools/npm-publish@v4.1.5`**, **`with.package: npm/package.json`**, **`permissions.id-token: write`** (OIDC на npm).
 
-Workflow робить **release + publish** одним job (`release-publish`): крок **`Release (bump + CHANGELOG + tag)`** (`bunx n-cursor release` — агрегує change-файли, bump `version`, генерує секцію `CHANGELOG.md`, ставить git-тег) виконується **перед** публікацією. Тому потрібні **`permissions.contents: write`** і **`persist-credentials: true`** з **`fetch-depth: 0`** на `checkout` (release пушить commit-back версії та тег), а також локальний composite **`./.github/actions/setup-bun-deps`** і крок `Configure git identity`. Це узгоджено з **`n-changelog`**: `version`/`CHANGELOG.md` змінює лише `n-cursor release` у CI на `main`. Програмна перевірка (`npm_module.npm_publish_yml`) звіряє **весь канонічний сніпет** напряму (`target.json:"check":"template"`, generic deep-subset): усі поля й кроки сніпета (`on.push.paths`/`branches`, `concurrency`, `permissions.contents/id-token`, `checkout` з `persist-credentials/fetch-depth`, `setup-bun-deps`, `Configure git identity`, `Release`, publish-крок) **обовʼязкові**; зайві кроки/поля дозволені (subset-of), масиви матчаться за наявністю (порядок кроків не важить). Сніпет — єдине джерело істини: його редагування одразу змінює enforce, без правок rego й без міграторів.
+Workflow робить **release + publish** одним job (`release-publish`): крок **`Release (bump + CHANGELOG + tag)`** (`bunx n-rules release` — агрегує change-файли, bump `version`, генерує секцію `CHANGELOG.md`, ставить git-тег) виконується **перед** публікацією. Тому потрібні **`permissions.contents: write`** і **`persist-credentials: true`** з **`fetch-depth: 0`** на `checkout` (release пушить commit-back версії та тег), а також локальний composite **`./.github/actions/setup-bun-deps`** і крок `Configure git identity`. Це узгоджено з **`n-changelog`**: `version`/`CHANGELOG.md` змінює лише `n-rules release` у CI на `main`. Програмна перевірка (`npm_module.npm_publish_yml`) звіряє **весь канонічний сніпет** напряму (`target.json:"check":"template"`, generic deep-subset): усі поля й кроки сніпета (`on.push.paths`/`branches`, `concurrency`, `permissions.contents/id-token`, `checkout` з `persist-credentials/fetch-depth`, `setup-bun-deps`, `Configure git identity`, `Release`, publish-крок) **обовʼязкові**; зайві кроки/поля дозволені (subset-of), масиви матчаться за наявністю (порядок кроків не важить). Сніпет — єдине джерело істини: його редагування одразу змінює enforce, без правок rego й без міграторів.
 
 - Канон: [npm-publish.yml.snippet.yml](./policy/npm_publish_yml/template/npm-publish.yml.snippet.yml)
 

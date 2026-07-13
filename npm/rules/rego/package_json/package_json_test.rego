@@ -5,7 +5,7 @@ import rego.v1
 
 valid_pkg := {
 	"name": "my-app",
-	"devDependencies": {"@nitra/cursor": "workspace:*"},
+	"devDependencies": {"@7n/rules": "workspace:*"},
 }
 
 test_allow_no_opa_regal if {

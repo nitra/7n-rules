@@ -44,14 +44,14 @@ docgen:
 ## Передумова
 
 - Поточна директорія — корінь проєкту (`requireRoot`), не worktree.
-- Доступний `npx @nitra/cursor`.
+- Доступний `npx @7n/rules`.
 
 ## Workflow
 
 ### Крок 1: Генерація застарілих/відсутніх док
 
 ```bash
-npx @nitra/cursor lint doc-files
+npx @7n/rules lint doc-files
 ```
 
 Команда запускає doc-files лінтер у fix-режимі (весь репо): перевіряє omlx

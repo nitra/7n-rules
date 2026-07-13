@@ -13,7 +13,7 @@ template_data := {"snippet": {
 		{"uses": "actions/checkout@v6"},
 		{"name": "Install hadolint", "run": hadolint_install_run},
 		{"uses": "./.github/actions/setup-bun-deps"},
-		{"name": "Lint Docker", "run": "n-cursor lint docker --no-fix"},
+		{"name": "Lint Docker", "run": "n-rules lint docker --no-fix"},
 	]}},
 }}
 
@@ -29,7 +29,7 @@ valid_wf := {
 		{"uses": "actions/checkout@v6"},
 		{"name": "Install hadolint", "run": hadolint_install_run},
 		{"uses": "./.github/actions/setup-bun-deps"},
-		{"name": "Lint Docker", "run": "n-cursor lint docker --no-fix"},
+		{"name": "Lint Docker", "run": "n-rules lint docker --no-fix"},
 	]}},
 }
 

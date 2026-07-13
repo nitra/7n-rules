@@ -4,7 +4,7 @@ alwaysApply: true
 version: '1.2'
 ---
 
-Правило **efes** для споживачів **@nitra/cursor** у репозиторіях під **`github.com/efes-cloud/*`**.
+Правило **efes** для споживачів **@7n/rules** у репозиторіях під **`github.com/efes-cloud/*`**.
 
 ## `@nitra/efes-shared` у `devDependencies`
 
@@ -16,6 +16,6 @@ bun add -d @nitra/efes-shared
 
 ## Швидкий gate через conftest (Rego)
 
-Пер-документні перевірки efes — rego-полісі у **`npm/rules/efes/policy/`** (запускається через **`npx @nitra/cursor fix efes`**; синтаксичний lint — через **`bun run lint-rego`**). Деталі шаблону — у **conftest.mdc** / **n-rego.mdc**.
+Пер-документні перевірки efes — rego-полісі у **`npm/rules/efes/policy/`** (запускається через **`npx @7n/rules fix efes`**; синтаксичний lint — через **`bun run lint-rego`**). Деталі шаблону — у **conftest.mdc** / **n-rego.mdc**.
 
 Пакети (директорія в **`npm/rules/efes/policy/`** → namespace → що перевіряє):

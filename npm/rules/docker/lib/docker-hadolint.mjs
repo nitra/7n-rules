@@ -4,7 +4,7 @@
  * Відносні шляхи з прямими слешами; hadolint резолвиться через `ensureTool`
  * (PATH → кеш → авто-install brew/scoop/GitHub Release per-platform). Docker-fallback
  * прибрано — hadolint ставиться як **нативний бінарник**, без `docker run`.
- * Використовується `../js/lint.mjs` (правило `n-cursor lint docker` / check-docker).
+ * Використовується `../js/lint.mjs` (правило `n-rules lint docker` / check-docker).
  */
 import { spawnSync } from 'node:child_process'
 import { relative, sep } from 'node:path'

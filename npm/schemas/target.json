@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://unpkg.com/@nitra/cursor/schemas/target.json",
+  "$id": "https://unpkg.com/@7n/rules/schemas/target.json",
   "title": "Rego policy target manifest",
   "description": "Маніфест поряд із <name>.rego: декларує, які файли проєкту фідити в conftest для цієї полісі. Лежить у npm/rules/<id>/policy/<name>/target.json (per-policy, поруч із <name>.rego). CLI читає й передає у runConftestBatch — JS-оркестратор у js/<name>/check.mjs не зобовʼязаний дублювати виклик. Namespace полісі обчислюється з шляху: <id>.<name>, відповідно `package <id>.<name>` у .rego.",
   "type": "object",
@@ -10,7 +10,7 @@
     "$schema": {
       "type": "string",
       "format": "uri",
-      "description": "Опційне посилання на JSON Schema для IDE-валідації; очікувано https://unpkg.com/@nitra/cursor/schemas/target.json"
+      "description": "Опційне посилання на JSON Schema для IDE-валідації; очікувано https://unpkg.com/@7n/rules/schemas/target.json"
     },
     "check": {
       "type": "string",
@@ -49,7 +49,7 @@
                   "items": { "type": "string", "minLength": 1 }
                 }
               ],
-              "description": "Один або декілька picomatch-globів (matched проти відносного posix-шляху). walkDir від cwd із загальними skip-ами + .n-cursor.json:ignore."
+              "description": "Один або декілька picomatch-globів (matched проти відносного posix-шляху). walkDir від cwd із загальними skip-ами + .n-rules.json:ignore."
             }
           }
         }

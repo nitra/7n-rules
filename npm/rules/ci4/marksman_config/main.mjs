@@ -19,7 +19,7 @@ export function lint(ctx) {
   const reporter = createViolationReporter(ctx)
 
   if (!existsSync(MARKSMAN_BASELINE_PATH)) {
-    reporter.fail(`canonical baseline не знайдено (${MARKSMAN_BASELINE_PATH}) — перевстанови @nitra/cursor`)
+    reporter.fail(`canonical baseline не знайдено (${MARKSMAN_BASELINE_PATH}) — перевстанови @7n/rules`)
     return reporter.result()
   }
 

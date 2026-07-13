@@ -11,7 +11,7 @@
 #
 # Цей порт спрощує JS-логіку — повна семантика OR-діапазонів (`a || b`) і нижня
 # межа діапазону лишається в JS (`rules/capacitor/fix.mjs`: `capacitorVersionRangeMinMajor`).
-# JS-перевірка лишилась authoritative й бігає через `npx @nitra/cursor fix capacitor`;
+# JS-перевірка лишилась authoritative й бігає через `npx @7n/rules fix capacitor`;
 # ця Rego — швидкий gate для одиничного `package.json` (наприклад через IDE).
 #
 # FS-сканування пакетів через workspaces, iOS-специфічна логіка (Podfile), вибір

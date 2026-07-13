@@ -2,7 +2,7 @@
 #
 # Викликається з `rules/nginx-default-tpl/fix.mjs` через `runConftestBatch` лише
 # ПІСЛЯ того, як JS виявив `default.conf.template` у дереві (умовне правило).
-# Глобально без `target.json` поруч (не auto-discoverable через `n-cursor fix`).
+# Глобально без `target.json` поруч (не auto-discoverable через `n-rules fix`).
 #
 # Canonical: `recommendations` має містити `ahmadalli.vscode-nginx-conf`.
 package nginx_default_tpl.vscode_extensions

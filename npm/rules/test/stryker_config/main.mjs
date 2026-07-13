@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { parseSync } from 'oxc-parser'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
-import { readNCursorConfigLite } from '../../../scripts/lib/read-n-cursor-config-lite.mjs'
+import { readNRulesConfigLite } from '../../../scripts/lib/read-n-rules-config-lite.mjs'
 import { resolveAllJsRoots } from '../../../scripts/utils/resolve-js-root.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -444,7 +444,7 @@ export async function planStrykerActions(cwd) {
     VITEST_BASELINE_PATH
   ]) {
     if (!existsSync(baselinePath)) {
-      plan.fatal = `canonical baseline не знайдено (${baselinePath}) — перевстанови @nitra/cursor`
+      plan.fatal = `canonical baseline не знайдено (${baselinePath}) — перевстанови @7n/rules`
       return plan
     }
   }
@@ -465,7 +465,7 @@ export async function planStrykerActions(cwd) {
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const cwd = ctx.cwd
-  const config = await readNCursorConfigLite(cwd)
+  const config = await readNRulesConfigLite(cwd)
 
   // Self-gate: js має бути enabled
   if (!config.rules.includes('js') || config.disableRules.includes('js')) {
@@ -480,13 +480,13 @@ export async function lint(ctx) {
 
   for (const a of plan.baselineActions) {
     reporter.fail(
-      `${a.label} відсутній (${relative(cwd, a.target)}) — запусти \`npx @nitra/cursor lint test\` для canonical baseline (test.mdc)`,
+      `${a.label} відсутній (${relative(cwd, a.target)}) — запусти \`npx @7n/rules lint test\` для canonical baseline (test.mdc)`,
       { reason: STRYKER_CONFIG_MISSING, file: relative(cwd, a.target) }
     )
   }
   for (const w of plan.augmentWrites) {
     reporter.fail(
-      `vue-macros ignorer не зареєстровано у stryker.config.mjs (${relative(cwd, w.target)}) — запусти \`npx @nitra/cursor lint test\` (test.mdc)`,
+      `vue-macros ignorer не зареєстровано у stryker.config.mjs (${relative(cwd, w.target)}) — запусти \`npx @7n/rules lint test\` (test.mdc)`,
       { reason: STRYKER_VUE_AUGMENT, file: relative(cwd, w.target) }
     )
   }
@@ -495,7 +495,7 @@ export async function lint(ctx) {
   }
   if (plan.gitignoreMissing.length > 0) {
     reporter.fail(
-      `.gitignore: бракує тест-патернів (${plan.gitignoreMissing.join(', ')}) — запусти \`npx @nitra/cursor lint test\` (test.mdc)`,
+      `.gitignore: бракує тест-патернів (${plan.gitignoreMissing.join(', ')}) — запусти \`npx @7n/rules lint test\` (test.mdc)`,
       GITIGNORE_MISSING
     )
   }

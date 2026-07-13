@@ -6,14 +6,12 @@ import rego.v1
 # Mirrors template/pyproject.toml.deny.toml
 template_data := {"deny": {"tool": {"poetry": "Poetry заборонено: мігруй на uv + PEP 621 [project] (python.mdc)"}}}
 
-valid_pep621 := {
-	"project": {
-		"name": "demo",
-		"version": "1.0.0",
-		"requires-python": ">=3.12",
-		"dependencies": [],
-	},
-}
+valid_pep621 := {"project": {
+	"name": "demo",
+	"version": "1.0.0",
+	"requires-python": ">=3.12",
+	"dependencies": [],
+}}
 
 test_allow_pep621 if {
 	count(pyproject_toml.deny) == 0 with input as valid_pep621 with data.template as template_data

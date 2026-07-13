@@ -1,5 +1,5 @@
 /**
- * Автовизначення skills для `.n-cursor.json` за умовами з `npm/skills/<skill>/main.json`.
+ * Автовизначення skills для `.n-rules.json` за умовами з `npm/skills/<skill>/main.json`.
  *
  * `main.json` — джерело правди (а не hardcoded мапа). Підтримуються три варіанти:
  *
@@ -7,7 +7,7 @@
  *    (приклади: `fix`, `lint`, `llm-patch`, `publish-telegram`).
  *  - `auto: ["rule", …]` — скіл активується, якщо ВСІ перелічені правила вже виявлені
  *    auto-rules (приклади: `adr-normalize - ["adr"]`, `taze - ["bun"]`).
- *  - поле `auto` відсутнє або формат не розпізнано — скіл opt-in лише через `.n-cursor.json:skills`.
+ *  - поле `auto` відсутнє або формат не розпізнано — скіл opt-in лише через `.n-rules.json:skills`.
  *
  * Сканування `npm/skills/` — sync під час завантаження модуля (детермінізм + sync API
  * `auto-rules.mjs`-сусіда). Кеш на час процесу.

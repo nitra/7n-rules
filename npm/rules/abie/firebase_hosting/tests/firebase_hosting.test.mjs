@@ -90,7 +90,7 @@ describe('abie firebase_hosting concern', () => {
   })
 
   test('readdir на неіснуючому шляху → violation (помилка читання)', async () => {
-    const fakePath = join('/no-such-path', `n-cursor-test-${Date.now()}`)
+    const fakePath = join('/no-such-path', `n-rules-test-${Date.now()}`)
     const result = await run(fakePath)
     expect(result.violations.length).toBeGreaterThan(0)
   })

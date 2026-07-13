@@ -1,4 +1,4 @@
 {
-  "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
   "lint": { "scope": "full", "glob": ["**/*.vue", "**/*.html"] }
 }

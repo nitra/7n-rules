@@ -170,7 +170,7 @@ async function checkChangelogReleaseWorkflow(cwd, apps, reporter) {
   }
 
   // ga-канон тримає persist-credentials: false на checkout (а checkout@v6 і без
-  // нього більше не зберігає токен), тож `n-cursor release`/`git push` у джобі
+  // нього більше не зберігає токен), тож `n-rules release`/`git push` у джобі
   // мовчки відхиляється («після 5 спроб (non-fast-forward?)») без явного
   // push-auth через job-scoped GITHUB_TOKEN у remote-url.
   const hasPushAuth = flattenWorkflowSteps(root).some(s => {

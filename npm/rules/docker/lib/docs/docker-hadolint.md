@@ -3,12 +3,12 @@ type: JS Module
 title: docker-hadolint.mjs
 resource: npm/rules/docker/lib/docker-hadolint.mjs
 docgen:
-  crc: ebab2135
+  crc: 0351d8ee
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
 ---
 
-Спільна логіка виклику hadolint для шляхів до Dockerfile. Модуль створює стандартизовані відносні шляхи з прямими слешами. Він ініціює перевірку Dockerfile, використовуючи hadolint як нативний бінарник, який резолвиться через `ensureTool` (PATH → кеш → авто-install brew/scoop/GitHub Release per-platform). Для отримання інформації про встановлення можна звертатися до https://github.com/hadolint/hadolint/releases. Публічна функція `lintDockerfileWithHadolint` виконує перевірку за правилом `n-cursor lint docker` / check-docker.
+Спільна логіка виклику hadolint для шляхів до Dockerfile. Модуль створює стандартизовані відносні шляхи з прямими слешами. Він ініціює перевірку Dockerfile, використовуючи hadolint як нативний бінарник, який резолвиться через `ensureTool` (PATH → кеш → авто-install brew/scoop/GitHub Release per-platform). Для отримання інформації про встановлення можна звертатися до https://github.com/hadolint/hadolint/releases. Публічна функція `lintDockerfileWithHadolint` виконує перевірку за правилом `n-rules lint docker` / check-docker.
 
 ## Поведінка
 

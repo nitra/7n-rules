@@ -22,7 +22,7 @@ function makeFakeRule({ id, concerns = [] }) {
   for (const c of concerns) {
     const concernDir = join(ruleDir, c.name)
     mkdirSync(concernDir, { recursive: true })
-    const meta = { $schema: 'https://unpkg.com/@nitra/cursor/schemas/concern.json' }
+    const meta = { $schema: 'https://unpkg.com/@7n/rules/schemas/concern.json' }
     if (c.check) meta.check = true
     if (c.policy) meta.policy = c.policy
     if (c.lint) meta.lint = c.lint

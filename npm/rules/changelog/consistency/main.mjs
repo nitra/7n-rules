@@ -22,7 +22,9 @@ const execFileAsync = promisify(execFile)
  * (канонічний fix-only snippet із `stage` не потребує — див. npm-module.mdc);
  * наявність самого кроку валідує `npm-module`/`package_structure`.
  */
-const AUTOFIX_ENV_VAR = 'N_CURSOR_CHANGELOG_AUTOFIX'
+const AUTOFIX_ENV_VAR = 'N_RULES_CHANGELOG_AUTOFIX'
+/** @deprecated legacy-назва env до перейменування пакету — читається як fallback */
+const LEGACY_AUTOFIX_ENV_VAR = 'N_CURSOR_CHANGELOG_AUTOFIX'
 
 /** Дефолтний `bump` для autofix-створеного change-файлу (вищий bump редагуєш вручну). */
 const AUTOFIX_BUMP = 'patch'
@@ -41,9 +43,9 @@ const LOCAL_ONLY_SKIP_BRANCH = 'dev'
 
 /**
  * Префікси шляхів (posix), які не вважаються релізними змінами — інверсія glob (n-changelog.mdc):
- * документація (`docs/`, `doc/`) та синхронізований із `@nitra/cursor` інструментарій
+ * документація (`docs/`, `doc/`) та синхронізований із `@7n/rules` інструментарій
  * (`.cursor/` — канонічні правила й скіли, `.claude/` — ADR-хуки). Останнє — дзеркало tooling-пакета,
- * не логіка самого воркспейсу, тож bump CHANGELOG не потрібен. Джерело правил у репо `@nitra/cursor`
+ * не логіка самого воркспейсу, тож bump CHANGELOG не потрібен. Джерело правил у репо `@7n/rules`
  * лежить під `npm/`, тож на нього ця інверсія не поширюється.
  */
 const CHANGELOG_IGNORE_PATH_PREFIXES = Object.freeze(['docs/', 'doc/', '.cursor/', '.claude/'])
@@ -768,7 +770,7 @@ export async function lint(ctx) {
     return reporter.result()
   }
 
-  const autofix = process.env[AUTOFIX_ENV_VAR] === '1'
+  const autofix = process.env[AUTOFIX_ENV_VAR] === '1' || process.env[LEGACY_AUTOFIX_ENV_VAR] === '1'
 
   const workspaces = await getMonorepoProjectRootDirs(cwd)
   const subWorkspaces = workspaces.filter(w => w !== '.')

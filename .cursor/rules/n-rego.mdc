@@ -58,7 +58,7 @@ rules:
       level: ignore
 ```
 
-`regal lint` запускається через `n-cursor lint rego`; без `.regal/config.yaml` regal використовує дефолти і може помилково флагувати conftest `deny`-правила як entrypoint-порушення.
+`regal lint` запускається через `n-rules lint rego`; без `.regal/config.yaml` regal використовує дефолти і може помилково флагувати conftest `deny`-правила як entrypoint-порушення.
 
 ## Rego-перевірка наявності tsandall.opa у recommendations
 

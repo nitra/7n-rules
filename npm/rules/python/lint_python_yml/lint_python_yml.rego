@@ -6,7 +6,7 @@
 #   - кожен `uses` з template (підмножина): actions/checkout@v6,
 #     ./.github/actions/setup-bun-deps, astral-sh/setup-uv@v8.0.0;
 #   - кожен `run` з template має бути присутнім (як substring) серед run-кроків
-#     input'а: `uv sync --frozen`, `n-cursor lint python --no-fix`.
+#     input'а: `uv sync --frozen`, `n-rules lint python --no-fix`.
 # Заборона Poetry-кроків (snok/install-poetry, `poetry install`) — через відсутність
 # у каноні: правило вимагає uv-кроки, а нав'язаних poetry-кроків у template немає.
 # Універсальні workflow-перевірки (name, concurrency, branches) — у `ga.workflow_common`.
@@ -44,12 +44,12 @@ deny contains msg if {
 }
 
 deny contains msg if {
+	msg := "lint-python.yml: actions/checkout@v6 потребує `with: persist-credentials: false` (python.mdc)"
 	some job in object.get(input, "jobs", {})
 	some step in object.get(job, "steps", [])
-	object.get(step, "uses", "") == "actions/checkout@v6"
+	step.uses == "actions/checkout@v6"
 	creds := object.get(object.get(step, "with", {}), "persist-credentials", true)
 	creds != false
-	msg := "lint-python.yml: actions/checkout@v6 потребує `with: persist-credentials: false` (python.mdc)"
 }
 
 deny contains msg if {

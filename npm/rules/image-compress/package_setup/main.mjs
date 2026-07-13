@@ -89,7 +89,7 @@ export async function lint(ctx) {
     fail('package.json не знайдено в корені — додай (image-compress.mdc)')
     return reporter.result()
   }
-  pass('package.json є (dependency policy перевіряє npx @nitra/cursor fix → image_compress.package_json)')
+  pass('package.json є (dependency policy перевіряє npx @7n/rules fix → image_compress.package_json)')
 
   await checkHashCacheNotIgnored(pass, fail, cwd)
   await checkLegacyCacheRemoved(pass, fail, cwd)

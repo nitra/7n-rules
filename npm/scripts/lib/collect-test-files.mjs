@@ -1,6 +1,6 @@
 /**
  * Спільна логіка для `test/no-*`-концернів, що сканують `*.test.{mjs,js}`: визначення
- * тестового файлу й обхід дерева з `.n-cursor.json`-ignore. Виносено з дублювання між
+ * тестового файлу й обхід дерева з `.n-rules.json`-ignore. Виносено з дублювання між
  * `no-bun-test-import` і `no-process-chdir` (jscpd).
  */
 import { basename, relative } from 'node:path'
@@ -19,7 +19,7 @@ export function isTestFile(absPath) {
 }
 
 /**
- * Збирає всі `*.test.{mjs,js}` у дереві `cwd`, поважаючи `.n-cursor.json`-ignore.
+ * Збирає всі `*.test.{mjs,js}` у дереві `cwd`, поважаючи `.n-rules.json`-ignore.
  * @param {string} cwd абсолютний корінь репозиторію
  * @returns {Promise<string[]>} абсолютні шляхи тестових файлів
  */

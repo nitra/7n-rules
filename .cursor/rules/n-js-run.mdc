@@ -9,7 +9,7 @@ version: '1.12'
 
 ## Швидкий gate через conftest
 
-Rego-пакети, які запускає `npx @nitra/cursor fix js-run` / `npx @nitra/cursor check`:
+Rego-пакети, які запускає `npx @7n/rules fix js-run` / `npx @7n/rules check`:
 
 - `jsconfig.json`:
 

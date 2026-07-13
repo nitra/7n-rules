@@ -41,11 +41,11 @@ version: '2.2'
 }
 ```
 
-Обидві ADR-групи ідентифікуються пакетом за маркером у `command` (`.claude/hooks/capture-decisions.sh`, `.claude/hooks/normalize-decisions.sh`) — користувацькі hook-групи поряд не чіпаються. Якщо `adr` прибрати з `rules`, обидві ADR-групи автоматично видаляються на наступному `npx @nitra/cursor`.
+Обидві ADR-групи ідентифікуються пакетом за маркером у `command` (`.claude/hooks/capture-decisions.sh`, `.claude/hooks/normalize-decisions.sh`) — користувацькі hook-групи поряд не чіпаються. Якщо `adr` прибрати з `rules`, обидві ADR-групи автоматично видаляються на наступному `npx @7n/rules`.
 
 ## Stop-hook у `.cursor/hooks.json`
 
-Cursor Agent читає project-level **`.cursor/hooks.json`**. `npx @nitra/cursor` merge-ить файл: користувацькі hooks лишаються, managed entries для `capture-decisions.sh` і `normalize-decisions.sh` перезаписуються або видаляються разом із правилом `adr`.
+Cursor Agent читає project-level **`.cursor/hooks.json`**. `npx @7n/rules` merge-ить файл: користувацькі hooks лишаються, managed entries для `capture-decisions.sh` і `normalize-decisions.sh` перезаписуються або видаляються разом із правилом `adr`.
 
 ```json title=".cursor/hooks.json"
 {
@@ -69,7 +69,7 @@ Cursor Agent читає project-level **`.cursor/hooks.json`**. `npx @nitra/curs
 
 ## ADR_HOOKS_SKIP — оркестраторні сесії не потрапляють у ADR hooks
 
-Підкоманди-оркестратори (`npx @nitra/cursor lint`, `/n-lint`, `/n-doc-files`, `/n-taze`, `/n-release` тощо) можуть спавнити внутрішню agent/LLM-сесію. Такий транскрипт — технічний шум, не людська думка, тому JS-оркестратор (`npm/bin/n-cursor.js`) виставляє `ADR_HOOKS_SKIP=1` перед `switch (command)`, до будь-якого дочірнього процесу. `capture-decisions.sh`, `normalize-decisions.sh` і `pi`-extension (`n-cursor-adr`) перевіряють прапор одразу після власних recursion guards і мовчки виходять (`exit 0` / `return`) — без запису в лог.
+Підкоманди-оркестратори (`npx @7n/rules lint`, `/n-lint`, `/n-doc-files`, `/n-taze`, `/n-release` тощо) можуть спавнити внутрішню agent/LLM-сесію. Такий транскрипт — технічний шум, не людська думка, тому JS-оркестратор (`npm/bin/n-rules.js`) виставляє `ADR_HOOKS_SKIP=1` перед `switch (command)`, до будь-якого дочірнього процесу. `capture-decisions.sh`, `normalize-decisions.sh` і `pi`-extension (`n-rules-adr`) перевіряють прапор одразу після власних recursion guards і мовчки виходять (`exit 0` / `return`) — без запису в лог.
 
 ## Capture-бекенд: `CAPTURE_DECISIONS_BACKEND`
 
@@ -77,7 +77,7 @@ Cursor Agent читає project-level **`.cursor/hooks.json`**. `npx @nitra/curs
 
 | Значення | Поведінка |
 | --- | --- |
-| `pi` (дефолт) | Тільки локальний `pi` (npm-first lookup: root `.bin`, nested `@nitra/cursor` `.bin`, `PATH`); без бінарника або без моделі (`CAPTURE_DECISIONS_PI_MODEL`/`N_LOCAL_MIN_MODEL`) — мовчки `exit 0`, без cloud-фолбеку |
+| `pi` (дефолт) | Тільки локальний `pi` (npm-first lookup: root `.bin`, nested `@7n/rules` `.bin`, `PATH`); без бінарника або без моделі (`CAPTURE_DECISIONS_PI_MODEL`/`N_LOCAL_MIN_MODEL`) — мовчки `exit 0`, без cloud-фолбеку |
 | `claude` | Примусово `claude -p --model "$CAPTURE_DECISIONS_CLAUDE_MODEL"` |
 | `cursor-agent` | Примусово `cursor-agent -p --mode ask --model "$CAPTURE_DECISIONS_CURSOR_MODEL"` |
 | `auto` | Каскад за доступністю: `pi` -> `claude` -> `cursor-agent` -> skip (не за результатом виклику — порожня відповідь обраного бекенду фінальна) |
@@ -100,9 +100,9 @@ Cursor Agent читає project-level **`.cursor/hooks.json`**. `npx @nitra/curs
 Для кожного з двох bash-скриптів (`capture-decisions.sh`, `normalize-decisions.sh`) перевіряє:
 
 - файл `.claude/hooks/<script>.sh` **існує** у проєкті;
-- його вміст **ідентичний** bundled-версії з пакета `@nitra/cursor`.
+- його вміст **ідентичний** bundled-версії з пакета `@7n/rules`.
 
-Якщо файл відсутній або відрізняється — `fail` з підказкою `npx @nitra/cursor`.
+Якщо файл відсутній або відрізняється — `fail` з підказкою `npx @7n/rules`.
 
 ### 2. Наявність `.claude/settings.json`
 
@@ -122,7 +122,7 @@ Cursor Agent читає project-level **`.cursor/hooks.json`**. `npx @nitra/curs
 
 ### 5. Доступність capture-бекенду
 
-Інформативна (завжди `pass`) перевірка стану дефолтного бекенду `pi` — npm-first пошук бінарника (root `node_modules/.bin/pi`, nested `node_modules/@nitra/cursor/node_modules/.bin/pi`, system `PATH`) і наявність локальної моделі (`CAPTURE_DECISIONS_PI_MODEL` або `N_LOCAL_MIN_MODEL`) — разом зі станом cloud-фолбеку `claude`/`cursor-agent`, доступного через `CAPTURE_DECISIONS_BACKEND=claude|cursor-agent|auto`. Якщо жоден бекенд не готовий — хук просто мовчки no-op'ає, тому це попередження, а не помилка.
+Інформативна (завжди `pass`) перевірка стану дефолтного бекенду `pi` — npm-first пошук бінарника (root `node_modules/.bin/pi`, nested `node_modules/@7n/rules/node_modules/.bin/pi`, system `PATH`) і наявність локальної моделі (`CAPTURE_DECISIONS_PI_MODEL` або `N_LOCAL_MIN_MODEL`) — разом зі станом cloud-фолбеку `claude`/`cursor-agent`, доступного через `CAPTURE_DECISIONS_BACKEND=claude|cursor-agent|auto`. Якщо жоден бекенд не готовий — хук просто мовчки no-op'ає, тому це попередження, а не помилка.
 
 ## Наявність ADR Stop-хуків у `.claude/settings.json`
 

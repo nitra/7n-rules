@@ -9,7 +9,7 @@ version: '2.1'
 
 ## Перевірка
 
-`npx @nitra/cursor fix security`
+`npx @7n/rules fix security`
 
 - `lint-security.yml`:
 
@@ -96,7 +96,7 @@ Concern `security.sample_secret` (`js/sample_secret.mjs`) сканує всі п
 
 [TruffleHog](https://github.com/trufflesecurity/trufflehog) — глобальний CLI (як `shellcheck`, `conftest`); **не** додавай до `dependencies`/`devDependencies`.
 
-Скан запускається через `n-cursor lint security` (CI — `n-cursor lint security --no-fix`); окремого `lint-*` скрипта в `package.json` немає.
+Скан запускається через `n-rules lint security` (CI — `n-rules lint security --no-fix`); окремого `lint-*` скрипта в `package.json` немає.
 
 ### Ключові прапори запуску
 

@@ -59,7 +59,7 @@ export async function fixWorker(violations, ctx) {
     verify: ctx.verify,
     verifyMax: ctx.verifyMax,
     anchoredEdits: anchoredEnabled(ctx.model, isLocalModel),
-    // n-cursor-специфічний AST-екстрактор (oxc) — пакет цього дефолту не має.
+    // n-rules-специфічний AST-екстрактор (oxc) — пакет цього дефолту не має.
     deps: { astContext: p => extractContext(resolve(ctx.cwd, p)) }
   })
   if (res.error) throw new Error(res.error)

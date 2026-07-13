@@ -1,18 +1,18 @@
 /**
- * CLI запуску скілів пакета `@nitra/cursor` без синку правил у проєкт.
+ * CLI запуску скілів пакета `@7n/rules` без синку правил у проєкт.
  *
  * Скіли читаються з `npm/skills/<id>/SKILL.md` установленого пакета (або кешу `npx`).
  * Промпт збирає інструкцію скілу + контекст поточного CWD (`package.json`, `tsconfig.json`,
- * `.n-cursor.json`) — далі stdout або виконання через вбудований pi-агент
+ * `.n-rules.json`) — далі stdout або виконання через вбудований pi-агент
  * (рекомендовано), чи deprecated-делегування в `cursor-agent` / `claude`.
  *
  * Підтримувані формати:
- *   `npx \@nitra/cursor skill list`
- *   `npx \@nitra/cursor skill taze`
- *   `npx \@nitra/cursor skill pi taze` — виконати через вбудований pi-агент (рекомендовано)
- *   `npx \@nitra/cursor skill pi taze "онови залежності"`
- *   `npx \@nitra/cursor skill cursor taze` — deprecated: зовнішній Cursor CLI
- *   `npx \@nitra/cursor skill claude taze` — deprecated: зовнішній Claude Code CLI
+ *   `npx \@7n/rules skill list`
+ *   `npx \@7n/rules skill taze`
+ *   `npx \@7n/rules skill pi taze` — виконати через вбудований pi-агент (рекомендовано)
+ *   `npx \@7n/rules skill pi taze "онови залежності"`
+ *   `npx \@7n/rules skill cursor taze` — deprecated: зовнішній Cursor CLI
+ *   `npx \@7n/rules skill claude taze` — deprecated: зовнішній Claude Code CLI
  */
 
 import { spawnSync } from 'node:child_process'
@@ -28,11 +28,11 @@ const RUNNERS = new Set(['pi', 'cursor', 'claude'])
 
 const USAGE_LINES = [
   'Usage:',
-  '  npx @nitra/cursor skill list',
-  '  npx @nitra/cursor skill <skill-id> ["task"]',
-  '  npx @nitra/cursor skill pi <skill-id> ["task"]      # вбудований pi-агент (рекомендовано)',
-  '  npx @nitra/cursor skill cursor <skill-id> ["task"]  # deprecated',
-  '  npx @nitra/cursor skill claude <skill-id> ["task"]  # deprecated',
+  '  npx @7n/rules skill list',
+  '  npx @7n/rules skill <skill-id> ["task"]',
+  '  npx @7n/rules skill pi <skill-id> ["task"]      # вбудований pi-агент (рекомендовано)',
+  '  npx @7n/rules skill cursor <skill-id> ["task"]  # deprecated',
+  '  npx @7n/rules skill claude <skill-id> ["task"]  # deprecated',
   '',
   'Skill id: каталог у пакеті (lint, taze, …) або з префіксом n- (n-lint → lint).'
 ]
@@ -109,7 +109,8 @@ export function buildSkillPrompt(skillsRoot, rawSkillName, task, projectDir = cw
   const skill = readFileSync(skillPath, 'utf8')
   const packageJson = readIfExists(join(projectDir, 'package.json'))
   const tsconfig = readIfExists(join(projectDir, 'tsconfig.json'))
-  const nCursorJson = readIfExists(join(projectDir, '.n-cursor.json'))
+  const nCursorJson =
+    readIfExists(join(projectDir, '.n-rules.json')) ?? readIfExists(join(projectDir, '.n-cursor.json'))
 
   return [
     '# Task',
@@ -123,7 +124,7 @@ export function buildSkillPrompt(skillsRoot, rawSkillName, task, projectDir = cw
     '',
     packageJson ? `## package.json\n\n\`\`\`json\n${packageJson}\n\`\`\`` : '',
     tsconfig ? `## tsconfig.json\n\n\`\`\`json\n${tsconfig}\n\`\`\`` : '',
-    nCursorJson ? `## .n-cursor.json\n\n\`\`\`json\n${nCursorJson}\n\`\`\`` : ''
+    nCursorJson ? `## .n-rules.json\n\n\`\`\`json\n${nCursorJson}\n\`\`\`` : ''
   ]
     .filter(Boolean)
     .join('\n\n')
@@ -196,7 +197,7 @@ function runLlmCli(kind, prompt, projectDir, logError) {
 }
 
 /**
- * Корінь пакета `@nitra/cursor` (каталог з `skills/`, `rules/`, …).
+ * Корінь пакета `@7n/rules` (каталог з `skills/`, `rules/`, …).
  * @param {string} [fromModuleUrl] для тестів — `import.meta.url`, відносно якого шукати корінь
  * @returns {string} абсолютний шлях до кореня пакета
  */
@@ -205,7 +206,7 @@ export function resolveBundledPackageRoot(fromModuleUrl = import.meta.url) {
 }
 
 /**
- * @param {string[]} argv аргументи після `skill` у `n-cursor`
+ * @param {string[]} argv аргументи після `skill` у `n-rules`
  * @param {{ packageRoot?: string, projectDir?: string, log?: (line: string) => void, logError?: (line: string) => void, deps?: { runPiAgentSkill?: (prompt: string, opts?: object) => Promise<{ ok: boolean, error: string|null }> } }} [options] перевизначення кореня пакета, каталогу проєкту, функцій виводу та інжектів (для тестів)
  * @returns {Promise<number>} exit code
  */

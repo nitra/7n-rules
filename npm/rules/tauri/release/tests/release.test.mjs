@@ -36,7 +36,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git remote set-url origin "https://x-access-token:\${{ secrets.GITHUB_TOKEN }}@github.com/\${{ github.repository }}.git"
-      - run: npx @nitra/cursor release
+      - run: npx @7n/rules release
 `
 
 const RELEASE_YML = `on:
@@ -391,7 +391,7 @@ jobs:
       actions: write
     steps:
       - uses: actions/checkout@v6
-      - run: npx @nitra/cursor release
+      - run: npx @7n/rules release
 `
 
   test('без remote set-url — changelog-release-push-auth-missing; T0 вставляє крок перед release-командою', async () => {
@@ -404,7 +404,7 @@ jobs:
     const parsed = parseYaml(readFileSync(path, 'utf8'))
     const steps = parsed.jobs.release.steps
     const authIdx = steps.findIndex(s => s.run?.includes('x-access-token'))
-    const releaseIdx = steps.findIndex(s => s.run?.includes('@nitra/cursor release'))
+    const releaseIdx = steps.findIndex(s => s.run?.includes('@7n/rules release'))
     expect(authIdx).toBeGreaterThanOrEqual(0)
     expect(authIdx).toBeLessThan(releaseIdx)
     expect(await runCheckIn(proj.dir)).toEqual([])

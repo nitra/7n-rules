@@ -2,7 +2,7 @@
  * Формат таблиці-резюме часу виконання для orchestrator `fix` / `lint`.
  *
  * Дві спільні точки використання:
- *  - `runFixCommand` у `bin/n-cursor.js` — після прогону всіх `rules/<id>/check.mjs`.
+ *  - `runFixCommand` у `bin/n-rules.js` — після прогону всіх `rules/<id>/check.mjs`.
  *  - `runLintCli` у `scripts/lib/run-lint-cli.mjs` — після прогону `lint-*` скриптів з кореневого `package.json`.
  *
  * Чиста функція без I/O — повертає готовий рядок (з фінальним `\n`), друк — на стороні виклику.

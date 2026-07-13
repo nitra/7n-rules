@@ -3,10 +3,10 @@ type: JS Module
 title: change.mjs
 resource: npm/rules/release/change.mjs
 docgen:
-  crc: c9f1f131
+  crc: c119d596
 ---
 
-Модуль реалізує CLI-команду `n-cursor change`, яка створює **один** change-файл у каталозі `<ws>/.changes/<timestamp>-<rand>.md` усередині конкретного workspace монорепо. Файл містить мінімальний YAML-frontmatter (`bump`, `section`) та текст опису зміни.
+Модуль реалізує CLI-команду `n-rules change`, яка створює **один** change-файл у каталозі `<ws>/.changes/<timestamp>-<rand>.md` усередині конкретного workspace монорепо. Файл містить мінімальний YAML-frontmatter (`bump`, `section`) та текст опису зміни.
 
 Призначення — замінити ручне редагування `CHANGELOG.md` під час feature-флоу: розробник (або агент) додає декларативний запис про зміну, а агрегація у фінальний `CHANGELOG.md` відбувається пізніше в CI (відповідно до правила `n-changelog.mdc` v3.0).
 
@@ -156,7 +156,7 @@ const rel = await writeChange({
 ### Сценарій 2: запуск через CLI
 
 ```bash
-n-cursor change \
+n-rules change \
   --bump patch \
   --section Fixed \
   --message "Fix off-by-one у валідаторі change-файлів" \
@@ -182,7 +182,7 @@ n-cursor change \
 - `Date.now()` — мілісекундний timestamp (порядок створення зберігається лексикографічно).
 - `randomBytes(3).toString('hex')` — 6 шістнадцяткових символів випадковості (≈ 16M варіантів) у межах однієї мілісекунди.
 
-Це робить безпечним одночасний запис із різних worktree чи паралельних агентів `n-cursor` без блокувань і без координації через FS.
+Це робить безпечним одночасний запис із різних worktree чи паралельних агентів `n-rules` без блокувань і без координації через FS.
 
 ## Rebuild Test
 

@@ -11,12 +11,12 @@ alwaysApply: false
 
 **Скоп — поза `.github/`:** правило стосується YAML-маніфестів у каталогах **`k8s`** (визначаються відносно кореня репо, не за абсолютним шляхом). Файли під **`.github/workflows/`** та **`.github/actions/`** ця перевірка **не** зачіпає — їхній скоп визначає **`ga.mdc`** (там канон — **`.yml`**).
 
-**Dockerfile / hadolint** — окреме правило **`docker.mdc`** і **`npx @nitra/cursor fix docker`**.
+**Dockerfile / hadolint** — окреме правило **`docker.mdc`** і **`npx @7n/rules fix docker`**.
 
 ## Активація
 
-Правило активується автоматично для `**/k8s/**/*.yaml` (через `globs`). Додаткова конфігурація в `.n-cursor.json` не потрібна.
+Правило активується автоматично для `**/k8s/**/*.yaml` (через `globs`). Додаткова конфігурація в `.n-rules.json` не потрібна.
 
 ## Швидкий gate через conftest (Rego)
 
-Підмножину пер-документних правил продубльовано як rego-полісі у **`npm/rules/k8s/policy/`** (запускається через **`bun run lint-rego`** для `*_test.rego` юніт-тестів і через **`npx @nitra/cursor fix k8s`** для прогону по реальних YAML). JS authoritative; rego — швидкий gate для одиничного маніфеста.
+Підмножину пер-документних правил продубльовано як rego-полісі у **`npm/rules/k8s/policy/`** (запускається через **`bun run lint-rego`** для `*_test.rego` юніт-тестів і через **`npx @7n/rules fix k8s`** для прогону по реальних YAML). JS authoritative; rego — швидкий gate для одиничного маніфеста.

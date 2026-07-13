@@ -47,7 +47,7 @@ bun install
 > **Не порівнюй `package.json` вручну.** Класифікацію semver несе CLI — детерміновано, по всіх воркспейсах.
 
 ```bash
-n-cursor taze diff
+n-rules taze diff
 ```
 
 Друкує компактний JSON: `{ "major": [{workspace, pkg, from, to}], "minorPatch": <N>, "totalChanged": <N> }`. `major` — список залежностей, у яких змінилась найлівіша ненульова компонента semver (`1.x→2.x`, `0.4.x→0.5.x`, `0.0.3→0.0.4`); саме він іде в кроки 4–6. `minorPatch` — лічба сумісних (для звіту в кроці 8).
@@ -82,7 +82,7 @@ rg -n "<імпорт|функція|опція>" --type ts --type js --type vue
 Для кожного несумісного місця — застосувати міграцію згідно з changelog модуля (перейменувати імпорт, оновити сигнатуру виклику, замінити видалену опцію еквівалентом тощо). Після правок:
 
 ```bash
-npx @nitra/cursor lint
+npx @7n/rules lint
 bun run typecheck   # якщо є
 bun test            # якщо є
 ```
@@ -109,6 +109,6 @@ rm package.json.taze-bak bun.lock.taze-bak
 
 ## Примітка
 
-- Не запускати `npx @nitra/cursor lint` паралельно з іншими ESLint-задачами — діє правило з кореневого `CLAUDE.md`.
+- Не запускати `npx @7n/rules lint` паралельно з іншими ESLint-задачами — діє правило з кореневого `CLAUDE.md`.
 - Якщо проект — `npm/` пакет цього репо, після змін у `package.json` / коді треба підняти `version` і додати запис у `CHANGELOG.md` згідно з `npm/CLAUDE.md`.
 - При великій кількості major-оновлень розбити PR по одному модулю на коміт — щоб `git bisect` залишався корисним.

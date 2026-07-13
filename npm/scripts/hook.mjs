@@ -73,7 +73,7 @@ function logToStderr(s) {
 }
 
 /**
- * CLI для `n-cursor hook`.
+ * CLI для `n-rules hook`.
  * @param {string[]} argv аргументи після 'hook'
  * @returns {Promise<number>} exit-код (0 — чисто; 2 — є порушення hook-протокол)
  */

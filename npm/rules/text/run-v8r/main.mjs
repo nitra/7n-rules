@@ -5,8 +5,8 @@
  * кожного glob окремий `bunx v8r`, бо v8r у одному процесі падає з кодом 98, якщо хоч один із
  * переданих глобів не знаходить файлів — тоді решта розширень не перевіряються.
  *
- * Каталог схем `@nitra/cursor` (`v8r-catalog.json` у каталозі `schemas` пакета) вказує локальні
- * (не-http) схеми як шляхи ВІДНОСНО `npm/schemas/` (наприклад `"n-cursor.json"`,
+ * Каталог схем `@7n/rules` (`v8r-catalog.json` у каталозі `schemas` пакета) вказує локальні
+ * (не-http) схеми як шляхи ВІДНОСНО `npm/schemas/` (наприклад `"n-rules.json"`,
  * `"vendor/tsconfig.json"`) — так каталог лишається портативним у репозиторії. Ці схеми вендорені
  * в `npm/schemas/` (власні) і `npm/schemas/vendor/` (сторонні: package.json, tsconfig, oxlintrc,
  * cspell тощо) — v8r ніколи не фетчить їх по мережі. Вендоровані схеми мають бути self-contained:
@@ -60,11 +60,11 @@ const V8R_EXT_RE = /\.(?:json|json5|ya?ml|toml)$/iu
 /** Типові glob-и для форматів, які обробляє v8r (див. опис CLI v8r). */
 export const DEFAULT_V8R_GLOBS = ['**/*.json', '**/*.json5', '**/*.yml', '**/*.yaml', '**/*.toml']
 
-/** Абсолютний шлях до `schemas/v8r-catalog.json` у корені пакета `@nitra/cursor` (`npm/schemas/`). */
+/** Абсолютний шлях до `schemas/v8r-catalog.json` у корені пакета `@7n/rules` (`npm/schemas/`). */
 export const V8R_CATALOG_PATH = join(dirname(fileURLToPath(import.meta.url)), '../../../schemas/v8r-catalog.json')
 
 /** Шлях до тимчасового v8r-конфіг-файлу з `customCatalog` — генерується щоразу перед запуском. */
-export const RESOLVED_V8R_CONFIG_PATH = join(tmpdir(), 'n-cursor-v8r-config.resolved.json')
+export const RESOLVED_V8R_CONFIG_PATH = join(tmpdir(), 'n-rules-v8r-config.resolved.json')
 
 const REMOTE_URL_RE = /^https?:\/\//u
 
@@ -81,7 +81,7 @@ function isLocalSchemaPath(url) {
  * Читає джерельний каталог (`V8R_CATALOG_PATH`, ключ `url`, локальні шляхи відносні до
  * `npm/schemas/`) і повертає масив схем у форматі v8r `customCatalog.schemas` (ключ `location`,
  * локальні шляхи — абсолютні, обчислені через `import.meta.url`, тож коректні незалежно від CWD
- * процесу й від того, чи це repo-dev копія, чи встановлена в `node_modules/@nitra/cursor`).
+ * процесу й від того, чи це repo-dev копія, чи встановлена в `node_modules/@7n/rules`).
  * @returns {Array<{name: string, description?: string, location: string, fileMatch: string[]}>} схеми customCatalog
  */
 export function resolveCustomCatalogSchemas() {
@@ -144,7 +144,7 @@ export function warnAboutRemoteSchemaFallback(stderrText) {
     const remoteMatch = FOUND_REMOTE_SCHEMA_RE.exec(line)
     if (remoteMatch && currentFile) {
       process.stdout.write(
-        `⚠ run-v8r: ${currentFile} — схему знайдено через мережевий fallback (${remoteMatch[1]}), а не в локальному каталозі @nitra/cursor. Додай схему в npm/schemas/v8r-catalog.json (+ npm/schemas/vendor/ за потреби), щоб прогін лишався офлайн.\n`
+        `⚠ run-v8r: ${currentFile} — схему знайдено через мережевий fallback (${remoteMatch[1]}), а не в локальному каталозі @7n/rules. Додай схему в npm/schemas/v8r-catalog.json (+ npm/schemas/vendor/ за потреби), щоб прогін лишався офлайн.\n`
       )
     }
   }

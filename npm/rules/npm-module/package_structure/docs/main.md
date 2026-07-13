@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/npm-module/package_structure/main.mjs
 docgen:
-  crc: 1bb50375
+  crc: 321b552d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 85
   issues: anchor-miss:(npm-module.mdc),surzhik,judge:inaccurate:0.99

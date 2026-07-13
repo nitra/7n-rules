@@ -1,11 +1,11 @@
 /**
- * Guard для дефолтної синхронізації `npx \@nitra/cursor` (гілка без підкоманди).
+ * Guard для дефолтної синхронізації `npx \@7n/rules` (гілка без підкоманди).
  *
- * Дефолтний sync (`runSync` у `bin/n-cursor.js`) скаффолдить у `cwd()` керовані
+ * Дефолтний sync (`runSync` у `bin/n-rules.js`) скаффолдить у `cwd()` керовані
  * артефакти — `.cursor/rules/`, `.cursor/skills/`, `.claude/`, `AGENTS.md`,
- * `CLAUDE.md`, `.n-cursor.json`, `.gitignore` — і запускає `bun install`. Усе це
+ * `CLAUDE.md`, `.n-rules.json`, `.gitignore` — і запускає `bun install`. Усе це
  * розраховане на **корінь** проєкту-споживача. Якщо бінар викликати напряму
- * (`bun npm/bin/n-cursor.js`, `node …/n-cursor.js`) з піддиректорії git-репо,
+ * (`bun npm/bin/n-rules.js`, `node …/n-rules.js`) з піддиректорії git-репо,
  * `cwd()` — та піддиректорія, і конфіг розкидається не туди.
  *
  * `bun run start`/`npm start` цей кейс не створює (менеджер скидає cwd на корінь
@@ -62,16 +62,13 @@ function safeRealpath(dir) {
  * @throws {Error} коли `dir` всередині git-репо, але не його корінь
  * @returns {void}
  */
-export function assertCwdIsProjectRoot(
-  dir = cwd(),
-  action = 'Команда @nitra/cursor мутує проєкт у поточному каталозі'
-) {
+export function assertCwdIsProjectRoot(dir = cwd(), action = 'Команда @7n/rules мутує проєкт у поточному каталозі') {
   const top = gitToplevel(dir)
   if (top === null) return
   const here = safeRealpath(dir)
   if (here === top) return
   throw new Error(
-    `❌ @nitra/cursor запущено не в корені проєкту.\n` +
+    `❌ @7n/rules запущено не в корені проєкту.\n` +
       `   Поточний каталог: ${here}\n` +
       `   Корінь git-репо:  ${top}\n` +
       `   ${action} — із піддиректорії це зачепило б не той каталог.\n` +

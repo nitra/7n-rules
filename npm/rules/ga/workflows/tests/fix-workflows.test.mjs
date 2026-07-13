@@ -29,22 +29,22 @@ function withTmp(fn) {
 }
 
 describe('prefixBunxNCursor', () => {
-  test('inline `run: n-cursor …` → `bunx n-cursor …`', () => {
-    const src = ['      - name: lint', '        run: n-cursor lint text --no-fix', ''].join('\n')
-    expect(prefixBunxNCursor(src)).toContain('run: bunx n-cursor lint text --no-fix')
+  test('inline `run: n-rules …` → `bunx n-rules …`', () => {
+    const src = ['      - name: lint', '        run: n-rules lint text --no-fix', ''].join('\n')
+    expect(prefixBunxNCursor(src)).toContain('run: bunx n-rules lint text --no-fix')
   })
 
   test('bare-рядок у run-блоці → префіксується', () => {
-    const src = ['        run: |', '          n-cursor lint ga --no-fix', ''].join('\n')
-    expect(prefixBunxNCursor(src)).toContain('          bunx n-cursor lint ga --no-fix')
+    const src = ['        run: |', '          n-rules lint ga --no-fix', ''].join('\n')
+    expect(prefixBunxNCursor(src)).toContain('          bunx n-rules lint ga --no-fix')
   })
 
-  test('уже `bunx`/`npx n-cursor` → без змін (null)', () => {
-    expect(prefixBunxNCursor('        run: bunx n-cursor release\n')).toBeNull()
-    expect(prefixBunxNCursor('        run: npx n-cursor lint\n')).toBeNull()
+  test('уже `bunx`/`npx n-rules` → без змін (null)', () => {
+    expect(prefixBunxNCursor('        run: bunx n-rules release\n')).toBeNull()
+    expect(prefixBunxNCursor('        run: npx n-rules lint\n')).toBeNull()
   })
 
-  test('без n-cursor → null', () => {
+  test('без n-rules → null', () => {
     expect(prefixBunxNCursor('        run: echo hi\n')).toBeNull()
   })
 })

@@ -3,7 +3,7 @@
 # Викликається з `rules/tauri/js/tooling.mjs` через `runConftestBatch` лише
 # ПІСЛЯ того, як JS виявив маркер Tauri-проєкту (`src-tauri/` каталог,
 # `tauri.conf.json` у будь-якому пакеті, або залежність `@tauri-apps/*`).
-# Без `target.json` поруч (не auto-discoverable через `n-cursor fix`) — це
+# Без `target.json` поруч (не auto-discoverable через `n-rules fix`) — це
 # conditional правило.
 #
 # Canonical (tauri.mdc): `recommendations` має містити `tauri-apps.tauri-vscode`.

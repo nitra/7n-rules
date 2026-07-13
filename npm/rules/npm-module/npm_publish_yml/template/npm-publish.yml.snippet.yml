@@ -41,7 +41,7 @@ jobs:
           git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
 
       - name: Release (bump + CHANGELOG + tag)
-        run: bunx n-cursor release
+        run: bunx n-rules release
 
       - name: Publish package
         uses: JS-DevTools/npm-publish@v4.1.5

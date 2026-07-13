@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://unpkg.com/@nitra/cursor/schemas/rule-meta.json",
-  "title": "n-cursor rule meta",
-  "description": "Метадані правила @nitra/cursor: умова автоактивації (auto). Файл npm/rules/<id>/meta.json.",
+  "$id": "https://unpkg.com/@7n/rules/schemas/rule-meta.json",
+  "title": "n-rules rule meta",
+  "description": "Метадані правила @7n/rules: умова автоактивації (auto). Файл npm/rules/<id>/meta.json.",
   "type": "object",
   "additionalProperties": false,
   "properties": {

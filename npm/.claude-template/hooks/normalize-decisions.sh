@@ -19,7 +19,7 @@
 #
 # Portable bash 3.2 (macOS /bin/bash): no `mapfile`, no associative arrays.
 #
-# Bundled with @nitra/cursor; project copy is auto-synced by the `adr` rule.
+# Bundled with @7n/rules; project copy is auto-synced by the `adr` rule.
 set -eu
 set -o pipefail
 
@@ -294,7 +294,7 @@ RESPONSE_FILE="$TMP_DIR/response.txt"
 # `npm/scripts/lib/adr/normalize-pipeline.mjs`); `pi`/`claude`/`cursor` — single-shot
 # у хмару. Auto-default: local, якщо налаштовано `N_LOCAL_MIN_MODEL`, інакше
 # pi → claude → cursor. Команда local-бекенда override-иться через ADR_NORMALIZE_LOCAL_CMD
-# (для тестів/in-repo: `node npm/bin/n-cursor.js adr-normalize-local`).
+# (для тестів/in-repo: `node npm/bin/n-rules.js adr-normalize-local`).
 BACKEND="${ADR_NORMALIZE_BACKEND:-}"
 if [ -z "$BACKEND" ]; then
   if [ -n "${N_LOCAL_MIN_MODEL:-}" ]; then
@@ -310,7 +310,7 @@ if [ -z "$BACKEND" ]; then
   fi
 fi
 
-ADR_LOCAL_CMD="${ADR_NORMALIZE_LOCAL_CMD:-npx --no @nitra/cursor adr-normalize-local}"
+ADR_LOCAL_CMD="${ADR_NORMALIZE_LOCAL_CMD:-npx --no @7n/rules adr-normalize-local}"
 
 case "$BACKEND" in
   local)

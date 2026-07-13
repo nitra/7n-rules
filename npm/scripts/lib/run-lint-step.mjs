@@ -5,7 +5,7 @@
  * щоб не засмічувати прогрес-бар `lint --full` сирим виводом тулу — `fail()` вже дає
  * лаконічне повідомлення про порушення, без потреби в raw stdout/stderr.
  *
- * Використовується з rule-адаптерів `n-cursor lint <rule>`, щоб не дублювати
+ * Використовується з rule-адаптерів `n-rules lint <rule>`, щоб не дублювати
  * одну й ту саму обгортку у кожному `rules/<id>/js/lint.mjs` (jscpd-clone).
  */
 import { spawnSync } from 'node:child_process'

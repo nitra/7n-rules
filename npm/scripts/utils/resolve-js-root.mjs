@@ -31,7 +31,7 @@ async function expandWorkspacePattern(cwd, pattern) {
 }
 
 /**
- * @param {string} cwd корінь проєкту (де `.n-cursor.json` і кореневий package.json)
+ * @param {string} cwd корінь проєкту (де `.n-rules.json` і кореневий package.json)
  * @returns {Promise<string|null>} абсолютний шлях до JS-root або null без кореневого package.json
  */
 export async function resolveJsRoot(cwd) {

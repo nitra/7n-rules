@@ -2,7 +2,7 @@
 #
 # Викликається з `rules/graphql/fix.mjs` через `runConftestBatch` лише ПІСЛЯ того,
 # як JS виявив `gql\`…\`` tagged template literal у джерелах (умовне правило).
-# Тому без `target.json` поруч (не auto-discoverable через `n-cursor fix`) —
+# Тому без `target.json` поруч (не auto-discoverable через `n-rules fix`) —
 # інакше були б false-positive порушення на проєктах без gql.
 #
 # Canonical (graphql.mdc):

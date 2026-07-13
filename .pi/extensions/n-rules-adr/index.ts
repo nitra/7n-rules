@@ -69,10 +69,10 @@ export default function (pi: PiExec): void {
         .filter(e => e.message?.role === 'user' || e.message?.role === 'assistant')
         .map(e => JSON.stringify({ type: e.message?.role, message: e.message }))
         .join('\n')
-      jsonlPath = join(tmpdir(), `n-cursor-pi-transcript-${Date.now()}-${randomUUID()}.jsonl`)
+      jsonlPath = join(tmpdir(), `n-rules-pi-transcript-${Date.now()}-${randomUUID()}.jsonl`)
       writeFileSync(jsonlPath, lines + '\n', 'utf8')
     } catch (error) {
-      ctx.ui?.notify?.(`@nitra/cursor: transcript serialization failed — ${(error as Error).message}`, 'error')
+      ctx.ui?.notify?.(`@7n/rules: transcript serialization failed — ${(error as Error).message}`, 'error')
       return
     }
 

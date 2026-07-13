@@ -38,7 +38,7 @@ export function lint(ctx) {
   }
 
   if (existsSync(join(cwd, 'bunfig.toml'))) {
-    pass('bunfig.toml є (структуру перевіряє npx @nitra/cursor fix → bun.bunfig)')
+    pass('bunfig.toml є (структуру перевіряє npx @7n/rules fix → bun.bunfig)')
   } else {
     fail('Відсутній bunfig.toml — створи з [install] linker = "hoisted" (bun.mdc)')
   }

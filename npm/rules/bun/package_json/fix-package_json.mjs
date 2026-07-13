@@ -1,12 +1,12 @@
 /**
  * T0-autofix для policy-concern-а `bun/package_json`: видаляє заборонені top-level поля
  * (канон — `template/package.json.deny.json`, той самий `data.template.deny`, що бачить rego)
- * і `scripts.lint` / `scripts.lint-*` (bun.mdc — лінт лише через `n-cursor lint`, не npm-скрипти).
+ * і `scripts.lint` / `scripts.lint-*` (bun.mdc — лінт лише через `n-rules lint`, не npm-скрипти).
  *
  * Просте видалення `scripts.lint*` небезпечне: якщо десь у репо (workflow yml, інший
  * npm-скрипт) є виклик `bun run lint-js` тощо, видалення ключа зламає цей виклик.
  * Тому перед видаленням шукаємо всі виклики кожного lint-скрипта репо-вайд і переписуємо
- * їх на прямий `bunx n-cursor lint <surface>` (canonical — той самий, що вимагають
+ * їх на прямий `bunx n-rules lint <surface>` (canonical — той самий, що вимагають
  * lint_js_yml/lint_style_yml). Скрипт видаляється лише якщо ВСІ його виклики вдалось
  * переписати (файли, де виклик не розпізнано — залишаємо як є, скрипт теж лишається,
  * щоб не зламати консьюмера мовчки).
@@ -23,12 +23,12 @@ const LOCKFILE_RE = /(^|\/)(bun\.lockb?|package-lock\.json|yarn\.lock|pnpm-lock\
 const PACKAGE_MANAGER_SCRIPT_PREFIX_RE = /\b(?:(?:bun|yarn|pnpm)(?:\s+run)?|npm\s+run)\s+/gu
 const SCRIPT_NAME_CONTINUATION_RE = /[\w-]/u
 
-// `lint-<suffix>` → rule-id канонічного `n-cursor lint <rule-id>`; bare `lint` → без rule-id.
+// `lint-<suffix>` → rule-id канонічного `n-rules lint <rule-id>`; bare `lint` → без rule-id.
 const SURFACE_MAP = { image: 'image-compress' }
 
 /**
  * @param {string} scriptName напр. `lint-js`, `lint`
- * @returns {string} суфікс аргументу для `n-cursor lint` (порожній рядок для bare `lint`)
+ * @returns {string} суфікс аргументу для `n-rules lint` (порожній рядок для bare `lint`)
  */
 function surfaceArgFor(scriptName) {
   const suffix = scriptName.slice('lint'.length)
@@ -125,7 +125,7 @@ async function findUsageCandidateFiles(cwd, rootPkgAbs) {
 
 /**
  * Переписує один файл-кандидат: кожен знайдений виклик `scriptName` замінюється на
- * канонічний `bunx n-cursor lint<surface>` (workflow yml — з `--no-fix`, package.json
+ * канонічний `bunx n-rules lint<surface>` (workflow yml — з `--no-fix`, package.json
  * scripts-чейни — без, дев-контекст хоче autofix).
  * @param {string} content вміст файлу
  * @param {string} scriptName ім'я lint-скрипта
@@ -135,7 +135,7 @@ async function findUsageCandidateFiles(cwd, rootPkgAbs) {
 function rewriteUsages(content, scriptName, isWorkflow) {
   const ranges = invocationRanges(content, scriptName)
   if (ranges.length === 0) return { content, matched: false }
-  const canonical = `bunx n-cursor lint${surfaceArgFor(scriptName)}${isWorkflow ? ' --no-fix' : ''}`
+  const canonical = `bunx n-rules lint${surfaceArgFor(scriptName)}${isWorkflow ? ' --no-fix' : ''}`
   let next = ''
   let lastIndex = 0
   for (const [start, end] of ranges) {
@@ -148,7 +148,7 @@ function rewriteUsages(content, scriptName, isWorkflow) {
 
 /**
  * Для кожного lint-скрипта шукає й переписує його виклики по всіх кандидатах.
- * `workflow`/`package-json` — переписуємо на канонічний `bunx n-cursor lint`; `other`
+ * `workflow`/`package-json` — переписуємо на канонічний `bunx n-rules lint`; `other`
  * (Makefile, README, довільний shell) — лише детектуємо, без canonical-заміщення для
  * довільного формату скрипт НЕ видаляємо (блокуючий, а не мовчки проігнорований, збіг).
  * @param {string[]} scriptNames кандидати на видалення (`lint`, `lint-js`, …)

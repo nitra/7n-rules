@@ -77,17 +77,17 @@ describe('listSkillIds / buildSkillPrompt', () => {
     expect(() => buildSkillPrompt(skillsRoot, 'missing', 'x', root)).toThrow(UNKNOWN_SKILL_RE)
   })
 
-  test('buildSkillPrompt включає tsconfig.json і .n-cursor.json якщо існують', () => {
+  test('buildSkillPrompt включає tsconfig.json і .n-rules.json якщо існують', () => {
     const root = join(tmpdir(), `skills-cli-ctx-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
     mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
     writeFileSync(join(skillsRoot, 'fix', 'SKILL.md'), '# Fix\n')
     writeFileSync(join(root, 'tsconfig.json'), '{"compilerOptions":{}}\n')
-    writeFileSync(join(root, '.n-cursor.json'), '{"rules":{}}\n')
+    writeFileSync(join(root, '.n-rules.json'), '{"rules":{}}\n')
 
     const prompt = buildSkillPrompt(skillsRoot, 'fix', '', root)
     expect(prompt).toContain('tsconfig.json')
-    expect(prompt).toContain('.n-cursor.json')
+    expect(prompt).toContain('.n-rules.json')
   })
 })
 

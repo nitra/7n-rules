@@ -1,5 +1,5 @@
 /**
- * Detect-only оркестратор unified lint surface (`n-cursor lint --no-fix`).
+ * Detect-only оркестратор unified lint surface (`n-rules lint --no-fix`).
  *
  * Discovery → scope-selection → `lint(ctx)` per concern → нормалізовані violations.
  * Без мутацій, без LLM. Fix-pipeline (T0 + ladder) обгортає цей модуль і споживає
@@ -16,7 +16,7 @@ import picomatch from 'picomatch'
 
 import { listConcerns } from '../concern-meta.mjs'
 import { collectChangedFilesSince, resolveChangedBase } from '../changed-files.mjs'
-import { readNCursorConfigLite, isRuleEnabled } from '../read-n-cursor-config-lite.mjs'
+import { readNRulesConfigLite, isRuleEnabled } from '../read-n-rules-config-lite.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
 import { renderViolations, renderDiagnostics } from './render.mjs'
 import { createProgressReporter } from './progress.mjs'
@@ -84,13 +84,13 @@ async function readLintConcernsByRule(rulesDir) {
 }
 
 /**
- * Активні rule-id з `.n-cursor.json` (для delta/full режимів).
+ * Активні rule-id з `.n-rules.json` (для delta/full режимів).
  * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
  * @param {string} cwd робоча директорія прогону.
  * @returns {Promise<string[]>} перелік активних rule-id.
  */
 async function enabledRuleIds(byRule, cwd) {
-  const config = await readNCursorConfigLite(cwd)
+  const config = await readNRulesConfigLite(cwd)
   if (!config.exists) return []
   return Object.keys(byRule).filter(id => isRuleEnabled(config, id))
 }

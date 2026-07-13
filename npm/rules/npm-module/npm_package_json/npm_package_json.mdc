@@ -31,8 +31,8 @@ FS-перевірки (наявність файлу зі шляху `types`, с
 
 ```json
 {
-  "name": "@nitra/cursor",
-  "types": "./types/bin/n-cursor.d.ts",
+  "name": "@7n/rules",
+  "types": "./types/bin/n-rules.d.ts",
   "files": ["types", "mdc", "bin", "CHANGELOG.md"],
   "dependencies": { "oxc-parser": "^0.128.0" }
 }
@@ -53,5 +53,5 @@ FS-перевірки (наявність файлу зі шляху `types`, с
 ✗ Неправильно — наявні `devDependencies`:
 
 ```json
-{ "devDependencies": { "@nitra/cursor": "^1.0.0" } }
+{ "devDependencies": { "@7n/rules": "^1.0.0" } }
 ```

@@ -2,7 +2,7 @@
 #
 # `opa` і `regal` не додаються у dependencies / devDependencies — вони мають бути
 # лише у PATH (встановлені глобально або через CI-крок). Rego-лінт запускається
-# через `n-cursor lint rego`, а не через package.json-залежності.
+# через `n-rules lint rego`, а не через package.json-залежності.
 package rego.package_json
 
 import rego.v1
@@ -16,6 +16,6 @@ deny contains msg if {
 	name in banned_opa_tools
 	msg := sprintf(
 		"package.json: %s.%s заборонений — opa/regal встановлюються глобально або через CI, не через npm (rego.mdc)",
-		[field, name]
+		[field, name],
 	)
 }

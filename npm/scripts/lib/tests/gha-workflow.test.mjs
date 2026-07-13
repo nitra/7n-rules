@@ -59,10 +59,10 @@ describe('gha-workflow', () => {
   t:
     runs-on: ubuntu-latest
     steps:
-      - run: n-cursor lint text --no-fix
+      - run: n-rules lint text --no-fix
 `
     const root = parseWorkflowYaml(y)
-    expect(anyRunStepIncludes(/** @type {Record<string, unknown>} */ (root), 'n-cursor lint text --no-fix')).toBe(true)
+    expect(anyRunStepIncludes(/** @type {Record<string, unknown>} */ (root), 'n-rules lint text --no-fix')).toBe(true)
   })
 
   test('getStepUses — рядок або порожній рядок', () => {

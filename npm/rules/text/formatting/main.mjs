@@ -85,7 +85,7 @@ function checkTextConfigsExistence(passFn, failFn, cwd) {
     ['.vscode/settings.json', 'text.vscode_settings']
   ]) {
     if (existsSync(join(cwd, path))) {
-      passFn(`${path} є (структуру перевіряє npx @nitra/cursor fix → ${mdcRef})`)
+      passFn(`${path} є (структуру перевіряє npx @7n/rules fix → ${mdcRef})`)
     } else {
       failFn(`${path} не існує — створи згідно n-text.mdc`)
     }
@@ -94,9 +94,9 @@ function checkTextConfigsExistence(passFn, failFn, cwd) {
 }
 
 /**
- * Перевіряє CI-workflow текстового стека: крок `n-cursor lint text --no-fix` у
+ * Перевіряє CI-workflow текстового стека: крок `n-rules lint text --no-fix` у
  * `.github/workflows/lint-text.yml` (CI — нуль мутацій). Окремого `lint-text` скрипта в
- * `package.json` немає — лінт через `n-cursor lint text`. Решта package.json-перевірок
+ * `package.json` немає — лінт через `n-rules lint text`. Решта package.json-перевірок
  * (Prettier-заборона, `@nitra/cspell-dict`, `@nitra/*` гейт) — у Rego (`text.package_json`, `bun.package_json`).
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
@@ -107,7 +107,7 @@ async function checkLintTextWorkflow(passFn, failFn, cwd) {
   if (existsSync(lintTextWf)) {
     const wf = await readFile(lintTextWf, 'utf8')
     const root = parseWorkflowYaml(wf)
-    const canonRun = 'n-cursor lint text --no-fix'
+    const canonRun = 'n-rules lint text --no-fix'
     const ok = root ? anyRunStepIncludes(root, canonRun) : wf.includes(canonRun)
     if (ok) {
       passFn(`lint-text.yml викликає ${canonRun}`)

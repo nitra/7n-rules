@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://unpkg.com/@nitra/cursor/schemas/concern.json",
+  "$id": "https://unpkg.com/@7n/rules/schemas/concern.json",
   "title": "Concern descriptor",
   "description": "Маркер підкаталогу правила як concern-а. Кожна з поверхонь (check/policy/lint) опційна, але хоча б одна обов'язкова. Concern id = ім'я каталогу (lower snake_case [a-z0-9_]+).",
   "type": "object",

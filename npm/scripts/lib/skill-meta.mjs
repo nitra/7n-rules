@@ -9,7 +9,7 @@
  *    його toplevel), тож для них поле зайве. Явний `requireRoot:true` — для
  *    in-place скілів, що мутують CWD без worktree-ізоляції (напр. `n-taze`).
  *
- * Цим хелпером користуються `auto-skills.mjs` (автоактивація), `n-cursor.js`
+ * Цим хелпером користуються `auto-skills.mjs` (автоактивація), `n-rules.js`
  * (sync + вшивання worktree/root-блоку) і check-концерн `npm-module/js/skill_meta.mjs`,
  * щоб не дублювати парсинг і форму валідації.
  */

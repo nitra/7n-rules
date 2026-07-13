@@ -22,7 +22,7 @@ const SKIP_DIR_NAMES = new Set(['node_modules', '.git', 'dist', 'coverage', '.tu
 /**
  * Чи каталог `dir` входить у список ignore (точний збіг або префікс).
  * @param {string} dir абсолютний posix-шлях
- * @param {string[]} ignorePaths абсолютні posix-шляхи з .n-cursor.json
+ * @param {string[]} ignorePaths абсолютні posix-шляхи з .n-rules.json
  * @returns {boolean} true — пропускаємо
  */
 function isIgnored(dir, ignorePaths) {

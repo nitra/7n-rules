@@ -6,7 +6,7 @@ description: >-
 version: '1.0'
 ---
 
-<!-- n-cursor:worktree:start -->
+<!-- n-rules:worktree:start -->
 > [!IMPORTANT]
 > **Worktree-only skill.** Виконується **виключно** в окремому git-worktree (`.worktrees/<current-branch>-adr-normal/`) і **не** паралелиться — один інстанс за раз.
 
@@ -29,12 +29,12 @@ cd ".worktrees/feature-x-adr-normal"
 
 Тобто branch-argument лишає slash як у git-гілці, а шлях для `cd` бере sanitized форму: slash → `-`.
 
-**Крок 0.1 — bootstrap у новому дереві (після `cd`).** Дерево щойно створене й **без** `node_modules`. Постав залежності локально — тоді `npx @nitra/cursor <cmd>` бере локальну копію без походу в реєстр:
+**Крок 0.1 — bootstrap у новому дереві (після `cd`).** Дерево щойно створене й **без** `node_modules`. Постав залежності локально — тоді `npx @7n/rules <cmd>` бере локальну копію без походу в реєстр:
 
 ```bash
 bun install
 ```
-<!-- n-cursor:worktree:end -->
+<!-- n-rules:worktree:end -->
 
 # n-adr-normalize — ручна нормалізація ADR-чернеток
 
@@ -46,8 +46,8 @@ bun install
 
 ## Передумови
 
-- Правило `adr` увімкнене у `.n-cursor.json` (`"adr"` у `rules`).
-- `.claude/hooks/normalize-decisions.sh` існує (`npx @nitra/cursor` поклав його сюди).
+- Правило `adr` увімкнене у `.n-rules.json` (`"adr"` у `rules`).
+- `.claude/hooks/normalize-decisions.sh` існує (`npx @7n/rules` поклав його сюди).
 - У `PATH` доступний `claude` або `cursor-agent` (інакше скрипт мовчки вийде).
 - У `docs/adr/` є чернетки — файли з `session: …` у YAML frontmatter.
 

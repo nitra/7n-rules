@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/js/eslint/main.mjs
 docgen:
-  crc: ee60f9f5
+  crc: 11a1340b
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99
@@ -29,3 +29,5 @@ lint — проводить статичний аналіз коду (пофай
 
 - Read-only: не виконує операцій запису (ФС/БД).
 - Перехоплює помилки і не пропускає винятків назовні (fail-safe).
+
+**warnIgnored: false.** ESLint конструюється з `warnIgnored: false` — файли з delta-списку, що матчать ignore-патерни `eslint.config.js` (наприклад, синковані `.pi/extensions/**` чи згенеровані `npm/types/**`), не рахуються порушеннями.

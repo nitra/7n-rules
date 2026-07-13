@@ -13,6 +13,9 @@ export const FULL_TARGET = 'npm/rules'
 /** Розширення `.rego` — фільтр delta-списку файлів у `lint(ctx)`. */
 export const REGO_EXT_RE = /\.rego$/u
 
+/** Суфікс тест-файлу — для виводу сусіднього policy-файла в delta-цілях. */
+const TEST_SUFFIX_RE = /_test\.rego$/u
+
 /**
  * Цілі для прогону: delta-список `.rego`-файлів, або (full-режим) корінь policy-дерева,
  * якщо він існує.
@@ -22,7 +25,15 @@ export const REGO_EXT_RE = /\.rego$/u
  */
 export function resolveTargets(files, root) {
   if (files === undefined) return existsSync(resolve(root, FULL_TARGET)) ? [FULL_TARGET] : []
-  return files.filter(f => REGO_EXT_RE.test(f))
+  const rego = files.filter(f => REGO_EXT_RE.test(f))
+  // `X_test.rego` імпортує сусідній `X.rego`: без нього regal флагує unresolved-import,
+  // тож до delta-цілей додаємо наявний сусідній policy-файл.
+  const out = new Set(rego)
+  for (const f of rego) {
+    const sibling = f.replace(TEST_SUFFIX_RE, '.rego')
+    if (sibling !== f && existsSync(resolve(root, sibling))) out.add(sibling)
+  }
+  return [...out]
 }
 
 /**

@@ -11,11 +11,11 @@ alwaysApply: false
 
 ## Швидкий gate через conftest
 
-Rego-перевірки (запускаються через `npx @nitra/cursor fix vue`):
+Rego-перевірки (запускаються через `npx @7n/rules fix vue`):
 
 ## Перевірка
 
-`npx @nitra/cursor fix vue` — перевіряє залежності, `vite.config`, наявність **`src/vite-env.d.ts`** з `/// <reference types="vite/client" />` та **`jsconfig.json`** у корені Vue-пакета; обходить джерела Vue-пакета (`.vue`, `.ts`, `.js` тощо) на заборонені value-імпорти з модуля `vue` (дозволені лише type-only та side-effect `import 'vue'`) і додатково сканує `.vue` SFC на імпорти Node-нативних модулів (`node:*` префікс або bare-ім'я вбудованого модуля Node — `fs`, `path`, `timers/promises` тощо). Імпорти аналізуються через **oxc-parser** (`module.staticImports`); для `.vue` вміст `<script>` витягується з SFC, далі той самий парсер (логіка в `npm/rules/vue/js/packages/vue-forbidden-imports.mjs`).
+`npx @7n/rules fix vue` — перевіряє залежності, `vite.config`, наявність **`src/vite-env.d.ts`** з `/// <reference types="vite/client" />` та **`jsconfig.json`** у корені Vue-пакета; обходить джерела Vue-пакета (`.vue`, `.ts`, `.js` тощо) на заборонені value-імпорти з модуля `vue` (дозволені лише type-only та side-effect `import 'vue'`) і додатково сканує `.vue` SFC на імпорти Node-нативних модулів (`node:*` префікс або bare-ім'я вбудованого модуля Node — `fs`, `path`, `timers/promises` тощо). Імпорти аналізуються через **oxc-parser** (`module.staticImports`); для `.vue` вміст `<script>` витягується з SFC, далі той самий парсер (логіка в `npm/rules/vue/js/packages/vue-forbidden-imports.mjs`).
 
 ## Залежності Vue+Vite пакета — канонічний набір і заборони
 

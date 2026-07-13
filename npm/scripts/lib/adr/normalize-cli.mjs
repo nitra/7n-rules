@@ -1,5 +1,5 @@
 /**
- * CLI-обгортка локального ADR-нормалізатора (`n-cursor adr-normalize-local`).
+ * CLI-обгортка локального ADR-нормалізатора (`n-rules adr-normalize-local`).
  *
  * Прод-шлях `.claude/hooks/normalize-decisions.sh` викликає цю команду як
  * local-backend замість single-shot LLM-виклику: bash готує батч і clean-список,
@@ -47,7 +47,7 @@ export async function runAdrNormalizeLocalCli(argv) {
   const args = parseArgs(argv)
   const adrDir = args['adr-dir'] ?? join(process.cwd(), 'docs/adr')
   if (!args.batch) {
-    console.error('Usage: n-cursor adr-normalize-local --batch <file> [--clean <file>] [--adr-dir <dir>]')
+    console.error('Usage: n-rules adr-normalize-local --batch <file> [--clean <file>] [--adr-dir <dir>]')
     return 1
   }
 

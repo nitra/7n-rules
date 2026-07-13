@@ -44,3 +44,10 @@ Chosen option: "Прямий HTTP до omlx для one-shot JS-скілів; pi 
 Наявна, але не обрана для цього рішення інфраструктура: `npm/scripts/dispatcher/lib/subagent-runner.mjs`.
 
 Endpoint: `http://localhost:8000/v1/chat/completions`.
+
+## Update 2026-06-10
+
+- Уточнено межу відповідальності: локальні one-shot виклики (`coverage-classify`, `fix/llm-worker`, docgen Tier 1) мають іти напряму в omlx HTTP, а `pi` лишається шаром для cloud-tier та справжнього SDK tool-loop.
+- Для маршрутизації транспорту зафіксовано конвенцію `omlx/<model-id>`: моделі з цим префіксом ідуть у прямий omlx HTTP, усі інші — через `pi` CLI.
+- Per-skill env-прапори на кшталт `N_CURSOR_DOCGEN_BACKEND` не потрібні; routing має жити в одному місці — `npm/lib/omlx.mjs` (`isOmlxModel`, `omlxModelId`, `callOmlx`).
+- Rename інʼєкції: `callPi` → `callModel` / `opts.callModel` у `coverage-classify/index.mjs` і тестах.

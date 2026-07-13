@@ -10,19 +10,19 @@
   ],
   "type": "module",
   "scripts": {
-    "start": "bun ./npm/bin/n-cursor.js",
+    "start": "bun ./npm/bin/n-rules.js",
     "test": "vitest run",
     "coverage": "npx @7n/test coverage"
   },
   "devDependencies": {
     "@7n/test": "^0.14.3",
     "@nitra/cspell-dict": "^2.2.2",
-    "@nitra/cursor": "^14.32.1",
     "@nitra/eslint-config": "^3.10.3",
     "@nitra/stylelint-config": "^1.4.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@vitest/coverage-v8": "^4.1.9",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.9",
+    "@7n/rules": "^1.0.0"
   },
   "stylelint": {
     "extends": "@nitra/stylelint-config"

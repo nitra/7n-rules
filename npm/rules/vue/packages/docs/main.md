@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/vue/packages/main.mjs
 docgen:
-  crc: 57b1c379
+  crc: 65e272f3
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.98

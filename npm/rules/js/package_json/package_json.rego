@@ -15,6 +15,8 @@ import rego.v1
 
 # ── deny: top-level scalar leafs (type) ─────────────────────────────────
 
+banned_fastify_pkg := "@nitra/as-integrations-fastify"
+
 deny contains msg if {
 	some key, expected_value in data.template.snippet
 	not is_object(expected_value)
@@ -62,8 +64,6 @@ deny contains msg if {
 }
 
 # ── deny: @nitra/as-integrations-fastify заборонений (dep-policy.mdc) ───
-
-banned_fastify_pkg := "@nitra/as-integrations-fastify"
 
 deny contains msg if {
 	deps := object.get(input, "dependencies", {})

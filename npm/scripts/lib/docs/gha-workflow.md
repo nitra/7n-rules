@@ -3,7 +3,7 @@ type: JS Module
 title: gha-workflow.mjs
 resource: npm/scripts/lib/gha-workflow.mjs
 docgen:
-  crc: a992da4a
+  crc: 6bec44bb
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---

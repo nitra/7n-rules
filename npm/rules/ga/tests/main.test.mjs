@@ -25,7 +25,7 @@ const SHELLCHECK_RE = /shellcheck/
  * @returns {Promise<{ error?: Error }>} перехоплений виняток (або порожньо)
  */
 async function lintWithIsolatedPath(cwd) {
-  const isolatedDir = await mkdtemp(join(tmpdir(), 'n-cursor-empty-path-'))
+  const isolatedDir = await mkdtemp(join(tmpdir(), 'n-rules-empty-path-'))
   const prevPath = env.PATH
   const prevNoInstall = env['N_CURSOR_NO_AUTO_INSTALL']
   env.PATH = isolatedDir
@@ -57,7 +57,7 @@ async function lintWithIsolatedPath(cwd) {
 
 describe('ga.workflows detector — preflight тулів', () => {
   test('кидає з підказкою shellcheck, коли бінарник відсутній і N_CURSOR_NO_AUTO_INSTALL=1', async () => {
-    const isolatedDir = await mkdtemp(join(tmpdir(), 'n-cursor-ga-cwd-'))
+    const isolatedDir = await mkdtemp(join(tmpdir(), 'n-rules-ga-cwd-'))
     try {
       const { error } = await lintWithIsolatedPath(isolatedDir)
       expect(error).toBeDefined()

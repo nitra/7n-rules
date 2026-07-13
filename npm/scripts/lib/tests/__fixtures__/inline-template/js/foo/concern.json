@@ -1,1 +1,1 @@
-{ "$schema": "https://unpkg.com/@nitra/cursor/schemas/concern.json", "check": true }
+{ "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json", "check": true }

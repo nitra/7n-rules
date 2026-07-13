@@ -14,12 +14,12 @@
 3. форматує вивід у консоль (список перейменувань, повідомлення про відсутність змін, помилки);
 4. повертає код виходу (`0` — успіх, `1` — були помилки).
 
-Файл є **модулем для головного CLI пакета `n-cursor`** (через `bin/n-cursor.js`). Публічна точка входу для користувача — підкоманда головного CLI:
+Файл є **модулем для головного CLI пакета `n-rules`** (через `bin/n-rules.js`). Публічна точка входу для користувача — підкоманда головного CLI:
 
-- `npx @nitra/cursor rename-yaml-extensions [опції]`
-- або у репозиторії пакета: `bun ./bin/n-cursor.js rename-yaml-extensions`.
+- `npx @7n/rules rename-yaml-extensions [опції]`
+- або у репозиторії пакета: `bun ./bin/n-rules.js rename-yaml-extensions`.
 
-Прямий запуск `node ./bin/rename-yaml-extensions.mjs` підтримується, але вважається режимом для розробки/тестів — у production-сценарії використовується диспетчер `n-cursor.js`.
+Прямий запуск `node ./bin/rename-yaml-extensions.mjs` підтримується, але вважається режимом для розробки/тестів — у production-сценарії використовується диспетчер `n-rules.js`.
 
 Підтримувані опції:
 
@@ -35,7 +35,7 @@
 - **Тип**: `async function (argv: string[]): Promise<number>`
 - **Призначення**: запустити перейменування YAML-розширень із форматованим виводом у консоль.
 - **Параметри**:
-  - `argv: string[]` — масив аргументів **без імені команди**. Тобто це все, що йде після `rename-yaml-extensions` при виклику через `n-cursor`, або `process.argv.slice(2)` при прямому запуску.
+  - `argv: string[]` — масив аргументів **без імені команди**. Тобто це все, що йде після `rename-yaml-extensions` при виклику через `n-rules`, або `process.argv.slice(2)` при прямому запуску.
 - **Повертає**: `Promise<number>` — код виходу:
   - `0` — успіх (немає помилок, незалежно від кількості перейменованих файлів);
   - `1` — у процесі трапилися помилки (наприклад, цільовий файл уже існує).
@@ -86,7 +86,7 @@ if (isRunAsCli(import.meta.url)) {
 - Якщо так — викликається `runRenameYamlExtensionsCli` з `process.argv.slice(2)` (аргументи без `node` та шляху до скрипту).
 - Якщо код виходу не нульовий — встановлюється `process.exitCode = 1`. **Зауваження**: тут використано `process.exitCode = 1`, а **не** `process.exit(1)` — це дозволяє Node.js завершити поточний event loop коректно й уникнути обриву флешу `stdout`/`stderr`.
 
-При імпорті модуля (як це робить `bin/n-cursor.js`) цей блок **не виконується**, бо `isRunAsCli` поверне `false`.
+При імпорті модуля (як це робить `bin/n-rules.js`) цей блок **не виконується**, бо `isRunAsCli` поверне `false`.
 
 ## Залежності
 
@@ -109,25 +109,25 @@ if (isRunAsCli(import.meta.url)) {
 
 ### Зв'язки в інший бік (хто використовує цей файл)
 
-- `npm/bin/n-cursor.js` — головний CLI пакета. Імпортує `runRenameYamlExtensionsCli` і викликає її для підкоманди `rename-yaml-extensions`.
+- `npm/bin/n-rules.js` — головний CLI пакета. Імпортує `runRenameYamlExtensionsCli` і викликає її для підкоманди `rename-yaml-extensions`.
 
 ## Потік виконання / Використання
 
-### Сценарій 1. Запуск як підкоманда `n-cursor` (типовий випадок)
+### Сценарій 1. Запуск як підкоманда `n-rules` (типовий випадок)
 
 ```bash
-npx @nitra/cursor rename-yaml-extensions
-npx @nitra/cursor rename-yaml-extensions --dry-run
-npx @nitra/cursor rename-yaml-extensions --root=./packages/my-app
+npx @7n/rules rename-yaml-extensions
+npx @7n/rules rename-yaml-extensions --dry-run
+npx @7n/rules rename-yaml-extensions --root=./packages/my-app
 ```
 
 Послідовність:
 
-1. `n-cursor.js` отримує `process.argv`, визначає підкоманду `rename-yaml-extensions`.
-2. `n-cursor.js` імпортує `runRenameYamlExtensionsCli` з `./rename-yaml-extensions.mjs`.
+1. `n-rules.js` отримує `process.argv`, визначає підкоманду `rename-yaml-extensions`.
+2. `n-rules.js` імпортує `runRenameYamlExtensionsCli` з `./rename-yaml-extensions.mjs`.
 3. Викликає `runRenameYamlExtensionsCli(argvBezKomandy)`, де `argvBezKomandy` — усі аргументи **після** `rename-yaml-extensions`.
 4. Функція парсить опції, викликає бізнес-логіку, друкує результат, повертає код.
-5. `n-cursor.js` встановлює `process.exitCode` відповідно до повернутого коду.
+5. `n-rules.js` встановлює `process.exitCode` відповідно до повернутого коду.
 
 ### Сценарій 2. Прямий запуск (розробка/тести)
 
@@ -149,7 +149,7 @@ node ./bin/rename-yaml-extensions.mjs --root=/abs/path
 ### Сценарій 3. Імпорт як бібліотеки
 
 ```js
-import { runRenameYamlExtensionsCli } from '@nitra/cursor/bin/rename-yaml-extensions.mjs'
+import { runRenameYamlExtensionsCli } from '@7n/rules/bin/rename-yaml-extensions.mjs'
 
 const code = await runRenameYamlExtensionsCli(['--dry-run', '--root=./tmp'])
 // code === 0 → успіх; code === 1 → були помилки
@@ -202,6 +202,6 @@ k8s/deployment.yml → k8s/deployment.yaml
 
 - Файл свідомо тонкий: уся **алгоритмічна** робота (обхід директорій `k8s` та `.github`, перевірка існуючих файлів, фактичне `fs.rename`) — у `../scripts/rename-yaml-extensions.mjs`. Це дає змогу:
   - **тестувати** бізнес-логіку без процесу-обгортки;
-  - **підключати** цю ж логіку до інших точок входу (наприклад, до підкоманд `n-cursor`).
+  - **підключати** цю ж логіку до інших точок входу (наприклад, до підкоманд `n-rules`).
 - Використання `process.exitCode` замість `process.exit(N)` — best practice для CLI, що працюють із асинхронним I/O: дозволяє коректно дочекатися флешу потоків перед завершенням.
 - Перевірка `isRunAsCli(import.meta.url)` — стандартний у цьому пакеті патерн dual-mode модулів (одночасно і CLI, і imported lib). Реалізація — у `../scripts/cli-entry.mjs`.

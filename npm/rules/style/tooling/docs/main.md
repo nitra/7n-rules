@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/style/tooling/main.mjs
 docgen:
-  crc: 0f3c24b9
+  crc: 4333b971
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
   issues: anchor-miss:extensions.json,anchor-miss:settings.json,judge:inaccurate:0.99

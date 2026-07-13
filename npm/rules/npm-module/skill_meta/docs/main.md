@@ -78,20 +78,20 @@ The primary development rules are stored in the Cursor rules directory:
 - `.cursor/skills/mdc-check/SKILL.md` — Проаналізувати правило в npm/mdc: максимум перевірюваної логіки й деталей — у check-{id}.mjs з зрозумілими коментарями/JSDoc; у .mdc залишати людинозрозумілий зміст без дублювання алгоритму перевірки
 - `.cursor/skills/n-adr-normalize/SKILL.md` — Ручний запуск ADR-нормалізації — обхід порогу й min-interval, прогон одного батчу чернеток через LLM, перегляд результату через git diff
 - `.cursor/skills/n-doc-files/SKILL.md` — Обовʼязковий крок задачі (як lint): для кожного зміненого/нового кодового файлу (js/mjs/ts/vue/py) JS-оркестрована генерація лаконічної поведінкової української md-документації у теку docs/ поряд із кодом, зі звіркою застарілості за CRC у frontmatter
-- `.cursor/skills/n-lint/SKILL.md` — Запустити дельта-лінт (npx @nitra/cursor lint) по змінених файлах vs origin, виправити порушення й підтвердити чистий вихід
+- `.cursor/skills/n-lint/SKILL.md` — Запустити дельта-лінт (npx @7n/rules lint) по змінених файлах vs origin, виправити порушення й підтвердити чистий вихід
 - `.cursor/skills/n-llm-patch/SKILL.md` — Підготовка самодостатнього текстового промпта для іншого Claude/Cursor-агента — read-only аналіз CWD без жодних змін у поточному репо
 - `.cursor/skills/n-publish-telegram/SKILL.md` — Підготовка матеріалу з поточного контексту для публікації в Telegram-каналі команди
 - `.cursor/skills/n-taze/SKILL.md` — Оновлення версій модулів проекту з аналізом major-змін і автоматичним рефакторингом несумісного коду
 
 ## Commands
 
-Generated from the root `package.json` on each `npx @nitra/cursor` sync. Prefer `bun run <script>` for project scripts.
+Generated from the root `package.json` on each `npx @7n/rules` sync. Prefer `bun run <script>` for project scripts.
 
 - **Залежності**: `bun i`
 - **test**: `bun run test`
 - **start**: `bun run start`
-- **Оновити правила та AGENTS.md** (після змін у правилах/шаблоні CLI): `npx @nitra/cursor`
-- **Перевірки правил (programmatic)**: `npx @nitra/cursor fix`
+- **Оновити правила та AGENTS.md** (після змін у правилах/шаблоні CLI): `npx @7n/rules`
+- **Перевірки правил (programmatic)**: `npx @7n/rules fix`
 - **knip (невикористані залежності та експорти)**: `bunx knip`
 
 ## Instructions for all agents
@@ -100,7 +100,7 @@ Before making changes, read the relevant rule files for the area you are working
 
 ## Інваріант після змін
 
-`n-changelog.mdc` (alwaysApply) релевантне після **будь-якої** зміни файлів, не лише для релізу. Перед фінальною відповіддю виконай `npx @nitra/cursor fix changelog` (exit `0`) і познач результат рядком `Changelog: …` у відповіді.
+`n-changelog.mdc` (alwaysApply) релевантне після **будь-якої** зміни файлів, не лише для релізу. Перед фінальною відповіддю виконай `npx @7n/rules fix changelog` (exit `0`) і познач результат рядком `Changelog: …` у відповіді.
 
 ## Priority
 

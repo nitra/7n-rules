@@ -2,7 +2,7 @@
  * Тести sync-claude-config: merge-логіка settings.json, опт-аут,
  * синхронізація slash-команд і ADR Stop-hook'ів.
  *
- * Управлений хук пакета зараз — PostToolUse (`npx --no \@nitra/cursor hook --post-tool-use`).
+ * Управлений хук пакета зараз — PostToolUse (`npx --no \@7n/rules hook --post-tool-use`).
  * Legacy-команди (`stop-hook`, `post-tool-use-check`, `post-tool-use-fix`) усе ще
  * ідентифікуються як managed, щоб при оновленні старих інсталяцій автоматично прибиратись.
  */
@@ -59,7 +59,7 @@ async function setupTemplate(cwdAbs, tpl = {}) {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use', timeout: 300 }]
+          hooks: [{ type: 'command', command: 'npx --no @7n/rules hook --post-tool-use', timeout: 300 }]
         }
       ]
     }
@@ -85,7 +85,7 @@ async function setupTemplate(cwdAbs, tpl = {}) {
 dist/
 *.secret
 
-# @nitra/cursor (adr) — локальні артефакти Stop-hook, не коміти
+# @7n/rules (adr) — локальні артефакти Stop-hook, не коміти
 .claude/hooks/*.log
 .claude/hooks/.normalize-state
 .claude/hooks/.normalize.lock
@@ -126,13 +126,13 @@ describe('mergeHooks', () => {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use' }]
+          hooks: [{ type: 'command', command: 'npx --no @7n/rules hook --post-tool-use' }]
         }
       ]
     }
     const merged = mergeHooks(existing, fromTemplate)
     expect(merged.PostToolUse).toHaveLength(1)
-    expect(merged.PostToolUse[0].hooks[0].command).toBe('npx --no @nitra/cursor hook --post-tool-use')
+    expect(merged.PostToolUse[0].hooks[0].command).toBe('npx --no @7n/rules hook --post-tool-use')
   })
 
   test('зберігає користувацькі групи поряд з managed', () => {
@@ -143,7 +143,7 @@ describe('mergeHooks', () => {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use' }]
+          hooks: [{ type: 'command', command: 'npx --no @7n/rules hook --post-tool-use' }]
         }
       ]
     }
@@ -166,7 +166,7 @@ describe('mergeHooks', () => {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use' }]
+          hooks: [{ type: 'command', command: 'npx --no @7n/rules hook --post-tool-use' }]
         }
       ]
     }
@@ -188,7 +188,7 @@ describe('mergeHooks', () => {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use' }]
+          hooks: [{ type: 'command', command: 'npx --no @7n/rules hook --post-tool-use' }]
         }
       ]
     }
@@ -224,7 +224,7 @@ describe('mergeHooks', () => {
         },
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use', timeout: 300 }]
+          hooks: [{ type: 'command', command: 'npx --no @7n/rules hook --post-tool-use', timeout: 300 }]
         }
       ]
     }
@@ -232,13 +232,13 @@ describe('mergeHooks', () => {
       PostToolUse: [
         {
           matcher: 'Edit|Write|MultiEdit',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use', timeout: 300 }]
+          hooks: [{ type: 'command', command: 'npx --no @7n/rules hook --post-tool-use', timeout: 300 }]
         }
       ]
     }
     const merged = mergeHooks(existing, fromTemplate)
     expect(merged.PostToolUse).toHaveLength(1)
-    expect(merged.PostToolUse[0].hooks[0].command).toBe('npx --no @nitra/cursor hook --post-tool-use')
+    expect(merged.PostToolUse[0].hooks[0].command).toBe('npx --no @7n/rules hook --post-tool-use')
   })
 })
 
@@ -276,14 +276,14 @@ describe('mergeSettings', () => {
         PostToolUse: [
           {
             matcher: 'Edit|Write|MultiEdit',
-            hooks: [{ type: 'command', command: 'npx --no @nitra/cursor hook --post-tool-use', timeout: 300 }]
+            hooks: [{ type: 'command', command: 'npx --no @7n/rules hook --post-tool-use', timeout: 300 }]
           }
         ]
       }
     }
     const merged = mergeSettings(existing, template)
     expect(merged.hooks?.PostToolUse).toHaveLength(1)
-    expect(merged.hooks?.PostToolUse?.[0].hooks[0].command).toBe('npx --no @nitra/cursor hook --post-tool-use')
+    expect(merged.hooks?.PostToolUse?.[0].hooks[0].command).toBe('npx --no @7n/rules hook --post-tool-use')
   })
 })
 
@@ -440,7 +440,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
       const gi = await readFile(join(cwdAbs, '.gitignore'), 'utf8')
       expect(gi).toContain('.claude/hooks/*.log')
       expect(gi).toContain('.claude/hooks/.normalize-state')
-      expect(gi).toContain('# @nitra/cursor (adr)')
+      expect(gi).toContain('# @7n/rules (adr)')
     })
   })
 

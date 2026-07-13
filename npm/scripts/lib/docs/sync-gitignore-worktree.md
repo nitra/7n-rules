@@ -3,7 +3,7 @@ type: JS Module
 title: sync-gitignore-worktree.mjs
 resource: npm/scripts/lib/sync-gitignore-worktree.mjs
 docgen:
-  crc: e691c42b
+  crc: 415af3ef
   score: 95
 ---
 

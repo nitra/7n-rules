@@ -3,17 +3,17 @@ package style.lint_style_yml_test
 import data.style.lint_style_yml
 import rego.v1
 
-template_data := {"snippet": {"jobs": {"stylelint": {"steps": [{"run": "n-cursor lint style --no-fix"}]}}}}
+template_data := {"snippet": {"jobs": {"stylelint": {"steps": [{"run": "n-rules lint style --no-fix"}]}}}}
 
 test_allow_canonical if {
-	wf := {"jobs": {"stylelint": {"steps": [{"run": "n-cursor lint style --no-fix"}]}}}
+	wf := {"jobs": {"stylelint": {"steps": [{"run": "n-rules lint style --no-fix"}]}}}
 	count(lint_style_yml.deny) == 0 with input as wf with data.template as template_data
 }
 
 test_deny_no_stylelint_run if {
 	wf := {"jobs": {"stylelint": {"steps": [{"run": "echo nothing"}]}}}
 	some msg in lint_style_yml.deny with input as wf with data.template as template_data
-	contains(msg, "n-cursor lint style")
+	contains(msg, "n-rules lint style")
 }
 
 test_deny_empty if {
@@ -30,7 +30,7 @@ test_data_template_drives_substring if {
 
 test_deny_bunx_stylelint if {
 	wf := {"jobs": {"stylelint": {"steps": [
-		{"run": "n-cursor lint style --no-fix"},
+		{"run": "n-rules lint style --no-fix"},
 		{"run": "bunx stylelint '**/*.css'"},
 	]}}}
 	some msg in lint_style_yml.deny with input as wf with data.template as template_data
@@ -38,6 +38,6 @@ test_deny_bunx_stylelint if {
 }
 
 test_allow_npx_stylelint_without_bunx if {
-	wf := {"jobs": {"stylelint": {"steps": [{"run": "n-cursor lint style --no-fix"}]}}}
+	wf := {"jobs": {"stylelint": {"steps": [{"run": "n-rules lint style --no-fix"}]}}}
 	count(lint_style_yml.deny) == 0 with input as wf with data.template as template_data
 }

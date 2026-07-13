@@ -1,6 +1,6 @@
 ## Sandbox-aware тести (Stryker)
 
-Stryker за замовчуванням копіює репо у sandbox-каталог (`reports/stryker/.tmp/sandbox-XXX/`), щоб AST-патчити мутантів без зачеплення робочого дерева. У sandbox **немає `.git/`**, і будь-який тест, що звертається до **реального** git-дерева через `import.meta.url + N≥3 рівнів вгору** (типу`const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..', '..')`) фактично адресує sandbox-корінь, а не справжній репо. Це ламає`git rev-parse`/`git ls-files`/перевірки`.n-cursor.json`/CHANGELOG-співставлення — Stryker dry-run падає, мутаційний прогон не стартує,`mutation.json` лишається stale.
+Stryker за замовчуванням копіює репо у sandbox-каталог (`reports/stryker/.tmp/sandbox-XXX/`), щоб AST-патчити мутантів без зачеплення робочого дерева. У sandbox **немає `.git/`**, і будь-який тест, що звертається до **реального** git-дерева через `import.meta.url + N≥3 рівнів вгору** (типу`const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..', '..')`) фактично адресує sandbox-корінь, а не справжній репо. Це ламає`git rev-parse`/`git ls-files`/перевірки`.n-rules.json`/CHANGELOG-співставлення — Stryker dry-run падає, мутаційний прогон не стартує,`mutation.json` лишається stale.
 
 **Канон**: тест не повинен залежати від реального git-дерева через `import.meta.url + N≥3 рівнів вгору`. Якщо тест перевіряє git-логіку — ізолюй **повністю**:
 

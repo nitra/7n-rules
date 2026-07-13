@@ -3,14 +3,14 @@ type: JS Module
 title: update-blue-oak.mjs
 resource: npm/scripts/update-blue-oak.mjs
 docgen:
-  crc: 83f26045
+  crc: e11f896a
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 95
 ---
 
 ## Огляд
 
-Оновлює вбудований список ліцензій Blue Oak Council, звертаючись до мережі за даними з https://blueoakcouncil.org/list.json. Цей процес створює або оновлює файл npm/data/blue-oak.json, який містить SPDX-ідентифікатори ліцензій рівнів Model, Gold, Silver та Bronze. Запуск здійснюється вручну у `@nitra/cursor` за допомогою команди `bun npm/scripts/update-blue-oak.mjs`. Оновлення необхідне при апгрейді @nitra/cursor, оскільки нові permissive ліцензії з'являються рідко. Lead-рівень (найгірший, GPL-compatible) навмисно виключений.
+Оновлює вбудований список ліцензій Blue Oak Council, звертаючись до мережі за даними з https://blueoakcouncil.org/list.json. Цей процес створює або оновлює файл npm/data/blue-oak.json, який містить SPDX-ідентифікатори ліцензій рівнів Model, Gold, Silver та Bronze. Запуск здійснюється вручну у `@7n/rules` за допомогою команди `bun npm/scripts/update-blue-oak.mjs`. Оновлення необхідне при апгрейді @7n/rules, оскільки нові permissive ліцензії з'являються рідко. Lead-рівень (найгірший, GPL-compatible) навмисно виключений.
 
 ## Поведінка
 

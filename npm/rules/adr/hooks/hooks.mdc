@@ -7,9 +7,9 @@
 Для кожного з двох bash-скриптів (`capture-decisions.sh`, `normalize-decisions.sh`) перевіряє:
 
 - файл `.claude/hooks/<script>.sh` **існує** у проєкті;
-- його вміст **ідентичний** bundled-версії з пакета `@nitra/cursor`.
+- його вміст **ідентичний** bundled-версії з пакета `@7n/rules`.
 
-Якщо файл відсутній або відрізняється — `fail` з підказкою `npx @nitra/cursor`.
+Якщо файл відсутній або відрізняється — `fail` з підказкою `npx @7n/rules`.
 
 ### 2. Наявність `.claude/settings.json`
 
@@ -29,4 +29,4 @@
 
 ### 5. Доступність capture-бекенду
 
-Інформативна (завжди `pass`) перевірка стану дефолтного бекенду `pi` — npm-first пошук бінарника (root `node_modules/.bin/pi`, nested `node_modules/@nitra/cursor/node_modules/.bin/pi`, system `PATH`) і наявність локальної моделі (`CAPTURE_DECISIONS_PI_MODEL` або `N_LOCAL_MIN_MODEL`) — разом зі станом cloud-фолбеку `claude`/`cursor-agent`, доступного через `CAPTURE_DECISIONS_BACKEND=claude|cursor-agent|auto`. Якщо жоден бекенд не готовий — хук просто мовчки no-op'ає, тому це попередження, а не помилка.
+Інформативна (завжди `pass`) перевірка стану дефолтного бекенду `pi` — npm-first пошук бінарника (root `node_modules/.bin/pi`, nested `node_modules/@7n/rules/node_modules/.bin/pi`, system `PATH`) і наявність локальної моделі (`CAPTURE_DECISIONS_PI_MODEL` або `N_LOCAL_MIN_MODEL`) — разом зі станом cloud-фолбеку `claude`/`cursor-agent`, доступного через `CAPTURE_DECISIONS_BACKEND=claude|cursor-agent|auto`. Якщо жоден бекенд не готовий — хук просто мовчки no-op'ає, тому це попередження, а не помилка.

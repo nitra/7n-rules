@@ -3,14 +3,14 @@ type: JS Module
 title: root-notice.mjs
 resource: npm/scripts/lib/root-notice.mjs
 docgen:
-  crc: 65db7d81
+  crc: b3b689c1
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
 
 ## Огляд
 
-Цей модуль вшиває інструкцію для агента у файл `SKILL.md`. Інструкція вказує, що скіл мутує проєкт у поточному каталозі, але виконується in-place (без worktree-ізоляції), що відповідає конфігурації `meta.json` $\to$ `requireRoot: true` і `worktree: false`. Це застосовується до скілів, які змінюють `meta.json` або `package.json` безпосередньо, на відміну від worktree-скілів, які мають свій `root-assert` у `worktree-notice.mjs`. Блок є інструкцією агенту, що читає `SKILL.md`, і є ре-синк ідемпотентним: наявний блок замінюється, при `false` — видаляється. Програмний аналог для CLI-команд — `assertCwdIsProjectRoot`. Інструкція позначається маркерами `ROOT_START` ("<!-- n-cursor:root:start -->") та `ROOT_END` ("<!-- n-cursor:root:end -->").
+Цей модуль вшиває інструкцію для агента у файл `SKILL.md`. Інструкція вказує, що скіл мутує проєкт у поточному каталозі, але виконується in-place (без worktree-ізоляції), що відповідає конфігурації `meta.json` $\to$ `requireRoot: true` і `worktree: false`. Це застосовується до скілів, які змінюють `meta.json` або `package.json` безпосередньо, на відміну від worktree-скілів, які мають свій `root-assert` у `worktree-notice.mjs`. Блок є інструкцією агенту, що читає `SKILL.md`, і є ре-синк ідемпотентним: наявний блок замінюється, при `false` — видаляється. Програмний аналог для CLI-команд — `assertCwdIsProjectRoot`. Інструкція позначається маркерами `ROOT_START` ("<!-- n-rules:root:start -->") та `ROOT_END` ("<!-- n-rules:root:end -->").
 
 ## Поведінка
 

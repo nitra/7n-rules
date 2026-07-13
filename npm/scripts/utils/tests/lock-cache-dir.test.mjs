@@ -17,12 +17,12 @@ const gitFail = () => ({ status: 128, stdout: '', error: undefined })
 describe('resolveLockCacheDir', () => {
   it('кладе стан під git-common-dir (відносний .git → абсолютний від cwd)', () => {
     const dir = resolveLockCacheDir('lint-ga', { cwd: '/repo', spawn: gitOk('.git\n') })
-    expect(dir).toBe(join('/repo/.git', 'n-cursor', 'lint-ga'))
+    expect(dir).toBe(join('/repo/.git', 'n-rules', 'lint-ga'))
   })
 
   it('використовує абсолютний git-common-dir з linked-worktree', () => {
     const dir = resolveLockCacheDir('lint-ga', { cwd: '/repo/.wt/feat', spawn: gitOk('/repo/.git\n') })
-    expect(dir).toBe(join('/repo/.git', 'n-cursor', 'lint-ga'))
+    expect(dir).toBe(join('/repo/.git', 'n-rules', 'lint-ga'))
   })
 
   it('той самий ключ із головного checkout і worktree → той самий шлях (крос-worktree mutex)', () => {
@@ -33,7 +33,7 @@ describe('resolveLockCacheDir', () => {
 
   it('fallback на node_modules/.cache поза git-репо (ненульовий статус)', () => {
     const dir = resolveLockCacheDir('lint-ga', { cwd: '/no-git/x', spawn: gitFail })
-    expect(dir).toBe(join('/no-git/x', 'node_modules/.cache/n-cursor', 'lint-ga'))
+    expect(dir).toBe(join('/no-git/x', 'node_modules/.cache/n-rules', 'lint-ga'))
   })
 
   it('fallback коли git недоступний (spawn кидає error)', () => {
@@ -41,6 +41,6 @@ describe('resolveLockCacheDir', () => {
       cwd: '/no-git/x',
       spawn: () => ({ status: null, stdout: '', error: new Error('ENOENT') })
     })
-    expect(dir).toBe(join('/no-git/x', 'node_modules/.cache/n-cursor', 'lint-ga'))
+    expect(dir).toBe(join('/no-git/x', 'node_modules/.cache/n-rules', 'lint-ga'))
   })
 })

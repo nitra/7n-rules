@@ -8,10 +8,10 @@
  * і паралельний eslint перевантажує CPU/диск на macOS.
  *
  * `git rev-parse --git-common-dir` повертає той самий `.git` головного репо з
- * будь-якого worktree, тож стан кладемо під `<git-common-dir>/n-cursor/<key>`
+ * будь-якого worktree, тож стан кладемо під `<git-common-dir>/n-rules/<key>`
  * (всередині `.git` — спільне, ніколи не трекається, переживає `bun i`).
  * Поза git-репо (git недоступний / каталог не репо) — fallback на per-checkout
- * `node_modules/.cache/n-cursor/<key>`, як було історично.
+ * `node_modules/.cache/n-rules/<key>`, як було історично.
  */
 import { spawnSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
@@ -29,9 +29,9 @@ export function resolveLockCacheDir(key, opts = {}) {
   const commonDir = r.status === 0 && !r.error ? r.stdout.trim() : ''
 
   if (commonDir === '') {
-    return join(cwd, 'node_modules/.cache/n-cursor', key)
+    return join(cwd, 'node_modules/.cache/n-rules', key)
   }
   // commonDir буває відносним (`.git` з кореня) або абсолютним (linked-worktree):
   // resolve проти cwd дає однаковий абсолютний `<main>/.git` в обох випадках.
-  return join(resolve(cwd, commonDir), 'n-cursor', key)
+  return join(resolve(cwd, commonDir), 'n-rules', key)
 }

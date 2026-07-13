@@ -12,7 +12,7 @@ template_data := {"deny": {
 }}
 
 valid_pkg := {
-	"name": "n-cursor",
+	"name": "n-rules",
 	"devDependencies": {"@nitra/eslint-config": "^3.9.2"},
 }
 
@@ -131,7 +131,7 @@ test_deny_scripts_lint_prefixed if {
 }
 
 test_deny_scripts_lint_full if {
-	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/scripts", "value": {"lint-full": "n-cursor lint --full"}}])
+	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/scripts", "value": {"lint-full": "n-rules lint --full"}}])
 	some msg in package_json.deny with input as pkg with data.template as template_data
 	contains(msg, "scripts.lint-full")
 }

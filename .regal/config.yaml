@@ -21,6 +21,12 @@ rules:
   imports:
     unresolved-reference:
       level: ignore
+    # `_test.rego` імпортує сусідній policy-файл; delta-lint передає regal лише змінені
+    # файли, тож import статично не резолвиться (перевіряється conftest verify).
+    unresolved-import:
+      ignore:
+        files:
+          - "**/*_test.rego"
   style:
     # opa fmt тримає інлайнові обʼєкти/масиви single-line; default 120 з ним конфліктує.
     line-length:

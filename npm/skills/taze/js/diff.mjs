@@ -110,10 +110,10 @@ export async function collectTazeDiff(cwd, backupSuffix = DEFAULT_BACKUP_SUFFIX)
   return { major, minorPatch, totalChanged: major.length + minorPatch, comparedWorkspaces }
 }
 
-const USAGE = 'Usage: n-cursor taze diff [--backup-suffix <suffix>]'
+const USAGE = 'Usage: n-rules taze diff [--backup-suffix <suffix>]'
 
 /**
- * CLI: `n-cursor taze diff` друкує компактний JSON зі списком major-оновлень і
+ * CLI: `n-rules taze diff` друкує компактний JSON зі списком major-оновлень і
  * лічбою minor/patch. Read-only.
  * @param {string[]} args аргументи після `taze`
  * @param {string} [cwd] корінь репозиторію (ін'єкція для тестів)

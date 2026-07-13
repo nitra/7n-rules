@@ -1,5 +1,5 @@
 /**
- * Глобальна черга запусків `n-cursor lint --full`: у кожен момент на машині
+ * Глобальна черга запусків `n-rules lint --full`: у кожен момент на машині
  * виконується щонайбільше один **full**-прогін, наступні чекають у черзі й
  * стартують після звільнення лока. Рішення spec-дискусії 2026-07-03 (ревізія):
  * лок береться **лише** на `--full` — дельта/scoped/`--no-fix` запуски короткі
@@ -38,7 +38,7 @@ import { worktreeFingerprint } from '../../utils/worktree-fingerprint.mjs'
 import { renderProgressLine } from './progress.mjs'
 
 /** Machine-wide директорія стану лока/черги — спільна для всіх репо й worktree. */
-export const GLOBAL_CACHE_DIR = join(tmpdir(), 'n-cursor', 'lint-full')
+export const GLOBAL_CACHE_DIR = join(tmpdir(), 'n-rules', 'lint-full')
 
 const QUEUE_DIR = join(GLOBAL_CACHE_DIR, 'queue')
 const PROGRESS_FILE = join(GLOBAL_CACHE_DIR, 'progress.json')

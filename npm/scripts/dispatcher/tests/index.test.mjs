@@ -1,5 +1,5 @@
 /**
- * Тести маршрутизації CLI (`bin/n-cursor.js`): flow, graph, watch, mt — невідомі команди.
+ * Тести маршрутизації CLI (`bin/n-rules.js`): flow, graph, watch, mt — невідомі команди.
  *
  * Перевіряємо:
  *  - `flow`, `graph`, `watch`, `mt` → unknown command (exit 1)
@@ -11,7 +11,7 @@ import { readFile } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const binPath = join(dirname(fileURLToPath(import.meta.url)), '../../../bin/n-cursor.js')
+const binPath = join(dirname(fileURLToPath(import.meta.url)), '../../../bin/n-rules.js')
 
 const ADR_HOOKS_SKIP_RE = /ADR_HOOKS_SKIP\s*=\s*['"]1['"]/
 const SWITCH_COMMAND_RE = /switch\s*\(\s*command\s*\)/
@@ -22,7 +22,7 @@ const RE_WORD_GRAPH = /\bgraph\b/
 const RE_WORD_WATCH = /\bwatch\b/
 
 /**
- * Запускає n-cursor з даними аргументами і повертає {status, stderr, stdout}.
+ * Запускає n-rules з даними аргументами і повертає {status, stderr, stdout}.
  * @param {string[]} args CLI-аргументи після імені бінарника
  * @returns {{ status: number, stderr: string, stdout: string }} код виходу і потоки виводу
  */

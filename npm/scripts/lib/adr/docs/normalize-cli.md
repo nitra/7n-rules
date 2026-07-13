@@ -3,7 +3,7 @@ type: JS Module
 title: normalize-cli.mjs
 resource: npm/scripts/lib/adr/normalize-cli.mjs
 docgen:
-  crc: 222bfca4
+  crc: c93ea883
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99

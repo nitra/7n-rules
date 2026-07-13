@@ -1,10 +1,10 @@
 ---
-description: Оптимізація raster/SVG через @nitra/minify-image у n-cursor lint
+description: Оптимізація raster/SVG через @nitra/minify-image у n-rules lint
 version: '1.2'
 globs: "**/*.{png,jpg,jpeg,gif,svg}"
 alwaysApply: false
 ---
 
-CLI [`@nitra/minify-image`](https://www.npmjs.com/package/@nitra/minify-image) (≥ **4.0.1**) запускається через `npx` і **не** додається в `dependencies` / `devDependencies`. Запуск — через **`n-cursor lint image-compress`**: локально (fix) виконує `npx @nitra/minify-image --src=. --write`, у `--no-fix` виконує `npx @nitra/minify-image --src=. --json` і падає, якщо `summary.needsCompression > 0`. **AVIF-генерація (`--avif`) у `image-compress` не входить** — її виконує окреме правило `image-avif`.
+CLI [`@nitra/minify-image`](https://www.npmjs.com/package/@nitra/minify-image) (≥ **4.0.1**) запускається через `npx` і **не** додається в `dependencies` / `devDependencies`. Запуск — через **`n-rules lint image-compress`**: локально (fix) виконує `npx @nitra/minify-image --src=. --write`, у `--no-fix` виконує `npx @nitra/minify-image --src=. --json` і падає, якщо `summary.needsCompression > 0`. **AVIF-генерація (`--avif`) у `image-compress` не входить** — її виконує окреме правило `image-avif`.
 
-Окремий workflow `lint-image.yml` створювати не треба; якщо потрібен CI-gate для зображень, використовуй `n-cursor lint image-compress --no-fix`.
+Окремий workflow `lint-image.yml` створювати не треба; якщо потрібен CI-gate для зображень, використовуй `n-rules lint image-compress --no-fix`.

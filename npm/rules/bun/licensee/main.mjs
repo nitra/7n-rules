@@ -22,7 +22,7 @@ export function lint(ctx) {
   const configPath = join(cwd, '.licensee.json')
   if (!existsSync(configPath)) {
     fail(
-      'lint-bun: licensee — немає .licensee.json; запустіть `npx @nitra/cursor lint bun` локально для генерації (bun.mdc)',
+      'lint-bun: licensee — немає .licensee.json; запустіть `npx @7n/rules lint bun` локально для генерації (bun.mdc)',
       'licensee-config-missing'
     )
     return reporter.result()

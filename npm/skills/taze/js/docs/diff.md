@@ -3,7 +3,7 @@ type: JS Module
 title: diff.mjs
 resource: npm/skills/taze/js/diff.mjs
 docgen:
-  crc: fe4d76ce
+  crc: a70297a7
   score: 100
 ---
 
@@ -45,7 +45,7 @@ parseVersion — витягує версію з specifier-а, ігноруючи
 isBreaking — визначає, чи є перехід між версіями breaking за caret-семантикою (зміна найлівішої ненульової частини).
 diffPackageJson — порівнює два package.json-об'єкти та генерує список змін залежностей.
 collectTazeDiff — збирає різницю між версіями всього монорепо, порівнюючи `package.json` з його резервною копією у кожному воркспейсі.
-runTazeCli — виконує команду `n-cursor taze diff` для виведення компактного JSON зі списком major-оновлень та лічилки minor/patch.
+runTazeCli — виконує команду `n-rules taze diff` для виведення компактного JSON зі списком major-оновлень та лічилки minor/patch.
 
 ## Гарантії поведінки
 
