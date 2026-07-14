@@ -1577,9 +1577,7 @@ try {
     if (ROOT_GUARDED_COMMANDS.has(command)) {
       assertCwdIsProjectRoot(effectiveRoot, describeRootGuardedAction(command))
     }
-    // mt-run-node — MT-екзекутор у worktree вузла: жодних side-effect-ів поза фіксом
-    // (devDeps-ensure мутив би package.json чужого worktree).
-    if (command !== 'mt-run-node') await ensureNRulesInRootDevDependencies(effectiveRoot)
+    await ensureNRulesInRootDevDependencies(effectiveRoot)
     // Підкоманди-оркестратори (hook/lint/skill/adr-normalize-local/taze/release тощо)
     // можуть спавнити внутрішню agent/LLM-сесію — ADR Stop-hooks (capture/normalize)
     // мають пропустити її як технічний шум, не людську думку (spec 2026-06-30).
@@ -1662,14 +1660,6 @@ try {
         // cluster→gen) на малій локальній моделі й друкує `{operations}` JSON у stdout.
         const { runAdrNormalizeLocalCli } = await import('../scripts/lib/adr/normalize-cli.mjs')
         process.exitCode = await runAdrNormalizeLocalCli(args)
-
-        break
-      }
-      case 'mt-run-node': {
-        // B2 executor-міст (Фаза B): MT node_executor спавнить це для fix-вузла.
-        // Виконує вузол нашим pi-harness (тир-канон); stdout={applied,touchedFiles}.
-        const { runNodeCli } = await import('../scripts/lib/lint-surface/mt-run-node.mjs')
-        process.exitCode = await runNodeCli(args)
 
         break
       }
