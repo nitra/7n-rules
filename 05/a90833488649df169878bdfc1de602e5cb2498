@@ -1,0 +1,39 @@
+.cspell.json
+  s_d30948e427e695::t_68fb9d498c3f36 109,122-124,134-135,199,273-355
+.cursor/skills/n-taze/SKILL.md
+  s_d30948e427e695::t_abe8192a4dd62c 4-7,44,51-59,74-80,92-101,114-115,126-127,141-148,159-166,177-184,195-196,201-202
+docs/adr/260610-1557-нові-js-файли-у-npm-rules-як-mjs.md
+  s_d30948e427e695::t_b0f8646066e83f 37-40,42,44-47
+docs/adr/260611-1248-ігнорування-worktrees-у-eslint-та-cspell-2.md
+  s_d30948e427e695::t_12e81b2f8cefb4 1-34
+docs/adr/260611-1312-llm-wire-trace-always-on-захоплення-reasoning-та-слідів-на-callllm.md
+  s_d30948e427e695::t_249f3a2c408265 1-49
+docs/adr/260611-1922-підтримка-rust-rs-у-команді-doc-files-2.md
+  s_d30948e427e695::t_63e9718b219df5 1-35
+npm/.changes/260714-0720.md
+  s_d30948e427e695::t_7674a78d62f5ee 1-5
+npm/scripts/docs/skills-cli.md
+  s_d30948e427e695::t_eb4f1790b847d2 6,12,21,29,33,35
+npm/scripts/skills-cli.mjs
+  s_d30948e427e695::t_65c4fefd4be73b 6-7,14-15,27-39,46-47,176-180,187,189-190,193-194,197,255
+npm/scripts/tests/skills-cli.test.mjs
+  s_d30948e427e695::t_c2e9d84ed78e06 322,349-379
+npm/skills/taze/SKILL.md
+  s_d30948e427e695::t_779bb0765583a7 4-7,14,21-29,44-50,62-71,84-85,96-97,111-118,129-136,147-154,165-166,171-172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "05a90833488649df169878bdfc1de602e5cb2498",
+  "prompts": {},
+  "sessions": {
+    "s_d30948e427e695": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4d79c9b5-e307-4f46-8c01-e1e7cfc5b4c3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
