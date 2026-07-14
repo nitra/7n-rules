@@ -42,7 +42,9 @@ const USAGE_LINES = [
  * @returns {boolean} чи знайдено бінарник у PATH
  */
 function isBinaryInPath(name) {
-  const probe = spawnSync('command', ['-v', name], { shell: true, encoding: 'utf8' })
+  // Явний `env: process.env` — Bun без нього дає дітям snapshot оточення зі старту процесу
+  // і не бачить runtime-змін `process.env.PATH` (та сама причина, що в resolve-cmd.mjs).
+  const probe = spawnSync('command', ['-v', name], { shell: true, encoding: 'utf8', env: process.env })
   return probe.status === 0
 }
 
@@ -178,7 +180,8 @@ function runLlmCli(kind, prompt, projectDir, logError) {
       input: prompt,
       cwd: projectDir,
       stdio: ['pipe', 'inherit', 'inherit'],
-      encoding: 'utf8'
+      encoding: 'utf8',
+      env: process.env
     })
     return result.status ?? 1
   }
@@ -191,7 +194,8 @@ function runLlmCli(kind, prompt, projectDir, logError) {
     input: prompt,
     cwd: projectDir,
     stdio: ['pipe', 'inherit', 'inherit'],
-    encoding: 'utf8'
+    encoding: 'utf8',
+    env: process.env
   })
   return result.status ?? 1
 }

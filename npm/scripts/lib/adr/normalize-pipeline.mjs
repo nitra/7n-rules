@@ -23,7 +23,9 @@
  *
  * Повертає той самий operations[]-контракт, що й single-shot — apply-логіка спільна.
  */
-import { z } from 'zod'
+// Namespace-імпорт замість `import { z }`: Bun показує фантомний `__esModule` на ESM-неймспейсах,
+// через що interop у vitest приймає default-експорт zod за CJS-обгортку і губить named-експорт `z`.
+import * as z from 'zod'
 import { runOneShot } from '@7n/llm-lib/one-shot'
 import { startChain } from '@7n/llm-lib/chain'
 import { CLOUD_MIN, resolveModel } from '@7n/llm-lib/model-tiers'
