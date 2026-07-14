@@ -10,7 +10,6 @@ import {
   buildCheckCommand,
   buildTaskMd,
   clusterTail,
-  ensureNodeExecutor,
   fixNodeName,
   fixNodeSignature,
   materializeTail
@@ -129,40 +128,6 @@ describe('buildTaskMd / buildCheckCommand / buildAgentFlag', () => {
     expect(max).toContain('MAX')
     expect(max).toContain('## Skills')
     expect(buildAgentFlag()).toContain('AVG')
-  })
-})
-
-describe('ensureNodeExecutor', () => {
-  test('дописує node_executor коли відсутній', () => {
-    let written = null
-    const set = ensureNodeExecutor('/p', {
-      exists: () => true,
-      read: () => JSON.stringify({ mt_dir: './mt' }),
-      write: (_p, c) => {
-        written = c
-      }
-    })
-    expect(set).toBe(true)
-    expect(JSON.parse(written).node_executor).toBe('npx @7n/rules mt-run-node')
-  })
-
-  test('не перезаписує наявний node_executor (повага до ручного)', () => {
-    const write = vi.fn()
-    const set = ensureNodeExecutor('/p', {
-      exists: () => true,
-      read: () => JSON.stringify({ node_executor: 'custom-cmd' }),
-      write
-    })
-    expect(set).toBe(false)
-    expect(write).not.toHaveBeenCalled()
-  })
-
-  test('нема .mt.json → no-op', () => {
-    expect(ensureNodeExecutor('/p', { exists: () => false })).toBe(false)
-  })
-
-  test('битий .mt.json → no-op без винятку', () => {
-    expect(ensureNodeExecutor('/p', { exists: () => true, read: () => '{ broken', write: vi.fn() })).toBe(false)
   })
 })
 

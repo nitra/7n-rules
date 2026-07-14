@@ -3,7 +3,7 @@ type: JS Module
 title: mt-tail.mjs
 resource: npm/scripts/lib/lint-surface/mt-tail.mjs
 docgen:
-  crc: a84afa7f
+  crc: df14bc2e
   model: openai-codex/gpt-5.4-mini
   score: 100
   judgeModel: openai-codex/gpt-5.4-mini
@@ -11,7 +11,7 @@ docgen:
 
 ## Огляд
 
-Файл матеріалізує lint-хвіст у пласкі root-level MT-вузли `mt/<node>/task.md` і `a.md` без composite-плану й `spawn-approve`, щоб окремі fix-правки далі виконував orchestrator MT за контрактом `graph.md` з `Task`, `Done when` і `Check`. Ядро модулю охоплює кластеризацію, сигнатуру вузла та формування `buildTaskMd`, `buildCheckCommand` і `buildAgentFlag`, а конфіг, на який він спирається, — `.mt.json`. Єдиний гейт — onboarded-репо (наявність `.mt.json`, перевіряє `mtPreflight`); якщо MT недоступний, він працює fail-open і повертає `{ materialized: false }`, не валячи lint. Широкі фікси (кількість target-файлів від порога `N_LINT_MT_AUDIT_FILES`, дефолт 4, або whole-repo) отримують `audit: required` — collateral-контроль штатним MT-аудитом (Фаза C); вузькі — `optional`.
+Файл матеріалізує lint-хвіст у пласкі root-level MT-вузли `mt/<node>/task.md` і `a.md` без composite-плану й `spawn-approve`, щоб окремі fix-правки далі виконував orchestrator MT за контрактом `graph.md` з `Task`, `Done when` і `Check`. Ядро модулю охоплює кластеризацію, сигнатуру вузла та формування `buildTaskMd`, `buildCheckCommand` і `buildAgentFlag`, а конфіг, на який він спирається, — `.mt.json`. Єдиний гейт — onboarded-репо (наявність `.mt.json`, перевіряє `mtPreflight`); якщо MT недоступний, він працює fail-open і повертає `{ materialized: false }`, не валячи lint. Широкі фікси (кількість target-файлів від порога `N_LINT_MT_AUDIT_FILES`, дефолт 4, або whole-repo) отримують `audit: required` — collateral-контроль штатним MT-аудитом (Фаза C); вузькі — `optional`. Вузли виконує вбудований шлях MT — підписочні CLI (`claude`|`codex`|`cursor`|`pi`) з user-level ENV-конфігом (`MT_AGENT_CLI`, `MT_CLOUD_AGENT_CLIS`, `MT_AGENT_CLI_MODEL_MAP`); власний `node_executor` (mt-run-node) видалено за mt ADR `260713-2110`.
 
 ## Поведінка
 
@@ -33,7 +33,6 @@ docgen:
 - buildTaskMd — генерує канонічний `task.md` для fix-вузла за контрактом `graph.md`; час не вставляє, `budgetSec` може бути заданий окремо.
 - buildAgentFlag — пише прапор `a.md`, який позначає агента-виконавця; tier перетворює на `model_tier`.
 - mtPreflight — перевіряє, чи є MT CLI+addon і чи репо вже onboarded через `.mt.json`.
-- ensureNodeExecutor — гарантує, що `.mt.json` задає `node_executor` = наша команда (B2), щоб вузли виконувались нашим harness, а не Claude-шляхом MT; ідемпотентно, не перезаписує наявне налаштування.
 - materializeTail — перетворює хвіст порушень на MT fix-вузли; якщо MT недоступний, не валить lint і повертає `{ materialized: false }`.
 
 ## Гарантії поведінки
