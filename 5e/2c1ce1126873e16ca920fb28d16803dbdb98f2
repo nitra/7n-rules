@@ -1,0 +1,50 @@
+npm/rules/doc-files/docgen-gen/docs/main.md
+  s_0a4dd6acd3e226::t_0cec070e621a7c 37-38
+  s_0a4dd6acd3e226::t_9ef91cef668276 29
+  s_0a4dd6acd3e226::t_23a815974465bd 6
+npm/rules/doc-files/check/docs/fix-worker.md
+  s_0a4dd6acd3e226::t_e13d0fac6bfb78 21
+  s_0a4dd6acd3e226::t_23a815974465bd 6
+npm/rules/doc-files/docgen-files-batch/main.mjs
+  s_0a4dd6acd3e226::t_c0111aedb1a570 398-402
+  s_0a4dd6acd3e226::t_27c712a225afb8 165
+  s_0a4dd6acd3e226::t_276dbee763ea27 448-449
+  s_0a4dd6acd3e226::t_05f631c43b05c1 148,151
+npm/rules/doc-files/docgen-files-batch/docs/main.md
+  s_0a4dd6acd3e226::t_23a815974465bd 6
+  s_0a4dd6acd3e226::t_49ccc14c4b754b 23
+npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs
+  s_0a4dd6acd3e226::t_9a28ad0f41a9d2 154-156
+  s_0a4dd6acd3e226::t_785d4d9311e788 13-14
+  s_0a4dd6acd3e226::t_efb5539abd57c7 5
+  s_0a4dd6acd3e226::t_04b644990f0e47 128-153,157-160
+npm/rules/doc-files/docgen-gen/main.mjs
+  s_0a4dd6acd3e226::t_b6d484c8284437 33-54,59-60,67-70,76
+  s_0a4dd6acd3e226::t_0376b214a4153d 484,489-495
+  s_0a4dd6acd3e226::t_e2c8ee005808aa 514,523
+npm/.changes/260714-0833.md
+  s_0a4dd6acd3e226::t_d053b691baf5f0 1-4
+  s_0a4dd6acd3e226::t_5d753bced6dd40 5
+npm/rules/doc-files/check/fix-worker.mjs
+  s_0a4dd6acd3e226::t_1cbf6aa97a6feb 39-40
+npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs
+  s_0a4dd6acd3e226::t_15ff31fdc70a89 174-180
+package.json
+  s_0a4dd6acd3e226::t_974eed97f5327b 25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "5e2c1ce1126873e16ca920fb28d16803dbdb98f2",
+  "prompts": {},
+  "sessions": {
+    "s_0a4dd6acd3e226": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "171e992c-f17d-4fa4-a0a2-38785ac398c9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
