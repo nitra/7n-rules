@@ -1,0 +1,67 @@
+package.json
+  s_46fe0a80cf9489::t_67bca5213946e7 14
+  s_46fe0a80cf9489::t_8a4c6eda00b6db 25
+llm-lib/crates/llm-cascade/examples/docs/local_live.md
+  s_46fe0a80cf9489::t_0deb7d34ac888f 1-15
+llm-lib/crates/llm-cascade/src/docs/tiers.md
+  s_46fe0a80cf9489::t_19e6c7de03717a 1-33
+llm-lib/crates/llm-cascade/src/docs/local_cloud.md
+  s_46fe0a80cf9489::t_24b67f7077f0c5 1-28
+llm-lib/crates/llm-cascade/src/docs/acp.md
+  s_46fe0a80cf9489::t_32447a64e673b6 1-29
+.cspell.json
+  s_46fe0a80cf9489::t_495b8d54a9d437 174
+  s_46fe0a80cf9489::t_72a063812cb965 228
+  s_46fe0a80cf9489::t_64c93000b3995f 242
+  s_46fe0a80cf9489::t_2d8b2a8fff01a1 108
+  s_46fe0a80cf9489::t_39d7a00790fb0d 171
+  s_46fe0a80cf9489::t_b8dc644781a7cc 126
+llm-lib/crates/llm-cascade/src/docs/lib.md
+  s_46fe0a80cf9489::t_288aafce874244 1-28
+llm-lib/crates/llm-cascade/examples/docs/cursor_live.md
+  s_46fe0a80cf9489::t_d34a101ba6e17c 1-15
+llm-lib/crates/llm-cascade/examples/docs/ladder_live.md
+  s_46fe0a80cf9489::t_c69aefc9e460c7 1-15
+llm-lib/.changes/260714-0733.md
+  s_46fe0a80cf9489::t_91786e7781c11c 1-5
+npm/rules/release/lib/docs/aggregate.md
+  s_46fe0a80cf9489::t_610400e73e5323 164,173
+  s_46fe0a80cf9489::t_efcf55f919a5c1 26-27
+  s_46fe0a80cf9489::t_d2c4d48e047713 188
+  s_46fe0a80cf9489::t_cf8bf85e00d7c9 225
+  s_46fe0a80cf9489::t_f6965735dd7a87 80-87
+  s_46fe0a80cf9489::t_c4dc09a2ba7afb 182
+  s_46fe0a80cf9489::t_0573ac84e40cb3 258,260
+  s_46fe0a80cf9489::t_22a63e0014b7c9 6
+npm/rules/release/docs/release.md
+  s_46fe0a80cf9489::t_1c0a620e91d105 14-16
+  s_46fe0a80cf9489::t_278fc4c07c4337 6
+npm/rules/changelog/lib/docs/package-manifest.md
+  s_46fe0a80cf9489::t_f578d18b9921a3 98
+  s_46fe0a80cf9489::t_a5f5420605e8c7 105
+  s_46fe0a80cf9489::t_ea8d043fb5ae21 6
+  s_46fe0a80cf9489::t_d9be4a4e333d81 47
+  s_46fe0a80cf9489::t_70565fb7e98665 20
+  s_46fe0a80cf9489::t_7dc36b9e6761f0 54
+npm/rules/changelog/lib/package-manifest.mjs
+  s_46fe0a80cf9489::t_0e8d6e8f08b9d3 40
+  s_46fe0a80cf9489::t_0d7dc2d1446ed9 30
+npm/.changes/260714-0847.md
+  s_46fe0a80cf9489::t_e0277dc861fc05 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "b71567f97eed0fe5477076145661f4e9d2530db8",
+  "prompts": {},
+  "sessions": {
+    "s_46fe0a80cf9489": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c1a10b6-5ae2-4fcf-94b8-7b10e03ae228",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
