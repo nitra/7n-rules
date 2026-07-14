@@ -31,6 +31,20 @@ export function maxBump(bumps) {
 }
 
 /**
+ * Обмежує bump зверху стелею (`package.json#release.maxBump`) — наприклад, не дає
+ * `major`-change-файлу підняти major-версію пакета, навіть якщо його явно поставили.
+ * @param {string} bump обчислений bump (`major|minor|patch`)
+ * @param {string | null} [cap] стеля (`major|minor|patch`) або `null` — без обмеження
+ * @returns {string} bump не суворіший за `cap`
+ */
+export function capBump(bump, cap) {
+  if (!cap) return bump
+  const bumpRank = VALID_BUMPS.indexOf(bump)
+  const capRank = VALID_BUMPS.indexOf(cap)
+  return bumpRank < capRank ? cap : bump
+}
+
+/**
  * @param {string} version нова версія
  * @param {string} date `YYYY-MM-DD`
  * @param {Array<{ section: string, description: string }>} entries записи change-файлів
@@ -68,11 +82,13 @@ export function prependChangelogSection(existingText, sectionBlock) {
  * @param {string} params.currentVersion поточна version маніфесту
  * @param {Array<{ file: string, entry: { bump: string, section: string, description: string } }>} params.changeFiles change-файли workspace
  * @param {string} params.date `YYYY-MM-DD`
+ * @param {string | null} [params.maxBumpCap] стеля bump з `package.json#release.maxBump`; `null` — без обмеження
  * @returns {{ newVersion: string, sectionBlock: string, consumedFiles: string[] } | null} результат або null, якщо змін нема
  */
-export function aggregateWorkspace({ currentVersion, changeFiles, date }) {
+export function aggregateWorkspace({ currentVersion, changeFiles, date, maxBumpCap = null }) {
   if (changeFiles.length === 0) return null
-  const newVersion = bumpVersion(currentVersion, maxBump(changeFiles.map(c => c.entry.bump)))
+  const bump = capBump(maxBump(changeFiles.map(c => c.entry.bump)), maxBumpCap)
+  const newVersion = bumpVersion(currentVersion, bump)
   const sectionBlock = renderChangelogSection(
     newVersion,
     date,

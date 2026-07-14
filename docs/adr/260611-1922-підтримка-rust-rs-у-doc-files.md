@@ -1,7 +1,7 @@
 ---
 type: ADR
 title: Підтримка Rust `.rs` у команді `doc-files`
-description: Команда `doc-files` має збирати Rust-файли й передавати в prompt мовну підказку `Rust`.
+description: Вирішено додати файли Rust до списку мов, для яких `doc-files` генерує поведінкову markdown-документацію.
 ---
 
 **Status:** Accepted
@@ -9,28 +9,28 @@ description: Команда `doc-files` має збирати Rust-файли й
 
 ## Context and Problem Statement
 
-Команда `doc-files` підтримувала генерацію документації для `.js`, `.mjs`, `.ts`, `.vue` і `.py`, але ігнорувала Rust-файли `.rs`. Через це проєкти або частини проєкту з Rust-кодом не отримували `.docs.md`-документацію через існуючий механізм.
+Команда `doc-files` генерувала документацію для `.js`, `.mjs`, `.ts`, `.vue` і `.py`, але ігнорувала Rust-файли `.rs`. Через це проєкти з Rust-кодом не отримували `.docs.md` документацію поруч із кодом.
 
 ## Considered Options
 
-- Додати `.rs` до списку підтримуваних розширень і `Rust` до мовних підказок без зміни prompt-builder.
-- Додати Rust-specific prompt-інструкції про `pub fn`, `pub struct`, `pub trait`, `mod` boundaries і `unsafe`.
+- Додати `.rs` до `SUPPORTED_EXTENSIONS` і `LANGUAGE_HINTS` без змін у prompt-builder.
+- Оновити prompt template Rust-специфічними інструкціями про `pub fn`, `pub struct`, `pub trait`, `mod` boundaries та `unsafe` blocks.
+- Інші варіанти в transcript не обговорювалися.
 
 ## Decision Outcome
 
-Chosen option: "Додати `.rs` до списку підтримуваних розширень і `Rust` до мовних підказок без зміни prompt-builder", because transcript фіксує, що `buildDocPrompt` не має language-specific гілок: `languageHint` передається в LLM-промпт як рядок, тому для підтримки Rust достатньо додати розширення та label.
+Chosen option: "Додати `.rs` до `SUPPORTED_EXTENSIONS` і `LANGUAGE_HINTS` без змін у prompt-builder", because transcript фіксує, що `buildDocPrompt` не має мовних гілок і лише передає `languageHint` у prompt як рядок; отже для першої підтримки Rust достатньо передати `Language: Rust`.
 
 ### Consequences
 
-- Good, because `.rs` файли тепер потрапляють у `collectFiles` і можуть отримувати `.docs.md`-документацію нарівні з JS/TS/Vue/Python.
-- Good, because зміна мінімальна й не потребує перебудови prompt-builder.
+- Good, because `.rs` файли тепер потрапляють у `collectFiles` і отримують `.docs.md` документацію нарівні з JS/TS/Vue/Python.
+- Good, because зміна мінімальна й не потребує перебудови prompt template.
 - Bad, because transcript не містить підтверджених негативних наслідків.
-- Neutral, because Rust-specific інструкції про `pub fn`, `pub struct`, `pub trait`, `mod` boundaries і `unsafe` були названі можливими, але не реалізовані в цьому кроці.
+- Neutral, because Rust-специфічні prompt-інструкції згадувалися як можливе покращення, але в реалізації не додавалися.
 
 ## More Information
 
-- Змінений файл: `src/commands/doc-files/index.mjs`.
-- `SUPPORTED_EXTENSIONS` розширено значенням `'.rs'`.
-- `LANGUAGE_HINTS['.rs'] = 'Rust'`.
-- Опис skill оновлено в `.cursor/skills/n-docgen/SKILL.md`: `js/mjs/ts/vue/py/rs`.
-- Change-файл: `.changes/doc-files-rust-support-1749601234.md`, створений через `bunx n-cursor change --type feat --message 'doc-files: add Rust (.rs) file support'`.
+- Змінено `src/commands/doc-files/index.mjs`: `.rs` додано до `SUPPORTED_EXTENSIONS`, а `LANGUAGE_HINTS['.rs'] = 'Rust'`.
+- Змінено `.cursor/skills/n-docgen/SKILL.md`: перелік мов оновлено з `js/mjs/ts/vue/py` до `js/mjs/ts/vue/py/rs`.
+- Change-файл: `.changes/doc-files-rust-support-1749601234.md`.
+- Команда для change-файлу: `bunx n-cursor change --type feat --message 'doc-files: add Rust (.rs) file support'`.
