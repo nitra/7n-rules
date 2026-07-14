@@ -1,0 +1,23 @@
+docs/adr/260611-1248-ігнорування-worktrees-в-eslint-та-cspell.md
+  s_be879008e82f4a::t_dcb9a9849765ce 1-39
+docs/adr/260612-0031-семантика-n-cursor-omlx-url.md
+  s_be879008e82f4a::t_dcb9a9849765ce 1-40
+docs/adr/260611-1312-llm-wire-trace-always-on-на-callllm.md
+  s_be879008e82f4a::t_dcb9a9849765ce 1-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "2a64303a161c9ced368100c22487449b9ea370b4",
+  "prompts": {},
+  "sessions": {
+    "s_be879008e82f4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6478f913-911b-4093-8893-2a8502c31a72",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
