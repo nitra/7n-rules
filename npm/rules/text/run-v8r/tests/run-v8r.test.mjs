@@ -67,7 +67,7 @@ describe('runV8rWithGlobs — error paths', () => {
     expect(errChunks.join('')).toContain('mock spawn ENOENT')
   })
 
-  test('exitCode=1 з stdout і stderr → виводить обидва і повертає exitCode (lines 66-73)', async () => {
+  test('exitCode=1, verbose → виводить raw stdout і stderr, повертає exitCode', async () => {
     const actual = await vi.importActual('node:child_process')
     vi.mocked(spawnSync)
       .mockImplementationOnce(actual.spawnSync) // which bun → реальний
@@ -93,7 +93,7 @@ describe('runV8rWithGlobs — error paths', () => {
     }
     let code
     try {
-      code = runV8rWithGlobs(['**/*.json'])
+      code = runV8rWithGlobs(['**/*.json'], true)
     } finally {
       process.stdout.write = origOut
       process.stderr.write = origErr
@@ -101,6 +101,42 @@ describe('runV8rWithGlobs — error paths', () => {
     expect(code).toBe(1)
     expect(outChunks.join('')).toContain('validation error output')
     expect(errChunks.join('')).toContain('v8r stderr msg')
+  })
+
+  test('exitCode=1 без verbose → лише рядки ✖ зі stdout, без ℹ-шуму і stderr-дампа', async () => {
+    const actual = await vi.importActual('node:child_process')
+    vi.mocked(spawnSync)
+      .mockImplementationOnce(actual.spawnSync) // which bun → реальний
+      .mockReturnValueOnce({
+        error: null,
+        status: 1,
+        stdout: 'ℹ Processing bad.json\n✖ bad.json is invalid\nℹ Pre-warming the cache\n',
+        stderr: 'v8r stderr msg\n',
+        pid: 0,
+        signal: null
+      })
+    const outChunks = []
+    const errChunks = []
+    const origOut = process.stdout.write.bind(process.stdout)
+    const origErr = process.stderr.write.bind(process.stderr)
+    process.stdout.write = chunk => {
+      outChunks.push(String(chunk))
+      return true
+    }
+    process.stderr.write = chunk => {
+      errChunks.push(String(chunk))
+      return true
+    }
+    let code
+    try {
+      code = runV8rWithGlobs(['**/*.json'])
+    } finally {
+      process.stdout.write = origOut
+      process.stderr.write = origErr
+    }
+    expect(code).toBe(1)
+    expect(outChunks.join('')).toBe('✖ bad.json is invalid\n')
+    expect(errChunks.join('')).toBe('')
   })
 
   test('exitCode=1 без stdout/stderr → повертає exitCode без виводу (line 73)', async () => {
