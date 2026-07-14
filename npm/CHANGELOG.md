@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.1] - 2026-07-14
+
+### Changed
+
+- docs(adr): merge pending ADR normalization batch
+
 ## [1.3.0] - 2026-07-14
 
 ### Changed
