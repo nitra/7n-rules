@@ -5,7 +5,7 @@
     "": {
       "name": "mono",
       "devDependencies": {
-        "@7n/rules": "^1.1.0",
+        "@7n/rules": "^2.0.0",
         "@7n/test": "^0.14.3",
         "@nitra/cspell-dict": "^2.2.2",
         "@nitra/eslint-config": "^3.10.3",
@@ -45,6 +45,38 @@
         "@earendil-works/pi-coding-agent",
       ],
     },
+    "npm": {
+      "name": "@7n/rules",
+      "version": "2.0.0",
+      "bin": {
+        "n-rules": "bin/n-rules.js",
+        "n-cursor": "bin/n-rules.js",
+      },
+      "dependencies": {
+        "@7n/llm-lib": "^2.0.0",
+        "@7n/mt": "^0.5.1",
+        "ajv": "^8.20.0",
+        "cli-progress": "^3.12.0",
+        "eslint": "^10.4.1",
+        "github-actionlint": "^1.7.12",
+        "globby": "^16.0.0",
+        "ignore": "^7.0.5",
+        "jscpd": "^5.0.11",
+        "knip": "^6.22.0",
+        "markdownlint-cli2": "^0.22.1",
+        "oxc-parser": "^0.137.0",
+        "oxlint": "^1.68.0",
+        "picomatch": "^4.0.4",
+        "smol-toml": "^1.7.0",
+        "v8r": "^6.1.0",
+        "yaml": "^2.9.0",
+        "zod": "^4.4.3",
+      },
+      "optionalDependencies": {
+        "@earendil-works/pi-ai": "0.80.2",
+        "@earendil-works/pi-coding-agent": "0.80.2",
+      },
+    },
   },
   "packages": {
     "@7n/llm-lib": ["@7n/llm-lib@workspace:llm-lib"],
@@ -55,7 +87,7 @@
 
     "@7n/mt-linux-x64": ["@7n/mt-linux-x64@0.5.1", "", { "os": "linux", "cpu": "x64" }, "sha512-c4b1c435vfGZcRKkLnWcoKs8O6KTATFFx6gPGnid4ee+JDqzyhtxb5kzxYkcTQySO8iBHPAtUMEOBCHDrF1UjQ=="],
 
-    "@7n/rules": ["@7n/rules@1.1.0", "", { "dependencies": { "@7n/llm-lib": "^2.0.0", "@7n/mt": "^0.5.1", "ajv": "^8.20.0", "cli-progress": "^3.12.0", "eslint": "^10.4.1", "github-actionlint": "^1.7.12", "globby": "^16.0.0", "ignore": "^7.0.5", "jscpd": "^5.0.11", "knip": "^6.22.0", "markdownlint-cli2": "^0.22.1", "oxc-parser": "^0.137.0", "oxlint": "^1.68.0", "picomatch": "^4.0.4", "smol-toml": "^1.7.0", "v8r": "^6.1.0", "yaml": "^2.9.0", "zod": "^4.4.3" }, "optionalDependencies": { "@earendil-works/pi-ai": "0.80.2", "@earendil-works/pi-coding-agent": "0.80.2" }, "bin": { "n-rules": "bin/n-rules.js", "n-cursor": "bin/n-rules.js" } }, "sha512-xUFILA0Fj5uvUXY244ywVPhRH8clD2228ZM8BdtZZIFEUSU7D5S9TGQOq5HcVR2fj/9cOq4zTWQp529z3Y9Mmw=="],
+    "@7n/rules": ["@7n/rules@workspace:npm"],
 
     "@7n/test": ["@7n/test@0.14.3", "", { "dependencies": { "@7n/llm-lib": "^2.0.2", "@earendil-works/pi-coding-agent": "^0.80.3", "@nitra/check-env": "^4.2.1", "@vitest/coverage-v8": "^4.1.9", "rollup": "^4.62.2", "vitest": "^4.1.9", "zod": "^4.4.3" }, "bin": { "7n-test": "bin/7n-test.js" } }, "sha512-74Sypjz3j4Dam0TAjqckUPzNz+qaKP0UzLfTV1w7KLCjMcx6OXcWqkDyRi/+5wzSddJlwnIFxPm9XYXAtsq/Gw=="],
 
