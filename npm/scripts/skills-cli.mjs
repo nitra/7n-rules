@@ -3,15 +3,16 @@
  *
  * Скіли читаються з `npm/skills/<id>/SKILL.md` установленого пакета (або кешу `npx`).
  * Промпт збирає інструкцію скілу + контекст поточного CWD (`package.json`, `tsconfig.json`,
- * `.n-rules.json`) — далі stdout або виконання через вбудований pi-агент
- * (рекомендовано), чи deprecated-делегування в `cursor-agent` / `claude`.
+ * `.n-rules.json`) — далі stdout або виконання через один з раннерів: вбудований
+ * pi-агент, чи зовнішній CLI (`cursor-agent`, `codex exec`, або deprecated `claude`).
  *
  * Підтримувані формати:
  *   `npx \@7n/rules skill list`
  *   `npx \@7n/rules skill taze`
  *   `npx \@7n/rules skill pi taze` — виконати через вбудований pi-агент (рекомендовано)
  *   `npx \@7n/rules skill pi taze "онови залежності"`
- *   `npx \@7n/rules skill cursor taze` — deprecated: зовнішній Cursor CLI
+ *   `npx \@7n/rules skill cursor taze` — зовнішній Cursor CLI (`cursor-agent -p`)
+ *   `npx \@7n/rules skill codex taze` — зовнішній Codex CLI (`codex exec -`)
  *   `npx \@7n/rules skill claude taze` — deprecated: зовнішній Claude Code CLI
  */
 
@@ -23,15 +24,27 @@ import { fileURLToPath } from 'node:url'
 
 import { readSkillMetaRaw, skillTier } from './lib/skill-meta.mjs'
 
-/** Виконавці скіла. `pi` — вбудований (рекомендований); `cursor`/`claude` — deprecated зовнішні CLI. */
-const RUNNERS = new Set(['pi', 'cursor', 'claude'])
+/** Виконавці скіла. `pi` — вбудований (рекомендований); `cursor`/`codex`/`claude` — зовнішні CLI (`claude` — deprecated). */
+const RUNNERS = new Set(['pi', 'cursor', 'codex', 'claude'])
+
+/**
+ * Табличний опис зовнішніх CLI-раннерів: бінарник, аргументи для non-interactive
+ * режиму зі stdin-промптом, і чи раннер deprecated (друкує попередження перед запуском).
+ * @type {Record<'claude' | 'cursor' | 'codex', { bin: string, args: string[], deprecated: boolean }>}
+ */
+const EXTERNAL_RUNNERS = {
+  claude: { bin: 'claude', args: ['-p'], deprecated: true },
+  cursor: { bin: 'cursor-agent', args: ['-p'], deprecated: false },
+  codex: { bin: 'codex', args: ['exec', '-'], deprecated: false }
+}
 
 const USAGE_LINES = [
   'Usage:',
   '  npx @7n/rules skill list',
   '  npx @7n/rules skill <skill-id> ["task"]',
   '  npx @7n/rules skill pi <skill-id> ["task"]      # вбудований pi-агент (рекомендовано)',
-  '  npx @7n/rules skill cursor <skill-id> ["task"]  # deprecated',
+  '  npx @7n/rules skill cursor <skill-id> ["task"]  # зовнішній Cursor CLI',
+  '  npx @7n/rules skill codex <skill-id> ["task"]   # зовнішній Codex CLI',
   '  npx @7n/rules skill claude <skill-id> ["task"]  # deprecated',
   '',
   'Skill id: каталог у пакеті (lint, taze, …) або з префіксом n- (n-lint → lint).'
@@ -158,36 +171,28 @@ async function runPiRunner(prompt, rawSkillName, skillsRoot, projectDir, logErro
 }
 
 /**
- * Deprecated: делегує у зовнішній `claude -p` / `cursor-agent -p`. Лишається як fallback
- * для тих, у кого pi-модель ще не налаштована; буде прибрано (мігруй на `skill pi`).
- * @param {'claude' | 'cursor'} kind який LLM CLI запускати
+ * Делегує виконання скіла у зовнішній non-interactive CLI (`cursor-agent -p`, `codex exec -`,
+ * або deprecated `claude -p`) — промпт передається через stdin. `claude` лишається як
+ * deprecated fallback для тих, у кого pi-модель ще не налаштована; буде прибрано
+ * (мігруй на `skill pi`). `cursor`/`codex` — повноцінні альтернативні раннери.
+ * @param {'claude' | 'cursor' | 'codex'} kind який LLM CLI запускати
  * @param {string} prompt промпт для передачі у stdin
  * @param {string} projectDir робочий каталог дочірнього процесу
  * @param {(line: string) => void} logError вивід попередження/помилок
  * @returns {number} exit code дочірнього процесу
  */
 function runLlmCli(kind, prompt, projectDir, logError) {
-  logError(`[deprecated] skill ${kind} → use 'skill pi'; зовнішній CLI буде прибрано`)
+  const runner = EXTERNAL_RUNNERS[kind]
 
-  if (kind === 'claude') {
-    if (!isBinaryInPath('claude')) {
-      throw new Error('`claude` not found in PATH. Install Claude Code CLI or use `skill pi`.')
-    }
-
-    const result = spawnSync('claude', ['-p'], {
-      input: prompt,
-      cwd: projectDir,
-      stdio: ['pipe', 'inherit', 'inherit'],
-      encoding: 'utf8'
-    })
-    return result.status ?? 1
+  if (runner.deprecated) {
+    logError(`[deprecated] skill ${kind} → use 'skill pi'; зовнішній CLI буде прибрано`)
   }
 
-  if (!isBinaryInPath('cursor-agent')) {
-    throw new Error('`cursor-agent` not found in PATH. Install Cursor CLI or use `skill pi`.')
+  if (!isBinaryInPath(runner.bin)) {
+    throw new Error(`\`${runner.bin}\` not found in PATH. Install ${kind} CLI or use \`skill pi\`.`)
   }
 
-  const result = spawnSync('cursor-agent', ['-p'], {
+  const result = spawnSync(runner.bin, runner.args, {
     input: prompt,
     cwd: projectDir,
     stdio: ['pipe', 'inherit', 'inherit'],
@@ -244,7 +249,7 @@ export async function runSkillsCli(argv, options = {}) {
       if (first === 'pi') {
         return await runPiRunner(prompt, second, skillsRoot, projectDir, logError, deps)
       }
-      return runLlmCli(/** @type {'claude' | 'cursor'} */ (first), prompt, projectDir, logError)
+      return runLlmCli(/** @type {'claude' | 'cursor' | 'codex'} */ (first), prompt, projectDir, logError)
     }
 
     if (skillIds.includes(normalizeSkillId(first))) {
