@@ -1,0 +1,38 @@
+npm/bin/n-rules.js
+  s_19239459d70c22::t_a70a8fe7795e3a 1580
+docs/specs/2026-07-11-phase-b-lint-mt-adapter-dev-design.md
+  s_19239459d70c22::t_97c2cd86f8f9a1 4,7-15
+  s_19239459d70c22::t_5d12ac78bf0b0e 16
+npm/scripts/lib/lint-surface/docs/mt-tail.md
+  s_19239459d70c22::t_1a8925dec74365 6
+  s_19239459d70c22::t_3ede494062909d 14
+npm/scripts/lib/lint-surface/docs/run-fix.md
+  s_19239459d70c22::t_1a8925dec74365 6
+npm/scripts/lib/lint-surface/run-fix.mjs
+  s_19239459d70c22::t_f539531847d8ca 587-589
+npm/.changes/260714-0651.md
+  s_19239459d70c22::t_5c93fb2cf35706 1,4
+  s_19239459d70c22::t_c4b4dd4c8b5906 2-3,5
+CLAUDE.md
+  s_19239459d70c22::t_1740355f14619b 6
+.cspell.json
+  s_19239459d70c22::t_d82ffce6c9b858 121-123,178-181,195,269-351
+package.json
+  s_19239459d70c22::t_0a12d8781b3fa4 25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "e7b7b15499decb2b120071b68e791b6f59112d53",
+  "prompts": {},
+  "sessions": {
+    "s_19239459d70c22": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9106a573-9b36-4984-ad2e-361d624684bd",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
