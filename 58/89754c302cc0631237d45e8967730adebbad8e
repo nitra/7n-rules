@@ -1,0 +1,91 @@
+npm/.changes/260714-1729.md
+  s_be879008e82f4a::t_272444eaa7e32c 1-5
+npm/rules/abie/clean_merged_ignore_branches/fix-clean_merged_ignore_branches.mjs
+  s_be879008e82f4a::t_d2da505c0bd3e6 1-3
+npm/rules/docker/lint_docker_yml/fix-lint_docker_yml.mjs
+  s_be879008e82f4a::t_a227f4dcad6e83 1-3
+npm/rules/ga/clean_ga_workflows/fix-clean_ga_workflows.mjs
+  s_be879008e82f4a::t_f6960f3b9bf4e0 1-3
+npm/rules/ga/clean_merged_branch/fix-clean_merged_branch.mjs
+  s_be879008e82f4a::t_175482e5ceb2a6 1-3
+npm/rules/ga/git_ai/fix-git_ai.mjs
+  s_be879008e82f4a::t_77e6ebe574747e 1-3
+npm/rules/ga/lint_ga/fix-lint_ga.mjs
+  s_be879008e82f4a::t_ca8dd1047d7093 1-3
+npm/rules/ga/vscode_settings/fix-vscode_settings.mjs
+  s_be879008e82f4a::t_a18727207430a5 1-3
+npm/rules/ga/zizmor_yml/fix-zizmor_yml.mjs
+  s_be879008e82f4a::t_dc8c200a2ed13f 1-3
+npm/rules/js/jscpd_config/fix-jscpd_config.mjs
+  s_be879008e82f4a::t_3099596f3e5306 1-3
+npm/rules/js/lint_js_yml/fix-lint_js_yml.mjs
+  s_be879008e82f4a::t_d5ced4e04009a3 1-5
+npm/rules/js/lint_js_yml/tests/fix-lint_js_yml.test.mjs
+  s_be879008e82f4a::t_045f12c9592913 1-49
+npm/rules/js/package_json/fix-package_json.mjs
+  s_be879008e82f4a::t_20ea7d16e1538f 1-3
+npm/rules/k8s/lint_k8s_yml/fix-lint_k8s_yml.mjs
+  s_be879008e82f4a::t_a8ce4020e9f301 1-3
+npm/rules/npm-module/emit_types_config/fix-emit_types_config.mjs
+  s_be879008e82f4a::t_73d5b80217304c 1-3
+npm/rules/npm-module/npm_package_json/fix-npm_package_json.mjs
+  s_be879008e82f4a::t_503b5725159d16 1-3
+npm/rules/npm-module/npm_publish_yml/fix-npm_publish_yml.mjs
+  s_be879008e82f4a::t_2780db62eb8dfc 1-5
+npm/rules/npm-module/npm_publish_yml/tests/fix-npm_publish_yml.test.mjs
+  s_be879008e82f4a::t_3cd38709f10985 1-46
+npm/rules/npm-module/root_package_json/fix-root_package_json.mjs
+  s_be879008e82f4a::t_4cb052386a7e2d 1-3
+npm/rules/php/lint_php_yml/fix-lint_php_yml.mjs
+  s_be879008e82f4a::t_e0614c248b7a74 1-3
+npm/rules/python/lint_python_yml/fix-lint_python_yml.mjs
+  s_be879008e82f4a::t_6d7404fdd8b93c 1-3
+npm/rules/rego/vscode_settings/fix-vscode_settings.mjs
+  s_be879008e82f4a::t_a3d496a0b178d1 1-3
+npm/rules/rust/lint_rust_yml/fix-lint_rust_yml.mjs
+  s_be879008e82f4a::t_03d8165dcb51b0 1-5
+npm/rules/rust/lint_rust_yml/tests/fix-lint_rust_yml.test.mjs
+  s_be879008e82f4a::t_9867ee4abfb144 1-32
+npm/rules/security/lint_security_yml/fix-lint_security_yml.mjs
+  s_be879008e82f4a::t_9bf07fa334435e 1-3
+npm/rules/style/lint_style_yml/fix-lint_style_yml.mjs
+  s_be879008e82f4a::t_2fc8458fb9e9a7 1-3
+npm/rules/style/package_json/fix-package_json.mjs
+  s_be879008e82f4a::t_b398010a9d7738 1-3
+npm/rules/style/vscode_settings/fix-vscode_settings.mjs
+  s_be879008e82f4a::t_0c29db4c054e46 1-3
+npm/rules/text/lint_text/fix-lint_text.mjs
+  s_be879008e82f4a::t_d4f1ff8fd89673 1-5
+npm/rules/text/lint_text/tests/fix-lint_text.test.mjs
+  s_be879008e82f4a::t_64e5512c2d80ce 1-46
+npm/rules/text/oxfmtrc/fix-oxfmtrc.mjs
+  s_be879008e82f4a::t_d7e5da4dbd348e 1-3
+npm/rules/text/vscode_settings/fix-vscode_settings.mjs
+  s_be879008e82f4a::t_2d6aa2bcb8fc0b 1-3
+npm/rules/worktree/vscode_settings/fix-vscode_settings.mjs
+  s_be879008e82f4a::t_2b77a5eac847fc 1-5
+npm/rules/worktree/vscode_settings/tests/fix-vscode_settings.test.mjs
+  s_be879008e82f4a::t_4901dae8124434 1-51
+npm/rules/worktree/zed_settings/fix-zed_settings.mjs
+  s_be879008e82f4a::t_a1d1eff4c34d3f 1-3
+npm/scripts/lib/fix/template-deep-merge.mjs
+  s_be879008e82f4a::t_a8f564f3832e28 1-182
+npm/scripts/lib/tests/template-deep-merge.test.mjs
+  s_be879008e82f4a::t_75614622d4e003 1-189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "5889754c302cc0631237d45e8967730adebbad8e",
+  "prompts": {},
+  "sessions": {
+    "s_be879008e82f4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6478f913-911b-4093-8893-2a8502c31a72",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
