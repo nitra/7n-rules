@@ -27,7 +27,7 @@ import { getMonorepoPackageRootDirs, isIgnoredWorkspaceRoot } from '../../../scr
  */
 
 const PYPROJECT_GLOB_IGNORE = ['**/node_modules/**', '**/.git/**', '**/.venv/**', '**/venv/**']
-const VALID_MAX_BUMPS = ['major', 'minor', 'patch']
+const VALID_MAX_BUMPS = new Set(['major', 'minor', 'patch'])
 
 /**
  * @param {Record<string, unknown>} pkg розпарсений package.json
@@ -37,7 +37,7 @@ function maxBumpFromPackageJson(pkg) {
   const release = pkg.release
   if (!release || typeof release !== 'object' || Array.isArray(release)) return null
   const value = /** @type {Record<string, unknown>} */ (release).maxBump
-  return typeof value === 'string' && VALID_MAX_BUMPS.includes(value)
+  return typeof value === 'string' && VALID_MAX_BUMPS.has(value)
     ? /** @type {'major' | 'minor' | 'patch'} */ (value)
     : null
 }
