@@ -171,6 +171,13 @@ describe("runGenerationBatch — м'який дедлайн (issue #16)", () => 
     expect(code).toBe(0)
     expect(generateDocMock).toHaveBeenCalledTimes(3)
   })
+
+  test('deadlineAt прокидається у generateDoc — дедлайн ріже і файл у процесі', async () => {
+    generateDocMock.mockImplementation(OK)
+    const deadlineAt = Date.now() + 60_000
+    await runGenerationBatch(targets(2), '/fake-root', { deadlineAt })
+    expect(generateDocMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ deadlineAt }))
+  })
 })
 
 describe('runDocFilesGenCli — foreign-доки (захист людського змісту)', () => {
