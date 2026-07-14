@@ -25,7 +25,7 @@ const SNIPPET_EXTS = ['yml', 'yaml', 'json', 'jsonc']
  * Чи `needle` структурно вже присутній у якомусь елементі `actualArray`
  * (та сама subset-семантика, що й у детекторі — жодного окремого визначення "збігу").
  * @param {unknown[]} actualArray наявний масив
- * @param {unknown} needle елемент снippета, наявність якого перевіряємо
+ * @param {unknown} needle елемент snippet-а, наявність якого перевіряємо
  * @returns {boolean} true — вже присутній структурно
  */
 function containedIn(actualArray, needle) {
@@ -99,6 +99,57 @@ function mergeYamlDoc(doc, snippet, path) {
 }
 
 /**
+ * Рахує наступний вміст JSON/JSONC-target. `null` — невалідний вхід (не чіпаємо);
+ * незмінений `prevText` — уже відповідає snippet-у (idempotent, без reformat).
+ * @param {string} prevText наявний вміст target-файлу
+ * @param {string} snippetPath абсолютний шлях до snippet-файлу
+ * @returns {string|null} новий вміст, незмінений `prevText`, або `null`
+ */
+function computeJsonNextText(prevText, snippetPath) {
+  let snippet
+  let actual
+  try {
+    snippet = JSON.parse(readFileSync(snippetPath, 'utf8'))
+    actual = JSON.parse(prevText)
+  } catch {
+    return null // невалідний JSON — не чіпаємо детермінованим фіксом
+  }
+  // Уже відповідає snippet-у (та сама перевірка, що й детектор) → без reformat:
+  // JSON.stringify інакше переформатував би вже коректний файл (напр. компактний
+  // однорядковий snippet → pretty-print) без жодної реальної зміни.
+  if (checkSnippet(actual, snippet, { targetPath: '', source: '' }).length === 0) return prevText
+  return JSON.stringify(mergeJsonValue(actual, snippet), null, 2) + '\n'
+}
+
+/**
+ * Рахує наступний вміст YAML-target через `yaml` Document API. `null` — невалідний
+ * вхід; незмінений `prevText` — уже відповідає snippet-у (idempotent, без reformat).
+ * @param {string} prevText наявний вміст target-файлу
+ * @param {string} snippetPath абсолютний шлях до snippet-файлу
+ * @returns {Promise<string|null>} новий вміст, незмінений `prevText`, або `null`
+ */
+async function computeYamlNextText(prevText, snippetPath) {
+  const { parse, parseDocument } = await import('yaml')
+  let snippet
+  let actualPlain
+  try {
+    snippet = parse(readFileSync(snippetPath, 'utf8'))
+    actualPlain = parse(prevText)
+  } catch {
+    return null // невалідний YAML — не чіпаємо детермінованим фіксом
+  }
+  // Уже відповідає snippet-у → без reformat: Document.toString() не завжди
+  // byte-identical на вже коректному вмісті (напр. folded block scalars).
+  if (checkSnippet(actualPlain, snippet, { targetPath: '', source: '' }).length === 0) return prevText
+  const doc = parseDocument(prevText)
+  if (doc.errors.length > 0) return null
+  if (snippet !== null && typeof snippet === 'object' && !Array.isArray(snippet)) {
+    for (const [k, v] of Object.entries(snippet)) mergeYamlDoc(doc, v, [k])
+  }
+  return doc.toString()
+}
+
+/**
  * Створює T0-патерн, що приводить `targetPath` у відповідність `template/*.snippet.*`
  * свого concern-а (deep-merge, idempotent). Один writer — для будь-якого single-target
  * snippet-концерну (`engine:"template"` чи `engine:"rego"` з тим самим snippet-шаблоном).
@@ -110,16 +161,13 @@ export function createTemplateFixPattern({ id, targetPath }) {
     id,
     test: violations => violations.some(v => v.file === targetPath),
     apply: async (violations, ctx) => {
-      if (!violations.some(v => v.file === targetPath)) return { touchedFiles: [] }
+      if (violations.every(v => v.file !== targetPath)) return { touchedFiles: [] }
       if (!ctx.concernDir) return { touchedFiles: [] }
 
       const snippetPath = findSnippetFile(join(ctx.concernDir, 'template'), basename(targetPath))
       if (!snippetPath) return { touchedFiles: [] }
 
       const absTarget = join(ctx.cwd, targetPath)
-      const ext = extname(snippetPath).toLowerCase()
-      const isJson = ext === '.json' || ext === '.jsonc'
-
       const prevText = existsSync(absTarget) ? readFileSync(absTarget, 'utf8') : null
 
       // Файл відсутній → копіюємо snippet як є (без merge — немає з чим мерджити).
@@ -131,49 +179,12 @@ export function createTemplateFixPattern({ id, targetPath }) {
         return { touchedFiles: [absTarget], message: `${targetPath}: створено зі snippet` }
       }
 
-      let nextText
-      if (isJson) {
-        let snippet
-        let actual
-        try {
-          snippet = JSON.parse(readFileSync(snippetPath, 'utf8'))
-          actual = JSON.parse(prevText)
-        } catch {
-          return { touchedFiles: [] } // невалідний JSON — не чіпаємо детермінованим фіксом
-        }
-        // Уже відповідає snippet-у (та сама перевірка, що й детектор) → не чіпаємо файл
-        // взагалі: без цієї гейтки JSON.stringify переформатував би вже коректний файл
-        // (напр. компактний однорядковий snippet → pretty-print) без жодної реальної зміни.
-        if (checkSnippet(actual, snippet, { targetPath: '', source: '' }).length === 0) {
-          return { touchedFiles: [] }
-        }
-        const merged = mergeJsonValue(actual, snippet)
-        nextText = JSON.stringify(merged, null, 2) + '\n'
-      } else {
-        const { parse, parseDocument } = await import('yaml')
-        let snippet
-        let actualPlain
-        try {
-          snippet = parse(readFileSync(snippetPath, 'utf8'))
-          actualPlain = parse(prevText)
-        } catch {
-          return { touchedFiles: [] } // невалідний YAML — не чіпаємо детермінованим фіксом
-        }
-        // Уже відповідає snippet-у (та сама перевірка, що й детектор) → не чіпаємо файл
-        // взагалі: Document.toString() не завжди byte-identical на вже коректному вмісті
-        // (напр. folded block scalars переформатовуються при round-trip без потреби).
-        if (checkSnippet(actualPlain, snippet, { targetPath: '', source: '' }).length === 0) {
-          return { touchedFiles: [] }
-        }
-        const doc = parseDocument(prevText)
-        if (doc.errors.length > 0) return { touchedFiles: [] }
-        if (snippet !== null && typeof snippet === 'object' && !Array.isArray(snippet)) {
-          for (const [k, v] of Object.entries(snippet)) mergeYamlDoc(doc, v, [k])
-        }
-        nextText = doc.toString()
-      }
+      const isJson = ['.json', '.jsonc'].includes(extname(snippetPath).toLowerCase())
+      const nextText = isJson
+        ? computeJsonNextText(prevText, snippetPath)
+        : await computeYamlNextText(prevText, snippetPath)
 
-      if (nextText === prevText) return { touchedFiles: [] }
+      if (nextText === null || nextText === prevText) return { touchedFiles: [] }
       ctx.recordWrite?.(absTarget)
       writeFileSync(absTarget, nextText, 'utf8')
       return { touchedFiles: [absTarget], message: `${targetPath}: приведено у відповідність snippet` }
