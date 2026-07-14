@@ -1,0 +1,25 @@
+.cspell.json
+  s_be879008e82f4a::t_8ad43c8fbbad62 68
+  s_be879008e82f4a::t_4eab92814d54aa 93
+  s_be879008e82f4a::t_4c304fafb1487f 189
+  s_be879008e82f4a::t_76fff0e0080c76 160
+npm/scripts/lib/fix/template-deep-merge.mjs
+  s_be879008e82f4a::t_87531edca477be 101-151,164,182-185,187
+  s_be879008e82f4a::t_a52d239cf1152b 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "a48215df78bbb0847b506ff9362ed364f66db06a",
+  "prompts": {},
+  "sessions": {
+    "s_be879008e82f4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6478f913-911b-4093-8893-2a8502c31a72",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
