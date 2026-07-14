@@ -1,0 +1,19 @@
+bun.lock
+  s_d30948e427e695::t_457be74e9f6668 8,48-79,90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "e41625d9693a27cdfafea9efaf50b6eb36feceda",
+  "prompts": {},
+  "sessions": {
+    "s_d30948e427e695": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4d79c9b5-e307-4f46-8c01-e1e7cfc5b4c3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
