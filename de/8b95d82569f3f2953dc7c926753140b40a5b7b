@@ -1,0 +1,25 @@
+docs/adr/260610-1557-нові-js-файли-у-npm-rules-як-mjs.md
+  s_40764a7ac308ab::t_07caff1488ac00 34-47
+docs/adr/260611-1248-ігнорування-worktrees-у-eslint-та-cspell-2.md
+  s_40764a7ac308ab::t_60f25ccad6b73d 2-4,7-8,11-12,15-17,20-21,24-27,30-32,34
+docs/adr/260611-1312-llm-wire-trace-always-on-захоплення-reasoning-та-слідів-на-callllm.md
+  s_40764a7ac308ab::t_9d54d10ec07cdc 2-4,7-8,11-12,15-18,21-22,25-29,32-49
+docs/adr/260611-1922-підтримка-rust-rs-у-команді-doc-files-2.md
+  s_40764a7ac308ab::t_94683990cdbf7f 2-4,7-8,11-12,15-17,20-21,24-27,30-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "de8b95d82569f3f2953dc7c926753140b40a5b7b",
+  "prompts": {},
+  "sessions": {
+    "s_40764a7ac308ab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "583abbf8-dd8d-486b-a38f-75243718e7c2",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
