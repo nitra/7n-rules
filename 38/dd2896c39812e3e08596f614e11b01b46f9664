@@ -1,0 +1,49 @@
+package.json
+  s_d30948e427e695::t_bee78701fad609 14
+  s_d30948e427e695::t_34660612baecee 25
+npm/rules/text/run-v8r/docs/main.md
+  s_d30948e427e695::t_c7b26bd6aef78a 26
+  s_d30948e427e695::t_dfdf654af82544 6
+  s_d30948e427e695::t_a4e08120afd64b 36
+npm/scripts/lib/adr/docs/normalize-pipeline.md
+  s_d30948e427e695::t_dfdf654af82544 6
+npm/scripts/lib/adr/normalize-pipeline.mjs
+  s_d30948e427e695::t_f256e0d0d8c691 26-28
+npm/.changes/260714-0746.md
+  s_d30948e427e695::t_edcecda96fdb0f 1-4
+  s_d30948e427e695::t_1920fdbe795d6b 5
+npm/scripts/docs/skills-cli.md
+  s_d30948e427e695::t_dfdf654af82544 6
+npm/scripts/skills-cli.mjs
+  s_d30948e427e695::t_e3089d0ae44db2 183-184
+  s_d30948e427e695::t_02056a786de7f8 197-198
+  s_d30948e427e695::t_f3b98f2d21fe2f 45-47
+npm/rules/text/run-v8r/main.mjs
+  s_d30948e427e695::t_16fc7bb0f769e7 50
+  s_d30948e427e695::t_755643cb303cd3 155-156
+  s_d30948e427e695::t_da7bf686e91d18 51
+  s_d30948e427e695::t_c3ec9a11dda45e 157-168
+  s_d30948e427e695::t_49291202411deb 184
+  s_d30948e427e695::t_64580779327867 154
+npm/rules/text/run-v8r/tests/run-v8r.test.mjs
+  s_d30948e427e695::t_fc845ac90649b0 70,96,106-139
+  s_d30948e427e695::t_7a5fa5933f4407 140-141
+bun.lock
+  s_d30948e427e695::t_94152f49f74194 8,35,58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "38dd2896c39812e3e08596f614e11b01b46f9664",
+  "prompts": {},
+  "sessions": {
+    "s_d30948e427e695": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4d79c9b5-e307-4f46-8c01-e1e7cfc5b4c3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
