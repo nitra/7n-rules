@@ -11,7 +11,7 @@
   "type": "module",
   "scripts": {
     "start": "bun ./npm/bin/n-rules.js",
-    "test": "vitest run",
+    "test": "bun run --bun vitest run",
     "coverage": "npx @7n/test coverage"
   },
   "devDependencies": {
@@ -22,7 +22,7 @@
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@vitest/coverage-v8": "^4.1.9",
     "vitest": "^4.1.9",
-    "@7n/rules": "^1.1.0"
+    "@7n/rules": "^1.2.0"
   },
   "stylelint": {
     "extends": "@nitra/stylelint-config"

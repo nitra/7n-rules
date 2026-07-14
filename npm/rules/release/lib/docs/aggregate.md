@@ -3,7 +3,7 @@ type: JS Module
 title: aggregate.mjs
 resource: npm/rules/release/lib/aggregate.mjs
 docgen:
-  crc: 1f78a0fe
+  crc: ff9ff216
 ---
 
 Модуль `aggregate.mjs` забезпечує **агрегацію change-файлів одного workspace** у дві основні сутності:
@@ -23,7 +23,8 @@ docgen:
 | `maxBump(bumps)`                                            | функція | Найвищий пріоритет бампа у списку (`major` > `minor` > `patch`)                  |
 | `renderChangelogSection(version, date, entries)`            | функція | Рендер однієї версійної секції у markdown                                        |
 | `prependChangelogSection(existingText, sectionBlock)`       | функція | Вставка нової секції зверху наявного `CHANGELOG.md`                              |
-| `aggregateWorkspace({ currentVersion, changeFiles, date })` | функція | Високорівневе об’єднання change-файлів workspace у `newVersion` + `sectionBlock` |
+| `capBump(bump, cap)`                                        | функція | Обрізає bump зверху стелею `release.maxBump` (`major` → `minor` тощо)            |
+| `aggregateWorkspace({ currentVersion, changeFiles, date, maxBumpCap })` | функція | Високорівневе об’єднання change-файлів workspace у `newVersion` + `sectionBlock` |
 
 Усі експорти — **іменовані** (`export function …`). Default-export відсутній.
 
@@ -75,6 +76,14 @@ docgen:
 - `maxBump(['patch', 'major', 'minor'])` → `'major'`
 - `maxBump(['patch'])` → `'patch'`
 - `maxBump([])` → `'patch'` (через fallback `?? 'patch'`)
+
+### `capBump(bump, cap)`
+
+**Сигнатура:** `capBump(bump: string, cap?: string | null): string`
+
+Обмежує обчислений bump **зверху** стелею з `package.json#release.maxBump`: якщо `bump` суворіший за `cap` (наприклад, `major` при `cap: 'minor'`), повертається `cap`; інакше — `bump` без змін. `cap` у `null`/`undefined` вимикає обмеження. Так пакет може заборонити автоматичну зміну власної major-версії, навіть якщо change-файл явно поставив `major`.
+
+**Side effects:** немає.
 
 ### `renderChangelogSection(version, date, entries)`
 
@@ -152,7 +161,7 @@ docgen:
 - `existingText = 'тут нічого корисного'`:
   - вихід: `# Changelog\n\n<sectionBlock>` (попередній вміст відкидається).
 
-### `aggregateWorkspace({ currentVersion, changeFiles, date })`
+### `aggregateWorkspace({ currentVersion, changeFiles, date, maxBumpCap })`
 
 **Сигнатура:**
 
@@ -161,6 +170,7 @@ aggregateWorkspace({
   currentVersion: string,
   changeFiles: Array<{ file: string, entry: { bump: string, section: string, description: string } }>,
   date: string,
+  maxBumpCap?: string | null,
 }): { newVersion: string, sectionBlock: string, consumedFiles: string[] } | null
 ```
 
@@ -169,12 +179,13 @@ aggregateWorkspace({
 - `currentVersion` — поточна версія маніфесту workspace (`x.y.z`).
 - `changeFiles` — масив об’єктів, що відповідає виходу `readChangeFiles` з `change-file.mjs`. Кожен елемент має `file` (ім’я файлу `.md`) та `entry` (розпарсений frontmatter + опис).
 - `date` — рядок дати `YYYY-MM-DD` для секції CHANGELOG.
+- `maxBumpCap` — стеля bump з `package.json#release.maxBump` (`'major' | 'minor' | 'patch'`); `null`/відсутній — без обмеження.
 
 **Повертає:**
 
 - `null`, якщо `changeFiles.length === 0` (явна ознака «нема чого релізити»).
 - Інакше — об’єкт:
-  - `newVersion` — результат `bumpVersion(currentVersion, maxBump(<усі bumps>))`.
+  - `newVersion` — результат `bumpVersion(currentVersion, capBump(maxBump(<усі bumps>), maxBumpCap))`.
   - `sectionBlock` — результат `renderChangelogSection(newVersion, date, <усі entries>)`.
   - `consumedFiles` — імена change-файлів (`c.file`), які мають бути видалені викликачем після успішного запису маніфесту й `CHANGELOG.md`.
 
@@ -211,7 +222,7 @@ aggregateWorkspace({
 1. **Збір change-файлів.** Викликач звертається до `readChangeFiles(ws, cwd)` з `change-file.mjs`, отримуючи `Array<{ file, entry }>` — усі `.md` із `<ws>/.changes/`, відсортовані за іменем (тобто де-факто за `timestamp`).
 2. **Отримання поточної версії.** Викликач читає `package.json` (або інший маніфест) і дістає `currentVersion`.
 3. **Дата.** Викликач формує `date = new Date().toISOString().slice(0, 10)` або еквівалент.
-4. **Агрегація.** Виклик `aggregateWorkspace({ currentVersion, changeFiles, date })`:
+4. **Агрегація.** Виклик `aggregateWorkspace({ currentVersion, changeFiles, date, maxBumpCap })`:
    - Якщо повертає `null` — викликач пропускає workspace (нема `change-файлів`).
    - Якщо повертає об’єкт — отримуємо `newVersion`, `sectionBlock`, `consumedFiles`.
 5. **Оновлення `CHANGELOG.md`.** Викликач читає поточний `CHANGELOG.md` (або порожній рядок, якщо файлу нема), застосовує `prependChangelogSection(existingText, sectionBlock)` і записує результат на диск.
@@ -244,7 +255,7 @@ aggregateWorkspace({
 5. Експортує функцію `prependChangelogSection(existingText, sectionBlock)`, яка:
    - Якщо `existingText.trimStart()` не починається з `# Changelog`, повертає `# Changelog\n\n<sectionBlock>`.
    - Інакше відокремлює перший рядок (`head`) і решту (`rest`, із `trimStart`) і повертає `head + '\n\n' + sectionBlock + '\n' + rest`.
-6. Експортує функцію `aggregateWorkspace({ currentVersion, changeFiles, date })`, яка:
+6. Експортує функцію `aggregateWorkspace({ currentVersion, changeFiles, date, maxBumpCap })`, яка:
    - Повертає `null`, якщо `changeFiles` порожній.
-   - Інакше повертає `{ newVersion, sectionBlock, consumedFiles }`, де `newVersion = bumpVersion(currentVersion, maxBump(<усі c.entry.bump>))`, `sectionBlock = renderChangelogSection(newVersion, date, <усі c.entry>)`, `consumedFiles = <усі c.file>`.
+   - Інакше повертає `{ newVersion, sectionBlock, consumedFiles }`, де `newVersion = bumpVersion(currentVersion, capBump(maxBump(<усі c.entry.bump>), maxBumpCap))`, `sectionBlock = renderChangelogSection(newVersion, date, <усі c.entry>)`, `consumedFiles = <усі c.file>`.
 7. Не виконує жодного I/O й не залежить від `node:*`.

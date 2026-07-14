@@ -3,7 +3,7 @@ type: JS Module
 title: package-manifest.mjs
 resource: npm/rules/changelog/lib/package-manifest.mjs
 docgen:
-  crc: ced8ad49
+  crc: 10bad2ce
 ---
 
 Модуль `package-manifest.mjs` реалізує **уніфіковану абстракцію маніфесту пакета** для перевірок changelog у багатомовному монорепо. Він приховує відмінності між двома типами маніфестів:
@@ -17,7 +17,7 @@ docgen:
 2. **Читання маніфесту воркспейсу** в єдиній структурі `PackageManifest` (з пріоритетом `package.json` над `pyproject.toml`).
 3. **Виявлення коренів усіх пакетів монорепо**: npm-воркспейси через скрипт `workspaces.mjs` + автоматичний пошук Python-проєктів за `pyproject.toml`.
 
-Базова мета — дати правилам категорії `changelog` єдину модель «пакет = (kind, ws, name, version, registryPublishable)», незалежно від мови.
+Базова мета — дати правилам категорії `changelog` єдину модель «пакет = (kind, ws, name, version, registryPublishable, maxBump)», незалежно від мови.
 
 ## Експорти / API
 
@@ -44,12 +44,14 @@ docgen:
  * @property {string | null} version      semver-рядок
  * @property {boolean} registryPublishable чи застосовується режим порівняння з реєстром
  * @property {string[] | null} [npmFiles] лише npm: 'files' з package.json
+ * @property {'major' | 'minor' | 'patch' | null} maxBump стеля для 'n-rules release' (з 'package.json#release.maxBump'); null — без обмеження
  */
 ```
 
 ### Константи модуля
 
 - `PYPROJECT_GLOB_IGNORE = ['**/node_modules/**', '**/.git/**', '**/.venv/**', '**/venv/**']` — патерни, що **виключаються** під час сканування `pyproject.toml` глобом, щоб не зачіпати чужі залежності та віртуальні середовища.
+- `VALID_MAX_BUMPS` — `Set` дозволених значень `release.maxBump` (`'major' | 'minor' | 'patch'`); будь-яке інше значення тихо ігнорується (`maxBump: null`).
 
 ## Функції
 
@@ -93,14 +95,14 @@ docgen:
      - Читає текст через `readFile(pkgPath, 'utf8')` і парсить як JSON.
      - Якщо JSON — не об'єкт (null, масив, примітив), повертає `null`.
      - Обчислює `registryPublishable = name є непорожнім рядком && private !== true && files є масивом`. Тобто пакет вважається «публікованим у реєстр», тільки якщо в `package.json` явно вказано непорожній `name`, не зведено `private: true`, і визначено поле `files` (whitelist того, що публікується).
-     - Повертає об'єкт із `kind: 'npm'`, `manifestRel: 'package.json'`, з `name`/`version` (тільки якщо вони — рядки, інакше `null`), `registryPublishable`, `npmFiles = pkg.files` або `null`.
+     - Повертає об'єкт із `kind: 'npm'`, `manifestRel: 'package.json'`, з `name`/`version` (тільки якщо вони — рядки, інакше `null`), `registryPublishable`, `npmFiles = pkg.files` або `null`, а також `maxBump` — валідне значення `package.json#release.maxBump` (`major`/`minor`/`patch`) або `null`, якщо поле відсутнє, не рядок чи поза дозволеним списком.
      - Будь-яка помилка читання/парсингу JSON у блоці `try` → повертає `null` (catch без логування).
   2. **Гілка Python:**
      - Складає шлях `cwd/ws/pyproject.toml`.
      - `existsSync` → якщо файлу немає, повертає `null`.
      - Читає файл і викликає `parsePyprojectFields`.
      - `registryPublishable = Boolean(name && version)` — для Python публікація в PyPI потребує лише валідних `name` і `version` (PyPI не має аналога `files` whitelist).
-     - Повертає об'єкт із `kind: 'python'`, `manifestRel: 'pyproject.toml'`, `npmFiles: null`.
+     - Повертає об'єкт із `kind: 'python'`, `manifestRel: 'pyproject.toml'`, `npmFiles: null`, `maxBump: null` (стеля бампа підтримується лише для npm-маніфестів).
 - **Side effects:**
   - Синхронний `existsSync` (двічі: на `package.json` і `pyproject.toml`).
   - Асинхронне читання файлу через `fs/promises.readFile`.
