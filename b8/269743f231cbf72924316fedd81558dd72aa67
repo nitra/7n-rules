@@ -1,0 +1,21 @@
+docs/adr/260611-1224-узгодження-js-прикладів-та-config-файлів-з-mjs-конвенцією.md
+  s_46fe0a80cf9489::t_1aac7e88a6641b 1-53
+docs/adr/260611-1312-llm-wire-trace-на-callllm.md
+  s_46fe0a80cf9489::t_1aac7e88a6641b 1-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "b8269743f231cbf72924316fedd81558dd72aa67",
+  "prompts": {},
+  "sessions": {
+    "s_46fe0a80cf9489": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c1a10b6-5ae2-4fcf-94b8-7b10e03ae228",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
