@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1] - 2026-07-14
+
+### Fixed
+
+- Bun-сумісність тестового прогону: namespace-імпорт zod (фантомний __esModule на ESM-неймспейсах ламає vitest-interop), явний env: process.env у spawnSync skills-cli (Bun дає дітям snapshot оточення), чистка bun-node-* shim-тек з PATH для дочірнього v8r (node-shebang під --bun резолвився в bun і падав на node:sea); тест run-v8r приведено до контракту verbose-виводу (#44); root scripts.test → bun run --bun vitest run
+- package-manifest: VALID_MAX_BUMPS → Set (oxlint prefer-set-has), дока maxBump освіжена
+
 ## [1.2.0] - 2026-07-14
 
 ### Added
