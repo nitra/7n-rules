@@ -1,0 +1,40 @@
+npm/scripts/docs/skills-cli.md
+  s_b8fd9792e2927f::t_69008fd2927840 12,21,29,33,35
+  s_b8fd9792e2927f::t_f116af63f81826 6
+npm/.changes/260714-0720.md
+  s_b8fd9792e2927f::t_a35d5352cbddfa 1-5
+npm/scripts/tests/skills-cli.test.mjs
+  s_b8fd9792e2927f::t_7c733668c6c54c 322,349-379
+npm/skills/taze/SKILL.md
+  s_b8fd9792e2927f::t_a1dd031bd84eb1 4-7,14,21-29,44-50,62-71,84-85,96-97,111-118,129-136,147-154,165-166,171-172
+.cspell.json
+  s_b8fd9792e2927f::t_97768d23eebc2e 134-135
+  s_b8fd9792e2927f::t_03f084d90151a1 109
+.cursor/skills/n-taze/SKILL.md
+  s_b8fd9792e2927f::t_aa12925f2ae435 126-127,141-148,159-166,177-184,195-196,201-202
+  s_b8fd9792e2927f::t_ff804199fa04cc 4-7
+  s_b8fd9792e2927f::t_7ef9a2a436358b 44
+  s_b8fd9792e2927f::t_89f02ad5afa716 51-59,74-80,92-101,114
+  s_b8fd9792e2927f::t_91a4a727b4f67a 115
+npm/scripts/skills-cli.mjs
+  s_b8fd9792e2927f::t_5fdff0708a231a 6-7,14-15
+  s_b8fd9792e2927f::t_ce07d25f1384df 174-178,185,187-188,191-192,195
+  s_b8fd9792e2927f::t_538787d375eead 27-39,46-47
+  s_b8fd9792e2927f::t_1446c9f4a2feb7 252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "3c09676f333208f7ca592cdcd2c7970515db4047",
+  "prompts": {},
+  "sessions": {
+    "s_b8fd9792e2927f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "709e02a1-c4d6-4f4d-8f2f-a60997bb9516",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
