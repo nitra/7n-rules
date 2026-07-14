@@ -1,0 +1,35 @@
+docs/adr/260610-1557-нові-js-файли-у-npm-rules-як-mjs.md
+  s_d30948e427e695::t_0697f47a24816c 34-45
+.cspell.json
+  s_d30948e427e695::t_a9c7bfc481cab6 33-114,194-196,251,278,352
+docs/adr/260610-1524-omlx-wire-trace-через-callomlx.md
+  s_d30948e427e695::t_0697f47a24816c 47-76
+docs/adr/260611-1248-ігнорування-root-worktrees-в-eslint.md
+  s_40764a7ac308ab::t_f739fd8079df29 2-4,7-8,11-12,15-17,20-21,24-27,30-33,35
+docs/adr/260611-1922-підтримка-rust-rs-у-doc-files.md
+  s_40764a7ac308ab::t_1c3f9ce25192cc 2-4,7-8,11-12,15-17,20-21,24-28,31-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "367e784e9ac3263e2417fed41b157e70ef2986fc",
+  "prompts": {},
+  "sessions": {
+    "s_40764a7ac308ab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "583abbf8-dd8d-486b-a38f-75243718e7c2",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_d30948e427e695": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4d79c9b5-e307-4f46-8c01-e1e7cfc5b4c3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
