@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest'
 import {
   bumpVersion,
   maxBump,
+  capBump,
   renderChangelogSection,
   prependChangelogSection,
   aggregateWorkspace
@@ -26,6 +27,21 @@ describe('maxBump', () => {
     expect(maxBump(['patch', 'minor', 'patch'])).toBe('minor')
     expect(maxBump(['patch', 'major', 'minor'])).toBe('major')
     expect(maxBump(['patch'])).toBe('patch')
+  })
+})
+
+describe('capBump', () => {
+  test('обрізає bump, що перевищує стелю', () => {
+    expect(capBump('major', 'minor')).toBe('minor')
+    expect(capBump('major', 'patch')).toBe('patch')
+    expect(capBump('minor', 'patch')).toBe('patch')
+  })
+  test('лишає bump, що в межах або нижче стелі', () => {
+    expect(capBump('patch', 'minor')).toBe('patch')
+    expect(capBump('minor', 'minor')).toBe('minor')
+  })
+  test('без стелі (null) — bump без змін', () => {
+    expect(capBump('major', null)).toBe('major')
   })
 })
 
@@ -69,5 +85,11 @@ describe('aggregateWorkspace', () => {
 
   test('порожній список change-файлів → null', () => {
     expect(aggregateWorkspace({ currentVersion: '1.0.0', changeFiles: [], date: '2026-05-29' })).toBeNull()
+  })
+
+  test('maxBumpCap обмежує major до minor', () => {
+    const changeFiles = [{ file: '1-a.md', entry: { bump: 'major', section: 'Changed', description: 'breaking' } }]
+    const r = aggregateWorkspace({ currentVersion: '2.0.0', changeFiles, date: '2026-05-29', maxBumpCap: 'minor' })
+    expect(r.newVersion).toBe('2.1.0')
   })
 })

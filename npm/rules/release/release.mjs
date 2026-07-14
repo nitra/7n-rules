@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import { env } from 'node:process'
 
 import { getMonorepoProjectRootDirs, readPackageManifest } from '../changelog/lib/package-manifest.mjs'
-import { aggregateWorkspace, prependChangelogSection } from './lib/aggregate.mjs'
+import { aggregateWorkspace, capBump, maxBump, prependChangelogSection } from './lib/aggregate.mjs'
 import { CHANGES_DIR, readChangeFiles } from './lib/change-file.mjs'
 import { defaultRunGit, synthesizeChangeFromCommits } from './lib/fallback.mjs'
 
@@ -120,8 +120,14 @@ async function processReleaseWorkspace(ws, cwd, date, runGit) {
   if (!manifest || !manifest.version) return null
 
   const changeFiles = await collectChangeFiles(cwd, manifest, runGit)
-  const agg = aggregateWorkspace({ currentVersion: manifest.version, changeFiles, date })
+  const requestedBump = changeFiles.length > 0 ? maxBump(changeFiles.map(c => c.entry.bump)) : null
+  const agg = aggregateWorkspace({ currentVersion: manifest.version, changeFiles, date, maxBumpCap: manifest.maxBump })
   if (!agg) return null
+  if (requestedBump && capBump(requestedBump, manifest.maxBump) !== requestedBump) {
+    console.warn(
+      `⚠️  ${manifest.ws}: bump «${requestedBump}» обмежено стелею «${manifest.maxBump}» (package.json#release.maxBump) → ${agg.newVersion}`
+    )
+  }
 
   await writeManifestVersion(cwd, manifest, agg.newVersion)
   await prependWorkspaceChangelog(cwd, ws, agg.sectionBlock)
