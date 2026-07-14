@@ -44,3 +44,33 @@ Chosen option: "Єдиний wrapper у `callOmlx` з raw gitignored trace, аг
 - Режим: always-on, kill-switch `N_CURSOR_OMLX_TRACE=0`.
 - Спека: `docs/specs/2026-06-10-omlx-wire-trace-capture-design.md`.
 - Побічний факт transcript: у `~/.omlx/settings.json` вимкнено auth-перевірку (`skip_api_key_verification: true`) і виконано `omlx restart`; виклики без `Authorization`-хедера підтверджено.
+
+## Update 2026-06-11
+
+Wire-trace перенесено з вузького `callOmlx`-рівня на уніфікований `callLlm` checkpoint.
+
+Рішення:
+
+- Трасувати LLM-виклики в `npm/lib/llm.mjs` через `callLlm`, а не окремо в кожному caller-і.
+- Зробити trace always-on із kill-switch `N_CURSOR_OMLX_TRACE=0` замість попереднього opt-in `N_CURSOR_LLM_TRACE`.
+- Зберігати raw JSONL у `.n-cursor/llm-trace.jsonl`, gitignored, з недеструктивною ротацією.
+- Залишити довгострокові агреговані знання для `docs/omlx-insights/` як окремий git-committed шар.
+- Додати internal rich-return `callOmlxRaw`, а публічний `callOmlx` лишити сумісною string-обгорткою.
+
+Причина: `callLlm` уже є єдиною точкою маршрутизації між локальним `omlx` і `pi`, тому instrumenting на цьому рівні покриває docgen/fix/coverage та обидва backend-и без розкидання trace-логіки по споживачах.
+
+Наслідки:
+
+- Good, because trace захоплює `reasoning_content`, `usage`, `finish_reason`, attempts і error-слід для `omlx`.
+- Good, because `pi`-гілка теж проходить через той самий формат запису, навіть якщо structured reasoning/usage там відсутні.
+- Bad, because transcript фіксує застереження: для `pi` reasoning і usage будуть `null`, а `.n-cursor/llm-trace.jsonl` постійно зростатиме й потребує ротації.
+
+Факти з transcript:
+
+- Новий модуль: `npm/lib/omlx-trace.mjs`.
+- Точка інструментування: `npm/lib/llm.mjs`, функція `callLlm`.
+- `npm/lib/omlx.mjs` отримав `callOmlxRaw` і `extractReasoning`.
+- Raw trace path: `.n-cursor/llm-trace.jsonl`.
+- Kill-switch: `N_CURSOR_OMLX_TRACE=0`.
+- Жива перевірка: `Qwen3-4B-Thinking-2507-4bit` на `http://127.0.0.1:8000` повертає `message.reasoning_content`; при `finish_reason: "length"` reasoning може класифікуватися як `truncated`.
+- Коміт: `7b7b5017`; transcript фіксує `74/74 tests pass`.

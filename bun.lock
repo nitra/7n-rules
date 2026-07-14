@@ -5,7 +5,7 @@
     "": {
       "name": "mono",
       "devDependencies": {
-        "@7n/rules": "^1.0.0",
+        "@7n/rules": "^2.0.0",
         "@7n/test": "^0.14.3",
         "@nitra/cspell-dict": "^2.2.2",
         "@nitra/eslint-config": "^3.10.3",
@@ -32,7 +32,7 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.6.0",
+      "version": "2.6.1",
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
       },
@@ -47,7 +47,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
