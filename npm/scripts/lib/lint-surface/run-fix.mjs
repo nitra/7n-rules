@@ -584,9 +584,9 @@ async function renderRemaining(failing, cwd, log, verbose = false) {
 /**
  * Фаза B: матеріалізує невиправлений хвіст у вузли MT-графа. Єдиний гейт —
  * **onboarded-репо** (наявність `.mt.json`, перевіряє preflight у materializeTail):
- * не-MT-репо → fail-open skip; MT-репо → хвіст стає графом задач, executor яких —
- * наш pi-harness (`ensureNodeExecutor` конфігурує `node_executor`). Env-прапорець
- * скасовано (rollout-guard більше не потрібен — B2/executor-міст у main). Fail-open
+ * не-MT-репо → fail-open skip; MT-репо → хвіст стає графом задач, які виконує
+ * вбудований шлях MT (підписочні CLI claude|codex|cursor|pi, user-level ENV
+ * `MT_AGENT_CLI*` — mt ADR 260713-2110; власний node_executor видалено). Fail-open
  * на всіх рівнях: lint ніколи не падає через MT.
  * @param {LintViolation[]} remaining Невиправлені порушення (з renderRemaining).
  * @param {string} cwd Робоча директорія.

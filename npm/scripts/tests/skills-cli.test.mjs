@@ -319,7 +319,7 @@ describe('runSkillsCli', () => {
     expect(errors.join('\n')).toContain('claude')
   })
 
-  test('cursor runner: deprecated-warning + без CLI у PATH → кидає', async () => {
+  test('cursor runner: без deprecated-warning, без CLI у PATH → кидає', async () => {
     const root = join(tmpdir(), `skills-cli-cursor-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
     mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
@@ -346,5 +346,36 @@ describe('runSkillsCli', () => {
 
     expect(code).toBe(1)
     expect(errors.join('\n')).toContain('cursor-agent')
+    expect(errors.join('\n')).not.toContain('[deprecated]')
+  })
+
+  test('codex runner: без deprecated-warning, без CLI у PATH → кидає', async () => {
+    const root = join(tmpdir(), `skills-cli-codex-${Date.now()}`)
+    const skillsRoot = join(root, 'skills')
+    mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
+    writeFileSync(join(skillsRoot, 'fix', 'SKILL.md'), '# Fix\n')
+
+    const errors = []
+    const prevPath = env.PATH
+    env.PATH = join(tmpdir(), 'empty-path-isolated')
+    let code
+    try {
+      code = await runSkillsCli(['codex', 'fix'], {
+        packageRoot: root,
+        projectDir: root,
+        log: () => {
+          /* noop: stdout не перевіряється в цьому тесті */
+        },
+        logError: line => {
+          errors.push(line)
+        }
+      })
+    } finally {
+      env.PATH = prevPath
+    }
+
+    expect(code).toBe(1)
+    expect(errors.join('\n')).toContain('codex')
+    expect(errors.join('\n')).not.toContain('[deprecated]')
   })
 })

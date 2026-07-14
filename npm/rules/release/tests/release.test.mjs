@@ -262,6 +262,33 @@ describe('release', () => {
     })
   })
 
+  test('release.maxBump у package.json обмежує major-change-файл до minor + попередження', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: 'p',
+        version: '2.0.0',
+        files: ['CHANGELOG.md'],
+        release: { maxBump: 'minor' }
+      })
+      await writeFile(join(dir, 'CHANGELOG.md'), '# Changelog\n')
+      await mkdir(join(dir, '.changes'), { recursive: true })
+      await writeFile(join(dir, '.changes', '1.md'), '---\nbump: major\nsection: Changed\n---\nbreaking\n')
+
+      const warns = []
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation((...args) => {
+        warns.push(args.join(' '))
+      })
+      try {
+        const released = await release({ cwd: dir, date: '2026-05-29', runGit: () => Promise.resolve('') })
+        expect(released).toEqual([{ ws: '.', name: 'p', newVersion: '2.1.0' }])
+      } finally {
+        warnSpy.mockRestore()
+      }
+      expect(JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')).version).toBe('2.1.0')
+      expect(warns.join('\n')).toContain('обмежено стелею')
+    })
+  })
+
   test('writeManifestVersion кидає коли version-pattern не знайдено у файлі (line 31)', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'svc'), { recursive: true })

@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.2.0] - 2026-07-14
+
+### Added
+
+- `skill`-CLI: додано зовнішній Codex-раннер (`skill codex <id>` → `codex exec -`); Cursor-раннер (`skill cursor <id>`) більше не deprecated — обидва повноцінні альтернативи вбудованому `pi`. `n-taze` доповнено Rust/`cargo-edit`-гілкою (детекція `Cargo.toml`, `cargo upgrade --incompatible allow`, `cargo fmt`/`clippy`/`test`) поряд з існуючою npm/bun-гілкою.
+- `n-rules release`: додано `package.json#release.maxBump` — стеля на bump цього workspace (`major|minor|patch`); change-файл із `bump: major` понад стелею обрізається й друкує попередження, замість підняти major-версію. `@7n/rules` тепер зафіксований на `maxBump: minor` — власна major-версія пакета більше не змінюється автоматично через реліз-CI.
+
+### Removed
+
+- Команду `mt-run-node` (B2 executor-міст) видалено: fix-вузли MT-графа виконує вбудований шлях MT — підписочні CLI `claude|codex|cursor|pi` з user-level ENV-конфігом (`MT_AGENT_CLI`, `MT_CLOUD_AGENT_CLIS`, `MT_AGENT_CLI_MODEL_MAP`; локальні omlx — через pi.dev CLI), за mt ADR `260713-2110` «ACP — єдиний транспорт AI-викликів». `mt-tail` більше не конфігурує `node_executor` у `.mt.json`; тир-канон вузлів — `MIN|AVG|MAX`
+
+## [1.1.0] - 2026-07-13
+
+### Changed
+
+- Пакет перейменовано: `@nitra/cursor` → `@7n/rules` (bin `n-rules` + перехідний alias `n-cursor`, конфіг `.n-rules.json` з авто-міграцією з `.n-cursor.json`, маркери блоків `n-rules:*`, `$schema` на `unpkg.com/@7n/rules/...`); legacy-назви читаються як fallback для безшовної міграції споживачів
+
 ## [14.33.0] - 2026-07-13
 
 ### Changed

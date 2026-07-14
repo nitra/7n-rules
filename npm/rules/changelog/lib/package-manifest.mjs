@@ -23,9 +23,24 @@ import { getMonorepoPackageRootDirs, isIgnoredWorkspaceRoot } from '../../../scr
  * @property {string | null} version semver-рядок
  * @property {boolean} registryPublishable чи застосовується режим порівняння з реєстром
  * @property {string[] | null} [npmFiles] лише npm: `files` з package.json
+ * @property {'major' | 'minor' | 'patch' | null} maxBump стеля для `n-rules release` (з `package.json#release.maxBump`); `null` — без обмеження
  */
 
 const PYPROJECT_GLOB_IGNORE = ['**/node_modules/**', '**/.git/**', '**/.venv/**', '**/venv/**']
+const VALID_MAX_BUMPS = ['major', 'minor', 'patch']
+
+/**
+ * @param {Record<string, unknown>} pkg розпарсений package.json
+ * @returns {'major' | 'minor' | 'patch' | null} стеля бампа з `release.maxBump`, якщо валідна
+ */
+function maxBumpFromPackageJson(pkg) {
+  const release = pkg.release
+  if (!release || typeof release !== 'object' || Array.isArray(release)) return null
+  const value = /** @type {Record<string, unknown>} */ (release).maxBump
+  return typeof value === 'string' && VALID_MAX_BUMPS.includes(value)
+    ? /** @type {'major' | 'minor' | 'patch'} */ (value)
+    : null
+}
 
 /**
  * @param {unknown} doc розпарсений pyproject.toml
@@ -93,7 +108,8 @@ export async function readPackageManifest(ws, cwd = process.cwd()) {
         name: typeof pkg.name === 'string' ? pkg.name : null,
         version: typeof pkg.version === 'string' ? pkg.version : null,
         registryPublishable,
-        npmFiles: Array.isArray(pkg.files) ? pkg.files : null
+        npmFiles: Array.isArray(pkg.files) ? pkg.files : null,
+        maxBump: maxBumpFromPackageJson(pkg)
       }
     } catch {
       return null
@@ -113,7 +129,8 @@ export async function readPackageManifest(ws, cwd = process.cwd()) {
     name: fields.name,
     version: fields.version,
     registryPublishable,
-    npmFiles: null
+    npmFiles: null,
+    maxBump: null
   }
 }
 
