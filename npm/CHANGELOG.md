@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.0] - 2026-07-14
+
+### Removed
+
+- Команду `mt-run-node` (B2 executor-міст) видалено: fix-вузли MT-графа виконує вбудований шлях MT — підписочні CLI `claude|codex|cursor|pi` з user-level ENV-конфігом (`MT_AGENT_CLI`, `MT_CLOUD_AGENT_CLIS`, `MT_AGENT_CLI_MODEL_MAP`; локальні omlx — через pi.dev CLI), за mt ADR `260713-2110` «ACP — єдиний транспорт AI-викликів». `mt-tail` більше не конфігурує `node_executor` у `.mt.json`; тир-канон вузлів — `MIN|AVG|MAX`
+
 ## [1.1.0] - 2026-07-13
 
 ### Changed
