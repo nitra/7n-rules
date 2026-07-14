@@ -1,0 +1,51 @@
+npm/.changes/260714-0651.md
+  s_b8fd9792e2927f::t_55c8082f3bfba6 1-5
+npm/rules/release/release.mjs
+  s_b8fd9792e2927f::t_32c0b33051a1d7 123-124,126-130
+  s_b8fd9792e2927f::t_8b866aaf184bf9 12
+npm/rules/release/tests/aggregate.test.mjs
+  s_b8fd9792e2927f::t_e456de7eafde1b 33-47
+  s_b8fd9792e2927f::t_abe0da57a5369d 6
+  s_b8fd9792e2927f::t_1220624066c8cf 89-94
+npm/package.json
+  s_b8fd9792e2927f::t_98bccbb37b8c72 23-25
+  s_b8fd9792e2927f::t_f18c5c61ec4ec8 3
+npm/rules/changelog/consistency/tests/package-manifest.test.mjs
+  s_b8fd9792e2927f::t_7586e3d1f490e6 76-115
+npm/rules/release/lib/aggregate.mjs
+  s_b8fd9792e2927f::t_d14eb20d535f8c 85,88,90-91
+  s_b8fd9792e2927f::t_914272a5537fef 34-46
+  s_40764a7ac308ab::t_5c0523d3ffd394 33
+npm/.changes/260714-0737.md
+  s_b8fd9792e2927f::t_629669fc759248 1-5
+npm/rules/changelog/lib/package-manifest.mjs
+  s_b8fd9792e2927f::t_0a64f3a060c2ba 26,30-43
+  s_b8fd9792e2927f::t_9d04b1f1ffbcba 111-112
+  s_b8fd9792e2927f::t_696a68bfab5256 132-133
+npm/rules/release/tests/release.test.mjs
+  s_b8fd9792e2927f::t_3d51892eaaa0c2 265-291
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "632561e5c5eb33e7a5acdd5cf94eeb823452d613",
+  "prompts": {},
+  "sessions": {
+    "s_40764a7ac308ab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "583abbf8-dd8d-486b-a38f-75243718e7c2",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_b8fd9792e2927f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "709e02a1-c4d6-4f4d-8f2f-a60997bb9516",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
