@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.6.2] - 2026-07-14
+
+### Added
+
+- llm-cascade: файлові доки (docs/*.md) для src і examples — 7 нових док за стилем doc-files
+
 ## [2.6.1] - 2026-07-13
 
 ### Changed

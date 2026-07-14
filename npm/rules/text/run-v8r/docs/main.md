@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/text/run-v8r/main.mjs
 docgen:
-  crc: f6f78d26
+  crc: 804dce1c
 ---
 
 ## Огляд
@@ -23,6 +23,7 @@ docgen:
 - `runV8rWithGlobs(globs?)` — послідовно запускає `v8r` для кожного glob-у з `V8R_CONFIG_FILE`, вказаним на резольвнутий конфіг; при коді 0/98 вивід приховано, інакше друкується й повертається код першого невдалого прогону.
 - `runV8rWithFiles(files)` — delta-режим: один запуск `v8r` по конкретних існуючих шляхах (код 98 неможливий), порожній список — одразу 0.
 - `warnAboutRemoteSchemaFallback(stderrText)` — парсить stderr `v8r` і на кожен файл, чию схему знайдено мережевим fallback-ом (schemastore, не customCatalog), друкує в stdout пораду додати схему в каталог.
+- `stripBunNodeShimDirs(pathValue)` — прибирає з PATH shim-теки `bun-node-*`, які `bun run --bun` додає з підміненим `node`: дочірній `v8r` (node-shebang) інакше виконувався б під bun і падав на непідтримуваному `node:sea`. Дочірній процес `v8r` завжди отримує очищений PATH.
 - `lint(ctx)` — detector `text/run-v8r`: `ctx.files` → delta по відфільтрованих розширеннях, без `ctx.files` → full за `DEFAULT_V8R_GLOBS`.
 
 ## Публічний API
@@ -32,6 +33,7 @@ docgen:
 - `writeResolvedV8rConfig()` — матеріалізація тимчасового конфігу, повертає його шлях.
 - `runV8rWithGlobs(globs?)`, `runV8rWithFiles(files)` — точки входу перевірки (full/delta).
 - `warnAboutRemoteSchemaFallback(stderrText)` — попередження про мережевий fallback схем.
+- `stripBunNodeShimDirs(pathValue)` — PATH без shim-тек `bun-node-*` (для дочірнього v8r).
 - `lint(ctx)` — інтеграція в lint-пайплайн.
 
 ## Гарантії поведінки

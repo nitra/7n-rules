@@ -73,4 +73,44 @@ describe('readPackageManifest', () => {
       expect(m).toBeNull()
     })
   })
+
+  test('release.maxBump зчитується з package.json', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, 'package.json'),
+        '{"name":"a","version":"1.0.0","release":{"maxBump":"minor"}}\n',
+        'utf8'
+      )
+      const m = await readPackageManifest('.', dir)
+      expect(m?.maxBump).toBe('minor')
+    })
+  })
+
+  test('невалідний release.maxBump ігнорується → null', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, 'package.json'),
+        '{"name":"a","version":"1.0.0","release":{"maxBump":"nope"}}\n',
+        'utf8'
+      )
+      const m = await readPackageManifest('.', dir)
+      expect(m?.maxBump).toBeNull()
+    })
+  })
+
+  test('без release-ключа → maxBump null', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), '{"name":"a","version":"1.0.0"}\n', 'utf8')
+      const m = await readPackageManifest('.', dir)
+      expect(m?.maxBump).toBeNull()
+    })
+  })
+
+  test('pyproject-маніфест → maxBump завжди null', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nversion = "1.0.0"\n', 'utf8')
+      const m = await readPackageManifest('.', dir)
+      expect(m?.maxBump).toBeNull()
+    })
+  })
 })

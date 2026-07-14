@@ -1,6 +1,18 @@
 # Changelog
 
-## [2.0.0] - 2026-07-14
+## [1.2.1] - 2026-07-14
+
+### Fixed
+
+- Bun-сумісність тестового прогону: namespace-імпорт zod (фантомний __esModule на ESM-неймспейсах ламає vitest-interop), явний env: process.env у spawnSync skills-cli (Bun дає дітям snapshot оточення), чистка bun-node-* shim-тек з PATH для дочірнього v8r (node-shebang під --bun резолвився в bun і падав на node:sea); тест run-v8r приведено до контракту verbose-виводу (#44); root scripts.test → bun run --bun vitest run
+- package-manifest: VALID_MAX_BUMPS → Set (oxlint prefer-set-has), дока maxBump освіжена
+
+## [1.2.0] - 2026-07-14
+
+### Added
+
+- `skill`-CLI: додано зовнішній Codex-раннер (`skill codex <id>` → `codex exec -`); Cursor-раннер (`skill cursor <id>`) більше не deprecated — обидва повноцінні альтернативи вбудованому `pi`. `n-taze` доповнено Rust/`cargo-edit`-гілкою (детекція `Cargo.toml`, `cargo upgrade --incompatible allow`, `cargo fmt`/`clippy`/`test`) поряд з існуючою npm/bun-гілкою.
+- `n-rules release`: додано `package.json#release.maxBump` — стеля на bump цього workspace (`major|minor|patch`); change-файл із `bump: major` понад стелею обрізається й друкує попередження, замість підняти major-версію. `@7n/rules` тепер зафіксований на `maxBump: minor` — власна major-версія пакета більше не змінюється автоматично через реліз-CI.
 
 ### Removed
 

@@ -47,7 +47,8 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, isAbsolute, join } from 'node:path'
+import { basename, delimiter, dirname, isAbsolute, join } from 'node:path'
+import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
@@ -151,6 +152,21 @@ export function warnAboutRemoteSchemaFallback(stderrText) {
 }
 
 /**
+ * Прибирає з PATH shim-теки `bun-node-*`: їх додає `bun run --bun`, підміняючи `node` через
+ * symlink на bun. `bun x v8r` поважає node-shebang і бере `node` з PATH — під shim v8r виконується bun-ом
+ * і падає на непідтримуваному `node:sea`, тому дочірній v8r має бачити справжній node.
+ * @param {string | undefined} pathValue значення PATH батьківського процесу
+ * @returns {string | undefined} PATH без shim-тек (undefined — якщо PATH не задано)
+ */
+export function stripBunNodeShimDirs(pathValue) {
+  if (!pathValue) return pathValue
+  return pathValue
+    .split(delimiter)
+    .filter(entry => !basename(entry).startsWith('bun-node-'))
+    .join(delimiter)
+}
+
+/**
  * Один виклик `bun x v8r <targets...>` з підготовленим `customCatalog`-конфігом.
  * @param {string[]} targets glob-и або конкретні шляхи файлів
  * @param {string} configPath шлях до `V8R_CONFIG_FILE`
@@ -165,7 +181,7 @@ function runOneV8rInvocation(targets, configPath, verbose = false) {
     maxBuffer: 50 * 1024 * 1024,
     shell: false,
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, V8R_CONFIG_FILE: configPath }
+    env: { ...env, PATH: stripBunNodeShimDirs(env.PATH), V8R_CONFIG_FILE: configPath }
   })
 
   if (result.error) {

@@ -11,7 +11,7 @@
   "type": "module",
   "scripts": {
     "start": "bun ./npm/bin/n-rules.js",
-    "test": "vitest run",
+    "test": "bun run --bun vitest run",
     "coverage": "npx @7n/test coverage"
   },
   "devDependencies": {
