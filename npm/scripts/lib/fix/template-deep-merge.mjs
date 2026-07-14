@@ -25,7 +25,7 @@ const SNIPPET_EXTS = ['yml', 'yaml', 'json', 'jsonc']
  * Чи `needle` структурно вже присутній у якомусь елементі `actualArray`
  * (та сама subset-семантика, що й у детекторі — жодного окремого визначення "збігу").
  * @param {unknown[]} actualArray наявний масив
- * @param {unknown} needle елемент сніпета, наявність якого перевіряємо
+ * @param {unknown} needle елемент snippet-а, наявність якого перевіряємо
  * @returns {boolean} true — вже присутній структурно
  */
 function containedIn(actualArray, needle) {
@@ -99,12 +99,13 @@ function mergeYamlDoc(doc, snippet, path) {
 }
 
 /**
- * Зливає JSON/JSONC snippet у наявний текст target-файлу.
- * @param {string} prevText поточний вміст target-файлу
+ * Рахує наступний вміст JSON/JSONC-target. `null` — невалідний вхід (не чіпаємо);
+ * незмінений `prevText` — уже відповідає snippet-у (idempotent, без reformat).
+ * @param {string} prevText наявний вміст target-файлу
  * @param {string} snippetPath абсолютний шлях до snippet-файлу
- * @returns {string|null} новий текст або null — не чіпати (невалідний JSON чи вже відповідає snippet-у)
+ * @returns {string|null} новий вміст, незмінений `prevText`, або `null`
  */
-function mergeJsonText(prevText, snippetPath) {
+function computeJsonNextText(prevText, snippetPath) {
   let snippet
   let actual
   try {
@@ -113,21 +114,21 @@ function mergeJsonText(prevText, snippetPath) {
   } catch {
     return null // невалідний JSON — не чіпаємо детермінованим фіксом
   }
-  // Уже відповідає snippet-у (та сама перевірка, що й детектор) → не чіпаємо файл
-  // взагалі: без цієї гейтки JSON.stringify переформатував би вже коректний файл
-  // (напр. компактний однорядковий snippet → pretty-print) без жодної реальної зміни.
-  if (checkSnippet(actual, snippet, { targetPath: '', source: '' }).length === 0) return null
+  // Уже відповідає snippet-у (та сама перевірка, що й детектор) → без reformat:
+  // JSON.stringify інакше переформатував би вже коректний файл (напр. компактний
+  // однорядковий snippet → pretty-print) без жодної реальної зміни.
+  if (checkSnippet(actual, snippet, { targetPath: '', source: '' }).length === 0) return prevText
   return JSON.stringify(mergeJsonValue(actual, snippet), null, 2) + '\n'
 }
 
 /**
- * Зливає YAML snippet у наявний текст target-файлу (Document API — зберігає коментарі
- * й форматування).
- * @param {string} prevText поточний вміст target-файлу
+ * Рахує наступний вміст YAML-target через `yaml` Document API. `null` — невалідний
+ * вхід; незмінений `prevText` — уже відповідає snippet-у (idempotent, без reformat).
+ * @param {string} prevText наявний вміст target-файлу
  * @param {string} snippetPath абсолютний шлях до snippet-файлу
- * @returns {Promise<string|null>} новий текст або null — не чіпати (невалідний YAML чи вже відповідає snippet-у)
+ * @returns {Promise<string|null>} новий вміст, незмінений `prevText`, або `null`
  */
-async function mergeYamlText(prevText, snippetPath) {
+async function computeYamlNextText(prevText, snippetPath) {
   const { parse, parseDocument } = await import('yaml')
   let snippet
   let actualPlain
@@ -137,10 +138,9 @@ async function mergeYamlText(prevText, snippetPath) {
   } catch {
     return null // невалідний YAML — не чіпаємо детермінованим фіксом
   }
-  // Уже відповідає snippet-у (та сама перевірка, що й детектор) → не чіпаємо файл
-  // взагалі: Document.toString() не завжди byte-identical на вже коректному вмісті
-  // (напр. folded block scalars переформатовуються при round-trip без потреби).
-  if (checkSnippet(actualPlain, snippet, { targetPath: '', source: '' }).length === 0) return null
+  // Уже відповідає snippet-у → без reformat: Document.toString() не завжди
+  // byte-identical на вже коректному вмісті (напр. folded block scalars).
+  if (checkSnippet(actualPlain, snippet, { targetPath: '', source: '' }).length === 0) return prevText
   const doc = parseDocument(prevText)
   if (doc.errors.length > 0) return null
   if (snippet !== null && typeof snippet === 'object' && !Array.isArray(snippet)) {
@@ -168,9 +168,6 @@ export function createTemplateFixPattern({ id, targetPath }) {
       if (!snippetPath) return { touchedFiles: [] }
 
       const absTarget = join(ctx.cwd, targetPath)
-      const ext = extname(snippetPath).toLowerCase()
-      const isJson = ext === '.json' || ext === '.jsonc'
-
       const prevText = existsSync(absTarget) ? readFileSync(absTarget, 'utf8') : null
 
       // Файл відсутній → копіюємо snippet як є (без merge — немає з чим мерджити).
@@ -182,7 +179,10 @@ export function createTemplateFixPattern({ id, targetPath }) {
         return { touchedFiles: [absTarget], message: `${targetPath}: створено зі snippet` }
       }
 
-      const nextText = isJson ? mergeJsonText(prevText, snippetPath) : await mergeYamlText(prevText, snippetPath)
+      const isJson = ['.json', '.jsonc'].includes(extname(snippetPath).toLowerCase())
+      const nextText = isJson
+        ? computeJsonNextText(prevText, snippetPath)
+        : await computeYamlNextText(prevText, snippetPath)
 
       if (nextText === null || nextText === prevText) return { touchedFiles: [] }
       ctx.recordWrite?.(absTarget)
