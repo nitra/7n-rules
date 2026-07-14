@@ -1,0 +1,168 @@
+npm/rules/python/lint_python_yml/fix-lint_python_yml.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+llm-lib/crates/llm-cascade/src/docs/local_cloud.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-28
+npm/rules/npm-module/emit_types_config/fix-emit_types_config.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/rules/text/run-v8r/docs/main.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 6,26,36
+docs/adr/260611-1224-узгодження-js-прикладів-та-config-файлів-з-mjs-конвенцією.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 2-4,7-8,10,12,14,16-18,20,22,24,26-30,32,34-40,42,44-46,48,50-53
+npm/rules/abie/clean_merged_ignore_branches/fix-clean_merged_ignore_branches.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+llm-lib/crates/llm-cascade/src/docs/acp.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-29
+llm-lib/crates/llm-cascade/src/docs/lib.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-28
+npm/rules/security/lint_security_yml/fix-lint_security_yml.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/rules/text/oxfmtrc/fix-oxfmtrc.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/rules/style/lint_style_yml/fix-lint_style_yml.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+docs/adr/260611-1248-ігнорування-root-worktrees-в-eslint.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 2-4,7-8,12,16-17,21,25-27,31-35
+npm/rules/rust/lint_rust_yml/fix-lint_rust_yml.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-5
+llm-lib/package.json
+  s_0a4dd6acd3e226::t_e893844f5b755c 3
+npm/rules/k8s/lint_k8s_yml/fix-lint_k8s_yml.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/rules/ga/clean_ga_workflows/fix-clean_ga_workflows.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/rules/text/lint_text/fix-lint_text.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-5
+llm-lib/crates/llm-cascade/examples/docs/local_live.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-15
+npm/rules/release/tests/aggregate.test.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 6,33-47,89-94
+npm/rules/worktree/zed_settings/fix-zed_settings.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/scripts/lib/fix/template-deep-merge.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-182
+docs/adr/260611-1306-уніфікований-callllm-як-точка-wire-trace.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 2-4,7-8,11-12,15-22,25-26,29-33,36-51
+npm/.changes/260714-1729.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 2-3,5
+npm/rules/npm-module/npm_package_json/fix-npm_package_json.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/rules/changelog/consistency/tests/package-manifest.test.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 76-115
+npm/rules/changelog/lib/docs/package-manifest.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 6,20,47,54,98,105
+docs/adr/260611-1922-підтримка-rust-rs-у-doc-files.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 2-4,7-8,12,14,16-18,20,22,24,26-29,31,33-36,38,40-44,46,48-52,54,56-60,62,64-67
+docs/adr/260611-1312-llm-wire-trace-на-callllm.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 2-4,7-8,12,16-18,22,25-30,33-59
+npm/rules/ga/git_ai/fix-git_ai.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/rules/text/lint_text/tests/fix-lint_text.test.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-46
+llm-lib/crates/llm-cascade/examples/docs/cursor_live.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-15
+npm/rules/worktree/vscode_settings/fix-vscode_settings.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-5
+npm/rules/npm-module/root_package_json/fix-root_package_json.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/rules/rego/vscode_settings/fix-vscode_settings.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/rules/npm-module/npm_publish_yml/tests/fix-npm_publish_yml.test.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-46
+npm/rules/release/lib/aggregate.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 34-46,85,88,90-91
+  s_0a4dd6acd3e226::t_bd648e9f5befc2 33
+npm/package.json
+  s_0a4dd6acd3e226::t_e893844f5b755c 3,23-24
+  s_0a4dd6acd3e226::t_568ab4ccfb16a6 25
+npm/rules/release/tests/release.test.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 265-291
+npm/rules/npm-module/npm_publish_yml/fix-npm_publish_yml.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-5
+npm/rules/release/docs/release.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 6,14-16
+npm/CHANGELOG.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 3-15
+npm/rules/js/lint_js_yml/tests/fix-lint_js_yml.test.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-49
+llm-lib/CHANGELOG.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 3-8
+npm/rules/style/package_json/fix-package_json.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/rules/text/run-v8r/tests/run-v8r.test.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 70,96,106-139
+  s_0a4dd6acd3e226::t_e8e5571d731a44 140-141
+llm-lib/crates/llm-cascade/src/docs/tiers.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-33
+npm/rules/release/release.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 12,123-124,126-130
+npm/rules/text/run-v8r/main.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 50-51,154-168,184
+npm/rules/changelog/lib/package-manifest.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 26,30-43,111-112,132-133
+npm/scripts/lib/adr/normalize-pipeline.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 26-28
+npm/rules/release/lib/docs/aggregate.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 6,26-27,80-87,164,173,182,188,225,258,260
+llm-lib/crates/llm-cascade/examples/docs/ladder_live.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-15
+npm/scripts/skills-cli.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 58-60,201-202
+npm/rules/docker/lint_docker_yml/fix-lint_docker_yml.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/rules/js/lint_js_yml/fix-lint_js_yml.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-5
+npm/rules/php/lint_php_yml/fix-lint_php_yml.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/rules/ga/clean_merged_branch/fix-clean_merged_branch.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/rules/rust/lint_rust_yml/tests/fix-lint_rust_yml.test.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-32
+npm/rules/worktree/vscode_settings/tests/fix-vscode_settings.test.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-51
+npm/rules/style/vscode_settings/fix-vscode_settings.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/rules/ga/vscode_settings/fix-vscode_settings.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/scripts/docs/skills-cli.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 6
+npm/scripts/lib/tests/template-deep-merge.test.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-189
+docs/adr/260612-0002-заміна-inline-eslint-disable-на-file-level-overrides.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 2-4,7-8,10,12,14,17-20,23-24,27-32,36-46
+npm/rules/ga/lint_ga/fix-lint_ga.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/rules/ga/zizmor_yml/fix-zizmor_yml.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/scripts/lib/adr/docs/normalize-pipeline.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 6
+npm/rules/js/package_json/fix-package_json.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+npm/rules/js/jscpd_config/fix-jscpd_config.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+.cspell.json
+  s_0a4dd6acd3e226::t_e893844f5b755c 108,126,171,174,176,228,242
+npm/rules/text/vscode_settings/fix-vscode_settings.mjs
+  s_0a4dd6acd3e226::t_e893844f5b755c 1-3
+package.json
+  s_0a4dd6acd3e226::t_e893844f5b755c 14
+docs/adr/260610-1524-omlx-wire-trace-через-callomlx.md
+  s_0a4dd6acd3e226::t_e893844f5b755c 47-76
+bun.lock
+  s_0a4dd6acd3e226::t_bdb4345f7c404a 8,35,50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "bcde684094876d61858f9b1d572d63b253091e3a",
+  "prompts": {},
+  "sessions": {
+    "s_0a4dd6acd3e226": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "171e992c-f17d-4fa4-a0a2-38785ac398c9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
