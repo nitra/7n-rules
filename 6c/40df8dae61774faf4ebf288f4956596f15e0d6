@@ -1,0 +1,43 @@
+.cspell.json
+  s_46fe0a80cf9489::t_b8dc644781a7cc 126
+npm/rules/release/lib/docs/aggregate.md
+  s_46fe0a80cf9489::t_610400e73e5323 164,173
+  s_46fe0a80cf9489::t_efcf55f919a5c1 26-27
+  s_46fe0a80cf9489::t_d2c4d48e047713 188
+  s_46fe0a80cf9489::t_cf8bf85e00d7c9 225
+  s_46fe0a80cf9489::t_f6965735dd7a87 80-87
+  s_46fe0a80cf9489::t_c4dc09a2ba7afb 182
+  s_46fe0a80cf9489::t_0573ac84e40cb3 258,260
+  s_46fe0a80cf9489::t_22a63e0014b7c9 6
+npm/rules/release/docs/release.md
+  s_46fe0a80cf9489::t_1c0a620e91d105 14-16
+  s_46fe0a80cf9489::t_278fc4c07c4337 6
+npm/rules/changelog/lib/docs/package-manifest.md
+  s_46fe0a80cf9489::t_f578d18b9921a3 98
+  s_46fe0a80cf9489::t_a5f5420605e8c7 105
+  s_46fe0a80cf9489::t_ea8d043fb5ae21 6
+  s_46fe0a80cf9489::t_d9be4a4e333d81 47
+  s_46fe0a80cf9489::t_70565fb7e98665 20
+  s_46fe0a80cf9489::t_7dc36b9e6761f0 54
+npm/rules/changelog/lib/package-manifest.mjs
+  s_46fe0a80cf9489::t_0e8d6e8f08b9d3 40
+  s_46fe0a80cf9489::t_0d7dc2d1446ed9 30
+npm/.changes/260714-0847.md
+  s_46fe0a80cf9489::t_e0277dc861fc05 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "6c40df8dae61774faf4ebf288f4956596f15e0d6",
+  "prompts": {},
+  "sessions": {
+    "s_46fe0a80cf9489": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c1a10b6-5ae2-4fcf-94b8-7b10e03ae228",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
