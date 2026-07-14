@@ -22,7 +22,7 @@ import { dirname, join } from 'node:path'
 import { cwd } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { readSkillMetaRaw, skillTier } from './lib/skill-meta.mjs'
+import { readSkillMetaRaw, skillRequiresRoot, skillTier } from './lib/skill-meta.mjs'
 
 /** Виконавці скіла. `pi` — вбудований (рекомендований); `cursor`/`codex`/`claude` — зовнішні CLI (`claude` — deprecated). */
 const RUNNERS = new Set(['pi', 'cursor', 'codex', 'claude'])
@@ -177,13 +177,20 @@ async function runPiRunner(prompt, rawSkillName, skillsRoot, projectDir, logErro
  * або deprecated `claude -p`) — промпт передається через stdin. `claude` лишається як
  * deprecated fallback для тих, у кого pi-модель ще не налаштована; буде прибрано
  * (мігруй на `skill pi`). `cursor`/`codex` — повноцінні альтернативні раннери.
+ *
+ * `cursor-agent` у non-interactive режимі блокується власним `approvalMode: "allowlist"`
+ * користувача (git/bun/npx/rm тощо потребують інтерактивного підтвердження, якого в headless
+ * виклику немає). Для `worktree:true`/`requireRoot:true` скілів (блок-радіус вже ізольований)
+ * додаємо `--force`, замість того щоб просити користувача розширювати глобальний allowlist
+ * у `~/.cursor/cli-config.json`.
  * @param {'claude' | 'cursor' | 'codex'} kind який LLM CLI запускати
  * @param {string} prompt промпт для передачі у stdin
  * @param {string} projectDir робочий каталог дочірнього процесу
  * @param {(line: string) => void} logError вивід попередження/помилок
+ * @param {boolean} isolated чи скіл ізольований (worktree/requireRoot) — дозволяє force-approve для `cursor`
  * @returns {number} exit code дочірнього процесу
  */
-function runLlmCli(kind, prompt, projectDir, logError) {
+function runLlmCli(kind, prompt, projectDir, logError, isolated) {
   const runner = EXTERNAL_RUNNERS[kind]
 
   if (runner.deprecated) {
@@ -194,7 +201,9 @@ function runLlmCli(kind, prompt, projectDir, logError) {
     throw new Error(`\`${runner.bin}\` not found in PATH. Install ${kind} CLI or use \`skill pi\`.`)
   }
 
-  const result = spawnSync(runner.bin, runner.args, {
+  const args = kind === 'cursor' && isolated ? [...runner.args, '--force'] : runner.args
+
+  const result = spawnSync(runner.bin, args, {
     input: prompt,
     cwd: projectDir,
     stdio: ['pipe', 'inherit', 'inherit'],
@@ -252,7 +261,9 @@ export async function runSkillsCli(argv, options = {}) {
       if (first === 'pi') {
         return await runPiRunner(prompt, second, skillsRoot, projectDir, logError, deps)
       }
-      return runLlmCli(/** @type {'claude' | 'cursor' | 'codex'} */ (first), prompt, projectDir, logError)
+      const skillMeta = readSkillMetaRaw(join(skillsRoot, normalizeSkillId(second)))
+      const isolated = skillRequiresRoot(skillMeta)
+      return runLlmCli(/** @type {'claude' | 'cursor' | 'codex'} */ (first), prompt, projectDir, logError, isolated)
     }
 
     if (skillIds.includes(normalizeSkillId(first))) {
