@@ -1,0 +1,42 @@
+package.json
+  s_46fe0a80cf9489::t_67bca5213946e7 14
+  s_46fe0a80cf9489::t_b72b9394559201 25
+llm-lib/crates/llm-cascade/examples/docs/local_live.md
+  s_46fe0a80cf9489::t_0deb7d34ac888f 1-15
+llm-lib/crates/llm-cascade/src/docs/tiers.md
+  s_46fe0a80cf9489::t_19e6c7de03717a 1-33
+llm-lib/crates/llm-cascade/src/docs/local_cloud.md
+  s_46fe0a80cf9489::t_24b67f7077f0c5 1-28
+llm-lib/crates/llm-cascade/src/docs/acp.md
+  s_46fe0a80cf9489::t_32447a64e673b6 1-29
+.cspell.json
+  s_46fe0a80cf9489::t_495b8d54a9d437 170
+  s_46fe0a80cf9489::t_72a063812cb965 223
+  s_46fe0a80cf9489::t_64c93000b3995f 237
+  s_46fe0a80cf9489::t_2d8b2a8fff01a1 108
+  s_46fe0a80cf9489::t_39d7a00790fb0d 167
+llm-lib/crates/llm-cascade/src/docs/lib.md
+  s_46fe0a80cf9489::t_288aafce874244 1-28
+llm-lib/crates/llm-cascade/examples/docs/cursor_live.md
+  s_46fe0a80cf9489::t_d34a101ba6e17c 1-15
+llm-lib/crates/llm-cascade/examples/docs/ladder_live.md
+  s_46fe0a80cf9489::t_c69aefc9e460c7 1-15
+llm-lib/.changes/260714-0733.md
+  s_46fe0a80cf9489::t_91786e7781c11c 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "6aa241eb3b4f4caf951be678b54b17af748a64ad",
+  "prompts": {},
+  "sessions": {
+    "s_46fe0a80cf9489": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c1a10b6-5ae2-4fcf-94b8-7b10e03ae228",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
