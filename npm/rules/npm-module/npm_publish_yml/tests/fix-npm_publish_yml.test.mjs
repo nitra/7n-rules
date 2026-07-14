@@ -21,7 +21,9 @@ test('канонічний вміст → idempotent (touchedFiles порожн�
     mkdirSync(join(dir, '.github/workflows'), { recursive: true })
     writeFileSync(join(dir, TARGET_PATH), readFileSync(SNIPPET_PATH, 'utf8'), 'utf8')
     const p = patterns.find(x => x.id === 'npm-module-npm_publish_yml-template')
-    const violations = [{ ruleId: 'npm-module', concernId: 'npm_publish_yml', reason: 'x', message: 'x', file: TARGET_PATH }]
+    const violations = [
+      { ruleId: 'npm-module', concernId: 'npm_publish_yml', reason: 'x', message: 'x', file: TARGET_PATH }
+    ]
     expect(p.test(violations)).toBe(true)
     const res = await p.apply(violations, { cwd: dir, concernDir: CONCERN_DIR })
     expect(res.touchedFiles).toHaveLength(0)
@@ -35,7 +37,9 @@ describe('target відсутній', () => {
     const dir = mkdtempSync(join(tmpdir(), 'npm-publish-yml-'))
     try {
       const p = patterns.find(x => x.id === 'npm-module-npm_publish_yml-template')
-      const violations = [{ ruleId: 'npm-module', concernId: 'npm_publish_yml', reason: 'x', message: 'x', file: TARGET_PATH }]
+      const violations = [
+        { ruleId: 'npm-module', concernId: 'npm_publish_yml', reason: 'x', message: 'x', file: TARGET_PATH }
+      ]
       const res = await p.apply(violations, { cwd: dir, concernDir: CONCERN_DIR })
       expect(res.touchedFiles).toHaveLength(1)
       expect(readFileSync(join(dir, TARGET_PATH), 'utf8')).toBe(readFileSync(SNIPPET_PATH, 'utf8'))

@@ -62,7 +62,10 @@ describe('createTemplateFixPattern — JSON', () => {
       writeSnippet(
         concernDir,
         'settings.json.snippet.json',
-        JSON.stringify({ 'search.exclude': { '**/.worktrees/**': true }, 'files.exclude': { '**/.worktrees/**': true } })
+        JSON.stringify({
+          'search.exclude': { '**/.worktrees/**': true },
+          'files.exclude': { '**/.worktrees/**': true }
+        })
       )
       mkdirSync(join(dir, '.vscode'), { recursive: true })
       writeFileSync(

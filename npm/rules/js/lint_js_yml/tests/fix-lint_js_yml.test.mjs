@@ -21,7 +21,9 @@ test('канонічний вміст → idempotent (touchedFiles порожн�
     mkdirSync(join(dir, '.github/workflows'), { recursive: true })
     writeFileSync(join(dir, TARGET_PATH), readFileSync(SNIPPET_PATH, 'utf8'), 'utf8')
     const p = patterns.find(x => x.id === 'js-lint_js_yml-template')
-    const violations = [{ ruleId: 'js', concernId: 'lint_js_yml', reason: 'policy-deny', message: 'x', file: TARGET_PATH }]
+    const violations = [
+      { ruleId: 'js', concernId: 'lint_js_yml', reason: 'policy-deny', message: 'x', file: TARGET_PATH }
+    ]
     expect(p.test(violations)).toBe(true)
     const res = await p.apply(violations, { cwd: dir, concernDir: CONCERN_DIR })
     expect(res.touchedFiles).toHaveLength(0)
@@ -37,7 +39,9 @@ test('бракує кроку "Eslint" → дописується, наявні 
     const existing = ['jobs:', '  eslint:', '    steps:', '      - uses: actions/checkout@v6', ''].join('\n')
     writeFileSync(join(dir, TARGET_PATH), existing, 'utf8')
     const p = patterns.find(x => x.id === 'js-lint_js_yml-template')
-    const violations = [{ ruleId: 'js', concernId: 'lint_js_yml', reason: 'policy-deny', message: 'x', file: TARGET_PATH }]
+    const violations = [
+      { ruleId: 'js', concernId: 'lint_js_yml', reason: 'policy-deny', message: 'x', file: TARGET_PATH }
+    ]
     const res = await p.apply(violations, { cwd: dir, concernDir: CONCERN_DIR })
     expect(res.touchedFiles).toHaveLength(1)
     const out = readFileSync(join(dir, TARGET_PATH), 'utf8')
