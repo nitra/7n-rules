@@ -1,0 +1,19 @@
+package.json
+  s_46fe0a80cf9489::t_8a4c6eda00b6db 25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "3f19f329350db8e21afc077bdf60352c5a546ff3",
+  "prompts": {},
+  "sessions": {
+    "s_46fe0a80cf9489": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c1a10b6-5ae2-4fcf-94b8-7b10e03ae228",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
