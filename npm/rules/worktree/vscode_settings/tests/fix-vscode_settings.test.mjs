@@ -21,7 +21,9 @@ test('канонічний вміст → idempotent (touchedFiles порожн�
     mkdirSync(join(dir, '.vscode'), { recursive: true })
     writeFileSync(join(dir, TARGET_PATH), readFileSync(SNIPPET_PATH, 'utf8'), 'utf8')
     const p = patterns.find(x => x.id === 'worktree-vscode_settings-template')
-    const violations = [{ ruleId: 'worktree', concernId: 'vscode_settings', reason: 'x', message: 'x', file: TARGET_PATH }]
+    const violations = [
+      { ruleId: 'worktree', concernId: 'vscode_settings', reason: 'x', message: 'x', file: TARGET_PATH }
+    ]
     expect(p.test(violations)).toBe(true)
     const res = await p.apply(violations, { cwd: dir, concernDir: CONCERN_DIR })
     expect(res.touchedFiles).toHaveLength(0)
@@ -37,7 +39,9 @@ describe('target є, але не обʼєкт', () => {
       mkdirSync(join(dir, '.vscode'), { recursive: true })
       writeFileSync(join(dir, TARGET_PATH), JSON.stringify({ 'editor.tabSize': 2 }, null, 2) + '\n', 'utf8')
       const p = patterns.find(x => x.id === 'worktree-vscode_settings-template')
-      const violations = [{ ruleId: 'worktree', concernId: 'vscode_settings', reason: 'x', message: 'x', file: TARGET_PATH }]
+      const violations = [
+        { ruleId: 'worktree', concernId: 'vscode_settings', reason: 'x', message: 'x', file: TARGET_PATH }
+      ]
       const res = await p.apply(violations, { cwd: dir, concernDir: CONCERN_DIR })
       expect(res.touchedFiles).toHaveLength(1)
       const written = JSON.parse(readFileSync(join(dir, TARGET_PATH), 'utf8'))
