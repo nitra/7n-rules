@@ -3,7 +3,6 @@
 ## Захищені директорії
 
 Ніколи не змінюй, не видаляй і не створюй файли у цих директоріях:
-
 - `.claude/worktrees/`
 
 @.cursor/rules/conftest.mdc
@@ -59,5 +58,5 @@
   Команда: `/n-llm-patch`
 - `.cursor/skills/n-publish-telegram/SKILL.md` — Підготовка матеріалу з поточного контексту для публікації в Telegram-каналі команди
   Команда: `/n-publish-telegram`
-- `.cursor/skills/n-taze/SKILL.md` — Оновлення версій модулів проекту з аналізом major-змін і автоматичним рефакторингом несумісного коду
+- `.cursor/skills/n-taze/SKILL.md` — Оновлення версій модулів проекту (bun/npm і, якщо є Cargo.toml, Rust-крейти через cargo-edit) з аналізом major-змін і автоматичним рефакторингом несумісного коду
   Команда: `/n-taze`

@@ -1,7 +1,7 @@
 {
   "name": "@7n/rules",
   "version": "1.2.1",
-  "description": "CLI еталонних правил і skills (префікс n-): синк у репозиторій, дельта-lint, конформність",
+  "description": "CLI \u0435\u0442\u0430\u043b\u043e\u043d\u043d\u0438\u0445 \u043f\u0440\u0430\u0432\u0438\u043b \u0456 skills (\u043f\u0440\u0435\u0444\u0456\u043a\u0441 n-): \u0441\u0438\u043d\u043a \u0443 \u0440\u0435\u043f\u043e\u0437\u0438\u0442\u043e\u0440\u0456\u0439, \u0434\u0435\u043b\u044c\u0442\u0430-lint, \u043a\u043e\u043d\u0444\u043e\u0440\u043c\u043d\u0456\u0441\u0442\u044c",
   "keywords": [
     "cli",
     "rules",
@@ -48,6 +48,13 @@
   ],
   "type": "module",
   "types": "./types/bin/n-rules.d.ts",
+  "exports": {
+    ".": "./bin/n-rules.js",
+    "./package.json": "./package.json",
+    "./scripts/*": "./scripts/*",
+    "./schemas/*": "./schemas/*",
+    "./rules/*": "./rules/*"
+  },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",

@@ -19,6 +19,7 @@ npm/tsconfig.emit-types.json
 .regal/config.yaml
 npm/scripts/lib/tests/__fixtures__/**
 npm/rules/*/*/template/**
+plugins/*/rules/*/*/template/**
 .cursor/hooks.json
 .docgen-scan.json
 npm/config/capability-matrix.json

@@ -7,5 +7,8 @@
       "required": true
     },
     "missingMessage": ".github/workflows/lint-rust.yml не існує — створи з канонічним вмістом (rust.mdc)"
+  },
+  "requires": {
+    "capability": "ci:github"
   }
 }

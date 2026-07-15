@@ -5,5 +5,8 @@
     "files": {
       "single": ".github/workflows/lint-style.yml"
     }
+  },
+  "requires": {
+    "capability": "ci:github"
   }
 }

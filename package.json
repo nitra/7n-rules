@@ -6,7 +6,9 @@
   "workspaces": [
     "npm",
     "demo",
-    "llm-lib"
+    "llm-lib",
+    "plugins/ci-github",
+    "plugins/ci-azure"
   ],
   "type": "module",
   "scripts": {
@@ -22,7 +24,7 @@
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@vitest/coverage-v8": "^4.1.9",
     "vitest": "^4.1.9",
-    "@7n/rules": "^1.2.1"
+    "@7n/rules": "^1.4.1"
   },
   "stylelint": {
     "extends": "@nitra/stylelint-config"
