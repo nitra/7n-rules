@@ -1,0 +1,143 @@
+## Vite-конфігурація: VueMacros, AutoImport, Layouts
+
+Потрібно використовувати **Vite версії 8.1 та вище** для frontend проекту на Vue.
+
+Потрібно використовувати **`unplugin-auto-import`** для автоматичного імпортування компонентів, composables, utils та інших функцій і прибирати з файлів усередині Vite проектів відповідні ручні імпорти, зокрема рядки виду `import { … } from 'vue'` — API Vue (`ref`, `computed`, `watch` тощо) мають підставлятися через auto-import, а не дублюватися явним імпортом з модуля `vue`.
+
+**Виняток — бібліотеки компонентів (`vue` у `peerDependencies`).** Увесь стек auto-import застосовується лише коли `vue` підключено як звичайну `dependencies`. Якщо ж пакет оголошує `vue` у `peerDependencies` — це проєкт-бібліотека компонентів: його джерела споживаються Vite-додатками і **не** проходять через `unplugin-auto-import` споживача. Тому до таких пакетів **не** застосовуються: заборона явних `import { ref, computed, … } from 'vue'` (вони обовʼязкові), вимога `'vue'` у `AutoImport.imports`, а також вимоги наявності `VueMacros` / `AutoImport` у `vite.config`. Решта перевірок (заборона `esbuild`, `process.env.npm_lifecycle_event` тощо) лишаються. Тригер винятку — `isVueComponentLibraryPkg` у `npm/rules/vue/packages/main.mjs`.
+
+Потрібно використовувати **`vite-plugin-vue-layouts-next`** для автоматичного імпортування layout компонентів.
+
+### Еталонний `vite.config.js`
+
+```javascript title="vite.config.js"
+import Vue from '@vitejs/plugin-vue'
+import VueMacros from 'vue-macros/vite'
+import { defineConfig } from 'vite'
+import AutoImport from 'unplugin-auto-import/vite'
+import Layouts from 'vite-plugin-vue-layouts-next'
+
+export default defineConfig({
+  plugins: [
+    AutoImport({
+      imports: [
+        // presets
+        'vue',
+        'vue-router',
+        'quasar',
+        'pinia',
+        // custom
+        {
+          '@nitra/vite-boot/apollo': [
+            // named imports
+            'gql',
+            'useQuery',
+            'useMutation',
+            'useSubscription'
+          ],
+          '@nitra/consola': [
+            // named imports
+            'createLogger' // import { createLogger } from '@nitra/consola'
+          ]
+        }
+      ]
+    }),
+    VueMacros({
+      plugins: {
+        vue: Vue()
+      }
+    }),
+    Layouts()
+  ]
+})
+```
+
+### Перевірка `npm_lifecycle_event` (Bun-сумісність)
+
+У більшості проектів у файлі `vite.config.js` є конструкція виду:
+
+```javascript
+switch (process.env.npm_lifecycle_event) {
+  case 'start-remote-tr': {
+```
+
+Вона перестала працювати з новим Bun. Тепер її треба обрамити у функцію і передавати `mode`:
+
+```javascript title="vite.config.js"
+function getProxy(mode) {
+  const proxy = {}
+
+  switch (mode) {
+    case 'remote-tr': {
+      proxy['^/auth/.*'] = 'https://tr.efes.cloud'
+      proxy['/file-link/'] = 'https://tr.efes.cloud'
+      break
+    }
+    default: {
+      proxy['^/auth/.*'] = 'https://dev.efes.cloud'
+      proxy['/file-link/'] = 'https://dev.efes.cloud'
+    }
+  }
+  return proxy
+}
+```
+
+```javascript title="vite.config.js"
+export default defineConfig(({ mode, command }) => {
+  // ...
+  server: {
+    proxy: getProxy(mode)
+  }
+})
+```
+
+### CSS-трансформер: lightningcss (обов'язково)
+
+У `vite.config` має бути `css: { transformer: 'lightningcss' }`:
+
+```javascript title="vite.config.js"
+export default defineConfig({
+  css: {
+    transformer: 'lightningcss'
+  },
+  // ...
+})
+```
+
+Lightningcss ~18% швидше за sass-трансформер на типовому Vue+Quasar-проєкті. Потрібний `lightningcss` у `devDependencies`.
+
+**Виняток:** бібліотеки компонентів (`vue` у `peerDependencies`) від цієї вимоги звільнені — вони не збираються напряму.
+
+### esbuild заборонено
+
+У проєкті не має бути залежності `esbuild` і згадок `esbuild` у конфігах/коді. Якщо десь є налаштування або інструкції під `esbuild` — заміни на **rolldown**.
+
+### Еталонний `package.json`
+
+мінімальний повний `package.json` для Vite + Vue + `vue-macros` (версії підлаштуй під проєкт):
+
+```json title="package.json"
+{
+  "name": "my-vue-app",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "vue": "^3.6.12"
+  },
+  "devDependencies": {
+    "vite": "^8.1.0",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "vue-macros": "^3.1.2"
+  }
+}
+```
+
+### VS Code розширення
+
+У файлі `.vscode/extensions.json` потрібна рекомендація для Vue:
+
+```json title=".vscode/extensions.json"
+{
+  "recommendations": ["Vue.volar"]
+}
+```

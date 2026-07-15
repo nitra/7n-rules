@@ -1,0 +1,26 @@
+## Заборона явних value-імпортів з `vue`
+
+Потрібно використовувати `unplugin-auto-import` для автоматичного імпортування Vue API. Коли `'vue'` додано до `AutoImport.imports` у `vite.config`, явні value-імпорти вигляду `import { ref, computed } from 'vue'` у файлах додатка **заборонені** — API Vue підставляється автоматично.
+
+Дозволені лише:
+
+- side-effect: `import 'vue'`
+- type-only: `import type { … } from 'vue'` або `import { type Foo } from 'vue'`
+
+```vue
+<!-- ❌ заборонено (auto-import покриває) -->
+<script setup>
+import { ref, computed, watch, onMounted } from 'vue'
+</script>
+
+<!-- ✅ дозволено — не потрібен ручний імпорт -->
+<script setup>
+const count = $ref(0)
+const doubled = $computed(() => count * 2)
+onMounted(() => { /* ... */ })
+</script>
+```
+
+**Виняток:** бібліотеки компонентів (`vue` у `peerDependencies`) — їхні джерела не проходять через `unplugin-auto-import` споживача, тому явні `import { ref } from 'vue'` там обовʼязкові. Визначається через `isVueComponentLibraryPkg` у `npm/rules/vue/packages/main.mjs`.
+
+Перевірка виконується через **oxc-parser** (`module.staticImports`) у `npm/rules/vue/lib/vue-forbidden-imports.mjs`, функція `findForbiddenVueImportsInSourceFile`. Для `.vue` — лише вміст `<script>` тегів, `<template>` ігнорується.

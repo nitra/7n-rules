@@ -1,0 +1,26 @@
+## @nitra/tfm — переклади
+
+Використовуй `@nitra/tfm` для всіх текстів. Переклади для всіх мов проекту оголошуй наприкінці `<script setup>` у функції `getTr()`. Змінна `lang` із `@nitra/tfm` — для визначення або зміни поточної мови застосунку.
+
+```vue
+<template>
+  {{ lang }}
+  {{ t`Анкеты` }}
+  {{ subtitle }}
+</template>
+<script setup>
+import { lang, tf as tfm } from '@nitra/tfm'
+const t = tfm.bind({ tr: getTr() })
+const subtitle = $computed(() => t`Анкеты`)
+
+/**
+ * LOCALIZATION
+ * @returns {object} translations
+ */
+function getTr() {
+  return {
+    Анкеты: { en: 'Surveys', ro: 'Sondaje', tr: 'Anketler' }
+  }
+}
+</script>
+```
