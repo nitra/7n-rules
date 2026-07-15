@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.2] - 2026-07-15
+
+### Fixed
+
+- template-deep-merge: eslint (cognitive-complexity, no-negated-array-predicate) і cspell-фікси після PR #66
+
 ## [1.3.1] - 2026-07-14
 
 ### Changed
