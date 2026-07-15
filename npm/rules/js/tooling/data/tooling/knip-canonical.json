@@ -1,6 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "entry": [
+    ".pi/extensions/**/*.ts",
     "eslint.config.{js,mjs,cjs}",
     "stylelint.config.{js,cjs,mjs}",
     "oxlint.config.{js,mjs}",
