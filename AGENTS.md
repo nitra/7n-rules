@@ -19,6 +19,7 @@ The primary development rules are stored in the Cursor rules directory:
 - .cursor/rules/n-ga.mdc
 - .cursor/rules/n-js-run.mdc
 - .cursor/rules/n-js.mdc
+- .cursor/rules/n-local-ai.mdc
 - .cursor/rules/n-npm-module.mdc
 - .cursor/rules/n-python.mdc
 - .cursor/rules/n-rego.mdc

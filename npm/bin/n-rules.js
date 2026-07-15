@@ -1458,6 +1458,7 @@ async function runSync() {
       }
       if (result.gitignoreAdr) parts.push('.gitignore (adr fragment)')
       if (result.piExtension) parts.push('.pi/extensions/n-rules-adr/')
+      if (result.rtkPiExtension) parts.push('.pi/extensions/rtk.ts')
       if (parts.length > 0) {
         console.log(`🤖 Claude-конфіг: ${parts.join(', ')}`)
       }

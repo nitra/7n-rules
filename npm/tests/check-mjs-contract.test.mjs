@@ -47,8 +47,8 @@ async function listConcerns(ruleDir) {
 }
 
 describe('concern contract — усі правила', () => {
-  test('36 правил знайдено', () => {
-    expect(ruleIds.length).toBe(36)
+  test('37 правил знайдено', () => {
+    expect(ruleIds.length).toBe(37)
   })
 
   for (const id of ruleIds) {
