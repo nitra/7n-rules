@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.0] - 2026-07-15
+
+### Added
+
+- Нове правило `local-ai` (auto: завжди): інтеграція rtk (Rust Token Killer) для стискання виводу CLI-команд агентів. Sync вставляє fail-open PreToolUse hook у `.claude/settings.json` (`rtk hook claude`), preToolUse у `.cursor/hooks.json` (`rtk hook cursor`) та vendored pi-extension `.pi/extensions/rtk.ts`; від користувача потрібен лише `brew install rtk-ai/tap/rtk`. Вимкнення — `disable-rules: ["local-ai"]`.
+
 ## [1.3.2] - 2026-07-15
 
 ### Fixed
