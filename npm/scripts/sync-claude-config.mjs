@@ -18,7 +18,13 @@
  * - `.claude/hooks/normalize-decisions.sh` — fully owned bash-скрипт ADR normalize
  *   Stop-hook (батч-нормалізація чернеток); умови — ті самі, що для `capture`.
  * - `.cursor/hooks.json` — **merge**: користувацькі hooks зберігаються; ADR stop
- *   entries додаються, коли правило `adr` увімкнене, і видаляються, коли вимкнене.
+ *   entries додаються, коли правило `adr` увімкнене, і видаляються, коли вимкнене;
+ *   rtk preToolUse entry — аналогічно за правилом `local-ai`.
+ * - rtk (правило `local-ai`) — fail-open інтеграція компресора виводу CLI-команд:
+ *   PreToolUse hook у `.claude/settings.json` (`rtk hook claude`), preToolUse у
+ *   `.cursor/hooks.json` (`rtk hook cursor`) і vendored pi-extension
+ *   `.pi/extensions/rtk.ts`. Без установленого rtk hooks мовчки пропускають команди,
+ *   тож конфіг безпечно потрапляє в git — установка зводиться до `brew install rtk-ai/tap/rtk`.
  * - `.gitignore` — **merge** (лише з `adr`): дописує відсутні рядки з канонічного
  *   фрагмента `rules/adr/js/hooks/template/.gitignore.snippet` (`node_modules/`, `dist/`,
  *   `*.secret`, логи capture/normalize, `.normalize-state`, `.normalize.lock`,
@@ -52,6 +58,10 @@ export const ADR_NORMALIZE_HOOK_COMMAND_MARKER = '.claude/hooks/normalize-decisi
 export const CURSOR_ADR_HOOK_COMMAND_MARKER = '.claude/hooks/capture-decisions.sh'
 /** Маркер Cursor ADR Normalize Stop-hook'а — той самий script path, але в `.cursor/hooks.json`. */
 export const CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER = '.claude/hooks/normalize-decisions.sh'
+/** Маркер rtk PreToolUse hook'а у `.claude/settings.json` (правило `local-ai`). */
+export const RTK_CLAUDE_HOOK_COMMAND_MARKER = 'rtk hook claude'
+/** Маркер rtk preToolUse hook'а у `.cursor/hooks.json` (правило `local-ai`). */
+export const RTK_CURSOR_HOOK_COMMAND_MARKER = 'rtk hook cursor'
 /**
  * Усі маркери managed-hook'ів пакета — за ними відрізняємо свої записи від користувацьких.
  * Legacy stop-hook включений сюди, щоб старі entries автоматично видалялись при наступному sync-у.
@@ -65,7 +75,8 @@ export const MANAGED_HOOK_COMMAND_MARKERS = Object.freeze([
   LEGACY_DOC_FILES_HOOK_COMMAND_MARKER,
   LEGACY_STOP_HOOK_COMMAND_MARKER,
   ADR_HOOK_COMMAND_MARKER,
-  ADR_NORMALIZE_HOOK_COMMAND_MARKER
+  ADR_NORMALIZE_HOOK_COMMAND_MARKER,
+  RTK_CLAUDE_HOOK_COMMAND_MARKER
 ])
 
 const CLAUDE_DIR = '.claude'
@@ -130,6 +141,32 @@ const CURSOR_ADR_STOP_HOOK = Object.freeze({
   timeout: 180
 })
 
+/**
+ * Канонічна група hooks для rtk PreToolUse (правило `local-ai`): переписує Bash-команди
+ * на rtk-еквіваленти. Fail-open guard: без установленого rtk — `exit 0` без виводу,
+ * Claude Code виконує команду без змін.
+ */
+const RTK_PRE_TOOL_USE_HOOK_GROUP = Object.freeze({
+  matcher: 'Bash',
+  hooks: Object.freeze([
+    Object.freeze({
+      type: 'command',
+      command: `command -v rtk >/dev/null 2>&1 && exec ${RTK_CLAUDE_HOOK_COMMAND_MARKER}; exit 0`,
+      timeout: 30
+    })
+  ])
+})
+
+/**
+ * Канонічний Cursor preToolUse hook для rtk (правило `local-ai`). Cursor вимагає JSON-вивід
+ * на всіх code path — без установленого rtk відповідаємо `{}` (passthrough).
+ */
+const CURSOR_RTK_PRE_TOOL_USE_HOOK = Object.freeze({
+  command: `bash -lc 'command -v rtk >/dev/null 2>&1 && exec ${RTK_CURSOR_HOOK_COMMAND_MARKER}; echo "{}"'`,
+  matcher: 'Shell',
+  timeout: 30
+})
+
 /** Канонічний Cursor stop-hook для ADR normalize. */
 const CURSOR_ADR_NORMALIZE_STOP_HOOK = Object.freeze({
   command: [
@@ -188,13 +225,13 @@ function isManagedHookGroup(group) {
 /**
  * Чи Cursor hook entry належить пакету `@7n/rules`.
  * @param {CursorHookEntry} entry один entry з `.cursor/hooks.json`
- * @returns {boolean} `true`, якщо command містить managed ADR marker
+ * @returns {boolean} `true`, якщо command містить managed ADR або rtk marker
  */
 function isManagedCursorHookEntry(entry) {
   return (
     typeof entry?.command === 'string' &&
-    [CURSOR_ADR_HOOK_COMMAND_MARKER, CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER].some(marker =>
-      entry.command.includes(marker)
+    [CURSOR_ADR_HOOK_COMMAND_MARKER, CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER, RTK_CURSOR_HOOK_COMMAND_MARKER].some(
+      marker => entry.command.includes(marker)
     )
   )
 }
@@ -269,15 +306,35 @@ function templateWithAdrHook(template) {
 }
 
 /**
+ * Будує копію темплейту із додатковою rtk PreToolUse hook-групою (правило `local-ai`).
+ * Темплейт залишається незмінним; повертається новий об'єкт з доданою групою.
+ * @param {ClaudeSettings} template вихідний темплейт із `.claude-template/settings.template.json`
+ * @returns {ClaudeSettings} копія з доданою rtk-групою у `hooks.PreToolUse`
+ */
+function templateWithRtkHook(template) {
+  /** @type {Record<string, HookGroup[]>} */
+  const hooks = {}
+  for (const [event, groups] of Object.entries(template.hooks ?? {})) {
+    hooks[event] = Array.isArray(groups) ? [...groups] : []
+  }
+  hooks.PreToolUse = [...(hooks.PreToolUse ?? []), /** @type {HookGroup} */ (RTK_PRE_TOOL_USE_HOOK_GROUP)]
+  return { ...template, hooks }
+}
+
+/**
  * Повертає об'єднаний об'єкт settings.json.
  * @param {ClaudeSettings | undefined} existing існуючий вміст `.claude/settings.json` користувача (або undefined, якщо файла нема)
  * @param {ClaudeSettings} template settings із темплейту пакета `@7n/rules`
  * @param {object} [options] опції merge-у
  * @param {boolean} [options.includeAdrHook] чи додати ADR Stop-hook групу до managed-hooks (коли в `.n-rules.json` `rules` присутнє `adr`)
+ * @param {boolean} [options.includeLocalAiHook] чи додати rtk PreToolUse-групу (коли в `.n-rules.json` `rules` присутнє `local-ai`)
  * @returns {ClaudeSettings} результат merge-у (користувацькі поля збережено, наші перевизначено)
  */
 export function mergeSettings(existing, template, options = {}) {
-  const effectiveTemplate = options.includeAdrHook ? templateWithAdrHook(template) : template
+  let effectiveTemplate = options.includeAdrHook ? templateWithAdrHook(template) : template
+  if (options.includeLocalAiHook) {
+    effectiveTemplate = templateWithRtkHook(effectiveTemplate)
+  }
   /** @type {ClaudeSettings} */
   const merged = { ...existing }
   const mergedAllow = mergeAllowList(existing?.permissions?.allow, effectiveTemplate.permissions?.allow)
@@ -295,10 +352,12 @@ export function mergeSettings(existing, template, options = {}) {
 
 /**
  * Зливає `.cursor/hooks.json`: користувацькі entries зберігаються, managed ADR
- * entries у `hooks.stop` перезаписуються або видаляються залежно від `includeAdrHook`.
+ * entries у `hooks.stop` перезаписуються або видаляються залежно від `includeAdrHook`;
+ * managed rtk entry у `hooks.preToolUse` — залежно від `includeLocalAiHook`.
  * @param {CursorHooksConfig | undefined} existing поточний Cursor hooks config
  * @param {object} [options] опції merge-у
  * @param {boolean} [options.includeAdrHook] чи додати ADR stop entries
+ * @param {boolean} [options.includeLocalAiHook] чи додати rtk preToolUse entry
  * @returns {CursorHooksConfig} результат злиття
  */
 export function mergeCursorHooksConfig(existing, options = {}) {
@@ -320,6 +379,15 @@ export function mergeCursorHooksConfig(existing, options = {}) {
     hooks.stop = stop
   } else {
     delete hooks.stop
+  }
+  const preToolUse = (hooks.preToolUse ?? []).filter(entry => !isManagedCursorHookEntry(entry))
+  if (options.includeLocalAiHook) {
+    preToolUse.push(/** @type {CursorHookEntry} */ (CURSOR_RTK_PRE_TOOL_USE_HOOK))
+  }
+  if (preToolUse.length > 0) {
+    hooks.preToolUse = preToolUse
+  } else {
+    delete hooks.preToolUse
   }
   merged.version = typeof merged.version === 'number' ? merged.version : 1
   if (Object.keys(hooks).length > 0) {
@@ -347,17 +415,18 @@ async function readJsonOrUndefined(path) {
 }
 
 /**
- * Синхронізує `.cursor/hooks.json` для Cursor Agent stop-hooks. Cursor читає
- * project-level config з `.cursor/hooks.json`; hook scripts лишаються спільними
- * з Claude Code у `.claude/hooks/`.
+ * Синхронізує `.cursor/hooks.json` для Cursor Agent hooks (ADR stop + rtk preToolUse).
+ * Cursor читає project-level config з `.cursor/hooks.json`; hook scripts лишаються
+ * спільними з Claude Code у `.claude/hooks/`.
  * @param {string} projectRoot корінь проєкту, куди писати
  * @param {object} [options] опції merge-у
  * @param {boolean} [options.includeAdrHook] чи додавати ADR stop-hook entries
+ * @param {boolean} [options.includeLocalAiHook] чи додавати rtk preToolUse entry
  * @returns {Promise<{ written: boolean, path: string }>} результат: чи писали файл, та його відносний шлях
  */
 export async function syncCursorHooksConfig(projectRoot, options = {}) {
   const hooksPath = join(projectRoot, CURSOR_HOOKS_FILE)
-  if (!options.includeAdrHook && !existsSync(hooksPath)) {
+  if (!options.includeAdrHook && !options.includeLocalAiHook && !existsSync(hooksPath)) {
     return { written: false, path: '' }
   }
   const existing = /** @type {CursorHooksConfig | undefined} */ (await readJsonOrUndefined(hooksPath))
@@ -539,6 +608,44 @@ export async function removeOrphanPiExtension(projectRoot) {
   return { removed: true, path: `${PI_EXTENSIONS_DIR}/${PI_EXTENSION_NAME}` }
 }
 
+/** Ім'я файлу rtk pi-extension — той самий шлях, що пише `rtk init --agent pi` (повторна установка ідемпотентна). */
+export const RTK_PI_EXTENSION_FILE = 'rtk.ts'
+
+/**
+ * Копіює vendored rtk pi-extension `npm/.pi-template/extensions/rtk.ts` у
+ * `.pi/extensions/rtk.ts` проєкту-споживача (правило `local-ai`). Файл fully-owned:
+ * при кожному sync-у перезаписується. Якщо bundled template відсутній — `{written: false}`.
+ * @param {string} projectRoot корінь проєкту-споживача
+ * @param {string} bundledPackageRoot корінь установленого `@7n/rules` (із `.pi-template/`)
+ * @returns {Promise<{ written: boolean, path: string }>} чи писали та відносний шлях файла
+ */
+export async function syncRtkPiExtension(projectRoot, bundledPackageRoot) {
+  const srcPath = join(bundledPackageRoot, PI_TEMPLATE_DIR_NAME, 'extensions', RTK_PI_EXTENSION_FILE)
+  if (!existsSync(srcPath)) {
+    return { written: false, path: '' }
+  }
+  const destDir = join(projectRoot, PI_EXTENSIONS_DIR)
+  await mkdir(destDir, { recursive: true })
+  await writeFile(join(destDir, RTK_PI_EXTENSION_FILE), await readFile(srcPath, 'utf8'), 'utf8')
+  return { written: true, path: `${PI_EXTENSIONS_DIR}/${RTK_PI_EXTENSION_FILE}` }
+}
+
+/**
+ * Видаляє `.pi/extensions/rtk.ts` з проєкту-споживача. Викликається, коли правило
+ * `local-ai` вимкнено у `.n-rules.json` (симетрично до cleanup-у hook-записів).
+ * Шлях спільний з `rtk init --agent pi`, тож прибереться і встановлений вручну файл.
+ * @param {string} projectRoot корінь проєкту-споживача
+ * @returns {Promise<{ removed: boolean, path: string }>} чи було щось видалено та відносний шлях
+ */
+export async function removeOrphanRtkPiExtension(projectRoot) {
+  const extPath = join(projectRoot, PI_EXTENSIONS_DIR, RTK_PI_EXTENSION_FILE)
+  if (!existsSync(extPath)) {
+    return { removed: false, path: '' }
+  }
+  await rm(extPath, { force: true })
+  return { removed: true, path: `${PI_EXTENSIONS_DIR}/${RTK_PI_EXTENSION_FILE}` }
+}
+
 /**
  * Повертає змістовні (не коментар, не порожній) рядки з text-фрагмента `.gitignore`.
  * @param {string} raw вміст snippet-файлу
@@ -627,36 +734,30 @@ export async function syncClaudeCommands(projectRoot, templateDir) {
  * @param {string} options.projectRoot корінь проєкту-споживача
  * @param {string} options.bundledPackageRoot корінь установленого `@7n/rules`
  * @param {boolean} options.enabled чи увімкнено sync (з `.n-rules.json` `claude-config`)
- * @param {string[]} [options.rules] список увімкнених правил із `.n-rules.json` — впливає на ADR Stop-hook (`adr`)
- * @returns {Promise<{ settings: boolean, cursorHooks: boolean, commands: string[], adrHook: boolean, adrNormalizeHook: boolean, adrHookLib: string[], gitignoreAdr: boolean, piExtension: boolean }>} прапорці записів settings/Cursor hooks/ADR-hook(s)/`.gitignore`/pi-extension, перелік lib-файлів і список slash-команд
+ * @param {string[]} [options.rules] список увімкнених правил із `.n-rules.json` — впливає на ADR Stop-hook (`adr`) і rtk hooks (`local-ai`)
+ * @returns {Promise<{ settings: boolean, cursorHooks: boolean, commands: string[], adrHook: boolean, adrNormalizeHook: boolean, adrHookLib: string[], gitignoreAdr: boolean, piExtension: boolean, rtkPiExtension: boolean }>} прапорці записів settings/Cursor hooks/ADR-hook(s)/`.gitignore`/pi-extension(s), перелік lib-файлів і список slash-команд
  */
 export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enabled, rules = [] }) {
+  const noop = {
+    settings: false,
+    cursorHooks: false,
+    commands: [],
+    adrHook: false,
+    adrNormalizeHook: false,
+    adrHookLib: [],
+    gitignoreAdr: false,
+    piExtension: false,
+    rtkPiExtension: false
+  }
   if (!enabled) {
-    return {
-      settings: false,
-      cursorHooks: false,
-      commands: [],
-      adrHook: false,
-      adrNormalizeHook: false,
-      adrHookLib: [],
-      gitignoreAdr: false,
-      piExtension: false
-    }
+    return noop
   }
   const templateDir = join(bundledPackageRoot, TEMPLATE_DIR_NAME)
   if (!existsSync(templateDir)) {
-    return {
-      settings: false,
-      cursorHooks: false,
-      commands: [],
-      adrHook: false,
-      adrNormalizeHook: false,
-      adrHookLib: [],
-      gitignoreAdr: false,
-      piExtension: false
-    }
+    return noop
   }
   const includeAdrHook = Array.isArray(rules) && rules.includes('adr')
+  const includeLocalAiHook = Array.isArray(rules) && rules.includes('local-ai')
   const adrHook = includeAdrHook ? await syncAdrHookScript(projectRoot, templateDir) : { written: false, path: '' }
   const adrNormalizeHook = includeAdrHook
     ? await syncAdrNormalizeHookScript(projectRoot, templateDir)
@@ -676,8 +777,15 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
     const removed = await removeOrphanPiExtension(projectRoot)
     piExtension = { written: false, path: removed.path }
   }
-  const settings = await syncClaudeSettings(projectRoot, templateDir, { includeAdrHook })
-  const cursorHooks = await syncCursorHooksConfig(projectRoot, { includeAdrHook })
+  let rtkPiExtension
+  if (includeLocalAiHook) {
+    rtkPiExtension = await syncRtkPiExtension(projectRoot, bundledPackageRoot)
+  } else {
+    const removed = await removeOrphanRtkPiExtension(projectRoot)
+    rtkPiExtension = { written: false, path: removed.path }
+  }
+  const settings = await syncClaudeSettings(projectRoot, templateDir, { includeAdrHook, includeLocalAiHook })
+  const cursorHooks = await syncCursorHooksConfig(projectRoot, { includeAdrHook, includeLocalAiHook })
   const commands = await syncClaudeCommands(projectRoot, templateDir)
   return {
     settings: settings.written,
@@ -687,6 +795,7 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
     adrNormalizeHook: adrNormalizeHook.written,
     adrHookLib: adrHookLibEntries.map(e => e.path),
     gitignoreAdr: gitignoreAdr.written,
-    piExtension: piExtension.written
+    piExtension: piExtension.written,
+    rtkPiExtension: rtkPiExtension.written
   }
 }
