@@ -17,6 +17,7 @@ import picomatch from 'picomatch'
 import { listConcerns } from '../concern-meta.mjs'
 import { collectChangedFilesSince, resolveChangedBase } from '../changed-files.mjs'
 import { readNRulesConfigLite, isRuleEnabled } from '../read-n-rules-config-lite.mjs'
+import { getActiveCapabilities, resolvePlugins } from '../resolve-plugins.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
 import { renderViolations, renderDiagnostics } from './render.mjs'
 import { createProgressReporter } from './progress.mjs'
@@ -84,6 +85,71 @@ async function readLintConcernsByRule(rulesDir) {
 }
 
 /**
+ * Rules-каталоги прогону: явний `opts.rulesDirs`, або базовий (`opts.rulesDir` ?? вбудований)
+ * плюс каталоги плагінів з `.n-rules.json` (hot-path: без install і без warning-шуму).
+ * @param {{ rulesDirs?: string[], rulesDir?: string, cwd: string }} opts опції прогону.
+ * @returns {Promise<string[]>} упорядковані rules-каталоги (ядро перше).
+ */
+async function effectiveRulesDirs(opts) {
+  if (Array.isArray(opts.rulesDirs) && opts.rulesDirs.length > 0) return opts.rulesDirs
+  const base = opts.rulesDir ?? DEFAULT_RULES_DIR
+  const config = await readNRulesConfigLite(opts.cwd)
+  const plugins = resolvePlugins(opts.cwd, { plugins: config.plugins }, { allowInstall: false, quiet: true })
+  return [base, ...plugins.map(p => p.rulesDir)]
+}
+
+/**
+ * Відкидає концерни з незадоволеним `requires.capability`: capability надають
+ * встановлені плагіни (маніфест `n-rules.capabilities`). Явний `opts.capabilities`
+ * (тести) перекриває резолв.
+ * @param {Record<string, ConcernMeta[]>} byRule concerns за rule-id.
+ * @param {{ capabilities?: Iterable<string>, cwd: string }} opts опції прогону.
+ * @returns {Promise<Record<string, ConcernMeta[]>>} відфільтровані concerns.
+ */
+async function filterByCapabilities(byRule, opts) {
+  let caps
+  if (opts.capabilities) {
+    caps = new Set(opts.capabilities)
+  } else {
+    const config = await readNRulesConfigLite(opts.cwd)
+    caps = getActiveCapabilities(opts.cwd, { plugins: config.plugins }, { allowInstall: false, quiet: true })
+  }
+  /** @type {Record<string, ConcernMeta[]>} */
+  const out = {}
+  for (const [ruleId, concerns] of Object.entries(byRule)) {
+    const kept = concerns.filter(c => c.requiresCapability === undefined || caps.has(c.requiresCapability))
+    if (kept.length > 0) out[ruleId] = kept
+  }
+  return out
+}
+
+/**
+ * Мердж concerns кількох rules-каталогів: правила зливаються за id, концерни — за іменем
+ * (перший власник виграє: ядро → плагіни у порядку списку). Плагін може ДОДАВАТИ концерни
+ * до правила ядра (mixin), але не перекривати наявні.
+ * @param {string[]} rulesDirs упорядковані rules-каталоги.
+ * @returns {Promise<Record<string, ConcernMeta[]>>} об'єднані concerns за rule-id.
+ */
+async function readLintConcernsByRuleMulti(rulesDirs) {
+  /** @type {Record<string, ConcernMeta[]>} */
+  const merged = {}
+  for (const dir of rulesDirs) {
+    const byRule = await readLintConcernsByRule(dir)
+    for (const [ruleId, concerns] of Object.entries(byRule)) {
+      if (!(ruleId in merged)) {
+        merged[ruleId] = [...concerns]
+        continue
+      }
+      const seen = new Set(merged[ruleId].map(c => c.name))
+      for (const c of concerns) {
+        if (!seen.has(c.name)) merged[ruleId].push(c)
+      }
+    }
+  }
+  return merged
+}
+
+/**
  * Активні rule-id з `.n-rules.json` (для delta/full режимів).
  * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
  * @param {string} cwd робоча директорія прогону.
@@ -111,7 +177,8 @@ function sortEntries(entries) {
  * Будує план прогону для заданих опцій (discovery + scope-table).
  * Спільне джерело для detect-only і fix-pipeline.
  * @param {object} opts опції прогону.
- * @param {string} opts.rulesDir корінь із правилами.
+ * @param {string} [opts.rulesDir] базовий корінь із правилами (дефолт — вбудований).
+ * @param {string[]} [opts.rulesDirs] явні rules-каталоги (ядро + плагіни); без них — базовий + плагіни з конфігу.
  * @param {string} opts.cwd робоча директорія прогону.
  * @param {boolean} [opts.full] whole-repo режим (усі enabled-concerns).
  * @param {string[]} [opts.rules] scoped rule-id (порожній → delta/full).
@@ -119,7 +186,7 @@ function sortEntries(entries) {
  * @returns {Promise<PlanItem[]>} впорядкований план прогону.
  */
 export async function buildDetectPlan(opts) {
-  const byRule = await readLintConcernsByRule(opts.rulesDir ?? DEFAULT_RULES_DIR)
+  const byRule = await filterByCapabilities(await readLintConcernsByRuleMulti(await effectiveRulesDirs(opts)), opts)
   return buildPlan({
     byRule,
     full: opts.full === true,
@@ -231,7 +298,8 @@ async function buildPlan({ byRule, full, rules, explicitFiles, cwd }) {
 /**
  * Запускає detect-only прохід. Повертає всі violations і похідний exitCode.
  * @param {object} opts опції прогону.
- * @param {string} opts.rulesDir корінь із правилами.
+ * @param {string} [opts.rulesDir] базовий корінь із правилами (дефолт — вбудований).
+ * @param {string[]} [opts.rulesDirs] явні rules-каталоги (ядро + плагіни); без них — базовий + плагіни з конфігу.
  * @param {string} opts.cwd робоча директорія прогону.
  * @param {boolean} [opts.full] whole-repo режим.
  * @param {string[]} [opts.rules] scoped rule-id (порожній → delta/full).
@@ -243,7 +311,6 @@ async function buildPlan({ byRule, full, rules, explicitFiles, cwd }) {
  * @returns {Promise<{ violations: LintViolation[], exitCode: 0|1|2, ran: LintEntry[] }>} violations, exitCode і виконані entries.
  */
 export async function detectAll(opts) {
-  const rulesDir = opts.rulesDir ?? DEFAULT_RULES_DIR
   const { cwd } = opts
   const full = opts.full === true
   const rules = Array.isArray(opts.rules) ? opts.rules : []
@@ -251,7 +318,7 @@ export async function detectAll(opts) {
   const verbose = opts.verbose === true
   const baseLog = opts.log ?? (s => process.stdout.write(s))
 
-  const byRule = await readLintConcernsByRule(rulesDir)
+  const byRule = await filterByCapabilities(await readLintConcernsByRuleMulti(await effectiveRulesDirs(opts)), opts)
   const plan = await buildPlan({ byRule, full, rules, explicitFiles, cwd })
 
   // Detect-only бар — ЛИШЕ в TTY (без тикера «виправлено»). У не-TTY (hooks, CI-gate,

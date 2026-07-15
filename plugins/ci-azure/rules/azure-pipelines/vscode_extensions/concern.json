@@ -1,0 +1,11 @@
+{
+  "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
+  "fixability": "config",
+  "policy": {
+    "files": {
+      "single": ".vscode/extensions.json",
+      "required": true
+    },
+    "missingMessage": ".vscode/extensions.json не існує — додай ms-azure-devops.azure-pipelines (azure-pipelines.mdc)"
+  }
+}

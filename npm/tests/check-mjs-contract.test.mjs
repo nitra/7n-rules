@@ -47,8 +47,8 @@ async function listConcerns(ruleDir) {
 }
 
 describe('concern contract — усі правила', () => {
-  test('37 правил знайдено', () => {
-    expect(ruleIds.length).toBe(37)
+  test('36 правил знайдено (ga → плагін @7n/rules-ci-github)', () => {
+    expect(ruleIds.length).toBe(36)
   })
 
   for (const id of ruleIds) {

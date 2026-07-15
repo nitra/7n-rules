@@ -4,5 +4,8 @@
     "files": {
       "single": ".github/workflows/lint-text.yml"
     }
+  },
+  "requires": {
+    "capability": "ci:github"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules",
-  "version": "1.3.2",
+  "version": "1.4.1",
   "description": "CLI еталонних правил і skills (префікс n-): синк у репозиторій, дельта-lint, конформність",
   "keywords": [
     "cli",
@@ -48,6 +48,13 @@
   ],
   "type": "module",
   "types": "./types/bin/n-rules.d.ts",
+  "exports": {
+    ".": "./bin/n-rules.js",
+    "./package.json": "./package.json",
+    "./scripts/*": "./scripts/*",
+    "./schemas/*": "./schemas/*",
+    "./rules/*": "./rules/*"
+  },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",

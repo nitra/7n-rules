@@ -101,11 +101,12 @@ async function readPackageVersionSafe(packageRoot) {
 /**
  * Шлях до встановленого пакета в `node_modules` або fallback.
  * @param {string} projectRoot корінь репозиторію
- * @param {string} fallbackPackageRoot корінь пакету з поточного процесу
- * @returns {string} абсолютний шлях до каталогу з `mdc/`, `scripts/` тощо
+ * @param {string} fallbackPackageRoot корінь пакету з поточного процесу (`null` для плагінів — fallback-кореня нема)
+ * @param {string} [packageName] npm-ім'я пакета (за замовчуванням ядро `@7n/rules`; плагіни передають своє)
+ * @returns {string | null} абсолютний шлях до каталогу з `rules/`, `scripts/` тощо, або `fallbackPackageRoot`
  */
-export function resolveInstalledPackageRoot(projectRoot, fallbackPackageRoot) {
-  const installed = join(projectRoot, 'node_modules', PACKAGE_NAME)
+export function resolveInstalledPackageRoot(projectRoot, fallbackPackageRoot, packageName = PACKAGE_NAME) {
+  const installed = join(projectRoot, 'node_modules', packageName)
   if (existsSync(join(installed, 'package.json'))) {
     return installed
   }

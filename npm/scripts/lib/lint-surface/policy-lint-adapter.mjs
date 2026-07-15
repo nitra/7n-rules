@@ -92,6 +92,8 @@ export async function evaluatePolicyConcern(ctx, cfg) {
   const templateData = await resolveConcernTemplateData(cfg.policyDir, { files: cfg.files })
   const denies = runConftestBatch({
     policyDirRel: `${ruleId}/${concernId}`,
+    // Абсолютний шлях теки concern-а — правило може жити поза вбудованим rules/ ядра (плагін).
+    policyDirAbs: cfg.policyDir,
     namespace,
     files,
     templateData

@@ -10,6 +10,8 @@
     "irongeek.vscode-env",
     "Vue.volar",
     "stylelint.vscode-stylelint",
-    "tsandall.opa"
+    "tsandall.opa",
+    "rust-lang.rust-analyzer",
+    "tamasfe.even-better-toml"
   ]
 }
