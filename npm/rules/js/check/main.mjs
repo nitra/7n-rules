@@ -285,7 +285,7 @@ async function checkKnipConfig(passFn, failFn, cwd) {
     return
   }
   await copyFile(KNIP_CANONICAL_JSON_PATH, knipPath)
-  passFn('knip.json створено з канонічного npm/rules/js/js/data/tooling/knip-canonical.json (js.mdc)')
+  passFn('knip.json створено з канонічного npm/rules/js/tooling/data/tooling/knip-canonical.json (js.mdc)')
 }
 
 /**
