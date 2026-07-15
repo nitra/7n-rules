@@ -1,0 +1,34 @@
+.cspell.json
+  s_289200e0021bd9::t_d2f37c6783d9ac 118-121,127-128,136-139,297,310,381
+  s_b7416a4f972067::t_a6641b68a5ace4 188
+  s_b7416a4f972067::t_0bd274ba1510ce 298
+  s_b7416a4f972067::t_ca86d7371895a8 317
+npm/scripts/lib/acp-runner.mjs
+  s_289200e0021bd9::t_d2f37c6783d9ac 139
+npm/scripts/tests/acp-runner.test.mjs
+  s_289200e0021bd9::t_d2f37c6783d9ac 8-13,129-142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "390a483136ae87540b65f8189f5878597a6aa7e7",
+  "prompts": {},
+  "sessions": {
+    "s_289200e0021bd9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c6799e7-da96-47e1-82f5-903369cac6e8",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_b7416a4f972067": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d18a8eaf-2153-4bb4-86b8-3f5793942fa7",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
