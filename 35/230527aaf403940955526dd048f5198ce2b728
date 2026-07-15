@@ -1,0 +1,23 @@
+npm/rules/tauri/release/release.mdc
+  s_289200e0021bd9::t_e052762ee94ae7 7-21
+npm/.changes/260715-0500.md
+  s_289200e0021bd9::t_e5ac326a9198c9 1-5
+npm/rules/tauri/main.mdc
+  s_289200e0021bd9::t_a0f31260e45b35 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "35230527aaf403940955526dd048f5198ce2b728",
+  "prompts": {},
+  "sessions": {
+    "s_289200e0021bd9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c6799e7-da96-47e1-82f5-903369cac6e8",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
