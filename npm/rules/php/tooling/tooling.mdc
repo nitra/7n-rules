@@ -56,11 +56,12 @@ composer audit
 
 ## Запуск lint-php
 
-`composer`-інструменти не мають єдиного CLI, який сам обходить репозиторій, тому php-лінт делегується у JS-скрипт-обгортку. Запуск — через **`n-rules lint php`** (CI — `--no-fix`); окремого `package.json`-скрипта немає.
+`composer`-інструменти не мають єдиного CLI, який сам обходить репозиторій, тому php-лінт делегується у JS-детектори. Запуск — через **`n-rules lint php`** (CI — `--no-fix`); окремого `package.json`-скрипта немає.
 
-Скрипт `run-php.mjs`:
+Три концерни:
 
-- якщо `composer.json` у корені відсутній — вихід 0 (перевірка пропущена);
-- якщо `composer.json` є, але `composer` не знайдено в PATH — це помилка;
-- `composer audit` — обовʼязковий;
-- `vendor/bin/php-cs-fixer`, `vendor/bin/phpcs`, `vendor/bin/phpstan`, `vendor/bin/psalm` — запускаються лише якщо встановлені (інакше крок пропускається з повідомленням).
+- `npm/rules/php/project/main.mjs` — `composer audit` (обовʼязковий) + PHPStan + Psalm; project-wide, поза delta-планом (лише `n-rules lint --full` або scoped `n-rules lint php`);
+- `npm/rules/php/phpcs/main.mjs` — `vendor/bin/phpcs --standard=Security`; per-file;
+- `npm/rules/php/cs_fixer/main.mjs` — `vendor/bin/php-cs-fixer fix --dry-run --diff`; per-file.
+
+Якщо `composer.json` у корені відсутній — усі концерни виходять без порушень (проєкт не PHP). Якщо `composer.json` є, але `composer` не знайдено в PATH — це помилка. `vendor/bin/php-cs-fixer`, `vendor/bin/phpcs`, `vendor/bin/phpstan`, `vendor/bin/psalm` — запускаються лише якщо встановлені (інакше крок пропускається з повідомленням).

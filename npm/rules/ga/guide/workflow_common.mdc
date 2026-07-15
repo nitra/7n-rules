@@ -1,0 +1,104 @@
+## Універсальні правила для всіх workflow-файлів — гід
+
+Детальний гід до Rego-перевірок `ga.workflow_common` (список полів — у [workflow_common.mdc](../workflow_common/workflow_common.mdc)).
+
+### Блок `concurrency` — обов'язковий
+
+**Кожен** workflow у `.github/workflows/*.yml` **обов'язково** містить блок `concurrency` з фіксованим `group` та `cancel-in-progress: true`:
+
+```yaml
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+```
+
+Без винятків — у scheduled cleanup-воркфлоу, у `pull_request: types: [closed]`, у publish-воркфлоу теж. Це уникає паралельних запусків того самого workflow на тій самій ref і скасовує попередні в чергу нових.
+
+### Локальний composite `setup-bun-deps` — обов'язковий
+
+**ЗАБОРОНЕНО** дублювати кроки встановлення Bun та кешування безпосередньо у workflow файлах. Завжди використовуй локальний composite action.
+
+**Локальний composite** (`uses: ./.github/actions/setup-bun-deps`): **спочатку** обов'язковий окремий крок **`actions/checkout@v6`** (`persist-credentials: false`), інакше runner не знайде `action.yml`. Сам composite: **`actions/setup-node@v6`** (**Node 24**), **Bun** (`oven-sh/setup-bun@v2`), **`actions/cache@v5`**, **`bun install --frozen-lockfile`**.
+
+#### Приклад (НЕПРАВИЛЬНО)
+
+```yaml
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/cache@v5
+        # ... багато рядків кешування ...
+      - run: bun install --frozen-lockfile
+```
+
+#### Приклад (ПРАВИЛЬНО)
+
+```yaml
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-bun-deps
+```
+
+### Крок `run:` — folded block `>-`
+
+**Кроки `run`:** не розбивай команду shell-продовженням через зворотний сліш у кінці рядка (`… \` у `run: |`). Замість багаторядкового буквального блока з `\\` оформ довгу одну shell-команду як **folded block** `>-` (рядки з'єднаються в один рядок із пробілами).
+
+**Читабельність `run: >-` з циклами/умовами:** оскільки `>-` **згортає рядки в один shell-рядок**, відступи потрібні **лише для читабельності** й не впливають на виконання. Але для конструкцій bash на кшталт `while …; do … done` та `if …; then … fi` **обов'язково**:
+
+- став явні роздільники команд **`;`** або **`&&`** там, де при згортанні рядків інакше "злипнуться" токени (`do`/`then`/`fi`/`done` з наступною командою);
+- тримай `do` і `then` в одному логічному рядку як `…; do` / `…; then`, щоб після згортання це гарантовано лишалось валідним bash;
+- додавай відступи всередині `do/then/else` блоків, навіть якщо це один рядок після згортання — так workflow лишається читабельним у diff.
+
+#### Приклад (ПРАВИЛЬНО — читабельно, `run: >-`, з `while`/`if`)
+
+```yaml
+      - name: Apply changes
+        shell: bash
+        run: >-
+          echo "$FILES" |
+          while read -r FILE; do
+            [ -z "$FILE" ] && continue;
+            dirname "$FILE";
+          done |
+          sort -u |
+          while read -r DIR; do
+            (
+              if [ -f "$DIR/kustomization.yaml" ]; then
+                printf 'Applying %s\n' "$DIR" &&
+                cd "$DIR" &&
+                kubectl apply -k .;
+              else
+                echo "Skip $DIR - no kustomization.yaml";
+              fi
+            );
+          done
+```
+
+#### Приклад run (НЕПРАВИЛЬНО — `\\` на кінцях)
+
+```yaml
+      - run: |
+          docker build \
+          --push \
+          --build-arg BRANCH=${{ github.ref_name }}
+```
+
+#### Приклад run (ПРАВИЛЬНО — `>-`)
+
+```yaml
+      - run: >-
+          docker build
+          --push
+          --build-arg BRANCH=${{ github.ref_name }}
+```
+
+### Мінімальні версії marketplace actions
+
+Канон: [uses-min-versions.snippet.json](../workflow_common/template/uses-min-versions.snippet.json)
+
+- `actions/checkout` — **не нижче major `v6`** (`@v6`, `@v6.0.2` тощо дозволені; `@v5` — ні);
+- `Infisical/secrets-action` — **не нижче `v1.0.16`** (Node 24; нижчі теги лишаються на Node 20).
+
+SHA-pin (40 hex) semver-політику не застосовує — якщо в репо вже SHA-пін (zizmor-політика ref-pin), не замінюй його тегом.

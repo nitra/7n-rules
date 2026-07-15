@@ -1,0 +1,5 @@
+## Batch-ресурси: `apiVersion: batch/v1beta1` → `batch/v1`
+
+Ресурси **batch** (наприклад **CronJob**, **Job**): застаріле **`apiVersion: batch/v1beta1`** у файлах під **`k8s`** під час `check k8s` автоматично переписується на **`apiVersion: batch/v1`** (рядково, зі збереженням відступів/лапок).
+
+`apiVersion: autoscaling/v1` (заборонено для HPA, потрібен `autoscaling/v2`) — див. **`manifest.mdc`** і **`hpa_pdb.mdc`**.

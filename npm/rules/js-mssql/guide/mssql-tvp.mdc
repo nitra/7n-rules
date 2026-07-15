@@ -1,0 +1,75 @@
+## TVP (table-valued parameters) — рекомендований підхід для списків
+
+TVP дозволений і рекомендований для SQL Server 2019. Для списків значень та пар ключів **найкращий** шлях по безпеці/продуктивності — TVP.
+
+### 1) `IN (...)` для кодів → `JOIN` на TVP
+
+Замість складання SQL-рядка:
+
+```javascript
+// ❌ НЕ МОЖНА: динамічний список у SQL
+await pool.request().query`
+  SELECT *
+  FROM promo.SomeTable t
+  WHERE t.ExternalCode IN (${codes.map(c => `'${c}'`).join(',')})
+`;
+```
+
+Роби TVP з 1 колонкою:
+
+- створити `new sql.Table()`
+- `columns.add('ExternalCode', sql.NVarChar(N))`
+- `rows.add(code)` після `trim()` + валідації
+- `request.input('codes', table)`
+- в SQL: `JOIN @codes c ON c.ExternalCode = t.ExternalCode`
+
+Плюси:
+
+- 0% SQL injection
+- текст SQL **не росте** від довжини масиву
+- SQL Server часто оптимізує `JOIN` краще, ніж гігантський `IN (...)`
+
+### 2) `DELETE ... VALUES (...)` / `MERGE ... VALUES (...)` → TVP з 2 колонками
+
+Замість генерації списку рядків `(...),(...),...` у SQL (навіть якщо воно "через tagged template"):
+
+- сформуй TVP-таблицю `@Pairs` з колонками:
+  - `PromoActivitiesId` (INT або BIGINT — як у схемі БД)
+  - `SupplierOutletId` (INT або BIGINT — як у схемі БД)
+
+Delete:
+
+```sql
+DELETE abi
+FROM promo.ActivitiesByOutlet abi
+JOIN @Pairs p
+  ON p.PromoActivitiesId = abi.PromoActivitiesId
+ AND p.SupplierOutletId = abi.SupplierOutletId;
+```
+
+Insert (без `MERGE`, простіше і безпечніше):
+
+```sql
+INSERT INTO promo.ActivitiesByOutlet (PromoActivitiesId, SupplierOutletId, Status)
+SELECT p.PromoActivitiesId, p.SupplierOutletId, 2
+FROM @Pairs p
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM promo.ActivitiesByOutlet abi
+  WHERE abi.PromoActivitiesId = p.PromoActivitiesId
+    AND abi.SupplierOutletId = p.SupplierOutletId
+);
+```
+
+Плюси:
+
+- не збираєш SQL-рядок із даних
+- менше шансів упіймати edge-case `MERGE` (у SQL Server історично багато "сюрпризів")
+
+### Мінімальна валідація перед наповненням TVP
+
+Навіть з TVP потрібно:
+
+- `ExternalCode`: `typeof === 'string'`, `trim()`, довжина `<= N` (під схему), відкинути пусті.
+- ліміт на кількість елементів (наприклад 5k/10k — залежить від вашого потоку).
+- `supplierId`/ID: число/BigInt, валідне та скінченне.

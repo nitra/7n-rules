@@ -1,0 +1,17 @@
+## shellcheck: перевірка shell-скриптів
+
+**shellcheck** — інструмент лише в **`PATH`**, **не** додавай до `dependencies` / `devDependencies`. VSCode-розширення — канон у `vscode_extensions` (`timonwong.shellcheck`).
+
+Якщо `shellcheck` відсутній — встанови локально:
+
+- **macOS:** `brew install shellcheck`
+- **Debian/Ubuntu:** `sudo apt-get install -y shellcheck`
+- **Arch:** `sudo pacman -S shellcheck`
+
+Потрібен також **`patch`** у `PATH` для авто-фіксу (на macOS зазвичай уже є; на Linux: `sudo apt-get install -y patch`). У read-only режимі (детект, CI) відсутність `patch` не блокує перевірку — лише авто-фікс.
+
+ShellCheck не має прапорця `--fix`. Авто-виправлення — цикл `shellcheck -f diff` + `patch -p1` (до 32 ітерацій на файл, захист від зациклення), потім звичайний повний прогін `shellcheck` по всіх зібраних файлах для фінальної перевірки.
+
+Список файлів: у git-робочому дереві — `git ls-files` з pathspec `:(glob)**/*.sh`; інакше — `globSync` з виключенням `node_modules`. Якщо скриптів не знайдено — вихід 0.
+
+Delta-лінт (`npx @7n/rules lint`) перевіряє лише змінені `*.sh`-файли; повний прогін (`--full`) — усі tracked `*.sh` у репо.

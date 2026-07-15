@@ -1,0 +1,23 @@
+## PEP 621 і залежності (uv)
+
+Метадані проєкту — у секції **`[project]`** (PEP 621), а **не** в `[tool.poetry]`.
+
+Обовʼязкові поля:
+
+- `[project].name` — назва пакета;
+- `[project].version` — статична версія;
+- `[project].requires-python` — мінімальна версія Python;
+- `[project].dependencies` — залежності (навіть порожній список).
+
+Залежності: `uv add <pkg>`; dev-залежності: `uv add --dev <pkg>`. Lock-файл — **`uv.lock`** (іде в коміт, оновлюється командою `uv lock`).
+
+Канонічний цільовий вигляд `pyproject.toml`: [pyproject.toml.snippet.toml](../pyproject_toml/template/pyproject.toml.snippet.toml)
+
+## Міграція з Poetry на uv
+
+1. Прибери `[tool.poetry]` і `poetry.lock` / `poetry.toml`.
+2. Перенеси метадані в `[project]` (name, version, requires-python, dependencies) за PEP 621.
+3. Згенеруй lock: `uv lock` → `uv.lock`.
+4. Dev-залежності: `uv add --dev ruff mypy …`.
+
+Заборонені під-таблиці `[tool.*]` (Poetry) звіряються з deny-каноном: [pyproject.toml.deny.toml](../pyproject_toml/template/pyproject.toml.deny.toml). Автоматизована перевірка структури `pyproject.toml` (заборона Poetry-таблиць + обовʼязкові PEP 621 поля) — Rego-пакет `python.pyproject_toml`, див. `npm/rules/python/pyproject_toml/pyproject_toml.mdc`.

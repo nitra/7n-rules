@@ -15,4 +15,4 @@ Rego-пакет: `ga.workflow_common`
 
 Канон мінімальних версій: [uses-min-versions.snippet.json](./template/uses-min-versions.snippet.json)
 
-Детальна документація поведінки — у [ga-workflow_common](../../js/workflow_common.mdc).
+Детальна документація поведінки — у [ga-workflow_common](../guide/workflow_common.mdc).

@@ -698,6 +698,7 @@ const baseUrl = import.meta.env.BASE_URL
 Потрібно використовувати `unplugin-auto-import` для автоматичного імпортування Vue API. Коли `'vue'` додано до `AutoImport.imports` у `vite.config`, явні value-імпорти вигляду `import { ref, computed } from 'vue'` у файлах додатка **заборонені** — API Vue підставляється автоматично.
 
 Дозволені лише:
+
 - side-effect: `import 'vue'`
 - type-only: `import type { … } from 'vue'` або `import { type Foo } from 'vue'`
 

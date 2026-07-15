@@ -1,0 +1,35 @@
+## CheckEnv та заборона прямого `process.env`
+
+### CheckEnv
+
+Усі змінні оточення, які використовуються в коді, повинні бути перевірені за допомогою `checkEnv` з пакету `@nitra/check-env`. Це гарантує, що всі необхідні змінні оточення встановлені перед запуском програми.
+
+```javascript title="Приклад підключення до PostgreSQL в /src/conn/pg.mjs"
+import { checkEnv, env } from '@nitra/check-env'
+import { SQL } from 'bun'
+
+checkEnv(['PG_CONN'])
+
+export const db = new SQL({ url: env.PG_CONN })
+
+```
+
+### process.env
+
+Прямий доступ до `process.env.X` у коді заборонений — його треба замінити на `env`:
+
+> Стосується лише backend-пакетів (див. **Область застосування**). У frontend-пакетах (`vite` у `devDependencies`) — **не змінюй** `process.env.*` і **не додавай** імпорт `node:process`.
+
+- **обов'язкова змінна** — `import { checkEnv, env } from '@nitra/check-env'` плюс `checkEnv(['X'])`
+  у тому ж файлі (приклад див. вище в розділі **CheckEnv**);
+- **опційна змінна** — `import { env } from 'node:process'`:
+
+```javascript title="Опційна змінна — env з node:process"
+import { env } from 'node:process'
+
+console.log(env.OPTIONAL_ENV_VAR)
+```
+
+Тимчасово приглушити перевірку для конкретного рядка можна коментарем
+`// @7n/rules ignore-next-line checkEnv` безпосередньо перед використанням
+(escape-hatch для legacy-коду, не для нових файлів).

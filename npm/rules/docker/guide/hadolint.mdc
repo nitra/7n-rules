@@ -1,0 +1,27 @@
+## hadolint
+
+CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE...]` у **`hadolint --help`**); обхід репозиторію робить **`npm/rules/docker/lint/main.mjs`** (правило `npx @7n/rules lint docker`) — файли з іменем **`Dockerfile`**, **`*.Dockerfile`**, **`Containerfile`**, **`*.Containerfile`** (суфікс без урахування регістру), з тими самими пропусками каталогів, що й решта обходу репозиторію.
+
+Виклик **`hadolint`** як **нативного бінарника** через **`ensureTool`** (PATH → кеш → авто-install brew/scoop/GitHub Release; **без** `docker run`) — спільна логіка **`npm/rules/docker/lib/docker-hadolint.mjs`**. Для CI-workflow, що встановлює hadolint і викликає `npx @7n/rules lint docker`, дивись `lint_docker_yml.mdc` (там канонічний шаблон і rego-перевірка `.github/workflows/lint-docker.yml`).
+
+### Конфігурація hadolint
+
+Кореневий **`.hadolint.yaml`**: вимкнення правил, trusted registries — [документація](https://github.com/hadolint/hadolint#configure). Щоб не додавати **`# hadolint ignore=DL3007`** у кожному **`FROM`** з **`:latest`**, у корені проєкту-споживача можна задати глобально:
+
+```yaml title=".hadolint.yaml"
+ignored:
+  - DL3007
+  - DL3008
+  - DL3018
+```
+
+Де DL3007 — «Не використовуй тег latest у FROM»
+Де DL3018 — «Піни версії пакетів у apk add»
+
+### Запуск
+
+**`npx @7n/rules lint docker`** — виклик hadolint як у **`docker-hadolint.mjs`** (нативний бінарник через **`ensureTool`**; **без** `docker run`), разом з іншими docker-перевірками (mirror/multistage/compile/non-root/nginx) в одному проході по кожному Dockerfile/Containerfile.
+
+Якщо немає жодного Dockerfile/Containerfile у репозиторії — перевірка пропускається (exit 0).
+
+Винятки: **`# hadolint ignore=DL3008`** (або інший код) у Dockerfile, або **`ignored`** у **`.hadolint.yaml`** (наприклад **DL3007** для **`:latest`** — див. вище).

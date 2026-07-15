@@ -1,0 +1,69 @@
+## iOS: лише SPM, виняток через Podfile
+
+### Правило за замовчуванням
+
+Не залишай `Podfile` (поза `Pods/`) у вихідному iOS-шарі, **якщо** уся потрібна
+iOS-функціональність (нативні плагіни/модулі) може працювати **лише** через **SPM** (Swift Package Manager).
+
+Перевірка рекурсивно шукає `Podfile` у `ios/`, пропускаючи `Pods/`, `build/`, `DerivedData/`.
+
+### Плагіни @nitra/
+
+Плагіни зі скоупу `@nitra/` за політикою **підтримують SPM** — перевіряти їх на SPM **не потрібно**
+(check не обходить `package.json` на предмет `@nitra/`).
+
+### Коли Podfile дозволений
+
+Якщо не вся потрібна iOS-функціональність поза `@nitra/` (сторонні Capacitor-плагіни, інша
+нативна залежність) доступна через SPM — `Podfile` дозволяється, але це **обов'язково** треба
+явно задати в кореневому **`package.json`** або в **`capacitor.config.json` / `capacitor.config.ts` / `capacitor.config.mjs`**:
+
+- **`"iosCocoaPodsBecausePluginsLackSpm": true`** — семантика: не вся потрібна нативна частина
+  поза `@nitra/` на SPM; `@nitra/` у це не входить;
+- або **`"iosCocoaPodsAllowed": true`** — короткий alias для того самого винятку.
+
+Без одного з цих прапорів `true` наявний `Podfile` поза `Pods/` вважається порушенням правила «лише SPM».
+
+**Де задати виняток у `package.json`:**
+
+```json
+{
+  "nitra": {
+    "iosCocoaPodsBecausePluginsLackSpm": true
+  }
+}
+```
+
+або коротший alias:
+
+```json
+{
+  "nitra": {
+    "iosCocoaPodsAllowed": true
+  }
+}
+```
+
+**Де задати виняток у `capacitor.config.json`:**
+
+```json
+{
+  "nitra": {
+    "iosCocoaPodsAllowed": true
+  }
+}
+```
+
+**Де задати виняток у `capacitor.config.ts` / `capacitor.config.mjs`:**
+
+```ts
+const config = {
+  // ...
+  nitra: {
+    iosCocoaPodsAllowed: true,
+  },
+}
+```
+
+Перевірка читає **лише** кореневі файли: `package.json`, потім capacitor-конфіги у корені.
+У `.ts` / `.mjs`: шукається блок `nitra { ... }` і на його тілі перевіряються ці boolean-поля.

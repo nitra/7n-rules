@@ -6,4 +6,4 @@ Rego-пакет: `abie.http_route_base`
 
 Перевіряє, що кожен hostname у `spec.hostnames` належить до домену `aiml.live`: точна відповідність `aiml.live`, wildcard `*.aiml.live` або будь-який піддомен `*.aiml.live`. Перевірка case-insensitive. Не є HTTPRoute — пакет не діє.
 
-JS-частина (cross-file аналіз ua-overlay, backendRefs, тощо) — у `js/ua_http_route.mjs`. Людинозрозумілий опис + приклади — у `js/http_route_base.mdc`.
+JS-частина (cross-file аналіз ua-overlay, backendRefs, тощо) — у `ua_http_route/main.mjs`. Людинозрозумілий опис + приклади — у `guide/http_route_base.mdc`.
