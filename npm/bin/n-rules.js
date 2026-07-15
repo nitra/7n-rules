@@ -83,6 +83,7 @@ import { injectWorktreeNotice } from '../scripts/lib/worktree-notice.mjs'
 import { injectRootNotice } from '../scripts/lib/root-notice.mjs'
 import { listProjectRulesMdcFiles } from '../scripts/lib/list-project-rules-mdc.mjs'
 import { ensureNRulesInRootDevDependencies } from '../scripts/ensure-n-rules-dev-dependencies.mjs'
+import { resolvePluginList, resolveRulesDirs } from '../scripts/lib/resolve-plugins.mjs'
 import { assertCwdIsProjectRoot } from '../scripts/lib/assert-project-root.mjs'
 import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { syncGitignoreWorktree } from '../scripts/lib/sync-gitignore-worktree.mjs'
@@ -254,6 +255,33 @@ async function readRootPackageJsonSafe() {
 }
 
 /**
+ * Агрегує імена правил по rules-каталогах (ядро перше, перший власник виграє)
+ * і будує мапу `ruleId → rulesDir` для копіювання mdc.
+ * @param {string[]} rulesDirs упорядковані rules-каталоги (ядро + плагіни)
+ * @returns {Promise<{ names: string[], sources: Map<string, string> }>} імена правил і їх джерела
+ */
+async function aggregateRuleSources(rulesDirs) {
+  /** @type {Map<string, string>} */
+  const sources = new Map()
+  for (const [i, dir] of rulesDirs.entries()) {
+    let names
+    if (i === 0) {
+      names = await discoverBundledRuleNames(dir) // ядро: відсутність каталогу — фатальна помилка
+    } else {
+      try {
+        names = await discoverBundledRuleNames(dir)
+      } catch {
+        continue // плагін без валідного rules/ — уже повідомлено у resolve-plugins
+      }
+    }
+    for (const name of names) {
+      if (!sources.has(name)) sources.set(name, dir)
+    }
+  }
+  return { names: sources.keys().toArray(), sources }
+}
+
+/**
  * Зчитує конфіг .n-rules.json з поточної директорії
  * @param {{ bundledRulesDir?: string, bundledSkillsDir?: string }} [paths] каталоги з пакету-джерела (після `bun i` — зазвичай `node_modules/@7n/rules`)
  * @returns {Promise<{ $schema: string, rules: string[], skills: string[], version?: string } & Record<string, unknown>>} rules, skills (id без префікса n-); поле version у файлі за наявності ігнорується при синхронізації правил
@@ -263,7 +291,22 @@ async function readConfig(paths = {}) {
   const bundledSkillsDir = paths.bundledSkillsDir ?? BUNDLED_SKILLS_DIR
   await migrateLegacyConfigIfNeeded()
   const configPath = join(cwd(), CONFIG_FILE)
-  const availableRules = await discoverBundledRuleNames(bundledRulesDir)
+
+  /** @type {Record<string, unknown> | null} */
+  let rawConfig = null
+  if (existsSync(configPath)) {
+    try {
+      rawConfig = JSON.parse(await readFile(configPath, 'utf8'))
+    } catch {
+      throw new Error(`Невірний JSON у файлі ${CONFIG_FILE}`)
+    }
+  }
+
+  // Плагіни: явне поле plugins конфігу або автодетект; sync-контекст — з установкою devDep.
+  // Результат детекту записуємо у конфіг (нижче), щоб hook/lint не залежали від детекту й мережі.
+  const detectedPlugins = Array.isArray(rawConfig?.plugins) ? null : resolvePluginList(cwd(), rawConfig)
+  const rulesDirs = resolveRulesDirs(cwd(), rawConfig, bundledRulesDir).map(d => d.rulesDir)
+  const { names: availableRules } = await aggregateRuleSources(rulesDirs)
   const availableSkills = await discoverBundledSkillNames(bundledSkillsDir)
 
   /**
@@ -291,7 +334,8 @@ async function readConfig(paths = {}) {
       root: cwd(),
       availableRules,
       packageJsonParsed: rootPkg,
-      disableRules
+      disableRules,
+      rulesDirs
     })
     // Skills залежать від ефективного списку правил, який буде у конфізі після merge:
     // вже існуючі (опт-ін вручну) + auto-detected, мінус `disable-rules`. Без цього
@@ -335,15 +379,20 @@ async function readConfig(paths = {}) {
     if (merged['disable-skills']?.length) {
       normalized['disable-skills'] = merged['disable-skills']
     }
+    if (!('plugins' in parsedConfig) && detectedPlugins && detectedPlugins.length > 0) {
+      normalized.plugins = detectedPlugins
+      console.log(`🔌 Автодетект плагінів: ${detectedPlugins.join(', ')} — записано у ${CONFIG_FILE}\n`)
+    }
     return sortConfigIdArrays(normalized)
   }
 
-  if (!existsSync(configPath)) {
+  if (rawConfig === null) {
     const rootPkg = await readRootPackageJsonSafe()
     const autoDetectedRules = await detectAutoRules({
       root: cwd(),
       availableRules,
-      packageJsonParsed: rootPkg
+      packageJsonParsed: rootPkg,
+      rulesDirs
     })
     const autoDetectedSkills = detectAutoSkills({
       availableSkills,
@@ -352,7 +401,8 @@ async function readConfig(paths = {}) {
     const defaultConfig = sortConfigIdArrays({
       $schema: CONFIG_SCHEMA_URL,
       rules: autoDetectedRules.rules,
-      skills: autoDetectedSkills.skills
+      skills: autoDetectedSkills.skills,
+      ...(detectedPlugins && detectedPlugins.length > 0 && { plugins: detectedPlugins })
     })
     await writeFile(configPath, `${JSON.stringify(defaultConfig, null, 2)}\n`, 'utf8')
     console.log(
@@ -360,14 +410,7 @@ async function readConfig(paths = {}) {
     )
     return defaultConfig
   }
-  const raw = await readFile(configPath, 'utf8')
-  /** @type {Record<string, unknown>} */
-  let config
-  try {
-    config = JSON.parse(raw)
-  } catch {
-    throw new Error(`Невірний JSON у файлі ${CONFIG_FILE}`)
-  }
+  const config = rawConfig
   logRuleMigrationsIfAny(config)
   const normalized = await normalizeConfigWithAutoRules(config)
   if (JSON.stringify(normalized) !== JSON.stringify(config)) {
@@ -1197,11 +1240,12 @@ async function captureOutput(action) {
 /**
  * Копіює керовані `.mdc` файли з пакету до `.cursor/rules`.
  * @param {string[]} rules список rules з конфігу
- * @param {string} bundledRulesDir каталог `rules` пакету-джерела
+ * @param {string} bundledRulesDir каталог `rules` пакету-джерела (fallback для правил без явного джерела)
  * @param {string} rulesDir абсолютний шлях до `.cursor/rules`
+ * @param {Map<string, string>} [ruleSources] мапа `ruleId → rulesDir` власника правила (ядро/плагін)
  * @returns {Promise<{ successCount: number, failCount: number }>} статистика копіювання
  */
-async function syncManagedRuleFiles(rules, bundledRulesDir, rulesDir) {
+async function syncManagedRuleFiles(rules, bundledRulesDir, rulesDir, ruleSources = new Map()) {
   let successCount = 0
   let failCount = 0
   for (const rule of rules) {
@@ -1209,7 +1253,8 @@ async function syncManagedRuleFiles(rules, bundledRulesDir, rulesDir) {
     const destPath = join(rulesDir, fileName)
     try {
       process.stdout.write(`  ⬇  ${rule} → ${RULES_DIR}/${fileName} ... `)
-      const content = await readBundledRuleContent(rule, bundledRulesDir)
+      const sourceDir = ruleSources.get(normalizeRuleName(rule)) ?? bundledRulesDir
+      const content = await readBundledRuleContent(rule, sourceDir)
       await writeFile(destPath, content, 'utf8')
       console.log(`✅`)
       successCount++
@@ -1359,8 +1404,11 @@ async function runSync() {
 
   const rulesDir = join(cwd(), RULES_DIR)
   await mkdir(rulesDir, { recursive: true })
+  // Джерела правил: ядро + rules/ плагінів (резолв кешований після readConfig).
+  const allRulesDirs = resolveRulesDirs(projectRoot, config, bundledRulesDir).map(d => d.rulesDir)
+  const { sources: ruleSources } = await aggregateRuleSources(allRulesDirs)
   const { successCount, failCount } = await captureOutput(async () => {
-    const stats = await syncManagedRuleFiles(rules, bundledRulesDir, rulesDir)
+    const stats = await syncManagedRuleFiles(rules, bundledRulesDir, rulesDir, ruleSources)
     return { ...stats, fail: stats.failCount }
   })
 

@@ -6,5 +6,8 @@
       "single": ".github/workflows/npm-publish.yml"
     },
     "check": "template"
+  },
+  "requires": {
+    "capability": "ci:github"
   }
 }

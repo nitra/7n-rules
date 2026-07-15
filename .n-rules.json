@@ -43,5 +43,8 @@
     "llm-patch",
     "publish-telegram",
     "taze"
+  ],
+  "plugins": [
+    "@7n/rules-ci-github"
   ]
 }

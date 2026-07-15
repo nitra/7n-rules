@@ -22,6 +22,7 @@ const LEGACY_CONFIG_FILE = '.n-cursor.json'
  * @property {boolean} exists чи існує .n-rules.json (або legacy .n-rules.json) у поточному каталозі
  * @property {string[]} rules id правил з whitelist (порожній якщо файл відсутній)
  * @property {string[]} disableRules id правил, явно вимкнених у `disable-rules`
+ * @property {string[] | undefined} plugins npm-пакети-плагіни з конфігу; undefined — поля немає (→ автодетект у resolve-plugins)
  */
 
 /**
@@ -34,16 +35,17 @@ export async function readNRulesConfigLite(cwd = process.cwd()) {
     configPath = join(cwd, LEGACY_CONFIG_FILE)
   }
   if (!existsSync(configPath)) {
-    return { exists: false, rules: [], disableRules: [] }
+    return { exists: false, rules: [], disableRules: [], plugins: undefined }
   }
   const raw = await readFile(configPath, 'utf8')
-  /** @type {{ rules?: unknown, ['disable-rules']?: unknown }} */
+  /** @type {{ rules?: unknown, ['disable-rules']?: unknown, plugins?: unknown }} */
   const parsed = JSON.parse(raw)
   const rules = Array.isArray(parsed.rules) ? parsed.rules.filter(r => typeof r === 'string') : []
   const disableRules = Array.isArray(parsed['disable-rules'])
     ? parsed['disable-rules'].filter(r => typeof r === 'string')
     : []
-  return { exists: true, rules, disableRules }
+  const plugins = Array.isArray(parsed.plugins) ? parsed.plugins.filter(p => typeof p === 'string') : undefined
+  return { exists: true, rules, disableRules, plugins }
 }
 
 /**

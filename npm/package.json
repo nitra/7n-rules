@@ -48,6 +48,13 @@
   ],
   "type": "module",
   "types": "./types/bin/n-rules.d.ts",
+  "exports": {
+    ".": "./bin/n-rules.js",
+    "./package.json": "./package.json",
+    "./scripts/*": "./scripts/*",
+    "./schemas/*": "./schemas/*",
+    "./rules/*": "./rules/*"
+  },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",

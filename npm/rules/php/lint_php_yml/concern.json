@@ -5,5 +5,8 @@
     "files": {
       "single": ".github/workflows/lint-php.yml"
     }
+  },
+  "requires": {
+    "capability": "ci:github"
   }
 }

@@ -56,3 +56,65 @@ Chosen option: "повний stale-детект, `lint-doc` delta vs origin за
 - Whole-tree CI-набір: `js-lint-ci` (`knip`/`jscpd`), `security` (`trufflehog`), `ga` (`actionlint`), `rego` (`conftest`/`regal`), `text`.
 - Per-file quick-набір: `doc` (`lint-doc`), `js-lint` (`oxlint`/`eslint`), `style-lint` (`stylelint`).
 - Новий lint-канон має бути оформлений як окреме правило в `npm/rules/lint/`, а не як секція в `scripts.mdc`.
+
+## Update 2026-06-14
+
+Додатково зафіксовано класифікацію lint-механізмів за контекстами запуску:
+
+- `doc`, `js-lint`, `style-lint`, `text` — per-file і запускаються локально по changed-vs-origin та в GA по delta від base.
+- `security` — технічно per-file, але в GA запускається `--full` як defense-in-depth.
+- `js-lint-ci`, `rego`, `ga` — whole-tree і локально агентом не запускаються.
+- Канонічним місцем для цієї взаємодії став новий модуль `npm/rules/lint`, а не розширення `scripts.mdc`.
+
+## Update 2026-06-14
+
+Уточнено повний CI stale-detect для `lint-doc`: CI має падати на `missing ∪ crc-mismatch`, а `--missing-only` лишається лише ручною опцією команди. Передумова ввімкнення CI-гейта — прогнати `fix-doc --full` до зеленого baseline.
+
+Також зафіксовано уніфікацію бази changed для per-file механізмів через `resolveChangedBase()` / `collectChangedFilesSince()` з `npm/scripts/lib/changed-files.mjs`, щоб локальний агент і CI бачили одну й ту саму delta від origin, а не лише зміни від `HEAD`.
+
+## Update 2026-06-14
+
+Додано деталь про `--git`: режим Stop-гейта лишається спеціальним підвидом перевірки vs `HEAD` з `exit 2`, тоді як дефолтний `lint-doc` працює changed-vs-origin і включає staged/unstaged зміни через diff від merge-base до working tree.
+
+Схема `meta.json:lint` для lint-механізмів має розділяти `scope` і CI-override: `{scope: "per-file"|"full", ci?: "full"}`. Це дозволяє виразити `security` як per-file локально, але full у CI.
+
+## Update 2026-06-14
+
+Після перейменування механізму на `doc-files` ті самі рішення застосовано до команд `lint-doc-files` / `fix-doc-files`:
+
+- CI використовує повний stale-detect `missing ∪ crc-mismatch`.
+- `--missing-only` доступний як опція команди, але не як CI-режим.
+- Дефолт `lint-doc-files` — changed-vs-origin, `--full` — явний повний скан.
+- Hook Stop-гейт використовує `lint-doc-files --git`.
+
+Додано рішення про домівку механізму: детермінований detector/stale-scan належить до правила `npm/rules/doc-files/`, а `npm/skills/doc-files/` лишається тонким агентським workflow поверх правила.
+
+## Update 2026-06-14
+
+Уточнено реалізацію для `doc-files`:
+
+- `npm/rules/doc-files/lint/lint.mjs` реалізує дефолтний режим changed-vs-origin і `--full` для повного скану.
+- `resolveChangedBase()` / `collectChangedFilesSince()` перевикористано з `npm/scripts/lib/changed-files.mjs`.
+- `security` класифіковано як `{scope:"per-file", ci:"full"}`: локально може бути per-file, але в CI завжди повний scan.
+- `git mv npm/skills/doc-files/js → npm/rules/doc-files/js` зберігає тонкий skill поверх rule-level policy channel.
+
+## Update 2026-06-14
+
+Зафіксовано три контексти виконання lint:
+
+- Local agent: лише `scope === "per-file"`, changed-vs-origin.
+- CI: усі механізми, `effectiveCi = rule.ci ?? rule.scope`, де `security` виконується full.
+- Full audit: усі механізми повним прогоном.
+
+Також додано міграційну деталь: `meta.json:lint` переходить з `"quick"|"ci"` на `{scope, ci}`; валідатори `parseRuleLintPhase` у `npm/scripts/lib/rule-meta.mjs` і `checkLintField` у `npm/rules/npm-module/js/rule_meta.mjs` мають парсити новий формат.
+
+## Update 2026-06-14
+
+Уточнено CLI naming після вибору id правила `doc-files`:
+
+- Канонічні команди: `lint-doc-files` і `fix-doc-files`, похідні від `npm/rules/doc-files/`.
+- Скорочені `lint-doc` / `fix-doc` не обрані, бо lock-key і command name мають детерміновано виводитися з id правила.
+- Старий `doc-files <sub>` лишився deprecated alias із warning.
+- `DOC_FILES_HOOK_COMMAND_MARKER` у `npm/scripts/sync-claude-config.mjs` оновлено на `@nitra/cursor lint-doc-files`.
+
+Окремо зафіксовано, що для локальної omlx-моделі слід використовувати `N_LOCAL_MIN_MODEL`, а не docgen-specific `N_CURSOR_DOCGEN_MODEL`.

@@ -9,8 +9,6 @@ on:
       - '**/*.rs'
       - '**/Cargo.toml'
       - '**/Cargo.lock'
-      - '**/rustfmt.toml'
-      - '**/clippy.toml'
 
   pull_request:
     branches:

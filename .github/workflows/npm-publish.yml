@@ -5,6 +5,7 @@ on:
     paths:
       - 'npm/**'
       - 'llm-lib/**'
+      - 'plugins/**'
     branches:
       - main
 
@@ -76,12 +77,28 @@ jobs:
         with:
           package: npm/package.json
 
+      # Плагіни публікуються ПІСЛЯ ядра: peerDependency спрямована на @7n/rules,
+      # тож інсталяція свіжого плагіна мусить знаходити сумісне ядро в registry.
+      - name: Publish @7n/rules-ci-github
+        id: publish-ci-github
+        continue-on-error: true
+        uses: JS-DevTools/npm-publish@v4.1.5
+        with:
+          package: plugins/ci-github/package.json
+
+      - name: Publish @7n/rules-ci-azure
+        id: publish-ci-azure
+        continue-on-error: true
+        uses: JS-DevTools/npm-publish@v4.1.5
+        with:
+          package: plugins/ci-azure/package.json
+
       - name: Push release-коміт + теги (лише якщо бодай один publish пройшов)
-        if: steps.publish-llm-lib.outcome == 'success' || steps.publish-cursor.outcome == 'success'
+        if: steps.publish-llm-lib.outcome == 'success' || steps.publish-cursor.outcome == 'success' || steps.publish-ci-github.outcome == 'success' || steps.publish-ci-azure.outcome == 'success'
         run: git push --follow-tags
 
       - name: Fail job, якщо публікація хоч одного пакета впала
-        if: steps.publish-llm-lib.outcome == 'failure' || steps.publish-cursor.outcome == 'failure'
+        if: steps.publish-llm-lib.outcome == 'failure' || steps.publish-cursor.outcome == 'failure' || steps.publish-ci-github.outcome == 'failure' || steps.publish-ci-azure.outcome == 'failure'
         run: |
-          echo "::error::npm publish не пройшов — llm-lib=${{ steps.publish-llm-lib.outcome }}, cursor=${{ steps.publish-cursor.outcome }}"
+          echo "::error::npm publish не пройшов — llm-lib=${{ steps.publish-llm-lib.outcome }}, cursor=${{ steps.publish-cursor.outcome }}, ci-github=${{ steps.publish-ci-github.outcome }}, ci-azure=${{ steps.publish-ci-azure.outcome }}"
           exit 1

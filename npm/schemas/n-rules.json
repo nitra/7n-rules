@@ -27,6 +27,14 @@
         "minLength": 1
       }
     },
+    "plugins": {
+      "type": "array",
+      "description": "npm-пакети-плагіни з додатковими правилами (rules/<id>/ за контрактом ядра). Якщо поле відсутнє — CLI автоматично визначає CI-провайдера (файли CI, потім repository.url) і дописує сюди результат. Порожній масив — плагіни вимкнено.",
+      "items": {
+        "type": "string",
+        "pattern": "^(@[a-z0-9-~][a-z0-9-._~]*/)?[a-z0-9-~][a-z0-9-._~]*$"
+      }
+    },
     "disable-rules": {
       "type": "array",
       "description": "Список rule id (без префікса n-), які не потрібно автододавати в `.n-rules.json` під час запуску CLI.",
@@ -61,5 +69,7 @@
       "default": true
     }
   },
-  "required": ["rules"]
+  "required": [
+    "rules"
+  ]
 }

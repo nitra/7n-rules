@@ -5,5 +5,8 @@
     "files": {
       "single": ".github/workflows/lint-k8s.yml"
     }
+  },
+  "requires": {
+    "capability": "ci:github"
   }
 }
