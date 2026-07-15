@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.3.2] - 2026-07-15
+
+### Fixed
+
+- template-deep-merge: eslint (cognitive-complexity, no-negated-array-predicate) і cspell-фікси після PR #66
+
+## [1.3.1] - 2026-07-14
+
+### Changed
+
+- docs(adr): merge pending ADR normalization batch
+
+## [1.3.0] - 2026-07-14
+
+### Changed
+
+- doc-files: мʼякий дедлайн fix-pipeline тепер діє і всередині файлу — `generateDoc` ріже per-call LLM-таймаути під залишок бюджету рунга (`deadlineAt`), тож генерація, що не вкладається в рунг, обривається transient-помилкою сама, без батчу-зомбі поверх наступного rung-а і без «fix timeout» від backstop-таймера
+
+## [1.2.2] - 2026-07-14
+
+### Changed
+
+- release: @7n/llm-lib@2.6.1, @7n/rules@1.1.0
+
 ## [1.2.1] - 2026-07-14
 
 ### Fixed

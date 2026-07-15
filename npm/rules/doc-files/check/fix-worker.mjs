@@ -36,6 +36,8 @@ export async function fixWorker(violations, ctx) {
     }
     // Deadline: батч сам зупиняється до backstop-таймауту рунга (fix timeout ×1.25) —
     // повертає часткову роботу штатно, замість фонового батчу-зомбі поверх наступного rung-а.
+    // Дедлайн діє і всередині файлу: generateDoc ріже per-call LLM-таймаути під залишок
+    // бюджету, тож навіть перший файл, що не вкладається у рунг, обривається сам.
     const deadlineAt = ctx.timeoutMs ? Date.now() + Math.round(ctx.timeoutMs * DEADLINE_FRACTION) : null
     await runGenerationBatch(stale, cwd, {
       headline: `📄 doc-files: генерація ${stale.length} доки(ів)`,

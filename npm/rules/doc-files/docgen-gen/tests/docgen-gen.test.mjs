@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { env } from 'node:process'
 import { readFileSync } from 'node:fs'
 
-import { generateDoc, insertProtected, scoreDoc, splitProtected } from '../main.mjs'
+import { capTimeoutToDeadline, generateDoc, insertProtected, scoreDoc, splitProtected } from '../main.mjs'
 
 vi.mock('node:fs', async importOriginal => ({ ...(await importOriginal()), readFileSync: vi.fn() }))
 
@@ -10,6 +10,8 @@ const FACTS = { markers: { caches: false }, internalSymbols: [], localSymbols: [
 
 // Матчер помилки pre-send byte-guard (module scope — без ре-компіляції).
 const PROMPT_TOO_LONG = /Prompt too long/
+// Матчер помилки вичерпаного дедлайну fix-pipeline (module scope — без ре-компіляції).
+const DEADLINE_TIMEOUT = /docgen deadline: .*timeout/
 
 // Чистий, конкретний документ — еталон 100
 const CLEAN = `# foo.mjs
@@ -120,6 +122,39 @@ describe('generateDoc — pre-send byte-guard', () => {
     readFileSync.mockReturnValue('x'.repeat(2000)) // ~500 токенів > 50
     // generateDoc тепер async (pi-міграція) → pre-send guard реджектить, не кидає синхронно
     await expect(generateDoc('/big.js')).rejects.toThrow(PROMPT_TOO_LONG)
+  })
+})
+
+describe('capTimeoutToDeadline — зріз per-call таймауту під дедлайн рунга', () => {
+  test('без дедлайну → базовий ліміт без змін', () => {
+    expect(capTimeoutToDeadline(45_000, null)).toBe(45_000)
+  })
+
+  test('залишок до дедлайну менший за базовий → ріжеться до залишку', () => {
+    expect(capTimeoutToDeadline(45_000, 1010, 1000)).toBe(10)
+  })
+
+  test('дедлайн у минулому → 0 (виклик не має стартувати)', () => {
+    expect(capTimeoutToDeadline(45_000, 500, 1000)).toBe(0)
+  })
+
+  test('залишок більший за базовий → базовий ліміт', () => {
+    expect(capTimeoutToDeadline(45_000, 1000 + 300_000, 1000)).toBe(45_000)
+  })
+})
+
+describe('generateDoc — deadline fix-pipeline', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  test('вичерпаний бюджет → transient-помилка «timeout» без LLM-виклику, chain закривається fail', async () => {
+    readFileSync.mockReturnValue('export const a = 1\n')
+    const chain = { end: vi.fn() }
+    await expect(generateDoc('/x.mjs', { deadlineAt: Date.now() - 1, chainFactory: () => chain })).rejects.toThrow(
+      DEADLINE_TIMEOUT
+    )
+    expect(chain.end).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'fail' }))
   })
 })
 

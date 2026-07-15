@@ -4,8 +4,6 @@ title: npm
 resource: npm/
 ---
 
-# npm
-
 | Файл                                    | Тип       |
 | --------------------------------------- | --------- |
 | [stryker.config.mjs](stryker.config.md) | JS Module |

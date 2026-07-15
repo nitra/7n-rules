@@ -65,3 +65,18 @@ Chosen option: "Додати `.rs` до `SUPPORTED_EXTENSIONS` і `LANGUAGE_HINT
 - Коректні варіанти запуску: не задавати `N_CURSOR_OMLX_URL`, якщо підходить дефолт `http://127.0.0.1:8000/v1/chat/completions`, або задавати повний endpoint, наприклад `http://localhost:8000/v1/chat/completions`.
 - Додавання `**/target/**` до `DOCGEN_IGNORE_GLOBS` зафіксовано як необхідне після включення `.rs`, бо інакше scan знаходить build artifacts Cargo замість реальних source-файлів.
 - Для `returnsFalsyOnFail` обрано мовно-нейтральний текст `false/null/Err`, щоб гарантія не була JS-специфічно хибною для Rust `Result<...>`.
+
+## Update 2026-06-12
+
+- Rust `.rs` файли маршрутизуються через повний `orchestratedDoc`, а не через `oneShotDoc`: `extractFactsRust()` повертає fact-list замість `{ unsupported: true }`, тому генерується секційна документація зі скорингом.
+- `#[tauri::command]` та інші exposure-атрибути (`#[wasm_bindgen]`, `#[uniffi::export]`, `#[pyo3::pyfunction]`, `#[napi]`) вважаються публічним API для `exports[]`, навіть якщо функція не має `pub`.
+- `**/target/**` додано до `DOCGEN_IGNORE_GLOBS`, щоб Cargo build artifacts не потрапляли у чергу генерації документації.
+- Rust unit extraction реалізовано через рядкове відстеження brace-depth без додаткового Rust AST parser dependency; transcript фіксує тестове покриття `units-rs.test.mjs` для `pub fn`, приватних функцій, exposure-атрибутів, `struct`, `enum`, `impl`, doc-коментарів і тіл юнітів.
+- Текст маркера `returnsFalsyOnFail` зроблено мовно-нейтральним: `false`/`null`/`Err` замість JS-only формулювання про `false/null`.
+- Перевірка на проєкті `task` дала 3 Rust-файли поза `target/`; `lib.rs` і `main.rs` отримали `score=100`, `build.rs` — `score=80`.
+
+## Update 2026-06-12
+
+- Після batch-прогону `doc-files check --git` завершився з `exit 0`.
+- Великий файл `npm/rules/k8s/js/manifests.mjs` (303 KB, 6 683 рядки) додано точним glob-ом до `DOCGEN_IGNORE_GLOBS`, бо omlx-запити на ньому завершувалися `curl: (18) transfer closed with outstanding read data remaining`.
+- Наслідок: batch-прогін більше не блокується цим generated/large artifact, але файл не отримує автоматичної doc-files документації й потребує ручної або спеціальної обробки великих файлів.
