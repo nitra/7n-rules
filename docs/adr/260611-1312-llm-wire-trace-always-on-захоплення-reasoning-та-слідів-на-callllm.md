@@ -47,3 +47,11 @@ Chosen option: "Уніфікований `callLlm`", because `callLlm` уже і
 - Довгострокові знання мають жити в агрегованому git-committed шарі `docs/omlx-insights/`, while raw trace є scratch-джерелом для агрегації.
 - `callOmlxRaw` введено як internal rich-return для `content`, `reasoning`, `reasoningSource`, `finishReason`, `usage`, `attempts`; публічний `callOmlx` лишається string-wrapper для сумісності.
 - `extractReasoning` деградує через `reasoning_content` → `<think>…</think>` у `content` → `truncated`, якщо `finish_reason=length` обрізав thinking.
+
+## Update 2026-06-12
+
+- Основним сигналом для покращення правил і скілів обрано спостережувані сліди (`tool-calls`, `ok/err`, latency, retry, token cost), а не reasoning-текст моделі, бо reasoning у різних провайдерів недоступний, зашифрований або неструктурований.
+- `callLlm` закріплено як єдиний choke-point для wire-trace над local omlx і cloud/pi backend; прямі caller-и мають передавати `opts.caller` для атрибуції.
+- Зберігання trace має дворівневу модель: raw `.n-cursor/llm-trace.jsonl` лишається gitignored з недеструктивною ротацією, а агреговані висновки зберігаються в `docs/omlx-insights/` під git.
+- Для reasoning з omlx використовується ієрархія джерел: `message.reasoning_content` → `<think>` tags → маркер `truncated` при `finish_reason === 'length'` → `none`.
+- Transcript фіксує обмеження: pi-гілка дає деградований trace без structured `usage`/`reasoning`, бо `spawnSync('pi')` не повертає такі metadata.
