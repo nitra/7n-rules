@@ -32,6 +32,7 @@
     "!**/*.test.mjs"
   ],
   "exports": {
+    "./acp": "./lib/acp.mjs",
     "./harness": "./lib/harness.mjs",
     "./anchored-edit": "./lib/anchored-edit.mjs",
     "./web-tools": "./lib/web-tools.mjs",
@@ -50,6 +51,9 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "dependencies": {
+    "@zed-industries/agent-client-protocol": "^0.4.5"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "~0.80.2",

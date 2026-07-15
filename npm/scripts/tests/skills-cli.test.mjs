@@ -4,7 +4,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { env } from 'node:process'
 import { describe, expect, test } from 'vitest'
 
 import {
@@ -289,93 +288,56 @@ describe('runSkillsCli', () => {
     expect(errors.join('\n')).toContain('модель не знайдена')
   })
 
-  test('claude runner: deprecated-warning + без CLI у PATH → кидає', async () => {
-    const root = join(tmpdir(), `skills-cli-claude-${Date.now()}`)
+  test.each(['claude', 'cursor', 'codex'])('%s runner: делегує в runAcpAgent з відповідним kind', async kind => {
+    const root = join(tmpdir(), `skills-cli-${kind}-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
     mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
     writeFileSync(join(skillsRoot, 'fix', 'SKILL.md'), '# Fix\n')
 
-    const errors = []
-    const prevPath = env.PATH
-    env.PATH = join(tmpdir(), 'empty-path-isolated')
-    let code
-    try {
-      code = await runSkillsCli(['claude', 'fix'], {
-        packageRoot: root,
-        projectDir: root,
-        log: () => {
-          /* noop: stdout не перевіряється в цьому тесті */
-        },
-        logError: line => {
-          errors.push(line)
+    const calls = []
+    const code = await runSkillsCli([kind, 'fix'], {
+      packageRoot: root,
+      projectDir: root,
+      log: () => {
+        /* stdout не перевіряється в цьому тесті */
+      },
+      deps: {
+        runAcpAgent: (agentKind, prompt, opts) => {
+          calls.push({ agentKind, prompt, opts })
+          return Promise.resolve(0)
         }
-      })
-    } finally {
-      env.PATH = prevPath
-    }
+      }
+    })
 
-    expect(code).toBe(1)
-    expect(errors.join('\n')).toContain('[deprecated]')
-    expect(errors.join('\n')).toContain('claude')
+    expect(code).toBe(0)
+    expect(calls).toHaveLength(1)
+    expect(calls[0].agentKind).toBe(kind)
+    expect(calls[0].prompt).toContain('# Fix')
+    expect(calls[0].opts.cwd).toBe(root)
   })
 
-  test('cursor runner: без deprecated-warning, без CLI у PATH → кидає', async () => {
-    const root = join(tmpdir(), `skills-cli-cursor-${Date.now()}`)
+  test('зовнішній ACP-агент кидає помилку → exit 1 + logError', async () => {
+    const root = join(tmpdir(), `skills-cli-acp-err-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
     mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
     writeFileSync(join(skillsRoot, 'fix', 'SKILL.md'), '# Fix\n')
 
     const errors = []
-    const prevPath = env.PATH
-    env.PATH = join(tmpdir(), 'empty-path-isolated')
-    let code
-    try {
-      code = await runSkillsCli(['cursor', 'fix'], {
-        packageRoot: root,
-        projectDir: root,
-        log: () => {
-          /* noop: stdout не перевіряється в цьому тесті */
-        },
-        logError: line => {
-          errors.push(line)
-        }
-      })
-    } finally {
-      env.PATH = prevPath
-    }
+    const code = await runSkillsCli(['cursor', 'fix'], {
+      packageRoot: root,
+      projectDir: root,
+      log: () => {
+        /* stdout не перевіряється в цьому тесті */
+      },
+      logError: line => {
+        errors.push(line)
+      },
+      deps: {
+        runAcpAgent: () => Promise.reject(new Error('`agent` failed to start: ENOENT'))
+      }
+    })
 
     expect(code).toBe(1)
-    expect(errors.join('\n')).toContain('cursor-agent')
-    expect(errors.join('\n')).not.toContain('[deprecated]')
-  })
-
-  test('codex runner: без deprecated-warning, без CLI у PATH → кидає', async () => {
-    const root = join(tmpdir(), `skills-cli-codex-${Date.now()}`)
-    const skillsRoot = join(root, 'skills')
-    mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
-    writeFileSync(join(skillsRoot, 'fix', 'SKILL.md'), '# Fix\n')
-
-    const errors = []
-    const prevPath = env.PATH
-    env.PATH = join(tmpdir(), 'empty-path-isolated')
-    let code
-    try {
-      code = await runSkillsCli(['codex', 'fix'], {
-        packageRoot: root,
-        projectDir: root,
-        log: () => {
-          /* noop: stdout не перевіряється в цьому тесті */
-        },
-        logError: line => {
-          errors.push(line)
-        }
-      })
-    } finally {
-      env.PATH = prevPath
-    }
-
-    expect(code).toBe(1)
-    expect(errors.join('\n')).toContain('codex')
-    expect(errors.join('\n')).not.toContain('[deprecated]')
+    expect(errors.join('\n')).toContain('ENOENT')
   })
 })
