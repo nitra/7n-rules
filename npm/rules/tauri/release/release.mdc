@@ -4,6 +4,21 @@
 
 Канон складається з двох workflow-файлів і відповідного `tauri.conf.json`-конфігу; референс — `.github/workflows/{changelog-release,release}.yml` та `src-tauri/tauri.conf.json` чотирьох production Tauri-репо, де цей flow вже впроваджено.
 
+### Change-файл — крок вирішення задачі, а не post-hoc lint-фікс
+
+Change-файл (`<app>/.changes/<ts>.md`) створюється **одразу під час вирішення задачі**, що
+чіпає код Tauri-workspace — той самий момент, що lint і doc-files, а не окремий крок після
+сигналу `changeset-missing` від delta-lint concern `changelog/presence`. Без нього мердж у
+`main` не тригерить `changelog-release.yml` (тригер — `paths: [app/.changes/**]`), і зміна
+осідає в репозиторії без релізу, доки хтось не помітить і не докомітить change-файл окремо.
+
+Команда: `npx @7n/n ch --bump <major|minor|patch> --section <Added|Changed|Fixed|Removed> --message "<опис>"`
+(інтерактивно — `npx @7n/n ch`). Повна модель (база порівняння, формат CHANGELOG,
+post-release-інваріант) — у `n-changelog.mdc` і `release/main.mdc`.
+
+`changelog/presence` лишається gate-запобіжником на випадок, якщо крок пропущено (delta-lint
+у CI/hook), а не первинним механізмом створення change-файлу.
+
 ### `changelog-release.yml` — бамп версії з change-файлів
 
 Тригериться на push у `main` за наявності change-файлів і на ручний dispatch:
