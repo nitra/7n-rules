@@ -1,9 +1,9 @@
 ---
 type: JS Module
 title: fix-vscode_settings.mjs
-resource: npm/rules/ga/vscode_settings/fix-vscode_settings.mjs
+resource: plugins/ci-github/rules/ga/vscode_settings/fix-vscode_settings.mjs
 docgen:
-  crc: f3ea1fe1
+  crc: 712711ff
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.97

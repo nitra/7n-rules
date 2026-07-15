@@ -1,9 +1,9 @@
 ---
 type: JS Module
 title: fix-zizmor_yml.mjs
-resource: npm/rules/ga/zizmor_yml/fix-zizmor_yml.mjs
+resource: plugins/ci-github/rules/ga/zizmor_yml/fix-zizmor_yml.mjs
 docgen:
-  crc: e1cfb71f
+  crc: df8c1663
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100

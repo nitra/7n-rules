@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: npm/rules/ga/clean_merged_branch
-resource: npm/rules/ga/clean_merged_branch/
+title: plugins/ci-github/rules/ga/clean_merged_branch
+resource: plugins/ci-github/rules/ga/clean_merged_branch/
 ---
 
 | Файл                                                      | Тип       |

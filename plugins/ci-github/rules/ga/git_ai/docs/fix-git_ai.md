@@ -1,9 +1,9 @@
 ---
 type: JS Module
 title: fix-git_ai.mjs
-resource: npm/rules/ga/git_ai/fix-git_ai.mjs
+resource: plugins/ci-github/rules/ga/git_ai/fix-git_ai.mjs
 docgen:
-  crc: 58c702af
+  crc: 1823ea17
   model: openai-codex/gpt-5.5
   score: 100
   issues: judge:inaccurate:0.98

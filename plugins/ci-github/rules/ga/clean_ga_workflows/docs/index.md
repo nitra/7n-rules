@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: npm/rules/ga/clean_ga_workflows
-resource: npm/rules/ga/clean_ga_workflows/
+title: plugins/ci-github/rules/ga/clean_ga_workflows
+resource: plugins/ci-github/rules/ga/clean_ga_workflows/
 ---
 
 | Файл                                                    | Тип       |

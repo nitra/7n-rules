@@ -1,9 +1,9 @@
 ---
 type: JS Module
 title: fix-clean_ga_workflows.mjs
-resource: npm/rules/ga/clean_ga_workflows/fix-clean_ga_workflows.mjs
+resource: plugins/ci-github/rules/ga/clean_ga_workflows/fix-clean_ga_workflows.mjs
 docgen:
-  crc: e09e62cc
+  crc: f149bf34
   model: openai-codex/gpt-5.5
   tier: cloud-avg
   score: 100

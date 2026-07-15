@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: npm/rules/ga/lint_ga
-resource: npm/rules/ga/lint_ga/
+title: plugins/ci-github/rules/ga/lint_ga
+resource: plugins/ci-github/rules/ga/lint_ga/
 ---
 
 | Файл                              | Тип       |

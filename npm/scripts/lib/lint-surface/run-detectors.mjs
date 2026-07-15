@@ -107,12 +107,13 @@ async function effectiveRulesDirs(opts) {
  * @returns {Promise<Record<string, ConcernMeta[]>>} відфільтровані concerns.
  */
 async function filterByCapabilities(byRule, opts) {
-  const caps = opts.capabilities
-    ? new Set(opts.capabilities)
-    : getActiveCapabilities(opts.cwd, { plugins: (await readNRulesConfigLite(opts.cwd)).plugins }, {
-        allowInstall: false,
-        quiet: true
-      })
+  let caps
+  if (opts.capabilities) {
+    caps = new Set(opts.capabilities)
+  } else {
+    const config = await readNRulesConfigLite(opts.cwd)
+    caps = getActiveCapabilities(opts.cwd, { plugins: config.plugins }, { allowInstall: false, quiet: true })
+  }
   /** @type {Record<string, ConcernMeta[]>} */
   const out = {}
   for (const [ruleId, concerns] of Object.entries(byRule)) {

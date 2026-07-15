@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: npm/rules/ga/git_ai
-resource: npm/rules/ga/git_ai/
+title: plugins/ci-github/rules/ga/git_ai
+resource: plugins/ci-github/rules/ga/git_ai/
 ---
 
 | Файл                            | Тип       |

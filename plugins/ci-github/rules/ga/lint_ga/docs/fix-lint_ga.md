@@ -1,9 +1,9 @@
 ---
 type: JS Module
 title: fix-lint_ga.mjs
-resource: npm/rules/ga/lint_ga/fix-lint_ga.mjs
+resource: plugins/ci-github/rules/ga/lint_ga/fix-lint_ga.mjs
 docgen:
-  crc: fd87bb0c
+  crc: 7f4ab512
   model: openai-codex/gpt-5.5
   score: 100
   issues: judge:inaccurate:0.98

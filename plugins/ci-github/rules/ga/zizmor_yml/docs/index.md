@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: npm/rules/ga/zizmor_yml
-resource: npm/rules/ga/zizmor_yml/
+title: plugins/ci-github/rules/ga/zizmor_yml
+resource: plugins/ci-github/rules/ga/zizmor_yml/
 ---
 
 | Файл                                    | Тип       |

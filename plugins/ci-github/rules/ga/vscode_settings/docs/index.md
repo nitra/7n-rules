@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: npm/rules/ga/vscode_settings
-resource: npm/rules/ga/vscode_settings/
+title: plugins/ci-github/rules/ga/vscode_settings
+resource: plugins/ci-github/rules/ga/vscode_settings/
 ---
 
 | Файл                                              | Тип       |

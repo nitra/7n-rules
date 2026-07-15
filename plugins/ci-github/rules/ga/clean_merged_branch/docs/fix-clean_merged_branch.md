@@ -1,9 +1,9 @@
 ---
 type: JS Module
 title: fix-clean_merged_branch.mjs
-resource: npm/rules/ga/clean_merged_branch/fix-clean_merged_branch.mjs
+resource: plugins/ci-github/rules/ga/clean_merged_branch/fix-clean_merged_branch.mjs
 docgen:
-  crc: c38d9d28
+  crc: e78a4923
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.98
