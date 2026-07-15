@@ -1,8 +1,10 @@
 // RTK Pi extension — переписує bash-команди на rtk-еквіваленти для економії токенів.
-// Vendored з rtk (`rtk init --agent pi`, rtk 0.43.0), адаптований під конвенції репо;
-// шлях установки `.pi/extensions/rtk.ts` збігається зі шляхом самого rtk — повторний
-// `rtk init --agent pi` ідемпотентний. Потребує rtk >= 0.23.0 у PATH; без нього
-// extension сам вимикається (fail-open).
+// Vendored з rtk (`rtk init --agent pi`, rtk 0.43.0), адаптований під конвенції репо:
+// без імпортів з '@earendil-works/pi-coding-agent' (пакет резолвиться лише в runtime pi,
+// а knip/TS-server проєктів-споживачів його не бачать) — типи описані локально, як у
+// n-rules-adr. Шлях установки `.pi/extensions/rtk.ts` збігається зі шляхом самого rtk —
+// повторний `rtk init --agent pi` ідемпотентний. Потребує rtk >= 0.23.0 у PATH; без
+// нього extension сам вимикається (fail-open).
 //
 // Тонкий делегат: уся rewrite-логіка живе в `rtk rewrite` (єдине джерело правди).
 //
@@ -13,7 +15,25 @@
 
 import { env } from 'node:process'
 
-import { isToolCallEventType, type ExtensionAPI } from '@earendil-works/pi-coding-agent'
+interface PiToolCallEvent {
+  toolName?: string
+  input: { command?: unknown }
+}
+
+interface PiContext {
+  signal?: AbortSignal
+}
+
+interface PiExecResult {
+  code: number
+  stdout: string
+  killed?: boolean
+}
+
+interface PiApi {
+  exec: (cmd: string, args: string[], opts?: { timeout?: number; signal?: AbortSignal }) => Promise<PiExecResult>
+  on: (event: string, handler: (event: PiToolCallEvent, ctx: PiContext) => Promise<void> | void) => void
+}
 
 const REWRITE_TIMEOUT_MS = 2_000
 const MIN_SUPPORTED_RTK_MINOR = 23
@@ -29,7 +49,7 @@ function parseSemver(raw: string): [number, number, number] | null {
 }
 
 // Викликає `rtk rewrite`; повертає переписану команду або null (passthrough).
-async function rewriteCommand(pi: ExtensionAPI, cmd: string, signal?: AbortSignal): Promise<string | null> {
+async function rewriteCommand(pi: PiApi, cmd: string, signal?: AbortSignal): Promise<string | null> {
   const result = await pi.exec('rtk', ['rewrite', cmd], {
     timeout: REWRITE_TIMEOUT_MS,
     signal
@@ -39,7 +59,7 @@ async function rewriteCommand(pi: ExtensionAPI, cmd: string, signal?: AbortSigna
   return result.stdout.trim() || null
 }
 
-export default async function (pi: ExtensionAPI) {
+export default async function (pi: PiApi) {
   // Проба rtk при завантаженні; без бінарника (або із застарим) extension вимикається.
   const ver = await pi.exec('rtk', ['--version'], { timeout: REWRITE_TIMEOUT_MS })
   if (ver.code !== 0) {
@@ -59,7 +79,8 @@ export default async function (pi: ExtensionAPI) {
 
   pi.on('tool_call', async (event, ctx) => {
     try {
-      if (!isToolCallEventType('bash', event)) return
+      // В upstream це isToolCallEventType('bash', event) — просте порівняння toolName.
+      if (event?.toolName !== 'bash') return
 
       const cmd = event.input.command
       if (typeof cmd !== 'string' || cmd.trim() === '') return

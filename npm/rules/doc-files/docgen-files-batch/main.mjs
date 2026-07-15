@@ -145,10 +145,10 @@ function fmtSize(bytes) {
  * @param {string} root абсолютний корінь
  * @param {{ done: number, total: number }} progress позиція у прогресі
  * @param {{ ok: number, degraded: number, err: number, errors: string[], skipped: string[] }} stats акумулятор
- * @param {{ model?: string, tier?: string|null, emit?: (s: string) => void }} [opts] модель/тир для штампу; emit — логер рядка результату
+ * @param {{ model?: string, tier?: string|null, emit?: (s: string) => void, deadlineAt?: number|null }} [opts] модель/тир для штампу; emit — логер рядка результату; deadlineAt — мʼякий дедлайн fix-pipeline для generateDoc
  * @returns {Promise<'ok'|'permanent'|'systemic'|'transient'>} результат для керування циклом
  */
-async function generateOne(file, root, progress, stats, { model, tier, emit } = {}) {
+async function generateOne(file, root, progress, stats, { model, tier, emit, deadlineAt = null } = {}) {
   const out = emit ?? (s => process.stdout.write(s))
   const sourceAbs = join(root, file.sourcePath)
   let size = 0
@@ -162,7 +162,7 @@ async function generateOne(file, root, progress, stats, { model, tier, emit } = 
     const docAbs = join(root, file.docPath)
     // Варіант B: передаємо наявну доку, щоб зберегти захищену секцію «Призначення»
     const existingMd = existsSync(docAbs) ? readFileSync(docAbs, 'utf8') : null
-    const result = await generateDoc(sourceAbs, { existingMd, model })
+    const result = await generateDoc(sourceAbs, { existingMd, model, deadlineAt })
     const crc = crc32(readFileSync(sourceAbs))
     mkdirSync(dirname(docAbs), { recursive: true })
     const quality =
@@ -395,8 +395,11 @@ export function runDocFilesGenCli(argv) {
  *
  * `deadlineAt` (epoch ms): м'який дедлайн fix-pipeline — перед стартом КОЖНОГО
  * наступного файлу (перший стартує завжди) батч звіряється з дедлайном і, коли час
- * вийшов, завершується штатно з частковим прогресом. Зроблене записано по одному
- * файлу (durable, свіжий CRC) — наступний прогін підбирає решту за CRC.
+ * вийшов, завершується штатно з частковим прогресом. Той самий дедлайн прокидається
+ * у generateDoc: per-call LLM-таймаути ріжуться під залишок бюджету, тож і файл
+ * У ПРОЦЕСІ обривається на дедлайні (transient-помилка), а не живе батчем-зомбі
+ * поверх наступного rung-а. Зроблене записано по одному файлу (durable, свіжий
+ * CRC) — наступний прогін підбирає решту за CRC.
  * @param {Array<object>} targets елементи scanForDocFiles (sourcePath/docPath)
  * @param {string} root абсолютний корінь
  * @param {{ headline?: string, model?: string, tier?: string, deadlineAt?: number|null }} [opts] headline — рядок-шапка прогону у stdout; model/tier — override моделі і її типу (інакше DEFAULT_LOCAL_MODEL); deadlineAt — м'який дедлайн (epoch ms)
@@ -442,7 +445,8 @@ export async function runGenerationBatch(targets, root, opts = {}) {
       const status = await generateOne(file, root, { done, total: targets.length }, stats, {
         model: opts.model,
         tier: opts.tier,
-        emit
+        emit,
+        deadlineAt: opts.deadlineAt ?? null
       })
       reporter?.concernDone(file.sourcePath)
       // Circuit-breaker: K systemic-збоїв підряд → негайний abort (середовище впало,

@@ -31,21 +31,49 @@ let llmMeter = { calls: 0, ms: 0 }
 let activeChain = null
 
 /**
+ * Дедлайн поточної генерації (epoch ms) — той самий lifecycle, що й activeChain:
+ * виставляється на старті generateDoc (opts.deadlineAt від fix-pipeline), скидається
+ * у finally. Ріже per-call таймаути так, що жоден LLM-виклик не переживає бюджет
+ * рунга — інакше backstop runner-а вбиває worker, а батч-зомбі продовжує дзвонити
+ * в локальну модель поверх наступного rung-а.
+ */
+let activeDeadlineAt = null
+
+/**
+ * Ріже базовий per-call таймаут під залишок бюджету до дедлайну.
+ * Без дедлайну — базовий ліміт; після дедлайну — 0 (виклик не має стартувати).
+ * @param {number} baseMs базовий ліміт виклику
+ * @param {number|null} deadlineAt дедлайн (epoch ms) або null
+ * @param {number} [now] поточний час (інжект для тестів)
+ * @returns {number} ефективний ліміт у мс (0 — бюджет вичерпано)
+ */
+export function capTimeoutToDeadline(baseMs, deadlineAt, now = Date.now()) {
+  if (!deadlineAt) return baseMs
+  return Math.min(baseMs, Math.max(0, deadlineAt - now))
+}
+
+/**
  * Обгортка LLM-виклику з обліком (тепер async поверх pi-one-shot): лічить кількість
  * викликів і сумарний час. Генерація одного файлу послідовна — лічильник без гонок.
  * Зберігає старий інтерфейс accountant'а: повертає рядок-вміст, кидає на помилці.
+ * Таймаут виклику ріжеться під activeDeadlineAt; вичерпаний бюджет — помилка зі
+ * словом «timeout» (класифікується transient у batch, не permanent/systemic).
  * @param {Array<{role:string,content:string}>} messages чат-повідомлення
  * @param {string} model model-id (`provider/id`)
  * @param {{ timeoutMs?: number, caller?: string }} [opts] ліміт/мітка (temperature/maxTokens не підтримуються pi-one-shot)
  * @returns {Promise<string>} відповідь моделі
  */
 async function callLlm(messages, model, opts = {}) {
+  const timeoutMs = capTimeoutToDeadline(opts.timeoutMs ?? LOCAL_TIMEOUT_MS, activeDeadlineAt)
+  if (timeoutMs <= 0) {
+    throw new Error('docgen deadline: бюджет рунга fix-pipeline вичерпано до старту LLM-виклику (timeout)')
+  }
   const started = Date.now()
   try {
     const res = await runOneShot({
       messages,
       modelSpec: model,
-      timeoutMs: opts.timeoutMs,
+      timeoutMs,
       caller: opts.caller ?? 'docgen',
       chain: activeChain
     })
@@ -453,12 +481,18 @@ function finishUnsupported(r, { t0, model, chainExtra }) {
  * з вищою температурою (best-of-2); якщо й він не допоміг — результат
  * позначається `degraded`, рішення про перегенерацію приймає batch/користувач.
  * @param {string} file абсолютний шлях джерела
- * @param {{ model?: string, threshold?: number, existingMd?: string|null, chainFactory?: typeof startChain }} [opts] model-id, поріг degraded, наявна дока (для збереження захищеної секції), фабрика ланцюжка (інжект для тестів)
+ * @param {{ model?: string, threshold?: number, existingMd?: string|null, chainFactory?: typeof startChain, deadlineAt?: number|null }} [opts] model-id, поріг degraded, наявна дока (для збереження захищеної секції), фабрика ланцюжка (інжект для тестів), deadlineAt — мʼякий дедлайн fix-pipeline (epoch ms): per-call таймаути ріжуться під залишок бюджету, вичерпаний бюджет обриває генерацію transient-помилкою
  * @returns {{ md: string, ms: number, llmMs: number, llmCalls: number, score: number|null, issues: string[], degraded: boolean, model: string }} документ і метадані генерації (ms — увесь файл; llmMs/llmCalls — лише LLM; решта ms — оркестрація)
  */
 export async function generateDoc(
   file,
-  { model = DEFAULT_LOCAL_MODEL, threshold = QUALITY_THRESHOLD, existingMd = null, chainFactory = startChain } = {}
+  {
+    model = DEFAULT_LOCAL_MODEL,
+    threshold = QUALITY_THRESHOLD,
+    existingMd = null,
+    chainFactory = startChain,
+    deadlineAt = null
+  } = {}
 ) {
   const src = readFileSync(file, 'utf8')
   // Pre-send guard: весь src вшивається у промпт як є (екстракт фактів його НЕ
@@ -477,6 +511,7 @@ export async function generateDoc(
   llmMeter = { calls: 0, ms: 0 }
   const chain = chainFactory({ kind: 'doc-generate', unit: facts.relPath, cwd: process.cwd() })
   activeChain = chain
+  activeDeadlineAt = deadlineAt
   const chainExtra = {}
   try {
     return await generateDocCore()
@@ -485,6 +520,7 @@ export async function generateDoc(
     throw error
   } finally {
     activeChain = null
+    activeDeadlineAt = null
     let outcome = 'success'
     if (chainExtra.error) outcome = 'fail'
     else if (chainExtra.degraded) outcome = 'partial'

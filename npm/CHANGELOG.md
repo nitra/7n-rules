@@ -1,5 +1,41 @@
 # Changelog
 
+## [1.4.1] - 2026-07-15
+
+### Fixed
+
+- Виправлено застарілі шляхи npm/rules/js/js/data/tooling у повідомленнях перевірок tooling/check (пост-реструктуризація da05f89d)
+
+## [1.4.0] - 2026-07-15
+
+### Added
+
+- Нове правило `local-ai` (auto: завжди): інтеграція rtk (Rust Token Killer) для стискання виводу CLI-команд агентів. Sync вставляє fail-open PreToolUse hook у `.claude/settings.json` (`rtk hook claude`), preToolUse у `.cursor/hooks.json` (`rtk hook cursor`) та vendored pi-extension `.pi/extensions/rtk.ts`; від користувача потрібен лише `brew install rtk-ai/tap/rtk`. Вимкнення — `disable-rules: ["local-ai"]`.
+
+## [1.3.2] - 2026-07-15
+
+### Fixed
+
+- template-deep-merge: eslint (cognitive-complexity, no-negated-array-predicate) і cspell-фікси після PR #66
+
+## [1.3.1] - 2026-07-14
+
+### Changed
+
+- docs(adr): merge pending ADR normalization batch
+
+## [1.3.0] - 2026-07-14
+
+### Changed
+
+- doc-files: мʼякий дедлайн fix-pipeline тепер діє і всередині файлу — `generateDoc` ріже per-call LLM-таймаути під залишок бюджету рунга (`deadlineAt`), тож генерація, що не вкладається в рунг, обривається transient-помилкою сама, без батчу-зомбі поверх наступного rung-а і без «fix timeout» від backstop-таймера
+
+## [1.2.2] - 2026-07-14
+
+### Changed
+
+- release: @7n/llm-lib@2.6.1, @7n/rules@1.1.0
+
 ## [1.2.1] - 2026-07-14
 
 ### Fixed

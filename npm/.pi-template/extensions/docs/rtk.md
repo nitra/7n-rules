@@ -3,7 +3,7 @@ type: TS Module
 title: rtk.ts
 resource: npm/.pi-template/extensions/rtk.ts
 docgen:
-  crc: bbf15d33
+  crc: f00b429f
 ---
 
 ## Огляд
