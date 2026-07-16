@@ -33,3 +33,18 @@ Chosen option: "Розрізняти типи preflight-помилки", because
 - Реалізація: `npm/lib/llm.mjs` → `omlxHealthCheck`, `npm/lib/omlx.mjs` → `callOmlx`.
 - Авто-пілот із polling: `/tmp/doc-files-autopilot.sh` (скрипт сесії 2026-06-11).
 - Дока: `npm/lib/docs/llm.md`, `npm/lib/docs/omlx.md`.
+
+## Update 2026-06-14
+
+- Для docgen-оркестратора зафіксовано три класи omlx-збоїв: `transient` (`spawnSync curl ETIMEDOUT`), `systemic` (`memory ceiling exceeded`) і `permanent` (`Prompt too long: 9177917 tokens`).
+- Поточна поведінка `docgen-files-batch.mjs` (`catch → ✗ → push → continue`) спричинила каскад приблизно 200 наступних невдалих файлів після memory-збою на файлі №57.
+- Потрібна реакція за класом: retry з backoff для transient, circuit breaker для systemic, окремий `skipped[]` без retry для permanent.
+- Зародок класифікації вже є в `omlxHealthCheck` у `npm/lib/llm.mjs:137-150`; transcript пропонує винести спільний `classifyOmlxError`.
+- Permanent-case: мініфікований vendored-файл `*/lib/lib/eusc*.js` на приблизно 9.17M токенів варто відсіювати ще до відправлення в LLM.
+
+## Update 2026-06-14
+
+- Уточнено recovery-стратегію для memory ceiling: проблема була не у KV-/prompt-cache, а в одночасній присутності двох gemma-моделей у RAM (`gemma-4-e4b-it-OptiQ-4bit` і `gemma-4-e2b-it-4bit`) понад стелю 12.7 GB.
+- Transcript відкинув скидання `/admin/api/hot-cache/clear` як основне рішення, бо per-request KV-cache omlx звільняє автоматично, а prefix/hot-cache корисний для повторюваного system-prompt docgen.
+- Для preflight/recovery варто використовувати `GET /v1/models/status` і `POST /v1/models/{id}/unload`, щоб прибирати конкурентну модель перед батчем або після systemic-збою.
+- Resume безпечний: файли без записаної документації лишаються `stale` і підбираються наступним прогоном через CRC.

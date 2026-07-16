@@ -7,6 +7,8 @@
  */
 import { spawnSync } from 'node:child_process'
 
+import { isWorktreeCheckoutPath } from '../utils/walkDir.mjs'
+
 /**
  * @param {string[]} args аргументи git
  * @param {string} cwd корінь
@@ -29,7 +31,18 @@ function gitLines(args, cwd) {
 export function collectChangedFiles(cwd = process.cwd()) {
   const modified = gitLines(['diff', 'HEAD', '--name-only', '--diff-filter=ACMR'], cwd)
   const untracked = gitLines(['ls-files', '--others', '--exclude-standard'], cwd)
-  return [...new Set([...modified, ...untracked])]
+  return dropWorktreeCheckouts([...new Set([...modified, ...untracked])])
+}
+
+/**
+ * Прибирає шляхи всередині worktree-чекаутів (`.worktrees/`, `.claude/worktrees/`):
+ * це повні копії репо (сесійні worktree Claude/агентів), а не робочий код, і в
+ * споживацьких репо вони можуть бути не gitignored — git тоді віддає їх як untracked.
+ * @param {string[]} paths relative-posix шляхи
+ * @returns {string[]} шляхи без worktree-чекаутів
+ */
+function dropWorktreeCheckouts(paths) {
+  return paths.filter(p => !isWorktreeCheckoutPath(p))
 }
 
 /**
@@ -79,5 +92,5 @@ export function collectChangedFilesSince(base, cwd = process.cwd()) {
   }
   const changed = gitLines(['diff', base, '--name-only', '--diff-filter=ACMR'], cwd)
   const untracked = gitLines(['ls-files', '--others', '--exclude-standard'], cwd)
-  return [...new Set([...changed, ...untracked])]
+  return dropWorktreeCheckouts([...new Set([...changed, ...untracked])])
 }

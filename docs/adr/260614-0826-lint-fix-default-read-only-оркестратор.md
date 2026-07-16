@@ -142,3 +142,13 @@ Transcript facts: згадані коміти `3a0b0ec4`, `028d4bf0`, `91eab517`
 - `npm/skills/fix/js/{orchestrator,t0,llm-worker}.mjs` переміщено у `npm/scripts/lib/fix/`.
 - PostToolUse-хук переписано на один read-only `_fix-check` для всіх активованих правил без `ROUTES` і `picomatch`.
 - `CLAUDE.md`, `buildClaudeLintParallelismSectionLines()` і `npm/skills/lint/SKILL.md` синхронізовано з правилом: паралельний lint дозволений лише для дизʼюнктних наборів файлів.
+
+## Update 2026-06-14
+
+- Conformance-рушій перенесено зі `npm/skills/fix/js/` до `npm/scripts/lib/fix/`, щоб видалення skill `/n-fix` не видалило бібліотечну логіку (`orchestrator.mjs`, `t0.mjs`, `llm-worker.mjs`).
+- Публічні CLI-команди `fix`, `check`, `fix-run` видалено; внутрішні `_fix-check` і `fix-t0` залишено як фази рушія.
+- PostToolUse-хук спрощено: замість `routeFilePathToRules` / `ROUTES` він викликає один read-only `_fix-check` для активованих правил.
+- Оркестратор lint переміщено з `npm/scripts/lint-cli.mjs` до `npm/rules/lint/js/orchestrate.mjs`; `rules/lint` зареєстровано як правило з no-op `fix.mjs`.
+- CI lint-text/lint-style переведено в read-only: `lint-text.yml` використовує `n-cursor lint-text --read-only`, а `lint-style.yml` запускає `npx stylelint '**/*.{css,scss,vue}'` без `--fix`.
+- Заборону паралельного ESLint релаксовано: диз'юнктні per-file набори можна запускати паралельно, whole-tree прогони того самого корпусу треба серіалізувати.
+- `/n-fix` повністю видалено як skill-делегат без власної поведінки; `/n-lint` лишається повною заміною.
