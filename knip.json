@@ -66,6 +66,14 @@
       "entry": ["lib/*.mjs", "tests/**/*.test.mjs", "stryker.config.mjs"],
       "project": ["**/*.mjs"],
       "ignoreDependencies": ["@earendil-works/pi-coding-agent"]
+    },
+    "plugins/ci-github": {
+      "entry": ["rules/*/*/main.mjs", "rules/*/*/fix-*.mjs", "rules/**/*.test.mjs", "stryker.config.mjs"],
+      "project": ["**/*.mjs"]
+    },
+    "plugins/ci-azure": {
+      "entry": ["rules/*/*/main.mjs", "rules/*/*/fix-*.mjs", "rules/**/*.test.mjs", "stryker.config.mjs"],
+      "project": ["**/*.mjs"]
     }
   }
 }

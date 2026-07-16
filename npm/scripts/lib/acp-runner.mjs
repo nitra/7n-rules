@@ -16,6 +16,7 @@
  */
 
 import { spawn } from 'node:child_process'
+import { once } from 'node:events'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
@@ -121,6 +122,47 @@ class AcpSkillClient {
 }
 
 /**
+ * @param {import('node:child_process').ChildProcess} child дочірній процес
+ * @returns {Promise<{ event: 'error', error: Error }>} подія спавн-помилки
+ */
+async function watchSpawnError(child) {
+  const [error] = await once(child, 'error')
+  return { event: 'error', error }
+}
+
+/**
+ * @param {import('node:child_process').ChildProcess} child дочірній процес
+ * @returns {Promise<{ event: 'exit', code: number|null, signal: string|null }>} подія завершення процесу
+ */
+async function watchExit(child) {
+  const [code, signal] = await once(child, 'exit')
+  return { event: 'exit', code, signal }
+}
+
+/**
+ * Watchdog дочірнього процесу: провалюється швидко, якщо ACP-агент не запустився чи
+ * вийшов до кінця ходу — без цього мертвий процес вішає `connection.prompt` назавжди
+ * (`Connection#receive` у `@zed-industries/agent-client-protocol` тихо завершує читання
+ * на закритому stdout, не відхиляючи pending-запити).
+ * @param {import('node:child_process').ChildProcess} child дочірній процес ACP-агента
+ * @param {string} kind провайдер (для тексту помилки)
+ * @returns {Promise<never>} ніколи не резолвиться успішно — лише провалюється
+ * @throws {Error} на спавн-помилку чи будь-який вихід процесу до завершення ходу
+ */
+async function waitForChildFailure(child, kind) {
+  const result = await Promise.race([watchSpawnError(child), watchExit(child)])
+
+  if (result.event === 'error') {
+    throw new Error(`acp ${kind}: не вдалося запустити процес: ${result.error.message}`)
+  }
+  throw new Error(
+    result.signal
+      ? `acp ${kind}: процес вбитий сигналом ${result.signal} до завершення ходу`
+      : `acp ${kind}: процес завершився з кодом ${result.code} до завершення ходу`
+  )
+}
+
+/**
  * Виконує скіл через зовнішнього ACP-агента (`cursor`/`codex`/`claude`).
  * @param {'cursor' | 'codex' | 'claude'} kind провайдер
  * @param {string} prompt готовий промпт скіла
@@ -136,9 +178,7 @@ export async function runAcpRunner(kind, prompt, projectDir, logError, deps = {}
 
   const command = ACP_AGENT_COMMANDS[kind]
   const { bin, args } =
-    'adapterPackage' in command
-      ? { bin: process.execPath, args: [resolveBin(command.adapterPackage)] }
-      : command
+    'adapterPackage' in command ? { bin: process.execPath, args: [resolveBin(command.adapterPackage)] } : command
 
   if ('bin' in command && deps.isBinaryInPath && !deps.isBinaryInPath(command.bin)) {
     throw new Error(`\`${command.bin}\` not found in PATH. Install ${kind} CLI (ACP mode) or use \`skill pi\`.`)
@@ -146,6 +186,7 @@ export async function runAcpRunner(kind, prompt, projectDir, logError, deps = {}
 
   const acp = deps.acp ?? (await import('@zed-industries/agent-client-protocol'))
   const child = spawnFn(bin, args, { cwd: projectDir, stdio: ['pipe', 'pipe', 'inherit'], env: process.env })
+  const failure = waitForChildFailure(child, kind)
 
   try {
     const input = Writable.toWeb(child.stdin)
@@ -154,15 +195,19 @@ export async function runAcpRunner(kind, prompt, projectDir, logError, deps = {}
     const stream = acp.ndJsonStream(input, output)
     const connection = new acp.ClientSideConnection(() => client, stream)
 
-    await connection.initialize({
-      protocolVersion: acp.PROTOCOL_VERSION,
-      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true } }
-    })
-    const session = await connection.newSession({ cwd: projectDir, mcpServers: [] })
-    const result = await connection.prompt({
-      sessionId: session.sessionId,
-      prompt: [{ type: 'text', text: prompt }]
-    })
+    const turn = (async () => {
+      await connection.initialize({
+        protocolVersion: acp.PROTOCOL_VERSION,
+        clientCapabilities: { fs: { readTextFile: true, writeTextFile: true } }
+      })
+      const session = await connection.newSession({ cwd: projectDir, mcpServers: [] })
+      return connection.prompt({
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text: prompt }]
+      })
+    })()
+
+    const result = await Promise.race([turn, failure])
 
     if (result.stopReason !== 'end_turn') {
       logError(`acp ${kind}: stopReason=${result.stopReason}`)

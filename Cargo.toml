@@ -1,0 +1,3 @@
+[workspace]
+resolver = "2"
+members = ["llm-lib/crates/llm-cascade"]

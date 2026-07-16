@@ -2,14 +2,28 @@
  * Тести ACP-раннера: автоапрув permission-опцій, мапінг StopReason → exit code,
  * резолвінг bin-адаптера, повний прогін через fake ACP-connection.
  */
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { describe, expect, test } from 'vitest'
 
-import { pickAutoPermissionOptionId, resolveAdapterBin, runAcpRunner, stopReasonToExitCode } from '../lib/acp-runner.mjs'
+import {
+  pickAutoPermissionOptionId,
+  resolveAdapterBin,
+  runAcpRunner,
+  stopReasonToExitCode
+} from '../lib/acp-runner.mjs'
 
 const CODEX_ACP_BIN_RE = /codex-acp.*dist.index\.js$/
 const CLAUDE_ACP_BIN_RE = /claude-agent-acp.*dist.index\.js$/
 const CURSOR_NOT_IN_PATH_RE = /cursor-agent.*not found in PATH/
+const CRASH_MID_TURN_RE = /завершився з кодом 1 до завершення ходу/
+const FAKE_PROJECT_DIR = join(tmpdir(), 'acp-runner-test-project')
+
+/** Заглушка `logError`/`out` для тестів, де вивід не перевіряється. */
+function noop() {
+  // no-op: цей тест не перевіряє вивід
+}
 
 describe('pickAutoPermissionOptionId', () => {
   test('обирає allow_always, якщо є', () => {
@@ -102,17 +116,23 @@ function createFakeAcp({ stopReason = 'end_turn', permissionOptions } = {}) {
   }
 }
 
+/**
+ * Fake дочірній процес: сам є `EventEmitter` (стріми — його підклас, як і реальний
+ * `ChildProcess`) із `stdin`/`stdout`-пайпами й `kill()`, що емітить `exit` — потрібен
+ * watchdog-у в `runAcpRunner` (`once(child, 'error'|'exit')`), який інакше кинув би
+ * `TypeError` на plain-обʼєкті без `.on`/`.once`.
+ * @returns {PassThrough & { stdin: PassThrough, stdout: PassThrough, killed: boolean, kill: () => void }} fake `ChildProcess`
+ */
 function createFakeChild() {
-  const stdin = new PassThrough()
-  const stdout = new PassThrough()
-  return {
-    stdin,
-    stdout,
-    killed: false,
-    kill() {
-      this.killed = true
-    }
+  const child = new PassThrough()
+  child.stdin = new PassThrough()
+  child.stdout = new PassThrough()
+  child.killed = false
+  child.kill = () => {
+    child.killed = true
+    child.emit('exit', 0, null)
   }
+  return child
 }
 
 describe('runAcpRunner', () => {
@@ -121,12 +141,12 @@ describe('runAcpRunner', () => {
     const child = createFakeChild()
     const chunks = []
 
-    const code = await runAcpRunner('codex', 'do the task', '/tmp/project', () => {
-      /* noop: тест не перевіряє logError */
-    }, {
+    const code = await runAcpRunner('codex', 'do the task', FAKE_PROJECT_DIR, noop, {
       acp,
       spawnFn: () => child,
-      out: chunk => chunks.push(chunk),
+      out: chunk => {
+        chunks.push(chunk)
+      },
       resolveAdapterBin: () => '/fake/dist/index.js'
     })
 
@@ -142,14 +162,20 @@ describe('runAcpRunner', () => {
     const child = createFakeChild()
     const errors = []
 
-    const code = await runAcpRunner('claude', 'do the task', '/tmp/project', line => errors.push(line), {
-      acp,
-      spawnFn: () => child,
-      out: () => {
-        /* noop: тест не перевіряє stdout */
+    const code = await runAcpRunner(
+      'claude',
+      'do the task',
+      FAKE_PROJECT_DIR,
+      line => {
+        errors.push(line)
       },
-      resolveAdapterBin: () => '/fake/dist/index.js'
-    })
+      {
+        acp,
+        spawnFn: () => child,
+        out: noop,
+        resolveAdapterBin: () => '/fake/dist/index.js'
+      }
+    )
 
     expect(code).toBe(1)
     expect(errors.join('\n')).toContain('refusal')
@@ -159,23 +185,40 @@ describe('runAcpRunner', () => {
     const spawned = []
 
     await expect(
-      runAcpRunner(
-        'cursor',
-        'do the task',
-        '/tmp/project',
-        () => {
-          /* noop: тест не перевіряє logError */
+      runAcpRunner('cursor', 'do the task', FAKE_PROJECT_DIR, noop, {
+        spawnFn: (...args) => {
+          spawned.push(args)
+          return createFakeChild()
         },
-        {
-          spawnFn: (...args) => {
-            spawned.push(args)
-            return createFakeChild()
-          },
-          isBinaryInPath: () => false
-        }
-      )
+        isBinaryInPath: () => false
+      })
     ).rejects.toThrow(CURSOR_NOT_IN_PATH_RE)
 
     expect(spawned).toHaveLength(0)
+  })
+
+  test('дочірній процес падає до кінця ходу → fail-fast, не висить', async () => {
+    const child = createFakeChild()
+    const start = Date.now()
+    const { promise: initializeNeverResolves } = Promise.withResolvers()
+
+    const crashingAcp = {
+      PROTOCOL_VERSION: 1,
+      ndJsonStream: () => ({}),
+      ClientSideConnection: function CrashingConnection() {
+        this.initialize = () => initializeNeverResolves
+      }
+    }
+    queueMicrotask(() => child.emit('exit', 1, null))
+
+    await expect(
+      runAcpRunner('codex', 'do the task', FAKE_PROJECT_DIR, noop, {
+        acp: crashingAcp,
+        spawnFn: () => child,
+        out: noop,
+        resolveAdapterBin: () => '/fake/dist/index.js'
+      })
+    ).rejects.toThrow(CRASH_MID_TURN_RE)
+    expect(Date.now() - start).toBeLessThan(5000)
   })
 })
