@@ -22,6 +22,11 @@ has_lint_step if contains(script_blob, "n-rules lint rust")
 
 has_lint_step if contains(script_blob, "@7n/rules lint rust")
 
+# Загальний full-прогін покриває всі домени — окремий rust-степ не потрібен.
+has_lint_step if contains(script_blob, "n-rules lint --no-fix --full")
+
+has_lint_step if contains(script_blob, "@7n/rules lint --no-fix --full")
+
 deny contains msg if {
 	not has_lint_step
 	msg := "azure-pipelines.yml: має бути script-крок `n-rules lint rust --no-fix` (azure-pipelines.mdc)"

@@ -21,3 +21,8 @@ test_without_no_fix_denied if {
 	some msg in lint_pipeline_js.deny with input as wf
 	contains(msg, "--no-fix")
 }
+
+test_generic_full_lint_passes if {
+	wf := {"steps": [{"script": "bunx n-rules lint --no-fix --full"}]}
+	count(lint_pipeline_js.deny) == 0 with input as wf
+}
