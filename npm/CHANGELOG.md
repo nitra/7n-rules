@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.5] - 2026-07-16
+
+### Fixed
+
+- npm: підняти нижню межу @7n/llm-lib до ^2.7.0 (skills-cli.mjs імпортує ./acp, доданий лише у 2.7.0 — старіші 2.x без цього subpath ламали npx @7n/rules з ERR_PACKAGE_PATH_NOT_EXPORTED)
+
 ## [1.7.4] - 2026-07-16
 
 ### Fixed

@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules",
-  "version": "1.7.4",
+  "version": "1.7.5",
   "description": "CLI еталонних правил і skills (префікс n-): синк у репозиторій, дельта-lint, конформність",
   "keywords": [
     "cli",
