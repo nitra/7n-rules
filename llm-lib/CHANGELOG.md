@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.7.3] - 2026-07-16
+
+### Fixed
+
+- `llm_cascade::acp::one_shot_acp` — додано хендлер `session/request_permission` (auto-approve, паритет із `yolo_one_shot_client`-прикладом крейта): без нього агент, дійшовши до першого tool-call (bash/edit), зависав назавжди — запит на дозвіл лишався без відповіді
+
 ## [2.7.2] - 2026-07-16
 
 ### Changed
