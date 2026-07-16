@@ -26,7 +26,7 @@
  *   `.pi/extensions/rtk.ts`. Без установленого rtk hooks мовчки пропускають команди,
  *   тож конфіг безпечно потрапляє в git — установка зводиться до `brew install rtk-ai/tap/rtk`.
  * - `.gitignore` — **merge** (лише з `adr`): дописує відсутні рядки з канонічного
- *   фрагмента `rules/adr/js/hooks/template/.gitignore.snippet` (`node_modules/`, `dist/`,
+ *   фрагмента `.claude-template/hooks/.gitignore.snippet` (`node_modules/`, `dist/`,
  *   `*.secret`, логи capture/normalize, `.normalize-state`, `.normalize.lock`,
  *   `.claude/scheduled_tasks.lock`); існуючі рядки не перезаписуються.
  *
@@ -101,7 +101,7 @@ export const PI_EXTENSION_NAME = 'n-rules-adr'
 /** @deprecated — ім'я extension-теки до перейменування пакету; лишається для cleanup при ресинку. */
 export const LEGACY_PI_EXTENSION_NAME = 'n-cursor-adr'
 /** Відносний шлях до канонічного фрагмента `.gitignore` для ADR Stop-hook'ів у tarball пакета. */
-export const ADR_GITIGNORE_SNIPPET_REL = 'rules/adr/js/templates/hooks/.gitignore.snippet'
+export const ADR_GITIGNORE_SNIPPET_REL = '.claude-template/hooks/.gitignore.snippet'
 const GITIGNORE_FILE = '.gitignore'
 const EOL_RE = /\r?\n/u
 
