@@ -11,9 +11,9 @@
 use std::path::Path;
 use std::str::FromStr;
 
-use agent_client_protocol::schema::{InitializeRequest, ProtocolVersion};
-use agent_client_protocol::Client;
-use agent_client_protocol_tokio::AcpAgent;
+use agent_client_protocol::schema::v1::InitializeRequest;
+use agent_client_protocol::schema::ProtocolVersion;
+use agent_client_protocol::{AcpAgent, Client};
 
 use crate::CascadeError;
 
