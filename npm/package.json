@@ -63,7 +63,7 @@
     "rename-yaml-extensions": "bun ./bin/n-rules.js rename-yaml-extensions"
   },
   "dependencies": {
-    "@7n/llm-lib": "^2.0.0",
+    "@7n/llm-lib": "^2.7.0",
     "@7n/mt": "^0.5.1",
     "@zed-industries/agent-client-protocol": "^0.4.5",
     "ajv": "^8.20.0",
