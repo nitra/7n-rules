@@ -27,6 +27,8 @@ import { join } from 'node:path'
 /**
  * @typedef {object} ConcernMeta
  * @property {string} name ім'я concern-а (= basename каталогу)
+ * @property {string|undefined} requiresCapability capability з `requires.capability` — концерн
+ *   активний лише коли якийсь плагін декларує її у своєму маніфесті (напр. `ci:github`)
  * @property {string} dir абсолютний шлях до каталогу concern-а
  * @property {boolean} check чи є JS check поверхня
  * @property {PolicySurface|undefined} policy policy-поверхня concern-а (rego/template) або undefined.
@@ -112,7 +114,12 @@ export async function readConcernMeta(concernDir, name) {
 
   if (!check && !policy && !lint) return null
 
-  return { name, dir: concernDir, check, policy, lint, fixability: parseFixability(raw.fixability) }
+  const requiresCapability =
+    raw.requires && typeof raw.requires === 'object' && typeof raw.requires.capability === 'string'
+      ? raw.requires.capability
+      : undefined
+
+  return { name, dir: concernDir, check, policy, lint, requiresCapability, fixability: parseFixability(raw.fixability) }
 }
 
 /**

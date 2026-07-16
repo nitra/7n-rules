@@ -10,6 +10,7 @@
     "ga",
     "js",
     "js-run",
+    "local-ai",
     "npm-module",
     "python",
     "rego",
@@ -42,5 +43,8 @@
     "llm-patch",
     "publish-telegram",
     "taze"
+  ],
+  "plugins": [
+    "@7n/rules-ci-github"
   ]
 }

@@ -4,5 +4,8 @@
     "files": {
       "single": ".github/workflows/clean-merged-branch.yml"
     }
+  },
+  "requires": {
+    "capability": "ci:github"
   }
 }

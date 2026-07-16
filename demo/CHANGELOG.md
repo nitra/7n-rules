@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.15] - 2026-07-15
+
+### Changed
+
+- fix(lint): apply full-scan autofixes for jsconfig, rust CI, and VS Code extensions (#71)
+
 ## [0.0.14] - 2026-07-05
 
 ### Changed

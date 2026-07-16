@@ -19,6 +19,7 @@ The primary development rules are stored in the Cursor rules directory:
 - .cursor/rules/n-ga.mdc
 - .cursor/rules/n-js-run.mdc
 - .cursor/rules/n-js.mdc
+- .cursor/rules/n-local-ai.mdc
 - .cursor/rules/n-npm-module.mdc
 - .cursor/rules/n-python.mdc
 - .cursor/rules/n-rego.mdc
@@ -41,7 +42,7 @@ The primary development rules are stored in the Cursor rules directory:
 - `.cursor/skills/n-lint/SKILL.md` — Запустити дельта-лінт (npx @7n/rules lint) по змінених файлах vs origin, виправити порушення й підтвердити чистий вихід
 - `.cursor/skills/n-llm-patch/SKILL.md` — Підготовка самодостатнього текстового промпта для іншого Claude/Cursor-агента — read-only аналіз CWD без жодних змін у поточному репо
 - `.cursor/skills/n-publish-telegram/SKILL.md` — Підготовка матеріалу з поточного контексту для публікації в Telegram-каналі команди
-- `.cursor/skills/n-taze/SKILL.md` — Оновлення версій модулів проекту з аналізом major-змін і автоматичним рефакторингом несумісного коду
+- `.cursor/skills/n-taze/SKILL.md` — Оновлення версій модулів проекту (bun/npm і, якщо є Cargo.toml, Rust-крейти через cargo-edit) з аналізом major-змін і автоматичним рефакторингом несумісного коду
 
 ## Commands
 
