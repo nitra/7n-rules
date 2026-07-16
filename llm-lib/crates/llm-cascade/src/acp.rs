@@ -11,6 +11,7 @@
 use std::path::Path;
 use std::str::FromStr;
 
+use agent_client_protocol::schema::{InitializeRequest, ProtocolVersion};
 use agent_client_protocol::Client;
 use agent_client_protocol_tokio::AcpAgent;
 
@@ -68,6 +69,10 @@ async fn prompt_agent(spec: AcpAgent, prompt: &str, cwd: &Path) -> Result<String
 
     Client
         .connect_with(spec, async move |cx| {
+            cx.send_request(InitializeRequest::new(ProtocolVersion::V1))
+                .block_task()
+                .await?;
+
             cx.build_session(cwd)
                 .block_task()
                 .run_until(async move |mut session| {
