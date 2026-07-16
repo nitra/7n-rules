@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/test/vitest-api-conventions/main.mjs
 docgen:
-  crc: 4ef8e575
+  crc: 806e74e3
 ---
 
 ## Огляд

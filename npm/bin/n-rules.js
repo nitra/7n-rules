@@ -819,7 +819,7 @@ async function syncClaudeMd(ignore) {
   const lines = [`<!-- Цей файл генерується автоматично через \`npx ${PACKAGE_NAME}\`. Не редагуй вручну. -->`, '']
 
   if (Array.isArray(ignore) && ignore.length > 0) {
-    lines.push('## Захищені директорії', '', 'Ніколи не змінюй, не видаляй і не створюй файли у цих директоріях:')
+    lines.push('## Захищені директорії', '', 'Ніколи не змінюй, не видаляй і не створюй файли у цих директоріях:', '')
     for (const dir of ignore) {
       let d = dir
       while (d.endsWith('/')) d = d.slice(0, -1)
