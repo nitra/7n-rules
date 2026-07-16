@@ -22,6 +22,11 @@ has_lint_step if contains(script_blob, "n-rules lint k8s")
 
 has_lint_step if contains(script_blob, "@7n/rules lint k8s")
 
+# Загальний full-прогін покриває всі домени — окремий k8s-степ не потрібен.
+has_lint_step if contains(script_blob, "n-rules lint --no-fix --full")
+
+has_lint_step if contains(script_blob, "@7n/rules lint --no-fix --full")
+
 deny contains msg if {
 	not has_lint_step
 	msg := "azure-pipelines.yml: має бути script-крок `n-rules lint k8s --no-fix` (azure-pipelines.mdc)"
