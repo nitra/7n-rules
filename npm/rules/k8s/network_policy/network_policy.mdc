@@ -20,3 +20,36 @@ Rego-пакет: `k8s.network_policy`
 **Передача snippets:** через `--data` при виклику conftest (JS передає `templateData` для `runConftestBatch`).
 
 **Примітка:** cross-file визначення `metadata.name` воркнавантаження і мітки `app` — JS (`validateNetworkPolicyForWorkload`).
+
+## Обов'язковість і авто-створення
+
+Для **кожного** workload (**Deployment**, **StatefulSet**, **DaemonSet**, **Job**, **CronJob**) під `k8s` обов'язковий **NetworkPolicy** у **`base/networkpolicy.yaml`** поруч з workload-маніфестом (multi-doc через `---`, якщо workload-ів кілька). Відсутні документи **`check k8s`** створює автоматично (канон і snippet-структура — вище) і додає `networkpolicy.yaml` у `base/kustomization.yaml` `resources:`.
+
+Перевірка/генерація — **`npm/rules/k8s/manifests/main.mjs`** (`validateNetworkPoliciesForK8sWorkloads`, `regenerateLegacyNetworkPolicyDocsInFile`).
+
+## HTTPRoute → NetworkPolicy ingress (GCLB + Envoy)
+
+Якщо в каталозі workload є **`HTTPRoute`** (Gateway API, див. **`gateway.mdc`**) з **`backendRef`** на **`<workload>-hl`** Service, **`check k8s`** автоматично додає в NetworkPolicy цього workload **ingress-правило** з фіксованим набором CIDR-ів і **TCP-портами з `backendRefs[].port`** (дедуп, відсортовано за зростанням).
+
+Без цього правила трафік від **GKE Gateway** (Envoy proxy-only subnet) і **Google health checks** блокується базовим NetworkPolicy.
+
+CIDR-набір зафіксовано (`npm/rules/k8s/manifests/main.mjs`, `NETWORK_POLICY_GCLB_INGRESS_FROM`):
+
+- `35.191.0.0/16` — GCP HC global
+- `130.211.0.0/22` — GCP HC global (legacy)
+- `10.0.0.0/8` — широкий range, покриває proxy-only subnets усіх регіонів GKE
+
+```yaml title="k8s/base/networkpolicy.yaml — workload з HTTPRoute (з GCLB ingress)"
+spec:
+  ingress:
+    - from:
+        - podSelector: {}
+    - from: # auto-added by check k8s for HTTPRoute-paired workloads
+        - ipBlock: { cidr: 35.191.0.0/16 }
+        - ipBlock: { cidr: 130.211.0.0/22 }
+        - ipBlock: { cidr: 10.0.0.0/8 }
+      ports:
+        - { protocol: TCP, port: 8080 }
+```
+
+Алгоритм: функція `collectHttpRouteIngressForWorkload` у **`npm/rules/k8s/manifests/main.mjs`** (mapping `backendRef.name` → `Service.metadata.name` → `service.spec.selector.matchLabels.app`).

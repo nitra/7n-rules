@@ -92,6 +92,35 @@ data:
 
 Ресурси типу `kind: Deployment` та інші non-ConfigMap — ігноруються.
 
+### Kustomize-оверлеї: `service.namespace` має відповідати namespace оверлею (не автоматизовано)
+
+Конвенція, **не** покрита автоматичною перевіркою — звіряй вручну під час рев'ю: у директоріях з kustomize-оверлеями значення `OTEL_RESOURCE_ATTRIBUTES` повинні бути перевизначені, і в них `service.namespace` повинен відповідати namespace, у якому знаходиться дана директорія оверлею (наприклад, `k8s/overlays/staging/` → `service.namespace=staging`).
+
+Rego-gate вище цього не звіряє — він лише перевіряє наявність обох substring-маркерів у кожному ConfigMap незалежно від директорії, тому розбіжність `service.namespace` між `base` і kustomize-оверлеями пройде перевірку мовчки. Кросс-файлова резолюція kustomize-дерева (`base` + `overlays`) — складніша задача, вже реалізована для інших k8s-перевірок у `npm/rules/k8s/manifests/main.mjs`; переносити цю логіку в `js-run` окремо не варто, поки немає підтвердженого запиту на автоматизацію саме цього кейсу.
+
+## `jsconfig.json` (редактор / перевірка типів)
+
+Якщо в **backend** workspace-пакеті (без `vite` у `devDependencies`) є каталог **`src/`**, у **корені цього пакета** має бути **`jsconfig.json`**. Якщо файлу ще немає — створи його з таким вмістом (канон js-run):
+
+```json title="jsconfig.json"
+{
+  "compilerOptions": {
+    "lib": ["esnext"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "esnext",
+    "checkJs": false
+  },
+  "include": ["src/**/*"]
+}
+```
+
+Канон і повний перелік перевірених полів — див. розділ нижче **Rego-gate: jsconfig.json**, канонічний файл: [jsconfig.json.snippet.json](./template/jsconfig.json.snippet.json).
+
+Якщо пакет не слідує структурі з `src/` (наприклад, лише `scripts/` у корені) — ця вимога не застосовується; для типових сервісів із `src/` файл обов'язковий і має збігатися з каноном.
+
+Fs-existence створення `jsconfig.json`, коли його бракує, — T0-автофікс (`../runtime/fix-runtime.mjs`); структурну звірку канону виконує rego-gate нижче.
+
 ## Rego-gate: jsconfig.json
 
 Rego-пакет: `js-run.jsconfig`
@@ -157,6 +186,24 @@ Rego-пакет: `js-run.package_json`
 
 Пакети з `vite` у `devDependencies` — frontend, поза областю js-run, перевірка scripts не застосовується.
 
+## Використання @nitra/pino для логування
+
+Проект використовує @nitra/pino для логування. Якщо в проекті присутній @nitra/bunyan, то він повинен бути замінений на @nitra/pino — як у `package.json`, так і в коді: усі `import` / `require` / динамічні `import()` з `@nitra/bunyan` (і застарілого `bunyan`) треба замінити на `@nitra/pino` і за потреби адаптувати виклики під його API.
+
+Заборона `bunyan` / `@nitra/bunyan` у `dependencies` / `devDependencies` — rego-gate вище (канон: [package.json.deny.json](./template/package.json.deny.json)). Заборонені імпорти в коді (AST-сканер): `../lib/bunyan-imports.mjs` (перевірка запускається з `../runtime/main.mjs`).
+
+## Структура проекту
+
+Рекомендується використовувати таку структуру проекту:
+
+```
+k8s/ # тут всі файли для деплойменту в Kubernetes, включаючи kustomize
+src/ # тут всі файли необхідні для роботи проекту
+Dockerfile
+package.json
+readme.md
+```
+
 ## Runtime у `package.json#scripts`
 
 У **backend**-пакетах (без `vite` у `devDependencies`) код запускають через **Bun**, не через бінарник **`node`** у значеннях `scripts`:
@@ -171,3 +218,185 @@ Rego-пакет: `js-run.package_json`
 Це **не** стосується поля `engines.node` (мінімальна версія Node для сумісності інструментів) і **не** стосується frontend-пакетів з `vite` у `devDependencies`.
 
 Канон заборонених патернів у `scripts`: [package.json.deny.json](./policy/package_json/template/package.json.deny.json) (`scriptsForbidden`).
+
+## CheckEnv та заборона прямого `process.env`
+
+### CheckEnv
+
+Усі змінні оточення, які використовуються в коді, повинні бути перевірені за допомогою `checkEnv` з пакету `@nitra/check-env`. Це гарантує, що всі необхідні змінні оточення встановлені перед запуском програми.
+
+```javascript title="Приклад підключення до PostgreSQL в /src/conn/pg.mjs"
+import { checkEnv, env } from '@nitra/check-env'
+import { SQL } from 'bun'
+
+checkEnv(['PG_CONN'])
+
+export const db = new SQL({ url: env.PG_CONN })
+
+```
+
+### process.env
+
+Прямий доступ до `process.env.X` у коді заборонений — його треба замінити на `env`:
+
+> Стосується лише backend-пакетів (див. **Область застосування**). У frontend-пакетах (`vite` у `devDependencies`) — **не змінюй** `process.env.*` і **не додавай** імпорт `node:process`.
+
+- **обов'язкова змінна** — `import { checkEnv, env } from '@nitra/check-env'` плюс `checkEnv(['X'])`
+  у тому ж файлі (приклад див. вище в розділі **CheckEnv**);
+- **опційна змінна** — `import { env } from 'node:process'`:
+
+```javascript title="Опційна змінна — env з node:process"
+import { env } from 'node:process'
+
+console.log(env.OPTIONAL_ENV_VAR)
+```
+
+Тимчасово приглушити перевірку для конкретного рядка можна коментарем
+`// @7n/rules ignore-next-line checkEnv` безпосередньо перед використанням
+(escape-hatch для legacy-коду, не для нових файлів).
+
+Перевірка (JS-сканер): `../lib/check-env-scan.mjs`.
+
+## Внутрішні аліаси для підключень до БД і GraphQL
+
+Якщо в проекті є підключення до баз даних, зовнішніх graphql на кшталт:
+
+```js
+import { SQL } from 'bun'
+
+// або
+
+import sql from 'mssql'
+
+// або
+
+import { GraphQLClient } from '@nitra/graphql-request'
+```
+
+то ці підключення повинні бути винесені в окремий файл, наприклад `/src/conn/pg.mjs`, в package.json повинні бути додано аліас:
+
+```json
+{
+  "imports": {
+    "#conn/*": "./src/conn/*"
+  },
+}
+
+```
+
+так виглядатиме підключення до PostgreSQL в коді:
+
+```javascript title="Приклад підключення до PostgreSQL в /src/conn/pg.mjs"
+import { checkEnv, env } from '@nitra/check-env'
+import { SQL } from 'bun'
+
+checkEnv(['PG_CONN'])
+
+export const db = new SQL({ url: env.PG_CONN })
+
+```
+
+а так до GraphQL:
+
+```js
+import { checkEnv, env } from '@nitra/check-env'
+import { GraphQLClient } from '@nitra/graphql-request'
+
+checkEnv(['QL', 'X_HASURA_ADMIN_SECRET'])
+
+export { gql } from '@nitra/graphql-request'
+
+export const graphQLClientSmart = new GraphQLClient(env.QL, {
+  headers: {
+    'X-Hasura-Admin-Secret': env.X_HASURA_ADMIN_SECRET
+  }
+})
+```
+
+а в коді повинно бути використано:
+
+```js
+import { pool } from '#conn/pg.mjs'
+
+// або
+
+import { gql, graphQLClient } from '@nitra/graphql-request'
+```
+
+### Нейминг файлів у `src/conn/`
+
+Назва файла в `src/conn/` має одразу повідомляти, **до чого** підключаємось і **в якому режимі**:
+
+- **GraphQL** — префікс `ql-`, далі ідентифікатор endpoint:
+  - `src/conn/ql-contract.mjs`
+  - `src/conn/ql-smart.mjs`
+- **PostgreSQL** — префікс `pg-`, далі тип підключення (репліка vs мастер): `read` або `write`:
+  - `src/conn/pg-read.mjs`
+  - `src/conn/pg-write.mjs`
+- **PostgreSQL до кількох БД** — додатково ідентифікатор підключення після типу:
+  - `src/conn/pg-read-smart.mjs`
+  - `src/conn/pg-write-contract.mjs`
+- **MySQL** — префікс `mysql-` за тією ж схемою (`mysql-read.mjs`, `mysql-write-<id>.mjs` тощо).
+- **MSSQL** — префікс `mssql-` за тією ж схемою (`mssql-read.mjs`, `mssql-write-<id>.mjs` тощо). Хоча npm-пакет один (`mssql`), а драйвер MS SQL Server під капотом T-SQL — у файловій назві відрізняємо MS SQL Server від MySQL, бо це різні СУБД, різні діалекти, різні рантаймні залежності. Якщо проєкт історично використовує `mysql-…` для MSSQL-підключень — він валідний і далі (для backward-compat), але новий код пишемо з префіксом `mssql-`.
+
+Підключення до БД **обов'язково** має бути ідентифіковано як `read` (репліка) або `write` (мастер). Якщо з імені змінної оточення (наприклад, `env.PG_CONN`) це не очевидно — визнач режим за операціями в коді: якщо немає операцій зміни даних (`INSERT`/`UPDATE`/`DELETE`/DDL) — це `pg-read.mjs`, інакше `pg-write.mjs`.
+
+### Експорти у файлах `src/conn/`
+
+У файлах підключень **заборонений** `export default`. Експорт має бути **іменований** і збігатися з назвою файла в camelCase.
+
+Приклад — `src/conn/ql-smart.mjs`:
+
+```javascript title="❌ Так не можна"
+export default new GraphQLClient(env.SMART_QL, {
+  headers: {
+    'X-Hasura-Admin-Secret': env.SMART_X_HASURA_ADMIN_SECRET
+  }
+})
+```
+
+```javascript title="✅ Канон: іменований експорт за іменем файла"
+export const qlSmart = new GraphQLClient(env.SMART_QL, {
+  headers: {
+    'X-Hasura-Admin-Secret': env.SMART_X_HASURA_ADMIN_SECRET
+  }
+})
+```
+
+Відповідно: `pg-read.mjs` → `export const pgRead = …`, `pg-write-contract.mjs` → `export const pgWriteContract = …`, `ql-contract.mjs` → `export const qlContract = …`.
+
+Файли `index.*` у conn-каталозі пропускаються як можливий reexport-барель.
+
+Перевірка (JS-сканери): `../lib/conn-file-rules.mjs` (нейминг, експорти), `../lib/conn-imports-scan.mjs` (факторні імпорти поза `src/conn/`); декларація аліаса `imports["#conn/*"]` у `package.json` — `checkConnAliasDeclaration` у `main.mjs`.
+
+## Паузи через setTimeout
+
+Заборонено робити паузи через `await new Promise(resolve => setTimeout(resolve, ms))` — таку обгортку треба замінити на promise-варіант `setTimeout` з `node:timers/promises`:
+
+```javascript title="Замість new Promise + setTimeout"
+import { setTimeout } from 'node:timers/promises'
+
+await setTimeout(500)
+```
+
+Імпорт `setTimeout` з `node:timers/promises` затіняє глобальний таймер у файлі — якщо в тому ж файлі потрібен callback-варіант, імпортуй його під іншим іменем (наприклад, `import { setTimeout as setTimeoutCb } from 'node:timers'`).
+
+Перевірка (JS-сканер): `../lib/promise-settimeout-scan.mjs`.
+
+## Temporal API (заборона у Bun runtime)
+
+У backend/Bun runtime-коді **не використовуй `Temporal`** (`Temporal.Now`, `Temporal.Instant`, імпорти з polyfill тощо). Bun 1.3.x (діапазон версій репозиторію — `bun >= 1.3`) ще не має глобального `Temporal` (`typeof Temporal === "undefined"`), тому агентам треба лишатися на сумісному `Date` API або передавати timestamp у чисті функції через параметр.
+
+Перевірка `npx @7n/rules check` (AST-сканер `../lib/temporal-scan.mjs`) сканує JS/TS-код на identifier `Temporal` у backend workspace-коді.
+
+## Область застосування
+
+Правило стосується **виключно backend Node.js workspace-пакетів** (jobs, GraphQL/HTTP-сервери, CLI). **Не застосовується** до frontend-пакетів, які бандляться в браузер: маркер — наявність `vite` у `devDependencies` пакета (`site/`, мобільні Capacitor-пакети, будь-яка Vue/Quasar SPA).
+
+У браузерному середовищі:
+
+- немає `node:process` — імпорт `import { env } from 'node:process'` resolve'иться у `undefined`, і `env.X` падає з `TypeError: Cannot read properties of undefined`;
+- `process.env.X` у джерелах пакета відсутнє в рантаймі — Vite або взагалі не підставляє його, або підставляє лише `process.env.NODE_ENV`;
+- усі змінні оточення для frontend задаються через `VITE_*` і доступні як `import.meta.env.VITE_X` (типобезпечно через `vite-check-env`); режим — `import.meta.env.MODE` / `import.meta.env.PROD`.
+
+Тому **у frontend-пакетах не торкайся `process.env.*`** і **не додавай** `import { env } from 'node:process'`. Якщо натрапив на `process.env.NODE_ENV` у frontend-коді — заміна, якщо взагалі потрібна, лише на `import.meta.env.MODE`.

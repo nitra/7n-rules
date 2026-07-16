@@ -35,6 +35,11 @@ Gate порівнює кожен leaf-ключ у кожній секції ша
 - секція відсутня або не є обʼєктом (`bunfig.toml: відсутня секція [install]`)
 - leaf-ключ має інше значення (`bunfig.toml: у секції [install] має бути linker = "hoisted"`)
 
+## Навіщо саме `linker = "hoisted"`
+
+Канонічна лінковка для кореневого `bunfig.toml` — **hoisted**: пласке `node_modules`,
+сумісне з інструментами, які не розуміють ізольований (isolated) layout Bun.
+
 ## Структура lockfile та менеджер пакетів
 
 Проект використовує **тільки Bun** для керування залежностями та запуску скриптів.
@@ -95,6 +100,20 @@ FROM oven/bun:alpine AS build-env
 ```
 
 Якщо в репозиторії action збережено під **`./npm/github-actions/setup-bun-deps`**, у `uses:` вкажи цей шлях замість `.github/actions/…` (**ga.mdc**).
+
+## Лінт через n-rules, не package.json-скрипти
+
+Лінт запускається через CLI **`n-rules`** (локально) / **`npx @7n/rules`** (без локальної інсталяції),
+**не** через `package.json`-скрипти:
+
+- **`npx @7n/rules lint --full`** — весь репо (CI-режим);
+- **`npx @7n/rules lint`** — дельта vs origin (лише змінені файли, типовий задачний прогін);
+- **`n-rules lint <rule…>`** — конкретні правила, напр. **`n-rules lint ga`**.
+
+У кореневому `package.json` **не повинно бути** `lint`/`lint-*` скриптів — єдина точка лінту — CLI
+`n-rules` (пакет `@7n/rules`). Цей запис механічно перевіряється Rego-gate'ом
+[`bun.package_json`](../package_json/package_json.mdc) (deny на `scripts.lint` / `scripts.lint-*`) —
+тут лишається лише пояснення *чому* так (єдина точка входу для лінту), без дублювання самого чеку.
 
 ## Rego-gate: заборонені поля та devDependencies у кореневому package.json
 

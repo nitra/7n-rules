@@ -1,0 +1,152 @@
+## Канонічна структура default.conf.template
+
+`default.conf.template` — єдиний nginx-конфіг для фронтенду зі статичними файлами.
+Він **не повинен** містити жодних `proxy_pass`, `proxy_redirect`, `proxy_set_header`,
+`fastcgi_pass`, `grpc_pass`, `uwsgi_pass`. Усю проксі-логіку потрібно винести в HTTPRoute (k8s).
+
+Канонічний вигляд файлу:
+
+```nginx
+server_tokens off;
+port_in_redirect off;
+client_max_body_size 0;
+client_body_buffer_size 512M;
+
+server {
+    listen 8080;
+    server_name _;
+
+    # disable all log
+    access_log off;
+    # `error_log off;` — НЕ валідний nginx: "off" трактується як ім'я файлу (/etc/nginx/off)
+    # і падає під readOnlyRootFilesystem. /dev/null — writable device.
+    error_log /dev/null crit;
+
+    # This would be the directory where your Vite app's static files are stored at
+    root /usr/share/nginx/html;
+
+    location /healthz {
+        add_header Content-Type text/plain;
+        access_log off;
+        return 200 "healthy";
+    }
+
+    # Без gz стиснених файлів, 1 year is 31536000 seconds
+    location ~ ^$PUBLIC_PATH/(.+\.(?:gif|jpe?g|png|ico|woff2|xlsx))$ {
+        alias /usr/share/nginx/html/$1;
+        add_header 'Cache-Control' "public,max-age=31536000,immutable";
+    }
+
+    # С gz стисненими файлами, 1 year is 31536000 seconds
+    location ~ ^$PUBLIC_PATH/(.+\.(?:svg|js|css|ttf|map|xml|webmanifest|wasm))$ {
+        alias /usr/share/nginx/html/$1;
+        add_header 'Cache-Control' "public,max-age=31536000,immutable";
+
+        # дозволяє віддавати замість звичайного файлу попередньо стиснутий файл з таким же ім'ям та з розширенням ".gz"
+        gzip_static on;
+    }
+
+    location $PUBLIC_PATH/ {
+        index index.html;
+        alias /usr/share/nginx/html/;
+
+        #  eliminates the step of copying the data into the buffer and enables direct copying data from one file descriptor to another.
+        sendfile on;
+        # to prevent one fast connection from entirely occupying the worker process
+        sendfile_max_chunk 512k;
+        # to send HTTP response headers in one packet right after the chunk of data has been obtained by sendfile().
+        tcp_nopush on;
+
+        # дозволяє віддавати замість звичайного файлу попередньо стиснутий файл з таким же ім'ям та з розширенням ".gz"
+        gzip_static on;
+
+        try_files $uri $uri/ /index.html =404;
+    }
+}
+```
+
+Обов'язкові вимоги до структури (перевіряються автоматично, `nginxTemplateViolations` у
+`npm/rules/nginx-default-tpl/template/main.mjs`):
+
+- `server_tokens off` — приховує версію nginx у відповідях
+- `port_in_redirect off` — виключає порт з redirect-заголовків
+- `client_max_body_size 0` — без ліміту тіла запиту
+- `client_body_buffer_size 512M`
+- `listen 8080`
+- `server_name _` — catch-all
+- `access_log off`
+- `error_log /dev/null crit` (НЕ `error_log off;` — це некоректно в nginx)
+- `root /usr/share/nginx/html`
+- `location /healthz` з `return 200` і рядком `healthy`
+- location для статики без gzip (`gif|jpeg|png|ico|woff2|xlsx`) з `Cache-Control: max-age=31536000,immutable`
+- location для статики з gzip (`svg|js|css|ttf|map|xml|webmanifest|wasm`) з `gzip_static on`
+- `gzip_static on` щонайменше двічі (два location зі стисненням)
+- `$PUBLIC_PATH` у location — плейсхолдер підставляється через envsubst
+- `sendfile on`, `sendfile_max_chunk 512k`, `tcp_nopush on`
+- `try_files $uri $uri/ /index.html =404`
+- **Відсутність** будь-якого `proxy_pass` / `fastcgi_pass` / `grpc_pass` / `uwsgi_pass`
+
+## Конфігураційні *.ini файли і envsubst
+
+Поруч з `default.conf.template` мають бути конфігураційні файли `*.ini` для кожного
+середовища (наприклад, `values-dev.ini`, `values-prod.ini`).
+
+Формат ini-файлу:
+
+```ini
+PUBLIC_PATH=/app
+SERVICE_NAME=my-frontend
+```
+
+Кожна змінна з `*.ini` **повинна використовуватись** у `default.conf.template` як `$KEY`
+(через envsubst). Якщо у `*.ini` є ключ, що відсутній у шаблоні — його треба вилучити з ini
+або додати в шаблон.
+
+Перевірки (автоматичні, `checkTemplateFile`/`iniKeysMissingInTemplate` у
+`npm/rules/nginx-default-tpl/template/main.mjs`):
+
+- Поруч з кожним `default.conf.template` є щонайменше один `*.ini` файл
+- Кожен ключ з `*.ini` (рядки виду `KEY=value`, без коментарів `#`/`;` і порожніх рядків)
+  присутній у шаблоні як `$KEY`
+
+## Dockerfile — стиснення статики та envsubst шаблону
+
+Dockerfile потребує двох кроків, пов'язаних з nginx-шаблоном.
+
+### Стиснення статики (gzip_static)
+
+Щоб nginx міг використовувати `gzip_static on`, файли необхідно стиснути під час збирання образу:
+
+```dockerfile
+RUN find /usr/share/nginx/html -type f \( \
+  -name '*.js' -o -name '*.css' -o -name '*.map' -o -name '*.xml' -o \
+  -name '*.webmanifest' -o -name '*.html' -o -name '*.wasm' -o -name '*.ttf' \
+  \) -exec gzip -k {} +
+```
+
+Прапорець `-k` зберігає оригінальний файл поруч зі стиснутим `.gz`.
+
+### envsubst для default.conf.template
+
+Для підстановки змінних середовища у шаблон:
+
+```dockerfile
+# 1) Витягнути імена змінних з ini (ігноруємо коментарі/порожні)
+# 2) Зробити список для envsubst: $NAMESPACE $NAMESPACE2 ...
+# 3) Підвантажити значення з ini і підставити лише їх
+RUN NAMES=$(sed -nE '/^\s*[#;]/d; /^\s*$/d; s/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=.*/\1/p' /tpl/values-$BRANCH.ini) && \
+ VARS=$(printf '%s\n' $NAMES | awk '{printf "$%s ", $0}') && \
+  export $(grep -v '^#' /tpl/values-$BRANCH.ini | xargs) && \
+  envsubst "$VARS" < /tpl/default.conf.template > /app/default.conf
+```
+
+`/tpl/values-$BRANCH.ini` і `/tpl/default.conf.template` — приклад шляхів у контейнері;
+конкретні шляхи залежать від проєкту, важливі лише сама послідовність кроків і імена
+директив (`envsubst`, `default.conf.template`).
+
+Перевірки (автоматичні, `checkDockerfiles` у `npm/rules/nginx-default-tpl/template/main.mjs`,
+викликається один раз для всього репозиторію — не окремо по кожному `default.conf.template`):
+
+- Десь у репозиторії є Dockerfile/Containerfile, що містить `find … /usr/share/nginx/html … gzip -k` — крок стиснення статики
+- Десь у репозиторії є Dockerfile/Containerfile, що містить `envsubst` і посилання на `default.conf.template`
+- Якщо в репозиторії є `default.conf.template`, але жодного Dockerfile / Containerfile не знайдено — це помилка

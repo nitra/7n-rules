@@ -15,3 +15,40 @@ Rego-пакет: `k8s.manifest`
 - `kind: Deployment` — канонічний запис у `spec.template.spec.topologySpreadConstraints`: `maxSkew: 1`, `topologyKey: kubernetes.io/hostname`, `whenUnsatisfiable: ScheduleAnyway`, `labelSelector.matchLabels.app: <app-label>` (перевіряється лише для Deployment з міткою `app` у `spec.selector.matchLabels`)
 
 **Примітка:** cross-file логіка (Kustomize-резолюція, парність svc/svc-hl, HPA/PDB за каталогом, schema modeline) лишається у JS `rules/k8s/fix.mjs`.
+
+## Deployment: `resources.requests` поза `base/`
+
+Базовий шар (`…/k8s/…/base/…`) має жорстко фіксовані `resources.requests.cpu`/`memory` — див. **`base_manifest.mdc`**. Поза `base` (overlays, окремі каталоги) ця перевірка (рядок 12 вище) вимагає лише непорожні `resources.requests.cpu` і `resources.requests.memory` — конкретне значення не фіксується.
+
+Якщо ще не підібрано власні ліміти під сервіс, орієнтир для **`requests`**:
+
+```yaml
+resources:
+  requests:
+    cpu: '0.5'
+    memory: '512Mi'
+```
+
+У прод-оверлеях підіймай **`cpu` / `memory`** до реального споживання через **`patches`**:
+
+```yaml title="k8s/prod/kustomization.yaml (фрагмент)"
+patches:
+  - target:
+      kind: Deployment
+      name: backend-api
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: '500m'
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 1Gi
+```
+
+**`imagePullPolicy`** — цю перевірку скрипт **не** виконує.
+
+## Batch-ресурси: `apiVersion: batch/v1beta1` → `batch/v1`
+
+Ресурси **batch** (наприклад **CronJob**, **Job**): застаріле **`apiVersion: batch/v1beta1`** у файлах під **`k8s`** під час `check k8s` автоматично переписується на **`apiVersion: batch/v1`** (рядково, зі збереженням відступів/лапок). Детектор — `detectBatchV1beta1InK8sYamlFiles`, автофікс — T0-патерн `k8s-manifests-batch-v1beta1-apiversion` (обидва в **`npm/rules/k8s/manifests/main.mjs`** / **`fix-manifests.mjs`**), той самий механізм, що й `gateway-httproute-v1beta1` вище по домену gateway (див. **`gateway.mdc`**).
+
+`apiVersion: autoscaling/v1` (заборонено для HPA, потрібен `autoscaling/v2`) — рядок 10 вище і **`hpa_pdb.mdc`**.

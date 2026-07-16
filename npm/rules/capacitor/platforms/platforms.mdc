@@ -1,0 +1,108 @@
+## JS-перевірка: версія Capacitor та iOS SPM/CocoaPods
+
+JS-модуль: `platforms/main.mjs` (authoritative check, `capacitor.mdc`) — обходить усі `package.json`
+у дереві та iOS-шар (`Podfile`) одним проходом.
+
+### Версія `@capacitor/core`
+
+У `package.json` (у **корені** репозиторію чи **workspace**-пакеті) оголошення **`@capacitor/core`**
+має вказувати діапазон, **сумісний лише з мажорною версією 8 і вище** (наприклад `^8.0.0`).
+**`*`**, `latest` і діапазони, де можлива 7-мажор, — неприйнятні.
+
+Перевірка обходить усі `package.json` у дереві (крім `node_modules`, `.git`, `dist`, `coverage`,
+`Pods`, `.turbo`, `.next`, `build`) і перевіряє нижню межу діапазону через `capacitorVersionRangeMinMajor`.
+Підтримуються `||`-частини, hyphen-range (`7 - 9`), `^`, `~`, `>=`, `>`, `=`, bare-version.
+
+`workspace:*` (і будь-який інший діапазон із префіксом `workspace:`) — **завжди прийнятний**
+(як у Rego-gate `capacitor.package_json`): реальна версія походить від workspace-пакета, який
+перевіряється окремо. `*` / `x` / `latest` (без префікса `workspace:`) — **неприйнятні**: діапазон
+не гарантує мажор ≥ 8.
+
+**Приклади допустимих діапазонів:**
+
+```
+"@capacitor/core": "^8.0.0"
+"@capacitor/core": ">=8"
+"@capacitor/core": "8.x"
+"@capacitor/core": "workspace:*"
+```
+
+**Приклади неприйнятних діапазонів:**
+
+```
+"@capacitor/core": "^7.0.0"    // мажор 7 — занадто старий
+"@capacitor/core": "*"         // будь-яка — неприйнятна
+"@capacitor/core": "latest"    // неприйнятна
+"@capacitor/core": ">=6"       // нижня межа 6 — занадто старий
+"@capacitor/core": "6 - 9"     // hyphen-range: нижня межа 6 — неприйнятна
+```
+
+### iOS: лише SPM, виняток через Podfile
+
+#### Правило за замовчуванням
+
+Не залишай `Podfile` (поза `Pods/`) у вихідному iOS-шарі, **якщо** уся потрібна
+iOS-функціональність (нативні плагіни/модулі) може працювати **лише** через **SPM** (Swift Package Manager).
+
+Перевірка рекурсивно шукає `Podfile` у `ios/`, пропускаючи `Pods/`, `build/`, `DerivedData/`.
+
+#### Плагіни @nitra/
+
+Плагіни зі скоупу `@nitra/` за політикою **підтримують SPM** — перевіряти їх на SPM **не потрібно**
+(check не обходить `package.json` на предмет `@nitra/`).
+
+#### Коли Podfile дозволений
+
+Якщо не вся потрібна iOS-функціональність поза `@nitra/` (сторонні Capacitor-плагіни, інша
+нативна залежність) доступна через SPM — `Podfile` дозволяється, але це **обов'язково** треба
+явно задати в кореневому **`package.json`** або в **`capacitor.config.json` / `capacitor.config.ts` / `capacitor.config.mjs`**:
+
+- **`"iosCocoaPodsBecausePluginsLackSpm": true`** — семантика: не вся потрібна нативна частина
+  поза `@nitra/` на SPM; `@nitra/` у це не входить;
+- або **`"iosCocoaPodsAllowed": true`** — короткий alias для того самого винятку.
+
+Без одного з цих прапорів `true` наявний `Podfile` поза `Pods/` вважається порушенням правила «лише SPM».
+
+**Де задати виняток у `package.json`:**
+
+```json
+{
+  "nitra": {
+    "iosCocoaPodsBecausePluginsLackSpm": true
+  }
+}
+```
+
+або коротший alias:
+
+```json
+{
+  "nitra": {
+    "iosCocoaPodsAllowed": true
+  }
+}
+```
+
+**Де задати виняток у `capacitor.config.json`:**
+
+```json
+{
+  "nitra": {
+    "iosCocoaPodsAllowed": true
+  }
+}
+```
+
+**Де задати виняток у `capacitor.config.ts` / `capacitor.config.mjs`:**
+
+```ts
+const config = {
+  // ...
+  nitra: {
+    iosCocoaPodsAllowed: true,
+  },
+}
+```
+
+Перевірка читає **лише** кореневі файли: `package.json`, потім capacitor-конфіги у корені.
+У `.ts` / `.mjs`: шукається блок `nitra { ... }` і на його тілі перевіряються ці boolean-поля.

@@ -36,3 +36,9 @@ Rego-пакет: `js-run.package_json`
 ```
 
 Пакети з `vite` у `devDependencies` — frontend, поза областю js-run, перевірка scripts не застосовується.
+
+## Використання @nitra/pino для логування
+
+Проект використовує @nitra/pino для логування. Якщо в проекті присутній @nitra/bunyan, то він повинен бути замінений на @nitra/pino — як у `package.json`, так і в коді: усі `import` / `require` / динамічні `import()` з `@nitra/bunyan` (і застарілого `bunyan`) треба замінити на `@nitra/pino` і за потреби адаптувати виклики під його API.
+
+Заборона `bunyan` / `@nitra/bunyan` у `dependencies` / `devDependencies` — rego-gate вище (канон: [package.json.deny.json](./template/package.json.deny.json)). Заборонені імпорти в коді (AST-сканер): `../lib/bunyan-imports.mjs` (перевірка запускається з `../runtime/main.mjs`).

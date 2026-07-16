@@ -3,7 +3,7 @@ type: Rust Module
 title: acp.rs
 resource: llm-lib/crates/llm-cascade/src/acp.rs
 docgen:
-  crc: e754a97a
+  crc: c4912371
 ---
 
 ## Огляд

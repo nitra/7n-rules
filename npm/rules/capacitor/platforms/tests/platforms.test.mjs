@@ -59,6 +59,15 @@ describe('isCapacitorCoreVersionAtLeast8 / semver helpers', () => {
   test('capacitorSegmentMinMajor: * — null', () => {
     expect(capacitorSegmentMinMajor('*')).toBeNull()
   })
+  test('capacitorSegmentMinMajor: workspace:* — Infinity (завжди прийнятний)', () => {
+    expect(capacitorSegmentMinMajor('workspace:*')).toBe(Infinity)
+  })
+  test('workspace:* — ok (як у Rego-gate capacitor.package_json)', () => {
+    expect(isCapacitorCoreVersionAtLeast8('workspace:*')).toBe(true)
+  })
+  test('workspace:^8.0.0 — ok', () => {
+    expect(isCapacitorCoreVersionAtLeast8('workspace:^8.0.0')).toBe(true)
+  })
 })
 
 describe('check (інтеграція)', () => {

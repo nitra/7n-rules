@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.2] - 2026-07-16
+
+### Changed
+
+- ♻️ refactor(rules): docs-only guide/ → per-concern директорії з реальними check/policy де можливо (#70)
+
 ## [1.2.1] - 2026-07-16
 
 ### Fixed

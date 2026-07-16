@@ -34,7 +34,7 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.7.0",
+      "version": "2.7.1",
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
       },

@@ -7,6 +7,23 @@ version: '1.4'
 
 Правило забезпечує форматування (rustfmt), лінт (clippy), CI workflow та покриття для Rust-проєктів.
 
+## Лінт Rust: rustfmt + clippy + cargo-deny
+
+**rustfmt** ([rust-lang/rustfmt](https://github.com/rust-lang/rustfmt)) — форматер; **clippy** ([rust-lang/rust-clippy](https://github.com/rust-lang/rust-clippy)) — лінтер; **cargo-deny** — перевірка ліцензій залежностей. Запуск — через **`n-rules lint rust`** (detector `npm/rules/rust/check/main.mjs`, autofix `npm/rules/rust/check/fix-check.mjs`):
+
+- **read-only (детект, CI):** `cargo fmt --all -- --check` → `cargo clippy --all-targets --all-features -- -D warnings` → (за наявності `deny.toml` і встановленого `cargo-deny`) `cargo deny check licenses`.
+- **`fix` (локально):** `cargo fmt --all` (реальне форматування) і, якщо `deny.toml` відсутній та `cargo-deny` встановлено, `cargo deny init` для генерації канонічного файлу.
+
+`clippy` **не** автофіксимо (`--fix` потенційно небезпечний і може прибрати навмисний код) — clippy-порушення йдуть у LLM-ladder, а не в детермінований autofix.
+
+Без `Cargo.toml` у cwd — no-op (exit 0). Окремого `package.json`-скрипта немає.
+
+`cargo`, `rustfmt`, `clippy`, `cargo-deny` **не додавай** у `devDependencies` — це Rust toolchain, ставиться через `rustup`/`cargo install` локально або через `dtolnay/rust-toolchain@stable` у CI.
+
+### Канон CI workflow `.github/workflows/lint-rust.yml`
+
+Канонічний workflow, drift-safe перевірка (`rust.lint_rust_yml`) і вимога `Swatinem/rust-cache@v2` — `npm/rules/rust/lint_rust_yml/lint_rust_yml.mdc`. Тут лише сам лінт-скрипт; CI-канон workflow **не дублюється**.
+
 ## Rego-gate: `cargo`, `rustfmt`, `clippy` заборонені у `package.json`
 
 Rego-пакет: `rust.package_json`
@@ -29,45 +46,3 @@ Rego-пакет: `rust.vscode_extensions`
 Семантика `contains`: кожен запис з канону має бути присутнім у `recommendations` — додаткові розширення дозволені. Канон завантажується через `--data` з template-сніпету.
 
 Канонічний template: [extensions.json.snippet.json](./template/extensions.json.snippet.json)
-
-## Перевірка `.github/workflows/lint-rust.yml`
-
-Rego-пакет: `rust.lint_rust_yml`
-
-Цільовий файл: `.github/workflows/lint-rust.yml`
-
-Перевіряє:
-
-- кожен `uses`-крок з канону присутній у workflow (підмножина): `actions/checkout@v6`, `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`
-- кожен `run`-крок з канону присутній як підрядок серед усіх `run`-кроків: `cargo fmt --all -- --check`, `cargo clippy --all-targets --all-features -- -D warnings`
-- канон завантажується через `--data` з template-сніпету — drift-safe: зміна шаблону автоматично рухає перевірку
-
-Канонічний template: [lint-rust.yml.snippet.yml](./template/lint-rust.yml.snippet.yml)
-
-Вимога `Swatinem/rust-cache@v2` після `dtolnay/rust-toolchain@…` тут перевіряється лише для цього конкретного файлу (як частина канону). Та сама вимога для **будь-якого** іншого workflow (coverage, release/build через `tauri-apps/tauri-action`, кастомні) — concern `rust/toolchain_cache`.
-
-Tauri-проєкти (`src-tauri/Cargo.toml`) додатково потребують у цьому файлі apt-кроку системних залежностей Linux перед Clippy — concern `tauri/linux_deps` (tauri.mdc), не частина канону тут.
-
-## Rust-cache після rust-toolchain — у будь-якому workflow
-
-Concern: `rust/toolchain_cache` (JS-detector, `main.mjs` — не rego)
-
-Цільові файли: `.github/workflows/*.yml`, `.github/workflows/*.yaml` (кожен файл окремо)
-
-У кожному job-і, що ставить Rust toolchain через `dtolnay/rust-toolchain@stable`
-(або будь-яку іншу версію), одразу після цього кроку має бути `Swatinem/rust-cache@v2` —
-незалежно від того, lint це, coverage чи release/build job, що збирає Tauri-додаток
-через `tauri-apps/tauri-action`. Без кешу CI щоразу заново качає весь cargo registry.
-
-Це узагальнення перевірки `rust/lint_rust_yml` (яка звіряє канонічний
-`.github/workflows/lint-rust.yml` цілком) — той concern лишається specific до
-lint-workflow, цей — universal per-job перевірка для решти workflow-файлів
-(coverage, release, будь-який кастомний).
-
-Якщо job також викликає `tauri-apps/tauri-action`, а `Cargo.toml` лежить не в
-корені репо, а під `<ws>/src-tauri/` (типовий Tauri-layout) — крок
-`Swatinem/rust-cache@v2` має мати `with.workspaces: <ws>/src-tauri`.
-
-Автофікс (`fix-toolchain_cache.mjs`, T0, `fixability: config`) вставляє відсутній
-крок одразу після `dtolnay/rust-toolchain@…` (і `with.workspaces`, де потрібно)
-текстовим splice-ом — зберігає формат/коментарі, ідемпотентно.

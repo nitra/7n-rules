@@ -12,3 +12,133 @@ version: '1.4'
 Rego-перевірки (`policy/`) — швидкий синхронний gate для одиничного `package.json` без JS-рантайму:
 
 JS-перевірка (`deps.mjs`) — authoritative: охоплює всі `package.json` репо, AST-скан JS/TS-джерел і повний semver-triple-compare. Rego-gate — доповнення, не заміна.
+
+## Singleton ConnectionPool і заборона shared Request
+
+Потрібно використовувати connection pool (`sql.ConnectionPool`) як singleton, а **НЕ** створювати підключення на кожен запит. Перевіряється `findMssqlPerRequestConnectionInText` (`lib/mssql-pool-scan.mjs`, підключено в `deps/main.mjs`).
+
+```javascript
+// db.js
+import sql from 'mssql';
+
+let poolPromise;
+
+export function getPool() {
+  if (!poolPromise) {
+    const db = new sql.ConnectionPool(config);
+    poolPromise = db.connect().catch(err => {
+      poolPromise = undefined; // дозволити повторну спробу
+      throw err;
+    });
+  }
+  return poolPromise;
+}
+```
+
+```javascript
+// usage
+import { getPool } from './db.js';
+
+const pool = await getPool();
+const userId = 42;
+const status = 'active';
+
+// Tagged template на request — це працює
+const result = await pool.request().query`
+  SELECT * FROM users
+  WHERE id = ${userId} AND status = ${status}
+`;
+```
+
+Ключове: `pool.request().query\`...\`` — бектіки після `query`, без круглих дужок. Це tagged template, де mssql параметризує значення автоматично.
+
+### Заборона shared Request
+
+Заборонено робити singleton `request` на рівні модуля (перевіряється `findSharedMssqlRequestInText`):
+
+```javascript
+// ❌ НЕ МОЖНА
+export const request = pool.request();
+```
+
+`Request` має створюватися **щоразу заново**:
+
+```javascript
+// ✅ МОЖНА
+const request = pool.request();
+```
+
+Це особливо важливо для **TVP** (табличні параметри, див. нижче) та будь-яких `.input(...)`.
+
+## Безпечний tagged template vs небезпечний `query(...)`
+
+Різниця між `query\`...\`` і `query(\`...\`)` — критична. Перевіряється `findUnsafeMssqlQueryTemplateCallInText`.
+
+### Що НЕ робити: `query(\`...\`)`
+
+```javascript
+// ❌ Це не tagged template — це конкатенація рядка перед викликом
+await pool.request().query(`SELECT * FROM users WHERE id = ${userId}`);
+// ↑ круглі дужки замість бектіків = звичайна інтерполяція = SQL injection
+```
+
+### Що робити: `query\`...\``
+
+```javascript
+// ✅ Tagged template — mssql параметризує ${userId} автоматично
+await pool.request().query`SELECT * FROM users WHERE id = ${userId}`;
+```
+
+### Коментар під час виправлення SQL injection
+
+Коли виправляєш місце з потенційним SQL injection (заміна `query(\`...\`)` на `query\`...\`` або прибирання динамічних списків/конкатенації), **додай поруч короткий коментар** з описом причини.
+
+Вимоги до коментаря:
+
+- вказати **що було небезпечно** (звичайна інтерполяція в рядок, конкатенація, динамічний список);
+- вказати **чому новий варіант безпечний** (tagged template / параметризація / TVP);
+- 1–2 рядки, без дублювання очевидного.
+
+```javascript
+// SQLi fix: query`...` (tagged template) параметризує значення; query(`...`) небезпечний через інтерполяцію.
+await pool.request().query`SELECT * FROM users WHERE id = ${userId}`
+```
+
+## Парсинг і guard для `IN (${...})`
+
+Якщо `IN (...)` все ж використовується (а не `JOIN` на TVP), значення в `${...}` **обов'язково** мають бути попередньо приведені числовим парсером і відфільтровані від `NaN`. Перевіряється `findUnsafeMssqlInListUnparsedInText` (наявність парсера) і `findUnsafeMssqlInListMissingEmptyGuardInText` (винесення у змінну + guard на пустоту); динамічні списки через `.join(...)` додатково ловить `findUnsafeMssqlDynamicSqlListInText`.
+
+Це знімає будь-яку можливість SQL injection: SQL-метасимволи в `Number`/`parseInt(...)` перетворюються на `NaN` і відсіюються.
+
+### Правила
+
+Додатково:
+
+- значення для `IN (${...})` потрібно **винести в окрему змінну** перед запитом (не підставляти вираз напряму в `${...}`);
+- цю змінну потрібно **перевірити на пустоту** і якщо список порожній — **throw error** (щоб не виконувати некоректний запит).
+
+### Приклади
+
+```javascript
+// ❌ НЕ МОЖНА: значення з req.body / зовнішнього джерела без парсингу
+const outIds = pgQ.rows.flatMap(x => x.req_body.Orders.map(o => o.OutletId))
+await pool.query(/* sql */ String.raw`
+  SELECT ... WHERE so.OutletId IN (${outIds})
+`)
+```
+
+```javascript
+// ✅ МОЖНА: parseInt + filter(!isNaN) гарантує, що в SQL потраплять лише числа
+// і перед запитом робимо guard на пустоту, щоб не виконувати некоректний SQL.
+const outIds = pgQ.rows
+  .flatMap(x => x.req_body.Orders.map(o => parseInt(o.OutletId)))
+  .filter(n => !isNaN(n))
+if (!outIds.length) throw new Error('outIds is empty')
+await pool.request().query`
+  SELECT ... WHERE so.OutletId IN (${outIds})
+`
+```
+
+Допустимі парсери: `parseInt(...)`, `parseFloat(...)`, `Number(...)`, `BigInt(...)` або унарний `+x`. Літеральні масиви чисел (`[1, 2, 3]`) теж безпечні — без парсера, але без жодних рядків.
+
+Це правило діє і для безпечного `pool.request().query\`...\`` (де mssql сам параметризує масив), і поготів для `pool.query(String.raw\`...\`)` чи `pool.query(\`...\`)`, де такий парсинг — єдиний бар'єр.
