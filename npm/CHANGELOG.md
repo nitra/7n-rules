@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.5.0] - 2026-07-15
+
+### Added
+
+- Нове правило `local-ai` (auto: завжди): інтеграція rtk (Rust Token Killer) для стискання виводу CLI-команд агентів. Sync вставляє fail-open PreToolUse hook у `.claude/settings.json` (`rtk hook claude`), preToolUse у `.cursor/hooks.json` (`rtk hook cursor`) та vendored pi-extension `.pi/extensions/rtk.ts`; від користувача потрібен лише `brew install rtk-ai/tap/rtk`. Вимкнення — `disable-rules: ["local-ai"]`.
+- Механізм плагінів: поле `plugins` у .n-rules.json + автодетект CI-провайдера (файли CI → repository.url) з авто-встановленням devDependency; multi-dir завантаження правил (ядро + плагіни, merge концернів), маніфест плагіна `n-rules` (capabilities/handlers); правило `ga` винесено у @7n/rules-ci-github
+- tauri/release: change-файл — обовʼязковий крок вирішення задачі (як lint/doc-files), не post-hoc фікс на сигнал `changelog/presence`.
+
+### Changed
+
+- docs(adr): merge pending ADR normalization batch
+
 ## [1.4.1] - 2026-07-15
 
 ### Fixed

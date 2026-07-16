@@ -6,7 +6,6 @@ resource: llm-lib/lib/
 
 | Файл                                      | Тип       |
 | ----------------------------------------- | --------- |
-| [acp.mjs](acp.md)                         | JS Module |
 | [agent-fix.mjs](agent-fix.md)             | JS Module |
 | [agent-skill.mjs](agent-skill.md)         | JS Module |
 | [anchored-edit.mjs](anchored-edit.md)     | JS Module |
