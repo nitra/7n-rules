@@ -2283,6 +2283,21 @@ export const HASURA_REQUIRED_ENV_KEYS = [
   'HASURA_GRAPHQL_DISABLE_EVENTING'
 ]
 
+/**
+ * Очікувані значення `HASURA_REQUIRED_ENV_KEYS` (дзеркалить `k8s.hasura_configmap.rego`).
+ * `'true'`/`'false'` — приймаються як boolean або рядок (case-insensitive); рядкове значення
+ * (наприклад `ENABLED_LOG_TYPES`) — точний exact match; `null` — ключ обов'язковий, значення
+ * довільне (T0 проставляє дефолт `'true'`, якщо ключ відсутній).
+ */
+export const HASURA_REQUIRED_ENV_VALUES = {
+  HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS: 'true',
+  HASURA_GRAPHQL_ENABLE_RELAY: 'false',
+  HASURA_GRAPHQL_ENABLE_TELEMETRY: 'false',
+  HASURA_GRAPHQL_ENABLED_LOG_TYPES: 'startup,http-log',
+  HASURA_GRAPHQL_ENABLED_APIS: 'metadata,graphql,pgdump',
+  HASURA_GRAPHQL_DISABLE_EVENTING: null
+}
+
 const K8S_YAML_EXT_RE = /\.ya?ml$/iu
 
 /**
@@ -2720,7 +2735,7 @@ function hasuraRuleMatchesSinglePathNoHeaders(rule, pathType, pathValue) {
  * @param {string} toPath очікуваний `requestRedirect.path.replaceFullPath`
  * @returns {boolean} true — якщо filters відповідають канону редиректу
  */
-function hasuraRuleHasExactRedirect(rule, toPath) {
+export function hasuraRuleHasExactRedirect(rule, toPath) {
   const r = asPlainRecord(rule)
   if (r === null) return false
   const filters = r.filters
@@ -2830,7 +2845,7 @@ function hasuraRuleIsWebsocket(rule, qlPath) {
  * @param {unknown[]} rules вміст `spec.rules` HTTPRoute
  * @returns {{ prefix: string, startIndex: number } | null} виявлений префікс і позиція правила 1 або null
  */
-function findHasuraCanonStart(rules) {
+export function findHasuraCanonStart(rules) {
   for (const [i, rule] of rules.entries()) {
     const r = asPlainRecord(rule)
     const matches = r === null ? null : r.matches
@@ -3166,7 +3181,7 @@ function recordHasuraDeploymentName(rec, dir, hasuraByDir) {
  * звіряє канон 4 правил (див. `httpRouteHasuraCanonViolation` і k8s.mdc).
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFiles абсолютні шляхи до `*.yaml` під `k8s`
- * @param {(msg: string) => void} fail callback реєстрації помилки
+ * @param {(msg: string, opts?: string | { reason?: string, file?: string, data?: object }) => void} fail callback реєстрації помилки
  * @returns {Promise<void>} результат
  */
 async function validateHasuraHttpRouteCanon(root, yamlFiles, fail) {
@@ -3193,7 +3208,12 @@ async function validateHasuraHttpRouteCanon(root, yamlFiles, fail) {
   })
   for (const v of violations) {
     const rel = (relative(root, v.filename) || v.filename).replaceAll('\\', '/')
-    fail(`${rel}: ${v.message}`)
+    // T0 автофіксить лише "rule1_filters" (детермінований overwrite існуючого правила);
+    // rule2/3/4-missing вимагають синтезу нового правила з backendRef — не T0 (k8s.mdc).
+    const hint = REGO_HINT_HASURA_HTTPROUTE_RULE1_RE.test(v.message)
+      ? { reason: 'hasura-httproute-rule1-filters', file: rel, data: { kind: 'hasura-httproute-rule1-filters' } }
+      : undefined
+    fail(`${rel}: ${v.message}`, hint)
   }
 }
 
@@ -3613,7 +3633,7 @@ async function validateHasuraConfigMapRemoteSchemaPermissions(root, yamlFilesAbs
   })
   for (const v of violations) {
     const rel = (relative(root, v.filename) || v.filename).replaceAll('\\', '/')
-    fail(`${rel}: ${v.message}`)
+    fail(`${rel}: ${v.message}`, { reason: 'hasura-configmap-env', file: rel, data: { kind: 'hasura-configmap-env' } })
   }
   if (violations.length === 0) {
     passFn(
@@ -6466,6 +6486,10 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail) {
 const REGO_HINT_DEPLOYMENT_STRATEGY_RE = /spec\.strategy має бути RollingUpdate/u
 const REGO_HINT_NETWORKPOLICY_EGRESS_RE = /відсутнє обовʼязкове egress-правило/u
 const REGO_HINT_KUSTOMIZATION_PATCHES_RE = /patches має бути за алфавітом/u
+/** Стадія `rule1_filters` `k8s.hasura_httproute` — єдина автофіксовна (overwrite існуючого правила, без синтезу нового). */
+const REGO_HINT_HASURA_HTTPROUTE_RULE1_RE = /правило 1 Hasura-канона \(rules\[\d+\]/u
+const REGO_HINT_SVC_CLUSTERIP_RE = /spec\.type[^\n]*ClusterIP|додай spec\.type: ClusterIP/u
+const REGO_HINT_SVC_HL_CLUSTERIP_RE = /spec\.clusterIP[^\n]*None|додай spec\.clusterIP: None/u
 /**
  * Structured fix-hint (#3) для rego-violation із `runAllK8sRego` — щоб T0
  * (`fix-manifests.mjs`) автофіксив детерміновано, не парсячи message. Класифікація
@@ -6485,6 +6509,12 @@ function k8sRegoFixHint(ns, file, message) {
   }
   if (ns === 'k8s.kustomization' && REGO_HINT_KUSTOMIZATION_PATCHES_RE.test(m)) {
     return { reason: 'kustomization-patches-sort', file, data: { kind: 'kustomization-patches-sort' } }
+  }
+  if (ns === 'k8s.svc_yaml' && REGO_HINT_SVC_CLUSTERIP_RE.test(m)) {
+    return { reason: 'svc-clusterip-type', file, data: { kind: 'svc-clusterip-type' } }
+  }
+  if (ns === 'k8s.svc_hl_yaml' && REGO_HINT_SVC_HL_CLUSTERIP_RE.test(m)) {
+    return { reason: 'svc-hl-cluster-ip', file, data: { kind: 'svc-hl-cluster-ip' } }
   }
   // немає збігу — implicit undefined (без trailing return: no-redundant-jump + no-useless-undefined тихі)
 }
