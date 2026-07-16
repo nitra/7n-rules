@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.7.2] - 2026-07-16
+
+### Changed
+
+- llm-lib(llm-cascade): міграція на agent-client-protocol 1.2 (крейт agent-client-protocol-tokio знято апстрімом, AcpAgent перенесено в головний крейт)
+
 ## [2.7.1] - 2026-07-16
 
 ### Fixed
