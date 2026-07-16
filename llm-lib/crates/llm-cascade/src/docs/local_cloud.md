@@ -3,7 +3,7 @@ type: Rust Module
 title: local_cloud.rs
 resource: llm-lib/crates/llm-cascade/src/local_cloud.rs
 docgen:
-  crc: f7182490
+  crc: 45ec0a4e
 ---
 
 ## Огляд

@@ -6,7 +6,8 @@ use llm_cascade::acp::{one_shot_acp, AcpAgentKind};
 
 #[tokio::main]
 async fn main() {
-    match one_shot_acp(AcpAgentKind::Cursor, "Скажи рівно одне слово: працює").await
+    let cwd = std::env::current_dir().expect("cwd");
+    match one_shot_acp(AcpAgentKind::Cursor, "Скажи рівно одне слово: працює", &cwd).await
     {
         Ok(text) => println!("OK: {text}"),
         Err(e) => {

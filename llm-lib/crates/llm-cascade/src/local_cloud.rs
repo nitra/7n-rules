@@ -17,7 +17,8 @@ use crate::tiers::{parse_model_spec, resolve_model, Tier};
 use crate::CascadeError;
 
 /// Конфіг одного локального/кастомного OpenAI-сумісного провайдера.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LocalProvider {
     /// Base URL ендпоінта **із завершальним слешем** (напр.
     /// `http://127.0.0.1:8000/v1/`) — `Url::join` семантика Rust трактує

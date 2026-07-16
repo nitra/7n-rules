@@ -4,7 +4,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { env } from 'node:process'
 import { describe, expect, test } from 'vitest'
 
 import {
@@ -322,7 +321,7 @@ describe('runSkillsCli', () => {
     expect(calls[0].prompt).toContain('# Fix')
   })
 
-  test('cursor runner: без deprecated-warning, делегує в runAcpRunner', async () => {
+  test('cursor runner: без deprecated-warning, делегує в @7n/llm-lib/acp', async () => {
     const root = join(tmpdir(), `skills-cli-cursor-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
     mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
@@ -340,9 +339,9 @@ describe('runSkillsCli', () => {
         errors.push(line)
       },
       deps: {
-        runAcpRunner: (kind, prompt, projectDir) => {
+        runAcpAgent: (kind, prompt, projectDir) => {
           calls.push({ kind, prompt, projectDir })
-          return Promise.resolve(0)
+          return Promise.resolve('ok from native')
         }
       }
     })
@@ -354,14 +353,13 @@ describe('runSkillsCli', () => {
     expect(calls[0].projectDir).toBe(root)
   })
 
-  test('codex runner: без deprecated-warning, делегує в runAcpRunner', async () => {
+  test('codex runner: без deprecated-warning, помилка napi-виклику → exit 1', async () => {
     const root = join(tmpdir(), `skills-cli-codex-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
     mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
     writeFileSync(join(skillsRoot, 'fix', 'SKILL.md'), '# Fix\n')
 
     const errors = []
-    const calls = []
     const code = await runSkillsCli(['codex', 'fix'], {
       packageRoot: root,
       projectDir: root,
@@ -372,45 +370,12 @@ describe('runSkillsCli', () => {
         errors.push(line)
       },
       deps: {
-        runAcpRunner: (kind, prompt, projectDir) => {
-          calls.push({ kind, prompt, projectDir })
-          return Promise.resolve(1)
-        }
+        runAcpAgent: () => Promise.reject(new Error('acp codex: агент не залогінений'))
       }
     })
 
     expect(code).toBe(1)
-    expect(calls).toHaveLength(1)
-    expect(calls[0].kind).toBe('codex')
+    expect(errors.join('\n')).toContain('не залогінений')
     expect(errors.join('\n')).not.toContain('[deprecated]')
-  })
-
-  test('cursor runner: без CLI у PATH (реальний runAcpRunner) → кидає', async () => {
-    const root = join(tmpdir(), `skills-cli-cursor-path-${Date.now()}`)
-    const skillsRoot = join(root, 'skills')
-    mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
-    writeFileSync(join(skillsRoot, 'fix', 'SKILL.md'), '# Fix\n')
-
-    const errors = []
-    const prevPath = env.PATH
-    env.PATH = join(tmpdir(), 'empty-path-isolated')
-    let code
-    try {
-      code = await runSkillsCli(['cursor', 'fix'], {
-        packageRoot: root,
-        projectDir: root,
-        log: () => {
-          /* noop: stdout не перевіряється в цьому тесті */
-        },
-        logError: line => {
-          errors.push(line)
-        }
-      })
-    } finally {
-      env.PATH = prevPath
-    }
-
-    expect(code).toBe(1)
-    expect(errors.join('\n')).toContain('cursor-agent')
   })
 })

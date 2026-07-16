@@ -36,6 +36,7 @@
     "./anchored-edit": "./lib/anchored-edit.mjs",
     "./web-tools": "./lib/web-tools.mjs",
     "./model-tiers": "./lib/model-tiers.mjs",
+    "./acp": "./lib/acp.mjs",
     "./chain": "./lib/chain.mjs",
     "./chains-report": "./lib/chains-report.mjs",
     "./one-shot": "./lib/one-shot.mjs",

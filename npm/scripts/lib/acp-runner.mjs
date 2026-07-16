@@ -1,18 +1,18 @@
 /**
- * Виконання скіла через зовнішнього ACP-агента (Agent Client Protocol,
- * agentclientprotocol.com) — JSON-RPC поверх stdio замість сирого
- * `stdin`/`stdout`-передавання через pipe CLI.
+ * Deprecated JS ACP-шим для `skill claude` (Agent Client Protocol,
+ * agentclientprotocol.com) — JSON-RPC поверх stdio.
  *
- * Заміняє колишній `runLlmCli` (spawnSync + `-p`/`exec -`) для `cursor`/`codex`/`claude`:
- * підʼєднання йде через офіційний TS SDK `@zed-industries/agent-client-protocol`,
- * а дозволи на tool-calls (`session/request_permission`) автоматично схвалюються без участі
- * людини — паритет із сьогоднішнім non-interactive `-p`-режимом (full user-trust,
- * без write-guard, як задокументовано в `@7n/llm-lib/agent-skill`).
+ * `cursor`/`codex` мігрували на `@7n/llm-lib/acp` (napi-міст до
+ * `llm_cascade::acp` — та сама протокольна логіка, але в Rust, без
+ * дублювання в JS). `claude` лишається тут як окремий JS-шим, бо Rust-крейт
+ * `AcpAgentKind` його не моделює (лише `Cursor`/`Codex`); підʼєднання йде
+ * через офіційний TS SDK `@zed-industries/agent-client-protocol`, а дозволи
+ * на tool-calls (`session/request_permission`) автоматично схвалюються без
+ * участі людини — паритет із колишнім non-interactive `-p`-режимом
+ * (full user-trust, без write-guard, як задокументовано в `@7n/llm-lib/agent-skill`).
  *
- * `cursor` — нативний ACP-режим самого `cursor-agent` (`cursor-agent acp`).
- * `codex`/`claude` — офіційні адаптери (`@agentclientprotocol/codex-acp`,
- * `@agentclientprotocol/claude-agent-acp`), що вбудовують свій рушій — зовнішній
- * бінарник `codex`/`claude` у PATH більше не потрібен.
+ * `claude` — офіційний адаптер (`@agentclientprotocol/claude-agent-acp`), що
+ * вбудовує свій рушій — зовнішній бінарник `claude` у PATH не потрібен.
  */
 
 import { spawn } from 'node:child_process'
@@ -25,13 +25,11 @@ import { Readable, Writable } from 'node:stream'
 const require = createRequire(import.meta.url)
 
 /**
- * Команда запуску ACP-агента на провайдер. `cursor` — зовнішній бінарник у PATH;
- * `codex`/`claude` — резолвляться з `bin`-запису вбудованого npm-пакета-адаптера.
- * @type {Record<'cursor' | 'codex' | 'claude', { bin: string, args: string[] } | { adapterPackage: string }>}
+ * Команда запуску ACP-агента на провайдер. Резолвиться з `bin`-запису
+ * вбудованого npm-пакета-адаптера.
+ * @type {Record<'claude', { adapterPackage: string }>}
  */
 export const ACP_AGENT_COMMANDS = {
-  cursor: { bin: 'cursor-agent', args: ['acp'] },
-  codex: { adapterPackage: '@agentclientprotocol/codex-acp' },
   claude: { adapterPackage: '@agentclientprotocol/claude-agent-acp' }
 }
 
@@ -46,7 +44,7 @@ export function stopReasonToExitCode(stopReason) {
 
 /**
  * Резолвить абсолютний шлях до bin-файлу вбудованого ACP-адаптера з його `package.json`.
- * @param {string} adapterPackage назва npm-пакета адаптера (`@agentclientprotocol/codex-acp`, …)
+ * @param {string} adapterPackage назва npm-пакета адаптера (`@agentclientprotocol/claude-agent-acp`)
  * @returns {string} абсолютний шлях до виконуваного файлу адаптера
  */
 export function resolveAdapterBin(adapterPackage) {
@@ -121,12 +119,13 @@ class AcpSkillClient {
 }
 
 /**
- * Виконує скіл через зовнішнього ACP-агента (`cursor`/`codex`/`claude`).
- * @param {'cursor' | 'codex' | 'claude'} kind провайдер
+ * Виконує скіл через зовнішнього ACP-агента. Єдиний лишений провайдер —
+ * deprecated `claude` (`cursor`/`codex` — див. `@7n/llm-lib/acp`).
+ * @param {'claude'} kind провайдер
  * @param {string} prompt готовий промпт скіла
  * @param {string} projectDir робочий каталог сесії агента
  * @param {(line: string) => void} logError вивід помилок
- * @param {{ acp?: object, spawnFn?: typeof spawn, out?: (chunk: string) => void, resolveAdapterBin?: (pkg: string) => string, isBinaryInPath?: (bin: string) => boolean }} [deps] інжекти для тестів
+ * @param {{ acp?: object, spawnFn?: typeof spawn, out?: (chunk: string) => void, resolveAdapterBin?: (pkg: string) => string }} [deps] інжекти для тестів
  * @returns {Promise<number>} exit code (0 — `end_turn`, 1 — інакше)
  */
 export async function runAcpRunner(kind, prompt, projectDir, logError, deps = {}) {
@@ -134,13 +133,9 @@ export async function runAcpRunner(kind, prompt, projectDir, logError, deps = {}
   const out = deps.out ?? (chunk => stdout.write(chunk))
   const resolveBin = deps.resolveAdapterBin ?? resolveAdapterBin
 
-  const command = ACP_AGENT_COMMANDS[kind]
-  const { bin, args } =
-    'adapterPackage' in command ? { bin: process.execPath, args: [resolveBin(command.adapterPackage)] } : command
-
-  if ('bin' in command && deps.isBinaryInPath && !deps.isBinaryInPath(command.bin)) {
-    throw new Error(`\`${command.bin}\` not found in PATH. Install ${kind} CLI (ACP mode) or use \`skill pi\`.`)
-  }
+  const { adapterPackage } = ACP_AGENT_COMMANDS[kind]
+  const bin = process.execPath
+  const args = [resolveBin(adapterPackage)]
 
   const acp = deps.acp ?? (await import('@zed-industries/agent-client-protocol'))
   const child = spawnFn(bin, args, { cwd: projectDir, stdio: ['pipe', 'pipe', 'inherit'], env: process.env })
