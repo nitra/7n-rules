@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.4] - 2026-07-16
+
+### Fixed
+
+- lint не бачить worktree-чекаутів (.worktrees/, .claude/worktrees/): виключені у walkDir, delta-списку змінених файлів і js/eslint (ESLint+oxlint)
+
 ## [1.7.3] - 2026-07-16
 
 ### Fixed
