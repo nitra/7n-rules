@@ -8,6 +8,8 @@ import { createViolationReporter } from '../../../scripts/lib/lint-surface/viola
 import {
   KNIP_CANONICAL_JSON_PATH,
   OXLINT_CANONICAL_JSON_PATH,
+  OXLINTRC_DRIFT,
+  OXLINTRC_MISSING,
   verifyOxlintRcAgainstCanonical
 } from '../tooling/main.mjs'
 
@@ -206,7 +208,7 @@ async function checkPackageJsonJsLint(passFn, failFn, cwd) {
 async function checkOxlintRc(passFn, failFn, cwd) {
   const oxPath = join(cwd, '.oxlintrc.json')
   if (!existsSync(oxPath)) {
-    failFn('.oxlintrc.json не існує — додай конфіг oxlint (js.mdc)')
+    failFn('.oxlintrc.json не існує — додай конфіг oxlint (js.mdc)', OXLINTRC_MISSING)
     return
   }
   let oxCfg
@@ -229,7 +231,7 @@ async function checkOxlintRc(passFn, failFn, cwd) {
     passFn('.oxlintrc.json збігається з каноном oxlint (@7n/rules)')
   } else {
     for (const msg of oxV.failures) {
-      failFn(msg)
+      failFn(msg, OXLINTRC_DRIFT)
     }
   }
 }
