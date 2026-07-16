@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.2] - 2026-07-16
+
+### Changed
+
+- tauri release: рекомендувати завжди --target aarch64-apple-darwin замість universal-apple-darwin (lipo-merge не зливає другорядні [[bin]]-таргети)
+
 ## [1.7.1] - 2026-07-16
 
 ### Fixed
