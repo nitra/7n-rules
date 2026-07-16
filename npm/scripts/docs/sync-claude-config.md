@@ -3,7 +3,7 @@ type: JS Module
 title: sync-claude-config.mjs
 resource: npm/scripts/sync-claude-config.mjs
 docgen:
-  crc: 177ad3ea
+  crc: 1ae220d3
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 85
 ---

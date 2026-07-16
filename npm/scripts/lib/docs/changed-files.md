@@ -3,7 +3,7 @@ type: JS Module
 title: changed-files.mjs
 resource: npm/scripts/lib/changed-files.mjs
 docgen:
-  crc: 792d3942
+  crc: 483db255
   score: 100
 ---
 
@@ -26,6 +26,8 @@ collectChangedFilesSince Збирає змінені та незакомічен
   - Якщо `base` відсутній, використовується `collectChangedFiles`.
 
 ## Гарантії поведінки
+
+- Обидва збирачі відкидають шляхи всередині worktree-чекаутів (`.worktrees/`, `.claude/worktrees/`): це повні копії репо (сесійні git-worktree Claude/агентів), а не робочий код; у споживацьких репо вони можуть бути не gitignored і інакше потрапляли б у delta-список як untracked.
 
 - Read-only: файл не виконує операцій запису у файлову систему.
 - За невдачі повертає значення помилки (`false`/`null`/`Err`) замість генерування винятку чи паніки.

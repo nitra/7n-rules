@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/js/eslint/main.mjs
 docgen:
-  crc: 11a1340b
+  crc: 0d2a5e02
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99
@@ -31,3 +31,5 @@ lint — проводить статичний аналіз коду (пофай
 - Перехоплює помилки і не пропускає винятків назовні (fail-safe).
 
 **warnIgnored: false.** ESLint конструюється з `warnIgnored: false` — файли з delta-списку, що матчать ignore-патерни `eslint.config.js` (наприклад, синковані `.pi/extensions/**` чи згенеровані `npm/types/**`), не рахуються порушеннями.
+
+**Worktree-чекаути ігноруються.** Обидва інструменти виключають `.worktrees/**` і `.claude/worktrees/**` (копії репо від сесійних git-worktree, яких споживацький конфіг зазвичай не виключає): ESLint — через global ignores у `overrideConfig`, oxlint — через `--ignore-pattern`. Діє і у full-режимі, і для явно переданих файлів.

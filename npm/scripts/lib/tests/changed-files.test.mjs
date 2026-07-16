@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { collectChangedFiles, collectChangedFilesSince } from '../changed-files.mjs'
@@ -41,6 +41,18 @@ describe('collectChangedFiles', () => {
       const files = collectChangedFiles(dir)
       expect(files).toContain('base.js')
       expect(files).toContain('new.ts')
+    })
+  })
+  test('untracked у worktree-чекаутах (.worktrees, .claude/worktrees) не потрапляють у список', async () => {
+    await withTmpDir(dir => {
+      initRepo(dir)
+      mkdirSync(join(dir, '.worktrees', 'feature-x'), { recursive: true })
+      mkdirSync(join(dir, '.claude', 'worktrees', 'agent-y'), { recursive: true })
+      writeFileSync(join(dir, '.worktrees', 'feature-x', 'copy.js'), 'export const w = 1\n', 'utf8')
+      writeFileSync(join(dir, '.claude', 'worktrees', 'agent-y', 'COVERAGE.md'), '# x\n', 'utf8')
+      writeFileSync(join(dir, 'new.ts'), 'export const b = 3\n', 'utf8')
+      const files = collectChangedFiles(dir)
+      expect(files).toEqual(['new.ts'])
     })
   })
   test('чисте дерево → порожньо', async () => {

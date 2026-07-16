@@ -42,6 +42,25 @@ describe('walkDir', () => {
     })
   })
 
+  test('завжди пропускає worktree-чекаути .worktrees і .claude/worktrees', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, '.worktrees/feature-x'), { recursive: true })
+      await mkdir(join(dir, '.claude/worktrees/agent-y'), { recursive: true })
+      await mkdir(join(dir, 'pkg/.worktrees/nested'), { recursive: true })
+      await writeFile(join(dir, 'root.txt'), 'x', 'utf8')
+      await writeFile(join(dir, '.claude', 'settings.json'), '{}', 'utf8')
+      await writeFile(join(dir, '.worktrees', 'feature-x', 'bad.js'), 'x', 'utf8')
+      await writeFile(join(dir, '.claude', 'worktrees', 'agent-y', 'COVERAGE.md'), 'x', 'utf8')
+      await writeFile(join(dir, 'pkg', '.worktrees', 'nested', 'bad.js'), 'x', 'utf8')
+      const seen = []
+      await walkDir(dir, p => {
+        seen.push(p)
+      })
+      const rels = seen.map(p => p.slice(dir.length + 1))
+      expect(rels.toSorted()).toEqual(['.claude/settings.json', 'root.txt'].toSorted())
+    })
+  })
+
   test('поважає .gitignore — пропускає dist та інші записані каталоги', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'dist'), { recursive: true })

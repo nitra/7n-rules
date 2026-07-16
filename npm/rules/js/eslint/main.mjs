@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process'
 import { ESLint } from 'eslint'
 
 import { addedLinesByFile } from '../../../scripts/lib/diff-added-lines.mjs'
+import { WORKTREE_CHECKOUT_GLOBS } from '../../../scripts/utils/walkDir.mjs'
 import { classifyFindings, eslintResultsToFindings, parseOxlint } from '../lint-findings/main.mjs'
 
 const JS_EXT_RE = /\.(?:mjs|cjs|js|jsx|ts|tsx|vue)$/u
@@ -55,12 +56,18 @@ function toViolation(f, cwd, severity) {
  * @returns {Promise<Array<{ file: string, line: number, rule: string, message: string, tool: string }>>} зібрані знахідки oxlint+eslint
  */
 async function collectFindings(js, cwd) {
-  // warnIgnored:false — файли з delta, що матчать ignore-патерни конфігу, не є порушеннями
-  const eslint = new ESLint({ cwd, warnIgnored: false })
+  // warnIgnored:false — файли з delta, що матчать ignore-патерни конфігу, не є порушеннями.
+  // overrideConfig лише з ignores → global ignores: worktree-чекаути (.worktrees/,
+  // .claude/worktrees/) — копії репо, споживацький eslint-конфіг їх не виключає.
+  const eslint = new ESLint({ cwd, warnIgnored: false, overrideConfig: { ignores: WORKTREE_CHECKOUT_GLOBS } })
   const esResults = await eslint.lintFiles(js === null ? [cwd] : js.map(f => resolve(cwd, f)))
   const es = eslintResultsToFindings(esResults)
 
-  const oxArgs = js === null ? ['oxlint', '--format=json'] : ['oxlint', '--format=json', ...js]
+  const worktreeIgnoreArgs = WORKTREE_CHECKOUT_GLOBS.map(g => `--ignore-pattern=${g}`)
+  const oxArgs =
+    js === null
+      ? ['oxlint', '--format=json', ...worktreeIgnoreArgs]
+      : ['oxlint', '--format=json', ...worktreeIgnoreArgs, ...js]
   const oxRes = runOxlintJson(oxArgs, cwd)
   const ox = parseOxlint(oxRes.stdout)
   if (ox === null && oxRes.status !== 0) {
