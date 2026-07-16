@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.1] - 2026-07-16
+
+### Fixed
+
+- vue: відновлено втрачений guide-контент (composition-api, quasar-ui, structure, testing, tfm, vite-config, vite-env, nheader-layout) + виправлено застарілий шлях у main.mdc
+- restore: відновлено втрачений guide-контент для 21 правила з коміту da05f89d (docs-only guide/ concern-и), виправлено застарілі шляхи в abie/ga/php/python
+- rules: розкладено docs-only guide/ по всіх 22 правилах на окремі per-concern директорії, реалізовано реальні check/policy де це мало сенс (vue tfm-translations, capacitor workspace:*, k8s hpa apiVersion, style admin-table/gap/quasar-fixes, tauri tool_surface), решту залишено docs-only зі звітом де check недоцільний
+
 ## [1.7.0] - 2026-07-16
 
 ### Changed
