@@ -140,7 +140,7 @@ export function verifyOxlintRcAgainstCanonical(cfg, canonical) {
 
     if (!deepEqualOxlintCanonical(actual, expected)) {
       failures.push(
-        `.oxlintrc.json: поле "${key}" має збігатися з каноном пакета @7n/rules (npm/rules/js/js/data/tooling/oxlint-canonical.json)`
+        `.oxlintrc.json: поле "${key}" має збігатися з каноном пакета @7n/rules (npm/rules/js/tooling/data/tooling/oxlint-canonical.json)`
       )
     }
   }

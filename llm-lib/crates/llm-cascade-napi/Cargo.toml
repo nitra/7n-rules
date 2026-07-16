@@ -1,0 +1,19 @@
+[package]
+name = "llm-cascade-napi"
+version = "0.1.0"
+edition = "2021"
+description = "napi-rs адаптер llm-cascade для @7n/llm-lib (тонкий JS-клієнт замість повторної реалізації ACP/tiers/local_cloud)"
+license = "Apache-2.0"
+
+[lib]
+name = "llm_cascade_napi"
+crate-type = ["cdylib"]
+
+[dependencies]
+llm-cascade = { path = "../llm-cascade" }
+napi = { version = "3", default-features = false, features = ["napi8", "serde-json", "tokio_rt"] }
+napi-derive = "3"
+serde_json = "1"
+
+[build-dependencies]
+napi-build = "2"

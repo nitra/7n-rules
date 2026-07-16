@@ -38,6 +38,8 @@ const RULES_ROOT = join(PACKAGE_ROOT, 'rules')
 /**
  * @typedef {object} ConftestBatchOptions
  * @property {string} policyDirRel шлях до підкаталогу `npm/policy/...` (наприклад `abie/base_deployment_preem`)
+ * @property {string} [policyDirAbs] абсолютний шлях до теки policy-concern-а — для правил ПОЗА вбудованим
+ *   `rules/` ядра (плагіни); за наявності має пріоритет над `policyDirRel`
  * @property {string} namespace повне імʼя rego-пакета (наприклад `abie.base_deployment_preem`)
  * @property {string[]} files список абсолютних шляхів файлів для перевірки (порожній — повертаємо порожньо)
  * @property {string[]} [extraArgs] додаткові аргументи для conftest (наприклад `--combine` для крос-документних правил)
@@ -73,7 +75,7 @@ export function runConftestBatch(opts) {
   const slash = opts.policyDirRel.indexOf('/')
   const ruleId = slash === -1 ? opts.policyDirRel : opts.policyDirRel.slice(0, slash)
   const sub = slash === -1 ? '' : opts.policyDirRel.slice(slash + 1)
-  const policyAbs = sub ? join(RULES_ROOT, ruleId, sub) : join(RULES_ROOT, ruleId)
+  const policyAbs = opts.policyDirAbs ?? (sub ? join(RULES_ROOT, ruleId, sub) : join(RULES_ROOT, ruleId))
   if (!existsSync(policyAbs)) {
     throw new Error(`runConftestBatch: rego-каталог не знайдено: ${policyAbs}`)
   }

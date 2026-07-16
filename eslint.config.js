@@ -28,11 +28,11 @@ export default [
     ]
   },
   ...getConfig({
-    node: ['npm', 'llm-lib'],
+    node: ['npm', 'llm-lib', 'plugins'],
     vue: ['demo']
   }),
   {
-    files: ['npm/**/*.{mjs,cjs}', 'llm-lib/**/*.{mjs,cjs}'],
+    files: ['npm/**/*.{mjs,cjs}', 'llm-lib/**/*.{mjs,cjs}', 'plugins/**/*.{mjs,cjs}'],
     languageOptions: {
       globals: {
         ...globals.node
@@ -44,7 +44,7 @@ export default [
   // bun hoisted node_modules. `n/no-extraneous-import` цього не бачить — allowModules
   // ставить exception лише для канонічного vitest-runner baseline (test.mdc).
   {
-    files: ['npm/**/*.{js,mjs,cjs}', 'llm-lib/**/*.{js,mjs,cjs}'],
+    files: ['npm/**/*.{js,mjs,cjs}', 'llm-lib/**/*.{js,mjs,cjs}', 'plugins/**/*.{js,mjs,cjs}'],
     rules: {
       'n/no-extraneous-import': [
         'error',
@@ -117,7 +117,14 @@ export default [
   {
     files: ['**/*.test.mjs', '**/tests/**/*.mjs'],
     rules: {
-      'sonarjs/prefer-specific-assertions': 'off'
+      'sonarjs/prefer-specific-assertions': 'off',
+      // parameterized-tests: test.each-переписування — стилістика; явні окремі тести читаються
+      // краще для канон-фікстур. explicit-test-skip: guard-return у тестах (skip за відсутності
+      // локальної моделі/тулів) — усвідомлений патерн репо. publicly-writable-directories:
+      // тести навмисно працюють у tmpdir(). Не блокуємо CI на цій стилістиці.
+      'sonarjs/parameterized-tests': 'off',
+      'sonarjs/explicit-test-skip': 'off',
+      'sonarjs/publicly-writable-directories': 'off'
     }
   }
 ]

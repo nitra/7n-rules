@@ -2,7 +2,9 @@
   "gitignore": true,
   "exitCode": 1,
   "minLines": 25,
-  "reporters": ["console"],
+  "reporters": [
+    "console"
+  ],
   "ignore": [
     ".git/**",
     ".claude/worktrees/**",
@@ -30,6 +32,10 @@
     "docs/**",
     "**/docs/*.md",
     "npm/rules/*/*/template/*.snippet.yml",
-    "npm/rules/*/*/template/*.snippet.yaml"
+    "npm/rules/*/*/template/*.snippet.yaml",
+    "plugins/*/rules/*/*/template/*.snippet.yml",
+    "plugins/*/rules/*/*/template/*.snippet.yaml",
+    "npm/schemas/concern.json",
+    "npm/schemas/target.json"
   ]
 }

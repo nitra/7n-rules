@@ -1,5 +1,47 @@
 # Changelog
 
+## [1.7.0] - 2026-07-16
+
+### Changed
+
+- `skill cursor/codex` тепер виконуються через `@7n/llm-lib/acp` (napi-міст до Rust `llm_cascade::acp`) замість власного JS ACP-клієнта; deprecated `skill claude` лишається окремим JS-шимом (`acp-runner.mjs`), бо Rust-крейт `claude` не моделює
+
+## [1.6.0] - 2026-07-16
+
+### Changed
+
+- CI-концерни провайдерів: 12 workflow-концернів (lint_*_yml, npm_publish_yml, toolchain_cache, clean_merged_ignore_branches) перенесено у @7n/rules-ci-github; multi-dir mdc-інлайн mixin-концернів у дзеркала правил; рефакторинг aggregateRuleSources
+
+## [1.5.1] - 2026-07-16
+
+### Fixed
+
+- sync-claude-config: відновлено `.gitignore.snippet` для ADR Stop-hook (загублено при переструктуруванні rules/adr на per-concern layout)
+
+## [1.5.0] - 2026-07-15
+
+### Added
+
+- Нове правило `local-ai` (auto: завжди): інтеграція rtk (Rust Token Killer) для стискання виводу CLI-команд агентів. Sync вставляє fail-open PreToolUse hook у `.claude/settings.json` (`rtk hook claude`), preToolUse у `.cursor/hooks.json` (`rtk hook cursor`) та vendored pi-extension `.pi/extensions/rtk.ts`; від користувача потрібен лише `brew install rtk-ai/tap/rtk`. Вимкнення — `disable-rules: ["local-ai"]`.
+- Механізм плагінів: поле `plugins` у .n-rules.json + автодетект CI-провайдера (файли CI → repository.url) з авто-встановленням devDependency; multi-dir завантаження правил (ядро + плагіни, merge концернів), маніфест плагіна `n-rules` (capabilities/handlers); правило `ga` винесено у @7n/rules-ci-github
+- tauri/release: change-файл — обовʼязковий крок вирішення задачі (як lint/doc-files), не post-hoc фікс на сигнал `changelog/presence`.
+
+### Changed
+
+- docs(adr): merge pending ADR normalization batch
+
+## [1.4.1] - 2026-07-15
+
+### Fixed
+
+- Виправлено застарілі шляхи npm/rules/js/js/data/tooling у повідомленнях перевірок tooling/check (пост-реструктуризація da05f89d)
+
+## [1.4.0] - 2026-07-15
+
+### Added
+
+- Нове правило `local-ai` (auto: завжди): інтеграція rtk (Rust Token Killer) для стискання виводу CLI-команд агентів. Sync вставляє fail-open PreToolUse hook у `.claude/settings.json` (`rtk hook claude`), preToolUse у `.cursor/hooks.json` (`rtk hook cursor`) та vendored pi-extension `.pi/extensions/rtk.ts`; від користувача потрібен лише `brew install rtk-ai/tap/rtk`. Вимкнення — `disable-rules: ["local-ai"]`.
+
 ## [1.3.2] - 2026-07-15
 
 ### Fixed

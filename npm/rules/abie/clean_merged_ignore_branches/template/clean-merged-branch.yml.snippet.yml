@@ -1,9 +1,0 @@
-# abie-specific шар поверх ga.clean_merged_branch:
-# у `clean-merged-branch.yml` крок phpdocker-io/github-actions-delete-abandoned-branches
-# має містити `ignore_branches: dev,ua` (обовʼязкові гілки для abie-проєктів).
-jobs:
-  cleanup_old_branches:
-    steps:
-      - uses: phpdocker-io/github-actions-delete-abandoned-branches
-        with:
-          ignore_branches: dev,ua

@@ -39,12 +39,7 @@ export function lint(ctx) {
     fail('package.json не знайдено в корені — додай (python.mdc)')
   }
 
-  const wfPath = '.github/workflows/lint-python.yml'
-  if (existsSync(join(cwd, wfPath))) {
-    pass(`${wfPath} є (структуру перевіряє fix → python.lint_python_yml)`)
-  } else {
-    fail(`${wfPath} не існує — створи згідно python.mdc`)
-  }
-
+  // Existence/структуру lint-python.yml вимагає провайдер-плагін @7n/rules-ci-github
+  // (mixin python/lint_python_yml) — ядро провайдер-агностичне.
   return Promise.resolve(reporter.result())
 }

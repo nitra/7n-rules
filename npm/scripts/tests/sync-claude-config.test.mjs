@@ -24,6 +24,9 @@ import {
   mergeHooks,
   mergeSettings,
   removeOrphanAdrHookLib,
+  RTK_CLAUDE_HOOK_COMMAND_MARKER,
+  RTK_CURSOR_HOOK_COMMAND_MARKER,
+  RTK_PI_EXTENSION_FILE,
   syncAdrHookLibScripts,
   syncAdrHookScript,
   syncClaudeCommands,
@@ -90,8 +93,13 @@ dist/
 .claude/hooks/.normalize-state
 .claude/hooks/.normalize.lock
 `
-  await mkdir(join(pkgRoot, 'rules/adr/js/templates/hooks'), { recursive: true })
   await writeFile(join(pkgRoot, ADR_GITIGNORE_SNIPPET_REL), gitignoreSnippet, 'utf8')
+  await mkdir(join(pkgRoot, '.pi-template/extensions'), { recursive: true })
+  await writeFile(
+    join(pkgRoot, '.pi-template/extensions', RTK_PI_EXTENSION_FILE),
+    tpl.rtkPiExtensionTs ?? '// rtk pi-extension stub\n',
+    'utf8'
+  )
   return pkgRoot
 }
 
@@ -312,6 +320,60 @@ describe('mergeCursorHooksConfig', () => {
     expect(merged.hooks).toBeUndefined()
     expect(merged.version).toBe(1)
   })
+
+  test('local-ai: додає rtk preToolUse entry і зберігає користувацькі entries', () => {
+    const merged = mergeCursorHooksConfig(
+      {
+        version: 1,
+        hooks: { preToolUse: [{ command: 'echo user-pre-tool-use' }] }
+      },
+      { includeLocalAiHook: true }
+    )
+    expect(merged.hooks?.preToolUse).toHaveLength(2)
+    expect(merged.hooks?.preToolUse?.[0].command).toBe('echo user-pre-tool-use')
+    expect(merged.hooks?.preToolUse?.[1].command).toContain(RTK_CURSOR_HOOK_COMMAND_MARKER)
+    expect(merged.hooks?.preToolUse?.[1].matcher).toBe('Shell')
+  })
+
+  test('local-ai: повторний merge не дублює rtk entry; вимкнення прибирає його', () => {
+    const withRtk = mergeCursorHooksConfig(undefined, { includeLocalAiHook: true })
+    const again = mergeCursorHooksConfig(withRtk, { includeLocalAiHook: true })
+    expect(again.hooks?.preToolUse?.filter(e => e.command.includes(RTK_CURSOR_HOOK_COMMAND_MARKER))).toHaveLength(1)
+    const disabled = mergeCursorHooksConfig(again, { includeLocalAiHook: false })
+    expect(disabled.hooks).toBeUndefined()
+  })
+
+  test('adr і local-ai співіснують у різних подіях', () => {
+    const merged = mergeCursorHooksConfig(undefined, { includeAdrHook: true, includeLocalAiHook: true })
+    expect(merged.hooks?.stop).toHaveLength(2)
+    expect(merged.hooks?.preToolUse).toHaveLength(1)
+  })
+})
+
+describe('mergeSettings (local-ai)', () => {
+  test('includeLocalAiHook додає rtk-групу в PreToolUse з fail-open guard', () => {
+    const template = { hooks: {} }
+    const merged = mergeSettings(undefined, template, { includeLocalAiHook: true })
+    expect(merged.hooks?.PreToolUse).toHaveLength(1)
+    const group = merged.hooks?.PreToolUse?.[0]
+    expect(group?.matcher).toBe('Bash')
+    expect(group?.hooks[0].command).toContain(RTK_CLAUDE_HOOK_COMMAND_MARKER)
+    expect(group?.hooks[0].command).toContain('command -v rtk')
+    expect(group?.hooks[0].timeout).toBe(30)
+  })
+
+  test('вимкнення local-ai прибирає rtk-групу, користувацькі PreToolUse групи лишаються', () => {
+    const template = { hooks: {} }
+    const withRtk = mergeSettings(
+      { hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo user-pre' }] }] } },
+      template,
+      { includeLocalAiHook: true }
+    )
+    expect(withRtk.hooks?.PreToolUse).toHaveLength(2)
+    const disabled = mergeSettings(withRtk, template, { includeLocalAiHook: false })
+    expect(disabled.hooks?.PreToolUse).toHaveLength(1)
+    expect(disabled.hooks?.PreToolUse?.[0].hooks[0].command).toBe('echo user-pre')
+  })
 })
 
 describe('syncClaudeConfig (інтеграція)', () => {
@@ -401,7 +463,8 @@ describe('syncClaudeConfig (інтеграція)', () => {
         adrNormalizeHook: false,
         adrHookLib: [],
         gitignoreAdr: false,
-        piExtension: false
+        piExtension: false,
+        rtkPiExtension: false
       })
       expect(existsSync(join(cwdAbs, '.claude/settings.json'))).toBe(false)
     })
@@ -454,6 +517,20 @@ describe('syncClaudeConfig (інтеграція)', () => {
       const gitignoreContent = await readFile(join(cwdAbs, '.gitignore'), 'utf8')
       const lines = gitignoreContent.split('\n').filter(l => l.includes('.claude/hooks'))
       expect(lines.filter(l => l.includes('*.log')).length).toBe(1)
+    })
+  })
+
+  test('ADR_GITIGNORE_SNIPPET_REL: реальний канонічний фрагмент існує в пакеті й застосовується', async () => {
+    const realPkgRoot = join(HERE, '..', '..')
+    expect(existsSync(join(realPkgRoot, ADR_GITIGNORE_SNIPPET_REL))).toBe(true)
+    await withTmpDir(async cwdAbs => {
+      const result = await syncGitignoreAdrFragment(cwdAbs, realPkgRoot)
+      expect(result.written).toBe(true)
+      const gi = await readFile(join(cwdAbs, '.gitignore'), 'utf8')
+      expect(gi).toContain('.claude/hooks/*.log')
+      expect(gi).toContain('.claude/hooks/.normalize-state')
+      expect(gi).toContain('.claude/hooks/.normalize.lock')
+      expect(gi).toContain('.claude/scheduled_tasks.lock')
     })
   })
 
@@ -727,6 +804,98 @@ describe('syncClaudeConfig (інтеграція)', () => {
       expect(result.commands).toEqual([])
       expect(result.adrHook).toBe(false)
       expect(result.gitignoreAdr).toBe(false)
+    })
+  })
+
+  test('з правилом "local-ai": rtk-група у PreToolUse, rtk entry у Cursor preToolUse, rtk.ts скопійовано', async () => {
+    await withTmpDir(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs, { rtkPiExtensionTs: '// rtk v1\n' })
+      const result = await syncClaudeConfig({
+        projectRoot: cwdAbs,
+        bundledPackageRoot: pkgRoot,
+        enabled: true,
+        rules: ['local-ai', 'text']
+      })
+      expect(result.rtkPiExtension).toBe(true)
+      expect(result.cursorHooks).toBe(true)
+      expect(await readFile(join(cwdAbs, '.pi/extensions/rtk.ts'), 'utf8')).toBe('// rtk v1\n')
+      const settings = JSON.parse(await readFile(join(cwdAbs, '.claude/settings.json'), 'utf8'))
+      const rtkGroup = settings.hooks.PreToolUse.find(g =>
+        g.hooks?.some(h => h.command?.includes(RTK_CLAUDE_HOOK_COMMAND_MARKER))
+      )
+      expect(rtkGroup).toBeTruthy()
+      expect(rtkGroup.matcher).toBe('Bash')
+      expect(rtkGroup.hooks[0].command).toContain('command -v rtk')
+      const cursorHooks = JSON.parse(await readFile(join(cwdAbs, '.cursor/hooks.json'), 'utf8'))
+      expect(cursorHooks.hooks.preToolUse).toHaveLength(1)
+      expect(cursorHooks.hooks.preToolUse[0].command).toContain(RTK_CURSOR_HOOK_COMMAND_MARKER)
+      expect(cursorHooks.hooks.preToolUse[0].matcher).toBe('Shell')
+      // ADR не вмикався — stop-подій немає
+      expect(cursorHooks.hooks.stop).toBeUndefined()
+    })
+  })
+
+  test('видалення "local-ai" з rules: rtk-групи прибираються, rtk.ts видаляється з диска', async () => {
+    await withTmpDir(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs)
+      await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['local-ai'] })
+      expect(existsSync(join(cwdAbs, '.pi/extensions/rtk.ts'))).toBe(true)
+      const result = await syncClaudeConfig({
+        projectRoot: cwdAbs,
+        bundledPackageRoot: pkgRoot,
+        enabled: true,
+        rules: []
+      })
+      expect(result.rtkPiExtension).toBe(false)
+      // На відміну від ADR-скриптів rtk.ts — fully-owned vendored файл без кастомізацій, тому видаляється.
+      expect(existsSync(join(cwdAbs, '.pi/extensions/rtk.ts'))).toBe(false)
+      const settings = JSON.parse(await readFile(join(cwdAbs, '.claude/settings.json'), 'utf8'))
+      const hasRtk = (settings.hooks.PreToolUse ?? []).some(g =>
+        g.hooks?.some(h => h.command?.includes(RTK_CLAUDE_HOOK_COMMAND_MARKER))
+      )
+      expect(hasRtk).toBe(false)
+      const cursorHooks = JSON.parse(await readFile(join(cwdAbs, '.cursor/hooks.json'), 'utf8'))
+      expect(cursorHooks.hooks).toBeUndefined()
+    })
+  })
+
+  test('повторний sync із "local-ai" не дублює rtk-групи (settings + cursor)', async () => {
+    await withTmpDir(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs)
+      await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['local-ai'] })
+      await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['local-ai'] })
+      const settings = JSON.parse(await readFile(join(cwdAbs, '.claude/settings.json'), 'utf8'))
+      const rtkCount = settings.hooks.PreToolUse.filter(g =>
+        g.hooks?.some(h => h.command?.includes(RTK_CLAUDE_HOOK_COMMAND_MARKER))
+      ).length
+      expect(rtkCount).toBe(1)
+      const cursorHooks = JSON.parse(await readFile(join(cwdAbs, '.cursor/hooks.json'), 'utf8'))
+      expect(cursorHooks.hooks.preToolUse.filter(e => e.command.includes(RTK_CURSOR_HOOK_COMMAND_MARKER))).toHaveLength(
+        1
+      )
+    })
+  })
+
+  test('"adr" + "local-ai" разом: обидва набори hooks у своїх подіях', async () => {
+    await withTmpDir(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs)
+      const result = await syncClaudeConfig({
+        projectRoot: cwdAbs,
+        bundledPackageRoot: pkgRoot,
+        enabled: true,
+        rules: ['adr', 'local-ai']
+      })
+      expect(result.adrHook).toBe(true)
+      expect(result.rtkPiExtension).toBe(true)
+      expect(result.piExtension).toBe(false) // ADR pi-extension: у fixture немає index.ts — не копіюється
+      const settings = JSON.parse(await readFile(join(cwdAbs, '.claude/settings.json'), 'utf8'))
+      expect(settings.hooks.Stop).toHaveLength(2)
+      expect(
+        settings.hooks.PreToolUse.some(g => g.hooks?.some(h => h.command?.includes(RTK_CLAUDE_HOOK_COMMAND_MARKER)))
+      ).toBe(true)
+      const cursorHooks = JSON.parse(await readFile(join(cwdAbs, '.cursor/hooks.json'), 'utf8'))
+      expect(cursorHooks.hooks.stop).toHaveLength(2)
+      expect(cursorHooks.hooks.preToolUse).toHaveLength(1)
     })
   })
 

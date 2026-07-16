@@ -4,38 +4,41 @@
  * Скіли читаються з `npm/skills/<id>/SKILL.md` установленого пакета (або кешу `npx`).
  * Промпт збирає інструкцію скілу + контекст поточного CWD (`package.json`, `tsconfig.json`,
  * `.n-rules.json`) — далі stdout або виконання через один з раннерів: вбудований
- * pi-агент, чи зовнішній CLI (`cursor-agent`, `codex exec`, або deprecated `claude`).
+ * pi-агент, чи зовнішній ACP-агент. `cursor`/`codex` — через `@7n/llm-lib/acp`
+ * (napi-міст до `llm_cascade::acp`, без власного JSON-RPC у JS); deprecated
+ * `claude` — окремий JS-шим (`./lib/acp-runner.mjs`), бо Rust-крейт його не моделює.
  *
  * Підтримувані формати:
  *   `npx \@7n/rules skill list`
  *   `npx \@7n/rules skill taze`
  *   `npx \@7n/rules skill pi taze` — виконати через вбудований pi-агент (рекомендовано)
  *   `npx \@7n/rules skill pi taze "онови залежності"`
- *   `npx \@7n/rules skill cursor taze` — зовнішній Cursor CLI (`cursor-agent -p`)
- *   `npx \@7n/rules skill codex taze` — зовнішній Codex CLI (`codex exec -`)
- *   `npx \@7n/rules skill claude taze` — deprecated: зовнішній Claude Code CLI
+ *   `npx \@7n/rules skill cursor taze` — Cursor CLI через ACP (`cursor-agent acp`)
+ *   `npx \@7n/rules skill codex taze` — Codex через ACP (napi-міст `@7n/llm-lib/acp`, Rust спавнить `npx \@agentclientprotocol/codex-acp`)
+ *   `npx \@7n/rules skill claude taze` — deprecated: Claude Code через ACP-адаптер
  */
 
-import { spawnSync } from 'node:child_process'
+import { runAcpAgent } from '@7n/llm-lib/acp'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { cwd } from 'node:process'
+import { cwd, stdout } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { readSkillMetaRaw, skillRequiresRoot, skillTier } from './lib/skill-meta.mjs'
+import { runAcpRunner } from './lib/acp-runner.mjs'
+import { readSkillMetaRaw, skillTier } from './lib/skill-meta.mjs'
 
-/** Виконавці скіла. `pi` — вбудований (рекомендований); `cursor`/`codex`/`claude` — зовнішні CLI (`claude` — deprecated). */
+/** Виконавці скіла. `pi` — вбудований (рекомендований); `cursor`/`codex`/`claude` — зовнішні ACP-агенти (`claude` — deprecated). */
 const RUNNERS = new Set(['pi', 'cursor', 'codex', 'claude'])
 
 /**
- * Табличний опис зовнішніх CLI-раннерів: бінарник, аргументи для non-interactive
- * режиму зі stdin-промптом, і чи раннер deprecated (друкує попередження перед запуском).
- * @type {Record<'claude' | 'cursor' | 'codex', { bin: string, args: string[], deprecated: boolean }>}
+ * Раннери, що йдуть через зовнішнього ACP-агента, і чи deprecated (друкує попередження
+ * перед запуском). `cursor`/`codex` — napi-міст `@7n/llm-lib/acp`; `claude` — окремий
+ * JS-шим `runAcpRunner` (Rust-крейт `llm_cascade::acp` `claude` не моделює).
  */
-const EXTERNAL_RUNNERS = {
-  claude: { bin: 'claude', args: ['-p'], deprecated: true },
-  cursor: { bin: 'cursor-agent', args: ['-p'], deprecated: false },
-  codex: { bin: 'codex', args: ['exec', '-'], deprecated: false }
+const ACP_RUNNERS = {
+  claude: { deprecated: true },
+  cursor: { deprecated: false },
+  codex: { deprecated: false }
 }
 
 const USAGE_LINES = [
@@ -43,23 +46,12 @@ const USAGE_LINES = [
   '  npx @7n/rules skill list',
   '  npx @7n/rules skill <skill-id> ["task"]',
   '  npx @7n/rules skill pi <skill-id> ["task"]      # вбудований pi-агент (рекомендовано)',
-  '  npx @7n/rules skill cursor <skill-id> ["task"]  # зовнішній Cursor CLI',
-  '  npx @7n/rules skill codex <skill-id> ["task"]   # зовнішній Codex CLI',
+  '  npx @7n/rules skill cursor <skill-id> ["task"]  # Cursor CLI через ACP',
+  '  npx @7n/rules skill codex <skill-id> ["task"]   # Codex через ACP-адаптер',
   '  npx @7n/rules skill claude <skill-id> ["task"]  # deprecated',
   '',
   'Skill id: каталог у пакеті (lint, taze, …) або з префіксом n- (n-lint → lint).'
 ]
-
-/**
- * @param {string} name ім'я бінарника
- * @returns {boolean} чи знайдено бінарник у PATH
- */
-function isBinaryInPath(name) {
-  // Явний `env: process.env` — Bun без нього дає дітям snapshot оточення зі старту процесу
-  // і не бачить runtime-змін `process.env.PATH` (та сама причина, що в resolve-cmd.mjs).
-  const probe = spawnSync('command', ['-v', name], { shell: true, encoding: 'utf8', env: process.env })
-  return probe.status === 0
-}
 
 /**
  * @param {string} name ім'я скілу з CLI або каталогу `.cursor/skills/n-*`
@@ -173,44 +165,41 @@ async function runPiRunner(prompt, rawSkillName, skillsRoot, projectDir, logErro
 }
 
 /**
- * Делегує виконання скіла у зовнішній non-interactive CLI (`cursor-agent -p`, `codex exec -`,
- * або deprecated `claude -p`) — промпт передається через stdin. `claude` лишається як
- * deprecated fallback для тих, у кого pi-модель ще не налаштована; буде прибрано
- * (мігруй на `skill pi`). `cursor`/`codex` — повноцінні альтернативні раннери.
- *
- * `cursor-agent` у non-interactive режимі блокується власним `approvalMode: "allowlist"`
- * користувача (git/bun/npx/rm тощо потребують інтерактивного підтвердження, якого в headless
- * виклику немає). Для `worktree:true`/`requireRoot:true` скілів (блок-радіус вже ізольований)
- * додаємо `--force`, замість того щоб просити користувача розширювати глобальний allowlist
- * у `~/.cursor/cli-config.json`.
- * @param {'claude' | 'cursor' | 'codex'} kind який LLM CLI запускати
- * @param {string} prompt промпт для передачі у stdin
- * @param {string} projectDir робочий каталог дочірнього процесу
+ * Делегує виконання скіла зовнішньому ACP-агенту. `cursor`/`codex` — через
+ * `@7n/llm-lib/acp` (napi-міст до `llm_cascade::acp`: спавн, `session/prompt`,
+ * автоапрув дозволів — усе в Rust, без JSON-RPC у JS). `claude` — deprecated
+ * JS-шим `runAcpRunner` (Rust його не моделює); буде прибрано (мігруй на `skill pi`).
+ * На відміну від колишнього стрімінгу по чанках, napi-шлях повертає повний текст
+ * лише по завершенню ходу — Rust-функція не стрімить проміжні токени в JS.
+ * @param {'claude' | 'cursor' | 'codex'} kind якого ACP-агента запускати
+ * @param {string} prompt промпт скіла
+ * @param {string} projectDir робочий каталог агента
  * @param {(line: string) => void} logError вивід попередження/помилок
- * @param {boolean} isolated чи скіл ізольований (worktree/requireRoot) — дозволяє force-approve для `cursor`
- * @returns {number} exit code дочірнього процесу
+ * @param {{ runAcpRunner?: typeof runAcpRunner, runAcpAgent?: typeof runAcpAgent, out?: (chunk: string) => void }} [deps] інжекти для тестів
+ * @returns {Promise<number>} exit code (0 — успіх, 1 — інакше)
  */
-function runLlmCli(kind, prompt, projectDir, logError, isolated) {
-  const runner = EXTERNAL_RUNNERS[kind]
+async function runLlmCli(kind, prompt, projectDir, logError, deps = {}) {
+  const runner = ACP_RUNNERS[kind]
 
   if (runner.deprecated) {
-    logError(`[deprecated] skill ${kind} → use 'skill pi'; зовнішній CLI буде прибрано`)
+    logError(`[deprecated] skill ${kind} → use 'skill pi'; зовнішній ACP-агент буде прибрано`)
   }
 
-  if (!isBinaryInPath(runner.bin)) {
-    throw new Error(`\`${runner.bin}\` not found in PATH. Install ${kind} CLI or use \`skill pi\`.`)
+  if (kind === 'claude') {
+    const runAcp = deps.runAcpRunner ?? runAcpRunner
+    return runAcp(kind, prompt, projectDir, logError)
   }
 
-  const args = kind === 'cursor' && isolated ? [...runner.args, '--force'] : runner.args
+  const runNativeAcp = deps.runAcpAgent ?? runAcpAgent
+  const out = deps.out ?? (chunk => stdout.write(chunk))
 
-  const result = spawnSync(runner.bin, args, {
-    input: prompt,
-    cwd: projectDir,
-    stdio: ['pipe', 'inherit', 'inherit'],
-    encoding: 'utf8',
-    env: process.env
-  })
-  return result.status ?? 1
+  try {
+    out(await runNativeAcp(kind, prompt, projectDir))
+    return 0
+  } catch (error) {
+    logError(error instanceof Error ? error.message : String(error))
+    return 1
+  }
 }
 
 /**
@@ -261,9 +250,7 @@ export async function runSkillsCli(argv, options = {}) {
       if (first === 'pi') {
         return await runPiRunner(prompt, second, skillsRoot, projectDir, logError, deps)
       }
-      const skillMeta = readSkillMetaRaw(join(skillsRoot, normalizeSkillId(second)))
-      const isolated = skillRequiresRoot(skillMeta)
-      return runLlmCli(/** @type {'claude' | 'cursor' | 'codex'} */ (first), prompt, projectDir, logError, isolated)
+      return await runLlmCli(/** @type {'claude' | 'cursor' | 'codex'} */ (first), prompt, projectDir, logError, deps)
     }
 
     if (skillIds.includes(normalizeSkillId(first))) {

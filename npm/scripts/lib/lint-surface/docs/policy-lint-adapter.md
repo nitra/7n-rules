@@ -3,7 +3,7 @@ type: JS Module
 title: policy-lint-adapter.mjs
 resource: npm/scripts/lib/lint-surface/policy-lint-adapter.mjs
 docgen:
-  crc: c25338e7
+  crc: facc5e07
   model: openai-codex/gpt-5.5
   tier: cloud-avg
   score: 80
@@ -42,3 +42,5 @@ docgen:
 ## Гарантії поведінки
 
 - Read-only: не виконує операцій запису (ФС/БД).
+
+**Плагіни:** у `runConftestBatch` передається `policyDirAbs: cfg.policyDir` — policy-тека concern-а може жити поза вбудованим rules/ ядра.

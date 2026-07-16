@@ -73,6 +73,43 @@ export function discoverRuleAutoActivation(rulesDir = RULES_DIR) {
 
 const RULE_AUTO_ACTIVATION = discoverRuleAutoActivation()
 
+/** Кеш агрегованої активації для multi-dir прогонів: ключ — join(dirs). */
+const AGGREGATED_ACTIVATION_CACHE = new Map()
+
+/**
+ * Агрегована мапа активації по кількох rules-каталогах (ядро + плагіни): правила
+ * зливаються за id, перший власник виграє (порядок каталогів = пріоритет).
+ * Без `rulesDirs` — вбудовані module-level константи (шлях без плагінів).
+ * @param {string[]} [rulesDirs] упорядковані rules-каталоги
+ * @returns {{ activation: Record<string, import('./lib/rule-meta.mjs').RuleAutoSpec>, order: string[], dependencies: Record<string, readonly string[]> }} активація, порядок, залежності
+ */
+export function getRuleAutoActivation(rulesDirs) {
+  if (!Array.isArray(rulesDirs) || rulesDirs.length === 0) {
+    return { activation: RULE_AUTO_ACTIVATION, order: AUTO_RULE_ORDER, dependencies: AUTO_RULE_DEPENDENCIES }
+  }
+  const key = rulesDirs.join('\u{0}')
+  const cached = AGGREGATED_ACTIVATION_CACHE.get(key)
+  if (cached) return cached
+  /** @type {Record<string, import('./lib/rule-meta.mjs').RuleAutoSpec>} */
+  const activation = {}
+  for (const dir of rulesDirs) {
+    for (const [id, spec] of Object.entries(discoverRuleAutoActivation(dir))) {
+      if (!(id in activation)) activation[id] = spec
+    }
+  }
+  const order = Object.freeze(Object.keys(activation).toSorted((a, b) => a.localeCompare(b)))
+  const dependencies = Object.freeze(
+    Object.fromEntries(
+      Object.entries(activation)
+        .filter(([, s]) => 'rules' in s)
+        .map(([id, s]) => [id, Object.freeze(/** @type {{rules:string[]}} */ (s).rules)])
+    )
+  )
+  const result = { activation, order, dependencies }
+  AGGREGATED_ACTIVATION_CACHE.set(key, result)
+  return result
+}
+
 /** Стабільний алфавітний порядок (замість хардкод-масиву). */
 export const AUTO_RULE_ORDER = Object.freeze(Object.keys(RULE_AUTO_ACTIVATION).toSorted((a, b) => a.localeCompare(b)))
 
@@ -279,13 +316,14 @@ async function collectRepoPaths(root) {
  * стежити за порядком викликів `addRule`.
  * @param {string[]} detectedRules уже зібрані id правил (мутується через addRule)
  * @param {(ruleId: string) => void} addRule callback із спільної фабрики (поважає `disable-rules` і дублі)
+ * @param {Record<string, readonly string[]>} [dependencies] граф залежностей (дефолт — вбудований)
  * @returns {void}
  */
-function resolveRuleDependencies(detectedRules, addRule) {
+function resolveRuleDependencies(detectedRules, addRule, dependencies = AUTO_RULE_DEPENDENCIES) {
   let changed = true
   while (changed) {
     changed = false
-    for (const [ruleId, deps] of Object.entries(AUTO_RULE_DEPENDENCIES)) {
+    for (const [ruleId, deps] of Object.entries(dependencies)) {
       if (detectedRules.includes(ruleId)) continue
       if (deps.every(d => detectedRules.includes(d))) {
         const before = detectedRules.length
@@ -332,14 +370,17 @@ function specMatches(spec, ctx) {
  * @param {string[]} params.availableRules перелік доступних правил з пакету
  * @param {unknown} params.packageJsonParsed кореневий package.json (розпарсений) або null
  * @param {string[]} [params.disableRules] список `disable-rules` з конфігу
+ * @param {string[]} [params.rulesDirs] rules-каталоги (ядро + плагіни); без них — вбудований
  * @returns {Promise<{ rules: string[] }>} список id у стабільному порядку (за `AUTO_RULE_ORDER`)
  */
 export async function detectAutoRules({
   root,
   availableRules,
   packageJsonParsed,
-  disableRules = DEFAULT_DISABLED_LIST
+  disableRules = DEFAULT_DISABLED_LIST,
+  rulesDirs
 }) {
+  const { activation, order, dependencies } = getRuleAutoActivation(rulesDirs)
   const facts = await collectAutoRuleFacts(root)
   const paths = await collectRepoPaths(root)
   const normalizedRules = new Set(availableRules.map(r => r.trim().toLowerCase()))
@@ -357,13 +398,13 @@ export async function detectAutoRules({
     detectedRules.push(ruleId)
   }
 
-  for (const [ruleId, spec] of Object.entries(RULE_AUTO_ACTIVATION)) {
+  for (const [ruleId, spec] of Object.entries(activation)) {
     if ('rules' in spec) continue
     if (await specMatches(spec, { root, facts, paths, packageJsonParsed })) addRule(ruleId)
   }
-  resolveRuleDependencies(detectedRules, addRule)
+  resolveRuleDependencies(detectedRules, addRule, dependencies)
 
-  const rules = AUTO_RULE_ORDER.filter(r => detectedRules.includes(r))
+  const rules = order.filter(r => detectedRules.includes(r))
   return { rules }
 }
 

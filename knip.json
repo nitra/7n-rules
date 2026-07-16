@@ -4,7 +4,9 @@
     "@nitra/cspell-dict",
     "@nitra/stylelint-config",
     "globals",
-    "@stryker-mutator/core"
+    "@stryker-mutator/core",
+    "@7n/rules-ci-github",
+    "@7n/rules-ci-azure"
   ],
   "ignoreBinaries": [
     "cspell",
@@ -19,13 +21,22 @@
   ],
   "ignoreExportsUsedInFile": true,
   "ignoreIssues": {
-    "npm/rules/**/js/applies.mjs": ["exports"],
-    "npm/rules/k8s/js/manifests.mjs": ["exports"],
-    "npm/scripts/lib/gha-workflow.mjs": ["exports"]
+    "npm/rules/**/js/applies.mjs": [
+      "exports"
+    ],
+    "npm/rules/k8s/js/manifests.mjs": [
+      "exports"
+    ],
+    "npm/scripts/lib/gha-workflow.mjs": [
+      "exports"
+    ]
   },
   "workspaces": {
     ".": {
-      "entry": ["eslint.config.{js,mjs}", ".pi/extensions/**/index.ts"]
+      "entry": [
+        "eslint.config.{js,mjs}",
+        ".pi/extensions/**/*.ts"
+      ]
     },
     "npm": {
       "entry": [
@@ -55,17 +66,65 @@
         "rules/test/js/data/stryker_config/stryker.config.baseline.mjs",
         "stryker.config.mjs"
       ],
-      "project": ["**/*.{js,mjs}"],
-      "ignoreDependencies": ["@anthropic-ai/claude-code", "@anthropic-ai/sdk", "@7n/mt", "github-actionlint", "v8r", "ajv"]
+      "project": [
+        "**/*.{js,mjs}"
+      ],
+      "ignoreDependencies": [
+        "@anthropic-ai/claude-code",
+        "@anthropic-ai/sdk",
+        "@7n/mt",
+        "github-actionlint",
+        "v8r",
+        "ajv"
+      ]
     },
     "demo": {
-      "ignoreDependencies": ["vite-plugin-vue-layouts-next", "lightningcss"],
-      "entry": ["stryker.config.mjs"]
+      "ignoreDependencies": [
+        "vite-plugin-vue-layouts-next",
+        "lightningcss"
+      ],
+      "entry": [
+        "stryker.config.mjs"
+      ]
     },
     "llm-lib": {
-      "entry": ["lib/*.mjs", "tests/**/*.test.mjs", "stryker.config.mjs"],
-      "project": ["**/*.mjs"],
-      "ignoreDependencies": ["@earendil-works/pi-coding-agent"]
+      "entry": [
+        "lib/*.mjs",
+        "tests/**/*.test.mjs",
+        "stryker.config.mjs"
+      ],
+      "project": [
+        "**/*.mjs"
+      ],
+      "ignoreDependencies": [
+        "@earendil-works/pi-coding-agent"
+      ]
+    },
+    "plugins/ci-github": {
+      "entry": [
+        "rules/*/lib/*.mjs",
+        "rules/*/*/main.mjs",
+        "rules/*/*/fix-*.mjs",
+        "rules/**/*.test.mjs",
+        "stryker.config.mjs",
+        "vitest.config.mjs"
+      ],
+      "project": [
+        "**/*.{js,mjs}"
+      ]
+    },
+    "plugins/ci-azure": {
+      "entry": [
+        "rules/*/lib/*.mjs",
+        "rules/*/*/main.mjs",
+        "rules/*/*/fix-*.mjs",
+        "rules/**/*.test.mjs",
+        "stryker.config.mjs",
+        "vitest.config.mjs"
+      ],
+      "project": [
+        "**/*.{js,mjs}"
+      ]
     }
   }
 }

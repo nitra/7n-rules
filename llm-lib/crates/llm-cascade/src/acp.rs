@@ -8,8 +8,10 @@
 //! чи падати далі на [`crate::local_cloud`] (той самий fail-fast принцип, що
 //! й у решті крейта — жодного вбудованого retry).
 
+use std::path::Path;
 use std::str::FromStr;
 
+use agent_client_protocol::schema::{InitializeRequest, ProtocolVersion};
 use agent_client_protocol::Client;
 use agent_client_protocol_tokio::AcpAgent;
 
@@ -40,25 +42,38 @@ impl AcpAgentKind {
     }
 }
 
-/// Один виклик через ACP: спавнить агента, відкриває сесію в поточній
-/// директорії, надсилає `prompt`, читає повний текст відповіді до кінця ходу.
+/// Один виклик через ACP: спавнить агента, відкриває сесію в `cwd`, надсилає
+/// `prompt`, читає повний текст відповіді до кінця ходу.
+///
+/// `cwd` — явний, а не [`std::env::current_dir`]: викликач (напр. napi-міст
+/// в один процес із Node) має свій власний робочий каталог проєкту, який
+/// не обов'язково збігається з cwd самого хост-процесу.
 ///
 /// # Errors
 /// [`CascadeError::Provider`] — агент не встановлений, не залогінений
 /// підпискою, чи процес завершився з помилкою.
-pub async fn one_shot_acp(agent: AcpAgentKind, prompt: &str) -> Result<String, CascadeError> {
-    prompt_agent(agent.spec()?, prompt).await
+pub async fn one_shot_acp(
+    agent: AcpAgentKind,
+    prompt: &str,
+    cwd: &Path,
+) -> Result<String, CascadeError> {
+    prompt_agent(agent.spec()?, prompt, cwd).await
 }
 
 /// Спільна реалізація для [`one_shot_acp`] і `#[cfg(test)]`-перевірки
 /// fail-fast поведінки на спавні (приймає `AcpAgent` напряму, а не
 /// [`AcpAgentKind`] — щоб тест міг підставити свідомо неіснуючу команду).
-async fn prompt_agent(spec: AcpAgent, prompt: &str) -> Result<String, CascadeError> {
+async fn prompt_agent(spec: AcpAgent, prompt: &str, cwd: &Path) -> Result<String, CascadeError> {
     let prompt = prompt.to_string();
+    let cwd = cwd.to_path_buf();
 
     Client
         .connect_with(spec, async move |cx| {
-            cx.build_session_cwd()?
+            cx.send_request(InitializeRequest::new(ProtocolVersion::V1))
+                .block_task()
+                .await?;
+
+            cx.build_session(cwd)
                 .block_task()
                 .run_until(async move |mut session| {
                     session.send_prompt(prompt)?;
@@ -100,7 +115,7 @@ mod tests {
 
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(5),
-            prompt_agent(bad_spec, "привіт"),
+            prompt_agent(bad_spec, "привіт", &std::env::temp_dir()),
         )
         .await;
 

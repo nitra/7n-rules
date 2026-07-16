@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.7.1] - 2026-07-16
+
+### Fixed
+
+- `llm_cascade::acp::one_shot_acp` — додано обов'язковий `InitializeRequest`-хендшейк перед створенням сесії (без нього реальний ACP-агент відповідав `Internal error: Not initialized`; попередні тести не ловили це, бо перевіряли лише fail-fast на неіснуючу команду, не реальний round-trip)
+
+## [2.7.0] - 2026-07-16
+
+### Added
+
+- `runAcpAgent`/`resolveModel`/`oneShotLocalCloud` (`@7n/llm-lib/acp`) — napi-міст до Rust-крейта `llm_cascade` (`llm-lib/crates/llm-cascade-napi`): ACP-виклик `cursor`/`codex`, каскад тирів і local/cloud chat-виклик в одному процесі, без повторної реалізації протоколу в JS
+
 ## [2.6.2] - 2026-07-14
 
 ### Added

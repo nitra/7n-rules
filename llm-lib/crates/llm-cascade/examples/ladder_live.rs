@@ -15,6 +15,7 @@ use llm_cascade::{CascadeError, LocalCloud, Tier};
 async fn main() {
     let prompt = "Скажи рівно одне слово: працює";
     let start = Instant::now();
+    let cwd = env::current_dir().expect("cwd");
 
     let mut local_providers = HashMap::new();
     local_providers.insert(
@@ -26,10 +27,16 @@ async fn main() {
     );
     let local_cloud = LocalCloud::new(local_providers);
 
-    if let Some(text) = try_rung("acp:cursor", one_shot_acp(AcpAgentKind::Cursor, prompt)).await {
+    if let Some(text) = try_rung(
+        "acp:cursor",
+        one_shot_acp(AcpAgentKind::Cursor, prompt, &cwd),
+    )
+    .await
+    {
         return report(start, "acp:cursor", &text);
     }
-    if let Some(text) = try_rung("acp:codex", one_shot_acp(AcpAgentKind::Codex, prompt)).await {
+    if let Some(text) = try_rung("acp:codex", one_shot_acp(AcpAgentKind::Codex, prompt, &cwd)).await
+    {
         return report(start, "acp:codex", &text);
     }
     if let Some(text) = try_rung(

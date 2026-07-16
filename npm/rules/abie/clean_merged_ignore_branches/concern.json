@@ -1,8 +1,0 @@
-{
-  "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
-  "policy": {
-    "files": {
-      "single": ".github/workflows/clean-merged-branch.yml"
-    }
-  }
-}

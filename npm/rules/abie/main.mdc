@@ -24,12 +24,6 @@ version: '1.22'
 bun add -d @nitra/abie-shared
 ```
 
-## Git branches
-
-У **`.github/workflows/clean-merged-branch.yml`** у кроці **`phpdocker-io/github-actions-delete-abandoned-branches`** значення **`with.ignore_branches`** має містити **dev** та **ua** (разом з іншими гілками, якщо потрібно):
-
-- abie-specific канон (action marker + required ignore_branches tokens): [clean-merged-branch.yml.snippet.yml](./clean_merged_ignore_branches/template/clean-merged-branch.yml.snippet.yml)
-
 ## Швидкий gate через conftest (Rego)
 
 Підмножину пер-документних правил продубльовано як rego-полісі у **`npm/rules/abie/policy/`** (запускається через **`bun run lint-rego`** для `*_test.rego` юніт-тестів і через **`npx @7n/rules fix abie`** для прогону по реальних YAML — деталі в **conftest.mdc** / **n-rego.mdc**). JS у **`js/<concern>.mjs`** authoritative — rego тільки швидкий gate для одиничного маніфеста (зокрема через IDE-розширення `tsandall.opa`).
