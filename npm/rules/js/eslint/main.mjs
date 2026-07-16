@@ -70,7 +70,9 @@ async function collectFindings(js, cwd) {
       .filter(t => t !== '')
       .join('\n--- stdout: ')
     const suffix = tail === '' ? '' : `\n${tail}`
-    throw new Error(`oxlint завершився з помилкою (exit ${oxRes.status}, не lint-порушення) — json не розпарсено${suffix}`)
+    throw new Error(
+      `oxlint завершився з помилкою (exit ${oxRes.status}, не lint-порушення) — json не розпарсено${suffix}`
+    )
   }
   return [...(ox ?? []), ...es]
 }
