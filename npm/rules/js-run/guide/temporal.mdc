@@ -1,5 +1,0 @@
-## Temporal API (заборона у Bun runtime)
-
-У backend/Bun runtime-коді **не використовуй `Temporal`** (`Temporal.Now`, `Temporal.Instant`, імпорти з polyfill тощо). Bun 1.3.x (діапазон версій репозиторію — `bun >= 1.3`) ще не має глобального `Temporal` (`typeof Temporal === "undefined"`), тому агентам треба лишатися на сумісному `Date` API або передавати timestamp у чисті функції через параметр.
-
-Перевірка `npx @7n/rules check` (AST-сканер `../lib/temporal-scan.mjs`) сканує JS/TS-код на identifier `Temporal` у backend workspace-коді.

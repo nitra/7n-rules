@@ -14,9 +14,9 @@ version: '1.8'
 прямими викликами Rust-команд — а не лише скриншотами. Це забезпечує
 `tauri-plugin-mcp-bridge`: debug-плагін, що піднімає WS-сервер моста
 всередині застосунку, до якого зовні підключається MCP-сервер tauri.
-(Не плутати з **Tool Surface** — `tool-surface.mdc`: той про production
-call surface для UI/оркестратора/LLM, цей — про dev-time верифікацію
-запущеного застосунку.)
+(Не плутати з **Tool Surface** — `tool_surface/tool_surface.mdc`: той про
+production call surface для UI/оркестратора/LLM, цей — про dev-time
+верифікацію запущеного застосунку.)
 
 ### Dev-setup
 

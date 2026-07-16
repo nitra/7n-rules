@@ -17,3 +17,11 @@ Rego-пакет: `text.lint_text`
 Канонічна структура workflow: [lint-text.yml.snippet.yml](./template/lint-text.yml.snippet.yml)
 
 **Примітка:** conftest парсить YAML 1.1, де ключ `on:` без лапок перетворюється на булевий `true` — rego читає on-блок через `input["true"]`.
+
+## CI: workflow lint-text — крокова структура
+
+Крок за кроком: `actions/checkout@v6` перед `./.github/actions/setup-bun-deps` (композитна дія: Node, Bun, кеш, `bun install --frozen-lockfile`), потім два явних кроки встановлення — **`Install shellcheck`** (apt) і **`Install dotenv-linter`** (curl) — бо `n-rules lint text` вимагає обидва бінарники в `PATH`, а на `ubuntu-latest` dotenv-linter відсутній за замовчуванням (shellcheck часто вже є, але явний крок лишається канонічним для відтворюваності).
+
+Не дублюй окремий workflow з тими самими кроками cspell/markdownlint/v8r — увесь текстовий стек іде одним job через єдиний lint-адаптер.
+
+Ключовий крок CI: **`n-rules lint text --no-fix`** (нуль мутацій — авто-фікс вимкнено).

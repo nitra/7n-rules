@@ -1,5 +1,0 @@
-## OTEL ConfigMap (k8s)
-
-В **`k8s/base/configmap.yaml`** повинен бути заданий `OTEL_RESOURCE_ATTRIBUTES: 'service.name=<project_name>,service.namespace=<project_namespace>'` — цю структурну вимогу (обов'язкові substring `service.name=` / `service.namespace=`) перевіряє rego-gate **`js-run.configmap`** (див. `../configmap/configmap.mdc`).
-
-Додатково (конвенція, **не** покрита автоматичною перевіркою — перевіряй вручну під час рев'ю): у директоріях з kustomize-оверлеями значення `OTEL_RESOURCE_ATTRIBUTES` повинні бути перевизначені, і в них `service.namespace` повинен відповідати namespace, у якому знаходиться дана директорія оверлею (наприклад, `k8s/overlays/staging/` → `service.namespace=staging`). Rego-gate це не звіряє — він лише перевіряє наявність обох substring-маркерів у кожному ConfigMap незалежно від директорії, тому розбіжність `service.namespace` між base і kustomize-оверлеями пройде перевірку мовчки.

@@ -1,0 +1,38 @@
+## lint-k8s: kubeconform і kubescape
+
+Окремо від modeline `$schema` у редакторі (**`main.mdc`**) варто ганяти CLI-лінтери (**kubeconform** і **kubescape**) по тих самих деревах **`…/k8s`**.
+
+**Залежності:** виконувані файли kubeconform, kubescape і kubectl у **PATH** (kustomize використовуємо як вшиту підкоманду **`kubectl kustomize`** — окремий бінарник `kustomize` не потрібен); не додавай їх у **devDependencies**.
+
+**Версія Kubernetes для kubeconform** — **`-kubernetes-version 1.33.9`** (semver без префікса `v`; набір схем **`v1.33.9-standalone-strict`**). Для CRD додатково підключається реєстр [datreeio/CRDs-catalog](https://github.com/datreeio/CRDs-catalog) другим **`-schema-location`**. Прапорець **`-ignore-missing-schemas`** увімкнено завжди. Реалізація — **`npm/rules/k8s/kubeconform/main.mjs`** (`runKubeconform` у **`npm/rules/k8s/manifests/main.mjs`**).
+
+**kubescape** — вхід через зібраний kustomize-маніфест: для кожного dir-у з `kustomization.yaml` (`kind: Kustomization`; **`kind: Component`** пропускається) лінт виконує **`kubectl kustomize <dir>`** і передає stdout у **`kubescape scan <tmp-file>`** з порогом **`--severity-threshold high`**. Маніфест проходить через тимчасовий файл, бо **`kubescape scan` у v4.x не читає stdin**. Якщо в дереві **`…/k8s`** немає жодного `kustomization.yaml` — fallback на dir-скан **`kubescape scan <каталог-k8s>`**. У kubescape немає прапорця **`-kubernetes-version`**. Реалізація — **`npm/rules/k8s/manifests/main.mjs`** (`runKubescape`, `scanKustomizeK8sDirs`, `scanRawK8sDir`).
+
+Лінт запускається через **`npx @7n/rules lint`** (per-file детектор `k8s/kubeconform`) і **`npx @7n/rules fix k8s`** (cross-file оркестрація kubescape, `k8s/manifests`). Окремий `package.json`-скрипт `lint-k8s` не потрібен.
+
+## Винятки kubescape: `.kubescape-exceptions.json`
+
+Якщо в **корені проєкту** є файл **`.kubescape-exceptions.json`** — лінт автоматично передає його в `kubescape scan` через **`--exceptions`** ([postureExceptionPolicy](https://github.com/kubescape/kubescape/blob/master/docs/exceptions.md); `buildKubescapeExceptionsArgs` у `npm/rules/k8s/manifests/main.mjs`).
+
+Канонічний кейс — **C-0012** (`Applications credentials in configuration files`, High): control тригериться на **ім'я** env, що містить підрядок `secret`/`password`/`key`/`token`, а **не** на значення. Точкове виключення для ConfigMap із цим env — приклад структури:
+
+```json
+[
+  {
+    "name": "hasura-jwt-public-config",
+    "policyType": "postureExceptionPolicy",
+    "actions": ["alertOnly"],
+    "resources": [
+      {
+        "designatorType": "Attributes",
+        "attributes": { "kind": "ConfigMap", "name": "hasura-config" }
+      }
+    ],
+    "posturePolicies": [{ "controlID": "C-0012" }]
+  }
+]
+```
+
+**Увага:** готовий snippet-файл цього прикладу (`js/templates/kubescape_exceptions/.kubescape-exceptions.json.snippet.json` до `da05f89d`) під час "combine concern" **не був перенесений** у жоден поточний concern-каталог і в репозиторії відсутній — знайти оригінал не вдалося; за потреби відтвори JSON вручну за прикладом вище.
+
+Виключай контрольно, а не глобально (не додавай винятки без `attributes.name`/`labels`).

@@ -74,7 +74,8 @@ const RE_COCOAPODS_EXEMPT_ALLOW = /\biosCocoaPodsAllowed\s*:\s*true\b/
 /**
  * Мінімальний **major** (нижня межа) для **однієї** OR-частини діапазону npm (без `||` всередині).
  * @param {string} segment одна частина після `||` або весь рядок
- * @returns {number | null} null, якщо **`*` / `x` / `latest`**, або **major** **нижньої** межі
+ * @returns {number | null} `Infinity`, якщо **`workspace:`**-протокол (завжди прийнятний, як у Rego-gate
+ *   `capacitor.package_json`); `null`, якщо **`*` / `x` / `latest`**, або **major** **нижньої** межі
  */
 export function capacitorSegmentMinMajor(segment) {
   if (typeof segment !== 'string') {
@@ -85,6 +86,9 @@ export function capacitorSegmentMinMajor(segment) {
     return null
   }
   const low = s0.toLowerCase()
+  if (low.startsWith('workspace:')) {
+    return Infinity
+  }
   if (s0 === '*' || low === 'x' || low === 'latest') {
     return null
   }

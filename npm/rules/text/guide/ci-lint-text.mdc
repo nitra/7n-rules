@@ -1,9 +1,0 @@
-## CI: workflow lint-text
-
-Додай workflow `.github/workflows/lint-text.yml` — канон: [lint-text.yml.snippet.yml](../lint_text/template/lint-text.yml.snippet.yml).
-
-Крок за кроком: `actions/checkout@v6` перед `./.github/actions/setup-bun-deps` (композитна дія: Node, Bun, кеш, `bun install --frozen-lockfile`), потім два явних кроки встановлення — **`Install shellcheck`** (apt) і **`Install dotenv-linter`** (curl) — бо `n-rules lint text` вимагає обидва бінарники в `PATH`, а на `ubuntu-latest` dotenv-linter відсутній за замовчуванням (shellcheck часто вже є, але явний крок лишається канонічним для відтворюваності).
-
-Не дублюй окремий workflow з тими самими кроками cspell/markdownlint/v8r — увесь текстовий стек іде одним job через єдиний lint-адаптер.
-
-Ключовий крок CI: **`n-rules lint text --no-fix`** (нуль мутацій — авто-фікс вимкнено).

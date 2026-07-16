@@ -1,3 +1,0 @@
-## markdownlint: MD041 вимкнено навмисно
-
-**MD041** (перший рядок файлу має бути top-level heading) вимкнено в каноні `.markdownlint-cli2.jsonc` навмисно: `.mdc`-файли починаються з YAML-frontmatter (`---`), не з `#`-заголовка, і MD041 хибно позначав би це порушенням. Деталі правил — [markdownlint-cli2](https://github.com/DavidAnson/markdownlint-cli2).

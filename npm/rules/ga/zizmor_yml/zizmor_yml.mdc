@@ -7,3 +7,7 @@ Rego-пакет: `ga.zizmor_yml`
 Перевіряє `rules.unpinned-uses.config.policies["*"]` — значення має точно відповідати template (`ref-pin`). Всі вкладені об'єкти читаються через `object.get` із дефолтами, тож відсутні ключі коректно детектуються як порушення.
 
 Канон: [zizmor.yml.snippet.yml](./template/zizmor.yml.snippet.yml)
+
+### Нотатка щодо `template-injection`
+
+Ця Rego-перевірка стосується лише `unpinned-uses` — аудит [template-injection](https://docs.zizmor.sh/audits/#template-injection) вона не перевіряє, бо він контекстозалежний. За потреби вимкни його в `.github/zizmor.yml` через `rules.template-injection.disable: true`, якщо у workflow свідомо є безпечні підстановки `${{ ... }}`, які zizmor хибно позначає ризиком.

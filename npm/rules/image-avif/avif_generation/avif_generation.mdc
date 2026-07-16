@@ -24,3 +24,17 @@ import welcomeImage from './assets/welcome.png.avif'
 Якщо raster-посилання у `.vue`/`.html` не вдалось переписати (наприклад, оригіналу немає на диску, тож і `.avif` не згенерувався) — `check image-avif` падає з помилкою на конкретний файл.
 
 AVIF-двійники **зберігаємо в git** — це готові артефакти для віддачі браузеру (без них ефект від AVIF втрачається на чистому checkout-і).
+
+## Опт-аут для конкретного пакета
+
+У workspace-пакеті, де AVIF-імпорти небажані (наприклад, мобільний бандл або публічний сайт без гарантованої AVIF-підтримки), додай у `package.json` цього пакета. Заборонений typo `disabled-avif` (канон — `disable-avif`): [package.json.deny.json](../package_json/template/package.json.deny.json).
+
+```json title="apps/site/package.json"
+{
+  "@nitra/minify-image": {
+    "disable-avif": true
+  }
+}
+```
+
+Тоді перевірка пропускає `.vue` файли цього пакета і не видаляє наявні `.avif` всередині як «сироти». У root-`package.json` опт-аут діє лише для файлів кореня (вкладені workspaces перевіряються незалежно — вмикай прапор у кожному пакеті, де треба).

@@ -1,6 +1,0 @@
-## Використання @nitra/pino для логування
-
-Проект використовує @nitra/pino для логування.
-Якщо в проекті присутній @nitra/bunyan, то він повинен бути замінений на @nitra/pino — як у `package.json`, так і в коді: усі `import` / `require` / динамічні `import()` з `@nitra/bunyan` (і застарілого `bunyan`) треба замінити на `@nitra/pino` і за потреби адаптувати виклики під його API.
-
-Канон заборонених `dependencies` / `devDependencies` (`bunyan`, `@nitra/bunyan`): [package.json.deny.json](../package_json/template/package.json.deny.json). Заборонені імпорти в коді (AST-сканер): `../lib/bunyan-imports.mjs`.

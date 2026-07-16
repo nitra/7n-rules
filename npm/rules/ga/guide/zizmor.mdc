@@ -1,3 +1,0 @@
-## `.github/zizmor.yml` — нотатка щодо `template-injection`
-
-Доповнення до Rego-перевірки `ga.zizmor_yml` (перевіряє лише `unpinned-uses` — див. [zizmor_yml.mdc](../zizmor_yml/zizmor_yml.mdc)): аудит [template-injection](https://docs.zizmor.sh/audits/#template-injection) полісі не перевіряє, бо він контекстозалежний. За потреби вимкни його в `.github/zizmor.yml` через `rules.template-injection.disable: true`, якщо у workflow свідомо є безпечні підстановки `${{ ... }}`, які zizmor хибно позначає ризиком.

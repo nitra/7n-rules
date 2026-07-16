@@ -208,47 +208,6 @@ $white-a1: color.adjust(white, $alpha: -0.85);
 }
 ```
 
-## Фікси компонентів Quasar
-
-При використанні компонента `q-scroll-area` або `q-tooltip` додай до `app.scss` відповідні фікси. Аналогічно — фікс масштабування на iOS.
-
-```scss
-// FIX стилі для прокручуваної області по висоті екрана
-.q-scrollarea {
-  display: flex;
-  flex-direction: column;
-  height: auto;
-  min-height: 0;
-  max-height: 100%;
-
-  .scroll {
-    flex: 10000 1 0%;
-  }
-}
-
-// FIX tooltip
-.q-tooltip {
-  font-size: 1em;
-}
-
-// FIX не зумувати на iOS
-@media (width <= 600px) {
-  input,
-  textarea,
-  select {
-    font-size: 16px;
-  }
-}
-```
-
-## Quasar як стильова основа
-
-У Vue-проектах використовуй **Quasar** як базову стильову систему:
-
-- **Класи компонентів:** `q-pa-*`, `q-ma-*`, `q-mt-*`, `q-mb-*`, `row`, `col`, `col-*`, `items-center`, `justify-between`, `text-*`, `bg-*`, `shadow-*` тощо — стандартні утиліти Quasar.
-- **Кольори:** використовуй Quasar CSS-змінні через класи (`text-primary`, `bg-accent`, `text-negative` тощо) або через SCSS-змінні (`$primary`, `$accent`) у `.scss`-файлах.
-- **Не пиши власні утиліти**, якщо є відповідний Quasar-клас.
-
 ## GitHub Actions workflow: lint-style.yml
 
 Rego-пакет: `style_lint.lint_style_yml`
@@ -281,6 +240,47 @@ FS-альтернативи (`.stylelintrc.*` файли) та `.stylelintignore
 **✓ Правильно** — `devDependencies` містить `@nitra/stylelint-config`; якщо є поле `stylelint` — `extends` дорівнює `"@nitra/stylelint-config"`.
 
 **✗ Неправильно** — відсутній `@nitra/stylelint-config` у `devDependencies`; або поле `stylelint.extends` має інше значення.
+
+## Quasar як стильова основа
+
+У Vue-проектах використовуй **Quasar** як базову стильову систему:
+
+- **Класи компонентів:** `q-pa-*`, `q-ma-*`, `q-mt-*`, `q-mb-*`, `row`, `col`, `col-*`, `items-center`, `justify-between`, `text-*`, `bg-*`, `shadow-*` тощо — стандартні утиліти Quasar.
+- **Кольори:** використовуй Quasar CSS-змінні через класи (`text-primary`, `bg-accent`, `text-negative` тощо) або через SCSS-змінні (`$primary`, `$accent`) у `.scss`-файлах.
+- **Не пиши власні утиліти**, якщо є відповідний Quasar-клас.
+
+## Фікси компонентів Quasar
+
+При використанні компонента `q-scroll-area` або `q-tooltip` додай до `app.scss` відповідні фікси. Аналогічно — фікс масштабування на iOS.
+
+```scss
+// FIX стилі для прокручуваної області по висоті екрана
+.q-scrollarea {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-height: 0;
+  max-height: 100%;
+
+  .scroll {
+    flex: 10000 1 0%;
+  }
+}
+
+// FIX tooltip
+.q-tooltip {
+  font-size: 1em;
+}
+
+// FIX не зумувати на iOS
+@media (width <= 600px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+```
 
 ## Генерація та редагування стилів (Cursor і інші агенти)
 
