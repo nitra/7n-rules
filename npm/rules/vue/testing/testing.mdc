@@ -1,0 +1,40 @@
+## Тестування Vue-компонентів
+
+### Unit + Component / DOM
+
+**Vitest** (`vitest`) + **Vue Test Utils** з **happy-dom** як DOM-середовищем. Це канон, узгоджений з `test.mdc` (Stryker з vitest-runner + `perTest`-аналіз покриття). `vitest.config.mjs` повторно використовує `vite.config.js` через `mergeConfig` і перемикає `environment` на `'happy-dom'`:
+
+```js title="vitest.config.mjs"
+import { defineConfig, mergeConfig } from 'vitest/config'
+import viteConfig from './vite.config.js'
+
+export default mergeConfig(viteConfig, defineConfig({
+  test: {
+    include: ['**/*.test.{js,mjs}', 'tests/**/*.test.{js,mjs}'],
+    environment: 'happy-dom',
+    coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] }
+  }
+}))
+```
+
+`jsdom` не використовуй — happy-dom швидший і достатній для типових Vue-компонентних тестів.
+
+У `package.json#scripts` тримай `"test": "vitest run"`; vitest devDeps (`vitest`, `@vitest/coverage-v8`, `@stryker-mutator/vitest-runner`) — у кореневому `devDependencies` (npm-module rule забороняє devDeps у published workspace-у).
+
+### Чому цей файл — docs-only
+
+Вимога `scripts.test === "vitest run"` і `environment: 'happy-dom'` у `vitest.config` стосується Vue-пакетів, які **вже мають** компонентні тести. Не кожен workspace-пакет з `vue` у `dependencies` зобов'язаний мати компонентні тести на цьому етапі (наприклад, sandbox/demo-пакет для ручного прогону Vite-конфігурації без жодного `*.test.*` файлу) — механічна перевірка `scripts.test`/`vitest.config` для **усіх** таких пакетів дає хибні спрацювання там, де тестів свідомо ще немає. Тому концерн лишається docs-only.
+
+Суміжні вимоги вже перевіряються іншими concern-ами: кореневий `devDependencies` з `vitest`/`@vitest/coverage-v8`/`@stryker-mutator/vitest-runner` — концерн `packages` (`checkRootVitestDevDeps`); заборона `jsdom`/`vitest` у самому Vue-пакеті — Rego-концерн `package_json`.
+
+### E2E
+
+**Playwright** — змістовні сценарії користувацьких потоків.
+
+Проекту повинен бути покритий тестами E2E за допомогою Playwright.
+
+Вимога E2E-покриття Playwright не перевіряється механічно (немає детермінованого способу оцінити «повноту» покриття користувацьких сценаріїв) — залишається на розсуд ревʼю.
+
+### CI/CD
+
+У pipeline: **install**, **lint**, **test**, **vite build**; артефакти з продакшен-режиму.

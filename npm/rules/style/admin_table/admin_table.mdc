@@ -1,0 +1,88 @@
+## Адмінські таблиці — n-admin-table
+
+Для таблиць, що мають займати всю висоту сторінки (або блоку), додавай клас `n-admin-table` і атрибути `hide-no-data`, `dense`, `flat`. Таблиця автоматично розтягнеться на весь доступний простір. У блоках меншої висоти — задай їм явний `height`.
+
+```vue
+<!-- ТАБЛИЦЯ -->
+<q-table class="n-admin-table" hide-no-data flat dense />
+```
+
+Якщо клас `.n-admin-table` не визначено в `app.scss` — додай:
+
+```scss
+// ADMIN TABLE
+.n-admin-table {
+  height: calc(100vh - 106px);
+
+  thead {
+    position: sticky;
+    z-index: 3;
+    top: 0;
+
+    tr th {
+      background-color: $grey-3;
+      height: 36px !important;
+    }
+  }
+
+  // tbody td {
+  //   font-size: 14px;
+  // }
+
+  tbody tr:last-child td {
+    border-bottom: 1px solid rgb(0 0 0 / 12%) !important;
+  }
+
+  th:first-child,
+  td:first-child,
+  th:last-child,
+  td:last-child {
+    width: 1px;
+    white-space: nowrap;
+  }
+
+  .q-table__bottom {
+    background-color: $grey-3;
+  }
+
+  .q-table__progress th {
+    height: 1px !important;
+  }
+
+  .text-wrap {
+    max-width: 250px;
+    white-space: normal;
+  }
+
+  // sticky columns
+  td.sticky-left {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background-color: white;
+    box-shadow: 2px 0 5px #0002;
+  }
+
+  td.sticky-right {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    background-color: white;
+    box-shadow: -2px 0 5px #0002;
+  }
+
+  th.sticky-left {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    box-shadow: 2px 0 5px #0002;
+  }
+
+  th.sticky-right {
+    position: sticky;
+    right: 0;
+    z-index: 3;
+    box-shadow: -2px 0 5px #0002;
+  }
+}
+```

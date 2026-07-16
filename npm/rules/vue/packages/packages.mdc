@@ -1,0 +1,56 @@
+## Заборонені імпорти у Vue-пакетах: `vue` value-імпорти та Node-нативні модулі у `.vue`
+
+Concern `packages` перевіряє залежності, `vite.config`, `vite-env.d.ts`/`jsconfig.json`, IDE-рекомендації та джерела кожного workspace-пакета з `vue` у `dependencies` (`npm/rules/vue/packages/main.mjs`, повністю описано в `npm/rules/vue/main.mdc`). Цей файл документує детально дві з цих перевірок — заборону value-імпортів з `vue` і заборону імпортів Node-нативних модулів у `.vue` SFC — обидві реалізовані через **oxc-parser** у `npm/rules/vue/lib/vue-forbidden-imports.mjs`.
+
+### Заборона явних value-імпортів з `vue`
+
+Потрібно використовувати `unplugin-auto-import` для автоматичного імпортування Vue API. Коли `'vue'` додано до `AutoImport.imports` у `vite.config`, явні value-імпорти вигляду `import { ref, computed } from 'vue'` у файлах додатка **заборонені** — API Vue підставляється автоматично.
+
+Дозволені лише:
+
+- side-effect: `import 'vue'`
+- type-only: `import type { … } from 'vue'` або `import { type Foo } from 'vue'`
+
+```vue
+<!-- ❌ заборонено (auto-import покриває) -->
+<script setup>
+import { ref, computed, watch, onMounted } from 'vue'
+</script>
+
+<!-- ✅ дозволено — не потрібен ручний імпорт -->
+<script setup>
+const count = $ref(0)
+const doubled = $computed(() => count * 2)
+onMounted(() => { /* ... */ })
+</script>
+```
+
+**Виняток:** бібліотеки компонентів (`vue` у `peerDependencies`) — їхні джерела не проходять через `unplugin-auto-import` споживача, тому явні `import { ref } from 'vue'` там обовʼязкові. Визначається через `isVueComponentLibraryPkg` у `npm/rules/vue/packages/main.mjs`. Якщо `vite.config` ще не налаштовано на `'vue'` у `AutoImport.imports` (не бібліотека компонентів) — перевірка value-імпортів теж пропускається, доки не додано `'vue'` до `AutoImport.imports` (інакше видалення імпортів зламає код).
+
+Перевірка виконується через **oxc-parser** (`module.staticImports`) у `npm/rules/vue/lib/vue-forbidden-imports.mjs`, функція `findForbiddenVueImportsInSourceFile`. Для `.vue` — лише вміст `<script>` тегів, `<template>` ігнорується.
+
+### Заборонено імпортувати Node-нативні модулі у `.vue` SFC
+
+Vue SFC виконується у браузері, тож API Node.js там недоступне. У `<script>` (включно з `<script setup>`)
+заборонено будь-які імпорти вбудованих модулів Node — як з префіксом `node:`, так і bare-ім'ям модуля
+(включно з підшляхами):
+
+```vue title="погано — ламає білд"
+<script setup lang="ts">
+import { setTimeout as sleep } from 'node:timers/promises'
+import fs from 'fs'
+import { readFile } from 'fs/promises'
+import path from 'node:path'
+</script>
+```
+
+Якщо потрібна логіка з Node API — винеси її у server-side утіліту (наприклад, у backend-пакет монорепо)
+та звертайся до неї через HTTP/GraphQL. Браузерні замінники (`window.crypto`, `URL`, `setTimeout` глобальний,
+`AbortController` тощо) використовуй напряму, без import.
+
+Правило стосується саме `.vue` файлів. Допоміжні `.ts`/`.js` модулі, які споживаються лише server-side
+(наприклад, окремий пакет утіліт), можуть імпортувати Node-built-ins без обмежень.
+
+Перевірка реалізована у `npm/rules/vue/lib/vue-forbidden-imports.mjs` через функцію
+`findForbiddenNodeImportsInVueFile` — аналізує лише `<script>` блоки SFC через **oxc-parser**,
+ігноруючи `<template>`.

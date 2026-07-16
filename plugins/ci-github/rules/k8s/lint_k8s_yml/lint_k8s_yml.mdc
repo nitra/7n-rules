@@ -1,0 +1,7 @@
+## GitHub Actions: `lint-k8s.yml`
+
+Канонічний workflow **`.github/workflows/lint-k8s.yml`** підтримується через **`npm/rules/k8s/lint_k8s_yml/`** (шаблон-джерело — `template/lint-k8s.yml.snippet.yml`, drift-перевірка — `lint_k8s_yml.rego`): гілки **`dev`** і **`main`**, лише **`.yaml`**-триггер на `**/k8s/**/*.yaml`. Після **`checkout`** — локальний composite **`setup-bun-deps`**, окремі кроки встановлення kubeconform / kubescape, крок `Lint K8s`. Актуальний канон workflow — файл шаблону, не копіюй приклад із цього тексту.
+
+Drift-перевірка (`k8s.lint_k8s_yml` rego-пакет) звіряє реальний workflow з канону з `template/lint-k8s.yml.snippet.yml` за `uses` кожного step-у і за substring кожного `run`-кроку — без inline-літералів у самому rego (див. `lint_k8s_yml.rego`). Універсальні workflow-перевірки (name, concurrency, branches, persist-credentials) — окремо, у `ga.workflow_common`.
+
+kubeconform / kubescape (версії, залежності, `.kubescape-exceptions.json`) — див. **`kubeconform.mdc`**.

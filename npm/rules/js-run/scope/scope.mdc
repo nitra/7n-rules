@@ -1,0 +1,11 @@
+## Область застосування
+
+Правило стосується **виключно backend Node.js workspace-пакетів** (jobs, GraphQL/HTTP-сервери, CLI). **Не застосовується** до frontend-пакетів, які бандляться в браузер: маркер — наявність `vite` у `devDependencies` пакета (`site/`, мобільні Capacitor-пакети, будь-яка Vue/Quasar SPA).
+
+У браузерному середовищі:
+
+- немає `node:process` — імпорт `import { env } from 'node:process'` resolve'иться у `undefined`, і `env.X` падає з `TypeError: Cannot read properties of undefined`;
+- `process.env.X` у джерелах пакета відсутнє в рантаймі — Vite або взагалі не підставляє його, або підставляє лише `process.env.NODE_ENV`;
+- усі змінні оточення для frontend задаються через `VITE_*` і доступні як `import.meta.env.VITE_X` (типобезпечно через `vite-check-env`); режим — `import.meta.env.MODE` / `import.meta.env.PROD`.
+
+Тому **у frontend-пакетах не торкайся `process.env.*`** і **не додавай** `import { env } from 'node:process'`. Якщо натрапив на `process.env.NODE_ENV` у frontend-коді — заміна, якщо взагалі потрібна, лише на `import.meta.env.MODE`.
