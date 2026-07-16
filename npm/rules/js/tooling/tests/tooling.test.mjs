@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, test } from 'vitest'
 
-import { OXLINT_CANONICAL_JSON_PATH, verifyOxlintRcAgainstCanonical } from '../main.mjs'
+import { OXLINT_CANONICAL_JSON_PATH, planOxlintrcFix, verifyOxlintRcAgainstCanonical } from '../main.mjs'
 
 const canonicalOxlint = JSON.parse(readFileSync(OXLINT_CANONICAL_JSON_PATH, 'utf8'))
 
@@ -104,5 +104,57 @@ describe('verifyOxlintRcAgainstCanonical', () => {
     const v = verifyOxlintRcAgainstCanonical(bad, canonicalOxlint)
     expect(v.ok).toBe(false)
     expect(v.failures.some(f => f.includes('env'))).toBe(true)
+  })
+})
+
+describe('planOxlintrcFix', () => {
+  test('actual = null (відсутній файл) → merged збігається з каноном', () => {
+    const merged = planOxlintrcFix(null, canonicalOxlint)
+    const v = verifyOxlintRcAgainstCanonical(merged, canonicalOxlint)
+    expect(v.ok).toBe(true)
+  })
+
+  test('actual = канон → merged ідемпотентний (deep-equal канону)', () => {
+    const merged = planOxlintrcFix(canonicalOxlint, canonicalOxlint)
+    expect(merged).toEqual(canonicalOxlint)
+  })
+
+  test('drift правила (eqeqeq: off) → merged перезаписує канонічним значенням', () => {
+    const bad = {
+      ...canonicalOxlint,
+      rules: { .../** @type {Record<string, string>} */ (canonicalOxlint.rules), eqeqeq: 'off' }
+    }
+    const merged = planOxlintrcFix(bad, canonicalOxlint)
+    const v = verifyOxlintRcAgainstCanonical(merged, canonicalOxlint)
+    expect(v.ok).toBe(true)
+    expect(merged.rules.eqeqeq).toBe(canonicalOxlint.rules.eqeqeq)
+  })
+
+  test('зайвий локальний rules-ключ поза каноном зберігається', () => {
+    const withExtra = { ...canonicalOxlint, rules: { ...canonicalOxlint.rules, 'local/custom-rule': 'warn' } }
+    const merged = planOxlintrcFix(withExtra, canonicalOxlint)
+    const v = verifyOxlintRcAgainstCanonical(merged, canonicalOxlint)
+    expect(v.ok).toBe(true)
+    expect(merged.rules['local/custom-rule']).toBe('warn')
+  })
+
+  test('відсутній канонічний ignorePattern → merged його додає, локальні зберігає', () => {
+    const stripped = {
+      ...canonicalOxlint,
+      ignorePatterns: [...canonicalOxlint.ignorePatterns.slice(1), '**/dist/**']
+    }
+    const merged = planOxlintrcFix(stripped, canonicalOxlint)
+    const v = verifyOxlintRcAgainstCanonical(merged, canonicalOxlint)
+    expect(v.ok).toBe(true)
+    expect(merged.ignorePatterns).toContain('**/dist/**')
+  })
+
+  test('відсутнє поле верхнього рівня (jsPlugins) → merged підставляє канонічне значення', () => {
+    const rest = { ...canonicalOxlint }
+    delete rest.jsPlugins
+    const merged = planOxlintrcFix(rest, canonicalOxlint)
+    const v = verifyOxlintRcAgainstCanonical(merged, canonicalOxlint)
+    expect(v.ok).toBe(true)
+    expect(merged.jsPlugins).toEqual(canonicalOxlint.jsPlugins)
   })
 })
