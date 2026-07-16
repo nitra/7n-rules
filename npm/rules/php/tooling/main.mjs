@@ -24,12 +24,7 @@ export function lint(ctx) {
     fail('package.json не знайдено в корені — додай (php.mdc)')
   }
 
-  const wfPath = '.github/workflows/lint-php.yml'
-  if (existsSync(wfPath)) {
-    pass(`${wfPath} є (структуру перевіряє npx @7n/rules fix → php.lint_php_yml)`)
-  } else {
-    fail(`${wfPath} не існує — створи згідно php.mdc`)
-  }
-
+  // Existence/структуру lint-php.yml вимагає провайдер-плагін @7n/rules-ci-github
+  // (mixin php/lint_php_yml) — ядро провайдер-агностичне.
   return Promise.resolve(reporter.result())
 }

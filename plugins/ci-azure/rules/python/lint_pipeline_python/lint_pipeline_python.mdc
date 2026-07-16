@@ -1,0 +1,13 @@
+## Azure Pipelines: обов'язковий lint-степ `python`
+
+Rego-пакет: `python.lint_pipeline_python` (mixin з плагіна `@7n/rules-ci-azure`)
+
+**Цільовий файл:** `azure-pipelines.yml`
+
+Серед `script`-кроків pipeline (будь-яка глибина — steps/jobs/stages) сукупно мають бути substrings `n-rules lint python` (приймається і `npx @7n/rules lint python`) та `--no-fix`. Це провайдер-аналог GitHub-workflow `lint-python.yml` з `@7n/rules-ci-github`: намір «CI-lint домену `python`» однаковий, реалізація — своя для кожного CI-провайдера.
+
+```yaml
+steps:
+  - script: bunx n-rules lint python --no-fix
+    displayName: Lint python
+```

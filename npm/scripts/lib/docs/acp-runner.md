@@ -12,7 +12,7 @@ agentclientprotocol.com) — JSON-RPC поверх stdio замість сиро
 для раннерів `cursor`/`codex`/`claude` у `skills-cli.mjs`.
 
 `cursor` запускається через нативний ACP-режим `cursor-agent acp` (зовнішній
-бінарник у PATH). `codex`/`claude` — через офіційні бандловані адаптери
+бінарник у PATH). `codex`/`claude` — через офіційні вбудовані адаптери
 (`@agentclientprotocol/codex-acp`, `@agentclientprotocol/claude-agent-acp`), що
 самі керують своїм рушієм — зовнішній бінарник `codex`/`claude` у PATH більше
 не потрібен.
@@ -20,7 +20,7 @@ agentclientprotocol.com) — JSON-RPC поверх stdio замість сиро
 ## Поведінка
 
 - `ACP_AGENT_COMMANDS` — команда запуску агента на провайдер: `cursor` — бінарник
-  у PATH; `codex`/`claude` — резолвляться з `bin`-запису бандлованого пакета-адаптера.
+  у PATH; `codex`/`claude` — резолвляться з `bin`-запису вбудованого пакета-адаптера.
 - `stopReasonToExitCode` — мапить ACP `StopReason` прогону на exit code: `end_turn` → `0`,
   усе інше (`max_tokens`, `max_turn_requests`, `refusal`, `cancelled`) → `1`.
 - `resolveAdapterBin` — резолвить абсолютний шлях до bin-файлу адаптера з його `package.json`.
@@ -29,7 +29,7 @@ agentclientprotocol.com) — JSON-RPC поверх stdio замість сиро
   режимом — скіл є явною user-invocation, тож дозволи на tool-calls не питаються
   інтерактивно.
 - `AcpSkillClient` (internal) — ACP `Client` для скіл-раннера: `requestPermission`
-  автоапрувляє через `pickAutoPermissionOptionId`, `sessionUpdate` стрімить текстові
+  автоматично схвалює через `pickAutoPermissionOptionId`, `sessionUpdate` стрімить текстові
   дельти (`agent_message_chunk`) у переданий `out`, `readTextFile`/`writeTextFile`
   реалізовані напряму через `node:fs` (full-trust режим, без write-guard).
 - `runAcpRunner` — підʼєднується до агента (`initialize` → `newSession` → `prompt`),
@@ -41,14 +41,14 @@ agentclientprotocol.com) — JSON-RPC поверх stdio замість сиро
 - `ACP_AGENT_COMMANDS` — таблиця команд запуску на провайдер.
 - `stopReasonToExitCode(stopReason)` — `StopReason` → `0 | 1`.
 - `resolveAdapterBin(adapterPackage)` — шлях до bin-файлу адаптера.
-- `pickAutoPermissionOptionId(options)` — `optionId` автообраного варіанту дозволу.
+- `pickAutoPermissionOptionId(options)` — `optionId` автоматично обраного варіанту дозволу.
 - `runAcpRunner(kind, prompt, projectDir, logError, deps?)` — виконує скіл через
   ACP-агента `kind` (`cursor`|`codex`|`claude`); `deps` — інжекти для тестів
   (`acp`, `spawnFn`, `out`, `resolveAdapterBin`, `isBinaryInPath`).
 
 ## Гарантії поведінки
 
-- Permission-реквести від агента автоапрувляться без інтерактивного проміту —
+- Permission-запити від агента автоматично схвалюються без інтерактивного запиту —
   парність із колишнім non-interactive `-p`/`exec -` режимом (full user-trust,
   без write-guard, як і в `@7n/llm-lib/agent-skill`).
 - `cursor` кидає, якщо `cursor-agent` відсутній у PATH (перевіряється до спавну

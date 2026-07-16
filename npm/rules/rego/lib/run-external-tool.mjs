@@ -24,7 +24,10 @@ const TEST_SUFFIX_RE = /_test\.rego$/u
  * @returns {string[]} цілі для CLI-аргументів інструменту (можливо порожній список).
  */
 export function resolveTargets(files, root) {
-  if (files === undefined) return existsSync(resolve(root, FULL_TARGET)) ? [FULL_TARGET] : []
+  if (files === undefined) {
+    // Full-режим: policy-корінь ядра + rego плагінів (монорепо @7n/rules)
+    return [FULL_TARGET, 'plugins'].filter(t => existsSync(resolve(root, t)))
+  }
   const rego = files.filter(f => REGO_EXT_RE.test(f))
   // `X_test.rego` імпортує сусідній `X.rego`: без нього regal флагує unresolved-import,
   // тож до delta-цілей додаємо наявний сусідній policy-файл.

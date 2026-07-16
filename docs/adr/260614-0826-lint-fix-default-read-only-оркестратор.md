@@ -59,6 +59,52 @@ Transcript facts:
 
 ## Update 2026-06-14
 
+Зафіксовано додаткове правило для fix-режиму: conformance-concern-и не отримують `manual-only` винятків. У transcript розглядався варіант виділити `manual`-категорію, зокрема для `trufflehog`/security, але користувач ухвалив `R-1: все фіксимо`.
+
+Наслідки:
+
+* Good, because fix-режим має єдину модель без спеціальних manual-only винятків.
+* Bad, because конкретні per-tool omlx-фіксери для `knip`, `jscpd`, `cspell`, `actionlint`, `zizmor`, `v8r`, `regal`, `trufflehog` у transcript позначені як follow-up, а не як реалізована частина.
+
+Джерело: `docs/specs/2026-06-14-lint-orchestrator-fix-readonly-unification-design.md`, таблиця стратегій Tier0/Tier1+/never.
+
+## Update 2026-06-14
+
+Пізніша реалізація розширила початкове рішення про fix/read-only до повної двовісної моделі lint-оркестратора:
+
+* scope: `per-file` із базою origin за замовчуванням або `--full` для whole-repo прогону;
+* behavior: fix-by-default або `--read-only` для detect-only без мутацій;
+* CI виражається як `n-cursor lint --read-only --full`, без окремого `--ci`;
+* словник `meta.json:lint` hard-renamed з `quick|ci` на `per-file|full`;
+* контракт rule-адаптерів розширено до `lint(files, cwd, { readOnly })`.
+
+Додатково `lint --full` поглинув conformance-фазу старого `n-cursor fix`: після лінтер-фази запускається conformance для whole-repo concerns. Публічні команди `fix`, `check`, `fix-run` видалені, а рушій перенесено з `npm/skills/fix/js/` у `npm/scripts/lib/fix/`. `_fix-check` і `fix-t0` лишилися внутрішніми фазами.
+
+PostToolUse-хук спрощено: замість routing-таблиці файл→правила використовується один read-only виклик усіх активованих правил. Роутинг визнано зайвим, бо read-only detect не запускає LLM і не мутує дерево.
+
+Окремо прийнято релаксацію заборони паралельного ESLint/oxlint: паралельні прогони дозволені для дизʼюнктних наборів файлів; whole-tree прогони того самого корпусу лишаються серіалізованими.
+
+Для `lint-text` додано `--read-only`, який протягується через markdownlint/shellcheck/dotenv-linter і гейтить автофікси. Переведення CI workflows на цей прапор відкладено, бо `rules/text/js/formatting.mjs` на момент transcript енфорсив канон `bun run lint-text` без прапорців.
+
+Факти реалізації з transcript:
+
+* `npm/scripts/lib/rule-meta.mjs`: `parseRuleLintSpec`.
+* `npm/scripts/lint-cli.mjs`: `selectLintRules`, `runLint`, conformance-фаза при `full`.
+* `npm/bin/n-cursor.js`: dispatch `lint`, `--full`, `--read-only`, видалення `fix`/`check`/`fix-run`.
+* `npm/scripts/post-tool-use-fix.mjs`: переписано на один read-only check без `ROUTES`.
+* `hk.pkl`: `fix changelog` → `lint changelog`.
+* `CLAUDE.md`, `npm/bin/n-cursor.js`, `npm/skills/lint/SKILL.md`: оновлено секцію про паралельний lint.
+* `npm/rules/text/lint/lint.mjs`, `run-shellcheck.mjs`, `run-dotenv-linter.mjs`: підтримка `readOnly`.
+* Коміти в transcript: `028d4bf0`, `91eab517`, `185cbeab`, `4ceb657e`, `60e6aaa3`.
+
+Наслідки:
+
+* Good, because одна команда `lint` покриває локальний fix, pre-commit detect і CI detect/full.
+* Good, because видалення `fix` без alias прибирає deprecated публічний шлях.
+* Good, because PostToolUse-хук стає простішим і не потребує підтримки routing-таблиці при додаванні правил.
+* Bad, because це breaking change для зовнішніх викликів `n-cursor fix`, `n-cursor check`, `fix-run` і старих `meta.json:lint` значень `quick|ci`.
+* Bad, because CI-follow-up для `lint-text --read-only` лишився відкритим через coupled canonical check у text-правилі.
+
 Додатково зафіксовано рішення, що всі conformance-concern-и автофіксуються в fix-режимі без `manual-only` винятків. У transcript варіант з окремою `manual`-категорією для `trufflehog`/security був відхилений формулюванням користувача «все фіксимо».
 
 PostToolUse-хук спрощується до одного read-only detect-виклику для всіх активованих правил замість таблиці routing file→rules, оскільки read-only режим не запускає дорогий fix+LLM цикл.

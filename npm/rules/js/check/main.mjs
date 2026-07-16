@@ -235,21 +235,17 @@ async function checkOxlintRc(passFn, failFn, cwd) {
 }
 
 /**
- * FS-existence для `lint-js.yml` + cross-file перевірка, що `lint.yml` (якщо існує)
- * не дублює лінт JS-кроки. Структуру `lint-js.yml` (`actions/checkout@v6`,
- * `persist-credentials: false`, `setup-bun-deps`, `bunx oxlint/eslint/jscpd .`,
- * заборона `--fix` у CI) валідує `npm/policy/js_lint/lint_js_yml/`.
+ * Cross-file перевірка: `lint.yml` (якщо існує) не дублює лінт JS-кроки з `lint-js.yml`.
+ * Existence і структуру `lint-js.yml` валідує mixin-концерн `js/lint_js_yml`
+ * плагіна `@7n/rules-ci-github` (провайдер-специфіка — поза ядром).
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
  * @param {string} cwd корінь репозиторію
  */
 async function checkLintJsWorkflows(passFn, failFn, cwd) {
-  if (existsSync(join(cwd, '.github/workflows/lint-js.yml'))) {
-    passFn('.github/workflows/lint-js.yml є (структуру перевіряє npx @7n/rules fix → js_lint.lint_js_yml)')
-  } else {
-    failFn('.github/workflows/lint-js.yml не існує — створи його (js.mdc)')
-  }
-
+  // Existence/структуру lint-js.yml вимагає провайдер-плагін @7n/rules-ci-github
+  // (mixin js/lint_js_yml, policy required) — ядро провайдер-агностичне і тут
+  // перевіряє лише крос-файловий дубляж, коли GitHub-workflow уже існують.
   const lintYmlPath = join(cwd, '.github/workflows/lint.yml')
   if (existsSync(lintYmlPath)) {
     const lintYml = await readFile(lintYmlPath, 'utf8')

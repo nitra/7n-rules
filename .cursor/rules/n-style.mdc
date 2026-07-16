@@ -16,49 +16,6 @@ alwaysApply: false
   "scss.validate": false
 }
 ```
-- `lint-style.yml`:
-
-```yaml
-name: StyleLint
-
-on:
-  push:
-    branches:
-      - dev
-      - main
-    paths:
-      - '**/*.css'
-      - '**/*.scss'
-      - '**/*.vue'
-
-  pull_request:
-    branches:
-      - dev
-      - main
-    paths:
-      - '**/*.css'
-      - '**/*.scss'
-      - '**/*.vue'
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  stylelint:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-bun-deps
-
-      - name: StyleLint
-        run: bunx n-rules lint style --no-fix
-```
 - `extensions.json`:
 
 ```json
@@ -73,20 +30,6 @@ jobs:
   }
 }
 ```
-
-## GitHub Actions workflow: lint-style.yml
-
-Rego-пакет: `style_lint.lint_style_yml`
-
-Цільовий файл: `.github/workflows/lint-style.yml`
-
-Перевіряє, що у workflow є крок `run`, який містить команду `n-rules lint style --no-fix` (substring-match по всіх кроках усіх jobs). Канонічний текст береться з template через `--data`.
-
-Канонічний template: [lint-style.yml.snippet.yml](./template/lint-style.yml.snippet.yml)
-
-**✓ Правильно** — крок `run: n-rules lint style --no-fix` присутній у jobs.stylelint.steps.
-
-**✗ Неправильно** — крок відсутній або містить лише `echo nothing` / `npx stylelint` без канонічного рядка.
 
 ## package.json: stylelint-конфіг та devDependencies
 
@@ -226,3 +169,17 @@ Leaf-by-leaf walker: перевіряє кожен ключ з template — йо
 **✓ Правильно** — усі три ключі присутні зі значенням `false`; можуть бути й інші ключі.
 
 **✗ Неправильно** — будь-який з ключів відсутній, має значення `true` або рядок (`"off"`).
+
+## GitHub Actions workflow: lint-style.yml
+
+Rego-пакет: `style_lint.lint_style_yml`
+
+Цільовий файл: `.github/workflows/lint-style.yml`
+
+Перевіряє, що у workflow є крок `run`, який містить команду `n-rules lint style --no-fix` (substring-match по всіх кроках усіх jobs). Канонічний текст береться з template через `--data`.
+
+Канонічний template: [lint-style.yml.snippet.yml](./template/lint-style.yml.snippet.yml)
+
+**✓ Правильно** — крок `run: n-rules lint style --no-fix` присутній у jobs.stylelint.steps.
+
+**✗ Неправильно** — крок відсутній або містить лише `echo nothing` / `npx stylelint` без канонічного рядка.

@@ -17,7 +17,6 @@ Rego-пакети, що перевіряються через conftest (auto-dis
 - [.cspell.json.deny.json](./cspell/template/.cspell.json.deny.json)
 - [.cspell.json.contains.json](./cspell/template/.cspell.json.contains.json)
 - [extensions.json.snippet.json](./vscode_extensions/template/extensions.json.snippet.json)
-- [lint-text.yml.snippet.yml](./lint_text/template/lint-text.yml.snippet.yml)
 - [package.json.deny.json](./package_json/template/package.json.deny.json)
 
 **Український апостроф:** у словах вживай прямий апостроф U+0027 (`'`, як в `об'єкт`), а не типографський U+2019 (`’`); слова з апострофом додавай у масив `words` cspell-конфігу.

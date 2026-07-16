@@ -75,12 +75,12 @@ describe('check (tooling)', () => {
     })
   })
 
-  test('1 — відсутній workflow lint-python.yml', async () => {
+  test('0 — без workflow lint-python.yml (existence вимагає плагін ci-github)', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\nversion = "0.1.0"\n', 'utf8')
       await writeFile(join(dir, 'uv.lock'), 'version = 1\n', 'utf8')
       await writeJson(join(dir, 'package.json'), { name: 'demo', private: true })
-      expect(await check(dir)).toBeGreaterThan(0)
+      expect(await check(dir)).toBe(0)
     })
   })
 })

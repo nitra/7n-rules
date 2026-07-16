@@ -1,11 +1,16 @@
 /**
- * Тести ACP-раннера: автоапрув permission-опцій, мапінг StopReason → exit code,
+ * Тести ACP-раннера: автоматичне схвалення permission-опцій, мапінг StopReason → exit code,
  * резолвінг bin-адаптера, повний прогін через fake ACP-connection.
  */
 import { PassThrough } from 'node:stream'
 import { describe, expect, test } from 'vitest'
 
-import { pickAutoPermissionOptionId, resolveAdapterBin, runAcpRunner, stopReasonToExitCode } from '../lib/acp-runner.mjs'
+import {
+  pickAutoPermissionOptionId,
+  resolveAdapterBin,
+  runAcpRunner,
+  stopReasonToExitCode
+} from '../lib/acp-runner.mjs'
 
 const CODEX_ACP_BIN_RE = /codex-acp.*dist.index\.js$/
 const CLAUDE_ACP_BIN_RE = /claude-agent-acp.*dist.index\.js$/
@@ -47,7 +52,7 @@ describe('stopReasonToExitCode', () => {
 })
 
 describe('resolveAdapterBin', () => {
-  test('резолвить dist/index.js бандлованих ACP-адаптерів', () => {
+  test('резолвить dist/index.js вбудованих ACP-адаптерів', () => {
     expect(resolveAdapterBin('@agentclientprotocol/codex-acp')).toMatch(CODEX_ACP_BIN_RE)
     expect(resolveAdapterBin('@agentclientprotocol/claude-agent-acp')).toMatch(CLAUDE_ACP_BIN_RE)
   })
@@ -55,7 +60,7 @@ describe('resolveAdapterBin', () => {
 
 /**
  * Fake ACP-агент: віддає permission-request з двома опціями (щоб перевірити
- * автовибір `allow_always`), стрімить один текстовий чанк, завершує end_turn.
+ * автоматичний вибір `allow_always`), стрімить один текстовий фрагмент, завершує end_turn.
  * @param {{ stopReason?: string, permissionOptions?: { optionId: string, kind: string, name: string }[] }} [opts] опції fake-агента
  * @returns {{ calls: { requestPermission: object[], sessionUpdate: object[] }, acp: object }} fake `acp`-модуль + журнал викликів
  */
@@ -102,6 +107,10 @@ function createFakeAcp({ stopReason = 'end_turn', permissionOptions } = {}) {
   }
 }
 
+/**
+ * Фейковий child-процес адаптера: PassThrough-потоки замість реального spawn.
+ * @returns {{ stdin: import('node:stream').PassThrough, stdout: import('node:stream').PassThrough, killed: boolean, kill: () => void }} стаб child-процесу
+ */
 function createFakeChild() {
   const stdin = new PassThrough()
   const stdout = new PassThrough()
@@ -116,19 +125,27 @@ function createFakeChild() {
 }
 
 describe('runAcpRunner', () => {
-  test('автоапрувляє allow_always, стрімить текст, end_turn → 0', async () => {
+  test('автоматично схвалює allow_always, стрімить текст, end_turn → 0', async () => {
     const { acp, calls } = createFakeAcp()
     const child = createFakeChild()
     const chunks = []
 
-    const code = await runAcpRunner('codex', 'do the task', '/tmp/project', () => {
-      /* noop: тест не перевіряє logError */
-    }, {
-      acp,
-      spawnFn: () => child,
-      out: chunk => chunks.push(chunk),
-      resolveAdapterBin: () => '/fake/dist/index.js'
-    })
+    const code = await runAcpRunner(
+      'codex',
+      'do the task',
+      '/tmp/project',
+      () => {
+        /* noop: тест не перевіряє logError */
+      },
+      {
+        acp,
+        spawnFn: () => child,
+        out: chunk => {
+          chunks.push(chunk)
+        },
+        resolveAdapterBin: () => '/fake/dist/index.js'
+      }
+    )
 
     expect(code).toBe(0)
     expect(calls.requestPermission).toHaveLength(1)
@@ -142,14 +159,22 @@ describe('runAcpRunner', () => {
     const child = createFakeChild()
     const errors = []
 
-    const code = await runAcpRunner('claude', 'do the task', '/tmp/project', line => errors.push(line), {
-      acp,
-      spawnFn: () => child,
-      out: () => {
-        /* noop: тест не перевіряє stdout */
+    const code = await runAcpRunner(
+      'claude',
+      'do the task',
+      '/tmp/project',
+      line => {
+        errors.push(line)
       },
-      resolveAdapterBin: () => '/fake/dist/index.js'
-    })
+      {
+        acp,
+        spawnFn: () => child,
+        out: () => {
+          /* noop: тест не перевіряє stdout */
+        },
+        resolveAdapterBin: () => '/fake/dist/index.js'
+      }
+    )
 
     expect(code).toBe(1)
     expect(errors.join('\n')).toContain('refusal')

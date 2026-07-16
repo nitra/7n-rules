@@ -45,7 +45,7 @@ describe('findMirrorDrift', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, '.cursor/rules'), { recursive: true })
       await writeFile(join(dir, '.cursor/rules/n-external.mdc'), 'external\n')
-      expect(listManagedMirrors(dir)).toEqual([])
+      expect(await listManagedMirrors(dir)).toEqual([])
       expect(await findMirrorDrift(dir)).toEqual([])
     })
   })

@@ -172,7 +172,7 @@ async function runPiRunner(prompt, rawSkillName, skillsRoot, projectDir, logErro
 /**
  * Делегує виконання скіла зовнішньому ACP-агенту (`cursor-agent acp`, `codex-acp`,
  * або deprecated `claude`-адаптер) через `runAcpRunner` — JSON-RPC поверх stdio,
- * дозволи на tool-calls автоапрувляться (без інтерактивних питань, паритет із
+ * дозволи на tool-calls автоматично схвалюються (без інтерактивних питань, паритет із
  * колишнім non-interactive `-p`). `claude` лишається як deprecated fallback для
  * тих, у кого pi-модель ще не налаштована; буде прибрано (мігруй на `skill pi`).
  * @param {'claude' | 'cursor' | 'codex'} kind якого ACP-агента запускати

@@ -24,6 +24,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    defaults:
+      run:
+        # Єдиний crate монорепо; root Cargo.toml немає, тож cargo-команди — з теки crate-а.
+        working-directory: llm-lib/crates/llm-cascade
     steps:
       - uses: actions/checkout@v6
         with:

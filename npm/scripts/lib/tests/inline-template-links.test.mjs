@@ -100,7 +100,9 @@ describe('inlineTemplateLinks', () => {
 
     // Concern MDC headings are present
     expect(result).toContain('## Заборона `trufflehog` у залежностях `package.json`')
-    expect(result).toContain('trufflesecurity/trufflehog@main')
+    // Workflow-концерн lint_security_yml переїхав у плагін @7n/rules-ci-github —
+    // його вміст (trufflesecurity/trufflehog@main) доінлайнюється лише через extras.
+    expect(result).not.toContain('trufflesecurity/trufflehog@main')
 
     // Non-template links are untouched
     expect(result).toContain('[TruffleHog](https://github.com/trufflesecurity/trufflehog)')

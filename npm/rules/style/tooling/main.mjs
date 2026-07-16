@@ -67,12 +67,7 @@ export async function lint(ctx) {
     fail('.stylelintignore не існує — створи з вмістом: dist/')
   }
 
-  const wfPath = '.github/workflows/lint-style.yml'
-  if (existsSync(join(cwd, wfPath))) {
-    pass(`${wfPath} є (структуру перевіряє npx @7n/rules fix → style_lint.lint_style_yml)`)
-  } else {
-    fail(`${wfPath} не існує — створи його`)
-  }
-
+  // Existence/структуру lint-style.yml вимагає провайдер-плагін @7n/rules-ci-github
+  // (mixin style/lint_style_yml) — ядро провайдер-агностичне.
   return reporter.result()
 }

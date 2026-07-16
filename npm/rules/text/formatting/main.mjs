@@ -103,19 +103,19 @@ function checkTextConfigsExistence(passFn, failFn, cwd) {
  * @param {string} cwd корінь репозиторію
  */
 async function checkLintTextWorkflow(passFn, failFn, cwd) {
+  // Existence lint-text.yml вимагає провайдер-плагін @7n/rules-ci-github (mixin
+  // text/lint_text) — ядро провайдер-агностичне; тут лише перевірка вмісту,
+  // коли GitHub-workflow уже існує.
   const lintTextWf = join(cwd, '.github/workflows/lint-text.yml')
-  if (existsSync(lintTextWf)) {
-    const wf = await readFile(lintTextWf, 'utf8')
-    const root = parseWorkflowYaml(wf)
-    const canonRun = 'n-rules lint text --no-fix'
-    const ok = root ? anyRunStepIncludes(root, canonRun) : wf.includes(canonRun)
-    if (ok) {
-      passFn(`lint-text.yml викликає ${canonRun}`)
-    } else {
-      failFn(`lint-text.yml має містити крок ${canonRun} (CI — read-only, нуль мутацій)`)
-    }
+  if (!existsSync(lintTextWf)) return
+  const wf = await readFile(lintTextWf, 'utf8')
+  const root = parseWorkflowYaml(wf)
+  const canonRun = 'n-rules lint text --no-fix'
+  const ok = root ? anyRunStepIncludes(root, canonRun) : wf.includes(canonRun)
+  if (ok) {
+    passFn(`lint-text.yml викликає ${canonRun}`)
   } else {
-    failFn('.github/workflows/lint-text.yml не існує — створи згідно n-text.mdc')
+    failFn(`lint-text.yml має містити крок ${canonRun} (CI — read-only, нуль мутацій)`)
   }
 }
 

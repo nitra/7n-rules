@@ -258,27 +258,78 @@ async function readRootPackageJsonSafe() {
  * Агрегує імена правил по rules-каталогах (ядро перше, перший власник виграє)
  * і будує мапу `ruleId → rulesDir` для копіювання mdc.
  * @param {string[]} rulesDirs упорядковані rules-каталоги (ядро + плагіни)
- * @returns {Promise<{ names: string[], sources: Map<string, string> }>} імена правил і їх джерела
+ * @returns {Promise<{ names: string[], sources: Map<string, string>, extras: Map<string, string[]> }>} імена правил, їх джерела і mixin-теки
  */
 async function aggregateRuleSources(rulesDirs) {
   /** @type {Map<string, string>} */
   const sources = new Map()
+  /** @type {Map<string, string[]>} каталоги `rules/<id>/` mixin-джерел (не власник main.mdc) */
+  const extras = new Map()
+  const perDirNames = await listRuleNamesPerDir(rulesDirs)
   for (const [i, dir] of rulesDirs.entries()) {
-    let names
-    if (i === 0) {
-      names = await discoverBundledRuleNames(dir) // ядро: відсутність каталогу — фатальна помилка
-    } else {
-      try {
-        names = await discoverBundledRuleNames(dir)
-      } catch {
-        continue // плагін без валідного rules/ — уже повідомлено у resolve-plugins
-      }
-    }
-    for (const name of names) {
+    for (const name of perDirNames[i]) {
       if (!sources.has(name)) sources.set(name, dir)
     }
+    if (i > 0) await collectMixinDirs(dir, perDirNames[i], extras)
   }
-  return { names: sources.keys().toArray(), sources }
+  // Тека з main.mdc у плагіні для правила, яким володіє інше джерело, — теж mixin (дублікат id).
+  for (const [i, dir] of rulesDirs.entries()) {
+    if (i === 0) continue
+    for (const name of perDirNames[i]) {
+      if (sources.get(name) === dir) continue
+      const list = extras.get(name) ?? []
+      list.push(join(dir, name))
+      extras.set(name, list)
+    }
+  }
+  return { names: sources.keys().toArray(), sources, extras }
+}
+
+/**
+ * Імена правил (теки з `main.mdc`) кожного rules-каталогу. Для ядра (перший елемент)
+ * відсутність каталогу — фатальна помилка; для плагінів — порожній список
+ * (уже повідомлено у resolve-plugins).
+ * @param {string[]} rulesDirs упорядковані rules-каталоги
+ * @returns {Promise<string[][]>} імена правил per-dir у тому ж порядку
+ */
+async function listRuleNamesPerDir(rulesDirs) {
+  /** @type {string[][]} */
+  const out = []
+  for (const [i, dir] of rulesDirs.entries()) {
+    if (i === 0) {
+      out.push(await discoverBundledRuleNames(dir))
+      continue
+    }
+    try {
+      out.push(await discoverBundledRuleNames(dir))
+    } catch {
+      out.push([])
+    }
+  }
+  return out
+}
+
+/**
+ * Додає у `extras` mixin-теки плагіна: підкаталоги `rules/<id>/` БЕЗ `main.mdc`
+ * (плагін доповнює правило іншого джерела концернами).
+ * @param {string} dir rules-каталог плагіна
+ * @param {string[]} ownNames імена повних правил цього каталогу (з main.mdc)
+ * @param {Map<string, string[]>} extras акумулятор mixin-тек (мутується)
+ * @returns {Promise<void>}
+ */
+async function collectMixinDirs(dir, ownNames, extras) {
+  let entries
+  try {
+    entries = await readdir(dir, { withFileTypes: true })
+  } catch {
+    return // нечитабельний rules/ плагіна — вже пропущений вище
+  }
+  for (const e of entries) {
+    if (!e.isDirectory() || e.name.startsWith('.') || ownNames.includes(e.name)) continue
+    const list = extras.get(e.name) ?? []
+    list.push(join(dir, e.name))
+    extras.set(e.name, list)
+  }
 }
 
 /**
@@ -461,11 +512,16 @@ function normalizeRuleName(ruleName) {
 /**
  * Читає вміст правила з каталогу `rules/<id>/main.mdc` установленого пакету
  * (наприклад `node_modules/@7n/rules/rules/<id>/main.mdc` або кеш npx).
+ * Mixin-концерни: `extraRuleDirs` — каталоги `rules/<id>/` того самого правила з ІНШИХ
+ * джерел (плагінів); їхні concern-mdc доінлайнюються після концернів власника, тож
+ * `.cursor/rules/n-<id>.mdc` містить і провайдер-специфічні розділи (напр. lint_js_yml
+ * з `@7n/rules-ci-github` чи lint_pipeline_js з `@7n/rules-ci-azure`).
  * @param {string} rule елемент масиву rules з `.n-rules.json`
- * @param {string} [bundledRulesDir] каталог `rules/` у корені пакету-джерела
+ * @param {string} [bundledRulesDir] каталог `rules/` у корені пакету-джерела (власник main.mdc)
+ * @param {string[]} [extraRuleDirs] каталоги `rules/<id>/` mixin-джерел (без main.mdc)
  * @returns {Promise<string>} текст правила для запису в `.cursor/rules/n-*.mdc`
  */
-async function readBundledRuleContent(rule, bundledRulesDir = BUNDLED_RULES_DIR) {
+async function readBundledRuleContent(rule, bundledRulesDir = BUNDLED_RULES_DIR, extraRuleDirs = []) {
   const id = normalizeRuleName(rule)
   const bundledPath = join(bundledRulesDir, id, 'main.mdc')
   if (!existsSync(bundledPath)) {
@@ -474,8 +530,12 @@ async function readBundledRuleContent(rule, bundledRulesDir = BUNDLED_RULES_DIR)
     )
   }
   const text = await readFile(bundledPath, 'utf8')
-  const withTemplates = await inlineTemplateLinks(text, dirname(bundledPath))
-  return appendDiscoveredMdcFiles(withTemplates, dirname(bundledPath))
+  let out = await inlineTemplateLinks(text, dirname(bundledPath))
+  out = await appendDiscoveredMdcFiles(out, dirname(bundledPath))
+  for (const extraDir of extraRuleDirs) {
+    out = await appendDiscoveredMdcFiles(out, extraDir)
+  }
+  return out
 }
 
 /**
@@ -1243,9 +1303,10 @@ async function captureOutput(action) {
  * @param {string} bundledRulesDir каталог `rules` пакету-джерела (fallback для правил без явного джерела)
  * @param {string} rulesDir абсолютний шлях до `.cursor/rules`
  * @param {Map<string, string>} [ruleSources] мапа `ruleId → rulesDir` власника правила (ядро/плагін)
+ * @param {Map<string, string[]>} [ruleExtras] мапа `ruleId → rules/<id>-теки` mixin-джерел (concern-mdc доінлайнюються)
  * @returns {Promise<{ successCount: number, failCount: number }>} статистика копіювання
  */
-async function syncManagedRuleFiles(rules, bundledRulesDir, rulesDir, ruleSources = new Map()) {
+async function syncManagedRuleFiles(rules, bundledRulesDir, rulesDir, ruleSources = new Map(), ruleExtras = new Map()) {
   let successCount = 0
   let failCount = 0
   for (const rule of rules) {
@@ -1253,8 +1314,9 @@ async function syncManagedRuleFiles(rules, bundledRulesDir, rulesDir, ruleSource
     const destPath = join(rulesDir, fileName)
     try {
       process.stdout.write(`  ⬇  ${rule} → ${RULES_DIR}/${fileName} ... `)
-      const sourceDir = ruleSources.get(normalizeRuleName(rule)) ?? bundledRulesDir
-      const content = await readBundledRuleContent(rule, sourceDir)
+      const id = normalizeRuleName(rule)
+      const sourceDir = ruleSources.get(id) ?? bundledRulesDir
+      const content = await readBundledRuleContent(rule, sourceDir, ruleExtras.get(id) ?? [])
       await writeFile(destPath, content, 'utf8')
       console.log(`✅`)
       successCount++
@@ -1406,9 +1468,9 @@ async function runSync() {
   await mkdir(rulesDir, { recursive: true })
   // Джерела правил: ядро + rules/ плагінів (резолв кешований після readConfig).
   const allRulesDirs = resolveRulesDirs(projectRoot, config, bundledRulesDir).map(d => d.rulesDir)
-  const { sources: ruleSources } = await aggregateRuleSources(allRulesDirs)
+  const { sources: ruleSources, extras: ruleExtras } = await aggregateRuleSources(allRulesDirs)
   const { successCount, failCount } = await captureOutput(async () => {
-    const stats = await syncManagedRuleFiles(rules, bundledRulesDir, rulesDir, ruleSources)
+    const stats = await syncManagedRuleFiles(rules, bundledRulesDir, rulesDir, ruleSources, ruleExtras)
     return { ...stats, fail: stats.failCount }
   })
 

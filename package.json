@@ -24,7 +24,9 @@
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@vitest/coverage-v8": "^4.1.9",
     "vitest": "^4.1.9",
-    "@7n/rules": "^1.5.0"
+    "@7n/rules": "workspace:*",
+    "@7n/rules-ci-github": "workspace:*",
+    "@7n/rules-ci-azure": "workspace:*"
   },
   "stylelint": {
     "extends": "@nitra/stylelint-config"
