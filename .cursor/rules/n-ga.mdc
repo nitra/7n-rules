@@ -310,95 +310,7 @@ Rego-пакет: `ga.workflow_common`
 
 Канон мінімальних версій: [uses-min-versions.snippet.json](./template/uses-min-versions.snippet.json)
 
-### Детальніше
-
-**Блок `concurrency` — обов'язковий.** **Кожен** workflow у `.github/workflows/*.yml` **обов'язково** містить блок `concurrency` з фіксованим `group` та `cancel-in-progress: true`:
-
-```yaml
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-```
-
-Без винятків — у scheduled cleanup-воркфлоу, у `pull_request: types: [closed]`, у publish-воркфлоу теж. Це уникає паралельних запусків того самого workflow на тій самій ref і скасовує попередні в чергу нових.
-
-**Локальний composite `setup-bun-deps` — обов'язковий.** **ЗАБОРОНЕНО** дублювати кроки встановлення Bun та кешування безпосередньо у workflow файлах. Завжди використовуй локальний composite action.
-
-**Локальний composite** (`uses: ./.github/actions/setup-bun-deps`): **спочатку** обов'язковий окремий крок **`actions/checkout@v6`** (`persist-credentials: false`), інакше runner не знайде `action.yml`. Сам composite: **`actions/setup-node@v6`** (**Node 24**), **Bun** (`oven-sh/setup-bun@v2`), **`actions/cache@v5`**, **`bun install --frozen-lockfile`**.
-
-#### Приклад (НЕПРАВИЛЬНО)
-
-```yaml
-    steps:
-      - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
-      - uses: actions/cache@v5
-        # ... багато рядків кешування ...
-      - run: bun install --frozen-lockfile
-```
-
-#### Приклад (ПРАВИЛЬНО)
-
-```yaml
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-bun-deps
-```
-
-**Крок `run:` — folded block `>-`.** **Кроки `run`:** не розбивай команду shell-продовженням через зворотний сліш у кінці рядка (`… \` у `run: |`). Замість багаторядкового буквального блока з `\\` оформ довгу одну shell-команду як **folded block** `>-` (рядки з'єднаються в один рядок із пробілами).
-
-**Читабельність `run: >-` з циклами/умовами:** оскільки `>-` **згортає рядки в один shell-рядок**, відступи потрібні **лише для читабельності** й не впливають на виконання. Але для конструкцій bash на кшталт `while …; do … done` та `if …; then … fi` **обов'язково**:
-
-- став явні роздільники команд **`;`** або **`&&`** там, де при згортанні рядків інакше "злипнуться" токени (`do`/`then`/`fi`/`done` з наступною командою);
-- тримай `do` і `then` в одному логічному рядку як `…; do` / `…; then`, щоб після згортання це гарантовано лишалось валідним bash;
-- додавай відступи всередині `do/then/else` блоків, навіть якщо це один рядок після згортання — так workflow лишається читабельним у diff.
-
-#### Приклад (ПРАВИЛЬНО — читабельно, `run: >-`, з `while`/`if`)
-
-```yaml
-      - name: Apply changes
-        shell: bash
-        run: >-
-          echo "$FILES" |
-          while read -r FILE; do
-            [ -z "$FILE" ] && continue;
-            dirname "$FILE";
-          done |
-          sort -u |
-          while read -r DIR; do
-            (
-              if [ -f "$DIR/kustomization.yaml" ]; then
-                printf 'Applying %s\n' "$DIR" &&
-                cd "$DIR" &&
-                kubectl apply -k .;
-              else
-                echo "Skip $DIR - no kustomization.yaml";
-              fi
-            );
-          done
-```
-
-#### Приклад run (НЕПРАВИЛЬНО — `\\` на кінцях)
-
-```yaml
-      - run: |
-          docker build \
-          --push \
-          --build-arg BRANCH=${{ github.ref_name }}
-```
-
-#### Приклад run (ПРАВИЛЬНО — `>-`)
-
-```yaml
-      - run: >-
-          docker build
-          --push
-          --build-arg BRANCH=${{ github.ref_name }}
-```
-
-SHA-pin (40 hex) semver-політику не застосовує — якщо в репо вже SHA-пін (zizmor-політика ref-pin), не замінюй його тегом.
+Детальна документація поведінки — у [ga-workflow_common](../../js/workflow_common.mdc).
 
 ## Структура workflow-файлів та обов'язкові workflows
 
@@ -434,19 +346,6 @@ SHA-pin (40 hex) semver-політику не застосовує — якщо 
 - Debian/Ubuntu: `sudo apt-get install -y shellcheck`
 - Arch: `sudo pacman -S shellcheck`
 
-## Лінт-тулчейн: послідовність кроків `lint()` у `main.mjs`
-
-**Лінт:** [actionlint](https://github.com/rhysd/actionlint) через `bunx github-actionlint`; [zizmor](https://docs.zizmor.sh) — `uvx`, офлайн. Запуск — через **`n-rules lint ga`** (CI — `--no-fix`; бінарка з `node_modules/.bin/` пакету `@7n/rules`).
-
-> Виклик через bin-ім'я `n-rules` (а **не** `npx @7n/rules`): `bun x`/`npx` для скоупованого пакету з одним bin-ім'ям повертає 0 без виконання, тому в CI-кроці `run:` використовуй саме `bunx n-rules lint <rule>`.
-
-Послідовність кроків детектора `ga.workflows` (`lint()` у `npm/rules/ga/workflows/main.mjs`):
-
-1. `ensureTool('shellcheck')`, `ensureTool('conftest')` — авто-install або hard-fail
-2. `bunx github-actionlint` — код `127` (тул відсутній) трактується як skip, не fail
-3. preflight `uv` через `resolveCmd('uv')` — hint-only, без авто-install; якщо є — `uvx zizmor --offline --collect=workflows .` (код `127` теж skip)
-4. Rego-полісі з `npm/policy/ga/` (батч `conftest`, `runAllGaRego`) + JS cross-file перевірки (наявність файлів, `git ls-files`-залежні `on.push.paths` glob, vscode/zizmor config, megalinter-залишки)
-
 ## `.github/zizmor.yml` — конфігурація zizmor для unpinned-uses
 
 Rego-пакет: `ga.zizmor_yml`
@@ -456,7 +355,3 @@ Rego-пакет: `ga.zizmor_yml`
 Перевіряє `rules.unpinned-uses.config.policies["*"]` — значення має точно відповідати template (`ref-pin`). Всі вкладені об'єкти читаються через `object.get` із дефолтами, тож відсутні ключі коректно детектуються як порушення.
 
 Канон: [zizmor.yml.snippet.yml](./template/zizmor.yml.snippet.yml)
-
-### Нотатка щодо `template-injection`
-
-Ця Rego-перевірка стосується лише `unpinned-uses` — аудит [template-injection](https://docs.zizmor.sh/audits/#template-injection) вона не перевіряє, бо він контекстозалежний. За потреби вимкни його в `.github/zizmor.yml` через `rules.template-injection.disable: true`, якщо у workflow свідомо є безпечні підстановки `${{ ... }}`, які zizmor хибно позначає ризиком.

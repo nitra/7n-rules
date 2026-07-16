@@ -1,10 +1,6 @@
 /** @see ./docs/no-console-store-restore.md */
-import { readFile } from 'node:fs/promises'
-import { basename, relative } from 'node:path'
-
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
-import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
-import { walkDir } from '../../../scripts/utils/walkDir.mjs'
+import { collectTestFileOffenders } from '../lib/collect-test-file-offenders.mjs'
 
 /**
  * Ловить пряме присвоєння `console.<method> = …` у `*.test.{js,mjs}`.
@@ -13,16 +9,6 @@ import { walkDir } from '../../../scripts/utils/walkDir.mjs'
  */
 const CONSOLE_ASSIGN_RE =
   /\bconsole\.(?:log|error|warn|info|debug|dir|table|trace|group|groupEnd|time|timeEnd)\s*=(?!=)/u
-
-/**
- * Чи файл — JS-тест (`*.test.mjs` / `*.test.js`).
- * @param {string} absPath абсолютний шлях
- * @returns {boolean} `true` для `.test.{mjs,js}` файлів
- */
-function isTestFile(absPath) {
-  const name = basename(absPath)
-  return name.endsWith('.test.mjs') || name.endsWith('.test.js')
-}
 
 /**
  * Знаходить рядки з прямим присвоєнням `console.<method> = …`.
@@ -51,26 +37,7 @@ export async function lint(ctx) {
   const { pass, fail } = reporter
 
   const cwd = ctx.cwd
-  const ignorePaths = await loadCursorIgnorePaths(cwd)
-
-  /** @type {string[]} */
-  const testFiles = []
-  await walkDir(
-    cwd,
-    absPath => {
-      if (isTestFile(absPath)) testFiles.push(absPath)
-    },
-    ignorePaths
-  )
-
-  /** @type {Array<{file: string, line: number}>} */
-  const offenders = []
-  for (const absPath of testFiles) {
-    const body = await readFile(absPath, 'utf8')
-    for (const o of findOffenders(body)) {
-      offenders.push({ file: relative(cwd, absPath), ...o })
-    }
-  }
+  const { testFiles, offenders } = await collectTestFileOffenders(cwd, findOffenders)
 
   if (offenders.length === 0) {
     pass(`Жоден з ${testFiles.length} тестових файлів не присвоює console.<method> = … (test.mdc)`)

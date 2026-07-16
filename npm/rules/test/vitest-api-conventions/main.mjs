@@ -1,10 +1,6 @@
 /** @see ./docs/main.md */
-import { readFile } from 'node:fs/promises'
-import { basename, relative } from 'node:path'
-
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
-import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
-import { walkDir } from '../../../scripts/utils/walkDir.mjs'
+import { collectTestFileOffenders } from '../lib/collect-test-file-offenders.mjs'
 
 /**
  * `expect(x).toBe({…})` / `expect(x).toBe([…])` — `toBe` — це `Object.is`
@@ -22,16 +18,6 @@ const WS_RE = /\s/u
 const QUOTE_CHARS = new Set(['"', "'", '`'])
 /** Мапа закриваючої дужки на парну дужку, яка її відкриває — для перевірки балансу стеку. */
 const CLOSE_TO_OPEN = { '}': '{', ']': '[' }
-
-/**
- * Чи файл — JS-тест (`*.test.mjs` / `*.test.js`).
- * @param {string} absPath абсолютний шлях
- * @returns {boolean} `true` для `.test.{mjs,js}` файлів
- */
-function isTestFile(absPath) {
-  const name = basename(absPath)
-  return name.endsWith('.test.mjs') || name.endsWith('.test.js')
-}
 
 /**
  * Пропускає пробіли/переноси рядків, повертає індекс першого не-whitespace символу.
@@ -148,26 +134,7 @@ export async function lint(ctx) {
   const { pass, fail } = reporter
 
   const cwd = ctx.cwd
-  const ignorePaths = await loadCursorIgnorePaths(cwd)
-
-  /** @type {string[]} */
-  const testFiles = []
-  await walkDir(
-    cwd,
-    absPath => {
-      if (isTestFile(absPath)) testFiles.push(absPath)
-    },
-    ignorePaths
-  )
-
-  /** @type {Array<{file: string, line: number}>} */
-  const offenders = []
-  for (const absPath of testFiles) {
-    const body = await readFile(absPath, 'utf8')
-    for (const o of findOffenders(body)) {
-      offenders.push({ file: relative(cwd, absPath), ...o })
-    }
-  }
+  const { testFiles, offenders } = await collectTestFileOffenders(cwd, findOffenders)
 
   if (offenders.length === 0) {
     pass(`Жоден з ${testFiles.length} тестових файлів не викликає toBe(...) з об'єктним/масивним літералом (test.mdc)`)
