@@ -3,7 +3,7 @@ type: Rust Module
 title: cursor_live.rs
 resource: llm-lib/crates/llm-cascade/examples/cursor_live.rs
 docgen:
-  crc: 8e873e80
+  crc: bec087e2
 ---
 
 ## Огляд

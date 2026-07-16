@@ -3,7 +3,7 @@ type: Rust Module
 title: lib.rs
 resource: llm-lib/crates/llm-cascade/src/lib.rs
 docgen:
-  crc: a6f60ee8
+  crc: eea81163
 ---
 
 ## Огляд

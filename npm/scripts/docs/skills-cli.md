@@ -3,7 +3,7 @@ type: JS Module
 title: skills-cli.mjs
 resource: npm/scripts/skills-cli.mjs
 docgen:
-  crc: ce3d7d60
+  crc: 1a8f83e4
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 
@@ -30,7 +30,7 @@ runSkillsCli виконує логіку командного інтерфейс
 
 ## Гарантії поведінки
 
-- Сам модуль лише читає файли й збирає промпт; **виконання** делегується агенту: `pi` (вбудований, мутує дерево, запускає bash) або зовнішньому ACP-агенту `cursor`/`codex`/`claude` через `runAcpRunner` (`./lib/acp-runner.mjs`) — JSON-RPC поверх stdio (`cursor-agent acp`, вбудовані адаптери `@agentclientprotocol/codex-acp` і `@agentclientprotocol/claude-agent-acp`), а не сирий `stdin`/`stdout`-pipe-передавання.
+- Сам модуль лише читає файли й збирає промпт; **виконання** делегується агенту: `pi` (вбудований, мутує дерево, запускає bash) або зовнішньому ACP-агенту `cursor`/`codex`/`claude` через `runAcpRunner` (`./lib/acp-runner.mjs`) — JSON-RPC поверх stdio (`cursor-agent acp`, бандловані адаптери `@agentclientprotocol/codex-acp` і `@agentclientprotocol/claude-agent-acp`), а не сирий `stdin`/`stdout`-піпінг.
 - Тира моделі для `pi`-runner береться з `main.json.tier` скіла (дефолт `max`).
-- ACP-раннер автоматично схвалює `session/request_permission` (без інтерактивних питань) — паритет із колишнім non-interactive режимом; `Client`-реалізація читає/пише файли напряму через `node:fs`.
+- ACP-раннер автоапрувляє `session/request_permission` (без інтерактивних питань) — паритет із колишнім non-interactive режимом; `Client`-реалізація читає/пише файли напряму через `node:fs`.
 - Лише `claude` — deprecated: друкує попередження й лишається як fallback, доки не налаштовано pi-модель. `cursor`/`codex` — повноцінні раннери без попередження.

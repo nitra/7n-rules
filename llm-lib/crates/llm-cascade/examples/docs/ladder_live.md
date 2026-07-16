@@ -3,7 +3,7 @@ type: Rust Module
 title: ladder_live.rs
 resource: llm-lib/crates/llm-cascade/examples/ladder_live.rs
 docgen:
-  crc: f7e77e51
+  crc: 852e90fa
 ---
 
 ## Огляд

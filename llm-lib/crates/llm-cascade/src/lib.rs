@@ -13,11 +13,11 @@
 //! ```no_run
 //! use llm_cascade::{acp::{AcpAgentKind, one_shot_acp}, local_cloud::LocalCloud, tiers::Tier};
 //!
-//! # async fn ladder(local_cloud: &LocalCloud, prompt: &str) -> Result<String, llm_cascade::CascadeError> {
-//! if let Ok(text) = one_shot_acp(AcpAgentKind::Cursor, prompt).await {
+//! # async fn ladder(local_cloud: &LocalCloud, prompt: &str, cwd: &std::path::Path) -> Result<String, llm_cascade::CascadeError> {
+//! if let Ok(text) = one_shot_acp(AcpAgentKind::Cursor, prompt, cwd).await {
 //!     return Ok(text);
 //! }
-//! if let Ok(text) = one_shot_acp(AcpAgentKind::Codex, prompt).await {
+//! if let Ok(text) = one_shot_acp(AcpAgentKind::Codex, prompt, cwd).await {
 //!     return Ok(text);
 //! }
 //! local_cloud.one_shot(Tier::Max, None, prompt).await

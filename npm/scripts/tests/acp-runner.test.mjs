@@ -12,9 +12,7 @@ import {
   stopReasonToExitCode
 } from '../lib/acp-runner.mjs'
 
-const CODEX_ACP_BIN_RE = /codex-acp.*dist.index\.js$/
 const CLAUDE_ACP_BIN_RE = /claude-agent-acp.*dist.index\.js$/
-const CURSOR_NOT_IN_PATH_RE = /cursor-agent.*not found in PATH/
 
 describe('pickAutoPermissionOptionId', () => {
   test('обирає allow_always, якщо є', () => {
@@ -52,8 +50,7 @@ describe('stopReasonToExitCode', () => {
 })
 
 describe('resolveAdapterBin', () => {
-  test('резолвить dist/index.js вбудованих ACP-адаптерів', () => {
-    expect(resolveAdapterBin('@agentclientprotocol/codex-acp')).toMatch(CODEX_ACP_BIN_RE)
+  test('резолвить dist/index.js вбудованого ACP-адаптера', () => {
     expect(resolveAdapterBin('@agentclientprotocol/claude-agent-acp')).toMatch(CLAUDE_ACP_BIN_RE)
   })
 })
@@ -131,7 +128,7 @@ describe('runAcpRunner', () => {
     const chunks = []
 
     const code = await runAcpRunner(
-      'codex',
+      'claude',
       'do the task',
       '/tmp/project',
       () => {
@@ -178,29 +175,5 @@ describe('runAcpRunner', () => {
 
     expect(code).toBe(1)
     expect(errors.join('\n')).toContain('refusal')
-  })
-
-  test('cursor: bin відсутній у PATH → кидає, дочірній процес не спавниться', async () => {
-    const spawned = []
-
-    await expect(
-      runAcpRunner(
-        'cursor',
-        'do the task',
-        '/tmp/project',
-        () => {
-          /* noop: тест не перевіряє logError */
-        },
-        {
-          spawnFn: (...args) => {
-            spawned.push(args)
-            return createFakeChild()
-          },
-          isBinaryInPath: () => false
-        }
-      )
-    ).rejects.toThrow(CURSOR_NOT_IN_PATH_RE)
-
-    expect(spawned).toHaveLength(0)
   })
 })

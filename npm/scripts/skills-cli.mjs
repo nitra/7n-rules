@@ -4,7 +4,9 @@
  * Скіли читаються з `npm/skills/<id>/SKILL.md` установленого пакета (або кешу `npx`).
  * Промпт збирає інструкцію скілу + контекст поточного CWD (`package.json`, `tsconfig.json`,
  * `.n-rules.json`) — далі stdout або виконання через один з раннерів: вбудований
- * pi-агент, чи зовнішній ACP-агент (`cursor-agent acp`, `codex-acp`, або deprecated `claude`).
+ * pi-агент, чи зовнішній ACP-агент. `cursor`/`codex` — через `@7n/llm-lib/acp`
+ * (napi-міст до `llm_cascade::acp`, без власного JSON-RPC у JS); deprecated
+ * `claude` — окремий JS-шим (`./lib/acp-runner.mjs`), бо Rust-крейт його не моделює.
  *
  * Підтримувані формати:
  *   `npx \@7n/rules skill list`
@@ -12,14 +14,14 @@
  *   `npx \@7n/rules skill pi taze` — виконати через вбудований pi-агент (рекомендовано)
  *   `npx \@7n/rules skill pi taze "онови залежності"`
  *   `npx \@7n/rules skill cursor taze` — Cursor CLI через ACP (`cursor-agent acp`)
- *   `npx \@7n/rules skill codex taze` — Codex через ACP-адаптер (`@agentclientprotocol/codex-acp`)
+ *   `npx \@7n/rules skill codex taze` — Codex через ACP (napi-міст `@7n/llm-lib/acp`, Rust спавнить `npx \@agentclientprotocol/codex-acp`)
  *   `npx \@7n/rules skill claude taze` — deprecated: Claude Code через ACP-адаптер
  */
 
-import { spawnSync } from 'node:child_process'
+import { runAcpAgent } from '@7n/llm-lib/acp'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { cwd } from 'node:process'
+import { cwd, stdout } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { runAcpRunner } from './lib/acp-runner.mjs'
@@ -28,7 +30,11 @@ import { readSkillMetaRaw, skillTier } from './lib/skill-meta.mjs'
 /** Виконавці скіла. `pi` — вбудований (рекомендований); `cursor`/`codex`/`claude` — зовнішні ACP-агенти (`claude` — deprecated). */
 const RUNNERS = new Set(['pi', 'cursor', 'codex', 'claude'])
 
-/** Раннери, що йдуть через зовнішнього ACP-агента (`runAcpRunner`), і чи deprecated (друкує попередження перед запуском). */
+/**
+ * Раннери, що йдуть через зовнішнього ACP-агента, і чи deprecated (друкує попередження
+ * перед запуском). `cursor`/`codex` — napi-міст `@7n/llm-lib/acp`; `claude` — окремий
+ * JS-шим `runAcpRunner` (Rust-крейт `llm_cascade::acp` `claude` не моделює).
+ */
 const ACP_RUNNERS = {
   claude: { deprecated: true },
   cursor: { deprecated: false },
@@ -46,17 +52,6 @@ const USAGE_LINES = [
   '',
   'Skill id: каталог у пакеті (lint, taze, …) або з префіксом n- (n-lint → lint).'
 ]
-
-/**
- * @param {string} name ім'я бінарника
- * @returns {boolean} чи знайдено бінарник у PATH
- */
-function isBinaryInPath(name) {
-  // Явний `env: process.env` — Bun без нього дає дітям snapshot оточення зі старту процесу
-  // і не бачить runtime-змін `process.env.PATH` (та сама причина, що в resolve-cmd.mjs).
-  const probe = spawnSync('command', ['-v', name], { shell: true, encoding: 'utf8', env: process.env })
-  return probe.status === 0
-}
 
 /**
  * @param {string} name ім'я скілу з CLI або каталогу `.cursor/skills/n-*`
@@ -170,27 +165,41 @@ async function runPiRunner(prompt, rawSkillName, skillsRoot, projectDir, logErro
 }
 
 /**
- * Делегує виконання скіла зовнішньому ACP-агенту (`cursor-agent acp`, `codex-acp`,
- * або deprecated `claude`-адаптер) через `runAcpRunner` — JSON-RPC поверх stdio,
- * дозволи на tool-calls автоматично схвалюються (без інтерактивних питань, паритет із
- * колишнім non-interactive `-p`). `claude` лишається як deprecated fallback для
- * тих, у кого pi-модель ще не налаштована; буде прибрано (мігруй на `skill pi`).
+ * Делегує виконання скіла зовнішньому ACP-агенту. `cursor`/`codex` — через
+ * `@7n/llm-lib/acp` (napi-міст до `llm_cascade::acp`: спавн, `session/prompt`,
+ * автоапрув дозволів — усе в Rust, без JSON-RPC у JS). `claude` — deprecated
+ * JS-шим `runAcpRunner` (Rust його не моделює); буде прибрано (мігруй на `skill pi`).
+ * На відміну від колишнього стрімінгу по чанках, napi-шлях повертає повний текст
+ * лише по завершенню ходу — Rust-функція не стрімить проміжні токени в JS.
  * @param {'claude' | 'cursor' | 'codex'} kind якого ACP-агента запускати
  * @param {string} prompt промпт скіла
  * @param {string} projectDir робочий каталог агента
  * @param {(line: string) => void} logError вивід попередження/помилок
- * @param {{ runAcpRunner?: typeof runAcpRunner }} [deps] інжект для тестів
- * @returns {Promise<number>} exit code (0 — `end_turn`, 1 — інакше)
+ * @param {{ runAcpRunner?: typeof runAcpRunner, runAcpAgent?: typeof runAcpAgent, out?: (chunk: string) => void }} [deps] інжекти для тестів
+ * @returns {Promise<number>} exit code (0 — успіх, 1 — інакше)
  */
-function runLlmCli(kind, prompt, projectDir, logError, deps = {}) {
+async function runLlmCli(kind, prompt, projectDir, logError, deps = {}) {
   const runner = ACP_RUNNERS[kind]
-  const runAcp = deps.runAcpRunner ?? runAcpRunner
 
   if (runner.deprecated) {
     logError(`[deprecated] skill ${kind} → use 'skill pi'; зовнішній ACP-агент буде прибрано`)
   }
 
-  return runAcp(kind, prompt, projectDir, logError, { isBinaryInPath })
+  if (kind === 'claude') {
+    const runAcp = deps.runAcpRunner ?? runAcpRunner
+    return runAcp(kind, prompt, projectDir, logError)
+  }
+
+  const runNativeAcp = deps.runAcpAgent ?? runAcpAgent
+  const out = deps.out ?? (chunk => stdout.write(chunk))
+
+  try {
+    out(await runNativeAcp(kind, prompt, projectDir))
+    return 0
+  } catch (error) {
+    logError(error instanceof Error ? error.message : String(error))
+    return 1
+  }
 }
 
 /**
