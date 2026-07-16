@@ -75,7 +75,8 @@
         "@7n/mt",
         "github-actionlint",
         "v8r",
-        "ajv"
+        "ajv",
+        "@e18e/eslint-plugin"
       ]
     },
     "demo": {
