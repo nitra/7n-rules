@@ -1,0 +1,21 @@
+## Кольори: quasar-variables.scss і app.scss
+
+Основні кольори визначай виключно через стандартні Quasar-змінні: `$primary`, `$secondary`, `$accent`, `$positive`, `$negative`, `$warning`.
+
+Якщо потрібен додатковий колір — визнач його в `quasar-variables.scss`, і **обов'язково** додай до `app.scss` відповідні `.text-*` / `.bg-*` класи:
+
+```scss
+/* quasar-variables.scss */
+$white-a1: color.adjust(white, $alpha: -0.85);
+```
+
+```scss
+/* app.scss */
+.text-white-a1 {
+  color: $white-a1 !important;
+}
+
+.bg-white-a1 {
+  background-color: $white-a1 !important;
+}
+```

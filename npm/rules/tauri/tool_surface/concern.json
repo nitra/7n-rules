@@ -1,0 +1,16 @@
+{
+  "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
+  "lint": {
+    "scope": "full",
+    "glob": [
+      "**/src/**/*.js",
+      "**/src/**/*.ts",
+      "**/src/**/*.jsx",
+      "**/src/**/*.tsx",
+      "**/src/**/*.vue",
+      "**/src-tauri/Cargo.toml",
+      "**/src-tauri/src/lib.rs",
+      "**/src-tauri/capabilities/*.json"
+    ]
+  }
+}

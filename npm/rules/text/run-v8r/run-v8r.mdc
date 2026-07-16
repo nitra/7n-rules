@@ -1,0 +1,23 @@
+## v8r: валідація JSON/YAML/TOML за Schema Store
+
+**`v8r`** — інструмент валідації файлів за схемами з [Schema Store](https://www.schemastore.org/). Використовуй лише через **`bunx v8r`**, не в `devDependencies`.
+
+Canonical запуск — через lint-адаптер `n-rules lint text`: під капотом окремий каталог схем `npm/schemas/v8r-catalog.json` пакета `@7n/rules` (локальні схеми у `npm/schemas/` і `npm/schemas/vendor/`, self-contained, без мережевих `$ref`) підставляється в v8r як `customCatalog`, щоб перевірка лишалась офлайн. Delta-режим валідує один виклик на конкретний список змінених `.json`/`.json5`/`.yml`/`.yaml`/`.toml`-файлів; full-режим — по одному виклику `bunx v8r <glob>` на кожен тип розширення (v8r падає з кодом **98**, якщо переданий glob порожній, — саме тому не можна об'єднати всі розширення в один виклик).
+
+Якщо для файлу немає запису в локальному каталозі, v8r іде мережевим fallback на `schemastore.org` — це не блокує прогін, але свідчить, що каталог варто розширити.
+
+### `.v8rignore`
+
+У корені проєкту має бути **`.v8rignore`**: для JSON без стабільної схеми в Schema Store перевірка інакше завершується помилкою. Мінімум виключи **`.vscode/extensions.json`** і **`.vscode/settings.json`** (немає стабільної схеми в каталозі) — це перевіряється окремо, FS-existence-концерном `text/formatting`.
+
+```text title=".v8rignore"
+.vscode/extensions.json
+.vscode/settings.json
+.git/**
+```
+
+Не розширюй ignore, щоб приховати проблеми там, де схема є. За потреби додай **`.git/**`** (службові JSON під `.git`) та інші проєктні JSON без стабільної схеми в ланцюжку v8r (наприклад `.zed/settings.json`).
+
+### Запуск без обгортки
+
+Чотири виклики `(bunx v8r "<glob>" || [ $? -eq 98 ])` для **`**/*.json`**, **`**/*.yml`**, **`**/*.yaml`**, **`**/*.toml`** (за потреби окремо **json5**). Враховує `.gitignore`. Для власного каталогу схем — прапорець [`--catalogs`](https://chris48s.github.io/v8r/usage-examples/#using-a-custom-catlog).

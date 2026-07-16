@@ -1796,6 +1796,32 @@ async function detectGatewayHttpRouteV1beta1InK8sYamlFiles(yamlFiles, root, fail
 }
 
 /**
+ * Read-only детектор: знаходить файли з `apiVersion: batch/v1beta1` (застаріле для CronJob/Job)
+ * і реєструє violation з `data: { kind: 'batch-v1beta1-apiversion' }` для T0-фіксу.
+ * @param {string[]} yamlFiles абсолютні шляхи до YAML-файлів
+ * @param {string} root корінь репозиторію
+ * @param {(msg: string, opts?: object) => void} fail колбек реєстрації порушення
+ * @returns {Promise<void>}
+ */
+async function detectBatchV1beta1InK8sYamlFiles(yamlFiles, root, fail) {
+  for (const abs of yamlFiles) {
+    const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
+    let raw
+    try {
+      raw = await readFile(abs, 'utf8')
+    } catch {
+      continue
+    }
+    if (!BATCH_V1BETA1_API_VERSION_LINE_RE.test(raw)) continue
+    fail(`${rel}: apiVersion: batch/v1beta1 застаріло — оновіть до batch/v1 (k8s.mdc)`, {
+      reason: 'batch-v1beta1-apiversion',
+      file: rel,
+      data: { kind: 'batch-v1beta1-apiversion' }
+    })
+  }
+}
+
+/**
  * Прибирає BOM і ділить на рядки.
  * @param {string} content вміст файлу
  * @returns {string[]} рядки без BOM на початку
@@ -6565,6 +6591,8 @@ export async function lint(ctx) {
   assertNoForbiddenK8sDevPaths(yamlFiles, root, fail)
 
   await detectGatewayHttpRouteV1beta1InK8sYamlFiles(yamlFiles, root, fail)
+
+  await detectBatchV1beta1InK8sYamlFiles(yamlFiles, root, fail)
 
   // Plan B: пер-документні структурні правила — у rego-полісі `npm/policy/k8s/*`,
   // викликаємо одним батчем на namespace через runConftestBatch. JS нижче робить

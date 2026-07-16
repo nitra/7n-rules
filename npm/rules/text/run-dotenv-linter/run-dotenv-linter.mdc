@@ -1,0 +1,17 @@
+## dotenv-linter: перевірка `.env`-файлів
+
+**dotenv-linter** — швидкий лінтер для `.env`-файлів (перевіряє: LowercaseKey, DuplicatedKey, IncorrectDelimiter, UnorderedKey тощо). Інструмент має бути в **`PATH`** і **не** додається в `dependencies` / `devDependencies`.
+
+Якщо `dotenv-linter` відсутній — встанови локально:
+
+- **macOS:** `brew install dotenv-linter`
+- **Linux:** `curl -sSfL https://git.io/JLbXn | sh -s -- -b /usr/local/bin`
+- **cargo:** `cargo install dotenv-linter`
+
+**Запуск:** авто-фікс — один прогін `dotenv-linter fix --no-backup --quiet` (інструмент сам застосовує всі виправлення, без потреби у diff/patch, на відміну від shellcheck), потім фінальний `dotenv-linter check --quiet`; будь-яке залишкове порушення — ненульовий код виходу.
+
+Виключення (у full-режимі, рекурсивний `-r .`): `node_modules` і `.envrc` (direnv shell-синтаксис, не key=value формат). `.bak`-файли інструмент ігнорує самостійно. Якщо `.env*`-файлів немає, dotenv-linter повертає 0 («Nothing to check»).
+
+**Застереження:** `.env`-файли зазвичай git-ignored, а delta-список — це змінені tracked-файли, тож ignored `.env` у задачний прогін не потрапляють; реальна перевірка `.env*` живе у full/CI прогонах. Tracked файли на кшталт `.env.example` delta таки ловить.
+
+У CI — `--no-fix` (нуль мутацій): авто-фікс пропускається, лише `check`.

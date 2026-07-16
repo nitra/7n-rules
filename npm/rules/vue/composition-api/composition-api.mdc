@@ -1,0 +1,82 @@
+## Найкращі практики Vue 3 Composition API
+
+```javascript
+const vue3CompositionApiBestPractices = [
+  'Використовуй функцію setup() для логіки компонента',
+  'Реалізуй computed змінні через $computed()',
+  'Реалізуй ref змінні через $ref',
+  'Використовуй watch і watchEffect для побічних ефектів',
+  'Підключай lifecycle hooks: onMounted, onUpdated тощо',
+  'Для глибоко вкладених залежностей використовуй composables, props/emits або store'
+  'не використовуй provide/inject для залежностей'
+]
+```
+
+### Патерни та антипатерни
+
+- Для глибоко вкладених залежностей використовуй **composables**, **props/emits** або **store**; **renderless**-компоненти / **slots** — коли логіку відділяєш від розмітки.
+- **HTTP:** окремі модулі **services** або **composables** для API; **async/await**.
+- **Події:** батько–дитина через **emits**; для не пов'язаних гілок — **store**.
+- Не мутуй **props** напряму — оновлення через подію вгору або v-model.
+- Обмежуй зайве в глобальному стані; локальний стан у компоненті — за замовчуванням.
+- Уникай прямої роботи з **DOM**, якщо достатньо реактивного шаблону та ref.
+
+### State management
+
+- **Single source of truth** для спільних даних: у нових проєктах на Vue 3 **Pinia** (модульні stores, actions).
+- Похідний стан — через обчислення в store або **computed** у компонентах, без «тихих» побічних ефектів у getters.
+
+### Обробка помилок
+
+- **try/catch** навколо async-операцій; зрозумілі повідомлення для користувача через notifySuccess, notifyError; логування на сервіс моніторингу за потреби.
+
+### Продуктивність
+
+- **v-for** — стабільні унікальні **`:key`**; не плутай **v-if** (умовний mount) і **v-show** (перемикання visibility).
+- **debounce/throttle** для частих подій.
+- Після ручних **addEventListener** / підписок — прибирай у **onUnmounted**.
+
+### Функції в шаблоні
+
+Виклики функцій у шаблоні дозволені **лише** в обробниках подій (`@click`, `@change` тощо). У всіх інших місцях — `v-if`, `v-show`, атрибутах (`:prop`), інтерполяціях (`{{ }}`) — замінюй функції на `computed`-властивості: функція виконується при **кожному** render-і, тоді як `computed` кешується і перераховується лише при зміні залежностей.
+
+```vue
+<!-- ❌ функція в умові, атрибуті та інтерполяції -->
+<q-item v-if="getItems(order).length" :label="getLabel(item)">
+  {{ formatName(user) }}
+</q-item>
+
+<!-- ✅ реактивні змінні / computed / props -->
+<q-item v-if="itemsMap[order.id].length" :label="item.label">
+  {{ user.displayName }}
+</q-item>
+<!-- обробник події — виклик функції дозволений -->
+<q-btn @click="doSomething(item)" />
+```
+
+### Безпека
+
+- Не довіряй **v-html** без санітизації; для форм/API — **CSRF**-захист за потреби; валідація **на сервері** обов'язкова.
+
+### Приклад компонента
+
+```javascript
+// Приклад Vue 3 компонента з Composition API
+import { computed, onMounted } from 'vue'
+
+export default {
+  setup() {
+    const count = $ref(0)
+    const doubleCount = $computed(() => count * 2)
+
+    onMounted(() => {
+      console.log('Компонент змонтовано')
+    })
+
+    return {
+      count,
+      doubleCount
+    }
+  }
+}
+```

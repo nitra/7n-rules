@@ -1,0 +1,458 @@
+## Безпечне виконання запитів через Bun SQL
+
+JS/TS-скан: `lib/bun-sql-scan.mjs`, детектори підключено з `safety/main.mjs`.
+
+Цільові файли: усі JS/TS джерела репозиторію (крім ігнорованих через cursor-конфіг), де є `import { sql, SQL } from 'bun'`.
+
+### `sql.unsafe(...)` за замовчуванням заборонено
+
+Будь-який виклик `sql.unsafe(...)` (так само `tx.unsafe(...)` всередині `sql.begin`) **заборонено**, окрім випадків, коли **обидві** умови виконані:
+
+1. значення підставляється з **коду** — константа, конфіг, whitelist; **не з user input**;
+2. треба підставити те, що **не можна параметризувати** через tagged template:
+   - назву **таблиці**,
+   - назву **колонки**,
+   - **dynamic SQL / DDL** (`CREATE`, `ALTER`, `DROP`, multi-statement migration, серверні `SET`/`SHOW` і подібне).
+
+В усіх інших випадках — переробити на звичайний tagged template виду `` sql`...${value}...` ``: значення біндяться як параметри й injection не лишається.
+
+Кожен легітимний `sql.unsafe(...)` має супроводжуватись **маркером-коментарем** з причиною — на тому ж рядку (trailing) або на рядку безпосередньо перед викликом. Маркер — opt-in для перевірки `js-bun-db` і слід для ревʼюера:
+
+```javascript
+import format from '@scaleleap/pg-format'
+
+const query = format('CREATE TABLE %I (id int)', tableName)
+// allow-unsafe: DDL — назву таблиці параметризувати не можна; ідентифікатор екранує pg-format
+await sql.unsafe(query)
+
+await sql.unsafe('SELECT pg_advisory_lock($1)', [lockId]) // allow-unsafe: pg_advisory_lock — окремий шлях, без tagged template
+```
+
+Формат маркера: `allow-unsafe: <непорожня причина>` у line- або block-коментарі. Без причини (`// allow-unsafe:`) і без маркера взагалі — **fail** перевірки (детектор — `findBunSqlUnsafeUseWithoutAllowMarkerInText` у `lib/bun-sql-scan.mjs`).
+
+#### `sql.unsafe` з template-літералом і `${...}`-інтерполяцією — заборонено навіть з маркером
+
+``sql.unsafe(`...${x}...`)`` — окремий **hard fail** (детектор `findBunSqlUnsafeWithInterpolatedTemplateInText`), який не знімається маркером `// allow-unsafe`. Шаблонна підстановка `${x}` у `sql.unsafe`-рядок:
+
+- **не екранує** identifier'ів (reserved words, спецсимволи, пробіли в імені);
+- **не біндить** значень (вони потрапляють у запит сирим текстом, як injection-вектор);
+- виглядає «безпечно» через знайому tagged-template-форму, але не має жодних гарантій Bun SQL.
+
+Канон — побудувати `text` окремо, потім передати в `sql.unsafe(text, [params])`:
+
+- для **identifiers** — `@scaleleap/pg-format` `format('%I', name)` (екранує спецсимволи, reserved words; деталі й приклади — `pg_format_identifiers/pg_format_identifiers.mdc`);
+- для **values** — позиційні `$1`, `$2`, … як placeholder'и в тексті + масив значень другим аргументом;
+- для **fragments** з whitelist (`ASC`/`DESC`) — `format('%s', whitelistedValue)`.
+
+```javascript
+// ❌ template-літерал з ${...} — fail навіть з allow-unsafe
+// allow-unsafe: DDL
+await sql.unsafe(`CREATE TABLE ${tableName} (id int)`)
+
+// ✅ format('%I', ...) екранує identifier, sql.unsafe приймає готовий text
+import format from '@scaleleap/pg-format'
+const query = format('CREATE TABLE %I (id int)', tableName)
+// allow-unsafe: DDL — назву таблиці параметризувати не можна
+await sql.unsafe(query)
+```
+
+Статичні `` sql.unsafe(`SELECT 1`) `` (без `${...}`) і `sql.unsafe(text, [params])` зі змінною `text`, зібраною заздалегідь, — допустимі (за наявності `// allow-unsafe`-маркера).
+
+Заборонені кейси (треба переробити на tagged template):
+
+```javascript
+// ❌ дані від користувача — параметризуй через tagged template
+await sql.unsafe(`SELECT * FROM users WHERE id = ${userId}`)
+
+// ❌ навіть у tagged template — динамічний список через .join(',')
+await sql`SELECT * FROM users WHERE id IN (${ids.join(',')})`
+```
+
+Для динамічних списків — `sql([...])` або `sql(rows, 'colA', 'colB')`, **не** `.join(',')` (детектор — `findUnsafeBunSqlDynamicSqlListInText`).
+
+### Прибирати pg-leftover виклики (`.connect()`, `.end()`)
+
+У файлах з Bun SQL (`import { sql, SQL } from 'bun'`) залишки від `pg` — `pool.connect()`, `client.end()`, `pool.end()` — мають бути видалені. Bun SQL пулом керує сам: на першому запиті підключається, idle/lifetime закриває за конфігом — окремий життєвий цикл вручну не потрібен.
+
+```javascript
+// ❌ pg-leftover: ручний lifecycle, який Bun SQL робить за тебе
+const client = await pool.connect()
+try {
+  await client.query('...')
+} finally {
+  await client.end()
+}
+
+// ✅ Bun SQL — без явних .connect()/.end()
+await sql`...`
+```
+
+Якщо виклик дійсно потрібен (наприклад, `sql.end()` у graceful shutdown або `.connect()` на сторонньому об'єкті, що випадково ділить імʼя методу), додай маркер `// allow-pg-leftover: <причина>` на тому ж рядку (trailing) або на рядку безпосередньо перед викликом:
+
+```javascript
+// allow-pg-leftover: graceful shutdown — закриваємо пул перед exit
+await sql.end()
+
+ws.connect(url) // allow-pg-leftover: WebSocket, не pg
+```
+
+Формат маркера: `allow-pg-leftover: <непорожня причина>` у line- або block-коментарі. Без маркера й без причини — **fail** перевірки (детектор — `findBunSqlPgLeftoverCallInText` у `lib/bun-sql-scan.mjs`; скоп навмисно обмежений файлами, де вже є Bun SQL import, щоб не хибно спрацьовувати на WebSocket / Stream / інших бібліотеках з такими самими іменами методів).
+
+### `pg`: виключення для LISTEN/NOTIFY
+
+Bun SQL **поки не реалізує PostgreSQL LISTEN/NOTIFY** (асинхронні нотифікації через `pg_notify` / `LISTEN <channel>`). Тому якщо проєкт справді користується LISTEN/NOTIFY, npm-пакет `pg` дозволено тримати в `dependencies` **виключно** для LISTEN/NOTIFY-клієнта. Усі інші запити (SELECT/INSERT/UPDATE/DELETE/migration) — далі через Bun SQL.
+
+Перевірка `pg` зважує цей сигнал автоматично (тому `pg` прибрано з [denylist](../package_json/template/package.json.deny.json) — Rego не бачить JS-коду, тож зважування LISTEN/NOTIFY перенесено у JS-сканер `safety/main.mjs` + `lib/bun-sql-scan.mjs`).
+
+#### Як перевірка визначає, що LISTEN/NOTIFY у проєкті є
+
+AST-сканер (`findPgListenNotifyUsageInText`) шукає будь-який із сигналів:
+
+- `client.query('LISTEN <channel>')` / `client.query('UNLISTEN *')` / `client.query('NOTIFY <channel>, ...')` — string- або template-literal-аргумент, що починається з `LISTEN` / `UNLISTEN` / `NOTIFY` (case-insensitive, leading whitespace допускається). Також покриті `queryArray` / `queryStream`.
+- `client.on('notification', handler)` — listener на pg-події `notification`.
+- TaggedTemplateExpression `` <tag>`LISTEN ...` `` — на випадок, якщо хтось загорнув LISTEN у власний tagged template.
+
+Якщо хоч один сигнал є — `dependencies.pg` зважено як виправдане; інакше — `fail` із посиланням на цю секцію.
+
+#### Правила для файлів з `import 'pg'`
+
+Кожен файл, який імпортує `'pg'`, повинен **сам** містити один із LISTEN/NOTIFY-сигналів. Сценарій «один файл слухає, інший виконує `SELECT * FROM users`» — теж `fail`: звичайні запити через `pg` треба переписати на Bun SQL, а LISTEN/NOTIFY-логіку лишити в окремому модулі.
+
+#### Приклад — окремий модуль для LISTEN
+
+```javascript
+// src/db/pg-listen.ts — єдине місце, де живе import 'pg'
+import { Client } from 'pg'
+
+const listener = new Client({ connectionString: process.env.DATABASE_URL })
+
+// allow-pg-leftover: pg LISTEN-клієнт не керується Bun SQL пулом
+await listener.connect()
+await listener.query('LISTEN orders_channel')
+listener.on('notification', msg => {
+  // обробка нотифікації
+})
+```
+
+```javascript
+// src/db/users.ts — звичайні запити, через Bun SQL
+import { sql } from 'bun'
+
+export const getUser = id => sql`SELECT * FROM users WHERE id = ${id}`
+```
+
+`pg-listen.ts` буде дозволений завдяки `LISTEN orders_channel` і `.on('notification', ...)`; `users.ts` не має імпорту `'pg'`, тож вільно живе з Bun SQL. `client.connect()` у файлі з Bun SQL потребував би маркер `// allow-pg-leftover: ...`; у файлі, де **Bun SQL не імпортовано**, pg-leftover-сканер не спрацьовує, але маркер як коментар-причина — корисний для рев'ю.
+
+#### Що лишається забороненим
+
+- `import 'pg'` у файлі без LISTEN/NOTIFY — `fail` з повідомленням «перенеси на Bun SQL, лиши LISTEN в окремому модулі».
+- `dependencies.pg` без жодного LISTEN/NOTIFY-сигналу у проєкті — `fail` навіть якщо `pg` нібито «потрібен історично».
+- `pg-format` (unscoped) — лишається у [denylist](../package_json/template/package.json.deny.json); виключення для LISTEN/NOTIFY стосується **тільки** самого `pg`.
+- `pg-pool`, `pg-native`, `mysql`, `mysql2` — виключень немає, видаляти повністю.
+
+### Безпечне виконання запитів
+
+Тільки **tagged template** з `${...}` — Bun сам біндить позиційні параметри й захищає від SQL injection:
+
+```javascript
+import { sql } from 'bun'
+
+const userId = 42
+const status = 'active'
+
+const users = await sql`
+  SELECT * FROM users
+  WHERE id = ${userId} AND status = ${status}
+`
+```
+
+Об'єктний INSERT/UPDATE та `IN (...)` — через helper `sql(...)`:
+
+```javascript
+const user = { name: 'Alice', email: 'a@example.com' }
+
+const [created] = await sql`
+  INSERT INTO users ${sql(user)}
+  RETURNING *
+`
+
+await sql`UPDATE users SET ${sql(user, 'name', 'email')} WHERE id = ${created.id}`
+
+const ids = [1, 2, 3]
+await sql`SELECT * FROM users WHERE id IN ${sql(ids)}`
+```
+
+Multi-row INSERT з масиву об'єктів — `sql(rows)` генерує column list і VALUES автоматично:
+
+```javascript
+// ❌ format + pgWrite.unsafe — ручне склеювання рядків, injection-вектор
+const insertWfQry = `insert into approval.workflow (request_id, job_title_id, name, status)
+  values ${approverJobs.map(job => `('${request.id}', ${job.id}, '${job.short_name}', 'pending')`).join(', ')}`
+await pgWrite.unsafe(insertWfQry)
+
+// ✅ sql(rows) — один параметр-масив, bind через wire-protocol
+const wfRows = approverJobs.map(job => ({
+  request_id: request.id,
+  job_title_id: job.id,
+  name: job.short_name,
+  status: job.id === nextJobId ? 'current' : 'pending'
+}))
+await sql`INSERT INTO approval.workflow ${sql(wfRows)}`
+```
+
+Коли потрібен стабільний план для великих batch'ів (N > 20) або строгі типи колонок — використовуй `unnest` (деталі й приклад MERGE з UNNEST — секція «pg-format: повне видалення, без шимів» нижче). Для невеликих INSERT'ів де колонки відомі — `sql(rows)` коротший і зрозуміліший.
+
+#### `IN (...)`: значення з template literal — тільки через змінну + guard на пустоту
+
+Якщо список для `IN (...)` підставляється через `${...}` у template literal, його **потрібно**:
+
+- винести в **окрему змінну** (не підставляти вираз напряму в `${...}`);
+- **перевірити на пустоту** перед запитом і **throw** (щоб не виконувати некоректний SQL або запит з неочікуваною семантикою).
+
+Приклад:
+
+```javascript
+const ids = inputIds.map(Number).filter(n => Number.isFinite(n))
+if (!ids.length) throw new Error('ids is empty')
+
+await sql`SELECT * FROM users WHERE id IN ${sql(ids)}`
+```
+
+Транзакції — через `sql.begin` (auto-commit/rollback), вкладені — через `tx.savepoint`:
+
+```javascript
+await sql.begin(async tx => {
+  await tx`INSERT INTO users ${sql(user)}`
+  await tx`UPDATE accounts SET balance = balance - ${100} WHERE user_id = ${user.id}`
+})
+```
+
+#### JSONB-параметри: без `JSON.stringify`
+
+Bun SQL серіалізує JS-об'єкти й масиви у JSON автоматично — викликати `JSON.stringify` перед передачею в `::jsonb` / `::jsonb[]` **заборонено**.
+
+```javascript
+// ❌ зайвий JSON.stringify — подвійна серіалізація або зайвий рядок
+await sql`INSERT INTO events (details) VALUES (${JSON.stringify(detailsForEvent)}::jsonb)`
+
+await sql`SELECT * FROM unnest(${sql.array(batch.map(r => JSON.stringify(r.data)), 'jsonb')})`
+
+// ✅ об'єкт/масив передається напряму
+await sql`INSERT INTO events (details) VALUES (${detailsForEvent}::jsonb)`
+
+await sql`SELECT * FROM unnest(${sql.array(col(batch, 'data'), 'jsonb')})`
+```
+
+`UNION ALL`-цикл замість `unnest` підходить для малих динамічних запитів (2–5 рядків), де кожна гілка семантично різна. Для bulk upsert — завжди `unnest`.
+
+#### Коментар під час виправлення SQL injection
+
+Коли виправляєш місце з потенційним **SQL injection** (наприклад, заміна конкатенації/`.join(',')` на `sql(ids)` або перехід з `sql.unsafe(...)` на tagged template), **додай поруч короткий коментар** з описом причини.
+
+Вимоги до коментаря:
+
+- пояснити **що саме було небезпечно** (конкатенація, підмішування user input, динамічний `IN (...)`, тощо);
+- пояснити **чому новий варіант безпечний** (параметризація через tagged template / `sql(...)`);
+- без "романів": 1–2 рядки, достатньо для ревʼю.
+
+Приклад:
+
+```javascript
+// SQLi fix: не конкатенуємо значення в `IN (...)`; Bun parameterize через `sql(ids)`.
+await sql`SELECT * FROM users WHERE id IN ${sql(ids)}`
+```
+
+#### Що НЕ робити з бібліотеками
+
+Якщо в коді з'явився `import { sql } from 'bun'`, то `pg`, `pg-format` та `mysql2` мають бути прибрані і з `dependencies`, і з імпортів — щоб не лишалось двох паралельних шляхів до БД та ручного форматування поряд із параметризованими template literal.
+
+Те саме стосується **локальних шимів**: будь-який модуль, що експортує `format`, `pgRead`, `pgWrite`, `query(text, params)`, `quoteLiteral`, `quoteIdent` як обгортку над `sql.unsafe(...)`, потрібно переписати — всі call-site на tagged template, сам шим видалити (детектори — `findPgFormatShimDefinitionInText` і `findPgFormatLikeQueryWrapperInText` у `lib/bun-sql-scan.mjs`; деталі — секція «pg-format: повне видалення, без шимів» нижче).
+
+### `sql.array(arr, type)` для передачі масивів
+
+Коли JS-масив передається як параметр у Bun SQL template literal всередині `unnest(...)` або іншого контексту, де PostgreSQL очікує типізований масив (`int4[]`, `uuid[]` тощо), — обов'язково використовувати `sql.array(arr, type)` (або `pgWrite.array` / `pgRead.array` — вони є екземплярами `SQL`). Другий аргумент (тип елементів) — обов'язковий; без нього перевірка (`findSqlArrayWithoutTypeArgInText` у `lib/bun-sql-scan.mjs`) фейлить.
+
+#### Заборонені патерни
+
+```javascript
+// ❌ пряма підстановка масиву — Bun серіалізує як рядок, не як pg-масив
+${ids}
+
+// ❌ cast-синтаксис без .array() — працює в деяких версіях, але не гарантований
+${ids}::int8[]
+
+// ❌ відсутній тип — Bun не може вивести тип pg, можливий mismatch
+sql.array(ids)
+```
+
+#### Дозволені патерни
+
+```javascript
+// ✅ pgWrite.array з явним типом
+${pgWrite.array(ids, 'int8')}
+${pgWrite.array(uuids, 'uuid')}
+${pgWrite.array(flags, 'bool')}
+${pgWrite.array(amounts, 'numeric')}
+${pgWrite.array(names, 'text')}
+${pgWrite.array(dates, 'date')}
+${pgWrite.array(timestamps, 'timestamptz')}
+
+// ✅ pgRead.array — те саме правило
+${pgRead.array(ids, 'int4')}
+```
+
+#### Таблиця типів
+
+| JS-тип        | PostgreSQL тип | Аргумент        |
+| ------------- | -------------- | --------------- |
+| number (int)  | int4           | `'int4'`        |
+| bigint / id   | int8           | `'int8'`        |
+| UUID string   | uuid           | `'uuid'`        |
+| boolean       | bool           | `'bool'`        |
+| decimal/float | numeric        | `'numeric'`     |
+| string        | text           | `'text'`        |
+| date string   | date           | `'date'`        |
+| ISO datetime  | timestamptz    | `'timestamptz'` |
+
+#### `col(arr, key)` — хелпер для unnest-колонок
+
+OXC formatter (oxfmt ≥ 0.49) примусово розгортає будь-який `CallExpression`, де перший аргумент є `CallExpression` з callback, у багаторядковий блок — незалежно від `printWidth`. Тому `pgWrite.array(arr.map(r => r.field), 'type')` всередині tagged template literal завжди стає 4-рядковим блоком. `col(arr, 'field')` (перший аргумент — identifier, другий — string literal) цей тригер не зачіпає і лишається однорядковим.
+
+Канонічне місце хелпера — `src/utils/col.mjs` (або `src/conn/col.mjs` залежно від структури проєкту):
+
+```javascript
+// src/utils/col.mjs
+export const col = (arr, key) => arr.map(r => r[key])
+```
+
+```javascript
+import { pgWrite } from '#src/conn/db.mjs'
+import { col } from '#src/utils/col.mjs'
+
+// ❌ oxfmt розгортає на 4+ рядки незалежно від printWidth
+${pgWrite.array(rows.map(r => r.id), 'int4')}
+
+// ✅ col(arr, key) — перший аргумент не є callback; oxfmt лишає однорядковим
+${pgWrite.array(col(rows, 'id'), 'int4')}
+```
+
+#### Повний приклад (UNNEST + MERGE)
+
+```javascript
+await pgWrite`
+  MERGE INTO "order".product p
+  USING (
+    SELECT * FROM unnest(
+      ${pgWrite.array(col(rows, 'order_id'), 'uuid')},
+      ${pgWrite.array(col(rows, 'product_id'), 'int4')},
+      ${pgWrite.array(col(rows, 'qty'), 'numeric')},
+      ${pgWrite.array(col(rows, 'is_refund'), 'bool')}
+    ) AS s(order_id, product_id, qty, is_refund)
+  ) AS s ON p.order_id = s.order_id AND p.product_id = s.product_id
+  WHEN MATCHED THEN
+    UPDATE SET qty = s.qty
+  WHEN NOT MATCHED THEN
+    INSERT (order_id, product_id, qty, is_refund)
+    VALUES (s.order_id, s.product_id, s.qty, s.is_refund)
+`
+```
+
+### `pg-format`: повне видалення, без шимів
+
+Міграція з `pg-format` — це **зміна стилю запитів**, а не збереження API. У проєкті після переходу на Bun SQL **заборонено** залишати:
+
+- функцію з іменем `format` (чи `pgFormat`, `sqlFormat`, `pgFmt`), що приймає шаблон з `%L` / `%I` / `%s` і значення;
+- допоміжні `quoteLiteral`, `quoteIdent`, `escapeLiteral`, `escapeIdent` як публічні експорти модуля;
+- обгортки `pgRead.query(text, params)` / `pgWrite.query(text, params)` / `db.query(text, params)`, які складають SQL-рядок (з або без `format`) і викликають `sql.unsafe(text, params)` — це повертає injection-поверхню, від якої ми йдемо, тільки під «зручним» іменем.
+
+Замість цього всі точки використання потрібно перевести на tagged template ``sql`...${value}...` ``. Кожен параметр `${value}` стає окремим bind-значенням, без рядкового екранування.
+
+#### Типові ідіоми `pg-format` → Bun SQL
+
+| Було (`pg-format`)                                | Стало (Bun SQL)                                                                              |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `format('... WHERE id = %L', id)`                 | ``sql`... WHERE id = ${id}` ``                                                                |
+| `format('... IN (%L)', ids)`                      | ``sql`... IN ${sql(ids)}` `` (з guard на пустоту перед запитом)                               |
+| `format('INSERT ... VALUES %L', [row])` (1 рядок) | ``sql`INSERT ... VALUES (${a}, ${b}, ...)` ``                                                 |
+| `format('INSERT ... VALUES %L', rows)` (N рядків) | ``sql`INSERT INTO t ${sql(rows, 'a', 'b')}` `` або `unnest($1::T[], $2::T[]) AS t(a, b)`      |
+| `format('MERGE ... USING (VALUES %L) AS d(...)')` | ``sql`MERGE ... USING (SELECT * FROM unnest(${arrA}::A[], ${arrB}::B[]) AS t(a, b)) AS d` ``  |
+| `format('... %I ...', tableName)` (whitelist)     | `@scaleleap/pg-format`: `format('%I', name)` + `sql.unsafe(text, [params])` з маркером        |
+
+Для multi-row `VALUES` у `MERGE` / `INSERT` з конкретними типами — паралельні масиви по колонках і `unnest($1::TYPE[], $2::TYPE[], ...) AS t(col1, col2, ...)`. Кожна колонка передається одним параметром-масивом; типи задаються кастом масиву (`::uuid[]`, `::bigint[]`, `::numeric[]`, `::text[]`, …).
+
+##### Приклад: MERGE з UNNEST і динамічними колонками
+
+```javascript
+// ❌ format + pgWrite.unsafe — N×7 окремих значень, план змінюється при кожному batch.length
+const valuesSql = batch
+  .map(row => format('(%L::int, %L::date, %L::jsonb)', row.id, row.date, JSON.stringify(row.data)))
+  .join(',')
+const sql = format(`MERGE INTO t USING (VALUES %s) AS s(id, date, data) ON ...`, valuesSql)
+await pgWrite.unsafe(sql)
+
+// ✅ UNNEST — 3 параметри незалежно від розміру batch; план стабільний і може кешуватись
+await pgWrite`
+  WITH s(id, date, data) AS (
+    SELECT * FROM unnest(
+      ${pgWrite.array(col(batch, 'id'),   'int4')},
+      ${pgWrite.array(col(batch, 'date'), 'date')},
+      ${pgWrite.array(col(batch, 'data'), 'jsonb')}
+    )
+  )
+  MERGE INTO my_table AS t
+  USING s ON t.id = s.id
+  WHEN MATCHED THEN
+    UPDATE SET date = s.date, data = s.data
+  WHEN NOT MATCHED THEN
+    INSERT (id, date, data) VALUES (s.id, s.date, s.data)
+`
+```
+
+Якщо частина колонок у SET/INSERT залежить від параметра (plan/fact, тип тощо) — динамічні імена колонок не можна параметризувати через `${value}`; використовуй умовні Bun SQL фрагменти:
+
+```javascript
+// ✅ умовні фрагменти для динамічних ідентифікаторів колонок
+const colFrag  = isPlan ? pgWrite`plan_value`  : pgWrite`fact_value`
+const hashFrag = isPlan ? pgWrite`hash = s.hash,` : pgWrite``
+
+await pgWrite`
+  ...
+  WHEN MATCHED THEN
+    UPDATE SET
+      ${colFrag} = s.value,
+      ${hashFrag}
+      updated_by = s.updated_by
+  WHEN NOT MATCHED THEN
+    INSERT (id, ${colFrag}, updated_by)
+    VALUES (s.id, s.value, s.updated_by)
+`
+```
+
+#### Заборонений «drop-in» шим
+
+```javascript
+// ❌ pg-format-сумісний шим, що ховає `unsafe` під «безпечним» іменем
+export function format(fmt, ...args) {
+  let i = 0
+  return fmt.replaceAll(/%[LIs]/g, () => quoteLiteral(args[i++]))
+}
+
+// ❌ і його типовий call-site — той самий injection-вектор, що і прямий sql.unsafe із конкатенацією
+await sql.unsafe(format('... WHERE id = %L', userId))
+```
+
+```javascript
+// ❌ pg-сумісна обгортка над Bun SQL — ще один прихований `unsafe`
+export const pgWrite = {
+  query(text, params) {
+    return sql.unsafe(text, params)
+  }
+}
+```
+
+```javascript
+// ✅ напряму tagged template — параметризація через wire-protocol bind
+await sql`... WHERE id = ${userId}`
+```
+
+Виняток для шиму `format()` під час поетапної міграції допускається **тільки** в окремому commit'і з TODO-маркером і дедлайном; готовий код у main з таким шимом — `fail` правила (детектори у `lib/bun-sql-scan.mjs`: `findPgFormatShimDefinitionInText`, `findPgFormatLikeQueryWrapperInText`).

@@ -11,10 +11,9 @@ tokio = { version = "1", features = ["rt-multi-thread", "process", "macros", "io
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "1"
-# 0.11.x, не 1.x: agent-client-protocol-tokio ще не оновлений до
-# agent-client-protocol 1.x — версії мають збігатись, інакше типи несумісні.
-agent-client-protocol = "0.11.1"
-agent-client-protocol-tokio = "0.11.1"
+# 1.x: agent-client-protocol-tokio більше не існує окремо — AcpAgent
+# (спавн stdio-агента) перенесено в головний крейт.
+agent-client-protocol = "1.2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "process", "macros", "io-util", "time", "test-util"] }

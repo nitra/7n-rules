@@ -1,0 +1,16 @@
+## Лінт Rust: rustfmt + clippy + cargo-deny
+
+**rustfmt** ([rust-lang/rustfmt](https://github.com/rust-lang/rustfmt)) — форматер; **clippy** ([rust-lang/rust-clippy](https://github.com/rust-lang/rust-clippy)) — лінтер; **cargo-deny** — перевірка ліцензій залежностей. Запуск — через **`n-rules lint rust`** (detector `npm/rules/rust/check/main.mjs`, autofix `npm/rules/rust/check/fix-check.mjs`):
+
+- **read-only (детект, CI):** `cargo fmt --all -- --check` → `cargo clippy --all-targets --all-features -- -D warnings` → (за наявності `deny.toml` і встановленого `cargo-deny`) `cargo deny check licenses`.
+- **`fix` (локально):** `cargo fmt --all` (реальне форматування) і, якщо `deny.toml` відсутній та `cargo-deny` встановлено, `cargo deny init` для генерації канонічного файлу.
+
+`clippy` **не** автофіксимо (`--fix` потенційно небезпечний і може прибрати навмисний код) — clippy-порушення йдуть у LLM-ladder, а не в детермінований autofix.
+
+Без `Cargo.toml` у cwd — no-op (exit 0). Окремого `package.json`-скрипта немає.
+
+`cargo`, `rustfmt`, `clippy`, `cargo-deny` **не додавай** у `devDependencies` — це Rust toolchain, ставиться через `rustup`/`cargo install` локально або через `dtolnay/rust-toolchain@stable` у CI.
+
+### Канон CI workflow `.github/workflows/lint-rust.yml`
+
+Канонічний workflow, drift-safe перевірка (`rust.lint_rust_yml`) і вимога `Swatinem/rust-cache@v2` — `npm/rules/rust/lint_rust_yml/lint_rust_yml.mdc`. Тут лише сам лінт-скрипт; CI-канон workflow **не дублюється**.

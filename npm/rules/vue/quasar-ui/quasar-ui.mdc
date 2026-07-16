@@ -1,0 +1,32 @@
+## Quasar як UI-основа
+
+У Vue-проектах використовуй **Quasar** як базовий UI-фреймворк:
+
+- **Компоненти:** `q-btn`, `q-input`, `q-select`, `q-table`, `q-dialog`, `q-card`, `q-layout`, `q-page`, `q-drawer` тощо — основа UI.
+- **Плагіни:** `Notify`, `Dialog`, `Loading` та інші Quasar-плагіни.
+- **Кольори:** використовуй Quasar CSS-змінні (`primary`, `secondary`, `accent`, `positive`, `negative`, `warning`, `info`, `dark`) і утиліти (`text-primary`, `bg-accent` тощо).
+- **Утиліти:** flex-layout (`row`, `col`, `items-center`), spacing (`q-pa-md`, `q-mt-sm`), shadow (`shadow-2`) — зі стандартної бібліотеки Quasar.
+- **Кастомні компоненти** `@nitra/components` — **надбудова** над Quasar, а не заміна; їх слід надавати перевагу лише там, де вони є.
+
+## @nitra/components — надавай перевагу перед Quasar-компонентами
+
+При створенні нової функціональності використовуй компоненти `@nitra/components`, якщо логіка компонента дозволяє отримати потрібний функціонал. Заміни:
+
+| Завдання | `@nitra/components` | Замість Quasar |
+| --- | --- | --- |
+| Діалоги | `NDialog` | `q-dialog` |
+| Multi-вибір | `NSelectMulti` | `q-select` (multiple) |
+| Текстовий редактор | `NEditor` | `q-editor` |
+| Вибір дати | `NDate` | — |
+| Вибір місяця/року | `NDateMonthYear` | — |
+| Діапазон дат | `NDateRange` | — |
+| Дата і час | `NDateTime` | — |
+| Drag&drop список | `NDraggableList` | — |
+| Редаговане значення | `NEditableString` | — |
+| Повідомлення | `NCallout` | — |
+| Хедер проекту | `NHeader` | — |
+| Перемикання мов | `NLang` | — (якщо `NHeader` не використовується) |
+| Меню проекту | `NMenu` | — |
+| Зображення (масив / одиночне) | `NImages` | — |
+| Завантаження файлів | `NUploader` | — |
+| Вибір колонок `q-table` | `NTableColumns` | — |

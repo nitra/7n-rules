@@ -3,7 +3,7 @@ type: JS Module
 title: fix-manifests.mjs
 resource: npm/rules/k8s/manifests/fix-manifests.mjs
 docgen:
-  crc: 31bc471b
+  crc: 7245cdbe
 ---
 
 ## Огляд
@@ -29,6 +29,8 @@ T0-autofix для `k8s/manifests`: детерміновані правки Kuber
   що й детектор (kind → name → namespace → path).
 - **gateway-httproute-v1beta1** — піднімає `apiVersion` HTTPRoute з `gateway.networking.k8s.io/v1beta1`
   до `v1` разом із відповідним `$schema`-modeline.
+- **batch-v1beta1-apiversion** — переписує `apiVersion: batch/v1beta1` (CronJob/Job) на `batch/v1`,
+  рядково, зі збереженням відступів і лапок.
 
 ## Публічний API
 

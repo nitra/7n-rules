@@ -18,3 +18,9 @@ Rego-пакет: `k8s.hasura_configmap`
 Семантика: `"true"`/`"false"` приймаються як boolean або рядок (case-insensitive); точний рядок — exact match.
 
 **Примітка:** відбір ConfigMap за сусідством із Hasura-Deployment — cross-file, у JS. Rego — пер-документна валідація полів `data`.
+
+## ConfigMap: ім'я збігається з Deployment
+
+Ця перевірка не обмежена Hasura — стосується **будь-якого** `configmap.yaml` під `k8s/base/`. Якщо в тому самому каталозі є **`configmap.yaml`** і **Deployment**, і цей Deployment посилається рівно на **один** ConfigMap (через `envFrom[*].configMapRef.name` або `volumes[*].configMap.name`) — `metadata.name` ConfigMap має збігатися з `metadata.name` Deployment.
+
+Перевірка — cross-file, у **`npm/rules/k8s/manifests/main.mjs`** (`validateConfigMapNameMatchesDeployment` / `validateSingleConfigMapNameMatch`). Якщо Deployment посилається на кілька ConfigMap або жодного — перевірка пропускається (немає однозначного відповідника).

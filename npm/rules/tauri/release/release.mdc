@@ -81,8 +81,10 @@ jobs:
       contents: write
       id-token: write # OIDC для Infisical
     steps:
-      # ... checkout, rust-toolchain, потім (rust.mdc вимагає кеш, zizmor фейлить
+      # ... checkout, потім (rust.mdc вимагає кеш, zizmor фейлить
       # cache-poisoning у тег-тригереному release — прийнятий ризик приглушуємо inline):
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: aarch64-apple-darwin }
       - uses: Swatinem/rust-cache@v2 # zizmor: ignore[cache-poisoning]
       - name: Sync app version from tag
         run: |
@@ -93,11 +95,12 @@ jobs:
       - uses: Infisical/secrets-action@v1
         with: { secret-path: '/updater' }
       - uses: tauri-apps/tauri-action@v0
-        with: { projectPath: app }
+        with: { projectPath: app, args: '--target aarch64-apple-darwin' }
 ```
 
 - **«Sync app version from tag» має йти перед кроком `tauri-apps/tauri-action`** — тег `vX.Y.Z` є єдиним джерелом версії для build-артефактів; `tauri.conf.json#version` у робочому дереві не редагується вручну (він там лишається тим, що востаннє поставив `n-rules release`, і синхронізується цим кроком лише в CI, не в git).
 - Секрети підпису — з Infisical: Apple-сертифікати (`secret-path: /apple`) і `TAURI_SIGNING_PRIVATE_KEY` (`secret-path: /updater`) — обидва потрібні `tauri-apps/tauri-action`, щоб зібрати підписаний DMG з updater-артефактами.
+- **macOS-таргет — завжди `aarch64-apple-darwin`, ніколи `universal-apple-darwin`.** Без умовного галуження за кількістю `[[bin]]` у крейті: lipo-merge крок `tauri-action` зливає між арками лише головний GUI-бінарник, а будь-який додатковий `[[bin]]`-таргет лишається поза `universal-apple-darwin`-директорією — бандлер падає на `Failed to copy binary from ".../universal-apple-darwin/release/<bin>": ... does not exist`. Синхронно звузити `with.targets` кроку `dtolnay/rust-toolchain@…` до `aarch64-apple-darwin` (без `x86_64-apple-darwin`).
 
 ### `tauri.conf.json` — updater-артефакти й endpoint
 

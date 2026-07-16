@@ -242,6 +242,136 @@ JS-root без `.vue` отримує дефолтний baseline без `plugins
 
 Це запобігає випадковому коміту build-артефактів.
 
+## Vitest API — обов'язкові конвенції (для генерації тестів LLM)
+
+Цей розділ адресований генераторам тестів (LLM, local і cloud). Порушення будь-якого пункту — рівнозначне синтаксичній помилці: тест не запуститься або дасть хибно-позитивний результат.
+
+Канон: тести виконуються через **vitest** під Bun-рушієм (`bun run --bun vitest run`, див. `test.package_json`), а не через нативний `bun test` — `import ... from 'bun:test'` заборонено (`no-bun-test-import`). API нижче — саме vitest, не bun:test і не jest.
+
+### 1. Модульна система — лише ESM
+
+`*.test.mjs` завжди ESM; `require()` у `.mjs` кидає `ERR_REQUIRE_ESM`.
+
+✓ `import { foo } from '../foo.mjs'`
+✗ `const { foo } = require('../foo.mjs')`
+
+### 2. `vi.*` замість `jest.*`
+
+Проект використовує Vitest, не Jest. Будь-який `jest.fn()`, `jest.mock()`, `jest.spyOn()` — помилка компіляції або runtime-помилка.
+
+✓ `vi.fn()`, `vi.mock(...)`, `vi.spyOn(...)`
+✗ `jest.fn()`, `jest.mock(...)`, `jest.spyOn(...)`
+
+### 3. Кастинг mock-функцій — лише `vi.mocked()`
+
+✓ `vi.mocked(fetch).mockResolvedValue(res)`
+✗ `(fetch as vi.Mock).mockResolvedValue(res)` — TypeScript у `.mjs` не компілюється
+
+### 4. `toBe` vs `toEqual`
+
+`toBe` (Object.is) — для примітивів (`string`, `number`, `boolean`, `null`, `undefined`).
+`toEqual` (deep equality) — для об'єктів і масивів.
+
+`toBe({…})` для об'єктів **завжди false** (різні посилання) — використовуй `toEqual`.
+
+✓ `expect(count).toBe(3)`
+✓ `expect(result).toEqual({ ok: true })`
+✗ `expect(result).toBe({ ok: true })`
+
+**Перевірка** (`rules/test/vitest-api-conventions/main.mjs`): сканує `**/*.test.{mjs,js}`, шукає `expect(...).toBe(...)` з об'єктним/масивним літералом як першим аргументом — таке порівняння завжди `false` через reference equality, незалежно від вмісту.
+
+### 5. Моки для Date / часу
+
+`vi.spyOn(Date).mockReturnValue(…)` **не працює** з `new Date()` (TypeError: Date is not a constructor при `new`).
+
+✓
+
+```js
+vi.useFakeTimers()
+vi.setSystemTime(new Date('2024-01-01'))
+afterEach(() => vi.useRealTimers())
+```
+
+✗ `vi.spyOn(global, 'Date').mockReturnValue(new Date('2024-01-01'))`
+
+### 6. Моки для `process.env`
+
+`process.env.X = '…'` забруднює глобальний стан; `vi.spyOn(process, 'env')` не дає ізоляції між тестами.
+
+✓
+
+```js
+vi.stubEnv('KEY', 'val')
+afterEach(() => vi.unstubAllEnvs())
+```
+
+✗ `process.env.KEY = 'val'` (без відновлення)
+
+### 7. Модулі з top-level side-effect
+
+Якщо source-модуль читає `process.env` або викликає функцію на рівні модуля — env/моки мають бути встановлені **до** `import`; сам import — dynamic.
+
+✓
+
+```js
+vi.stubEnv('KEY', 'val')
+const { fn } = await import('../index.js')
+```
+
+✗ статичний `import { fn } from '../index.js'` коли source викликає функцію на рівні модуля
+
+### 8. Cleanup у `afterEach` — обов'язковий
+
+Після кожного тест-файлу з mock-ами — відновлення стану:
+
+```js
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllEnvs()
+  vi.useRealTimers() // лише якщо vi.useFakeTimers() використовувався
+})
+```
+
+Пропуск `afterEach` — витік стану між тестами в одному файлі.
+
+### 9. FormData у Node.js
+
+`formData.get('field')` повертає `Blob | string | null`. Для file-полів — `toBeInstanceOf(Blob)`, НЕ `toBe('filename')`.
+
+✓ `expect(formData.get('file')).toBeInstanceOf(Blob)`
+✗ `expect(formData.get('file')).toBe('photo.jpg')`
+
+---
+
+### Канонічний шаблон тест-файлу
+
+```js
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { myFn } from '../my-module.mjs'
+
+vi.mock('../dep.mjs', () => ({ dep: vi.fn() }))
+
+beforeEach(() => {
+  vi.stubEnv('API_KEY', 'test-key')
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2024-06-01'))
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllEnvs()
+  vi.useRealTimers()
+})
+
+describe('myFn', () => {
+  it('повертає очікуване значення', async () => {
+    const result = await myFn()
+    expect(result).toEqual({ ok: true })
+  })
+})
+```
+
 ## Vitest: `pool: 'forks'` як захист від race у `process.cwd()`
 
 **`vitest-config-pool-forks`** (`rules/test/js/vitest-config-pool-forks.mjs`) — substring-перевірка `pool: 'forks'` у `vitest.config.mjs` (або legacy `vitest.config.js`; `.mjs` пріоритетніший).

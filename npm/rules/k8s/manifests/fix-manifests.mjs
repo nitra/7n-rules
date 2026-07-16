@@ -4,6 +4,7 @@
  * T0-autofix для `k8s/manifests` — детерміновані правки без LLM, керовані structured
  * `data` детектора (#3 fix-hints). Покриває механічні родини порушень k8s.mdc:
  *   - `gateway-httproute-v1beta1` — apiVersion v1beta1 → v1 (+ $schema-modeline);
+ *   - `batch-v1beta1-apiversion` — apiVersion batch/v1beta1 → batch/v1 (CronJob/Job);
  *   - `schema-modeline-first` — перемістити `# yaml-language-server: $schema=…` у перший рядок;
  *   - `kustomization-patches-sort` — впорядкувати `patches[]` (реюз детекторних sort-ключів);
  *   - `deployment-strategy` — проставити канонічний `spec.strategy` RollingUpdate.
@@ -21,6 +22,7 @@ import {
   compareStringTuplesEn,
   kustomizationPatchSortKey,
   loadSnippetSpec,
+  replaceBatchV1beta1ApiVersionInYamlText,
   replaceGatewayHttpRouteV1beta1ApiVersionInYamlText,
   snippetNameForKind
 } from './main.mjs'
@@ -189,6 +191,15 @@ export const patterns = [
       return changed ? next : null
     },
     n => `gateway HTTPRoute apiVersion v1beta1 → v1: ${n} файл(ів)`
+  ),
+  fileTransformPattern(
+    'k8s-manifests-batch-v1beta1-apiversion',
+    'batch-v1beta1-apiversion',
+    content => {
+      const { changed, content: next } = replaceBatchV1beta1ApiVersionInYamlText(content)
+      return changed ? next : null
+    },
+    n => `batch apiVersion v1beta1 → v1: ${n} файл(ів)`
   ),
   fileTransformPattern(
     'k8s-manifests-schema-modeline-first',
