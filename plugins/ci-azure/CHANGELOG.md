@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.0] - 2026-07-16
+
+### Added
+
+- Mixin-концерни `lint_pipeline_*` (js/python/docker/k8s/style/php/rust/security/text): Azure-реалізація CI-lint намірів — обов'язковий script-степ `n-rules lint … --no-fix` у azure-pipelines.yml
+
 ## [1.1.0] - 2026-07-15
 
 ### Added

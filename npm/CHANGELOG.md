@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.0] - 2026-07-16
+
+### Changed
+
+- CI-концерни провайдерів: 12 workflow-концернів (lint_*_yml, npm_publish_yml, toolchain_cache, clean_merged_ignore_branches) перенесено у @7n/rules-ci-github; multi-dir mdc-інлайн mixin-концернів у дзеркала правил; рефакторинг aggregateRuleSources
+
 ## [1.5.1] - 2026-07-16
 
 ### Fixed
