@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.6] - 2026-07-16
+
+### Fixed
+
+- Прибрано борг self-lint: `CLAUDE.md`-генератор вставляв список без порожнього рядка перед ним (MD032); дедуплікація `collectCapabilityPermissionIds` (tauri/tool_surface ↔ tauri/updater) та скелета "обхід тестових файлів" (test/no-console-store-restore ↔ test/vitest-api-conventions, винесено у test/lib/collect-test-file-offenders.mjs)
+
+## [1.7.5] - 2026-07-16
+
+### Fixed
+
+- npm: підняти нижню межу @7n/llm-lib до ^2.7.0 (skills-cli.mjs імпортує ./acp, доданий лише у 2.7.0 — старіші 2.x без цього subpath ламали npx @7n/rules з ERR_PACKAGE_PATH_NOT_EXPORTED)
+
 ## [1.7.4] - 2026-07-16
 
 ### Fixed

@@ -256,9 +256,10 @@ async function checkLibRs(ws, cwd, reporter) {
  * @param {string} capDir абсолютний шлях до каталогу capabilities
  * @returns {Promise<Set<string>>} множина permission-ідентифікаторів
  */
-async function collectCapabilityPermissionIds(capDir) {
-  const files = await globby('*.json', { cwd: capDir, onlyFiles: true, gitignore: false })
+export async function collectCapabilityPermissionIds(capDir) {
   const ids = new Set()
+  if (!existsSync(capDir)) return ids
+  const files = await globby('*.json', { cwd: capDir, onlyFiles: true, gitignore: false })
   for (const file of files) {
     let cap
     try {

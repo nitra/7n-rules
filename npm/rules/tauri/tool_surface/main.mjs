@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { globby } from 'globby'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
-import { findTauriAppWorkspaces, groupCargoDepsBySection } from '../updater/main.mjs'
+import { collectCapabilityPermissionIds, findTauriAppWorkspaces, groupCargoDepsBySection } from '../updater/main.mjs'
 
 /** JS торкається плагіна, але crate відсутній у `src-tauri/Cargo.toml`. */
 export const PLUGIN_DEP_MISSING = 'tool-surface-plugin-dep-missing'
@@ -41,32 +41,6 @@ async function collectPluginUsages(srcDir) {
     for (const m of content.matchAll(INVOKE_PLUGIN_RE)) slugs.add(m[1])
   }
   return slugs
-}
-
-/**
- * Збирає всі permission-ідентифікатори з `capabilities/*.json` workspace-каталогу.
- * @param {string} capDir абсолютний шлях до каталогу capabilities
- * @returns {Promise<Set<string>>} множина permission-ідентифікаторів
- */
-async function collectCapabilityPermissionIds(capDir) {
-  const ids = new Set()
-  if (!existsSync(capDir)) return ids
-
-  const files = await globby('*.json', { cwd: capDir, onlyFiles: true, gitignore: false })
-  for (const file of files) {
-    let cap
-    try {
-      cap = JSON.parse(await readFile(join(capDir, file), 'utf8'))
-    } catch {
-      continue
-    }
-    const perms = Array.isArray(cap.permissions) ? cap.permissions : []
-    for (const p of perms) {
-      const id = typeof p === 'string' ? p : p?.identifier
-      if (id) ids.add(id)
-    }
-  }
-  return ids
 }
 
 /**

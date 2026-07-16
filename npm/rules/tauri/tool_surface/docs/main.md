@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/tauri/tool_surface/main.mjs
 docgen:
-  crc: 87b28b8d
+  crc: 35ae08a5
 ---
 
 ## Огляд

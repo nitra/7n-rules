@@ -72,3 +72,21 @@ Chosen option: "увімкнути `model_fallback` і спроєктувати 
 - Уточнено runbook-факт: HTTP endpoint `/v1/models/fallback` фактично не існує; попередній OpenAPI-парсинг дав хибний висновок через дублікати ключів.
 - Реальний спосіб увімкнути fallback — змінити `~/.omlx/settings.json`, зокрема `model_fallback`, і перезапустити omlx server.
 - Для wildcard fallback можна налаштувати mapping `"*"` або точніший `"mlx-community/*"` на `gemma-4-e4b-it-OptiQ-4bit`.
+
+## Update 2026-06-14
+
+- Масовий docgen-прогін на 266 файлах показав три різні класи omlx-збоїв: `ETIMEDOUT`/curl як transient, `memory ceiling` як systemic, `Prompt too long` як permanent.
+- Класифікатор `classifyOmlxError(message) → 'transient' | 'systemic' | 'permanent'` додано в `npm/lib/llm.mjs`.
+- `callOmlxRaw` у `npm/lib/omlx.mjs` отримав retry/backoff для transient-збоїв; у transcript зафіксовано hardcoded backoff `[2000, 8000]` мс і підтримку `backoffMs` в opts для тестів.
+- Permanent-файли переводяться у skip-лічильник замість повторних ретраїв.
+- `docgen-scan.mjs` поважає `.gitignore` через `git check-ignore --stdin`; `stderr` приглушено для graceful-поведінки поза git-репозиторієм.
+- `DEFAULT_OMLX_MODEL` видалено; модель має приходити з `N_LOCAL_MIN_MODEL` / `resolveModel('min')`, а відсутність моделі має падати fail-loud.
+- У `~/.omlx/settings.json` увімкнено `model.model_fallback: true`; curl-запит до неіснуючої моделі `foo-bar-baz` повернув відповідь замість 404.
+
+## Update 2026-06-14
+
+- Для systemic-збоїв docgen-оркестратор завершує batch з `exit 2` і actionable-повідомленням; невдалі файли лишаються stale і підбираються наступним прогоном через CRC.
+- Для великих файлів обрано pre-send byte-guard замість chunk+merge: якщо оцінка розміру перевищує `0.5 × (N_CURSOR_DOCGEN_CTX || 131072)`, файл instant-skipʼається з маркером `Prompt too long`.
+- Причина вибору guard: transcript фіксує, що проблемні файли корпусу були vendored Emscripten-блобами (`euscp*.js`), для яких chunk+merge не дає корисного результату.
+- `DEFAULT_OMLX_MODEL` прибрано з `npm/lib/omlx.mjs` і `npm/rules/doc-files/js/docgen-gen.mjs`; канонічний шлях резолву — `N_LOCAL_MIN_MODEL` через `resolveModel('min')`.
+- Transcript не містить підтвердженого негативного наслідку для fail-loud моделі; для byte-guard зафіксовано нейтральний ризик евристики `bytes / 4`.
