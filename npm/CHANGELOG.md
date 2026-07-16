@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.6] - 2026-07-16
+
+### Fixed
+
+- Прибрано борг self-lint: `CLAUDE.md`-генератор вставляв список без порожнього рядка перед ним (MD032); дедуплікація `collectCapabilityPermissionIds` (tauri/tool_surface ↔ tauri/updater) та скелета "обхід тестових файлів" (test/no-console-store-restore ↔ test/vitest-api-conventions, винесено у test/lib/collect-test-file-offenders.mjs)
+
 ## [1.7.5] - 2026-07-16
 
 ### Fixed
