@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.0] - 2026-07-16
+
+### Changed
+
+- `skill cursor/codex` тепер виконуються через `@7n/llm-lib/acp` (napi-міст до Rust `llm_cascade::acp`) замість власного JS ACP-клієнта; deprecated `skill claude` лишається окремим JS-шимом (`acp-runner.mjs`), бо Rust-крейт `claude` не моделює
+
 ## [1.6.0] - 2026-07-16
 
 ### Changed

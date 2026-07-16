@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.7.0] - 2026-07-16
+
+### Added
+
+- `runAcpAgent`/`resolveModel`/`oneShotLocalCloud` (`@7n/llm-lib/acp`) — napi-міст до Rust-крейта `llm_cascade` (`llm-lib/crates/llm-cascade-napi`): ACP-виклик `cursor`/`codex`, каскад тирів і local/cloud chat-виклик в одному процесі, без повторної реалізації протоколу в JS
+
 ## [2.6.2] - 2026-07-14
 
 ### Added
