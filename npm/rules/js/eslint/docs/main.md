@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/js/eslint/main.mjs
 docgen:
-  crc: 11a1340b
+  crc: 2d36631f
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99
@@ -31,3 +31,5 @@ lint — проводить статичний аналіз коду (пофай
 - Перехоплює помилки і не пропускає винятків назовні (fail-safe).
 
 **warnIgnored: false.** ESLint конструюється з `warnIgnored: false` — файли з delta-списку, що матчать ignore-патерни `eslint.config.js` (наприклад, синковані `.pi/extensions/**` чи згенеровані `npm/types/**`), не рахуються порушеннями.
+
+**Діагностика крашу oxlint.** Якщо oxlint завершився помилкою і json не розпарсено, у повідомлення DetectorError включаються exit-код і хвости stderr/stdout — інакше на CI причина (відсутній jsPlugin, конфіг, OOM) невидима.
