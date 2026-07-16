@@ -11,41 +11,6 @@ version: '2.1'
 
 `npx @7n/rules fix security`
 
-- `lint-security.yml`:
-
-```yaml
-name: Lint Security
-
-on:
-  push:
-    branches:
-      - dev
-      - main
-
-  pull_request:
-    branches:
-      - dev
-      - main
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  security:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - uses: trufflesecurity/trufflehog@main
-        with:
-          extra_args: --results=verified,unknown
-```
 - `package.json`:
 
 ```json
@@ -54,14 +19,6 @@ jobs:
   "devDependencies": { "trufflehog": "глобальний CLI — не додавай у devDependencies" }
 }
 ```
-
-## Наявність кроку TruffleHog у CI workflow
-
-Rego-пакет: `security.lint_security_yml`
-
-Цільові файли: `.github/workflows/lint-security.yml`
-
-Перевіряє, що серед `uses:` у workflow присутній крок `trufflesecurity/trufflehog@main`. Очікуваний перелік action-refs (не-`actions/*`) береться з `--data` через [lint-security.yml.snippet.yml](./template/lint-security.yml.snippet.yml). Універсальні кроки (`actions/*`) перевіряє `ga.workflow_common`.
 
 ## Заборона `trufflehog` у залежностях `package.json`
 
@@ -113,3 +70,11 @@ Concern `security.sample_secret` (`js/sample_secret.mjs`) сканує всі п
 **Важливо:** один regex-pattern на рядок, без TOML-обгортки; коментарі починаються з `#`.
 
 Перевірка (JS): `js/trufflehog.mjs` — впевнюється, що файл `.trufflehog-exclude` існує в корені й містить канонічні шаблони.
+
+## Наявність кроку TruffleHog у CI workflow
+
+Rego-пакет: `security.lint_security_yml`
+
+Цільові файли: `.github/workflows/lint-security.yml`
+
+Перевіряє, що серед `uses:` у workflow присутній крок `trufflesecurity/trufflehog@main`. Очікуваний перелік action-refs (не-`actions/*`) береться з `--data` через [lint-security.yml.snippet.yml](./template/lint-security.yml.snippet.yml). Універсальні кроки (`actions/*`) перевіряє `ga.workflow_common`.

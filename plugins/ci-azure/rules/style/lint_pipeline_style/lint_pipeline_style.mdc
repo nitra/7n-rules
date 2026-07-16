@@ -1,0 +1,13 @@
+## Azure Pipelines: обов'язковий lint-степ `style`
+
+Rego-пакет: `style.lint_pipeline_style` (mixin з плагіна `@7n/rules-ci-azure`)
+
+**Цільовий файл:** `azure-pipelines.yml`
+
+Серед `script`-кроків pipeline (будь-яка глибина — steps/jobs/stages) сукупно мають бути substrings `n-rules lint style` (приймається і `npx @7n/rules lint style`) та `--no-fix`. Це провайдер-аналог GitHub-workflow `lint-style.yml` з `@7n/rules-ci-github`: намір «CI-lint домену `style`» однаковий, реалізація — своя для кожного CI-провайдера.
+
+```yaml
+steps:
+  - script: bunx n-rules lint style --no-fix
+    displayName: Lint style
+```

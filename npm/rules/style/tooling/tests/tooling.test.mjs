@@ -62,7 +62,7 @@ describe('check (style tooling)', () => {
     })
   })
 
-  test('exit 1 — відсутній lint-style.yml', async () => {
+  test('exit 0 — без lint-style.yml (existence вимагає плагін ci-github)', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), {
         name: 'x',
@@ -70,7 +70,7 @@ describe('check (style tooling)', () => {
       })
       await writeFile(join(dir, '.stylelintignore'), 'dist/\n', 'utf8')
       const result = await run(dir)
-      expect(result.violations.length).toBeGreaterThan(0)
+      expect(result.violations).toHaveLength(0)
     })
   })
 

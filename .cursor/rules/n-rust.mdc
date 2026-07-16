@@ -7,6 +7,29 @@ version: '1.4'
 
 Правило забезпечує форматування (rustfmt), лінт (clippy), CI workflow та покриття для Rust-проєктів.
 
+## Rego-gate: `cargo`, `rustfmt`, `clippy` заборонені у `package.json`
+
+Rego-пакет: `rust.package_json`
+
+Цільовий файл: `package.json`
+
+`cargo`, `rustfmt` і `clippy` — це частина **Rust toolchain**, а не npm-пакети. Вони **не додаються** у `dependencies`, `devDependencies` або `peerDependencies`. Встановлення:
+
+- **локально** — через `rustup` (`rustup component add rustfmt clippy`);
+- **у CI** — через крок `dtolnay/rust-toolchain@stable` із `with.components: rustfmt, clippy`.
+
+Gate видає deny, якщо `cargo`, `rustfmt` або `clippy` з'являється у будь-якій секції залежностей `package.json`.
+
+## Перевірка `.vscode/extensions.json` (Rego-gate)
+
+Rego-пакет: `rust.vscode_extensions`
+
+Цільовий файл: `.vscode/extensions.json`
+
+Семантика `contains`: кожен запис з канону має бути присутнім у `recommendations` — додаткові розширення дозволені. Канон завантажується через `--data` з template-сніпету.
+
+Канонічний template: [extensions.json.snippet.json](./template/extensions.json.snippet.json)
+
 ## Перевірка `.github/workflows/lint-rust.yml`
 
 Rego-пакет: `rust.lint_rust_yml`
@@ -24,19 +47,6 @@ Rego-пакет: `rust.lint_rust_yml`
 Вимога `Swatinem/rust-cache@v2` після `dtolnay/rust-toolchain@…` тут перевіряється лише для цього конкретного файлу (як частина канону). Та сама вимога для **будь-якого** іншого workflow (coverage, release/build через `tauri-apps/tauri-action`, кастомні) — concern `rust/toolchain_cache`.
 
 Tauri-проєкти (`src-tauri/Cargo.toml`) додатково потребують у цьому файлі apt-кроку системних залежностей Linux перед Clippy — concern `tauri/linux_deps` (tauri.mdc), не частина канону тут.
-
-## Rego-gate: `cargo`, `rustfmt`, `clippy` заборонені у `package.json`
-
-Rego-пакет: `rust.package_json`
-
-Цільовий файл: `package.json`
-
-`cargo`, `rustfmt` і `clippy` — це частина **Rust toolchain**, а не npm-пакети. Вони **не додаються** у `dependencies`, `devDependencies` або `peerDependencies`. Встановлення:
-
-- **локально** — через `rustup` (`rustup component add rustfmt clippy`);
-- **у CI** — через крок `dtolnay/rust-toolchain@stable` із `with.components: rustfmt, clippy`.
-
-Gate видає deny, якщо `cargo`, `rustfmt` або `clippy` з'являється у будь-якій секції залежностей `package.json`.
 
 ## Rust-cache після rust-toolchain — у будь-якому workflow
 
@@ -61,13 +71,3 @@ lint-workflow, цей — universal per-job перевірка для решти
 Автофікс (`fix-toolchain_cache.mjs`, T0, `fixability: config`) вставляє відсутній
 крок одразу після `dtolnay/rust-toolchain@…` (і `with.workspaces`, де потрібно)
 текстовим splice-ом — зберігає формат/коментарі, ідемпотентно.
-
-## Перевірка `.vscode/extensions.json` (Rego-gate)
-
-Rego-пакет: `rust.vscode_extensions`
-
-Цільовий файл: `.vscode/extensions.json`
-
-Семантика `contains`: кожен запис з канону має бути присутнім у `recommendations` — додаткові розширення дозволені. Канон завантажується через `--data` з template-сніпету.
-
-Канонічний template: [extensions.json.snippet.json](./template/extensions.json.snippet.json)

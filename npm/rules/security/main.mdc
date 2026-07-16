@@ -11,5 +11,4 @@ version: '2.1'
 
 `npx @7n/rules fix security`
 
-- [lint-security.yml.snippet.yml](./lint_security_yml/template/lint-security.yml.snippet.yml)
 - [package.json.deny.json](./package_json/template/package.json.deny.json)

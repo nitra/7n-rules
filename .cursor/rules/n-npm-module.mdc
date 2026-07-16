@@ -31,64 +31,10 @@ Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.g
 
 Rego-пакети (запускаються через `npx @7n/rules fix`):
 
-- `npm_module.npm_publish_yml` — template-driven перевірка `.github/workflows/npm-publish.yml` (deep-subset: усі обовʼязкові поля й кроки з канонічного сніпету).
 - `package.json`:
 
 ```json
 { "files": ["types"] }
-```
-- `npm-publish.yml`:
-
-```yaml
-name: npm-publish
-
-on:
-  push:
-    paths:
-      - 'npm/**'
-    branches:
-      - main
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  release-publish:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # commit-back версії + git-тег
-      id-token: write # КРИТИЧНО для OIDC!
-
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - uses: ./.github/actions/setup-bun-deps
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24' # includes npm@11.6.0
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Configure git identity + push auth
-        # persist-credentials лишається false (ga-rule, безпека): checkout не зберігає токен.
-        # Release робить commit-back `git push`, тож даємо job-scoped ephemeral GITHUB_TOKEN
-        # явно через remote-url (а не persisted у git config усього прогону).
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
-
-      - name: Release (bump + CHANGELOG + tag)
-        run: bunx n-rules release
-
-      - name: Publish package
-        uses: JS-DevTools/npm-publish@v4.1.5
-        with:
-          package: npm/package.json
 ```
 - `package.json`:
 

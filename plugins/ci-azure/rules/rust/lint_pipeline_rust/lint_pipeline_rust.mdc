@@ -1,0 +1,13 @@
+## Azure Pipelines: обов'язковий lint-степ `rust`
+
+Rego-пакет: `rust.lint_pipeline_rust` (mixin з плагіна `@7n/rules-ci-azure`)
+
+**Цільовий файл:** `azure-pipelines.yml`
+
+Серед `script`-кроків pipeline (будь-яка глибина — steps/jobs/stages) сукупно мають бути substrings `n-rules lint rust` (приймається і `npx @7n/rules lint rust`) та `--no-fix`. Це провайдер-аналог GitHub-workflow `lint-rust.yml` з `@7n/rules-ci-github`: намір «CI-lint домену `rust`» однаковий, реалізація — своя для кожного CI-провайдера.
+
+```yaml
+steps:
+  - script: bunx n-rules lint rust --no-fix
+    displayName: Lint rust
+```

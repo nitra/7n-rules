@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/js/check/main.mjs
 docgen:
-  crc: 8858d876
+  crc: 0b9c8a32
   model: manual
 ---
 

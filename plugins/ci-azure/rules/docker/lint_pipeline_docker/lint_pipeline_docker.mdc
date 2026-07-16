@@ -1,0 +1,13 @@
+## Azure Pipelines: обов'язковий lint-степ `docker`
+
+Rego-пакет: `docker.lint_pipeline_docker` (mixin з плагіна `@7n/rules-ci-azure`)
+
+**Цільовий файл:** `azure-pipelines.yml`
+
+Серед `script`-кроків pipeline (будь-яка глибина — steps/jobs/stages) сукупно мають бути substrings `n-rules lint docker` (приймається і `npx @7n/rules lint docker`) та `--no-fix`. Це провайдер-аналог GitHub-workflow `lint-docker.yml` з `@7n/rules-ci-github`: намір «CI-lint домену `docker`» однаковий, реалізація — своя для кожного CI-провайдера.
+
+```yaml
+steps:
+  - script: bunx n-rules lint docker --no-fix
+    displayName: Lint docker
+```

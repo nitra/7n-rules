@@ -13,50 +13,6 @@ version: '1.31'
 
 Rego-пакети — запускаються `npx @7n/rules lint js` або `conftest`:
 
-- `lint-js.yml`:
-
-```yaml
-name: Lint JS
-
-on:
-  push:
-    branches:
-      - dev
-      - main
-    paths:
-      - '**/*.js'
-      - '**/*.mjs'
-      - '**/*.cjs'
-      - '**/*.jsx'
-      - '**/*.ts'
-      - '**/*.tsx'
-      - '**/*.vue'
-      - '**/eslint.config.*'
-
-  pull_request:
-    branches:
-      - dev
-      - main
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  eslint:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-bun-deps
-
-      - name: Eslint
-        run: bunx n-rules lint js --no-fix
-```
 - `.jscpd.json`:
 
 ```json
@@ -72,7 +28,10 @@ jobs:
 
 ```json
 {
-  "recommendations": ["dbaeumer.vscode-eslint", "github.vscode-github-actions", "oxc.oxc-vscode"]
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "oxc.oxc-vscode"
+  ]
 }
 ```
 - `package.json`:
@@ -138,21 +97,6 @@ Rego-пакет: `js_lint.jscpd`
 
 Канон-snippet: [.jscpd.json.snippet.json](./template/.jscpd.json.snippet.json)
 
-## Rego-gate `.github/workflows/lint-js.yml`
-
-Rego-пакет: `js_lint.lint_js_yml`
-
-Цільовий файл: `.github/workflows/lint-js.yml`.
-
-Що перевіряється:
-
-- Наявність усіх `uses:`-кроків з канону (subset-of по `jobs.eslint.steps`); SHA-пін того самого action (`owner/action@<40-hex SHA>`, з тег-коментарем `# vX` чи без) задовольняє канонічний тег — НЕ замінюй наявний SHA-пін тегом
-- Наявність усіх рядків `run:` з канону (substring-match по всіх кроках)
-- `actions/checkout` (будь-який ref) має мати `with.persist-credentials: false` (inverse-check)
-- Заборона `--fix` у CI: `bunx oxlint ... --fix` або `eslint --fix` у будь-якому `run:` → deny
-
-Канон-snippet: [lint-js.yml.snippet.yml](./template/lint-js.yml.snippet.yml)
-
 ## Rego-gate `package.json`
 
 Rego-пакет: `js_lint.package_json`
@@ -180,3 +124,18 @@ Rego-пакет: `js_lint.vscode_extensions`
 - `recommendations` — subset-of: масив має містити всі три канонічні розширення (`dbaeumer.vscode-eslint`, `github.vscode-github-actions`, `oxc.oxc-vscode`)
 
 Канон-snippet: [extensions.json.snippet.json](./template/extensions.json.snippet.json)
+
+## Rego-gate `.github/workflows/lint-js.yml`
+
+Rego-пакет: `js_lint.lint_js_yml`
+
+Цільовий файл: `.github/workflows/lint-js.yml`.
+
+Що перевіряється:
+
+- Наявність усіх `uses:`-кроків з канону (subset-of по `jobs.eslint.steps`); SHA-пін того самого action (`owner/action@<40-hex SHA>`, з тег-коментарем `# vX` чи без) задовольняє канонічний тег — НЕ замінюй наявний SHA-пін тегом
+- Наявність усіх рядків `run:` з канону (substring-match по всіх кроках)
+- `actions/checkout` (будь-який ref) має мати `with.persist-credentials: false` (inverse-check)
+- Заборона `--fix` у CI: `bunx oxlint ... --fix` або `eslint --fix` у будь-якому `run:` → deny
+
+Канон-snippet: [lint-js.yml.snippet.yml](./template/lint-js.yml.snippet.yml)

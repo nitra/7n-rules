@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
+  "policy": {
+    "files": {
+      "single": ".github/workflows/lint-text.yml",
+      "required": true
+    },
+    "missingMessage": ".github/workflows/lint-text.yml не існує — створи за каноном правила (mixin @7n/rules-ci-github)"
+  }
+}

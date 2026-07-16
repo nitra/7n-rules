@@ -13,7 +13,6 @@ version: '1.31'
 
 Rego-пакети — запускаються `npx @7n/rules lint js` або `conftest`:
 
-- [lint-js.yml.snippet.yml](./lint_js_yml/template/lint-js.yml.snippet.yml)
 - [.jscpd.json.snippet.json](./jscpd_config/template/.jscpd.json.snippet.json)
 - [extensions.json.snippet.json](./vscode_extensions/template/extensions.json.snippet.json)
 - [package.json.snippet.json](./package_json/template/package.json.snippet.json)
