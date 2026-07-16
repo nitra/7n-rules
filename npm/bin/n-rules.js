@@ -265,53 +265,71 @@ async function aggregateRuleSources(rulesDirs) {
   const sources = new Map()
   /** @type {Map<string, string[]>} каталоги `rules/<id>/` mixin-джерел (не власник main.mdc) */
   const extras = new Map()
+  const perDirNames = await listRuleNamesPerDir(rulesDirs)
   for (const [i, dir] of rulesDirs.entries()) {
-    let names
-    if (i === 0) {
-      names = await discoverBundledRuleNames(dir) // ядро: відсутність каталогу — фатальна помилка
-    } else {
-      try {
-        names = await discoverBundledRuleNames(dir)
-      } catch {
-        continue // плагін без валідного rules/ — уже повідомлено у resolve-plugins
-      }
-    }
-    for (const name of names) {
+    for (const name of perDirNames[i]) {
       if (!sources.has(name)) sources.set(name, dir)
     }
-    // Mixin-теки: rules/<id>/ без main.mdc (плагін доповнює правило іншого джерела концернами).
-    if (i > 0) {
-      try {
-        const entries = await readdir(dir, { withFileTypes: true })
-        for (const e of entries) {
-          if (!e.isDirectory() || e.name.startsWith('.') || names.includes(e.name)) continue
-          const list = extras.get(e.name) ?? []
-          list.push(join(dir, e.name))
-          extras.set(e.name, list)
-        }
-      } catch {
-        /* нечитабельний rules/ плагіна — вже пропущений вище */
-      }
-    }
+    if (i > 0) await collectMixinDirs(dir, perDirNames[i], extras)
   }
   // Тека з main.mdc у плагіні для правила, яким володіє інше джерело, — теж mixin (дублікат id).
   for (const [i, dir] of rulesDirs.entries()) {
     if (i === 0) continue
-    try {
-      for (const name of await discoverBundledRuleNames(dir)) {
-        if (sources.get(name) === dir) {
-          continue
-        }
-
-        const list = extras.get(name) ?? []
-        list.push(join(dir, name))
-        extras.set(name, list)
-      }
-    } catch {
-      /* пропущено вище */
+    for (const name of perDirNames[i]) {
+      if (sources.get(name) === dir) continue
+      const list = extras.get(name) ?? []
+      list.push(join(dir, name))
+      extras.set(name, list)
     }
   }
   return { names: sources.keys().toArray(), sources, extras }
+}
+
+/**
+ * Імена правил (теки з `main.mdc`) кожного rules-каталогу. Для ядра (перший елемент)
+ * відсутність каталогу — фатальна помилка; для плагінів — порожній список
+ * (уже повідомлено у resolve-plugins).
+ * @param {string[]} rulesDirs упорядковані rules-каталоги
+ * @returns {Promise<string[][]>} імена правил per-dir у тому ж порядку
+ */
+async function listRuleNamesPerDir(rulesDirs) {
+  /** @type {string[][]} */
+  const out = []
+  for (const [i, dir] of rulesDirs.entries()) {
+    if (i === 0) {
+      out.push(await discoverBundledRuleNames(dir))
+      continue
+    }
+    try {
+      out.push(await discoverBundledRuleNames(dir))
+    } catch {
+      out.push([])
+    }
+  }
+  return out
+}
+
+/**
+ * Додає у `extras` mixin-теки плагіна: підкаталоги `rules/<id>/` БЕЗ `main.mdc`
+ * (плагін доповнює правило іншого джерела концернами).
+ * @param {string} dir rules-каталог плагіна
+ * @param {string[]} ownNames імена повних правил цього каталогу (з main.mdc)
+ * @param {Map<string, string[]>} extras акумулятор mixin-тек (мутується)
+ * @returns {Promise<void>}
+ */
+async function collectMixinDirs(dir, ownNames, extras) {
+  let entries
+  try {
+    entries = await readdir(dir, { withFileTypes: true })
+  } catch {
+    return // нечитабельний rules/ плагіна — вже пропущений вище
+  }
+  for (const e of entries) {
+    if (!e.isDirectory() || e.name.startsWith('.') || ownNames.includes(e.name)) continue
+    const list = extras.get(e.name) ?? []
+    list.push(join(dir, e.name))
+    extras.set(e.name, list)
+  }
 }
 
 /**

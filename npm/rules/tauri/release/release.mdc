@@ -10,7 +10,7 @@ Change-файл (`<app>/.changes/<ts>.md`) створюється **одразу
 чіпає код Tauri-workspace — той самий момент, що lint і doc-files, а не окремий крок після
 сигналу `changeset-missing` від delta-lint concern `changelog/presence`. Без нього мердж у
 `main` не тригерить `changelog-release.yml` (тригер — `paths: [app/.changes/**]`), і зміна
-осідає в репозиторії без релізу, доки хтось не помітить і не докомітить change-файл окремо.
+осідає в репозиторії без релізу, доки хтось не помітить і не додасть change-файл у коміт окремо.
 
 Команда: `npx @7n/n ch --bump <major|minor|patch> --section <Added|Changed|Fixed|Removed> --message "<опис>"`
 (інтерактивно — `npx @7n/n ch`). Повна модель (база порівняння, формат CHANGELOG,

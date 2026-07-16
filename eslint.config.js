@@ -117,7 +117,14 @@ export default [
   {
     files: ['**/*.test.mjs', '**/tests/**/*.mjs'],
     rules: {
-      'sonarjs/prefer-specific-assertions': 'off'
+      'sonarjs/prefer-specific-assertions': 'off',
+      // parameterized-tests: test.each-переписування — стилістика; явні окремі тести читаються
+      // краще для канон-фікстур. explicit-test-skip: guard-return у тестах (skip за відсутності
+      // локальної моделі/тулів) — усвідомлений патерн репо. publicly-writable-directories:
+      // тести навмисно працюють у tmpdir(). Не блокуємо CI на цій стилістиці.
+      'sonarjs/parameterized-tests': 'off',
+      'sonarjs/explicit-test-skip': 'off',
+      'sonarjs/publicly-writable-directories': 'off'
     }
   }
 ]

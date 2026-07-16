@@ -1,17 +1,17 @@
 /**
  * Виконання скіла через зовнішнього ACP-агента (Agent Client Protocol,
  * agentclientprotocol.com) — JSON-RPC поверх stdio замість сирого
- * `stdin`/`stdout`-піпінгу CLI.
+ * `stdin`/`stdout`-передавання через pipe CLI.
  *
  * Заміняє колишній `runLlmCli` (spawnSync + `-p`/`exec -`) для `cursor`/`codex`/`claude`:
  * підʼєднання йде через офіційний TS SDK `@zed-industries/agent-client-protocol`,
- * а дозволи на tool-calls (`session/request_permission`) автоапрувляться без участі
+ * а дозволи на tool-calls (`session/request_permission`) автоматично схвалюються без участі
  * людини — паритет із сьогоднішнім non-interactive `-p`-режимом (full user-trust,
  * без write-guard, як задокументовано в `@7n/llm-lib/agent-skill`).
  *
  * `cursor` — нативний ACP-режим самого `cursor-agent` (`cursor-agent acp`).
  * `codex`/`claude` — офіційні адаптери (`@agentclientprotocol/codex-acp`,
- * `@agentclientprotocol/claude-agent-acp`), що бандлять свій рушій — зовнішній
+ * `@agentclientprotocol/claude-agent-acp`), що вбудовують свій рушій — зовнішній
  * бінарник `codex`/`claude` у PATH більше не потрібен.
  */
 
@@ -26,7 +26,7 @@ const require = createRequire(import.meta.url)
 
 /**
  * Команда запуску ACP-агента на провайдер. `cursor` — зовнішній бінарник у PATH;
- * `codex`/`claude` — резолвляться з `bin`-запису бандлованого npm-пакета-адаптера.
+ * `codex`/`claude` — резолвляться з `bin`-запису вбудованого npm-пакета-адаптера.
  * @type {Record<'cursor' | 'codex' | 'claude', { bin: string, args: string[] } | { adapterPackage: string }>}
  */
 export const ACP_AGENT_COMMANDS = {
@@ -45,7 +45,7 @@ export function stopReasonToExitCode(stopReason) {
 }
 
 /**
- * Резолвить абсолютний шлях до bin-файлу бандлованого ACP-адаптера з його `package.json`.
+ * Резолвить абсолютний шлях до bin-файлу вбудованого ACP-адаптера з його `package.json`.
  * @param {string} adapterPackage назва npm-пакета адаптера (`@agentclientprotocol/codex-acp`, …)
  * @returns {string} абсолютний шлях до виконуваного файлу адаптера
  */
@@ -71,7 +71,7 @@ export function pickAutoPermissionOptionId(options) {
 }
 
 /**
- * ACP `Client` для скіл-раннера: автоапрув дозволів, стрім тексту в stdout,
+ * ACP `Client` для скіл-раннера: автоматичне схвалення дозволів, стрім тексту в stdout,
  * пряма реалізація файлового вводу-виводу поверх `node:fs` (full-trust режим).
  */
 class AcpSkillClient {
@@ -84,7 +84,7 @@ class AcpSkillClient {
 
   /**
    * @param {{ options: { optionId: string, kind: string }[] }} params запит дозволу від агента
-   * @returns {Promise<{ outcome: { outcome: 'selected', optionId: string } }>} автообраний варіант
+   * @returns {Promise<{ outcome: { outcome: 'selected', optionId: string } }>} автоматично обраний варіант
    */
   requestPermission(params) {
     return Promise.resolve({ outcome: { outcome: 'selected', optionId: pickAutoPermissionOptionId(params.options) } })
@@ -136,9 +136,7 @@ export async function runAcpRunner(kind, prompt, projectDir, logError, deps = {}
 
   const command = ACP_AGENT_COMMANDS[kind]
   const { bin, args } =
-    'adapterPackage' in command
-      ? { bin: process.execPath, args: [resolveBin(command.adapterPackage)] }
-      : command
+    'adapterPackage' in command ? { bin: process.execPath, args: [resolveBin(command.adapterPackage)] } : command
 
   if ('bin' in command && deps.isBinaryInPath && !deps.isBinaryInPath(command.bin)) {
     throw new Error(`\`${command.bin}\` not found in PATH. Install ${kind} CLI (ACP mode) or use \`skill pi\`.`)
