@@ -11,7 +11,11 @@
 use std::path::Path;
 use std::str::FromStr;
 
-use agent_client_protocol::schema::v1::InitializeRequest;
+use agent_client_protocol::schema::v1::{
+    InitializeRequest, PermissionOption, PermissionOptionId, PermissionOptionKind,
+    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
+    SelectedPermissionOutcome,
+};
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{AcpAgent, Client};
 
@@ -42,6 +46,26 @@ impl AcpAgentKind {
     }
 }
 
+/// Обирає варіант дозволу без участі людини: `AllowAlways` > `AllowOnce` > перший
+/// зі списку. Без цього хендлера `session/request_permission` лишається без
+/// відповіді — агент, дійшовши до першого tool-call (bash/edit), зависає
+/// назавжди в очікуванні (протокольний deadlock, не мережева/spawn-помилка).
+/// Full-trust one-shot виклик — дозволи не питаються інтерактивно (паритет із
+/// колишнім `pickAutoPermissionOptionId` у JS-шимі й офіційним
+/// `yolo_one_shot_client`-прикладом крейта).
+fn pick_auto_permission_option(options: &[PermissionOption]) -> Option<PermissionOptionId> {
+    options
+        .iter()
+        .find(|o| o.kind == PermissionOptionKind::AllowAlways)
+        .or_else(|| {
+            options
+                .iter()
+                .find(|o| o.kind == PermissionOptionKind::AllowOnce)
+        })
+        .or_else(|| options.first())
+        .map(|o| o.option_id.clone())
+}
+
 /// Один виклик через ACP: спавнить агента, відкриває сесію в `cwd`, надсилає
 /// `prompt`, читає повний текст відповіді до кінця ходу.
 ///
@@ -68,6 +92,19 @@ async fn prompt_agent(spec: AcpAgent, prompt: &str, cwd: &Path) -> Result<String
     let cwd = cwd.to_path_buf();
 
     Client
+        .builder()
+        .on_receive_request(
+            async move |request: RequestPermissionRequest, responder, _cx| {
+                let outcome = match pick_auto_permission_option(&request.options) {
+                    Some(option_id) => RequestPermissionOutcome::Selected(
+                        SelectedPermissionOutcome::new(option_id),
+                    ),
+                    None => RequestPermissionOutcome::Cancelled,
+                };
+                responder.respond(RequestPermissionResponse::new(outcome))
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
         .connect_with(spec, async move |cx| {
             cx.send_request(InitializeRequest::new(ProtocolVersion::V1))
                 .block_task()
@@ -104,6 +141,51 @@ mod tests {
     fn spec_parses_into_a_valid_stdio_agent() {
         assert!(AcpAgentKind::Cursor.spec().is_ok());
         assert!(AcpAgentKind::Codex.spec().is_ok());
+    }
+
+    fn permission_option(id: &'static str, kind: PermissionOptionKind) -> PermissionOption {
+        PermissionOption::new(id, id, kind)
+    }
+
+    #[test]
+    fn permission_picker_prefers_allow_always() {
+        let options = vec![
+            permission_option("once", PermissionOptionKind::AllowOnce),
+            permission_option("always", PermissionOptionKind::AllowAlways),
+        ];
+        assert_eq!(
+            pick_auto_permission_option(&options),
+            Some(PermissionOptionId::new("always"))
+        );
+    }
+
+    #[test]
+    fn permission_picker_falls_back_to_allow_once() {
+        let options = vec![
+            permission_option("reject", PermissionOptionKind::RejectOnce),
+            permission_option("once", PermissionOptionKind::AllowOnce),
+        ];
+        assert_eq!(
+            pick_auto_permission_option(&options),
+            Some(PermissionOptionId::new("once"))
+        );
+    }
+
+    #[test]
+    fn permission_picker_falls_back_to_first_option_without_allow_kinds() {
+        let options = vec![permission_option(
+            "reject",
+            PermissionOptionKind::RejectOnce,
+        )];
+        assert_eq!(
+            pick_auto_permission_option(&options),
+            Some(PermissionOptionId::new("reject"))
+        );
+    }
+
+    #[test]
+    fn permission_picker_none_for_empty_options() {
+        assert_eq!(pick_auto_permission_option(&[]), None);
     }
 
     /// Обкатка fail-fast поведінки: неіснуючий бінарник — драбина (Cursor →
