@@ -24,11 +24,11 @@ export function filterJsFiles(files) {
 /**
  * @param {string[]} args аргументи запуску oxlint
  * @param {string} cwd робочий каталог
- * @returns {{ status: number, stdout: string }} код завершення й stdout процесу
+ * @returns {{ status: number, stdout: string, stderr: string }} код завершення, stdout і stderr процесу
  */
 function runOxlintJson(args, cwd) {
   const r = spawnSync('bunx', args, { cwd, encoding: 'utf8', maxBuffer: JSON_MAX_BUFFER })
-  return { status: typeof r.status === 'number' ? r.status : 1, stdout: r.stdout ?? '' }
+  return { status: typeof r.status === 'number' ? r.status : 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' }
 }
 
 /**
@@ -64,7 +64,12 @@ async function collectFindings(js, cwd) {
   const oxRes = runOxlintJson(oxArgs, cwd)
   const ox = parseOxlint(oxRes.stdout)
   if (ox === null && oxRes.status !== 0) {
-    throw new Error('oxlint завершився з помилкою (не lint-порушення) — json не розпарсено')
+    // Хвости stdout/stderr — інакше на CI причина крашу (OOM, конфіг, версія) невидима.
+    const tail = [oxRes.stderr, oxRes.stdout]
+      .map(t => t.trim().slice(-500))
+      .filter(t => t !== '')
+      .join('\n--- stdout: ')
+    throw new Error(`oxlint завершився з помилкою (exit ${oxRes.status}, не lint-порушення) — json не розпарсено${tail ? `\n${tail}` : ''}`)
   }
   return [...(ox ?? []), ...es]
 }
