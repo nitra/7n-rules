@@ -1,0 +1,33 @@
+## Структура workflow-файлів та обов'язкові workflows
+
+У `.github/workflows/` лише **`.yml`** (не `.yaml`). Обов'язкові файли:
+
+- **`clean-ga-workflows.yml`**
+- **`clean-merged-branch.yml`**
+- **`lint-ga.yml`**
+- **`git-ai.yml`**
+
+Якщо є **`apply-k8s.yml`** — тригер `on.push.paths` має містити `**/k8s/**/*.yaml`.
+Якщо є **`apply-nats-consumer.yml`** — тригер `on.push.paths` має містити `**/consumer.yaml`.
+
+## Перевірка glob-патернів `on.push.paths`
+
+Кожен позитивний glob у `on.push.paths` / `on.pull_request.paths` (крім `!`-негацій та `*`-extension-фільтрів) має матчитися хоча б на один tracked файл у репозиторії (`git ls-files`). Шаблони на кшталт `*.vue` чи `{*.ts,*.js}` пропускаються — вони можуть бути заготовками для майбутніх файлів. Конкретні директорії (`some-dir/**`) — перевіряються.
+
+## Заборона MegaLinter
+
+**MegaLinter** не використовувати. Треба видалити:
+
+- workflow-файли з `oxsecurity/megalinter-action` або `megalinter/megalinter`
+- конфіги: `.mega-linter.yml`, `.megalinter.yaml`, `.mega-linter.yaml`
+- будь-які залежності та згадки в CI / pre-commit / документації
+
+## Shellcheck у PATH
+
+`actionlint` (через `bunx github-actionlint`) запускає shell-перевірки в кроках `run:` лише коли `shellcheck` доступний у PATH — інакше мовчки пропускає SC-правила. Локальний `bun lint-ga` лишається зеленим, а CI на `ubuntu-latest` (де shellcheck передвстановлений) падає.
+
+Встанови `shellcheck`:
+
+- macOS: `brew install shellcheck`
+- Debian/Ubuntu: `sudo apt-get install -y shellcheck`
+- Arch: `sudo pacman -S shellcheck`

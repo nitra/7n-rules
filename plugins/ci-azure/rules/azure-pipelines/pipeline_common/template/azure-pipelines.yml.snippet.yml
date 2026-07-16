@@ -1,0 +1,20 @@
+trigger:
+  branches:
+    include:
+      - dev
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - script: |
+      curl -fsSL https://bun.sh/install | bash
+      echo "##vso[task.prependpath]$HOME/.bun/bin"
+    displayName: Install bun
+
+  - script: bun install --frozen-lockfile
+    displayName: Install deps
+
+  - script: bunx n-rules lint --no-fix --full
+    displayName: Lint

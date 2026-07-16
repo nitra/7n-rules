@@ -1,0 +1,24 @@
+## Структура `clean-merged-branch.yml` — видалення злитих гілок
+
+Rego-пакет: `ga.clean_merged_branch`
+
+**Цільовий файл:** `.github/workflows/clean-merged-branch.yml`
+
+### Що перевіряється
+
+- `name` — точна відповідність значенню з template
+- `on.schedule[].cron` — має містити cron із template (`0 1 15 * *`)
+- `on.workflow_dispatch` — має бути об'єктом `{}`
+- `jobs.cleanup_old_branches` — job має існувати
+- `jobs.cleanup_old_branches.permissions` — кожне поле із template (`contents: write`, `pull-requests: read`)
+- `steps` — має бути рівно 2 кроки
+- `steps[0].id` — `delete_stuff`; `steps[0].uses` — `phpdocker-io/github-actions-delete-abandoned-branches@v2.0.3`
+- `steps[0].with.github_token`, `last_commit_age_days` — за template
+- `steps[0].with.ignore_branches` — має містити всі гілки з template (`main,dev`)
+- `steps[0].with.dry_run` — `no` (нормалізується: YAML 1.1 `no` → boolean `false` у conftest)
+- `steps[1].name` — за template; `steps[1].env.DELETED_BRANCHES` — за template
+- `steps[1].run` — містить `Deleted branches:` та `${DELETED_BRANCHES}`
+
+**Pin-aware `uses`:** SHA-пін того самого action (`owner/action@<40-hex SHA>`, з тег-коментарем `# vX` чи без) задовольняє канонічний тег із template. Якщо в репо вже SHA-пін (zizmor-політика ref-pin) — НЕ замінюй його тегом.
+
+Канон: [clean-merged-branch.yml.snippet.yml](./template/clean-merged-branch.yml.snippet.yml)

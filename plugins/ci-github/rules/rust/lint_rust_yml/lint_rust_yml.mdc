@@ -1,0 +1,17 @@
+## Перевірка `.github/workflows/lint-rust.yml`
+
+Rego-пакет: `rust.lint_rust_yml`
+
+Цільовий файл: `.github/workflows/lint-rust.yml`
+
+Перевіряє:
+
+- кожен `uses`-крок з канону присутній у workflow (підмножина): `actions/checkout@v6`, `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`
+- кожен `run`-крок з канону присутній як підрядок серед усіх `run`-кроків: `cargo fmt --all -- --check`, `cargo clippy --all-targets --all-features -- -D warnings`
+- канон завантажується через `--data` з template-сніпету — drift-safe: зміна шаблону автоматично рухає перевірку
+
+Канонічний template: [lint-rust.yml.snippet.yml](./template/lint-rust.yml.snippet.yml)
+
+Вимога `Swatinem/rust-cache@v2` після `dtolnay/rust-toolchain@…` тут перевіряється лише для цього конкретного файлу (як частина канону). Та сама вимога для **будь-якого** іншого workflow (coverage, release/build через `tauri-apps/tauri-action`, кастомні) — concern `rust/toolchain_cache`.
+
+Tauri-проєкти (`src-tauri/Cargo.toml`) додатково потребують у цьому файлі apt-кроку системних залежностей Linux перед Clippy — concern `tauri/linux_deps` (tauri.mdc), не частина канону тут.

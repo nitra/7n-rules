@@ -1,0 +1,13 @@
+## Azure Pipelines: обов'язковий lint-степ `text`
+
+Rego-пакет: `text.lint_pipeline_text` (mixin з плагіна `@7n/rules-ci-azure`)
+
+**Цільовий файл:** `azure-pipelines.yml`
+
+Серед `script`-кроків pipeline (будь-яка глибина — steps/jobs/stages) сукупно мають бути substrings `n-rules lint text` (приймається і `npx @7n/rules lint text`) та `--no-fix`. Це провайдер-аналог GitHub-workflow `lint-text.yml` з `@7n/rules-ci-github`: намір «CI-lint домену `text`» однаковий, реалізація — своя для кожного CI-провайдера.
+
+```yaml
+steps:
+  - script: bunx n-rules lint text --no-fix
+    displayName: Lint text
+```

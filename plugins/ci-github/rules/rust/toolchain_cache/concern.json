@@ -1,0 +1,11 @@
+{
+  "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
+  "fixability": "config",
+  "lint": {
+    "scope": "full",
+    "glob": [
+      ".github/workflows/*.yml",
+      ".github/workflows/*.yaml"
+    ]
+  }
+}

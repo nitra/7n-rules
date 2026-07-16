@@ -1,0 +1,23 @@
+## Структура `.github/workflows/lint-php.yml`
+
+Rego-пакет: `php.lint_php_yml`
+
+Цільовий файл: `.github/workflows/lint-php.yml` (парситься як YAML).
+
+Перевіряє, що у workflow присутні всі канонічні `run:`-кроки з template-сніпету — крок `n-rules lint php --no-fix` має бути в одному зі steps jobs.
+
+Канонічний template-сніпет: [lint-php.yml.snippet.yml](./template/lint-php.yml.snippet.yml)
+
+**✓ Правильно** — job `php` містить крок:
+
+```yaml
+- name: Lint PHP
+  run: n-rules lint php --no-fix
+```
+
+**✗ Неправильно** — крок відсутній або містить інший run-рядок:
+
+```yaml
+- name: Lint PHP
+  run: echo something
+```

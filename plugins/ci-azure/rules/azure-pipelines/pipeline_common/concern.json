@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
+  "policy": {
+    "files": {
+      "single": "azure-pipelines.yml",
+      "required": true
+    },
+    "missingMessage": "azure-pipelines.yml не існує — створи за каноном azure-pipelines.mdc"
+  }
+}

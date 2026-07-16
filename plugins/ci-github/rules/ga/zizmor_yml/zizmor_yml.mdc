@@ -1,0 +1,9 @@
+## `.github/zizmor.yml` — конфігурація zizmor для unpinned-uses
+
+Rego-пакет: `ga.zizmor_yml`
+
+**Цільовий файл:** `.github/zizmor.yml`
+
+Перевіряє `rules.unpinned-uses.config.policies["*"]` — значення має точно відповідати template (`ref-pin`). Всі вкладені об'єкти читаються через `object.get` із дефолтами, тож відсутні ключі коректно детектуються як порушення.
+
+Канон: [zizmor.yml.snippet.yml](./template/zizmor.yml.snippet.yml)

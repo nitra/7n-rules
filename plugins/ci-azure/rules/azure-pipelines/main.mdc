@@ -1,0 +1,78 @@
+---
+description: Канон Azure Pipelines — структура azure-pipelines.yml, обов'язковий lint-степ n-rules, розширення VS Code
+version: '1.0'
+globs: "azure-pipelines.yml"
+alwaysApply: false
+---
+
+Правило **azure-pipelines** (плагін `@7n/rules-ci-azure`) перевіряє канонічну структуру `azure-pipelines.yml` у корені репозиторію та налаштування VS Code для роботи з Azure Pipelines. Аналог правила `ga` (плагін `@7n/rules-ci-github`) для репозиторіїв на Azure DevOps.
+
+- `azure-pipelines.yml`:
+
+```yaml
+trigger:
+  branches:
+    include:
+      - dev
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - script: |
+      curl -fsSL https://bun.sh/install | bash
+      echo "##vso[task.prependpath]$HOME/.bun/bin"
+    displayName: Install bun
+
+  - script: bun install --frozen-lockfile
+    displayName: Install deps
+
+  - script: bunx n-rules lint --no-fix --full
+    displayName: Lint
+```
+
+- `extensions.json`:
+
+```json
+{ "recommendations": ["ms-azure-devops.azure-pipelines"] }
+```
+
+## Структура `azure-pipelines.yml` — базовий канон
+
+Rego-пакет: `azure_pipelines.pipeline_common`
+
+**Цільовий файл:** `azure-pipelines.yml`
+
+### Що перевіряється
+
+- `trigger` — має містити гілки з template (`dev`, `main`); приймається і shorthand-форма `trigger: [dev, main]`, і обʼєктна `trigger.branches.include`
+- `pool.vmImage` — відповідно до template (`ubuntu-latest`); перевіряється кореневий `pool` (для multi-stage pipeline достатньо, щоб хоч один `pool.vmImage` збігався)
+
+Канон: [azure-pipelines.yml.snippet.yml](./pipeline_common/template/azure-pipelines.yml.snippet.yml)
+
+## Обов'язковий lint-степ — `n-rules lint --no-fix`
+
+Rego-пакет: `azure_pipelines.lint_pipeline`
+
+**Цільовий файл:** `azure-pipelines.yml`
+
+### Що перевіряється
+
+- серед усіх `script`-кроків pipeline (на будь-якій глибині — steps/jobs/stages) сукупно мають бути substrings:
+  - `n-rules lint` — запуск уніфікованого лінту
+  - `--no-fix` — CI-режим без мутацій
+
+Substring-перевірки замість exact-match — Azure YAML допускає різні розкладки (плоскі steps, jobs, stages), а команда може мати додаткові аргументи (`--full`, конкретні правила).
+
+Канон: [azure-pipelines-lint.yml.snippet.yml](./lint_pipeline/template/azure-pipelines-lint.yml.snippet.yml)
+
+## `.vscode/extensions.json` — розширення для Azure Pipelines
+
+Rego-пакет: `azure_pipelines.vscode_extensions`
+
+**Цільовий файл:** `.vscode/extensions.json`
+
+Кожне розширення з template (`ms-azure-devops.azure-pipelines`) має бути присутнє у `recommendations`. Додаткові розширення від інших правил — допустимі (subset-перевірка).
+
+Канон: [extensions.json.snippet.json](./vscode_extensions/template/extensions.json.snippet.json)

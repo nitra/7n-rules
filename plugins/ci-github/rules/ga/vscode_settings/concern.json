@@ -1,0 +1,11 @@
+{
+  "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
+  "fixability": "config",
+  "policy": {
+    "files": {
+      "single": ".vscode/settings.json",
+      "required": true
+    },
+    "missingMessage": ".vscode/settings.json не існує — додай [github-actions-workflow].editor.defaultFormatter (ga.mdc)"
+  }
+}

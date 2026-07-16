@@ -1,0 +1,13 @@
+## Azure Pipelines: обов'язковий lint-степ `php`
+
+Rego-пакет: `php.lint_pipeline_php` (mixin з плагіна `@7n/rules-ci-azure`)
+
+**Цільовий файл:** `azure-pipelines.yml`
+
+Серед `script`-кроків pipeline (будь-яка глибина — steps/jobs/stages) сукупно мають бути substrings `n-rules lint php` (приймається і `npx @7n/rules lint php`) та `--no-fix`. Це провайдер-аналог GitHub-workflow `lint-php.yml` з `@7n/rules-ci-github`: намір «CI-lint домену `php`» однаковий, реалізація — своя для кожного CI-провайдера.
+
+```yaml
+steps:
+  - script: bunx n-rules lint php --no-fix
+    displayName: Lint php
+```
