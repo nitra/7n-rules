@@ -93,7 +93,6 @@ dist/
 .claude/hooks/.normalize-state
 .claude/hooks/.normalize.lock
 `
-  await mkdir(join(pkgRoot, 'rules/adr/js/templates/hooks'), { recursive: true })
   await writeFile(join(pkgRoot, ADR_GITIGNORE_SNIPPET_REL), gitignoreSnippet, 'utf8')
   await mkdir(join(pkgRoot, '.pi-template/extensions'), { recursive: true })
   await writeFile(
@@ -518,6 +517,20 @@ describe('syncClaudeConfig (інтеграція)', () => {
       const gitignoreContent = await readFile(join(cwdAbs, '.gitignore'), 'utf8')
       const lines = gitignoreContent.split('\n').filter(l => l.includes('.claude/hooks'))
       expect(lines.filter(l => l.includes('*.log')).length).toBe(1)
+    })
+  })
+
+  test('ADR_GITIGNORE_SNIPPET_REL: реальний канонічний фрагмент існує в пакеті й застосовується', async () => {
+    const realPkgRoot = join(HERE, '..', '..')
+    expect(existsSync(join(realPkgRoot, ADR_GITIGNORE_SNIPPET_REL))).toBe(true)
+    await withTmpDir(async cwdAbs => {
+      const result = await syncGitignoreAdrFragment(cwdAbs, realPkgRoot)
+      expect(result.written).toBe(true)
+      const gi = await readFile(join(cwdAbs, '.gitignore'), 'utf8')
+      expect(gi).toContain('.claude/hooks/*.log')
+      expect(gi).toContain('.claude/hooks/.normalize-state')
+      expect(gi).toContain('.claude/hooks/.normalize.lock')
+      expect(gi).toContain('.claude/scheduled_tasks.lock')
     })
   })
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.1] - 2026-07-16
+
+### Fixed
+
+- sync-claude-config: відновлено `.gitignore.snippet` для ADR Stop-hook (загублено при переструктуруванні rules/adr на per-concern layout)
+
 ## [1.5.0] - 2026-07-15
 
 ### Added
