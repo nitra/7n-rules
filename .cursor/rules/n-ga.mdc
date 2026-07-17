@@ -301,7 +301,10 @@ Rego-пакет: `ga.workflow_common`
 
 ### Що перевіряється
 
-- **concurrency** — обов'язкова наявність блоку; `group` = `${{ github.ref }}-${{ github.workflow }}`; `cancel-in-progress: true`
+- **concurrency** — обов'язкова наявність блоку; два допустимі режими:
+  - канонічний CI: `group` = `${{ github.ref }}-${{ github.workflow }}` + `cancel-in-progress: true`
+  - release-серіалізація: статичний `group` (без `${{ }}`-виразів, глобальний lock) + `cancel-in-progress: false` — для workflow, що піднімають версію/тег/CHANGELOG і не можуть бути скасовані на півдорозі; відсутній `cancel-in-progress` = `false` (семантика GitHub)
+  - змішані комбінації (статичний `group` + `true`, per-ref `group` + `false`) — заборонені
 - **Заборонені кроки** — `oven-sh/setup-bun`, `actions/cache`, `bun install` у будь-якому `uses:`/`run:` (мають бути інкапсульовані у composite `setup-bun-deps`)
 - **Порядок кроків** — якщо є `setup-bun-deps`, перед ним обов'язковий `actions/checkout@`
 - **Shell-продовження** — `\` перед переносом рядка у `run:` заборонено; треба `run: >-`
