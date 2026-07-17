@@ -90,3 +90,63 @@ test_deny_checkout_with_persist_credentials_true if {
 test_allow_checkout_with_persist_credentials_false if {
 	count(workflow_common.deny) == 0 with input as wf_ok_v6 with data.template as template_data
 }
+
+# ── concurrency: режим release-серіалізації (статичний group + cancel: false) ─
+
+wf_release_lock := {
+	"concurrency": {"group": "changelog-release", "cancel-in-progress": false},
+	"jobs": {"release": {"steps": [{"run": "echo release"}]}},
+}
+
+test_release_lock_pass if {
+	count(workflow_common.deny) == 0 with input as wf_release_lock
+		with data.template as template_data
+}
+
+# Відсутній cancel-in-progress = false за семантикою GitHub — режим lock валідний.
+test_release_lock_missing_cancel_pass if {
+	wf := {
+		"concurrency": {"group": "changelog-release"},
+		"jobs": {"release": {"steps": [{"run": "echo release"}]}},
+	}
+	count(workflow_common.deny) == 0 with input as wf with data.template as template_data
+}
+
+test_release_lock_cancel_true_denied if {
+	wf := {
+		"concurrency": {"group": "changelog-release", "cancel-in-progress": true},
+		"jobs": {"release": {"steps": [{"run": "echo release"}]}},
+	}
+	some msg in workflow_common.deny with input as wf with data.template as template_data
+	contains(msg, "cancel-in-progress: false")
+}
+
+# Канонічний per-ref group без cancel-in-progress — треба явний true.
+test_canonical_group_missing_cancel_denied if {
+	wf := {
+		"concurrency": {"group": "${{ github.ref }}-${{ github.workflow }}"},
+		"jobs": {"ci": {"steps": [{"run": "echo ci"}]}},
+	}
+	some msg in workflow_common.deny with input as wf with data.template as template_data
+	contains(msg, "cancel-in-progress має бути true")
+}
+
+# Динамічний, але не канонічний group — не є статичним lock, deny.
+test_dynamic_wrong_group_denied if {
+	wf := {
+		"concurrency": {"group": "${{ github.ref }}", "cancel-in-progress": true},
+		"jobs": {"ci": {"steps": [{"run": "echo ci"}]}},
+	}
+	some msg in workflow_common.deny with input as wf with data.template as template_data
+	contains(msg, "concurrency.group має бути")
+}
+
+# Порожній/відсутній group — deny по group, а не по режиму lock.
+test_missing_group_denied if {
+	wf := {
+		"concurrency": {"cancel-in-progress": true},
+		"jobs": {"ci": {"steps": [{"run": "echo ci"}]}},
+	}
+	some msg in workflow_common.deny with input as wf with data.template as template_data
+	contains(msg, "concurrency.group має бути")
+}
