@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.4] - 2026-07-17
+
+### Fixed
+
+- text/run-v8r: включати причину провалу v8r (stdout+stderr, без noise) у violation-повідомлення замість голого коду виходу
+- k8s/manifests: форматування tests/check-schema.test.mjs (oxfmt)
+
 ## [1.8.3] - 2026-07-17
 
 ### Changed
