@@ -5,7 +5,8 @@
  *   - formatReport: детермінований markdown-звіт;
  *   - backupWorkspacePackageFiles/cleanupBackups: реальні tmp-файли;
  *   - findCargoManifests: інжектований spawnFn;
- *   - runTazeOrchestrator: повна ітерація з усіма інжектами (без реальних bunx/LLM).
+ *   - findPyprojectManifest/backupUvManifest/cleanupUvBackups: реальні tmp-файли;
+ *   - runTazeOrchestrator: повна ітерація з усіма інжектами (без реальних bunx/cargo/uv/LLM).
  */
 import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
@@ -15,13 +16,17 @@ import { describe, expect, test } from 'vitest'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 import {
   backupCargoManifests,
+  backupUvManifest,
   backupWorkspacePackageFiles,
   buildCargoDependencyPrompt,
   buildDependencyPrompt,
+  buildUvDependencyPrompt,
   callRunner,
   cleanupBackups,
   cleanupCargoBackups,
+  cleanupUvBackups,
   findCargoManifests,
+  findPyprojectManifest,
   formatReport,
   runTazeOrchestrator
 } from '../orchestrate.mjs'
@@ -83,6 +88,28 @@ describe('buildCargoDependencyPrompt', () => {
   test('не згадує детерміновані кроки 1-3/7/8 (лише 4-6)', () => {
     const prompt = buildCargoDependencyPrompt({ manifest: 'Cargo.toml', pkg: 'serde', from: '1', to: '2' })
     expect(prompt).not.toContain('cargo upgrade')
+  })
+})
+
+describe('buildUvDependencyPrompt', () => {
+  test('містить пакет, маніфест і версії', () => {
+    const prompt = buildUvDependencyPrompt({
+      manifest: 'pyproject.toml',
+      pkg: 'typer',
+      from: '0.19.1',
+      to: '0.27.0'
+    })
+    expect(prompt).toContain('typer')
+    expect(prompt).toContain('pyproject.toml')
+    expect(prompt).toContain('0.19.1 → 0.27.0')
+    expect(prompt).toContain('pypi.org')
+    expect(prompt).toContain('rg -n --type py')
+  })
+
+  test('не змішує з Rust/npm-командами інших гілок', () => {
+    const prompt = buildUvDependencyPrompt({ manifest: 'pyproject.toml', pkg: 'httpx', from: '0.27.0', to: '1.0.0' })
+    expect(prompt).not.toContain('cargo')
+    expect(prompt).not.toContain('bunx taze')
   })
 })
 
@@ -191,6 +218,46 @@ describe('formatReport', () => {
     // 1 (npm totalChanged) + 2 (rust minorPatch) + 1 (rust major-результат) = 4
     expect(report).toContain('Всього змінено:** 4')
   })
+
+  test('pyproject.toml знайдено, але Python-гілку пропущено (uv відсутній)', () => {
+    const report = formatReport({
+      minorPatch: 0,
+      totalChanged: 0,
+      results: [],
+      rust: NO_RUST,
+      python: {
+        manifests: ['pyproject.toml'],
+        processed: false,
+        skippedReason: '`uv` не встановлено',
+        minorPatch: 0,
+        results: []
+      }
+    })
+    expect(report).toContain('### Python-пакети (uv)')
+    expect(report).toContain('⏭ Пропущено (`uv` не встановлено)')
+    expect(report).toContain('pyproject.toml')
+    expect(report).toContain('Всього змінено:** 0')
+  })
+
+  test('Python-гілку оброблено — окремий підрахунок у "Всього змінено"', () => {
+    const report = formatReport({
+      minorPatch: 1,
+      totalChanged: 1,
+      results: [],
+      rust: NO_RUST,
+      python: {
+        manifests: ['pyproject.toml'],
+        processed: true,
+        skippedReason: null,
+        minorPatch: 3,
+        results: [{ pkg: 'typer', manifest: 'pyproject.toml', from: '0.19.1', to: '0.27.0', ok: true, error: null }]
+      }
+    })
+    expect(report).toContain('### Python-пакети (uv)')
+    expect(report).toContain('✅ `typer` (pyproject.toml): 0.19.1 → 0.27.0')
+    // 1 (npm totalChanged) + 3 (python minorPatch) + 1 (python major-результат) = 5
+    expect(report).toContain('Всього змінено:** 5')
+  })
 })
 
 describe('backupWorkspacePackageFiles + cleanupBackups', () => {
@@ -265,6 +332,47 @@ describe('findCargoManifests', () => {
 
   test('порожній stdout → порожній список', () => {
     expect(findCargoManifests('/repo', { spawnFn: () => ({ status: 0, stdout: '', stderr: '' }) })).toEqual([])
+  })
+})
+
+describe('findPyprojectManifest', () => {
+  test('pyproject.toml існує → список з одним записом', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]', 'utf8')
+      expect(findPyprojectManifest(dir)).toEqual(['pyproject.toml'])
+    })
+  })
+
+  test('pyproject.toml відсутній → порожній список', async () => {
+    await withTmpDir(dir => {
+      expect(findPyprojectManifest(dir)).toEqual([])
+    })
+  })
+})
+
+describe('backupUvManifest + cleanupUvBackups', () => {
+  test('бекапить pyproject.toml + uv.lock, прибирає після', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]', 'utf8')
+      await writeFile(join(dir, 'uv.lock'), 'version = 1', 'utf8')
+
+      await backupUvManifest(dir)
+      expect(existsSync(join(dir, 'pyproject.toml.taze-bak'))).toBe(true)
+      expect(existsSync(join(dir, 'uv.lock.taze-bak'))).toBe(true)
+
+      await cleanupUvBackups(dir)
+      expect(existsSync(join(dir, 'pyproject.toml.taze-bak'))).toBe(false)
+      expect(existsSync(join(dir, 'uv.lock.taze-bak'))).toBe(false)
+    })
+  })
+
+  test('без uv.lock — бекапить лише pyproject.toml, не падає', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]', 'utf8')
+      await backupUvManifest(dir)
+      expect(existsSync(join(dir, 'pyproject.toml.taze-bak'))).toBe(true)
+      expect(existsSync(join(dir, 'uv.lock.taze-bak'))).toBe(false)
+    })
   })
 })
 
@@ -456,5 +564,81 @@ describe('runTazeOrchestrator', () => {
     expect(result.rustResults).toEqual([{ ...major[0], ok: true, text: 'сумісно', error: null }])
     expect(result.report).toContain('### Rust-крейти')
     expect(result.report).toContain('✅ `genai`')
+  })
+
+  test('Python: pyproject.toml знайдено, uv відсутній → пропущено, npm/rust-гілку не зачіпає', async () => {
+    const uvCalls = []
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\ndependencies = []', 'utf8')
+
+      const result = await runTazeOrchestrator({
+        cwd: dir,
+        runner: 'pi',
+        log: noop,
+        deps: {
+          spawnFn: cmd => {
+            if (cmd === 'uv') {
+              uvCalls.push(cmd)
+              return { status: 1, stdout: '', stderr: 'command not found: uv' }
+            }
+            return fakeSpawn(cmd)
+          },
+          getMonorepoPackageRootDirs: () => ['.'],
+          copyFile: noop,
+          rm: noop,
+          collectTazeDiff: () => ({ major: [], minorPatch: 0, totalChanged: 0, comparedWorkspaces: 1 })
+        }
+      })
+
+      // Лише перевірка версії (`uv --version`) — bump-цикл не викликається.
+      expect(uvCalls).toHaveLength(1)
+      expect(result.ok).toBe(true)
+      expect(result.pythonResults).toEqual([])
+      expect(result.report).toContain('### Python-пакети (uv)')
+      expect(result.report).toContain('⏭ Пропущено')
+    })
+  })
+
+  test('Python: uv доступний — bump/diff/ітерація по кожному major-пакету', async () => {
+    const runnerCalls = []
+    const bumpCalls = []
+    const major = [{ manifest: 'pyproject.toml', pkg: 'typer', from: '0.19.1', to: '0.27.0' }]
+
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\ndependencies = ["typer>=0.19.1"]', 'utf8')
+
+      const result = await runTazeOrchestrator({
+        cwd: dir,
+        runner: 'codex',
+        log: noop,
+        deps: {
+          spawnFn: fakeSpawn,
+          getMonorepoPackageRootDirs: () => ['.'],
+          copyFile: noop,
+          rm: noop,
+          collectTazeDiff: () => ({ major: [], minorPatch: 0, totalChanged: 0, comparedWorkspaces: 1 }),
+          bumpUvDependencies: (...args) => {
+            bumpCalls.push(args)
+          },
+          collectUvDiff: cwd => {
+            expect(cwd).toBe(dir)
+            return { major, minorPatch: 1, totalChanged: 2, comparedManifests: 1 }
+          },
+          callRunner: (runner, prompt, cwd) => {
+            runnerCalls.push({ runner, prompt, cwd })
+            return { ok: true, text: 'сумісно', error: null }
+          }
+        }
+      })
+
+      expect(bumpCalls).toHaveLength(1)
+      expect(runnerCalls).toHaveLength(1)
+      expect(runnerCalls[0].runner).toBe('codex')
+      expect(runnerCalls[0].prompt).toContain('typer')
+      expect(result.ok).toBe(true)
+      expect(result.pythonResults).toEqual([{ ...major[0], ok: true, text: 'сумісно', error: null }])
+      expect(result.report).toContain('### Python-пакети (uv)')
+      expect(result.report).toContain('✅ `typer`')
+    })
   })
 })
