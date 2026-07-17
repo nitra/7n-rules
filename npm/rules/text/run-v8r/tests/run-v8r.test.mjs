@@ -29,13 +29,13 @@ describe('runV8rWithGlobs — error paths', () => {
       errChunks.push(String(chunk))
       return true
     }
-    let code
+    let result
     try {
-      code = runV8rWithGlobs(['**/*.json'])
+      result = runV8rWithGlobs(['**/*.json'])
     } finally {
       process.stderr.write = origErr
     }
-    expect(code).toBe(2)
+    expect(result).toEqual({ code: 2, detail: '' })
     expect(errChunks.join('')).toContain('каталог схем')
   })
 
@@ -57,13 +57,13 @@ describe('runV8rWithGlobs — error paths', () => {
       errChunks.push(String(chunk))
       return true
     }
-    let code
+    let result
     try {
-      code = runV8rWithGlobs(['**/*.json'])
+      result = runV8rWithGlobs(['**/*.json'])
     } finally {
       process.stderr.write = origErr
     }
-    expect(code).toBe(1)
+    expect(result).toEqual({ code: 1, detail: '' })
     expect(errChunks.join('')).toContain('mock spawn ENOENT')
   })
 
@@ -91,27 +91,27 @@ describe('runV8rWithGlobs — error paths', () => {
       errChunks.push(String(chunk))
       return true
     }
-    let code
+    let result
     try {
-      code = runV8rWithGlobs(['**/*.json'], true)
+      result = runV8rWithGlobs(['**/*.json'], true)
     } finally {
       process.stdout.write = origOut
       process.stderr.write = origErr
     }
-    expect(code).toBe(1)
+    expect(result.code).toBe(1)
     expect(outChunks.join('')).toContain('validation error output')
     expect(errChunks.join('')).toContain('v8r stderr msg')
   })
 
-  test('exitCode=1 без verbose → лише рядки ✖ зі stdout, без ℹ-шуму і stderr-дампа', async () => {
+  test('exitCode=1 без verbose, ajv-деталь у stdout / ✖-заголовок+ℹ-шум у stderr (реальний v8r-розклад при schema violation) → detail з обох потоків без ℹ-шуму', async () => {
     const actual = await vi.importActual('node:child_process')
     vi.mocked(spawnSync)
       .mockImplementationOnce(actual.spawnSync) // which bun → реальний
       .mockReturnValueOnce({
         error: null,
         status: 1,
-        stdout: 'ℹ Processing bad.json\n✖ bad.json is invalid\nℹ Pre-warming the cache\n',
-        stderr: 'v8r stderr msg\n',
+        stdout: "docs/layers.json# must NOT have additional properties, found additional property 'unknownField'\n",
+        stderr: 'ℹ Processing docs/layers.json\nℹ Pre-warming the cache\n✖ docs/layers.json is invalid\n',
         pid: 0,
         signal: null
       })
@@ -127,16 +127,43 @@ describe('runV8rWithGlobs — error paths', () => {
       errChunks.push(String(chunk))
       return true
     }
-    let code
+    let result
     try {
-      code = runV8rWithGlobs(['**/*.json'])
+      result = runV8rWithGlobs(['**/*.json'])
     } finally {
       process.stdout.write = origOut
       process.stderr.write = origErr
     }
-    expect(code).toBe(1)
-    expect(outChunks.join('')).toBe('✖ bad.json is invalid\n')
+    expect(result).toEqual({
+      code: 1,
+      detail:
+        "docs/layers.json# must NOT have additional properties, found additional property 'unknownField'\n✖ docs/layers.json is invalid"
+    })
+    expect(outChunks.join('')).toBe(`${result.detail}\n`)
     expect(errChunks.join('')).toBe('')
+  })
+
+  test('exitCode ≠ 0/98, уся детальна причина у stderr, stdout порожній ("не знайдено схему") → detail не порожній', async () => {
+    const actual = await vi.importActual('node:child_process')
+    vi.mocked(spawnSync)
+      .mockImplementationOnce(actual.spawnSync) // which bun → реальний
+      .mockReturnValueOnce({
+        error: null,
+        status: 1,
+        stdout: '',
+        stderr: 'ℹ Processing weird.json\n✖ Could not find a schema to validate weird.json\n',
+        pid: 0,
+        signal: null
+      })
+    let result
+    const origOut = process.stdout.write.bind(process.stdout)
+    process.stdout.write = () => true
+    try {
+      result = runV8rWithGlobs(['**/*.json'])
+    } finally {
+      process.stdout.write = origOut
+    }
+    expect(result).toEqual({ code: 1, detail: '✖ Could not find a schema to validate weird.json' })
   })
 
   test('exitCode=1 без stdout/stderr → повертає exitCode без виводу (line 73)', async () => {
@@ -157,13 +184,13 @@ describe('runV8rWithGlobs — error paths', () => {
       outChunks.push(String(chunk))
       return true
     }
-    let code
+    let result
     try {
-      code = runV8rWithGlobs(['**/*.json'])
+      result = runV8rWithGlobs(['**/*.json'])
     } finally {
       process.stdout.write = origOut
     }
-    expect(code).toBe(1)
+    expect(result).toEqual({ code: 1, detail: '' })
     expect(outChunks.join('')).toBe('')
   })
 })
