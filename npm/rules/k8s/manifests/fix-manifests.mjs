@@ -158,6 +158,22 @@ function isFalsyBool(v) {
 }
 
 /**
+ * Визначає значення для одного `HASURA_GRAPHQL_*` ключа за очікуванням із
+ * `HASURA_REQUIRED_ENV_VALUES`: `null` — довільне значення, проставляється лише
+ * якщо ключ відсутній (дефолт `'true'`); `'true'`/`'false'` — булеве порівняння
+ * (case-insensitive, `isTruthyBool`/`isFalsyBool`); інакше — точний рядок.
+ * @param {string|null} expected очікуване значення з `HASURA_REQUIRED_ENV_VALUES`
+ * @param {unknown} current поточне значення ключа в `data` (може бути `undefined`)
+ * @returns {string|null} значення для `setIn`, або `null`, якщо змін не потрібно
+ */
+function resolveHasuraEnvValue(expected, current) {
+  if (expected === null) return current === undefined ? 'true' : null
+  if (expected === 'true') return isTruthyBool(current) ? null : 'true'
+  if (expected === 'false') return isFalsyBool(current) ? null : 'false'
+  return current === expected ? null : expected
+}
+
+/**
  * Проставляє обов'язкові `HASURA_GRAPHQL_*` env-ключі (`HASURA_REQUIRED_ENV_VALUES`,
  * дзеркалить `k8s.hasura_configmap.rego`) у `data` документа `kind: ConfigMap`. Ключ з
  * очікуванням `null` (наприклад `HASURA_GRAPHQL_DISABLE_EVENTING`) — довільне значення,
@@ -177,32 +193,10 @@ export function ensureHasuraConfigMapRequiredEnv(content) {
 
   let changed = false
   for (const [key, expected] of Object.entries(HASURA_REQUIRED_ENV_VALUES)) {
-    const current = doc.getIn(['data', key])
-    if (expected === null) {
-      if (current === undefined) {
-        doc.setIn(['data', key], 'true')
-        changed = true
-      }
-      continue
-    }
-    if (expected === 'true') {
-      if (!isTruthyBool(current)) {
-        doc.setIn(['data', key], 'true')
-        changed = true
-      }
-      continue
-    }
-    if (expected === 'false') {
-      if (!isFalsyBool(current)) {
-        doc.setIn(['data', key], 'false')
-        changed = true
-      }
-      continue
-    }
-    if (current !== expected) {
-      doc.setIn(['data', key], expected)
-      changed = true
-    }
+    const value = resolveHasuraEnvValue(expected, doc.getIn(['data', key]))
+    if (value === null) continue
+    doc.setIn(['data', key], value)
+    changed = true
   }
   if (!changed) return null
   return doc.toString()
