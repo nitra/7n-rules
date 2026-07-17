@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.3] - 2026-07-17
+
+### Changed
+
+- release: @7n/rules@1.8.2
+
 ## [1.8.2] - 2026-07-17
 
 ### Fixed
