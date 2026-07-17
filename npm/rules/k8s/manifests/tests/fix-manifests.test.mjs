@@ -215,7 +215,10 @@ describe('ensureHasuraHttpRouteRule1Filters', () => {
     expect(out).not.toBeNull()
     const rule = parse(out).spec.rules[0]
     expect(rule.filters).toEqual([
-      { type: 'RequestRedirect', requestRedirect: { statusCode: 302, path: { type: 'ReplaceFullPath', replaceFullPath: '/api/ql/console' } } }
+      {
+        type: 'RequestRedirect',
+        requestRedirect: { statusCode: 302, path: { type: 'ReplaceFullPath', replaceFullPath: '/api/ql/console' } }
+      }
     ])
   })
 
