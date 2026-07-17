@@ -14,14 +14,20 @@ import { describe, expect, test } from 'vitest'
 
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 import {
+  backupCargoManifests,
   backupWorkspacePackageFiles,
+  buildCargoDependencyPrompt,
   buildDependencyPrompt,
   callRunner,
   cleanupBackups,
+  cleanupCargoBackups,
   findCargoManifests,
   formatReport,
   runTazeOrchestrator
 } from '../orchestrate.mjs'
+
+/** Порожній `rust`-блок звіту (без знайдених Cargo.toml) для `formatReport`-тестів npm-гілки. */
+const NO_RUST = { manifests: [], processed: false, skippedReason: null, minorPatch: 0, results: [] }
 
 const NETWORK_ERROR_RE = /network error/
 const NOT_IN_WORKTREE_RE = /не в ізольованому worktree/
@@ -56,6 +62,27 @@ describe('buildDependencyPrompt', () => {
     expect(prompt).toContain('breaking changes')
     expect(prompt).toContain('CHANGELOG')
     expect(prompt).not.toContain('bunx taze')
+  })
+})
+
+describe('buildCargoDependencyPrompt', () => {
+  test('містить крейт, маніфест і версії', () => {
+    const prompt = buildCargoDependencyPrompt({
+      manifest: 'llm-lib/crates/llm-cascade/Cargo.toml',
+      pkg: 'genai',
+      from: '0.4',
+      to: '0.5'
+    })
+    expect(prompt).toContain('genai')
+    expect(prompt).toContain('llm-lib/crates/llm-cascade/Cargo.toml')
+    expect(prompt).toContain('0.4 → 0.5')
+    expect(prompt).toContain('crates.io')
+    expect(prompt).toContain('cargo clippy')
+  })
+
+  test('не згадує детерміновані кроки 1-3/7/8 (лише 4-6)', () => {
+    const prompt = buildCargoDependencyPrompt({ manifest: 'Cargo.toml', pkg: 'serde', from: '1', to: '2' })
+    expect(prompt).not.toContain('cargo upgrade')
   })
 })
 
@@ -97,14 +124,14 @@ describe('callRunner', () => {
 })
 
 describe('formatReport', () => {
-  test('без major-оновлень', () => {
-    const report = formatReport({ minorPatch: 5, totalChanged: 5, results: [], rustCrates: [] })
+  test('без major-оновлень, без Cargo.toml', () => {
+    const report = formatReport({ minorPatch: 5, totalChanged: 5, results: [], rust: NO_RUST })
     expect(report).toContain('Оновлено (minor/patch):** 5')
     expect(report).toContain('Major-оновлення:** 0')
     expect(report).not.toContain('Rust-крейти')
   })
 
-  test('з успішним і провальним major-оновленням + rust-крейтами', () => {
+  test('з успішним і провальним npm-оновленням', () => {
     const report = formatReport({
       minorPatch: 2,
       totalChanged: 4,
@@ -112,11 +139,56 @@ describe('formatReport', () => {
         { pkg: 'react', workspace: '.', from: '^17.0.0', to: '^18.0.0', ok: true, error: null },
         { pkg: 'vite', workspace: 'npm', from: '4.0.0', to: '5.0.0', ok: false, error: 'timeout' }
       ],
-      rustCrates: ['Cargo.toml', 'llm-lib/crates/llm-cascade/Cargo.toml']
+      rust: NO_RUST
     })
     expect(report).toContain('✅ `react` (.): ^17.0.0 → ^18.0.0')
     expect(report).toContain('❌ `vite` (npm): 4.0.0 → 5.0.0 — timeout')
-    expect(report).toContain('Rust-крейти (2)')
+    expect(report).toContain('Всього змінено:** 4')
+  })
+
+  test('Cargo.toml знайдено, але Rust-гілку пропущено (cargo-edit відсутній)', () => {
+    const report = formatReport({
+      minorPatch: 0,
+      totalChanged: 0,
+      results: [],
+      rust: {
+        manifests: ['Cargo.toml', 'llm-lib/crates/llm-cascade/Cargo.toml'],
+        processed: false,
+        skippedReason: 'cargo-edit не встановлено',
+        minorPatch: 0,
+        results: []
+      }
+    })
+    expect(report).toContain('⏭ Пропущено (cargo-edit не встановлено)')
+    expect(report).toContain('Cargo.toml, llm-lib/crates/llm-cascade/Cargo.toml')
+    expect(report).toContain('Всього змінено:** 0')
+  })
+
+  test('Rust-гілку оброблено — окремий підрахунок у "Всього змінено"', () => {
+    const report = formatReport({
+      minorPatch: 1,
+      totalChanged: 1,
+      results: [],
+      rust: {
+        manifests: ['llm-lib/crates/llm-cascade/Cargo.toml'],
+        processed: true,
+        skippedReason: null,
+        minorPatch: 2,
+        results: [
+          {
+            pkg: 'genai',
+            manifest: 'llm-lib/crates/llm-cascade/Cargo.toml',
+            from: '0.4',
+            to: '0.5',
+            ok: true,
+            error: null
+          }
+        ]
+      }
+    })
+    expect(report).toContain('### Rust-крейти')
+    expect(report).toContain('✅ `genai` (llm-lib/crates/llm-cascade/Cargo.toml): 0.4 → 0.5')
+    // 1 (npm totalChanged) + 2 (rust minorPatch) + 1 (rust major-результат) = 4
     expect(report).toContain('Всього змінено:** 4')
   })
 })
@@ -148,6 +220,37 @@ describe('backupWorkspacePackageFiles + cleanupBackups', () => {
         getMonorepoPackageRootDirs: () => ['.', 'no-package-json']
       })
       expect(workspaces).toEqual(['.'])
+    })
+  })
+})
+
+describe('backupCargoManifests + cleanupCargoBackups', () => {
+  test('бекапить кожен Cargo.toml + спільний кореневий Cargo.lock, прибирає після', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[workspace]', 'utf8')
+      await writeFile(join(dir, 'Cargo.lock'), 'version = 4', 'utf8')
+      await ensureDir(join(dir, 'crates/foo'))
+      await writeFile(join(dir, 'crates/foo/Cargo.toml'), '[package]\nname = "foo"', 'utf8')
+
+      const manifests = ['Cargo.toml', 'crates/foo/Cargo.toml']
+      await backupCargoManifests(dir, manifests)
+      expect(existsSync(join(dir, 'Cargo.toml.taze-bak'))).toBe(true)
+      expect(existsSync(join(dir, 'crates/foo/Cargo.toml.taze-bak'))).toBe(true)
+      expect(existsSync(join(dir, 'Cargo.lock.taze-bak'))).toBe(true)
+
+      await cleanupCargoBackups(dir, manifests)
+      expect(existsSync(join(dir, 'Cargo.toml.taze-bak'))).toBe(false)
+      expect(existsSync(join(dir, 'crates/foo/Cargo.toml.taze-bak'))).toBe(false)
+      expect(existsSync(join(dir, 'Cargo.lock.taze-bak'))).toBe(false)
+    })
+  })
+
+  test('без Cargo.lock — бекапить лише Cargo.toml, не падає', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[workspace]', 'utf8')
+      await backupCargoManifests(dir, ['Cargo.toml'])
+      expect(existsSync(join(dir, 'Cargo.toml.taze-bak'))).toBe(true)
+      expect(existsSync(join(dir, 'Cargo.lock.taze-bak'))).toBe(false)
     })
   })
 })
@@ -278,5 +381,80 @@ describe('runTazeOrchestrator', () => {
       expect(result.ok).toBe(true)
       expect(existsSync(join(dir, 'package.json.taze-bak'))).toBe(false)
     })
+  })
+
+  test('Rust: Cargo.toml знайдено, cargo-edit відсутній → пропущено, npm-гілку не зачіпає', async () => {
+    const cargoCalls = []
+    const result = await runTazeOrchestrator({
+      cwd: '/tmp/project',
+      runner: 'pi',
+      log: noop,
+      deps: {
+        spawnFn: cmd => {
+          if (cmd === 'find') return { status: 0, stdout: './Cargo.toml\n', stderr: '' }
+          if (cmd === 'cargo') {
+            cargoCalls.push(cmd)
+            return { status: 1, stdout: '', stderr: 'no such command: `upgrade`' }
+          }
+          return fakeSpawn(cmd)
+        },
+        getMonorepoPackageRootDirs: () => ['.'],
+        copyFile: noop,
+        rm: noop,
+        collectTazeDiff: () => ({ major: [], minorPatch: 0, totalChanged: 0, comparedWorkspaces: 1 })
+      }
+    })
+
+    // Лише перевірка версії (`cargo upgrade --version`) — сам upgrade/update не викликається.
+    expect(cargoCalls).toHaveLength(1)
+    expect(result.ok).toBe(true)
+    expect(result.rustResults).toEqual([])
+    expect(result.report).toContain('⏭ Пропущено')
+    expect(result.report).toContain('cargo-edit')
+  })
+
+  test('Rust: cargo-edit доступний — bump/diff/ітерація по кожному major-крейту', async () => {
+    const cargoCommands = []
+    const runnerCalls = []
+    const major = [{ manifest: 'llm-lib/crates/llm-cascade/Cargo.toml', pkg: 'genai', from: '0.4', to: '0.5' }]
+
+    const result = await runTazeOrchestrator({
+      cwd: '/tmp/project',
+      runner: 'codex',
+      log: noop,
+      deps: {
+        spawnFn: cmd => {
+          if (cmd === 'find')
+            return { status: 0, stdout: './Cargo.toml\n./llm-lib/crates/llm-cascade/Cargo.toml\n', stderr: '' }
+          if (cmd === 'cargo') {
+            cargoCommands.push(cmd)
+            return { status: 0, stdout: '', stderr: '' }
+          }
+          return fakeSpawn(cmd)
+        },
+        getMonorepoPackageRootDirs: () => ['.'],
+        copyFile: noop,
+        rm: noop,
+        collectTazeDiff: () => ({ major: [], minorPatch: 0, totalChanged: 0, comparedWorkspaces: 1 }),
+        collectCargoDiff: (cwd, manifests) => {
+          expect(manifests).toEqual(['./Cargo.toml', './llm-lib/crates/llm-cascade/Cargo.toml'])
+          return { major, minorPatch: 1, totalChanged: 2, comparedManifests: 2 }
+        },
+        callRunner: (runner, prompt, cwd) => {
+          runnerCalls.push({ runner, prompt, cwd })
+          return { ok: true, text: 'сумісно', error: null }
+        }
+      }
+    })
+
+    // cargo upgrade --version (перевірка) + cargo upgrade --incompatible allow + cargo update.
+    expect(cargoCommands).toHaveLength(3)
+    expect(runnerCalls).toHaveLength(1)
+    expect(runnerCalls[0].runner).toBe('codex')
+    expect(runnerCalls[0].prompt).toContain('genai')
+    expect(result.ok).toBe(true)
+    expect(result.rustResults).toEqual([{ ...major[0], ok: true, text: 'сумісно', error: null }])
+    expect(result.report).toContain('### Rust-крейти')
+    expect(result.report).toContain('✅ `genai`')
   })
 })

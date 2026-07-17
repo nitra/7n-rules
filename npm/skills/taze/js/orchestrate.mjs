@@ -5,6 +5,7 @@ import { copyFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
+import { collectCargoDiff } from './cargo-diff.mjs'
 import { collectTazeDiff } from './diff.mjs'
 
 /** Суфікс бекапу package.json — той самий, що й у `diff.mjs`/кроці 1 SKILL.md. */
@@ -28,6 +29,30 @@ export function buildDependencyPrompt({ workspace, pkg, from, to }) {
     `2. Знайти використання зачепленого API в коді проєкту (\`rg -n\` по імпортах/викликах \`${pkg}\`).`,
     '3. Сумісно — нічого не робити. Несумісно — застосувати міграцію (перейменувати імпорт, оновити сигнатуру виклику, замінити видалену опцію еквівалентом).',
     '4. Якщо були правки — запусти `npx @7n/rules lint`, typecheck/test якщо є в проєкті.',
+    '5. Нетривіальна/неоднозначна міграція — не вгадуй, залиш TODO-коментар із посиланням на CHANGELOG.',
+    '',
+    'У відповіді одним абзацом підсумуй: сумісно / зрефакторено (які файли) / TODO (чому).'
+  ].join('\n')
+}
+
+/**
+ * Промпт ОДНОГО ітеративного виклику для Rust-крейта — Rust-варіант
+ * [`buildDependencyPrompt`] (кроки 4-6 SKILL.md, Rust-гілка), для ОДНОГО
+ * major-крейта. Кроки 1-3/7/8 виконує оркестратор детерміновано, без LLM.
+ * @param {{manifest: string, pkg: string, from: string, to: string}} entry запис major-diff (з `collectCargoDiff`)
+ * @returns {string} готовий промпт
+ */
+export function buildCargoDependencyPrompt({ manifest, pkg, from, to }) {
+  return [
+    '# Major-оновлення одного Rust-крейта: перевірка сумісності й рефакторинг',
+    '',
+    `Крейт \`${pkg}\` у \`${manifest}\`: **${from} → ${to}** — вже застосовано в Cargo.toml/Cargo.lock (кроки 1-3 виконано детерміновано, без тебе). Твоя задача — лише breaking-changes-перевірка й, за потреби, рефакторинг.`,
+    '',
+    '## Кроки',
+    `1. Зібрати breaking changes цього оновлення: адреса репозиторію з поля \`repository\`/\`documentation\` крейта на crates.io (https://crates.io/crates/${pkg}) — CHANGELOG.md репозиторію чи GitHub Releases. Якщо немає — різниця по публічному API (\`pub fn\`/\`pub struct\`/\`pub trait\`) між закешованою старою версією (\`~/.cargo/registry/src/*/${pkg}-<стара-версія>/\`) і новою.`,
+    `2. Знайти використання зачепленого API в коді проєкту (\`rg -n --type rust\` по use-шляхах/викликах \`${pkg}\`).`,
+    '3. Сумісно — нічого не робити. Несумісно — застосувати міграцію (перейменувати use-шлях, оновити сигнатуру виклику, замінити видалений макрос еквівалентом).',
+    '4. Якщо були правки — запусти `cargo fmt --all -- --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test`.',
     '5. Нетривіальна/неоднозначна міграція — не вгадуй, залиш TODO-коментар із посиланням на CHANGELOG.',
     '',
     'У відповіді одним абзацом підсумуй: сумісно / зрефакторено (які файли) / TODO (чому).'
@@ -154,10 +179,54 @@ export async function cleanupBackups(cwd, workspaces, deps = {}) {
 }
 
 /**
- * Знаходить Cargo.toml поза node_modules/.worktrees/target (крок 0.2
- * SKILL.md). Лише інформаційно — v1 оркестратора Rust-крейти не оновлює
- * (немає детермінованого cargo-diff-еквівалента `collectTazeDiff`,
- * класифікація major там ручна за SKILL.md).
+ * Чи встановлений cargo-edit (дає `cargo upgrade`) — без нього неможливо
+ * детерміновано перетнути major-межу Rust-залежностей (голий `cargo update`
+ * піднімає лише semver-сумісні версії; SKILL.md §Передумови).
+ * @param {typeof spawnSync} spawnFn інжект для тестів
+ * @returns {boolean} true — `cargo upgrade` доступна
+ */
+function hasCargoEdit(spawnFn) {
+  return spawnFn('cargo', ['upgrade', '--version'], { encoding: 'utf8' }).status === 0
+}
+
+/**
+ * Бекапить кожен Cargo.toml + спільний кореневий Cargo.lock (крок 1 SKILL.md,
+ * Rust-гілка). v1: один спільний workspace/Cargo.lock у корені `cwd` —
+ * поточна реальна топологія репо (кореневий `Cargo.toml` з `[workspace]` +
+ * члени); кілька незалежних Cargo-workspace під час не підтримується.
+ * @param {string} cwd корінь репо
+ * @param {string[]} manifestPaths відносні шляхи Cargo.toml (з `findCargoManifests`)
+ * @param {{ copyFile?: (src: string, dest: string) => Promise<void> }} [deps] інжект
+ * @returns {Promise<void>}
+ */
+export async function backupCargoManifests(cwd, manifestPaths, deps = {}) {
+  const copy = deps.copyFile ?? copyFile
+  for (const manifest of manifestPaths) {
+    const manifestPath = join(cwd, manifest)
+    if (existsSync(manifestPath)) await copy(manifestPath, `${manifestPath}${BACKUP_SUFFIX}`)
+  }
+  const lockPath = join(cwd, 'Cargo.lock')
+  if (existsSync(lockPath)) await copy(lockPath, `${lockPath}${BACKUP_SUFFIX}`)
+}
+
+/**
+ * Прибирає бекапи Cargo.toml/Cargo.lock після завершення (крок 7 SKILL.md,
+ * Rust-гілка).
+ * @param {string} cwd корінь репо
+ * @param {string[]} manifestPaths відносні шляхи Cargo.toml (з `findCargoManifests`)
+ * @param {{ rm?: (path: string, opts?: object) => Promise<void> }} [deps] інжект
+ * @returns {Promise<void>}
+ */
+export async function cleanupCargoBackups(cwd, manifestPaths, deps = {}) {
+  const remove = deps.rm ?? rm
+  for (const manifest of manifestPaths) {
+    await remove(join(cwd, `${manifest}${BACKUP_SUFFIX}`), { force: true })
+  }
+  await remove(join(cwd, `Cargo.lock${BACKUP_SUFFIX}`), { force: true })
+}
+
+/**
+ * Знаходить Cargo.toml поза node_modules/.worktrees/target (крок 0.2 SKILL.md).
  * @param {string} cwd корінь репо
  * @param {{ spawnFn?: typeof spawnSync }} [deps] інжект
  * @returns {string[]} відносні шляхи знайдених Cargo.toml
@@ -189,12 +258,35 @@ export function findCargoManifests(cwd, deps = {}) {
 }
 
 /**
+ * Форматує один рядок результату ітерації (спільний для npm- і Rust-гілки).
+ * @param {{pkg: string, ok: boolean, error: string|null, from: string, to: string}} r результат ітерації
+ * @param {string} scopeLabel мітка джерела (`workspace` для npm, `manifest` для Rust)
+ * @returns {string} один рядок звіту
+ */
+function formatResultLine(r, scopeLabel) {
+  const status = r.ok ? '✅' : '❌'
+  const errorSuffix = r.error ? ` — ${r.error}` : ''
+  return `  ${status} \`${r.pkg}\` (${scopeLabel}): ${r.from} → ${r.to}${errorSuffix}`
+}
+
+/**
  * Компонує підсумковий звіт (крок 8 SKILL.md) детерміновано з результатів
  * ітерацій — без окремого LLM-виклику для самого звіту.
- * @param {{ minorPatch: number, totalChanged: number, results: Array<{pkg:string, workspace:string, from:string, to:string, ok:boolean, error:string|null}>, rustCrates: string[] }} args дані звіту
+ * @param {{
+ *   minorPatch: number,
+ *   totalChanged: number,
+ *   results: Array<{pkg:string, workspace:string, from:string, to:string, ok:boolean, error:string|null}>,
+ *   rust: {
+ *     manifests: string[],
+ *     processed: boolean,
+ *     skippedReason: string|null,
+ *     minorPatch: number,
+ *     results: Array<{pkg:string, manifest:string, from:string, to:string, ok:boolean, error:string|null}>
+ *   }
+ * }} args дані звіту
  * @returns {string} markdown-звіт
  */
-export function formatReport({ minorPatch, totalChanged, results, rustCrates }) {
+export function formatReport({ minorPatch, totalChanged, results, rust }) {
   const lines = [
     '## taze: підсумок',
     '',
@@ -202,17 +294,26 @@ export function formatReport({ minorPatch, totalChanged, results, rustCrates }) 
     `- **Major-оновлення:** ${results.length}`
   ]
   for (const r of results) {
-    const status = r.ok ? '✅' : '❌'
-    const errorSuffix = r.error ? ` — ${r.error}` : ''
-    lines.push(`  ${status} \`${r.pkg}\` (${r.workspace}): ${r.from} → ${r.to}${errorSuffix}`)
+    lines.push(formatResultLine(r, r.workspace))
   }
-  if (rustCrates.length > 0) {
-    lines.push(
-      '',
-      `- **Rust-крейти (${rustCrates.length}), потребують ручного прогону Rust-гілки SKILL.md:** ${rustCrates.join(', ')}`
-    )
+
+  let rustTotalChanged = 0
+  if (rust.manifests.length > 0) {
+    lines.push('', '### Rust-крейти')
+    if (rust.processed) {
+      lines.push(`- **Оновлено (minor/patch):** ${rust.minorPatch}`, `- **Major-оновлення:** ${rust.results.length}`)
+      for (const r of rust.results) {
+        lines.push(formatResultLine(r, r.manifest))
+      }
+      rustTotalChanged = rust.minorPatch + rust.results.length
+    } else {
+      lines.push(
+        `- ⏭ Пропущено (${rust.skippedReason}) — ${rust.manifests.length} Cargo.toml, онови вручну за Rust-гілкою SKILL.md: ${rust.manifests.join(', ')}`
+      )
+    }
   }
-  lines.push('', `- **Всього змінено:** ${totalChanged}`)
+
+  lines.push('', `- **Всього змінено:** ${totalChanged + rustTotalChanged}`)
   return lines.join('\n')
 }
 
@@ -227,9 +328,9 @@ export function formatReport({ minorPatch, totalChanged, results, rustCrates }) 
  *   cwd?: string,
  *   runner?: 'pi' | 'cursor' | 'codex',
  *   log?: (line: string) => void,
- *   deps?: { spawnFn?: typeof spawnSync, collectTazeDiff?: (cwd: string) => Promise<object>, callRunner?: (runner: string, prompt: string, cwd: string, deps: object) => Promise<{ok: boolean, text: string, error: string|null}> } & Record<string, unknown>
+ *   deps?: { spawnFn?: typeof spawnSync, collectTazeDiff?: (cwd: string) => Promise<object>, collectCargoDiff?: (cwd: string, manifests: string[]) => Promise<object>, callRunner?: (runner: string, prompt: string, cwd: string, deps: object) => Promise<{ok: boolean, text: string, error: string|null}> } & Record<string, unknown>
  * }} [options] опції + інжекти для тестів
- * @returns {Promise<{ ok: boolean, report: string, results: Array<object> }>} результат
+ * @returns {Promise<{ ok: boolean, report: string, results: Array<object>, rustResults: Array<object> }>} результат
  */
 export async function runTazeOrchestrator(options = {}) {
   const cwd = options.cwd ?? process.cwd()
@@ -237,10 +338,9 @@ export async function runTazeOrchestrator(options = {}) {
   const log = options.log ?? (line => console.log(line))
   const deps = options.deps ?? {}
   const spawnFn = deps.spawnFn ?? spawnSync
+  const call = deps.callRunner ?? callRunner
 
   assertRunningInWorktree(cwd, spawnFn)
-
-  const rustCrates = findCargoManifests(cwd, { spawnFn })
 
   log('📦 Бекап package.json...')
   const backedUpWorkspaces = await backupWorkspacePackageFiles(cwd, deps)
@@ -255,7 +355,6 @@ export async function runTazeOrchestrator(options = {}) {
   log(`🔍 diff: ${diff.major.length} major, ${diff.minorPatch} minor/patch`)
 
   const results = []
-  const call = deps.callRunner ?? callRunner
   for (const entry of diff.major) {
     log(`🔧 ${entry.pkg} (${entry.workspace}): ${entry.from} → ${entry.to}...`)
     const outcome = await call(runner, buildDependencyPrompt(entry), cwd, deps)
@@ -265,8 +364,47 @@ export async function runTazeOrchestrator(options = {}) {
 
   await cleanupBackups(cwd, backedUpWorkspaces, deps)
 
-  const report = formatReport({ minorPatch: diff.minorPatch, totalChanged: diff.totalChanged, results, rustCrates })
+  const rustManifests = findCargoManifests(cwd, { spawnFn })
+  let rust = { manifests: rustManifests, processed: false, skippedReason: null, minorPatch: 0, results: [] }
+
+  if (rustManifests.length > 0 && !hasCargoEdit(spawnFn)) {
+    rust.skippedReason =
+      'cargo-edit не встановлено (`cargo install cargo-edit`) — cargo update без нього недетермінований для major'
+    log(`⏭ Rust: ${rust.skippedReason}`)
+  } else if (rustManifests.length > 0) {
+    log('📦 Бекап Cargo.toml/Cargo.lock...')
+    await backupCargoManifests(cwd, rustManifests, deps)
+
+    log('⬆️  cargo upgrade --incompatible allow...')
+    runCommand('cargo', ['upgrade', '--incompatible', 'allow'], cwd, spawnFn)
+    log('🔄 cargo update...')
+    runCommand('cargo', ['update'], cwd, spawnFn)
+
+    const collectCargo = deps.collectCargoDiff ?? collectCargoDiff
+    const cargoDiff = await collectCargo(cwd, rustManifests)
+    log(`🔍 Rust diff: ${cargoDiff.major.length} major, ${cargoDiff.minorPatch} minor/patch`)
+
+    const rustResults = []
+    for (const entry of cargoDiff.major) {
+      log(`🔧 [rust] ${entry.pkg} (${entry.manifest}): ${entry.from} → ${entry.to}...`)
+      const outcome = await call(runner, buildCargoDependencyPrompt(entry), cwd, deps)
+      rustResults.push({ ...entry, ...outcome })
+      log(outcome.ok ? `  ✅ ${entry.pkg}` : `  ❌ ${entry.pkg}: ${outcome.error}`)
+    }
+
+    await cleanupCargoBackups(cwd, rustManifests, deps)
+
+    rust = {
+      manifests: rustManifests,
+      processed: true,
+      skippedReason: null,
+      minorPatch: cargoDiff.minorPatch,
+      results: rustResults
+    }
+  }
+
+  const report = formatReport({ minorPatch: diff.minorPatch, totalChanged: diff.totalChanged, results, rust })
   log(report)
 
-  return { ok: results.every(r => r.ok), report, results }
+  return { ok: results.every(r => r.ok) && rust.results.every(r => r.ok), report, results, rustResults: rust.results }
 }
