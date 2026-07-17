@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.2] - 2026-07-17
+
+### Fixed
+
+- bun/licensee: розрізняти crash інструмента (stderr) від реального ліцензійного порушення (stdout, --errors-only)
+- k8s/manifests: знизити когнітивну складність ensureHasuraConfigMapRequiredEnv нижче порогу sonarjs
+
 ## [1.8.1] - 2026-07-17
 
 ### Changed
