@@ -211,12 +211,14 @@ describe('runSkillsCli', () => {
   test('pi runner: викликає runPiAgentSkill і повертає 0 при ok', async () => {
     const root = join(tmpdir(), `skills-cli-pi-ok-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
-    mkdirSync(join(skillsRoot, 'taze'), { recursive: true })
-    writeFileSync(join(skillsRoot, 'taze', 'SKILL.md'), '# Taze\n')
-    writeFileSync(join(skillsRoot, 'taze', 'main.json'), '{ "worktree": true, "tier": "avg" }')
+    // "widget" — довільна назва фікстури; НЕ "taze" (той спеціалізований шлях
+    // через оркестратор — див. окремий describe нижче).
+    mkdirSync(join(skillsRoot, 'widget'), { recursive: true })
+    writeFileSync(join(skillsRoot, 'widget', 'SKILL.md'), '# Widget\n')
+    writeFileSync(join(skillsRoot, 'widget', 'main.json'), '{ "worktree": true, "tier": "avg" }')
 
     const calls = []
-    const code = await runSkillsCli(['pi', 'n-taze', 'онови'], {
+    const code = await runSkillsCli(['pi', 'n-widget', 'онови'], {
       packageRoot: root,
       projectDir: root,
       log: () => {
@@ -232,9 +234,9 @@ describe('runSkillsCli', () => {
 
     expect(code).toBe(0)
     expect(calls).toHaveLength(1)
-    expect(calls[0].prompt).toContain('# Taze')
+    expect(calls[0].prompt).toContain('# Widget')
     expect(calls[0].prompt).toContain('онови')
-    expect(calls[0].opts.skillId).toBe('taze')
+    expect(calls[0].opts.skillId).toBe('widget')
     expect(calls[0].opts.tier).toBe('avg')
     expect(calls[0].opts.cwd).toBe(root)
   })
@@ -377,5 +379,84 @@ describe('runSkillsCli', () => {
     expect(code).toBe(1)
     expect(errors.join('\n')).toContain('не залогінений')
     expect(errors.join('\n')).not.toContain('[deprecated]')
+  })
+
+  test('taze: pi/cursor/codex делегують у runTazeOrchestrator замість generic-шляху', async () => {
+    const root = join(tmpdir(), `skills-cli-taze-orchestrate-${Date.now()}`)
+    mkdirSync(join(root, 'skills'), { recursive: true })
+
+    for (const runner of ['pi', 'cursor', 'codex']) {
+      const calls = []
+      const code = await runSkillsCli([runner, 'n-taze'], {
+        packageRoot: root,
+        projectDir: root,
+        log: () => {
+          /* noop: stdout не перевіряється в цьому тесті */
+        },
+        deps: {
+          runTazeOrchestrator: opts => {
+            calls.push(opts)
+            return Promise.resolve({ ok: true, report: 'ok', results: [] })
+          }
+        }
+      })
+
+      expect(code).toBe(0)
+      expect(calls).toHaveLength(1)
+      expect(calls[0].runner).toBe(runner)
+      expect(calls[0].cwd).toBe(root)
+    }
+  })
+
+  test('taze: провальний оркестратор → exit 1', async () => {
+    const root = join(tmpdir(), `skills-cli-taze-fail-${Date.now()}`)
+    mkdirSync(join(root, 'skills'), { recursive: true })
+
+    const code = await runSkillsCli(['pi', 'taze'], {
+      packageRoot: root,
+      projectDir: root,
+      log: () => {
+        /* noop: stdout не перевіряється в цьому тесті */
+      },
+      deps: {
+        runTazeOrchestrator: () => Promise.resolve({ ok: false, report: 'помилка', results: [] })
+      }
+    })
+
+    expect(code).toBe(1)
+  })
+
+  test('taze: claude НЕ делегує в оркестратор (лишається на generic ACP-шляху)', async () => {
+    const root = join(tmpdir(), `skills-cli-taze-claude-${Date.now()}`)
+    const skillsRoot = join(root, 'skills')
+    mkdirSync(join(skillsRoot, 'taze'), { recursive: true })
+    writeFileSync(join(skillsRoot, 'taze', 'SKILL.md'), '# Taze\n')
+
+    const orchestratorCalls = []
+    const acpCalls = []
+    const code = await runSkillsCli(['claude', 'taze'], {
+      packageRoot: root,
+      projectDir: root,
+      log: () => {
+        /* noop: stdout не перевіряється в цьому тесті */
+      },
+      logError: () => {
+        /* noop: тест не перевіряє deprecated-попередження */
+      },
+      deps: {
+        runTazeOrchestrator: opts => {
+          orchestratorCalls.push(opts)
+          return Promise.resolve({ ok: true, report: '', results: [] })
+        },
+        runAcpRunner: (kind, prompt) => {
+          acpCalls.push({ kind, prompt })
+          return Promise.resolve(0)
+        }
+      }
+    })
+
+    expect(code).toBe(0)
+    expect(orchestratorCalls).toHaveLength(0)
+    expect(acpCalls).toHaveLength(1)
   })
 })
