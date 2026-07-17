@@ -3,7 +3,7 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/skills/taze/js/orchestrate.mjs
 docgen:
-  crc: 1ff52a80
+  crc: 56fd9864
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.98
@@ -12,32 +12,34 @@ docgen:
 
 ## Огляд
 
-Файл об’єднує публічні дії `buildDependencyPrompt`, `callRunner`, `backupWorkspacePackageFiles`, `cleanupBackups`, `findCargoManifests`, `formatReport`, `runTazeOrchestrator`, щоб узгодити оновлення залежностей за даними з `main.json` і `package.json`. Він працює read-only: не пише у ФС/БД, має кешування в межах прогону, свідомо пропускає шляхи `node_modules`, тимчасово зберігає бекапи `package.json` у воркспейсах і прибирає їх після завершення. Результат проходу оформлюється через `formatReport` як підсумок змін і стану оновлення.
+Оркеструє `taze` для трьох екосистем — npm/bun, Rust (Cargo) і Python (uv) — детерміновано, без LLM: бекап маніфестів → масовий bump (`bunx taze`/`cargo upgrade`/по-пакетний `uv remove`+`uv add --bounds lower`) → diff класифікація major vs minor/patch → прибирання бекапів → Markdown-звіт (`formatReport`). Для КОЖНОГО окремого major-пакета/крейта з diff-у виконує один ізольований, обмежений виклик обраного раннера (`buildDependencyPrompt`/`buildCargoDependencyPrompt`/`buildUvDependencyPrompt` + `callRunner`) — лише перевірка сумісності й рефакторинг, не сам bump. Файл виконує реальні файлові операції (копіює/видаляє бекапи `package.json`/`Cargo.toml`/`Cargo.lock`/`pyproject.toml`/`uv.lock`) і запускає зовнішні команди (`bunx`, `bun`, `cargo`, `uv`, `git`, `find`) — не read-only.
 
 ## Поведінка
 
-- **buildDependencyPrompt** — формує текст завдання для перевірки major-оновлення одного пакета й подальшого сумісного рефакторингу.
-- **callRunner** — запускає один ітеративний LLM-виклик у вибраному раннері та повертає результат разом із зібраним текстом відповіді.
-- **backupWorkspacePackageFiles** — створює тимчасові бекапи `package.json` у воркспейсах для подальшого порівняння змін.
-- **cleanupBackups** — прибирає тимчасові бекапи `package.json` після завершення прогону.
-- **findCargoManifests** — знаходить `Cargo.toml` поза `node_modules`, `.worktrees` і `target` для інформаційного підсумку.
-- **formatReport** — збирає лаконічний Markdown-звіт про minor/patch, major-оновлення, Rust-крейти та загальний обсяг змін.
-- **runTazeOrchestrator** — виконує повний прогін taze: перевіряє worktree з `main.json`, робить бекап, оновлює залежності з `package.json`, обробляє major-оновлення по одному пакету, прибирає бекапи й повертає підсумок.
+- **buildDependencyPrompt** / **buildCargoDependencyPrompt** / **buildUvDependencyPrompt** — формують промпт ОДНОГО ітеративного виклику (лише перевірка сумісності й рефакторинг) для одного major-пакета npm/Cargo/uv відповідно.
+- **callRunner** — диспетчер одного ітеративного виклику: `pi` — вбудований pi-агент (текст через `deps.out`), `cursor`/`codex` — napi-міст ACP (`@7n/llm-lib/acp`).
+- **backupWorkspacePackageFiles** / **cleanupBackups** — бекап і прибирання `package.json` кожного воркспейсу.
+- **backupCargoManifests** / **cleanupCargoBackups** — бекап і прибирання кожного `Cargo.toml` + спільного кореневого `Cargo.lock`.
+- **backupUvManifest** / **cleanupUvBackups** — бекап і прибирання кореневого `pyproject.toml` + `uv.lock`.
+- **findCargoManifests** — знаходить усі `Cargo.toml` поза `node_modules`/`.worktrees`/`target`.
+- **findPyprojectManifest** — перевіряє наявність кореневого `pyproject.toml` (uv-конвенція — один файл, не per-package обхід).
+- **formatReport** — компонує підсумковий Markdown-звіт (minor/patch, major-оновлення по кожній з трьох гілок, загальний обсяг змін) без окремого LLM-виклику.
+- **runTazeOrchestrator** — повний прогін: перевіряє, що `cwd` — ізольований worktree, послідовно обробляє npm-, Rust- (за наявності `Cargo.toml` і `cargo-edit`) і Python-гілку (за наявності `pyproject.toml` і `uv`) — бекап → bump → diff → ізольовані виклики раннера по кожному major-запису → прибирання — і повертає звіт.
 
 ## Публічний API
 
-- buildDependencyPrompt — Готує промпт для одного LLM-кроку taze: тільки breaking changes, сумісність і рефакторинг для одного major-пакета. Перші кроки аналізу та фінальну збірку звіту робить оркестратор без LLM.
-- callRunner — Запускає один ітеративний виклик через вибраний раннер. Для `pi` бере текст із stdout вбудованого pi-агента, для `cursor` і `codex` отримує його напряму через ACP-міст.
-- backupWorkspacePackageFiles — Зберігає копії `package.json` усіх workspace-пакетів перед змінами, щоб потім відрізнити major і minor оновлення.
-- cleanupBackups — Видаляє тимчасові копії `package.json` після завершення роботи.
-- findCargoManifests — Находить `Cargo.toml` у репозиторії поза службовими директоріями; використовується лише для огляду Rust-крейтів.
-- formatReport — Складає фінальний звіт із результатів усіх ітерацій без окремого LLM-запиту.
-- runTazeOrchestrator — Керує taze від початку до кінця: робить бекап, масово оновлює версії, збирає diff, прибирає тимчасові файли й формує звіт. Для кожного major-пакета окремо запускає обмежений LLM-виклик, щоб збій одного пакета не зупиняв інші.
-
-Конфіги: `package.json`, `main.json`
+- buildDependencyPrompt / buildCargoDependencyPrompt / buildUvDependencyPrompt — промпт одного major-запису відповідної екосистеми.
+- callRunner — виклик обраного раннера (`pi`/`cursor`/`codex`) з одним промптом.
+- backupWorkspacePackageFiles / cleanupBackups — бекап/прибирання `package.json` воркспейсів.
+- backupCargoManifests / cleanupCargoBackups — бекап/прибирання `Cargo.toml`/`Cargo.lock`.
+- backupUvManifest / cleanupUvBackups — бекап/прибирання `pyproject.toml`/`uv.lock`.
+- findCargoManifests — список знайдених `Cargo.toml` у репозиторії.
+- findPyprojectManifest — список (0 або 1 запис) кореневого `pyproject.toml`.
+- formatReport — фінальний Markdown-звіт із результатів усіх трьох гілок.
+- runTazeOrchestrator — повна оркестрація taze для npm/bun + Rust + Python.
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
-- Кешує результати в межах одного прогону.
-- Свідомо пропускає шляхи: `node_modules`.
+- Виконує файлові операції (копіювання/видалення бекапів) і запускає зовнішні команди — НЕ read-only.
+- Перед будь-якою мутацією перевіряє, що `cwd` — ізольований worktree (`assertRunningInWorktree`), інакше кидає виняток.
+- Падіння одного пакета/крейта в ізольованому виклику раннера не втрачає прогрес по інших записах.
