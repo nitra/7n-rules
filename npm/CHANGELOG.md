@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.11.0] - 2026-07-17
+
+### Added
+
+- js/eslint: fix-worker.mjs з per-file циклом замість одного великого промпту на весь concern — усунення 100% timeout на драбині, виміряно на реальних lint-прогонах
+
+### Fixed
+
+- text/markdownlint: включати причину провалу markdownlint-cli2 у violation-повідомлення; js/knip: fixability=structural (LLM-ладдер завжди приречений на timeout)
+
 ## [1.10.0] - 2026-07-17
 
 ### Added
