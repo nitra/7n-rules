@@ -8,18 +8,37 @@
 //! чи падати далі на [`crate::local_cloud`] (той самий fail-fast принцип, що
 //! й у решті крейта — жодного вбудованого retry).
 
+use std::env;
 use std::path::Path;
 use std::str::FromStr;
+use std::time::Duration;
 
 use agent_client_protocol::schema::v1::{
-    InitializeRequest, PermissionOption, PermissionOptionId, PermissionOptionKind,
-    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-    SelectedPermissionOutcome,
+    ContentBlock, ContentChunk, InitializeRequest, PermissionOption, PermissionOptionId,
+    PermissionOptionKind, RequestPermissionOutcome, RequestPermissionRequest,
+    RequestPermissionResponse, SelectedPermissionOutcome, SessionNotification, SessionUpdate,
 };
 use agent_client_protocol::schema::ProtocolVersion;
-use agent_client_protocol::{AcpAgent, Client};
+use agent_client_protocol::util::MatchDispatch;
+use agent_client_protocol::{AcpAgent, Client, Error as AcpError, SessionMessage};
 
 use crate::CascadeError;
+
+/// Idle-timeout — без жодної `session/update`-події від агента, не загальна
+/// тривалість ходу (реальний хід законно триває довго, поки регулярно щось
+/// відбувається). Захист від протокольного/агентського зависання: без нього
+/// відсутність відповіді на `session/request_permission` чи будь-яка інша
+/// тиша висить назавжди (саме так провалився живий прогін `skill codex taze`
+/// до фіксу дозволів — 57+ хвилин без жодного виводу). Override:
+/// `N_LLM_ACP_IDLE_TIMEOUT_MS`.
+fn idle_timeout() -> Duration {
+    Duration::from_millis(
+        env::var("N_LLM_ACP_IDLE_TIMEOUT_MS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(180_000),
+    )
+}
 
 /// Ціль ACP-підключення. Список відкритий — нові агенти додаються нових
 /// варіантом і `spec()`, протокол той самий для всіх.
@@ -90,6 +109,7 @@ pub async fn one_shot_acp(
 async fn prompt_agent(spec: AcpAgent, prompt: &str, cwd: &Path) -> Result<String, CascadeError> {
     let prompt = prompt.to_string();
     let cwd = cwd.to_path_buf();
+    let idle_timeout = idle_timeout();
 
     Client
         .builder()
@@ -114,12 +134,84 @@ async fn prompt_agent(spec: AcpAgent, prompt: &str, cwd: &Path) -> Result<String
                 .block_task()
                 .run_until(async move |mut session| {
                     session.send_prompt(prompt)?;
-                    session.read_to_string().await
+                    read_to_string_with_idle_timeout(&mut session, idle_timeout).await
                 })
                 .await
         })
         .await
         .map_err(|e| CascadeError::Provider(e.to_string()))
+}
+
+/// Як `Session::read_to_string()` (акумулює текстові `agent_message_chunk`,
+/// зупиняється на `StopReason`), але кожне окреме читання events обгорнуте в
+/// `idle_timeout` — а не весь хід разом. Це і є "видимість": не-текстові
+/// події (`tool_call`/`plan`/…) логуються в stderr замість мовчазного
+/// відкидання, і саме кожна така подія скидає таймер — реальний прогрес не
+/// зупиняє годинник, зупиняє лише справжня тиша.
+async fn read_to_string_with_idle_timeout<S>(
+    session: &mut S,
+    idle_timeout: Duration,
+) -> Result<String, AcpError>
+where
+    S: AcpSessionUpdates,
+{
+    let mut output = String::new();
+    loop {
+        let update = tokio::time::timeout(idle_timeout, session.read_update())
+            .await
+            .map_err(|_| {
+                AcpError::internal_error().data(Some(serde_json::json!(format!(
+                    "acp: немає жодної session/update-події {idle_timeout:?} — ймовірно завис"
+                ))))
+            })??;
+
+        match update {
+            SessionMessage::SessionMessage(dispatch) => MatchDispatch::new(dispatch)
+                .if_notification(async |notification: SessionNotification| {
+                    match &notification.update {
+                        SessionUpdate::AgentMessageChunk(ContentChunk {
+                            content: ContentBlock::Text(text),
+                            ..
+                        }) => output.push_str(&text.text),
+                        other => eprintln!("acp progress: {other:?}"),
+                    }
+                    Ok(())
+                })
+                .await
+                .otherwise_ignore()?,
+            SessionMessage::StopReason(_) => break,
+            _ => {}
+        }
+    }
+    Ok(output)
+}
+
+/// Мінімальний зріз `ActiveSession`, потрібний для idle-timeout-читання —
+/// узагальнено, щоб уникнути повного generic-підпису `ActiveSession<'_, Link>`
+/// у сигнатурі [`read_to_string_with_idle_timeout`].
+trait AcpSessionUpdates {
+    /// Читає наступну подію (текст, tool-call, StopReason, …).
+    async fn read_update(&mut self) -> Result<SessionMessage, AcpError>;
+}
+
+impl<Link> AcpSessionUpdates for agent_client_protocol::ActiveSession<'_, Link>
+where
+    Link: agent_client_protocol::role::HasPeer<agent_client_protocol::Agent>,
+{
+    async fn read_update(&mut self) -> Result<SessionMessage, AcpError> {
+        agent_client_protocol::ActiveSession::read_update(self).await
+    }
+}
+
+/// Фейкова сесія без жодної події — для тесту idle-timeout без реального ACP-агента.
+#[cfg(test)]
+struct NeverUpdatingSession;
+
+#[cfg(test)]
+impl AcpSessionUpdates for NeverUpdatingSession {
+    async fn read_update(&mut self) -> Result<SessionMessage, AcpError> {
+        std::future::pending().await
+    }
 }
 
 #[cfg(test)]
@@ -186,6 +278,29 @@ mod tests {
     #[test]
     fn permission_picker_none_for_empty_options() {
         assert_eq!(pick_auto_permission_option(&[]), None);
+    }
+
+    /// Захист від зависання без сигналу: якщо сесія взагалі не шле подій
+    /// (той самий симптом, що й живий прогін `skill codex taze` до фіксу
+    /// дозволів — 57+ хвилин тиші), читання провалюється за idle-timeout,
+    /// а не висить назавжди.
+    #[tokio::test]
+    async fn idle_timeout_fails_fast_when_no_updates_ever_arrive() {
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            read_to_string_with_idle_timeout(
+                &mut NeverUpdatingSession,
+                std::time::Duration::from_millis(50),
+            ),
+        )
+        .await;
+
+        let outcome =
+            result.expect("idle-timeout сам мав спрацювати задовго до зовнішнього 5с-ліміту");
+        assert!(
+            outcome.is_err(),
+            "без подій читання має провалитись, а не повернути Ok"
+        );
     }
 
     /// Обкатка fail-fast поведінки: неіснуючий бінарник — драбина (Cursor →
