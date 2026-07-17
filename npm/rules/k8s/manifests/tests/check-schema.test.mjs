@@ -2768,7 +2768,8 @@ describe('hasuraEnabledLogTypesOverrideValue', () => {
     const k = {
       patches: [
         {
-          patch: 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: db-h\ndata:\n  HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup\n'
+          patch:
+            'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: db-h\ndata:\n  HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup\n'
         }
       ]
     }
