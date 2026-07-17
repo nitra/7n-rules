@@ -13,6 +13,7 @@ resource: npm/scripts/lib/lint-surface/
 | [ladder.mjs](ladder.md)                                     | JS Module |
 | [lint-lock.mjs](lint-lock.md)                               | JS Module |
 | [mt-tail.mjs](mt-tail.md)                                   | JS Module |
+| [path-scope.mjs](path-scope.md)                             | JS Module |
 | [policy-lint-adapter.mjs](policy-lint-adapter.md)           | JS Module |
 | [policy-test-step.mjs](policy-test-step.md)                 | JS Module |
 | [progress.mjs](progress.md)                                 | JS Module |
