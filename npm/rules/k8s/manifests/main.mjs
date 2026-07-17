@@ -4922,6 +4922,12 @@ const HASURA_OVERLAY_ENABLED_APIS = 'metadata,graphql'
 /** JSON-Pointer ключа `HASURA_GRAPHQL_ENABLED_APIS` у `data` ConfigMap (для JSON6902-патчів). */
 const HASURA_ENABLED_APIS_DATA_POINTER = '/data/HASURA_GRAPHQL_ENABLED_APIS'
 
+/** Очікуване `HASURA_GRAPHQL_ENABLED_LOG_TYPES` у non-base/dev overlay (без `http-log` — він лише для base/dev). */
+const HASURA_OVERLAY_ENABLED_LOG_TYPES = 'startup'
+
+/** JSON-Pointer ключа `HASURA_GRAPHQL_ENABLED_LOG_TYPES` у `data` ConfigMap (для JSON6902-патчів). */
+const HASURA_ENABLED_LOG_TYPES_DATA_POINTER = '/data/HASURA_GRAPHQL_ENABLED_LOG_TYPES'
+
 /**
  * Чи дерево kustomization (`resources` / `bases` / `components` / `crds`, рекурсивно) містить
  * **Hasura-Deployment** у шарі base (образ `hasura/graphql-engine`). Маркер того, що overlay успадковує
@@ -4965,18 +4971,19 @@ function firstValidYamlJsonFromPatchText(patchText) {
 }
 
 /**
- * Значення `data.HASURA_GRAPHQL_ENABLED_APIS` з JSON6902-патчу (масив операцій).
- * Повертає значення першої `add`/`replace`-операції на `/data/HASURA_GRAPHQL_ENABLED_APIS`.
+ * Значення `data.<dataKey>` з JSON6902-патчу (масив операцій).
+ * Повертає значення першої `add`/`replace`-операції на `/data/<dataKey>`.
  * @param {unknown[]} ops масив JSON6902-операцій
+ * @param {string} dataPointer JSON-Pointer ключа (`/data/<dataKey>`)
  * @returns {string | null} присвоєне значення (рядок) або null
  */
-function enabledApisValueFromJson6902(ops) {
+function hasuraDataKeyValueFromJson6902(ops, dataPointer) {
   for (const item of ops) {
     if (item === null || typeof item !== 'object' || Array.isArray(item)) continue
     const rec = /** @type {Record<string, unknown>} */ (item)
     const op = typeof rec.op === 'string' ? rec.op.trim().toLowerCase() : ''
     const path = typeof rec.path === 'string' ? normalizeJsonPatchPath(rec.path) : ''
-    if ((op === 'add' || op === 'replace') && path === HASURA_ENABLED_APIS_DATA_POINTER) {
+    if ((op === 'add' || op === 'replace') && path === dataPointer) {
       return typeof rec.value === 'string' ? rec.value : JSON.stringify(rec.value)
     }
   }
@@ -4984,17 +4991,36 @@ function enabledApisValueFromJson6902(ops) {
 }
 
 /**
- * Значення `data.HASURA_GRAPHQL_ENABLED_APIS` зі Strategic-Merge-патчу (об'єкт із `data`).
+ * Значення `data.<dataKey>` зі Strategic-Merge-патчу (об'єкт із `data`).
  * @param {object} parsed розпарсений об'єкт patch
+ * @param {string} dataKey ключ у `data` (наприклад `HASURA_GRAPHQL_ENABLED_APIS`)
  * @returns {string | null} присвоєне значення (рядок) або null
  */
-function enabledApisValueFromStrategicMerge(parsed) {
+function hasuraDataKeyValueFromStrategicMerge(parsed, dataKey) {
   const data = /** @type {Record<string, unknown>} */ (parsed).data
   if (data === null || typeof data !== 'object' || Array.isArray(data)) return null
   const d = /** @type {Record<string, unknown>} */ (data)
-  if (!Object.hasOwn(d, 'HASURA_GRAPHQL_ENABLED_APIS')) return null
-  const v = d.HASURA_GRAPHQL_ENABLED_APIS
+  if (!Object.hasOwn(d, dataKey)) return null
+  const v = d[dataKey]
   return typeof v === 'string' ? v : JSON.stringify(v)
+}
+
+/**
+ * Значення, яке inline-`patch` присвоює `data.<dataKey>`. Підтримка двох форматів:
+ * **JSON6902** (`op` add/replace на `/data/<dataKey>`) і **Strategic Merge** (`data.<dataKey>`).
+ * Зовнішні patch-файли (`patches[].path`) не охоплені — Plan B trade-off.
+ * @param {string} patchText вміст поля `patch`
+ * @param {string} dataKey ключ у `data`
+ * @param {string} dataPointer JSON-Pointer ключа (`/data/<dataKey>`)
+ * @returns {string | null} присвоєне значення (рядок) або null, якщо patch не чіпає цей ключ
+ */
+function hasuraDataKeyValueFromPatchText(patchText, dataKey, dataPointer) {
+  const t = typeof patchText === 'string' ? patchText.trim() : ''
+  if (t === '') return null
+  const parsed = firstValidYamlJsonFromPatchText(t)
+  if (Array.isArray(parsed)) return hasuraDataKeyValueFromJson6902(parsed, dataPointer)
+  if (parsed === null || typeof parsed !== 'object') return null
+  return hasuraDataKeyValueFromStrategicMerge(parsed, dataKey)
 }
 
 /**
@@ -5005,12 +5031,29 @@ function enabledApisValueFromStrategicMerge(parsed) {
  * @returns {string | null} присвоєне значення (рядок) або null, якщо patch не чіпає цей ключ
  */
 export function enabledApisValueFromPatchText(patchText) {
-  const t = typeof patchText === 'string' ? patchText.trim() : ''
-  if (t === '') return null
-  const parsed = firstValidYamlJsonFromPatchText(t)
-  if (Array.isArray(parsed)) return enabledApisValueFromJson6902(parsed)
-  if (parsed === null || typeof parsed !== 'object') return null
-  return enabledApisValueFromStrategicMerge(parsed)
+  return hasuraDataKeyValueFromPatchText(patchText, 'HASURA_GRAPHQL_ENABLED_APIS', HASURA_ENABLED_APIS_DATA_POINTER)
+}
+
+/**
+ * Значення, яке `patches[]` kustomization присвоюють `data.<dataKey>` на цілі **ConfigMap**.
+ * Повертає значення першого patch-а, що чіпає цей ключ, або null, якщо такого немає.
+ * @param {Record<string, unknown>} kust об'єкт kustomization.yaml
+ * @param {string} dataKey ключ у `data`
+ * @param {string} dataPointer JSON-Pointer ключа (`/data/<dataKey>`)
+ * @returns {string | null} присвоєне значення або null
+ */
+function hasuraDataKeyOverrideValue(kust, dataKey, dataPointer) {
+  const patches = kust.patches
+  if (!Array.isArray(patches)) return null
+  for (const p of patches) {
+    if (p === null || typeof p !== 'object' || Array.isArray(p)) continue
+    const pr = /** @type {Record<string, unknown>} */ (p)
+    if (typeof pr.patch !== 'string') continue
+    if (resolvePatchTargetKind(pr) !== 'ConfigMap') continue
+    const v = hasuraDataKeyValueFromPatchText(pr.patch, dataKey, dataPointer)
+    if (v !== null) return v
+  }
+  return null
 }
 
 /**
@@ -5020,17 +5063,17 @@ export function enabledApisValueFromPatchText(patchText) {
  * @returns {string | null} присвоєне значення або null
  */
 export function hasuraEnabledApisOverrideValue(kust) {
-  const patches = kust.patches
-  if (!Array.isArray(patches)) return null
-  for (const p of patches) {
-    if (p === null || typeof p !== 'object' || Array.isArray(p)) continue
-    const pr = /** @type {Record<string, unknown>} */ (p)
-    if (typeof pr.patch !== 'string') continue
-    if (resolvePatchTargetKind(pr) !== 'ConfigMap') continue
-    const v = enabledApisValueFromPatchText(pr.patch)
-    if (v !== null) return v
-  }
-  return null
+  return hasuraDataKeyOverrideValue(kust, 'HASURA_GRAPHQL_ENABLED_APIS', HASURA_ENABLED_APIS_DATA_POINTER)
+}
+
+/**
+ * Значення, яке `patches[]` kustomization присвоюють `data.HASURA_GRAPHQL_ENABLED_LOG_TYPES` на цілі **ConfigMap**.
+ * Повертає значення першого patch-а, що чіпає цей ключ, або null, якщо такого немає.
+ * @param {Record<string, unknown>} kust об'єкт kustomization.yaml
+ * @returns {string | null} присвоєне значення або null
+ */
+export function hasuraEnabledLogTypesOverrideValue(kust) {
+  return hasuraDataKeyOverrideValue(kust, 'HASURA_GRAPHQL_ENABLED_LOG_TYPES', HASURA_ENABLED_LOG_TYPES_DATA_POINTER)
 }
 
 /**
@@ -5065,6 +5108,43 @@ async function validateHasuraOverlayEnabledApisOverride(root, yamlFilesAbs, fail
     } else {
       fail(
         `${rel}: overlay '${segment}' patch data.HASURA_GRAPHQL_ENABLED_APIS має бути "${HASURA_OVERLAY_ENABLED_APIS}" (зараз: ${JSON.stringify(value)}) (k8s.mdc)`
+      )
+    }
+  }
+}
+
+/**
+ * Для кожного **non-base/dev** overlay `kustomization.yaml`, що успадковує Hasura-base (Deployment з
+ * `hasura/graphql-engine`), вимагає у `patches[]` перевизначення **`data.HASURA_GRAPHQL_ENABLED_LOG_TYPES`**
+ * до **`"startup"`** (`http-log` лишається строго для base/dev — прод не пише per-request access-лог у
+ * Cloud Logging). `kind: Component` пропускається (env-неутральне джерело, не overlay).
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs yaml під k8s
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успіху
+ */
+async function validateHasuraOverlayEnabledLogTypesOverride(root, yamlFilesAbs, fail, passFn) {
+  const rootNorm = resolve(root)
+  const kustFiles = yamlFilesAbs.filter(abs => basename(abs) === 'kustomization.yaml')
+  for (const kustAbs of kustFiles) {
+    const rel = (relative(rootNorm, kustAbs) || kustAbs).replaceAll('\\', '/')
+    const segment = k8sEnvSegmentFromRelPath(rel)
+    if (segment === null || segment === 'base' || segment === 'dev') continue
+    const kust = await readFirstYamlObject(kustAbs)
+    if (kust === null || kust.kind === 'Component') continue
+    if (!(await kustomizationTreeHasHasuraDeployment(kustAbs, rootNorm))) continue
+    const value = hasuraEnabledLogTypesOverrideValue(kust)
+    if (value === HASURA_OVERLAY_ENABLED_LOG_TYPES) {
+      passFn(
+        `${rel}: overlay '${segment}' перевизначає HASURA_GRAPHQL_ENABLED_LOG_TYPES="${HASURA_OVERLAY_ENABLED_LOG_TYPES}" (k8s.mdc)`
+      )
+    } else if (value === null) {
+      fail(
+        `${rel}: overlay '${segment}' має у patches[] перевизначати data.HASURA_GRAPHQL_ENABLED_LOG_TYPES до "${HASURA_OVERLAY_ENABLED_LOG_TYPES}" (http-log лише для base/dev) (k8s.mdc)`
+      )
+    } else {
+      fail(
+        `${rel}: overlay '${segment}' patch data.HASURA_GRAPHQL_ENABLED_LOG_TYPES має бути "${HASURA_OVERLAY_ENABLED_LOG_TYPES}" (зараз: ${JSON.stringify(value)}) (k8s.mdc)`
       )
     }
   }
@@ -6657,6 +6737,8 @@ export async function lint(ctx) {
   await validateProdKustomizationOverrides(root, yamlFiles, fail, pass)
 
   await validateHasuraOverlayEnabledApisOverride(root, yamlFiles, fail, pass)
+
+  await validateHasuraOverlayEnabledLogTypesOverride(root, yamlFiles, fail, pass)
 
   return reporter.result()
 }
