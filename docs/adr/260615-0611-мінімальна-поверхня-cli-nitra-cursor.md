@@ -1,7 +1,7 @@
 ---
 type: ADR
 title: "Мінімальна поверхня CLI @nitra/cursor"
-description: CLI має зберігати окремі ролі lint, lint-doc-files і fix-doc-files та не додавати зайвий doc-files-флаг.
+description: CLI видаляє надлишкові alias-команди lint-ci і doc-files <sub>, лишаючи canonical entrypoints.
 ---
 
 **Status:** Accepted
@@ -9,32 +9,36 @@ description: CLI має зберігати окремі ролі lint, lint-doc-
 
 ## Context and Problem Statement
 
-CLI `n-cursor` мав кілька близьких точок входу для lint і doc-files. Потрібно було відрізнити реальні ролі від дублювання: `lint` у fix-mode латає doc-files лише для delta-змін, тоді як `fix-doc-files` потрібен для bulk/overwrite/retry-degraded сценаріїв.
+CLI `n-cursor` накопичив надлишкові точки входу. `lint-ci` був чистим аліасом для `lint --read-only --full`, а deprecated `doc-files <sub>` дублював `lint-doc-files` і `fix-doc-files`. Transcript фіксує, що grep по workflow, root `package.json`, скілах і коду не знайшов живих caller-ів цих alias-команд.
 
 ## Considered Options
 
-- Залишити `lint` як локальну delta-латку для змінених файлів.
-- Залишити `lint-doc-files` як hook-протокол.
-- Залишити `fix-doc-files` як bulk/overwrite/retry-degraded команду.
+- Залишити `lint-ci` і `doc-files <sub>` для зворотної сумісності.
+- Видалити `lint-ci` і `doc-files <sub>`, а CI направити на `lint --read-only --full`.
 - Злити doc-files-виклики у флаг `--doc-files` до `lint`.
-- Інші варіанти в transcript не обговорювалися.
 
 ## Decision Outcome
 
-Chosen option: "залишити окремі ролі `lint`, `lint-doc-files` і `fix-doc-files`", because transcript фіксує, що `fix-doc-files` не дублює `lint`: `lint` у fix-mode працює по delta vs origin, а `fix-doc-files` покриває first-run, `--overwrite` і `--retry-degraded`.
+Chosen option: "Видалити `lint-ci` і `doc-files <sub>`", because обидві команди були alias-шаром без власної поведінки й без живих caller-ів, а ціль transcript — мінімальна поверхня CLI.
 
 ### Consequences
 
-- Good, because CLI зберігає різні сценарії: delta-fix, hook-протокол і bulk-регенерацію.
-- Good, because не потрібен спеціальний `--doc-files` flag: doc-files уже є lint-правилом із `meta.json: lint: per-file`.
-- Bad, because transcript не містить підтвердження негативних наслідків від збереження трьох основних doc-files/lint точок входу.
-- Neutral, because deprecated `doc-files <sub>` у transcript позначений як мертвий аліас, який можна видаляти окремо.
+- Good, because CLI має менше публічних entrypoints і менше підтримуваних синонімів.
+- Good, because `lint --read-only --full` покриває CI-сценарій без окремої підкоманди.
+- Good, because `lint-doc-files` і `fix-doc-files` лишаються явними canonical командами для doc-files.
+- Bad, because видалення публічних команд є breaking change для зовнішніх скриптів, якщо вони зверталися до alias напряму.
+- Neutral, because transcript не містить підтвердження живих інтеграцій, які ламаються.
 
 ## More Information
 
-Фактична матриця з transcript:
+- `npm/bin/n-cursor.js`: видалено `case 'lint-ci'` і `case 'doc-files'`, оновлено шапку, default-перелік і root-guard коментарі.
+- `npm/schemas/rule-meta.json`: enum поля `lint` виправлено з `quick`/`ci` на `per-file`/`full`.
+- `npm/rules/js-lint-ci/js-lint-ci.mdc`: згадки `lint-ci` замінено на `lint --full` або `lint --read-only --full`.
+- `npm/.changes/260615-0638.md`: changeset `bump: major`, `section: Removed`.
+- Перевірки з transcript: `node --check npm/bin/n-cursor.js` OK; `vitest run` orchestrate-тестів — 6/6 passed.
 
-- `n-cursor lint` у fix-mode: тільки змінені файли, delta vs origin, CRC-mismatch only.
-- `n-cursor fix-doc-files`: весь repo або `--limit`/`--from`, підтримує `--overwrite`, `--retry-degraded`, `--stamp`.
-- `lint-doc-files`: hook-протокол.
-- `npm/rules/doc-files/js/lint.mjs:17-32`: підтверджено, що `lint({ readOnly: false })` викликає `runDocFilesGenCli` у fix-mode delta.
+## Update 2026-06-15
+
+Окремо підтверджено, що `lint-ci` був чистим аліасом для `runLint({ full: true, readOnly: true })`, тобто для сценарію `lint --read-only --full`. Живих caller-ів у workflow, CI-конфігах чи root `package.json` не зафіксовано; лишалися документаційні згадки та рядки CLI help/default-помилки.
+
+Також виправлено `npm/schemas/rule-meta.json`: enum поля `lint` змінено з `quick`/`ci` на фактичний runtime-контракт `per-file`/`full`, який читає `parseRuleLintSpec`.
