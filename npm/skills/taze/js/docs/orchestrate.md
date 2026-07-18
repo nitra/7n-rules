@@ -3,7 +3,7 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/skills/taze/js/orchestrate.mjs
 docgen:
-  crc: b675f6e7
+  crc: 95e6d312
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.98

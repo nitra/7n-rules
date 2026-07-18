@@ -361,24 +361,46 @@ describe('loadPluginTazeProviders', () => {
 })
 
 describe('runTazeOrchestrator', () => {
-  test('поза .worktrees/ — кидає до будь-якої мутації, не викликає bunx', async () => {
-    const bunxCalls = []
+  test('поза .worktrees/ — сам створює worktree (npx @7n/mt + bun install) і продовжує там', async () => {
+    const calls = []
+    const result = await runTazeOrchestrator({
+      cwd: '/Users/dev/repo',
+      runner: 'pi',
+      log: noop,
+      deps: {
+        spawnFn: (cmd, args = []) => {
+          calls.push([cmd, ...args].join(' '))
+          if (cmd === 'git' && args[0] === 'rev-parse') return { status: 0, stdout: '/Users/dev/repo\n', stderr: '' }
+          if (cmd === 'git' && args[0] === 'branch') return { status: 0, stdout: 'main\n', stderr: '' }
+          return fakeSpawn(cmd)
+        },
+        ecosystemProviders: []
+      }
+    })
+    expect(calls).toContain('npx @7n/mt worktree create main-taze n-taze: worktree-only skill')
+    expect(calls.some(c => c.startsWith('bun install'))).toBe(true)
+    expect(result.ok).toBe(true)
+  })
+
+  test('поза .worktrees/ і без визначеної гілки (detached HEAD) — кидає, не створює worktree', async () => {
+    const calls = []
     await expect(
       runTazeOrchestrator({
         cwd: '/Users/dev/repo',
         runner: 'pi',
         log: noop,
         deps: {
-          spawnFn: cmd => {
-            if (cmd === 'git') return { status: 0, stdout: '/Users/dev/repo\n', stderr: '' }
-            if (cmd === 'bunx') bunxCalls.push(cmd)
+          spawnFn: (cmd, args = []) => {
+            calls.push(cmd)
+            if (cmd === 'git' && args[0] === 'rev-parse') return { status: 0, stdout: '/Users/dev/repo\n', stderr: '' }
+            if (cmd === 'git' && args[0] === 'branch') return { status: 0, stdout: '\n', stderr: '' }
             return fakeSpawn(cmd)
           },
           ecosystemProviders: []
         }
       })
     ).rejects.toThrow(NOT_IN_WORKTREE_RE)
-    expect(bunxCalls).toHaveLength(0)
+    expect(calls).not.toContain('npx')
   })
 
   test('без major-оновлень і провайдерів — callRunner не викликається, є звіт', async () => {

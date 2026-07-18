@@ -81,28 +81,42 @@ export async function callRunner(runner, prompt, cwd, deps = {}) {
 }
 
 /**
- * Перевіряє, що `cwd` — ізольований worktree (`main.json.worktree: true`,
- * той самий контракт, що й для інших worktree-only скілів). Раніше цю
- * гарантію тримав агент, читаючи SKILL.md-preflight як частину промпту;
- * оркестратор більше НЕ годує SKILL.md жодному викликові, тож без цієї
- * перевірки `bunx taze -w -r latest`/`bun install` мовчки виконались би
- * прямо в основному дереві виклику. Кидає, якщо `git rev-parse --show-toplevel`
- * не містить `.worktrees` як сегмент шляху (покриває і `npx \@7n/mt worktree
- * create`-конвенцію `.worktrees/`, і сесійну `.claude/worktrees/`).
+ * Гарантує, що подальші кроки оркестратора виконуються в ізольованому
+ * worktree (`main.json.worktree: true`, той самий контракт, що й для інших
+ * worktree-only скілів). Оркестратор не годує SKILL.md жодному агенту, тож
+ * замість покладатись на агента, що читає SKILL.md-preflight, сам детерміновано
+ * створює worktree конвенцією `<current-branch>-taze` (`npx \@7n/mt worktree
+ * create`) і ставить залежності — щоб `bunx taze -w -r latest`/`bun install`
+ * ніколи не виконались прямо в основному дереві виклику.
  * @param {string} cwd каталог для перевірки
  * @param {typeof spawnSync} spawnFn інжект для тестів
- * @returns {void}
+ * @param {(line: string) => void} log колбек прогресу
+ * @returns {string} `cwd` без змін, якщо вже worktree; інакше шлях щойно створеного worktree
  */
-function assertRunningInWorktree(cwd, spawnFn) {
-  const result = spawnFn('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8' })
-  const toplevel = result.status === 0 ? result.stdout.trim() : ''
+function ensureRunningInWorktree(cwd, spawnFn, log) {
+  const toplevelResult = spawnFn('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8' })
+  const toplevel = toplevelResult.status === 0 ? toplevelResult.stdout.trim() : ''
   const segments = new Set(toplevel.replaceAll('\\', '/').split('/'))
-  if (!segments.has('.worktrees')) {
+  if (segments.has('.worktrees')) return cwd
+
+  const branchResult = spawnFn('git', ['branch', '--show-current'], { cwd, encoding: 'utf8' })
+  const currentBranch = branchResult.status === 0 ? branchResult.stdout.trim() : ''
+  if (!currentBranch) {
     throw new Error(
-      `taze: "${cwd}" не в ізольованому worktree (git toplevel: "${toplevel || '?'}"). ` +
-        'main.json.worktree=true вимагає окремого дерева — створи його спершу (див. SKILL.md preflight), не запускай taze в основному дереві.'
+      `taze: "${cwd}" не в ізольованому worktree (git toplevel: "${toplevel || '?'}"), і поточну гілку визначити не вдалось ` +
+        '(detached HEAD?) — автоматичне створення worktree за конвенцією `<current-branch>-taze` неможливе. Перейди на гілку вручну.'
     )
   }
+
+  const branchArg = `${currentBranch}-taze`
+  const pathSegment = branchArg.replaceAll('/', '-')
+  log(`⚠️ "${cwd}" не в ізольованому worktree — створюю ".worktrees/${pathSegment}"...`)
+  runCommand('npx', ['@7n/mt', 'worktree', 'create', branchArg, 'n-taze: worktree-only skill'], cwd, spawnFn)
+
+  const newCwd = join(cwd, '.worktrees', pathSegment)
+  log('📥 bun install (bootstrap нового дерева)...')
+  runCommand('bun', ['install'], newCwd, spawnFn)
+  return newCwd
 }
 
 /**
@@ -329,14 +343,13 @@ export function formatReport({ minorPatch, totalChanged, results, ecosystems = [
  * @returns {Promise<{ ok: boolean, report: string, results: Array<object>, ecosystems: Array<object> }>} результат
  */
 export async function runTazeOrchestrator(options = {}) {
-  const cwd = options.cwd ?? process.cwd()
   const runner = options.runner ?? 'pi'
   const log = options.log ?? (line => console.log(line))
   const deps = options.deps ?? {}
   const spawnFn = deps.spawnFn ?? spawnSync
   const call = deps.callRunner ?? callRunner
 
-  assertRunningInWorktree(cwd, spawnFn)
+  const cwd = ensureRunningInWorktree(options.cwd ?? process.cwd(), spawnFn, log)
 
   // npm/bun-гілка активна лише за кореневим package.json — на чисто-Python/Rust
   // репо `bun install` падає з exit 1, і без цього гейта весь прогін гинув би
