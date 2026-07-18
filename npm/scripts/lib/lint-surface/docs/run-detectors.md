@@ -3,7 +3,7 @@ type: JS Module
 title: run-detectors.mjs
 resource: npm/scripts/lib/lint-surface/run-detectors.mjs
 docgen:
-  crc: 859f1a0b
+  crc: 37567fc8
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.98
@@ -20,6 +20,8 @@ docgen:
 DEFAULT_RULES_DIR визначає шлях до стандартної директорії з правилами.
 buildDetectPlan створює впорядкований план прогону лінтера, збираючи всі відповідні концерни та визначаючи область їх сканування.
 detectAll виконує прохід лінтера у режим детекції, збираючи всі виявлені порушення та повертаючи код виходу.
+
+**Внутрішній паралелізм (ADR 260716-1354-внутрішній-паралелізм-lint-оркестратора).** `detectAll` читає `N_RULES_LINT_CONCURRENCY` (дефолт `1` — production-паралелізм ще не пройшов benchmark-gates ADR): за замовчуванням план виконується повністю послідовно (`detectPlanSequentially`), спостережувано ідентично до-ADR поведінці. При `concurrency > 1` план ділиться на два лейни через `blocking-inventory.mjs` (`isSerialLane`) і виконується через `scheduler.mjs` (`runPlanConcurrently`, `detectPlanConcurrently`): parallel lane — доведені non-blocking concern-и, bounded pool до `concurrency`; serial lane — решта, строго послідовно. Перший `DetectorError` (будь-який лейн) зупиняє нові старти, `AbortController` сигналізує вже запущеним async-детекторам (`ctx.signal`), а вже завершені concern-и лишаються в результаті — `exitCode 2` пріоритетний над частковими violations. Фінальний масив violations завжди стабільно сортується за `(ruleId, concernId, file, data.line, reason)` — незалежно від порядку завершення (`sortViolations`), навіть при `concurrency=1`.
 
 ## Публічний API
 

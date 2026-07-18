@@ -6,6 +6,7 @@ resource: npm/scripts/lib/lint-surface/
 
 | Файл                                                        | Тип       |
 | ----------------------------------------------------------- | --------- |
+| [blocking-inventory.mjs](blocking-inventory.md)             | JS Module |
 | [ci-plan.mjs](ci-plan.md)                                   | JS Module |
 | [codegen-opa-wrapper.mjs](codegen-opa-wrapper.md)           | JS Module |
 | [collateral-veto.mjs](collateral-veto.md)                   | JS Module |
@@ -21,6 +22,7 @@ resource: npm/scripts/lib/lint-surface/
 | [render.mjs](render.md)                                     | JS Module |
 | [run-detectors.mjs](run-detectors.md)                       | JS Module |
 | [run-fix.mjs](run-fix.md)                                   | JS Module |
+| [scheduler.mjs](scheduler.md)                               | JS Module |
 | [snapshot.mjs](snapshot.md)                                 | JS Module |
 | [tier-sampling-bench.mjs](tier-sampling-bench.md)           | JS Module |
 | [tier-sampling-experiment.mjs](tier-sampling-experiment.md) | JS Module |

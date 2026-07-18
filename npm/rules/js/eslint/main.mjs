@@ -3,16 +3,15 @@
  * eslint --fix) — окремий T0 `fix-eslint.mjs` (детермінований), не в detector-і.
  */
 import { resolve, relative } from 'node:path'
-import { spawnSync } from 'node:child_process'
 
 import { ESLint } from 'eslint'
 
 import { addedLinesByFile } from '../../../scripts/lib/diff-added-lines.mjs'
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 import { WORKTREE_CHECKOUT_GLOBS } from '../../../scripts/utils/walkDir.mjs'
 import { classifyFindings, eslintResultsToFindings, parseOxlint } from '../lint-findings/main.mjs'
 
 const JS_EXT_RE = /\.(?:mjs|cjs|js|jsx|ts|tsx|vue)$/u
-const JSON_MAX_BUFFER = 64 * 1024 * 1024
 
 /**
  * @param {string[]} files список шляхів
@@ -23,13 +22,15 @@ export function filterJsFiles(files) {
 }
 
 /**
+ * Async (не блокує event loop) — детектор може виконуватись у parallel lane `detectAll()`
+ * (ADR 260716-1354).
  * @param {string[]} args аргументи запуску oxlint
  * @param {string} cwd робочий каталог
- * @returns {{ status: number, stdout: string, stderr: string }} код завершення, stdout і stderr процесу
+ * @returns {Promise<{ status: number, stdout: string, stderr: string }>} код завершення, stdout і stderr процесу
  */
-function runOxlintJson(args, cwd) {
-  const r = spawnSync('bunx', args, { cwd, encoding: 'utf8', maxBuffer: JSON_MAX_BUFFER })
-  return { status: typeof r.status === 'number' ? r.status : 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' }
+async function runOxlintJson(args, cwd) {
+  const r = await spawnAsync('bunx', args, { cwd })
+  return { status: typeof r.exitCode === 'number' ? r.exitCode : 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' }
 }
 
 /**
@@ -68,7 +69,7 @@ async function collectFindings(js, cwd) {
     js === null
       ? ['oxlint', '--format=json', ...worktreeIgnoreArgs]
       : ['oxlint', '--format=json', ...worktreeIgnoreArgs, ...js]
-  const oxRes = runOxlintJson(oxArgs, cwd)
+  const oxRes = await runOxlintJson(oxArgs, cwd)
   const ox = parseOxlint(oxRes.stdout)
   if (ox === null && oxRes.status !== 0) {
     // Хвости stdout/stderr — інакше на CI причина крашу (OOM, конфіг, версія) невидима.

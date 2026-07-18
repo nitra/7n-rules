@@ -3,7 +3,7 @@ type: JS Module
 title: ensure-tool.mjs
 resource: npm/scripts/lib/ensure-tool.mjs
 docgen:
-  crc: 42b0cd01
+  crc: b1b054d0
 ---
 
 Модуль `ensure-tool.mjs` — єдина точка резолву зовнішніх CLI-залежностей пакета `@7n/rules`. Він гарантує, що потрібний бінарник (`hk`, `conftest`, `shellcheck`, `actionlint`, `dotenv-linter`, `opa`, `regal`, `hadolint`, `kubeconform`, `kubescape`) доступний у системі, виконуючи послідовний пошук:
@@ -15,14 +15,17 @@ docgen:
 
 Така архітектура усуває дублювання install-логіки в кожному `lint.mjs` / `fix.mjs`: щоб додати нову зовнішню утиліту, достатньо одного запису в реєстрі `TOOLS`. Додатково модуль експортує `ensureHkInstall`, який реєструє git pre-commit hook через `hk install` (пропускається в CI).
 
-Файл написаний для Node.js (ESM), використовує лише стандартну бібліотеку та один локальний хелпер `resolveCmd`.
+Поруч із синхронною `ensureTool` (публічний API пакета, сигнатура не змінюється) модуль експортує async-варіант `ensureToolAsync(toolId)` для parallel lane `detectAll()` (ADR 260716-1354-внутрішній-паралелізм-lint-оркестратора): конкурентні виклики того самого `toolId` в одному Node-процесі колапсують в один install (in-process single-flight), а auto-install крок додатково серіалізується між процесами через `withLock` (ключ `ensure-tool/<toolId>`) — паралельні Node-процеси (різні CI-shard-и, кілька агентів) не тягнуть той самий бінарник конкурентно. Завантажений архів завжди пишеться в унікальний per-call temp-каталог і публікується атомарним `renameSync` під фіксованим flat-іменем `<toolId>` — цей hardened install-крок спільний для sync і async шляхів.
+
+Файл написаний для Node.js (ESM), використовує лише стандартну бібліотеку, локальний хелпер `resolveCmd` і `withLock` (`../utils/with-lock.mjs`) для міжпроцесної серіалізації async-install-кроку.
 
 ## Експорти / API
 
-| Експорт                  | Тип        | Призначення                                                                                                    |
-| ------------------------ | ---------- | -------------------------------------------------------------------------------------------------------------- |
-| `ensureTool(toolId)`     | `function` | Резолвить і за потреби встановлює зовнішній CLI. Повертає абсолютний шлях до бінарника або кидає `Error`.      |
-| `ensureHkInstall(hkBin)` | `function` | Виконує `hk install` для реєстрації git pre-commit hook. Жодного return value; на помилку лише `console.warn`. |
+| Експорт                    | Тип        | Призначення                                                                                                                                       |
+| --------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ensureTool(toolId)`        | `function` | Резолвить і за потреби встановлює зовнішній CLI (sync). Повертає абсолютний шлях до бінарника або кидає `Error`.                                     |
+| `ensureToolAsync(toolId)`   | `function` | Async-варіант для parallel lane `detectAll()`: single-flight (in-process) + `withLock` (cross-process) навколо auto-install кроку. Повертає `Promise<string>`. |
+| `ensureHkInstall(hkBin)`    | `function` | Виконує `hk install` для реєстрації git pre-commit hook. Жодного return value; на помилку лише `console.warn`.                                       |
 
 Внутрішні (не експортуються, але формують контракт модуля):
 
@@ -81,19 +84,18 @@ docgen:
   1. Резолвить `curl` та `tar` у PATH; за відсутності — кидає `Error`.
   2. Через `fetchLatestVersion` отримує актуальну версію.
   3. Формує назву asset через `entry.asset(ver)` і URL `https://github.com/<github>/releases/download/v<ver>/<asset>`.
-  4. Створює `cacheDir` (`mkdirSync` з `recursive: true`).
-  5. Завантажує asset через `curl -sSL -o <archivePath> <downloadUrl>`.
-  6. Якщо `entry.archive === false` — перейменовує завантажений файл у `<cacheDir>/<toolId>`, виставляє права `0o755` і повертає шлях.
-  7. Інакше викликає `tar` із прапорцем `-xJf` (для `.tar.xz`) або `-xzf` (для `.tar.gz`) для розпакування в `cacheDir`.
-  8. Визначає реальний шлях до бінарника через `entry.binFinder(ver)` або просто `toolId`. Перевіряє існування файлу.
-  9. Опціонально видаляє завантажений архів через `rm` (м’яко: якщо `rm` не знайдено, продовжує).
+  4. Створює `cacheDir` (`mkdirSync` з `recursive: true`) і унікальний per-call temp-каталог усередині нього (`mkdtempSync(join(cacheDir, '.tmp-<toolId>-'))`) — той самий filesystem гарантує, що фінальний `renameSync` не впаде з `EXDEV`.
+  5. Завантажує asset у temp-каталог через `curl -sSL -o <tmpDir>/<asset> <downloadUrl>`.
+  6. Якщо `entry.archive === false` — `chmodSync` завантаженого файлу (`0o755`) і атомарний `renameSync` у `<cacheDir>/<toolId>`.
+  7. Інакше викликає `tar` із прапорцем `-xJf` (для `.tar.xz`) або `-xzf` (для `.tar.gz`) для розпакування в temp-каталог, знаходить реальний шлях бінарника через `entry.binFinder(ver)` або просто `toolId`, перевіряє його існування — і так само атомарним `renameSync` публікує його у `<cacheDir>/<toolId>` (flat-ім'я, незалежно від вкладеної структури архіву).
+  8. У `finally` прибирає весь temp-каталог (`rmSync(tmpDir, { recursive: true, force: true })`) — і архів, і проміжні файли розпакування зникають одним викликом.
 - **Помилки:**
   - `curl не знайдено в PATH — потрібен для завантаження <toolId>`.
   - `tar не знайдено в PATH — потрібен для встановлення <toolId>`.
   - `Завантаження <toolId> не вдалось: ...` / `curl exit <status> при завантаженні <toolId>: ...`.
   - `tar failed for <toolId>: ...` / `tar exit <status> для <toolId>: ...`.
-  - `Бінарник <toolId> не знайдено після розпакування: <binPath>`.
-- **Side effects:** мережа, файлова система (створення/перейменування файлів, chmod, видалення архіву).
+  - `Бінарник <toolId> не знайдено після розпакування: <extractedBin>`.
+- **Side effects:** мережа, файлова система (унікальний temp-каталог, атомарна публікація, chmod, очищення temp).
 
 ### `installViaBrew(toolId, entry)`
 
@@ -149,7 +151,7 @@ docgen:
 - **Послідовність резолву:**
   1. **Валідація** — якщо `TOOLS[toolId]` відсутній, кидає `ensureTool: невідомий тул '<toolId>'`.
   2. **PATH** — `resolveCmd(toolId)`; якщо знайдено — повертає одразу.
-  3. **Кеш** — `join(getCacheDir(), toolId)`; якщо файл існує — повертає його шлях. Зауваження: перевірка спрощена і не враховує `entry.binFinder` (для cached binaries `installFromGithub` уже клав фінальний бінарник у відоме місце або кеш просто не містить такого файлу — у такому разі переходимо до install).
+  3. **Кеш** — `join(getCacheDir(), toolId)`; якщо файл існує — повертає його шлях. Install завжди публікує бінарник під цим самим flat-іменем (атомарний `renameSync`, незалежно від вкладеної структури архіву — напр. `shellcheck` розпаковується у `shellcheck-v<ver>/shellcheck`), тож ця перевірка коректно бачить кеш і після `entry.binFinder`-архівів.
   4. **Авто-install** — якщо змінна середовища `N_CURSOR_NO_AUTO_INSTALL` не виставлена, викликає `autoInstall(toolId, entry, cacheDir)`.
   5. **Hard-fail** — кидає `Error(buildHint(toolId, entry))`.
 - **Помилки:** будь-яка з помилок `autoInstall` / `installFrom*` піднімається вгору; додатково — `невідомий тул` та `❌ ... не знайдено в PATH`.
@@ -209,13 +211,13 @@ docgen:
    - `fetchLatestVersion('koalaman/shellcheck', curl)` → наприклад `0.10.0`.
    - asset name = `shellcheck-v0.10.0.linux.x86_64.tar.xz`.
    - URL = `https://github.com/koalaman/shellcheck/releases/download/v0.10.0/<asset>`.
-   - `mkdirSync(cacheDir, { recursive: true })`.
-   - `curl -sSL -o <cacheDir>/<asset> <url>`.
-   - `tar -xJf <asset> -C <cacheDir>` (бо `.tar.xz`).
-   - `binFinder('0.10.0')` → `shellcheck-v0.10.0/shellcheck`.
-   - Перевірка `existsSync(<cacheDir>/shellcheck-v0.10.0/shellcheck)`.
-   - `rm <archivePath>`.
-   - Повертає `<cacheDir>/shellcheck-v0.10.0/shellcheck`.
+   - `mkdirSync(cacheDir, { recursive: true })` і унікальний `tmpDir = mkdtempSync(join(cacheDir, '.tmp-shellcheck-'))`.
+   - `curl -sSL -o <tmpDir>/<asset> <url>`.
+   - `tar -xJf <asset> -C <tmpDir>` (бо `.tar.xz`).
+   - `binFinder('0.10.0')` → `<tmpDir>/shellcheck-v0.10.0/shellcheck`; перевірка `existsSync`.
+   - Атомарний `renameSync(<tmpDir>/shellcheck-v0.10.0/shellcheck, <cacheDir>/shellcheck)` — публікація під flat-іменем.
+   - `rmSync(tmpDir, { recursive: true, force: true })` у `finally`.
+   - Повертає `<cacheDir>/shellcheck`.
 7. Викликач отримує абсолютний шлях і запускає `spawnSync(bin, [...args])`.
 
 ### Сценарій блокування авто-installу

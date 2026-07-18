@@ -104,6 +104,7 @@ export function startChain({ kind, unit, cwd, meta = {}, deps = {} }) {
   let step = 0
   let localCalls = 0
   let cloudCalls = 0
+  let unknownCalls = 0
   let errors = 0
   let finalModel = null
   let ended = null
@@ -126,15 +127,23 @@ export function startChain({ kind, unit, cwd, meta = {}, deps = {} }) {
 
     /**
      * Раннер репортує результат кроку — акумуляція local/cloud/usage/errors.
+     * `call.model` falsy (нерозв'язаний modelSpec, напр. `''`/`null` — консюмер
+     * лишив вибір pi) — бакет `unknownCalls`, НЕ cloud: без факту резолву модель
+     * могла піти на локальний pi-дефолт, і мовчазний запис у cloudCalls/usageCloud
+     * спотворює local/cloud cost-аналітику для будь-кого, хто не передає `model`.
      * @param {{ model?: string|null, usage?: object|null, error?: string|null, stopReason?: string|null }} call результат виклику
      * @returns {void}
      */
     note(call = {}) {
-      const local = call.model ? isLocal(call.model) : false
-      if (local) localCalls++
-      else cloudCalls++
+      if (!call.model) {
+        unknownCalls++
+      } else if (isLocal(call.model)) {
+        localCalls++
+      } else {
+        cloudCalls++
+        addUsage(usageCloud, call.usage)
+      }
       addUsage(usage, call.usage)
-      if (!local) addUsage(usageCloud, call.usage)
       if (call.error) errors++
       else if (call.model) finalModel = call.model
     },
@@ -179,6 +188,7 @@ export function startChain({ kind, unit, cwd, meta = {}, deps = {} }) {
         steps: step,
         localCalls,
         cloudCalls,
+        unknownCalls,
         escalated: localCalls > 0 && cloudCalls > 0,
         finalModel,
         errors,

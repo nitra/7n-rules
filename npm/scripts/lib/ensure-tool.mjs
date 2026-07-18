@@ -6,16 +6,24 @@
  *
  * Per-platform matrix: macOS → brew, Windows → scoop (fallback: GitHub Release), Linux → GitHub Release binary.
  * Бінарники кешуються у `~/.cache/@7n/rules/bin/` (Linux/Mac), `%LOCALAPPDATA%\@7n\cursor\bin\` (Win).
+ * Download завжди пишеться в унікальний per-call temp-каталог і публікується атомарним `renameSync` —
+ * паралельні install того самого тула (різні процеси/промиси) не тупцюють по спільному archive-шляху.
+ *
+ * `ensureTool` лишається синхронним — публічний API пакету (`@7n/rules/scripts/lib/ensure-tool.mjs`,
+ * реально споживається зовнішнім `plugins/ci-github`), сигнатуру не міняємо. `ensureToolAsync(toolId)` —
+ * async-варіант для parallel lane `detectAll()`: внутрішньопроцесний single-flight + міжпроцесний
+ * `withLock` навколо auto-install кроку (`docs/adr/260716-1354-…`).
  *
  * `ensureHkInstall(hkBin)` — реєструє git pre-commit hook через `hk install`; пропускається в CI.
  */
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, renameSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, renameSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { arch, env, platform } from 'node:process'
 
 import { resolveCmd } from '../utils/resolve-cmd.mjs'
+import { withLock } from '../utils/with-lock.mjs'
 
 /** Префікс `v` у git-тегу релізу (`v1.2.3` → `1.2.3`). */
 const TAG_V_PREFIX_RE = /^v/
@@ -189,39 +197,53 @@ function installFromGithub(toolId, entry, cacheDir) {
   const downloadUrl = `https://github.com/${entry.github}/releases/download/v${ver}/${assetName}`
 
   mkdirSync(cacheDir, { recursive: true })
-  const archivePath = join(cacheDir, assetName)
+  // Унікальний per-call temp-каталог у тому ж cacheDir (той самий filesystem — атомарний renameSync
+  // наприкінці не впаде з EXDEV). Паралельні install-и того самого тула пишуть у різні temp-каталоги,
+  // не конфліктуючи один з одним; під фіксованим `<toolId>`-іменем публікується лише готовий бінарник.
+  const tmpDir = mkdtempSync(join(cacheDir, `.tmp-${toolId}-`))
+  try {
+    const archivePath = join(tmpDir, assetName)
 
-  const dlResult = spawnSync(curlBin, ['-sSL', '-o', archivePath, downloadUrl], { encoding: 'utf8' })
-  if (dlResult.error) throw new Error(`Завантаження ${toolId} не вдалось: ${dlResult.error.message}`)
-  if (dlResult.status !== 0)
-    throw new Error(`curl exit ${dlResult.status} при завантаженні ${toolId}: ${(dlResult.stderr ?? '').slice(0, 300)}`)
+    const dlResult = spawnSync(curlBin, ['-sSL', '-o', archivePath, downloadUrl], { encoding: 'utf8' })
+    if (dlResult.error) throw new Error(`Завантаження ${toolId} не вдалось: ${dlResult.error.message}`)
+    if (dlResult.status !== 0) {
+      throw new Error(
+        `curl exit ${dlResult.status} при завантаженні ${toolId}: ${(dlResult.stderr ?? '').slice(0, 300)}`
+      )
+    }
 
-  // Сирий бінарник (archive: false) — завантажений файл і є бінарником: перейменовуємо у <toolId> + chmod.
-  if (entry.archive === false) {
-    const binPath = join(cacheDir, toolId)
-    renameSync(archivePath, binPath)
-    chmodSync(binPath, 0o755)
-    return binPath
+    const publishedBin = join(cacheDir, toolId)
+
+    // Сирий бінарник (archive: false) — завантажений файл і є бінарником: chmod + атомарна публікація.
+    if (entry.archive === false) {
+      chmodSync(archivePath, 0o755)
+      renameSync(archivePath, publishedBin)
+      return publishedBin
+    }
+
+    // .tar.xz потребує -J замість -z
+    const isXz = assetName.endsWith('.tar.xz')
+    const tarFlags = isXz ? ['-xJf'] : ['-xzf']
+    const extractResult = spawnSync(tarBin, [...tarFlags, archivePath, '-C', tmpDir], { encoding: 'utf8' })
+    if (extractResult.error) throw new Error(`tar failed for ${toolId}: ${extractResult.error.message}`)
+    if (extractResult.status !== 0) {
+      throw new Error(`tar exit ${extractResult.status} для ${toolId}: ${(extractResult.stderr ?? '').slice(0, 300)}`)
+    }
+
+    const binRelPath = entry.binFinder ? entry.binFinder(ver) : toolId
+    const extractedBin = join(tmpDir, binRelPath)
+    if (!existsSync(extractedBin)) {
+      throw new Error(`Бінарник ${toolId} не знайдено після розпакування: ${extractedBin}`)
+    }
+
+    // Атомарна публікація під фіксованим flat-іменем — незалежно від вкладеної структури архіву
+    // (напр. shellcheck розпаковується у `shellcheck-v<ver>/shellcheck`), щоб наступний виклик
+    // `ensureTool` бачив кеш за тим самим шляхом, яким його перевіряє (`join(cacheDir, toolId)`).
+    renameSync(extractedBin, publishedBin)
+    return publishedBin
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true })
   }
-
-  // .tar.xz потребує -J замість -z
-  const isXz = assetName.endsWith('.tar.xz')
-  const tarFlags = isXz ? ['-xJf'] : ['-xzf']
-  const extractResult = spawnSync(tarBin, [...tarFlags, archivePath, '-C', cacheDir], { encoding: 'utf8' })
-  if (extractResult.error) throw new Error(`tar failed for ${toolId}: ${extractResult.error.message}`)
-  if (extractResult.status !== 0)
-    throw new Error(`tar exit ${extractResult.status} для ${toolId}: ${(extractResult.stderr ?? '').slice(0, 300)}`)
-
-  const binRelPath = entry.binFinder ? entry.binFinder(ver) : toolId
-  const binPath = join(cacheDir, binRelPath)
-  if (!existsSync(binPath)) {
-    throw new Error(`Бінарник ${toolId} не знайдено після розпакування: ${binPath}`)
-  }
-
-  const rmBin = resolveCmd('rm')
-  if (rmBin) spawnSync(rmBin, [archivePath])
-
-  return binPath
 }
 
 /**
@@ -332,6 +354,78 @@ export function ensureTool(toolId) {
 
   // 4. Hard-fail з per-OS підказкою
   throw new Error(buildHint(toolId, entry))
+}
+
+/** Внутрішньопроцесний single-flight: конкурентні `ensureToolAsync(toolId)` в одному Node-процесі колапсують в один install. */
+const inFlightInstalls = new Map()
+
+/**
+ * Обгортає `autoInstall` міжпроцесним `withLock` — паралельні Node-процеси (різні CI-shard-и,
+ * кілька агентів на тій самій машині) чекають у черзі замість конкурентного запису в спільний
+ * cache/archive-шлях. Fingerprint-дедуп локу вимкнено (`getFingerprint: () => null`) — той
+ * механізм призначений для повторних CLI-команд на тому самому git-дереві, тут важлива лише
+ * взаємовиключність; після взяття локу перевіряємо кеш повторно (інший процес міг встановити,
+ * поки ми чекали).
+ * @param {string} toolId ключ у реєстрі TOOLS
+ * @param {ToolEntry} entry опис тула
+ * @param {string} cacheDir каталог кешу
+ * @returns {Promise<string>} абсолютний шлях до бінарника
+ */
+async function installWithCrossProcessLock(toolId, entry, cacheDir) {
+  let resultPath = null
+  await withLock(
+    `ensure-tool/${toolId}`,
+    () => {
+      const cachedBin = join(cacheDir, toolId)
+      resultPath = existsSync(cachedBin) ? cachedBin : autoInstall(toolId, entry, cacheDir)
+      return 0
+    },
+    { onWaitTimeout: 'fail', getFingerprint: () => null }
+  )
+  return resultPath
+}
+
+/**
+ * Async-варіант `ensureTool` для parallel lane `detectAll()` (ADR 260716-1354). `ensureTool`
+ * (sync) лишається незміненою — публічний API пакета; ця функція існує окремо, не заміняє її.
+ *
+ * Fast-paths (PATH, уже закешований бінарник) — ідентичні sync-версії. Auto-install — єдина
+ * гілка, що реально потребує async: обгорнута internal single-flight (`inFlightInstalls`) і
+ * cross-process `withLock`, щоб паралельні виклики того самого `toolId` (в одному процесі чи
+ * кількох) не тягнули install конкурентно.
+ * @param {string} toolId ключ у реєстрі TOOLS (`'hk'`, `'conftest'`, `'shellcheck'`, `'actionlint'`, `'dotenv-linter'`, `'opa'`, `'regal'`, `'hadolint'`, `'kubeconform'`, `'kubescape'`)
+ * @returns {Promise<string>} абсолютний шлях до бінарника
+ */
+export async function ensureToolAsync(toolId) {
+  const entry = TOOLS[toolId]
+  if (!entry) throw new Error(`ensureTool: невідомий тул '${toolId}'`)
+
+  // 1. PATH
+  const fromPath = resolveCmd(toolId)
+  if (fromPath) return fromPath
+
+  // 2. Кеш
+  const cacheDir = getCacheDir()
+  const cachedBin = join(cacheDir, toolId)
+  if (existsSync(cachedBin)) return cachedBin
+
+  // 3. Hard-fail (opt-out) — до single-flight, щоб не ставити зайвий запис у Map даремно
+  if (env['N_CURSOR_NO_AUTO_INSTALL']) throw new Error(buildHint(toolId, entry))
+
+  // 4. Авто-install: single-flight (in-process) + withLock (cross-process)
+  const inFlight = inFlightInstalls.get(toolId)
+  if (inFlight) return inFlight
+
+  const installPromise = installWithCrossProcessLock(toolId, entry, cacheDir)
+  inFlightInstalls.set(toolId, installPromise)
+  try {
+    // Єдиний реальний await у функції: коли installPromise усталиться (для ЦЬОГО, ініціюючого
+    // виклику — конкурентні виклики вище просто повернули той самий inFlight), приберемо запис
+    // з Map рівно один раз, незалежно від того, скільки викликів чекало на той самий проміс.
+    return await installPromise
+  } finally {
+    inFlightInstalls.delete(toolId)
+  }
 }
 
 /**

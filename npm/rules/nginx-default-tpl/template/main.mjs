@@ -378,12 +378,12 @@ async function checkDockerfiles(root, ignorePaths, passFn, failFn) {
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
  * @param {string} cwd корінь репозиторію
- * @returns {void}
+ * @returns {Promise<void>} результат
  */
-function checkVscodeNginx(passFn, failFn, cwd) {
+async function checkVscodeNginx(passFn, failFn, cwd) {
   const extPath = join(cwd, '.vscode/extensions.json')
   if (existsSync(extPath)) {
-    const violations = runConftestBatch({
+    const violations = await runConftestBatch({
       policyDirRel: 'nginx-default-tpl/vscode_extensions',
       namespace: 'nginx_default_tpl.vscode_extensions',
       files: [extPath]
@@ -402,7 +402,7 @@ function checkVscodeNginx(passFn, failFn, cwd) {
     failFn('Очікується .vscode/settings.json з форматером nginx і formatOnSave (див. nginx-default-tpl.mdc)')
     return
   }
-  const violations = runConftestBatch({
+  const violations = await runConftestBatch({
     policyDirRel: 'nginx-default-tpl/vscode_settings',
     namespace: 'nginx_default_tpl.vscode_settings',
     files: [setPath]
@@ -499,7 +499,7 @@ export async function lint(ctx) {
   }
 
   await checkDockerfiles(root, ignorePaths, pass, fail)
-  checkVscodeNginx(pass, fail, root)
+  await checkVscodeNginx(pass, fail, root)
 
   return reporter.result()
 }

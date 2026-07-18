@@ -1,7 +1,7 @@
 ---
 description: Програмна перевірка проєкту (unified lint surface) та concern-directory лейаут npm/rules/ — концерн = каталог із concern.json; один detector-контракт lint(ctx)→LintResult; policy-концерни генеруються codegen-ом; helpers у utils/; скіл-специфічні скрипти в npm/skills/<id>/js/
 alwaysApply: true
-version: '1.20'
+version: '1.21'
 ---
 
 ## Критика користувацького інпуту (доречність та ефективність)
@@ -261,6 +261,30 @@ export { patterns } from '../../../scripts/lib/fix/vscode-ext-add.mjs'
 - **TTY-розгалуження авто**: `isTTY` → однорядковий бар (рендер — `cli-progress`, існуючі log-рядки через `multibar.log()`, інакше рвуть перемальовування); не-TTY (CI, hooks, пайпи) → append-only рядки без ANSI.
 - **Reporter інжектиться** через `opts` (як `log`) — тести семантики лічильників не залежать від рендер-lib і TTY.
 - **Red flag:** новий довгий цикл (по концернах/файлах/tier-ах) із власним ad-hoc `[done/total]`-виводом замість спільного reporter-а; `\r`/ANSI-запис у не-TTY.
+
+## Внутрішній паралелізм `detectAll()`: parallel/serial lane + async spawn seam
+
+**Принцип** (ADR [260716-1354](../../docs/adr/260716-1354-внутрішній-паралелізм-lint-оркестратора.md)). `detectAll()` (`npm/scripts/lib/lint-surface/run-detectors.mjs`) виконує план у двох лейнах, не одним наївним `Promise.all`: **parallel lane** — concern-и, чий detector доведено async/non-blocking (не звертається до `spawnSync`/`execSync` напряму чи через ще не мігрований shared helper) — bounded pool до `N_RULES_LINT_CONCURRENCY` (`npm/scripts/lib/lint-surface/scheduler.mjs`, `runPlanConcurrently`); **serial lane** — concern-и з недоведеним non-blocking статусом — власний sequential runner, ніколи не перекривається сам із собою. Обидва лейни виконуються конкурентно один з одним (спільний `AbortController`), не бар'єром.
+
+**Чому не просто `Promise.all` по всьому плану:** більшість detector-ів звертаються до зовнішніх CLI через `spawnSync`, який блокує Node event loop цілком — паралельний `Promise.all` навколо синхронного виклику не дає паралельності, лише ілюзію (детектор все одно виконується один за одним, просто без явного порядку). Заявляти паралелізм можна лише для concern-ів, чий шлях доведено переведено на `spawn` (async, non-blocking) — spawn-примітив [`spawnAsync`](../../npm/scripts/utils/spawn-async.mjs) (обгортка `child_process.spawn` через `events.once`, підтримує зовнішній `AbortSignal` і `timeoutMs`, ескалація `SIGTERM → SIGKILL`).
+
+**Default `N_RULES_LINT_CONCURRENCY` = `1`** — production-паралелізм ще не пройшов benchmark-gates ADR (wall-clock/peak RSS/exit-code parity на GitHub + Azure runner, cold+warm cache). За замовчуванням `detectAll()` спостережувано ідентичний до-ADR поведінці (лише додано фінальне стабільне сортування, див. нижче) — `concurrency > 1` лишається experimental override для вимірювань.
+
+**Інвентар** — [`blocking-inventory.mjs`](../../npm/scripts/lib/lint-surface/blocking-inventory.mjs): явний `SERIAL_LANE_CONCERNS` (`Set<'${ruleId}/${concernId}'>`) — concern-и, чий detector (прямо чи через shared helper — `resolve-cmd.mjs`-based власний spawn, `docker/lib/docker-hadolint.mjs`, `rego/lib/run-external-tool.mjs`) ще НЕ мігрований на async. Guard-тест ([`tests/blocking-inventory.test.mjs`](../../npm/scripts/lib/lint-surface/tests/blocking-inventory.test.mjs)) сканує AST/grep активних concern-ів і падає, якщо реальність розходиться зі статичним списком — список не може непомітно застаріти при додаванні нового concern-а.
+
+**Мігровані async-межі** (по одній, не масово): `runConftestBatch()` (`npm/scripts/lib/run-conftest-batch.mjs`, споживається `policy-lint-adapter.mjs` для rego-policy concern-ів + прямими hand-written caller-ами), `runOxlintJson()` (`npm/rules/js/eslint/main.mjs`). Протокол наступної міграції: (1) переведи shared helper на `spawnAsync`; (2) онови ВСІ caller-и — і саму функцію-обгортку (`async function` + `await`), і виклик цієї функції-обгортки в її власному caller-і (легко пропустити, коли обгортка сама була sync до міграції — перевіряй `grep` на кожен рівень виклику, не лише прямий `runConftestBatch(`); (3) прибери запис concern-а з `SERIAL_LANE_CONCERNS`; (4) `blocking-inventory.test.mjs` сам підтвердить, що жоден із них більше не викликає `spawnSync`/`execSync`.
+
+**Auto-install лишається не-конкурентним без зламу публічного `ensureTool`:** `ensureTool(toolId)` (`ensure-tool.mjs`) лишається sync — публічний API пакета (`exports["./scripts/*"]`, реально споживається зовнішнім `plugins/ci-github`). Паралельний шлях отримує окрему `ensureToolAsync(toolId)`: внутрішньопроцесний single-flight (`Map<toolId, Promise>`) + міжпроцесний [`withLock`](../../npm/scripts/utils/with-lock.mjs) (ключ `ensure-tool/<toolId>`, `getFingerprint: () => null` — дедуп локу вимкнено, тут важлива лише взаємовиключність) навколо install-кроку; download завжди в унікальний per-call temp-каталог (`mkdtempSync` у тому ж cacheDir — same-filesystem `renameSync` не впаде з `EXDEV`) і публікується атомарним `renameSync` під фіксованим flat-іменем `<toolId>` (обидва шляхи, sync і async, використовують той самий hardened install-крок).
+
+**Error-контракт лейнів:** перший `DetectorError` (будь-який лейн) → нові concern-и (обидва лейни) більше не стартують, `controller.abort()` сигналізує вже запущеним async-детекторам (через `ctx.signal`, `LintContext`), кожен `runOne` у `scheduler.mjs` сам ловить власну помилку (жоден виклик не відхиляє зовнішній `Promise.all`) і чекає завершення вже стартованих; фінальний `exitCode` = `2` навіть якщо частина concern-ів встигла віддати violations (часткові результати не маскують інфраструктурну помилку). Фінальний масив violations — стабільно сортований за `(ruleId, concernId, file, data.line, reason)` незалежно від порядку завершення (`line` не top-level поле `LintViolation` — лише деякі detector-и кладуть його в `data`, фолбек 0).
+
+**Red flags:**
+
+- Новий concern зі `spawnSync`/`execSync` (прямо чи через shared helper) без запису в `SERIAL_LANE_CONCERNS` — guard-тест впаде, це навмисно.
+- `N_RULES_LINT_CONCURRENCY > 1` як production default без benchmark-доказів (wall-clock, peak RSS, exit-code parity, cold+warm cache, GitHub + Azure runner) — лишається `1` до окремого рішення (ADR 260716-1354, gates 1-2).
+- Зміна сигнатури `ensureTool` на async — breaking change публічного API; нові async-споживачі йдуть через `ensureToolAsync`, не через мутацію існуючої функції.
+- Функцію-обгортку над `runConftestBatch`/`runOxlintJson` зробили `async`, але забули `await` на виклику цієї обгортки в ЇЇ caller-і (не лише на самому `runConftestBatch(`-виклику) — тихий unhandled rejection, що спливає в непов'язаному тесті.
+- Пряме читання/сортування `violations` без фінального стабільного sort у `detectAll` — вивід стане недетермінованим залежно від порядку завершення concern-ів.
 
 ## MDC-супутник для кожного concern — ОБОВ'ЯЗКОВО
 

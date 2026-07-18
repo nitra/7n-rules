@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -273,5 +273,76 @@ describe('computeActiveDomains', () => {
   test('disabled-правило не потрапляє', () => {
     const map = computeActiveDomains(byRule, new Set(['js']), ['src/a.py'])
     expect(map.has('python')).toBe(false)
+  })
+})
+
+describe('detectAll — N_RULES_LINT_CONCURRENCY (ADR 260716-1354)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  test('стабільне сортування незалежно від порядку завершення (concurrency>1)', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = join(dir, 'rules')
+      // 'aaa-slow' відсортується ПЕРШИМ за ruleId, хоча завершується ОСТАННІМ — сортування
+      // не покладається на порядок завершення concurrent-задач.
+      const slowBody =
+        'export async function lint() {\n' +
+        '  await new Promise(r => setTimeout(r, 30))\n' +
+        "  return { violations: [{ reason: 'r', message: 'slow' }] }\n" +
+        '}\n'
+      const fastBody =
+        'export async function lint() {\n' +
+        '  await new Promise(r => setTimeout(r, 5))\n' +
+        "  return { violations: [{ reason: 'r', message: 'fast' }] }\n" +
+        '}\n'
+      await seedDetector(rulesDir, 'aaa-slow', 'check', { scope: 'full', glob: ['**/*'] }, slowBody)
+      await seedDetector(rulesDir, 'zzz-fast', 'check', { scope: 'full', glob: ['**/*'] }, fastBody)
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['aaa-slow', 'zzz-fast'] })
+
+      vi.stubEnv('N_RULES_LINT_CONCURRENCY', '2')
+      const r = await detectAll({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op */
+        }
+      })
+
+      expect(r.exitCode).toBe(1)
+      expect(r.violations.map(v => v.ruleId)).toEqual(['aaa-slow', 'zzz-fast'])
+    })
+  })
+
+  test('DetectorError у concurrent режимі → exit 2, зберігає violations уже завершених concern-ів', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = join(dir, 'rules')
+      const okBody =
+        'export async function lint() {\n' +
+        '  await new Promise(r => setTimeout(r, 5))\n' +
+        "  return { violations: [{ reason: 'ok', message: 'fine' }] }\n" +
+        '}\n'
+      const boomBody =
+        "export async function lint() {\n  await new Promise(r => setTimeout(r, 20))\n  throw new Error('boom')\n}\n"
+      await seedDetector(rulesDir, 'aaa-ok', 'check', { scope: 'full', glob: ['**/*'] }, okBody)
+      await seedDetector(rulesDir, 'zzz-boom', 'check', { scope: 'full', glob: ['**/*'] }, boomBody)
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['aaa-ok', 'zzz-boom'] })
+
+      vi.stubEnv('N_RULES_LINT_CONCURRENCY', '2')
+      const r = await detectAll({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op */
+        }
+      })
+
+      expect(r.exitCode).toBe(2)
+      expect(r.ran.map(e => e.ruleId)).toEqual(['aaa-ok'])
+      expect(r.violations).toHaveLength(1)
+      expect(r.violations[0].message).toBe('fine')
+    })
   })
 })

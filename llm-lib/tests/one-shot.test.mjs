@@ -26,11 +26,20 @@ const noop = () => null
  * @param {string|null} [opts.promptError] якщо задано — prompt кидає з цим текстом
  * @param {number} [opts.delayMs] затримка перед емісією (для timeout-тесту)
  * @param {string|null} [opts.stopReason] stopReason у message_end (напр. 'length')
+ * @param {{provider: string, id: string}|null} [opts.model] резолвлена pi-модель (`session.model`)
  * @returns {object} fake AgentSession
  */
-function fakeSession({ deltas = [], usage = null, promptError = null, delayMs = 0, stopReason = null } = {}) {
+function fakeSession({
+  deltas = [],
+  usage = null,
+  promptError = null,
+  delayMs = 0,
+  stopReason = null,
+  model = null
+} = {}) {
   let cb = noop
   return {
+    model,
     subscribe: fn => {
       cb = fn
     },
@@ -224,6 +233,28 @@ describe('runOneShot', () => {
         error: null
       })
     )
+  })
+
+  test('modelSpec порожній: model — фактично резолвлена pi-модель із session.model, не echo spec', async () => {
+    const usage = { totalTokens: 4 }
+    const deps = baseDeps(fakeSession({ deltas: ['ok'], usage, model: { provider: 'omlx', id: 'gemma-4' } }))
+    const chain = {
+      nextStep: vi.fn(() => 1),
+      note: vi.fn(),
+      traceFields: () => ({ chainId: 'cid-empty', chainKind: 'k', chainUnit: 'u', chainStep: 1 }),
+      headers: () => ({})
+    }
+    const r = await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: '', chain, deps })
+    expect(r.model).toBe('omlx/gemma-4')
+    expect(chain.note).toHaveBeenCalledWith(expect.objectContaining({ model: 'omlx/gemma-4' }))
+  })
+
+  test('modelSpec порожній і session.model недоступна: model — null (не echo "")', async () => {
+    const deps = baseDeps(fakeSession({ deltas: ['ok'] }))
+    const chain = { nextStep: vi.fn(() => 1), note: vi.fn(), traceFields: () => ({}), headers: () => ({}) }
+    const r = await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: '', chain, deps })
+    expect(r.model).toBeNull()
+    expect(chain.note).toHaveBeenCalledWith(expect.objectContaining({ model: null }))
   })
 
   test('captureBody не падає без chain (chainId/step — undefined)', async () => {
