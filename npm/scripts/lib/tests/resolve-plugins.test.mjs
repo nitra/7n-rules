@@ -118,6 +118,42 @@ describe('detectPluginsFromRepo', () => {
     })
   })
 
+  test('вкладений Cargo.toml (монорепо, Tauri-глибина) → lang-rust; за межею глибини — ні', async () => {
+    await withTmpDir(async dir => {
+      // Глибина 2 (app/src-tauri) — типовий Tauri-монорепо кейс.
+      await mkdir(join(dir, 'app', 'src-tauri'), { recursive: true })
+      await writeFile(join(dir, 'app', 'src-tauri', 'Cargo.toml'), '[package]\nname = "x"\n')
+      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-lang-rust'])
+    })
+
+    await withTmpDir(async dir => {
+      // Глибина 4 — за межею maxDepth 3, не детектиться.
+      await mkdir(join(dir, 'a', 'b', 'c', 'd'), { recursive: true })
+      await writeFile(join(dir, 'a', 'b', 'c', 'd', 'Cargo.toml'), '[package]\n')
+      expect(detectPluginsFromRepo(dir)).toEqual([])
+    })
+  })
+
+  test('скан не заходить у приховані/службові теки (node_modules, target, .dot)', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'node_modules', 'dep'), { recursive: true })
+      await writeFile(join(dir, 'node_modules', 'dep', 'Cargo.toml'), '[package]\n')
+      await mkdir(join(dir, 'target', 'debug'), { recursive: true })
+      await writeFile(join(dir, 'target', 'Cargo.toml'), '[package]\n')
+      await mkdir(join(dir, '.worktrees', 'wt'), { recursive: true })
+      await writeFile(join(dir, '.worktrees', 'wt', 'Cargo.toml'), '[package]\n')
+      expect(detectPluginsFromRepo(dir)).toEqual([])
+    })
+  })
+
+  test('вкладений pyproject.toml НЕ детектиться (python — лише корінь, uv v1)', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'services', 'api'), { recursive: true })
+      await writeFile(join(dir, 'services', 'api', 'pyproject.toml'), '[project]\n')
+      expect(detectPluginsFromRepo(dir)).toEqual([])
+    })
+  })
+
   test('lang-сигнал не вмикає URL-fallback для CI', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'pyproject.toml'), '[project]\n')

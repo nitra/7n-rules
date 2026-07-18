@@ -28,11 +28,54 @@ export const KNOWN_CI_PLUGINS = Object.freeze({
   azure: '@7n/rules-ci-azure'
 })
 
-/** Відомі мовні плагіни: файловий сигнал екосистеми в корені репо → npm-пакет. */
+/**
+ * Відомі мовні плагіни: файловий сигнал екосистеми → npm-пакет. `maxDepth` —
+ * до якої глибини шукати сигнал: python — лише корінь (uv-провайдер v1
+ * обробляє тільки кореневий pyproject.toml); rust — до 3 рівнів, бо в
+ * монорепо Cargo.toml часто вкладений (Tauri `app/src-tauri/Cargo.toml`),
+ * а провайдер обробляє всі знайдені маніфести.
+ */
 export const KNOWN_LANG_PLUGINS = Object.freeze({
-  python: { signal: 'pyproject.toml', pkg: '@7n/rules-lang-python' },
-  rust: { signal: 'Cargo.toml', pkg: '@7n/rules-lang-rust' }
+  python: { signal: 'pyproject.toml', pkg: '@7n/rules-lang-python', maxDepth: 0 },
+  rust: { signal: 'Cargo.toml', pkg: '@7n/rules-lang-rust', maxDepth: 3 }
 })
+
+/** Теки, у які неглибокий скан мовних сигналів не заходить (плюс усі приховані). */
+const LANG_SCAN_SKIP_DIRS = new Set(['node_modules', 'target', 'dist', 'coverage', 'build', 'vendor'])
+
+/**
+ * Чи є файл-сигнал у корені або підтеках до `maxDepth` рівнів — обмежений
+ * BFS-обхід (пропускає приховані теки, node_modules, target тощо), щоб
+ * лишатись дешевим на hot-path (hook викликається на кожен файл).
+ * @param {string} projectRoot корінь репозиторію
+ * @param {string} signal ім'я файлу-сигналу (напр. `Cargo.toml`)
+ * @param {number} maxDepth 0 — лише корінь; N — до N рівнів підтек
+ * @returns {boolean} true — сигнал знайдено
+ */
+function hasLangSignal(projectRoot, signal, maxDepth) {
+  let level = [projectRoot]
+  for (let depth = 0; depth <= maxDepth && level.length > 0; depth++) {
+    if (level.some(dir => existsSync(join(dir, signal)))) return true
+    if (depth < maxDepth) level = level.flatMap((dir) => listScannableSubdirs(dir))
+  }
+  return false
+}
+
+/**
+ * Видимі підтеки для неглибокого скану (без прихованих і службових).
+ * @param {string} dir тека
+ * @returns {string[]} абсолютні шляхи підтек (порожньо, якщо нечитабельна)
+ */
+function listScannableSubdirs(dir) {
+  try {
+    return readdirSync(dir, { withFileTypes: true })
+      .filter(entry => entry.isDirectory() && !entry.name.startsWith('.') && !LANG_SCAN_SKIP_DIRS.has(entry.name))
+      .map(entry => join(dir, entry.name))
+  } catch {
+    /* нечитабельна тека — пропускаємо гілку */
+    return []
+  }
+}
 
 const WORKFLOW_YML_RE = /\.ya?ml$/u
 const GITHUB_URL_RE = /github\.com/iu
@@ -97,14 +140,14 @@ function detectCiPlugins(projectRoot) {
 /**
  * Автодетект плагінів за станом репозиторію: CI-плагіни (файлові сигнали з
  * fallback на `repository.url`) + мовні плагіни (лише файлові сигнали —
- * маніфест екосистеми в корені — pyproject.toml, кореневий Cargo.toml; URL-fallback для мов безглуздий).
+ * маніфест екосистеми в корені або, для rust, у підтеках до 3 рівнів; URL-fallback для мов безглуздий).
  * @param {string} projectRoot корінь репозиторію
  * @returns {string[]} npm-імена плагінів
  */
 export function detectPluginsFromRepo(projectRoot) {
   const out = detectCiPlugins(projectRoot)
-  for (const { signal, pkg } of Object.values(KNOWN_LANG_PLUGINS)) {
-    if (existsSync(join(projectRoot, signal))) out.push(pkg)
+  for (const { signal, pkg, maxDepth } of Object.values(KNOWN_LANG_PLUGINS)) {
+    if (hasLangSignal(projectRoot, signal, maxDepth)) out.push(pkg)
   }
   return out
 }
