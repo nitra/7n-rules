@@ -32,22 +32,30 @@ export async function lint(ctx) {
   const targets = ctx.files === undefined ? DEFAULT_MD_GLOBS : ctx.files.filter(f => MD_EXT_RE.test(f))
   if (targets.length === 0) return { violations }
 
+  // logError отримує один готовий рядок на порушення через default output formatter
+  // markdownlint-cli2 ("<file>:<line>:<col> <rule> <опис> [<деталь>]") — раніше глушився,
+  // detector повертав лише голе "щось не пройшло" без файлу/правила/причини, тож LLM
+  // fix-worker (як і non-verbose підсумок) не мав інформації, що саме виправляти
+  // (той самий патерн, що й text/run-v8r до фіксу). logMessage лишається no-op —
+  // banner/Finding/Found/Linting/Summary прогрес-текст, не деталь порушення.
+  const errorLines = []
   const code = await markdownlintCli2({
     directory: ctx.cwd,
     argv: targets,
     logMessage: () => {
-      // вивід markdownlint-cli2 глушимо — detector лише повертає код
+      // прогрес-статус markdownlint-cli2 (banner, Finding/Found/Linting/Summary) — не деталь
     },
-    logError: () => {
-      // помилки markdownlint-cli2 глушимо — detector лише повертає код
+    logError: message => {
+      errorLines.push(message)
     }
   })
   if (code !== 0) {
+    const detail = errorLines.length > 0 ? `:\n${errorLines.join('\n')}` : ''
     violations.push({
       ruleId: ctx.ruleId,
       concernId: ctx.concernId,
       reason: 'markdownlint',
-      message: 'markdownlint знайшов порушення у *.md/*.mdc (text.mdc)'
+      message: `markdownlint знайшов порушення у *.md/*.mdc (text.mdc)${detail}`
     })
   }
 

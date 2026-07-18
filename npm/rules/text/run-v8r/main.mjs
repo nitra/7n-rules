@@ -114,17 +114,28 @@ export function writeResolvedV8rConfig() {
 
 const PROCESSING_LINE_RE = /^ℹ Processing (.+)$/u
 const FOUND_REMOTE_SCHEMA_RE = /^ℹ Found schema in (https?:\/\/\S+)/u
-const FAILURE_LINE_RE = /^✖ .+$/mu
+const NOISE_LINE_RE = /^(?:ℹ .*|Resolving dependencies|Resolved, downloaded and extracted.*|Saved lockfile)$/u
 
 /**
- * Витягує лише рядки `✖ …` (конкретні помилки валідації) з raw stdout v8r — без `ℹ`-шуму
- * (Pre-warming the cache, Processing <file>, Found schema in …) і без `✔ … is valid` по
- * пройдених файлах. Використовується для non-verbose підсумку при невдалому прогоні.
- * @param {string} stdoutText захоплений stdout одного запуску v8r
- * @returns {string} рядки `✖ …`, з'єднані `\n` (порожній рядок, якщо збігів нема)
+ * Прибирає v8r/bunx noise-рядки (весь `ℹ`-статус: Loaded config file, Patterns and relative
+ * paths, Pre-warming the cache, Processing <file>, Found schema in …, Validating …; і службовий
+ * вивід bunx-встановлення Resolving/Resolved/Saved lockfile) з об'єднаного stdout+stderr одного
+ * запуску —
+ * лишає предметну деталь (`✖ …`-заголовки й ajv-причини на кшталт "must NOT have additional
+ * properties…"). Обидва потоки об'єднуються НАВМИСНО: v8r непослідовно розкидає ці рядки між
+ * stdout/stderr залежно від типу помилки — при порушенні схеми ajv-причина йде у stdout, а
+ * `✖ … is invalid`-заголовок у stderr; при "не знайдено схему" все йде у stderr, stdout
+ * порожній. Фільтр лише за stdout (як раніше) на другому випадку повертав би зовсім порожню
+ * деталь — і LLM fix-worker (як і non-verbose CLI-підсумок) не бачив би жодної причини провалу.
+ * @param {string} combinedText stdout + '\n' + stderr одного запуску v8r
+ * @returns {string} відфільтровані непорожні рядки, join('\n') (порожній рядок, якщо деталі нема)
  */
-export function extractFailureLines(stdoutText) {
-  return (stdoutText.match(FAILURE_LINE_RE) ?? []).join('\n')
+export function extractFailureLines(combinedText) {
+  return combinedText
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0 && !NOISE_LINE_RE.test(line))
+    .join('\n')
 }
 
 /**
@@ -168,11 +179,16 @@ export function stripBunNodeShimDirs(pathValue) {
 
 /**
  * Один виклик `bun x v8r <targets...>` з підготовленим `customCatalog`-конфігом.
+ * `detail` (рядки `✖ …`) обчислюється завжди, незалежно від `verbose` — потрібен викликачу
+ * (`lint()`) для вбудовування у violation-повідомлення, яке бачить LLM fix-worker: без нього
+ * fix-ladder отримує лише "щось не пройшло" й не має шансів вгадати, що саме (спостережено —
+ * усі 4 rung-и незмінно падають у timeout на v8r-порушеннях).
  * @param {string[]} targets glob-и або конкретні шляхи файлів
  * @param {string} configPath шлях до `V8R_CONFIG_FILE`
  * @param {boolean} [verbose] друкувати повний raw stdout/stderr v8r при помилці; інакше — лише
  *   рядки `✖ …` без `ℹ`-шуму (Pre-warming the cache, Processing <file>, Found schema in …)
- * @returns {{ exitError: true } | { exitError: false, code: number }} помилка spawn або код v8r (0/98 — трактує викликач)
+ * @returns {{ exitError: true } | { exitError: false, code: number, detail: string }} помилка
+ *   spawn або код v8r (0/98 — трактує викликач) + деталь `✖ …`-рядків
  */
 function runOneV8rInvocation(targets, configPath, verbose = false) {
   const bunPath = resolveCmd('bun') ?? process.execPath
@@ -192,16 +208,17 @@ function runOneV8rInvocation(targets, configPath, verbose = false) {
   warnAboutRemoteSchemaFallback(result.stderr ?? '')
 
   const exitCode = result.status ?? 1
+  let detail = ''
   if (exitCode !== 0 && exitCode !== 98) {
+    detail = extractFailureLines(`${result.stdout ?? ''}\n${result.stderr ?? ''}`)
     if (verbose) {
       if (result.stdout?.length) process.stdout.write(result.stdout)
       if (result.stderr?.length) process.stderr.write(result.stderr)
-    } else {
-      const failureLines = extractFailureLines(result.stdout ?? '')
-      if (failureLines.length) process.stdout.write(`${failureLines}\n`)
+    } else if (detail.length) {
+      process.stdout.write(`${detail}\n`)
     }
   }
-  return { exitError: false, code: exitCode }
+  return { exitError: false, code: exitCode, detail }
 }
 
 /**
@@ -210,24 +227,25 @@ function runOneV8rInvocation(targets, configPath, verbose = false) {
  * glob не знаходить файлів, і тоді решта розширень не перевіряються в тому ж виклику.
  * @param {string[]} [globs] патерни; за замовчуванням DEFAULT_V8R_GLOBS
  * @param {boolean} [verbose] друкувати повний raw вивід v8r при помилці (див. runOneV8rInvocation)
- * @returns {number} 0 — OK, 1 — помилка spawn, 2 — немає каталогу схем, інше — код v8r
+ * @returns {{ code: number, detail: string }} `code`: 0 — OK, 1 — помилка spawn, 2 — немає
+ *   каталогу схем, інше — код v8r; `detail` — рядки `✖ …` (порожньо, якщо `code` не про валідацію)
  */
 export function runV8rWithGlobs(globs = DEFAULT_V8R_GLOBS, verbose = false) {
   if (!existsSync(V8R_CATALOG_PATH)) {
     process.stderr.write(
       `run-v8r: не знайдено каталог схем за шляхом ${V8R_CATALOG_PATH} (очікується npm/schemas/v8r-catalog.json у пакеті)\n`
     )
-    return 2
+    return { code: 2, detail: '' }
   }
 
   const configPath = writeResolvedV8rConfig()
 
   for (const pattern of globs) {
     const r = runOneV8rInvocation([pattern], configPath, verbose)
-    if (r.exitError) return 1
-    if (r.code !== 0 && r.code !== 98) return r.code
+    if (r.exitError) return { code: 1, detail: '' }
+    if (r.code !== 0 && r.code !== 98) return { code: r.code, detail: r.detail }
   }
-  return 0
+  return { code: 0, detail: '' }
 }
 
 /**
@@ -235,21 +253,33 @@ export function runV8rWithGlobs(globs = DEFAULT_V8R_GLOBS, verbose = false) {
  * бо кожен переданий шлях уже існує (не glob), тож код 98 "порожній glob" тут не виникає.
  * @param {string[]} files абсолютні або відносні до cwd v8r-процесу шляхи файлів
  * @param {boolean} [verbose] друкувати повний raw вивід v8r при помилці (див. runOneV8rInvocation)
- * @returns {number} 0 — OK, 1 — помилка spawn, 2 — немає каталогу схем, інше — код v8r
+ * @returns {{ code: number, detail: string }} `code`: 0 — OK, 1 — помилка spawn, 2 — немає
+ *   каталогу схем, інше — код v8r; `detail` — рядки `✖ …` (порожньо, якщо `code` не про валідацію)
  */
 export function runV8rWithFiles(files, verbose = false) {
-  if (files.length === 0) return 0
+  if (files.length === 0) return { code: 0, detail: '' }
   if (!existsSync(V8R_CATALOG_PATH)) {
     process.stderr.write(
       `run-v8r: не знайдено каталог схем за шляхом ${V8R_CATALOG_PATH} (очікується npm/schemas/v8r-catalog.json у пакеті)\n`
     )
-    return 2
+    return { code: 2, detail: '' }
   }
 
   const configPath = writeResolvedV8rConfig()
   const r = runOneV8rInvocation(files, configPath, verbose)
-  if (r.exitError) return 1
-  return r.code === 98 ? 0 : r.code
+  if (r.exitError) return { code: 1, detail: '' }
+  return { code: r.code === 98 ? 0 : r.code, detail: r.detail }
+}
+
+/**
+ * Будує violation-повідомлення з опційною деталлю `✖ …`-рядків v8r — без неї LLM fix-worker
+ * бачить лише "щось не пройшло" й не має інформації, який файл/поле саме порушує схему.
+ * @param {string} detail рядки `✖ …` з `runV8rWithGlobs`/`runV8rWithFiles` (може бути порожнім)
+ * @returns {string} повне повідомлення для `fail()`
+ */
+function v8rFailMessage(detail) {
+  const base = 'v8r schema-валідація json/yaml/toml не пройшла (text.mdc)'
+  return detail ? `${base}:\n${detail}` : base
 }
 
 /**
@@ -264,19 +294,19 @@ export function lint(ctx) {
   const verbose = ctx.verbose === true
 
   if (ctx.files === undefined) {
-    const code = runV8rWithGlobs(DEFAULT_V8R_GLOBS, verbose)
-    if (code !== 0) fail('v8r schema-валідація json/yaml/toml не пройшла (text.mdc)', 'v8r')
+    const { code, detail } = runV8rWithGlobs(DEFAULT_V8R_GLOBS, verbose)
+    if (code !== 0) fail(v8rFailMessage(detail), 'v8r')
     return reporter.result()
   }
 
   const files = ctx.files.filter(f => V8R_EXT_RE.test(f))
   if (files.length === 0) return reporter.result()
-  const code = runV8rWithFiles(files, verbose)
-  if (code !== 0) fail('v8r schema-валідація json/yaml/toml не пройшла (text.mdc)', 'v8r')
+  const { code, detail } = runV8rWithFiles(files, verbose)
+  if (code !== 0) fail(v8rFailMessage(detail), 'v8r')
   return reporter.result()
 }
 
 if (isRunAsCli(import.meta.url)) {
   const globs = process.argv.length > 2 ? process.argv.slice(2) : DEFAULT_V8R_GLOBS
-  process.exitCode = runV8rWithGlobs(globs)
+  process.exitCode = runV8rWithGlobs(globs).code
 }

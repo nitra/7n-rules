@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.7.6] - 2026-07-18
+
+### Fixed
+
+- `runOneShot`/`runAgentSkill` з нерозв'язаним `modelSpec` (`''`/`null` — consumer лишає вибір pi) більше не потрапляють у `chain.note()` як `model: ''`, через що `chain.mjs` мовчки класифікував їх cloud (`isLocalModel('') === false`) навіть коли pi фактично резолвив локальну модель. Тепер обидва раннери підставляють фактично резолвлену pi-модель (`session.model`, нове `formatModelSpec`), а `chain.note()` для випадків, коли резолвлена модель усе ж недоступна, веде окремий бакет `unknownCalls` замість неявного cloud.
+
+## [2.7.5] - 2026-07-17
+
+### Fixed
+
+- `llm_cascade::acp` — дока (`src/docs/acp.md`) синхронізована з поточним кодом (CRC-дрейф без функціональних змін).
+
+## [2.7.4] - 2026-07-17
+
+### Fixed
+
+- `llm_cascade::acp::one_shot_acp` — idle-timeout на кожну `session/update`-подію (за замовчуванням 180с, override `N_LLM_ACP_IDLE_TIMEOUT_MS`) замість необмеженого очікування: без нього будь-яке нове зависання (не лише вже виправлений дозвіл) знову лишалось би невидимим і нескінченним. Не-текстові події (`tool_call`/`plan`/`usage_update`/…) тепер логуються в stderr — раніше `read_to_string()` мовчки їх відкидав
+
+## [2.7.3] - 2026-07-16
+
+### Fixed
+
+- `llm_cascade::acp::one_shot_acp` — додано хендлер `session/request_permission` (auto-approve, паритет із `yolo_one_shot_client`-прикладом крейта): без нього агент, дійшовши до першого tool-call (bash/edit), зависав назавжди — запит на дозвіл лишався без відповіді
+
 ## [2.7.2] - 2026-07-16
 
 ### Changed

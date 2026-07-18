@@ -18,6 +18,11 @@ export const KNIP_CANONICAL_JSON_PATH = join(
   'knip-canonical.json'
 )
 
+/** `.oxlintrc.json` відсутній — T0 копіює канон (`fix-check.mjs`). */
+export const OXLINTRC_MISSING = 'oxlintrc-missing'
+/** `.oxlintrc.json` існує, але розходиться з каноном — T0 доводить до відповідності детермінованим merge. */
+export const OXLINTRC_DRIFT = 'oxlintrc-drift'
+
 // Канонічний рядок `lint-js`-скрипта і мінімальна версія `@nitra/eslint-config` —
 // у rego (`npm/policy/js_lint/package_json/`). JS-копії (`CANONICAL_LINT_JS`,
 // `isCanonicalLintJs`, `nitraEslintConfigMeetsMinVersion`) видалено, щоб не
@@ -146,4 +151,33 @@ export function verifyOxlintRcAgainstCanonical(cfg, canonical) {
   }
 
   return { ok: failures.length === 0, failures }
+}
+
+/**
+ * Детермінований merge `.oxlintrc.json` до відповідності канону (T0 `fix-check.mjs`) —
+ * дзеркалить правила `verifyOxlintRcAgainstCanonical`, тож результат завжди проходить
+ * повторну перевірку без LLM. Project-specific розширення зберігаються: зайві ключі в
+ * `rules` і зайві `ignorePatterns` не видаляються, лише доповнюються канонічними.
+ * @param {unknown} actual поточний вміст `.oxlintrc.json` (`null`/будь-що не-object — трактується як відсутній файл)
+ * @param {Record<string, unknown>} canonical розпарсений `oxlint-canonical.json`
+ * @returns {Record<string, unknown>} злитий обʼєкт, готовий до запису у `.oxlintrc.json`
+ */
+export function planOxlintrcFix(actual, canonical) {
+  const merged = { ...asRecordOrEmpty(actual) }
+  for (const [key, expected] of Object.entries(canonical)) {
+    if (key === 'rules') {
+      merged.rules = { ...asRecordOrEmpty(merged.rules), ...asRecordOrEmpty(expected) }
+      continue
+    }
+    if (key === 'ignorePatterns') {
+      const existing = Array.isArray(merged.ignorePatterns) ? merged.ignorePatterns : []
+      const canonPatterns = Array.isArray(expected) ? expected : []
+      merged.ignorePatterns = [...existing, ...canonPatterns.filter(p => !existing.includes(p))]
+      continue
+    }
+    // Інші поля вимагають точного збігу з каноном (verifyOxlintRcAgainstCanonical) —
+    // єдине валідне значення й так канонічне, тож перезапис безпечний.
+    merged[key] = expected
+  }
+  return merged
 }

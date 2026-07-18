@@ -7,7 +7,13 @@
  *   - `batch-v1beta1-apiversion` — apiVersion batch/v1beta1 → batch/v1 (CronJob/Job);
  *   - `schema-modeline-first` — перемістити `# yaml-language-server: $schema=…` у перший рядок;
  *   - `kustomization-patches-sort` — впорядкувати `patches[]` (реюз детекторних sort-ключів);
- *   - `deployment-strategy` — проставити канонічний `spec.strategy` RollingUpdate.
+ *   - `deployment-strategy` — проставити канонічний `spec.strategy` RollingUpdate;
+ *   - `hasura-configmap-env` — проставити обов'язкові `HASURA_GRAPHQL_*` env у Hasura ConfigMap;
+ *   - `hasura-httproute-rule1-filters` — проставити канонічний RequestRedirect у правило 1
+ *     Hasura-канона HTTPRoute (лише overwrite існуючого правила, без синтезу нових);
+ *   - `svc-clusterip-type` — проставити `spec.type: ClusterIP` у `svc.yaml`;
+ *   - `svc-hl-cluster-ip` — проставити `spec.clusterIP: None` у `svc-hl.yaml`
+ *     (без перейменування `metadata.name`, суфікс `-hl` — не T0).
  *
  * Правки роблять через `yaml` Document/Documents (зберігають коментарі), окрім modeline
  * (чистий текст). Семантичну коректність гарантує canonical re-detect (rego) — T0
@@ -20,6 +26,9 @@ import { parseAllDocuments, parseDocument } from 'yaml'
 
 import {
   compareStringTuplesEn,
+  findHasuraCanonStart,
+  HASURA_REQUIRED_ENV_VALUES,
+  hasuraRuleHasExactRedirect,
   kustomizationPatchSortKey,
   loadSnippetSpec,
   replaceBatchV1beta1ApiVersionInYamlText,
@@ -128,6 +137,161 @@ export function ensureNetworkPolicyEgress(content) {
 }
 
 /**
+ * Чи значення читається як логічне `true` (boolean або рядок, case-insensitive) —
+ * дзеркалить `is_value_true` з `k8s.hasura_configmap.rego`.
+ * @param {unknown} v значення з `data`
+ * @returns {boolean} true, якщо значення означає true
+ */
+function isTruthyBool(v) {
+  if (v === true) return true
+  return typeof v === 'string' && v.trim().toLowerCase() === 'true'
+}
+
+/**
+ * Чи значення читається як логічне `false` — дзеркалить `is_value_false`.
+ * @param {unknown} v значення з `data`
+ * @returns {boolean} true, якщо значення означає false
+ */
+function isFalsyBool(v) {
+  if (v === false) return true
+  return typeof v === 'string' && v.trim().toLowerCase() === 'false'
+}
+
+/**
+ * Визначає значення для одного `HASURA_GRAPHQL_*` ключа за очікуванням із
+ * `HASURA_REQUIRED_ENV_VALUES`: `null` — довільне значення, проставляється лише
+ * якщо ключ відсутній (дефолт `'true'`); `'true'`/`'false'` — булеве порівняння
+ * (case-insensitive, `isTruthyBool`/`isFalsyBool`); інакше — точний рядок.
+ * @param {string|null} expected очікуване значення з `HASURA_REQUIRED_ENV_VALUES`
+ * @param {unknown} current поточне значення ключа в `data` (може бути `undefined`)
+ * @returns {string|null} значення для `setIn`, або `null`, якщо змін не потрібно
+ */
+function resolveHasuraEnvValue(expected, current) {
+  if (expected === null) return current === undefined ? 'true' : null
+  if (expected === 'true') return isTruthyBool(current) ? null : 'true'
+  if (expected === 'false') return isFalsyBool(current) ? null : 'false'
+  return current === expected ? null : expected
+}
+
+/**
+ * Проставляє обов'язкові `HASURA_GRAPHQL_*` env-ключі (`HASURA_REQUIRED_ENV_VALUES`,
+ * дзеркалить `k8s.hasura_configmap.rego`) у `data` документа `kind: ConfigMap`. Ключ з
+ * очікуванням `null` (наприклад `HASURA_GRAPHQL_DISABLE_EVENTING`) — довільне значення,
+ * T0 проставляє лише якщо ключ відсутній (дефолт `'true'`).
+ * @param {string} content вміст configmap.yaml
+ * @returns {string|null} новий вміст або null, якщо змін немає / парс невпевнений
+ */
+export function ensureHasuraConfigMapRequiredEnv(content) {
+  let doc
+  try {
+    doc = parseDocument(content)
+  } catch {
+    return null
+  }
+  if (doc.errors?.length) return null
+  if (doc.get('kind') !== 'ConfigMap') return null
+
+  let changed = false
+  for (const [key, expected] of Object.entries(HASURA_REQUIRED_ENV_VALUES)) {
+    const value = resolveHasuraEnvValue(expected, doc.getIn(['data', key]))
+    if (value === null) continue
+    doc.setIn(['data', key], value)
+    changed = true
+  }
+  if (!changed) return null
+  return doc.toString()
+}
+
+/**
+ * Проставляє канонічний RequestRedirect (правило 1 Hasura-канона, `k8s.hasura_httproute.rego`)
+ * у вже знайдене правило `Exact "<prefix>/ql"`. Фіксує лише **існуюче** правило (overwrite
+ * `filters`) — правила 2-4 (rule2/3/4_missing) потребують синтезу нового правила з
+ * `backendRef`, якого нізвідки достовірно вивести, тож НЕ T0 (за тим самим принципом, що й
+ * `internal-url-invalid` у `hasura/internal_urls`: людське рішення про інфраструктуру).
+ * @param {string} content вміст hr.yaml (HTTPRoute, може бути multi-doc)
+ * @returns {string|null} новий вміст або null, якщо змін немає / не застосовно / парс невпевнений
+ */
+export function ensureHasuraHttpRouteRule1Filters(content) {
+  let docs
+  try {
+    docs = parseAllDocuments(content)
+  } catch {
+    return null
+  }
+  if (docs.some(d => d.errors?.length)) return null
+  let changed = false
+  for (const doc of docs) {
+    if (doc.get('kind') !== 'HTTPRoute') continue
+    const plainRules = doc.toJSON()?.spec?.rules
+    if (!Array.isArray(plainRules) || plainRules.length === 0) continue
+    const start = findHasuraCanonStart(plainRules)
+    if (start === null) continue
+    const consolePath = `${start.prefix}/ql/console`
+    if (hasuraRuleHasExactRedirect(plainRules[start.startIndex], consolePath)) continue // вже канонічно
+    const canonicalFilters = [
+      {
+        type: 'RequestRedirect',
+        requestRedirect: { statusCode: 302, path: { type: 'ReplaceFullPath', replaceFullPath: consolePath } }
+      }
+    ]
+    doc.setIn(['spec', 'rules', start.startIndex, 'filters'], doc.createNode(canonicalFilters))
+    changed = true
+  }
+  if (!changed) return null
+  return docs.map(d => d.toString().replace(LEADING_DOC_SEPARATOR_RE, '').trimEnd()).join('\n---\n') + '\n'
+}
+
+/**
+ * Проставляє `spec.type: ClusterIP` у документ `kind: Service` (`svc.yaml`, `k8s.svc_yaml.rego`).
+ * @param {string} content вміст svc.yaml (може бути multi-doc)
+ * @returns {string|null} новий вміст або null, якщо змін немає / не застосовно / парс невпевнений
+ */
+export function ensureSvcClusterIpType(content) {
+  let docs
+  try {
+    docs = parseAllDocuments(content)
+  } catch {
+    return null
+  }
+  if (docs.some(d => d.errors?.length)) return null
+  let changed = false
+  for (const doc of docs) {
+    if (doc.get('kind') !== 'Service') continue
+    if (doc.getIn(['spec', 'type']) === 'ClusterIP') continue
+    doc.setIn(['spec', 'type'], 'ClusterIP')
+    changed = true
+  }
+  if (!changed) return null
+  return docs.map(d => d.toString().replace(LEADING_DOC_SEPARATOR_RE, '').trimEnd()).join('\n---\n') + '\n'
+}
+
+/**
+ * Проставляє `spec.clusterIP: None` у документ `kind: Service` (`svc-hl.yaml`, `k8s.svc_hl_yaml.rego`).
+ * Не чіпає `metadata.name` (суфікс `-hl`) — перейменування ресурсу впливає на посилання з
+ * інших файлів (ConfigMap/Deployment/HTTPRoute), тож НЕ T0.
+ * @param {string} content вміст svc-hl.yaml (може бути multi-doc)
+ * @returns {string|null} новий вміст або null, якщо змін немає / не застосовно / парс невпевнений
+ */
+export function ensureSvcHlClusterIp(content) {
+  let docs
+  try {
+    docs = parseAllDocuments(content)
+  } catch {
+    return null
+  }
+  if (docs.some(d => d.errors?.length)) return null
+  let changed = false
+  for (const doc of docs) {
+    if (doc.get('kind') !== 'Service') continue
+    if (doc.getIn(['spec', 'clusterIP']) === 'None') continue
+    doc.setIn(['spec', 'clusterIP'], 'None')
+    changed = true
+  }
+  if (!changed) return null
+  return docs.map(d => d.toString().replace(LEADING_DOC_SEPARATOR_RE, '').trimEnd()).join('\n---\n') + '\n'
+}
+
+/**
  * Застосовує текстовий трансформер до унікальних файлів із targets і пише зміни.
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintViolation[]} targets violations із файлами для правки
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
@@ -224,5 +388,29 @@ export const patterns = [
     'networkpolicy-egress',
     ensureNetworkPolicyEgress,
     n => `канонічний spec.egress проставлено: ${n} файл(ів)`
+  ),
+  fileTransformPattern(
+    'k8s-manifests-hasura-configmap-env',
+    'hasura-configmap-env',
+    ensureHasuraConfigMapRequiredEnv,
+    n => `обов'язкові HASURA_GRAPHQL_* env проставлено: ${n} файл(ів)`
+  ),
+  fileTransformPattern(
+    'k8s-manifests-hasura-httproute-rule1-filters',
+    'hasura-httproute-rule1-filters',
+    ensureHasuraHttpRouteRule1Filters,
+    n => `правило 1 Hasura-канона (RequestRedirect) проставлено: ${n} файл(ів)`
+  ),
+  fileTransformPattern(
+    'k8s-manifests-svc-clusterip-type',
+    'svc-clusterip-type',
+    ensureSvcClusterIpType,
+    n => `svc.yaml spec.type: ClusterIP проставлено: ${n} файл(ів)`
+  ),
+  fileTransformPattern(
+    'k8s-manifests-svc-hl-cluster-ip',
+    'svc-hl-cluster-ip',
+    ensureSvcHlClusterIp,
+    n => `svc-hl.yaml spec.clusterIP: None проставлено: ${n} файл(ів)`
   )
 ]

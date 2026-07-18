@@ -8,6 +8,13 @@
  * (napi-міст до `llm_cascade::acp`, без власного JSON-RPC у JS); deprecated
  * `claude` — окремий JS-шим (`./lib/acp-runner.mjs`), бо Rust-крейт його не моделює.
  *
+ * `skill <runner> taze` — виняток із загального шляху "весь SKILL.md одним промптом":
+ * делегує в `../skills/taze/js/orchestrate.mjs`, який детерміновано (без LLM) робить
+ * бекап/масовий bump/diff/прибирання і лише по одному ОБМЕЖЕНОМУ виклику `<runner>`
+ * на кожен major-пакет — замість одного величезного непрозорого ходу на весь монорепо
+ * (той, single-shot, раніше зависав без діагностики; per-пакет виклики успадковують
+ * власний timeout раннера, і падіння одного пакета не втрачає прогрес по інших).
+ *
  * Підтримувані формати:
  *   `npx \@7n/rules skill list`
  *   `npx \@7n/rules skill taze`
@@ -203,6 +210,32 @@ async function runLlmCli(kind, prompt, projectDir, logError, deps = {}) {
 }
 
 /**
+ * Виконує `taze` через оркестратор (`../skills/taze/js/orchestrate.mjs`) замість
+ * загального одноходового шляху — детерміновані кроки без LLM (бекап/bump/diff/
+ * прибирання) + по одному обмеженому виклику обраного `runner` на кожен major-пакет.
+ * @param {'pi' | 'cursor' | 'codex'} runner раннер для per-пакетних викликів
+ * @param {string} projectDir корінь проєкту (де лежить package.json)
+ * @param {(line: string) => void} log вивід прогресу/звіту
+ * @param {(line: string) => void} logError вивід помилок
+ * @param {{ runTazeOrchestrator?: (opts: object) => Promise<{ ok: boolean, report: string }> }} [deps] інжект для тестів
+ * @returns {Promise<number>} exit code (0 — усі major-пакети ok)
+ */
+async function runTazeOrchestratorCli(runner, projectDir, log, logError, deps = {}) {
+  let orchestrate = deps.runTazeOrchestrator
+  if (!orchestrate) {
+    const orchestrateModule = await import('../skills/taze/js/orchestrate.mjs')
+    orchestrate = orchestrateModule.runTazeOrchestrator
+  }
+  try {
+    const result = await orchestrate({ cwd: projectDir, runner, log, deps })
+    return result.ok ? 0 : 1
+  } catch (error) {
+    logError(error instanceof Error ? error.message : String(error))
+    return 1
+  }
+}
+
+/**
  * Корінь пакета `@7n/rules` (каталог з `skills/`, `rules/`, …).
  * @param {string} [fromModuleUrl] для тестів — `import.meta.url`, відносно якого шукати корінь
  * @returns {string} абсолютний шлях до кореня пакета
@@ -244,6 +277,15 @@ export async function runSkillsCli(argv, options = {}) {
     if (RUNNERS.has(first)) {
       if (!second) {
         throw new Error(`Skill name is required after "${first}"`)
+      }
+      if (first !== 'claude' && normalizeSkillId(second) === 'taze') {
+        return await runTazeOrchestratorCli(
+          /** @type {'pi' | 'cursor' | 'codex'} */ (first),
+          projectDir,
+          log,
+          logError,
+          deps
+        )
       }
       const task = rest.join(' ')
       const prompt = buildSkillPrompt(skillsRoot, second, task, projectDir)

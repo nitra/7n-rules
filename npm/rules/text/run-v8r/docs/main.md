@@ -3,7 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/text/run-v8r/main.mjs
 docgen:
-  crc: 804dce1c
+  crc: 5c8aab7b
+  model: manual
 ---
 
 ## Огляд
@@ -20,18 +21,20 @@ docgen:
 - `V8R_CACHE_TTL_SECONDS` — TTL HTTP-кешу v8r (доба замість дефолтних 600 с): fallback-фетчі schemastore не повторюються на кожен прогін.
 - `resolveCustomCatalogSchemas()` — читає джерельний каталог, повертає масив схем у форматі v8r `customCatalog.schemas` (ключ `location`, локальні шляхи — абсолютні).
 - `writeResolvedV8rConfig()` — записує `{ cacheTtl, customCatalog: { schemas } }` у `RESOLVED_V8R_CONFIG_PATH` (побічний ефект: файлова операція запису, поза rollback-механізмом лінт-пайплайна).
-- `runV8rWithGlobs(globs?)` — послідовно запускає `v8r` для кожного glob-у з `V8R_CONFIG_FILE`, вказаним на резольвнутий конфіг; при коді 0/98 вивід приховано, інакше друкується й повертається код першого невдалого прогону.
-- `runV8rWithFiles(files)` — delta-режим: один запуск `v8r` по конкретних існуючих шляхах (код 98 неможливий), порожній список — одразу 0.
+- `runV8rWithGlobs(globs?)` — послідовно запускає `v8r` для кожного glob-у з `V8R_CONFIG_FILE`, вказаним на резольвнутий конфіг; повертає `{ code, detail }` (не голий код): при `code` 0/98 вивід приховано, `detail` порожній; інакше `detail` друкується й повертається код першого невдалого прогону.
+- `runV8rWithFiles(files)` — delta-режим: один запуск `v8r` по конкретних існуючих шляхах (код 98 неможливий), порожній список — одразу `{ code: 0, detail: '' }`.
+- `extractFailureLines(combinedText)` — фільтрує `ℹ`-шум і bunx install-вивід з об'єднаного `stdout+stderr` одного запуску `v8r`, лишаючи предметну деталь (`✖ …`-заголовки, ajv-причини). Обидва потоки об'єднуються навмисно: `v8r` непослідовно розкидає деталь між ними залежно від типу помилки (schema violation — причина в stdout, заголовок у stderr; "не знайдено схему" — усе в stderr).
 - `warnAboutRemoteSchemaFallback(stderrText)` — парсить stderr `v8r` і на кожен файл, чию схему знайдено мережевим fallback-ом (schemastore, не customCatalog), друкує в stdout пораду додати схему в каталог.
 - `stripBunNodeShimDirs(pathValue)` — прибирає з PATH shim-теки `bun-node-*`, які `bun run --bun` додає з підміненим `node`: дочірній `v8r` (node-shebang) інакше виконувався б під bun і падав на непідтримуваному `node:sea`. Дочірній процес `v8r` завжди отримує очищений PATH.
-- `lint(ctx)` — detector `text/run-v8r`: `ctx.files` → delta по відфільтрованих розширеннях, без `ctx.files` → full за `DEFAULT_V8R_GLOBS`.
+- `lint(ctx)` — detector `text/run-v8r`: `ctx.files` → delta по відфільтрованих розширеннях, без `ctx.files` → full за `DEFAULT_V8R_GLOBS`. Порушення несе `detail` (якщо є) у тексті `fail()`-повідомлення — без нього LLM fix-worker бачив лише "щось не пройшло" й незмінно провалював усі rung-и драбини (не мав інформації, що саме виправляти).
 
 ## Публічний API
 
 - `DEFAULT_V8R_GLOBS`, `V8R_CATALOG_PATH`, `RESOLVED_V8R_CONFIG_PATH`, `V8R_CACHE_TTL_SECONDS` — константи.
 - `resolveCustomCatalogSchemas()` — обчислені схеми customCatalog.
 - `writeResolvedV8rConfig()` — матеріалізація тимчасового конфігу, повертає його шлях.
-- `runV8rWithGlobs(globs?)`, `runV8rWithFiles(files)` — точки входу перевірки (full/delta).
+- `runV8rWithGlobs(globs?)`, `runV8rWithFiles(files)` — точки входу перевірки (full/delta), повертають `{ code, detail }`.
+- `extractFailureLines(combinedText)` — фільтр noise-рядків для деталі провалу.
 - `warnAboutRemoteSchemaFallback(stderrText)` — попередження про мережевий fallback схем.
 - `stripBunNodeShimDirs(pathValue)` — PATH без shim-тек `bun-node-*` (для дочірнього v8r).
 - `lint(ctx)` — інтеграція в lint-пайплайн.

@@ -34,11 +34,27 @@ export function lint(ctx) {
     return reporter.result()
   }
 
-  const r = spawnSync(bun, ['x', 'licensee', '--production', '--quiet'], { cwd, encoding: 'utf8', shell: false })
+  // Без --quiet: `licensee` пише реальні NOT APPROVED записи (name/version/license) у
+  // stdout через print() — деталь замість голого "код 1". Crash/die() усередині
+  // самого тула (invalid config, внутрішній виняток на кшталт "Cannot read properties
+  // of undefined (reading 'localeCompare')" — спостережено з @npmcli/arborist на
+  // bun-based node_modules) завжди йде у stderr через die(); легітимний звіт про
+  // порушення — лише у stdout. Канал розрізняє crash від реального порушення.
+  const r = spawnSync(bun, ['x', 'licensee', '--production', '--errors-only'], { cwd, encoding: 'utf8', shell: false })
   if (r.status !== 0) {
-    const out = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().slice(0, 2000)
-    const detail = out ? `\n${out}` : ''
-    fail(`lint-bun: licensee — порушення ліцензій (код ${r.status}, bun.mdc)${detail}`, 'license-violation')
+    const stderr = (r.stderr ?? '').trim().slice(0, 2000)
+    if (stderr) {
+      fail(
+        `lint-bun: licensee — інструмент завершився з помилкою, це НЕ підтверджене ліцензійне порушення ` +
+          `(код ${r.status}, bun.mdc). Ймовірна причина — несумісність @npmcli/arborist (яким licensee читає ` +
+          `node_modules) з деревом, зібраним bun install. Перевір вручну: \`bunx licensee --production\`.\n${stderr}`,
+        'licensee-crashed'
+      )
+    } else {
+      const stdout = (r.stdout ?? '').trim().slice(0, 2000)
+      const detail = stdout ? `\n${stdout}` : ''
+      fail(`lint-bun: licensee — порушення ліцензій (код ${r.status}, bun.mdc)${detail}`, 'license-violation')
+    }
   }
   return reporter.result()
 }

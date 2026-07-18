@@ -53,16 +53,20 @@ describe('layers-config.json schema (v8r-catalog)', () => {
 
   test('валідний docs/layers.json проходить v8r без помилок', async () => {
     const file = await writeLayersFixture(VALID_LAYERS_CONFIG)
-    expect(runV8rWithFiles([file])).toBe(0)
+    expect(runV8rWithFiles([file])).toEqual({ code: 0, detail: '' })
   })
 
-  test('docs/layers.json з невідомою властивістю падає (additionalProperties: false)', async () => {
+  test('docs/layers.json з невідомою властивістю падає (additionalProperties: false), detail пояснює причину', async () => {
     const file = await writeLayersFixture({ ...VALID_LAYERS_CONFIG, unknownField: true })
-    expect(runV8rWithFiles([file])).not.toBe(0)
+    const { code, detail } = runV8rWithFiles([file])
+    expect(code).not.toBe(0)
+    expect(detail).toContain('is invalid')
   })
 
-  test('docs/layers.json без required "docs" падає', async () => {
+  test('docs/layers.json без required "docs" падає, detail пояснює причину', async () => {
     const file = await writeLayersFixture({ version: 1 })
-    expect(runV8rWithFiles([file])).not.toBe(0)
+    const { code, detail } = runV8rWithFiles([file])
+    expect(code).not.toBe(0)
+    expect(detail).toContain('is invalid')
   })
 })

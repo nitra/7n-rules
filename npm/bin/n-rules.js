@@ -12,7 +12,9 @@
  *   `npx \@7n/rules lint`        — data-driven оркестратор lint+конформності по `rules/<id>/meta.json` (`lint: per-file|full`):
  *                                     за замовчуванням fix-by-default по дельті vs origin (лише `per-file` правила); `--full` =
  *                                     весь репо (`per-file` ∪ `full`); `--no-fix` = без мутацій/LLM (CI); позиційні
- *                                     (не-флаг) аргументи — фільтр правил конформності (мапить колишній `fix <rule>`).
+ *                                     (не-флаг) аргументи — фільтр правил конформності (мапить колишній `fix <rule>`);
+ *                                     `--path <dir>` = звузити файловий набір до піддиректорії, корінь прогону (root-guard,
+ *                                     `.n-rules.json`) лишається поточним каталогом/`--cwd`, не сумісний з rule-фільтром.
  *                                     CI = `lint --no-fix --full` (весь репо, нуль мутацій/LLM).
  *   `npx \@7n/rules skill list`     — скіли пакета без синку в проєкт
  *   `npx \@7n/rules skill taze`     — промпт на stdout
@@ -1632,7 +1634,16 @@ function printLintHelp() {
                   Один --full на машину: паралельні запуски стають у чергу
                   й бачать живий прогрес активного прогону.
   --no-fix        Лише детекція, без мутацій.
-  --cwd <path>    Робочий каталог замість поточного.
+  --cwd <path>    Робочий каталог (корінь прогону) замість поточного —
+                  root-guard, .n-rules.json і devDependencies читаються
+                  з нього.
+  --path <dir>    Звузити файловий набір до піддиректорії, лишивши корінь
+                  прогону незмінним (config/root-guard — з поточного каталогу
+                  чи --cwd). per-file правила фільтруються по файлах <dir>;
+                  full-scope правила (jscpd, cspell тощо) при спрацюванні
+                  все одно йдуть по всьому репо. Несумісний з позиційним
+                  rule/concern-фільтром; з --full full-вісь ігнорується
+                  (немає machine-wide локу).
   --verbose       Розширений вивід детекції та виправлення.
   --help, -h      Ця довідка.
 
@@ -1644,6 +1655,7 @@ function printLintHelp() {
   npx @7n/rules lint --full
   npx @7n/rules lint --no-fix eslint
   npx @7n/rules lint --cwd ./packages/foo --verbose
+  npx @7n/rules lint --path npm/scripts/lib/lint-surface --no-fix
 `)
 }
 
@@ -1717,8 +1729,29 @@ try {
         // Fix-by-default: detect → T0 → LLM-ladder (run-fix). --no-fix: лише detect.
         const cwdIdx = args.indexOf('--cwd')
         const cwdArg = cwdIdx === -1 ? cwd() : resolve(args[cwdIdx + 1])
-        const rules = args.filter((a, i) => !a.startsWith('-') && !(cwdIdx !== -1 && i === cwdIdx + 1))
-        const lintOpts = { cwd: cwdArg, full: args.includes('--full'), rules, verbose: args.includes('--verbose') }
+        // --path: на відміну від --cwd (підміняє корінь), лишає корінь/config
+        // незмінними й лише звужує файловий набір до заданої піддиректорії
+        // (той самий explicitFiles-шлях, що вже годує hook --post-tool-use/--stop).
+        const pathIdx = args.indexOf('--path')
+        const pathArg = pathIdx === -1 ? null : args[pathIdx + 1]
+        const rules = args.filter(
+          (a, i) => !a.startsWith('-') && !(cwdIdx !== -1 && i === cwdIdx + 1) && !(pathIdx !== -1 && i === pathIdx + 1)
+        )
+        if (pathArg !== null && rules.length > 0) {
+          throw new Error(
+            '--path не можна поєднувати зі scoped rule/concern фільтром (позиційні аргументи) — оберіть щось одне'
+          )
+        }
+        let pathFiles = null
+        if (pathArg !== null) {
+          const { collectPathScopedFiles } = await import('../scripts/lib/lint-surface/path-scope.mjs')
+          pathFiles = await collectPathScopedFiles(cwdArg, pathArg)
+        }
+        // --full + --path: buildPlan ігнорує full, коли передано explicitFiles (той самий
+        // шлях), тож і тут full-вісь вважаємо неактивною — інакше глобальний machine-wide
+        // лок --full брався б для швидкого scoped-прогону без причини.
+        const full = args.includes('--full') && pathArg === null
+        const lintOpts = { cwd: cwdArg, full, rules, verbose: args.includes('--verbose'), files: pathFiles }
         const noFix = args.includes('--no-fix')
         // Глобальна черга full-прогонів (spec 2026-07-03): одночасно виконується один
         // `lint --full` на машину, паралельні --full чекають лока і бачать чергу та

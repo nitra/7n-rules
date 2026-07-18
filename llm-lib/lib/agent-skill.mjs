@@ -18,7 +18,7 @@
  */
 
 import { env, stdout } from 'node:process'
-import { isLocalModel, resolveModel } from './model-tiers.mjs'
+import { formatModelSpec, isLocalModel, resolveModel } from './model-tiers.mjs'
 import { getRegistry, resolveModelSpec } from './internal/registry.mjs'
 import { failOnMemoryGuard } from './internal/memory-guard.mjs'
 import { writeTrace } from './trace.mjs'
@@ -194,23 +194,28 @@ export async function runAgentSkill(prompt, opts = {}) {
     failOnMemoryGuard(error, prompt)
   }
 
+  // spec порожній/нерозв'язаний ('' → pi сам вибирає дефолт) — беремо фактично
+  // резолвлену pi-модель із сесії, щоб chain.note()/trace не бачили порожній
+  // model і не потрапляли в неявний cloud-бакет (isLocalModel('') === false).
+  const resolvedModel = spec || formatModelSpec(session.model)
+
   const telemetry = {
     skill: skillId,
     tier,
-    model: spec || null,
+    model: resolvedModel,
     turnCount,
     toolCallCount,
     backstopHit,
     wallMs: clock() - startedAt
   }
-  chain?.note({ model: spec || null, usage, error })
+  chain?.note({ model: resolvedModel, usage, error })
   trace({
     caller,
     backend: 'pi-ai',
     kind: 'skill',
     skill: skillId,
     tier,
-    model: spec || null,
+    model: resolvedModel,
     cwd,
     turnCount,
     toolCallCount,
@@ -224,7 +229,7 @@ export async function runAgentSkill(prompt, opts = {}) {
     chainId: chain?.traceFields()?.chainId,
     caller,
     step: chain?.traceFields()?.chainStep,
-    model: spec || null,
+    model: resolvedModel,
     promptHash: pHash,
     prompt,
     output: outputText,

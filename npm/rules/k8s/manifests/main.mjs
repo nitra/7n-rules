@@ -2283,6 +2283,21 @@ export const HASURA_REQUIRED_ENV_KEYS = [
   'HASURA_GRAPHQL_DISABLE_EVENTING'
 ]
 
+/**
+ * Очікувані значення `HASURA_REQUIRED_ENV_KEYS` (дзеркалить `k8s.hasura_configmap.rego`).
+ * `'true'`/`'false'` — приймаються як boolean або рядок (case-insensitive); рядкове значення
+ * (наприклад `ENABLED_LOG_TYPES`) — точний exact match; `null` — ключ обов'язковий, значення
+ * довільне (T0 проставляє дефолт `'true'`, якщо ключ відсутній).
+ */
+export const HASURA_REQUIRED_ENV_VALUES = {
+  HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS: 'true',
+  HASURA_GRAPHQL_ENABLE_RELAY: 'false',
+  HASURA_GRAPHQL_ENABLE_TELEMETRY: 'false',
+  HASURA_GRAPHQL_ENABLED_LOG_TYPES: 'startup,http-log',
+  HASURA_GRAPHQL_ENABLED_APIS: 'metadata,graphql,pgdump',
+  HASURA_GRAPHQL_DISABLE_EVENTING: null
+}
+
 const K8S_YAML_EXT_RE = /\.ya?ml$/iu
 
 /**
@@ -2720,7 +2735,7 @@ function hasuraRuleMatchesSinglePathNoHeaders(rule, pathType, pathValue) {
  * @param {string} toPath очікуваний `requestRedirect.path.replaceFullPath`
  * @returns {boolean} true — якщо filters відповідають канону редиректу
  */
-function hasuraRuleHasExactRedirect(rule, toPath) {
+export function hasuraRuleHasExactRedirect(rule, toPath) {
   const r = asPlainRecord(rule)
   if (r === null) return false
   const filters = r.filters
@@ -2830,7 +2845,7 @@ function hasuraRuleIsWebsocket(rule, qlPath) {
  * @param {unknown[]} rules вміст `spec.rules` HTTPRoute
  * @returns {{ prefix: string, startIndex: number } | null} виявлений префікс і позиція правила 1 або null
  */
-function findHasuraCanonStart(rules) {
+export function findHasuraCanonStart(rules) {
   for (const [i, rule] of rules.entries()) {
     const r = asPlainRecord(rule)
     const matches = r === null ? null : r.matches
@@ -3166,7 +3181,7 @@ function recordHasuraDeploymentName(rec, dir, hasuraByDir) {
  * звіряє канон 4 правил (див. `httpRouteHasuraCanonViolation` і k8s.mdc).
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFiles абсолютні шляхи до `*.yaml` під `k8s`
- * @param {(msg: string) => void} fail callback реєстрації помилки
+ * @param {(msg: string, opts?: string | { reason?: string, file?: string, data?: object }) => void} fail callback реєстрації помилки
  * @returns {Promise<void>} результат
  */
 async function validateHasuraHttpRouteCanon(root, yamlFiles, fail) {
@@ -3193,7 +3208,12 @@ async function validateHasuraHttpRouteCanon(root, yamlFiles, fail) {
   })
   for (const v of violations) {
     const rel = (relative(root, v.filename) || v.filename).replaceAll('\\', '/')
-    fail(`${rel}: ${v.message}`)
+    // T0 автофіксить лише "rule1_filters" (детермінований overwrite існуючого правила);
+    // rule2/3/4-missing вимагають синтезу нового правила з backendRef — не T0 (k8s.mdc).
+    const hint = REGO_HINT_HASURA_HTTPROUTE_RULE1_RE.test(v.message)
+      ? { reason: 'hasura-httproute-rule1-filters', file: rel, data: { kind: 'hasura-httproute-rule1-filters' } }
+      : undefined
+    fail(`${rel}: ${v.message}`, hint)
   }
 }
 
@@ -3613,7 +3633,7 @@ async function validateHasuraConfigMapRemoteSchemaPermissions(root, yamlFilesAbs
   })
   for (const v of violations) {
     const rel = (relative(root, v.filename) || v.filename).replaceAll('\\', '/')
-    fail(`${rel}: ${v.message}`)
+    fail(`${rel}: ${v.message}`, { reason: 'hasura-configmap-env', file: rel, data: { kind: 'hasura-configmap-env' } })
   }
   if (violations.length === 0) {
     passFn(
@@ -4902,6 +4922,12 @@ const HASURA_OVERLAY_ENABLED_APIS = 'metadata,graphql'
 /** JSON-Pointer ключа `HASURA_GRAPHQL_ENABLED_APIS` у `data` ConfigMap (для JSON6902-патчів). */
 const HASURA_ENABLED_APIS_DATA_POINTER = '/data/HASURA_GRAPHQL_ENABLED_APIS'
 
+/** Очікуване `HASURA_GRAPHQL_ENABLED_LOG_TYPES` у non-base/dev overlay (без `http-log` — він лише для base/dev). */
+const HASURA_OVERLAY_ENABLED_LOG_TYPES = 'startup'
+
+/** JSON-Pointer ключа `HASURA_GRAPHQL_ENABLED_LOG_TYPES` у `data` ConfigMap (для JSON6902-патчів). */
+const HASURA_ENABLED_LOG_TYPES_DATA_POINTER = '/data/HASURA_GRAPHQL_ENABLED_LOG_TYPES'
+
 /**
  * Чи дерево kustomization (`resources` / `bases` / `components` / `crds`, рекурсивно) містить
  * **Hasura-Deployment** у шарі base (образ `hasura/graphql-engine`). Маркер того, що overlay успадковує
@@ -4945,18 +4971,19 @@ function firstValidYamlJsonFromPatchText(patchText) {
 }
 
 /**
- * Значення `data.HASURA_GRAPHQL_ENABLED_APIS` з JSON6902-патчу (масив операцій).
- * Повертає значення першої `add`/`replace`-операції на `/data/HASURA_GRAPHQL_ENABLED_APIS`.
+ * Значення `data.<dataKey>` з JSON6902-патчу (масив операцій).
+ * Повертає значення першої `add`/`replace`-операції на `/data/<dataKey>`.
  * @param {unknown[]} ops масив JSON6902-операцій
+ * @param {string} dataPointer JSON-Pointer ключа (`/data/<dataKey>`)
  * @returns {string | null} присвоєне значення (рядок) або null
  */
-function enabledApisValueFromJson6902(ops) {
+function hasuraDataKeyValueFromJson6902(ops, dataPointer) {
   for (const item of ops) {
     if (item === null || typeof item !== 'object' || Array.isArray(item)) continue
     const rec = /** @type {Record<string, unknown>} */ (item)
     const op = typeof rec.op === 'string' ? rec.op.trim().toLowerCase() : ''
     const path = typeof rec.path === 'string' ? normalizeJsonPatchPath(rec.path) : ''
-    if ((op === 'add' || op === 'replace') && path === HASURA_ENABLED_APIS_DATA_POINTER) {
+    if ((op === 'add' || op === 'replace') && path === dataPointer) {
       return typeof rec.value === 'string' ? rec.value : JSON.stringify(rec.value)
     }
   }
@@ -4964,17 +4991,36 @@ function enabledApisValueFromJson6902(ops) {
 }
 
 /**
- * Значення `data.HASURA_GRAPHQL_ENABLED_APIS` зі Strategic-Merge-патчу (об'єкт із `data`).
+ * Значення `data.<dataKey>` зі Strategic-Merge-патчу (об'єкт із `data`).
  * @param {object} parsed розпарсений об'єкт patch
+ * @param {string} dataKey ключ у `data` (наприклад `HASURA_GRAPHQL_ENABLED_APIS`)
  * @returns {string | null} присвоєне значення (рядок) або null
  */
-function enabledApisValueFromStrategicMerge(parsed) {
+function hasuraDataKeyValueFromStrategicMerge(parsed, dataKey) {
   const data = /** @type {Record<string, unknown>} */ (parsed).data
   if (data === null || typeof data !== 'object' || Array.isArray(data)) return null
   const d = /** @type {Record<string, unknown>} */ (data)
-  if (!Object.hasOwn(d, 'HASURA_GRAPHQL_ENABLED_APIS')) return null
-  const v = d.HASURA_GRAPHQL_ENABLED_APIS
+  if (!Object.hasOwn(d, dataKey)) return null
+  const v = d[dataKey]
   return typeof v === 'string' ? v : JSON.stringify(v)
+}
+
+/**
+ * Значення, яке inline-`patch` присвоює `data.<dataKey>`. Підтримка двох форматів:
+ * **JSON6902** (`op` add/replace на `/data/<dataKey>`) і **Strategic Merge** (`data.<dataKey>`).
+ * Зовнішні patch-файли (`patches[].path`) не охоплені — Plan B trade-off.
+ * @param {string} patchText вміст поля `patch`
+ * @param {string} dataKey ключ у `data`
+ * @param {string} dataPointer JSON-Pointer ключа (`/data/<dataKey>`)
+ * @returns {string | null} присвоєне значення (рядок) або null, якщо patch не чіпає цей ключ
+ */
+function hasuraDataKeyValueFromPatchText(patchText, dataKey, dataPointer) {
+  const t = typeof patchText === 'string' ? patchText.trim() : ''
+  if (t === '') return null
+  const parsed = firstValidYamlJsonFromPatchText(t)
+  if (Array.isArray(parsed)) return hasuraDataKeyValueFromJson6902(parsed, dataPointer)
+  if (parsed === null || typeof parsed !== 'object') return null
+  return hasuraDataKeyValueFromStrategicMerge(parsed, dataKey)
 }
 
 /**
@@ -4985,12 +5031,29 @@ function enabledApisValueFromStrategicMerge(parsed) {
  * @returns {string | null} присвоєне значення (рядок) або null, якщо patch не чіпає цей ключ
  */
 export function enabledApisValueFromPatchText(patchText) {
-  const t = typeof patchText === 'string' ? patchText.trim() : ''
-  if (t === '') return null
-  const parsed = firstValidYamlJsonFromPatchText(t)
-  if (Array.isArray(parsed)) return enabledApisValueFromJson6902(parsed)
-  if (parsed === null || typeof parsed !== 'object') return null
-  return enabledApisValueFromStrategicMerge(parsed)
+  return hasuraDataKeyValueFromPatchText(patchText, 'HASURA_GRAPHQL_ENABLED_APIS', HASURA_ENABLED_APIS_DATA_POINTER)
+}
+
+/**
+ * Значення, яке `patches[]` kustomization присвоюють `data.<dataKey>` на цілі **ConfigMap**.
+ * Повертає значення першого patch-а, що чіпає цей ключ, або null, якщо такого немає.
+ * @param {Record<string, unknown>} kust об'єкт kustomization.yaml
+ * @param {string} dataKey ключ у `data`
+ * @param {string} dataPointer JSON-Pointer ключа (`/data/<dataKey>`)
+ * @returns {string | null} присвоєне значення або null
+ */
+function hasuraDataKeyOverrideValue(kust, dataKey, dataPointer) {
+  const patches = kust.patches
+  if (!Array.isArray(patches)) return null
+  for (const p of patches) {
+    if (p === null || typeof p !== 'object' || Array.isArray(p)) continue
+    const pr = /** @type {Record<string, unknown>} */ (p)
+    if (typeof pr.patch !== 'string') continue
+    if (resolvePatchTargetKind(pr) !== 'ConfigMap') continue
+    const v = hasuraDataKeyValueFromPatchText(pr.patch, dataKey, dataPointer)
+    if (v !== null) return v
+  }
+  return null
 }
 
 /**
@@ -5000,17 +5063,17 @@ export function enabledApisValueFromPatchText(patchText) {
  * @returns {string | null} присвоєне значення або null
  */
 export function hasuraEnabledApisOverrideValue(kust) {
-  const patches = kust.patches
-  if (!Array.isArray(patches)) return null
-  for (const p of patches) {
-    if (p === null || typeof p !== 'object' || Array.isArray(p)) continue
-    const pr = /** @type {Record<string, unknown>} */ (p)
-    if (typeof pr.patch !== 'string') continue
-    if (resolvePatchTargetKind(pr) !== 'ConfigMap') continue
-    const v = enabledApisValueFromPatchText(pr.patch)
-    if (v !== null) return v
-  }
-  return null
+  return hasuraDataKeyOverrideValue(kust, 'HASURA_GRAPHQL_ENABLED_APIS', HASURA_ENABLED_APIS_DATA_POINTER)
+}
+
+/**
+ * Значення, яке `patches[]` kustomization присвоюють `data.HASURA_GRAPHQL_ENABLED_LOG_TYPES` на цілі **ConfigMap**.
+ * Повертає значення першого patch-а, що чіпає цей ключ, або null, якщо такого немає.
+ * @param {Record<string, unknown>} kust об'єкт kustomization.yaml
+ * @returns {string | null} присвоєне значення або null
+ */
+export function hasuraEnabledLogTypesOverrideValue(kust) {
+  return hasuraDataKeyOverrideValue(kust, 'HASURA_GRAPHQL_ENABLED_LOG_TYPES', HASURA_ENABLED_LOG_TYPES_DATA_POINTER)
 }
 
 /**
@@ -5045,6 +5108,43 @@ async function validateHasuraOverlayEnabledApisOverride(root, yamlFilesAbs, fail
     } else {
       fail(
         `${rel}: overlay '${segment}' patch data.HASURA_GRAPHQL_ENABLED_APIS має бути "${HASURA_OVERLAY_ENABLED_APIS}" (зараз: ${JSON.stringify(value)}) (k8s.mdc)`
+      )
+    }
+  }
+}
+
+/**
+ * Для кожного **non-base/dev** overlay `kustomization.yaml`, що успадковує Hasura-base (Deployment з
+ * `hasura/graphql-engine`), вимагає у `patches[]` перевизначення **`data.HASURA_GRAPHQL_ENABLED_LOG_TYPES`**
+ * до **`"startup"`** (`http-log` лишається строго для base/dev — прод не пише per-request access-лог у
+ * Cloud Logging). `kind: Component` пропускається (env-неутральне джерело, не overlay).
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs yaml під k8s
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успіху
+ */
+async function validateHasuraOverlayEnabledLogTypesOverride(root, yamlFilesAbs, fail, passFn) {
+  const rootNorm = resolve(root)
+  const kustFiles = yamlFilesAbs.filter(abs => basename(abs) === 'kustomization.yaml')
+  for (const kustAbs of kustFiles) {
+    const rel = (relative(rootNorm, kustAbs) || kustAbs).replaceAll('\\', '/')
+    const segment = k8sEnvSegmentFromRelPath(rel)
+    if (segment === null || segment === 'base' || segment === 'dev') continue
+    const kust = await readFirstYamlObject(kustAbs)
+    if (kust === null || kust.kind === 'Component') continue
+    if (!(await kustomizationTreeHasHasuraDeployment(kustAbs, rootNorm))) continue
+    const value = hasuraEnabledLogTypesOverrideValue(kust)
+    if (value === HASURA_OVERLAY_ENABLED_LOG_TYPES) {
+      passFn(
+        `${rel}: overlay '${segment}' перевизначає HASURA_GRAPHQL_ENABLED_LOG_TYPES="${HASURA_OVERLAY_ENABLED_LOG_TYPES}" (k8s.mdc)`
+      )
+    } else if (value === null) {
+      fail(
+        `${rel}: overlay '${segment}' має у patches[] перевизначати data.HASURA_GRAPHQL_ENABLED_LOG_TYPES до "${HASURA_OVERLAY_ENABLED_LOG_TYPES}" (http-log лише для base/dev) (k8s.mdc)`
+      )
+    } else {
+      fail(
+        `${rel}: overlay '${segment}' patch data.HASURA_GRAPHQL_ENABLED_LOG_TYPES має бути "${HASURA_OVERLAY_ENABLED_LOG_TYPES}" (зараз: ${JSON.stringify(value)}) (k8s.mdc)`
       )
     }
   }
@@ -6466,6 +6566,10 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail) {
 const REGO_HINT_DEPLOYMENT_STRATEGY_RE = /spec\.strategy має бути RollingUpdate/u
 const REGO_HINT_NETWORKPOLICY_EGRESS_RE = /відсутнє обовʼязкове egress-правило/u
 const REGO_HINT_KUSTOMIZATION_PATCHES_RE = /patches має бути за алфавітом/u
+/** Стадія `rule1_filters` `k8s.hasura_httproute` — єдина автофіксовна (overwrite існуючого правила, без синтезу нового). */
+const REGO_HINT_HASURA_HTTPROUTE_RULE1_RE = /правило 1 Hasura-канона \(rules\[\d+\]/u
+const REGO_HINT_SVC_CLUSTERIP_RE = /spec\.type[^\n]*ClusterIP|додай spec\.type: ClusterIP/u
+const REGO_HINT_SVC_HL_CLUSTERIP_RE = /spec\.clusterIP[^\n]*None|додай spec\.clusterIP: None/u
 /**
  * Structured fix-hint (#3) для rego-violation із `runAllK8sRego` — щоб T0
  * (`fix-manifests.mjs`) автофіксив детерміновано, не парсячи message. Класифікація
@@ -6485,6 +6589,12 @@ function k8sRegoFixHint(ns, file, message) {
   }
   if (ns === 'k8s.kustomization' && REGO_HINT_KUSTOMIZATION_PATCHES_RE.test(m)) {
     return { reason: 'kustomization-patches-sort', file, data: { kind: 'kustomization-patches-sort' } }
+  }
+  if (ns === 'k8s.svc_yaml' && REGO_HINT_SVC_CLUSTERIP_RE.test(m)) {
+    return { reason: 'svc-clusterip-type', file, data: { kind: 'svc-clusterip-type' } }
+  }
+  if (ns === 'k8s.svc_hl_yaml' && REGO_HINT_SVC_HL_CLUSTERIP_RE.test(m)) {
+    return { reason: 'svc-hl-cluster-ip', file, data: { kind: 'svc-hl-cluster-ip' } }
   }
   // немає збігу — implicit undefined (без trailing return: no-redundant-jump + no-useless-undefined тихі)
 }
@@ -6627,6 +6737,8 @@ export async function lint(ctx) {
   await validateProdKustomizationOverrides(root, yamlFiles, fail, pass)
 
   await validateHasuraOverlayEnabledApisOverride(root, yamlFiles, fail, pass)
+
+  await validateHasuraOverlayEnabledLogTypesOverride(root, yamlFiles, fail, pass)
 
   return reporter.result()
 }
