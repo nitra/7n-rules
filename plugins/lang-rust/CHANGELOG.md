@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.0] - 2026-07-18
+
+### Added
+
+- doc-files-екстрактори Rust переїхали з ядра (фаза 4a spec lang-plugins-extraction): `extractFactsRust` (header/exports/imports/markers) і `extractUnitsRs` — handler extension-point `doc-files`; розширення `.rs` → 'Rust Module' декларується маніфестом (`contributes.docFiles.extensions`)
+
+## [0.3.0] - 2026-07-18
+
+### Added
+
+- Правило `rust` переїхало з ядра (фаза 3 spec lang-plugins-extraction): main.mdc, концерни applies/check/package_json/vscode_extensions з rego-політиками й шаблонами — плагін тепер contributes.rules; дзеркало `.cursor/rules/n-rust.mdc` і auto-rules детект працюють через плагінне джерело
+
+## [0.2.2] - 2026-07-18
+
+### Fixed
+
+- Репо без кореневого Cargo.toml (вкладені крейти, як Tauri `src-tauri`): bump іде per-manifest через `--manifest-path` замість голого `cargo upgrade` з кореня (падав «could not find Cargo.toml»); бекап покриває і Cargo.lock поруч із кожним маніфестом (незалежні крейти мають власні lock-файли); `findCargoManifests` виключає `.claude/worktrees/`. Знайдено live-прогоном на реальному Tauri-репо
+
 ## [0.2.1] - 2026-07-18
 
 ### Fixed

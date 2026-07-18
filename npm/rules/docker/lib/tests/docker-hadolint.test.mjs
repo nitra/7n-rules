@@ -4,16 +4,16 @@
  *   - `lintDockerfileWithHadolint` — нативний hadolint через `ensureTool`, exit-code → ok-mapping,
  *     і `ok: false` з підказкою, коли `ensureTool` кидає (тула нема / авто-install відключено).
  *
- * `spawnSync` і `ensureTool` мокаються через `vi.mock` (factory). Без зовнішніх процесів і без `docker run`.
+ * `spawnAsync` і `ensureTool` мокаються через `vi.mock` (factory). Без зовнішніх процесів і без `docker run`.
  */
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
 import { sep, join } from 'node:path'
 
-const spawnSyncMock = vi.fn()
+const spawnAsyncMock = vi.fn()
 const ensureToolMock = vi.fn()
 
-vi.mock('node:child_process', () => ({
-  spawnSync: spawnSyncMock
+vi.mock('../../../../scripts/utils/spawn-async.mjs', () => ({
+  spawnAsync: spawnAsyncMock
 }))
 vi.mock('../../../../scripts/lib/ensure-tool.mjs', () => ({
   ensureTool: ensureToolMock
@@ -42,7 +42,7 @@ describe('posixRel', () => {
 
 describe('lintDockerfileWithHadolint', () => {
   beforeEach(() => {
-    spawnSyncMock.mockReset()
+    spawnAsyncMock.mockReset()
     ensureToolMock.mockReset()
   })
 
@@ -50,49 +50,49 @@ describe('lintDockerfileWithHadolint', () => {
     vi.clearAllMocks()
   })
 
-  test('hadolint знайдено + exit 0 → ok=true, via=hadolint', () => {
+  test('hadolint знайдено + exit 0 → ok=true, via=hadolint', async () => {
     ensureToolMock.mockReturnValue('/usr/local/bin/hadolint')
-    spawnSyncMock.mockReturnValue({ status: 0, stdout: '', stderr: '' })
-    const result = lintDockerfileWithHadolint('/repo', '/repo/Dockerfile')
+    spawnAsyncMock.mockResolvedValue({ exitCode: 0, stdout: '', stderr: '' })
+    const result = await lintDockerfileWithHadolint('/repo', '/repo/Dockerfile')
     expect(result).toEqual({ ok: true, stdout: '', stderr: '', via: 'hadolint' })
-    expect(spawnSyncMock).toHaveBeenCalledWith(
+    expect(spawnAsyncMock).toHaveBeenCalledWith(
       '/usr/local/bin/hadolint',
       ['Dockerfile'],
-      expect.objectContaining({ cwd: '/repo', encoding: 'utf8' })
+      expect.objectContaining({ cwd: '/repo' })
     )
   })
 
-  test('hadolint знайдено + exit !=0 → ok=false, stdout/stderr пропагуються', () => {
+  test('hadolint знайдено + exit !=0 → ok=false, stdout/stderr пропагуються', async () => {
     ensureToolMock.mockReturnValue('/usr/bin/hadolint')
-    spawnSyncMock.mockReturnValue({ status: 1, stdout: 'DL3000', stderr: 'warning' })
-    const result = lintDockerfileWithHadolint('/repo', '/repo/Dockerfile')
+    spawnAsyncMock.mockResolvedValue({ exitCode: 1, stdout: 'DL3000', stderr: 'warning' })
+    const result = await lintDockerfileWithHadolint('/repo', '/repo/Dockerfile')
     expect(result).toEqual({ ok: false, stdout: 'DL3000', stderr: 'warning', via: 'hadolint' })
   })
 
-  test('stdout/stderr undefined → fallback на ""', () => {
+  test('stdout/stderr undefined → fallback на ""', async () => {
     ensureToolMock.mockReturnValue('/usr/bin/hadolint')
-    spawnSyncMock.mockReturnValue({ status: 0, stdout: undefined, stderr: undefined })
-    const r = lintDockerfileWithHadolint('/repo', '/repo/Dockerfile')
+    spawnAsyncMock.mockResolvedValue({ exitCode: 0, stdout: undefined, stderr: undefined })
+    const r = await lintDockerfileWithHadolint('/repo', '/repo/Dockerfile')
     expect(r.stdout).toBe('')
     expect(r.stderr).toBe('')
   })
 
-  test('ensureTool кидає (hadolint недоступний) → ok=false з підказкою, без spawn', () => {
+  test('ensureTool кидає (hadolint недоступний) → ok=false з підказкою, без spawn', async () => {
     ensureToolMock.mockImplementation(() => {
       throw new Error('hadolint недоступний (тест)')
     })
-    const result = lintDockerfileWithHadolint('/repo', '/repo/Dockerfile')
+    const result = await lintDockerfileWithHadolint('/repo', '/repo/Dockerfile')
     expect(result.ok).toBe(false)
     expect(result.via).toBe('hadolint')
     expect(result.stderr).toContain('hadolint')
     expect(result.stderr).toContain('hadolint недоступний (тест)')
-    expect(spawnSyncMock).not.toHaveBeenCalled()
+    expect(spawnAsyncMock).not.toHaveBeenCalled()
   })
 
-  test('відносний шлях передається з прямими слешами навіть з вкладеною директорією', () => {
+  test('відносний шлях передається з прямими слешами навіть з вкладеною директорією', async () => {
     ensureToolMock.mockReturnValue('/h')
-    spawnSyncMock.mockReturnValue({ status: 0, stdout: '', stderr: '' })
-    lintDockerfileWithHadolint('/repo', `/repo${sep}pkg${sep}sub${sep}Dockerfile`)
-    expect(spawnSyncMock.mock.calls[0][1]).toEqual(['pkg/sub/Dockerfile'])
+    spawnAsyncMock.mockResolvedValue({ exitCode: 0, stdout: '', stderr: '' })
+    await lintDockerfileWithHadolint('/repo', `/repo${sep}pkg${sep}sub${sep}Dockerfile`)
+    expect(spawnAsyncMock.mock.calls[0][1]).toEqual(['pkg/sub/Dockerfile'])
   })
 })

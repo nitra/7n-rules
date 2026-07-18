@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/security/scan/main.mjs
 docgen:
-  crc: 254fe129
+  crc: a57f9d26
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.98

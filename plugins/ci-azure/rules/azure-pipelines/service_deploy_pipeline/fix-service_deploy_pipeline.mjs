@@ -23,16 +23,12 @@
  * Template-розкладка (`- template:`) не мігрується — фіксеру не видно
  * розгорнутих джоб.
  */
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { parseDocument } from 'yaml'
 
-import { domainKey } from '@7n/rules/scripts/lib/lint-surface/ci-plan.mjs'
-import {
-  createMigrationFixPattern,
-  parseNRulesCmd,
-  relevantDomains
-} from '@7n/rules/scripts/lib/lint-surface/service-migration.mjs'
+import { domainKey, parseNRulesCmd, relevantDomains } from '@7n/rules/scripts/lib/lint-surface/ci-plan.mjs'
 
 const GLOB_SUFFIX_RE = /\/\*+$/u
 
@@ -409,9 +405,25 @@ export async function migratePipelineFile(absPath, cwd) {
 }
 
 export const patterns = [
-  createMigrationFixPattern({
+  {
     id: 'azure-service-pipeline-canon-migrate',
-    migrateFile: migratePipelineFile,
-    noun: 'pipeline'
-  })
+    test: violations => violations.length > 0,
+    async apply(violations, ctx) {
+      const files = [...new Set(violations.map(v => v.file).filter(Boolean))]
+      const touched = []
+      for (const rel of files) {
+        const abs = join(ctx.cwd, rel)
+        if (!existsSync(abs)) continue
+        try {
+          if (await migratePipelineFile(abs, ctx.cwd)) touched.push(abs)
+        } catch {
+          // міграція конкретного файлу не вдалася — лишаємо deny детектору (fail-open до ручного фіксу)
+        }
+      }
+      return {
+        touchedFiles: touched,
+        message: touched.length > 0 ? `мігровано до сервіс-канону: ${touched.length} pipeline(ів)` : null
+      }
+    }
+  }
 ]

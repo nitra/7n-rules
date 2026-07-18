@@ -4,11 +4,11 @@
  * Виділено з колишнього bundled `php/check` (spec
  * docs/specs/2026-07-02-text-check-per-file-split-design.md "Рішення python/php/rego").
  */
-import { spawnSync } from 'node:child_process'
 import { existsSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 
 /** Розширення `.php` — фільтр delta-списку файлів у `lint(ctx)`. */
 const PHP_EXT_RE = /\.php$/u
@@ -38,11 +38,12 @@ function vendorBin(root) {
 }
 
 /**
- * Detector php/phpcs (read-only).
+ * Detector php/phpcs (read-only). Async (не блокує event loop) — детектор може виконуватись
+ * у parallel lane `detectAll()` (ADR 260716-1354).
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат із порушеннями
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат із порушеннями
  */
-export function lint(ctx) {
+export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { fail } = reporter
   const root = ctx.cwd
@@ -55,13 +56,13 @@ export function lint(ctx) {
   const abs = vendorBin(root)
   if (!abs) return reporter.result() // phpcs відсутній у vendor/bin → пропущено
 
-  const r = spawnSync(abs, ['--standard=Security', '--ignore=*/vendor/*,*/node_modules/*,*/.git/*', ...targets], {
-    cwd: root,
-    encoding: 'utf8',
-    shell: false
-  })
-  if (r.status !== 0) {
-    const code = typeof r.status === 'number' ? r.status : 1
+  const r = await spawnAsync(
+    abs,
+    ['--standard=Security', '--ignore=*/vendor/*,*/node_modules/*,*/.git/*', ...targets],
+    { cwd: root }
+  )
+  if (r.exitCode !== 0) {
+    const code = typeof r.exitCode === 'number' ? r.exitCode : 1
     const out = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().slice(0, 2000)
     const outSuffix = out ? `\n${out}` : ''
     fail(`lint-php: phpcs (Security) — помилка (код ${code}, php.mdc)${outSuffix}`, 'phpcs-violation')

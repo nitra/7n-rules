@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules-lang-rust",
-  "version": "0.2.1",
+  "version": "0.4.0",
   "description": "Плагін @7n/rules: Rust/Cargo-екосистема — taze-провайдер (Cargo.toml, cargo-edit)",
   "keywords": [
     "rust",
@@ -21,20 +21,29 @@
   },
   "type": "module",
   "files": [
+    "rules",
+    "doc-files",
     "taze",
     "CHANGELOG.md",
     "!**/*.test.mjs",
-    "!**/tests/**",
-    "!**/docs/**"
+    "!**/*_test.rego",
+    "!**/fixtures/**",
+    "!**/tests/**"
   ],
   "n-rules": {
     "capabilities": [
       "lang:rust"
     ],
     "contributes": {
-      "rules": false,
+      "rules": true,
       "handlers": {
-        "taze": "./taze/provider.mjs"
+        "taze": "./taze/provider.mjs",
+        "doc-files": "./doc-files/extractors.mjs"
+      },
+      "docFiles": {
+        "extensions": {
+          ".rs": "Rust Module"
+        }
       }
     }
   },

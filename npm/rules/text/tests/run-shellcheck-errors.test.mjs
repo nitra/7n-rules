@@ -1,6 +1,6 @@
 /**
  * Тести run-shellcheck.mjs: edge cases i error paths.
- * patch не знайдено, немає .sh-файлів, spawnSync-помилки (mock).
+ * patch не знайдено, немає .sh-файлів, spawnAsync-помилки (mock).
  */
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { writeFile } from 'node:fs/promises'
@@ -11,10 +11,21 @@ import { listShellScriptPaths, runShellcheckText } from '../run-shellcheck/main.
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { withTmpDir } from '../../../scripts/utils/test-helpers.mjs'
 
+// resolveCmd('shellcheck'/'patch'/'git') лишається на реальному spawnSync (out-of-scope
+// hand-written "which"-хелпер) — цей мок потрібен лише тесту "patch absent", щоб
+// детерміновано підробити відсутність `patch` незалежно від реального PATH середовища.
 vi.mock('node:child_process', async () => {
   const actual = await vi.importActual('node:child_process')
   return { ...actual, spawnSync: vi.fn(actual.spawnSync) }
 })
+
+// Самі виклики git/shellcheck/patch у main.mjs мігровані на spawnAsync (ADR 260716-1354) —
+// саме його підміняємо мок-версією для симуляції результатів/помилок зовнішніх інструментів.
+vi.mock('../../../scripts/utils/spawn-async.mjs', async () => {
+  const actual = await vi.importActual('../../../scripts/utils/spawn-async.mjs')
+  return { ...actual, spawnAsync: vi.fn(actual.spawnAsync) }
+})
+const { spawnAsync } = await import('../../../scripts/utils/spawn-async.mjs')
 
 describe('run-shellcheck error paths', () => {
   afterEach(() => vi.clearAllMocks())
@@ -38,7 +49,7 @@ describe('run-shellcheck error paths', () => {
     try {
       await withTmpDir(async dir => {
         await writeFile(join(dir, 'a.sh'), '#!/bin/sh\necho ok\n', 'utf8')
-        code = runShellcheckText(dir)
+        code = await runShellcheckText(dir)
       })
     } finally {
       process.stderr.write = origErr
@@ -54,44 +65,58 @@ describe('run-shellcheck error paths', () => {
     }
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'readme.txt'), 'hello\n', 'utf8')
-      expect(runShellcheckText(dir)).toBe(0)
+      expect(await runShellcheckText(dir)).toBe(0)
     })
   })
 
   test('listShellScriptPaths: git ls-files non-0 status => [] (line 82)', async () => {
-    const actual = await vi.importActual('node:child_process')
-    vi.mocked(spawnSync)
-      .mockImplementationOnce(actual.spawnSync) // which git
-      .mockReturnValueOnce({ status: 0, stdout: 'true\n', stderr: '', error: null, pid: 0, signal: null }) // rev-parse
-      .mockReturnValueOnce({ status: 1, stdout: '', stderr: 'error', error: null, pid: 0, signal: null }) // ls-files fails
+    vi.mocked(spawnAsync)
+      .mockResolvedValueOnce({
+        stdout: 'true\n',
+        stderr: '',
+        exitCode: 0,
+        signal: null,
+        timedOut: false,
+        aborted: false
+      }) // rev-parse
+      .mockResolvedValueOnce({
+        stdout: '',
+        stderr: 'error',
+        exitCode: 1,
+        signal: null,
+        timedOut: false,
+        aborted: false
+      }) // ls-files fails
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'a.sh'), '#!/bin/sh\necho ok\n', 'utf8')
-      const result = listShellScriptPaths(dir)
+      const result = await listShellScriptPaths(dir)
       expect(result).toEqual([])
     })
   })
 
-  test('autofixOneFile: diffResult.error => stderr + return 1 (lines 145-146)', async () => {
+  test('autofixOneFile: diffResult spawn-помилка => stderr + return 1 (lines 145-146)', async () => {
     if (!resolveCmd('shellcheck') || !resolveCmd('patch')) {
       expect(resolveCmd('shellcheck') && resolveCmd('patch')).toBeFalsy()
       return
     }
-    const actual = await vi.importActual('node:child_process')
-    vi.mocked(spawnSync)
-      .mockImplementationOnce(actual.spawnSync) // which shellcheck
-      .mockImplementationOnce(actual.spawnSync) // which patch
-      .mockImplementationOnce(actual.spawnSync) // which git
-      .mockReturnValueOnce({ status: 0, stdout: 'true\n', stderr: '', error: null, pid: 0, signal: null }) // rev-parse
-      .mockReturnValueOnce({ status: 0, stdout: 'x.sh\0', stderr: '', error: null, pid: 0, signal: null }) // ls-files
-      .mockReturnValueOnce({
-        // shellcheck -f diff -> spawn error
-        error: new Error('mock shellcheck ENOENT'),
-        status: null,
-        stdout: '',
+    vi.mocked(spawnAsync)
+      .mockResolvedValueOnce({
+        stdout: 'true\n',
         stderr: '',
-        pid: 0,
-        signal: null
-      })
+        exitCode: 0,
+        signal: null,
+        timedOut: false,
+        aborted: false
+      }) // rev-parse
+      .mockResolvedValueOnce({
+        stdout: 'x.sh\0',
+        stderr: '',
+        exitCode: 0,
+        signal: null,
+        timedOut: false,
+        aborted: false
+      }) // ls-files
+      .mockRejectedValueOnce(new Error('mock shellcheck ENOENT')) // shellcheck -f diff -> spawn error
     const errLines = []
     const origErr = process.stderr.write.bind(process.stderr)
     process.stderr.write = chunk => {
@@ -102,7 +127,7 @@ describe('run-shellcheck error paths', () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'x.sh'), '#!/bin/sh\necho ok\n', 'utf8')
       try {
-        code = runShellcheckText(dir)
+        code = await runShellcheckText(dir)
       } finally {
         process.stderr.write = origErr
       }
@@ -111,28 +136,30 @@ describe('run-shellcheck error paths', () => {
     expect(errLines.join('')).toContain('mock shellcheck ENOENT')
   })
 
-  test('runFinalShellcheck: finalRun.error => stderr + return 1 (lines 209-210)', async () => {
+  test('runFinalShellcheck: finalRun spawn-помилка => stderr + return 1 (lines 209-210)', async () => {
     if (!resolveCmd('shellcheck') || !resolveCmd('patch')) {
       expect(resolveCmd('shellcheck') && resolveCmd('patch')).toBeFalsy()
       return
     }
-    const actual = await vi.importActual('node:child_process')
-    vi.mocked(spawnSync)
-      .mockImplementationOnce(actual.spawnSync) // which shellcheck
-      .mockImplementationOnce(actual.spawnSync) // which patch
-      .mockImplementationOnce(actual.spawnSync) // which git
-      .mockReturnValueOnce({ status: 0, stdout: 'true\n', stderr: '', error: null, pid: 0, signal: null }) // rev-parse
-      .mockReturnValueOnce({ status: 0, stdout: 'x.sh\0', stderr: '', error: null, pid: 0, signal: null }) // ls-files
-      .mockReturnValueOnce({ status: 0, stdout: '', stderr: '', error: null, pid: 0, signal: null }) // shellcheck -f diff (clean, no fixes)
-      .mockReturnValueOnce({
-        // final shellcheck call -> spawn error
-        error: new Error('mock final shellcheck ENOENT'),
-        status: null,
-        stdout: '',
+    vi.mocked(spawnAsync)
+      .mockResolvedValueOnce({
+        stdout: 'true\n',
         stderr: '',
-        pid: 0,
-        signal: null
-      })
+        exitCode: 0,
+        signal: null,
+        timedOut: false,
+        aborted: false
+      }) // rev-parse
+      .mockResolvedValueOnce({
+        stdout: 'x.sh\0',
+        stderr: '',
+        exitCode: 0,
+        signal: null,
+        timedOut: false,
+        aborted: false
+      }) // ls-files
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0, signal: null, timedOut: false, aborted: false }) // shellcheck -f diff (clean, no fixes)
+      .mockRejectedValueOnce(new Error('mock final shellcheck ENOENT')) // final shellcheck call -> spawn error
     const errLines = []
     const origErr = process.stderr.write.bind(process.stderr)
     process.stderr.write = chunk => {
@@ -143,7 +170,7 @@ describe('run-shellcheck error paths', () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'x.sh'), '#!/bin/sh\necho ok\n', 'utf8')
       try {
-        code = runShellcheckText(dir)
+        code = await runShellcheckText(dir)
       } finally {
         process.stderr.write = origErr
       }
@@ -157,30 +184,40 @@ describe('run-shellcheck error paths', () => {
       expect(resolveCmd('shellcheck') && resolveCmd('patch')).toBeFalsy()
       return
     }
-    const actual = await vi.importActual('node:child_process')
-    vi.mocked(spawnSync)
-      .mockImplementationOnce(actual.spawnSync) // which shellcheck
-      .mockImplementationOnce(actual.spawnSync) // which patch
-      .mockImplementationOnce(actual.spawnSync) // which git
-      .mockReturnValueOnce({ status: 0, stdout: 'true\n', stderr: '', error: null, pid: 0, signal: null }) // rev-parse
-      .mockReturnValueOnce({ status: 0, stdout: 'x.sh\0', stderr: '', error: null, pid: 0, signal: null }) // ls-files
-      .mockReturnValueOnce({
+    vi.mocked(spawnAsync)
+      .mockResolvedValueOnce({
+        stdout: 'true\n',
+        stderr: '',
+        exitCode: 0,
+        signal: null,
+        timedOut: false,
+        aborted: false
+      }) // rev-parse
+      .mockResolvedValueOnce({
+        stdout: 'x.sh\0',
+        stderr: '',
+        exitCode: 0,
+        signal: null,
+        timedOut: false,
+        aborted: false
+      }) // ls-files
+      .mockResolvedValueOnce({
         // shellcheck -f diff -> non-empty diff (has autofixable issues)
-        status: 1,
         stdout: '--- a/x.sh\n+++ b/x.sh\n@@ -1 +1 @@\n-echo $1\n+echo "$1"\n',
         stderr: '',
-        error: null,
-        pid: 0,
-        signal: null
+        exitCode: 1,
+        signal: null,
+        timedOut: false,
+        aborted: false
       })
-      .mockReturnValueOnce({
+      .mockResolvedValueOnce({
         // patch -p1 -> fails
-        status: 1,
         stdout: 'patch failed output\n',
         stderr: 'patch error msg\n',
-        error: null,
-        pid: 0,
-        signal: null
+        exitCode: 1,
+        signal: null,
+        timedOut: false,
+        aborted: false
       })
     const errLines = []
     const origErr = process.stderr.write.bind(process.stderr)
@@ -192,7 +229,7 @@ describe('run-shellcheck error paths', () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'x.sh'), '#!/bin/sh\necho $1\n', 'utf8')
       try {
-        code = runShellcheckText(dir)
+        code = await runShellcheckText(dir)
       } finally {
         process.stderr.write = origErr
       }

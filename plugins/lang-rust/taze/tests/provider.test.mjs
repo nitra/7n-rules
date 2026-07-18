@@ -21,7 +21,7 @@ import rustProvider, {
   findCargoManifests
 } from '../provider.mjs'
 
-const CARGO_EXIT_RE = /cargo upgrade --incompatible allow → exit 101/
+const CARGO_EXIT_RE = /cargo upgrade --incompatible allow --manifest-path Cargo\.toml → exit 101/
 
 /** Заглушка `log` для тестів, де вивід не перевіряється. */
 function noop() {
@@ -48,9 +48,9 @@ describe('rustProvider (форма контракту)', () => {
     })
   })
 
-  test('bump: cargo upgrade --incompatible allow + cargo update', async () => {
+  test('bump: per-manifest cargo upgrade --incompatible allow + cargo update (репо може не мати кореневого Cargo.toml)', async () => {
     const calls = []
-    await rustProvider.bump('/tmp/project', ['Cargo.toml'], {
+    await rustProvider.bump('/tmp/project', ['app/src-tauri/Cargo.toml', 'owner/src-tauri/Cargo.toml'], {
       spawnFn: (cmd, args) => {
         calls.push([cmd, ...args])
         return { status: 0, stdout: '', stderr: '' }
@@ -58,8 +58,10 @@ describe('rustProvider (форма контракту)', () => {
       log: noop
     })
     expect(calls).toEqual([
-      ['cargo', 'upgrade', '--incompatible', 'allow'],
-      ['cargo', 'update']
+      ['cargo', 'upgrade', '--incompatible', 'allow', '--manifest-path', 'app/src-tauri/Cargo.toml'],
+      ['cargo', 'update', '--manifest-path', 'app/src-tauri/Cargo.toml'],
+      ['cargo', 'upgrade', '--incompatible', 'allow', '--manifest-path', 'owner/src-tauri/Cargo.toml'],
+      ['cargo', 'update', '--manifest-path', 'owner/src-tauri/Cargo.toml']
     ])
   })
 
@@ -108,22 +110,26 @@ describe('findCargoManifests', () => {
 })
 
 describe('backupCargoManifests + cleanupCargoBackups', () => {
-  test('бекапить кожен Cargo.toml + спільний кореневий Cargo.lock, прибирає після', async () => {
+  test('бекапить кожен Cargo.toml + сусідні й кореневий Cargo.lock, прибирає після', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'Cargo.toml'), '[workspace]', 'utf8')
       await writeFile(join(dir, 'Cargo.lock'), 'version = 4', 'utf8')
       await ensureDir(join(dir, 'crates/foo'))
       await writeFile(join(dir, 'crates/foo/Cargo.toml'), '[package]\nname = "foo"', 'utf8')
+      // Незалежний крейт із ВЛАСНИМ lock-файлом (Tauri src-tauri-патерн).
+      await writeFile(join(dir, 'crates/foo/Cargo.lock'), 'version = 4', 'utf8')
 
       const manifests = ['Cargo.toml', 'crates/foo/Cargo.toml']
       await backupCargoManifests(dir, manifests)
       expect(existsSync(join(dir, 'Cargo.toml.taze-bak'))).toBe(true)
       expect(existsSync(join(dir, 'crates/foo/Cargo.toml.taze-bak'))).toBe(true)
+      expect(existsSync(join(dir, 'crates/foo/Cargo.lock.taze-bak'))).toBe(true)
       expect(existsSync(join(dir, 'Cargo.lock.taze-bak'))).toBe(true)
 
       await cleanupCargoBackups(dir, manifests)
       expect(existsSync(join(dir, 'Cargo.toml.taze-bak'))).toBe(false)
       expect(existsSync(join(dir, 'crates/foo/Cargo.toml.taze-bak'))).toBe(false)
+      expect(existsSync(join(dir, 'crates/foo/Cargo.lock.taze-bak'))).toBe(false)
       expect(existsSync(join(dir, 'Cargo.lock.taze-bak'))).toBe(false)
     })
   })

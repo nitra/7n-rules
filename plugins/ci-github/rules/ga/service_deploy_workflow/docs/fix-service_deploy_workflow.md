@@ -3,7 +3,7 @@ type: JS Module
 title: fix-service_deploy_workflow.mjs
 resource: plugins/ci-github/rules/ga/service_deploy_workflow/fix-service_deploy_workflow.mjs
 docgen:
-  crc: 25f3e623
+  crc: c6a64f66
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.99

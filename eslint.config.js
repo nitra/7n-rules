@@ -104,7 +104,7 @@ export default [
   {
     files: [
       'npm/rules/npm-module/package_structure/main.mjs',
-      'npm/rules/doc-files/units-rs/main.mjs',
+      'plugins/lang-rust/doc-files/units-rs.mjs',
       'npm/rules/test/stryker_config/fix-stryker_config.mjs'
     ],
     rules: {

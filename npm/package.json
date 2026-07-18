@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules",
-  "version": "1.18.1",
+  "version": "1.23.1",
   "description": "CLI еталонних правил і skills (префікс n-): синк у репозиторій, дельта-lint, конформність",
   "keywords": [
     "cli",
@@ -86,8 +86,8 @@
   },
   "optionalDependencies": {
     "@agentclientprotocol/claude-agent-acp": "^0.59.0",
-    "@earendil-works/pi-ai": "0.80.2",
-    "@earendil-works/pi-coding-agent": "0.80.2"
+    "@earendil-works/pi-ai": "0.80.10",
+    "@earendil-works/pi-coding-agent": "0.80.10"
   },
   "engines": {
     "bun": ">=1.3",

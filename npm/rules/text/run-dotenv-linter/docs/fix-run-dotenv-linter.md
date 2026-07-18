@@ -3,9 +3,8 @@ type: JS Module
 title: fix-run-dotenv-linter.mjs
 resource: npm/rules/text/run-dotenv-linter/fix-run-dotenv-linter.mjs
 docgen:
-  crc: b5c46c77
+  crc: 4fef0c3c
   model: openai-codex/gpt-5.5
-  tier: cloud-avg
   score: 90
   issues: internal-name:runDotenvLinter,judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini

@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/text/run-shellcheck/main.mjs
 docgen:
-  crc: e365b165
+  crc: 809e7f3b
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99

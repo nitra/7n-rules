@@ -3,7 +3,7 @@ type: JS Module
 title: fix-worker.mjs
 resource: npm/rules/text/cspell-fix/fix-worker.mjs
 docgen:
-  crc: 59f849d4
+  crc: f7dc29a5
   model: openai-codex/gpt-5.5
 ---
 

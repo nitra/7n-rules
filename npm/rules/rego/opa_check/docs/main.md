@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/rego/opa_check/main.mjs
 docgen:
-  crc: e2f54bd8
+  crc: d5d66b52
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.96

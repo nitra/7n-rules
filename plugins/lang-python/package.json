@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules-lang-python",
-  "version": "0.2.2",
+  "version": "0.4.0",
   "description": "Плагін @7n/rules: Python/uv-екосистема — taze-провайдер (pyproject.toml, PEP 508/PEP 440)",
   "keywords": [
     "python",
@@ -21,20 +21,27 @@
   },
   "type": "module",
   "files": [
+    "rules",
     "taze",
     "CHANGELOG.md",
     "!**/*.test.mjs",
-    "!**/tests/**",
-    "!**/docs/**"
+    "!**/*_test.rego",
+    "!**/fixtures/**",
+    "!**/tests/**"
   ],
   "n-rules": {
     "capabilities": [
       "lang:python"
     ],
     "contributes": {
-      "rules": false,
+      "rules": true,
       "handlers": {
         "taze": "./taze/provider.mjs"
+      },
+      "docFiles": {
+        "extensions": {
+          ".py": "Python Module"
+        }
       }
     }
   },

@@ -23,7 +23,6 @@ resource: npm/scripts/lib/lint-surface/
 | [run-detectors.mjs](run-detectors.md)                       | JS Module |
 | [run-fix.mjs](run-fix.md)                                   | JS Module |
 | [scheduler.mjs](scheduler.md)                               | JS Module |
-| [service-migration.mjs](service-migration.md)               | JS Module |
 | [snapshot.mjs](snapshot.md)                                 | JS Module |
 | [tier-sampling-bench.mjs](tier-sampling-bench.md)           | JS Module |
 | [tier-sampling-experiment.mjs](tier-sampling-experiment.md) | JS Module |

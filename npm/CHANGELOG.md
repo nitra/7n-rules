@@ -1,5 +1,58 @@
 # Changelog
 
+## [1.23.1] - 2026-07-18
+
+### Changed
+
+- Оновлено peer-версію @earendil-works/pi-coding-agent/pi-ai до ~0.80.10 — підтримка gpt-5.6-sol через openai-codex backend
+
+## [1.23.0] - 2026-07-18
+
+### Changed
+
+- Фаза 4a spec lang-plugins-extraction: doc-files отримав мовний extension-point — розширення (`.rs` → 'Rust Module', `.py` → 'Python Module') декларуються в маніфесті плагіна (`contributes.docFiles.extensions`, синхронно для hot-path hook), екстрактори фактів/юнітів — handler-модулем (`contributes.handlers['doc-files']`, вантажиться лише на шляху генерації). Rust-екстрактори (extractFactsRust + units-rs) виїхали в `@7n/rules-lang-rust`; ядро документує js/mjs/ts/vue вбудовано, .rs/.py — за активним lang-плагіном
+
+## [1.22.0] - 2026-07-18
+
+### Added
+
+- taze: по завершенню переносить зміни з автоствореного worktree назад у вихідне дерево (untracked) і прибирає worktree
+
+### Changed
+
+- taze: worktree-only гейт сам створює .worktrees/branch-taze і продовжує там замість throw-and-stop
+
+## [1.21.0] - 2026-07-18
+
+### Changed
+
+- Фаза 3 spec lang-plugins-extraction: lint-правила `rust` і `python` (main.mdc, концерни, rego, шаблони) виїхали з ядра у плагіни `@7n/rules-lang-rust`/`@7n/rules-lang-python` (contributes.rules) — резолвляться через resolveRulesDirs, автодетект/дзеркала/auto-rules працюють без змін для репо з активними плагінами. Mixin-теки CI-плагінів (Rego-gate lint-rust.yml/lint-python.yml) доповнюють правила плагінів-власників, як і раніше
+
+## [1.20.1] - 2026-07-18
+
+### Changed
+
+- docs(adr): brainstorm — внутрішній паралелізм lint-оркестратора (#86)
+- Оновлено внутрішній lint-оркестратор.
+
+## [1.20.0] - 2026-07-18
+
+### Changed
+
+- Автодетект `@7n/rules-lang-rust` покриває монорепо: сигнал Cargo.toml шукається не лише в корені, а й у підтеках до 3 рівнів (обмежений BFS повз приховані/node_modules/target — дешево для hot-path hook) — Tauri-кейс `app/src-tauri/Cargo.toml` вмикає плагін без ручного `.n-rules.json`. Python лишається кореневим (uv-провайдер v1 обробляє тільки кореневий pyproject.toml)
+
+## [1.19.1] - 2026-07-18
+
+### Changed
+
+- експортовано `parseNRulesCmd` і `relevantDomains` з `scripts/lib/lint-surface/ci-plan.mjs` — спільні хелпери для fix-хендлерів автоміграції service-канону (ci-azure, ci-github), усунуто jscpd-дублікат
+
+## [1.19.0] - 2026-07-18
+
+### Added
+
+- js/eslint T0-патерн js-eslint-mechanical-text-fix — текстові заміни для suggestion-only правил поза покриттям oxlint/eslint --fix (наразі unicorn/prefer-number-is-safe-integer); зменшує обсяг порушень, що йдуть у LLM-ладдер
+
 ## [1.18.1] - 2026-07-18
 
 ### Fixed

@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/php/project/main.mjs
 docgen:
-  crc: 0a3716eb
+  crc: b2bd6168
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.97
   judgeModel: openai-codex/gpt-5.4-mini

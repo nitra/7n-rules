@@ -15,11 +15,13 @@ import { describe, expect, test } from 'vitest'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 import {
   backupWorkspacePackageFiles,
+  bringChangesBackToOriginal,
   buildDependencyPrompt,
   callRunner,
   cleanupBackups,
   formatReport,
   loadPluginTazeProviders,
+  removeAutoCreatedWorktree,
   runTazeOrchestrator
 } from '../orchestrate.mjs'
 
@@ -361,24 +363,67 @@ describe('loadPluginTazeProviders', () => {
 })
 
 describe('runTazeOrchestrator', () => {
-  test('поза .worktrees/ — кидає до будь-якої мутації, не викликає bunx', async () => {
-    const bunxCalls = []
+  test('поза .worktrees/ — сам створює worktree, а по завершенню переносить зміни назад і прибирає worktree', async () => {
+    const calls = []
+    const result = await runTazeOrchestrator({
+      cwd: '/Users/dev/repo',
+      runner: 'pi',
+      log: noop,
+      deps: {
+        spawnFn: (cmd, args = []) => {
+          calls.push([cmd, ...args].join(' '))
+          if (cmd === 'git' && args[0] === 'rev-parse') return { status: 0, stdout: '/Users/dev/repo\n', stderr: '' }
+          if (cmd === 'git' && args[0] === 'branch') return { status: 0, stdout: 'main\n', stderr: '' }
+          if (cmd === 'git' && args[0] === 'status') return { status: 0, stdout: '', stderr: '' }
+          return fakeSpawn(cmd)
+        },
+        ecosystemProviders: []
+      }
+    })
+    expect(calls).toContain('npx @7n/mt worktree create main-taze n-taze: worktree-only skill')
+    expect(calls.some(c => c.startsWith('bun install'))).toBe(true)
+    expect(calls).toContain('git status --porcelain')
+    expect(calls).toContain('npx @7n/mt worktree remove main-taze')
+    expect(result.ok).toBe(true)
+  })
+
+  test('вже в .worktrees/ — не переносить назад і не прибирає нічого (не наш worktree)', async () => {
+    const calls = []
+    await runTazeOrchestrator({
+      cwd: '/repo/.worktrees/main-taze',
+      runner: 'pi',
+      log: noop,
+      deps: {
+        spawnFn: (cmd, args = []) => {
+          calls.push([cmd, ...args].join(' '))
+          return fakeSpawn(cmd)
+        },
+        ecosystemProviders: []
+      }
+    })
+    expect(calls.some(c => c.startsWith('git status'))).toBe(false)
+    expect(calls.some(c => c.startsWith('npx @7n/mt worktree remove'))).toBe(false)
+  })
+
+  test('поза .worktrees/ і без визначеної гілки (detached HEAD) — кидає, не створює worktree', async () => {
+    const calls = []
     await expect(
       runTazeOrchestrator({
         cwd: '/Users/dev/repo',
         runner: 'pi',
         log: noop,
         deps: {
-          spawnFn: cmd => {
-            if (cmd === 'git') return { status: 0, stdout: '/Users/dev/repo\n', stderr: '' }
-            if (cmd === 'bunx') bunxCalls.push(cmd)
+          spawnFn: (cmd, args = []) => {
+            calls.push(cmd)
+            if (cmd === 'git' && args[0] === 'rev-parse') return { status: 0, stdout: '/Users/dev/repo\n', stderr: '' }
+            if (cmd === 'git' && args[0] === 'branch') return { status: 0, stdout: '\n', stderr: '' }
             return fakeSpawn(cmd)
           },
           ecosystemProviders: []
         }
       })
     ).rejects.toThrow(NOT_IN_WORKTREE_RE)
-    expect(bunxCalls).toHaveLength(0)
+    expect(calls).not.toContain('npx')
   })
 
   test('без major-оновлень і провайдерів — callRunner не викликається, є звіт', async () => {
@@ -641,5 +686,131 @@ describe('runTazeOrchestrator', () => {
       'py:diff',
       'py:cleanup'
     ])
+  })
+})
+
+describe('bringChangesBackToOriginal', () => {
+  test('порожній git status → нічого не копіює, повертає []', async () => {
+    const copied = []
+    const brought = await bringChangesBackToOriginal(
+      '/wt',
+      '/orig',
+      () => ({ status: 0, stdout: '', stderr: '' }),
+      noop,
+      {
+        copyFile: (src, dest) => {
+          copied.push([src, dest])
+          return Promise.resolve()
+        },
+        mkdir: noop,
+        rm: noop
+      }
+    )
+    expect(brought).toEqual([])
+    expect(copied).toHaveLength(0)
+  })
+
+  test('копіює наявний у worktree файл, видаляє в оригіналі той, якого там уже нема', async () => {
+    await withTmpDir(async wtDir => {
+      await ensureDir(join(wtDir, 'src'))
+      await writeFile(join(wtDir, 'src', 'a.ts'), 'x', 'utf8')
+
+      const copied = []
+      const removed = []
+      const brought = await bringChangesBackToOriginal(
+        wtDir,
+        '/orig',
+        () => ({ status: 0, stdout: ' M src/a.ts\n D src/b.ts\n', stderr: '' }),
+        noop,
+        {
+          copyFile: (src, dest) => {
+            copied.push([src, dest])
+            return Promise.resolve()
+          },
+          mkdir: noop,
+          rm: path => {
+            removed.push(path)
+            return Promise.resolve()
+          }
+        }
+      )
+
+      expect(brought).toEqual(['src/a.ts', 'src/b.ts'])
+      expect(copied).toEqual([[join(wtDir, 'src/a.ts'), join('/orig', 'src/a.ts')]])
+      expect(removed).toEqual([join('/orig', 'src/b.ts')])
+    })
+  })
+
+  test('перейменований файл (`old -> new` у porcelain) — переносить лише нову назву', async () => {
+    await withTmpDir(async wtDir => {
+      await writeFile(join(wtDir, 'b.ts'), 'x', 'utf8')
+
+      const copied = []
+      const brought = await bringChangesBackToOriginal(
+        wtDir,
+        '/orig',
+        () => ({ status: 0, stdout: 'R  a.ts -> b.ts\n', stderr: '' }),
+        noop,
+        {
+          copyFile: (src, dest) => {
+            copied.push([src, dest])
+            return Promise.resolve()
+          },
+          mkdir: noop,
+          rm: noop
+        }
+      )
+
+      expect(brought).toEqual(['b.ts'])
+      expect(copied).toEqual([[join(wtDir, 'b.ts'), join('/orig', 'b.ts')]])
+    })
+  })
+
+  test('git status провалився → лог-попередження, нічого не переносить', async () => {
+    const logs = []
+    const brought = await bringChangesBackToOriginal(
+      '/wt',
+      '/orig',
+      () => ({ status: 1, stdout: '', stderr: 'not a git repository' }),
+      line => {
+        logs.push(line)
+      },
+      {}
+    )
+    expect(brought).toEqual([])
+    expect(logs.some(l => l.includes('НЕ перенесені назад'))).toBe(true)
+  })
+})
+
+describe('removeAutoCreatedWorktree', () => {
+  test('викликає npx @7n/mt worktree remove <branch> з cwd=originalCwd', () => {
+    const calls = []
+    removeAutoCreatedWorktree(
+      'main-taze',
+      '/orig',
+      (cmd, args, opts) => {
+        calls.push({ cmd, args, opts })
+        return { status: 0, stdout: '', stderr: '' }
+      },
+      noop
+    )
+    expect(calls).toEqual([
+      { cmd: 'npx', args: ['@7n/mt', 'worktree', 'remove', 'main-taze'], opts: { cwd: '/orig', encoding: 'utf8' } }
+    ])
+  })
+
+  test('провал команди не кидає — лише логує попередження', () => {
+    const logs = []
+    expect(() =>
+      removeAutoCreatedWorktree(
+        'main-taze',
+        '/orig',
+        () => ({ status: 1, stdout: '', stderr: 'busy' }),
+        line => {
+          logs.push(line)
+        }
+      )
+    ).not.toThrow()
+    expect(logs.some(l => l.includes('Не вдалось прибрати'))).toBe(true)
   })
 })

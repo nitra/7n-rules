@@ -3,7 +3,7 @@ type: JS Module
 title: fix-oxfmt.mjs
 resource: npm/rules/text/oxfmt/fix-oxfmt.mjs
 docgen:
-  crc: 3c8ca96c
+  crc: 41767068
 ---
 
 ## Огляд

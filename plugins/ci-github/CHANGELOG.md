@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.6.2] - 2026-07-18
+
+### Changed
+
+- Оновлено plugins/ci-github.
+
+## [1.6.1] - 2026-07-18
+
+### Changed
+
+- fix-service_deploy_workflow: `parseNRulesCmd`/`relevantDomains` перенесено в спільний `@7n/rules/scripts/lib/lint-surface/ci-plan.mjs` (jscpd-дублікат із ci-azure), без зміни поведінки
+
 ## [1.6.0] - 2026-07-18
 
 ### Added

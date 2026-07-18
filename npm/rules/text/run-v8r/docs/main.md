@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/text/run-v8r/main.mjs
 docgen:
-  crc: 5c8aab7b
+  crc: 7abeb17f
   model: manual
 ---
 

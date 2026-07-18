@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/rego/conftest_verify/main.mjs
 docgen:
-  crc: 2ef485ea
+  crc: e95d6632
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   judgeModel: openai-codex/gpt-5.4-mini
 ---

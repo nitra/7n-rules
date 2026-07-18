@@ -5,9 +5,14 @@ import { execFileSync } from 'node:child_process'
 
 import { isDocgenIgnored } from '../docgen-ignore/main.mjs'
 import { parseDocFrontmatter, readDocCrc, staleness } from '../docgen-crc/main.mjs'
+import { pluginDocFilesExtensions } from './lang-extensions.mjs'
 
-/** Кодові розширення, для яких генеруємо документацію. */
-const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.vue', '.py', '.rs'])
+/**
+ * Вбудовані кодові розширення, для яких генеруємо документацію. Мовні
+ * розширення поза JS-екосистемою (`.rs`, `.py`) декларують lang-плагіни
+ * (`n-rules.contributes.docFiles.extensions`) — див. lang-extensions.mjs.
+ */
+const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.vue'])
 
 /** `*.test.*`, `*.spec.*`, `*.stories.*` — тести й Storybook CSF-файли, документувати не треба. */
 const TEST_FILE_RE = /\.(?:test|spec|stories)\.[^.]+$/u
@@ -24,14 +29,18 @@ function isSystemWideDocsRoot(root) {
 }
 
 /**
- * Чи є файл кодовим джерелом для документування.
+ * Чи є файл кодовим джерелом для документування. З `root` — враховує і
+ * розширення активних lang-плагінів; без нього — лише вбудовані JS-екосистемні.
  * @param {string} fileName базове ім'я файлу
+ * @param {string} [root] корінь репозиторію (для плагінних розширень)
  * @returns {boolean} true — документуємо; false — пропускаємо
  */
-export function isSourceFile(fileName) {
+export function isSourceFile(fileName, root) {
   if (fileName.endsWith('.d.ts')) return false
   if (TEST_FILE_RE.test(fileName)) return false
-  return SOURCE_EXTENSIONS.has(extname(fileName))
+  const ext = extname(fileName)
+  if (SOURCE_EXTENSIONS.has(ext)) return true
+  return root !== undefined && ext in pluginDocFilesExtensions(root)
 }
 
 /**
@@ -55,7 +64,7 @@ export function docPathForSource(sourcePath) {
  */
 export function isDocCandidate(root, relPath) {
   const fileName = posix.basename(relPath)
-  if (!isSourceFile(fileName)) return false
+  if (!isSourceFile(fileName, root)) return false
   if (isSystemWideDocsRoot(root) && posix.dirname(relPath) === '.') return false
   return !isDocgenIgnored(relPath)
 }
@@ -203,7 +212,7 @@ export function scanForDocFiles(root) {
       if (entry.isDirectory()) {
         if (isDocgenIgnored(relPath, 'dir')) continue
         walk(fullPath)
-      } else if (entry.isFile() && isSourceFile(entry.name)) {
+      } else if (entry.isFile() && isSourceFile(entry.name, root)) {
         if (isSystemWideDocsRoot(root) && dirname(relPath) === '.') continue
         const sourcePath = relPath.split(sep).join('/')
         if (isDocgenIgnored(sourcePath)) continue

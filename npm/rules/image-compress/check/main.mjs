@@ -3,9 +3,8 @@
  * `.n-minify-image.tsv` (`@nitra/minify-image --json`). Стиснення (`--write`) — окремий
  * fix, не в detector-і.
  */
-import { spawnSync } from 'node:child_process'
-
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 
 const JSON_MAX_BUFFER = 20 * 1024 * 1024
 
@@ -20,27 +19,28 @@ function parseMinifyJson(stdout) {
 /**
  * Detector image-compress/check: \@nitra/minify-image --json (read-only).
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат detector-а
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат detector-а
  */
-export function lint(ctx) {
+export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { fail } = reporter
   const cwd = ctx.cwd
 
-  const r = spawnSync('npx', ['@nitra/minify-image', '--src=.', '--json'], {
-    cwd,
-    encoding: 'utf8',
-    env: process.env,
-    maxBuffer: JSON_MAX_BUFFER
-  })
-  if (r.error) {
-    fail(`image-compress: не вдалося запустити npx @nitra/minify-image --json: ${r.error.message}`, 'tool-error')
+  let r
+  try {
+    r = await spawnAsync('npx', ['@nitra/minify-image', '--src=.', '--json'], {
+      cwd,
+      env: process.env,
+      maxBuffer: JSON_MAX_BUFFER
+    })
+  } catch (error) {
+    fail(`image-compress: не вдалося запустити npx @nitra/minify-image --json: ${error.message}`, 'tool-error')
     return reporter.result()
   }
-  if (r.status !== 0) {
+  if (r.exitCode !== 0) {
     const detail = [r.stdout, r.stderr].filter(Boolean).join('\n').trim()
     const detailSuffix = detail ? `:\n${detail}` : ''
-    fail(`image-compress: @nitra/minify-image --json завершився з кодом ${r.status}${detailSuffix}`, 'tool-error')
+    fail(`image-compress: @nitra/minify-image --json завершився з кодом ${r.exitCode}${detailSuffix}`, 'tool-error')
     return reporter.result()
   }
 

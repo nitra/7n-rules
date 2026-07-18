@@ -3,7 +3,7 @@ type: JS Module
 title: fix-service_deploy_pipeline.mjs
 resource: plugins/ci-azure/rules/azure-pipelines/service_deploy_pipeline/fix-service_deploy_pipeline.mjs
 docgen:
-  crc: defa2751
+  crc: 0080ec86
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.99

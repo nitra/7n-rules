@@ -6,10 +6,10 @@
  * прибрано — hadolint ставиться як **нативний бінарник**, без `docker run`.
  * Використовується `../js/lint.mjs` (правило `n-rules lint docker` / check-docker).
  */
-import { spawnSync } from 'node:child_process'
 import { relative, sep } from 'node:path'
 
 import { ensureTool } from '../../../scripts/lib/ensure-tool.mjs'
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 
 /**
  * Відносний шлях від root з прямими слешами (стабільний вивід незалежно від OS).
@@ -27,9 +27,9 @@ export function posixRel(root, absPath) {
  * чи не вдався — повертаємо `ok: false` з підказкою (без `docker run`).
  * @param {string} root корінь репозиторію
  * @param {string} absPath абсолютний шлях до Dockerfile
- * @returns {{ ok: boolean, stdout: string, stderr: string, via: string }} результат перевірки hadolint
+ * @returns {Promise<{ ok: boolean, stdout: string, stderr: string, via: string }>} результат перевірки hadolint
  */
-export function lintDockerfileWithHadolint(root, absPath) {
+export async function lintDockerfileWithHadolint(root, absPath) {
   const rel = posixRel(root, absPath)
   let hadolintPath
   try {
@@ -46,13 +46,11 @@ export function lintDockerfileWithHadolint(root, absPath) {
     }
   }
 
-  const local = spawnSync(hadolintPath, [rel], {
-    cwd: root,
-    encoding: 'utf8',
-    maxBuffer: 10 * 1024 * 1024
+  const local = await spawnAsync(hadolintPath, [rel], {
+    cwd: root
   })
   return {
-    ok: local.status === 0,
+    ok: local.exitCode === 0,
     stdout: local.stdout ?? '',
     stderr: local.stderr ?? '',
     via: 'hadolint'

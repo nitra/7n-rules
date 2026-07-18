@@ -3,7 +3,7 @@ type: JS Module
 title: resolve-plugins.mjs
 resource: npm/scripts/lib/resolve-plugins.mjs
 docgen:
-  crc: d1bfa8f2
+  crc: 0d197e39
 ---
 
 Резолв плагінів @7n/rules: визначає, які пакети-плагіни активні у проєкті, де їхні `rules/`-каталоги, які capabilities вони надають і які handlers надають.

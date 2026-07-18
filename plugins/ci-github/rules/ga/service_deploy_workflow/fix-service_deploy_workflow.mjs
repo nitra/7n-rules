@@ -22,16 +22,12 @@
  * коментарі та форматування незачеплених частин зберігаються. Наявний
  * нетривіальний `if` не перезаписується (deny лишається — ручне рішення).
  */
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { parseDocument } from 'yaml'
 
-import { domainKey } from '@7n/rules/scripts/lib/lint-surface/ci-plan.mjs'
-import {
-  createMigrationFixPattern,
-  parseNRulesCmd,
-  relevantDomains
-} from '@7n/rules/scripts/lib/lint-surface/service-migration.mjs'
+import { domainKey, parseNRulesCmd, relevantDomains } from '@7n/rules/scripts/lib/lint-surface/ci-plan.mjs'
 
 const GLOB_SUFFIX_RE = /\/\*+$/u
 
@@ -334,9 +330,25 @@ export async function migrateWorkflowFile(absPath, cwd) {
 }
 
 export const patterns = [
-  createMigrationFixPattern({
+  {
     id: 'ga-service-workflow-canon-migrate',
-    migrateFile: migrateWorkflowFile,
-    noun: 'workflow'
-  })
+    test: violations => violations.length > 0,
+    async apply(violations, ctx) {
+      const files = [...new Set(violations.map(v => v.file).filter(Boolean))]
+      const touched = []
+      for (const rel of files) {
+        const abs = join(ctx.cwd, rel)
+        if (!existsSync(abs)) continue
+        try {
+          if (await migrateWorkflowFile(abs, ctx.cwd)) touched.push(abs)
+        } catch {
+          // міграція конкретного файлу не вдалася — лишаємо deny детектору (fail-open до ручного фіксу)
+        }
+      }
+      return {
+        touchedFiles: touched,
+        message: touched.length > 0 ? `мігровано до сервіс-канону: ${touched.length} workflow(ів)` : null
+      }
+    }
+  }
 ]
