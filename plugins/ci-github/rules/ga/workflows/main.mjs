@@ -331,7 +331,7 @@ async function runAllGaRego(wfDir, ymlWorkflows, cwd, pass, fail) {
     const concernDir = join(GA_POLICY_DIR, target.policyDirRel.split('/', 2)[1])
     const tpl = await loadTemplate(concernDir)
     const templateData = tpl[basename(target.workflow)]
-    const violations = runConftestBatch({
+    const violations = await runConftestBatch({
       policyDirRel: target.policyDirRel,
       // Правило живе у плагіні поза вбудованим rules/ ядра — резолвимо policy-теку від себе.
       policyDirAbs: concernDir,
@@ -351,7 +351,7 @@ async function runAllGaRego(wfDir, ymlWorkflows, cwd, pass, fail) {
   const workflowCommonDir = join(GA_POLICY_DIR, 'workflow_common')
   const workflowCommonTpl = await loadTemplate(workflowCommonDir)
   const usesMinVersionsSnippet = workflowCommonTpl['uses-min-versions']?.snippet
-  const violations = runConftestBatch({
+  const violations = await runConftestBatch({
     policyDirRel: 'ga/workflow_common',
     policyDirAbs: workflowCommonDir,
     namespace: 'ga.workflow_common',
