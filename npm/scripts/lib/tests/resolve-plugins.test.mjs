@@ -108,6 +108,16 @@ describe('detectPluginsFromRepo', () => {
     })
   })
 
+  test('кореневий Cargo.toml → lang-rust; разом із pyproject — обидва мовні', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[workspace]\n')
+      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-lang-rust'])
+
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\n')
+      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-lang-python', '@7n/rules-lang-rust'])
+    })
+  })
+
   test('lang-сигнал не вмикає URL-fallback для CI', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'pyproject.toml'), '[project]\n')

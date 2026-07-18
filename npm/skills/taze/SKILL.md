@@ -25,11 +25,11 @@ version: '1.2'
 3. Детерміновано прибирає бекапи (крок 7) і компонує звіт (крок 8) з результатів усіх ітерацій.
 
 Не-npm екосистеми оркестратор веде через **EcosystemProvider-порт**
-(`@7n/rules/plugin-api`, spec `docs/specs/2026-07-18-lang-plugins-extraction-spec.md`):
-Rust — вбудований first-party провайдер (`rust-provider.mjs`, до фази 2), Python —
-плагін **`@7n/rules-lang-python`** (автодетект за кореневим `pyproject.toml`,
-доставляється автоматично при першому запуску; extension-point `taze`). На
-чисто-JS проєкті без цих сигналів у звіті немає навіть згадки про інші екосистеми.
+(`@7n/rules/plugin-api`, spec `docs/specs/2026-07-18-lang-plugins-extraction-spec.md`)
+— плагіни, що доставляються автоматично при першому запуску за файловим сигналом
+(extension-point `taze`): Rust — **`@7n/rules-lang-rust`** (кореневий `Cargo.toml`),
+Python — **`@7n/rules-lang-python`** (кореневий `pyproject.toml`). На чисто-JS
+проєкті без цих сигналів у звіті немає навіть згадки про інші екосистеми.
 
 Якщо `Cargo.toml` знайдені, але `cargo-edit` не встановлено — Rust-гілка **не**
 блокує інші гілки: оркестратор пропускає Rust-обробку і в звіті перелічує

@@ -10,7 +10,6 @@ import { readNRulesConfigLite } from '../../../scripts/lib/read-n-rules-config-l
 import { getHandlers, resolvePlugins } from '../../../scripts/lib/resolve-plugins.mjs'
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 import { collectTazeDiff } from './diff.mjs'
-import rustProvider from './rust-provider.mjs'
 
 /** Суфікс бекапу package.json — той самий, що й у `diff.mjs`/кроці 1 SKILL.md. */
 const BACKUP_SUFFIX = '.taze-bak'
@@ -318,8 +317,8 @@ export function formatReport({ minorPatch, totalChanged, results, ecosystems = [
  * прибирання → звіт) без LLM, і по одному ізольованому, обмеженому по
  * обсягу виклику `callRunner` на кожен major-пакет (кроки 4-6 SKILL.md) —
  * замість одного величезного непрозорого ходу на весь монорепо. npm/bun-гілка
- * вбудована; решта екосистем — EcosystemProvider-и: first-party (Rust/Cargo)
- * плюс завантажені з плагінів (`@7n/rules-lang-*`, extension-point `taze`).
+ * вбудована; решта екосистем — EcosystemProvider-и, завантажені з плагінів
+ * (`@7n/rules-lang-*`, extension-point `taze`; фаза 2 spec — Rust теж плагін).
  * Падіння одного пакета/однієї екосистеми не втрачає прогрес по інших.
  * @param {{
  *   cwd?: string,
@@ -371,7 +370,7 @@ export async function runTazeOrchestrator(options = {}) {
     log('⏭ npm/bun: кореневого package.json немає — гілка пропущена')
   }
 
-  const providers = deps.ecosystemProviders ?? [rustProvider, ...(await loadPluginTazeProviders(cwd, log, deps))]
+  const providers = deps.ecosystemProviders ?? (await loadPluginTazeProviders(cwd, log, deps))
   const ecosystems = []
   for (const provider of providers) {
     ecosystems.push(await runEcosystem(provider, { cwd, runner, log, deps, spawnFn, call }))
