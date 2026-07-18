@@ -4,10 +4,10 @@
  * Detector лише ЗВІТУЄ `needsCompression` (read-only contract); мутація — тут, до LLM-ladder:
  * стиснення — бінарна трансформація, не текстовий diff, тож LLM-фікс тут апріорі недоречний.
  */
-import { spawnSync } from 'node:child_process'
 import { env } from 'node:process'
 
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 
 const MINIFY_PACKAGE_NAME = '@nitra/minify-image'
 const JSON_MAX_BUFFER = 20 * 1024 * 1024
@@ -17,37 +17,42 @@ const JSON_MAX_BUFFER = 20 * 1024 * 1024
  * Best-effort: відсутній npx / помилка / ненульовий код — лог-варн без падіння (re-detect
  * наступного кроку покаже справжній стан).
  * @param {string} cwd корінь репозиторію
- * @returns {string[]} абсолютні шляхи стиснутих файлів (порожньо при помилці/no-op)
+ * @returns {Promise<string[]>} абсолютні шляхи стиснутих файлів (порожньо при помилці/no-op)
  */
-function runCompression(cwd) {
+async function runCompression(cwd) {
   const npxPath = resolveCmd('npx')
   if (!npxPath) {
     console.log(`  ⚠️  'npx' не знайдено в PATH — пропускаємо стиснення зображень`)
     return []
   }
 
-  const writeResult = spawnSync(npxPath, [MINIFY_PACKAGE_NAME, '--src=.', '--write'], {
-    cwd,
-    encoding: 'utf8',
-    env,
-    maxBuffer: JSON_MAX_BUFFER
-  })
-  if (writeResult.error) {
-    console.log(`  ⚠️  не вдалося запустити \`npx ${MINIFY_PACKAGE_NAME} --write\`: ${writeResult.error.message}`)
+  let writeResult
+  try {
+    writeResult = await spawnAsync(npxPath, [MINIFY_PACKAGE_NAME, '--src=.', '--write'], {
+      cwd,
+      env,
+      maxBuffer: JSON_MAX_BUFFER
+    })
+  } catch (error) {
+    console.log(`  ⚠️  не вдалося запустити \`npx ${MINIFY_PACKAGE_NAME} --write\`: ${error.message}`)
     return []
   }
-  if (typeof writeResult.status === 'number' && writeResult.status !== 0) {
-    console.log(`  ⚠️  \`npx ${MINIFY_PACKAGE_NAME} --write\` завершився з кодом ${writeResult.status}`)
+  if (typeof writeResult.exitCode === 'number' && writeResult.exitCode !== 0) {
+    console.log(`  ⚠️  \`npx ${MINIFY_PACKAGE_NAME} --write\` завершився з кодом ${writeResult.exitCode}`)
     return []
   }
 
-  const jsonResult = spawnSync(npxPath, [MINIFY_PACKAGE_NAME, '--src=.', '--json'], {
-    cwd,
-    encoding: 'utf8',
-    env,
-    maxBuffer: JSON_MAX_BUFFER
-  })
-  if (jsonResult.error || jsonResult.status !== 0) return []
+  let jsonResult
+  try {
+    jsonResult = await spawnAsync(npxPath, [MINIFY_PACKAGE_NAME, '--src=.', '--json'], {
+      cwd,
+      env,
+      maxBuffer: JSON_MAX_BUFFER
+    })
+  } catch {
+    return []
+  }
+  if (jsonResult.exitCode !== 0) return []
 
   try {
     const report = JSON.parse(jsonResult.stdout)
@@ -63,8 +68,8 @@ export const patterns = [
   {
     id: 'image-compress-write',
     test: violations => violations.some(v => v.reason === 'needs-compression'),
-    apply: (violations, ctx) => {
-      const compressed = runCompression(ctx.cwd)
+    apply: async (violations, ctx) => {
+      const compressed = await runCompression(ctx.cwd)
       if (compressed.length === 0) return { touchedFiles: [] }
 
       for (const absPath of compressed) ctx.recordWrite?.(absPath)

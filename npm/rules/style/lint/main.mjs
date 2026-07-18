@@ -3,12 +3,12 @@
  * Per-file (ctx.files) або весь проєкт (ctx.files === undefined). Якщо stylelint
  * недоступний — крок пропускається (без npx-автовстановлення).
  */
-import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 
 const STYLE_EXT_RE = /\.(?:css|scss|vue)$/u
 
@@ -34,9 +34,9 @@ export function resolveStylelint(cwd) {
 /**
  * Detector style/lint (read-only).
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону (cwd, files)
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат зі зібраними violations
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат зі зібраними violations
  */
-export function lint(ctx) {
+export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { fail } = reporter
   const cwd = ctx.cwd
@@ -58,11 +58,11 @@ export function lint(ctx) {
     return reporter.result()
   }
 
-  const r = spawnSync(stylelint, targets, { cwd, encoding: 'utf8', shell: false })
-  if (r.status !== 0) {
+  const r = await spawnAsync(stylelint, targets, { cwd, shell: false })
+  if (r.exitCode !== 0) {
     const out = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().slice(0, 2000)
     const outSuffix = out ? `\n${out}` : ''
-    fail(`lint-style: stylelint — порушення (код ${r.status ?? 1}, style.mdc)${outSuffix}`, 'stylelint-violation')
+    fail(`lint-style: stylelint — порушення (код ${r.exitCode ?? 1}, style.mdc)${outSuffix}`, 'stylelint-violation')
   }
   return reporter.result()
 }

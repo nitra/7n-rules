@@ -43,15 +43,18 @@ class AbortError extends Error {
  * @param {number} [opts.killGraceMs] пауза між `SIGTERM` і ескалацією до `SIGKILL` (дефолт 5000)
  * @param {string} [opts.cwd] робочий каталог дочірнього процесу
  * @param {Record<string, string>} [opts.env] оточення дочірнього процесу
+ * @param {string} [opts.input] дані для запису в stdin дочірнього процесу (`utf8`, аналог
+ *   `spawnSync`-опції `input`); stdin закривається (`end`) одразу після запису
  * @returns {Promise<SpawnAsyncResult>} нормалізований результат виконання
  */
 export async function spawnAsync(cmd, args, opts = {}) {
-  const { signal, timeoutMs, killGraceMs = 5000, ...spawnOpts } = opts
+  const { signal, timeoutMs, killGraceMs = 5000, input, ...spawnOpts } = opts
   if (signal?.aborted) throw new AbortError()
 
   const child = spawn(cmd, args, spawnOpts)
   child.stdout?.setEncoding('utf8')
   child.stderr?.setEncoding('utf8')
+  if (input !== undefined) child.stdin?.end(input, 'utf8')
 
   let stdout = ''
   let stderr = ''

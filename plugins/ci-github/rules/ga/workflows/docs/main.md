@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: plugins/ci-github/rules/ga/workflows/main.mjs
 docgen:
-  crc: d1b152f8
+  crc: 0e45c8c5
 ---
 
 ## Огляд

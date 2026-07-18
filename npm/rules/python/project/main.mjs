@@ -5,27 +5,29 @@
  * lockfile-аудит і ліцензійна перевірка project-wide за природою, не входять у delta-план
  * (§5): спрацьовують лише через `n-rules lint --full` або scoped `n-rules lint python`.
  */
-import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 import { getBronzeAndAbove, isSpdxAllowed } from '../../../scripts/lib/blue-oak.mjs'
 
 /**
+ * Async (не блокує event loop) — детектор може виконуватись у parallel lane `detectAll()`
+ * (ADR 260716-1354).
  * @param {string} label назва кроку.
  * @param {string} cmd команда для запуску.
  * @param {string[]} args аргументи команди.
  * @param {string} cwd робочий каталог.
  * @param {(msg: string, reason: string) => void} fail колбек реєстрації порушення.
  * @param {string} reason машиночитна причина порушення.
- * @returns {boolean} true якщо OK
+ * @returns {Promise<boolean>} true якщо OK
  */
-function runTool(label, cmd, args, cwd, fail, reason) {
-  const r = spawnSync(cmd, args, { cwd, encoding: 'utf8', shell: false })
-  if (r.status === 0) return true
-  const code = typeof r.status === 'number' ? r.status : 1
+async function runTool(label, cmd, args, cwd, fail, reason) {
+  const r = await spawnAsync(cmd, args, { cwd })
+  if (r.exitCode === 0) return true
+  const code = typeof r.exitCode === 'number' ? r.exitCode : 1
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().slice(0, 2000)
   const outSuffix = out ? `\n${out}` : ''
   fail(`lint-python: ${label} — помилка (код ${code}, python.mdc)${outSuffix}`, reason)
@@ -33,30 +35,32 @@ function runTool(label, cmd, args, cwd, fail, reason) {
 }
 
 /**
+ * Async (не блокує event loop) — детектор може виконуватись у parallel lane `detectAll()`
+ * (ADR 260716-1354).
  * @param {string} uv шлях до бінарника uv.
  * @param {string} tool ім'я інструменту в uv-середовищі.
- * @returns {boolean} true якщо інструмент доступний
+ * @returns {Promise<boolean>} true якщо інструмент доступний
  */
-function uvToolAvailable(uv, tool) {
-  const r = spawnSync(uv, ['run', '--frozen', tool, '--version'], { stdio: 'ignore', shell: false })
-  return r.status === 0
+async function uvToolAvailable(uv, tool) {
+  const r = await spawnAsync(uv, ['run', '--frozen', tool, '--version'])
+  return r.exitCode === 0
 }
 
 /**
  * Перевірка ліцензій залежностей через pip-licenses (read-only).
+ * Async (не блокує event loop) — детектор може виконуватись у parallel lane `detectAll()`
+ * (ADR 260716-1354).
  * @param {string} uv шлях до бінарника uv.
  * @param {string} cwd робочий каталог.
  * @param {(msg: string, reason: string) => void} fail колбек реєстрації порушення.
- * @returns {boolean} true якщо OK / пропущено
+ * @returns {Promise<boolean>} true якщо OK / пропущено
  */
-function checkPipLicenses(uv, cwd, fail) {
-  if (!uvToolAvailable(uv, 'pip-licenses')) return true // недоступний → пропущено
-  const r = spawnSync(uv, ['run', '--frozen', 'pip-licenses', '--from=mixed', '--format=spdx-json'], {
-    cwd,
-    encoding: 'utf8',
-    shell: false
+async function checkPipLicenses(uv, cwd, fail) {
+  if (!(await uvToolAvailable(uv, 'pip-licenses'))) return true // недоступний → пропущено
+  const r = await spawnAsync(uv, ['run', '--frozen', 'pip-licenses', '--from=mixed', '--format=spdx-json'], {
+    cwd
   })
-  if (r.status !== 0) {
+  if (r.exitCode !== 0) {
     fail('lint-python: pip-licenses — помилка виконання', 'pip-licenses-error')
     return false
   }
@@ -90,10 +94,12 @@ function checkPipLicenses(uv, cwd, fail) {
 
 /**
  * Detector python/project (read-only).
+ * Async (не блокує event loop) — детектор може виконуватись у parallel lane `detectAll()`
+ * (ADR 260716-1354).
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат із порушеннями
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат із порушеннями
  */
-export function lint(ctx) {
+export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { fail } = reporter
   const cwd = ctx.cwd
@@ -106,10 +112,14 @@ export function lint(ctx) {
     return reporter.result()
   }
 
-  if (!runTool('uv lock --check', uv, ['lock', '--check'], cwd, fail, 'uv-lock-violation')) return reporter.result()
-  if (!runTool('uv sync --frozen', uv, ['sync', '--frozen'], cwd, fail, 'uv-sync-violation')) return reporter.result()
+  if (!(await runTool('uv lock --check', uv, ['lock', '--check'], cwd, fail, 'uv-lock-violation'))) {
+    return reporter.result()
+  }
+  if (!(await runTool('uv sync --frozen', uv, ['sync', '--frozen'], cwd, fail, 'uv-sync-violation'))) {
+    return reporter.result()
+  }
 
-  checkPipLicenses(uv, cwd, fail)
+  await checkPipLicenses(uv, cwd, fail)
 
   return reporter.result()
 }

@@ -6,11 +6,11 @@
  * (`data.kind === 'oxfmt-unformatted'`); re-detect підтверджує результат. Запис permanent.
  * Тул відсутній у PATH → no-op.
  */
-import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 
 /**
  * Вміст файлу або null, якщо не читається.
@@ -30,7 +30,7 @@ export const patterns = [
   {
     id: 'text-oxfmt-write',
     test: violations => violations.some(v => v.data?.kind === 'oxfmt-unformatted' && v.file),
-    apply: (violations, ctx) => {
+    apply: async (violations, ctx) => {
       const oxfmt = resolveCmd('oxfmt')
       if (!oxfmt) return { touchedFiles: [] }
       const files = [
@@ -40,7 +40,7 @@ export const patterns = [
 
       const abs = files.map(f => resolve(ctx.cwd, f))
       const before = new Map(abs.map(a => [a, readOrNull(a)]))
-      spawnSync(oxfmt, ['--write', ...files], { cwd: ctx.cwd, encoding: 'utf8' })
+      await spawnAsync(oxfmt, ['--write', ...files], { cwd: ctx.cwd })
 
       const touchedFiles = abs.filter(a => readOrNull(a) !== before.get(a))
       for (const a of touchedFiles) ctx.recordWrite?.(a)

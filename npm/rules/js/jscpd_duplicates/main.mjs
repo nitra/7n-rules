@@ -3,10 +3,11 @@
  * Кожен клон → одне порушення (anchored на `firstFile`), із посиланням на `secondFile`
  * у `data`. JSON-звіт пишеться у системний tmp (поза репо) — дерево не мутується.
  */
-import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 
 /**
  * @typedef {{ name: string, start: number, end: number }} JscpdFileRef
@@ -38,18 +39,16 @@ function cloneToViolation(clone) {
 }
 
 /**
- * Detector js/jscpd_duplicates: дублікати коду через `jscpd` (read-only).
+ * Detector js/jscpd_duplicates: дублікати коду через `jscpd` (read-only). Async (не блокує
+ * event loop) — детектор може виконуватись у parallel lane `detectAll()` (ADR 260716-1354).
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} перелік порушень
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} перелік порушень
  */
-export function lint(ctx) {
+export async function lint(ctx) {
   const cwd = ctx.cwd
   const outDir = mkdtempSync(join(tmpdir(), 'jscpd-'))
   try {
-    const r = spawnSync('bunx', ['jscpd', '.', '--reporters', 'json', '--output', outDir, '--silent'], {
-      cwd,
-      encoding: 'utf8'
-    })
+    const r = await spawnAsync('bunx', ['jscpd', '.', '--reporters', 'json', '--output', outDir, '--silent'], { cwd })
     let report
     try {
       report = JSON.parse(readFileSync(join(outDir, 'jscpd-report.json'), 'utf8'))

@@ -28,12 +28,12 @@ export const patterns = [
     id: 'text-shellcheck-fix',
     standalone: true, // §8 Phase 2: shellcheck diff+patch цикл сам ре-аналізує, test() не потрібен
     test: violations => violations.some(v => v.reason === 'shellcheck'),
-    apply: (violations, ctx) => {
-      const files = listShellScriptPaths(ctx.cwd)
+    apply: async (violations, ctx) => {
+      const files = await listShellScriptPaths(ctx.cwd)
       if (files.length === 0) return { touchedFiles: [] }
       const abs = files.map(f => resolve(ctx.cwd, f))
       const before = new Map(abs.map(a => [a, readOrNull(a)]))
-      runShellcheckText(ctx.cwd, false)
+      await runShellcheckText(ctx.cwd, false)
       const touchedFiles = abs.filter(a => readOrNull(a) !== before.get(a))
       for (const a of touchedFiles) ctx.recordWrite?.(a)
       return touchedFiles.length > 0

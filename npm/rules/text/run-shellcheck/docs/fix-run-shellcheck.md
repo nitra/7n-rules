@@ -3,9 +3,8 @@ type: JS Module
 title: fix-run-shellcheck.mjs
 resource: npm/rules/text/run-shellcheck/fix-run-shellcheck.mjs
 docgen:
-  crc: 90367c61
+  crc: 190ecdc3
   model: openai-codex/gpt-5.5
-  tier: cloud-avg
   score: 90
   issues: internal-name:runShellcheckText,judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

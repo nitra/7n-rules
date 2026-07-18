@@ -6,11 +6,11 @@
  * (`deny-config-missing`). clippy не автофіксимо (його `--fix` потенційно небезпечний) — ці
  * порушення й далі йдуть у LLM-ladder. Запис permanent. Відсутній `cargo`/`cargo-deny` → no-op.
  */
-import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 
 /**
  * Вміст файлу або null, якщо не читається.
@@ -26,13 +26,13 @@ function readOrNull(abs) {
 }
 
 /**
- * Tracked *.rs файли проєкту (через git).
+ * Tracked *.rs файли проєкту (через git). Async (не блокує event loop, ADR 260716-1354).
  * @param {string} cwd корінь
- * @returns {string[]} posix-relative шляхи
+ * @returns {Promise<string[]>} posix-relative шляхи
  */
-function listRsFiles(cwd) {
-  const r = spawnSync('git', ['ls-files', '-z', '--', '*.rs'], { cwd, encoding: 'utf8' })
-  if (r.status !== 0) return []
+async function listRsFiles(cwd) {
+  const r = await spawnAsync('git', ['ls-files', '-z', '--', '*.rs'], { cwd })
+  if (r.exitCode !== 0) return []
   return (r.stdout ?? '').split('\0').filter(Boolean)
 }
 
@@ -42,15 +42,15 @@ export const patterns = [
     id: 'rust-cargo-fmt',
     standalone: true, // §8 Phase 2: apply самостійно перелічує *.rs (git ls-files), cargo fmt сам ре-аналізує
     test: violations => violations.some(v => v.reason === 'cargo-fmt-violation'),
-    apply: (violations, ctx) => {
+    apply: async (violations, ctx) => {
       const cargo = resolveCmd('cargo')
       if (!cargo) return { touchedFiles: [] }
-      const files = listRsFiles(ctx.cwd)
+      const files = await listRsFiles(ctx.cwd)
       if (files.length === 0) return { touchedFiles: [] }
 
       const abs = files.map(f => resolve(ctx.cwd, f))
       const before = new Map(abs.map(a => [a, readOrNull(a)]))
-      spawnSync(cargo, ['fmt', '--all'], { cwd: ctx.cwd, encoding: 'utf8', shell: false })
+      await spawnAsync(cargo, ['fmt', '--all'], { cwd: ctx.cwd })
 
       const touchedFiles = abs.filter(a => readOrNull(a) !== before.get(a))
       for (const a of touchedFiles) ctx.recordWrite?.(a)
@@ -62,14 +62,15 @@ export const patterns = [
   {
     id: 'rust-cargo-deny-init',
     test: violations => violations.some(v => v.reason === 'deny-config-missing'),
-    apply: (violations, ctx) => {
+    apply: async (violations, ctx) => {
       const cargo = resolveCmd('cargo')
       if (!cargo) return { touchedFiles: [] }
-      const hasDeny = spawnSync(cargo, ['deny', '--version'], { stdio: 'ignore', shell: false }).status === 0
+      const denyVersionResult = await spawnAsync(cargo, ['deny', '--version'])
+      const hasDeny = denyVersionResult.exitCode === 0
       if (!hasDeny) return { touchedFiles: [] }
 
       const denyConfigPath = join(ctx.cwd, 'deny.toml')
-      spawnSync(cargo, ['deny', 'init'], { cwd: ctx.cwd, encoding: 'utf8', shell: false })
+      await spawnAsync(cargo, ['deny', 'init'], { cwd: ctx.cwd })
       if (!existsSync(denyConfigPath)) return { touchedFiles: [] }
 
       ctx.recordWrite?.(denyConfigPath)

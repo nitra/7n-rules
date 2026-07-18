@@ -5,7 +5,8 @@
  */
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { spawnSync } from 'node:child_process'
+
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 
 /** Full-режим (ctx.files undefined): корінь policy-дерева, якщо існує. */
 export const FULL_TARGET = 'npm/rules'
@@ -44,13 +45,15 @@ export function resolveTargets(files, root) {
  * @param {string} bin абсолютний шлях до бінарника
  * @param {string[]} args аргументи
  * @param {string} cwd робоча директорія
- * @returns {{ status: number, output: string }} код завершення й обрізаний stdout+stderr
+ * @returns {Promise<{ status: number, output: string }>} код завершення й обрізаний stdout+stderr
  */
-export function runStep(bin, args, cwd) {
-  const result = spawnSync(bin, args, { cwd, encoding: 'utf8', env: process.env, shell: false })
-  if (result.error) {
-    return { status: 1, output: `Не вдалося запустити ${bin}: ${result.error.message}` }
+export async function runStep(bin, args, cwd) {
+  let result
+  try {
+    result = await spawnAsync(bin, args, { cwd, env: process.env })
+  } catch (error) {
+    return { status: 1, output: `Не вдалося запустити ${bin}: ${error.message}` }
   }
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim().slice(0, 2000)
-  return { status: result.status ?? 1, output }
+  return { status: result.exitCode ?? 1, output }
 }

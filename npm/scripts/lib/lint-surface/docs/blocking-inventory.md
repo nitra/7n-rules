@@ -3,9 +3,8 @@ type: JS Module
 title: blocking-inventory.mjs
 resource: npm/scripts/lib/lint-surface/blocking-inventory.mjs
 docgen:
-  crc: 2e0e8624
+  crc: dce1fafd
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

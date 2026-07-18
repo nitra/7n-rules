@@ -7,11 +7,11 @@
  * режимі), форматує їх і повертає лише фактично змінені. Запис permanent. Відсутній
  * stylelint → no-op.
  */
-import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { filterStyleFiles, resolveStylelint } from './main.mjs'
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 
 /**
  * Вміст файлу або null, якщо не читається.
@@ -31,12 +31,12 @@ function readOrNull(abs) {
  * css/scss/vue через `git ls-files`.
  * @param {string} cwd корінь
  * @param {string[]|undefined} ctxFiles файли з контексту (дельта) або undefined (повний режим)
- * @returns {string[]} posix-relative шляхи
+ * @returns {Promise<string[]>} posix-relative шляхи
  */
-function listStyleFiles(cwd, ctxFiles) {
+async function listStyleFiles(cwd, ctxFiles) {
   if (ctxFiles !== undefined) return filterStyleFiles(ctxFiles)
-  const r = spawnSync('git', ['ls-files', '-z', '--', '*.css', '*.scss', '*.vue'], { cwd, encoding: 'utf8' })
-  if (r.status !== 0) return []
+  const r = await spawnAsync('git', ['ls-files', '-z', '--', '*.css', '*.scss', '*.vue'], { cwd })
+  if (r.exitCode !== 0) return []
   return (r.stdout ?? '').split('\0').filter(Boolean)
 }
 
@@ -46,15 +46,15 @@ export const patterns = [
     id: 'style-stylelint-fix',
     standalone: true, // §8 Phase 2: apply бере ctx.files (не violations), stylelint --fix сам ре-аналізує
     test: violations => violations.some(v => v.reason === 'stylelint-violation'),
-    apply: (violations, ctx) => {
+    apply: async (violations, ctx) => {
       const stylelint = resolveStylelint(ctx.cwd)
       if (!stylelint) return { touchedFiles: [] }
-      const files = listStyleFiles(ctx.cwd, ctx.files)
+      const files = await listStyleFiles(ctx.cwd, ctx.files)
       if (files.length === 0) return { touchedFiles: [] }
 
       const abs = files.map(f => resolve(ctx.cwd, f))
       const before = new Map(abs.map(a => [a, readOrNull(a)]))
-      spawnSync(stylelint, ['--fix', ...files], { cwd: ctx.cwd, encoding: 'utf8' })
+      await spawnAsync(stylelint, ['--fix', ...files], { cwd: ctx.cwd })
 
       const touchedFiles = abs.filter(a => readOrNull(a) !== before.get(a))
       for (const a of touchedFiles) ctx.recordWrite?.(a)

@@ -23,8 +23,11 @@ describe('style-stylelint-fix pattern', () => {
     expect(P.test([])).toBe(false)
   })
 
-  test('apply: дельта без style-файлів → touchedFiles порожній', () => {
-    const res = P.apply([{ reason: 'stylelint-violation', message: 'm' }], { cwd: '/tmp', files: ['a.js', 'b.ts'] })
+  test('apply: дельта без style-файлів → touchedFiles порожній', async () => {
+    const res = await P.apply([{ reason: 'stylelint-violation', message: 'm' }], {
+      cwd: '/tmp',
+      files: ['a.js', 'b.ts']
+    })
     expect(res.touchedFiles).toEqual([])
   })
 })

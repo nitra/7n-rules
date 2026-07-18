@@ -3,9 +3,8 @@ type: JS Module
 title: spawn-async.mjs
 resource: npm/scripts/utils/spawn-async.mjs
 docgen:
-  crc: cc5d92e0
+  crc: 0e8ce2ef
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

@@ -54,7 +54,7 @@ describe('detectCspell', () => {
     await withTmpDir(async root => {
       await writeFile(join(root, '.cspell.json'), JSON.stringify({ version: '0.2', ignorePaths: ['**/*'] }))
       await writeFile(join(root, 'typo.md'), 'This is teh wrong wrod.')
-      const result = detectCspell(root, bin, ['typo.md'])
+      const result = await detectCspell(root, bin, ['typo.md'])
       expect(result.code).toBe(0)
       expect(result.out).toMatch(FILES_CHECKED_ZERO_RE)
     })
@@ -65,7 +65,7 @@ describe('detectCspell', () => {
     await withTmpDir(async root => {
       await writeFile(join(root, '.cspell.json'), JSON.stringify({ version: '0.2' }))
       await writeFile(join(root, 'typo.md'), 'This is teh wrong wrod.')
-      const result = detectCspell(root, bin, ['typo.md'])
+      const result = await detectCspell(root, bin, ['typo.md'])
       expect(result.code).not.toBe(0)
       expect(result.out).toMatch(UNKNOWN_WORD_RE)
     })

@@ -4,17 +4,17 @@
  */
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { spawnSync } from 'node:child_process'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 
 /**
  * Detector bun/licensee: ліцензії npm-залежностей через `licensee` (read-only).
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат detector-а
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат detector-а
  */
-export function lint(ctx) {
+export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { fail } = reporter
   const cwd = ctx.cwd
@@ -40,20 +40,20 @@ export function lint(ctx) {
   // of undefined (reading 'localeCompare')" — спостережено з @npmcli/arborist на
   // bun-based node_modules) завжди йде у stderr через die(); легітимний звіт про
   // порушення — лише у stdout. Канал розрізняє crash від реального порушення.
-  const r = spawnSync(bun, ['x', 'licensee', '--production', '--errors-only'], { cwd, encoding: 'utf8', shell: false })
-  if (r.status !== 0) {
+  const r = await spawnAsync(bun, ['x', 'licensee', '--production', '--errors-only'], { cwd, shell: false })
+  if (r.exitCode !== 0) {
     const stderr = (r.stderr ?? '').trim().slice(0, 2000)
     if (stderr) {
       fail(
         `lint-bun: licensee — інструмент завершився з помилкою, це НЕ підтверджене ліцензійне порушення ` +
-          `(код ${r.status}, bun.mdc). Ймовірна причина — несумісність @npmcli/arborist (яким licensee читає ` +
+          `(код ${r.exitCode}, bun.mdc). Ймовірна причина — несумісність @npmcli/arborist (яким licensee читає ` +
           `node_modules) з деревом, зібраним bun install. Перевір вручну: \`bunx licensee --production\`.\n${stderr}`,
         'licensee-crashed'
       )
     } else {
       const stdout = (r.stdout ?? '').trim().slice(0, 2000)
       const detail = stdout ? `\n${stdout}` : ''
-      fail(`lint-bun: licensee — порушення ліцензій (код ${r.status}, bun.mdc)${detail}`, 'license-violation')
+      fail(`lint-bun: licensee — порушення ліцензій (код ${r.exitCode}, bun.mdc)${detail}`, 'license-violation')
     }
   }
   return reporter.result()

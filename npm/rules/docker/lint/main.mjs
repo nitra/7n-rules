@@ -351,7 +351,7 @@ async function checkDockerfile(reporter, root, abs) {
   const nginxUserHint = getNginxUnprivilegedUserHint(content)
   if (nginxUserHint) fail(`${rel} (nginx non-root): ${nginxUserHint}`)
 
-  const { ok, stdout, stderr, via } = lintDockerfileWithHadolint(root, abs)
+  const { ok, stdout, stderr, via } = await lintDockerfileWithHadolint(root, abs)
   const tail = (stdout + stderr).trim()
   if (!ok) {
     const detail = tail ? `:\n${tail}` : ''

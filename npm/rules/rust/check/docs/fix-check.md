@@ -3,7 +3,7 @@ type: JS Module
 title: fix-check.mjs
 resource: npm/rules/rust/check/fix-check.mjs
 docgen:
-  crc: 02793a78
+  crc: 3bd2ccd0
 ---
 
 ## Огляд

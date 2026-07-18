@@ -6,23 +6,24 @@
  * `.oxfmtrc.json` (включно з `ignorePatterns`). Автофікс (`oxfmt --write`) — окремий T0
  * `fix-oxfmt.mjs`, не в detector-і. Тул відсутній у PATH → SKIP (не violation), як інші зовнішні.
  */
-import { spawnSync } from 'node:child_process'
 import { relative, resolve } from 'node:path'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 
-const JSON_MAX_BUFFER = 64 * 1024 * 1024
 const FMT_EXT_RE = /\.(?:m?[jt]s|c[jt]s|jsx|tsx|vue|css|scss)$/u
 // Безконфліктна formatter-домена: oxfmt-типи, що їх не форматує інше тулінг (md/json/yaml — поза).
 const FMT_GLOB = '**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,vue,css,scss}'
 
 /**
  * Detector: повертає по одному violation на кожен неформатований файл.
+ * Async (не блокує event loop) — детектор може виконуватись у parallel lane `detectAll()`
+ * (ADR 260716-1354).
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону (cwd, files)
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат із violation на кожен неформатований файл
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат із violation на кожен неформатований файл
  */
-export function lint(ctx) {
+export async function lint(ctx) {
   const { cwd, files } = ctx
   const reporter = createViolationReporter(ctx)
   const oxfmt = resolveCmd('oxfmt')
@@ -31,7 +32,7 @@ export function lint(ctx) {
   const targets = files === undefined ? [FMT_GLOB] : files.filter(f => FMT_EXT_RE.test(f))
   if (targets.length === 0) return reporter.result()
 
-  const r = spawnSync(oxfmt, ['--list-different', ...targets], { cwd, encoding: 'utf8', maxBuffer: JSON_MAX_BUFFER })
+  const r = await spawnAsync(oxfmt, ['--list-different', ...targets], { cwd })
   const unformatted = (r.stdout ?? '')
     .split('\n')
     .map(s => s.trim())

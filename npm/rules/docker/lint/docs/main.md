@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/docker/lint/main.mjs
 docgen:
-  crc: 282bafc9
+  crc: 26fdea23
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99

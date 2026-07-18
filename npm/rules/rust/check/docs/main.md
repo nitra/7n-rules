@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/rust/check/main.mjs
 docgen:
-  crc: bdf1c005
+  crc: 71821b75
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   judgeModel: openai-codex/gpt-5.4-mini

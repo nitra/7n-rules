@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/bun/licensee/main.mjs
 docgen:
-  crc: 48c72e2b
+  crc: 6c6685e8
   model: manual
 ---
 
