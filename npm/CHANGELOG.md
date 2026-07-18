@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.23.1] - 2026-07-18
+
+### Changed
+
+- Оновлено peer-версію @earendil-works/pi-coding-agent/pi-ai до ~0.80.10 — підтримка gpt-5.6-sol через openai-codex backend
+
 ## [1.23.0] - 2026-07-18
 
 ### Changed
