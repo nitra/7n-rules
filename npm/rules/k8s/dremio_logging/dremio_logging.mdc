@@ -1,0 +1,31 @@
+## WARN-оверрайди шумних loggerів у logback.xml Dremio
+
+Rego-пакет: `k8s.dremio_logging`
+
+**Цільові файли:** `**/dremio_v2/config/logback.xml` — vendored-конфіг логування Dremio Helm-чарту. Це XML (не YAML): conftest парсить його нативно (парсер інферується за розширенням). Кожна env-копія (`dev/dremio_v2/…`, `ua/dremio_v2/…` тощо) перевіряється окремо — без крос-файлової дедуплікації. Cross-file gating (як у `hasura_configmap`) не потрібен: шлях сам ідентифікує Dremio-чарт.
+
+**Що перевіряється:** для кожного FQCN зі списку нижче має існувати `<logger name="<FQCN>" level="warn"/>` (рівень case-insensitive; «строгіше» — `error`/`off` — теж ок). Кожен запис-дублікат для FQCN має задовольняти вимогу окремо (конфліктні дублікати — порушення: logback бере останній, конфіг має бути однозначним).
+
+| FQCN |
+|------|
+| `com.dremio.sabot.exec.fragment.FragmentExecutor` |
+| `com.dremio.sabot.exec.fragment.FragmentStatusReporter` |
+| `com.dremio.sabot.exec.QueryTicket` |
+| `com.dremio.service.reflection.descriptor.MaterializationCache` |
+| `com.dremio.exec.planner.plancache.PlanCacheSynchronizer` |
+| `com.dremio.exec.planner.plancache.CacheRefresher` |
+
+**Чому:** ці loggerи (усі на одному `planning-cache-refresher` треді; підтверджено живою перевіркою в проді) пишуть INFO на кожен запит/фоновий цикл і домінують обсяг логів у Cloud Logging без діагностичної цінності понад WARN. Список фіксований — не розширюй «про запас»; нові loggerи — окремою ітерацією.
+
+**Приклад валідного фрагмента:**
+
+```xml
+<logger name="com.dremio.sabot.exec.fragment.FragmentExecutor" level="warn"/>
+<logger name="com.dremio.sabot.exec.fragment.FragmentStatusReporter" level="warn"/>
+<logger name="com.dremio.sabot.exec.QueryTicket" level="warn"/>
+<logger name="com.dremio.service.reflection.descriptor.MaterializationCache" level="warn"/>
+<logger name="com.dremio.exec.planner.plancache.PlanCacheSynchronizer" level="warn"/>
+<logger name="com.dremio.exec.planner.plancache.CacheRefresher" level="warn"/>
+```
+
+**Autofix:** відсутній (detection-only, як `hasura_httproute`) — XML-трансформ складніший за YAML `setIn`; T0-fix, за потреби, окремою ітерацією.
