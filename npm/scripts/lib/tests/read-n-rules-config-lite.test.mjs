@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-import { isRuleEnabled, readNRulesConfigLite } from '../read-n-rules-config-lite.mjs'
+import { isConcernEnabled, isRuleEnabled, readNRulesConfigLite } from '../read-n-rules-config-lite.mjs'
 import { withTmpDir, writeJson } from '../../utils/test-helpers.mjs'
 
 describe('readNRulesConfigLite', () => {
@@ -57,5 +57,32 @@ describe('isRuleEnabled', () => {
 
   test('false коли rule не в rules', () => {
     expect(isRuleEnabled({ exists: true, rules: ['b'], disableRules: [] }, 'a')).toBe(false)
+  })
+})
+
+describe('isConcernEnabled', () => {
+  test('false коли весь rule вимкнений (rule-level disable-rules)', () => {
+    const config = { exists: true, rules: ['k8s'], disableRules: ['k8s'] }
+    expect(isConcernEnabled(config, 'k8s', 'network_policy')).toBe(false)
+  })
+
+  test('false коли вимкнений лише цей concern (rule/concern у disable-rules)', () => {
+    const config = { exists: true, rules: ['k8s'], disableRules: ['k8s/network_policy'] }
+    expect(isConcernEnabled(config, 'k8s', 'network_policy')).toBe(false)
+  })
+
+  test('true для іншого concern-у того ж rule, коли вимкнений лише один', () => {
+    const config = { exists: true, rules: ['k8s'], disableRules: ['k8s/network_policy'] }
+    expect(isConcernEnabled(config, 'k8s', 'manifests')).toBe(true)
+  })
+
+  test('true коли rule enabled і жодного часткового вимикання немає', () => {
+    const config = { exists: true, rules: ['k8s'], disableRules: [] }
+    expect(isConcernEnabled(config, 'k8s', 'manifests')).toBe(true)
+  })
+
+  test('true коли config.exists=false (open by default)', () => {
+    const config = { exists: false, rules: [], disableRules: [] }
+    expect(isConcernEnabled(config, 'k8s', 'manifests')).toBe(true)
   })
 })

@@ -16,7 +16,7 @@ import picomatch from 'picomatch'
 
 import { listConcerns } from '../concern-meta.mjs'
 import { collectChangedFilesSince, resolveChangedBase } from '../changed-files.mjs'
-import { readNRulesConfigLite, isRuleEnabled } from '../read-n-rules-config-lite.mjs'
+import { readNRulesConfigLite, isRuleEnabled, isConcernEnabled } from '../read-n-rules-config-lite.mjs'
 import { getActiveCapabilities, resolvePlugins } from '../resolve-plugins.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
 import { renderViolations, renderDiagnostics } from './render.mjs'
@@ -124,6 +124,54 @@ async function filterByCapabilities(byRule, opts) {
 }
 
 /**
+ * Валідує `rule/concern`-записи з `disable-rules`: concern має існувати серед
+ * `byRule[ruleId]`. Невідомий id — гучна помилка (не тихий no-op), з "did you mean"
+ * на найближчий за префіксом concern того ж rule.
+ * @param {string[]} disableRules сирий список `disable-rules` з конфігу.
+ * @param {Record<string, ConcernMeta[]>} byRule відомі concerns згруповані за rule-id.
+ * @returns {void}
+ * @throws {Error} якщо запис виду `rule/concern` вказує на неіснуючий concern.
+ */
+function validatePartialDisableIds(disableRules, byRule) {
+  for (const entry of disableRules) {
+    const slash = entry.indexOf('/')
+    if (slash === -1) continue
+    const ruleId = entry.slice(0, slash)
+    const concernId = entry.slice(slash + 1)
+    const known = byRule[ruleId]
+    if (!known) continue // невідомий rule id — не турбота цієї валідації
+    const names = known.map(c => c.name)
+    if (names.includes(concernId)) continue
+    const suggestion = names.find(n => n.startsWith(concernId) || concernId.startsWith(n))
+    throw new Error(
+      `disable-rules: невідомий concern "${entry}" — доступні concern-и ${ruleId}: ${names.join(', ')}` +
+        (suggestion ? ` (мали на увазі "${ruleId}/${suggestion}"?)` : '')
+    )
+  }
+}
+
+/**
+ * Відкидає concern-и, вимкнені частково через `disable-rules` (`rule/concern`).
+ * Rule-level вимикання (`ruleId` без суфікса) тут не фільтрується — його вже
+ * прибирає `enabledRuleIds`/`isRuleEnabled` вище за планом; тут — лише concern-рівень.
+ * @param {Record<string, ConcernMeta[]>} byRule concerns за rule-id (уже після filterByCapabilities).
+ * @param {{ cwd: string }} opts опції прогону.
+ * @returns {Promise<Record<string, ConcernMeta[]>>} відфільтровані concerns.
+ */
+async function filterByDisabledConcerns(byRule, opts) {
+  const config = await readNRulesConfigLite(opts.cwd)
+  if (!config.exists) return byRule
+  validatePartialDisableIds(config.disableRules, byRule)
+  /** @type {Record<string, ConcernMeta[]>} */
+  const out = {}
+  for (const [ruleId, concerns] of Object.entries(byRule)) {
+    const kept = concerns.filter(c => isConcernEnabled(config, ruleId, c.name))
+    if (kept.length > 0) out[ruleId] = kept
+  }
+  return out
+}
+
+/**
  * Мердж concerns кількох rules-каталогів: правила зливаються за id, концерни — за іменем
  * (перший власник виграє: ядро → плагіни у порядку списку). Плагін може ДОДАВАТИ концерни
  * до правила ядра (mixin), але не перекривати наявні.
@@ -186,7 +234,10 @@ function sortEntries(entries) {
  * @returns {Promise<PlanItem[]>} впорядкований план прогону.
  */
 export async function buildDetectPlan(opts) {
-  const byRule = await filterByCapabilities(await readLintConcernsByRuleMulti(await effectiveRulesDirs(opts)), opts)
+  const byRule = await filterByDisabledConcerns(
+    await filterByCapabilities(await readLintConcernsByRuleMulti(await effectiveRulesDirs(opts)), opts),
+    opts
+  )
   return buildPlan({
     byRule,
     full: opts.full === true,
@@ -318,7 +369,10 @@ export async function detectAll(opts) {
   const verbose = opts.verbose === true
   const baseLog = opts.log ?? (s => process.stdout.write(s))
 
-  const byRule = await filterByCapabilities(await readLintConcernsByRuleMulti(await effectiveRulesDirs(opts)), opts)
+  const byRule = await filterByDisabledConcerns(
+    await filterByCapabilities(await readLintConcernsByRuleMulti(await effectiveRulesDirs(opts)), opts),
+    opts
+  )
   const plan = await buildPlan({ byRule, full, rules, explicitFiles, cwd })
 
   // Detect-only бар — ЛИШЕ в TTY (без тикера «виправлено»). У не-TTY (hooks, CI-gate,

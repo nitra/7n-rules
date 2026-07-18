@@ -37,10 +37,32 @@
     },
     "disable-rules": {
       "type": "array",
-      "description": "Список rule id (без префікса n-), які не потрібно автододавати в `.n-rules.json` під час запуску CLI.",
+      "description": "Список rule id (без префікса n-), які не потрібно автододавати в `.n-rules.json` під час запуску CLI. Елемент може вказувати цілий rule id (`\"docker\"`) або конкретний concern усередині rule (`\"k8s/network_policy\"`) — часткове вимкнення без відключення решти concern-ів того ж rule. Частковий запис (`rule/concern`) вимагає відповідного `reason` у `disable-rules-meta`.",
       "items": {
         "type": "string",
-        "minLength": 1
+        "minLength": 1,
+        "pattern": "^[a-z0-9-~][a-z0-9-._~]*(/[a-z0-9_-]+)?$"
+      }
+    },
+    "disable-rules-meta": {
+      "type": "object",
+      "description": "Метадані часткових вимикань з `disable-rules` (лише записи виду `rule/concern`). Ключ — той самий `rule/concern` id. `reason` обов'язковий; `expires` — опційна дата (YYYY-MM-DD), не блокує CI, лише позначається як прострочена в `n-rules explain`.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Чому цей concern вимкнено — обов'язкове для запису rule/concern у disable-rules."
+          },
+          "expires": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Дата, до якої вимикання вважається актуальним (YYYY-MM-DD). Не блокує CI — лише нагадування."
+          }
+        },
+        "required": ["reason"]
       }
     },
     "disable-skills": {

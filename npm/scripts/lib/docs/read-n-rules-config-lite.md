@@ -3,7 +3,7 @@ type: JS Module
 title: read-n-rules-config-lite.mjs
 resource: npm/scripts/lib/read-n-rules-config-lite.mjs
 docgen:
-  crc: b942af8d
+  crc: c9799d99
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
@@ -20,6 +20,7 @@ isRuleEnabled визначає, чи має бути виконане прави
 
 readNCursorConfigLite — зчитує базові налаштування курсора з конфігурації.
 isRuleEnabled — визначає, чи діє певне правило на основі конфігурації. Якщо конфігурація відсутня, правило вважається активним за замовчуванням. Якщо правило явно вимкнено, воно не діє. Якщо правило визначено у списку правил, воно діє. В іншому випадку, правило не діє.
+isConcernEnabled — визначає, чи активний конкретний concern усередині правила. Якщо весь rule вимкнений (`ruleId` у `disable-rules`) або сам concern вимкнений частково (запис виду `ruleId/concernId` у `disable-rules`) — `false`. В іншому випадку успадковує результат `isRuleEnabled`.
 
 ## Гарантії поведінки
 

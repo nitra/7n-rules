@@ -63,3 +63,18 @@ export function isRuleEnabled(config, ruleId) {
   if (config.disableRules.includes(ruleId)) return false
   return config.rules.includes(ruleId)
 }
+
+/**
+ * Чи активний конкретний concern усередині rule.
+ *   - весь rule вимкнений (`ruleId` у `disable-rules`) → false;
+ *   - concern вимкнений частково (`ruleId/concernId` у `disable-rules`) → false;
+ *   - інакше — успадковує `isRuleEnabled(config, ruleId)`.
+ * @param {LiteConfig} config розпарсений lite-конфіг
+ * @param {string} ruleId id правила (= basename каталогу)
+ * @param {string} concernId id concern-а (= basename підкаталогу правила)
+ * @returns {boolean} чи запускати цей concern
+ */
+export function isConcernEnabled(config, ruleId, concernId) {
+  if (config.disableRules.includes(`${ruleId}/${concernId}`)) return false
+  return isRuleEnabled(config, ruleId)
+}

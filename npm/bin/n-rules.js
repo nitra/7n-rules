@@ -14,6 +14,8 @@
  *                                     весь репо (`per-file` ∪ `full`); `--no-fix` = без мутацій/LLM (CI); позиційні
  *                                     (не-флаг) аргументи — фільтр правил конформності (мапить колишній `fix <rule>`).
  *                                     CI = `lint --no-fix --full` (весь репо, нуль мутацій/LLM).
+ *   `npx \@7n/rules explain <ruleId>` — read-only статус concern-ів rule (активний/вимкнений,
+ *                                     reason/expires для часткових `rule/concern` вимикань з `disable-rules`)
  *   `npx \@7n/rules skill list`     — скіли пакета без синку в проєкт
  *   `npx \@7n/rules skill taze`     — промпт на stdout
  *   `npx \@7n/rules skill cursor taze ["task"]` — Cursor CLI (`cursor-agent -p`)
@@ -84,6 +86,8 @@ import { injectRootNotice } from '../scripts/lib/root-notice.mjs'
 import { listProjectRulesMdcFiles } from '../scripts/lib/list-project-rules-mdc.mjs'
 import { ensureNRulesInRootDevDependencies } from '../scripts/ensure-n-rules-dev-dependencies.mjs'
 import { resolvePluginList, resolveRulesDirs } from '../scripts/lib/resolve-plugins.mjs'
+import { listConcerns } from '../scripts/lib/concern-meta.mjs'
+import { readNRulesConfigLite, isConcernEnabled } from '../scripts/lib/read-n-rules-config-lite.mjs'
 import { assertCwdIsProjectRoot } from '../scripts/lib/assert-project-root.mjs'
 import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { syncGitignoreWorktree } from '../scripts/lib/sync-gitignore-worktree.mjs'
@@ -333,6 +337,103 @@ async function collectMixinDirs(dir, ownNames, extras) {
 }
 
 /**
+ * Валідує governance-вимогу для часткових вимикань: кожен `rule/concern`-запис
+ * у `disable-rules` мусить мати непорожній `reason` у `disable-rules-meta`.
+ * Rule-level записи (без `/`) reason не потребують.
+ * @param {string[]} disableRules нормалізований список `disable-rules`
+ * @param {unknown} disableRulesMeta сире поле `disable-rules-meta` з конфігу
+ * @returns {void}
+ * @throws {Error} якщо частковий запис без обов'язкового reason
+ */
+function validateDisableRulesMeta(disableRules, disableRulesMeta) {
+  const meta = typeof disableRulesMeta === 'object' && disableRulesMeta !== null ? disableRulesMeta : {}
+  for (const entry of disableRules) {
+    if (!entry.includes('/')) continue
+    const reason = meta[entry]?.reason
+    if (typeof reason !== 'string' || reason.trim() === '') {
+      throw new Error(
+        `У ${CONFIG_FILE} частковий запис "${entry}" у disable-rules вимагає обов'язковий reason: ` +
+          `"disable-rules-meta": { "${entry}": { "reason": "..." } }`
+      )
+    }
+  }
+}
+
+/**
+ * Мердж concern-ів rule з кількох rules-каталогів (ядро + плагіни), за іменем, перший виграє.
+ * @param {string[]} rulesDirs упорядковані rules-каталоги.
+ * @param {string} ruleId id правила.
+ * @returns {Promise<import('../scripts/lib/concern-meta.mjs').ConcernMeta[]>} унікальні concern-и rule.
+ */
+async function collectRuleConcerns(rulesDirs, ruleId) {
+  const concernsByDir = await Promise.all(rulesDirs.map(dir => listConcerns(join(dir, ruleId))))
+  const seen = new Set()
+  const concerns = []
+  for (const list of concernsByDir) {
+    for (const c of list) {
+      if (seen.has(c.name)) continue
+      seen.add(c.name)
+      concerns.push(c)
+    }
+  }
+  return concerns
+}
+
+/**
+ * Форматує один рядок статусу concern-а для `n-rules explain`.
+ * @param {string} ruleId id правила.
+ * @param {import('../scripts/lib/concern-meta.mjs').ConcernMeta} concern concern.
+ * @param {boolean} enabled чи активний concern.
+ * @param {Record<string, { reason?: string, expires?: string }>} meta `disable-rules-meta`.
+ * @param {string} today поточна дата (YYYY-MM-DD) для перевірки `expires`.
+ * @returns {string} готовий рядок для виводу.
+ */
+function formatConcernStatusLine(ruleId, concern, enabled, meta, today) {
+  if (enabled) return `  ✅ ${concern.name}`
+  const entryMeta = meta[`${ruleId}/${concern.name}`] ?? {}
+  const parts = []
+  if (entryMeta.reason) parts.push(`reason: ${entryMeta.reason}`)
+  if (entryMeta.expires) {
+    const note = entryMeta.expires < today ? ' ⚠️ прострочено' : ''
+    parts.push(`expires: ${entryMeta.expires}${note}`)
+  }
+  const suffix = parts.length > 0 ? `  (${parts.join(', ')})` : ''
+  return `  ⛔ ${concern.name}${suffix}`
+}
+
+/**
+ * `n-rules explain <ruleId>` — read-only статус concern-ів rule: активний/вимкнений,
+ * і для часткових вимикань (`rule/concern` у `disable-rules`) — `reason`/`expires`
+ * з `disable-rules-meta` (з поміткою "прострочено", якщо `expires` у минулому).
+ * @param {string} ruleId id правила (без префікса n-)
+ * @returns {Promise<number>} exit-код (0 — ок, 1 — rule не знайдено)
+ */
+async function runExplainCli(ruleId) {
+  if (!ruleId) {
+    console.error('Використання: npx @7n/rules explain <ruleId>')
+    return 1
+  }
+  const rawConfig = existsSync(join(cwd(), CONFIG_FILE))
+    ? JSON.parse(await readFile(join(cwd(), CONFIG_FILE), 'utf8'))
+    : {}
+  const rulesDirs = resolveRulesDirs(cwd(), rawConfig, BUNDLED_RULES_DIR).map(d => d.rulesDir)
+  const concerns = await collectRuleConcerns(rulesDirs, ruleId)
+  if (concerns.length === 0) {
+    console.error(`❌ Rule "${ruleId}" не знайдено (немає concern-ів у жодному з rules-каталогів)`)
+    return 1
+  }
+  const config = await readNRulesConfigLite(cwd())
+  const rawMeta = rawConfig['disable-rules-meta']
+  const meta = typeof rawMeta === 'object' && rawMeta !== null ? rawMeta : {}
+  const today = new Date().toISOString().slice(0, 10)
+  console.log(`${ruleId}:`)
+  for (const c of concerns.toSorted((a, b) => a.name.localeCompare(b.name))) {
+    console.log(formatConcernStatusLine(ruleId, c, isConcernEnabled(config, ruleId, c.name), meta, today))
+  }
+  return 0
+}
+
+/**
  * Зчитує конфіг .n-rules.json з поточної директорії
  * @param {{ bundledRulesDir?: string, bundledSkillsDir?: string }} [paths] каталоги з пакету-джерела (після `bun i` — зазвичай `node_modules/@7n/rules`)
  * @returns {Promise<{ $schema: string, rules: string[], skills: string[], version?: string } & Record<string, unknown>>} rules, skills (id без префікса n-); поле version у файлі за наявності ігнорується при синхронізації правил
@@ -381,6 +482,7 @@ async function readConfig(paths = {}) {
     const rootPkg = await readRootPackageJsonSafe()
     const disableRules = normalizeIdList(parsedConfig['disable-rules'])
     const disableSkills = normalizeIdList(parsedConfig['disable-skills'])
+    validateDisableRulesMeta(disableRules, parsedConfig['disable-rules-meta'])
     const autoDetectedRules = await detectAutoRules({
       root: cwd(),
       availableRules,
@@ -1765,6 +1867,11 @@ try {
 
         break
       }
+      case 'explain': {
+        process.exitCode = await runExplainCli(args[0])
+
+        break
+      }
       case 'adr-normalize-local': {
         // Local-backend ADR-нормалізації: викликається з .claude/hooks/normalize-decisions.sh
         // як заміна single-shot LLM-виклику. Проганяє конвеєр (retrieval→edge-judge→
@@ -1783,7 +1890,7 @@ try {
       default: {
         console.error(`❌ Невідома команда: ${command}`)
         console.error(
-          `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), taze, release, skill, doc-aggregate`
+          `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), taze, release, skill, explain, doc-aggregate`
         )
         process.exitCode = 1
       }

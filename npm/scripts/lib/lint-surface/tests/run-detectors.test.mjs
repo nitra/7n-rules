@@ -1,3 +1,4 @@
+// cspell:ignore manifest — навмисний тайпо-фікстур для перевірки "did you mean" у filterByDisabledConcerns
 import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -21,6 +22,7 @@ async function seedDetector(rulesDir, rule, concern, lintSurface, lintBody) {
 }
 
 const CLEAN = 'export function lint() { return { violations: [] } }\n'
+const UNKNOWN_CONCERN_ERROR_RE = /невідомий concern.*manifest.*мали на увазі.*manifests/s
 
 describe('detectAll — exit codes', () => {
   test('clean → exit 0', async () => {
@@ -189,6 +191,97 @@ describe('detectAll — scoping', () => {
       expect(line).toBeDefined()
       expect(line).toContain('per-file')
       expect(line).toContain('1 файл')
+    })
+  })
+})
+
+describe('detectAll — часткове вимикання concern-ів (rule/concern у disable-rules)', () => {
+  test('вимкнений лише один concern не запускається, інший того ж rule — так', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = join(dir, 'rules')
+      const body = "export function lint() { return { violations: [{ reason: 'probe', message: 'ran' }] } }\n"
+      await seedDetector(rulesDir, 'k8s', 'network_policy', { scope: 'full', glob: ['**/*'] }, body)
+      await seedDetector(rulesDir, 'k8s', 'manifests', { scope: 'full', glob: ['**/*'] }, body)
+      await writeJson(join(dir, '.n-rules.json'), {
+        rules: ['k8s'],
+        'disable-rules': ['k8s/network_policy'],
+        'disable-rules-meta': { 'k8s/network_policy': { reason: 'legacy' } }
+      })
+      const r = await detectAll({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op */
+        }
+      })
+      const ranConcerns = r.ran.map(e => e.concern.name).toSorted()
+      expect(ranConcerns).toEqual(['manifests'])
+    })
+  })
+
+  test('rule-level disable-rules вимикає всі concern-и rule (без регресії)', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = join(dir, 'rules')
+      const body = 'export function lint() { return { violations: [] } }\n'
+      await seedDetector(rulesDir, 'k8s', 'network_policy', { scope: 'full', glob: ['**/*'] }, body)
+      await seedDetector(rulesDir, 'k8s', 'manifests', { scope: 'full', glob: ['**/*'] }, body)
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['k8s'], 'disable-rules': ['k8s'] })
+      const r = await detectAll({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op */
+        }
+      })
+      expect(r.ran).toEqual([])
+    })
+  })
+
+  test('невідомий concern у disable-rules → detect кидає гучну помилку', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = join(dir, 'rules')
+      const body = 'export function lint() { return { violations: [] } }\n'
+      await seedDetector(rulesDir, 'k8s', 'manifests', { scope: 'full', glob: ['**/*'] }, body)
+      await writeJson(join(dir, '.n-rules.json'), {
+        rules: ['k8s'],
+        'disable-rules': ['k8s/manifest'],
+        'disable-rules-meta': { 'k8s/manifest': { reason: 'typo' } }
+      })
+      await expect(
+        detectAll({
+          rulesDir,
+          cwd: dir,
+          full: true,
+          log: () => {
+            /* no-op */
+          }
+        })
+      ).rejects.toThrow(UNKNOWN_CONCERN_ERROR_RE)
+    })
+  })
+
+  test('усі concern-и rule вимкнені частково → no-op без crash', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = join(dir, 'rules')
+      const body = 'export function lint() { return { violations: [] } }\n'
+      await seedDetector(rulesDir, 'k8s', 'manifests', { scope: 'full', glob: ['**/*'] }, body)
+      await writeJson(join(dir, '.n-rules.json'), {
+        rules: ['k8s'],
+        'disable-rules': ['k8s/manifests'],
+        'disable-rules-meta': { 'k8s/manifests': { reason: 'x' } }
+      })
+      const r = await detectAll({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op */
+        }
+      })
+      expect(r.exitCode).toBe(0)
+      expect(r.ran).toEqual([])
     })
   })
 })
