@@ -8,6 +8,7 @@
         "@7n/rules": "workspace:*",
         "@7n/rules-ci-azure": "workspace:*",
         "@7n/rules-ci-github": "workspace:*",
+        "@7n/rules-lang-python": "workspace:*",
         "@7n/test": "^0.14.3",
         "@nitra/cspell-dict": "^2.2.2",
         "@nitra/eslint-config": "^3.10.3",
@@ -34,7 +35,7 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.7.1",
+      "version": "2.7.5",
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
       },
@@ -49,7 +50,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.7.0",
+      "version": "1.12.0",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
@@ -90,9 +91,19 @@
     },
     "plugins/ci-github": {
       "name": "@7n/rules-ci-github",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "peerDependencies": {
         "@7n/rules": ">=1.2.0",
+      },
+    },
+    "plugins/lang-python": {
+      "name": "@7n/rules-lang-python",
+      "version": "0.1.0",
+      "dependencies": {
+        "smol-toml": "^1.7.0",
+      },
+      "peerDependencies": {
+        "@7n/rules": ">=1.13.0",
       },
     },
   },
@@ -110,6 +121,8 @@
     "@7n/rules-ci-azure": ["@7n/rules-ci-azure@workspace:plugins/ci-azure"],
 
     "@7n/rules-ci-github": ["@7n/rules-ci-github@workspace:plugins/ci-github"],
+
+    "@7n/rules-lang-python": ["@7n/rules-lang-python@workspace:plugins/lang-python"],
 
     "@7n/test": ["@7n/test@0.14.5", "", { "dependencies": { "@7n/llm-lib": "^2.0.2", "@earendil-works/pi-coding-agent": "^0.80.3", "@nitra/check-env": "^4.2.1", "@vitest/coverage-v8": "^4.1.9", "rollup": "^4.62.2", "vitest": "^4.1.9", "zod": "^4.4.3" }, "bin": { "7n-test": "bin/7n-test.js" } }, "sha512-1UjELvZUeOhlg2dK+/PIYmwhZ2WMLlEfTGZukKr4oJQGGt1iK7opZmag9xJ3YAAl4bsDaseB220GNPt3JS9xgA=="],
 

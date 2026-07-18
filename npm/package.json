@@ -51,6 +51,7 @@
   "exports": {
     ".": "./bin/n-rules.js",
     "./package.json": "./package.json",
+    "./plugin-api": "./scripts/lib/plugin-api.mjs",
     "./scripts/*": "./scripts/*",
     "./schemas/*": "./schemas/*",
     "./rules/*": "./rules/*"

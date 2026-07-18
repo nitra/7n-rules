@@ -6,6 +6,7 @@ resource: npm/scripts/lib/
 
 | Файл                                                                        | Тип       |
 | --------------------------------------------------------------------------- | --------- |
+| [acp-runner.mjs](acp-runner.md)                                             | JS Module |
 | [assert-project-root.mjs](assert-project-root.md)                           | JS Module |
 | [blue-oak.mjs](blue-oak.md)                                                 | JS Module |
 | [changed-files.mjs](changed-files.md)                                       | JS Module |
@@ -23,7 +24,9 @@ resource: npm/scripts/lib/
 | [list-rule-ids.mjs](list-rule-ids.md)                                       | JS Module |
 | [load-cursor-config.mjs](load-cursor-config.md)                             | JS Module |
 | [mirror-parity.mjs](mirror-parity.md)                                       | JS Module |
-| [read-n-rules-config-lite.mjs](read-n-rules-config-lite.md)               | JS Module |
+| [plugin-api.mjs](plugin-api.md)                                             | JS Module |
+| [read-n-rules-config-lite.mjs](read-n-rules-config-lite.md)                 | JS Module |
+| [resolve-plugins.mjs](resolve-plugins.md)                                   | JS Module |
 | [resolve-target-files.mjs](resolve-target-files.md)                         | JS Module |
 | [root-notice.mjs](root-notice.md)                                           | JS Module |
 | [rule-meta-helpers.mjs](rule-meta-helpers.md)                               | JS Module |
