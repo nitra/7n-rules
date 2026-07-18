@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.2] - 2026-07-18
+
+### Fixed
+
+- ga/workflows: await runConftestBatch у runAllGaRego — детектор падав з «violations is not iterable» після async seam (#109)
+
 ## [1.4.1] - 2026-07-18
 
 ### Fixed
