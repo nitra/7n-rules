@@ -22,16 +22,13 @@
  * коментарі та форматування незачеплених частин зберігаються. Наявний
  * нетривіальний `if` не перезаписується (deny лишається — ручне рішення).
  */
-import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { parseDocument } from 'yaml'
 
-import { loadEnabledLintRules, computeActiveDomains } from '@7n/rules/scripts/lib/lint-surface/run-detectors.mjs'
-import { collectPathScopedFiles } from '@7n/rules/scripts/lib/lint-surface/path-scope.mjs'
-import { domainKey } from '@7n/rules/scripts/lib/lint-surface/ci-plan.mjs'
+import { domainKey, parseNRulesCmd, relevantDomains } from '@7n/rules/scripts/lib/lint-surface/ci-plan.mjs'
 
-const WS_RE = /\s+/u
 const GLOB_SUFFIX_RE = /\/\*+$/u
 
 const CANONICAL_DEPLOY_IF = `\${{ !cancelled() && needs.plan.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}`
@@ -41,33 +38,6 @@ const CANONICAL_PREP = [
   { uses: 'actions/checkout@v6', with: { 'persist-credentials': false, 'fetch-depth': 0 } },
   { uses: './.github/actions/setup-bun-deps' }
 ]
-
-/**
- * Розбирає команду `n-rules …` токенами (стійко до багаторядкових run-ів).
- * @param {string} cmd текст run-кроку
- * @param {string} marker підрядок-початок (`n-rules lint` | `n-rules ci plan`)
- * @returns {{ domain: string|null, path: string|null }|null} розбір або null
- */
-function parseNRulesCmd(cmd, marker) {
-  const at = cmd.indexOf(marker)
-  if (at === -1) return null
-  const tokens = cmd
-    .slice(at + marker.length)
-    .split(WS_RE)
-    .filter(Boolean)
-  let domain = null
-  let path = null
-  for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i]
-    if (t === '--path') {
-      path = tokens[i + 1] ?? null
-      i++
-      continue
-    }
-    if (!t.startsWith('-') && domain === null && path === null) domain = t
-  }
-  return { domain, path }
-}
 
 /**
  * Текст run-кроку ('' якщо крок не run).
@@ -104,26 +74,6 @@ function findLintStep(steps) {
     return { legacy: parsed.domain === null, domain: parsed.domain, path: parsed.path, stepIndex: i }
   }
   return null
-}
-
-/**
- * Релевантні домени сервісу (ті самі glob-и, що `ci plan` по не-дельті).
- * @param {string} cwd корінь consumer-репо
- * @param {string} servicePath каталог сервісу
- * @returns {Promise<string[]>} відсортовані rule-id
- */
-async function relevantDomains(cwd, servicePath) {
-  const abs = resolve(cwd, servicePath)
-  if (!existsSync(abs) || !statSync(abs).isDirectory()) return []
-  const files = await collectPathScopedFiles(cwd, servicePath)
-  const { byRule, enabledSet } = await loadEnabledLintRules({ cwd })
-  const active = computeActiveDomains(byRule, enabledSet, files)
-  return active
-    .entries()
-    .filter(([, st]) => st.triggered)
-    .map(([id]) => id)
-    .toArray()
-    .toSorted((a, b) => a.localeCompare(b))
 }
 
 /**

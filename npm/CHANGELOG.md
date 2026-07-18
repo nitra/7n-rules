@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.1] - 2026-07-18
+
+### Changed
+
+- експортовано `parseNRulesCmd` і `relevantDomains` з `scripts/lib/lint-surface/ci-plan.mjs` — спільні хелпери для fix-хендлерів автоміграції service-канону (ci-azure, ci-github), усунуто jscpd-дублікат
+
 ## [1.19.0] - 2026-07-18
 
 ### Added

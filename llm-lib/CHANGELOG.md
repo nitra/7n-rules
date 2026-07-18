@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.8.0] - 2026-07-18
+
+### Added
+
+- Дистрибуція napi-аддона `llm-cascade`: нові платформені пакети `@7n/llm-lib-darwin-arm64` і `@7n/llm-lib-linux-x64` (prebuilt `llm-cascade-napi.<triple>.node`, matrix-збірка в npm-publish) підключені як optionalDependencies — `runAcpAgent`/tiers/local_cloud працюють із реєстрового @7n/llm-lib без локальної cargo-збірки.
+
 ## [2.7.6] - 2026-07-18
 
 ### Fixed
