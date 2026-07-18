@@ -115,7 +115,7 @@ export async function bumpUvDependencies(cwd, spawnFn, log, deps = {}) {
  * (`n-rules.contributes.handlers.taze`).
  * @type {import('@7n/rules/plugin-api').EcosystemProvider}
  */
-export const pythonProvider = {
+const pythonProvider = {
   id: 'python-uv',
   title: 'Python-пакети (uv)',
   manifestNoun: 'pyproject.toml',
