@@ -70,6 +70,39 @@ test_allow_template_layout if {
 	count(service_deploy_pipeline.deny) == 0 with input as wf
 }
 
+# Реальна efes-форма: extends + paths.include з glob-суфіксом `/**` покривається
+# параметром-каталогом за префіксом (run/nexus/** ↔ modulePath run/nexus).
+test_allow_extends_with_glob_paths if {
+	wf := {
+		"trigger": {"branches": {"include": ["dev"]}, "paths": {"include": ["run/nexus/**"], "exclude": ["run/nexus/k8s/**"]}},
+		"extends": {"template": "templates/deploy-service.yml", "parameters": {"name": "nexus-run", "modulePath": "run/nexus"}},
+	}
+	count(service_deploy_pipeline.deny) == 0 with input as wf
+}
+
+# Утилітарний service-scoped pipeline (gen:schema тощо) без lint-джоб —
+# plan-гейт не вимагається.
+test_allow_utility_pipeline_without_lint if {
+	wf := {
+		"trigger": {"paths": {"include": ["run/nexus/**"]}},
+		"jobs": [{"job": "gen_schema", "steps": [
+			{"checkout": "self", "fetchDepth": 0},
+			{"task": "Bash@3", "inputs": {"targetType": "inline", "script": "bun install --frozen-lockfile\nbun run gen:schema\n"}},
+		]}],
+	}
+	count(service_deploy_pipeline.deny) == 0 with input as wf
+}
+
+# task-форма (`task: Bash@3` → inputs.script): легасі lint видно і plan вимагається.
+test_deny_task_form_legacy_lint_without_plan if {
+	wf := {
+		"trigger": {"paths": {"include": ["run/nexus/**"]}},
+		"jobs": [{"job": "lint", "steps": [{"task": "Bash@3", "inputs": {"targetType": "inline", "script": "bun install --frozen-lockfile\nbunx n-rules lint --path run/nexus --no-fix\n"}}]}],
+	}
+	some msg in service_deploy_pipeline.deny with input as wf
+	contains(msg, "немає job `plan`")
+}
+
 test_deny_template_param_mismatch if {
 	wf := {
 		"trigger": canonical_input.trigger,
