@@ -73,6 +73,19 @@ function writeWrongWorker(_v, ctx) {
 }
 
 /**
+ * Worker, що пише 'corrupted' — стан, на якому CRASHING_DETECTOR сам кидає виняток
+ * (імітує LLM, що зламав структуру файлу настільки, що детектор не може його розпарсити).
+ * @param {unknown} _v Порушення (не використовуються).
+ * @param {object} ctx Контекст fix-а з `cwd` і `recordWrite`.
+ * @returns {void}
+ */
+function writeCorruptedWorker(_v, ctx) {
+  const p = join(ctx.cwd, 'out.txt')
+  ctx.recordWrite(p)
+  writeFileSync(p, 'corrupted')
+}
+
+/**
  * Worker, що закриває детектор і чесно репортує touchedFiles (FixWorkerResult).
  * @param {unknown} _v Порушення (не використовуються).
  * @param {object} ctx Контекст fix-а з `cwd` і `recordWrite`.
@@ -364,6 +377,46 @@ describe('runFixPipeline — ladder escalation + S1 isolation', () => {
       })
       expect(feedbacks[0]).toBeNull() // local-min: feedback:false → ctx.feedback undefined → `?? null`
       expect(feedbacks[1]).toMatchObject({ previousModel: 'fake/min' }) // cloud-min: feedback:true
+    })
+  })
+
+  test('worker лишає файл невалідним (canonical re-detect сам кидає) → snapshot.rollback() відновлює S1 перед перекиданням винятку', async () => {
+    // Реальний інцидент: слабка локальна модель зіпсувала структуру YAML (видалила
+    // ключ containers:, лишила його список "висячим" під іншим ключем) — детектор
+    // (rego/conftest) не міг розпарсити файл і кидав виняток. Без rollback тут
+    // зіпсований проміжний стан worker-а лишався б на диску назавжди: виняток
+    // абортує весь прогін, і звичайний rollback-код (для "не чисто") не встигає
+    // виконатись.
+    const CRASHING_DETECTOR = [
+      "import { existsSync, readFileSync } from 'node:fs'",
+      "import { join } from 'node:path'",
+      'export function lint(ctx) {',
+      "  const p = join(ctx.cwd, 'out.txt')",
+      "  const v = existsSync(p) ? readFileSync(p, 'utf8') : ''",
+      "  if (v === 'corrupted') throw new Error('parse crash: невалідна структура')",
+      "  if (v === 'done') return { violations: [] }",
+      "  return { violations: [{ reason: 'not-done', message: 'out.txt=' + (v || 'absent') }] }",
+      '}',
+      ''
+    ].join('\n')
+
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir, CRASHING_DETECTOR)
+
+      await expect(
+        runFixPipeline({
+          rulesDir,
+          cwd: dir,
+          full: true,
+          log: () => {
+            /* no-op logger */
+          },
+          deps: { ladder: ONE_RUNG, workerFor: () => writeCorruptedWorker }
+        })
+      ).rejects.toThrow('parse crash')
+
+      // S1 (файл був відсутній до worker-а) відновлено, а не лишено 'corrupted'.
+      expect(existsSync(join(dir, 'out.txt'))).toBe(false)
     })
   })
 })
