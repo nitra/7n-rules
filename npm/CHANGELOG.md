@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.15.0] - 2026-07-18
+
+### Added
+
+- Плагінна архітектура мовних екосистем (фаза 1 spec lang-plugins-extraction): новий порт `EcosystemProvider` у `@7n/rules/plugin-api` (detect/available/backup/bump/diff/promptFor/cleanup + `assertEcosystemProvider`), taze-оркестратор веде не-npm гілки генеричним циклом по провайдерах — Rust як вбудований first-party (`rust-provider.mjs`), Python/uv виїхав у окремий плагін `@7n/rules-lang-python` (автодетект за кореневим pyproject.toml, extension-point `taze` — перший реальний споживач handlers-API). Плагін без rules/ із `contributes.rules:false` тепер легальний (лише handlers); провал однієї екосистеми не зупиняє інших
+
 ## [1.14.1] - 2026-07-18
 
 ### Changed
