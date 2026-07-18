@@ -9,8 +9,8 @@ import { parseDocFrontmatter, readDocCrc, staleness } from '../docgen-crc/main.m
 /** Кодові розширення, для яких генеруємо документацію. */
 const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.vue', '.py', '.rs'])
 
-/** `*.test.*`, `*.spec.*` — тести, документувати не треба. */
-const TEST_FILE_RE = /\.(?:test|spec)\.[^.]+$/u
+/** `*.test.*`, `*.spec.*`, `*.stories.*` — тести й Storybook CSF-файли, документувати не треба. */
+const TEST_FILE_RE = /\.(?:test|spec|stories)\.[^.]+$/u
 
 /**
  * Чи корінь має system-wide docs layout.
