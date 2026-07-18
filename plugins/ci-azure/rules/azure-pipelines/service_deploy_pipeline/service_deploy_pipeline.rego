@@ -45,10 +45,14 @@ template_refs contains t if {
 	is_string(object.get(t, "template", 0))
 }
 
+# Параметр-каталог покриває сервіс: точний збіг АБО glob paths.include
+# починається з нього (`run/nexus/**` ↔ modulePath `run/nexus`).
 template_covers_service if {
 	some t in template_refs
 	some v in object.get(t, "parameters", {})
-	v in service_paths
+	is_string(v)
+	some p in service_paths
+	startswith(p, v)
 }
 
 plan_jobs contains j if {
@@ -73,6 +77,17 @@ lint_cmds contains cmd if {
 }
 
 check_jobs contains cmd.job if some cmd in lint_cmds
+
+# Чи є в pipeline lint-гейт узагалі (domain-style або легасі `lint --path` без
+# домену) — утилітарні service-scoped pipelines (gen:schema тощо) без lint-джоб
+# каноном plan-гейта не зобовʼязані.
+has_lint_jobs if count(lint_cmds) > 0
+
+has_lint_jobs if {
+	some j in all_jobs
+	some r in job_cmds(j)
+	regex.match(`n-rules lint\s+--path\s`, r)
+}
 
 # Граф dependsOn і транзитивна досяжність (ланцюг deploy → build → перевірки).
 needs_graph[name] := depends_of(j) if {
@@ -102,6 +117,7 @@ job_by_name[name] := j if {
 deny contains msg if {
 	is_service_pipeline
 	count(all_jobs) > 0
+	has_lint_jobs
 	count(plan_jobs) == 0
 	not template_covers_service
 	msg := "service-pipeline: немає job `plan` з кроком `bunx n-rules ci plan --path <svc> --azure` (azure-pipelines.mdc: сервіс-канон)"
@@ -134,7 +150,7 @@ deny contains msg if {
 	some r in plan_runs
 	m := regex.find_all_string_submatch_n(`n-rules ci plan\s+--path\s+(\S+)`, r, 1)
 	count(m) > 0
-	not m[0][1] in service_paths
+	not path_covers_service(m[0][1])
 	msg := sprintf("service-pipeline: `ci plan --path %s` ∉ trigger.paths.include — план рахується не для того каталогу (azure-pipelines.mdc)", [m[0][1]])
 }
 
@@ -166,7 +182,7 @@ deny contains msg if {
 deny contains msg if {
 	is_service_pipeline
 	some cmd in lint_cmds
-	not cmd.path in service_paths
+	not path_covers_service(cmd.path)
 	msg := sprintf("%s: `lint %s --path %s` ∉ trigger.paths.include — лінтиться інший каталог (azure-pipelines.mdc)", [cmd.job, cmd.domain, cmd.path])
 }
 
@@ -241,7 +257,14 @@ depends_of(job) := [n] if {
 
 depends_of(job) := object.get(job, "dependsOn", []) if is_array(object.get(job, "dependsOn", []))
 
-# Команда кроку: `script:` або `bash:`.
+# Каталог `--path` покривається trigger.paths.include: точний збіг або glob із
+# суфіксом (`run/nexus/**` покриває `run/nexus`).
+path_covers_service(p) if {
+	some sp in service_paths
+	startswith(sp, p)
+}
+
+# Команда кроку: `script:`, `bash:` або task-форма (`task: Bash@3` → `inputs.script`).
 step_cmd(step) := s if {
 	s := object.get(step, "script", "")
 	s != ""
@@ -253,9 +276,17 @@ step_cmd(step) := s if {
 	s != ""
 }
 
+step_cmd(step) := s if {
+	object.get(step, "script", "") == ""
+	object.get(step, "bash", "") == ""
+	s := object.get(object.get(step, "inputs", {}), "script", "")
+	s != ""
+}
+
 step_cmd(step) := "" if {
 	object.get(step, "script", "") == ""
 	object.get(step, "bash", "") == ""
+	object.get(object.get(step, "inputs", {}), "script", "") == ""
 }
 
 job_cmds(job) := [c |

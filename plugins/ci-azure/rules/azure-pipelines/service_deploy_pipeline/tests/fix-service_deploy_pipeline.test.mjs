@@ -158,6 +158,57 @@ describe('migratePipelineFile — efes-подібний легасі pipeline', 
     })
   })
 
+  test('task-форма (Bash@3 inputs.script): легасі lint мігрується, мігрований YAML проходить rego', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'run', 'nexus'), { recursive: true })
+      await writeFile(join(dir, 'run', 'nexus', 'index.js'), 'export const a = 1\n', 'utf8')
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['js'] })
+      await mkdir(join(dir, '.azurepipelines'), { recursive: true })
+      const abs = join(dir, '.azurepipelines', 'run-nexus.yml')
+      const src = [
+        'trigger:',
+        '  paths:',
+        '    include:',
+        '      - run/nexus/**',
+        'jobs:',
+        '  - job: lint',
+        '    steps:',
+        '      - checkout: self',
+        '      - task: Bash@3',
+        '        displayName: Install root dependencies and lint module',
+        '        inputs:',
+        '          targetType: inline',
+        '          script: |',
+        '            set -euo pipefail',
+        '            bun install --frozen-lockfile',
+        '            bunx n-rules lint --path run/nexus --no-fix',
+        '  - job: build_and_push',
+        '    dependsOn:',
+        '      - lint',
+        '    steps:',
+        '      - script: echo build',
+        ''
+      ].join('\n')
+      await writeFile(abs, src, 'utf8')
+
+      expect(await migratePipelineFile(abs, dir)).toBe(true)
+      const js = parse(await readFile(abs, 'utf8'))
+      const jobs = Object.fromEntries(js.jobs.map(j => [j.job, j]))
+      expect(jobs.plan).toBeDefined()
+      expect(jobs.lint).toBeUndefined()
+      expect(jobs.lint_js).toBeDefined()
+      expect(jobs.build_and_push.dependsOn).toEqual(['plan', 'lint_js'])
+
+      const denies = await runConftestBatch({
+        policyDirRel: 'azure-pipelines/service_deploy_pipeline',
+        policyDirAbs: CONCERN_DIR,
+        namespace: 'azure_pipelines.service_deploy_pipeline',
+        files: [abs]
+      })
+      expect(denies).toEqual([])
+    })
+  })
+
   test('template-розкладка — не чіпається', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, '.azurepipelines'), { recursive: true })

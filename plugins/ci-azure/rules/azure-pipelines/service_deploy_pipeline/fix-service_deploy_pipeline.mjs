@@ -33,6 +33,7 @@ import { collectPathScopedFiles } from '@7n/rules/scripts/lib/lint-surface/path-
 import { domainKey } from '@7n/rules/scripts/lib/lint-surface/ci-plan.mjs'
 
 const WS_RE = /\s+/u
+const GLOB_SUFFIX_RE = /\/\*+$/u
 
 /** Канонічні prep-кроки, якщо в pipeline немає власного зразка. */
 const CANONICAL_PREP = [
@@ -45,7 +46,8 @@ const CANONICAL_PREP = [
 ]
 
 /**
- * Текст команди кроку (`script:` або `bash:`), '' якщо крок не командний.
+ * Текст команди кроку (`script:`, `bash:` або task-форма `inputs.script`),
+ * '' якщо крок не командний.
  * @param {unknown} step крок джоби (plain JS)
  * @returns {string} команда або ''
  */
@@ -54,7 +56,27 @@ function stepCmd(step) {
   const s = /** @type {Record<string, unknown>} */ (step)
   if (typeof s.script === 'string') return s.script
   if (typeof s.bash === 'string') return s.bash
+  const inputs = s.inputs
+  if (
+    inputs &&
+    typeof inputs === 'object' &&
+    typeof (/** @type {Record<string, unknown>} */ (inputs).script) === 'string'
+  ) {
+    return /** @type {string} */ (/** @type {Record<string, unknown>} */ (inputs).script)
+  }
   return ''
+}
+
+/**
+ * Шлях-суфікс до тексту команди всередині кроку (для `setIn`): `['script']`,
+ * `['bash']` або `['inputs', 'script']` (task-форма).
+ * @param {Record<string, unknown>} step крок джоби (plain JS)
+ * @returns {string[]} суфікс шляху
+ */
+function stepCmdPath(step) {
+  if (typeof step.script === 'string') return ['script']
+  if (typeof step.bash === 'string') return ['bash']
+  return ['inputs', 'script']
 }
 
 /**
@@ -272,8 +294,7 @@ function patchDomainLintJob(doc, base, j, found) {
   }
   const cmd = stepCmd(steps[found.stepIndex])
   if (!cmd.includes('--no-fix')) {
-    const key = typeof steps[found.stepIndex].script === 'string' ? 'script' : 'bash'
-    doc.setIn([...base, 'steps', found.stepIndex, key], `${cmd.trimEnd()} --no-fix`)
+    doc.setIn([...base, 'steps', found.stepIndex, ...stepCmdPath(steps[found.stepIndex])], `${cmd.trimEnd()} --no-fix`)
     changed = true
   }
   const checkoutIdx = steps.findIndex(s => s && typeof s === 'object' && 'checkout' in s)
@@ -385,11 +406,16 @@ function analyzePipeline(doc) {
       .map(x => ({ seq: x.seq, job: x.job, path: x.found.path }))
   )
 
-  // Сервісний каталог: із plan-джоби → з легасі lint-джоби → перший paths.include.
+  // Сервісний каталог: із plan-джоби → з легасі lint-джоби → перший paths.include
+  // (glob-суфікс /**, /* зрізається: `run/nexus/**` → `run/nexus`).
   const planPath = (Array.isArray(planJob?.steps) ? planJob.steps : [])
     .map(s => parseNRulesCmd(stepCmd(s), 'n-rules ci plan')?.path)
     .find(Boolean)
-  const servicePath = planPath ?? legacy[0]?.path ?? servicePaths.find(p => typeof p === 'string')
+  const firstTriggerPath = servicePaths
+    .filter(p => typeof p === 'string')
+    .map(p => p.replace(GLOB_SUFFIX_RE, ''))
+    .find(p => p !== '' && !p.includes('*'))
+  const servicePath = planPath ?? legacy[0]?.path ?? firstTriggerPath
   if (typeof servicePath !== 'string') return null
 
   return { seqs, allJobs, planJob, legacy, servicePath }
