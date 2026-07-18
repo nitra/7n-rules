@@ -3201,7 +3201,7 @@ async function validateHasuraHttpRouteCanon(root, yamlFiles, fail) {
     }
   }
   if (pairedFiles.size === 0) return
-  const violations = runConftestBatch({
+  const violations = await runConftestBatch({
     policyDirRel: 'k8s/hasura_httproute',
     namespace: 'k8s.hasura_httproute',
     files: [...pairedFiles]
@@ -3626,7 +3626,7 @@ async function validateHasuraConfigMapRemoteSchemaPermissions(root, yamlFilesAbs
     }
   }
   if (paired.length === 0) return
-  const violations = runConftestBatch({
+  const violations = await runConftestBatch({
     policyDirRel: 'k8s/hasura_configmap',
     namespace: 'k8s.hasura_configmap',
     files: paired
@@ -6604,9 +6604,9 @@ function k8sRegoFixHint(ns, file, message) {
  * @param {string} root корінь репозиторію.
  * @param {string[]} yamlFiles абсолютні шляхи *.yaml під `…/k8s/`.
  * @param {(msg: string, hint?: unknown) => void} fail callback реєстрації порушення.
- * @returns {void}
+ * @returns {Promise<void>} результат
  */
-function runAllK8sRego(root, yamlFiles, fail) {
+async function runAllK8sRego(root, yamlFiles, fail) {
   const relOf = abs => relative(root, abs).replaceAll('\\', '/') || abs
 
   const allYaml = yamlFiles
@@ -6645,7 +6645,7 @@ function runAllK8sRego(root, yamlFiles, fail) {
 
   for (const t of targets) {
     if (t.files.length === 0) continue
-    const violations = runConftestBatch({
+    const violations = await runConftestBatch({
       policyDirRel: t.dir,
       namespace: t.ns,
       files: t.files,
@@ -6707,7 +6707,7 @@ export async function lint(ctx) {
   // Plan B: пер-документні структурні правила — у rego-полісі `npm/policy/k8s/*`,
   // викликаємо одним батчем на namespace через runConftestBatch. JS нижче робить
   // лише cross-file orchestration, modeline та FS-existence перевірки.
-  runAllK8sRego(root, yamlFiles, fail)
+  await runAllK8sRego(root, yamlFiles, fail)
   pass(`Rego-полісі (npm/policy/k8s/*) виконано на ${yamlFiles.length} файл(ах)`)
 
   for (const abs of yamlFiles) {

@@ -21,6 +21,9 @@
  *   `undefined` означає whole-repo
  * @property {boolean} [verbose] `--verbose` CLI-прапорець; concern-и із зовнішніми
  *   інструментами (напр. `ga/workflows`) звіряються з ним, щоб не засмічувати прогрес-бар `lint --full`
+ * @property {AbortSignal} [signal] сигнал скасування — лише у parallel lane `detectAll()`
+ *   (`N_RULES_LINT_CONCURRENCY>1`, ADR 260716-1354); async-детектори (`spawnAsync`-based)
+ *   прокидають його далі, щоб перерватись при infrastructure-помилці іншого concern-а
  */
 
 /**

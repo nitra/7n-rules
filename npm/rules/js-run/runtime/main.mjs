@@ -45,10 +45,10 @@ function backendPackageHasSrcDir(absPackageRoot) {
  * @param {string} label префікс `[pkg] `
  * @param {(msg: string) => void} fail callback для повідомлень про порушення
  * @param {(msg: string) => void} passFn callback для повідомлень про успішну перевірку
- * @returns {void}
+ * @returns {Promise<void>} результат
  * @param {string} cwd корінь репозиторію
  */
-function checkBackendJsconfigWhenSrcPresent(rootDir, absPackageRoot, label, fail, passFn, cwd) {
+async function checkBackendJsconfigWhenSrcPresent(rootDir, absPackageRoot, label, fail, passFn, cwd) {
   if (!backendPackageHasSrcDir(absPackageRoot)) return
 
   const jcPath = join(cwd, rootDir, 'jsconfig.json')
@@ -59,7 +59,7 @@ function checkBackendJsconfigWhenSrcPresent(rootDir, absPackageRoot, label, fail
     )
     return
   }
-  const violations = runConftestBatch({
+  const violations = await runConftestBatch({
     policyDirRel: 'js-run/jsconfig',
     namespace: 'js_run.jsconfig',
     files: [jcPath]

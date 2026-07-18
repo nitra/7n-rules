@@ -10,6 +10,7 @@
  * @typedef {{ ruleId: string, concern: ConcernMeta }} LintEntry
  */
 import { dirname, join } from 'node:path'
+import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import picomatch from 'picomatch'
@@ -18,9 +19,11 @@ import { listConcerns } from '../concern-meta.mjs'
 import { collectChangedFilesSince, resolveChangedBase } from '../changed-files.mjs'
 import { readNRulesConfigLite, isRuleEnabled } from '../read-n-rules-config-lite.mjs'
 import { getActiveCapabilities, resolvePlugins } from '../resolve-plugins.mjs'
+import { isSerialLane } from './blocking-inventory.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
 import { renderViolations, renderDiagnostics } from './render.mjs'
 import { createProgressReporter } from './progress.mjs'
+import { runPlanConcurrently } from './scheduler.mjs'
 
 // Цей файл: npm/scripts/lib/lint-surface/run-detectors.mjs → PACKAGE_ROOT = npm (4 dirname угору).
 export const DEFAULT_RULES_DIR = join(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))), 'rules')
@@ -296,6 +299,129 @@ async function buildPlan({ byRule, full, rules, explicitFiles, cwd }) {
 }
 
 /**
+ * Виконує один item плану: будує ctx, прогонить detector, оновлює progress. Спільний
+ * крок для послідовного і конкурентного (`N_RULES_LINT_CONCURRENCY>1`) шляхів `detectAll` —
+ * єдина точка, де щось може кинути `DetectorError` (чи іншу помилку), тож caller (sequential
+ * for-loop чи `runPlanConcurrently`) вирішує, як саме зупинити прогін.
+ * @param {PlanItem} planItem один item плану (`{ entry, files }`).
+ * @param {object} runOpts опції прогону.
+ * @param {string} runOpts.cwd робоча директорія прогону.
+ * @param {boolean} runOpts.verbose докладний лог прогону.
+ * @param {import('./progress.mjs').ProgressReporter|null} runOpts.progress reporter прогресу (може бути відсутній).
+ * @param {(s: string) => void} runOpts.log функція логування.
+ * @param {AbortSignal} [runOpts.signal] сигнал скасування — лише в конкурентному шляху.
+ * @returns {Promise<{ entry: LintEntry, violations: LintViolation[] }>} entry і зібрані violations.
+ */
+async function runPlanItem({ entry, files }, { cwd, verbose, progress, log, signal }) {
+  /** @type {LintContext} */
+  const ctx = { cwd, ruleId: entry.ruleId, concernId: entry.concern.name, files, verbose, signal }
+  const key = `${entry.ruleId}/${entry.concern.name}`
+  progress?.concernStart(key)
+  if (verbose) {
+    const countStr = files === undefined ? 'весь репо' : `${files.length} файл(ів)`
+    log(`  🔍 ${key}  [${entry.concern.lint.scope}]  → ${countStr}\n`)
+  }
+  const result = await runConcernDetector(entry.concern, ctx)
+  progress?.detectSnapshot(key, result.violations.length)
+  progress?.concernDone(key)
+  if (verbose && result.diagnostics && result.diagnostics.length > 0) {
+    log(renderDiagnostics(result.diagnostics))
+  }
+  return { entry, violations: result.violations }
+}
+
+/**
+ * @typedef {{ violations: LintViolation[], ran: LintEntry[], infraMessage: string|null }} PlanRunResult
+ */
+
+/**
+ * Послідовний прохід плану — незмінна поведінка до-ADR 260716-1354 (`N_RULES_LINT_CONCURRENCY<=1`,
+ * дефолт). Перший `DetectorError` негайно зупиняє прогін (`infraMessage`); будь-яка інша помилка
+ * прокидається далі (несподівана помилка самого раннера, не detector-контракту).
+ * @param {PlanItem[]} plan впорядкований план прогону.
+ * @param {{ cwd: string, verbose: boolean, progress: import('./progress.mjs').ProgressReporter|null, log: (s: string) => void }} runOpts опції прогону.
+ * @returns {Promise<PlanRunResult>} зібрані violations, виконані entries, повідомлення інфра-помилки.
+ */
+async function detectPlanSequentially(plan, runOpts) {
+  /** @type {LintViolation[]} */
+  const violations = []
+  /** @type {LintEntry[]} */
+  const ran = []
+  for (const item of plan) {
+    let outcome
+    try {
+      outcome = await runPlanItem(item, runOpts)
+    } catch (error) {
+      if (error instanceof DetectorError) return { violations, ran, infraMessage: error.message }
+      throw error
+    }
+    ran.push(outcome.entry)
+    violations.push(...outcome.violations)
+  }
+  return { violations, ran, infraMessage: null }
+}
+
+/**
+ * Bounded two-lane прохід плану (`N_RULES_LINT_CONCURRENCY>1`, experimental — ADR 260716-1354).
+ * Parallel lane — concern-и, доведені non-blocking (`blocking-inventory.mjs`), bounded pool до
+ * `concurrency`; serial lane — решта, строго послідовно. Перший `DetectorError` зупиняє нові
+ * старти в обох лейнах (`scheduler.mjs`); уже завершені concern-и лишаються в результаті.
+ * @param {PlanItem[]} plan впорядкований план прогону.
+ * @param {{ cwd: string, verbose: boolean, progress: import('./progress.mjs').ProgressReporter|null, log: (s: string) => void, concurrency: number }} runOpts опції прогону.
+ * @returns {Promise<PlanRunResult>} зібрані violations, виконані entries, повідомлення інфра-помилки.
+ */
+async function detectPlanConcurrently(plan, { cwd, verbose, progress, log, concurrency }) {
+  const { results, infraError } = await runPlanConcurrently(plan, {
+    concurrency,
+    isSerial: item => isSerialLane(item.entry.ruleId, item.entry.concern.name),
+    runItem: (item, signal) => runPlanItem(item, { cwd, verbose, progress, log, signal })
+  })
+
+  if (infraError !== null && !(infraError instanceof DetectorError)) throw infraError
+
+  /** @type {LintViolation[]} */
+  const violations = []
+  /** @type {LintEntry[]} */
+  const ran = []
+  for (const { result } of results) {
+    if (!result) continue
+    ran.push(result.entry)
+    violations.push(...result.violations)
+  }
+  return { violations, ran, infraMessage: infraError?.message ?? null }
+}
+
+/**
+ * `data.line` детектора (не top-level поле `LintViolation` — лише деякі detector-и
+ * кладуть номер рядка в `data`, напр. `js/eslint`). Відсутність → 0 (перед усіма
+ * реальними номерами рядків), щоб сортування лишалось стабільним і передбачуваним.
+ * @param {LintViolation} v порушення.
+ * @returns {number} номер рядка або 0.
+ */
+function violationLine(v) {
+  const line = v.data && typeof v.data === 'object' ? v.data.line : undefined
+  return typeof line === 'number' ? line : 0
+}
+
+/**
+ * Стабільне сортування за `(ruleId, concernId, file, line, reason)` — незалежно від порядку
+ * завершення concern-ів (важливо для конкурентного шляху; послідовний шлях сьогодні лише
+ * конкатенував violations у порядку виконання, без сортування за file/line/reason).
+ * @param {LintViolation[]} violations вхідний масив (не мутується).
+ * @returns {LintViolation[]} новий, стабільно сортований масив.
+ */
+function sortViolations(violations) {
+  return violations.toSorted(
+    (a, b) =>
+      a.ruleId.localeCompare(b.ruleId) ||
+      a.concernId.localeCompare(b.concernId) ||
+      (a.file ?? '').localeCompare(b.file ?? '') ||
+      violationLine(a) - violationLine(b) ||
+      a.reason.localeCompare(b.reason)
+  )
+}
+
+/**
  * Запускає detect-only прохід. Повертає всі violations і похідний exitCode.
  * @param {object} opts опції прогону.
  * @param {string} [opts.rulesDir] базовий корінь із правилами (дефолт — вбудований).
@@ -339,41 +465,26 @@ export async function detectAll(opts) {
       : null
   const log = progress ? progress.log : baseLog
 
-  /** @type {LintViolation[]} */
-  const allViolations = []
-  /** @type {LintEntry[]} */
-  const ran = []
+  // Default 1 — production-паралелізм ще не пройшов benchmark-gates ADR 260716-1354;
+  // >1 лишається experimental override.
+  const concurrency = Math.max(1, Number(env['N_RULES_LINT_CONCURRENCY']) || 1)
+  const runOpts = { cwd, verbose, progress, log }
 
+  let planResult
   try {
-    for (const { entry, files } of plan) {
-      /** @type {LintContext} */
-      const ctx = { cwd, ruleId: entry.ruleId, concernId: entry.concern.name, files, verbose }
-      const key = `${entry.ruleId}/${entry.concern.name}`
-      progress?.concernStart(key)
-      if (verbose) {
-        const countStr = files === undefined ? 'весь репо' : `${files.length} файл(ів)`
-        log(`  🔍 ${key}  [${entry.concern.lint.scope}]  → ${countStr}\n`)
-      }
-      let result
-      try {
-        result = await runConcernDetector(entry.concern, ctx)
-      } catch (error) {
-        if (error instanceof DetectorError) {
-          log(`💥 ${error.message}\n`)
-          return { violations: allViolations, exitCode: 2, ran }
-        }
-        throw error
-      }
-      ran.push(entry)
-      allViolations.push(...result.violations)
-      progress?.detectSnapshot(key, result.violations.length)
-      progress?.concernDone(key)
-      if (verbose && result.diagnostics && result.diagnostics.length > 0) {
-        log(renderDiagnostics(result.diagnostics))
-      }
-    }
+    planResult = await (concurrency > 1
+      ? detectPlanConcurrently(plan, { ...runOpts, concurrency })
+      : detectPlanSequentially(plan, runOpts))
   } finally {
     progress?.stop()
+  }
+
+  const { ran, infraMessage } = planResult
+  const allViolations = sortViolations(planResult.violations)
+
+  if (infraMessage !== null) {
+    log(`💥 ${infraMessage}\n`)
+    return { violations: allViolations, exitCode: 2, ran }
   }
 
   if (allViolations.length > 0) baseLog(renderViolations(allViolations))

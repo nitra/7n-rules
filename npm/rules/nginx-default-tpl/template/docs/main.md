@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/nginx-default-tpl/template/main.mjs
 docgen:
-  crc: e45b3d5f
+  crc: 1197df15
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99
