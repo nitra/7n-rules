@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.7.6] - 2026-07-18
+
+### Fixed
+
+- `runOneShot`/`runAgentSkill` з нерозв'язаним `modelSpec` (`''`/`null` — consumer лишає вибір pi) більше не потрапляють у `chain.note()` як `model: ''`, через що `chain.mjs` мовчки класифікував їх cloud (`isLocalModel('') === false`) навіть коли pi фактично резолвив локальну модель. Тепер обидва раннери підставляють фактично резолвлену pi-модель (`session.model`, нове `formatModelSpec`), а `chain.note()` для випадків, коли резолвлена модель усе ж недоступна, веде окремий бакет `unknownCalls` замість неявного cloud.
+
 ## [2.7.5] - 2026-07-17
 
 ### Fixed
