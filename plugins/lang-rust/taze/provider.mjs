@@ -2,7 +2,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { copyFile, rm } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import { collectCargoDiff } from './cargo-diff.mjs'
 
@@ -34,7 +34,7 @@ export function buildCargoDependencyPrompt({ manifest, pkg, from, to }) {
 }
 
 /**
- * Знаходить Cargo.toml поза node_modules/.worktrees/target (крок 0.2 SKILL.md).
+ * Знаходить Cargo.toml поза node_modules/.worktrees/.claude/worktrees/target (крок 0.2 SKILL.md).
  * @param {string} cwd корінь репо
  * @param {{ spawnFn?: (cmd: string, args: string[], opts?: object) => { status: number|null, stdout: string, stderr: string } }} deps інжект зі spawnSync-сумісним викликом
  * @returns {string[]} відносні шляхи знайдених Cargo.toml
@@ -53,6 +53,9 @@ export function findCargoManifests(cwd, deps = {}) {
       '-not',
       '-path',
       '*/.worktrees/*',
+      '-not',
+      '-path',
+      '*/.claude/worktrees/*',
       '-not',
       '-path',
       '*/target/*'
@@ -77,10 +80,9 @@ function hasCargoEdit(spawnFn) {
 }
 
 /**
- * Бекапить кожен Cargo.toml + спільний кореневий Cargo.lock (крок 1 SKILL.md,
- * Rust-гілка). v1: один спільний workspace/Cargo.lock у корені `cwd` —
- * поточна реальна топологія репо; кілька незалежних Cargo-workspace поки не
- * підтримується.
+ * Бекапить кожен Cargo.toml + Cargo.lock поруч із ним (незалежні крейти,
+ * як Tauri `src-tauri`, мають ВЛАСНІ lock-файли) + спільний кореневий
+ * Cargo.lock, якщо є (workspace-топологія).
  * @param {string} cwd корінь репо
  * @param {string[]} manifestPaths відносні шляхи Cargo.toml (з `findCargoManifests`)
  * @param {{ copyFile?: (src: string, dest: string) => Promise<void> }} [deps] інжект
@@ -88,12 +90,27 @@ function hasCargoEdit(spawnFn) {
  */
 export async function backupCargoManifests(cwd, manifestPaths, deps = {}) {
   const copy = deps.copyFile ?? copyFile
+  for (const target of backupTargets(cwd, manifestPaths)) {
+    if (existsSync(target)) await copy(target, `${target}${BACKUP_SUFFIX}`)
+  }
+}
+
+/**
+ * Абсолютні шляхи файлів під бекап: кожен Cargo.toml, сусідній із ним
+ * Cargo.lock і кореневий Cargo.lock (без дублів).
+ * @param {string} cwd корінь репо
+ * @param {string[]} manifestPaths відносні шляхи Cargo.toml
+ * @returns {string[]} унікальні абсолютні шляхи
+ */
+function backupTargets(cwd, manifestPaths) {
+  const targets = new Set()
   for (const manifest of manifestPaths) {
     const manifestPath = join(cwd, manifest)
-    if (existsSync(manifestPath)) await copy(manifestPath, `${manifestPath}${BACKUP_SUFFIX}`)
+    targets.add(manifestPath)
+    targets.add(join(dirname(manifestPath), 'Cargo.lock'))
   }
-  const lockPath = join(cwd, 'Cargo.lock')
-  if (existsSync(lockPath)) await copy(lockPath, `${lockPath}${BACKUP_SUFFIX}`)
+  targets.add(join(cwd, 'Cargo.lock'))
+  return [...targets]
 }
 
 /**
@@ -106,10 +123,9 @@ export async function backupCargoManifests(cwd, manifestPaths, deps = {}) {
  */
 export async function cleanupCargoBackups(cwd, manifestPaths, deps = {}) {
   const remove = deps.rm ?? rm
-  for (const manifest of manifestPaths) {
-    await remove(join(cwd, `${manifest}${BACKUP_SUFFIX}`), { force: true })
+  for (const target of backupTargets(cwd, manifestPaths)) {
+    await remove(`${target}${BACKUP_SUFFIX}`, { force: true })
   }
-  await remove(join(cwd, `Cargo.lock${BACKUP_SUFFIX}`), { force: true })
 }
 
 /**
@@ -149,10 +165,15 @@ const rustProvider = {
         },
   backup: backupCargoManifests,
   bump: (cwd, manifests, { spawnFn, log }) => {
-    log('⬆️  cargo upgrade --incompatible allow...')
-    runCargo(['upgrade', '--incompatible', 'allow'], cwd, spawnFn)
-    log('🔄 cargo update...')
-    runCargo(['update'], cwd, spawnFn)
+    // Per-manifest --manifest-path: репо може не мати КОРЕНЕВОГО Cargo.toml
+    // (Tauri-крейти в підтеках) — голий `cargo upgrade` з кореня падає
+    // «could not find Cargo.toml». Для workspace-членів виклики ідемпотентні.
+    for (const manifest of manifests) {
+      log(`⬆️  cargo upgrade --incompatible allow (${manifest})...`)
+      runCargo(['upgrade', '--incompatible', 'allow', '--manifest-path', manifest], cwd, spawnFn)
+      log(`🔄 cargo update (${manifest})...`)
+      runCargo(['update', '--manifest-path', manifest], cwd, spawnFn)
+    }
     return Promise.resolve()
   },
   diff: (cwd, manifests) => collectCargoDiff(cwd, manifests),
