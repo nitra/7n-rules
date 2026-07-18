@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.2] - 2026-07-18
+
+### Fixed
+
+- Репо без кореневого Cargo.toml (вкладені крейти, як Tauri `src-tauri`): bump іде per-manifest через `--manifest-path` замість голого `cargo upgrade` з кореня (падав «could not find Cargo.toml»); бекап покриває і Cargo.lock поруч із кожним маніфестом (незалежні крейти мають власні lock-файли); `findCargoManifests` виключає `.claude/worktrees/`. Знайдено live-прогоном на реальному Tauri-репо
+
 ## [0.2.1] - 2026-07-18
 
 ### Fixed

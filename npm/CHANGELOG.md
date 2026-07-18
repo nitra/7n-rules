@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.20.0] - 2026-07-18
+
+### Changed
+
+- Автодетект `@7n/rules-lang-rust` покриває монорепо: сигнал Cargo.toml шукається не лише в корені, а й у підтеках до 3 рівнів (обмежений BFS повз приховані/node_modules/target — дешево для hot-path hook) — Tauri-кейс `app/src-tauri/Cargo.toml` вмикає плагін без ручного `.n-rules.json`. Python лишається кореневим (uv-провайдер v1 обробляє тільки кореневий pyproject.toml)
+
 ## [1.19.1] - 2026-07-18
 
 ### Changed
