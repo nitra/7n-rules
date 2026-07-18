@@ -7,7 +7,8 @@
     "@stryker-mutator/core",
     "@7n/rules-ci-github",
     "@7n/rules-ci-azure",
-    "@7n/rules-lang-python"
+    "@7n/rules-lang-python",
+    "@7n/rules-lang-rust"
   ],
   "ignoreBinaries": [
     "cspell",
@@ -128,6 +129,17 @@
       ]
     },
     "plugins/lang-python": {
+      "entry": [
+        "taze/provider.mjs",
+        "taze/**/*.test.mjs",
+        "stryker.config.mjs",
+        "vitest.config.mjs"
+      ],
+      "project": [
+        "**/*.{js,mjs}"
+      ]
+    },
+    "plugins/lang-rust": {
       "entry": [
         "taze/provider.mjs",
         "taze/**/*.test.mjs",
