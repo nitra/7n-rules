@@ -3,9 +3,8 @@ type: JS Module
 title: ci-plan.mjs
 resource: npm/scripts/lib/lint-surface/ci-plan.mjs
 docgen:
-  crc: a532483e
+  crc: ce7f2a96
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 90
   issues: internal-name:computeActiveDomains,judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.0] - 2026-07-18
+
+### Added
+
+- Автоміграція легасі сервіс-pipeline-ів до канону: T0-фікс service_deploy_pipeline переписує `.azurepipelines/**` (job plan, легасі `lint --path` → per-domain `lint_<key>` по файлах піддерева, перешивка dependsOn і Skipped-толерантні condition) через yaml Document API зі збереженням коментарів
+
 ## [1.3.0] - 2026-07-18
 
 ### Added

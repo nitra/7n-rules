@@ -31,11 +31,12 @@ const RESERVED_OUTPUT_KEYS = new Set(['any', 'has_tests', 'domains'])
 
 /**
  * Rule-id → ключ output-змінної: `-` → `_` (GA/Azure не люблять дефіси в
- * іменах змінних; `npm-module` → `npm_module`).
+ * іменах змінних; `npm-module` → `npm_module`). Експортовано для fix-хендлерів
+ * плагінів (автоміграція pipeline-ів має генерувати ті самі ключі).
  * @param {string} ruleId rule-id домену.
  * @returns {string} ключ output.
  */
-function domainKey(ruleId) {
+export function domainKey(ruleId) {
   return ruleId.replaceAll('-', '_')
 }
 
