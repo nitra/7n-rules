@@ -11,7 +11,7 @@ Rego-пакет: `k8s.hasura_configmap`
 | `HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS` | `"true"` |
 | `HASURA_GRAPHQL_ENABLE_RELAY` | `"false"` |
 | `HASURA_GRAPHQL_ENABLE_TELEMETRY` | `"false"` |
-| `HASURA_GRAPHQL_ENABLED_LOG_TYPES` | `"startup,http-log"` (точно) |
+| `HASURA_GRAPHQL_ENABLED_LOG_TYPES` | `"startup,http-log"` (точно; base/dev; overlay має патчем замінити на `"startup"` — `http-log` лише для base/dev) |
 | `HASURA_GRAPHQL_ENABLED_APIS` | `"metadata,graphql,pgdump"` (base/dev; overlay має патчем замінити на `"metadata,graphql"`) |
 | `HASURA_GRAPHQL_DISABLE_EVENTING` | ключ обов'язковий, значення довільне (рекомендовано `"true"`) |
 

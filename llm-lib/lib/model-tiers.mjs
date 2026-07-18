@@ -77,6 +77,19 @@ export function parseModelId(spec) {
   return { provider: spec.slice(0, i), id: spec.slice(i + 1) }
 }
 
+/**
+ * Форматує pi `Model`-об'єкт (`{provider, id}`) назад у `"provider/model-id"`.
+ * Інверсія {@link parseModelId} — застосовується до фактично резолвленої
+ * pi-моделі (`session.model`), коли consumer лишив `modelSpec` порожнім і pi
+ * сам вибрав дефолт (локальний чи хмарний).
+ * @param {{provider: string, id: string}|null|undefined} model pi Model-об'єкт
+ * @returns {string|null} `"provider/model-id"` або `null`, якщо модель відсутня
+ */
+export function formatModelSpec(model) {
+  if (!model || !model.provider || !model.id) return null
+  return `${model.provider}/${model.id}`
+}
+
 // ── Класифікація local vs cloud ──────────────────────────────────────────────
 
 /** Провайдери, що вважаються локальними. Override: `N_LLM_LOCAL_PROVIDERS` (кома-список). */

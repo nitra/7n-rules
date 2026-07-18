@@ -30,6 +30,7 @@ import {
   kustomizePatchModifiedPaths,
   enabledApisValueFromPatchText,
   hasuraEnabledApisOverrideValue,
+  hasuraEnabledLogTypesOverrideValue,
   kustomizationTreeHasHasuraDeployment,
   pdbManifestViolations,
   regenerateLegacyNetworkPolicyDocsInFile,
@@ -2754,5 +2755,45 @@ describe('hasuraEnabledApisOverrideValue', () => {
 
   test('без patches → null', () => {
     expect(hasuraEnabledApisOverrideValue({})).toBeNull()
+  })
+})
+
+describe('hasuraEnabledLogTypesOverrideValue', () => {
+  test('повертає значення ConfigMap-патча (JSON6902)', () => {
+    const k = kustWithPatch('- op: replace\n  path: /data/HASURA_GRAPHQL_ENABLED_LOG_TYPES\n  value: startup\n')
+    expect(hasuraEnabledLogTypesOverrideValue(k)).toBe('startup')
+  })
+
+  test('Strategic Merge з kind у тілі (без target)', () => {
+    const k = {
+      patches: [
+        {
+          patch:
+            'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: db-h\ndata:\n  HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup\n'
+        }
+      ]
+    }
+    expect(hasuraEnabledLogTypesOverrideValue(k)).toBe('startup')
+  })
+
+  test('патч на іншу ціль (Deployment) ігнорується → null', () => {
+    const k = {
+      patches: [
+        {
+          target: { kind: 'Deployment' },
+          patch: '- op: replace\n  path: /data/HASURA_GRAPHQL_ENABLED_LOG_TYPES\n  value: startup\n'
+        }
+      ]
+    }
+    expect(hasuraEnabledLogTypesOverrideValue(k)).toBeNull()
+  })
+
+  test('без patches → null', () => {
+    expect(hasuraEnabledLogTypesOverrideValue({})).toBeNull()
+  })
+
+  test('не плутає з ENABLED_APIS-патчем на тому ж ConfigMap', () => {
+    const k = kustWithPatch('- op: replace\n  path: /data/HASURA_GRAPHQL_ENABLED_APIS\n  value: metadata,graphql\n')
+    expect(hasuraEnabledLogTypesOverrideValue(k)).toBeNull()
   })
 })

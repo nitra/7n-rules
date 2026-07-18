@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0] - 2026-07-17
+
+### Changed
+
+- ga/workflow_common: дозволено режим release-серіалізації concurrency — статичний group + cancel-in-progress: false
+
 ## [1.2.2] - 2026-07-16
 
 ### Changed

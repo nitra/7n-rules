@@ -1,5 +1,65 @@
 # Changelog
 
+## [1.13.1] - 2026-07-18
+
+### Changed
+
+- doc-files: виключити Storybook *.stories.* файли з обов'язкової генерації docs/<stem>.md (той самий glob-список, що *.test.*/*.spec.*/*.d.ts)
+
+## [1.13.0] - 2026-07-17
+
+### Added
+
+- `skill pi/cursor/codex taze` — Python/uv-гілку (`pyproject.toml`) тепер теж покриває оркестратор: детермінований `collectUvDiff` (`npm/skills/taze/js/uv-diff.mjs`, парсинг PEP 508/PEP 440 через `smol-toml`, той самий caret-семантики принцип, що й для npm/Cargo) замість ручної класифікації. Bump — по кожній прямій залежності `uv remove` + `uv add --bounds lower` (`uv` не має єдиної команди для major-стрибка), і по одному ізольованому виклику раннера на кожен major-пакет. Якщо `uv` не встановлено — Python-гілка пропускається без блокування npm/Rust-гілок (pyproject.toml лишається в звіті)
+
+## [1.12.0] - 2026-07-17
+
+### Changed
+
+- Додано прапор `--path <dir>` для `n-rules lint`: звужує файловий набір per-file правил до заданої піддиректорії, лишаючи корінь прогону (root-guard, `.n-rules.json`) незмінним — на відміну від `--cwd`. Несумісний з позиційним rule/concern-фільтром; у парі з `--full` full-вісь ігнорується (без machine-wide локу).
+
+## [1.11.0] - 2026-07-17
+
+### Added
+
+- js/eslint: fix-worker.mjs з per-file циклом замість одного великого промпту на весь concern — усунення 100% timeout на драбині, виміряно на реальних lint-прогонах
+
+### Fixed
+
+- text/markdownlint: включати причину провалу markdownlint-cli2 у violation-повідомлення; js/knip: fixability=structural (LLM-ладдер завжди приречений на timeout)
+
+## [1.10.0] - 2026-07-17
+
+### Added
+
+- `skill pi/cursor/codex taze` — Rust-гілку (`Cargo.toml`) тепер теж покриває оркестратор: детермінований `collectCargoDiff` (`npm/skills/taze/js/cargo-diff.mjs`, парсинг через `smol-toml`, той самий caret-семантики принцип, що й для npm) замість ручної класифікації, і по одному ізольованому виклику раннера на кожен major-крейт. Якщо `cargo-edit` не встановлено — Rust-гілка пропускається без блокування npm-гілки (перелік Cargo.toml лишається в звіті)
+
+## [1.9.0] - 2026-07-17
+
+### Added
+
+- `skill pi/cursor/codex taze` тепер виконується через оркестратор (`npm/skills/taze/js/orchestrate.mjs`) замість одного величезного непрозорого ходу на весь монорепо: детерміновані кроки (бекап/масовий bump/diff/прибирання) без LLM, і по одному ізольованому, обмеженому виклику раннера на кожен major-пакет — падіння/timeout одного пакета не втрачає прогрес по інших
+
+## [1.8.4] - 2026-07-17
+
+### Fixed
+
+- text/run-v8r: включати причину провалу v8r (stdout+stderr, без noise) у violation-повідомлення замість голого коду виходу
+- k8s/manifests: форматування tests/check-schema.test.mjs (oxfmt)
+
+## [1.8.3] - 2026-07-17
+
+### Changed
+
+- release: @7n/rules@1.8.2
+
+## [1.8.2] - 2026-07-17
+
+### Fixed
+
+- bun/licensee: розрізняти crash інструмента (stderr) від реального ліцензійного порушення (stdout, --errors-only)
+- k8s/manifests: знизити когнітивну складність ensureHasuraConfigMapRequiredEnv нижче порогу sonarjs
+
 ## [1.8.1] - 2026-07-17
 
 ### Changed

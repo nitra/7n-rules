@@ -18,6 +18,10 @@ import rego.v1
 
 expected_concurrency_group := concat("", ["$", "{{ github.ref }}-$", "{{ github.workflow }}"])
 
+# Маркер GitHub-виразу `${{` — через concat (та сама причина, що й у
+# expected_concurrency_group): без сирого літерала в rego-джерелі.
+gh_expr_marker := concat("", ["$", "{{"])
+
 # Локальні composite setup-bun-deps (ga.mdc) — два варіанти шляху:
 # `.github/actions/...` (cursor-репо) і `npm/github-actions/...` (npm-пакет dev-локально).
 local_setup_bun_markers := {
@@ -43,6 +47,16 @@ forbidden_run_command_patterns := {"depcheck": `(?:^|[\s;&|])(?:npx|bunx|npm exe
 concurrency_missing_template := concat(" ", [
 	"відсутня секція concurrency —",
 	"додай concurrency.group: %s і cancel-in-progress: true (ga.mdc)",
+])
+
+concurrency_group_template := concat(" ", [
+	"concurrency.group має бути %s,",
+	"або статичний рядок-lock для release-серіалізації (ga.mdc)",
+])
+
+concurrency_release_cancel_template := concat(" ", [
+	"статичний concurrency.group — release-серіалізація: скасування на півдорозі",
+	"лишає репо в неконсистентному стані, тому cancel-in-progress: false (ga.mdc)",
 ])
 
 shell_continuation_template := concat(" ", [
@@ -147,6 +161,14 @@ deny contains msg if {
 # Дублює окремі per-workflow перевірки для clean-ga-workflows / clean-merged-branch /
 # lint-ga / git-ai, але вкриває й решту workflow-файлів (apply-k8s, lint-js, …),
 # для яких поки немає виділеної polysi.
+#
+# Допустимі рівно два когерентні режими:
+#   1. канонічний CI: per-ref group + cancel-in-progress: true;
+#   2. release-серіалізація: статичний group (глобальний lock, без `${{ }}`-виразів)
+#      + cancel-in-progress: false — для workflow, що піднімають версію/тег і не
+#      можуть бути скасовані на півдорозі (per-ref lock не захищає від двох
+#      одночасних push-подій, які обидві піднімають версію).
+# Змішані комбінації (статичний group + true, per-ref + false) — заборонені.
 
 deny contains msg if {
 	# `object.get(…, default)` повертає `false` коли ключа немає — інакше `not is_object(…)`
@@ -157,14 +179,23 @@ deny contains msg if {
 
 deny contains msg if {
 	is_object(object.get(input, "concurrency", false))
-	input.concurrency.group != expected_concurrency_group
-	msg := sprintf("concurrency.group має бути %s (ga.mdc)", [expected_concurrency_group])
+	group := object.get(input.concurrency, "group", "")
+	group != expected_concurrency_group
+	not is_release_lock_group(group)
+	msg := sprintf(concurrency_group_template, [expected_concurrency_group])
 }
 
 deny contains msg if {
 	is_object(object.get(input, "concurrency", false))
-	input.concurrency["cancel-in-progress"] != true
+	input.concurrency.group == expected_concurrency_group
+	object.get(input.concurrency, "cancel-in-progress", false) != true
 	msg := "concurrency.cancel-in-progress має бути true (ga.mdc)"
+}
+
+deny contains concurrency_release_cancel_template if {
+	is_object(object.get(input, "concurrency", false))
+	is_release_lock_group(object.get(input.concurrency, "group", ""))
+	object.get(input.concurrency, "cancel-in-progress", false) != false
 }
 
 # ── deny: мінімальні версії marketplace actions у `uses:` ─────────────────
@@ -190,6 +221,14 @@ deny contains msg if {
 }
 
 # ── helpers ────────────────────────────────────────────────────────────────
+
+# Статичний непорожній group без `${{ }}`-виразів — глобальний lock
+# (режим release-серіалізації concurrency).
+is_release_lock_group(group) if {
+	is_string(group)
+	group != ""
+	not contains(group, gh_expr_marker)
+}
 
 # Об'єднаний рядок `uses` + `run` для одного кроку — для substring-пошуку
 # заборонених патернів. `run` може бути рядком або масивом рядків (YAML).
