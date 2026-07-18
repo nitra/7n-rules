@@ -40,6 +40,10 @@
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
       },
+      "optionalDependencies": {
+        "@7n/llm-lib-darwin-arm64": "2.7.6",
+        "@7n/llm-lib-linux-x64": "2.7.6",
+      },
       "peerDependencies": {
         "@earendil-works/pi-ai": "~0.80.2",
         "@earendil-works/pi-coding-agent": "~0.80.2",
