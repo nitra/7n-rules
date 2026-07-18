@@ -8,6 +8,7 @@ resource: npm/scripts/lib/
 | --------------------------------------------------------------------------- | --------- |
 | [acp-runner.mjs](acp-runner.md)                                             | JS Module |
 | [assert-project-root.mjs](assert-project-root.md)                           | JS Module |
+| [auto-worktree.mjs](auto-worktree.md)                                       | JS Module |
 | [blue-oak.mjs](blue-oak.md)                                                 | JS Module |
 | [changed-files.mjs](changed-files.md)                                       | JS Module |
 | [check-reporter.mjs](check-reporter.md)                                     | JS Module |

@@ -1,15 +1,22 @@
 /** @see ./docs/orchestrate.md */
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { copyFile, mkdir, rm } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { copyFile, rm } from 'node:fs/promises'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import {
+  bringChangesBackToOriginal,
+  ensureRunningInWorktree,
+  removeAutoCreatedWorktree
+} from '../../../scripts/lib/auto-worktree.mjs'
 import { assertEcosystemProvider } from '../../../scripts/lib/plugin-api.mjs'
 import { readNRulesConfigLite } from '../../../scripts/lib/read-n-rules-config-lite.mjs'
 import { getHandlers, resolvePlugins } from '../../../scripts/lib/resolve-plugins.mjs'
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 import { collectTazeDiff } from './diff.mjs'
+
+export { bringChangesBackToOriginal, removeAutoCreatedWorktree } from '../../../scripts/lib/auto-worktree.mjs'
 
 /** Суфікс бекапу package.json — той самий, що й у `diff.mjs`/кроці 1 SKILL.md. */
 const BACKUP_SUFFIX = '.taze-bak'
@@ -77,125 +84,6 @@ export async function callRunner(runner, prompt, cwd, deps = {}) {
     return { ok: true, text, error: null }
   } catch (error) {
     return { ok: false, text: '', error: error instanceof Error ? error.message : String(error) }
-  }
-}
-
-/**
- * Гарантує, що подальші кроки оркестратора виконуються в ізольованому
- * worktree (`main.json.worktree: true`, той самий контракт, що й для інших
- * worktree-only скілів). Оркестратор не годує SKILL.md жодному агенту, тож
- * замість покладатись на агента, що читає SKILL.md-preflight, сам детерміновано
- * створює worktree конвенцією `<current-branch>-taze` (`npx \@7n/mt worktree
- * create`) і ставить залежності — щоб `bunx taze -w -r latest`/`bun install`
- * ніколи не виконались прямо в основному дереві виклику. `autoCreated: true`
- * сигналить викликачеві, що після завершення прогону варто перенести зміни
- * назад (`bringChangesBackToOriginal`) і прибрати worktree
- * (`removeAutoCreatedWorktree`) — а не лишати сирітське дерево.
- * @param {string} cwd каталог для перевірки
- * @param {typeof spawnSync} spawnFn інжект для тестів
- * @param {(line: string) => void} log колбек прогресу
- * @returns {{ cwd: string, autoCreated: boolean, branchArg: string|null }} `autoCreated: false` — `cwd` без змін
- *   (вже worktree); `autoCreated: true` — `cwd` щойно створеного worktree і `branchArg`, з яким його створено
- */
-function ensureRunningInWorktree(cwd, spawnFn, log) {
-  const toplevelResult = spawnFn('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8' })
-  const toplevel = toplevelResult.status === 0 ? toplevelResult.stdout.trim() : ''
-  const segments = new Set(toplevel.replaceAll('\\', '/').split('/'))
-  if (segments.has('.worktrees')) return { cwd, autoCreated: false, branchArg: null }
-
-  const branchResult = spawnFn('git', ['branch', '--show-current'], { cwd, encoding: 'utf8' })
-  const currentBranch = branchResult.status === 0 ? branchResult.stdout.trim() : ''
-  if (!currentBranch) {
-    throw new Error(
-      `taze: "${cwd}" не в ізольованому worktree (git toplevel: "${toplevel || '?'}"), і поточну гілку визначити не вдалось ` +
-        '(detached HEAD?) — автоматичне створення worktree за конвенцією `<current-branch>-taze` неможливе. Перейди на гілку вручну.'
-    )
-  }
-
-  const branchArg = `${currentBranch}-taze`
-  const pathSegment = branchArg.replaceAll('/', '-')
-  log(`⚠️ "${cwd}" не в ізольованому worktree — створюю ".worktrees/${pathSegment}"...`)
-  runCommand('npx', ['@7n/mt', 'worktree', 'create', branchArg, 'n-taze: worktree-only skill'], cwd, spawnFn)
-
-  const newCwd = join(cwd, '.worktrees', pathSegment)
-  log('📥 bun install (bootstrap нового дерева)...')
-  runCommand('bun', ['install'], newCwd, spawnFn)
-  return { cwd: newCwd, autoCreated: true, branchArg }
-}
-
-/**
- * Переносить зміни з автоствореного worktree назад у вихідне дерево як
- * **untracked/незакомічені** правки (просте копіювання файлів, без git
- * merge/cherry-pick) — так само, як їх бачив би користувач, якби сам
- * працював у вихідному дереві. Джерело істини — `git status --porcelain`
- * у worktree: для кожного шляху копіює файл, якщо він існує (модифікація/
- * додавання), або видаляє його у вихідному дереві, якщо existsSync каже,
- * що в worktree його вже нема (видалення). Перейменування (`old -> new` у
- * porcelain) переносять лише нову назву — стара лишається як була, це
- * прийнятний компроміс: taze не перейменовує файли сам, ефект можливий
- * лише як побічний результат LLM-рефакторингу.
- * @param {string} worktreeCwd автостворений worktree, з якого переносимо
- * @param {string} originalCwd вихідне дерево, куди переносимо
- * @param {typeof spawnSync} spawnFn інжект для тестів
- * @param {(line: string) => void} log колбек прогресу
- * @param {{ copyFile?: (src: string, dest: string) => Promise<void>, rm?: (path: string, opts?: object) => Promise<void>, mkdir?: (path: string, opts?: object) => Promise<void> }} [deps] інжекти для тестів
- * @returns {Promise<string[]>} відносні шляхи перенесених файлів
- */
-export async function bringChangesBackToOriginal(worktreeCwd, originalCwd, spawnFn, log, deps = {}) {
-  const copy = deps.copyFile ?? copyFile
-  const removeFile = deps.rm ?? rm
-  const makeDir = deps.mkdir ?? mkdir
-
-  const statusResult = spawnFn('git', ['status', '--porcelain'], { cwd: worktreeCwd, encoding: 'utf8' })
-  if (statusResult.status !== 0) {
-    log(
-      `⚠️ Не вдалось прочитати git status у "${worktreeCwd}" — зміни НЕ перенесені назад, worktree лишиться для ручного розбору.`
-    )
-    return []
-  }
-
-  const lines = statusResult.stdout.split('\n').filter(Boolean)
-  if (lines.length === 0) {
-    log('ℹ️ Worktree без змін — нічого переносити назад.')
-    return []
-  }
-
-  const brought = []
-  for (const line of lines) {
-    const rest = line.slice(3)
-    const relPath = rest.includes(' -> ') ? rest.split(' -> ', 2)[1] : rest
-    const srcPath = join(worktreeCwd, relPath)
-    const destPath = join(originalCwd, relPath)
-    if (existsSync(srcPath)) {
-      await makeDir(dirname(destPath), { recursive: true })
-      await copy(srcPath, destPath)
-    } else {
-      await removeFile(destPath, { force: true })
-    }
-    brought.push(relPath)
-  }
-  log(`📤 Перенесено назад у "${originalCwd}" як untracked: ${brought.join(', ')}`)
-  return brought
-}
-
-/**
- * Прибирає автостворений worktree разом з його ефемерною git-гілкою
- * (`npx \@7n/mt worktree remove <branch>`) — викликати лише ПІСЛЯ
- * `bringChangesBackToOriginal`, інакше зміни згорять разом з деревом.
- * Не кидає при провалі — це прибирання, а не крок, від якого залежить
- * результат прогону; провал лише логується, worktree лишається для
- * ручного розбору.
- * @param {string} branchArg гілка, з якою worktree був створений (з `ensureRunningInWorktree`)
- * @param {string} originalCwd вихідне дерево, звідки виконати `npx \@7n/mt worktree remove`
- * @param {typeof spawnSync} spawnFn інжект для тестів
- * @param {(line: string) => void} log колбек прогресу
- * @returns {void}
- */
-export function removeAutoCreatedWorktree(branchArg, originalCwd, spawnFn, log) {
-  log(`🧹 Прибираю автостворений worktree "${branchArg}"...`)
-  const result = spawnFn('npx', ['@7n/mt', 'worktree', 'remove', branchArg], { cwd: originalCwd, encoding: 'utf8' })
-  if (result.status !== 0) {
-    log(`⚠️ Не вдалось прибрати worktree "${branchArg}" — приберіть вручну (${result.stderr || result.stdout})`)
   }
 }
 
@@ -430,7 +318,10 @@ export async function runTazeOrchestrator(options = {}) {
   const call = deps.callRunner ?? callRunner
 
   const originalCwd = options.cwd ?? process.cwd()
-  const worktree = ensureRunningInWorktree(originalCwd, spawnFn, log)
+  const worktree = ensureRunningInWorktree(originalCwd, spawnFn, log, {
+    suffix: 'taze',
+    description: 'n-taze: worktree-only skill'
+  })
   const cwd = worktree.cwd
 
   try {
