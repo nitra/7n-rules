@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.2] - 2026-07-18
+
+### Changed
+
+- fix-service_deploy_pipeline: `parseNRulesCmd`/`relevantDomains` перенесено в спільний `@7n/rules/scripts/lib/lint-surface/ci-plan.mjs` (jscpd-дублікат із ci-github), без зміни поведінки
+
 ## [1.4.1] - 2026-07-18
 
 ### Fixed
