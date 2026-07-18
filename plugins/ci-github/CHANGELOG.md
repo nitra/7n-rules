@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.2] - 2026-07-18
+
+### Changed
+
+- Оновлено plugins/ci-github.
+
 ## [1.6.1] - 2026-07-18
 
 ### Changed
