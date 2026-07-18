@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.0] - 2026-07-18
+
+### Added
+
+- Правило `python` переїхало з ядра (фаза 3 spec lang-plugins-extraction): main.mdc, концерни applies/ruff/mypy/project/tooling/pyproject_toml з rego-політиками — плагін тепер contributes.rules; дзеркало `.cursor/rules/n-python.mdc` і auto-rules детект працюють через плагінне джерело
+
 ## [0.2.2] - 2026-07-18
 
 ### Fixed

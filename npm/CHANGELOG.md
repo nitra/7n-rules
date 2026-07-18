@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.21.0] - 2026-07-18
+
+### Changed
+
+- Фаза 3 spec lang-plugins-extraction: lint-правила `rust` і `python` (main.mdc, концерни, rego, шаблони) виїхали з ядра у плагіни `@7n/rules-lang-rust`/`@7n/rules-lang-python` (contributes.rules) — резолвляться через resolveRulesDirs, автодетект/дзеркала/auto-rules працюють без змін для репо з активними плагінами. Mixin-теки CI-плагінів (Rego-gate lint-rust.yml/lint-python.yml) доповнюють правила плагінів-власників, як і раніше
+
 ## [1.20.1] - 2026-07-18
 
 ### Changed

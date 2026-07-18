@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.0] - 2026-07-18
+
+### Added
+
+- Правило `rust` переїхало з ядра (фаза 3 spec lang-plugins-extraction): main.mdc, концерни applies/check/package_json/vscode_extensions з rego-політиками й шаблонами — плагін тепер contributes.rules; дзеркало `.cursor/rules/n-rust.mdc` і auto-rules детект працюють через плагінне джерело
+
 ## [0.2.2] - 2026-07-18
 
 ### Fixed
