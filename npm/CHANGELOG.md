@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.1] - 2026-07-18
+
+### Changed
+
+- doc-files: виключити Storybook *.stories.* файли з обов'язкової генерації docs/<stem>.md (той самий glob-список, що *.test.*/*.spec.*/*.d.ts)
+
 ## [1.13.0] - 2026-07-17
 
 ### Added
