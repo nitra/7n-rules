@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.0] - 2026-07-18
+
+### Added
+
+- Автоміграція: fix-хендлер lint_repo_yml — відсутній .github/workflows/lint-repo.yml створюється зі сніпета детермінованим T0-фіксом (`n-rules lint ga` у fix-режимі)
+
 ## [1.4.2] - 2026-07-18
 
 ### Fixed
