@@ -3,7 +3,7 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/skills/taze/js/orchestrate.mjs
 docgen:
-  crc: a1a1ade0
+  crc: 256c4e77
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.98
@@ -36,5 +36,6 @@ docgen:
 
 - Виконує файлові операції (копіювання/видалення бекапів) і запускає зовнішні команди — НЕ read-only.
 - Перед будь-якою мутацією перевіряє, що `cwd` — ізольований worktree (`assertRunningInWorktree`), інакше кидає виняток.
+- npm/bun-гілка активна лише за кореневим package.json: на чисто-Python/Rust репо вона тихо пропускається (лог + без npm-рядків у звіті), а не валить прогін через `bun install → exit 1`.
 - Виняток усередині одного провайдера (bump/diff/команда) не зупиняє інших — фіксується в `error` запису екосистеми й у звіті; `ok` результату тоді false.
 - Падіння одного пакета в ізольованому виклику раннера не втрачає прогрес по інших записах.
