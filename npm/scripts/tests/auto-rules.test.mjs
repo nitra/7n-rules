@@ -54,7 +54,14 @@ async function detectAutoRulesInCwd(dir) {
   return detectAutoRules({
     root: dir,
     availableRules: ALL_RULES,
-    packageJsonParsed: JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
+    packageJsonParsed: JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')),
+    // Як у проді (bin/n-rules.js): rules-джерела = ядро + активні плагіни.
+    // rust/python — власність lang-плагінів (фаза 3 spec lang-plugins-extraction).
+    rulesDirs: [
+      new URL('../../rules/', import.meta.url).pathname,
+      new URL('../../../plugins/lang-rust/rules/', import.meta.url).pathname,
+      new URL('../../../plugins/lang-python/rules/', import.meta.url).pathname
+    ]
   })
 }
 

@@ -21,18 +21,20 @@
   },
   "type": "module",
   "files": [
+    "rules",
     "taze",
     "CHANGELOG.md",
     "!**/*.test.mjs",
-    "!**/tests/**",
-    "!**/docs/**"
+    "!**/*_test.rego",
+    "!**/fixtures/**",
+    "!**/tests/**"
   ],
   "n-rules": {
     "capabilities": [
       "lang:python"
     ],
     "contributes": {
-      "rules": false,
+      "rules": true,
       "handlers": {
         "taze": "./taze/provider.mjs"
       }

@@ -2,6 +2,8 @@
  * Smoke-контракт concern-моделі (2026-06-28): кожен concern-dir у `rules/<id>/` має
  * `concern.json` з хоча б однією поверхнею, і відповідний `main.mjs` з правильним експортом.
  * Legacy-шляхи (`rules/<id>/main.mjs`, `js/`, `policy/`) — відсутні.
+ * Покриває і правила плагінів монорепо (`plugins/<name>/rules/<id>` — ga, azure-pipelines,
+ * rust, python), щоб винос правила з ядра не втрачав контрактну перевірку.
  */
 import { describe, expect, test } from 'vitest'
 import { existsSync } from 'node:fs'
@@ -10,12 +12,39 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const RULES_DIR = new URL('../rules/', import.meta.url).pathname
+const PLUGINS_DIR = new URL('../../plugins/', import.meta.url).pathname
 
-const rulesEntries = await readdir(RULES_DIR, { withFileTypes: true })
-const ruleIds = rulesEntries
-  .filter(e => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules')
-  .map(e => e.name)
-  .toSorted((a, b) => a.localeCompare(b))
+/**
+ * @param {string} dir rules-каталог
+ * @returns {Promise<string[]>} id правил у каталозі
+ */
+async function listRuleIds(dir) {
+  let entries
+  try {
+    entries = await readdir(dir, { withFileTypes: true })
+  } catch {
+    return []
+  }
+  return entries.filter(e => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules').map(e => e.name)
+}
+
+const ruleIdsRaw = await listRuleIds(RULES_DIR)
+const ruleIds = ruleIdsRaw.toSorted((a, b) => a.localeCompare(b))
+
+/**
+ * Rules-теки плагінів монорепо: plugins/<name>/rules (якщо є). `owner` —
+ * тека з main.mdc (повне правило); без нього — mixin-тека до чужого правила
+ * (лише concern-доповнення, як Rego-gate lint-*.yml у CI-плагінах).
+ */
+const pluginRuleDirs = []
+for (const plugin of await readdir(PLUGINS_DIR, { withFileTypes: true })) {
+  if (!plugin.isDirectory()) continue
+  const rulesDir = join(PLUGINS_DIR, plugin.name, 'rules')
+  for (const id of await listRuleIds(rulesDir)) {
+    const ruleDir = join(rulesDir, id)
+    pluginRuleDirs.push({ plugin: plugin.name, id, ruleDir, owner: existsSync(join(ruleDir, 'main.mdc')) })
+  }
+}
 
 /**
  * @param {string} ruleDir шлях до каталогу правила
@@ -47,9 +76,23 @@ async function listConcerns(ruleDir) {
 }
 
 describe('concern contract — усі правила', () => {
-  test('36 правил знайдено (ga → плагін @7n/rules-ci-github)', () => {
-    expect(ruleIds.length).toBe(36)
+  test('34 правила ядра (ga → ci-github; rust/python → lang-плагіни)', () => {
+    expect(ruleIds.length).toBe(34)
   })
+
+  test('плагіни монорепо володіють правилами ga, azure-pipelines, rust, python', () => {
+    const owners = pluginRuleDirs
+      .filter(p => p.owner)
+      .map(p => `${p.plugin}/${p.id}`)
+      .toSorted((a, b) => a.localeCompare(b))
+    expect(owners).toEqual(['ci-azure/azure-pipelines', 'ci-github/ga', 'lang-python/python', 'lang-rust/rust'])
+  })
+
+  for (const { plugin, id, ruleDir } of pluginRuleDirs) {
+    test(`${plugin}/${id}: немає legacy main.mjs на рівні правила`, () => {
+      expect(existsSync(join(ruleDir, 'main.mjs'))).toBe(false)
+    })
+  }
 
   for (const id of ruleIds) {
     const ruleDir = join(RULES_DIR, id)
