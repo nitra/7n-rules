@@ -57,8 +57,8 @@
     "@7n/llm-lib-linux-x64": "2.7.6"
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": "~0.80.2",
-    "@earendil-works/pi-coding-agent": "~0.80.2"
+    "@earendil-works/pi-ai": "~0.80.10",
+    "@earendil-works/pi-coding-agent": "~0.80.10"
   },
   "peerDependenciesMeta": {
     "@earendil-works/pi-ai": {
