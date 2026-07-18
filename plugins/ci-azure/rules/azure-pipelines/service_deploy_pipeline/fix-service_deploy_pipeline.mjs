@@ -23,16 +23,17 @@
  * Template-розкладка (`- template:`) не мігрується — фіксеру не видно
  * розгорнутих джоб.
  */
-import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { readFileSync, writeFileSync } from 'node:fs'
 
 import { parseDocument } from 'yaml'
 
-import { loadEnabledLintRules, computeActiveDomains } from '@7n/rules/scripts/lib/lint-surface/run-detectors.mjs'
-import { collectPathScopedFiles } from '@7n/rules/scripts/lib/lint-surface/path-scope.mjs'
 import { domainKey } from '@7n/rules/scripts/lib/lint-surface/ci-plan.mjs'
+import {
+  createMigrationFixPattern,
+  parseNRulesCmd,
+  relevantDomains
+} from '@7n/rules/scripts/lib/lint-surface/service-migration.mjs'
 
-const WS_RE = /\s+/u
 const GLOB_SUFFIX_RE = /\/\*+$/u
 
 /** Канонічні prep-кроки, якщо в pipeline немає власного зразка. */
@@ -77,34 +78,6 @@ function stepCmdPath(step) {
   if (typeof step.script === 'string') return ['script']
   if (typeof step.bash === 'string') return ['bash']
   return ['inputs', 'script']
-}
-
-/**
- * Розбирає команду `n-rules lint …`/`n-rules ci plan …` токенами (без regex —
- * стійко до багаторядкових script-ів і без бектрекінгу).
- * @param {string} cmd повний текст команди кроку
- * @param {string} marker підрядок-початок (`n-rules lint` | `n-rules ci plan`)
- * @returns {{ domain: string|null, path: string|null }|null} розбір або null, якщо маркера немає
- */
-function parseNRulesCmd(cmd, marker) {
-  const at = cmd.indexOf(marker)
-  if (at === -1) return null
-  const tokens = cmd
-    .slice(at + marker.length)
-    .split(WS_RE)
-    .filter(Boolean)
-  let domain = null
-  let path = null
-  for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i]
-    if (t === '--path') {
-      path = tokens[i + 1] ?? null
-      i++
-      continue
-    }
-    if (!t.startsWith('-') && domain === null && path === null) domain = t
-  }
-  return { domain, path }
 }
 
 /**
@@ -189,27 +162,6 @@ function buildLintJob(domain, servicePath, prep) {
       { script: `bunx n-rules lint ${domain} --path ${servicePath} --no-fix`, displayName: `Lint ${domain}` }
     ]
   }
-}
-
-/**
- * Релевантні домени сервісу: enabled-правила, чиї per-file glob-и матчать
- * бодай один файл піддерева (та сама таблиця, що `ci plan` по не-дельті).
- * @param {string} cwd корінь consumer-репо
- * @param {string} servicePath каталог сервісу
- * @returns {Promise<string[]>} відсортовані rule-id
- */
-async function relevantDomains(cwd, servicePath) {
-  const abs = resolve(cwd, servicePath)
-  if (!existsSync(abs) || !statSync(abs).isDirectory()) return []
-  const files = await collectPathScopedFiles(cwd, servicePath)
-  const { byRule, enabledSet } = await loadEnabledLintRules({ cwd })
-  const active = computeActiveDomains(byRule, enabledSet, files)
-  return active
-    .entries()
-    .filter(([, st]) => st.triggered)
-    .map(([id]) => id)
-    .toArray()
-    .toSorted((a, b) => a.localeCompare(b))
 }
 
 /**
@@ -457,25 +409,9 @@ export async function migratePipelineFile(absPath, cwd) {
 }
 
 export const patterns = [
-  {
+  createMigrationFixPattern({
     id: 'azure-service-pipeline-canon-migrate',
-    test: violations => violations.length > 0,
-    async apply(violations, ctx) {
-      const files = [...new Set(violations.map(v => v.file).filter(Boolean))]
-      const touched = []
-      for (const rel of files) {
-        const abs = join(ctx.cwd, rel)
-        if (!existsSync(abs)) continue
-        try {
-          if (await migratePipelineFile(abs, ctx.cwd)) touched.push(abs)
-        } catch {
-          // міграція конкретного файлу не вдалася — лишаємо deny детектору (fail-open до ручного фіксу)
-        }
-      }
-      return {
-        touchedFiles: touched,
-        message: touched.length > 0 ? `мігровано до сервіс-канону: ${touched.length} pipeline(ів)` : null
-      }
-    }
-  }
+    migrateFile: migratePipelineFile,
+    noun: 'pipeline'
+  })
 ]

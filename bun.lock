@@ -51,7 +51,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.17.1",
+      "version": "1.18.1",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
@@ -85,14 +85,20 @@
     },
     "plugins/ci-azure": {
       "name": "@7n/rules-ci-azure",
-      "version": "1.3.0",
+      "version": "1.4.1",
+      "dependencies": {
+        "yaml": "^2.9.0",
+      },
       "peerDependencies": {
         "@7n/rules": ">=1.2.0",
       },
     },
     "plugins/ci-github": {
       "name": "@7n/rules-ci-github",
-      "version": "1.4.1",
+      "version": "1.6.0",
+      "dependencies": {
+        "yaml": "^2.9.0",
+      },
       "peerDependencies": {
         "@7n/rules": ">=1.2.0",
       },
@@ -109,7 +115,7 @@
     },
     "plugins/lang-rust": {
       "name": "@7n/rules-lang-rust",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "dependencies": {
         "smol-toml": "^1.7.0",
       },
