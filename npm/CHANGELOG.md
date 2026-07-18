@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.0] - 2026-07-18
+
+### Added
+
+- k8s: новий концерн dremio_logging — logback.xml Dremio Helm-чарту має містити WARN-оверрайди для шести відомо-шумних loggerів (rego, XML через conftest, detection-only)
+
 ## [1.15.0] - 2026-07-18
 
 ### Added
