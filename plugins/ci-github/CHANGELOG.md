@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.0] - 2026-07-18
+
+### Changed
+
+- service_deploy_workflow: дискримінатор за ЗМІСТОМ замість імені deploy-*.yml (дзеркало ci-azure) — сервісний workflow визначається dir-scoped глобом `on.push.paths` (`npm/**`), імʼя довільне (npm-publish.yml завʼязаний на OIDC trusted publishing — перейменування ламає публікацію); plan-гейт вимагається лише за наявності lint-джоб
+
 ## [1.6.2] - 2026-07-18
 
 ### Changed
