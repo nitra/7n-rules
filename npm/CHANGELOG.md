@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.18.0] - 2026-07-18
+
+### Changed
+
+- Фаза 2 spec lang-plugins-extraction: Rust/Cargo-провайдер taze виїхав із ядра в окремий плагін `@7n/rules-lang-rust` (автодетект за кореневим Cargo.toml, extension-point `taze`) — сигнатури порту EcosystemProvider не змінились, оркестратор більше не має вбудованих провайдерів (усі екосистеми — з плагінів)
+
 ## [1.17.3] - 2026-07-18
 
 ### Changed
