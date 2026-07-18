@@ -14,6 +14,8 @@ Rego-пакет: `azure_pipelines.service_deploy_pipeline`
 
 **Template-розкладка** (efes-стиль `- template:` з параметром-каталогом): законна, rego тоді перевіряє лише видиме у файлі — що параметр template-посилання дорівнює одному з `paths.include`; повнота графа всередині шаблону — відповідальність автора за цим каноном (rego не бачить розгорнутий YAML).
 
+**Автоміграція (T0-фікс, `n-rules lint` у fix-режимі):** легасі сервіс-pipeline (inline-джоби, `n-rules lint --path <svc>` без домену) детерміновано переписується до канону — додається job `plan`, легасі lint-джоба замінюється на per-domain `lint_<key>` (домени — по файлах піддерева сервісу, ті самі glob-и, що в `ci plan`), `dependsOn` залежних джоб перешивається, джоби з прямими deps на умовні lint-джоби без власного `condition` отримують Skipped-толерантний канон. Нетривіальний наявний `condition` НЕ перезаписується; template-розкладка не мігрується.
+
 Що НЕ перевіряється: добір доменів під вміст сервісу, зміст test/deploy-кроків, uv-prep, шаблони в `templates/**`.
 
 Канон-snippet (документаційний приклад): [deploy-service-pipeline.yml.snippet.yml](./template/deploy-service-pipeline.yml.snippet.yml)
