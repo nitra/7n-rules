@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.17.0] - 2026-07-18
+
+### Changed
+
+- lint --path став diff-aware (перетин path ∩ git diff, full-scope концерни виключені; стара поведінка — --path --full), дозволено `lint <domain> --path`, нові --base/--repo-wide і команда ci plan (outputs для GitHub Actions/Azure)
+
+### Fixed
+
+- bun/licensee: crash самого тула (stderr/die) — fail-open warn-діагностика замість блокувального порушення; несумісність @npmcli/arborist із деревом bun install перманентно червонила repo-wide CI-гейт
+
 ## [1.16.1] - 2026-07-18
 
 ### Fixed

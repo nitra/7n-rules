@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.4.0] - 2026-07-18
+
+### Added
+
+- сервіс-орієнтований CI-канон: концерн ga/service_deploy_workflow (форма `deploy-<service>.yml`: plan-гейт ci plan, per-domain lint-джоби з needs+if, deploy dependsOn всі перевірки) і ga/lint_repo_yml (окремий lint-repo.yml для repo-wide перевірок, що не гейтять деплой)
+
+### Fixed
+
+- ga/workflows: додано пропущені `await` для `runConftestBatch` (стала async у ядрі @7n/rules 1.14) — детектор падав із «violations is not iterable»
+
 ## [1.3.1] - 2026-07-18
 
 ### Fixed

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.2] - 2026-07-18
+
+### Fixed
+
+- taze/provider: прибрано дублювальний named-експорт `pythonProvider` (лишився default) — фікс knip duplicates/exports
+
 ## [0.2.1] - 2026-07-18
 
 ### Fixed

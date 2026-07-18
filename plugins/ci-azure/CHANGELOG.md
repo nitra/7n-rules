@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0] - 2026-07-18
+
+### Added
+
+- Сервіс-орієнтований CI-канон: концерн azure-pipelines/service_deploy_pipeline — форма per-service pipeline у .azurepipelines/ (plan-гейт `ci plan --azure`, per-domain lint-джоби з dependsOn+condition, термінальні джоби зі Skipped-толерантним condition)
+
 ## [1.2.1] - 2026-07-16
 
 ### Fixed
