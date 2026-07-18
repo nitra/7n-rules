@@ -17,7 +17,7 @@
  * ретраїти нема куди, RAM-стеля фіксована (fail-fast політика пакета).
  */
 
-import { isLocalModel, resolveModel } from './model-tiers.mjs'
+import { formatModelSpec, isLocalModel, resolveModel } from './model-tiers.mjs'
 import { getRegistry, resolveModelSpec } from './internal/registry.mjs'
 import { failOnMemoryGuard } from './internal/memory-guard.mjs'
 import { writeTrace } from './trace.mjs'
@@ -158,12 +158,17 @@ export async function runOneShot({
     failOnMemoryGuard(promptError, userText)
   }
 
-  chain?.note({ model: spec, usage, error: promptError, stopReason })
+  // spec порожній/нерозв'язаний ('' → pi сам вибирає дефолт) — беремо фактично
+  // резолвлену pi-модель із сесії, щоб chain.note()/trace не бачили порожній
+  // model і не потрапляли в неявний cloud-бакет (isLocalModel('') === false).
+  const resolvedModel = spec || formatModelSpec(session.model)
+
+  chain?.note({ model: resolvedModel, usage, error: promptError, stopReason })
   trace({
     caller,
     backend: 'pi-ai',
     kind: 'one-shot',
-    model: spec,
+    model: resolvedModel,
     cwd: cwd ?? null,
     usage,
     stopReason,
@@ -175,12 +180,12 @@ export async function runOneShot({
     chainId: chain?.traceFields()?.chainId,
     caller,
     step: chain?.traceFields()?.chainStep,
-    model: spec,
+    model: resolvedModel,
     promptHash: pHash,
     prompt: userText,
     output: text.trim(),
     usage,
     error: promptError
   })
-  return { content: text.trim(), usage, error: promptError, model: spec, stopReason, caller }
+  return { content: text.trim(), usage, error: promptError, model: resolvedModel, stopReason, caller }
 }

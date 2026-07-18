@@ -23,12 +23,14 @@ const noop = () => null
  * @param {object} [opts] опції
  * @param {Array<object>} [opts.events] події, що емітяться у subscribe-хендлер
  * @param {string|null} [opts.promptError] якщо задано — prompt кидає з цим текстом
+ * @param {{provider: string, id: string}|null} [opts.model] резолвлена pi-модель (`session.model`)
  * @returns {{ session: object, abort: import('vitest').Mock }} fake-сесія + abort-spy
  */
-function fakeSession({ events = [], promptError = null } = {}) {
+function fakeSession({ events = [], promptError = null, model = null } = {}) {
   const abort = vi.fn()
   let handler = noop
   const session = {
+    model,
     subscribe: fn => {
       handler = fn
     },
@@ -134,6 +136,24 @@ describe('runAgentSkill', () => {
     expect(trace).toHaveBeenCalledWith(
       expect.objectContaining({ chainId: 'cs1', promptHash: expect.stringMatching(RE_HEX16) })
     )
+  })
+
+  test('modelSpec порожній: telemetry.model — фактично резолвлена pi-модель, не echo spec', async () => {
+    const { session } = fakeSession({ model: { provider: 'omlx', id: 'gemma-4' } })
+    const chain = {
+      nextStep: vi.fn(() => 1),
+      note: vi.fn(),
+      traceFields: () => ({ chainId: 'cs-empty', chainKind: 'k', chainUnit: 'u', chainStep: 1 }),
+      headers: () => ({})
+    }
+    const r = await runAgentSkill('P', {
+      skillId: 's',
+      modelSpec: '',
+      chain,
+      deps: { registry, createSession: () => Promise.resolve(session), trace: vi.fn() }
+    })
+    expect(r.telemetry.model).toBe('omlx/gemma-4')
+    expect(chain.note).toHaveBeenCalledWith(expect.objectContaining({ model: 'omlx/gemma-4' }))
   })
 
   test('prompt кидає → ok:false + error', async () => {

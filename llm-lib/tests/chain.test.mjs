@@ -97,6 +97,21 @@ describe('startChain', () => {
     expect(chain.end({ outcome: 'success' }).cwd).toBeNull()
   })
 
+  test("note з falsy model — unknownCalls, НЕ cloudCalls/usageCloud (нерозв'язаний modelSpec ≠ cloud)", () => {
+    const { chain } = chainWith()
+    chain.nextStep()
+    chain.note({ model: null, usage: { input: 5, output: 2, totalTokens: 7 } })
+    chain.nextStep()
+    chain.note({ model: 'omlx/gemma', usage: { totalTokens: 3 } })
+    const s = chain.end({ outcome: 'success' })
+    expect(s.unknownCalls).toBe(1)
+    expect(s.localCalls).toBe(1)
+    expect(s.cloudCalls).toBe(0)
+    expect(s.escalated).toBe(false)
+    expect(s.usageCloud).toEqual({ input: 0, output: 0, totalTokens: 0 })
+    expect(s.usage).toEqual({ input: 5, output: 2, totalTokens: 10 })
+  })
+
   test('чисто локальний ланцюжок — escalated:false', () => {
     const { chain } = chainWith()
     chain.nextStep()

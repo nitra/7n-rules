@@ -7,7 +7,7 @@
  */
 
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { isLocalModel, parseModelId, thinkingLevelForTier } from '../lib/model-tiers.mjs'
+import { formatModelSpec, isLocalModel, parseModelId, thinkingLevelForTier } from '../lib/model-tiers.mjs'
 import { resolveModelSpec } from '../lib/internal/registry.mjs'
 
 /**
@@ -67,6 +67,19 @@ describe('parseModelId', () => {
   ])('malformed → null: %s (%s)', spec => {
     expect(parseModelId(spec)).toBeNull()
   })
+})
+
+describe('formatModelSpec', () => {
+  test('інверсія parseModelId', () => {
+    expect(formatModelSpec({ provider: 'omlx', id: 'gemma-4' })).toBe('omlx/gemma-4')
+  })
+
+  test.each([[null], [undefined], [{}], [{ provider: 'omlx' }], [{ id: 'gemma-4' }]])(
+    'відсутня/неповна модель → null: %j',
+    model => {
+      expect(formatModelSpec(model)).toBeNull()
+    }
+  )
 })
 
 describe('thinkingLevelForTier', () => {
