@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.1] - 2026-07-18
+
+### Fixed
+
+- service_deploy_workflow: тригер-перевірка on.push.paths не бачила блок `on` після conftest-конвеєра YAML→JSON (bool-ключ YAML 1.1 серіалізується в рядок "true") — хибний deny «paths не містить glob» на валідних deploy-*.yml
+
 ## [1.4.0] - 2026-07-18
 
 ### Added
