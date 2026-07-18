@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.17.2] - 2026-07-18
+
+### Fixed
+
+- run-fix.mjs: rollback перед перекиданням DetectorError з canonical re-detect — раніше worker/LLM-пошкоджений файл (напр. невалідний YAML) лишався на диску, бо виняток абортував прогін до звичайного snapshot.rollback()
+
 ## [1.17.1] - 2026-07-18
 
 ### Fixed
