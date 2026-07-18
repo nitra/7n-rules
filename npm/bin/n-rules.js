@@ -13,9 +13,13 @@
  *                                     за замовчуванням fix-by-default по дельті vs origin (лише `per-file` правила); `--full` =
  *                                     весь репо (`per-file` ∪ `full`); `--no-fix` = без мутацій/LLM (CI); позиційні
  *                                     (не-флаг) аргументи — фільтр правил конформності (мапить колишній `fix <rule>`);
- *                                     `--path <dir>` = звузити файловий набір до піддиректорії, корінь прогону (root-guard,
- *                                     `.n-rules.json`) лишається поточним каталогом/`--cwd`, не сумісний з rule-фільтром.
+ *                                     `--path <dir>` = перетин піддиректорії з git-дельтою (лише per-file правила; з `--full` —
+ *                                     все піддерево), корінь прогону (root-guard, `.n-rules.json`) лишається поточним
+ *                                     каталогом/`--cwd`; сумісний із rule-фільтром (`lint js --path run/nexus`);
+ *                                     `--repo-wide` = лише full-scope правила (knip/jscpd/dep-policy) по всьому репо.
  *                                     CI = `lint --no-fix --full` (весь репо, нуль мутацій/LLM).
+ *   `npx \@7n/rules ci plan`     — skip-логіка сервіс-орієнтованого CI-канону: перетин дельти з `--path` → job outputs
+ *                                     «які lint-домени запускати» (`--github` → $GITHUB_OUTPUT, `--azure` → ##vso).
  *   `npx \@7n/rules skill list`     — скіли пакета без синку в проєкт
  *   `npx \@7n/rules skill taze`     — промпт на stdout
  *   `npx \@7n/rules skill cursor taze ["task"]` — Cursor CLI (`cursor-agent -p`)
@@ -1639,11 +1643,18 @@ function printLintHelp() {
                   з нього.
   --path <dir>    Звузити файловий набір до піддиректорії, лишивши корінь
                   прогону незмінним (config/root-guard — з поточного каталогу
-                  чи --cwd). per-file правила фільтруються по файлах <dir>;
-                  full-scope правила (jscpd, cspell тощо) при спрацюванні
-                  все одно йдуть по всьому репо. Несумісний з позиційним
-                  rule/concern-фільтром; з --full full-вісь ігнорується
-                  (немає machine-wide локу).
+                  чи --cwd). Дефолт — ПЕРЕТИН піддерева з git-дельтою
+                  (vs merge-base main/origin/main або --base), лише per-file
+                  правила (сервіс-орієнтований CI-канон). З --full — все
+                  піддерево, full-scope правила при спрацюванні йдуть по
+                  всьому репо (історична поведінка; без machine-wide локу).
+                  Сумісний із позиційним rule/concern-фільтром
+                  (lint js --path run/nexus).
+  --base <ref>    Явна база дельти (merge-base HEAD <ref>) замість каскаду
+                  main → origin/main — для CI-чекаутів.
+  --repo-wide     ЛИШЕ full-scope правила (knip, jscpd, dep-policy тощо),
+                  весь репозиторій — окремий CI-workflow, що не гейтить
+                  деплой сервісів. Не поєднується з --path/фільтром.
   --verbose       Розширений вивід детекції та виправлення.
   --help, -h      Ця довідка.
 
@@ -1655,7 +1666,12 @@ function printLintHelp() {
   npx @7n/rules lint --full
   npx @7n/rules lint --no-fix eslint
   npx @7n/rules lint --cwd ./packages/foo --verbose
-  npx @7n/rules lint --path npm/scripts/lib/lint-surface --no-fix
+  npx @7n/rules lint js --path run/nexus --no-fix --base origin/main
+  npx @7n/rules lint --repo-wide --no-fix
+
+Skip-логіка CI (яка джоба взагалі потрібна): npx @7n/rules ci plan
+  ci plan [--path <dir>] [--base <ref>] [--github|--azure|--json]
+  --github → outputs у $GITHUB_OUTPUT; --azure → ##vso-рядки в stdout.
 `)
 }
 
@@ -1700,7 +1716,9 @@ try {
     if (ROOT_GUARDED_COMMANDS.has(command)) {
       assertCwdIsProjectRoot(effectiveRoot, describeRootGuardedAction(command))
     }
-    await ensureNRulesInRootDevDependencies(effectiveRoot)
+    // `ci` (plan) — read-only гейт-команда для CI-джоб: не мутує package.json
+    // (ensure дописав би devDependency прямо в чекауті pipeline-агента).
+    if (command !== 'ci') await ensureNRulesInRootDevDependencies(effectiveRoot)
     // Підкоманди-оркестратори (hook/lint/skill/adr-normalize-local/taze/release тощо)
     // можуть спавнити внутрішню agent/LLM-сесію — ADR Stop-hooks (capture/normalize)
     // мають пропустити її як технічний шум, не людську думку (spec 2026-06-30).
@@ -1734,24 +1752,58 @@ try {
         // (той самий explicitFiles-шлях, що вже годує hook --post-tool-use/--stop).
         const pathIdx = args.indexOf('--path')
         const pathArg = pathIdx === -1 ? null : args[pathIdx + 1]
+        // --base <ref>: явна база дельти для CI (merge-base HEAD ↔ ref замість
+        // каскаду main→origin/main) — надійний diff у checkout-ах з fetch.
+        const baseIdx = args.indexOf('--base')
+        const baseRef = baseIdx === -1 ? null : args[baseIdx + 1]
+        const repoWide = args.includes('--repo-wide')
         const rules = args.filter(
-          (a, i) => !a.startsWith('-') && !(cwdIdx !== -1 && i === cwdIdx + 1) && !(pathIdx !== -1 && i === pathIdx + 1)
+          (a, i) =>
+            !a.startsWith('-') &&
+            !(cwdIdx !== -1 && i === cwdIdx + 1) &&
+            !(pathIdx !== -1 && i === pathIdx + 1) &&
+            !(baseIdx !== -1 && i === baseIdx + 1)
         )
-        if (pathArg !== null && rules.length > 0) {
-          throw new Error(
-            '--path не можна поєднувати зі scoped rule/concern фільтром (позиційні аргументи) — оберіть щось одне'
-          )
+        if (repoWide && (pathArg !== null || rules.length > 0)) {
+          throw new Error('--repo-wide не поєднується з --path чи scoped rule/concern фільтром — оберіть щось одне')
         }
+        // --path (сервіс-канон): дефолт — перетин піддерева з git-дельтою, лише
+        // per-file concerns (pathMode). --path --full — історична поведінка: все
+        // піддерево, full-scope concerns при збігу glob ідуть whole-repo. База
+        // дельти не резолвиться → fail-open на повне піддерево (не мовчазний скіп).
         let pathFiles = null
+        let pathMode = false
         if (pathArg !== null) {
-          const { collectPathScopedFiles } = await import('../scripts/lib/lint-surface/path-scope.mjs')
-          pathFiles = await collectPathScopedFiles(cwdArg, pathArg)
+          const { collectPathScopedFiles, collectPathScopedChangedFiles } =
+            await import('../scripts/lib/lint-surface/path-scope.mjs')
+          if (args.includes('--full')) {
+            pathFiles = await collectPathScopedFiles(cwdArg, pathArg)
+          } else {
+            const scoped = await collectPathScopedChangedFiles(cwdArg, pathArg, { baseRef })
+            if (scoped.baseResolved) {
+              pathFiles = scoped.files
+              pathMode = true
+            } else {
+              console.warn(
+                '⚠️ lint --path: база дельти не резолвиться (немає main/origin/main чи --base-ref) — fail-open: лінтиться все піддерево'
+              )
+              pathFiles = await collectPathScopedFiles(cwdArg, pathArg)
+            }
+          }
         }
         // --full + --path: buildPlan ігнорує full, коли передано explicitFiles (той самий
         // шлях), тож і тут full-вісь вважаємо неактивною — інакше глобальний machine-wide
         // лок --full брався б для швидкого scoped-прогону без причини.
-        const full = args.includes('--full') && pathArg === null
-        const lintOpts = { cwd: cwdArg, full, rules, verbose: args.includes('--verbose'), files: pathFiles }
+        const full = args.includes('--full') && pathArg === null && !repoWide
+        const lintOpts = {
+          cwd: cwdArg,
+          full,
+          rules,
+          verbose: args.includes('--verbose'),
+          files: pathFiles,
+          pathMode,
+          repoWide
+        }
         const noFix = args.includes('--no-fix')
         // Глобальна черга full-прогонів (spec 2026-07-03): одночасно виконується один
         // `lint --full` на машину, паралельні --full чекають лока і бачать чергу та
@@ -1775,6 +1827,16 @@ try {
             publisher?.stop()
           }
         })
+
+        break
+      }
+      case 'ci': {
+        // n-rules ci plan — skip-логіка сервіс-орієнтованого CI-канону: рахує
+        // перетин git-дельти з --path (каталог сервісу) і віддає job outputs
+        // «які lint-домени запускати» для GitHub Actions (--github →
+        // $GITHUB_OUTPUT) та Azure Pipelines (--azure → ##vso-рядки).
+        const { runCiPlanCli } = await import('../scripts/lib/lint-surface/ci-plan.mjs')
+        process.exitCode = await runCiPlanCli(args)
 
         break
       }
@@ -1816,7 +1878,7 @@ try {
       default: {
         console.error(`❌ Невідома команда: ${command}`)
         console.error(
-          `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), taze, release, skill, doc-aggregate`
+          `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), ci plan, taze, release, skill, doc-aggregate`
         )
         process.exitCode = 1
       }

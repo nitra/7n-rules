@@ -132,7 +132,7 @@ function runCargo(args, cwd, spawnFn) {
  * (spec 2026-07-18-lang-plugins-extraction), далі виїде в `@7n/rules-lang-rust`.
  * @type {import('../../../scripts/lib/plugin-api.mjs').EcosystemProvider}
  */
-export const rustProvider = {
+const rustProvider = {
   id: 'rust-cargo',
   title: 'Rust-крейти',
   manifestNoun: 'Cargo.toml',

@@ -42,3 +42,9 @@ Chosen option: "Видалити `lint-ci` і `doc-files <sub>`", because оби
 Окремо підтверджено, що `lint-ci` був чистим аліасом для `runLint({ full: true, readOnly: true })`, тобто для сценарію `lint --read-only --full`. Живих caller-ів у workflow, CI-конфігах чи root `package.json` не зафіксовано; лишалися документаційні згадки та рядки CLI help/default-помилки.
 
 Також виправлено `npm/schemas/rule-meta.json`: enum поля `lint` змінено з `quick`/`ci` на фактичний runtime-контракт `per-file`/`full`, який читає `parseRuleLintSpec`.
+
+## Update 2026-06-15
+
+- Конкретизовано видалення двох надлишкових CLI aliases: `lint-ci` як чистого alias `lint --read-only --full` і deprecated `doc-files <sub>` (`scan|check|gen|stamp`) після переходу hook/skills на `lint-doc-files` та `fix-doc-files`.
+- `LEGACY_DOC_FILES_HOOK_COMMAND_MARKER` у `sync-claude-config.mjs` залишено не як CLI entrypoint, а як marker для cleanup старих інсталяцій.
+- Breaking change зафіксовано changeset `npm/.changes/260615-0638.md` (`bump: major`, `section: Removed`).

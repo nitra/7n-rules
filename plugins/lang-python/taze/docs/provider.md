@@ -3,7 +3,7 @@ type: JS Module
 title: provider.mjs
 resource: plugins/lang-python/taze/provider.mjs
 docgen:
-  crc: a5fbae56
+  crc: 747b1c8b
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 90

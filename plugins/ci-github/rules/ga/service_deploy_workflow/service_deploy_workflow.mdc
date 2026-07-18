@@ -1,0 +1,21 @@
+## Rego-gate сервіс-орієнтованих deploy-workflow (`.github/workflows/deploy-*.yml`)
+
+Rego-пакет: `ga.service_deploy_workflow`
+
+Цільові файли: усі `.github/workflows/deploy-*.yml` (walkGlob). Немає жодного — концерн мовчить: сервіс-канон опційний, перелік сервісів консюмер-специфічний (реєстру немає).
+
+Канонічна форма per-service workflow (`deploy-<service>.yml`, каталог сервісу — напр. `run/nexus`):
+
+1. **Тригер** — `on.push.paths` із глобом каталогу сервісу (`run/<service>/**`).
+2. **`plan`-джоба** — checkout `fetch-depth: 0` → prep (`./.github/actions/setup-bun-deps`) → `bunx n-rules ci plan --path run/<service> --github` (крок з `id: plan`, outputs прокинуті в `jobs.plan.outputs`).
+3. **`lint-<domain>`-джоби** (паралельно, по одній на домен сервісу) — `needs: plan`, гейт `if: needs.plan.outputs.<domain> == 'true'` (ключ = домен із `-`→`_`), крок `bunx n-rules lint <domain> --path run/<service> --no-fix` з тим самим `--path`, що в plan. Зайва домен-джоба нешкідлива (ci plan її скіпне), відсутня потрібна — дірка в гейті.
+4. **`test`-джоба** — `needs: plan`, `if: needs.plan.outputs.any == 'true'`; тести лише сервісу (`bun test run/<service>`; python-стек — `astral-sh/setup-uv` + `uv sync --locked` + `pytest run/<service>`).
+5. **Деплой** — needs-ланцюг (можна через проміжний `build`) **транзитивно досягає** `plan` і всі lint/test-джоби; кожна джоба з `needs` на умовні lint-джоби має `if` з `!cancelled()` та `!contains(needs.*.result, 'failure')` — skipped-лінт не блокує деплой, failed — блокує.
+
+Що перевіряє rego: наявність plan-джоби з `ci plan --path … --github`; збіг `on.push.paths` ↔ `--path`; для кожної lint-джоби — `needs: plan`, гейт по outputs, той самий `--path`, `--no-fix`, prep-крок, `fetch-depth: 0`; для термінальних джоб — транзитивну досяжність plan і всіх перевірок та skip-толерантний `if`.
+
+Що НЕ перевіряється (справа автора): добір доменів під вміст сервісу, зміст test/deploy-кроків, секрети/environment, uv-prep. Спільні workflow-інваріанти (persist-credentials, min-версії uses, існування paths-глобів) покривають `workflow_common` і `workflows`.
+
+Repo-wide перевірки без path-підтримки (knip, jscpd, dep-policy) сюди НЕ входять — вони в окремому `lint-repo.yml` (концерн `lint_repo_yml`) і деплой не гейтять.
+
+Канон-snippet (документаційний приклад): [deploy-service.yml.snippet.yml](./template/deploy-service.yml.snippet.yml)

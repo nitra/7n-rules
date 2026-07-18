@@ -1,0 +1,12 @@
+{
+  "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
+  "fixability": "config",
+  "policy": {
+    "files": {
+      "single": ".github/workflows/lint-repo.yml",
+      "required": true
+    },
+    "check": "template",
+    "missingMessage": ".github/workflows/lint-repo.yml не існує — repo-wide перевірки без path-підтримки (knip/jscpd/dep-policy) живуть в окремому workflow, що не гейтить деплой; створи за каноном ga.mdc (mixin @7n/rules-ci-github)"
+  }
+}

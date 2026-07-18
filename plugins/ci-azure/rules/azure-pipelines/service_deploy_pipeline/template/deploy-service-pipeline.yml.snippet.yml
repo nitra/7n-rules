@@ -1,0 +1,77 @@
+# Документаційний приклад сервіс-орієнтованого deploy-pipeline (azure-pipelines.mdc).
+# Це НЕ deep-subset-канон (перелік сервісів консюмер-специфічний) — форму
+# перевіряє service_deploy_pipeline.rego по всіх `.azurepipelines/**/*.yml`
+# з trigger.paths.include. Плейсхолдер run/<service> заміни на каталог сервісу.
+trigger:
+  branches:
+    include:
+      - dev
+      - main
+  paths:
+    include:
+      - run/<service>
+
+pool:
+  vmImage: ubuntu-latest
+
+jobs:
+  - job: plan
+    steps:
+      - checkout: self
+        fetchDepth: 0
+      - script: |
+          curl -fsSL https://bun.sh/install | bash
+          echo "##vso[task.prependpath]$HOME/.bun/bin"
+        displayName: Install bun
+      - script: bun install --frozen-lockfile
+        displayName: Install deps
+      - script: bunx n-rules ci plan --path run/<service> --azure
+        name: plan # ОБОВʼЯЗКОВО: outputs адресуються як dependencies.plan.outputs['plan.<domain>']
+
+  - job: lint_js
+    dependsOn: plan
+    condition: eq(dependencies.plan.outputs['plan.js'], 'true')
+    steps:
+      - checkout: self
+        fetchDepth: 0
+      - script: |
+          curl -fsSL https://bun.sh/install | bash
+          echo "##vso[task.prependpath]$HOME/.bun/bin"
+        displayName: Install bun
+      - script: bun install --frozen-lockfile
+        displayName: Install deps
+      - script: bunx n-rules lint js --path run/<service> --no-fix
+        displayName: Lint js
+
+  # …lint_<domain> для кожного домену сервісу (python/docker/k8s/security/…)
+  # python-стек: перед тестами ще uv (curl -LsSf https://astral.sh/uv/install.sh | sh + uv sync --locked)
+
+  - job: run_tests
+    dependsOn: plan
+    condition: eq(dependencies.plan.outputs['plan.any'], 'true')
+    steps:
+      - checkout: self
+        fetchDepth: 0
+      - script: |
+          curl -fsSL https://bun.sh/install | bash
+          echo "##vso[task.prependpath]$HOME/.bun/bin"
+        displayName: Install bun
+      - script: bun install --frozen-lockfile
+        displayName: Install deps
+      - script: bun test run/<service>
+        displayName: Tests
+
+  - job: build_and_push
+    dependsOn:
+      - plan
+      - lint_js
+      - run_tests
+    # Skipped-лінт (гейт ci plan) НЕ блокує деплой; failed — блокує.
+    condition: >-
+      and(not(canceled()),
+          eq(dependencies.plan.result, 'Succeeded'),
+          in(dependencies.lint_js.result, 'Succeeded', 'Skipped'),
+          in(dependencies.run_tests.result, 'Succeeded', 'Skipped'))
+    steps:
+      - checkout: self
+      # …кроки build/push/deploy сервісу

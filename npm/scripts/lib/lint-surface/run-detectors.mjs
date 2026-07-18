@@ -195,8 +195,22 @@ export async function buildDetectPlan(opts) {
     full: opts.full === true,
     rules: Array.isArray(opts.rules) ? opts.rules : [],
     explicitFiles: Array.isArray(opts.files) ? opts.files : null,
+    pathMode: opts.pathMode === true,
+    repoWide: opts.repoWide === true,
     cwd: opts.cwd
   })
+}
+
+/**
+ * Discovery-фасад для споживачів поза detect/fix-конвеєром (`ci plan`):
+ * concerns за rule-id (ядро + плагіни, capability-фільтр) і set активних правил.
+ * @param {{ rulesDir?: string, rulesDirs?: string[], capabilities?: Iterable<string>, cwd: string }} opts опції прогону.
+ * @returns {Promise<{ byRule: Record<string, ConcernMeta[]>, enabledSet: Set<string> }>} concerns і активні правила.
+ */
+export async function loadEnabledLintRules(opts) {
+  const byRule = await filterByCapabilities(await readLintConcernsByRuleMulti(await effectiveRulesDirs(opts)), opts)
+  const enabledSet = new Set(await enabledRuleIds(byRule, opts.cwd))
+  return { byRule, enabledSet }
 }
 
 /**
@@ -211,6 +225,52 @@ function buildScopedPlan(byRule, rules) {
     for (const concern of byRule[ruleId] ?? []) plan.push({ entry: { ruleId, concern }, files: undefined })
   }
   return plan.toSorted((a, b) => a.entry.ruleId.localeCompare(b.entry.ruleId))
+}
+
+/**
+ * scoped+`--path` режим (`lint js --path run/nexus`): ЛИШЕ per-file concerns
+ * названих правил × явний файловий набір (перетин path ∩ дельта). Full-scope
+ * concerns виключені повністю — деплой-гейт сервісу не блокується whole-repo
+ * порушеннями поза сервісом (repo-wide workflow — їхнє канонічне місце).
+ * enabledSet не застосовується (явний запит правила, як у buildScopedPlan).
+ * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
+ * @param {string[]} rules scoped rule-id.
+ * @param {string[]} files явний файловий набір (перетин).
+ * @returns {PlanItem[]} впорядкований план прогону.
+ */
+function buildScopedDeltaPlan(byRule, rules, files) {
+  /** @type {PlanItem[]} */
+  const plan = []
+  for (const ruleId of rules) {
+    for (const concern of byRule[ruleId] ?? []) {
+      if (concern.lint.scope !== 'per-file') continue
+      const item = planConcernForDelta(ruleId, concern, files)
+      if (item) plan.push(item)
+    }
+  }
+  return plan.toSorted(
+    (a, b) => a.entry.ruleId.localeCompare(b.entry.ruleId) || a.entry.concern.name.localeCompare(b.entry.concern.name)
+  )
+}
+
+/**
+ * `--repo-wide` режим: ЛИШЕ full-scope concerns enabled-правил, whole-repo.
+ * Канонічне місце перевірок без path-підтримки (knip, jscpd, dep-policy) —
+ * окремий CI-workflow, що не гейтить деплой сервісів.
+ * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
+ * @param {Set<string>} enabledSet активні rule-id.
+ * @returns {PlanItem[]} впорядкований план (whole-repo для кожного entry).
+ */
+function buildRepoWidePlan(byRule, enabledSet) {
+  /** @type {LintEntry[]} */
+  const entries = []
+  for (const [ruleId, concerns] of Object.entries(byRule)) {
+    if (!enabledSet.has(ruleId)) continue
+    for (const concern of concerns) {
+      if (concern.lint.scope === 'full') entries.push({ ruleId, concern })
+    }
+  }
+  return sortEntries(entries).map(entry => ({ entry, files: undefined }))
 }
 
 /**
@@ -252,17 +312,21 @@ function planConcernForDelta(ruleId, concern, changed) {
 
 /**
  * delta/explicit-files режим: concern-и enabled-правил, зіставлені зі зміненими файлами.
+ * `perFileOnly` (path-режим сервіс-канону) виключає full-scope concerns —
+ * перетин path ∩ дельта перевіряють лише per-file правила.
  * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
  * @param {Set<string>} enabledSet активні rule-id.
  * @param {string[]} changed перелік змінених файлів.
+ * @param {{ perFileOnly?: boolean }} [opts] фільтр full-scope concerns.
  * @returns {PlanItem[]} впорядкований план (за ruleId, потім concern.name).
  */
-function buildDeltaPlan(byRule, enabledSet, changed) {
+function buildDeltaPlan(byRule, enabledSet, changed, { perFileOnly = false } = {}) {
   /** @type {PlanItem[]} */
   const plan = []
   for (const [ruleId, concerns] of Object.entries(byRule)) {
     if (!enabledSet.has(ruleId)) continue
     for (const concern of concerns) {
+      if (perFileOnly && concern.lint.scope !== 'per-file') continue
       const item = planConcernForDelta(ruleId, concern, changed)
       if (item) plan.push(item)
     }
@@ -273,6 +337,35 @@ function buildDeltaPlan(byRule, enabledSet, changed) {
 }
 
 /**
+ * Активність доменів (rule-id) для заданого файлового набору — єдине джерело
+ * правди для `ci plan`: домен «активний», якщо хоч один його **per-file**
+ * concern тригериться на цих файлах (та сама таблиця planConcernForDelta, що
+ * й `lint <domain> --path` → «plan сказав true» ⇔ «lint щось запустить»).
+ * Правила без жодного per-file concern не потрапляють у результат (їхні
+ * full-scope перевірки — справа `--repo-wide`).
+ * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
+ * @param {Set<string>} enabledSet активні rule-id.
+ * @param {string[]} changed файловий набір (перетин path ∩ дельта або дельта).
+ * @returns {Map<string, { triggered: boolean, matchedFiles: number }>} стан за rule-id.
+ */
+export function computeActiveDomains(byRule, enabledSet, changed) {
+  /** @type {Map<string, { triggered: boolean, matchedFiles: number }>} */
+  const out = new Map()
+  for (const [ruleId, concerns] of Object.entries(byRule)) {
+    if (!enabledSet.has(ruleId)) continue
+    const perFile = concerns.filter(c => c.lint.scope === 'per-file')
+    if (perFile.length === 0) continue
+    const matched = new Set()
+    for (const concern of perFile) {
+      const item = planConcernForDelta(ruleId, concern, changed)
+      for (const f of item?.files ?? []) matched.add(f)
+    }
+    out.set(ruleId, { triggered: matched.size > 0, matchedFiles: matched.size })
+  }
+  return out
+}
+
+/**
  * Будує план: список entries + чи кожен запускається whole-repo (files=undefined)
  * чи per-file (files=[...]). Реалізує таблицю lint.scope зі специфікації.
  * @param {object} args аргументи побудови плану.
@@ -280,22 +373,29 @@ function buildDeltaPlan(byRule, enabledSet, changed) {
  * @param {boolean} args.full whole-repo режим.
  * @param {string[]} args.rules scoped rule-id (порожній → delta/full).
  * @param {string[]|null} args.explicitFiles явний перелік файлів або null.
+ * @param {boolean} [args.pathMode] `--path`-дельта: лише per-file concerns.
+ * @param {boolean} [args.repoWide] `--repo-wide`: лише full-scope concerns, whole-repo.
  * @param {string} args.cwd робоча директорія прогону.
  * @returns {Promise<PlanItem[]>} впорядкований план прогону.
  */
-async function buildPlan({ byRule, full, rules, explicitFiles, cwd }) {
+async function buildPlan({ byRule, full, rules, explicitFiles, pathMode = false, repoWide = false, cwd }) {
+  // scoped + --path: per-file concerns названих правил × перетин path ∩ дельта
+  if (rules.length > 0 && explicitFiles !== null) return buildScopedDeltaPlan(byRule, rules, explicitFiles)
   // scoped: усі lint-concerns названих правил, whole-repo
   if (rules.length > 0) return buildScopedPlan(byRule, rules)
 
   const enabled = await enabledRuleIds(byRule, cwd)
   const enabledSet = new Set(enabled)
 
+  // repo-wide: лише full-scope concerns (окремий CI-workflow, не гейтить деплой)
+  if (repoWide) return buildRepoWidePlan(byRule, enabledSet)
+
   // full: усі per-file + full concerns enabled-правил, whole-repo
   if (full && explicitFiles === null) return buildFullPlan(byRule, enabledSet)
 
-  // delta / explicit-files
+  // delta / explicit-files; path-режим виключає full-scope concerns
   const changed = explicitFiles ?? (await collectChangedFilesSince(await resolveChangedBase(cwd), cwd))
-  return buildDeltaPlan(byRule, enabledSet, changed)
+  return buildDeltaPlan(byRule, enabledSet, changed, { perFileOnly: pathMode })
 }
 
 /**
@@ -430,6 +530,8 @@ function sortViolations(violations) {
  * @param {boolean} [opts.full] whole-repo режим.
  * @param {string[]} [opts.rules] scoped rule-id (порожній → delta/full).
  * @param {string[]|null} [opts.files] явний перелік файлів або null.
+ * @param {boolean} [opts.pathMode] `--path`-дельта: лише per-file concerns.
+ * @param {boolean} [opts.repoWide] `--repo-wide`: лише full-scope concerns.
  * @param {boolean} [opts.verbose] докладний лог прогону.
  * @param {(s: string) => void} [opts.log] функція логування.
  * @param {boolean} [opts.isTTY] override TTY-режиму ProgressReporter (тести); типово isTTY stdout.
@@ -445,7 +547,15 @@ export async function detectAll(opts) {
   const baseLog = opts.log ?? (s => process.stdout.write(s))
 
   const byRule = await filterByCapabilities(await readLintConcernsByRuleMulti(await effectiveRulesDirs(opts)), opts)
-  const plan = await buildPlan({ byRule, full, rules, explicitFiles, cwd })
+  const plan = await buildPlan({
+    byRule,
+    full,
+    rules,
+    explicitFiles,
+    pathMode: opts.pathMode === true,
+    repoWide: opts.repoWide === true,
+    cwd
+  })
 
   // Detect-only бар — ЛИШЕ в TTY (без тикера «виправлено»). У не-TTY (hooks, CI-gate,
   // пайпи) append-рядки ⏱ на кожен концерн засмітили б вивід кожного PostToolUse-хука,

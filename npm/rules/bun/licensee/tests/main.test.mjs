@@ -41,7 +41,7 @@ describe('bun/licensee detector', () => {
     })
   })
 
-  test('status 1 + непорожній stderr (die()) → licensee-crashed, НЕ license-violation', async () => {
+  test('status 1 + непорожній stderr (die()) → fail-open діагностика, НЕ violation', async () => {
     spawnSyncMock.mockReset()
     spawnSyncMock.mockReturnValue({
       status: 1,
@@ -50,11 +50,12 @@ describe('bun/licensee detector', () => {
     })
     await withTmpDir(async dir => {
       await writeFile(join(dir, '.licensee.json'), '{}', 'utf8')
-      const { violations } = lint({ cwd: dir, ruleId: 'bun', concernId: 'licensee' })
-      expect(violations).toHaveLength(1)
-      expect(violations[0].reason).toBe('licensee-crashed')
-      expect(violations[0].message).toContain('НЕ підтверджене ліцензійне порушення')
-      expect(violations[0].message).toContain('localeCompare')
+      const { violations, diagnostics } = lint({ cwd: dir, ruleId: 'bun', concernId: 'licensee' })
+      expect(violations).toHaveLength(0)
+      expect(diagnostics).toHaveLength(1)
+      expect(diagnostics[0].level).toBe('warn')
+      expect(diagnostics[0].message).toContain('НЕ підтверджене ліцензійне порушення')
+      expect(diagnostics[0].message).toContain('localeCompare')
     })
   })
 

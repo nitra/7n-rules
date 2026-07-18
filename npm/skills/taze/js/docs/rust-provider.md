@@ -3,7 +3,7 @@ type: JS Module
 title: rust-provider.mjs
 resource: npm/skills/taze/js/rust-provider.mjs
 docgen:
-  crc: db99881b
+  crc: 5f9de45d
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100
