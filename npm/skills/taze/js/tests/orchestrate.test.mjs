@@ -383,29 +383,32 @@ describe('runTazeOrchestrator', () => {
 
   test('без major-оновлень і провайдерів — callRunner не викликається, є звіт', async () => {
     const calls = []
-    const result = await runTazeOrchestrator({
-      cwd: '/tmp/project',
-      runner: 'pi',
-      log: noop,
-      deps: {
-        spawnFn: fakeSpawn,
-        getMonorepoPackageRootDirs: () => ['.'],
-        copyFile: noop,
-        rm: noop,
-        collectTazeDiff: () => ({ major: [], minorPatch: 3, totalChanged: 3, comparedWorkspaces: 1 }),
-        ecosystemProviders: [],
-        callRunner: (...args) => {
-          calls.push(args)
-          return { ok: true, text: '', error: null }
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), '{}', 'utf8')
+      const result = await runTazeOrchestrator({
+        cwd: dir,
+        runner: 'pi',
+        log: noop,
+        deps: {
+          spawnFn: fakeSpawn,
+          getMonorepoPackageRootDirs: () => ['.'],
+          copyFile: noop,
+          rm: noop,
+          collectTazeDiff: () => ({ major: [], minorPatch: 3, totalChanged: 3, comparedWorkspaces: 1 }),
+          ecosystemProviders: [],
+          callRunner: (...args) => {
+            calls.push(args)
+            return { ok: true, text: '', error: null }
+          }
         }
-      }
-    })
+      })
 
-    expect(calls).toHaveLength(0)
-    expect(result.ok).toBe(true)
-    expect(result.report).toContain('Оновлено (minor/patch):** 3')
-    expect(result.results).toEqual([])
-    expect(result.ecosystems).toEqual([])
+      expect(calls).toHaveLength(0)
+      expect(result.ok).toBe(true)
+      expect(result.report).toContain('Оновлено (minor/patch):** 3')
+      expect(result.results).toEqual([])
+      expect(result.ecosystems).toEqual([])
+    })
   })
 
   test('ітерує по кожному major-запису обраним раннером, збирає результати', async () => {
@@ -415,50 +418,56 @@ describe('runTazeOrchestrator', () => {
       { workspace: 'npm', pkg: 'vite', from: '4.0.0', to: '5.0.0' }
     ]
 
-    const result = await runTazeOrchestrator({
-      cwd: '/tmp/project',
-      runner: 'cursor',
-      log: noop,
-      deps: {
-        spawnFn: fakeSpawn,
-        getMonorepoPackageRootDirs: () => ['.'],
-        copyFile: noop,
-        rm: noop,
-        collectTazeDiff: () => ({ major, minorPatch: 1, totalChanged: 3, comparedWorkspaces: 2 }),
-        ecosystemProviders: [],
-        callRunner: (runner, prompt, cwd) => {
-          calls.push({ runner, prompt, cwd })
-          return prompt.includes('vite')
-            ? { ok: false, text: '', error: 'idle-timeout' }
-            : { ok: true, text: 'ok', error: null }
-        }
-      }
-    })
-
-    expect(calls).toHaveLength(2)
-    expect(calls.every(c => c.runner === 'cursor' && c.cwd === '/tmp/project')).toBe(true)
-    expect(result.ok).toBe(false)
-    expect(result.results).toHaveLength(2)
-    expect(result.results[0]).toMatchObject({ pkg: 'react', ok: true })
-    expect(result.results[1]).toMatchObject({ pkg: 'vite', ok: false, error: 'idle-timeout' })
-    expect(result.report).toContain('❌ `vite`')
-  })
-
-  test('кидає з exit-кодом+stderr, якщо детермінована npm-команда провалилась', async () => {
-    await expect(
-      runTazeOrchestrator({
-        cwd: '/tmp/project',
-        runner: 'pi',
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), '{}', 'utf8')
+      const result = await runTazeOrchestrator({
+        cwd: dir,
+        runner: 'cursor',
         log: noop,
         deps: {
-          spawnFn: cmd => (cmd === 'bunx' ? { status: 1, stdout: '', stderr: 'network error' } : fakeSpawn(cmd)),
+          spawnFn: fakeSpawn,
           getMonorepoPackageRootDirs: () => ['.'],
           copyFile: noop,
           rm: noop,
-          ecosystemProviders: []
+          collectTazeDiff: () => ({ major, minorPatch: 1, totalChanged: 3, comparedWorkspaces: 2 }),
+          ecosystemProviders: [],
+          callRunner: (runner, prompt, cwd) => {
+            calls.push({ runner, prompt, cwd })
+            return prompt.includes('vite')
+              ? { ok: false, text: '', error: 'idle-timeout' }
+              : { ok: true, text: 'ok', error: null }
+          }
         }
       })
-    ).rejects.toThrow(NETWORK_ERROR_RE)
+
+      expect(calls).toHaveLength(2)
+      expect(calls.every(c => c.runner === 'cursor' && c.cwd === dir)).toBe(true)
+      expect(result.ok).toBe(false)
+      expect(result.results).toHaveLength(2)
+      expect(result.results[0]).toMatchObject({ pkg: 'react', ok: true })
+      expect(result.results[1]).toMatchObject({ pkg: 'vite', ok: false, error: 'idle-timeout' })
+      expect(result.report).toContain('❌ `vite`')
+    })
+  })
+
+  test('кидає з exit-кодом+stderr, якщо детермінована npm-команда провалилась', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), '{}', 'utf8')
+      await expect(
+        runTazeOrchestrator({
+          cwd: dir,
+          runner: 'pi',
+          log: noop,
+          deps: {
+            spawnFn: cmd => (cmd === 'bunx' ? { status: 1, stdout: '', stderr: 'network error' } : fakeSpawn(cmd)),
+            getMonorepoPackageRootDirs: () => ['.'],
+            copyFile: noop,
+            rm: noop,
+            ecosystemProviders: []
+          }
+        })
+      ).rejects.toThrow(NETWORK_ERROR_RE)
+    })
   })
 
   test('реальний бекап/прибирання через tmp-каталог (не лише інжекти)', async () => {
@@ -478,6 +487,42 @@ describe('runTazeOrchestrator', () => {
 
       expect(result.ok).toBe(true)
       expect(existsSync(join(dir, 'package.json.taze-bak'))).toBe(false)
+    })
+  })
+
+  test('без кореневого package.json — npm-гілка тихо пропускається, bunx/bun не викликаються, провайдери працюють', async () => {
+    const npmCommands = []
+    const steps = []
+    const major = [{ manifest: 'py.toml', pkg: 'typer', from: '0.19.1', to: '0.27.0' }]
+
+    await withTmpDir(async dir => {
+      // package.json НЕ створюємо — чисто-Python репо.
+      const result = await runTazeOrchestrator({
+        cwd: dir,
+        runner: 'pi',
+        log: noop,
+        deps: {
+          spawnFn: cmd => {
+            if (cmd === 'bunx' || cmd === 'bun') npmCommands.push(cmd)
+            return fakeSpawn(cmd)
+          },
+          ecosystemProviders: [
+            fakeProvider('py', steps, {
+              diff: () => Promise.resolve({ major, minorPatch: 1, totalChanged: 2 })
+            })
+          ],
+          callRunner: () => ({ ok: true, text: 'сумісно', error: null })
+        }
+      })
+
+      expect(npmCommands).toHaveLength(0)
+      expect(steps).toContain('py:cleanup')
+      expect(result.ok).toBe(true)
+      // npm-рядків у звіті немає (тиша), екосистема — є.
+      expect(result.report).not.toContain('Оновлено (minor/patch):** 0\n- **Major-оновлення')
+      expect(result.report).toContain('### Екосистема py')
+      expect(result.report).toContain('✅ `typer`')
+      expect(result.report).toContain('Всього змінено:** 2')
     })
   })
 

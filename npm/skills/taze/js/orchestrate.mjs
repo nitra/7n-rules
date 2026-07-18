@@ -289,19 +289,19 @@ function appendEcosystemSection(lines, eco) {
  *   minorPatch: number,
  *   totalChanged: number,
  *   results: Array<{pkg:string, workspace:string, from:string, to:string, ok:boolean, error:string|null}>,
- *   ecosystems?: Array<object>
- * }} args дані звіту (`ecosystems` — записи з `runEcosystem`, по одному на провайдера)
+ *   ecosystems?: Array<object>,
+ *   npmPresent?: boolean
+ * }} args дані звіту (`ecosystems` — записи з `runEcosystem`, по одному на провайдера;
+ *   `npmPresent: false` — репо без кореневого package.json, npm-рядки не друкуються)
  * @returns {string} markdown-звіт
  */
-export function formatReport({ minorPatch, totalChanged, results, ecosystems = [] }) {
-  const lines = [
-    '## taze: підсумок',
-    '',
-    `- **Оновлено (minor/patch):** ${minorPatch}`,
-    `- **Major-оновлення:** ${results.length}`
-  ]
-  for (const r of results) {
-    lines.push(formatResultLine(r, r.workspace))
+export function formatReport({ minorPatch, totalChanged, results, ecosystems = [], npmPresent = true }) {
+  const lines = ['## taze: підсумок', '']
+  if (npmPresent) {
+    lines.push(`- **Оновлено (minor/patch):** ${minorPatch}`, `- **Major-оновлення:** ${results.length}`)
+    for (const r of results) {
+      lines.push(formatResultLine(r, r.workspace))
+    }
   }
 
   let ecosystemsTotal = 0
@@ -339,27 +339,37 @@ export async function runTazeOrchestrator(options = {}) {
 
   assertRunningInWorktree(cwd, spawnFn)
 
-  log('📦 Бекап package.json...')
-  const backedUpWorkspaces = await backupWorkspacePackageFiles(cwd, deps)
-
-  log('⬆️  bunx taze -w -r latest...')
-  runCommand('bunx', ['taze', '-w', '-r', 'latest'], cwd, spawnFn)
-  log('📥 bun install...')
-  runCommand('bun', ['install'], cwd, spawnFn)
-
-  const collectDiff = deps.collectTazeDiff ?? collectTazeDiff
-  const diff = await collectDiff(cwd)
-  log(`🔍 diff: ${diff.major.length} major, ${diff.minorPatch} minor/patch`)
-
+  // npm/bun-гілка активна лише за кореневим package.json — на чисто-Python/Rust
+  // репо `bun install` падає з exit 1, і без цього гейта весь прогін гинув би
+  // до екосистемних провайдерів. Той самий принцип «тиші», що й для мовних
+  // екосистем: немає сигналу — немає ані кроків, ані згадки у звіті.
+  const npmPresent = existsSync(join(cwd, 'package.json'))
+  let diff = { major: [], minorPatch: 0, totalChanged: 0 }
   const results = []
-  for (const entry of diff.major) {
-    log(`🔧 ${entry.pkg} (${entry.workspace}): ${entry.from} → ${entry.to}...`)
-    const outcome = await call(runner, buildDependencyPrompt(entry), cwd, deps)
-    results.push({ ...entry, ...outcome })
-    log(outcome.ok ? `  ✅ ${entry.pkg}` : `  ❌ ${entry.pkg}: ${outcome.error}`)
-  }
+  if (npmPresent) {
+    log('📦 Бекап package.json...')
+    const backedUpWorkspaces = await backupWorkspacePackageFiles(cwd, deps)
 
-  await cleanupBackups(cwd, backedUpWorkspaces, deps)
+    log('⬆️  bunx taze -w -r latest...')
+    runCommand('bunx', ['taze', '-w', '-r', 'latest'], cwd, spawnFn)
+    log('📥 bun install...')
+    runCommand('bun', ['install'], cwd, spawnFn)
+
+    const collectDiff = deps.collectTazeDiff ?? collectTazeDiff
+    diff = await collectDiff(cwd)
+    log(`🔍 diff: ${diff.major.length} major, ${diff.minorPatch} minor/patch`)
+
+    for (const entry of diff.major) {
+      log(`🔧 ${entry.pkg} (${entry.workspace}): ${entry.from} → ${entry.to}...`)
+      const outcome = await call(runner, buildDependencyPrompt(entry), cwd, deps)
+      results.push({ ...entry, ...outcome })
+      log(outcome.ok ? `  ✅ ${entry.pkg}` : `  ❌ ${entry.pkg}: ${outcome.error}`)
+    }
+
+    await cleanupBackups(cwd, backedUpWorkspaces, deps)
+  } else {
+    log('⏭ npm/bun: кореневого package.json немає — гілка пропущена')
+  }
 
   const providers = deps.ecosystemProviders ?? [rustProvider, ...(await loadPluginTazeProviders(cwd, log, deps))]
   const ecosystems = []
@@ -367,7 +377,13 @@ export async function runTazeOrchestrator(options = {}) {
     ecosystems.push(await runEcosystem(provider, { cwd, runner, log, deps, spawnFn, call }))
   }
 
-  const report = formatReport({ minorPatch: diff.minorPatch, totalChanged: diff.totalChanged, results, ecosystems })
+  const report = formatReport({
+    minorPatch: diff.minorPatch,
+    totalChanged: diff.totalChanged,
+    results,
+    ecosystems,
+    npmPresent
+  })
   log(report)
 
   const ecosystemsOk = ecosystems.every(eco => eco.error === null && eco.results.every(r => r.ok))
