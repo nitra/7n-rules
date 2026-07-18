@@ -1,5 +1,5 @@
 /**
- * Тести для skills/taze/js/uv-diff.mjs:
+ * Тести для taze/uv-diff.mjs:
  *   - parsePep508: назва/extras/specifier, невалідний рядок;
  *   - parsePep440Version: 1-3 компоненти, операторні префікси, не-версія;
  *   - extractLowerBoundVersion: `>=`/`==`/`~=` серед comma-separated списку;
@@ -12,7 +12,8 @@ import { join } from 'node:path'
 import { stringify as stringifyToml } from 'smol-toml'
 import { describe, expect, test } from 'vitest'
 
-import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+import { withTmpDir } from '@7n/rules/scripts/utils/test-helpers.mjs'
+
 import {
   collectUvDiff,
   diffPyprojectDeps,

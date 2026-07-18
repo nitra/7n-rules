@@ -1,15 +1,16 @@
 /** @see ./docs/orchestrate.md */
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { copyFile, readFile, rm } from 'node:fs/promises'
+import { copyFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
-import { parse as parseToml } from 'smol-toml'
-
+import { assertEcosystemProvider } from '../../../scripts/lib/plugin-api.mjs'
+import { readNRulesConfigLite } from '../../../scripts/lib/read-n-rules-config-lite.mjs'
+import { getHandlers, resolvePlugins } from '../../../scripts/lib/resolve-plugins.mjs'
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
-import { collectCargoDiff } from './cargo-diff.mjs'
 import { collectTazeDiff } from './diff.mjs'
-import { collectUvDiff, listDirectDependencies } from './uv-diff.mjs'
+import rustProvider from './rust-provider.mjs'
 
 /** Суфікс бекапу package.json — той самий, що й у `diff.mjs`/кроці 1 SKILL.md. */
 const BACKUP_SUFFIX = '.taze-bak'
@@ -32,54 +33,6 @@ export function buildDependencyPrompt({ workspace, pkg, from, to }) {
     `2. Знайти використання зачепленого API в коді проєкту (\`rg -n\` по імпортах/викликах \`${pkg}\`).`,
     '3. Сумісно — нічого не робити. Несумісно — застосувати міграцію (перейменувати імпорт, оновити сигнатуру виклику, замінити видалену опцію еквівалентом).',
     '4. Якщо були правки — запусти `npx @7n/rules lint`, typecheck/test якщо є в проєкті.',
-    '5. Нетривіальна/неоднозначна міграція — не вгадуй, залиш TODO-коментар із посиланням на CHANGELOG.',
-    '',
-    'У відповіді одним абзацом підсумуй: сумісно / зрефакторено (які файли) / TODO (чому).'
-  ].join('\n')
-}
-
-/**
- * Промпт ОДНОГО ітеративного виклику для Rust-крейта — Rust-варіант
- * [`buildDependencyPrompt`] (кроки 4-6 SKILL.md, Rust-гілка), для ОДНОГО
- * major-крейта. Кроки 1-3/7/8 виконує оркестратор детерміновано, без LLM.
- * @param {{manifest: string, pkg: string, from: string, to: string}} entry запис major-diff (з `collectCargoDiff`)
- * @returns {string} готовий промпт
- */
-export function buildCargoDependencyPrompt({ manifest, pkg, from, to }) {
-  return [
-    '# Major-оновлення одного Rust-крейта: перевірка сумісності й рефакторинг',
-    '',
-    `Крейт \`${pkg}\` у \`${manifest}\`: **${from} → ${to}** — вже застосовано в Cargo.toml/Cargo.lock (кроки 1-3 виконано детерміновано, без тебе). Твоя задача — лише breaking-changes-перевірка й, за потреби, рефакторинг.`,
-    '',
-    '## Кроки',
-    `1. Зібрати breaking changes цього оновлення: адреса репозиторію з поля \`repository\`/\`documentation\` крейта на crates.io (https://crates.io/crates/${pkg}) — CHANGELOG.md репозиторію чи GitHub Releases. Якщо немає — різниця по публічному API (\`pub fn\`/\`pub struct\`/\`pub trait\`) між закешованою старою версією (\`~/.cargo/registry/src/*/${pkg}-<стара-версія>/\`) і новою.`,
-    `2. Знайти використання зачепленого API в коді проєкту (\`rg -n --type rust\` по use-шляхах/викликах \`${pkg}\`).`,
-    '3. Сумісно — нічого не робити. Несумісно — застосувати міграцію (перейменувати use-шлях, оновити сигнатуру виклику, замінити видалений макрос еквівалентом).',
-    '4. Якщо були правки — запусти `cargo fmt --all -- --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test`.',
-    '5. Нетривіальна/неоднозначна міграція — не вгадуй, залиш TODO-коментар із посиланням на CHANGELOG.',
-    '',
-    'У відповіді одним абзацом підсумуй: сумісно / зрефакторено (які файли) / TODO (чому).'
-  ].join('\n')
-}
-
-/**
- * Промпт ОДНОГО ітеративного виклику для Python-пакета — Python/uv-варіант
- * [`buildDependencyPrompt`] (кроки 4-6 SKILL.md, Python-гілка), для ОДНОГО
- * major-пакета. Кроки 1-3/7/8 виконує оркестратор детерміновано, без LLM.
- * @param {{manifest: string, pkg: string, from: string, to: string}} entry запис major-diff (з `collectUvDiff`)
- * @returns {string} готовий промпт
- */
-export function buildUvDependencyPrompt({ manifest, pkg, from, to }) {
-  return [
-    '# Major-оновлення одного Python-пакета: перевірка сумісності й рефакторинг',
-    '',
-    `Пакет \`${pkg}\` у \`${manifest}\`: **${from} → ${to}** — вже застосовано (\`uv remove\` + \`uv add --bounds lower\` виконано детерміновано, без тебе). Твоя задача — лише breaking-changes-перевірка й, за потреби, рефакторинг.`,
-    '',
-    '## Кроки',
-    `1. Зібрати breaking changes цього оновлення: CHANGELOG/Releases репозиторію пакета (адреса — зі сторінки https://pypi.org/project/${pkg}/) між ${from} і ${to}.`,
-    `2. Знайти використання зачепленого API в коді проєкту (\`rg -n --type py\` по імпортах/викликах \`${pkg}\`).`,
-    '3. Сумісно — нічого не робити. Несумісно — застосувати міграцію (перейменувати імпорт, оновити сигнатуру виклику, замінити видалений параметр еквівалентом).',
-    '4. Якщо були правки — запусти наявні в проєкті лінт/typecheck/test (`ruff`/`mypy`/`pytest` тощо — залежно від того, що реально налаштовано).',
     '5. Нетривіальна/неоднозначна міграція — не вгадуй, залиш TODO-коментар із посиланням на CHANGELOG.',
     '',
     'У відповіді одним абзацом підсумуй: сумісно / зрефакторено (які файли) / TODO (чому).'
@@ -154,7 +107,7 @@ function assertRunningInWorktree(cwd, spawnFn) {
 }
 
 /**
- * Синхронно виконує детерміновану команду (bunx/bun/find), кидає з
+ * Синхронно виконує детерміновану команду (bunx/bun), кидає з
  * exit-кодом+stderr при провалі.
  * @param {string} cmd бінарник
  * @param {string[]} args аргументи
@@ -206,174 +159,94 @@ export async function cleanupBackups(cwd, workspaces, deps = {}) {
 }
 
 /**
- * Чи встановлений cargo-edit (дає `cargo upgrade`) — без нього неможливо
- * детерміновано перетнути major-межу Rust-залежностей (голий `cargo update`
- * піднімає лише semver-сумісні версії; SKILL.md §Передумови).
- * @param {typeof spawnSync} spawnFn інжект для тестів
- * @returns {boolean} true — `cargo upgrade` доступна
- */
-function hasCargoEdit(spawnFn) {
-  return spawnFn('cargo', ['upgrade', '--version'], { encoding: 'utf8' }).status === 0
-}
-
-/**
- * Бекапить кожен Cargo.toml + спільний кореневий Cargo.lock (крок 1 SKILL.md,
- * Rust-гілка). v1: один спільний workspace/Cargo.lock у корені `cwd` —
- * поточна реальна топологія репо (кореневий `Cargo.toml` з `[workspace]` +
- * члени); кілька незалежних Cargo-workspace під час не підтримується.
+ * Завантажує EcosystemProvider-и з активних плагінів проєкту: `.n-rules.json`
+ * (або автодетект за файловими сигналами — `pyproject.toml` → lang-python) →
+ * `resolvePlugins` (плагін доставляється автоматично при першому запуску) → handler-модулі
+ * extension-point `taze` → default-експорт кожного валідується
+ * `assertEcosystemProvider`. Битий плагін (нема модуля/невалідна форма) —
+ * warning і пропуск, не провал прогону.
  * @param {string} cwd корінь репо
- * @param {string[]} manifestPaths відносні шляхи Cargo.toml (з `findCargoManifests`)
- * @param {{ copyFile?: (src: string, dest: string) => Promise<void> }} [deps] інжект
- * @returns {Promise<void>}
- */
-export async function backupCargoManifests(cwd, manifestPaths, deps = {}) {
-  const copy = deps.copyFile ?? copyFile
-  for (const manifest of manifestPaths) {
-    const manifestPath = join(cwd, manifest)
-    if (existsSync(manifestPath)) await copy(manifestPath, `${manifestPath}${BACKUP_SUFFIX}`)
-  }
-  const lockPath = join(cwd, 'Cargo.lock')
-  if (existsSync(lockPath)) await copy(lockPath, `${lockPath}${BACKUP_SUFFIX}`)
-}
-
-/**
- * Прибирає бекапи Cargo.toml/Cargo.lock після завершення (крок 7 SKILL.md,
- * Rust-гілка).
- * @param {string} cwd корінь репо
- * @param {string[]} manifestPaths відносні шляхи Cargo.toml (з `findCargoManifests`)
- * @param {{ rm?: (path: string, opts?: object) => Promise<void> }} [deps] інжект
- * @returns {Promise<void>}
- */
-export async function cleanupCargoBackups(cwd, manifestPaths, deps = {}) {
-  const remove = deps.rm ?? rm
-  for (const manifest of manifestPaths) {
-    await remove(join(cwd, `${manifest}${BACKUP_SUFFIX}`), { force: true })
-  }
-  await remove(join(cwd, `Cargo.lock${BACKUP_SUFFIX}`), { force: true })
-}
-
-/**
- * Знаходить Cargo.toml поза node_modules/.worktrees/target (крок 0.2 SKILL.md).
- * @param {string} cwd корінь репо
- * @param {{ spawnFn?: typeof spawnSync }} [deps] інжект
- * @returns {string[]} відносні шляхи знайдених Cargo.toml
- */
-export function findCargoManifests(cwd, deps = {}) {
-  const spawnFn = deps.spawnFn ?? spawnSync
-  const result = spawnFn(
-    'find',
-    [
-      '.',
-      '-name',
-      'Cargo.toml',
-      '-not',
-      '-path',
-      '*/node_modules/*',
-      '-not',
-      '-path',
-      '*/.worktrees/*',
-      '-not',
-      '-path',
-      '*/target/*'
-    ],
-    { cwd, encoding: 'utf8' }
-  )
-  return (result.stdout ?? '')
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean)
-}
-
-/**
- * Чи встановлений `uv` — без нього неможливо детерміновано перетнути
- * major-межу Python-залежностей (SKILL.md §Передумови, Python-гілка).
- * @param {typeof spawnSync} spawnFn інжект для тестів
- * @returns {boolean} true — `uv` доступний
- */
-function hasUv(spawnFn) {
-  return spawnFn('uv', ['--version'], { encoding: 'utf8' }).status === 0
-}
-
-/**
- * Знаходить кореневий `pyproject.toml` (крок 0.2 SKILL.md, Python-гілка).
- * v1: один кореневий файл, не per-package, як `find`-обхід для Cargo.toml —
- * поточна uv-конвенція (single-project, без workspace-обходу).
- * @param {string} cwd корінь репо
- * @returns {string[]} `['pyproject.toml']`, якщо файл існує, інакше `[]`
- */
-export function findPyprojectManifest(cwd) {
-  return existsSync(join(cwd, 'pyproject.toml')) ? ['pyproject.toml'] : []
-}
-
-/**
- * Бекапить pyproject.toml + uv.lock (крок 1 SKILL.md, Python-гілка) —
- * потрібно для класифікації major/minor через `collectUvDiff` після bump-у.
- * @param {string} cwd корінь репо
- * @param {{ copyFile?: (src: string, dest: string) => Promise<void> }} [deps] інжект
- * @returns {Promise<void>}
- */
-export async function backupUvManifest(cwd, deps = {}) {
-  const copy = deps.copyFile ?? copyFile
-  const pyprojectPath = join(cwd, 'pyproject.toml')
-  if (existsSync(pyprojectPath)) await copy(pyprojectPath, `${pyprojectPath}${BACKUP_SUFFIX}`)
-  const lockPath = join(cwd, 'uv.lock')
-  if (existsSync(lockPath)) await copy(lockPath, `${lockPath}${BACKUP_SUFFIX}`)
-}
-
-/**
- * Прибирає бекапи pyproject.toml/uv.lock після завершення (крок 7 SKILL.md,
- * Python-гілка).
- * @param {string} cwd корінь репо
- * @param {{ rm?: (path: string, opts?: object) => Promise<void> }} [deps] інжект
- * @returns {Promise<void>}
- */
-export async function cleanupUvBackups(cwd, deps = {}) {
-  const remove = deps.rm ?? rm
-  await remove(join(cwd, `pyproject.toml${BACKUP_SUFFIX}`), { force: true })
-  await remove(join(cwd, `uv.lock${BACKUP_SUFFIX}`), { force: true })
-}
-
-/**
- * Піднімає кожну пряму залежність pyproject.toml через `uv remove` + `uv add
- * <pkg>[extras] --bounds lower` (крок 2 SKILL.md, Python-гілка) — `uv` не
- * має єдиної команди "підняти все до latest, навіть через major", на
- * відміну від `bunx taze -w -r latest`/`cargo upgrade --incompatible allow`
- * (підтверджено емпірично: `uv add <pkg>` на вже присутній залежності —
- * no-op, specifier НЕ переписується без попереднього `uv remove`). Провал
- * одного пакета (мережа/резолюція) не втрачає прогрес по інших —
- * best-effort відновлення оригінального рядка, якщо `uv add` не вдався
- * після `uv remove`.
- * @param {string} cwd корінь репо
- * @param {typeof spawnSync} spawnFn інжект для тестів
  * @param {(line: string) => void} log колбек прогресу
- * @param {{ readFile?: (path: string, encoding: string) => Promise<string> }} [deps] інжект
- * @returns {Promise<void>}
+ * @param {{ readNRulesConfigLite?: (cwd: string) => Promise<object>, resolvePlugins?: (root: string, config: object, opts?: object) => object[], getHandlers?: (root: string, config: object, point: string) => Array<{pluginName: string, modulePath: string}>, importModule?: (url: string) => Promise<object> }} [deps] інжекти для тестів
+ * @returns {Promise<object[]>} валідні провайдери плагінів
  */
-async function bumpUvDependencies(cwd, spawnFn, log, deps = {}) {
-  const read = deps.readFile ?? readFile
-  const text = await read(join(cwd, 'pyproject.toml'), 'utf8')
-  const manifest = parseToml(text)
-  const directDeps = listDirectDependencies(manifest)
+export async function loadPluginTazeProviders(cwd, log, deps = {}) {
+  const readConfig = deps.readNRulesConfigLite ?? readNRulesConfigLite
+  const config = await readConfig(cwd)
+  const resolve = deps.resolvePlugins ?? resolvePlugins
+  resolve(cwd, config)
+  const handlers = (deps.getHandlers ?? getHandlers)(cwd, config, 'taze')
+  // eslint-disable-next-line no-unsanitized/method
+  const importModule = deps.importModule ?? (url => import(url))
 
-  for (const dep of directDeps) {
-    const pkgSpec = dep.extras.length > 0 ? `${dep.name}[${dep.extras.join(',')}]` : dep.name
-    const removeResult = spawnFn('uv', ['remove', dep.name], { cwd, encoding: 'utf8' })
-    if (removeResult.status !== 0) {
-      log(`  ⚠️ uv remove ${dep.name}: ${removeResult.stderr || removeResult.stdout}`)
-      continue
-    }
-    const addResult = spawnFn('uv', ['add', pkgSpec, '--bounds', 'lower'], { cwd, encoding: 'utf8' })
-    if (addResult.status !== 0) {
-      log(`  ⚠️ uv add ${pkgSpec}: ${addResult.stderr || addResult.stdout} — відновлюю ${dep.raw}`)
-      spawnFn('uv', ['add', dep.raw], { cwd, encoding: 'utf8' })
+  const providers = []
+  for (const handler of handlers) {
+    try {
+      const mod = await importModule(pathToFileURL(handler.modulePath).href)
+      providers.push(assertEcosystemProvider(mod.default, handler.pluginName))
+    } catch (error) {
+      log(`⚠️ Плагін ${handler.pluginName}: taze-провайдер не завантажився — ${error.message}`)
     }
   }
+  return providers
 }
 
 /**
- * Форматує один рядок результату ітерації (спільний для npm- і Rust-гілки).
+ * Проганяє одну екосистему (провайдера) наскрізь: detect → available →
+ * backup → bump → diff → ізольований виклик раннера по кожному major-запису →
+ * cleanup. Виняток усередині (bump/diff/команда) не зупиняє інших провайдерів —
+ * фіксується в `error` запису екосистеми.
+ * @param {import('../../../scripts/lib/plugin-api.mjs').EcosystemProvider} provider провайдер екосистеми
+ * @param {{ cwd: string, runner: string, log: (line: string) => void, deps: object, spawnFn: typeof spawnSync, call: typeof callRunner }} ctx контекст прогону
+ * @returns {Promise<object>} запис екосистеми для звіту
+ */
+async function runEcosystem(provider, { cwd, runner, log, deps, spawnFn, call }) {
+  const base = {
+    id: provider.id,
+    title: provider.title,
+    manifestNoun: provider.manifestNoun,
+    skillSection: provider.skillSection
+  }
+  const eco = { ...base, manifests: [], processed: false, skippedReason: null, error: null, minorPatch: 0, results: [] }
+  try {
+    eco.manifests = provider.detect(cwd, { spawnFn })
+    if (eco.manifests.length === 0) return eco
+
+    const availability = provider.available(spawnFn)
+    if (!availability.ok) {
+      eco.skippedReason = availability.reason
+      log(`⏭ ${provider.title}: ${availability.reason}`)
+      return eco
+    }
+
+    log(`📦 Бекап (${provider.manifestNoun})...`)
+    await provider.backup(cwd, eco.manifests, deps)
+    await provider.bump(cwd, eco.manifests, { spawnFn, log, deps })
+
+    const diff = await provider.diff(cwd, eco.manifests, deps)
+    log(`🔍 ${provider.title} diff: ${diff.major.length} major, ${diff.minorPatch} minor/patch`)
+
+    for (const entry of diff.major) {
+      log(`🔧 [${provider.id}] ${entry.pkg} (${entry.manifest}): ${entry.from} → ${entry.to}...`)
+      const outcome = await call(runner, provider.promptFor(entry), cwd, deps)
+      eco.results.push({ ...entry, ...outcome })
+      log(outcome.ok ? `  ✅ ${entry.pkg}` : `  ❌ ${entry.pkg}: ${outcome.error}`)
+    }
+
+    await provider.cleanup(cwd, eco.manifests, deps)
+    eco.processed = true
+    eco.minorPatch = diff.minorPatch
+  } catch (error) {
+    eco.error = error instanceof Error ? error.message : String(error)
+    log(`❌ ${provider.title}: ${eco.error}`)
+  }
+  return eco
+}
+
+/**
+ * Форматує один рядок результату ітерації (спільний для npm-гілки й екосистем).
  * @param {{pkg: string, ok: boolean, error: string|null, from: string, to: string}} r результат ітерації
- * @param {string} scopeLabel мітка джерела (`workspace` для npm, `manifest` для Rust)
+ * @param {string} scopeLabel мітка джерела (`workspace` для npm, `manifest` для екосистем)
  * @returns {string} один рядок звіту
  */
 function formatResultLine(r, scopeLabel) {
@@ -382,24 +255,23 @@ function formatResultLine(r, scopeLabel) {
   return `  ${status} \`${r.pkg}\` (${scopeLabel}): ${r.from} → ${r.to}${errorSuffix}`
 }
 
-/** Пуста гілка-екосистема (для дефолту, коли `rust`/`python` не знайдені взагалі). */
-const EMPTY_ECOSYSTEM = { manifests: [], processed: false, skippedReason: null, minorPatch: 0, results: [] }
-
 /**
- * Додає секцію звіту однієї не-npm екосистемної гілки (Rust/Python) —
- * спільна логіка для «Rust-крейти»/«Python-пакети (uv)», обидві мають
- * ідентичну форму результату ({manifest, pkg, from, to, ok, error}).
+ * Додає секцію звіту однієї екосистеми (Rust/Python/…) — мітки бере з самого
+ * запису (`title`/`manifestNoun`/`skillSection` — з провайдера).
  * @param {string[]} lines масив рядків звіту (мутується)
- * @param {{manifests:string[], processed:boolean, skippedReason:string|null, minorPatch:number, results:Array<{pkg:string, manifest:string, from:string, to:string, ok:boolean, error:string|null}>}} eco дані гілки
- * @param {{title: string, manifestNoun: string, skillSection: string}} labels мітки секції
- * @returns {number} totalChanged цієї гілки
+ * @param {{title: string, manifestNoun: string, skillSection: string, manifests: string[], processed: boolean, skippedReason: string|null, error: string|null, minorPatch: number, results: Array<{pkg:string, manifest:string, from:string, to:string, ok:boolean, error:string|null}>}} eco запис екосистеми
+ * @returns {number} totalChanged цієї екосистеми
  */
-function appendEcosystemSection(lines, eco, { title, manifestNoun, skillSection }) {
-  if (eco.manifests.length === 0) return 0
-  lines.push('', `### ${title}`)
+function appendEcosystemSection(lines, eco) {
+  if (eco.manifests.length === 0 && !eco.error) return 0
+  lines.push('', `### ${eco.title}`)
+  if (eco.error) {
+    lines.push(`- ❌ Провал (${eco.error}) — переглянь дерево вручну, бекапи могли лишитись`)
+    return 0
+  }
   if (!eco.processed) {
     lines.push(
-      `- ⏭ Пропущено (${eco.skippedReason}) — ${eco.manifests.length} ${manifestNoun}, онови вручну за ${skillSection}: ${eco.manifests.join(', ')}`
+      `- ⏭ Пропущено (${eco.skippedReason}) — ${eco.manifests.length} ${eco.manifestNoun}, онови вручну за ${eco.skillSection}: ${eco.manifests.join(', ')}`
     )
     return 0
   }
@@ -417,24 +289,11 @@ function appendEcosystemSection(lines, eco, { title, manifestNoun, skillSection 
  *   minorPatch: number,
  *   totalChanged: number,
  *   results: Array<{pkg:string, workspace:string, from:string, to:string, ok:boolean, error:string|null}>,
- *   rust?: {
- *     manifests: string[],
- *     processed: boolean,
- *     skippedReason: string|null,
- *     minorPatch: number,
- *     results: Array<{pkg:string, manifest:string, from:string, to:string, ok:boolean, error:string|null}>
- *   },
- *   python?: {
- *     manifests: string[],
- *     processed: boolean,
- *     skippedReason: string|null,
- *     minorPatch: number,
- *     results: Array<{pkg:string, manifest:string, from:string, to:string, ok:boolean, error:string|null}>
- *   }
- * }} args дані звіту
+ *   ecosystems?: Array<object>
+ * }} args дані звіту (`ecosystems` — записи з `runEcosystem`, по одному на провайдера)
  * @returns {string} markdown-звіт
  */
-export function formatReport({ minorPatch, totalChanged, results, rust = EMPTY_ECOSYSTEM, python = EMPTY_ECOSYSTEM }) {
+export function formatReport({ minorPatch, totalChanged, results, ecosystems = [] }) {
   const lines = [
     '## taze: підсумок',
     '',
@@ -445,18 +304,12 @@ export function formatReport({ minorPatch, totalChanged, results, rust = EMPTY_E
     lines.push(formatResultLine(r, r.workspace))
   }
 
-  const rustTotalChanged = appendEcosystemSection(lines, rust, {
-    title: 'Rust-крейти',
-    manifestNoun: 'Cargo.toml',
-    skillSection: 'Rust-гілкою SKILL.md'
-  })
-  const pythonTotalChanged = appendEcosystemSection(lines, python, {
-    title: 'Python-пакети (uv)',
-    manifestNoun: 'pyproject.toml',
-    skillSection: 'Python-гілкою SKILL.md'
-  })
+  let ecosystemsTotal = 0
+  for (const eco of ecosystems) {
+    ecosystemsTotal += appendEcosystemSection(lines, eco)
+  }
 
-  lines.push('', `- **Всього змінено:** ${totalChanged + rustTotalChanged + pythonTotalChanged}`)
+  lines.push('', `- **Всього змінено:** ${totalChanged + ecosystemsTotal}`)
   return lines.join('\n')
 }
 
@@ -464,16 +317,17 @@ export function formatReport({ minorPatch, totalChanged, results, rust = EMPTY_E
  * Оркеструє taze: детерміновані кроки (бекап → масовий bump → diff →
  * прибирання → звіт) без LLM, і по одному ізольованому, обмеженому по
  * обсягу виклику `callRunner` на кожен major-пакет (кроки 4-6 SKILL.md) —
- * замість одного величезного непрозорого ходу на весь монорепо. Кожен
- * виклик успадковує власний timeout/idle-timeout раннера, тож падіння
- * одного пакета не втрачає прогрес по інших.
+ * замість одного величезного непрозорого ходу на весь монорепо. npm/bun-гілка
+ * вбудована; решта екосистем — EcosystemProvider-и: first-party (Rust/Cargo)
+ * плюс завантажені з плагінів (`@7n/rules-lang-*`, extension-point `taze`).
+ * Падіння одного пакета/однієї екосистеми не втрачає прогрес по інших.
  * @param {{
  *   cwd?: string,
  *   runner?: 'pi' | 'cursor' | 'codex',
  *   log?: (line: string) => void,
- *   deps?: { spawnFn?: typeof spawnSync, collectTazeDiff?: (cwd: string) => Promise<object>, collectCargoDiff?: (cwd: string, manifests: string[]) => Promise<object>, collectUvDiff?: (cwd: string) => Promise<object>, bumpUvDependencies?: (cwd: string, spawnFn: typeof spawnSync, log: (line: string) => void, deps: object) => Promise<void>, callRunner?: (runner: string, prompt: string, cwd: string, deps: object) => Promise<{ok: boolean, text: string, error: string|null}> } & Record<string, unknown>
- * }} [options] опції + інжекти для тестів
- * @returns {Promise<{ ok: boolean, report: string, results: Array<object>, rustResults: Array<object>, pythonResults: Array<object> }>} результат
+ *   deps?: { spawnFn?: typeof spawnSync, collectTazeDiff?: (cwd: string) => Promise<object>, callRunner?: (runner: string, prompt: string, cwd: string, deps: object) => Promise<{ok: boolean, text: string, error: string|null}>, ecosystemProviders?: object[] } & Record<string, unknown>
+ * }} [options] опції + інжекти для тестів (`deps.ecosystemProviders` повністю замінює список провайдерів)
+ * @returns {Promise<{ ok: boolean, report: string, results: Array<object>, ecosystems: Array<object> }>} результат
  */
 export async function runTazeOrchestrator(options = {}) {
   const cwd = options.cwd ?? process.cwd()
@@ -507,90 +361,15 @@ export async function runTazeOrchestrator(options = {}) {
 
   await cleanupBackups(cwd, backedUpWorkspaces, deps)
 
-  const rustManifests = findCargoManifests(cwd, { spawnFn })
-  let rust = { manifests: rustManifests, processed: false, skippedReason: null, minorPatch: 0, results: [] }
-
-  if (rustManifests.length > 0 && !hasCargoEdit(spawnFn)) {
-    rust.skippedReason =
-      'cargo-edit не встановлено (`cargo install cargo-edit`) — cargo update без нього недетермінований для major'
-    log(`⏭ Rust: ${rust.skippedReason}`)
-  } else if (rustManifests.length > 0) {
-    log('📦 Бекап Cargo.toml/Cargo.lock...')
-    await backupCargoManifests(cwd, rustManifests, deps)
-
-    log('⬆️  cargo upgrade --incompatible allow...')
-    runCommand('cargo', ['upgrade', '--incompatible', 'allow'], cwd, spawnFn)
-    log('🔄 cargo update...')
-    runCommand('cargo', ['update'], cwd, spawnFn)
-
-    const collectCargo = deps.collectCargoDiff ?? collectCargoDiff
-    const cargoDiff = await collectCargo(cwd, rustManifests)
-    log(`🔍 Rust diff: ${cargoDiff.major.length} major, ${cargoDiff.minorPatch} minor/patch`)
-
-    const rustResults = []
-    for (const entry of cargoDiff.major) {
-      log(`🔧 [rust] ${entry.pkg} (${entry.manifest}): ${entry.from} → ${entry.to}...`)
-      const outcome = await call(runner, buildCargoDependencyPrompt(entry), cwd, deps)
-      rustResults.push({ ...entry, ...outcome })
-      log(outcome.ok ? `  ✅ ${entry.pkg}` : `  ❌ ${entry.pkg}: ${outcome.error}`)
-    }
-
-    await cleanupCargoBackups(cwd, rustManifests, deps)
-
-    rust = {
-      manifests: rustManifests,
-      processed: true,
-      skippedReason: null,
-      minorPatch: cargoDiff.minorPatch,
-      results: rustResults
-    }
+  const providers = deps.ecosystemProviders ?? [rustProvider, ...(await loadPluginTazeProviders(cwd, log, deps))]
+  const ecosystems = []
+  for (const provider of providers) {
+    ecosystems.push(await runEcosystem(provider, { cwd, runner, log, deps, spawnFn, call }))
   }
 
-  const pyprojectManifests = findPyprojectManifest(cwd)
-  let python = { manifests: pyprojectManifests, processed: false, skippedReason: null, minorPatch: 0, results: [] }
-
-  if (pyprojectManifests.length > 0 && !hasUv(spawnFn)) {
-    python.skippedReason = '`uv` не встановлено (https://docs.astral.sh/uv/getting-started/installation/)'
-    log(`⏭ Python: ${python.skippedReason}`)
-  } else if (pyprojectManifests.length > 0) {
-    log('📦 Бекап pyproject.toml/uv.lock...')
-    await backupUvManifest(cwd, deps)
-
-    log('⬆️  uv remove + uv add --bounds lower (по кожній прямій залежності)...')
-    const bump = deps.bumpUvDependencies ?? bumpUvDependencies
-    await bump(cwd, spawnFn, log, deps)
-
-    const collectUv = deps.collectUvDiff ?? collectUvDiff
-    const uvDiff = await collectUv(cwd)
-    log(`🔍 Python diff: ${uvDiff.major.length} major, ${uvDiff.minorPatch} minor/patch`)
-
-    const pythonResults = []
-    for (const entry of uvDiff.major) {
-      log(`🔧 [python] ${entry.pkg} (${entry.manifest}): ${entry.from} → ${entry.to}...`)
-      const outcome = await call(runner, buildUvDependencyPrompt(entry), cwd, deps)
-      pythonResults.push({ ...entry, ...outcome })
-      log(outcome.ok ? `  ✅ ${entry.pkg}` : `  ❌ ${entry.pkg}: ${outcome.error}`)
-    }
-
-    await cleanupUvBackups(cwd, deps)
-
-    python = {
-      manifests: pyprojectManifests,
-      processed: true,
-      skippedReason: null,
-      minorPatch: uvDiff.minorPatch,
-      results: pythonResults
-    }
-  }
-
-  const report = formatReport({ minorPatch: diff.minorPatch, totalChanged: diff.totalChanged, results, rust, python })
+  const report = formatReport({ minorPatch: diff.minorPatch, totalChanged: diff.totalChanged, results, ecosystems })
   log(report)
 
-  return {
-    ok: results.every(r => r.ok) && rust.results.every(r => r.ok) && python.results.every(r => r.ok),
-    report,
-    results,
-    rustResults: rust.results,
-    pythonResults: python.results
-  }
+  const ecosystemsOk = ecosystems.every(eco => eco.error === null && eco.results.every(r => r.ok))
+  return { ok: results.every(r => r.ok) && ecosystemsOk, report, results, ecosystems }
 }

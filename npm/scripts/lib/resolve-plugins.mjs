@@ -22,10 +22,15 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
 
-/** Відомі плагіни для автовизначення: сигнал у дереві репо → npm-пакет. */
+/** Відомі CI-плагіни для автовизначення: сигнал у дереві репо → npm-пакет. */
 export const KNOWN_CI_PLUGINS = Object.freeze({
   github: '@7n/rules-ci-github',
   azure: '@7n/rules-ci-azure'
+})
+
+/** Відомі мовні плагіни: файловий сигнал екосистеми в корені репо → npm-пакет. */
+export const KNOWN_LANG_PLUGINS = Object.freeze({
+  python: { signal: 'pyproject.toml', pkg: '@7n/rules-lang-python' }
 })
 
 const WORKFLOW_YML_RE = /\.ya?ml$/u
@@ -72,9 +77,9 @@ function hasGithubWorkflows(projectRoot) {
  * Файлові сигнали мають пріоритет; `repository.url` — лише коли файлових сигналів нема
  * (свіже репо без CI-конфігів). Обидва сигнали → обидва плагіни; жодного → [].
  * @param {string} projectRoot корінь репозиторію
- * @returns {string[]} npm-імена плагінів
+ * @returns {string[]} npm-імена CI-плагінів
  */
-export function detectPluginsFromRepo(projectRoot) {
+function detectCiPlugins(projectRoot) {
   const out = []
   if (hasGithubWorkflows(projectRoot)) out.push(KNOWN_CI_PLUGINS.github)
   if (existsSync(join(projectRoot, 'azure-pipelines.yml'))) out.push(KNOWN_CI_PLUGINS.azure)
@@ -84,6 +89,21 @@ export function detectPluginsFromRepo(projectRoot) {
   if (typeof url === 'string') {
     if (GITHUB_URL_RE.test(url)) out.push(KNOWN_CI_PLUGINS.github)
     if (AZURE_URL_RE.test(url)) out.push(KNOWN_CI_PLUGINS.azure)
+  }
+  return out
+}
+
+/**
+ * Автодетект плагінів за станом репозиторію: CI-плагіни (файлові сигнали з
+ * fallback на `repository.url`) + мовні плагіни (лише файлові сигнали —
+ * маніфест екосистеми в корені; URL-fallback для мов безглуздий).
+ * @param {string} projectRoot корінь репозиторію
+ * @returns {string[]} npm-імена плагінів
+ */
+export function detectPluginsFromRepo(projectRoot) {
+  const out = detectCiPlugins(projectRoot)
+  for (const { signal, pkg } of Object.values(KNOWN_LANG_PLUGINS)) {
+    if (existsSync(join(projectRoot, signal))) out.push(pkg)
   }
   return out
 }
@@ -183,12 +203,15 @@ export function resolvePlugins(projectRoot, config, options = {}) {
       }
       continue
     }
+    const manifest = readPluginManifest(packageRoot)
     const rulesDir = join(packageRoot, 'rules')
-    if (!existsSync(rulesDir)) {
+    if (manifest.contributes.rules && !existsSync(rulesDir)) {
+      // Плагін ДЕКЛАРУЄ правила (rules !== false), але каталогу нема — битий пакет.
+      // Плагін без правил (лише handlers, напр. lang-* до фази 3) — легальний.
       if (options.quiet !== true) console.warn(`⚠️  Плагін ${name} без каталогу rules/ — пропускаю\n`)
       continue
     }
-    out.push({ name, packageRoot, rulesDir, manifest: readPluginManifest(packageRoot) })
+    out.push({ name, packageRoot, rulesDir, manifest })
   }
   RESOLVE_CACHE.set(cacheKey, out)
   return out
@@ -207,7 +230,9 @@ export function resolveRulesDirs(projectRoot, config, bundledRulesDir, options =
   const plugins = resolvePlugins(projectRoot, config, options)
   return [
     { name: '@7n/rules', rulesDir: bundledRulesDir, packageRoot: null },
-    ...plugins.map(p => ({ name: p.name, rulesDir: p.rulesDir, packageRoot: p.packageRoot }))
+    ...plugins
+      .filter(p => p.manifest.contributes.rules && existsSync(p.rulesDir))
+      .map(p => ({ name: p.name, rulesDir: p.rulesDir, packageRoot: p.packageRoot }))
   ]
 }
 

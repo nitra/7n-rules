@@ -381,3 +381,23 @@ Rego-пакет: `text.vscode_settings`
 - Якщо блок відсутній або не є об'єктом — deny
 
 Канонічний snippet: [settings.json.snippet.json](./template/settings.json.snippet.json)
+
+## Перевірка `.github/workflows/lint-text.yml` — структура CI-workflow
+
+Rego-пакет: `text.lint_text`
+
+Цільовий файл: `.github/workflows/lint-text.yml`
+
+**Що перевіряється:**
+
+- `name` — має бути `"Lint Text"`
+- `on.push.branches` та `on.pull_request.branches` — мають містити `dev` і `main`
+- `on.push.paths` — має бути надмножиною канонічних glob-ів (усі текстові розширення)
+- `jobs.text` — job обов'язковий
+- `jobs.text.runs-on` — має бути `ubuntu-latest`
+- `jobs.text.permissions.contents` — має бути `read`
+- `jobs.text.steps` — не порожній; має містити всі канонічні `uses:` та `run:` підрядки
+
+Канонічна структура workflow: [lint-text.yml.snippet.yml](./template/lint-text.yml.snippet.yml)
+
+**Примітка:** conftest парсить YAML 1.1, де ключ `on:` без лапок перетворюється на булевий `true` — rego читає on-блок через `input["true"]`.
