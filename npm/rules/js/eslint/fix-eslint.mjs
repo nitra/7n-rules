@@ -11,7 +11,7 @@
  * узгоджено із забороною `oxlint --fix`/`eslint --fix` у CI (js.mdc / lint_js_yml).
  */
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { ESLint } from 'eslint'
@@ -58,6 +58,59 @@ async function runLinterFix(jsFiles, cwd) {
   return touched
 }
 
+/**
+ * Реєстр "механічних" правил `js/eslint`: `oxlint --fix`/`eslint --fix` (T0
+ * `js-eslint-autofix` вище) їх НЕ покриває (suggestion-only у власній реалізації
+ * інструментів — перевірено емпірично: лишаються порушеними після `--fix` на
+ * реальних прогонах), але текстуальна заміна на позначеному рядку однозначна й
+ * безпечна без повного AST-парсингу — проста заміна ідентифікатора/API-виклику.
+ * `reasons` — обидва формати `reason` з `main.mjs` (`f.rule`): eslint (`ruleId`,
+ * `"plugin/rule"`) і oxlint (`d.code`, `"plugin(rule)"`) — те саме правило різні
+ * тули віддають по-різному.
+ * @type {Array<{ reasons: string[], replace: (line: string) => string|null }>}
+ */
+const MECHANICAL_TEXT_FIXES = [
+  {
+    // Number.isInteger(x) не ловить x поза Number.MIN/MAX_SAFE_INTEGER — сама заміна
+    // імені методу семантично точна для рядка, що ЛИШЕ так і викликає isInteger.
+    reasons: ['unicorn/prefer-number-is-safe-integer', 'unicorn(prefer-number-is-safe-integer)'],
+    replace: line =>
+      line.includes('Number.isInteger') ? line.replaceAll('Number.isInteger', 'Number.isSafeInteger') : null
+  }
+]
+
+/**
+ * Знаходить механічний фікс для reason-у порушення (обидва формати tool-у).
+ * @param {string} reason `violation.reason`
+ * @returns {((line: string) => string|null)|null} replace-функція або null
+ */
+function mechanicalFixFor(reason) {
+  return MECHANICAL_TEXT_FIXES.find(f => f.reasons.includes(reason))?.replace ?? null
+}
+
+/**
+ * Застосовує механічні текстові заміни по конкретних рядках (`data.line`, 1-indexed)
+ * файлу. Рядок без збігу очікуваного шаблону (файл змінився з моменту detect-у) —
+ * пропускається, не гадаємо.
+ * @param {string} content вміст файлу
+ * @param {Array<{ line: number, replace: (line: string) => string|null }>} targets рядки й replace-функції
+ * @returns {string|null} новий вміст або null, якщо жоден рядок не змінився
+ */
+function applyMechanicalLineFixes(content, targets) {
+  const lines = content.split('\n')
+  let changed = false
+  for (const { line, replace } of targets) {
+    const idx = line - 1
+    if (idx < 0 || idx >= lines.length) continue
+    const next = replace(lines[idx])
+    if (next !== null && next !== lines[idx]) {
+      lines[idx] = next
+      changed = true
+    }
+  }
+  return changed ? lines.join('\n') : null
+}
+
 /** @type {import('../../../scripts/lib/lint-surface/types.mjs').T0Pattern[]} */
 export const patterns = [
   {
@@ -71,6 +124,36 @@ export const patterns = [
       for (const a of touchedFiles) ctx.recordWrite?.(a)
       return touchedFiles.length > 0
         ? { touchedFiles, message: `oxlint/eslint --fix: ${touchedFiles.length} файл(ів)` }
+        : { touchedFiles: [] }
+    }
+  },
+  {
+    id: 'js-eslint-mechanical-text-fix',
+    test: violations => violations.some(v => v.file && v.data?.line && mechanicalFixFor(v.reason)),
+    apply: (violations, ctx) => {
+      /** @type {Map<string, Array<{ line: number, replace: (line: string) => string|null }>>} */
+      const byFile = new Map()
+      for (const v of violations) {
+        const replace = v.file && v.data?.line ? mechanicalFixFor(v.reason) : null
+        if (!replace) continue
+        const arr = byFile.get(v.file)
+        const target = { line: v.data.line, replace }
+        if (arr) arr.push(target)
+        else byFile.set(v.file, [target])
+      }
+      const touchedFiles = []
+      for (const [rel, targets] of byFile) {
+        const abs = resolve(ctx.cwd, rel)
+        const content = readOrNull(abs)
+        if (content === null) continue
+        const next = applyMechanicalLineFixes(content, targets)
+        if (next === null) continue
+        ctx.recordWrite?.(abs)
+        writeFileSync(abs, next)
+        touchedFiles.push(abs)
+      }
+      return touchedFiles.length > 0
+        ? { touchedFiles, message: `механічні текстові заміни: ${touchedFiles.length} файл(ів)` }
         : { touchedFiles: [] }
     }
   }
