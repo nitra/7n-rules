@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.1] - 2026-07-18
+
+### Fixed
+
+- service_deploy_pipeline під реальну efes-форму: template-параметр покриває сервіс за префіксом glob-а (`run/nexus/**` ↔ modulePath `run/nexus`, було — хибний deny на всіх extends-пайплайнах); plan-гейт вимагається лише за наявності lint-джоб (утилітарні service-scoped pipelines типу gen:schema — поза каноном); команди читаються і з кроків `task: Bash@3` (`inputs.script`) — у rego і в автомігратора
+
 ## [1.4.0] - 2026-07-18
 
 ### Added
