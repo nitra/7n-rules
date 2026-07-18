@@ -24,8 +24,13 @@ import rego.v1
 
 jobs := object.get(input, "jobs", {})
 
-# YAML-парсери розходяться щодо `on:`: YAML 1.2 → ключ "on", YAML 1.1 → bool true.
-on_block := object.union(object.get(input, "on", {}), object.get(input, true, {}))
+# YAML-парсери розходяться щодо `on:`: YAML 1.2 → ключ "on", YAML 1.1 → bool true,
+# а конвеєр conftest (YAML→JSON) серіалізує bool-ключ у РЯДОК "true" — покриваємо всі три.
+on_block := object.union_n([
+	object.get(input, "on", {}),
+	object.get(input, true, {}),
+	object.get(input, "true", {}),
+])
 
 push_paths contains p if some p in object.get(object.get(on_block, "push", {}), "paths", [])
 

@@ -197,6 +197,7 @@ export async function buildDetectPlan(opts) {
     explicitFiles: Array.isArray(opts.files) ? opts.files : null,
     pathMode: opts.pathMode === true,
     repoWide: opts.repoWide === true,
+    baseRef: typeof opts.baseRef === 'string' ? opts.baseRef : null,
     cwd: opts.cwd
   })
 }
@@ -375,10 +376,20 @@ export function computeActiveDomains(byRule, enabledSet, changed) {
  * @param {string[]|null} args.explicitFiles явний перелік файлів або null.
  * @param {boolean} [args.pathMode] `--path`-дельта: лише per-file concerns.
  * @param {boolean} [args.repoWide] `--repo-wide`: лише full-scope concerns, whole-repo.
+ * @param {string|null} [args.baseRef] явна база дельти (`--base <ref>`) замість каскаду main→origin/main.
  * @param {string} args.cwd робоча директорія прогону.
  * @returns {Promise<PlanItem[]>} впорядкований план прогону.
  */
-async function buildPlan({ byRule, full, rules, explicitFiles, pathMode = false, repoWide = false, cwd }) {
+async function buildPlan({
+  byRule,
+  full,
+  rules,
+  explicitFiles,
+  pathMode = false,
+  repoWide = false,
+  baseRef = null,
+  cwd
+}) {
   // scoped + --path: per-file concerns названих правил × перетин path ∩ дельта
   if (rules.length > 0 && explicitFiles !== null) return buildScopedDeltaPlan(byRule, rules, explicitFiles)
   // scoped: усі lint-concerns названих правил, whole-repo
@@ -394,7 +405,7 @@ async function buildPlan({ byRule, full, rules, explicitFiles, pathMode = false,
   if (full && explicitFiles === null) return buildFullPlan(byRule, enabledSet)
 
   // delta / explicit-files; path-режим виключає full-scope concerns
-  const changed = explicitFiles ?? (await collectChangedFilesSince(await resolveChangedBase(cwd), cwd))
+  const changed = explicitFiles ?? (await collectChangedFilesSince(await resolveChangedBase(cwd, baseRef), cwd))
   return buildDeltaPlan(byRule, enabledSet, changed, { perFileOnly: pathMode })
 }
 
@@ -554,6 +565,7 @@ export async function detectAll(opts) {
     explicitFiles,
     pathMode: opts.pathMode === true,
     repoWide: opts.repoWide === true,
+    baseRef: typeof opts.baseRef === 'string' ? opts.baseRef : null,
     cwd
   })
 

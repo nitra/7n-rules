@@ -3,7 +3,7 @@ type: JS Module
 title: run-detectors.mjs
 resource: npm/scripts/lib/lint-surface/run-detectors.mjs
 docgen:
-  crc: 37567fc8
+  crc: 128fe3b7
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.98
