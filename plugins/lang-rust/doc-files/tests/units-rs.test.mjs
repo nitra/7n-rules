@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { extractUnitsRs } from '../main.mjs'
-import { extractUnits } from '../../units/main.mjs'
+import { extractUnitsRs } from '../units-rs.mjs'
 
 const SRC = `
 use std::path::PathBuf;
@@ -95,15 +94,10 @@ describe('extractUnitsRs — top-level і impl-методи', () => {
   })
 })
 
-describe('extractUnits — фасад за розширенням', () => {
+describe('extractUnitsRs — прямий виклик (фасад ядра диспатчить через extension-point)', () => {
   test('rs → юніти (не null)', () => {
-    const units = extractUnits(SRC, 'lib.rs')
+    const units = extractUnitsRs(SRC, 'lib.rs')
     expect(units).not.toBeNull()
     expect(units.length).toBeGreaterThan(0)
-  })
-
-  test('vue та py — все ще null (не зламали)', () => {
-    expect(extractUnits('<template></template>', 'c.vue')).toBeNull()
-    expect(extractUnits('def f(): pass', 's.py')).toBeNull()
   })
 })
