@@ -6,47 +6,18 @@
  * `execSync` (прямо або через спільний helper), бо це блокує event loop цілком і
  * зробило б паралельний пул ілюзорним.
  *
- * Нова міграція (наступний shared helper на `spawnAsync`, за протоколом
- * `runConftestBatch`/`runOxlintJson`): переведи helper → онови caller-и (`await`) →
- * прибери відповідний запис звідси → розшир `docs/blocking-inventory-guard.test.mjs`
- * (guard-тест сам перевірить, що жоден із них більше не викликає `spawnSync`/`execSync`).
+ * Список зараз порожній: усі 22 concern-и, що на момент ADR мали прямий чи
+ * shared-helper `spawnSync`/`execSync`, мігровано на `spawnAsync`
+ * (`npm/scripts/utils/spawn-async.mjs`). Інвентар лишається як живий guard —
+ * `tests/blocking-inventory.test.mjs` сканує активні concern-и репо і провалиться,
+ * щойно новий (чи regressed) concern звернеться до `spawnSync`/`execSync` без
+ * відповідного запису тут.
+ *
+ * Протокол для нового blocking concern-а: перевести на `spawnAsync` → оновити
+ * caller-и (`await`) → якщо міграція ще не завершена, додати запис сюди на час
+ * переходу; guard-тест сам підтвердить, коли можна прибрати.
  */
-
-/**
- * Concern-и з прямим `spawnSync`/`execSync` у власному `main.mjs` — кожен спавнить свій
- * зовнішній тул напряму, ще не через `spawnAsync`.
- */
-const DIRECT_SPAWN_CONCERNS = [
-  'text/run-dotenv-linter',
-  'text/oxfmt',
-  'text/cspell-fix',
-  'text/run-v8r',
-  'text/run-shellcheck',
-  'image-compress/check',
-  'php/phpcs',
-  'php/project',
-  'php/cs_fixer',
-  'js/jscpd_duplicates',
-  'k8s/manifests',
-  'style/lint',
-  'bun/licensee',
-  'python/ruff',
-  'python/project',
-  'python/mypy',
-  'security/scan',
-  'rust/check',
-  'rego/conftest_verify'
-]
-
-/**
- * Concern-и, чий detector сам не викликає `spawnSync`/`execSync`, але делегує спільному
- * helper-у, який його викликає: `docker/lib/docker-hadolint.mjs` (hadolint) і
- * `rego/lib/run-external-tool.mjs` (regal/opa).
- */
-const SHARED_HELPER_CONCERNS = ['docker/lint', 'rego/regal', 'rego/opa_check']
-
-/** Повний serial-lane список: `${ruleId}/${concernId}` — 19 прямих + 3 через shared helper = 22. */
-export const SERIAL_LANE_CONCERNS = new Set([...DIRECT_SPAWN_CONCERNS, ...SHARED_HELPER_CONCERNS])
+export const SERIAL_LANE_CONCERNS = new Set()
 
 /**
  * Чи concern лишається у serial lane `detectAll()` (недоведений non-blocking).
@@ -55,5 +26,6 @@ export const SERIAL_LANE_CONCERNS = new Set([...DIRECT_SPAWN_CONCERNS, ...SHARED
  * @returns {boolean} true — serial lane; false — parallel-safe
  */
 export function isSerialLane(ruleId, concernId) {
+  // eslint-disable-next-line sonarjs/no-empty-collection -- навмисно порожній зараз (протокол вище); живий registry, не dead code
   return SERIAL_LANE_CONCERNS.has(`${ruleId}/${concernId}`)
 }

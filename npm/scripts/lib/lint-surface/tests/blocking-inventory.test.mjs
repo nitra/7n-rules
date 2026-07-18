@@ -1,9 +1,10 @@
 /**
  * Guard-тест ADR 260716-1354: `SERIAL_LANE_CONCERNS` (`../blocking-inventory.mjs`) має точно
- * відповідати реальному стану коду — жоден активний concern зі `spawnSync`/`execSync` (прямо
- * чи через відомий blocking-helper) не повинен опинитись поза інвентарем (інакше `detectAll()`
- * тихо заявив би паралелізм там, де він ілюзорний), і жоден мігрований concern не повинен
+ * відповідати реальному стану коду — жоден активний concern із прямим `spawnSync`/`execSync`
+ * у власному `main.mjs` не повинен опинитись поза інвентарем (інакше `detectAll()` тихо
+ * заявив би паралелізм там, де він ілюзорний), і жоден мігрований concern не повинен
  * лишатись у списку зайво (інакше serial lane даремно душить уже безпечний детектор).
+ * Наразі інвентар порожній — усі 22 concern-и з ADR мігровано на `spawnAsync`.
  */
 import { describe, expect, test } from 'vitest'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
@@ -14,7 +15,6 @@ import { hasResolvableFiles, isGeneratedFile } from '../codegen-opa-wrapper.mjs'
 import { isSerialLane, SERIAL_LANE_CONCERNS } from '../blocking-inventory.mjs'
 
 const BLOCKING_CALL_RE = /\b(?:spawnSync|execSync|execFileSync)\s*\(/
-const KNOWN_BLOCKING_HELPER_IMPORT_RE = /\/(?:docker-hadolint|run-external-tool)\.mjs['"]/
 
 /**
  * @param {string} concernJsonPath абсолютний шлях до `concern.json`
@@ -38,7 +38,7 @@ function isBlockingMain(mainPath) {
   if (!existsSync(mainPath)) return false
   const content = readFileSync(mainPath, 'utf8')
   if (isGeneratedFile(content)) return false
-  return BLOCKING_CALL_RE.test(content) || KNOWN_BLOCKING_HELPER_IMPORT_RE.test(content)
+  return BLOCKING_CALL_RE.test(content)
 }
 
 /**
@@ -63,7 +63,7 @@ function scanRuleDir(ruleDir, ruleId) {
 /**
  * Сканує `DEFAULT_RULES_DIR` і повертає `${ruleId}/${concernId}` для кожного активного
  * (lint- або policy-) concern-а з hand-written (не-`@generated`) `main.mjs`, що реально
- * блокує event loop — прямим `spawnSync`/`execSync` або відомим blocking-helper-ом.
+ * блокує event loop — прямим `spawnSync`/`execSync`/`execFileSync`.
  * @returns {string[]} знайдені blocking concern-и
  */
 function scanBlockingConcerns() {
@@ -80,8 +80,10 @@ describe('blocking-inventory guard', () => {
   })
 
   test('isSerialLane узгоджений із SERIAL_LANE_CONCERNS', () => {
-    expect(isSerialLane('rego', 'conftest_verify')).toBe(true)
-    expect(isSerialLane('docker', 'lint')).toBe(true)
+    for (const key of SERIAL_LANE_CONCERNS) {
+      const [ruleId, concernId] = key.split('/')
+      expect(isSerialLane(ruleId, concernId)).toBe(true)
+    }
     expect(isSerialLane('js', 'knip')).toBe(false)
     expect(isSerialLane('nonexistent-rule', 'nonexistent-concern')).toBe(false)
   })

@@ -32,7 +32,7 @@ export async function lint(ctx) {
   }
   if (targets.length === 0) return reporter.result()
 
-  const code = runKubeconform(targets, ctx.verbose === true)
+  const code = await runKubeconform(targets, ctx.verbose === true)
   if (code !== 0 && code !== 127) fail('kubeconform знайшов невалідні маніфести (k8s.mdc)', 'kubeconform')
 
   return reporter.result()

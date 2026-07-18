@@ -16,11 +16,11 @@
  * typo лишаються → cspell повертає !=0 → exit 1 (людина доправляє одруки вручну).
  */
 import { env } from 'node:process'
-import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 /** Слово у рядку cspell: `<file>:<line>:<col> - Unknown word (xxx)`. */
@@ -44,21 +44,18 @@ export const fixModel = () => env.N_LOCAL_MIN_MODEL || ''
  * рядок (`--no-summary` НЕ передається) лишається — з нього парситься `FILES_CHECKED_RE`.
  * @param {string} cwd корінь
  * @param {string} bin шлях до cspell (npx/локальний)
+ * Async (не блокує event loop) — детектор може виконуватись у parallel lane `detectAll()`
+ * (ADR 260716-1354).
  * @param {string[]} [files] явний перелік файлів (delta); без нього — `cspell .`
  * @param {boolean} [verbose] показати повний нативний вивід cspell (включно з прогресом)
- * @returns {{ code:number, out:string }} код + обʼєднаний stdout/stderr
+ * @returns {Promise<{ code:number, out:string }>} код + обʼєднаний stdout/stderr
  */
-export function detectCspell(cwd, bin, files, verbose = false) {
+export async function detectCspell(cwd, bin, files, verbose = false) {
   const targets = files === undefined ? ['.'] : files
   const quietArgs = verbose ? [] : ['--no-progress']
-  const r = spawnSync(bin, ['cspell', ...quietArgs, ...targets], {
-    cwd,
-    encoding: 'utf8',
-    maxBuffer: 32 * 1024 * 1024,
-    env: process.env
-  })
+  const r = await spawnAsync(bin, ['cspell', ...quietArgs, ...targets], { cwd, env: process.env })
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`
-  const code = typeof r.status === 'number' ? r.status : 1
+  const code = typeof r.exitCode === 'number' ? r.exitCode : 1
   // cspell повертає !=0 і коли жоден переданий файл не пройшов ignorePaths
   // (`.cspell.json`) — «Files checked: 0» означає «нічого перевіряти», не порушення.
   const checked = FILES_CHECKED_RE.exec(out)
@@ -138,19 +135,21 @@ export function appendWordsToDict(cwd, words) {
 /**
  * cspell-крок lint-text: read-only детект (нуль мутацій). LLM-класифікація знахідок
  * і поповнення `.cspell.json#words` живуть у `fix-worker.mjs` (Central Runner Pipeline).
+ * Async (не блокує event loop) — детектор може виконуватись у parallel lane `detectAll()`
+ * (ADR 260716-1354).
  * @param {string[]} [files] явний перелік файлів (delta); без нього — `cspell .`
  * @param {string} [cwd] корінь
  * @param {boolean} [verbose] показати повний нативний вивід cspell (включно з прогресом)
- * @returns {number} 0 — чисто; 1 — лишились знахідки / помилка середовища
+ * @returns {Promise<number>} 0 — чисто; 1 — лишились знахідки / помилка середовища
  */
-export function runCspellText(files, cwd = process.cwd(), verbose = false) {
+export async function runCspellText(files, cwd = process.cwd(), verbose = false) {
   const bin = resolveCmd('npx')
   if (!bin) {
     process.stderr.write('❌ npx не знайдено в PATH (cspell).\n')
     return 1
   }
 
-  const first = detectCspell(cwd, bin, files, verbose)
+  const first = await detectCspell(cwd, bin, files, verbose)
   if (first.code === 0) {
     // «Files checked: 0» при явно переданих файлах — легітимно (усі під ignorePaths),
     // але так само виглядає зламане середовище (спостережено 2026-07-12: cspell-gitignore
@@ -174,12 +173,12 @@ export function runCspellText(files, cwd = process.cwd(), verbose = false) {
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
  * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат детектора
  */
-export function lint(ctx) {
+export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { fail } = reporter
   if (ctx.files !== undefined && ctx.files.length === 0) return reporter.result()
 
-  const code = runCspellText(ctx.files, ctx.cwd, ctx.verbose === true)
+  const code = await runCspellText(ctx.files, ctx.cwd, ctx.verbose === true)
   if (code !== 0) fail('cspell знайшов порушення правопису (text.mdc)', 'cspell')
   return reporter.result()
 }

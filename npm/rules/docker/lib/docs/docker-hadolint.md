@@ -3,7 +3,7 @@ type: JS Module
 title: docker-hadolint.mjs
 resource: npm/rules/docker/lib/docker-hadolint.mjs
 docgen:
-  crc: 0351d8ee
+  crc: 3a9df18f
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
 ---

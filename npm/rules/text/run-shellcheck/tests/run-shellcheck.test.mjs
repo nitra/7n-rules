@@ -16,7 +16,7 @@ describe('run-shellrules/text/check.mjs', () => {
       await ensureDir(join(dir, 'a/b'))
       await writeFile(join(dir, 'a/b/x.sh'), '#!/bin/bash\necho ok\n', 'utf8')
       await writeFile(join(dir, 'root.sh'), '#!/bin/sh\ntrue\n', 'utf8')
-      const paths = listShellScriptPaths(dir)
+      const paths = await listShellScriptPaths(dir)
       expect(paths.toSorted()).toEqual(['a/b/x.sh', 'root.sh'])
     })
   })
@@ -32,7 +32,7 @@ describe('run-shellrules/text/check.mjs', () => {
       await writeFile(join(dir, 'sub', 'nested.sh'), '#!/bin/bash\necho ok\n', 'utf8')
       await writeFile(join(dir, 'readme.txt'), 'hello\n', 'utf8')
       execFileSync('git', ['add', '-A'], { cwd: dir })
-      const paths = listShellScriptPaths(dir)
+      const paths = await listShellScriptPaths(dir)
       expect(paths).toEqual(['root.sh', 'sub/nested.sh'])
       expect(paths).toEqual([...new Set(paths)].toSorted())
     })
@@ -51,7 +51,7 @@ echo $1
 `,
         'utf8'
       )
-      expect(runShellcheckText(dir)).toBe(0)
+      expect(await runShellcheckText(dir)).toBe(0)
       const fixed = await readFile(join(dir, 'fixme.sh'), 'utf8')
       expect(fixed).toContain('echo "$1"')
     })
@@ -68,7 +68,7 @@ echo $1
       await withBinRemovedFromPath('shellcheck', async () => {
         await withTmpDir(async dir => {
           await writeFile(join(dir, 'a.sh'), '#!/bin/sh\necho ok\n', 'utf8')
-          const code = runShellcheckText(dir)
+          const code = await runShellcheckText(dir)
           expect(code).toBe(1)
         })
       })
@@ -90,7 +90,7 @@ echo $1
       await withTmpDir(async dir => {
         // SC2034: unused variable — не авто-виправляється shellcheck
         await writeFile(join(dir, 'warn.sh'), '#!/bin/bash\nx=5\necho done\n', 'utf8')
-        const code = runShellcheckText(dir)
+        const code = await runShellcheckText(dir)
         expect(code).toBe(1)
       })
     } finally {

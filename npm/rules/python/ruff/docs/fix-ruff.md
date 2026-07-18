@@ -3,9 +3,8 @@ type: JS Module
 title: fix-ruff.mjs
 resource: npm/rules/python/ruff/fix-ruff.mjs
 docgen:
-  crc: c2dc5eb6
+  crc: e0a79f8d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini

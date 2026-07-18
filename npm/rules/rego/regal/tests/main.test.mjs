@@ -8,14 +8,14 @@ import { lint } from '../main.mjs'
 /**
  * @template T
  * @param {(cwd: string) => void} prep підготовка фікстур у тимчасовій директорії
- * @param {(cwd: string) => T} body тіло тесту
- * @returns {T} результат body
+ * @param {(cwd: string) => Promise<T>} body тіло тесту (async — `lint()` тепер повертає Promise)
+ * @returns {Promise<T>} результат body
  */
-function withTmpRepo(prep, body) {
+async function withTmpRepo(prep, body) {
   const root = mkdtempSync(join(tmpdir(), 'lint-rego-regal-'))
   try {
     prep(root)
-    return body(root)
+    return await body(root)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
@@ -26,18 +26,18 @@ const NO_PREP = (/** @type {string} */ _cwd) => null
 /**
  * Викликає detector rego/regal для заданого кореня (full-режим, `files: undefined`).
  * @param {string} cwd корінь репозиторію
- * @returns {import('../../../../scripts/lib/lint-surface/types.mjs').LintResult} результат detector-а
+ * @returns {Promise<import('../../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат detector-а
  */
 const runLintRegal = cwd => lint({ cwd, ruleId: 'rego', concernId: 'regal', files: undefined })
 
 describe('lint rego/regal', () => {
-  test('returns no violations (skip) when no rego targets exist in cwd', () => {
-    const { violations } = withTmpRepo(NO_PREP, runLintRegal)
+  test('returns no violations (skip) when no rego targets exist in cwd', async () => {
+    const { violations } = await withTmpRepo(NO_PREP, runLintRegal)
     expect(violations).toEqual([])
   })
 
-  test('passes on a well-formed rego under npm/rules/*/policy/', () => {
-    const { violations } = withTmpRepo(cwd => {
+  test('passes on a well-formed rego under npm/rules/*/policy/', async () => {
+    const { violations } = await withTmpRepo(cwd => {
       mkdirSync(join(cwd, 'npm/rules/sample/policy/concern'), { recursive: true })
       writeFileSync(
         join(cwd, 'npm/rules/sample/policy/concern/concern.rego'),

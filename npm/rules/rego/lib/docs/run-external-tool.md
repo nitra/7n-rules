@@ -3,7 +3,7 @@ type: JS Module
 title: run-external-tool.mjs
 resource: npm/rules/rego/lib/run-external-tool.mjs
 docgen:
-  crc: 0f1da640
+  crc: ca820179
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.99

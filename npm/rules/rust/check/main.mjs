@@ -2,26 +2,28 @@
  * lint-поверхня rust: read-only detector (cargo fmt --check + clippy -D warnings +
  * cargo deny check licenses). Генерація deny.toml — окремий T0-fix, не в detector-і.
  */
-import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 
 /**
+ * Async (не блокує event loop) — детектор може виконуватись у parallel lane `detectAll()`
+ * (ADR 260716-1354).
  * @param {string} label назва кроку.
  * @param {string} cargo шлях до бінарника cargo.
  * @param {string[]} args аргументи cargo.
  * @param {string} cwd робочий каталог.
  * @param {(msg: string, reason: string) => void} fail колбек реєстрації порушення.
  * @param {string} reason машиночитна причина порушення.
- * @returns {boolean} true якщо OK
+ * @returns {Promise<boolean>} true якщо OK
  */
-function runCargo(label, cargo, args, cwd, fail, reason) {
-  const r = spawnSync(cargo, args, { cwd, encoding: 'utf8', shell: false })
-  if (r.status === 0) return true
-  const code = typeof r.status === 'number' ? r.status : 1
+async function runCargo(label, cargo, args, cwd, fail, reason) {
+  const r = await spawnAsync(cargo, args, { cwd })
+  if (r.exitCode === 0) return true
+  const code = typeof r.exitCode === 'number' ? r.exitCode : 1
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().slice(0, 2000)
   const outTail = out ? `\n${out}` : ''
   fail(`lint-rust: ${label} — помилка (код ${code}, rust.mdc)${outTail}`, reason)
@@ -29,11 +31,12 @@ function runCargo(label, cargo, args, cwd, fail, reason) {
 }
 
 /**
- * Detector rust/check (read-only).
+ * Detector rust/check (read-only). Async (не блокує event loop) — детектор може виконуватись
+ * у parallel lane `detectAll()` (ADR 260716-1354).
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат із порушеннями
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат із порушеннями
  */
-export function lint(ctx) {
+export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { fail } = reporter
   const cwd = ctx.cwd
@@ -49,11 +52,13 @@ export function lint(ctx) {
     return reporter.result()
   }
 
-  if (!runCargo('cargo fmt --check', cargo, ['fmt', '--all', '--', '--check'], cwd, fail, 'cargo-fmt-violation')) {
+  if (
+    !(await runCargo('cargo fmt --check', cargo, ['fmt', '--all', '--', '--check'], cwd, fail, 'cargo-fmt-violation'))
+  ) {
     return reporter.result()
   }
 
-  runCargo(
+  await runCargo(
     'cargo clippy -D warnings',
     cargo,
     ['clippy', '--all-targets', '--all-features', '--', '-D', 'warnings'],
@@ -71,9 +76,10 @@ export function lint(ctx) {
     return reporter.result()
   }
 
-  const hasDeny = spawnSync(cargo, ['deny', '--version'], { stdio: 'ignore', shell: false }).status === 0
+  const denyVersionResult = await spawnAsync(cargo, ['deny', '--version'])
+  const hasDeny = denyVersionResult.exitCode === 0
   if (hasDeny) {
-    runCargo('cargo deny check licenses', cargo, ['deny', 'check', 'licenses'], cwd, fail, 'cargo-deny-violation')
+    await runCargo('cargo deny check licenses', cargo, ['deny', 'check', 'licenses'], cwd, fail, 'cargo-deny-violation')
   }
   // cargo-deny не встановлено → перевірку ліцензій пропущено (старий код — pass)
 

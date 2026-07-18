@@ -14,9 +14,9 @@ import { resolveTargets, runStep } from '../lib/run-external-tool.mjs'
 /**
  * Detector rego/regal (read-only).
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону.
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат зі зібраними violations
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат зі зібраними violations
  */
-export function lint(ctx) {
+export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { fail } = reporter
   const root = resolve(ctx.cwd)
@@ -25,7 +25,7 @@ export function lint(ctx) {
   if (targets.length === 0) return reporter.result()
 
   const regal = ensureTool('regal')
-  const regalRes = runStep(regal, ['lint', ...targets], root)
+  const regalRes = await runStep(regal, ['lint', ...targets], root)
   if (regalRes.status !== 0) {
     const regalSuffix = regalRes.output ? `\n${regalRes.output}` : ''
     fail(`lint-rego: regal lint — помилка (код ${regalRes.status})${regalSuffix}`, 'regal-lint-violation')

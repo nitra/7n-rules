@@ -15,11 +15,11 @@
  * фінальний `dotenv-linter check -r --quiet . --exclude …`; будь-яке залишкове порушення — ненульовий
  * код виходу.
  */
-import { spawnSync } from 'node:child_process'
 import { resolve } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 /** Каталоги/файли, які виключаємо з рекурсивного сканування dotenv-linter. */
@@ -58,12 +58,14 @@ function buildTargetArgs(scopeFiles) {
 
 /**
  * Запускає dotenv-linter з авто-фіксом і фінальною перевіркою.
+ * Async (не блокує event loop) — детектор може виконуватись у parallel lane `detectAll()`
+ * (ADR 260716-1354).
  * @param {string} [cwd] робочий каталог (за замовчуванням `process.cwd()`)
  * @param {boolean} [readOnly] true → пропустити авто-фікс (`fix`), лише `check` (нуль мутацій)
  * @param {string[]} [scopeFiles] явний перелік `.env*`-файлів (delta) — якщо не задано, рекурсивний `-r .`
- * @returns {number} 0 — OK; 1 — інструмент відсутній або є залишкові порушення
+ * @returns {Promise<number>} 0 — OK; 1 — інструмент відсутній або є залишкові порушення
  */
-export function runDotenvLinter(cwd, readOnly, scopeFiles) {
+export async function runDotenvLinter(cwd, readOnly, scopeFiles) {
   const root = resolve(cwd ?? process.cwd())
   const bin = resolveCmd('dotenv-linter')
   if (!bin) {
@@ -73,29 +75,22 @@ export function runDotenvLinter(cwd, readOnly, scopeFiles) {
 
   const targets = buildTargetArgs(scopeFiles)
   if (!readOnly) {
-    const fixRun = spawnSync(bin, ['fix', '--no-backup', '--quiet', ...targets], {
-      cwd: root,
-      encoding: 'utf8',
-      env: process.env,
-      stdio: ['ignore', 'pipe', 'pipe']
-    })
-    if (fixRun.error) {
-      process.stderr.write(`${fixRun.error.message}\n`)
+    try {
+      await spawnAsync(bin, ['fix', '--no-backup', '--quiet', ...targets], { cwd: root, env: process.env })
+    } catch (error) {
+      process.stderr.write(`${error.message}\n`)
       return 1
     }
   }
 
-  const checkRun = spawnSync(bin, ['check', '--quiet', ...targets], {
-    cwd: root,
-    encoding: 'utf8',
-    env: process.env,
-    stdio: ['ignore', 'pipe', 'pipe']
-  })
-  if (checkRun.error) {
-    process.stderr.write(`${checkRun.error.message}\n`)
+  let checkRun
+  try {
+    checkRun = await spawnAsync(bin, ['check', '--quiet', ...targets], { cwd: root, env: process.env })
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`)
     return 1
   }
-  if (checkRun.status === 0) return 0
+  if (checkRun.exitCode === 0) return 0
   if (checkRun.stdout?.length) process.stdout.write(checkRun.stdout)
   if (checkRun.stderr?.length) process.stderr.write(checkRun.stderr)
   return 1
@@ -104,19 +99,19 @@ export function runDotenvLinter(cwd, readOnly, scopeFiles) {
 /**
  * Detector text/run-dotenv-linter: read-only dotenv-linter по `ctx.files` (delta) або по всіх `.env*` (full).
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат detector-а
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат detector-а
  */
-export function lint(ctx) {
+export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { fail } = reporter
   const scopeFiles = ctx.files === undefined ? undefined : ctx.files.filter(f => ENV_BASENAME_RE.test(f))
   if (scopeFiles !== undefined && scopeFiles.length === 0) return reporter.result()
 
-  const code = runDotenvLinter(ctx.cwd, true, scopeFiles)
+  const code = await runDotenvLinter(ctx.cwd, true, scopeFiles)
   if (code !== 0) fail('dotenv-linter знайшов порушення у .env* (text.mdc)', 'dotenv-linter')
   return reporter.result()
 }
 
 if (isRunAsCli(import.meta.url)) {
-  process.exitCode = runDotenvLinter()
+  process.exitCode = await runDotenvLinter()
 }

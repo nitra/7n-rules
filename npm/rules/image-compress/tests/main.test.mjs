@@ -6,7 +6,10 @@ import { env } from 'node:process'
 import { lint } from '../check/main.mjs'
 import { ensureDir, withTmpDir } from '../../../scripts/utils/test-helpers.mjs'
 
-const run = dir => lint({ cwd: dir, ruleId: 'image-compress', concernId: 'check', files: undefined }).violations
+const run = async dir => {
+  const result = await lint({ cwd: dir, ruleId: 'image-compress', concernId: 'check', files: undefined })
+  return result.violations
+}
 
 /**
  * Запускає тест із fake `npx`, який повертає заданий shell-body.
@@ -37,8 +40,8 @@ describe('image-compress lint adapter', () => {
       await withFakeNpx(
         dir,
         String.raw`printf '{"summary":{"needsCompression":0,"processed":1,"total":1,"unsupported":0},"files":[]}\n'`,
-        () => {
-          expect(run(dir)).toEqual([])
+        async () => {
+          expect(await run(dir)).toEqual([])
         }
       )
     })
@@ -49,8 +52,8 @@ describe('image-compress lint adapter', () => {
       await withFakeNpx(
         dir,
         String.raw`printf '{"summary":{"needsCompression":2,"processed":1,"total":3,"unsupported":0},"files":[]}\n'`,
-        () => {
-          const violations = run(dir)
+        async () => {
+          const violations = await run(dir)
           expect(violations.length).toBeGreaterThan(0)
           expect(violations.some(v => v.reason === 'needs-compression')).toBe(true)
         }

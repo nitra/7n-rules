@@ -14,9 +14,9 @@ import { resolveTargets, runStep } from '../lib/run-external-tool.mjs'
 /**
  * Detector rego/opa_check (read-only).
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону.
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат зі зібраними violations
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат зі зібраними violations
  */
-export function lint(ctx) {
+export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { fail } = reporter
   const root = resolve(ctx.cwd)
@@ -25,7 +25,7 @@ export function lint(ctx) {
   if (targets.length === 0) return reporter.result()
 
   const opa = ensureTool('opa')
-  const opaRes = runStep(opa, ['check', '--strict', ...targets], root)
+  const opaRes = await runStep(opa, ['check', '--strict', ...targets], root)
   if (opaRes.status !== 0) {
     const opaSuffix = opaRes.output ? `\n${opaRes.output}` : ''
     fail(`lint-rego: opa check --strict — помилка (код ${opaRes.status})${opaSuffix}`, 'opa-check-violation')

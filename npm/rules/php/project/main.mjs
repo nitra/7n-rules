@@ -7,12 +7,12 @@
  * audit. Не входять у delta-план (§5): спрацьовують лише через `n-rules lint --full` або
  * scoped `n-rules lint php`.
  */
-import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 
 /**
  * @param {string} root корінь
@@ -25,19 +25,20 @@ function vendorBin(root, name) {
 }
 
 /**
- * Запускає тул і, на ненульовий код, реєструє порушення.
+ * Запускає тул і, на ненульовий код, реєструє порушення. Async (не блокує event loop) —
+ * детектор може виконуватись у parallel lane `detectAll()` (ADR 260716-1354).
  * @param {string} label назва кроку
  * @param {string} abs абсолютний шлях
  * @param {string[]} args аргументи команди.
  * @param {string} cwd робочий каталог.
  * @param {(msg: string, reason: string) => void} fail колбек реєстрації порушення.
  * @param {string} reason машиночитна причина порушення.
- * @returns {boolean} true якщо OK, false якщо порушення
+ * @returns {Promise<boolean>} true якщо OK, false якщо порушення
  */
-function runTool(label, abs, args, cwd, fail, reason) {
-  const r = spawnSync(abs, args, { cwd, encoding: 'utf8', shell: false })
-  if (r.status === 0) return true
-  const code = typeof r.status === 'number' ? r.status : 1
+async function runTool(label, abs, args, cwd, fail, reason) {
+  const r = await spawnAsync(abs, args, { cwd })
+  if (r.exitCode === 0) return true
+  const code = typeof r.exitCode === 'number' ? r.exitCode : 1
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().slice(0, 2000)
   const outSuffix = out ? `\n${out}` : ''
   fail(`lint-php: ${label} — помилка (код ${code}, php.mdc)${outSuffix}`, reason)
@@ -45,11 +46,11 @@ function runTool(label, abs, args, cwd, fail, reason) {
 }
 
 /**
- * Detector php/project (read-only).
+ * Detector php/project (read-only). Async — `runTool` викликає `spawnAsync` (ADR 260716-1354).
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
- * @returns {import('../../../scripts/lib/lint-surface/types.mjs').LintResult} результат із порушеннями
+ * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат із порушеннями
  */
-export function lint(ctx) {
+export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { fail } = reporter
   const root = ctx.cwd
@@ -62,7 +63,9 @@ export function lint(ctx) {
     return reporter.result()
   }
 
-  if (!runTool('composer audit', composer, ['audit', '--no-interaction'], root, fail, 'composer-audit-violation')) {
+  if (
+    !(await runTool('composer audit', composer, ['audit', '--no-interaction'], root, fail, 'composer-audit-violation'))
+  ) {
     return reporter.result()
   }
 
@@ -71,18 +74,18 @@ export function lint(ctx) {
    * @param {string} label назва кроку.
    * @param {string[]} args аргументи інструменту.
    * @param {string} reason машиночитна причина порушення.
-   * @returns {boolean} true якщо OK / пропущено
+   * @returns {Promise<boolean>} true якщо OK / пропущено
    */
-  function runOptionalVendorTool(binName, label, args, reason) {
+  async function runOptionalVendorTool(binName, label, args, reason) {
     const abs = vendorBin(root, binName)
     if (!abs) return true // тул відсутній у vendor/bin → крок пропущено
-    return runTool(label, abs, args, root, fail, reason)
+    return await runTool(label, abs, args, root, fail, reason)
   }
 
-  if (!runOptionalVendorTool('phpstan', 'PHPStan', ['analyse', '--no-progress'], 'phpstan-violation')) {
+  if (!(await runOptionalVendorTool('phpstan', 'PHPStan', ['analyse', '--no-progress'], 'phpstan-violation'))) {
     return reporter.result()
   }
-  runOptionalVendorTool('psalm', 'Psalm', ['--no-cache'], 'psalm-violation')
+  await runOptionalVendorTool('psalm', 'Psalm', ['--no-cache'], 'psalm-violation')
 
   return reporter.result()
 }

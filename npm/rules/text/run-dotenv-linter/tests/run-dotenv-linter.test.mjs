@@ -4,17 +4,17 @@
  */
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { chmod, readFile, writeFile } from 'node:fs/promises'
-import { spawnSync } from 'node:child_process'
 import { delimiter, join } from 'node:path'
 import { env, platform } from 'node:process'
 
 import { runDotenvLinter } from '../main.mjs'
 import { resolveCmd } from '../../../../scripts/utils/resolve-cmd.mjs'
+import { spawnAsync } from '../../../../scripts/utils/spawn-async.mjs'
 import { ensureDir, withBinRemovedFromPath, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
-vi.mock('node:child_process', async () => {
-  const actual = await vi.importActual('node:child_process')
-  return { ...actual, spawnSync: vi.fn(actual.spawnSync) }
+vi.mock('../../../../scripts/utils/spawn-async.mjs', async () => {
+  const actual = await vi.importActual('../../../../scripts/utils/spawn-async.mjs')
+  return { ...actual, spawnAsync: vi.fn(actual.spawnAsync) }
 })
 
 /**
@@ -51,8 +51,8 @@ describe('run-dotenv-linter.mjs', () => {
       expect(resolveCmd('dotenv-linter')).toBeFalsy()
       return
     }
-    await withTmpDir(dir => {
-      expect(runDotenvLinter(dir)).toBe(0)
+    await withTmpDir(async dir => {
+      expect(await runDotenvLinter(dir)).toBe(0)
     })
   })
 
@@ -63,7 +63,7 @@ describe('run-dotenv-linter.mjs', () => {
     }
     await withTmpDir(async dir => {
       await writeFile(join(dir, '.env'), 'foo=bar\n', 'utf8')
-      expect(runDotenvLinter(dir)).toBe(0)
+      expect(await runDotenvLinter(dir)).toBe(0)
       const fixed = await readFile(join(dir, '.env'), 'utf8')
       expect(fixed).toContain('FOO=bar')
     })
@@ -81,7 +81,7 @@ describe('run-dotenv-linter.mjs', () => {
       await writeFile(join(dir, '.envrc'), 'export FOO=bar\nsource_url "https://example.com"\n', 'utf8')
       // tracked-файл валідний — перевірка має пройти, попри присутність виключених шляхів.
       await writeFile(join(dir, '.env'), 'FOO=bar\n', 'utf8')
-      expect(runDotenvLinter(dir)).toBe(0)
+      expect(await runDotenvLinter(dir)).toBe(0)
     })
   })
 
@@ -94,8 +94,8 @@ describe('run-dotenv-linter.mjs', () => {
     }
     try {
       await withBinRemovedFromPath('dotenv-linter', async () => {
-        await withTmpDir(dir => {
-          const code = runDotenvLinter(dir)
+        await withTmpDir(async dir => {
+          const code = await runDotenvLinter(dir)
           expect(code).toBe(1)
         })
       })
@@ -118,7 +118,7 @@ describe('run-dotenv-linter.mjs', () => {
       await withFakeDotenvLinter(async () => {
         await withTmpDir(async dir => {
           await writeFile(join(dir, '.env'), 'FOO=bar\n', 'utf8')
-          const code = runDotenvLinter(dir)
+          const code = await runDotenvLinter(dir)
           expect(code).toBe(1)
         })
       })
@@ -129,7 +129,7 @@ describe('run-dotenv-linter.mjs', () => {
   })
 })
 
-describe('runDotenvLinter — spawnSync error paths', () => {
+describe('runDotenvLinter — spawnAsync error paths', () => {
   afterEach(() => vi.clearAllMocks())
 
   test('default cwd = process.cwd() (line 57)', async () => {
@@ -140,8 +140,8 @@ describe('runDotenvLinter — spawnSync error paths', () => {
       return true
     }
     try {
-      await withBinRemovedFromPath('dotenv-linter', () => {
-        expect(runDotenvLinter()).toBe(1)
+      await withBinRemovedFromPath('dotenv-linter', async () => {
+        expect(await runDotenvLinter()).toBe(1)
       })
     } finally {
       process.stderr.write = origErr
@@ -149,18 +149,8 @@ describe('runDotenvLinter — spawnSync error paths', () => {
     expect(errChunks.join('')).toContain('dotenv-linter')
   })
 
-  test('fixRun.error → друкує у stderr і повертає 1 (lines 73-74)', async () => {
-    const actual = await vi.importActual('node:child_process')
-    vi.mocked(spawnSync)
-      .mockImplementationOnce(actual.spawnSync) // which — проходить до реального
-      .mockImplementationOnce(() => ({
-        error: new Error('mock ENOENT fix'),
-        status: null,
-        stdout: '',
-        stderr: '',
-        pid: 0,
-        signal: null
-      }))
+  test('fixRun spawn-помилка → друкує у stderr і повертає 1 (lines 73-74)', async () => {
+    vi.mocked(spawnAsync).mockRejectedValueOnce(new Error('mock ENOENT fix'))
 
     const errChunks = []
     const origErr = process.stderr.write.bind(process.stderr)
@@ -170,8 +160,8 @@ describe('runDotenvLinter — spawnSync error paths', () => {
     }
     try {
       await withFakeDotenvLinter(async () => {
-        await withTmpDir(dir => {
-          expect(runDotenvLinter(dir)).toBe(1)
+        await withTmpDir(async dir => {
+          expect(await runDotenvLinter(dir)).toBe(1)
         })
       })
     } finally {
@@ -180,26 +170,10 @@ describe('runDotenvLinter — spawnSync error paths', () => {
     expect(errChunks.join('')).toContain('mock ENOENT fix')
   })
 
-  test('checkRun.error → друкує у stderr і повертає 1 (lines 84-85)', async () => {
-    const actual = await vi.importActual('node:child_process')
-    vi.mocked(spawnSync)
-      .mockImplementationOnce(actual.spawnSync) // which — проходить до реального
-      .mockImplementationOnce(() => ({
-        error: null,
-        status: 0,
-        stdout: '',
-        stderr: '',
-        pid: 0,
-        signal: null
-      })) // fix — успішно
-      .mockImplementationOnce(() => ({
-        error: new Error('mock ENOENT check'),
-        status: null,
-        stdout: '',
-        stderr: '',
-        pid: 0,
-        signal: null
-      })) // check — помилка spawn
+  test('checkRun spawn-помилка → друкує у stderr і повертає 1 (lines 84-85)', async () => {
+    vi.mocked(spawnAsync)
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0, signal: null, timedOut: false, aborted: false }) // fix — успішно
+      .mockRejectedValueOnce(new Error('mock ENOENT check')) // check — помилка spawn
 
     const errChunks = []
     const origErr = process.stderr.write.bind(process.stderr)
@@ -209,8 +183,8 @@ describe('runDotenvLinter — spawnSync error paths', () => {
     }
     try {
       await withFakeDotenvLinter(async () => {
-        await withTmpDir(dir => {
-          expect(runDotenvLinter(dir)).toBe(1)
+        await withTmpDir(async dir => {
+          expect(await runDotenvLinter(dir)).toBe(1)
         })
       })
     } finally {

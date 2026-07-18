@@ -40,7 +40,7 @@ export async function fixWorker(violations, ctx) {
   const bin = resolveCmd('npx')
   if (!bin) return { touchedFiles: [] }
 
-  const first = detectCspell(ctx.cwd, bin, ctx.files)
+  const first = await detectCspell(ctx.cwd, bin, ctx.files)
   if (first.code === 0) return { touchedFiles: [] }
 
   const words = unknownWords(first.out)

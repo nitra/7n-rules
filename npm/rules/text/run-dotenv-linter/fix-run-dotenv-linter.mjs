@@ -48,12 +48,12 @@ export const patterns = [
     id: 'text-dotenv-fix',
     standalone: true, // §8 Phase 2: dotenv-linter fix сам ре-аналізує, test() не потрібен
     test: violations => violations.some(v => v.reason === 'dotenv-linter'),
-    apply: (violations, ctx) => {
+    apply: async (violations, ctx) => {
       const files = listEnvFiles(ctx.cwd)
       if (files.length === 0) return { touchedFiles: [] }
       const abs = files.map(f => resolve(ctx.cwd, f))
       const before = new Map(abs.map(a => [a, readOrNull(a)]))
-      runDotenvLinter(ctx.cwd, false)
+      await runDotenvLinter(ctx.cwd, false)
       const touchedFiles = abs.filter(a => readOrNull(a) !== before.get(a))
       for (const a of touchedFiles) ctx.recordWrite?.(a)
       return touchedFiles.length > 0

@@ -3,9 +3,8 @@ type: JS Module
 title: fix-check.mjs
 resource: npm/rules/image-compress/check/fix-check.mjs
 docgen:
-  crc: e5f5a01c
+  crc: 0c9ec731
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
