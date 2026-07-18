@@ -3,7 +3,7 @@ type: JS Module
 title: changed-files.mjs
 resource: npm/scripts/lib/changed-files.mjs
 docgen:
-  crc: 254d852a
+  crc: 1c7d9027
   score: 100
 ---
 
@@ -19,8 +19,9 @@ collectChangedFilesSince Збирає змінені та незакомічен
 
 - collectChangedFiles: Збирає список змінених та невідстежених файлів з робочого дерева відносно робочого дерева.
 - resolveChangedBase: Визначає базовий комміт для обмежених перевірок без використання зовнішнього стану.
-  - Пріоритет: локальна `main`, потім `origin/main`; явний другий аргумент `baseRef` (CI: `--base origin/main`) вимикає каскад — merge-base рахується лише проти нього.
-  - Якщо ref-и відсутні, повертає null, і викликаючий порівнює лише робоче дерево з HEAD.
+  - Кандидати — `origin/main` і локальна `main`: merge-base з HEAD рахується для обох, береться новіший (descendant). Це захищає від stale-ref: у git-worktree локальна `main` часто відстає, без свіжого fetch може відставати `origin/main`.
+  - Явний другий аргумент `baseRef` (CI: `--base origin/main`) вимикає вибір — merge-base рахується лише проти нього.
+  - Якщо доступний лише один ref (офлайн/без remote) — його merge-base; якщо ref-и відсутні, повертає null, і викликаючий порівнює лише робоче дерево з HEAD.
 - collectChangedFilesSince: Збирає список змінених та невідстежених файлів відносно базового комміту.
 - git diff <base>: Порівнює комміт `base` з поточним робочим деревом (включаючи закомічені та незакомічені модифікації).
   - Якщо `base` відсутній, використовується `collectChangedFiles`.

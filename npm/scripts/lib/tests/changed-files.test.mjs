@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { collectChangedFiles, collectChangedFilesSince } from '../changed-files.mjs'
+import { collectChangedFiles, collectChangedFilesSince, resolveChangedBase } from '../changed-files.mjs'
 import { withTmpDir } from '../../utils/test-helpers.mjs'
 
 const UNREACHABLE_BASE_RE = /недосяжний/
@@ -64,6 +64,78 @@ describe('collectChangedFiles', () => {
   test('поза git → порожньо', async () => {
     await withTmpDir(dir => {
       expect(collectChangedFiles(dir)).toEqual([])
+    })
+  })
+})
+
+/**
+ * Виконує git-команду в dir (обгортка для читабельності підготовки тестів).
+ * @param {string} dir репо
+ * @param {string[]} args аргументи git
+ */
+function git(dir, args) {
+  spawnSync('git', args, { cwd: dir })
+}
+
+describe('resolveChangedBase', () => {
+  test('stale локальна main у worktree: origin/main новіша → база від origin/main', async () => {
+    await withTmpDir(dir => {
+      initRepo(dir) // комміт A на main
+      const shaA = headSha(dir)
+      writeFileSync(join(dir, 'upstream.js'), 'export const up = 1\n', 'utf8')
+      git(dir, ['add', '.'])
+      git(dir, ['commit', '-qm', 'upstream'])
+      const shaB = headSha(dir)
+      git(dir, ['update-ref', 'refs/remotes/origin/main', shaB])
+      git(dir, ['checkout', '-qb', 'feature'])
+      git(dir, ['branch', '-f', 'main', shaA]) // локальна main застрягла на A
+      expect(resolveChangedBase(dir)).toBe(shaB)
+    })
+  })
+
+  test('локальна main новіша за stale origin/main → база від main', async () => {
+    await withTmpDir(dir => {
+      initRepo(dir)
+      const shaA = headSha(dir)
+      git(dir, ['update-ref', 'refs/remotes/origin/main', shaA]) // origin без свіжого fetch
+      writeFileSync(join(dir, 'local.js'), 'export const l = 1\n', 'utf8')
+      git(dir, ['add', '.'])
+      git(dir, ['commit', '-qm', 'local'])
+      const shaB = headSha(dir)
+      git(dir, ['checkout', '-qb', 'feature'])
+      expect(resolveChangedBase(dir)).toBe(shaB)
+    })
+  })
+
+  test('без origin/main (офлайн/без remote) → фолбек на main', async () => {
+    await withTmpDir(dir => {
+      initRepo(dir)
+      const shaA = headSha(dir)
+      git(dir, ['checkout', '-qb', 'feature'])
+      expect(resolveChangedBase(dir)).toBe(shaA)
+    })
+  })
+
+  test('явний baseRef вимикає вибір — merge-base лише проти нього', async () => {
+    await withTmpDir(dir => {
+      initRepo(dir)
+      const shaA = headSha(dir)
+      writeFileSync(join(dir, 'next.js'), 'export const n = 1\n', 'utf8')
+      git(dir, ['add', '.'])
+      git(dir, ['commit', '-qm', 'next'])
+      expect(resolveChangedBase(dir, shaA)).toBe(shaA)
+    })
+  })
+
+  test('жодного ref (гілка не main, origin відсутній) → null', async () => {
+    await withTmpDir(dir => {
+      git(dir, ['init', '-q', '--initial-branch=trunk'])
+      git(dir, ['config', 'user.email', 't@t'])
+      git(dir, ['config', 'user.name', 't'])
+      writeFileSync(join(dir, 'base.js'), 'export const a = 1\n', 'utf8')
+      git(dir, ['add', '.'])
+      git(dir, ['commit', '-qm', 'init'])
+      expect(resolveChangedBase(dir)).toBeNull()
     })
   })
 })
