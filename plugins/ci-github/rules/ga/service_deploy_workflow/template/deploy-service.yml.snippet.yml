@@ -1,8 +1,11 @@
 # Документаційний приклад сервіс-орієнтованого deploy-workflow (ga.mdc).
-# Це НЕ deep-subset-канон (перелік сервісів консюмер-специфічний, назва файлу
-# deploy-<service>.yml) — форму перевіряє service_deploy_workflow.rego.
-# Плейсхолдер run/<service> заміни на каталог сервісу; набір lint-<domain>
-# джоб добери під стеки сервісу (зайва джоба нешкідлива — ci plan її скіпне).
+# Це НЕ deep-subset-канон (перелік сервісів консюмер-специфічний) — форму
+# перевіряє service_deploy_workflow.rego за ЗМІСТОМ: сервісний workflow =
+# dir-scoped glob у on.push.paths. Імʼя файлу довільне (npm-publish.yml,
+# deploy-<service>.yml, …) — не перейменовуй наявні: OIDC trusted publishing
+# привʼязаний до імені workflow. Плейсхолдер run/<service> заміни на каталог
+# сервісу; набір lint-<domain> джоб добери під стеки сервісу (зайва джоба
+# нешкідлива — ci plan її скіпне).
 name: Deploy <service>
 
 on:
