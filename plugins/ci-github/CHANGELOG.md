@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.1] - 2026-07-18
+
+### Fixed
+
+- ga/workflows: `runConftestBatch` викликається з `await` — ядро зробило його async у @7n/rules 1.14 (#109), без await детектор падав «violations is not iterable» і валив увесь lint-прогін
+
 ## [1.3.0] - 2026-07-17
 
 ### Changed
