@@ -43,7 +43,7 @@ function toRel(abs, cwd) {
  * @returns {Promise<LintResult>} Уніфікований результат лінту зі списком violations.
  */
 export async function evaluatePolicyConcern(ctx, cfg) {
-  const { cwd, ruleId, concernId } = ctx
+  const { cwd, ruleId, concernId, signal } = ctx
   /** @type {LintViolation[]} */
   const violations = []
   /**
@@ -90,13 +90,14 @@ export async function evaluatePolicyConcern(ctx, cfg) {
   // Rego
   const namespace = `${ruleId.replaceAll('-', '_')}.${concernId}`
   const templateData = await resolveConcernTemplateData(cfg.policyDir, { files: cfg.files })
-  const denies = runConftestBatch({
+  const denies = await runConftestBatch({
     policyDirRel: `${ruleId}/${concernId}`,
     // Абсолютний шлях теки concern-а — правило може жити поза вбудованим rules/ ядра (плагін).
     policyDirAbs: cfg.policyDir,
     namespace,
     files,
-    templateData
+    templateData,
+    signal
   })
   for (const d of denies) add('policy-deny', d.message, d.filename ? toRel(d.filename, cwd) : undefined)
   return { violations }

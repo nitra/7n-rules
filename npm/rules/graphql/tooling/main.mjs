@@ -67,10 +67,10 @@ async function collectGqlHits(root, candidates) {
  * (умовне правило — без gql цей крок не запускається).
  * @param {(msg: string) => void} pass success-репортер
  * @param {(msg: string) => void} fail fail-репортер
- * @returns {void}
+ * @returns {Promise<void>} результат
  * @param {string} cwd корінь репозиторію
  */
-function checkExtensionsRecommendation(pass, fail, cwd) {
+async function checkExtensionsRecommendation(pass, fail, cwd) {
   const pathRel = '.vscode/extensions.json'
   const pathAbs = join(cwd, pathRel)
   if (!existsSync(pathAbs)) {
@@ -79,7 +79,7 @@ function checkExtensionsRecommendation(pass, fail, cwd) {
     )
     return
   }
-  const violations = runConftestBatch({
+  const violations = await runConftestBatch({
     policyDirRel: 'graphql/vscode_extensions',
     namespace: 'graphql.vscode_extensions',
     files: [pathAbs]
@@ -123,7 +123,7 @@ export async function lint(ctx) {
     )
   }
 
-  checkExtensionsRecommendation(pass, fail, root)
+  await checkExtensionsRecommendation(pass, fail, root)
 
   return reporter.result()
 }

@@ -9,16 +9,20 @@
  * ризик дрифту (типу `spec.config` vs `spec.default.config` у
  * `health_check_policy.rego`, що ми ловили cross-check тестами).
  *
- * Hard-fail на відсутність `conftest` — через `ensureTool`, що спочатку
+ * Hard-fail на відсутність `conftest` — через `ensureToolAsync`, що спочатку
  * намагається авто-встановити, і лише після невдачі кидає виняток.
+ *
+ * Async (`spawnAsync`, не `spawnSync`) — детектор не блокує event loop, тож може
+ * виконуватись у parallel lane `detectAll()` (ADR 260716-1354). Приймає опційний
+ * `signal`/`timeoutMs` — прокидаються в `spawnAsync`.
  */
-import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { ensureTool } from './ensure-tool.mjs'
+import { ensureToolAsync } from './ensure-tool.mjs'
+import { spawnAsync } from '../utils/spawn-async.mjs'
 
 /**
   Каталог пакета `@7n/rules`, від якого ресолвимо вшиті директорії правил.
@@ -44,6 +48,8 @@ const RULES_ROOT = join(PACKAGE_ROOT, 'rules')
  * @property {string[]} files список абсолютних шляхів файлів для перевірки (порожній — повертаємо порожньо)
  * @property {string[]} [extraArgs] додаткові аргументи для conftest (наприклад `--combine` для крос-документних правил)
  * @property {object} [templateData] опціональне merged-дерево; серіалізується у JSON `{ "template": <data> }` і передається як `--data <tmpfile>` (cleanup після завершення)
+ * @property {AbortSignal} [signal] сигнал скасування — прокидається у `spawnAsync`
+ * @property {number} [timeoutMs] ліміт виконання `conftest` у мілісекундах — прокидається у `spawnAsync`
  */
 
 /**
@@ -65,11 +71,11 @@ export function buildConftestArgs(p) {
  * порушень. Якщо `files` порожній — повертає `[]` без спавна. Якщо `conftest`
  * не у PATH і авто-встановлення не вдалось — кидає виняток (hard fail).
  * @param {ConftestBatchOptions} opts параметри запуску
- * @returns {ConftestViolation[]} масив порушень (порожній — все ок)
+ * @returns {Promise<ConftestViolation[]>} масив порушень (порожній — все ок)
  */
-export function runConftestBatch(opts) {
+export async function runConftestBatch(opts) {
   if (opts.files.length === 0) return []
-  const conftestBin = ensureTool('conftest')
+  const conftestBin = await ensureToolAsync('conftest')
   // policyDirRel — формат `<rule>/<concern>` (наприклад `abie/base_deployment_preem`).
   // Flat concern path: rules/<rule>/<concern>/ (без проміжного `policy/`).
   const slash = opts.policyDirRel.indexOf('/')
@@ -94,11 +100,10 @@ export function runConftestBatch(opts) {
       extraArgs: opts.extraArgs ?? [],
       tmpDataFile
     })
-    const result = spawnSync(conftestBin, args, { encoding: 'utf8' })
-    if (result.error) throw result.error
-    // conftest exit 1 = є failures (це валідно для нас); >1 = справжня помилка.
-    if (result.status !== 0 && result.status !== 1) {
-      throw new Error(`conftest exit ${result.status}: ${(result.stderr || result.stdout || '').slice(0, 500)}`)
+    const result = await spawnAsync(conftestBin, args, { signal: opts.signal, timeoutMs: opts.timeoutMs })
+    // conftest exit 1 = є failures (це валідно для нас); >1 (або null — вбито сигналом/таймаутом) = справжня помилка.
+    if (result.exitCode !== 0 && result.exitCode !== 1) {
+      throw new Error(`conftest exit ${result.exitCode}: ${(result.stderr || result.stdout || '').slice(0, 500)}`)
     }
     /**
   @type {Array<{ filename: string, namespace: string, failures?: Array<{ msg: string }> }>}

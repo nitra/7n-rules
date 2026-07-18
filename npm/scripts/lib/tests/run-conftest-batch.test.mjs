@@ -71,24 +71,24 @@ describe('runConftestBatch', () => {
       await withTmpDir(async dir => {
         const fakeFile = join(dir, 'a.json')
         writeFileSync(fakeFile, '{}')
-        await expect(() =>
+        await expect(
           runConftestBatch({
             files: [fakeFile],
             policyDirRel: 'abie/base_deployment_preem',
             namespace: 'abie.base_deployment_preem'
           })
-        ).toThrow('conftest')
+        ).rejects.toThrow('conftest')
       })
     })
   })
 
   test('кидає коли rego-каталог не знайдено', async () => {
-    await withTmpDir(dir => {
+    await withTmpDir(async dir => {
       const fakeFile = join(dir, 'a.json')
       writeFileSync(fakeFile, '{}')
-      expect(() =>
+      await expect(
         runConftestBatch({ files: [fakeFile], policyDirRel: 'nonexistent-rule/nonexistent-policy', namespace: 'x.y' })
-      ).toThrow('rego-каталог не знайдено')
+      ).rejects.toThrow('rego-каталог не знайдено')
     })
   })
 })

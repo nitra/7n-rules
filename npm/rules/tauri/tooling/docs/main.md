@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/tauri/tooling/main.mjs
 docgen:
-  crc: 7c892c9b
+  crc: 4b6ecb02
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 95
   issues: anchor-miss:(tauri.mdc),judge:inaccurate:0.97

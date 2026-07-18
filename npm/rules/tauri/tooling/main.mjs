@@ -79,7 +79,7 @@ export async function lint(ctx) {
     fail(`${extPath} не існує — створи з recommendations "tauri-apps.tauri-vscode" (tauri.mdc)`)
     return reporter.result()
   }
-  const violations = runConftestBatch({
+  const violations = await runConftestBatch({
     policyDirRel: 'tauri/vscode_extensions',
     namespace: 'tauri.vscode_extensions',
     files: [extPath]

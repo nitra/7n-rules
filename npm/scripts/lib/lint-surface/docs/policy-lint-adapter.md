@@ -3,9 +3,8 @@ type: JS Module
 title: policy-lint-adapter.mjs
 resource: npm/scripts/lib/lint-surface/policy-lint-adapter.mjs
 docgen:
-  crc: facc5e07
+  crc: 1e527329
   model: openai-codex/gpt-5.5
-  tier: cloud-avg
   score: 80
   issues: internal-name:resolveTargetFiles,internal-name:runConftestBatch,judge:inaccurate:0.97
   judgeModel: openai-codex/gpt-5.4-mini
@@ -31,7 +30,7 @@ docgen:
 
 6. Для кожного target-файлу в template-режимі порівнює фактичний вміст із declarative template-очікуваннями: обовʼязковими фрагментами, заборонами та вимогами на наявність. Кожну невідповідність оформлює як `policy-template-mismatch`.
 
-7. Для Rego-перевірки запускає policy concern-а через conftest-поверхню та передає доступні template-дані як супровідний контекст, щоб зберегти поведінку існуючої policy-логіки.
+7. Для Rego-перевірки запускає policy concern-а через conftest-поверхню (`await runConftestBatch`, async), передаючи доступні template-дані як супровідний контекст і прокидаючи `ctx.signal` — щоб зберегти поведінку існуючої policy-логіки й водночас підтримати скасування у parallel lane `detectAll()`.
 
 8. Кожен deny-результат Rego оформлює як `policy-deny` із повідомленням policy та, якщо доступно, відносним шляхом до файла-порушника.
 
