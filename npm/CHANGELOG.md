@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.22.0] - 2026-07-18
+
+### Added
+
+- taze: по завершенню переносить зміни з автоствореного worktree назад у вихідне дерево (untracked) і прибирає worktree
+
+### Changed
+
+- taze: worktree-only гейт сам створює .worktrees/branch-taze і продовжує там замість throw-and-stop
+
 ## [1.21.0] - 2026-07-18
 
 ### Changed
