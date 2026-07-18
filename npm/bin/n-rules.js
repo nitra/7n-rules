@@ -1802,7 +1802,8 @@ try {
           verbose: args.includes('--verbose'),
           files: pathFiles,
           pathMode,
-          repoWide
+          repoWide,
+          baseRef
         }
         const noFix = args.includes('--no-fix')
         // Глобальна черга full-прогонів (spec 2026-07-03): одночасно виконується один

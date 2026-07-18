@@ -150,3 +150,9 @@ test_yaml11_on_key_supported if {
 	wf := object.union(object.remove(canonical_input, ["on"]), {true: {"push": {"paths": ["run/nexus/**"]}}})
 	count(service_deploy_workflow.deny) == 0 with input as wf
 }
+
+# conftest-конвеєр YAML→JSON: bool-ключ `on` серіалізується в РЯДОК "true".
+test_conftest_stringified_on_key_supported if {
+	wf := object.union(object.remove(canonical_input, ["on"]), {"true": {"push": {"paths": ["run/nexus/**"]}}})
+	count(service_deploy_workflow.deny) == 0 with input as wf
+}
