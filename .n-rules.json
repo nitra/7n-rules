@@ -24,7 +24,8 @@
     "worktree"
   ],
   "ignore": [
-    ".claude/worktrees"
+    ".claude/worktrees",
+    "npm/schemas/vendor"
   ],
   "disable-rules": [
     "docker",

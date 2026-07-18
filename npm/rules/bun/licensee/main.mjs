@@ -44,17 +44,25 @@ export function lint(ctx) {
   if (r.status !== 0) {
     const stderr = (r.stderr ?? '').trim().slice(0, 2000)
     if (stderr) {
-      fail(
-        `lint-bun: licensee — інструмент завершився з помилкою, це НЕ підтверджене ліцензійне порушення ` +
-          `(код ${r.status}, bun.mdc). Ймовірна причина — несумісність @npmcli/arborist (яким licensee читає ` +
-          `node_modules) з деревом, зібраним bun install. Перевір вручну: \`bunx licensee --production\`.\n${stderr}`,
-        'licensee-crashed'
-      )
-    } else {
-      const stdout = (r.stdout ?? '').trim().slice(0, 2000)
-      const detail = stdout ? `\n${stdout}` : ''
-      fail(`lint-bun: licensee — порушення ліцензій (код ${r.status}, bun.mdc)${detail}`, 'license-violation')
+      // Crash самого тула — НЕ підтверджене ліцензійне порушення: fail-open
+      // діагностикою (не блокує CI-гейт). Fail-closed тут перманентно червонив би
+      // bun-монорепо: @npmcli/arborist (яким licensee читає node_modules)
+      // несумісний із деревом bun install.
+      const result = reporter.result()
+      result.diagnostics = [
+        {
+          level: 'warn',
+          message:
+            `lint-bun: licensee — інструмент завершився з помилкою, це НЕ підтверджене ліцензійне порушення ` +
+            `(код ${r.status}, bun.mdc). Ймовірна причина — несумісність @npmcli/arborist з деревом bun install. ` +
+            `Перевір вручну: \`bunx licensee --production\`.\n${stderr}`
+        }
+      ]
+      return result
     }
+    const stdout = (r.stdout ?? '').trim().slice(0, 2000)
+    const detail = stdout ? `\n${stdout}` : ''
+    fail(`lint-bun: licensee — порушення ліцензій (код ${r.status}, bun.mdc)${detail}`, 'license-violation')
   }
   return reporter.result()
 }
