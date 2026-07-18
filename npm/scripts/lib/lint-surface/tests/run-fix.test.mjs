@@ -514,6 +514,58 @@ describe('runFixPipeline — fixability gate', () => {
 })
 
 /**
+ * Worker, що фіксує rung.tier у переданий масив і закриває детектор ('done').
+ * @param {string[]} seenTiers Акумулятор tier-ів у порядку виклику worker-а.
+ * @returns {(v: unknown, ctx: object) => void} Worker для `deps.workerFor`.
+ */
+function tierRecordingDoneWorker(seenTiers) {
+  return (_v, ctx) => {
+    seenTiers.push(ctx.tier)
+    const p = join(ctx.cwd, 'out.txt')
+    ctx.recordWrite(p)
+    writeFileSync(p, 'done')
+  }
+}
+
+describe('runFixPipeline — skipLocalTier (concern-meta)', () => {
+  test('skipLocalTier: true → local-min/local-min-retry пропущено, ladder стартує з cloud-min', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir, DETECTOR, { skipLocalTier: true })
+      const seenTiers = []
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: { ladder: TWO_RUNG, workerFor: () => tierRecordingDoneWorker(seenTiers) }
+      })
+      expect(code).toBe(0)
+      expect(seenTiers).toEqual(['cloud-min']) // local-min з ladder-а жодного разу не викликаний
+    })
+  })
+
+  test('skipLocalTier: false (дефолт) → ladder іде з local-min, як звичайно', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir) // без skipLocalTier
+      const seenTiers = []
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: { ladder: TWO_RUNG, workerFor: () => tierRecordingDoneWorker(seenTiers) }
+      })
+      expect(code).toBe(0)
+      expect(seenTiers[0]).toBe('local-min')
+    })
+  })
+})
+
+/**
  * Детектор, що рахує власні виклики у `detect-calls.txt` (по одному символу за виклик) —
  * дозволяє перевірити, скільки разів реально викликано `lint()` за весь fix-прогін.
  */

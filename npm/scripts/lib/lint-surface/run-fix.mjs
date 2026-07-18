@@ -441,6 +441,18 @@ function noteT0Phase(t0, chainExtra, touchedAbs) {
 }
 
 /**
+ * Ladder concern-а: повний, або без local-tier rung-ів (`concern.skipLocalTier`) —
+ * concern-и, де local-min/local-min-retry емпірично не встигають дати результат
+ * у межах свого бюджету (concern-meta.mjs).
+ * @param {Rung[]} ladder Повний ladder pipeline-у.
+ * @param {import('../concern-meta.mjs').ConcernMeta} concern Concern-meta елемента плану.
+ * @returns {Rung[]} Ladder, застосовний до цього concern-а.
+ */
+function selectLadder(ladder, concern) {
+  return concern.skipLocalTier ? ladder.filter(rung => !rung.local) : ladder
+}
+
+/**
  * Тіло fix-pipeline одного concern-а (T0 → S1 → ladder); chain/chainExtra — акумулятори
  * телеметрії ланцюжка (володіє ними fixConcern-обгортка).
  * @param {PlanItem} item Елемент плану.
@@ -481,7 +493,8 @@ async function fixConcernCore(item, initialViolations, deps, chain, chainExtra, 
 
   // ── Worker ladder ── concern-specific fix-worker.mjs, інакше дефолтний pi-agent worker.
   const worker = await resolveWorker(concernDir, deps.workerOverride)
-  if (!worker || ladder.length === 0) {
+  const effectiveLadder = selectLadder(ladder, item.entry.concern)
+  if (!worker || effectiveLadder.length === 0) {
     chainExtra.stop = 'no-worker'
     return false
   }
@@ -492,7 +505,7 @@ async function fixConcernCore(item, initialViolations, deps, chain, chainExtra, 
   let violations = initialViolations
   const skipModels = new Set()
 
-  for (const rung of ladder) {
+  for (const rung of effectiveLadder) {
     if (skipModels.has(rung.model)) continue
     if (rung.isAvg && deps.avgRemaining() <= 0) {
       log(`  ⏭️  ${ruleId}/${concernName}: ${rung.tier} пропущено (avg-кеп вичерпано)\n`)

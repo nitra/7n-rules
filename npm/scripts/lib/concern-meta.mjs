@@ -34,6 +34,10 @@ import { join } from 'node:path'
  * @property {PolicySurface|undefined} policy policy-поверхня concern-а (rego/template) або undefined.
  * @property {LintSurface|undefined} lint lint-поверхня concern-а або undefined.
  * @property {Fixability} fixability маршрутизація fix-движка (дефолт `code`): `config`/`structural` пропускають LLM-ladder.
+ * @property {boolean} skipLocalTier дефолт `false`: `true` пропускає local-min/local-min-retry rung-и
+ *   ladder-а — ladder одразу стартує з cloud-min. Для concern-ів, де local-tier емпірично не встигає
+ *   дати результат у межах свого бюджету (напр. js/eslint — 0/12 успіхів у реальному прогоні, лише
+ *   витрачений час).
  */
 
 /**
@@ -119,7 +123,16 @@ export async function readConcernMeta(concernDir, name) {
       ? raw.requires.capability
       : undefined
 
-  return { name, dir: concernDir, check, policy, lint, requiresCapability, fixability: parseFixability(raw.fixability) }
+  return {
+    name,
+    dir: concernDir,
+    check,
+    policy,
+    lint,
+    requiresCapability,
+    fixability: parseFixability(raw.fixability),
+    skipLocalTier: raw.skipLocalTier === true
+  }
 }
 
 /**
