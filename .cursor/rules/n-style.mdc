@@ -344,17 +344,3 @@ Leaf-by-leaf walker: перевіряє кожен ключ з template — йо
 **✓ Правильно** — усі три ключі присутні зі значенням `false`; можуть бути й інші ключі.
 
 **✗ Неправильно** — будь-який з ключів відсутній, має значення `true` або рядок (`"off"`).
-
-## GitHub Actions workflow: lint-style.yml
-
-Rego-пакет: `style_lint.lint_style_yml`
-
-Цільовий файл: `.github/workflows/lint-style.yml`
-
-Перевіряє, що у workflow є крок `run`, який містить команду `n-rules lint style --no-fix` (substring-match по всіх кроках усіх jobs). Канонічний текст береться з template через `--data`.
-
-Канонічний template: [lint-style.yml.snippet.yml](./template/lint-style.yml.snippet.yml)
-
-**✓ Правильно** — крок `run: n-rules lint style --no-fix` присутній у jobs.stylelint.steps.
-
-**✗ Неправильно** — крок відсутній або містить лише `echo nothing` / `npx stylelint` без канонічного рядка.
