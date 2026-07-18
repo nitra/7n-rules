@@ -1,8 +1,8 @@
 /** @see ./docs/orchestrate.md */
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { copyFile, rm } from 'node:fs/promises'
-import { join } from 'node:path'
+import { copyFile, mkdir, rm } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { assertEcosystemProvider } from '../../../scripts/lib/plugin-api.mjs'
@@ -87,17 +87,21 @@ export async function callRunner(runner, prompt, cwd, deps = {}) {
  * замість покладатись на агента, що читає SKILL.md-preflight, сам детерміновано
  * створює worktree конвенцією `<current-branch>-taze` (`npx \@7n/mt worktree
  * create`) і ставить залежності — щоб `bunx taze -w -r latest`/`bun install`
- * ніколи не виконались прямо в основному дереві виклику.
+ * ніколи не виконались прямо в основному дереві виклику. `autoCreated: true`
+ * сигналить викликачеві, що після завершення прогону варто перенести зміни
+ * назад (`bringChangesBackToOriginal`) і прибрати worktree
+ * (`removeAutoCreatedWorktree`) — а не лишати сирітське дерево.
  * @param {string} cwd каталог для перевірки
  * @param {typeof spawnSync} spawnFn інжект для тестів
  * @param {(line: string) => void} log колбек прогресу
- * @returns {string} `cwd` без змін, якщо вже worktree; інакше шлях щойно створеного worktree
+ * @returns {{ cwd: string, autoCreated: boolean, branchArg: string|null }} `autoCreated: false` — `cwd` без змін
+ *   (вже worktree); `autoCreated: true` — `cwd` щойно створеного worktree і `branchArg`, з яким його створено
  */
 function ensureRunningInWorktree(cwd, spawnFn, log) {
   const toplevelResult = spawnFn('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8' })
   const toplevel = toplevelResult.status === 0 ? toplevelResult.stdout.trim() : ''
   const segments = new Set(toplevel.replaceAll('\\', '/').split('/'))
-  if (segments.has('.worktrees')) return cwd
+  if (segments.has('.worktrees')) return { cwd, autoCreated: false, branchArg: null }
 
   const branchResult = spawnFn('git', ['branch', '--show-current'], { cwd, encoding: 'utf8' })
   const currentBranch = branchResult.status === 0 ? branchResult.stdout.trim() : ''
@@ -116,7 +120,83 @@ function ensureRunningInWorktree(cwd, spawnFn, log) {
   const newCwd = join(cwd, '.worktrees', pathSegment)
   log('📥 bun install (bootstrap нового дерева)...')
   runCommand('bun', ['install'], newCwd, spawnFn)
-  return newCwd
+  return { cwd: newCwd, autoCreated: true, branchArg }
+}
+
+/**
+ * Переносить зміни з автоствореного worktree назад у вихідне дерево як
+ * **untracked/незакомічені** правки (просте копіювання файлів, без git
+ * merge/cherry-pick) — так само, як їх бачив би користувач, якби сам
+ * працював у вихідному дереві. Джерело істини — `git status --porcelain`
+ * у worktree: для кожного шляху копіює файл, якщо він існує (модифікація/
+ * додавання), або видаляє його у вихідному дереві, якщо existsSync каже,
+ * що в worktree його вже нема (видалення). Перейменування (`old -> new` у
+ * porcelain) переносять лише нову назву — стара лишається як була, це
+ * прийнятний компроміс: taze не перейменовує файли сам, ефект можливий
+ * лише як побічний результат LLM-рефакторингу.
+ * @param {string} worktreeCwd автостворений worktree, з якого переносимо
+ * @param {string} originalCwd вихідне дерево, куди переносимо
+ * @param {typeof spawnSync} spawnFn інжект для тестів
+ * @param {(line: string) => void} log колбек прогресу
+ * @param {{ copyFile?: (src: string, dest: string) => Promise<void>, rm?: (path: string, opts?: object) => Promise<void>, mkdir?: (path: string, opts?: object) => Promise<void> }} [deps] інжекти для тестів
+ * @returns {Promise<string[]>} відносні шляхи перенесених файлів
+ */
+export async function bringChangesBackToOriginal(worktreeCwd, originalCwd, spawnFn, log, deps = {}) {
+  const copy = deps.copyFile ?? copyFile
+  const removeFile = deps.rm ?? rm
+  const makeDir = deps.mkdir ?? mkdir
+
+  const statusResult = spawnFn('git', ['status', '--porcelain'], { cwd: worktreeCwd, encoding: 'utf8' })
+  if (statusResult.status !== 0) {
+    log(
+      `⚠️ Не вдалось прочитати git status у "${worktreeCwd}" — зміни НЕ перенесені назад, worktree лишиться для ручного розбору.`
+    )
+    return []
+  }
+
+  const lines = statusResult.stdout.split('\n').filter(Boolean)
+  if (lines.length === 0) {
+    log('ℹ️ Worktree без змін — нічого переносити назад.')
+    return []
+  }
+
+  const brought = []
+  for (const line of lines) {
+    const rest = line.slice(3)
+    const relPath = rest.includes(' -> ') ? rest.split(' -> ', 2)[1] : rest
+    const srcPath = join(worktreeCwd, relPath)
+    const destPath = join(originalCwd, relPath)
+    if (existsSync(srcPath)) {
+      await makeDir(dirname(destPath), { recursive: true })
+      await copy(srcPath, destPath)
+    } else {
+      await removeFile(destPath, { force: true })
+    }
+    brought.push(relPath)
+  }
+  log(`📤 Перенесено назад у "${originalCwd}" як untracked: ${brought.join(', ')}`)
+  return brought
+}
+
+/**
+ * Прибирає автостворений worktree разом з його ефемерною git-гілкою
+ * (`npx \@7n/mt worktree remove <branch>`) — викликати лише ПІСЛЯ
+ * `bringChangesBackToOriginal`, інакше зміни згорять разом з деревом.
+ * Не кидає при провалі — це прибирання, а не крок, від якого залежить
+ * результат прогону; провал лише логується, worktree лишається для
+ * ручного розбору.
+ * @param {string} branchArg гілка, з якою worktree був створений (з `ensureRunningInWorktree`)
+ * @param {string} originalCwd вихідне дерево, звідки виконати `npx \@7n/mt worktree remove`
+ * @param {typeof spawnSync} spawnFn інжект для тестів
+ * @param {(line: string) => void} log колбек прогресу
+ * @returns {void}
+ */
+export function removeAutoCreatedWorktree(branchArg, originalCwd, spawnFn, log) {
+  log(`🧹 Прибираю автостворений worktree "${branchArg}"...`)
+  const result = spawnFn('npx', ['@7n/mt', 'worktree', 'remove', branchArg], { cwd: originalCwd, encoding: 'utf8' })
+  if (result.status !== 0) {
+    log(`⚠️ Не вдалось прибрати worktree "${branchArg}" — приберіть вручну (${result.stderr || result.stdout})`)
+  }
 }
 
 /**
@@ -349,55 +429,73 @@ export async function runTazeOrchestrator(options = {}) {
   const spawnFn = deps.spawnFn ?? spawnSync
   const call = deps.callRunner ?? callRunner
 
-  const cwd = ensureRunningInWorktree(options.cwd ?? process.cwd(), spawnFn, log)
+  const originalCwd = options.cwd ?? process.cwd()
+  const worktree = ensureRunningInWorktree(originalCwd, spawnFn, log)
+  const cwd = worktree.cwd
 
-  // npm/bun-гілка активна лише за кореневим package.json — на чисто-Python/Rust
-  // репо `bun install` падає з exit 1, і без цього гейта весь прогін гинув би
-  // до екосистемних провайдерів. Той самий принцип «тиші», що й для мовних
-  // екосистем: немає сигналу — немає ані кроків, ані згадки у звіті.
-  const npmPresent = existsSync(join(cwd, 'package.json'))
-  let diff = { major: [], minorPatch: 0, totalChanged: 0 }
-  const results = []
-  if (npmPresent) {
-    log('📦 Бекап package.json...')
-    const backedUpWorkspaces = await backupWorkspacePackageFiles(cwd, deps)
+  try {
+    // npm/bun-гілка активна лише за кореневим package.json — на чисто-Python/Rust
+    // репо `bun install` падає з exit 1, і без цього гейта весь прогін гинув би
+    // до екосистемних провайдерів. Той самий принцип «тиші», що й для мовних
+    // екосистем: немає сигналу — немає ані кроків, ані згадки у звіті.
+    const npmPresent = existsSync(join(cwd, 'package.json'))
+    let diff = { major: [], minorPatch: 0, totalChanged: 0 }
+    const results = []
+    if (npmPresent) {
+      log('📦 Бекап package.json...')
+      const backedUpWorkspaces = await backupWorkspacePackageFiles(cwd, deps)
 
-    log('⬆️  bunx taze -w -r latest...')
-    runCommand('bunx', ['taze', '-w', '-r', 'latest'], cwd, spawnFn)
-    log('📥 bun install...')
-    runCommand('bun', ['install'], cwd, spawnFn)
+      log('⬆️  bunx taze -w -r latest...')
+      runCommand('bunx', ['taze', '-w', '-r', 'latest'], cwd, spawnFn)
+      log('📥 bun install...')
+      runCommand('bun', ['install'], cwd, spawnFn)
 
-    const collectDiff = deps.collectTazeDiff ?? collectTazeDiff
-    diff = await collectDiff(cwd)
-    log(`🔍 diff: ${diff.major.length} major, ${diff.minorPatch} minor/patch`)
+      const collectDiff = deps.collectTazeDiff ?? collectTazeDiff
+      diff = await collectDiff(cwd)
+      log(`🔍 diff: ${diff.major.length} major, ${diff.minorPatch} minor/patch`)
 
-    for (const entry of diff.major) {
-      log(`🔧 ${entry.pkg} (${entry.workspace}): ${entry.from} → ${entry.to}...`)
-      const outcome = await call(runner, buildDependencyPrompt(entry), cwd, deps)
-      results.push({ ...entry, ...outcome })
-      log(outcome.ok ? `  ✅ ${entry.pkg}` : `  ❌ ${entry.pkg}: ${outcome.error}`)
+      for (const entry of diff.major) {
+        log(`🔧 ${entry.pkg} (${entry.workspace}): ${entry.from} → ${entry.to}...`)
+        const outcome = await call(runner, buildDependencyPrompt(entry), cwd, deps)
+        results.push({ ...entry, ...outcome })
+        log(outcome.ok ? `  ✅ ${entry.pkg}` : `  ❌ ${entry.pkg}: ${outcome.error}`)
+      }
+
+      await cleanupBackups(cwd, backedUpWorkspaces, deps)
+    } else {
+      log('⏭ npm/bun: кореневого package.json немає — гілка пропущена')
     }
 
-    await cleanupBackups(cwd, backedUpWorkspaces, deps)
-  } else {
-    log('⏭ npm/bun: кореневого package.json немає — гілка пропущена')
+    const providers = deps.ecosystemProviders ?? (await loadPluginTazeProviders(cwd, log, deps))
+    const ecosystems = []
+    for (const provider of providers) {
+      ecosystems.push(await runEcosystem(provider, { cwd, runner, log, deps, spawnFn, call }))
+    }
+
+    const report = formatReport({
+      minorPatch: diff.minorPatch,
+      totalChanged: diff.totalChanged,
+      results,
+      ecosystems,
+      npmPresent
+    })
+    log(report)
+
+    const ecosystemsOk = ecosystems.every(eco => eco.error === null && eco.results.every(r => r.ok))
+    return { ok: results.every(r => r.ok) && ecosystemsOk, report, results, ecosystems }
+  } finally {
+    // Лише для АВТОстворених worktree — якщо викликач уже сидів у своєму
+    // worktree (worktree.autoCreated === false), це не наш worktree і не
+    // нам його чіпати/прибирати. `finally` — щоб зміни поверталися і
+    // сирітський worktree прибирався навіть при кинутому винятку всередині
+    // try (падіння bunx/diff/провайдера), а не лише при успішному прогоні.
+    if (worktree.autoCreated) {
+      try {
+        await bringChangesBackToOriginal(cwd, originalCwd, spawnFn, log, deps)
+      } catch (error) {
+        log(`⚠️ Перенесення змін назад провалилось: ${error instanceof Error ? error.message : String(error)}`)
+      }
+      removeAutoCreatedWorktree(worktree.branchArg, originalCwd, spawnFn, log)
+    }
   }
-
-  const providers = deps.ecosystemProviders ?? (await loadPluginTazeProviders(cwd, log, deps))
-  const ecosystems = []
-  for (const provider of providers) {
-    ecosystems.push(await runEcosystem(provider, { cwd, runner, log, deps, spawnFn, call }))
-  }
-
-  const report = formatReport({
-    minorPatch: diff.minorPatch,
-    totalChanged: diff.totalChanged,
-    results,
-    ecosystems,
-    npmPresent
-  })
-  log(report)
-
-  const ecosystemsOk = ecosystems.every(eco => eco.error === null && eco.results.every(r => r.ok))
-  return { ok: results.every(r => r.ok) && ecosystemsOk, report, results, ecosystems }
 }
