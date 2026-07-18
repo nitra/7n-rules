@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.4.2] - 2026-07-18
+
+### Changed
+
+- fix-service_deploy_pipeline: `parseNRulesCmd`/`relevantDomains` перенесено в спільний `@7n/rules/scripts/lib/lint-surface/ci-plan.mjs` (jscpd-дублікат із ci-github), без зміни поведінки
+
+## [1.4.1] - 2026-07-18
+
+### Fixed
+
+- service_deploy_pipeline під реальну efes-форму: template-параметр покриває сервіс за префіксом glob-а (`run/nexus/**` ↔ modulePath `run/nexus`, було — хибний deny на всіх extends-пайплайнах); plan-гейт вимагається лише за наявності lint-джоб (утилітарні service-scoped pipelines типу gen:schema — поза каноном); команди читаються і з кроків `task: Bash@3` (`inputs.script`) — у rego і в автомігратора
+
+## [1.4.0] - 2026-07-18
+
+### Added
+
+- Автоміграція легасі сервіс-pipeline-ів до канону: T0-фікс service_deploy_pipeline переписує `.azurepipelines/**` (job plan, легасі `lint --path` → per-domain `lint_<key>` по файлах піддерева, перешивка dependsOn і Skipped-толерантні condition) через yaml Document API зі збереженням коментарів
+
+## [1.3.0] - 2026-07-18
+
+### Added
+
+- Сервіс-орієнтований CI-канон: концерн azure-pipelines/service_deploy_pipeline — форма per-service pipeline у .azurepipelines/ (plan-гейт `ci plan --azure`, per-domain lint-джоби з dependsOn+condition, термінальні джоби зі Skipped-толерантним condition)
+
 ## [1.2.1] - 2026-07-16
 
 ### Fixed

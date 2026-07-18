@@ -29,3 +29,7 @@ npm/reports/coverage-classify.cache.json
 
 # Rust build artifacts (llm-cascade — перший Rust-крейт у репо)
 target/
+
+# Prebuilt napi-артефакти платформних пакетів: у git лише package.json,
+# .node кладе CI (build-native) або ручна публікація — у git не потрапляють
+llm-lib/packages/**/*.node

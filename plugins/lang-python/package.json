@@ -1,0 +1,54 @@
+{
+  "name": "@7n/rules-lang-python",
+  "version": "0.2.2",
+  "description": "Плагін @7n/rules: Python/uv-екосистема — taze-провайдер (pyproject.toml, PEP 508/PEP 440)",
+  "keywords": [
+    "python",
+    "uv",
+    "taze",
+    "n-rules-plugin"
+  ],
+  "homepage": "https://github.com/nitra/7n-rules#readme",
+  "bugs": {
+    "url": "https://github.com/nitra/7n-rules/issues"
+  },
+  "license": "ISC",
+  "author": "v@nitra.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nitra/7n-rules.git",
+    "directory": "plugins/lang-python"
+  },
+  "type": "module",
+  "files": [
+    "taze",
+    "CHANGELOG.md",
+    "!**/*.test.mjs",
+    "!**/tests/**",
+    "!**/docs/**"
+  ],
+  "n-rules": {
+    "capabilities": [
+      "lang:python"
+    ],
+    "contributes": {
+      "rules": false,
+      "handlers": {
+        "taze": "./taze/provider.mjs"
+      }
+    }
+  },
+  "dependencies": {
+    "smol-toml": "^1.7.0"
+  },
+  "peerDependencies": {
+    "@7n/rules": ">=1.13.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "bun": ">=1.3",
+    "node": ">=24"
+  }
+}

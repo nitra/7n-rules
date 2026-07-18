@@ -47,18 +47,32 @@ function dropWorktreeCheckouts(paths) {
 
 /**
  * Визначає git base для scoped-перевірок без зовнішнього runtime-стану.
- * Пріоритет: локальна `main`, потім `origin/main`; якщо обидві відсутні,
- * повертає null і caller порівнює лише робоче дерево з HEAD.
+ * Кандидати — `origin/main` і локальна `main`: рахуємо merge-base з HEAD для обох
+ * і беремо **новіший** (descendant) з двох. Це захищає від stale-ref з будь-якого
+ * боку: у git-worktree локальна `main` закріплена за іншим деревом і часто відстає
+ * (застаріла база → фантомні «змінені» файли з давно влитих PR), а без свіжого
+ * fetch може відставати вже `origin/main`. Якщо доступний лише один ref (офлайн,
+ * без remote) — його merge-base; якщо жодного — null, і caller порівнює лише
+ * робоче дерево з HEAD. Повернений sha завжди досяжний (це merge-base існуючого
+ * ref), тож fail-closed перевірка в `collectChangedFilesSince` не спрацює хибно.
+ * Явний `baseRef` (CI: `--base origin/main` після fetch) вимикає вибір —
+ * merge-base рахується лише проти нього.
  * @param {string} [cwd] корінь репо
+ * @param {string|null} [baseRef] явний ref бази замість вибору origin/main|main
  * @returns {string|null} merge-base commit або null
  */
-export function resolveChangedBase(cwd = process.cwd()) {
-  for (const ref of ['main', 'origin/main']) {
+export function resolveChangedBase(cwd = process.cwd(), baseRef = null) {
+  const mergeBaseWith = ref => {
     const result = spawnSync('git', ['merge-base', 'HEAD', ref], { cwd, encoding: 'utf8' })
-    const base = result.status === 0 && !result.error ? result.stdout.trim() : ''
-    if (base) return base
+    return result.status === 0 && !result.error ? result.stdout.trim() : ''
   }
-  return null
+  if (baseRef) return mergeBaseWith(baseRef) || null
+  const [primary, secondary] = ['origin/main', 'main'].map(ref => mergeBaseWith(ref)).filter(Boolean)
+  if (!primary || !secondary || primary === secondary) return primary ?? null
+  // Обидва ref-и дали різні merge-base: новіший — той, що є нащадком іншого.
+  // Якщо гілки merge-base розійшлися (екзотика), лишаємо пріоритет origin/main.
+  const ancestry = spawnSync('git', ['merge-base', '--is-ancestor', primary, secondary], { cwd })
+  return ancestry.status === 0 && !ancestry.error ? secondary : primary
 }
 
 /**

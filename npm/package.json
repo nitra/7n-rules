@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules",
-  "version": "1.13.1",
+  "version": "1.19.1",
   "description": "CLI еталонних правил і skills (префікс n-): синк у репозиторій, дельта-lint, конформність",
   "keywords": [
     "cli",
@@ -51,6 +51,7 @@
   "exports": {
     ".": "./bin/n-rules.js",
     "./package.json": "./package.json",
+    "./plugin-api": "./scripts/lib/plugin-api.mjs",
     "./scripts/*": "./scripts/*",
     "./schemas/*": "./schemas/*",
     "./rules/*": "./rules/*"

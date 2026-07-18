@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { detectAll } from '../run-detectors.mjs'
+import { buildDetectPlan, computeActiveDomains, detectAll } from '../run-detectors.mjs'
 import { withTmpDir, writeJson } from '../../../utils/test-helpers.mjs'
 
 /**
@@ -190,6 +190,89 @@ describe('detectAll — scoping', () => {
       expect(line).toContain('per-file')
       expect(line).toContain('1 файл')
     })
+  })
+})
+
+describe('buildDetectPlan — сервіс-канон (scoped+files, pathMode, repoWide)', () => {
+  /**
+   * Сідить правило probe з per-file (glob *.js) і full-scope (glob *.js) concern-ами.
+   * @param {string} dir tmp-корінь
+   * @returns {Promise<string>} rulesDir
+   */
+  async function seedMixedRule(dir) {
+    const rulesDir = join(dir, 'rules')
+    await seedDetector(rulesDir, 'probe', 'perfile', { scope: 'per-file', glob: ['**/*.js'] }, CLEAN)
+    await seedDetector(rulesDir, 'probe', 'wholerepo', { scope: 'full', glob: ['**/*.js'] }, CLEAN)
+    await seedDetector(rulesDir, 'probe', 'noglob', { scope: 'full', glob: [] }, CLEAN)
+    await writeJson(join(dir, '.n-rules.json'), { rules: ['probe'] })
+    return rulesDir
+  }
+
+  test('scoped + files: лише per-file concerns × glob-збіги, full-scope виключені', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedMixedRule(dir)
+      const plan = await buildDetectPlan({ rulesDir, cwd: dir, rules: ['probe'], files: ['a.js', 'b.txt'] })
+      expect(plan).toHaveLength(1)
+      expect(plan[0].entry.concern.name).toBe('perfile')
+      expect(plan[0].files).toEqual(['a.js'])
+    })
+  })
+
+  test('scoped + files: невідомий rule-id → порожній план', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedMixedRule(dir)
+      const plan = await buildDetectPlan({ rulesDir, cwd: dir, rules: ['nope'], files: ['a.js'] })
+      expect(plan).toEqual([])
+    })
+  })
+
+  test('pathMode: full-scope concerns виключені; без pathMode full+glob тригериться whole-repo', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedMixedRule(dir)
+      const withPathMode = await buildDetectPlan({ rulesDir, cwd: dir, files: ['x.js'], pathMode: true })
+      expect(withPathMode.map(p => p.entry.concern.name)).toEqual(['perfile'])
+      const withoutPathMode = await buildDetectPlan({ rulesDir, cwd: dir, files: ['x.js'] })
+      expect(withoutPathMode.map(p => p.entry.concern.name)).toEqual(['perfile', 'wholerepo'])
+      expect(withoutPathMode[1].files).toBeUndefined()
+    })
+  })
+
+  test('repoWide: лише full-scope concerns enabled-правил (включно з noglob), whole-repo', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedMixedRule(dir)
+      await seedDetector(rulesDir, 'disabled', 'full', { scope: 'full', glob: [] }, CLEAN)
+      const plan = await buildDetectPlan({ rulesDir, cwd: dir, repoWide: true })
+      expect(plan.map(p => `${p.entry.ruleId}/${p.entry.concern.name}`)).toEqual(['probe/noglob', 'probe/wholerepo'])
+      for (const p of plan) expect(p.files).toBeUndefined()
+    })
+  })
+})
+
+describe('computeActiveDomains', () => {
+  const byRule = {
+    js: [
+      { name: 'eslint', lint: { scope: 'per-file', glob: ['**/*.js'] } },
+      { name: 'knip', lint: { scope: 'full', glob: [] } }
+    ],
+    python: [{ name: 'ruff', lint: { scope: 'per-file', glob: ['**/*.py'] } }],
+    'npm-module': [{ name: 'pkg', lint: { scope: 'full', glob: ['**/package.json'] } }]
+  }
+  const enabled = new Set(['js', 'python', 'npm-module'])
+
+  test('домен активний лише при glob-збігу per-file concern-а', () => {
+    const map = computeActiveDomains(byRule, enabled, ['src/a.js', 'README.md'])
+    expect(map.get('js')).toEqual({ triggered: true, matchedFiles: 1 })
+    expect(map.get('python')).toEqual({ triggered: false, matchedFiles: 0 })
+  })
+
+  test('правила без per-file concerns не потрапляють у результат', () => {
+    const map = computeActiveDomains(byRule, enabled, ['package.json'])
+    expect(map.has('npm-module')).toBe(false)
+  })
+
+  test('disabled-правило не потрапляє', () => {
+    const map = computeActiveDomains(byRule, new Set(['js']), ['src/a.py'])
+    expect(map.has('python')).toBe(false)
   })
 })
 

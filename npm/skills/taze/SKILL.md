@@ -20,9 +20,16 @@ version: '1.2'
 прогін міг зависати без жодної діагностики (один величезний непрозорий хід на
 весь монорепо, без проміжних зупинок для перевірки прогресу). Замість цього `npm/skills/taze/js/orchestrate.mjs`:
 
-1. Детерміновано, без LLM, виконує кроки 1-3 нижче для всіх гілок: npm/bun (бекап → `bunx taze -w -r latest` → `bun install` → `n-rules taze diff`); якщо знайдені `Cargo.toml`, Rust (бекап → `cargo upgrade --incompatible allow` → `cargo update` → `collectCargoDiff` з `cargo-diff.mjs`, детермінований cargo-еквівалент `n-rules taze diff` — парсить кожен `Cargo.toml` через `smol-toml`, класифікує major за тим самим правилом caret-семантики, включно з Cargo-скороченими версіями `"1"`/`"0.4"`); якщо знайдений кореневий `pyproject.toml`, Python (бекап → по кожній прямій залежності `uv remove <pkg>` + `uv add <pkg>[extras] --bounds lower` → `collectUvDiff` з `uv-diff.mjs`, парсить PEP 508/PEP 440 через `smol-toml`, той самий caret-принцип класифікації).
+1. Детерміновано, без LLM, виконує кроки 1-3 нижче для всіх гілок: npm/bun (бекап → `bunx taze -w -r latest` → `bun install` → `n-rules taze diff`); якщо знайдені `Cargo.toml`, Rust (бекап → `cargo upgrade --incompatible allow` → `cargo update` → `collectCargoDiff` з `cargo-diff.mjs`, детермінований cargo-еквівалент `n-rules taze diff` — парсить кожен `Cargo.toml` через `smol-toml`, класифікує major за тим самим правилом caret-семантики, включно з Cargo-скороченими версіями `"1"`/`"0.4"`); якщо знайдений кореневий `pyproject.toml`, Python (бекап → по кожній прямій залежності `uv remove <pkg>` + `uv add <pkg>[extras] --bounds lower` → `collectUvDiff`, парсить PEP 508/PEP 440 через `smol-toml`, той самий caret-принцип класифікації).
 2. Для кожного **окремого** major-пакета/крейта з diff-у — один ізольований, обмежений виклик обраного раннера (кроки 4-6, лише для цього запису; промпт генерує `buildDependencyPrompt`/`buildCargoDependencyPrompt`/`buildUvDependencyPrompt`, не цей SKILL.md).
 3. Детерміновано прибирає бекапи (крок 7) і компонує звіт (крок 8) з результатів усіх ітерацій.
+
+Не-npm екосистеми оркестратор веде через **EcosystemProvider-порт**
+(`@7n/rules/plugin-api`, spec `docs/specs/2026-07-18-lang-plugins-extraction-spec.md`)
+— плагіни, що доставляються автоматично при першому запуску за файловим сигналом
+(extension-point `taze`): Rust — **`@7n/rules-lang-rust`** (кореневий `Cargo.toml`),
+Python — **`@7n/rules-lang-python`** (кореневий `pyproject.toml`). На чисто-JS
+проєкті без цих сигналів у звіті немає навіть згадки про інші екосистеми.
 
 Якщо `Cargo.toml` знайдені, але `cargo-edit` не встановлено — Rust-гілка **не**
 блокує інші гілки: оркестратор пропускає Rust-обробку і в звіті перелічує

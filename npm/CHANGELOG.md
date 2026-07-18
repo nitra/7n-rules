@@ -1,5 +1,88 @@
 # Changelog
 
+## [1.19.1] - 2026-07-18
+
+### Changed
+
+- експортовано `parseNRulesCmd` і `relevantDomains` з `scripts/lib/lint-surface/ci-plan.mjs` — спільні хелпери для fix-хендлерів автоміграції service-канону (ci-azure, ci-github), усунуто jscpd-дублікат
+
+## [1.19.0] - 2026-07-18
+
+### Added
+
+- js/eslint T0-патерн js-eslint-mechanical-text-fix — текстові заміни для suggestion-only правил поза покриттям oxlint/eslint --fix (наразі unicorn/prefer-number-is-safe-integer); зменшує обсяг порушень, що йдуть у LLM-ладдер
+
+## [1.18.1] - 2026-07-18
+
+### Fixed
+
+- `resolveChangedBase` стійкий до stale-ref: merge-base рахується для обох кандидатів (`origin/main` і локальна `main`) і береться новіший (descendant) — у git-worktree застрягла локальна `main` більше не дає застарілу базу з фантомними «зміненими» файлами давно влитих PR (T0-фіксер створював фейкові change-фрагменти для незачеплених воркспейсів); фолбек на єдиний доступний ref офлайн/без remote збережено
+
+## [1.18.0] - 2026-07-18
+
+### Changed
+
+- Фаза 2 spec lang-plugins-extraction: Rust/Cargo-провайдер taze виїхав із ядра в окремий плагін `@7n/rules-lang-rust` (автодетект за кореневим Cargo.toml, extension-point `taze`) — сигнатури порту EcosystemProvider не змінились, оркестратор більше не має вбудованих провайдерів (усі екосистеми — з плагінів)
+
+## [1.17.3] - 2026-07-18
+
+### Changed
+
+- ci-plan: `domainKey` експортовано — fix-хендлери плагінів (автоміграція pipeline-ів) генерують ті самі ключі outputs, що й `ci plan`
+
+## [1.17.2] - 2026-07-18
+
+### Fixed
+
+- run-fix.mjs: rollback перед перекиданням DetectorError з canonical re-detect — раніше worker/LLM-пошкоджений файл (напр. невалідний YAML) лишався на диску, бо виняток абортував прогін до звичайного snapshot.rollback()
+
+## [1.17.1] - 2026-07-18
+
+### Fixed
+
+- lint: `--base <ref>` тепер діє і в чистому delta-режимі (без `--path`) — раніше явна база застосовувалась лише до перетину path ∩ дельта
+
+## [1.17.0] - 2026-07-18
+
+### Changed
+
+- lint --path став diff-aware (перетин path ∩ git diff, full-scope концерни виключені; стара поведінка — --path --full), дозволено `lint <domain> --path`, нові --base/--repo-wide і команда ci plan (outputs для GitHub Actions/Azure)
+
+### Fixed
+
+- bun/licensee: crash самого тула (stderr/die) — fail-open warn-діагностика замість блокувального порушення; несумісність @npmcli/arborist із деревом bun install перманентно червонила repo-wide CI-гейт
+
+## [1.16.1] - 2026-07-18
+
+### Fixed
+
+- taze-оркестратор на репо без кореневого package.json (чисто-Python/Rust): npm/bun-гілка тихо пропускається (лог + без npm-рядків у звіті) замість смертельного `bun install → exit 1` до екосистемних провайдерів. Знайдено live-прогоном lang-python плагіна на реальному Python-репо
+
+## [1.16.0] - 2026-07-18
+
+### Added
+
+- k8s: новий концерн dremio_logging — logback.xml Dremio Helm-чарту має містити WARN-оверрайди для шести відомо-шумних loggerів (rego, XML через conftest, detection-only)
+
+## [1.15.0] - 2026-07-18
+
+### Added
+
+- Плагінна архітектура мовних екосистем (фаза 1 spec lang-plugins-extraction): новий порт `EcosystemProvider` у `@7n/rules/plugin-api` (detect/available/backup/bump/diff/promptFor/cleanup + `assertEcosystemProvider`), taze-оркестратор веде не-npm гілки генеричним циклом по провайдерах — Rust як вбудований first-party (`rust-provider.mjs`), Python/uv виїхав у окремий плагін `@7n/rules-lang-python` (автодетект за кореневим pyproject.toml, extension-point `taze` — перший реальний споживач handlers-API). Плагін без rules/ із `contributes.rules:false` тепер легальний (лише handlers); провал однієї екосистеми не зупиняє інших
+
+## [1.14.1] - 2026-07-18
+
+### Changed
+
+- docs(adr): brainstorm — внутрішній паралелізм lint-оркестратора (#86)
+- Оновлено внутрішній lint-оркестратор.
+
+## [1.14.0] - 2026-07-18
+
+### Changed
+
+- js/eslint: fix-worker.mjs — обмежений паралельний пул (MAX_PARALLEL_FILES=4) замість послідовного циклу по файлах; профайлінг спростував гіпотезу про bootstrap-накладні витрати сесії
+
 ## [1.13.1] - 2026-07-18
 
 ### Changed

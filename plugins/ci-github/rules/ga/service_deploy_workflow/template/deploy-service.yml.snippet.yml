@@ -1,0 +1,88 @@
+# Документаційний приклад сервіс-орієнтованого deploy-workflow (ga.mdc).
+# Це НЕ deep-subset-канон (перелік сервісів консюмер-специфічний, назва файлу
+# deploy-<service>.yml) — форму перевіряє service_deploy_workflow.rego.
+# Плейсхолдер run/<service> заміни на каталог сервісу; набір lint-<domain>
+# джоб добери під стеки сервісу (зайва джоба нешкідлива — ci plan її скіпне).
+name: Deploy <service>
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - 'run/<service>/**'
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      js: ${{ steps.plan.outputs.js }}
+      python: ${{ steps.plan.outputs.python }}
+      any: ${{ steps.plan.outputs.any }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-bun-deps
+
+      - id: plan
+        run: bunx n-rules ci plan --path run/<service> --github
+
+  lint-js:
+    needs: plan
+    if: needs.plan.outputs.js == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-bun-deps
+
+      - run: bunx n-rules lint js --path run/<service> --no-fix
+
+  # …lint-<domain> для кожного домену сервісу (python/docker/k8s/security/…)
+
+  test:
+    needs: plan
+    if: needs.plan.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-bun-deps
+
+      # python-стек: перед тестами ще uv (uses: astral-sh/setup-uv@v7 + uv sync --locked)
+      - run: bun test run/<service>
+
+  deploy:
+    needs:
+      - plan
+      - lint-js
+      - test
+    # Skipped-лінт (гейт ci plan) НЕ блокує деплой; failed — блокує.
+    if: ${{ !cancelled() && needs.plan.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # …кроки деплою сервісу (build/push/apply)

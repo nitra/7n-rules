@@ -8,7 +8,9 @@
     "demo",
     "llm-lib",
     "plugins/ci-github",
-    "plugins/ci-azure"
+    "plugins/ci-azure",
+    "plugins/lang-python",
+    "plugins/lang-rust"
   ],
   "type": "module",
   "scripts": {
@@ -26,7 +28,9 @@
     "vitest": "^4.1.9",
     "@7n/rules": "workspace:*",
     "@7n/rules-ci-github": "workspace:*",
-    "@7n/rules-ci-azure": "workspace:*"
+    "@7n/rules-ci-azure": "workspace:*",
+    "@7n/rules-lang-python": "workspace:*",
+    "@7n/rules-lang-rust": "workspace:*"
   },
   "stylelint": {
     "extends": "@nitra/stylelint-config"

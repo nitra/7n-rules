@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parse as parseToml } from 'smol-toml'
 
-import { isBreaking } from './diff.mjs'
+import { isBreaking } from '@7n/rules/plugin-api'
 
 /** Дефолтний суфікс бекапу — той самий, що й для package.json/Cargo.toml. */
 const DEFAULT_BACKUP_SUFFIX = '.taze-bak'
@@ -69,7 +69,7 @@ export function extractLowerBoundVersion(specifier) {
 
 /**
  * Порівнює `[project].dependencies` двох pyproject.toml — той самий контракт,
- * що й `diffPackageJson`/`diffCargoToml`. Матчинг по ІМЕНІ пакета (не по
+ * що й `diffPackageJson`/`diffCargoToml` ядра. Матчинг по ІМЕНІ пакета (не по
  * позиції в масиві — PEP 621 `dependencies` це список PEP 508-рядків, не
  * мапа ім'я→версія).
  * @param {object} oldManifest розпарсений старий pyproject.toml (бекап)
@@ -133,7 +133,7 @@ async function readTomlOrNull(path) {
 /**
  * Збирає diff по pyproject.toml: порівнює `<cwd>/pyproject.toml` з
  * `<cwd>/pyproject.toml<backupSuffix>` — той самий контракт, що й
- * `collectTazeDiff`/`collectCargoDiff`.
+ * `collectTazeDiff`/`collectCargoDiff` ядра.
  * @param {string} cwd корінь репозиторію (де лежить pyproject.toml — uv-конвенція: один кореневий файл, не per-crate, як Cargo.toml)
  * @param {string} [backupSuffix] суфікс бекап-файлу
  * @returns {Promise<{major: Array<{manifest:string, pkg:string, from:string, to:string}>, minorPatch:number, totalChanged:number, comparedManifests:number}>} агрегований diff

@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parse as parseToml } from 'smol-toml'
 
-import { isBreaking } from './diff.mjs'
+import { isBreaking } from '@7n/rules/plugin-api'
 
 /** Поля Cargo.toml із залежностями, які порівнюємо (аналог DEP_FIELDS у diff.mjs). */
 const CARGO_DEP_FIELDS = ['dependencies', 'dev-dependencies', 'build-dependencies']
@@ -46,7 +46,7 @@ export function extractCargoVersionSpec(value) {
 
 /**
  * Порівнює два розпарсені Cargo.toml і повертає зміни залежностей —
- * той самий контракт, що й `diffPackageJson` у diff.mjs, лише для Cargo.
+ * той самий контракт, що й `diffPackageJson` ядра, лише для Cargo.
  * @param {object} oldManifest розпарсений старий Cargo.toml (бекап)
  * @param {object} newManifest розпарсений новий Cargo.toml
  * @param {string} manifest відносний шлях Cargo.toml (мітка джерела запису)

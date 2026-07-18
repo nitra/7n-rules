@@ -3,7 +3,7 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/skills/taze/js/orchestrate.mjs
 docgen:
-  crc: 56fd9864
+  crc: b675f6e7
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.98
@@ -12,34 +12,30 @@ docgen:
 
 ## Огляд
 
-Оркеструє `taze` для трьох екосистем — npm/bun, Rust (Cargo) і Python (uv) — детерміновано, без LLM: бекап маніфестів → масовий bump (`bunx taze`/`cargo upgrade`/по-пакетний `uv remove`+`uv add --bounds lower`) → diff класифікація major vs minor/patch → прибирання бекапів → Markdown-звіт (`formatReport`). Для КОЖНОГО окремого major-пакета/крейта з diff-у виконує один ізольований, обмежений виклик обраного раннера (`buildDependencyPrompt`/`buildCargoDependencyPrompt`/`buildUvDependencyPrompt` + `callRunner`) — лише перевірка сумісності й рефакторинг, не сам bump. Файл виконує реальні файлові операції (копіює/видаляє бекапи `package.json`/`Cargo.toml`/`Cargo.lock`/`pyproject.toml`/`uv.lock`) і запускає зовнішні команди (`bunx`, `bun`, `cargo`, `uv`, `git`, `find`) — не read-only.
+Оркеструє taze детерміновано, без LLM для службових кроків: бекап маніфестів → масовий bump → diff-класифікація major vs minor/patch → прибирання бекапів → Markdown-звіт. Для КОЖНОГО окремого major-пакета з diff-у виконує один ізольований, обмежений виклик обраного раннера — лише перевірка сумісності й рефакторинг, не сам bump. npm/bun-гілка вбудована; решта екосистем — `EcosystemProvider`-и (контракт `@7n/rules/plugin-api`), завантажені з плагінів (`@7n/rules-lang-rust`, `@7n/rules-lang-python`, …; extension-point `taze`) — вбудованих провайдерів немає. Файл виконує реальні файлові операції (бекапи) і запускає зовнішні команди (`bunx`, `bun`, `git`, команди провайдерів) — не read-only.
 
 ## Поведінка
 
-- **buildDependencyPrompt** / **buildCargoDependencyPrompt** / **buildUvDependencyPrompt** — формують промпт ОДНОГО ітеративного виклику (лише перевірка сумісності й рефакторинг) для одного major-пакета npm/Cargo/uv відповідно.
+- **buildDependencyPrompt** — формує промпт ОДНОГО ітеративного виклику (лише перевірка сумісності й рефакторинг) для одного major-пакета npm/bun.
 - **callRunner** — диспетчер одного ітеративного виклику: `pi` — вбудований pi-агент (текст через `deps.out`), `cursor`/`codex` — napi-міст ACP (`@7n/llm-lib/acp`).
 - **backupWorkspacePackageFiles** / **cleanupBackups** — бекап і прибирання `package.json` кожного воркспейсу.
-- **backupCargoManifests** / **cleanupCargoBackups** — бекап і прибирання кожного `Cargo.toml` + спільного кореневого `Cargo.lock`.
-- **backupUvManifest** / **cleanupUvBackups** — бекап і прибирання кореневого `pyproject.toml` + `uv.lock`.
-- **findCargoManifests** — знаходить усі `Cargo.toml` поза `node_modules`/`.worktrees`/`target`.
-- **findPyprojectManifest** — перевіряє наявність кореневого `pyproject.toml` (uv-конвенція — один файл, не per-package обхід).
-- **formatReport** — компонує підсумковий Markdown-звіт (minor/patch, major-оновлення по кожній з трьох гілок, загальний обсяг змін) без окремого LLM-виклику.
-- **runTazeOrchestrator** — повний прогін: перевіряє, що `cwd` — ізольований worktree, послідовно обробляє npm-, Rust- (за наявності `Cargo.toml` і `cargo-edit`) і Python-гілку (за наявності `pyproject.toml` і `uv`) — бекап → bump → diff → ізольовані виклики раннера по кожному major-запису → прибирання — і повертає звіт.
+- **loadPluginTazeProviders** — завантажує провайдерів з активних плагінів: `.n-rules.json`/автодетект → `resolvePlugins` (плагін доставляється автоматично при першому запуску) → handler-модулі extension-point `taze` → валідація `assertEcosystemProvider`; битий плагін — warning і пропуск, не провал.
+- **formatReport** — компонує підсумковий Markdown-звіт (npm-гілка + секція на кожну екосистему з manifests; екосистема без manifests — тиша) без окремого LLM-виклику.
+- **runTazeOrchestrator** — повний прогін: перевіряє, що `cwd` — ізольований worktree, виконує npm-гілку, далі кожного провайдера наскрізь (detect → available → backup → bump → diff → ізольовані виклики раннера по major-записах → cleanup) і повертає звіт.
 
 ## Публічний API
 
-- buildDependencyPrompt / buildCargoDependencyPrompt / buildUvDependencyPrompt — промпт одного major-запису відповідної екосистеми.
+- buildDependencyPrompt — промпт одного npm-major-запису.
 - callRunner — виклик обраного раннера (`pi`/`cursor`/`codex`) з одним промптом.
 - backupWorkspacePackageFiles / cleanupBackups — бекап/прибирання `package.json` воркспейсів.
-- backupCargoManifests / cleanupCargoBackups — бекап/прибирання `Cargo.toml`/`Cargo.lock`.
-- backupUvManifest / cleanupUvBackups — бекап/прибирання `pyproject.toml`/`uv.lock`.
-- findCargoManifests — список знайдених `Cargo.toml` у репозиторії.
-- findPyprojectManifest — список (0 або 1 запис) кореневого `pyproject.toml`.
-- formatReport — фінальний Markdown-звіт із результатів усіх трьох гілок.
-- runTazeOrchestrator — повна оркестрація taze для npm/bun + Rust + Python.
+- loadPluginTazeProviders — валідні EcosystemProvider-и з handler-модулів плагінів.
+- formatReport — фінальний Markdown-звіт із npm-результатів і записів екосистем.
+- runTazeOrchestrator — повна оркестрація taze; `deps.ecosystemProviders` повністю замінює список провайдерів (для тестів).
 
 ## Гарантії поведінки
 
 - Виконує файлові операції (копіювання/видалення бекапів) і запускає зовнішні команди — НЕ read-only.
 - Перед будь-якою мутацією перевіряє, що `cwd` — ізольований worktree (`assertRunningInWorktree`), інакше кидає виняток.
-- Падіння одного пакета/крейта в ізольованому виклику раннера не втрачає прогрес по інших записах.
+- npm/bun-гілка активна лише за кореневим package.json: на чисто-Python/Rust репо вона тихо пропускається (лог + без npm-рядків у звіті), а не валить прогін через `bun install → exit 1`.
+- Виняток усередині одного провайдера (bump/diff/команда) не зупиняє інших — фіксується в `error` запису екосистеми й у звіті; `ok` результату тоді false.
+- Падіння одного пакета в ізольованому виклику раннера не втрачає прогрес по інших записах.

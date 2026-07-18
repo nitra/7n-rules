@@ -96,6 +96,36 @@ describe('detectPluginsFromRepo', () => {
       expect(detectPluginsFromRepo(dir)).toEqual([])
     })
   })
+
+  test('pyproject.toml → lang-python (незалежно від CI-сигналів)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "x"\n')
+      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-lang-python'])
+
+      await mkdir(join(dir, '.github', 'workflows'), { recursive: true })
+      await writeFile(join(dir, '.github', 'workflows', 'ci.yml'), 'name: CI\n')
+      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-ci-github', '@7n/rules-lang-python'])
+    })
+  })
+
+  test('кореневий Cargo.toml → lang-rust; разом із pyproject — обидва мовні', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[workspace]\n')
+      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-lang-rust'])
+
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\n')
+      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-lang-python', '@7n/rules-lang-rust'])
+    })
+  })
+
+  test('lang-сигнал не вмикає URL-fallback для CI', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\n')
+      await writeFile(join(dir, 'package.json'), JSON.stringify({ repository: 'https://github.com/nitra/x' }))
+      // CI-детект: файлових CI-сигналів нема → URL-fallback дає ci-github; lang — окремо.
+      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-ci-github', '@7n/rules-lang-python'])
+    })
+  })
 })
 
 describe('resolvePluginList', () => {
@@ -133,12 +163,38 @@ describe('resolvePlugins', () => {
     })
   })
 
-  test('плагін без rules/ — warning + skip', async () => {
+  test('плагін без rules/, що ДЕКЛАРУЄ правила — warning + skip (битий пакет)', async () => {
     await withTmpDir(async dir => {
       await writeFakePlugin(dir, '@x/no-rules', { withRules: false })
       const warn = vi.spyOn(console, 'warn').mockImplementation(noop)
       expect(resolvePlugins(dir, { plugins: ['@x/no-rules'] }, { allowInstall: false })).toEqual([])
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('без каталогу rules/'))
+    })
+  })
+
+  test('плагін без rules/ з contributes.rules:false — легальний (лише handlers, як lang-*)', async () => {
+    await withTmpDir(async dir => {
+      await writeFakePlugin(dir, '@7n/rules-lang-python', {
+        withRules: false,
+        manifest: {
+          capabilities: ['lang:python'],
+          contributes: { rules: false, handlers: { taze: './taze/provider.mjs' } }
+        }
+      })
+      const plugins = resolvePlugins(dir, { plugins: ['@7n/rules-lang-python'] }, { allowInstall: false })
+      expect(plugins).toHaveLength(1)
+      expect(plugins[0].manifest.contributes.rules).toBe(false)
+
+      // resolveRulesDirs НЕ включає такий плагін (нема що зливати).
+      const dirs = resolveRulesDirs(dir, { plugins: ['@7n/rules-lang-python'] }, '/bundled/rules', {
+        allowInstall: false
+      })
+      expect(dirs.map(d => d.name)).toEqual(['@7n/rules'])
+
+      // Але handlers і capabilities доступні.
+      expect(getHandlers(dir, { plugins: ['@7n/rules-lang-python'] }, 'taze')).toHaveLength(1)
+      const caps = getActiveCapabilities(dir, { plugins: ['@7n/rules-lang-python'] }, { allowInstall: false })
+      expect([...caps]).toEqual(['lang:python'])
     })
   })
 

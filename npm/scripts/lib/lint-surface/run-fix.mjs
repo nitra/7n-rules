@@ -238,12 +238,17 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
     error = workerError.message
   }
 
-  // Canonical re-detect = джерело правди.
+  // Canonical re-detect = джерело правди. Якщо він сам кидає (напр. worker лишив файл
+  // синтаксично невалідним — LLM зламав YAML-структуру, детектор/conftest не може його
+  // розпарсити) — rollback МАЄ спрацювати перед перекиданням винятку далі. Без цього
+  // зіпсований проміжний стан worker-а лишався б на диску назавжди: виняток з re-detect
+  // абортує весь прогін, і код нижче (snapshot.rollback() для звичайного «не чисто»)
+  // ніколи не виконується.
   let after
   try {
     after = await reDetect(item, cwd, progress, verbose)
   } catch (detectError) {
-    if (detectError instanceof DetectorError) throw detectError
+    snapshot.rollback()
     throw detectError
   }
 

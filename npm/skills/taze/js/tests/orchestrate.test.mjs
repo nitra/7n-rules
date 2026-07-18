@@ -2,11 +2,10 @@
  * Тести для skills/taze/js/orchestrate.mjs:
  *   - buildDependencyPrompt: промпт містить пакет/версії, лише кроки 4-6;
  *   - callRunner: pi (текст через deps.out) vs cursor/codex (return/throw);
- *   - formatReport: детермінований markdown-звіт;
+ *   - formatReport: детермінований markdown-звіт (npm-гілка + екосистеми провайдерів);
  *   - backupWorkspacePackageFiles/cleanupBackups: реальні tmp-файли;
- *   - findCargoManifests: інжектований spawnFn;
- *   - findPyprojectManifest/backupUvManifest/cleanupUvBackups: реальні tmp-файли;
- *   - runTazeOrchestrator: повна ітерація з усіма інжектами (без реальних bunx/cargo/uv/LLM).
+ *   - loadPluginTazeProviders: handler-модулі плагінів → валідні провайдери, битий плагін → warning+пропуск;
+ *   - runTazeOrchestrator: повна ітерація з інжектованими провайдерами (без реальних bunx/cargo/LLM).
  */
 import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
@@ -15,24 +14,14 @@ import { describe, expect, test } from 'vitest'
 
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 import {
-  backupCargoManifests,
-  backupUvManifest,
   backupWorkspacePackageFiles,
-  buildCargoDependencyPrompt,
   buildDependencyPrompt,
-  buildUvDependencyPrompt,
   callRunner,
   cleanupBackups,
-  cleanupCargoBackups,
-  cleanupUvBackups,
-  findCargoManifests,
-  findPyprojectManifest,
   formatReport,
+  loadPluginTazeProviders,
   runTazeOrchestrator
 } from '../orchestrate.mjs'
-
-/** Порожній `rust`-блок звіту (без знайдених Cargo.toml) для `formatReport`-тестів npm-гілки. */
-const NO_RUST = { manifests: [], processed: false, skippedReason: null, minorPatch: 0, results: [] }
 
 const NETWORK_ERROR_RE = /network error/
 const NOT_IN_WORKTREE_RE = /не в ізольованому worktree/
@@ -43,7 +32,7 @@ function noop() {
 }
 
 /**
- * Fake spawnFn для bunx/bun/find/git — усі команди «успішні»; `git rev-parse
+ * Fake spawnFn для bunx/bun/git — усі команди «успішні»; `git rev-parse
  * --show-toplevel` повертає шлях під `.worktrees/`, щоб пройти
  * `assertRunningInWorktree` (сам preflight перевіряється окремо нижче).
  * @param {string} cmd бінарник
@@ -52,6 +41,49 @@ function noop() {
 function fakeSpawn(cmd) {
   if (cmd === 'git') return { status: 0, stdout: '/repo/.worktrees/main-taze\n', stderr: '' }
   return { status: 0, stdout: '', stderr: '' }
+}
+
+/**
+ * Fake EcosystemProvider для тестів оркестратора — усі кроки записуються в
+ * `steps`, поведінка керується `overrides`.
+ * @param {string} id ідентифікатор провайдера
+ * @param {string[]} steps масив-акумулятор викликаних кроків (мутується)
+ * @param {object} [overrides] перекриття окремих методів/полів
+ * @returns {object} провайдер
+ */
+function fakeProvider(id, steps, overrides = {}) {
+  return {
+    id,
+    title: `Екосистема ${id}`,
+    manifestNoun: `${id}.toml`,
+    skillSection: `${id}-гілкою SKILL.md`,
+    detect: () => {
+      steps.push(`${id}:detect`)
+      return [`${id}.toml`]
+    },
+    available: () => {
+      steps.push(`${id}:available`)
+      return { ok: true, reason: null }
+    },
+    backup: () => {
+      steps.push(`${id}:backup`)
+      return Promise.resolve()
+    },
+    bump: () => {
+      steps.push(`${id}:bump`)
+      return Promise.resolve()
+    },
+    diff: () => {
+      steps.push(`${id}:diff`)
+      return Promise.resolve({ major: [], minorPatch: 0, totalChanged: 0 })
+    },
+    promptFor: entry => `prompt:${id}:${entry.pkg}`,
+    cleanup: () => {
+      steps.push(`${id}:cleanup`)
+      return Promise.resolve()
+    },
+    ...overrides
+  }
 }
 
 describe('buildDependencyPrompt', () => {
@@ -66,49 +98,6 @@ describe('buildDependencyPrompt', () => {
     const prompt = buildDependencyPrompt({ workspace: '.', pkg: 'vite', from: '4.0.0', to: '5.0.0' })
     expect(prompt).toContain('breaking changes')
     expect(prompt).toContain('CHANGELOG')
-    expect(prompt).not.toContain('bunx taze')
-  })
-})
-
-describe('buildCargoDependencyPrompt', () => {
-  test('містить крейт, маніфест і версії', () => {
-    const prompt = buildCargoDependencyPrompt({
-      manifest: 'llm-lib/crates/llm-cascade/Cargo.toml',
-      pkg: 'genai',
-      from: '0.4',
-      to: '0.5'
-    })
-    expect(prompt).toContain('genai')
-    expect(prompt).toContain('llm-lib/crates/llm-cascade/Cargo.toml')
-    expect(prompt).toContain('0.4 → 0.5')
-    expect(prompt).toContain('crates.io')
-    expect(prompt).toContain('cargo clippy')
-  })
-
-  test('не згадує детерміновані кроки 1-3/7/8 (лише 4-6)', () => {
-    const prompt = buildCargoDependencyPrompt({ manifest: 'Cargo.toml', pkg: 'serde', from: '1', to: '2' })
-    expect(prompt).not.toContain('cargo upgrade')
-  })
-})
-
-describe('buildUvDependencyPrompt', () => {
-  test('містить пакет, маніфест і версії', () => {
-    const prompt = buildUvDependencyPrompt({
-      manifest: 'pyproject.toml',
-      pkg: 'typer',
-      from: '0.19.1',
-      to: '0.27.0'
-    })
-    expect(prompt).toContain('typer')
-    expect(prompt).toContain('pyproject.toml')
-    expect(prompt).toContain('0.19.1 → 0.27.0')
-    expect(prompt).toContain('pypi.org')
-    expect(prompt).toContain('rg -n --type py')
-  })
-
-  test('не змішує з Rust/npm-командами інших гілок', () => {
-    const prompt = buildUvDependencyPrompt({ manifest: 'pyproject.toml', pkg: 'httpx', from: '0.27.0', to: '1.0.0' })
-    expect(prompt).not.toContain('cargo')
     expect(prompt).not.toContain('bunx taze')
   })
 })
@@ -151,11 +140,11 @@ describe('callRunner', () => {
 })
 
 describe('formatReport', () => {
-  test('без major-оновлень, без Cargo.toml', () => {
-    const report = formatReport({ minorPatch: 5, totalChanged: 5, results: [], rust: NO_RUST })
+  test('без major-оновлень, без екосистем', () => {
+    const report = formatReport({ minorPatch: 5, totalChanged: 5, results: [] })
     expect(report).toContain('Оновлено (minor/patch):** 5')
     expect(report).toContain('Major-оновлення:** 0')
-    expect(report).not.toContain('Rust-крейти')
+    expect(report).not.toContain('###')
   })
 
   test('з успішним і провальним npm-оновленням', () => {
@@ -165,98 +154,119 @@ describe('formatReport', () => {
       results: [
         { pkg: 'react', workspace: '.', from: '^17.0.0', to: '^18.0.0', ok: true, error: null },
         { pkg: 'vite', workspace: 'npm', from: '4.0.0', to: '5.0.0', ok: false, error: 'timeout' }
-      ],
-      rust: NO_RUST
+      ]
     })
     expect(report).toContain('✅ `react` (.): ^17.0.0 → ^18.0.0')
     expect(report).toContain('❌ `vite` (npm): 4.0.0 → 5.0.0 — timeout')
     expect(report).toContain('Всього змінено:** 4')
   })
 
-  test('Cargo.toml знайдено, але Rust-гілку пропущено (cargo-edit відсутній)', () => {
+  test('екосистема з manifests, але пропущена (тулчейн відсутній)', () => {
     const report = formatReport({
       minorPatch: 0,
       totalChanged: 0,
       results: [],
-      rust: {
-        manifests: ['Cargo.toml', 'llm-lib/crates/llm-cascade/Cargo.toml'],
-        processed: false,
-        skippedReason: 'cargo-edit не встановлено',
-        minorPatch: 0,
-        results: []
-      }
-    })
-    expect(report).toContain('⏭ Пропущено (cargo-edit не встановлено)')
-    expect(report).toContain('Cargo.toml, llm-lib/crates/llm-cascade/Cargo.toml')
-    expect(report).toContain('Всього змінено:** 0')
-  })
-
-  test('Rust-гілку оброблено — окремий підрахунок у "Всього змінено"', () => {
-    const report = formatReport({
-      minorPatch: 1,
-      totalChanged: 1,
-      results: [],
-      rust: {
-        manifests: ['llm-lib/crates/llm-cascade/Cargo.toml'],
-        processed: true,
-        skippedReason: null,
-        minorPatch: 2,
-        results: [
-          {
-            pkg: 'genai',
-            manifest: 'llm-lib/crates/llm-cascade/Cargo.toml',
-            from: '0.4',
-            to: '0.5',
-            ok: true,
-            error: null
-          }
-        ]
-      }
+      ecosystems: [
+        {
+          title: 'Rust-крейти',
+          manifestNoun: 'Cargo.toml',
+          skillSection: 'Rust-гілкою SKILL.md',
+          manifests: ['Cargo.toml', 'crates/foo/Cargo.toml'],
+          processed: false,
+          skippedReason: 'cargo-edit не встановлено',
+          error: null,
+          minorPatch: 0,
+          results: []
+        }
+      ]
     })
     expect(report).toContain('### Rust-крейти')
-    expect(report).toContain('✅ `genai` (llm-lib/crates/llm-cascade/Cargo.toml): 0.4 → 0.5')
-    // 1 (npm totalChanged) + 2 (rust minorPatch) + 1 (rust major-результат) = 4
-    expect(report).toContain('Всього змінено:** 4')
-  })
-
-  test('pyproject.toml знайдено, але Python-гілку пропущено (uv відсутній)', () => {
-    const report = formatReport({
-      minorPatch: 0,
-      totalChanged: 0,
-      results: [],
-      rust: NO_RUST,
-      python: {
-        manifests: ['pyproject.toml'],
-        processed: false,
-        skippedReason: '`uv` не встановлено',
-        minorPatch: 0,
-        results: []
-      }
-    })
-    expect(report).toContain('### Python-пакети (uv)')
-    expect(report).toContain('⏭ Пропущено (`uv` не встановлено)')
-    expect(report).toContain('pyproject.toml')
+    expect(report).toContain('⏭ Пропущено (cargo-edit не встановлено)')
+    expect(report).toContain('Cargo.toml, crates/foo/Cargo.toml')
     expect(report).toContain('Всього змінено:** 0')
   })
 
-  test('Python-гілку оброблено — окремий підрахунок у "Всього змінено"', () => {
+  test('оброблені екосистеми — окремий підрахунок у "Всього змінено"', () => {
     const report = formatReport({
       minorPatch: 1,
       totalChanged: 1,
       results: [],
-      rust: NO_RUST,
-      python: {
-        manifests: ['pyproject.toml'],
-        processed: true,
-        skippedReason: null,
-        minorPatch: 3,
-        results: [{ pkg: 'typer', manifest: 'pyproject.toml', from: '0.19.1', to: '0.27.0', ok: true, error: null }]
-      }
+      ecosystems: [
+        {
+          title: 'Rust-крейти',
+          manifestNoun: 'Cargo.toml',
+          skillSection: 'Rust-гілкою SKILL.md',
+          manifests: ['Cargo.toml'],
+          processed: true,
+          skippedReason: null,
+          error: null,
+          minorPatch: 2,
+          results: [{ pkg: 'genai', manifest: 'Cargo.toml', from: '0.4', to: '0.5', ok: true, error: null }]
+        },
+        {
+          title: 'Python-пакети (uv)',
+          manifestNoun: 'pyproject.toml',
+          skillSection: 'Python-гілкою SKILL.md',
+          manifests: ['pyproject.toml'],
+          processed: true,
+          skippedReason: null,
+          error: null,
+          minorPatch: 3,
+          results: [{ pkg: 'typer', manifest: 'pyproject.toml', from: '0.19.1', to: '0.27.0', ok: true, error: null }]
+        }
+      ]
     })
+    expect(report).toContain('### Rust-крейти')
+    expect(report).toContain('✅ `genai` (Cargo.toml): 0.4 → 0.5')
     expect(report).toContain('### Python-пакети (uv)')
     expect(report).toContain('✅ `typer` (pyproject.toml): 0.19.1 → 0.27.0')
-    // 1 (npm totalChanged) + 3 (python minorPatch) + 1 (python major-результат) = 5
-    expect(report).toContain('Всього змінено:** 5')
+    // 1 (npm) + 2+1 (rust) + 3+1 (python) = 8
+    expect(report).toContain('Всього змінено:** 8')
+  })
+
+  test('екосистема без manifests — тиша (жодної згадки)', () => {
+    const report = formatReport({
+      minorPatch: 0,
+      totalChanged: 0,
+      results: [],
+      ecosystems: [
+        {
+          title: 'Python-пакети (uv)',
+          manifestNoun: 'pyproject.toml',
+          skillSection: 'Python-гілкою SKILL.md',
+          manifests: [],
+          processed: false,
+          skippedReason: null,
+          error: null,
+          minorPatch: 0,
+          results: []
+        }
+      ]
+    })
+    expect(report).not.toContain('Python')
+  })
+
+  test('екосистема з провалом — секція з помилкою', () => {
+    const report = formatReport({
+      minorPatch: 0,
+      totalChanged: 0,
+      results: [],
+      ecosystems: [
+        {
+          title: 'Rust-крейти',
+          manifestNoun: 'Cargo.toml',
+          skillSection: 'Rust-гілкою SKILL.md',
+          manifests: ['Cargo.toml'],
+          processed: false,
+          skippedReason: null,
+          error: 'cargo update → exit 101: registry unreachable',
+          minorPatch: 0,
+          results: []
+        }
+      ]
+    })
+    expect(report).toContain('### Rust-крейти')
+    expect(report).toContain('❌ Провал (cargo update → exit 101: registry unreachable)')
   })
 })
 
@@ -291,88 +301,62 @@ describe('backupWorkspacePackageFiles + cleanupBackups', () => {
   })
 })
 
-describe('backupCargoManifests + cleanupCargoBackups', () => {
-  test('бекапить кожен Cargo.toml + спільний кореневий Cargo.lock, прибирає після', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'Cargo.toml'), '[workspace]', 'utf8')
-      await writeFile(join(dir, 'Cargo.lock'), 'version = 4', 'utf8')
-      await ensureDir(join(dir, 'crates/foo'))
-      await writeFile(join(dir, 'crates/foo/Cargo.toml'), '[package]\nname = "foo"', 'utf8')
+describe('loadPluginTazeProviders', () => {
+  const validProvider = {
+    id: 'python-uv',
+    title: 'Python-пакети (uv)',
+    manifestNoun: 'pyproject.toml',
+    skillSection: 'Python-гілкою SKILL.md',
+    detect: () => [],
+    available: () => ({ ok: true, reason: null }),
+    backup: () => Promise.resolve(),
+    bump: () => Promise.resolve(),
+    diff: () => Promise.resolve({ major: [], minorPatch: 0, totalChanged: 0 }),
+    promptFor: () => '',
+    cleanup: () => Promise.resolve()
+  }
 
-      const manifests = ['Cargo.toml', 'crates/foo/Cargo.toml']
-      await backupCargoManifests(dir, manifests)
-      expect(existsSync(join(dir, 'Cargo.toml.taze-bak'))).toBe(true)
-      expect(existsSync(join(dir, 'crates/foo/Cargo.toml.taze-bak'))).toBe(true)
-      expect(existsSync(join(dir, 'Cargo.lock.taze-bak'))).toBe(true)
-
-      await cleanupCargoBackups(dir, manifests)
-      expect(existsSync(join(dir, 'Cargo.toml.taze-bak'))).toBe(false)
-      expect(existsSync(join(dir, 'crates/foo/Cargo.toml.taze-bak'))).toBe(false)
-      expect(existsSync(join(dir, 'Cargo.lock.taze-bak'))).toBe(false)
+  test('handler-модуль плагіна → валідний провайдер', async () => {
+    const providers = await loadPluginTazeProviders('/repo', noop, {
+      readNRulesConfigLite: () => ({ plugins: undefined }),
+      resolvePlugins: () => [],
+      getHandlers: () => [{ pluginName: '@7n/rules-lang-python', modulePath: '/repo/node_modules/p/provider.mjs' }],
+      importModule: () => Promise.resolve({ default: validProvider })
     })
+    expect(providers).toEqual([validProvider])
   })
 
-  test('без Cargo.lock — бекапить лише Cargo.toml, не падає', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'Cargo.toml'), '[workspace]', 'utf8')
-      await backupCargoManifests(dir, ['Cargo.toml'])
-      expect(existsSync(join(dir, 'Cargo.toml.taze-bak'))).toBe(true)
-      expect(existsSync(join(dir, 'Cargo.lock.taze-bak'))).toBe(false)
-    })
-  })
-})
-
-describe('findCargoManifests', () => {
-  test('парсить stdout find у список шляхів', () => {
-    const found = findCargoManifests('/repo', {
-      spawnFn: () => ({ status: 0, stdout: './Cargo.toml\n./llm-lib/crates/llm-cascade/Cargo.toml\n', stderr: '' })
-    })
-    expect(found).toEqual(['./Cargo.toml', './llm-lib/crates/llm-cascade/Cargo.toml'])
-  })
-
-  test('порожній stdout → порожній список', () => {
-    expect(findCargoManifests('/repo', { spawnFn: () => ({ status: 0, stdout: '', stderr: '' }) })).toEqual([])
-  })
-})
-
-describe('findPyprojectManifest', () => {
-  test('pyproject.toml існує → список з одним записом', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'pyproject.toml'), '[project]', 'utf8')
-      expect(findPyprojectManifest(dir)).toEqual(['pyproject.toml'])
-    })
+  test('битий плагін (невалідна форма) → warning і пропуск, не провал', async () => {
+    const logs = []
+    const providers = await loadPluginTazeProviders(
+      '/repo',
+      line => {
+        logs.push(line)
+      },
+      {
+        readNRulesConfigLite: () => ({ plugins: undefined }),
+        resolvePlugins: () => [],
+        getHandlers: () => [
+          { pluginName: '@7n/rules-lang-broken', modulePath: '/repo/broken.mjs' },
+          { pluginName: '@7n/rules-lang-python', modulePath: '/repo/ok.mjs' }
+        ],
+        importModule: url =>
+          url.includes('broken')
+            ? Promise.resolve({ default: { id: 'x' } })
+            : Promise.resolve({ default: validProvider })
+      }
+    )
+    expect(providers).toEqual([validProvider])
+    expect(logs.some(l => l.includes('@7n/rules-lang-broken'))).toBe(true)
   })
 
-  test('pyproject.toml відсутній → порожній список', async () => {
-    await withTmpDir(dir => {
-      expect(findPyprojectManifest(dir)).toEqual([])
+  test('без handlers → порожній список', async () => {
+    const providers = await loadPluginTazeProviders('/repo', noop, {
+      readNRulesConfigLite: () => ({ plugins: [] }),
+      resolvePlugins: () => [],
+      getHandlers: () => []
     })
-  })
-})
-
-describe('backupUvManifest + cleanupUvBackups', () => {
-  test('бекапить pyproject.toml + uv.lock, прибирає після', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'pyproject.toml'), '[project]', 'utf8')
-      await writeFile(join(dir, 'uv.lock'), 'version = 1', 'utf8')
-
-      await backupUvManifest(dir)
-      expect(existsSync(join(dir, 'pyproject.toml.taze-bak'))).toBe(true)
-      expect(existsSync(join(dir, 'uv.lock.taze-bak'))).toBe(true)
-
-      await cleanupUvBackups(dir)
-      expect(existsSync(join(dir, 'pyproject.toml.taze-bak'))).toBe(false)
-      expect(existsSync(join(dir, 'uv.lock.taze-bak'))).toBe(false)
-    })
-  })
-
-  test('без uv.lock — бекапить лише pyproject.toml, не падає', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'pyproject.toml'), '[project]', 'utf8')
-      await backupUvManifest(dir)
-      expect(existsSync(join(dir, 'pyproject.toml.taze-bak'))).toBe(true)
-      expect(existsSync(join(dir, 'uv.lock.taze-bak'))).toBe(false)
-    })
+    expect(providers).toEqual([])
   })
 })
 
@@ -389,36 +373,42 @@ describe('runTazeOrchestrator', () => {
             if (cmd === 'git') return { status: 0, stdout: '/Users/dev/repo\n', stderr: '' }
             if (cmd === 'bunx') bunxCalls.push(cmd)
             return fakeSpawn(cmd)
-          }
+          },
+          ecosystemProviders: []
         }
       })
     ).rejects.toThrow(NOT_IN_WORKTREE_RE)
     expect(bunxCalls).toHaveLength(0)
   })
 
-  test('без major-оновлень — callRunner не викликається, є звіт', async () => {
+  test('без major-оновлень і провайдерів — callRunner не викликається, є звіт', async () => {
     const calls = []
-    const result = await runTazeOrchestrator({
-      cwd: '/tmp/project',
-      runner: 'pi',
-      log: noop,
-      deps: {
-        spawnFn: fakeSpawn,
-        getMonorepoPackageRootDirs: () => ['.'],
-        copyFile: noop,
-        rm: noop,
-        collectTazeDiff: () => ({ major: [], minorPatch: 3, totalChanged: 3, comparedWorkspaces: 1 }),
-        callRunner: (...args) => {
-          calls.push(args)
-          return { ok: true, text: '', error: null }
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), '{}', 'utf8')
+      const result = await runTazeOrchestrator({
+        cwd: dir,
+        runner: 'pi',
+        log: noop,
+        deps: {
+          spawnFn: fakeSpawn,
+          getMonorepoPackageRootDirs: () => ['.'],
+          copyFile: noop,
+          rm: noop,
+          collectTazeDiff: () => ({ major: [], minorPatch: 3, totalChanged: 3, comparedWorkspaces: 1 }),
+          ecosystemProviders: [],
+          callRunner: (...args) => {
+            calls.push(args)
+            return { ok: true, text: '', error: null }
+          }
         }
-      }
-    })
+      })
 
-    expect(calls).toHaveLength(0)
-    expect(result.ok).toBe(true)
-    expect(result.report).toContain('Оновлено (minor/patch):** 3')
-    expect(result.results).toEqual([])
+      expect(calls).toHaveLength(0)
+      expect(result.ok).toBe(true)
+      expect(result.report).toContain('Оновлено (minor/patch):** 3')
+      expect(result.results).toEqual([])
+      expect(result.ecosystems).toEqual([])
+    })
   })
 
   test('ітерує по кожному major-запису обраним раннером, збирає результати', async () => {
@@ -428,48 +418,56 @@ describe('runTazeOrchestrator', () => {
       { workspace: 'npm', pkg: 'vite', from: '4.0.0', to: '5.0.0' }
     ]
 
-    const result = await runTazeOrchestrator({
-      cwd: '/tmp/project',
-      runner: 'cursor',
-      log: noop,
-      deps: {
-        spawnFn: fakeSpawn,
-        getMonorepoPackageRootDirs: () => ['.'],
-        copyFile: noop,
-        rm: noop,
-        collectTazeDiff: () => ({ major, minorPatch: 1, totalChanged: 3, comparedWorkspaces: 2 }),
-        callRunner: (runner, prompt, cwd) => {
-          calls.push({ runner, prompt, cwd })
-          return prompt.includes('vite')
-            ? { ok: false, text: '', error: 'idle-timeout' }
-            : { ok: true, text: 'ok', error: null }
-        }
-      }
-    })
-
-    expect(calls).toHaveLength(2)
-    expect(calls.every(c => c.runner === 'cursor' && c.cwd === '/tmp/project')).toBe(true)
-    expect(result.ok).toBe(false)
-    expect(result.results).toHaveLength(2)
-    expect(result.results[0]).toMatchObject({ pkg: 'react', ok: true })
-    expect(result.results[1]).toMatchObject({ pkg: 'vite', ok: false, error: 'idle-timeout' })
-    expect(result.report).toContain('❌ `vite`')
-  })
-
-  test('кидає з exit-кодом+stderr, якщо детермінована команда провалилась', async () => {
-    await expect(
-      runTazeOrchestrator({
-        cwd: '/tmp/project',
-        runner: 'pi',
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), '{}', 'utf8')
+      const result = await runTazeOrchestrator({
+        cwd: dir,
+        runner: 'cursor',
         log: noop,
         deps: {
-          spawnFn: cmd => (cmd === 'bunx' ? { status: 1, stdout: '', stderr: 'network error' } : fakeSpawn(cmd)),
+          spawnFn: fakeSpawn,
           getMonorepoPackageRootDirs: () => ['.'],
           copyFile: noop,
-          rm: noop
+          rm: noop,
+          collectTazeDiff: () => ({ major, minorPatch: 1, totalChanged: 3, comparedWorkspaces: 2 }),
+          ecosystemProviders: [],
+          callRunner: (runner, prompt, cwd) => {
+            calls.push({ runner, prompt, cwd })
+            return prompt.includes('vite')
+              ? { ok: false, text: '', error: 'idle-timeout' }
+              : { ok: true, text: 'ok', error: null }
+          }
         }
       })
-    ).rejects.toThrow(NETWORK_ERROR_RE)
+
+      expect(calls).toHaveLength(2)
+      expect(calls.every(c => c.runner === 'cursor' && c.cwd === dir)).toBe(true)
+      expect(result.ok).toBe(false)
+      expect(result.results).toHaveLength(2)
+      expect(result.results[0]).toMatchObject({ pkg: 'react', ok: true })
+      expect(result.results[1]).toMatchObject({ pkg: 'vite', ok: false, error: 'idle-timeout' })
+      expect(result.report).toContain('❌ `vite`')
+    })
+  })
+
+  test('кидає з exit-кодом+stderr, якщо детермінована npm-команда провалилась', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), '{}', 'utf8')
+      await expect(
+        runTazeOrchestrator({
+          cwd: dir,
+          runner: 'pi',
+          log: noop,
+          deps: {
+            spawnFn: cmd => (cmd === 'bunx' ? { status: 1, stdout: '', stderr: 'network error' } : fakeSpawn(cmd)),
+            getMonorepoPackageRootDirs: () => ['.'],
+            copyFile: noop,
+            rm: noop,
+            ecosystemProviders: []
+          }
+        })
+      ).rejects.toThrow(NETWORK_ERROR_RE)
+    })
   })
 
   test('реальний бекап/прибирання через tmp-каталог (не лише інжекти)', async () => {
@@ -482,7 +480,8 @@ describe('runTazeOrchestrator', () => {
         log: noop,
         deps: {
           spawnFn: fakeSpawn,
-          collectTazeDiff: () => ({ major: [], minorPatch: 0, totalChanged: 0, comparedWorkspaces: 1 })
+          collectTazeDiff: () => ({ major: [], minorPatch: 0, totalChanged: 0, comparedWorkspaces: 1 }),
+          ecosystemProviders: []
         }
       })
 
@@ -491,63 +490,65 @@ describe('runTazeOrchestrator', () => {
     })
   })
 
-  test('Rust: Cargo.toml знайдено, cargo-edit відсутній → пропущено, npm-гілку не зачіпає', async () => {
-    const cargoCalls = []
-    const result = await runTazeOrchestrator({
-      cwd: '/tmp/project',
-      runner: 'pi',
-      log: noop,
-      deps: {
-        spawnFn: cmd => {
-          if (cmd === 'find') return { status: 0, stdout: './Cargo.toml\n', stderr: '' }
-          if (cmd === 'cargo') {
-            cargoCalls.push(cmd)
-            return { status: 1, stdout: '', stderr: 'no such command: `upgrade`' }
-          }
-          return fakeSpawn(cmd)
-        },
-        getMonorepoPackageRootDirs: () => ['.'],
-        copyFile: noop,
-        rm: noop,
-        collectTazeDiff: () => ({ major: [], minorPatch: 0, totalChanged: 0, comparedWorkspaces: 1 })
-      }
-    })
+  test('без кореневого package.json — npm-гілка тихо пропускається, bunx/bun не викликаються, провайдери працюють', async () => {
+    const npmCommands = []
+    const steps = []
+    const major = [{ manifest: 'py.toml', pkg: 'typer', from: '0.19.1', to: '0.27.0' }]
 
-    // Лише перевірка версії (`cargo upgrade --version`) — сам upgrade/update не викликається.
-    expect(cargoCalls).toHaveLength(1)
-    expect(result.ok).toBe(true)
-    expect(result.rustResults).toEqual([])
-    expect(result.report).toContain('⏭ Пропущено')
-    expect(result.report).toContain('cargo-edit')
+    await withTmpDir(async dir => {
+      // package.json НЕ створюємо — чисто-Python репо.
+      const result = await runTazeOrchestrator({
+        cwd: dir,
+        runner: 'pi',
+        log: noop,
+        deps: {
+          spawnFn: cmd => {
+            if (cmd === 'bunx' || cmd === 'bun') npmCommands.push(cmd)
+            return fakeSpawn(cmd)
+          },
+          ecosystemProviders: [
+            fakeProvider('py', steps, {
+              diff: () => Promise.resolve({ major, minorPatch: 1, totalChanged: 2 })
+            })
+          ],
+          callRunner: () => ({ ok: true, text: 'сумісно', error: null })
+        }
+      })
+
+      expect(npmCommands).toHaveLength(0)
+      expect(steps).toContain('py:cleanup')
+      expect(result.ok).toBe(true)
+      // npm-рядків у звіті немає (тиша), екосистема — є.
+      expect(result.report).not.toContain('Оновлено (minor/patch):** 0\n- **Major-оновлення')
+      expect(result.report).toContain('### Екосистема py')
+      expect(result.report).toContain('✅ `typer`')
+      expect(result.report).toContain('Всього змінено:** 2')
+    })
   })
 
-  test('Rust: cargo-edit доступний — bump/diff/ітерація по кожному major-крейту', async () => {
-    const cargoCommands = []
+  test('провайдери: повний цикл detect→available→backup→bump→diff→cleanup + виклик раннера на major', async () => {
+    const steps = []
     const runnerCalls = []
-    const major = [{ manifest: 'llm-lib/crates/llm-cascade/Cargo.toml', pkg: 'genai', from: '0.4', to: '0.5' }]
+    const major = [{ manifest: 'py.toml', pkg: 'typer', from: '0.19.1', to: '0.27.0' }]
 
     const result = await runTazeOrchestrator({
       cwd: '/tmp/project',
       runner: 'codex',
       log: noop,
       deps: {
-        spawnFn: cmd => {
-          if (cmd === 'find')
-            return { status: 0, stdout: './Cargo.toml\n./llm-lib/crates/llm-cascade/Cargo.toml\n', stderr: '' }
-          if (cmd === 'cargo') {
-            cargoCommands.push(cmd)
-            return { status: 0, stdout: '', stderr: '' }
-          }
-          return fakeSpawn(cmd)
-        },
+        spawnFn: fakeSpawn,
         getMonorepoPackageRootDirs: () => ['.'],
         copyFile: noop,
         rm: noop,
         collectTazeDiff: () => ({ major: [], minorPatch: 0, totalChanged: 0, comparedWorkspaces: 1 }),
-        collectCargoDiff: (cwd, manifests) => {
-          expect(manifests).toEqual(['./Cargo.toml', './llm-lib/crates/llm-cascade/Cargo.toml'])
-          return { major, minorPatch: 1, totalChanged: 2, comparedManifests: 2 }
-        },
+        ecosystemProviders: [
+          fakeProvider('py', steps, {
+            diff: () => {
+              steps.push('py:diff')
+              return Promise.resolve({ major, minorPatch: 1, totalChanged: 2 })
+            }
+          })
+        ],
         callRunner: (runner, prompt, cwd) => {
           runnerCalls.push({ runner, prompt, cwd })
           return { ok: true, text: 'сумісно', error: null }
@@ -555,90 +556,90 @@ describe('runTazeOrchestrator', () => {
       }
     })
 
-    // cargo upgrade --version (перевірка) + cargo upgrade --incompatible allow + cargo update.
-    expect(cargoCommands).toHaveLength(3)
+    expect(steps).toEqual(['py:detect', 'py:available', 'py:backup', 'py:bump', 'py:diff', 'py:cleanup'])
     expect(runnerCalls).toHaveLength(1)
     expect(runnerCalls[0].runner).toBe('codex')
-    expect(runnerCalls[0].prompt).toContain('genai')
+    expect(runnerCalls[0].prompt).toBe('prompt:py:typer')
     expect(result.ok).toBe(true)
-    expect(result.rustResults).toEqual([{ ...major[0], ok: true, text: 'сумісно', error: null }])
-    expect(result.report).toContain('### Rust-крейти')
-    expect(result.report).toContain('✅ `genai`')
+    expect(result.ecosystems[0].results).toEqual([{ ...major[0], ok: true, text: 'сумісно', error: null }])
+    expect(result.report).toContain('### Екосистема py')
+    expect(result.report).toContain('✅ `typer`')
   })
 
-  test('Python: pyproject.toml знайдено, uv відсутній → пропущено, npm/rust-гілку не зачіпає', async () => {
-    const uvCalls = []
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'pyproject.toml'), '[project]\ndependencies = []', 'utf8')
-
-      const result = await runTazeOrchestrator({
-        cwd: dir,
-        runner: 'pi',
-        log: noop,
-        deps: {
-          spawnFn: cmd => {
-            if (cmd === 'uv') {
-              uvCalls.push(cmd)
-              return { status: 1, stdout: '', stderr: 'command not found: uv' }
+  test('провайдер: тулчейн недоступний → skip, наступний провайдер працює', async () => {
+    const steps = []
+    const result = await runTazeOrchestrator({
+      cwd: '/tmp/project',
+      runner: 'pi',
+      log: noop,
+      deps: {
+        spawnFn: fakeSpawn,
+        getMonorepoPackageRootDirs: () => ['.'],
+        copyFile: noop,
+        rm: noop,
+        collectTazeDiff: () => ({ major: [], minorPatch: 0, totalChanged: 0, comparedWorkspaces: 1 }),
+        ecosystemProviders: [
+          fakeProvider('rust', steps, {
+            available: () => {
+              steps.push('rust:available')
+              return { ok: false, reason: 'cargo-edit не встановлено' }
             }
-            return fakeSpawn(cmd)
-          },
-          getMonorepoPackageRootDirs: () => ['.'],
-          copyFile: noop,
-          rm: noop,
-          collectTazeDiff: () => ({ major: [], minorPatch: 0, totalChanged: 0, comparedWorkspaces: 1 })
-        }
-      })
-
-      // Лише перевірка версії (`uv --version`) — bump-цикл не викликається.
-      expect(uvCalls).toHaveLength(1)
-      expect(result.ok).toBe(true)
-      expect(result.pythonResults).toEqual([])
-      expect(result.report).toContain('### Python-пакети (uv)')
-      expect(result.report).toContain('⏭ Пропущено')
+          }),
+          fakeProvider('py', steps)
+        ],
+        callRunner: () => ({ ok: true, text: '', error: null })
+      }
     })
+
+    expect(steps).toEqual([
+      'rust:detect',
+      'rust:available',
+      'py:detect',
+      'py:available',
+      'py:backup',
+      'py:bump',
+      'py:diff',
+      'py:cleanup'
+    ])
+    expect(result.ok).toBe(true)
+    expect(result.report).toContain('⏭ Пропущено (cargo-edit не встановлено)')
   })
 
-  test('Python: uv доступний — bump/diff/ітерація по кожному major-пакету', async () => {
-    const runnerCalls = []
-    const bumpCalls = []
-    const major = [{ manifest: 'pyproject.toml', pkg: 'typer', from: '0.19.1', to: '0.27.0' }]
-
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'pyproject.toml'), '[project]\ndependencies = ["typer>=0.19.1"]', 'utf8')
-
-      const result = await runTazeOrchestrator({
-        cwd: dir,
-        runner: 'codex',
-        log: noop,
-        deps: {
-          spawnFn: fakeSpawn,
-          getMonorepoPackageRootDirs: () => ['.'],
-          copyFile: noop,
-          rm: noop,
-          collectTazeDiff: () => ({ major: [], minorPatch: 0, totalChanged: 0, comparedWorkspaces: 1 }),
-          bumpUvDependencies: (...args) => {
-            bumpCalls.push(args)
-          },
-          collectUvDiff: cwd => {
-            expect(cwd).toBe(dir)
-            return { major, minorPatch: 1, totalChanged: 2, comparedManifests: 1 }
-          },
-          callRunner: (runner, prompt, cwd) => {
-            runnerCalls.push({ runner, prompt, cwd })
-            return { ok: true, text: 'сумісно', error: null }
-          }
-        }
-      })
-
-      expect(bumpCalls).toHaveLength(1)
-      expect(runnerCalls).toHaveLength(1)
-      expect(runnerCalls[0].runner).toBe('codex')
-      expect(runnerCalls[0].prompt).toContain('typer')
-      expect(result.ok).toBe(true)
-      expect(result.pythonResults).toEqual([{ ...major[0], ok: true, text: 'сумісно', error: null }])
-      expect(result.report).toContain('### Python-пакети (uv)')
-      expect(result.report).toContain('✅ `typer`')
+  test('провайдер: виняток у bump → error у записі, інші провайдери не зупиняються, ok=false', async () => {
+    const steps = []
+    const result = await runTazeOrchestrator({
+      cwd: '/tmp/project',
+      runner: 'pi',
+      log: noop,
+      deps: {
+        spawnFn: fakeSpawn,
+        getMonorepoPackageRootDirs: () => ['.'],
+        copyFile: noop,
+        rm: noop,
+        collectTazeDiff: () => ({ major: [], minorPatch: 0, totalChanged: 0, comparedWorkspaces: 1 }),
+        ecosystemProviders: [
+          fakeProvider('rust', steps, {
+            bump: () => {
+              throw new Error('cargo update → exit 101: registry unreachable')
+            }
+          }),
+          fakeProvider('py', steps)
+        ],
+        callRunner: () => ({ ok: true, text: '', error: null })
+      }
     })
+
+    expect(result.ok).toBe(false)
+    expect(result.ecosystems[0].error).toContain('registry unreachable')
+    expect(result.report).toContain('❌ Провал')
+    // py-провайдер пройшов повний цикл попри провал rust.
+    expect(steps.filter(s => s.startsWith('py:'))).toEqual([
+      'py:detect',
+      'py:available',
+      'py:backup',
+      'py:bump',
+      'py:diff',
+      'py:cleanup'
+    ])
   })
 })

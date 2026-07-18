@@ -8,6 +8,8 @@
         "@7n/rules": "workspace:*",
         "@7n/rules-ci-azure": "workspace:*",
         "@7n/rules-ci-github": "workspace:*",
+        "@7n/rules-lang-python": "workspace:*",
+        "@7n/rules-lang-rust": "workspace:*",
         "@7n/test": "^0.14.3",
         "@nitra/cspell-dict": "^2.2.2",
         "@nitra/eslint-config": "^3.10.3",
@@ -34,9 +36,13 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.7.1",
+      "version": "2.7.6",
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
+      },
+      "optionalDependencies": {
+        "@7n/llm-lib-darwin-arm64": "2.7.6",
+        "@7n/llm-lib-linux-x64": "2.7.6",
       },
       "peerDependencies": {
         "@earendil-works/pi-ai": "~0.80.2",
@@ -49,13 +55,13 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.7.0",
+      "version": "1.19.0",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
       },
       "dependencies": {
-        "@7n/llm-lib": "^2.0.0",
+        "@7n/llm-lib": "^2.7.0",
         "@7n/mt": "^0.5.1",
         "@zed-industries/agent-client-protocol": "^0.4.5",
         "ajv": "^8.20.0",
@@ -83,16 +89,42 @@
     },
     "plugins/ci-azure": {
       "name": "@7n/rules-ci-azure",
-      "version": "1.2.1",
+      "version": "1.4.1",
+      "dependencies": {
+        "yaml": "^2.9.0",
+      },
       "peerDependencies": {
         "@7n/rules": ">=1.2.0",
       },
     },
     "plugins/ci-github": {
       "name": "@7n/rules-ci-github",
-      "version": "1.2.1",
+      "version": "1.6.0",
+      "dependencies": {
+        "yaml": "^2.9.0",
+      },
       "peerDependencies": {
         "@7n/rules": ">=1.2.0",
+      },
+    },
+    "plugins/lang-python": {
+      "name": "@7n/rules-lang-python",
+      "version": "0.2.2",
+      "dependencies": {
+        "smol-toml": "^1.7.0",
+      },
+      "peerDependencies": {
+        "@7n/rules": ">=1.13.0",
+      },
+    },
+    "plugins/lang-rust": {
+      "name": "@7n/rules-lang-rust",
+      "version": "0.2.1",
+      "dependencies": {
+        "smol-toml": "^1.7.0",
+      },
+      "peerDependencies": {
+        "@7n/rules": ">=1.15.0",
       },
     },
   },
@@ -110,6 +142,10 @@
     "@7n/rules-ci-azure": ["@7n/rules-ci-azure@workspace:plugins/ci-azure"],
 
     "@7n/rules-ci-github": ["@7n/rules-ci-github@workspace:plugins/ci-github"],
+
+    "@7n/rules-lang-python": ["@7n/rules-lang-python@workspace:plugins/lang-python"],
+
+    "@7n/rules-lang-rust": ["@7n/rules-lang-rust@workspace:plugins/lang-rust"],
 
     "@7n/test": ["@7n/test@0.14.5", "", { "dependencies": { "@7n/llm-lib": "^2.0.2", "@earendil-works/pi-coding-agent": "^0.80.3", "@nitra/check-env": "^4.2.1", "@vitest/coverage-v8": "^4.1.9", "rollup": "^4.62.2", "vitest": "^4.1.9", "zod": "^4.4.3" }, "bin": { "7n-test": "bin/7n-test.js" } }, "sha512-1UjELvZUeOhlg2dK+/PIYmwhZ2WMLlEfTGZukKr4oJQGGt1iK7opZmag9xJ3YAAl4bsDaseB220GNPt3JS9xgA=="],
 

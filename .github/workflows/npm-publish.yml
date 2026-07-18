@@ -14,7 +14,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── Збірка prebuilt napi-аддона llm-cascade для платформних підпакетів ───────
+  # За зразком nitra/mt npm-publish.yml (build-binaries): v1-платформи —
+  # darwin-arm64 + linux-x64-gnu, дзеркало NAPI_SUFFIXES у llm-lib/lib/internal/native.mjs.
+  build-native:
+    permissions:
+      contents: read # лише checkout; артефакти йдуть через runtime-токен
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: macos-14 # native Apple Silicon
+            target: aarch64-apple-darwin
+            pkg: llm-lib-darwin-arm64
+            napi-artifact: llm-cascade-napi.darwin-arm64.node
+            cdylib: libllm_cascade_napi.dylib
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            pkg: llm-lib-linux-x64
+            napi-artifact: llm-cascade-napi.linux-x64-gnu.node
+            cdylib: libllm_cascade_napi.so
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false # build-only, токен не потрібен
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      # napi-аддон — cdylib; .node = той самий файл під napi-конвенцією імені.
+      - name: Build llm-cascade napi addon
+        run: cargo build --release --target ${{ matrix.target }} -p llm-cascade-napi
+
+      - name: Stage addon into platform package
+        run: cp "target/${{ matrix.target }}/release/${{ matrix.cdylib }}" "llm-lib/packages/${{ matrix.pkg }}/${{ matrix.napi-artifact }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.pkg }}
+          path: llm-lib/packages/${{ matrix.pkg }}/*.node
+          if-no-files-found: error
+
   release-publish:
+    needs: build-native
     runs-on: ubuntu-latest
     permissions:
       contents: write # commit-back версії + git-тег
@@ -50,6 +96,11 @@ jobs:
       - name: Smoke-check CLI-модулів (ловить hoisting-регресії залежностей до релізу)
         run: node npm/scripts/smoke-check-imports.mjs
 
+      - name: Download napi addons
+        uses: actions/download-artifact@v4
+        with:
+          path: llm-lib/packages # → llm-lib/packages/<pkg>/llm-cascade-napi.<triple>.node
+
       - name: Release (bump + CHANGELOG + tag)
         # N_RULES_RELEASE_PUSH=0: bump/CHANGELOG/тег лишаються локальними в цьому checkout,
         # доки не підтвердиться хоч один успішний publish нижче — інакше git version
@@ -60,7 +111,36 @@ jobs:
         env:
           N_RULES_RELEASE_PUSH: '0'
 
-      # llm-lib публікується ПЕРШИМ: @7n/rules залежить від @7n/llm-lib,
+      # Версії платформних підпакетів тримаємо в lockstep з @7n/llm-lib (як у nitra/mt);
+      # optionalDependencies головного пакета теж синхронізуються з новою версією
+      # перед публікацією. У git лишається плейсхолдер — канонічне значення проставляє CI.
+      - name: Sync platform versions to @7n/llm-lib
+        run: |
+          VERSION=$(node -p "require('./llm-lib/package.json').version")
+          echo "Publishing @7n/llm-lib platform packages at version $VERSION"
+          for pkg in llm-lib-darwin-arm64 llm-lib-linux-x64; do
+            V="$VERSION" node -e "const f='llm-lib/packages/'+process.argv[1]+'/package.json';const p=require('./'+f);p.version=process.env.V;require('fs').writeFileSync(f, JSON.stringify(p,null,2)+'\n')" "$pkg"
+          done
+          V="$VERSION" node -e "const f='llm-lib/package.json';const p=require('./'+f);for(const k of Object.keys(p.optionalDependencies||{}))p.optionalDependencies[k]=process.env.V;require('fs').writeFileSync(f, JSON.stringify(p,null,2)+'\n')"
+
+      # Платформні підпакети — ПЕРЕД @7n/llm-lib: його optionalDependencies вже
+      # вказують на ці версії, тож інсталяція свіжого @7n/llm-lib мусить знаходити
+      # prebuilt-аддон у registry.
+      - name: Publish @7n/llm-lib-darwin-arm64
+        id: publish-llm-lib-darwin-arm64
+        continue-on-error: true
+        uses: JS-DevTools/npm-publish@v4.1.5
+        with:
+          package: llm-lib/packages/llm-lib-darwin-arm64/package.json
+
+      - name: Publish @7n/llm-lib-linux-x64
+        id: publish-llm-lib-linux-x64
+        continue-on-error: true
+        uses: JS-DevTools/npm-publish@v4.1.5
+        with:
+          package: llm-lib/packages/llm-lib-linux-x64/package.json
+
+      # llm-lib публікується ПЕРШИМ серед JS-пакетів: @7n/rules залежить від @7n/llm-lib,
       # тож інсталяція свіжого @7n/rules мусить знаходити пакет у registry.
       # continue-on-error: невдача одного з пакетів не має блокувати публікацію іншого.
       - name: Publish @7n/llm-lib
@@ -93,12 +173,26 @@ jobs:
         with:
           package: plugins/ci-azure/package.json
 
+      - name: Publish @7n/rules-lang-python
+        id: publish-lang-python
+        continue-on-error: true
+        uses: JS-DevTools/npm-publish@v4.1.5
+        with:
+          package: plugins/lang-python/package.json
+
+      - name: Publish @7n/rules-lang-rust
+        id: publish-lang-rust
+        continue-on-error: true
+        uses: JS-DevTools/npm-publish@v4.1.5
+        with:
+          package: plugins/lang-rust/package.json
+
       - name: Push release-коміт + теги (лише якщо бодай один publish пройшов)
-        if: steps.publish-llm-lib.outcome == 'success' || steps.publish-cursor.outcome == 'success' || steps.publish-ci-github.outcome == 'success' || steps.publish-ci-azure.outcome == 'success'
+        if: steps.publish-llm-lib-darwin-arm64.outcome == 'success' || steps.publish-llm-lib-linux-x64.outcome == 'success' || steps.publish-llm-lib.outcome == 'success' || steps.publish-cursor.outcome == 'success' || steps.publish-ci-github.outcome == 'success' || steps.publish-ci-azure.outcome == 'success' || steps.publish-lang-python.outcome == 'success' || steps.publish-lang-rust.outcome == 'success'
         run: git push --follow-tags
 
       - name: Fail job, якщо публікація хоч одного пакета впала
-        if: steps.publish-llm-lib.outcome == 'failure' || steps.publish-cursor.outcome == 'failure' || steps.publish-ci-github.outcome == 'failure' || steps.publish-ci-azure.outcome == 'failure'
+        if: steps.publish-llm-lib-darwin-arm64.outcome == 'failure' || steps.publish-llm-lib-linux-x64.outcome == 'failure' || steps.publish-llm-lib.outcome == 'failure' || steps.publish-cursor.outcome == 'failure' || steps.publish-ci-github.outcome == 'failure' || steps.publish-ci-azure.outcome == 'failure' || steps.publish-lang-python.outcome == 'failure' || steps.publish-lang-rust.outcome == 'failure'
         run: |
-          echo "::error::npm publish не пройшов — llm-lib=${{ steps.publish-llm-lib.outcome }}, cursor=${{ steps.publish-cursor.outcome }}, ci-github=${{ steps.publish-ci-github.outcome }}, ci-azure=${{ steps.publish-ci-azure.outcome }}"
+          echo "::error::npm publish не пройшов — llm-lib-darwin-arm64=${{ steps.publish-llm-lib-darwin-arm64.outcome }}, llm-lib-linux-x64=${{ steps.publish-llm-lib-linux-x64.outcome }}, llm-lib=${{ steps.publish-llm-lib.outcome }}, cursor=${{ steps.publish-cursor.outcome }}, ci-github=${{ steps.publish-ci-github.outcome }}, ci-azure=${{ steps.publish-ci-azure.outcome }}, lang-python=${{ steps.publish-lang-python.outcome }}, lang-rust=${{ steps.publish-lang-rust.outcome }}"
           exit 1
