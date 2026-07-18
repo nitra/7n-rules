@@ -14,7 +14,8 @@
  * `--base`-ref) — warning і ВСІ домени true (запускаємо більше, ніколи не
  * скіпаємо мовчки).
  */
-import { appendFileSync } from 'node:fs'
+import { appendFileSync, existsSync, statSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { env } from 'node:process'
 
 import picomatch from 'picomatch'
@@ -28,6 +29,59 @@ const TEST_FILE_GLOBS = ['**/*.test.*', '**/*.spec.*', '**/test_*.py', '**/*_tes
 
 /** Зарезервовані ключі outputs — домен із таким ключем був би колізією. */
 const RESERVED_OUTPUT_KEYS = new Set(['any', 'has_tests', 'domains'])
+
+const WS_RE = /\s+/u
+
+/**
+ * Розбирає команду `n-rules lint …`/`n-rules ci plan …` токенами (без regex —
+ * стійко до багаторядкових script-ів і без бектрекінгу). Спільне для
+ * fix-хендлерів автоміграції service-канону (ci-azure, ci-github).
+ * @param {string} cmd повний текст команди кроку.
+ * @param {string} marker підрядок-початок (`n-rules lint` | `n-rules ci plan`).
+ * @returns {{ domain: string|null, path: string|null }|null} розбір або null, якщо маркера немає.
+ */
+export function parseNRulesCmd(cmd, marker) {
+  const at = cmd.indexOf(marker)
+  if (at === -1) return null
+  const tokens = cmd
+    .slice(at + marker.length)
+    .split(WS_RE)
+    .filter(Boolean)
+  let domain = null
+  let path = null
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i]
+    if (t === '--path') {
+      path = tokens[i + 1] ?? null
+      i++
+      continue
+    }
+    if (!t.startsWith('-') && domain === null && path === null) domain = t
+  }
+  return { domain, path }
+}
+
+/**
+ * Релевантні домени сервісу: enabled-правила, чиї per-file glob-и матчать
+ * бодай один файл піддерева (та сама таблиця, що `ci plan` по не-дельті).
+ * Спільне для fix-хендлерів автоміграції service-канону (ci-azure, ci-github).
+ * @param {string} cwd корінь consumer-репо.
+ * @param {string} servicePath каталог сервісу.
+ * @returns {Promise<string[]>} відсортовані rule-id.
+ */
+export async function relevantDomains(cwd, servicePath) {
+  const abs = resolve(cwd, servicePath)
+  if (!existsSync(abs) || !statSync(abs).isDirectory()) return []
+  const files = await collectPathScopedFiles(cwd, servicePath)
+  const { byRule, enabledSet } = await loadEnabledLintRules({ cwd })
+  const active = computeActiveDomains(byRule, enabledSet, files)
+  return active
+    .entries()
+    .filter(([, st]) => st.triggered)
+    .map(([id]) => id)
+    .toArray()
+    .toSorted((a, b) => a.localeCompare(b))
+}
 
 /**
  * Rule-id → ключ output-змінної: `-` → `_` (GA/Azure не люблять дефіси в
