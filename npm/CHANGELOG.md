@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.0] - 2026-07-18
+
+### Added
+
+- js/eslint T0-патерн js-eslint-mechanical-text-fix — текстові заміни для suggestion-only правил поза покриттям oxlint/eslint --fix (наразі unicorn/prefer-number-is-safe-integer); зменшує обсяг порушень, що йдуть у LLM-ладдер
+
 ## [1.18.1] - 2026-07-18
 
 ### Fixed
