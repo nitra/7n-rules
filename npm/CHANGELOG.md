@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.23.0] - 2026-07-18
+
+### Changed
+
+- Фаза 4a spec lang-plugins-extraction: doc-files отримав мовний extension-point — розширення (`.rs` → 'Rust Module', `.py` → 'Python Module') декларуються в маніфесті плагіна (`contributes.docFiles.extensions`, синхронно для hot-path hook), екстрактори фактів/юнітів — handler-модулем (`contributes.handlers['doc-files']`, вантажиться лише на шляху генерації). Rust-екстрактори (extractFactsRust + units-rs) виїхали в `@7n/rules-lang-rust`; ядро документує js/mjs/ts/vue вбудовано, .rs/.py — за активним lang-плагіном
+
 ## [1.22.0] - 2026-07-18
 
 ### Added

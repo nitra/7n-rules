@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.0] - 2026-07-18
+
+### Added
+
+- Маніфест декларує doc-files-розширення `.py` → 'Python Module' (`contributes.docFiles.extensions`, фаза 4a spec lang-plugins-extraction) — генерація док для python-файлів тепер вмикається цим плагіном (whole-file шлях, без спеціалізованих екстракторів)
+
 ## [0.3.0] - 2026-07-18
 
 ### Added
