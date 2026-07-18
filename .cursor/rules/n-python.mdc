@@ -59,16 +59,3 @@ JS-перевірка (`npm/rules/python/tooling/main.mjs`) запускаєть
 - `npm/rules/python/mypy/main.mjs` — `mypy` (лише детект, немає autofix); per-file.
 
 Якщо `pyproject.toml` у корені відсутній — усі концерни виходять без порушень (проєкт не Python). Якщо `pyproject.toml` є, але `uv` не знайдено в PATH — це помилка. `ruff`/`mypy`-кроки запускаються лише якщо інструмент доступний у середовищі (інакше крок пропускається з повідомленням).
-
-## Rego-gate: перевірка `.github/workflows/lint-python.yml`
-
-Rego-пакет: `python.lint_python_yml`
-
-Цільовий файл: `.github/workflows/lint-python.yml`
-
-Перевіряє (drift-safe через `--data template`):
-
-- кожен `uses` з канону (підмножина) присутній у workflow: `actions/checkout@v6`, `./.github/actions/setup-bun-deps`, `astral-sh/setup-uv@v8.0.0`;
-- кожен `run` з канону є substring серед run-кроків: `uv sync --frozen`, `n-rules lint python --no-fix`.
-
-Канонічний workflow: [lint-python.yml.snippet.yml](./template/lint-python.yml.snippet.yml)
