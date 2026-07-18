@@ -22,6 +22,7 @@
   "type": "module",
   "files": [
     "rules",
+    "doc-files",
     "taze",
     "CHANGELOG.md",
     "!**/*.test.mjs",
@@ -36,7 +37,13 @@
     "contributes": {
       "rules": true,
       "handlers": {
-        "taze": "./taze/provider.mjs"
+        "taze": "./taze/provider.mjs",
+        "doc-files": "./doc-files/extractors.mjs"
+      },
+      "docFiles": {
+        "extensions": {
+          ".rs": "Rust Module"
+        }
       }
     }
   },

@@ -7,6 +7,7 @@ import { runOneShot } from '@7n/llm-lib/one-shot'
 import { startChain } from '@7n/llm-lib/chain'
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { docPathForSource } from '../docgen-scan/main.mjs'
+import { loadDocFilesExtractors } from '../docgen-scan/lang-extensions.mjs'
 import { extractFacts } from '../docgen-extract/main.mjs'
 import { extractAnchors, anchorTokens } from '../docgen-extract-anchors/main.mjs'
 import { QUALITY_THRESHOLD } from '../docgen-crc/main.mjs'
@@ -506,7 +507,11 @@ export async function generateDoc(
       `docgen pre-send guard: джерело ~${estTokens} токенів > бюджет ${budget} (0.5× контексту) — Prompt too long, skip`
     )
   }
-  const facts = extractFacts(src, file)
+  // Мовний екстрактор з lang-плагіна (напр. `.rs` у @7n/rules-lang-rust) має
+  // пріоритет; вбудований extractFacts покриває JS-екосистему, решта — whole-file.
+  const langExtractors = await loadDocFilesExtractors(process.cwd())
+  const ext = `.${file.split('.').pop()}`.toLowerCase()
+  const facts = langExtractors.get(ext)?.extractFacts?.(src, file) ?? extractFacts(src, file)
   const t0 = Date.now()
   llmMeter = { calls: 0, ms: 0 }
   const chain = chainFactory({ kind: 'doc-generate', unit: facts.relPath, cwd: process.cwd() })

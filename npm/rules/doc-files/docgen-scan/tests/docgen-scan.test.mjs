@@ -15,8 +15,18 @@ import {
 import { crc32, stampDoc } from '../../docgen-crc/main.mjs'
 
 describe('isSourceFile', () => {
-  test('документує .js/.mjs/.ts/.vue/.py', () => {
-    for (const f of ['foo.js', 'foo.mjs', 'foo.ts', 'Foo.vue', 'foo.py']) expect(isSourceFile(f)).toBe(true)
+  test('документує вбудовані .js/.mjs/.ts/.vue', () => {
+    for (const f of ['foo.js', 'foo.mjs', 'foo.ts', 'Foo.vue']) expect(isSourceFile(f)).toBe(true)
+  })
+
+  test('.py/.rs — лише з root і активним lang-плагіном (декларація в маніфесті)', () => {
+    // Без root — плагінні розширення недоступні (hot-path fallback).
+    expect(isSourceFile('foo.py')).toBe(false)
+    expect(isSourceFile('lib.rs')).toBe(false)
+    // З root монорепо (плагіни активні в .n-rules.json) — документуються.
+    const repoRoot = new URL('../../../../..', import.meta.url).pathname
+    expect(isSourceFile('foo.py', repoRoot)).toBe(true)
+    expect(isSourceFile('lib.rs', repoRoot)).toBe(true)
   })
 
   test('пропускає .d.ts, тести й некодові розширення', () => {

@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { basename, extname } from 'node:path'
 import { crc32 as zlibCrc32 } from 'node:zlib'
 import { env } from 'node:process'
+import { pluginDocFilesExtensions } from '../docgen-scan/lang-extensions.mjs'
 
 /** Поріг degraded: дока зі `score` нижче вважається неякісною. */
 export const QUALITY_THRESHOLD = Number(env.N_CURSOR_DOC_FILES_THRESHOLD ?? 70) || 70
@@ -66,24 +67,24 @@ export function parseDocFrontmatter(md) {
 /** Максимум кодів issues у frontmatter — це маркер, а не повний лог. */
 const MAX_ISSUE_CODES = 8
 
-/** OKF type для розширення файлу. */
+/** OKF type для вбудованих розширень; мовні (`.rs`, `.py`) декларують lang-плагіни. */
 const EXT_TYPES = {
   '.js': 'JS Module',
   '.mjs': 'JS Module',
   '.cjs': 'JS Module',
   '.ts': 'TS Module',
-  '.vue': 'Vue Component',
-  '.py': 'Python Module',
-  '.rs': 'Rust Module'
+  '.vue': 'Vue Component'
 }
 
 /**
- * OKF `type` для файлу-джерела за розширенням.
+ * OKF `type` для файлу-джерела за розширенням (вбудовані + декларації
+ * активних lang-плагінів).
  * @param {string} sourcePath відносний шлях джерела
  * @returns {string} тип концепту
  */
 function typeForSource(sourcePath) {
-  return EXT_TYPES[extname(sourcePath).toLowerCase()] ?? 'Source File'
+  const ext = extname(sourcePath).toLowerCase()
+  return EXT_TYPES[ext] ?? pluginDocFilesExtensions(process.cwd())[ext] ?? 'Source File'
 }
 
 /**

@@ -37,6 +37,11 @@
       "rules": true,
       "handlers": {
         "taze": "./taze/provider.mjs"
+      },
+      "docFiles": {
+        "extensions": {
+          ".py": "Python Module"
+        }
       }
     }
   },

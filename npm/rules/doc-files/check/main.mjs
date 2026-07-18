@@ -25,7 +25,7 @@ function sourceForDoc(cwd, docRel) {
     return null
   }
   for (const e of entries) {
-    if (!e.isFile() || !isSourceFile(e.name)) continue
+    if (!e.isFile() || !isSourceFile(e.name, cwd)) continue
     if (basename(e.name, extname(e.name)) !== stem) continue
     const rel = srcDir === '.' ? e.name : `${srcDir}/${e.name}`
     if (isDocCandidate(cwd, rel)) return rel
