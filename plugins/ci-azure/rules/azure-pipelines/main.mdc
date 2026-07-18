@@ -1,11 +1,13 @@
 ---
-description: Канон Azure Pipelines — структура azure-pipelines.yml, обов'язковий lint-степ n-rules, розширення VS Code
-version: '1.0'
-globs: "azure-pipelines.yml"
+description: Канон Azure Pipelines — структура azure-pipelines.yml, обов'язковий lint-степ n-rules, сервіс-орієнтовані deploy-pipelines, розширення VS Code
+version: '1.1'
+globs: "azure-pipelines.yml,.azurepipelines/**/*.yml"
 alwaysApply: false
 ---
 
-Правило **azure-pipelines** (плагін `@7n/rules-ci-azure`) перевіряє канонічну структуру `azure-pipelines.yml` у корені репозиторію та налаштування VS Code для роботи з Azure Pipelines. Аналог правила `ga` (плагін `@7n/rules-ci-github`) для репозиторіїв на Azure DevOps.
+Правило **azure-pipelines** (плагін `@7n/rules-ci-azure`) перевіряє канонічну структуру `azure-pipelines.yml` у корені репозиторію, форму сервіс-орієнтованих deploy-pipelines у `.azurepipelines/` та налаштування VS Code для роботи з Azure Pipelines. Аналог правила `ga` (плагін `@7n/rules-ci-github`) для репозиторіїв на Azure DevOps.
+
+Ролі pipeline-ів: **кореневий `azure-pipelines.yml`** — repo-wide лінт (safety-net `--full`), деплой **не гейтить**; **сервісні pipelines** (`.azurepipelines/**/*.yml` із `trigger.paths.include`) — гейтять деплой свого сервісу через plan → lint/test → deploy (концерн `service_deploy_pipeline`).
 
 - `azure-pipelines.yml`:
 
@@ -66,6 +68,14 @@ Rego-пакет: `azure_pipelines.lint_pipeline`
 Substring-перевірки замість exact-match — Azure YAML допускає різні розкладки (плоскі steps, jobs, stages), а команда може мати додаткові аргументи (`--full`, конкретні правила).
 
 Канон: [azure-pipelines-lint.yml.snippet.yml](./lint_pipeline/template/azure-pipelines-lint.yml.snippet.yml)
+
+## Сервіс-орієнтовані deploy-pipelines (`.azurepipelines/**/*.yml`, опційно)
+
+Rego-пакет: `azure_pipelines.service_deploy_pipeline`
+
+**Цільові файли:** `.azurepipelines/**/*.yml` крім `templates/**`; сервісним вважається файл із `trigger.paths.include`.
+
+Форма: джоба `plan` (`bunx n-rules ci plan --path <svc> --azure`, крок з `name: plan`) → паралельні `lint_<domain>`-джоби (`dependsOn: plan`, `condition` по `dependencies.plan.outputs['plan.<domain>']`, `lint <domain> --path <svc> --no-fix`) і `run_tests` → термінальні джоби з dependsOn-ланцюгом на всі перевірки та Skipped-толерантним `condition`. Деталі й template-розкладка: [service_deploy_pipeline.mdc](./service_deploy_pipeline/service_deploy_pipeline.mdc); приклад — [deploy-service-pipeline.yml.snippet.yml](./service_deploy_pipeline/template/deploy-service-pipeline.yml.snippet.yml).
 
 ## `.vscode/extensions.json` — розширення для Azure Pipelines
 

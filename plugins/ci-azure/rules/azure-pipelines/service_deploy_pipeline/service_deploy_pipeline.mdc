@@ -1,0 +1,19 @@
+## Rego-gate сервіс-орієнтованих deploy-pipeline (`.azurepipelines/**/*.yml`)
+
+Rego-пакет: `azure_pipelines.service_deploy_pipeline`
+
+Цільові файли: усі `.azurepipelines/**/*.yml`, крім `templates/**` (walkGlob). Дискримінатор — **`trigger.paths.include`**: файл із paths-фільтром вважається сервісним pipeline і мусить відповідати формі; без нього — концерн мовчить. Кореневий `azure-pipelines.yml` (repo-wide лінт, канон `pipeline_common`) поза глобом — він деплой не гейтить.
+
+Канонічна форма per-service pipeline (каталог сервісу — напр. `run/nexus`):
+
+1. **Тригер** — `trigger.paths.include` з каталогом сервісу.
+2. **`plan`-джоба** — `checkout: self` із `fetchDepth: 0` → prep (install bun + `bun install --frozen-lockfile`) → крок `bunx n-rules ci plan --path run/<service> --azure` **з `name: plan`** (downstream читає `dependencies.plan.outputs['plan.<domain>']`).
+3. **`lint_<domain>`-джоби** (паралельно) — `dependsOn: plan`, `condition: eq(dependencies.plan.outputs['plan.<domain>'], 'true')` (ключ = домен із `-`→`_`), крок `bunx n-rules lint <domain> --path run/<service> --no-fix` з `--path` ∈ `trigger.paths.include`, prep у кожній джобі (джоби не шарять ФС).
+4. **`run_tests`** — `dependsOn: plan`, `condition` по `plan.any`; тести лише сервісу (python-стек — uv: `curl … astral.sh/uv/install.sh | sh` + `uv sync --locked`).
+5. **Термінальні джоби** (`build_and_push`/`deploy_*`) — dependsOn-ланцюг **транзитивно досягає** `plan` і всі перевірки; джоба з `dependsOn` на умовні lint-джоби має `condition` з `not(canceled())` та `in(dependencies.<j>.result, 'Succeeded', 'Skipped')` — skipped-лінт не блокує деплой, failed — блокує.
+
+**Template-розкладка** (efes-стиль `- template:` з параметром-каталогом): законна, rego тоді перевіряє лише видиме у файлі — що параметр template-посилання дорівнює одному з `paths.include`; повнота графа всередині шаблону — відповідальність автора за цим каноном (rego не бачить розгорнутий YAML).
+
+Що НЕ перевіряється: добір доменів під вміст сервісу, зміст test/deploy-кроків, uv-prep, шаблони в `templates/**`.
+
+Канон-snippet (документаційний приклад): [deploy-service-pipeline.yml.snippet.yml](./template/deploy-service-pipeline.yml.snippet.yml)

@@ -1,6 +1,6 @@
 ---
 description: Правила форматів для .github/workflows
-version: '1.10'
+version: '1.11'
 globs: ".github/workflows/*.yml"
 alwaysApply: false
 ---
@@ -15,3 +15,12 @@ alwaysApply: false
 - [clean-merged-branch.yml.snippet.yml](./clean_merged_branch/template/clean-merged-branch.yml.snippet.yml)
 - [extensions.json.snippet.json](./vscode_extensions/template/extensions.json.snippet.json)
 - [uses-min-versions.snippet.json](./workflow_common/template/uses-min-versions.snippet.json)
+- [lint-repo.yml.snippet.yml](./lint_repo_yml/template/lint-repo.yml.snippet.yml)
+
+## Repo-wide лінти (`lint-repo.yml`, обовʼязковий)
+
+Перевірки без path-підтримки (`scope: full` без glob: knip, jscpd, dep-policy тощо) живуть в окремому обовʼязковому workflow `.github/workflows/lint-repo.yml` із кроком `bunx n-rules lint --repo-wide --no-fix`. Він **не гейтить деплой** — жоден deploy-workflow не має на нього `needs`. Деталі: [lint_repo_yml.mdc](./lint_repo_yml/lint_repo_yml.mdc).
+
+## Сервіс-орієнтовані deploy-workflow (`deploy-*.yml`, опційно)
+
+Монорепо з деплой-сервісами (каталог сервісу, напр. `run/nexus`) оформлює деплой per-service workflow `deploy-<service>.yml`: тригер `paths` по каталогу → джоба `plan` (`bunx n-rules ci plan --path <svc> --github`) → паралельні `lint-<domain>`-джоби з гейтом по outputs плану + тести сервісу → deploy з `needs` на всі перевірки (skipped не блокує, failed блокує). Форму перевіряє rego-концерн `service_deploy_workflow`; приклад — [deploy-service.yml.snippet.yml](./service_deploy_workflow/template/deploy-service.yml.snippet.yml), деталі — [service_deploy_workflow.mdc](./service_deploy_workflow/service_deploy_workflow.mdc). Співіснує з file-type-workflow (`lint-js.yml` тощо) — ті покривають зміни поза сервіс-каталогами.

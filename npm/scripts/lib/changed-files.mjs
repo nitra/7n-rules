@@ -49,11 +49,14 @@ function dropWorktreeCheckouts(paths) {
  * Визначає git base для scoped-перевірок без зовнішнього runtime-стану.
  * Пріоритет: локальна `main`, потім `origin/main`; якщо обидві відсутні,
  * повертає null і caller порівнює лише робоче дерево з HEAD.
+ * Явний `baseRef` (CI: `--base origin/main` після fetch) вимикає каскад —
+ * merge-base рахується лише проти нього.
  * @param {string} [cwd] корінь репо
+ * @param {string|null} [baseRef] явний ref бази замість каскаду main→origin/main
  * @returns {string|null} merge-base commit або null
  */
-export function resolveChangedBase(cwd = process.cwd()) {
-  for (const ref of ['main', 'origin/main']) {
+export function resolveChangedBase(cwd = process.cwd(), baseRef = null) {
+  for (const ref of baseRef ? [baseRef] : ['main', 'origin/main']) {
     const result = spawnSync('git', ['merge-base', 'HEAD', ref], { cwd, encoding: 'utf8' })
     const base = result.status === 0 && !result.error ? result.stdout.trim() : ''
     if (base) return base

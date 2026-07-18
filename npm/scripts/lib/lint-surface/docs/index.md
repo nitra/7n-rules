@@ -6,6 +6,7 @@ resource: npm/scripts/lib/lint-surface/
 
 | Файл                                                        | Тип       |
 | ----------------------------------------------------------- | --------- |
+| [ci-plan.mjs](ci-plan.md)                                   | JS Module |
 | [codegen-opa-wrapper.mjs](codegen-opa-wrapper.md)           | JS Module |
 | [collateral-veto.mjs](collateral-veto.md)                   | JS Module |
 | [default-worker.mjs](default-worker.md)                     | JS Module |

@@ -1,0 +1,9 @@
+## Deep-subset `.github/workflows/lint-repo.yml` (repo-wide перевірки)
+
+Цільовий файл: `.github/workflows/lint-repo.yml` — **обовʼязковий** для github-консюмерів.
+
+Repo-wide перевірки без path-підтримки (`scope: full` без glob: knip, jscpd, dep-policy, utils_imports тощо) не вміють скоупитись на каталог сервісу, тому живуть в окремому workflow з кроком `bunx n-rules lint --repo-wide --no-fix` і **не гейтять деплой**: жоден `deploy-*.yml` не має `needs` на цей workflow (сервіс-канон — `service_deploy_workflow`).
+
+Перевірка — чистий deep-subset без rego (`"check": "template"`): фактичний файл мусить структурно містити сніпет (тригер push/PR на dev/main без paths-фільтра, checkout з `persist-credentials: false`, prep `./.github/actions/setup-bun-deps`, крок `lint --repo-wide --no-fix`). Додаткові кроки/поля дозволені.
+
+Канон-snippet: [lint-repo.yml.snippet.yml](./template/lint-repo.yml.snippet.yml)
