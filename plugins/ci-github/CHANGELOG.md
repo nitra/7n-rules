@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.0] - 2026-07-18
+
+### Added
+
+- GA-автоміграція: T0-фікс service_deploy_workflow переписує deploy-*.yml до канону — job plan з outputs-мапінгом, легасі `lint --path` → per-domain lint-джоби (needs+if по outputs), перешивка needs, Skipped-толерантний if термінальних джоб; yaml Document API зберігає коментарі
+
 ## [1.5.0] - 2026-07-18
 
 ### Added

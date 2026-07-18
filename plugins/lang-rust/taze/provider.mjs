@@ -133,7 +133,7 @@ function runCargo(args, cwd, spawnFn) {
  * 2026-07-18-lang-plugins-extraction: виїхав з ядра без зміни сигнатур порту.
  * @type {import('@7n/rules/plugin-api').EcosystemProvider}
  */
-export const rustProvider = {
+const rustProvider = {
   id: 'rust-cargo',
   title: 'Rust-крейти',
   manifestNoun: 'Cargo.toml',

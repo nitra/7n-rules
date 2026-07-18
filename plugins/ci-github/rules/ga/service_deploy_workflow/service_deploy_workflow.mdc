@@ -18,4 +18,6 @@ Rego-пакет: `ga.service_deploy_workflow`
 
 Repo-wide перевірки без path-підтримки (knip, jscpd, dep-policy) сюди НЕ входять — вони в окремому `lint-repo.yml` (концерн `lint_repo_yml`) і деплой не гейтять.
 
+**Автоміграція (T0-фікс, `n-rules lint` у fix-режимі):** легасі deploy-workflow (job із `n-rules lint --path <svc>` без домену, без plan-джоби) детерміновано переписується до канону — додається `plan` з outputs-мапінгом доменів + `any`, легасі lint-джоба замінюється на per-domain `lint-<domain>` (домени по файлах піддерева, ті самі glob-и, що `ci plan`), `needs` залежних джоб перешивається, джоби з прямими needs на умовні lint-джоби без власного `if` отримують Skipped-толерантний канон. Нетривіальний наявний `if` не перезаписується.
+
 Канон-snippet (документаційний приклад): [deploy-service.yml.snippet.yml](./template/deploy-service.yml.snippet.yml)

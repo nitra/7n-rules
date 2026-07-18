@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.1] - 2026-07-18
+
+### Fixed
+
+- taze/provider: прибрано дублювальний named-експорт `rustProvider` (лишився default) — фікс knip duplicates/exports (той самий патерн, що в lang-python)
+
 ## [0.2.0] - 2026-07-18
 
 ### Added
