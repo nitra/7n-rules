@@ -1,4 +1,4 @@
-/** @see ./docs/rust-provider.md */
+/** @see ./docs/provider.md */
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { copyFile, rm } from 'node:fs/promises'
@@ -69,7 +69,7 @@ export function findCargoManifests(cwd, deps = {}) {
  * Чи встановлений cargo-edit (дає `cargo upgrade`) — без нього неможливо
  * детерміновано перетнути major-межу Rust-залежностей (голий `cargo update`
  * піднімає лише semver-сумісні версії; SKILL.md §Передумови).
- * @param {import('../../../scripts/lib/plugin-api.mjs').SpawnFn} spawnFn spawnSync-сумісний виклик
+ * @param {import('@7n/rules/plugin-api').SpawnFn} spawnFn spawnSync-сумісний виклик
  * @returns {boolean} true — `cargo upgrade` доступна
  */
 function hasCargoEdit(spawnFn) {
@@ -116,7 +116,7 @@ export async function cleanupCargoBackups(cwd, manifestPaths, deps = {}) {
  * Виконує cargo-команду, кидає з exit-кодом+stderr при провалі.
  * @param {string[]} args аргументи cargo
  * @param {string} cwd робочий каталог
- * @param {import('../../../scripts/lib/plugin-api.mjs').SpawnFn} spawnFn spawnSync-сумісний виклик
+ * @param {import('@7n/rules/plugin-api').SpawnFn} spawnFn spawnSync-сумісний виклик
  * @returns {void}
  */
 function runCargo(args, cwd, spawnFn) {
@@ -127,12 +127,13 @@ function runCargo(args, cwd, spawnFn) {
 }
 
 /**
- * Вбудований (first-party) EcosystemProvider Rust/Cargo для taze-оркестратора —
- * форма контракту `@7n/rules/plugin-api`. Лишається в ядрі до фази 2
- * (spec 2026-07-18-lang-plugins-extraction), далі виїде в `@7n/rules-lang-rust`.
- * @type {import('../../../scripts/lib/plugin-api.mjs').EcosystemProvider}
+ * EcosystemProvider Rust/Cargo для taze-оркестратора ядра — контракт
+ * `@7n/rules/plugin-api`, реєструється маніфестом package.json плагіна
+ * (`n-rules.contributes.handlers.taze`). Фаза 2 spec
+ * 2026-07-18-lang-plugins-extraction: виїхав з ядра без зміни сигнатур порту.
+ * @type {import('@7n/rules/plugin-api').EcosystemProvider}
  */
-const rustProvider = {
+export const rustProvider = {
   id: 'rust-cargo',
   title: 'Rust-крейти',
   manifestNoun: 'Cargo.toml',

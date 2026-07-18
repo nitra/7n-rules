@@ -30,7 +30,8 @@ export const KNOWN_CI_PLUGINS = Object.freeze({
 
 /** Відомі мовні плагіни: файловий сигнал екосистеми в корені репо → npm-пакет. */
 export const KNOWN_LANG_PLUGINS = Object.freeze({
-  python: { signal: 'pyproject.toml', pkg: '@7n/rules-lang-python' }
+  python: { signal: 'pyproject.toml', pkg: '@7n/rules-lang-python' },
+  rust: { signal: 'Cargo.toml', pkg: '@7n/rules-lang-rust' }
 })
 
 const WORKFLOW_YML_RE = /\.ya?ml$/u
@@ -96,7 +97,7 @@ function detectCiPlugins(projectRoot) {
 /**
  * Автодетект плагінів за станом репозиторію: CI-плагіни (файлові сигнали з
  * fallback на `repository.url`) + мовні плагіни (лише файлові сигнали —
- * маніфест екосистеми в корені; URL-fallback для мов безглуздий).
+ * маніфест екосистеми в корені — pyproject.toml, кореневий Cargo.toml; URL-fallback для мов безглуздий).
  * @param {string} projectRoot корінь репозиторію
  * @returns {string[]} npm-імена плагінів
  */

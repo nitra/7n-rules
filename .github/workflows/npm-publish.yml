@@ -100,12 +100,19 @@ jobs:
         with:
           package: plugins/lang-python/package.json
 
+      - name: Publish @7n/rules-lang-rust
+        id: publish-lang-rust
+        continue-on-error: true
+        uses: JS-DevTools/npm-publish@v4.1.5
+        with:
+          package: plugins/lang-rust/package.json
+
       - name: Push release-коміт + теги (лише якщо бодай один publish пройшов)
-        if: steps.publish-llm-lib.outcome == 'success' || steps.publish-cursor.outcome == 'success' || steps.publish-ci-github.outcome == 'success' || steps.publish-ci-azure.outcome == 'success' || steps.publish-lang-python.outcome == 'success'
+        if: steps.publish-llm-lib.outcome == 'success' || steps.publish-cursor.outcome == 'success' || steps.publish-ci-github.outcome == 'success' || steps.publish-ci-azure.outcome == 'success' || steps.publish-lang-python.outcome == 'success' || steps.publish-lang-rust.outcome == 'success'
         run: git push --follow-tags
 
       - name: Fail job, якщо публікація хоч одного пакета впала
-        if: steps.publish-llm-lib.outcome == 'failure' || steps.publish-cursor.outcome == 'failure' || steps.publish-ci-github.outcome == 'failure' || steps.publish-ci-azure.outcome == 'failure' || steps.publish-lang-python.outcome == 'failure'
+        if: steps.publish-llm-lib.outcome == 'failure' || steps.publish-cursor.outcome == 'failure' || steps.publish-ci-github.outcome == 'failure' || steps.publish-ci-azure.outcome == 'failure' || steps.publish-lang-python.outcome == 'failure' || steps.publish-lang-rust.outcome == 'failure'
         run: |
-          echo "::error::npm publish не пройшов — llm-lib=${{ steps.publish-llm-lib.outcome }}, cursor=${{ steps.publish-cursor.outcome }}, ci-github=${{ steps.publish-ci-github.outcome }}, ci-azure=${{ steps.publish-ci-azure.outcome }}, lang-python=${{ steps.publish-lang-python.outcome }}"
+          echo "::error::npm publish не пройшов — llm-lib=${{ steps.publish-llm-lib.outcome }}, cursor=${{ steps.publish-cursor.outcome }}, ci-github=${{ steps.publish-ci-github.outcome }}, ci-azure=${{ steps.publish-ci-azure.outcome }}, lang-python=${{ steps.publish-lang-python.outcome }}, lang-rust=${{ steps.publish-lang-rust.outcome }}"
           exit 1

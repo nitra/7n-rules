@@ -1,5 +1,5 @@
 /**
- * Тести для skills/taze/js/rust-provider.mjs:
+ * Тести для taze/provider.mjs:
  *   - форма EcosystemProvider (валідна за assertEcosystemProvider);
  *   - buildCargoDependencyPrompt: промпт містить крейт/версії, лише кроки 4-6;
  *   - findCargoManifests: інжектований spawnFn;
@@ -12,14 +12,14 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 
-import { assertEcosystemProvider } from '../../../../scripts/lib/plugin-api.mjs'
-import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+import { assertEcosystemProvider } from '@7n/rules/plugin-api'
+import { ensureDir, withTmpDir } from '@7n/rules/scripts/utils/test-helpers.mjs'
 import rustProvider, {
   backupCargoManifests,
   buildCargoDependencyPrompt,
   cleanupCargoBackups,
   findCargoManifests
-} from '../rust-provider.mjs'
+} from '../provider.mjs'
 
 const CARGO_EXIT_RE = /cargo upgrade --incompatible allow → exit 101/
 
@@ -30,7 +30,7 @@ function noop() {
 
 describe('rustProvider (форма контракту)', () => {
   test('валідний EcosystemProvider за assertEcosystemProvider', () => {
-    expect(assertEcosystemProvider(rustProvider, 'core:rust')).toBe(rustProvider)
+    expect(assertEcosystemProvider(rustProvider, '@7n/rules-lang-rust')).toBe(rustProvider)
     expect(rustProvider.id).toBe('rust-cargo')
     expect(rustProvider.manifestNoun).toBe('Cargo.toml')
   })

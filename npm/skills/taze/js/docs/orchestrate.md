@@ -3,7 +3,7 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/skills/taze/js/orchestrate.mjs
 docgen:
-  crc: 256c4e77
+  crc: b675f6e7
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.98
@@ -12,7 +12,7 @@ docgen:
 
 ## Огляд
 
-Оркеструє taze детерміновано, без LLM для службових кроків: бекап маніфестів → масовий bump → diff-класифікація major vs minor/patch → прибирання бекапів → Markdown-звіт. Для КОЖНОГО окремого major-пакета з diff-у виконує один ізольований, обмежений виклик обраного раннера — лише перевірка сумісності й рефакторинг, не сам bump. npm/bun-гілка вбудована; решта екосистем — `EcosystemProvider`-и (контракт `@7n/rules/plugin-api`): Rust як first-party (`rust-provider.mjs`), інші — з плагінів (`@7n/rules-lang-*`, extension-point `taze`). Файл виконує реальні файлові операції (бекапи) і запускає зовнішні команди (`bunx`, `bun`, `git`, команди провайдерів) — не read-only.
+Оркеструє taze детерміновано, без LLM для службових кроків: бекап маніфестів → масовий bump → diff-класифікація major vs minor/patch → прибирання бекапів → Markdown-звіт. Для КОЖНОГО окремого major-пакета з diff-у виконує один ізольований, обмежений виклик обраного раннера — лише перевірка сумісності й рефакторинг, не сам bump. npm/bun-гілка вбудована; решта екосистем — `EcosystemProvider`-и (контракт `@7n/rules/plugin-api`), завантажені з плагінів (`@7n/rules-lang-rust`, `@7n/rules-lang-python`, …; extension-point `taze`) — вбудованих провайдерів немає. Файл виконує реальні файлові операції (бекапи) і запускає зовнішні команди (`bunx`, `bun`, `git`, команди провайдерів) — не read-only.
 
 ## Поведінка
 

@@ -1,5 +1,5 @@
 /**
- * Тести для skills/taze/js/cargo-diff.mjs:
+ * Тести для taze/cargo-diff.mjs:
  *   - parseCargoVersion: 1-3 компоненти, операторні префікси, не-semver;
  *   - extractCargoVersionSpec: рядок vs inline-таблиця vs path/git-залежність;
  *   - diffCargoToml: групування major vs minor/patch по dependencies/dev-dependencies/build-dependencies;
@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { stringify as stringifyToml } from 'smol-toml'
 import { describe, expect, test } from 'vitest'
 
-import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+import { withTmpDir } from '@7n/rules/scripts/utils/test-helpers.mjs'
 import { collectCargoDiff, diffCargoToml, extractCargoVersionSpec, parseCargoVersion } from '../cargo-diff.mjs'
 
 describe('parseCargoVersion', () => {
