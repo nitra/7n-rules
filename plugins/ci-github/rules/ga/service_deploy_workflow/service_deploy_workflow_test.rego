@@ -55,10 +55,45 @@ test_allow_chained_deploy if {
 	count(service_deploy_workflow.deny) == 0 with input as chained_input
 }
 
+# Сервісний workflow (dir-glob paths) із lint-джобою, але без plan → deny.
 test_deny_missing_plan_job if {
-	wf := {"jobs": {"deploy": {"steps": [{"run": "echo x"}]}}}
+	wf := {
+		"on": {"push": {"paths": ["run/nexus/**"]}},
+		"jobs": {
+			"lint": {"steps": [{"run": "bunx n-rules lint --path run/nexus --no-fix"}]},
+			"deploy": {"needs": "lint", "steps": [{"run": "echo x"}]},
+		},
+	}
 	some msg in service_deploy_workflow.deny with input as wf
 	contains(msg, "немає job `plan`")
+}
+
+# Publish/deploy-workflow БЕЗ lint-джоб (npm-publish.yml, імʼя завʼязане на
+# OIDC trusted publishing) — валідний as-is: plan-гейт не вимагається.
+test_allow_publish_workflow_without_lint if {
+	wf := {
+		"on": {"push": {"branches": ["main"], "paths": ["npm/**"]}},
+		"jobs": {
+			"test": {"steps": [{"uses": "actions/checkout@v6"}, {"run": "bun test"}]},
+			"publish": {"needs": "test", "steps": [{"run": "npm publish --provenance"}]},
+		},
+	}
+	count(service_deploy_workflow.deny) == 0 with input as wf
+}
+
+# File-type lint-workflow (глоби за розширенням, не dir-scoped) — поза каноном.
+test_allow_file_type_lint_workflow if {
+	wf := {
+		"on": {"push": {"paths": ["**/*.js", "**/*.mjs"]}},
+		"jobs": {"eslint": {"steps": [{"run": "bunx n-rules lint js --no-fix"}]}},
+	}
+	count(service_deploy_workflow.deny) == 0 with input as wf
+}
+
+# Workflow без paths-тригера взагалі — поза каноном.
+test_allow_workflow_without_paths if {
+	wf := {"on": {"push": {"branches": ["main"]}}, "jobs": {"deploy": {"steps": [{"run": "echo x"}]}}}
+	count(service_deploy_workflow.deny) == 0 with input as wf
 }
 
 test_deny_plan_without_github_flag if {

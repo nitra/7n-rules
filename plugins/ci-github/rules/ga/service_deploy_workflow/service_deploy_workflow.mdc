@@ -1,10 +1,10 @@
-## Rego-gate сервіс-орієнтованих deploy-workflow (`.github/workflows/deploy-*.yml`)
+## Rego-gate сервіс-орієнтованих deploy-workflow (`.github/workflows/*.yml`)
 
 Rego-пакет: `ga.service_deploy_workflow`
 
-Цільові файли: усі `.github/workflows/deploy-*.yml` (walkGlob). Немає жодного — концерн мовчить: сервіс-канон опційний, перелік сервісів консюмер-специфічний (реєстру немає).
+Цільові файли: усі `.github/workflows/*.yml` (walkGlob). Дискримінатор — **зміст, не імʼя файлу** (дзеркало ci-azure): сервісним вважається workflow із dir-scoped глобом у `on.push.paths` (`npm/**`, `run/<service>/**`). Імʼя довільне — `npm-publish.yml`, `deploy-<service>.yml` тощо; **перейменування часто неможливе**, бо OIDC trusted publishing привʼязаний до імені workflow-файлу. Глоби за типом файлу (`**/*.js` у lint-*.yml) і workflow без `paths` — поза каноном. **Plan-гейт вимагається лише коли у workflow є lint-джоби** (`n-rules lint … --path`): publish/deploy-workflow без сервісного лінт-гейта валідний as-is, перехід на гейт — свідоме рішення консюмера (додати lint-джоби → rego і автофікс доведуть форму).
 
-Канонічна форма per-service workflow (`deploy-<service>.yml`, каталог сервісу — напр. `run/nexus`):
+Канонічна форма per-service workflow (каталог сервісу — напр. `run/nexus`):
 
 1. **Тригер** — `on.push.paths` із глобом каталогу сервісу (`run/<service>/**`).
 2. **`plan`-джоба** — checkout `fetch-depth: 0` → prep (`./.github/actions/setup-bun-deps`) → `bunx n-rules ci plan --path run/<service> --github` (крок з `id: plan`, outputs прокинуті в `jobs.plan.outputs`).

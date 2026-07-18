@@ -3,7 +3,7 @@
   "fixability": "config",
   "policy": {
     "files": {
-      "walkGlob": [".github/workflows/deploy-*.yml"]
+      "walkGlob": [".github/workflows/*.yml"]
     }
   }
 }

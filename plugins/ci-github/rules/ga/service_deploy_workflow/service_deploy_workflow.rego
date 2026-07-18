@@ -1,4 +1,13 @@
-# Форма сервіс-орієнтованого deploy-workflow (`.github/workflows/deploy-*.yml`).
+# Форма сервіс-орієнтованого deploy-workflow (`.github/workflows/*.yml`).
+#
+# Дискримінатор застосовності — НЕ імʼя файлу, а ЗМІСТ (дзеркало ci-azure):
+# сервісний workflow = `on.push.paths` має dir-scoped glob (`npm/**`,
+# `run/nexus/**`). Імʼя довільне (`npm-publish.yml`, `deploy-*.yml`, …) —
+# перейменування часто неможливе: OIDC trusted publishing привʼязаний до
+# імені workflow-файлу. Глоби за типом файлу (`**/*.js`, lint-*.yml) і
+# workflow без paths — поза каноном. Plan-гейт вимагається лише коли у
+# workflow Є lint-джоби (`n-rules lint … --path`) — publish/deploy-workflow
+# без сервісних lint-джоб валідний as-is (перехід на гейт — свідоме рішення).
 #
 # Канон (ga.mdc, сніпет template/deploy-service.yml.snippet.yml):
 #   plan (checkout fetch-depth:0 + prep + `bunx n-rules ci plan --path <svc> --github`)
@@ -8,9 +17,8 @@
 #     └─ deploy             (needs-ланцюг досягає plan і ВСІ lint-джоби;
 #                            if: !cancelled() + !contains(needs.*.result, 'failure'))
 #
-# Перелік сервісів консюмер-специфічний — концерн перевіряє ФОРМУ кожного
-# знайденого deploy-*.yml, не реєстр. Ланцюги deploy (build → deploy) законні:
-# досяжність рахується транзитивно через graph.reachable.
+# Перелік сервісів консюмер-специфічний — концерн перевіряє ФОРМУ, не реєстр.
+# Ланцюги deploy (build → deploy) законні: досяжність — graph.reachable.
 #
 # Не перевіряється тут (лишається .mdc-каноном): вибір набору доменів під
 # сервіс, зміст test/deploy-кроків, outputs-мапінг plan-джоби, uv-prep для
@@ -33,6 +41,15 @@ on_block := object.union_n([
 ])
 
 push_paths contains p if some p in object.get(object.get(on_block, "push", {}), "paths", [])
+
+# Dir-scoped глоби тригера (`npm/**`, `run/nexus/**`) — дискримінатор сервісного
+# workflow; глоби за типом файлу (`**/*.js`) чи точкові шляхи — ні.
+service_dir_globs contains p if {
+	some p in push_paths
+	regex.match(`^[^*]+/\*\*$`, p)
+}
+
+is_service_workflow if count(service_dir_globs) > 0
 
 plan_runs contains r if {
 	some step in object.get(object.get(jobs, "plan", {}), "steps", [])
@@ -61,6 +78,16 @@ lint_cmds contains cmd if {
 
 check_jobs contains cmd.job if some cmd in lint_cmds
 
+# Наявність lint-джоб (domain-style або легасі `lint --path` без домену) —
+# лише тоді вимагаємо plan-гейт.
+has_lint_jobs if count(lint_cmds) > 0
+
+has_lint_jobs if {
+	some job in jobs
+	some step in object.get(job, "steps", [])
+	regex.match(`n-rules lint\s+--path\s+\S+`, object.get(step, "run", ""))
+}
+
 # Граф залежностей і транзитивна досяжність (ланцюг deploy → build → lint).
 needs_graph[name] := needs_of(job) if some name, job in jobs
 
@@ -80,25 +107,30 @@ terminal_jobs contains name if {
 # ── deny: plan-джоба ────────────────────────────────────────────────────
 
 deny contains msg if {
+	is_service_workflow
+	has_lint_jobs
 	count(jobs) > 0
 	not jobs.plan
-	msg := "deploy-workflow: немає job `plan` з кроком `bunx n-rules ci plan --path <svc> --github` (ga.mdc: сервіс-канон)"
+	msg := "service-workflow: немає job `plan` з кроком `bunx n-rules ci plan --path <svc> --github` (ga.mdc: сервіс-канон)"
 }
 
 deny contains msg if {
+	is_service_workflow
 	jobs.plan
 	count(plan_runs) == 0
-	msg := "deploy-workflow: job `plan` без кроку `bunx n-rules ci plan …` (ga.mdc: сервіс-канон)"
+	msg := "service-workflow: job `plan` без кроку `bunx n-rules ci plan …` (ga.mdc: сервіс-канон)"
 }
 
 deny contains msg if {
-	msg := "deploy-workflow: `ci plan` без `--path <serviceDir>` (ga.mdc: сервіс-канон)"
+	msg := "service-workflow: `ci plan` без `--path <serviceDir>` (ga.mdc: сервіс-канон)"
+	is_service_workflow
 	some r in plan_runs
 	not regex.match(`n-rules ci plan\s+--path\s+\S+`, r)
 }
 
 deny contains msg if {
-	msg := "deploy-workflow: `ci plan` без `--github` — outputs не потраплять у $GITHUB_OUTPUT (ga.mdc)"
+	msg := "service-workflow: `ci plan` без `--github` — outputs не потраплять у $GITHUB_OUTPUT (ga.mdc)"
+	is_service_workflow
 	some r in plan_runs
 	not contains(r, "--github")
 }
@@ -106,20 +138,23 @@ deny contains msg if {
 # ── deny: тригер paths ↔ сервісний каталог ─────────────────────────────
 
 deny contains msg if {
+	is_service_workflow
 	some sp in service_paths
-	not trigger_covers(sp)
-	msg := sprintf("deploy-workflow: on.push.paths не містить glob для сервісного каталогу %s (ga.mdc)", [sp])
+	not glob_covers(sp)
+	msg := sprintf("service-workflow: on.push.paths не містить glob для сервісного каталогу %s (ga.mdc)", [sp])
 }
 
 # ── deny: lint-джоби ────────────────────────────────────────────────────
 
 deny contains msg if {
+	is_service_workflow
 	some cmd in lint_cmds
 	not "plan" in needs_of(jobs[cmd.job])
 	msg := sprintf("%s: lint-джоба мусить мати needs: plan (ga.mdc: сервіс-канон)", [cmd.job])
 }
 
 deny contains msg if {
+	is_service_workflow
 	some cmd in lint_cmds
 	cond := object.get(jobs[cmd.job], "if", "")
 	not contains(cond, sprintf("needs.plan.outputs.%s", [replace(cmd.domain, "-", "_")]))
@@ -127,19 +162,21 @@ deny contains msg if {
 }
 
 deny contains msg if {
-	count(service_paths) > 0
+	is_service_workflow
 	some cmd in lint_cmds
-	not cmd.path in service_paths
-	msg := sprintf("%s: `lint %s --path %s` ≠ `--path` plan-джоби — лінтиться інший каталог (ga.mdc)", [cmd.job, cmd.domain, cmd.path])
+	not glob_covers(cmd.path)
+	msg := sprintf("%s: `lint %s --path %s` ∉ on.push.paths — лінтиться інший каталог (ga.mdc)", [cmd.job, cmd.domain, cmd.path])
 }
 
 deny contains msg if {
+	is_service_workflow
 	some cmd in lint_cmds
 	not contains(cmd.run, "--no-fix")
 	msg := sprintf("%s: `n-rules lint` у CI мусить мати `--no-fix` (ga.mdc)", [cmd.job])
 }
 
 deny contains msg if {
+	is_service_workflow
 	some cmd in lint_cmds
 	not job_has_prep(jobs[cmd.job])
 	msg := sprintf("%s: lint-джоба без prep-кроку `uses: ./.github/actions/setup-bun-deps` (джоби не шарять ФС) (ga.mdc)", [cmd.job])
@@ -148,12 +185,14 @@ deny contains msg if {
 # ── deny: fetch-depth для git-дельти ────────────────────────────────────
 
 deny contains msg if {
+	is_service_workflow
 	count(plan_runs) > 0
 	not job_has_full_checkout(jobs.plan)
 	msg := "plan: checkout мусить мати fetch-depth: 0 — без історії git-дельта `ci plan` не рахується (ga.mdc)"
 }
 
 deny contains msg if {
+	is_service_workflow
 	some cmd in lint_cmds
 	not job_has_full_checkout(jobs[cmd.job])
 	msg := sprintf("%s: checkout мусить мати fetch-depth: 0 — без історії `lint --path` не бачить дельти (ga.mdc)", [cmd.job])
@@ -162,6 +201,7 @@ deny contains msg if {
 # ── deny: термінальні (deploy) джоби ────────────────────────────────────
 
 deny contains msg if {
+	is_service_workflow
 	count(check_jobs) > 0
 	some name in terminal_jobs
 	not "plan" in graph.reachable(needs_graph, {name})
@@ -169,6 +209,7 @@ deny contains msg if {
 }
 
 deny contains msg if {
+	is_service_workflow
 	some name in terminal_jobs
 	some cj in check_jobs
 	not cj in graph.reachable(needs_graph, {name})
@@ -178,6 +219,7 @@ deny contains msg if {
 # Skipped-лінт (умовний гейт спрацював) не мусить блокувати деплой, а fail —
 # мусить: канонічний if = `!cancelled() && !contains(needs.*.result, 'failure')`.
 deny contains msg if {
+	is_service_workflow
 	some name in terminal_jobs
 	needed := needs_of(jobs[name])
 	count([cj | some cj in check_jobs; cj in needed]) > 0
@@ -196,9 +238,11 @@ needs_of(job) := [n] if {
 
 needs_of(job) := object.get(job, "needs", []) if is_array(object.get(job, "needs", []))
 
-trigger_covers(sp) if {
-	some p in push_paths
-	startswith(p, sp)
+# Каталог `--path` покривається dir-scoped глобом тригера
+# (`npm/**` покриває `npm`; точний збіг теж).
+glob_covers(sp) if {
+	some g in service_dir_globs
+	startswith(g, sp)
 }
 
 job_has_prep(job) if {
