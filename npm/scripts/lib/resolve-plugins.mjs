@@ -56,7 +56,7 @@ function hasLangSignal(projectRoot, signal, maxDepth) {
   let level = [projectRoot]
   for (let depth = 0; depth <= maxDepth && level.length > 0; depth++) {
     if (level.some(dir => existsSync(join(dir, signal)))) return true
-    if (depth < maxDepth) level = level.flatMap((dir) => listScannableSubdirs(dir))
+    if (depth < maxDepth) level = level.flatMap(listScannableSubdirs)
   }
   return false
 }

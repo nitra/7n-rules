@@ -3,7 +3,7 @@ type: JS Module
 title: provider.mjs
 resource: plugins/lang-rust/taze/provider.mjs
 docgen:
-  crc: 6ec7d62d
+  crc: 6eec9dc6
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.98
