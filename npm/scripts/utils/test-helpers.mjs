@@ -149,3 +149,33 @@ export async function withBinRemovedFromPath(bin, fn) {
     }
   }
 }
+
+/**
+ * Ставить у tmp-репо фейковий плагін `@7n/rules-lang-js` (маніфест із doc-files
+ * розширеннями JS-екосистеми) і активує його через `.n-rules.json`. Потрібен
+ * тестам doc-files: після фази 5b (spec lang-plugins-extraction) ядро не має
+ * вбудованих кодових розширень — без активного lang-плагіна скан не бачить
+ * жодного джерела.
+ * @param {string} dir абсолютний корінь tmp-репо (від `withTmpDir`)
+ * @returns {Promise<void>}
+ */
+export async function installFakeLangJsPlugin(dir) {
+  const pkgRoot = join(dir, 'node_modules', '@7n', 'rules-lang-js')
+  await mkdir(pkgRoot, { recursive: true })
+  await writeFile(
+    join(pkgRoot, 'package.json'),
+    JSON.stringify({
+      name: '@7n/rules-lang-js',
+      version: '0.0.0-test',
+      'n-rules': {
+        contributes: {
+          rules: false,
+          docFiles: {
+            extensions: { '.js': 'JS Module', '.mjs': 'JS Module', '.ts': 'TS Module', '.vue': 'Vue Component' }
+          }
+        }
+      }
+    })
+  )
+  await writeFile(join(dir, '.n-rules.json'), JSON.stringify({ plugins: ['@7n/rules-lang-js'] }))
+}

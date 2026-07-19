@@ -1,7 +1,7 @@
 {
   "name": "@7n/rules-lang-js",
   "version": "0.2.0",
-  "description": "Плагін @7n/rules: JS/npm/bun-екосистема — taze-провайдер (package.json, bunx taze)",
+  "description": "Плагін @7n/rules: JS/npm/bun-екосистема — taze-провайдер (package.json, bunx taze) і doc-files-екстрактори (oxc AST)",
   "keywords": [
     "javascript",
     "bun",
@@ -21,6 +21,7 @@
   },
   "type": "module",
   "files": [
+    "doc-files",
     "taze",
     "skills",
     "CHANGELOG.md",
@@ -36,7 +37,16 @@
     "contributes": {
       "rules": false,
       "handlers": {
-        "taze": "./taze/provider.mjs"
+        "taze": "./taze/provider.mjs",
+        "doc-files": "./doc-files/extractors.mjs"
+      },
+      "docFiles": {
+        "extensions": {
+          ".js": "JS Module",
+          ".mjs": "JS Module",
+          ".ts": "TS Module",
+          ".vue": "Vue Component"
+        }
       }
     }
   },
