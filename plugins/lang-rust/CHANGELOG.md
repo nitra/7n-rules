@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.0] - 2026-07-19
+
+### Added
+
+- концерн cargo_mutants_config у правилі rust (переїхав з правила test ядра): канонічний baseline .cargo/mutants.toml на кожен Cargo.toml-маніфест, T0-fix генерації; активація за glob Cargo.toml — у rust-only репо працює без lang-js
+
 ## [0.5.1] - 2026-07-19
 
 ### Fixed

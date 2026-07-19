@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.32.0] - 2026-07-19
+
+### Changed
+
+- lint: правило test переїхало у @7n/rules-lang-js (vitest/stryker/ізоляція тестів), а концерн cargo_mutants_config — у правило rust плагіна @7n/rules-lang-rust (семантично канон rust-тулчейну; активація за glob Cargo.toml, у rust-only репо працює без lang-js) — у ядрі 23 правила, мовних правил не лишилось
+
 ## [1.31.0] - 2026-07-19
 
 ### Changed

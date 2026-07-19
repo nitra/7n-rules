@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.0] - 2026-07-19
+
+### Added
+
+- правило test з ядра: розміщення тест-файлів у tests/, ізоляція (no-process-chdir, no-relative-fs-path, no-console-store-restore, sandbox-aware-test, no-bun-test-import), канон vitest/stryker конфігів і vitest-api-конвенції — без cargo-mutants (він у правилі rust плагіна lang-rust)
+
 ## [0.6.0] - 2026-07-19
 
 ### Added
