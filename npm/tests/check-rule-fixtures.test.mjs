@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { lint as lintNginx } from '../rules/nginx-default-tpl/template/main.mjs'
-import { lint as lintStyle } from '../rules/style/tooling/main.mjs'
+import { lint as lintStyle } from '../../plugins/lang-js/rules/style/tooling/main.mjs'
 import { lint as lintVue } from '../../plugins/lang-js/rules/vue/packages/main.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
 
