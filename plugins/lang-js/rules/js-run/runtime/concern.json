@@ -1,5 +1,6 @@
 {
   "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
+  "skipLocalTier": true,
   "lint": {
     "scope": "full",
     "glob": [
