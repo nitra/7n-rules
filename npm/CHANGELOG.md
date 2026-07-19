@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.27.0] - 2026-07-19
+
+### Added
+
+- LLM-ladder: окремий (більший) таймаут cloud-avg (N_CLOUD_AVG_FIX_TIMEOUT_MS, дефолт 180s) та concern-рівневий skipLocalTier (concern.json) — пропуск local-min/local-min-retry для concern-ів, де local-tier емпірично не встигає дати результат (js/eslint увімкнено за реальними даними прогону)
+
+### Changed
+
+- doc-files: ядро без вбудованих кодових розширень (фаза 5b spec lang-plugins-extraction) — перелік розширень, OKF-типи та мовні екстрактори (факти/юніти) приходять лише з декларацій активних lang-плагінів (contributes.docFiles.extensions + handler doc-files); JS-специфіка (extractFacts, units-js, мапа типів js/mjs/ts/vue) переїхала у @7n/rules-lang-js; без активного lang-плагіна скан не бачить джерел (graceful тиша)
+
+### Fixed
+
+- Червоний lint на main: дубльовані тести мосту auto-worktree (auto-worktree.test.mjs ↔ orchestrate.test.mjs) зібрано у спільний набір `describeAutoWorktreeBridge` (scripts/utils/tests/auto-worktree-suite.mjs); `tests/**` виключено з npm-tarball; `jscpd` (спавниться як `bunx jscpd`) додано в knip ignoreDependencies
+
 ## [1.26.0] - 2026-07-19
 
 ### Changed

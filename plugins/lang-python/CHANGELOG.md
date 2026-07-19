@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.1] - 2026-07-19
+
+### Fixed
+
+- knip unresolved: JSDoc-типи lint-surface тепер через пакетний шлях `@7n/rules/scripts/lib/lint-surface/types.mjs` замість неіснуючого відносного `../../../scripts/...`
+
 ## [0.5.0] - 2026-07-19
 
 ### Added
