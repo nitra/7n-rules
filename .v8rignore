@@ -24,5 +24,6 @@ plugins/*/rules/*/*/template/**
 .docgen-scan.json
 npm/config/capability-matrix.json
 npm/data/blue-oak.json
+npm/scripts/lib/tool-pins.json
 .marksman.toml
 npm/rules/ci4/marksman_config/data/marksman_config/marksman.baseline.toml
