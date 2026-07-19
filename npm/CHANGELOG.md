@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.29.0] - 2026-07-19
+
+### Added
+
+- skipLocalTier для text/markdownlint: local-tier емпірично 0/24 успіхів (llm-trace.jsonl), ladder одразу стартує з cloud-min (ADR 260718-0754)
+
 ## [1.28.1] - 2026-07-19
 
 ### Fixed

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.0] - 2026-07-19
+
+### Added
+
+- skipLocalTier для js-run/runtime: local-tier емпірично 0/14 успіхів (llm-trace.jsonl), cloud-tier — 3/6; ladder одразу стартує з cloud-min (ADR 260718-0754)
+
 ## [0.4.1] - 2026-07-19
 
 ### Fixed
