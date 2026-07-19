@@ -76,16 +76,30 @@ async function listConcerns(ruleDir) {
 }
 
 describe('concern contract — усі правила', () => {
-  test('34 правила ядра (ga → ci-github; rust/python → lang-плагіни)', () => {
-    expect(ruleIds.length).toBe(34)
+  test('25 правил ядра (ga → ci-github; rust/python/js-сімʼя → lang-плагіни)', () => {
+    expect(ruleIds.length).toBe(25)
   })
 
-  test('плагіни монорепо володіють правилами ga, azure-pipelines, rust, python', () => {
+  test('плагіни монорепо володіють правилами ga, azure-pipelines, rust, python і js-сімʼєю', () => {
     const owners = pluginRuleDirs
       .filter(p => p.owner)
       .map(p => `${p.plugin}/${p.id}`)
       .toSorted((a, b) => a.localeCompare(b))
-    expect(owners).toEqual(['ci-azure/azure-pipelines', 'ci-github/ga', 'lang-python/python', 'lang-rust/rust'])
+    expect(owners).toEqual([
+      'ci-azure/azure-pipelines',
+      'ci-github/ga',
+      'lang-js/bun',
+      'lang-js/js',
+      'lang-js/js-bun-db',
+      'lang-js/js-bun-redis',
+      'lang-js/js-mssql',
+      'lang-js/js-run',
+      'lang-js/npm-module',
+      'lang-js/tool-surface',
+      'lang-js/vue',
+      'lang-python/python',
+      'lang-rust/rust'
+    ])
   })
 
   for (const { plugin, id, ruleDir } of pluginRuleDirs) {

@@ -23,14 +23,13 @@ import { fileURLToPath } from 'node:url'
 import { globby } from 'globby'
 
 import { ALWAYS_IGNORE } from './utils/walkDir.mjs'
-import { globToRegex } from '../rules/npm-module/package_structure/main.mjs'
-import { textHasBunSqlImport } from '../rules/js-bun-db/lib/bun-sql-scan.mjs'
+import { globToRegex } from './lib/glob-to-regex.mjs'
+import { textHasBunSqlImport, contentForVueImportScan } from './lib/js-source-signals.mjs'
 import {
   isGqlScanSourceFile,
   shouldSkipFileForGqlScan,
   sourceFileHasGqlTaggedTemplate
 } from '../rules/graphql/lib/graphql-gql-scan.mjs'
-import { contentForVueImportScan } from '../rules/vue/lib/vue-forbidden-imports.mjs'
 import { parseRuleAutoSpec, readRuleMetaRaw } from './lib/rule-meta.mjs'
 import { migrateRuleIds, normalizeIdList } from './lib/rule-meta-helpers.mjs'
 import { RULE_PREDICATES } from './lib/rule-predicates.mjs'

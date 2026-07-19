@@ -46,6 +46,15 @@ const ALL_RULES = [
   'vue'
 ]
 
+// Як у проді (bin/n-rules.js): rules-джерела = ядро + активні плагіни.
+// rust/python — власність lang-плагінів (фаза 3), js-сімʼя — lang-js (фаза 5c).
+const RULES_DIRS = [
+  new URL('../../rules/', import.meta.url).pathname,
+  new URL('../../../plugins/lang-js/rules/', import.meta.url).pathname,
+  new URL('../../../plugins/lang-rust/rules/', import.meta.url).pathname,
+  new URL('../../../plugins/lang-python/rules/', import.meta.url).pathname
+]
+
 /**
  * @param {string} dir абсолютний шлях тимчасового каталогу
  * @returns {Promise<Awaited<ReturnType<typeof detectAutoRules>>>} результат виявлення правил з директорії
@@ -55,13 +64,7 @@ async function detectAutoRulesInCwd(dir) {
     root: dir,
     availableRules: ALL_RULES,
     packageJsonParsed: JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')),
-    // Як у проді (bin/n-rules.js): rules-джерела = ядро + активні плагіни.
-    // rust/python — власність lang-плагінів (фаза 3 spec lang-plugins-extraction).
-    rulesDirs: [
-      new URL('../../rules/', import.meta.url).pathname,
-      new URL('../../../plugins/lang-rust/rules/', import.meta.url).pathname,
-      new URL('../../../plugins/lang-python/rules/', import.meta.url).pathname
-    ]
+    rulesDirs: RULES_DIRS
   })
 }
 
@@ -312,6 +315,7 @@ describe('detectAutoRules', () => {
 
       const actual = await detectAutoRules({
         root: dir,
+        rulesDirs: RULES_DIRS,
         availableRules: ALL_RULES,
         packageJsonParsed: { name: 'app' },
         disableRules: ['vue']
@@ -332,6 +336,7 @@ describe('detectAutoRules', () => {
 
       const actual = await detectAutoRules({
         root: dir,
+        rulesDirs: RULES_DIRS,
         availableRules: ALL_RULES,
         packageJsonParsed: { name: 'app' },
         disableRules: ['image-compress']
@@ -409,6 +414,7 @@ describe('detectAutoRules', () => {
       await writeJson(join(dir, 'package.json'), { name: 'app', dependencies: { '@tauri-apps/api': '^2' } })
       const { rules } = await detectAutoRules({
         root: dir,
+        rulesDirs: RULES_DIRS,
         availableRules: ALL_RULES,
         packageJsonParsed: { name: 'app', dependencies: { '@tauri-apps/api': '^2' } }
       })
@@ -638,6 +644,7 @@ describe('detectAutoRules — workspace без devDependencies (line 217)', () =
       await writeJson(join(dir, 'packages/app/package.json'), { name: 'app' })
       const result = await detectAutoRules({
         root: dir,
+        rulesDirs: RULES_DIRS,
         availableRules: ALL_RULES,
         packageJsonParsed: { name: 'root', workspaces: ['packages/app'] }
       })
@@ -673,7 +680,12 @@ describe('catch-блоки при помилці readdir (lines 195, 245, 546)',
       await ensureDir(join(dir, 'baddir'))
       await chmod(join(dir, 'baddir'), 0o000)
       try {
-        const result = await detectAutoRules({ root: dir, availableRules: ALL_RULES, packageJsonParsed: null })
+        const result = await detectAutoRules({
+          root: dir,
+          rulesDirs: RULES_DIRS,
+          availableRules: ALL_RULES,
+          packageJsonParsed: null
+        })
         expect(result).toBeDefined()
       } finally {
         await chmod(join(dir, 'baddir'), 0o755)
@@ -685,7 +697,12 @@ describe('catch-блоки при помилці readdir (lines 195, 245, 546)',
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'pkg'))
       await writeFile(join(dir, 'pkg', 'package.json'), '{ not json', 'utf8')
-      const result = await detectAutoRules({ root: dir, availableRules: ALL_RULES, packageJsonParsed: null })
+      const result = await detectAutoRules({
+        root: dir,
+        rulesDirs: RULES_DIRS,
+        availableRules: ALL_RULES,
+        packageJsonParsed: null
+      })
       expect(result).toBeDefined()
     })
   })
