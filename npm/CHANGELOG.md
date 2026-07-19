@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.25.1] - 2026-07-19
+
+### Fixed
+
+- мінімальний @7n/llm-lib піднято до ^2.8.2 — діапазон ^2.7.0 допускав версії з видаленим у pi-coding-agent 0.80.10 API (ModelRegistry.create/AuthStorage), що системно валило doc-files та інші LLM-ланцюжки (registry: Cannot read properties of undefined (reading 'create'))
+
 ## [1.25.0] - 2026-07-19
 
 ### Added
