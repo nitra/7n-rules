@@ -1,0 +1,26 @@
+---
+description: JS-тести (*.test.mjs) живуть у tests/. Правило `test` керує stryker.config.mjs + vitest.config.mjs (конфіг cargo-mutants — концерн cargo_mutants_config правила rust у @7n/rules-lang-rust).
+version: '2.8'
+globs: "**/{.n-rules.json,package.json,stryker.config.mjs,vitest.config.mjs,vitest.config.js},**/*.test.mjs"
+alwaysApply: false
+---
+
+Правило **test** керує розміщенням тестових файлів, безпекою ізоляції тестів (заборона `process.chdir`, відносних шляхів у FS, ручного store/restore console), налаштуванням Vitest/Stryker baseline. Конфігурація cargo-mutants для Rust — концерн `cargo_mutants_config` правила `rust` (@7n/rules-lang-rust).
+
+## Покриття + мутаційне тестування
+
+Канонічна команда — `npx @7n/test coverage` (пакет `@7n/test`, **не** `@7n/rules` — цей пакет лише постачає providers, оркестратор живе окремо): збирає метрики покриття (`vitest run --coverage`, `cargo llvm-cov` тощо) і мутаційного тестування (Stryker з vitest-runner + `coverageAnalysis: 'perTest'`, `cargo-mutants`) з усіх активних провайдерів у `.n-rules.json#rules` і пише `COVERAGE.md` у корінь проєкту.
+
+**Scoped-режим `--changed`:** `npx @7n/test coverage --changed` звужує scope до файлів, змінених від git merge-base поточної гілки з `main` або `origin/main`. У changed-режимі `COVERAGE.md` **не** перезаписується і LLM-класифікація не запускається.
+
+**`--fix`:** `npx @7n/test coverage --fix` — після збору метрик агент виправляє survived-мутанти й повторює coverage.
+
+Провайдери живуть у `npm/rules/<rule>/coverage/coverage.mjs` (цей пакет, `@7n/rules`). Оркестратор — у `@7n/test` (`npm/src/coverage/coverage.mjs`), який резолвить providers з `node_modules/@7n/rules/rules`. Проєкт-споживач має мати `@7n/test` як devDependency, аби `npx @7n/test coverage` резолвився без мережевого fetch щоразу.
+
+У `package.json` (корінь) має бути `scripts.coverage` із викликом `npx @7n/test coverage`.
+
+### Multi-workspace iteration
+
+У monorepo `@7n/test coverage` ітерує усі workspaces з власним `package.json` і агрегує метрики lcov + Stryker у єдиний `JS`-рядок `COVERAGE.md`. Workspace без тестів пропускається без помилки.
+
+- [package.json.contains.json](./package_json/template/package.json.contains.json)

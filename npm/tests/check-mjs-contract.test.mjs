@@ -76,8 +76,8 @@ async function listConcerns(ruleDir) {
 }
 
 describe('concern contract — усі правила', () => {
-  test('24 правила ядра (ga → ci-github; rust/python/js-сімʼя+style → lang-плагіни)', () => {
-    expect(ruleIds.length).toBe(24)
+  test('23 правила ядра (ga → ci-github; rust/python/js-сімʼя+style+test → lang-плагіни)', () => {
+    expect(ruleIds.length).toBe(23)
   })
 
   test('плагіни монорепо володіють правилами ga, azure-pipelines, rust, python і js-сімʼєю', () => {
@@ -96,6 +96,7 @@ describe('concern contract — усі правила', () => {
       'lang-js/js-run',
       'lang-js/npm-module',
       'lang-js/style',
+      'lang-js/test',
       'lang-js/tool-surface',
       'lang-js/vue',
       'lang-python/python',
