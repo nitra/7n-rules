@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.28.1] - 2026-07-19
+
+### Fixed
+
+- schemas/v8r-catalog: записи для knip-canonical.json (офіційна схема knip@5) і oxlint-canonical.json (any-заглушка) — прибирає «Could not find a schema» у v8r по data-файлах правила js/tooling
+
 ## [1.28.0] - 2026-07-19
 
 ### Changed

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.1] - 2026-07-19
+
+### Fixed
+
+- js/knip: вбудований ігнор unused-dependency на пакети екосистеми n-rules (@7n/rules і @7n/rules-* плагіни — їх ставить сам npx @7n/rules, код споживача не імпортує) + канон knip ignoreDependencies з тим самим патерном
+
 ## [0.4.0] - 2026-07-19
 
 ### Added
