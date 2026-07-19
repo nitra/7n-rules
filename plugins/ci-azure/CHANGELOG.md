@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.3] - 2026-07-19
+
+### Changed
+
+- release: @7n/rules@1.27.0, @7n/rules-lang-js@0.3.0, @7n/rules-lang-python@0.5.1, @7n/rules-lang-rust@0.5.1
+
 ## [1.4.2] - 2026-07-18
 
 ### Changed

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.28.0] - 2026-07-19
+
+### Changed
+
+- lint: JS-сімʼя правил (js, bun, vue, js-run, js-bun-db, js-bun-redis, js-mssql, npm-module, tool-surface) переїхала з ядра у @7n/rules-lang-js (фаза 5c spec lang-plugins-extraction); ядро лишає рушій (auto-rules предикати, glob-to-regex і js-source-signals у scripts/lib — плагін імпортує їх назад через @7n/rules/scripts); залежності eslint/knip/jscpd/oxlint переїхали з ядра у плагін
+
 ## [1.27.0] - 2026-07-19
 
 ### Added

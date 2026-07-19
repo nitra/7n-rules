@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.0] - 2026-07-19
+
+### Added
+
+- JS-сімʼя lint-правил з ядра (фаза 5c spec lang-plugins-extraction): js, bun, vue, js-run, js-bun-db, js-bun-redis, js-mssql, npm-module, tool-surface — плагін тепер contributes.rules з власними залежностями інструментів (eslint, oxlint, knip, jscpd, oxc-parser, globby, ignore); спільні з рушієм хелпери (globToRegex, textHasBunSqlImport, contentForVueImportScan) імпортуються з ядра і ре-експортуються для сумісності API
+
 ## [0.3.1] - 2026-07-19
 
 ### Fixed
