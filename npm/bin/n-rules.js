@@ -1883,7 +1883,22 @@ try {
         // n-rules taze diff — read-only semver-diff package.json ↔ package.json.taze-bak
         // (root + воркспейси) для скілу n-taze: скрипт класифікує major-оновлення,
         // агент отримує готовий список замість ручного порівняння бекапів.
-        const { runTazeCli } = await import('../skills/taze/js/diff.mjs')
+        // Живе у плагіні @7n/rules-lang-js (фаза 5a spec lang-plugins-extraction) —
+        // резолвимо його taze-handler і беремо named-експорт runTazeCli.
+        const { getHandlers } = await import('../scripts/lib/resolve-plugins.mjs')
+        const { readNRulesConfigLite } = await import('../scripts/lib/read-n-rules-config-lite.mjs')
+        const config = await readNRulesConfigLite(cwd())
+        const handler = getHandlers(cwd(), config, 'taze').find(h => h.pluginName === '@7n/rules-lang-js')
+        if (!handler) {
+          console.error(
+            '❌ taze diff потребує плагін @7n/rules-lang-js (npm/bun-гілка) — запусти npx @7n/rules для авто-встановлення'
+          )
+          process.exitCode = 1
+          break
+        }
+        const { pathToFileURL } = await import('node:url')
+        // eslint-disable-next-line no-unsanitized/method
+        const { runTazeCli } = await import(pathToFileURL(handler.modulePath).href)
         process.exitCode = await runTazeCli(args)
 
         break

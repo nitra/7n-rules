@@ -7,11 +7,40 @@
  * модуль-обробник експортує обʼєкт провайдера як `default`. Наступні порти
  * (doc-files, lint) додаються окремими фазами — не проєктуються наперед.
  *
- * Semver-утиліти ядра реекспортуються звідси, щоб плагіни класифікували
- * major/minor за тим самим правилом caret-семантики, що й ядро, без
- * дублювання коду і без імпорту внутрішніх шляхів `@7n/rules`.
+ * Semver-утиліти (caret-класифікація major/minor) живуть саме тут — єдине
+ * джерело правила для всіх мовних плагінів, без імпорту внутрішніх шляхів
+ * `@7n/rules` і без циклу plugin-api ↔ плагін.
  */
-export { isBreaking, parseVersion } from '../../skills/taze/js/diff.mjs'
+// Заякорено на початок (після можливих range-операторів `^~>=<`, пробілів, `v`),
+// щоб НЕ ловити версію всередині protocol-specifier-ів (`workspace:1.0.0`, `npm:x@1.2.3`).
+const SEMVER_RE = /^[\s~^>=<v]*(\d+)\.(\d+)\.(\d+)/
+
+/**
+ * Парсить semver-ядро зі specifier-а (ігнорує range-префікси `^`/`~`/`>=` тощо).
+ * @param {string} spec версійний specifier із package.json
+ * @returns {{major:number, minor:number, patch:number}|null} ядро або null для не-semver (`workspace:*`, git-url, `*`)
+ */
+export function parseVersion(spec) {
+  if (typeof spec !== 'string') return null
+  const m = SEMVER_RE.exec(spec)
+  if (!m) return null
+  return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]) }
+}
+
+/**
+ * Чи є перехід `from → to` breaking за caret-семантикою (змінилась найлівіша
+ * ненульова компонента).
+ * @param {{major:number,minor:number,patch:number}} from стара версія
+ * @param {{major:number,minor:number,patch:number}} to нова версія
+ * @returns {boolean} true — major/breaking
+ */
+export function isBreaking(from, to) {
+  if (from.major !== to.major) return true
+  if (from.major > 0) return false
+  if (from.minor !== to.minor) return true
+  if (from.minor > 0) return false
+  return from.patch !== to.patch
+}
 
 /** Версія контракту plugin-api: плагін декларує `requiresPluginApi`, несумісність → skip, не креш. */
 export const PLUGIN_API_VERSION = 1

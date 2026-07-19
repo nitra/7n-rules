@@ -78,16 +78,17 @@ describe('detectPluginsFromRepo', () => {
         join(dir, 'package.json'),
         JSON.stringify({ repository: { url: 'git+https://dev.azure.com/org/proj/_git/repo' } })
       )
-      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-ci-azure'])
+      // package.json (джерело repository.url) — це і сигнал lang-js (фаза 5a).
+      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-ci-azure', '@7n/rules-lang-js'])
     })
   })
 
-  test('repository як string з github.com → ci-github', async () => {
+  test('repository як string з github.com → ci-github (+ lang-js за package.json)', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'package.json'), JSON.stringify({ repository: 'github:nitra/7n-rules' }))
-      expect(detectPluginsFromRepo(dir)).toEqual([])
+      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-lang-js'])
       await writeFile(join(dir, 'package.json'), JSON.stringify({ repository: 'https://github.com/nitra/7n-rules' }))
-      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-ci-github'])
+      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-ci-github', '@7n/rules-lang-js'])
     })
   })
 
@@ -158,8 +159,9 @@ describe('detectPluginsFromRepo', () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'pyproject.toml'), '[project]\n')
       await writeFile(join(dir, 'package.json'), JSON.stringify({ repository: 'https://github.com/nitra/x' }))
-      // CI-детект: файлових CI-сигналів нема → URL-fallback дає ci-github; lang — окремо.
-      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-ci-github', '@7n/rules-lang-python'])
+      // CI-детект: файлових CI-сигналів нема → URL-fallback дає ci-github; lang — окремо
+      // (package.json тут — і джерело repository.url, і сигнал lang-js).
+      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-ci-github', '@7n/rules-lang-js', '@7n/rules-lang-python'])
     })
   })
 })

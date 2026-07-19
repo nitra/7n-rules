@@ -31,11 +31,12 @@ export const KNOWN_CI_PLUGINS = Object.freeze({
 /**
  * Відомі мовні плагіни: файловий сигнал екосистеми → npm-пакет. `maxDepth` —
  * до якої глибини шукати сигнал: python — лише корінь (uv-провайдер v1
- * обробляє тільки кореневий pyproject.toml); rust — до 3 рівнів, бо в
+ * обробляє тільки кореневий pyproject.toml; js — кореневий package.json); rust — до 3 рівнів, бо в
  * монорепо Cargo.toml часто вкладений (Tauri `app/src-tauri/Cargo.toml`),
  * а провайдер обробляє всі знайдені маніфести.
  */
 export const KNOWN_LANG_PLUGINS = Object.freeze({
+  js: { signal: 'package.json', pkg: '@7n/rules-lang-js', maxDepth: 0 },
   python: { signal: 'pyproject.toml', pkg: '@7n/rules-lang-python', maxDepth: 0 },
   rust: { signal: 'Cargo.toml', pkg: '@7n/rules-lang-rust', maxDepth: 3 }
 })

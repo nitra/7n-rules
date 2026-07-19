@@ -9,8 +9,9 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
-import { collectTazeDiff, diffPackageJson, isBreaking, parseVersion, runTazeCli } from '../diff.mjs'
+import { ensureDir, withTmpDir } from '@7n/rules/scripts/utils/test-helpers.mjs'
+import { isBreaking, parseVersion } from '@7n/rules/plugin-api'
+import { collectTazeDiff, diffPackageJson, runTazeCli } from '../diff.mjs'
 
 /**
  * Готує монорепо з бекапом у tmp-каталозі (root: react major; pkg-a: vite patch).
