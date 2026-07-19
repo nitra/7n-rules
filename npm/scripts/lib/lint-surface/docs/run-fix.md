@@ -3,8 +3,8 @@ type: JS Module
 title: run-fix.mjs
 resource: npm/scripts/lib/lint-surface/run-fix.mjs
 docgen:
-  crc: c4235855
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  crc: 45965f7d
+  model: manual
 ---
 
 ## Огляд
@@ -23,6 +23,7 @@ Durable-write-и (issue nitra/cursor#16): worker отримує у `FixContext` 
 MT-tail (Фаза B, спека 2026-07-11): коли лишився невиправлений хвіст (worst=1), `renderRemaining` повертає зібрані порушення, і вони матеріалізуються у вузли MT-графа через `materializeTail` (mt-tail.mjs). Єдиний гейт — onboarded-репо (наявність `.mt.json`); fail-open: MT недоступний або будь-яка помилка → лог, lint не падає.
 Distillation-телеметрія (Фаза C, §13 pi-migration): успішний agentic-рунг (canonical clean, без veto, з реальними правками у worker telemetry) пише запис `oldText→newText` у глобальний стор (`recordFixTelemetry`, `~/.n-rules/telemetry/<rule>/open/`) — корпус для маховика дистиляції T0. Best-effort; T0/ручні фікси не пишуться.
 Rollback на провалі re-detect-а: якщо canonical re-detect усередині rung-а сам кидає виняток (worker/LLM лишив файл синтаксично невалідним — детектор/conftest не може його розпарсити), `runRung` спершу відкочує `snapshot` до S1, і лише потім перекидає виняток далі — без цього зіпсований проміжний стан worker-а лишався б на диску назавжди (виняток абортує весь прогін до звичайного rollback-коду).
+skipLocalTier (concern-meta.mjs): `selectLadder` перед циклом ladder-а фільтрує з нього local-min/local-min-retry rung-и, якщо `item.entry.concern.skipLocalTier === true` — перша спроба одразу йде на cloud-min. Для concern-ів, де local-tier емпірично майже завжди лише витрачає бюджет rung-а без результату (виявлено на реальному прогоні 2026-07-18: 0/12 успіхів local-tier для `js/eslint`).
 
 ## Публічний API
 

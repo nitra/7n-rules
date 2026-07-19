@@ -76,6 +76,21 @@ describe('concern-meta — lint surface', () => {
     })
   })
 
+  test('skipLocalTier: true нормалізується, дефолт — false', async () => {
+    await withTmpDir(async dir => {
+      const withFlag = await seedConcern(dir, 'js', 'eslint', {
+        lint: { scope: 'per-file' },
+        skipLocalTier: true
+      })
+      const mWithFlag = await readConcernMeta(withFlag, 'eslint')
+      expect(mWithFlag.skipLocalTier).toBe(true)
+
+      const withoutFlag = await seedConcern(dir, 'other', 'concern', { lint: { scope: 'per-file' } })
+      const mWithoutFlag = await readConcernMeta(withoutFlag, 'concern')
+      expect(mWithoutFlag.skipLocalTier).toBe(false)
+    })
+  })
+
   test('listConcerns ігнорує теки без concern.json', async () => {
     await withTmpDir(async dir => {
       await seedConcern(dir, 'rule', 'real', { lint: { scope: 'full' } })

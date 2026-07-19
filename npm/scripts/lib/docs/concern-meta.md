@@ -3,12 +3,8 @@ type: JS Module
 title: concern-meta.mjs
 resource: npm/scripts/lib/concern-meta.mjs
 docgen:
-  crc: 1675429b
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
-  score: 100
-  issues: judge:inaccurate:0.97
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: ccc325b1
+  model: manual
 ---
 
 ## Огляд
@@ -21,6 +17,7 @@ docgen:
 readConcernMeta зчитує і перевіряє файл concern.json у вказаній директорії concern-а, повертаючи метадані або null, якщо файл відсутній чи не валідний.
 listConcerns сканує директорію правил і повертає список усіх знайдених concern-ів у алфавітному порядку, ігноруючи каталоги без concern.json.
 Нормалізований meta несе `fixability` (`code`|`config`|`structural`); невідоме/відсутнє значення зводиться до `code` — дефолт, за яким concern лишається eligible для LLM-fix-ladder.
+Нормалізований meta несе також `skipLocalTier` (boolean, дефолт `false`): `true` — concern пропускає local-min/local-min-retry rung-и LLM-ladder-а, перша спроба одразу йде на cloud-min. Для concern-ів, де local-tier емпірично майже завжди лише витрачає бюджет rung-а без результату (напр. `js/eslint`).
 
 ## Публічний API
 
