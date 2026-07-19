@@ -8,7 +8,8 @@
     "@7n/rules-ci-github",
     "@7n/rules-ci-azure",
     "@7n/rules-lang-python",
-    "@7n/rules-lang-rust"
+    "@7n/rules-lang-rust",
+    "@7n/rules-lang-js"
   ],
   "ignoreBinaries": [
     "cspell",
@@ -77,7 +78,8 @@
         "@7n/mt",
         "github-actionlint",
         "v8r",
-        "ajv"
+        "ajv",
+        "jscpd"
       ]
     },
     "demo": {
@@ -99,7 +101,8 @@
         "**/*.mjs"
       ],
       "ignoreDependencies": [
-        "@earendil-works/pi-coding-agent"
+        "@earendil-works/pi-coding-agent",
+        "@earendil-works/pi-ai"
       ]
     },
     "plugins/ci-github": {
@@ -130,6 +133,10 @@
     },
     "plugins/lang-python": {
       "entry": [
+        "rules/*/lib/*.mjs",
+        "rules/*/*/main.mjs",
+        "rules/*/*/fix-*.mjs",
+        "rules/**/*.test.mjs",
         "taze/provider.mjs",
         "taze/**/*.test.mjs",
         "stryker.config.mjs",
@@ -140,6 +147,22 @@
       ]
     },
     "plugins/lang-rust": {
+      "entry": [
+        "doc-files/extractors.mjs",
+        "rules/*/lib/*.mjs",
+        "rules/*/*/main.mjs",
+        "rules/*/*/fix-*.mjs",
+        "rules/**/*.test.mjs",
+        "taze/provider.mjs",
+        "taze/**/*.test.mjs",
+        "stryker.config.mjs",
+        "vitest.config.mjs"
+      ],
+      "project": [
+        "**/*.{js,mjs}"
+      ]
+    },
+    "plugins/lang-js": {
       "entry": [
         "taze/provider.mjs",
         "taze/**/*.test.mjs",

@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: plugins/lang-python/rules/python/tooling/main.mjs
 docgen:
-  crc: 847fdfbd
+  crc: d9d48347
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
   issues: surzhik,judge:inaccurate:0.98

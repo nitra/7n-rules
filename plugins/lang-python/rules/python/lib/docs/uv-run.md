@@ -3,7 +3,7 @@ type: JS Module
 title: uv-run.mjs
 resource: plugins/lang-python/rules/python/lib/uv-run.mjs
 docgen:
-  crc: 69f154e6
+  crc: 1b91d292
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.97

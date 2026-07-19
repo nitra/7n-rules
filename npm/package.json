@@ -43,6 +43,7 @@
     "!**/*.test.mjs",
     "!**/*_test.rego",
     "!**/test-helpers.mjs",
+    "!**/tests/**",
     "!**/fixtures/**",
     "!**/__fixtures__/**"
   ],

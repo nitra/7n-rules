@@ -3,7 +3,7 @@ type: JS Module
 title: provider.mjs
 resource: plugins/lang-js/taze/provider.mjs
 docgen:
-  crc: 8749ccfb
+  crc: 821a4e37
 ---
 
 ## Огляд

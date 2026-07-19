@@ -96,8 +96,8 @@ async function checkPipLicenses(uv, cwd, fail) {
  * Detector python/project (read-only).
  * Async (не блокує event loop) — детектор може виконуватись у parallel lane `detectAll()`
  * (ADR 260716-1354).
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат із порушеннями
+ * @param {import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
+ * @returns {Promise<import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintResult>} результат із порушеннями
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
