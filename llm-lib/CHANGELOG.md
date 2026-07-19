@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.8.2] - 2026-07-19
+
+### Changed
+
+- fix(llm-lib): `getRegistry()` — перехід на `ModelRuntime.create()` + `new ModelRegistry(runtime)` замість застарілого `ModelRegistry.create(AuthStorage.create())`, сумісного з `@earendil-works/pi-coding-agent@0.80.10`
+
 ## [2.8.1] - 2026-07-18
 
 ### Changed
