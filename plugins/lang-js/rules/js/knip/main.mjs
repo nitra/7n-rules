@@ -9,6 +9,25 @@ import { pathToFileURL } from 'node:url'
 
 import { main as knipMain } from 'knip'
 
+// Пакети екосистеми n-rules (ядро і lang-/ci-плагіни): їх ставить і веде сам
+// `npx @7n/rules` як devDependency, код споживача їх не імпортує — knip завжди
+// вважав би їх unused. Вбудований ігнор знімає хибне спрацювання у ВСІХ consumer-репо без
+// правки їхніх knip.json (канон ignoreDependencies покриває лише свіжі копії).
+const N_RULES_PKG_RE = /^@7n\/rules(-.+)?$/u
+
+/**
+ * Чи є issue хибним спрацюванням на пакет екосистеми n-rules (unused dependency/devDependency).
+ * @param {{ type: string, symbol?: string }} issue knip-issue
+ * @returns {boolean} true — ігноруємо
+ */
+export function isNRulesPackageIssue(issue) {
+  return (
+    (issue.type === 'dependencies' || issue.type === 'devDependencies') &&
+    typeof issue.symbol === 'string' &&
+    N_RULES_PKG_RE.test(issue.symbol)
+  )
+}
+
 /**
  * Один knip-issue → LintViolation.
  * @param {{ type: string, filePath?: string, symbol?: string, symbolType?: string, line?: number, col?: number, severity?: string }} issue knip-issue
@@ -60,7 +79,9 @@ export async function lint(ctx) {
   for (const byFile of Object.values(results.issues)) {
     for (const byKey of Object.values(byFile)) {
       for (const issue of Object.values(byKey)) {
-        violations.push(issueToViolation(/** @type {Parameters<typeof issueToViolation>[0]} */ (issue), cwd))
+        const typed = /** @type {Parameters<typeof issueToViolation>[0]} */ (issue)
+        if (isNRulesPackageIssue(typed)) continue
+        violations.push(issueToViolation(typed, cwd))
       }
     }
   }

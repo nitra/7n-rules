@@ -22,7 +22,8 @@
         "**/.licensee.json",
         "docs/specs/**/*.json",
         "docs/plans/**/*.json",
-        "any.json"
+        "any.json",
+        "**/data/tooling/oxlint-canonical.json"
       ]
     },
     {
@@ -269,6 +270,14 @@
       "fileMatch": [
         "**/docs/layers.json",
         "layers.json"
+      ]
+    },
+    {
+      "name": "knip-canonical.json",
+      "description": "Канонічний knip-конфіг правила js/tooling (@7n/rules-lang-js) — офіційна схема knip@5",
+      "url": "https://unpkg.com/knip@5/schema.json",
+      "fileMatch": [
+        "**/data/tooling/knip-canonical.json"
       ]
     }
   ]
