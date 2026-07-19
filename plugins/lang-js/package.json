@@ -1,7 +1,7 @@
 {
   "name": "@7n/rules-lang-js",
   "version": "0.3.1",
-  "description": "Плагін @7n/rules: JS/npm/bun-екосистема — taze-провайдер (package.json, bunx taze) і doc-files-екстрактори (oxc AST)",
+  "description": "Плагін @7n/rules: JS/npm/bun-екосистема — lint-правила (js/bun/vue/js-run/npm-module/db), taze-провайдер (package.json, bunx taze) і doc-files-екстрактори (oxc AST)",
   "keywords": [
     "javascript",
     "bun",
@@ -22,6 +22,7 @@
   "type": "module",
   "files": [
     "doc-files",
+    "rules",
     "taze",
     "skills",
     "CHANGELOG.md",
@@ -35,7 +36,7 @@
       "lang:js"
     ],
     "contributes": {
-      "rules": false,
+      "rules": true,
       "handlers": {
         "taze": "./taze/provider.mjs",
         "doc-files": "./doc-files/extractors.mjs"
@@ -50,8 +51,17 @@
       }
     }
   },
+  "dependencies": {
+    "eslint": "^10.4.1",
+    "globby": "^16.0.0",
+    "ignore": "^7.0.5",
+    "jscpd": "^5.0.11",
+    "knip": "^6.22.0",
+    "oxc-parser": "^0.137.0",
+    "oxlint": "^1.68.0"
+  },
   "peerDependencies": {
-    "@7n/rules": ">=1.24.0"
+    "@7n/rules": ">=1.27.0"
   },
   "publishConfig": {
     "access": "public"
