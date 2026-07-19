@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.0] - 2026-07-19
+
+### Added
+
+- taze: по завершенню переносить зміни з автоствореного worktree назад у вихідне дерево (untracked) і прибирає worktree
+- lint --full: worktree-only гейт (auto-create + bring-back + cleanup), спільна логіка з taze винесена у scripts/lib/auto-worktree.mjs
+
 ## [1.24.0] - 2026-07-19
 
 ### Added
