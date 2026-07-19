@@ -3,7 +3,7 @@ type: JS Module
 title: ensure-tool.mjs
 resource: npm/scripts/lib/ensure-tool.mjs
 docgen:
-  crc: b1b054d0
+  crc: e884b8bb
 ---
 
 Модуль `ensure-tool.mjs` — єдина точка резолву зовнішніх CLI-залежностей пакета `@7n/rules`. Він гарантує, що потрібний бінарник (`hk`, `conftest`, `shellcheck`, `actionlint`, `dotenv-linter`, `opa`, `regal`, `hadolint`, `kubeconform`, `kubescape`) доступний у системі, виконуючи послідовний пошук:
@@ -26,12 +26,14 @@ docgen:
 | `ensureTool(toolId)`        | `function` | Резолвить і за потреби встановлює зовнішній CLI (sync). Повертає абсолютний шлях до бінарника або кидає `Error`.                                     |
 | `ensureToolAsync(toolId)`   | `function` | Async-варіант для parallel lane `detectAll()`: single-flight (in-process) + `withLock` (cross-process) навколо auto-install кроку. Повертає `Promise<string>`. |
 | `ensureHkInstall(hkBin)`    | `function` | Виконує `hk install` для реєстрації git pre-commit hook. Жодного return value; на помилку лише `console.warn`.                                       |
+| `ToolProvisionError`        | `class`    | Транзієнтний збій авто-встановлення (GitHub API rate-limit, мережа, обірваний download). Споживачі розпізнають за `name` і можуть спрацювати fail-open (див. `lint-surface/detect.mjs`). |
+| `fetchLatestVersion(repo, curlBin)` | `function` | Резолвить останній тег релізу: GitHub API (з токеном за наявності) → redirect-fallback повз API. Експортовано для юніт-тестів. |
 
 Внутрішні (не експортуються, але формують контракт модуля):
 
 - `TOOLS` — реєстр `Record<string, ToolEntry>` із описом install-стратегії для кожного тула.
 - `ToolEntry` — JSDoc-тип, що описує поля одного запису реєстру.
-- Допоміжні функції: `getCacheDir`, `mapArch`, `fetchLatestVersion`, `installFromGithub`, `installViaBrew`, `installViaScoop`, `autoInstall`, `buildHint`.
+- Допоміжні функції: `getCacheDir`, `mapArch`, `githubAuthArgs`, `fetchLatestVersionViaApi`, `fetchLatestVersionViaRedirect`, `installFromGithub`, `installViaBrew`, `installViaScoop`, `autoInstall`, `buildHint`.
 
 ## Функції
 
@@ -64,13 +66,11 @@ docgen:
   - `repo` — репозиторій у форматі `owner/repo`.
   - `curlBin` — абсолютний шлях до бінарника `curl`.
 - **Повертає:** версію останнього релізу без префікса `v` (наприклад `0.4.1`).
-- **Поведінка:** через `spawnSync` викликає `curl -sSL -H "Accept: application/vnd.github+json" https://api.github.com/repos/<repo>/releases/latest`, парсить JSON, бере поле `tag_name`, прибирає префікс `v` за допомогою регексу `TAG_V_PREFIX_RE`.
-- **Помилки:**
-  - `curl failed: ...` — `r.error` ненульове.
-  - `curl exit <status>: ...` — ненульовий exit-код.
-  - `GitHub API response is not JSON: ...` — некоректний JSON.
-  - `GitHub API: tag_name missing for <repo>` — у відповіді немає `tag_name`.
-- **Side effects:** мережевий HTTP-запит до GitHub API.
+- **Поведінка:** двоступеневий lookup.
+  1. GitHub API: `curl -sSL https://api.github.com/repos/<repo>/releases/latest` з `Accept: application/vnd.github+json`; якщо в env є `GITHUB_TOKEN` (або `GH_TOKEN`) — додається `Authorization: Bearer <token>`, що піднімає rate-limit із 60/год (per-IP, вичерпується на shared CI-runner-ах) до 5000/год. Парсить JSON, бере `tag_name`, прибирає префікс `v`.
+  2. Redirect-fallback (при будь-якому збої API): `https://github.com/<repo>/releases/latest` переадресовує на `…/releases/tag/<tag>`; тег читається з фінального URL (`curl -sIL -w '%{url_effective}'`). Веб-endpoint не підпадає під API rate-limit.
+- **Помилки:** кидає `ToolProvisionError` лише коли не вдались обидва шляхи; повідомлення містить обидві причини (для API-відповіді без `tag_name` — і її `message`, напр. «API rate limit exceeded»).
+- **Side effects:** мережеві HTTP-запити до GitHub.
 
 ### `installFromGithub(toolId, entry, cacheDir)`
 
@@ -90,11 +90,12 @@ docgen:
   7. Інакше викликає `tar` із прапорцем `-xJf` (для `.tar.xz`) або `-xzf` (для `.tar.gz`) для розпакування в temp-каталог, знаходить реальний шлях бінарника через `entry.binFinder(ver)` або просто `toolId`, перевіряє його існування — і так само атомарним `renameSync` публікує його у `<cacheDir>/<toolId>` (flat-ім'я, незалежно від вкладеної структури архіву).
   8. У `finally` прибирає весь temp-каталог (`rmSync(tmpDir, { recursive: true, force: true })`) — і архів, і проміжні файли розпакування зникають одним викликом.
 - **Помилки:**
-  - `curl не знайдено в PATH — потрібен для завантаження <toolId>`.
-  - `tar не знайдено в PATH — потрібен для встановлення <toolId>`.
-  - `Завантаження <toolId> не вдалось: ...` / `curl exit <status> при завантаженні <toolId>: ...`.
-  - `tar failed for <toolId>: ...` / `tar exit <status> для <toolId>: ...`.
-  - `Бінарник <toolId> не знайдено після розпакування: <extractedBin>`.
+  - `curl не знайдено в PATH — потрібен для завантаження <toolId>` (`Error` — конфігурація середовища).
+  - `tar не знайдено в PATH — потрібен для встановлення <toolId>` (`Error`).
+  - `Завантаження <toolId> не вдалось: ...` / `curl exit <status> при завантаженні <toolId>: ...` (`ToolProvisionError` — транзієнтний мережевий збій).
+  - `tar failed for <toolId>: ...` / `tar exit <status> для <toolId>: ...` (`Error`).
+  - `Бінарник <toolId> не знайдено після розпакування: <extractedBin>` (`Error`).
+  - Збій lookup версії пропагується як `ToolProvisionError` із `fetchLatestVersion`.
 - **Side effects:** мережа, файлова система (унікальний temp-каталог, атомарна публікація, chmod, очищення temp).
 
 ### `installViaBrew(toolId, entry)`

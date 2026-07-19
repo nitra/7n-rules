@@ -59,3 +59,6 @@ jobs:
 
       - name: Lint text
         run: bunx n-rules lint text --no-fix
+        env:
+          # ensure-tool: авторизований lookup GitHub Releases (per-IP rate-limit на shared-runner-ах)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

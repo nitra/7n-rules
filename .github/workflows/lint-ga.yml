@@ -40,3 +40,6 @@ jobs:
 
       - name: Lint GA
         run: bunx n-rules lint ga --no-fix
+        env:
+          # ensure-tool: авторизований lookup GitHub Releases (per-IP rate-limit на shared-runner-ах)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
