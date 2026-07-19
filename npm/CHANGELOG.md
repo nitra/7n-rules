@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.31.0] - 2026-07-19
+
+### Changed
+
+- sync: діапазони вже оголошених плагінів @7n/rules-* у package.json підіймаються до ^latest тим самим кроком, що й ядро — фікси плагінів доїжджають без ручного bun update (bun i сам по собі поважає lockfile); недоступний registry для окремого плагіна — warning і пропуск
+- lint: правило style (stylelint/css/vue-стилі) переїхало з ядра у @7n/rules-lang-js — фінальний крок фази 5 spec lang-plugins-extraction по фронтенд-сімʼї
+
 ## [1.30.0] - 2026-07-19
 
 ### Added
