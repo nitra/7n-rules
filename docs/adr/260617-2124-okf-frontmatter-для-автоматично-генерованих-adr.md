@@ -40,3 +40,10 @@ Chosen option: "Додати OKF-сумісний YAML frontmatter у rewrite-о
 - `docs/adr/*.md`: 300 clean ADR мігровано, додано `type: ADR` і OKF frontmatter.
 
 Формат, зафіксований у чернетці: `type: ADR`, `title`, `tags: [adr]`, `timestamp` з `captured` або з імені файлу.
+
+## Update 2026-06-18
+
+- Clean ADR-файли після нормалізації мають OKF v0.1 frontmatter з `type: ADR` і `title:`; `# ADR: <title>` у тілі прибрано як дублювання.
+- `validateMadr()` у `npm/scripts/lib/adr/normalize-pipeline.mjs` приймає frontmatter і перевіряє `type: ADR`.
+- Міграційний скрипт обробив 300 clean ADR-файлів; `tags`, `timestamp` і `description` прибрані як надлишкова метадата.
+- Змінені місця: `normalize-pipeline.mjs`, `normalize-decisions.sh`, правила `npm/rules/adr/adr.mdc` і `.cursor/rules/n-adr.mdc`, тест `normalize-pipeline.test.mjs`.
