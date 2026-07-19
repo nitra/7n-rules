@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.1] - 2026-07-19
+
+### Fixed
+
+- extractors.test.mjs: імпорт з ../extractors.mjs замість неіснуючого ../main.mjs (хвіст перейменування фази 5b; knip unresolved)
+
 ## [0.3.0] - 2026-07-19
 
 ### Added

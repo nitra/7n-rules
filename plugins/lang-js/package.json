@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules-lang-js",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Плагін @7n/rules: JS/npm/bun-екосистема — taze-провайдер (package.json, bunx taze) і doc-files-екстрактори (oxc AST)",
   "keywords": [
     "javascript",
