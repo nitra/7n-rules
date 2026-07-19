@@ -95,7 +95,7 @@ function runCommand(cmd, args, cwd, spawnFn) {
  * `diff.major` записи мапляться workspace → manifest (контракт порту).
  * @type {import('@7n/rules/plugin-api').EcosystemProvider}
  */
-export const jsProvider = {
+const jsProvider = {
   id: 'js-bun',
   title: 'npm/bun-пакети',
   manifestNoun: 'package.json',

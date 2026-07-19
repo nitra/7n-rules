@@ -3,7 +3,7 @@ type: JS Module
 title: fix-ruff.mjs
 resource: plugins/lang-python/rules/python/ruff/fix-ruff.mjs
 docgen:
-  crc: f51b6719
+  crc: 2c05fd25
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99

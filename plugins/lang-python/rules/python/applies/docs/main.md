@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: plugins/lang-python/rules/python/applies/main.mjs
 docgen:
-  crc: 073f0b2f
+  crc: 4c0854ec
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.97

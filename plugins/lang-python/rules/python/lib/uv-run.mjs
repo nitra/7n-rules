@@ -30,7 +30,7 @@ export async function uvToolAvailable(uv, tool) {
  * `fail()` для випадку відсутнього `uv` уже викликаний усередині.
  * Async (не блокує event loop) — детектор може виконуватись у parallel lane `detectAll()`
  * (ADR 260716-1354).
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
+ * @param {import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
  * @param {(msg: string, opts: object) => void} fail колбек реєстрації порушення.
  * @param {string} tool ім'я інструменту (`mypy`|`ruff`) для перевірки доступності.
  * @returns {Promise<{uv: string, targets: string[]}|null>} preflight-результат, або null (рано вийти).

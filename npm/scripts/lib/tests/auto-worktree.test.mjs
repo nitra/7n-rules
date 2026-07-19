@@ -4,15 +4,13 @@
  *     auto-create (`npx \@7n/mt worktree create` + `bun install`); detached HEAD →
  *     кидає; requireCleanTree → кидає на брудному дереві, не кидає на чистому
  *     і коли вимкнено.
- *   - bringChangesBackToOriginal: копіювання/видалення за `git status --porcelain`,
- *     перейменування, провал git status.
- *   - removeAutoCreatedWorktree: команда видалення, провал не кидає.
+ *   - bringChangesBackToOriginal/removeAutoCreatedWorktree: спільний набір
+ *     `describeAutoWorktreeBridge` (utils/tests/auto-worktree-suite.mjs).
  */
-import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 
-import { ensureDir, withTmpDir } from '../../utils/test-helpers.mjs'
+import { describeAutoWorktreeBridge } from '../../utils/tests/auto-worktree-suite.mjs'
 import { bringChangesBackToOriginal, ensureRunningInWorktree, removeAutoCreatedWorktree } from '../auto-worktree.mjs'
 
 /** Заглушка `log` для тестів, де побічний ефект не перевіряється. */
@@ -137,128 +135,4 @@ describe('ensureRunningInWorktree', () => {
   })
 })
 
-describe('bringChangesBackToOriginal', () => {
-  test('порожній git status → нічого не копіює, повертає []', async () => {
-    const copied = []
-    const brought = await bringChangesBackToOriginal(
-      '/wt',
-      '/orig',
-      () => ({ status: 0, stdout: '', stderr: '' }),
-      noop,
-      {
-        copyFile: (src, dest) => {
-          copied.push([src, dest])
-          return Promise.resolve()
-        },
-        mkdir: noop,
-        rm: noop
-      }
-    )
-    expect(brought).toEqual([])
-    expect(copied).toHaveLength(0)
-  })
-
-  test('копіює наявний у worktree файл, видаляє в оригіналі той, якого там уже нема', async () => {
-    await withTmpDir(async wtDir => {
-      await ensureDir(join(wtDir, 'src'))
-      await writeFile(join(wtDir, 'src', 'a.ts'), 'x', 'utf8')
-
-      const copied = []
-      const removed = []
-      const brought = await bringChangesBackToOriginal(
-        wtDir,
-        '/orig',
-        () => ({ status: 0, stdout: ' M src/a.ts\n D src/b.ts\n', stderr: '' }),
-        noop,
-        {
-          copyFile: (src, dest) => {
-            copied.push([src, dest])
-            return Promise.resolve()
-          },
-          mkdir: noop,
-          rm: path => {
-            removed.push(path)
-            return Promise.resolve()
-          }
-        }
-      )
-
-      expect(brought).toEqual(['src/a.ts', 'src/b.ts'])
-      expect(copied).toEqual([[join(wtDir, 'src/a.ts'), join('/orig', 'src/a.ts')]])
-      expect(removed).toEqual([join('/orig', 'src/b.ts')])
-    })
-  })
-
-  test('перейменований файл (`old -> new` у porcelain) — переносить лише нову назву', async () => {
-    await withTmpDir(async wtDir => {
-      await writeFile(join(wtDir, 'b.ts'), 'x', 'utf8')
-
-      const copied = []
-      const brought = await bringChangesBackToOriginal(
-        wtDir,
-        '/orig',
-        () => ({ status: 0, stdout: 'R  a.ts -> b.ts\n', stderr: '' }),
-        noop,
-        {
-          copyFile: (src, dest) => {
-            copied.push([src, dest])
-            return Promise.resolve()
-          },
-          mkdir: noop,
-          rm: noop
-        }
-      )
-
-      expect(brought).toEqual(['b.ts'])
-      expect(copied).toEqual([[join(wtDir, 'b.ts'), join('/orig', 'b.ts')]])
-    })
-  })
-
-  test('git status провалився → лог-попередження, нічого не переносить', async () => {
-    const logs = []
-    const brought = await bringChangesBackToOriginal(
-      '/wt',
-      '/orig',
-      () => ({ status: 1, stdout: '', stderr: 'not a git repository' }),
-      line => {
-        logs.push(line)
-      },
-      {}
-    )
-    expect(brought).toEqual([])
-    expect(logs.some(l => l.includes('НЕ перенесені назад'))).toBe(true)
-  })
-})
-
-describe('removeAutoCreatedWorktree', () => {
-  test('викликає npx @7n/mt worktree remove <branch> з cwd=originalCwd', () => {
-    const calls = []
-    removeAutoCreatedWorktree(
-      'main-lint',
-      '/orig',
-      (cmd, args, opts) => {
-        calls.push({ cmd, args, opts })
-        return { status: 0, stdout: '', stderr: '' }
-      },
-      noop
-    )
-    expect(calls).toEqual([
-      { cmd: 'npx', args: ['@7n/mt', 'worktree', 'remove', 'main-lint'], opts: { cwd: '/orig', encoding: 'utf8' } }
-    ])
-  })
-
-  test('провал команди не кидає — лише логує попередження', () => {
-    const logs = []
-    expect(() =>
-      removeAutoCreatedWorktree(
-        'main-lint',
-        '/orig',
-        () => ({ status: 1, stdout: '', stderr: 'busy' }),
-        line => {
-          logs.push(line)
-        }
-      )
-    ).not.toThrow()
-    expect(logs.some(l => l.includes('Не вдалось прибрати'))).toBe(true)
-  })
-})
+describeAutoWorktreeBridge({ bringChangesBackToOriginal, removeAutoCreatedWorktree, branch: 'main-lint' })

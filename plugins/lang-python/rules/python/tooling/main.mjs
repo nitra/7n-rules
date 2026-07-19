@@ -6,8 +6,8 @@ import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/viol
 
 /**
  * Перевіряє відповідність проєкту правилам python.mdc.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат із порушеннями
+ * @param {import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
+ * @returns {Promise<import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintResult>} результат із порушеннями
  */
 export function lint(ctx) {
   const cwd = ctx.cwd
