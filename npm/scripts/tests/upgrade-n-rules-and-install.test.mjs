@@ -11,7 +11,8 @@ import {
   fetchLatestNRulesVersionFromNpm,
   resolveInstalledPackageRoot,
   shouldSkipNpmVersionUpgrade,
-  upgradeNRulesToLatestAndBunInstall
+  upgradeNRulesToLatestAndBunInstall,
+  upgradePluginRanges
 } from '../upgrade-n-rules-and-install.mjs'
 import { withTmpDir } from '../utils/test-helpers.mjs'
 
@@ -363,5 +364,64 @@ describe('upgradeNRulesToLatestAndBunInstall — version upgrade paths', () => {
       const updated = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
       expect(updated.dependencies['@7n/rules']).toBe('^5.0.0')
     })
+  })
+})
+
+/** @param {Record<string, string>} versions пакет → latest з "registry" */
+function stubRegistry(versions) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(url => {
+      const name = decodeURIComponent(String(url).replace('https://registry.npmjs.org/', '').replace('/latest', ''))
+      const version = versions[name]
+      return Promise.resolve(
+        version
+          ? { ok: true, json: () => Promise.resolve({ version }) }
+          : { ok: false, status: 404, statusText: 'Not Found' }
+      )
+    })
+  )
+}
+
+describe('upgradePluginRanges', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  test('підіймає діапазони плагінів у dependencies і devDependencies до ^latest', async () => {
+    stubRegistry({ '@7n/rules-lang-js': '0.9.9', '@7n/rules-ci-github': '2.0.0' })
+    const pkg = {
+      dependencies: { '@7n/rules-ci-github': '^1.7.1', lodash: '^4.0.0' },
+      devDependencies: { '@7n/rules-lang-js': '^0.4.0', '@7n/rules': '^1.28.1' }
+    }
+    const changed = await upgradePluginRanges(pkg)
+    expect(changed.toSorted()).toEqual(['@7n/rules-ci-github', '@7n/rules-lang-js'])
+    expect(pkg.dependencies['@7n/rules-ci-github']).toBe('^2.0.0')
+    expect(pkg.devDependencies['@7n/rules-lang-js']).toBe('^0.9.9')
+    // ядро і чужі пакети не чіпає
+    expect(pkg.devDependencies['@7n/rules']).toBe('^1.28.1')
+    expect(pkg.dependencies.lodash).toBe('^4.0.0')
+  })
+
+  test('вже ^latest → без змін; workspace-специфікатор не чіпає', async () => {
+    stubRegistry({ '@7n/rules-lang-js': '0.4.1' })
+    const pkg = {
+      devDependencies: { '@7n/rules-lang-js': '^0.4.1', '@7n/rules-lang-rust': 'workspace:*' }
+    }
+    const changed = await upgradePluginRanges(pkg)
+    expect(changed).toEqual([])
+    expect(pkg.devDependencies['@7n/rules-lang-rust']).toBe('workspace:*')
+  })
+
+  test('registry недоступний для плагіна → warning і пропуск, без винятку', async () => {
+    stubRegistry({})
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {
+      /* глушимо warning у тесті */
+    })
+    const pkg = { devDependencies: { '@7n/rules-lang-js': '^0.4.0' } }
+    await expect(upgradePluginRanges(pkg)).resolves.toEqual([])
+    expect(pkg.devDependencies['@7n/rules-lang-js']).toBe('^0.4.0')
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
   })
 })

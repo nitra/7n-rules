@@ -3,7 +3,7 @@ type: JS Module
 title: upgrade-n-rules-and-install.mjs
 resource: npm/scripts/upgrade-n-rules-and-install.mjs
 docgen:
-  crc: f33841b9
+  crc: ab3a4cc2
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.98
@@ -28,6 +28,7 @@ shouldSkipNpmVersionUpgrade — Визначає, чи можна замінит
 fetchLatestNRulesVersionFromNpm — Отримує актуальну версію пакета `@7n/rules` з реєстру npm (через поле `version` у JSON dist-tag `latest`), що доступно на https://registry.npmjs.org/@7n/rules/latest.
 resolveInstalledPackageRoot — Знаходить абсолютний шлях до встановленого пакета у директорії `node_modules`, або надає резервний шлях.
 upgradeNRulesToLatestAndBunInstall — Оновлює `@7n/rules` до останньої версії з npm (якщо це дозволено конфігурацією), виконує встановлення залежностей за допомогою `bun i`, і повертає корінь пакета для подальшої синхронізації конфігураційних файлів, таких як `mdc/`.
+upgradePluginRanges — Підіймає діапазони вже оголошених плагінів `@7n/rules-*` у dependencies/devDependencies до `^latest` з npm (мутує pkg; той самий крок, що й для ядра — бо `bun i` поважає lockfile і фікси плагінів інакше не доїжджають). Специфікатори поза npm-semver (workspace:, file:, git…) не чіпає; недоступний registry для окремого плагіна — warning і пропуск.
 
 ## Гарантії поведінки
 
