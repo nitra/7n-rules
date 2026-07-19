@@ -58,3 +58,9 @@ Chosen option: "розділити `docgen` на `doc-files` і `doc-aggregate`,
 - Поріг гейта: `50`, конфігурується через `N_CURSOR_DOC_FILES_GATE_MAX`.
 - Налаштування hook: `npm/.claude-template/settings.template.json`.
 - Спека: `docs/specs/2026-06-10-docgen-split-doc-files-doc-aggregate-design.md`.
+
+## Update 2026-06-18
+
+- Уточнено межу старого `n-docgen`: CLI-команди `npx @nitra/cursor docgen scan` і `npx @nitra/cursor docgen modules` лише повертають детерміновані JSON-зрізи файлів/модулів.
+- Повний запис `.md`-файлів у цьому flow виконувався через Claude skill `/n-docgen`, а не самим CLI.
+- Transcript не містить підтверджених негативних наслідків цього розмежування.
