@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { extractFacts } from '../main.mjs'
+import { extractFacts } from '../extractors.mjs'
 
 const caches = src => extractFacts(src, 'x.mjs').markers.caches
 const symbols = src => extractFacts(src, 'x.mjs').localSymbols
