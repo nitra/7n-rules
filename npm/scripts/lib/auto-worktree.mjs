@@ -1,0 +1,157 @@
+/** @see ./docs/auto-worktree.md */
+import { existsSync } from 'node:fs'
+import { copyFile, mkdir, rm } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+
+/**
+ * Гарантує, що подальші кроки виконуються в ізольованому worktree
+ * (`main.json.worktree: true`-контракт), навіть коли викликач — детермінований
+ * JS-код, що не годує SKILL.md жодному LLM-агенту (тож агентський preflight-блок
+ * з `worktree-notice.mjs` нікому виконувати). Якщо `cwd` вже під `.worktrees/` —
+ * повертає його без змін. Інакше сам створює `.worktrees/<branch>-<suffix>`
+ * (`npx \@7n/mt worktree create`) і ставить залежності (`bun install`).
+ *
+ * **Гейт на чисте дерево.** Auto-create читає стан і потім переносить зміни
+ * назад копіюванням файлів (`bringChangesBackToOriginal`) — а не git merge.
+ * Якщо у вихідному `cwd` вже є незакомічені зміни, вони НЕ потраплять у щойно
+ * створений worktree (той — checkout HEAD), і перенесення назад мовчки
+ * затерло б їх версією з worktree. Тому за замовчуванням (`requireCleanTree:
+ * true`) auto-create кидає на брудному дереві замість ризикувати чужими
+ * незакоміченими правками. Викликач, що гарантує чистоту дерева сам (наприклад
+ * taze — SKILL.md вимагає цього як передумову ще ДО виклику), може передати
+ * `requireCleanTree: false`, щоб не платити за зайву git-команду.
+ * @param {string} cwd каталог для перевірки
+ * @param {typeof import('node:child_process').spawnSync} spawnFn інжект для тестів
+ * @param {(line: string) => void} log колбек прогресу
+ * @param {{ suffix: string, description: string, requireCleanTree?: boolean }} opts `suffix` — коротка (до 10 символів) назва задачі для `<branch>-<suffix>`; `description` — текст для `npx \@7n/mt worktree create`
+ * @returns {{ cwd: string, autoCreated: boolean, branchArg: string|null }} `autoCreated: false` — `cwd` без змін
+ *   (вже worktree); `autoCreated: true` — `cwd` щойно створеного worktree і `branchArg`, з яким його створено
+ */
+export function ensureRunningInWorktree(cwd, spawnFn, log, { suffix, description, requireCleanTree = true }) {
+  const toplevelResult = spawnFn('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8' })
+  const toplevel = toplevelResult.status === 0 ? toplevelResult.stdout.trim() : ''
+  const segments = new Set(toplevel.replaceAll('\\', '/').split('/'))
+  if (segments.has('.worktrees')) return { cwd, autoCreated: false, branchArg: null }
+
+  const branchResult = spawnFn('git', ['branch', '--show-current'], { cwd, encoding: 'utf8' })
+  const currentBranch = branchResult.status === 0 ? branchResult.stdout.trim() : ''
+  if (!currentBranch) {
+    throw new Error(
+      `"${cwd}" не в ізольованому worktree (git toplevel: "${toplevel || '?'}"), і поточну гілку визначити не вдалось ` +
+        '(detached HEAD?) — автоматичне створення worktree за конвенцією `<current-branch>-<suffix>` неможливе. Перейди на гілку вручну.'
+    )
+  }
+
+  if (requireCleanTree) {
+    const statusResult = spawnFn('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' })
+    if (statusResult.status === 0 && statusResult.stdout.trim().length > 0) {
+      throw new Error(
+        `"${cwd}" не в ізольованому worktree і має незакомічені зміни — auto-create worktree тут НЕБЕЗПЕЧНИЙ: ` +
+          'перенесення результату назад копіюванням файлів затерло б ці незакомічені правки версією зі свіжого ' +
+          'checkout (worktree = HEAD, без твоїх правок). Закомить/застеш зміни або створи worktree вручну.'
+      )
+    }
+  }
+
+  const branchArg = `${currentBranch}-${suffix}`
+  const pathSegment = branchArg.replaceAll('/', '-')
+  log(`⚠️ "${cwd}" не в ізольованому worktree — створюю ".worktrees/${pathSegment}"...`)
+  runCommand('npx', ['@7n/mt', 'worktree', 'create', branchArg, description], cwd, spawnFn)
+
+  const newCwd = join(cwd, '.worktrees', pathSegment)
+  log('📥 bun install (bootstrap нового дерева)...')
+  runCommand('bun', ['install'], newCwd, spawnFn)
+  return { cwd: newCwd, autoCreated: true, branchArg }
+}
+
+/**
+ * Переносить зміни з автоствореного worktree назад у вихідне дерево як
+ * **untracked/незакомічені** правки (просте копіювання файлів, без git
+ * merge/cherry-pick). Джерело істини — `git status --porcelain` у worktree:
+ * для кожного шляху копіює файл, якщо він існує (модифікація/додавання), або
+ * видаляє його у вихідному дереві, якщо existsSync каже, що в worktree його
+ * вже нема (видалення). Перейменування (`old -> new` у porcelain) переносять
+ * лише нову назву — стара лишається як була, прийнятний компроміс для
+ * інструментів, що самі файли не перейменовують (ефект можливий лише як
+ * побічний результат LLM-рефакторингу чи форматера).
+ * @param {string} worktreeCwd автостворений worktree, з якого переносимо
+ * @param {string} originalCwd вихідне дерево, куди переносимо
+ * @param {typeof import('node:child_process').spawnSync} spawnFn інжект для тестів
+ * @param {(line: string) => void} log колбек прогресу
+ * @param {{ copyFile?: (src: string, dest: string) => Promise<void>, rm?: (path: string, opts?: object) => Promise<void>, mkdir?: (path: string, opts?: object) => Promise<void> }} [deps] інжекти для тестів
+ * @returns {Promise<string[]>} відносні шляхи перенесених файлів
+ */
+export async function bringChangesBackToOriginal(worktreeCwd, originalCwd, spawnFn, log, deps = {}) {
+  const copy = deps.copyFile ?? copyFile
+  const removeFile = deps.rm ?? rm
+  const makeDir = deps.mkdir ?? mkdir
+
+  const statusResult = spawnFn('git', ['status', '--porcelain'], { cwd: worktreeCwd, encoding: 'utf8' })
+  if (statusResult.status !== 0) {
+    log(
+      `⚠️ Не вдалось прочитати git status у "${worktreeCwd}" — зміни НЕ перенесені назад, worktree лишиться для ручного розбору.`
+    )
+    return []
+  }
+
+  const lines = statusResult.stdout.split('\n').filter(Boolean)
+  if (lines.length === 0) {
+    log('ℹ️ Worktree без змін — нічого переносити назад.')
+    return []
+  }
+
+  const brought = []
+  for (const line of lines) {
+    const rest = line.slice(3)
+    const relPath = rest.includes(' -> ') ? rest.split(' -> ', 2)[1] : rest
+    const srcPath = join(worktreeCwd, relPath)
+    const destPath = join(originalCwd, relPath)
+    if (existsSync(srcPath)) {
+      await makeDir(dirname(destPath), { recursive: true })
+      await copy(srcPath, destPath)
+    } else {
+      await removeFile(destPath, { force: true })
+    }
+    brought.push(relPath)
+  }
+  log(`📤 Перенесено назад у "${originalCwd}" як untracked: ${brought.join(', ')}`)
+  return brought
+}
+
+/**
+ * Прибирає автостворений worktree разом з його ефемерною git-гілкою
+ * (`npx \@7n/mt worktree remove <branch>`) — викликати лише ПІСЛЯ
+ * `bringChangesBackToOriginal`, інакше зміни згорять разом з деревом.
+ * Не кидає при провалі — це прибирання, а не крок, від якого залежить
+ * результат прогону; провал лише логується, worktree лишається для
+ * ручного розбору.
+ * @param {string} branchArg гілка, з якою worktree був створений (з `ensureRunningInWorktree`)
+ * @param {string} originalCwd вихідне дерево, звідки виконати `npx \@7n/mt worktree remove`
+ * @param {typeof import('node:child_process').spawnSync} spawnFn інжект для тестів
+ * @param {(line: string) => void} log колбек прогресу
+ * @returns {void}
+ */
+export function removeAutoCreatedWorktree(branchArg, originalCwd, spawnFn, log) {
+  log(`🧹 Прибираю автостворений worktree "${branchArg}"...`)
+  const result = spawnFn('npx', ['@7n/mt', 'worktree', 'remove', branchArg], { cwd: originalCwd, encoding: 'utf8' })
+  if (result.status !== 0) {
+    log(`⚠️ Не вдалось прибрати worktree "${branchArg}" — приберіть вручну (${result.stderr || result.stdout})`)
+  }
+}
+
+/**
+ * Синхронно виконує детерміновану команду (bunx/bun/npx), кидає з
+ * exit-кодом+stderr при провалі.
+ * @param {string} cmd бінарник
+ * @param {string[]} args аргументи
+ * @param {string} cwd робочий каталог
+ * @param {typeof import('node:child_process').spawnSync} spawnFn інжект для тестів
+ * @returns {string} stdout
+ */
+function runCommand(cmd, args, cwd, spawnFn) {
+  const result = spawnFn(cmd, args, { cwd, encoding: 'utf8' })
+  if (result.status !== 0) {
+    throw new Error(`${cmd} ${args.join(' ')} → exit ${result.status}: ${result.stderr || result.stdout}`)
+  }
+  return result.stdout
+}

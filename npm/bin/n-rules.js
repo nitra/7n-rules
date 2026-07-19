@@ -84,6 +84,11 @@ import {
   RULE_MIGRATIONS
 } from '../scripts/auto-rules.mjs'
 import { detectAutoSkills } from '../scripts/auto-skills.mjs'
+import {
+  bringChangesBackToOriginal,
+  ensureRunningInWorktree,
+  removeAutoCreatedWorktree
+} from '../scripts/lib/auto-worktree.mjs'
 import { readSkillMetaRaw } from '../scripts/lib/skill-meta.mjs'
 import { injectWorktreeNotice } from '../scripts/lib/worktree-notice.mjs'
 import { collectSkillFragments, injectSkillFragments } from '../scripts/lib/skill-fragments.mjs'
@@ -1812,28 +1817,55 @@ try {
           baseRef
         }
         const noFix = args.includes('--no-fix')
+        // `--full` без `--no-fix` мутує ВЕСЬ репо (не лише дельту) — той самий клас
+        // ризику, що й taze: якщо запущено поза .worktrees/, треба ізолювати. `--no-fix`
+        // (detect-only, нуль мутацій) і не-full (дельта, за дизайном працює на живому
+        // дереві задачі, worktree-ізоляція зламала б саму суть дельти) — пропускаємо.
+        const needsWorktreeIsolation = full && !noFix
+        const worktree = needsWorktreeIsolation
+          ? ensureRunningInWorktree(cwdArg, spawnSync, line => console.log(line), {
+              suffix: 'lint',
+              description: 'n-rules lint --full: worktree-only full-repo run'
+            })
+          : { cwd: cwdArg, autoCreated: false, branchArg: null }
+        const runCwd = worktree.cwd
         // Глобальна черга full-прогонів (spec 2026-07-03): одночасно виконується один
         // `lint --full` на машину, паралельні --full чекають лока і бачать чергу та
         // живий прогрес активного прогону; не-full запуски йдуть без лока
         // (див. lint-lock.mjs). Publisher пише знімки прогресу для черги.
         const { withGlobalLintLock, createProgressPublisher } =
           await import('../scripts/lib/lint-surface/lint-lock.mjs')
-        process.exitCode = await withGlobalLintLock({ ...lintOpts, noFix }, async () => {
-          const publisher = lintOpts.full ? createProgressPublisher() : null
-          const runOpts = publisher ? { ...lintOpts, onProgress: publisher.onUpdate } : lintOpts
-          try {
-            if (noFix) {
-              const { detectAll } = await import('../scripts/lib/lint-surface/run-detectors.mjs')
-              // окрема змінна замість (await detectAll(...)).exitCode — no-await-expression-member (oxlint)
-              const detectResult = await detectAll(runOpts)
-              return detectResult.exitCode
+        try {
+          process.exitCode = await withGlobalLintLock({ ...lintOpts, cwd: runCwd, noFix }, async () => {
+            const runOpts = { ...lintOpts, cwd: runCwd }
+            const publisher = runOpts.full ? createProgressPublisher() : null
+            if (publisher) runOpts.onProgress = publisher.onUpdate
+            try {
+              if (noFix) {
+                const { detectAll } = await import('../scripts/lib/lint-surface/run-detectors.mjs')
+                // окрема змінна замість (await detectAll(...)).exitCode — no-await-expression-member (oxlint)
+                const detectResult = await detectAll(runOpts)
+                return detectResult.exitCode
+              }
+              const { runFixPipeline } = await import('../scripts/lib/lint-surface/run-fix.mjs')
+              return await runFixPipeline(runOpts)
+            } finally {
+              publisher?.stop()
             }
-            const { runFixPipeline } = await import('../scripts/lib/lint-surface/run-fix.mjs')
-            return await runFixPipeline(runOpts)
-          } finally {
-            publisher?.stop()
+          })
+        } finally {
+          // Лише для АВТОстворених worktree (лінт уже сидів у своєму — не наш, не чіпаємо).
+          if (worktree.autoCreated) {
+            try {
+              await bringChangesBackToOriginal(runCwd, cwdArg, spawnSync, line => console.log(line))
+            } catch (error) {
+              console.log(
+                `⚠️ Перенесення змін назад провалилось: ${error instanceof Error ? error.message : String(error)}`
+              )
+            }
+            removeAutoCreatedWorktree(worktree.branchArg, cwdArg, spawnSync, line => console.log(line))
           }
-        })
+        }
 
         break
       }
