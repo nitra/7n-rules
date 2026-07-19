@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.29.2] - 2026-07-19
+
+### Changed
+
+- fix(auto-worktree): на брудному дереві перед auto-create — інтерактивний y/N-запит закомить і запушити (`npx @7n/n push`) замість одразу кидати
+- chore(adr): батч фонової нормалізації — чернетки doc-files/worktree-lifecycle у канонічні ADR
+
 ## [1.29.1] - 2026-07-19
 
 ### Changed
