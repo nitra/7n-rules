@@ -21,11 +21,12 @@ function noop() {
 const WORKTREE_OPTS = { suffix: 'lint', description: 'n-lint: worktree-only skill' }
 const DETACHED_HEAD_RE = /detached HEAD/
 const DIRTY_TREE_RE = /незакомічені зміни/
+const TREE_STILL_DIRTY_RE = /усе ще не чисте/
 
 describe('ensureRunningInWorktree', () => {
-  test('вже під .worktrees/ — повертає cwd без змін, нічого не створює', () => {
+  test('вже під .worktrees/ — повертає cwd без змін, нічого не створює', async () => {
     const calls = []
-    const result = ensureRunningInWorktree(
+    const result = await ensureRunningInWorktree(
       '/repo/.worktrees/main-lint',
       (cmd, args = []) => {
         calls.push([cmd, ...args].join(' '))
@@ -38,9 +39,9 @@ describe('ensureRunningInWorktree', () => {
     expect(calls).toEqual(['git rev-parse --show-toplevel'])
   })
 
-  test('поза worktree, чисте дерево — сам створює worktree і ставить залежності', () => {
+  test('поза worktree, чисте дерево — сам створює worktree і ставить залежності', async () => {
     const calls = []
-    const result = ensureRunningInWorktree(
+    const result = await ensureRunningInWorktree(
       '/Users/dev/repo',
       (cmd, args = []) => {
         calls.push([cmd, ...args].join(' '))
@@ -61,9 +62,9 @@ describe('ensureRunningInWorktree', () => {
     expect(calls.some(c => c.startsWith('bun install'))).toBe(true)
   })
 
-  test('гілка зі slash — branchArg лишає slash, шлях worktree — sanitized (slash → -)', () => {
+  test('гілка зі slash — branchArg лишає slash, шлях worktree — sanitized (slash → -)', async () => {
     const calls = []
-    const result = ensureRunningInWorktree(
+    const result = await ensureRunningInWorktree(
       '/repo',
       (cmd, args = []) => {
         calls.push([cmd, ...args].join(' '))
@@ -80,9 +81,9 @@ describe('ensureRunningInWorktree', () => {
     expect(calls).toContain('npx @7n/mt worktree create feature/x-lint n-lint: worktree-only skill')
   })
 
-  test('detached HEAD (немає поточної гілки) — кидає, не створює worktree', () => {
+  test('detached HEAD (немає поточної гілки) — кидає, не створює worktree', async () => {
     const calls = []
-    expect(() =>
+    await expect(
       ensureRunningInWorktree(
         '/repo',
         (cmd, args = []) => {
@@ -94,13 +95,13 @@ describe('ensureRunningInWorktree', () => {
         noop,
         WORKTREE_OPTS
       )
-    ).toThrow(DETACHED_HEAD_RE)
+    ).rejects.toThrow(DETACHED_HEAD_RE)
     expect(calls).not.toContain('npx')
   })
 
-  test('requireCleanTree (дефолт) + брудне дерево — кидає, не створює worktree', () => {
+  test('requireCleanTree (дефолт) + брудне дерево + confirm=false — кидає, не створює worktree', async () => {
     const calls = []
-    expect(() =>
+    await expect(
       ensureRunningInWorktree(
         '/repo',
         (cmd, args = []) => {
@@ -111,15 +112,64 @@ describe('ensureRunningInWorktree', () => {
           return { status: 0, stdout: '', stderr: '' }
         },
         noop,
-        WORKTREE_OPTS
+        WORKTREE_OPTS,
+        { confirm: () => Promise.resolve(false) }
       )
-    ).toThrow(DIRTY_TREE_RE)
+    ).rejects.toThrow(DIRTY_TREE_RE)
     expect(calls).not.toContain('npx')
   })
 
-  test('requireCleanTree: false — створює worktree навіть на брудному дереві', () => {
+  test('requireCleanTree (дефолт) + брудне дерево + confirm=true — пушить (npx @7n/n push), потім створює worktree', async () => {
     const calls = []
-    const result = ensureRunningInWorktree(
+    const confirmCalls = []
+    let statusCallCount = 0
+    const result = await ensureRunningInWorktree(
+      '/repo',
+      (cmd, args = []) => {
+        calls.push([cmd, ...args].join(' '))
+        if (cmd === 'git' && args[0] === 'rev-parse') return { status: 0, stdout: '/repo\n', stderr: '' }
+        if (cmd === 'git' && args[0] === 'branch') return { status: 0, stdout: 'main\n', stderr: '' }
+        if (cmd === 'git' && args[0] === 'status') {
+          statusCallCount += 1
+          return { status: 0, stdout: statusCallCount === 1 ? ' M package.json\n' : '', stderr: '' }
+        }
+        return { status: 0, stdout: '', stderr: '' }
+      },
+      noop,
+      WORKTREE_OPTS,
+      {
+        confirm: message => {
+          confirmCalls.push(message)
+          return Promise.resolve(true)
+        }
+      }
+    )
+    expect(confirmCalls).toHaveLength(1)
+    expect(calls).toContain('npx @7n/n push')
+    expect(result.autoCreated).toBe(true)
+  })
+
+  test('requireCleanTree (дефолт) + confirm=true, але push не очистив дерево — кидає', async () => {
+    await expect(
+      ensureRunningInWorktree(
+        '/repo',
+        (cmd, args = []) => {
+          if (cmd === 'git' && args[0] === 'rev-parse') return { status: 0, stdout: '/repo\n', stderr: '' }
+          if (cmd === 'git' && args[0] === 'branch') return { status: 0, stdout: 'main\n', stderr: '' }
+          if (cmd === 'git' && args[0] === 'status') return { status: 0, stdout: ' M package.json\n', stderr: '' }
+          return { status: 0, stdout: '', stderr: '' }
+        },
+        noop,
+        WORKTREE_OPTS,
+        { confirm: () => Promise.resolve(true) }
+      )
+    ).rejects.toThrow(TREE_STILL_DIRTY_RE)
+  })
+
+  test('requireCleanTree: false — створює worktree навіть на брудному дереві, не питає confirm', async () => {
+    const calls = []
+    const confirmCalls = []
+    const result = await ensureRunningInWorktree(
       '/repo',
       (cmd, args = []) => {
         calls.push([cmd, ...args].join(' '))
@@ -128,10 +178,17 @@ describe('ensureRunningInWorktree', () => {
         return { status: 0, stdout: '', stderr: '' }
       },
       noop,
-      { ...WORKTREE_OPTS, requireCleanTree: false }
+      { ...WORKTREE_OPTS, requireCleanTree: false },
+      {
+        confirm: message => {
+          confirmCalls.push(message)
+          return Promise.resolve(true)
+        }
+      }
     )
     expect(result.autoCreated).toBe(true)
     expect(calls.some(c => c.startsWith('git status'))).toBe(false)
+    expect(confirmCalls).toHaveLength(0)
   })
 })
 

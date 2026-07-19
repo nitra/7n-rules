@@ -2,6 +2,26 @@
 import { existsSync } from 'node:fs'
 import { copyFile, mkdir, rm } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { createInterface } from 'node:readline/promises'
+
+const YES_RE = /^y(es)?$/i
+
+/**
+ * Питає y/N у терміналі. Поза TTY (CI, неінтерактивний виклик) — одразу `false`,
+ * той самий безпечний дефолт, що й раніше (throw), без зависання на порожньому stdin.
+ * @param {string} message текст питання (без "[y/N]" — додається тут)
+ * @returns {Promise<boolean>} `true` лише на явне "y"/"yes"
+ */
+async function defaultConfirm(message) {
+  if (!process.stdin.isTTY) return false
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  try {
+    const answer = await rl.question(`${message} [y/N] `)
+    return YES_RE.test(answer.trim())
+  } finally {
+    rl.close()
+  }
+}
 
 /**
  * Гарантує, що подальші кроки виконуються в ізольованому worktree
@@ -16,18 +36,29 @@ import { dirname, join } from 'node:path'
  * Якщо у вихідному `cwd` вже є незакомічені зміни, вони НЕ потраплять у щойно
  * створений worktree (той — checkout HEAD), і перенесення назад мовчки
  * затерло б їх версією з worktree. Тому за замовчуванням (`requireCleanTree:
- * true`) auto-create кидає на брудному дереві замість ризикувати чужими
- * незакоміченими правками. Викликач, що гарантує чистоту дерева сам (наприклад
- * taze — SKILL.md вимагає цього як передумову ще ДО виклику), може передати
- * `requireCleanTree: false`, щоб не платити за зайву git-команду.
+ * true`) на брудному дереві auto-create питає в терміналі (`deps.confirm`,
+ * дефолт — y/N через stdin; поза TTY одразу "ні") дозвіл закомить і
+ * запушити зараз через `npx \@7n/n push` (сквош усього робочого дерева в один
+ * коміт + push у origin — сама команда підтвердження не питає, тому питаємо
+ * ми, ДО виклику). На "ні"/поза TTY — кидає, як і раніше. Викликач, що
+ * гарантує чистоту дерева сам (наприклад taze — SKILL.md вимагає цього як
+ * передумову ще ДО виклику), може передати `requireCleanTree: false`, щоб не
+ * платити за зайву git-команду і не питати підтвердження.
  * @param {string} cwd каталог для перевірки
  * @param {typeof import('node:child_process').spawnSync} spawnFn інжект для тестів
  * @param {(line: string) => void} log колбек прогресу
  * @param {{ suffix: string, description: string, requireCleanTree?: boolean }} opts `suffix` — коротка (до 10 символів) назва задачі для `<branch>-<suffix>`; `description` — текст для `npx \@7n/mt worktree create`
- * @returns {{ cwd: string, autoCreated: boolean, branchArg: string|null }} `autoCreated: false` — `cwd` без змін
+ * @param {{ confirm?: (message: string) => Promise<boolean> }} [deps] `confirm` — інжект для тестів/альтернативного UX (дефолт — `defaultConfirm`, readline y/N)
+ * @returns {Promise<{ cwd: string, autoCreated: boolean, branchArg: string|null }>} `autoCreated: false` — `cwd` без змін
  *   (вже worktree); `autoCreated: true` — `cwd` щойно створеного worktree і `branchArg`, з яким його створено
  */
-export function ensureRunningInWorktree(cwd, spawnFn, log, { suffix, description, requireCleanTree = true }) {
+export async function ensureRunningInWorktree(
+  cwd,
+  spawnFn,
+  log,
+  { suffix, description, requireCleanTree = true },
+  deps = {}
+) {
   const toplevelResult = spawnFn('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8' })
   const toplevel = toplevelResult.status === 0 ? toplevelResult.stdout.trim() : ''
   const segments = new Set(toplevel.replaceAll('\\', '/').split('/'))
@@ -45,11 +76,28 @@ export function ensureRunningInWorktree(cwd, spawnFn, log, { suffix, description
   if (requireCleanTree) {
     const statusResult = spawnFn('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' })
     if (statusResult.status === 0 && statusResult.stdout.trim().length > 0) {
-      throw new Error(
-        `"${cwd}" не в ізольованому worktree і має незакомічені зміни — auto-create worktree тут НЕБЕЗПЕЧНИЙ: ` +
-          'перенесення результату назад копіюванням файлів затерло б ці незакомічені правки версією зі свіжого ' +
-          'checkout (worktree = HEAD, без твоїх правок). Закомить/застеш зміни або створи worktree вручну.'
+      const dirtyTreeError = () =>
+        new Error(
+          `"${cwd}" не в ізольованому worktree і має незакомічені зміни — auto-create worktree тут НЕБЕЗПЕЧНИЙ: ` +
+            'перенесення результату назад копіюванням файлів затерло б ці незакомічені правки версією зі свіжого ' +
+            'checkout (worktree = HEAD, без твоїх правок). Закомить/застеш зміни або створи worktree вручну.'
+        )
+
+      const confirm = deps.confirm ?? defaultConfirm
+      const wantsPush = await confirm(
+        `"${cwd}" не в ізольованому worktree і має незакомічені зміни — auto-create worktree тут НЕБЕЗПЕЧНИЙ ` +
+          '(перенесення назад копіюванням файлів затерло б їх версією зі свіжого checkout). ' +
+          'Закомить і запушити зараз через `npx @7n/n push`?'
       )
+      if (!wantsPush) throw dirtyTreeError()
+
+      log(`📤 "${cwd}" брудне — запускаю \`npx @7n/n push\` перед auto-create worktree...`)
+      runCommand('npx', ['@7n/n', 'push'], cwd, spawnFn)
+
+      const recheckResult = spawnFn('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' })
+      if (recheckResult.status !== 0 || recheckResult.stdout.trim().length > 0) {
+        throw new Error(`\`npx @7n/n push\` відпрацював, але "${cwd}" усе ще не чисте — перевір вручну (git status).`)
+      }
     }
   }
 

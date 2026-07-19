@@ -3,9 +3,8 @@ type: Rust Module
 title: acp.rs
 resource: llm-lib/crates/llm-cascade/src/acp.rs
 docgen:
-  crc: c9df9c2b
+  crc: e570f3a4
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

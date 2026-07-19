@@ -223,7 +223,7 @@ export async function runTazeOrchestrator(options = {}) {
   const call = deps.callRunner ?? callRunner
 
   const originalCwd = options.cwd ?? process.cwd()
-  const worktree = ensureRunningInWorktree(originalCwd, spawnFn, log, {
+  const worktree = await ensureRunningInWorktree(originalCwd, spawnFn, log, {
     suffix: 'taze',
     description: 'n-taze: worktree-only skill'
   })
