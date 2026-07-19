@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
-import { extractUnitsJs } from '../main.mjs'
-import { extractUnits } from '../../units/main.mjs'
+import jsDocFilesExtractor, { extractFacts } from '../extractors.mjs'
+import { extractUnitsJs } from '../units-js.mjs'
 
 const SRC = `
 /** Публічна точка входу. */
@@ -57,13 +57,15 @@ describe('extractUnitsJs — юніти top-level', () => {
   })
 })
 
-describe('extractUnits — фасад за розширенням', () => {
-  test('js/ts → юніти', () => {
-    expect(extractUnits(SRC, 'x.mjs').length).toBe(4)
+describe('default-експорт handler-модуля doc-files', () => {
+  test('форма екстрактора: id, розширення, обидві функції', () => {
+    expect(jsDocFilesExtractor.id).toBe('js')
+    expect(jsDocFilesExtractor.extensions).toEqual(['.js', '.mjs', '.ts', '.vue'])
+    expect(jsDocFilesExtractor.extractUnits(SRC, 'x.mjs').length).toBe(4)
   })
 
-  test('поки непідтримані мови → null (fallback на whole-file)', () => {
-    expect(extractUnits('<template></template>', 'c.vue')).toBeNull()
-    expect(extractUnits('def f(): pass', 's.py')).toBeNull()
+  test('vue → unsupported факти (whole-file шлях), юніти null', () => {
+    expect(extractFacts('<template></template>', 'c.vue').unsupported).toBe(true)
+    expect(jsDocFilesExtractor.extractUnits('<template></template>', 'c.vue')).toBeNull()
   })
 })

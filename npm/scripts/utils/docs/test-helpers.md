@@ -3,7 +3,7 @@ type: JS Module
 title: test-helpers.mjs
 resource: npm/scripts/utils/test-helpers.mjs
 docgen:
-  crc: 9af8ee18
+  crc: a01017b0
 ---
 
 ## Огляд
@@ -18,6 +18,7 @@ docgen:
 - `withBinStubInPath(bin, fn)` — створює тимчасовий каталог зі стабом `<bin>` (`<bin>.exe` на Windows), що завершується з кодом 0, додає каталог на початок `PATH` на час `fn`, потім відновлює `PATH` і прибирає стаб. Реальний бінарник не запускається: і машини без інструмента, і повільні мережево-залежні інструменти (наприклад, `kubescape`, який на старті тягне артефакти з хмарних API десятки секунд) отримують детермінований швидкий прогін.
 - `withShellcheckStubInPath(fn)` — спеціалізація `withBinStubInPath` для `shellcheck` (перевірки `check ga` на машинах без реального shellcheck).
 - `withBinRemovedFromPath(bin, fn)` — виконує `fn` із `PATH`, з якого прибрані всі каталоги з виконуваним `<bin>`; решта `PATH` (git, bun) лишається. На час `fn` виставляє `N_CURSOR_NO_AUTO_INSTALL=1`, щоб `ensureTool` не запускав реальний brew/scoop/curl-install. Для негативних тестів «fail, коли інструмента нема».
+- `installFakeLangJsPlugin(dir)` — кладе у tmp-репо фейковий `@7n/rules-lang-js` (маніфест із doc-files-розширеннями js/mjs/ts/vue у `node_modules`) і активує його через `.n-rules.json`. Після фази 5b ядро не має вбудованих кодових розширень — тестам doc-files без цього хелпера скан не бачить жодного джерела.
 
 ## Гарантії поведінки
 

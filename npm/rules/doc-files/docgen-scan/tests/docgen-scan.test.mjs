@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 
-import { withTmpDir, ensureDir } from '../../../../scripts/utils/test-helpers.mjs'
+import { withTmpDir, ensureDir, installFakeLangJsPlugin } from '../../../../scripts/utils/test-helpers.mjs'
 import {
   isSourceFile,
   docPathForSource,
@@ -14,24 +14,29 @@ import {
 } from '../main.mjs'
 import { crc32, stampDoc } from '../../docgen-crc/main.mjs'
 
+// Root монорепо: всі lang-плагіни активні у .n-rules.json (js/rust/python).
+const repoRoot = new URL('../../../../..', import.meta.url).pathname
+
 describe('isSourceFile', () => {
-  test('документує вбудовані .js/.mjs/.ts/.vue', () => {
-    for (const f of ['foo.js', 'foo.mjs', 'foo.ts', 'Foo.vue']) expect(isSourceFile(f)).toBe(true)
+  test('js/mjs/ts/vue — з декларації @7n/rules-lang-js, не вбудовані (фаза 5b)', () => {
+    for (const f of ['foo.js', 'foo.mjs', 'foo.ts', 'Foo.vue']) expect(isSourceFile(f, repoRoot)).toBe(true)
   })
 
-  test('.py/.rs — лише з root і активним lang-плагіном (декларація в маніфесті)', () => {
-    // Без root — плагінні розширення недоступні (hot-path fallback).
-    expect(isSourceFile('foo.py')).toBe(false)
-    expect(isSourceFile('lib.rs')).toBe(false)
-    // З root монорепо (плагіни активні в .n-rules.json) — документуються.
-    const repoRoot = new URL('../../../../..', import.meta.url).pathname
+  test('.py/.rs — з активними lang-плагінами (декларація в маніфесті)', () => {
     expect(isSourceFile('foo.py', repoRoot)).toBe(true)
     expect(isSourceFile('lib.rs', repoRoot)).toBe(true)
   })
 
+  test('без активного lang-плагіна розширення не документується', async () => {
+    await withTmpDir(dir => {
+      expect(isSourceFile('foo.js', dir)).toBe(false)
+      expect(isSourceFile('foo.py', dir)).toBe(false)
+    })
+  })
+
   test('пропускає .d.ts, тести й некодові розширення', () => {
     for (const f of ['types.d.ts', 'foo.test.js', 'foo.spec.ts', 'README.md', 'package.json']) {
-      expect(isSourceFile(f)).toBe(false)
+      expect(isSourceFile(f, repoRoot)).toBe(false)
     }
   })
 })
@@ -45,7 +50,8 @@ describe('docPathForSource', () => {
 
 describe('isDocCandidate', () => {
   test('кодовий файл у дереві — кандидат; ignore-дерева й тести — ні', async () => {
-    await withTmpDir(root => {
+    await withTmpDir(async root => {
+      await installFakeLangJsPlugin(root)
       expect(isDocCandidate(root, 'src/a.js')).toBe(true)
       expect(isDocCandidate(root, 'node_modules/pkg/x.js')).toBe(false)
       expect(isDocCandidate(root, 'src/a.test.js')).toBe(false)
@@ -57,6 +63,7 @@ describe('isDocCandidate', () => {
 describe('scanForDocFiles (CRC staleness)', () => {
   test('відсутня дока → stale:missing; ігнорує службові дерева й root-level', async () => {
     await withTmpDir(async root => {
+      await installFakeLangJsPlugin(root)
       await ensureDir(join(root, 'docs', 'adr')) // system-wide docs root → root-level файли не цільові
       await ensureDir(join(root, 'src'))
       await ensureDir(join(root, 'node_modules', 'pkg'))
@@ -120,6 +127,7 @@ describe('scanForDocFiles (CRC staleness)', () => {
 
   test('поважає .gitignore: ignored-файл випадає, решта лишається', async () => {
     await withTmpDir(async root => {
+      await installFakeLangJsPlugin(root)
       await ensureDir(join(root, 'src'))
       await writeFile(join(root, 'src', 'keep.js'), 'export const k = 1\n')
       await writeFile(join(root, 'src', 'build.js'), 'export const b = 1\n')

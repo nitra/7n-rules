@@ -1,7 +1,15 @@
-/** @see ./docs/docgen-extract.md */
+/** @see ./docs/extractors.md */
+import { extractUnitsJs } from './units-js.mjs'
 
-import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
-import { readFileSync } from 'node:fs'
+/**
+ * Мовний doc-files-екстрактор JS-екосистеми для конвеєра `@7n/rules`
+ * (extension-point `doc-files`, фаза 5b spec lang-plugins-extraction: ядро —
+ * двигун без мовної специфіки): факт-лист (`extractFacts`) для js/mjs/ts і
+ * юніти (`extractUnits`) через oxc AST. Розширення `.js`/`.mjs`/`.ts`/`.vue`
+ * та їхні OKF-типи декларуються маніфестом плагіна
+ * (`contributes.docFiles.extensions`) — hot-path ядра читає їх синхронно;
+ * цей модуль вантажиться лише на шляху генерації.
+ */
 
 const BUILTIN_MODULES = new Set([
   'fs',
@@ -264,12 +272,17 @@ export function extractFacts(src, relPath) {
   }
 }
 
-// CLI для інспекції: node docgen-extract.mjs <file>
-if (isRunAsCli(import.meta.url)) {
-  const file = process.argv[2]
-  if (!file) {
-    throw new Error('Usage: node docgen-extract.mjs <file>')
-  }
-  const facts = extractFacts(readFileSync(file, 'utf8'), file)
-  console.log(JSON.stringify(facts, null, 2))
+/**
+ * Default-експорт для handler-модуля extension-point `doc-files`.
+ * `.vue` у списку розширень (файл — кандидат на доку), але `extractFacts` для нього
+ * повертає `unsupported` — генерація йде whole-file шляхом, як і до винесення.
+ * @type {{ id: string, extensions: string[], extractFacts: typeof extractFacts, extractUnits: typeof extractUnitsJs }}
+ */
+const jsDocFilesExtractor = {
+  id: 'js',
+  extensions: ['.js', '.mjs', '.ts', '.vue'],
+  extractFacts,
+  extractUnits: extractUnitsJs
 }
+
+export default jsDocFilesExtractor

@@ -1,6 +1,6 @@
 /** @see ./docs/units-js.md */
 
-import { parseProgramOrNull, walkAstWithAncestors } from '../../../scripts/utils/ast-scan-utils.mjs'
+import { parseProgramOrNull, walkAstWithAncestors } from '@7n/rules/scripts/utils/ast-scan-utils.mjs'
 
 // JSDoc-блок, що стоїть впритул перед позицією (лише пробіли між ними).
 const JSDOC_BEFORE_RE = /\/\*\*(?:(?!\*\/)[\s\S])*\*\/\s*$/

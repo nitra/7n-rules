@@ -24,6 +24,17 @@ const tmpRoots = []
 function makeFixture() {
   const root = mkdtempSync(join(tmpdir(), 'docgen-stamp-'))
   tmpRoots.push(root)
+  // Фейковий lang-js: після фази 5b .mjs — кандидат лише з активним плагіном.
+  const pluginRoot = join(root, 'node_modules', '@7n', 'rules-lang-js')
+  mkdirSync(pluginRoot, { recursive: true })
+  writeFileSync(
+    join(pluginRoot, 'package.json'),
+    JSON.stringify({
+      name: '@7n/rules-lang-js',
+      'n-rules': { contributes: { rules: false, docFiles: { extensions: { '.mjs': 'JS Module' } } } }
+    })
+  )
+  writeFileSync(join(root, '.n-rules.json'), JSON.stringify({ plugins: ['@7n/rules-lang-js'] }))
   mkdirSync(join(root, 'src', 'docs'), { recursive: true })
   writeFileSync(join(root, 'src', 'foo.mjs'), 'export const x = 1\n')
   const docAbs = join(root, 'src', 'docs', 'foo.md')

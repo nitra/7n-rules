@@ -7,13 +7,6 @@ import { isDocgenIgnored } from '../docgen-ignore/main.mjs'
 import { parseDocFrontmatter, readDocCrc, staleness } from '../docgen-crc/main.mjs'
 import { pluginDocFilesExtensions } from './lang-extensions.mjs'
 
-/**
- * Вбудовані кодові розширення, для яких генеруємо документацію. Мовні
- * розширення поза JS-екосистемою (`.rs`, `.py`) декларують lang-плагіни
- * (`n-rules.contributes.docFiles.extensions`) — див. lang-extensions.mjs.
- */
-const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.vue'])
-
 /** `*.test.*`, `*.spec.*`, `*.stories.*` — тести й Storybook CSF-файли, документувати не треба. */
 const TEST_FILE_RE = /\.(?:test|spec|stories)\.[^.]+$/u
 
@@ -29,18 +22,18 @@ function isSystemWideDocsRoot(root) {
 }
 
 /**
- * Чи є файл кодовим джерелом для документування. З `root` — враховує і
- * розширення активних lang-плагінів; без нього — лише вбудовані JS-екосистемні.
+ * Чи є файл кодовим джерелом для документування. Розширення декларують ЛИШЕ
+ * активні lang-плагіни (`n-rules.contributes.docFiles.extensions` — js/mjs/ts/vue
+ * дає `@7n/rules-lang-js`, .rs/.py — lang-rust/lang-python); у ядрі вбудованих
+ * розширень немає (фаза 5b spec lang-plugins-extraction).
  * @param {string} fileName базове ім'я файлу
- * @param {string} [root] корінь репозиторію (для плагінних розширень)
+ * @param {string} root корінь репозиторію (джерело плагінних розширень)
  * @returns {boolean} true — документуємо; false — пропускаємо
  */
 export function isSourceFile(fileName, root) {
   if (fileName.endsWith('.d.ts')) return false
   if (TEST_FILE_RE.test(fileName)) return false
-  const ext = extname(fileName)
-  if (SOURCE_EXTENSIONS.has(ext)) return true
-  return root !== undefined && ext in pluginDocFilesExtensions(root)
+  return extname(fileName) in pluginDocFilesExtensions(root)
 }
 
 /**

@@ -67,24 +67,17 @@ export function parseDocFrontmatter(md) {
 /** Максимум кодів issues у frontmatter — це маркер, а не повний лог. */
 const MAX_ISSUE_CODES = 8
 
-/** OKF type для вбудованих розширень; мовні (`.rs`, `.py`) декларують lang-плагіни. */
-const EXT_TYPES = {
-  '.js': 'JS Module',
-  '.mjs': 'JS Module',
-  '.cjs': 'JS Module',
-  '.ts': 'TS Module',
-  '.vue': 'Vue Component'
-}
-
 /**
- * OKF `type` для файлу-джерела за розширенням (вбудовані + декларації
- * активних lang-плагінів).
+ * OKF `type` для файлу-джерела за розширенням — лише з декларацій активних
+ * lang-плагінів (`contributes.docFiles.extensions`: js/mjs/ts/vue — lang-js,
+ * `.rs`/`.py` — lang-rust/lang-python); вбудованих типів у ядрі немає
+ * (фаза 5b spec lang-plugins-extraction). Невідоме розширення → 'Source File'.
  * @param {string} sourcePath відносний шлях джерела
  * @returns {string} тип концепту
  */
 function typeForSource(sourcePath) {
   const ext = extname(sourcePath).toLowerCase()
-  return EXT_TYPES[ext] ?? pluginDocFilesExtensions(process.cwd())[ext] ?? 'Source File'
+  return pluginDocFilesExtensions(process.cwd())[ext] ?? 'Source File'
 }
 
 /**

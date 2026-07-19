@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-import { withTmpDir, ensureDir } from '../../../scripts/utils/test-helpers.mjs'
+import { withTmpDir, ensureDir, installFakeLangJsPlugin } from '../../../scripts/utils/test-helpers.mjs'
 import { crc32, stampDoc } from '../docgen-crc/main.mjs'
 
 import { lint } from '../check/main.mjs'
@@ -33,6 +33,7 @@ async function writeSourceWithFreshDoc(root, rel, body) {
 describe('lint — детект (read-only detector)', () => {
   test('ci (files=undefined): ловить відсутню доку у дереві', async () => {
     await withTmpDir(async root => {
+      await installFakeLangJsPlugin(root)
       await ensureDir(join(root, 'src'))
       await writeFile(join(root, 'src', 'a.mjs'), 'export const a = 1\n')
       expect(await violationsCount(root)).toBeGreaterThan(0)
@@ -41,6 +42,7 @@ describe('lint — детект (read-only detector)', () => {
 
   test('ci: свіжа дока → 0 violations', async () => {
     await withTmpDir(async root => {
+      await installFakeLangJsPlugin(root)
       await writeSourceWithFreshDoc(root, 'src/a.mjs', 'export const a = 1\n')
       expect(await violationsCount(root)).toBe(0)
     })
@@ -48,6 +50,7 @@ describe('lint — детект (read-only detector)', () => {
 
   test('quick: змінене джерело без доки → violation; порожній набір → 0', async () => {
     await withTmpDir(async root => {
+      await installFakeLangJsPlugin(root)
       await ensureDir(join(root, 'src'))
       await writeFile(join(root, 'src', 'a.mjs'), 'export const a = 1\n')
       expect(await violationsCount(root, ['src/a.mjs'])).toBeGreaterThan(0)
@@ -57,6 +60,7 @@ describe('lint — детект (read-only detector)', () => {
 
   test('quick: реверс-мапінг — змінена дока веде до перевірки джерела', async () => {
     await withTmpDir(async root => {
+      await installFakeLangJsPlugin(root)
       await writeSourceWithFreshDoc(root, 'src/a.mjs', 'export const a = 1\n')
       // Джерело змінилось, але у наборі лише шлях доки → мапінг має знайти джерело й виявити mismatch.
       await writeFile(join(root, 'src', 'a.mjs'), 'export const a = 2\n')
@@ -66,6 +70,7 @@ describe('lint — детект (read-only detector)', () => {
 
   test('quick: ігнорує не-кандидати (тести, node_modules)', async () => {
     await withTmpDir(async root => {
+      await installFakeLangJsPlugin(root)
       await ensureDir(join(root, 'src'))
       await writeFile(join(root, 'src', 'a.test.mjs'), 'test\n')
       expect(await violationsCount(root, ['src/a.test.mjs'])).toBe(0)
@@ -74,6 +79,7 @@ describe('lint — детект (read-only detector)', () => {
 
   test('свіже дерево: stale не репортуються', async () => {
     await withTmpDir(async root => {
+      await installFakeLangJsPlugin(root)
       await writeSourceWithFreshDoc(root, 'src/a.mjs', 'export const a = 1\n')
       expect(await violationsCount(root, ['src/a.mjs'])).toBe(0)
     })
@@ -81,6 +87,7 @@ describe('lint — детект (read-only detector)', () => {
 
   test('violation несе reason і шлях джерела у message', async () => {
     await withTmpDir(async root => {
+      await installFakeLangJsPlugin(root)
       await ensureDir(join(root, 'src'))
       await writeFile(join(root, 'src', 'a.mjs'), 'export const a = 1\n')
       const { violations } = await lint(ctxFor(root, ['src/a.mjs']))

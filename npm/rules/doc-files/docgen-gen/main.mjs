@@ -8,7 +8,6 @@ import { startChain } from '@7n/llm-lib/chain'
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { docPathForSource } from '../docgen-scan/main.mjs'
 import { loadDocFilesExtractors } from '../docgen-scan/lang-extensions.mjs'
-import { extractFacts } from '../docgen-extract/main.mjs'
 import { extractAnchors, anchorTokens } from '../docgen-extract-anchors/main.mjs'
 import { QUALITY_THRESHOLD } from '../docgen-crc/main.mjs'
 import { JUDGE_ENABLED, JUDGE_MODEL, detectRefusalFiller, judgeDoc, judgeFailsDoc } from '../docgen-judge/main.mjs'
@@ -507,11 +506,20 @@ export async function generateDoc(
       `docgen pre-send guard: джерело ~${estTokens} токенів > бюджет ${budget} (0.5× контексту) — Prompt too long, skip`
     )
   }
-  // Мовний екстрактор з lang-плагіна (напр. `.rs` у @7n/rules-lang-rust) має
-  // пріоритет; вбудований extractFacts покриває JS-екосистему, решта — whole-file.
+  // Факт-лист — лише від мовного екстрактора lang-плагіна (js/mjs/ts —
+  // lang-js, `.rs` — lang-rust); без екстрактора для розширення — whole-file
+  // шлях через `unsupported` (у ядрі вбудованих екстракторів немає, фаза 5b).
   const langExtractors = await loadDocFilesExtractors(process.cwd())
   const ext = `.${file.split('.').pop()}`.toLowerCase()
-  const facts = langExtractors.get(ext)?.extractFacts?.(src, file) ?? extractFacts(src, file)
+  const facts = langExtractors.get(ext)?.extractFacts?.(src, file) ?? {
+    relPath: file,
+    lang: ext.slice(1),
+    unsupported: true,
+    header: '',
+    exports: [],
+    imports: {},
+    markers: {}
+  }
   const t0 = Date.now()
   llmMeter = { calls: 0, ms: 0 }
   const chain = chainFactory({ kind: 'doc-generate', unit: facts.relPath, cwd: process.cwd() })
