@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.29.1] - 2026-07-19
+
+### Changed
+
+- release: @7n/rules@1.29.0, @7n/rules-lang-js@0.5.0
+
 ## [1.29.0] - 2026-07-19
 
 ### Added
