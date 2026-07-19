@@ -10,6 +10,7 @@ import {
 import { assertEcosystemProvider } from '../../../scripts/lib/plugin-api.mjs'
 import { readNRulesConfigLite } from '../../../scripts/lib/read-n-rules-config-lite.mjs'
 import { getHandlers, resolvePlugins } from '../../../scripts/lib/resolve-plugins.mjs'
+import { readMigrationCache, withKnownMigrationNotes, writeMigrationCache } from './migration-cache.mjs'
 
 export { bringChangesBackToOriginal, removeAutoCreatedWorktree } from '../../../scripts/lib/auto-worktree.mjs'
 
@@ -123,11 +124,22 @@ async function runEcosystem(provider, { cwd, runner, log, deps, spawnFn, call })
     const diff = await provider.diff(cwd, eco.manifests, deps)
     log(`🔍 ${provider.title} diff: ${diff.major.length} major, ${diff.minorPatch} minor/patch`)
 
+    const readCache = deps.readMigrationCache ?? readMigrationCache
+    const writeCache = deps.writeMigrationCache ?? writeMigrationCache
     for (const entry of diff.major) {
       log(`🔧 [${provider.id}] ${entry.pkg} (${entry.manifest}): ${entry.from} → ${entry.to}...`)
-      const outcome = await call(runner, provider.promptFor(entry), cwd, deps)
+      let prompt = provider.promptFor(entry)
+      const cached = await readCache(entry.pkg, entry.from, entry.to, deps)
+      if (cached) {
+        log(`  ♻️ Кешована міграція з "${cached.sourceRepo}" — пропускаю повторне CHANGELOG-дослідження`)
+        prompt = withKnownMigrationNotes(prompt, cached)
+      }
+      const outcome = await call(runner, prompt, cwd, deps)
       eco.results.push({ ...entry, ...outcome })
       log(outcome.ok ? `  ✅ ${entry.pkg}` : `  ❌ ${entry.pkg}: ${outcome.error}`)
+      if (outcome.ok && outcome.text) {
+        await writeCache(entry.pkg, entry.from, entry.to, { notes: outcome.text, sourceRepo: cwd, updatedAt: new Date().toISOString() }, deps)
+      }
     }
 
     await provider.cleanup(cwd, eco.manifests, deps)
@@ -229,6 +241,40 @@ export async function runTazeOrchestrator(options = {}) {
   })
   const cwd = worktree.cwd
 
+  let cleanedUp = false
+  /**
+   * Переносить зміни назад і прибирає автостворений worktree — не більше
+   * одного разу (idempotent), щоб і сигнальний обробник, і `finally` могли
+   * безпечно кликати те саме без подвійного `bringChangesBackToOriginal`/
+   * `removeAutoCreatedWorktree`.
+   * @returns {Promise<void>}
+   */
+  const cleanupAutoCreatedWorktree = async () => {
+    if (cleanedUp) return
+    cleanedUp = true
+    try {
+      await bringChangesBackToOriginal(cwd, originalCwd, spawnFn, log, deps)
+    } catch (error) {
+      log(`⚠️ Перенесення змін назад провалилось: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    removeAutoCreatedWorktree(worktree.branchArg, originalCwd, spawnFn, log)
+  }
+
+  // SIGINT/SIGTERM (Ctrl-C, таймаут зовнішнього раннера, `kill`) без обробника
+  // залишають автостворений worktree осиротілим — Node завершується одразу,
+  // `finally` нижче не встигає спрацювати. Ловимо сигнал, рятуємо прогрес
+  // (перенесення змін + видалення worktree) і лише тоді виходимо.
+  const exitProcess = deps.exitProcessFn ?? (code => (process.exitCode = code))
+  const onSignal = async signal => {
+    log(`⚠️ Отримано ${signal} — переношу прогрес автоствореного worktree назад перед виходом...`)
+    await cleanupAutoCreatedWorktree()
+    exitProcess(1)
+  }
+  if (worktree.autoCreated) {
+    process.on('SIGINT', onSignal)
+    process.on('SIGTERM', onSignal)
+  }
+
   try {
     const providers = deps.ecosystemProviders ?? (await loadPluginTazeProviders(cwd, log, deps))
     if (providers.length === 0) {
@@ -253,12 +299,9 @@ export async function runTazeOrchestrator(options = {}) {
     // сирітський worktree прибирався навіть при кинутому винятку всередині
     // try (падіння bunx/diff/провайдера), а не лише при успішному прогоні.
     if (worktree.autoCreated) {
-      try {
-        await bringChangesBackToOriginal(cwd, originalCwd, spawnFn, log, deps)
-      } catch (error) {
-        log(`⚠️ Перенесення змін назад провалилось: ${error instanceof Error ? error.message : String(error)}`)
-      }
-      removeAutoCreatedWorktree(worktree.branchArg, originalCwd, spawnFn, log)
+      process.removeListener('SIGINT', onSignal)
+      process.removeListener('SIGTERM', onSignal)
+      await cleanupAutoCreatedWorktree()
     }
   }
 }
