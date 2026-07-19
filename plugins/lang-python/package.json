@@ -23,6 +23,7 @@
   "files": [
     "rules",
     "taze",
+    "skills",
     "CHANGELOG.md",
     "!**/*.test.mjs",
     "!**/*_test.rego",

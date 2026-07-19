@@ -24,6 +24,7 @@
     "rules",
     "doc-files",
     "taze",
+    "skills",
     "CHANGELOG.md",
     "!**/*.test.mjs",
     "!**/*_test.rego",

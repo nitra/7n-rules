@@ -86,10 +86,11 @@ import {
 import { detectAutoSkills } from '../scripts/auto-skills.mjs'
 import { readSkillMetaRaw } from '../scripts/lib/skill-meta.mjs'
 import { injectWorktreeNotice } from '../scripts/lib/worktree-notice.mjs'
+import { collectSkillFragments, injectSkillFragments } from '../scripts/lib/skill-fragments.mjs'
 import { injectRootNotice } from '../scripts/lib/root-notice.mjs'
 import { listProjectRulesMdcFiles } from '../scripts/lib/list-project-rules-mdc.mjs'
 import { ensureNRulesInRootDevDependencies } from '../scripts/ensure-n-rules-dev-dependencies.mjs'
-import { resolvePluginList, resolveRulesDirs } from '../scripts/lib/resolve-plugins.mjs'
+import { resolvePluginList, resolvePlugins, resolveRulesDirs } from '../scripts/lib/resolve-plugins.mjs'
 import { assertCwdIsProjectRoot } from '../scripts/lib/assert-project-root.mjs'
 import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { syncGitignoreWorktree } from '../scripts/lib/sync-gitignore-worktree.mjs'
@@ -885,15 +886,19 @@ async function syncAgentsMd(agentsTemplatePath = BUNDLED_AGENTS_TEMPLATE_PATH) {
  * Копіює лише skills зі списку configSkills (джерело: skills/<id>/ у пакеті)
  * @param {string[]} configSkills id без префікса n-
  * @param {string} [bundledSkillsDir] каталог `skills/` у корені пакету-джерела
+ * @param {{ plugins?: unknown } | null} [config] конфіг `.n-rules.json` — активні плагіни для SKILL-фрагментів
  * @returns {Promise<{ success: number, fail: number }>} лічильники успішних і невдалих копіювань
  */
-async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
+async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR, config = null) {
   if (configSkills.length === 0 || !existsSync(bundledSkillsDir)) {
     return { success: 0, fail: 0 }
   }
 
   const skillsRoot = join(cwd(), SKILLS_DIR)
   await mkdir(skillsRoot, { recursive: true })
+  // Активні плагіни — джерело конвенційних фрагментів skills/<id>/SKILL.fragment.md
+  // (фаза 4b spec lang-plugins-extraction): мовні гілки скіла їдуть з плагіном.
+  const activePlugins = resolvePlugins(cwd(), config, { allowInstall: false, quiet: true })
 
   let success = 0
   let fail = 0
@@ -923,6 +928,7 @@ async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
           if (entry.name === 'SKILL.md') {
             content = injectWorktreeNotice(content, worktree)
             content = injectRootNotice(content, rootOnly)
+            content = injectSkillFragments(content, collectSkillFragments(id, activePlugins))
           }
           await writeFile(join(destDir, entry.name), content, 'utf8')
         }
@@ -1487,7 +1493,7 @@ async function runSync() {
 
   await runSyncStep('❌ Skills: ', async () => {
     const { fail: skillFail } = await captureOutput(async () => {
-      const { success: skillOk, fail } = await syncSkills(skills, bundledSkillsDir)
+      const { success: skillOk, fail } = await syncSkills(skills, bundledSkillsDir, config)
       if (skills.length > 0) {
         console.log(`\n🧩 Skills: ${skillOk} скопійовано, ${fail} з помилками`)
       }
