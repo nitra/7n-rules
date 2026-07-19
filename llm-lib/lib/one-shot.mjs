@@ -6,8 +6,8 @@
  * Для не-agent consumers (генерація/judge доків, класифікація, ADR-normalize):
  * «messages → текст», без write-tool, без агентного циклу. Реалізовано як
  * `createAgentSession({ noTools: 'all' })` + `session.prompt` (агент без tools =
- * plain completion) — перевикористовує той самий ModelRegistry/AuthStorage,
- * що й agent-fix, замість окремого raw-pi-ai streaming-плюмбінгу.
+ * plain completion) — перевикористовує той самий ModelRegistry (lazy singleton
+ * getRegistry()), що й agent-fix, замість окремого raw-pi-ai streaming-плюмбінгу.
  *
  * Pi вантажиться lazy (top-level import модуля pi-free). Повертає structured
  * `{ content, usage, error, model, caller }`.
