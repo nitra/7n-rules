@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.26.0] - 2026-07-19
+
+### Changed
+
+- Фаза 5a spec lang-plugins-extraction: ядро — двигун без мовної специфіки. npm/bun-гілка taze виїхала в плагін `@7n/rules-lang-js` (EcosystemProvider; бекап воркспейсів, `bunx taze -w -r latest` + `bun install`, collectTazeDiff, SKILL-фрагмент); semver-примітиви (parseVersion/isBreaking) тепер визначені в `@7n/rules/plugin-api` (було — реекспорт із diff.mjs). Оркестратор — чистий цикл провайдерів (без вбудованих гілок), звіт — рівноправні секції екосистем; CLI `n-rules taze diff` резолвиться через handler lang-js. Автодетект — кореневий package.json → lang-js
+
 ## [1.25.1] - 2026-07-19
 
 ### Fixed
