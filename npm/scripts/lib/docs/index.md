@@ -36,6 +36,7 @@ resource: npm/scripts/lib/
 | [run-conftest-batch.mjs](run-conftest-batch.md)                             | JS Module |
 | [run-lint-step.mjs](run-lint-step.md)                                       | JS Module |
 | [run-standard-lint.mjs](run-standard-lint.md)                               | JS Module |
+| [skill-fragments.mjs](skill-fragments.md)                                   | JS Module |
 | [skill-meta.mjs](skill-meta.md)                                             | JS Module |
 | [sync-gitignore-worktree.mjs](sync-gitignore-worktree.md)                   | JS Module |
 | [template.mjs](template.md)                                                 | JS Module |
