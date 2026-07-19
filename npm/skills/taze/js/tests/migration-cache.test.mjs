@@ -38,7 +38,7 @@ describe('readMigrationCache', () => {
     const stored = { notes: 'useAgent → useAcpAgent', sourceRepo: '/repo/myllm', updatedAt: '2026-07-19T00:00:00.000Z' }
     const result = await readMigrationCache('@7n/tauri-components', '^0.8.0', '^0.11.1', {
       existsSyncFn: () => true,
-      readFileFn: async () => JSON.stringify(stored)
+      readFileFn: () => JSON.stringify(stored)
     })
     expect(result).toEqual(stored)
   })
@@ -46,7 +46,7 @@ describe('readMigrationCache', () => {
   test('побитий JSON → null, не кидає', async () => {
     const result = await readMigrationCache('pkg', '1.0.0', '2.0.0', {
       existsSyncFn: () => true,
-      readFileFn: async () => '{not-json'
+      readFileFn: () => '{not-json'
     })
     expect(result).toBeNull()
   })
@@ -63,10 +63,10 @@ describe('writeMigrationCache', () => {
       { notes: 'сумісно', sourceRepo: '/tmp/project', updatedAt: '2026-07-19T00:00:00.000Z' },
       {
         cacheDir: '/tmp/cache',
-        mkdirFn: async (...args) => {
+        mkdirFn: (...args) => {
           mkdirCalls.push(args)
         },
-        writeFileFn: async (...args) => {
+        writeFileFn: (...args) => {
           writeCalls.push(args)
         }
       }
