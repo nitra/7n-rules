@@ -4,10 +4,16 @@
  * `ensureTool(toolId)` — єдиний seam резолву зовнішніх бінарників: PATH → кеш → авто-install → hard-fail.
  * Новий тул = один запис у реєстрі `TOOLS`, без дублювання install-логіки в кожному `lint.mjs`/`fix.mjs`.
  *
- * Lookup останнього релізу йде через GitHub API з `GITHUB_TOKEN`/`GH_TOKEN` за наявності
- * (per-IP ліміт 60/год вичерпується на shared CI-runner-ах), з fallback-ом на redirect
- * `releases/latest` повз API; транзієнтні збої lookup/download кидаються як `ToolProvisionError`
- * (fail-open seam для lint-детекторів — див. `lint-surface/detect.mjs`).
+ * Версії GitHub Release-тулів (Linux/Windows-fallback install-шлях) — **закріплені** у
+ * `tool-pins.json`, а не резолвляться як `latest` на кожен install: CI-runner-и ефемерні,
+ * кеш бінарників порожній щоразу, і `latest`-lookup на кожен job = постійний трафік у
+ * GitHub API з shared-IP (rate-limit). `fetchLatestVersion` (GitHub API з `GITHUB_TOKEN`/
+ * `GH_TOKEN` за наявності, з fallback-ом на redirect `releases/latest` повз API) лишається
+ * — це «мотор» для ручного рефрешу пінів (`tool-pins-refresh.mjs`), у звичайному install
+ * не викликається. `checkToolPinsFreshness()` — гейт «пінам більше 30 днів → час
+ * рефрешнути» (тест `tool-pins-freshness.test.mjs`). Транзієнтні збої download-у
+ * кидаються як `ToolProvisionError` (fail-open seam для lint-детекторів — див.
+ * `lint-surface/detect.mjs`).
  *
  * Per-platform matrix: macOS → brew, Windows → scoop (fallback: GitHub Release), Linux → GitHub Release binary.
  * Бінарники кешуються у `~/.cache/@7n/rules/bin/` (Linux/Mac), `%LOCALAPPDATA%\@7n\cursor\bin\` (Win).
@@ -22,10 +28,11 @@
  * `ensureHkInstall(hkBin)` — реєструє git pre-commit hook через `hk install`; пропускається в CI.
  */
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, renameSync, rmSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { arch, env, platform } from 'node:process'
+import { fileURLToPath } from 'node:url'
 
 import { resolveCmd } from '../utils/resolve-cmd.mjs'
 import { withLock } from '../utils/with-lock.mjs'
@@ -35,6 +42,51 @@ const TAG_V_PREFIX_RE = /^v/
 
 /** Тег релізу з фінального URL redirect-у `releases/latest` (`…/releases/tag/v1.2.3`). */
 const RELEASE_TAG_URL_RE = /\/tag\/([^/\s]+)\s*$/
+
+/** Кількість мілісекунд у добі — для перетворення віку піна в дні. */
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Поріг «застарілості» пінів версій (`tool-pins.json.pinnedAt`) у днях. */
+export const TOOL_PINS_MAX_AGE_DAYS = 30
+
+/** Абсолютний шлях до `tool-pins.json`, поряд із цим модулем. */
+const TOOL_PINS_PATH = join(dirname(fileURLToPath(import.meta.url)), 'tool-pins.json')
+
+/**
+ * Читає `tool-pins.json` — синхронно, свіжим на кожен виклик (без module-level кешу),
+ * щоб `ensureTool*`-виклики в довгоживучому процесі бачили щойно застосований рефреш.
+ * @returns {{ pinnedAt: string, versions: Record<string, string> }} закріплені версії й дата піна
+ */
+function readToolPins() {
+  return JSON.parse(readFileSync(TOOL_PINS_PATH, 'utf8'))
+}
+
+/**
+ * Вік поточних пінів версій у днях від `pinnedAt` до `now`.
+ * @param {number} [now] час порівняння (ms epoch); за замовчуванням `Date.now()`
+ * @returns {{ pinnedAt: string, ageDays: number, stale: boolean }} вік і чи перевищено `TOOL_PINS_MAX_AGE_DAYS`
+ */
+export function checkToolPinsFreshness(now = Date.now()) {
+  const { pinnedAt } = readToolPins()
+  const ageDays = Math.floor((now - Date.parse(pinnedAt)) / DAY_MS)
+  return { pinnedAt, ageDays, stale: ageDays > TOOL_PINS_MAX_AGE_DAYS }
+}
+
+/**
+ * Резолвить закріплену версію тула з `tool-pins.json`. Конфігураційна помилка (не
+ * `ToolProvisionError`) — відсутність піна для наявного в `TOOLS` тула означає, що
+ * його забули додати в `tool-pins.json` при реєстрації, а не транзієнтний збій.
+ * @param {string} toolId ключ у `TOOLS`
+ * @returns {string} закріплена версія без префікса `v`
+ */
+function resolvePinnedVersion(toolId) {
+  const { versions } = readToolPins()
+  const version = versions[toolId]
+  if (!version) {
+    throw new Error(`ensureTool: немає закріпленої версії для '${toolId}' у tool-pins.json — додай перед install-ом`)
+  }
+  return version
+}
 
 /**
  * Транзієнтний збій авто-встановлення зовнішнього тула (GitHub API rate-limit, мережа,
@@ -90,8 +142,12 @@ function mapArch(nodeArch, style) {
  * @property {((ver: string) => string)|null} [binFinder] для архівів де бінарник не у корені; повертає відносний шлях
  */
 
-/** @type {Record<string, ToolEntry>} */
-const TOOLS = {
+/**
+ * Реєстр install-стратегій. Експортовано read-only для `tool-pins-refresh.mjs`
+ * (ітерує `entry.github`, щоб рефрешнути `tool-pins.json`) — не мутуй.
+ * @type {Record<string, ToolEntry>}
+ */
+export const TOOLS = {
   hk: {
     brew: 'hk',
     scoop: 'hk',
@@ -259,8 +315,9 @@ export function fetchLatestVersion(repo, curlBin) {
 }
 
 /**
- * Завантажує та розпаковує GitHub Release бінарник у кеш-директорію.
- * Повертає абсолютний шлях до бінарника.
+ * Завантажує та розпаковує GitHub Release бінарник у кеш-директорію. Версія береться
+ * закріпленою з `tool-pins.json` — жодного `latest`-lookup у GitHub API на звичайному
+ * install-шляху. Повертає абсолютний шлях до бінарника.
  * @param {string} toolId ключ у TOOLS
  * @param {ToolEntry} entry опис тула
  * @param {string} cacheDir абсолютний шлях до кешу
@@ -272,7 +329,7 @@ function installFromGithub(toolId, entry, cacheDir) {
   const tarBin = resolveCmd('tar')
   if (!tarBin) throw new Error(`tar не знайдено в PATH — потрібен для встановлення ${toolId}`)
 
-  const ver = fetchLatestVersion(entry.github, curlBin)
+  const ver = resolvePinnedVersion(toolId)
   const assetName = entry.asset(ver)
   const downloadUrl = `https://github.com/${entry.github}/releases/download/v${ver}/${assetName}`
 

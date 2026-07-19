@@ -3,7 +3,7 @@ type: JS Module
 title: ensure-tool.mjs
 resource: npm/scripts/lib/ensure-tool.mjs
 docgen:
-  crc: e884b8bb
+  crc: c77b4b65
 ---
 
 Модуль `ensure-tool.mjs` — єдина точка резолву зовнішніх CLI-залежностей пакета `@7n/rules`. Він гарантує, що потрібний бінарник (`hk`, `conftest`, `shellcheck`, `actionlint`, `dotenv-linter`, `opa`, `regal`, `hadolint`, `kubeconform`, `kubescape`) доступний у системі, виконуючи послідовний пошук:
@@ -14,6 +14,8 @@ docgen:
 4. Hard-fail з персоналізованою підказкою, якщо авто-встановлення вимкнено змінною середовища `N_CURSOR_NO_AUTO_INSTALL`.
 
 Така архітектура усуває дублювання install-логіки в кожному `lint.mjs` / `fix.mjs`: щоб додати нову зовнішню утиліту, достатньо одного запису в реєстрі `TOOLS`. Додатково модуль експортує `ensureHkInstall`, який реєструє git pre-commit hook через `hk install` (пропускається в CI).
+
+Версії для GitHub Release install-шляху (Linux, і Windows-fallback коли `scoop` недоступний) — **закріплені** у `scripts/lib/tool-pins.json`, а не резолвляться як `latest` на кожен install. Причина: CI-runner-и ефемерні, локальний кеш бінарників порожній щоразу, і `latest`-lookup через GitHub API на кожен job означає постійний трафік зі спільних CI-IP — і впирається у rate-limit (60 запитів/год без токена). `fetchLatestVersion` (двоступеневий lookup: GitHub API з `GITHUB_TOKEN`/`GH_TOKEN` за наявності → redirect-fallback повз API) лишається в модулі, але викликається лише вручну — окремим скриптом `scripts/tool-pins-refresh.mjs`, не на звичайному install-шляху. `checkToolPinsFreshness()` рахує вік поточного піна (`tool-pins.json.pinnedAt`) у днях і сигналить `stale: true` після `TOOL_PINS_MAX_AGE_DAYS` (30) — на цьому побудований тест `tool-pins-freshness.test.mjs`, що навмисно червоніє, коли піни застаріли, і нагадує запустити рефреш.
 
 Поруч із синхронною `ensureTool` (публічний API пакета, сигнатура не змінюється) модуль експортує async-варіант `ensureToolAsync(toolId)` для parallel lane `detectAll()` (ADR 260716-1354-внутрішній-паралелізм-lint-оркестратора): конкурентні виклики того самого `toolId` в одному Node-процесі колапсують в один install (in-process single-flight), а auto-install крок додатково серіалізується між процесами через `withLock` (ключ `ensure-tool/<toolId>`) — паралельні Node-процеси (різні CI-shard-и, кілька агентів) не тягнуть той самий бінарник конкурентно. Завантажений архів завжди пишеться в унікальний per-call temp-каталог і публікується атомарним `renameSync` під фіксованим flat-іменем `<toolId>` — цей hardened install-крок спільний для sync і async шляхів.
 
@@ -26,14 +28,16 @@ docgen:
 | `ensureTool(toolId)`        | `function` | Резолвить і за потреби встановлює зовнішній CLI (sync). Повертає абсолютний шлях до бінарника або кидає `Error`.                                     |
 | `ensureToolAsync(toolId)`   | `function` | Async-варіант для parallel lane `detectAll()`: single-flight (in-process) + `withLock` (cross-process) навколо auto-install кроку. Повертає `Promise<string>`. |
 | `ensureHkInstall(hkBin)`    | `function` | Виконує `hk install` для реєстрації git pre-commit hook. Жодного return value; на помилку лише `console.warn`.                                       |
-| `ToolProvisionError`        | `class`    | Транзієнтний збій авто-встановлення (GitHub API rate-limit, мережа, обірваний download). Споживачі розпізнають за `name` і можуть спрацювати fail-open (див. `lint-surface/detect.mjs`). |
-| `fetchLatestVersion(repo, curlBin)` | `function` | Резолвить останній тег релізу: GitHub API (з токеном за наявності) → redirect-fallback повз API. Експортовано для юніт-тестів. |
+| `ToolProvisionError`        | `class`    | Транзієнтний збій авто-встановлення (мережа, обірваний download). Споживачі розпізнають за `name` і можуть спрацювати fail-open (див. `lint-surface/detect.mjs`). |
+| `fetchLatestVersion(repo, curlBin)` | `function` | Резолвить останній тег релізу: GitHub API (з токеном за наявності) → redirect-fallback повз API. На звичайному install-шляху не викликається — лише зі `scripts/tool-pins-refresh.mjs` і юніт-тестів. |
+| `TOOLS`                     | `object`   | Реєстр `Record<string, ToolEntry>` із описом install-стратегії для кожного тула. Read-only; читається `tool-pins-refresh.mjs`. |
+| `TOOL_PINS_MAX_AGE_DAYS`    | `number`   | Поріг «застарілості» піна версій у днях (30). |
+| `checkToolPinsFreshness(now?)` | `function` | Вік поточного `tool-pins.json.pinnedAt` у днях відносно `now` (за замовчуванням `Date.now()`). Повертає `{ pinnedAt, ageDays, stale }`. |
 
 Внутрішні (не експортуються, але формують контракт модуля):
 
-- `TOOLS` — реєстр `Record<string, ToolEntry>` із описом install-стратегії для кожного тула.
 - `ToolEntry` — JSDoc-тип, що описує поля одного запису реєстру.
-- Допоміжні функції: `getCacheDir`, `mapArch`, `githubAuthArgs`, `fetchLatestVersionViaApi`, `fetchLatestVersionViaRedirect`, `installFromGithub`, `installViaBrew`, `installViaScoop`, `autoInstall`, `buildHint`.
+- Допоміжні функції: `getCacheDir`, `mapArch`, `githubAuthArgs`, `fetchLatestVersionViaApi`, `fetchLatestVersionViaRedirect`, `readToolPins`, `resolvePinnedVersion`, `installFromGithub`, `installViaBrew`, `installViaScoop`, `autoInstall`, `buildHint`.
 
 ## Функції
 
@@ -72,6 +76,19 @@ docgen:
 - **Помилки:** кидає `ToolProvisionError` лише коли не вдались обидва шляхи; повідомлення містить обидві причини (для API-відповіді без `tag_name` — і її `message`, напр. «API rate limit exceeded»).
 - **Side effects:** мережеві HTTP-запити до GitHub.
 
+### `readToolPins()`
+
+- **Сигнатура:** `readToolPins(): { pinnedAt: string, versions: Record<string, string> }`
+- **Повертає:** розпарсений `tool-pins.json`. Читається синхронно на кожен виклик (без module-level кешу) — довгоживучий процес одразу бачить щойно застосований рефреш.
+- **Side effects:** синхронне читання файлу `scripts/lib/tool-pins.json`.
+
+### `resolvePinnedVersion(toolId)`
+
+- **Сигнатура:** `resolvePinnedVersion(toolId: string): string`
+- **Повертає:** закріплену версію тула з `tool-pins.json.versions[toolId]` (без префікса `v`).
+- **Помилки:** якщо для `toolId` немає запису у `versions` — кидає звичайний (не `ToolProvisionError`) `Error`: це конфігураційна помилка (тул зареєстрували в `TOOLS`, але забули додати пін), а не транзієнтний збій.
+- **Side effects:** делегує в `readToolPins()`.
+
 ### `installFromGithub(toolId, entry, cacheDir)`
 
 - **Сигнатура:** `installFromGithub(toolId: string, entry: ToolEntry, cacheDir: string): string`
@@ -82,7 +99,7 @@ docgen:
 - **Повертає:** абсолютний шлях до встановленого бінарника.
 - **Послідовність дій:**
   1. Резолвить `curl` та `tar` у PATH; за відсутності — кидає `Error`.
-  2. Через `fetchLatestVersion` отримує актуальну версію.
+  2. Через `resolvePinnedVersion(toolId)` бере закріплену версію з `tool-pins.json` — жодного мережевого `latest`-lookup на цьому кроці.
   3. Формує назву asset через `entry.asset(ver)` і URL `https://github.com/<github>/releases/download/v<ver>/<asset>`.
   4. Створює `cacheDir` (`mkdirSync` з `recursive: true`) і унікальний per-call temp-каталог усередині нього (`mkdtempSync(join(cacheDir, '.tmp-<toolId>-'))`) — той самий filesystem гарантує, що фінальний `renameSync` не впаде з `EXDEV`.
   5. Завантажує asset у temp-каталог через `curl -sSL -o <tmpDir>/<asset> <downloadUrl>`.
@@ -92,11 +109,18 @@ docgen:
 - **Помилки:**
   - `curl не знайдено в PATH — потрібен для завантаження <toolId>` (`Error` — конфігурація середовища).
   - `tar не знайдено в PATH — потрібен для встановлення <toolId>` (`Error`).
+  - `ensureTool: немає закріпленої версії для '<toolId>' у tool-pins.json — ...` (`Error` — конфігурація, з `resolvePinnedVersion`).
   - `Завантаження <toolId> не вдалось: ...` / `curl exit <status> при завантаженні <toolId>: ...` (`ToolProvisionError` — транзієнтний мережевий збій).
   - `tar failed for <toolId>: ...` / `tar exit <status> для <toolId>: ...` (`Error`).
   - `Бінарник <toolId> не знайдено після розпакування: <extractedBin>` (`Error`).
-  - Збій lookup версії пропагується як `ToolProvisionError` із `fetchLatestVersion`.
-- **Side effects:** мережа, файлова система (унікальний temp-каталог, атомарна публікація, chmod, очищення temp).
+- **Side effects:** мережа (лише download, без `latest`-lookup), файлова система (унікальний temp-каталог, атомарна публікація, chmod, очищення temp).
+
+### `checkToolPinsFreshness(now?)` _(export)_
+
+- **Сигнатура:** `checkToolPinsFreshness(now?: number): { pinnedAt: string, ageDays: number, stale: boolean }`
+- **Параметри:** `now` — час порівняння в ms epoch; за замовчуванням `Date.now()`.
+- **Повертає:** `pinnedAt` з `tool-pins.json`, обчислений `ageDays` (`Math.floor`) і `stale` — `true`, якщо `ageDays > TOOL_PINS_MAX_AGE_DAYS` (30).
+- **Side effects:** делегує в `readToolPins()`.
 
 ### `installViaBrew(toolId, entry)`
 
@@ -175,10 +199,11 @@ docgen:
 ### Стандартна бібліотека Node.js
 
 - `node:child_process` — `spawnSync` для синхронного запуску `curl`, `tar`, `brew`, `scoop`, `rm`, `hk`.
-- `node:fs` — `chmodSync`, `existsSync`, `mkdirSync`, `renameSync`.
+- `node:fs` — `chmodSync`, `existsSync`, `mkdirSync`, `mkdtempSync`, `readFileSync` (читання `tool-pins.json`), `renameSync`, `rmSync`.
 - `node:os` — `homedir` для побудови шляху кешу.
-- `node:path` — `join` для конструювання шляхів.
+- `node:path` — `dirname`, `join` для конструювання шляхів.
 - `node:process` — `arch`, `env`, `platform`.
+- `node:url` — `fileURLToPath` для резолву абсолютного шляху `tool-pins.json` поряд із модулем.
 
 ### Внутрішні
 
@@ -209,14 +234,14 @@ docgen:
 4. Перевірка `/home/<user>/.cache/@7n/rules/bin/shellcheck` — не існує.
 5. `N_CURSOR_NO_AUTO_INSTALL` не виставлено → `autoInstall(...)`.
 6. На Linux диспетчер викликає `installFromGithub('shellcheck', entry, cacheDir)`:
-   - `fetchLatestVersion('koalaman/shellcheck', curl)` → наприклад `0.10.0`.
-   - asset name = `shellcheck-v0.10.0.linux.x86_64.tar.xz`.
-   - URL = `https://github.com/koalaman/shellcheck/releases/download/v0.10.0/<asset>`.
+   - `resolvePinnedVersion('shellcheck')` читає `tool-pins.json.versions.shellcheck` → наприклад `0.11.0` (мережевого запиту немає).
+   - asset name = `shellcheck-v0.11.0.linux.x86_64.tar.xz`.
+   - URL = `https://github.com/koalaman/shellcheck/releases/download/v0.11.0/<asset>`.
    - `mkdirSync(cacheDir, { recursive: true })` і унікальний `tmpDir = mkdtempSync(join(cacheDir, '.tmp-shellcheck-'))`.
    - `curl -sSL -o <tmpDir>/<asset> <url>`.
    - `tar -xJf <asset> -C <tmpDir>` (бо `.tar.xz`).
-   - `binFinder('0.10.0')` → `<tmpDir>/shellcheck-v0.10.0/shellcheck`; перевірка `existsSync`.
-   - Атомарний `renameSync(<tmpDir>/shellcheck-v0.10.0/shellcheck, <cacheDir>/shellcheck)` — публікація під flat-іменем.
+   - `binFinder('0.11.0')` → `<tmpDir>/shellcheck-v0.11.0/shellcheck`; перевірка `existsSync`.
+   - Атомарний `renameSync(<tmpDir>/shellcheck-v0.11.0/shellcheck, <cacheDir>/shellcheck)` — публікація під flat-іменем.
    - `rmSync(tmpDir, { recursive: true, force: true })` у `finally`.
    - Повертає `<cacheDir>/shellcheck`.
 7. Викликач отримує абсолютний шлях і запускає `spawnSync(bin, [...args])`.
@@ -251,7 +276,24 @@ ensureHkInstall(hkBin) // git hook у .git/hooks/pre-commit
 2. Знайти GitHub-репо релізів і визначити `archStyle` (`hk` / `conftest` / `actionlint`).
 3. Описати `asset(ver)` та, якщо потрібно, `binFinder(ver)` (коли бінарник лежить не в корені архіву).
 4. Виставити `archive: false` для прямого бінарника без архіву.
-5. Додати запис у `TOOLS`. Жодних змін у викликачах не потрібно — `ensureTool('foo')` запрацює одразу.
+5. Додати запис у `TOOLS`.
+6. Додати закріплену версію в `tool-pins.json.versions.foo` (напр. запустивши `bun npm/scripts/tool-pins-refresh.mjs` — підхопить новий тул автоматично) — без цього кроку `installFromGithub('foo', …)` на Linux/Windows-fallback впаде з конфігураційною помилкою `немає закріпленої версії для 'foo'`.
+
+Жодних змін у викликачах не потрібно — `ensureTool('foo')` запрацює одразу.
+
+### Рефреш закріплених версій (`tool-pins-refresh.mjs`)
+
+`scripts/lib/tool-pins.json` не оновлюється сам собою — це навмисно (інакше повернулася б проблема з постійними `latest`-lookup-ами). Рефреш — окрема ручна дія:
+
+```sh
+bun npm/scripts/tool-pins-refresh.mjs
+```
+
+Скрипт іде по `TOOLS`, для кожного тула резолвить `fetchLatestVersion(entry.github, curl)` (GitHub API з токеном за наявності → redirect-fallback), переписує `tool-pins.json` свіжими версіями і сьогоднішньою `pinnedAt`, друкує diff версій. Коли запускати:
+
+- тест `tool-pins-freshness.test.mjs` червоніє (`checkToolPinsFreshness().stale === true`, пінам > `TOOL_PINS_MAX_AGE_DAYS` днів);
+- відома вразливість/баг у закріпленому тулі — рефреш раніше терміну;
+- просто хочеться підняти версії тулів на актуальні.
 
 ### Гарантії та інваріанти
 
@@ -259,3 +301,4 @@ ensureHkInstall(hkBin) // git hook у .git/hooks/pre-commit
 - **Hard-fail:** на будь-яку нерозв’язну помилку install кидається `Error` із описовим повідомленням; немає silent fallback на «обірваний» бінарник.
 - **Кросплатформність:** єдиний публічний API для трьох ОС; OS-specific деталі інкапсульовані всередині модуля.
 - **Безпека для CI:** `ensureHkInstall` ніколи не змінює git-репозиторій під CI, навіть якщо `hk` доступний.
+- **Без `latest`-lookup на звичайному install-шляху:** `installFromGithub` бере версію з закріпленого `tool-pins.json`; `fetchLatestVersion` викликається лише з `tool-pins-refresh.mjs` (ручний рефреш) і тестів — CI-job на порожньому кеші не робить запиту до GitHub API для резолву версії.

@@ -10,6 +10,12 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
 import { env } from 'node:process'
 
+// JSON-import, не `node:fs` — статичний `import {readFileSync} from 'node:fs'` тут ламає
+// hoisting-порядок `vi.mock('node:fs', …)` нижче (ESM static import виконується до const
+// XMock = vi.fn() top-level коду, тоді як factory виконується лише лениво, на моменті
+// динамічного `await import('../ensure-tool.mjs')`).
+import toolPins from '../tool-pins.json' with { type: 'json' }
+
 const resolveCmdMock = vi.fn()
 const existsSyncMock = vi.fn()
 const spawnSyncMock = vi.fn()
@@ -21,19 +27,26 @@ vi.mock('../../utils/resolve-cmd.mjs', () => ({
 vi.mock('../../utils/with-lock.mjs', () => ({
   withLock: withLockMock
 }))
-vi.mock('node:fs', () => ({
-  existsSync: existsSyncMock,
-  mkdirSync: vi.fn(),
-  mkdtempSync: vi.fn(),
-  chmodSync: vi.fn(),
-  renameSync: vi.fn(),
-  rmSync: vi.fn()
-}))
+vi.mock('node:fs', async () => {
+  // readFileSync лишається реальним (spread actual) — resolvePinnedVersion/checkToolPinsFreshness
+  // читають справжній tool-pins.json; тільки install-мутації (mkdir/mkdtemp/chmod/rename/rm) мокаються.
+  const actual = await vi.importActual('node:fs')
+  return {
+    ...actual,
+    existsSync: existsSyncMock,
+    mkdirSync: vi.fn(),
+    mkdtempSync: vi.fn(),
+    chmodSync: vi.fn(),
+    renameSync: vi.fn(),
+    rmSync: vi.fn()
+  }
+})
 vi.mock('node:child_process', () => ({
   spawnSync: spawnSyncMock
 }))
 
-const { ensureTool, ensureToolAsync, ensureHkInstall, fetchLatestVersion } = await import('../ensure-tool.mjs')
+const { ensureTool, ensureToolAsync, ensureHkInstall, fetchLatestVersion, checkToolPinsFreshness, TOOLS } =
+  await import('../ensure-tool.mjs')
 
 const HK_SUFFIX_RE = /hk$/
 const UNKNOWN_TOOL_RE = /невідомий тул/
@@ -263,6 +276,32 @@ describe('fetchLatestVersion', () => {
         expect(thrown?.message).toContain('API rate limit exceeded')
       })
     )
+  })
+})
+
+describe('tool-pins.json', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000
+
+  test('кожен тул з TOOLS має закріплену версію в tool-pins.json', () => {
+    for (const toolId of Object.keys(TOOLS)) {
+      expect(toolPins.versions[toolId], `${toolId}: немає піна в tool-pins.json`).toBeTruthy()
+    }
+  })
+
+  test('checkToolPinsFreshness: < 30 днів від pinnedAt → не stale', () => {
+    const { pinnedAt } = checkToolPinsFreshness()
+    const now = Date.parse(pinnedAt) + 5 * DAY_MS
+    const result = checkToolPinsFreshness(now)
+    expect(result.ageDays).toBe(5)
+    expect(result.stale).toBe(false)
+  })
+
+  test('checkToolPinsFreshness: > 30 днів від pinnedAt → stale', () => {
+    const { pinnedAt } = checkToolPinsFreshness()
+    const now = Date.parse(pinnedAt) + 31 * DAY_MS
+    const result = checkToolPinsFreshness(now)
+    expect(result.ageDays).toBe(31)
+    expect(result.stale).toBe(true)
   })
 })
 
