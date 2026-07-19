@@ -399,6 +399,8 @@ describe('runTazeOrchestrator', () => {
         copyFile: noop,
         rm: noop,
         collectTazeDiff: () => ({ major: [], minorPatch: 0, totalChanged: 0, comparedWorkspaces: 1 }),
+        readMigrationCache: async () => null,
+        writeMigrationCache: async () => {},
         ecosystemProviders: [
           fakeProvider('py', steps, {
             diff: () => {
@@ -499,6 +501,124 @@ describe('runTazeOrchestrator', () => {
       'py:diff',
       'py:cleanup'
     ])
+  })
+
+  test('кеш міграцій: знайдено запис → промпт доповнюється підсумком, повторний CHANGELOG-виклик не потрібен', async () => {
+    const steps = []
+    const major = [{ manifest: 'package.json', pkg: '@7n/tauri-components', from: '^0.8.0', to: '^0.11.1' }]
+    const readCalls = []
+    const writeCalls = []
+    const runnerCalls = []
+
+    const result = await runTazeOrchestrator({
+      cwd: '/tmp/project',
+      runner: 'cursor',
+      log: noop,
+      deps: {
+        spawnFn: fakeSpawn,
+        readMigrationCache: async (pkg, from, to) => {
+          readCalls.push({ pkg, from, to })
+          return { notes: 'useAgent видалено → useAcpAgent', sourceRepo: '/tmp/other-repo', updatedAt: '2026-07-19T00:00:00.000Z' }
+        },
+        writeMigrationCache: async (...args) => {
+          writeCalls.push(args)
+        },
+        ecosystemProviders: [
+          fakeProvider('js-bun', steps, {
+            diff: () => Promise.resolve({ major, minorPatch: 0, totalChanged: 1 })
+          })
+        ],
+        callRunner: (runner, prompt, cwd) => {
+          runnerCalls.push({ runner, prompt, cwd })
+          return { ok: true, text: 'нічого не змінено — вже сумісно', error: null }
+        }
+      }
+    })
+
+    expect(readCalls).toEqual([{ pkg: '@7n/tauri-components', from: '^0.8.0', to: '^0.11.1' }])
+    expect(runnerCalls[0].prompt).toContain('prompt:js-bun:@7n/tauri-components')
+    expect(runnerCalls[0].prompt).toContain('/tmp/other-repo')
+    expect(runnerCalls[0].prompt).toContain('useAgent видалено → useAcpAgent')
+    expect(runnerCalls[0].prompt).toContain('пропусти крок 1')
+    // успішний виклик оновлює кеш власним підсумком — наступний репо побачить свіжіший запис.
+    expect(writeCalls).toHaveLength(1)
+    expect(writeCalls[0][0]).toBe('@7n/tauri-components')
+    expect(writeCalls[0][3].notes).toBe('нічого не змінено — вже сумісно')
+    expect(result.ok).toBe(true)
+  })
+
+  test('кеш міграцій: нема запису → промпт без секції кешу, після успіху кеш записується', async () => {
+    const major = [{ manifest: 'package.json', pkg: 'typer', from: '0.19.1', to: '0.27.0' }]
+    const writeCalls = []
+    const runnerCalls = []
+
+    await runTazeOrchestrator({
+      cwd: '/tmp/project',
+      runner: 'pi',
+      log: noop,
+      deps: {
+        spawnFn: fakeSpawn,
+        readMigrationCache: async () => null,
+        writeMigrationCache: async (...args) => {
+          writeCalls.push(args)
+        },
+        ecosystemProviders: [
+          fakeProvider('py', [], { diff: () => Promise.resolve({ major, minorPatch: 0, totalChanged: 1 }) })
+        ],
+        callRunner: (runner, prompt, cwd) => {
+          runnerCalls.push({ runner, prompt, cwd })
+          return { ok: true, text: 'зрефакторено use-agent.js', error: null }
+        }
+      }
+    })
+
+    expect(runnerCalls[0].prompt).toBe('prompt:py:typer')
+    expect(writeCalls).toEqual([['typer', '0.19.1', '0.27.0', expect.objectContaining({ notes: 'зрефакторено use-agent.js' }), expect.any(Object)]])
+  })
+
+  test('SIGTERM під час прогону — рятує прогрес автоствореного worktree перед виходом', async () => {
+    const calls = []
+    let capturedSignalHandler = null
+    let exitCode = null
+
+    const originalOn = process.on.bind(process)
+    process.on = (event, handler) => {
+      if (event === 'SIGTERM') capturedSignalHandler = handler
+      return originalOn(event, handler)
+    }
+
+    try {
+      const resultPromise = runTazeOrchestrator({
+        cwd: '/Users/dev/repo',
+        runner: 'pi',
+        log: noop,
+        deps: {
+          spawnFn: (cmd, args = []) => {
+            calls.push([cmd, ...args].join(' '))
+            if (cmd === 'git' && args[0] === 'rev-parse') return { status: 0, stdout: '/Users/dev/repo\n', stderr: '' }
+            if (cmd === 'git' && args[0] === 'branch') return { status: 0, stdout: 'main\n', stderr: '' }
+            if (cmd === 'git' && args[0] === 'status') return { status: 0, stdout: '', stderr: '' }
+            return fakeSpawn(cmd)
+          },
+          ecosystemProviders: [],
+          exitProcessFn: code => {
+            exitCode = code
+          }
+        }
+      })
+
+      // Симулюємо переривання ще до завершення оркестратора (signal-обробник
+      // уже зареєстрований одразу після створення worktree).
+      expect(capturedSignalHandler).toBeTypeOf('function')
+      await capturedSignalHandler('SIGTERM')
+
+      await resultPromise
+    } finally {
+      process.on = originalOn
+    }
+
+    expect(calls).toContain('npx @7n/mt worktree remove main-taze')
+    expect(exitCode).toBe(1)
   })
 })
 
