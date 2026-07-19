@@ -39,6 +39,7 @@ JS-детектор (не rego): `main.mjs`, `lint(ctx)`, per-file, glob `**/dre
 **Що перевіряється:** якщо файл визначає `ConfigMap` з `data["logback.xml"]` (bundled-конфіг образу `zookeeper:3.8.4-jre-17`, монтується поверх `/conf/logback.xml`), його `<root level="...">` має бути `warn`/`error`/`off` (case-insensitive) — не `info`/`debug`/`trace` (дефолт бандлованого файлу) і не відсутній.
 
 **Чому:** readiness/liveness `ruok`-проби виконуються кожні ~10s на кожен zk-под; `NIOServerCnxn` логує це на INFO незалежно від навантаження. Керувати рівнем ззовні НЕ вдається для цього образу:
+
 - `ZOO_LOG4J_PROP` — змінна Bitnami-образів, тут взагалі не читається жодним скриптом.
 - `-Dzookeeper.console.threshold=WARN` через `JVMFLAGS` — перебивається `<property name="zookeeper.console.threshold" value="INFO"/>` у бандлованому файлі.
 
