@@ -8,6 +8,7 @@
         "@7n/rules": "workspace:*",
         "@7n/rules-ci-azure": "workspace:*",
         "@7n/rules-ci-github": "workspace:*",
+        "@7n/rules-lang-js": "workspace:*",
         "@7n/rules-lang-python": "workspace:*",
         "@7n/rules-lang-rust": "workspace:*",
         "@7n/test": "^0.14.3",
@@ -111,6 +112,13 @@
         "@7n/rules": ">=1.2.0",
       },
     },
+    "plugins/lang-js": {
+      "name": "@7n/rules-lang-js",
+      "version": "0.1.0",
+      "peerDependencies": {
+        "@7n/rules": ">=1.24.0",
+      },
+    },
     "plugins/lang-python": {
       "name": "@7n/rules-lang-python",
       "version": "0.4.0",
@@ -150,6 +158,8 @@
     "@7n/rules-ci-azure": ["@7n/rules-ci-azure@workspace:plugins/ci-azure"],
 
     "@7n/rules-ci-github": ["@7n/rules-ci-github@workspace:plugins/ci-github"],
+
+    "@7n/rules-lang-js": ["@7n/rules-lang-js@workspace:plugins/lang-js"],
 
     "@7n/rules-lang-python": ["@7n/rules-lang-python@workspace:plugins/lang-python"],
 

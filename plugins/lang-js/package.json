@@ -1,0 +1,53 @@
+{
+  "name": "@7n/rules-lang-js",
+  "version": "0.1.0",
+  "description": "Плагін @7n/rules: JS/npm/bun-екосистема — taze-провайдер (package.json, bunx taze)",
+  "keywords": [
+    "javascript",
+    "bun",
+    "taze",
+    "n-rules-plugin"
+  ],
+  "homepage": "https://github.com/nitra/7n-rules#readme",
+  "bugs": {
+    "url": "https://github.com/nitra/7n-rules/issues"
+  },
+  "license": "ISC",
+  "author": "v@nitra.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nitra/7n-rules.git",
+    "directory": "plugins/lang-js"
+  },
+  "type": "module",
+  "files": [
+    "taze",
+    "skills",
+    "CHANGELOG.md",
+    "!**/*.test.mjs",
+    "!**/*_test.rego",
+    "!**/fixtures/**",
+    "!**/tests/**"
+  ],
+  "n-rules": {
+    "capabilities": [
+      "lang:js"
+    ],
+    "contributes": {
+      "rules": false,
+      "handlers": {
+        "taze": "./taze/provider.mjs"
+      }
+    }
+  },
+  "peerDependencies": {
+    "@7n/rules": ">=1.24.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "bun": ">=1.3",
+    "node": ">=24"
+  }
+}

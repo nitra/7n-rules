@@ -187,12 +187,19 @@ jobs:
         with:
           package: plugins/lang-rust/package.json
 
+      - name: Publish @7n/rules-lang-js
+        id: publish-lang-js
+        continue-on-error: true
+        uses: JS-DevTools/npm-publish@v4.1.5
+        with:
+          package: plugins/lang-js/package.json
+
       - name: Push release-коміт + теги (лише якщо бодай один publish пройшов)
-        if: steps.publish-llm-lib-darwin-arm64.outcome == 'success' || steps.publish-llm-lib-linux-x64.outcome == 'success' || steps.publish-llm-lib.outcome == 'success' || steps.publish-cursor.outcome == 'success' || steps.publish-ci-github.outcome == 'success' || steps.publish-ci-azure.outcome == 'success' || steps.publish-lang-python.outcome == 'success' || steps.publish-lang-rust.outcome == 'success'
+        if: steps.publish-llm-lib-darwin-arm64.outcome == 'success' || steps.publish-llm-lib-linux-x64.outcome == 'success' || steps.publish-llm-lib.outcome == 'success' || steps.publish-cursor.outcome == 'success' || steps.publish-ci-github.outcome == 'success' || steps.publish-ci-azure.outcome == 'success' || steps.publish-lang-python.outcome == 'success' || steps.publish-lang-rust.outcome == 'success' || steps.publish-lang-js.outcome == 'success'
         run: git push --follow-tags
 
       - name: Fail job, якщо публікація хоч одного пакета впала
-        if: steps.publish-llm-lib-darwin-arm64.outcome == 'failure' || steps.publish-llm-lib-linux-x64.outcome == 'failure' || steps.publish-llm-lib.outcome == 'failure' || steps.publish-cursor.outcome == 'failure' || steps.publish-ci-github.outcome == 'failure' || steps.publish-ci-azure.outcome == 'failure' || steps.publish-lang-python.outcome == 'failure' || steps.publish-lang-rust.outcome == 'failure'
+        if: steps.publish-llm-lib-darwin-arm64.outcome == 'failure' || steps.publish-llm-lib-linux-x64.outcome == 'failure' || steps.publish-llm-lib.outcome == 'failure' || steps.publish-cursor.outcome == 'failure' || steps.publish-ci-github.outcome == 'failure' || steps.publish-ci-azure.outcome == 'failure' || steps.publish-lang-python.outcome == 'failure' || steps.publish-lang-rust.outcome == 'failure' || steps.publish-lang-js.outcome == 'failure'
         run: |
-          echo "::error::npm publish не пройшов — llm-lib-darwin-arm64=${{ steps.publish-llm-lib-darwin-arm64.outcome }}, llm-lib-linux-x64=${{ steps.publish-llm-lib-linux-x64.outcome }}, llm-lib=${{ steps.publish-llm-lib.outcome }}, cursor=${{ steps.publish-cursor.outcome }}, ci-github=${{ steps.publish-ci-github.outcome }}, ci-azure=${{ steps.publish-ci-azure.outcome }}, lang-python=${{ steps.publish-lang-python.outcome }}, lang-rust=${{ steps.publish-lang-rust.outcome }}"
+          echo "::error::npm publish не пройшов — llm-lib-darwin-arm64=${{ steps.publish-llm-lib-darwin-arm64.outcome }}, llm-lib-linux-x64=${{ steps.publish-llm-lib-linux-x64.outcome }}, llm-lib=${{ steps.publish-llm-lib.outcome }}, cursor=${{ steps.publish-cursor.outcome }}, ci-github=${{ steps.publish-ci-github.outcome }}, ci-azure=${{ steps.publish-ci-azure.outcome }}, lang-python=${{ steps.publish-lang-python.outcome }}, lang-rust=${{ steps.publish-lang-rust.outcome }}, lang-js=${{ steps.publish-lang-js.outcome }}"
           exit 1
