@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.30.0] - 2026-07-19
+
+### Added
+
+- ensure-tool: закріплені версії зовнішніх CLI-тулів у tool-pins.json (без latest-lookup на звичайному install-шляху) + tool-pins-refresh.mjs для ручного рефрешу + tool-pins-freshness.test.mjs, що нагадує оновити піни після 30 днів
+
+### Fixed
+
+- ensure-tool: GitHub-токен у lookup релізів, redirect-fallback без API і fail-open детекторів на транзієнтні збої авто-встановлення тулів (rate-limit без tag_name більше не валить lint exit 2)
+
 ## [1.29.3] - 2026-07-19
 
 ### Changed
