@@ -399,8 +399,8 @@ describe('runTazeOrchestrator', () => {
         copyFile: noop,
         rm: noop,
         collectTazeDiff: () => ({ major: [], minorPatch: 0, totalChanged: 0, comparedWorkspaces: 1 }),
-        readMigrationCache: async () => null,
-        writeMigrationCache: async () => {},
+        readMigrationCache: () => null,
+        writeMigrationCache: () => null,
         ecosystemProviders: [
           fakeProvider('py', steps, {
             diff: () => {
@@ -516,11 +516,11 @@ describe('runTazeOrchestrator', () => {
       log: noop,
       deps: {
         spawnFn: fakeSpawn,
-        readMigrationCache: async (pkg, from, to) => {
+        readMigrationCache: (pkg, from, to) => {
           readCalls.push({ pkg, from, to })
           return { notes: 'useAgent видалено → useAcpAgent', sourceRepo: '/tmp/other-repo', updatedAt: '2026-07-19T00:00:00.000Z' }
         },
-        writeMigrationCache: async (...args) => {
+        writeMigrationCache: (...args) => {
           writeCalls.push(args)
         },
         ecosystemProviders: [
@@ -558,8 +558,8 @@ describe('runTazeOrchestrator', () => {
       log: noop,
       deps: {
         spawnFn: fakeSpawn,
-        readMigrationCache: async () => null,
-        writeMigrationCache: async (...args) => {
+        readMigrationCache: () => null,
+        writeMigrationCache: (...args) => {
           writeCalls.push(args)
         },
         ecosystemProviders: [
@@ -608,7 +608,12 @@ describe('runTazeOrchestrator', () => {
       })
 
       // Симулюємо переривання ще до завершення оркестратора (signal-обробник
-      // уже зареєстрований одразу після створення worktree).
+      // реєструється одразу після створення worktree, але `ensureRunningInWorktree`
+      // сама async — потрібен хоча б один мікротаск, щоб виконання дійшло до
+      // `process.on`, тому чекаємо, а не перевіряємо одразу синхронно).
+      for (let i = 0; i < 50 && !capturedSignalHandler; i += 1) {
+        await Promise.resolve()
+      }
       expect(capturedSignalHandler).toBeTypeOf('function')
       await capturedSignalHandler('SIGTERM')
 
