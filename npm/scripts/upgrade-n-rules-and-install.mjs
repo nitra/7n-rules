@@ -22,6 +22,11 @@ const PACKAGE_NAME = '@7n/rules'
 const LEGACY_PACKAGE_NAME = '@nitra/cursor'
 const NPM_LATEST_URL = 'https://registry.npmjs.org/@7n/rules/latest'
 
+// Плагіни екосистеми (@7n/rules-lang-js, -ci-github, …) — їх діапазони sync
+// підіймає до ^latest тим самим механізмом, що й ядро: `bun i` сам по собі
+// поважає lockfile, і фікси плагінів навіть у межах діапазону не доїжджали б.
+const PLUGIN_NAME_RE = /^@7n\/rules-/
+
 const execFileAsync = promisify(execFile)
 
 const WORKSPACE_RE = /^workspace:/i
@@ -67,21 +72,69 @@ export function shouldSkipNpmVersionUpgrade(specifier) {
 }
 
 /**
- * Остання версія пакета з npm (поле `version` у JSON dist-tag `latest`).
+ * Остання версія довільного пакета з npm (поле `version` у dist-tag `latest`).
+ * @param {string} packageName npm-ім'я пакета
  * @returns {Promise<string>} semver без префікса `^`
  */
-export async function fetchLatestNRulesVersionFromNpm() {
-  const res = await fetch(NPM_LATEST_URL, {
+async function fetchLatestVersionFromNpm(packageName) {
+  const url = packageName === PACKAGE_NAME ? NPM_LATEST_URL : `https://registry.npmjs.org/${packageName}/latest`
+  const res = await fetch(url, {
     headers: { accept: 'application/json' }
   })
   if (!res.ok) {
-    throw new Error(`npm registry: ${res.status} ${res.statusText} для ${PACKAGE_NAME}`)
+    throw new Error(`npm registry: ${res.status} ${res.statusText} для ${packageName}`)
   }
   const data = await res.json()
   if (!data || typeof data.version !== 'string' || !data.version.trim()) {
-    throw new Error(`npm registry: у відповіді для ${PACKAGE_NAME} немає поля version`)
+    throw new Error(`npm registry: у відповіді для ${packageName} немає поля version`)
   }
   return data.version.trim()
+}
+
+/**
+ * Остання версія пакета `@7n/rules` з npm.
+ * @returns {Promise<string>} semver без префікса `^`
+ */
+export async function fetchLatestNRulesVersionFromNpm() {
+  return await fetchLatestVersionFromNpm(PACKAGE_NAME)
+}
+
+/**
+ * Підіймає діапазони встановлених плагінів `@7n/rules-*` у package.json до
+ * `^latest` з npm (мутує `pkg`). Специфікатори поза npm-semver
+ * (`workspace:`, `file:`, git тощо) не чіпає; недоступний registry для
+ * окремого плагіна — warning і пропуск (sync не має падати без мережі).
+ * @param {{ dependencies?: Record<string, string>, devDependencies?: Record<string, string> }} pkg розпарсений package.json проєкту
+ * @returns {Promise<string[]>} імена плагінів, чиї діапазони змінено
+ */
+export async function upgradePluginRanges(pkg) {
+  /** @type {Array<{ section: 'dependencies' | 'devDependencies', name: string, value: string }>} */
+  const candidates = []
+  for (const section of /** @type {const} */ (['dependencies', 'devDependencies'])) {
+    const deps = pkg[section]
+    if (!deps || typeof deps !== 'object' || Array.isArray(deps)) continue
+    for (const [name, value] of Object.entries(deps)) {
+      if (PLUGIN_NAME_RE.test(name) && typeof value === 'string' && !shouldSkipNpmVersionUpgrade(value)) {
+        candidates.push({ section, name, value })
+      }
+    }
+  }
+  const changed = []
+  const latests = await Promise.allSettled(candidates.map(c => fetchLatestVersionFromNpm(c.name)))
+  for (const [i, settled] of latests.entries()) {
+    const { section, name, value } = candidates[i]
+    if (settled.status === 'rejected') {
+      console.warn(`⚠️  ${name}: npm registry недоступний (${settled.reason?.message ?? settled.reason}) — пропускаю\n`)
+      continue
+    }
+    const desired = `^${settled.value}`
+    if (value !== desired) {
+      pkg[section][name] = desired
+      changed.push(name)
+      console.log(`⬆️  Оновлено ${name} ${value} → ${desired} у ${section}\n`)
+    }
+  }
+  return changed
 }
 
 /**
@@ -111,6 +164,25 @@ export function resolveInstalledPackageRoot(projectRoot, fallbackPackageRoot, pa
     return installed
   }
   return fallbackPackageRoot
+}
+
+/**
+ * Остання версія ядра з npm; коли registry недоступний (або до першої
+ * публікації — 404) — fallback на версію пакету поточного процесу.
+ * @param {string} fallbackPackageRoot корінь пакету з поточного процесу CLI
+ * @returns {Promise<string>} semver без префікса `^`
+ */
+async function resolveLatestCoreVersion(fallbackPackageRoot) {
+  try {
+    return await fetchLatestNRulesVersionFromNpm()
+  } catch (error) {
+    const bundled = await readPackageVersionSafe(fallbackPackageRoot)
+    if (!bundled) {
+      throw error
+    }
+    console.log(`⚠️  npm registry недоступний для ${PACKAGE_NAME} — використовую bundled-версію ${bundled}\n`)
+    return bundled
+  }
 }
 
 /**
@@ -221,18 +293,11 @@ export async function upgradeNRulesToLatestAndBunInstall(projectRoot, fallbackPa
     return resolveInstalledPackageRoot(projectRoot, fallbackPackageRoot)
   }
 
-  let latest
-  try {
-    latest = await fetchLatestNRulesVersionFromNpm()
-  } catch (error) {
-    // До першої публікації @7n/rules registry віддає 404 — fallback на версію пакету поточного процесу
-    latest = await readPackageVersionSafe(fallbackPackageRoot)
-    if (!latest) {
-      throw error
-    }
-    console.log(`⚠️  npm registry недоступний для ${PACKAGE_NAME} — використовую bundled-версію ${latest}\n`)
-  }
-  const desired = `^${latest}`
+  const desired = `^${await resolveLatestCoreVersion(fallbackPackageRoot)}`
+
+  // Діапазони вже оголошених плагінів @7n/rules-* — до ^latest тим самим
+  // кроком (мутує pkg; запис на диск — разом із записом по ядру нижче).
+  const upgradedPlugins = await upgradePluginRanges(pkg)
 
   if (!found) {
     if (!pkg.devDependencies || typeof pkg.devDependencies !== 'object' || Array.isArray(pkg.devDependencies)) {
@@ -246,7 +311,7 @@ export async function upgradeNRulesToLatestAndBunInstall(projectRoot, fallbackPa
     return resolveInstalledPackageRoot(projectRoot, fallbackPackageRoot)
   }
 
-  if (found.value === desired) {
+  if (found.value === desired && upgradedPlugins.length === 0) {
     console.log(`📌 ${PACKAGE_NAME} уже ${desired} у package.json — виконуємо bun i\n`)
   } else {
     if (found.section === 'devDependencies') {
@@ -255,7 +320,9 @@ export async function upgradeNRulesToLatestAndBunInstall(projectRoot, fallbackPa
       pkg.dependencies[PACKAGE_NAME] = desired
     }
     await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8')
-    console.log(`📝 Оновлено ${PACKAGE_NAME} → ${desired} у package.json\n`)
+    if (found.value !== desired) {
+      console.log(`📝 Оновлено ${PACKAGE_NAME} → ${desired} у package.json\n`)
+    }
   }
 
   await runBunInstall(projectRoot)
