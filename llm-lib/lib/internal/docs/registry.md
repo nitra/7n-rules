@@ -3,7 +3,7 @@ type: JS Module
 title: registry.mjs
 resource: llm-lib/lib/internal/registry.mjs
 docgen:
-  crc: d8f39754
+  crc: a37ca8f0
 ---
 
 ## Огляд

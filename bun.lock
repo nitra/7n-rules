@@ -36,9 +36,13 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.8.0",
+      "version": "2.8.1",
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
+      },
+      "devDependencies": {
+        "@earendil-works/pi-ai": "~0.80.10",
+        "@earendil-works/pi-coding-agent": "~0.80.10",
       },
       "optionalDependencies": {
         "@7n/llm-lib-darwin-arm64": "2.7.6",
@@ -55,7 +59,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.22.0",
+      "version": "1.23.1",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
@@ -99,7 +103,7 @@
     },
     "plugins/ci-github": {
       "name": "@7n/rules-ci-github",
-      "version": "1.6.2",
+      "version": "1.7.0",
       "dependencies": {
         "yaml": "^2.9.0",
       },
@@ -109,7 +113,7 @@
     },
     "plugins/lang-python": {
       "name": "@7n/rules-lang-python",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "smol-toml": "^1.7.0",
       },
@@ -119,7 +123,7 @@
     },
     "plugins/lang-rust": {
       "name": "@7n/rules-lang-rust",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "smol-toml": "^1.7.0",
       },

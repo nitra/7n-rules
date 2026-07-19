@@ -34,7 +34,8 @@ let _registry = null
  */
 export async function getRegistry() {
   if (_registry) return _registry
-  const { ModelRegistry, AuthStorage } = await import('@earendil-works/pi-coding-agent')
-  _registry = ModelRegistry.create(AuthStorage.create())
+  const { ModelRegistry, ModelRuntime } = await import('@earendil-works/pi-coding-agent')
+  const runtime = await ModelRuntime.create()
+  _registry = new ModelRegistry(runtime)
   return _registry
 }
