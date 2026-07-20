@@ -1,7 +1,9 @@
 /**
  * lint-поверхня style: read-only detector (stylelint без --fix) для css/scss/vue.
- * Per-file (ctx.files) або весь проєкт (ctx.files === undefined). Якщо stylelint
- * недоступний — крок пропускається (без npx-автовстановлення).
+ * Per-file (ctx.files) або весь проєкт (ctx.files === undefined). `stylelint` —
+ * задекларована залежність плагіна (справжній `npm install` завжди його ставить);
+ * якщо резолв все ж не вдався (побитий install, hoisting-аномалія) — крок
+ * пропускається з видимим warn-diagnostic, а не мовчки (без npx-автовстановлення).
  */
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -33,8 +35,8 @@ export function resolveStylelint(cwd) {
 
 /**
  * Detector style/lint (read-only).
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону (cwd, files)
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат зі зібраними violations
+ * @param {import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону (cwd, files)
+ * @returns {Promise<import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintResult>} результат зі зібраними violations
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
@@ -54,8 +56,18 @@ export async function lint(ctx) {
 
   const stylelint = resolveStylelint(cwd)
   if (!stylelint) {
-    // stylelint недоступний → крок пропущено (без автовстановлення)
-    return reporter.result()
+    // stylelint — задекларована залежність плагіна, тож відсутність тут аномальна
+    // (побитий install, hoisting) — крок пропущено з видимим warn, не мовчки.
+    const result = reporter.result()
+    result.diagnostics = [
+      {
+        level: 'warn',
+        message:
+          'lint-style: `stylelint` не резолвиться (ні node_modules/.bin, ні PATH) — CSS/SCSS/Vue-стилі НЕ перевірені ' +
+          'цим прогоном (style.mdc). `stylelint` — залежність @7n/rules-lang-js; переустанови плагін, якщо бачиш це.'
+      }
+    ]
+    return result
   }
 
   const r = await spawnAsync(stylelint, targets, { cwd, shell: false })

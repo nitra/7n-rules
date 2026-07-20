@@ -40,7 +40,7 @@ async function listStyleFiles(cwd, ctxFiles) {
   return (r.stdout ?? '').split('\0').filter(Boolean)
 }
 
-/** @type {import('../../../scripts/lib/lint-surface/types.mjs').T0Pattern[]} */
+/** @type {import('@7n/rules/scripts/lib/lint-surface/types.mjs').T0Pattern[]} */
 export const patterns = [
   {
     id: 'style-stylelint-fix',

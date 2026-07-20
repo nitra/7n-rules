@@ -3,7 +3,7 @@ type: JS Module
 title: fix-tooling.mjs
 resource: plugins/lang-js/rules/style/tooling/fix-tooling.mjs
 docgen:
-  crc: a25e47d2
+  crc: 033af5f9
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.98
