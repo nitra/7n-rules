@@ -57,7 +57,76 @@ Facilitator recommended the wave-based split, because rolling out `alwaysApply: 
 **Кластер 9 — Відкладено (поза MVP, без зобов'язань):** телеметрія перегляду Storybook; readiness-стадійність `draft`/`reviewed`/`stable`; крос-пакетна композиція ("Storybook of Storybooks"); PR-preview деплой; visual regression / Chromatic-подібний snapshot-diffing.
 
 Відкриті питання (не закриті в сесії, залишаються для реалізаційної фази):
-- Чи розширювати скоуп на app-проєкти (`demo/`-подібні), чи лишити тільки component-library пакети.
+- ~~Чи розширювати скоуп на app-проєкти (`demo/`-подібні), чи лишити тільки component-library пакети.~~ — закрито розширенням від 2026-07-20 (див. нижче): app-проєкти входять у скоуп другою хвилею.
 - Порт `storybook dev` при кількох Vue-пакетах в одному монорепо (фіксований vs авто-інкремент).
-- Чи є в nitra-екосистемі інші типові зовнішні залежності (крім router/Apollo/tfm), які варто покрити canonical-рецептами заздалегідь.
+- Чи є в nitra-екосистемі інші типові зовнішні залежності (крім router/Apollo/tfm), які варто покрити canonical-рецептами заздалегідь. — частково закрито розширенням від 2026-07-20: Pinia (з `pinia-plugin-persistedstate`) і Apollo-**підписки** (graphql-sse) отримали canonical-рецепти.
 - Хто саме рев'юїть LLM-згенеровані stories перед мержем (хвиля 2) — окремий чекліст у PR-темплейті чи звичайний code review.
+
+## Розширення (2026-07-20): сторінки — route.params + Apollo subscription + Pinia
+
+Розширення Кластера 3 (мокання) за результатами окремої brainstorm-сесії на реальному кейсі `gt`; не нова тема і не supersede — базове рішення вище лишається чинним.
+
+### Context and Problem Statement
+
+Перша редакція канону свідомо покриває лише презентаційні компоненти (props/emit). Сторінки app-проєктів (`src/pages/*.vue`) — реальний кейс `gt` (`task/[id].vue`, `Tasks.vue`) — живуть з інших джерел даних: `route.params` + **жива Apollo-підписка** (`useSubscription`, транспорт — graphql-sse поверх fetch, не WebSocket) + **Pinia-стори** (`persistStore` з `persist: true` через `pinia-plugin-persistedstate`, `activeTaskStore`). `unplugin-auto-import` робить `gql`/`useSubscription`/`apolloQuery`/`apolloMutate` глобалами з `src/njs/boot/apollo.js` (джерело істини — `vite.config.js` app-проєкту). Додатково сторінки тягнуть boot-модулі з side-effects (`session.js`, `user.js`, `openreplay.js`, auth-ланцюг `@nitra/vite-boot/user`). Кластер 3 цього не покривав (обмежувався маркером "лише display-стан" для мережевих компонентів).
+
+### Considered Options
+
+- **Чистий MSW** (`msw-storybook-addon`): усе мокання на network-рівні через service worker — query/mutation через `graphql.*`-хендлери, підписки через SSE-хендлер wire-протоколу graphql-sse; app-код не змінюється взагалі. Вибір користувача.
+- **Link-рівневий мок через alias boot-модуля**: `resolve.alias` `src/njs/boot/apollo.js` → мок зі справжніми хуками `@vue3-apollo/core` і справжнім `ApolloClient`, але фейковим terminating `ApolloLink`-реєстром (`operationName → Observable/фікстура`). Рекомендація фасилітатора.
+- **Гібрид MSW + boot-alias**: MSW для GraphQL, `resolve.alias` лише для side-effect boot-модулів. Компромісна рекомендація фасилітатора після вибору MSW.
+- Повний модуль-мок `boot/apollo.js` (`useSubscription` → `ref(fixture)` без Apollo) — відкинуто: дублює/дрейфує семантику хуків.
+- Реальний backend у docker / record-replay реальних SSE-фреймів — відкинуто як механізм (суперечить вимозі "без backend"); record-replay лишається як можливе джерело фікстур.
+
+### Decision Outcome
+
+Chosen option: **"Чистий MSW"** — мокання GraphQL (включно з підписками) виключно на network-рівні через `msw-storybook-addon`, без жодних `resolve.alias`-підмін app-коду, because це mainstream-шлях Storybook-екосистеми, app-код (включно з `apollo.js` і його link-split http/sse) лишається повністю справжнім, а мок-хендлери переносні між Storybook/vitest/playwright.
+
+Facilitator recommended link-рівневий alias-мок (а після вибору MSW — гібрид MSW+boot-alias), because (1) SSE-підписки в MSW не мають готового `graphql.subscription()`-хендлера — потрібен ручний http-хендлер, зв'язаний із wire-протоколом graphql-sse (`event: next\ndata: …`, distinct-connection mode), який мовчки ламається при зміні транспорту; (2) boot-модулі з side-effects (openreplay-трекер, auth-ланцюг, session-boot) у чистому MSW стартують по-справжньому, і всі їхні запити теж треба мокати в MSW; user chose чистий MSW instead.
+
+Супутні рішення (без розбіжностей):
+
+- **Pinia**: справжня `createPinia()` у page-декораторі **без** `pinia-plugin-persistedstate` (`persist: true` стає no-op) + сідінг стану з `parameters.pinia.initialState`. Не `@pinia/testing` — воно стабить actions, а сторінка в Storybook має жити.
+- **Router**: справжній `createMemoryHistory`-роутер із реальним параметризованим маршрутом (`/task/:id`), `router.push('/task/<id>')` перед mount + `await router.isReady()`; `id` — story-arg. Розширює наявний catch-all-рецепт Кластера 3 реальними params.
+- **Vite-конфіг Storybook**: `viteConfigPath` на повний `vite.config.js` app-проєкту — `VueMacros` (сторінки використовують `$ref`), `AutoImport`, `quasar()` **лишаються**; знімаються лише `vite-plugin-pages`/`vite-plugin-vue-layouts` (story імпортує сторінку напряму). Це свідома дзеркальна асиметрія з `vitest.config.js` того ж проєкту (де плагіни знімають для ізоляції юнітів): два конфіги розв'язують різні задачі й не суперечать один одному.
+- **Патерн story для сторінки**: wrapper-декоратор `QLayout`/`QPageContainer` (`q-page` кидає без layout-предка — невидима заздалегідь граблина рівня iconMapFn); одна фабрика `pageDecorator({ route, pinia })` для всього боїлерплейта; фікстури окремо в `.storybook/fixtures/<page>.js`; мок-сценарії — через `parameters.msw` (конвенція addon-а); smoke-мінімум — одна story "рендериться без помилок" на сторінку; окремі stories для loading/error/realtime (мультифреймовий SSE-сценарій).
+- **Тригер (Кластер 1, закриває відкрите питання №1)**: app-проєкти детектяться за `vue` у `dependencies` + наявністю `src/pages/`; канон поширюється на них **другою хвилею** rollout (після обкатки на component-library пакетах), сторінкове покриття — smoke-рівень, без порога ≥3.
+
+### Consequences
+
+- Good, because app-код не змінюється взагалі — нуль ризику розійтись із production-поведінкою через мок-модулі; мок-хендлери MSW переносні в майбутні vitest browser-tests і playwright.
+- Good, because рецепти Pinia/route-params закривають два типи залежностей, яких не було в жодній з попередніх реалізацій — наступний app-проєкт отримує їх готовими.
+- Bad, because SSE-хендлер підписок зв'язаний із wire-протоколом graphql-sse — зміна транспорту (sse → ws) тихо ламає мок; потрібен канонічний хелпер-обгортка в скафолді, щоб протокол жив в одному місці.
+- Bad, because у чистому MSW **всі** запити boot-модулів (openreplay, auth, session-boot) мають бути замокані хендлерами — msw-handlers файл app-проєкту ширший, ніж був би за гібридного підходу.
+
+### More Information (розширення)
+
+Сирий список ідей сесії розширення (51, по осях; для трасування):
+
+**Вісь A — точка перехоплення Apollo:** alias усього `boot/apollo.js`; link-рівневий мок (справжні хуки + фейковий ApolloLink); `MockLink`/`MockSubscriptionLink` з `@apollo/client/testing`; MSW + `msw-storybook-addon`; мок `graphql-sse`-клієнта; підміна джерела в auto-import-конфізі; реальний backend у docker; record/replay SSE-фреймів у fixtures.
+
+**Вісь B — семантика subscription-мока:** статичний `ref(fixture)`; керований стрім `operationName → [фрейми]` з інтервалом; Observable-мок за сценарієм; інтерактивний пуш фрейму кнопкою; окремі loading/error stories; пуш із `play()`; фікстури за `variables` (`$id`); schema-валідація фікстур проти `.graphqlrc.yml`.
+
+**Вісь C — Pinia:** справжня `createPinia()` без persistedstate; `createTestingPinia` з `initialState`; alias `src/stores/*`; сідінг з `parameters.pinia.initialState`; окремий storage-неймспейс для persistedstate; args-driven store (локаль як контрол).
+
+**Вісь D — Router:** memory-router з реальним `:id`-маршрутом + `isReady`; catch-all + params через provide; addon `storybook-vue3-router`; лишити `vite-plugin-pages` у Storybook; alias `vue-router` (відкинуто — ламає auto-import-пресет); `args.taskId` → push.
+
+**Вісь E — Vite/Storybook-конфіг:** повний `vite.config.js` через `viteConfigPath` + overrides; задокументована асиметрія з `vitest.config.js`; зняти лише Pages/Layouts; `.env`-стратегія з фіктивними `VITE_*`; alias-мок теки `boot/`; no-op `openreplay.js`; мок `@nitra/vite-boot/user`; прототип в ізольованій пісочниці.
+
+**Вісь F — патерн story:** `QLayout`-декоратор; фабрика `pageDecorator`; конвенція мок-реєстру за `operationName`; фікстури в `.storybook/fixtures/`; "золота" фікстура зі стейджа; рефакторинг сторінки на презентаційну+контейнер; smoke-мінімум; realtime-демо-story.
+
+**Вісь G — governance:** новий ADR-файл vs правка цього (обрано правку цього файла stacked-гілкою поверх PR канону — уникнення дублю файла у двох PR); тригер app-проєктів зараз vs відкладено (обрано зараз); page-stories у vitest `storybook`-project; Stryker-виняток для page-stories; канонічна секція "мок-реєстр за operationName" у майбутньому правилі.
+
+### Прототип-верифікація (2026-07-20, `gt`)
+
+Рецепт перевірено вживу на `gt` (`src/pages/task/[id].vue`): stories `Default` і `Realtime` рендеряться з мокованими даними без реального gateway — справжній `sseLink` логує `[gt-sse] connected` → `first-data` крізь MSW-мокнутий SSE-стрім, `Realtime` показує прихід другого кадру підписки через 1.5с без перезавантаження; наявні vitest-тести `gt` лишились зеленими (ізоляція `vitest.config.js` не зачеплена). Створені файли: `.storybook/main.js`, `.storybook/preview.js` (msw initialize + `pageLoader` router/pinia), `.storybook/mocks/gql-sse.js` (канонічний `sseSubscription`-хелпер — wire-протокол graphql-sse в одному місці), `.storybook/fixtures/task-detail.js`, `src/pages/task/task-detail.stories.js`, `package.json#scripts.storybook`; worker — `bunx msw init .storybook/public --no-save` + `staticDirs`.
+
+Підтверджені прототипом граблини (кандидати в канон-скафолд):
+- `@storybook/builder-vite` сам підхоплює `vite.config.js` app-проєкту — потрібен лише `viteFinal`-фільтр `vite-plugin-pages`/`vite-plugin-vue-layouts`; конфлікту з `VueMacros`-обгорткою vue-плагіна немає.
+- Quasar SFC-transform не працює в runtime-темплейтах decorator-ів — `QLayout`/`QPageContainer` реєструються явно (сам QLayout-wrapper обовʼязковий: `q-page` кидає без layout-предка).
+- `onUnhandledRequest: 'warn'` за замовчуванням топить консоль варнінгами на vite-модульні GET-и — канонічний фільтр: мовчки пропускати same-origin GET, варнити решту.
+- `setup((app, ctx))` `@storybook/vue3` отримує storyContext — це дає пер-сторійні router/pinia через `loaders` (`ctx.loaded`) без окремих addon-ів; `await router.isReady()` у loader-і прибирає перший рендер без `route.params`.
+
+Відкриті питання розширення:
+- Чи ганяти page-stories у vitest `storybook`-проєкті в CI, і чи виключати їх зі Stryker-скоупу.
+- Схема мокання boot-запитів (session/auth/openreplay) у MSW — один спільний handlers-файл на app чи по-сторінково (у прототипі сторінка не тягне boot-запитів — питання відкладене до сторінки, що тягне).
