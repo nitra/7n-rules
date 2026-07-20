@@ -9,16 +9,25 @@ import { env } from 'node:process'
 // об'єктивно не закінчить важкий промпт за хвилини (curl 28), хмарний SSE без
 // таймауту здатен висіти годинами на ESTABLISHED TCP — драбина має рухатись далі.
 //
-// Override без зміни коду — env `N_LOCAL_FIX_TIMEOUT_MS` / `N_CLOUD_FIX_TIMEOUT_MS`:
-// мілісекунди на ОДИН rung відповідного класу (local-min/local-min-retry та
-// cloud-min/cloud-avg). Значення потрапляє worker-у як `ctx.timeoutMs` (внутрішній
-// abort LLM-виклику; batch-worker-и, як doc-files, ріжуть під нього беклог м'яким
-// дедлайном), а runner додатково тримає backstop ×1.25 навколо всього worker-виклику.
-// Робочий важіль для повільної локальної моделі чи великої черги batch-концерну:
-// підняти локальний таймаут понад вартість одного файлу. Невалідне значення
-// (NaN/0/порожньо) → дефолт.
+// Override без зміни коду — env `N_LOCAL_FIX_TIMEOUT_MS` / `N_CLOUD_FIX_TIMEOUT_MS` /
+// `N_CLOUD_AVG_FIX_TIMEOUT_MS`: мілісекунди на ОДИН rung відповідного класу
+// (local-min/local-min-retry, cloud-min, cloud-avg). Значення потрапляє worker-у як
+// `ctx.timeoutMs` (внутрішній abort LLM-виклику; batch-worker-и, як doc-files, ріжуть
+// під нього беклог м'яким дедлайном), а runner додатково тримає backstop ×1.25 навколо
+// всього worker-виклику. Робочий важіль для повільної локальної моделі чи великої черги
+// batch-концерну: підняти локальний таймаут понад вартість одного файлу. Невалідне
+// значення (NaN/0/порожньо) → дефолт.
+//
+// cloud-avg має ОКРЕМИЙ (більший за cloud-min) дефолт: реальний прогін
+// (2026-07-18, /ai run/yoga2, chainId 6f6b4fdca71aa0c5) показав, що cloud-avg
+// регулярно доводить concern до 1 залишкового порушення в межах спільного з
+// cloud-min бюджету, але verify (canonical re-detect) не встигає підтвердитись —
+// і весь прогрес відкочується, бо після cloud-avg немає наступного rung-а для
+// повторної спроби. cloud-avg — останній шанс ladder-а (і під DEFAULT_MAX_AVG-кепом),
+// тож дорожчий за нього бюджет виправдано менш економний, ніж cloud-min.
 const LOCAL_TIMEOUT_MS = Number(env.N_LOCAL_FIX_TIMEOUT_MS) || 45_000
 const CLOUD_TIMEOUT_MS = Number(env.N_CLOUD_FIX_TIMEOUT_MS) || 120_000
+const CLOUD_AVG_TIMEOUT_MS = Number(env.N_CLOUD_AVG_FIX_TIMEOUT_MS) || 180_000
 
 /** Дефолтний кеп на виклики cloud-avg за прогін (щоб ladder на N concern-ів не спалив avg). */
 export const DEFAULT_MAX_AVG = 3
@@ -59,7 +68,7 @@ export function buildLadder({ localMin, cloudMin, cloudAvg }) {
       timeoutMs: LOCAL_TIMEOUT_MS
     },
     { tier: 'cloud-min', model: cloudMin, feedback: true, local: false, isAvg: false, timeoutMs: CLOUD_TIMEOUT_MS },
-    { tier: 'cloud-avg', model: cloudAvg, feedback: true, local: false, isAvg: true, timeoutMs: CLOUD_TIMEOUT_MS }
+    { tier: 'cloud-avg', model: cloudAvg, feedback: true, local: false, isAvg: true, timeoutMs: CLOUD_AVG_TIMEOUT_MS }
   ].filter(r => r.model)
 }
 

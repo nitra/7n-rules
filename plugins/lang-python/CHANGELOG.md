@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.5.1] - 2026-07-19
+
+### Fixed
+
+- knip unresolved: JSDoc-типи lint-surface тепер через пакетний шлях `@7n/rules/scripts/lib/lint-surface/types.mjs` замість неіснуючого відносного `../../../scripts/...`
+
+## [0.5.0] - 2026-07-19
+
+### Added
+
+- SKILL-фрагмент taze (фаза 4b spec lang-plugins-extraction): Python-гілка SKILL.md (детекція pyproject.toml, uv remove + uv add --bounds lower цикл, collectUvDiff, ruff/mypy/pytest, примітка про no-op `uv add`) тепер живе у плагіні (`skills/taze/SKILL.fragment.md`) і доклеюється sync-ом до скіла в репо з активним плагіном
+
+## [0.4.0] - 2026-07-18
+
+### Added
+
+- Маніфест декларує doc-files-розширення `.py` → 'Python Module' (`contributes.docFiles.extensions`, фаза 4a spec lang-plugins-extraction) — генерація док для python-файлів тепер вмикається цим плагіном (whole-file шлях, без спеціалізованих екстракторів)
+
+## [0.3.0] - 2026-07-18
+
+### Added
+
+- Правило `python` переїхало з ядра (фаза 3 spec lang-plugins-extraction): main.mdc, концерни applies/ruff/mypy/project/tooling/pyproject_toml з rego-політиками — плагін тепер contributes.rules; дзеркало `.cursor/rules/n-python.mdc` і auto-rules детект працюють через плагінне джерело
+
 ## [0.2.2] - 2026-07-18
 
 ### Fixed

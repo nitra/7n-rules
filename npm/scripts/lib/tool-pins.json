@@ -1,0 +1,15 @@
+{
+  "pinnedAt": "2026-07-19",
+  "versions": {
+    "hk": "1.51.0",
+    "conftest": "0.68.2",
+    "shellcheck": "0.11.0",
+    "actionlint": "1.7.12",
+    "dotenv-linter": "4.0.0",
+    "opa": "1.18.2",
+    "regal": "0.42.0",
+    "hadolint": "2.14.0",
+    "kubeconform": "0.8.0",
+    "kubescape": "4.0.10"
+  }
+}

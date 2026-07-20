@@ -3,9 +3,8 @@ type: JS Module
 title: vitest.config.mjs
 resource: plugins/lang-rust/vitest.config.mjs
 docgen:
-  crc: 6b28c831
+  crc: cae0a22a
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 100
   issues: judge:inaccurate:0.97
   judgeModel: openai-codex/gpt-5.4-mini

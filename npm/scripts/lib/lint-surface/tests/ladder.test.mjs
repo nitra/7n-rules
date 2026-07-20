@@ -17,26 +17,38 @@ afterEach(() => {
 })
 
 describe('buildLadder — per-tier таймаути (ADR 260620-0556)', () => {
-  test('дефолти без env: local 45s, cloud 120s', async () => {
+  test('дефолти без env: local 45s, cloud-min 120s, cloud-avg 180s', async () => {
     vi.stubEnv('N_LOCAL_FIX_TIMEOUT_MS', '')
     vi.stubEnv('N_CLOUD_FIX_TIMEOUT_MS', '')
+    vi.stubEnv('N_CLOUD_AVG_FIX_TIMEOUT_MS', '')
     const { buildLadder } = await freshLadder()
     const ladder = buildLadder({ localMin: 'l/min', cloudMin: 'c/min', cloudAvg: 'c/avg' })
     expect(ladder.map(r => [r.tier, r.timeoutMs])).toEqual([
       ['local-min', 45_000],
       ['local-min-retry', 45_000],
       ['cloud-min', 120_000],
-      ['cloud-avg', 120_000]
+      ['cloud-avg', 180_000]
     ])
   })
 
   test('env-override: N_LOCAL_FIX_TIMEOUT_MS / N_CLOUD_FIX_TIMEOUT_MS керують без зміни коду', async () => {
     vi.stubEnv('N_LOCAL_FIX_TIMEOUT_MS', '1000')
     vi.stubEnv('N_CLOUD_FIX_TIMEOUT_MS', '2000')
+    vi.stubEnv('N_CLOUD_AVG_FIX_TIMEOUT_MS', '')
     const { buildLadder } = await freshLadder()
     const ladder = buildLadder({ localMin: 'l/min', cloudMin: 'c/min', cloudAvg: 'c/avg' })
     expect(ladder.find(r => r.tier === 'local-min').timeoutMs).toBe(1000)
-    expect(ladder.find(r => r.tier === 'cloud-avg').timeoutMs).toBe(2000)
+    expect(ladder.find(r => r.tier === 'cloud-min').timeoutMs).toBe(2000)
+    expect(ladder.find(r => r.tier === 'cloud-avg').timeoutMs).toBe(180_000)
+  })
+
+  test('env-override: N_CLOUD_AVG_FIX_TIMEOUT_MS керує cloud-avg окремо від cloud-min', async () => {
+    vi.stubEnv('N_CLOUD_FIX_TIMEOUT_MS', '2000')
+    vi.stubEnv('N_CLOUD_AVG_FIX_TIMEOUT_MS', '3000')
+    const { buildLadder } = await freshLadder()
+    const ladder = buildLadder({ localMin: 'l/min', cloudMin: 'c/min', cloudAvg: 'c/avg' })
+    expect(ladder.find(r => r.tier === 'cloud-min').timeoutMs).toBe(2000)
+    expect(ladder.find(r => r.tier === 'cloud-avg').timeoutMs).toBe(3000)
   })
 })
 

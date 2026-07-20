@@ -4,6 +4,17 @@
  * `ensureTool(toolId)` — єдиний seam резолву зовнішніх бінарників: PATH → кеш → авто-install → hard-fail.
  * Новий тул = один запис у реєстрі `TOOLS`, без дублювання install-логіки в кожному `lint.mjs`/`fix.mjs`.
  *
+ * Версії GitHub Release-тулів (Linux/Windows-fallback install-шлях) — **закріплені** у
+ * `tool-pins.json`, а не резолвляться як `latest` на кожен install: CI-runner-и ефемерні,
+ * кеш бінарників порожній щоразу, і `latest`-lookup на кожен job = постійний трафік у
+ * GitHub API з shared-IP (rate-limit). `fetchLatestVersion` (GitHub API з `GITHUB_TOKEN`/
+ * `GH_TOKEN` за наявності, з fallback-ом на redirect `releases/latest` повз API) лишається
+ * — це «мотор» для ручного рефрешу пінів (`tool-pins-refresh.mjs`), у звичайному install
+ * не викликається. `checkToolPinsFreshness()` — гейт «пінам більше 30 днів → час
+ * рефрешнути» (тест `tool-pins-freshness.test.mjs`). Транзієнтні збої download-у
+ * кидаються як `ToolProvisionError` (fail-open seam для lint-детекторів — див.
+ * `lint-surface/detect.mjs`).
+ *
  * Per-platform matrix: macOS → brew, Windows → scoop (fallback: GitHub Release), Linux → GitHub Release binary.
  * Бінарники кешуються у `~/.cache/@7n/rules/bin/` (Linux/Mac), `%LOCALAPPDATA%\@7n\cursor\bin\` (Win).
  * Download завжди пишеться в унікальний per-call temp-каталог і публікується атомарним `renameSync` —
@@ -17,16 +28,79 @@
  * `ensureHkInstall(hkBin)` — реєструє git pre-commit hook через `hk install`; пропускається в CI.
  */
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, renameSync, rmSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { arch, env, platform } from 'node:process'
+import { fileURLToPath } from 'node:url'
 
 import { resolveCmd } from '../utils/resolve-cmd.mjs'
 import { withLock } from '../utils/with-lock.mjs'
 
 /** Префікс `v` у git-тегу релізу (`v1.2.3` → `1.2.3`). */
 const TAG_V_PREFIX_RE = /^v/
+
+/** Тег релізу з фінального URL redirect-у `releases/latest` (`…/releases/tag/v1.2.3`). */
+const RELEASE_TAG_URL_RE = /\/tag\/([^/\s]+)\s*$/
+
+/** Кількість мілісекунд у добі — для перетворення віку піна в дні. */
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Поріг «застарілості» пінів версій (`tool-pins.json.pinnedAt`) у днях. */
+export const TOOL_PINS_MAX_AGE_DAYS = 30
+
+/** Абсолютний шлях до `tool-pins.json`, поряд із цим модулем. */
+const TOOL_PINS_PATH = join(dirname(fileURLToPath(import.meta.url)), 'tool-pins.json')
+
+/**
+ * Читає `tool-pins.json` — синхронно, свіжим на кожен виклик (без module-level кешу),
+ * щоб `ensureTool*`-виклики в довгоживучому процесі бачили щойно застосований рефреш.
+ * @returns {{ pinnedAt: string, versions: Record<string, string> }} закріплені версії й дата піна
+ */
+function readToolPins() {
+  return JSON.parse(readFileSync(TOOL_PINS_PATH, 'utf8'))
+}
+
+/**
+ * Вік поточних пінів версій у днях від `pinnedAt` до `now`.
+ * @param {number} [now] час порівняння (ms epoch); за замовчуванням `Date.now()`
+ * @returns {{ pinnedAt: string, ageDays: number, stale: boolean }} вік і чи перевищено `TOOL_PINS_MAX_AGE_DAYS`
+ */
+export function checkToolPinsFreshness(now = Date.now()) {
+  const { pinnedAt } = readToolPins()
+  const ageDays = Math.floor((now - Date.parse(pinnedAt)) / DAY_MS)
+  return { pinnedAt, ageDays, stale: ageDays > TOOL_PINS_MAX_AGE_DAYS }
+}
+
+/**
+ * Резолвить закріплену версію тула з `tool-pins.json`. Конфігураційна помилка (не
+ * `ToolProvisionError`) — відсутність піна для наявного в `TOOLS` тула означає, що
+ * його забули додати в `tool-pins.json` при реєстрації, а не транзієнтний збій.
+ * @param {string} toolId ключ у `TOOLS`
+ * @returns {string} закріплена версія без префікса `v`
+ */
+function resolvePinnedVersion(toolId) {
+  const { versions } = readToolPins()
+  const version = versions[toolId]
+  if (!version) {
+    throw new Error(`ensureTool: немає закріпленої версії для '${toolId}' у tool-pins.json — додай перед install-ом`)
+  }
+  return version
+}
+
+/**
+ * Транзієнтний збій авто-встановлення зовнішнього тула (GitHub API rate-limit, мережа,
+ * обірваний download). Відрізняється від конфігураційних помилок (невідомий тул,
+ * `N_CURSOR_NO_AUTO_INSTALL`, відсутній curl) — споживачі розпізнають за `name`
+ * і можуть спрацювати fail-open замість валити весь прогін.
+ */
+export class ToolProvisionError extends Error {
+  /** @param {string} message причина збою */
+  constructor(message) {
+    super(message)
+    this.name = 'ToolProvisionError'
+  }
+}
 
 /**
  * Повертає каталог керованого кешу бінарників для поточного OS.
@@ -68,8 +142,12 @@ function mapArch(nodeArch, style) {
  * @property {((ver: string) => string)|null} [binFinder] для архівів де бінарник не у корені; повертає відносний шлях
  */
 
-/** @type {Record<string, ToolEntry>} */
-const TOOLS = {
+/**
+ * Реєстр install-стратегій. Експортовано read-only для `tool-pins-refresh.mjs`
+ * (ітерує `entry.github`, щоб рефрешнути `tool-pins.json`) — не мутуй.
+ * @type {Record<string, ToolEntry>}
+ */
+export const TOOLS = {
   hk: {
     brew: 'hk',
     scoop: 'hk',
@@ -157,14 +235,26 @@ const TOOLS = {
 }
 
 /**
+ * Заголовки авторизації GitHub для curl: `GITHUB_TOKEN`/`GH_TOKEN` з env, якщо є.
+ * Токен піднімає rate-limit API з 60/год (per-IP, вичерпується на shared CI-runner-ах)
+ * до 5000/год (per-token).
+ * @returns {string[]} додаткові аргументи curl (порожньо без токена)
+ */
+function githubAuthArgs() {
+  const token = env['GITHUB_TOKEN'] ?? env['GH_TOKEN']
+  return token ? ['-H', `Authorization: Bearer ${token}`] : []
+}
+
+/**
  * Отримує останній тег з GitHub Releases API через curl (sync).
  * @param {string} repo репо у форматі `owner/repo`
  * @param {string} curlBin абсолютний шлях до curl
  * @returns {string} рядок версії без префікса `v`, наприклад `0.4.1`
  */
-function fetchLatestVersion(repo, curlBin) {
+function fetchLatestVersionViaApi(repo, curlBin) {
   const url = `https://api.github.com/repos/${repo}/releases/latest`
-  const r = spawnSync(curlBin, ['-sSL', '-H', 'Accept: application/vnd.github+json', url], { encoding: 'utf8' })
+  const args = ['-sSL', '-H', 'Accept: application/vnd.github+json', ...githubAuthArgs(), url]
+  const r = spawnSync(curlBin, args, { encoding: 'utf8' })
   if (r.error) throw new Error(`curl failed: ${r.error.message}`)
   if (r.status !== 0) throw new Error(`curl exit ${r.status}: ${(r.stderr ?? '').slice(0, 300)}`)
   let parsed
@@ -174,13 +264,60 @@ function fetchLatestVersion(repo, curlBin) {
     throw new Error(`GitHub API response is not JSON: ${r.stdout.slice(0, 200)}`)
   }
   const tag = parsed['tag_name']
-  if (!tag) throw new Error(`GitHub API: tag_name missing for ${repo}`)
+  if (!tag) {
+    // Без tag_name API типово повертає message («API rate limit exceeded …») — показуємо його
+    const apiMessage = typeof parsed['message'] === 'string' ? ` (${parsed['message'].slice(0, 200)})` : ''
+    throw new Error(`GitHub API: tag_name missing for ${repo}${apiMessage}`)
+  }
   return tag.replace(TAG_V_PREFIX_RE, '')
 }
 
 /**
- * Завантажує та розпаковує GitHub Release бінарник у кеш-директорію.
- * Повертає абсолютний шлях до бінарника.
+ * Fallback-резолюція останнього тега без API: `https://github.com/<repo>/releases/latest`
+ * переадресовує на `…/releases/tag/<tag>` — читаємо тег з фінального URL (`%{url_effective}`).
+ * Веб-endpoint не підпадає під API rate-limit, тож працює і на shared-runner-ах без токена.
+ * @param {string} repo репо у форматі `owner/repo`
+ * @param {string} curlBin абсолютний шлях до curl
+ * @returns {string} рядок версії без префікса `v`
+ */
+function fetchLatestVersionViaRedirect(repo, curlBin) {
+  const url = `https://github.com/${repo}/releases/latest`
+  const r = spawnSync(curlBin, ['-sIL', '-w', '%{url_effective}', url], { encoding: 'utf8' })
+  if (r.error) throw new Error(`curl failed: ${r.error.message}`)
+  if (r.status !== 0) throw new Error(`curl exit ${r.status}: ${(r.stderr ?? '').slice(0, 300)}`)
+  const m = RELEASE_TAG_URL_RE.exec(r.stdout)
+  if (!m) throw new Error(`releases/latest redirect без /tag/ у фінальному URL для ${repo}`)
+  return m[1].replace(TAG_V_PREFIX_RE, '')
+}
+
+/**
+ * Отримує останній тег релізу: спершу GitHub API (з токеном за наявності), при збої —
+ * redirect-fallback повз API. Кидає `ToolProvisionError`, лише якщо не вдались обидва шляхи.
+ * Експортовано для юніт-тестів; основний споживач — `installFromGithub`.
+ * @param {string} repo репо у форматі `owner/repo`
+ * @param {string} curlBin абсолютний шлях до curl
+ * @returns {string} рядок версії без префікса `v`, наприклад `0.4.1`
+ */
+export function fetchLatestVersion(repo, curlBin) {
+  let apiError
+  try {
+    return fetchLatestVersionViaApi(repo, curlBin)
+  } catch (error) {
+    apiError = error
+  }
+  try {
+    return fetchLatestVersionViaRedirect(repo, curlBin)
+  } catch (error) {
+    throw new ToolProvisionError(
+      `latest-release lookup не вдався для ${repo} — API: ${apiError.message}; redirect: ${error.message}`
+    )
+  }
+}
+
+/**
+ * Завантажує та розпаковує GitHub Release бінарник у кеш-директорію. Версія береться
+ * закріпленою з `tool-pins.json` — жодного `latest`-lookup у GitHub API на звичайному
+ * install-шляху. Повертає абсолютний шлях до бінарника.
  * @param {string} toolId ключ у TOOLS
  * @param {ToolEntry} entry опис тула
  * @param {string} cacheDir абсолютний шлях до кешу
@@ -192,7 +329,7 @@ function installFromGithub(toolId, entry, cacheDir) {
   const tarBin = resolveCmd('tar')
   if (!tarBin) throw new Error(`tar не знайдено в PATH — потрібен для встановлення ${toolId}`)
 
-  const ver = fetchLatestVersion(entry.github, curlBin)
+  const ver = resolvePinnedVersion(toolId)
   const assetName = entry.asset(ver)
   const downloadUrl = `https://github.com/${entry.github}/releases/download/v${ver}/${assetName}`
 
@@ -204,10 +341,11 @@ function installFromGithub(toolId, entry, cacheDir) {
   try {
     const archivePath = join(tmpDir, assetName)
 
+    // Збої download-у — транзієнтні (мережа/GitHub), тому ToolProvisionError, як і lookup вище.
     const dlResult = spawnSync(curlBin, ['-sSL', '-o', archivePath, downloadUrl], { encoding: 'utf8' })
-    if (dlResult.error) throw new Error(`Завантаження ${toolId} не вдалось: ${dlResult.error.message}`)
+    if (dlResult.error) throw new ToolProvisionError(`Завантаження ${toolId} не вдалось: ${dlResult.error.message}`)
     if (dlResult.status !== 0) {
-      throw new Error(
+      throw new ToolProvisionError(
         `curl exit ${dlResult.status} при завантаженні ${toolId}: ${(dlResult.stderr ?? '').slice(0, 300)}`
       )
     }

@@ -37,3 +37,6 @@ jobs:
 
       - name: StyleLint
         run: bunx n-rules lint style --no-fix
+        env:
+          # ensure-tool: авторизований lookup GitHub Releases (per-IP rate-limit на shared-runner-ах)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

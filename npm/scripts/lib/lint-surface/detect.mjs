@@ -106,6 +106,26 @@ function normalizeResult(raw, ctx) {
 }
 
 /**
+ * Fail-open результат для транзієнтного збою авто-встановлення зовнішнього тула
+ * (`ToolProvisionError` з `ensure-tool.mjs`, розпізнається за `name` — errors можуть
+ * приходити з іншого інстансу модуля). GitHub API rate-limit чи мережевий збій на
+ * CI-runner-і не має валити весь lint-прогін exit 2: concern пропускається з
+ * видимою warn-діагностикою, а не тихо.
+ * @param {LintContext} ctx контекст лінту (джерело ruleId/concernId)
+ * @param {Error} error транзієнтна помилка встановлення тула
+ * @returns {LintResult} порожні violations + warn-діагностика про пропуск
+ */
+function toolProvisionSkipResult(ctx, error) {
+  const message = `⚠️ ${ctx.ruleId}/${ctx.concernId} пропущено (транзієнтний збій встановлення тула): ${error.message}`
+  // Diagnostics рендеряться лише у verbose — дублюємо у stderr, щоб пропуск було видно в CI-логах завжди.
+  console.warn(message)
+  return {
+    violations: [],
+    diagnostics: [{ level: 'warn', message }]
+  }
+}
+
+/**
  * Чи має concern ручний (не-`@generated`) `main.mjs`, що перекриває policy-adapter.
  * @param {string} mainPath абсолютний шлях до `main.mjs` concern-а.
  * @returns {boolean} true, якщо файл існує і не є codegen-артефактом.
@@ -140,6 +160,7 @@ export async function runConcernDetector(concern, ctx) {
         missingMessage: concern.policy.missingMessage
       })
     } catch (error) {
+      if (error?.name === 'ToolProvisionError') return toolProvisionSkipResult(ctx, error)
       throw new DetectorError(ctx.ruleId, ctx.concernId, `policy-adapter кинув: ${error.message}`)
     }
     return normalizeResult(raw, ctx)
@@ -163,6 +184,7 @@ export async function runConcernDetector(concern, ctx) {
   try {
     raw = await mod.lint(ctx)
   } catch (error) {
+    if (error?.name === 'ToolProvisionError') return toolProvisionSkipResult(ctx, error)
     throw new DetectorError(ctx.ruleId, ctx.concernId, `lint() кинув: ${error.message}`)
   }
   return normalizeResult(raw, ctx)

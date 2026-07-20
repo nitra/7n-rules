@@ -1,0 +1,13 @@
+{
+  "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
+  "skipLocalTier": true,
+  "lint": {
+    "scope": "full",
+    "glob": [
+      "**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}",
+      "**/package.json",
+      "**/jsconfig.json",
+      "**/k8s/base/configmap.yaml"
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+## Налаштування mutation-testing для Rust: `.cargo/mutants.toml`
+
+Правило `rust` створює `.cargo/mutants.toml` у каталозі **кожного** Cargo.toml-маніфесту: кореневий `Cargo.toml`, `<workspace>/src-tauri/Cargo.toml` (Tauri-патерн) і `<workspace>/Cargo.toml` (flat workspace).
+
+Канон cargo-mutants config: [mutants.toml.baseline](./data/cargo_mutants_config/mutants.toml.baseline)
+
+**Customization** (mutate patterns, exclude rules, timeout) — відповідальність проєкту-споживача; концерн лише забезпечує наявність файлу як стартового baseline в кожному з виявлених workspace-каталогів.
+
+### Універсальний baseline і framework-specific tuning
+
+Концерн відповідає лише за **універсальний baseline** mutation-testing:
+
+- створює `.cargo/mutants.toml` для Rust crates (порожній, з коментарем);
+- не робить припущень про framework/app shell;
+- не виключає platform glue, generated wrappers або binary entrypoints;
+- framework-specific tuning (`--lib`/`--tests`, `exclude_globs` для app-shell і platform bridge файлів) належить відповідним правилам (`tauri`, `capacitor` тощо).
+
+Якщо інше правило спеціалізує mutation-behavior — воно зобов'язане **доповнювати** існуючий `.cargo/mutants.toml` без дублювання (додавати лише відсутні ключі) і **не перетирати** ручні налаштування. Послідовний запуск `npx @7n/rules fix rust` після `fix tauri` не має скидати tauri-tuning, і навпаки — повторний `fix tauri` не дублює секції.

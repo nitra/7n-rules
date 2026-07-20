@@ -142,12 +142,51 @@ async fn prompt_agent(spec: AcpAgent, prompt: &str, cwd: &Path) -> Result<String
         .map_err(|e| CascadeError::Provider(e.to_string()))
 }
 
+/// Чи друкувати повний `{:?}`-дамп кожної non-text ACP-події замість
+/// одного короткого рядка. За замовчуванням (як `lint` без `--verbose`) —
+/// тихо: `ToolCall`/`ToolCallUpdate` несуть `raw_input`/`raw_output` (повний
+/// JSON параметрів/результату інструменту), і на прогоні `taze` з багатьма
+/// пакетами це затоплювало stderr. Override: `N_LLM_ACP_VERBOSE=1`.
+fn acp_verbose() -> bool {
+    env::var("N_LLM_ACP_VERBOSE").is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+}
+
+/// Один короткий рядок для non-text ACP-події — без `raw_input`/`raw_output`
+/// інструментів і без тексту чанків `AgentThoughtChunk`/`UserMessageChunk` (стрім по токенах).
+/// `N_LLM_ACP_VERBOSE=1` (`acp_verbose()`) повертає повний `{:?}` замість
+/// цього — для діагностики зависань/протокольних аномалій.
+fn summarize_update(update: &SessionUpdate) -> String {
+    if acp_verbose() {
+        return format!("{update:?}");
+    }
+    match update {
+        SessionUpdate::UserMessageChunk(_) => "user_message_chunk".to_string(),
+        SessionUpdate::AgentThoughtChunk(_) => "agent_thought_chunk".to_string(),
+        SessionUpdate::AgentMessageChunk(_) => "agent_message_chunk (non-text)".to_string(),
+        SessionUpdate::ToolCall(tc) => format!("tool_call: {} [{:?}]", tc.title, tc.status),
+        SessionUpdate::ToolCallUpdate(u) => match &u.fields.status {
+            Some(status) => format!("tool_call_update: {status:?}"),
+            None => "tool_call_update".to_string(),
+        },
+        SessionUpdate::Plan(p) => format!("plan: {} entries", p.entries.len()),
+        SessionUpdate::AvailableCommandsUpdate(_) => "available_commands_update".to_string(),
+        SessionUpdate::CurrentModeUpdate(_) => "current_mode_update".to_string(),
+        SessionUpdate::ConfigOptionUpdate(_) => "config_option_update".to_string(),
+        SessionUpdate::SessionInfoUpdate(_) => "session_info_update".to_string(),
+        SessionUpdate::UsageUpdate(_) => "usage_update".to_string(),
+        _ => "other".to_string(),
+    }
+}
+
 /// Як `Session::read_to_string()` (акумулює текстові `agent_message_chunk`,
 /// зупиняється на `StopReason`), але кожне окреме читання events обгорнуте в
 /// `idle_timeout` — а не весь хід разом. Це і є "видимість": не-текстові
 /// події (`tool_call`/`plan`/…) логуються в stderr замість мовчазного
-/// відкидання, і саме кожна така подія скидає таймер — реальний прогрес не
-/// зупиняє годинник, зупиняє лише справжня тиша.
+/// відкидання (за замовчуванням — одним коротким рядком, `N_LLM_ACP_VERBOSE=1`
+/// — повним `{:?}`), і саме кожна така подія скидає таймер — реальний прогрес
+/// не зупиняє годинник, зупиняє лише справжня тиша. Текстові
+/// `AgentThoughtChunk`/`UserMessageChunk` тиша не логуються зовсім (лише
+/// скидають таймер) — потокенний стрім думок агента інакше затоплював stderr.
 async fn read_to_string_with_idle_timeout<S>(
     session: &mut S,
     idle_timeout: Duration,
@@ -173,7 +212,15 @@ where
                             content: ContentBlock::Text(text),
                             ..
                         }) => output.push_str(&text.text),
-                        other => eprintln!("acp progress: {other:?}"),
+                        SessionUpdate::AgentThoughtChunk(ContentChunk {
+                            content: ContentBlock::Text(_),
+                            ..
+                        })
+                        | SessionUpdate::UserMessageChunk(ContentChunk {
+                            content: ContentBlock::Text(_),
+                            ..
+                        }) if !acp_verbose() => {}
+                        other => eprintln!("acp progress: {}", summarize_update(other)),
                     }
                     Ok(())
                 })
@@ -320,6 +367,38 @@ mod tests {
         assert!(
             outcome.is_err(),
             "неіснуючий бінарник має провалитись, а не повернути Ok"
+        );
+    }
+
+    /// `ToolCall`/`ToolCallUpdate` за замовчуванням (без `N_LLM_ACP_VERBOSE`)
+    /// дають короткий рядок без `raw_input`/`raw_output` — саме вони роздували
+    /// stderr на `taze` (jest issue: повний Debug тягнув увесь JSON тулза).
+    #[test]
+    fn summarize_update_tool_call_is_short_without_raw_payload() {
+        let mut tool_call = agent_client_protocol::schema::v1::ToolCall::new("id-1", "Edit foo.rs");
+        tool_call.raw_input = Some(serde_json::json!({ "content": "x".repeat(10_000) }));
+        let summary = summarize_update(&SessionUpdate::ToolCall(tool_call));
+
+        assert_eq!(summary, "tool_call: Edit foo.rs [Pending]");
+        assert!(
+            summary.len() < 200,
+            "рядок має лишатись коротким: {}",
+            summary.len()
+        );
+    }
+
+    /// `Plan` — лише кількість пунктів, не повний перелік `PlanEntry`.
+    #[test]
+    fn summarize_update_plan_counts_entries() {
+        use agent_client_protocol::schema::v1::{PlanEntry, PlanEntryPriority, PlanEntryStatus};
+
+        let plan = agent_client_protocol::schema::v1::Plan::new(vec![
+            PlanEntry::new("крок 1", PlanEntryPriority::High, PlanEntryStatus::Pending),
+            PlanEntry::new("крок 2", PlanEntryPriority::Low, PlanEntryStatus::Pending),
+        ]);
+        assert_eq!(
+            summarize_update(&SessionUpdate::Plan(plan)),
+            "plan: 2 entries"
         );
     }
 }

@@ -5,7 +5,7 @@
  * YAML проходить власний rego-концерн service_deploy_pipeline (conftest) без deny —
  * золота перевірка «фіксер ↔ канон не дрейфують».
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -64,6 +64,19 @@ jobs:
 `
 
 /**
+ * Симлінкує реальний @7n/rules-lang-js монорепо у node_modules консюмер-фікстури:
+ * після фази 5c домен `js` (per-file concerns) живе у плагіні, не в ядрі —
+ * без плагіна relevantDomains не бачить js-домену.
+ * @param {string} dir tmp-корінь консюмер-фікстури
+ * @returns {Promise<void>}
+ */
+async function linkLangJsPlugin(dir) {
+  const scope = join(dir, 'node_modules', '@7n')
+  await mkdir(scope, { recursive: true })
+  await symlink(fileURLToPath(new URL('../../../../../lang-js/', import.meta.url)), join(scope, 'rules-lang-js'))
+}
+
+/**
  * Консюмер-фікстура: git-like дерево з сервісом run/nexus (js+text файли),
  * fixture rulesDir у .n-rules.json недоступний — домени беруться з реального
  * DEFAULT_RULES_DIR, тому обмежуємо enabled-правила js/text.
@@ -74,7 +87,8 @@ async function seedConsumer(dir) {
   await mkdir(join(dir, 'run', 'nexus'), { recursive: true })
   await writeFile(join(dir, 'run', 'nexus', 'index.js'), 'export const a = 1\n', 'utf8')
   await writeFile(join(dir, 'run', 'nexus', 'readme.md'), '# nexus\n', 'utf8')
-  await writeJson(join(dir, '.n-rules.json'), { rules: ['js', 'text'] })
+  await writeJson(join(dir, '.n-rules.json'), { rules: ['js', 'text'], plugins: ['@7n/rules-lang-js'] })
+  await linkLangJsPlugin(dir)
   const pipelineDir = join(dir, '.azurepipelines')
   await mkdir(pipelineDir, { recursive: true })
   const abs = join(pipelineDir, 'run-nexus.yml')
@@ -162,7 +176,8 @@ describe('migratePipelineFile — efes-подібний легасі pipeline', 
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'run', 'nexus'), { recursive: true })
       await writeFile(join(dir, 'run', 'nexus', 'index.js'), 'export const a = 1\n', 'utf8')
-      await writeJson(join(dir, '.n-rules.json'), { rules: ['js'] })
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['js'], plugins: ['@7n/rules-lang-js'] })
+      await linkLangJsPlugin(dir)
       await mkdir(join(dir, '.azurepipelines'), { recursive: true })
       const abs = join(dir, '.azurepipelines', 'run-nexus.yml')
       const src = [

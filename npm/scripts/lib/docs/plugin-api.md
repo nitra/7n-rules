@@ -3,9 +3,8 @@ type: JS Module
 title: plugin-api.mjs
 resource: npm/scripts/lib/plugin-api.mjs
 docgen:
-  crc: dc4f4a12
+  crc: c614a880
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min-retry
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

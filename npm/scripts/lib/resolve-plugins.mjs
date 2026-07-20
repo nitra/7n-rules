@@ -31,11 +31,12 @@ export const KNOWN_CI_PLUGINS = Object.freeze({
 /**
  * Відомі мовні плагіни: файловий сигнал екосистеми → npm-пакет. `maxDepth` —
  * до якої глибини шукати сигнал: python — лише корінь (uv-провайдер v1
- * обробляє тільки кореневий pyproject.toml); rust — до 3 рівнів, бо в
+ * обробляє тільки кореневий pyproject.toml; js — кореневий package.json); rust — до 3 рівнів, бо в
  * монорепо Cargo.toml часто вкладений (Tauri `app/src-tauri/Cargo.toml`),
  * а провайдер обробляє всі знайдені маніфести.
  */
 export const KNOWN_LANG_PLUGINS = Object.freeze({
+  js: { signal: 'package.json', pkg: '@7n/rules-lang-js', maxDepth: 0 },
   python: { signal: 'pyproject.toml', pkg: '@7n/rules-lang-python', maxDepth: 0 },
   rust: { signal: 'Cargo.toml', pkg: '@7n/rules-lang-rust', maxDepth: 3 }
 })
@@ -56,7 +57,7 @@ function hasLangSignal(projectRoot, signal, maxDepth) {
   let level = [projectRoot]
   for (let depth = 0; depth <= maxDepth && level.length > 0; depth++) {
     if (level.some(dir => existsSync(join(dir, signal)))) return true
-    if (depth < maxDepth) level = level.flatMap(listScannableSubdirs)
+    if (depth < maxDepth) level = level.flatMap(dir => listScannableSubdirs(dir))
   }
   return false
 }
@@ -192,7 +193,7 @@ export function ensurePluginInstalled(projectRoot, packageName) {
  * @property {string} name npm-ім'я пакета (`@7n/rules` для ядра)
  * @property {string} packageRoot абсолютний корінь пакета
  * @property {string} rulesDir абсолютний шлях до `rules/` пакета
- * @property {{ capabilities: string[], contributes: { rules?: boolean, handlers?: Record<string, string> } }} manifest нормалізований блок `n-rules` з package.json плагіна
+ * @property {{ capabilities: string[], contributes: { rules?: boolean, handlers?: Record<string, string>, docFilesExtensions?: Record<string, string> } }} manifest нормалізований блок `n-rules` з package.json плагіна
  */
 
 /**
@@ -202,7 +203,7 @@ export function ensurePluginInstalled(projectRoot, packageName) {
  */
 function readPluginManifest(packageRoot) {
   /** @type {ResolvedPlugin['manifest']} */
-  const fallback = { capabilities: [], contributes: { rules: true, handlers: {} } }
+  const fallback = { capabilities: [], contributes: { rules: true, handlers: {}, docFilesExtensions: {} } }
   try {
     const pkg = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
     const raw = pkg?.['n-rules']
@@ -213,7 +214,17 @@ function readPluginManifest(packageRoot) {
       contributes.handlers && typeof contributes.handlers === 'object' && !Array.isArray(contributes.handlers)
         ? Object.fromEntries(Object.entries(contributes.handlers).filter(([, v]) => typeof v === 'string'))
         : {}
-    return { capabilities, contributes: { rules: contributes.rules !== false, handlers } }
+    // Декларативні doc-files-розширення (`docFiles.extensions`: '.rs' → 'Rust Module') —
+    // саме в маніфесті, а не в handler-модулі, щоб hot-path (hook per-file) читав їх
+    // синхронно без динамічного import.
+    const rawDocFiles = contributes.docFiles && typeof contributes.docFiles === 'object' ? contributes.docFiles : {}
+    const docFilesExtensions =
+      rawDocFiles.extensions && typeof rawDocFiles.extensions === 'object' && !Array.isArray(rawDocFiles.extensions)
+        ? Object.fromEntries(
+            Object.entries(rawDocFiles.extensions).filter(([k, v]) => k.startsWith('.') && typeof v === 'string')
+          )
+        : {}
+    return { capabilities, contributes: { rules: contributes.rules !== false, handlers, docFilesExtensions } }
   } catch {
     return fallback
   }
@@ -293,6 +304,22 @@ export function getActiveCapabilities(projectRoot, config, options = {}) {
     for (const c of p.manifest.capabilities) caps.add(c)
   }
   return caps
+}
+
+/**
+ * Агреговані doc-files-розширення активних плагінів: '.rs' → 'Rust Module' тощо.
+ * Синхронно і без установки (hot-path hook) — лише вже встановлені плагіни.
+ * @param {string} projectRoot корінь репозиторію
+ * @param {{ plugins?: unknown } | null | undefined} config розпарсений `.n-rules.json`
+ * @returns {Record<string, string>} мапа розширення → тип-мітка доки
+ */
+export function getDocFilesExtensions(projectRoot, config) {
+  /** @type {Record<string, string>} */
+  const out = {}
+  for (const p of resolvePlugins(projectRoot, config, { allowInstall: false, quiet: true })) {
+    Object.assign(out, p.manifest.contributes.docFilesExtensions)
+  }
+  return out
 }
 
 /**

@@ -1,0 +1,8 @@
+{
+  "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
+  "skipLocalTier": true,
+  "lint": {
+    "scope": "per-file",
+    "glob": ["**/*.{js,mjs,cjs,jsx,ts,tsx,vue}"]
+  }
+}

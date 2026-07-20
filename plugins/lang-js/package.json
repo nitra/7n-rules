@@ -1,0 +1,73 @@
+{
+  "name": "@7n/rules-lang-js",
+  "version": "0.7.0",
+  "description": "Плагін @7n/rules: JS/npm/bun-екосистема — lint-правила (js/bun/vue/js-run/npm-module/db), taze-провайдер (package.json, bunx taze) і doc-files-екстрактори (oxc AST)",
+  "keywords": [
+    "javascript",
+    "bun",
+    "taze",
+    "n-rules-plugin"
+  ],
+  "homepage": "https://github.com/nitra/7n-rules#readme",
+  "bugs": {
+    "url": "https://github.com/nitra/7n-rules/issues"
+  },
+  "license": "ISC",
+  "author": "v@nitra.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nitra/7n-rules.git",
+    "directory": "plugins/lang-js"
+  },
+  "type": "module",
+  "files": [
+    "doc-files",
+    "rules",
+    "taze",
+    "skills",
+    "CHANGELOG.md",
+    "!**/*.test.mjs",
+    "!**/*_test.rego",
+    "!**/fixtures/**",
+    "!**/tests/**"
+  ],
+  "n-rules": {
+    "capabilities": [
+      "lang:js"
+    ],
+    "contributes": {
+      "rules": true,
+      "handlers": {
+        "taze": "./taze/provider.mjs",
+        "doc-files": "./doc-files/extractors.mjs"
+      },
+      "docFiles": {
+        "extensions": {
+          ".js": "JS Module",
+          ".mjs": "JS Module",
+          ".ts": "TS Module",
+          ".vue": "Vue Component"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "eslint": "^10.4.1",
+    "globby": "^16.0.0",
+    "ignore": "^7.0.5",
+    "jscpd": "^5.0.11",
+    "knip": "^6.22.0",
+    "oxc-parser": "^0.137.0",
+    "oxlint": "^1.68.0"
+  },
+  "peerDependencies": {
+    "@7n/rules": ">=1.27.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "bun": ">=1.3",
+    "node": ">=24"
+  }
+}

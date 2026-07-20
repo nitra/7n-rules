@@ -19,6 +19,10 @@
       ],
       "description": "Маршрутизація fix-движка. Усі мітки виконують детерміновану фазу T0; різниця — що після неї. `code` (дефолт, поле можна опускати) — джерельні порушення, які LLM може осмислено переписати → повна pi-agent-ladder (local→cloud) до чистого re-detect. `config` — canon/settings/tooling конфіг з єдиною правильною формою (jscpd/oxfmtrc/tooling/package_json/*_yml): фікс детермінований (T0/regen з канону), LLM лише вгадав би невалідне → після T0 fail-fast без ladder. `structural` — дублікати/розташування/структура (jscpd_duplicates/test-location/package-structure): авто-правка ризикована й потребує людського розсуду → після T0 fail-fast без ladder. config vs structural різняться мотивом пропуску (детермінований канон vs надто ризиковано) — для телеметрії й майбутнього routing."
     },
+    "skipLocalTier": {
+      "type": "boolean",
+      "description": "Дефолт `false` (поле можна опускати). `true` пропускає local-min/local-min-retry rung-и LLM-ladder-а для цього concern-а — перша спроба одразу йде на cloud-min. Для concern-ів, де local-tier (слабка локальна модель, короткий бюджет) емпірично майже завжди лише витрачає час rung-а без результату, перш ніж ladder однаково ескалює далі."
+    },
     "check": {
       "type": "boolean",
       "const": true,

@@ -1,29 +1,24 @@
 /**
  * Тести для skills/taze/js/orchestrate.mjs:
- *   - buildDependencyPrompt: промпт містить пакет/версії, лише кроки 4-6;
  *   - callRunner: pi (текст через deps.out) vs cursor/codex (return/throw);
  *   - formatReport: детермінований markdown-звіт (npm-гілка + екосистеми провайдерів);
- *   - backupWorkspacePackageFiles/cleanupBackups: реальні tmp-файли;
  *   - loadPluginTazeProviders: handler-модулі плагінів → валідні провайдери, битий плагін → warning+пропуск;
- *   - runTazeOrchestrator: повна ітерація з інжектованими провайдерами (без реальних bunx/cargo/LLM).
+ *   - runTazeOrchestrator: повна ітерація з інжектованими провайдерами (без реальних bunx/cargo/LLM);
+ *   - реекспорти bringChangesBackToOriginal/removeAutoCreatedWorktree: спільний
+ *     набір `describeAutoWorktreeBridge` (scripts/utils/tests/auto-worktree-suite.mjs).
  */
-import { existsSync } from 'node:fs'
-import { writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 
-import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+import { describeAutoWorktreeBridge } from '../../../../scripts/utils/tests/auto-worktree-suite.mjs'
 import {
-  backupWorkspacePackageFiles,
-  buildDependencyPrompt,
+  bringChangesBackToOriginal,
   callRunner,
-  cleanupBackups,
   formatReport,
   loadPluginTazeProviders,
+  removeAutoCreatedWorktree,
   runTazeOrchestrator
 } from '../orchestrate.mjs'
 
-const NETWORK_ERROR_RE = /network error/
 const NOT_IN_WORKTREE_RE = /не в ізольованому worktree/
 
 /** Заглушка `log`/`copyFile`/`rm` для тестів, де побічний ефект не перевіряється. */
@@ -86,22 +81,6 @@ function fakeProvider(id, steps, overrides = {}) {
   }
 }
 
-describe('buildDependencyPrompt', () => {
-  test('містить пакет, воркспейс і версії', () => {
-    const prompt = buildDependencyPrompt({ workspace: 'npm', pkg: 'react', from: '^17.0.0', to: '^18.0.0' })
-    expect(prompt).toContain('react')
-    expect(prompt).toContain('npm')
-    expect(prompt).toContain('^17.0.0 → ^18.0.0')
-  })
-
-  test('не згадує детерміновані кроки 1-3/7/8 (лише 4-6)', () => {
-    const prompt = buildDependencyPrompt({ workspace: '.', pkg: 'vite', from: '4.0.0', to: '5.0.0' })
-    expect(prompt).toContain('breaking changes')
-    expect(prompt).toContain('CHANGELOG')
-    expect(prompt).not.toContain('bunx taze')
-  })
-})
-
 describe('callRunner', () => {
   test('pi: перехоплює текст через deps.out, повертає ok/error з runAgentSkill', async () => {
     const calls = []
@@ -140,25 +119,11 @@ describe('callRunner', () => {
 })
 
 describe('formatReport', () => {
-  test('без major-оновлень, без екосистем', () => {
-    const report = formatReport({ minorPatch: 5, totalChanged: 5, results: [] })
-    expect(report).toContain('Оновлено (minor/patch):** 5')
-    expect(report).toContain('Major-оновлення:** 0')
+  test('порожні ecosystems → лише заголовок і нульовий підсумок', () => {
+    const report = formatReport({ ecosystems: [] })
+    expect(report).toContain('## taze: підсумок')
+    expect(report).toContain('Всього змінено:** 0')
     expect(report).not.toContain('###')
-  })
-
-  test('з успішним і провальним npm-оновленням', () => {
-    const report = formatReport({
-      minorPatch: 2,
-      totalChanged: 4,
-      results: [
-        { pkg: 'react', workspace: '.', from: '^17.0.0', to: '^18.0.0', ok: true, error: null },
-        { pkg: 'vite', workspace: 'npm', from: '4.0.0', to: '5.0.0', ok: false, error: 'timeout' }
-      ]
-    })
-    expect(report).toContain('✅ `react` (.): ^17.0.0 → ^18.0.0')
-    expect(report).toContain('❌ `vite` (npm): 4.0.0 → 5.0.0 — timeout')
-    expect(report).toContain('Всього змінено:** 4')
   })
 
   test('екосистема з manifests, але пропущена (тулчейн відсутній)', () => {
@@ -220,8 +185,8 @@ describe('formatReport', () => {
     expect(report).toContain('✅ `genai` (Cargo.toml): 0.4 → 0.5')
     expect(report).toContain('### Python-пакети (uv)')
     expect(report).toContain('✅ `typer` (pyproject.toml): 0.19.1 → 0.27.0')
-    // 1 (npm) + 2+1 (rust) + 3+1 (python) = 8
-    expect(report).toContain('Всього змінено:** 8')
+    // 2+1 (rust) + 3+1 (python) = 7 — npm-гілка тепер теж окрема екосистема-плагін.
+    expect(report).toContain('Всього змінено:** 7')
   })
 
   test('екосистема без manifests — тиша (жодної згадки)', () => {
@@ -267,37 +232,6 @@ describe('formatReport', () => {
     })
     expect(report).toContain('### Rust-крейти')
     expect(report).toContain('❌ Провал (cargo update → exit 101: registry unreachable)')
-  })
-})
-
-describe('backupWorkspacePackageFiles + cleanupBackups', () => {
-  test('бекапить package.json кожного воркспейсу і прибирає після', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'package.json'), '{}', 'utf8')
-      await ensureDir(join(dir, 'pkg-a'))
-      await writeFile(join(dir, 'pkg-a/package.json'), '{}', 'utf8')
-
-      const workspaces = await backupWorkspacePackageFiles(dir, {
-        getMonorepoPackageRootDirs: () => ['.', 'pkg-a']
-      })
-      expect(workspaces).toEqual(['.', 'pkg-a'])
-      expect(existsSync(join(dir, 'package.json.taze-bak'))).toBe(true)
-      expect(existsSync(join(dir, 'pkg-a/package.json.taze-bak'))).toBe(true)
-
-      await cleanupBackups(dir, workspaces)
-      expect(existsSync(join(dir, 'package.json.taze-bak'))).toBe(false)
-      expect(existsSync(join(dir, 'pkg-a/package.json.taze-bak'))).toBe(false)
-    })
-  })
-
-  test('пропускає воркспейс без package.json', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'package.json'), '{}', 'utf8')
-      const workspaces = await backupWorkspacePackageFiles(dir, {
-        getMonorepoPackageRootDirs: () => ['.', 'no-package-json']
-      })
-      expect(workspaces).toEqual(['.'])
-    })
   })
 })
 
@@ -361,169 +295,93 @@ describe('loadPluginTazeProviders', () => {
 })
 
 describe('runTazeOrchestrator', () => {
-  test('поза .worktrees/ — кидає до будь-якої мутації, не викликає bunx', async () => {
-    const bunxCalls = []
+  test('поза .worktrees/ — сам створює worktree, а по завершенню переносить зміни назад і прибирає worktree', async () => {
+    const calls = []
+    const result = await runTazeOrchestrator({
+      cwd: '/Users/dev/repo',
+      runner: 'pi',
+      log: noop,
+      deps: {
+        spawnFn: (cmd, args = []) => {
+          calls.push([cmd, ...args].join(' '))
+          if (cmd === 'git' && args[0] === 'rev-parse') return { status: 0, stdout: '/Users/dev/repo\n', stderr: '' }
+          if (cmd === 'git' && args[0] === 'branch') return { status: 0, stdout: 'main\n', stderr: '' }
+          if (cmd === 'git' && args[0] === 'status') return { status: 0, stdout: '', stderr: '' }
+          return fakeSpawn(cmd)
+        },
+        ecosystemProviders: []
+      }
+    })
+    expect(calls).toContain('npx @7n/mt worktree create main-taze n-taze: worktree-only skill')
+    expect(calls.some(c => c.startsWith('bun install'))).toBe(true)
+    expect(calls).toContain('git status --porcelain')
+    expect(calls).toContain('npx @7n/mt worktree remove main-taze')
+    expect(result.ok).toBe(true)
+  })
+
+  test('вже в .worktrees/ — не переносить назад і не прибирає нічого (не наш worktree)', async () => {
+    const calls = []
+    await runTazeOrchestrator({
+      cwd: '/repo/.worktrees/main-taze',
+      runner: 'pi',
+      log: noop,
+      deps: {
+        spawnFn: (cmd, args = []) => {
+          calls.push([cmd, ...args].join(' '))
+          return fakeSpawn(cmd)
+        },
+        ecosystemProviders: []
+      }
+    })
+    expect(calls.some(c => c.startsWith('git status'))).toBe(false)
+    expect(calls.some(c => c.startsWith('npx @7n/mt worktree remove'))).toBe(false)
+  })
+
+  test('поза .worktrees/ і без визначеної гілки (detached HEAD) — кидає, не створює worktree', async () => {
+    const calls = []
     await expect(
       runTazeOrchestrator({
         cwd: '/Users/dev/repo',
         runner: 'pi',
         log: noop,
         deps: {
-          spawnFn: cmd => {
-            if (cmd === 'git') return { status: 0, stdout: '/Users/dev/repo\n', stderr: '' }
-            if (cmd === 'bunx') bunxCalls.push(cmd)
+          spawnFn: (cmd, args = []) => {
+            calls.push(cmd)
+            if (cmd === 'git' && args[0] === 'rev-parse') return { status: 0, stdout: '/Users/dev/repo\n', stderr: '' }
+            if (cmd === 'git' && args[0] === 'branch') return { status: 0, stdout: '\n', stderr: '' }
             return fakeSpawn(cmd)
           },
           ecosystemProviders: []
         }
       })
     ).rejects.toThrow(NOT_IN_WORKTREE_RE)
-    expect(bunxCalls).toHaveLength(0)
+    expect(calls).not.toContain('npx')
   })
 
-  test('без major-оновлень і провайдерів — callRunner не викликається, є звіт', async () => {
+  test('без провайдерів — callRunner не викликається, є звіт і попередження', async () => {
     const calls = []
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'package.json'), '{}', 'utf8')
-      const result = await runTazeOrchestrator({
-        cwd: dir,
-        runner: 'pi',
-        log: noop,
-        deps: {
-          spawnFn: fakeSpawn,
-          getMonorepoPackageRootDirs: () => ['.'],
-          copyFile: noop,
-          rm: noop,
-          collectTazeDiff: () => ({ major: [], minorPatch: 3, totalChanged: 3, comparedWorkspaces: 1 }),
-          ecosystemProviders: [],
-          callRunner: (...args) => {
-            calls.push(args)
-            return { ok: true, text: '', error: null }
-          }
+    const logs = []
+    const result = await runTazeOrchestrator({
+      cwd: '/repo/.worktrees/main-taze',
+      runner: 'pi',
+      log: line => {
+        logs.push(line)
+      },
+      deps: {
+        spawnFn: fakeSpawn,
+        ecosystemProviders: [],
+        callRunner: (...args) => {
+          calls.push(args)
+          return { ok: true, text: '', error: null }
         }
-      })
-
-      expect(calls).toHaveLength(0)
-      expect(result.ok).toBe(true)
-      expect(result.report).toContain('Оновлено (minor/patch):** 3')
-      expect(result.results).toEqual([])
-      expect(result.ecosystems).toEqual([])
+      }
     })
-  })
 
-  test('ітерує по кожному major-запису обраним раннером, збирає результати', async () => {
-    const calls = []
-    const major = [
-      { workspace: '.', pkg: 'react', from: '^17.0.0', to: '^18.0.0' },
-      { workspace: 'npm', pkg: 'vite', from: '4.0.0', to: '5.0.0' }
-    ]
-
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'package.json'), '{}', 'utf8')
-      const result = await runTazeOrchestrator({
-        cwd: dir,
-        runner: 'cursor',
-        log: noop,
-        deps: {
-          spawnFn: fakeSpawn,
-          getMonorepoPackageRootDirs: () => ['.'],
-          copyFile: noop,
-          rm: noop,
-          collectTazeDiff: () => ({ major, minorPatch: 1, totalChanged: 3, comparedWorkspaces: 2 }),
-          ecosystemProviders: [],
-          callRunner: (runner, prompt, cwd) => {
-            calls.push({ runner, prompt, cwd })
-            return prompt.includes('vite')
-              ? { ok: false, text: '', error: 'idle-timeout' }
-              : { ok: true, text: 'ok', error: null }
-          }
-        }
-      })
-
-      expect(calls).toHaveLength(2)
-      expect(calls.every(c => c.runner === 'cursor' && c.cwd === dir)).toBe(true)
-      expect(result.ok).toBe(false)
-      expect(result.results).toHaveLength(2)
-      expect(result.results[0]).toMatchObject({ pkg: 'react', ok: true })
-      expect(result.results[1]).toMatchObject({ pkg: 'vite', ok: false, error: 'idle-timeout' })
-      expect(result.report).toContain('❌ `vite`')
-    })
-  })
-
-  test('кидає з exit-кодом+stderr, якщо детермінована npm-команда провалилась', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'package.json'), '{}', 'utf8')
-      await expect(
-        runTazeOrchestrator({
-          cwd: dir,
-          runner: 'pi',
-          log: noop,
-          deps: {
-            spawnFn: cmd => (cmd === 'bunx' ? { status: 1, stdout: '', stderr: 'network error' } : fakeSpawn(cmd)),
-            getMonorepoPackageRootDirs: () => ['.'],
-            copyFile: noop,
-            rm: noop,
-            ecosystemProviders: []
-          }
-        })
-      ).rejects.toThrow(NETWORK_ERROR_RE)
-    })
-  })
-
-  test('реальний бекап/прибирання через tmp-каталог (не лише інжекти)', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'package.json'), JSON.stringify({ dependencies: {} }), 'utf8')
-
-      const result = await runTazeOrchestrator({
-        cwd: dir,
-        runner: 'pi',
-        log: noop,
-        deps: {
-          spawnFn: fakeSpawn,
-          collectTazeDiff: () => ({ major: [], minorPatch: 0, totalChanged: 0, comparedWorkspaces: 1 }),
-          ecosystemProviders: []
-        }
-      })
-
-      expect(result.ok).toBe(true)
-      expect(existsSync(join(dir, 'package.json.taze-bak'))).toBe(false)
-    })
-  })
-
-  test('без кореневого package.json — npm-гілка тихо пропускається, bunx/bun не викликаються, провайдери працюють', async () => {
-    const npmCommands = []
-    const steps = []
-    const major = [{ manifest: 'py.toml', pkg: 'typer', from: '0.19.1', to: '0.27.0' }]
-
-    await withTmpDir(async dir => {
-      // package.json НЕ створюємо — чисто-Python репо.
-      const result = await runTazeOrchestrator({
-        cwd: dir,
-        runner: 'pi',
-        log: noop,
-        deps: {
-          spawnFn: cmd => {
-            if (cmd === 'bunx' || cmd === 'bun') npmCommands.push(cmd)
-            return fakeSpawn(cmd)
-          },
-          ecosystemProviders: [
-            fakeProvider('py', steps, {
-              diff: () => Promise.resolve({ major, minorPatch: 1, totalChanged: 2 })
-            })
-          ],
-          callRunner: () => ({ ok: true, text: 'сумісно', error: null })
-        }
-      })
-
-      expect(npmCommands).toHaveLength(0)
-      expect(steps).toContain('py:cleanup')
-      expect(result.ok).toBe(true)
-      // npm-рядків у звіті немає (тиша), екосистема — є.
-      expect(result.report).not.toContain('Оновлено (minor/patch):** 0\n- **Major-оновлення')
-      expect(result.report).toContain('### Екосистема py')
-      expect(result.report).toContain('✅ `typer`')
-      expect(result.report).toContain('Всього змінено:** 2')
-    })
+    expect(calls).toHaveLength(0)
+    expect(result.ok).toBe(true)
+    expect(result.report).toContain('Всього змінено:** 0')
+    expect(result.ecosystems).toEqual([])
+    expect(logs.some(l => l.includes('Жодного taze-провайдера'))).toBe(true)
   })
 
   test('провайдери: повний цикл detect→available→backup→bump→diff→cleanup + виклик раннера на major', async () => {
@@ -541,6 +399,8 @@ describe('runTazeOrchestrator', () => {
         copyFile: noop,
         rm: noop,
         collectTazeDiff: () => ({ major: [], minorPatch: 0, totalChanged: 0, comparedWorkspaces: 1 }),
+        readMigrationCache: () => null,
+        writeMigrationCache: () => null,
         ecosystemProviders: [
           fakeProvider('py', steps, {
             diff: () => {
@@ -642,4 +502,129 @@ describe('runTazeOrchestrator', () => {
       'py:cleanup'
     ])
   })
+
+  test('кеш міграцій: знайдено запис → промпт доповнюється підсумком, повторний CHANGELOG-виклик не потрібен', async () => {
+    const steps = []
+    const major = [{ manifest: 'package.json', pkg: '@7n/tauri-components', from: '^0.8.0', to: '^0.11.1' }]
+    const readCalls = []
+    const writeCalls = []
+    const runnerCalls = []
+
+    const result = await runTazeOrchestrator({
+      cwd: '/tmp/project',
+      runner: 'cursor',
+      log: noop,
+      deps: {
+        spawnFn: fakeSpawn,
+        readMigrationCache: (pkg, from, to) => {
+          readCalls.push({ pkg, from, to })
+          return { notes: 'useAgent видалено → useAcpAgent', sourceRepo: '/tmp/other-repo', updatedAt: '2026-07-19T00:00:00.000Z' }
+        },
+        writeMigrationCache: (...args) => {
+          writeCalls.push(args)
+        },
+        ecosystemProviders: [
+          fakeProvider('js-bun', steps, {
+            diff: () => Promise.resolve({ major, minorPatch: 0, totalChanged: 1 })
+          })
+        ],
+        callRunner: (runner, prompt, cwd) => {
+          runnerCalls.push({ runner, prompt, cwd })
+          return { ok: true, text: 'нічого не змінено — вже сумісно', error: null }
+        }
+      }
+    })
+
+    expect(readCalls).toEqual([{ pkg: '@7n/tauri-components', from: '^0.8.0', to: '^0.11.1' }])
+    expect(runnerCalls[0].prompt).toContain('prompt:js-bun:@7n/tauri-components')
+    expect(runnerCalls[0].prompt).toContain('/tmp/other-repo')
+    expect(runnerCalls[0].prompt).toContain('useAgent видалено → useAcpAgent')
+    expect(runnerCalls[0].prompt).toContain('пропусти крок 1')
+    // успішний виклик оновлює кеш власним підсумком — наступний репо побачить свіжіший запис.
+    expect(writeCalls).toHaveLength(1)
+    expect(writeCalls[0][0]).toBe('@7n/tauri-components')
+    expect(writeCalls[0][3].notes).toBe('нічого не змінено — вже сумісно')
+    expect(result.ok).toBe(true)
+  })
+
+  test('кеш міграцій: нема запису → промпт без секції кешу, після успіху кеш записується', async () => {
+    const major = [{ manifest: 'package.json', pkg: 'typer', from: '0.19.1', to: '0.27.0' }]
+    const writeCalls = []
+    const runnerCalls = []
+
+    await runTazeOrchestrator({
+      cwd: '/tmp/project',
+      runner: 'pi',
+      log: noop,
+      deps: {
+        spawnFn: fakeSpawn,
+        readMigrationCache: () => null,
+        writeMigrationCache: (...args) => {
+          writeCalls.push(args)
+        },
+        ecosystemProviders: [
+          fakeProvider('py', [], { diff: () => Promise.resolve({ major, minorPatch: 0, totalChanged: 1 }) })
+        ],
+        callRunner: (runner, prompt, cwd) => {
+          runnerCalls.push({ runner, prompt, cwd })
+          return { ok: true, text: 'зрефакторено use-agent.js', error: null }
+        }
+      }
+    })
+
+    expect(runnerCalls[0].prompt).toBe('prompt:py:typer')
+    expect(writeCalls).toEqual([['typer', '0.19.1', '0.27.0', expect.objectContaining({ notes: 'зрефакторено use-agent.js' }), expect.any(Object)]])
+  })
+
+  test('SIGTERM під час прогону — рятує прогрес автоствореного worktree перед виходом', async () => {
+    const calls = []
+    let capturedSignalHandler = null
+    let exitCode = null
+
+    const originalOn = process.on.bind(process)
+    process.on = (event, handler) => {
+      if (event === 'SIGTERM') capturedSignalHandler = handler
+      return originalOn(event, handler)
+    }
+
+    try {
+      const resultPromise = runTazeOrchestrator({
+        cwd: '/Users/dev/repo',
+        runner: 'pi',
+        log: noop,
+        deps: {
+          spawnFn: (cmd, args = []) => {
+            calls.push([cmd, ...args].join(' '))
+            if (cmd === 'git' && args[0] === 'rev-parse') return { status: 0, stdout: '/Users/dev/repo\n', stderr: '' }
+            if (cmd === 'git' && args[0] === 'branch') return { status: 0, stdout: 'main\n', stderr: '' }
+            if (cmd === 'git' && args[0] === 'status') return { status: 0, stdout: '', stderr: '' }
+            return fakeSpawn(cmd)
+          },
+          ecosystemProviders: [],
+          exitProcessFn: code => {
+            exitCode = code
+          }
+        }
+      })
+
+      // Симулюємо переривання ще до завершення оркестратора (signal-обробник
+      // реєструється одразу після створення worktree, але `ensureRunningInWorktree`
+      // сама async — потрібен хоча б один мікротаск, щоб виконання дійшло до
+      // `process.on`, тому чекаємо, а не перевіряємо одразу синхронно).
+      for (let i = 0; i < 50 && !capturedSignalHandler; i += 1) {
+        await Promise.resolve()
+      }
+      expect(capturedSignalHandler).toBeTypeOf('function')
+      await capturedSignalHandler('SIGTERM')
+
+      await resultPromise
+    } finally {
+      process.on = originalOn
+    }
+
+    expect(calls).toContain('npx @7n/mt worktree remove main-taze')
+    expect(exitCode).toBe(1)
+  })
 })
+
+describeAutoWorktreeBridge({ bringChangesBackToOriginal, removeAutoCreatedWorktree, branch: 'main-taze' })

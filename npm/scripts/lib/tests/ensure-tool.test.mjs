@@ -10,6 +10,12 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
 import { env } from 'node:process'
 
+// JSON-import, не `node:fs` — статичний `import {readFileSync} from 'node:fs'` тут ламає
+// hoisting-порядок `vi.mock('node:fs', …)` нижче (ESM static import виконується до const
+// XMock = vi.fn() top-level коду, тоді як factory виконується лише лениво, на моменті
+// динамічного `await import('../ensure-tool.mjs')`).
+import toolPins from '../tool-pins.json' with { type: 'json' }
+
 const resolveCmdMock = vi.fn()
 const existsSyncMock = vi.fn()
 const spawnSyncMock = vi.fn()
@@ -21,19 +27,26 @@ vi.mock('../../utils/resolve-cmd.mjs', () => ({
 vi.mock('../../utils/with-lock.mjs', () => ({
   withLock: withLockMock
 }))
-vi.mock('node:fs', () => ({
-  existsSync: existsSyncMock,
-  mkdirSync: vi.fn(),
-  mkdtempSync: vi.fn(),
-  chmodSync: vi.fn(),
-  renameSync: vi.fn(),
-  rmSync: vi.fn()
-}))
+vi.mock('node:fs', async () => {
+  // readFileSync лишається реальним (spread actual) — resolvePinnedVersion/checkToolPinsFreshness
+  // читають справжній tool-pins.json; тільки install-мутації (mkdir/mkdtemp/chmod/rename/rm) мокаються.
+  const actual = await vi.importActual('node:fs')
+  return {
+    ...actual,
+    existsSync: existsSyncMock,
+    mkdirSync: vi.fn(),
+    mkdtempSync: vi.fn(),
+    chmodSync: vi.fn(),
+    renameSync: vi.fn(),
+    rmSync: vi.fn()
+  }
+})
 vi.mock('node:child_process', () => ({
   spawnSync: spawnSyncMock
 }))
 
-const { ensureTool, ensureToolAsync, ensureHkInstall } = await import('../ensure-tool.mjs')
+const { ensureTool, ensureToolAsync, ensureHkInstall, fetchLatestVersion, checkToolPinsFreshness, TOOLS } =
+  await import('../ensure-tool.mjs')
 
 const HK_SUFFIX_RE = /hk$/
 const UNKNOWN_TOOL_RE = /невідомий тул/
@@ -174,6 +187,121 @@ describe('ensureToolAsync', () => {
     await ensureToolAsync('conftest')
 
     expect(withLockMock).toHaveBeenCalledTimes(2)
+  })
+})
+
+/**
+ * Тимчасово виставляє env-змінну на час callback-а, відновлюючи попереднє значення.
+ * @param {string} key імʼя env-змінної
+ * @param {string|undefined} value значення на час виклику; `undefined` — прибрати змінну
+ * @param {() => unknown} fn callback, що виконується з виставленим env
+ * @returns {unknown} результат callback-а
+ */
+function withEnv(key, value, fn) {
+  const prev = env[key]
+  if (value === undefined) delete env[key]
+  else env[key] = value
+  try {
+    return fn()
+  } finally {
+    if (prev === undefined) delete env[key]
+    else env[key] = prev
+  }
+}
+
+describe('fetchLatestVersion', () => {
+  const CURL = '/usr/bin/curl'
+  const REPO = 'open-policy-agent/conftest'
+
+  beforeEach(() => {
+    spawnSyncMock.mockReset()
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  test('API OK → версія без префікса v, redirect-fallback не викликається', () => {
+    spawnSyncMock.mockReturnValue({ status: 0, stdout: JSON.stringify({ tag_name: 'v0.62.0' }) })
+    withEnv('GITHUB_TOKEN', undefined, () =>
+      withEnv('GH_TOKEN', undefined, () => {
+        expect(fetchLatestVersion(REPO, CURL)).toBe('0.62.0')
+      })
+    )
+    expect(spawnSyncMock).toHaveBeenCalledTimes(1)
+    const args = spawnSyncMock.mock.calls[0][1]
+    expect(args.join(' ')).not.toContain('Authorization')
+  })
+
+  test('GITHUB_TOKEN в env → API-запит з Authorization: Bearer', () => {
+    spawnSyncMock.mockReturnValue({ status: 0, stdout: JSON.stringify({ tag_name: 'v1.2.3' }) })
+    withEnv('GITHUB_TOKEN', 'tkn-123', () => {
+      expect(fetchLatestVersion(REPO, CURL)).toBe('1.2.3')
+    })
+    const args = spawnSyncMock.mock.calls[0][1]
+    expect(args).toContain('Authorization: Bearer tkn-123')
+  })
+
+  test('API без tag_name (rate-limit) → fallback через redirect releases/latest', () => {
+    spawnSyncMock
+      .mockReturnValueOnce({ status: 0, stdout: JSON.stringify({ message: 'API rate limit exceeded' }) })
+      .mockReturnValueOnce({
+        status: 0,
+        stdout: `HTTP/2 302\r\nlocation: https://github.com/${REPO}/releases/tag/v0.62.0\r\n\r\nhttps://github.com/${REPO}/releases/tag/v0.62.0`
+      })
+    withEnv('GITHUB_TOKEN', undefined, () =>
+      withEnv('GH_TOKEN', undefined, () => {
+        expect(fetchLatestVersion(REPO, CURL)).toBe('0.62.0')
+      })
+    )
+    expect(spawnSyncMock).toHaveBeenCalledTimes(2)
+    const redirectArgs = spawnSyncMock.mock.calls[1][1]
+    expect(redirectArgs).toContain(`https://github.com/${REPO}/releases/latest`)
+  })
+
+  test('обидва шляхи впали → ToolProvisionError з обома причинами', () => {
+    spawnSyncMock
+      .mockReturnValueOnce({ status: 0, stdout: JSON.stringify({ message: 'API rate limit exceeded' }) })
+      .mockReturnValueOnce({ status: 22, stdout: '', stderr: 'curl: (22) 429' })
+    withEnv('GITHUB_TOKEN', undefined, () =>
+      withEnv('GH_TOKEN', undefined, () => {
+        let thrown
+        try {
+          fetchLatestVersion(REPO, CURL)
+        } catch (error) {
+          thrown = error
+        }
+        expect(thrown?.name).toBe('ToolProvisionError')
+        expect(thrown?.message).toContain('tag_name missing')
+        expect(thrown?.message).toContain('API rate limit exceeded')
+      })
+    )
+  })
+})
+
+describe('tool-pins.json', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000
+
+  test('кожен тул з TOOLS має закріплену версію в tool-pins.json', () => {
+    for (const toolId of Object.keys(TOOLS)) {
+      expect(toolPins.versions[toolId], `${toolId}: немає піна в tool-pins.json`).toBeTruthy()
+    }
+  })
+
+  test('checkToolPinsFreshness: < 30 днів від pinnedAt → не stale', () => {
+    const { pinnedAt } = checkToolPinsFreshness()
+    const now = Date.parse(pinnedAt) + 5 * DAY_MS
+    const result = checkToolPinsFreshness(now)
+    expect(result.ageDays).toBe(5)
+    expect(result.stale).toBe(false)
+  })
+
+  test('checkToolPinsFreshness: > 30 днів від pinnedAt → stale', () => {
+    const { pinnedAt } = checkToolPinsFreshness()
+    const now = Date.parse(pinnedAt) + 31 * DAY_MS
+    const result = checkToolPinsFreshness(now)
+    expect(result.ageDays).toBe(31)
+    expect(result.stale).toBe(true)
   })
 })
 

@@ -4,7 +4,7 @@
  * plan → lint-<domain> → deploy, і мігрований YAML проходить власний rego-концерн
  * service_deploy_workflow (conftest) без deny — «фіксер ↔ канон не дрейфують».
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -61,6 +61,19 @@ jobs:
 `
 
 /**
+ * Симлінкує реальний @7n/rules-lang-js монорепо у node_modules консюмер-фікстури:
+ * після фази 5c домен `js` (per-file concerns) живе у плагіні, не в ядрі —
+ * без плагіна relevantDomains не бачить js-домену.
+ * @param {string} dir tmp-корінь консюмер-фікстури
+ * @returns {Promise<void>}
+ */
+async function linkLangJsPlugin(dir) {
+  const scope = join(dir, 'node_modules', '@7n')
+  await mkdir(scope, { recursive: true })
+  await symlink(fileURLToPath(new URL('../../../../../lang-js/', import.meta.url)), join(scope, 'rules-lang-js'))
+}
+
+/**
  * Консюмер-фікстура: сервіс run/nexus (js+md), enabled-правила js/text.
  * @param {string} dir tmp-корінь
  * @returns {Promise<string>} абсолютний шлях workflow-файлу
@@ -69,7 +82,8 @@ async function seedConsumer(dir) {
   await mkdir(join(dir, 'run', 'nexus'), { recursive: true })
   await writeFile(join(dir, 'run', 'nexus', 'index.js'), 'export const a = 1\n', 'utf8')
   await writeFile(join(dir, 'run', 'nexus', 'readme.md'), '# nexus\n', 'utf8')
-  await writeJson(join(dir, '.n-rules.json'), { rules: ['js', 'text'] })
+  await writeJson(join(dir, '.n-rules.json'), { rules: ['js', 'text'], plugins: ['@7n/rules-lang-js'] })
+  await linkLangJsPlugin(dir)
   const wfDir = join(dir, '.github', 'workflows')
   await mkdir(wfDir, { recursive: true })
   const abs = join(wfDir, 'deploy-nexus.yml')

@@ -45,6 +45,40 @@ describe('runConcernDetector — policy-concern без main.mjs', () => {
   })
 })
 
+describe('runConcernDetector — fail-open на ToolProvisionError', () => {
+  test('lint() кидає ToolProvisionError → порожні violations + warn-діагностика, без DetectorError', async () => {
+    await withTmpDir(async dir => {
+      const concernDir = join(dir, 'rules', 'ga', 'lint_ga')
+      await mkdir(concernDir, { recursive: true })
+      // Помилка розпізнається за name — саме так вона приходить з іншого інстансу ensure-tool.mjs
+      await writeFile(
+        join(concernDir, 'main.mjs'),
+        "export function lint() { const e = new Error('GitHub API: tag_name missing for open-policy-agent/conftest'); e.name = 'ToolProvisionError'; throw e }\n",
+        'utf8'
+      )
+      const concern = { name: 'lint_ga', dir: concernDir }
+      const r = await runConcernDetector(concern, { cwd: dir, ruleId: 'ga', concernId: 'lint_ga' })
+      expect(r.violations).toEqual([])
+      expect(r.diagnostics).toHaveLength(1)
+      expect(r.diagnostics[0].level).toBe('warn')
+      expect(r.diagnostics[0].message).toContain('пропущено')
+      expect(r.diagnostics[0].message).toContain('tag_name missing')
+    })
+  })
+
+  test('звичайна помилка lint() далі кидає DetectorError (fail-open лише для ToolProvisionError)', async () => {
+    await withTmpDir(async dir => {
+      const concernDir = join(dir, 'rules', 'ga', 'lint_ga')
+      await mkdir(concernDir, { recursive: true })
+      await writeFile(join(concernDir, 'main.mjs'), "export function lint() { throw new Error('boom') }\n", 'utf8')
+      const concern = { name: 'lint_ga', dir: concernDir }
+      await expect(runConcernDetector(concern, { cwd: dir, ruleId: 'ga', concernId: 'lint_ga' })).rejects.toThrow(
+        'lint() кинув: boom'
+      )
+    })
+  })
+})
+
 describe('runConcernDetector — ручний main.mjs як escape-hatch', () => {
   test('ручний (не-@generated) main.mjs перекриває policy-adapter', async () => {
     await withTmpDir(async dir => {

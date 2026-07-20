@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.8.3] - 2026-07-19
+
+### Changed
+
+- fix(acp): тихий прогрес ACP-подій за замовчуванням (без raw_input/raw_output тулзів і потокенний thought-стрім не логується); повний Debug — через N_LLM_ACP_VERBOSE=1
+
+## [2.8.2] - 2026-07-19
+
+### Changed
+
+- fix(llm-lib): `getRegistry()` — перехід на `ModelRuntime.create()` + `new ModelRegistry(runtime)` замість застарілого `ModelRegistry.create(AuthStorage.create())`, сумісного з `@earendil-works/pi-coding-agent@0.80.10`
+
+## [2.8.1] - 2026-07-18
+
+### Changed
+
+- Оновлено peer-версію @earendil-works/pi-coding-agent/pi-ai до ~0.80.10 — підтримка gpt-5.6-sol через openai-codex backend
+
 ## [2.8.0] - 2026-07-18
 
 ### Added

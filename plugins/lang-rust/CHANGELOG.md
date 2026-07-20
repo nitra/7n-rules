@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.6.0] - 2026-07-19
+
+### Added
+
+- концерн cargo_mutants_config у правилі rust (переїхав з правила test ядра): канонічний baseline .cargo/mutants.toml на кожен Cargo.toml-маніфест, T0-fix генерації; активація за glob Cargo.toml — у rust-only репо працює без lang-js
+
+## [0.5.1] - 2026-07-19
+
+### Fixed
+
+- knip unresolved: JSDoc-типи lint-surface тепер через пакетний шлях `@7n/rules/scripts/lib/lint-surface/types.mjs` замість неіснуючого відносного `../../../scripts/...`
+
+## [0.5.0] - 2026-07-19
+
+### Added
+
+- SKILL-фрагмент taze (фаза 4b spec lang-plugins-extraction): Rust-гілка SKILL.md (детекція Cargo.toml, per-manifest cargo upgrade/update, collectCargoDiff, cargo fmt/clippy/test, примітка про --incompatible allow) тепер живе у плагіні (`skills/taze/SKILL.fragment.md`) і доклеюється sync-ом до скіла в репо з активним плагіном
+
+## [0.4.0] - 2026-07-18
+
+### Added
+
+- doc-files-екстрактори Rust переїхали з ядра (фаза 4a spec lang-plugins-extraction): `extractFactsRust` (header/exports/imports/markers) і `extractUnitsRs` — handler extension-point `doc-files`; розширення `.rs` → 'Rust Module' декларується маніфестом (`contributes.docFiles.extensions`)
+
+## [0.3.0] - 2026-07-18
+
+### Added
+
+- Правило `rust` переїхало з ядра (фаза 3 spec lang-plugins-extraction): main.mdc, концерни applies/check/package_json/vscode_extensions з rego-політиками й шаблонами — плагін тепер contributes.rules; дзеркало `.cursor/rules/n-rust.mdc` і auto-rules детект працюють через плагінне джерело
+
 ## [0.2.2] - 2026-07-18
 
 ### Fixed

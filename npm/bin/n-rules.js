@@ -84,12 +84,18 @@ import {
   RULE_MIGRATIONS
 } from '../scripts/auto-rules.mjs'
 import { detectAutoSkills } from '../scripts/auto-skills.mjs'
+import {
+  bringChangesBackToOriginal,
+  ensureRunningInWorktree,
+  removeAutoCreatedWorktree
+} from '../scripts/lib/auto-worktree.mjs'
 import { readSkillMetaRaw } from '../scripts/lib/skill-meta.mjs'
 import { injectWorktreeNotice } from '../scripts/lib/worktree-notice.mjs'
+import { collectSkillFragments, injectSkillFragments } from '../scripts/lib/skill-fragments.mjs'
 import { injectRootNotice } from '../scripts/lib/root-notice.mjs'
 import { listProjectRulesMdcFiles } from '../scripts/lib/list-project-rules-mdc.mjs'
 import { ensureNRulesInRootDevDependencies } from '../scripts/ensure-n-rules-dev-dependencies.mjs'
-import { resolvePluginList, resolveRulesDirs } from '../scripts/lib/resolve-plugins.mjs'
+import { resolvePluginList, resolvePlugins, resolveRulesDirs } from '../scripts/lib/resolve-plugins.mjs'
 import { assertCwdIsProjectRoot } from '../scripts/lib/assert-project-root.mjs'
 import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { syncGitignoreWorktree } from '../scripts/lib/sync-gitignore-worktree.mjs'
@@ -885,15 +891,19 @@ async function syncAgentsMd(agentsTemplatePath = BUNDLED_AGENTS_TEMPLATE_PATH) {
  * Копіює лише skills зі списку configSkills (джерело: skills/<id>/ у пакеті)
  * @param {string[]} configSkills id без префікса n-
  * @param {string} [bundledSkillsDir] каталог `skills/` у корені пакету-джерела
+ * @param {{ plugins?: unknown } | null} [config] конфіг `.n-rules.json` — активні плагіни для SKILL-фрагментів
  * @returns {Promise<{ success: number, fail: number }>} лічильники успішних і невдалих копіювань
  */
-async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
+async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR, config = null) {
   if (configSkills.length === 0 || !existsSync(bundledSkillsDir)) {
     return { success: 0, fail: 0 }
   }
 
   const skillsRoot = join(cwd(), SKILLS_DIR)
   await mkdir(skillsRoot, { recursive: true })
+  // Активні плагіни — джерело конвенційних фрагментів skills/<id>/SKILL.fragment.md
+  // (фаза 4b spec lang-plugins-extraction): мовні гілки скіла їдуть з плагіном.
+  const activePlugins = resolvePlugins(cwd(), config, { allowInstall: false, quiet: true })
 
   let success = 0
   let fail = 0
@@ -923,6 +933,7 @@ async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
           if (entry.name === 'SKILL.md') {
             content = injectWorktreeNotice(content, worktree)
             content = injectRootNotice(content, rootOnly)
+            content = injectSkillFragments(content, collectSkillFragments(id, activePlugins))
           }
           await writeFile(join(destDir, entry.name), content, 'utf8')
         }
@@ -1487,7 +1498,7 @@ async function runSync() {
 
   await runSyncStep('❌ Skills: ', async () => {
     const { fail: skillFail } = await captureOutput(async () => {
-      const { success: skillOk, fail } = await syncSkills(skills, bundledSkillsDir)
+      const { success: skillOk, fail } = await syncSkills(skills, bundledSkillsDir, config)
       if (skills.length > 0) {
         console.log(`\n🧩 Skills: ${skillOk} скопійовано, ${fail} з помилками`)
       }
@@ -1806,28 +1817,55 @@ try {
           baseRef
         }
         const noFix = args.includes('--no-fix')
+        // `--full` без `--no-fix` мутує ВЕСЬ репо (не лише дельту) — той самий клас
+        // ризику, що й taze: якщо запущено поза .worktrees/, треба ізолювати. `--no-fix`
+        // (detect-only, нуль мутацій) і не-full (дельта, за дизайном працює на живому
+        // дереві задачі, worktree-ізоляція зламала б саму суть дельти) — пропускаємо.
+        const needsWorktreeIsolation = full && !noFix
+        const worktree = needsWorktreeIsolation
+          ? ensureRunningInWorktree(cwdArg, spawnSync, line => console.log(line), {
+              suffix: 'lint',
+              description: 'n-rules lint --full: worktree-only full-repo run'
+            })
+          : { cwd: cwdArg, autoCreated: false, branchArg: null }
+        const runCwd = worktree.cwd
         // Глобальна черга full-прогонів (spec 2026-07-03): одночасно виконується один
         // `lint --full` на машину, паралельні --full чекають лока і бачать чергу та
         // живий прогрес активного прогону; не-full запуски йдуть без лока
         // (див. lint-lock.mjs). Publisher пише знімки прогресу для черги.
         const { withGlobalLintLock, createProgressPublisher } =
           await import('../scripts/lib/lint-surface/lint-lock.mjs')
-        process.exitCode = await withGlobalLintLock({ ...lintOpts, noFix }, async () => {
-          const publisher = lintOpts.full ? createProgressPublisher() : null
-          const runOpts = publisher ? { ...lintOpts, onProgress: publisher.onUpdate } : lintOpts
-          try {
-            if (noFix) {
-              const { detectAll } = await import('../scripts/lib/lint-surface/run-detectors.mjs')
-              // окрема змінна замість (await detectAll(...)).exitCode — no-await-expression-member (oxlint)
-              const detectResult = await detectAll(runOpts)
-              return detectResult.exitCode
+        try {
+          process.exitCode = await withGlobalLintLock({ ...lintOpts, cwd: runCwd, noFix }, async () => {
+            const runOpts = { ...lintOpts, cwd: runCwd }
+            const publisher = runOpts.full ? createProgressPublisher() : null
+            if (publisher) runOpts.onProgress = publisher.onUpdate
+            try {
+              if (noFix) {
+                const { detectAll } = await import('../scripts/lib/lint-surface/run-detectors.mjs')
+                // окрема змінна замість (await detectAll(...)).exitCode — no-await-expression-member (oxlint)
+                const detectResult = await detectAll(runOpts)
+                return detectResult.exitCode
+              }
+              const { runFixPipeline } = await import('../scripts/lib/lint-surface/run-fix.mjs')
+              return await runFixPipeline(runOpts)
+            } finally {
+              publisher?.stop()
             }
-            const { runFixPipeline } = await import('../scripts/lib/lint-surface/run-fix.mjs')
-            return await runFixPipeline(runOpts)
-          } finally {
-            publisher?.stop()
+          })
+        } finally {
+          // Лише для АВТОстворених worktree (лінт уже сидів у своєму — не наш, не чіпаємо).
+          if (worktree.autoCreated) {
+            try {
+              await bringChangesBackToOriginal(runCwd, cwdArg, spawnSync, line => console.log(line))
+            } catch (error) {
+              console.log(
+                `⚠️ Перенесення змін назад провалилось: ${error instanceof Error ? error.message : String(error)}`
+              )
+            }
+            removeAutoCreatedWorktree(worktree.branchArg, cwdArg, spawnSync, line => console.log(line))
           }
-        })
+        }
 
         break
       }
@@ -1845,7 +1883,22 @@ try {
         // n-rules taze diff — read-only semver-diff package.json ↔ package.json.taze-bak
         // (root + воркспейси) для скілу n-taze: скрипт класифікує major-оновлення,
         // агент отримує готовий список замість ручного порівняння бекапів.
-        const { runTazeCli } = await import('../skills/taze/js/diff.mjs')
+        // Живе у плагіні @7n/rules-lang-js (фаза 5a spec lang-plugins-extraction) —
+        // резолвимо його taze-handler і беремо named-експорт runTazeCli.
+        const { getHandlers } = await import('../scripts/lib/resolve-plugins.mjs')
+        const { readNRulesConfigLite } = await import('../scripts/lib/read-n-rules-config-lite.mjs')
+        const config = await readNRulesConfigLite(cwd())
+        const handler = getHandlers(cwd(), config, 'taze').find(h => h.pluginName === '@7n/rules-lang-js')
+        if (!handler) {
+          console.error(
+            '❌ taze diff потребує плагін @7n/rules-lang-js (npm/bun-гілка) — запусти npx @7n/rules для авто-встановлення'
+          )
+          process.exitCode = 1
+          break
+        }
+        const { pathToFileURL } = await import('node:url')
+        // eslint-disable-next-line no-unsanitized/method
+        const { runTazeCli } = await import(pathToFileURL(handler.modulePath).href)
         process.exitCode = await runTazeCli(args)
 
         break

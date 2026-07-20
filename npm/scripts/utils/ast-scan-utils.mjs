@@ -6,8 +6,8 @@
  * робота з `TemplateLiteral` (текст quasis, контекст SQL-списку).
  *
  * Використовується сканерами у `rules/<rule>/js/...` (наприклад,
- * `rules/js-bun-db/js/safety/bun-sql-scan.mjs`, `rules/js-mssql/js/deps/mssql-pool-scan.mjs`,
- * `rules/js-run/js/runtime/*-scan.mjs`) для уникнення дублювання boilerplate.
+ * `@7n/rules-lang-js`: rules/js-bun-db, rules/js-mssql, rules/js-run —
+ * фаза 5c spec lang-plugins-extraction) для уникнення дублювання boilerplate.
  */
 import { parseSync } from 'oxc-parser'
 

@@ -1,5 +1,132 @@
 # Changelog
 
+## [1.32.0] - 2026-07-19
+
+### Changed
+
+- lint: правило test переїхало у @7n/rules-lang-js (vitest/stryker/ізоляція тестів), а концерн cargo_mutants_config — у правило rust плагіна @7n/rules-lang-rust (семантично канон rust-тулчейну; активація за glob Cargo.toml, у rust-only репо працює без lang-js) — у ядрі 23 правила, мовних правил не лишилось
+
+## [1.31.0] - 2026-07-19
+
+### Changed
+
+- sync: діапазони вже оголошених плагінів @7n/rules-* у package.json підіймаються до ^latest тим самим кроком, що й ядро — фікси плагінів доїжджають без ручного bun update (bun i сам по собі поважає lockfile); недоступний registry для окремого плагіна — warning і пропуск
+- lint: правило style (stylelint/css/vue-стилі) переїхало з ядра у @7n/rules-lang-js — фінальний крок фази 5 spec lang-plugins-extraction по фронтенд-сімʼї
+
+## [1.30.0] - 2026-07-19
+
+### Added
+
+- ensure-tool: закріплені версії зовнішніх CLI-тулів у tool-pins.json (без latest-lookup на звичайному install-шляху) + tool-pins-refresh.mjs для ручного рефрешу + tool-pins-freshness.test.mjs, що нагадує оновити піни після 30 днів
+
+### Fixed
+
+- ensure-tool: GitHub-токен у lookup релізів, redirect-fallback без API і fail-open детекторів на транзієнтні збої авто-встановлення тулів (rate-limit без tag_name більше не валить lint exit 2)
+
+## [1.29.3] - 2026-07-19
+
+### Changed
+
+- release: @7n/llm-lib@2.8.3, @7n/rules@1.29.2
+
+## [1.29.2] - 2026-07-19
+
+### Changed
+
+- fix(auto-worktree): на брудному дереві перед auto-create — інтерактивний y/N-запит закомить і запушити (`npx @7n/n push`) замість одразу кидати
+- chore(adr): батч фонової нормалізації — чернетки doc-files/worktree-lifecycle у канонічні ADR
+
+## [1.29.1] - 2026-07-19
+
+### Changed
+
+- release: @7n/rules@1.29.0, @7n/rules-lang-js@0.5.0
+
+## [1.29.0] - 2026-07-19
+
+### Added
+
+- skipLocalTier для text/markdownlint: local-tier емпірично 0/24 успіхів (llm-trace.jsonl), ladder одразу стартує з cloud-min (ADR 260718-0754)
+
+## [1.28.1] - 2026-07-19
+
+### Fixed
+
+- schemas/v8r-catalog: записи для knip-canonical.json (офіційна схема knip@5) і oxlint-canonical.json (any-заглушка) — прибирає «Could not find a schema» у v8r по data-файлах правила js/tooling
+
+## [1.28.0] - 2026-07-19
+
+### Changed
+
+- lint: JS-сімʼя правил (js, bun, vue, js-run, js-bun-db, js-bun-redis, js-mssql, npm-module, tool-surface) переїхала з ядра у @7n/rules-lang-js (фаза 5c spec lang-plugins-extraction); ядро лишає рушій (auto-rules предикати, glob-to-regex і js-source-signals у scripts/lib — плагін імпортує їх назад через @7n/rules/scripts); залежності eslint/knip/jscpd/oxlint переїхали з ядра у плагін
+
+## [1.27.0] - 2026-07-19
+
+### Added
+
+- LLM-ladder: окремий (більший) таймаут cloud-avg (N_CLOUD_AVG_FIX_TIMEOUT_MS, дефолт 180s) та concern-рівневий skipLocalTier (concern.json) — пропуск local-min/local-min-retry для concern-ів, де local-tier емпірично не встигає дати результат (js/eslint увімкнено за реальними даними прогону)
+
+### Changed
+
+- doc-files: ядро без вбудованих кодових розширень (фаза 5b spec lang-plugins-extraction) — перелік розширень, OKF-типи та мовні екстрактори (факти/юніти) приходять лише з декларацій активних lang-плагінів (contributes.docFiles.extensions + handler doc-files); JS-специфіка (extractFacts, units-js, мапа типів js/mjs/ts/vue) переїхала у @7n/rules-lang-js; без активного lang-плагіна скан не бачить джерел (graceful тиша)
+
+### Fixed
+
+- Червоний lint на main: дубльовані тести мосту auto-worktree (auto-worktree.test.mjs ↔ orchestrate.test.mjs) зібрано у спільний набір `describeAutoWorktreeBridge` (scripts/utils/tests/auto-worktree-suite.mjs); `tests/**` виключено з npm-tarball; `jscpd` (спавниться як `bunx jscpd`) додано в knip ignoreDependencies
+
+## [1.26.0] - 2026-07-19
+
+### Changed
+
+- Фаза 5a spec lang-plugins-extraction: ядро — двигун без мовної специфіки. npm/bun-гілка taze виїхала в плагін `@7n/rules-lang-js` (EcosystemProvider; бекап воркспейсів, `bunx taze -w -r latest` + `bun install`, collectTazeDiff, SKILL-фрагмент); semver-примітиви (parseVersion/isBreaking) тепер визначені в `@7n/rules/plugin-api` (було — реекспорт із diff.mjs). Оркестратор — чистий цикл провайдерів (без вбудованих гілок), звіт — рівноправні секції екосистем; CLI `n-rules taze diff` резолвиться через handler lang-js. Автодетект — кореневий package.json → lang-js
+
+## [1.25.1] - 2026-07-19
+
+### Fixed
+
+- мінімальний @7n/llm-lib піднято до ^2.8.2 — діапазон ^2.7.0 допускав версії з видаленим у pi-coding-agent 0.80.10 API (ModelRegistry.create/AuthStorage), що системно валило doc-files та інші LLM-ланцюжки (registry: Cannot read properties of undefined (reading 'create'))
+
+## [1.25.0] - 2026-07-19
+
+### Added
+
+- taze: по завершенню переносить зміни з автоствореного worktree назад у вихідне дерево (untracked) і прибирає worktree
+- lint --full: worktree-only гейт (auto-create + bring-back + cleanup), спільна логіка з taze винесена у scripts/lib/auto-worktree.mjs
+
+## [1.24.0] - 2026-07-19
+
+### Added
+
+- Фаза 4b spec lang-plugins-extraction: SKILL-фрагменти плагінів — sync доклеює конвенційні `skills/<id>/SKILL.fragment.md` активних плагінів до синхронізованого SKILL.md між стабільними маркерами (ідемпотентний ре-синк, блок зникає без активних фрагментів). Мовні гілки taze SKILL.md (Rust: детекція/cargo-команди/перевірки; Python: uv-цикл/PEP-класифікація) переїхали у фрагменти lang-плагінів — канон ядра описує npm/bun-гілку і generic-скелет
+
+## [1.23.1] - 2026-07-18
+
+### Changed
+
+- Оновлено peer-версію @earendil-works/pi-coding-agent/pi-ai до ~0.80.10 — підтримка gpt-5.6-sol через openai-codex backend
+
+## [1.23.0] - 2026-07-18
+
+### Changed
+
+- Фаза 4a spec lang-plugins-extraction: doc-files отримав мовний extension-point — розширення (`.rs` → 'Rust Module', `.py` → 'Python Module') декларуються в маніфесті плагіна (`contributes.docFiles.extensions`, синхронно для hot-path hook), екстрактори фактів/юнітів — handler-модулем (`contributes.handlers['doc-files']`, вантажиться лише на шляху генерації). Rust-екстрактори (extractFactsRust + units-rs) виїхали в `@7n/rules-lang-rust`; ядро документує js/mjs/ts/vue вбудовано, .rs/.py — за активним lang-плагіном
+
+## [1.22.0] - 2026-07-18
+
+### Added
+
+- taze: по завершенню переносить зміни з автоствореного worktree назад у вихідне дерево (untracked) і прибирає worktree
+
+### Changed
+
+- taze: worktree-only гейт сам створює .worktrees/branch-taze і продовжує там замість throw-and-stop
+
+## [1.21.0] - 2026-07-18
+
+### Changed
+
+- Фаза 3 spec lang-plugins-extraction: lint-правила `rust` і `python` (main.mdc, концерни, rego, шаблони) виїхали з ядра у плагіни `@7n/rules-lang-rust`/`@7n/rules-lang-python` (contributes.rules) — резолвляться через resolveRulesDirs, автодетект/дзеркала/auto-rules працюють без змін для репо з активними плагінами. Mixin-теки CI-плагінів (Rego-gate lint-rust.yml/lint-python.yml) доповнюють правила плагінів-власників, як і раніше
+
 ## [1.20.1] - 2026-07-18
 
 ### Changed
