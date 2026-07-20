@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.32.2] - 2026-07-20
+
+### Changed
+
+- doc-files: згенеровано файлові доки для `k8s/dremio_logging/main.mjs` і `skills/taze/js/migration-cache.mjs`, що доти ламали tree-wide doc-files/check; вручну виправлено фабрикації локальної моделі (розбиті backtick-маркери, невірні твердження про fail-safe/scope кешу міграцій)
+
 ## [1.32.1] - 2026-07-20
 
 ### Changed
