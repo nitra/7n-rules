@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.34.1] - 2026-07-20
+
+### Fixed
+
+- reexecIfPackageVersionChanged порівнював шлях effectivePackageRoot з BUNDLED_PACKAGE_ROOT замість версії — коли npx резолвиться в локальний node_modules/@7n/rules, шлях до і після self-upgrade однаковий, re-exec пропускався, і процес доводив сесію до кінця зі старим кодом у пам'яті V8
+
 ## [1.34.0] - 2026-07-20
 
 ### Added
