@@ -8,16 +8,13 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 
+import { scanGlob } from '../utils/glob-compat.mjs'
+
 const TRAILING_SLASH_RE = /\/$/
 const LEADING_DOTSLASH_RE = /^\.\//
 
-/** Glob-ігнор для workspace-патернів із `*` (узгоджено з `rules/changelog/js/consistency/package-manifest.mjs`). */
-export const WORKSPACE_GLOB_IGNORE = Object.freeze(['**/node_modules/**', '**/.git/**', '**/.venv/**', '**/venv/**'])
-
-// Bun.Glob (не node:fs/promises#glob) навмисно: спостережено self-hosted Linux Bun 1.3.14, де
-// node:fs/promises не надає export 'glob' (платформна прогалина Node-compat шиму), тоді як
-// Bun.Glob — нативний Bun API, стабільно доступний скрізь, де є bun.
-const WORKSPACE_IGNORE_GLOBS = WORKSPACE_GLOB_IGNORE.map(p => new Bun.Glob(p))
+/** Теки, ігноровані при розгортанні workspace-патернів із `*` (узгоджено з `rules/changelog/lib/package-manifest.mjs`). */
+export const WORKSPACE_IGNORED_DIRS = Object.freeze(['node_modules', '.git', '.venv', 'venv'])
 
 /**
  * Чи слід виключити каталог зі списку workspace-коренів (не стосується `.`).
@@ -28,7 +25,7 @@ export function isIgnoredWorkspaceRoot(ws) {
   if (ws === '.') return false
   const p = ws.replaceAll('\\', '/').replace(LEADING_DOTSLASH_RE, '')
   const segments = new Set(p.split('/'))
-  return segments.has('node_modules') || segments.has('.git') || segments.has('.venv') || segments.has('venv')
+  return WORKSPACE_IGNORED_DIRS.some(dir => segments.has(dir))
 }
 
 /**
@@ -54,8 +51,7 @@ function normalizeWorkspacePattern(pattern) {
 async function addWorkspaceRootsByPattern(roots, repoRoot, workspacePattern) {
   if (workspacePattern.includes('*')) {
     const globPat = `${workspacePattern}/package.json`
-    for await (const relPkgJsonPath of new Bun.Glob(globPat).scan({ cwd: repoRoot })) {
-      if (WORKSPACE_IGNORE_GLOBS.some(ignoreGlob => ignoreGlob.match(relPkgJsonPath))) continue
+    for await (const relPkgJsonPath of scanGlob(globPat, repoRoot)) {
       const absPkgJsonPath = join(repoRoot, relPkgJsonPath)
       const relRoot = relative(repoRoot, dirname(absPkgJsonPath))
       const ws = relRoot === '' ? '.' : relRoot

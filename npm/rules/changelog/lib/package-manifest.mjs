@@ -8,6 +8,7 @@ import { dirname, join, relative } from 'node:path'
 
 import { parse as parseToml } from 'smol-toml'
 
+import { scanGlob } from '../../../scripts/utils/glob-compat.mjs'
 import { getMonorepoPackageRootDirs, isIgnoredWorkspaceRoot } from '../../../scripts/lib/workspaces.mjs'
 
 /**
@@ -26,8 +27,6 @@ import { getMonorepoPackageRootDirs, isIgnoredWorkspaceRoot } from '../../../scr
  * @property {'major' | 'minor' | 'patch' | null} maxBump стеля для `n-rules release` (з `package.json#release.maxBump`); `null` — без обмеження
  */
 
-const PYPROJECT_GLOB = new Bun.Glob('**/pyproject.toml')
-const PYPROJECT_GLOB_IGNORE = ['**/node_modules/**', '**/.git/**', '**/.venv/**', '**/venv/**'].map(p => new Bun.Glob(p))
 const VALID_MAX_BUMPS = new Set(['major', 'minor', 'patch'])
 
 /**
@@ -147,12 +146,7 @@ export async function getMonorepoProjectRootDirs(repoRoot = '.') {
     roots.add('.')
   }
 
-  // Bun.Glob (не node:fs/promises#glob) навмисно: спостережено self-hosted Linux Bun 1.3.14,
-  // де node:fs/promises не надає export 'glob' (платформна прогалина Node-compat шиму), тоді як
-  // Bun.Glob — нативний Bun API, стабільно доступний скрізь, де є bun. .scan() не має опції
-  // ignore — фільтруємо вручну через .match() на кожен ignore-патерн.
-  for await (const relPy of PYPROJECT_GLOB.scan({ cwd: repoRoot })) {
-    if (PYPROJECT_GLOB_IGNORE.some(ignoreGlob => ignoreGlob.match(relPy))) continue
+  for await (const relPy of scanGlob('**/pyproject.toml', repoRoot)) {
     const absDir = dirname(join(repoRoot, relPy))
     const relRoot = relative(repoRoot, absDir)
     const ws = relRoot === '' ? '.' : relRoot

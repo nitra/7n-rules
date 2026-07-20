@@ -11,6 +11,7 @@ resource: npm/scripts/utils/
 | [ast-scan-utils.mjs](ast-scan-utils.md)                     | JS Module |
 | [ensure-gitignore-entries.mjs](ensure-gitignore-entries.md) | JS Module |
 | [find-package-json-paths.mjs](find-package-json-paths.md)   | JS Module |
+| [glob-compat.mjs](glob-compat.md)                           | JS Module |
 | [lock-cache-dir.mjs](lock-cache-dir.md)                     | JS Module |
 | [pass.mjs](pass.md)                                         | JS Module |
 | [resolve-cargo-manifest.mjs](resolve-cargo-manifest.md)     | JS Module |
