@@ -8,3 +8,4 @@ resource: plugins/lang-js/doc-files/
 | ------------------------------- | --------- |
 | [extractors.mjs](extractors.md) | JS Module |
 | [units-js.mjs](units-js.md)     | JS Module |
+| [vue.mjs](vue.md)               | JS Module |
