@@ -202,6 +202,38 @@ describe('runV8rWithGlobs — error paths', () => {
     expect(printed).toContain('Invalid regular expression')
   })
 
+  test('exitCode=1, ✔-успіхи інших файлів того ж batch-виклику по glob-у ПЕРЕД ajv schema-compile-помилкою (реальний розклад: bunx n-rules lint --no-fix --full, **/*.yml матчить кілька yml-файлів за один виклик v8r) → все одно code примусово 0, ✔-рядки не трактуються як genuine-помилка', async () => {
+    vi.mocked(spawnAsync).mockResolvedValueOnce({
+      stdout: '',
+      stderr:
+        '✔ .github/actions/setup-bun-deps/action.yml is valid\n' +
+        '✔ .github/workflows/run-nexus-schema.yml is valid\n' +
+        '✔ .github/workflows/sync-to-azure.yml is valid\n' +
+        '✔ .graphqlrc.yml is valid\n' +
+        '✖ Invalid regular expression: /^[^\\/~\\^\\: \\[\\]\\\\]+(\\/[^\\/~\\^\\: \\[\\]\\\\]+)*$/u: Invalid escape\n',
+      exitCode: 1,
+      signal: null,
+      timedOut: false,
+      aborted: false
+    })
+    const outChunks = []
+    const origOut = process.stdout.write.bind(process.stdout)
+    process.stdout.write = chunk => {
+      outChunks.push(String(chunk))
+      return true
+    }
+    let result
+    try {
+      result = await runV8rWithGlobs(['**/*.yml'])
+    } finally {
+      process.stdout.write = origOut
+    }
+    expect(result).toEqual({ code: 0, detail: '' })
+    const printed = outChunks.join('')
+    expect(printed).toContain('⚠ run-v8r: зовнішня схема не компілюється в ajv')
+    expect(printed).not.toContain('is valid')
+  })
+
   test('exitCode=1, ajv schema-compile-рядок ЗМІШАНИЙ з genuine validation-помилкою в тому ж batch → лишається без змін (не маскуємо реальну проблему)', async () => {
     vi.mocked(spawnAsync).mockResolvedValueOnce({
       stdout: "other.yml# must NOT have additional properties, found additional property 'unknownField'\n",
@@ -223,6 +255,27 @@ describe('runV8rWithGlobs — error paths', () => {
     }
     expect(result.code).toBe(1)
     expect(result.detail).toContain('Invalid regular expression')
+    expect(result.detail).toContain('other.yml is invalid')
+  })
+
+  test('exitCode=1, ✔-успіхи ЗМІШАНІ з genuine validation-помилкою (без ajv schema-compile) → лишається без змін, ✔-фільтр не ковтає реальну проблему', async () => {
+    vi.mocked(spawnAsync).mockResolvedValueOnce({
+      stdout: "other.yml# must NOT have additional properties, found additional property 'unknownField'\n",
+      stderr: '✔ ok.yml is valid\n✖ other.yml is invalid\n',
+      exitCode: 1,
+      signal: null,
+      timedOut: false,
+      aborted: false
+    })
+    let result
+    const origOut = process.stdout.write.bind(process.stdout)
+    process.stdout.write = () => true
+    try {
+      result = await runV8rWithGlobs(['**/*.yml'])
+    } finally {
+      process.stdout.write = origOut
+    }
+    expect(result.code).toBe(1)
     expect(result.detail).toContain('other.yml is invalid')
   })
 })

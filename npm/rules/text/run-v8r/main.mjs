@@ -132,19 +132,29 @@ const NOISE_LINE_RE = /^(?:ℹ .*|Resolving dependencies|Resolved, downloaded an
 const AJV_SCHEMA_COMPILE_ERROR_RE = /^(?:✖ )?Invalid regular expression:.*$/mu
 
 /**
+ * Рядок успіху v8r — `✔ <file> is valid` (v8r/src/logger.js#success додає префікс `✔ `).
+ * `extractFailureLines` не чіпає ці рядки (не `ℹ`-шум), тож у batch-виклику по glob-у, де v8r
+ * валідує кілька файлів за раз, `detail` при крайньому провалі містить і `✔`-успіхи попередніх
+ * файлів, і сам провал — інакше `isOnlyAjvSchemaCompileErrors` хибно трактує таку суміш як
+ * "мішаний випадок" і не спрацьовує.
+ */
+const AJV_SUCCESS_LINE_RE = /^✔ .+ is valid$/u
+
+/**
  * Чи складається `detail` ВИКЛЮЧНО з рядків ajv-помилки компіляції схеми (без жодної genuine
- * validation-помилки). Навмисно консервативно: якщо серед рядків `detail` є хоч один, що НЕ
- * збігається з `AJV_SCHEMA_COMPILE_ERROR_RE` (напр. "file.yml is invalid" чи ajv `errors[]`-деталь
- * genuine порушення в тому ж batch-виклику v8r по glob-у) — не втручаємось, викликач лишає
- * оригінальний `code`/`detail` без змін, щоб не замаскувати реальну проблему.
- * @param {string} detail рядки `✖ …` з `extractFailureLines`
- * @returns {boolean} true — усі непорожні рядки `detail` є ajv schema-compile-помилками
+ * validation-помилки), ігноруючи `✔`-рядки успіху інших файлів того ж batch-виклику. Навмисно
+ * консервативно: якщо серед НЕ-`✔` рядків `detail` є хоч один, що НЕ збігається з
+ * `AJV_SCHEMA_COMPILE_ERROR_RE` (напр. "file.yml is invalid" чи ajv `errors[]`-деталь genuine
+ * порушення) — не втручаємось, викликач лишає оригінальний `code`/`detail` без змін, щоб не
+ * замаскувати реальну проблему.
+ * @param {string} detail рядки `✖ …` / `✔ …` з `extractFailureLines`
+ * @returns {boolean} true — усі непорожні не-`✔` рядки `detail` є ajv schema-compile-помилками
  */
 function isOnlyAjvSchemaCompileErrors(detail) {
   const lines = detail
     .split('\n')
     .map(line => line.trim())
-    .filter(line => line.length > 0)
+    .filter(line => line.length > 0 && !AJV_SUCCESS_LINE_RE.test(line))
   if (lines.length === 0) return false
   return lines.every(line => AJV_SCHEMA_COMPILE_ERROR_RE.test(line))
 }
@@ -158,7 +168,7 @@ function isOnlyAjvSchemaCompileErrors(detail) {
 function reportAjvSchemaCompileFailures(detail) {
   for (const line of detail.split('\n')) {
     const trimmed = line.trim()
-    if (trimmed.length === 0) continue
+    if (trimmed.length === 0 || AJV_SUCCESS_LINE_RE.test(trimmed)) continue
     process.stdout.write(
       `⚠ run-v8r: зовнішня схема не компілюється в ajv (не файл) — ${trimmed} Ймовірно, ajv unicodeRegExp-несумісність зі старим стилем escape у чужій схемі; помилка не рахується як порушення.\n`
     )
