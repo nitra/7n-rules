@@ -245,6 +245,23 @@ export function resolveBundledPackageRoot(fromModuleUrl = import.meta.url) {
 }
 
 /**
+ * Чи `argv` (аргументи після `skill`) резолвиться в JS-оркестрований
+ * worktree-only `taze`-шлях (`runTazeOrchestratorCli`) — той самий критерій,
+ * що й нижче в `runSkillsCli`. Використовується `n-rules.js`, щоб не мутувати
+ * root `package.json` (self-upgrade `@7n/rules`) ДО власного worktree-гейту
+ * оркестратора: той сам створює worktree і перевіряє чистоту дерева
+ * (`ensureRunningInWorktree`, `requireCleanTree: true`) — мутація package.json
+ * прямо перед цим викликом примусово провалила б auto-create там, де дерево
+ * інакше було б чисте.
+ * @param {string[]} argv аргументи після `skill`
+ * @returns {boolean} `true`, якщо запуск піде через `runTazeOrchestratorCli`
+ */
+export function isTazeOrchestratorSkillArgs(argv) {
+  const [first, second] = argv
+  return RUNNERS.has(first) && first !== 'claude' && normalizeSkillId(second) === 'taze'
+}
+
+/**
  * @param {string[]} argv аргументи після `skill` у `n-rules`
  * @param {{ packageRoot?: string, projectDir?: string, log?: (line: string) => void, logError?: (line: string) => void, deps?: { runPiAgentSkill?: (prompt: string, opts?: object) => Promise<{ ok: boolean, error: string|null }> } }} [options] перевизначення кореня пакета, каталогу проєкту, функцій виводу та інжектів (для тестів)
  * @returns {Promise<number>} exit code

@@ -7,6 +7,7 @@
  *   - реекспорти bringChangesBackToOriginal/removeAutoCreatedWorktree: спільний
  *     набір `describeAutoWorktreeBridge` (scripts/utils/tests/auto-worktree-suite.mjs).
  */
+import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 
 import { describeAutoWorktreeBridge } from '../../../../scripts/utils/tests/auto-worktree-suite.mjs'
@@ -518,7 +519,11 @@ describe('runTazeOrchestrator', () => {
         spawnFn: fakeSpawn,
         readMigrationCache: (pkg, from, to) => {
           readCalls.push({ pkg, from, to })
-          return { notes: 'useAgent видалено → useAcpAgent', sourceRepo: '/tmp/other-repo', updatedAt: '2026-07-19T00:00:00.000Z' }
+          return {
+            notes: 'useAgent видалено → useAcpAgent',
+            sourceRepo: '/tmp/other-repo',
+            updatedAt: '2026-07-19T00:00:00.000Z'
+          }
         },
         writeMigrationCache: (...args) => {
           writeCalls.push(args)
@@ -573,7 +578,9 @@ describe('runTazeOrchestrator', () => {
     })
 
     expect(runnerCalls[0].prompt).toBe('prompt:py:typer')
-    expect(writeCalls).toEqual([['typer', '0.19.1', '0.27.0', expect.objectContaining({ notes: 'зрефакторено use-agent.js' }), expect.any(Object)]])
+    expect(writeCalls).toEqual([
+      ['typer', '0.19.1', '0.27.0', expect.objectContaining({ notes: 'зрефакторено use-agent.js' }), expect.any(Object)]
+    ])
   })
 
   test('SIGTERM під час прогону — рятує прогрес автоствореного worktree перед виходом', async () => {
@@ -609,7 +616,7 @@ describe('runTazeOrchestrator', () => {
 
       // Симулюємо переривання ще до завершення оркестратора (signal-обробник
       // реєструється одразу після створення worktree, але `ensureRunningInWorktree`
-      // сама async — потрібен хоча б один мікротаск, щоб виконання дійшло до
+      // сама async — потрібен хоча б один цикл мікротасків, щоб виконання дійшло до
       // `process.on`, тому чекаємо, а не перевіряємо одразу синхронно).
       for (let i = 0; i < 50 && !capturedSignalHandler; i += 1) {
         await Promise.resolve()
@@ -624,6 +631,41 @@ describe('runTazeOrchestrator', () => {
 
     expect(calls).toContain('npx @7n/mt worktree remove main-taze')
     expect(exitCode).toBe(1)
+  })
+
+  test('перенесення змін назад провалилось — worktree НЕ прибирається (захист від втрати даних)', async () => {
+    const calls = []
+    const logs = []
+    const worktreeCwd = join('/Users/dev/repo', '.worktrees', 'main-taze')
+
+    const result = await runTazeOrchestrator({
+      cwd: '/Users/dev/repo',
+      runner: 'pi',
+      log: line => {
+        logs.push(line)
+      },
+      deps: {
+        spawnFn: (cmd, args = [], opts = {}) => {
+          calls.push([cmd, ...args].join(' '))
+          if (cmd === 'git' && args[0] === 'rev-parse') return { status: 0, stdout: '/Users/dev/repo\n', stderr: '' }
+          if (cmd === 'git' && args[0] === 'branch') return { status: 0, stdout: 'main\n', stderr: '' }
+          if (cmd === 'git' && args[0] === 'status') {
+            // Гейт у оригіналі (originalCwd) бачить чисте дерево; провал
+            // читання git status ІМІТУЄМО саме у щойно створеному worktree
+            // (bringChangesBackToOriginal), де реально стається `ENOENT` при
+            // втраченому перенесенні untracked-директорії.
+            if (opts.cwd === worktreeCwd) return { status: 1, stdout: '', stderr: 'boom' }
+            return { status: 0, stdout: '', stderr: '' }
+          }
+          return fakeSpawn(cmd)
+        },
+        ecosystemProviders: []
+      }
+    })
+
+    expect(result.ok).toBe(true)
+    expect(calls).not.toContain('npx @7n/mt worktree remove main-taze')
+    expect(logs.some(l => l.includes('НЕ прибирається'))).toBe(true)
   })
 })
 

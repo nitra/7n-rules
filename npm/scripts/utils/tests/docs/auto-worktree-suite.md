@@ -3,7 +3,7 @@ type: JS Module
 title: auto-worktree-suite.mjs
 resource: npm/scripts/utils/tests/auto-worktree-suite.mjs
 docgen:
-  crc: 175773bb
+  crc: c6d46014
 ---
 
 ## Огляд
