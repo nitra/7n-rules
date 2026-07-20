@@ -1397,20 +1397,26 @@ async function readBundledVersionAt(packageRoot) {
  * версії через `spawnSync` і завершує поточний процес із успадкованим exit-кодом. Re-exec потрібен,
  * бо ES-модулі вже завантажені у V8 (RULE_MIGRATIONS, detectAutoRules тощо) і нова логіка
  * без повної заміни процесу не підхопиться. Захист від нескінченного циклу — env `NITRA_CURSOR_REEXEC=1`.
+ *
+ * Порівнює версії, **не** шляхи: коли `npx` резолвиться в локальний
+ * `<projectRoot>/node_modules/@7n/rules` (проєкт уже має пакет у devDependencies),
+ * `effectivePackageRoot` до і після `upgradeNRulesToLatestAndBunInstall` — той самий шлях,
+ * `bun i` лише перезаписує файли за ним in-place. Читати "поточну" версію з цього шляху
+ * ПІСЛЯ апгрейду означало б читати вже НОВУ версію — порівняння завжди збігалося б і
+ * re-exec ніколи не спрацьовував би, попри те що в памʼяті процесу лишається старий код.
+ * Тому `startVersion` фіксується викликачем ДО апгрейду.
  * @param {string} effectivePackageRoot шлях, повернутий `upgradeNRulesToLatestAndBunInstall`
+ * @param {string | null} startVersion версія `@7n/rules`, з якою стартував процес (прочитана
+ *   з `BUNDLED_PACKAGE_ROOT` до виклику `upgradeNRulesToLatestAndBunInstall`)
  * @returns {Promise<void>} повертається лише якщо re-exec не потрібен; інакше кидає `ReexecHandoff`,
  *   який ловить top-level catch і прокидає exit-код у `process.exitCode`
  */
-async function reexecIfPackageVersionChanged(effectivePackageRoot) {
+async function reexecIfPackageVersionChanged(effectivePackageRoot, startVersion) {
   if (env.NITRA_CURSOR_REEXEC === '1') {
     return
   }
-  if (effectivePackageRoot === BUNDLED_PACKAGE_ROOT) {
-    return
-  }
-  const currentVersion = await readBundledVersionAt(BUNDLED_PACKAGE_ROOT)
   const installedVersion = await readBundledVersionAt(effectivePackageRoot)
-  if (!currentVersion || !installedVersion || currentVersion === installedVersion) {
+  if (!startVersion || !installedVersion || startVersion === installedVersion) {
     return
   }
   const newBinPath = join(effectivePackageRoot, 'bin', 'n-rules.js')
@@ -1418,7 +1424,7 @@ async function reexecIfPackageVersionChanged(effectivePackageRoot) {
     return
   }
   console.log(
-    `🔁 Перезапуск ${PACKAGE_NAME}: процес стартував на ${currentVersion}, ` +
+    `🔁 Перезапуск ${PACKAGE_NAME}: процес стартував на ${startVersion}, ` +
       `після self-upgrade встановлено ${installedVersion}.\n` +
       `   Re-exec свіжого бінаря, щоб підхопити нову логіку (RULE_MIGRATIONS, auto-detect тощо).\n`
   )
@@ -1456,11 +1462,13 @@ async function runSync() {
   console.log(`\n🔧 ${PACKAGE_NAME} — завантаження cursor-правил\n`)
 
   const projectRoot = cwd()
+  // Фіксуємо ДО апгрейду — див. коментар над reexecIfPackageVersionChanged.
+  const startVersion = await readBundledVersionAt(BUNDLED_PACKAGE_ROOT)
   const effectivePackageRoot = await runSyncStep(`❌ Не вдалося оновити ${PACKAGE_NAME} або виконати bun i: `, () =>
     upgradeNRulesToLatestAndBunInstall(projectRoot, BUNDLED_PACKAGE_ROOT)
   )
 
-  await reexecIfPackageVersionChanged(effectivePackageRoot)
+  await reexecIfPackageVersionChanged(effectivePackageRoot, startVersion)
 
   const bundledRulesDir = join(effectivePackageRoot, 'rules')
   const bundledSkillsDir = join(effectivePackageRoot, 'skills')
