@@ -101,7 +101,7 @@ import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { syncGitignoreWorktree } from '../scripts/lib/sync-gitignore-worktree.mjs'
 import { upgradeNRulesToLatestAndBunInstall } from '../scripts/upgrade-n-rules-and-install.mjs'
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
-import { runSkillsCli } from '../scripts/skills-cli.mjs'
+import { isTazeOrchestratorSkillArgs, runSkillsCli } from '../scripts/skills-cli.mjs'
 import { syncSetupBunDepsAction } from '../scripts/sync-setup-bun-deps-action.mjs'
 
 const PACKAGE_NAME = '@7n/rules'
@@ -1729,7 +1729,14 @@ try {
     }
     // `ci` (plan) — read-only гейт-команда для CI-джоб: не мутує package.json
     // (ensure дописав би devDependency прямо в чекауті pipeline-агента).
-    if (command !== 'ci') await ensureNRulesInRootDevDependencies(effectiveRoot)
+    // `skill <runner> taze` — JS-оркестрований worktree-only шлях
+    // (skills/taze/js/orchestrate.mjs): сам створює worktree і гейтить на
+    // чистоту дерева ДО checkout. Мутація тут забруднила б дерево прямо
+    // перед тим гейтом і провалювала б auto-create на інакше чистому дереві —
+    // оркестратор сам робить self-upgrade devDependency вже ВСЕРЕДИНІ
+    // щойно створеного worktree, після власного гейту чистоти.
+    const skipDevDepsEnsure = command === 'skill' && isTazeOrchestratorSkillArgs(args)
+    if (command !== 'ci' && !skipDevDepsEnsure) await ensureNRulesInRootDevDependencies(effectiveRoot)
     // Підкоманди-оркестратори (hook/lint/skill/adr-normalize-local/taze/release тощо)
     // можуть спавнити внутрішню agent/LLM-сесію — ADR Stop-hooks (capture/normalize)
     // мають пропустити її як технічний шум, не людську думку (spec 2026-06-30).

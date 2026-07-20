@@ -8,6 +8,7 @@ import { describe, expect, test } from 'vitest'
 
 import {
   buildSkillPrompt,
+  isTazeOrchestratorSkillArgs,
   listSkillIds,
   normalizeSkillId,
   resolveBundledPackageRoot,
@@ -34,6 +35,32 @@ describe('normalizeSkillId', () => {
   test('null/undefined → порожній рядок', () => {
     expect(normalizeSkillId(/** @type {string} */ (null))).toBe('')
     expect(normalizeSkillId(/** @type {string} */)).toBe('')
+  })
+})
+
+describe('isTazeOrchestratorSkillArgs', () => {
+  test('cursor taze → true (JS-оркестрований worktree-only шлях)', () => {
+    expect(isTazeOrchestratorSkillArgs(['cursor', 'taze'])).toBe(true)
+  })
+
+  test('pi n-taze (n-префікс) → true', () => {
+    expect(isTazeOrchestratorSkillArgs(['pi', 'n-taze'])).toBe(true)
+  })
+
+  test('claude taze → false (deprecated-раннер не веде в оркестратор)', () => {
+    expect(isTazeOrchestratorSkillArgs(['claude', 'taze'])).toBe(false)
+  })
+
+  test('cursor lint → false (інший скіл)', () => {
+    expect(isTazeOrchestratorSkillArgs(['cursor', 'lint'])).toBe(false)
+  })
+
+  test('taze без раннера (single-shot LLM-промпт) → false', () => {
+    expect(isTazeOrchestratorSkillArgs(['taze'])).toBe(false)
+  })
+
+  test('порожні аргументи → false', () => {
+    expect(isTazeOrchestratorSkillArgs([])).toBe(false)
   })
 })
 

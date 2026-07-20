@@ -2,6 +2,7 @@
 import { spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 
+import { ensureNRulesInRootDevDependencies } from '../../../scripts/ensure-n-rules-dev-dependencies.mjs'
 import {
   bringChangesBackToOriginal,
   ensureRunningInWorktree,
@@ -138,7 +139,13 @@ async function runEcosystem(provider, { cwd, runner, log, deps, spawnFn, call })
       eco.results.push({ ...entry, ...outcome })
       log(outcome.ok ? `  ✅ ${entry.pkg}` : `  ❌ ${entry.pkg}: ${outcome.error}`)
       if (outcome.ok && outcome.text) {
-        await writeCache(entry.pkg, entry.from, entry.to, { notes: outcome.text, sourceRepo: cwd, updatedAt: new Date().toISOString() }, deps)
+        await writeCache(
+          entry.pkg,
+          entry.from,
+          entry.to,
+          { notes: outcome.text, sourceRepo: cwd, updatedAt: new Date().toISOString() },
+          deps
+        )
       }
     }
 
@@ -241,21 +248,49 @@ export async function runTazeOrchestrator(options = {}) {
   })
   const cwd = worktree.cwd
 
+  // Self-upgrade root package.json devDependency (`@7n/rules`) — навмисно
+  // ВСЕРЕДИНІ worktree, ПІСЛЯ гейту `ensureRunningInWorktree` на чистоту
+  // дерева: та ж мутація у `originalCwd` ДО цього гейту забруднила б дерево
+  // прямо перед перевіркою, яку сам гейт щойно пройшов (n-rules.js навмисно
+  // пропускає її для цього шляху). Провал — не критичний для taze-прогону,
+  // лише лог.
+  try {
+    const ensureDevDeps = deps.ensureNRulesInRootDevDependencies ?? ensureNRulesInRootDevDependencies
+    await ensureDevDeps(cwd, { silent: true })
+  } catch (error) {
+    log(
+      `⚠️ Self-upgrade @7n/rules у "${cwd}" провалився — пропускаю (${error instanceof Error ? error.message : String(error)})`
+    )
+  }
+
   let cleanedUp = false
   /**
    * Переносить зміни назад і прибирає автостворений worktree — не більше
    * одного разу (idempotent), щоб і сигнальний обробник, і `finally` могли
    * безпечно кликати те саме без подвійного `bringChangesBackToOriginal`/
    * `removeAutoCreatedWorktree`.
+   *
+   * **Захист від втрати даних.** Якщо перенесення провалилось (частково чи
+   * повністю — `bringChangesBackToOriginal` кидає або повертає
+   * `failed: true`), worktree НЕ прибирається: джерело ще не перенесених
+   * файлів лишається на диску для ручного відновлення замість того, щоб
+   * зникнути разом з `npx \@7n/mt worktree remove`.
    * @returns {Promise<void>}
    */
   const cleanupAutoCreatedWorktree = async () => {
     if (cleanedUp) return
     cleanedUp = true
+    let failed = true
     try {
-      await bringChangesBackToOriginal(cwd, originalCwd, spawnFn, log, deps)
+      ;({ failed } = await bringChangesBackToOriginal(cwd, originalCwd, spawnFn, log, deps))
     } catch (error) {
       log(`⚠️ Перенесення змін назад провалилось: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    if (failed) {
+      log(
+        `⚠️ Перенесення назад не вдалось повністю — worktree "${cwd}" (гілка "${worktree.branchArg}") НЕ прибирається, розберіться вручну.`
+      )
+      return
     }
     removeAutoCreatedWorktree(worktree.branchArg, originalCwd, spawnFn, log)
   }

@@ -3,7 +3,7 @@ type: JS Module
 title: auto-worktree.mjs
 resource: npm/scripts/lib/auto-worktree.mjs
 docgen:
-  crc: 82081402
+  crc: bae09068
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.98

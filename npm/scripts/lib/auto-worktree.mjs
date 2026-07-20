@@ -1,10 +1,11 @@
 /** @see ./docs/auto-worktree.md */
-import { existsSync } from 'node:fs'
-import { copyFile, mkdir, rm } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { existsSync, statSync } from 'node:fs'
+import { copyFile, mkdir, readdir, rm } from 'node:fs/promises'
+import { dirname, join, relative } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 
 const YES_RE = /^y(es)?$/i
+const TRAILING_SLASH_RE = /\/$/
 
 /**
  * Питає y/N у терміналі. Поза TTY (CI, неінтерактивний виклик) — одразу `false`,
@@ -113,6 +114,31 @@ export async function ensureRunningInWorktree(
 }
 
 /**
+ * Рекурсивно копіює вміст директорії (лише файли-листки; підкаталоги
+ * створюються по дорозі через `makeDir`). `listDir` — інжектований `readdir`
+ * з `{ recursive: true, withFileTypes: true }` (Node ≥20.1): кожен `Dirent`
+ * несе `parentPath`/`path` — реальний каталог, у якому файл лежить.
+ * @param {string} srcDir директорія-джерело (у worktree)
+ * @param {string} destDir директорія-призначення (у оригінальному дереві)
+ * @param {{ copy: (src: string, dest: string) => Promise<void>, makeDir: (path: string, opts?: object) => Promise<void>, listDir: (path: string, opts?: object) => Promise<Array<{ name: string, parentPath?: string, path?: string, isFile: () => boolean }>> }} io інжекти
+ * @returns {Promise<string[]>} шляхи скопійованих файлів відносно `srcDir` (forward-slash)
+ */
+async function copyDirectoryRecursive(srcDir, destDir, { copy, makeDir, listDir }) {
+  const entries = await listDir(srcDir, { recursive: true, withFileTypes: true })
+  const copiedRelPaths = []
+  for (const entry of entries) {
+    if (!entry.isFile()) continue
+    const entryDir = entry.parentPath ?? entry.path ?? srcDir
+    const relFromSrc = relative(srcDir, join(entryDir, entry.name)).replaceAll('\\', '/')
+    const dest = join(destDir, relFromSrc)
+    await makeDir(dirname(dest), { recursive: true })
+    await copy(join(entryDir, entry.name), dest)
+    copiedRelPaths.push(relFromSrc)
+  }
+  return copiedRelPaths
+}
+
+/**
  * Переносить зміни з автоствореного worktree назад у вихідне дерево як
  * **untracked/незакомічені** правки (просте копіювання файлів, без git
  * merge/cherry-pick). Джерело істини — `git status --porcelain` у worktree:
@@ -122,48 +148,79 @@ export async function ensureRunningInWorktree(
  * лише нову назву — стара лишається як була, прийнятний компроміс для
  * інструментів, що самі файли не перейменовують (ефект можливий лише як
  * побічний результат LLM-рефакторингу чи форматера).
+ *
+ * **Untracked-директорія цілком.** Git схлопує щойно створену untracked
+ * директорію в один porcelain-рядок із `/` на кінці (якщо в ній нема жодного
+ * файлу, вже відомого git) — `copyFile` на такий шлях впав би (`EISDIR`/`ENOENT`)
+ * і обривав би цикл, гублячи все, що йшло по порядку ітерації ДАЛІ. Такий
+ * рядок (суфікс `/` або реальний каталог на диску) копіюється рекурсивно
+ * (`copyDirectoryRecursive`) — весь вміст, а не один `copyFile`.
  * @param {string} worktreeCwd автостворений worktree, з якого переносимо
  * @param {string} originalCwd вихідне дерево, куди переносимо
  * @param {typeof import('node:child_process').spawnSync} spawnFn інжект для тестів
  * @param {(line: string) => void} log колбек прогресу
- * @param {{ copyFile?: (src: string, dest: string) => Promise<void>, rm?: (path: string, opts?: object) => Promise<void>, mkdir?: (path: string, opts?: object) => Promise<void> }} [deps] інжекти для тестів
- * @returns {Promise<string[]>} відносні шляхи перенесених файлів
+ * @param {{ copyFile?: (src: string, dest: string) => Promise<void>, rm?: (path: string, opts?: object) => Promise<void>, mkdir?: (path: string, opts?: object) => Promise<void>, readdir?: (path: string, opts?: object) => Promise<Array<object>> }} [deps] інжекти для тестів
+ * @returns {Promise<{ brought: string[], failed: boolean }>} відносні шляхи перенесених файлів і чи стався провал (частковий чи повний)
  */
 export async function bringChangesBackToOriginal(worktreeCwd, originalCwd, spawnFn, log, deps = {}) {
   const copy = deps.copyFile ?? copyFile
   const removeFile = deps.rm ?? rm
   const makeDir = deps.mkdir ?? mkdir
+  const listDir = deps.readdir ?? readdir
 
   const statusResult = spawnFn('git', ['status', '--porcelain'], { cwd: worktreeCwd, encoding: 'utf8' })
   if (statusResult.status !== 0) {
     log(
       `⚠️ Не вдалось прочитати git status у "${worktreeCwd}" — зміни НЕ перенесені назад, worktree лишиться для ручного розбору.`
     )
-    return []
+    return { brought: [], failed: true }
   }
 
   const lines = statusResult.stdout.split('\n').filter(Boolean)
   if (lines.length === 0) {
     log('ℹ️ Worktree без змін — нічого переносити назад.')
-    return []
+    return { brought: [], failed: false }
   }
 
   const brought = []
+  let failed = false
   for (const line of lines) {
     const rest = line.slice(3)
     const relPath = rest.includes(' -> ') ? rest.split(' -> ', 2)[1] : rest
     const srcPath = join(worktreeCwd, relPath)
     const destPath = join(originalCwd, relPath)
-    if (existsSync(srcPath)) {
-      await makeDir(dirname(destPath), { recursive: true })
-      await copy(srcPath, destPath)
-    } else {
-      await removeFile(destPath, { force: true })
+    try {
+      if (!existsSync(srcPath)) {
+        await removeFile(destPath, { force: true, recursive: true })
+        brought.push(relPath)
+        continue
+      }
+
+      const isDir = relPath.endsWith('/') || statSync(srcPath).isDirectory()
+      if (isDir) {
+        const trimmedRelPath = relPath.replace(TRAILING_SLASH_RE, '')
+        const copiedRelPaths = await copyDirectoryRecursive(srcPath, destPath, { copy, makeDir, listDir })
+        for (const nestedRelPath of copiedRelPaths) {
+          brought.push(`${trimmedRelPath}/${nestedRelPath}`)
+        }
+      } else {
+        await makeDir(dirname(destPath), { recursive: true })
+        await copy(srcPath, destPath)
+        brought.push(relPath)
+      }
+    } catch (error) {
+      failed = true
+      log(
+        `⚠️ Не вдалось перенести "${relPath}" назад у "${originalCwd}" — ${error instanceof Error ? error.message : String(error)}`
+      )
     }
-    brought.push(relPath)
   }
-  log(`📤 Перенесено назад у "${originalCwd}" як untracked: ${brought.join(', ')}`)
-  return brought
+  log(
+    failed
+      ? `⚠️ Перенесення назад у "${originalCwd}" частково провалилось — перенесено: ${brought.join(', ') || '(нічого)'}`
+      : `📤 Перенесено назад у "${originalCwd}" як untracked: ${brought.join(', ')}`
+  )
+  return { brought, failed }
 }
 
 /**
