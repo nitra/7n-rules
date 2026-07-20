@@ -7,4 +7,6 @@ resource: plugins/lang-js/doc-files/
 | Файл                            | Тип       |
 | ------------------------------- | --------- |
 | [extractors.mjs](extractors.md) | JS Module |
+| [js-facts.mjs](js-facts.md)     | JS Module |
 | [units-js.mjs](units-js.md)     | JS Module |
+| [vue.mjs](vue.md)               | JS Module |

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { sectionMessages, overviewMessages } from '../main.mjs'
+import { sectionMessages, overviewMessages, isApiGap, renderApiLine, apiGapMessages } from '../main.mjs'
 
 const RE_EXACT_NAMES = /РІВНО ці публічні імена/
 const RE_GENERIC_BAN = /відповідність контракту|обробка даних/
@@ -35,5 +35,38 @@ describe('overviewMessages — узагальнення Поведінки (R3)'
     const user = ms.at(-1).content
     expect(user).toContain('Шукає bun.lock і забороняє yarn.lock.')
     expect(user).toMatch(RE_GENERIC_BAN)
+  })
+})
+
+describe('isApiGap — Stage 2 gap-детект (ADR 260719-2155)', () => {
+  test('порожній desc → прогалина', () => {
+    expect(isApiGap({ name: 'go', desc: '' })).toBe(true)
+  })
+
+  test('desc відсутній зовсім → прогалина', () => {
+    expect(isApiGap({ name: 'go' })).toBe(true)
+  })
+
+  test('JSDoc-заглушка «опис.» → прогалина', () => {
+    expect(isApiGap({ name: 'go', desc: 'опис.' })).toBe(true)
+  })
+
+  test('змістовний desc → не прогалина', () => {
+    expect(isApiGap({ name: 'go', desc: 'Запускає перевірку.' })).toBe(false)
+  })
+})
+
+describe('renderApiLine — Stage 1 дослівний рендер (0 токенів)', () => {
+  test('name — desc дослівно, без перефразування', () => {
+    expect(renderApiLine({ name: 'go', desc: 'Запускає перевірку.' })).toBe('- go — Запускає перевірку.')
+  })
+})
+
+describe('apiGapMessages — Stage 3, LLM лише для прогалин', () => {
+  test('містить лише імена прогалин, без покритих сусідів', () => {
+    const ms = apiGapMessages([{ name: 'stop' }], null)
+    const user = ms.at(-1).content
+    expect(user).toContain('stop')
+    expect(user).not.toContain('go')
   })
 })

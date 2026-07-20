@@ -2,8 +2,11 @@
 
 import { parseProgramOrNull, walkAstWithAncestors } from '@7n/rules/scripts/utils/ast-scan-utils.mjs'
 
-// JSDoc-блок, що стоїть впритул перед позицією (лише пробіли між ними).
-const JSDOC_BEFORE_RE = /\/\*\*(?:(?!\*\/)[\s\S])*\*\/\s*$/
+// JSDoc-блок, що стоїть впритул перед позицією (лише пробіли між ними). `(?!\/)`
+// одразу після відкриття — без нього glob-рядок `'src/**/linux.rs'` читається як
+// порожній `/**/`, і жадібний пошук найближчого `*/` протікає до наступного
+// реального закриття JSDoc, змішуючи проміжний код у витягнутий опис.
+const JSDOC_BEFORE_RE = /\/\*\*(?!\/)(?:(?!\*\/)[\s\S])*\*\/\s*$/
 const JSDOC_OPEN_RE = /^\s*\/\*\*?/
 const JSDOC_CLOSE_RE = /\*\/\s*$/
 const STAR_PREFIX_RE = /^\s*\*?\s?/

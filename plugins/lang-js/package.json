@@ -62,7 +62,13 @@
     "stylelint": "^17.6.0"
   },
   "peerDependencies": {
-    "@7n/rules": ">=1.27.0"
+    "@7n/rules": ">=1.27.0",
+    "vue": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vue": {
+      "optional": true
+    }
   },
   "publishConfig": {
     "access": "public"

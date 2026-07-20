@@ -65,12 +65,15 @@ function intentContext(intent) {
 /**
  * Секційні набори messages з МІНІМАЛЬНИМ контекстом під кожну секцію.
  * Код потрапляє лише в `behavior`; «Огляд» генерується окремо ОСТАННІМ
- * (`overviewMessages`) з уже написаної Поведінки — тут його немає.
+ * (`overviewMessages`) з уже написаної Поведінки — тут його немає. «Публічний
+ * API» сюди більше не входить (Stage 1/3, гібрид doc-files ADR 260719-2155):
+ * покриті JSDoc-описом експорти рендеряться дослівно без LLM (`renderApiLine`),
+ * LLM викликається лише на прогалини (`apiGapMessages`) — див. `isApiGap`.
  * @param {object} facts факт-лист про файл
  * @param {string} src вміст файлу
  * @param {object|null} [anchors] анкори файлу для обовʼязкового включення
  * @param {string|null} [intent] захищена секція «Призначення» як read-only контекст
- * @returns {Array<{key:string, messages:object[], numPredict:number}>} набір секційних промптів (behavior[, api])
+ * @returns {Array<{key:string, messages:object[], numPredict:number}>} набір секційних промптів (лише behavior)
  */
 export function sectionMessages(facts, src, anchors = null, intent = null) {
   const factsTxt = factsSummary(facts)
@@ -97,19 +100,50 @@ export function sectionMessages(facts, src, anchors = null, intent = null) {
       `Напиши вміст секції «Поведінка»: ${behaviorTask}.${onlyExports} Якщо у фактах є свідомі пропуски шляхів — згадай їх там, де доречно (не вигадуй інших «не перевіряє»). НЕ пиши аргументи функцій у дужках, без regex.${noInternal} Без заголовка, без додаткових ## чи # підзаголовків усередині секції.`
     )
   }
+  return [behavior]
+}
 
-  // API — лише список експортів (без коду)
-  if (!multi && !facts.exports?.some(e => e.desc)) return [behavior]
-  const list = facts.exports.map(e => `- ${e.name}: ${e.desc || '(сформулюй стисло з наміру файлу)'}`).join('\n')
-  const api = {
-    key: 'api',
-    numPredict: 320,
-    messages: msgs(
-      `${STYLE}${anch}`,
-      `Перепиши цей список як стислі маркери «назва — що робить», СВОЇМИ словами (не копіюй дослівно), без типів і сигнатур. Використовуй РІВНО ці назви, не додавай і не прибирай:\n${list}\nБез заголовка. Без generic-фраз «застосовує логіку», «перевіряє коректність» — пиши конкретно ЩО саме застосовує/перевіряє.`
-    )
-  }
-  return [behavior, api]
+// «опис.» — та сама JSDoc-заглушка без сенсу, яку lang-екстрактори (extractors.mjs)
+// вже відкидають при парсингу; тут — другий, незалежний gate на рівні facts.exports
+// (захист від прогалин, що прийшли з інших джерел фактів, напр. майбутніх мов).
+const STUB_DESC_RE = /^опис\.?$/i
+
+/**
+ * Stage 2 (gap-детект, 0 токенів): чи є опис експорту прогалиною — відсутній
+ * або JSDoc-заглушка без сенсу.
+ * @param {{desc?:string}} exp запис експорту з факт-листа
+ * @returns {boolean} true — опис потрібно синтезувати LLM (Stage 3)
+ */
+export function isApiGap(exp) {
+  const desc = (exp.desc ?? '').trim()
+  return !desc || STUB_DESC_RE.test(desc)
+}
+
+/**
+ * Stage 1 (скриптовий рендер, 0 токенів, 0 галюцинацій): дослівний рядок
+ * «Публічного API» з покритого JSDoc-описом експорту — без перефразування LLM.
+ * @param {{name:string, desc:string}} exp запис експорту з непорожнім desc
+ * @returns {string} рядок маркованого списку
+ */
+export function renderApiLine(exp) {
+  return `- ${exp.name} — ${exp.desc.trim()}`
+}
+
+/**
+ * Stage 3: messages ЛИШЕ для експортів-прогалин (без desc) — вужчий промпт,
+ * ніж попередній «переписати весь список своїми словами» (жодного контакту з
+ * уже покритими JSDoc експортами, 0 ризику спотворити авторський текст).
+ * @param {Array<{name:string}>} gapExports експорти без опису (isApiGap === true)
+ * @param {object|null} [anchors] анкори файлу
+ * @returns {Array<{role:string,content:string}>} messages-масив для LLM
+ */
+export function apiGapMessages(gapExports, anchors = null) {
+  const anch = anchorsBlock(anchors)
+  const list = gapExports.map(e => `- ${e.name}`).join('\n')
+  return msgs(
+    `${STYLE}${anch}`,
+    `Для кожної названої публічної функції напиши один рядок маркованого списку «назва — що робить», СВОЇМИ словами, без типів і сигнатур, РІВНО у цьому порядку й з РІВНО цими назвами:\n${list}\nБез заголовка. Без generic-фраз «застосовує логіку», «перевіряє коректність» — пиши конкретно ЩО саме застосовує/перевіряє.`
+  )
 }
 
 /**

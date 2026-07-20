@@ -17,7 +17,10 @@ import {
   overviewMessages,
   criticMessages,
   refineMessages,
-  guaranteesFromMarkers
+  guaranteesFromMarkers,
+  isApiGap,
+  renderApiLine,
+  apiGapMessages
 } from '../docgen-prompts/main.mjs'
 
 /** Облік LLM-викликів і часу в них у межах однієї генерації (скидається на старті generateDoc). */
@@ -338,15 +341,36 @@ async function critiqueRefineSection(sectionKey, draft, facts, anchors, model, t
 }
 
 /**
- * Чи треба refine для секції API: тільки якщо є >1 експорту і всі desc-и порожні
- * (саме там модель схильна писати «застосовує логіку до файлу»).
+ * Stage 1/3 (гібрид doc-files, ADR 260719-2155): «Публічний API» — покриті
+ * JSDoc-описом експорти рендеряться дослівно (`renderApiLine`, 0 токенів, 0
+ * галюцинацій), LLM викликається лише на прогалини (`isApiGap`). Якщо прогалин
+ * немає — секція збирається БЕЗ жодного LLM-виклику. Єдиний непокритий
+ * експорт (як і раніше) лишається описаним лише в Поведінці — окремого виклику
+ * на секцію з одного рядка не варте.
  * @param {object} facts факт-лист
- * @returns {boolean} true — секцію API варто прогнати через критика
+ * @param {object|null} anchors анкори файлу
+ * @param {string} model model-id
+ * @param {number} timeoutMs ліміт на LLM-виклик
+ * @param {number} [temperature] температура LLM-виклику (best-of-2 підвищує)
+ * @returns {Promise<string>} текст секції «Публічний API» (може бути порожнім рядком)
  */
-function apiNeedsRefine(facts) {
+export async function buildApiSection(facts, anchors, model, timeoutMs, temperature = 0.2) {
   const exps = facts.exports ?? []
-  if (exps.length <= 1) return false
-  return exps.every(e => !e.desc)
+  if (!exps.length) return ''
+  if (exps.length === 1 && isApiGap(exps[0])) return ''
+  const covered = exps.filter(e => !isApiGap(e))
+  const gap = exps.filter(isApiGap)
+  const coveredBlock = covered.map(e => renderApiLine(e)).join('\n')
+  if (!gap.length) return coveredBlock
+  let gapDraft = stripSignatures(
+    stripSection(await callLlm(apiGapMessages(gap, anchors), model, { timeoutMs, temperature }))
+  )
+  // E2: critique→refine лише коли ВСІ експорти — прогалина (там модель найбільш
+  // схильна зривати на generic-фрази без жодного JSDoc-«якоря» поруч).
+  if (gap.length === exps.length) {
+    gapDraft = await critiqueRefineSection('api', gapDraft, facts, anchors, model, timeoutMs)
+  }
+  return [coveredBlock, gapDraft].filter(Boolean).join('\n')
 }
 
 /**
@@ -407,15 +431,12 @@ async function orchestratedDoc(
   const anc = anchors ?? extractAnchors(src)
   // E3: «Гарантії» — детермінований шаблон з markers (0 LLM-запитів, 0 generic-фраз)
   sections.guarantees = guaranteesFromMarkers(facts)
-  // Спершу Поведінка (+API) — секції з фактажем
+  // Спершу Поведінка — єдина секція з кодом (sectionMessages повертає лише її)
   for (const s of sectionMessages(facts, src, anc, intent)) {
-    let draft = stripSignatures(stripSection(await callLlm(s.messages, model, { timeoutMs, temperature })))
-    // E2: critique→refine для API, коли всі описи порожні (модель зриває на generic)
-    if (s.key === 'api' && apiNeedsRefine(facts)) {
-      draft = await critiqueRefineSection(s.key, draft, facts, anc, model, timeoutMs)
-    }
-    sections[s.key] = draft
+    sections[s.key] = stripSignatures(stripSection(await callLlm(s.messages, model, { timeoutMs, temperature })))
   }
+  // Stage 1/3: «Публічний API» — покриті JSDoc експорти дослівно, LLM лише на прогалини
+  sections.api = await buildApiSection(facts, anc, model, timeoutMs, temperature)
   // R3: «Огляд» — ОСТАННІМ, узагальненням уже написаної Поведінки (не голого факт-листа)
   let overview = stripSignatures(
     stripSection(
