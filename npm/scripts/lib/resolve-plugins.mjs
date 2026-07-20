@@ -2,10 +2,16 @@
  * Резолв плагінів `@7n/rules`: які пакети-плагіни активні у проєкті, де їхні `rules/`,
  * які capabilities вони дають і які handlers надають.
  *
- * Джерело правди — поле `plugins: string[]` у `.n-rules.json` (завжди перекриває автодетект;
- * явний `[]` = «плагіни вимкнено»). Якщо поля немає — `detectPluginsFromRepo`: файлові сигнали
- * (`.github/workflows/*.yml` → `@7n/rules-ci-github`; `azure-pipelines.yml` → `@7n/rules-ci-azure`),
- * а без них — fallback за `repository.url` кореневого package.json (`github.com` / `dev.azure.com`).
+ * Джерело правди — поле `plugins: string[]` у `.n-rules.json`. Явний `[]` = «плагіни
+ * вимкнено» (автодетект не застосовується). Якщо поля немає взагалі — повний автодетект
+ * (`detectPluginsFromRepo`). Якщо `plugins` непорожній і складається **виключно** з пакетів
+ * за конвенцією `@7n/rules-<category>-<name>` (напр. `ci`, `lang`) — автодетект домішує
+ * лише ті категорії, яких у списку немає (ADR `260719-2154-per-category-автодетект-плагінів`);
+ * будь-який сторонній (не `@7n/rules-*`) пакет у списку вимикає backfill повністю — змішаний
+ * чи повністю кастомний список означає ручне керування, без сюрпризів. Файлові сигнали
+ * автодетекту: `.github/workflows/*.yml` → `@7n/rules-ci-github`; `azure-pipelines.yml` →
+ * `@7n/rules-ci-azure`, а без них — fallback за `repository.url` кореневого package.json
+ * (`github.com` / `dev.azure.com`).
  *
  * Установка: `ensurePluginInstalled` — плагін стає devDependency через `bun add -d` (bun сам
  * резолвить актуальну версію; зміна видима у diff package.json). Фейл установки (offline,
@@ -153,18 +159,91 @@ export function detectPluginsFromRepo(projectRoot) {
   return out
 }
 
+/** Naming convention плагінів, які розпізнає автодетект: `@7n/rules-<category>-<name>`. */
+const PLUGIN_CATEGORY_RE = /^@7n\/rules-([a-z0-9]+)-/u
+
 /**
- * Список плагінів проєкту: явний `config.plugins` (включно з порожнім = вимкнено) або автодетект.
+ * Категорія плагіна за naming convention `@7n/rules-<category>-<name>` (напр. `ci`, `lang`).
+ * `null` — пакет поза цією конвенцією (сторонній/кастомний плагін); такий пакет ніколи не
+ * зʼявляється сам через автодетект і, якщо присутній у явному `config.plugins`, вимикає
+ * per-категорійний backfill для всього списку (див. `resolvePluginList`).
+ * @param {string} pkg npm-ім'я плагіна
+ * @returns {string | null} категорія або null
+ */
+export function pluginCategory(pkg) {
+  const m = PLUGIN_CATEGORY_RE.exec(pkg)
+  return m ? m[1] : null
+}
+
+/** Усі категорії, які реально може повернути `detectPluginsFromRepo` — для short-circuit коли declared вже покриває все. */
+const ALL_KNOWN_CATEGORIES = new Set(
+  [...Object.values(KNOWN_CI_PLUGINS), ...Object.values(KNOWN_LANG_PLUGINS).map(l => l.pkg)]
+    .map(pluginCategory)
+    .filter(c => c !== null)
+)
+
+/** Кеш `resolvePluginList` на процес: `root::declared-json` → результат (щоб не дублювати warning). */
+const PLUGIN_LIST_CACHE = new Map()
+
+/**
+ * Список плагінів проєкту: явний `config.plugins` або автодетект.
+ *
+ * Явний `plugins` непорожній і складається **виключно** з пакетів `@7n/rules-<category>-*` —
+ * автодетект домішує лише категорії, відсутні в списку (ADR
+ * `260719-2154-per-category-автодетект-плагінів`); категорія, присутня хоч одним пакетом,
+ * лишається зафіксованою користувачем. Якщо `plugins` містить хоча б один сторонній
+ * (не `@7n/rules-*`) пакет — це сигнал ручного керування, backfill вимикається повністю
+ * (як і раніше: список повертається як є). Явний `[]` — «плагіни вимкнено», без backfill.
+ * Поле відсутнє взагалі — повний автодетект.
+ *
+ * Результат кешується на процес за `(projectRoot, declared)` — виклик з `resolvePlugins`
+ * (через `resolveRulesDirs` тощо) і прямий виклик у sync-CLI інакше дублювали б і файловий
+ * скан, і warning про backfill.
  * @param {string} projectRoot корінь репозиторію
  * @param {{ plugins?: unknown } | null | undefined} config розпарсений `.n-rules.json` (може бути відсутній)
+ * @param {{ quiet?: boolean }} [options] `quiet:true` — без warning-у про плагін, доданий автодетектом (hot-path);
+ *   ігнорується при cache hit — warning друкується щонайбільше раз на `(root, declared)` за процес
  * @returns {string[]} npm-імена плагінів
  */
-export function resolvePluginList(projectRoot, config) {
+export function resolvePluginList(projectRoot, config, options = {}) {
+  const root = resolve(projectRoot)
   const declared = config?.plugins
-  if (Array.isArray(declared)) {
-    return declared.filter(p => typeof p === 'string' && p.trim() !== '')
+  const cacheKey = `${root}::${Array.isArray(declared) ? JSON.stringify(declared) : '∅'}`
+  const cached = PLUGIN_LIST_CACHE.get(cacheKey)
+  if (cached) return cached
+
+  const result = computePluginList(root, declared, options)
+  PLUGIN_LIST_CACHE.set(cacheKey, result)
+  return result
+}
+
+/**
+ * Обчислення `resolvePluginList` без кешу (винесено окремо, щоб кеш-обгортка лишалась тонкою).
+ * @param {string} root абсолютний корінь репозиторію (вже пройшов через `resolve()`)
+ * @param {unknown} declared сире значення `config.plugins`
+ * @param {{ quiet?: boolean }} options прокинуті опції виклику
+ * @returns {string[]} npm-імена плагінів
+ */
+function computePluginList(root, declared, options) {
+  if (!Array.isArray(declared)) return detectPluginsFromRepo(root)
+
+  const names = declared.filter(p => typeof p === 'string' && p.trim() !== '')
+  if (names.length === 0) return names
+
+  const declaredCategories = new Set(names.map(pluginCategory))
+  // Хоч один сторонній пакет у списку — не вгадуємо намір, повертаємо як є.
+  if (declaredCategories.has(null)) return names
+  // Усі відомі категорії вже покриті явним списком — не марнуємо файлові сигнали.
+  if ([...ALL_KNOWN_CATEGORIES].every(c => declaredCategories.has(c))) return names
+
+  const missing = detectPluginsFromRepo(root).filter(pkg => !declaredCategories.has(pluginCategory(pkg)))
+  if (missing.length > 0 && options.quiet !== true) {
+    const word = missing.length > 1 ? 'плагіни' : 'плагін'
+    console.warn(
+      `⚠️  Додано автодетектом ${word} ${missing.join(', ')} — категорія не задекларована явно в .n-rules.json\n`
+    )
   }
-  return detectPluginsFromRepo(projectRoot)
+  return [...names, ...missing]
 }
 
 /**
@@ -240,7 +319,7 @@ function readPluginManifest(packageRoot) {
  */
 export function resolvePlugins(projectRoot, config, options = {}) {
   const root = resolve(projectRoot)
-  const names = resolvePluginList(root, config)
+  const names = resolvePluginList(root, config, { quiet: options.quiet })
   const cacheKey = `${root} ${names.join(',')} ${options.allowInstall !== false}`
   const cached = RESOLVE_CACHE.get(cacheKey)
   if (cached) return cached
@@ -341,4 +420,5 @@ export function getHandlers(projectRoot, config, point) {
 /** Скидає кеш резолву (для тестів). */
 export function clearPluginResolveCache() {
   RESOLVE_CACHE.clear()
+  PLUGIN_LIST_CACHE.clear()
 }

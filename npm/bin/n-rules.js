@@ -365,9 +365,11 @@ async function readConfig(paths = {}) {
     }
   }
 
-  // Плагіни: явне поле plugins конфігу або автодетект; sync-контекст — з установкою devDep.
-  // Результат детекту записуємо у конфіг (нижче), щоб hook/lint не залежали від детекту й мережі.
-  const detectedPlugins = Array.isArray(rawConfig?.plugins) ? null : resolvePluginList(cwd(), rawConfig)
+  // Плагіни: явне поле plugins конфігу (з per-категорійним backfill автодетекту — ADR
+  // 260719-2154) або повний автодетект, коли поля нема; sync-контекст — з установкою devDep.
+  // Результат записуємо у конфіг (нижче), щоб hook/lint не залежали від детекту й мережі.
+  const declaredPlugins = Array.isArray(rawConfig?.plugins) ? rawConfig.plugins : null
+  const resolvedPlugins = resolvePluginList(cwd(), rawConfig)
   const rulesDirs = resolveRulesDirs(cwd(), rawConfig, bundledRulesDir).map(d => d.rulesDir)
   const { names: availableRules } = await aggregateRuleSources(rulesDirs)
   const availableSkills = await discoverBundledSkillNames(bundledSkillsDir)
@@ -442,9 +444,17 @@ async function readConfig(paths = {}) {
     if (merged['disable-skills']?.length) {
       normalized['disable-skills'] = merged['disable-skills']
     }
-    if (!('plugins' in parsedConfig) && detectedPlugins && detectedPlugins.length > 0) {
-      normalized.plugins = detectedPlugins
-      console.log(`🔌 Автодетект плагінів: ${detectedPlugins.join(', ')} — записано у ${CONFIG_FILE}\n`)
+    if (!('plugins' in parsedConfig)) {
+      if (resolvedPlugins.length > 0) {
+        normalized.plugins = resolvedPlugins
+        console.log(`🔌 Автодетект плагінів: ${resolvedPlugins.join(', ')} — записано у ${CONFIG_FILE}\n`)
+      }
+    } else if (declaredPlugins && JSON.stringify(resolvedPlugins) !== JSON.stringify(declaredPlugins)) {
+      // per-категорійний backfill (resolvePluginList, ADR 260719-2154) додав плагін
+      // категорії, відсутньої в явному plugins — фіксуємо результат у конфізі.
+      normalized.plugins = resolvedPlugins
+      const added = resolvedPlugins.filter(p => !declaredPlugins.includes(p))
+      console.log(`🔌 Доповнено plugins у ${CONFIG_FILE} (${added.join(', ')}) — категорія не була задекларована\n`)
     }
     return sortConfigIdArrays(normalized)
   }
@@ -465,7 +475,7 @@ async function readConfig(paths = {}) {
       $schema: CONFIG_SCHEMA_URL,
       rules: autoDetectedRules.rules,
       skills: autoDetectedSkills.skills,
-      ...(detectedPlugins && detectedPlugins.length > 0 && { plugins: detectedPlugins })
+      ...(resolvedPlugins.length > 0 && { plugins: resolvedPlugins })
     })
     await writeFile(configPath, `${JSON.stringify(defaultConfig, null, 2)}\n`, 'utf8')
     console.log(
