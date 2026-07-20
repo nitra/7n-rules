@@ -3,7 +3,7 @@ type: JS Module
 title: resolve-js-root.mjs
 resource: npm/scripts/utils/resolve-js-root.mjs
 docgen:
-  crc: 5202013e
+  crc: 46c5af46
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
