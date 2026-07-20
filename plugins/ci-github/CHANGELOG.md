@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.0] - 2026-07-20
+
+### Added
+
+- service_deploy_workflow: перевірка outputs-мапінгу plan-джоби — кожен ключ гейта `needs.plan.outputs.<key>` має бути задекларований у `jobs.plan.outputs` і вказувати на `steps.<id>.outputs.<key>` реального кроку (інакше гейт тихо порожній і джоба скіпається завжди)
+
 ## [1.7.1] - 2026-07-19
 
 ### Changed

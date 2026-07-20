@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.36.0] - 2026-07-20
+
+### Added
+
+- doc-files: секція «Публічний API» рендериться дослівно для експортів із JSDoc-описом (0 LLM-токенів, 0 перефразувань), LLM викликається лише на прогалини (без опису або зі stub-заглушкою «опис.»)
+
+### Changed
+
+- тестовий no-op touch README для перевірки npm-publish CI
+
+### Fixed
+
+- workspaces/resolve-js-root/package-manifest/tauri core_test_isolation: node:fs/promises#glob → Bun.Glob — платформна прогалина Node-compat шиму на self-hosted Linux Bun (export 'glob' відсутній), спостережено в @7n/rules-ci-azure lint job
+- hook під Node (npx): «detector changelog/consistency: import впав: Bun is not defined» — top-level `new Bun.Glob(...)` у workspaces.mjs/package-manifest.mjs валив import детектора; усі використання Bun.Glob (разом із resolve-js-root і tauri/core_test_isolation) переведені на runtime-нейтральний scanGlob (Bun.Glob під Bun, node:fs/promises#glob під Node)
+
 ## [1.35.0] - 2026-07-20
 
 ### Added
