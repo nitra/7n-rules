@@ -12,6 +12,7 @@ import {
   ensurePluginInstalled,
   getActiveCapabilities,
   getHandlers,
+  pluginCategory,
   resolvePluginList,
   resolvePlugins,
   resolveRulesDirs
@@ -166,14 +167,84 @@ describe('detectPluginsFromRepo', () => {
   })
 })
 
+describe('pluginCategory', () => {
+  test('витягує категорію з @7n/rules-<category>-<name>', () => {
+    expect(pluginCategory('@7n/rules-ci-github')).toBe('ci')
+    expect(pluginCategory('@7n/rules-ci-azure')).toBe('ci')
+    expect(pluginCategory('@7n/rules-lang-js')).toBe('lang')
+    expect(pluginCategory('@7n/rules-lang-rust')).toBe('lang')
+  })
+
+  test('поза naming convention → null', () => {
+    expect(pluginCategory('@x/custom')).toBeNull()
+    expect(pluginCategory('@7n/rules')).toBeNull()
+  })
+})
+
 describe('resolvePluginList', () => {
-  test('config.plugins перекриває автодетект; [] = вимкнено', async () => {
+  test('плагін поза naming convention у списку — старий all-or-nothing; [] = вимкнено', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'azure-pipelines.yml'), 'trigger: [main]\n')
+      // Сторонній (не @7n/rules-*) пакет у declared — не вгадуємо намір, backfill вимкнено.
       expect(resolvePluginList(dir, { plugins: ['@x/custom'] })).toEqual(['@x/custom'])
       expect(resolvePluginList(dir, { plugins: [] })).toEqual([])
       expect(resolvePluginList(dir, {})).toEqual(['@7n/rules-ci-azure'])
       expect(resolvePluginList(dir, null)).toEqual(['@7n/rules-ci-azure'])
+    })
+  })
+
+  test('непорожній declared без lang-категорії → lang домішується автодетектом (ADR 260719-2154)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'x' }))
+      const warn = vi.spyOn(console, 'warn').mockImplementation(noop)
+      expect(resolvePluginList(dir, { plugins: ['@7n/rules-ci-github'] })).toEqual([
+        '@7n/rules-ci-github',
+        '@7n/rules-lang-js'
+      ])
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('@7n/rules-lang-js'))
+    })
+  })
+
+  test('quiet:true — backfill спрацьовує без warning-у', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'x' }))
+      const warn = vi.spyOn(console, 'warn').mockImplementation(noop)
+      expect(resolvePluginList(dir, { plugins: ['@7n/rules-ci-github'] }, { quiet: true })).toEqual([
+        '@7n/rules-ci-github',
+        '@7n/rules-lang-js'
+      ])
+      expect(warn).not.toHaveBeenCalled()
+    })
+  })
+
+  test('повторний виклик з тими самими аргументами — кеш, warning не дублюється', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'x' }))
+      const warn = vi.spyOn(console, 'warn').mockImplementation(noop)
+      // Реальний виклик у n-rules.js: напряму (readConfig) + всередині resolveRulesDirs →
+      // resolvePlugins — той самий (projectRoot, declared) не повинен друкувати warning двічі.
+      const config = { plugins: ['@7n/rules-ci-github'] }
+      const a = resolvePluginList(dir, config)
+      const b = resolvePluginList(dir, config)
+      expect(b).toBe(a)
+      expect(warn).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  test('declared: [] — і далі «усі плагіни вимкнено», backfill не застосовується попри сигнали', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'x' }))
+      await mkdir(join(dir, '.github', 'workflows'), { recursive: true })
+      await writeFile(join(dir, '.github', 'workflows', 'ci.yml'), 'name: CI\n')
+      expect(resolvePluginList(dir, { plugins: [] })).toEqual([])
+    })
+  })
+
+  test('declared з усіма відомими категоріями — автодетект не викликається (не марнує файлові сигнали)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'x' }))
+      const declared = ['@7n/rules-ci-github', '@7n/rules-ci-azure', '@7n/rules-lang-js']
+      expect(resolvePluginList(dir, { plugins: declared })).toEqual(declared)
     })
   })
 })

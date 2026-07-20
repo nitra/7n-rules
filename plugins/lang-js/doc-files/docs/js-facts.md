@@ -3,7 +3,7 @@ type: JS Module
 title: js-facts.mjs
 resource: plugins/lang-js/doc-files/js-facts.mjs
 docgen:
-  crc: 97e06742
+  crc: c0e84691
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.98

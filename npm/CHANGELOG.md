@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.35.0] - 2026-07-20
+
+### Added
+
+- tauri: додано концерн gitignore_target — перевірка й автофікс ignore-запису ws/src-tauri/target/ у корінному .gitignore (typo-інцидент nitra/task)
+
+### Fixed
+
+- run-v8r: не рахувати ajv schema-compile-помилку (несправна зовнішня схема, напр. unicodeRegExp-несумісність у офіційній azure-pipelines-vscode/service-schema.json) як порушення файлу — друкує ⚠-попередження й пропускає, замість постійного false-positive ✖
+- acp-runner (skill claude): watchdog дочірнього ACP-процесу — fail-fast, якщо агент не запустився чи вийшов до кінця ходу, замість вічного зависання connection.prompt
+
+## [1.34.1] - 2026-07-20
+
+### Fixed
+
+- reexecIfPackageVersionChanged порівнював шлях effectivePackageRoot з BUNDLED_PACKAGE_ROOT замість версії — коли npx резолвиться в локальний node_modules/@7n/rules, шлях до і після self-upgrade однаковий, re-exec пропускався, і процес доводив сесію до кінця зі старим кодом у пам'яті V8
+
+## [1.34.0] - 2026-07-20
+
+### Added
+
+- doc-files: Vue SFC-екстрактор (`<script setup>`) — extractFactsVue/extractUnitsVue через optional peer vue/compiler-sfc; props/emits/expose/слоти як публічний контракт, юніти зі span-корекцією (ADR 260719-2155)
+
+### Changed
+
+- release: @7n/llm-lib@2.8.3, @7n/rules@1.29.2
+
+## [1.33.0] - 2026-07-20
+
+### Added
+
+- Per-категорійний автодетект плагінів: явний непорожній plugins (лише з @7n/rules-`category`-*) домішує автодетектом категорії, яких у ньому немає
+
 ## [1.32.2] - 2026-07-20
 
 ### Changed

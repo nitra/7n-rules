@@ -13,6 +13,12 @@ import {
 } from '../lib/acp-runner.mjs'
 
 const CLAUDE_ACP_BIN_RE = /claude-agent-acp.*dist.index\.js$/
+const RUN_ACP_EXIT_BEFORE_TURN_RE = /завершився з кодом 1 до завершення ходу/
+
+/** Заглушка `logError`/`out` для тестів, де вивід не перевіряється. */
+function noop() {
+  // no-op: цей тест не перевіряє вивід
+}
 
 describe('pickAutoPermissionOptionId', () => {
   test('обирає allow_always, якщо є', () => {
@@ -105,20 +111,22 @@ function createFakeAcp({ stopReason = 'end_turn', permissionOptions } = {}) {
 }
 
 /**
- * Фейковий child-процес адаптера: PassThrough-потоки замість реального spawn.
- * @returns {{ stdin: import('node:stream').PassThrough, stdout: import('node:stream').PassThrough, killed: boolean, kill: () => void }} стаб child-процесу
+ * Fake дочірній процес: сам є `EventEmitter` (стріми — його підклас, як і реальний
+ * `ChildProcess`) із `stdin`/`stdout`-пайпами й `kill()`, що емітить `exit` — потрібен
+ * watchdog-у в `runAcpRunner` (`once(child, 'error'|'exit')`), який інакше кинув би
+ * `TypeError` на plain-обʼєкті без `.on`/`.once`.
+ * @returns {PassThrough & { stdin: PassThrough, stdout: PassThrough, killed: boolean, kill: () => void }} fake `ChildProcess`
  */
 function createFakeChild() {
-  const stdin = new PassThrough()
-  const stdout = new PassThrough()
-  return {
-    stdin,
-    stdout,
-    killed: false,
-    kill() {
-      this.killed = true
-    }
+  const child = new PassThrough()
+  child.stdin = new PassThrough()
+  child.stdout = new PassThrough()
+  child.killed = false
+  child.kill = () => {
+    child.killed = true
+    child.emit('exit', 0, null)
   }
+  return child
 }
 
 describe('runAcpRunner', () => {
@@ -175,5 +183,30 @@ describe('runAcpRunner', () => {
 
     expect(code).toBe(1)
     expect(errors.join('\n')).toContain('refusal')
+  })
+
+  test('дочірній процес падає до кінця ходу → fail-fast, не висить', async () => {
+    const child = createFakeChild()
+    const start = Date.now()
+    const { promise: initializeNeverResolves } = Promise.withResolvers()
+
+    const crashingAcp = {
+      PROTOCOL_VERSION: 1,
+      ndJsonStream: () => ({}),
+      ClientSideConnection: function CrashingConnection() {
+        this.initialize = () => initializeNeverResolves
+      }
+    }
+    queueMicrotask(() => child.emit('exit', 1, null))
+
+    await expect(
+      runAcpRunner('claude', 'do the task', '/tmp/project', noop, {
+        acp: crashingAcp,
+        spawnFn: () => child,
+        out: noop,
+        resolveAdapterBin: () => '/fake/dist/index.js'
+      })
+    ).rejects.toThrow(RUN_ACP_EXIT_BEFORE_TURN_RE)
+    expect(Date.now() - start).toBeLessThan(5000)
   })
 })

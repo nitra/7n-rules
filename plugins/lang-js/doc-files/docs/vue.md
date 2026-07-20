@@ -3,34 +3,29 @@ type: JS Module
 title: vue.mjs
 resource: plugins/lang-js/doc-files/vue.mjs
 docgen:
-  crc: d36391be
+  crc: 8651a381
   model: openai-codex/gpt-5.4-mini
-  score: 90
-  issues: internal-name:extractUnitsJs,judge:inaccurate:0.98
+  tier: cloud-min
+  score: 100
+  issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Файл перетворює Vue SFC у читабельні `facts` і `units` для `extractFactsVue` та `extractUnitsVue`, щоб інші частини системи могли отримувати відомості про public API, props, emits, exposed і slots без прямої роботи з SFC. Код працює read-only: не змінює ФС чи БД, а всі помилки обробляє fail-safe — не кидає винятки назовні й за певних збоїв повертає порожнє значення, наприклад `null`, замість падіння. Конфіги, на які спирається код: `package.json`.
+`vueScriptBlock`, `extractFactsVue` і `extractUnitsVue` працюють із Vue SFC як з джерелом для подальшого витягування фактів і юнітів у координатах оригінального `.vue`. Вони підтримують fail-safe поведінку: перехоплюють помилки, не кидають винятків назовні та за окремих збоїв повертають порожнє значення, зокрема `null`, замість помилки.
 
 ## Поведінка
 
-- `extractFactsVue` — повертає факт-лист для Vue SFC: збирає public API з script-блоку, додає props/emits/exposed як псевдо-exports, слоти з шаблону та повний набір JS-фактів; якщо SFC невалідний, script-блок відсутній або Vue compiler недоступний, повертає `unsupported` замість помилки. Для emits і exposed опис свідомо лишає порожнім.
-- `extractUnitsVue` — повертає units для Vue SFC з file-relative offsets; якщо SFC невалідний або script-блок відсутній, повертає `null` замість помилки.
-
-Changelog: не змінював файли, `npx @7n/rules lint changelog` не запускався.
+- `vueScriptBlock` — розбирає `.vue` як SFC і повертає `script setup` або `script` блок із дескриптором; якщо peer `vue` відсутній, SFC битий або script-блоку немає, повертає порожній результат замість помилки.
+- `extractFactsVue` — формує факт-лист для Vue SFC на основі `script`-блоку: виділяє публічний контракт компонента через props, emits, expose і slots, а також додає JS-факти з `script`; якщо `vue` недоступний, SFC битий або script-блоку немає, повертає `unsupported`.
+- `extractUnitsVue` — витягує JS/TS-юніти зі `script`-блоку Vue-файла і переносить їхні span-позиції в координати оригінального `.vue`; якщо `vue` недоступний, SFC битий або script-блоку немає, повертає порожній результат.
 
 ## Публічний API
 
-- extractFactsVue — Факт-лист для Vue SFC (`<script setup>` пріоритетний над звичайним `<script>`):
-повторне використання JS-хелперів над вмістом script-блоку + props/emits/exposed як псевдо-експорти
-(потрапляють у «Публічний API» нарівні зі звичайними export) + слоти з `@slot`-коментарів
-шаблону. Без `vue/compiler-sfc` (peer не встановлено) чи без script-блоку/невалідного
-SFC — `unsupported: true` (whole-file шлях, без краху батчу).
-- extractUnitsVue — Юніти Vue SFC: `extractUnitsJs` над вмістом script-блоку зі зміщенням `span`
-(символьні офсети) на позицію блоку у повному файлі — SFC-компілятор рахує
-офсети відносно блоку, а anchors/CRC мають вказувати на позиції у файлі.
+- vueScriptBlock — Дістає script-блок із SFC, віддаючи пріоритет `<script setup>`, разом із дескриптором.
+- extractFactsVue — Збирає публічний контракт Vue SFC: props, emits, expose і slots, а також повторно використовує JS-хелпери для header, imports і markers із тексту script-блоку; `<template>` і `<style>` у факти не потрапляють. Без peer `vue` або на битому SFC чи без script-блоку повертає `unsupported` у whole-file режимі, як до впровадження.
+- extractUnitsVue — Будує JS-юніти з script-блоку `.vue` і зсуває span-и на позиції в оригінальному `.vue` файлі, щоб anchors і CRC вказували саме на вихідний SFC, а не на вирізаний фрагмент.
 
 ## Гарантії поведінки
 

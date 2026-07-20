@@ -365,9 +365,11 @@ async function readConfig(paths = {}) {
     }
   }
 
-  // Плагіни: явне поле plugins конфігу або автодетект; sync-контекст — з установкою devDep.
-  // Результат детекту записуємо у конфіг (нижче), щоб hook/lint не залежали від детекту й мережі.
-  const detectedPlugins = Array.isArray(rawConfig?.plugins) ? null : resolvePluginList(cwd(), rawConfig)
+  // Плагіни: явне поле plugins конфігу (з per-категорійним backfill автодетекту — ADR
+  // 260719-2154) або повний автодетект, коли поля нема; sync-контекст — з установкою devDep.
+  // Результат записуємо у конфіг (нижче), щоб hook/lint не залежали від детекту й мережі.
+  const declaredPlugins = Array.isArray(rawConfig?.plugins) ? rawConfig.plugins : null
+  const resolvedPlugins = resolvePluginList(cwd(), rawConfig)
   const rulesDirs = resolveRulesDirs(cwd(), rawConfig, bundledRulesDir).map(d => d.rulesDir)
   const { names: availableRules } = await aggregateRuleSources(rulesDirs)
   const availableSkills = await discoverBundledSkillNames(bundledSkillsDir)
@@ -442,9 +444,17 @@ async function readConfig(paths = {}) {
     if (merged['disable-skills']?.length) {
       normalized['disable-skills'] = merged['disable-skills']
     }
-    if (!('plugins' in parsedConfig) && detectedPlugins && detectedPlugins.length > 0) {
-      normalized.plugins = detectedPlugins
-      console.log(`🔌 Автодетект плагінів: ${detectedPlugins.join(', ')} — записано у ${CONFIG_FILE}\n`)
+    if (!('plugins' in parsedConfig)) {
+      if (resolvedPlugins.length > 0) {
+        normalized.plugins = resolvedPlugins
+        console.log(`🔌 Автодетект плагінів: ${resolvedPlugins.join(', ')} — записано у ${CONFIG_FILE}\n`)
+      }
+    } else if (declaredPlugins && JSON.stringify(resolvedPlugins) !== JSON.stringify(declaredPlugins)) {
+      // per-категорійний backfill (resolvePluginList, ADR 260719-2154) додав плагін
+      // категорії, відсутньої в явному plugins — фіксуємо результат у конфізі.
+      normalized.plugins = resolvedPlugins
+      const added = resolvedPlugins.filter(p => !declaredPlugins.includes(p))
+      console.log(`🔌 Доповнено plugins у ${CONFIG_FILE} (${added.join(', ')}) — категорія не була задекларована\n`)
     }
     return sortConfigIdArrays(normalized)
   }
@@ -465,7 +475,7 @@ async function readConfig(paths = {}) {
       $schema: CONFIG_SCHEMA_URL,
       rules: autoDetectedRules.rules,
       skills: autoDetectedSkills.skills,
-      ...(detectedPlugins && detectedPlugins.length > 0 && { plugins: detectedPlugins })
+      ...(resolvedPlugins.length > 0 && { plugins: resolvedPlugins })
     })
     await writeFile(configPath, `${JSON.stringify(defaultConfig, null, 2)}\n`, 'utf8')
     console.log(
@@ -1387,20 +1397,26 @@ async function readBundledVersionAt(packageRoot) {
  * версії через `spawnSync` і завершує поточний процес із успадкованим exit-кодом. Re-exec потрібен,
  * бо ES-модулі вже завантажені у V8 (RULE_MIGRATIONS, detectAutoRules тощо) і нова логіка
  * без повної заміни процесу не підхопиться. Захист від нескінченного циклу — env `NITRA_CURSOR_REEXEC=1`.
+ *
+ * Порівнює версії, **не** шляхи: коли `npx` резолвиться в локальний
+ * `<projectRoot>/node_modules/@7n/rules` (проєкт уже має пакет у devDependencies),
+ * `effectivePackageRoot` до і після `upgradeNRulesToLatestAndBunInstall` — той самий шлях,
+ * `bun i` лише перезаписує файли за ним in-place. Читати "поточну" версію з цього шляху
+ * ПІСЛЯ апгрейду означало б читати вже НОВУ версію — порівняння завжди збігалося б і
+ * re-exec ніколи не спрацьовував би, попри те що в памʼяті процесу лишається старий код.
+ * Тому `startVersion` фіксується викликачем ДО апгрейду.
  * @param {string} effectivePackageRoot шлях, повернутий `upgradeNRulesToLatestAndBunInstall`
+ * @param {string | null} startVersion версія `@7n/rules`, з якою стартував процес (прочитана
+ *   з `BUNDLED_PACKAGE_ROOT` до виклику `upgradeNRulesToLatestAndBunInstall`)
  * @returns {Promise<void>} повертається лише якщо re-exec не потрібен; інакше кидає `ReexecHandoff`,
  *   який ловить top-level catch і прокидає exit-код у `process.exitCode`
  */
-async function reexecIfPackageVersionChanged(effectivePackageRoot) {
+async function reexecIfPackageVersionChanged(effectivePackageRoot, startVersion) {
   if (env.NITRA_CURSOR_REEXEC === '1') {
     return
   }
-  if (effectivePackageRoot === BUNDLED_PACKAGE_ROOT) {
-    return
-  }
-  const currentVersion = await readBundledVersionAt(BUNDLED_PACKAGE_ROOT)
   const installedVersion = await readBundledVersionAt(effectivePackageRoot)
-  if (!currentVersion || !installedVersion || currentVersion === installedVersion) {
+  if (!startVersion || !installedVersion || startVersion === installedVersion) {
     return
   }
   const newBinPath = join(effectivePackageRoot, 'bin', 'n-rules.js')
@@ -1408,7 +1424,7 @@ async function reexecIfPackageVersionChanged(effectivePackageRoot) {
     return
   }
   console.log(
-    `🔁 Перезапуск ${PACKAGE_NAME}: процес стартував на ${currentVersion}, ` +
+    `🔁 Перезапуск ${PACKAGE_NAME}: процес стартував на ${startVersion}, ` +
       `після self-upgrade встановлено ${installedVersion}.\n` +
       `   Re-exec свіжого бінаря, щоб підхопити нову логіку (RULE_MIGRATIONS, auto-detect тощо).\n`
   )
@@ -1446,11 +1462,13 @@ async function runSync() {
   console.log(`\n🔧 ${PACKAGE_NAME} — завантаження cursor-правил\n`)
 
   const projectRoot = cwd()
+  // Фіксуємо ДО апгрейду — див. коментар над reexecIfPackageVersionChanged.
+  const startVersion = await readBundledVersionAt(BUNDLED_PACKAGE_ROOT)
   const effectivePackageRoot = await runSyncStep(`❌ Не вдалося оновити ${PACKAGE_NAME} або виконати bun i: `, () =>
     upgradeNRulesToLatestAndBunInstall(projectRoot, BUNDLED_PACKAGE_ROOT)
   )
 
-  await reexecIfPackageVersionChanged(effectivePackageRoot)
+  await reexecIfPackageVersionChanged(effectivePackageRoot, startVersion)
 
   const bundledRulesDir = join(effectivePackageRoot, 'rules')
   const bundledSkillsDir = join(effectivePackageRoot, 'skills')

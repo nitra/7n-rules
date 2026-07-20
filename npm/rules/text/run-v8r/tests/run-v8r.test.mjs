@@ -171,4 +171,58 @@ describe('runV8rWithGlobs — error paths', () => {
     expect(result).toEqual({ code: 1, detail: '' })
     expect(outChunks.join('')).toBe('')
   })
+
+  test('exitCode=1, деталь — лише ajv schema-compile-помилка (несправна зовнішня схема, реальний розклад azure-pipelines.yml) → code примусово 0, ⚠-попередження замість ✖-порушення', async () => {
+    vi.mocked(spawnAsync).mockResolvedValueOnce({
+      stdout: '',
+      stderr:
+        'ℹ Processing azure-pipelines.yml\n' +
+        'ℹ Validating azure-pipelines.yml against schema from https://raw.githubusercontent.com/microsoft/azure-pipelines-vscode/master/service-schema.json ...\n' +
+        '✖ Invalid regular expression: /^[^\\/~\\^\\: \\[\\]\\\\]+(\\/[^\\/~\\^\\: \\[\\]\\\\]+)*$/u: Invalid escape\n',
+      exitCode: 1,
+      signal: null,
+      timedOut: false,
+      aborted: false
+    })
+    const outChunks = []
+    const origOut = process.stdout.write.bind(process.stdout)
+    process.stdout.write = chunk => {
+      outChunks.push(String(chunk))
+      return true
+    }
+    let result
+    try {
+      result = await runV8rWithGlobs(['**/*.yml'])
+    } finally {
+      process.stdout.write = origOut
+    }
+    expect(result).toEqual({ code: 0, detail: '' })
+    const printed = outChunks.join('')
+    expect(printed).toContain('⚠ run-v8r: зовнішня схема не компілюється в ajv')
+    expect(printed).toContain('Invalid regular expression')
+  })
+
+  test('exitCode=1, ajv schema-compile-рядок ЗМІШАНИЙ з genuine validation-помилкою в тому ж batch → лишається без змін (не маскуємо реальну проблему)', async () => {
+    vi.mocked(spawnAsync).mockResolvedValueOnce({
+      stdout: "other.yml# must NOT have additional properties, found additional property 'unknownField'\n",
+      stderr:
+        '✖ Invalid regular expression: /^[^\\/~\\^\\: \\[\\]\\\\]+(\\/[^\\/~\\^\\: \\[\\]\\\\]+)*$/u: Invalid escape\n' +
+        '✖ other.yml is invalid\n',
+      exitCode: 1,
+      signal: null,
+      timedOut: false,
+      aborted: false
+    })
+    let result
+    const origOut = process.stdout.write.bind(process.stdout)
+    process.stdout.write = () => true
+    try {
+      result = await runV8rWithGlobs(['**/*.yml'])
+    } finally {
+      process.stdout.write = origOut
+    }
+    expect(result.code).toBe(1)
+    expect(result.detail).toContain('Invalid regular expression')
+    expect(result.detail).toContain('other.yml is invalid')
+  })
 })
