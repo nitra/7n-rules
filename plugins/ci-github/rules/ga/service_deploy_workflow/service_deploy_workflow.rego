@@ -21,8 +21,7 @@
 # Ланцюги deploy (build → deploy) законні: досяжність — graph.reachable.
 #
 # Не перевіряється тут (лишається .mdc-каноном): вибір набору доменів під
-# сервіс, зміст test/deploy-кроків, outputs-мапінг plan-джоби, uv-prep для
-# python-стеку. Спільні workflow-перевірки (persist-credentials, min-версії
+# сервіс, зміст test/deploy-кроків, uv-prep для python-стеку. Спільні workflow-перевірки (persist-credentials, min-версії
 # uses) — у ga.workflow_common; існування paths-глобів — у ga/workflows.
 package ga.service_deploy_workflow
 
@@ -63,6 +62,26 @@ service_paths contains p if {
 	m := regex.find_all_string_submatch_n(`n-rules ci plan\s+--path\s+(\S+)`, r, 1)
 	count(m) > 0
 	p := m[0][1]
+}
+
+# Outputs-мапінг plan-джоби: гейт `needs.plan.outputs.<key>` працює лише коли
+# jobs.plan.outputs декларує `<key>` з посиланням на `steps.<id>.outputs.<key>`
+# кроку з таким id — інакше значення тихо порожнє і джоба скіпається завжди.
+plan_outputs := object.get(object.get(jobs, "plan", {}), "outputs", {})
+
+plan_step_ids contains id if {
+	some step in object.get(object.get(jobs, "plan", {}), "steps", [])
+	id := object.get(step, "id", "")
+	id != ""
+}
+
+# Ключі plan-outputs, на які посилаються гейти інших джоб.
+gated_output_keys contains k if {
+	some name, job in jobs
+	name != "plan"
+	cond := object.get(job, "if", "")
+	some m in regex.find_all_string_submatch_n(`needs\.plan\.outputs\.([A-Za-z0-9_]+)`, cond, -1)
+	k := m[1]
 }
 
 # Lint-джоби (крок `n-rules lint <domain> … --path …`) з розібраною командою.
@@ -133,6 +152,24 @@ deny contains msg if {
 	is_service_workflow
 	some r in plan_runs
 	not contains(r, "--github")
+}
+
+# ── deny: outputs-мапінг plan-джоби ─────────────────────────────────────
+
+deny contains msg if {
+	is_service_workflow
+	jobs.plan
+	some k in gated_output_keys
+	not plan_outputs[k]
+	msg := sprintf("plan: jobs.plan.outputs не мапить `%s` (канон: `%s: ${{ steps.plan.outputs.%s }}`) — гейт `needs.plan.outputs.%s` тихо порожній і джоба скіпається завжди (ga.mdc)", [k, k, k, k])
+}
+
+deny contains msg if {
+	is_service_workflow
+	some k in gated_output_keys
+	v := plan_outputs[k]
+	not output_maps_plan_step(v, k)
+	msg := sprintf("plan: outputs.%s не посилається на `steps.<id>.outputs.%s` кроку з таким id — гейт тихо порожній (ga.mdc)", [k, k])
 }
 
 # ── deny: тригер paths ↔ сервісний каталог ─────────────────────────────
@@ -243,6 +280,13 @@ needs_of(job) := object.get(job, "needs", []) if is_array(object.get(job, "needs
 glob_covers(sp) if {
 	some g in service_dir_globs
 	startswith(g, sp)
+}
+
+# Значення output-а посилається на `steps.<id>.outputs.<key>` реального кроку.
+output_maps_plan_step(v, k) if {
+	m := regex.find_all_string_submatch_n(sprintf(`steps\.([A-Za-z0-9_-]+)\.outputs\.%s`, [k]), v, 1)
+	count(m) > 0
+	m[0][1] in plan_step_ids
 }
 
 job_has_prep(job) if {

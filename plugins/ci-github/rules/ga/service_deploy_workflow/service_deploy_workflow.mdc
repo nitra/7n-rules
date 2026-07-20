@@ -12,7 +12,7 @@ Rego-пакет: `ga.service_deploy_workflow`
 4. **`test`-джоба** — `needs: plan`, `if: needs.plan.outputs.any == 'true'`; тести лише сервісу (`bun test run/<service>`; python-стек — `astral-sh/setup-uv` + `uv sync --locked` + `pytest run/<service>`).
 5. **Деплой** — needs-ланцюг (можна через проміжний `build`) **транзитивно досягає** `plan` і всі lint/test-джоби; кожна джоба з `needs` на умовні lint-джоби має `if` з `!cancelled()` та `!contains(needs.*.result, 'failure')` — skipped-лінт не блокує деплой, failed — блокує.
 
-Що перевіряє rego: наявність plan-джоби з `ci plan --path … --github`; збіг `on.push.paths` ↔ `--path`; для кожної lint-джоби — `needs: plan`, гейт по outputs, той самий `--path`, `--no-fix`, prep-крок, `fetch-depth: 0`; для термінальних джоб — транзитивну досяжність plan і всіх перевірок та skip-толерантний `if`.
+Що перевіряє rego: наявність plan-джоби з `ci plan --path … --github`; збіг `on.push.paths` ↔ `--path`; outputs-мапінг plan-джоби (кожен ключ, на який посилається гейт `needs.plan.outputs.<key>`, задекларований у `jobs.plan.outputs` і вказує на `steps.<id>.outputs.<key>` реального кроку — інакше гейт тихо порожній); для кожної lint-джоби — `needs: plan`, гейт по outputs, той самий `--path`, `--no-fix`, prep-крок, `fetch-depth: 0`; для термінальних джоб — транзитивну досяжність plan і всіх перевірок та skip-толерантний `if`.
 
 Що НЕ перевіряється (справа автора): добір доменів під вміст сервісу, зміст test/deploy-кроків, секрети/environment, uv-prep. Спільні workflow-інваріанти (persist-credentials, min-версії uses, існування paths-глобів) покривають `workflow_common` і `workflows`.
 
