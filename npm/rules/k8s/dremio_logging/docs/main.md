@@ -7,23 +7,23 @@ docgen:
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 95
-  issues: anchor-miss:(k8s.mdc),judge:inaccurate:0.99
+  issues: anchor-miss:(k8s.mdc),judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-`zkLogbackRootLevelViolation` перевіряє повідомлення, пов’язані з надто гучним `root` у `k8s.mdc`, а `lint` збирає ці перевірки в один pass і повертає результат без зупинки процесу. Поведінка read-only: правило не пише у ФС чи БД, працює fail-safe й не кидає винятків назовні.
+Перевіряє `zookeeper.yaml` на надто гучний `root level` у вбудованому `logback.xml` і формує звіт про порушення з маркером `zk-logback-root-level`. `zkLogbackRootLevelViolation` і `lint` працюють як read-only, не змінюють ФС чи БД, і поводяться fail-safe: помилки перехоплюються, назовні винятки не виходять.
 
 ## Поведінка
 
-- `zkLogbackRootLevelViolation` — перевіряє, чи вбудований `logback.xml` у ZooKeeper-templated файлі не тримає `root` на надто гучному рівні; повертає текст порушення з міткою `` або `null`, якщо перевірка не потрібна або рівень уже прийнятний.
-- `lint` — проходить по вказаних файлах у read-only режимі, збирає порушення для `k8s.dremio_logging` і не виводить помилки назовні; пропускає файли, які не вдалося прочитати, та позначає знайдені проблеми міткою ``.
+- `zkLogbackRootLevelViolation` — перевіряє, чи вбудований `logback.xml` у `zookeeper.yaml` має допустимий `root level` (`warn`, `error`, `off`); якщо блоку немає — не чіпає файл, якщо рівень надто гучний або відсутній — повертає текст порушення з посиланням на `k8s.mdc`.
+- `lint` — проходить по вказаних файлах, безпечно читає їх як `zookeeper.yaml`-кандидати, фіксує порушення для `k8s.dremio_logging` і не перериває перевірку на помилках читання; для кожного знайденого випадку додає повідомлення з маркером `zk-logback-root-level`.
 
 ## Публічний API
 
-- zkLogbackRootLevelViolation — позначає ZooKeeper Helm-темплейт, якщо вбудований `logback.xml` має занадто гучний `root`-рівень (`info`, `debug`, `trace`) або взагалі не задає `root`; не чіпає файли, де `root` уже `warn`, `error` чи `off`.
-- lint — запускає `k8s.dremio_logging` для ZooKeeper-темплейтів у межах одного файлу, лише для читання.
+- zkLogbackRootLevelViolation — знаходить у Helm-темплейті ZooKeeper вбудований `logback.xml`, де `root` заданий занадто гучно або взагалі відсутній; пропускає, якщо рівень уже `warn`, `error` чи `off`
+- lint — запускає `k8s.dremio_logging` для ZooKeeper-темплейту на рівні окремого файла, без змін у вмісті
 
 ## Гарантії поведінки
 
