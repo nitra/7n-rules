@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.35.0] - 2026-07-20
+
+### Added
+
+- tauri: додано концерн gitignore_target — перевірка й автофікс ignore-запису ws/src-tauri/target/ у корінному .gitignore (typo-інцидент nitra/task)
+
+### Fixed
+
+- run-v8r: не рахувати ajv schema-compile-помилку (несправна зовнішня схема, напр. unicodeRegExp-несумісність у офіційній azure-pipelines-vscode/service-schema.json) як порушення файлу — друкує ⚠-попередження й пропускає, замість постійного false-positive ✖
+- acp-runner (skill claude): watchdog дочірнього ACP-процесу — fail-fast, якщо агент не запустився чи вийшов до кінця ходу, замість вічного зависання connection.prompt
+
 ## [1.34.1] - 2026-07-20
 
 ### Fixed
