@@ -10,11 +10,17 @@ prep := {"uses": "./.github/actions/setup-bun-deps"}
 canonical_input := {
 	"on": {"push": {"branches": ["dev", "main"], "paths": ["run/nexus/**"]}},
 	"jobs": {
-		"plan": {"steps": [
-			checkout_full,
-			prep,
-			{"id": "plan", "run": "bunx n-rules ci plan --path run/nexus --github"},
-		]},
+		"plan": {
+			"outputs": {
+				"js": "${{ steps.plan.outputs.js }}",
+				"any": "${{ steps.plan.outputs.any }}",
+			},
+			"steps": [
+				checkout_full,
+				prep,
+				{"id": "plan", "run": "bunx n-rules ci plan --path run/nexus --github"},
+			],
+		},
 		"lint-js": {
 			"needs": "plan",
 			"if": "needs.plan.outputs.js == 'true'",
@@ -24,7 +30,11 @@ canonical_input := {
 				{"run": "bunx n-rules lint js --path run/nexus --no-fix"},
 			],
 		},
-		"test": {"needs": "plan", "steps": [checkout_full, prep, {"run": "bun test run/nexus"}]},
+		"test": {
+			"needs": "plan",
+			"if": "needs.plan.outputs.any == 'true'",
+			"steps": [checkout_full, prep, {"run": "bun test run/nexus"}],
+		},
 		"deploy": {
 			"needs": ["plan", "lint-js", "test"],
 			"if": "${{ !cancelled() && needs.plan.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}",
@@ -178,6 +188,35 @@ test_deny_deploy_without_skip_tolerant_if if {
 	wf := json.patch(canonical_input, [{"op": "remove", "path": "/jobs/deploy/if"}])
 	some msg in service_deploy_workflow.deny with input as wf
 	contains(msg, "!cancelled()")
+}
+
+# Гейт посилається на needs.plan.outputs.js, але plan не декларує outputs → deny.
+test_deny_plan_outputs_missing_key if {
+	wf := json.patch(canonical_input, [{"op": "remove", "path": "/jobs/plan/outputs/js"}])
+	some msg in service_deploy_workflow.deny with input as wf
+	contains(msg, "outputs не мапить `js`")
+}
+
+# outputs.js мапиться на крок із неіснуючим id → значення гейта завжди порожнє.
+test_deny_plan_outputs_wrong_step_ref if {
+	wf := json.patch(canonical_input, [{
+		"op": "replace",
+		"path": "/jobs/plan/outputs/js",
+		"value": "${{ steps.compute.outputs.js }}",
+	}])
+	some msg in service_deploy_workflow.deny with input as wf
+	contains(msg, "outputs.js не посилається")
+}
+
+# outputs.js мапить чужий ключ кроку (copy-paste python замість js) → deny.
+test_deny_plan_outputs_wrong_key_ref if {
+	wf := json.patch(canonical_input, [{
+		"op": "replace",
+		"path": "/jobs/plan/outputs/js",
+		"value": "${{ steps.plan.outputs.python }}",
+	}])
+	some msg in service_deploy_workflow.deny with input as wf
+	contains(msg, "outputs.js не посилається")
 }
 
 # YAML 1.1-парсер: ключ `on` стає bool true — тригер-перевірка все одно бачить paths.
