@@ -3,28 +3,29 @@ type: JS Module
 title: fix-service_deploy_workflow.mjs
 resource: plugins/ci-github/rules/ga/service_deploy_workflow/fix-service_deploy_workflow.mjs
 docgen:
-  crc: c6a64f66
-  model: openai-codex/gpt-5.4-mini
-  score: 100
-  issues: judge:inaccurate:0.99
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: bb163530
 ---
 
 ## Огляд
 
-Файл виконує T0-автоміграцію `.github/workflows/deploy-*.yml` до сервісного канону для `service_deploy_workflow`, як у `fix-service_deploy_pipeline` для `ci-azure`: детерміновано переписує лише workflow, що не відповідають формі `plan → lint-<domain> → deploy`. Додає job `plan` із `fetch-depth: 0`, prep і `bunx n-rules ci plan --path <svc> --github`, створює `id: plan` та outputs-мапінг доменів і `any`, щоб `needs.plan.outputs.*` були доступні в runtime. Legacy job із `n-rules lint --path <svc>` без домену замінює на per-domain jobs `lint-<domain>` за тими самими glob-ами, що й `ci plan` через `computeActiveDomains/domainKey`; domain-style lint-джоби отримують wiring із `needs: plan`, умовами по outputs, `--no-fix`, `fetch-depth: 0` і prep. `needs` інших jobs перешивається з legacy-імені, а jobs із прямими `needs` на умовні lint-джоби без власного `if` отримують Skipped-толерантний канон `!cancelled` + `!contains`. Мутації виконуються через YAML Document API, тому `jobs` у GA лишається map, а коментарі та форматування незачеплених частин зберігаються; наявний нетривіальний `if` не перезаписується. Публічні функції: `migrateWorkflowFile`, `patterns`. Fail-safe: помилки не прокидаються назовні, а за окремих збоїв повертається порожнє значення.
+Модуль виконує T0-автоміграцію GitHub Actions deploy-workflow до сервіс-канону `plan → lint-<domain> → deploy` (ADR 260718-0835), дзеркало `fix-service_deploy_pipeline` для `ci-azure`. Для workflow з легасі-джобою `n-rules lint --path <svc>` (без домену) додає `plan` (checkout `fetch-depth: 0` + prep + `bunx n-rules ci plan --path <svc> --github` з `id: plan` і outputs-мапінгом доменів + `any`), розкладає легасі lint на per-domain `lint-<domain>`-джоби (домени й glob-и — ті самі, що в `ci plan`), перепідключає `needs` залежних джоб і додає Skipped-толерантний `if` там, де його бракує. Наявний нетривіальний `if` не перезаписується.
+
+`bootstrap: true` — окремий опт-ін, який `n-rules lint --fix` не викликає автоматично: для deploy-workflow БЕЗ жодної lint-джоби (rego вважає такий workflow валідним as-is — публікація без гейта може бути свідомим рішенням) створює lint-<domain>-джоби з нуля за `relevantDomains` піддерева сервісу і підключає вхідну джобу без власного `needs` до `plan` + усіх нових lint-джоб зі Skipped-толерантним `if`.
+
+Мутації виконуються через YAML Document API — коментарі та форматування незачеплених частин файлу зберігаються. Помилки парсингу чи міграції окремого файлу не прокидаються назовні: функція повертає `false`, файл лишається без змін.
 
 ## Поведінка
 
-- `migrateWorkflowFile` — мігрує один GitHub Actions deploy-workflow до сервісного канону: додає `plan`, розкладає legacy lint на per-domain jobs, перешиває `needs` і лишає файл без змін, якщо міграція не потрібна або не вдалася.
-- `patterns` — описує T0-патерн fix-конвеєра: запускає міграцію лише для workflow з порушенням і повертає перелік змінених файлів та коротке повідомлення без винесення помилок назовні.
+- `migrateWorkflowFile(absPath, cwd, { bootstrap? })` — мігрує один deploy-workflow до канону; повертає `true`, якщо файл змінено, `false` — якщо міграція не потрібна, шлях сервісу не визначити, чи (без `bootstrap`) у workflow немає ні `plan`, ні жодного lint-кроку.
+- `patterns` — T0-патерн fix-конвеєра: спрацьовує лише коли rego-концерн уже знайшов порушення у файлі (без `bootstrap`), мігрує кожен зачеплений workflow і збирає перелік змінених файлів; помилки окремих файлів не переривають обробку решти.
 
 ## Публічний API
 
-- migrateWorkflowFile — переводить один deploy-workflow у канонічний формат і повідомляє, чи були зміни
-- patterns — задає шаблони для розпізнавання та обробки workflow-файлів
+- `migrateWorkflowFile` — переводить один deploy-workflow у канонічний формат, опційно (`bootstrap: true`) добудовуючи lint-джоби з нуля для workflow, що їх ще не мали.
+- `patterns` — T0-фікс-патерн для fix-конвеєра `n-rules lint`: розпізнає порушення `service_deploy_workflow` і застосовує `migrateWorkflowFile` (без `bootstrap`) до кожного знайденого файлу.
 
 ## Гарантії поведінки
 
-- Перехоплює помилки і не пропускає винятків назовні (fail-safe).
-- За певних помилок повертає порожнє значення (напр. `null`) замість винятку.
+- Перехоплює помилки парсингу й міграції — не пропускає винятків назовні (fail-safe), повертає `false`.
+- Не перезаписує наявний нетривіальний `if` термінальної джоби.
+- `bootstrap`-логіка не активується неявно через звичайний `n-rules lint --fix` — лише за прямого виклику з `{ bootstrap: true }`.

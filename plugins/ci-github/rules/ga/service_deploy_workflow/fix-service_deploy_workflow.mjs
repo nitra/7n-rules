@@ -18,6 +18,13 @@
  *   умовні lint-джоби без власного `if` отримують Skipped-толерантний канон
  *   (`!cancelled()` + `!contains(needs.*.result, 'failure')`).
  *
+ * `bootstrap: true` (окремий опт-ін, НЕ частина звичайного fix-режиму) —
+ * для deploy-workflow без жодної lint-джоби створює lint-<domain> джоби з
+ * нуля (за `relevantDomains` піддерева сервісу) і підключає безумовну
+ * вхідну джобу (без `needs`) до plan + усіх нових lint-джоб. Концерн явно
+ * не вимагає цього автоматично (публікація без лінту валідна as-is) — це
+ * механічне виконання свідомого рішення перейти на гейт.
+ *
  * Мутації — через `yaml` Document API (jobs у GA — мапа, не послідовність):
  * коментарі та форматування незачеплених частин зберігаються. Наявний
  * нетривіальний `if` не перезаписується (deny лишається — ручне рішення).
@@ -246,6 +253,107 @@ function patchDomainLintJob(doc, name, j, found) {
 }
 
 /**
+ * Вставляє нові lint-<domain> джоби одразу після `plan` у мапі jobs.
+ * @param {import('yaml').Document} doc документ (мутується)
+ * @param {Array<[string, Record<string, unknown>]>} newPairs пари [імʼя, джоба]
+ * @returns {void}
+ */
+function insertLintJobsAfterPlan(doc, newPairs) {
+  const jobsMap = doc.getIn(['jobs'])
+  const nodes = newPairs.map(([name, job]) => doc.createNode({ [name]: job }).items[0])
+  const planIdx = jobsMap.items.findIndex(pair => pair?.key?.toString?.() === 'plan')
+  jobsMap.items.splice(planIdx === -1 ? 0 : planIdx + 1, 0, ...nodes)
+}
+
+/**
+ * Bootstrap-крок (лише коли `bootstrap: true`): джоба без жодного `needs` —
+ * кандидат «вхідної/термінальної» джоби деплою без вбудованого лінту (напр.
+ * `run-auth.yml`, де один job одразу збирає образ і виконує деплой). Підключає її до
+ * plan + усіх lint-джоб зі Skipped-толерантним `if` (свідомий перехід на
+ * гейт — концерн НЕ вимагає цього автоматично, bootstrap лише виконує рішення,
+ * вже ухвалене людиною командою запуску).
+ * @param {import('yaml').Document} doc документ (мутується)
+ * @param {string} name імʼя джоби
+ * @param {Record<string, unknown>} j джоба (plain JS)
+ * @param {Set<string>} lintJobNames множина всіх lint-джоб
+ * @returns {boolean} чи були зміни
+ */
+function wireEntryJob(doc, name, j, lintJobNames) {
+  if (needsOf(j).length > 0) return false
+  if (lintJobNames.size === 0) return false
+  const base = ['jobs', name]
+  const deps = ['plan', ...[...lintJobNames].toSorted()]
+  doc.setIn([...base, 'needs'], doc.createNode(deps))
+  doc.setIn([...base, 'if'], CANONICAL_DEPLOY_IF)
+  return true
+}
+
+/**
+ * Bootstrap-крок: домени сервісу, для яких ще немає per-domain lint-джоби,
+ * отримують нову джобу з нуля (одразу після `plan`).
+ * @param {import('yaml').Document} doc документ (мутується)
+ * @param {string[]} domains релевантні домени сервісу
+ * @param {string} servicePath каталог сервісу
+ * @param {Array<Record<string, unknown>>} prep prep-кроки
+ * @returns {boolean} чи були зміни
+ */
+function bootstrapMissingLintJobs(doc, domains, servicePath, prep) {
+  const covered = new Set()
+  for (const [name, j] of jobEntries(doc)) {
+    if (name === 'plan') continue
+    const found = findLintStep(Array.isArray(j.steps) ? j.steps : [])
+    if (found && !found.legacy && found.domain) covered.add(found.domain)
+  }
+  const missing = domains.filter(d => !covered.has(d))
+  if (missing.length === 0) return false
+  insertLintJobsAfterPlan(
+    doc,
+    missing.map(d => buildLintJob(d, servicePath, prep))
+  )
+  return true
+}
+
+/**
+ * Дописує wiring для всіх наявних domain-style lint-джоб (needs/if/no-fix/fetch-depth)
+ * і збирає повну множину імен lint-джоб (renames + вже канонічні + bootstrap-нові).
+ * @param {import('yaml').Document} doc документ (мутується)
+ * @param {Map<string, string[]>} renames легасі-імʼя → нові lint-джоби
+ * @returns {{ lintJobNames: Set<string>, changed: boolean }} множина lint-джоб і прапорець змін
+ */
+function patchAllDomainLintJobs(doc, renames) {
+  const lintJobNames = new Set(renames.values().toArray().flat())
+  let changed = false
+  for (const [name, j] of jobEntries(doc)) {
+    if (name === 'plan') continue
+    const found = findLintStep(Array.isArray(j.steps) ? j.steps : [])
+    if (!found || found.legacy) continue
+    lintJobNames.add(name)
+    if (patchDomainLintJob(doc, name, j, found)) changed = true
+  }
+  return { lintJobNames, changed }
+}
+
+/**
+ * Перешиває needs/if усіх джоб, що не є lint: легасі-перейменування (завжди) і,
+ * за bootstrap, підключення безумовних вхідних джоб до plan + lint.
+ * @param {import('yaml').Document} doc документ (мутується)
+ * @param {Map<string, string[]>} renames легасі-імʼя → нові lint-джоби
+ * @param {Set<string>} lintJobNames множина всіх lint-джоб
+ * @param {boolean} bootstrap чи дозволено підключати безумовні вхідні джоби
+ * @returns {boolean} чи були зміни
+ */
+function rewireAllJobs(doc, renames, lintJobNames, bootstrap) {
+  let changed = false
+  for (const [name, j] of jobEntries(doc)) {
+    if (name === 'plan' || lintJobNames.has(name)) continue
+    const rewired = rewireOneJob(doc, name, j, renames, lintJobNames)
+    const bootstrapped = !rewired && bootstrap && wireEntryJob(doc, name, j, lintJobNames)
+    if (rewired || bootstrapped) changed = true
+  }
+  return changed
+}
+
+/**
  * Крок 4 (одна джоба): перешивка needs (легасі → нові) + Skipped-толерантний if.
  * @param {import('yaml').Document} doc документ (мутується)
  * @param {string} name імʼя джоби
@@ -277,11 +385,23 @@ function rewireOneJob(doc, name, j, renames, lintJobNames) {
 
 /**
  * Мігрує один deploy-workflow до канону. Повертає true, якщо файл змінено.
+ *
+ * `bootstrap: true` — свідоме розширення поза звичайним fix-режимом: для
+ * deploy-workflow БЕЗ жодної lint-джоби (валідний as-is за рего-концерном,
+ * деталі — service_deploy_workflow.rego) створює lint-<domain> джоби з нуля
+ * (за `relevantDomains` піддерева сервісу) і підключає вхідну/термінальну
+ * джобу без `needs` до plan + усіх lint-джоб. Це саме «свідоме рішення
+ * перейти на гейт», про яке говорить коментар концерну — bootstrap лише
+ * виконує його механічно, а не ухвалює автоматично (звичайний
+ * `n-rules lint --fix` bootstrap не викликає: patterns[0].apply завжди
+ * викликається без bootstrap).
  * @param {string} absPath абсолютний шлях workflow-файлу
  * @param {string} cwd корінь consumer-репо
+ * @param {{ bootstrap?: boolean }} [opts] `bootstrap: true` — додати lint-джоби з нуля
  * @returns {Promise<boolean>} чи були зміни
  */
-export async function migrateWorkflowFile(absPath, cwd) {
+export async function migrateWorkflowFile(absPath, cwd, opts = {}) {
+  const { bootstrap = false } = opts
   const prevText = readFileSync(absPath, 'utf8')
   let doc
   try {
@@ -298,6 +418,12 @@ export async function migrateWorkflowFile(absPath, cwd) {
   const legacyNames = entries
     .filter(([name, j]) => name !== 'plan' && findLintStep(Array.isArray(j.steps) ? j.steps : [])?.legacy)
     .map(([name]) => name)
+  const hasAnyLintStep = entries.some(
+    ([name, j]) => name !== 'plan' && findLintStep(Array.isArray(j.steps) ? j.steps : []) !== null
+  )
+  // Workflow без plan і без жодного lint-кроку — концерн вважає його valid
+  // as-is (публікація без гейта — свідоме рішення). Чіпати лише за bootstrap.
+  if (!hasPlan && !hasAnyLintStep && !bootstrap) return false
 
   const jobsPlain = entries.map(([, j]) => j)
   const prep = derivePrepSteps(jobsPlain)
@@ -311,18 +437,11 @@ export async function migrateWorkflowFile(absPath, cwd) {
   const renames = replaceLegacyJobs(doc, legacyNames, domains, servicePath, prep)
   if (renames.size > 0) changed = true
 
-  const lintJobNames = new Set(renames.values().toArray().flat())
-  for (const [name, j] of jobEntries(doc)) {
-    if (name === 'plan') continue
-    const found = findLintStep(Array.isArray(j.steps) ? j.steps : [])
-    if (!found || found.legacy) continue
-    lintJobNames.add(name)
-    if (patchDomainLintJob(doc, name, j, found)) changed = true
-  }
-  for (const [name, j] of jobEntries(doc)) {
-    if (name === 'plan' || lintJobNames.has(name)) continue
-    if (rewireOneJob(doc, name, j, renames, lintJobNames)) changed = true
-  }
+  if (bootstrap && bootstrapMissingLintJobs(doc, domains, servicePath, prep)) changed = true
+
+  const { lintJobNames, changed: patched } = patchAllDomainLintJobs(doc, renames)
+  if (patched) changed = true
+  if (rewireAllJobs(doc, renames, lintJobNames, bootstrap)) changed = true
 
   if (!changed) return false
   writeFileSync(absPath, doc.toString())
