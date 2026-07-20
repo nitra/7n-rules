@@ -60,8 +60,31 @@ jobs:
       - run: echo deploy
 `
 
+const NO_LINT_WORKFLOW = `# auth-run: один job збирає образ і виконує деплой, без жодного lint-кроку
+name: auth-run
+on:
+  push:
+    paths:
+      - 'run/nexus/**'
+    branches: [main, dev]
+
+jobs:
+  auth-run:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: build and push
+        run: docker build --push -t img .
+
+      - name: deploy
+        run: kubectl set image deployment/auth-run main=img
+`
+
 /**
- * Симлінкує реальний @7n/rules-lang-js монорепо у node_modules консюмер-фікстури:
+ * Симлінкує реальний `@7n/rules-lang-js` монорепо у node_modules консюмер-фікстури:
  * після фази 5c домен `js` (per-file concerns) живе у плагіні, не в ядрі —
  * без плагіна relevantDomains не бачить js-домену.
  * @param {string} dir tmp-корінь консюмер-фікстури
@@ -88,6 +111,24 @@ async function seedConsumer(dir) {
   await mkdir(wfDir, { recursive: true })
   const abs = join(wfDir, 'deploy-nexus.yml')
   await writeFile(abs, LEGACY_WORKFLOW, 'utf8')
+  return abs
+}
+
+/**
+ * Консюмер-фікстура для NO_LINT_WORKFLOW: той самий сервіс run/nexus (js+md).
+ * @param {string} dir tmp-корінь
+ * @returns {Promise<string>} абсолютний шлях workflow-файлу
+ */
+async function seedNoLintConsumer(dir) {
+  await mkdir(join(dir, 'run', 'nexus'), { recursive: true })
+  await writeFile(join(dir, 'run', 'nexus', 'index.js'), 'export const a = 1\n', 'utf8')
+  await writeFile(join(dir, 'run', 'nexus', 'readme.md'), '# nexus\n', 'utf8')
+  await writeJson(join(dir, '.n-rules.json'), { rules: ['js', 'text'], plugins: ['@7n/rules-lang-js'] })
+  await linkLangJsPlugin(dir)
+  const wfDir = join(dir, '.github', 'workflows')
+  await mkdir(wfDir, { recursive: true })
+  const abs = join(wfDir, 'auth-run.yml')
+  await writeFile(abs, NO_LINT_WORKFLOW, 'utf8')
   return abs
 }
 
@@ -159,6 +200,67 @@ describe('migrateWorkflowFile — легасі GA deploy-workflow', () => {
       await writeFile(abs, src, 'utf8')
       expect(await migrateWorkflowFile(abs, dir)).toBe(false)
       expect(await readFile(abs, 'utf8')).toBe(src)
+    })
+  })
+})
+
+describe('migrateWorkflowFile — bootstrap-режим (deploy без жодної lint-джоби)', () => {
+  test('без bootstrap: workflow без lint-джоб не чіпається', async () => {
+    await withTmpDir(async dir => {
+      const abs = await seedNoLintConsumer(dir)
+      expect(await migrateWorkflowFile(abs, dir)).toBe(false)
+      expect(await readFile(abs, 'utf8')).toContain(NO_LINT_WORKFLOW.trim())
+    })
+  })
+
+  test('bootstrap: додає plan + lint-<domain> з нуля, підключає вхідну джобу', async () => {
+    await withTmpDir(async dir => {
+      const abs = await seedNoLintConsumer(dir)
+      expect(await migrateWorkflowFile(abs, dir, { bootstrap: true })).toBe(true)
+
+      const js = parse(await readFile(abs, 'utf8'))
+      const jobs = js.jobs
+
+      expect(Object.keys(jobs)[0]).toBe('plan')
+      expect(jobs.plan.outputs.js).toBe(`\${{ steps.plan.outputs.js }}`)
+      expect(jobs['lint-js']).toMatchObject({ needs: 'plan', if: "needs.plan.outputs.js == 'true'" })
+      expect(jobs['lint-js'].steps.at(-1).run).toBe('bunx n-rules lint js --path run/nexus --no-fix')
+      expect(jobs['lint-text']).toBeDefined()
+
+      // вхідна джоба (не мала needs) підключена до plan + усіх lint-джоб, canonical if
+      expect(jobs['auth-run'].needs).toEqual(['plan', 'lint-js', 'lint-text'])
+      expect(jobs['auth-run'].if).toContain('!cancelled()')
+      expect(jobs['auth-run'].if).toContain("!contains(needs.*.result, 'failure')")
+
+      // непов'язані кроки деплою не чіпались
+      expect(jobs['auth-run'].steps.at(-1).run).toBe('kubectl set image deployment/auth-run main=img')
+      expect(await readFile(abs, 'utf8')).toContain(
+        '# auth-run: один job збирає образ і виконує деплой, без жодного lint-кроку'
+      )
+    })
+  })
+
+  test('bootstrap: мігрований YAML проходить власний rego-концерн без deny (conftest)', async () => {
+    await withTmpDir(async dir => {
+      const abs = await seedNoLintConsumer(dir)
+      await migrateWorkflowFile(abs, dir, { bootstrap: true })
+      const denies = await runConftestBatch({
+        policyDirRel: 'ga/service_deploy_workflow',
+        policyDirAbs: CONCERN_DIR,
+        namespace: 'ga.service_deploy_workflow',
+        files: [abs]
+      })
+      expect(denies).toEqual([])
+    })
+  })
+
+  test('bootstrap: ідемпотентність', async () => {
+    await withTmpDir(async dir => {
+      const abs = await seedNoLintConsumer(dir)
+      await migrateWorkflowFile(abs, dir, { bootstrap: true })
+      const once = await readFile(abs, 'utf8')
+      expect(await migrateWorkflowFile(abs, dir, { bootstrap: true })).toBe(false)
+      expect(await readFile(abs, 'utf8')).toBe(once)
     })
   })
 })
