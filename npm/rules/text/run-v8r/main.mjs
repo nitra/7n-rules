@@ -117,6 +117,55 @@ const FOUND_REMOTE_SCHEMA_RE = /^ℹ Found schema in (https?:\/\/\S+)/u
 const NOISE_LINE_RE = /^(?:ℹ .*|Resolving dependencies|Resolved, downloaded and extracted.*|Saved lockfile)$/u
 
 /**
+ * Рядок ajv-помилки компіляції самої схеми (не документа). v8r ловить це в `try/catch` навколо
+ * `ajv.compileAsync(schema)` (`validateDocument` у v8r/src/cli.js) і друкує голий
+ * `SyntaxError.message` без файлового контексту чи "is invalid"-заголовка — на відміну від
+ * genuine validation-помилки, де ajv повертає `errors[]` з прив'язкою до документа. Найчастіша
+ * причина: ajv за замовчуванням компілює `pattern` з прапорцем `/u` (`unicodeRegExp: true`), а
+ * реальні опубліковані схеми (напр. офіційна `azure-pipelines-vscode/service-schema.json`) містять
+ * legacy over-escaped regex, валідний поза Unicode-режимом, але `SyntaxError` у ньому. Це несправна
+ * схема, а не невалідний файл користувача — v8r не дає способу це відрізнити нативно (немає опції
+ * `unicodeRegExp` у config-schema.json), тому розрізняємо тут за форматом самого повідомлення.
+ * `logger.error` у v8r (src/logger.js) додає префікс `✖ ` перед `e.message` — опційний у regex,
+ * бо `extractFailureLines` не чіпає цей префікс (лише прибирає `ℹ`-шум).
+ */
+const AJV_SCHEMA_COMPILE_ERROR_RE = /^(?:✖ )?Invalid regular expression:.*$/mu
+
+/**
+ * Чи складається `detail` ВИКЛЮЧНО з рядків ajv-помилки компіляції схеми (без жодної genuine
+ * validation-помилки). Навмисно консервативно: якщо серед рядків `detail` є хоч один, що НЕ
+ * збігається з `AJV_SCHEMA_COMPILE_ERROR_RE` (напр. "file.yml is invalid" чи ajv `errors[]`-деталь
+ * genuine порушення в тому ж batch-виклику v8r по glob-у) — не втручаємось, викликач лишає
+ * оригінальний `code`/`detail` без змін, щоб не замаскувати реальну проблему.
+ * @param {string} detail рядки `✖ …` з `extractFailureLines`
+ * @returns {boolean} true — усі непорожні рядки `detail` є ajv schema-compile-помилками
+ */
+function isOnlyAjvSchemaCompileErrors(detail) {
+  const lines = detail
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+  if (lines.length === 0) return false
+  return lines.every(line => AJV_SCHEMA_COMPILE_ERROR_RE.test(line))
+}
+
+/**
+ * Друкує інформаційне попередження (не violation) для кожного `detail`-рядка ajv schema-compile-
+ * помилки — пояснює, що причина у несправній зовнішній схемі, не в нашому файлі.
+ * @param {string} detail рядки `✖ …`, для яких `isOnlyAjvSchemaCompileErrors` вже повернув true
+ * @returns {void}
+ */
+function reportAjvSchemaCompileFailures(detail) {
+  for (const line of detail.split('\n')) {
+    const trimmed = line.trim()
+    if (trimmed.length === 0) continue
+    process.stdout.write(
+      `⚠ run-v8r: зовнішня схема не компілюється в ajv (не файл) — ${trimmed} Ймовірно, ajv unicodeRegExp-несумісність зі старим стилем escape у чужій схемі; помилка не рахується як порушення.\n`
+    )
+  }
+}
+
+/**
  * Прибирає v8r/bunx noise-рядки (весь `ℹ`-статус: Loaded config file, Patterns and relative
  * paths, Pre-warming the cache, Processing <file>, Found schema in …, Validating …; і службовий
  * вивід bunx-встановлення Resolving/Resolved/Saved lockfile) з об'єднаного stdout+stderr одного
@@ -190,7 +239,11 @@ export function stripBunNodeShimDirs(pathValue) {
  * @param {boolean} [verbose] друкувати повний raw stdout/stderr v8r при помилці; інакше — лише
  *   рядки `✖ …` без `ℹ`-шуму (Pre-warming the cache, Processing <file>, Found schema in …)
  * @returns {Promise<{ exitError: true } | { exitError: false, code: number, detail: string }>}
- *   помилка spawn або код v8r (0/98 — трактує викликач) + деталь `✖ …`-рядків
+ *   помилка spawn або код v8r (0/98 — трактує викликач) + деталь `✖ …`-рядків. Якщо ВЕСЬ `detail`
+ *   складається лише з ajv schema-compile-помилок (несправна зовнішня схема, не наш файл —
+ *   `isOnlyAjvSchemaCompileErrors`) — `code` примусово 0, а причина друкується окремим `⚠`-попередженням
+ *   (`reportAjvSchemaCompileFailures`), а не як `✖`-порушення; мішаний випадок (є хоч один
+ *   genuine validation-рядок) лишається без змін навмисно, щоб не замаскувати реальну проблему.
  */
 async function runOneV8rInvocation(targets, configPath, verbose = false) {
   const bunPath = resolveCmd('bun') ?? process.execPath
@@ -206,15 +259,23 @@ async function runOneV8rInvocation(targets, configPath, verbose = false) {
 
   warnAboutRemoteSchemaFallback(result.stderr ?? '')
 
-  const exitCode = result.exitCode ?? 1
+  let exitCode = result.exitCode ?? 1
   let detail = ''
   if (exitCode !== 0 && exitCode !== 98) {
     detail = extractFailureLines(`${result.stdout ?? ''}\n${result.stderr ?? ''}`)
+    const onlySchemaCompileErrors = isOnlyAjvSchemaCompileErrors(detail)
     if (verbose) {
       if (result.stdout?.length) process.stdout.write(result.stdout)
       if (result.stderr?.length) process.stderr.write(result.stderr)
+    } else if (onlySchemaCompileErrors) {
+      reportAjvSchemaCompileFailures(detail)
     } else if (detail.length) {
       process.stdout.write(`${detail}\n`)
+    }
+    if (onlySchemaCompileErrors) {
+      if (verbose) reportAjvSchemaCompileFailures(detail)
+      exitCode = 0
+      detail = ''
     }
   }
   return { exitError: false, code: exitCode, detail }
