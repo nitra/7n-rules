@@ -13,8 +13,8 @@ const DEFINITION_RE = /\.n-admin-table\b/u
  * клас `n-admin-table`, він має бути визначений хоч в одному `.scss`/`.css`/`.vue`
  * (guide: `admin_table.mdc`). Для усунення false positives — крос-файлова перевірка,
  * тож потребує whole-repo сканування незалежно від `ctx.files`.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону (cwd)
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат зі зібраними violations
+ * @param {import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону (cwd)
+ * @returns {Promise<import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintResult>} результат зі зібраними violations
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

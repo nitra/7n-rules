@@ -1,5 +1,5 @@
 /**
- * T0-autofix для `test/cargo_mutants_config` — детерміноване створення
+ * T0-autofix для `rust/cargo_mutants_config` — детерміноване створення
  * `<cargoDir>/.cargo/mutants.toml` з canonical neutral baseline там, де його ще
  * немає. Логіку перенесено з detector-а (read-only contract: detector лише звітує
  * `mutants-config-missing`, запис — тут).
@@ -27,7 +27,7 @@ const BASELINE_PATH = join(
 /** @type {import('@7n/rules/scripts/lib/lint-surface/types.mjs').T0Pattern[]} */
 export const patterns = [
   {
-    id: 'test-cargo-mutants-config-create',
+    id: 'rust-cargo-mutants-config-create',
     test: violations => violations.some(v => v.reason === MUTANTS_CONFIG_MISSING),
     apply: async (violations, ctx) => {
       if (!existsSync(BASELINE_PATH)) return { touchedFiles: [] }

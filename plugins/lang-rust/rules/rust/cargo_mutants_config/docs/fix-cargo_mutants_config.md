@@ -3,7 +3,7 @@ type: JS Module
 title: fix-cargo_mutants_config.mjs
 resource: plugins/lang-rust/rules/rust/cargo_mutants_config/fix-cargo_mutants_config.mjs
 docgen:
-  crc: 00f74615
+  crc: f1cbd78c
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99
@@ -12,7 +12,7 @@ docgen:
 
 ## Огляд
 
-Для виконання завдання мені потрібен **код або контекст** файлу `test/cargo_mutants_config`, щоб я міг переписати секцію "Overview" відповідно до наданих "ВІДОМИХ ФАКТІВ" та уникнути помилок із "ЧЕРНЕТКОЮ".
+T0-autofix концерну `rust/cargo_mutants_config`: детерміновано створює `<cargoDir>/.cargo/mutants.toml` з canonical neutral baseline у кожному каталозі з Cargo-маніфестом, де конфіга ще немає. Запис виконується лише тут (detector — read-only, звітує `mutants-config-missing`).
 
 ## Поведінка
 

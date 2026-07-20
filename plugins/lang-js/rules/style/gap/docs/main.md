@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: plugins/lang-js/rules/style/gap/main.mjs
 docgen:
-  crc: 23cd7951
+  crc: 5d9d76e7
 ---
 
 ## Огляд

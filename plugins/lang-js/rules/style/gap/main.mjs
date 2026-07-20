@@ -13,8 +13,8 @@ const DEFINITION_RE = /\.n-gap-(xs|sm|md|lg)\b/gu
  * використаний у `.vue`, має бути визначений хоч в одному `.scss`/`.css`/`.vue`
  * (guide: `gap.mdc`). Крос-файлова перевірка usage↔definition — потребує whole-repo
  * сканування незалежно від `ctx.files`.
- * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону (cwd)
- * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат зі зібраними violations
+ * @param {import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону (cwd)
+ * @returns {Promise<import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintResult>} результат зі зібраними violations
  */
 export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)

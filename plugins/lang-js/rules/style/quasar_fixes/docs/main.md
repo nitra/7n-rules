@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: plugins/lang-js/rules/style/quasar_fixes/main.mjs
 docgen:
-  crc: 0f9c4631
+  crc: dec47808
 ---
 
 ## Огляд

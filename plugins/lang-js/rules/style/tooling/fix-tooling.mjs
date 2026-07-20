@@ -12,7 +12,7 @@ const STYLELINTIGNORE_MISSING_RE = /\.stylelintignore не існує/u
 const STYLELINTIGNORE_NO_DIST_RE = /\.stylelintignore не містить рядка dist\//u
 const NO_STYLELINT_CONFIG_RE = /Немає конфігу stylelint/u
 
-/** @type {import('../../../scripts/lib/lint-surface/types.mjs').T0Pattern[]} */
+/** @type {import('@7n/rules/scripts/lib/lint-surface/types.mjs').T0Pattern[]} */
 export const patterns = [
   {
     id: 'style-stylelintignore-create',

@@ -122,7 +122,7 @@ export function findRedisImportsInText(
 
 ### Внутрішні (репозиторій)
 
-Імпорт із `'../../../scripts/utils/ast-scan-utils.mjs'` — спільні утиліти AST-сканера для всіх правил у `npm/rules/*/lib/`:
+Імпорт із `'@7n/rules/scripts/utils/ast-scan-utils.mjs'` (ядро) — спільні утиліти AST-сканера, які використовують правила з декількох плагінів:
 
 - `dynamicImportModule(node)` — якщо вузол AST є динамічним `import('mod')`, повертає рядок `'mod'`, інакше `null`/`undefined`.
 - `langFromPath(path)` — обчислює `lang` для `oxc-parser` за розширенням шляху.
@@ -198,7 +198,7 @@ import x from 'my-redis-helpers' // довільний сторонній пак
 Контрольний перелік, за яким можна **відтворити** функціонал модуля «з нуля»:
 
 1. Створити файл `redis-imports.mjs`, що імпортує `parseSync` з `oxc-parser`.
-2. Імпортувати з `'../../../scripts/utils/ast-scan-utils.mjs'` шість утиліт: `dynamicImportModule`, `langFromPath`, `normalizeSnippet`, `offsetToLine`, `requireCallModule`, `walkAstWithAncestors`.
+2. Імпортувати з `'@7n/rules/scripts/utils/ast-scan-utils.mjs'` шість утиліт: `dynamicImportModule`, `langFromPath`, `normalizeSnippet`, `offsetToLine`, `requireCallModule`, `walkAstWithAncestors`.
 3. Оголосити константу `SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/u`.
 4. Оголосити константу `FORBIDDEN_MODULE_NAMES` як `Set` із елементами: `'ioredis'`, `'node-redis'`, `'redis'`, `'@redis/client'`, `'@redis/json'`, `'@redis/search'`, `'@redis/time-series'`, `'@redis/bloom'`.
 5. Реалізувати приватну функцію `isForbiddenRedisModule(mod)`: повертає `true`, якщо `FORBIDDEN_MODULE_NAMES.has(mod)` **або** `mod.startsWith('ioredis/')` **або** `mod.startsWith('redis/')` **або** `mod.startsWith('@redis/')`.

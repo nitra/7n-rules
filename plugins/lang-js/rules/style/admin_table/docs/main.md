@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: plugins/lang-js/rules/style/admin_table/main.mjs
 docgen:
-  crc: 267496d1
+  crc: fb8f81a5
 ---
 
 ## Огляд
