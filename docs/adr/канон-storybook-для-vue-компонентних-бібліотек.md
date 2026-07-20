@@ -117,7 +117,16 @@ Facilitator recommended link-рівневий alias-мок (а після виб
 
 **Вісь G — governance:** новий ADR-файл vs правка цього (обрано правку цього файла stacked-гілкою поверх PR канону — уникнення дублю файла у двох PR); тригер app-проєктів зараз vs відкладено (обрано зараз); page-stories у vitest `storybook`-project; Stryker-виняток для page-stories; канонічна секція "мок-реєстр за operationName" у майбутньому правилі.
 
+### Прототип-верифікація (2026-07-20, `gt`)
+
+Рецепт перевірено вживу на `gt` (`src/pages/task/[id].vue`): stories `Default` і `Realtime` рендеряться з мокованими даними без реального gateway — справжній `sseLink` логує `[gt-sse] connected` → `first-data` крізь MSW-мокнутий SSE-стрім, `Realtime` показує прихід другого кадру підписки через 1.5с без перезавантаження; наявні vitest-тести `gt` лишились зеленими (ізоляція `vitest.config.js` не зачеплена). Створені файли: `.storybook/main.js`, `.storybook/preview.js` (msw initialize + `pageLoader` router/pinia), `.storybook/mocks/gql-sse.js` (канонічний `sseSubscription`-хелпер — wire-протокол graphql-sse в одному місці), `.storybook/fixtures/task-detail.js`, `src/pages/task/task-detail.stories.js`, `package.json#scripts.storybook`; worker — `bunx msw init .storybook/public --no-save` + `staticDirs`.
+
+Підтверджені прототипом граблини (кандидати в канон-скафолд):
+- `@storybook/builder-vite` сам підхоплює `vite.config.js` app-проєкту — потрібен лише `viteFinal`-фільтр `vite-plugin-pages`/`vite-plugin-vue-layouts`; конфлікту з `VueMacros`-обгорткою vue-плагіна немає.
+- Quasar SFC-transform не працює в runtime-темплейтах decorator-ів — `QLayout`/`QPageContainer` реєструються явно (сам QLayout-wrapper обовʼязковий: `q-page` кидає без layout-предка).
+- `onUnhandledRequest: 'warn'` за замовчуванням топить консоль варнінгами на vite-модульні GET-и — канонічний фільтр: мовчки пропускати same-origin GET, варнити решту.
+- `setup((app, ctx))` `@storybook/vue3` отримує storyContext — це дає пер-сторійні router/pinia через `loaders` (`ctx.loaded`) без окремих addon-ів; `await router.isReady()` у loader-і прибирає перший рендер без `route.params`.
+
 Відкриті питання розширення:
-- Канонічна форма SSE-хендлера graphql-sse для MSW (хелпер у скафолді) — деталі реалізації, прототипом не перевірені: brainstorm-сесія свідомо без реалізації.
 - Чи ганяти page-stories у vitest `storybook`-проєкті в CI, і чи виключати їх зі Stryker-скоупу.
-- Схема мокання boot-запитів (session/auth/openreplay) у MSW — один спільний handlers-файл на app чи по-сторінково.
+- Схема мокання boot-запитів (session/auth/openreplay) у MSW — один спільний handlers-файл на app чи по-сторінково (у прототипі сторінка не тягне boot-запитів — питання відкладене до сторінки, що тягне).
