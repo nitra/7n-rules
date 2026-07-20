@@ -1,4 +1,5 @@
 /** @see ./docs/extractors.md */
+import { parseProgramAndCommentsOrNull } from '@7n/rules/scripts/utils/ast-scan-utils.mjs'
 import { extractUnitsJs } from './units-js.mjs'
 import { extractFactsVue, extractUnitsVue } from './vue.mjs'
 import {
@@ -23,6 +24,12 @@ import {
 
 /**
  * Головний екстрактор: код файлу → факт-лист.
+ * Коментарі беруться з реального AST-парсера (`parseProgramAndCommentsOrNull`),
+ * не regex по сирому тексту — усуває клас false positive, де "/**"-подібний
+ * текст усередині `//`-коментаря чи рядкового літералу (напр. glob-патерн)
+ * помилково читається як відкриття JSDoc. Парсинг не вдався (синтаксична
+ * помилка) → `comments: null`, `extractFileHeader`/`extractExports` падають
+ * назад на свій regex-шлях (той самий, що й до цієї зміни).
  * @param {string} src вміст файлу
  * @param {string} relPath шлях (для контексту/мови екстрактора)
  * @returns {{relPath:string, lang:string, header:string, exports:Array, imports:object, markers:object}} структура фактів про файл
@@ -33,11 +40,13 @@ export function extractFacts(src, relPath) {
   if (!['js', 'mjs', 'ts'].includes(lang)) {
     return { relPath, lang, unsupported: true, header: '', exports: [], imports: {}, markers: {} }
   }
+  const parsed = parseProgramAndCommentsOrNull(src, relPath)
+  const comments = parsed?.comments ?? null
   return {
     relPath,
     lang,
-    header: extractFileHeader(src),
-    exports: extractExports(src),
+    header: extractFileHeader(src, comments),
+    exports: extractExports(src, comments),
     imports: extractImports(src),
     internalSymbols: extractInternalSymbols(src),
     localSymbols: extractLocalSymbols(src),

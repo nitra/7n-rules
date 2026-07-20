@@ -3,7 +3,7 @@ type: JS Module
 title: extractors.mjs
 resource: plugins/lang-js/doc-files/extractors.mjs
 docgen:
-  crc: 43afa53a
+  crc: 06668f9d
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.98

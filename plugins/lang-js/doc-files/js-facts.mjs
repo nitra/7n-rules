@@ -221,11 +221,45 @@ export function parseJsDoc(raw) {
 }
 
 /**
+ * JSDoc-коментар (Block, `/** ... *​/`), що стоїть ВПРИТУЛ перед позицією (лише
+ * пробіли між ними) — з реального списку коментарів парсера (`comments` від
+ * `parseProgramAndCommentsOrNull`), не regex по сирому тексту. Усуває клас
+ * false positive, де "/**"-подібний текст трапляється всередині `//`-коментаря
+ * чи рядкового літералу (напр. glob `'src/**​/x.rs'` чи `// приклад: /** ... *​/`)
+ * — токенізатор там уже коректно визначив межі справжніх коментарів, а
+ * regex-сканер такого тексту не бачить окремо і жадібно «протікає» до
+ * наступного реального `*​/`, змішуючи проміжний код в опис.
+ * @param {Array<{type:string, value:string, start:number, end:number}>} comments список коментарів парсера (у порядку файлу)
+ * @param {string} src вміст файлу (для перевірки, що проміжок — лише пробіли)
+ * @param {number} pos позиція, перед якою шукаємо коментар
+ * @returns {string|null} дослівний `/** ... *​/`-текст або null, якщо немає
+ */
+export function jsDocCommentBefore(comments, src, pos) {
+  let best = null
+  for (const c of comments) {
+    if (c.type !== 'Block' || !c.value.startsWith('*') || c.end > pos) continue
+    if (!best || c.end > best.end) best = c
+  }
+  if (!best || src.slice(best.end, pos).trim() !== '') return null
+  return src.slice(best.start, best.end)
+}
+
+/**
  * Провідний блок-коментар файлу (намір), якщо він перед першим import/кодом.
+ * `comments` (з парсера) — точний шлях: перший коментар файлу має бути саме
+ * ним. Без `comments` (парсинг не вдався) — regex-фолбек на сирому тексті.
  * @param {string} src вміст файлу
+ * @param {Array<{type:string, value:string, start:number, end:number}>|null} [comments] список коментарів парсера або null
  * @returns {string} текст header-коментаря або порожній рядок
  */
-export function extractFileHeader(src) {
+export function extractFileHeader(src, comments = null) {
+  if (comments) {
+    const first = comments[0]
+    const isLeadingJsDoc = first?.type === 'Block' && first.value.startsWith('*')
+    if (isLeadingJsDoc && src.slice(0, first.start).trim() === '')
+      return parseJsDoc(src.slice(first.start, first.end)).desc
+    return ''
+  }
   const m = src.match(FILE_HEADER_RE)
   if (!m) return ''
   // має бути на самому початку (до import/код)
@@ -235,8 +269,11 @@ export function extractFileHeader(src) {
 
 /**
  * Блок-коментар, що стоїть ВПРИТУЛ перед позицією (лише пробіли між ними).
- * `(?:(?!\*​/)[\s\S])*` гарантує, що тіло не містить `*​/`, тож захоплюється рівно один
- * найближчий блок — без жадібного «перестрибування» через імпорти/код.
+ * Regex-фолбек для випадків без `comments` від парсера (див. `jsDocCommentBefore`
+ * — надійніший шлях, коли парсинг вдався). `(?:(?!\*​/)[\s\S])*` гарантує, що тіло
+ * не містить `*​/`, тож захоплюється рівно один найближчий блок — без жадібного
+ * «перестрибування» через імпорти/код (окрім залишкового класу false positive
+ * усередині `//`-коментарів, який і закриває `jsDocCommentBefore`).
  * @param {string} prefix вміст файлу до позиції експорту
  * @returns {string|null} JSDoc-блок або null якщо немає
  */
@@ -246,15 +283,18 @@ export function precedingJsDoc(prefix) {
 }
 
 /**
- * Експорти + JSDoc, що безпосередньо передує кожному.
+ * Експорти + JSDoc, що безпосередньо передує кожному. З `comments` (парсер) —
+ * точна AST-based атрибуція (`jsDocCommentBefore`); без них (парсинг не вдався)
+ * — regex-фолбек (`precedingJsDoc`).
  * @param {string} src вміст файлу
+ * @param {Array<{type:string, value:string, start:number, end:number}>|null} [comments] список коментарів парсера або null
  * @returns {Array<object>} список експортів із метаданими
  */
-export function extractExports(src) {
+export function extractExports(src, comments = null) {
   const out = []
   for (const m of src.matchAll(EXPORT_DECL_RE)) {
     const [, kind, name] = m
-    const jsdocRaw = precedingJsDoc(src.slice(0, m.index))
+    const jsdocRaw = comments ? jsDocCommentBefore(comments, src, m.index) : precedingJsDoc(src.slice(0, m.index))
     out.push({ name, kind, ...(jsdocRaw ? parseJsDoc(jsdocRaw) : { desc: '', params: [], ret: '' }) })
   }
   return out

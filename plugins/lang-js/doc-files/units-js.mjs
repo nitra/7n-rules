@@ -1,11 +1,14 @@
 /** @see ./docs/units-js.md */
 
-import { parseProgramOrNull, walkAstWithAncestors } from '@7n/rules/scripts/utils/ast-scan-utils.mjs'
+import { parseProgramAndCommentsOrNull, walkAstWithAncestors } from '@7n/rules/scripts/utils/ast-scan-utils.mjs'
+import { jsDocCommentBefore } from './js-facts.mjs'
 
-// JSDoc-блок, що стоїть впритул перед позицією (лише пробіли між ними). `(?!\/)`
-// одразу після відкриття — без нього glob-рядок `'src/**/linux.rs'` читається як
-// порожній `/**/`, і жадібний пошук найближчого `*/` протікає до наступного
-// реального закриття JSDoc, змішуючи проміжний код у витягнутий опис.
+// Regex-фолбек для випадків без `comments` від парсера (парсинг не вдався —
+// не мало б статися тут, бо `extractUnitsJs` і так вимагає успішний `program`,
+// але `parsed.comments` теоретично може бути порожнім масивом на дивному вході).
+// `(?!\/)` одразу після відкриття — без нього glob-рядок `'src/**/linux.rs'`
+// читається як порожній `/**/`, і жадібний пошук найближчого `*/` протікає до
+// наступного реального закриття JSDoc, змішуючи проміжний код у витягнутий опис.
 const JSDOC_BEFORE_RE = /\/\*\*(?!\/)(?:(?!\*\/)[\s\S])*\*\/\s*$/
 const JSDOC_OPEN_RE = /^\s*\/\*\*?/
 const JSDOC_CLOSE_RE = /\*\/\s*$/
@@ -28,12 +31,19 @@ function cleanDoc(raw) {
 }
 
 /**
- * JSDoc, що передує позиції `start` у джерелі (або порожній рядок).
+ * JSDoc, що передує позиції `start` у джерелі (або порожній рядок). З `comments`
+ * (реальний список від парсера) — точна AST-based атрибуція через
+ * `jsDocCommentBefore` (js-facts.mjs): усуває клас false positive, де
+ * "/**"-подібний текст усередині `//`-коментаря чи рядкового літералу (напр.
+ * glob-патерн) помилково читається regex-ом як відкриття JSDoc. Порожній
+ * `comments` (немає жодного коментаря в файлі) — фолбек на `JSDOC_BEFORE_RE`.
  * @param {string} src вміст файлу
  * @param {number} start зміщення початку декларації
+ * @param {Array<{type:string, value:string, start:number, end:number}>} comments список коментарів парсера
  * @returns {string} очищений опис
  */
-function precedingDoc(src, start) {
+function precedingDoc(src, start, comments) {
+  if (comments.length) return cleanDoc(jsDocCommentBefore(comments, src, start))
   const m = src.slice(0, start).match(JSDOC_BEFORE_RE)
   return cleanDoc(m ? m[0] : '')
 }
@@ -78,11 +88,12 @@ function collectCalls(node) {
  * @param {number} docStart зміщення для пошуку JSDoc (зовнішній export-вузол)
  * @param {string} src вміст файлу
  * @param {Array<object>} units акумулятор
+ * @param {Array<{type:string, value:string, start:number, end:number}>} comments список коментарів парсера
  * @returns {void}
  */
-function pushUnits(decl, exported, docStart, src, units) {
+function pushUnits(decl, exported, docStart, src, units, comments) {
   if (!decl || typeof decl !== 'object') return
-  const doc = precedingDoc(src, docStart)
+  const doc = precedingDoc(src, docStart, comments)
   if (decl.type === 'FunctionDeclaration' || decl.type === 'ClassDeclaration') {
     const name = decl.id?.name
     if (!name) return
@@ -123,17 +134,19 @@ function pushUnits(decl, exported, docStart, src, units) {
  * @returns {Array<{name:string, kind:string, exported:boolean, span:{start:number,end:number}, body:string, calls:string[], doc:string}>|null} юніти або null, якщо файл не парситься
  */
 export function extractUnitsJs(src, relPath = 'scan.ts') {
-  const program = parseProgramOrNull(src, relPath)
+  const parsed = parseProgramAndCommentsOrNull(src, relPath)
+  const program = parsed?.program
   if (!program || !Array.isArray(program.body)) return null
+  const comments = parsed.comments
 
   const units = []
   for (const node of program.body) {
     const isExport =
       (node.type === 'ExportNamedDeclaration' || node.type === 'ExportDefaultDeclaration') && node.declaration
     if (isExport) {
-      pushUnits(node.declaration, true, node.start, src, units)
+      pushUnits(node.declaration, true, node.start, src, units, comments)
     } else {
-      pushUnits(node, false, node.start, src, units)
+      pushUnits(node, false, node.start, src, units, comments)
     }
   }
 
