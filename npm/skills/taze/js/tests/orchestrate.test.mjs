@@ -518,7 +518,11 @@ describe('runTazeOrchestrator', () => {
         spawnFn: fakeSpawn,
         readMigrationCache: (pkg, from, to) => {
           readCalls.push({ pkg, from, to })
-          return { notes: 'useAgent видалено → useAcpAgent', sourceRepo: '/tmp/other-repo', updatedAt: '2026-07-19T00:00:00.000Z' }
+          return {
+            notes: 'useAgent видалено → useAcpAgent',
+            sourceRepo: '/tmp/other-repo',
+            updatedAt: '2026-07-19T00:00:00.000Z'
+          }
         },
         writeMigrationCache: (...args) => {
           writeCalls.push(args)
@@ -573,7 +577,9 @@ describe('runTazeOrchestrator', () => {
     })
 
     expect(runnerCalls[0].prompt).toBe('prompt:py:typer')
-    expect(writeCalls).toEqual([['typer', '0.19.1', '0.27.0', expect.objectContaining({ notes: 'зрефакторено use-agent.js' }), expect.any(Object)]])
+    expect(writeCalls).toEqual([
+      ['typer', '0.19.1', '0.27.0', expect.objectContaining({ notes: 'зрефакторено use-agent.js' }), expect.any(Object)]
+    ])
   })
 
   test('SIGTERM під час прогону — рятує прогрес автоствореного worktree перед виходом', async () => {

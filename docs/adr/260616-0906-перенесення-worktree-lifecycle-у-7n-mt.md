@@ -78,3 +78,11 @@ Step 1 вирівнювання `mt worktree` завершено: `add` пере
 - `worktree-notice.mjs` перемкнено на `mt worktree create`; ETARGET retry-обгортку `n_cursor_npx` прибрано; bootstrap тепер `bun install`.
 - Контракт доповнюють `.worktrees/.meta/<sanit>.md`, ефемерний `remove`, `firstFreeBranch` для колізій і dirty-notice до 10 файлів.
 - Згадані артефакти: спека `docs/specs/2026-06-16-worktree-lifecycle-to-mt.md`, `@7n/mt` 0.5.0/0.5.1, cursor commit `a3bd3f72`, mt commits `64997ed`, `f55a556`.
+
+## Update 2026-06-18
+
+- Зафіксовано додаткові факти перенесення worktree-lifecycle до `@7n/mt`: опубліковано `@7n/mt@0.5.0`/`0.5.1` та `@nitra/cursor@12.0.0`.
+- Реалізацію lifecycle залишено в JS, бо benchmark показав: Rust noop ~10 мс, `git worktree list` ~11 мс, повний `mt worktree list` через Node-wrapper ~63 мс, Rust-via-wrapper ~70+ мс через додатковий subprocess.
+- Семантика `mt worktree remove` лишається ефемерною: видаляється checkout і git-гілка.
+- Команди вирівняно до `mt worktree create <branch> "<опис>"`, `remove`, `list`, `prune`, `inventory`; `add` перейменовано на `create` без backward-compatible alias, бо transcript фіксує, що зворотна сумісність не потрібна.
+- Transcript також фіксує ризик coupling: `@nitra/cursor` тепер залежить від `@7n/mt`; окремо згадано потребу оновити/закомітити `bun.lock` після додавання залежності.

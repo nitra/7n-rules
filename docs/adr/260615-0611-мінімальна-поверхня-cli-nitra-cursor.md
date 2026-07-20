@@ -48,3 +48,10 @@ Chosen option: "Видалити `lint-ci` і `doc-files <sub>`", because оби
 - Конкретизовано видалення двох надлишкових CLI aliases: `lint-ci` як чистого alias `lint --read-only --full` і deprecated `doc-files <sub>` (`scan|check|gen|stamp`) після переходу hook/skills на `lint-doc-files` та `fix-doc-files`.
 - `LEGACY_DOC_FILES_HOOK_COMMAND_MARKER` у `sync-claude-config.mjs` залишено не як CLI entrypoint, а як marker для cleanup старих інсталяцій.
 - Breaking change зафіксовано changeset `npm/.changes/260615-0638.md` (`bump: major`, `section: Removed`).
+
+## Update 2026-06-19
+
+- Окрему підкоманду `fix <rule>` поглинуто в `lint` через позиційні аргументи-фільтри.
+- Коментар у `npm/bin/n-cursor.js` фіксує контракт: позиційні non-flag аргументи для `lint` є фільтром правил конформності, наприклад `lint changelog`, і маплять колишній `fix <rule>`.
+- Міграція викликів: `fix changelog` → `npx @nitra/cursor lint changelog`; fix по всьому репо → `npx @nitra/cursor lint --full`.
+- Наслідок: CLI має одну основну підкоманду `lint` для delta/full/CI/read-only і точкової конформності.

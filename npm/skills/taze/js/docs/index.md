@@ -4,9 +4,7 @@ title: npm/skills/taze/js
 resource: npm/skills/taze/js/
 ---
 
-| Файл                                  | Тип       |
-| ------------------------------------- | --------- |
-| [cargo-diff.mjs](cargo-diff.md)       | JS Module |
-| [diff.mjs](diff.md)                   | JS Module |
-| [orchestrate.mjs](orchestrate.md)     | JS Module |
-| [rust-provider.mjs](rust-provider.md) | JS Module |
+| Файл                                      | Тип       |
+| ----------------------------------------- | --------- |
+| [migration-cache.mjs](migration-cache.md) | JS Module |
+| [orchestrate.mjs](orchestrate.md)         | JS Module |
