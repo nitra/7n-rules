@@ -3,9 +3,8 @@ type: JS Module
 title: units-js.mjs
 resource: plugins/lang-js/doc-files/units-js.mjs
 docgen:
-  crc: 9a13a64e
+  crc: d6ca02fb
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 100
   issues: judge:inaccurate:0.94
   judgeModel: openai-codex/gpt-5.4-mini

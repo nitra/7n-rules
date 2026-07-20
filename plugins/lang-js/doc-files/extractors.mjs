@@ -1,6 +1,8 @@
 /** @see ./docs/extractors.md */
+import { parseProgramAndCommentsOrNull } from '@7n/rules/scripts/utils/ast-scan-utils.mjs'
 import { extractUnitsJs } from './units-js.mjs'
 import { extractFactsVue, extractUnitsVue } from './vue.mjs'
+import { jsDocCommentBefore } from './js-facts.mjs'
 
 /**
  * Мовний doc-files-екстрактор JS-екосистеми для конвеєра `@7n/rules`
@@ -36,8 +38,14 @@ const JSDOC_CLOSE_RE = /\*\/\s*$/
 const STAR_PREFIX_RE = /^\s*\*?\s?/
 const PARAM_LINE_RE = /^@param[ \t]{1,8}(?:\{[^}]{0,200}\}[ \t]{1,8})?\[?([\w.]{1,80})\]?[ \t]{0,8}(.{0,400})$/
 const RETURNS_LINE_RE = /^@returns?[ \t]{1,8}(?:\{[^}]{0,200}\}[ \t]{1,8})?(.{0,400})$/
-const FILE_HEADER_RE = /^\s*\/\*\*([\s\S]*?)\*\//
-const PRECEDING_JSDOC_RE = /\/\*\*(?:(?!\*\/)[\s\S])*\*\/\s*$/
+// `(?!\/)` одразу після відкриття — без нього glob-рядок на кшталт `'src/**/linux.rs'`
+// (символи `/`,`*`,`*`,`/`) читається як порожній коментар-відкриття `/**/`, і жадібний
+// пошук найближчого `*/` «протікає» аж до наступного РЕАЛЬНОГО закриття JSDoc, змішуючи
+// код між ними у `desc`. Справжній JSDoc ніколи не має `/` одразу після `/**`. Regex-фолбек
+// для випадків без `comments` від парсера (див. `jsDocCommentBefore` — надійніший шлях,
+// коли парсинг вдався, бо AST уже коректно розрізняє справжні коментарі й `//`-текст).
+const FILE_HEADER_RE = /^\s*\/\*\*(?!\/)([\s\S]*?)\*\//
+const PRECEDING_JSDOC_RE = /\/\*\*(?!\/)(?:(?!\*\/)[\s\S])*\*\/\s*$/
 const EXPORT_DECL_RE = /export\s+(?:async\s+)?(function|const|class)\s+(\w+)/g
 // Top-level function/class декларації (колонка 0) — для R6: службові функції,
 // які не експортуються, не мають протікати у Поведінку/API як «публічні».
@@ -102,6 +110,63 @@ function cleanJsDoc(raw) {
     .trim()
 }
 
+// Заголовок `\@param`/`\@returns` із незакритим на тому ж рядку типом (`\@param {{`
+// на початку багаторядкового object-type). `.*` без `s`-прапора — навмисно: `l`
+// уже без `\n` (рядки з `text.split('\n')`), тож `.` природно зупиняється на межі рядка.
+const TAG_HEAD_RE = /^@(param|returns?)\b[ \t]*(\{.*)?$/
+
+/**
+ * @param {string} s текст
+ * @param {string} ch односимвольний рядок для підрахунку
+ * @returns {number} кількість входжень `ch` у `s`
+ */
+function countOccurrences(s, ch) {
+  return s.split(ch).length - 1
+}
+
+/**
+ * Просуває стан пропуску багаторядкового object-type (`\@param {{ ... }}`) на один
+ * рядок: рахує баланс дужок, і коли він сходиться в 0 — домальовує рядок як
+ * звичайний `\@param name опис`/`\@returns опис` (текст після останньої `}`).
+ * @param {{tag:'param'|'returns', depth:number}} braceSkip стан пропуску (мутується)
+ * @param {string} l поточний рядок
+ * @returns {{line:string|null}} `line:null` — рядок ще всередині типу (пропустити); інакше — реконструйований рядок
+ */
+function advanceBraceSkip(braceSkip, l) {
+  braceSkip.depth += countOccurrences(l, '{') - countOccurrences(l, '}')
+  if (braceSkip.depth > 0) return { line: null }
+  return { line: `@${braceSkip.tag} ${l.slice(l.lastIndexOf('}') + 1).trim()}` }
+}
+
+/**
+ * Виявляє старт багаторядкового `\@param {{`/`\@returns {{` (тип не закрився на
+ * цьому ж рядку — більше `{`, ніж `}`).
+ * @param {string} l поточний рядок
+ * @returns {{tag:'param'|'returns', depth:number}|null} стан пропуску або null, якщо не старт
+ */
+function detectMultilineTagStart(l) {
+  const tagHead = l.match(TAG_HEAD_RE)
+  if (!tagHead?.[2]) return null
+  const opens = countOccurrences(tagHead[2], '{')
+  const closes = countOccurrences(tagHead[2], '}')
+  if (opens <= closes) return null
+  return { tag: tagHead[1].startsWith('return') ? 'returns' : 'param', depth: opens - closes }
+}
+
+/**
+ * Дописує continuation-рядок (обгорнутий хвіст) до відповідного \@param/\@returns.
+ * @param {'returns'|{kind:'param', idx:number}} continuation активний тег
+ * @param {Array<{name:string, desc:string}>} params накопичені параметри (мутуються)
+ * @param {string} ret поточний текст `@returns`
+ * @param {string} tail новий текст для дописування
+ * @returns {string} оновлений `ret` (для `returns`; для `param` — вхідний `ret` без змін)
+ */
+function appendContinuation(continuation, params, ret, tail) {
+  if (continuation === 'returns') return `${ret} ${tail}`.trim()
+  params[continuation.idx].desc = `${params[continuation.idx].desc} ${tail}`.trim()
+  return ret
+}
+
 /**
  * Опис (без @-тегів) + параметри з `@param` як «name — опис».
  * @param {string} raw сирий JSDoc-блок
@@ -113,20 +178,52 @@ function parseJsDoc(raw) {
   const descLines = []
   const params = []
   let ret = ''
-  for (const l of lines) {
+  // Рядок без `@` на початку — це або (до першого тегу) частина `desc`, або (після
+  // @param/@returns) обгорнутий на новий рядок «хвіст» ЦЬОГО тегу. Без відстеження
+  // continuation такий хвіст мовчки падав у `descLines`, змішуючи текст @returns/
+  // @param у загальний опис (напр. довге `@returns` на 2 рядки).
+  let continuation = null // null | 'desc' | 'returns' | { kind: 'param', idx: number }
+  // Багаторядковий `@param {{ ... }}`/`@returns {{ ... }}` (складний object-type,
+  // не закритий на тому ж рядку): тіло типу пропускаємо (не тягнемо в desc/params/ret),
+  // рахуючи баланс дужок по рядках через `advanceBraceSkip`.
+  let braceSkip = null // null | { tag: 'param'|'returns', depth: number }
+  for (const rawLine of lines) {
+    let l = rawLine
+    if (braceSkip) {
+      const advanced = advanceBraceSkip(braceSkip, l)
+      if (advanced.line === null) continue
+      l = advanced.line
+      braceSkip = null
+    }
     const pm = l.match(PARAM_LINE_RE)
     if (pm) {
       const desc = pm[2].trim()
       // «опис.» — JSDoc-заглушка без сенсу; не тягнемо її як факт
       params.push({ name: pm[1], desc: desc === 'опис.' ? '' : desc })
+      continuation = { kind: 'param', idx: params.length - 1 }
       continue
     }
     const rm = l.match(RETURNS_LINE_RE)
     if (rm) {
       ret = rm[1].trim()
+      continuation = 'returns'
       continue
     }
-    if (l.startsWith('@')) continue
+    const multilineStart = detectMultilineTagStart(l)
+    if (multilineStart) {
+      braceSkip = multilineStart
+      continuation = null
+      continue
+    }
+    if (l.startsWith('@')) {
+      continuation = null // невідомий/непідтримуваний тег — не продовжуємо в нього
+      continue
+    }
+    if (continuation && continuation !== 'desc' && l.trim()) {
+      ret = appendContinuation(continuation, params, ret, l.trim())
+      continue
+    }
+    continuation = 'desc'
     descLines.push(l)
   }
   return { desc: descLines.join('\n').trim(), params, ret }
@@ -134,10 +231,22 @@ function parseJsDoc(raw) {
 
 /**
  * Провідний блок-коментар файлу (намір), якщо він перед першим import/кодом.
+ * `comments` (з парсера, `parseProgramAndCommentsOrNull`) — точний шлях: перший
+ * коментар файлу має бути саме ним. Без `comments` (парсинг не вдався, або
+ * виклик над фрагментом без AST — напр. Vue script-блок через `VUE_HELPERS`)
+ * — regex-фолбек на сирому тексті.
  * @param {string} src вміст файлу
+ * @param {Array<{type:string, value:string, start:number, end:number}>|null} [comments] список коментарів парсера або null
  * @returns {string} текст header-коментаря або порожній рядок
  */
-function extractFileHeader(src) {
+function extractFileHeader(src, comments = null) {
+  if (comments) {
+    const first = comments[0]
+    const isLeadingJsDoc = first?.type === 'Block' && first.value.startsWith('*')
+    if (isLeadingJsDoc && src.slice(0, first.start).trim() === '')
+      return parseJsDoc(src.slice(first.start, first.end)).desc
+    return ''
+  }
   const m = src.match(FILE_HEADER_RE)
   if (!m) return ''
   // має бути на самому початку (до import/код)
@@ -147,8 +256,11 @@ function extractFileHeader(src) {
 
 /**
  * Блок-коментар, що стоїть ВПРИТУЛ перед позицією (лише пробіли між ними).
- * `(?:(?!\*​/)[\s\S])*` гарантує, що тіло не містить `*​/`, тож захоплюється рівно один
- * найближчий блок — без жадібного «перестрибування» через імпорти/код.
+ * Regex-фолбек для випадків без `comments` від парсера (див. `jsDocCommentBefore`
+ * — надійніший AST-based шлях, коли парсинг вдався). `(?:(?!\*​/)[\s\S])*` гарантує,
+ * що тіло не містить `*​/`, тож захоплюється рівно один найближчий блок — без
+ * жадібного «перестрибування» через імпорти/код (окрім залишкового класу false
+ * positive усередині `//`-коментарів, який і закриває `jsDocCommentBefore`).
  * @param {string} prefix вміст файлу до позиції експорту
  * @returns {string|null} JSDoc-блок або null якщо немає
  */
@@ -158,15 +270,18 @@ function precedingJsDoc(prefix) {
 }
 
 /**
- * Експорти + JSDoc, що безпосередньо передує кожному.
+ * Експорти + JSDoc, що безпосередньо передує кожному. З `comments` (парсер) —
+ * точна AST-based атрибуція (`jsDocCommentBefore`); без них (парсинг не вдався,
+ * або виклик над фрагментом без AST) — regex-фолбек (`precedingJsDoc`).
  * @param {string} src вміст файлу
+ * @param {Array<{type:string, value:string, start:number, end:number}>|null} [comments] список коментарів парсера або null
  * @returns {Array<object>} список експортів із метаданими
  */
-function extractExports(src) {
+function extractExports(src, comments = null) {
   const out = []
   for (const m of src.matchAll(EXPORT_DECL_RE)) {
     const [, kind, name] = m
-    const jsdocRaw = precedingJsDoc(src.slice(0, m.index))
+    const jsdocRaw = comments ? jsDocCommentBefore(comments, src, m.index) : precedingJsDoc(src.slice(0, m.index))
     out.push({ name, kind, ...(jsdocRaw ? parseJsDoc(jsdocRaw) : { desc: '', params: [], ret: '' }) })
   }
   return out
@@ -263,6 +378,12 @@ const VUE_HELPERS = {
 
 /**
  * Головний екстрактор: код файлу → факт-лист.
+ * Коментарі беруться з реального AST-парсера (`parseProgramAndCommentsOrNull`),
+ * не regex по сирому тексту — усуває клас false positive, де "/**"-подібний
+ * текст усередині `//`-коментаря чи рядкового літералу (напр. glob-патерн)
+ * помилково читається як відкриття JSDoc. Парсинг не вдався (синтаксична
+ * помилка) → `comments: null`, `extractFileHeader`/`extractExports` падають
+ * назад на свій regex-шлях (той самий, що й до цієї зміни).
  * @param {string} src вміст файлу
  * @param {string} relPath шлях (для контексту/мови екстрактора)
  * @returns {{relPath:string, lang:string, header:string, exports:Array, imports:object, markers:object}} структура фактів про файл
@@ -273,11 +394,13 @@ export function extractFacts(src, relPath) {
   if (!['js', 'mjs', 'ts'].includes(lang)) {
     return { relPath, lang, unsupported: true, header: '', exports: [], imports: {}, markers: {} }
   }
+  const parsed = parseProgramAndCommentsOrNull(src, relPath)
+  const comments = parsed?.comments ?? null
   return {
     relPath,
     lang,
-    header: extractFileHeader(src),
-    exports: extractExports(src),
+    header: extractFileHeader(src, comments),
+    exports: extractExports(src, comments),
     imports: extractImports(src),
     internalSymbols: extractInternalSymbols(src),
     localSymbols: extractLocalSymbols(src),

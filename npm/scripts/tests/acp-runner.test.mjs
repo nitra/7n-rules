@@ -13,6 +13,7 @@ import {
 } from '../lib/acp-runner.mjs'
 
 const CLAUDE_ACP_BIN_RE = /claude-agent-acp.*dist.index\.js$/
+const RUN_ACP_EXIT_BEFORE_TURN_RE = /завершився з кодом 1 до завершення ходу/
 
 /** Заглушка `logError`/`out` для тестів, де вивід не перевіряється. */
 function noop() {
@@ -205,7 +206,7 @@ describe('runAcpRunner', () => {
         out: noop,
         resolveAdapterBin: () => '/fake/dist/index.js'
       })
-    ).rejects.toThrow(/завершився з кодом 1 до завершення ходу/)
+    ).rejects.toThrow(RUN_ACP_EXIT_BEFORE_TURN_RE)
     expect(Date.now() - start).toBeLessThan(5000)
   })
 })
