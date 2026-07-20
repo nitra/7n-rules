@@ -42,3 +42,10 @@ Chosen option: "Видалити `lint-ci` і `doc-files <sub>`", because transc
 Окремо підтверджено, що `lint-ci` був чистим alias для `runLint({ full: true, readOnly: true })`. Видалення охоплює `case 'lint-ci'` у `npm/bin/n-cursor.js`, згадку в шапці CLI та рядок у `default`-помилці.
 
 Для doc-files зафіксовано контракт ролей: `lint-doc-files` / lint-крок виконують detect/fail-fast, а `fix-doc-files` відповідає за генерацію через локальну LLM. Deprecated `doc-files <sub>` підтверджено мертвим за caller-ами й винесено в план видалення як breaking change.
+
+## Update 2026-06-19
+
+- Колишній сценарій `fix <rule>` замаплено на позиційні фільтри `lint <rule>`.
+- `npm/bin/n-cursor.js` у `case 'lint'` трактує позиційні non-flag аргументи як фільтр правил конформності, наприклад `lint changelog`.
+- Міграція викликів: `fix changelog` → `npx @nitra/cursor lint changelog`; fix по дельті → `npx @nitra/cursor lint`; fix по всьому repo → `npx @nitra/cursor lint --full`.
+- Transcript фіксує прийнятий breaking change: окрема підкоманда `fix` більше не є потрібною CLI-поверхнею.
