@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.9.0] - 2026-07-20
+
+### Added
+
+- service_deploy_workflow: bootstrap-режим міграції (`migrateWorkflowFile(..., { bootstrap: true })`) — для deploy-workflow без жодної lint-джоби (валідний as-is за rego) створює lint-джоби доменів з нуля і підключає вхідну джобу до plan + усіх lint-джоб; опційний опт-ін, не частина звичайного lint --fix
+
 ## [1.8.0] - 2026-07-20
 
 ### Added
