@@ -178,7 +178,7 @@ export function pluginCategory(pkg) {
 /** Усі категорії, які реально може повернути `detectPluginsFromRepo` — для short-circuit коли declared вже покриває все. */
 const ALL_KNOWN_CATEGORIES = new Set(
   [...Object.values(KNOWN_CI_PLUGINS), ...Object.values(KNOWN_LANG_PLUGINS).map(l => l.pkg)]
-    .map(pluginCategory)
+    .map(pkg => pluginCategory(pkg))
     .filter(c => c !== null)
 )
 
@@ -230,7 +230,7 @@ function computePluginList(root, declared, options) {
   const names = declared.filter(p => typeof p === 'string' && p.trim() !== '')
   if (names.length === 0) return names
 
-  const declaredCategories = new Set(names.map(pluginCategory))
+  const declaredCategories = new Set(names.map(pkg => pluginCategory(pkg)))
   // Хоч один сторонній пакет у списку — не вгадуємо намір, повертаємо як є.
   if (declaredCategories.has(null)) return names
   // Усі відомі категорії вже покриті явним списком — не марнуємо файлові сигнали.
