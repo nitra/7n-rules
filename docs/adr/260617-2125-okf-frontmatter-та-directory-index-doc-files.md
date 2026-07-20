@@ -88,3 +88,23 @@ node npm/rules/doc-files/js/docgen-files-batch.mjs stamp
 Уточнено проміжне рішення: мінімальний OKF frontmatter для doc-files складався з `type`, `title`, `description`, а `timestamp`, `resource` і `tags` були відкинуті як надлишкові або такі, що створюють зайвий git-шум. Пізніша чернетка цього ж батчу уточнила, що `resource` все ж лишається top-level OKF-полем замість `docgen.source`.
 
 Додаткові факти: `generateDirIndex` викликається після `runGenerationBatch` і `runDocFilesStampCli`, а директорії з наявним `index.md` для source-файлу `index.ts` або `index.mjs` пропускаються, щоб не перезаписати source-file документацію.
+
+## Update 2026-06-17
+
+- Після фінального `stamp` зворотну сумісність зі старим `docgen.source` прибрано: `RESOURCE_RE` читає лише top-level `resource:` без fallback на `source:`.
+- Команда перевірки: `node npm/rules/doc-files/js/docgen-files-batch.mjs stamp`; transcript фіксує оновлення frontmatter у 240 документах.
+- Directory Index генерується через `generateDirIndex(docsAbsDir, root)` і пропускає директорії, де `index.md` вже є документацією source-файлу (`type` не дорівнює `Directory Index`).
+
+## Update 2026-06-18
+
+- Фінальний формат файлових doc-files: OKF-поля на верхньому рівні (`type`, `title`, `description`, `resource`) і `docgen:` лише для CRC-механіки (`crc`, `score`, `model`).
+- `docgen.source` замінено на top-level `resource`; тимчасову підтримку legacy `docgen.source` через `LEGACY_SOURCE_RE` видалено.
+- H1 у тілі документа прибирається під час `stampDoc`, бо `title:` уже присутній у frontmatter.
+- Додано `typeForSource(source)` і `extractDescription(body)` у `npm/rules/doc-files/js/docgen-crc.mjs`; `generateDirIndex(docsAbsDir, root)` у `npm/rules/doc-files/js/docgen-files-batch.mjs` будує Directory Index.
+
+## Update 2026-06-18
+
+- Під час уточнення OKF-frontmatter були відкинуті `tags` і `timestamp`, бо вони не додають цінності та створюють git-шум.
+- `resource` залишено як top-level OKF-поле замість `docgen.source`; паралельне зберігання двох шляхів визнано надлишковим.
+- Для `generateDirIndex` додано захист від перезапису `docs/index.md`, які є документацією для `index.ts`/`index.mjs`: якщо існуючий `index.md` має `type` не `Directory Index`, генерація директорійного індексу пропускається.
+- H1 у тілі doc-file видаляється, бо `title:` уже заданий у frontmatter.

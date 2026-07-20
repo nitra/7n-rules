@@ -33,3 +33,10 @@ Chosen option: "Скрипт-аналітик (`analyze-escalation.mjs`)", becau
 ## More Information
 
 Реалізація: `npm/scripts/lib/fix/analyze-escalation.mjs`; хук — `npm/rules/lint/js/orchestrate.mjs` (`runLint`, гілка `--full`); CLI — `npm/bin/n-cursor.js` (`analyze-escalation`). Залежить від `escalation-log.mjs` (джерело даних) і `lib/models.mjs` (`CLOUD_AVG`). Звіт: `.n-cursor/fix-escalation-analysis.md`.
+
+## Update 2026-06-19
+
+- Для конформність-фази зафіксовано бажаний спостережуваний cascade LLM-ескалації: `N_LOCAL_MIN_MODEL` → повторний `N_LOCAL_MIN_MODEL` з diagnosis → `N_CLOUD_MIN_MODEL` через pi → `N_CLOUD_AVG_MODEL`.
+- Мета логування: post-factum аналізувати, чому local-min не впорався, чи допоміг повтор із diagnosis, і для яких класів порушень потрібен cloud tier.
+- Поточна реалізація на момент transcript простіша: `npm/scripts/lib/fix/orchestrator.mjs` використовує `ESCALATE_AFTER=2`, а `npm/scripts/lib/fix/llm-worker.mjs` бере `MODEL=resolveModel('min')` і `MODEL_HEAVY=resolveModel('avg')`.
+- Transcript не підтверджує завершену реалізацію нового cascade; це зафіксовано як рішення/напрям для observation-шару.

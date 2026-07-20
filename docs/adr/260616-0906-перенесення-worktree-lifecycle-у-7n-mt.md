@@ -57,24 +57,31 @@ Step 1 вирівнювання `mt worktree` завершено: `add` пере
 
 ## Update 2026-06-18
 
-- Worktree lifecycle переноситься з `@nitra/cursor` до `@7n/mt`; cursor-скіли мають викликати `mt worktree` напряму без проміжного шиму.
-- Підтверджено runtime-залежність `@nitra/cursor` від `@7n/mt`, без циклу залежностей: cursor → `@7n/mt`, а mono-репо має cursor лише як devDep.
-- Для lifecycle у `@7n/mt` обрано JS-реалізацію, а не Rust: за наявного Node-wrapper Rust subprocess дає ~70+ мс, тоді як JS `mt worktree list` дає ~63 мс; git-операції I/O-bound.
-- `mt worktree remove` має ефемерну семантику: видаляє checkout разом із git-гілкою.
-- Також зафіксовано супутній safety-рішення: `meta.json: llmFix true` має реально проводитися через orchestrator, щоб LLM-fix був явним opt-in, а не автоматичним для всіх non-readOnly правил.
+- Cursor-скіли мають викликати `mt worktree` напряму без проміжного shim у `@nitra/cursor`.
+- Для реалізації lifecycle у `@7n/mt` обрано JS-шар, а не Rust-крейт `mt-scanner`: transcript фіксує benchmark, де `mt worktree list` через JS приблизно 63 мс, а Rust через Node-wrapper очікувано 70+ мс через додатковий subprocess.
+- Семантика `mt worktree remove` лишається ефемерною: checkout і git-гілка видаляються разом.
+- Додатково transcript зафіксував окреме уточнення для LLM-fix: `meta.json: llmFix true` має бути реальним opt-in, а не неявною поведінкою для всіх правил у non-read-only режимі.
 
 ## Update 2026-06-18
 
-- Міграція деталізована як consolidation: `@7n/mt` стає єдиною точкою правди для `mt worktree create|remove|list|prune|inventory`, а `@nitra/cursor` прибирає власні `scripts/worktree-cli.mjs`, `scripts/lib/worktree.mjs`, tests, skill і `case 'worktree'` з `bin/n-cursor.js`.
-- Sequencing: спершу публікується `@7n/mt@0.5.0`, потім cursor переходить на залежність `"@7n/mt": "^0.5.0"`.
-- Негативний наслідок: `@nitra/cursor` як загальний тул отримує транзитивну залежність від `@7n/mt` і його optional platform binaries.
-- JS лишається місцем реалізації lifecycle, бо Node-wrapper присутній в обох варіантах, а Rust subprocess не дає виграшу без повної native-міграції CLI.
-- Ефемерна семантика `remove` підтверджена користувачем: checkout і гілка видаляються разом; інвентар `.worktrees/.meta/<sanit>.md` видаляється разом із checkout.
+- Міграція прибирає з cursor `scripts/worktree-cli.mjs`, `scripts/lib/worktree.mjs`, `skills/worktree/`, `case 'worktree'` у `bin/n-cursor.js` і переносить canonical lifecycle у `@7n/mt`.
+- `@nitra/cursor` отримує runtime-залежність від `@7n/mt`; transcript фіксує ризик для consumers через optional platform binaries `@7n/mt-darwin-arm64` і `@7n/mt-linux-x64`.
+- Контракт `mt worktree` включає `create|remove|list|prune|inventory`; sequencing: спершу публікація `@7n/mt@0.5.0`, потім cursor-міграція.
+- Для Rust vs JS рішення зафіксовано benchmark: Rust startup приблизно 10 мс, `git worktree list` приблизно 11 мс, повний JS-wrapper шлях приблизно 63 мс; Rust через wrapper не дає виграшу.
 
 ## Update 2026-06-18
 
-- Фінальний контракт міграції: `@7n/mt` публікує `mt worktree create|remove|list|prune|inventory`; команда `create` використовується замість старого `add`, без зворотної сумісності.
-- Cursor видаляє worktree implementation details: `npm/scripts/worktree-cli.mjs`, `npm/scripts/lib/worktree.mjs`, tests, `npm/skills/worktree/`, `case 'worktree'` у `bin/n-cursor.js`, `'worktree'` з `npm/types/n-cursor.d.ts`.
-- `worktree-notice.mjs` перемкнено на `mt worktree create`; ETARGET retry-обгортку `n_cursor_npx` прибрано; bootstrap тепер `bun install`.
-- Контракт доповнюють `.worktrees/.meta/<sanit>.md`, ефемерний `remove`, `firstFreeBranch` для колізій і dirty-notice до 10 файлів.
-- Згадані артефакти: спека `docs/specs/2026-06-16-worktree-lifecycle-to-mt.md`, `@7n/mt` 0.5.0/0.5.1, cursor commit `a3bd3f72`, mt commits `64997ed`, `f55a556`.
+- Під час розвідки виявлено, що `@7n/mt` уже мав JS-команду `npm/lib/commands/worktree.mjs`; тому рішення змінилось із портування в Rust на вирівнювання наявної JS-команди під контракт.
+- `create` є канонічною командою замість `add`; зворотну сумісність transcript не фіксує як потрібну.
+- Інвентар worktree зберігається в `.worktrees/.meta/<sanit>.md`; `remove` має ефемерну семантику й видаляє гілку.
+- Додаткові факти transcript: `@7n/mt` pub 0.5.0 з `mt worktree create|remove|list|prune|inventory`, lint-чистий 0.5.1; cursor-коміт `a3bd3f72`, mt-коміти `64997ed`, `f55a556`.
+
+## Update 2026-06-18
+
+- Фінальний контракт `mt worktree`: `create|remove|list|prune|inventory`.
+- Реалізацію lifecycle залишено в JS (`npm/lib/commands/worktree.mjs`), а не перенесено в Rust, бо benchmark із transcript показав: Rust noop ~10 ms, `git worktree list` ~11 ms, повний `mt worktree list` через Node-wrapper ~63 ms, а Rust-via-wrapper оцінено як ~70+ ms через додатковий subprocess.
+- `remove` зафіксовано як ефемерну операцію: видаляє checkout, git-гілку та інвентарний `.worktrees/.meta/<sanit>.md`.
+- `@nitra/cursor` видалив власні `npm/scripts/worktree-cli.mjs`, `npm/scripts/lib/worktree.mjs`, `npm/skills/worktree/` і делегує створення worktree через `npx @7n/mt worktree create`.
+- `@nitra/cursor` отримав runtime dependency `@7n/mt: ^0.5.0`; transcript фіксує прийнятий coupling до `@7n/mt` без runtime-циклу.
+- Опубліковано `@7n/mt@0.5.0` / `0.5.1` і `@nitra/cursor@12.0.0`; npx-fix вийшов як `12.0.1`.
+- Дизайн-спека: `docs/specs/2026-06-16-worktree-lifecycle-to-mt.md`.

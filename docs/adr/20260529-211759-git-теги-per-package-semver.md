@@ -34,3 +34,11 @@ Fallback commit-range: `git log <name>@<prev>..HEAD -- <ws-path> --oneline`.
 Файл: `npm/scripts/release.mjs` (новий).
 Spec: `docs/superpowers/specs/2026-05-29-changesets-migration.md`.
 План: `docs/superpowers/plans/2026-05-29-changesets-migration.md`.
+
+## Update 2026-06-18
+
+- `n-cursor release` перейшов із lightweight tags (`git tag <name>`) на annotated tags (`git tag -a <name> -m <name>`), бо наявний `git push --follow-tags` відправляє на remote лише annotated tags.
+- Для пересування тегу після rebase використовується `git tag -f -a <name> -m <name>`, щоб перезаписаний тег також залишався annotated і підхоплювався `--follow-tags`.
+- Змінені місця: `npm/rules/release/release.mjs` для створення та force-оновлення тегів; `npm/rules/release/js/tests/release.test.mjs` для assertions на `tag -a ... -m ...` і `tag -f -a ... -m ...`.
+- Верифікація: `cd npm && npx vitest run rules/release/js/tests/release.test.mjs` → 14/14 passed.
+- Change-file: `npm/.changes/260618-1624.md` з patch bump у section `Fixed`.
