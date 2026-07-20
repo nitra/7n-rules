@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.1] - 2026-07-20
+
+### Fixed
+
+- cargo_mutants_config: T0-fix pattern id (test-cargo-mutants-config-create → rust-cargo-mutants-config-create) і JSDoc/доки узгоджені з поточним власником (правило rust, не test) — хвіст після переїзду концерну з ядра
+
 ## [0.6.0] - 2026-07-19
 
 ### Added
