@@ -1,5 +1,6 @@
 /** @see ./docs/extractors.md */
 import { extractUnitsJs } from './units-js.mjs'
+import { extractFactsVue, extractUnitsVue } from './vue.mjs'
 
 /**
  * Мовний doc-files-екстрактор JS-екосистеми для конвеєра `@7n/rules`
@@ -249,6 +250,17 @@ function extractMarkers(src) {
     skips: [...skips]
   }
 }
+/** JS-хелпери, які Vue-екстрактор переюзає над текстом script-блоку SFC. */
+const VUE_HELPERS = {
+  extractFileHeader,
+  extractExports,
+  extractImports,
+  extractInternalSymbols,
+  extractLocalSymbols,
+  extractMarkers,
+  parseJsDoc
+}
+
 /**
  * Головний екстрактор: код файлу → факт-лист.
  * @param {string} src вміст файлу
@@ -257,6 +269,7 @@ function extractMarkers(src) {
  */
 export function extractFacts(src, relPath) {
   const lang = relPath.split('.').pop()
+  if (lang === 'vue') return extractFactsVue(src, relPath, VUE_HELPERS)
   if (!['js', 'mjs', 'ts'].includes(lang)) {
     return { relPath, lang, unsupported: true, header: '', exports: [], imports: {}, markers: {} }
   }
@@ -273,16 +286,28 @@ export function extractFacts(src, relPath) {
 }
 
 /**
+ * Юніти: `.vue` — зі script-блоку SFC (span-и в координатах файлу), решта — oxc AST.
+ * @param {string} src вміст файлу
+ * @param {string} relPath шлях (вибір мови)
+ * @returns {Array<object>|null} юніти або null
+ */
+function extractUnits(src, relPath) {
+  if (relPath.toLowerCase().endsWith('.vue')) return extractUnitsVue(src, relPath, extractUnitsJs)
+  return extractUnitsJs(src, relPath)
+}
+
+/**
  * Default-експорт для handler-модуля extension-point `doc-files`.
- * `.vue` у списку розширень (файл — кандидат на доку), але `extractFacts` для нього
- * повертає `unsupported` — генерація йде whole-file шляхом, як і до винесення.
- * @type {{ id: string, extensions: string[], extractFacts: typeof extractFacts, extractUnits: typeof extractUnitsJs }}
+ * `.vue` (SFC зі `<script setup>`) парситься через optional peer `vue/compiler-sfc`
+ * (ADR 260719-2155): props/emits/expose/слоти → факт-лист; без peer чи script-блоку —
+ * fallback `unsupported` (whole-file шлях, як до впровадження).
+ * @type {{ id: string, extensions: string[], extractFacts: typeof extractFacts, extractUnits: typeof extractUnits }}
  */
 const jsDocFilesExtractor = {
   id: 'js',
   extensions: ['.js', '.mjs', '.ts', '.vue'],
   extractFacts,
-  extractUnits: extractUnitsJs
+  extractUnits
 }
 
 export default jsDocFilesExtractor
