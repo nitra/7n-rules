@@ -28,7 +28,8 @@ const REQUIRED_FQCN = [
   'com.dremio.sabot.exec.QueryTicket',
   'com.dremio.service.reflection.descriptor.MaterializationCache',
   'com.dremio.exec.planner.plancache.PlanCacheSynchronizer',
-  'com.dremio.exec.planner.plancache.CacheRefresher'
+  'com.dremio.exec.planner.plancache.CacheRefresher',
+  'com.dremio.sabot.exec.FragmentExecutors'
 ]
 
 const hasConftest = Boolean(resolveCmd('conftest'))

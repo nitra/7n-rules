@@ -35,6 +35,10 @@ required_loggers := {
 	"com.dremio.service.reflection.descriptor.MaterializationCache",
 	"com.dremio.exec.planner.plancache.PlanCacheSynchronizer",
 	"com.dremio.exec.planner.plancache.CacheRefresher",
+	# NB: FragmentExecutors (множина, пакет exec, БЕЗ fragment) — окремий клас від
+	# fragment.FragmentExecutor вище, легко переплутати за назвою. Логує
+	# "Received remote fragment start instruction..." на кожен фрагмент.
+	"com.dremio.sabot.exec.FragmentExecutors",
 }
 
 # Рівні logback, що задовольняють вимогу «warn або строгіше».

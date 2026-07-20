@@ -34,14 +34,14 @@ test_allow_all_required_warn if {
 	count(dremio_logging.deny) == 0 with input as with_loggers(all_warn)
 }
 
-# Порожній <configuration> без loggerів → deny на кожен із шести FQCN.
+# Порожній <configuration> без loggerів → deny на кожен із семи FQCN.
 test_deny_empty_configuration_lists_all if {
-	count(dremio_logging.deny) == 6 with input as {"configuration": {}}
+	count(dremio_logging.deny) == 7 with input as {"configuration": {}}
 }
 
-# Файл без <configuration>-кореня (зіпсований logback.xml) → теж усі шість.
+# Файл без <configuration>-кореня (зіпсований logback.xml) → теж усі сім.
 test_deny_no_configuration_root if {
-	count(dremio_logging.deny) == 6 with input as {}
+	count(dremio_logging.deny) == 7 with input as {}
 }
 
 # Бракує одного FQCN → рівно одне порушення, і воно називає цей FQCN.
@@ -54,10 +54,10 @@ test_deny_one_missing_names_fqcn if {
 }
 
 # Один <logger> у файлі → XML-парсер віддає об'єкт, не масив: нормалізація
-# приймає його (deny лише про п'ять відсутніх, не про цей).
+# приймає його (deny лише про шість відсутніх, не про цей).
 test_single_logger_object_form if {
 	denies := dremio_logging.deny with input as with_loggers(warn_logger(executor_fqcn))
-	count(denies) == 5
+	count(denies) == 6
 	every msg in denies { not contains(msg, executor_fqcn) }
 }
 
