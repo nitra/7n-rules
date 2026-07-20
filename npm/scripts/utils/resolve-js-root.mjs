@@ -4,15 +4,18 @@
  * Спільна утиліта для coverage-провайдера js і test-концерну stryker_config (DRY).
  */
 import { existsSync } from 'node:fs'
-import { glob, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-const WORKSPACE_GLOB_IGNORE = ['**/node_modules/**', '**/.git/**']
+// Bun.Glob (не node:fs/promises#glob) навмисно: спостережено self-hosted Linux Bun 1.3.14, де
+// node:fs/promises не надає export 'glob' (платформна прогалина Node-compat шиму), тоді як
+// Bun.Glob — нативний Bun API, стабільно доступний скрізь, де є bun.
+const WORKSPACE_GLOB_IGNORE = ['**/node_modules/**', '**/.git/**'].map(p => new Bun.Glob(p))
 const PACKAGE_JSON_SUFFIX_RE = /[/\\]package\.json$/
 
 /**
  * Розгортає один workspace-патерн у список абсолютних шляхів каталогів з package.json.
- * Літеральні патерни перевіряються через existsSync; glob-патерни — через node:fs/promises#glob.
+ * Літеральні патерни перевіряються через existsSync; glob-патерни — через Bun.Glob.
  * @param {string} cwd корінь проєкту
  * @param {string} pattern workspace-патерн з package.json (наприклад, `app` або `cf/*`)
  * @returns {Promise<string[]>} абсолютні шляхи до workspace-каталогів
@@ -23,7 +26,8 @@ async function expandWorkspacePattern(cwd, pattern) {
     return existsSync(join(wsPath, 'package.json')) ? [wsPath] : []
   }
   const results = []
-  for await (const rel of glob(`${pattern}/package.json`, { cwd, exclude: WORKSPACE_GLOB_IGNORE })) {
+  for await (const rel of new Bun.Glob(`${pattern}/package.json`).scan({ cwd })) {
+    if (WORKSPACE_GLOB_IGNORE.some(ignoreGlob => ignoreGlob.match(rel))) continue
     const wsRel = rel.replace(PACKAGE_JSON_SUFFIX_RE, '')
     results.push(join(cwd, wsRel))
   }

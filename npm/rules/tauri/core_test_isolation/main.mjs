@@ -7,7 +7,7 @@
  * ризикований (виділення крейту, перенесення коду) — лише репорт (core_test_isolation.mdc).
  */
 import { existsSync } from 'node:fs'
-import { glob, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
 
 import { parse as parseToml } from 'smol-toml'
@@ -65,7 +65,9 @@ async function resolveWorkspaceMemberDirs(srcTauriDir, members) {
   const found = new Set()
   for (const pattern of members) {
     if (pattern.includes('*')) {
-      for await (const rel of glob(pattern, { cwd: srcTauriDir })) {
+      // Bun.Glob (не node:fs/promises#glob) навмисно: спостережено self-hosted Linux Bun 1.3.14,
+      // де node:fs/promises не надає export 'glob' (платформна прогалина Node-compat шиму).
+      for await (const rel of new Bun.Glob(pattern).scan({ cwd: srcTauriDir })) {
         const abs = resolve(srcTauriDir, rel)
         if (existsSync(join(abs, 'Cargo.toml'))) found.add(abs)
       }
@@ -84,7 +86,7 @@ async function resolveWorkspaceMemberDirs(srcTauriDir, members) {
  * @returns {Promise<boolean>} true, якщо знайдено відповідний маркер
  */
 async function hasFakeLlmProviderMarker(crateDir) {
-  for await (const relPath of glob('**/*.rs', { cwd: crateDir })) {
+  for await (const relPath of new Bun.Glob('**/*.rs').scan({ cwd: crateDir })) {
     if (relPath.includes('target/')) continue
     const content = await readFile(join(crateDir, relPath), 'utf8')
     if (FAKE_PROVIDER_RE.test(content)) return true

@@ -3,7 +3,7 @@
  * або `pyproject.toml` (Python / PEP 621, Poetry).
  */
 import { existsSync } from 'node:fs'
-import { glob, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 
 import { parse as parseToml } from 'smol-toml'
@@ -26,7 +26,8 @@ import { getMonorepoPackageRootDirs, isIgnoredWorkspaceRoot } from '../../../scr
  * @property {'major' | 'minor' | 'patch' | null} maxBump стеля для `n-rules release` (з `package.json#release.maxBump`); `null` — без обмеження
  */
 
-const PYPROJECT_GLOB_IGNORE = ['**/node_modules/**', '**/.git/**', '**/.venv/**', '**/venv/**']
+const PYPROJECT_GLOB = new Bun.Glob('**/pyproject.toml')
+const PYPROJECT_GLOB_IGNORE = ['**/node_modules/**', '**/.git/**', '**/.venv/**', '**/venv/**'].map(p => new Bun.Glob(p))
 const VALID_MAX_BUMPS = new Set(['major', 'minor', 'patch'])
 
 /**
@@ -146,7 +147,12 @@ export async function getMonorepoProjectRootDirs(repoRoot = '.') {
     roots.add('.')
   }
 
-  for await (const relPy of glob('**/pyproject.toml', { cwd: repoRoot, ignore: PYPROJECT_GLOB_IGNORE })) {
+  // Bun.Glob (не node:fs/promises#glob) навмисно: спостережено self-hosted Linux Bun 1.3.14,
+  // де node:fs/promises не надає export 'glob' (платформна прогалина Node-compat шиму), тоді як
+  // Bun.Glob — нативний Bun API, стабільно доступний скрізь, де є bun. .scan() не має опції
+  // ignore — фільтруємо вручну через .match() на кожен ignore-патерн.
+  for await (const relPy of PYPROJECT_GLOB.scan({ cwd: repoRoot })) {
+    if (PYPROJECT_GLOB_IGNORE.some(ignoreGlob => ignoreGlob.match(relPy))) continue
     const absDir = dirname(join(repoRoot, relPy))
     const relRoot = relative(repoRoot, absDir)
     const ws = relRoot === '' ? '.' : relRoot

@@ -5,7 +5,7 @@
  * з `workspaces`, з урахуванням glob).
  */
 import { existsSync } from 'node:fs'
-import { glob, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 
 const TRAILING_SLASH_RE = /\/$/
@@ -13,6 +13,11 @@ const LEADING_DOTSLASH_RE = /^\.\//
 
 /** Glob-ігнор для workspace-патернів із `*` (узгоджено з `rules/changelog/js/consistency/package-manifest.mjs`). */
 export const WORKSPACE_GLOB_IGNORE = Object.freeze(['**/node_modules/**', '**/.git/**', '**/.venv/**', '**/venv/**'])
+
+// Bun.Glob (не node:fs/promises#glob) навмисно: спостережено self-hosted Linux Bun 1.3.14, де
+// node:fs/promises не надає export 'glob' (платформна прогалина Node-compat шиму), тоді як
+// Bun.Glob — нативний Bun API, стабільно доступний скрізь, де є bun.
+const WORKSPACE_IGNORE_GLOBS = WORKSPACE_GLOB_IGNORE.map(p => new Bun.Glob(p))
 
 /**
  * Чи слід виключити каталог зі списку workspace-коренів (не стосується `.`).
@@ -49,10 +54,8 @@ function normalizeWorkspacePattern(pattern) {
 async function addWorkspaceRootsByPattern(roots, repoRoot, workspacePattern) {
   if (workspacePattern.includes('*')) {
     const globPat = `${workspacePattern}/package.json`
-    for await (const relPkgJsonPath of glob(globPat, {
-      cwd: repoRoot,
-      ignore: [...WORKSPACE_GLOB_IGNORE]
-    })) {
+    for await (const relPkgJsonPath of new Bun.Glob(globPat).scan({ cwd: repoRoot })) {
+      if (WORKSPACE_IGNORE_GLOBS.some(ignoreGlob => ignoreGlob.match(relPkgJsonPath))) continue
       const absPkgJsonPath = join(repoRoot, relPkgJsonPath)
       const relRoot = relative(repoRoot, dirname(absPkgJsonPath))
       const ws = relRoot === '' ? '.' : relRoot
