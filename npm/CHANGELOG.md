@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.34.0] - 2026-07-20
+
+### Added
+
+- doc-files: Vue SFC-екстрактор (`<script setup>`) — extractFactsVue/extractUnitsVue через optional peer vue/compiler-sfc; props/emits/expose/слоти як публічний контракт, юніти зі span-корекцією (ADR 260719-2155)
+
+### Changed
+
+- release: @7n/llm-lib@2.8.3, @7n/rules@1.29.2
+
 ## [1.33.0] - 2026-07-20
 
 ### Added
