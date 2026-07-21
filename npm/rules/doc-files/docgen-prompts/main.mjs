@@ -1,5 +1,7 @@
 /** @see ./docs/docgen-prompts.md */
 
+import { env } from 'node:process'
+
 import { anchorsToPrompt } from '../docgen-extract-anchors/main.mjs'
 
 export const STYLE = [
@@ -268,4 +270,37 @@ export function oneShotMessages(facts, src) {
     STYLE,
     `Напиши документацію для файлу. Секції: ## Огляд (1-3 речення), ## Поведінка (нумерований/маркований алгоритм), ${multi ? '## Публічний API (назва + що робить), ' : ''}## Гарантії поведінки.\n\nФАЙЛ ${facts.relPath}:\n\`\`\`\n${src}\n\`\`\``
   )
+}
+
+/** Поріг (у токенах, ~4 байти/токен), після якого сирий src замінюється юніт-дайджестом. */
+export const UNIT_DIGEST_TOKENS = Number(env.N_CURSOR_DOCGEN_DIGEST_TOKENS ?? 2000) || 2000
+
+/** Скільки перших рядків тіла юніта потрапляє в дайджест, коли JSDoc порожній. */
+const DIGEST_BODY_LINES = 12
+
+/**
+ * №5 (бенч gemma-4): стислий юніт-дайджест великого файлу замість сирого src у
+ * Behavior-промпті. На ~6k токенів сирцю мала модель втрачає фокус (водянисті
+ * формулювання); дайджест подає структуру — імʼя, JSDoc, call-graph, тіло лише
+ * для непокритих JSDoc юнітів (перші рядки) — і тримає промпт компактним.
+ * @param {Array<{name:string, kind:string, exported:boolean, doc:string, calls:string[], body:string}>} units юніти файлу (extractUnits)
+ * @returns {string} текстовий дайджест для вставки замість повного src
+ */
+export function buildUnitDigest(units) {
+  const parts = [
+    'СТИСЛИЙ ДАЙДЖЕСТ ФАЙЛУ (повний код не подано — файл завеликий; описуй ЛИШЕ те, що видно з дайджесту):'
+  ]
+  for (const u of units) {
+    const head = `### ${u.name} (${u.exported ? 'export ' : ''}${u.kind})`
+    const lines = [head]
+    if (u.doc) lines.push(`JSDoc: ${u.doc}`)
+    if (u.calls?.length) lines.push(`викликає: ${u.calls.join(', ')}`)
+    if (!u.doc && u.body) {
+      const bodyLines = u.body.split('\n')
+      const trimmed = bodyLines.slice(0, DIGEST_BODY_LINES).join('\n')
+      lines.push('```', trimmed + (bodyLines.length > DIGEST_BODY_LINES ? '\n…' : ''), '```')
+    }
+    parts.push(lines.join('\n'))
+  }
+  return parts.join('\n\n')
 }

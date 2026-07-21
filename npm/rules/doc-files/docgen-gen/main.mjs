@@ -20,7 +20,9 @@ import {
   guaranteesFromMarkers,
   isApiGap,
   renderApiLine,
-  apiGapMessages
+  apiGapMessages,
+  buildUnitDigest,
+  UNIT_DIGEST_TOKENS
 } from '../docgen-prompts/main.mjs'
 
 /** Облік LLM-викликів і часу в них у межах однієї генерації (скидається на старті generateDoc). */
@@ -497,6 +499,22 @@ async function orchestratedDoc(
   return { md: insertProtected(assemble(basename(facts.relPath), sections), intent) }
 }
 
+/**
+ * №5 (бенч gemma-4): текст «коду файлу» для Behavior-промпта. Великий src
+ * (понад UNIT_DIGEST_TOKENS) → юніт-дайджест (імʼя + JSDoc + call-graph + тіло
+ * лише для непокритих юнітів) замість сирого коду: на ~6k токенів сирцю мала
+ * модель втрачає фокус і пише водянисто. Анкори/CRC — завжди від повного src
+ * (дайджест лише для промпта). units нема (парсинг упав чи мова без юніт-шару)
+ * — повний src, як раніше.
+ * @param {{ facts: object, estTokens: number, langExtractors: Map<string, object>, ext: string, src: string, file: string }} ctx контекст генерації
+ * @returns {string} повний src або юніт-дайджест
+ */
+function resolvePromptSrc({ facts, estTokens, langExtractors, ext, src, file }) {
+  if (facts.unsupported || estTokens <= UNIT_DIGEST_TOKENS) return src
+  const units = langExtractors.get(ext)?.extractUnits?.(src, file)
+  return units?.length ? buildUnitDigest(units) : src
+}
+
 /** Максимальний час генерації одного LLM-виклику. */
 const LOCAL_TIMEOUT_MS = 5 * 60 * 1000
 
@@ -617,9 +635,10 @@ export async function generateDoc(
     // Варіант B: захищена секція «Призначення» з наявної доки — зберегти й подати як контекст
     const intent = existingMd ? splitProtected(existingMd).body : null
     const anchors = facts.unsupported ? null : extractAnchors(src)
+    const promptSrc = resolvePromptSrc({ facts, estTokens, langExtractors, ext, src, file })
     let r = facts.unsupported
       ? await oneShotDoc(facts, src, model, LOCAL_TIMEOUT_MS, { intent })
-      : await orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, intent })
+      : await orchestratedDoc(facts, promptSrc, model, LOCAL_TIMEOUT_MS, { anchors, intent })
 
     // unsupported (vue/py до юніт-шару): скорер не застосовний — score=null, не degraded
     // (окрім refusal-пре-гейта — див. finishUnsupported).
@@ -634,7 +653,11 @@ export async function generateDoc(
     // E4: best-of-2 — один retry з вищою температурою, det-вибір кращого
     if (score < threshold && env.N_CURSOR_DOCGEN_BEST_OF !== '0') {
       try {
-        const r2 = await orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, temperature: 0.5, intent })
+        const r2 = await orchestratedDoc(facts, promptSrc, model, LOCAL_TIMEOUT_MS, {
+          anchors,
+          temperature: 0.5,
+          intent
+        })
         const s2 = scoreDoc(r2.md, facts, { anchors, src })
         if (s2.score > score) {
           r = r2
