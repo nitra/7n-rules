@@ -19,4 +19,4 @@ JS-перевірка (`npm/rules/python/tooling/main.mjs`) запускаєть
 - `npm/rules/python/ruff/main.mjs` (+ `fix-ruff.mjs`) — `ruff check` + `ruff format --check` (детект), `ruff check --fix` + `ruff format` (autofix); per-file;
 - `npm/rules/python/mypy/main.mjs` — `mypy` (лише детект, немає autofix); per-file.
 
-Якщо `pyproject.toml` у корені відсутній — усі концерни виходять без порушень (проєкт не Python). Якщо `pyproject.toml` є, але `uv` не знайдено в PATH — це помилка. `ruff`/`mypy`-кроки запускаються лише якщо інструмент доступний у середовищі (інакше крок пропускається з повідомленням).
+Якщо `pyproject.toml` у корені відсутній — `tooling`/`project` виходять без порушень (перевіряють лише кореневий файл), але `workspace_root` ловить цей випадок як порушення (`missing-root-workspace`), якщо десь у дереві є вкладений `pyproject.toml` з `[project]` — інакше такі nested-пакети були б невидимі для всього плагіна. Якщо `pyproject.toml` є, але `uv` не знайдено в PATH — це помилка. `ruff`/`mypy`-кроки запускаються лише якщо інструмент доступний у середовищі (інакше крок пропускається з повідомленням).
