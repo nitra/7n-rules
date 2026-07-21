@@ -20,6 +20,7 @@ resource: npm/scripts/utils/
 | [resolve-js-root.mjs](resolve-js-root.md)                   | JS Module |
 | [spawn-async.mjs](spawn-async.md)                           | JS Module |
 | [test-helpers.mjs](test-helpers.md)                         | JS Module |
+| [uv-workspace.mjs](uv-workspace.md)                         | JS Module |
 | [walk-cache.mjs](walk-cache.md)                             | JS Module |
 | [walkDir.mjs](walkDir.md)                                   | JS Module |
 | [with-lock.mjs](with-lock.md)                               | JS Module |
