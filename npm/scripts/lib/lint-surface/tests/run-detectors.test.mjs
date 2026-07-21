@@ -248,6 +248,58 @@ describe('buildDetectPlan — сервіс-канон (scoped+files, pathMode, r
   })
 })
 
+describe('warnAboutRulesWithoutConcerns — дрейф .n-rules.json#rules vs rulesDirs', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  test('rule-id без каталогу взагалі (переїхав у непідключений плагін) → console.error warning', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = join(dir, 'rules')
+      await seedDetector(rulesDir, 'probe', 'check', { scope: 'full', glob: ['**/*'] }, CLEAN)
+      // "js" у rules[], але жодного каталогу rules/js ні тут — типова картина після
+      // переїзду concern-ів у плагін, якого консюмер не підключив (той самий клас багу,
+      // що вимкнув js-домен у ai після бампу @7n/rules).
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['probe', 'js'] })
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {
+        return
+      })
+      await buildDetectPlan({ rulesDir, cwd: dir, full: true })
+      expect(spy.mock.calls.some(([msg]) => msg.includes('"js"') && msg.includes('rulesDirs'))).toBe(true)
+    })
+  })
+
+  test('rule-id з каталогом, але без concern.json (документаційне правило) → без warning', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = join(dir, 'rules')
+      await seedDetector(rulesDir, 'probe', 'check', { scope: 'full', glob: ['**/*'] }, CLEAN)
+      // каталог є (лише main.mdc, без concern.json) — легітимний документаційний rule-id
+      // (напр. feedback/local-ai), не повинен виглядати як дрейф конфігу.
+      await mkdir(join(rulesDir, 'docs-only'), { recursive: true })
+      await writeFile(join(rulesDir, 'docs-only', 'main.mdc'), '# guidance only\n', 'utf8')
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['probe', 'docs-only'] })
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {
+        return
+      })
+      await buildDetectPlan({ rulesDir, cwd: dir, full: true })
+      expect(spy).not.toHaveBeenCalled()
+    })
+  })
+
+  test('усі rules[] мають concerns → без warning', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = join(dir, 'rules')
+      await seedDetector(rulesDir, 'probe', 'check', { scope: 'full', glob: ['**/*'] }, CLEAN)
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['probe'] })
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {
+        return
+      })
+      await buildDetectPlan({ rulesDir, cwd: dir, full: true })
+      expect(spy).not.toHaveBeenCalled()
+    })
+  })
+})
+
 describe('computeActiveDomains', () => {
   const byRule = {
     js: [
