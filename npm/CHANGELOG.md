@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.38.0] - 2026-07-21
+
+### Fixed
+
+- tauri/gitignore_target, tauri/core_test_isolation: інваріант workspace-кореня замість хибної typo-версії
+
 ## [1.37.0] - 2026-07-21
 
 ### Added

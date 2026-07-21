@@ -1,0 +1,41 @@
+## Один кореневий Cargo workspace на репозиторій
+
+Дзеркалить JS-канон монорепо (кореневий `package.json` + `workspaces` + єдиний lockfile,
+`npm/rules/dev-dep`, `npm/rules/n-npm-module`) на бік Rust: у репозиторії, де є хоча б один
+Rust-пакет (`Cargo.toml` з `[package]`), має бути **рівно один** кореневий Cargo workspace.
+
+### Інваріант
+
+- Кореневий `Cargo.toml` — обов'язковий і має бути workspace root: або має `[workspace]`
+  (virtual — без `[package]`, або разом з `[package]`), або він — **єдиний** `[package]`-маніфест
+  у репозиторії (тоді Cargo неявно робить пакет власним workspace root).
+- Кожен інший знайдений package-маніфест повинен бути покритий `[workspace].members`
+  кореневого `Cargo.toml` (glob `*` підтримується мінімально: `["a", "b/*"]`) — або явно
+  виключений через `workspace.exclude`.
+- Вкладений `[workspace]` у не-кореневому `Cargo.toml` — завжди порушення (nested workspace).
+- `[profile.*]` у не-кореневому `Cargo.toml` — завжди порушення: Cargo мовчки ігнорує чи
+  видає попередження на profile-секції поза кореневим workspace-маніфестом.
+
+### Чому це важливо
+
+`tauri/gitignore_target` і `tauri/core_test_isolation` (npm/rules/tauri/) залежать від
+цього інваріанту: перший обчислює очікуваний `target/`-запис у `.gitignore` від фактичного
+workspace root крейту, другий — резолвить sibling-crate по `[workspace].members`. Без єдиного
+кореневого workspace обидва концерни не мають однозначної точки відліку.
+
+### Обхід
+
+T0-детектор (без spawn `cargo`) — читає лише FS + TOML (`smol-toml`). Обходить дерево
+репозиторію, пропускаючи `target/`, `node_modules/`, `.git/`, `.next/`, `.turbo/`, `.venv/`,
+`venv/`, `.claude/`, `vendor/`.
+
+### Не автофіксується (fixability: structural)
+
+Перенесення `[workspace]`/`[profile.*]`, видалення дублікатних `Cargo.lock` — структурні
+зміни, що потребують людського розсуду. Ручний рецепт:
+
+1. Створи/підтверди кореневий `[workspace]` з `resolver = "2"` і `members`, що покривають усі
+   package-маніфести (або `exclude` для навмисних винятків).
+2. Перенеси всі `[profile.*]`-блоки з не-кореневих `Cargo.toml` у кореневий.
+3. Видали вкладені `[workspace]`-маніфести та їхні `Cargo.lock` — у репозиторії має лишитись
+   один кореневий workspace і один кореневий `Cargo.lock`.

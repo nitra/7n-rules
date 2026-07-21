@@ -9,6 +9,7 @@ resource: npm/scripts/utils/
 | [apply-to-files.mjs](apply-to-files.md)                     | JS Module |
 | [ast-extract.mjs](ast-extract.md)                           | JS Module |
 | [ast-scan-utils.mjs](ast-scan-utils.md)                     | JS Module |
+| [cargo-workspace.mjs](cargo-workspace.md)                   | JS Module |
 | [ensure-gitignore-entries.mjs](ensure-gitignore-entries.md) | JS Module |
 | [find-package-json-paths.mjs](find-package-json-paths.md)   | JS Module |
 | [glob-compat.mjs](glob-compat.md)                           | JS Module |

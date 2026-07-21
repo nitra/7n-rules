@@ -7,6 +7,8 @@
  *     (не false negative на реальному інциденті);
  *   - монорепо з кількома `src-tauri/` і лише частиною записів у `.gitignore` → у missing лише відсутні;
  *   - `.gitignore` відсутній повністю → violation з повним переліком;
+ *   - очікуваний запис обчислюється від фактичного Cargo workspace root крейту (product-root і
+ *     repo-root ancestor workspace-кейси), а не завжди від фіксованого суфікса `src-tauri/target/`;
  *   - T0-фікс вставляє новий блок, ідемпотентно;
  *   - T0-фікс дописує запис у вже наявну секцію поруч з іншими entries, зберігаючи оточення.
  */
@@ -16,7 +18,7 @@ import { join } from 'node:path'
 
 import { describe, expect, test, vi } from 'vitest'
 
-import { MISSING_GITIGNORE_TARGET_ENTRIES, findMissingEntries, lint } from '../main.mjs'
+import { MISSING_GITIGNORE_TARGET_ENTRIES, expectedTargetEntry, findMissingEntries, lint } from '../main.mjs'
 import { GITIGNORE_TARGET_HEADER, insertMissingTargetEntries, patterns } from '../fix-gitignore_target.mjs'
 
 /** @returns {string} абсолютний шлях тимчасового кореня монорепо */
@@ -151,6 +153,73 @@ describe('tauri/gitignore_target detector', () => {
       const { violations } = await lint({ cwd: root, ruleId: 'tauri', concernId: 'gitignore_target' })
       const v = violations.find(x => x.reason === MISSING_GITIGNORE_TARGET_ENTRIES)
       expect(v?.data?.missing).toEqual(['owner/src-tauri/target/'])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('expectedTargetEntry: фактичний Cargo workspace root крейту', () => {
+  test('standalone: src-tauri сам собі workspace root → src-tauri/target/', async () => {
+    const root = makeRoot()
+    try {
+      const srcTauriDir = join(root, 'owner', 'src-tauri')
+      mkdirSync(srcTauriDir, { recursive: true })
+      writeFileSync(join(srcTauriDir, 'Cargo.toml'), '[package]\nname="t"\n')
+      const entry = await expectedTargetEntry(root, srcTauriDir)
+      expect(entry).toBe('owner/src-tauri/target/')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('product-root: owner/Cargo.toml — workspace root для owner/src-tauri → owner/target/', async () => {
+    const root = makeRoot()
+    try {
+      const ownerDir = join(root, 'owner')
+      const srcTauriDir = join(ownerDir, 'src-tauri')
+      mkdirSync(srcTauriDir, { recursive: true })
+      writeFileSync(join(ownerDir, 'Cargo.toml'), '[workspace]\nmembers = ["src-tauri"]\n')
+      writeFileSync(join(srcTauriDir, 'Cargo.toml'), '[package]\nname="t"\n')
+      // Мертвий/сторонній `owner/src-tauri/target/` на диску не має задовольняти перевірку —
+      // очікуваний запис і так рахується від workspace root (`owner/`), а не від диска.
+      mkdirSync(join(srcTauriDir, 'target'), { recursive: true })
+      const entry = await expectedTargetEntry(root, srcTauriDir)
+      expect(entry).toBe('owner/target/')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('product-root: .gitignore з owner/src-tauri/target/ все одно violation missing owner/target/', async () => {
+    const root = makeRoot()
+    try {
+      const ownerDir = join(root, 'owner')
+      const srcTauriDir = join(ownerDir, 'src-tauri')
+      mkdirSync(srcTauriDir, { recursive: true })
+      writeFileSync(join(ownerDir, 'Cargo.toml'), '[workspace]\nmembers = ["src-tauri"]\n')
+      writeFileSync(join(srcTauriDir, 'Cargo.toml'), '[package]\nname="t"\n')
+      mkdirSync(join(srcTauriDir, 'target'), { recursive: true })
+      writeFileSync(join(ownerDir, 'package.json'), JSON.stringify({ name: 'owner' }))
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'root', workspaces: ['owner'] }))
+      writeGitignore(root, 'node_modules/\nowner/src-tauri/target/\n')
+      const { violations } = await lint({ cwd: root, ruleId: 'tauri', concernId: 'gitignore_target' })
+      const v = violations.find(x => x.reason === MISSING_GITIGNORE_TARGET_ENTRIES)
+      expect(v?.data?.missing).toEqual(['owner/target/'])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('repo-root: кореневий Cargo.toml — workspace root для owner/src-tauri → голий target/', async () => {
+    const root = makeRoot()
+    try {
+      const srcTauriDir = join(root, 'owner', 'src-tauri')
+      mkdirSync(srcTauriDir, { recursive: true })
+      writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = ["owner/src-tauri"]\n')
+      writeFileSync(join(srcTauriDir, 'Cargo.toml'), '[package]\nname="t"\n')
+      const entry = await expectedTargetEntry(root, srcTauriDir)
+      expect(entry).toBe('target/')
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

@@ -1,23 +1,42 @@
-## `.gitignore`: ignore build-артефактів `<ws>/src-tauri/target/`
+## `.gitignore`: ignore build-артефактів фактичного Cargo workspace root
 
-Кожен `<ws>/src-tauri/` (Rust-крейт Tauri) компілюється в `<ws>/src-tauri/target/` — build-артефакти Cargo (сотні MB, десятки тисяч файлів). Корінний `.gitignore` монорепо повинен містити точний ignore-запис для кожного такого воркспейсу:
+Кожен `<ws>/src-tauri/` (Rust-крейт Tauri) компілюється в `target/` свого фактичного
+Cargo workspace root — а не завжди в `<ws>/src-tauri/target/`. Якщо над `src-tauri/` є
+предок-workspace (канон `rust/workspace_root.mdc` — один кореневий Cargo workspace на
+репозиторій, наприклад `<ws>/Cargo.toml` чи кореневий `Cargo.toml` монорепо), Cargo кладе
+`target/` саме туди. Корінний `.gitignore` монорепо повинен містити точний ignore-запис
+для кожного такого крейту, обчислений від цього фактичного workspace root:
 
 ```gitignore
 # Tauri — Rust build artifacts (tauri.mdc)
-<ws>/src-tauri/target/
+<workspace-root>/target/
 ```
+
+де `<workspace-root>` — найближчий предок `src-tauri/` з `[workspace]`, чиї `members`
+покривають цей крейт (якщо це корінь монорепо — запис голий `target/`); якщо предка-workspace
+немає — крейт сам собі workspace root, і запис лишається `<ws>/src-tauri/target/`.
 
 ### Чому точний шлях, а не голий `target/`
 
-Реальний інцидент: у `nitra/task` корінний `.gitignore` мав `owner/target/` замість `owner/src-tauri/target/` — воркспейс скопійований з іншого проєкту без заміни шляху (typo). `target/` там ігнорувався не там, де компілятор його реально створює, тож ~600MB / ~28k файлів build-артефактів не потрапляли під жоден ignore-патерн і мало не потрапили в коміт через `git add -A`.
+Реальний прецедент: у `nitra/task` коміт `3cb0df3` помилково "виправив" коректний запис
+`owner/target/` назад на `owner/src-tauri/target/` — автор вважав це друкарською помилкою,
+не врахувавши, що `owner/Cargo.toml` є Cargo workspace root для `owner/src-tauri` і тому
+`target/` справді компілюється в `owner/target/`, а не в `owner/src-tauri/target/`. Коміт
+`ac3451e` це скасував. Тобто `<ws>/src-tauri/target/` — не універсальний дефолт, а лише
+окремий випадок (crate без workspace root над собою); перевірка мусить рахувати очікуваний
+шлях від реального workspace root, а не від фіксованого суфікса.
 
-Тому перевірка звіряє **точний рядок** `<ws>/src-tauri/target/` для кожного знайденого `src-tauri/`, а не факт наявності підрядка `target/` десь у файлі — голий `target/` (чи вже наявний, але помилковий `owner/target/`) не закриває violation.
+Тому перевірка звіряє **точний рядок** обчисленого запису для кожного знайденого `src-tauri/`,
+а не факт наявності підрядка `target/` десь у файлі — голий `target/` чи запис не того рівня
+не закривають violation. Сторонній/мертвий каталог `target/` на диску (за старим, вже
+невірним шляхом) також не задовольняє перевірку — вона звіряє лише вміст `.gitignore`.
 
 ### Область дії
 
 - Обхід усіх `<ws>/src-tauri/` — спільний з `tauri/cargo_mutants_config` (`findSrcTauriDirs`, без дублювання обходу монорепо).
+- Очікуваний шлях — `findAncestorWorkspaceRoot` (`scripts/utils/cargo-workspace.mjs`, спільно з `rust/workspace_root`).
 - Ціль фіксу — **один** корінний `.gitignore` монорепо (не по workspace).
-- Детектор лише **додає** відсутнє: сторонні/застарілі ignore-записи (на кшталт помилкового `owner/target/` з інциденту вище) не видаляються — вони можуть бути навмисними чи потребувати ручного review.
+- Детектор лише **додає** відсутнє: сторонні/застарілі ignore-записи не видаляються — вони можуть бути навмисними чи потребувати ручного review.
 
 ### Автофікс (T0)
 
