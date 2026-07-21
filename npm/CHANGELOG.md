@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.39.0] - 2026-07-21
+
+### Added
+
+- workspace_root: канон одного кореневого uv workspace на репозиторій (дзеркало rust/workspace_root), main.json auto-glob розширено на вкладені pyproject.toml
+
 ## [1.38.0] - 2026-07-21
 
 ### Fixed
