@@ -91,6 +91,23 @@ async function callLlm(messages, model, opts = {}) {
 const FENCE_OPEN_RE = /^```[a-z]*\n?/
 const FENCE_CLOSE_RE = /\n?```\s*$/
 const LEADING_HEADING_RE = /^#{1,6}[ \t]{1,8}[^\n]{0,400}\n{1,8}/
+// R9: чат-преамбули малих моделей — «озвучування завдання» перед відповіддю
+// («Ось оновлена чорнетка секції…», «Як технічний письменник, я створю…»,
+// «Оновлений текст секції:»). Живі приклади — прогін gemma-4 по efes/backend
+// 2026-07-21: 4 з 10 доків мали такі рядки; R8 (refusal) їх не ловить, бо далі
+// йде реальний контент. Зрізаються ЛИШЕ провідні рядки секції (мета-нарація
+// стоїть попереду), щоб не зачепити легітимний текст усередині.
+const PREAMBLE_LINE_RES = [
+  /^Ось (?:оновлен|переписан|виправлен|готов|вміст|текст|чорнетк|секці)/i,
+  /^Оновлен(?:ий|а|е|о) (?:текст|чорнетк|секці|вміст|версі)/i,
+  /^Як технічний письменник/i,
+  /^(?:Я )?(?:створю|напишу|перепишу|підготую) /i,
+  /^(?:Звісно|Гаразд|Добре)[,.!]/i,
+  /^(?:Нижче наведено|Нижче — )/i
+]
+// Дубль назви секції першим рядком тіла («Поведінка:» всередині секції Поведінка).
+// Рядок перед перевіркою вже пройшов trim (див. stripLeadingPreamble) — без \s*-країв.
+const SECTION_LABEL_LINE_RE = /^(?:Огляд|Поведінка|Публічний API|Гарантії поведінки):?$/
 const SECTION_HEADING_RE = /^##\s+(.+)/
 const SECTION_KEY_CLEAN_RE = /[^а-яіїєґa-z0-9]/gi
 const CACHE_MENTION_RE = /кеш/i
@@ -120,8 +137,26 @@ const H2_RE = /^##\s/
 const H1_RE = /^#\s/
 
 /**
- * Прибирає код-фенс-обгортку (потрійні бектіки) й випадковий провідний
- * `##`-заголовок із секції.
+ * R9: зрізає провідні чат-преамбули й дубль назви секції з початку тексту.
+ * Ітерується, поки перший непорожній рядок лишається мета-нарацією — модель
+ * інколи ставить дві поспіль («Як технічний письменник…» + «Ось оновлений…»).
+ * @param {string} t текст після базового очищення
+ * @returns {string} текст без провідних мета-рядків
+ */
+export function stripLeadingPreamble(t) {
+  let out = t
+  for (;;) {
+    const nl = out.indexOf('\n')
+    const first = (nl === -1 ? out : out.slice(0, nl)).trim()
+    const isMeta = SECTION_LABEL_LINE_RE.test(first) || PREAMBLE_LINE_RES.some(re => re.test(first))
+    if (!first || !isMeta || nl === -1) return isMeta && nl === -1 ? '' : out
+    out = out.slice(nl + 1).trimStart()
+  }
+}
+
+/**
+ * Прибирає код-фенс-обгортку (потрійні бектіки), випадковий провідний
+ * `##`-заголовок і чат-преамбули (R9) із секції.
  * @param {string} text сирий вихід моделі
  * @returns {string} очищений текст секції
  */
@@ -131,7 +166,7 @@ function stripSection(text) {
     t = t.replace(FENCE_OPEN_RE, '').replace(FENCE_CLOSE_RE, '').trim()
   }
   t = t.replace(LEADING_HEADING_RE, '') // зрізати випадковий заголовок
-  return t.trim()
+  return stripLeadingPreamble(t.trim()).trim()
 }
 
 /**
@@ -274,6 +309,19 @@ export function scoreDoc(md, facts, { anchors = null, src = '' } = {}) {
   if (detectRefusalFiller(splitProtected(md).without)) {
     score -= 100
     issues.push('refusal-filler')
+  }
+
+  // R9: чат-преамбула в тілі («Ось оновлена чорнетка…», «Як технічний письменник…»)
+  // — на відміну від R8, далі є реальний контент, тож не 0, а відчутний штраф:
+  // best-of-2 обере чистий драфт, а стійке сміття помітить degraded-доретрай.
+  // stripSection зрізає провідні мета-рядки на генерації; скорер — страховка для
+  // one-shot шляху і преамбул усередині секції (після першого рядка).
+  for (const line of splitProtected(md).without.split('\n')) {
+    if (PREAMBLE_LINE_RES.some(re => re.test(line.trim()))) {
+      score -= 25
+      issues.push('chat-preamble')
+      break
+    }
   }
 
   if (!s['огляд']) {
