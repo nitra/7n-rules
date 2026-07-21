@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/tauri/gitignore_target/main.mjs
 docgen:
-  crc: 83aa81ee
+  crc: c9fcfc58
   model: openai-codex/gpt-5.5
-  tier: cloud-avg
   score: 85
   issues: internal-name:findSrcTauriDirs,anchor-miss:(tauri.mdc),judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
