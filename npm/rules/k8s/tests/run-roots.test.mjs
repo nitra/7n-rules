@@ -6,7 +6,10 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { readFileSync } from 'node:fs'
+
 import {
+  autoJobCronJobProbeExceptions,
   buildKubescapeExceptionsArgs,
   findK8sRoots,
   findKustomizationDirs,
@@ -76,8 +79,116 @@ describe('findK8sRoots', () => {
       expect(buildKubescapeExceptionsArgs(root)).toEqual([])
     })
   })
+})
 
-  test('findKustomizationDirs: повертає dir-и з kustomization.yaml (kind ≠ Component)', async () => {
+describe('autoJobCronJobProbeExceptions', () => {
+  test('генерує запис C-0056/C-0018 для CronJob з name+namespace', () => {
+    const yaml = `apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: assign-request
+  namespace: dev
+spec:
+  schedule: "*/5 * * * *"
+`
+    const out = autoJobCronJobProbeExceptions(yaml)
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatchObject({
+      policyType: 'postureExceptionPolicy',
+      actions: ['alertOnly'],
+      resources: [
+        { designatorType: 'Attributes', attributes: { kind: 'CronJob', name: 'assign-request', namespace: 'dev' } }
+      ],
+      posturePolicies: [{ controlID: 'C-0056' }, { controlID: 'C-0018' }]
+    })
+  })
+
+  test('Job без namespace — attributes без namespace-ключа', () => {
+    const yaml = `apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+`
+    const out = autoJobCronJobProbeExceptions(yaml)
+    expect(out).toHaveLength(1)
+    expect(out[0].resources[0].attributes).toEqual({ kind: 'Job', name: 'migrate' })
+  })
+
+  test('Deployment — жодного запису (control реально застосовний)', () => {
+    const yaml = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: dev
+`
+    expect(autoJobCronJobProbeExceptions(yaml)).toEqual([])
+  })
+
+  test('CronJob без metadata.name — пропускається (немає чим гейтувати виняток)', () => {
+    const yaml = `apiVersion: batch/v1
+kind: CronJob
+spec:
+  schedule: "*/5 * * * *"
+`
+    expect(autoJobCronJobProbeExceptions(yaml)).toEqual([])
+  })
+
+  test('декілька документів — по одному запису на кожен Job/CronJob, Deployment пропущено', () => {
+    const yaml = `apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: a
+  namespace: dev
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: b
+  namespace: dev
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: c
+  namespace: dev
+`
+    const out = autoJobCronJobProbeExceptions(yaml)
+    expect(out.map(e => e.resources[0].attributes.name)).toEqual(['a', 'c'])
+  })
+})
+
+describe('buildKubescapeExceptionsArgs з autoExceptions (merge)', () => {
+  test('без user-файлу і без autoExceptions — []', async () => {
+    await withTmpDir(root => {
+      expect(buildKubescapeExceptionsArgs(root, [])).toEqual([])
+    })
+  })
+
+  test('з autoExceptions, без user-файлу — пише tmp-файл лише з auto-записами', async () => {
+    await withTmpDir(root => {
+      const auto = [{ name: 'auto-cronjob-dev-a-probes', policyType: 'postureExceptionPolicy' }]
+      const args = buildKubescapeExceptionsArgs(root, auto)
+      expect(args[0]).toBe('--exceptions')
+      expect(args[1]).not.toBe(join(root, '.kubescape-exceptions.json'))
+      const written = JSON.parse(readFileSync(args[1], 'utf8'))
+      expect(written).toEqual(auto)
+    })
+  })
+
+  test('мержить user-файл з autoExceptions в один tmp-файл', async () => {
+    await withTmpDir(async root => {
+      const userExceptions = [{ name: 'hasura-jwt-public-config', policyType: 'postureExceptionPolicy' }]
+      await writeFile(join(root, '.kubescape-exceptions.json'), JSON.stringify(userExceptions), 'utf8')
+      const auto = [{ name: 'auto-cronjob-dev-a-probes', policyType: 'postureExceptionPolicy' }]
+      const args = buildKubescapeExceptionsArgs(root, auto)
+      const written = JSON.parse(readFileSync(args[1], 'utf8'))
+      expect(written).toEqual([...userExceptions, ...auto])
+    })
+  })
+})
+
+describe('findKustomizationDirs', () => {
+  test('повертає dir-и з kustomization.yaml (kind ≠ Component)', async () => {
     await withTmpDir(async root => {
       const k8sDir = join(root, 'app', 'k8s')
       await mkdir(join(k8sDir, 'base'), { recursive: true })
@@ -106,7 +217,7 @@ describe('findK8sRoots', () => {
     })
   })
 
-  test('findKustomizationDirs: порожній масив, якщо kustomization.yaml немає', async () => {
+  test('порожній масив, якщо kustomization.yaml немає', async () => {
     await withTmpDir(async root => {
       const k8sDir = join(root, 'plain', 'k8s')
       await mkdir(k8sDir, { recursive: true })
@@ -115,7 +226,9 @@ describe('findK8sRoots', () => {
       expect(dirs).toEqual([])
     })
   })
+})
 
+describe('findK8sRoots (edge cases)', () => {
   test('не включає .github/workflows, навіть коли корінь репо називається k8s/', async () => {
     // Worst-case з користувацького bug-report: репо в `…/abie/k8s/`. Без relativize у
     // pathHasK8sSegment усі yaml-файли проєкту потрапляли б у k8s-сканер, включно з
