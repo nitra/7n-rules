@@ -164,13 +164,18 @@
     },
     "plugins/lang-js": {
       "entry": [
+        "rules/*/lib/*.mjs",
+        "rules/*/*/main.mjs",
+        "rules/*/*/fix-*.mjs",
+        "rules/**/*.test.mjs",
         "taze/provider.mjs",
         "taze/**/*.test.mjs",
         "stryker.config.mjs",
         "vitest.config.mjs"
       ],
       "project": [
-        "**/*.{js,mjs}"
+        "**/*.{js,mjs}",
+        "!rules/storybook/scaffold/template/**"
       ]
     }
   }

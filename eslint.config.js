@@ -24,7 +24,11 @@ export default [
       // Синковані pi.dev TS-extensions (fully-owned копії з пакету) і згенеровані d.ts — не лінтимо.
       '.pi/extensions/**',
       'npm/.pi-template/**',
-      'npm/types/**'
+      'npm/types/**',
+      // Канонічні Storybook-шаблони (storybook.mdc) — snippets, які fix-scaffold.mjs копіює
+      // у консюмер-пакети (Vue-бібліотеки); foreign imports (vite/@vitejs/plugin-vue/quasar)
+      // не є залежностями цього репо, і файли не виконуються тут.
+      'plugins/lang-js/rules/storybook/scaffold/template/**'
     ]
   },
   ...getConfig({

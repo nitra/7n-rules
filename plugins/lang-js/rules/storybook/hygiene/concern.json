@@ -1,0 +1,4 @@
+{
+  "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
+  "lint": { "scope": "full", "glob": ["package.json", "**/*.vue", ".storybook/**"] }
+}

@@ -1,0 +1,60 @@
+---
+description: Канонічний Storybook для Vue-компонентних бібліотек — скафолд, vitest/Stryker, гігієна залежностей, рецепти мокання
+version: '1.0'
+globs: ["package.json", "**/*.vue", ".storybook/**"]
+alwaysApply: false
+---
+
+# Канон Storybook для Vue-компонентних бібліотек — хвиля 1
+
+Джерело рішення: `docs/adr/канон-storybook-для-vue-компонентних-бібліотек.md`. Storybook впроваджувався вручну двічі в різних nitra-репо в одній сесії — обидва рази з тими самими невидимими заздалегідь проблемами (конфлікт `@vitejs/plugin-vue`/`quasar()`, недоступні внутрішні Quasar-іконки без `iconSet`+`iconMapFn`, ручне мокання мережі) і одним реальним merge-конфліктом між двома паралельними ручними реалізаціями тієї самої фічі. Це правило робить канонічний скафолд стандартом, а не одноразовим рішенням кожного агента.
+
+**Хвильовий rollout:** `alwaysApply: false` — правило не гейтить CI, доки не ввімкнене явно в `.n-rules.json` консюмер-репо (`rules: ["storybook"]`). Хвиля 1 (це правило) покриває детекцію скоупу, канонічний скафолд `.storybook/`, vitest/Stryker-конфіг (Кластер 5), гігієну сторонніх залежностей (Кластер 6), рецепти мокання (docs-only, Кластер 3) і `--adopt`-режим rollout-у для вже впроваджених вручну пакетів (Кластер 8); **LLM-генерація args для stories — хвиля 2**, свідомо відкладена (ADR: ризик одночасного org-wide CI-блоку на необкатаному generation pipeline, на відміну від production-proven doc-files).
+
+Усі concern-и хвилі 1 (`scope`/`scaffold`/`vitest-config`/`hygiene`) мають `lint`-поверхню в `concern.json` і виконуються під `npx @7n/rules lint storybook` — `scope`/`scaffold`/`vitest-config` раніше декларували лише `check: true` без `lint`-блоку і тому мовчки не підхоплювались unified lint-рушієм (`run-detectors.mjs` виконує лише concern-и з явним `lint` чи `policy` блоком); виправлено разом із введенням `adopt`-режиму.
+
+## Скоуп
+
+Тільки Vue-компонентні бібліотеки — пакет із `vue` у `peerDependencies` (маркер `isVueComponentLibraryPkg`, той самий що й у `vue.mdc`, не дублюється) і не менше **3** `.vue`-файлів. Поріг відсікає пакети з одним-двома допоміжними компонентами, для яких повний Storybook-скафолд — зайві накладні витрати. Пакети без розпізнаваного `vite.config.{js,ts,mjs}` (нестандартний build) пропускаються мовчки — автоматичний скафолд спирається на `viteConfigPath` пакета.
+
+Опційно (вимкнено за замовчуванням) — app-проєкти (`vue` у `dependencies`, не бібліотека, + `src/pages/`). Детекція реалізована в `scope/main.mjs`, але не викликається доки в `.n-rules.json` не задано прапорець хвилі 2 — рішення розширювати скоуп на app-проєкти залишається відкритим питанням ADR.
+
+**Opt-out:** окремий пакет можна виключити зі скоупу через `.n-rules.json` → `storybook.optOut: string[]` (root dir пакета, той самий формат що й у виводі workspace-роутингу — `.` для кореня, `packages/ui` тощо). Виняток — намір, не помилка: якщо в `optOut` вказано неіснуючий workspace-пакет, `scope`-концерн репортує це як застаріле налаштування.
+
+Логіка детекції (поріг, opt-out, нестандартний build, app-проєкти) — у `scope/main.mjs`, не дублюється тут.
+
+## Канонічний скафолд
+
+Для кожного пакета в скоупі обов'язкові: `.storybook/main.js`, `.storybook/preview.js`, `package.json#scripts.storybook`. Канонічні шаблони — `scaffold/template/`.
+
+Фіксовані рішення (деталі — ADR, Кластер 2):
+
+- **Порядок Vite-плагінів фіксований**: `@vitejs/plugin-vue` **перед** `quasar()` — інакше Quasar-плагін не бачить SFC, уже скомпільований `plugin-vue`.
+- **Layout-детекція**: `src/components/` присутній → stories-glob звужується до нього; пласка структура (`src/` без `components/`) — ширший glob по всьому `src/`.
+- **`viteFinal`** зчитує `vite.config` самого пакета (той самий, що й для звичайного білду) і мерджить його плагіни в конфіг Storybook, **знімаючи** `vite-plugin-pages`/`vite-plugin-vue-layouts` — файлова маршрутизація належить додатку-споживачу, не ізольованому рендеру компонента.
+- **`staticDirs`** покриває `.storybook/public` — статичний asset для msw service worker (`preview.js`).
+- **`preview.js`**: повний `Quasar`-install (не тільки окремі компоненти) + `iconSet`+`iconMapFn`-комбо — без цієї пари внутрішні Quasar-компоненти (напр. стрілка `QSelect`) не резолвлять вбудовані іконки поза full CLI build. `msw-storybook-addon` ініціалізується з `onUnhandledRequest`-фільтром: **same-origin GET мовчки пропускається** (Vite HMR/asset-шум), решта — попередження (не білд-помилка — навмисно м'яко для хвилі 1).
+- **`.storybook/mocks/gql-sse.js`**: єдиний канонічний хелпер `sseSubscription` для MSW-мокання Apollo-підписок через wire-протокол `graphql-sse` (`event: next\ndata: …`, distinct-connection mode) — переносити цю логіку в кожен пакет окремо заборонено, є одне джерело істини.
+- **`package.json#scripts.storybook`** — уніфікований скрипт, однаковий для всіх пакетів у скоупі (значення — `scaffold/main.mjs`, не дублюється тут).
+
+Перевірка присутності й ключових маркерів канону — `scaffold/main.mjs`; детерміноване відтворення відсутніх файлів із `scaffold/template/` — `scaffold/fix-scaffold.mjs` (fixability: `config` — канонічна форма одна, LLM у ланцюжку фіксу не потрібен).
+
+## Vitest-конфіг і Stryker-ізоляція (Кластер 5)
+
+Канонічний `test.projects` (`unit`+`storybook`, browser-mode лише chromium) і ізольований `vitest.stryker.config` (той самий unit-набір, без browser-mode — `@stryker-mutator/vitest-runner` крашиться на browser-mode `projects`) — `vitest-config/main.mjs` (перевірка, AST через `oxc-parser`) і `vitest-config/fix-vitest-config.mjs` (точкові insert-only правки наявного конфіга, fixability: `config`). Деталі канону, чому саме chromium і межі автофіксу — `vitest-config/vitest-config.mdc`, не дублюється тут.
+
+## Гігієна сторонніх залежностей (Кластер 6)
+
+`hygiene/main.mjs`: (1) undeclared third-party imports у `.vue`-файлах пакета — import стороннього пакета, якого немає в `dependencies`/`peerDependencies` (реальний кейс ADR — зламаний default-export `@vuepic/vue-datepicker` v14, silent breakage без цієї перевірки); (2) наявність `src/css/quasar.variables.{scss,sass}` без відповідного `quasar({ sassVariables: true })` у `.storybook/main.js` — глобальні Quasar SCSS-змінні пакета інакше не резолвляться в ізольованому Storybook-рендері. Docs-only детальний виклад не потрібен — концерн самодостатній, без окремого `.mdc`.
+
+## Мокання (Кластер 3, docs-only)
+
+Рецепти router/`@nitra/tfm`/Apollo-GraphQL(MSW)/Pinia/сторінкових stories — `mocking/mocking.mdc`. Свідомо без механічної перевірки (`concern.json` без `check`/`policy`/`lint`-блоку, як і решта чисто-документаційних concern-ів репозиторію) — кожен пакет мокає свій набір залежностей по-своєму, детермінований чек дав би або хибні спрацювання, або нульове покриття.
+
+## Adopt-режим і скіл `n-storybook` (Кластер 8)
+
+Скіл `npm/skills/storybook/` (`.cursor/skills/n-storybook/` після синку) — тонка обгортка запуску: звичайний режим — `npx @7n/rules lint storybook`; `--adopt` — окремий діагностичний JS-модуль `adopt/main.mjs` для пакетів, де ВЖЕ є ручний `.storybook/`, що не збігається з каноном. Adopt діагностує diff по секціях проти `template/` (main.js/preview.js/mocks/gql-sse.js/package.json#scripts.storybook/vitest test.projects/vitest.stryker.config) — статус `match`/`differ`/`missing` на секцію, **без сліпого перезапису** розбіжних файлів; автофікс (`--fix-missing`) генерує лише секції зі статусом `missing`. Circuit breaker: збій діагностики одного пакета деградує до `status: 'broken'` для нього, решта пакетів прогону обробляються далі. Викликається напряму (`bun node_modules/@7n/rules-lang-js/rules/storybook/adopt/main.mjs`), без окремого CLI-прапорця в ядрі `n-rules.js` — деталі й приклади звіту в `SKILL.md` скіла.
+
+## Що свідомо поза хвилею 1
+
+LLM-генерація `args` для stories з `defineProps`/`defineEmits`/slots (Кластер 4 ADR) — хвиля 2, свідомо відкладена. Governance-винятки в `n-npm-module.mdc`/`n-bun.mdc` (Кластер 7 — Storybook-devDeps у `npm/package.json`, canonical version pin, review-гейт лише для нових stories) — окремий трек, не в обсязі цього правила.
