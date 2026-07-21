@@ -13,7 +13,12 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
 import { collectInScopeVuePackages } from '../../scope/main.mjs'
 import { STORYBOOK_SCRIPT } from '../../scaffold/main.mjs'
-import { renderMainJs, renderMocksGqlSse, renderPreviewJs } from '../../scaffold/fix-scaffold.mjs'
+import {
+  renderEmptyViteConfig,
+  renderMainJs,
+  renderMocksGqlSse,
+  renderPreviewJs
+} from '../../scaffold/fix-scaffold.mjs'
 import { buildStrykerConfig } from '../../vitest-config/fix-vitest-config.mjs'
 import { diagnosePackage, formatReport, runAdopt, SECTION, STATUS } from '../main.mjs'
 
@@ -54,6 +59,7 @@ async function writeCanonicalStorybookSetup(root, rootDir) {
   const absPkgDir = join(root, rootDir)
   await writeFileDeep(root, join(rootDir, '.storybook/main.js'), renderMainJs(absPkgDir))
   await writeFileDeep(root, join(rootDir, '.storybook/preview.js'), renderPreviewJs())
+  await writeFileDeep(root, join(rootDir, '.storybook/empty-vite.config.js'), renderEmptyViteConfig())
   await writeFileDeep(root, join(rootDir, '.storybook/mocks/gql-sse.js'), renderMocksGqlSse())
   await writeFileDeep(
     root,
@@ -177,8 +183,11 @@ describe('adopt — відсутній файл: --fix-missing генерує з
 
     const mainJs = await readFile(join(root, 'packages/ui/.storybook/main.js'), 'utf8')
     expect(mainJs).toContain('@storybook/vue3-vite')
+    expect(mainJs).toContain('viteConfigPath')
     const previewJs = await readFile(join(root, 'packages/ui/.storybook/preview.js'), 'utf8')
     expect(previewJs).toContain('iconMapFn')
+    const emptyViteConfig = await readFile(join(root, 'packages/ui/.storybook/empty-vite.config.js'), 'utf8')
+    expect(emptyViteConfig).toContain('defineConfig({})')
     const mocks = await readFile(join(root, 'packages/ui/.storybook/mocks/gql-sse.js'), 'utf8')
     expect(mocks).toContain('sseSubscription')
     const pkg = JSON.parse(await readFile(join(root, 'packages/ui/package.json'), 'utf8'))

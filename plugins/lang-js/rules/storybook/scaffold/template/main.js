@@ -3,9 +3,16 @@
  * канон-storybook-для-vue-компонентних-бібліотек). Згенеровано правилом `storybook` —
  * `npx @7n/rules fix storybook` відтворює цей файл, якщо його видалено чи зламано канон.
  */
+import process from 'node:process'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 import { loadConfigFromFile, mergeConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { quasar, transformAssetUrls } from '@quasar/vite-plugin'
+
+// Абсолютний каталог `.storybook/` (де лежить сам main.js) — потрібен нижче для
+// `core.builder.options.viteConfigPath` (порожній стенд-ін лежить поруч).
+const dirName = dirname(fileURLToPath(import.meta.url))
 
 // Плагіни власного Vite-збирача Storybook — порядок ФІКСОВАНИЙ: @vitejs/plugin-vue
 // ПЕРЕД quasar() (інакше Quasar-плагін не бачить SFC, уже скомпільований plugin-vue).
@@ -69,6 +76,22 @@ const config = {
   },
   // Публічний asset для msw service worker, який ініціалізує preview.js.
   staticDirs: ['./public'],
+  core: {
+    builder: {
+      name: '@storybook/builder-vite',
+      // ОБОВ'ЯЗКОВИЙ обхід (емпірично підтверджено — лише через `storybook build`, dev
+      // smoke-test не ловить): без цього `@storybook/builder-vite` сам через
+      // `loadConfigFromFile` знаходить `../vite.config.js` пакета ще ДО виклику
+      // `viteFinal` нижче й домерджує його НЕФІЛЬТРОВАНІ плагіни (VueMacros-обгорнутий
+      // `vue()`, layout-роутинг тощо) у storybookConfig. `mergeConfig` конкатенує масиви
+      // `plugins`, тож фільтр у `viteFinal` лише ДОДАЄ ще один `@vitejs/plugin-vue`, а НЕ
+      // прибирає вже змерджений builder-vite дублікат — подвійна SFC-трансформація,
+      // `storybook build` падає на кожному `.vue` з "At least one <template> or <script>
+      // is required". `viteConfigPath` на порожній стенд-ін (`empty-vite.config.js`,
+      // канонічний сусідній файл цього скафолда) блокує це autodiscovery повністю.
+      options: { viteConfigPath: join(dirName, 'empty-vite.config.js') }
+    }
+  },
   async viteFinal(storybookConfig) {
     const loaded = await loadConfigFromFile({ command: 'serve', mode: 'development' }, undefined, process.cwd())
     const rawPlugins = loaded?.config?.plugins ?? []

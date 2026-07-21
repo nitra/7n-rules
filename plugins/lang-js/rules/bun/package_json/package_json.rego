@@ -71,9 +71,15 @@ deny contains msg if {
 # окремо для змістовних E2E-сценаріїв (n-vue.mdc).
 # @storybook/addon-vitest — постачає `storybookTest` для vitest-плагіна в канонічному
 # vitest.config named-проекту "storybook" (той самий канон Storybook кластер 5); версія
-# з лінійки Storybook 9.x (узгоджена з `storybook`@9.1.10, запіненим у
+# з лінійки Storybook 10.x (узгоджена з `storybook`@^10.5.3, запіненим у
 # npm_package_json.rego) — allowlist тут за іменем, точний пінінг версії root-tooling
 # не робимо (на відміну від Storybook-identity-пакетів у npm/package.json).
+# @storybook/builder-vite/@vitejs/plugin-vue/@quasar/vite-plugin — root-only build-tooling
+# для канонічного `.storybook/main.js` (storybook.mdc scaffold: `core.builder`,
+# `viteFinal`-плагіни `vue()`/`quasar()`); @quasar/extras — постачає material-icons
+# CSS/fallback-набір для `.storybook/preview.js` (iconMapFn). Усі чотири звірено з
+# реальним root package.json пілотного консюмера (components) — раніше були відсутні
+# в allowlist, хоча канонічний скафолд Storybook уже на них покладався (реальний gap).
 allowed_root_test_deps := {
 	"vitest",
 	"@vitest/coverage-v8",
@@ -84,6 +90,10 @@ allowed_root_test_deps := {
 	"@playwright/test",
 	"playwright",
 	"@storybook/addon-vitest",
+	"@storybook/builder-vite",
+	"@vitejs/plugin-vue",
+	"@quasar/vite-plugin",
+	"@quasar/extras",
 	"@7n/test",
 }
 

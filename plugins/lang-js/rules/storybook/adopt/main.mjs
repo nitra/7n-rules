@@ -2,8 +2,8 @@
  * Adopt-режим канону Storybook (ADR канон-storybook-для-vue-компонентних-бібліотек,
  * Кластер 8; main.mdc). Для пакетів, де ВЖЕ є ручний `.storybook/`, що не збігається з
  * каноном, — діагностика diff по секціях проти канонічних `template/` (main.js,
- * preview.js, mocks/gql-sse.js, package.json#scripts.storybook, vitest test.projects,
- * vitest.stryker.config), БЕЗ сліпого перезапису розбіжних файлів. Автофікс
+ * preview.js, empty-vite.config.js, mocks/gql-sse.js, package.json#scripts.storybook,
+ * vitest test.projects, vitest.stryker.config), БЕЗ сліпого перезапису розбіжних файлів. Автофікс
  * (`--fix-missing`) — лише для секцій, яких немає ВЗАГАЛІ (той самий рендер, що й
  * T0-фікс concern-ів `scaffold`/`vitest-config` — переюз, не дублювання шаблонування).
  *
@@ -21,7 +21,7 @@ import { isRunAsCli } from '@7n/rules/scripts/cli-entry.mjs'
 
 import { collectInScopeVuePackages } from '../scope/main.mjs'
 import { MAIN_JS_MARKERS, missingMarkers, PREVIEW_JS_MARKERS, STORYBOOK_SCRIPT } from '../scaffold/main.mjs'
-import { renderMainJs, renderMocksGqlSse, renderPreviewJs } from '../scaffold/fix-scaffold.mjs'
+import { renderEmptyViteConfig, renderMainJs, renderMocksGqlSse, renderPreviewJs } from '../scaffold/fix-scaffold.mjs'
 import { buildFreshVitestConfig, buildStrykerConfig } from '../vitest-config/fix-vitest-config.mjs'
 import {
   BROWSER_KEY_RE,
@@ -43,6 +43,7 @@ export const STATUS = Object.freeze({ MATCH: 'match', DIFFER: 'differ', MISSING:
 export const SECTION = Object.freeze({
   MAIN_JS: 'main.js',
   PREVIEW_JS: 'preview.js',
+  EMPTY_VITE_CONFIG: 'empty-vite.config.js',
   MOCKS_GQL_SSE: 'mocks/gql-sse.js',
   PACKAGE_SCRIPT: 'package.json#scripts.storybook',
   VITEST_PROJECTS: 'vitest test.projects (unit+storybook)',
@@ -101,6 +102,30 @@ function diagnoseMocksSection(entry) {
     file,
     status: STATUS.DIFFER,
     detail: 'вміст відрізняється від канонічного helper-а (mocking.mdc) — одне джерело істини, не дублюй логіку вручну'
+  }
+}
+
+/**
+ * Діагностика `.storybook/empty-vite.config.js` — verbatim-порівняння з канонічним
+ * стенд-ін файлом (не залежить від пакета, як і `mocks/gql-sse.js`): `main.js` посилається
+ * на нього напряму через `core.builder.options.viteConfigPath`, тому розбіжність тут
+ * ламає обхід autodiscovery `@storybook/builder-vite`, навіть якщо `main.js` канонічний.
+ * @param {{ absDir: string, rootDir: string }} entry запис пакета
+ * @returns {{ name: string, file: string, status: string, detail?: string }} секція діагностики
+ */
+function diagnoseEmptyViteConfigSection(entry) {
+  const relPath = '.storybook/empty-vite.config.js'
+  const file = relFileFor(entry, relPath)
+  const abs = join(entry.absDir, relPath)
+  if (!existsSync(abs)) return { name: SECTION.EMPTY_VITE_CONFIG, file, status: STATUS.MISSING }
+  const actual = readFileSync(abs, 'utf8')
+  const canonical = renderEmptyViteConfig()
+  if (actual === canonical) return { name: SECTION.EMPTY_VITE_CONFIG, file, status: STATUS.MATCH }
+  return {
+    name: SECTION.EMPTY_VITE_CONFIG,
+    file,
+    status: STATUS.DIFFER,
+    detail: 'вміст відрізняється від канонічного стенд-іна (storybook.mdc) — має лишатись порожнім defineConfig({})'
   }
 }
 
@@ -219,6 +244,7 @@ export async function diagnosePackage(entry) {
   const sections = [
     diagnoseMarkerFile(entry, '.storybook/main.js', SECTION.MAIN_JS, MAIN_JS_MARKERS),
     diagnoseMarkerFile(entry, '.storybook/preview.js', SECTION.PREVIEW_JS, PREVIEW_JS_MARKERS),
+    diagnoseEmptyViteConfigSection(entry),
     diagnoseMocksSection(entry),
     diagnoseScriptSection(entry),
     diagnoseVitestProjectsSection(entry),
@@ -254,6 +280,9 @@ export async function fixMissingSections(entry, sections) {
   }
   if (byName.get(SECTION.PREVIEW_JS)?.status === STATUS.MISSING) {
     writeFileEnsureDir(join(entry.absDir, '.storybook/preview.js'), renderPreviewJs())
+  }
+  if (byName.get(SECTION.EMPTY_VITE_CONFIG)?.status === STATUS.MISSING) {
+    writeFileEnsureDir(join(entry.absDir, '.storybook/empty-vite.config.js'), renderEmptyViteConfig())
   }
   if (byName.get(SECTION.MOCKS_GQL_SSE)?.status === STATUS.MISSING) {
     writeFileEnsureDir(join(entry.absDir, '.storybook/mocks/gql-sse.js'), renderMocksGqlSse())

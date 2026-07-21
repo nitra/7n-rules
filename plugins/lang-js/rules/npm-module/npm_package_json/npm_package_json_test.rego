@@ -85,9 +85,9 @@ test_allow_canonical_storybook_dev_deps if {
 		"op": "add",
 		"path": "/devDependencies",
 		"value": {
-			"storybook": "9.1.10",
-			"@storybook/vue3-vite": "9.1.10",
-			"@storybook/vue3": "9.1.10",
+			"storybook": "^10.5.3",
+			"@storybook/vue3-vite": "^10.5.3",
+			"@storybook/vue3": "^10.5.3",
 			"msw": "2.11.3",
 			"msw-storybook-addon": "2.0.5",
 		},
@@ -96,7 +96,7 @@ test_allow_canonical_storybook_dev_deps if {
 }
 
 test_allow_single_canonical_storybook_dep if {
-	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/devDependencies", "value": {"storybook": "9.1.10"}}])
+	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/devDependencies", "value": {"storybook": "^10.5.3"}}])
 	count(npm_package_json.deny) == 0 with input as pkg with data.template as template_data
 }
 
@@ -110,7 +110,7 @@ test_deny_mixed_dev_deps_only_flags_non_storybook if {
 	pkg := json.patch(valid_pkg, [{
 		"op": "add",
 		"path": "/devDependencies",
-		"value": {"storybook": "9.1.10", "lodash": "*"},
+		"value": {"storybook": "^10.5.3", "lodash": "*"},
 	}])
 	msgs := {msg | some msg in npm_package_json.deny with input as pkg with data.template as template_data}
 	some msg in msgs
@@ -123,7 +123,7 @@ test_deny_storybook_dep_wrong_version if {
 	some msg in npm_package_json.deny with input as pkg with data.template as template_data
 	contains(msg, "storybook")
 	contains(msg, "8.0.0")
-	contains(msg, "9.1.10")
+	contains(msg, "10.5.3")
 }
 
 test_deny_storybook_addon_wrong_version_does_not_flag_name_allowlist if {

@@ -62,7 +62,7 @@ FS-перевірки (наявність файлу зі шляху `types`, с
 ✓ Правильно — канонічний Storybook-devDep із зафіксованою версією (канон Storybook):
 
 ```json
-{ "devDependencies": { "storybook": "9.1.10" } }
+{ "devDependencies": { "storybook": "^10.5.3" } }
 ```
 
 ✗ Неправильно — Storybook-devDep присутній, але версія не збігається з каноном:

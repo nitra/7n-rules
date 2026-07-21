@@ -26,6 +26,10 @@ export const MAIN_JS_MARKERS = [
   {
     token: 'resolvePluginEntry',
     hint: 'resolve/flatten Promise/масиву плагінів перед фільтрацією (VueMacros повертає Promise)'
+  },
+  {
+    token: 'viteConfigPath',
+    hint: 'core.builder.options.viteConfigPath на empty-vite.config.js (блокує builder-vite autodiscovery vite.config пакета — інакше подвійна SFC-трансформація на storybook build)'
   }
 ]
 
@@ -35,7 +39,17 @@ export const PREVIEW_JS_MARKERS = [
   { token: 'iconSet', hint: 'iconSet' },
   { token: 'iconMapFn', hint: 'iconMapFn (без нього внутрішні Quasar-іконки недоступні)' },
   { token: 'msw-storybook-addon', hint: 'msw-storybook-addon' },
-  { token: 'onUnhandledRequest', hint: 'onUnhandledRequest-фільтр' }
+  { token: 'onUnhandledRequest', hint: 'onUnhandledRequest-фільтр' },
+  { token: 'mswLoader', hint: 'mswLoader (не mswDecorator — deprecated у msw-storybook-addon 2.x)' }
+]
+
+/**
+ * Маркери канону `.storybook/empty-vite.config.js` (сусідній файл main.js — стенд-ін для
+ * `core.builder.options.viteConfigPath`, блокує autodiscovery `vite.config` пакета
+ * `@storybook/builder-vite`-ом). Експортовано — переюз у `adopt/main.mjs`.
+ */
+export const EMPTY_VITE_CONFIG_MARKERS = [
+  { token: 'defineConfig', hint: 'порожній defineConfig({}) — стенд-ін для viteConfigPath' }
 ]
 
 /**
@@ -159,6 +173,22 @@ async function checkPackageScaffold({ rootDir, absDir, pkg }, reporter) {
     label,
     rootDir,
     `${relPrefix}.storybook/preview.js`,
+    reporter
+  )
+
+  // empty-vite.config.js — сусідній файл, на який main.js посилається через
+  // core.builder.options.viteConfigPath; без нього посилання в main.js "розбите" навіть
+  // якщо сам main.js канонічний (маркер viteConfigPath присутній), тому перевіряється
+  // окремо, а не лише як частина MAIN_JS_MARKERS.
+  await checkCanonFile(
+    absDir,
+    '.storybook/empty-vite.config.js',
+    EMPTY_VITE_CONFIG_MARKERS,
+    'missing-empty-vite-config',
+    'empty-vite-config-marker-missing',
+    label,
+    rootDir,
+    `${relPrefix}.storybook/empty-vite.config.js`,
     reporter
   )
 

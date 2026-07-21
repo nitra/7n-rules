@@ -1,7 +1,7 @@
 ---
 description: Канонічний Storybook для Vue-компонентних бібліотек — скафолд, vitest/Stryker, гігієна залежностей, рецепти мокання
 version: '1.0'
-globs: ["package.json", "**/*.vue", ".storybook/**"]
+globs: ["**/package.json", "**/*.vue", "**/.storybook/**"]
 alwaysApply: false
 ---
 
@@ -32,12 +32,25 @@ alwaysApply: false
 - **Порядок Vite-плагінів фіксований**: `@vitejs/plugin-vue` **перед** `quasar()` — інакше Quasar-плагін не бачить SFC, уже скомпільований `plugin-vue`.
 - **Layout-детекція**: `src/components/` присутній → stories-glob звужується до нього; пласка структура (`src/` без `components/`) — ширший glob по всьому `src/`.
 - **`viteFinal`** зчитує `vite.config` самого пакета (той самий, що й для звичайного білду) і мерджить його плагіни в конфіг Storybook, **знімаючи** роутинг-плагіни файлової маршрутизації додатка-споживача (`vite-plugin-pages`, `unplugin-vue-router`, `vite-plugin-vue-layouts`, `vite-plugin-vue-layouts-next`) — вони не мають сенсу в ізольованому рендері компонента. Плагіни `plugins`-масиву можуть бути `Promise`/вкладеними масивами (`VueMacros({ plugins: { vue: Vue() } })` — реальний стек пілотного консюмера повертає `Promise`, що резолвиться в масив плагінів) — фільтр спершу resolve/flatten-ить їх, інакше порівняння імені з `Promise`, що ще не резолвився, мовчки пропускає дублікат `@vitejs/plugin-vue`-трансформу (подвійна SFC-трансформація). Vue-трансформери фільтруються за сімейством імені (`vite:vue`-префікс або підрядок `vue-macros`), не лише буквальним `@vitejs/plugin-vue` — деталі й обґрунтування коментарем у `scaffold/template/main.js`.
+- **`core.builder.options.viteConfigPath` на `.storybook/empty-vite.config.js` — ОБОВ'ЯЗКОВИЙ, не опційний.** Емпірично підтверджено (лише через `storybook build`, `dev --smoke-test` не ловить): без явного `viteConfigPath` `@storybook/builder-vite` сам через `loadConfigFromFile` знаходить `../vite.config.js` пакета ЩЕ ДО виклику `viteFinal` і домерджує його НЕФІЛЬТРОВАНІ плагіни в `storybookConfig` — фільтр у `viteFinal` тоді лише ДОДАЄ ще один `@vitejs/plugin-vue`, а не прибирає вже змерджений builder-vite дублікат (подвійна SFC-трансформація, `storybook build` падає на кожному `.vue`). `empty-vite.config.js` — канонічний порожній `defineConfig({})`-стенд-ін, генерується скафолдом поряд з `main.js`; окрема секція перевірки/adopt-діагностики (не частина `MAIN_JS_MARKERS` — main.js може бути канонічним, а сусідній файл видалено окремо).
 - **`staticDirs`** покриває `.storybook/public` — статичний asset для msw service worker (`preview.js`).
-- **`preview.js`**: повний `Quasar`-install (не тільки окремі компоненти) + `iconSet`+`iconMapFn`-комбо — без цієї пари внутрішні Quasar-компоненти (напр. стрілка `QSelect`) не резолвлять вбудовані іконки поза full CLI build. `msw-storybook-addon` ініціалізується з `onUnhandledRequest`-фільтром: **same-origin GET мовчки пропускається** (Vite HMR/asset-шум), решта — попередження (не білд-помилка — навмисно м'яко для хвилі 1).
+- **`preview.js`**: повний `Quasar`-install (не тільки окремі компоненти) + `iconSet`+`iconMapFn`-комбо — без цієї пари внутрішні Quasar-компоненти (напр. стрілка `QSelect`) не резолвлять вбудовані іконки поза full CLI build. Обидва `iconSet` — підшляховий default-імпорт (`quasar/icon-set/svg-material-icons`, `quasar/icon-set/material-icons`), **НЕ** named-import `iconSet` напряму з пакета `quasar` — quasar 2.18.x не має такого runtime-binding (лише компонент `IconSet` з великої літери), `@quasar/vite-plugin`-transform падає на такому специфікаторі. `msw-storybook-addon` ініціалізується з `onUnhandledRequest`-фільтром: **same-origin GET мовчки пропускається** (Vite HMR/asset-шум), решта — попередження (не білд-помилка — навмисно м'яко для хвилі 1). Мережевий мок підключається через `loaders: [mswLoader]`, **не** `decorators: [mswDecorator]` — `mswDecorator` deprecated у `msw-storybook-addon` 2.x (буде видалений у наступному релізі), `mswLoader` виконується per-story до рендеру.
 - **`.storybook/mocks/gql-sse.js`**: єдиний канонічний хелпер `sseSubscription` для MSW-мокання Apollo-підписок через wire-протокол `graphql-sse` (`event: next\ndata: …`, distinct-connection mode) — переносити цю логіку в кожен пакет окремо заборонено, є одне джерело істини.
 - **`package.json#scripts.storybook`** — уніфікований скрипт, однаковий для всіх пакетів у скоупі (значення — `scaffold/main.mjs`, не дублюється тут).
 
 Перевірка присутності й ключових маркерів канону — `scaffold/main.mjs`; детерміноване відтворення відсутніх файлів із `scaffold/template/` — `scaffold/fix-scaffold.mjs` (fixability: `config` — канонічна форма одна, LLM у ланцюжку фіксу не потрібен).
+
+### knip-виключення для `.storybook/`-артефактів
+
+Кожен adopt цього канону наступає на ту саму knip-проблему: `empty-vite.config.js` (динамічний шлях через `join(dirName, …)` у `main.js` — knip не резолвить `join`-конструйовані шляхи), `mocks/apollo.js` (точковий alias-мок, `mocking.mdc` — не кожен пакет його використовує) і `mocks/gql-sse.js` (helper, статично імпортується лише зі story-файлів, яких у щойно заскафолженому пакеті може ще не бути) регулярно фолсяться knip-ом як orphan-files. Канонічний фікс — **docs-only** сніпет, не автофікс: механізм `js/check` copy-once канону `knip.json` (`n-js.mdc`) свідомо **не ревалідує** вміст після першого створення (консюмер вільно кастомізує), тож програмний patch наявного `knip.json` консюмера конфліктував би з цим дизайн-рішенням і вимагав би нового merge-механізму замість наявного copy-if-missing. Додай вручну в `knip.json` консюмера (root або поряд з першим `.storybook/`):
+
+```json
+{
+  "ignore": ["**/.storybook/empty-vite.config.js", "**/.storybook/mocks/apollo.js", "**/.storybook/mocks/gql-sse.js"]
+}
+```
+
+(домердж у наявний масив `ignore`, не заміна). Звірено з реальним `knip.json` пілотного консюмера.
 
 ## Vitest-конфіг і Stryker-ізоляція (Кластер 5)
 
@@ -46,6 +59,8 @@ alwaysApply: false
 ### CI: Playwright-кеш і швидкий PR-прогін (Кластер 5, CI-частина)
 
 `ci/main.mjs` + `ci/fix-ci.mjs` (fixability: `config`, `requires.capability: ci:github` — спить у репозиторіях без плагіна `@7n/rules-ci-github`): для кожного репозиторію з бодай одним пакетом у скоупі — канонічний composite action `.github/actions/setup-playwright-chromium/action.yml` (кеш `~/.cache/ms-playwright`/`~/Library/Caches/ms-playwright` за версією playwright з `bun.lock`, install **лише** `chromium --with-deps` при cache miss) і `.github/workflows/lint-storybook.yml` (матриця `strategy.matrix.package` — фактичні пакети у скоупі, `checkout` → `setup-bun-deps` → `setup-playwright-chromium` → `vitest run --project=storybook`). Композитний action і workflow — репо-рівневі файли (не per-package), перевірка й автофікс не per-package.
+
+`workflow.on.push.paths` — **`**/.storybook/**`** (не `.storybook/**` без префіксу): пакет у скоупі майже завжди лежить не в корені репозиторію (`npm/.storybook/**` тощо), а GitHub Actions `paths`-глоб без `**/`-префіксу анкорить збіг до кореня репо й мовчки не спрацьовує на push у вкладений пакет. Той самий анкоринг-баг був і в усіх `concern.json#lint.glob`/`main.json#auto.glob`-патернах цього правила (`package.json`, `.storybook/**`, `vitest.config.*` без префіксу) — виправлено разом, звірено емпірично на пілотному консюмері (`components/.github/workflows/lint-storybook.yml`).
 
 Nightly-only `@7n/test coverage` (mutation testing) — свідомо поза цим concern-ом: ADR розділяє швидкий PR-шлях (`--project=storybook`, цей concern) і nightly mutation-прогін, який лишається окремою інфраструктурою (`test/stryker_config`) і не дублюється тут.
 

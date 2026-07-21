@@ -3,7 +3,7 @@ type: JS Module
 title: fix-scaffold.mjs
 resource: plugins/lang-js/rules/storybook/scaffold/fix-scaffold.mjs
 docgen:
-  crc: 31a867f5
+  crc: 10336699
   model: openai-codex/gpt-5.4-mini
   score: 90
   issues: internal-name:detectStoriesGlob,judge:inaccurate:0.95
