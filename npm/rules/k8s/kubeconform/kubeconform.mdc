@@ -36,3 +36,11 @@
 **Увага:** готовий snippet-файл цього прикладу (`js/templates/kubescape_exceptions/.kubescape-exceptions.json.snippet.json` до `da05f89d`) під час "combine concern" **не був перенесений** у жоден поточний concern-каталог і в репозиторії відсутній — знайти оригінал не вдалося; за потреби відтвори JSON вручну за прикладом вище.
 
 Виключай контрольно, а не глобально (не додавай винятки без `attributes.name`/`labels`).
+
+## Auto-generated виняток C-0056/C-0018 для Job/CronJob
+
+Controls **C-0056**/**C-0018** (liveness/readiness probe) структурно незастосовні до **`kind: Job`**/**`kind: CronJob`** — под виконується один раз і завершується, on-going readiness/liveness нема чим міряти. Без винятку kubescape (поріг `--severity-threshold high`) падає fatal на першому ж такому ресурсі й зупиняє скан усього дерева `k8s` (issue: efes-cloud/backend, 261 ресурс, жоден job не стартує Hasura server-side).
+
+Лінт **сам** генерує по одному exception-запису на **кожен реальний** Job/CronJob-ресурс (з `attributes.kind`+`attributes.name`, за наявності — `attributes.namespace`) для scan-таргету, що його якраз сканує kubescape (`autoJobCronJobProbeExceptions` у `npm/rules/k8s/manifests/main.mjs`, виклик з `runKubescapeManifest`/`scanRawK8sDir`). Це **не** kind-only виняток — кожен запис прив'язаний до конкретного ресурсу, тому відповідає конвенції "виключай контрольно, а не глобально" вище, і не вимагає ручної підтримки: нові CronJob покриваються автоматично при наступному скані.
+
+Auto-generated записи **мержаться** з `.kubescape-exceptions.json` користувача (якщо файл є) в один tmp-файл, переданий через `--exceptions`; committed-файл користувача лишається джерелом істини для власних, ручних винятків (напр. C-0012 вище) — цей механізм його не замінює і не редагує. Deployment/StatefulSet/DaemonSet-ресурси винятку **не** отримують — C-0056/C-0018 там і надалі fail-closed.

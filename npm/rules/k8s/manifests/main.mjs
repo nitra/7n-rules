@@ -1589,7 +1589,7 @@ export function baseKustomizationNamespaceViolation(obj) {
  * @param {string[]} [ignorePaths] шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи до файлів
  */
-async function findK8sYamlFiles(root, ignorePaths = []) {
+export async function findK8sYamlFiles(root, ignorePaths = []) {
   /**
   @type {string[]}
    */
@@ -3184,7 +3184,7 @@ function recordHasuraDeploymentName(rec, dir, hasuraByDir) {
  * @param {(msg: string, opts?: string | { reason?: string, file?: string, data?: object }) => void} fail callback реєстрації помилки
  * @returns {Promise<void>} результат
  */
-async function validateHasuraHttpRouteCanon(root, yamlFiles, fail) {
+export async function validateHasuraHttpRouteCanon(root, yamlFiles, fail) {
   const { hasuraByDir, httpRoutes } = await collectHasuraDeploymentsAndHttpRoutes(yamlFiles)
   if (hasuraByDir.size === 0 || httpRoutes.length === 0) return
 
@@ -3610,7 +3610,7 @@ async function validateConfigMapNameMatchesDeployment(root, yamlFilesAbs, fail, 
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успіху
  */
-async function validateHasuraConfigMapRemoteSchemaPermissions(root, yamlFilesAbs, fail, passFn) {
+export async function validateHasuraConfigMapRemoteSchemaPermissions(root, yamlFilesAbs, fail, passFn) {
   const cmFiles = yamlFilesAbs.filter(abs => {
     const rel = relative(root, abs).replaceAll('\\', '/')
     return CONFIGMAP_BASE_PATH_RE.test(`/${rel}`) || rel === 'k8s/base/configmap.yaml'
@@ -6553,9 +6553,15 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail) {
 /**
  * Plan B (rego-authoritative): на початку `check()` батч-викликаємо path-фільтровані
  * rego-пакети з `npm/policy/k8s/` через `runConftestBatch`. Пакети hasura_configmap і
- * hasura_httproute мають cross-file gating (паруються з Hasura-Deployment) — вони запускаються
- * з відповідних orchestrator-функцій (`validateHasuraConfigMapRemoteSchemaPermissions`,
- * `validateHasuraHttpRouteCanon`). Структурна частина HPA/PDB (`k8s.hpa_pdb`) тут на всіх yaml,
+ * hasura_httproute мають cross-file gating (паруються з Hasura-Deployment) — цей JS-гейт
+ * (`validateHasuraConfigMapRemoteSchemaPermissions`, `validateHasuraHttpRouteCanon`, обидві
+ * export) викликається з **власного** `main.mjs` кожного з цих двох концернів
+ * (`k8s/hasura_configmap/main.mjs`, `k8s/hasura_httproute/main.mjs`) — не звідси. Це навмисно:
+ * без власного `main.mjs` generic lint-surface (`hasHandWrittenMain` у
+ * `scripts/lib/lint-surface/detect.mjs`) промотує concern із самостійним `policy.files.walkGlob`
+ * у **ungated** detector, що прогонить rego напряму на всі файли-збіги glob — саме так виникали
+ * false positive на ConfigMap/HTTPRoute без сусіднього Hasura Deployment (issue: efes-cloud/backend).
+ * Структурна частина HPA/PDB (`k8s.hpa_pdb`) тут на всіх yaml,
  * env-залежні межі min/maxReplicas і expected-name — JS-cross-file у `validateDeploymentHpaPdbAndTopology`.
  * @param {string} root корінь репозиторію (cwd)
  * @param {string[]} yamlFiles абсолютні шляхи знайдених *.yaml під `…/k8s/`
@@ -6716,7 +6722,8 @@ export async function lint(ctx) {
 
   await validateSvcYamlAndSvcHlPairs(root, yamlFiles, fail)
 
-  await validateHasuraHttpRouteCanon(root, yamlFiles, fail)
+  // validateHasuraHttpRouteCanon — переїхав у власний main.mjs концерну k8s/hasura_httproute
+  // (gated detector, див. коментар над runAllK8sRego вище).
 
   await validateKustomizationIncludesSvcHlWithSvc(root, yamlFiles, fail)
 
@@ -6728,7 +6735,8 @@ export async function lint(ctx) {
 
   await validateConfigMapNameMatchesDeployment(root, yamlFiles, fail, pass)
 
-  await validateHasuraConfigMapRemoteSchemaPermissions(root, yamlFiles, fail, pass)
+  // validateHasuraConfigMapRemoteSchemaPermissions — переїхав у власний main.mjs концерну
+  // k8s/hasura_configmap (gated detector, див. коментар над runAllK8sRego вище).
 
   await validateDeploymentHpaPdbAndTopology(root, yamlFiles, fail, pass)
 
@@ -6826,13 +6834,118 @@ export async function runKubeconform(dirs, verbose = false) {
 }
 
 /**
- * Будує CLI-аргументи `--exceptions`, якщо в корені є `.kubescape-exceptions.json`.
- * @param {string} root корінь репозиторію.
- * @returns {string[]} масив аргументів (порожній, якщо файла винятків немає).
+ * `kind`, для яких kubescape-контроли C-0056/C-0018 (liveness/readiness probe) структурно
+ * незастосовні — под Job/CronJob виконується один раз і завершується, on-going readiness/liveness
+ * нема чим міряти (k8s.mdc).
+ * @type {Set<string>}
  */
-export function buildKubescapeExceptionsArgs(root) {
+const KUBESCAPE_PROBE_EXEMPT_KINDS = new Set(['Job', 'CronJob'])
+
+/**
+ * Auto-generated kubescape `postureExceptionPolicy`-записи для C-0056/C-0018 — по одному на
+ * кожен реальний Job/CronJob-ресурс з непорожнім `metadata.name`, знайдений у `yamlText`.
+ * Навмисно **не** kind-only (без `name`) — house-конвенція "виключай контрольно, а не глобально"
+ * (`k8s/kubeconform/kubeconform.mdc`): kind-only виняток замовчав би C-0056/C-0018 і на
+ * Deployment-подібних ресурсах, для яких ці controls реально застосовні.
+ * @param {string} yamlText вміст одного або декількох YAML-документів (kubescape scan target)
+ * @returns {object[]} масив exception-записів (може бути порожній)
+ */
+export function autoJobCronJobProbeExceptions(yamlText) {
+  const docs = tryParseAllYamlDocs(yamlText)
+  if (docs === undefined) return []
+  const out = []
+  for (const doc of docs) {
+    if (doc.errors.length !== 0) continue
+    const rec = asPlainRecord(doc.toJSON())
+    if (rec === null || typeof rec.kind !== 'string' || !KUBESCAPE_PROBE_EXEMPT_KINDS.has(rec.kind)) continue
+    const meta = asPlainRecord(rec.metadata)
+    const name = meta === null ? undefined : meta.name
+    if (typeof name !== 'string' || name === '') continue
+    const namespace = meta === null ? undefined : meta.namespace
+    const hasNamespace = typeof namespace === 'string' && namespace !== ''
+    const attributes = hasNamespace ? { kind: rec.kind, name, namespace } : { kind: rec.kind, name }
+    out.push({
+      name: `auto-${rec.kind.toLowerCase()}-${hasNamespace ? namespace : 'default'}-${name}-probes`,
+      policyType: 'postureExceptionPolicy',
+      actions: ['alertOnly'],
+      resources: [{ designatorType: 'Attributes', attributes }],
+      posturePolicies: [{ controlID: 'C-0056' }, { controlID: 'C-0018' }]
+    })
+  }
+  return out
+}
+
+/**
+ * Читає та конкатенує вміст усіх `*.yaml`/`*.yml` під каталогом — для похідних auto-exceptions
+ * (треба геть увесь вміст `dir`, що його рекурсивно сканує `kubescape scan <dir>`, а не лише
+ * basename-фільтровані файли k8s.mdc-обходу).
+ * @param {string} dir абсолютний шлях каталогу
+ * @returns {Promise<string>} конкатенований YAML-текст (документи розділені `---`)
+ */
+async function readAllYamlTextUnderDir(dir) {
+  const files = []
+  await walkDir(dir, p => {
+    if (YAML_EXTENSION_RE.test(p)) files.push(p)
+  })
+  const parts = []
+  for (const f of files) {
+    const raw = await tryReadFileUtf8(f)
+    if (raw !== undefined) parts.push(raw)
+  }
+  return parts.join('\n---\n')
+}
+
+/**
+ * Безпечно парсить user-файл `.kubescape-exceptions.json` як масив exception-записів.
+ * @param {string} exceptionsPath абсолютний шлях до файлу
+ * @returns {object[]} масив (порожній при помилці читання/парсингу або якщо це не масив)
+ */
+function readUserKubescapeExceptions(exceptionsPath) {
+  try {
+    const parsed = JSON.parse(readFileSync(exceptionsPath, 'utf8'))
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    console.error(
+      `${exceptionsPath}: не вдалося розпарсити як JSON-масив — auto-generated винятки Job/CronJob застосовано без нього`
+    )
+    return []
+  }
+}
+
+/**
+ * Будує CLI-аргументи `--exceptions`. Без `autoExceptions` — сумісна поведінка: пряме
+ * посилання на `.kubescape-exceptions.json` у корені (якщо є), інакше `[]`. З непорожнім
+ * `autoExceptions` — мержить його з user-файлом (якщо є) у tmp-файл; виклик відповідає за
+ * cleanup через `cleanupKubescapeExceptionsArgs`.
+ * @param {string} root корінь репозиторію.
+ * @param {object[]} [autoExceptions] auto-generated exception-записи для мержу з user-файлом.
+ * @returns {string[]} масив аргументів (порожній, якщо винятків немає взагалі).
+ */
+export function buildKubescapeExceptionsArgs(root, autoExceptions = []) {
   const exceptionsPath = join(root, KUBESCAPE_EXCEPTIONS_FILE)
-  return existsSync(exceptionsPath) ? ['--exceptions', exceptionsPath] : []
+  const userFileExists = existsSync(exceptionsPath)
+  if (autoExceptions.length === 0) {
+    return userFileExists ? ['--exceptions', exceptionsPath] : []
+  }
+  const userExceptions = userFileExists ? readUserKubescapeExceptions(exceptionsPath) : []
+  const merged = [...userExceptions, ...autoExceptions]
+  const dir = mkdtempSync(join(tmpdir(), 'nitra-cursor-k8s-exceptions-'))
+  const tmpFile = join(dir, 'kubescape-exceptions.json')
+  writeFileSync(tmpFile, JSON.stringify(merged))
+  return ['--exceptions', tmpFile]
+}
+
+/**
+ * Прибирає tmp-файл винятків, згенерований `buildKubescapeExceptionsArgs` (якщо це не пряме
+ * посилання на committed `.kubescape-exceptions.json` користувача — той не чіпаємо).
+ * @param {string[]} exceptionsArgs результат `buildKubescapeExceptionsArgs`.
+ * @param {string} root корінь репозиторію.
+ * @returns {void} результат
+ */
+function cleanupKubescapeExceptionsArgs(exceptionsArgs, root) {
+  const p = exceptionsArgs[1]
+  if (p === undefined || p === join(root, KUBESCAPE_EXCEPTIONS_FILE)) return
+  rmSync(dirname(p), { recursive: true, force: true })
 }
 
 /**
@@ -6884,16 +6997,20 @@ async function runKustomizeBuild(kubectlPath, dir, verbose = false) {
 }
 
 /**
- * Сканує один зібраний маніфест через `kubescape scan` (пише у tmp-файл, чистить його).
+ * Сканує один зібраний маніфест через `kubescape scan` (пише у tmp-файл, чистить його). Auto-
+ * generated виняток C-0056/C-0018 для Job/CronJob-ресурсів у `manifest` (див.
+ * `autoJobCronJobProbeExceptions`) мержиться з user-файлом `.kubescape-exceptions.json` (якщо є).
  * @param {string} kubescapePath шлях до бінарника kubescape.
  * @param {string|Buffer} manifest вміст маніфеста для сканування.
- * @param {string[]} exceptionsArgs додаткові CLI-аргументи (`--exceptions ...`).
+ * @param {string} root корінь репозиторію (для user-файла винятків).
  * @param {boolean} [verbose] показати повний нативний вивід kubescape (`stdio: 'inherit'`).
  * @returns {Promise<{ status: number, enoent: boolean }>} exit-код і прапорець відсутнього тула.
  */
-async function runKubescapeManifest(kubescapePath, manifest, exceptionsArgs, verbose = false) {
+async function runKubescapeManifest(kubescapePath, manifest, root, verbose = false) {
   const dir = mkdtempSync(join(tmpdir(), 'nitra-cursor-k8s-'))
   const file = join(dir, 'manifest.yaml')
+  const exceptionsArgs = buildKubescapeExceptionsArgs(root, autoJobCronJobProbeExceptions(String(manifest)))
+  if (verbose && exceptionsArgs.length > 0) console.log(`run-k8s: kubescape exceptions — ${exceptionsArgs[1]}`)
   try {
     writeFileSync(file, manifest)
     try {
@@ -6906,20 +7023,26 @@ async function runKubescapeManifest(kubescapePath, manifest, exceptionsArgs, ver
       return { status: 1, enoent }
     }
   } finally {
+    cleanupKubescapeExceptionsArgs(exceptionsArgs, root)
     rmSync(dir, { recursive: true, force: true })
   }
 }
 
 /**
- * Сканує сирий k8s-каталог (без kustomization) через `kubescape scan <dir>`.
+ * Сканує сирий k8s-каталог (без kustomization) через `kubescape scan <dir>`. Auto-generated
+ * виняток C-0056/C-0018 для Job/CronJob-ресурсів під `dir` мержиться з user-файлом
+ * `.kubescape-exceptions.json` (якщо є).
  * @param {string} kubescapePath шлях до бінарника kubescape.
  * @param {string} dir каталог для сканування.
- * @param {string[]} exceptionsArgs додаткові CLI-аргументи (`--exceptions ...`).
+ * @param {string} root корінь репозиторію (для user-файла винятків).
  * @param {boolean} [verbose] показати повний нативний вивід kubescape (`stdio: 'inherit'`) і хід сканування.
  * @returns {Promise<number>} exit-код (127 якщо тул відсутній).
  */
-async function scanRawK8sDir(kubescapePath, dir, exceptionsArgs, verbose = false) {
+async function scanRawK8sDir(kubescapePath, dir, root, verbose = false) {
   if (verbose) console.log(`run-k8s: kubescape scan ${dir} (без kustomization — сирий dir-скан)`)
+  const yamlText = await readAllYamlTextUnderDir(dir)
+  const exceptionsArgs = buildKubescapeExceptionsArgs(root, autoJobCronJobProbeExceptions(yamlText))
+  if (verbose && exceptionsArgs.length > 0) console.log(`run-k8s: kubescape exceptions — ${exceptionsArgs[1]}`)
   try {
     const r = await spawnAsync(kubescapePath, ['scan', dir, '--severity-threshold', 'high', ...exceptionsArgs], {
       stdio: verbose ? 'inherit' : 'pipe'
@@ -6931,6 +7054,8 @@ async function scanRawK8sDir(kubescapePath, dir, exceptionsArgs, verbose = false
       return 127
     }
     return 1
+  } finally {
+    cleanupKubescapeExceptionsArgs(exceptionsArgs, root)
   }
 }
 
@@ -6939,16 +7064,16 @@ async function scanRawK8sDir(kubescapePath, dir, exceptionsArgs, verbose = false
  * @param {string} kubectlPath шлях до бінарника kubectl.
  * @param {string} kubescapePath шлях до бінарника kubescape.
  * @param {string[]} kdirs каталоги з kustomization.
- * @param {string[]} exceptionsArgs додаткові CLI-аргументи (`--exceptions ...`).
+ * @param {string} root корінь репозиторію (для user-файла винятків).
  * @param {boolean} [verbose] показати повний нативний вивід kubectl/kubescape і хід сканування.
  * @returns {Promise<number>} 0 якщо всі чисті, інакше перший ненульовий exit-код (127 — тул відсутній).
  */
-async function scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exceptionsArgs, verbose = false) {
+async function scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, root, verbose = false) {
   for (const kdir of kdirs) {
     if (verbose) console.log(`run-k8s: kubectl kustomize ${kdir} | kubescape scan <tmp>`)
     const build = await runKustomizeBuild(kubectlPath, kdir, verbose)
     if (build.status !== 0) return build.status
-    const ks = await runKubescapeManifest(kubescapePath, build.stdout, exceptionsArgs, verbose)
+    const ks = await runKubescapeManifest(kubescapePath, build.stdout, root, verbose)
     if (ks.enoent) {
       console.error(KUBESCAPE_MISSING_HINT)
       return 127
@@ -6960,20 +7085,20 @@ async function scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exception
 
 /**
  * Оркеструє kubescape-скан по k8s-коренях: kustomize-каталоги збираються, решта — сирий скан.
+ * Виняток C-0056/C-0018 для Job/CronJob — auto-generated з реального контенту кожного скан-таргету
+ * (не один спільний файл на весь репо), див. `runKubescapeManifest`/`scanRawK8sDir`.
  * @param {string[]} dirs абсолютні шляхи k8s-коренів.
- * @param {string} root корінь репозиторію (для файла винятків).
+ * @param {string} root корінь репозиторію (для user-файла винятків).
  * @param {boolean} [verbose] показати повний нативний вивід kubectl/kubescape (`stdio: 'inherit'`) і хід сканування.
  * @returns {Promise<number>} 0 якщо все чисто, інакше перший ненульовий exit-код (127 — тул відсутній).
  */
 async function runKubescape(dirs, root, verbose = false) {
-  const exceptionsArgs = buildKubescapeExceptionsArgs(root)
-  if (verbose && exceptionsArgs.length > 0) console.log(`run-k8s: kubescape exceptions — ${KUBESCAPE_EXCEPTIONS_FILE}`)
   const kubescapePath = ensureTool('kubescape')
   let kubectlPath = null
   for (const d of dirs) {
     const kdirs = await findKustomizationDirs(d)
     if (kdirs.length === 0) {
-      const rawStatus = await scanRawK8sDir(kubescapePath, d, exceptionsArgs, verbose)
+      const rawStatus = await scanRawK8sDir(kubescapePath, d, root, verbose)
       if (rawStatus !== 0) return rawStatus
       continue
     }
@@ -6984,7 +7109,7 @@ async function runKubescape(dirs, root, verbose = false) {
         return 127
       }
     }
-    const buildStatus = await scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exceptionsArgs, verbose)
+    const buildStatus = await scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, root, verbose)
     if (buildStatus !== 0) return buildStatus
   }
   return 0
