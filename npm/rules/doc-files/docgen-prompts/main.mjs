@@ -304,3 +304,19 @@ export function buildUnitDigest(units) {
   }
   return parts.join('\n\n')
 }
+
+/**
+ * №6 — judge-refine: один локальний refine-прохід за конкретними зауваженнями
+ * LLM-судді (замість лише маркування degraded). Суддя вже сформулював, ЩО саме
+ * хибне (`reason`) — мала модель добре виправляє точкові твердження, коли їй
+ * сказано, які саме.
+ * @param {string} doc машинні секції доки (без захищеного «Призначення»)
+ * @param {string} reason зауваження судді (verdict.reason)
+ * @returns {Array<{role:string,content:string}>} messages-масив для LLM
+ */
+export function judgeRefineMessages(doc, reason) {
+  return msgs(
+    STYLE,
+    `Рецензент знайшов у документації неточності:\n${reason}\n\nВиправ ЛИШЕ хибні твердження — прибери або переформулюй їх так, щоб вони відповідали дійсності. Збережи структуру (усі ## заголовки), мову й решту тексту без змін. Поверни ПОВНИЙ виправлений markdown-документ, без преамбул.\n\nДОКУМЕНТ:\n${doc}`
+  )
+}

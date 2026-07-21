@@ -22,7 +22,8 @@ import {
   renderApiLine,
   apiGapMessages,
   buildUnitDigest,
-  UNIT_DIGEST_TOKENS
+  UNIT_DIGEST_TOKENS,
+  judgeRefineMessages
 } from '../docgen-prompts/main.mjs'
 
 /** Облік LLM-викликів і часу в них у межах однієї генерації (скидається на старті generateDoc). */
@@ -500,6 +501,67 @@ async function orchestratedDoc(
 }
 
 /**
+ * №6 — judge-refine: суддя назвав конкретні неточності (`judge.reason`) — один
+ * локальний refine-прохід замість лише маркування degraded. Приймаємо виправлену
+ * версію ТІЛЬКИ якщо: det-score не впав, усі ## заголовки збережені, і повторний
+ * суддя більше не каже inaccurate. Інакше — оригінал і degraded, як раніше.
+ * Cap: рівно одна ітерація (без петель самопереконання).
+ * @param {{ md: string }} r поточний результат генерації
+ * @param {{ reason: string }} judge вердикт судді (inaccurate)
+ * @param {{ facts: object, anchors: object|null, src: string, score: number, model: string, chain: object }} ctx контекст генерації
+ * @returns {Promise<{ md: string, score: number, issues: string[], judge: object }|null>} прийнята виправлена версія або null (лишаємо оригінал)
+ */
+async function judgeRefinePass(r, judge, { facts, anchors, src, score, model, chain }) {
+  const { body: intentBody, without } = splitProtected(r.md)
+  const fixedRaw = await callLlm(judgeRefineMessages(without, judge.reason), model, { timeoutMs: LOCAL_TIMEOUT_MS })
+  let fixed = stripSection(fixedRaw)
+  if (!fixed.startsWith('#')) fixed = `# ${basename(facts.relPath)}\n\n${fixed}`
+  const fixedMd = insertProtected(fixed + '\n', intentBody)
+  // Guard 1: рерайт не має губити секції (малі моделі інколи повертають фрагмент)
+  const origHeadings = r.md.match(/^##\s.+$/gm) ?? []
+  if (origHeadings.some(h => !fixedMd.includes(h))) return null
+  // Guard 2: det-score не має падати
+  const sFixed = scoreDoc(fixedMd, facts, { anchors, src })
+  if (sFixed.score < score) return null
+  // Guard 3: повторний суддя (той самий scope: inaccurate)
+  const judge2 = { ...(await judgeDoc(src, fixedMd, { chain })), model: JUDGE_MODEL }
+  if (judgeFailsDoc(judge2)) return null
+  return { md: fixedMd, score: sFixed.score, issues: sFixed.issues, judge: judge2 }
+}
+
+/**
+ * Judge-гейт цілком (виклик судді + опційний №6 refine): обгортка для
+ * generateDocCore, щоб тримати його cognitive complexity в межах. Помилки судді
+ * не валять генерацію — лише issue-маркер, як і раніше.
+ * @param {{ r: {md: string}, score: number, issues: string[], facts: object, anchors: object|null, src: string, model: string, chain: object }} ctx стан генерації
+ * @returns {Promise<{ judge: object|null, r: {md: string}, score: number, issues: string[] }>} оновлений стан
+ */
+async function runJudgeGate({ r, score, issues, facts, anchors, src, model, chain }) {
+  let judge = null
+  try {
+    judge = { ...(await judgeDoc(src, r.md, { chain })), model: JUDGE_MODEL }
+    // №6: суддя назвав конкретні неточності → один локальний refine-прохід
+    // (опт-аут: N_CURSOR_DOCGEN_JUDGE_REFINE=0). Прийнято лише коли всі
+    // guard-и judgeRefinePass пройдені; інакше — degraded, як раніше.
+    if (judgeFailsDoc(judge) && env.N_CURSOR_DOCGEN_JUDGE_REFINE !== '0') {
+      const refined = await judgeRefinePass(r, judge, { facts, anchors, src, score, model, chain })
+      if (refined) {
+        r = { ...r, md: refined.md }
+        score = refined.score
+        issues = [...refined.issues, 'judge-refine:won']
+        judge = refined.judge
+      } else {
+        issues = [...issues, 'judge-refine:kept-original']
+      }
+    }
+    if (judgeFailsDoc(judge)) issues = [...issues, `judge:inaccurate:${judge.confidence}`]
+  } catch (error) {
+    issues = [...issues, `judge:error: ${error.message.slice(0, 80)}`]
+  }
+  return { judge, r, score, issues }
+}
+
+/**
  * №5 (бенч gemma-4): текст «коду файлу» для Behavior-промпта. Великий src
  * (понад UNIT_DIGEST_TOKENS) → юніт-дайджест (імʼя + JSDoc + call-graph + тіло
  * лише для непокритих юнітів) замість сирого коду: на ~6k токенів сирцю мала
@@ -675,12 +737,7 @@ export async function generateDoc(
     // доках, що ПРОЙШЛИ det-скорер (там ховаються false-positives). Scope: inaccurate.
     let judge = null
     if (JUDGE_ENABLED && score >= threshold) {
-      try {
-        judge = { ...(await judgeDoc(src, r.md, { chain })), model: JUDGE_MODEL }
-        if (judgeFailsDoc(judge)) issues = [...issues, `judge:inaccurate:${judge.confidence}`]
-      } catch (error) {
-        issues = [...issues, `judge:error: ${error.message.slice(0, 80)}`]
-      }
+      ;({ judge, r, score, issues } = await runJudgeGate({ r, score, issues, facts, anchors, src, model, chain }))
     }
 
     const degraded = score < threshold || judgeFailsDoc(judge)
