@@ -11,7 +11,6 @@ import { isVueComponentLibraryPkg } from '../../vue/packages/main.mjs'
 
 const CONFIG_FILE = '.n-rules.json'
 const LEGACY_CONFIG_FILE = '.n-cursor.json'
-const VITE_CONFIG_FILES = ['vite.config.js', 'vite.config.ts', 'vite.config.mjs']
 
 /** Поріг кількості `.vue`-файлів для скоупу канону Storybook (ADR Кластер 1). */
 export const VUE_FILE_THRESHOLD = 3
@@ -87,18 +86,6 @@ export async function countVueFiles(absPkgDir, ignorePaths) {
 }
 
 /**
- * Чи має пакет "стандартний" build — розпізнаваний `vite.config.{js,ts,mjs}` у корені пакета.
- * Канонічний `.storybook/main.js` спирається саме на цей файл (`viteFinal` мерджить його
- * плагіни) — без нього автоматичний скафолд неможливий, і пакет пропускається мовчки
- * (ADR Кластер 1: "skip пакетів із нестандартним build").
- * @param {string} absPkgDir абсолютний шлях кореня пакета
- * @returns {boolean} true, якщо знайдено відомий `vite.config.*`
- */
-export function hasStandardBuild(absPkgDir) {
-  return VITE_CONFIG_FILES.some(f => existsSync(join(absPkgDir, f)))
-}
-
-/**
  * Чи є пакет app-проєктом (не бібліотекою) для хвилі 2: `vue` у `dependencies` (не лише
  * `peerDependencies`) і не бібліотека компонентів. Реалізовано зараз (щоб не переписувати
  * модуль пізніше), але результат впливає на скоуп лише за прапорця `storybook.detectApps`.
@@ -129,7 +116,6 @@ async function evaluateCandidate(rootDir, cwd, matches, ignorePaths) {
     return null
   }
   if (!matches(pkg)) return null
-  if (!hasStandardBuild(absDir)) return null
   const vueFileCount = await countVueFiles(absDir, ignorePaths)
   if (vueFileCount < VUE_FILE_THRESHOLD) return null
   return { rootDir, absDir, pkg, vueFileCount }
@@ -138,8 +124,11 @@ async function evaluateCandidate(rootDir, cwd, matches, ignorePaths) {
 /**
  * Збирає workspace-пакети у скоупі канону Storybook хвилі 1: Vue-компонентна бібліотека
  * (`vue` у `peerDependencies`, маркер `isVueComponentLibraryPkg` — той самий, що й `vue.mdc`)
- * з не менше {@link VUE_FILE_THRESHOLD} `.vue`-файлами, без `storybook.optOut`, зі
- * стандартним build (`vite.config.*`). Хвиля 2 (app-проєкти) додається лише за явного
+ * з не менше {@link VUE_FILE_THRESHOLD} `.vue`-файлами, без `storybook.optOut`. Наявність
+ * `vite.config.*` пакета — НЕ умова скоупу (rollout tauri-components/npm, хвиля 1.4):
+ * канонічний скафолд (`viteConfigPath` на `empty-vite.config.js`, `loadConfigFromFile`
+ * толерує відсутній конфіг) працює й для source-only Vue-бібліотек без власного Vite-білду
+ * — див. секцію "Скоуп" у `main.mdc`. Хвиля 2 (app-проєкти) додається лише за явного
  * прапорця `storybook.detectApps` у `.n-rules.json`.
  * @param {string} cwd абсолютний корінь репозиторію
  * @returns {Promise<InScopePackage[]>} пакети у скоупі
@@ -173,7 +162,7 @@ export async function collectInScopeVuePackages(cwd) {
 /**
  * Self-check конфігурації: `.n-rules.json` → `storybook.optOut` не має посилатись на
  * неіснуючі workspace-пакети (застаріле налаштування — пакет перейменували/видалили, а
- * opt-out лишився). Сама детекція скоупу (поріг, build, app-проєкти) — pure-функції вище,
+ * opt-out лишився). Сама детекція скоупу (поріг, app-проєкти) — pure-функції вище,
  * покриті тестами напряму; тут лише конфіг-гігієна.
  * @param {import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
  * @returns {Promise<import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintResult>} результат лінту

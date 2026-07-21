@@ -15,13 +15,17 @@ alwaysApply: false
 
 ## Скоуп
 
-Тільки Vue-компонентні бібліотеки — пакет із `vue` у `peerDependencies` (маркер `isVueComponentLibraryPkg`, той самий що й у `vue.mdc`, не дублюється) і не менше **3** `.vue`-файлів. Поріг відсікає пакети з одним-двома допоміжними компонентами, для яких повний Storybook-скафолд — зайві накладні витрати. Пакети без розпізнаваного `vite.config.{js,ts,mjs}` (нестандартний build) пропускаються мовчки — автоматичний скафолд спирається на `viteConfigPath` пакета.
+Тільки Vue-компонентні бібліотеки — пакет із `vue` у `peerDependencies` (маркер `isVueComponentLibraryPkg`, той самий що й у `vue.mdc`, не дублюється) і не менше **3** `.vue`-файлів. Поріг відсікає пакети з одним-двома допоміжними компонентами, для яких повний Storybook-скафолд — зайві накладні витрати.
+
+**Наявність `vite.config.{js,ts,mjs}` пакета — НЕ умова скоупу** (хвиля 1.4, фікс за результатами rollout-у на `tauri-components/npm`). До хвилі 1.4 тут була функція `hasStandardBuild` — вона мовчки виключала зі скоупу пакети без власного `vite.config.*` ("skip нестандартного build", ADR Кластер 1). На практиці це виключало легітимні source-only Vue-бібліотеки (peerDependencies.vue + достатньо `.vue`-файлів, просто без окремого Vite-білду) — а канонічний скафолд для них працює без жодних змін: `viteConfigPath` у `.storybook/main.js` завжди вказує на власний `empty-vite.config.js` скафолда (не на `vite.config.*` пакета), а `viteFinal` викликає `loadConfigFromFile`, який толерує відсутній конфіг пакета (повертає `null`, `viteFinal` мерджить порожній список плагінів). Емпірично перевірено на `tauri-components/npm`: `storybook build` + повний прогін тестів у реальному chromium — без жодного `vite.config.*` у пакеті. `hasStandardBuild` прибрано з `scope/main.mjs` разом з усіма згадками; для пакета, де канонічний скафолд дійсно не підходить (справжня екзотика білду — не сам факт відсутності Vite-конфіга), власник додає його у `storybook.optOut` вручну — окрема автоматична детекція "нестандартного build" дублювала б наявний opt-out і давала б хибні спрацювання.
 
 Опційно (вимкнено за замовчуванням) — app-проєкти (`vue` у `dependencies`, не бібліотека, + `src/pages/`). Детекція реалізована в `scope/main.mjs`, але не викликається доки в `.n-rules.json` не задано прапорець хвилі 2 — рішення розширювати скоуп на app-проєкти залишається відкритим питанням ADR.
 
 **Opt-out:** окремий пакет можна виключити зі скоупу через `.n-rules.json` → `storybook.optOut: string[]` (root dir пакета, той самий формат що й у виводі workspace-роутингу — `.` для кореня, `packages/ui` тощо). Виняток — намір, не помилка: якщо в `optOut` вказано неіснуючий workspace-пакет, `scope`-концерн репортує це як застаріле налаштування.
 
-Логіка детекції (поріг, opt-out, нестандартний build, app-проєкти) — у `scope/main.mjs`, не дублюється тут.
+Логіка детекції (поріг, opt-out, app-проєкти) — у `scope/main.mjs`, не дублюється тут.
+
+`vitest-config`-концерн (Кластер 5, нижче) генерує baseline `vitest.config.mjs`/`vitest.stryker.config.mjs` з `import viteConfig from './<vite.config.*>'` — для source-only пакета без `vite.config.*` це зламало б import неіснуючого файлу; `vitest-config/fix-vitest-config.mjs#applyViteConfigImport` підставляє замість import-у порожній локальний `const viteConfig = {}` (еквівалент для `mergeConfig`), решта baseline-структури не змінюється.
 
 ## Канонічний скафолд
 
@@ -51,6 +55,8 @@ alwaysApply: false
 ```
 
 (домердж у наявний масив `ignore`, не заміна). Звірено з реальним `knip.json` пілотного консюмера.
+
+Симетрична ручна правка для `oxfmt`: `.storybook/public/mockServiceWorker.js` (згенерований пакетом `msw` файл, `npx msw init` — той самий service worker, на який вказує `staticDirs` у `main.js`) слід додати в `.oxfmtrc.json` консюмера в `ignorePatterns: ["**/mockServiceWorker.js"]` — реформатування псує pristine-стан цього файлу (той самий принцип, що й `**/adr/**`-виняток `oxfmt`/`cspell`, `docs/adr/adr-виключення-oxfmt-cspell.md`).
 
 ## Vitest-конфіг і Stryker-ізоляція (Кластер 5)
 

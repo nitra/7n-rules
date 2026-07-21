@@ -1,6 +1,8 @@
 /**
  * Тести детекції скоупу канону Storybook (storybook.mdc): поріг `.vue`-файлів, opt-out
- * через `.n-rules.json`, нестандартний build, app-проєкти хвилі 2 (за прапорцем).
+ * через `.n-rules.json`, app-проєкти хвилі 2 (за прапорцем). Наявність `vite.config.*` —
+ * НЕ умова скоупу (хвиля 1.4, фікс за rollout-ом на tauri-components/npm) — окремі тести
+ * нижче звіряють, що пакет без жодного `vite.config.*` усе одно потрапляє у скоуп.
  * Фікстури — динамічні тимчасові дерева (mkdtemp), не статичні файли в репо: статичний
  * "поганий" package.json/vite.config у дереві правила проходив би через lint-обхід
  * (eslint/oxfmt/doc-files) цього ж репозиторію.
@@ -14,7 +16,6 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import {
   collectInScopeVuePackages,
   countVueFiles,
-  hasStandardBuild,
   isVueAppPkg,
   lint,
   readDetectAppsFlag,
@@ -54,7 +55,7 @@ async function writeVueLibraryPkg(root, rootDir, vueFileCount, pkgOverrides = {}
   }
 }
 
-describe('countVueFiles / hasStandardBuild', () => {
+describe('countVueFiles', () => {
   let root
 
   beforeEach(async () => {
@@ -70,15 +71,6 @@ describe('countVueFiles / hasStandardBuild', () => {
     await writeFileDeep(root, 'src/components/B.vue', '<template/>')
     await writeFileDeep(root, 'src/utils.js', 'export const x = 1\n')
     expect(await countVueFiles(root, [])).toBe(2)
-  })
-
-  test('hasStandardBuild: true за наявності vite.config.js', async () => {
-    await writeFileDeep(root, 'vite.config.js', 'export default {}\n')
-    expect(hasStandardBuild(root)).toBe(true)
-  })
-
-  test('hasStandardBuild: false без vite.config.*', () => {
-    expect(hasStandardBuild(root)).toBe(false)
   })
 })
 
@@ -135,7 +127,7 @@ describe('collectInScopeVuePackages', () => {
     expect(result).toEqual([])
   })
 
-  test('нестандартний build (без vite.config.*) — пропускається', async () => {
+  test('пакет без жодного vite.config.* (source-only бібліотека) — у скоупі (хвиля 1.4, tauri-components/npm)', async () => {
     await writeFileDeep(
       root,
       'packages/ui/package.json',
@@ -145,7 +137,8 @@ describe('collectInScopeVuePackages', () => {
       await writeFileDeep(root, `packages/ui/src/components/Comp${i}.vue`, '<template/>')
     }
     const result = await collectInScopeVuePackages(root)
-    expect(result).toEqual([])
+    expect(result.map(r => r.rootDir)).toEqual(['packages/ui'])
+    expect(result[0].vueFileCount).toBe(VUE_FILE_THRESHOLD)
   })
 
   test('opt-out через .n-rules.json storybook.optOut виключає пакет зі скоупу', async () => {
