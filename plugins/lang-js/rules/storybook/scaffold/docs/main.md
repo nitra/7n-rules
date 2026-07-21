@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: plugins/lang-js/rules/storybook/scaffold/main.mjs
 docgen:
-  crc: c06a9e15
+  crc: 2cad0405
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.98

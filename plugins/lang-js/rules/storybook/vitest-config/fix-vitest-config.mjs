@@ -21,6 +21,7 @@ import {
   findTestObject,
   LEADING_COMMA_RE,
   parseModule,
+  PLAYWRIGHT_PROVIDER_IMPORT,
   REASON_STORYBOOK_PROJECT_MISSING,
   REASON_STRYKER_CONFIG_MISSING,
   REASON_UNIT_PROJECT_MISSING,
@@ -145,14 +146,29 @@ function arrayInsertBeforeClose(arr, indent, entries) {
 }
 
 /**
- * Гарантує наявність import-у `storybookTest` на самому початку файлу — ESM
- * толерантний до порядку import-ів, тож prepend завжди синтаксично коректний
- * незалежно від наявних import-ів.
+ * Гарантує наявність import-у на самому початку файлу — ESM толерантний до
+ * порядку import-ів, тож prepend завжди синтаксично коректний незалежно від
+ * наявних import-ів.
  * @param {string} src вихідний текст
+ * @param {string} marker підрядок, наявність якого означає "import уже є"
+ * @param {string} importLine рядок import-у (з `\n` наприкінці), що вставляється, якщо `marker` відсутній
  * @returns {string} текст з гарантованим import-ом
  */
-function ensureStorybookTestImport(src) {
-  return src.includes('@storybook/addon-vitest/vitest-plugin') ? src : `${STORYBOOK_TEST_IMPORT}${src}`
+function ensureImport(src, marker, importLine) {
+  return src.includes(marker) ? src : `${importLine}${src}`
+}
+
+/**
+ * Гарантує наявність обох import-ів, потрібних новому storybook-запису
+ * `test.projects`: `storybookTest` (`@storybook/addon-vitest/vitest-plugin`) і
+ * `playwright`-provider factory (`@vitest/browser-playwright`, vitest@^4 —
+ * рядкове API `provider: 'playwright'` застаріле).
+ * @param {string} src вихідний текст
+ * @returns {string} текст з гарантованими import-ами
+ */
+function ensureStorybookEntryImports(src) {
+  const withStorybookTest = ensureImport(src, '@storybook/addon-vitest/vitest-plugin', STORYBOOK_TEST_IMPORT)
+  return ensureImport(withStorybookTest, '@vitest/browser-playwright', PLAYWRIGHT_PROVIDER_IMPORT)
 }
 
 /**
@@ -224,7 +240,7 @@ async function computeVitestConfigAugment(absPkgDir, vitestConfigPath) {
   if (!plan) return null
 
   let next = applyEdits(src, [plan.edit])
-  if (plan.needsImport) next = ensureStorybookTestImport(next)
+  if (plan.needsImport) next = ensureStorybookEntryImports(next)
 
   // Safety: результат має компілюватися; інакше не пишемо (fail-closed, як у test/stryker_config).
   let recheck

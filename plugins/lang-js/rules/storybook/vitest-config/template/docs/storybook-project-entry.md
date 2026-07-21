@@ -3,9 +3,8 @@ type: JS Module
 title: storybook-project-entry.js
 resource: plugins/lang-js/rules/storybook/vitest-config/template/storybook-project-entry.js
 docgen:
-  crc: 5d9feafd
+  crc: 2646d55c
   model: openai-codex/gpt-5.5
-  tier: cloud-avg
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

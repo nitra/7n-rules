@@ -7,9 +7,13 @@
 Vue-компонентна бібліотека вже має `vitest.config.{mjs,js,ts}` за каноном `vue/testing.mdc` (`mergeConfig(viteConfig, defineConfig({ test: {...} }))` з `environment: 'happy-dom'`). Storybook-хвиля **дописує** до цього `test`-блоку named-project `unit`+`storybook` — існуючі поля (`include`, `environment`, `coverage`) лишаються без змін, `projects` — нова властивість поруч:
 
 - `{ extends: true, test: { name: 'unit' } }` — успадковує решту `test`-опцій пакета як є.
-- `storybook`-проєкт — **browser-mode, лише chromium** (`browser: { enabled: true, provider: 'playwright', instances: [{ browser: 'chromium' }] }`) і `include` на stories-glob пакета (та сама layout-детекція, що й `scaffold/main.mjs#detectStoriesGlob`, лише без префіксу `../` — vitest-конфіг лежить у корені пакета, а не в `.storybook/`).
+- `storybook`-проєкт — **browser-mode, лише chromium** (`browser: { enabled: true, provider: playwright(), instances: [{ browser: 'chromium' }] }`) і `include` на stories-glob пакета (та сама layout-детекція, що й `scaffold/main.mjs#detectStoriesGlob`, лише без префіксу `../` — vitest-конфіг лежить у корені пакета, а не в `.storybook/`).
 
 Firefox/webkit свідомо не додаються — ADR і main.mdc хвилі 1 фіксують лише chromium; розширення на інші браузери — поза обсягом цього концерну.
+
+**`provider` — factory-виклик, не рядок.** vitest@^4 прибрав рядкове API browser-провайдера: `provider: 'playwright'` більше не резолвиться, потрібен `import { playwright } from '@vitest/browser-playwright'` і `provider: playwright()` (окремий npm-пакет, не входить у `@vitest/browser`). Канон і автофікс генерують факторі-форму; рядкова форма (застаріле API попередніх мажорів) — `storybook-project-marker-missing`.
+
+**Явний `include` не обов'язковий, якщо є `storybookTest({ configDir })`.** Реальний кейс пілота (components/npm/vitest.config.js): `storybook`-проєкт без явного `include` — Storybook підхоплює stories-glob автоматично зі своєї `.storybook/main.js`-конфігурації. Перевірка (`hasStoriesMarker`) визнає запис валідним, якщо є АБО явний stories-glob, АБО виклик `storybookTest({ configDir: ... })`.
 
 ### Чому окремий `vitest.stryker.config`
 
@@ -19,7 +23,7 @@ Firefox/webkit свідомо не додаються — ADR і main.mdc хви
 
 ### Що перевіряє й що виправляє концерн
 
-Перевірка (`main.mjs`) — AST-аналіз (`oxc-parser`) наявного vitest-конфіга: знаходить `test`-блок (незалежно від того, чи він огорнутий у `defineConfig`/`mergeConfig`, чи це простий об'єкт), дивиться на `test.projects` і класифікує елементи за `name: 'unit'`/`name: 'storybook'`; для `storybook`-елемента перевіряє маркери `chromium`/`browser`/stories-glob текстовим пошуком. Стійка до форматування й порядку полів — не вимагає конкретного стилю запису, лише семантичну присутність маркерів.
+Перевірка (`main.mjs`) — AST-аналіз (`oxc-parser`) наявного vitest-конфіга: знаходить `test`-блок (незалежно від того, чи він огорнутий у `defineConfig`/`mergeConfig`, чи це простий об'єкт), дивиться на `test.projects` і класифікує елементи за `name: 'unit'`/`name: 'storybook'`; для `storybook`-елемента перевіряє маркери `chromium`/`browser`/`provider`-factory/stories-джерело (явний glob або `storybookTest({ configDir })`) текстовим пошуком. Стійка до форматування й порядку полів — не вимагає конкретного стилю запису, лише семантичну присутність маркерів.
 
 Автофікс (`fix-vitest-config.mjs`, fixability `config`) виправляє й дописує **лише відсутнє**:
 
@@ -30,4 +34,4 @@ Firefox/webkit свідомо не додаються — ADR і main.mdc хви
 
 Як і в `test/stryker_config`, правка — точкові string-splice-и (insert-only) поверх існуючого тексту, а не переписаний AST-serializer, щоб не зачепити форматування й коментарі решти файлу; результат повторно парситься, і при невалідному виводі запис скасовується (fail-closed).
 
-**Свідомо без автофіксу:** `test.projects` — не статичний масив (spread/змінна), test-блок не вдалось знайти структурно, або `storybook`-запис уже присутній, але без якогось із маркерів (chromium/browser/stories-glob) — надійно виправити частковий вручну написаний запис програмно ризиковано, тож це лишається порушенням для ручного review (той самий компроміс, що й marker-порушення в `scaffold`).
+**Свідомо без автофіксу:** `test.projects` — не статичний масив (spread/змінна), test-блок не вдалось знайти структурно, або `storybook`-запис уже присутній, але без якогось із маркерів (chromium/browser/provider-factory/stories-джерело) — надійно виправити частковий вручну написаний запис програмно ризиковано, тож це лишається порушенням для ручного review (той самий компроміс, що й marker-порушення в `scaffold`).

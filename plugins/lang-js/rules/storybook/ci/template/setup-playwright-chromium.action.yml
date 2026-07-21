@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-action.json
+
+name: Setup Playwright Chromium
+description: >-
+  Кеш Playwright-браузерів (лише chromium, storybook.mdc ADR Кластер 5) для vitest
+  browser-mode storybook-проєкту. Викликати ПІСЛЯ ./.github/actions/setup-bun-deps
+  (потрібен node_modules/bun.lock для визначення версії).
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve Playwright version (bun.lock)
+      id: playwright-version
+      shell: bash
+      run: |
+        VERSION=$(grep -oE '"playwright(-core)?@[0-9]+\.[0-9]+\.[0-9]+"' bun.lock | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
+        if [ -z "$VERSION" ]; then
+          VERSION=$(node -p "require('playwright-core/package.json').version" 2>/dev/null || echo unknown)
+        fi
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Playwright browsers (chromium)
+      id: playwright-cache
+      uses: actions/cache@v5
+      with:
+        path: |
+          ~/.cache/ms-playwright
+          ~/Library/Caches/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-chromium
+
+    - name: Install Playwright chromium (лише chromium, storybook.mdc)
+      if: steps.playwright-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: bunx playwright install chromium --with-deps

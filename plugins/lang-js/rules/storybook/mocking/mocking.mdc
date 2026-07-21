@@ -73,6 +73,30 @@ export const Realtime = {
 }
 ```
 
+### Точковий alias-мок одного модуля
+
+**Скоуп цього рецепта — компонентні бібліотеки, НЕ сторінки.** Рішення «виключно MSW» вище (розділ «Apollo/GraphQL — виключно MSW») стосується сторінок (розширення ADR, `2026-07-20`) — там повний data-flow (query+mutation+subscription, кілька викликів на сторінку), і мок-хендлери мають бути переносними в майбутні vitest/playwright-сценарії. Реальний кейс компонентної бібліотеки (пілот `components/npm`) — інший: один компонент статично імпортує модуль із side-effect на рівні build-у (напр. `@nitra/vite-boot/apollo` — конструює Apollo-клієнт із `VITE_HASURA_HOST`/WS-link env-змінних, яких немає в Storybook), і компонент має 1-2 точкові виклики цього модуля, не повний GraphQL data-flow. Розгортати MSW-стек (`msw-storybook-addon`, worker, handlers) заради одного статичного імпорту — зайві накладні витрати, надто коли `msw` навіть не встановлений у пакеті.
+
+Рецепт — build-time підміна імпорту на рівні Vite-resolve у `viteFinal` `.storybook/main.js` (не мокає мережу, підміняє сам модуль):
+
+```js
+async viteFinal(config) {
+  const { mergeConfig } = await import('vite')
+  return mergeConfig(config, {
+    resolve: {
+      alias: {
+        // NImages.vue статично імпортує apolloClient/gql (не provide/inject) — реальний
+        // модуль конструює Apollo-клієнт з env-змінних, яких немає в Storybook.
+        // Підміна на рівні Vite-resolve замість зміни коду компонента.
+        '@nitra/vite-boot/apollo': join(dirName, 'mocks/apollo.js')
+      }
+    }
+  })
+}
+```
+
+**Критерій вибору:** компонент з 1-2 точковими викликами стороннього модуля (side-effect boot/client-конструктор, не повний query/mutation/subscription-flow) → alias-мок одного модуля. Сторінки, підписки чи повний GraphQL data-flow (кілька query/mutation, стан, error/loading-сценарії) → MSW (розділ вище) — не супереч рішенню розширення ADR, а розмежування скоупу: alias — для компонентних бібліотек із мінімальним мережевим слідом, MSW — для сторінок і повнішого data-flow.
+
 ### Pinia
 
 Справжня `createPinia()` у page-декораторі — **без** `pinia-plugin-persistedstate` (`persist: true` у сторі стає no-op, читання/запис localStorage не потрібні в ізольованому рендері). Наповнення початкового стану — через `parameters.pinia.initialState`, не хардкод у декораторі:

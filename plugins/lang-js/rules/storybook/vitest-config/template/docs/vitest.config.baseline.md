@@ -3,9 +3,8 @@ type: JS Module
 title: vitest.config.baseline.mjs
 resource: plugins/lang-js/rules/storybook/vitest-config/template/vitest.config.baseline.mjs
 docgen:
-  crc: 1eca6e97
+  crc: 89da594d
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

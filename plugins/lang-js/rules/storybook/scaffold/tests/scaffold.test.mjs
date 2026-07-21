@@ -63,6 +63,23 @@ describe('detectStoriesGlob', () => {
     await writeFileDeep(root, 'src/Comp.vue', '<template/>')
     expect(detectStoriesGlob(root)).toBe('../src/**/*.stories.@(js|ts)')
   })
+
+  test('flat-root: .vue-файли прямо в корені пакета (без src/) — flat-root glob', async () => {
+    await writeFileDeep(root, 'NDialog.vue', '<template/>')
+    expect(detectStoriesGlob(root)).toBe('../*.stories.@(js|ts)')
+  })
+
+  test('flat-root має пріоритет над src/components/, якщо корінь теж містить .vue', async () => {
+    await writeFileDeep(root, 'NDialog.vue', '<template/>')
+    await writeFileDeep(root, 'src/components/Comp.vue', '<template/>')
+    expect(detectStoriesGlob(root)).toBe('../*.stories.@(js|ts)')
+  })
+
+  test('немає жодного .vue у корені — flat-root не спрацьовує (fallback на src/components)', async () => {
+    await writeFileDeep(root, 'src/components/Comp.vue', '<template/>')
+    await writeFileDeep(root, 'README.md', '# not vue')
+    expect(detectStoriesGlob(root)).toBe('../src/components/**/*.stories.@(js|ts)')
+  })
 })
 
 describe('lint: перевірка канонічного скафолду', () => {

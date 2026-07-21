@@ -69,13 +69,28 @@ test_allow_7n_test_coverage_orchestrator if {
 	count(package_json.deny) == 0 with input as pkg with data.template as template_data
 }
 
-# ── allow: @vitest/browser + playwright — provider для named vitest project "storybook" ──
+# ── allow: @vitest/browser + @vitest/browser-playwright + playwright — provider factory
+#    (vitest@^4) для named vitest project "storybook" ──
 
 test_allow_vitest_browser_and_playwright_provider if {
 	pkg := json.patch(valid_pkg, [{
 		"op": "replace",
 		"path": "/devDependencies",
 		"value": {"@nitra/eslint-config": "^3.9.2", "@vitest/browser": "^4.1.9", "playwright": "^1.55.0"},
+	}])
+	count(package_json.deny) == 0 with input as pkg with data.template as template_data
+}
+
+test_allow_vitest_browser_playwright_provider_package if {
+	pkg := json.patch(valid_pkg, [{
+		"op": "replace",
+		"path": "/devDependencies",
+		"value": {
+			"@nitra/eslint-config": "^3.9.2",
+			"@vitest/browser": "^4.1.10",
+			"@vitest/browser-playwright": "^4.1.10",
+			"playwright": "^1.61.1",
+		},
 	}])
 	count(package_json.deny) == 0 with input as pkg with data.template as template_data
 }

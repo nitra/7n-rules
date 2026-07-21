@@ -29,9 +29,10 @@ import {
   classifyProjects,
   findProperty,
   findTestObject,
+  hasStoriesMarker,
   parseModule,
+  PROVIDER_FACTORY_RE,
   resolveVitestConfigPath,
-  STORIES_RE,
   strykerConfigPathFor
 } from '../vitest-config/main.mjs'
 
@@ -167,7 +168,9 @@ function diagnoseVitestProjectsSection(entry) {
   const missingHints = []
   if (!CHROMIUM_RE.test(storybookSlice)) missingHints.push('chromium-інстанс')
   if (!BROWSER_KEY_RE.test(storybookSlice)) missingHints.push('browser-mode')
-  if (!STORIES_RE.test(storybookSlice)) missingHints.push('stories-glob')
+  if (!hasStoriesMarker(storybookSlice)) missingHints.push('stories-джерело (include або storybookTest({ configDir }))')
+  if (!PROVIDER_FACTORY_RE.test(storybookSlice))
+    missingHints.push('provider-factory (playwright() з @vitest/browser-playwright)')
   if (missingHints.length > 0) {
     return { name, file, status: STATUS.DIFFER, detail: `storybook-project без: ${missingHints.join(', ')}` }
   }
