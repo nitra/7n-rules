@@ -1,8 +1,4 @@
 {
   "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
-  "policy": {
-    "files": {
-      "walkGlob": "**/k8s/**/configmap.yaml"
-    }
-  }
+  "policy": {}
 }

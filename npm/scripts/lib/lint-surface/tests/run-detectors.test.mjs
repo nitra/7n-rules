@@ -20,6 +20,21 @@ async function seedDetector(rulesDir, rule, concern, lintSurface, lintBody) {
   await writeFile(join(dir, 'main.mjs'), lintBody, 'utf8')
 }
 
+/**
+ * Створює чистий policy-concern (без `main.mjs`) — дзеркало `k8s/hasura_configmap` /
+ * `k8s/hasura_httproute`: rego-бібліотека, що споживається лише parent-orchestrator-ом
+ * через `runConftestBatch`, а не самостійним detector-ом.
+ * @param {string} rulesDir корінь tmp rulesDir
+ * @param {string} rule id правила
+ * @param {string} concern id concern-а
+ * @param {object} policy `policy`-блок concern.json (напр. `{}` або `{files: {walkGlob: '**\/*.yaml'}}`)
+ */
+async function seedPolicyConcern(rulesDir, rule, concern, policy) {
+  const dir = join(rulesDir, rule, concern)
+  await mkdir(dir, { recursive: true })
+  await writeJson(join(dir, 'concern.json'), { policy })
+}
+
 const CLEAN = 'export function lint() { return { violations: [] } }\n'
 
 describe('detectAll — exit codes', () => {
@@ -244,6 +259,33 @@ describe('buildDetectPlan — сервіс-канон (scoped+files, pathMode, r
       const plan = await buildDetectPlan({ rulesDir, cwd: dir, repoWide: true })
       expect(plan.map(p => `${p.entry.ruleId}/${p.entry.concern.name}`)).toEqual(['probe/noglob', 'probe/wholerepo'])
       for (const p of plan) expect(p.files).toBeUndefined()
+    })
+  })
+})
+
+describe('buildDetectPlan — policy-concern без resolvable files (rego-бібліотека для orchestrator-а)', () => {
+  test('policy без files → НЕ стає standalone detector-ом (regression: hasura_configmap/hasura_httproute)', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = join(dir, 'rules')
+      // Дзеркалить справжню форму k8s/hasura_configmap та k8s/hasura_httproute: rego-пакет
+      // без walkGlob, споживаний лише через parent-orchestrator (runConftestBatch), не
+      // автоматично зареєстрований детектор — інакше він би ганявся по КОЖНОМУ файлу-збігу без
+      // cross-file gating (справжній баг: false-positive на будь-якому ConfigMap/HTTPRoute,
+      // не лише на тих, що сусідять з Hasura-Deployment).
+      await seedPolicyConcern(rulesDir, 'k8s', 'hasura_configmap', {})
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['k8s'] })
+      const plan = await buildDetectPlan({ rulesDir, cwd: dir, full: true })
+      expect(plan).toEqual([])
+    })
+  })
+
+  test('policy з walkGlob → стає standalone detector-ом (контрольний кейс, не regression)', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = join(dir, 'rules')
+      await seedPolicyConcern(rulesDir, 'k8s', 'some_glob_policy', { files: { walkGlob: '**/*.yaml' } })
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['k8s'] })
+      const plan = await buildDetectPlan({ rulesDir, cwd: dir, full: true })
+      expect(plan.map(p => `${p.entry.ruleId}/${p.entry.concern.name}`)).toEqual(['k8s/some_glob_policy'])
     })
   })
 })
