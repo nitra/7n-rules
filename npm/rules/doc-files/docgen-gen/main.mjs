@@ -491,10 +491,12 @@ async function orchestratedDoc(
   // R3: «Огляд» — ОСТАННІМ, узагальненням уже написаної Поведінки (не голого факт-листа)
   let overview = stripSignatures(
     stripSection(
-      await callLlm(overviewMessages(facts, sections.behavior ?? '', anc, intent), model, { timeoutMs, temperature })
+      await callLlm(overviewMessages(facts, sections.behavior ?? '', intent), model, { timeoutMs, temperature })
     )
   )
-  overview = await critiqueRefineSection('overview', overview, facts, anc, model, timeoutMs)
+  // №8: анкори лише в Behavior — критик Огляду без анкор-блоку, інакше refine
+  // «поверне» анкор у Огляд і в документі він знову зʼявиться двічі.
+  overview = await critiqueRefineSection('overview', overview, facts, null, model, timeoutMs)
   sections.overview = overview
   // Варіант B: дослівно повертаємо захищений блок у фіксовану позицію
   return { md: insertProtected(assemble(basename(facts.relPath), sections), intent) }

@@ -160,18 +160,20 @@ export function apiGapMessages(gapExports, anchors = null) {
 /**
  * R3 — «Огляд» ОСТАННІМ: узагальнення вже написаної Поведінки, а не здогад із
  * голого факт-листа. Лікує generic/хибний Огляд на складних файлах.
+ * Анкор-блок сюди НЕ підставляється (№8, бенч gemma-4): секції — окремі
+ * LLM-виклики, і коли анкори бачили обидва, кожен чесно вставляв «рівно один
+ * раз» → у документі виходило двічі (незграбні «посилаючись на…» в Огляді).
+ * Анкори живуть лише в Behavior-промпті; скорер R5 перевіряє документ цілком.
  * @param {object} facts факт-лист про файл
  * @param {string} behaviorText готовий текст секції «Поведінка»
- * @param {object|null} [anchors] анкори файлу
  * @param {string|null} [intent] захищена секція «Призначення» як read-only контекст
  * @returns {Array<{role:string,content:string}>} messages-масив для Огляду
  */
-export function overviewMessages(facts, behaviorText, anchors = null, intent = null) {
+export function overviewMessages(facts, behaviorText, intent = null) {
   const factsTxt = factsSummary(facts)
-  const anch = anchorsBlock(anchors)
   const dedup = intent ? ' Не дублюй секцію «Призначення».' : ''
   return msgs(
-    `${STYLE}\n\nВІДОМІ ФАКТИ:\n${factsTxt}${anch}${intentContext(intent)}`,
+    `${STYLE}\n\nВІДОМІ ФАКТИ:\n${factsTxt}${intentContext(intent)}`,
     `На основі вже написаної секції «Поведінка» (нижче) напиши «Огляд»: 1-3 речення — що файл робить і навіщо існує (роль у системі). Узагальнюй САМЕ описану поведінку, не додавай нових фактів. Без заголовка, без переліку функцій. Заборонені абстрактні формули без конкретики («перевірка/валідація/обробка даних», «відповідність контракту», «застосовує логіку») — пиши, ЩО саме і за яким контрактом.${dedup}\n\nПОВЕДІНКА:\n${behaviorText}`
   )
 }
