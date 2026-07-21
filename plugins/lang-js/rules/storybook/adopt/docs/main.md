@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: plugins/lang-js/rules/storybook/adopt/main.mjs
 docgen:
-  crc: c8e6e421
+  crc: 986ffd02
   model: openai-codex/gpt-5.4-mini
   score: 90
   issues: anchor-miss:(mocking.mdc),anchor-miss:(vitest-config.mdc),judge:inaccurate:0.99

@@ -5,9 +5,9 @@
   "lint": {
     "scope": "full",
     "glob": [
-      "package.json",
+      "**/package.json",
       "**/*.vue",
-      ".storybook/**",
+      "**/.storybook/**",
       ".github/actions/setup-playwright-chromium/action.yml",
       ".github/workflows/lint-storybook.yml"
     ]

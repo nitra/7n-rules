@@ -3,6 +3,6 @@
   "fixability": "config",
   "lint": {
     "scope": "full",
-    "glob": ["package.json", "**/*.vue", ".storybook/**", "vitest.config.*", "vitest.stryker.config.*"]
+    "glob": ["**/package.json", "**/*.vue", "**/.storybook/**", "**/vitest.config.*", "**/vitest.stryker.config.*"]
   }
 }

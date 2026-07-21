@@ -7,7 +7,7 @@ on:
       - main
     paths:
       - '**/*.stories.@(js|ts)'
-      - '.storybook/**'
+      - '**/.storybook/**'
   pull_request:
     branches:
       - dev

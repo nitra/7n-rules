@@ -104,6 +104,24 @@ test_allow_storybook_addon_vitest_root_tooling if {
 	count(package_json.deny) == 0 with input as pkg with data.template as template_data
 }
 
+# ── allow: root-only Storybook Vite build-tooling (storybook.mdc scaffold — main.js
+#    core.builder/viteFinal-плагіни, preview.js material-icons) ──
+
+test_allow_storybook_vite_build_tooling_root_deps if {
+	pkg := json.patch(valid_pkg, [{
+		"op": "replace",
+		"path": "/devDependencies",
+		"value": {
+			"@nitra/eslint-config": "^3.9.2",
+			"@storybook/builder-vite": "^10.5.3",
+			"@vitejs/plugin-vue": "^6.0.8",
+			"@quasar/vite-plugin": "^1.12.0",
+			"@quasar/extras": "^2.0.2",
+		},
+	}])
+	count(package_json.deny) == 0 with input as pkg with data.template as template_data
+}
+
 # ── deny: Storybook-специфічні identity-пакети НЕ дозволені у корені (межа з npm-module.mdc) ─
 
 test_deny_storybook_identity_packages_in_root if {

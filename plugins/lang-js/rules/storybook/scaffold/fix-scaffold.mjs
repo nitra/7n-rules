@@ -50,6 +50,17 @@ export function renderMocksGqlSse(templateDir = TEMPLATE_DIR) {
 }
 
 /**
+ * Вміст канонічного `.storybook/empty-vite.config.js` — verbatim з template (порожній
+ * стенд-ін для `core.builder.options.viteConfigPath` у `main.js`, не залежить від пакета).
+ * Експортовано — переюз у `adopt/main.mjs`.
+ * @param {string} [templateDir] каталог template/ (за замовчуванням — цього concern-а)
+ * @returns {string} вміст `empty-vite.config.js`
+ */
+export function renderEmptyViteConfig(templateDir = TEMPLATE_DIR) {
+  return readFileSync(join(templateDir, 'empty-vite.config.js'), 'utf8')
+}
+
+/**
  * Записує файл, створюючи батьківські каталоги й реєструючи запис для rollback.
  * @param {import('@7n/rules/scripts/lib/lint-surface/types.mjs').FixContext} ctx fix-контекст рунга
  * @param {string} absPath абсолютний шлях цільового файлу
@@ -83,6 +94,7 @@ export const patterns = [
 
       const templateDir = join(ctx.concernDir, 'template')
       const mocksTemplate = renderMocksGqlSse(templateDir)
+      const emptyViteConfigTemplate = renderEmptyViteConfig(templateDir)
 
       const touchedFiles = []
       for (const v of targets) {
@@ -98,8 +110,46 @@ export const patterns = [
           writeScaffoldFile(ctx, mocksAbs, mocksTemplate)
           touchedFiles.push(mocksAbs)
         }
+
+        // empty-vite.config.js — main.js посилається на нього напряму (viteConfigPath),
+        // без нього щойно відтворений main.js неробочий; генерується разом (belt-and-suspenders
+        // з окремим 'storybook-scaffold-empty-vite-config' нижче, який покриває випадок, коли
+        // ЛИШЕ цей файл видалено, а main.js лишається канонічним).
+        const emptyViteConfigAbs = join(absPkgDir, '.storybook/empty-vite.config.js')
+        if (!existsSync(emptyViteConfigAbs)) {
+          writeScaffoldFile(ctx, emptyViteConfigAbs, emptyViteConfigTemplate)
+          touchedFiles.push(emptyViteConfigAbs)
+        }
       }
       return { touchedFiles, message: `.storybook/main.js: створено для ${targets.length} пакет(ів)` }
+    }
+  },
+  {
+    id: 'storybook-scaffold-empty-vite-config',
+    test: violations => violations.some(v => v.reason === 'missing-empty-vite-config'),
+    apply: (violations, ctx) => {
+      const targets = violations.filter(
+        v => v.reason === 'missing-empty-vite-config' && typeof v.data?.rootDir === 'string'
+      )
+      if (targets.length === 0 || !ctx.concernDir) return { touchedFiles: [] }
+
+      const emptyViteConfigTemplate = renderEmptyViteConfig(join(ctx.concernDir, 'template'))
+
+      const touchedFiles = []
+      for (const v of targets) {
+        const absPkgDir = resolvePkgDir(ctx.cwd, v.data.rootDir)
+        const abs = join(absPkgDir, '.storybook/empty-vite.config.js')
+        if (existsSync(abs)) continue
+        writeScaffoldFile(ctx, abs, emptyViteConfigTemplate)
+        touchedFiles.push(abs)
+      }
+      return {
+        touchedFiles,
+        message:
+          touchedFiles.length > 0
+            ? `.storybook/empty-vite.config.js: створено для ${touchedFiles.length} пакет(ів)`
+            : undefined
+      }
     }
   },
   {

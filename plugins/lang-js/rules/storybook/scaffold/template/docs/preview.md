@@ -3,9 +3,8 @@ type: JS Module
 title: preview.js
 resource: plugins/lang-js/rules/storybook/scaffold/template/preview.js
 docgen:
-  crc: 5590ef55
+  crc: 445c773b
   model: openai-codex/gpt-5.5
-  tier: cloud-avg
   score: 100
   issues: judge:inaccurate:0.96
   judgeModel: openai-codex/gpt-5.4-mini
