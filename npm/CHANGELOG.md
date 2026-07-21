@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.37.0] - 2026-07-21
+
+### Added
+
+- skills/storybook: скіл `n-storybook` — тонка обгортка запуску канону Storybook (`@7n/rules-lang-js`): звичайний прогін `lint storybook` і `--adopt`-режим для rollout-у на пакетах з уже наявним ручним Storybook (ADR канон-storybook-для-vue-компонентних-бібліотек, Кластер 8)
+
+### Fixed
+
+- k8s: hasura_configmap/hasura_httproute тепер gated власним main.mjs (без false positive на ConfigMap/HTTPRoute без сусіднього Hasura Deployment); kubescape більше не падає fatal на Job/CronJob через auto-generated per-resource виняток C-0056/C-0018
+
 ## [1.36.1] - 2026-07-20
 
 ### Changed
