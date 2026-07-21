@@ -66,12 +66,16 @@ export function resolveVitestConfigPath(absPkgDir) {
 /**
  * Резолвить ім'я `vite.config.*` пакета для import-шляху в baseline-шаблонах
  * (той самий файл, що й `viteFinal` у `.storybook/main.js`). Пакет у скоупі
- * гарантовано має один із них (`scope/main.mjs#hasStandardBuild`).
+ * Storybook НЕ гарантовано має власний `vite.config.*` (хвиля 1.4 — вимогу
+ * `hasStandardBuild` прибрано зі скоуп-детекції, `scope/main.mjs`) — source-only
+ * Vue-бібліотека (напр. tauri-components/npm) законно потрапляє у скоуп без
+ * жодного `vite.config.*`. `null` — сигнал викликачу (`fix-vitest-config.mjs`)
+ * підставити порожній placeholder замість імпорту неіснуючого файлу.
  * @param {string} absPkgDir абсолютний шлях кореня пакета
- * @returns {string} ім'я файлу vite-конфіга (дефолт `vite.config.js`)
+ * @returns {string | null} ім'я файлу vite-конфіга або `null`, якщо жодного немає
  */
 export function resolveViteConfigName(absPkgDir) {
-  return VITE_CONFIG_NAMES.find(n => existsSync(join(absPkgDir, n))) ?? 'vite.config.js'
+  return VITE_CONFIG_NAMES.find(n => existsSync(join(absPkgDir, n))) ?? null
 }
 
 /**

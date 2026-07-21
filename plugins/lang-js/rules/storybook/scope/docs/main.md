@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: plugins/lang-js/rules/storybook/scope/main.mjs
 docgen:
-  crc: 04c71162
+  crc: e6dab761
   model: openai-codex/gpt-5.5
-  tier: cloud-avg
   score: 90
   issues: internal-name:isVueComponentLibraryPkg,judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

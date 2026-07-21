@@ -21,6 +21,7 @@ import {
   REASON_STRYKER_CONFIG_MISSING,
   REASON_UNIT_PROJECT_MISSING,
   REASON_VITEST_CONFIG_MISSING,
+  resolveViteConfigName,
   resolveVitestConfigPath,
   storiesGlobForVitestConfig,
   strykerConfigPathFor
@@ -69,6 +70,22 @@ async function writeVueLibraryPkg(root, rootDir, vitestConfigContent) {
   }
   if (vitestConfigContent) {
     await writeFileDeep(root, join(rootDir, 'vitest.config.mjs'), vitestConfigContent)
+  }
+}
+
+/**
+ * Той самий фікстур-набір, але БЕЗ `vite.config.*` пакета — source-only Vue-бібліотека
+ * (хвиля 1.4, реальний кейс tauri-components/npm): у скоупі Storybook (scope/main.mjs
+ * більше не вимагає `hasStandardBuild`), але `resolveViteConfigName` не знаходить
+ * жодного файлу.
+ * @param {string} root корінь монорепо
+ * @param {string} rootDir відносний корінь пакета
+ */
+async function writeSourceOnlyVueLibraryPkg(root, rootDir) {
+  const pkg = { name: `pkg-${rootDir}`, peerDependencies: { vue: '^3.6.0' } }
+  await writeFileDeep(root, join(rootDir, 'package.json'), JSON.stringify(pkg, null, 2))
+  for (let i = 0; i < 3; i++) {
+    await writeFileDeep(root, join(rootDir, `src/components/Comp${i}.vue`), '<template><div/></template>\n')
   }
 }
 
@@ -371,6 +388,32 @@ describe('storybook/vitest-config: fix', () => {
     expect(strykerContent).toContain('happy-dom')
     expect(strykerContent).not.toMatch(NO_PROJECTS_KEY_RE)
 
+    const after = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/vitest-config' })
+    expect(after.violations).toEqual([])
+  })
+
+  test('source-only пакет без жодного vite.config.* (хвиля 1.4, tauri-components/npm): fix не генерує import неіснуючого файлу', async () => {
+    await writeSourceOnlyVueLibraryPkg(root, 'packages/ui')
+    expect(resolveViteConfigName(join(root, 'packages/ui'))).toBeNull()
+
+    const { violations } = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/vitest-config' })
+    const pattern = patterns.find(p => p.id === 'storybook-vitest-config-fix')
+    const result = await pattern.apply(violations, makeFixCtx(root, recordedWrites))
+    expect(result.touchedFiles.length).toBeGreaterThan(0)
+
+    const vitestConfigPath = resolveVitestConfigPath(join(root, 'packages/ui'))
+    const written = await readFile(vitestConfigPath, 'utf8')
+    expect(written).toContain('const viteConfig = {}')
+    expect(written).not.toContain("from './vite.config.js'")
+    expect(written).toContain("name: 'storybook'")
+
+    const strykerPath = strykerConfigPathFor(vitestConfigPath)
+    const strykerContent = await readFile(strykerPath, 'utf8')
+    expect(strykerContent).toContain('const viteConfig = {}')
+    expect(strykerContent).not.toContain("from './vite.config.js'")
+
+    // `after`-лінт нижче парсить обидва згенеровані файли (oxc-parser) — якщо fallback
+    // зламав синтаксис mergeConfig-обгортки, тут з'явилось би REASON_CONFIG_UNRESOLVABLE.
     const after = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/vitest-config' })
     expect(after.violations).toEqual([])
   })

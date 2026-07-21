@@ -38,6 +38,10 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const TEMPLATE_DIR = join(HERE, 'template')
 const STORIES_GLOB_TOKEN = '__STORYBOOK_STORIES_GLOB__'
 const VITE_CONFIG_IMPORT_TOKEN = '__VITE_CONFIG_IMPORT__'
+// Рядок import-у як він буквально лежить у baseline-шаблонах (до token-підстановки) —
+// для source-only пакета (без власного vite.config.*, хвиля 1.4) замінюється на порожній
+// placeholder, а не на import неіснуючого файлу.
+const VITE_CONFIG_IMPORT_LINE = `import viteConfig from './${VITE_CONFIG_IMPORT_TOKEN}'\n`
 
 const TRIGGER_REASONS = new Set([
   REASON_VITEST_CONFIG_MISSING,
@@ -255,6 +259,22 @@ async function computeVitestConfigAugment(absPkgDir, vitestConfigPath) {
 }
 
 /**
+ * Підставляє в baseline-шаблон або import наявного `vite.config.*` пакета (звичайний
+ * шлях), або — для source-only пакета без жодного `vite.config.*` (хвиля 1.4,
+ * `resolveViteConfigName` повертає `null`) — порожній локальний placeholder замість
+ * import-у неіснуючого файлу. `mergeConfig({}, defineConfig({...}))` еквівалентний
+ * самому `defineConfig({...})`, тож решта структури шаблону (сама `mergeConfig`-обгортка)
+ * лишається незмінною — не потрібен окремий "плоский" варіант шаблону.
+ * @param {string} template вихідний текст baseline-шаблону (з токеном `__VITE_CONFIG_IMPORT__`)
+ * @param {string | null} viteConfigName ім'я `vite.config.*` пакета або `null`
+ * @returns {string} текст з підставленим import-ом чи placeholder-ом
+ */
+function applyViteConfigImport(template, viteConfigName) {
+  if (viteConfigName) return template.split(VITE_CONFIG_IMPORT_TOKEN).join(viteConfigName)
+  return template.replace(VITE_CONFIG_IMPORT_LINE, 'const viteConfig = {}\n')
+}
+
+/**
  * Генерує повністю новий `vitest.config.mjs` (unit+storybook projects) для
  * пакета без жодного наявного vitest-конфіга. Експортовано — переюз у
  * `adopt/main.mjs` (генерація лише для повністю відсутніх файлів).
@@ -265,11 +285,8 @@ export async function buildFreshVitestConfig(absPkgDir) {
   const template = await readFile(join(TEMPLATE_DIR, 'vitest.config.baseline.mjs'), 'utf8')
   const storiesGlob = storiesGlobForVitestConfig(absPkgDir)
   const viteConfigName = resolveViteConfigName(absPkgDir)
-  const content = template
-    .split(STORIES_GLOB_TOKEN)
-    .join(storiesGlob)
-    .split(VITE_CONFIG_IMPORT_TOKEN)
-    .join(viteConfigName)
+  const withStories = template.split(STORIES_GLOB_TOKEN).join(storiesGlob)
+  const content = applyViteConfigImport(withStories, viteConfigName)
   return { path: join(absPkgDir, 'vitest.config.mjs'), content }
 }
 
@@ -283,7 +300,7 @@ export async function buildFreshVitestConfig(absPkgDir) {
 export async function buildStrykerConfig(absPkgDir) {
   const template = await readFile(join(TEMPLATE_DIR, 'vitest.stryker.config.baseline.mjs'), 'utf8')
   const viteConfigName = resolveViteConfigName(absPkgDir)
-  return template.split(VITE_CONFIG_IMPORT_TOKEN).join(viteConfigName)
+  return applyViteConfigImport(template, viteConfigName)
 }
 
 /**
