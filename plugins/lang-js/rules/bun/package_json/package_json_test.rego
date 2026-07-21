@@ -69,6 +69,35 @@ test_allow_7n_test_coverage_orchestrator if {
 	count(package_json.deny) == 0 with input as pkg with data.template as template_data
 }
 
+# ── allow: @vitest/browser + playwright — provider для named vitest project "storybook" ──
+
+test_allow_vitest_browser_and_playwright_provider if {
+	pkg := json.patch(valid_pkg, [{
+		"op": "replace",
+		"path": "/devDependencies",
+		"value": {"@nitra/eslint-config": "^3.9.2", "@vitest/browser": "^4.1.9", "playwright": "^1.55.0"},
+	}])
+	count(package_json.deny) == 0 with input as pkg with data.template as template_data
+}
+
+test_allow_storybook_addon_vitest_root_tooling if {
+	pkg := json.patch(valid_pkg, [{
+		"op": "replace",
+		"path": "/devDependencies",
+		"value": {"@nitra/eslint-config": "^3.9.2", "@storybook/addon-vitest": "^9.1.10"},
+	}])
+	count(package_json.deny) == 0 with input as pkg with data.template as template_data
+}
+
+# ── deny: Storybook-специфічні identity-пакети НЕ дозволені у корені (межа з npm-module.mdc) ─
+
+test_deny_storybook_identity_packages_in_root if {
+	cases := [{"storybook": "9.1.10"}, {"@storybook/vue3": "9.1.10"}, {"msw": "2.11.3"}]
+	some bad in cases
+	pkg := json.patch(valid_pkg, [{"op": "replace", "path": "/devDependencies", "value": bad}])
+	count(package_json.deny) > 0 with input as pkg with data.template as template_data
+}
+
 # ── deny: devDependencies лише @nitra/* або root-only test peers ─
 
 test_deny_non_nitra_devdep if {
