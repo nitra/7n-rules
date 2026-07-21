@@ -1,5 +1,6 @@
 import { defineConfig, mergeConfig } from 'vitest/config'
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'
+import { playwright } from '@vitest/browser-playwright'
 import viteConfig from './__VITE_CONFIG_IMPORT__'
 
 // Канонічний vitest-конфіг Vue-компонентної бібліотеки у скоупі Storybook
@@ -25,7 +26,7 @@ export default mergeConfig(
             browser: {
               enabled: true,
               headless: true,
-              provider: 'playwright',
+              provider: playwright(),
               instances: [{ browser: 'chromium' }]
             },
             setupFiles: ['.storybook/vitest.setup.js']

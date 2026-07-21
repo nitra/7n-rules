@@ -1,5 +1,5 @@
 /** @see ./docs/main.md */
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -17,7 +17,16 @@ export const MAIN_JS_MARKERS = [
   { token: '@storybook/vue3-vite', hint: 'framework @storybook/vue3-vite' },
   { token: 'viteFinal', hint: 'viteFinal-override vite.config пакета' },
   { token: "'vite-plugin-pages'", hint: 'фільтр vite-plugin-pages у viteFinal' },
-  { token: "'vite-plugin-vue-layouts'", hint: 'фільтр vite-plugin-vue-layouts у viteFinal' }
+  { token: "'vite-plugin-vue-layouts'", hint: 'фільтр vite-plugin-vue-layouts у viteFinal' },
+  { token: "'vite-plugin-vue-layouts-next'", hint: 'фільтр vite-plugin-vue-layouts-next у viteFinal' },
+  {
+    token: 'isVueTransformFamily',
+    hint: 'сімейний фільтр vue-трансформерів (vite:vue/vue-macros) — стійкість до VueMacros-стека'
+  },
+  {
+    token: 'resolvePluginEntry',
+    hint: 'resolve/flatten Promise/масиву плагінів перед фільтрацією (VueMacros повертає Promise)'
+  }
 ]
 
 /** Маркери канону `.storybook/preview.js`. Експортовано — переюз у `adopt/main.mjs`. */
@@ -30,13 +39,36 @@ export const PREVIEW_JS_MARKERS = [
 ]
 
 /**
- * Layout-детекція для stories-glob (ADR Кластер 2): `src/components/` присутній → glob
- * звужується до нього; пласка структура (`src/` без `components/`) — ширший glob по `src/`.
- * Шлях відносний до `.storybook/` (де лежить сам `main.js`), тому з префіксом `../`.
+ * Чи має корінь пакета плоскі `.vue`-файли (flat-root layout — `NDialog.vue`,
+ * `NDialog.stories.js` лежать прямо в КОРЕНІ пакета, `src/` майже порожній чи
+ * відсутній). Реальний кейс пілотного консюмера (components/npm) — component
+ * library без `src/components/`, детекція за самою наявністю `src/` дала б 0
+ * знайдених історій (тихий регрес adopt-діагностики). Перевірка нерекурсивна —
+ * дивиться лише файли безпосередньо в `absPkgDir`.
+ * @param {string} absPkgDir абсолютний шлях кореня пакета
+ * @returns {boolean} true — у корені пакета є хоча б один `.vue`-файл
+ */
+function hasFlatRootVueFiles(absPkgDir) {
+  let entries
+  try {
+    entries = readdirSync(absPkgDir, { withFileTypes: true })
+  } catch {
+    return false
+  }
+  return entries.some(e => e.isFile() && e.name.endsWith('.vue'))
+}
+
+/**
+ * Layout-детекція для stories-glob (ADR Кластер 2, розширено пілотом на flat-root):
+ * `.vue`-файли прямо в корені пакета (без `src/`) → flat-root glob по корені;
+ * інакше `src/components/` присутній → glob звужується до нього; інакше — ширший
+ * glob по всьому `src/`. Шлях відносний до `.storybook/` (де лежить сам `main.js`),
+ * тому з префіксом `../`.
  * @param {string} absPkgDir абсолютний шлях кореня пакета
  * @returns {string} glob для `stories` у `.storybook/main.js`
  */
 export function detectStoriesGlob(absPkgDir) {
+  if (hasFlatRootVueFiles(absPkgDir)) return '../*.stories.@(js|ts)'
   return existsSync(join(absPkgDir, 'src/components'))
     ? '../src/components/**/*.stories.@(js|ts)'
     : '../src/**/*.stories.@(js|ts)'

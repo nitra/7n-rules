@@ -13,7 +13,9 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
 import {
+  hasStoriesMarker,
   lint,
+  PROVIDER_FACTORY_RE,
   REASON_STORYBOOK_PROJECT_MARKER_MISSING,
   REASON_STORYBOOK_PROJECT_MISSING,
   REASON_STRYKER_CONFIG_MISSING,
@@ -88,6 +90,26 @@ function makeFixCtx(root, recordedWrites) {
   }
 }
 
+describe('hasStoriesMarker / PROVIDER_FACTORY_RE', () => {
+  test('явний stories-glob (include) — валідний маркер', () => {
+    expect(hasStoriesMarker("include: ['src/components/**/*.stories.@(js|ts)']")).toBe(true)
+  })
+
+  test('storybookTest({ configDir }) без include — валідний маркер (glob неявний, зі Storybook-конфігурації)', () => {
+    expect(hasStoriesMarker("plugins: [storybookTest({ configDir: '.storybook' })]")).toBe(true)
+  })
+
+  test('ані include, ані storybookTest({ configDir }) — не валідний маркер', () => {
+    expect(hasStoriesMarker('plugins: [somePlugin()]')).toBe(false)
+  })
+
+  test('PROVIDER_FACTORY_RE: приймає factory-виклик, відкидає застарілу рядкову форму', () => {
+    expect(PROVIDER_FACTORY_RE.test('provider: playwright()')).toBe(true)
+    expect(PROVIDER_FACTORY_RE.test('provider: playwright({ launchOptions: {} })')).toBe(true)
+    expect(PROVIDER_FACTORY_RE.test("provider: 'playwright'")).toBe(false)
+  })
+})
+
 describe('storybook/vitest-config: lint', () => {
   let root
 
@@ -135,6 +157,52 @@ describe('storybook/vitest-config: lint', () => {
     const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/vitest-config' })
     expect(result.violations).toHaveLength(1)
     expect(result.violations[0].reason).toBe(REASON_STORYBOOK_PROJECT_MARKER_MISSING)
+  })
+
+  test('storybookTest({ configDir }) без явного include — валідний stories-маркер (пілот components/npm)', async () => {
+    const content = VITEST_CONFIG_BASIC.replace(
+      "coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] }",
+      `coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] },
+    projects: [
+      { extends: true, test: { name: 'unit' } },
+      {
+        extends: true,
+        plugins: [storybookTest({ configDir: join(dirName, '.storybook') })],
+        test: {
+          name: 'storybook',
+          browser: { enabled: true, provider: playwright({}), instances: [{ browser: 'chromium' }] }
+        }
+      }
+    ]`
+    )
+    await writeVueLibraryPkg(root, 'packages/ui', content)
+    await writeFileDeep(root, 'packages/ui/vitest.stryker.config.mjs', 'export default {}\n')
+    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/vitest-config' })
+    expect(result.violations).toEqual([])
+  })
+
+  test("provider: 'playwright' (застаріле рядкове API) — marker-порушення навіть з chromium/browser/stories", async () => {
+    const content = VITEST_CONFIG_BASIC.replace(
+      "coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] }",
+      `coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] },
+    projects: [
+      { extends: true, test: { name: 'unit' } },
+      {
+        extends: true,
+        test: {
+          name: 'storybook',
+          include: ['src/components/**/*.stories.@(js|ts)'],
+          browser: { enabled: true, provider: 'playwright', instances: [{ browser: 'chromium' }] }
+        }
+      }
+    ]`
+    )
+    await writeVueLibraryPkg(root, 'packages/ui', content)
+    await writeFileDeep(root, 'packages/ui/vitest.stryker.config.mjs', 'export default {}\n')
+    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/vitest-config' })
+    expect(result.violations).toHaveLength(1)
+    expect(result.violations[0].reason).toBe(REASON_STORYBOOK_PROJECT_MARKER_MISSING)
+    expect(result.violations[0].message).toContain('provider-factory')
   })
 
   test('лише unit-проєкт наявний — тільки storybook-project-missing (+ stryker)', async () => {
@@ -285,7 +353,7 @@ describe('storybook/vitest-config: fix', () => {
         test: {
           name: 'storybook',
           include: ['src/components/**/*.stories.@(js|ts)'],
-          browser: { enabled: true, provider: 'playwright', instances: [{ browser: 'chromium' }] }
+          browser: { enabled: true, provider: playwright(), instances: [{ browser: 'chromium' }] }
         }
       }
     ]`

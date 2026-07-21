@@ -18,6 +18,9 @@ const VITE_CONFIG_NAMES = ['vite.config.js', 'vite.config.ts', 'vite.config.mjs'
 /** Import, який має бути присутній у файлі, щоб `storybookTest(...)` резолвився. */
 export const STORYBOOK_TEST_IMPORT = "import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'\n"
 
+/** Import, який має бути присутній у файлі, щоб `playwright(...)`-factory (vitest@^4) резолвилась. */
+export const PLAYWRIGHT_PROVIDER_IMPORT = "import { playwright } from '@vitest/browser-playwright'\n"
+
 // Стабільні reasons (namespace: ruleId/concernId/reason).
 export const REASON_VITEST_CONFIG_MISSING = 'vitest-config-missing'
 export const REASON_STRYKER_CONFIG_MISSING = 'stryker-config-missing'
@@ -29,12 +32,20 @@ export const REASON_STORYBOOK_PROJECT_MARKER_MISSING = 'storybook-project-marker
 
 // Маркери канонічного storybook-проєкту (текстовий пошук у зрізі джерела самого
 // елемента масиву — стійко до форматування/AST-варіацій, як і scaffold/main.mjs).
-// Три останні (chromium/browser/stories) експортовано — переюз у `adopt/main.mjs`.
+// Експортовані — переюз у `adopt/main.mjs`.
 const UNIT_NAME_RE = /name\s*:\s*['"]unit['"]/u
 const STORYBOOK_NAME_RE = /name\s*:\s*['"]storybook['"]/u
 export const CHROMIUM_RE = /chromium/u
 export const BROWSER_KEY_RE = /\bbrowser\s*:/u
 export const STORIES_RE = /stories/iu
+// `storybookTest({ configDir: ... })` без явного `include` — легітимний патерн:
+// Storybook підхоплює stories-glob автоматично зі своєї `.storybook/main.js`-конфігурації
+// (той самий stories-glob, що й `detectStoriesGlob`), явний include у vitest-конфізі не
+// обов'язковий (реальний кейс components/npm/vitest.config.js — пілот adopt-діагностики).
+export const STORYBOOK_TEST_CONFIG_DIR_RE = /storybookTest\([^)]*configDir/u
+// vitest@^4: `browser.provider` — factory-виклик (`playwright()` з `@vitest/browser-playwright`),
+// не рядок `'playwright'` (застаріле API попередніх мажорів).
+export const PROVIDER_FACTORY_RE = /provider\s*:\s*playwright\s*\(/u
 const STORIES_GLOB_PREFIX_RE = /^\.\.\//u
 // Module-scope (prefer-static-regex): рядок-відступ цілком whitespace; leading
 // кома (можливо з whitespace) — спільні з fix-vitest-config.mjs патерном augment-у.
@@ -174,6 +185,22 @@ export function classifyProjects(src, arr) {
 }
 
 /**
+ * Чи присутній валідний маркер джерела stories у зрізі `storybook`-проєкту:
+ * явний stories-glob (`include: [...]`, {@link STORIES_RE}) АБО виклик
+ * `storybookTest({ configDir })` без явного `include` — Storybook підхоплює glob
+ * автоматично зі своєї конфігурації, явний include не обов'язковий (реальний
+ * кейс components/npm/vitest.config.js — пілот adopt-діагностики). Раніше гола
+ * вимога підрядка `stories` давала хибний позитив на цьому валідному патерні.
+ * Спільна логіка для `main.mjs` (lint) і `adopt/main.mjs` (diff-діагностика) —
+ * не дублювати комбінацію двох regex у двох місцях.
+ * @param {string} storybookSlice текстовий зріз елемента `storybook` у `test.projects`
+ * @returns {boolean} true — маркер джерела stories присутній (явно чи неявно)
+ */
+export function hasStoriesMarker(storybookSlice) {
+  return STORIES_RE.test(storybookSlice) || STORYBOOK_TEST_CONFIG_DIR_RE.test(storybookSlice)
+}
+
+/**
  * Будує спільний контекст перевірки одного пакета (label/relPrefix/шлях vitest-конфіга).
  * @param {import('../scope/main.mjs').InScopePackage} entry пакет у скоупі
  * @returns {{rootDir: string, absDir: string, label: string, relPrefix: string, vitestConfigPath: string | null}} контекст
@@ -272,7 +299,11 @@ async function checkVitestConfigContent(pkgCtx, reporter) {
     const missingHints = []
     if (!CHROMIUM_RE.test(storybookSlice)) missingHints.push('chromium-інстанс')
     if (!BROWSER_KEY_RE.test(storybookSlice)) missingHints.push('browser-mode')
-    if (!STORIES_RE.test(storybookSlice)) missingHints.push('stories-glob')
+    if (!hasStoriesMarker(storybookSlice))
+      missingHints.push('stories-джерело (include або storybookTest({ configDir }))')
+    if (!PROVIDER_FACTORY_RE.test(storybookSlice)) {
+      missingHints.push("provider-factory (vitest v4: import { playwright } from '@vitest/browser-playwright')")
+    }
     if (missingHints.length > 0) {
       reporter.fail(
         `[${label}] ${relVitestFile}: storybook-project без канонічних маркерів — бракує: ${missingHints.join(', ')} (vitest-config.mdc)`,

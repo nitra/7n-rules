@@ -75,7 +75,7 @@ async function writeCanonicalStorybookSetup(root, rootDir) {
       '          test: {',
       "            name: 'storybook',",
       "            include: ['src/components/**/*.stories.@(js|ts)'],",
-      "            browser: { enabled: true, headless: true, provider: 'playwright', instances: [{ browser: 'chromium' }] }",
+      "            browser: { enabled: true, headless: true, provider: playwright(), instances: [{ browser: 'chromium' }] }",
       '          }',
       '        }',
       '      ]',
