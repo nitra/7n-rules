@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/doc-files/docgen-extract-anchors/main.mjs
 docgen:
-  crc: 1bd4d187
+  crc: 0d5bc487
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 95
   issues: anchor-miss:(rule.mdc),judge:inaccurate:0.99
