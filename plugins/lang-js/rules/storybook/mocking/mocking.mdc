@@ -1,0 +1,108 @@
+## Мокання зовнішніх залежностей у Storybook
+
+Джерело рішень: `docs/adr/канон-storybook-для-vue-компонентних-бібліотек.md`, Кластер 3 і розділ «Розширення (2026-07-20): сторінки — route.params + Apollo subscription + Pinia» (прототип-верифікація на реальному кейсі `gt`). Це docs-only концерн — рецепти для агента, що впроваджує/підтримує Storybook у консюмер-репо; механічної перевірки немає (кожен пакет мокає свій набір залежностей по-своєму, детермінований чек дав би або хибні спрацювання, або нульове покриття).
+
+### Router
+
+Детекція: компонент використовує `useRoute`/`useRouter` (composition API з `vue-router`). Базовий рецепт — `createMemoryHistory()` з одним catch-all-маршрутом, без реальних params:
+
+```js
+import { createMemoryHistory, createRouter } from 'vue-router'
+
+const router = createRouter({
+  history: createMemoryHistory(),
+  routes: [{ path: '/:pathMatch(.*)*', component: { render: () => null } }]
+})
+```
+
+Для сторінок (хвиля 2, app-проєкти з `src/pages/`) — реальний параметризований маршрут замість catch-all, `router.push` перед mount і `await router.isReady()` у Storybook `loaders` (не в декораторі — `loaders` виконується per-story до рендеру, прибирає перший рендер без `route.params`):
+
+```js
+const router = createRouter({
+  history: createMemoryHistory(),
+  routes: [{ path: '/task/:id', component: TaskPage }]
+})
+
+export const pageLoader = ({ args }) => async () => {
+  await router.push(`/task/${args.taskId}`)
+  await router.isReady()
+  return { router }
+}
+```
+
+### `@nitra/tfm`
+
+No-op. `@nitra/tfm` (`tf`/`lang`/`getTr`) не потребує мокання — компонент рендериться з реальним модулем, переклади вже статичні дані в самому файлі (`vue/tfm-translations.mdc`). Задокументуй це явно в story-файлі коментарем (`// @nitra/tfm — no-op, реальний модуль`), щоб наступний агент не витрачав час на пошук неіснуючого моку.
+
+### Apollo/GraphQL — виключно MSW
+
+**Рішення ADR-розширення:** мокання GraphQL (query/mutation/subscription) — тільки на мережевому рівні через `msw-storybook-addon`, **без** `resolve.alias`-підмін app-коду (`boot/apollo.js` чи еквівалент лишається повністю справжнім). Facilitator у сесії розширення рекомендував лінк-рівневий alias-мок (справжні хуки `@vue3-apollo/core` + фейковий termination `ApolloLink`), а після вибору MSW — гібрид MSW+alias для side-effect boot-модулів; обрано чистий MSW, бо app-код (включно з link-split http/sse) не розходиться з production-поведінкою, а мок-хендлери переносні в майбутні vitest/playwright.
+
+Query/mutation — стандартний `graphql.query`/`graphql.mutation` handler, сценарії через `parameters.msw`:
+
+```js
+import { graphql, HttpResponse } from 'msw'
+
+export const Default = {
+  parameters: {
+    msw: {
+      handlers: [graphql.query('GetTask', () => HttpResponse.json({ data: { task: taskFixture } }))]
+    }
+  }
+}
+```
+
+Підписки — `msw-storybook-addon` не має готового `graphql.subscription()`-хендлера; wire-протокол `graphql-sse` (`event: next\ndata: …`, distinct-connection mode) мокається вручну через канонічний хелпер `sseSubscription` з `.storybook/mocks/gql-sse.js` (генерується скафолдом, `scaffold/template/mocks/gql-sse.js` — не копіювати логіку в кожен пакет, одне джерело істини для протоколу):
+
+```js
+import { http, HttpResponse } from 'msw'
+import { sseSubscription } from '../../.storybook/mocks/gql-sse.js'
+
+export const Realtime = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.post('/graphql/stream', () =>
+          new HttpResponse(sseSubscription([{ data: { taskUpdated: frame1 } }, { data: { taskUpdated: frame2 } }]), {
+            headers: { 'Content-Type': 'text/event-stream' }
+          })
+        )
+      ]
+    }
+  }
+}
+```
+
+### Pinia
+
+Справжня `createPinia()` у page-декораторі — **без** `pinia-plugin-persistedstate` (`persist: true` у сторі стає no-op, читання/запис localStorage не потрібні в ізольованому рендері). Наповнення початкового стану — через `parameters.pinia.initialState`, не хардкод у декораторі:
+
+```js
+import { createPinia } from 'pinia'
+
+export function pageDecorator({ route, pinia } = {}) {
+  return (story, ctx) => {
+    const app = createPinia()
+    if (ctx.parameters.pinia?.initialState) {
+      for (const [id, state] of Object.entries(ctx.parameters.pinia.initialState)) {
+        app.state.value[id] = state
+      }
+    }
+    // ...install router/pinia у app instance, повернути wrapped story
+  }
+}
+```
+
+**Не** `@pinia/testing` (`createTestingPinia`) — вона за замовчуванням підміняє actions заглушками, а сторінка в Storybook має жити зі справжньою бізнес-логікою стору, не з заглушкою.
+
+### Патерн story для сторінки
+
+- Одна фабрика-декоратор `pageDecorator({ route, pinia })` на весь повторюваний код (router + pinia + Quasar layout) — не дублювати в кожному story-файлі.
+- **`QLayout`/`QPageContainer`-wrapper обов'язковий**: `q-page` кидає виняток без layout-предка. Quasar SFC-transform (auto-реєстрація компонентів через build-time трансформ) **не працює** в runtime-шаблонах декораторів — `QLayout`/`QPageContainer`/`QPage` реєструються явно (`app.component('QLayout', QLayout)` тощо), інакше рендер падає з незрозумілою помилкою про невідомий тег.
+- Фікстури — окремим модулем `.storybook/fixtures/<page>.js`, не inline в story-файлі (переюз між `Default`/`Loading`/`Error`/`Realtime`).
+- **Smoke-мінімум**: одна story «рендериться без помилок» на кожну сторінку — обов'язковий нижній рівень покриття, навіть без окремих stories для кожного стану.
+- Окремі stories для `Loading`/`Error`/`Realtime` (сценарій з кількома SSE-кадрами через `sseSubscription`) — де застосовно, поверх smoke-мінімуму.
+
+### Мережеві side-effect компоненти без моку
+
+Компонент робить мережеві виклики (analytics-трекер, session-boot тощо), для яких мокання поки не покрите канонічним рецептом — постав у story коментар-маркер `// n-storybook: лише display-стан, мережеві side-effects без моку`, щоб було видно свідоме рішення, а не забутий пропуск.

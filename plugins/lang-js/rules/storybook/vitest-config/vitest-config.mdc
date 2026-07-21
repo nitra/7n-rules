@@ -1,0 +1,33 @@
+## Vitest-конфіг Storybook-пакета: named projects `unit`+`storybook` та ізоляція Stryker
+
+Джерело рішення: ADR `канон-storybook-для-vue-компонентних-бібліотек.md`, Кластер 5. Стосується лише пакетів у скоупі `storybook` (`scope/main.mjs#collectInScopeVuePackages`).
+
+### Канон `test.projects`
+
+Vue-компонентна бібліотека вже має `vitest.config.{mjs,js,ts}` за каноном `vue/testing.mdc` (`mergeConfig(viteConfig, defineConfig({ test: {...} }))` з `environment: 'happy-dom'`). Storybook-хвиля **дописує** до цього `test`-блоку named-project `unit`+`storybook` — існуючі поля (`include`, `environment`, `coverage`) лишаються без змін, `projects` — нова властивість поруч:
+
+- `{ extends: true, test: { name: 'unit' } }` — успадковує решту `test`-опцій пакета як є.
+- `storybook`-проєкт — **browser-mode, лише chromium** (`browser: { enabled: true, provider: 'playwright', instances: [{ browser: 'chromium' }] }`) і `include` на stories-glob пакета (та сама layout-детекція, що й `scaffold/main.mjs#detectStoriesGlob`, лише без префіксу `../` — vitest-конфіг лежить у корені пакета, а не в `.storybook/`).
+
+Firefox/webkit свідомо не додаються — ADR і main.mdc хвилі 1 фіксують лише chromium; розширення на інші браузери — поза обсягом цього концерну.
+
+### Чому окремий `vitest.stryker.config`
+
+`@stryker-mutator/vitest-runner` крашиться, коли конфіг, який він завантажує, містить browser-mode `projects` (сам факт присутності `storybook`-проєкту в основному vitest-конфізі ламає mutation-прогін, незалежно від того, чи Stryker фактично торкається storybook-файлів). Тому концерн генерує **сусідній** ізольований `vitest.stryker.config.<ext>` — той самий `mergeConfig(viteConfig, defineConfig({ test: {...} }))`, але **без** `projects`/browser-mode: лише unit-набір (`include`, `happy-dom`, `coverage`), на якому mutation-testing працює штатно.
+
+Концерн лише генерує/підтримує цей файл поруч з основним vitest-конфігом. Він **не** переналаштовує `stryker.config.mjs#vitest.configFile` пакета (це відповідальність `test/stryker_config`, який поки що не знає про Storybook-канон) — до появи такого зв'язку вказати `configFile: 'vitest.stryker.config.<ext>'` для пакетів у скоупі Storybook потрібно вручну.
+
+### Що перевіряє й що виправляє концерн
+
+Перевірка (`main.mjs`) — AST-аналіз (`oxc-parser`) наявного vitest-конфіга: знаходить `test`-блок (незалежно від того, чи він огорнутий у `defineConfig`/`mergeConfig`, чи це простий об'єкт), дивиться на `test.projects` і класифікує елементи за `name: 'unit'`/`name: 'storybook'`; для `storybook`-елемента перевіряє маркери `chromium`/`browser`/stories-glob текстовим пошуком. Стійка до форматування й порядку полів — не вимагає конкретного стилю запису, лише семантичну присутність маркерів.
+
+Автофікс (`fix-vitest-config.mjs`, fixability `config`) виправляє й дописує **лише відсутнє**:
+
+- Немає vitest-конфіга взагалі → створює повний файл з canonical `unit`+`storybook` projects.
+- Є test-блок без `projects` → вставляє нову property `projects: [...]` з обома записами, не займаючи `include`/`environment`/`coverage`.
+- Є `projects`, але без одного із записів → дописує відсутній запис у кінець масиву.
+- Немає `vitest.stryker.config.*` → генерує з canonical baseline.
+
+Як і в `test/stryker_config`, правка — точкові string-splice-и (insert-only) поверх існуючого тексту, а не переписаний AST-serializer, щоб не зачепити форматування й коментарі решти файлу; результат повторно парситься, і при невалідному виводі запис скасовується (fail-closed).
+
+**Свідомо без автофіксу:** `test.projects` — не статичний масив (spread/змінна), test-блок не вдалось знайти структурно, або `storybook`-запис уже присутній, але без якогось із маркерів (chromium/browser/stories-glob) — надійно виправити частковий вручну написаний запис програмно ризиковано, тож це лишається порушенням для ручного review (той самий компроміс, що й marker-порушення в `scaffold`).
