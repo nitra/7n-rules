@@ -41,12 +41,13 @@ describe('check tauri.core_test_isolation', () => {
 
   test('окремий crate з LLM-залежністю сам залежить від tauri → фейл', async () => {
     await withTmpDir(async dir => {
+      // Cargo-валідний layout: [workspace] живе у product-root Cargo.toml НАД src-tauri/ і
+      // agent-core/ (не всередині src-tauri/, бо `members` за межами дерева workspace root —
+      // помилка Cargo: "workspace member is not hierarchically below the workspace root").
       await mkdir(join(dir, 'src-tauri'), { recursive: true })
       await mkdir(join(dir, 'agent-core'), { recursive: true })
-      await writeFile(
-        join(dir, 'src-tauri/Cargo.toml'),
-        '[package]\nname = "app"\n\n[workspace]\nmembers = [".", "../agent-core"]\n\n[dependencies]\ntauri = "2"\n'
-      )
+      await writeFile(join(dir, 'Cargo.toml'), '[workspace]\nresolver = "2"\nmembers = ["src-tauri", "agent-core"]\n')
+      await writeFile(join(dir, 'src-tauri/Cargo.toml'), '[package]\nname = "app"\n\n[dependencies]\ntauri = "2"\n')
       await writeFile(
         join(dir, 'agent-core/Cargo.toml'),
         '[package]\nname = "agent-core"\n\n[dependencies]\nasync-openai = "0.1"\ntauri = "2"\n'
@@ -60,10 +61,8 @@ describe('check tauri.core_test_isolation', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'src-tauri'), { recursive: true })
       await mkdir(join(dir, 'agent-core/src'), { recursive: true })
-      await writeFile(
-        join(dir, 'src-tauri/Cargo.toml'),
-        '[package]\nname = "app"\n\n[workspace]\nmembers = [".", "../agent-core"]\n\n[dependencies]\ntauri = "2"\n'
-      )
+      await writeFile(join(dir, 'Cargo.toml'), '[workspace]\nresolver = "2"\nmembers = ["src-tauri", "agent-core"]\n')
+      await writeFile(join(dir, 'src-tauri/Cargo.toml'), '[package]\nname = "app"\n\n[dependencies]\ntauri = "2"\n')
       await writeFile(
         join(dir, 'agent-core/Cargo.toml'),
         '[package]\nname = "agent-core"\n\n[dependencies]\nasync-openai = "0.1"\n'
@@ -78,10 +77,8 @@ describe('check tauri.core_test_isolation', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'src-tauri'), { recursive: true })
       await mkdir(join(dir, 'agent-core/tests'), { recursive: true })
-      await writeFile(
-        join(dir, 'src-tauri/Cargo.toml'),
-        '[package]\nname = "app"\n\n[workspace]\nmembers = [".", "../agent-core"]\n\n[dependencies]\ntauri = "2"\n'
-      )
+      await writeFile(join(dir, 'Cargo.toml'), '[workspace]\nresolver = "2"\nmembers = ["src-tauri", "agent-core"]\n')
+      await writeFile(join(dir, 'src-tauri/Cargo.toml'), '[package]\nname = "app"\n\n[dependencies]\ntauri = "2"\n')
       await writeFile(
         join(dir, 'agent-core/Cargo.toml'),
         '[package]\nname = "agent-core"\n\n[dependencies]\nasync-openai = "0.1"\n'

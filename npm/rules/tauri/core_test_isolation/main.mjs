@@ -14,6 +14,7 @@ import { parse as parseToml } from 'smol-toml'
 
 import { scanGlob } from '../../../scripts/utils/glob-compat.mjs'
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
+import { findAncestorWorkspaceRoot, resolveWorkspaceMemberDirs } from '../../../scripts/utils/cargo-workspace.mjs'
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 
 /** Стабільні reasons для трьох типів порушення. */
@@ -56,29 +57,6 @@ async function findSrcTauriDirs(cwd) {
 }
 
 /**
- * Резолвить `[workspace] members` (шляхи й прості glob-патерни) відносно `src-tauri/`
- * у список абсолютних каталогів крейтів, що мають власний Cargo.toml.
- * @param {string} srcTauriDir абсолютний шлях до `src-tauri/`
- * @param {string[]} members патерни з `workspace.members`
- * @returns {Promise<string[]>} абсолютні шляхи членів воркспейсу (без дублікатів)
- */
-async function resolveWorkspaceMemberDirs(srcTauriDir, members) {
-  const found = new Set()
-  for (const pattern of members) {
-    if (pattern.includes('*')) {
-      for await (const rel of scanGlob(pattern, srcTauriDir)) {
-        const abs = resolve(srcTauriDir, rel)
-        if (existsSync(join(abs, 'Cargo.toml'))) found.add(abs)
-      }
-      continue
-    }
-    const abs = resolve(srcTauriDir, pattern)
-    if (existsSync(join(abs, 'Cargo.toml'))) found.add(abs)
-  }
-  return [...found]
-}
-
-/**
  * Рекурсивно шукає в дереві крейту рядок, що відповідає `FAKE_PROVIDER_RE`
  * (fake/mock/stub-реалізацію LLM-провайдера, зазвичай у `tests/` чи `src/`).
  * @param {string} crateDir абсолютний шлях до крейту
@@ -117,12 +95,19 @@ async function checkOneSrcTauri(srcTauriDir, cwd, reporter) {
     return
   }
 
-  const members = parsed?.workspace?.members
-  if (!Array.isArray(members) || members.length === 0) {
-    return
+  // `[workspace]` живе або у самому src-tauri/Cargo.toml (старий/standalone патерн), або —
+  // канонічно (rust/workspace_root.mdc) — у предку-workspace root над src-tauri/.
+  let workspaceRootDir = srcTauriDir
+  let members = Array.isArray(parsed?.workspace?.members) ? parsed.workspace.members : []
+  if (members.length === 0) {
+    const ancestor = await findAncestorWorkspaceRoot(srcTauriDir, cwd)
+    const ancestorMembers = ancestor?.parsed?.workspace?.members
+    if (!ancestor || !Array.isArray(ancestorMembers) || ancestorMembers.length === 0) return
+    workspaceRootDir = ancestor.rootDir
+    members = ancestorMembers
   }
 
-  const memberDirs = await resolveWorkspaceMemberDirs(srcTauriDir, members)
+  const memberDirs = await resolveWorkspaceMemberDirs(workspaceRootDir, members)
   const otherMemberDirs = memberDirs.filter(d => resolve(d) !== resolve(srcTauriDir))
 
   for (const memberDir of otherMemberDirs) {

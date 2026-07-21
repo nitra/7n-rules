@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/tauri/core_test_isolation/main.mjs
 docgen:
-  crc: cfb870f5
+  crc: 2fe501fb
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: best-of-2:retry-won,judge:inaccurate:0.98

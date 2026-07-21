@@ -15,13 +15,25 @@ rebuild (лінковка, bundling, іноді webview) замість секу
 
 ```
 my-tauri-app/
-├── src-tauri/           ← app-shell: Tauri runtime, window/AppHandle, НЕ містить LLM-залежностей
-│   └── Cargo.toml       ← [workspace] members = [".", "../agent-core"]
-└── agent-core/          ← agent/LLM-логіка: prompt building, tool dispatch, provider abstraction
-    ├── Cargo.toml       ← без залежності на tauri
+├── Cargo.toml            ← workspace root (virtual, без [package]): [workspace] members = ["src-tauri", "agent-core"]
+├── src-tauri/            ← app-shell: Tauri runtime, window/AppHandle, НЕ містить LLM-залежностей
+│   └── Cargo.toml        ← [package], без [workspace] — сам по собі НЕ workspace root
+└── agent-core/           ← agent/LLM-логіка: prompt building, tool dispatch, provider abstraction
+    ├── Cargo.toml        ← без залежності на tauri
     └── tests/
         └── fake_provider.rs   ← FakeLlmProvider / MockLlmClient — без мережі
 ```
+
+`[workspace] members = [".", "../agent-core"]` **всередині** `src-tauri/Cargo.toml` — невалідний
+Cargo layout: `../agent-core` лежить поза деревом workspace root (`src-tauri/`), і Cargo відмовляє
+з `workspace member '.../agent-core/Cargo.toml' is not hierarchically below the workspace root`.
+Тому `[workspace]` живе у product-root `Cargo.toml`, що лежить НАД обома крейтами (канон
+`rust/workspace_root.mdc` — один кореневий Cargo workspace на репозиторій).
+
+**Наслідок:** `target/` компілюється у корінь цього workspace (`my-tauri-app/target/`), а не в
+`src-tauri/target/` — це впливає на очікуваний запис у `.gitignore` (`tauri/gitignore_target`) і на
+шлях у `workspaces:`-полі `Swatinem/rust-cache` GitHub Action (action бере шлях буквально як
+`<path>/target`, тож там має стояти корінь цього workspace, не `src-tauri`).
 
 Концерн `tauri/core_test_isolation.mjs` (read-only detector, `structural`, авто-фікс ризикований)
 для кожного `src-tauri/Cargo.toml` перевіряє:
@@ -29,9 +41,11 @@ my-tauri-app/
 1. **LLM-залежність не в app-shell.** Якщо сам `src-tauri/Cargo.toml` має залежність на відомий
    LLM SDK (напр. `async-openai`, `anthropic`, `ollama-rs`, `rig-core`, ...) — фейл: винеси
    agent-логіку в окремий crate.
-2. **Окремий crate не тягне tauri.** Якщо у `[workspace] members` є crate з LLM-залежністю, і
-   цей crate сам залежить від `tauri`/`tauri-*` — фейл: `cargo test -p` цього крейту все одно
-   перезбирає Tauri runtime.
+2. **Окремий crate не тягне tauri.** `[workspace] members` резолвиться або з самого
+   `src-tauri/Cargo.toml` (standalone-патерн), або — коли там `[workspace]` немає — з
+   найближчого предка-workspace root (product-root `Cargo.toml` над `src-tauri/`). Якщо серед
+   members є crate з LLM-залежністю, і цей crate сам залежить від `tauri`/`tauri-*` — фейл:
+   `cargo test -p` цього крейту все одно перезбирає Tauri runtime.
 3. **Є fake-провайдер.** Якщо такий crate є і не залежить від tauri, але ніде в його дереві
    (`**/*.rs`) немає маркера `Fake*Llm`/`Mock*Provider`/`Stub*Client` — фейл: інтеграційні тести
    на prompt/tool ітерації або мовчки пропускають LLM-логіку, або б'ють по реальному провайдеру.
