@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.0] - 2026-07-21
+
+### Added
+
+- rust/workspace_root: канон одного кореневого Cargo workspace
+
 ## [0.6.1] - 2026-07-20
 
 ### Fixed
