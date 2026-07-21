@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.11.0] - 2026-07-21
+
+### Added
+
+- storybook: новий concern `ci` (ADR Кластер 5, CI-частина) — канонічний composite action `setup-playwright-chromium` (кеш Playwright-браузерів, лише chromium) і `.github/workflows/lint-storybook.yml` (швидкий PR-прогін `vitest --project=storybook`), гейтований `requires.capability: ci:github`
+
+### Fixed
+
+- storybook: viteFinal-фільтр стійкий до VueMacros-стека (Promise/масив-резолв, сімейний фільтр vite:*/vue-macros), vitest@^4 provider-factory (@vitest/browser-playwright) замість застарілого рядка `'playwright'`, flat-root layout у detectStoriesGlob (components без src/), точковий alias-мок одного модуля в mocking.mdc, і STORIES_RE false positive на `storybookTest({ configDir })` без явного include — усе за результатами пілота adopt-діагностики на nitra/components. Заодно governance package_json.rego: allowlist доповнено `@vitest/browser-playwright`.
+
+## [0.10.0] - 2026-07-21
+
+### Added
+
+- storybook: канон Storybook хвилі 1 для Vue-компонентних бібліотек — детекція скоупу (isVueComponentLibraryPkg, поріг ≥3 .vue, opt-out), канонічний скафолд .storybook/main.js+preview.js+mocks/gql-sse.js, package.json#scripts.storybook (ADR канон-storybook-для-vue-компонентних-бібліотек)
+- npm-module/bun: governance-виняток канону Storybook (кластер 7 ADR канон-storybook-для-vue-компонентних-бібліотек) — npm_package_json.rego дозволяє канонічні Storybook-devDeps (storybook, @storybook/vue3-vite, @storybook/vue3, msw, msw-storybook-addon) у npm/package.json із зафіксованою точною версією (deny на неканонічний пакет або неканонічну версію); bun/package_json.rego розширює root-only test peers на @vitest/browser + playwright (browser-mode provider для named vitest project "storybook", лише chromium) та @storybook/addon-vitest (storybookTest-плагін того самого vitest-конфіга) — Storybook-identity-пакети у корінь свідомо не додаються
+- storybook: vitest-config-концерн хвилі 1 (ADR Кластер 5) — canonical test.projects unit+storybook (browser-mode, лише chromium, stories-glob) дописується поверх наявного vitest-конфіга, ізольований vitest.stryker.config генерується поруч (Stryker крашиться на browser-mode projects)
+- storybook: концерни mocking (docs-only рецепти router/tfm/Apollo-MSW/Pinia/page-story) і hygiene (undeclared third-party imports у .vue, auto-detect sassVariables) — ADR Кластер 3/6
+
+### Fixed
+
+- storybook: підключено concern-и scope/scaffold/vitest-config до unified lint-рушія (lint-блок у concern.json — check:true без lint мовчки ігнорувався run-detectors.mjs), додано --adopt-режим (adopt/main.mjs) і скіл n-storybook
+
 ## [0.9.0] - 2026-07-20
 
 ### Added
