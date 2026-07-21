@@ -31,7 +31,7 @@ alwaysApply: false
 
 - **Порядок Vite-плагінів фіксований**: `@vitejs/plugin-vue` **перед** `quasar()` — інакше Quasar-плагін не бачить SFC, уже скомпільований `plugin-vue`.
 - **Layout-детекція**: `src/components/` присутній → stories-glob звужується до нього; пласка структура (`src/` без `components/`) — ширший glob по всьому `src/`.
-- **`viteFinal`** зчитує `vite.config` самого пакета (той самий, що й для звичайного білду) і мерджить його плагіни в конфіг Storybook, **знімаючи** `vite-plugin-pages`/`vite-plugin-vue-layouts` — файлова маршрутизація належить додатку-споживачу, не ізольованому рендеру компонента.
+- **`viteFinal`** зчитує `vite.config` самого пакета (той самий, що й для звичайного білду) і мерджить його плагіни в конфіг Storybook, **знімаючи** роутинг-плагіни файлової маршрутизації додатка-споживача (`vite-plugin-pages`, `unplugin-vue-router`, `vite-plugin-vue-layouts`, `vite-plugin-vue-layouts-next`) — вони не мають сенсу в ізольованому рендері компонента. Плагіни `plugins`-масиву можуть бути `Promise`/вкладеними масивами (`VueMacros({ plugins: { vue: Vue() } })` — реальний стек пілотного консюмера повертає `Promise`, що резолвиться в масив плагінів) — фільтр спершу resolve/flatten-ить їх, інакше порівняння імені з `Promise`, що ще не резолвився, мовчки пропускає дублікат `@vitejs/plugin-vue`-трансформу (подвійна SFC-трансформація). Vue-трансформери фільтруються за сімейством імені (`vite:vue`-префікс або підрядок `vue-macros`), не лише буквальним `@vitejs/plugin-vue` — деталі й обґрунтування коментарем у `scaffold/template/main.js`.
 - **`staticDirs`** покриває `.storybook/public` — статичний asset для msw service worker (`preview.js`).
 - **`preview.js`**: повний `Quasar`-install (не тільки окремі компоненти) + `iconSet`+`iconMapFn`-комбо — без цієї пари внутрішні Quasar-компоненти (напр. стрілка `QSelect`) не резолвлять вбудовані іконки поза full CLI build. `msw-storybook-addon` ініціалізується з `onUnhandledRequest`-фільтром: **same-origin GET мовчки пропускається** (Vite HMR/asset-шум), решта — попередження (не білд-помилка — навмисно м'яко для хвилі 1).
 - **`.storybook/mocks/gql-sse.js`**: єдиний канонічний хелпер `sseSubscription` для MSW-мокання Apollo-підписок через wire-протокол `graphql-sse` (`event: next\ndata: …`, distinct-connection mode) — переносити цю логіку в кожен пакет окремо заборонено, є одне джерело істини.
@@ -42,6 +42,12 @@ alwaysApply: false
 ## Vitest-конфіг і Stryker-ізоляція (Кластер 5)
 
 Канонічний `test.projects` (`unit`+`storybook`, browser-mode лише chromium) і ізольований `vitest.stryker.config` (той самий unit-набір, без browser-mode — `@stryker-mutator/vitest-runner` крашиться на browser-mode `projects`) — `vitest-config/main.mjs` (перевірка, AST через `oxc-parser`) і `vitest-config/fix-vitest-config.mjs` (точкові insert-only правки наявного конфіга, fixability: `config`). Деталі канону, чому саме chromium і межі автофіксу — `vitest-config/vitest-config.mdc`, не дублюється тут.
+
+### CI: Playwright-кеш і швидкий PR-прогін (Кластер 5, CI-частина)
+
+`ci/main.mjs` + `ci/fix-ci.mjs` (fixability: `config`, `requires.capability: ci:github` — спить у репозиторіях без плагіна `@7n/rules-ci-github`): для кожного репозиторію з бодай одним пакетом у скоупі — канонічний composite action `.github/actions/setup-playwright-chromium/action.yml` (кеш `~/.cache/ms-playwright`/`~/Library/Caches/ms-playwright` за версією playwright з `bun.lock`, install **лише** `chromium --with-deps` при cache miss) і `.github/workflows/lint-storybook.yml` (матриця `strategy.matrix.package` — фактичні пакети у скоупі, `checkout` → `setup-bun-deps` → `setup-playwright-chromium` → `vitest run --project=storybook`). Композитний action і workflow — репо-рівневі файли (не per-package), перевірка й автофікс не per-package.
+
+Nightly-only `@7n/test coverage` (mutation testing) — свідомо поза цим concern-ом: ADR розділяє швидкий PR-шлях (`--project=storybook`, цей concern) і nightly mutation-прогін, який лишається окремою інфраструктурою (`test/stryker_config`) і не дублюється тут.
 
 ## Гігієна сторонніх залежностей (Кластер 6)
 
