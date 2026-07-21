@@ -576,7 +576,16 @@ async function runJudgeGate({ r, score, issues, facts, anchors, src, model, chai
 function resolvePromptSrc({ facts, estTokens, langExtractors, ext, src, file }) {
   if (facts.unsupported || estTokens <= UNIT_DIGEST_TOKENS) return src
   const units = langExtractors.get(ext)?.extractUnits?.(src, file)
-  return units?.length ? buildUnitDigest(units) : src
+  if (!units?.length) return src
+  // Гейт змістовності (фінальний бенч, upsert-order 23KB): дайджест виграє лише
+  // коли файл СТРУКТУРОВАНИЙ (декілька юнітів — call-graph несе інформацію) і
+  // більшість юнітів покриті JSDoc. Інакше він вироджений: (а) юніти без JSDoc →
+  // обрізані тіла без описів → Поведінка стискається до generic (246 знаків
+  // проти 1300+ на повному src, score 65); (б) один гігантський юніт → дайджест
+  // = один рядок JSDoc, вся логіка невидима. В обох випадках — повний src.
+  const covered = units.filter(u => u.doc).length
+  const structured = units.length >= 4 && covered / units.length >= 0.6
+  return structured ? buildUnitDigest(units) : src
 }
 
 /** Максимальний час генерації одного LLM-виклику. */
