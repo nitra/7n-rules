@@ -14,6 +14,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { collectInScopeVuePackages } from '../../scope/main.mjs'
 import { STORYBOOK_SCRIPT } from '../../scaffold/main.mjs'
 import {
+  renderAppMainJs,
+  renderAppPreviewJs,
   renderEmptyViteConfig,
   renderMainJs,
   renderMocksGqlSse,
@@ -90,6 +92,35 @@ async function writeCanonicalStorybookSetup(root, rootDir) {
       ')'
     ].join('\n')
   )
+}
+
+/**
+ * Створює мінімальний app-пакет у скоупі хвилі 2a (`vue` у dependencies, `src/pages/`,
+ * `.n-rules.json` → `storybook.detectApps: true`) — без `.storybook/`.
+ * @param {string} root корінь монорепо
+ * @param {string} rootDir відносний корінь пакета
+ * @param {object} [pkgOverrides] додаткові поля package.json
+ */
+async function writeVueAppPkg(root, rootDir, pkgOverrides = {}) {
+  const pkg = { name: `app-${rootDir}`, dependencies: { vue: '^3.6.0' }, ...pkgOverrides }
+  await writeFileDeep(root, join(rootDir, 'package.json'), JSON.stringify(pkg, null, 2))
+  await writeFileDeep(root, join(rootDir, 'vite.config.js'), 'export default {}\n')
+  await writeFileDeep(root, join(rootDir, 'src/pages/task/[id].vue'), '<template><div/></template>\n')
+  await writeFileDeep(root, '.n-rules.json', JSON.stringify({ rules: [], storybook: { detectApps: true } }, null, 2))
+}
+
+/**
+ * Заповнює `.storybook/` app-пакета повністю канонічним вмістом (хвиля 2a) — верифіковано
+ * прототипом `gt`: app-main.js/app-preview.js, реюз mocks/gql-sse.js, непорожня
+ * `.storybook/fixtures/`.
+ * @param {string} root корінь монорепо
+ * @param {string} rootDir відносний корінь пакета
+ */
+async function writeCanonicalAppStorybookSetup(root, rootDir) {
+  await writeFileDeep(root, join(rootDir, '.storybook/main.js'), renderAppMainJs())
+  await writeFileDeep(root, join(rootDir, '.storybook/preview.js'), renderAppPreviewJs())
+  await writeFileDeep(root, join(rootDir, '.storybook/mocks/gql-sse.js'), renderMocksGqlSse())
+  await writeFileDeep(root, join(rootDir, '.storybook/fixtures/task-detail.js'), 'export function taskFrame() {}\n')
 }
 
 describe('diagnosePackage — канонічний пакет', () => {
@@ -239,5 +270,97 @@ describe('adopt — circuit breaker: зламаний пакет деграду�
 
     const report = formatReport(results)
     expect(report).toContain('circuit breaker')
+  })
+})
+
+describe('adopt — app-пакет хвилі 2a (пілот gt): секції main.js/preview.js/gql-sse/fixtures/script/vitest', () => {
+  let root
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'storybook-adopt-app-'))
+    await writeFileDeep(root, 'package.json', JSON.stringify({ name: 'root', workspaces: ['packages/*'] }, null, 2))
+  })
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true })
+  })
+
+  test('повністю канонічний app-пакет — статус canonical, БЕЗ секції empty-vite.config.js', async () => {
+    await writeVueAppPkg(root, 'packages/gt', { scripts: { storybook: STORYBOOK_SCRIPT } })
+    await writeCanonicalAppStorybookSetup(root, 'packages/gt')
+    await writeFileDeep(
+      root,
+      'packages/gt/vitest.config.mjs',
+      [
+        "import { defineConfig, mergeConfig } from 'vitest/config'",
+        "import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'",
+        "import viteConfig from './vite.config.js'",
+        '',
+        'export default mergeConfig(',
+        '  viteConfig,',
+        '  defineConfig({',
+        '    test: {',
+        '      projects: [',
+        "        { extends: true, test: { name: 'unit' } },",
+        '        {',
+        '          extends: true,',
+        "          plugins: [storybookTest({ configDir: '.storybook' })],",
+        '          test: {',
+        "            name: 'storybook',",
+        "            include: ['src/**/*.stories.@(js|ts)'],",
+        "            browser: { enabled: true, headless: true, provider: playwright(), instances: [{ browser: 'chromium' }] }",
+        '          }',
+        '        }',
+        '      ]',
+        '    }',
+        '  })',
+        ')'
+      ].join('\n')
+    )
+    const strykerConfig = await buildStrykerConfig(join(root, 'packages/gt'))
+    await writeFileDeep(root, 'packages/gt/vitest.stryker.config.mjs', strykerConfig)
+
+    const pkgs = await collectInScopeVuePackages(root)
+    const entry = pkgs.find(p => p.rootDir === 'packages/gt')
+    expect(entry.type).toBe('app')
+    const diagnosis = await diagnosePackage(entry)
+
+    expect(diagnosis.status).toBe('canonical')
+    expect(diagnosis.sections.every(s => s.status === STATUS.MATCH)).toBe(true)
+    expect(diagnosis.sections.some(s => s.name === SECTION.EMPTY_VITE_CONFIG)).toBe(false)
+    expect(diagnosis.sections.some(s => s.name === SECTION.FIXTURES_DIR)).toBe(true)
+  })
+
+  test('порожній app-пакет — missing-files; --fix-missing генерує все, КРІМ .storybook/fixtures/', async () => {
+    await writeVueAppPkg(root, 'packages/gt')
+
+    const before = await runAdopt(root, { fixMissing: false })
+    const beforeGt = before.find(r => r.rootDir === 'packages/gt')
+    expect(beforeGt.status).toBe('missing-files')
+    const fixturesBefore = beforeGt.sections.find(s => s.name === SECTION.FIXTURES_DIR)
+    expect(fixturesBefore.status).toBe(STATUS.MISSING)
+
+    const after = await runAdopt(root, { fixMissing: true })
+    const afterGt = after.find(r => r.rootDir === 'packages/gt')
+    expect(afterGt.written.length).toBeGreaterThan(0)
+
+    const mainJs = await readFile(join(root, 'packages/gt/.storybook/main.js'), 'utf8')
+    expect(mainJs).toContain('@storybook/vue3-vite')
+    // Функціональний маркер обходу — core.builder.options, не сам підрядок "viteConfigPath"
+    // (він згадується в коментарі шаблону як пояснення, ЧОМУ обходу немає).
+    expect(mainJs).not.toContain('core: {')
+    const previewJs = await readFile(join(root, 'packages/gt/.storybook/preview.js'), 'utf8')
+    expect(previewJs).toContain('pageLoader')
+    const mocks = await readFile(join(root, 'packages/gt/.storybook/mocks/gql-sse.js'), 'utf8')
+    expect(mocks).toContain('sseSubscription')
+    const pkg = JSON.parse(await readFile(join(root, 'packages/gt/package.json'), 'utf8'))
+    expect(pkg.scripts.storybook).toBe(STORYBOOK_SCRIPT)
+
+    // .storybook/fixtures/ — свідомо НЕ автогенерується (app-специфічний вміст).
+    const secondPass = await runAdopt(root, { fixMissing: false })
+    const finalGt = secondPass.find(r => r.rootDir === 'packages/gt')
+    const fixturesAfter = finalGt.sections.find(s => s.name === SECTION.FIXTURES_DIR)
+    expect(fixturesAfter.status).toBe(STATUS.MISSING)
+    expect(finalGt.status).toBe('missing-files')
   })
 })

@@ -127,6 +127,31 @@ describe('hasStoriesMarker / PROVIDER_FACTORY_RE', () => {
   })
 })
 
+describe('storiesGlobForVitestConfig: type-aware (хвиля 2a)', () => {
+  let root
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'storybook-vitest-config-glob-'))
+  })
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true })
+  })
+
+  test('app-пакет з ОБОМА src/components/ і src/pages/ — широкий glob (не звужується до components)', async () => {
+    await writeFileDeep(root, 'src/components/Shared.vue', '<template/>')
+    await writeFileDeep(root, 'src/pages/task/[id].vue', '<template/>')
+    // Без type — library-детекція звузила б до components (реальний баг, якого це виправляє).
+    expect(storiesGlobForVitestConfig(root)).toBe('src/components/**/*.stories.@(js|ts)')
+    expect(storiesGlobForVitestConfig(root, 'app')).toBe('src/**/*.stories.@(js|ts)')
+  })
+
+  test('library-пакет (type не заданий чи library) — стара layout-детекція без змін', async () => {
+    await writeFileDeep(root, 'src/components/Comp.vue', '<template/>')
+    expect(storiesGlobForVitestConfig(root, 'library')).toBe('src/components/**/*.stories.@(js|ts)')
+  })
+})
+
 describe('storybook/vitest-config: lint', () => {
   let root
 
