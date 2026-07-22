@@ -330,7 +330,7 @@ function assertStorybookStrykerIsolation(jsRoot, wsRel) {
     `js coverage: ${wsRel || '.'} — канонічний Storybook-пакет, але ${configName} не вказує ` +
       'vitest.configFile на ізольований vitest.stryker.config.* — Stryker vitest-runner крашиться ' +
       'на browser-mode проєкті "storybook" основного vitest.config (канон Storybook, Кластер 5). ' +
-      'Згенеруй ізольований конфіг правилом storybook (npx @7n/rules lint storybook) і постав ' +
+      'Згенеруй ізольований конфіг концерном storybook-vitest-config (npx @7n/rules lint test) і постав ' +
       "vitest: { configFile: 'vitest.stryker.config.mjs' } у " +
       configName
   )
@@ -613,7 +613,7 @@ async function collectOneRoot(jsRoot, cwd, runner, scope = null) {
     const storybookHint = excludeStorybookProject
       ? ' Root — канонічний Storybook-пакет (identity-devDeps у package.json): ' +
         'stryker.config.mjs#vitest.configFile має вказувати на ізольований ' +
-        'vitest.stryker.config.mjs (генерує правило storybook, npx @7n/rules lint storybook), ' +
+        'vitest.stryker.config.mjs (генерує концерн storybook-vitest-config, npx @7n/rules lint test), ' +
         'бо основний vitest.config містить browser-mode проєкт "storybook", ' +
         'який не підтримується vitest-runner.'
       : ''
