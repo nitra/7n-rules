@@ -3,28 +3,30 @@ type: JS Module
 title: fix-lint_security_yml.mjs
 resource: plugins/ci-github/rules/security/lint_security_yml/fix-lint_security_yml.mjs
 docgen:
-  crc: dab1114f
-  model: openai-codex/gpt-5.5
+  crc: 7063b373
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
   score: 100
-  issues: judge:inaccurate:0.99
+  issues: judge-refine:kept-original,judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-`patterns` визначає межі пошуку в кодовій базі та свідомо оминає `.github` і `.git`, щоб перевірка не зачіпала службові каталоги. Правило працює в read-only режимі й не записує зміни у файлову систему або бази даних.
+Декларативний template-deep-merge для `security/lint_security_yml`, який або створює відсутній `.github/workflows/lint-security.yml` з канонічного шаблону правила, або доповнює наявний workflow лише канонічними полями. Пошук працює через `patterns` і свідомо пропускає `.github` та `.git`, тож правило не зачіпає ці шляхи під час автолікування. Це потрібно, щоб у репозиторії був узгоджений security-lint workflow.
 
 ## Поведінка
 
-1. `patterns` визначає правило автоматичного приведення workflow перевірки безпеки до еталонного шаблону.
+1. `patterns` задає єдине правило автолікування для `security/lint_security_yml`: воно готує канонічний шаблон для `.github/workflows/lint-security.yml`.
+2. Якщо цільового workflow-файлу немає, `patterns` ініціює його створення зі стандартною структурою правила.
+3. Якщо файл уже існує, `patterns` доповнює лише канонічні поля, не перетираючи локальні зміни.
+4. `patterns` свідомо не працює з шляхами `.github` і `.git`, щоб не зачіпати службові області репозиторію.
 
-2. Правило орієнтується на файл `.github/workflows/lint-security.yml`, щоб забезпечити наявність узгодженого процесу security lint у CI.
+## Публічний API
 
-3. Під час підбору файлів для загальної обробки свідомо пропускаються службові шляхи `.github` і `.git`, щоб не аналізувати інфраструктурні каталоги як звичайний код.
-
-4. Зміни не записуються напряму у файлову систему або зовнішні сховища: `patterns` лише описує доступне виправлення для подальшого застосування інструментом.
+- patterns — Фікс-патерни концерну: один template-deep-merge запис для `.github/workflows/lint-security.yml`.
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
 - Свідомо пропускає шляхи: `.github`, `.git`.

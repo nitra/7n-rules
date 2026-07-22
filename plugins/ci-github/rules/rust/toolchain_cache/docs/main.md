@@ -3,55 +3,43 @@ type: JS Module
 title: main.mjs
 resource: plugins/ci-github/rules/rust/toolchain_cache/main.mjs
 docgen:
-  crc: 0fcd7663
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  crc: e97443b2
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
   score: 100
-  issues: judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Огляд
-Конструкція забезпечує перевірку у `.github/workflows/*.yml` того, що кожен job, що використовує `dtolnay/rust-toolchain@stable` для встановлення Rust toolchain, має подальший крок із кешуванням Rust за допомогою `Swatinem/rust-cache@v2`. Якщо job також виконує `tauri-apps/tauri-action` і `Cargo.toml` лежить у `src-tauri/`, кеш-крок повинен мати `with.workspaces` на цей каталог. Ця логіка контролюється згідно з принципами, описаними у (rust.mdc), використовуючи константи `MISSING_RUST_CACHE` та `MISSING_RUST_CACHE_WORKSPACES` для маркування відхилень.
-
-Поведінка
-MISSING_RUST_CACHE — константа-рядок, яка позначає відсутність необхідного кешування Rust toolchain.
-MISSING_RUST_CACHE_WORKSPACES — константа-рядок, що інформує про неправильну конфігурацію кешування для робочих просторів Rust.
-TOOLCHAIN_RE — визначення для ідентифікації кроків встановлення Rust toolchain.
-CACHE_RE — визначення для ідентифікації кроків, що використовують кешування Rust.
-scanToolchainSteps — аналізує вміст YAML-файлу workflow, виявляючи кроки встановлення toolchain та інформацію про кешування в межах одного job-а.
-tauriWorkspaceDir — визначає шлях до робочого простору Tauri, коли `Cargo.toml` не знаходиться в корені репозиторію.
-lint — сканує всі `.yml` та `.yaml` файли у каталозі `.github/workflows`, перевіряючи відповідність вимогам кешування.
-Інструмент працює лише з читанням конфігурацій (Read-only) та здійснює кешування інформації в межах поточного прогону.
+Файл виявляє у `.github/workflows/*.yml` job-и, де `dtolnay/rust-toolchain@stable` встановлює Rust toolchain без подальшого `Swatinem/rust-cache@v2`, щоб workflow не втрачали очікуване кешування Cargo-залежностей. Для job-ів із `tauri-apps/tauri-action` він додатково вимагає `with.workspaces` на `src-tauri/`, коли `Cargo.toml` лежить під `src-tauri/`, а не в корені репозиторію.
 
 ## Поведінка
 
-**Поведінка**
-MISSING_RUST_CACHE — константа, що позначає відсутність необхідного кешування Rust toolchain.
-MISSING_RUST_CACHE_WORKSPACES — константа, що позначає неправильну конфігурацію кешування для робочих просторів Rust.
-TOOLCHAIN_RE — регулярний вираз для ідентифікації кроків, що встановлюють Rust toolchain.
-CACHE_RE — регулярний вираз для ідентифікації кроків, що використовують кешування Rust.
-scanToolchainSteps — аналізує вміст YAML-файлу workflow, виявляючи кроки встановлення toolchain та інформацію про кешування в межах одного job-а.
-tauriWorkspaceDir — визначає шлях до робочого простору Tauri, якщо файл `Cargo.toml` не розташований у корені проєкту.
-lint — сканує всі `.yml` та `.yaml` файли в каталозі `.github/workflows`, перевіряючи, чи присутні необхідні кешування для кроків Rust toolchain, і повідомляє про відхилення. При цьому ігнорує каталоги .github та .git.
+`lint` запускає read-only перевірку GitHub Actions workflow-файлів. Дані з YAML-файлів передаються як текст, щоб зберегти коментарі й мінімізувати зміни формату; результатом є lint-повідомлення без власних записів у файлову систему.
+
+`scanToolchainSteps` проходить workflow-контент і знаходить кроки Rust toolchain за `TOOLCHAIN_RE`, після чого в межах того самого job-а шукає наступний cache-крок за `CACHE_RE`. Межа job-а визначається відступами, тому перевірка прив’язана до фактичної структури `steps`, а не до повного YAML-парсингу. Якщо cache-крок відсутній після встановлення toolchain, `lint` повертає порушення `MISSING_RUST_CACHE` зі значенням `"missing-rust-cache"` — job має додати `Swatinem/rust-cache@v2`.
+
+`tauriWorkspaceDir` додає проєктний контекст до текстового сканування: якщо Rust workspace розміщений у типовому Tauri-каталозі, а не в корені репозиторію, `lint` вимагає, щоб cache-крок у job-і з Tauri action мав окремо заданий workspace. За відсутності такого налаштування повертається порушення `MISSING_RUST_CACHE_WORKSPACES` зі значенням `"missing-rust-cache-workspaces"`.
 
 ## Публічний API
 
-Understood. As a technical writer adhering to the specified constraints, I will transform the provided list into concise, action-oriented behavioral documentation in Ukrainian, using only bulleted markers ("name — what it does"). I will avoid all introductory/concluding remarks, code blocks, signatures, types, parameters, stdlib mentions, regex descriptions, and internal private names.
+- MISSING_RUST_CACHE — Reason-код: job ставить Rust toolchain, але не має кроку `Swatinem/rust-cache@v2`.
+- MISSING_RUST_CACHE_WORKSPACES — Reason-код: кеш-крок Tauri-job-а без `with.workspaces` на каталог `src-tauri`.
+- TOOLCHAIN_RE — Рядок кроку встановлення Rust toolchain (`dtolnay/rust-toolchain@…`).
+- CACHE_RE — Рядок кроку кешування Cargo-артефактів (`Swatinem/rust-cache@…`).
+- scanToolchainSteps — Сканує вміст workflow-файла й повертає по одному запису на кожен
+`dtolnay/rust-toolchain@…` крок, з інформацією про cache-крок і tauri-action
+у тому самому job-і (обмежено indentation-dedent-ом).
+- tauriWorkspaceDir — Каталог Rust-workspace-а для `Swatinem/rust-cache` `with.workspaces`, якщо
+`Cargo.toml` не в корені репо, а під `src-tauri/` (типовий Tauri-layout).
+`undefined`, якщо корінь репо вже є workspace-коренем (окремий крок не потрібен).
+- lint — знаходить конфігурації Rust без потрібного cache для збірок і workspace, щоб CI не витрачав час на повторне завантаження залежностей.
 
-Here is the rewritten list:
+Поведінка: повідомлення маркуються як (rust.mdc), щоб порушення було прив’язане до правила Rust.
 
-*   MISSING_RUST_CACHE — Ідентифікатор, що позначає відсутність кешу Rust.
-*   MISSING_RUST_CACHE_WORKSPACES — Ідентифікатор, що позначає відсутність кешу для Rust-робочих просторів.
-*   TOOLCHAIN_RE — Маркер, що вказує на інструментарій.
-*   CACHE_RE — Маркер, що стосується механізму кешування.
-*   scanToolchainSteps — Виявляє всі етапи використання `dtolnay/rust-toolchain@…` у workflow-файлі, надаючи деталі про кешування та дії Tauri у відповідних завданнях.
-*   tauriWorkspaceDir — Вказує на шлях до Rust-робочого простору для кешування, якщо `Cargo.toml` знаходиться в `src-tauri/`, інакше — не визначений.
-*   lint — Здійснює перевірку коду на відповідність встановленим стандартам.
+Експортовані константи-рядки: MISSING_RUST_CACHE="missing-rust-cache" — позначає відсутній cache для Rust; MISSING_RUST_CACHE_WORKSPACES="missing-rust-cache-workspaces" — позначає відсутній cache для workspace-збірок Rust.
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
-- Кешує результати в межах одного прогону.
-- Свідомо пропускає шляхи: `.github`, `.git`.
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.

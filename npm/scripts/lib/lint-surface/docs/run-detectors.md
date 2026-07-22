@@ -3,42 +3,45 @@ type: JS Module
 title: run-detectors.mjs
 resource: npm/scripts/lib/lint-surface/run-detectors.mjs
 docgen:
-  crc: a0f45fc3
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  crc: e9224e37
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
   score: 100
-  issues: judge:inaccurate:0.98
+  issues: judge-refine:kept-original,judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Цей файл є детектором для уніфікованої поверхні лінту, який сканує код без внесення змін. Він виконує процес вибору області перевірки (`scope-selection`), збирає всі виявлені порушення (`normalized violations`) для кожного аспекту (`concern`) відповідно до конфігурації `.n-rules.json`. Цей компонент працює у режимі `Detect-only`, тобто він не вносить жодних мутацій і не використовує LLM. Порушення передаються до пайплайну виправлення (Fix-pipeline) для подальшої обробки.
+Файл формує єдину поверхню для `n-rules lint --no-fix`: від discovery правил і вибору меж запуску до виконання `lint` для кожного concern та збору нормалізованих violations. Його результатом є список порушень, який використовує fix-pipeline для подальшої обробки, тоді як сам detect не змінює дерево файлів.
 
 ## Поведінка
 
-Поведінка
-DEFAULT_RULES_DIR визначає шлях до стандартної директорії з правилами.
-buildDetectPlan створює впорядкований план прогону лінтера, збираючи всі відповідні концерни та визначаючи область їх сканування.
-detectAll виконує прохід лінтера у режим детекції, збираючи всі виявлені порушення та повертаючи код виходу.
+DEFAULT_RULES_DIR задає базовий корінь правил, від якого стартує discovery, коли споживач не передав власні каталоги.
 
-**Внутрішній паралелізм (ADR 260716-1354-внутрішній-паралелізм-lint-оркестратора).** `detectAll` читає `N_RULES_LINT_CONCURRENCY` (дефолт `1` — production-паралелізм ще не пройшов benchmark-gates ADR): за замовчуванням план виконується повністю послідовно (`detectPlanSequentially`), спостережувано ідентично до-ADR поведінці. При `concurrency > 1` план ділиться на два лейни через `blocking-inventory.mjs` (`isSerialLane`) і виконується через `scheduler.mjs` (`runPlanConcurrently`, `detectPlanConcurrently`): parallel lane — доведені non-blocking concern-и, bounded pool до `concurrency`; serial lane — решта, строго послідовно. Перший `DetectorError` (будь-який лейн) зупиняє нові старти, `AbortController` сигналізує вже запущеним async-детекторам (`ctx.signal`), а вже завершені concern-и лишаються в результаті — `exitCode 2` пріоритетний над частковими violations. Фінальний масив violations завжди стабільно сортується за `(ruleId, concernId, file, data.line, reason)` — незалежно від порядку завершення (`sortViolations`), навіть при `concurrency=1`.
+buildDetectPlan спочатку визначає набір rules-каталогів, потім відбирає лише доступні concern-и з урахуванням capability, далі будує план виконання за режимом прогону: scoped, delta, full або repo-wide. Сам план фіксує, які concern-и запускаються whole-repo, а які лише по перетину з файлами, щоб detect і fix-pipeline працювали з однаковою картиною.
+
+loadEnabledLintRules використовує той самий discovery-ланцюжок, але повертає не план, а повну мапу concern-и за rule-id разом із множиною активних правил. Це потрібно зовнішнім споживачам, які мають знати, що реально доступно для прогону, не запускаючи сам detector-цикл.
+
+computeActiveDomains дає скорочений зріз цієї ж моделі: для заданого набору файлів показує, які rule-id справді активуються хоча б одним per-file concern-ом. Full-scope перевірки тут навмисно не враховуються, бо їхня зона відповідає repo-wide прогону.
+
+detectAll бере готовий план, виконує його, збирає normalized violations і повертає ще й derived exitCode. Увесь шлях read-only: нічого не записує в дерево, не змінює конфіг і не покладається на мутації поза межами збирання результатів. Фільтрація та видимість правил спираються на .n-rules.json, тож саме він визначає, які rules каталоги й concern-и вважаються активними.
 
 ## Публічний API
 
-* DEFAULT_RULES_DIR — Містить набір стандартних правил для перевірок.
-* buildDetectPlan — Створює план виконання перевірок, охоплюючи визначені області.
-* detectAll — Виконує повний прохід пошуку проблем і повертає всі виявлені порушення та код виходу.
-* loadEnabledLintRules — Discovery-фасад для споживачів поза detect/fix-конвеєром (`ci plan`): concerns за rule-id + set активних правил.
-* computeActiveDomains — Активність доменів для файлового набору (лише per-file concerns) — єдине джерело правди для `ci plan`: «plan сказав true» ⇔ «lint щось запустить».
-
-**Осі плану (сервіс-канон):** scoped + explicit files (`lint js --path <dir>`) → лише per-file concerns названих правил × перетин; `pathMode` (дефолтний `--path`) → full-scope concerns виключені з delta-плану; `repoWide` (`--repo-wide`) → ЛИШЕ full-scope concerns enabled-правил, whole-repo (окремий CI-workflow, не гейтить деплой).
+- DEFAULT_RULES_DIR — Цей файл: npm/scripts/lib/lint-surface/run-detectors.mjs → PACKAGE_ROOT = npm (4 dirname угору).
+- buildDetectPlan — Будує план прогону для заданих опцій (discovery + scope-table).
+Спільне джерело для detect-only і fix-pipeline.
+- loadEnabledLintRules — Discovery-фасад для споживачів поза detect/fix-конвеєром (`ci plan`):
+concerns за rule-id (ядро + плагіни, capability-фільтр) і set активних правил.
+- computeActiveDomains — Активність доменів (rule-id) для заданого файлового набору — єдине джерело
+правди для `ci plan`: домен «активний», якщо хоч один його **per-file**
+concern тригериться на цих файлах (та сама таблиця planConcernForDelta, що
+й `lint <domain> --path` → «plan сказав true» ⇔ «lint щось запустить»).
+Правила без жодного per-file concern не потрапляють у результат (їхні
+full-scope перевірки — справа `--repo-wide`).
+- detectAll — Запускає detect-only прохід. Повертає всі violations і похідний exitCode.
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
-
-**Multi-dir (плагіни):** `effectiveRulesDirs` додає rules-каталоги плагінів з `.n-rules.json` (hot-path: без install, quiet); `readLintConcernsByRuleMulti` зливає концерни за іменем (перший власник виграє) — плагін може додавати концерни до правила ядра (mixin).
-
-**Capability-гейт:** `filterByCapabilities` відкидає концерни з незадоволеним `requires.capability` (capabilities надають встановлені плагіни через маніфест `n-rules.capabilities`; явний `opts.capabilities` у тестах перекриває резолв).
-
-**Warning про rule-id без concern-ів:** якщо rule-id з `.n-rules.json#rules` не має жодного concern-а серед усіх `rulesDirs` (ядро + плагіни) — `console.error` попереджає про можливий дрейф конфігу (типово: правило переїхало в плагін, якого консюмер не підключив у `plugins[]`). Rule-id з існуючим каталогом, але без `concern.json` (документаційні правила на кшталт `feedback`), warning не тригерить.
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.

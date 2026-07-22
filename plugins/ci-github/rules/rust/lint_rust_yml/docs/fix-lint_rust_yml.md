@@ -3,25 +3,35 @@ type: JS Module
 title: fix-lint_rust_yml.mjs
 resource: plugins/ci-github/rules/rust/lint_rust_yml/fix-lint_rust_yml.mjs
 docgen:
-  crc: f61fcaec
-  model: openai-codex/gpt-5.4-mini
+  crc: 4312b7ec
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
   score: 100
-  issues: judge:inaccurate:0.99
+  issues: judge-refine:kept-original,judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Функція `patterns` описує правила для вибірки шляхів і логів, пов’язаних із Rust lint-конфігурацією, зокрема для `lint-rust.yml` та `workflow path filter`. Вона свідомо не охоплює `.github` і `.git`, щоб не зачіпати службові та внутрішні шляхи. Поведінка read-only: лише читає дані й формує результат без запису у ФС чи БД.
+Файл описує T0-autofix для `rust/lint_rust_yml`: scaffold відсутнього `.github/workflows/lint-rust.yml` з канонічного шаблону правила або `template-deep-merge` канонічних полів у наявний workflow зі збереженням локальних налаштувань.
+
+Публічна функція `patterns` декларує цю поведінку для правила. Обхід свідомо пропускає шляхи `.github` і `.git`, щоб не аналізувати службові директорії як джерела проєктного Rust-коду.
 
 ## Поведінка
 
-1. `patterns` формує набір правил для автоматичного виправлення lint-конфігурації Rust.
-2. `patterns` цільово охоплює workflow-файл `.github/workflows/lint-rust.yml`, щоб підтримувати його в узгодженому стані.
-3. `patterns` працює read-only щодо сховища: не змінює ФС чи БД, а лише описує, що саме треба виправити.
-4. `patterns` свідомо не зачіпає `.github` і `.git` як окремі шляхи поза визначеним цільовим файлом.
+1. `patterns` оголошує єдиний сценарій autofix для Rust lint workflow.
+
+2. Сценарій створює відсутній `.github/workflows/lint-rust.yml` за канонічним шаблоном правила, щоб проєкт мав стандартну GitHub Actions перевірку Rust lint.
+
+3. Якщо workflow уже існує, сценарій доповнює його лише канонічними полями, зберігаючи локальні налаштування проєкту.
+
+4. Autofix свідомо не обходить службові шляхи `.github` і `.git` як звичайні цілі аналізу; `.github/workflows/lint-rust.yml` використовується лише як визначений цільовий workflow-файл.
+
+## Публічний API
+
+- patterns — Фікс-патерни концерну: один template-deep-merge запис для `.github/workflows/lint-rust.yml`.
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
 - Свідомо пропускає шляхи: `.github`, `.git`.
