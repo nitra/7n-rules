@@ -49,6 +49,7 @@
     }
   },
   "dependencies": {
+    "globby": "^16.0.0",
     "smol-toml": "^1.7.0"
   },
   "peerDependencies": {
