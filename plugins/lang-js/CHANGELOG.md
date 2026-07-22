@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.16.0] - 2026-07-22
+
+### Changed
+
+- маркери opt-in escape-hatch (allow-unsafe, allow-pg-leftover, checkEnv ignore-next-line) уніфіковано під префіксом n-rules: — hard cutover, без backward-compat зі старим форматом (@7n/rules ignore-next-line / @nitra/cursor ignore-next-line legacy теж прибрано)
+
 ## [0.15.0] - 2026-07-22
 
 ### Added

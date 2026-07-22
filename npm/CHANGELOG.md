@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.43.0] - 2026-07-22
+
+### Added
+
+- docker: n-rules:bun-no-compile-маркер (# n-rules:bun-no-compile: <причина>) — генералізує native-addon-виняток на будь-яку недосяжну для checker-а причину неможливості bun build --compile (напр. динамічний import() рантайм-конфігу); вимикає вимогу компіляції й дозволяє mirror.gcr.io/oven/bun:* як фінальний stage
+
 ## [1.42.0] - 2026-07-22
 
 ### Added
