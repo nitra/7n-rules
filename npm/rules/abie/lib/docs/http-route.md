@@ -3,29 +3,29 @@ type: JS Module
 title: http-route.mjs
 resource: npm/rules/abie/lib/http-route.mjs
 docgen:
-  crc: c3626280
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min-retry
-  score: 100
-  issues: judge:inaccurate:0.98
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: d88f96a3
+  model: omlx/gemma-4-e2b-it-4bit
+  tier: local-min
+  score: 75
 ---
 
 ## Огляд
 
-Цей файл здійснює крос-документну аналітику HTTPRoute, використовуючи `ABIE_SHARED_CROSS_NS_BACKEND_NAMES` та `analyzeAbieSharedBackendRefsInPackageK8s`. Він підраховує кількість посилань на спільні сервіси (`auth-run-hl`, `file-link-hl`) у base-маніфестах пакета, ігноруючи overlay `ua`. Мета полягає у синхронізації числа `patch`-ів namespace в overlay з кількістю base-reference, що гарантує узгодженість конфігурації (abie.mdc).
+Файл виконує аналітику Cross-документаки abie HTTPRoute для підрахунку кількості посилань на спільні бекенди (`auth-run-hl`, `file-link-hl`) у base-маніфестах пакета, виключаючи оверлей `ua`.
+
+Поведінка
+Функції взаємодіють у ланцюжку: `httpRouteDocSharedCrossNsBackendStats` приймає об'єкт та релятивний шлях, перевіряючи, чи відповідає зв'язок із спільними бекендами критеріям, визначеним у `ABIE_SHARED_CROSS_NS_BACKEND_SET`. Результати перевірки (включаючи помилки) збираються для подальшої обробки. Функція `analyzeAbieSharedBackendRefsInPackageK8s` ітерує по всіх YAML-файлах пакета, застосовуючи умову, що виключає оверлей `ua`, та викликає `readAndParseYamlDocs` для завантаження документації. Дані з кожної документації передаються до `httpRouteDocSharedCrossNsBackendStats`, яка, у свою чергу, перевіряє кожне посилання на спільні бекенди, повертаючи статистику та помилки. Ця статистика агрегується у `refCount` та `baseErrors`, які повертаються з `analyzeAbieSharedBackendRefsInPackageK8s`.
 
 ## Поведінка
 
-Поведінка:
-ABIE_SHARED_CROSS_NS_BACKEND_NAMES: Надає список назв спільних сервісів (`auth-run-hl`, `file-link-hl`), до яких здійснюється аналіз.
-analyzeAbieSharedBackendRefsInPackageK8s: Підраховує кількість посилань на спільні сервіси (`auth-run-hl`, `file-link-hl`) у base-маніфестах пакета, що знаходяться поза overlay `ua`, і виявляє порушення вимог конфігурації, використовуючи маркер (abie.mdc).
+Функції взаємодіють у ланцюжку: `httpRouteDocSharedCrossNsBackendStats` приймає об'єкт та релятивний шлях, перевіряючи, чи відповідає зв'язок із спільними бекендами критеріям, визначеним у `ABIE_SHARED_CROSS_NS_BACKEND_SET`. Результати перевірки (включаючи помилки) збираються для подальшої обробки. Функція `analyzeAbieSharedBackendRefsInPackageK8s` ітерує по всіх YAML-файлах пакета, застосовуючи умову, що виключає оверлей `ua`, та викликає `readAndParseYamlDocs` для завантаження документації. Дані з кожної документації передаються до `httpRouteDocSharedCrossNsBackendStats`, яка, у свою чергу, перевіряє кожне посилання на спільні бекенди, повертаючи статистику та помилки. Ця статистика агрегується у `refCount` та `baseErrors`, які повертаються з `analyzeAbieSharedBackendRefsInPackageK8s`.
 
 ## Публічний API
 
-ABIE_SHARED_CROSS_NS_BACKEND_NAMES — Список імен бекендів, які знаходяться в загальному просторі імен (cross-namespace) для спільного використання.
-analyzeAbieSharedBackendRefsInPackageK8s — Підраховує у YAML-файлах пакета (за винятком overlay ua) кількість посилань на shared-hl backendRefs та виявляє базові помилки (за винятком namespace: dev).
+- ABIE_SHARED_CROSS_NS_BACKEND_NAMES — Імена спільних headless-сервісів, на які HTTPRoute-и пакетів посилаються крізь namespace.
+- analyzeAbieSharedBackendRefsInPackageK8s — Збирає по yaml-файлах пакета (поза overlay ua) кількість shared-`-hl` `backendRefs`
+і базові помилки (без `namespace: dev`).
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.

@@ -3,26 +3,28 @@ type: JS Module
 title: fix-zed_settings.mjs
 resource: npm/rules/worktree/zed_settings/fix-zed_settings.mjs
 docgen:
-  crc: 452faa10
-  model: openai-codex/gpt-5.5
-  tier: cloud-avg
-  score: 100
-  issues: judge:inaccurate:0.98
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: 3cff4486
+  model: omlx/gemma-4-e2b-it-4bit
+  tier: local-min
+  score: 0
+  issues: refusal-filler,best-of-2:retry-lost
 ---
 
 ## Огляд
 
-Надає правило `patterns` для перевірки очікуваних налаштувань проєкту. Код спирається на конфіг `settings.json` і працює read-only, щоб описати вимоги до конфігурації без самостійного внесення змін.
+Будь ласка, надайте чорнетку, яку потрібно перевірити.
 
 ## Поведінка
 
-1. `patterns` визначає правило автоматичного приведення робочого дерева до очікуваного шаблону налаштувань Zed.
+1. Застосувати шаблонний deep-merge до файлу settings.json
+2. Ігнорувати локальні налаштування користувача
+3. Використовувати шаблонний патерн worktree-zed_settings-template для корекції
+4. Змінювати лише визначений шлях: .zed/settings.json
 
-2. `patterns` орієнтується на конфіг `settings.json`, щоб забезпечити наявність і узгодженість `.zed/settings.json` у проєкті.
+## Публічний API
 
-3. `patterns` не змінює файлову систему самостійно; воно лише описує поведінку виправлення для зовнішнього механізму застосування правил.
+- patterns — Fix-патерни концерну: один шаблонний deep-merge у `.zed/settings.json`.
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
