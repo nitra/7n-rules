@@ -3,7 +3,7 @@ type: JS Module
 title: per-file.mjs
 resource: plugins/lang-js/coverage-provider/per-file.mjs
 docgen:
-  crc: f18babb5
+  crc: 56a3c64a
   model: openai-codex/gpt-5.4-mini
   score: 90
   issues: internal-name:quickClassify,judge-refine:kept-original,judge:inaccurate:0.97

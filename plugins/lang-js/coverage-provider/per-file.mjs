@@ -28,6 +28,19 @@ const CONFIG_FILE_RE =
   /^(?:vitest|jest|eslint|prettier|stryker|babel|webpack|vite|rollup|oxfmt|tsconfig|jsconfig|knip)\.config\./
 /** Тест-файли під не-vitest runner (bun:test) — їх падіння не чиняться fix-шляхом. */
 const VITEST_UNSUPPORTED_TEST_RE = /bun:test|Cannot find package 'bun/i
+/**
+ * Сегмент шляху, що починається з крапки (прихована тека/файл) — не source
+ * колектора (порт фіксу `@7n/test` 0.17.2-3): страхує від тестів/файлів
+ * вкладених робочих дерев (`.claude/worktrees/**`, `.worktrees/**`).
+ */
+const HIDDEN_PATH_RE = /(^|[/\\])\./
+/**
+ * Test-discovery exclude прихованих тек (порт фіксу `@7n/test` 0.17.2-3): без
+ * нього vitest ЗАПУСКАЄ тести вкладених робочих дерев. CLI `--exclude`, на
+ * відміну від `--coverage.exclude`, ДОДАЄ патерн до test.exclude (не замінює
+ * масив) — custom test.exclude конфіга проєкту лишається чинним.
+ */
+const TEST_DISCOVERY_EXCLUDE_ARG = '--exclude=**/.*/**'
 /** Стеля помилок на файл у parseFailingTests. */
 const MAX_ERRORS_PER_FILE = 5
 /** Стеля рядків одного повідомлення помилки у parseFailingTests. */
@@ -106,6 +119,8 @@ export function parseFailingTests(jsonPath, dir) {
           return { file: relative(dir, r.testFilePath ?? r.name), errors }
         })
         .filter(f => !f.file.startsWith('..'))
+        // Тести під прихованими теками (вкладені робочі дерева тощо) — не наші для фіксу
+        .filter(f => !HIDDEN_PATH_RE.test(f.file))
         // Тест-файли під не-vitest runner (bun:test, jest) падають очікувано —
         // fix-шлях їх не чинить, тож у список не потрапляють.
         .filter(f => f.errors.every(e => !VITEST_UNSUPPORTED_TEST_RE.test(e)))
@@ -183,7 +198,7 @@ async function collectRootRows(jsRoot, cwd, rootFiles, runner) {
       cwd: jsRoot,
       lcovDir,
       excludeStorybookProject: true,
-      extraArgs: rootFiles.map(f => `--coverage.include=${f}`)
+      extraArgs: [...rootFiles.map(f => `--coverage.include=${f}`), TEST_DISCOVERY_EXCLUDE_ARG]
     })
     if (code !== 0) throw new Error(`delta coverage: vitest exit ${code} (root ${relative(cwd, jsRoot) || '.'})`)
     const lcovPath = join(lcovDir, 'lcov.info')

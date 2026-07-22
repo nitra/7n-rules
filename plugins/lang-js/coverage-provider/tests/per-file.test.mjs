@@ -77,6 +77,7 @@ describe('collectPerFile', () => {
       { file: 'src/logic.mjs', pct: 25, linesFound: 4, linesCovered: 1, reason: 'містить функції з розгалуженнями' }
     ])
     expect(runner.calls[0].extraArgs).toContain('--coverage.include=src/logic.mjs')
+    expect(runner.calls[0].extraArgs).toContain('--exclude=**/.*/**')
     expect(runner.calls[0].excludeStorybookProject).toBe(true)
   })
 
