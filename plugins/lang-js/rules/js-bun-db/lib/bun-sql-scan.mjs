@@ -30,9 +30,9 @@ import {
 } from '@7n/rules/scripts/utils/ast-scan-utils.mjs'
 
 // Текстовий сигнал bun-sql живе в ядрі (потрібен auto-rules для fact-збору); ре-експорт зберігає API lib-а
-export { textHasBunSqlImport } from '@7n/rules/scripts/lib/js-source-signals.mjs'
 import { textHasBunSqlImport } from '@7n/rules/scripts/lib/js-source-signals.mjs'
 
+export { textHasBunSqlImport } from '@7n/rules/scripts/lib/js-source-signals.mjs'
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/u
 // Імпорт із npm-пакета `pg` — будь-яка з форм: default, named, namespace, side-effect,
 // а також `require('pg')`. `pg-format`/`pg-pool` свідомо НЕ матчаться: на них діє

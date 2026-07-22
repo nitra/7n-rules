@@ -393,7 +393,9 @@ export async function lint(ctx) {
     pass('js-bun-db: немає створення new SQL(...) всередині функцій (singleton на рівні модуля)')
   }
   if (unsafeCall === 0) {
-    pass('js-bun-db: усі sql.unsafe(...) або відсутні, або супроводжуються маркером "// n-rules:allow-unsafe: <причина>"')
+    pass(
+      'js-bun-db: усі sql.unsafe(...) або відсутні, або супроводжуються маркером "// n-rules:allow-unsafe: <причина>"'
+    )
   }
   if (unsafeTemplateInterp === 0) {
     pass(
