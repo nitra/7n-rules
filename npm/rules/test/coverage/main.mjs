@@ -28,7 +28,7 @@ const DEFAULT_CLASSIFY_THRESHOLD = 1.1
  * @param {string} cwd корінь проєкту
  * @returns {Promise<{coverage: number, mutation: number, classify: number}>} пороги (coverage/mutation — %, classify — confidence [0..1] або 1.1 = вимкнено)
  */
-async function readThresholds(cwd) {
+export async function readThresholds(cwd) {
   const defaults = {
     coverage: DEFAULT_COVERAGE_THRESHOLD,
     mutation: DEFAULT_MUTATION_THRESHOLD,
