@@ -185,4 +185,20 @@ describe('rust/workspace_root', () => {
       rmSync(root, { recursive: true, force: true })
     }
   })
+
+  test('.worktrees/ (auto-created сесійний checkout) пропускається обходом — нуль хибних violations', async () => {
+    const root = makeRoot()
+    try {
+      writeManifest(root, '', '[workspace]\nresolver = "2"\nmembers = ["crates/a"]\n')
+      writeManifest(root, 'crates/a', '[package]\nname = "a"\nversion = "0.1.0"\n')
+      // Копія всього дерева (кореневий + вкладений workspace) під .worktrees/ —
+      // без ігнору walker знайшов би тут дублі й видав NESTED_WORKSPACE.
+      writeManifest(root, '.worktrees/main-lint', '[workspace]\nresolver = "2"\nmembers = ["crates/a"]\n')
+      writeManifest(root, '.worktrees/main-lint/crates/a', '[package]\nname = "a"\nversion = "0.1.0"\n')
+      const violations = await run(root)
+      expect(violations).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
 })

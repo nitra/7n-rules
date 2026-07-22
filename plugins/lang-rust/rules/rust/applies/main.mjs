@@ -5,8 +5,7 @@ import { join } from 'node:path'
 import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/violation-reporter.mjs'
 
 import { hasCargoTomlInTree } from '../lib/has-cargo-toml.mjs'
-
-const IGNORED_DIR_NAMES = new Set(['node_modules', '.git', '.next', '.turbo'])
+import { RUST_WALK_IGNORED_DIR_NAMES as IGNORED_DIR_NAMES } from '../lib/ignored-dirs.mjs'
 
 /**
  * @param {string} [cwd] корінь репозиторію

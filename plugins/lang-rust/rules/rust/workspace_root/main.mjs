@@ -15,18 +15,7 @@ import { parse as parseToml } from 'smol-toml'
 import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/violation-reporter.mjs'
 import { resolveWorkspaceMemberDirs } from '@7n/rules/scripts/utils/cargo-workspace.mjs'
 
-/** Каталоги, які обхід НЕ заходить: build-артефакти, vcs, залежності, protected worktrees. */
-const IGNORED_DIR_NAMES = new Set([
-  'node_modules',
-  '.git',
-  'target',
-  '.next',
-  '.turbo',
-  '.venv',
-  'venv',
-  '.claude',
-  'vendor'
-])
+import { RUST_WALK_IGNORED_DIR_NAMES as IGNORED_DIR_NAMES } from '../lib/ignored-dirs.mjs'
 
 /** Стабільні reasons для чотирьох типів порушення. */
 export const NESTED_WORKSPACE = 'nested-workspace'
