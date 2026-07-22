@@ -115,7 +115,7 @@ export function parseProgramOrNull(content, virtualPath) {
 
 /**
  * Парсить файл і повертає `{ program, comments }` або null. Окремий вхід для перевірок,
- * яким потрібні коментарі (наприклад, маркер `// allow-unsafe: ...` біля виклику) —
+ * яким потрібні коментарі (наприклад, маркер `// n-rules:allow-unsafe: ...` біля виклику) —
  * базовий `parseProgramOrNull` свідомо лишається без коментарів, щоб не змінювати API.
  * @param {string} content вихідний код
  * @param {string} virtualPath шлях для вибору `lang` (також для діагностики)

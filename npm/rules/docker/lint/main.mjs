@@ -15,7 +15,7 @@ const BUN_INSTALL_RE = /\bbun\s+(?:install|i)\b/iu
 const BUN_BUILD_COMPILE_RE = /\bbun\s+build\b[^\n]*\s--compile\b/iu
 const BUN_WORD_RE = /\bbun\b/iu
 const USER_LINE_RE = /^\s*USER\s+([^\s#]+)/iu
-const BUN_NO_COMPILE_MARKER_RE = /^#\s*bun-no-compile:(.*)$/iu
+const BUN_NO_COMPILE_MARKER_RE = /^#\s*n-rules:bun-no-compile:(.*)$/iu
 
 const NGINX_UNPRIVILEGED_MIRROR_PREFIX = 'mirror.gcr.io/nginxinc/nginx-unprivileged'
 
@@ -82,14 +82,14 @@ const RUNTIME_IMAGES = /** @type {const} */ ([
 /** @type {RegExp} */
 const DEBIAN_VIA_MIRROR_RE = /^mirror\.gcr\.io\/library\/debian:(.+)$/i
 
-/** Bun-рантайм як фінальний stage — легітимний лише за наявності нативного .node-аддона або `bun-no-compile`-маркера (див. docker.mdc). */
+/** Bun-рантайм як фінальний stage — легітимний лише за наявності нативного .node-аддона або `n-rules:bun-no-compile`-маркера (див. docker.mdc). */
 const BUN_RUNTIME_IMAGE = 'mirror.gcr.io/oven/bun'
 
 /**
  * Явний opt-in консюмера: сервіс не можна пакувати через `bun build --compile` з причини, яку
  * checker не може вивести механічно (динамічний `import()` рантайм-конфігу тощо — на відміну
  * від нативних `.node`-аддонів, які виявляються з `package.json#dependencies`). Маркер —
- * коментар-рядок `# bun-no-compile: <причина>` будь-де у файлі; той самий канон, що й для
+ * коментар-рядок `# n-rules:bun-no-compile: <причина>` будь-де у файлі; той самий канон, що й для
  * native-addon: ship `node_modules` + `bun <entry>` на `mirror.gcr.io/oven/bun:*`.
  * @param {string} fileContent вміст Dockerfile/Containerfile
  * @returns {boolean} true, якщо маркер присутній із непорожньою причиною
@@ -104,7 +104,7 @@ export function hasBunNoCompileMarker(fileContent) {
 /**
  * Чи ref фінального `FROM` відповідає дозволеним у docker.mdc (multistage / runtime).
  * @param {string} lastLower ref без digest, lower case
- * @param {boolean} [allowBunRuntime] чи легітимний bun-рантайм як фінальний stage (нативний аддон або `bun-no-compile`-маркер)
+ * @param {boolean} [allowBunRuntime] чи легітимний bun-рантайм як фінальний stage (нативний аддон або `n-rules:bun-no-compile`-маркер)
  * @returns {boolean} true, якщо образ дозволений як фінальний runtime
  */
 function isAllowedFinalRuntimeImage(lastLower, allowBunRuntime = false) {
@@ -113,7 +113,7 @@ function isAllowedFinalRuntimeImage(lastLower, allowBunRuntime = false) {
   }
   // Канон — ship node_modules + `bun <entry>`, тож фінальний stage на mirror.gcr.io/oven/bun:*
   // легітимний, коли compile неможливий (native-addon: docker-native-addon.mjs, або явний
-  // bun-no-compile-маркер: hasBunNoCompileMarker).
+  // n-rules:bun-no-compile-маркер: hasBunNoCompileMarker).
   if (allowBunRuntime && (lastLower === BUN_RUNTIME_IMAGE || lastLower.startsWith(`${BUN_RUNTIME_IMAGE}:`))) {
     return true
   }
@@ -150,7 +150,7 @@ export function splitDockerfileStages(fileContent) {
  * Перевіряє базові вимоги до структури Dockerfile:
  * - multistage: мінімум 2 FROM
  * - фінальний FROM: дозволені образи в docker.mdc (alpine, scratch, debian slim, php, python, nginx, openresty, …);
- *   для проєктів із нативним .node-аддоном або `bun-no-compile`-маркером додатково дозволено
+ *   для проєктів із нативним .node-аддоном або `n-rules:bun-no-compile`-маркером додатково дозволено
  *   mirror.gcr.io/oven/bun:* (bun-рантайм)
  * @param {string} fileContent вміст Dockerfile/Containerfile
  * @param {{ hasNativeAddon?: boolean }} [opts] опції: hasNativeAddon — є нативний .node-аддон (sharp/@img/argon2)
@@ -182,7 +182,7 @@ export function getMultistageAndRuntimeHint(fileContent, { hasNativeAddon = fals
  * Тригер:
  * - у Dockerfile є крок `bun install` (або `bun i`);
  * - фінальний FROM — `mirror.gcr.io/library/alpine:*` (тобто не nginx/openresty frontend);
- * - немає `bun-no-compile`-маркера (явний opt-in консюмера — compile неможливий з причини поза
+ * - немає `n-rules:bun-no-compile`-маркера (явний opt-in консюмера — compile неможливий з причини поза
  *   виявними класами на кшталт нативних аддонів, напр. динамічний `import()` рантайм-конфігу).
  *
  * Очікування:

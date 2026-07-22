@@ -132,14 +132,14 @@ CMD ["bun", "src/index.js"]
 
 Для проєктів **без** нативних аддонів standalone-бінарник на alpine лишається каноном (див. розділ вище про компіляцію).
 
-## Виняток: явний `bun-no-compile`-маркер (причина поза виявними класами)
+## Виняток: явний `n-rules:bun-no-compile`-маркер (причина поза виявними класами)
 
 Нативний `.node`-аддон — механічно виявна причина (є в `package.json#dependencies`). Але бувають причини, які checker вивести не може: наприклад, сервіс завантажує конфіг через динамічний `import()` шляху, невідомого на момент компіляції, — `bun build --compile` такий шлях не трейсить, тож бінарник падає в рантаймі так само, як із нативним аддоном.
 
-Для цих випадків — явний opt-in консюмера: коментар-рядок `# bun-no-compile: <причина>` будь-де у Dockerfile/Containerfile (причина обов'язкова, непорожня). Маркер вимикає і вимогу `bun build --compile` (розділ «Компіляція bun-проєкту в бінарник»), і заборону `mirror.gcr.io/oven/bun:*` як фінального stage (розділ «Multistage build») — той самий канон, що й для нативних аддонів: ship `node_modules` + `bun <entry>` на `mirror.gcr.io/oven/bun:alpine`.
+Для цих випадків — явний opt-in консюмера: коментар-рядок `# n-rules:bun-no-compile: <причина>` будь-де у Dockerfile/Containerfile (причина обов'язкова, непорожня). Маркер вимикає і вимогу `bun build --compile` (розділ «Компіляція bun-проєкту в бінарник»), і заборону `mirror.gcr.io/oven/bun:*` як фінального stage (розділ «Multistage build») — той самий канон, що й для нативних аддонів: ship `node_modules` + `bun <entry>` на `mirror.gcr.io/oven/bun:alpine`.
 
 ```dockerfile
-# bun-no-compile: gateway.config.js вантажиться через динамічний import(), compile не трейсить його
+# n-rules:bun-no-compile: gateway.config.js вантажиться через динамічний import(), compile не трейсить його
 FROM mirror.gcr.io/oven/bun:alpine AS build-env
 WORKDIR /app
 COPY package.json .

@@ -80,10 +80,10 @@ describe('getBunCompileHint', () => {
     expect(h).toBe(null)
   })
 
-  test('skip: bun install без bun build --compile, але є bun-no-compile-маркер', () => {
+  test('skip: bun install без bun build --compile, але є n-rules:bun-no-compile-маркер', () => {
     const h = getBunCompileHint(
       [
-        '# bun-no-compile: gateway.config.js вантажиться через динамічний import(), compile не трейсить його',
+        '# n-rules:bun-no-compile: gateway.config.js вантажиться через динамічний import(), compile не трейсить його',
         'FROM mirror.gcr.io/oven/bun:alpine AS build-env',
         'RUN bun install --production',
         'FROM mirror.gcr.io/library/alpine:latest',
@@ -95,16 +95,16 @@ describe('getBunCompileHint', () => {
 })
 
 describe('hasBunNoCompileMarker', () => {
-  test('true: коментар-рядок bun-no-compile з причиною', () => {
-    expect(hasBunNoCompileMarker('# bun-no-compile: причина\nFROM mirror.gcr.io/oven/bun:alpine')).toBe(true)
+  test('true: коментар-рядок n-rules:bun-no-compile з причиною', () => {
+    expect(hasBunNoCompileMarker('# n-rules:bun-no-compile: причина\nFROM mirror.gcr.io/oven/bun:alpine')).toBe(true)
   })
 
   test('true: маркер з провідними пробілами', () => {
-    expect(hasBunNoCompileMarker('  # bun-no-compile: причина')).toBe(true)
+    expect(hasBunNoCompileMarker('  # n-rules:bun-no-compile: причина')).toBe(true)
   })
 
   test('false: маркер без причини (порожньо після двокрапки)', () => {
-    expect(hasBunNoCompileMarker('# bun-no-compile:')).toBe(false)
+    expect(hasBunNoCompileMarker('# n-rules:bun-no-compile:')).toBe(false)
   })
 
   test('false: маркера немає взагалі', () => {
