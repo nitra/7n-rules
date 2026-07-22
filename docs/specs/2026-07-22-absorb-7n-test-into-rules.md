@@ -50,8 +50,8 @@
 
 ### 3.3 Міграція споживачів (один захід)
 
-1. Замір ваги інсталу @7n/rules з новими депами (до/після) — фіксація в PR.
-2. Перевірка `rollup`: якщо викидається — викинути до переносу.
+1. ~~Замір ваги~~ **Виконано 2026-07-22**: дельта нульова — `@7n/llm-lib` уже dependency @7n/rules, `pi-coding-agent`+`pi-ai` уже в optionalDependencies @0.80.10 (у src 7n-test pi напряму не імпортується — лише через llm-lib), нових депів не додається.
+2. ~~Перевірка rollup~~ **Виконано**: юзається лише `rollup/parseAst` у 3 файлах (lib/ast-analyze.mjs, coverage/storybook-mutation*.mjs) — замінюється на `oxc-parser` (уже в deps rules), rollup (~4.5 МБ) не переноситься.
 3. Grep-інвентаризація по всіх репо nitra: `@7n/test`, `7n-test`, `scripts.coverage`, `COVERAGE.md`.
 4. Кодмод у n-cursor sync: `scripts.coverage` → `npx @7n/rules lint test --no-fix`; прибрати `@7n/test` з devDependencies; видалити `COVERAGE.md`.
 5. Оновити mdc: `n-test.mdc` (канонічна команда, прибрати згадки пакета @7n/test і COVERAGE.md, влити storybook-канон), прибрати окремий storybook-mdc.
