@@ -11,3 +11,4 @@ resource: plugins/lang-js/rules/storybook/scaffold/template/
 | [empty-vite.config.js](empty-vite.config.md) | JS Module |
 | [main.js](main.md)                           | JS Module |
 | [preview.js](preview.md)                     | JS Module |
+| [vitest.setup.js](vitest.setup.md)           | JS Module |

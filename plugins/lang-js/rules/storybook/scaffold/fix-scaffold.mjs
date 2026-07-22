@@ -85,6 +85,16 @@ export function renderEmptyViteConfig(templateDir = TEMPLATE_DIR) {
 }
 
 /**
+ * Вміст канонічного `.storybook/vitest.setup.js` — verbatim з template (той самий файл
+ * для library і app пакетів, не залежить від типу). Експортовано — переюз у `adopt/main.mjs`.
+ * @param {string} [templateDir] каталог template/ (за замовчуванням — цього concern-а)
+ * @returns {string} вміст `vitest.setup.js`
+ */
+export function renderVitestSetupJs(templateDir = TEMPLATE_DIR) {
+  return readFileSync(join(templateDir, 'vitest.setup.js'), 'utf8')
+}
+
+/**
  * Записує файл, створюючи батьківські каталоги й реєструючи запис для rollback.
  * @param {import('@7n/rules/scripts/lib/lint-surface/types.mjs').FixContext} ctx fix-контекст рунга
  * @param {string} absPath абсолютний шлях цільового файлу
@@ -244,6 +254,27 @@ export const patterns = [
         touchedFiles.push(previewAbs)
       }
       return { touchedFiles, message: `.storybook/preview.js (app): створено для ${targets.length} пакет(ів)` }
+    }
+  },
+  {
+    id: 'storybook-scaffold-vitest-setup-js',
+    test: violations => violations.some(v => v.reason === 'missing-vitest-setup-js'),
+    apply: (violations, ctx) => {
+      const targets = violations.filter(
+        v => v.reason === 'missing-vitest-setup-js' && typeof v.data?.rootDir === 'string'
+      )
+      if (targets.length === 0 || !ctx.concernDir) return { touchedFiles: [] }
+
+      const vitestSetupTemplate = renderVitestSetupJs(join(ctx.concernDir, 'template'))
+
+      const touchedFiles = []
+      for (const v of targets) {
+        const absPkgDir = resolvePkgDir(ctx.cwd, v.data.rootDir)
+        const abs = join(absPkgDir, '.storybook/vitest.setup.js')
+        writeScaffoldFile(ctx, abs, vitestSetupTemplate)
+        touchedFiles.push(abs)
+      }
+      return { touchedFiles, message: `.storybook/vitest.setup.js: створено для ${targets.length} пакет(ів)` }
     }
   },
   {

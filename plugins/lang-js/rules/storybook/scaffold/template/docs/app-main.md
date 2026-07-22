@@ -3,9 +3,8 @@ type: JS Module
 title: app-main.js
 resource: plugins/lang-js/rules/storybook/scaffold/template/app-main.js
 docgen:
-  crc: a4beb06d
+  crc: 0b1952f8
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 100
   issues: judge:inaccurate:0.97
   judgeModel: openai-codex/gpt-5.4-mini
