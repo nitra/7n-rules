@@ -67,6 +67,26 @@
       "type": "boolean",
       "description": "Чи синхронізувати `.claude/settings.json` (hooks + permissions, merge зі збереженням користувацьких полів) і slash-команди checks. За замовчуванням true.",
       "default": true
+    },
+    "storybook": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Конфігурація канону Storybook (правило storybook, storybook.mdc).",
+      "properties": {
+        "detectApps": {
+          "type": "boolean",
+          "description": "Хвиля 2a: чи додавати у скоуп канону Storybook app-проєкти (vue у dependencies, не бібліотека, + src/pages/) на додачу до Vue component library пакетів хвилі 1. За замовчуванням false.",
+          "default": false
+        },
+        "optOut": {
+          "type": "array",
+          "description": "Root dir пакетів, виключених зі скоупу канону Storybook (той самий формат, що повертає workspace-роутинг — '.' для кореня, 'packages/ui' тощо).",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
     }
   },
   "required": [

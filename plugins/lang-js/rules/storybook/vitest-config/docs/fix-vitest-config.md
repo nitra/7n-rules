@@ -3,9 +3,8 @@ type: JS Module
 title: fix-vitest-config.mjs
 resource: plugins/lang-js/rules/storybook/vitest-config/fix-vitest-config.mjs
 docgen:
-  crc: 4bae4173
+  crc: 80feedf6
   model: openai-codex/gpt-5.5
-  tier: cloud-avg
   score: 100
   issues: judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini

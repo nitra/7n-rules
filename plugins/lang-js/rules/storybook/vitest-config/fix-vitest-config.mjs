@@ -16,12 +16,14 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
+  AUTO_IMPORT_PLUGIN_IMPORT,
   classifyProjects,
   findProperty,
   findTestObject,
   LEADING_COMMA_RE,
   parseModule,
   PLAYWRIGHT_PROVIDER_IMPORT,
+  QUASAR_PLUGIN_IMPORT,
   REASON_STORYBOOK_PROJECT_MISSING,
   REASON_STRYKER_CONFIG_MISSING,
   REASON_UNIT_PROJECT_MISSING,
@@ -31,6 +33,7 @@ import {
   storiesGlobForVitestConfig,
   STORYBOOK_TEST_IMPORT,
   strykerConfigPathFor,
+  VITE_PLUGIN_PAGES_IMPORT,
   WHITESPACE_ONLY_RE
 } from './main.mjs'
 
@@ -163,16 +166,49 @@ function ensureImport(src, marker, importLine) {
 }
 
 /**
- * Гарантує наявність обох import-ів, потрібних новому storybook-запису
- * `test.projects`: `storybookTest` (`@storybook/addon-vitest/vitest-plugin`) і
- * `playwright`-provider factory (`@vitest/browser-playwright`, vitest@^4 —
- * рядкове API `provider: 'playwright'` застаріле).
+ * Гарантує наявність import-ів, потрібних новому storybook-запису `test.projects`:
+ * `storybookTest` (`@storybook/addon-vitest/vitest-plugin`) і `playwright`-provider
+ * factory (`@vitest/browser-playwright`, vitest@^4 — рядкове API `provider: 'playwright'`
+ * застаріле) для обох типів пакета; для `type: 'app'` (хвиля 2a) — ще й `quasar()`/
+ * `AutoImport()`/`Pages()` — ці плагіни `app-storybook-project-entry.js` додає у
+ * `plugins`, батьківський бібліотечний запис їх не використовує.
  * @param {string} src вихідний текст
+ * @param {'library'|'app'} [type] тип пакета — впливає лише на набір app-специфічних import-ів
  * @returns {string} текст з гарантованими import-ами
  */
-function ensureStorybookEntryImports(src) {
-  const withStorybookTest = ensureImport(src, '@storybook/addon-vitest/vitest-plugin', STORYBOOK_TEST_IMPORT)
-  return ensureImport(withStorybookTest, '@vitest/browser-playwright', PLAYWRIGHT_PROVIDER_IMPORT)
+function ensureStorybookEntryImports(src, type) {
+  let next = ensureImport(src, '@storybook/addon-vitest/vitest-plugin', STORYBOOK_TEST_IMPORT)
+  next = ensureImport(next, '@vitest/browser-playwright', PLAYWRIGHT_PROVIDER_IMPORT)
+  if (type === 'app') {
+    next = ensureImport(next, '@quasar/vite-plugin', QUASAR_PLUGIN_IMPORT)
+    next = ensureImport(next, 'unplugin-auto-import/vite', AUTO_IMPORT_PLUGIN_IMPORT)
+    next = ensureImport(next, 'vite-plugin-pages', VITE_PLUGIN_PAGES_IMPORT)
+  }
+  return next
+}
+
+/**
+ * Ім'я template-файлу storybook-запису `test.projects` за типом пакета (хвиля 2a):
+ * app-пакет отримує ВЛАСНІ quasar()/AutoImport()/Pages()-плагіни
+ * (`app-storybook-project-entry.js`), бібліотека — голий `extends: true`
+ * (`storybook-project-entry.js`). Експортовано — переюз у `adopt/main.mjs`.
+ * @param {'library'|'app'} [type] тип пакета (`InScopePackage.type`); типово `library`
+ * @returns {string} basename template-файлу в `template/`
+ */
+export function storybookEntryTemplateName(type) {
+  return type === 'app' ? 'app-storybook-project-entry.js' : 'storybook-project-entry.js'
+}
+
+/**
+ * Ім'я baseline-template файлу повністю нового vitest-конфіга за типом пакета (хвиля 2a):
+ * та сама асиметрія, що й {@link storybookEntryTemplateName} — app-варіант містить
+ * ВЛАСНІ quasar()/AutoImport()/Pages()-плагіни у storybook-проєкті. Експортовано —
+ * переюз у `adopt/main.mjs`.
+ * @param {'library'|'app'} [type] тип пакета; типово `library`
+ * @returns {string} basename baseline-файлу в `template/`
+ */
+export function vitestConfigBaselineName(type) {
+  return type === 'app' ? 'vitest.config.app.baseline.mjs' : 'vitest.config.baseline.mjs'
 }
 
 /**
@@ -238,14 +274,14 @@ async function computeVitestConfigAugment(absPkgDir, vitestConfigPath, type) {
 
   const storiesGlob = storiesGlobForVitestConfig(absPkgDir, type)
   const unitEntry = await readTemplateExportedObject(join(TEMPLATE_DIR, 'unit-project-entry.js'))
-  const storybookEntryRaw = await readTemplateExportedObject(join(TEMPLATE_DIR, 'storybook-project-entry.js'))
+  const storybookEntryRaw = await readTemplateExportedObject(join(TEMPLATE_DIR, storybookEntryTemplateName(type)))
   const storybookEntry = storybookEntryRaw.split(STORIES_GLOB_TOKEN).join(storiesGlob)
 
   const plan = planProjectsEdit(src, testObj, unitEntry, storybookEntry)
   if (!plan) return null
 
   let next = applyEdits(src, [plan.edit])
-  if (plan.needsImport) next = ensureStorybookEntryImports(next)
+  if (plan.needsImport) next = ensureStorybookEntryImports(next, type)
 
   // Safety: результат має компілюватися; інакше не пишемо (fail-closed, як у test/stryker_config).
   let recheck
@@ -284,7 +320,7 @@ function applyViteConfigImport(template, viteConfigName) {
  * @returns {Promise<{ path: string, content: string }>} шлях і вміст нового файлу
  */
 export async function buildFreshVitestConfig(absPkgDir, type) {
-  const template = await readFile(join(TEMPLATE_DIR, 'vitest.config.baseline.mjs'), 'utf8')
+  const template = await readFile(join(TEMPLATE_DIR, vitestConfigBaselineName(type)), 'utf8')
   const storiesGlob = storiesGlobForVitestConfig(absPkgDir, type)
   const viteConfigName = resolveViteConfigName(absPkgDir)
   const withStories = template.split(STORIES_GLOB_TOKEN).join(storiesGlob)

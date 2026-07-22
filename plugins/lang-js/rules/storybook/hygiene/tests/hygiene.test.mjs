@@ -53,6 +53,25 @@ async function writeVueLibraryPkg(root, rootDir, pkgOverrides = {}, vueFiles = {
   }
 }
 
+/**
+ * Мінімальний app-пакет у скоупі хвилі 2a (`vue` у dependencies, `src/pages/`,
+ * `.n-rules.json` → `storybook.detectApps: true`) — для регрес-тестів на false-positive
+ * hygiene-перевірок (undeclared-import на Vite resolve.alias, sass-variables на app-main.js
+ * без `sassVariables`-маркера за каноном).
+ * @param {string} root корінь монорепо
+ * @param {string} rootDir відносний корінь пакета
+ * @param {Record<string, string>} [vueFiles] відносний шлях (від пакета) → вміст `.vue`-файлу
+ */
+async function writeVueAppPkg(root, rootDir, vueFiles = {}) {
+  const pkg = { name: `app-${rootDir}`, dependencies: { vue: '^3.6.0' } }
+  await writeFileDeep(root, join(rootDir, 'package.json'), JSON.stringify(pkg, null, 2))
+  await writeFileDeep(root, join(rootDir, 'vite.config.js'), 'export default {}\n')
+  await writeFileDeep(root, '.n-rules.json', JSON.stringify({ rules: [], storybook: { detectApps: true } }, null, 2))
+  for (const [rel, content] of Object.entries(vueFiles)) {
+    await writeFileDeep(root, join(rootDir, rel), content)
+  }
+}
+
 describe('storybook/hygiene lint', () => {
   let root
 
@@ -238,6 +257,49 @@ describe('storybook/hygiene lint', () => {
   test('sassVariables: немає .storybook/main.js — без порушень (покриває storybook/scaffold)', async () => {
     await writeVueLibraryPkg(root, 'packages/ui')
     await writeFileDeep(root, 'packages/ui/src/css/quasar.variables.scss', '$primary: #1976d2;\n')
+    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/hygiene' })
+    expect(result.violations.filter(v => v.reason === 'missing-sass-variables')).toEqual([])
+  })
+
+  test('app-пакет (хвиля 2a): Vite resolve.alias-специфікатор ("components/Foo.vue") у .vue — БЕЗ undeclared-import (регрес пілота gt)', async () => {
+    await writeVueAppPkg(root, 'packages/gt', {
+      'src/pages/task/[id].vue': [
+        '<template><div/></template>',
+        '<script setup>',
+        // Легітимний імпорт через Vite `resolve.alias` (`components` → `src/components`,
+        // типова Quasar CLI-конвенція) — не сторонній npm-пакет.
+        "import Shared from 'components/Shared.vue'",
+        '</script>'
+      ].join('\n'),
+      'src/components/Shared.vue': '<template><div/></template>\n'
+    })
+    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/hygiene' })
+    expect(result.violations.filter(v => v.reason === 'undeclared-import')).toEqual([])
+  })
+
+  test('app-пакет (хвиля 2a): справжній сторонній undeclared import у .vue — теж НЕ перевіряється (hygiene лише для library)', async () => {
+    await writeVueAppPkg(root, 'packages/gt', {
+      'src/pages/task/[id].vue': [
+        '<template><div/></template>',
+        '<script setup>',
+        "import VueDatePicker from '@vuepic/vue-datepicker'",
+        '</script>'
+      ].join('\n')
+    })
+    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/hygiene' })
+    expect(result.violations).toEqual([])
+  })
+
+  test('app-пакет (хвиля 2a): quasar.variables.scss присутній, канонічний app-main.js без sassVariables — БЕЗ warn (регрес пілота gt)', async () => {
+    await writeVueAppPkg(root, 'packages/gt', { 'src/pages/task/[id].vue': '<template><div/></template>\n' })
+    await writeFileDeep(root, 'packages/gt/src/css/quasar.variables.scss', '$primary: #1976d2;\n')
+    // Канонічний app-main.js (scaffold/template/app-main.js) СВІДОМО не викликає quasar() —
+    // builder-vite підхоплює повний vite.config.js app-проєкту без власного viteFinal-інстанса.
+    await writeFileDeep(
+      root,
+      'packages/gt/.storybook/main.js',
+      "const config = { framework: '@storybook/vue3-vite', viteFinal: c => c }\nexport default config\n"
+    )
     const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/hygiene' })
     expect(result.violations.filter(v => v.reason === 'missing-sass-variables')).toEqual([])
   })

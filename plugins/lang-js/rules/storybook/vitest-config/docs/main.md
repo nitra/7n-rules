@@ -3,9 +3,8 @@ type: JS Module
 title: main.mjs
 resource: plugins/lang-js/rules/storybook/vitest-config/main.mjs
 docgen:
-  crc: d32d98a5
+  crc: 1ae51726
   model: openai-codex/gpt-5.5
-  tier: cloud-avg
   score: 85
   issues: internal-name:detectStoriesGlob,anchor-miss:(vitest-config.mdc),judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

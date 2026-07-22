@@ -3,9 +3,8 @@ type: JS Module
 title: fix-scaffold.mjs
 resource: plugins/lang-js/rules/storybook/scaffold/fix-scaffold.mjs
 docgen:
-  crc: 92d2f0ac
+  crc: 2cbe123e
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

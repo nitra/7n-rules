@@ -47,13 +47,17 @@ export const PREVIEW_JS_MARKERS = [
  * Маркери канону `.storybook/main.js` для app-проєктів (хвиля 2a) — свідома дзеркальна
  * асиметрія з {@link MAIN_JS_MARKERS} бібліотек: тут немає `viteConfigPath`, бо
  * `@storybook/builder-vite` навмисно підхоплює ПОВНИЙ `vite.config.js` app-проєкту
- * (ADR-розширення 2026-07-20, прототип `gt`). Експортовано — переюз у `adopt/main.mjs`.
+ * (ADR-розширення 2026-07-20, прототип `gt`). `vite-plugin-pages` СВІДОМО НЕ фільтрується
+ * (окремий канон-фікс, емпірично перевірено на `gt`) — знімається лише
+ * `unplugin-vue-router`/`vite-plugin-vue-layouts`/`-next`, реальні layout/router-генератори;
+ * `vite-plugin-pages` обробляє custom-блок `<route lang="yaml">` сторінок, без нього
+ * `storybook build` падає глобально (`MISSING_EXPORT` на будь-якому `.vue` з таким блоком,
+ * деталі — коментар `scaffold/template/app-main.js`). Експортовано — переюз у `adopt/main.mjs`.
  */
 export const APP_MAIN_JS_MARKERS = [
   { token: '@storybook/vue3-vite', hint: 'framework @storybook/vue3-vite' },
   { token: 'staticDirs', hint: 'staticDirs на ./public (msw service worker)' },
   { token: 'viteFinal', hint: 'viteFinal-фільтр file-system-routing плагінів' },
-  { token: "'vite-plugin-pages'", hint: 'фільтр vite-plugin-pages у viteFinal' },
   { token: "'vite-plugin-vue-layouts'", hint: 'фільтр vite-plugin-vue-layouts у viteFinal' },
   { token: "'vite-plugin-vue-layouts-next'", hint: 'фільтр vite-plugin-vue-layouts-next у viteFinal' },
   { token: "'unplugin-vue-router'", hint: 'фільтр unplugin-vue-router у viteFinal' }
@@ -88,6 +92,21 @@ export const APP_STORIES_GLOB = '../src/**/*.stories.@(js|ts)'
  */
 export const EMPTY_VITE_CONFIG_MARKERS = [
   { token: 'defineConfig', hint: 'порожній defineConfig({}) — стенд-ін для viteConfigPath' }
+]
+
+/**
+ * Маркери канону `.storybook/vitest.setup.js` — той самий файл для ОБОХ типів пакета
+ * (library/app, хвиля 2a): стандартний `@storybook/addon-vitest`-boilerplate, підключає
+ * анотації `.storybook/preview.js` (decorators/loaders/parameters) до `vitest run
+ * --project=storybook` через `setupProjectAnnotations`. Без нього `storybook`-vitest-проєкт
+ * (`vitest-config`-концерн, `setupFiles: ['.storybook/vitest.setup.js']`) не підключає ці
+ * анотації взагалі — знайдено на живому пілоті gt (файл раніше був відсутній у шаблонах,
+ * хоча `storybook-project-entry.js` уже посилався на нього). Експортовано — переюз у
+ * `adopt/main.mjs`.
+ */
+export const VITEST_SETUP_JS_MARKERS = [
+  { token: 'setProjectAnnotations', hint: 'setProjectAnnotations([previewAnnotations])' },
+  { token: 'beforeAll', hint: 'beforeAll(project.beforeAll)' }
 ]
 
 /**
@@ -287,6 +306,20 @@ async function checkPackageScaffold({ rootDir, absDir, pkg, type }, reporter) {
   } else {
     await checkLibraryScaffold(absDir, label, rootDir, relPrefix, reporter)
   }
+
+  // vitest.setup.js — той самий файл для обох типів пакета (vitest-config-концерн
+  // посилається на нього як на setupFiles storybook-vitest-проєкту незалежно від library/app).
+  await checkCanonFile(
+    absDir,
+    '.storybook/vitest.setup.js',
+    VITEST_SETUP_JS_MARKERS,
+    'missing-vitest-setup-js',
+    'vitest-setup-js-marker-missing',
+    label,
+    rootDir,
+    `${relPrefix}.storybook/vitest.setup.js`,
+    reporter
+  )
 
   const scriptValue = pkg?.scripts?.storybook
   if (scriptValue !== STORYBOOK_SCRIPT) {

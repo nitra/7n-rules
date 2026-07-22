@@ -19,7 +19,8 @@ import {
   renderEmptyViteConfig,
   renderMainJs,
   renderMocksGqlSse,
-  renderPreviewJs
+  renderPreviewJs,
+  renderVitestSetupJs
 } from '../../scaffold/fix-scaffold.mjs'
 import { buildStrykerConfig } from '../../vitest-config/fix-vitest-config.mjs'
 import { diagnosePackage, formatReport, runAdopt, SECTION, STATUS } from '../main.mjs'
@@ -63,6 +64,7 @@ async function writeCanonicalStorybookSetup(root, rootDir) {
   await writeFileDeep(root, join(rootDir, '.storybook/preview.js'), renderPreviewJs())
   await writeFileDeep(root, join(rootDir, '.storybook/empty-vite.config.js'), renderEmptyViteConfig())
   await writeFileDeep(root, join(rootDir, '.storybook/mocks/gql-sse.js'), renderMocksGqlSse())
+  await writeFileDeep(root, join(rootDir, '.storybook/vitest.setup.js'), renderVitestSetupJs())
   await writeFileDeep(
     root,
     join(rootDir, 'vitest.config.mjs'),
@@ -120,6 +122,7 @@ async function writeCanonicalAppStorybookSetup(root, rootDir) {
   await writeFileDeep(root, join(rootDir, '.storybook/main.js'), renderAppMainJs())
   await writeFileDeep(root, join(rootDir, '.storybook/preview.js'), renderAppPreviewJs())
   await writeFileDeep(root, join(rootDir, '.storybook/mocks/gql-sse.js'), renderMocksGqlSse())
+  await writeFileDeep(root, join(rootDir, '.storybook/vitest.setup.js'), renderVitestSetupJs())
   await writeFileDeep(root, join(rootDir, '.storybook/fixtures/task-detail.js'), 'export function taskFrame() {}\n')
 }
 
@@ -294,6 +297,9 @@ describe('adopt — app-пакет хвилі 2a (пілот gt): секції m
       [
         "import { defineConfig, mergeConfig } from 'vitest/config'",
         "import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'",
+        "import { quasar } from '@quasar/vite-plugin'",
+        "import AutoImport from 'unplugin-auto-import/vite'",
+        "import Pages from 'vite-plugin-pages'",
         "import viteConfig from './vite.config.js'",
         '',
         'export default mergeConfig(',
@@ -304,7 +310,7 @@ describe('adopt — app-пакет хвилі 2a (пілот gt): секції m
         "        { extends: true, test: { name: 'unit' } },",
         '        {',
         '          extends: true,',
-        "          plugins: [storybookTest({ configDir: '.storybook' })],",
+        "          plugins: [storybookTest({ configDir: '.storybook' }), quasar({ sassVariables: true }), AutoImport({ imports: ['vue'] }), Pages()],",
         '          test: {',
         "            name: 'storybook',",
         "            include: ['src/**/*.stories.@(js|ts)'],",
