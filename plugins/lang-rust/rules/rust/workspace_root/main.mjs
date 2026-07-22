@@ -17,10 +17,13 @@ import { resolveWorkspaceMemberDirs } from '@7n/rules/scripts/utils/cargo-worksp
 
 import { RUST_WALK_IGNORED_DIR_NAMES as IGNORED_DIR_NAMES } from '../lib/ignored-dirs.mjs'
 
-/** Стабільні reasons для чотирьох типів порушення. */
+/** Стабільний reason: вкладений `[workspace]` поза кореневим Cargo.toml. */
 export const NESTED_WORKSPACE = 'nested-workspace'
+/** Стабільний reason: `[profile.*]` у не-кореневому Cargo.toml (Cargo його ігнорує). */
 export const NESTED_PROFILE = 'nested-profile'
+/** Стабільний reason: кореневий Cargo.toml без `[workspace]` при кількох крейтах. */
 export const MISSING_ROOT_WORKSPACE = 'missing-root-workspace'
+/** Стабільний reason: крейт не входить у members кореневого workspace. */
 export const PACKAGE_NOT_WORKSPACE_MEMBER = 'package-not-workspace-member'
 
 const REMEDIATION =

@@ -1,3 +1,8 @@
+/**
+ * Конфіг мутаційного тестування Stryker для пакета `@7n/rules`: vitest-runner
+ * із perTest-покриттям, incremental-кешем у reports/stryker/ і mutate-скоупом
+ * по production-коду (scripts, rules, bin) без фікстур і baseline-шаблонів.
+ */
 import '@stryker-mutator/vitest-runner'
 
 /** @type {import('@stryker-mutator/core').PartialStrykerOptions} */

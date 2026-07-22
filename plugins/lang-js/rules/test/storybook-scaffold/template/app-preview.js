@@ -92,4 +92,5 @@ const preview = {
   parameters: { layout: 'fullscreen' }
 }
 
+/** Storybook preview app-проєкту: msw-loader і pageLoader для сторінкових stories консюмера. */
 export default preview

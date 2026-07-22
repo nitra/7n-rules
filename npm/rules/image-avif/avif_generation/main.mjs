@@ -19,7 +19,9 @@ import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 
 /** Стабільні reasons. */
 export const AVIF_NEEDS_REWRITE = 'avif-needs-rewrite'
+/** Стабільний reason: для растрового зображення відсутній згенерований AVIF-двійник. */
 export const AVIF_MISSING = 'avif-missing'
+/** Стабільний reason: AVIF-файл лишився без растрового джерела — кандидат на cleanup. */
 export const AVIF_ORPHAN = 'avif-orphan'
 
 /** Імʼя CLI-пакета, який генерує AVIF (використовує T0-fix). */

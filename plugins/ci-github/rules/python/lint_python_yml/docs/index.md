@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: npm/rules/python/lint_python_yml
-resource: npm/rules/python/lint_python_yml/
+title: plugins/ci-github/rules/python/lint_python_yml
+resource: plugins/ci-github/rules/python/lint_python_yml/
 ---
 
 | Файл                                              | Тип       |

@@ -9,8 +9,10 @@ import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/viol
 import { collectInScopeVuePackages } from '../storybook-scope/main.mjs'
 import { APP_STORIES_GLOB, detectStoriesGlob } from '../storybook-scaffold/main.mjs'
 
-// Канонічні назви vitest-конфіга пакета (пріоритет .mjs — нові файли, js.mdc);
-// .ts підтримано для "стійкості до варіацій" (vitest-config.mdc).
+/**
+ * Канонічні назви vitest-конфіга пакета (пріоритет .mjs — нові файли, js.mdc);
+ * .ts підтримано для "стійкості до варіацій" (vitest-config.mdc).
+ */
 export const VITEST_CONFIG_NAMES = ['vitest.config.mjs', 'vitest.config.js', 'vitest.config.ts']
 // Ті самі варіанти, що й `vite.config.*` у scope/main.mjs (не експортовано звідти — дублюємо).
 const VITE_CONFIG_NAMES = ['vite.config.js', 'vite.config.ts', 'vite.config.mjs']
@@ -29,16 +31,24 @@ export const PLAYWRIGHT_PROVIDER_IMPORT = "import { playwright } from '@vitest/b
  * Експортовано — переюз у `fix-vitest-config.mjs`.
  */
 export const QUASAR_PLUGIN_IMPORT = "import { quasar } from '@quasar/vite-plugin'\n"
+/** Import `AutoImport`-плагіна — app-storybook-запис (див. опис над `QUASAR_PLUGIN_IMPORT`). */
 export const AUTO_IMPORT_PLUGIN_IMPORT = "import AutoImport from 'unplugin-auto-import/vite'\n"
+/** Import `Pages`-плагіна — app-storybook-запис (див. опис над `QUASAR_PLUGIN_IMPORT`). */
 export const VITE_PLUGIN_PAGES_IMPORT = "import Pages from 'vite-plugin-pages'\n"
 
-// Стабільні reasons (namespace: ruleId/concernId/reason).
+/** Стабільний reason (namespace: ruleId/concernId/reason): у пакета немає жодного vitest-конфіга. */
 export const REASON_VITEST_CONFIG_MISSING = 'vitest-config-missing'
+/** Стабільний reason: відсутній ізольований `vitest.stryker.config` поруч із vitest-конфігом. */
 export const REASON_STRYKER_CONFIG_MISSING = 'stryker-config-missing'
+/** Стабільний reason: vitest-конфіг не парситься / без test-блоку — правити вручну. */
 export const REASON_CONFIG_UNRESOLVABLE = 'vitest-config-unresolvable'
+/** Стабільний reason: `test.projects` — не статичний масив (spread/змінна). */
 export const REASON_PROJECTS_DYNAMIC = 'projects-dynamic'
+/** Стабільний reason: у `test.projects` немає запису `unit`. */
 export const REASON_UNIT_PROJECT_MISSING = 'unit-project-missing'
+/** Стабільний reason: у `test.projects` немає запису `storybook`. */
 export const REASON_STORYBOOK_PROJECT_MISSING = 'storybook-project-missing'
+/** Стабільний reason: storybook-запис без канонічних маркерів (chromium/browser/stories/provider). */
 export const REASON_STORYBOOK_PROJECT_MARKER_MISSING = 'storybook-project-marker-missing'
 
 // Маркери канонічного storybook-проєкту (текстовий пошук у зрізі джерела самого
@@ -46,28 +56,42 @@ export const REASON_STORYBOOK_PROJECT_MARKER_MISSING = 'storybook-project-marker
 // Експортовані — переюз у `adopt/main.mjs`.
 const UNIT_NAME_RE = /name\s*:\s*['"]unit['"]/u
 const STORYBOOK_NAME_RE = /name\s*:\s*['"]storybook['"]/u
+/** Маркер chromium-інстанса у storybook-запису (текстовий пошук у зрізі елемента). */
 export const CHROMIUM_RE = /chromium/u
+/** Маркер browser-mode (`browser:`-ключ) у storybook-запису. */
 export const BROWSER_KEY_RE = /\bbrowser\s*:/u
+/** Маркер явного stories-джерела (підрядок `stories`) у storybook-запису. */
 export const STORIES_RE = /stories/iu
-// `storybookTest({ configDir: ... })` без явного `include` — легітимний патерн:
-// Storybook підхоплює stories-glob автоматично зі своєї `.storybook/main.js`-конфігурації
-// (той самий stories-glob, що й `detectStoriesGlob`), явний include у vitest-конфізі не
-// обов'язковий (реальний кейс components/npm/vitest.config.js — пілот adopt-діагностики).
+/**
+ * `storybookTest({ configDir: ... })` без явного `include` — легітимний патерн:
+ * Storybook підхоплює stories-glob автоматично зі своєї `.storybook/main.js`-конфігурації
+ * (той самий stories-glob, що й `detectStoriesGlob`), явний include у vitest-конфізі не
+ * обов'язковий (реальний кейс components/npm/vitest.config.js — пілот adopt-діагностики).
+ */
 export const STORYBOOK_TEST_CONFIG_DIR_RE = /storybookTest\([^)]*configDir/u
-// vitest@^4: `browser.provider` — factory-виклик (`playwright()` з `@vitest/browser-playwright`),
-// не рядок `'playwright'` (застаріле API попередніх мажорів).
+/**
+ * vitest@^4: `browser.provider` — factory-виклик (`playwright()` з `@vitest/browser-playwright`),
+ * не рядок `'playwright'` (застаріле API попередніх мажорів).
+ */
 export const PROVIDER_FACTORY_RE = /provider\s*:\s*playwright\s*\(/u
-// App-специфічні маркери (хвиля 2a, `type: 'app'`): storybook-проєкт app-пакета має отримувати
-// ВЛАСНІ quasar()/AutoImport()/Pages()-плагіни (не той самий урізаний набір, що й unit-проєкт,
-// canon test.mdc) — без них сторінкові stories падають на Quasar SCSS-змінних/
-// auto-import globals/`<route>`-блоках (деталі — `app-storybook-project-entry.js`).
+/**
+ * App-специфічні маркери (хвиля 2a, `type: 'app'`): storybook-проєкт app-пакета має отримувати
+ * ВЛАСНІ quasar()/AutoImport()/Pages()-плагіни (не той самий урізаний набір, що й unit-проєкт,
+ * canon test.mdc) — без них сторінкові stories падають на Quasar SCSS-змінних/
+ * auto-import globals/`<route>`-блоках (деталі — `app-storybook-project-entry.js`).
+ */
 export const QUASAR_PLUGIN_RE = /quasar\s*\(/u
+/** App-маркер: виклик `AutoImport()`-плагіна у storybook-запису (див. опис над `QUASAR_PLUGIN_RE`). */
 export const AUTO_IMPORT_PLUGIN_RE = /AutoImport\s*\(/u
+/** App-маркер: виклик `Pages()`-плагіна у storybook-запису (див. опис над `QUASAR_PLUGIN_RE`). */
 export const VITE_PLUGIN_PAGES_RE = /\bPages\s*\(/u
 const STORIES_GLOB_PREFIX_RE = /^\.\.\//u
-// Module-scope (prefer-static-regex): рядок-відступ цілком whitespace; leading
-// кома (можливо з whitespace) — спільні з fix-vitest-config.mjs патерном augment-у.
+/**
+ * Module-scope (prefer-static-regex): рядок-відступ цілком whitespace; leading
+ * кома (можливо з whitespace) — спільні з fix-vitest-config.mjs патерном augment-у.
+ */
 export const WHITESPACE_ONLY_RE = /^\s*$/u
+/** Leading кома (можливо з whitespace) — див. опис над `WHITESPACE_ONLY_RE`. */
 export const LEADING_COMMA_RE = /^\s*,/u
 
 /**

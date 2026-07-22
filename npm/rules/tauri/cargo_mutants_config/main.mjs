@@ -16,15 +16,18 @@ import { parse as parseToml } from 'smol-toml'
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 
-/** Стабільні reasons: файл відсутній / у файлі бракує канонічних Tauri-ключів. */
+/** Стабільний reason: файл mutants-конфігу відсутній узагалі. */
 export const MUTANTS_CONFIG_MISSING = 'mutants-config-missing'
+/** Стабільний reason: mutants-конфіг є, але бракує канонічних Tauri-ключів. */
 export const MUTANTS_KEYS_MISSING = 'mutants-keys-missing'
 
+/** Шапка-коментар канонічного mutants-конфігу Tauri: пояснює, навіщо виключені збірки бінарника й doc-тестів. */
 export const TAURI_BASELINE_HEADER = `# .cargo/mutants.toml — Tauri canonical cargo-mutants config (tauri.mdc).
 # Виключаємо --bins і --doc щоб бінарник Tauri та doc-tests не збиралися повторно
 # з нуля під кожного мутанта (секунди → хвилини).
 `
 
+/** Канонічні TOML-фрагменти по ключах mutants-конфігу — T0-fix дописує відсутній ключ саме цим текстом. */
 export const TAURI_KEY_SNIPPETS = Object.freeze({
   additional_cargo_test_args: 'additional_cargo_test_args = ["--lib", "--tests"]\n',
   exclude_globs: `# Platform bridge / app shell — boundary-файли (тестуються smoke/e2e, не mutation unit).
@@ -46,6 +49,7 @@ exclude_globs = [
 `
 })
 
+/** Перелік канонічних ключів, наявність яких перевіряється у mutants-конфігу Tauri-застосунку. */
 export const TAURI_CANONICAL_KEYS = Object.freeze(Object.keys(TAURI_KEY_SNIPPETS))
 
 /**

@@ -1,6 +1,6 @@
 ---
 type: Directory Index
-title: npm/rules/js/jscpd_config
+title: plugins/lang-js/rules/js/jscpd_config
 resource: plugins/lang-js/rules/js/jscpd_config/
 ---
 

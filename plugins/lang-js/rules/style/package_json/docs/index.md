@@ -1,6 +1,6 @@
 ---
 type: Directory Index
-title: npm/rules/style/package_json
+title: plugins/lang-js/rules/style/package_json
 resource: plugins/lang-js/rules/style/package_json/
 ---
 

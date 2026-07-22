@@ -1,8 +1,12 @@
+/**
+ * ESLint-конфіг репо. getConfig({ node: ['npm'] }) у `@nitra/eslint-config` задає
+ * Node globals лише для glob `npm/…/*.js` (не .mjs/.cjs) — для mjs/cjs додаємо
+ * globals.node окремо, інакше no-undef на process і console.
+ */
 import { getConfig } from '@nitra/eslint-config'
 import globals from 'globals'
 
-// getConfig({ node: ['npm'] }) у @nitra/eslint-config задає Node globals лише для glob `npm/**/*.js` (не .mjs/.cjs).
-// Для npm/**/*.mjs і npm/**/*.cjs додаємо globals.node окремо, інакше no-undef на process і console.
+/** Плоский ESLint-конфіг: ignores → база nitra → додаткові globals і точкові винятки правил. */
 export default [
   {
     ignores: [

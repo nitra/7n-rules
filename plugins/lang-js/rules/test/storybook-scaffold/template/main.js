@@ -112,4 +112,5 @@ const config = {
   }
 }
 
+/** Storybook-конфіг Vue-бібліотеки — його читає Storybook-збирач консюмер-пакета. */
 export default config

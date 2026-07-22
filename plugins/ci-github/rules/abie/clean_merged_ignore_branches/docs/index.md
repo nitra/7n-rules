@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: npm/rules/abie/clean_merged_ignore_branches
-resource: npm/rules/abie/clean_merged_ignore_branches/
+title: plugins/ci-github/rules/abie/clean_merged_ignore_branches
+resource: plugins/ci-github/rules/abie/clean_merged_ignore_branches/
 ---
 
 | Файл                                                                        | Тип       |

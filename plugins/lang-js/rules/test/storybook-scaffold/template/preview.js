@@ -52,4 +52,5 @@ const preview = {
   }
 }
 
+/** Storybook preview Vue-бібліотеки: Quasar-setup і msw-loader для stories консюмера. */
 export default preview

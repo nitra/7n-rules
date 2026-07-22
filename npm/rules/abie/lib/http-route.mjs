@@ -9,6 +9,7 @@ import { relative } from 'node:path'
 import { isK8sYamlInAbiePackageExcludingUaOverlay } from './overlay-paths.mjs'
 import { readAndParseYamlDocs, silentFail } from './yaml.mjs'
 
+/** Імена спільних headless-сервісів, на які HTTPRoute-и пакетів посилаються крізь namespace. */
 export const ABIE_SHARED_CROSS_NS_BACKEND_NAMES = Object.freeze(['auth-run-hl', 'file-link-hl'])
 const ABIE_SHARED_CROSS_NS_BACKEND_SET = new Set(ABIE_SHARED_CROSS_NS_BACKEND_NAMES)
 

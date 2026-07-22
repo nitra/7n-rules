@@ -448,6 +448,12 @@ export async function migrateWorkflowFile(absPath, cwd, opts = {}) {
   return true
 }
 
+/**
+ * Один детермінований патерн: для кожного workflow-файлу з порушеннями запускає
+ * `migrateWorkflowFile` без bootstrap (plan-джоба, per-domain lint-джоби,
+ * перешивка needs). Помилка міграції окремого файлу не валить прогін — deny
+ * лишається детектору до ручного фіксу.
+ */
 export const patterns = [
   {
     id: 'ga-service-workflow-canon-migrate',

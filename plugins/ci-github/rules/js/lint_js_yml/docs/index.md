@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: npm/rules/js/lint_js_yml
-resource: npm/rules/js/lint_js_yml/
+title: plugins/ci-github/rules/js/lint_js_yml
+resource: plugins/ci-github/rules/js/lint_js_yml/
 ---
 
 | Файл                                      | Тип       |

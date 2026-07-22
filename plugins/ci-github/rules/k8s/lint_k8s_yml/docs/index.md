@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: npm/rules/k8s/lint_k8s_yml
-resource: npm/rules/k8s/lint_k8s_yml/
+title: plugins/ci-github/rules/k8s/lint_k8s_yml
+resource: plugins/ci-github/rules/k8s/lint_k8s_yml/
 ---
 
 | Файл                                        | Тип       |

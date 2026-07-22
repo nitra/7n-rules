@@ -1,6 +1,6 @@
 ---
 type: Directory Index
-title: npm/rules/npm-module/emit_types_config
+title: plugins/lang-js/rules/npm-module/emit_types_config
 resource: plugins/lang-js/rules/npm-module/emit_types_config/
 ---
 

@@ -404,6 +404,12 @@ export async function migratePipelineFile(absPath, cwd) {
   return true
 }
 
+/**
+ * Один детермінований патерн: для кожного pipeline-файлу з порушеннями запускає
+ * `migratePipelineFile` (plan-джоба, per-domain lint-джоби, перешивка dependsOn).
+ * Помилка міграції окремого файлу не валить прогін — deny лишається детектору
+ * до ручного фіксу.
+ */
 export const patterns = [
   {
     id: 'azure-service-pipeline-canon-migrate',

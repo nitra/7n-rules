@@ -15,4 +15,5 @@
  */
 import { defineConfig } from 'vite'
 
+/** Порожній Vite-конфіг — стенд-ін viteConfigPath для Storybook-збирача консюмера. */
 export default defineConfig({})

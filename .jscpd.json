@@ -19,15 +19,15 @@
     "npm/.pi-template/**",
     ".github/actions/setup-bun-deps/action.yml",
     "npm/github-actions/setup-bun-deps/action.yml",
-    "npm/rules/js/tooling/data/tooling/oxlint-canonical.json",
-    "npm/rules/js/tooling/data/tooling/knip-canonical.json",
+    "plugins/lang-js/rules/js/tooling/data/tooling/oxlint-canonical.json",
+    "plugins/lang-js/rules/js/tooling/data/tooling/knip-canonical.json",
     "npm/schemas/vendor/**",
     "demo/stryker-vue-macros-ignorer.mjs",
     "npm/skills/llm-patch/SKILL.md",
-    "npm/rules/js-mssql/lib/mssql-pool-scan.mjs",
+    "plugins/lang-js/rules/js-mssql/lib/mssql-pool-scan.mjs",
     "npm/rules/k8s/manifests/main.mjs",
     "npm/rules/k8s/manifests/tests/check-schema.test.mjs",
-    "npm/rules/test/no-relative-fs-path/main.mjs",
+    "plugins/lang-js/rules/test/no-relative-fs-path/main.mjs",
     "npm/rules/adr/tests/capture-decisions-tooling-only.test.mjs",
     "docs/**",
     "**/docs/*.md",
@@ -36,6 +36,9 @@
     "plugins/*/rules/*/*/template/*.snippet.yml",
     "plugins/*/rules/*/*/template/*.snippet.yaml",
     "npm/schemas/concern.json",
-    "npm/schemas/target.json"
+    "npm/schemas/target.json",
+    "npm/rules/k8s/hasura_httproute/tests/main.test.mjs",
+    "plugins/lang-js/rules/test/storybook-scaffold/tests/scaffold.test.mjs",
+    "plugins/lang-js/rules/test/stryker_config/main.mjs"
   ]
 }

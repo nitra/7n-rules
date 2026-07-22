@@ -6,7 +6,9 @@ import { readFile } from 'node:fs/promises'
 
 import { parseAllDocuments } from 'yaml'
 
+/** Розпізнає modeline `yaml-language-server` з `$schema=` у першому рядку файлу; захоплює URL схеми. */
 export const MODELINE_RE = /^#\s*yaml-language-server:\s*\$schema=(\S+)\s*$/
+/** Поділ вмісту на рядки незалежно від стилю переносу (LF чи CRLF). */
 export const LINE_SPLIT_RE = /\r?\n/u
 
 /**

@@ -1,13 +1,16 @@
+/** Vitest-конфіг Vue-бібліотеки зі Storybook-скоупом (деталі — в описі над export default). */
 import { defineConfig, mergeConfig } from 'vitest/config'
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'
 import { playwright } from '@vitest/browser-playwright'
 import viteConfig from './__VITE_CONFIG_IMPORT__'
 
-// Канонічний vitest-конфіг Vue-компонентної бібліотеки у скоупі Storybook
-// (storybook.mdc, vitest-config-концерн, ADR Кластер 5): named projects
-// `unit` + `storybook`. Ізольований `vitest.stryker.config` (поруч, той
-// самий concern генерує) — той самий unit-набір БЕЗ browser-mode
-// `projects`, бо @stryker-mutator/vitest-runner крашиться на них.
+/**
+ * Канонічний vitest-конфіг Vue-компонентної бібліотеки у скоупі Storybook
+ * (storybook.mdc, vitest-config-концерн, ADR Кластер 5): named projects
+ * `unit` + `storybook`. Ізольований `vitest.stryker.config` (поруч, той
+ * самий concern генерує) — той самий unit-набір БЕЗ browser-mode
+ * `projects`, бо @stryker-mutator/vitest-runner крашиться на них.
+ */
 export default mergeConfig(
   viteConfig,
   defineConfig({

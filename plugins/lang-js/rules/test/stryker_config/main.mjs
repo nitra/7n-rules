@@ -19,16 +19,23 @@ import { readNRulesConfigLite } from '@7n/rules/scripts/lib/read-n-rules-config-
 import { resolveAllJsRoots } from '@7n/rules/scripts/utils/resolve-js-root.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
+/** Абсолютний шлях canonical stryker-baseline (non-Vue варіант). */
 export const STRYKER_BASELINE_PATH = join(HERE, 'data', 'stryker_config', 'stryker.config.baseline.mjs')
+/** Абсолютний шлях canonical stryker-baseline для Vue-root (plugins/ignorers включено). */
 export const STRYKER_VUE_BASELINE_PATH = join(HERE, 'data', 'stryker_config', 'stryker.config.vue.baseline.mjs')
+/** Абсолютний шлях canonical vue-macros ignorer-плагіна (копіюється у Vue-root). */
 export const STRYKER_VUE_PLUGIN_PATH = join(HERE, 'data', 'stryker_config', 'stryker-vue-macros-ignorer.mjs')
 const STRYKER_VUE_PLUGIN_FILENAME = 'stryker-vue-macros-ignorer.mjs'
+/** Абсолютний шлях canonical vitest-baseline (пара до stryker-baseline). */
 export const VITEST_BASELINE_PATH = join(HERE, 'data', 'vitest_config', 'vitest.config.baseline.js')
 
-/** Стабільні reasons. */
+/** Стабільний reason: відсутній stryker/vitest baseline-файл (baseline-copy дія). */
 export const STRYKER_CONFIG_MISSING = 'stryker-config-missing'
+/** Стабільний reason: у наявному Vue stryker-конфізі не зареєстровано vue-macros ignorer. */
 export const STRYKER_VUE_AUGMENT = 'stryker-vue-augment'
+/** Стабільний reason: augment неможливий (non-literal export / динамічні plugins) — правити вручну. */
 export const STRYKER_VUE_AUGMENT_FAIL = 'stryker-vue-augment-fail'
+/** Стабільний reason: у кореневому `.gitignore` бракує тест-патернів. */
 export const GITIGNORE_MISSING = 'gitignore-missing'
 
 // Канонічна назва vitest-конфіга — `.mjs` (нові файли, js.mdc); legacy

@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: npm/rules/npm-module/npm_publish_yml
-resource: npm/rules/npm-module/npm_publish_yml/
+title: plugins/ci-github/rules/npm-module/npm_publish_yml
+resource: plugins/ci-github/rules/npm-module/npm_publish_yml/
 ---
 
 | Файл                                              | Тип       |

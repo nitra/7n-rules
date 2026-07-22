@@ -44,4 +44,5 @@ const config = {
   }
 }
 
+/** Storybook-конфіг app-проєкту — його читає Storybook-збирач консюмер-пакета. */
 export default config

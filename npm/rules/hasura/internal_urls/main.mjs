@@ -18,6 +18,7 @@ const HASURA_SVC_HL_FILE = `${HASURA_BASE_DIR}/svc-hl.yaml`
 const HASURA_NAMESPACE_FILE = `${HASURA_BASE_DIR}/namespace.yaml`
 
 const ENV_FILE_RE = /\.env$/u
+/** Знаходить рядок присвоєння `HASURA_GRAPHQL_ENDPOINT` у env-файлі; захоплює значення URL без лапок і коментаря. */
 export const HASURA_ENDPOINT_LINE_RE =
   /^[ \t]*(?:export[ \t]+)?HASURA_GRAPHQL_ENDPOINT[ \t]*=[ \t]*['"]?([^'"\r\n#]+)/mu
 // Дозволяємо лише DNS-суфікс кластера `<name>.internal` (GKE/GCP).

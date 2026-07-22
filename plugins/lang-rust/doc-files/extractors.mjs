@@ -214,4 +214,5 @@ const rustDocFilesExtractor = {
   extractUnits: extractUnitsRs
 }
 
+/** Default-експорт handler-модуля doc-files: обʼєкт `rustDocFilesExtractor` (опис вище). */
 export default rustDocFilesExtractor

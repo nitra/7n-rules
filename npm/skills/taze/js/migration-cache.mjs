@@ -69,7 +69,7 @@ export async function writeMigrationCache(pkg, from, to, entry, deps = {}) {
 
 /**
  * Дописує до промпта `provider.promptFor(entry)` підсумок відомої міграції,
- * якщо кеш її знайшов — каже раннеру пропустити крок 1 (CHANGELOG/diff-
+ * якщо кеш її знайшов — каже runner-у пропустити крок 1 (CHANGELOG/diff-
  * дослідження) і одразу шукати використання в поточному проєкті.
  * @param {string} prompt базовий промпт з `provider.promptFor(entry)`
  * @param {{notes: string, sourceRepo: string}} cached кешований запис

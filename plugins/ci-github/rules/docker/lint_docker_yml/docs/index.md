@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: npm/rules/docker/lint_docker_yml
-resource: npm/rules/docker/lint_docker_yml/
+title: plugins/ci-github/rules/docker/lint_docker_yml
+resource: plugins/ci-github/rules/docker/lint_docker_yml/
 ---
 
 | Файл                                              | Тип       |

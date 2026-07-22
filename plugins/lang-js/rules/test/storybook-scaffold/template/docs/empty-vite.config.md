@@ -3,26 +3,25 @@ type: JS Module
 title: empty-vite.config.js
 resource: plugins/lang-js/rules/test/storybook-scaffold/template/empty-vite.config.js
 docgen:
-  crc: 5c9f8904
+  crc: f351d6d7
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
-  score: 100
-  issues: judge:inaccurate:0.98
+  score: 90
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Канонічний порожній `Vite`-конфіг як стенд-ін для `core.builder.options.viteConfigPath` у `.storybook/main.js`. Його відсутність або поломка змушує `@storybook/builder-vite` через `loadConfigFromFile` знайти пакетний `vite.config.js` і додатково змішати нефільтровані плагіни ще до `viteFinal`; `mergeConfig` конкатенує масиви `plugins`, тож фільтр у `viteFinal` не прибирає вже доданий дублікат `@vitejs/plugin-vue`, а лише додає ще один. Без цього файлу `storybook build` падає на кожному `.vue` з `At least one <template> or <script> is required` через подвійну SFC-трансформацію; `dev --smoke-test` цього не виявляє, це підтверджує лише повний `build`. `npx @7n/rules fix storybook` відтворює цей файл, якщо він видалений або зламаний канон.
+Канонічний порожній Vite-конфіг для `core.builder.options.viteConfigPath` у `.storybook/main.js`. Він потрібен, щоб `@storybook/builder-vite` не знаходив пакетний `vite.config.js` через `loadConfigFromFile`, не додавав у merge нефільтровані плагіни (`vue`, обгорнутий VueMacros/unplugin-auto-import) і не робив це ще до `viteFinal`. Через `mergeConfig` масив `plugins` конкатенується, тому фільтр у `viteFinal` лише додає ще один `@vitejs/plugin-vue`, а не прибирає вже змерджений дублікат. Без цього файла `storybook build` падає на кожному `.vue` з `At least one <template> or <script> is required`; `dev --smoke-test` цього не ловить, перевірка проявляється лише в повному build. `npx @7n/rules fix storybook` відтворює цей файл, якщо його видалено або зламано канон.
 
 ## Поведінка
 
-1. Файл виступає канонічним порожнім `Vite`-конфігом для `storybook` і використовується як явна точка підключення в `core.builder.options.viteConfigPath`.
-2. Якщо канон пошкоджено або файл зник, `npx @7n/rules fix storybook` відтворює його, щоб зберегти узгоджений режим збірки.
-3. Файл не додає власної поведінки до `Vite`-збірки; його роль — заблокувати неявне підхоплення пакетного `vite.config.js` з боку `@storybook/builder-vite`.
-4. Це прибирає ризик домішування сторонніх `Vite`-плагінів у `storybook build`, які інакше можуть бути обʼєднані до `viteFinal` і спричинити подвійну обробку `Vue`-компонентів.
-5. Завдяки цьому `storybook build` поводиться стабільно на `.vue`-файлах у бібліотеках компонентів; без такого стенд-іну повний build може падати, тоді як `dev --smoke-test` цього не виявляє.
+1. Забезпечує канонічний порожній Vite-конфіг для Storybook-збирання, щоб `viteConfigPath` вказував на контрольований файл, а не на випадковий `vite.config.js` пакета.
+2. Запобігає автоматичному підтягуванню пакетного Vite-конфіга `@storybook/builder-vite`, яке може непомітно додати зайві плагіни до збірки.
+3. Усуває ризик подвійної трансформації Vue-компонентів під час `storybook build`, через яку збірка падає на `.vue`-файлах.
+4. Підтримує відтворюваність канону: якщо файл видалено або зіпсовано, команда `npx @7n/rules fix storybook` відновлює його до очікуваного стану.
+5. Не додає власної поведінки обробки даних чи побічних ефектів — файл лише фіксує безпечну точку входу для Storybook.
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.

@@ -1,3 +1,8 @@
+/**
+ * Fingerprint git-робочого дерева (HEAD + diff + untracked-файли) —
+ * використовується для дедуплікації повторних lint --full прогонів на
+ * незміненому дереві.
+ */
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 

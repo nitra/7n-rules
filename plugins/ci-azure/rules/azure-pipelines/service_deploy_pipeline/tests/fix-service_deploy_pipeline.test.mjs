@@ -64,7 +64,7 @@ jobs:
 `
 
 /**
- * Симлінкує реальний @7n/rules-lang-js монорепо у node_modules консюмер-фікстури:
+ * Симлінкує реальний `@7n/rules-lang-js` монорепо у node_modules консюмер-фікстури:
  * після фази 5c домен `js` (per-file concerns) живе у плагіні, не в ядрі —
  * без плагіна relevantDomains не бачить js-домену.
  * @param {string} dir tmp-корінь консюмер-фікстури

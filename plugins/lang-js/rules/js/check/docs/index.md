@@ -1,10 +1,8 @@
 ---
 type: Directory Index
-title: npm/rules/js/check
+title: plugins/lang-js/rules/js/check
 resource: plugins/lang-js/rules/js/check/
 ---
-
-# npm/rules/js/check
 
 | Файл                                  | Тип       |
 | ------------------------------------- | --------- |

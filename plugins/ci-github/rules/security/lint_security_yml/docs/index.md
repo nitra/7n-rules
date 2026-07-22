@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: npm/rules/security/lint_security_yml
-resource: npm/rules/security/lint_security_yml/
+title: plugins/ci-github/rules/security/lint_security_yml
+resource: plugins/ci-github/rules/security/lint_security_yml/
 ---
 
 | Файл                                                  | Тип       |

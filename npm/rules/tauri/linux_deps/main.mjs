@@ -20,8 +20,9 @@ import { join } from 'node:path'
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { findSrcTauriDirs } from '../cargo_mutants_config/main.mjs'
 
-/** Стабільні reasons: apt-кроку немає взагалі / у ньому бракує канонічних пакетів. */
+/** Стабільний reason: у CI-workflow немає apt-кроку встановлення Linux-залежностей Tauri. */
 export const MISSING_LINUX_DEPS_STEP = 'missing-linux-deps-step'
+/** Стабільний reason: apt-крок є, але в ньому бракує канонічних пакетів. */
 export const MISSING_LINUX_DEPS_PACKAGES = 'missing-linux-deps-packages'
 
 /** Цільовий workflow-файл (канон `rust.lint_rust_yml`). */

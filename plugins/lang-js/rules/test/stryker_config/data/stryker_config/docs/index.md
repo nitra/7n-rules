@@ -1,10 +1,8 @@
 ---
 type: Directory Index
-title: npm/rules/test/stryker_config/data/stryker_config
+title: plugins/lang-js/rules/test/stryker_config/data/stryker_config
 resource: plugins/lang-js/rules/test/stryker_config/data/stryker_config/
 ---
-
-# npm/rules/test/stryker_config/data/stryker_config
 
 | Файл                                                              | Тип       |
 | ----------------------------------------------------------------- | --------- |

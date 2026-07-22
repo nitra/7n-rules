@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: npm/rules/text/lint_text
-resource: npm/rules/text/lint_text/
+title: plugins/ci-github/rules/text/lint_text
+resource: plugins/ci-github/rules/text/lint_text/
 ---
 
 | Файл                                  | Тип       |

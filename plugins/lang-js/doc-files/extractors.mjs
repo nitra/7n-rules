@@ -433,4 +433,5 @@ const jsDocFilesExtractor = {
   extractUnits
 }
 
+/** Handler extension-point `doc-files` для JS-екосистеми (див. `jsDocFilesExtractor` вище). */
 export default jsDocFilesExtractor

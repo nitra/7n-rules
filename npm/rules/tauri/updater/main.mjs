@@ -8,12 +8,16 @@ import { globby } from 'globby'
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 
+/** Мінімально допустима версія tauri-plugin-updater-сумісних компонентів (major, minor, patch). */
 export const MIN_TAURI_COMPONENTS_VERSION = [0, 8, 0]
 const CARGO_TABLE_HEADER_RE = /^\[(.+)\]\s*$/u
 const CARGO_DEP_KEY_RE = /^([A-Za-z0-9_-]+)\s*=/u
 const SEMVER_FLOOR_RE = /(\d+)(?:\.(\d+))?(?:\.(\d+))?/u
+/** Розпізнає target-специфічну секцію залежностей у Cargo.toml. */
 export const CARGO_TARGET_SECTION_RE = /target\./u
+/** Розпізнає мобільну (Android/iOS) target-секцію — updater там не потрібен. */
 export const CARGO_MOBILE_SECTION_RE = /android|ios/u
+/** Канонічний заголовок desktop-only секції залежностей, куди має потрапити updater-плагін. */
 export const CARGO_DESKTOP_TARGET_HEADER =
   'target.\'cfg(not(any(target_os = "android", target_os = "ios")))\'.dependencies'
 

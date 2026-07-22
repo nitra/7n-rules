@@ -10,6 +10,7 @@ import { dirname } from 'node:path'
 
 import { createSnapshot } from './snapshot.mjs'
 
+/** Порядок tier-ів експериментального ladder — від локальної моделі до найсильнішої хмарної. */
 export const EXPERIMENT_TIER_ORDER = Object.freeze(['local-min', 'cloud-min', 'cloud-avg', 'cloud-max'])
 
 const DEFAULT_LOCAL_TIMEOUT_MS = 300_000
