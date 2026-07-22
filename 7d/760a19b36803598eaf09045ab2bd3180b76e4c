@@ -1,0 +1,19 @@
+.claude/settings.local.json
+  s_cf7909f5c54fa9::t_63879f73ac1af0 41-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "7d760a19b36803598eaf09045ab2bd3180b76e4c",
+  "prompts": {},
+  "sessions": {
+    "s_cf7909f5c54fa9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "96d311b3-e628-4cf2-853a-98a497e8d187",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
