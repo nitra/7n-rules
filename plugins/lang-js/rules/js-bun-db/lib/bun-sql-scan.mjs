@@ -4,7 +4,7 @@
  * Знаходить:
  * - `new SQL(...)` всередині функції — пул має бути singleton на рівні модуля,
  *   а не на кожен виклик handler-а.
- * - Будь-який виклик `<obj>.unsafe(...)` без маркера-коментаря `// allow-unsafe: <reason>`
+ * - Будь-який виклик `<obj>.unsafe(...)` без маркера-коментаря `// n-rules:allow-unsafe: <reason>`
  *   на тому ж рядку або рядком вище. `sql.unsafe` за замовчуванням заборонено: дозволено
  *   тільки якщо значення контролюється кодом (не user input) і потрібно підставити
  *   назву таблиці/колонки або dynamic SQL/DDL. Інакше — переробити на tagged template
@@ -45,13 +45,13 @@ const PG_LIB_IMPORT_RE = /(?:\bimport\b[\s\S]*?\bfrom\s*["']pg["']|\brequire\s*\
 // поки не має, тож у проекті лишається легітимна потреба у клієнті `pg`.
 const PG_LISTEN_NOTIFY_SQL_RE = /^\s*(LISTEN|UNLISTEN|NOTIFY)\b/iu
 const IN_PLACEHOLDER_END_RE = /\bin\s*(\(\s*)?$/iu
-// `// allow-unsafe: <reason>` — `allow-unsafe`, двокрапка, **непорожня** причина.
+// `// n-rules:allow-unsafe: <reason>` — `n-rules:allow-unsafe`, двокрапка, **непорожня** причина.
 // Без причини маркер не приймається: ціль — лишити слід для ревʼюера, а не «німий» прапорець.
-const ALLOW_UNSAFE_MARKER_RE = /\ballow-unsafe\s*:\s*\S+/u
-// `// allow-pg-leftover: <reason>` — opt-in для виправданих `.connect()` / `.end()`
+const ALLOW_UNSAFE_MARKER_RE = /\bn-rules:allow-unsafe\s*:\s*\S+/u
+// `// n-rules:allow-pg-leftover: <reason>` — opt-in для виправданих `.connect()` / `.end()`
 // у файлах з Bun SQL (наприклад, `sql.end()` у graceful shutdown або `.connect()`
 // на сторонньому об'єкті, що випадково ділить імʼя методу з `pg`).
-const ALLOW_PG_LEFTOVER_MARKER_RE = /\ballow-pg-leftover\s*:\s*\S+/u
+const ALLOW_PG_LEFTOVER_MARKER_RE = /\bn-rules:allow-pg-leftover\s*:\s*\S+/u
 // pg-API, які не потрібні з Bun SQL: pool/client життєвий цикл вручну.
 // `release` не входить — Bun SQL такого методу не має, а `.connect()` / `.end()`
 // формально існують і там, тому опт-аут маркером лишається доречним.
@@ -256,7 +256,7 @@ function isUnsafeCall(node) {
  * суміжність: відірваний коментар через порожній рядок не зараховується — щоб маркер
  * стояв саме біля виклику, а не «загубився десь вище».
  *
- * Використовується для opt-in маркерів типу `// allow-unsafe: ...` і `// allow-pg-leftover: ...`.
+ * Використовується для opt-in маркерів типу `// n-rules:allow-unsafe: ...` і `// n-rules:allow-pg-leftover: ...`.
  * @param {{ start: number }} callNode виклик
  * @param {{ type: 'Line' | 'Block', value: string, start: number, end: number }[]} comments коментарі з парсера
  * @param {string} content вихідний код
@@ -515,7 +515,7 @@ export function findBunSqlPerRequestConnectionInText(content, virtualPath = 'sca
 }
 
 /**
- * Знаходить виклики `<obj>.unsafe(...)` без маркера-коментаря `// allow-unsafe: <reason>`
+ * Знаходить виклики `<obj>.unsafe(...)` без маркера-коментаря `// n-rules:allow-unsafe: <reason>`
  * на тому ж рядку або рядком вище. `sql.unsafe` за замовчуванням заборонено: дозволено
  * лише коли значення контролюється кодом (не user input) і потрібно підставити те, що
  * не можна параметризувати — назву таблиці/колонки або dynamic SQL/DDL. У всіх інших
@@ -546,7 +546,7 @@ export function findBunSqlUnsafeUseWithoutAllowMarkerInText(content, virtualPath
 
 /**
  * Знаходить `<obj>.unsafe(template_literal_with_interpolation)` — навіть із маркером
- * `// allow-unsafe`. Шаблонна підстановка `${name}` у `sql.unsafe`-рядок **не екранує**
+ * `// n-rules:allow-unsafe`. Шаблонна підстановка `${name}` у `sql.unsafe`-рядок **не екранує**
  * identifier'ів (reserved words, спецсимволи) і ніяк не біндить значення — це
  * структурна injection-поверхня, яку легко не помітити в ревʼю. Канон — побудувати
  * `text` через `@scaleleap/pg-format` `format('%I', name)` (для identifiers) або
@@ -554,7 +554,7 @@ export function findBunSqlUnsafeUseWithoutAllowMarkerInText(content, virtualPath
  *
  * Прапорує саме `TemplateLiteral` з `expressions.length > 0`; статичні рядки
  * (`Literal`, `StringLiteral`, `TemplateLiteral` без `${...}`) і виклики з готовим
- * `text` як змінною — не зачіпає (для них діє основна перевірка allow-unsafe).
+ * `text` як змінною — не зачіпає (для них діє основна перевірка n-rules:allow-unsafe).
  * @param {string} content вихідний код
  * @param {string} [virtualPath] шлях для вибору `lang`
  * @returns {{ line: number, snippet: string }[]} список порушень
@@ -583,7 +583,7 @@ export function findBunSqlUnsafeWithInterpolatedTemplateInText(content, virtualP
 
 /**
  * Знаходить pg-leftover виклики `<obj>.connect(...)` / `<obj>.end(...)` без маркера
- * `// allow-pg-leftover: <reason>` у файлах, де **в цьому ж файлі** є `import { sql|SQL } from 'bun'`.
+ * `// n-rules:allow-pg-leftover: <reason>` у файлах, де **в цьому ж файлі** є `import { sql|SQL } from 'bun'`.
  *
  * Скоп навмисно вузький: ці метод-імена занадто загальні (WebSocket, Stream, інші бібліотеки),
  * тож сканер обмежений файлами, що вже використовують Bun SQL — там pg-залишок є явним

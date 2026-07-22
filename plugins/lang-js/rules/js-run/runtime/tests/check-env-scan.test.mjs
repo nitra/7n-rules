@@ -40,7 +40,7 @@ console.log(process.env.PG_CONN)
   })
 
   test('коментар-маркер на попередньому рядку приглушує і process.env', () => {
-    const src = `// @7n/rules ignore-next-line checkEnv\nconsole.log(process.env.OPTIONAL)\n`
+    const src = `// n-rules:ignore-next-line checkEnv\nconsole.log(process.env.OPTIONAL)\n`
     expect(findUncheckedProcessEnvInText(src, 'x.ts').length).toBe(0)
   })
 })
@@ -97,7 +97,7 @@ const { A, B } = env
 
   test('коментар-маркер приглушує і env.X', () => {
     const src = `import { env } from '@nitra/check-env'
-// @7n/rules ignore-next-line checkEnv
+// n-rules:ignore-next-line checkEnv
 console.log(env.LEGACY)
 `
     expect(findUncheckedProcessEnvInText(src, 'x.ts').length).toBe(0)

@@ -148,7 +148,7 @@ function scanFileForBunSqlPatterns(content, rel, fail, counts) {
       `js-bun-db: ${rel}:${v.line} — sql.unsafe(...) заборонено за замовчуванням; ` +
         `допустимо лише для підстановки назви таблиці/колонки чи dynamic SQL/DDL з code-controlled значенням, ` +
         `інакше переробити на tagged template sql\`...\${value}...\`. ` +
-        `Якщо випадок легітимний — додай маркер "// allow-unsafe: <причина>" на тому ж рядку або рядком вище ` +
+        `Якщо випадок легітимний — додай маркер "// n-rules:allow-unsafe: <причина>" на тому ж рядку або рядком вище ` +
         `(js-bun-db.mdc): ${v.snippet}`
     )
   }
@@ -156,7 +156,7 @@ function scanFileForBunSqlPatterns(content, rel, fail, counts) {
     counts.unsafeTemplateInterp++
     fail(
       `js-bun-db: ${rel}:${v.line} — sql.unsafe(\`...\${x}...\`) з template-літералом і \${...}-інтерполяцією ` +
-        `заборонено навіть з allow-unsafe маркером: шаблонна підстановка identifier'у не екранує (reserved words, ` +
+        `заборонено навіть з n-rules:n-rules:allow-unsafe маркером: шаблонна підстановка identifier'у не екранує (reserved words, ` +
         `спецсимволи), а значення не біндяться. Збери text через @scaleleap/pg-format format('%I', name) для ` +
         `identifiers або позиційні $N для values, потім sql.unsafe(text, [params]). Деталі — секція ` +
         `«Динамічна SQL-структура» в js-bun-db.mdc: ${v.snippet}`
@@ -167,7 +167,7 @@ function scanFileForBunSqlPatterns(content, rel, fail, counts) {
     fail(
       `js-bun-db: ${rel}:${v.line} — pg-leftover виклик .${v.methodName}(...): Bun SQL пулом керує сам, ` +
         `видали зайвий .connect()/.end() або, якщо випадок легітимний (graceful shutdown тощо), ` +
-        `додай маркер "// allow-pg-leftover: <причина>" на тому ж рядку або рядком вище ` +
+        `додай маркер "// n-rules:allow-pg-leftover: <причина>" на тому ж рядку або рядком вище ` +
         `(js-bun-db.mdc): ${v.snippet}`
     )
   }
@@ -393,7 +393,7 @@ export async function lint(ctx) {
     pass('js-bun-db: немає створення new SQL(...) всередині функцій (singleton на рівні модуля)')
   }
   if (unsafeCall === 0) {
-    pass('js-bun-db: усі sql.unsafe(...) або відсутні, або супроводжуються маркером "// allow-unsafe: <причина>"')
+    pass('js-bun-db: усі sql.unsafe(...) або відсутні, або супроводжуються маркером "// n-rules:allow-unsafe: <причина>"')
   }
   if (unsafeTemplateInterp === 0) {
     pass(
@@ -404,7 +404,7 @@ export async function lint(ctx) {
   if (pgLeftover === 0) {
     pass(
       'js-bun-db: немає pg-leftover викликів .connect()/.end() у файлах з Bun SQL ' +
-        '(або всі вони мають маркер "// allow-pg-leftover: <причина>")'
+        '(або всі вони мають маркер "// n-rules:allow-pg-leftover: <причина>")'
     )
   }
   if (dynamicList === 0) {

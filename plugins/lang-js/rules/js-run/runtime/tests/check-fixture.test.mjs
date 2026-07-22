@@ -273,7 +273,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
       await writeRootWithWorkspacePkg(dir, { '@nitra/pino': '^1.0.0' })
       await writeFile(
         join(dir, 'pkg', 'index.js'),
-        `// @7n/rules ignore-next-line checkEnv\nconsole.log(process.env.OPTIONAL)\n`,
+        `// n-rules:ignore-next-line checkEnv\nconsole.log(process.env.OPTIONAL)\n`,
         'utf8'
       )
       expect(await check(dir)).toBe(0)
