@@ -1,0 +1,30 @@
+---
+description: JS-тести (*.test.mjs) живуть у tests/. Правило `test` керує stryker.config.mjs + vitest.config.mjs і гейтом покриття/мутаційного тестування (концерн coverage; конфіг cargo-mutants — концерн cargo_mutants_config правила rust у @7n/rules-lang-rust).
+version: '3.0'
+globs: "**/{.n-rules.json,package.json,stryker.config.mjs,vitest.config.mjs,vitest.config.js},**/*.test.mjs"
+alwaysApply: false
+---
+
+Правило **test** керує розміщенням тестових файлів, безпекою ізоляції тестів (заборона `process.chdir`, відносних шляхів у FS, ручного store/restore console), налаштуванням Vitest/Stryker baseline і **гейтом покриття/мутаційного тестування** (концерн `coverage`). Конфігурація cargo-mutants для Rust — концерн `cargo_mutants_config` правила `rust` (@7n/rules-lang-rust).
+
+## Покриття + мутаційне тестування (концерн coverage)
+
+Покриття вимірюється як звичайний lint-концерн (spec 2026-07-22, влиття `@7n/test` у `@7n/rules`) — пакета `@7n/test` і файлу `COVERAGE.md` більше немає. Мовну специфіку постачають coverage-провайдери плагінів (`contributes.handlers.coverage`): `@7n/rules-lang-js` — vitest + Stryker (vitest-runner, `coverageAnalysis: 'perTest'`) + окремий Storybook-вимір; провайдери rust/python — у відповідних плагінах.
+
+- **Делта-lint** (`npx @7n/rules lint`): легкий per-file вимір покриття рядків лише змінених файлів, без мутаційного тестування; файл нижче порогу → порушення.
+- **`npx @7n/rules lint test --no-fix`** — повний вимір (coverage + мутаційне тестування по всіх workspaces) лише з гейтом: нижче порогу → ненульовий exit. **Канонічний CI-крок.**
+- **`npx @7n/rules lint test`** — те саме + fix-шлях: LLM генерує тести на непокриті файли й survived-мутанти (fix-worker концерну, ladder ядра).
+
+Пороги (дефолт 80/80 %) конфігуруються у `.n-rules.json`:
+
+```json
+{ "coverage": { "coverageThreshold": 80, "mutationThreshold": 80 } }
+```
+
+У `package.json` (корінь) має бути `scripts.coverage` із викликом `npx @7n/rules lint test --no-fix`.
+
+### Multi-workspace iteration
+
+У monorepo провайдер ітерує усі workspaces з власним `package.json` і агрегує метрики lcov + Stryker у єдиний рядок області (`JS`, `Vue (Storybook)`). Workspace без тестів пропускається без помилки.
+
+- [package.json.contains.json](./package_json/template/package.json.contains.json)

@@ -67,6 +67,23 @@
       "type": "boolean",
       "description": "Чи синхронізувати `.claude/settings.json` (hooks + permissions, merge зі збереженням користувацьких полів) і slash-команди checks. За замовчуванням true.",
       "default": true
+    },
+    "coverage": {
+      "type": "object",
+      "description": "Пороги гейта покриття/мутаційного тестування (концерн coverage правила test). Відсутнє поле — дефолти 80/80 %.",
+      "additionalProperties": false,
+      "properties": {
+        "coverageThreshold": {
+          "type": "number",
+          "description": "Мінімальний line coverage у відсотках (делта-гейт per-file і повний вимір).",
+          "default": 80
+        },
+        "mutationThreshold": {
+          "type": "number",
+          "description": "Мінімальний mutation score у відсотках (лише повний вимір: lint --full / lint test).",
+          "default": 80
+        }
+      }
     }
   },
   "required": [
