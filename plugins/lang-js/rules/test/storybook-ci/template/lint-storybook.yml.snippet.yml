@@ -25,7 +25,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: __STORYBOOK_CI_PACKAGE_DIRS__
+        package:
+          __STORYBOOK_CI_PACKAGE_DIRS__
     steps:
       - uses: actions/checkout@v6
         with:

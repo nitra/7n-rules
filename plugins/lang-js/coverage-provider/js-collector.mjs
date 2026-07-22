@@ -363,6 +363,10 @@ function assertStorybookStrykerIsolation(jsRoot, wsRel) {
   )
 }
 
+/**
+ * Дефолтний spawn-runner колектора (vitest/bun/Stryker/Storybook-прогони).
+ * Експортується для повторного використання делта-виміром (per-file.mjs) та інʼєкцій у тестах.
+ */
 export const defaultRunner = {
   runJsCoverage({ cwd, lcovDir, base, excludeStorybookProject, extraArgs }) {
     // base !== undefined ⇔ --changed-режим: vitest сам рахує зачеплені змінами тести

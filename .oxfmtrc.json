@@ -1,5 +1,11 @@
 {
-  "ignorePatterns": ["**/hasura/metadata/**", "**/schema.graphql", "**/auto-imports.d.ts", "**/adr/**"],
+  "ignorePatterns": [
+    "**/hasura/metadata/**",
+    "**/schema.graphql",
+    "**/auto-imports.d.ts",
+    "**/adr/**",
+    "plugins/lang-js/rules/test/storybook-*/template/**"
+  ],
   "arrowParens": "avoid",
   "printWidth": 120,
   "bracketSpacing": true,
