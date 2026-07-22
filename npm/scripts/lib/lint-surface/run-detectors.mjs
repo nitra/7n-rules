@@ -153,14 +153,69 @@ async function readLintConcernsByRuleMulti(rulesDirs) {
 }
 
 /**
+ * Імена ВСІХ каталогів верхнього рівня під `rulesDirs` — незалежно від того, чи знайшлись
+ * у них concern-и. Потрібно, щоб відрізнити «каталог є, просто без lint-поверхні» (легітимно
+ * для суто-документаційних правил на кшталт `feedback`/`local-ai`) від «каталогу немає
+ * взагалі ні в ядрі, ні в жодному підключеному плагіні» (ознака дрейфу конфігу — типово
+ * правило переїхало в плагін, якого консюмер не підключив).
+ * @param {string[]} rulesDirs rules-каталоги (ядро + плагіни).
+ * @returns {Promise<Set<string>>} унікальні імена каталогів-правил.
+ */
+async function discoverAllRuleDirNames(rulesDirs) {
+  const { readdir } = await import('node:fs/promises')
+  /** @type {Set<string>} */
+  const names = new Set()
+  for (const dir of rulesDirs) {
+    let entries
+    try {
+      entries = await readdir(dir, { withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const e of entries) {
+      if (e.isDirectory() && !e.name.startsWith('.')) names.add(e.name)
+    }
+  }
+  return names
+}
+
+/**
+ * Попереджає про rule-id з `.n-rules.json#rules`, яких немає ЖОДНИМ каталогом ні в ядрі, ні
+ * в підключених плагінах (не плутати з «каталог є, але без concern-ів» — легітимний випадок
+ * для суто-документаційних правил). Типова причина: правило переїхало в окремий плагін
+ * (напр. `js` → `@7n/rules-lang-js` з фази 5c), а `plugins[]` консюмера про це не знає —
+ * тоді перевірки для цього правила мовчки НЕ виконуються (0 знайдених concern-ів виглядає
+ * як «усе чисто», хоча насправді нічого не перевірялось).
+ * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id (з усіх rulesDirs).
+ * @param {import('../read-n-rules-config-lite.mjs').LiteConfig} config розпарсений .n-rules.json.
+ * @param {string[]} rulesDirs rules-каталоги (ядро + плагіни), для перевірки «каталог є, але порожній».
+ * @returns {Promise<void>}
+ */
+async function warnAboutRulesWithoutConcerns(byRule, config, rulesDirs) {
+  const missing = config.rules.filter(id => !(id in byRule))
+  if (missing.length === 0) return
+  const allDirNames = await discoverAllRuleDirNames(rulesDirs)
+  for (const ruleId of missing) {
+    if (allDirNames.has(ruleId)) continue // каталог є, просто без lint-поверхні — легітимно
+    console.error(
+      `⚠️  .n-rules.json: правило "${ruleId}" не знайдено НІ В ОДНОМУ з rulesDirs (ні в ядрі, ні в ` +
+        `підключених плагінах "plugins") — перевірки для нього НЕ виконуються. Якщо правило нещодавно ` +
+        `переїхало в окремий плагін, додай відповідний пакет у "plugins" (і в devDependencies).`
+    )
+  }
+}
+
+/**
  * Активні rule-id з `.n-rules.json` (для delta/full режимів).
  * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
  * @param {string} cwd робоча директорія прогону.
+ * @param {string[]} rulesDirs rules-каталоги (ядро + плагіни) — для warning про відсутні правила.
  * @returns {Promise<string[]>} перелік активних rule-id.
  */
-async function enabledRuleIds(byRule, cwd) {
+async function enabledRuleIds(byRule, cwd, rulesDirs) {
   const config = await readNRulesConfigLite(cwd)
   if (!config.exists) return []
+  await warnAboutRulesWithoutConcerns(byRule, config, rulesDirs)
   return Object.keys(byRule).filter(id => isRuleEnabled(config, id))
 }
 
@@ -189,7 +244,8 @@ function sortEntries(entries) {
  * @returns {Promise<PlanItem[]>} впорядкований план прогону.
  */
 export async function buildDetectPlan(opts) {
-  const byRule = await filterByCapabilities(await readLintConcernsByRuleMulti(await effectiveRulesDirs(opts)), opts)
+  const rulesDirs = await effectiveRulesDirs(opts)
+  const byRule = await filterByCapabilities(await readLintConcernsByRuleMulti(rulesDirs), opts)
   return buildPlan({
     byRule,
     full: opts.full === true,
@@ -198,7 +254,8 @@ export async function buildDetectPlan(opts) {
     pathMode: opts.pathMode === true,
     repoWide: opts.repoWide === true,
     baseRef: typeof opts.baseRef === 'string' ? opts.baseRef : null,
-    cwd: opts.cwd
+    cwd: opts.cwd,
+    rulesDirs
   })
 }
 
@@ -209,8 +266,9 @@ export async function buildDetectPlan(opts) {
  * @returns {Promise<{ byRule: Record<string, ConcernMeta[]>, enabledSet: Set<string> }>} concerns і активні правила.
  */
 export async function loadEnabledLintRules(opts) {
-  const byRule = await filterByCapabilities(await readLintConcernsByRuleMulti(await effectiveRulesDirs(opts)), opts)
-  const enabledSet = new Set(await enabledRuleIds(byRule, opts.cwd))
+  const rulesDirs = await effectiveRulesDirs(opts)
+  const byRule = await filterByCapabilities(await readLintConcernsByRuleMulti(rulesDirs), opts)
+  const enabledSet = new Set(await enabledRuleIds(byRule, opts.cwd, rulesDirs))
   return { byRule, enabledSet }
 }
 
@@ -378,6 +436,7 @@ export function computeActiveDomains(byRule, enabledSet, changed) {
  * @param {boolean} [args.repoWide] `--repo-wide`: лише full-scope concerns, whole-repo.
  * @param {string|null} [args.baseRef] явна база дельти (`--base <ref>`) замість каскаду main→origin/main.
  * @param {string} args.cwd робоча директорія прогону.
+ * @param {string[]} [args.rulesDirs] rules-каталоги (ядро + плагіни) — для warning про відсутні правила.
  * @returns {Promise<PlanItem[]>} впорядкований план прогону.
  */
 async function buildPlan({
@@ -388,14 +447,15 @@ async function buildPlan({
   pathMode = false,
   repoWide = false,
   baseRef = null,
-  cwd
+  cwd,
+  rulesDirs = []
 }) {
   // scoped + --path: per-file concerns названих правил × перетин path ∩ дельта
   if (rules.length > 0 && explicitFiles !== null) return buildScopedDeltaPlan(byRule, rules, explicitFiles)
   // scoped: усі lint-concerns названих правил, whole-repo
   if (rules.length > 0) return buildScopedPlan(byRule, rules)
 
-  const enabled = await enabledRuleIds(byRule, cwd)
+  const enabled = await enabledRuleIds(byRule, cwd, rulesDirs)
   const enabledSet = new Set(enabled)
 
   // repo-wide: лише full-scope concerns (окремий CI-workflow, не гейтить деплой)
@@ -557,7 +617,8 @@ export async function detectAll(opts) {
   const verbose = opts.verbose === true
   const baseLog = opts.log ?? (s => process.stdout.write(s))
 
-  const byRule = await filterByCapabilities(await readLintConcernsByRuleMulti(await effectiveRulesDirs(opts)), opts)
+  const rulesDirs = await effectiveRulesDirs(opts)
+  const byRule = await filterByCapabilities(await readLintConcernsByRuleMulti(rulesDirs), opts)
   const plan = await buildPlan({
     byRule,
     full,
@@ -566,7 +627,8 @@ export async function detectAll(opts) {
     pathMode: opts.pathMode === true,
     repoWide: opts.repoWide === true,
     baseRef: typeof opts.baseRef === 'string' ? opts.baseRef : null,
-    cwd
+    cwd,
+    rulesDirs
   })
 
   // Detect-only бар — ЛИШЕ в TTY (без тикера «виправлено»). У не-TTY (hooks, CI-gate,
