@@ -32,6 +32,15 @@ const EXCLUDED_FILE_RE = /(\.test\.|\.spec\.|\.d\.ts$)|(^|\/)(tests|fixtures|__m
 const SOURCE_EXT_RE = /\.(js|mjs|cjs|ts)$/
 const SHEBANG_RE = /^#!.*$/m
 
+// Глобальний сенс порушення — для AI/агента, що бачить лише текст lint-помилки
+// (без доступу до цього файлу чи ADR): doc-files НЕ перефразовує ці коментарі,
+// а копіює дослівно у згенеровану документацію проєкту. Це не стилістична
+// вимога — порожній/формальний коментар тут напряму псує публічну доку файлу.
+const FILE_HEADER_HINT =
+  'Глобальний сенс: конвеєр doc-files копіює цей коментар ДОСЛІВНО в секцію «Огляд» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього «Огляд» вигадує LLM із самого коду.'
+const EXPORT_DOC_HINT =
+  'Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів, isApiGap/renderApiLine) — без нього опис вигадує LLM.'
+
 /**
  * Чи підпадає файл під вимогу doc-коментарів.
  * @param {string} relPosix posix-відносний шлях
@@ -149,7 +158,7 @@ export function checkFileDocComments(src, relPosix) {
     const block = promotableHeaderBlock(comments, src)
     violations.push({
       reason: 'missing-file-header',
-      message: `${relPosix}: файл з експортами без провідного header-JSDoc (намір файлу → «Огляд» доки)`,
+      message: `${relPosix}: файл з експортами без провідного header-JSDoc. ${FILE_HEADER_HINT}`,
       file: relPosix,
       data: block ? { promotable: true, start: block.start, end: block.end } : {}
     })
@@ -159,7 +168,7 @@ export function checkFileDocComments(src, relPosix) {
     const block = promotableLineBlockBefore(comments, src, exp.start)
     violations.push({
       reason: 'missing-export-doc',
-      message: `${relPosix}: export ${exp.name} без JSDoc-опису (→ «Публічний API» доки дослівно, без LLM)`,
+      message: `${relPosix}: export ${exp.name} без JSDoc-опису. ${EXPORT_DOC_HINT}`,
       file: relPosix,
       data: block ? { promotable: true, start: block.start, end: block.end, name: exp.name } : { name: exp.name }
     })

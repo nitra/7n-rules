@@ -28,6 +28,15 @@ const COMMENT_LINE_RE = /^#/
 const HEADER_SKIP_RE = /^(?:#|\s*$)/
 const FUTURE_IMPORT_RE = /^from\s+__future__\s+import\s/
 
+// Глобальний сенс порушення — для AI/агента, що бачить лише текст lint-помилки
+// (без доступу до цього файлу чи ADR): doc-files НЕ перефразовує ці коментарі,
+// а копіює дослівно у згенеровану документацію проєкту. Це не стилістична
+// вимога — порожній/формальний коментар тут напряму псує публічну доку файлу.
+const MODULE_DOC_HINT =
+  'Глобальний сенс: конвеєр doc-files копіює цей docstring ДОСЛІВНО в секцію «Огляд» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього «Огляд» вигадує LLM із самого коду.'
+const DEF_DOC_HINT =
+  'Глобальний сенс: конвеєр doc-files бере цей docstring ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.'
+
 /**
  * Чи підпадає файл під вимогу docstring-ів.
  * @param {string} relPosix posix-відносний шлях
@@ -116,7 +125,7 @@ export function checkFileDocComments(src, relPosix) {
   if (!hasModuleDocstring(lines)) {
     violations.push({
       reason: 'missing-module-docstring',
-      message: `${relPosix}: модуль із публічними def/class без module-docstring (намір файлу)`,
+      message: `${relPosix}: модуль із публічними def/class без module-docstring. ${MODULE_DOC_HINT}`,
       file: relPosix,
       data: {}
     })
@@ -128,7 +137,7 @@ export function checkFileDocComments(src, relPosix) {
     const block = commentBlockAbove(lines, def.line)
     violations.push({
       reason: 'missing-def-docstring',
-      message: `${relPosix}: ${def.kind} ${def.name} без docstring`,
+      message: `${relPosix}: ${def.kind} ${def.name} без docstring. ${DEF_DOC_HINT}`,
       file: relPosix,
       data: block
         ? { promotable: true, fromLine: block.fromLine, toLine: block.toLine, headerEnd, name: def.name }

@@ -26,6 +26,15 @@ const PLAIN_COMMENT_RE = /^\s*\/\/(?![/!])/
 const ATTR_LINE_RE = /^\s*#\[/
 const CFG_TEST_RE = /^\s*#\[cfg\(test\)\]/
 
+// Глобальний сенс порушення — для AI/агента, що бачить лише текст lint-помилки
+// (без доступу до цього файлу чи ADR): doc-files НЕ перефразовує ці коментарі,
+// а копіює дослівно у згенеровану документацію проєкту. Це не стилістична
+// вимога — порожній/формальний коментар тут напряму псує публічну доку файлу.
+const FILE_HEADER_HINT =
+  'Глобальний сенс: конвеєр doc-files копіює цей коментар ДОСЛІВНО в секцію «Огляд» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього «Огляд» вигадує LLM із самого коду.'
+const PUB_DOC_HINT =
+  'Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.'
+
 /**
  * Чи підпадає файл під вимогу doc-коментарів.
  * @param {string} relPosix posix-відносний шлях
@@ -89,7 +98,7 @@ export function checkFileDocComments(src, relPosix) {
     const block = leadingPlainCommentBlock(lines)
     violations.push({
       reason: 'missing-file-header',
-      message: `${relPosix}: файл із pub-елементами без провідного //!-коментаря (намір файлу → «Огляд» доки)`,
+      message: `${relPosix}: файл із pub-елементами без провідного //!-коментаря. ${FILE_HEADER_HINT}`,
       file: relPosix,
       data: block ? { promotable: true, ...block, header: true } : { header: true }
     })
@@ -99,7 +108,7 @@ export function checkFileDocComments(src, relPosix) {
     if (above?.doc) continue
     violations.push({
       reason: 'missing-pub-doc',
-      message: `${relPosix}: pub ${item.kind} ${item.name} без ///-опису (→ «Публічний API» доки дослівно, без LLM)`,
+      message: `${relPosix}: pub ${item.kind} ${item.name} без ///-опису. ${PUB_DOC_HINT}`,
       file: relPosix,
       data: above
         ? { promotable: true, fromLine: above.fromLine, toLine: above.toLine, name: item.name }
