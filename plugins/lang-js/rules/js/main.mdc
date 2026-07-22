@@ -2,10 +2,10 @@
 description: Перевірка JavaScript коду
 globs: "**/{.oxlintrc.json,eslint.config.js,.jscpd.json,knip.json,package.json},**/*.{js,mjs,cjs,jsx,ts,tsx}"
 alwaysApply: false
-version: '1.31'
+version: '1.32'
 ---
 
-**oxlint**, **ESLint**, **jscpd**, **knip**. Запуск — **`n-rules lint js`** (локально; у CI — `--no-fix`, без **`--fix`** для oxlint/eslint). Без **prettier** і **@nitra/prettier-config**.
+**oxlint**, **ESLint**, **jscpd**, **knip**. Doc-коментарі: файл з експортами має header-JSDoc і JSDoc над кожним експортом (концерн doc_comments — джерело дослівної doc-files-доки; T0 підвищує суміжні //-коментарі до JSDoc, решту дописує LLM-ladder). Запуск — **`n-rules lint js`** (локально; у CI — `--no-fix`, без **`--fix`** для oxlint/eslint). Без **prettier** і **@nitra/prettier-config**.
 
 `eslint.config.js` — flat config з `getConfig` (`@nitra/eslint-config`). Аргументи `node: [...]`/`vue: [...]` мають відповідати воркспейс-типам репо (`workspaces` root `package.json`; vue-воркспейс = Vue-залежність у deps або `.vue` файли) — інакше `.vue` файли не парсяться. Відсутній конфіг створюється (scaffold), наявний — зазнає хірургічного merge (fix не перезаписує файл цілком).
 

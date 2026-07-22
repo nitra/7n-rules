@@ -2,7 +2,9 @@
 description: Python — пакет-менеджер uv (без Poetry), PEP 621, lint-python
 globs: "**/*.py,pyproject.toml,uv.lock,.github/workflows/lint-python.yml"
 alwaysApply: false
-version: '1.0'
+version: '1.1'
 ---
+
+Docstring-и: модуль із публічними def/class має module-docstring, кожен top-level публічний def/class — docstring (концерн doc_comments; T0 перетворює суміжний #-коментар на docstring, решту дописує LLM-ladder).
 
 Python-проєкти ведуться **виключно** на [uv](https://docs.astral.sh/uv/) — єдиний пакет-менеджер і резолвер. **Poetry заборонено.** Середовище: `uv sync --frozen` (строго з `uv.lock`).

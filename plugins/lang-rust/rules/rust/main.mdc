@@ -2,7 +2,7 @@
 description: Перевірка Rust коду
 globs: "**/{Cargo.toml,Cargo.lock,rustfmt.toml,clippy.toml,.vscode/extensions.json,package.json},**/*.rs"
 alwaysApply: false
-version: '1.4'
+version: '1.5'
 ---
 
-Правило забезпечує форматування (rustfmt), лінт (clippy), CI workflow та покриття для Rust-проєктів.
+Правило забезпечує форматування (rustfmt), лінт (clippy), CI workflow та покриття для Rust-проєктів. Doc-коментарі: файл із pub-елементами має //!-header і ///-опис над кожним top-level pub-елементом (концерн doc_comments — джерело дослівної doc-files-доки; T0 підвищує суміжні //-коментарі, решту дописує LLM-ladder).
