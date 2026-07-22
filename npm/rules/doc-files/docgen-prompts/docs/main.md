@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/doc-files/docgen-prompts/main.mjs
 docgen:
-  crc: fb4d1242
+  crc: 465da2eb
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.99

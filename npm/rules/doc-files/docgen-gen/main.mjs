@@ -20,7 +20,10 @@ import {
   guaranteesFromMarkers,
   isApiGap,
   renderApiLine,
-  apiGapMessages
+  apiGapMessages,
+  buildUnitDigest,
+  UNIT_DIGEST_TOKENS,
+  judgeRefineMessages
 } from '../docgen-prompts/main.mjs'
 
 /** Облік LLM-викликів і часу в них у межах однієї генерації (скидається на старті generateDoc). */
@@ -91,6 +94,23 @@ async function callLlm(messages, model, opts = {}) {
 const FENCE_OPEN_RE = /^```[a-z]*\n?/
 const FENCE_CLOSE_RE = /\n?```\s*$/
 const LEADING_HEADING_RE = /^#{1,6}[ \t]{1,8}[^\n]{0,400}\n{1,8}/
+// R9: чат-преамбули малих моделей — «озвучування завдання» перед відповіддю
+// («Ось оновлена чорнетка секції…», «Як технічний письменник, я створю…»,
+// «Оновлений текст секції:»). Живі приклади — прогін gemma-4 по efes/backend
+// 2026-07-21: 4 з 10 доків мали такі рядки; R8 (refusal) їх не ловить, бо далі
+// йде реальний контент. Зрізаються ЛИШЕ провідні рядки секції (мета-нарація
+// стоїть попереду), щоб не зачепити легітимний текст усередині.
+const PREAMBLE_LINE_RES = [
+  /^Ось (?:оновлен|переписан|виправлен|готов|вміст|текст|чорнетк|секці)/i,
+  /^Оновлен(?:ий|а|е|о) (?:текст|чорнетк|секці|вміст|версі)/i,
+  /^Як технічний письменник/i,
+  /^(?:Я )?(?:створю|напишу|перепишу|підготую) /i,
+  /^(?:Звісно|Гаразд|Добре)[,.!]/i,
+  /^(?:Нижче наведено|Нижче — )/i
+]
+// Дубль назви секції першим рядком тіла («Поведінка:» всередині секції Поведінка).
+// Рядок перед перевіркою вже пройшов trim (див. stripLeadingPreamble) — без \s*-країв.
+const SECTION_LABEL_LINE_RE = /^(?:Огляд|Поведінка|Публічний API|Гарантії поведінки):?$/
 const SECTION_HEADING_RE = /^##\s+(.+)/
 const SECTION_KEY_CLEAN_RE = /[^а-яіїєґa-z0-9]/gi
 const CACHE_MENTION_RE = /кеш/i
@@ -120,8 +140,26 @@ const H2_RE = /^##\s/
 const H1_RE = /^#\s/
 
 /**
- * Прибирає код-фенс-обгортку (потрійні бектіки) й випадковий провідний
- * `##`-заголовок із секції.
+ * R9: зрізає провідні чат-преамбули й дубль назви секції з початку тексту.
+ * Ітерується, поки перший непорожній рядок лишається мета-нарацією — модель
+ * інколи ставить дві поспіль («Як технічний письменник…» + «Ось оновлений…»).
+ * @param {string} t текст після базового очищення
+ * @returns {string} текст без провідних мета-рядків
+ */
+export function stripLeadingPreamble(t) {
+  let out = t
+  for (;;) {
+    const nl = out.indexOf('\n')
+    const first = (nl === -1 ? out : out.slice(0, nl)).trim()
+    const isMeta = SECTION_LABEL_LINE_RE.test(first) || PREAMBLE_LINE_RES.some(re => re.test(first))
+    if (!first || !isMeta || nl === -1) return isMeta && nl === -1 ? '' : out
+    out = out.slice(nl + 1).trimStart()
+  }
+}
+
+/**
+ * Прибирає код-фенс-обгортку (потрійні бектіки), випадковий провідний
+ * `##`-заголовок і чат-преамбули (R9) із секції.
  * @param {string} text сирий вихід моделі
  * @returns {string} очищений текст секції
  */
@@ -131,7 +169,7 @@ function stripSection(text) {
     t = t.replace(FENCE_OPEN_RE, '').replace(FENCE_CLOSE_RE, '').trim()
   }
   t = t.replace(LEADING_HEADING_RE, '') // зрізати випадковий заголовок
-  return t.trim()
+  return stripLeadingPreamble(t.trim()).trim()
 }
 
 /**
@@ -274,6 +312,19 @@ export function scoreDoc(md, facts, { anchors = null, src = '' } = {}) {
   if (detectRefusalFiller(splitProtected(md).without)) {
     score -= 100
     issues.push('refusal-filler')
+  }
+
+  // R9: чат-преамбула в тілі («Ось оновлена чорнетка…», «Як технічний письменник…»)
+  // — на відміну від R8, далі є реальний контент, тож не 0, а відчутний штраф:
+  // best-of-2 обере чистий драфт, а стійке сміття помітить degraded-доретрай.
+  // stripSection зрізає провідні мета-рядки на генерації; скорер — страховка для
+  // one-shot шляху і преамбул усередині секції (після першого рядка).
+  for (const line of splitProtected(md).without.split('\n')) {
+    if (PREAMBLE_LINE_RES.some(re => re.test(line.trim()))) {
+      score -= 25
+      issues.push('chat-preamble')
+      break
+    }
   }
 
   if (!s['огляд']) {
@@ -440,13 +491,101 @@ async function orchestratedDoc(
   // R3: «Огляд» — ОСТАННІМ, узагальненням уже написаної Поведінки (не голого факт-листа)
   let overview = stripSignatures(
     stripSection(
-      await callLlm(overviewMessages(facts, sections.behavior ?? '', anc, intent), model, { timeoutMs, temperature })
+      await callLlm(overviewMessages(facts, sections.behavior ?? '', intent), model, { timeoutMs, temperature })
     )
   )
-  overview = await critiqueRefineSection('overview', overview, facts, anc, model, timeoutMs)
+  // №8: анкори лише в Behavior — критик Огляду без анкор-блоку, інакше refine
+  // «поверне» анкор у Огляд і в документі він знову зʼявиться двічі.
+  overview = await critiqueRefineSection('overview', overview, facts, null, model, timeoutMs)
   sections.overview = overview
   // Варіант B: дослівно повертаємо захищений блок у фіксовану позицію
   return { md: insertProtected(assemble(basename(facts.relPath), sections), intent) }
+}
+
+/**
+ * №6 — judge-refine: суддя назвав конкретні неточності (`judge.reason`) — один
+ * локальний refine-прохід замість лише маркування degraded. Приймаємо виправлену
+ * версію ТІЛЬКИ якщо: det-score не впав, усі ## заголовки збережені, і повторний
+ * суддя більше не каже inaccurate. Інакше — оригінал і degraded, як раніше.
+ * Cap: рівно одна ітерація (без петель самопереконання).
+ * @param {{ md: string }} r поточний результат генерації
+ * @param {{ reason: string }} judge вердикт судді (inaccurate)
+ * @param {{ facts: object, anchors: object|null, src: string, score: number, model: string, chain: object }} ctx контекст генерації
+ * @returns {Promise<{ md: string, score: number, issues: string[], judge: object }|null>} прийнята виправлена версія або null (лишаємо оригінал)
+ */
+async function judgeRefinePass(r, judge, { facts, anchors, src, score, model, chain }) {
+  const { body: intentBody, without } = splitProtected(r.md)
+  const fixedRaw = await callLlm(judgeRefineMessages(without, judge.reason), model, { timeoutMs: LOCAL_TIMEOUT_MS })
+  let fixed = stripSection(fixedRaw)
+  if (!fixed.startsWith('#')) fixed = `# ${basename(facts.relPath)}\n\n${fixed}`
+  const fixedMd = insertProtected(fixed + '\n', intentBody)
+  // Guard 1: рерайт не має губити секції (малі моделі інколи повертають фрагмент)
+  const origHeadings = r.md.match(/^##\s.+$/gm) ?? []
+  if (origHeadings.some(h => !fixedMd.includes(h))) return null
+  // Guard 2: det-score не має падати
+  const sFixed = scoreDoc(fixedMd, facts, { anchors, src })
+  if (sFixed.score < score) return null
+  // Guard 3: повторний суддя (той самий scope: inaccurate)
+  const judge2 = { ...(await judgeDoc(src, fixedMd, { chain })), model: JUDGE_MODEL }
+  if (judgeFailsDoc(judge2)) return null
+  return { md: fixedMd, score: sFixed.score, issues: sFixed.issues, judge: judge2 }
+}
+
+/**
+ * Judge-гейт цілком (виклик судді + опційний №6 refine): обгортка для
+ * generateDocCore, щоб тримати його cognitive complexity в межах. Помилки судді
+ * не валять генерацію — лише issue-маркер, як і раніше.
+ * @param {{ r: {md: string}, score: number, issues: string[], facts: object, anchors: object|null, src: string, model: string, chain: object }} ctx стан генерації
+ * @returns {Promise<{ judge: object|null, r: {md: string}, score: number, issues: string[] }>} оновлений стан
+ */
+async function runJudgeGate({ r, score, issues, facts, anchors, src, model, chain }) {
+  let judge = null
+  try {
+    judge = { ...(await judgeDoc(src, r.md, { chain })), model: JUDGE_MODEL }
+    // №6: суддя назвав конкретні неточності → один локальний refine-прохід
+    // (опт-аут: N_CURSOR_DOCGEN_JUDGE_REFINE=0). Прийнято лише коли всі
+    // guard-и judgeRefinePass пройдені; інакше — degraded, як раніше.
+    if (judgeFailsDoc(judge) && env.N_CURSOR_DOCGEN_JUDGE_REFINE !== '0') {
+      const refined = await judgeRefinePass(r, judge, { facts, anchors, src, score, model, chain })
+      if (refined) {
+        r = { ...r, md: refined.md }
+        score = refined.score
+        issues = [...refined.issues, 'judge-refine:won']
+        judge = refined.judge
+      } else {
+        issues = [...issues, 'judge-refine:kept-original']
+      }
+    }
+    if (judgeFailsDoc(judge)) issues = [...issues, `judge:inaccurate:${judge.confidence}`]
+  } catch (error) {
+    issues = [...issues, `judge:error: ${error.message.slice(0, 80)}`]
+  }
+  return { judge, r, score, issues }
+}
+
+/**
+ * №5 (бенч gemma-4): текст «коду файлу» для Behavior-промпта. Великий src
+ * (понад UNIT_DIGEST_TOKENS) → юніт-дайджест (імʼя + JSDoc + call-graph + тіло
+ * лише для непокритих юнітів) замість сирого коду: на ~6k токенів сирцю мала
+ * модель втрачає фокус і пише водянисто. Анкори/CRC — завжди від повного src
+ * (дайджест лише для промпта). units нема (парсинг упав чи мова без юніт-шару)
+ * — повний src, як раніше.
+ * @param {{ facts: object, estTokens: number, langExtractors: Map<string, object>, ext: string, src: string, file: string }} ctx контекст генерації
+ * @returns {string} повний src або юніт-дайджест
+ */
+function resolvePromptSrc({ facts, estTokens, langExtractors, ext, src, file }) {
+  if (facts.unsupported || estTokens <= UNIT_DIGEST_TOKENS) return src
+  const units = langExtractors.get(ext)?.extractUnits?.(src, file)
+  if (!units?.length) return src
+  // Гейт змістовності (фінальний бенч, upsert-order 23KB): дайджест виграє лише
+  // коли файл СТРУКТУРОВАНИЙ (декілька юнітів — call-graph несе інформацію) і
+  // більшість юнітів покриті JSDoc. Інакше він вироджений: (а) юніти без JSDoc →
+  // обрізані тіла без описів → Поведінка стискається до generic (246 знаків
+  // проти 1300+ на повному src, score 65); (б) один гігантський юніт → дайджест
+  // = один рядок JSDoc, вся логіка невидима. В обох випадках — повний src.
+  const covered = units.filter(u => u.doc).length
+  const structured = units.length >= 4 && covered / units.length >= 0.6
+  return structured ? buildUnitDigest(units) : src
 }
 
 /** Максимальний час генерації одного LLM-виклику. */
@@ -569,9 +708,10 @@ export async function generateDoc(
     // Варіант B: захищена секція «Призначення» з наявної доки — зберегти й подати як контекст
     const intent = existingMd ? splitProtected(existingMd).body : null
     const anchors = facts.unsupported ? null : extractAnchors(src)
+    const promptSrc = resolvePromptSrc({ facts, estTokens, langExtractors, ext, src, file })
     let r = facts.unsupported
       ? await oneShotDoc(facts, src, model, LOCAL_TIMEOUT_MS, { intent })
-      : await orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, intent })
+      : await orchestratedDoc(facts, promptSrc, model, LOCAL_TIMEOUT_MS, { anchors, intent })
 
     // unsupported (vue/py до юніт-шару): скорер не застосовний — score=null, не degraded
     // (окрім refusal-пре-гейта — див. finishUnsupported).
@@ -586,7 +726,11 @@ export async function generateDoc(
     // E4: best-of-2 — один retry з вищою температурою, det-вибір кращого
     if (score < threshold && env.N_CURSOR_DOCGEN_BEST_OF !== '0') {
       try {
-        const r2 = await orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, temperature: 0.5, intent })
+        const r2 = await orchestratedDoc(facts, promptSrc, model, LOCAL_TIMEOUT_MS, {
+          anchors,
+          temperature: 0.5,
+          intent
+        })
         const s2 = scoreDoc(r2.md, facts, { anchors, src })
         if (s2.score > score) {
           r = r2
@@ -604,12 +748,7 @@ export async function generateDoc(
     // доках, що ПРОЙШЛИ det-скорер (там ховаються false-positives). Scope: inaccurate.
     let judge = null
     if (JUDGE_ENABLED && score >= threshold) {
-      try {
-        judge = { ...(await judgeDoc(src, r.md, { chain })), model: JUDGE_MODEL }
-        if (judgeFailsDoc(judge)) issues = [...issues, `judge:inaccurate:${judge.confidence}`]
-      } catch (error) {
-        issues = [...issues, `judge:error: ${error.message.slice(0, 80)}`]
-      }
+      ;({ judge, r, score, issues } = await runJudgeGate({ r, score, issues, facts, anchors, src, model, chain }))
     }
 
     const degraded = score < threshold || judgeFailsDoc(judge)

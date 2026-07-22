@@ -1,1 +1,1 @@
-{ "auto": { "glob": "pyproject.toml" } }
+{ "auto": { "glob": "**/pyproject.toml" } }

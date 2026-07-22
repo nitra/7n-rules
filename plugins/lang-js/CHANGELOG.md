@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.14.0] - 2026-07-22
+
+### Added
+
+- storybook: новий concern `ci` (ADR Кластер 5, CI-частина) — канонічний composite action `setup-playwright-chromium` (кеш Playwright-браузерів, лише chromium) і `.github/workflows/lint-storybook.yml` (швидкий PR-прогін `vitest --project=storybook`), гейтований `requires.capability: ci:github`
+- Хвиля 2a: підтримка app-проєктів у каноні Storybook — детекція за storybook.detectApps, окремий app-скафолд (.storybook/main.js без viteConfigPath-обходу, app-preview.js з pageLoader), smoke-покриття сторінок (page-coverage), adopt-діагностика app-секцій
+
+### Fixed
+
+- storybook: viteFinal-фільтр стійкий до VueMacros-стека (Promise/масив-резолв, сімейний фільтр vite:*/vue-macros), vitest@^4 provider-factory (@vitest/browser-playwright) замість застарілого рядка `'playwright'`, flat-root layout у detectStoriesGlob (components без src/), точковий alias-мок одного модуля в mocking.mdc, і STORIES_RE false positive на `storybookTest({ configDir })` без явного include — усе за результатами пілота adopt-діагностики на nitra/components. Заодно governance package_json.rego: allowlist доповнено `@vitest/browser-playwright`.
+- canon Storybook: viteConfigPath-обхід (empty-vite.config.js), валідний iconSet-імпорт, mswLoader замість mswDecorator, повний .storybook/**-glob у CI/lint, вирівняні governance-піни (storybook ^10.5.3, root Vite build-tooling deps), knip-виключення для .storybook-артефактів
+- storybook: скоуп-детекція більше не вимагає vite.config.* пакета (source-only Vue-бібліотеки, tauri-components/npm rollout) — hasStandardBuild прибрано, vitest-config fix толерує відсутній vite.config
+
 ## [0.13.0] - 2026-07-21
 
 ### Added

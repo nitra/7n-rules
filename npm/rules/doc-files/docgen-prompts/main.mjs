@@ -1,11 +1,16 @@
 /** @see ./docs/docgen-prompts.md */
 
+import { env } from 'node:process'
+
 import { anchorsToPrompt } from '../docgen-extract-anchors/main.mjs'
 
 export const STYLE = [
   'Ти технічний письменник. Пишеш лаконічну ПОВЕДІНКОВУ документацію до коду українською, чистим Markdown.',
   'Пиши ЩО і НАВІЩО, не ЯК. Без вступів і висновків. Не обгортай у ```-блок.',
-  'Заборонено: сигнатури, типи, параметри функцій; перелік stdlib-модулів; опис regex чи внутрішніх приватних імен.'
+  'Заборонено: сигнатури, типи, параметри функцій; перелік stdlib-модулів; опис regex чи внутрішніх приватних імен.',
+  // R9-профілактика: gemma-подібні малі моделі «озвучують завдання» перед відповіддю;
+  // явна заборона з прикладами різко знижує частоту (дет-зрізання у stripSection — страховка).
+  'Виведи ЛИШЕ текст секції. ЗАБОРОНЕНО починати з мета-фраз на кшталт «Ось оновлена чорнетка…», «Оновлений текст секції:», «Як технічний письменник, я створю…» — одразу перший змістовний рядок.'
 ].join(' ')
 
 /**
@@ -32,7 +37,9 @@ function factsSummary(facts) {
   if (m.skips?.length) lines.push(`Свідомо пропускає шляхи: ${m.skips.join(', ')}`)
   // «Фабрикація > мовчання»: лише ПОЗИТИВНІ high-confidence сигнали; жодних дефолтних
   // негативів (read-only «ні», «мережа: немає») — модель echo-їть їх як хибну гарантію.
-  if (m.readOnly) lines.push('Read-only: не пише (ФС/БД)')
+  // Scoped-формулювання readOnly (як у guaranteesFromMarkers): маркер file-local,
+  // безумовне «не пише» модель розганяє до хибного «гарантує безпечність» в Огляді.
+  if (m.readOnly) lines.push('Власних операцій запису (ФС/БД) у файлі немає (імпортовані модулі не аналізувались)')
   if (m.network) lines.push('Звертається до мережі')
   if (m.catchesErrors) lines.push('Перехоплює помилки (fail-safe), не кидає винятків назовні')
   if (m.returnsFalsyOnFail) lines.push('За певних помилок повертає порожнє значення (напр. null) замість винятку')
@@ -81,10 +88,14 @@ export function sectionMessages(facts, src, anchors = null, intent = null) {
   const intentCtx = intentContext(intent)
   const multi = (facts.exports?.length || 0) > 1
 
-  // R6: Поведінка описує РІВНО експортовані імена, не службові помічники
+  // R6: Поведінка описує РІВНО експортовані імена, не службові помічники.
+  // Мульти-експорт: «Публічний API» вже містить одно-рядкові описи кожної функції
+  // (Stage 1 — дослівно з JSDoc), тож пер-функційні пункти в Поведінці дублювали б
+  // його іншими словами. Натомість — крос-функціональний наратив: те, чого
+  // немає в жодному окремому JSDoc за визначенням.
   const exportNames = (facts.exports ?? []).map(e => e.name)
   const behaviorTask = multi
-    ? 'для кожної публічної функції — один короткий пункт «що вона робить»'
+    ? 'крос-функціональний потік: у якому порядку і як функції взаємодіють між собою, звідки приходять дані і куди йдуть результати, спільні правила чи стан. НЕ переказуй кожну функцію окремим пунктом — одно-рядкові описи вже є в секції «Публічний API»'
     : 'нумерований алгоритм у бізнес-термінах'
   const onlyExports = exportNames.length
     ? ` Описуй РІВНО ці публічні імена і жодних інших: ${exportNames.join(', ')}.`
@@ -149,18 +160,20 @@ export function apiGapMessages(gapExports, anchors = null) {
 /**
  * R3 — «Огляд» ОСТАННІМ: узагальнення вже написаної Поведінки, а не здогад із
  * голого факт-листа. Лікує generic/хибний Огляд на складних файлах.
+ * Анкор-блок сюди НЕ підставляється (№8, бенч gemma-4): секції — окремі
+ * LLM-виклики, і коли анкори бачили обидва, кожен чесно вставляв «рівно один
+ * раз» → у документі виходило двічі (незграбні «посилаючись на…» в Огляді).
+ * Анкори живуть лише в Behavior-промпті; скорер R5 перевіряє документ цілком.
  * @param {object} facts факт-лист про файл
  * @param {string} behaviorText готовий текст секції «Поведінка»
- * @param {object|null} [anchors] анкори файлу
  * @param {string|null} [intent] захищена секція «Призначення» як read-only контекст
  * @returns {Array<{role:string,content:string}>} messages-масив для Огляду
  */
-export function overviewMessages(facts, behaviorText, anchors = null, intent = null) {
+export function overviewMessages(facts, behaviorText, intent = null) {
   const factsTxt = factsSummary(facts)
-  const anch = anchorsBlock(anchors)
   const dedup = intent ? ' Не дублюй секцію «Призначення».' : ''
   return msgs(
-    `${STYLE}\n\nВІДОМІ ФАКТИ:\n${factsTxt}${anch}${intentContext(intent)}`,
+    `${STYLE}\n\nВІДОМІ ФАКТИ:\n${factsTxt}${intentContext(intent)}`,
     `На основі вже написаної секції «Поведінка» (нижче) напиши «Огляд»: 1-3 речення — що файл робить і навіщо існує (роль у системі). Узагальнюй САМЕ описану поведінку, не додавай нових фактів. Без заголовка, без переліку функцій. Заборонені абстрактні формули без конкретики («перевірка/валідація/обробка даних», «відповідність контракту», «застосовує логіку») — пиши, ЩО саме і за яким контрактом.${dedup}\n\nПОВЕДІНКА:\n${behaviorText}`
   )
 }
@@ -230,7 +243,13 @@ export function guaranteesFromMarkers(facts) {
   const lines = []
   // «Фабрикація > мовчання»: лише ПОЗИТИВНІ high-confidence гарантії. Жодних
   // негативів/дефолтів (no-network, determinism) — їх не довести file-local аналізом.
-  if (m.readOnly) lines.push('- Read-only: не виконує операцій запису (ФС/БД).')
+  // readOnly — SCOPED-формулювання: маркер file-local (немає write-патернів у ЦЬОМУ
+  // файлі), але файл може викликати імпортовані модулі, які пишуть. Безумовне
+  // «Read-only: не виконує операцій запису» LLM-суддя (cloud-min) стабільно валив
+  // як inaccurate на всіх бенч-файлах efes 2026-07-21 — і мав рацію: це over-claim,
+  // який file-local аналіз не може підтвердити. Обмежене твердження — може.
+  if (m.readOnly)
+    lines.push('- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.')
   if (m.catchesErrors) lines.push('- Перехоплює помилки і не пропускає винятків назовні (fail-safe).')
   if (m.returnsFalsyOnFail) lines.push('- За певних помилок повертає порожнє значення (напр. `null`) замість винятку.')
   if (m.caches) lines.push('- Кешує результати в межах одного прогону.')
@@ -252,5 +271,54 @@ export function oneShotMessages(facts, src) {
   return msgs(
     STYLE,
     `Напиши документацію для файлу. Секції: ## Огляд (1-3 речення), ## Поведінка (нумерований/маркований алгоритм), ${multi ? '## Публічний API (назва + що робить), ' : ''}## Гарантії поведінки.\n\nФАЙЛ ${facts.relPath}:\n\`\`\`\n${src}\n\`\`\``
+  )
+}
+
+/** Поріг (у токенах, ~4 байти/токен), після якого сирий src замінюється юніт-дайджестом. */
+export const UNIT_DIGEST_TOKENS = Number(env.N_CURSOR_DOCGEN_DIGEST_TOKENS ?? 2000) || 2000
+
+/** Скільки перших рядків тіла юніта потрапляє в дайджест, коли JSDoc порожній. */
+const DIGEST_BODY_LINES = 12
+
+/**
+ * №5 (бенч gemma-4): стислий юніт-дайджест великого файлу замість сирого src у
+ * Behavior-промпті. На ~6k токенів сирцю мала модель втрачає фокус (водянисті
+ * формулювання); дайджест подає структуру — імʼя, JSDoc, call-graph, тіло лише
+ * для непокритих JSDoc юнітів (перші рядки) — і тримає промпт компактним.
+ * @param {Array<{name:string, kind:string, exported:boolean, doc:string, calls:string[], body:string}>} units юніти файлу (extractUnits)
+ * @returns {string} текстовий дайджест для вставки замість повного src
+ */
+export function buildUnitDigest(units) {
+  const parts = [
+    'СТИСЛИЙ ДАЙДЖЕСТ ФАЙЛУ (повний код не подано — файл завеликий; описуй ЛИШЕ те, що видно з дайджесту):'
+  ]
+  for (const u of units) {
+    const head = `### ${u.name} (${u.exported ? 'export ' : ''}${u.kind})`
+    const lines = [head]
+    if (u.doc) lines.push(`JSDoc: ${u.doc}`)
+    if (u.calls?.length) lines.push(`викликає: ${u.calls.join(', ')}`)
+    if (!u.doc && u.body) {
+      const bodyLines = u.body.split('\n')
+      const trimmed = bodyLines.slice(0, DIGEST_BODY_LINES).join('\n')
+      lines.push('```', trimmed + (bodyLines.length > DIGEST_BODY_LINES ? '\n…' : ''), '```')
+    }
+    parts.push(lines.join('\n'))
+  }
+  return parts.join('\n\n')
+}
+
+/**
+ * №6 — judge-refine: один локальний refine-прохід за конкретними зауваженнями
+ * LLM-судді (замість лише маркування degraded). Суддя вже сформулював, ЩО саме
+ * хибне (`reason`) — мала модель добре виправляє точкові твердження, коли їй
+ * сказано, які саме.
+ * @param {string} doc машинні секції доки (без захищеного «Призначення»)
+ * @param {string} reason зауваження судді (verdict.reason)
+ * @returns {Array<{role:string,content:string}>} messages-масив для LLM
+ */
+export function judgeRefineMessages(doc, reason) {
+  return msgs(
+    STYLE,
+    `Рецензент знайшов у документації неточності:\n${reason}\n\nВиправ ЛИШЕ хибні твердження — прибери або переформулюй їх так, щоб вони відповідали дійсності. Збережи структуру (усі ## заголовки), мову й решту тексту без змін. Поверни ПОВНИЙ виправлений markdown-документ, без преамбул.\n\nДОКУМЕНТ:\n${doc}`
   )
 }
