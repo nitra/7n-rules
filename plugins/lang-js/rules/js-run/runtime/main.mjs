@@ -251,7 +251,7 @@ async function checkProcessEnvUsage(absPackageRoot, sourcePaths, label, fail) {
       const message =
         v.kind === 'process-env'
           ? `${label}${rel}:${v.line} — process.env.${v.name}: заміни на env з '@nitra/check-env' (обов'язкова змінна + checkEnv(['${v.name}'])) або з 'node:process' (опційна)`
-          : `${label}${rel}:${v.line} — env.${v.name} (з '@nitra/check-env') без checkEnv(['${v.name}']) (або '// @7n/rules ignore-next-line checkEnv' попереду)`
+          : `${label}${rel}:${v.line} — env.${v.name} (з '@nitra/check-env') без checkEnv(['${v.name}']) (або '// n-rules:ignore-next-line checkEnv' попереду)`
       fail(message)
     }
   }
@@ -355,7 +355,7 @@ async function checkWorkspacePackage(rootDir, ignorePaths, fail, passFn, cwd) {
   const envViolations = await checkProcessEnvUsage(absPackageRoot, sourcePaths, label, fail)
   if (envViolations === 0) {
     passFn(
-      `${label}немає прямого process.env.*; усі env.* з '@nitra/check-env' закриті checkEnv(['…']) (або '// @7n/rules ignore-next-line checkEnv')`
+      `${label}немає прямого process.env.*; усі env.* з '@nitra/check-env' закриті checkEnv(['…']) (або '// n-rules:ignore-next-line checkEnv')`
     )
   }
 

@@ -3,61 +3,49 @@ type: JS Module
 title: bun-sql-scan.mjs
 resource: plugins/lang-js/rules/js-bun-db/lib/bun-sql-scan.mjs
 docgen:
-  crc: eed7dede
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  crc: 409b0016
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
   score: 100
 ---
 
-AST-сканер виявляє небезпечні патерни, пов'язані з використанням Bun SQL та PostgreSQL. Він перевіряє, чи не створюється пул з'єднань через `new SQL` всередині функції, що порушує принцип singleton на рівні модуля. Сканер також виявляє виклики `<obj>.unsafe` без відповідного маркера-коментаря `// allow-unsafe: <reason>`, що заборонено за замовчуванням для `sql.unsafe`. Крім того, він ідентифікує динамічні SQL-списки у tagged template `sql\`... IN (${arr.join}) ...\``, які не використовують параметризовані значення, а також шукає інші аномалії у використанні бібліотек `pg` (js-bun-db.mdc).
+## Огляд
+
+AST-сканер знаходить у JS/TS-коді небезпечні патерни Bun SQL через **`oxc-parser`**, без regex по тексту коду. Він виявляє `new SQL` у функції, бо пул має бути singleton на рівні модуля, виклики `unsafe` без маркера `// n-rules:allow-unsafe: <reason>` на тому ж рядку або рядком вище, а також ручні SQL-списки на кшталт `sql\`... IN (${arr.join}) ...\``, які треба замінювати на `sql`. Якщо файл не парситься або має синтаксичні помилки, сканер повертає порожній результат: спершу треба виправити синтаксис і повторити перевірку.
 
 ## Поведінка
 
-findPgFormatShimDefinitionInText знаходить визначення pg-format-сумісних шимів у коді, що використовує Bun SQL.
-findPgFormatLikeQueryWrapperInText знаходить pg-сумісні обгортки запитів виду `{ query { ... unsafe ... } }` у коді, що використовує Bun SQL.
-findBunSqlPerRequestConnectionInText знаходить створення нового екземпляра `SQL` всередині функцій, що вказує на неоптимальне використання пулу.
-findBunSqlUnsafeUseWithoutAllowMarkerInText знаходить виклики `<obj>.unsafe` без відповідного маркера-коментаря.
-findBunSqlUnsafeWithInterpolatedTemplateInText знаходить виклики `<obj>.unsafe` з інтерпольованим шаблоном, що створює структурну вразливість.
-findBunSqlPgLeftoverCallInText знаходить виклики `<obj>.connect` або `<obj>.end` у файлах з Bun SQL без маркера-коментаря.
-findUnsafeBunSqlDynamicSqlListInText знаходить динамічні SQL-списки у tagged template, де використовується `.join` замість параметризації.
-findUnsafeBunSqlInListMissingEmptyGuardInText знаходить підстановки списків у `IN (...)`, де відсутня перевірка на пустоту з `throw`.
-textHasBunSqlImport визначає, чи містить текст джерела імпорт імені `sql` або `SQL` з `"bun"`.
-textHasPgLibImport визначає, чи імпортує файл npm-пакет `pg` за допомогою `import` або `require`.
-findPgLibImportInText знаходить конкретні місця імпорту пакета `pg` у коді.
-findPgListenNotifyUsageInText знаходить використання PostgreSQL LISTEN/NOTIFY у коді, що вимагає клієнта `pg`.
-isBunSqlScanSourceFile визначає, чи підходить файл за розширенням для AST-скану.
-findJsonStringifyBeforeJsonbInText знаходить виклики `JSON.stringify` перед використанням `::jsonb` у SQL template literal-ах, що призводить до подвійної серіалізації.
-findSqlArrayWithoutTypeArgInText знаходить виклики `sql.array` або аналогічні, де відсутній другий аргумент (тип).
+Сканер приймає текст вихідного файлу й повертає списки знахідок із рядком та фрагментом коду для повідомлень правила. `isBunSqlScanSourceFile` відсікає файли поза JS/TS-сімʼєю та declaration-файли, щоб AST-перевірки запускалися лише там, де очікується виконуваний код.
+
+Основний потік працює через AST-розбір: `findBunSqlPerRequestConnectionInText`, `findBunSqlUnsafeUseWithoutAllowMarkerInText`, `findBunSqlUnsafeWithInterpolatedTemplateInText`, `findBunSqlPgLeftoverCallInText`, `findUnsafeBunSqlDynamicSqlListInText`, `findUnsafeBunSqlInListMissingEmptyGuardInText`, `findJsonStringifyBeforeJsonbInText` і `findSqlArrayWithoutTypeArgInText` шукають небезпечні або міграційні патерни Bun SQL та віддають їх як порушення для правила (js-bun-db.mdc). Якщо код не парситься, результат порожній: синтаксис має бути виправлений до повторного запуску перевірки.
+
+`findBunSqlUnsafeUseWithoutAllowMarkerInText` і `findBunSqlPgLeftoverCallInText` мають спільну модель opt-in винятків: локальний маркер має стояти безпосередньо біля виклику й фіксувати причину для ревʼю. `findBunSqlUnsafeWithInterpolatedTemplateInText` залишається суворішою перевіркою: інтерпольований dynamic SQL у `unsafe` вважається порушенням навіть за наявності маркера, бо створює injection-поверхню.
+
+Перевірки списків розділяють дві різні небезпеки: `findUnsafeBunSqlDynamicSqlListInText` ловить готові SQL-фрагменти, зібрані зі списків, а `findUnsafeBunSqlInListMissingEmptyGuardInText` вимагає, щоб списки для `IN` були окремими змінними й мали guard на порожність перед запитом. Це захищає і від ручного складання SQL, і від некоректної поведінки на порожньому наборі значень.
+
+Міграційні перевірки навколо `pg` працюють вузько, щоб не чіпати сторонні збіги. `textHasPgLibImport` дає дешевий текстовий pre-filter для точного імпорту клієнта `pg`, а `findPgLibImportInText` повертає конкретні місця імпорту. `findPgListenNotifyUsageInText` виділяє LISTEN/UNLISTEN/NOTIFY та listener подій як сигнал легітимної потреби в `pg`, бо Bun SQL не покриває цей сценарій.
+
+`findPgFormatShimDefinitionInText` і `findPgFormatLikeQueryWrapperInText` шукають залишки pg-style API у файлах із Bun SQL: format/quote helper-и та query-обгортки, що приховують `unsafe` під безпечним на вигляд інтерфейсом. Їхній результат допомагає не переносити стару SQL-поверхню в новий Bun SQL код.
+
+`findJsonStringifyBeforeJsonbInText` і `findSqlArrayWithoutTypeArgInText` фокусуються на runtime-сумісності Bun SQL: перша перевірка запобігає подвійній JSON-серіалізації перед `jsonb`, друга вимагає явного pg-типу для масивів, щоб уникнути mismatch під час виконання.
 
 ## Публічний API
 
-findPgFormatShimDefinitionInText — Виявляє визначення pg-format-сумісних шимів. Прапорує функції з іменами, що вказують на форматування (`format`, `pgFormat`, `sqlFormat`, `pgFmt`), якщо їхній вміст містить літерали або регулярні вирази з `%L`, `%I`, `%s`. Також виявляє pg-format-специфічні API (`quoteLiteral`, `quoteIdent`, `escapeLiteral`, `escapeIdent`), які не потрібні при використанні Bun SQL.
-
-findPgFormatLikeQueryWrapperInText — Виявляє pg-сумісні обгортки запитів, які маскують виклик `unsafe` під безпечне ім'я, повертаючи потенційну точку для SQL-ін'єкції.
-
-findBunSqlPerRequestConnectionInText — Виявляє створення нового об'єкта SQL (`new SQL`) всередині функцій-обробників запитів, замість використання єдиного екземпляра.
-
-findBunSqlUnsafeUseWithoutAllowMarkerInText — Виявляє виклики `unsafe` без відповідного маркера-коментаря. Забороняє використання `unsafe`, якщо значення не контролюється кодом (не вхідні дані користувача) і не є необхідним для підстановки назв таблиць/колонок або динамічного SQL/DDL.
-
-findBunSqlUnsafeWithInterpolatedTemplateInText — Виявляє використання `unsafe` з шаблонним літералом, що містить інтерполяцію (`${name}`). Попереджає, що шаблонна підстановка не екранує ідентифікатори та не прив'язує значення, створюючи ризик структурної ін'єкції.
-
-findBunSqlPgLeftoverCallInText — Виявляє виклики `connect` або `end` для pg-клієнта у файлах, що імпортують Bun SQL, без відповідного маркера-коментаря.
-
-findUnsafeBunSqlDynamicSqlListInText — Виявляє динамічні SQL-списки у контекстах `IN (...)` або `VALUES (...)`, де використовується метод `.join` серед виразів.
-
-findUnsafeBunSqlInListMissingEmptyGuardInText — Виявляє підстановки списків у `IN (...)`, які або не винесені в окрему змінну, або винесені, але перед запитом відсутня перевірка на порожній список.
-
-textHasBunSqlImport — Перевіряє, чи містить текст джерела імпорт імені `sql` або `SQL` з модуля `"bun"`. Реалізація живе в ядрі (`@7n/rules/scripts/lib/js-source-signals.mjs`, спільна з auto-rules) — тут ре-експорт.
-
-textHasPgLibImport — Перевіряє, чи імпортує файл бібліотеку `pg` (саме клієнт, а не `pg-format` чи `@types/pg`).
-
-findPgLibImportInText — Знаходить явний імпорт пакета `pg` у коді, повертаючи місце виявлення для точного відображення у повідомленнях про помилку.
-
-findPgListenNotifyUsageInText — Виявляє використання PostgreSQL команд `LISTEN`/`NOTIFY` у запитах або обробниках подій, оскільки Bun SQL поки не підтримує ці функції.
-
-findJsonStringifyBeforeJsonbInText — Знаходить виклики `JSON.stringify::jsonb` у SQL-шаблонах, що призводить до подвійної серіалізації даних.
-
-findSqlArrayWithoutTypeArgInText — Знаходить виклики функції для створення масиву (`sql.array` тощо) без вказання обов'язкового другого аргументу (типу pg-елемента), що може спричинити невідповідність типів.
+- findBunSqlPerRequestConnectionInText — Знаходить `new SQL(...)` всередині функцій (handler на кожен запит замість singleton).
+- findBunSqlUnsafeUseWithoutAllowMarkerInText — Знаходить виклики `<obj>.unsafe(...)` без маркера-коментаря `// n-rules:allow-unsafe: <reason>` на тому ж рядку або рядком вище; без маркера перевірка падає навіть на статичний рядок без інтерполяції.
+- findBunSqlUnsafeWithInterpolatedTemplateInText — Знаходить `<obj>.unsafe(template_literal_with_interpolation)` — hard fail навіть із маркером `// n-rules:allow-unsafe`, бо підстановка `${name}` не екранує значення (injection-поверхня); канон — `@scaleleap/pg-format` `format('%I', name)` для identifiers або `$N`-placeholder'и для values.
+- findBunSqlPgLeftoverCallInText — Знаходить pg-leftover виклики `<obj>.connect(...)` / `<obj>.end(...)` без маркера `// n-rules:allow-pg-leftover: <reason>` у файлах, де є `import { sql|SQL } from 'bun'` (скоп навмисно вузький — лише файли, що вже використовують Bun SQL).
+- findUnsafeBunSqlDynamicSqlListInText — Знаходить динамічні SQL-списки у TaggedTemplateExpression / TemplateLiteral в контексті `IN (...)` або `VALUES (...)`, де серед expressions є виклик `.join(...)`.
+- findUnsafeBunSqlInListMissingEmptyGuardInText — Знаходить підстановки списків у `IN (...)`, які не винесені в окрему змінну, або винесені, але перед запитом немає перевірки на пустоту з `throw`.
+- textHasPgLibImport — Дешевий текстовий pre-filter: чи імпортує файл npm-пакет `pg` (не матчить `pg-format`/`pg-pool`/`@types/pg`).
+- findPgLibImportInText — Знаходить ImportDeclaration / `require('pg')` для точного пакета `pg`, повертає рядок і snippet для повідомлень `fail`.
+- findPgListenNotifyUsageInText — Знаходить використання PostgreSQL LISTEN/NOTIFY (query-виклики, `.on('notification', ...)`, sql tagged template) — сигнал легітимної потреби в `pg` (Bun SQL поки не реалізує LISTEN/NOTIFY).
+- findPgFormatShimDefinitionInText — Знаходить визначення pg-format-сумісних шимів (`format`/`pgFormat`/`sqlFormat`/`pgFmt` з `%L`/`%I`/`%s`, або `quoteLiteral`/`quoteIdent`/`escapeLiteral`/`escapeIdent`) у файлах з Bun SQL import.
+- findPgFormatLikeQueryWrapperInText — Знаходить pg-сумісні query-обгортки виду `{ query(text, params) { return <sql>.unsafe(text, params) } }`, що маскують `unsafe` під «безпечним» ім'ям.
+- isBunSqlScanSourceFile — Чи сканувати цей файл за розширенням (JS/TS-сімʼя, без `.d.ts`).
+- findJsonStringifyBeforeJsonbInText — Знаходить виклики `JSON.stringify(...)::jsonb` усередині SQL template literal-ів — Bun SQL серіалізує самостійно, явний виклик призводить до подвійної серіалізації.
+- findSqlArrayWithoutTypeArgInText — Знаходить виклики `sql.array(arr)` / `pgWrite.array(arr)` / `pgRead.array(arr)` без обов'язкового другого аргументу (типу pg-елемента), інакше Bun не може вивести pg-тип.
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.

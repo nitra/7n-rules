@@ -147,10 +147,10 @@ const r = sql.unsafe('SELECT * FROM users')
     expect(hits.length).toBe(1)
   })
 
-  test('пропускає sql.unsafe() з маркером // allow-unsafe: <reason>', () => {
+  test('пропускає sql.unsafe() з маркером // n-rules:allow-unsafe: <reason>', () => {
     const code = `
 import { sql } from 'bun'
-// allow-unsafe: dynamic table name controlled by config
+// n-rules:allow-unsafe: dynamic table name controlled by config
 const r = sql.unsafe('SELECT * FROM ' + tableName)
 `
     expect(findBunSqlUnsafeUseWithoutAllowMarkerInText(code)).toHaveLength(0)

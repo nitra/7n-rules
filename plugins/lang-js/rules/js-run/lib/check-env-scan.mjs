@@ -11,8 +11,8 @@
  *     (порядок не важливий, кілька викликів зливаються в один список).
  *
  * Обидва контракти можна точково «приглушити» коментарем-маркером
- * `// \@7n/rules ignore-next-line checkEnv` на рядку безпосередньо перед
- * порушенням — це залишається сумісним escape-hatch для legacy-коду.
+ * `// n-rules:ignore-next-line checkEnv` на рядку безпосередньо перед
+ * порушенням.
  *
  * Семантика береться з **oxc-parser** через `parseProgramOrNull`: regex по тілу
  * файлу не використовується, лише сирий текст рядка з коментарем перевіряється
@@ -32,8 +32,7 @@
 import { offsetToLine, parseProgramOrNull, walkAstWithAncestors } from '@7n/rules/scripts/utils/ast-scan-utils.mjs'
 
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/u
-// Приймає і legacy `@nitra/cursor` маркер — консюмерський код з ним не має ламатись після перейменування
-const IGNORE_DIRECTIVE_RE = /\/\/\s*(?:@7n\/rules|@nitra\/cursor)\s+ignore-next-line\s+checkEnv\b/u
+const IGNORE_DIRECTIVE_RE = /\/\/\s*n-rules:ignore-next-line\s+checkEnv\b/u
 
 const CHECK_ENV_PACKAGE = '@nitra/check-env'
 
@@ -130,7 +129,7 @@ function hasCheckEnvImport(programNode) {
 }
 
 /**
- * Чи закритий рядок ignore-коментарем `// \@7n/rules ignore-next-line checkEnv`.
+ * Чи закритий рядок ignore-коментарем `// n-rules:ignore-next-line checkEnv`.
  * @param {string[]} lines рядки файлу (split за \n, без CR)
  * @param {number} oneBasedLine 1-based номер рядка з порушенням
  * @returns {boolean} true, якщо попередній рядок містить маркер
