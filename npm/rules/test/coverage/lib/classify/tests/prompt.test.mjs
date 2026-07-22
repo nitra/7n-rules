@@ -16,7 +16,7 @@ vi.mock('node:path', () => ({
     const base = p.split('/').pop()
     return ext ? base.replace(ext, '') : base
   }),
-  dirname: vi.fn(p => p.substring(0, p.lastIndexOf('/')))
+  dirname: vi.fn(p => p.slice(0, p.lastIndexOf('/')))
 }))
 
 const mockMutant = {

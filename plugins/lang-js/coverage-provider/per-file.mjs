@@ -20,7 +20,7 @@ import { quickClassify } from './lib/quick-classify.mjs'
 import { resolveAllJsRoots } from './lib/resolve-js-root.mjs'
 
 /** JS/TS-джерела делта-гейта (без `.vue` — Storybook-вимір). */
-const DELTA_SOURCE_RE = /\.(c|m)?[jt]sx?$/
+const DELTA_SOURCE_RE = /\.[cm]?[jt]sx?$/
 /** Тест-файли/сторі — вимірюються, але не гейтяться як джерела. */
 const NON_SOURCE_RE = /\.(test|spec)\.[^.]+$|(?:^|[/\\])tests?[/\\]|\.stories\.[^.]+$/
 /** Конфіг-файли тулінгу — не unit-тестовні джерела. */
@@ -129,6 +129,73 @@ function isGateCandidate(rel) {
 }
 
 /**
+ * Файли делта-скоупу, що належать одному jsRoot (relative до нього).
+ * @param {string[]} files змінені файли relative до cwd
+ * @param {string} cwd корінь проєкту
+ * @param {string} jsRoot абсолютний шлях workspace-кореня
+ * @returns {string[]} кандидати гейта під цим root-ом
+ */
+function scopeGateFiles(files, cwd, jsRoot) {
+  const out = []
+  for (const f of files) {
+    if (!isGateCandidate(f)) continue
+    const rel = relative(jsRoot, join(cwd, f))
+    if (rel.startsWith('..') || isAbsolute(rel)) continue
+    out.push(rel)
+  }
+  return out
+}
+
+/**
+ * Мапить per-file lcov-рядки root-а у делта-рядки гейта (relative до cwd),
+ * відсіюючи файли, яким тести не потрібні (`quickClassify`).
+ * @param {Array<{file: string, pct: number, linesFound: number, linesCovered: number}>} perFile lcov-рядки
+ * @param {Set<string>} wanted запитані файли (relative до jsRoot)
+ * @param {string} cwd корінь проєкту
+ * @param {string} jsRoot абсолютний шлях workspace-кореня
+ * @returns {Array<{file: string, pct: number, linesFound: number, linesCovered: number, reason?: string}>} рядки гейта
+ */
+function toGateRows(perFile, wanted, cwd, jsRoot) {
+  const rows = []
+  for (const row of perFile) {
+    const rel = isAbsolute(row.file) ? relative(jsRoot, row.file) : row.file
+    if (!wanted.has(rel)) continue
+    const abs = join(jsRoot, rel)
+    const verdict = existsSync(abs) ? quickClassify(readFileSync(abs, 'utf8')) : null
+    if (verdict?.needsTests === false) continue
+    rows.push({ ...row, file: relative(cwd, abs), ...(verdict?.reason && { reason: verdict.reason }) })
+  }
+  return rows
+}
+
+/**
+ * Вимір одного jsRoot: scoped vitest-прогін → parseLcovPerFile → рядки гейта.
+ * @param {string} jsRoot абсолютний шлях workspace-кореня
+ * @param {string} cwd корінь проєкту
+ * @param {string[]} rootFiles кандидати гейта (relative до jsRoot)
+ * @param {typeof defaultRunner} runner spawn-інʼєкція
+ * @returns {Promise<Array<{file: string, pct: number, linesFound: number, linesCovered: number, reason?: string}>>} рядки гейта root-а
+ */
+async function collectRootRows(jsRoot, cwd, rootFiles, runner) {
+  const lcovDir = await mkdtemp(join(tmpdir(), 'delta-cov-'))
+  try {
+    const code = await runner.runJsCoverage({
+      cwd: jsRoot,
+      lcovDir,
+      excludeStorybookProject: true,
+      extraArgs: rootFiles.map(f => `--coverage.include=${f}`)
+    })
+    if (code !== 0) throw new Error(`delta coverage: vitest exit ${code} (root ${relative(cwd, jsRoot) || '.'})`)
+    const lcovPath = join(lcovDir, 'lcov.info')
+    if (!existsSync(lcovPath)) return []
+    const perFile = parseLcovPerFile(await readFile(lcovPath, 'utf8'))
+    return toGateRows(perFile, new Set(rootFiles), cwd, jsRoot)
+  } finally {
+    await rm(lcovDir, { recursive: true, force: true })
+  }
+}
+
+/**
  * Міряє per-file line coverage змінених файлів по всіх JS-roots проєкту.
  * Прогін suite повний (`--passWithNoTests`), але lcov обмежено зміненими
  * файлами через `--coverage.include` — файли без жодного тесту зʼявляються
@@ -147,13 +214,7 @@ export async function collectPerFile(cwd, opts) {
   const rootHasVitest = existsSync(rootPkgPath) && hasVitestDep(JSON.parse(readFileSync(rootPkgPath, 'utf8')))
 
   for (const jsRoot of jsRoots) {
-    const rootFiles = []
-    for (const f of opts.files) {
-      if (!isGateCandidate(f)) continue
-      const rel = relative(jsRoot, join(cwd, f))
-      if (rel.startsWith('..') || isAbsolute(rel)) continue
-      rootFiles.push(rel)
-    }
+    const rootFiles = scopeGateFiles(opts.files, cwd, jsRoot)
     if (rootFiles.length === 0) continue
 
     // package.json без vitest (і без hoisted vitest у корені) → root не
@@ -163,31 +224,7 @@ export async function collectPerFile(cwd, opts) {
     if (!existsSync(pkgPath)) continue
     if (!rootHasVitest && !hasVitestDep(JSON.parse(readFileSync(pkgPath, 'utf8')))) continue
 
-    const lcovDir = await mkdtemp(join(tmpdir(), 'delta-cov-'))
-    try {
-      const includeArgs = rootFiles.map(f => `--coverage.include=${f}`)
-      const code = await runner.runJsCoverage({
-        cwd: jsRoot,
-        lcovDir,
-        excludeStorybookProject: true,
-        extraArgs: includeArgs
-      })
-      if (code !== 0) throw new Error(`delta coverage: vitest exit ${code} (root ${relative(cwd, jsRoot) || '.'})`)
-      const lcovPath = join(lcovDir, 'lcov.info')
-      if (!existsSync(lcovPath)) continue
-      const perFile = parseLcovPerFile(await readFile(lcovPath, 'utf8'))
-      const wanted = new Set(rootFiles)
-      for (const row of perFile) {
-        const rel = isAbsolute(row.file) ? relative(jsRoot, row.file) : row.file
-        if (!wanted.has(rel)) continue
-        const abs = join(jsRoot, rel)
-        const verdict = existsSync(abs) ? quickClassify(readFileSync(abs, 'utf8')) : null
-        if (verdict?.needsTests === false) continue
-        rows.push({ ...row, file: relative(cwd, abs), ...(verdict?.reason ? { reason: verdict.reason } : {}) })
-      }
-    } finally {
-      await rm(lcovDir, { recursive: true, force: true })
-    }
+    rows.push(...(await collectRootRows(jsRoot, cwd, rootFiles, runner)))
   }
 
   return rows

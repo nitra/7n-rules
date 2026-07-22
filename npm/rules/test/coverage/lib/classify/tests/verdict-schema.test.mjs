@@ -33,7 +33,7 @@ describe('parseVerdict', () => {
     const raw = String.raw`{"verdict":"worth-testing","confidence":0.8,"reason":"matches against /\d+/ pattern which is never exercised with negative input"}`
     const verdict = parseVerdict(raw)
     expect(verdict.verdict).toBe('worth-testing')
-    expect(verdict.reason).toContain('/\\d+/')
+    expect(verdict.reason).toContain(String.raw`/\d+/`)
   })
 
   it('repairs a literal newline inside a string value', () => {

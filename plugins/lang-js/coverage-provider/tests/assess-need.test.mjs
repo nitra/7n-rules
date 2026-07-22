@@ -42,7 +42,7 @@ describe('quickClassify', () => {
   })
 
   it('returns null for ambiguous file (function without branches)', () => {
-    const result = quickClassify('export const greet = name => `Hello, ${name}!`')
+    const result = quickClassify('export const greet = name => `Hello, ` + name')
     expect(result).toBeNull()
   })
 

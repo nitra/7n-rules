@@ -51,7 +51,7 @@ export async function isStorybookRoot(jsRoot) {
     return false
   }
   const devDeps = pkg.devDependencies ?? {}
-  return STORYBOOK_CANON_DEV_DEPS.some(name => Boolean(devDeps[name]))
+  return STORYBOOK_CANON_DEV_DEPS.some(name => devDeps[name])
 }
 
 /**

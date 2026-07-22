@@ -3,7 +3,7 @@ type: JS Module
 title: plugin-api.mjs
 resource: npm/scripts/lib/plugin-api.mjs
 docgen:
-  crc: c614a880
+  crc: 72b55c0e
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
   issues: judge:inaccurate:0.98

@@ -242,11 +242,11 @@ describe('js coverage collect()', () => {
       functions: { covered: 4, total: 8 }
     })
     expect(rows[0].mutation).toEqual({ caught: 2, total: 4 })
-    expect(rows[0].survived.map(g => g.file).sort()).toEqual([
+    expect(rows[0].survived.map(g => g.file).toSorted()).toEqual([
       join('cf', 'a', 'src', 'a.js'),
       join('cf', 'b', 'src', 'b.js')
     ])
-    expect(cwds.sort()).toEqual([join(dir, 'cf', 'a'), join(dir, 'cf', 'b')])
+    expect(cwds.toSorted()).toEqual([join(dir, 'cf', 'a'), join(dir, 'cf', 'b')])
 
     rmSync(dir, { recursive: true, force: true })
   })

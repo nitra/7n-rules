@@ -12,7 +12,12 @@ import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
 import { lint, PLAYWRIGHT_ACTION_REL, STORYBOOK_WORKFLOW_REL } from '../main.mjs'
-import { patterns, renderPackageDirsYaml, renderPlaywrightAction, renderStorybookWorkflow } from '../fix-storybook-ci.mjs'
+import {
+  patterns,
+  renderPackageDirsYaml,
+  renderPlaywrightAction,
+  renderStorybookWorkflow
+} from '../fix-storybook-ci.mjs'
 
 const CONCERN_DIR = join(import.meta.dirname, '..')
 

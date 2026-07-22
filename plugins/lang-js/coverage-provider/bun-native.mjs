@@ -14,7 +14,7 @@ import { walk } from './fs-walk.mjs'
 const BUN_NATIVE_IMPORT_RE = /(?:from|import\s*\(|require\s*\()\s*(['"])bun(?::(?!test)[\w.-]+)?\1/u
 
 /** JS/TS prod-розширення, які скануємо на bun-native імпорти. */
-const JS_SOURCE_RE = /\.(c|m)?[jt]sx?$/
+const JS_SOURCE_RE = /\.[cm]?[jt]sx?$/
 /** Тест-файли — не prod-код: `bun:test`/vitest-імпорти там не сигнал bun-native. */
 const TEST_FILE_RE = /\.(test|spec)\.[^.]+$/
 /** Тест-файли, які запускає `bun test` (для пре-скану «чи є що ганяти»). */

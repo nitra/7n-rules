@@ -23,7 +23,10 @@ describe('readThresholds', () => {
   test('пороги читаються з .n-rules.json#coverage', async () => {
     writeFileSync(
       join(dir, '.n-rules.json'),
-      JSON.stringify({ rules: [], coverage: { coverageThreshold: 60, mutationThreshold: 50, classifyConfidenceThreshold: 0.7 } })
+      JSON.stringify({
+        rules: [],
+        coverage: { coverageThreshold: 60, mutationThreshold: 50, classifyConfidenceThreshold: 0.7 }
+      })
     )
     expect(await readThresholds(dir)).toEqual({ coverage: 60, mutation: 50, classify: 0.7 })
   })

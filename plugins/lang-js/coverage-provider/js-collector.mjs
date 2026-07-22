@@ -28,7 +28,7 @@ const FILE_EXTENSION = /\.[^.]+$/
  * тощо), НЕ Storybook-сторі (`@storybook/addon-vitest`, browser mode) — детальніше про чому
  * див. коментар над `collectStorybookForRoot` нижче.
  */
-const JS_FILE = /\.(c|m)?[jt]sx?$|\.vue$/
+const JS_FILE = /\.[cm]?[jt]sx?$|\.vue$/
 /** Тест-файли (`*.test.*` / `*.spec.*`) — НЕ production-код, не йдуть у Stryker `--mutate`. */
 const TEST_FILE = /\.(test|spec)\.[^.]+$/
 /** `.vue`-компоненти + `*.stories.*` — сигнал для Storybook-змінного scope (line coverage). */
@@ -217,6 +217,56 @@ export function findExampleTest(jsRoot, filename) {
 }
 
 /**
+ * Рядки source-файлу для витягу original-фрагментів мутантів (fallback —
+ * порожній масив, якщо файл недоступний).
+ * @param {string} jsRoot корінь workspace
+ * @param {string} filePath відносний шлях файлу зі звіту Stryker
+ * @returns {string[]} рядки файлу або []
+ */
+function readFileLines(jsRoot, filePath) {
+  try {
+    return readFileSync(join(jsRoot, filePath), 'utf8').split('\n')
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Лічба мутантів одного файлу зі звіту Stryker: caught/total + докладання
+ * survived-мутантів у `byFile`.
+ * @param {string} filePath відносний шлях файлу
+ * @param {{mutants: Array<object>}} fileData дані файлу зі звіту
+ * @param {string|null} jsRoot корінь для читання source (null — без survived-деталей)
+ * @param {Map<string, Array<object>>} byFile акумулятор survived-мутантів
+ * @returns {{caught: number, total: number}} лічильники файлу
+ */
+function tallyFileMutants(filePath, fileData, jsRoot, byFile) {
+  let caught = 0
+  let total = 0
+  let fileLines = null
+  for (const mutant of fileData.mutants) {
+    if (mutant.status === 'Killed' || mutant.status === 'Timeout') {
+      caught += 1
+      total += 1
+      continue
+    }
+    if (mutant.status !== 'Survived' && mutant.status !== 'NoCoverage') continue
+    total += 1
+    if (mutant.status !== 'Survived' || !jsRoot || !mutant.location) continue
+    fileLines ??= readFileLines(jsRoot, filePath)
+    if (!byFile.has(filePath)) byFile.set(filePath, [])
+    byFile.get(filePath).push({
+      line: mutant.location.start.line,
+      col: mutant.location.start.column,
+      mutantType: mutant.mutatorName ?? 'Unknown',
+      original: extractOriginal(fileLines, mutant.location),
+      replacement: mutant.replacement ?? ''
+    })
+  }
+  return { caught, total }
+}
+
+/**
  * Парс Stryker mutation.json: Killed+Timeout → caught; Survived+NoCoverage → до total.
  * Compile/Runtime помилки виключаються з total.
  * Survived мутанти групуються по файлах з exampleTest.
@@ -231,32 +281,9 @@ export function parseStrykerReport(report, jsRoot) {
   const byFile = new Map()
 
   for (const [filePath, fileData] of Object.entries(report.files)) {
-    let fileLines = null
-    for (const mutant of fileData.mutants) {
-      if (mutant.status === 'Killed' || mutant.status === 'Timeout') {
-        caught += 1
-        total += 1
-      } else if (mutant.status === 'Survived' || mutant.status === 'NoCoverage') {
-        total += 1
-        if (mutant.status === 'Survived' && jsRoot && mutant.location) {
-          if (!fileLines) {
-            try {
-              fileLines = readFileSync(join(jsRoot, filePath), 'utf8').split('\n')
-            } catch {
-              fileLines = []
-            }
-          }
-          if (!byFile.has(filePath)) byFile.set(filePath, [])
-          byFile.get(filePath).push({
-            line: mutant.location.start.line,
-            col: mutant.location.start.column,
-            mutantType: mutant.mutatorName ?? 'Unknown',
-            original: extractOriginal(fileLines, mutant.location),
-            replacement: mutant.replacement ?? ''
-          })
-        }
-      }
-    }
+    const tallied = tallyFileMutants(filePath, fileData, jsRoot, byFile)
+    caught += tallied.caught
+    total += tallied.total
   }
 
   const survived = []
@@ -341,7 +368,8 @@ export const defaultRunner = {
     // base !== undefined ⇔ --changed-режим: vitest сам рахує зачеплені змінами тести
     // через граф імпортів. `--changed <base>` порівнює base↔робоче дерево (committed і
     // uncommitted разом); `--changed` без аргументу — uncommitted vs HEAD.
-    const changedArgs = base === undefined ? [] : base === null ? ['--changed'] : ['--changed', base]
+    let changedArgs = []
+    if (base !== undefined) changedArgs = base === null ? ['--changed'] : ['--changed', base]
     // excludeStorybookProject: коли root — Storybook-workspace, named vitest-проєкт
     // "storybook" (browser mode, Playwright) типово живе у ТОМУ Ж vitest.config.mjs, що
     // й звичайний JS-suite (canonical setup @storybook/addon-vitest — projects: [...]).
@@ -407,7 +435,8 @@ export const defaultRunner = {
     // Coverage сторі рахує сам Storybook-vitest-addon (browser mode, Playwright Chromium)
     // через named vitest-проєкт "storybook" (канонічний vitest.config для Vue-проєктів,
     // див. npm/docs) — той самий контракт lcov, що й у звичайного vitest run --coverage.
-    const changedArgs = base === undefined ? [] : base === null ? ['--changed'] : ['--changed', base]
+    let changedArgs = []
+    if (base !== undefined) changedArgs = base === null ? ['--changed'] : ['--changed', base]
     const r = spawnSync(
       'bunx',
       [
@@ -490,6 +519,38 @@ export const defaultRunner = {
 }
 
 /**
+ * Читає і парсить `reports/stryker/mutation.json` після прогону Stryker.
+ * Відсутній звіт — помилка конфігурації: кидає з підказкою про canonical
+ * stryker.config (і Storybook-специфічний hint про ізольований
+ * vitest.stryker.config.*, коли root — канонічний Storybook-пакет: Stryker
+ * vitest-runner не підтримує Playwright-based browser mode і падає без звіту).
+ * @param {string} jsRoot абсолютний шлях workspace-кореня
+ * @param {boolean} isStorybookRootPkg чи root — канонічний Storybook-пакет
+ * @returns {Promise<{caught:number,total:number,survived:Array<object>}>} результат parseStrykerReport
+ * @throws {Error} коли mutation.json відсутній
+ */
+async function readParsedMutationReport(jsRoot, isStorybookRootPkg) {
+  const mutationPath = join(jsRoot, 'reports', 'stryker', 'mutation.json')
+  if (!existsSync(mutationPath)) {
+    const storybookHint = isStorybookRootPkg
+      ? ' Root — канонічний Storybook-пакет (identity-devDeps у package.json): ' +
+        'stryker.config.mjs#vitest.configFile має вказувати на ізольований ' +
+        'vitest.stryker.config.mjs (генерує концерн storybook-vitest-config, npx @7n/rules lint test), ' +
+        'бо основний vitest.config містить browser-mode проєкт "storybook", ' +
+        'який не підтримується vitest-runner.'
+      : ''
+    throw new Error(
+      'js coverage: stryker не залишив mutation.json — ' +
+        'переконайся що встановлено canonical stryker.config.mjs (vitest-runner, perTest), ' +
+        'або налаштуй його вручну.' +
+        storybookHint
+    )
+  }
+  const mutationReport = JSON.parse(await readFile(mutationPath, 'utf8'))
+  return parseStrykerReport(mutationReport, jsRoot)
+}
+
+/**
  * Збирає метрики покриття + мутаційного тестування для **одного** JS-root.
  *
  * Full-режим (`scope === null`): vitest на всьому suite + Stryker на всіх файлах
@@ -517,7 +578,7 @@ export const defaultRunner = {
  * кидаються — у multi-root режимі це не маскує справжній збій.
  * @param {string} jsRoot абсолютний шлях до workspace-кореня
  * @param {string} cwd корінь проєкту (для рібейзингу `survived[].file`)
- * @param {{runJsCoverage:Function, runStryker:Function, runBunCoverage:Function}} runner spawn-ін'єкція
+ * @param {typeof defaultRunner} runner spawn-ін'єкція (повний або частковий)
  * @param {{files:string[], base:string|null}|null} [scope] changed-scope (null = full-режим)
  * @returns {Promise<{coverage:object, mutation:{caught:number,total:number}, survived:Array<object>} | null>} результати або null коли full-режим і workspace без тестів
  */
@@ -560,13 +621,12 @@ async function collectOneRoot(jsRoot, cwd, runner, scope = null) {
   const lcovDir = await mkdtemp(join(tmpdir(), 'js-cov-'))
   let coverage
   try {
+    const jsCoverageOpts = scope
+      ? { cwd: jsRoot, lcovDir, base: scope.base, excludeStorybookProject }
+      : { cwd: jsRoot, lcovDir, excludeStorybookProject }
     const code = bunNative
       ? await runner.runBunCoverage({ cwd: jsRoot, lcovDir })
-      : await runner.runJsCoverage(
-          scope
-            ? { cwd: jsRoot, lcovDir, base: scope.base, excludeStorybookProject }
-            : { cwd: jsRoot, lcovDir, excludeStorybookProject }
-        )
+      : await runner.runJsCoverage(jsCoverageOpts)
     if (code !== 0) throw new Error(`JS coverage exit ${code}`)
     const lcovPath = join(lcovDir, 'lcov.info')
     coverage = existsSync(lcovPath)
@@ -602,30 +662,7 @@ async function collectOneRoot(jsRoot, cwd, runner, scope = null) {
   // спершу fail-fast контракт канону: stryker.config.* → ізольований vitest.stryker.config.*.
   if (isStorybook) assertStorybookStrykerIsolation(jsRoot, wsRel)
   await runner.runStryker(scope ? { cwd: jsRoot, mutate: mutateSrc } : { cwd: jsRoot })
-  const mutationPath = join(jsRoot, 'reports', 'stryker', 'mutation.json')
-  if (!existsSync(mutationPath)) {
-    // Stryker vitest-runner не підтримує сучасний (Playwright-based) vitest browser mode
-    // (докладніше — коментар над collectStorybookForRoot): якщо стрикер-фейсінг vitest-конфіг
-    // (на який вказує stryker.config.mjs#vitest.configFile) містить named-проєкт "storybook",
-    // Stryker намагається виконати і його — і падає без mutation.json. Канонічне виправлення
-    // (канон Storybook, Кластер 5): ізольований vitest.stryker.config.* (генерує правило
-    // storybook) — той самий unit-набір без browser-mode projects.
-    const storybookHint = excludeStorybookProject
-      ? ' Root — канонічний Storybook-пакет (identity-devDeps у package.json): ' +
-        'stryker.config.mjs#vitest.configFile має вказувати на ізольований ' +
-        'vitest.stryker.config.mjs (генерує концерн storybook-vitest-config, npx @7n/rules lint test), ' +
-        'бо основний vitest.config містить browser-mode проєкт "storybook", ' +
-        'який не підтримується vitest-runner.'
-      : ''
-    throw new Error(
-      'js coverage: stryker не залишив mutation.json — ' +
-        'переконайся що встановлено canonical stryker.config.mjs (vitest-runner, perTest), ' +
-        'або налаштуй його вручну.' +
-        storybookHint
-    )
-  }
-  const mutationReport = JSON.parse(await readFile(mutationPath, 'utf8'))
-  const parsed = parseStrykerReport(mutationReport, jsRoot)
+  const parsed = await readParsedMutationReport(jsRoot, excludeStorybookProject)
 
   return {
     coverage,
@@ -641,6 +678,52 @@ async function collectOneRoot(jsRoot, cwd, runner, scope = null) {
         : null
     }))
   }
+}
+
+/**
+ * Full-режим Storybook-мутації через canonical Stryker command-runner
+ * (`STORYBOOK_STRYKER_CONFIG`): якщо конфіг налаштовано і runner уміє
+ * `runStorybookStrykerFull` — читає `STORYBOOK_STRYKER_REPORT` і будує
+ * результат; інакше чесний skip із попередженням (лише line coverage).
+ * @param {string} jsRoot абсолютний шлях workspace-кореня
+ * @param {string} wsRel відносний шлях root-а (для звіту/рібейзингу)
+ * @param {typeof defaultRunner} runner spawn-інʼєкція
+ * @param {object} coverage зібраний line-coverage root-а
+ * @returns {Promise<{coverage:object, mutation:{caught:number,total:number}, survived:Array<object>}>} результат виміру
+ * @throws {Error} коли command runner упав і не лишив звіту
+ */
+async function collectStorybookFullMutation(jsRoot, wsRel, runner, coverage) {
+  const hasCanonicalConfig = existsSync(join(jsRoot, STORYBOOK_STRYKER_CONFIG))
+  if (hasCanonicalConfig && typeof runner.runStorybookStrykerFull === 'function') {
+    const code = await runner.runStorybookStrykerFull({ cwd: jsRoot })
+    const reportPath = join(jsRoot, STORYBOOK_STRYKER_REPORT)
+    if (code !== 0 && !existsSync(reportPath)) {
+      throw new Error(
+        `Storybook Stryker (command runner) exit ${code} — перевір ${STORYBOOK_STRYKER_CONFIG} ` +
+          '(testRunner: "command", commandRunner.command, jsonReporter.fileName, inPlace: true), ' +
+          'define __STRYKER_ACTIVE_MUTANT__ у vite-конфізі browser-проєкту ' +
+          'і docgen: false у .storybook/main.js#framework.options (див. npm/docs/stryker-storybook-config.md)'
+      )
+    }
+    if (existsSync(reportPath)) {
+      const report = JSON.parse(await readFile(reportPath, 'utf8'))
+      const parsed = parseStrykerReport(report, jsRoot)
+      console.log(
+        `✓ ${wsRel || '.'}: Storybook mutation (Stryker command runner) — ${parsed.caught}/${parsed.total} вбито`
+      )
+      return {
+        coverage,
+        mutation: { caught: parsed.caught, total: parsed.total },
+        survived: parsed.survived.map(group => ({
+          ...group,
+          file: wsRel === '' ? group.file : join(wsRel, group.file)
+        }))
+      }
+    }
+  }
+  const skipReason = hasCanonicalConfig ? 'runner без runStorybookStrykerFull' : `нема ${STORYBOOK_STRYKER_CONFIG}`
+  console.error(`⚠ ${wsRel || '.'}: Storybook (Vue) — mutation testing пропущено (${skipReason}), лише line coverage`)
+  return { coverage, mutation: { caught: 0, total: 0 }, survived: [] }
 }
 
 /**
@@ -708,7 +791,7 @@ async function collectOneRoot(jsRoot, cwd, runner, scope = null) {
  * на боці виклику); інакше `null` (root пропускається повністю для цього виміру).
  * @param {string} jsRoot абсолютний шлях workspace-кореня
  * @param {string} cwd корінь проєкту (для рібейзингу `survived[].file`)
- * @param {{runStorybookCoverage:Function, runStorybookMutantTest?:Function, proposeStorybookLlmMutants?:Function, runStorybookStrykerFull?:Function}} runner spawn-ін'єкція
+ * @param {typeof defaultRunner} runner spawn-ін'єкція (повний або частковий)
  * @param {{files:string[], base:string|null}|null} [scope] changed-scope (null = full-режим)
  * @returns {Promise<{coverage:object, mutation:{caught:number,total:number}, survived:Array<object>} | null>} результат або null коли root не Storybook/без сторі/без relevant-змін
  */
@@ -720,7 +803,7 @@ async function collectStorybookForRoot(jsRoot, cwd, runner, scope = null) {
   const lcovDir = await mkdtemp(join(tmpdir(), 'sb-cov-'))
   let coverage
   let coveredLines = new Map()
-  let baselineMs = 0
+  let baselineMs
   try {
     const startedAt = Date.now()
     const code = await runner.runStorybookCoverage(
@@ -751,39 +834,7 @@ async function collectStorybookForRoot(jsRoot, cwd, runner, scope = null) {
   // його налаштував (див. npm/docs/stryker-storybook-config.md). Без canonical
   // конфіга або без runStorybookStrykerFull у runner-і — чесний skip, як і раніше.
   if (!scope) {
-    const hasCanonicalConfig = existsSync(join(jsRoot, STORYBOOK_STRYKER_CONFIG))
-    if (hasCanonicalConfig && typeof runner.runStorybookStrykerFull === 'function') {
-      const code = await runner.runStorybookStrykerFull({ cwd: jsRoot })
-      const reportPath = join(jsRoot, STORYBOOK_STRYKER_REPORT)
-      if (code !== 0 && !existsSync(reportPath)) {
-        throw new Error(
-          `Storybook Stryker (command runner) exit ${code} — перевір ${STORYBOOK_STRYKER_CONFIG} ` +
-            '(testRunner: "command", commandRunner.command, jsonReporter.fileName, inPlace: true), ' +
-            'define __STRYKER_ACTIVE_MUTANT__ у vite-конфізі browser-проєкту ' +
-            'і docgen: false у .storybook/main.js#framework.options (див. npm/docs/stryker-storybook-config.md)'
-        )
-      }
-      if (existsSync(reportPath)) {
-        const report = JSON.parse(await readFile(reportPath, 'utf8'))
-        const parsed = parseStrykerReport(report, jsRoot)
-        console.log(
-          `✓ ${wsRel || '.'}: Storybook mutation (Stryker command runner) — ${parsed.caught}/${parsed.total} вбито`
-        )
-        return {
-          coverage,
-          mutation: { caught: parsed.caught, total: parsed.total },
-          survived: parsed.survived.map(group => ({
-            ...group,
-            file: wsRel === '' ? group.file : join(wsRel, group.file)
-          }))
-        }
-      }
-    }
-    console.error(
-      `⚠ ${wsRel || '.'}: Storybook (Vue) — mutation testing пропущено ` +
-        `(${hasCanonicalConfig ? 'runner без runStorybookStrykerFull' : `нема ${STORYBOOK_STRYKER_CONFIG}`}), лише line coverage`
-    )
-    return { coverage, mutation: { caught: 0, total: 0 }, survived: [] }
+    return collectStorybookFullMutation(jsRoot, wsRel, runner, coverage)
   }
 
   // Changed-режим: guard на runStorybookMutantTest тримає сумісність із
@@ -865,6 +916,29 @@ function buildAreaRow(area, results) {
 }
 
 /**
+ * Changed-режим одного root-а: обидва виміри (JS + Storybook) лише коли
+ * серед змінених файлів є relevant для відповідного скоупу.
+ * @param {string} jsRoot абсолютний шлях workspace-кореня
+ * @param {string} cwd корінь проєкту
+ * @param {typeof defaultRunner} runner spawn-інʼєкція
+ * @param {{changedFiles?: string[], base?: string|null}} opts changed-scope
+ * @returns {Promise<{js: object|null, storybook: object|null}>} результати вимірів (null — вимір не застосовний)
+ */
+async function collectChangedRoot(jsRoot, cwd, runner, opts) {
+  const jsFiles = scopeToRoot(opts.changedFiles, cwd, jsRoot)
+  const js =
+    jsFiles.length > 0 ? await collectOneRoot(jsRoot, cwd, runner, { files: jsFiles, base: opts.base ?? null }) : null
+
+  const sbFiles = scopeToStorybookRoot(opts.changedFiles, cwd, jsRoot)
+  const storybook =
+    sbFiles.length > 0
+      ? await collectStorybookForRoot(jsRoot, cwd, runner, { files: sbFiles, base: opts.base ?? null })
+      : null
+
+  return { js, storybook }
+}
+
+/**
  * Збирає JS-метрики покриття + мутаційного тестування, і окремо — Storybook-покриття
  * (Vue/React/... компоненти зі сторі, `collectStorybookForRoot`). У monorepo ітерує усі
  * JS-roots з `resolveAllJsRoots()` (включно з glob-патернами `cf/*`), для кожного root-а
@@ -893,28 +967,14 @@ export async function collect(cwd, opts = {}) {
   const jsResults = []
   const storybookResults = []
   for (const jsRoot of jsRoots) {
-    if (changed) {
-      const jsFiles = scopeToRoot(opts.changedFiles, cwd, jsRoot)
-      if (jsFiles.length > 0) {
-        const scope = { files: jsFiles, base: opts.base ?? null }
-        const r = await collectOneRoot(jsRoot, cwd, runner, scope)
-        if (r !== null) jsResults.push(r)
-      }
-
-      const sbFiles = scopeToStorybookRoot(opts.changedFiles, cwd, jsRoot)
-      if (sbFiles.length > 0) {
-        const sbScope = { files: sbFiles, base: opts.base ?? null }
-        const sb = await collectStorybookForRoot(jsRoot, cwd, runner, sbScope)
-        if (sb !== null) storybookResults.push(sb)
-      }
-      continue
-    }
-
-    const r = await collectOneRoot(jsRoot, cwd, runner, null)
-    if (r !== null) jsResults.push(r)
-
-    const sb = await collectStorybookForRoot(jsRoot, cwd, runner, null)
-    if (sb !== null) storybookResults.push(sb)
+    const { js, storybook } = changed
+      ? await collectChangedRoot(jsRoot, cwd, runner, opts)
+      : {
+          js: await collectOneRoot(jsRoot, cwd, runner, null),
+          storybook: await collectStorybookForRoot(jsRoot, cwd, runner, null)
+        }
+    if (js !== null) jsResults.push(js)
+    if (storybook !== null) storybookResults.push(storybook)
   }
 
   const rows = []

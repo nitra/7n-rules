@@ -8,13 +8,13 @@
 /** Рядки чистого module-wiring — без тестовної логіки. */
 const WIRING_RE = /^(import\b|export\s+(?:\{[^}]*\}|\*|type\b|interface\b|enum\b))/
 /** Блок-коментарі `/* … *​/` (для stripComments). */
-const BLOCK_COMMENT_RE = /\/\*[\s\S]*?\*\//g
+const BLOCK_COMMENT_RE = /\/\*[^*]*\*+(?:[^*/][^*]*\*+)*\//g
 /** Рядкові коментарі `// …` (для stripComments). */
 const LINE_COMMENT_RE = /\/\/[^\n]*/g
 /** Розгалуження (`if`/`switch`) — сигнал тестовної логіки. */
 const BRANCHES_RE = /\bif\s*\(|\bswitch\s*\(/
 /** Тіла функцій (декларація або стрілка з блоком). */
-const FUNCTIONS_RE = /\bfunction\s*\w*\s*\(|=>\s*\{/
+const FUNCTIONS_RE = /\bfunction\b[^(]*\(|=>\s*\{/
 
 /**
  * Прибирає JS/TS-коментарі перед евристичним аналізом.

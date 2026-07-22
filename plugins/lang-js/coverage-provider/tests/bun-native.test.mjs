@@ -45,7 +45,7 @@ describe('isBunNativeRoot', () => {
     // Fixture-рядок навмисно не пишеться як буквальний `from 'bun:test'` (текстовий,
     // не AST-aware detector `test/no-bun-test-import` інакше сприйняв би цей рядок
     // fixture-даних за справжній import і переписав його на 'vitest' — зламавши тест).
-    const dir = makeFixture({ 'src/helper.js': `import { test } from '${'bun:test'}'\n` })
+    const dir = makeFixture({ 'src/helper.js': `import { test } from '${['bun', 'test'].join(':')}'\n` })
     expect(await isBunNativeRoot(dir)).toBe(false)
     rmSync(dir, { recursive: true, force: true })
   })

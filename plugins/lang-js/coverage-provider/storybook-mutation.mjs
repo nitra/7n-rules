@@ -108,8 +108,11 @@ export function extractMutableCode(file, source) {
  */
 function buildLineIndex(source) {
   const starts = [0]
-  for (let i = 0; i < source.length; i++) {
-    if (source[i] === '\n') starts.push(i + 1)
+  // Ітерація індексом, не for-of по source: рядок не має .entries(), а offset потрібен числом.
+  let idx = source.indexOf('\n')
+  while (idx !== -1) {
+    starts.push(idx + 1)
+    idx = source.indexOf('\n', idx + 1)
   }
   return starts
 }
@@ -144,9 +147,9 @@ function walkAst(node, visit) {
     return
   }
   if (typeof node.type === 'string') visit(node)
-  for (const key of Object.keys(node)) {
+  for (const [key, child] of Object.entries(node)) {
     if (key === 'type' || key === 'start' || key === 'end') continue
-    walkAst(node[key], visit)
+    walkAst(child, visit)
   }
 }
 

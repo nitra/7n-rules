@@ -1,5 +1,7 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { getFailingTests, buildFixTestsPrompt, fixFailingTests } from '../fix/fix-tests.mjs'
+import * as fs from 'node:fs'
+import { findTestRules } from '../fix/gen-tests.mjs'
 
 vi.mock('node:child_process', () => ({ spawnSync: vi.fn() }))
 vi.mock('node:fs', () => ({
@@ -26,9 +28,6 @@ vi.mock('@7n/rules/rules/test/coverage/lib/llm.mjs', async importOriginal => {
 vi.mock('../fix/gen-tests.mjs', () => ({
   findTestRules: vi.fn().mockReturnValue(null)
 }))
-
-import * as fs from 'node:fs'
-import { findTestRules } from '../fix/gen-tests.mjs'
 
 const mockDir = '/proj'
 

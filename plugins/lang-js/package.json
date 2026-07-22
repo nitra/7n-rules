@@ -64,6 +64,7 @@
     "stylelint": "^17.6.0"
   },
   "peerDependencies": {
+    "@7n/llm-lib": ">=2.8.0",
     "@7n/rules": ">=1.27.0",
     "vue": "^3.0.0"
   },
@@ -75,6 +76,9 @@
     "node": ">=24"
   },
   "peerDependenciesMeta": {
+    "@7n/llm-lib": {
+      "optional": true
+    },
     "vue": {
       "optional": true
     }

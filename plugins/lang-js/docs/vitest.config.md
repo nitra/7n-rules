@@ -3,7 +3,7 @@ type: JS Module
 title: vitest.config.mjs
 resource: plugins/lang-js/vitest.config.mjs
 docgen:
-  crc: cae0a22a
+  crc: d14aa8d0
 ---
 
 ## Огляд

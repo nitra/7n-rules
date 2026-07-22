@@ -25,7 +25,6 @@ import { extractMutableCode } from './storybook-mutation.mjs'
 /** LLM-мутанти сортуються ПІСЛЯ детермінованих тірів 1–5 (власна стеля — не конкурують). */
 const LLM_TIER = 6
 const MAX_PROPOSALS = 6
-const JSON_ARRAY_RE = /\[[\s\S]*\]/
 
 const SYSTEM_PROMPT = `You are a mutation-testing expert. Propose realistic, bug-like mutants for the JavaScript code below — the kind of subtle bugs a developer could actually introduce.
 
@@ -65,7 +64,7 @@ function numberLines(code, startLine) {
 function validateProposal(p, sourceLines, lineOffsets, coveredLines) {
   if (!p || typeof p !== 'object') return null
   const { line, original, replacement } = p
-  if (!Number.isInteger(line) || line < 1 || line > sourceLines.length) return null
+  if (!Number.isSafeInteger(line) || line < 1 || line > sourceLines.length) return null
   if (!coveredLines.has(line)) return null
   if (typeof original !== 'string' || original.length === 0) return null
   if (typeof replacement !== 'string' || replacement === original) return null
@@ -165,7 +164,9 @@ export async function proposeLlmMutants(opts) {
 
   let proposals
   try {
-    proposals = JSON.parse(JSON_ARRAY_RE.exec(text)?.[0] ?? '[]')
+    const arrStart = text.indexOf('[')
+    const arrEnd = text.lastIndexOf(']')
+    proposals = JSON.parse(arrStart !== -1 && arrEnd > arrStart ? text.slice(arrStart, arrEnd + 1) : '[]')
   } catch {
     return []
   }

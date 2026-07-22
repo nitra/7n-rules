@@ -25,16 +25,21 @@ export const VerdictSchema = z.object({
 
 const VALID_JSON_ESCAPES = new Set(['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u'])
 
+/** Пробільний символ (для peekNextStructural). */
+const WHITESPACE_RE = /\s/u
+/** Fenced json-блок (потрійні бектіки) у raw-відповіді LLM. */
+const FENCED_JSON_RE = /```(?:json)?\s*([\s\S]*?)```/iu
+
 /**
- * Перший non-whitespace символ від `from` (для рішення "ця `"` закриває
- * рядок чи це буквальна лапка всередині значення").
+ * Перший non-whitespace символ від `from` — рішення, чи подвійна лапка
+ * закриває рядок, чи це буквальна лапка всередині значення.
  * @param {string} text текст
  * @param {number} from індекс, з якого шукати
  * @returns {string | undefined} символ або undefined якщо кінець тексту
  */
 function peekNextStructural(text, from) {
   let i = from
-  while (i < text.length && /\s/u.test(text[i])) i++
+  while (i < text.length && WHITESPACE_RE.test(text[i])) i++
   return text[i]
 }
 
@@ -60,7 +65,7 @@ function repairAndBalance(text) {
           out += ch + next
           i++
         } else {
-          out += '\\\\' // невалідний escape (напр. \d, \s) → буквальний backslash
+          out += String.raw`\\` // невалідний escape (напр. \d, \s) → буквальний backslash
         }
         continue
       }
@@ -71,20 +76,20 @@ function repairAndBalance(text) {
           inString = false
           out += ch
         } else {
-          out += '\\"' // буквальна лапка всередині значення (напр. цитата коду)
+          out += String.raw`\"` // буквальна лапка всередині значення (напр. цитата коду)
         }
         continue
       }
       if (ch === '\n') {
-        out += '\\n'
+        out += String.raw`\n`
         continue
       }
       if (ch === '\r') {
-        out += '\\r'
+        out += String.raw`\r`
         continue
       }
       if (ch === '\t') {
-        out += '\\t'
+        out += String.raw`\t`
         continue
       }
       out += ch
@@ -122,7 +127,7 @@ function repairAndBalance(text) {
  * @returns {string | null} candidate-текст, що починається з першого `{`, або null
  */
 function extractJsonCandidate(rawText) {
-  const fenced = rawText.match(/```(?:json)?\s*([\s\S]*?)```/iu)
+  const fenced = rawText.match(FENCED_JSON_RE)
   const text = fenced ? fenced[1] : rawText
   const start = text.indexOf('{')
   return start === -1 ? null : text.slice(start)

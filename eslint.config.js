@@ -28,7 +28,7 @@ export default [
       // Канонічні Storybook-шаблони (storybook.mdc) — snippets, які fix-scaffold.mjs копіює
       // у консюмер-пакети (Vue-бібліотеки); foreign imports (vite/@vitejs/plugin-vue/quasar)
       // не є залежностями цього репо, і файли не виконуються тут.
-      'plugins/lang-js/rules/storybook/scaffold/template/**'
+      'plugins/lang-js/rules/test/storybook-scaffold/template/**'
     ]
   },
   ...getConfig({

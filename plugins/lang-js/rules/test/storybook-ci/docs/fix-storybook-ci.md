@@ -3,9 +3,8 @@ type: JS Module
 title: fix-storybook-ci.mjs
 resource: plugins/lang-js/rules/test/storybook-ci/fix-storybook-ci.mjs
 docgen:
-  crc: 877b9feb
+  crc: 31fd74d0
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 90
   judgeModel: openai-codex/gpt-5.4-mini
 ---

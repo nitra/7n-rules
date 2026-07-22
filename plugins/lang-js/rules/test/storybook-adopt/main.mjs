@@ -21,7 +21,12 @@ import { isRunAsCli } from '@7n/rules/scripts/cli-entry.mjs'
 
 import { collectInScopeVuePackages } from '../storybook-scope/main.mjs'
 import { MAIN_JS_MARKERS, missingMarkers, PREVIEW_JS_MARKERS, STORYBOOK_SCRIPT } from '../storybook-scaffold/main.mjs'
-import { renderEmptyViteConfig, renderMainJs, renderMocksGqlSse, renderPreviewJs } from '../storybook-scaffold/fix-storybook-scaffold.mjs'
+import {
+  renderEmptyViteConfig,
+  renderMainJs,
+  renderMocksGqlSse,
+  renderPreviewJs
+} from '../storybook-scaffold/fix-storybook-scaffold.mjs'
 import { buildFreshVitestConfig, buildStrykerConfig } from '../storybook-vitest-config/fix-storybook-vitest-config.mjs'
 import {
   BROWSER_KEY_RE,
