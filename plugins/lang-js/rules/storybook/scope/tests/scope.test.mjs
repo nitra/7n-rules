@@ -100,11 +100,12 @@ describe('collectInScopeVuePackages', () => {
     await rm(root, { recursive: true, force: true })
   })
 
-  test('пакет із vue у peerDependencies і ≥3 .vue-файлами — у скоупі', async () => {
+  test('пакет із vue у peerDependencies і ≥3 .vue-файлами — у скоупі, type: library', async () => {
     await writeVueLibraryPkg(root, 'packages/ui', VUE_FILE_THRESHOLD)
     const result = await collectInScopeVuePackages(root)
     expect(result.map(r => r.rootDir)).toEqual(['packages/ui'])
     expect(result[0].vueFileCount).toBe(VUE_FILE_THRESHOLD)
+    expect(result[0].type).toBe('library')
   })
 
   test('поріг: менше VUE_FILE_THRESHOLD .vue-файлів — поза скоупом', async () => {
@@ -173,7 +174,7 @@ describe('collectInScopeVuePackages', () => {
     expect(result).toEqual([])
   })
 
-  test('app-проєкт потрапляє у скоуп лише за явного storybook.detectApps=true', async () => {
+  test('app-проєкт потрапляє у скоуп лише за явного storybook.detectApps=true, type: app', async () => {
     await writeFileDeep(
       root,
       'packages/demo/package.json',
@@ -187,6 +188,22 @@ describe('collectInScopeVuePackages', () => {
     expect(await readDetectAppsFlag(root)).toBe(true)
     const result = await collectInScopeVuePackages(root)
     expect(result.map(r => r.rootDir)).toEqual(['packages/demo'])
+    expect(result[0].type).toBe('app')
+  })
+
+  test('app-проєкт без порога VUE_FILE_THRESHOLD — smoke-рівень хвилі 2a, одна сторінка досить', async () => {
+    await writeFileDeep(
+      root,
+      'packages/demo/package.json',
+      JSON.stringify({ name: 'demo', dependencies: { vue: '^3.6.0' } }, null, 2)
+    )
+    await writeFileDeep(root, 'packages/demo/vite.config.js', 'export default {}\n')
+    await writeFileDeep(root, 'packages/demo/src/pages/task/[id].vue', '<template/>')
+    await writeFileDeep(root, '.n-rules.json', JSON.stringify({ rules: [], storybook: { detectApps: true } }, null, 2))
+    const result = await collectInScopeVuePackages(root)
+    expect(result.map(r => r.rootDir)).toEqual(['packages/demo'])
+    expect(result[0].vueFileCount).toBe(1)
+    expect(result[0].type).toBe('app')
   })
 })
 

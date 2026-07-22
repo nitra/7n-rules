@@ -21,6 +21,9 @@ export const VUE_FILE_THRESHOLD = 3
  * @property {string} absDir абсолютний шлях кореня пакета
  * @property {Record<string, unknown>} pkg розпарсений `package.json` пакета
  * @property {number} vueFileCount кількість знайдених `.vue`-файлів
+ * @property {'library'|'app'} type тип пакета — Vue-компонентна бібліотека (хвиля 1) чи
+ *   app-проєкт зі сторінками (хвиля 2a, `storybook.detectApps`); downstream-concern-и
+ *   (`scaffold`/`adopt`/page-coverage) розгалужують перевірки за цим полем
  */
 
 /**
@@ -98,14 +101,20 @@ export function isVueAppPkg(pkg) {
 
 /**
  * Перевіряє один workspace-корінь на відповідність предикату скоупу (бібліотека чи app) і,
- * за успіху, повертає його `InScopePackage`-запис.
+ * за успіху, повертає його `InScopePackage`-запис (без поля `type` — його проставляє викликач,
+ * бо той самий predicate-механізм переюзається для обох типів). Поріг {@link VUE_FILE_THRESHOLD}
+ * — опційний: хвиля 2a (app-проєкти) свідомо БЕЗ порога (ADR-розширення, smoke-рівень покриття),
+ * на відміну від бібліотек хвилі 1.
  * @param {string} rootDir відносний корінь пакета
  * @param {string} cwd абсолютний корінь репозиторію
  * @param {(pkg: Record<string, unknown>) => boolean} matches предикат скоупу (бібліотека/app)
  * @param {string[]} ignorePaths абсолютні шляхи, повністю виключені з обходу
- * @returns {Promise<InScopePackage|null>} запис пакета або `null`, якщо поза скоупом
+ * @param {{ requireThreshold?: boolean }} [opts] `requireThreshold` (типово `true`) — вимагати
+ *   не менше {@link VUE_FILE_THRESHOLD} `.vue`-файлів; `false` — app-проєкти хвилі 2a
+ * @returns {Promise<Omit<InScopePackage, 'type'>|null>} запис пакета (без `type`) або `null`
  */
-async function evaluateCandidate(rootDir, cwd, matches, ignorePaths) {
+async function evaluateCandidate(rootDir, cwd, matches, ignorePaths, opts = {}) {
+  const { requireThreshold = true } = opts
   const absDir = rootDir === '.' ? cwd : join(cwd, rootDir)
   const pkgPath = join(absDir, 'package.json')
   if (!existsSync(pkgPath)) return null
@@ -117,21 +126,25 @@ async function evaluateCandidate(rootDir, cwd, matches, ignorePaths) {
   }
   if (!matches(pkg)) return null
   const vueFileCount = await countVueFiles(absDir, ignorePaths)
-  if (vueFileCount < VUE_FILE_THRESHOLD) return null
+  if (requireThreshold && vueFileCount < VUE_FILE_THRESHOLD) return null
   return { rootDir, absDir, pkg, vueFileCount }
 }
 
 /**
- * Збирає workspace-пакети у скоупі канону Storybook хвилі 1: Vue-компонентна бібліотека
+ * Збирає workspace-пакети у скоупі канону Storybook: Vue-компонентна бібліотека хвилі 1
  * (`vue` у `peerDependencies`, маркер `isVueComponentLibraryPkg` — той самий, що й `vue.mdc`)
- * з не менше {@link VUE_FILE_THRESHOLD} `.vue`-файлами, без `storybook.optOut`. Наявність
- * `vite.config.*` пакета — НЕ умова скоупу (rollout tauri-components/npm, хвиля 1.4):
+ * з не менше {@link VUE_FILE_THRESHOLD} `.vue`-файлами, без `storybook.optOut` — тип `library`.
+ * Наявність `vite.config.*` пакета — НЕ умова скоупу (rollout tauri-components/npm, хвиля 1.4):
  * канонічний скафолд (`viteConfigPath` на `empty-vite.config.js`, `loadConfigFromFile`
  * толерує відсутній конфіг) працює й для source-only Vue-бібліотек без власного Vite-білду
- * — див. секцію "Скоуп" у `main.mdc`. Хвиля 2 (app-проєкти) додається лише за явного
- * прапорця `storybook.detectApps` у `.n-rules.json`.
+ * — див. секцію "Скоуп" у `main.mdc`.
+ *
+ * Опційно (лише за `storybook.detectApps: true` у `.n-rules.json`) — app-проєкти хвилі 2a:
+ * `vue` у `dependencies` (не бібліотека) + наявний `src/pages/` — тип `app`, свідомо
+ * **без** порога {@link VUE_FILE_THRESHOLD} (ADR-розширення 2026-07-20: сторінкове покриття —
+ * smoke-рівень, поріг відсікав би легітимні app-проєкти з 1-2 сторінками).
  * @param {string} cwd абсолютний корінь репозиторію
- * @returns {Promise<InScopePackage[]>} пакети у скоупі
+ * @returns {Promise<InScopePackage[]>} пакети у скоупі (з полем `type`)
  */
 export async function collectInScopeVuePackages(cwd) {
   const roots = await getMonorepoPackageRootDirs(cwd)
@@ -143,7 +156,7 @@ export async function collectInScopeVuePackages(cwd) {
   const result = []
   for (const rootDir of candidateRoots) {
     const found = await evaluateCandidate(rootDir, cwd, isVueComponentLibraryPkg, ignorePaths)
-    if (found) result.push(found)
+    if (found) result.push({ ...found, type: 'library' })
   }
 
   if (await readDetectAppsFlag(cwd)) {
@@ -151,8 +164,8 @@ export async function collectInScopeVuePackages(cwd) {
       if (result.some(r => r.rootDir === rootDir)) continue
       const absDir = rootDir === '.' ? cwd : join(cwd, rootDir)
       if (!existsSync(join(absDir, 'src/pages'))) continue
-      const found = await evaluateCandidate(rootDir, cwd, isVueAppPkg, ignorePaths)
-      if (found) result.push(found)
+      const found = await evaluateCandidate(rootDir, cwd, isVueAppPkg, ignorePaths, { requireThreshold: false })
+      if (found) result.push({ ...found, type: 'app' })
     }
   }
 

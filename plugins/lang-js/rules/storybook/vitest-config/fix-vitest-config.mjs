@@ -226,16 +226,17 @@ function planProjectsEdit(src, testObj, unitEntry, storybookEntry) {
  * `null` — правку застосовувати не треба (усе вже канонічно).
  * @param {string} absPkgDir абсолютний шлях кореня пакета
  * @param {string} vitestConfigPath абсолютний шлях vitest-конфіга
+ * @param {'library'|'app'} [type] тип пакета — впливає лише на stories-glob нового запису
  * @returns {Promise<string | null>} новий вміст файлу або null
  */
-async function computeVitestConfigAugment(absPkgDir, vitestConfigPath) {
+async function computeVitestConfigAugment(absPkgDir, vitestConfigPath, type) {
   const src = await readFile(vitestConfigPath, 'utf8')
   const parsed = parseModule(vitestConfigPath, src)
   if (parsed.errors?.length) return null
   const testObj = findTestObject(parsed.program)
   if (!testObj) return null
 
-  const storiesGlob = storiesGlobForVitestConfig(absPkgDir)
+  const storiesGlob = storiesGlobForVitestConfig(absPkgDir, type)
   const unitEntry = await readTemplateExportedObject(join(TEMPLATE_DIR, 'unit-project-entry.js'))
   const storybookEntryRaw = await readTemplateExportedObject(join(TEMPLATE_DIR, 'storybook-project-entry.js'))
   const storybookEntry = storybookEntryRaw.split(STORIES_GLOB_TOKEN).join(storiesGlob)
@@ -279,11 +280,12 @@ function applyViteConfigImport(template, viteConfigName) {
  * пакета без жодного наявного vitest-конфіга. Експортовано — переюз у
  * `adopt/main.mjs` (генерація лише для повністю відсутніх файлів).
  * @param {string} absPkgDir абсолютний шлях кореня пакета
+ * @param {'library'|'app'} [type] тип пакета — впливає лише на stories-glob
  * @returns {Promise<{ path: string, content: string }>} шлях і вміст нового файлу
  */
-export async function buildFreshVitestConfig(absPkgDir) {
+export async function buildFreshVitestConfig(absPkgDir, type) {
   const template = await readFile(join(TEMPLATE_DIR, 'vitest.config.baseline.mjs'), 'utf8')
-  const storiesGlob = storiesGlobForVitestConfig(absPkgDir)
+  const storiesGlob = storiesGlobForVitestConfig(absPkgDir, type)
   const viteConfigName = resolveViteConfigName(absPkgDir)
   const withStories = template.split(STORIES_GLOB_TOKEN).join(storiesGlob)
   const content = applyViteConfigImport(withStories, viteConfigName)
@@ -310,22 +312,23 @@ export async function buildStrykerConfig(absPkgDir) {
  * @param {string} rootDir root dir пакета
  * @param {string} absPkgDir абсолютний шлях кореня пакета
  * @param {import('@7n/rules/scripts/lib/lint-surface/types.mjs').FixContext} ctx fix-контекст
+ * @param {'library'|'app'} [type] тип пакета (`violation.data.type`) — впливає лише на stories-glob
  * @returns {Promise<string[]>} абсолютні шляхи змінених файлів
  */
-async function fixOnePackage(rootDir, absPkgDir, ctx) {
+async function fixOnePackage(rootDir, absPkgDir, ctx, type) {
   const touchedFiles = []
   const existingVitestConfigPath = resolveVitestConfigPath(absPkgDir)
   let vitestConfigPath = existingVitestConfigPath
 
   if (existingVitestConfigPath) {
-    const augmented = await computeVitestConfigAugment(absPkgDir, existingVitestConfigPath)
+    const augmented = await computeVitestConfigAugment(absPkgDir, existingVitestConfigPath, type)
     if (augmented !== null) {
       ctx.recordWrite?.(existingVitestConfigPath)
       await writeFile(existingVitestConfigPath, augmented, 'utf8')
       touchedFiles.push(existingVitestConfigPath)
     }
   } else {
-    const fresh = await buildFreshVitestConfig(absPkgDir)
+    const fresh = await buildFreshVitestConfig(absPkgDir, type)
     ctx.recordWrite?.(fresh.path)
     await writeFile(fresh.path, fresh.content, 'utf8')
     touchedFiles.push(fresh.path)
@@ -355,13 +358,13 @@ export const patterns = [
         const rootDir = v.data?.rootDir
         if (typeof rootDir !== 'string') continue
         if (!rootDirs.has(rootDir)) {
-          rootDirs.set(rootDir, rootDir === '.' ? ctx.cwd : join(ctx.cwd, rootDir))
+          rootDirs.set(rootDir, { absPkgDir: rootDir === '.' ? ctx.cwd : join(ctx.cwd, rootDir), type: v.data?.type })
         }
       }
 
       const touchedFiles = []
-      for (const [rootDir, absPkgDir] of rootDirs) {
-        const files = await fixOnePackage(rootDir, absPkgDir, ctx)
+      for (const [rootDir, { absPkgDir, type }] of rootDirs) {
+        const files = await fixOnePackage(rootDir, absPkgDir, ctx, type)
         touchedFiles.push(...files)
       }
 

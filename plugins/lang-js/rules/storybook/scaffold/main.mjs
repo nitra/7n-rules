@@ -44,6 +44,44 @@ export const PREVIEW_JS_MARKERS = [
 ]
 
 /**
+ * Маркери канону `.storybook/main.js` для app-проєктів (хвиля 2a) — свідома дзеркальна
+ * асиметрія з {@link MAIN_JS_MARKERS} бібліотек: тут немає `viteConfigPath`, бо
+ * `@storybook/builder-vite` навмисно підхоплює ПОВНИЙ `vite.config.js` app-проєкту
+ * (ADR-розширення 2026-07-20, прототип `gt`). Експортовано — переюз у `adopt/main.mjs`.
+ */
+export const APP_MAIN_JS_MARKERS = [
+  { token: '@storybook/vue3-vite', hint: 'framework @storybook/vue3-vite' },
+  { token: 'staticDirs', hint: 'staticDirs на ./public (msw service worker)' },
+  { token: 'viteFinal', hint: 'viteFinal-фільтр file-system-routing плагінів' },
+  { token: "'vite-plugin-pages'", hint: 'фільтр vite-plugin-pages у viteFinal' },
+  { token: "'vite-plugin-vue-layouts'", hint: 'фільтр vite-plugin-vue-layouts у viteFinal' },
+  { token: "'vite-plugin-vue-layouts-next'", hint: 'фільтр vite-plugin-vue-layouts-next у viteFinal' },
+  { token: "'unplugin-vue-router'", hint: 'фільтр unplugin-vue-router у viteFinal' }
+]
+
+/**
+ * Маркери канону `.storybook/preview.js` для app-проєктів (хвиля 2a): `pageLoader`
+ * (router+pinia на кожну story) і явна реєстрація `QLayout`/`QPageContainer` для
+ * layout-декоратора story-файлу — на додачу до спільних msw-маркерів бібліотеки.
+ * Експортовано — переюз у `adopt/main.mjs`.
+ */
+export const APP_PREVIEW_JS_MARKERS = [
+  { token: 'msw-storybook-addon', hint: 'msw-storybook-addon' },
+  { token: 'onUnhandledRequest', hint: 'onUnhandledRequest-фільтр' },
+  { token: 'mswLoader', hint: 'mswLoader (не mswDecorator — deprecated у msw-storybook-addon 2.x)' },
+  { token: 'pageLoader', hint: 'pageLoader — router/pinia на кожну story за parameters.route/parameters.pinia' },
+  { token: 'createMemoryHistory', hint: 'createMemoryHistory — реальний параметризований маршрут сторінки' },
+  { token: 'QLayout', hint: 'явна реєстрація QLayout (q-page кидає без layout-предка)' },
+  { token: 'QPageContainer', hint: 'явна реєстрація QPageContainer' }
+]
+
+/**
+ * Stories-glob для app-проєктів (хвиля 2a) — фіксований, без layout-детекції бібліотек:
+ * сторінки (`src/pages/`) і сусідні `*.stories.js` живуть у довільних піддиректоріях `src/`.
+ */
+export const APP_STORIES_GLOB = '../src/**/*.stories.@(js|ts)'
+
+/**
  * Маркери канону `.storybook/empty-vite.config.js` (сусідній файл main.js — стенд-ін для
  * `core.builder.options.viteConfigPath`, блокує autodiscovery `vite.config` пакета
  * `@storybook/builder-vite`-ом). Експортовано — переюз у `adopt/main.mjs`.
@@ -142,16 +180,17 @@ async function checkCanonFile(
 }
 
 /**
- * Перевіряє один в-скоупі пакет: `.storybook/main.js`, `.storybook/preview.js`,
- * `package.json#scripts.storybook`.
- * @param {import('../scope/main.mjs').InScopePackage} pkgEntry пакет у скоупі
+ * Перевіряє скафолд бібліотечного пакета (тип `library`): `.storybook/main.js`,
+ * `.storybook/preview.js`, сусідній `.storybook/empty-vite.config.js`
+ * (`viteConfigPath`-стенд-ін — не потрібен app-проєктам, дзеркальна асиметрія).
+ * @param {string} absDir абсолютний корінь пакета
+ * @param {string} label людський підпис пакета
+ * @param {string} rootDir root dir пакета
+ * @param {string} relPrefix `${rootDir}/` чи `''` для кореня монорепо
  * @param {ReturnType<typeof createViolationReporter>} reporter reporter поточного лінту
  * @returns {Promise<void>}
  */
-async function checkPackageScaffold({ rootDir, absDir, pkg }, reporter) {
-  const label = rootDir === '.' ? 'корінь' : rootDir
-  const relPrefix = rootDir === '.' ? '' : `${rootDir}/`
-
+async function checkLibraryScaffold(absDir, label, rootDir, relPrefix, reporter) {
   await checkCanonFile(
     absDir,
     '.storybook/main.js',
@@ -191,6 +230,63 @@ async function checkPackageScaffold({ rootDir, absDir, pkg }, reporter) {
     `${relPrefix}.storybook/empty-vite.config.js`,
     reporter
   )
+}
+
+/**
+ * Перевіряє скафолд app-пакета (тип `app`, хвиля 2a): `.storybook/main.js`/`preview.js` за
+ * app-канонічними маркерами ({@link APP_MAIN_JS_MARKERS}/{@link APP_PREVIEW_JS_MARKERS}) —
+ * без `empty-vite.config.js`, бо `viteConfigPath`-обхід тут свідомо не застосовується
+ * (builder-vite підхоплює повний `vite.config.js` app-проєкту, ADR-розширення 2026-07-20).
+ * @param {string} absDir абсолютний корінь пакета
+ * @param {string} label людський підпис пакета
+ * @param {string} rootDir root dir пакета
+ * @param {string} relPrefix `${rootDir}/` чи `''` для кореня монорепо
+ * @param {ReturnType<typeof createViolationReporter>} reporter reporter поточного лінту
+ * @returns {Promise<void>}
+ */
+async function checkAppScaffold(absDir, label, rootDir, relPrefix, reporter) {
+  await checkCanonFile(
+    absDir,
+    '.storybook/main.js',
+    APP_MAIN_JS_MARKERS,
+    'missing-app-main-js',
+    'app-main-js-marker-missing',
+    label,
+    rootDir,
+    `${relPrefix}.storybook/main.js`,
+    reporter
+  )
+
+  await checkCanonFile(
+    absDir,
+    '.storybook/preview.js',
+    APP_PREVIEW_JS_MARKERS,
+    'missing-app-preview-js',
+    'app-preview-js-marker-missing',
+    label,
+    rootDir,
+    `${relPrefix}.storybook/preview.js`,
+    reporter
+  )
+}
+
+/**
+ * Перевіряє один в-скоупі пакет: `.storybook/main.js`, `.storybook/preview.js`
+ * (розгалужено за {@link import('../scope/main.mjs').InScopePackage.type} — бібліотека чи
+ * app, хвиля 2a) і спільний для обох типів `package.json#scripts.storybook`.
+ * @param {import('../scope/main.mjs').InScopePackage} pkgEntry пакет у скоупі
+ * @param {ReturnType<typeof createViolationReporter>} reporter reporter поточного лінту
+ * @returns {Promise<void>}
+ */
+async function checkPackageScaffold({ rootDir, absDir, pkg, type }, reporter) {
+  const label = rootDir === '.' ? 'корінь' : rootDir
+  const relPrefix = rootDir === '.' ? '' : `${rootDir}/`
+
+  if (type === 'app') {
+    await checkAppScaffold(absDir, label, rootDir, relPrefix, reporter)
+  } else {
+    await checkLibraryScaffold(absDir, label, rootDir, relPrefix, reporter)
+  }
 
   const scriptValue = pkg?.scripts?.storybook
   if (scriptValue !== STORYBOOK_SCRIPT) {

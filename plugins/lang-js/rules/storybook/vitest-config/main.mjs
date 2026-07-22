@@ -7,7 +7,7 @@ import { parseSync } from 'oxc-parser'
 
 import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/violation-reporter.mjs'
 import { collectInScopeVuePackages } from '../scope/main.mjs'
-import { detectStoriesGlob } from '../scaffold/main.mjs'
+import { APP_STORIES_GLOB, detectStoriesGlob } from '../scaffold/main.mjs'
 
 // Канонічні назви vitest-конфіга пакета (пріоритет .mjs — нові файли, js.mdc);
 // .ts підтримано для "стійкості до варіацій" (vitest-config.mdc).
@@ -91,12 +91,18 @@ export function strykerConfigPathFor(vitestConfigPath) {
 /**
  * Stories-glob для vitest-конфіга пакета (на відміну від `detectStoriesGlob`
  * scaffold-концерна — той повертає шлях відносно `.storybook/`, тут vitest-конфіг
- * лежить у корені пакета, тож префікс `../` треба зняти).
+ * лежить у корені пакета, тож префікс `../` треба зняти). Для app-пакетів (хвиля 2a,
+ * `type: 'app'`) — фіксований {@link APP_STORIES_GLOB}, НЕ layout-детекція бібліотек:
+ * app-проєкт може мати одночасно `src/components/` (переюзані презентаційні компоненти)
+ * і `src/pages/` (сторінки) — вузький `detectStoriesGlob`-glob тоді мовчки пропустив би
+ * page-stories з vitest storybook-проєкту.
  * @param {string} absPkgDir абсолютний шлях кореня пакета
+ * @param {'library'|'app'} [type] тип пакета (`InScopePackage.type`); типово `library`-детекція
  * @returns {string} glob відносно кореня пакета
  */
-export function storiesGlobForVitestConfig(absPkgDir) {
-  return detectStoriesGlob(absPkgDir).replace(STORIES_GLOB_PREFIX_RE, '')
+export function storiesGlobForVitestConfig(absPkgDir, type) {
+  const glob = type === 'app' ? APP_STORIES_GLOB : detectStoriesGlob(absPkgDir)
+  return glob.replace(STORIES_GLOB_PREFIX_RE, '')
 }
 
 /**
@@ -207,12 +213,13 @@ export function hasStoriesMarker(storybookSlice) {
 /**
  * Будує спільний контекст перевірки одного пакета (label/relPrefix/шлях vitest-конфіга).
  * @param {import('../scope/main.mjs').InScopePackage} entry пакет у скоупі
- * @returns {{rootDir: string, absDir: string, label: string, relPrefix: string, vitestConfigPath: string | null}} контекст
+ * @returns {{rootDir: string, absDir: string, type: 'library'|'app', label: string, relPrefix: string, vitestConfigPath: string | null}} контекст
  */
-function buildPackageCtx({ rootDir, absDir }) {
+function buildPackageCtx({ rootDir, absDir, type }) {
   return {
     rootDir,
     absDir,
+    type,
     label: rootDir === '.' ? 'корінь' : rootDir,
     relPrefix: rootDir === '.' ? '' : `${rootDir}/`,
     vitestConfigPath: resolveVitestConfigPath(absDir)
@@ -228,7 +235,7 @@ function buildPackageCtx({ rootDir, absDir }) {
  * @returns {Promise<void>}
  */
 async function checkVitestConfigContent(pkgCtx, reporter) {
-  const { label, relPrefix, rootDir, vitestConfigPath } = pkgCtx
+  const { label, relPrefix, rootDir, type, vitestConfigPath } = pkgCtx
   const relVitestFile = `${relPrefix}${basename(vitestConfigPath)}`
   const src = await readFile(vitestConfigPath, 'utf8')
 
@@ -259,7 +266,7 @@ async function checkVitestConfigContent(pkgCtx, reporter) {
     return
   }
 
-  const data = { rootDir, vitestConfigPath }
+  const data = { rootDir, type, vitestConfigPath }
   const projectsProp = findProperty(testObj, 'projects')
   if (!projectsProp) {
     reporter.fail(
@@ -311,7 +318,7 @@ async function checkVitestConfigContent(pkgCtx, reporter) {
     if (missingHints.length > 0) {
       reporter.fail(
         `[${label}] ${relVitestFile}: storybook-project без канонічних маркерів — бракує: ${missingHints.join(', ')} (vitest-config.mdc)`,
-        { reason: REASON_STORYBOOK_PROJECT_MARKER_MISSING, file: relVitestFile, data: { rootDir } }
+        { reason: REASON_STORYBOOK_PROJECT_MARKER_MISSING, file: relVitestFile, data: { rootDir, type } }
       )
     }
   } else {
@@ -360,7 +367,7 @@ async function checkPackage(entry, reporter) {
       {
         reason: REASON_VITEST_CONFIG_MISSING,
         file: `${pkgCtx.relPrefix}vitest.config.mjs`,
-        data: { rootDir: pkgCtx.rootDir }
+        data: { rootDir: pkgCtx.rootDir, type: pkgCtx.type }
       }
     )
     return
