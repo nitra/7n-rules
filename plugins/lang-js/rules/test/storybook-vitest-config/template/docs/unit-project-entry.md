@@ -1,7 +1,7 @@
 ---
 type: JS Module
 title: unit-project-entry.js
-resource: plugins/lang-js/rules/storybook/vitest-config/template/unit-project-entry.js
+resource: plugins/lang-js/rules/test/storybook-vitest-config/template/unit-project-entry.js
 docgen:
   crc: 84a0a5f8
   model: openai-codex/gpt-5.5

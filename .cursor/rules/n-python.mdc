@@ -58,7 +58,69 @@ JS-перевірка (`npm/rules/python/tooling/main.mjs`) запускаєть
 - `npm/rules/python/ruff/main.mjs` (+ `fix-ruff.mjs`) — `ruff check` + `ruff format --check` (детект), `ruff check --fix` + `ruff format` (autofix); per-file;
 - `npm/rules/python/mypy/main.mjs` — `mypy` (лише детект, немає autofix); per-file.
 
-Якщо `pyproject.toml` у корені відсутній — усі концерни виходять без порушень (проєкт не Python). Якщо `pyproject.toml` є, але `uv` не знайдено в PATH — це помилка. `ruff`/`mypy`-кроки запускаються лише якщо інструмент доступний у середовищі (інакше крок пропускається з повідомленням).
+Якщо `pyproject.toml` у корені відсутній — `tooling`/`project` виходять без порушень (перевіряють лише кореневий файл), але `workspace_root` ловить цей випадок як порушення (`missing-root-workspace`), якщо десь у дереві є вкладений `pyproject.toml` з `[project]` — інакше такі nested-пакети були б невидимі для всього плагіна. Якщо `pyproject.toml` є, але `uv` не знайдено в PATH — це помилка. `ruff`/`mypy`-кроки запускаються лише якщо інструмент доступний у середовищі (інакше крок пропускається з повідомленням).
+
+## Один кореневий uv workspace на репозиторій
+
+Дзеркалить JS-канон монорепо (кореневий `package.json` + `workspaces` + єдиний lockfile,
+`npm/rules/dev-dep`, `npm/rules/n-npm-module`) на бік Python — так само, як
+[`rust/workspace_root`](../../../lang-rust/rules/rust/workspace_root/workspace_root.mdc)
+дзеркалить його на бік Rust. uv workspaces навмисно змодельовані на Cargo workspaces
+(офіційна документація uv описує `[tool.uv.workspace]` як пряму паралель до `[workspace]`
+Cargo), тож семантика переноситься майже 1:1: у репозиторії, де є хоча б один Python-пакет
+(`pyproject.toml` з `[project]`), має бути **рівно один** кореневий uv workspace.
+
+### Інваріант
+
+- Кореневий `pyproject.toml` — обов'язковий і має бути workspace root: або має
+  `[tool.uv.workspace]` (virtual root — без `[project]`, або разом з `[project]`), або він —
+  **єдиний** `[project]`-маніфест у репозиторії (тоді uv неявно робить пакет власним
+  workspace root, як Cargo).
+- Кожен інший знайдений package-маніфест повинен бути покритий `[tool.uv.workspace].members`
+  кореневого `pyproject.toml` (glob `*` підтримується мінімально: `["a", "b/*"]`) — або явно
+  виключений через `workspace.exclude`.
+- Вкладений `[tool.uv.workspace]` у не-кореневому `pyproject.toml` — завжди порушення
+  (nested workspace).
+- `uv.lock` поза кореневим workspace — порушення (nested lockfile): lock має бути **лише
+  кореневий**, окрім member-ів, явно виключених через `workspace.exclude` (див. escape hatch).
+
+### Python-специфічний escape hatch: `workspace.exclude` для конфліктних залежностей
+
+На відміну від `rust/workspace_root` (де такого винятку нема — Cargo вміє резолвити кілька
+версій однієї крейти в графі), офіційна документація uv прямо радить **не** об'єднувати в
+один workspace пакети з конфліктними вимогами до залежностей (класичний приклад — різні
+пінові версії `torch`/GPU-рантайму): Python-середовище (і lockfile) дозволяє лише одну версію пакета
+одночасно, тож конфлікт unresolvable в межах спільного `uv.lock`.
+
+Тому каталог, перелічений у кореневому `[tool.uv.workspace].exclude`, — легітимний, свідомий
+опт-аут: він **не зобов'язаний** бути в `members`, і йому **дозволено** мати власний `uv.lock`
+(виняток із правила "nested lockfile" вище).
+
+### Не в обсязі: PEP 723 inline-script metadata
+
+uv підтримує запуск самодостатніх скриптів з inline `# /// script` метаданими (PEP 723) —
+це не має нічого спільного з workspace-структурою. Такий файл — не `pyproject.toml`, тож
+детектор його не бачить і не повинен на нього реагувати; згадка тут — лише для явної межі
+обсягу.
+
+### Обхід
+
+T0-детектор (без spawn `uv`) — читає лише FS + TOML (`smol-toml`, спільна утиліта
+`npm/scripts/utils/uv-workspace.mjs`, аналог `cargo-workspace.mjs`). Обходить дерево
+репозиторію, пропускаючи `node_modules/`, `.git/`, `target/`, `.next/`, `.turbo/`, `.venv/`,
+`venv/`, `.claude/`, `vendor/`, `__pycache__/`.
+
+### Не автофіксується (fixability: structural)
+
+Перенесення `[tool.uv.workspace]`, видалення дублікатних `uv.lock` — структурні зміни, що
+потребують людського розсуду. Ручний рецепт:
+
+1. Створи/підтверди кореневий `[tool.uv.workspace]` з `members`, що покривають усі
+   package-маніфести (або `exclude` — для навмисних винятків із конфліктними залежностями).
+2. Запусти `uv lock` з кореня — це створить/оновить єдиний кореневий `uv.lock`.
+3. Видали вкладені `[tool.uv.workspace]`-маніфести та вкладені `uv.lock` у не-виключених
+   member-ах — у репозиторії має лишитись один кореневий workspace і один кореневий `uv.lock`
+   (виключені через `workspace.exclude` пакети лишають свій власний `uv.lock`).
 
 ## Rego-gate: перевірка `.github/workflows/lint-python.yml`
 

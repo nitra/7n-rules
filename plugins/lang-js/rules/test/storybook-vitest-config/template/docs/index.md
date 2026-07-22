@@ -1,7 +1,7 @@
 ---
 type: Directory Index
 title: plugins/lang-js/rules/storybook/vitest-config/template
-resource: plugins/lang-js/rules/storybook/vitest-config/template/
+resource: plugins/lang-js/rules/test/storybook-vitest-config/template/
 ---
 
 | Файл                                                                    | Тип       |

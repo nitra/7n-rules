@@ -1,7 +1,7 @@
 ---
 type: JS Module
 title: gql-sse.js
-resource: plugins/lang-js/rules/storybook/scaffold/template/mocks/gql-sse.js
+resource: plugins/lang-js/rules/test/storybook-scaffold/template/mocks/gql-sse.js
 docgen:
   crc: fe63fba2
   model: openai-codex/gpt-5.5

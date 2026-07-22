@@ -1,7 +1,7 @@
 ---
 type: JS Module
 title: vitest.config.baseline.mjs
-resource: plugins/lang-js/rules/storybook/vitest-config/template/vitest.config.baseline.mjs
+resource: plugins/lang-js/rules/test/storybook-vitest-config/template/vitest.config.baseline.mjs
 docgen:
   crc: 89da594d
   model: openai-codex/gpt-5.4-mini

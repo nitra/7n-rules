@@ -1,7 +1,7 @@
 ---
 type: JS Module
 title: main.js
-resource: plugins/lang-js/rules/storybook/scaffold/template/main.js
+resource: plugins/lang-js/rules/test/storybook-scaffold/template/main.js
 docgen:
   crc: 18fbef4b
   model: openai-codex/gpt-5.4-mini

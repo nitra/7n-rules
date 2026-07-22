@@ -1,7 +1,7 @@
 ---
 type: JS Module
 title: main.mjs
-resource: plugins/lang-js/rules/storybook/vitest-config/main.mjs
+resource: plugins/lang-js/rules/test/storybook-vitest-config/main.mjs
 docgen:
   crc: ae5f59a0
   model: openai-codex/gpt-5.4-mini

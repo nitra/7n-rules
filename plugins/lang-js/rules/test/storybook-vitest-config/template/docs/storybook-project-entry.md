@@ -1,7 +1,7 @@
 ---
 type: JS Module
 title: storybook-project-entry.js
-resource: plugins/lang-js/rules/storybook/vitest-config/template/storybook-project-entry.js
+resource: plugins/lang-js/rules/test/storybook-vitest-config/template/storybook-project-entry.js
 docgen:
   crc: 2646d55c
   model: openai-codex/gpt-5.5

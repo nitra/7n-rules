@@ -1,7 +1,7 @@
 ---
 type: JS Module
 title: preview.js
-resource: plugins/lang-js/rules/storybook/scaffold/template/preview.js
+resource: plugins/lang-js/rules/test/storybook-scaffold/template/preview.js
 docgen:
   crc: 445c773b
   model: openai-codex/gpt-5.5

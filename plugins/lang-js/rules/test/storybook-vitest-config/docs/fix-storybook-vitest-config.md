@@ -1,7 +1,7 @@
 ---
 type: JS Module
-title: fix-vitest-config.mjs
-resource: plugins/lang-js/rules/storybook/vitest-config/fix-vitest-config.mjs
+title: fix-storybook-vitest-config.mjs
+resource: plugins/lang-js/rules/test/storybook-vitest-config/fix-storybook-vitest-config.mjs
 docgen:
   crc: f00f073b
   model: openai-codex/gpt-5.4-mini

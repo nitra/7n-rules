@@ -1,7 +1,7 @@
 ---
 type: JS Module
 title: empty-vite.config.js
-resource: plugins/lang-js/rules/storybook/scaffold/template/empty-vite.config.js
+resource: plugins/lang-js/rules/test/storybook-scaffold/template/empty-vite.config.js
 docgen:
   crc: 5c9f8904
   model: openai-codex/gpt-5.4-mini

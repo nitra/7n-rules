@@ -1,7 +1,7 @@
 ---
 type: JS Module
-title: fix-ci.mjs
-resource: plugins/lang-js/rules/storybook/ci/fix-ci.mjs
+title: fix-storybook-ci.mjs
+resource: plugins/lang-js/rules/test/storybook-ci/fix-storybook-ci.mjs
 docgen:
   crc: 877b9feb
   model: openai-codex/gpt-5.4-mini

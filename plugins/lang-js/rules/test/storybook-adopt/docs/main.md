@@ -1,7 +1,7 @@
 ---
 type: JS Module
 title: main.mjs
-resource: plugins/lang-js/rules/storybook/adopt/main.mjs
+resource: plugins/lang-js/rules/test/storybook-adopt/main.mjs
 docgen:
   crc: 986ffd02
   model: openai-codex/gpt-5.4-mini

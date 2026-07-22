@@ -1,7 +1,7 @@
 ---
 type: Directory Index
 title: plugins/lang-js/rules/storybook/scaffold/template
-resource: plugins/lang-js/rules/storybook/scaffold/template/
+resource: plugins/lang-js/rules/test/storybook-scaffold/template/
 ---
 
 | Файл                                         | Тип       |

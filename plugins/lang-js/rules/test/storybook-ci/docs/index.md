@@ -1,7 +1,7 @@
 ---
 type: Directory Index
 title: plugins/lang-js/rules/storybook/ci
-resource: plugins/lang-js/rules/storybook/ci/
+resource: plugins/lang-js/rules/test/storybook-ci/
 ---
 
 | Файл                    | Тип       |

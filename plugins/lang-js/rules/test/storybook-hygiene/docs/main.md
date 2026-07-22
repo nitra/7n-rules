@@ -1,7 +1,7 @@
 ---
 type: JS Module
 title: main.mjs
-resource: plugins/lang-js/rules/storybook/hygiene/main.mjs
+resource: plugins/lang-js/rules/test/storybook-hygiene/main.mjs
 docgen:
   crc: 9e36e1a2
   model: openai-codex/gpt-5.5

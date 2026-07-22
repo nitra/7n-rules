@@ -51,11 +51,14 @@ export async function readThresholds(cwd) {
 
 /**
  * Резолвить активні coverage-провайдери мовних плагінів (порт `coverage`
- * plugin-api, реєстрація через `contributes.handlers.coverage`).
+ * plugin-api, реєстрація через `contributes.handlers.coverage`). Обовʼязкова
+ * частина контракту — detect/collect/collectPerFile (assert); fix-hooks
+ * (generateTests/generateStories/fixSurvived/fixFailingTests) опційні —
+ * `fix-worker.mjs` перевіряє їх через `typeof`.
  * @param {string} cwd корінь проєкту
  * @returns {Promise<Array<import('../../../scripts/lib/plugin-api.mjs').CoverageProvider>>} валідні провайдери
  */
-async function resolveProviders(cwd) {
+export async function resolveProviders(cwd) {
   const config = await readNRulesConfigLite(cwd)
   const providers = []
   for (const handler of getHandlers(cwd, config, 'coverage')) {

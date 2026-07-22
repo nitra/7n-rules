@@ -1,7 +1,7 @@
 ---
 type: JS Module
 title: main.mjs
-resource: plugins/lang-js/rules/storybook/scope/main.mjs
+resource: plugins/lang-js/rules/test/storybook-scope/main.mjs
 docgen:
   crc: e6dab761
   model: openai-codex/gpt-5.5

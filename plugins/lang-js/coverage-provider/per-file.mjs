@@ -26,6 +26,12 @@ const NON_SOURCE_RE = /\.(test|spec)\.[^.]+$|(?:^|[/\\])tests?[/\\]|\.stories\.[
 /** Конфіг-файли тулінгу — не unit-тестовні джерела. */
 const CONFIG_FILE_RE =
   /^(?:vitest|jest|eslint|prettier|stryker|babel|webpack|vite|rollup|oxfmt|tsconfig|jsconfig|knip)\.config\./
+/** Тест-файли під не-vitest runner (bun:test) — їх падіння не чиняться fix-шляхом. */
+const VITEST_UNSUPPORTED_TEST_RE = /bun:test|Cannot find package 'bun/i
+/** Стеля помилок на файл у parseFailingTests. */
+const MAX_ERRORS_PER_FILE = 5
+/** Стеля рядків одного повідомлення помилки у parseFailingTests. */
+const MAX_ERROR_LINES = 10
 
 /**
  * Чи декларує package.json vitest (dependencies або devDependencies).
@@ -66,6 +72,47 @@ export function parseLcovPerFile(text) {
     }
   }
   return files
+}
+
+/**
+ * Парсить JSON-звіт vitest у список падаючих тест-файлів з короткими помилками
+ * (вхід fix-шляху `fix/fix-tests.mjs`; перенесено з coverage-per-file `@7n/test`).
+ * @param {string} jsonPath шлях до JSON-результатів vitest
+ * @param {string} dir корінь проєкту (для відносних шляхів)
+ * @returns {Array<{file: string, errors: string[]}>} падаючі тест-файли з помилками
+ */
+export function parseFailingTests(jsonPath, dir) {
+  try {
+    const data = JSON.parse(readFileSync(jsonPath, 'utf8'))
+    return (
+      (data.testResults ?? [])
+        .filter(r => r.status === 'failed')
+        .map(r => {
+          const assertionErrors = (r.assertionResults ?? [])
+            .filter(a => a.status === 'failed')
+            .slice(0, MAX_ERRORS_PER_FILE)
+            .map(a => {
+              const name = [...(a.ancestorTitles ?? []), a.title].join(' > ')
+              const msg = (a.failureMessages?.[0] ?? '').split('\n').slice(0, MAX_ERROR_LINES).join('\n')
+              return `${name}:\n${msg}`
+            })
+          // Module-level помилки (import/syntax) не мають assertionResults
+          const errors =
+            assertionErrors.length > 0
+              ? assertionErrors
+              : [
+                  `Suite error: ${(r.message ?? r.failureMessage ?? 'module-level failure').split('\n').slice(0, MAX_ERROR_LINES).join('\n')}`
+                ]
+          return { file: relative(dir, r.testFilePath ?? r.name), errors }
+        })
+        .filter(f => !f.file.startsWith('..'))
+        // Тест-файли під не-vitest runner (bun:test, jest) падають очікувано —
+        // fix-шлях їх не чинить, тож у список не потрапляють.
+        .filter(f => f.errors.every(e => !VITEST_UNSUPPORTED_TEST_RE.test(e)))
+    )
+  } catch {
+    return []
+  }
 }
 
 /**

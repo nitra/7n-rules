@@ -1,7 +1,7 @@
 ---
 type: JS Module
 title: vitest.stryker.config.baseline.mjs
-resource: plugins/lang-js/rules/storybook/vitest-config/template/vitest.stryker.config.baseline.mjs
+resource: plugins/lang-js/rules/test/storybook-vitest-config/template/vitest.stryker.config.baseline.mjs
 docgen:
   crc: 5cb4ea5e
   model: openai-codex/gpt-5.4-mini

@@ -1,6 +1,6 @@
 /**
  * LLM-довизначення потреби в тестах для непокритого файлу (fix-шлях концерну
- * `coverage` правила `test`, `npx @7n/rules lint test`).
+ * `coverage` правила `test`, команда \`npx \@7n/rules lint test\`).
  *
  * Швидка локальна евристика (`quickClassify`, спільна з делта-гейтом) відсіює
  * очевидні випадки — LLM викликається лише для неоднозначних файлів.
@@ -30,14 +30,32 @@ needsTests: true when:
 - Business logic with conditions or non-trivial contracts
 - Pure functions that can be unit-tested cheaply`
 
-/** Витягання JSON-обʼєкта з ключем needsTests із відповіді моделі. */
-const NEEDS_TESTS_JSON_RE = /\{[\s\S]*?"needsTests"[\s\S]*?\}/
+/**
+ * @callback AssessCallTextFn
+ * @param {string} prompt текст запиту для моделі
+ * @param {{cwd?: string}} [opts] параметри виклику
+ * @returns {Promise<string>} текстова відповідь моделі
+ */
+
+/**
+ * Витягує підрядок від першої `{` до останньої `}` — кандидат JSON-обʼєкта
+ * відповіді моделі (без regex — уникаємо super-linear backtracking).
+ * @param {string} text відповідь моделі
+ * @returns {string|null} кандидат JSON або null
+ */
+function extractJsonCandidate(text) {
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start === -1 || end <= start) return null
+  const candidate = text.slice(start, end + 1)
+  return candidate.includes('"needsTests"') ? candidate : null
+}
 
 /**
  * Оцінює один файл: спершу локальна евристика, потім LLM для неоднозначних.
  * @param {{file: string, pct: number}} fileInfo файл із рівнем покриття
  * @param {string} dir корінь проєкту
- * @param {Function} callTextFn text-виклик LLM
+ * @param {AssessCallTextFn} callTextFn text-виклик LLM
  * @returns {Promise<{file: string, pct: number, needsTests: boolean, reason: string}>} вердикт для файлу
  */
 async function assessOne(fileInfo, dir, callTextFn) {
@@ -59,8 +77,7 @@ async function assessOne(fileInfo, dir, callTextFn) {
 
   try {
     const text = await callTextFn(prompt, { cwd: dir })
-    const match = text.match(NEEDS_TESTS_JSON_RE)
-    const parsed = JSON.parse(match?.[0] ?? '{}')
+    const parsed = JSON.parse(extractJsonCandidate(text) ?? '{}')
     return {
       ...fileInfo,
       needsTests: parsed.needsTests !== false,
@@ -77,10 +94,10 @@ async function assessOne(fileInfo, dir, callTextFn) {
  * LLM викликається лише для неоднозначних.
  * @param {Array<{file: string, pct: number}>} files непокриті файли
  * @param {string} dir корінь проєкту
- * @param {{ callText?: Function }} [opts] інʼєкція text-виклику для тестів
+ * @param {{ callText?: AssessCallTextFn }} [opts] інʼєкція text-виклику для тестів
  * @returns {Promise<Array<{file: string, pct: number, needsTests: boolean, reason: string}>>} вердикти по файлах
  */
-export async function assessNeed(files, dir, opts = {}) {
+export function assessNeed(files, dir, opts = {}) {
   const callTextFn = opts.callText ?? callText
   return Promise.all(files.map(f => assessOne(f, dir, callTextFn)))
 }
