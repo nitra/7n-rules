@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'vitest'
 
-import { sectionMessages, overviewMessages, isApiGap, renderApiLine, apiGapMessages } from '../main.mjs'
+import {
+  sectionMessages,
+  overviewMessages,
+  isApiGap,
+  renderApiLine,
+  apiGapMessages,
+  buildUnitDigest
+} from '../main.mjs'
 
 const RE_EXACT_NAMES = /РІВНО ці публічні імена/
 const RE_GENERIC_BAN = /відповідність контракту|обробка даних/
@@ -68,5 +75,47 @@ describe('apiGapMessages — Stage 3, LLM лише для прогалин', () 
     const user = ms.at(-1).content
     expect(user).toContain('stop')
     expect(user).not.toContain('go')
+  })
+})
+
+describe('buildUnitDigest — №5 стислий дайджест великого файлу', () => {
+  const units = [
+    {
+      name: 'upsertOrder',
+      kind: 'function',
+      exported: true,
+      doc: 'Створює або оновлює замовлення.',
+      calls: ['validateOrder', 'saveOrder'],
+      body: 'function upsertOrder() {\n  // багато коду\n}'
+    },
+    {
+      name: 'validateOrder',
+      kind: 'function',
+      exported: false,
+      doc: '',
+      calls: [],
+      body: Array.from({ length: 20 }, (_, i) => `line${i}`).join('\n')
+    }
+  ]
+
+  test('покритий JSDoc юніт — без тіла (JSDoc достатньо)', () => {
+    const d = buildUnitDigest(units)
+    expect(d).toContain('### upsertOrder (export function)')
+    expect(d).toContain('JSDoc: Створює або оновлює замовлення.')
+    expect(d).toContain('викликає: validateOrder, saveOrder')
+    expect(d).not.toContain('багато коду')
+  })
+
+  test('непокритий юніт — тіло обрізане до перших рядків з «…»', () => {
+    const d = buildUnitDigest(units)
+    expect(d).toContain('### validateOrder (function)')
+    expect(d).toContain('line0')
+    expect(d).toContain('line11')
+    expect(d).not.toContain('line12')
+    expect(d).toContain('…')
+  })
+
+  test('шапка попереджає, що повний код не подано', () => {
+    expect(buildUnitDigest(units)).toContain('повний код не подано')
   })
 })

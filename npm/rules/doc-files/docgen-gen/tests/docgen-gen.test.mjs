@@ -8,7 +8,8 @@ import {
   generateDoc,
   insertProtected,
   scoreDoc,
-  splitProtected
+  splitProtected,
+  stripLeadingPreamble
 } from '../main.mjs'
 import { runOneShot } from '@7n/llm-lib/one-shot'
 
@@ -275,5 +276,64 @@ describe('buildApiSection — Stage 1/3 гібрид (ADR 260719-2155): без L
     const section = await buildApiSection(facts, null, 'x', 1000)
     expect(section).toBe('- go — Запускає перевірку.\n- stop — Зупиняє фонові задачі.')
     expect(runOneShot).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('stripLeadingPreamble — R9 чат-преамбули (живі приклади gemma-4, efes 2026-07-21)', () => {
+  test('«Ось оновлена чорнетка секції…» зрізається, контент лишається', () => {
+    const raw =
+      'Ось оновлена чорнетка секції «Overview», що відповідає всім зазначеним вимогам:\n\nКомпонент відповідає за генерацію контенту файлу Excel.'
+    expect(stripLeadingPreamble(raw)).toBe('Компонент відповідає за генерацію контенту файлу Excel.')
+  })
+
+  test('«Як технічний письменник, я створю…» зрізається', () => {
+    const raw =
+      'Як технічний письменник, я створю контент для секції «Поведінка» у форматі лаконічного, нумерованого алгоритму.\n1. Отримує дані для експорту.'
+    expect(stripLeadingPreamble(raw)).toBe('1. Отримує дані для експорту.')
+  })
+
+  test('дубль назви секції першим рядком («Поведінка:») зрізається', () => {
+    const raw = 'Поведінка:\nvalidateUserAccess перевіряє наявність даних.'
+    expect(stripLeadingPreamble(raw)).toBe('validateUserAccess перевіряє наявність даних.')
+  })
+
+  test('дві мета-рядки поспіль зрізаються обидві', () => {
+    const raw = 'Оновлений текст секції:\nОгляд\nВизначає ідентичність користувача.'
+    expect(stripLeadingPreamble(raw)).toBe('Визначає ідентичність користувача.')
+  })
+
+  test('звичайний текст без преамбули — без змін', () => {
+    const raw = 'Формує JWT claims для Hasura.\nДругий рядок.'
+    expect(stripLeadingPreamble(raw)).toBe(raw)
+  })
+
+  test('текст, що ЛИШЕ з преамбули — порожній рядок (не сміття)', () => {
+    expect(stripLeadingPreamble('Ось оновлений текст секції:')).toBe('')
+  })
+
+  test('«Оглядає…»/«Створює…» на початку легітимного речення НЕ зрізаються (без false positive)', () => {
+    const raw = 'Створює JWT claims для Hasura з ролями користувача.'
+    expect(stripLeadingPreamble(raw)).toBe(raw)
+  })
+})
+
+describe('scoreDoc — R9 chat-preamble штраф', () => {
+  test('преамбула в машинній секції → chat-preamble, score падає', () => {
+    const md = CLEAN.replace(
+      'Перевіряє наявність bun.lock і забороняє yarn.lock у корені монорепо.',
+      'Ось оновлена чорнетка секції, що відповідає вимогам:\nПеревіряє наявність bun.lock.'
+    )
+    const { score, issues } = scoreDoc(md, FACTS)
+    expect(issues).toContain('chat-preamble')
+    expect(score).toBeLessThan(100)
+  })
+
+  test('преамбула лише в захищеному «Призначенні» → не штрафується', () => {
+    const md = insertProtected(CLEAN, 'Ось оновлений опис від людини.')
+    expect(scoreDoc(md, FACTS).issues).not.toContain('chat-preamble')
+  })
+
+  test('чистий документ → без chat-preamble', () => {
+    expect(scoreDoc(CLEAN, FACTS).issues).not.toContain('chat-preamble')
   })
 })
