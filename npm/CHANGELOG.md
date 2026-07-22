@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.42.0] - 2026-07-22
+
+### Added
+
+- warnAboutRulesWithoutConcerns: попередження, якщо rule-id з .n-rules.json#rules не знайдено в жодному rulesDir (ядро+плагіни) — ловить дрейф конфігу після переїзду concern-ів у плагін
+
 ## [1.41.0] - 2026-07-22
 
 ### Fixed
