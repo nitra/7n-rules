@@ -37,7 +37,7 @@ jobs:
       - name: Install kubescape
         run: |
           curl -s https://raw.githubusercontent.com/kubescape/kubescape/master/install.sh | /bin/bash
-          echo "$HOME/.kubescape/bin" >> $GITHUB_PATH
+          echo "$HOME/.kubescape/bin" >> "$GITHUB_PATH"
 
       - name: Lint K8s
         run: bunx n-rules lint k8s --no-fix
