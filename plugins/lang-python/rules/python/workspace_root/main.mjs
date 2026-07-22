@@ -26,10 +26,13 @@ const IGNORED_DIR_NAMES = new Set([
   '__pycache__'
 ])
 
-/** Стабільні reasons для чотирьох типів порушення. */
+/** Стабільний reason: вкладений `[tool.uv.workspace]` поза кореневим pyproject.toml. */
 export const NESTED_WORKSPACE = 'nested-workspace'
+/** Стабільний reason: вкладений uv.lock у не-виключеному member (має бути один кореневий). */
 export const NESTED_LOCKFILE = 'nested-lockfile'
+/** Стабільний reason: кореневий pyproject.toml без `[tool.uv.workspace]` при кількох пакетах. */
 export const MISSING_ROOT_WORKSPACE = 'missing-root-workspace'
+/** Стабільний reason: пакет не входить у members кореневого uv workspace. */
 export const PACKAGE_NOT_WORKSPACE_MEMBER = 'package-not-workspace-member'
 
 const REMEDIATION =

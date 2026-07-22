@@ -1,8 +1,18 @@
+/**
+ * Кореневий vitest-конфіг пакета `@7n/rules`: ізоляція тестового оточення від
+ * локальної машини (git trace2, LLM-трейс) і від sandbox-копій Stryker та
+ * git-worktree чекаутів.
+ */
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { defineConfig } from 'vitest/config'
 
+/**
+ * Конфіг тестів: include обох розкладок (поряд із кодом і top-level tests/),
+ * env-канон GIT_TRACE2_EVENT=0 + N_LLM_TRACE_PATH у tmp, pool forks як
+ * safety net ізоляції, testTimeout 20s, v8-coverage.
+ */
 export default defineConfig({
   test: {
     // Підхоплюються обидві основні розкладки: тести поряд із кодом (rule `test`-конвенція —

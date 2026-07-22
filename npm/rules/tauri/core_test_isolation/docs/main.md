@@ -3,34 +3,37 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/tauri/core_test_isolation/main.mjs
 docgen:
-  crc: 2fe501fb
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  score: 100
-  issues: best-of-2:retry-won,judge:inaccurate:0.98
+  crc: 9d56f463
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
+  score: 95
+  issues: anchor-miss:(core_test_isolation.mdc),judge-refine:kept-original,judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Файл сканує Tauri-проєкти у монорепо, виявляючи порушення ізоляції тестування, пов'язані з LLM-залежностями (позначається константою LLM_DEP_IN_APP_SHELL="llm-dep-in-app-shell") та залежностями від Tauri (позначається константою CORE_CRATE_DEPENDS_ON_TAURI="core-crate-depends-on-tauri"). Мета — ідентифікувати структурні проблеми, що ускладнюють швидкий запуск тестів окремих компонентів без повної збірки застосунку, про що свідчить маркер (core_test_isolation.mdc).
+Read-only lint `core_test_isolation.mdc` для Tauri-монорепо виявляє, чи LLM agent/provider-логіка винесена з `src-tauri` в окремий workspace-крейт без залежності на `tauri`. Файл існує, щоб через `lint` репортувати архітектурні порушення `LLM_DEP_IN_APP_SHELL`, `CORE_CRATE_DEPENDS_ON_TAURI` і `MISSING_FAKE_LLM_PROVIDER`, які заважають ізольовано запускати `cargo test -p <crate>` без повної збірки застосунку, і не намагається виправляти їх автоматично.
 
 ## Поведінка
 
-LLM_DEP_IN_APP_SHELL — Позначає виявлення LLM-залежності всередині основного shell-крейту Tauri, що ускладнює швидкий запуск тестів окремих компонентів.
-CORE_CRATE_DEPENDS_ON_TAURI — Позначає виявлення залежності LLM-крейта від Tauri, що змушує проводити повну збірку застосунку при тестуванні.
-MISSING_FAKE_LLM_PROVIDER — Позначає відсутність фальшивої (mock) реалізації LLM-провайдера у тестуваному крейті, що створює ризик неконтрольованого виконання LLM-логіки.
-lint — Сканує Tauri-проєкти у монорепо для виявлення порушень ізоляції тестування, пов'язаних з залежностями LLM та Tauri, звітуючи про проблеми у форматі (core_test_isolation.mdc).
+`lint` read-only проходить Tauri-проєкти в монорепо, знаходить каталоги `src-tauri/` з власним Cargo-маніфестом і перевіряє межу між app-shell та core agent/provider-логікою для LLM. Дані беруться з файлової структури й Cargo-маніфестів, а результатом є lint-звіт без змін у файлах.
+
+Перевірка спочатку визначає залежності app-shell крейту: якщо LLM-залежність підключена напряму в `src-tauri`, репортується `LLM_DEP_IN_APP_SHELL="llm-dep-in-app-shell"` — ознака того, що LLM-логіка не винесена з Tauri-шару. Далі для окремого workspace-крейту з LLM-залежністю перевіряється, що він не залежить від `tauri`; порушення позначається як `CORE_CRATE_DEPENDS_ON_TAURI="core-crate-depends-on-tauri"`, бо такий зв’язок ускладнює ізольований `cargo test` без повної збірки застосунку. Окремо очікується fake/mock/stub LLM-провайдер для тестів; його відсутність репортується як `MISSING_FAKE_LLM_PROVIDER="missing-fake-llm-provider"`.
+
+Повідомлення прив’язані до правила ``. Перевірка не виконує автофікс, бо безпечно винести крейт, перенести код і налаштувати тестову підміну неможливо механічно без ризику зламати архітектуру.
 
 ## Публічний API
 
-* LLM_DEP_IN_APP_SHELL — Надає чіткі причини, чому виникли три класичних порушень, пов'язаних з LLM.
-* CORE_CRATE_DEPENDS_ON_TAURI — Фіксує, що основний компонент залежить від Tauri.
-* MISSING_FAKE_LLM_PROVIDER — Позначає відсутність замінника для моделі штучного інтелекту.
-* lint — Виявляє та виправляє порушення, визначені в системному лінтері.
+- LLM_DEP_IN_APP_SHELL — Стабільний reason: LLM-залежність оголошена в app shell замість core-крейта.
+- CORE_CRATE_DEPENDS_ON_TAURI — Стабільний reason: core-крейт залежить від Tauri — ламає ізоляцію unit-тестів від runtime.
+- MISSING_FAKE_LLM_PROVIDER — Стабільний reason: у тестах core-крейта немає fake-провайдера LLM для роботи без мережі.
+- `lint` — виявляє порушення ізоляції core-тестів між LLM, Tauri та fake provider для тестового середовища.
 
-Поведінка
-Цей код використовує маркери повідомлень, що посилаються на `` для забезпечення ізоляції тестування.
+Експортовані константи-рядки: `LLM_DEP_IN_APP_SHELL="llm-dep-in-app-shell"` — порушення, коли app shell напряму залежить від LLM; `CORE_CRATE_DEPENDS_ON_TAURI="core-crate-depends-on-tauri"` — порушення, коли core crate прив’язується до Tauri; `MISSING_FAKE_LLM_PROVIDER="missing-fake-llm-provider"` — порушення, коли для тестів немає fake LLM provider.
+
+Поведінка: повідомлення позначаються маркером ``, щоб швидко пов’язати діагностику з правилом ізоляції тестів.
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.

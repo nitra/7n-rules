@@ -1,8 +1,12 @@
+/**
+ * ESLint-конфіг репо. getConfig({ node: ['npm'] }) у `@nitra/eslint-config` задає
+ * Node globals лише для glob `npm/…/*.js` (не .mjs/.cjs) — для mjs/cjs додаємо
+ * globals.node окремо, інакше no-undef на process і console.
+ */
 import { getConfig } from '@nitra/eslint-config'
 import globals from 'globals'
 
-// getConfig({ node: ['npm'] }) у @nitra/eslint-config задає Node globals лише для glob `npm/**/*.js` (не .mjs/.cjs).
-// Для npm/**/*.mjs і npm/**/*.cjs додаємо globals.node окремо, інакше no-undef на process і console.
+/** Плоский ESLint-конфіг: ignores → база nitra → додаткові globals і точкові винятки правил. */
 export default [
   {
     ignores: [
@@ -28,12 +32,12 @@ export default [
       // Канонічні Storybook-шаблони (storybook.mdc) — snippets, які fix-scaffold.mjs копіює
       // у консюмер-пакети (Vue-бібліотеки); foreign imports (vite/@vitejs/plugin-vue/quasar)
       // не є залежностями цього репо, і файли не виконуються тут.
-      'plugins/lang-js/rules/storybook/scaffold/template/**',
+      'plugins/lang-js/rules/test/storybook-scaffold/template/**',
       // Той самий принцип — canonical vitest-config-snippets (unit/storybook project-entry,
-      // baseline-конфіги), які fix-vitest-config.mjs дописує/копіює у консюмер-пакети;
+      // baseline-конфіги), які fix-storybook-vitest-config.mjs дописує/копіює у консюмер-пакети;
       // foreign imports (quasar/unplugin-auto-import/vite-plugin-pages тощо) не є
       // залежностями цього репо.
-      'plugins/lang-js/rules/storybook/vitest-config/template/**'
+      'plugins/lang-js/rules/test/storybook-vitest-config/template/**'
     ]
   },
   ...getConfig({

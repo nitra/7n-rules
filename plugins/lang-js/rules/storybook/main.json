@@ -1,1 +1,0 @@
-{ "auto": { "glob": ["**/package.json", "**/*.vue", "**/.storybook/**", "**/*.stories.@(js|ts)"] } }

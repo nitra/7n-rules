@@ -2,13 +2,17 @@
 import { join, relative, resolve, sep } from 'node:path'
 import { globby } from 'globby'
 
-// Сесійні git-worktree чекаути (Claude/агенти): повні копії репо, не робочий код.
-// Споживацькі репо часто не мають цих шляхів у .gitignore, тож без safety net
-// lint-обхід бачив би дубль усього дерева.
+/**
+ * Сесійні git-worktree чекаути (Claude/агенти): повні копії репо, не робочий код.
+ * Споживацькі репо часто не мають цих шляхів у .gitignore, тож без safety net
+ * lint-обхід бачив би дубль усього дерева.
+ */
 export const WORKTREE_CHECKOUT_GLOBS = ['**/.worktrees/**', '**/.claude/worktrees/**']
 
-// .git ніколи не потрапляє в .gitignore — пропускаємо завжди.
-// node_modules — safety net: проєкт може не мати .gitignore або запускатись поза git-репо.
+/**
+ * .git ніколи не потрапляє в .gitignore — пропускаємо завжди.
+ * node_modules — safety net: проєкт може не мати .gitignore або запускатись поза git-репо.
+ */
 export const ALWAYS_IGNORE = ['.git/**', 'node_modules/**', ...WORKTREE_CHECKOUT_GLOBS]
 
 const WORKTREE_CHECKOUT_RE = /(?:^|\/)(?:\.worktrees|\.claude\/worktrees)\//u

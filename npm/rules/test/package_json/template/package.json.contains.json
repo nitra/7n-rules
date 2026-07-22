@@ -1,0 +1,6 @@
+{
+  "scripts": {
+    "coverage": ["@7n/rules lint test --no-fix"],
+    "test": ["vitest", "--bun"]
+  }
+}

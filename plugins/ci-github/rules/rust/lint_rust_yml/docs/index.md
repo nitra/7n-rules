@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: npm/rules/rust/lint_rust_yml
-resource: npm/rules/rust/lint_rust_yml/
+title: plugins/ci-github/rules/rust/lint_rust_yml
+resource: plugins/ci-github/rules/rust/lint_rust_yml/
 ---
 
 | Файл                                          | Тип       |

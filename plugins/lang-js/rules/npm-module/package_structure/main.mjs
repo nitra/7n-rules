@@ -3,10 +3,7 @@ import { existsSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { join, sep } from 'node:path'
 
-// glob → RegExp живе в ядрі (спільний з auto-rules рушієм); ре-експорт зберігає публічний API концерну
-export { globToRegex } from '@7n/rules/scripts/lib/glob-to-regex.mjs'
 import { globToRegex } from '@7n/rules/scripts/lib/glob-to-regex.mjs'
-
 import { parseSync } from 'oxc-parser'
 
 import {
@@ -18,6 +15,9 @@ import {
 import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/violation-reporter.mjs'
 import { loadCursorIgnorePaths } from '@7n/rules/scripts/lib/load-cursor-config.mjs'
 import { walkDir } from '@7n/rules/scripts/utils/walkDir.mjs'
+
+// glob → RegExp живе в ядрі (спільний з auto-rules рушієм); ре-експорт зберігає публічний API концерну
+export { globToRegex } from '@7n/rules/scripts/lib/glob-to-regex.mjs'
 
 /** Файл проєкту TypeScript для emit без каталогу `src` (див. npm-module.mdc) */
 const EMIT_TYPES_CONFIG = 'npm/tsconfig.emit-types.json'

@@ -459,6 +459,17 @@ export function assembleMadr({ title, date, sections: s }) {
   ].join('\n')
 }
 
+/**
+ * Stage 2: перетворює одну чернетку на валідний MADR-документ. Модель лише
+ * витягує зміст секцій як JSON; каркас збирає JS, результат проганяється через
+ * валідатор із ретраями каскаду. При невдачі повертає `valid: false` без вмісту.
+ * @param {string} title заголовок рішення
+ * @param {string} body тіло чернетки (обрізається до безпечного розміру)
+ * @param {string} captured момент фіксації чернетки (для дати MADR)
+ * @param {{allowCloud: boolean, stats: object}} cfg конфіг каскаду й лічильники
+ * @param {string} [file] шлях чернетки — fallback-джерело дати
+ * @returns {Promise<{content: string | null, slug: string, valid: boolean, error?: string}>} зібраний документ або позначка невдачі
+ */
 export async function genMadr(title, body, captured, cfg, file = '') {
   const date = madrDate(captured, file)
   const slug = slugify(title)

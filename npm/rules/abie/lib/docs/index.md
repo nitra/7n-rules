@@ -4,8 +4,6 @@ title: npm/rules/abie/lib
 resource: npm/rules/abie/lib/
 ---
 
-# npm/rules/abie/lib
-
 | Файл                                                  | Тип       |
 | ----------------------------------------------------- | --------- |
 | [enabled.mjs](enabled.md)                             | JS Module |

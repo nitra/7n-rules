@@ -3,29 +3,27 @@ type: JS Module
 title: stryker-vue-macros-ignorer.mjs
 resource: plugins/lang-js/rules/test/stryker_config/data/stryker_config/stryker-vue-macros-ignorer.mjs
 docgen:
-  crc: 30a5e9f9
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
+  crc: bbfeea49
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
   score: 100
-  issues: judge:inaccurate:0.97
+  issues: judge:error
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Конфігурує механізм Stryker для ігнорування мутацій, які виникають при викликах макросів Vue (`defineProps`, `defineEmits`, `defineModel`, `defineSlots`, `defineExpose`, `defineOptions`) у середовищі `<script setup>`. Це запобігає падінню `@vue/compiler-sfc`, оскільки мутатори стандартного плагіна Stryker обгортають аргументи макросів у тернарний coverage-вираз, що порушує статичний аналіз. Механізм реалізується шляхом реєстрації плагіна у `strykerPlugins: Plugin[]` у `plugin-loader.js` та активації ігнорування за ім'ям `'vue-macros'` у `stryker.config.mjs`.
+Окремий Stryker `Ignore`-плагін `vue-macros`, який пропускає мутації виклику Vue `<script setup>`-макросів `defineProps`, `defineEmits`, `defineModel`, `defineSlots`, `defineExpose` і `defineOptions`. Це потрібно, щоб Stryker не перетворював їхні аргументи на тернарний coverage-вираз на кшталт `stryMutAct_9fa48 ? {} : (stryCov_9fa48, {...})`, бо тоді `@vue/compiler-sfc` падає з помилкою `defineProps in <script setup> cannot reference locally declared variables`: ці макроси мають лишатися статично-аналізованими на етапі compile-sfc. Плагін експонує `shouldIgnore` і `strykerPlugins` у форматі, який очікує стандартний Stryker plugin-loader (`@stryker-mutator/core/.../plugin-loader.js`), а в `stryker.config.mjs` підключається через `plugins: ['./stryker-vue-macros-ignorer.mjs']` і вмикається через `ignorers: ['vue-macros']`.
 
 ## Поведінка
 
-Поведінка:
-shouldIgnore: Позначає виклик макроса Vue `<script setup>` як ігнорований для мутації Stryker.
-strykerPlugins: Визначає набір плагінів для Stryker, включаючи ігнорувальник для макросів Vue.
+Реєстрація `strykerPlugins` віддає Stryker один `Ignore`-плагін з іменем `vue-macros`, а `shouldIgnore` є спільним правилом відсікання для цього плагіна: він пропускає лише виклики Vue `<script setup>`-макросів із переліку `defineProps`, `defineEmits`, `defineModel`, `defineSlots`, `defineExpose`, `defineOptions`, щоб Stryker не мутував аргументи, які `@vue/compiler-sfc` має бачити статично. Якщо вузол не є викликом, якщо викликається не ідентифікатор, або якщо ім’я не належить до цього набору, мутація не блокується. Відповідь `shouldIgnore` є сигналом для Stryker: непорожнє повідомлення означає пропуск піддерева, а відсутність відповіді — продовження мутації без спеціального винятку.
 
 ## Публічний API
 
-shouldIgnore — Встановлює, які мутації викликів Vue `<script setup>`-макросів (`defineProps`, `defineEmits`, `defineModel`, `defineSlots`, `defineExpose`, `defineOptions`) мають бути пропущені аналізом Stryker.
-strykerPlugins — Забезпечує механізм експорту плагінів (`Plugin[]`) для доповнення процесу сканування коду.
+- strykerPlugins — Реєстрація ignorer-плагіна `vue-macros` для Stryker plugin-loader (деталі — у header вище).
+- shouldIgnore — визначає, чи слід пропустити шлях під час перевірки, зокрема для каталогів, тимчасових файлів і службових артефактів.
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.

@@ -181,4 +181,5 @@ const rustProvider = {
   cleanup: cleanupCargoBackups
 }
 
+/** Default-експорт handler-модуля taze: обʼєкт `rustProvider` (опис вище). */
 export default rustProvider

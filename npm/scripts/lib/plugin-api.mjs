@@ -79,6 +79,52 @@ const REQUIRED_PROVIDER_FUNCTIONS = ['detect', 'available', 'backup', 'bump', 'd
 const REQUIRED_PROVIDER_STRINGS = ['id', 'title', 'manifestNoun', 'skillSection']
 
 /**
+ * @typedef {object} CoverageRow
+ * Агрегований вимір однієї області (`JS`, `Vue (Storybook)`, `Rust`, …).
+ * @property {string} area назва рядка звіту
+ * @property {{lines:{covered:number,total:number}, functions:{covered:number,total:number}}} coverage line/function coverage
+ * @property {{caught:number, total:number}} mutation вбиті/всі мутанти (0/0 — мутаційне тестування не вимірювалось)
+ * @property {Array<{file:string, mutants:Array<object>, exampleTest?:object|null, recommendationText?:string|null}>} survived вцілілі мутанти по файлах (шляхи relative до cwd)
+ */
+
+/**
+ * @typedef {object} CoverageProvider
+ * Порт мовної екосистеми для концерну `coverage` правила `test` (spec
+ * 2026-07-22 absorb-7n-test). Ядро викликає: `detect` → повний вимір
+ * `collect` (full/`lint test`) АБО делта-вимір `collectPerFile` (делта-lint,
+ * без мутаційного тестування). Реєстрація — `contributes.handlers.coverage`
+ * у маніфесті плагіна, default-експорт handler-модуля.
+ * @property {string} id стабільний ідентифікатор екосистеми (напр. `js`)
+ * @property {string} title заголовок для звітів/повідомлень
+ * @property {(cwd: string) => Promise<boolean>} detect чи застосовний вимір у проєкті (false → тихий skip виміру)
+ * @property {(cwd: string, opts?: {changedFiles?: string[], base?: string|null, runner?: object}) => Promise<CoverageRow[]>} collect повний вимір: coverage + мутаційне тестування по всіх workspaces
+ * @property {(cwd: string, opts: {files: string[], runner?: object}) => Promise<Array<{file:string, pct:number, linesFound:number, linesCovered:number, reason?:string}>>} collectPerFile легкий делта-вимір per-file line coverage змінених файлів (без мутаційного тестування)
+ */
+
+const REQUIRED_COVERAGE_FUNCTIONS = ['detect', 'collect', 'collectPerFile']
+const REQUIRED_COVERAGE_STRINGS = ['id', 'title']
+
+/**
+ * Валідує форму coverage-провайдера з модуля плагіна.
+ * @param {unknown} candidate default-експорт handler-модуля плагіна
+ * @param {string} source ім'я плагіна/шлях модуля для повідомлення
+ * @returns {CoverageProvider} той самий обʼєкт, якщо валідний
+ */
+export function assertCoverageProvider(candidate, source) {
+  if (!candidate || typeof candidate !== 'object') {
+    throw new TypeError(`plugin-api: ${source} — default-експорт не є обʼєктом CoverageProvider`)
+  }
+  const missing = [
+    ...REQUIRED_COVERAGE_STRINGS.filter(k => typeof candidate[k] !== 'string' || candidate[k] === ''),
+    ...REQUIRED_COVERAGE_FUNCTIONS.filter(k => typeof candidate[k] !== 'function')
+  ]
+  if (missing.length > 0) {
+    throw new TypeError(`plugin-api: ${source} — CoverageProvider без обовʼязкових полів: ${missing.join(', ')}`)
+  }
+  return /** @type {CoverageProvider} */ (candidate)
+}
+
+/**
  * Валідує форму провайдера з модуля плагіна — зрозуміла помилка замість
  * «undefined is not a function» глибоко в оркестраторі.
  * @param {unknown} candidate default-експорт handler-модуля плагіна

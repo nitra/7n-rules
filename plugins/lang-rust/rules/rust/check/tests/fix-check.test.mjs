@@ -51,7 +51,7 @@ describe('rust-cargo-deny-init pattern', () => {
     try {
       const result = await DENY.apply([{ reason: 'deny-config-missing', message: 'm' }], {
         cwd,
-        recordWrite: () => {}
+        recordWrite: () => null
       })
       expect(result.touchedFiles).toHaveLength(1)
 

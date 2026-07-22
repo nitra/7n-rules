@@ -127,4 +127,5 @@ const jsProvider = {
   cleanup: (cwd, manifests, deps) => cleanupWorkspaceBackups(cwd, deps)
 }
 
+/** Default-експорт handler-модуля taze: обʼєкт `jsProvider` (опис вище). */
 export default jsProvider

@@ -36,7 +36,7 @@ jobs:
       - name: Install git-ai
         run: |
           curl -fsSL https://usegitai.com/install.sh | bash
-          echo "$HOME/.git-ai/bin" >> $GITHUB_PATH
+          echo "$HOME/.git-ai/bin" >> "$GITHUB_PATH"
       - name: Run git-ai
         id: run-git-ai
         env:
@@ -436,13 +436,15 @@ Rego-пакет: `ga.service_deploy_workflow`
 4. **`test`-джоба** — `needs: plan`, `if: needs.plan.outputs.any == 'true'`; тести лише сервісу (`bun test run/<service>`; python-стек — `astral-sh/setup-uv` + `uv sync --locked` + `pytest run/<service>`).
 5. **Деплой** — needs-ланцюг (можна через проміжний `build`) **транзитивно досягає** `plan` і всі lint/test-джоби; кожна джоба з `needs` на умовні lint-джоби має `if` з `!cancelled()` та `!contains(needs.*.result, 'failure')` — skipped-лінт не блокує деплой, failed — блокує.
 
-Що перевіряє rego: наявність plan-джоби з `ci plan --path … --github`; збіг `on.push.paths` ↔ `--path`; для кожної lint-джоби — `needs: plan`, гейт по outputs, той самий `--path`, `--no-fix`, prep-крок, `fetch-depth: 0`; для термінальних джоб — транзитивну досяжність plan і всіх перевірок та skip-толерантний `if`.
+Що перевіряє rego: наявність plan-джоби з `ci plan --path … --github`; збіг `on.push.paths` ↔ `--path`; outputs-мапінг plan-джоби (кожен ключ, на який посилається гейт `needs.plan.outputs.<key>`, задекларований у `jobs.plan.outputs` і вказує на `steps.<id>.outputs.<key>` реального кроку — інакше гейт тихо порожній); для кожної lint-джоби — `needs: plan`, гейт по outputs, той самий `--path`, `--no-fix`, prep-крок, `fetch-depth: 0`; для термінальних джоб — транзитивну досяжність plan і всіх перевірок та skip-толерантний `if`.
 
 Що НЕ перевіряється (справа автора): добір доменів під вміст сервісу, зміст test/deploy-кроків, секрети/environment, uv-prep. Спільні workflow-інваріанти (persist-credentials, min-версії uses, існування paths-глобів) покривають `workflow_common` і `workflows`.
 
 Repo-wide перевірки без path-підтримки (knip, jscpd, dep-policy) сюди НЕ входять — вони в окремому `lint-repo.yml` (концерн `lint_repo_yml`) і деплой не гейтять.
 
 **Автоміграція (T0-фікс, `n-rules lint` у fix-режимі):** легасі deploy-workflow (job із `n-rules lint --path <svc>` без домену, без plan-джоби) детерміновано переписується до канону — додається `plan` з outputs-мапінгом доменів + `any`, легасі lint-джоба замінюється на per-domain `lint-<domain>` (домени по файлах піддерева, ті самі glob-и, що `ci plan`), `needs` залежних джоб перешивається, джоби з прямими needs на умовні lint-джоби без власного `if` отримують Skipped-толерантний канон. Нетривіальний наявний `if` не перезаписується.
+
+**Bootstrap-режим (опційний, окремий опт-ін):** `migrateWorkflowFile(absPath, cwd, { bootstrap: true })` — для deploy-workflow **без жодної lint-джоби** (rego вважає його valid as-is — публікація без гейта може бути свідомим рішенням) створює lint-`<domain>` джоби з нуля (`relevantDomains` по всьому піддереву сервісу) і підключає вхідну/термінальну джобу без власного `needs` до `plan` + усіх нових lint-джоб зі Skipped-толерантним `if`. Це не частина звичайного `n-rules lint --fix` (`patterns[0].apply` викликає `migrateWorkflowFile` без bootstrap — інакше кожен publish-workflow без лінту тихо отримав би гейт при звичайному lint) — bootstrap механічно виконує рішення, уже ухвалене людиною, яка явно його викликала.
 
 Канон-snippet (документаційний приклад): [deploy-service.yml.snippet.yml](./template/deploy-service.yml.snippet.yml)
 

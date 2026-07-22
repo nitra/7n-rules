@@ -6,7 +6,9 @@ import { fileURLToPath } from 'node:url'
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
+/** Абсолютний шлях до канонічного baseline-конфігу marksman, що постачається разом із пакетом правил. */
 export const MARKSMAN_BASELINE_PATH = join(HERE, 'data', 'marksman_config', 'marksman.baseline.toml')
+/** Імʼя конфіг-файлу marksman, який має лежати в корені репозиторію. */
 export const MARKSMAN_TARGET_FILENAME = '.marksman.toml'
 
 /**

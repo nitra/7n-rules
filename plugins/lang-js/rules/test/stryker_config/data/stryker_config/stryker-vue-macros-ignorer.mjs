@@ -39,6 +39,7 @@ export function shouldIgnore(path) {
   return IGNORE_MESSAGE
 }
 
+/** Реєстрація ignorer-плагіна `vue-macros` для Stryker plugin-loader (деталі — у header вище). */
 export const strykerPlugins = [
   {
     kind: 'Ignore',

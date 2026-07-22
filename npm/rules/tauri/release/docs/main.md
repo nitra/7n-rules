@@ -3,30 +3,38 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/tauri/release/main.mjs
 docgen:
-  crc: 91e1c73d
+  crc: fc5e2737
   model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
   score: 100
-  issues: judge:inaccurate:0.98
+  issues: judge-refine:kept-original,judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-`lint` перевіряє готовність Tauri-застосунків у репозиторії до release-потоку на основі `tauri.conf.json` і `latest.json`. Він дає змогу зосередити перевірку на релізних налаштуваннях Tauri, не зачіпаючи `.github` та `.git`.
+Файл запускає `lint` для перевірки Tauri-застосунків у workspace, знаходить їхні каталоги через `findTauriAppDirs` і окремо звіряє наявність workflow dispatch через `hasWorkflowDispatch`. Для релізного контуру використовує `CHANGELOG_RELEASE_WORKFLOW` і `RELEASE_WORKFLOW`, щоб тримати в полі зору canonical workflow для changelog і release. Свідомо пропускає `.github` і `.git`, звертається до мережі, працює з кешуванням у межах прогону та поводиться fail-safe: помилки перехоплює і не викидає назовні.
 
 ## Поведінка
 
-1. `lint` знаходить усі workspace-каталоги з Tauri-застосунками, пропускаючи `.github` і `.git`, та бере до уваги лише репозиторії, де є `tauri.conf.json`.
-2. Для кожного такого застосунку `lint` перевіряє готовність `tauri.conf.json` до release: чи увімкнено генерацію updater-артефактів, чи задано public key для updater і чи endpoint веде на `latest.json`.
-3. `lint` контролює наявність `changelog-release.yml` як точки запуску release-процесу з changelog-змін, щоб релізи стартували від змін у `.changes`.
-4. `lint` перевіряє, що `changelog-release.yml` реагує на push у відповідні `.changes`-шляхи для знайдених застосунків, має ручний запуск і захищений від повторного запуску release-циклом.
-5. `lint` перевіряє, що `changelog-release.yml` має достатні права для запуску release-потоку та диспатчу наступного workflow.
-6. `lint` контролює наявність `release.yml` як основного каналу збірки й публікації release-артефактів.
-7. `lint` перевіряє, що `release.yml` запускається на тегах `v*`, підтримує ручний запуск і синхронізує версію в `tauri.conf.json` до кроку публікації через Tauri.
-8. `lint` не змінює файли, працює read-only і повертає результат у fail-safe режимі: помилки фіксуються як порушення, а не пробиваються назовні винятками.
+`lint` запускає повну перевірку Tauri-налаштувань у межах одного прогону: спершу `findTauriAppDirs` знаходить усі workspace з Tauri-застосунками за `tauri.conf.json`, після чого результати передаються в правила для конфігів і GitHub Actions. Для workflow-частини `CHANGELOG_RELEASE_WORKFLOW` і `RELEASE_WORKFLOW` задають канонічні шляхи `.github/workflows/changelog-release.yml` і `.github/workflows/release.yml`, а `hasWorkflowDispatch` використовується як спільна перевірка на наявність `workflow_dispatch` у корені workflow. Дані читаються з `tauri.conf.json` і `latest.json`, а також з workflow-файлів; результати йдуть у fail-safe reporting, без винесення винятків назовні. У межах прогону діє кешування, тому повторні звернення до вже прочитаних артефактів не дублюють роботу. Перевірки свідомо оминають `.github` і `.git`, щоб не змішувати службові каталоги з робочими шляхами застосунків. Для релізного циклу потік також враховує віддалений доступ через URL на кшталт `https://x-access-token:\`, щоб узгодити автоматизацію оновлень і публікації без ручного втручання.
+
+## Публічний API
+
+- CHANGELOG_RELEASE_WORKFLOW — Шлях workflow, що на push у main бампає версію з change-файлів і створює тег.
+- RELEASE_WORKFLOW — Шлях workflow, що на тег збирає й публікує реліз Tauri-застосунку.
+- findTauriAppDirs — Знаходить workspace-каталоги з Tauri-застосунком (`<ws>/src-tauri/tauri.conf.json` чи legacy `<ws>/tauri.conf.json`).
+- hasWorkflowDispatch — Чи `on.workflow_dispatch` присутній у корені workflow.
+- lint — запускає перевірки для шляху з репозиторію; якщо шлях вказує на змінений файл, пропускає лише релевантні правила і не чіпає інше.
+- CHANGELOG_RELEASE_WORKFLOW=".github/workflows/changelog-release.yml" — константа для workflow, що готує changelog-реліз.
+- RELEASE_WORKFLOW=".github/workflows/release.yml" — константа для workflow, що запускає релізний процес.
+- https://x-access-token:\ — базовий шаблон URL для доступу до GitHub через token-автентифікацію під час мережевих операцій.
+- tauri.conf.json — джерело налаштувань Tauri, з яких код бере параметри застосунку.
+- latest.json — файл з даними про останній доступний реліз, які використовуються для оновлень.
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
 - Перехоплює помилки і не пропускає винятків назовні (fail-safe).
+- Кешує результати в межах одного прогону.
 - Свідомо пропускає шляхи: `.github`, `.git`.

@@ -39,6 +39,10 @@ export function shouldIgnore(path) {
   return IGNORE_MESSAGE
 }
 
+/**
+ * Реєстрація ignorer-а у Stryker: plugin-loader читає саме цей масив і робить
+ * ignorer доступним за іменем `vue-macros` у конфігурації мутаційного тестування.
+ */
 export const strykerPlugins = [
   {
     kind: 'Ignore',

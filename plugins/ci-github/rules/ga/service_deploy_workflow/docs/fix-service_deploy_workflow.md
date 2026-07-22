@@ -3,29 +3,56 @@ type: JS Module
 title: fix-service_deploy_workflow.mjs
 resource: plugins/ci-github/rules/ga/service_deploy_workflow/fix-service_deploy_workflow.mjs
 docgen:
-  crc: bb163530
+  crc: 429bfe4c
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
+  score: 100
+  issues: judge-refine:kept-original,judge:inaccurate:0.99
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Модуль виконує T0-автоміграцію GitHub Actions deploy-workflow до сервіс-канону `plan → lint-<domain> → deploy` (ADR 260718-0835), дзеркало `fix-service_deploy_pipeline` для `ci-azure`. Для workflow з легасі-джобою `n-rules lint --path <svc>` (без домену) додає `plan` (checkout `fetch-depth: 0` + prep + `bunx n-rules ci plan --path <svc> --github` з `id: plan` і outputs-мапінгом доменів + `any`), розкладає легасі lint на per-domain `lint-<domain>`-джоби (домени й glob-и — ті самі, що в `ci plan`), перепідключає `needs` залежних джоб і додає Skipped-толерантний `if` там, де його бракує. Наявний нетривіальний `if` не перезаписується.
+T0-автоміграція приводить `.github/workflows/deploy-*.yml` сервісів до канону ADR 260718-0835: `plan → lint-<domain> → deploy` із runtime outputs для доменних гейтів. Вона додає `plan` із `bunx n-rules ci plan --path <svc> --github`, `id: plan` та outputs-мапінгом доменів + `any`, щоб умови `needs.plan.outputs.*` мали значення під час виконання.
 
-`bootstrap: true` — окремий опт-ін, який `n-rules lint --fix` не викликає автоматично: для deploy-workflow БЕЗ жодної lint-джоби (rego вважає такий workflow валідним as-is — публікація без гейта може бути свідомим рішенням) створює lint-<domain>-джоби з нуля за `relevantDomains` піддерева сервісу і підключає вхідну джобу без власного `needs` до `plan` + усіх нових lint-джоб зі Skipped-толерантним `if`.
+Файл існує як fix-режим для workflow, що ще мають легасі lint або неповний domain-style wiring, зберігаючи валідні без-lint workflow без примусового переходу на gate. `bootstrap: true` є окремим opt-in для workflow без lint-джоб: він створює доменні lint-гейти з нуля й підключає до них безумовну вхідну job.
 
-Мутації виконуються через YAML Document API — коментарі та форматування незачеплених частин файлу зберігаються. Помилки парсингу чи міграції окремого файлу не прокидаються назовні: функція повертає `false`, файл лишається без змін.
+Міграція працює fail-safe: перехоплює помилки, не кидає винятків назовні та в окремих збійних сценаріях може повертати `null`.
 
 ## Поведінка
 
-- `migrateWorkflowFile(absPath, cwd, { bootstrap? })` — мігрує один deploy-workflow до канону; повертає `true`, якщо файл змінено, `false` — якщо міграція не потрібна, шлях сервісу не визначити, чи (без `bootstrap`) у workflow немає ні `plan`, ні жодного lint-кроку.
-- `patterns` — T0-патерн fix-конвеєра: спрацьовує лише коли rego-концерн уже знайшов порушення у файлі (без `bootstrap`), мігрує кожен зачеплений workflow і збирає перелік змінених файлів; помилки окремих файлів не переривають обробку решти.
+`migrateWorkflowFile` читає GitHub Actions deploy-workflow, визначає сервісний каталог і активні домени, після чого детерміновано приводить jobs до канону `plan → lint-<domain> → deploy`. Дані беруться з наявних jobs, lint-команд і workflow paths; результатом є оновлений YAML-файл із мінімальними змінами незачеплених частин.
+
+Потік міграції спочатку формує або доповнює `plan` з outputs для доменів і `any`, щоб downstream-гейти могли коректно читати `needs.plan.outputs.*` під час runtime. Далі легасі lint-job без домену замінюється на набір per-domain jobs, а вже наявні domain-style lint jobs добираються до канону: залежність від `plan`, умовний запуск за outputs, режим без auto-fix, повна історія checkout і підготовчі кроки.
+
+Після створення або оновлення lint jobs міграція перешиває залежності інших jobs з легасі-імен на нові lint jobs. Якщо deploy-job залежить від умовних lint jobs, вона отримує Skipped-толерантний gate, щоб пропущений нерелевантний домен не блокував деплой, але failure залишався блокувальним. Наявний нетривіальний `if` не перезаписується, бо це вважається ручним рішенням.
+
+Опційний bootstrap-режим у `migrateWorkflowFile` застосовується лише як явний opt-in для workflow без lint jobs: він створює per-domain lint jobs з нуля та підключає безумовну вхідну deploy-job до `plan` і всіх lint jobs. Звичайний fix-режим цього не робить, бо workflow без lint-гейта є валідним станом, а перехід на gate має бути свідомим рішенням команди.
+
+Зміни виконуються через YAML document-модель, тому порядок jobs керовано оновлюється, а коментарі й форматування незачеплених ділянок зберігаються. Помилки обробляються fail-safe: міграція не кидає винятки назовні і за неможливості безпечно визначити потрібні дані не виконує небезпечний rewrite.
+
+`patterns` підключає цю міграцію до правила fix для deploy-workflow файлів і застосовує звичайний режим без bootstrap. Під час обходу свідомо пропускаються `.github` і `.git`, щоб не аналізувати службові каталоги як сервісні піддерева.
 
 ## Публічний API
 
-- `migrateWorkflowFile` — переводить один deploy-workflow у канонічний формат, опційно (`bootstrap: true`) добудовуючи lint-джоби з нуля для workflow, що їх ще не мали.
-- `patterns` — T0-фікс-патерн для fix-конвеєра `n-rules lint`: розпізнає порушення `service_deploy_workflow` і застосовує `migrateWorkflowFile` (без `bootstrap`) до кожного знайденого файлу.
+- migrateWorkflowFile — Мігрує один deploy-workflow до канону. Повертає true, якщо файл змінено.
+
+`bootstrap: true` — свідоме розширення поза звичайним fix-режимом: для
+deploy-workflow БЕЗ жодної lint-джоби (валідний as-is за рего-концерном,
+деталі — service_deploy_workflow.rego) створює lint-<domain> джоби з нуля
+(за `relevantDomains` піддерева сервісу) і підключає вхідну/термінальну
+джобу без `needs` до plan + усіх lint-джоб. Це саме «свідоме рішення
+перейти на гейт», про яке говорить коментар концерну — bootstrap лише
+виконує його механічно, а не ухвалює автоматично (звичайний
+`n-rules lint --fix` bootstrap не викликає: patterns[0].apply завжди
+викликається без bootstrap).
+- patterns — Один детермінований патерн: для кожного workflow-файлу з порушеннями запускає
+`migrateWorkflowFile` без bootstrap (plan-джоба, per-domain lint-джоби,
+перешивка needs). Помилка міграції окремого файлу не валить прогін — deny
+лишається детектору до ручного фіксу.
 
 ## Гарантії поведінки
 
-- Перехоплює помилки парсингу й міграції — не пропускає винятків назовні (fail-safe), повертає `false`.
-- Не перезаписує наявний нетривіальний `if` термінальної джоби.
-- `bootstrap`-логіка не активується неявно через звичайний `n-rules lint --fix` — лише за прямого виклику з `{ bootstrap: true }`.
+- Перехоплює помилки і не пропускає винятків назовні (fail-safe).
+- За певних помилок повертає порожнє значення (напр. `null`) замість винятку.
+- Свідомо пропускає шляхи: `.github`, `.git`.

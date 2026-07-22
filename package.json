@@ -17,10 +17,9 @@
   "scripts": {
     "start": "bun ./npm/bin/n-rules.js",
     "test": "bun run --bun vitest run",
-    "coverage": "npx @7n/test coverage"
+    "coverage": "npx @7n/rules lint test --no-fix"
   },
   "devDependencies": {
-    "@7n/test": "^0.14.3",
     "@nitra/cspell-dict": "^2.2.2",
     "@nitra/eslint-config": "^3.10.3",
     "@nitra/stylelint-config": "^1.4.1",

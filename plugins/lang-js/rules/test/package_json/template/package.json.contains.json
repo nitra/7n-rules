@@ -1,6 +1,0 @@
-{
-  "scripts": {
-    "coverage": ["@7n/test coverage"],
-    "test": ["vitest", "--bun"]
-  }
-}

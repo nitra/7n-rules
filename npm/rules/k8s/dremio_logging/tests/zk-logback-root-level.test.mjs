@@ -50,7 +50,8 @@ describe('zkLogbackRootLevelViolation', () => {
   })
 
   test('логер-вміст присутній, але <root> відсутній — порушення', () => {
-    const src = 'data:\n  logback.xml: |\n    <configuration>\n      <appender name="CONSOLE" />\n    </configuration>\n'
+    const src =
+      'data:\n  logback.xml: |\n    <configuration>\n      <appender name="CONSOLE" />\n    </configuration>\n'
     const v = zkLogbackRootLevelViolation(src)
     expect(v).not.toBeNull()
     expect(v).toContain('без <root level')

@@ -7,7 +7,9 @@ import { flattenWorkflowSteps, getStepRun, getStepUses, parseWorkflowYaml } from
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 
+/** Шлях workflow, що на push у main бампає версію з change-файлів і створює тег. */
 export const CHANGELOG_RELEASE_WORKFLOW = '.github/workflows/changelog-release.yml'
+/** Шлях workflow, що на тег збирає й публікує реліз Tauri-застосунку. */
 export const RELEASE_WORKFLOW = '.github/workflows/release.yml'
 const VERSION_WORD_RE = /version/iu
 

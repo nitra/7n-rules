@@ -20,10 +20,14 @@ import { join, relative } from 'node:path'
 
 import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/violation-reporter.mjs'
 
+/** Reason-код: job ставить Rust toolchain, але не має кроку `Swatinem/rust-cache@v2`. */
 export const MISSING_RUST_CACHE = 'missing-rust-cache'
+/** Reason-код: кеш-крок Tauri-job-а без `with.workspaces` на каталог `src-tauri`. */
 export const MISSING_RUST_CACHE_WORKSPACES = 'missing-rust-cache-workspaces'
 
+/** Рядок кроку встановлення Rust toolchain (`dtolnay/rust-toolchain@…`). */
 export const TOOLCHAIN_RE = /uses:\s*dtolnay\/rust-toolchain@/u
+/** Рядок кроку кешування Cargo-артефактів (`Swatinem/rust-cache@…`). */
 export const CACHE_RE = /uses:\s*Swatinem\/rust-cache@/u
 const TAURI_ACTION_RE = /uses:\s*tauri-apps\/tauri-action@/u
 const WORKSPACES_KEY_RE = /^\s*workspaces\s*:/u

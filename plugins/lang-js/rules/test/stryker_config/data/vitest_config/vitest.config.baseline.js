@@ -1,5 +1,7 @@
+/** Канонічний vitest-конфіг пакета: node-environment, pool forks, v8 coverage. */
 import { defineConfig } from 'vitest/config'
 
+/** Vitest-конфіг: include обох розкладок тестів, ізоляція forks, lcov-coverage. */
 export default defineConfig({
   test: {
     // Підхоплюються обидві основні розкладки: тести поряд із кодом (rule `test`-конвенція —

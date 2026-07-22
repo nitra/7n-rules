@@ -3,26 +3,35 @@ type: JS Module
 title: fix-service_deploy_pipeline.mjs
 resource: plugins/ci-azure/rules/azure-pipelines/service_deploy_pipeline/fix-service_deploy_pipeline.mjs
 docgen:
-  crc: 0080ec86
+  crc: bf24b078
   model: openai-codex/gpt-5.4-mini
-  score: 100
-  issues: judge:inaccurate:0.99
+  tier: cloud-min
+  score: 95
+  issues: anchor-miss:https://bun.sh/install,judge-refine:kept-original,judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Файл існує для автоматичного переведення legacy `.azurepipelines/**.yml` у сервіс-канон ADR 260718-0835: він детерміновано переписує pipeline-и, де `trigger.paths.include` не відповідає формі `plan → lint_<domain> → deploy`, бо `lint --path` у `@7n/rules` 1.17 змінив семантику без major-бампа; `plan` додається через `bunx n-rules ci plan --path <svc> --azure`, а `lint_<key>` визначаються за файлами піддерева сервісу тими самими glob-ами, що й `ci plan`. Міграція зберігає коментарі та незачеплене форматування завдяки мутаціям через YAML Document API (`setIn`/`splice`). Також вона підшиває потрібні `dependsOn` і `condition` для нових lint-джоб і не перезаписує нетривіальний `condition`. Файл працює fail-safe: не кидає винятків назовні й за окремих помилок повертає порожнє значення замість exception.
+Фіксер для T0-автоміграції легасі service-pipeline-ів до канону з ADR 260718-0835: він переписує `.azurepipelines/**.yml` з `trigger.paths.include`, що не відповідають формі plan → lint_<domain> → deploy і порушують rego-концерн `service_deploy_pipeline`. Через зміну семантики `n-rules lint --path` у `@7n/rules 1.17` він одразу переводить pipeline у новий канон замість ручної міграції 18 efes-пайплайнів.
+
+Під час перепису додається `plan` як prep + `bunx n-rules ci plan --path <svc> --azure` (`ci plan --path <svc> --azure`), legacy job з `n-rules lint --path <svc>` замінюється на `lint_<key>` за доменами, визначеними через `computeActiveDomains/domainKey`, а wiring для lint-джоб додає `dependsOn: plan`, condition по outputs, `--no-fix` і `fetchDepth: 0`. Залежності інших job-ів перешиваються з legacy-імені на нові lint-джоби, а job-и з прямими deps на conditional lint-джоби без власного condition отримують Skipped-толерантний канон (`not` + `in`).
+
+Власний `condition` не перезаписується, якщо він нетривіальний, а `- template:` розкладка не мігрується, бо фіксер працює лише з розгорнутими job-ами. `patterns` звужує скоуп до pipeline-файлів, чий `trigger.paths.include` відповідає цьому сценарію міграції.
 
 ## Поведінка
 
-- `migratePipelineFile` — Мігрує один `.azurepipelines/**.yml` із `trigger.paths.include` до сервіс-канону: за потреби додає `plan`, замінює legacy `lint`-джоби на per-domain `lint_<key>`, підшиває `dependsOn`/`condition` і `--no-fix`, зберігаючи коментарі та форматування; якщо файл поза скоупом, `null` або міграція не вдається, повертає `false` без винятку назовні.
-- `patterns` — Описує rule-pattern, який знаходить порушені service pipeline-и та застосовує автоматичну міграцію до кожного знайденого файлу; помилки окремих файлів перехоплює, а результатом повертає список змінених файлів і повідомлення про кількість мігрованих pipeline-ів.
+`migratePipelineFile` запускає fail-safe міграцію одного Azure pipeline-файлу: спочатку розбирає документ і відсіює файли поза скоупом, далі бере service path і всі jobs-послідовності, а потім поетапно переписує pipeline до канону plan → lint_<domain> → deploy, зберігаючи коментарі та форматування незачеплених частин через `yaml` Document API. Якщо у файлі є легасі lint-джоба без домену, вона перетворюється на набір domain-style lint-джоб, а якщо вже є domain-style lint-джоби, їм добирається потрібний wiring для запуску після `plan`. Після цього залежності інших джоб перешиваються на нові lint-імена, і лише джоби з прямими залежностями на умовні lint-джоби отримують Skipped-толерантний condition, якщо власного condition ще немає. Нетривіальні умови не перезаписуються, а template-розкладка залишається недоторканою, бо фіксер працює тільки з уже розгорнутими jobs.
+
+`patterns` задає критерій скоупу міграції: працюють лише pipeline-файли з `trigger.paths.include`, які мають перейти на сервісний канон і відповідають очікуваному перетворенню для service_deploy_pipeline. Саме цей відбір відмежовує файли, які можна безпечно переписати автоматично, від тих, де потрібне ручне рішення автора.
 
 ## Публічний API
 
-- migratePipelineFile — переносить один pipeline-файл у канонічний формат і сигналізує, чи були зміни.
-- patterns — T0-патерн для fix-конвеєра: розпізнає порушені service pipeline-и й застосовує міграцію.
+- migratePipelineFile — Мігрує один pipeline-файл до канону. Повертає true, якщо файл змінено.
+- patterns — Один детермінований патерн: для кожного pipeline-файлу з порушеннями запускає
+`migratePipelineFile` (plan-джоба, per-domain lint-джоби, перешивка dependsOn).
+Помилка міграції окремого файлу не валить прогін — deny лишається детектору
+до ручного фіксу.
 
 ## Гарантії поведінки
 

@@ -3,39 +3,50 @@ type: JS Module
 title: provider.mjs
 resource: plugins/lang-python/taze/provider.mjs
 docgen:
-  crc: 747b1c8b
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
+  crc: 701a208f
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
   score: 90
-  issues: internal-name:collectUvDiff,judge:inaccurate:0.99
+  issues: internal-name:collectUvDiff,judge:error
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Python/uv-провайдер (EcosystemProvider, контракт `@7n/rules/plugin-api`) для taze-оркестратора ядра; реєструється маніфестом `n-rules.contributes.handlers.taze` у package.json плагіна. Він потрібен, щоб знайти Python-маніфест, зробити резервні копії маніфестів перед змінами, прибрати службові копії після завершення та зібрати текстову основу для оновлення Python-залежностей. Для перевірки актуальності пакетів використовується сторінка пакета в `https://pypi.org/project/`, а для орієнтації в установці uv — `https://docs.astral.sh/uv/getting-started/installation/`.
+Файл забезпечує uv-гілку оновлення Python-залежностей у репозиторії: `findPyprojectManifest` визначає кореневий `pyproject.toml`, `backupUvManifest` і `cleanupUvBackups` делегують підготовку та прибирання резервних копій, `bumpUvDependencies` запускає оновлення прямих залежностей через uv із мережевими зверненнями, а `buildUvDependencyPrompt` формує завдання для LLM-аналізу major-міграції на основі вже підготовленої зміни. Це відокремлює автоматичний bump від подальшого аналізу сумісності.
 
 ## Поведінка
 
-- `buildUvDependencyPrompt` — формує текст завдання для перевірки major-оновлення одного Python-пакета: просить звірити breaking changes на сторінці пакета в PyPI (`https://pypi.org/project/`) між двома версіями, знайти зачеплене використання в коді й за потреби підготувати сумісний рефакторинг.
-- `findPyprojectManifest` — знаходить кореневий `pyproject.toml` у репозиторії; якщо файл є, повертає його як маніфест для подальшої обробки, якщо ні — нічого не повертає.
-- `backupUvManifest` — створює резервні копії `pyproject.toml` і `uv.lock`, щоб можна було безпечно порівнювати стан до й після оновлення залежностей.
-- `cleanupUvBackups` — прибирає резервні копії `pyproject.toml` і `uv.lock` після завершення роботи.
-- `bumpUvDependencies` — по черзі піднімає прямі залежності `pyproject.toml` через `uv`, зберігаючи прогрес навіть якщо для окремого пакета оновлення не вдалося; у разі збою відновлює початковий запис.
-- `pythonProvider` — описує Python/uv-провайдер для оркестратора taze: визначає, чи є проєкт Python-маніфестом, чи доступний `uv`, як робити backup/bump/diff/cleanup.
+findPyprojectManifest визначає, чи є в репозиторії Python-проєкт для uv-гілки оновлення залежностей; потік свідомо обмежений кореневим pyproject.toml і не виконує per-package чи workspace-обхід.
+
+Перед змінами backupUvManifest зберігає стан маніфеста й lock-файла, щоб після bumpUvDependencies можна було порівняти попередній і новий стан залежностей та відокремити major-оновлення від решти. bumpUvDependencies працює з прямими залежностями проєкту, звертається до uv і мережевих джерел пакетів на кшталт https://pypi.org/project/, а прогрес передає назовні через журналювання; якщо окреме оновлення не вдається, потік намагається не блокувати інші пакети.
+
+buildUvDependencyPrompt використовується після детермінованого bump-етапу для одного major-пакета: отримує вже підготовлений запис зміни й формує текстове завдання для LLM-аналізу міграції, не виконуючи самостійно оновлення чи перевірки. Наявність uv очікується як частина середовища, встановленого за https://docs.astral.sh/uv/getting-started/installation/, а загальні команди проєкту узгоджуються з package.json.
+
+Після завершення Python-гілки cleanupUvBackups прибирає тимчасові копії, щоб наступний запуск починався з актуального стану репозиторію. Власний стан між викликами не зберігається: дані переходять через файли проєкту, результати зовнішніх команд, журнал прогресу та сформований prompt.
 
 ## Публічний API
 
-- buildUvDependencyPrompt — готує промпт для одного ітеративного проходу по одному Python-major пакету в uv-гілці; ядро саме робить детерміновані кроки 1–3 і 7–8, а LLM бере лише середину процесу.
-- findPyprojectManifest — знаходить єдиний кореневий `pyproject.toml` для single-project uv-конвенції; не шукає workspace-структури, бо орієнтується на поточний формат проєктів.
-- backupUvManifest — зберігає копії `pyproject.toml` і `uv.lock` перед змінами, щоб потім можна було розрізнити major і minor через `collectUvDiff` після bump.
-- cleanupUvBackups — видаляє тимчасові бекапи `pyproject.toml` і `uv.lock` після завершення оновлення.
-- bumpUvDependencies — послідовно піднімає прямі залежності в `pyproject.toml` через `uv remove` і `uv add <pkg>[extras] --bounds lower`; зберігає прогрес інших пакетів, якщо один bump не проходить, і намагається відновити початковий запис при збоях мережі чи резолюції.
-- pythonProvider — підключає Python/uv як `taze`-провайдер через `@7n/rules/plugin-api` і реєструється в `package.json` плагіна через `n-rules.contributes.handlers.taze`.
-
-Згадані орієнтири: https://pypi.org/project/, https://docs.astral.sh/uv/getting-started/installation/, `package.json`.
+- buildUvDependencyPrompt — Промпт ОДНОГО ітеративного виклику для Python-пакета (кроки 4-6 SKILL.md,
+Python-гілка) для ОДНОГО major-пакета. Кроки 1-3/7/8 виконує оркестратор
+ядра детерміновано, без LLM.
+- findPyprojectManifest — Знаходить кореневий `pyproject.toml` (крок 0.2 SKILL.md, Python-гілка).
+v1: один кореневий файл, не per-package обхід, як для Cargo.toml —
+поточна uv-конвенція (single-project, без workspace-обходу).
+- backupUvManifest — Бекапить pyproject.toml + uv.lock (крок 1 SKILL.md, Python-гілка) —
+потрібно для класифікації major/minor через `collectUvDiff` після bump-у.
+- cleanupUvBackups — Прибирає бекапи pyproject.toml/uv.lock після завершення (крок 7 SKILL.md,
+Python-гілка).
+- bumpUvDependencies — Піднімає кожну пряму залежність pyproject.toml через `uv remove` + `uv add
+<pkg>[extras] --bounds lower` (крок 2 SKILL.md, Python-гілка) — `uv` не
+має єдиної команди "підняти все до latest, навіть через major", на
+відміну від `bunx taze -w -r latest`/`cargo upgrade --incompatible allow`
+(підтверджено емпірично: `uv add <pkg>` на вже присутній залежності —
+no-op, specifier НЕ переписується без попереднього `uv remove`). Провал
+одного пакета (мережа/резолюція) не втрачає прогрес по інших —
+best-effort відновлення оригінального рядка, якщо `uv add` не вдався
+після `uv remove`.
 
 ## Гарантії поведінки
 
-- Виконує файлові операції (бекапи `pyproject.toml`/`uv.lock`) і запускає зовнішню команду `uv` — НЕ read-only.
-- Провал bump одного пакета не зупиняє інших; після невдалого `uv add` виконується best-effort відновлення оригінального запису.
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.

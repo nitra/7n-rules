@@ -25,7 +25,7 @@ import { renderViolations, renderDiagnostics } from './render.mjs'
 import { createProgressReporter } from './progress.mjs'
 import { runPlanConcurrently } from './scheduler.mjs'
 
-// Цей файл: npm/scripts/lib/lint-surface/run-detectors.mjs → PACKAGE_ROOT = npm (4 dirname угору).
+/** Цей файл: npm/scripts/lib/lint-surface/run-detectors.mjs → PACKAGE_ROOT = npm (4 dirname угору). */
 export const DEFAULT_RULES_DIR = join(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))), 'rules')
 
 /**

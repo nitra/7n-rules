@@ -132,4 +132,5 @@ const pythonProvider = {
   cleanup: (cwd, manifests, deps) => cleanupUvBackups(cwd, deps)
 }
 
+/** Default-експорт handler-модуля taze: обʼєкт `pythonProvider` (опис вище). */
 export default pythonProvider

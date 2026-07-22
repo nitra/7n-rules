@@ -76,7 +76,7 @@ describe('canon GH Actions workflow templates проходять власний 
     /** @type {string[]} */
     const candidates = []
     await walkDir(root, absPath => {
-      if (absPath.endsWith('.yml.snippet.yml') && absPath.includes(`${'template'}/`)) {
+      if (absPath.endsWith('.yml.snippet.yml') && absPath.includes(`template/`)) {
         candidates.push(absPath)
       }
     })
@@ -111,7 +111,7 @@ describe('canon GH Actions workflow templates проходять власний 
       })
       // Мапимо tmp-шляхи назад у relPath репо для читабельного репорту.
       let report = `${result.stdout}\n${result.stderr}`
-      for (const { tmpPath, relPath } of tmpFiles) report = report.replaceAll(tmpPath, relPath)
+      for (const { tmpPath, relPath } of tmpFiles) report = report.split(tmpPath).join(relPath)
 
       expect(result.status, `actionlint порушення:\n${report}`).toBe(0)
     } finally {

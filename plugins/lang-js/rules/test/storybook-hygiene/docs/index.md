@@ -1,0 +1,9 @@
+---
+type: Directory Index
+title: plugins/lang-js/rules/test/storybook-hygiene
+resource: plugins/lang-js/rules/test/storybook-hygiene/
+---
+
+| Файл                | Тип       |
+| ------------------- | --------- |
+| [main.mjs](main.md) | JS Module |

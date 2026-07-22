@@ -12,7 +12,7 @@ version: '1.0'
 
 Джерело рішення: `docs/adr/канон-storybook-для-vue-компонентних-бібліотек.md`. Уся логіка канону
 (скоуп, скафолд, vitest-конфіг, гігієна залежностей, adopt-діагностика) живе в правилі `storybook`
-пакета `@7n/rules-lang-js` (`node_modules/@7n/rules-lang-js/rules/storybook/`) — цей скіл лише
+пакета `@7n/rules-lang-js` (`node_modules/@7n/rules-lang-js/rules/test/`) — цей скіл лише
 тонка обгортка запуску, за зразком `doc-files`.
 
 ## Передумови
@@ -50,14 +50,14 @@ npx @7n/rules lint storybook
 
 ```bash
 # Діагностика всіх пакетів у скоупі (без запису)
-bun node_modules/@7n/rules-lang-js/rules/storybook/adopt/main.mjs
+bun node_modules/@7n/rules-lang-js/rules/test/storybook-adopt/main.mjs
 
 # + генерація повністю відсутніх секцій (main.js/preview.js/mocks/scripts/vitest-конфіги
 # лишаються недоторканими, якщо вже існують хоч у якомусь вигляді)
-bun node_modules/@7n/rules-lang-js/rules/storybook/adopt/main.mjs --fix-missing
+bun node_modules/@7n/rules-lang-js/rules/test/storybook-adopt/main.mjs --fix-missing
 
 # Звузити діагностику до конкретних пакетів (root dir, той самий формат що storybook.optOut)
-bun node_modules/@7n/rules-lang-js/rules/storybook/adopt/main.mjs --fix-missing packages/ui packages/legacy-ui
+bun node_modules/@7n/rules-lang-js/rules/test/storybook-adopt/main.mjs --fix-missing packages/ui packages/legacy-ui
 ```
 
 Прогін через прямий виклик скрипта плагіна (`node_modules/@7n/rules-lang-js/...`) — CLI-плюмбінг

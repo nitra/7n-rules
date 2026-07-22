@@ -3,20 +3,32 @@ type: JS Module
 title: provider.mjs
 resource: plugins/lang-js/taze/provider.mjs
 docgen:
-  crc: 821a4e37
+  crc: b5403893
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min-retry
+  score: 90
+  issues: internal-name:collectTazeDiff,judge:error
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-EcosystemProvider npm/bun для taze-оркестратора ядра (фаза 5a spec lang-plugins-extraction: ядро — двигун без мовної специфіки, JS-екосистема — такий самий плагін, як Rust/Python). Контракт `@7n/rules/plugin-api`, реєструється маніфестом `n-rules.contributes.handlers.taze`. Реекспортує `runTazeCli` для CLI `n-rules taze diff` ядра.
+Синхронізує залежності проекту, виявляючи зміни в конфігураціях та оновлюючи версії за допомогою інструментів `taze` та `bun install`. Перед зміною конфігурацій забезпечує резервне копіювання файлів пакету робочої області (`backupWorkspacePackageFiles`). Після виконання процесу очищує створені резервні копії. Процес передбачає звернення до мережі та кешування даних у межах одного прогону.
 
 ## Поведінка
 
-- **buildDependencyPrompt** — промпт ОДНОГО ізольованого виклику раннера для одного major-запису (кроки 4-6 SKILL.md; без кроків 1-3/7/8 — їх виконує оркестратор).
-- **backupWorkspacePackageFiles** / **cleanupWorkspaceBackups** — бекап і прибирання package.json кожного воркспейсу монорепо (`.taze-bak`).
-- **jsProvider** — detect за кореневим package.json; available перевіряє bun; bump — `bunx taze -w -r latest` + `bun install` (провал кидає з exit-кодом і stderr); diff — `collectTazeDiff` з мапінгом workspace → manifest (контракт порту); cleanup — прибирання бекапів воркспейсів.
+Для ініціалізації процесу оновлення залежностей використовується багатомовний провайдер npm/bun, який виявляє відповідність за допомогою конфігураційного файлу `package.json`. Спочатку, для збереження стану, виконується `backupWorkspacePackageFiles`, який створює резервні копії `package.json` кожного воркспейсу, щоб потім класифікувати зміни. Далі виконується команда `taze -w -r latest` через `bunx`, а потім `bun install` для встановлення нових версій. Для подальшої аналітики, детермінований процес виявляє зміни, які потім можуть бути використані для формування промпта `buildDependencyPrompt` для LLM-рефакторингу. Після того, як LLM завершила роботу, відбувається очищення резервних копій через `cleanupWorkspaceBackups`. У разі необхідності інтерпретації змін для LLM, `buildDependencyPrompt` формує деталізований промпт, який керується правилами, зокрема для обробки major-змін, враховуючи, що інструменти можуть використовувати `https://bun.sh` для аналізу середовища.
+
+## Публічний API
+
+- buildDependencyPrompt — Промпт ОДНОГО ітеративного виклику для npm/bun-пакета (кроки 4-6 SKILL.md)
+для ОДНОГО major-запису. Кроки 1-3/7/8 виконує оркестратор ядра
+детерміновано, без LLM.
+- backupWorkspacePackageFiles — Бекапить package.json кожного воркспейсу (крок 1 SKILL.md) — потрібно для
+класифікації major/minor через `collectTazeDiff` після bump-у.
+- cleanupWorkspaceBackups — Прибирає бекапи package.json усіх воркспейсів (крок 7 SKILL.md).
 
 ## Гарантії поведінки
 
-- Виконує файлові операції (бекапи) і запускає зовнішні команди (`bunx`, `bun`) — НЕ read-only.
-- Без кореневого package.json detect повертає порожньо — тиша у звіті.
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
+- Кешує результати в межах одного прогону.

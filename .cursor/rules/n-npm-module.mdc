@@ -136,10 +136,13 @@ Rego-пакет: `npm-module.npm_package_json`
 - Обовʼязкове, має бути непорожнім масивом.
 - Subset-of перевірка: кожне значення з канонічного сніпету має бути присутнє у `files`. За замовчуванням — `"types"` обовʼязковий.
 
-**Поле `devDependencies`** (inverse-pattern, логіка в rego):
+**Поле `devDependencies`** (inverse-pattern + Storybook-виняток, логіка в rego):
 
 - Не публікуються користувачам пакета — має бути відсутнє або порожнє `{}`.
-- Наявність будь-яких devDeps → deny з переліком залежностей. Dev-інструментарій переноситься у кореневий `package.json`; CLI-тули, які пакет спавнить через `bunx` у репозиторіях-споживачах (пінінг версій), — у `dependencies` (кореневе bun-правило `package_json` такі пакети в root devDeps не пускає).
+- **Виняток — канонічні Storybook-пакети** (канон Storybook, кластер 7 Governance: `docs/adr/канон-storybook-для-vue-компонентних-бібліотек.md`): `storybook`, `@storybook/vue3-vite`, `@storybook/vue3`, `msw`, `msw-storybook-addon` дозволені як devDeps саме тут, у `npm/package.json` консюмер-пакета — **не** в кореневому `package.json`. Обґрунтування: майбутній `isStorybookRoot()` у `@7n/test` читає саме цей файл, щоб визначити Storybook-скоуп workspace-пакета, тож маркер-пакети мають бути видимі тут, а не в кореневих tooling-deps. Версія кожного канонічного пакета зафіксована точно (map `storybook_canon_dev_deps` у rego) — присутність пакета з іншою версією теж deny (окреме повідомлення, не плутати з allowlist-забороною).
+- Будь-який інший devDep (не з канонічного Storybook-списку) → deny з переліком імен. Dev-інструментарій переноситься у кореневий `package.json`; CLI-тули, які пакет спавнить через `bunx` у репозиторіях-споживачах (пінінг версій), — у `dependencies` (кореневе bun-правило `package_json` такі пакети в root devDeps не пускає).
+
+Канон Storybook-devDeps та їхні версії — static map у `npm_package_json.rego` (не template-driven: це опційний allowlist, а не mandatory-presence дані, тож генеричний T0-fix-writer цього concern-а їх у кожен `package.json` не мерджить — див. коментар на початку rego-файлу).
 
 Канонічний сніпет `files`: [package.json.snippet.json](./template/package.json.snippet.json)
 
@@ -170,10 +173,22 @@ FS-перевірки (наявність файлу зі шляху `types`, с
 { "files": ["bin", "mdc"] }
 ```
 
-✗ Неправильно — наявні `devDependencies`:
+✗ Неправильно — наявні `devDependencies`, не з канонічного Storybook-списку:
 
 ```json
 { "devDependencies": { "@7n/rules": "^1.0.0" } }
+```
+
+✓ Правильно — канонічний Storybook-devDep із зафіксованою версією (канон Storybook):
+
+```json
+{ "devDependencies": { "storybook": "^10.5.3" } }
+```
+
+✗ Неправильно — Storybook-devDep присутній, але версія не збігається з каноном:
+
+```json
+{ "devDependencies": { "storybook": "8.0.0" } }
 ```
 
 ## Структура монорепо та компактний пакет

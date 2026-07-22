@@ -1,3 +1,8 @@
+/**
+ * Інлайн template-посилань у .mdc-правилах: markdown-лінки на файли з тек
+ * template/ замінюються fenced-блоками з фактичним вмістом файлу, щоб
+ * згенероване правило було самодостатнім без відносних шляхів.
+ */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'

@@ -1,6 +1,6 @@
 ---
 type: Directory Index
-title: npm/rules/style/vscode_settings
+title: plugins/lang-js/rules/style/vscode_settings
 resource: plugins/lang-js/rules/style/vscode_settings/
 ---
 

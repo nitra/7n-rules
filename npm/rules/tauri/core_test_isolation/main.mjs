@@ -17,9 +17,11 @@ import { createViolationReporter } from '../../../scripts/lib/lint-surface/viola
 import { findAncestorWorkspaceRoot, resolveWorkspaceMemberDirs } from '../../../scripts/utils/cargo-workspace.mjs'
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 
-/** Стабільні reasons для трьох типів порушення. */
+/** Стабільний reason: LLM-залежність оголошена в app shell замість core-крейта. */
 export const LLM_DEP_IN_APP_SHELL = 'llm-dep-in-app-shell'
+/** Стабільний reason: core-крейт залежить від Tauri — ламає ізоляцію unit-тестів від runtime. */
 export const CORE_CRATE_DEPENDS_ON_TAURI = 'core-crate-depends-on-tauri'
+/** Стабільний reason: у тестах core-крейта немає fake-провайдера LLM для роботи без мережі. */
 export const MISSING_FAKE_LLM_PROVIDER = 'missing-fake-llm-provider'
 
 /** Евристичний allowlist назв LLM SDK-крейтів (без версій/scope). */

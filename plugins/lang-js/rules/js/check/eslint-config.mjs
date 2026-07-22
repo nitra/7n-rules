@@ -26,6 +26,7 @@ export const ESLINT_CONFIG_IGNORES = 'eslint-config-ignores'
 /** Vue-воркспейс відсутній у `vue: [...]` getConfig — .vue файли не парсяться. */
 export const ESLINT_CONFIG_VUE_WORKSPACE = 'eslint-config-vue-workspace'
 
+/** Канонічний ignores-запис: згенерований `auto-imports.d.ts` у будь-якій теці. */
 export const AUTO_IMPORTS_IGNORE = '**/auto-imports.d.ts'
 
 const VUE_LIST_RE = /\bvue\s*:\s*\[([^\]]*)\]/u

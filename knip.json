@@ -9,7 +9,11 @@
     "@7n/rules-ci-azure",
     "@7n/rules-lang-python",
     "@7n/rules-lang-rust",
-    "@7n/rules-lang-js"
+    "@7n/rules-lang-js",
+    "@7n/llm-lib",
+    "vue",
+    "jscpd",
+    "stylelint"
   ],
   "ignoreBinaries": [
     "cspell",
@@ -175,7 +179,7 @@
       ],
       "project": [
         "**/*.{js,mjs}",
-        "!rules/storybook/scaffold/template/**"
+        "!rules/test/storybook-*/template/**"
       ]
     }
   }

@@ -1,10 +1,8 @@
 ---
 type: Directory Index
-title: npm/rules/rust/toolchain_cache
-resource: npm/rules/rust/toolchain_cache/
+title: plugins/ci-github/rules/rust/toolchain_cache
+resource: plugins/ci-github/rules/rust/toolchain_cache/
 ---
-
-# npm/rules/rust/toolchain_cache
 
 | Файл                                              | Тип       |
 | ------------------------------------------------- | --------- |

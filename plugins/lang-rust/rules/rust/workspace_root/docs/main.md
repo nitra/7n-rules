@@ -3,37 +3,41 @@ type: JS Module
 title: main.mjs
 resource: plugins/lang-rust/rules/rust/workspace_root/main.mjs
 docgen:
-  crc: 26e18c57
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
+  crc: 2524da2a
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
   score: 100
-  issues: judge-refine:kept-original,judge:inaccurate:0.99
+  issues: judge-refine:kept-original,judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-`lint` — read-only detector рівня T0 для перевірки Rust workspace без `cargo spawn`: він шукає порушення кореневого контракту репозиторію через `NESTED_WORKSPACE`, `NESTED_PROFILE`, `MISSING_ROOT_WORKSPACE` і `PACKAGE_NOT_WORKSPACE_MEMBER`, а також повертає `lint`-report про структурні розриви. Це потрібно, щоб тримати Rust-структуру в одному кореневому workspace за аналогією з JS-каноном `root package.json` + `workspaces` + один lockfile. Авто-fix тут свідомо не застосовується: fixability лише `structural`, бо перенесення файлів і lockfile є ризикованим. Перевірка працює fail-safe, не кидає винятків назовні і за окремих помилок повертає порожнє значення (`null`) замість exception.
+Файл описує read-only правило для Rust-репозиторіїв: у дереві має бути рівно один кореневий Cargo workspace, а всі package-маніфести мають належати його members. Він існує, щоб без запуску `cargo` репортувати структурні відхилення `NESTED_WORKSPACE`, `NESTED_PROFILE`, `MISSING_ROOT_WORKSPACE`, `PACKAGE_NOT_WORKSPACE_MEMBER` від workspace-канону й уникати ризикового авто-виправлення.
+
+`lint` працює fail-safe: перехоплює помилки й не кидає винятків назовні. Для частини помилкових станів результатом є порожнє значення на кшталт `null`, а не exception.
 
 ## Поведінка
 
-`lint` запускає повну перевірку дерева Rust-manifest’ів від кореня репозиторію, спираючись на `package.json` як на точку входу для репозиторних правил. Спочатку він знаходить усі `Cargo.toml`, далі читає кожен маніфест і розрізняє кореневий workspace та звичайні package-manifest’и. Якщо в не-кореневих маніфестах є власні workspace- або profile-настройки, це фіксується як `NESTED_WORKSPACE` і `NESTED_PROFILE`. Якщо кореневий `Cargo.toml` не містить workspace, це фіксується як `MISSING_ROOT_WORKSPACE`. Після цього перевіряється, чи всі package-manifest’и входять до кореневого workspace; ті, що не покриті, позначаються як `PACKAGE_NOT_WORKSPACE_MEMBER`.  
+`lint` працює як read-only перевірка структури Rust workspace: бере корінь репозиторію з lint-контексту, спирається на `package.json` як конфігураційний орієнтир про межі проєкту, знаходить Cargo-маніфести, читає їх без запуску `cargo` і перетворює знайдені невідповідності на violations.
 
-`NESTED_WORKSPACE` і `NESTED_PROFILE` описують структурні порушення в підманіфестах: репозиторій має бути зібраний навколо одного кореневого workspace, без розпорошених workspace/profile-визначень у вкладених пакетах. `MISSING_ROOT_WORKSPACE` позначає відсутність цього центрального кореневого workspace. `PACKAGE_NOT_WORKSPACE_MEMBER` означає, що окремий package-manifest існує в дереві, але не входить до оголошеного набору workspace members, тобто випадає з єдиної кореневої Rust-структури.  
+Перевірка очікує один кореневий Cargo workspace. Якщо кореневий маніфест відсутній або не має workspace-опису, результат позначається через `MISSING_ROOT_WORKSPACE="missing-root-workspace"` як структурна проблема, яку не варто виправляти автоматично через ризик перенесення файлів або lockfile.
 
-Усі результати лишаються у форматі report-only: модуль не виправляє структуру репозиторію автоматично, бо таке виправлення може вимагати перенесення файлів і змін lockfile. Помилки читаються fail-safe: невалідні або недоступні маніфести не валять перевірку назовні, а просто зводяться до відсутності даних для репорту.
+Після визначення кореневого workspace перевірка аналізує решту маніфестів як підлеглі package-маніфести. Вкладені workspace-оголошення в них репортуються через `NESTED_WORKSPACE="nested-workspace"`, а вкладені profile-налаштування — через `NESTED_PROFILE="nested-profile"`, бо ці правила мають належати кореню workspace.
+
+Далі package-маніфести звіряються з members кореневого workspace. Маніфест, який існує в дереві репозиторію, але не покритий root workspace membership, репортується через `PACKAGE_NOT_WORKSPACE_MEMBER="package-not-workspace-member"`.
+
+Усі результати повертаються як lint-звіт без змін у файловій системі. Невалідні або недоступні маніфести обробляються fail-safe: перевірка не кидає винятки назовні, а пропускає непридатні дані або повертає безпечний порожній результат там, де продовження неможливе.
 
 ## Публічний API
 
-- NESTED_WORKSPACE — Стабільні reasons для чотирьох типів порушення.
-- NESTED_PROFILE — позначає робочий простір як вкладений профіль, щоб цей стан можна було однозначно розпізнати в подальшій обробці.
-- MISSING_ROOT_WORKSPACE — сигналізує, що в проєкті не знайдено кореневий workspace, без якого неможливо продовжити операцію.
-- PACKAGE_NOT_WORKSPACE_MEMBER — повідомляє, що package не входить до складу workspace і тому не може брати участь у workspace-операціях.
-- lint — запускає перевірку узгодженості правил для змінених файлів і допомагає не пропустити порушення перед змінами.
+- NESTED_WORKSPACE — Стабільний reason: вкладений `[workspace]` поза кореневим Cargo.toml.
+- NESTED_PROFILE — Стабільний reason: `[profile.*]` у не-кореневому Cargo.toml (Cargo його ігнорує).
+- MISSING_ROOT_WORKSPACE — Стабільний reason: кореневий Cargo.toml без `[workspace]` при кількох крейтах.
+- PACKAGE_NOT_WORKSPACE_MEMBER — Стабільний reason: крейт не входить у members кореневого workspace.
+- lint — знаходить некоректно вкладені workspace-проєкти, відсутній root workspace для пакета та пакети, які не входять до оголошених workspace-членів, спираючись на package.json.
 
-Експортовані константи-рядки: NESTED_WORKSPACE="nested-workspace"; NESTED_PROFILE="nested-profile"; MISSING_ROOT_WORKSPACE="missing-root-workspace"; PACKAGE_NOT_WORKSPACE_MEMBER="package-not-workspace-member" — стабільні ідентифікатори для різних станів workspace, щоб код і зовнішні перевірки спиралися на однакові значення.
-
-Конфіг, на який спирається код: package.json — джерело workspace-структури та пов’язаних налаштувань, від яких залежить поведінка перевірок.
+Експортовані константи-рядки позначають причини діагностик: NESTED_WORKSPACE="nested-workspace" — вкладений workspace там, де очікується один рівень керування; NESTED_PROFILE="nested-profile" — вкладений профіль workspace; MISSING_ROOT_WORKSPACE="missing-root-workspace" — пакет без кореневого workspace; PACKAGE_NOT_WORKSPACE_MEMBER="package-not-workspace-member" — пакет поза списком членів workspace.
 
 ## Гарантії поведінки
 
