@@ -64,10 +64,32 @@ describe('detectRefusalFiller — детермінований пре-гейт (
     }
   })
 
+  test('живий кейс 2026-07-21 (storybook): «мені потрібен сам код» у тілі доки → зловлено', () => {
+    const leaked =
+      '## Поведінка\n\nМодуль обробляє список файлів. ' +
+      'Щоб написати точну документацію, мені потрібен сам код модуля з усіма функціями.\n'
+    expect(detectRefusalFiller(leaked)).toBeTruthy()
+    // варіації тієї ж родини
+    for (const s of [
+      'Мені потрібно код файлу для продовження.',
+      'Нам потрібен вміст модуля.',
+      'I need the source code to document this file.'
+    ]) {
+      expect(detectRefusalFiller(s)).toBeTruthy()
+    }
+  })
+
   test('нормальна поведінкова дока → null', () => {
     const normal =
       '## Огляд\n\nПеревіряє наявність bun.lock і забороняє yarn.lock у корені монорепо.\n\n' +
       '## Поведінка\n\n1. Шукає заборонені lockfile-и.\n2. Готовий список порушень повертає викликачу.\n'
+    expect(detectRefusalFiller(normal)).toBeNull()
+  })
+
+  test('третя особа про залежності коду («скрипту потрібен файл…») → null (без мені/нам)', () => {
+    const normal =
+      '## Поведінка\n\nСкрипту потрібен файл конфігурації `.n-rules.json`; ' +
+      'без нього обробка завершується помилкою. Для запуску потрібен код виходу 0 від препроцесора.\n'
     expect(detectRefusalFiller(normal)).toBeNull()
   })
 })
