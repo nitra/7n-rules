@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.40.1] - 2026-07-22
+
+### Fixed
+
+- `lint --full`: загублений `await` перед `ensureRunningInWorktree` ламав кожен прогін (у т.ч. зсередини `.worktrees/`) з `TypeError [ERR_INVALID_ARG_TYPE]`; заодно — guard проти видалення auto-created worktree при частковому провалі перенесення змін назад, і stack trace для programmer-помилок у top-level catch
+
 ## [1.40.0] - 2026-07-22
 
 ### Changed
