@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.43.1] - 2026-07-22
+
+### Fixed
+
+- Storybook (правило `storybook`): виправлення хвилі 2a за результатами живого пілота app-скафолда на `gt`. (1) `.storybook/main.js` app-варіанту більше НЕ знімає `vite-plugin-pages` у `viteFinal` — знімання ламало `storybook build` глобально через непідтримуваний `<route lang="yaml">`-блок (`scaffold/template/app-main.js`, `APP_MAIN_JS_MARKERS`). (2) Storybook vitest-проєкт app-пакетів отримує ВЛАСНІ `quasar()`/`AutoImport()`/`Pages()`-плагіни замість успадкованого урізаного unit-конфіга (нові `vitest-config/template/app-storybook-project-entry.js` і `vitest.config.app.baseline.mjs`, type-aware вибір у `fix-vitest-config.mjs`, нові маркер-перевірки в `main.mjs`/`adopt/main.mjs`). (3) `storybook/hygiene` (undeclared-import і sass-variables) тепер перевіряє лише `type: 'library'` пакети — на app-пакетах давав хибні спрацювання на Vite `resolve.alias`-специфікаторах і на свідомо відсутньому `sassVariables`-маркері app-`main.js`. (4) Додано канонічний шаблон `.storybook/vitest.setup.js` (стандартний `@storybook/addon-vitest`-boilerplate) — генерується/перевіряється `scaffold`-концерном для обох типів пакета. (5) `npm/schemas/n-rules.json`: додано `storybook.detectApps`/`storybook.optOut` до кореневої схеми — без цього `additionalProperties: false` відкидав ці вже задокументовані поля `.n-rules.json` як невідомі.
+
 ## [1.43.0] - 2026-07-22
 
 ### Added

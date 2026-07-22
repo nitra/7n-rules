@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.17.0] - 2026-07-22
+
+### Added
+
+- storybook: новий concern `ci` (ADR Кластер 5, CI-частина) — канонічний composite action `setup-playwright-chromium` (кеш Playwright-браузерів, лише chromium) і `.github/workflows/lint-storybook.yml` (швидкий PR-прогін `vitest --project=storybook`), гейтований `requires.capability: ci:github`
+- Хвиля 2a: підтримка app-проєктів у каноні Storybook — детекція за storybook.detectApps, окремий app-скафолд (.storybook/main.js без viteConfigPath-обходу, app-preview.js з pageLoader), smoke-покриття сторінок (page-coverage), adopt-діагностика app-секцій
+
+### Fixed
+
+- storybook: viteFinal-фільтр стійкий до VueMacros-стека (Promise/масив-резолв, сімейний фільтр vite:*/vue-macros), vitest@^4 provider-factory (@vitest/browser-playwright) замість застарілого рядка `'playwright'`, flat-root layout у detectStoriesGlob (components без src/), точковий alias-мок одного модуля в mocking.mdc, і STORIES_RE false positive на `storybookTest({ configDir })` без явного include — усе за результатами пілота adopt-діагностики на nitra/components. Заодно governance package_json.rego: allowlist доповнено `@vitest/browser-playwright`.
+- canon Storybook: viteConfigPath-обхід (empty-vite.config.js), валідний iconSet-імпорт, mswLoader замість mswDecorator, повний .storybook/**-glob у CI/lint, вирівняні governance-піни (storybook ^10.5.3, root Vite build-tooling deps), knip-виключення для .storybook-артефактів
+- storybook: скоуп-детекція більше не вимагає vite.config.* пакета (source-only Vue-бібліотеки, tauri-components/npm rollout) — hasStandardBuild прибрано, vitest-config fix толерує відсутній vite.config
+- Правило `storybook`, хвиля 2a (app-проєкти) — виправлення за результатами живого пілота app-скафолда на `gt` (nitra/ai#234). (1) `.storybook/main.js` app-варіанту більше НЕ знімає `vite-plugin-pages` у `viteFinal` (`scaffold/template/app-main.js`, `APP_MAIN_JS_MARKERS`) — знімання ламало `storybook build` глобально: прототипні сторінки з `<route lang="yaml">`-блоком лишались без обробника, `@vitejs/plugin-vue` генерував import, який ніхто не обробляв далі, `MISSING_EXPORT` падав для всього пакета. (2) Storybook vitest-проєкт app-пакетів (`type: 'app'`) отримує ВЛАСНІ `quasar()`/`AutoImport()`/`Pages()`-плагіни замість успадкованого урізаного unit-конфіга — нові `vitest-config/template/app-storybook-project-entry.js` і `vitest.config.app.baseline.mjs`, type-aware вибір template-файлу в `fix-vitest-config.mjs` (`storybookEntryTemplateName`/`vitestConfigBaselineName`), нові маркер-перевірки `QUASAR_PLUGIN_RE`/`AUTO_IMPORT_PLUGIN_RE`/`VITE_PLUGIN_PAGES_RE` у `vitest-config/main.mjs` і дзеркальні в `adopt/main.mjs`. (3) `storybook/hygiene` (undeclared-import і sass-variables) тепер перевіряє лише `type: 'library'` пакети — на app-пакетах перевірка undeclared-import давала хибні спрацювання на Vite `resolve.alias`-специфікаторах (`components/Foo.vue` тощо), а sass-variables — на свідомо відсутньому `sassVariables`-маркері канонічного app-`main.js`. (4) Додано канонічний шаблон `.storybook/vitest.setup.js` (стандартний `@storybook/addon-vitest`-boilerplate, `setProjectAnnotations`/`beforeAll`) — раніше був відсутній, хоча `storybook-project-entry.js` уже посилався на нього як на `setupFiles`; тепер генерується й перевіряється `scaffold`-концерном (`VITEST_SETUP_JS_MARKERS`) для обох типів пакета, з adopt-діагностикою (`diagnoseVitestSetupJsSection`). (5) `npm/schemas/n-rules.json`: додано `storybook.detectApps`/`storybook.optOut` до кореневої схеми (окремий change-файл у `npm/`).
+
 ## [0.16.0] - 2026-07-22
 
 ### Changed
