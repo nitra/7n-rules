@@ -3,8 +3,9 @@ type: JS Module
 title: main.mjs
 resource: plugins/lang-js/rules/test/storybook-scope/main.mjs
 docgen:
-  crc: e6dab761
-  model: openai-codex/gpt-5.5
+  crc: b6af79b3
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
   score: 90
   issues: internal-name:isVueComponentLibraryPkg,judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
@@ -12,18 +13,19 @@ docgen:
 
 ## Огляд
 
-Файл визначає, які workspace-пакети мають потрапити в скоуп Storybook: спирається на `.n-rules.json`, `.n-cursor.json` і `package.json`, враховує opt-out, поріг Vue-файлів, стандартний build та окремий прапорець для app-проєктів. Також він fail-safe перевіряє, що `storybook.optOut` не містить посилань на неіснуючі пакети.
+Файл визначає, які workspace-пакети потрапляють до Storybook-скоупу, спираючись на `.n-rules.json`, `.n-cursor.json` і `package.json`. Він читає ці конфіги, щоб відрізняти Vue-пакети від інших app-проєктів, зокрема через `isVueAppPkg`, `countVueFiles` і `collectInScopeVuePackages`, а поріг для Vue-скоупу задає `VUE_FILE_THRESHOLD`. Додатково він враховує `readStorybookOptOut`, `readDetectAppsFlag` і `lint` як частину публічної поведінки. Усі помилки обробляються fail-safe: назовні не кидаються винятки, а за певних помилок повертається порожнє значення, наприклад `null`.
 
 ## Поведінка
 
-- `VUE_FILE_THRESHOLD` задає мінімальну кількість Vue-файлів, після якої пакет може потрапити в скоуп Storybook.
-- `readStorybookOptOut` читає з `.n-rules.json` або legacy `.n-cursor.json` перелік workspace-пакетів, які свідомо виключені зі скоупу Storybook; за відсутності або пошкодженості конфіга повертає порожній перелік.
-- `readDetectAppsFlag` читає з `.n-rules.json` або legacy `.n-cursor.json` явний прапорець включення app-проєктів у детекцію Storybook; за замовчуванням лишає їх поза скоупом.
-- `countVueFiles` рахує Vue-файли в дереві пакета з урахуванням шляхів, виключених конфігурацією і правилами ігнорування.
-- `hasStandardBuild` визначає, чи має пакет підтримуваний Vite build-конфіг у корені, потрібний для канонічного Storybook setup.
-- `isVueAppPkg` визначає, чи виглядає `package.json` як Vue app-проєкт, а не компонентна бібліотека.
-- `collectInScopeVuePackages` збирає workspace-пакети зі стандартним build, достатньою кількістю Vue-файлів і без `storybook.optOut`; app-проєкти додає лише після явного увімкнення відповідного прапорця.
-- `lint` перевіряє гігієну `storybook.optOut`: кожен запис має посилатися на наявний workspace-пакет, інакше звітує про застаріле налаштування.
+- `VUE_FILE_THRESHOLD` — задає мінімальну кількість `.vue`-файлів для бібліотек у скоупі Storybook.
+- `readStorybookOptOut` — читає список workspace-коренів, які треба виключити зі скоупу Storybook, з `.n-rules.json` або legacy `.n-cursor.json`; за відсутності або невалідності конфігів повертає порожній список.
+- `readDetectAppsFlag` — читає прапорець `storybook.detectApps` з `.n-rules.json` або `.n-cursor.json`; якщо прапорець не заданий або конфіг не читається, вважає його вимкненим.
+- `countVueFiles` — рахує `.vue`-файли в дереві пакета з урахуванням ігнорів, щоб оцінити його придатність для Storybook.
+- `isVueAppPkg` — визначає, чи пакет схожий на Vue app-проєкт, а не на компонентну бібліотеку.
+- `collectInScopeVuePackages` — збирає workspace-пакети, які входять у скоуп Storybook: бібліотеки — завжди за порогом `.vue`-файлів, app-проєкти — лише коли увімкнено `storybook.detectApps`, і без цього порога.
+- `lint` — перевіряє, що `storybook.optOut` не посилається на неіснуючі workspace-пакети, і повертає результат без падіння на помилках читання конфігів.
+
+Changelog: не запускався
 
 ## Публічний API
 
@@ -37,21 +39,25 @@ docgen:
   і не впливає на скоуп, доки консюмер-репо не увімкне прапорець явно.
 - countVueFiles — Рахує `.vue`-файли в дереві пакета (поважає `.gitignore` й `ignore` з `.n-rules.json` через
   `walkDir`/`ignorePaths` — той самий обхід, що й `vue/packages`).
-- hasStandardBuild — Чи має пакет "стандартний" build — розпізнаваний `vite.config.{js,ts,mjs}` у корені пакета.
-  Канонічний `.storybook/main.js` спирається саме на цей файл (`viteFinal` мерджить його
-  плагіни) — без нього автоматичний скафолд неможливий, і пакет пропускається мовчки
-  (ADR Кластер 1: "skip пакетів із нестандартним build").
 - isVueAppPkg — Чи є пакет app-проєктом (не бібліотекою) для хвилі 2: `vue` у `dependencies` (не лише
   `peerDependencies`) і не бібліотека компонентів. Реалізовано зараз (щоб не переписувати
   модуль пізніше), але результат впливає на скоуп лише за прапорця `storybook.detectApps`.
-- collectInScopeVuePackages — Збирає workspace-пакети у скоупі канону Storybook хвилі 1: Vue-компонентна бібліотека
+- collectInScopeVuePackages — Збирає workspace-пакети у скоупі канону Storybook: Vue-компонентна бібліотека хвилі 1
   (`vue` у `peerDependencies`, маркер `isVueComponentLibraryPkg` — той самий, що й `vue.mdc`)
-  з не менше {@link VUE_FILE_THRESHOLD} `.vue`-файлами, без `storybook.optOut`, зі
-  стандартним build (`vite.config.*`). Хвиля 2 (app-проєкти) додається лише за явного
-  прапорця `storybook.detectApps` у `.n-rules.json`.
+  з не менше {@link VUE_FILE_THRESHOLD} `.vue`-файлами, без `storybook.optOut` — тип `library`.
+  Наявність `vite.config.*` пакета — НЕ умова скоупу (rollout tauri-components/npm, хвиля 1.4):
+  канонічний скафолд (`viteConfigPath` на `empty-vite.config.js`, `loadConfigFromFile`
+  толерує відсутній конфіг) працює й для source-only Vue-бібліотек без власного Vite-білду
+  — див. секцію "Скоуп" у `main.mdc`.
+
+Опційно (лише за `storybook.detectApps: true` у `.n-rules.json`) — app-проєкти хвилі 2a:
+`vue` у `dependencies` (не бібліотека) + наявний `src/pages/` — тип `app`, свідомо
+**без** порога {@link VUE_FILE_THRESHOLD} (ADR-розширення 2026-07-20: сторінкове покриття —
+smoke-рівень, поріг відсікав би легітимні app-проєкти з 1-2 сторінками).
+
 - lint — Self-check конфігурації: `.n-rules.json` → `storybook.optOut` не має посилатись на
   неіснуючі workspace-пакети (застаріле налаштування — пакет перейменували/видалили, а
-  opt-out лишився). Сама детекція скоупу (поріг, build, app-проєкти) — pure-функції вище,
+  opt-out лишився). Сама детекція скоупу (поріг, app-проєкти) — pure-функції вище,
   покриті тестами напряму; тут лише конфіг-гігієна.
 
 ## Гарантії поведінки

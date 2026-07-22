@@ -1,34 +1,48 @@
 /**
  * Adopt-режим канону Storybook (ADR канон-storybook-для-vue-компонентних-бібліотек,
- * Кластер 8; main.mdc). Для пакетів, де ВЖЕ є ручний `.storybook/`, що не збігається з
- * каноном, — діагностика diff по секціях проти канонічних `template/` (main.js,
- * preview.js, empty-vite.config.js, mocks/gql-sse.js, package.json#scripts.storybook,
- * vitest test.projects, vitest.stryker.config), БЕЗ сліпого перезапису розбіжних файлів. Автофікс
- * (`--fix-missing`) — лише для секцій, яких немає ВЗАГАЛІ (той самий рендер, що й
- * T0-фікс concern-ів `scaffold`/`vitest-config` — переюз, не дублювання шаблонування).
+ * Кластер 8 + розширення 2026-07-20 хвиля 2a; main.mdc). Для пакетів, де ВЖЕ є ручний
+ * `.storybook/`, що не збігається з каноном, — діагностика diff по секціях проти
+ * канонічних `template/` (main.js, preview.js, empty-vite.config.js — лише бібліотеки,
+ * mocks/gql-sse.js, package.json#scripts.storybook, vitest test.projects,
+ * vitest.stryker.config, `.storybook/fixtures/` — лише app-пакети), БЕЗ сліпого
+ * перезапису розбіжних файлів. Автофікс (`--fix-missing`) — лише для секцій, яких
+ * немає ВЗАГАЛІ (той самий рендер, що й T0-фікс concern-ів `scaffold`/`vitest-config` —
+ * переюз, не дублювання шаблонування); `.storybook/fixtures/` — виняток, вміст
+ * app-специфічний і не має канонічного рендера, тож `--fix-missing` його не генерує.
  *
  * Circuit breaker (ADR): збій діагностики чи фіксу одного пакета деградує до
  * `status: 'broken'` для ЦЬОГО пакета — решта пакетів прогону обробляються далі,
  * увесь прогін ніколи не падає через один зламаний пакет.
  *
  * Викликається зі скіла (`npm/skills/storybook/SKILL.md`, `--adopt`):
- *   bun node_modules/@7n/rules-lang-js/rules/test/storybook-adopt/main.mjs [--fix-missing] [--cwd <path>] [rootDir...]
+ *   bun node_modules/@7n/rules-lang-js/rules/storybook/adopt/main.mjs [--fix-missing] [--cwd <path>] [rootDir...]
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { isRunAsCli } from '@7n/rules/scripts/cli-entry.mjs'
 
 import { collectInScopeVuePackages } from '../storybook-scope/main.mjs'
-import { MAIN_JS_MARKERS, missingMarkers, PREVIEW_JS_MARKERS, STORYBOOK_SCRIPT } from '../storybook-scaffold/main.mjs'
 import {
+  APP_MAIN_JS_MARKERS,
+  APP_PREVIEW_JS_MARKERS,
+  MAIN_JS_MARKERS,
+  missingMarkers,
+  PREVIEW_JS_MARKERS,
+  STORYBOOK_SCRIPT
+} from '../storybook-scaffold/main.mjs'
+import {
+  renderAppMainJs,
+  renderAppPreviewJs,
   renderEmptyViteConfig,
   renderMainJs,
   renderMocksGqlSse,
-  renderPreviewJs
+  renderPreviewJs,
+  renderVitestSetupJs
 } from '../storybook-scaffold/fix-storybook-scaffold.mjs'
 import { buildFreshVitestConfig, buildStrykerConfig } from '../storybook-vitest-config/fix-storybook-vitest-config.mjs'
 import {
+  AUTO_IMPORT_PLUGIN_RE,
   BROWSER_KEY_RE,
   CHROMIUM_RE,
   classifyProjects,
@@ -37,8 +51,10 @@ import {
   hasStoriesMarker,
   parseModule,
   PROVIDER_FACTORY_RE,
+  QUASAR_PLUGIN_RE,
   resolveVitestConfigPath,
-  strykerConfigPathFor
+  strykerConfigPathFor,
+  VITE_PLUGIN_PAGES_RE
 } from '../storybook-vitest-config/main.mjs'
 
 /** Статуси однієї секції діагностики (діагностика ≠ lint-violation — тут завжди 4 значення). */
@@ -50,6 +66,8 @@ export const SECTION = Object.freeze({
   PREVIEW_JS: 'preview.js',
   EMPTY_VITE_CONFIG: 'empty-vite.config.js',
   MOCKS_GQL_SSE: 'mocks/gql-sse.js',
+  VITEST_SETUP_JS: 'vitest.setup.js',
+  FIXTURES_DIR: '.storybook/fixtures/',
   PACKAGE_SCRIPT: 'package.json#scripts.storybook',
   VITEST_PROJECTS: 'vitest test.projects (unit+storybook)',
   STRYKER_CONFIG: 'vitest.stryker.config'
@@ -135,6 +153,55 @@ function diagnoseEmptyViteConfigSection(entry) {
 }
 
 /**
+ * Діагностика `.storybook/vitest.setup.js` — verbatim-порівняння з канонічним шаблоном
+ * (той самий файл для ОБОХ типів пакета, library/app — не залежить від `entry.type`,
+ * на відміну від `main.js`/`preview.js`). Без нього `vitest run --project=storybook`
+ * не підключає анотації `.storybook/preview.js` (decorators/loaders/parameters).
+ * @param {{ absDir: string, rootDir: string }} entry запис пакета
+ * @returns {{ name: string, file: string, status: string, detail?: string }} секція діагностики
+ */
+function diagnoseVitestSetupJsSection(entry) {
+  const relPath = '.storybook/vitest.setup.js'
+  const file = relFileFor(entry, relPath)
+  const abs = join(entry.absDir, relPath)
+  if (!existsSync(abs)) return { name: SECTION.VITEST_SETUP_JS, file, status: STATUS.MISSING }
+  const actual = readFileSync(abs, 'utf8')
+  const canonical = renderVitestSetupJs()
+  if (actual === canonical) return { name: SECTION.VITEST_SETUP_JS, file, status: STATUS.MATCH }
+  return {
+    name: SECTION.VITEST_SETUP_JS,
+    file,
+    status: STATUS.DIFFER,
+    detail: 'вміст відрізняється від канонічного @storybook/addon-vitest-boilerplate (storybook.mdc)'
+  }
+}
+
+/**
+ * Діагностика `.storybook/fixtures/` app-пакета (хвиля 2a) — наявність каталогу з бодай
+ * одним файлом. Вміст фікстур — app-специфічні дані (`taskDetailFrame` тощо, ADR-розширення
+ * 2026-07-20), без канонічного рендера: `--fix-missing` цю секцію НЕ генерує (на відміну
+ * від `mocks/gql-sse.js`), лише сигналізує відсутність — агент/людина пише фікстуру вручну.
+ * @param {{ absDir: string, rootDir: string }} entry app-пакет у скоупі
+ * @returns {{ name: string, file: string, status: string, detail?: string }} секція діагностики
+ */
+function diagnoseFixturesSection(entry) {
+  const relPath = '.storybook/fixtures'
+  const file = relFileFor(entry, relPath)
+  const abs = join(entry.absDir, relPath)
+  if (!existsSync(abs)) return { name: SECTION.FIXTURES_DIR, file, status: STATUS.MISSING }
+  let entries
+  try {
+    entries = readdirSync(abs, { withFileTypes: true })
+  } catch {
+    return { name: SECTION.FIXTURES_DIR, file, status: STATUS.MISSING }
+  }
+  if (entries.every(e => !e.isFile())) {
+    return { name: SECTION.FIXTURES_DIR, file, status: STATUS.MISSING, detail: 'каталог порожній' }
+  }
+  return { name: SECTION.FIXTURES_DIR, file, status: STATUS.MATCH }
+}
+
+/**
  * Діагностика `package.json#scripts.storybook`.
  * @param {{ pkg: Record<string, unknown>, rootDir: string }} entry запис пакета
  * @returns {{ name: string, file: string, status: string, detail?: string }} секція діагностики
@@ -153,8 +220,33 @@ function diagnoseScriptSection(entry) {
 }
 
 /**
- * Діагностика `test.projects` наявного vitest-конфіга (unit+storybook, browser-mode маркери).
- * @param {{ absDir: string, rootDir: string }} entry запис пакета
+ * Підказки маркерів storybook-запису `test.projects`, яких бракує — той самий
+ * набір (спільні + app-специфічні quasar()/AutoImport()/Pages(), хвиля 2a), що й
+ * `vitest-config/main.mjs#collectStorybookMarkerHints` — окрема копія, не імпорт звідти
+ * (adopt-діагностика формує людський detail-рядок, а не lint-violation).
+ * @param {string} storybookSlice текстовий зріз елемента `storybook` у `test.projects`
+ * @param {'library'|'app'} [type] тип пакета
+ * @returns {string[]} людські підказки маркерів, яких бракує
+ */
+function collectAdoptMarkerHints(storybookSlice, type) {
+  const missingHints = []
+  if (!CHROMIUM_RE.test(storybookSlice)) missingHints.push('chromium-інстанс')
+  if (!BROWSER_KEY_RE.test(storybookSlice)) missingHints.push('browser-mode')
+  if (!hasStoriesMarker(storybookSlice)) missingHints.push('stories-джерело (include або storybookTest({ configDir }))')
+  if (!PROVIDER_FACTORY_RE.test(storybookSlice))
+    missingHints.push('provider-factory (playwright() з @vitest/browser-playwright)')
+  if (type === 'app') {
+    if (!QUASAR_PLUGIN_RE.test(storybookSlice)) missingHints.push('quasar()-плагін')
+    if (!AUTO_IMPORT_PLUGIN_RE.test(storybookSlice)) missingHints.push('AutoImport()-плагін')
+    if (!VITE_PLUGIN_PAGES_RE.test(storybookSlice)) missingHints.push('Pages()-плагін')
+  }
+  return missingHints
+}
+
+/**
+ * Діагностика `test.projects` наявного vitest-конфіга (unit+storybook, browser-mode маркери,
+ * плюс для `entry.type === 'app'` — власні quasar()/AutoImport()/Pages()-плагіни, хвиля 2a).
+ * @param {{ absDir: string, rootDir: string, type?: 'library'|'app' }} entry запис пакета
  * @returns {{ name: string, file: string, status: string, detail?: string }} секція діагностики
  */
 function diagnoseVitestProjectsSection(entry) {
@@ -195,12 +287,7 @@ function diagnoseVitestProjectsSection(entry) {
     return { name, file, status: STATUS.DIFFER, detail: `бракує ${missingParts.join(' і ')} у test.projects` }
   }
 
-  const missingHints = []
-  if (!CHROMIUM_RE.test(storybookSlice)) missingHints.push('chromium-інстанс')
-  if (!BROWSER_KEY_RE.test(storybookSlice)) missingHints.push('browser-mode')
-  if (!hasStoriesMarker(storybookSlice)) missingHints.push('stories-джерело (include або storybookTest({ configDir }))')
-  if (!PROVIDER_FACTORY_RE.test(storybookSlice))
-    missingHints.push('provider-factory (playwright() з @vitest/browser-playwright)')
+  const missingHints = collectAdoptMarkerHints(storybookSlice, entry.type)
   if (missingHints.length > 0) {
     return { name, file, status: STATUS.DIFFER, detail: `storybook-project без: ${missingHints.join(', ')}` }
   }
@@ -238,19 +325,30 @@ async function diagnoseStrykerSection(entry) {
 }
 
 /**
- * Діагностика одного пакета в скоупі по секціях. Ніколи не кидає — збій окремої
- * секції (парсинг/IO) відображається як секція `differ`, а не виняток, що впав
- * би на весь пакет; лишається на розсуд `diagnosePackage` (circuit breaker рівня
- * пакета — тут не потрібен, бо секції вже ізольовані одна від одної).
+ * Діагностика одного пакета в скоупі по секціях. Розгалужена за `entry.type` (хвиля 2a):
+ * app-пакети діагностуються за app-канонічними маркерами й БЕЗ `empty-vite.config.js`
+ * (свідома асиметрія — app-и не використовують `viteConfigPath`-обхід), з додатковою
+ * секцією `.storybook/fixtures/`. Ніколи не кидає — збій окремої секції (парсинг/IO)
+ * відображається як секція `differ`, а не виняток, що впав би на весь пакет; лишається
+ * на розсуд `diagnosePackage` (circuit breaker рівня пакета — тут не потрібен, бо секції
+ * вже ізольовані одна від одної).
  * @param {import('../storybook-scope/main.mjs').InScopePackage} entry пакет у скоупі
  * @returns {Promise<{ rootDir: string, status: 'canonical'|'missing-files'|'differs', sections: object[] }>} діагностика пакета
  */
 export async function diagnosePackage(entry) {
+  const isApp = entry.type === 'app'
   const sections = [
-    diagnoseMarkerFile(entry, '.storybook/main.js', SECTION.MAIN_JS, MAIN_JS_MARKERS),
-    diagnoseMarkerFile(entry, '.storybook/preview.js', SECTION.PREVIEW_JS, PREVIEW_JS_MARKERS),
-    diagnoseEmptyViteConfigSection(entry),
+    diagnoseMarkerFile(entry, '.storybook/main.js', SECTION.MAIN_JS, isApp ? APP_MAIN_JS_MARKERS : MAIN_JS_MARKERS),
+    diagnoseMarkerFile(
+      entry,
+      '.storybook/preview.js',
+      SECTION.PREVIEW_JS,
+      isApp ? APP_PREVIEW_JS_MARKERS : PREVIEW_JS_MARKERS
+    ),
+    ...(isApp ? [] : [diagnoseEmptyViteConfigSection(entry)]),
     diagnoseMocksSection(entry),
+    diagnoseVitestSetupJsSection(entry),
+    ...(isApp ? [diagnoseFixturesSection(entry)] : []),
     diagnoseScriptSection(entry),
     diagnoseVitestProjectsSection(entry),
     await diagnoseStrykerSection(entry)
@@ -266,6 +364,8 @@ export async function diagnosePackage(entry) {
  * (adopt-автофікс НІКОЛИ не чіпає секції зі статусом `differ` — інструкція
  * для агента/людини, не сліпий перезапис). Кожна секція фіксується незалежно;
  * збій однієї не блокує решту (той самий circuit-breaker принцип, лише на дрібнішому рівні).
+ * `.storybook/fixtures/` (app-пакети) свідомо не генерується тут — вміст app-специфічний,
+ * канонічного рендера немає ({@link diagnoseFixturesSection}).
  * @param {import('../storybook-scope/main.mjs').InScopePackage} entry пакет у скоупі
  * @param {object[]} sections секції діагностики пакета (`diagnosePackage().sections`)
  * @returns {Promise<string[]>} абсолютні шляхи записаних файлів
@@ -279,18 +379,24 @@ export async function fixMissingSections(entry, sections) {
   }
 
   const byName = new Map(sections.map(s => [s.name, s]))
+  const isApp = entry.type === 'app'
 
   if (byName.get(SECTION.MAIN_JS)?.status === STATUS.MISSING) {
-    writeFileEnsureDir(join(entry.absDir, '.storybook/main.js'), renderMainJs(entry.absDir))
+    const content = isApp ? renderAppMainJs() : renderMainJs(entry.absDir)
+    writeFileEnsureDir(join(entry.absDir, '.storybook/main.js'), content)
   }
   if (byName.get(SECTION.PREVIEW_JS)?.status === STATUS.MISSING) {
-    writeFileEnsureDir(join(entry.absDir, '.storybook/preview.js'), renderPreviewJs())
+    const content = isApp ? renderAppPreviewJs() : renderPreviewJs()
+    writeFileEnsureDir(join(entry.absDir, '.storybook/preview.js'), content)
   }
-  if (byName.get(SECTION.EMPTY_VITE_CONFIG)?.status === STATUS.MISSING) {
+  if (!isApp && byName.get(SECTION.EMPTY_VITE_CONFIG)?.status === STATUS.MISSING) {
     writeFileEnsureDir(join(entry.absDir, '.storybook/empty-vite.config.js'), renderEmptyViteConfig())
   }
   if (byName.get(SECTION.MOCKS_GQL_SSE)?.status === STATUS.MISSING) {
     writeFileEnsureDir(join(entry.absDir, '.storybook/mocks/gql-sse.js'), renderMocksGqlSse())
+  }
+  if (byName.get(SECTION.VITEST_SETUP_JS)?.status === STATUS.MISSING) {
+    writeFileEnsureDir(join(entry.absDir, '.storybook/vitest.setup.js'), renderVitestSetupJs())
   }
   if (byName.get(SECTION.PACKAGE_SCRIPT)?.status === STATUS.MISSING) {
     const pkgPath = join(entry.absDir, 'package.json')
@@ -304,7 +410,7 @@ export async function fixMissingSections(entry, sections) {
     // test.projects відсутній ЛИШЕ через відсутність усього vitest-конфіга — augment
     // наявного (без відсутнього test-блоку) свідомо поза adopt-автофіксом: секція вже
     // позначена `differ` (не `missing`) для такого випадку, сюди він не потрапляє.
-    const fresh = await buildFreshVitestConfig(entry.absDir)
+    const fresh = await buildFreshVitestConfig(entry.absDir, entry.type)
     writeFileEnsureDir(fresh.path, fresh.content)
   }
   if (byName.get(SECTION.STRYKER_CONFIG)?.status === STATUS.MISSING) {

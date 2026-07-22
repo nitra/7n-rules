@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.0] - 2026-07-22
+
+### Added
+
+- rust/doc_comments: рекомендовані вимоги до rustdoc-коментарів (//!-header файлу з pub-елементами, ///-опис над кожним top-level pub-елементом) з T0-підвищенням суміжних //-коментарів до ///|//! — джерело дослівної доки doc-files
+
+## [0.7.1] - 2026-07-22
+
+### Fixed
+
+- `rust/workspace_root` і `rust/applies`: обхід дерева тепер пропускає `.worktrees/` (спільний `RUST_WALK_IGNORED_DIR_NAMES`) — без цього auto-created worktree копії Cargo-маніфестів давали хибні `nested-workspace` violations; `rust/check`: коли `cargo-deny` не встановлено, `deny-config-missing` закривається детермінованим мінімальним `deny.toml` замість no-op → LLM-fix, який раніше галюцинував невалідну секцію `[deny]`
+
 ## [0.7.0] - 2026-07-21
 
 ### Added

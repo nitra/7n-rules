@@ -1,10 +1,10 @@
 ---
 type: Directory Index
-title: plugins/lang-js/rules/storybook/scaffold
+title: plugins/lang-js/rules/test/storybook-scaffold
 resource: plugins/lang-js/rules/test/storybook-scaffold/
 ---
 
-| Файл                                | Тип       |
-| ----------------------------------- | --------- |
-| [fix-scaffold.mjs](fix-scaffold.md) | JS Module |
-| [main.mjs](main.md)                 | JS Module |
+| Файл                                                    | Тип       |
+| ------------------------------------------------------- | --------- |
+| [fix-storybook-scaffold.mjs](fix-storybook-scaffold.md) | JS Module |
+| [main.mjs](main.md)                                     | JS Module |

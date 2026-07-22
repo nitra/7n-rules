@@ -8,6 +8,12 @@
  * тож rollback провального rung-а її не стирає, і великий беклог сходиться
  * крок за кроком за кілька прогонів. Видалення сирітських док лишається під
  * звичайним rollback (ctx.recordWrite).
+ *
+ * Інваріант: `crc-mismatch` НЕ закривається детермінованим T0-штампом CRC
+ * (fix-check.mjs для check свідомо відсутній). Свіжий CRC поверх старого тексту
+ * назавжди маскує дрейф — CRC-гейт вважає доку актуальною і вона більше ніколи
+ * не регенерується. Свіжий CRC зʼявляється лише разом зі щойно згенерованим
+ * вмістом (stampDoc усередині runGenerationBatch).
  * @typedef {import('../../../scripts/lib/lint-surface/types.mjs').FixWorkerFn} FixWorkerFn
  */
 import { join } from 'node:path'

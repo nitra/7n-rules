@@ -15,18 +15,33 @@ const router = createRouter({
 })
 ```
 
-Для сторінок (хвиля 2, app-проєкти з `src/pages/`) — реальний параметризований маршрут замість catch-all, `router.push` перед mount і `await router.isReady()` у Storybook `loaders` (не в декораторі — `loaders` виконується per-story до рендеру, прибирає перший рендер без `route.params`):
+Для сторінок (хвиля 2a, app-проєкти з `src/pages/`) — реальний параметризований маршрут замість catch-all, `router.replace(url)` і `await router.isReady()` у Storybook `loaders` (не в декораторі — `loaders` виконується per-story до рендеру, прибирає перший рендер без `route.params`). **Прототип-verified відмінність від первісного рецепту:** цей `pageLoader` живе в канонічному `.storybook/preview.js` (генерується скафолдом хвилі 2a, `scaffold/template/app-preview.js`), **не** пишеться в story-файлі — story лише задає `parameters.route = { path, url }` у своєму meta, `pageLoader` читає їх із `ctx.parameters.route` автоматично для кожної story:
 
 ```js
-const router = createRouter({
-  history: createMemoryHistory(),
-  routes: [{ path: '/task/:id', component: TaskPage }]
-})
-
-export const pageLoader = ({ args }) => async () => {
-  await router.push(`/task/${args.taskId}`)
+// .storybook/preview.js (канонічний скафолд, не story-файл)
+async function pageLoader(ctx) {
+  if (!ctx.parameters.route) return {}
+  const { path, url } = ctx.parameters.route
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path, component: { render: () => null } },
+      { path: '/:catchAll(.*)*', component: { render: () => null } }
+    ]
+  })
+  router.replace(url)
   await router.isReady()
   return { router }
+}
+
+export default { loaders: [mswLoader, pageLoader] }
+```
+
+```js
+// src/pages/task/task-detail.stories.js — story задає лише parameters, роутер не будує сама
+export default {
+  component: TaskDetailPage,
+  parameters: { route: { path: '/task/:id', url: '/task/128' } }
 }
 ```
 
@@ -99,21 +114,26 @@ async viteFinal(config) {
 
 ### Pinia
 
-Справжня `createPinia()` у page-декораторі — **без** `pinia-plugin-persistedstate` (`persist: true` у сторі стає no-op, читання/запис localStorage не потрібні в ізольованому рендері). Наповнення початкового стану — через `parameters.pinia.initialState`, не хардкод у декораторі:
+Справжня `createPinia()` — **без** `pinia-plugin-persistedstate` (`persist: true` у сторі стає no-op, читання/запис localStorage не потрібні в ізольованому рендері). Наповнення початкового стану — через `parameters.pinia.initialState`. **Прототип-verified відмінність від первісного рецепту:** `createPinia()`/сідінг — теж частина того самого канонічного `pageLoader` у `.storybook/preview.js` (не окрема фабрика в story-файлі — той самий loader, що й для router, вище):
 
 ```js
-import { createPinia } from 'pinia'
-
-export function pageDecorator({ route, pinia } = {}) {
-  return (story, ctx) => {
-    const app = createPinia()
-    if (ctx.parameters.pinia?.initialState) {
-      for (const [id, state] of Object.entries(ctx.parameters.pinia.initialState)) {
-        app.state.value[id] = state
-      }
-    }
-    // ...install router/pinia у app instance, повернути wrapped story
+// .storybook/preview.js (канонічний скафолд)
+async function pageLoader(ctx) {
+  const loaded = {}
+  // ...router-гілка (Router вище)
+  if (ctx.parameters.pinia) {
+    const pinia = createPinia()
+    Object.assign(pinia.state.value, structuredClone(ctx.parameters.pinia.initialState ?? {}))
+    loaded.pinia = pinia
   }
+  return loaded
+}
+```
+
+```js
+// story-файл — лише сідить початковий стан через parameters, не будує Pinia сама
+export default {
+  parameters: { pinia: { initialState: { persist: { locale: 'uk' } } } }
 }
 ```
 
@@ -121,10 +141,12 @@ export function pageDecorator({ route, pinia } = {}) {
 
 ### Патерн story для сторінки
 
-- Одна фабрика-декоратор `pageDecorator({ route, pinia })` на весь повторюваний код (router + pinia + Quasar layout) — не дублювати в кожному story-файлі.
-- **`QLayout`/`QPageContainer`-wrapper обов'язковий**: `q-page` кидає виняток без layout-предка. Quasar SFC-transform (auto-реєстрація компонентів через build-time трансформ) **не працює** в runtime-шаблонах декораторів — `QLayout`/`QPageContainer`/`QPage` реєструються явно (`app.component('QLayout', QLayout)` тощо), інакше рендер падає з незрозумілою помилкою про невідомий тег.
+**Прототип-verified розподіл відповідальності** (уточнення первісного рецепту цього розділу): router/pinia будує канонічний `pageLoader` у `.storybook/preview.js` (генерується скафолдом хвилі 2a, `scaffold/template/app-preview.js` — те саме для всіх сторінок пакета, не пишеться в кожному story-файлі); story-файл відповідає лише за:
+
+- `parameters.route`/`parameters.pinia.initialState` у meta — дані для `pageLoader`, не сам router/pinia.
+- **Layout-декоратор `QLayout`/`QPageContainer`-wrapper** (напр. `pageFrame`) — обов'язковий: `q-page` кидає виняток без layout-предка. Quasar SFC-transform (auto-реєстрація компонентів через build-time трансформ) **не працює** в runtime-шаблонах декораторів — `QLayout`/`QPageContainer`/`QPage` реєструються явно (`app.component('QLayout', QLayout)` у `.storybook/preview.js` для глобальної реєстрації, decorator лише споживає їх у темплейті), інакше рендер падає з незрозумілою помилкою про невідомий тег.
 - Фікстури — окремим модулем `.storybook/fixtures/<page>.js`, не inline в story-файлі (переюз між `Default`/`Loading`/`Error`/`Realtime`).
-- **Smoke-мінімум**: одна story «рендериться без помилок» на кожну сторінку — обов'язковий нижній рівень покриття, навіть без окремих stories для кожного стану.
+- **Smoke-мінімум**: одна story «рендериться без помилок» на кожну сторінку — обов'язковий нижній рівень покриття, навіть без окремих stories для кожного стану (перевіряється `page-coverage`-концерном, рівень `warn`).
 - Окремі stories для `Loading`/`Error`/`Realtime` (сценарій з кількома SSE-кадрами через `sseSubscription`) — де застосовно, поверх smoke-мінімуму.
 
 ### Мережеві side-effect компоненти без моку

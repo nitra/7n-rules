@@ -252,7 +252,7 @@ console.log(env.OPTIONAL_ENV_VAR)
 ```
 
 Тимчасово приглушити перевірку для конкретного рядка можна коментарем
-`// @7n/rules ignore-next-line checkEnv` безпосередньо перед використанням
+`// n-rules:ignore-next-line checkEnv` безпосередньо перед використанням
 (escape-hatch для legacy-коду, не для нових файлів).
 
 Перевірка (JS-сканер): `../lib/check-env-scan.mjs`.

@@ -1,10 +1,8 @@
 ---
 type: Directory Index
-title: npm/rules/js-run/lib
+title: plugins/lang-js/rules/js-run/lib
 resource: plugins/lang-js/rules/js-run/lib/
 ---
-
-# npm/rules/js-run/lib
 
 | Файл                                                      | Тип       |
 | --------------------------------------------------------- | --------- |

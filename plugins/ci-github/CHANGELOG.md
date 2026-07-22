@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.9.1] - 2026-07-22
+
+### Fixed
+
+- GH Actions canon: заквотувати $GITHUB_PATH у lint-k8s.yml і git-ai.yml.snippet.yml (SC2086 deadlock з ga/workflows-лінтом); гейт-тест template/*.yml.snippet.yml через actionlint
+
 ## [1.9.0] - 2026-07-20
 
 ### Added

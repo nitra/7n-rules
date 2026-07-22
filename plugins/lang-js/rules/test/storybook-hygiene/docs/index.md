@@ -1,6 +1,6 @@
 ---
 type: Directory Index
-title: plugins/lang-js/rules/storybook/hygiene
+title: plugins/lang-js/rules/test/storybook-hygiene
 resource: plugins/lang-js/rules/test/storybook-hygiene/
 ---
 

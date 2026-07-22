@@ -229,6 +229,33 @@ export { patterns } from '../../../scripts/lib/fix/vscode-ext-add.mjs'
 
 **Red flag (pure-doc):** у канонічному `npm/rules/<id>/main.mdc` зʼявляється fenced-блок з ` ```<ext> title="<filename>" ` — будь-який, навіть якщо поруч **немає** ані template-лінка, ані check'а. `title="<filename>"` сигналізує канон конкретного файлу проєкту, і він має жити в `template/<basename>.snippet.<ext>` з markdown-лінком у `.mdc`, а не дублюватися fenced-блоком inline. Виняток — контрприклади (`title="❌ ..."`, `title="✅ ..."`) і анонімні приклади без `title=`. Перед комітом `main.mdc` з новим `title="<filename>"` fenced-блоком — зупинись і створи концерн з template-файлом.
 
+## Опт-ін escape-hatch маркери в коді консюмера: канон `n-rules:`
+
+**Принцип.** Коли перевірка (detector/rego) допускає точковий ручний виняток через коментар **у коді консюмера** (не конфіг проєкту типу `.jscpd.json`/`.trufflehog-exclude` — там свій канон, див. n-lint.mdc «Винятки в конфігурації» — а inline-маркер поруч із конкретним рядком/викликом) — маркер **має** нести спільний namespace-префікс **`n-rules:`**. Мотивація: без спільного префіксу кожен detector винаходить свій формат (було: `allow-unsafe:`, `allow-pg-leftover:`, `@7n/rules ignore-next-line`) — неможливо запитом `grep 'n-rules:'` по репозиторію консюмера побачити **всі** свідомі винятки одразу. Той самий namespaced-colon патерн уже вживається у skill-файлах (`n-rules:worktree:start`/`n-rules:root:start`).
+
+**Формат:**
+
+- Маркер із причиною у вільній формі (типовий випадок): `// n-rules:<marker-name>: <reason>` — `<reason>` **обов'язкова й непорожня**, інакше маркер не приймається (мета — слід для ревʼюера, не «німий» прапорець). Приклад regex: `/\bn-rules:<marker-name>\s*:\s*\S+/u`.
+- Позиційний маркер без вільного тексту (рідше — коли причина фіксована самою назвою): `// n-rules:<marker-name> <arg>` (напр. `n-rules:ignore-next-line checkEnv`).
+- Маркер-коментар має стояти **на тому ж рядку або рядком вище** виклику/конструкції, до якої застосовується (перевіряється proximity-хелпером на кшталт `hasMarkerCommentNear`); приклади маркера в `.mdc`/JSDoc — той самий текст, щоб пошук по всьому репо (правило + консюмери) лишався узгодженим.
+
+**Чинні маркери** (усі — `plugins/lang-js`/`npm/rules/docker`):
+
+| Маркер | Де | Що вимикає |
+| --- | --- | --- |
+| `// n-rules:allow-unsafe: <reason>` | `js-bun-db/lib/bun-sql-scan.mjs` | вимогу маркера при `sql.unsafe(...)` |
+| `// n-rules:allow-pg-leftover: <reason>` | `js-bun-db/lib/bun-sql-scan.mjs` | заборону `.connect()`/`.end()` у файлах з Bun SQL |
+| `# n-rules:bun-no-compile: <reason>` | `docker/lint/main.mjs` | вимогу `bun build --compile` і заборону `mirror.gcr.io/oven/bun:*` як фінального stage |
+| `// n-rules:ignore-next-line checkEnv` | `js-run/lib/check-env-scan.mjs` | вимогу `process.env`→`env`/`checkEnv([...])` для рядка під маркером |
+
+**Hard cutover, без backward-compat за замовчуванням.** Коли існуючий маркер переносять на `n-rules:`-префікс (чи вводять новий) — старий формат **перестає розпізнаватись**, легасі-аліаси (був: `@nitra/cursor ignore-next-line`) прибираються разом зі старим. Виняток — лише коли явно ухвалено інше рішення (проговорити з користувачем перед реалізацією, за замовчуванням — саме cutover).
+
+**Red flags:**
+
+- Новий opt-in-маркер без префіксу `n-rules:` — порушує узгодженість із рештою репо, не потрапляє під спільний grep.
+- Маркер, що приймається без причини (порожній `<reason>` чи взагалі без вимоги причини для формату з вільним текстом) — немає сліду для ревʼю.
+- Тихий backward-compat аліас старого формату «про всяк випадок» без явного рішення користувача — зайва гілка в regex, яку ніхто не прибере.
+
 ## Перш ніж писати / розширювати `{concern}/main.mjs`
 
 **STOP — спершу пройди алгоритм Rego-first** (`.cursor/rules/conftest.mdc`, alwaysApply; наразі описує дореформену `policy/`/`js/`-структуру — читай крізь призму flat concern-directory лейауту цього файлу). Це стосується **і нової** перевірки, **і додавання нового deny у вже існуючий** `{concern}/main.mjs`: подивись сусідні концерни того ж правила (`npm/rules/<rule>/*/concern.json` з `policy`-поверхнею), чи задача не лягає у вже існуючий rego-пакет як ще одне `deny contains`.

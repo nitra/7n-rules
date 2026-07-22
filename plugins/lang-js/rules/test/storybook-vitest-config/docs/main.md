@@ -3,56 +3,71 @@ type: JS Module
 title: main.mjs
 resource: plugins/lang-js/rules/test/storybook-vitest-config/main.mjs
 docgen:
-  crc: 1db18693
-  model: openai-codex/gpt-5.4-mini
+  crc: 1ae51726
+  model: openai-codex/gpt-5.5
   score: 85
-  issues: internal-name:detectStoriesGlob,anchor-miss:(vitest-config.mdc),judge:inaccurate:0.99
+  issues: internal-name:detectStoriesGlob,anchor-miss:(vitest-config.mdc),judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Описує поведінку, за якою визначаються канонічні `vitest.config.*`, пов’язаний Stryker-конфіг, а також наявність і придатність `unit` та `storybook`-проєктів у пакеті. Для цього використовуються експортовані константи-рядки `REASON_VITEST_CONFIG_MISSING="vitest-config-missing"`, `REASON_STRYKER_CONFIG_MISSING="stryker-config-missing"`, `REASON_CONFIG_UNRESOLVABLE="vitest-config-unresolvable"`, `REASON_PROJECTS_DYNAMIC="projects-dynamic"`, `REASON_UNIT_PROJECT_MISSING="unit-project-missing"`, `REASON_STORYBOOK_PROJECT_MISSING="storybook-project-missing"`, `REASON_STORYBOOK_PROJECT_MARKER_MISSING="storybook-project-marker-missing"`, а повідомлення про такі стани передаються через маркери `vitest-config.mdc`.
+Файл описує read-only lint для Storybook-пакетів: через `VITEST_CONFIG_NAMES` і `resolveVitestConfigPath` знаходить очікуваний Vitest-конфіг, перевіряє наявність `unit` і `storybook` projects, маркери Storybook browser-mode/stories та ізольований Stryker-конфіг. Він існує, щоб перетворювати відсутні або ненадійно прочитані конфіги на стабільні lint-порушення з маркером повідомлень `` без винятків назовні.
+
+Експортовані reason-константи задають стабільні причини порушень: `REASON_VITEST_CONFIG_MISSING="vitest-config-missing"` — Vitest-конфіг відсутній; `REASON_STRYKER_CONFIG_MISSING="stryker-config-missing"` — Stryker-конфіг відсутній; `REASON_CONFIG_UNRESOLVABLE="vitest-config-unresolvable"` — Vitest-конфіг неможливо надійно прочитати; `REASON_PROJECTS_DYNAMIC="projects-dynamic"` — список projects є динамічним; `REASON_UNIT_PROJECT_MISSING="unit-project-missing"` — відсутній `unit` project; `REASON_STORYBOOK_PROJECT_MISSING="storybook-project-missing"` — відсутній `storybook` project; `REASON_STORYBOOK_PROJECT_MARKER_MISSING="storybook-project-marker-missing"` — відсутній очікуваний Storybook-маркер.
 
 ## Поведінка
 
-- `VITEST_CONFIG_NAMES` — задає канонічний пріоритет імен `vitest.config.*` для пошуку конфіга.
-- `STORYBOOK_TEST_IMPORT` — містить обов’язковий import для резолву `storybookTest`.
-- `REASON_VITEST_CONFIG_MISSING` — причина, коли в пакеті немає `vitest.config.*`.
-- `REASON_STRYKER_CONFIG_MISSING` — причина, коли відсутній ізольований `vitest.stryker.config.*`.
-- `REASON_CONFIG_UNRESOLVABLE` — причина, коли vitest-конфіг не вдається розпарсити або знайти в ньому `test`-блок.
-- `REASON_PROJECTS_DYNAMIC` — причина, коли `test.projects` не є статичним масивом.
-- `REASON_UNIT_PROJECT_MISSING` — причина, коли в `test.projects` немає `unit`.
-- `REASON_STORYBOOK_PROJECT_MISSING` — причина, коли в `test.projects` немає `storybook`.
-- `REASON_STORYBOOK_PROJECT_MARKER_MISSING` — причина, коли `storybook`-проєкт не має канонічних маркерів.
-- `CHROMIUM_RE` — маркує наявність chromium-інстансу в `storybook`-проєкті.
-- `BROWSER_KEY_RE` — маркує browser-mode в `storybook`-проєкті.
-- `STORIES_RE` — маркує stories-glob у `storybook`-проєкті.
-- `WHITESPACE_ONLY_RE` — визначає рядок, що складається лише з whitespace.
-- `LEADING_COMMA_RE` — визначає фрагмент, що починається з коми з можливим whitespace.
-- `resolveVitestConfigPath` — знаходить наявний `vitest.config.*` у корені пакета або повертає `null`.
-- `resolveViteConfigName` — повертає ім’я доступного `vite.config.*` для пакета, а якщо його немає — `vite.config.js`.
-- `strykerConfigPathFor` — будує шлях до поруч розташованого `vitest.stryker.config.*` з тим самим розширенням.
-- `storiesGlobForVitestConfig` — повертає stories-glob у вигляді, придатному для vitest-конфіга в корені пакета.
-- `parseModule` — парсить JS/TS модуль і повертає AST з діагностикою.
-- `findTestObject` — знаходить у дереві AST `test`-об’єкт незалежно від обгорток конфігурації.
-- `findProperty` — знаходить у об’єкті property за іменем.
-- `classifyProjects` — визначає, чи є в `test.projects` `unit`, і витягає зріз `storybook`-запису для перевірки маркерів.
-- `lint` — перевіряє всі пакети у скоупі на канонічний vitest-конфіг для `unit+storybook` і наявність ізольованого `vitest.stryker.config.*`, повідомляючи про порушення через маркери `vitest-config.mdc`.
+- `VITEST_CONFIG_NAMES` задає пріоритет канонічних назв Vitest-конфіга пакета.
+- `STORYBOOK_TEST_IMPORT` містить імпорт, потрібний для доступності `storybookTest`.
+- `PLAYWRIGHT_PROVIDER_IMPORT` містить імпорт, потрібний для browser provider у Vitest v4.
+- `REASON_VITEST_CONFIG_MISSING="vitest-config-missing"` позначає відсутній Vitest-конфіг.
+- `REASON_STRYKER_CONFIG_MISSING="stryker-config-missing"` позначає відсутній ізольований Stryker-конфіг.
+- `REASON_CONFIG_UNRESOLVABLE="vitest-config-unresolvable"` позначає конфіг, який неможливо надійно прочитати або проаналізувати.
+- `REASON_PROJECTS_DYNAMIC="projects-dynamic"` позначає нестатичний `test.projects`.
+- `REASON_UNIT_PROJECT_MISSING="unit-project-missing"` позначає відсутній `unit`-проєкт у Vitest.
+- `REASON_STORYBOOK_PROJECT_MISSING="storybook-project-missing"` позначає відсутній `storybook`-проєкт у Vitest.
+- `REASON_STORYBOOK_PROJECT_MARKER_MISSING="storybook-project-marker-missing"` позначає неповний канонічний набір маркерів Storybook-проєкту.
+- `CHROMIUM_RE` визначає маркер chromium-інстанса для Storybook browser-mode.
+- `BROWSER_KEY_RE` визначає маркер увімкненого browser-mode.
+- `STORIES_RE` визначає маркер явного джерела stories.
+- `STORYBOOK_TEST_CONFIG_DIR_RE` визначає маркер неявного джерела stories через Storybook-конфіг.
+- `PROVIDER_FACTORY_RE` визначає маркер factory-провайдера Playwright для Vitest v4.
+- `WHITESPACE_ONLY_RE` визначає маркер порожнього рядка з відступами для стабільних правок конфіга.
+- `LEADING_COMMA_RE` визначає маркер початкової коми для стабільних правок конфіга.
+- `resolveVitestConfigPath` знаходить наявний Vitest-конфіг пакета за канонічним пріоритетом або повертає відсутність.
+- `resolveViteConfigName` знаходить ім’я Vite-конфіга для шаблонів або повертає відсутність, бо пакет у Storybook-скоупі може не мати власного Vite-конфіга.
+- `strykerConfigPathFor` обчислює шлях ізольованого Stryker-конфіга поруч з основним Vitest-конфігом.
+- `storiesGlobForVitestConfig` повертає stories-glob відносно кореня пакета; для app-пакетів використовує ширший фіксований glob, щоб не пропускати page-stories.
+- `parseModule` читає модуль як JS або TS відповідно до розширення й повертає результат парсингу.
+- `findTestObject` знаходить `test`-блок у конфігу незалежно від поширених обгорток конфігурації.
+- `findProperty` знаходить потрібну властивість у конфігураційному об’єкті.
+- `classifyProjects` визначає, чи є `unit`-проєкт, і виділяє текст Storybook-проєкту для перевірки маркерів.
+- `hasStoriesMarker` визначає, чи Storybook-проєкт має явне або неявне джерело stories.
+- `lint` перевіряє всі Storybook-пакети на наявність канонічного Vitest-конфіга з `unit` і `storybook` projects та ізольованого Stryker-конфіга; повідомлення прив’язує до ``, працює read-only і перетворює проблеми на lint-порушення без винятків назовні.
 
 ## Публічний API
 
 - STORYBOOK_TEST_IMPORT — Import, який має бути присутній у файлі, щоб `storybookTest(...)` резолвився.
+- PLAYWRIGHT_PROVIDER_IMPORT — Import, який має бути присутній у файлі, щоб `playwright(...)`-factory (vitest@^4) резолвилась.
 - resolveVitestConfigPath — Резолвить абсолютний шлях наявного `vitest.config.*` пакета (перший знайдений
   за пріоритетом {@link VITEST_CONFIG_NAMES}), або `null` якщо жодного немає.
 - resolveViteConfigName — Резолвить ім'я `vite.config.*` пакета для import-шляху в baseline-шаблонах
   (той самий файл, що й `viteFinal` у `.storybook/main.js`). Пакет у скоупі
-  гарантовано має один із них (`scope/main.mjs#hasStandardBuild`).
+  Storybook НЕ гарантовано має власний `vite.config.*` (хвиля 1.4 — вимогу
+  `hasStandardBuild` прибрано зі скоуп-детекції, `scope/main.mjs`) — source-only
+  Vue-бібліотека (напр. tauri-components/npm) законно потрапляє у скоуп без
+  жодного `vite.config.*`. `null` — сигнал викликачу (`fix-vitest-config.mjs`)
+  підставити порожній placeholder замість імпорту неіснуючого файлу.
 - strykerConfigPathFor — Шлях до ізольованого `vitest.stryker.config.*` — той самий каталог і
   розширення, що й основний vitest-конфіг пакета.
 - storiesGlobForVitestConfig — Stories-glob для vitest-конфіга пакета (на відміну від `detectStoriesGlob`
   scaffold-концерна — той повертає шлях відносно `.storybook/`, тут vitest-конфіг
-  лежить у корені пакета, тож префікс `../` треба зняти).
+  лежить у корені пакета, тож префікс `../` треба зняти). Для app-пакетів (хвиля 2a,
+  `type: 'app'`) — фіксований {@link APP_STORIES_GLOB}, НЕ layout-детекція бібліотек:
+  app-проєкт може мати одночасно `src/components/` (переюзані презентаційні компоненти)
+  і `src/pages/` (сторінки) — вузький `detectStoriesGlob`-glob тоді мовчки пропустив би
+  page-stories з vitest storybook-проєкту.
 - parseModule — Парсить JS/TS файл через oxc-parser з обраним lang за розширенням.
 - findTestObject — Шукає перший `ObjectExpression` у дереві AST, що має property `test` зі
   значенням-`ObjectExpression` — незалежно від того, чи огорнутий він у
@@ -61,9 +76,35 @@ docgen:
 - findProperty — Шукає property `name` у `ObjectExpression`.
 - classifyProjects — Класифікує елементи масиву `test.projects`: чи є `unit`-проєкт, і
   source-зріз елемента `storybook`-проєкту (для marker-перевірки).
+- hasStoriesMarker — Чи присутній валідний маркер джерела stories у зрізі `storybook`-проєкту:
+  явний stories-glob (`include: [...]`, {@link STORIES_RE}) АБО виклик
+  `storybookTest({ configDir })` без явного `include` — Storybook підхоплює glob
+  автоматично зі своєї конфігурації, явний include не обов'язковий (реальний
+  кейс components/npm/vitest.config.js — пілот adopt-діагностики). Раніше гола
+  вимога підрядка `stories` давала хибний позитив на цьому валідному патерні.
+  Спільна логіка для `main.mjs` (lint) і `adopt/main.mjs` (diff-діагностика) —
+  не дублювати комбінацію двох regex у двох місцях.
 - lint — Перевіряє канонічний vitest-конфіг (unit+storybook projects) і наявність
   ізольованого `vitest.stryker.config` для всіх пакетів у скоупі Storybook.
-  Надішли, будь ласка, файл або вміст коду, до якого треба написати документацію.
+  **Поведінка**
+
+Код аналізує Vitest/Stryker конфігурацію та формує причини пропуску або помилки, коли тестове середовище не може бути надійно визначене. Повідомлення маркуються джерелом правила ``, щоб користувач бачив, яка перевірка вимагає виправлення.
+
+- VITEST_CONFIG_NAMES — задає підтримувані імена файлів Vitest-конфігурації.
+- REASON_VITEST_CONFIG_MISSING — `vitest-config-missing`, позначає відсутність Vitest-конфігурації.
+- REASON_STRYKER_CONFIG_MISSING — `stryker-config-missing`, позначає відсутність Stryker-конфігурації.
+- REASON_CONFIG_UNRESOLVABLE — `vitest-config-unresolvable`, позначає конфігурацію, яку неможливо прочитати або визначити.
+- REASON_PROJECTS_DYNAMIC — `projects-dynamic`, позначає динамічний список проєктів, який не можна безпечно проаналізувати статично.
+- REASON_UNIT_PROJECT_MISSING — `unit-project-missing`, позначає відсутність unit-проєкту у Vitest.
+- REASON_STORYBOOK_PROJECT_MISSING — `storybook-project-missing`, позначає відсутність Storybook-проєкту у Vitest.
+- REASON_STORYBOOK_PROJECT_MARKER_MISSING — `storybook-project-marker-missing`, позначає Storybook-проєкт без очікуваного маркера.
+- CHROMIUM_RE — визначає прив’язку браузерного тестування до Chromium.
+- BROWSER_KEY_RE — знаходить налаштування браузерного режиму у конфігурації.
+- STORIES_RE — визначає Storybook stories як ціль тестування.
+- STORYBOOK_TEST_CONFIG_DIR_RE — визначає директорію конфігурації Storybook-тестів.
+- PROVIDER_FACTORY_RE — визначає використання фабрики провайдера для браузерного тестування.
+- WHITESPACE_ONLY_RE — розпізнає порожній за змістом текст.
+- LEADING_COMMA_RE — визначає зайву кому на початку фрагмента конфігурації.
 
 ## Гарантії поведінки
 

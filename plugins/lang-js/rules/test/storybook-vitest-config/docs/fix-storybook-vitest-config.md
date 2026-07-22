@@ -1,26 +1,28 @@
 ---
 type: JS Module
-title: fix-storybook-vitest-config.mjs
+title: fix-vitest-config.mjs
 resource: plugins/lang-js/rules/test/storybook-vitest-config/fix-storybook-vitest-config.mjs
 docgen:
-  crc: f00f073b
-  model: openai-codex/gpt-5.4-mini
+  crc: 80feedf6
+  model: openai-codex/gpt-5.5
   score: 100
-  issues: judge:inaccurate:0.98
+  issues: judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Файл детерміновано приводить `vitest.config.mjs` у Vue-компонентних пакетах із Storybook до канону `test.projects`: окремі проєкти `unit` і `storybook`, а browser-mode обмежує лише `chromium`. Для Stryker він генерує ізольований `vitest.stryker.config.*` у межах того ж пакета, згідно з підходом з `ADR Кластер 5`.
+Файл приводить vitest-конфіг Vue-компонентної бібліотеки у скоупі Storybook до канону `test.projects`: окремі проєкти `unit` і `storybook`, `browser-mode` лише `chromium`. Для наявного конфіга він застосовує `insert-only` string-splice, щоб додати відсутні фрагменти без переписування решти форматування й коментарів; після зміни виконує повторний parse через `oxc-parser` і робить rollback, якщо результат невалідний.
 
-Для вже наявного `vitest.config.mjs` зміни вносяться точковими `string-splice`-ами лише на вставку, щоб не переписувати решту форматування й коментарів; після цього конфіг повторно парситься, і зміни відкочуються, якщо результат невалідний. Логіка побудови покладена на `buildFreshVitestConfig`, `buildStrykerConfig` і `patterns`, а читання й аналіз виконуються через `oxc-parser`. Детектор `main.mjs` працює read-only, тоді як запис зосереджений у `fix-stryker_config.mjs`.
+Файл також створює ізольований `vitest.stryker.config.*` для Stryker за ADR Кластер 5. Detector `main.mjs` залишається read-only: читання, аналіз через `oxc-parser` і запис зосереджені у fixer.
+
+Публічні точки поведінки: `buildFreshVitestConfig` формує канонічний vitest-конфіг з нуля, `buildStrykerConfig` формує окремий Stryker-конфіг, `patterns` описує цільові файли для застосування autofix.
 
 ## Поведінка
 
-- `buildFreshVitestConfig` — створює новий `vitest.config.mjs` для пакета з канонічним `test.projects` для `unit` і `storybook`, підставляє шлях до локального Vite-конфіга та сторінковий glob для Storybook.
-- `buildStrykerConfig` — генерує ізольований `vitest.stryker.config.*` на основі canonical baseline-шаблону для того самого пакета, підставляючи шлях до локального Vite-конфіга.
-- `patterns` — описує autofix-сценарій, який реагує на відсутній або неканонічний vitest-конфіг, доповнює наявний файл без переписування зайвого форматування та створює `vitest.stryker.config.*` у відповідному package root.
+- `buildFreshVitestConfig` створює канонічний `vitest.config.mjs` для пакета без наявного vitest-конфіга, додаючи `unit` і `storybook` projects та узгоджений glob для stories.
+- `buildStrykerConfig` генерує ізольований `vitest.stryker.config.*` на основі baseline-шаблону з урахуванням наявного `vite.config.*` або безпечного placeholder для source-only пакета.
+- `patterns` описує T0-autofix, який для релевантних порушень доповнює або створює vitest-конфіг і додає відсутній Stryker-конфіг, не переписуючи зайве форматування наявного файлу.
 
 ## Публічний API
 
@@ -30,7 +32,7 @@ docgen:
 - buildStrykerConfig — Генерує ізольований `vitest.stryker.config.*` (той самий basename/ext що
   й основний vitest-конфіг пакета) з canonical baseline-шаблону. Експортовано —
   переюз у `adopt/main.mjs`.
-- patterns — повертає набір шаблонів, які використовуються для зіставлення й обробки відповідних випадків у коді
+- patterns — формує набір шаблонів для добору файлів, які мають потрапити в обробку.
 
 ## Гарантії поведінки
 

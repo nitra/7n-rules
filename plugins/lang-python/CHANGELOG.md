@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.0] - 2026-07-22
+
+### Added
+
+- python/doc_comments: рекомендовані вимоги до docstring-ів (module-docstring для файлів із публічними def/class, docstring над кожним top-level публічним def/class) з T0-перетворенням суміжного #-коментаря на docstring
+
 ## [0.6.0] - 2026-07-21
 
 ### Added

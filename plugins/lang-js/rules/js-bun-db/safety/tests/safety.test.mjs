@@ -73,7 +73,7 @@ export function getUser(id: number) {
     })
   })
 
-  test('помилка: sql.unsafe без маркера allow-unsafe (інтерпольований TemplateLiteral)', async () => {
+  test('помилка: sql.unsafe без маркера n-rules:allow-unsafe (інтерпольований TemplateLiteral)', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
@@ -90,7 +90,7 @@ export async function find(id: number) {
     })
   })
 
-  test('помилка: sql.unsafe без маркера allow-unsafe (навіть статичний рядок)', async () => {
+  test('помилка: sql.unsafe без маркера n-rules:allow-unsafe (навіть статичний рядок)', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
@@ -105,14 +105,14 @@ export const ping = () => sql.unsafe('SELECT 1')
     })
   })
 
-  test('успіх: sql.unsafe з маркером allow-unsafe на тому ж рядку', async () => {
+  test('успіх: sql.unsafe з маркером n-rules:allow-unsafe на тому ж рядку', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
       await writeFile(
         join(dir, 'src/db.ts'),
         `import { sql } from 'bun'
-export const ping = () => sql.unsafe('SELECT 1') // allow-unsafe: ping — не tagged template
+export const ping = () => sql.unsafe('SELECT 1') // n-rules:allow-unsafe: ping — не tagged template
 `,
         'utf8'
       )
@@ -120,7 +120,7 @@ export const ping = () => sql.unsafe('SELECT 1') // allow-unsafe: ping — не 
     })
   })
 
-  test('успіх: sql.unsafe з маркером allow-unsafe + @scaleleap/pg-format для DDL identifier', async () => {
+  test('успіх: sql.unsafe з маркером n-rules:allow-unsafe + @scaleleap/pg-format для DDL identifier', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
@@ -131,7 +131,7 @@ import format from '@scaleleap/pg-format'
 const TABLE = 'users_2026'
 export async function migrate() {
   const query = format('CREATE TABLE %I (id int)', TABLE)
-  // allow-unsafe: DDL — назву таблиці параметризувати не можна; ідентифікатор екранує pg-format
+  // n-rules:allow-unsafe: DDL — назву таблиці параметризувати не можна; ідентифікатор екранує pg-format
   return sql.unsafe(query)
 }
 `,
@@ -141,7 +141,7 @@ export async function migrate() {
     })
   })
 
-  test('помилка: sql.unsafe з template-літералом і інтерполяцією навіть з allow-unsafe маркером', async () => {
+  test('помилка: sql.unsafe з template-літералом і інтерполяцією навіть з n-rules:n-rules:allow-unsafe маркером', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
@@ -150,7 +150,7 @@ export async function migrate() {
         `import { sql } from 'bun'
 const TABLE = 'users_2026'
 export async function migrate() {
-  // allow-unsafe: DDL — назву таблиці параметризувати не можна
+  // n-rules:allow-unsafe: DDL — назву таблиці параметризувати не можна
   return sql.unsafe(\`CREATE TABLE \${TABLE} (id int)\`)
 }
 `,
@@ -167,7 +167,7 @@ export async function migrate() {
       await writeFile(
         join(dir, 'src/db.ts'),
         `import { sql } from 'bun'
-export const init = () => sql.unsafe(\`CREATE TABLE users (id int)\`) // allow-unsafe: статичний DDL
+export const init = () => sql.unsafe(\`CREATE TABLE users (id int)\`) // n-rules:allow-unsafe: статичний DDL
 `,
         'utf8'
       )
@@ -175,14 +175,14 @@ export const init = () => sql.unsafe(\`CREATE TABLE users (id int)\`) // allow-u
     })
   })
 
-  test('помилка: маркер allow-unsafe без причини', async () => {
+  test('помилка: маркер n-rules:allow-unsafe без причини', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
       await writeFile(
         join(dir, 'src/db.ts'),
         `import { sql } from 'bun'
-export const ping = () => sql.unsafe('SELECT 1') // allow-unsafe:
+export const ping = () => sql.unsafe('SELECT 1') // n-rules:allow-unsafe:
 `,
         'utf8'
       )
@@ -226,7 +226,7 @@ export const ping = () => sql\`SELECT 1\`
     })
   })
 
-  test('успіх: sql.end() у graceful shutdown з маркером allow-pg-leftover', async () => {
+  test('успіх: sql.end() у graceful shutdown з маркером n-rules:allow-pg-leftover', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
@@ -234,7 +234,7 @@ export const ping = () => sql\`SELECT 1\`
         join(dir, 'src/shutdown.ts'),
         `import { sql } from 'bun'
 export async function shutdown() {
-  // allow-pg-leftover: graceful shutdown — закриваємо пул перед exit
+  // n-rules:allow-pg-leftover: graceful shutdown — закриваємо пул перед exit
   await sql.end()
 }
 `,
@@ -244,7 +244,7 @@ export async function shutdown() {
     })
   })
 
-  test('успіх: .connect() з trailing-маркером allow-pg-leftover (WebSocket)', async () => {
+  test('успіх: .connect() з trailing-маркером n-rules:allow-pg-leftover (WebSocket)', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
@@ -253,7 +253,7 @@ export async function shutdown() {
         `import { sql } from 'bun'
 declare const ws: { connect(url: string): void }
 export async function boot(url: string) {
-  ws.connect(url) // allow-pg-leftover: WebSocket, не pg
+  ws.connect(url) // n-rules:allow-pg-leftover: WebSocket, не pg
   return sql\`SELECT 1\`
 }
 `,
@@ -289,7 +289,7 @@ export const stop = () => stream.end()
         `import { Client } from 'pg'
 const client = new Client()
 export async function start() {
-  await client.connect() // allow-pg-leftover: pg LISTEN-клієнт, не Bun SQL
+  await client.connect() // n-rules:allow-pg-leftover: pg LISTEN-клієнт, не Bun SQL
   await client.query('LISTEN orders_channel')
   client.on('notification', msg => console.log(msg))
 }

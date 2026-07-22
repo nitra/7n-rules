@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules-lang-python",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Плагін @7n/rules: Python/uv-екосистема — taze-провайдер (pyproject.toml, PEP 508/PEP 440)",
   "keywords": [
     "python",
@@ -47,6 +47,7 @@
     }
   },
   "dependencies": {
+    "globby": "^16.0.0",
     "smol-toml": "^1.7.0"
   },
   "peerDependencies": {

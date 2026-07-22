@@ -143,4 +143,30 @@ describe('getMultistageAndRuntimeHint', () => {
     expect(h).toContain('дозволеним runtime-образом')
     expect(h).toContain('oven/bun')
   })
+
+  test('fail: final stage is bun, hasNativeAddon:false і без n-rules:bun-no-compile-маркера', () => {
+    const h = getMultistageAndRuntimeHint(
+      [
+        'FROM mirror.gcr.io/oven/bun:alpine AS build-env',
+        'RUN bun install --production',
+        'FROM mirror.gcr.io/oven/bun:alpine',
+        'CMD ["bun","src/index.js"]'
+      ].join('\n'),
+      { hasNativeAddon: false }
+    )
+    expect(h).toContain('дозволеним runtime-образом')
+  })
+
+  test('ok: final stage is bun з n-rules:bun-no-compile-маркером (динамічний import(), не native-addon)', () => {
+    const h = getMultistageAndRuntimeHint(
+      [
+        '# n-rules:bun-no-compile: gateway.config.js вантажиться через динамічний import()',
+        'FROM mirror.gcr.io/oven/bun:alpine AS build-env',
+        'RUN bun install --production',
+        'FROM mirror.gcr.io/oven/bun:alpine',
+        'CMD ["bun","src/index.js"]'
+      ].join('\n')
+    )
+    expect(h).toBe(null)
+  })
 })

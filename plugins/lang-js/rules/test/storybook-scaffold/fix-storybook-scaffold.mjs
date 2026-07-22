@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { detectStoriesGlob, STORYBOOK_SCRIPT } from './main.mjs'
+import { APP_STORIES_GLOB, detectStoriesGlob, STORYBOOK_SCRIPT } from './main.mjs'
 
 const STORIES_GLOB_TOKEN = '__STORYBOOK_STORIES_GLOB__'
 
@@ -50,6 +50,30 @@ export function renderMocksGqlSse(templateDir = TEMPLATE_DIR) {
 }
 
 /**
+ * Рендерить канонічний `.storybook/main.js` для app-проєкту (хвиля 2a) — фіксований
+ * {@link APP_STORIES_GLOB} (без layout-детекції бібліотек: пер-сторінкова структура
+ * `src/pages/` не потребує розрізнення `src/components/`). Експортовано — переюз у
+ * `adopt/main.mjs`.
+ * @param {string} [templateDir] каталог template/ (за замовчуванням — цього concern-а)
+ * @returns {string} готовий вміст app-`main.js`
+ */
+export function renderAppMainJs(templateDir = TEMPLATE_DIR) {
+  const mainTemplate = readFileSync(join(templateDir, 'app-main.js'), 'utf8')
+  return mainTemplate.split(STORIES_GLOB_TOKEN).join(APP_STORIES_GLOB)
+}
+
+/**
+ * Вміст канонічного `.storybook/preview.js` для app-проєкту (хвиля 2a) — verbatim з
+ * template (`pageLoader`/QLayout-реєстрація не залежать від конкретного app-пакета).
+ * Експортовано — переюз у `adopt/main.mjs`.
+ * @param {string} [templateDir] каталог template/ (за замовчуванням — цього concern-а)
+ * @returns {string} вміст app-`preview.js`
+ */
+export function renderAppPreviewJs(templateDir = TEMPLATE_DIR) {
+  return readFileSync(join(templateDir, 'app-preview.js'), 'utf8')
+}
+
+/**
  * Вміст канонічного `.storybook/empty-vite.config.js` — verbatim з template (порожній
  * стенд-ін для `core.builder.options.viteConfigPath` у `main.js`, не залежить від пакета).
  * Експортовано — переюз у `adopt/main.mjs`.
@@ -58,6 +82,16 @@ export function renderMocksGqlSse(templateDir = TEMPLATE_DIR) {
  */
 export function renderEmptyViteConfig(templateDir = TEMPLATE_DIR) {
   return readFileSync(join(templateDir, 'empty-vite.config.js'), 'utf8')
+}
+
+/**
+ * Вміст канонічного `.storybook/vitest.setup.js` — verbatim з template (той самий файл
+ * для library і app пакетів, не залежить від типу). Експортовано — переюз у `adopt/main.mjs`.
+ * @param {string} [templateDir] каталог template/ (за замовчуванням — цього concern-а)
+ * @returns {string} вміст `vitest.setup.js`
+ */
+export function renderVitestSetupJs(templateDir = TEMPLATE_DIR) {
+  return readFileSync(join(templateDir, 'vitest.setup.js'), 'utf8')
 }
 
 /**
@@ -169,6 +203,78 @@ export const patterns = [
         touchedFiles.push(previewAbs)
       }
       return { touchedFiles, message: `.storybook/preview.js: створено для ${targets.length} пакет(ів)` }
+    }
+  },
+  {
+    id: 'storybook-scaffold-app-main-js',
+    test: violations => violations.some(v => v.reason === 'missing-app-main-js'),
+    apply: (violations, ctx) => {
+      const targets = violations.filter(v => v.reason === 'missing-app-main-js' && typeof v.data?.rootDir === 'string')
+      if (targets.length === 0 || !ctx.concernDir) return { touchedFiles: [] }
+
+      const templateDir = join(ctx.concernDir, 'template')
+      const rendered = renderAppMainJs(templateDir)
+      const mocksTemplate = renderMocksGqlSse(templateDir)
+
+      const touchedFiles = []
+      for (const v of targets) {
+        const absPkgDir = resolvePkgDir(ctx.cwd, v.data.rootDir)
+
+        const mainAbs = join(absPkgDir, '.storybook/main.js')
+        writeScaffoldFile(ctx, mainAbs, rendered)
+        touchedFiles.push(mainAbs)
+
+        // mocks/gql-sse.js — реюз того самого канонічного helper-а, що й бібліотеки
+        // (page-stories мокають Apollo-підписки тим самим wire-протоколом graphql-sse).
+        const mocksAbs = join(absPkgDir, '.storybook/mocks/gql-sse.js')
+        if (!existsSync(mocksAbs)) {
+          writeScaffoldFile(ctx, mocksAbs, mocksTemplate)
+          touchedFiles.push(mocksAbs)
+        }
+      }
+      return { touchedFiles, message: `.storybook/main.js (app): створено для ${targets.length} пакет(ів)` }
+    }
+  },
+  {
+    id: 'storybook-scaffold-app-preview-js',
+    test: violations => violations.some(v => v.reason === 'missing-app-preview-js'),
+    apply: (violations, ctx) => {
+      const targets = violations.filter(
+        v => v.reason === 'missing-app-preview-js' && typeof v.data?.rootDir === 'string'
+      )
+      if (targets.length === 0 || !ctx.concernDir) return { touchedFiles: [] }
+
+      const previewTemplate = renderAppPreviewJs(join(ctx.concernDir, 'template'))
+
+      const touchedFiles = []
+      for (const v of targets) {
+        const absPkgDir = resolvePkgDir(ctx.cwd, v.data.rootDir)
+        const previewAbs = join(absPkgDir, '.storybook/preview.js')
+        writeScaffoldFile(ctx, previewAbs, previewTemplate)
+        touchedFiles.push(previewAbs)
+      }
+      return { touchedFiles, message: `.storybook/preview.js (app): створено для ${targets.length} пакет(ів)` }
+    }
+  },
+  {
+    id: 'storybook-scaffold-vitest-setup-js',
+    test: violations => violations.some(v => v.reason === 'missing-vitest-setup-js'),
+    apply: (violations, ctx) => {
+      const targets = violations.filter(
+        v => v.reason === 'missing-vitest-setup-js' && typeof v.data?.rootDir === 'string'
+      )
+      if (targets.length === 0 || !ctx.concernDir) return { touchedFiles: [] }
+
+      const vitestSetupTemplate = renderVitestSetupJs(join(ctx.concernDir, 'template'))
+
+      const touchedFiles = []
+      for (const v of targets) {
+        const absPkgDir = resolvePkgDir(ctx.cwd, v.data.rootDir)
+        const abs = join(absPkgDir, '.storybook/vitest.setup.js')
+        writeScaffoldFile(ctx, abs, vitestSetupTemplate)
+        touchedFiles.push(abs)
+      }
+      return { touchedFiles, message: `.storybook/vitest.setup.js: створено для ${targets.length} пакет(ів)` }
     }
   },
   {

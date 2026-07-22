@@ -231,6 +231,19 @@ async function checkSassVariablesForPackage(entry, reporter) {
  * auto-detect глобальних Quasar SCSS-змінних без `sassVariables` у `.storybook/main.js`
  * (storybook.mdc, ADR Кластер 6). Breaking-change guard при мажорному апгрейді
  * third-party-пакетів свідомо не автоматизується — людський пункт, hygiene.mdc.
+ *
+ * Свідомо ЛИШЕ `type: 'library'` (хвиля 2a, фікс за результатами живого пілота gt):
+ * обидві перевірки писались і перевірялись лише на бібліотечному кейсі й дають хибні
+ * спрацювання на app-пакетах. (1) Undeclared-import: app-пакети типово мають
+ * `resolve.alias` у своєму `vite.config.js` (Quasar CLI-конвенція — `src`, `components`,
+ * `boot`, `layouts`, `pages` тощо), тож `.vue`-сторінка легітимно імпортує
+ * `import X from 'components/Foo.vue'` (без `./`/`@/`-префікса) — `isRelativeOrAliasSpecifier`
+ * цього не розпізнає й трактує alias як ім'я стороннього npm-пакета. (2) Sass-variables:
+ * app-канонічний `.storybook/main.js` (хвиля 2a) СВІДОМО не викликає `quasar()` взагалі —
+ * `@storybook/builder-vite` підхоплює повний `vite.config.js` app-проєкту без власного
+ * `viteFinal`-інстанса (асиметрія з бібліотекою, `scaffold/template/app-main.js`) — маркер
+ * `sassVariables` там ніколи не з'явиться, навіть якщо SCSS-змінні пакета коректно
+ * підключені через власний `vite.config.js`.
  * @param {import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
  * @returns {Promise<import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintResult>} результат лінту
  */
@@ -238,7 +251,8 @@ export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const cwd = ctx.cwd
 
-  const pkgs = await collectInScopeVuePackages(cwd)
+  const allPkgs = await collectInScopeVuePackages(cwd)
+  const pkgs = allPkgs.filter(entry => entry.type === 'library')
   if (pkgs.length === 0) {
     reporter.pass('storybook hygiene: немає Vue component library пакетів у скоупі (storybook.mdc)')
     return reporter.result()

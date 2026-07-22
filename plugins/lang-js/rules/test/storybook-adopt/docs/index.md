@@ -1,6 +1,6 @@
 ---
 type: Directory Index
-title: plugins/lang-js/rules/storybook/adopt
+title: plugins/lang-js/rules/test/storybook-adopt
 resource: plugins/lang-js/rules/test/storybook-adopt/
 ---
 

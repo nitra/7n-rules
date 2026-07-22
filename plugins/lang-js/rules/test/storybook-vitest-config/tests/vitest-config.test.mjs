@@ -90,6 +90,25 @@ async function writeSourceOnlyVueLibraryPkg(root, rootDir) {
 }
 
 /**
+ * Мінімальний app-пакет у скоупі хвилі 2a (`vue` у dependencies, `src/pages/`,
+ * `.n-rules.json` → `storybook.detectApps: true`) — той самий фікстур-набір, що й у
+ * scaffold-тестах, для перевірки app-гілки vitest-config-концерну.
+ * @param {string} root корінь монорепо
+ * @param {string} rootDir відносний корінь пакета
+ * @param {string} [vitestConfigContent] опційний вміст vitest.config.mjs
+ */
+async function writeVueAppPkg(root, rootDir, vitestConfigContent) {
+  const pkg = { name: `app-${rootDir}`, dependencies: { vue: '^3.6.0' } }
+  await writeFileDeep(root, join(rootDir, 'package.json'), JSON.stringify(pkg, null, 2))
+  await writeFileDeep(root, join(rootDir, 'vite.config.js'), 'export default {}\n')
+  await writeFileDeep(root, join(rootDir, 'src/pages/task/[id].vue'), '<template><div/></template>\n')
+  await writeFileDeep(root, '.n-rules.json', JSON.stringify({ rules: [], storybook: { detectApps: true } }, null, 2))
+  if (vitestConfigContent) {
+    await writeFileDeep(root, join(rootDir, 'vitest.config.mjs'), vitestConfigContent)
+  }
+}
+
+/**
  * @param {string} root корінь монорепо (тимчасове дерево тесту)
  * @param {string[]} recordedWrites масив, куди накопичуються абсолютні шляхи `recordWrite`
  * @returns {import('@7n/rules/scripts/lib/lint-surface/types.mjs').FixContext} fix-контекст рунга для тесту
@@ -124,6 +143,31 @@ describe('hasStoriesMarker / PROVIDER_FACTORY_RE', () => {
     expect(PROVIDER_FACTORY_RE.test('provider: playwright()')).toBe(true)
     expect(PROVIDER_FACTORY_RE.test('provider: playwright({ launchOptions: {} })')).toBe(true)
     expect(PROVIDER_FACTORY_RE.test("provider: 'playwright'")).toBe(false)
+  })
+})
+
+describe('storiesGlobForVitestConfig: type-aware (хвиля 2a)', () => {
+  let root
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'storybook-vitest-config-glob-'))
+  })
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true })
+  })
+
+  test('app-пакет з ОБОМА src/components/ і src/pages/ — широкий glob (не звужується до components)', async () => {
+    await writeFileDeep(root, 'src/components/Shared.vue', '<template/>')
+    await writeFileDeep(root, 'src/pages/task/[id].vue', '<template/>')
+    // Без type — library-детекція звузила б до components (реальний баг, якого це виправляє).
+    expect(storiesGlobForVitestConfig(root)).toBe('src/components/**/*.stories.@(js|ts)')
+    expect(storiesGlobForVitestConfig(root, 'app')).toBe('src/**/*.stories.@(js|ts)')
+  })
+
+  test('library-пакет (type не заданий чи library) — стара layout-детекція без змін', async () => {
+    await writeFileDeep(root, 'src/components/Comp.vue', '<template/>')
+    expect(storiesGlobForVitestConfig(root, 'library')).toBe('src/components/**/*.stories.@(js|ts)')
   })
 })
 
@@ -232,6 +276,79 @@ describe('storybook/vitest-config: lint', () => {
     const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/vitest-config' })
     const reasons = result.violations.map(v => v.reason).toSorted()
     expect(reasons).toEqual([REASON_STORYBOOK_PROJECT_MISSING, REASON_STRYKER_CONFIG_MISSING].toSorted())
+  })
+
+  test('app-пакет: storybook-project без quasar/AutoImport/Pages — marker-порушення (хвиля 2a)', async () => {
+    const content = VITEST_CONFIG_BASIC.replace(
+      "coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] }",
+      `coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] },
+    projects: [
+      { extends: true, test: { name: 'unit' } },
+      {
+        extends: true,
+        plugins: [storybookTest({ configDir: '.storybook' })],
+        test: {
+          name: 'storybook',
+          include: ['src/**/*.stories.@(js|ts)'],
+          browser: { enabled: true, provider: playwright(), instances: [{ browser: 'chromium' }] }
+        }
+      }
+    ]`
+    )
+    await writeVueAppPkg(root, 'packages/gt', content)
+    await writeFileDeep(root, 'packages/gt/vitest.stryker.config.mjs', 'export default {}\n')
+    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/vitest-config' })
+    expect(result.violations).toHaveLength(1)
+    expect(result.violations[0].reason).toBe(REASON_STORYBOOK_PROJECT_MARKER_MISSING)
+    expect(result.violations[0].message).toContain('quasar()')
+    expect(result.violations[0].message).toContain('AutoImport()')
+    expect(result.violations[0].message).toContain('Pages()')
+  })
+
+  test('app-пакет: storybook-project з quasar/AutoImport/Pages — без порушень', async () => {
+    const content = VITEST_CONFIG_BASIC.replace(
+      "coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] }",
+      `coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] },
+    projects: [
+      { extends: true, test: { name: 'unit' } },
+      {
+        extends: true,
+        plugins: [storybookTest({ configDir: '.storybook' }), quasar({ sassVariables: true }), AutoImport({ imports: ['vue'] }), Pages()],
+        test: {
+          name: 'storybook',
+          include: ['src/**/*.stories.@(js|ts)'],
+          browser: { enabled: true, provider: playwright(), instances: [{ browser: 'chromium' }] }
+        }
+      }
+    ]`
+    )
+    await writeVueAppPkg(root, 'packages/gt', content)
+    await writeFileDeep(root, 'packages/gt/vitest.stryker.config.mjs', 'export default {}\n')
+    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/vitest-config' })
+    expect(result.violations).toEqual([])
+  })
+
+  test('library-пакет: storybook-project без quasar/AutoImport/Pages — НЕ marker-порушення (лише app-вимога)', async () => {
+    const content = VITEST_CONFIG_BASIC.replace(
+      "coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] }",
+      `coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] },
+    projects: [
+      { extends: true, test: { name: 'unit' } },
+      {
+        extends: true,
+        plugins: [storybookTest({ configDir: '.storybook' })],
+        test: {
+          name: 'storybook',
+          include: ['src/components/**/*.stories.@(js|ts)'],
+          browser: { enabled: true, provider: playwright(), instances: [{ browser: 'chromium' }] }
+        }
+      }
+    ]`
+    )
+    await writeVueLibraryPkg(root, 'packages/ui', content)
+    await writeFileDeep(root, 'packages/ui/vitest.stryker.config.mjs', 'export default {}\n')
+    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/vitest-config' })
+    expect(result.violations).toEqual([])
   })
 })
 
@@ -416,5 +533,63 @@ describe('storybook/vitest-config: fix', () => {
     // зламав синтаксис mergeConfig-обгортки, тут з'явилось би REASON_CONFIG_UNRESOLVABLE.
     const after = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/vitest-config' })
     expect(after.violations).toEqual([])
+  })
+
+  test('app-пакет (хвиля 2a): vitest-config-missing генерує storybook-project з quasar/AutoImport/Pages', async () => {
+    await writeVueAppPkg(root, 'packages/gt')
+    const { violations } = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/vitest-config' })
+    const pattern = patterns.find(p => p.id === 'storybook-vitest-config-fix')
+    const result = await pattern.apply(violations, makeFixCtx(root, recordedWrites))
+    expect(result.touchedFiles.length).toBeGreaterThan(0)
+
+    const vitestConfigPath = resolveVitestConfigPath(join(root, 'packages/gt'))
+    const written = await readFile(vitestConfigPath, 'utf8')
+    expect(written).toContain("name: 'storybook'")
+    expect(written).toContain('quasar({ sassVariables: true })')
+    expect(written).toContain('AutoImport(')
+    expect(written).toContain('Pages()')
+    expect(written).toContain("import { quasar } from '@quasar/vite-plugin'")
+    expect(written).toContain("import AutoImport from 'unplugin-auto-import/vite'")
+    expect(written).toContain("import Pages from 'vite-plugin-pages'")
+
+    const after = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/vitest-config' })
+    expect(after.violations).toEqual([])
+  })
+
+  test('app-пакет (хвиля 2a): дописування storybook-project поверх наявного unit-only конфіга — quasar/AutoImport/Pages + import-и', async () => {
+    const content = VITEST_CONFIG_BASIC.replace(
+      "coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] }",
+      `coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] },
+    projects: [{ extends: true, test: { name: 'unit' } }]`
+    )
+    await writeVueAppPkg(root, 'packages/gt', content)
+    const { violations } = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/vitest-config' })
+    const pattern = patterns.find(p => p.id === 'storybook-vitest-config-fix')
+    const result = await pattern.apply(violations, makeFixCtx(root, recordedWrites))
+    expect(result.touchedFiles.length).toBeGreaterThan(0)
+
+    const written = await readFile(join(root, 'packages/gt/vitest.config.mjs'), 'utf8')
+    expect(written).toContain("name: 'storybook'")
+    expect(written).toContain('quasar(')
+    expect(written).toContain('AutoImport(')
+    expect(written).toContain('Pages()')
+    expect(written).toContain("import { quasar } from '@quasar/vite-plugin'")
+    expect(written).toContain("import AutoImport from 'unplugin-auto-import/vite'")
+    expect(written).toContain("import Pages from 'vite-plugin-pages'")
+
+    const after = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/vitest-config' })
+    expect(after.violations).toEqual([])
+  })
+
+  test('library-пакет: дописаний storybook-project НЕ отримує quasar/AutoImport/Pages import-и (лише app-запис їх потребує)', async () => {
+    await writeVueLibraryPkg(root, 'packages/ui', VITEST_CONFIG_BASIC)
+    const { violations } = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/vitest-config' })
+    const pattern = patterns.find(p => p.id === 'storybook-vitest-config-fix')
+    await pattern.apply(violations, makeFixCtx(root, recordedWrites))
+
+    const written = await readFile(join(root, 'packages/ui/vitest.config.mjs'), 'utf8')
+    expect(written).not.toContain('@quasar/vite-plugin')
+    expect(written).not.toContain('unplugin-auto-import')
+    expect(written).not.toContain('vite-plugin-pages')
   })
 })

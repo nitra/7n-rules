@@ -60,7 +60,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.34.1",
+      "version": "1.40.1",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
@@ -100,7 +100,7 @@
     },
     "plugins/ci-github": {
       "name": "@7n/rules-ci-github",
-      "version": "1.7.1",
+      "version": "1.9.1",
       "dependencies": {
         "yaml": "^2.9.0",
       },
@@ -110,7 +110,7 @@
     },
     "plugins/lang-js": {
       "name": "@7n/rules-lang-js",
-      "version": "0.8.0",
+      "version": "0.14.0",
       "dependencies": {
         "eslint": "^10.4.1",
         "globby": "^16.0.0",
@@ -131,8 +131,9 @@
     },
     "plugins/lang-python": {
       "name": "@7n/rules-lang-python",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "dependencies": {
+        "globby": "^16.0.0",
         "smol-toml": "^1.7.0",
       },
       "peerDependencies": {
@@ -141,8 +142,9 @@
     },
     "plugins/lang-rust": {
       "name": "@7n/rules-lang-rust",
-      "version": "0.6.1",
+      "version": "0.7.1",
       "dependencies": {
+        "globby": "^16.0.0",
         "smol-toml": "^1.7.0",
       },
       "peerDependencies": {

@@ -13,7 +13,7 @@ bun add @scaleleap/pg-format
 - **`%I`** — escape SQL identifier (schema / table / column / index / role / database).
 - **`%s`** — raw fragment, **тільки** для whitelist-значень (`ASC` / `DESC`, тип JOIN'у тощо).
 - Значення — позиційні параметри `$1, $2, …`, які передаються другим аргументом у `sql.unsafe(query, [bindParams])`.
-- На рядку виклику `sql.unsafe(...)` обов'язковий маркер `// allow-unsafe: <причина>` (див. `safety/safety.mdc`, секція «sql.unsafe(...) за замовчуванням заборонено»).
+- На рядку виклику `sql.unsafe(...)` обов'язковий маркер `// n-rules:allow-unsafe: <причина>` (див. `safety/safety.mdc`, секція «sql.unsafe(...) за замовчуванням заборонено»).
 
 ```javascript
 import format from '@scaleleap/pg-format'
@@ -31,7 +31,7 @@ const query = format(
   sortBy,
   direction
 )
-// allow-unsafe: динамічні schema/table/column; значення біндяться через $N
+// n-rules:allow-unsafe: динамічні schema/table/column; значення біндяться через $N
 const rows = await sql.unsafe(query, [limit])
 ```
 
@@ -46,7 +46,7 @@ const query = format(
   `,
   values
 )
-// allow-unsafe: multi-row VALUES для бекфілу; values формуються з валідованого input
+// n-rules:allow-unsafe: multi-row VALUES для бекфілу; values формуються з валідованого input
 await sql.unsafe(query)
 ```
 
@@ -74,7 +74,7 @@ if (status) {
 
 const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 const query = `SELECT * FROM users ${where}`
-// allow-unsafe: динамічний WHERE з whitelist-полів; значення біндяться через $N
+// n-rules:allow-unsafe: динамічний WHERE з whitelist-полів; значення біндяться через $N
 const rows = await sql.unsafe(query, values)
 ```
 
@@ -91,7 +91,7 @@ const rows = await sql.unsafe(query, values)
 | Динамічний `ORDER BY column`      | whitelist + `%I`                                     |
 | `ASC` / `DESC`, тип JOIN'у        | whitelist + `%s`                                     |
 | Динамічний `WHERE` (полів багато) | whitelist + ручні `$N` + `sql.unsafe(text, vals)`    |
-| Сирий migration / DDL             | `sql.unsafe(text)` з `// allow-unsafe: <причина>`    |
+| Сирий migration / DDL             | `sql.unsafe(text)` з `// n-rules:allow-unsafe: <причина>`    |
 | User input як value               | **тільки** Bun parameters / `$N` bind                |
 | Масив значень у `unnest(...)`     | `sql.array(arr, type)` — обов'язково з типом         |
 
@@ -101,4 +101,4 @@ const rows = await sql.unsafe(query, values)
 - **SQL identifiers** → `@scaleleap/pg-format` `%I` (schema, table, column, index, role, database).
 - **SQL fragments** (`ASC`/`DESC` тощо) → whitelist + `%s`.
 
-Ніщо з цієї сторінки (правильність використання `%I`/`%s`, вибір `@scaleleap/pg-format` замість unscoped `pg-format` у коді, а не лише у `dependencies`) наразі не має власного AST-детектора — сканер (`lib/bun-sql-scan.mjs`) ловить лише симптоми: shim-реалізації (`findPgFormatShimDefinitionInText`), обгортки над `unsafe` (`findPgFormatLikeQueryWrapperInText`) та відсутність `allow-unsafe`-маркера. Тому ця сторінка лишається docs-only; unscoped `pg-format` як залежність вже заборонено окремо в `package_json/package_json.mdc` (Rego deny-list).
+Ніщо з цієї сторінки (правильність використання `%I`/`%s`, вибір `@scaleleap/pg-format` замість unscoped `pg-format` у коді, а не лише у `dependencies`) наразі не має власного AST-детектора — сканер (`lib/bun-sql-scan.mjs`) ловить лише симптоми: shim-реалізації (`findPgFormatShimDefinitionInText`), обгортки над `unsafe` (`findPgFormatLikeQueryWrapperInText`) та відсутність `n-rules:allow-unsafe`-маркера. Тому ця сторінка лишається docs-only; unscoped `pg-format` як залежність вже заборонено окремо в `package_json/package_json.mdc` (Rego deny-list).

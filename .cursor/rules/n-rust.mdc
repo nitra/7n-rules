@@ -2,10 +2,10 @@
 description: Перевірка Rust коду
 globs: "**/{Cargo.toml,Cargo.lock,rustfmt.toml,clippy.toml,.vscode/extensions.json,package.json},**/*.rs"
 alwaysApply: false
-version: '1.4'
+version: '1.5'
 ---
 
-Правило забезпечує форматування (rustfmt), лінт (clippy), CI workflow та покриття для Rust-проєктів.
+Правило забезпечує форматування (rustfmt), лінт (clippy), CI workflow та покриття для Rust-проєктів. Doc-коментарі: файл із pub-елементами має //!-header і ///-опис над кожним top-level pub-елементом (концерн doc_comments — джерело дослівної doc-files-доки; T0 підвищує суміжні //-коментарі, решту дописує LLM-ladder).
 
 ## Налаштування mutation-testing для Rust: `.cargo/mutants.toml`
 
@@ -42,6 +42,27 @@ version: '1.4'
 ### Канон CI workflow `.github/workflows/lint-rust.yml`
 
 Канонічний workflow, drift-safe перевірка (`rust.lint_rust_yml`) і вимога `Swatinem/rust-cache@v2` — `npm/rules/rust/lint_rust_yml/lint_rust_yml.mdc`. Тут лише сам лінт-скрипт; CI-канон workflow **не дублюється**.
+
+## Doc-коментарі — джерело дослівної документації
+
+Конвеєр doc-files (гібрид ADR 260719-2155) копіює rustdoc **дослівно**: `///`
+над `pub`-елементом стає рядком «Публічного API» без перефразування LLM,
+`//!`-коментар файлу — основою «Огляду».
+
+Рекомендовані вимоги для `.rs`-файлів із top-level `pub`-елементами (тести —
+`tests/`, `*_test.rs` — поза вимогою; сканування зупиняється на `#[cfg(test)]`):
+
+- **`//!`-header файлу** — намір файлу, ЩО і НАВІЩО (1-3 речення).
+- **`///` над кожним top-level `pub`-елементом** (fn/struct/enum/trait/mod/
+  const/static/type/union) — один змістовний рядок.
+
+Авто-виправлення:
+
+- **T0**: суцільний `//`-блок впритул над елементом → `///`; провідний
+  `//`-блок файлу → `//!` — текст автора зберігається дослівно.
+- Елементи зовсім без коментаря — дописує LLM-ladder.
+
+Перевірка: `rules/rust/doc_comments/main.mjs`.
 
 ## Rego-gate: `cargo`, `rustfmt`, `clippy` заборонені у `package.json`
 

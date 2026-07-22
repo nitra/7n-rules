@@ -1848,7 +1848,7 @@ try {
         // дереві задачі, worktree-ізоляція зламала б саму суть дельти) — пропускаємо.
         const needsWorktreeIsolation = full && !noFix
         const worktree = needsWorktreeIsolation
-          ? ensureRunningInWorktree(cwdArg, spawnSync, line => console.log(line), {
+          ? await ensureRunningInWorktree(cwdArg, spawnSync, line => console.log(line), {
               suffix: 'lint',
               description: 'n-rules lint --full: worktree-only full-repo run'
             })
@@ -1881,14 +1881,26 @@ try {
         } finally {
           // Лише для АВТОстворених worktree (лінт уже сидів у своєму — не наш, не чіпаємо).
           if (worktree.autoCreated) {
+            let bringBackFailed = true
             try {
-              await bringChangesBackToOriginal(runCwd, cwdArg, spawnSync, line => console.log(line))
+              const bringBackResult = await bringChangesBackToOriginal(runCwd, cwdArg, spawnSync, line =>
+                console.log(line)
+              )
+              bringBackFailed = bringBackResult.failed
             } catch (error) {
               console.log(
                 `⚠️ Перенесення змін назад провалилось: ${error instanceof Error ? error.message : String(error)}`
               )
             }
-            removeAutoCreatedWorktree(worktree.branchArg, cwdArg, spawnSync, line => console.log(line))
+            // Прибираємо worktree лише якщо перенесення точно вдалось — інакше
+            // не перенесені зміни згорять разом з деревом.
+            if (bringBackFailed) {
+              console.log(
+                `⚠️ Перенесення назад не підтверджено — worktree "${worktree.branchArg}" лишається для ручного розбору.`
+              )
+            } else {
+              removeAutoCreatedWorktree(worktree.branchArg, cwdArg, spawnSync, line => console.log(line))
+            }
           }
         }
 
@@ -1964,8 +1976,15 @@ try {
     }
   }
 } catch (error) {
+  // TypeError/RangeError/ReferenceError сигналять баг у самому коді (не навмисне
+  // user-facing повідомлення) — друкуємо stack одразу, інакше діагностика вимагає
+  // патчити node_modules вручну (як під час діагностики цього ж класу вад).
+  const isProgrammerError = error instanceof TypeError || error instanceof RangeError || error instanceof ReferenceError
   if (error instanceof ReexecHandoff) {
     process.exitCode = error.code
+  } else if (isProgrammerError && error.stack) {
+    console.error(error.stack)
+    process.exitCode = 1
   } else if (error instanceof Error && error.message) {
     console.error(error.message)
     process.exitCode = 1

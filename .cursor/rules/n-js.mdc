@@ -2,10 +2,10 @@
 description: Перевірка JavaScript коду
 globs: "**/{.oxlintrc.json,eslint.config.js,.jscpd.json,knip.json,package.json},**/*.{js,mjs,cjs,jsx,ts,tsx}"
 alwaysApply: false
-version: '1.31'
+version: '1.32'
 ---
 
-**oxlint**, **ESLint**, **jscpd**, **knip**. Запуск — **`n-rules lint js`** (локально; у CI — `--no-fix`, без **`--fix`** для oxlint/eslint). Без **prettier** і **@nitra/prettier-config**.
+**oxlint**, **ESLint**, **jscpd**, **knip**. Doc-коментарі: файл з експортами має header-JSDoc і JSDoc над кожним експортом (концерн doc_comments — джерело дослівної doc-files-доки; T0 підвищує суміжні //-коментарі до JSDoc, решту дописує LLM-ladder). Запуск — **`n-rules lint js`** (локально; у CI — `--no-fix`, без **`--fix`** для oxlint/eslint). Без **prettier** і **@nitra/prettier-config**.
 
 `eslint.config.js` — flat config з `getConfig` (`@nitra/eslint-config`). Аргументи `node: [...]`/`vue: [...]` мають відповідати воркспейс-типам репо (`workspaces` root `package.json`; vue-воркспейс = Vue-залежність у deps або `.vue` файли) — інакше `.vue` файли не парсяться. Відсутній конфіг створюється (scaffold), наявний — зазнає хірургічного merge (fix не перезаписує файл цілком).
 
@@ -108,6 +108,33 @@ import fastifyApollo, { fastifyApolloDrainPlugin } from '@nitra/as-integrations-
 ```javascript title="✅ після"
 import fastifyApollo, { fastifyApolloDrainPlugin } from '@as-integrations/fastify'
 ```
+
+## Doc-коментарі — джерело дослівної документації
+
+Конвеєр doc-files (гібрид ADR 260719-2155) копіює JSDoc **дослівно**: опис над
+експортом стає рядком «Публічного API» без перефразування LLM, header-коментар
+файлу — основою «Огляду». Що повніші doc-коментарі, то точніша дока і менше
+роботи (і помилок) локальної моделі.
+
+Рекомендовані вимоги для файлів з експортами (`js`/`mjs`/`cjs`/`ts`; тести,
+фікстури й `*.d.ts` — поза вимогою):
+
+- **Header-JSDoc файлу** — провідний `/** … */` до першого коду: намір файлу,
+  ЩО і НАВІЩО (1-3 речення).
+- **JSDoc над кожним експортом** — один змістовний рядок «що робить і навіщо»;
+  `@param`/`@returns` — коли неочевидні.
+
+Авто-виправлення:
+
+- **T0**: суцільний блок `//`-коментарів впритул над експортом (чи на початку
+  файлу) механічно підвищується до `/** … */` — текст автора зберігається
+  дослівно.
+- Експорти зовсім без коментаря — дописує LLM-ladder за вмістом функції.
+
+Заглушки на кшталт «опис.» не рахуються документацією ніде в конвеєрі — пиши
+змістовно або лиши LLM-ladder-у.
+
+Перевірка: `rules/js/doc_comments/main.mjs`.
 
 ## Розширення нових файлів — `.mjs` / `.cjs`, не `.js`
 
