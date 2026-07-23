@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.44.1] - 2026-07-23
+
+### Changed
+
+- worktree-only скіли (n-lint/n-taze/n-adr-normalize): preflight і ensureRunningInWorktree визнають .claude/worktrees/ (harness Claude Code) як вже ізольований worktree — не пропонують створювати вкладене .worktrees/ дерево
+
 ## [1.44.0] - 2026-07-22
 
 ### Added
