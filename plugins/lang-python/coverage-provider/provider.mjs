@@ -261,6 +261,27 @@ export default {
    * @param {{files: string[], runner?: typeof defaultRunner}} opts змінені файли (relative до cwd) + інʼєкція
    * @returns {Promise<Array<{file: string, pct: number, linesFound: number, linesCovered: number}>>} рядки гейта
    */
+  /**
+   * Догенерація pytest-тестів для файлів нижче порогу (опційний fix-hook;
+   * lazy-import — detect/collect-шлях не вантажить LLM-стек).
+   * @param {{cwd: string, files: Array<{file: string, pct: number}>, ctx: object}} args корінь, файли, FixContext
+   * @returns {Promise<{touchedFiles: string[]}>} записані файли
+   */
+  async generateTests(args) {
+    const { generatePythonTests } = await import('./fix-hooks.mjs')
+    return generatePythonTests(args)
+  },
+
+  /**
+   * Тести проти survived-мутантів mutmut (опційний fix-hook, lazy-import).
+   * @param {{cwd: string, survived: Array<object>, ctx: object}} args корінь, survived-групи, FixContext
+   * @returns {Promise<{touchedFiles: string[]}>} записані файли
+   */
+  async fixSurvived(args) {
+    const { fixPythonSurvived } = await import('./fix-hooks.mjs')
+    return fixPythonSurvived(args)
+  },
+
   async collectPerFile(cwd, opts) {
     const runner = opts.runner ?? defaultRunner
     const wanted = opts.files.filter(f => PY_SOURCE_RE.test(f) && !NON_SOURCE_RE.test(f))
