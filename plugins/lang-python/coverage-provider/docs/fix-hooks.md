@@ -12,7 +12,7 @@ docgen:
 
 ## Огляд
 
-Функції для Python coverage і mutation ladder-а запускають агентні сесії `runAgentFix` з `@7n/llm-lib/agent-fix`: `generatePythonTests` догенеровує pytest-тести для Python-файлів нижче порогу покриття, а `fixPythonSurvived` створює тести, що вбивають survived-мутанти `mutmut`.
+Функції для Python coverage і mutation ladder-а запускають агентні сесії `runAgentFix` з `@7n/llm-lib/agent-fix`: `generatePythonTests` генерує pytest-тести для Python-файлів нижче порогу покриття, а `fixPythonSurvived` створює тести, що вбивають survived-мутанти `mutmut`.
 
 Файл зберігає той самий ladder-контракт, що й JS/Rust-хуки: `ctx.timeoutMs` передається в агентну сесію, власних retry-циклів немає, а convergence веде ladder-ядро.
 
