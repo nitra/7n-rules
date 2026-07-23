@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.0] - 2026-07-23
+
+### Added
+
+- coverage-провайдер Python: pytest-cov (lcov) + mutmut за портом CoverageProvider
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header/export JSDoc у конфігах demo
+- doc_comments rollout: header-JSDoc у vitest.config
+
 ## [0.7.2] - 2026-07-23
 
 ### Changed

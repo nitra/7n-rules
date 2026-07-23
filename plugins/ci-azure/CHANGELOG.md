@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.6] - 2026-07-23
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header/export JSDoc у конфігах demo
+- doc_comments rollout: header-JSDoc у vitest.config
+
 ## [1.4.5] - 2026-07-23
 
 ### Changed
