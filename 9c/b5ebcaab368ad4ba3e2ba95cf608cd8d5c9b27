@@ -1,0 +1,39 @@
+npm/scripts/lib/tests/worktree-notice.test.mjs
+  s_731219dce6cb8b::t_9521f9672d6fe3 56-63
+.cursor/skills/n-adr-normalize/SKILL.md
+  s_731219dce6cb8b::t_9521f9672d6fe3 23-25,34,37
+npm/scripts/lib/docs/auto-worktree.md
+  s_731219dce6cb8b::t_9521f9672d6fe3 6-9,14,18,22-65
+npm/scripts/lib/docs/worktree-notice.md
+  s_731219dce6cb8b::t_9521f9672d6fe3 6-8,12-42,46-72,76-78,82
+npm/scripts/lib/tests/auto-worktree.test.mjs
+  s_731219dce6cb8b::t_9521f9672d6fe3 42-56
+.cursor/skills/n-lint/SKILL.md
+  s_731219dce6cb8b::t_9521f9672d6fe3 22-24,33,36
+.cspell.json
+  s_731219dce6cb8b::t_2029ff09eb566c 71
+npm/scripts/lib/worktree-notice.mjs
+  s_731219dce6cb8b::t_9521f9672d6fe3 136-138,147,150
+npm/scripts/lib/auto-worktree.mjs
+  s_731219dce6cb8b::t_9521f9672d6fe3 31-33,67-72
+.cursor/skills/n-taze/SKILL.md
+  s_731219dce6cb8b::t_9521f9672d6fe3 24-26,35,38
+npm/.changes/260722-2217.md
+  s_731219dce6cb8b::t_a29a7290acb36b 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "9cb5ebcaab368ad4ba3e2ba95cf608cd8d5c9b27",
+  "prompts": {},
+  "sessions": {
+    "s_731219dce6cb8b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5c3ccdb6-d0e6-4666-9b12-a046e66dc513",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
