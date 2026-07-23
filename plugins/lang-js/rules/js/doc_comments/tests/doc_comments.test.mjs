@@ -87,6 +87,14 @@ describe('check js.doc_comments — детектор', () => {
 })
 
 describe('fix js.doc_comments — T0 підвищення // → JSDoc', () => {
+  test('promoteLineBlock: символ закриття коментаря у тексті екранується — JSDoc не рветься', () => {
+    const closer = ['*', '/'].join('')
+    const out = promoteLineBlock(`// glob npm/*${closer}.js (не .mjs)`, '')
+    // Єдине незаекрановане закриття — фінальний JSDoc-термінатор.
+    expect(out.split(closer)).toHaveLength(2)
+    expect(out).toContain(String.raw`*\/`)
+  })
+
   test('promoteLineBlock: один рядок і багаторядковий блок', () => {
     expect(promoteLineBlock(lineComment('робить X'), '')).toBe('/** робить X */')
     const multi = [lineComment('перший'), lineComment('другий')].join('\n')

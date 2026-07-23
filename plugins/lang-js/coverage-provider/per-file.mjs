@@ -15,6 +15,9 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative } from 'node:path'
 
+import { parseLcovPerFile } from '@7n/rules/rules/test/coverage/lib/lcov.mjs'
+
+import { isCommentOnlyChange } from './lib/comment-only.mjs'
 import { defaultRunner } from './js-collector.mjs'
 import { quickClassify } from './lib/quick-classify.mjs'
 import { resolveAllJsRoots } from './lib/resolve-js-root.mjs'
@@ -46,6 +49,10 @@ const MAX_ERRORS_PER_FILE = 5
 /** Стеля рядків одного повідомлення помилки у parseFailingTests. */
 const MAX_ERROR_LINES = 10
 
+// Парсер lcov живе у спільній lib концерну coverage (мовно-агностичний);
+// реекспорт зберігає публічний API модуля для наявних споживачів/тестів.
+export { parseLcovPerFile } from '@7n/rules/rules/test/coverage/lib/lcov.mjs'
+
 /**
  * Чи декларує package.json vitest (dependencies або devDependencies).
  * @param {{dependencies?: Record<string,string>, devDependencies?: Record<string,string>}} pkg package.json
@@ -54,11 +61,6 @@ const MAX_ERROR_LINES = 10
 function hasVitestDep(pkg) {
   return Boolean(pkg.devDependencies?.vitest) || Boolean(pkg.dependencies?.vitest)
 }
-
-// Парсер lcov живе у спільній lib концерну coverage (мовно-агностичний);
-// реекспорт зберігає публічний API модуля для наявних споживачів/тестів.
-export { parseLcovPerFile } from '@7n/rules/rules/test/coverage/lib/lcov.mjs'
-import { parseLcovPerFile } from '@7n/rules/rules/test/coverage/lib/lcov.mjs'
 
 /**
  * Парсить JSON-звіт vitest у список падаючих тест-файлів з короткими помилками
@@ -189,7 +191,7 @@ async function collectRootRows(jsRoot, cwd, rootFiles, runner) {
  * файлами через `--coverage.include` — файли без жодного тесту зʼявляються
  * в lcov з 0% (vitest 4: явний include замість прибраного `coverage.all`).
  * @param {string} cwd корінь проєкту
- * @param {{files: string[], runner?: typeof defaultRunner}} opts змінені файли (relative до cwd) + spawn-інʼєкція
+ * @param {{files: string[], runner?: typeof defaultRunner, isCommentOnlyChange?: (cwd: string, file: string) => boolean}} opts змінені файли (relative до cwd) + інʼєкції
  * @returns {Promise<Array<{file: string, pct: number, linesFound: number, linesCovered: number, reason?: string}>>} рядки по файлах-кандидатах (relative до cwd)
  */
 export async function collectPerFile(cwd, opts) {
@@ -201,8 +203,13 @@ export async function collectPerFile(cwd, opts) {
   const rootPkgPath = join(cwd, 'package.json')
   const rootHasVitest = existsSync(rootPkgPath) && hasVitestDep(JSON.parse(readFileSync(rootPkgPath, 'utf8')))
 
+  // Comment-only зміни (доки/JSDoc) не гейтяться: код ідентичний base —
+  // покриття змінитись не могло, а vitest-прогін на такі файли марнотратний.
+  const isCommentOnly = opts.isCommentOnlyChange ?? isCommentOnlyChange
+  const realChanges = opts.files.filter(f => !isGateCandidate(f) || !isCommentOnly(cwd, f))
+
   for (const jsRoot of jsRoots) {
-    const rootFiles = scopeGateFiles(opts.files, cwd, jsRoot)
+    const rootFiles = scopeGateFiles(realChanges, cwd, jsRoot)
     if (rootFiles.length === 0) continue
 
     // package.json без vitest (і без hoisted vitest у корені) → root не
