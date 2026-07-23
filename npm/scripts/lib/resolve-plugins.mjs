@@ -402,6 +402,26 @@ export function getDocFilesExtensions(projectRoot, config) {
 }
 
 /**
+ * Задекларовані у `config.plugins` пакети, недоступні в `node_modules` (не встановлені).
+ * Не встановлює нічого (`allowInstall: false`) і не друкує — чистий предикат для
+ * explicit CLI-діагностики (напр. doc-files: 0 кандидатів через невстановлений плагін),
+ * яка сама вирішує, коли й де показати попередження. Автодетектовані (не задекларовані
+ * явно) плагіни тут не враховуються — сигнал стосується саме явного `.n-rules.json`.
+ * @param {string} projectRoot корінь репозиторію
+ * @param {{ plugins?: unknown } | null | undefined} config розпарсений `.n-rules.json`
+ * @returns {string[]} npm-імена задекларованих, але не встановлених плагінів (порожньо — усе гаразд)
+ */
+export function getUnavailableDeclaredPlugins(projectRoot, config) {
+  const declared = Array.isArray(config?.plugins)
+    ? config.plugins.filter(p => typeof p === 'string' && p.trim() !== '')
+    : []
+  if (declared.length === 0) return []
+  const root = resolve(projectRoot)
+  const availableNames = new Set(resolvePlugins(root, config, { allowInstall: false, quiet: true }).map(p => p.name))
+  return declared.filter(name => !availableNames.has(name))
+}
+
+/**
  * Handlers для extension-point правила ядра (v1 — лише API; перший споживач — v2).
  * @param {string} projectRoot корінь репозиторію
  * @param {{ plugins?: unknown } | null | undefined} config розпарсений `.n-rules.json`
