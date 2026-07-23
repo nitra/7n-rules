@@ -8,14 +8,22 @@
  * Rust поки не реалізовані — fix-worker пропускає провайдер без хуків.
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync, realpathSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 
 import { parseLcovPerFile, parseLcovTotals } from '@7n/rules/rules/test/coverage/lib/lcov.mjs'
+import { resolveChangedBase } from '@7n/rules/scripts/lib/changed-files.mjs'
 import { parseMutantsOutcomes } from './mutants.mjs'
 import { findRustRoots } from './roots.mjs'
+
+/** Блок-коментарі Rust (без вкладеності — рідкісний кейс лишає файл у гейті). */
+const BLOCK_COMMENT_RE = /\/\*[^*]*\*+(?:[^*/][^*]*\*+)*\//g
+/** Рядкові коментарі (`//`, включно з doc `///`). */
+const LINE_COMMENT_RE = /\/\/[^\n]*/g
+/** Пробільні послідовності — нормалізуються перед порівнянням. */
+const WHITESPACE_RE = /\s+/g
 
 /** Rust-джерела делта-гейта. */
 const RUST_SOURCE_RE = /\.rs$/
@@ -89,6 +97,39 @@ function realPathSafe(p) {
   } catch {
     return p
   }
+}
+
+/**
+ * Нормалізує Rust-джерело для порівняння «той самий код»: стрип коментарів +
+ * колапс пробілів. Наївність щодо рядкових літералів прийнятна: обидві версії
+ * нормалізуються однаково, а помилковий збіг можливий лише коли реальна зміна
+ * теж усередині відкинутого фрагмента.
+ * @param {string} source Rust-джерело
+ * @returns {string} нормалізований код
+ */
+function normalizeRustSource(source) {
+  return source.replace(BLOCK_COMMENT_RE, ' ').replace(LINE_COMMENT_RE, ' ').replace(WHITESPACE_RE, ' ').trim()
+}
+
+/**
+ * Чи зміна `.rs`-файлу vs merge-base делти — лише коментарі/пробіли.
+ * Невизначеність (нема base, файл новий) → false (файл лишається в гейті).
+ * @param {string} cwd корінь проєкту
+ * @param {string} relFile шлях relative до cwd
+ * @returns {boolean} true — пропустити в делта-гейті
+ */
+function isCommentOnlyChange(cwd, relFile) {
+  const base = resolveChangedBase(cwd)
+  if (!base) return false
+  const shown = spawnSync('git', ['show', `${base}:${relFile}`], { cwd, encoding: 'utf8' })
+  if (shown.status !== 0 || shown.error) return false
+  let current
+  try {
+    current = readFileSync(join(cwd, relFile), 'utf8')
+  } catch {
+    return false
+  }
+  return normalizeRustSource(shown.stdout) === normalizeRustSource(current)
 }
 
 /**
@@ -191,12 +232,35 @@ export default {
    * тестування): один llvm-cov-прогін на кожен Rust-корінь зі зміненими
    * файлами, фільтрація per-file lcov до запитаних.
    * @param {string} cwd корінь проєкту
-   * @param {{files: string[], runner?: typeof defaultRunner}} opts змінені файли (relative до cwd) + spawn-інʼєкція
+   * @param {{files: string[], runner?: typeof defaultRunner, isCommentOnlyChange?: (cwd: string, file: string) => boolean}} opts змінені файли (relative до cwd) + інʼєкції
    * @returns {Promise<Array<{file: string, pct: number, linesFound: number, linesCovered: number}>>} рядки гейта
    */
+  /**
+   * Догенерація Rust-тестів для файлів нижче порогу (опційний fix-hook;
+   * lazy-import — detect/collect-шлях не вантажить LLM-стек).
+   * @param {{cwd: string, files: Array<{file: string, pct: number}>, ctx: object}} args корінь, файли, FixContext
+   * @returns {Promise<{touchedFiles: string[]}>} записані файли
+   */
+  async generateTests(args) {
+    const { generateRustTests } = await import('./fix-hooks.mjs')
+    return generateRustTests(args)
+  },
+
+  /**
+   * Тести проти survived-мутантів cargo-mutants (опційний fix-hook, lazy-import).
+   * @param {{cwd: string, survived: Array<object>, ctx: object}} args корінь, survived-групи, FixContext
+   * @returns {Promise<{touchedFiles: string[]}>} записані файли
+   */
+  async fixSurvived(args) {
+    const { fixRustSurvived } = await import('./fix-hooks.mjs')
+    return fixRustSurvived(args)
+  },
+
   async collectPerFile(cwd, opts) {
     const runner = opts.runner ?? defaultRunner
-    const wanted = opts.files.filter(f => isGateCandidate(f))
+    const isCommentOnly = opts.isCommentOnlyChange ?? isCommentOnlyChange
+    // Comment-only зміни (doc-коментарі) не гейтяться — код ідентичний base.
+    const wanted = opts.files.filter(f => isGateCandidate(f) && !isCommentOnly(cwd, f))
     if (wanted.length === 0) return []
     if (!runner.hasCargoTool('llvm-cov')) return []
 

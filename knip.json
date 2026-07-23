@@ -24,7 +24,8 @@
     "claude",
     "cursor-agent",
     "fix-t0",
-    "_fix-check"
+    "_fix-check",
+    "uv"
   ],
   "ignoreExportsUsedInFile": true,
   "ignoreIssues": {

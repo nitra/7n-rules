@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -214,5 +215,110 @@ describe('provider (інжектований runner)', () => {
   test('collectPerFile без .rs-кандидатів → без прогонів', async () => {
     const rows = await provider.collectPerFile(dir, { files: ['src/app.mjs'], runner: stubRunner('', null) })
     expect(rows).toEqual([])
+  })
+})
+
+describe('comment-only делта-ігнор (Rust)', () => {
+  const RS = 'fn add(a: i32, b: i32) -> i32 {\n    a + b\n}\n'
+  let dir
+
+  beforeEach(() => {
+    dir = realpathSync(mkdtempSync(join(tmpdir(), 'rust-comments-')))
+    const git = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
+    git('init', '-q', '-b', 'main')
+    writeFileSync(join(dir, 'Cargo.toml'), '[package]\nname = "t"\n')
+    mkdirSync(join(dir, 'src'))
+    writeFileSync(join(dir, 'src', 'lib.rs'), RS)
+    git('add', '.')
+    git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init')
+    git('checkout', '-qb', 'feature')
+  })
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('доданий doc-коментар → файл пропущено без прогону', async () => {
+    writeFileSync(join(dir, 'src', 'lib.rs'), `/// Додає числа.\n${RS}`)
+    const runner = stubRunner('', OUTCOMES_FIXTURE)
+    const rows = await provider.collectPerFile(dir, { files: ['src/lib.rs'], runner })
+    expect(rows).toEqual([])
+  })
+
+  test('реальна зміна коду → файл у гейті', async () => {
+    writeFileSync(join(dir, 'src', 'lib.rs'), RS.replace('a + b', 'a - b'))
+    const lcov = `SF:${join(dir, 'src', 'lib.rs')}\nLF:3\nLH:0\nend_of_record\n`
+    const rows = await provider.collectPerFile(dir, {
+      files: ['src/lib.rs'],
+      runner: stubRunner(lcov, OUTCOMES_FIXTURE)
+    })
+    expect(rows).toHaveLength(1)
+    expect(rows[0].pct).toBe(0)
+  })
+})
+
+describe('fix-hooks (промпти — чисті)', () => {
+  test('buildGenTestsPrompt містить файли і канон #[cfg(test)]', async () => {
+    const { buildGenTestsPrompt } = await import('../fix-hooks.mjs')
+    const p = buildGenTestsPrompt([{ file: 'src/lib.rs', pct: 12.5 }])
+    expect(p).toContain('src/lib.rs')
+    expect(p).toContain('12.5%')
+    expect(p).toContain('#[cfg(test)]')
+  })
+
+  test('buildFixSurvivedPrompt містить мутанти з рядками і replacement', async () => {
+    const { buildFixSurvivedPrompt } = await import('../fix-hooks.mjs')
+    const p = buildFixSurvivedPrompt([
+      { file: 'src/lib.rs', mutants: [{ line: 6, mutantType: 'FnValue', original: 'main', replacement: '()' }] }
+    ])
+    expect(p).toContain('src/lib.rs')
+    expect(p).toContain('рядок 6')
+    expect(p).toContain('cargo test')
+  })
+
+  test('generateTests/fixSurvived — опційні хуки присутні на провайдері', () => {
+    expect(typeof provider.generateTests).toBe('function')
+    expect(typeof provider.fixSurvived).toBe('function')
+  })
+})
+
+describe('помилкові гілки', () => {
+  test('detect: без Cargo.toml → false', async () => {
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'rust-empty-')))
+    try {
+      expect(await provider.detect(dir)).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('collect: llvm-cov exit ≠ 0 → кидає з кодом', async () => {
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'rust-err-')))
+    try {
+      writeFileSync(join(dir, 'Cargo.toml'), '[package]\n')
+      const runner = { hasCargoTool: () => true, runLlvmCov: () => 3, runMutants: () => 0 }
+      await expect(provider.collect(dir, { runner })).rejects.toThrow('exit 3')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('collect: mutants без outcomes.json → зрозуміла помилка', async () => {
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'rust-no-report-')))
+    try {
+      writeFileSync(join(dir, 'Cargo.toml'), '[package]\n')
+      const lcov = `SF:${join(dir, 'src', 'main.rs')}\nLF:1\nLH:1\nend_of_record\n`
+      const runner = {
+        hasCargoTool: () => true,
+        runLlvmCov({ lcovPath }) {
+          writeFileSync(lcovPath, lcov)
+          return 0
+        },
+        runMutants: () => 0
+      }
+      await expect(provider.collect(dir, { runner })).rejects.toThrow('outcomes.json')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
