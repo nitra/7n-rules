@@ -95,4 +95,30 @@ describe('lint — детект (read-only detector)', () => {
       expect(violations[0].file).toBe('src/a.mjs')
     })
   })
+
+  test('плагін задекларований, але не встановлений (свіжий worktree без bun install) — 0 violations + warn-діагностика', async () => {
+    await withTmpDir(async root => {
+      // Навмисно НЕ ставимо фейковий плагін у node_modules — лише декларація в .n-rules.json,
+      // як у щойно створеному git worktree без `bun install`.
+      await writeFile(join(root, '.n-rules.json'), JSON.stringify({ plugins: ['@7n/rules-lang-js'] }))
+      await ensureDir(join(root, 'src'))
+      await writeFile(join(root, 'src', 'a.mjs'), 'export const a = 1\n')
+      const { violations, diagnostics } = await lint(ctxFor(root))
+      expect(violations).toEqual([])
+      expect(diagnostics).toHaveLength(1)
+      expect(diagnostics[0].level).toBe('warn')
+      expect(diagnostics[0].message).toContain('@7n/rules-lang-js')
+      expect(diagnostics[0].message).toContain('bun install')
+    })
+  })
+
+  test('плагін встановлений — без діагностики, навіть якщо 0 violations', async () => {
+    await withTmpDir(async root => {
+      await installFakeLangJsPlugin(root)
+      await writeSourceWithFreshDoc(root, 'src/a.mjs', 'export const a = 1\n')
+      const { violations, diagnostics } = await lint(ctxFor(root, ['src/a.mjs']))
+      expect(violations).toEqual([])
+      expect(diagnostics).toBeUndefined()
+    })
+  })
 })
