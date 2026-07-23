@@ -9,7 +9,7 @@
  * import-и (канонічний патерн fix-worker-ів).
  */
 const { runAgentFix } = await import('@7n/llm-lib/agent-fix')
-const { CLOUD_MAX } = await import('@7n/llm-lib/model-tiers')
+const { CLOUD_AVG, CLOUD_MAX } = await import('@7n/llm-lib/model-tiers')
 
 /**
  * Промпт догенерації pytest-тестів для файлів нижче порогу покриття.
@@ -70,7 +70,8 @@ export function buildFixSurvivedPrompt(survived) {
  */
 async function runSession(prompt, cwd, ctx, targetFiles) {
   const res = await runAgentFix('test', prompt, cwd, {
-    model: ctx?.model ?? CLOUD_MAX,
+    // `||`: тир-константи порожні без N_CLOUD_*_MODEL env — фолбек аж до CLOUD_AVG.
+    model: ctx?.model || CLOUD_MAX || CLOUD_AVG,
     tier: ctx?.tier,
     timeoutMs: ctx?.timeoutMs,
     feedback: ctx?.feedback ?? null,
