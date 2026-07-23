@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.19.0] - 2026-07-23
+
+### Added
+
+- coverage-провайдер (порт js-collector з @7n/test): vitest+Stryker+Storybook колектор, per-file делта-вимір, quickClassify (spec 2026-07-22 absorb-7n-test)
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header/export JSDoc у конфігах demo
+- doc_comments rollout: header-JSDoc у vitest.config
+
 ## [0.18.0] - 2026-07-22
 
 ### Added

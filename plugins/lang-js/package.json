@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules-lang-js",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "description": "Плагін @7n/rules: JS/npm/bun-екосистема — lint-правила (js/bun/vue/js-run/npm-module/db), taze-провайдер (package.json, bunx taze) і doc-files-екстрактори (oxc AST)",
   "keywords": [
     "javascript",

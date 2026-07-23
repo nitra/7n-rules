@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.45.0] - 2026-07-23
+
+### Added
+
+- концерн coverage правила test: гейт покриття/мутаційки як lint-детектор (--no-fix = CI-гейт), CoverageProvider порт у plugin-api (spec 2026-07-22 absorb-7n-test)
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header/export JSDoc у конфігах demo
+- doc_comments rollout: header-JSDoc у vitest.config
+
 ## [1.44.1] - 2026-07-23
 
 ### Changed
