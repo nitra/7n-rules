@@ -39,6 +39,21 @@ describe('ensureRunningInWorktree', () => {
     expect(calls).toEqual(['git rev-parse --show-toplevel'])
   })
 
+  test('вже під .claude/worktrees/ (harness Claude Code) — повертає cwd без змін, нічого не створює', async () => {
+    const calls = []
+    const result = await ensureRunningInWorktree(
+      '/repo/.claude/worktrees/task-abc123',
+      (cmd, args = []) => {
+        calls.push([cmd, ...args].join(' '))
+        return { status: 0, stdout: '/repo/.claude/worktrees/task-abc123\n', stderr: '' }
+      },
+      noop,
+      WORKTREE_OPTS
+    )
+    expect(result).toEqual({ cwd: '/repo/.claude/worktrees/task-abc123', autoCreated: false, branchArg: null })
+    expect(calls).toEqual(['git rev-parse --show-toplevel'])
+  })
+
   test('поза worktree, чисте дерево — сам створює worktree і ставить залежності', async () => {
     const calls = []
     const result = await ensureRunningInWorktree(

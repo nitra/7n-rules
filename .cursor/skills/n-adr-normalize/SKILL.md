@@ -20,7 +20,9 @@ git branch --show-current
 
 **Root-assert.** Якщо `pwd` **не** збігається з виводом `git rev-parse --show-toplevel` — ти в **піддиректорії** робочого дерева (worktree-шляхи нижче відносні до кореня репо). Спершу перейди в корінь: `cd <toplevel>` (literal-шлях із виводу), і лише тоді продовжуй preflight. Не створюй worktree з піддиректорії — `cd .worktrees/<…>` звідти впаде.
 
-Якщо `git rev-parse --show-toplevel` показав, що ти **не** в `.worktrees/`, візьми вивід `git branch --show-current` як `<current-branch>` і виконай **literal-команди без shell expansion** (без command substitution, variable expansion чи backticks). Наприклад, якщо поточна гілка `feature/x`:
+**Вже ізольований — нічого не створюй.** Якщо `git rev-parse --show-toplevel` містить сегмент `.worktrees/<…>` (репо-конвенція) **або** `.claude/worktrees/<…>` (worktree харнесу Claude Code — туди `npx @7n/mt worktree create` класти заборонено, `n-worktree.mdc`) — ти вже виконуєшся в окремому git-worktree. Preflight пройдено: нічого не створюй, нікого не питай про назву гілки — переходь одразу до Кроку 0.1.
+
+Інакше, якщо toplevel не містить жодного з цих сегментів, візьми вивід `git branch --show-current` як `<current-branch>` і виконай **literal-команди без shell expansion** (без command substitution, variable expansion чи backticks). Наприклад, якщо поточна гілка `feature/x`:
 
 ```bash
 npx @7n/mt worktree create "feature/x-adr-normal" "n-adr-normal: worktree-only skill"
@@ -29,10 +31,10 @@ cd ".worktrees/feature-x-adr-normal"
 
 Тобто branch-argument лишає slash як у git-гілці, а шлях для `cd` бере sanitized форму: slash → `-`.
 
-**Крок 0.1 — bootstrap у новому дереві (після `cd`).** Дерево щойно створене й **без** `node_modules`. Постав залежності локально — тоді `npx @7n/rules <cmd>` бере локальну копію без походу в реєстр:
+**Крок 0.1 — bootstrap (якщо в дереві ще нема `node_modules`).** Свіжостворений worktree (Крок 0) точно без `node_modules`; вже ізольований harness-worktree може мати їх або ні — постав локально, тоді `npx @7n/rules <cmd>` бере локальну копію без походу в реєстр:
 
 ```bash
-bun install
+test -d node_modules || bun install
 ```
 <!-- n-rules:worktree:end -->
 

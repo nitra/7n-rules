@@ -68,6 +68,7 @@
     "dlopen",
     "dont",
     "Dzookeeper",
+    "EISDIR",
     "ENEEDAUTH",
     "EXDEV",
     "exfiltration",
