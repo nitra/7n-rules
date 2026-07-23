@@ -10,6 +10,7 @@ import { basename, dirname, join } from 'node:path'
 const CONTEXT_LINES = 10
 const TEST_FILE_MAX_LINES = 2000
 
+/** Системний промпт класифікатора survived-мутантів (5 verdict-категорій). */
 export const SYSTEM_PROMPT = `You are a mutation testing classifier.
 
 For each survived Stryker mutant, classify it into exactly one verdict:
