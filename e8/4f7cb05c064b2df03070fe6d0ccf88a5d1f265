@@ -1,0 +1,62 @@
+npm/scripts/lib/tests/resolve-plugins.test.mjs
+  s_b850fd77382049::t_1e9a40895d6956 15
+  s_b850fd77382049::t_6ce0edab4f228a 321-344
+npm/rules/doc-files/check/docs/main.md
+  s_b850fd77382049::t_ea166b247d4565 11,17-19,23,27-29
+  s_b850fd77382049::t_3dba0a0997a412 15
+  s_b850fd77382049::t_65b8f914255a33 16
+  s_b850fd77382049::t_15713950998e72 6
+npm/rules/doc-files/check/main.mjs
+  s_b850fd77382049::t_a80d0832c1af9d 99-105
+  s_b850fd77382049::t_ba3365183f56b9 8
+npm/.changes/260723-0740.md
+  s_b850fd77382049::t_cce0c418dc0e42 1,4
+  s_b850fd77382049::t_a40c139aa33ffc 2-3,5
+npm/scripts/lib/docs/resolve-plugins.md
+  s_b850fd77382049::t_38ecc22f981441 64
+  s_b850fd77382049::t_13b899b6d62354 40
+  s_b850fd77382049::t_897a81b2faef42 34
+  s_b850fd77382049::t_4eb5f37a32ad48 37
+  s_b850fd77382049::t_5b034480d5c197 31-33
+  s_b850fd77382049::t_2cf557cadb07f6 35-36
+  s_b850fd77382049::t_7326474306c896 38-39
+  s_b850fd77382049::t_fd39c6baa7bf79 41-43,61-63
+  s_b850fd77382049::t_6a8b00aed191f9 65-67
+  s_b850fd77382049::t_8b89b02e32bf72 6-10,13,15,17,19,21-30,44-60,68-124
+npm/rules/doc-files/docgen-scan/tests/lang-extensions.test.mjs
+  s_b850fd77382049::t_f146292f4854e4 2,6-32
+  s_b850fd77382049::t_d3e033422fdf8a 69-109
+  s_b850fd77382049::t_d68a6ee67ee22d 36
+  s_b850fd77382049::t_ddc15d5a41fdd6 1,3-5,33-35,37-64,66-68,110
+  s_b850fd77382049::t_bf357ae94af76f 65
+.cspell.json
+  s_b850fd77382049::t_f68f84d4de9f5d 171
+  s_b850fd77382049::t_a9dcd3bf0411e8 490
+  s_b850fd77382049::t_a50ec5157b8f87 226
+npm/rules/doc-files/tests/main.test.mjs
+  s_b850fd77382049::t_b5479c9f9324ab 98-123
+npm/rules/doc-files/docgen-scan/lang-extensions.mjs
+  s_b850fd77382049::t_cf943b0872abc7 89-91,93-101
+  s_b850fd77382049::t_c8e7efd5346a59 6-10
+  s_b850fd77382049::t_c87b6adb7db8c6 92
+npm/scripts/lib/resolve-plugins.mjs
+  s_b850fd77382049::t_bb1e9e1818619a 404-423
+npm/rules/doc-files/docgen-scan/docs/lang-extensions.md
+  s_b850fd77382049::t_513b6d33629266 6-9,14,18-22,26-36,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "e84f7cb05c064b2df03070fe6d0ccf88a5d1f265",
+  "prompts": {},
+  "sessions": {
+    "s_b850fd77382049": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f30b9e5c-b103-40a4-b0a7-669749f179e6",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
