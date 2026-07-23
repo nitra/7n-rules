@@ -38,7 +38,10 @@
       "Bash(rtk wc *)",
       "Bash(rtk grep *)",
       "Bash(rtk read *)",
-      "Bash(rtk ls *)"
+      "Bash(rtk ls *)",
+      "WebFetch(domain:www.infralovers.com)",
+      "WebFetch(domain:pvieito.com)",
+      "WebFetch(domain:support.claude.com)"
     ]
   }
 }

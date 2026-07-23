@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.8.4] - 2026-07-22
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config
+
 ## [2.8.3] - 2026-07-19
 
 ### Changed
