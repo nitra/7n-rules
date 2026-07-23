@@ -28,7 +28,9 @@ async function defaultConfirm(message) {
  * Гарантує, що подальші кроки виконуються в ізольованому worktree
  * (`main.json.worktree: true`-контракт), навіть коли викликач — детермінований
  * JS-код, що не годує SKILL.md жодному LLM-агенту (тож агентський preflight-блок
- * з `worktree-notice.mjs` нікому виконувати). Якщо `cwd` вже під `.worktrees/` —
+ * з `worktree-notice.mjs` нікому виконувати). Якщо `cwd` вже під `.worktrees/`
+ * (репо-конвенція) або `.claude/worktrees/` (worktree харнесу Claude Code,
+ * куди `npx \@7n/mt worktree create` класти заборонено — `n-worktree.mdc`) —
  * повертає його без змін. Інакше сам створює `.worktrees/<branch>-<suffix>`
  * (`npx \@7n/mt worktree create`) і ставить залежності (`bun install`).
  *
@@ -62,8 +64,12 @@ export async function ensureRunningInWorktree(
 ) {
   const toplevelResult = spawnFn('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8' })
   const toplevel = toplevelResult.status === 0 ? toplevelResult.stdout.trim() : ''
-  const segments = new Set(toplevel.replaceAll('\\', '/').split('/'))
-  if (segments.has('.worktrees')) return { cwd, autoCreated: false, branchArg: null }
+  const pathSegments = toplevel.replaceAll('\\', '/').split('/')
+  const segments = new Set(pathSegments)
+  const isClaudeHarnessWorktree = pathSegments.some(
+    (seg, i) => seg === '.claude' && pathSegments[i + 1] === 'worktrees'
+  )
+  if (segments.has('.worktrees') || isClaudeHarnessWorktree) return { cwd, autoCreated: false, branchArg: null }
 
   const branchResult = spawnFn('git', ['branch', '--show-current'], { cwd, encoding: 'utf8' })
   const currentBranch = branchResult.status === 0 ? branchResult.stdout.trim() : ''

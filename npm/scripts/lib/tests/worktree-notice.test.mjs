@@ -53,6 +53,14 @@ describe('injectWorktreeNotice', () => {
     expect(out).not.toContain('sleep 30')
   })
 
+  test('worktree=true → визнає .worktrees/ і .claude/worktrees/ як "вже ізольований", не просить створювати нове дерево', () => {
+    const out = injectWorktreeNotice(SKILL, true)
+    expect(out).toContain('Вже ізольований')
+    expect(out).toContain('.claude/worktrees/<…>')
+    expect(out).toContain('worktree харнесу Claude Code')
+    expect(out).toContain('нічого не створюй, нікого не питай')
+  })
+
   test('worktree=true → Крок 0.1 винесено ПІСЛЯ no-expansion preflight-снипета', () => {
     const out = injectWorktreeNotice(SKILL, true)
     expect(out.indexOf('**Крок 0.1')).toBeGreaterThan(out.indexOf('cd ".worktrees/feature-x-fix"'))
