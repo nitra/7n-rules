@@ -13,7 +13,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 
-import { parseLcovPerFile, parseLcovTotals } from './lcov.mjs'
+import { parseLcovPerFile, parseLcovTotals } from '@7n/rules/rules/test/coverage/lib/lcov.mjs'
 import { parseMutantsOutcomes } from './mutants.mjs'
 import { findRustRoots } from './roots.mjs'
 

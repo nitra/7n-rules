@@ -55,37 +55,10 @@ function hasVitestDep(pkg) {
   return Boolean(pkg.devDependencies?.vitest) || Boolean(pkg.dependencies?.vitest)
 }
 
-/**
- * Парс lcov.info у per-file рядки (`SF:`/`LF:`/`LH:`).
- * @param {string} text вміст lcov.info
- * @returns {Array<{file: string, pct: number, linesFound: number, linesCovered: number}>} per-file coverage
- */
-export function parseLcovPerFile(text) {
-  const files = []
-  let currentFile = null
-  let lf = 0
-  let lh = 0
-  for (const line of text.split('\n')) {
-    if (line.startsWith('SF:')) {
-      currentFile = line.slice(3).trim()
-      lf = 0
-      lh = 0
-    } else if (line.startsWith('LF:')) {
-      lf = Number(line.slice(3))
-    } else if (line.startsWith('LH:')) {
-      lh = Number(line.slice(3))
-    } else if (line === 'end_of_record' && currentFile) {
-      files.push({
-        file: currentFile,
-        pct: lf === 0 ? 100 : Math.round((lh / lf) * 10000) / 100,
-        linesFound: lf,
-        linesCovered: lh
-      })
-      currentFile = null
-    }
-  }
-  return files
-}
+// Парсер lcov живе у спільній lib концерну coverage (мовно-агностичний);
+// реекспорт зберігає публічний API модуля для наявних споживачів/тестів.
+export { parseLcovPerFile } from '@7n/rules/rules/test/coverage/lib/lcov.mjs'
+import { parseLcovPerFile } from '@7n/rules/rules/test/coverage/lib/lcov.mjs'
 
 /**
  * Парсить JSON-звіт vitest у список падаючих тест-файлів з короткими помилками

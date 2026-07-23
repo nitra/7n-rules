@@ -3,25 +3,25 @@ type: JS Module
 title: provider.mjs
 resource: plugins/lang-rust/coverage-provider/provider.mjs
 docgen:
-  crc: 9389c152
+  crc: 0b31d61b
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100
-  issues: judge-refine:kept-original,judge:inaccurate:0.97
+  issues: judge-refine:kept-original,judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Провайдер Rust coverage для концерну `coverage`, який підключається через ядро `test` і не містить власної CLI-оркестрації. Він покриває line coverage через `cargo llvm-cov` з виходом у `lcov` і mutation testing через `cargo mutants` з артефактами `mutants.out/outcomes.json`, щоб правила `coverage` могли отримувати Rust-специфічний результат. Якщо `cargo-llvm-cov` або `cargo-mutants` відсутні, провайдер чесно пропускає крок з одноразовим hint, без помилки. Fix-hooks для Rust тут не реалізовані, тому fix-worker пропускає цей провайдер без hooks.
+Провайдер port’ить Rust `coverage` plugin-api і працює як частина спільного `coverage`-процесу ядра через `test` rules, а не через власну CLI-оркестрацію. Публічний вхід — `defaultRunner`: він зводить line coverage з `cargo llvm-cov` у форматі lcov та mutation coverage з `mutants.out` і `outcomes.json`. Якщо `cargo-llvm-cov` або `cargo-mutants` відсутні, провайдер дає чесний skip з одноразовим hint, а не блокує інші перевірки. Rust fix-hooks для генерації тестів ще не реалізовані, тому fix-worker просто пропускає цього провайдера без хуків.
 
 ## Поведінка
 
-1. `defaultRunner` запускає Rust coverage-процес як окремий provider для `coverage`-концерну, без власної CLI-оркестрації.
-2. Для line coverage він збирає дані через `cargo llvm-cov` у форматі lcov, приводить шляхи до спільної бази проєкту і віддає підсумок разом із деталізацією по файлах.
-3. Для мутаційного тестування він очікує результат за даними `mutants.out/outcomes.json` і використовує його як джерело стану покриття мутацій.
-4. Якщо потрібних тулзів `cargo-llvm-cov` або `cargo-mutants` немає, `defaultRunner` робить чесний skip з одноразовим hint, а не перетворює це на помилку.
-5. Через нього `coverage`-правила ядра отримують Rust-специфічну поведінку без розкриття внутрішньої оркестрації.
+1. `defaultRunner` запускає Rust-coverage як частину загального `coverage`-процесу ядра: для кожного крейта збирає line coverage через `cargo llvm-cov` у форматі lcov, а для mutation coverage читає результати з `mutants.out` і `outcomes.json`.
+2. Якщо потрібні зовнішні інструменти відсутні, провайдер не валить процес: він робить одноразовий чесний skip із підказкою, щоб не блокувати решту перевірок.
+3. Для line coverage провайдер приводить шляхи до єдиного вигляду, щоб збігалися абсолютні та відносні варіанти; це потрібно, бо system-інструменти можуть повертати канонічні шляхи, а не ті, що були в робочому каталозі.
+4. Для mutation coverage провайдер бере фактичні outcomes із `outcomes.json`, щоб показувати стан перевірок по реальних результатах, а не за непрямими ознаками.
+5. Якщо Rust-coverage не може бути підсилене fix-hooks, провайдер просто пропускає цей крок без помилки й без спроб згенерувати виправлення.
 
 ## Публічний API
 

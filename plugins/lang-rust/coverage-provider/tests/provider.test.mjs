@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import { parseLcovPerFile, parseLcovTotals } from '../lcov.mjs'
+import { parseLcovPerFile, parseLcovTotals } from '@7n/rules/rules/test/coverage/lib/lcov.mjs'
 import { parseMutantsOutcomes } from '../mutants.mjs'
 import provider from '../provider.mjs'
 import { findRustRoots } from '../roots.mjs'
