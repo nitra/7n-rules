@@ -13,7 +13,8 @@ export default defineConfig({
     include: [
       'taze/tests/**/*.test.{js,mjs}',
       'rules/**/tests/**/*.test.{js,mjs}',
-      'doc-files/tests/**/*.test.{js,mjs}'
+      'doc-files/tests/**/*.test.{js,mjs}',
+      'coverage-provider/tests/**/*.test.{js,mjs}'
     ],
     exclude: ['**/node_modules/**'],
     environment: 'node',
