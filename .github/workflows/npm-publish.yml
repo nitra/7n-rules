@@ -129,16 +129,16 @@ jobs:
       - name: Publish @7n/llm-lib-darwin-arm64
         id: publish-llm-lib-darwin-arm64
         continue-on-error: true
-        uses: JS-DevTools/npm-publish@v4.1.5
+        uses: ./.github/actions/publish-npm-package
         with:
-          package: llm-lib/packages/llm-lib-darwin-arm64/package.json
+          package-json-path: llm-lib/packages/llm-lib-darwin-arm64/package.json
 
       - name: Publish @7n/llm-lib-linux-x64
         id: publish-llm-lib-linux-x64
         continue-on-error: true
-        uses: JS-DevTools/npm-publish@v4.1.5
+        uses: ./.github/actions/publish-npm-package
         with:
-          package: llm-lib/packages/llm-lib-linux-x64/package.json
+          package-json-path: llm-lib/packages/llm-lib-linux-x64/package.json
 
       # llm-lib публікується ПЕРШИМ серед JS-пакетів: @7n/rules залежить від @7n/llm-lib,
       # тож інсталяція свіжого @7n/rules мусить знаходити пакет у registry.
@@ -146,9 +146,9 @@ jobs:
       - name: Publish @7n/llm-lib
         id: publish-llm-lib
         continue-on-error: true
-        uses: JS-DevTools/npm-publish@v4.1.5
+        uses: ./.github/actions/publish-npm-package
         with:
-          package: llm-lib/package.json
+          package-json-path: llm-lib/package.json
 
       - name: Publish package
         id: publish-cursor
@@ -162,37 +162,37 @@ jobs:
       - name: Publish @7n/rules-ci-github
         id: publish-ci-github
         continue-on-error: true
-        uses: JS-DevTools/npm-publish@v4.1.5
+        uses: ./.github/actions/publish-npm-package
         with:
-          package: plugins/ci-github/package.json
+          package-json-path: plugins/ci-github/package.json
 
       - name: Publish @7n/rules-ci-azure
         id: publish-ci-azure
         continue-on-error: true
-        uses: JS-DevTools/npm-publish@v4.1.5
+        uses: ./.github/actions/publish-npm-package
         with:
-          package: plugins/ci-azure/package.json
+          package-json-path: plugins/ci-azure/package.json
 
       - name: Publish @7n/rules-lang-python
         id: publish-lang-python
         continue-on-error: true
-        uses: JS-DevTools/npm-publish@v4.1.5
+        uses: ./.github/actions/publish-npm-package
         with:
-          package: plugins/lang-python/package.json
+          package-json-path: plugins/lang-python/package.json
 
       - name: Publish @7n/rules-lang-rust
         id: publish-lang-rust
         continue-on-error: true
-        uses: JS-DevTools/npm-publish@v4.1.5
+        uses: ./.github/actions/publish-npm-package
         with:
-          package: plugins/lang-rust/package.json
+          package-json-path: plugins/lang-rust/package.json
 
       - name: Publish @7n/rules-lang-js
         id: publish-lang-js
         continue-on-error: true
-        uses: JS-DevTools/npm-publish@v4.1.5
+        uses: ./.github/actions/publish-npm-package
         with:
-          package: plugins/lang-js/package.json
+          package-json-path: plugins/lang-js/package.json
 
       - name: Push release-коміт + теги (лише якщо бодай один publish пройшов)
         if: steps.publish-llm-lib-darwin-arm64.outcome == 'success' || steps.publish-llm-lib-linux-x64.outcome == 'success' || steps.publish-llm-lib.outcome == 'success' || steps.publish-cursor.outcome == 'success' || steps.publish-ci-github.outcome == 'success' || steps.publish-ci-azure.outcome == 'success' || steps.publish-lang-python.outcome == 'success' || steps.publish-lang-rust.outcome == 'success' || steps.publish-lang-js.outcome == 'success'
