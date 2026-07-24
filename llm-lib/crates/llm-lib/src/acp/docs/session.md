@@ -3,34 +3,12 @@ type: Rust Module
 title: session.rs
 resource: llm-lib/crates/llm-lib/src/acp/session.rs
 docgen:
-  crc: f39ad2ed
+  crc: 32c76196
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
-  score: 0
-  issues: refusal-filler,best-of-2:retry-lost
+  score: 55
+  issues: no-overview,short-behavior,best-of-2:retry-lost
 ---
-
-## Огляд
-
-Публічний session-API крейта для довгоживучої ACP-сесії з відкритим потоком подій, де `SessionOptions` через `create_session` запускає фонову `tokio`-задачу з власним ACP-з’єднанням і mpsc-циклом команд, а `create_session` не завершується, доки не пройдуть `initialize` → `session/new` → опційний `session/set_config_option`; це прибирає гонку на першому `SessionHandle::prompt` і робить сесію готовою до роботи одразу після створення. Контракт дає `prompt` і `cancel` без Tauri-залежностей, а `super::one_shot_acp` лишається окремим тонким фасадом над тим самим `super::transport`-шаром: один prompt, auto-approve і акумуляція тексту без зміни поведінки транспорту. Permission-поведінка побудована як двомодова робота одного механізму через той самий канал подій: `PermissionMode::External` пересилає `session/request_permission` як `SessionEvent::PermissionRequest`, а викликач відповідає через `PermissionRequestEvent::respond` або `PermissionRequestEvent::cancel`; `PermissionMode::AutoApprove` використовує той самий потік подій, де `drive_auto_approve` одразу обирає відповідь через `transport::pick_auto_permission_option`.
-
-## Поведінка
-
-PostSessionConfig і new задають один післястартовий крок конфігурації: після `session/new` у сесію передається готова пара `configId`/`value`, щоб агент стартував уже з потрібною моделлю без втручання в spawn-параметри.
-
-PermissionMode визначає, чи запити дозволу йдуть назовні через події, чи автоматично закриваються всередині фонової сесії; це два режими одного каналу рішення, а не два різні протоколи.
-
-SessionOptions збирає стартові умови для create_session і задає базову поведінку сесії, зокрема режим дозволів за замовчуванням.
-
-create_session відкриває ACP-сесію, завершує handshake перед поверненням і тримає з’єднання живим у фоні, доки існує хоча б одна SessionHandle. Потік подій і команд розділений: prompt рухає хід, cancel просить його зупинити, а SessionEvent несе назовні все, що стається всередині сесії.
-
-SessionEvent є спільним потоком сповіщень для зовнішнього коду: через нього приходять оновлення ходу та запити дозволу, які потребують окремої реакції.
-
-PermissionRequestEvent переносить зовнішньому коду сам запит і варіанти реакції; respond і cancel завершують цей цикл, повертаючи вибір назад у сесію або відхиляючи запит.
-
-SessionHandle — це жива ручка до вже відкритої сесії. prompt запускає новий хід і чекає лише на його термінальний результат, тоді як увесь проміжний вміст продовжує текти через SessionEvent. cancel не чекає підтвердження й лише просить агент зупинити поточний хід; обидві операції залежать від того, що фонова задача сесії ще жива.
-
-drive_auto_approve читає той самий потік PermissionRequestEvent і одразу закриває кожен запит автоматично, не втручаючись у потік SessionEvent.Update. Це зручний шар для стратегій, які хочуть зберегти зовнішній контроль, але без ручного вибору кожного дозволу.
 
 ## Публічний API
 
