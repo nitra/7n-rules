@@ -12,6 +12,10 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const binPath = join(dirname(fileURLToPath(import.meta.url)), '../../../bin/n-rules.js')
+// CLI dispatch (switch(command), ADR_HOOKS_SKIP тощо) живе в n-rules-cli.mjs, куди
+// bin/n-rules.js делегує через export async function runCli(argv) — guard за isRunAsCli
+// не дає імпортувати bin/n-rules.js напряму без реального запуску CLI.
+const cliSourcePath = join(dirname(fileURLToPath(import.meta.url)), '../../../bin/n-rules-cli.mjs')
 
 const ADR_HOOKS_SKIP_RE = /ADR_HOOKS_SKIP\s*=\s*['"]1['"]/
 const SWITCH_COMMAND_RE = /switch\s*\(\s*command\s*\)/
@@ -82,7 +86,7 @@ describe('видалені команди — flow, graph, watch, mt', () => {
 
 describe('ADR_HOOKS_SKIP (spec 2026-06-30)', () => {
   test('виставляється ДО switch (command) — покриває всі підкоманди-оркестратори без пер-case дублювання', async () => {
-    const src = await readFile(binPath, 'utf8')
+    const src = await readFile(cliSourcePath, 'utf8')
     const skipIdx = src.search(ADR_HOOKS_SKIP_RE)
     const switchIdx = src.search(SWITCH_COMMAND_RE)
     expect(skipIdx).toBeGreaterThan(-1)
