@@ -1,6 +1,6 @@
 [package]
 name = "llm-lib"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Каскадний доступ до LLM: локальні тири, хмарні тири, ACP-агенти з особистою підпискою (Codex, Cursor) — Rust-аналог env-контракту @7n/llm-lib"
 license = "Apache-2.0"
