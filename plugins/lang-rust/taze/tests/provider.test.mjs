@@ -78,13 +78,13 @@ describe('rustProvider (форма контракту)', () => {
 describe('buildCargoDependencyPrompt', () => {
   test('містить крейт, маніфест і версії', () => {
     const prompt = buildCargoDependencyPrompt({
-      manifest: 'llm-lib/crates/llm-cascade/Cargo.toml',
+      manifest: 'llm-lib/crates/llm-lib/Cargo.toml',
       pkg: 'genai',
       from: '0.4',
       to: '0.5'
     })
     expect(prompt).toContain('genai')
-    expect(prompt).toContain('llm-lib/crates/llm-cascade/Cargo.toml')
+    expect(prompt).toContain('llm-lib/crates/llm-lib/Cargo.toml')
     expect(prompt).toContain('0.4 → 0.5')
     expect(prompt).toContain('crates.io')
     expect(prompt).toContain('cargo clippy')
@@ -99,9 +99,9 @@ describe('buildCargoDependencyPrompt', () => {
 describe('findCargoManifests', () => {
   test('парсить stdout find у список шляхів', () => {
     const found = findCargoManifests('/repo', {
-      spawnFn: () => ({ status: 0, stdout: './Cargo.toml\n./llm-lib/crates/llm-cascade/Cargo.toml\n', stderr: '' })
+      spawnFn: () => ({ status: 0, stdout: './Cargo.toml\n./llm-lib/crates/llm-lib/Cargo.toml\n', stderr: '' })
     })
-    expect(found).toEqual(['./Cargo.toml', './llm-lib/crates/llm-cascade/Cargo.toml'])
+    expect(found).toEqual(['./Cargo.toml', './llm-lib/crates/llm-lib/Cargo.toml'])
   })
 
   test('порожній stdout → порожній список', () => {

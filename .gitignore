@@ -30,7 +30,7 @@ npm/reports/coverage-classify.cache.json
 # LLM wire-trace raw log (omlx-wire-trace spec): сирий потік, локальний, не в git
 .n-cursor/
 
-# Rust build artifacts (llm-cascade — перший Rust-крейт у репо)
+# Rust build artifacts (llm-lib — перший Rust-крейт у репо)
 target/
 
 # Prebuilt napi-артефакти платформних пакетів: у git лише package.json,

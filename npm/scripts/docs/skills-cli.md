@@ -3,34 +3,48 @@ type: JS Module
 title: skills-cli.mjs
 resource: npm/scripts/skills-cli.mjs
 docgen:
-  crc: 3e5781e6
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  crc: 815b08d6
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
+  score: 90
+  issues: internal-name:runTazeOrchestratorCli,judge-refine:kept-original,judge:inaccurate:0.98
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Цей модуль забезпечує керування функціоналом скілів пакета `@7n/rules`. Він каталогізує доступні скіли на основі наявності файлу `SKILL.md` у відповідному пакеті. Для виконання скілу збирається контекст, що включає інструкції скілу та інформацію з конфігураційних файлів проєкту: `package.json`, `tsconfig.json`, `.n-rules.json` та `main.json`. Система дозволяє або вивести список доступних скілів (`npx @7n/rules skill list`), або ініціювати виконання обраного скілу (наприклад, `npx @7n/rules skill pi taze`), з можливістю передачі додаткових аргументів. Пріоритетним механізмом виконання є інтеграція з вбудованим pi-агентом; поряд з ним підтримуються повноцінні зовнішні ACP-агенти (`cursor`, `codex`) і deprecated `claude`.
+Файл реалізує CLI-команду запуску скілів пакета `@7n/rules` без синку правил у проєкт. Скіли читаються з `npm/skills/<id>/SKILL.md` установленого пакета або кешу `npx`; команда збирає промпт з інструкції скілу та контексту поточного CWD і або виводить його, або передає вибраному runner.
+
+Підтримуються сценарії `skill list`, `skill taze`, `skill pi taze`, `skill cursor taze`, `skill codex taze` і deprecated `skill claude taze`. `pi` запускає вбудований pi-агент, `cursor` і `codex` працюють через `@7n/llm-lib/acp`, а deprecated `claude` використовує окремий адаптер `./lib/acp-runner.mjs`.
+
+Для `taze` команда не передає весь `SKILL.md` одним великим запитом, а делегує виконання в `../skills/taze/js/orchestrate.mjs`. Це потрібно, щоб оновлення залежностей проходило детерміновано як backup/bump/diff/cleanup, а LLM-runner викликався окремо для кожного major-package, зберігаючи прогрес і діагностику при збоях окремих пакетів.
 
 ## Поведінка
 
-Поведінка
-normalizeSkillId знімає префікс `n-` з імені скілу для приведення його до стандартного ID.
-listSkillIds отримує відсортований список ID скілів, які мають файл `SKILL.md` у вказаній директорії скілів.
-buildSkillPrompt збирає комплексний промпт для виконання скілу, об'єднуючи інструкцію скілу з конфігураційними файлами проєкту, такими як `package.json`, `tsconfig.json` та `.n-rules.json`.
-resolveBundledPackageRoot визначає абсолютний шлях до кореня пакету `@7n/rules`, використовуючи інформацію про поточний модуль.
-runSkillsCli виконує логіку командного інтерфейсу для керування скілами: може вивести список доступних скілів, зібрати промпт для скілу або ініціювати його виконання через вбудований pi-агент чи один із зовнішніх CLI-раннерів (`cursor`, `codex`, `claude`).
+`runSkillsCli` є входом у сценарій: визначає корінь установленого пакета через `resolveBundledPackageRoot`, читає доступні скіли через `listSkillIds`, нормалізує назву через `normalizeSkillId` і або повертає список, або формує завдання для виконання.
+
+Для звичайного запуску `buildSkillPrompt` поєднує інструкцію вибраного скілу з контекстом поточного проєкту. У цей контекст потрапляють наявні конфіги `package.json`, `tsconfig.json`, `.n-rules.json`, `.n-cursor.json`; відсутні файли просто не додаються до промпта. Готовий текст далі передається обраному runner: рекомендованому вбудованому pi-агенту або зовнішньому ACP-агенту. Результатом у всіх шляхах є exit code, а діагностика йде у передані канали виводу.
+
+`main.json` використовується як метадані скілу для вибору тиру моделі у pi-шляху; якщо цієї інформації немає, застосовується типовий максимальний тир. Стан між запусками не зберігається, файл не виконує власних операцій запису.
+
+`taze` має окремий потік. `isTazeOrchestratorSkillArgs` наперед визначає, чи аргументи ведуть у спеціальний оркестрований режим, щоб зовнішній виклик не змінив root-проєкт до перевірок worktree. У самому `runSkillsCli` цей режим оминає одноразове виконання всього `SKILL.md` і делегує оновлення залежностей оркестратору: детерміновані кроки виконуються без LLM, а runner викликається обмежено для кожного major-пакета окремо.
 
 ## Публічний API
 
-- normalizeSkillId — знімає префікс `n-` з імені скілу, приводячи його до id каталогу в пакеті.
-- listSkillIds — повертає відсортований список id скілів, що мають `SKILL.md`.
-- buildSkillPrompt — збирає промпт виконання: інструкція скілу + контекст проєкту (`package.json`, `tsconfig.json`, `.n-rules.json`); кидає, якщо скіл невідомий.
-- resolveBundledPackageRoot — абсолютний шлях до кореня встановленого пакета `@7n/rules`.
-- runSkillsCli — асинхронний entrypoint підкоманди `skill`: `list`, друк промпта на stdout, або виконання через `pi` (рекомендовано), `cursor`/`codex` (зовнішні CLI), `claude` (deprecated). Повертає exit-код.
+- resolveBundledPackageRoot — Корінь пакета `@7n/rules` (каталог з `skills/`, `rules/`, …).
+- isTazeOrchestratorSkillArgs — Чи `argv` (аргументи після `skill`) резолвиться в JS-оркестрований
+worktree-only `taze`-шлях (`runTazeOrchestratorCli`) — той самий критерій,
+що й нижче в `runSkillsCli`. Використовується `n-rules.js`, щоб не мутувати
+root `package.json` (self-upgrade `@7n/rules`) ДО власного worktree-гейту
+оркестратора: той сам створює worktree і перевіряє чистоту дерева
+(`ensureRunningInWorktree`, `requireCleanTree: true`) — мутація package.json
+прямо перед цим викликом примусово провалила б auto-create там, де дерево
+інакше було б чисте.
+- normalizeSkillId — перетворює шлях або назву skill на стабільний ідентифікатор для подальшого пошуку та посилань.
+- listSkillIds — повертає доступні ідентифікатори skills, спираючись на налаштування з package.json, tsconfig.json, .n-rules.json, .n-cursor.json і main.json.
+- buildSkillPrompt — збирає текст інструкцій вибраного skill у готовий prompt для агента.
+- runSkillsCli — обробляє CLI-команди для перегляду skills і виведення prompt потрібного skill.
 
 ## Гарантії поведінки
 
-- Сам модуль лише читає файли й збирає промпт; **виконання** делегується агенту: `pi` (вбудований, мутує дерево, запускає bash) або зовнішньому ACP-агенту `cursor`/`codex`/`claude` через `runAcpRunner` (`./lib/acp-runner.mjs`) — JSON-RPC поверх stdio (`cursor-agent acp`, бандловані адаптери `@agentclientprotocol/codex-acp` і `@agentclientprotocol/claude-agent-acp`), а не сирий `stdin`/`stdout`-піпінг.
-- Тира моделі для `pi`-runner береться з `main.json.tier` скіла (дефолт `max`).
-- ACP-раннер автоапрувляє `session/request_permission` (без інтерактивних питань) — паритет із колишнім non-interactive режимом; `Client`-реалізація читає/пише файли напряму через `node:fs`.
-- Лише `claude` — deprecated: друкує попередження й лишається як fallback, доки не налаштовано pi-модель. `cursor`/`codex` — повноцінні раннери без попередження.
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.

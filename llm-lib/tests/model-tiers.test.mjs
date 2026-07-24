@@ -3,23 +3,32 @@
  *   - parseModelId — розбір "provider/model-id" (nested slashes, malformed)
  *   - thinkingLevelForTier — rung-тир → дискретний pi thinkingLevel
  *   - resolveModelSpec — рядок → Model через інжектований fake-registry
- *   - resolveModel — каскад min/avg/max (через stubEnv + ізольований re-import)
+ *   - resolveModel — napi-делегація в `llm_lib::resolve_model` (задача T5,
+ *     рішення Е): валідація тиру лишається в JS (TypeError на невідомий тир,
+ *     native взагалі не викликається), сам каскад — інжектований fake-native
+ *     (юніт) + опційний smoke через реально збудований аддон (нижче)
  */
 
-import { afterEach, describe, expect, test, vi } from 'vitest'
-import { formatModelSpec, isLocalModel, parseModelId, thinkingLevelForTier } from '../lib/model-tiers.mjs'
+import { describe, expect, test, vi } from 'vitest'
+import { formatModelSpec, isLocalModel, parseModelId, resolveModel, thinkingLevelForTier } from '../lib/model-tiers.mjs'
 import { resolveModelSpec } from '../lib/internal/registry.mjs'
+import { loadNative, resolveNativeAddon } from '../lib/internal/native.mjs'
 
 /**
- * Ізольований re-import pi-model-tiers зі свіжими env-стабами.
- * @param {Record<string, string>} envVars env-змінні для stubEnv перед імпортом
- * @returns {Promise<(tier: 'min'|'avg'|'max') => string>} свіжа resolveModel із перечитаного модуля
+ * Чи є під рукою реально збудований napi-аддон (dev cargo-збірка чи явний
+ * `N_LLM_LIB_NATIVE_ADDON`) — smoke-тести нижче не обов'язкові в CI без
+ * Rust-тулчейну, `test.skipIf` пропускає їх, коли аддона нема. Без deps —
+ * той самий пошук (env → platform-підпакет → dev cargo-fallback), що й
+ * реальний `loadNative()` нижче.
+ * @returns {boolean} true — аддон резолвиться без падіння
  */
-async function freshResolveModel(envVars) {
-  vi.resetModules()
-  for (const [k, v] of Object.entries(envVars)) vi.stubEnv(k, v)
-  const mod = await import('../lib/model-tiers.mjs')
-  return mod.resolveModel
+function nativeAddonAvailable() {
+  try {
+    resolveNativeAddon()
+    return true
+  } catch {
+    return false
+  }
 }
 
 describe('isLocalModel', () => {
@@ -115,42 +124,40 @@ describe('resolveModelSpec', () => {
   })
 })
 
-describe('resolveModel (каскад, ізольований re-import з stubEnv)', () => {
-  afterEach(() => {
-    vi.unstubAllEnvs()
-    vi.resetModules()
+describe('resolveModel (napi-делегація, інжектований fake-native)', () => {
+  test('невідомий тир → TypeError, native не викликається взагалі', () => {
+    const native = { resolveModel: vi.fn() }
+    expect(() => resolveModel('mega', { native })).toThrow(TypeError)
+    expect(native.resolveModel).not.toHaveBeenCalled()
   })
 
-  test('min: LOCAL_MIN має пріоритет', async () => {
-    const resolveModel = await freshResolveModel({
-      N_LOCAL_MIN_MODEL: 'omlx/local',
-      N_CLOUD_MIN_MODEL: 'openai/cloud'
-    })
-    expect(resolveModel('min')).toBe('omlx/local')
+  test('делегує рівно tier у native.resolveModel і повертає результат як є', () => {
+    const native = { resolveModel: vi.fn(() => 'omlx/local') }
+    expect(resolveModel('min', { native })).toBe('omlx/local')
+    expect(native.resolveModel).toHaveBeenCalledWith('min')
   })
 
-  test('min: падіння до CLOUD_MIN коли локальних нема', async () => {
-    const resolveModel = await freshResolveModel({
-      N_LOCAL_MIN_MODEL: '',
-      N_LOCAL_AVG_MODEL: '',
-      N_LOCAL_MAX_MODEL: '',
-      N_CLOUD_MIN_MODEL: 'openai/cloud'
-    })
-    expect(resolveModel('min')).toBe('openai/cloud')
+  test('native повертає null (жодної env-моделі для тиру) → порожній рядок', () => {
+    const native = { resolveModel: () => null }
+    expect(resolveModel('avg', { native })).toBe('')
   })
 
-  test('нічого не задано → пустий рядок (pi-дефолт)', async () => {
-    const resolveModel = await freshResolveModel({
-      N_LOCAL_MIN_MODEL: '',
-      N_LOCAL_AVG_MODEL: '',
-      N_LOCAL_MAX_MODEL: '',
-      N_CLOUD_MIN_MODEL: ''
-    })
-    expect(resolveModel('min')).toBe('')
+  test.each(['min', 'avg', 'max'])('%s — валідний тир, native викликається', tier => {
+    const native = { resolveModel: vi.fn(() => null) }
+    resolveModel(tier, { native })
+    expect(native.resolveModel).toHaveBeenCalledWith(tier)
   })
+})
 
-  test('невідомий тир → TypeError', async () => {
-    const resolveModel = await freshResolveModel({})
-    expect(() => resolveModel('mega')).toThrow(TypeError)
+describe('resolveModel (smoke через реально збудований napi-аддон)', () => {
+  test.skipIf(!nativeAddonAvailable())('той самий каскад, що й Rust tiers.rs::resolve_model, через живий аддон', () => {
+    vi.stubEnv('N_LOCAL_MIN_MODEL', 'omlx/local-min-smoke')
+    vi.stubEnv('N_CLOUD_MIN_MODEL', '')
+    try {
+      const native = loadNative()
+      expect(resolveModel('min', { native })).toBe('omlx/local-min-smoke')
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 })

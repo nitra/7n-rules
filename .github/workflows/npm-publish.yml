@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── Збірка prebuilt napi-аддона llm-cascade для платформних підпакетів ───────
+  # ── Збірка prebuilt napi-аддона llm-lib для платформних підпакетів ───────
   # За зразком nitra/mt npm-publish.yml (build-binaries): v1-платформи —
   # darwin-arm64 + linux-x64-gnu, дзеркало NAPI_SUFFIXES у llm-lib/lib/internal/native.mjs.
   build-native:
@@ -27,13 +27,13 @@ jobs:
           - os: macos-14 # native Apple Silicon
             target: aarch64-apple-darwin
             pkg: llm-lib-darwin-arm64
-            napi-artifact: llm-cascade-napi.darwin-arm64.node
-            cdylib: libllm_cascade_napi.dylib
+            napi-artifact: llm-lib-napi.darwin-arm64.node
+            cdylib: libllm_lib_napi.dylib
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             pkg: llm-lib-linux-x64
-            napi-artifact: llm-cascade-napi.linux-x64-gnu.node
-            cdylib: libllm_cascade_napi.so
+            napi-artifact: llm-lib-napi.linux-x64-gnu.node
+            cdylib: libllm_lib_napi.so
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -47,8 +47,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       # napi-аддон — cdylib; .node = той самий файл під napi-конвенцією імені.
-      - name: Build llm-cascade napi addon
-        run: cargo build --release --target ${{ matrix.target }} -p llm-cascade-napi
+      - name: Build llm-lib napi addon
+        run: cargo build --release --target ${{ matrix.target }} -p llm-lib-napi
 
       - name: Stage addon into platform package
         run: cp "target/${{ matrix.target }}/release/${{ matrix.cdylib }}" "llm-lib/packages/${{ matrix.pkg }}/${{ matrix.napi-artifact }}"
@@ -99,7 +99,7 @@ jobs:
       - name: Download napi addons
         uses: actions/download-artifact@v4
         with:
-          path: llm-lib/packages # → llm-lib/packages/<pkg>/llm-cascade-napi.<triple>.node
+          path: llm-lib/packages # → llm-lib/packages/<pkg>/llm-lib-napi.<triple>.node
 
       - name: Release (bump + CHANGELOG + tag)
         # N_RULES_RELEASE_PUSH=0: bump/CHANGELOG/тег лишаються локальними в цьому checkout,

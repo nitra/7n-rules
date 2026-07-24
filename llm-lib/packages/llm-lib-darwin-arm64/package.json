@@ -1,7 +1,7 @@
 {
   "name": "@7n/llm-lib-darwin-arm64",
   "version": "2.7.6",
-  "description": "Prebuilt llm-cascade napi addon for @7n/llm-lib — macOS arm64 (Apple Silicon)",
+  "description": "Prebuilt llm-lib napi addon for @7n/llm-lib — macOS arm64 (Apple Silicon)",
   "license": "ISC",
   "author": "v@nitra.ai",
   "repository": {
@@ -10,7 +10,7 @@
     "directory": "llm-lib/packages/llm-lib-darwin-arm64"
   },
   "files": [
-    "llm-cascade-napi.darwin-arm64.node"
+    "llm-lib-napi.darwin-arm64.node"
   ],
   "os": [
     "darwin"
