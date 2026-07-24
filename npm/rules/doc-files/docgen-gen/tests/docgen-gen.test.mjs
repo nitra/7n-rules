@@ -1,12 +1,14 @@
-import { afterEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { env } from 'node:process'
 import { readFileSync } from 'node:fs'
 
 import {
   buildApiSection,
   capTimeoutToDeadline,
+  finishBatchItem,
   generateDoc,
   insertProtected,
+  prepareBatchItem,
   scoreDoc,
   splitProtected,
   stripLeadingPreamble
@@ -15,6 +17,22 @@ import { runOneShot } from '@7n/llm-lib/one-shot'
 
 vi.mock('node:fs', async importOriginal => ({ ...(await importOriginal()), readFileSync: vi.fn() }))
 vi.mock('@7n/llm-lib/one-shot', async importOriginal => ({ ...(await importOriginal()), runOneShot: vi.fn() }))
+
+// Supported-шлях (orchestratedDoc/judge, задача T8-coverage): без lang-плагінів у
+// цьому dev-середовищі extractFacts ЗАВЖДИ unsupported, тож orchestratedDoc/
+// runJudgeGate ніколи не виконувались жодним тестом. Підміняємо loadDocFilesExtractors,
+// щоб для '.mjs' повертати керований `extractorState.facts` (null → unsupported,
+// як і без плагінів — інші тести цей стан не займають).
+const { extractorState } = vi.hoisted(() => ({ extractorState: { facts: null } }))
+vi.mock('../../docgen-scan/lang-extensions.mjs', () => ({
+  loadDocFilesExtractors: () => {
+    const map = new Map()
+    if (extractorState.facts) {
+      map.set('.mjs', { extensions: ['.mjs'], extractFacts: () => extractorState.facts })
+    }
+    return Promise.resolve(map)
+  }
+}))
 
 const FACTS = { markers: { caches: false }, internalSymbols: [], localSymbols: [] }
 
@@ -335,5 +353,296 @@ describe('scoreDoc — R9 chat-preamble штраф', () => {
 
   test('чистий документ → без chat-preamble', () => {
     expect(scoreDoc(CLEAN, FACTS).issues).not.toContain('chat-preamble')
+  })
+})
+
+describe('prepareBatchItem / finishBatchItem — T8 2b-batch (без LLM-виклику)', () => {
+  afterEach(() => {
+    delete env.N_CURSOR_DOCGEN_CTX
+    vi.restoreAllMocks()
+  })
+
+  test('prepareBatchItem: pre-send guard кидає ту саму помилку, що й generateDoc (без LLM)', async () => {
+    env.N_CURSOR_DOCGEN_CTX = '100'
+    readFileSync.mockReturnValue('x'.repeat(2000))
+    await expect(prepareBatchItem('/big.js')).rejects.toThrow(PROMPT_TOO_LONG)
+  })
+
+  test('prepareBatchItem: повертає facts/anchors/src/messages/intent для допустимого джерела', async () => {
+    readFileSync.mockReturnValue('export const a = 1\n')
+    const prep = await prepareBatchItem('/x.mjs')
+    expect(prep.src).toBe('export const a = 1\n')
+    expect(prep.messages).toHaveLength(2)
+    expect(prep.messages[0].role).toBe('system')
+    expect(prep.messages[1].role).toBe('user')
+    expect(prep.intent).toBeNull()
+  })
+
+  test('prepareBatchItem: захищена секція «Призначення» з наявної доки → intent', async () => {
+    readFileSync.mockReturnValue('export const a = 1\n')
+    const existingMd = insertProtected('# x.mjs\n\n## Огляд\n\nТест.\n', 'Контракт від людини.')
+    const prep = await prepareBatchItem('/x.mjs', { existingMd })
+    expect(prep.intent).toBe('Контракт від людини.')
+  })
+
+  test('finishBatchItem: unsupported + refusal-філер → score=0, degraded', () => {
+    readFileSync.mockReturnValue('print(1)\n')
+    const facts = { relPath: 'x.py', lang: 'py', unsupported: true, exports: [], imports: {}, markers: {} }
+    const r = finishBatchItem('Я готовий писати документацію, надайте мені код.', {
+      facts,
+      anchors: null,
+      src: 'print(1)\n',
+      intent: null,
+      model: 'omlx/test'
+    })
+    expect(r.score).toBe(0)
+    expect(r.degraded).toBe(true)
+    expect(r.issues).toContain('refusal-filler')
+  })
+
+  test('finishBatchItem: unsupported + чистий текст → score=null, не degraded', () => {
+    const facts = { relPath: 'x.py', lang: 'py', unsupported: true, exports: [], imports: {}, markers: {} }
+    const r = finishBatchItem('## Огляд\n\nРобить X.\n', {
+      facts,
+      anchors: null,
+      src: 'print(1)\n',
+      intent: null,
+      model: 'omlx/test'
+    })
+    expect(r.score).toBeNull()
+    expect(r.degraded).toBe(false)
+    expect(r.md).toContain('# x.py')
+  })
+
+  test('finishBatchItem: det-скорер рахує score як і для orchestrated шляху (нижче порогу → degraded)', () => {
+    const r = finishBatchItem('## Огляд\n\nX.\n', {
+      facts: { ...FACTS, relPath: 'x.mjs' },
+      anchors: null,
+      src: '',
+      intent: null,
+      model: 'omlx/test'
+    })
+    expect(r.score).toBeLessThan(80)
+    expect(r.degraded).toBe(true)
+  })
+})
+
+/** Маршрути для `routedOneShot` — module-scope, без ре-компіляції regex на кожен виклик. */
+const ONE_SHOT_ROUTES = [
+  ['behavior', /Напиши вміст секції «Поведінка»/],
+  ['overview', /На основі вже написаної секції «Поведінка»/],
+  ['apiGap', /Для кожної названої публічної функції/],
+  ['criticOverview', /Перевір цю чорнетку секції «overview»/],
+  ['criticApi', /Перевір цю чорнетку секції «api»/],
+  ['refineOverview', /Перепиши чорнетку секції «overview»/],
+  ['refineApi', /Перепиши чорнетку секції «api»/],
+  ['judge', /Return the JSON verdict/],
+  ['judgeRefine', /Виправ ЛИШЕ хибні твердження/]
+]
+
+/**
+ * Роутер runOneShot-заглушки для supported-шляху (orchestratedDoc/judge): диспетчеризує
+ * за характерним фрагментом user-промпта — той самий сигнал, за яким сам prod-код
+ * розрізняє section/critic/refine/judge messages (docgen-prompts.mjs/docgen-judge.mjs).
+ * @param {Record<string, string|((user:string)=>string)>} handlers мапа ключ-маршруту → відповідь/функція(user)
+ * @returns {(args:{messages:Array<{role:string,content:string}>}) => Promise<{content:string,error:null}>} мок runOneShot
+ */
+function routedOneShot(handlers) {
+  return ({ messages }) => {
+    const user = messages[1]?.content ?? messages[0]?.content ?? ''
+    for (const [key, re] of ONE_SHOT_ROUTES) {
+      if (re.test(user) && key in handlers) {
+        const h = handlers[key]
+        return Promise.resolve({ content: typeof h === 'function' ? h(user) : h, error: null })
+      }
+    }
+    return Promise.reject(new Error(`routedOneShot: немає обробника для промпта: ${user.slice(0, 120)}`))
+  }
+}
+
+const BEHAVIOR_TEXT =
+  '1. Приймає вхідні дані.\n2. Обчислює doThing на основі вхідних даних.\n3. Повертає результат обчислення.'
+const OVERVIEW_TEXT = 'Обчислює doThing для вхідних даних і повертає результат обчислення.'
+const JUDGE_ACCURATE = JSON.stringify({ verdict: 'accurate', confidence: 0.9, reason: 'ok' })
+
+/** Facts: один покритий JSDoc-описом експорт (buildApiSection рендерить без LLM). */
+const FACTS_SINGLE_COVERED = {
+  relPath: 'foo.mjs',
+  lang: 'mjs',
+  unsupported: false,
+  header: '',
+  exports: [{ name: 'doThing', desc: 'Обчислює значення X.' }],
+  internalSymbols: [],
+  localSymbols: [],
+  imports: {},
+  markers: {}
+}
+
+const SRC = 'export function doThing() { return 1 }\n'
+
+describe('orchestratedDoc / judge — supported-file happy path (мок extractFacts + runOneShot)', () => {
+  beforeEach(() => {
+    // Рахунок викликів runOneShot звіряється по кожному тесту окремо — без чистого
+    // старту calls-історія тягнеться з попередніх describe-блоків цього файлу.
+    runOneShot.mockClear()
+  })
+
+  afterEach(() => {
+    extractorState.facts = null
+    vi.restoreAllMocks()
+  })
+
+  test('happy path: покритий API без LLM, критик NONE, суддя accurate → чистий success', async () => {
+    extractorState.facts = FACTS_SINGLE_COVERED
+    readFileSync.mockReturnValue(SRC)
+    runOneShot.mockImplementation(
+      routedOneShot({
+        behavior: BEHAVIOR_TEXT,
+        overview: OVERVIEW_TEXT,
+        criticOverview: 'NONE',
+        judge: JUDGE_ACCURATE
+      })
+    )
+    const r = await generateDoc('/foo.mjs')
+    expect(r.score).toBeGreaterThanOrEqual(80)
+    expect(r.degraded).toBe(false)
+    expect(r.judge.verdict).toBe('accurate')
+    expect(r.md).toContain('## Публічний API')
+    expect(r.md).toContain('- doThing — Обчислює значення X.')
+    // Покритий JSDoc-експорт рендериться Stage 1 (дослівно, 0 LLM) — apiGap-промпт не летить:
+    // behavior + overview + criticOverview + judge = рівно 4 виклики, без 5-го (apiGap).
+    expect(runOneShot).toHaveBeenCalledTimes(4)
+  })
+
+  test('buildApiSection: мікс покритий+прогалина → apiGap LLM лише на прогалину (без critique-refine, gap.length!==exps.length)', async () => {
+    extractorState.facts = {
+      ...FACTS_SINGLE_COVERED,
+      exports: [
+        { name: 'a', desc: 'Робить А.' },
+        { name: 'b', desc: '' }
+      ]
+    }
+    readFileSync.mockReturnValue(SRC)
+    runOneShot.mockImplementation(
+      routedOneShot({
+        behavior: BEHAVIOR_TEXT,
+        overview: OVERVIEW_TEXT,
+        apiGap: '- b — обчислює додаткове значення на основі вхідних даних.',
+        criticOverview: 'NONE',
+        judge: JUDGE_ACCURATE
+      })
+    )
+    const r = await generateDoc('/foo.mjs')
+    expect(r.md).toContain('- a — Робить А.')
+    expect(r.md).toContain('- b — обчислює додаткове значення на основі вхідних даних.')
+  })
+
+  test('buildApiSection: усі експорти — прогалина → apiGap LLM + critique-refine (критик знайшов дефект)', async () => {
+    extractorState.facts = {
+      ...FACTS_SINGLE_COVERED,
+      exports: [
+        { name: 'a', desc: '' },
+        { name: 'b', desc: '' }
+      ]
+    }
+    readFileSync.mockReturnValue(SRC)
+    runOneShot.mockImplementation(
+      routedOneShot({
+        behavior: BEHAVIOR_TEXT,
+        overview: OVERVIEW_TEXT,
+        apiGap: '- a — застосовує логіку.\n- b — застосовує логіку.',
+        criticApi: '1. Generic-фрази без конкретики.',
+        refineApi: '- a — обчислює перше значення.\n- b — обчислює друге значення.',
+        criticOverview: 'NONE',
+        judge: JUDGE_ACCURATE
+      })
+    )
+    const r = await generateDoc('/foo.mjs')
+    expect(r.md).toContain('- a — обчислює перше значення.')
+    expect(r.md).toContain('- b — обчислює друге значення.')
+  })
+
+  test("best-of-2: перша спроба нижче порогу, ретрай кращий → 'best-of-2:retry-won', судиться вже переможець", async () => {
+    extractorState.facts = FACTS_SINGLE_COVERED
+    readFileSync.mockReturnValue(SRC)
+    let attempt = 0
+    runOneShot.mockImplementation(
+      routedOneShot({
+        behavior: () => {
+          attempt++
+          return attempt === 1 ? 'Замало.' : BEHAVIOR_TEXT
+        },
+        overview: () => (attempt === 1 ? '' : OVERVIEW_TEXT),
+        criticOverview: 'NONE',
+        judge: JUDGE_ACCURATE
+      })
+    )
+    const r = await generateDoc('/foo.mjs')
+    expect(r.issues).toContain('best-of-2:retry-won')
+    expect(r.degraded).toBe(false)
+  })
+
+  test('judge gate: inaccurate → judge-refine приймається (заголовки збережено, score не впав, повторний суддя accurate)', async () => {
+    extractorState.facts = FACTS_SINGLE_COVERED
+    readFileSync.mockReturnValue(SRC)
+    const FIXED_DOC = `# foo.mjs
+
+## Огляд
+
+${OVERVIEW_TEXT}
+
+## Поведінка
+
+${BEHAVIOR_TEXT}
+
+## Публічний API
+
+- doThing — Обчислює значення X.
+
+## Гарантії поведінки
+
+- (специфічних машинно-виведених гарантій немає)
+`
+    let judgeCalls = 0
+    runOneShot.mockImplementation(
+      routedOneShot({
+        behavior: BEHAVIOR_TEXT,
+        overview: OVERVIEW_TEXT,
+        criticOverview: 'NONE',
+        judge: () => {
+          judgeCalls++
+          return judgeCalls === 1
+            ? JSON.stringify({ verdict: 'inaccurate', confidence: 0.9, reason: 'хибне твердження про кеш' })
+            : JUDGE_ACCURATE
+        },
+        judgeRefine: FIXED_DOC
+      })
+    )
+    const r = await generateDoc('/foo.mjs')
+    expect(r.issues).toContain('judge-refine:won')
+    expect(r.degraded).toBe(false)
+    expect(r.judge.verdict).toBe('accurate')
+    expect(judgeCalls).toBe(2)
+  })
+
+  test('judge gate: inaccurate → judge-refine відхилено (рерайт губить заголовок) → лишається degraded', async () => {
+    extractorState.facts = FACTS_SINGLE_COVERED
+    readFileSync.mockReturnValue(SRC)
+    // Рерайт без «## Публічний API» — Guard 1 (origHeadings) провалюється, другий
+    // виклик судді НЕ відбувається (judgeRefinePass повертає null одразу).
+    const BROKEN_FIX = `# foo.mjs\n\n## Огляд\n\n${OVERVIEW_TEXT}\n\n## Поведінка\n\n${BEHAVIOR_TEXT}\n`
+    runOneShot.mockImplementation(
+      routedOneShot({
+        behavior: BEHAVIOR_TEXT,
+        overview: OVERVIEW_TEXT,
+        criticOverview: 'NONE',
+        judge: JSON.stringify({ verdict: 'inaccurate', confidence: 0.9, reason: 'хибне твердження' }),
+        judgeRefine: BROKEN_FIX
+      })
+    )
+    const r = await generateDoc('/foo.mjs')
+    expect(r.issues).toContain('judge-refine:kept-original')
+    expect(r.degraded).toBe(true)
+    expect(r.judge.verdict).toBe('inaccurate')
   })
 })

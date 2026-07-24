@@ -11,12 +11,14 @@ import {
 } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { basename, dirname, join, relative } from 'node:path'
+import { env } from 'node:process'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { createProgressReporter } from '../../../scripts/lib/lint-surface/progress.mjs'
-import { generateDoc, DEFAULT_LOCAL_MODEL } from '../docgen-gen/main.mjs'
+import { generateDoc, DEFAULT_LOCAL_MODEL, prepareBatchItem, finishBatchItem } from '../docgen-gen/main.mjs'
 import { crc32, stampDoc, readDocQuality, readDocModel, readDocTier, QUALITY_THRESHOLD } from '../docgen-crc/main.mjs'
 import { resolveRoot, scanForDocFiles, scanOrphanedDocs } from '../docgen-scan/main.mjs'
+import { submitBatch as submitBatchNative } from '@7n/llm-lib/batch'
 
 /** Regex-класифікатори помилки генерації (module-scope, без ре-компіляції на виклик). */
 const ERR_PERMANENT_RE = /prompt too long|pre-send guard|too long/i
@@ -189,6 +191,219 @@ async function generateOne(file, root, progress, stats, { model, tier, emit, dea
       out(`${prefix}✗ ${cls}: ${error.message}\n`)
     }
     return cls
+  }
+}
+
+/**
+ * Кеш перевірки доступності native-аддону (T8): один процес — один результат
+ * ЛИШЕ для дефолтного `submitBatchNative` (production-шлях) — перевірка триває
+ * на першому виклику (порожній `items` — 0 LLM-викликів, лише спроба
+ * завантажити napi-аддон). Інжектований `submitBatchImpl` (тести) кешем НЕ
+ * керується — інакше перший тест зафіксував би результат для всіх наступних.
+ * @type {boolean|null}
+ */
+let nativeBatchAvailableCache = null
+
+/**
+ * Чи доступний native-аддон `@7n/llm-lib` для 2b-batch (T8, рішення Р). Викликає
+ * `submitBatchImpl` з порожнім `items` — це не робить жодного LLM-виклику
+ * (Rust-крейт повертає порожній результат до резолву моделі), лише перевіряє,
+ * що napi-аддон завантажується. Zero-native споживачі (аддон не зібраний/не
+ * підтримувана платформа) отримують `false` і йдуть у послідовний фолбек.
+ * @param {(modelSpecOrTier: string, items: Array<object>) => Promise<Array<object>>} submitBatchImpl injectable submitBatch (тест/прод)
+ * @param {boolean} [useCache] кешувати результат (типово лише для дефолтного `submitBatchNative`)
+ * @returns {Promise<boolean>} true — можна йти batch-шляхом
+ */
+export async function nativeBatchAvailable(submitBatchImpl, useCache = true) {
+  if (useCache && nativeBatchAvailableCache !== null) return nativeBatchAvailableCache
+  let result
+  try {
+    await submitBatchImpl('min', [])
+    result = true
+  } catch {
+    result = false
+  }
+  if (useCache) nativeBatchAvailableCache = result
+  return result
+}
+
+/**
+ * `localProviders` для Rust-крейта `llm_lib::local_cloud` (2b-batch, T8):
+ * інша половина конфігурації, ніж у sequential-шляху. `generateDoc`/`callLlm`
+ * ходять через `runOneShot` (pi ModelRegistry, свій резолв ендпоінта — читає
+ * pi-конфіг), а `submitBatch` — через Rust `LocalCloud`, якому явний
+ * `{ omlx: { baseUrl, apiKey } }` ОБОВʼЯЗКОВИЙ: без нього незнайомий provider-
+ * префікс (`"omlx/…"`) падає крізь cloud-гілку genai, яка бачить голу назву
+ * моделі без провайдера й типово вгадує адаптер Ollama (`localhost:11434`,
+ * жива помилка з бенчу T8) — тихий, неочевидний збій. Той самий baseUrl-
+ * конвент, що й `llm-lib/tests/batch.test.mjs` та `examples/batch_bench.rs`.
+ * Override — `opts.localProviders` (кастомний конфіг для нестандартного порту).
+ * @returns {{ omlx: { baseUrl: string, apiKey: string|null } }} дефолтна мапа локальних провайдерів
+ */
+function defaultLocalProviders() {
+  return { omlx: { baseUrl: 'http://127.0.0.1:8000/v1/', apiKey: env.OMLX_API_KEY ?? null } }
+}
+
+/**
+ * T8 (2b-batch, рішення Р): один `submit` на ВЕСЬ набір `targets` замість
+ * послідовного циклу по одному файлу. Готує items через `prepareBatchItem`
+ * (pre-send guard тут же відсіює завеликі джерела — 0 LLM-викликів/0 items у
+ * batch-і), один `submitBatchImpl(...)`, потім постобробка кожного результату
+ * (`finishBatchItem`) і запис доки — той самий штамп/файл-запис, що й
+ * послідовний `generateOne`. Помилка ОДНОГО item-у (класифікується
+ * `classifyDocgenError`, як і в послідовному шляху) не валить решту —
+ * заноситься у `stats.err`/`stats.skipped`, batch триває.
+ *
+ * Обмеження v1: без circuit-breaker (concurrency в Rust-крейті — помилки не
+ * «підряд» у тому сенсі, що має сенс для fail-fast) і без `deadlineAt`
+ * (викликач цього шляху не проставляє дедлайн — гейт `!opts.deadlineAt` у
+ * `runGenerationBatch`; fix-pipeline рунги лишаються на послідовному шляху,
+ * де м'який дедлайн підтримується).
+ * @param {Array<object>} targets елементи scanForDocFiles
+ * @param {string} root абсолютний корінь
+ * @param {{ model?: string, tier?: string|null, localProviders?: object, submitBatchImpl?: (modelSpecOrTier: string, items: Array<object>, opts?: object) => Promise<Array<object>> }} opts модель/тир/local-provider-конфіг (інакше `defaultLocalProviders()`)/інжект submitBatch
+ * @param {{ ok: number, degraded: number, err: number, errors: string[], skipped: string[] }} stats акумулятор (мутується)
+ * @param {{ reporter?: object, emit?: (s: string) => void }} io прогрес-репортер і логер рядка результату
+ * @returns {Promise<void>}
+ */
+async function runBatchPass(targets, root, opts, stats, { reporter, emit }) {
+  const model = opts.model ?? DEFAULT_LOCAL_MODEL
+  const submitBatchImpl = opts.submitBatchImpl ?? submitBatchNative
+  const out = emit ?? (s => process.stdout.write(s))
+
+  const prepared = await prepareBatchTargets(targets, root, stats, { reporter, out })
+  if (prepared.length === 0) return
+
+  const items = prepared.map(p => ({
+    customId: p.file.sourcePath,
+    prompt: p.messages.find(m => m.role === 'user')?.content ?? '',
+    system: p.messages.find(m => m.role === 'system')?.content
+  }))
+  const onProgress = makeBatchProgress(reporter, targets.length - prepared.length, targets.length)
+  const localProviders = opts.localProviders ?? defaultLocalProviders()
+  const results = await submitBatchImpl(model, items, { onProgress, localProviders })
+  const byId = new Map(results.map(r => [r.customId, r]))
+
+  for (const p of prepared) {
+    processBatchResult(byId.get(p.file.sourcePath), p, { model, tier: opts.tier ?? null, stats, out })
+  }
+}
+
+/**
+ * Prep-фаза batch-пасу: pre-send guard + факт-лист/messages для кожного файлу
+ * (`prepareBatchItem`). Файли, що впали на цій фазі (завеликий src тощо), одразу
+ * класифікуються й записуються у `stats` — до batch-у вони не потрапляють.
+ * @param {Array<object>} targets елементи scanForDocFiles
+ * @param {string} root абсолютний корінь
+ * @param {{ ok: number, degraded: number, err: number, errors: string[], skipped: string[] }} stats акумулятор (мутується)
+ * @param {{ reporter?: object, out: (s: string) => void }} io прогрес-репортер і логер
+ * @returns {Promise<Array<object>>} елементи, готові до batch-у (file/sourceAbs/docAbs/size/facts/anchors/src/messages/intent)
+ */
+async function prepareBatchTargets(targets, root, stats, { reporter, out }) {
+  const prepared = []
+  for (const file of targets) {
+    const sourceAbs = join(root, file.sourcePath)
+    const docAbs = join(root, file.docPath)
+    let size = 0
+    try {
+      size = statSync(sourceAbs).size
+    } catch {
+      // файл зник між скануванням і генерацією — лишаємо розмір 0
+    }
+    const existingMd = existsSync(docAbs) ? readFileSync(docAbs, 'utf8') : null
+    try {
+      const prep = await prepareBatchItem(sourceAbs, { existingMd })
+      prepared.push({ file, sourceAbs, docAbs, size, ...prep })
+    } catch (error) {
+      recordBatchOutcome(stats, out, file.sourcePath, size, error.message)
+    }
+    reporter?.concernStart(file.sourcePath)
+    reporter?.concernDone(file.sourcePath)
+  }
+  return prepared
+}
+
+/**
+ * Класифікує помилку одного item-у (`classifyDocgenError`, спільний з послідовним
+ * шляхом) і заносить її у `stats` — permanent → skip, інакше → err. Друкує той
+ * самий формат рядка, що й `generateOne`.
+ * @param {{ ok: number, degraded: number, err: number, errors: string[], skipped: string[] }} stats акумулятор (мутується)
+ * @param {(s: string) => void} out логер рядка результату
+ * @param {string} sourcePath шлях джерела (для рядка й акумулятора)
+ * @param {number} size розмір джерела в байтах (для рядка)
+ * @param {string} message повідомлення помилки
+ * @returns {void}
+ */
+function recordBatchOutcome(stats, out, sourcePath, size, message) {
+  const cls = classifyDocgenError(message)
+  const prefix = `  ${sourcePath} [${fmtSize(size)}] `
+  if (cls === 'permanent') {
+    stats.skipped.push(sourcePath)
+    out(`${prefix}⊘ skip (permanent): ${message}\n`)
+  } else {
+    stats.err++
+    stats.errors.push(sourcePath)
+    out(`${prefix}✗ ${cls}: ${message}\n`)
+  }
+}
+
+/**
+ * Progress-колбек для `submitBatchImpl`: `completed` — монотонний лічильник
+ * завершених item-ів (порядок завершення НЕ збігається з input-order при
+ * конкурентному виконанні в Rust-крейті, тож імʼя файлу тут недоступне —
+ * синтетичний ключ). `doneBase` — скільки файлів уже врахував prep-фазний
+ * `concernDone` (щоб бар дійшов рівно до `total`, а не `total + prep-skip`).
+ * @param {object|undefined} reporter ProgressReporter або undefined (не-TTY)
+ * @param {number} doneBase скільки файлів уже відзвітовано на prep-фазі
+ * @param {number} total загальна кількість targets
+ * @returns {(completed: number) => void} колбек для `submitBatchImpl`
+ */
+function makeBatchProgress(reporter, doneBase, total) {
+  let lastCompleted = 0
+  return completed => {
+    reporter?.concernStart(`2b-batch ${doneBase + completed}/${total}`)
+    while (lastCompleted < completed) {
+      lastCompleted++
+      reporter?.concernDone(`2b-item-${lastCompleted}`)
+    }
+  }
+}
+
+/**
+ * Постобробка одного item-результату batch-у: помилка → `recordBatchOutcome`;
+ * успіх → `finishBatchItem` (det-скоринг) → штамп → запис доки → `stats.ok`/
+ * `stats.degraded`.
+ * @param {{ customId: string, ok?: string, error?: string }|undefined} r результат item-у (undefined — customId не знайдено серед results)
+ * @param {object} p підготовлений item (з `prepareBatchTargets`)
+ * @param {{ model: string, tier: string|null, stats: object, out: (s: string) => void }} ctx модель/тир/акумулятор/логер
+ * @returns {void}
+ */
+function processBatchResult(r, p, { model, tier, stats, out }) {
+  const prefix = `  ${p.file.sourcePath} [${fmtSize(p.size)}] `
+  if (!r || r.error) {
+    recordBatchOutcome(
+      stats,
+      out,
+      p.file.sourcePath,
+      p.size,
+      r?.error ?? 'batch: результат відсутній для цього customId'
+    )
+    return
+  }
+  const finished = finishBatchItem(r.ok, { facts: p.facts, anchors: p.anchors, src: p.src, intent: p.intent, model })
+  const crc = crc32(readFileSync(p.sourceAbs))
+  mkdirSync(dirname(p.docAbs), { recursive: true })
+  const quality =
+    finished.score === null
+      ? null
+      : { score: finished.score, issues: finished.degraded ? finished.issues : [], judge: null }
+  writeFileSync(p.docAbs, stampDoc(finished.md, p.file.sourcePath, crc, quality, finished.model, tier))
+  stats.ok++
+  if (finished.degraded) {
+    stats.degraded++
+    out(`${prefix}⚠ degraded score=${finished.score} crc=${crc} (2b-batch)\n`)
+  } else {
+    out(`${prefix}✓ score=${finished.score ?? '—'} crc=${crc} (2b-batch)\n`)
   }
 }
 
@@ -388,6 +603,53 @@ export function runDocFilesGenCli(argv) {
 }
 
 /**
+ * Послідовний фолбек-шлях (T8): циклом по одному файлу через `generateOne`, з
+ * circuit-breaker'ом (K systemic-збоїв підряд → abort) і м'яким дедлайном
+ * fix-pipeline. Той самий шлях, що й до T8 — вихід не змінився, лише
+ * винесений в окрему функцію, щоб `runGenerationBatch` вибирав між ним і
+ * `runBatchPass`.
+ * @param {Array<object>} targets елементи scanForDocFiles
+ * @param {string} root абсолютний корінь
+ * @param {{ model?: string, tier?: string, deadlineAt?: number|null }} opts модель/тир/дедлайн
+ * @param {{ ok: number, degraded: number, err: number, errors: string[], skipped: string[] }} stats акумулятор (мутується)
+ * @param {{ reporter?: object, emit?: (s: string) => void }} io прогрес-репортер і логер
+ * @returns {Promise<{ done: number, aborted: boolean, deadlineHit: boolean }>} підсумок проходу
+ */
+async function runSequentialPass(targets, root, opts, stats, { reporter, emit }) {
+  let done = 0
+  let systemicStreak = 0
+  let aborted = false
+  let deadlineHit = false
+  for (const file of targets) {
+    // М'який дедлайн (fix-pipeline): не стартуємо наступний файл після дедлайну.
+    if (deadlineReached(opts.deadlineAt, done)) {
+      deadlineHit = true
+      break
+    }
+    done++
+    reporter?.concernStart(file.sourcePath)
+    const status = await generateOne(file, root, { done, total: targets.length }, stats, {
+      model: opts.model,
+      tier: opts.tier,
+      emit,
+      deadlineAt: opts.deadlineAt ?? null
+    })
+    reporter?.concernDone(file.sourcePath)
+    // Circuit-breaker: K systemic-збоїв підряд → негайний abort (середовище впало,
+    // решта файлів так само згорить). Будь-який не-systemic результат скидає лічильник.
+    if (status === 'systemic') {
+      if (++systemicStreak >= SYSTEMIC_ABORT_STREAK) {
+        aborted = true
+        break
+      }
+    } else {
+      systemicStreak = 0
+    }
+  }
+  return { done, aborted, deadlineHit }
+}
+
+/**
  * Спільне ядро генерації: preflight локального бекенда → послідовний прогін
  * `targets` через `generateOne` з circuit-breaker'ом (K systemic-збоїв підряд →
  * abort) → підсумковий звіт. Перевикористовують і батч-CLI (`runDocFilesGenCli`),
@@ -400,9 +662,15 @@ export function runDocFilesGenCli(argv) {
  * У ПРОЦЕСІ обривається на дедлайні (transient-помилка), а не живе батчем-зомбі
  * поверх наступного rung-а. Зроблене записано по одному файлу (durable, свіжий
  * CRC) — наступний прогін підбирає решту за CRC.
+ * T8 (2b-batch, рішення Р): коли доступний native-аддон `@7n/llm-lib` (`nativeBatchAvailable`)
+ * і рунг БЕЗ `deadlineAt` (fix-pipeline рунги лишаються на послідовному шляху —
+ * там дедлайн підтримується), увесь `targets` іде ОДНИМ `submitBatch` через
+ * `runBatchPass` замість цього циклу по одному файлу. Zero-native споживачі
+ * (аддон не зібраний/платформа не підтримується) автоматично лишаються на
+ * послідовному шляху нижче — жодної відмінності в CLI/skill/hook-контракті.
  * @param {Array<object>} targets елементи scanForDocFiles (sourcePath/docPath)
  * @param {string} root абсолютний корінь
- * @param {{ headline?: string, model?: string, tier?: string, deadlineAt?: number|null }} [opts] headline — рядок-шапка прогону у stdout; model/tier — override моделі і її типу (інакше DEFAULT_LOCAL_MODEL); deadlineAt — м'який дедлайн (epoch ms)
+ * @param {{ headline?: string, model?: string, tier?: string, deadlineAt?: number|null, submitBatchImpl?: (modelSpecOrTier: string, items: Array<object>, opts?: object) => Promise<Array<object>>, forceSequential?: boolean }} [opts] headline — рядок-шапка прогону у stdout; model/tier — override моделі і її типу (інакше DEFAULT_LOCAL_MODEL); deadlineAt — м'який дедлайн (epoch ms); submitBatchImpl — інжект `submitBatch` (тест); forceSequential — примусовий фолбек (тест/діагностика)
  * @returns {Promise<number>} 0 — без помилок; 1 — фейл preflight або є помилки; 2 — systemic-abort
  */
 export async function runGenerationBatch(targets, root, opts = {}) {
@@ -429,36 +697,19 @@ export async function runGenerationBatch(targets, root, opts = {}) {
     : null
   const emit = reporter ? reporter.log : undefined
 
-  let done = 0
-  let systemicStreak = 0
+  const submitBatchImpl = opts.submitBatchImpl ?? submitBatchNative
+  const useBatch =
+    !opts.forceSequential && !opts.deadlineAt && (await nativeBatchAvailable(submitBatchImpl, !opts.submitBatchImpl))
+
+  let done
   let aborted = false
   let deadlineHit = false
   try {
-    for (const file of targets) {
-      // М'який дедлайн (fix-pipeline): не стартуємо наступний файл після дедлайну.
-      if (deadlineReached(opts.deadlineAt, done)) {
-        deadlineHit = true
-        break
-      }
-      done++
-      reporter?.concernStart(file.sourcePath)
-      const status = await generateOne(file, root, { done, total: targets.length }, stats, {
-        model: opts.model,
-        tier: opts.tier,
-        emit,
-        deadlineAt: opts.deadlineAt ?? null
-      })
-      reporter?.concernDone(file.sourcePath)
-      // Circuit-breaker: K systemic-збоїв підряд → негайний abort (середовище впало,
-      // решта файлів так само згорить). Будь-який не-systemic результат скидає лічильник.
-      if (status === 'systemic') {
-        if (++systemicStreak >= SYSTEMIC_ABORT_STREAK) {
-          aborted = true
-          break
-        }
-      } else {
-        systemicStreak = 0
-      }
+    if (useBatch) {
+      await runBatchPass(targets, root, { ...opts, submitBatchImpl }, stats, { reporter, emit })
+      done = targets.length
+    } else {
+      ;({ done, aborted, deadlineHit } = await runSequentialPass(targets, root, opts, stats, { reporter, emit }))
     }
   } finally {
     reporter?.stop()

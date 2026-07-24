@@ -770,6 +770,69 @@ export async function generateDoc(
   }
 }
 
+/**
+ * T8 (2b-batch, рішення Р): підготовка ОДНОГО item-у для `submitBatch` — та сама
+ * pre-send guard і той самий факт-лист/one-shot messages, що й `oneShotDoc`/
+ * `generateDoc`, але БЕЗ виклику LLM (виклик робить batch-шар одним `submit` на
+ * всі файли разом). Кидає ту саму помилку pre-send guard, що й `generateDoc`
+ * (класифікується `permanent` у batch-оркестраторі — skip, не помилка прогону).
+ * @param {string} file абсолютний шлях джерела
+ * @param {{ existingMd?: string|null }} [opts] наявна дока (для захищеної секції «Призначення»)
+ * @returns {Promise<{ facts: object, anchors: object|null, src: string, messages: Array<{role:string,content:string}>, intent: string|null }>} усе потрібне для item-у batch-у й пізнішого фінішу
+ */
+export async function prepareBatchItem(file, { existingMd = null } = {}) {
+  const src = readFileSync(file, 'utf8')
+  const estTokens = Math.round(Buffer.byteLength(src, 'utf8') / 4)
+  const budget = srcTokenBudget()
+  if (estTokens > budget) {
+    throw new Error(
+      `docgen pre-send guard: джерело ~${estTokens} токенів > бюджет ${budget} (0.5× контексту) — Prompt too long, skip`
+    )
+  }
+  const langExtractors = await loadDocFilesExtractors(process.cwd())
+  const ext = `.${file.split('.').pop()}`.toLowerCase()
+  const facts = langExtractors.get(ext)?.extractFacts?.(src, file) ?? {
+    relPath: file,
+    lang: ext.slice(1),
+    unsupported: true,
+    header: '',
+    exports: [],
+    imports: {},
+    markers: {}
+  }
+  const anchors = facts.unsupported ? null : extractAnchors(src)
+  const intent = existingMd ? splitProtected(existingMd).body : null
+  return { facts, anchors, src, messages: oneShotMessages(facts, src), intent }
+}
+
+/**
+ * T8 (2b-batch): постобробка ОДНОГО результату `submitBatch` — той самий фініш,
+ * що й `oneShotDoc`/`finishUnsupported`/det-скорер, тільки без LLM-виклику
+ * (текст уже отримано з batch-у). Judge-гейт (Stage 3) у batch-шляху НЕ
+ * викликається (мінімальний обсяг T8 — генерація; judge лишається опційним
+ * розширенням послідовного шляху).
+ * @param {string} text сирий текст відповіді моделі для цього item-у
+ * @param {{ facts: object, anchors: object|null, src: string, intent: string|null, model: string, threshold?: number }} ctx контекст item-у (з `prepareBatchItem`)
+ * @returns {{ md: string, score: number|null, issues: string[], degraded: boolean, model: string }} результат генерації для штампу/запису
+ */
+export function finishBatchItem(text, { facts, anchors, src, intent, model, threshold = QUALITY_THRESHOLD }) {
+  let md = stripSignatures(stripSection(text))
+  if (!md.startsWith('#')) md = `# ${basename(facts.relPath)}\n\n${md}`
+  md = insertProtected(md + '\n', intent)
+  if (facts.unsupported) {
+    const refusal = detectRefusalFiller(splitProtected(md).without)
+    return {
+      md,
+      score: refusal ? 0 : null,
+      issues: refusal ? ['refusal-filler'] : [],
+      degraded: Boolean(refusal),
+      model
+    }
+  }
+  const { score, issues } = scoreDoc(md, facts, { anchors, src })
+  return { md, score, issues, degraded: score < threshold, model }
+}
+
 // CLI: node docgen-gen.mjs <file> [--model <m>]
 if (isRunAsCli(import.meta.url)) {
   const args = process.argv.slice(2)
