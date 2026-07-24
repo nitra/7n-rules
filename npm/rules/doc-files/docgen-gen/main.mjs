@@ -602,6 +602,39 @@ const DEFAULT_CONTEXT_TOKENS = 131072
 function srcTokenBudget() {
   return Math.floor((Number(env.N_CURSOR_DOCGEN_CTX) || DEFAULT_CONTEXT_TOKENS) * 0.5)
 }
+
+/**
+ * Спільний pre-LLM preflight для `generateDoc` і `prepareBatchItem` (T8 2b-batch):
+ * читає джерело, ріже гігантів до LLM-виклику (pre-send guard — «Prompt too long»
+ * без жодного виклику) і резолвить факт-лист через мовний екстрактор lang-плагіна
+ * (js/mjs/ts — lang-js, `.rs` — lang-rust; whole-file `unsupported`-fallback, якщо
+ * екстрактора для розширення нема).
+ * @param {string} file абсолютний шлях джерела
+ * @returns {Promise<{ src: string, estTokens: number, ext: string, langExtractors: Map<string, object>, facts: object }>} усе потрібне обом callers перед LLM-викликом
+ */
+async function loadSrcAndFacts(file) {
+  const src = readFileSync(file, 'utf8')
+  const estTokens = Math.round(Buffer.byteLength(src, 'utf8') / 4)
+  const budget = srcTokenBudget()
+  if (estTokens > budget) {
+    throw new Error(
+      `docgen pre-send guard: джерело ~${estTokens} токенів > бюджет ${budget} (0.5× контексту) — Prompt too long, skip`
+    )
+  }
+  const langExtractors = await loadDocFilesExtractors(process.cwd())
+  const ext = `.${file.split('.').pop()}`.toLowerCase()
+  const facts = langExtractors.get(ext)?.extractFacts?.(src, file) ?? {
+    relPath: file,
+    lang: ext.slice(1),
+    unsupported: true,
+    header: '',
+    exports: [],
+    imports: {},
+    markers: {}
+  }
+  return { src, estTokens, ext, langExtractors, facts }
+}
+
 /**
  * Дефолтна модель: N_CURSOR_DOCGEN_MODEL → resolveModel('min') (→ N_LOCAL_MIN_MODEL).
  * Без хардкод-fallback: модель налаштовує кожен локально (`N_LOCAL_MIN_MODEL`); якщо
@@ -654,32 +687,8 @@ export async function generateDoc(
     deadlineAt = null
   } = {}
 ) {
-  const src = readFileSync(file, 'utf8')
-  // Pre-send guard: весь src вшивається у промпт як є (екстракт фактів його НЕ
-  // замінює). Для гігантів (vendored/генерат) це переповнює контекст → інстант-skip
-  // без LLM-виклику. Маркер «Prompt too long» → classifyOmlxError → permanent → skip.
   // Guard ДО створення ланцюжка: skip без LLM — не задача.
-  const estTokens = Math.round(Buffer.byteLength(src, 'utf8') / 4)
-  const budget = srcTokenBudget()
-  if (estTokens > budget) {
-    throw new Error(
-      `docgen pre-send guard: джерело ~${estTokens} токенів > бюджет ${budget} (0.5× контексту) — Prompt too long, skip`
-    )
-  }
-  // Факт-лист — лише від мовного екстрактора lang-плагіна (js/mjs/ts —
-  // lang-js, `.rs` — lang-rust); без екстрактора для розширення — whole-file
-  // шлях через `unsupported` (у ядрі вбудованих екстракторів немає, фаза 5b).
-  const langExtractors = await loadDocFilesExtractors(process.cwd())
-  const ext = `.${file.split('.').pop()}`.toLowerCase()
-  const facts = langExtractors.get(ext)?.extractFacts?.(src, file) ?? {
-    relPath: file,
-    lang: ext.slice(1),
-    unsupported: true,
-    header: '',
-    exports: [],
-    imports: {},
-    markers: {}
-  }
+  const { src, estTokens, ext, langExtractors, facts } = await loadSrcAndFacts(file)
   const t0 = Date.now()
   llmMeter = { calls: 0, ms: 0 }
   const chain = chainFactory({ kind: 'doc-generate', unit: facts.relPath, cwd: process.cwd() })
@@ -781,25 +790,7 @@ export async function generateDoc(
  * @returns {Promise<{ facts: object, anchors: object|null, src: string, messages: Array<{role:string,content:string}>, intent: string|null }>} усе потрібне для item-у batch-у й пізнішого фінішу
  */
 export async function prepareBatchItem(file, { existingMd = null } = {}) {
-  const src = readFileSync(file, 'utf8')
-  const estTokens = Math.round(Buffer.byteLength(src, 'utf8') / 4)
-  const budget = srcTokenBudget()
-  if (estTokens > budget) {
-    throw new Error(
-      `docgen pre-send guard: джерело ~${estTokens} токенів > бюджет ${budget} (0.5× контексту) — Prompt too long, skip`
-    )
-  }
-  const langExtractors = await loadDocFilesExtractors(process.cwd())
-  const ext = `.${file.split('.').pop()}`.toLowerCase()
-  const facts = langExtractors.get(ext)?.extractFacts?.(src, file) ?? {
-    relPath: file,
-    lang: ext.slice(1),
-    unsupported: true,
-    header: '',
-    exports: [],
-    imports: {},
-    markers: {}
-  }
+  const { src, facts } = await loadSrcAndFacts(file)
   const anchors = facts.unsupported ? null : extractAnchors(src)
   const intent = existingMd ? splitProtected(existingMd).body : null
   return { facts, anchors, src, messages: oneShotMessages(facts, src), intent }

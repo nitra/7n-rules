@@ -14,8 +14,8 @@
  * @typedef {import('./run-detectors.mjs').PlanItem} PlanItem
  * @typedef {import('./ladder.mjs').Rung} Rung
  */
-import { existsSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { LOCAL_MIN, CLOUD_MIN, CLOUD_AVG, isLocalModel } from '@7n/llm-lib/model-tiers'
@@ -26,7 +26,12 @@ import { buildDetectPlan } from './run-detectors.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
 import { renderViolations } from './render.mjs'
 import { createSnapshot } from './snapshot.mjs'
-import { findCollateralEdits, realpathBestEffort, resolveTargetSet } from './collateral-veto.mjs'
+import {
+  findCollateralEdits,
+  findInFileCollateralEdits,
+  realpathBestEffort,
+  resolveTargetSet
+} from './collateral-veto.mjs'
 import { findBrokenSiblingTests } from './test-gate.mjs'
 import { createProgressReporter } from './progress.mjs'
 import { buildLadder, decideAfterFailure, DEFAULT_MAX_AVG } from './ladder.mjs'
@@ -176,6 +181,168 @@ async function runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log, 
  */
 
 /**
+ * Cross-file (§12 addendum 2026-07-05) + in-file hunk-level (addendum 2026-07-24)
+ * collateral rung-а: наявні файли, змінені поза target-set, і наявні файли ВСЕРЕДИНІ
+ * target-set, змінені поза вікном навколо `violation.data.line`. Чиста функція (без
+ * трейсу/side-effects) — виклик trace лишається на caller-і.
+ * @param {{ violations: LintViolation[], item: PlanItem, snapshot: ReturnType<typeof createSnapshot>, cwd: string }} args Порушення rung-а, елемент плану, snapshot S1 і робоча директорія.
+ * @returns {{ targetFiles: string[], collateral: string[], inFileHunks: Array<{ file: string, start: number, end: number }>, collateralAll: string[], rejectedRel: string[], inFileHunkRel: string[] }} Обидва класи collateral (cross-file, in-file) і їхнє відносне представлення для логу/feedback.
+ */
+function computeCollateral({ violations, item, snapshot, cwd }) {
+  // Semantic-collateral veto (§12 addendum 2026-07-05): clean-вердикт не приймається,
+  // якщо rung ЗМІНИВ наявні файли поза target-set порушення (клас «App.vue: хардкод
+  // версії замість getVersion»). Нові файли дозволені (scaffold/доки); порожній
+  // target-set (whole-repo концерни без file-атрибуції) → veto незастосовний.
+  const targetFiles = [...new Set([...violations.map(v => v.file).filter(Boolean), ...(item.files ?? [])])]
+  const collateral = findCollateralEdits({ modifiedExisting: snapshot.modifiedExisting(), targetFiles, cwd })
+
+  // In-file hunk-level veto (§12 addendum 2026-07-24): файл — легітимна ціль, але rung
+  // зачепив рядки поза вікном навколо порушень ЦЬОГО файлу (upsert-order.js: doc-comment
+  // fix + сусіднє видалення intentional-workaround-у, невидиме для cross-file veto вище).
+  // Без realpath: snapshot-ключі — це те, що воркер сам передав у recordWrite (як правило
+  // `join(cwd, relFile)`), і `resolve(cwd, v.file)` дає той самий рядок за тим самим
+  // (не-realpath-нормалізованим) cwd — realpath тут лише зіпсував би збіг ключів мапи.
+  const violationLinesByFile = new Map()
+  for (const v of violations) {
+    const line = v.data?.line
+    if (!v.file || typeof line !== 'number') continue
+    const abs = isAbsolute(v.file) ? v.file : resolve(cwd, v.file)
+    if (!violationLinesByFile.has(abs)) violationLinesByFile.set(abs, [])
+    violationLinesByFile.get(abs).push(line)
+  }
+  const modifiedAbs = new Set(snapshot.modifiedExisting())
+  const inFileHunks = []
+  for (const [abs, lines] of violationLinesByFile) {
+    if (!modifiedAbs.has(abs)) continue
+    const pre = snapshot.preImageOf(abs)
+    if (pre === null) continue
+    let current
+    try {
+      current = existsSync(abs) ? readFileSync(abs, 'utf8') : null
+    } catch {
+      continue
+    }
+    const hunk = findInFileCollateralEdits({ preImage: pre, current, violationLines: lines })
+    if (hunk) inFileHunks.push({ file: abs, ...hunk })
+  }
+
+  const collateralAll = [...collateral, ...inFileHunks.map(h => h.file)]
+  // relative — від так само realpath-нормалізованого cwd, інакше symlink-cwd (macOS
+  // /var → /private/var) дає `../../…`-шляхи у телеметрії та feedback.
+  const rejectedRel = collateral.map(p => relative(realpathBestEffort(cwd), p))
+  const inFileHunkRel = inFileHunks.map(h => `${relative(realpathBestEffort(cwd), h.file)}:${h.start}-${h.end}`)
+  return { targetFiles, collateral, inFileHunks, collateralAll, rejectedRel, inFileHunkRel }
+}
+
+/**
+ * Test-gate (addendum 2026-07-24): collateral-veto (cross-file + in-file hunk) вище
+ * ловить лише правки, видимі як diff проти S1. Правки ВСЕРЕДИНІ вже-таргетованого
+ * файлу, у ВІКНІ навколо violation.data.line (тому не зловлені in-file hunk-level
+ * veto), теж можуть зламати наявний проєктний тест — test-gate це третій, незалежний
+ * рубіж. Скоуп — лише наявні файли ВСЕРЕДИНІ target-set, реально змінені цим rung-ом
+ * (не колатеральні — ті вже відхилені collateral-veto); caller пропускає виклик, якщо
+ * collateralAll уже ветував rung (нема сенсу гонити тести на приреченому rung-у).
+ * Fail-open (findBrokenSiblingTests сама fail-open на відсутність test-runner-а/
+ * таймаут/відсутність сестринського тесту). Побічний ефект: пише trace на провал.
+ * @param {{ targetFiles: string[], snapshot: ReturnType<typeof createSnapshot>, cwd: string, testRunner: typeof import('./test-gate.mjs').runTestFile|undefined, ruleId: string, concernName: string, rung: Rung }} args Файли порушення, snapshot S1, робоча директорія, override test-runner-а і координати rung-а для телеметрії.
+ * @returns {{ file: string, testFile: string, output: string } | null} Перший зафіксований провал сестринського тесту, або null якщо test-gate не спрацював.
+ */
+function detectBrokenTest({ targetFiles, snapshot, cwd, testRunner, ruleId, concernName, rung }) {
+  const targets = resolveTargetSet(targetFiles, cwd)
+  const modifiedInTarget = snapshot
+    .modifiedExisting()
+    .map(p => realpathBestEffort(p))
+    .filter(abs => targets.has(abs))
+  if (modifiedInTarget.length === 0) return null
+  // `runTest: testRunner` — default-параметр findBrokenSiblingTests спрацьовує саме
+  // на `undefined`, тож відсутній override прозоро падає назад на runTestFile.
+  const brokenTest = findBrokenSiblingTests({ files: modifiedInTarget, cwd, runTest: testRunner })
+  if (!brokenTest) return null
+  writeTrace({
+    caller: `fix:${ruleId}/${concernName}:${rung.tier}`,
+    backend: 'pi-ai',
+    kind: 'test-gate-veto',
+    rule: ruleId,
+    rung: rung.tier,
+    model: rung.model,
+    cwd,
+    brokenFile: relative(realpathBestEffort(cwd), brokenTest.file),
+    brokenTestFile: relative(realpathBestEffort(cwd), brokenTest.testFile),
+    targetFiles,
+    cleanDetect: true
+  })
+  return brokenTest
+}
+
+/**
+ * Опис відхиленого rung-а для логу (`errorSuffix`) і feedback наступному rung-у
+ * (`silentFailureNote`) — один пріоритет: worker-помилка → collateral-veto →
+ * test-gate-veto → мовчазна невдача (worker нічого не змінив / змінив, але
+ * порушення лишилось).
+ * @param {object} args Дані одного rung-а, потрібні для опису відхилення.
+ * @param {string|null} args.error Повідомлення worker-помилки, якщо rung кинув виняток.
+ * @param {string[]} args.collateralAll Об'єднаний список відхилених collateral-правок (cross-file abs).
+ * @param {string[]} args.rejectedRel Cross-file collateral (відносні шляхи).
+ * @param {string[]} args.inFileHunkRel In-file hunk-level collateral (`file:start-end`).
+ * @param {{ file: string, testFile: string } | null} args.brokenTest Результат test-gate.
+ * @param {string} args.cwd Робоча директорія (для relative()).
+ * @param {string[]} args.targetFiles Файли порушення rung-а.
+ * @param {string} args.model Модель rung-а (для тексту feedback).
+ * @param {string[]} args.touchedFiles Файли, торкнуті worker-ом.
+ * @returns {{ errorSuffix: string, silentFailureNote: string }} Суфікс для логу і нотатка для feedback наступному rung-у.
+ */
+function describeVetoOutcome({
+  error,
+  collateralAll,
+  rejectedRel,
+  inFileHunkRel,
+  brokenTest,
+  cwd,
+  targetFiles,
+  model,
+  touchedFiles
+}) {
+  if (error) return { errorSuffix: ` ❌ ${error.slice(0, 120)}`, silentFailureNote: '' }
+
+  if (collateralAll.length > 0) {
+    const parts = []
+    if (rejectedRel.length > 0) parts.push(`змінила наявні файли поза target-set (${rejectedRel.join(', ')})`)
+    if (inFileHunkRel.length > 0) parts.push(`зачепила рядки поза ділянкою порушення (${inFileHunkRel.join(', ')})`)
+    return {
+      errorSuffix: ` 🚫 collateral-veto: ${[...rejectedRel, ...inFileHunkRel].join(', ')}`,
+      silentFailureNote:
+        `Попередня спроба (${model}) закрила порушення, але ${parts.join('; ')} — усі правки відхилено. ` +
+        `Редагуй ЛИШЕ рядки порушення у файлах: ${targetFiles.join(', ')}.`
+    }
+  }
+
+  if (brokenTest) {
+    const brokenFileRel = relative(realpathBestEffort(cwd), brokenTest.file)
+    const brokenTestRel = relative(realpathBestEffort(cwd), brokenTest.testFile)
+    return {
+      errorSuffix: ` 🚫 test-gate-veto: ${brokenTestRel}`,
+      silentFailureNote:
+        `Попередня спроба (${model}) закрила порушення, але зламала наявний тест ` +
+        `${brokenTestRel} (файл ${brokenFileRel}) — усі правки відхилено. ` +
+        'Виправ ЛИШЕ саме порушення, не чіпай навколишню логіку/коментарі-попередження.'
+    }
+  }
+
+  if (touchedFiles.length === 0) {
+    return {
+      errorSuffix: ' ❌ досі порушено',
+      silentFailureNote: `Попередня спроба (${model}) не внесла жодної зміни у файли; порушення досі активне.`
+    }
+  }
+  return {
+    errorSuffix: ' ❌ досі порушено',
+    silentFailureNote:
+      `Попередня спроба (${model}) торкнулась файлів (${touchedFiles.join(', ')}), ` +
+      'але порушення досі активне — той самий підхід не спрацював, спробуй інакше.'
+  }
+}
+
+/**
  * Проводить один rung ladder-а: worker → canonical re-detect → rollback при провалі.
  * @param {Rung} rung Поточна сходинка ladder-а.
  * @param {import('./types.mjs').FixWorkerFn} worker Fix-worker concern-а.
@@ -255,16 +422,13 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
     throw detectError
   }
 
-  // Semantic-collateral veto (§12 addendum 2026-07-05): clean-вердикт не приймається,
-  // якщо rung ЗМІНИВ наявні файли поза target-set порушення (клас «App.vue: хардкод
-  // версії замість getVersion»). Нові файли дозволені (scaffold/доки); порожній
-  // target-set (whole-repo концерни без file-атрибуції) → veto незастосовний.
-  const targetFiles = [...new Set([...violations.map(v => v.file).filter(Boolean), ...(item.files ?? [])])]
-  const collateral = findCollateralEdits({ modifiedExisting: snapshot.modifiedExisting(), targetFiles, cwd })
-  // relative — від так само realpath-нормалізованого cwd, інакше symlink-cwd (macOS
-  // /var → /private/var) дає `../../…`-шляхи у телеметрії та feedback.
-  const rejectedRel = collateral.map(p => relative(realpathBestEffort(cwd), p))
-  if (collateral.length > 0) {
+  const { targetFiles, collateralAll, rejectedRel, inFileHunkRel } = computeCollateral({
+    violations,
+    item,
+    snapshot,
+    cwd
+  })
+  if (collateralAll.length > 0) {
     // Телеметрія відхилених правок — той самий глобальний llm-trace, що й fix-виклики.
     writeTrace({
       caller: `fix:${ruleId}/${concernName}:${rung.tier}`,
@@ -275,48 +439,20 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
       model: rung.model,
       cwd,
       rejectedFiles: rejectedRel,
+      rejectedHunks: inFileHunkRel,
       targetFiles,
       cleanDetect: after.length === 0
     })
   }
+  // Test-gate: третій, незалежний рубіж поверх collateral-veto (cross-file + in-file
+  // hunk) — пропускається, якщо collateralAll уже ветував rung (нема сенсу гонити
+  // тести на приреченому rung-у).
+  const brokenTest =
+    after.length === 0 && !error && collateralAll.length === 0
+      ? detectBrokenTest({ targetFiles, snapshot, cwd, testRunner, ruleId, concernName, rung })
+      : null
 
-  // Test-gate (addendum 2026-07-24): collateral-veto вище ловить лише правки ПОЗА
-  // target-set. Правки ВСЕРЕДИНІ вже-таргетованого файлу (напр. видалення
-  // задокументованого workaround поряд із фіксованим порушенням) не зачіпають
-  // жодного детектора й не потрапляють у collateral — але можуть зламати наявний
-  // проєктний тест. Скоуп — лише наявні файли ВСЕРЕДИНІ target-set, реально змінені
-  // цим rung-ом (не колатеральні — ті вже відхилені вище); fail-open (findBrokenSiblingTests
-  // сама fail-open на відсутність test-runner-а/таймаут/відсутність сестринського тесту).
-  let brokenTest = null
-  if (after.length === 0 && !error && collateral.length === 0) {
-    const targets = resolveTargetSet(targetFiles, cwd)
-    const modifiedInTarget = snapshot
-      .modifiedExisting()
-      .map(p => realpathBestEffort(p))
-      .filter(abs => targets.has(abs))
-    // `runTest: testRunner` — default-параметр findBrokenSiblingTests спрацьовує
-    // саме на `undefined`, тож відсутній override прозоро падає назад на runTestFile.
-    if (modifiedInTarget.length > 0) {
-      brokenTest = findBrokenSiblingTests({ files: modifiedInTarget, cwd, runTest: testRunner })
-    }
-    if (brokenTest) {
-      writeTrace({
-        caller: `fix:${ruleId}/${concernName}:${rung.tier}`,
-        backend: 'pi-ai',
-        kind: 'test-gate-veto',
-        rule: ruleId,
-        rung: rung.tier,
-        model: rung.model,
-        cwd,
-        brokenFile: relative(realpathBestEffort(cwd), brokenTest.file),
-        brokenTestFile: relative(realpathBestEffort(cwd), brokenTest.testFile),
-        targetFiles,
-        cleanDetect: true
-      })
-    }
-  }
-
-  const vetoed = after.length === 0 && !error && (collateral.length > 0 || brokenTest !== null)
+  const vetoed = after.length === 0 && !error && (collateralAll.length > 0 || brokenTest !== null)
   const touchedFiles = workerResult?.touchedFiles ?? []
 
   if (after.length === 0 && !error && !vetoed) {
@@ -341,13 +477,17 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
     return { closed: true, touchedFiles }
   }
 
-  let errorSuffix = ' ❌ досі порушено'
-  if (error) errorSuffix = ` ❌ ${error.slice(0, 120)}`
-  else if (collateral.length > 0) errorSuffix = ` 🚫 collateral-veto: ${rejectedRel.join(', ')}`
-  else if (brokenTest) {
-    const brokenTestRel = relative(realpathBestEffort(cwd), brokenTest.testFile)
-    errorSuffix = ` 🚫 test-gate-veto: ${brokenTestRel}`
-  }
+  const { errorSuffix, silentFailureNote } = describeVetoOutcome({
+    error,
+    collateralAll,
+    rejectedRel,
+    inFileHunkRel,
+    brokenTest,
+    cwd,
+    targetFiles,
+    model: rung.model,
+    touchedFiles
+  })
   log(`  ⚡ ${rung.tier} (${rung.model}): ${ruleId}/${concernName}${errorSuffix}\n`)
 
   // Не clean → restore S1 перед наступним rung-ом (degraded не тече далі).
@@ -355,30 +495,6 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
   // самодостатній кінцевий стан (doc-files-батч), і прогрес по ньому вже зарахований
   // canonical re-detect-ом вище — наступний rung/прогін продовжує з решти, не з нуля.
   snapshot.rollback()
-
-  // Мовчазна невдача (worker не кинув виняток, але порушення лишилось) — без цього
-  // наступний rung стартує без жодного знання про попередню спробу (buildFixPrompt
-  // додає `## Попередня спроба` лише коли previousError truthy).
-  let silentFailureNote
-  if (collateral.length > 0) {
-    silentFailureNote =
-      `Попередня спроба (${rung.model}) закрила порушення, але змінила наявні файли поза ` +
-      `target-set (${rejectedRel.join(', ')}) — усі правки відхилено. ` +
-      `Редагуй ЛИШЕ файли порушення: ${targetFiles.join(', ')}.`
-  } else if (brokenTest) {
-    const brokenFileRel = relative(realpathBestEffort(cwd), brokenTest.file)
-    const brokenTestRel = relative(realpathBestEffort(cwd), brokenTest.testFile)
-    silentFailureNote =
-      `Попередня спроба (${rung.model}) закрила порушення, але зламала наявний тест ` +
-      `${brokenTestRel} (файл ${brokenFileRel}) — усі правки відхилено. ` +
-      'Виправ ЛИШЕ саме порушення, не чіпай навколишню логіку/коментарі-попередження.'
-  } else if (touchedFiles.length === 0) {
-    silentFailureNote = `Попередня спроба (${rung.model}) не внесла жодної зміни у файли; порушення досі активне.`
-  } else {
-    silentFailureNote =
-      `Попередня спроба (${rung.model}) торкнулась файлів (${touchedFiles.join(', ')}), ` +
-      'але порушення досі активне — той самий підхід не спрацював, спробуй інакше.'
-  }
 
   return {
     closed: false,
