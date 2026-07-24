@@ -1,6 +1,6 @@
 ---
 type: Directory Index
-title: npm/rules/js/eslint
+title: plugins/lang-js/rules/js/eslint
 resource: plugins/lang-js/rules/js/eslint/
 ---
 
