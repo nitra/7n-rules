@@ -185,8 +185,8 @@ async function runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log, 
  * collateral rung-а: наявні файли, змінені поза target-set, і наявні файли ВСЕРЕДИНІ
  * target-set, змінені поза вікном навколо `violation.data.line`. Чиста функція (без
  * трейсу/side-effects) — виклик trace лишається на caller-і.
- * @param {{ violations: LintViolation[], item: PlanItem, snapshot: ReturnType<typeof createSnapshot>, cwd: string }} args
- * @returns {{ targetFiles: string[], collateral: string[], inFileHunks: Array<{ file: string, start: number, end: number }>, collateralAll: string[], rejectedRel: string[], inFileHunkRel: string[] }}
+ * @param {{ violations: LintViolation[], item: PlanItem, snapshot: ReturnType<typeof createSnapshot>, cwd: string }} args Порушення rung-а, елемент плану, snapshot S1 і робоча директорія.
+ * @returns {{ targetFiles: string[], collateral: string[], inFileHunks: Array<{ file: string, start: number, end: number }>, collateralAll: string[], rejectedRel: string[], inFileHunkRel: string[] }} Обидва класи collateral (cross-file, in-file) і їхнє відносне представлення для логу/feedback.
  */
 function computeCollateral({ violations, item, snapshot, cwd }) {
   // Semantic-collateral veto (§12 addendum 2026-07-05): clean-вердикт не приймається,
@@ -244,8 +244,8 @@ function computeCollateral({ violations, item, snapshot, cwd }) {
  * collateralAll уже ветував rung (нема сенсу гонити тести на приреченому rung-у).
  * Fail-open (findBrokenSiblingTests сама fail-open на відсутність test-runner-а/
  * таймаут/відсутність сестринського тесту). Побічний ефект: пише trace на провал.
- * @param {{ targetFiles: string[], snapshot: ReturnType<typeof createSnapshot>, cwd: string, testRunner: typeof import('./test-gate.mjs').runTestFile|undefined, ruleId: string, concernName: string, rung: Rung }} args
- * @returns {{ file: string, testFile: string, output: string } | null}
+ * @param {{ targetFiles: string[], snapshot: ReturnType<typeof createSnapshot>, cwd: string, testRunner: typeof import('./test-gate.mjs').runTestFile|undefined, ruleId: string, concernName: string, rung: Rung }} args Файли порушення, snapshot S1, робоча директорія, override test-runner-а і координати rung-а для телеметрії.
+ * @returns {{ file: string, testFile: string, output: string } | null} Перший зафіксований провал сестринського тесту, або null якщо test-gate не спрацював.
  */
 function detectBrokenTest({ targetFiles, snapshot, cwd, testRunner, ruleId, concernName, rung }) {
   const targets = resolveTargetSet(targetFiles, cwd)
@@ -279,7 +279,7 @@ function detectBrokenTest({ targetFiles, snapshot, cwd, testRunner, ruleId, conc
  * (`silentFailureNote`) — один пріоритет: worker-помилка → collateral-veto →
  * test-gate-veto → мовчазна невдача (worker нічого не змінив / змінив, але
  * порушення лишилось).
- * @param {object} args
+ * @param {object} args Дані одного rung-а, потрібні для опису відхилення.
  * @param {string|null} args.error Повідомлення worker-помилки, якщо rung кинув виняток.
  * @param {string[]} args.collateralAll Об'єднаний список відхилених collateral-правок (cross-file abs).
  * @param {string[]} args.rejectedRel Cross-file collateral (відносні шляхи).
@@ -289,7 +289,7 @@ function detectBrokenTest({ targetFiles, snapshot, cwd, testRunner, ruleId, conc
  * @param {string[]} args.targetFiles Файли порушення rung-а.
  * @param {string} args.model Модель rung-а (для тексту feedback).
  * @param {string[]} args.touchedFiles Файли, торкнуті worker-ом.
- * @returns {{ errorSuffix: string, silentFailureNote: string }}
+ * @returns {{ errorSuffix: string, silentFailureNote: string }} Суфікс для логу і нотатка для feedback наступному rung-у.
  */
 function describeVetoOutcome({
   error,
