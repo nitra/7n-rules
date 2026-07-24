@@ -9,14 +9,29 @@
  */
 
 /**
+ * Розрізняє дві форми повернення `Bun.Glob#scan()`: async-iterable напряму
+ * (macOS) або Promise, що резолвиться в async-iterable (спостережено на
+ * self-hosted Linux Bun 1.3.14 — `yield*` на Promise падає з "is not async
+ * iterable", бо в Promise немає ні `Symbol.asyncIterator`, ні `Symbol.iterator`).
+ * @param {unknown} scanned повернення `Bun.Glob#scan()`
+ * @returns {Promise<unknown>} async-iterable шляхів (резолвлений, якщо `scanned` — Promise)
+ */
+export async function resolveGlobScan(scanned) {
+  return typeof (/** @type {{ then?: unknown }} */ (scanned).then) === 'function' ? await scanned : scanned
+}
+
+/**
  * Ітерує відносні шляхи файлів за glob-патерном.
  * @param {string} pattern glob-патерн (наприклад, `cf/*\/package.json`)
  * @param {string} cwd корінь обходу
+ * @param {{ bun?: { Glob: new (pattern: string) => { scan(opts: { cwd: string }): unknown } } }} [opts] `bun` —
+ *   ін'єкція `Bun`-подібної реалізації для тестів (типово — глобал `Bun`).
  * @yields {string} кожен відносний шлях збігу
  */
-export async function* scanGlob(pattern, cwd) {
-  if (typeof Bun !== 'undefined') {
-    yield* new Bun.Glob(pattern).scan({ cwd })
+export async function* scanGlob(pattern, cwd, opts = {}) {
+  const bun = opts.bun ?? (typeof Bun === 'undefined' ? undefined : Bun)
+  if (bun !== undefined) {
+    yield* await resolveGlobScan(new bun.Glob(pattern).scan({ cwd }))
     return
   }
   const { glob } = await import('node:fs/promises')
