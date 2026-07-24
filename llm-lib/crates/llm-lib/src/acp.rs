@@ -63,6 +63,21 @@ impl AcpAgentKind {
     fn spec(self) -> Result<AcpAgent, LlmError> {
         spec_for(self.command(), &[], &std::collections::HashMap::new())
     }
+
+    /// `AcpAgent`-спека з уже застосованим тір-пресетом (env для Codex,
+    /// extra-args для Cursor) — публічний будівельний блок для session-споживачів
+    /// (`tauri-plugin-agent`, T9/T10), яким [`one_shot_acp_with_tier`] не
+    /// підходить, але які так само не мають дублювати розбір
+    /// [`Self::command`] і зливання пресету. Post-session-крок (Pi) сюди не
+    /// входить — його викликач бере з [`Self::tier_preset`] і кладе в
+    /// [`session::SessionOptions::post_session_config`].
+    ///
+    /// # Errors
+    /// [`LlmError::Provider`] — команда/args не зібрались у валідну спеку.
+    pub fn tier_spec(self, tier: Tier) -> Result<AcpAgent, LlmError> {
+        let preset = self.tier_preset(tier);
+        spec_for(self.command(), &preset.extra_args, &preset.env)
+    }
 }
 
 /// Один виклик через ACP: спавнить агента, відкриває сесію в `cwd`, надсилає
@@ -112,10 +127,9 @@ pub async fn one_shot_acp_with_tier(
     prompt: &str,
     cwd: &Path,
 ) -> Result<String, LlmError> {
-    let preset = agent.tier_preset(tier);
-    let spec = spec_for(agent.command(), &preset.extra_args, &preset.env)?;
+    let spec = agent.tier_spec(tier)?;
     let options = SessionOptions {
-        post_session_config: preset.post_session_config,
+        post_session_config: agent.tier_preset(tier).post_session_config,
         ..SessionOptions::default()
     };
     run_one_shot(spec, cwd, options, prompt).await
@@ -188,6 +202,20 @@ mod tests {
                 assert!(
                     spec.is_ok(),
                     "{kind:?}×{tier:?}: пресет має давати валідну spec"
+                );
+            }
+        }
+    }
+
+    /// Публічний [`AcpAgentKind::tier_spec`] (споживач — session-адаптери,
+    /// T9/T10) дає валідну спеку для кожної пари kind×tier.
+    #[test]
+    fn tier_spec_is_valid_for_every_kind_and_tier() {
+        for kind in [AcpAgentKind::Cursor, AcpAgentKind::Codex, AcpAgentKind::Pi] {
+            for tier in [Tier::Min, Tier::Avg, Tier::Max] {
+                assert!(
+                    kind.tier_spec(tier).is_ok(),
+                    "{kind:?}×{tier:?}: tier_spec має давати валідну spec"
                 );
             }
         }

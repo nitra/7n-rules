@@ -3,33 +3,34 @@ type: Rust Module
 title: session.rs
 resource: llm-lib/crates/llm-lib/src/acp/session.rs
 docgen:
-  crc: 5f1e4cf8
-  model: openai-codex/gpt-5.5
-  tier: cloud-avg
-  score: 100
-  issues: judge-refine:kept-original,judge:inaccurate:0.99
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: f39ad2ed
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
+  score: 0
+  issues: refusal-filler,best-of-2:retry-lost
 ---
 
 ## Огляд
 
-Файл надає публічний session-API для довгоживучої ACP-сесії без залежності від Tauri: [`SessionOptions`] описує створення сесії, [`create_session`] повертається лише після handshake `initialize` → `session/new` → опційний `session/set_config_option`, а керування відбувається через [`SessionHandle::prompt`] і [`SessionHandle::cancel`]. Події сесії надходять через відкритий потік, зокрема [`SessionEvent::PermissionRequest`] для запитів дозволів.
-
-API існує, щоб винести модель живого ACP-з’єднання, prompt/cancel і permission-відповіді на повторно використовуваний рівень крейта. [`PermissionMode::External`] передає запити дозволів зовнішньому responder-у, а [`PermissionMode::AutoApprove`] використовує той самий потік подій: [`drive_auto_approve`] читає запити дозволів і відповідає автоматично.
+Публічний session-API крейта для довгоживучої ACP-сесії з відкритим потоком подій, де `SessionOptions` через `create_session` запускає фонову `tokio`-задачу з власним ACP-з’єднанням і mpsc-циклом команд, а `create_session` не завершується, доки не пройдуть `initialize` → `session/new` → опційний `session/set_config_option`; це прибирає гонку на першому `SessionHandle::prompt` і робить сесію готовою до роботи одразу після створення. Контракт дає `prompt` і `cancel` без Tauri-залежностей, а `super::one_shot_acp` лишається окремим тонким фасадом над тим самим `super::transport`-шаром: один prompt, auto-approve і акумуляція тексту без зміни поведінки транспорту. Permission-поведінка побудована як двомодова робота одного механізму через той самий канал подій: `PermissionMode::External` пересилає `session/request_permission` як `SessionEvent::PermissionRequest`, а викликач відповідає через `PermissionRequestEvent::respond` або `PermissionRequestEvent::cancel`; `PermissionMode::AutoApprove` використовує той самий потік подій, де `drive_auto_approve` одразу обирає відповідь через `transport::pick_auto_permission_option`.
 
 ## Поведінка
 
-`SessionOptions` описує майбутню довгоживучу ACP-сесію: режим дозволів через `PermissionMode`, робочу теку, можливі можливості агента та опційний `PostSessionConfig`. `PostSessionConfig` створюється через `new` і передає вже готову пару для post-session конфігурації, яку `create_session` застосовує після відкриття сесії, але до першого `prompt`.
+PostSessionConfig і new задають один післястартовий крок конфігурації: після `session/new` у сесію передається готова пара `configId`/`value`, щоб агент стартував уже з потрібною моделлю без втручання в spawn-параметри.
 
-`create_session` спочатку запускає агента, проходить handshake, відкриває сесію й лише після цього повертає `SessionHandle`. Це гарантує, що помилки запуску, авторизації або post-session конфігурації повертаються одразу, а не проявляються пізніше як закритий канал під час першого `prompt`.
+PermissionMode визначає, чи запити дозволу йдуть назовні через події, чи автоматично закриваються всередині фонової сесії; це два режими одного каналу рішення, а не два різні протоколи.
 
-Після створення сесії ACP-з’єднання належить фоновій задачі. Зовнішній код взаємодіє з ним через `SessionHandle`: `prompt` надсилає новий хід і повертає тільки фінальний статус, а всі проміжні оновлення потрапляють у потік `SessionEvent`. `cancel` просить скасувати поточний хід і не чекає окремого підтвердження. Сесія живе, доки існує хоча б один клон `SessionHandle`.
+SessionOptions збирає стартові умови для create_session і задає базову поведінку сесії, зокрема режим дозволів за замовчуванням.
 
-`SessionEvent` є спільним каналом для результатів роботи сесії: туди йдуть оновлення відповіді агента та запити дозволів. Для `PermissionMode::External` кожен запит дозволу приходить як `PermissionRequestEvent`; викликач має відповісти через `respond` або відхилити через `cancel`. Якщо з’єднання вже закрите, відповідь або скасування повертають provider-помилку.
+create_session відкриває ACP-сесію, завершує handshake перед поверненням і тримає з’єднання живим у фоні, доки існує хоча б одна SessionHandle. Потік подій і команд розділений: prompt рухає хід, cancel просить його зупинити, а SessionEvent несе назовні все, що стається всередині сесії.
 
-`PermissionMode::AutoApprove` використовує той самий permission-механізм, що й зовнішній режим, але рішення ухвалюється автоматично. `drive_auto_approve` може читати потік `SessionEvent`, ігнорувати звичайні оновлення та відповідати на `PermissionRequestEvent` автоматично через `respond`; якщо відповідний варіант недоступний, запит скасовується через `cancel`.
+SessionEvent є спільним потоком сповіщень для зовнішнього коду: через нього приходять оновлення ходу та запити дозволу, які потребують окремої реакції.
 
-`prompt`, `cancel`, `respond` і `create_session` не приховують збої ACP-з’єднання: закритий канал, помилка агента, idle-timeout або невдалий handshake повертаються як provider-помилки. Одноразовий фасад лишається окремим шляхом і не змінює поведінку довгоживучої session-моделі.
+PermissionRequestEvent переносить зовнішньому коду сам запит і варіанти реакції; respond і cancel завершують цей цикл, повертаючи вибір назад у сесію або відхиляючи запит.
+
+SessionHandle — це жива ручка до вже відкритої сесії. prompt запускає новий хід і чекає лише на його термінальний результат, тоді як увесь проміжний вміст продовжує текти через SessionEvent. cancel не чекає підтвердження й лише просить агент зупинити поточний хід; обидві операції залежать від того, що фонова задача сесії ще жива.
+
+drive_auto_approve читає той самий потік PermissionRequestEvent і одразу закриває кожен запит автоматично, не втручаючись у потік SessionEvent.Update. Це зручний шар для стратегій, які хочуть зберегти зовнішній контроль, але без ручного вибору кожного дозволу.
 
 ## Публічний API
 
