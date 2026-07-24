@@ -15,6 +15,9 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative } from 'node:path'
 
+import { parseLcovPerFile } from '@7n/rules/rules/test/coverage/lib/lcov.mjs'
+
+import { isCommentOnlyChange } from './lib/comment-only.mjs'
 import { defaultRunner } from './js-collector.mjs'
 import { quickClassify } from './lib/quick-classify.mjs'
 import { resolveAllJsRoots } from './lib/resolve-js-root.mjs'
@@ -46,6 +49,10 @@ const MAX_ERRORS_PER_FILE = 5
 /** Стеля рядків одного повідомлення помилки у parseFailingTests. */
 const MAX_ERROR_LINES = 10
 
+// Парсер lcov живе у спільній lib концерну coverage (мовно-агностичний);
+// реекспорт зберігає публічний API модуля для наявних споживачів/тестів.
+export { parseLcovPerFile } from '@7n/rules/rules/test/coverage/lib/lcov.mjs'
+
 /**
  * Чи декларує package.json vitest (dependencies або devDependencies).
  * @param {{dependencies?: Record<string,string>, devDependencies?: Record<string,string>}} pkg package.json
@@ -53,38 +60,6 @@ const MAX_ERROR_LINES = 10
  */
 function hasVitestDep(pkg) {
   return Boolean(pkg.devDependencies?.vitest) || Boolean(pkg.dependencies?.vitest)
-}
-
-/**
- * Парс lcov.info у per-file рядки (`SF:`/`LF:`/`LH:`).
- * @param {string} text вміст lcov.info
- * @returns {Array<{file: string, pct: number, linesFound: number, linesCovered: number}>} per-file coverage
- */
-export function parseLcovPerFile(text) {
-  const files = []
-  let currentFile = null
-  let lf = 0
-  let lh = 0
-  for (const line of text.split('\n')) {
-    if (line.startsWith('SF:')) {
-      currentFile = line.slice(3).trim()
-      lf = 0
-      lh = 0
-    } else if (line.startsWith('LF:')) {
-      lf = Number(line.slice(3))
-    } else if (line.startsWith('LH:')) {
-      lh = Number(line.slice(3))
-    } else if (line === 'end_of_record' && currentFile) {
-      files.push({
-        file: currentFile,
-        pct: lf === 0 ? 100 : Math.round((lh / lf) * 10000) / 100,
-        linesFound: lf,
-        linesCovered: lh
-      })
-      currentFile = null
-    }
-  }
-  return files
 }
 
 /**
@@ -216,7 +191,7 @@ async function collectRootRows(jsRoot, cwd, rootFiles, runner) {
  * файлами через `--coverage.include` — файли без жодного тесту зʼявляються
  * в lcov з 0% (vitest 4: явний include замість прибраного `coverage.all`).
  * @param {string} cwd корінь проєкту
- * @param {{files: string[], runner?: typeof defaultRunner}} opts змінені файли (relative до cwd) + spawn-інʼєкція
+ * @param {{files: string[], runner?: typeof defaultRunner, isCommentOnlyChange?: (cwd: string, file: string) => boolean}} opts змінені файли (relative до cwd) + інʼєкції
  * @returns {Promise<Array<{file: string, pct: number, linesFound: number, linesCovered: number, reason?: string}>>} рядки по файлах-кандидатах (relative до cwd)
  */
 export async function collectPerFile(cwd, opts) {
@@ -228,8 +203,13 @@ export async function collectPerFile(cwd, opts) {
   const rootPkgPath = join(cwd, 'package.json')
   const rootHasVitest = existsSync(rootPkgPath) && hasVitestDep(JSON.parse(readFileSync(rootPkgPath, 'utf8')))
 
+  // Comment-only зміни (доки/JSDoc) не гейтяться: код ідентичний base —
+  // покриття змінитись не могло, а vitest-прогін на такі файли марнотратний.
+  const isCommentOnly = opts.isCommentOnlyChange ?? isCommentOnlyChange
+  const realChanges = opts.files.filter(f => !isGateCandidate(f) || !isCommentOnly(cwd, f))
+
   for (const jsRoot of jsRoots) {
-    const rootFiles = scopeGateFiles(opts.files, cwd, jsRoot)
+    const rootFiles = scopeGateFiles(realChanges, cwd, jsRoot)
     if (rootFiles.length === 0) continue
 
     // package.json без vitest (і без hoisted vitest у корені) → root не

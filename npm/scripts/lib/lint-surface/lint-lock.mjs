@@ -46,6 +46,14 @@ const PROGRESS_FILE = join(GLOBAL_CACHE_DIR, 'progress.json')
 /** Дедлайн очікування в черзі: full-прогони довгі, 20 хв дефолту withLock замало. */
 const WAIT_TIMEOUT_MS = 45 * 60_000
 
+/**
+ * Дедлайн, коли активний/очікуваний прогін включає концерн coverage правила
+ * `test` (spec absorb-7n-test, ризик 3.4): повне мутаційне тестування
+ * (Stryker/cargo-mutants) на великому проєкті не вкладається у 45 хв —
+ * інженерний запас ×4 замість вгадування точної тривалості.
+ */
+const WAIT_TIMEOUT_WITH_COVERAGE_MS = 4 * WAIT_TIMEOUT_MS
+
 /** Поріг time-based staleness (див. модульний коментар). */
 const STALE_THRESHOLD_MS = 6 * 3_600_000
 
@@ -235,10 +243,13 @@ export function withGlobalLintLock(variant, runFn, opts = {}) {
   if (!variant.full) return Promise.resolve(runFn())
   const { isTTY, log, queueDir, progressFile, ...lockOpts } = opts
   const ui = createWaitUi({ isTTY, log, queueDir, progressFile })
+  // Full-прогін завжди включає концерн coverage (мутаційне тестування) —
+  // черга чекає з покриттєвим запасом; scoped `lint test` під лок не йде
+  // (variant.full=false), тож окремої осі для нього не треба.
   return withLock('lint-full', runFn, {
     cacheDir: GLOBAL_CACHE_DIR,
     staleThreshold: STALE_THRESHOLD_MS,
-    waitTimeout: WAIT_TIMEOUT_MS,
+    waitTimeout: WAIT_TIMEOUT_WITH_COVERAGE_MS,
     onWaitTimeout: 'fail',
     getFingerprint: () => lintLockFingerprint(variant),
     ...ui,

@@ -24,7 +24,8 @@
     "claude",
     "cursor-agent",
     "fix-t0",
-    "_fix-check"
+    "_fix-check",
+    "uv"
   ],
   "ignoreExportsUsedInFile": true,
   "ignoreIssues": {
@@ -69,7 +70,9 @@
         "rules/**/*.test.mjs",
         "scripts/**/*.test.mjs",
         "tests/**/*.test.mjs",
+        "bin/tests/**/*.test.mjs",
         "scripts/tests/fixtures/**/*.mjs",
+        "bin/tests/fixtures/**/*.mjs",
         "rules/test/js/data/stryker_config/stryker.config.baseline.mjs",
         "stryker.config.mjs"
       ],

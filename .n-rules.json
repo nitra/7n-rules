@@ -50,5 +50,8 @@
     "@7n/rules-lang-rust",
     "@7n/rules-lang-python",
     "@7n/rules-lang-js"
-  ]
+  ],
+  "coverage": {
+    "classifyConfidenceThreshold": 0.7
+  }
 }
