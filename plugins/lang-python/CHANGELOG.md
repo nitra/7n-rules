@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.10.0] - 2026-07-24
+
+### Added
+
+- coverage-провайдер Python: pytest-cov (lcov) + mutmut за портом CoverageProvider
+- fix-hooks generateTests/fixSurvived (runAgentFix, pytest-канон) — LLM fix-шлях концерну coverage для Python
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header/export JSDoc у конфігах demo
+- doc_comments rollout: header-JSDoc у vitest.config
+
+### Fixed
+
+- Додано unit-тести для граничних випадків парсерів mutmut coverage provider.
+
 ## [0.9.0] - 2026-07-23
 
 ### Added
