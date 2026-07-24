@@ -7,24 +7,23 @@
 //! update-read, `summarize_update`/`N_LLM_ACP_VERBOSE` progress-логування,
 //! типізований [`CascadeError`] замість `String`.
 //!
-//! Сьогодні єдиний споживач — [`super::one_shot_acp`] (one-shot: один
-//! prompt, auto-approve дозволів, акумуляція тексту до `StopReason`).
-//! Публічний session-API (create/prompt/update-стрім/зовнішній
-//! permission-responder/cancel) — наступна задача поверх цього самого шару.
+//! Обидва фасади крейта йдуть через нього: [`super::session::create_session`]
+//! напряму (публічний session-API: create/prompt/update-стрім/зовнішній
+//! permission-responder/cancel), а [`super::one_shot_acp`] — уже поверх
+//! `session`, як тонкий фасад (один prompt + auto-approve + акумуляція
+//! тексту, задача T2). Спільний [`drive_turn`] дає обом idle-timeout-
+//! читання й progress-логування одного prompt-ходу.
 
 use std::collections::HashMap;
 use std::env;
-use std::path::Path;
 use std::time::Duration;
 
 use agent_client_protocol::schema::v1::{
-    ContentBlock, ContentChunk, InitializeRequest, PermissionOption, PermissionOptionId,
-    PermissionOptionKind, RequestPermissionOutcome, RequestPermissionRequest,
-    RequestPermissionResponse, SelectedPermissionOutcome, SessionNotification, SessionUpdate,
+    ContentBlock, ContentChunk, PermissionOption, PermissionOptionId, PermissionOptionKind,
+    SessionNotification, SessionUpdate, StopReason,
 };
-use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::util::MatchDispatch;
-use agent_client_protocol::{AcpAgent, Client, Error as AcpError, SessionMessage};
+use agent_client_protocol::{AcpAgent, Error as AcpError, SessionMessage};
 
 use crate::CascadeError;
 
@@ -94,66 +93,12 @@ pub(crate) fn pick_auto_permission_option(
         .map(|o| o.option_id.clone())
 }
 
-/// Спавнить агента, робить `initialize` → `session/new` → `session/prompt`
-/// одним ходом і читає повний текст відповіді до кінця ходу. Спільна
-/// реалізація для [`super::one_shot_acp`] і `#[cfg(test)]`-перевірки
-/// fail-fast поведінки на спавні (приймає `AcpAgent` напряму, а не
-/// [`super::AcpAgentKind`] — щоб тест міг підставити свідомо неіснуючу
-/// команду).
-pub(crate) async fn prompt_agent(
-    spec: AcpAgent,
-    prompt: &str,
-    cwd: &Path,
-) -> Result<String, CascadeError> {
-    let prompt = prompt.to_string();
-    let cwd = cwd.to_path_buf();
-    let idle_timeout = idle_timeout();
-
-    Client
-        .builder()
-        .on_receive_request(
-            async move |request: RequestPermissionRequest, responder, _cx| {
-                let outcome = match pick_auto_permission_option(&request.options) {
-                    Some(option_id) => RequestPermissionOutcome::Selected(
-                        SelectedPermissionOutcome::new(option_id),
-                    ),
-                    None => RequestPermissionOutcome::Cancelled,
-                };
-                responder.respond(RequestPermissionResponse::new(outcome))
-            },
-            agent_client_protocol::on_receive_request!(),
-        )
-        .connect_with(spec, async move |cx| {
-            cx.send_request(InitializeRequest::new(ProtocolVersion::V1))
-                .block_task()
-                .await?;
-
-            cx.build_session(cwd)
-                .block_task()
-                .run_until(async move |mut session| {
-                    // ШОВ для post-session-creation конфігурації (T2/T3):
-                    // `session` тут — вже після успішного `session/new`, до
-                    // першого `session/prompt`. Саме сюди ляже опційний
-                    // `session/set_config_option` для тіру Pi (рішення З.1,
-                    // R1: `configId: "model"`, `value: "provider/modelId"`
-                    // — протокольний виклик МІЖ `session/new` і
-                    // `session/prompt`, не env/args на спавні, як у
-                    // Cursor/Codex). Не реалізовується в T1.
-                    session.send_prompt(prompt)?;
-                    read_to_string_with_idle_timeout(&mut session, idle_timeout).await
-                })
-                .await
-        })
-        .await
-        .map_err(|e| CascadeError::Provider(e.to_string()))
-}
-
 /// Чи друкувати повний `{:?}`-дамп кожної non-text ACP-події замість
 /// одного короткого рядка. За замовчуванням (як `lint` без `--verbose`) —
 /// тихо: `ToolCall`/`ToolCallUpdate` несуть `raw_input`/`raw_output` (повний
 /// JSON параметрів/результату інструменту), і на прогоні `taze` з багатьма
 /// пакетами це затоплювало stderr. Override: `N_LLM_ACP_VERBOSE=1`.
-fn acp_verbose() -> bool {
+pub(crate) fn acp_verbose() -> bool {
     env::var("N_LLM_ACP_VERBOSE").is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
 
@@ -161,7 +106,7 @@ fn acp_verbose() -> bool {
 /// інструментів і без тексту чанків `AgentThoughtChunk`/`UserMessageChunk` (стрім по токенах).
 /// `N_LLM_ACP_VERBOSE=1` (`acp_verbose()`) повертає повний `{:?}` замість
 /// цього — для діагностики зависань/протокольних аномалій.
-fn summarize_update(update: &SessionUpdate) -> String {
+pub(crate) fn summarize_update(update: &SessionUpdate) -> String {
     if acp_verbose() {
         return format!("{update:?}");
     }
@@ -184,23 +129,28 @@ fn summarize_update(update: &SessionUpdate) -> String {
     }
 }
 
-/// Як `Session::read_to_string()` (акумулює текстові `agent_message_chunk`,
-/// зупиняється на `StopReason`), але кожне окреме читання events обгорнуте в
-/// `idle_timeout` — а не весь хід разом. Це і є "видимість": не-текстові
-/// події (`tool_call`/`plan`/…) логуються в stderr замість мовчазного
-/// відкидання (за замовчуванням — одним коротким рядком, `N_LLM_ACP_VERBOSE=1`
-/// — повним `{:?}`), і саме кожна така подія скидає таймер — реальний прогрес
-/// не зупиняє годинник, зупиняє лише справжня тиша. Текстові
-/// `AgentThoughtChunk`/`UserMessageChunk` тиша не логуються зовсім (лише
-/// скидають таймер) — потокенний стрім думок агента інакше затоплював stderr.
-async fn read_to_string_with_idle_timeout<S>(
+/// Читає events одного prompt-ходу до `StopReason`, з `idle_timeout` на
+/// кожне окреме читання (а не на весь хід разом — це і є "видимість": не-
+/// текстові події (`tool_call`/`plan`/…) логуються в stderr замість
+/// мовчазного відкидання (за замовчуванням — одним коротким рядком,
+/// `N_LLM_ACP_VERBOSE=1` — повним `{:?}`), і саме кожна така подія скидає
+/// таймер — реальний прогрес не зупиняє годинник, зупиняє лише справжня
+/// тиша). Текстові `AgentThoughtChunk`/`UserMessageChunk` не логуються
+/// зовсім (лише скидають таймер) — потокенний стрім думок агента інакше
+/// затоплював stderr.
+///
+/// `on_update` отримує кожен `SessionUpdate` (текстові шматки включно) —
+/// викликач вирішує, що з ним робити: акумулювати текст
+/// ([`super::one_shot_acp`]) чи передати подію зовнішньому каналу
+/// ([`super::session`]). Повертає фінальний `StopReason` ходу.
+pub(crate) async fn drive_turn<S>(
     session: &mut S,
     idle_timeout: Duration,
-) -> Result<String, AcpError>
+    mut on_update: impl FnMut(&SessionUpdate),
+) -> Result<StopReason, AcpError>
 where
     S: AcpSessionUpdates,
 {
-    let mut output = String::new();
     loop {
         let update = tokio::time::timeout(idle_timeout, session.read_update())
             .await
@@ -211,38 +161,48 @@ where
             })??;
 
         match update {
-            SessionMessage::SessionMessage(dispatch) => MatchDispatch::new(dispatch)
-                .if_notification(async |notification: SessionNotification| {
-                    match &notification.update {
-                        SessionUpdate::AgentMessageChunk(ContentChunk {
-                            content: ContentBlock::Text(text),
-                            ..
-                        }) => output.push_str(&text.text),
-                        SessionUpdate::AgentThoughtChunk(ContentChunk {
-                            content: ContentBlock::Text(_),
-                            ..
-                        })
-                        | SessionUpdate::UserMessageChunk(ContentChunk {
-                            content: ContentBlock::Text(_),
-                            ..
-                        }) if !acp_verbose() => {}
-                        other => eprintln!("acp progress: {}", summarize_update(other)),
-                    }
-                    Ok(())
-                })
-                .await
-                .otherwise_ignore()?,
-            SessionMessage::StopReason(_) => break,
+            SessionMessage::SessionMessage(dispatch) => {
+                let on_update = &mut on_update;
+                MatchDispatch::new(dispatch)
+                    .if_notification(async move |notification: SessionNotification| {
+                        let update = &notification.update;
+                        let quiet_text_chunk = matches!(
+                            update,
+                            SessionUpdate::AgentThoughtChunk(ContentChunk {
+                                content: ContentBlock::Text(_),
+                                ..
+                            }) | SessionUpdate::UserMessageChunk(ContentChunk {
+                                content: ContentBlock::Text(_),
+                                ..
+                            })
+                        ) && !acp_verbose();
+                        let is_agent_text_chunk = matches!(
+                            update,
+                            SessionUpdate::AgentMessageChunk(ContentChunk {
+                                content: ContentBlock::Text(_),
+                                ..
+                            })
+                        );
+                        if !quiet_text_chunk && !is_agent_text_chunk {
+                            eprintln!("acp progress: {}", summarize_update(update));
+                        }
+                        on_update(update);
+                        Ok(())
+                    })
+                    .await
+                    .otherwise_ignore()?;
+            }
+            SessionMessage::StopReason(reason) => return Ok(reason),
             _ => {}
         }
     }
-    Ok(output)
 }
 
 /// Мінімальний зріз `ActiveSession`, потрібний для idle-timeout-читання —
 /// узагальнено, щоб уникнути повного generic-підпису `ActiveSession<'_, Link>`
-/// у сигнатурі [`read_to_string_with_idle_timeout`].
-trait AcpSessionUpdates {
+/// у сигнатурі [`drive_turn`]. `pub(crate)` — і [`super::session`], і
+/// `#[cfg(test)]`-фейки реалізують/використовують цю абстракцію.
+pub(crate) trait AcpSessionUpdates {
     /// Читає наступну подію (текст, tool-call, StopReason, …).
     async fn read_update(&mut self) -> Result<SessionMessage, AcpError>;
 }
@@ -270,7 +230,6 @@ impl AcpSessionUpdates for NeverUpdatingSession {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::str::FromStr;
 
     #[test]
     fn build_acp_args_puts_env_before_command_before_extra_args() {
@@ -376,15 +335,19 @@ mod tests {
 
     /// Захист від зависання без сигналу: якщо сесія взагалі не шле подій
     /// (той самий симптом, що й живий прогін `skill codex taze` до фіксу
-    /// дозволів — 57+ хвилин тиші), читання провалюється за idle-timeout,
-    /// а не висить назавжди.
+    /// дозволів — 57+ хвилин тиші), [`drive_turn`] провалюється за
+    /// idle-timeout, а не висить назавжди. Fail-fast на реальному спавні
+    /// неіснуючого бінарника — тест `create_session_of_missing_binary_fails_fast_not_hangs`
+    /// у `super::super::session` (той самий `drive_turn`, повний шлях
+    /// `create_session`).
     #[tokio::test]
     async fn idle_timeout_fails_fast_when_no_updates_ever_arrive() {
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(5),
-            read_to_string_with_idle_timeout(
+            drive_turn(
                 &mut NeverUpdatingSession,
                 std::time::Duration::from_millis(50),
+                |_update| {},
             ),
         )
         .await;
@@ -394,26 +357,6 @@ mod tests {
         assert!(
             outcome.is_err(),
             "без подій читання має провалитись, а не повернути Ok"
-        );
-    }
-
-    /// Обкатка fail-fast поведінки: неіснуючий бінарник — драбина (Cursor →
-    /// Codex → local → cloud, див. README) покладається на те, що недоступний
-    /// агент провалюється швидко з `Err`, а не висить назавжди чи панікує.
-    #[tokio::test]
-    async fn spawn_of_missing_binary_fails_fast_not_hangs() {
-        let bad_spec = AcpAgent::from_str("nonexistent-acp-binary-xyz-test").unwrap();
-
-        let result = tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            prompt_agent(bad_spec, "привіт", &std::env::temp_dir()),
-        )
-        .await;
-
-        let outcome = result.expect("spawn неіснуючого бінарника не мав зависнути довше 5с");
-        assert!(
-            outcome.is_err(),
-            "неіснуючий бінарник має провалитись, а не повернути Ok"
         );
     }
 

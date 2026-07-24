@@ -10,12 +10,17 @@
 
 use std::path::Path;
 
+use agent_client_protocol::schema::v1::{ContentBlock, ContentChunk, SessionUpdate};
 use agent_client_protocol::AcpAgent;
 
 use crate::CascadeError;
 
+/// Публічний session-API (задача T2): довгоживуча ACP-сесія з потоком
+/// подій, зовнішнім permission-responder-ом і `cancel` — без tauri-залежностей.
+pub mod session;
 pub(crate) mod transport;
 
+use session::{SessionEvent, SessionOptions};
 use transport::spec_for;
 
 /// Ціль ACP-підключення. Список відкритий — нові агенти додаються нових
@@ -54,9 +59,13 @@ impl AcpAgentKind {
 /// в один процес із Node) має свій власний робочий каталог проєкту, який
 /// не обов'язково збігається з cwd самого хост-процесу.
 ///
-/// Тонкий фасад над [`transport`]: спавн/init/session — спільний шар, який
-/// буде перевикористаний публічним session-API (наступна задача) поверх
-/// того самого транспорту.
+/// Тонкий фасад над публічним [`session`]-API (задача T2): створює сесію з
+/// дефолтних [`SessionOptions`] (`PermissionMode::AutoApprove`, без
+/// post-session-config-кроку — той потрібен лише Pi-тіру, T3), надсилає
+/// один `prompt`, акумулює текстові `AgentMessageChunk`-події з потоку
+/// подій до кінця ходу. Поведінка не змінюється — той самий idle-timeout,
+/// auto-approve дозволів і progress-логування, що й раніше (спільна
+/// операційна броня [`transport`], тепер розділена з session-режимом).
 ///
 /// # Errors
 /// [`CascadeError::Provider`] — агент не встановлений, не залогінений
@@ -66,7 +75,25 @@ pub async fn one_shot_acp(
     prompt: &str,
     cwd: &Path,
 ) -> Result<String, CascadeError> {
-    transport::prompt_agent(agent.spec()?, prompt, cwd).await
+    let (handle, mut events) =
+        session::create_session(agent.spec()?, cwd, SessionOptions::default()).await?;
+
+    handle.prompt(prompt).await?;
+    drop(handle);
+
+    let mut output = String::new();
+    while let Some(event) = events.recv().await {
+        if let SessionEvent::Update(update) = event {
+            if let SessionUpdate::AgentMessageChunk(ContentChunk {
+                content: ContentBlock::Text(text),
+                ..
+            }) = *update
+            {
+                output.push_str(&text.text);
+            }
+        }
+    }
+    Ok(output)
 }
 
 #[cfg(test)]
