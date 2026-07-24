@@ -3,9 +3,12 @@
 /**
  * Тир-конфіг моделей для LLM-шару (@7n/llm-lib) і його consumers.
  *
- * Тири — політика споживача (які env-моделі = який тир); резолвінг у Model-обʼєкт
- * substrate-у живе окремо в [internal/registry] — цей модуль substrate-free і
- * повністю pure, юніт-тестується без pi.
+ * Каскадне розв'язання тиру ({@link resolveModel}) — задача T5, рішення Е
+ * (ОНОВЛЕНЕ 2026-07-24): канон живе в Rust-крейті `llm_lib::tiers`
+ * (`llm-lib/crates/llm-lib/src/tiers.rs`), тут — тонка napi-делегація
+ * (`internal/native.mjs`), жодного власного каскаду. Інші утиліти модуля
+ * (парсинг spec, класифікація local/cloud, thinkingLevel) не мають
+ * Rust-відповідника — лишаються pure JS, substrate-free.
  *
  * Формат значень env — `"provider/model-id"` (pi-формат), напр.:
  *   N_LOCAL_MIN_MODEL=omlx/gemma-4-e4b-it-OptiQ-4bit
@@ -14,6 +17,7 @@
  */
 
 import { env } from 'node:process'
+import { loadNative } from './internal/native.mjs'
 
 // ── Тири (env-політика) ──────────────────────────────────────────────────────
 
@@ -30,20 +34,29 @@ export const CLOUD_AVG = env.N_CLOUD_AVG_MODEL ?? ''
 /** Максимальний хмарний. Напр.: openai/gpt-5.5 */
 export const CLOUD_MAX = env.N_CLOUD_MAX_MODEL ?? ''
 
+/** Валідні тири — та сама множина, що й `parse_tier` у napi-крейті. */
+const KNOWN_TIERS = new Set(['min', 'avg', 'max'])
+
 /**
- * Каскадне розв'язання абстрактного тиру в `"provider/model-id"`:
+ * Каскадне розв'язання абстрактного тиру в `"provider/model-id"` —
+ * napi-делегація в `llm_lib::resolve_model` (задача T5, рішення Е): та сама
+ * логіка, що й Rust-каскад у `tiers.rs`:
  *   'min' → LOCAL_MIN → LOCAL_AVG → LOCAL_MAX → CLOUD_MIN
  *   'avg' → LOCAL_AVG → LOCAL_MAX → CLOUD_AVG
  *   'max' → LOCAL_MAX → CLOUD_MAX
+ * Тир валідується тут (не в Rust) — щоб зберегти контракт `TypeError` для
+ * невідомого тиру без потреби мапити помилку з napi-боку.
  * @param {'min'|'avg'|'max'} tier тир
+ * @param {{ native?: { resolveModel: (tier: string) => string | null } }} [deps] інжект `native` для тестів
  * @returns {string} `"provider/model-id"` або `''` (дефолт провайдера substrate)
  * @throws {TypeError} якщо tier невідомий
  */
-export function resolveModel(tier) {
-  if (tier === 'min') return LOCAL_MIN || LOCAL_AVG || LOCAL_MAX || CLOUD_MIN
-  if (tier === 'avg') return LOCAL_AVG || LOCAL_MAX || CLOUD_AVG
-  if (tier === 'max') return LOCAL_MAX || CLOUD_MAX
-  throw new TypeError(`resolveModel: unknown tier "${tier}". Use 'min', 'avg', or 'max'.`)
+export function resolveModel(tier, deps = {}) {
+  if (!KNOWN_TIERS.has(tier)) {
+    throw new TypeError(`resolveModel: unknown tier "${tier}". Use 'min', 'avg', or 'max'.`)
+  }
+  const native = deps.native ?? loadNative()
+  return native.resolveModel(tier) ?? ''
 }
 
 // ── Escalation-rung → thinkingLevel ──────────────────────────────────────────

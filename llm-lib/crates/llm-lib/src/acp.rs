@@ -46,8 +46,11 @@ pub enum AcpAgentKind {
 
 impl AcpAgentKind {
     /// Команда спавну для цього агента (базовий argv, без env/extra-args
-    /// префіксів — ті додає [`transport::build_acp_args`]).
-    pub(crate) fn command(self) -> &'static str {
+    /// префіксів — ті додає [`transport::build_acp_args`]). Публічна — потрібна
+    /// napi-мосту (`getAcpPresets`, задача T5) для експорту спавн-команд у JS
+    /// без повторного хардкоду.
+    #[must_use]
+    pub fn command(self) -> &'static str {
         match self {
             AcpAgentKind::Cursor => "agent acp",
             AcpAgentKind::Codex => "npx -y @agentclientprotocol/codex-acp@latest",

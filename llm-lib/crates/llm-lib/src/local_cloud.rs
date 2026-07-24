@@ -94,7 +94,24 @@ impl LocalCloud {
         user: &str,
     ) -> Result<String, LlmError> {
         let spec = resolve_model(tier).ok_or(LlmError::NoModelConfigured(tier))?;
-        let (provider, model_name) = parse_model_spec(&spec).map_err(LlmError::InvalidModelSpec)?;
+        self.one_shot_with_spec(&spec, system, user).await
+    }
+
+    /// Той самий один виклик чату, що й [`Self::one_shot`], але з явним
+    /// `"provider/model-id"` замість тиру (задача T5, napi `oneShotLocalCloud`:
+    /// приймає або тір, або явний model-spec — тут другий шлях, без жодного
+    /// звернення до [`resolve_model`]/env).
+    ///
+    /// # Errors
+    /// [`LlmError::InvalidModelSpec`] якщо `spec` не парситься; [`LlmError::Provider`]
+    /// на помилку самого виклику.
+    pub async fn one_shot_with_spec(
+        &self,
+        spec: &str,
+        system: Option<&str>,
+        user: &str,
+    ) -> Result<String, LlmError> {
+        let (provider, model_name) = parse_model_spec(spec).map_err(LlmError::InvalidModelSpec)?;
 
         let mut req = ChatRequest::default();
         if let Some(sys) = system {
@@ -104,7 +121,7 @@ impl LocalCloud {
 
         let (client, model_for_call): (&Client, &str) =
             if self.local_providers.contains_key(provider) {
-                (&self.local_client, &spec)
+                (&self.local_client, spec)
             } else {
                 // Хмарний провайдер: без префіксу — genai сам розпізнає адаптер
                 // за іменем моделі (AdapterKind::from_model) і власним дефолтним

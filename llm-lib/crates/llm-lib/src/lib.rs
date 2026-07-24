@@ -31,7 +31,7 @@ pub mod local_cloud;
 /// Моделі та рівні (Tiers) для вибору LLM.
 pub mod tiers;
 
-pub use acp::{one_shot_acp, AcpAgentKind};
+pub use acp::{one_shot_acp, one_shot_acp_with_tier, AcpAgentKind};
 pub use local_cloud::LocalCloud;
 pub use tiers::{resolve_model, Tier};
 

@@ -37,6 +37,7 @@
     "./web-tools": "./lib/web-tools.mjs",
     "./model-tiers": "./lib/model-tiers.mjs",
     "./acp": "./lib/acp.mjs",
+    "./local-cloud": "./lib/local-cloud.mjs",
     "./chain": "./lib/chain.mjs",
     "./chains-report": "./lib/chains-report.mjs",
     "./one-shot": "./lib/one-shot.mjs",

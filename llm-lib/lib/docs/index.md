@@ -14,6 +14,7 @@ resource: llm-lib/lib/
 | [chain.mjs](chain.md)                     | JS Module |
 | [chains-report.mjs](chains-report.md)     | JS Module |
 | [harness.mjs](harness.md)                 | JS Module |
+| [local-cloud.mjs](local-cloud.md)         | JS Module |
 | [model-tiers.mjs](model-tiers.md)         | JS Module |
 | [one-shot.mjs](one-shot.md)               | JS Module |
 | [prompt-budget.mjs](prompt-budget.md)     | JS Module |
