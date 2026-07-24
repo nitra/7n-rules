@@ -866,6 +866,120 @@ describe('runFixPipeline — semantic-collateral veto (App.vue case, §12 addend
 })
 
 /**
+ * Worker, що закриває порушення у target.js і — залежно від `mangle` — псує
+ * задокументований workaround у СУСІДНІХ рядках того самого файлу (клас
+ * upsert-order.js: LLM видаляє intentional-код поруч із фіксованим порушенням,
+ * не зачіпаючи жодного детектора й не торкаючись жодного файлу поза target-set —
+ * тому collateral-veto це не ловить, а canonical re-detect бачить лише свій
+ * концерн, тому теж не ловить). Розширення `.js` — навмисне: сестринський
+ * тест-файл шукається лише для файлів з JS/TS/Vue-конвенції (n-test.mdc).
+ * @param {boolean} mangle Чи псувати сусідній рядок (для local-min rung-а).
+ * @returns {import('../../types.mjs').FixWorkerFn} Fix-worker.
+ */
+function makeInFileCollateralWorker(mangle) {
+  return (_v, ctx) => {
+    const target = join(ctx.cwd, 'target.js')
+    ctx.recordWrite(target)
+    writeFileSync(target, mangle ? 'done\n// INTENTIONAL removed by mistake' : 'done\n// INTENTIONAL workaround')
+  }
+}
+
+/**
+ * Detector, що перевіряє лише ПЕРШИЙ рядок `target.js` (решта — навколишні
+ * рядки, які test-gate-фікстура псує/лишає недоторканими незалежно від них).
+ */
+const TARGETED_DETECTOR_FIRST_LINE = [
+  "import { existsSync, readFileSync } from 'node:fs'",
+  "import { join } from 'node:path'",
+  'export function lint(ctx) {',
+  "  const p = join(ctx.cwd, 'target.js')",
+  "  const v = existsSync(p) ? readFileSync(p, 'utf8') : ''",
+  String.raw`  if (v.split('\n')[0] === 'done') return { violations: [] }`,
+  "  return { violations: [{ reason: 'not-done', message: 'target.js=' + (v || 'absent'), file: 'target.js' }] }",
+  '}',
+  ''
+].join('\n')
+
+/**
+ * testRunner-заглушка, що завжди «падає» — використовується лише коли test-gate
+ * НЕ повинен його викликати (fail-open кейс: відсутній сестринський тест-файл).
+ * @returns {{ passed: boolean, output: string }} Завжди провал.
+ */
+const alwaysFailTestRunner = () => ({ passed: false, output: 'мало б не викликатись' })
+
+describe('runFixPipeline — test-gate veto (in-file collateral, upsert-order case)', () => {
+  test('clean-вердикт з провальним сестринським тестом → veto, rollback, ескалація; телеметрія test-gate-veto', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir, TARGETED_DETECTOR_FIRST_LINE)
+      writeFileSync(join(dir, 'target.js'), 'not-done\n// INTENTIONAL workaround')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      writeFileSync(join(dir, 'tests', 'target.test.mjs'), '// probe test file (не виконується — testRunner замокано)')
+
+      const tracePath = join(dir, 'llm-trace.jsonl')
+      const prevTrace = env.N_LLM_TRACE_PATH
+      env.N_LLM_TRACE_PATH = tracePath
+      try {
+        const feedbacks = []
+        const worker = (_v, ctx) => {
+          feedbacks.push(ctx.feedback ?? null)
+          makeInFileCollateralWorker(ctx.tier === 'local-min')(_v, ctx)
+        }
+        // testRunner: провалює лише тест, породжений local-min rung-ом (файл з
+        // "removed by mistake"); cloud-min лишає workaround неторканим → passed.
+        const testRunner = _testFile => {
+          const content = readFileSync(join(dir, 'target.js'), 'utf8')
+          return { passed: !content.includes('removed by mistake'), output: content }
+        }
+        const code = await runFixPipeline({
+          rulesDir,
+          cwd: dir,
+          full: true,
+          log: () => {
+            /* no-op logger */
+          },
+          deps: { ladder: TWO_RUNG, workerFor: () => worker, testRunner }
+        })
+        expect(code).toBe(0)
+        // local-min зламав тест → відкочено; cloud-min закрив порушення без псування.
+        expect(readFileSync(join(dir, 'target.js'), 'utf8')).toBe('done\n// INTENTIONAL workaround')
+        expect(feedbacks[1]?.previousError).toContain('зламала наявний тест')
+        expect(feedbacks[1]?.previousError).toContain('target.test.mjs')
+
+        const traceLines = readFileSync(tracePath, 'utf8')
+          .trim()
+          .split('\n')
+          .map(l => JSON.parse(l))
+        const veto = traceLines.find(r => r.kind === 'test-gate-veto')
+        expect(veto).toMatchObject({ rule: 'probe', rung: 'local-min', cleanDetect: true })
+        expect(veto.brokenFile).toBe('target.js')
+        expect(veto.brokenTestFile).toBe('tests/target.test.mjs')
+      } finally {
+        if (prevTrace === undefined) delete env.N_LLM_TRACE_PATH
+        else env.N_LLM_TRACE_PATH = prevTrace
+      }
+    })
+  })
+
+  test('відсутній сестринський тест-файл → test-gate незастосовний, fail-open', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir, TARGETED_DETECTOR_FIRST_LINE)
+      writeFileSync(join(dir, 'target.js'), 'not-done')
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: { ladder: ONE_RUNG, workerFor: () => makeInFileCollateralWorker(true), testRunner: alwaysFailTestRunner }
+      })
+      expect(code).toBe(0)
+      expect(readFileSync(join(dir, 'target.js'), 'utf8')).toContain('removed by mistake')
+    })
+  })
+})
+
+/**
  * Detector «doc-беклог»: порушення на кожен відсутній docs/{a,b}.md — модель
  * doc-files-worker-а, де кожен файл — самодостатній кінцевий стан (issue #16).
  */
