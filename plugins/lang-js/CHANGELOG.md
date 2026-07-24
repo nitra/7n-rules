@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.1] - 2026-07-24
+
+### Fixed
+
+- lint --full: self-upgrade devDependency відкладено до ПІСЛЯ worktree-ізоляції, не забруднює дерево перед dirty-гейтом
+- js/eslint detector: relative-шлях від oxlint резолвиться проти cwd перед відносним обчисленням — усуває '..'-шлях і DetectorError у --full поза .worktrees/
+
 ## [0.22.0] - 2026-07-24
 
 ### Added
