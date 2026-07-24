@@ -1,5 +1,56 @@
 # Changelog
 
+## [0.12.0] - 2026-07-24
+
+### Added
+
+- coverage-провайдер Rust: cargo llvm-cov (line coverage) + cargo-mutants (мутаційний вимір) за портом CoverageProvider — full і делта-шляхи концерну coverage правила test
+- coverage: fix-hooks generateTests/fixSurvived (runAgentFix) + comment-only ігнор у делті
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header/export JSDoc у конфігах demo
+- doc_comments rollout: header-JSDoc у vitest.config
+
+## [0.11.0] - 2026-07-23
+
+### Added
+
+- coverage-провайдер Rust: cargo llvm-cov (line coverage) + cargo-mutants (мутаційний вимір) за портом CoverageProvider — full і делта-шляхи концерну coverage правила test
+- coverage: fix-hooks generateTests/fixSurvived (runAgentFix) + comment-only ігнор у делті
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header/export JSDoc у конфігах demo
+- doc_comments rollout: header-JSDoc у vitest.config
+
+## [0.10.0] - 2026-07-23
+
+### Added
+
+- coverage-провайдер Rust: cargo llvm-cov (line coverage) + cargo-mutants (мутаційний вимір) за портом CoverageProvider — full і делта-шляхи концерну coverage правила test
+- coverage: fix-hooks generateTests/fixSurvived (runAgentFix) + comment-only ігнор у делті
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header/export JSDoc у конфігах demo
+- doc_comments rollout: header-JSDoc у vitest.config
+
+## [0.9.0] - 2026-07-23
+
+### Added
+
+- coverage-провайдер Rust: cargo llvm-cov (line coverage) + cargo-mutants (мутаційний вимір) за портом CoverageProvider — full і делта-шляхи концерну coverage правила test
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header/export JSDoc у конфігах demo
+- doc_comments rollout: header-JSDoc у vitest.config
+
 ## [0.8.1] - 2026-07-22
 
 ### Changed

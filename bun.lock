@@ -21,7 +21,7 @@
     },
     "demo": {
       "name": "demo",
-      "version": "0.0.15",
+      "version": "0.0.20",
       "dependencies": {
         "vue": "^3.5.38",
       },
@@ -36,7 +36,7 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.8.3",
+      "version": "2.8.8",
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
       },
@@ -59,7 +59,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.43.1",
+      "version": "1.48.1",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
@@ -89,7 +89,7 @@
     },
     "plugins/ci-azure": {
       "name": "@7n/rules-ci-azure",
-      "version": "1.4.3",
+      "version": "1.4.8",
       "dependencies": {
         "yaml": "^2.9.0",
       },
@@ -99,7 +99,7 @@
     },
     "plugins/ci-github": {
       "name": "@7n/rules-ci-github",
-      "version": "1.9.1",
+      "version": "1.9.6",
       "dependencies": {
         "yaml": "^2.9.0",
       },
@@ -109,7 +109,7 @@
     },
     "plugins/lang-js": {
       "name": "@7n/rules-lang-js",
-      "version": "0.17.0",
+      "version": "0.22.1",
       "dependencies": {
         "eslint": "^10.4.1",
         "globby": "^16.0.0",
@@ -131,25 +131,33 @@
     },
     "plugins/lang-python": {
       "name": "@7n/rules-lang-python",
-      "version": "0.7.0",
+      "version": "0.10.0",
       "dependencies": {
         "globby": "^16.0.0",
         "smol-toml": "^1.7.0",
       },
       "peerDependencies": {
+        "@7n/llm-lib": "*",
         "@7n/rules": ">=1.13.0",
       },
+      "optionalPeers": [
+        "@7n/llm-lib",
+      ],
     },
     "plugins/lang-rust": {
       "name": "@7n/rules-lang-rust",
-      "version": "0.8.0",
+      "version": "0.12.0",
       "dependencies": {
         "globby": "^16.0.0",
         "smol-toml": "^1.7.0",
       },
       "peerDependencies": {
+        "@7n/llm-lib": "*",
         "@7n/rules": ">=1.15.0",
       },
+      "optionalPeers": [
+        "@7n/llm-lib",
+      ],
     },
   },
   "packages": {

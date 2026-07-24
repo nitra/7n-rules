@@ -1,5 +1,75 @@
 # Changelog
 
+## [0.22.1] - 2026-07-24
+
+### Fixed
+
+- lint --full: self-upgrade devDependency відкладено до ПІСЛЯ worktree-ізоляції, не забруднює дерево перед dirty-гейтом
+- js/eslint detector: relative-шлях від oxlint резолвиться проти cwd перед відносним обчисленням — усуває '..'-шлях і DetectorError у --full поза .worktrees/
+
+## [0.22.0] - 2026-07-24
+
+### Added
+
+- coverage-провайдер (порт js-collector з @7n/test): vitest+Stryker+Storybook колектор, per-file делта-вимір, quickClassify (spec 2026-07-22 absorb-7n-test)
+- coverage: делта-гейт пропускає comment-only зміни (AST-порівняння oxc)
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header/export JSDoc у конфігах demo
+- doc_comments rollout: header-JSDoc у vitest.config
+
+## [0.21.0] - 2026-07-23
+
+### Added
+
+- coverage-провайдер (порт js-collector з @7n/test): vitest+Stryker+Storybook колектор, per-file делта-вимір, quickClassify (spec 2026-07-22 absorb-7n-test)
+- coverage: делта-гейт пропускає comment-only зміни (AST-порівняння oxc)
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header/export JSDoc у конфігах demo
+- doc_comments rollout: header-JSDoc у vitest.config
+
+## [0.20.0] - 2026-07-23
+
+### Added
+
+- coverage-провайдер (порт js-collector з @7n/test): vitest+Stryker+Storybook колектор, per-file делта-вимір, quickClassify (spec 2026-07-22 absorb-7n-test)
+- coverage: делта-гейт пропускає comment-only зміни (AST-порівняння oxc)
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header/export JSDoc у конфігах demo
+- doc_comments rollout: header-JSDoc у vitest.config
+
+## [0.19.0] - 2026-07-23
+
+### Added
+
+- coverage-провайдер (порт js-collector з @7n/test): vitest+Stryker+Storybook колектор, per-file делта-вимір, quickClassify (spec 2026-07-22 absorb-7n-test)
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header/export JSDoc у конфігах demo
+- doc_comments rollout: header-JSDoc у vitest.config
+
 ## [0.18.0] - 2026-07-22
 
 ### Added

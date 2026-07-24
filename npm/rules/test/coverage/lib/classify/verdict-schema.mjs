@@ -16,6 +16,7 @@ import { z } from 'zod'
 const REASON_SOFT_MAX = 500
 const SUGGESTED_TEST_SOFT_MAX = 300
 
+/** Zod-схема verdict-обʼєкта класифікатора (verdict/confidence/reason/suggestedTest). */
 export const VerdictSchema = z.object({
   verdict: z.enum(['worth-testing', 'equivalent', 'defensive', 'glue', 'wrapper']),
   confidence: z.number().min(0).max(1),

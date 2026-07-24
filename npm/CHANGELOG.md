@@ -1,5 +1,87 @@
 # Changelog
 
+## [1.48.2] - 2026-07-24
+
+### Fixed
+
+- n-rules.js CLI dispatch guarded behind isRunAsCli — testable без сайд-ефектів на import
+
+## [1.48.1] - 2026-07-24
+
+### Fixed
+
+- lint --full: self-upgrade devDependency відкладено до ПІСЛЯ worktree-ізоляції, не забруднює дерево перед dirty-гейтом
+- js/eslint detector: relative-шлях від oxlint резолвиться проти cwd перед відносним обчисленням — усуває '..'-шлях і DetectorError у --full поза .worktrees/
+
+## [1.48.0] - 2026-07-24
+
+### Added
+
+- концерн coverage правила test: гейт покриття/мутаційки як lint-детектор (--no-fix = CI-гейт), CoverageProvider порт у plugin-api (spec 2026-07-22 absorb-7n-test)
+- coverage: спільні lib manifest-roots/lcov, подовжений full-таймаут для мутаційного тестування (×4), пілот classify (0.7) у цьому репо
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header/export JSDoc у конфігах demo
+- doc_comments rollout: header-JSDoc у vitest.config
+
+## [1.47.1] - 2026-07-23
+
+### Fixed
+
+- doc-files: явна діагностика замість тихого 0 кандидатів, коли задекларований плагін (.n-rules.json) не встановлений у node_modules
+
+## [1.47.0] - 2026-07-23
+
+### Added
+
+- концерн coverage правила test: гейт покриття/мутаційки як lint-детектор (--no-fix = CI-гейт), CoverageProvider порт у plugin-api (spec 2026-07-22 absorb-7n-test)
+- coverage: спільні lib manifest-roots/lcov, подовжений full-таймаут для мутаційного тестування (×4), пілот classify (0.7) у цьому репо
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header/export JSDoc у конфігах demo
+- doc_comments rollout: header-JSDoc у vitest.config
+
+## [1.46.0] - 2026-07-23
+
+### Added
+
+- концерн coverage правила test: гейт покриття/мутаційки як lint-детектор (--no-fix = CI-гейт), CoverageProvider порт у plugin-api (spec 2026-07-22 absorb-7n-test)
+- coverage: спільні lib manifest-roots/lcov, подовжений full-таймаут для мутаційного тестування (×4), пілот classify (0.7) у цьому репо
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header/export JSDoc у конфігах demo
+- doc_comments rollout: header-JSDoc у vitest.config
+
+## [1.45.0] - 2026-07-23
+
+### Added
+
+- концерн coverage правила test: гейт покриття/мутаційки як lint-детектор (--no-fix = CI-гейт), CoverageProvider порт у plugin-api (spec 2026-07-22 absorb-7n-test)
+
+### Changed
+
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header-JSDoc у vitest.config (T0 promote)
+- doc_comments rollout: header/export JSDoc у конфігах demo
+- doc_comments rollout: header-JSDoc у vitest.config
+
 ## [1.44.1] - 2026-07-23
 
 ### Changed

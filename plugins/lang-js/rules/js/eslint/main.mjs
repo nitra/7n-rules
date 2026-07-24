@@ -40,11 +40,16 @@ async function runOxlintJson(args, cwd) {
  * @param {'error'|'warn'} severity рівень порушення
  * @returns {import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintViolation} нормалізоване порушення
  */
-function toViolation(f, cwd, severity) {
+export function toViolation(f, cwd, severity) {
+  // oxlint (на відміну від eslint programmatic API) віддає ВІДНОСНІ filePath
+  // (`--format=json`, `cwd: ctx.cwd`). `relative()` резолвить відносний другий
+  // аргумент проти `process.cwd()`, не проти `cwd` — після auto-created worktree
+  // (`n-rules.js` не робить chdir) це давало `..`-шлях і валило DetectorError
+  // (spec 260724). resolve(cwd, f.file) прибиває неоднозначність до relative().
   return /** @type {import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintViolation} */ ({
     reason: f.rule || `${f.tool}-error`,
     message: `${f.message} (${f.tool})`,
-    file: relative(cwd, f.file).split('\\').join('/'),
+    file: relative(cwd, resolve(cwd, f.file)).split('\\').join('/'),
     severity,
     data: { line: f.line, tool: f.tool }
   })

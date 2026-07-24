@@ -129,16 +129,16 @@ jobs:
       - name: Publish @7n/llm-lib-darwin-arm64
         id: publish-llm-lib-darwin-arm64
         continue-on-error: true
-        uses: JS-DevTools/npm-publish@v4.1.5
+        uses: ./.github/actions/publish-npm-package
         with:
-          package: llm-lib/packages/llm-lib-darwin-arm64/package.json
+          package-json-path: llm-lib/packages/llm-lib-darwin-arm64/package.json
 
       - name: Publish @7n/llm-lib-linux-x64
         id: publish-llm-lib-linux-x64
         continue-on-error: true
-        uses: JS-DevTools/npm-publish@v4.1.5
+        uses: ./.github/actions/publish-npm-package
         with:
-          package: llm-lib/packages/llm-lib-linux-x64/package.json
+          package-json-path: llm-lib/packages/llm-lib-linux-x64/package.json
 
       # llm-lib публікується ПЕРШИМ серед JS-пакетів: @7n/rules залежить від @7n/llm-lib,
       # тож інсталяція свіжого @7n/rules мусить знаходити пакет у registry.
@@ -146,9 +146,9 @@ jobs:
       - name: Publish @7n/llm-lib
         id: publish-llm-lib
         continue-on-error: true
-        uses: JS-DevTools/npm-publish@v4.1.5
+        uses: ./.github/actions/publish-npm-package
         with:
-          package: llm-lib/package.json
+          package-json-path: llm-lib/package.json
 
       - name: Publish package
         id: publish-cursor
@@ -162,44 +162,65 @@ jobs:
       - name: Publish @7n/rules-ci-github
         id: publish-ci-github
         continue-on-error: true
-        uses: JS-DevTools/npm-publish@v4.1.5
+        uses: ./.github/actions/publish-npm-package
         with:
-          package: plugins/ci-github/package.json
+          package-json-path: plugins/ci-github/package.json
 
       - name: Publish @7n/rules-ci-azure
         id: publish-ci-azure
         continue-on-error: true
-        uses: JS-DevTools/npm-publish@v4.1.5
+        uses: ./.github/actions/publish-npm-package
         with:
-          package: plugins/ci-azure/package.json
+          package-json-path: plugins/ci-azure/package.json
 
       - name: Publish @7n/rules-lang-python
         id: publish-lang-python
         continue-on-error: true
-        uses: JS-DevTools/npm-publish@v4.1.5
+        uses: ./.github/actions/publish-npm-package
         with:
-          package: plugins/lang-python/package.json
+          package-json-path: plugins/lang-python/package.json
 
       - name: Publish @7n/rules-lang-rust
         id: publish-lang-rust
         continue-on-error: true
-        uses: JS-DevTools/npm-publish@v4.1.5
+        uses: ./.github/actions/publish-npm-package
         with:
-          package: plugins/lang-rust/package.json
+          package-json-path: plugins/lang-rust/package.json
 
       - name: Publish @7n/rules-lang-js
         id: publish-lang-js
         continue-on-error: true
-        uses: JS-DevTools/npm-publish@v4.1.5
+        uses: ./.github/actions/publish-npm-package
         with:
-          package: plugins/lang-js/package.json
+          package-json-path: plugins/lang-js/package.json
+
+      # Агрегує outcome усіх publish-кроків через steps-контекст (JSON), а не переліком
+      # id вручну — новий пакет (крок з id, що починається на "publish-") автоматично
+      # враховується тут і в push/fail-gate нижче, без правок цієї умови.
+      - name: Collect publish outcomes
+        id: collect-publish-outcomes
+        if: always()
+        env:
+          STEPS_JSON: ${{ toJSON(steps) }}
+        run: |
+          node -e "
+            var steps = JSON.parse(process.env.STEPS_JSON);
+            var entries = Object.entries(steps).filter(function (e) { return e[0].indexOf('publish-') === 0; });
+            var failed = entries.filter(function (e) { return e[1].outcome === 'failure'; }).map(function (e) { return e[0]; });
+            var succeeded = entries.filter(function (e) { return e[1].outcome === 'success'; }).map(function (e) { return e[0]; });
+            var summary = entries.map(function (e) { return e[0] + '=' + e[1].outcome; }).join(', ');
+            var fs = require('node:fs');
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'any-success=' + (succeeded.length > 0) + '\n');
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'any-failure=' + (failed.length > 0) + '\n');
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'summary=' + summary + '\n');
+          "
 
       - name: Push release-коміт + теги (лише якщо бодай один publish пройшов)
-        if: steps.publish-llm-lib-darwin-arm64.outcome == 'success' || steps.publish-llm-lib-linux-x64.outcome == 'success' || steps.publish-llm-lib.outcome == 'success' || steps.publish-cursor.outcome == 'success' || steps.publish-ci-github.outcome == 'success' || steps.publish-ci-azure.outcome == 'success' || steps.publish-lang-python.outcome == 'success' || steps.publish-lang-rust.outcome == 'success' || steps.publish-lang-js.outcome == 'success'
+        if: steps.collect-publish-outcomes.outputs.any-success == 'true'
         run: git push --follow-tags
 
       - name: Fail job, якщо публікація хоч одного пакета впала
-        if: steps.publish-llm-lib-darwin-arm64.outcome == 'failure' || steps.publish-llm-lib-linux-x64.outcome == 'failure' || steps.publish-llm-lib.outcome == 'failure' || steps.publish-cursor.outcome == 'failure' || steps.publish-ci-github.outcome == 'failure' || steps.publish-ci-azure.outcome == 'failure' || steps.publish-lang-python.outcome == 'failure' || steps.publish-lang-rust.outcome == 'failure' || steps.publish-lang-js.outcome == 'failure'
+        if: steps.collect-publish-outcomes.outputs.any-failure == 'true'
         run: |
-          echo "::error::npm publish не пройшов — llm-lib-darwin-arm64=${{ steps.publish-llm-lib-darwin-arm64.outcome }}, llm-lib-linux-x64=${{ steps.publish-llm-lib-linux-x64.outcome }}, llm-lib=${{ steps.publish-llm-lib.outcome }}, cursor=${{ steps.publish-cursor.outcome }}, ci-github=${{ steps.publish-ci-github.outcome }}, ci-azure=${{ steps.publish-ci-azure.outcome }}, lang-python=${{ steps.publish-lang-python.outcome }}, lang-rust=${{ steps.publish-lang-rust.outcome }}, lang-js=${{ steps.publish-lang-js.outcome }}"
+          echo "::error::npm publish не пройшов — ${{ steps.collect-publish-outcomes.outputs.summary }}"
           exit 1

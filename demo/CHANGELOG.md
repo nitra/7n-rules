@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.0.20] - 2026-07-24
+
+### Changed
+
+- doc_comments rollout: header/export JSDoc у конфігах demo
+
+## [0.0.19] - 2026-07-23
+
+### Changed
+
+- doc_comments rollout: header/export JSDoc у конфігах demo
+
+## [0.0.18] - 2026-07-23
+
+### Changed
+
+- doc_comments rollout: header/export JSDoc у конфігах demo
+
+## [0.0.17] - 2026-07-23
+
+### Changed
+
+- doc_comments rollout: header/export JSDoc у конфігах demo
+
 ## [0.0.16] - 2026-07-22
 
 ### Changed
