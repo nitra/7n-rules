@@ -5,6 +5,7 @@ import { join, dirname, basename, extname } from 'node:path'
 import { existsSync, readdirSync } from 'node:fs'
 
 import { describeFile, isDocCandidate, isSourceFile, scanForDocFiles, scanOrphanedDocs } from '../docgen-scan/main.mjs'
+import { unavailableDocFilesPlugins } from '../docgen-scan/lang-extensions.mjs'
 
 const DOC_MD_RE = /(?:^|\/)docs\/[^/]+\.md$/u
 
@@ -95,5 +96,11 @@ export function lint(ctx) {
     )
   }
 
-  return { violations }
+  const unavailable = unavailableDocFilesPlugins(cwd)
+  if (unavailable.length === 0) return { violations }
+
+  const word = unavailable.length > 1 ? 'плагіни' : 'плагін'
+  const verb = unavailable.length > 1 ? 'не встановлені' : 'не встановлений'
+  const message = `doc-files: 0 кандидатів через недоступні плагіни — ${word} ${unavailable.join(', ')} ${verb} у node_modules — запусти bun install`
+  return { violations, diagnostics: [{ level: 'warn', message }] }
 }
