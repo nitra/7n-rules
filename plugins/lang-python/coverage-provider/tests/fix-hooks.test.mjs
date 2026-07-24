@@ -3,7 +3,7 @@ import { describe, expect, test, vi } from 'vitest'
 vi.mock('@7n/llm-lib/agent-fix', () => ({
   runAgentFix: vi.fn(() => Promise.resolve({ touchedFiles: ['/p/tests/test_calc.py'] }))
 }))
-vi.mock('@7n/llm-lib/model-tiers', () => ({ CLOUD_MAX: 'cloud/max' }))
+vi.mock('@7n/llm-lib/model-tiers', () => ({ CLOUD_MAX: 'cloud/max', CLOUD_AVG: 'cloud/avg' }))
 
 const { generatePythonTests, fixPythonSurvived, buildGenTestsPrompt, buildFixSurvivedPrompt } =
   await import('../fix-hooks.mjs')

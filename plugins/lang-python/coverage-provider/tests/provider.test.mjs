@@ -66,6 +66,17 @@ describe('parseMutmutResults', () => {
   test('порожній вивід → нулі', () => {
     expect(parseMutmutResults('')).toEqual({ caught: 0, total: 0, survivedNames: [] })
   })
+
+  test('ігнорує рядки results з текстом перед відступом або хвостовою двокрапкою', () => {
+    const r = parseMutmutResults(
+      [
+        'x    demo.calc.bad_prefix__mutmut_1: survived',
+        '    demo.calc.bad_suffix__mutmut_1: survived: примітка',
+        '    demo.calc.good__mutmut_1: survived'
+      ].join('\n')
+    )
+    expect(r).toEqual({ caught: 0, total: 1, survivedNames: ['demo.calc.good__mutmut_1'] })
+  })
 })
 
 describe('parseMutantShow', () => {
@@ -80,6 +91,104 @@ describe('parseMutantShow', () => {
 
   test('вивід без diff-а → null', () => {
     expect(parseMutantShow('# name: survived\n')).toBeNull()
+  })
+
+  test('приймає hunk без діапазонів і з контекстом після завершального @@', () => {
+    const show = [
+      '# name: survived',
+      '',
+      '--- src/demo/calc.py',
+      '+++ src/demo/calc.py',
+      '@@ -10 +12 @@ def add',
+      ' def add(a, b):',
+      '-    return a + b',
+      '+    return a - b'
+    ].join('\n')
+    expect(parseMutantShow(show)).toEqual({
+      file: 'src/demo/calc.py',
+      line: 11,
+      original: 'return a + b',
+      replacement: 'return a - b'
+    })
+  })
+
+  test('відкидає hunk, якщо перед @@ є текст, бракує маркера або номера рядка', () => {
+    const prefixed = [
+      '# name: survived',
+      '',
+      '--- src/demo/calc.py',
+      '+++ src/demo/calc.py',
+      'x @@ -10,7 +10,7 @@',
+      '-    return a + b',
+      '+    return a - b'
+    ].join('\n')
+    const missingTail = [
+      '# name: survived',
+      '',
+      '--- src/demo/calc.py',
+      '+++ src/demo/calc.py',
+      '@@ -10,7 +10,7',
+      '-    return a + b',
+      '+    return a - b'
+    ].join('\n')
+    const missingOldStart = [
+      '# name: survived',
+      '',
+      '--- src/demo/calc.py',
+      '+++ src/demo/calc.py',
+      '@@ -,7 +10,7 @@',
+      '-    return a + b',
+      '+    return a - b'
+    ].join('\n')
+    const missingNewStart = [
+      '# name: survived',
+      '',
+      '--- src/demo/calc.py',
+      '+++ src/demo/calc.py',
+      '@@ -10,7 +,7 @@',
+      '-    return a + b',
+      '+    return a - b'
+    ].join('\n')
+    expect(parseMutantShow(prefixed)).toBeNull()
+    expect(parseMutantShow(missingTail)).toBeNull()
+    expect(parseMutantShow(missingOldStart)).toBeNull()
+    expect(parseMutantShow(missingNewStart)).toBeNull()
+  })
+
+  test('відкидає diff source з префіксом перед --- або порожнім шляхом', () => {
+    const prefixedSource = [
+      '# name: survived',
+      '',
+      'x --- src/demo/calc.py',
+      '+++ src/demo/calc.py',
+      '@@ -10,7 +10,7 @@',
+      '-    return a + b',
+      '+    return a - b'
+    ].join('\n')
+    const emptySource = [
+      '# name: survived',
+      '',
+      '--- ',
+      '+++ src/demo/calc.py',
+      '@@ -10,7 +10,7 @@',
+      '-    return a + b',
+      '+    return a - b'
+    ].join('\n')
+    expect(parseMutantShow(prefixedSource)).toBeNull()
+    expect(parseMutantShow(emptySource)).toBeNull()
+  })
+
+  test('бере шлях diff source до службового хвоста', () => {
+    const show = [
+      '# name: survived',
+      '',
+      '--- src/demo/calc.py\t2026-07-23',
+      '+++ src/demo/calc.py',
+      '@@ -4,7 +4,7 @@',
+      '-    return a + b',
+      '+    return a - b'
+    ].join('\n')
+    expect(parseMutantShow(show)?.file).toBe('src/demo/calc.py')
   })
 })
 

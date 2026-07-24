@@ -3,7 +3,7 @@ type: JS Module
 title: fix-hooks.mjs
 resource: plugins/lang-rust/coverage-provider/fix-hooks.mjs
 docgen:
-  crc: 993aebed
+  crc: ed03c517
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100
@@ -12,15 +12,15 @@ docgen:
 
 ## Огляд
 
-Публічні функції `buildGenTestsPrompt`, `buildFixSurvivedPrompt`, `generateRustTests` і `fixRustSurvived` задають дві агентні fix-сесії для Rust coverage: генерацію `#[cfg(test)]`-тестів для файлів нижче порогу покриття через `generateTests` і добір тестів, що вбивають survived-мутанти cargo-mutants через `fixSurvived`. Обидва шляхи працюють через спільний ladder-контракт `@7n/llm-lib/agent-fix`, де `ctx.recordWrite` проходить через write-guard агента, `ctx.timeoutMs` прокидається сесії, а конвергенцію забезпечують повторні rung-и ядра без власних retry-циклів. `@7n/llm-lib` — dependency ядра `@7n/rules`, не плагіна: динамічні import-и — канонічний патерн fix-worker-ів.
+Файл задає опційні fix-сесії для Rust coverage-шляху: `generateTests` добирає `#[cfg(test)] mod tests` для файлів нижче порогу покриття, а `fixSurvived` — тести, що мають убивати survived-мутанти `cargo-mutants`. Публічні входи `buildGenTestsPrompt`, `buildFixSurvivedPrompt`, `generateRustTests`, `fixRustSurvived` працюють через спільний `runAgentFix` у `@7n/llm-lib/agent-fix`, який є dependency ядра `@7n/rules`, а не плагіна. Контракт запису той самий, що в JS-хуків: `ctx.recordWrite` проходить через write-guard агента, `ctx.timeoutMs` прокидається сесії, а конвергенцію забезпечує ladder ядра повторними rung-ами без власних retry-циклів.
 
 ## Поведінка
 
-buildGenTestsPrompt і buildFixSurvivedPrompt формують текст завдання для агентної fix-сесії: перший збирає перелік Rust-файлів, що не добрали поріг line coverage, другий — групи survived-мутантів cargo-mutants по файлах і рядках. Обидва тексти задають однаковий контракт поведінки для наступного кроку: працювати лише з test-кодом у `#[cfg(test)]`, не чіпати production-код і підтвердити зелений `cargo test`.
+buildGenTestsPrompt і buildFixSurvivedPrompt формують окремі агентні промпти для двох coverage-шляхів: перший для заповнення `#[cfg(test)] mod tests` у Rust-файлах нижче порогу покриття, другий — для тестів, що мають зупиняти survived-мутанти cargo-mutants. Обидва тексти збирають лише контекст проблемних файлів і жорстко задають межі роботи: змінювати треба тільки тести, а перевірка результату очікується через `cargo test`.
 
-generateRustTests і fixRustSurvived запускають спільний агентний шлях виконання через runAgentFix з однаковими ladder-правилами для записів і таймауту. Дані для них надходять як Rust-цілі, а далі ті самі цілі передаються в write-guard як перелік target files, результатом стає список фактично змінених файлів. Якщо вхід не містить Rust-цілей, обидва шляхи завершуються без дій і повертають порожній результат.
+generateRustTests і fixRustSurvived є вхідними воротами для відповідних hook-ів. Вони відсікають не-Rust цілі, щоб не запускати агентну сесію без потреби, далі передають зібраний промпт, корінь проєкту, ladder-стан і список цільових файлів у спільний запуск через runAgentFix. Результат повертається як фактично змінені файли; помилка сесії не ламає потік, а лише фіксується в логах і завершується порожнім набором змін.
 
-Обидва робочі потоки не ведуть власного retry-циклу: конвергенцію забезпечує ladder ядра через повторні rung-и. За помилки сесії може бути повернуто порожній або частковий перелік touchedFiles, а повідомлення про збій лишається в консолі.
+Спільний для обох шляхів контракт — покладатися на ladder ядра для повторних спроб і конвергенції, а також прокидати write-guard, timeout і feedback без власної retry-логіки в цьому файлі. Дані сюди приходять уже як добірка файлів або survived-груп, а виходять як список touchedFiles для подальших кроків пайплайна.
 
 ## Публічний API
 
