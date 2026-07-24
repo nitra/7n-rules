@@ -26,7 +26,8 @@ import { buildDetectPlan } from './run-detectors.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
 import { renderViolations } from './render.mjs'
 import { createSnapshot } from './snapshot.mjs'
-import { findCollateralEdits, realpathBestEffort } from './collateral-veto.mjs'
+import { findCollateralEdits, realpathBestEffort, resolveTargetSet } from './collateral-veto.mjs'
+import { findBrokenSiblingTests } from './test-gate.mjs'
 import { createProgressReporter } from './progress.mjs'
 import { buildLadder, decideAfterFailure, DEFAULT_MAX_AVG } from './ladder.mjs'
 
@@ -187,10 +188,12 @@ async function runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log, 
  * @param {(s: string) => void} rungDeps.log Логер.
  * @param {import('./progress.mjs').ProgressReporter|null} [rungDeps.progress] Reporter прогресу.
  * @param {boolean} [rungDeps.verbose] Детальний вивід (прокидається у ctx concern-а).
+ * @param {typeof import('./test-gate.mjs').runTestFile} [rungDeps.testRunner] Override
+ *   test-runner-а для test-gate (інжект для тестів).
  * @returns {Promise<{ closed: true, touchedFiles: string[] } | { closed: false, outcome: RungOutcome }>} closed=true якщо concern закрито (touchedFiles — зміни worker-а); інакше результат для наступного кроку.
  */
 async function runRung(rung, worker, violations, feedback, rungDeps) {
-  const { item, cwd, snapshot, log, progress = null, verbose = false, chain = null } = rungDeps
+  const { item, cwd, snapshot, log, progress = null, verbose = false, chain = null, testRunner } = rungDeps
   const { ruleId } = item.entry
   const concernName = item.entry.concern.name
   progress?.concernStart(progressKey(item), rung.tier)
@@ -276,7 +279,44 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
       cleanDetect: after.length === 0
     })
   }
-  const vetoed = after.length === 0 && !error && collateral.length > 0
+
+  // Test-gate (addendum 2026-07-24): collateral-veto вище ловить лише правки ПОЗА
+  // target-set. Правки ВСЕРЕДИНІ вже-таргетованого файлу (напр. видалення
+  // задокументованого workaround поряд із фіксованим порушенням) не зачіпають
+  // жодного детектора й не потрапляють у collateral — але можуть зламати наявний
+  // проєктний тест. Скоуп — лише наявні файли ВСЕРЕДИНІ target-set, реально змінені
+  // цим rung-ом (не колатеральні — ті вже відхилені вище); fail-open (findBrokenSiblingTests
+  // сама fail-open на відсутність test-runner-а/таймаут/відсутність сестринського тесту).
+  let brokenTest = null
+  if (after.length === 0 && !error && collateral.length === 0) {
+    const targets = resolveTargetSet(targetFiles, cwd)
+    const modifiedInTarget = snapshot
+      .modifiedExisting()
+      .map(p => realpathBestEffort(p))
+      .filter(abs => targets.has(abs))
+    // `runTest: testRunner` — default-параметр findBrokenSiblingTests спрацьовує
+    // саме на `undefined`, тож відсутній override прозоро падає назад на runTestFile.
+    if (modifiedInTarget.length > 0) {
+      brokenTest = findBrokenSiblingTests({ files: modifiedInTarget, cwd, runTest: testRunner })
+    }
+    if (brokenTest) {
+      writeTrace({
+        caller: `fix:${ruleId}/${concernName}:${rung.tier}`,
+        backend: 'pi-ai',
+        kind: 'test-gate-veto',
+        rule: ruleId,
+        rung: rung.tier,
+        model: rung.model,
+        cwd,
+        brokenFile: relative(realpathBestEffort(cwd), brokenTest.file),
+        brokenTestFile: relative(realpathBestEffort(cwd), brokenTest.testFile),
+        targetFiles,
+        cleanDetect: true
+      })
+    }
+  }
+
+  const vetoed = after.length === 0 && !error && (collateral.length > 0 || brokenTest !== null)
   const touchedFiles = workerResult?.touchedFiles ?? []
 
   if (after.length === 0 && !error && !vetoed) {
@@ -303,7 +343,11 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
 
   let errorSuffix = ' ❌ досі порушено'
   if (error) errorSuffix = ` ❌ ${error.slice(0, 120)}`
-  else if (vetoed) errorSuffix = ` 🚫 collateral-veto: ${rejectedRel.join(', ')}`
+  else if (collateral.length > 0) errorSuffix = ` 🚫 collateral-veto: ${rejectedRel.join(', ')}`
+  else if (brokenTest) {
+    const brokenTestRel = relative(realpathBestEffort(cwd), brokenTest.testFile)
+    errorSuffix = ` 🚫 test-gate-veto: ${brokenTestRel}`
+  }
   log(`  ⚡ ${rung.tier} (${rung.model}): ${ruleId}/${concernName}${errorSuffix}\n`)
 
   // Не clean → restore S1 перед наступним rung-ом (degraded не тече далі).
@@ -316,11 +360,18 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
   // наступний rung стартує без жодного знання про попередню спробу (buildFixPrompt
   // додає `## Попередня спроба` лише коли previousError truthy).
   let silentFailureNote
-  if (vetoed) {
+  if (collateral.length > 0) {
     silentFailureNote =
       `Попередня спроба (${rung.model}) закрила порушення, але змінила наявні файли поза ` +
       `target-set (${rejectedRel.join(', ')}) — усі правки відхилено. ` +
       `Редагуй ЛИШЕ файли порушення: ${targetFiles.join(', ')}.`
+  } else if (brokenTest) {
+    const brokenFileRel = relative(realpathBestEffort(cwd), brokenTest.file)
+    const brokenTestRel = relative(realpathBestEffort(cwd), brokenTest.testFile)
+    silentFailureNote =
+      `Попередня спроба (${rung.model}) закрила порушення, але зламала наявний тест ` +
+      `${brokenTestRel} (файл ${brokenFileRel}) — усі правки відхилено. ` +
+      'Виправ ЛИШЕ саме порушення, не чіпай навколишню логіку/коментарі-попередження.'
   } else if (touchedFiles.length === 0) {
     silentFailureNote = `Попередня спроба (${rung.model}) не внесла жодної зміни у файли; порушення досі активне.`
   } else {
@@ -374,6 +425,8 @@ function summarizeProblem(violations) {
  * @param {import('./progress.mjs').ProgressReporter|null} [deps.progress] Reporter прогресу.
  * @param {boolean} [deps.verbose] Детальний вивід (прокидається у ctx concern-а).
  * @param {typeof startChain} [deps.chainFactory] Фабрика ланцюжка (інжект для тестів).
+ * @param {typeof import('./test-gate.mjs').runTestFile} [deps.testRunner] Override
+ *   test-runner-а для test-gate (інжект для тестів цього модуля).
  * @returns {Promise<boolean>} Чи закрито concern (усі порушення усунено).
  */
 export async function fixConcern(item, initialViolations, deps) {
@@ -520,7 +573,8 @@ async function fixConcernCore(item, initialViolations, deps, chain, chainExtra, 
       log,
       progress,
       verbose,
-      chain
+      chain,
+      testRunner: deps.testRunner
     })
     if (rung.isAvg) deps.spendAvg(1)
     chainExtra.rungs.push({
@@ -635,7 +689,7 @@ async function materializeTailToMt(remaining, cwd, log) {
  * @param {(s: string) => void} [opts.log] Логер виводу.
  * @param {boolean} [opts.isTTY] Override TTY-режиму ProgressReporter (тести); типово isTTY stdout.
  * @param {(snap: object) => void} [opts.onProgress] Публікація знімків прогресу назовні (черга lint --full).
- * @param {object} [opts.deps] Інжекти для тестів: { ladder, workerFor, t0For, chainFactory }.
+ * @param {object} [opts.deps] Інжекти для тестів: { ladder, workerFor, t0For, chainFactory, testRunner }.
  * @returns {Promise<0|1|2>} Exit code: 0 — чисто, 1 — лишились порушення, 2 — DetectorError.
  */
 export async function runFixPipeline(opts) {
@@ -709,7 +763,8 @@ export async function runFixPipeline(opts) {
         },
         workerOverride: deps.workerFor ? deps.workerFor(item.entry) : undefined,
         t0Override: patternsByItem.get(item),
-        chainFactory: deps.chainFactory
+        chainFactory: deps.chainFactory,
+        testRunner: deps.testRunner
       })
 
     let worst = 0

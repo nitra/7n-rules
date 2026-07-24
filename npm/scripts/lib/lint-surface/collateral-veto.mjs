@@ -38,6 +38,18 @@ export function realpathBestEffort(p) {
 }
 
 /**
+ * Нормалізує target-set порушення у множину realpath-абсолютних шляхів — спільна
+ * основа і для collateral-veto (файли ПОЗА target-set), і для test-gate
+ * (файли ВСЕРЕДИНІ target-set, для яких перевіряються сестринські тести).
+ * @param {string[]} targetFiles Файли порушення, відносні до cwd або абсолютні.
+ * @param {string} cwd Робоча директорія для резолву відносних шляхів.
+ * @returns {Set<string>} Нормалізовані абсолютні шляхи target-set (може бути порожньою).
+ */
+export function resolveTargetSet(targetFiles, cwd) {
+  return new Set(targetFiles.map(f => realpathBestEffort(isAbsolute(f) ? f : resolve(cwd, f))))
+}
+
+/**
  * Обчислює collateral-правки rung-а: наявні (на момент S1) файли, змінені поза
  * target-set порушення. Runner на непорожньому результаті відхиляє clean-вердикт
  * rung-а (rollback + feedback + телеметрія `kind:"collateral-veto"`).
@@ -49,7 +61,7 @@ export function realpathBestEffort(p) {
  *   veto не спрацював (нема collateral або target-set невідомий)
  */
 export function findCollateralEdits({ modifiedExisting, targetFiles, cwd }) {
-  const targets = new Set(targetFiles.map(f => realpathBestEffort(isAbsolute(f) ? f : resolve(cwd, f))))
+  const targets = resolveTargetSet(targetFiles, cwd)
   if (targets.size === 0) return []
   return modifiedExisting.map(p => realpathBestEffort(p)).filter(abs => !targets.has(abs))
 }
