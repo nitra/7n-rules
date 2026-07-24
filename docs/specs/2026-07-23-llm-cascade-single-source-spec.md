@@ -41,9 +41,10 @@ Crate-шлях споживання вже доведений: `task/owner/owner
 | В.1 | База спільної реалізації | **Session-архітектура плагіна** (`tauri-plugin-agent`) — перевірено, вона архітектурно загальніша: one-shot виводиться з session (не навпаки), екстерналізовані permissions покривають auto-approve як стратегію (не навпаки), `env`-пламбінг (`build_acp_args`), handshake-ready-синхронізація, cancel, capabilities/MCP, StopReason вже готові. **Але з обов'язковим щепленням операційної броні cascade**, якої плагін не має зовсім: idle-timeout на кожен update-read (bug-driven — 57-хв зависання `skill codex taze`), акумуляція тексту для one-shot, `summarize_update`/`N_LLM_ACP_VERBOSE` для headless-логів, типізований `CascadeError` замість `String`, тест-абстракція `AcpSessionUpdates`. Tauri-зчеплення (`AppHandle`/`Emitter`/`State`/event-імена) відшаровується: ядро емить події через callback/канал-трейт, Tauri-emit — в адаптері-плагіні |
 | Г | Доля `tauri-plugin-agent` | Лишається в `tauri-components` як **тонкий Tauri-адаптер**: власний ACP-транспорт (`src/acp/mod.rs`) замінюється викликами session-режиму `llm-cascade` (git/crates-dep); Tauri-специфіка (emit подій у webview, стейт responder-ів, permissions-скоупи) — його єдиний вміст. Повний переїзд плагіна в репо `7n-rules` — відкладено (відкрите питання) |
 | Д | `tauri-components` = фронтенд | npm-пакет втрачає останнє знання про моделі: `acp-agent-presets.js` видаляється, тір-пікер стає generic-компонентом, що рендерить те, що віддав бекенд командою. UI-лейбли («GPT-5.6 Terra») їдуть з Rust-пресетів |
-| Е | Тір-логіка JS | `model-tiers.mjs` лишається для zero-native шляхів (webview-подібні споживачі pi-екосистеми), але канон — `tiers.rs`; паритет стереже тест. Довгостроково — заміна на napi-виклик (відкрите питання) |
+| Е | Тір-логіка JS | Канон — `tiers.rs`; `model-tiers.mjs` **одразу замінюється napi-викликом** (рішення 2026-07-24, зняте з відкритих питань): JS-шар делегує тір-резолвінг у Rust через napi, власна тір-мапа з `model-tiers.mjs` зникає; zero-native імпорт свідомо втрачається |
 | Ж | Canonical codex-команда | `npx -y @agentclientprotocol/codex-acp@latest` — фіксується один раз у Rust-пресеті |
-| З | Cursor-пресет | Новий (ніде не існував): команда `agent acp`, тір через extra-arg `--model <id>` (`--model` — глобальний прапорець CLI, діє на підкоманду `acp`). Тіри: **MIN = `gpt-5.6-luna`, AVG = `grok-4.5`, MAX = `gpt-5.6-sol`** (точний CLI-спелінг id підтвердити через `cursor-agent --list-models` у задачі R1) |
+| З | Cursor-пресет | Новий (ніде не існував): команда `agent acp`, тір через extra-arg `--model <id>` (працює і як глобальний прапорець, і після підкоманди `acp` — підтверджено R1 смок-тестом). Тіри (точні id з `cursor-agent --list-models`, R1 2026-07-24; каталог завжди несе ефорт-суфікс, bare-імена резолвляться fuzzy-фолбеком — не покладатися): **MIN = `gpt-5.6-luna-low`, AVG = `cursor-grok-4.5-medium` (префікс `cursor-` обовʼязковий), MAX = `gpt-5.6-sol-max`** |
+| З.1 | Pi-пресет (за R1) | Спавн: `npx -y pi-acp` (npm-пакет **`pi-acp`**, без scope; він сам спавнить `pi --mode rpc`). Тір-механізм — **не** env/args на спавні, а протокольний виклик `session/set_config_option` (`configId: "model"`, `value: "<provider>/<modelId>"`) між `session/new` і `session/prompt` — session-шар крейта має підтримувати опційний post-session-creation config-крок. Тіри через провайдер `openai-codex` (pi підхоплює `~/.codex/auth.json`): MIN = `openai-codex/gpt-5.6-luna`, AVG = `openai-codex/gpt-5.6-terra`, MAX = `openai-codex/gpt-5.6-sol`. Передумова: codex-логін на машині; без нього — fallback на дефолт pi |
 | И | `n-taze` model-контроль | `runAcpAgent(kind, prompt, cwd, {tier})` — napi приймає тір, Rust сам резолвить tier→env/args з пресету. JS-хелпер «пресет→env» не потрібен |
 | К | `MIN/AVG/MAX` — спільний підхід для **всіх** типів викликів | Єдиний `Tier`-enum крейта — універсальний інтерфейс вибору потужності: колер завжди каже `tier`, ніколи конкретну модель (модель — лише явний override). **Резолвінг** тіру — свій на тип: Тип 1 → пресет агента (env/args), Типи 2a/2b → `resolve_model` (`N_LOCAL/CLOUD_*_MODEL`), Тип 3 → наявні pi-тіри JS-шару. Каталоги моделей різні (підписка vs API-ключ) і не зливаються — спільною є абстракція, не мапи |
 | Л | Permission-семантики співіснують | one-shot auto-approve і interactive-responder — не «різні дизайни в різних репо», а два легітимні режими одного крейта (рішення В); плагін обирає session+interactive, CLI — one-shot+auto |
@@ -64,7 +65,7 @@ Crate-шлях споживання вже доведений: `task/owner/owner
 | **3 — pi як npm** (суто Node) | JS-шар поверх `@earendil-works/pi-ai`/`pi-coding-agent`: `one-shot.mjs`, `agent-skill`, `agent-fix`, `harness`, write-guard/trace/telemetry | — (принципово недоступний: pi-екосистема — npm) | `@7n/llm-lib` npm, як є | Єдиний тип без дублювання — лишається чисто JS-шаром пакета |
 
 Наслідки таксономії:
-- Перелік ACP-kind-ів розширюється: `AcpAgentKind` = `Cursor | Codex | Pi` (+ пресет спавну pi-ACP; deprecated `claude`-шим у `@7n/rules` — поза таксономією, доживає окремо).
+- Перелік ACP-kind-ів розширюється: `AcpAgentKind` = `Cursor | Codex | Pi` (підтверджено R1; спавн pi-ACP — окремий npm-пакет `pi-acp`, сам `pi` ACP-режиму не має, лише власний `--mode rpc`; deprecated `claude`-шим у `@7n/rules` — поза таксономією, доживає окремо).
 - Типи 1 і 2 (обидва підтипи) мають **однакову доступність** для Rust і Node — через одне Rust-ядро; Тип 3 — свідомо Node-only, і це його визначальна межа, а не недолік.
 - 2b: справжній Batch API підтримують хмарні провайдери; для локальних (omlx) без `/v1/batches` модуль дає **емуляцію** — чанкований конкурентний прогін через 2a з лімітами розміру чанка/конкурентності (узагальнення того, що mlmail вивів емпірично) — той самий інтерфейс `submit → progress → results` незалежно від того, батчить сервер чи клієнт.
 - Застосунки (mlmail, task, майбутні) обирають тип, а не реалізацію: міграція mlmail з ad-hoc клієнта на Тип 2a, ручного чанкінгу перекладів на 2b і ручного `pi --print` на Тип 1 — окремі задачі поза цією спекою (кандидати вписані в success signals).
@@ -78,7 +79,7 @@ Crate-шлях споживання вже доведений: `task/owner/owner
 
 ### Ф2 — napi + JS-шар `@7n/llm-lib`
 
-Тип 1: `oneShotAcp(kind, prompt, cwd, tierOrEnv)` — розширена сигнатура (kind-и включно з `pi`); `getAcpPresets()` — експорт пресетів у JS (для UI/звітів); `runAcpAgent(kind, prompt, cwd, {tier})` у `acp.mjs`. Тип 2: новий napi-експорт `oneShotLocalCloud(modelSpec | {tier}, prompt)` поверх `llm_lib::local_cloud` — Node-шлях до OpenAI-сумісних викликів без pi. `model-tiers.mjs` — тест на паритет із `tiers.rs` (рішення Е). Minor-бамп npm.
+Тип 1: `oneShotAcp(kind, prompt, cwd, tierOrEnv)` — розширена сигнатура (kind-и включно з `pi`); `getAcpPresets()` — експорт пресетів у JS (для UI/звітів); `runAcpAgent(kind, prompt, cwd, {tier})` у `acp.mjs`. Тип 2: новий napi-експорт `oneShotLocalCloud(modelSpec | {tier}, prompt)` поверх `llm_lib::local_cloud` — Node-шлях до OpenAI-сумісних викликів без pi. `model-tiers.mjs` замінюється napi-делегацією в `tiers.rs` (рішення Е). Minor-бамп npm.
 
 ### Ф3 — `n-taze` бере тір
 
@@ -119,9 +120,9 @@ Crate-шлях споживання вже доведений: `task/owner/owner
 |---|---|---|---|
 | T1 | Ф1a | Транспортний рефакторинг `acp.rs`: спільний шар spawn/init/session + env-префікси (`build_acp_args`-патерн); `one_shot_acp` зберігає поведінку (idle-timeout, auto-permission, progress-логування) | Наявні тести зелені; нові тести на env-префікси в argv |
 | T2 | Ф1b | Session-API крейта: create/prompt/update-стрім/зовнішній permission-responder/cancel; без tauri-залежностей | API покриває повний перелік потреб плагіна (`tauri-plugin-agent/src/acp/mod.rs`); тести на fake-сесії, включно з idle-timeout |
-| T3 | Ф1c | Пресети: `AcpAgentKind = Cursor\|Codex\|Pi` + тір-мапи (codex: `CODEX_CONFIG` luna/terra/sol; cursor: `--model` за рішенням З; pi: за R1) + UI-лейбли; єдиний `Tier`-enum для всіх типів (рішення К) | Юніт-тести мап; паритет-тест з JS-пресетом tauri-components (до Ф5) |
+| T3 | Ф1c | Пресети: `AcpAgentKind = Cursor\|Codex\|Pi` + тір-мапи (codex: `CODEX_CONFIG` luna/terra/sol; cursor: `--model` за рішенням З; pi: за рішенням З.1 — **не** env/args, а post-session виклик `session/set_config_option` з `provider/modelId`, пресет повертає маркер цього кроку) + UI-лейбли; єдиний `Tier`-enum для всіх типів (рішення К) | Юніт-тести мап; паритет-тест з JS-пресетом tauri-components (до Ф5) |
 | T4 | Ф1d | Перейменування: `crates/llm-cascade` → `crates/llm-lib`, `llm-cascade-napi` → `llm-lib-napi`, `CascadeError` → `LlmError`; tag `llm-lib-v<semver>`; alias-містки за R2 | `task/owner-llm` збирається через alias без правок коду |
-| T5 | Ф2 | napi+JS: `oneShotAcp(kind, prompt, cwd, {tier})`, `getAcpPresets()`, `oneShotLocalCloud` (Тип 2a для Node); паритет-тест `model-tiers.mjs` ↔ `tiers.rs` | Тести JS-шару; minor-бамп npm |
+| T5 | Ф2 | napi+JS: `oneShotAcp(kind, prompt, cwd, {tier})`, `getAcpPresets()`, `oneShotLocalCloud` (Тип 2a для Node); `model-tiers.mjs` → napi-делегація в `tiers.rs` (рішення Е) | Тести JS-шару; minor-бамп npm |
 | T6 | Ф2b | `llm_lib::batch` — емуляція (рішення Р): `submit(items) → progress → results`, ліміти чанка/конкурентності конфігуровані; napi-експорт; бенч-калібрування дефолтів на omlx (старт: чанк ≤35) | Бенч-звіт; тести на чанкування/помилку одного чанка (не валить batch) |
 | T7 | Ф3 | `n-taze`: `callRunner` для `runner !== 'pi'` → `runAcpAgent(runner, prompt, cwd, {tier: 'avg'})` | Живий прогін `skill cursor\|codex taze` використовує модель тіру, не CLI-конфіг |
 | T8 | Ф3b | doc-files: перехід генерації з послідовної на 2b-batch (N файлів одним submit) | Прогін `/doc-files` на ≥5 змінених файлах через batch-шлях; час ↓ проти послідовного |
@@ -138,13 +139,12 @@ Crate-шлях споживання вже доведений: `task/owner/owner
 Рішення Cursor-тіри / дистрибуція / обсяг 2b — закриті, перенесені в рішення З/П/Р; інтеграція doc-files — тепер задача T8.
 
 **Закриваються дослідженням (задачі R1–R2 у §4):**
-- pi-ACP пресет (команда спавну, тір-механізм) — R1.
-- Точний CLI-спелінг Cursor model-id — R1.
-- Зовнішні git-споживачі `llm-cascade` поза `task` — R2.
+- ~~pi-ACP пресет (команда спавну, тір-механізм) — R1.~~ **Закрито R1 (2026-07-24):** рішення З.1; смок-тест повного циклу `initialize → session/new → set_config_option(model) → prompt` пройшов на реальному спавні `npx -y pi-acp`.
+- ~~Точний CLI-спелінг Cursor model-id — R1.~~ **Закрито R1 (2026-07-24):** рішення З; смок-тест `cursor-agent acp` з `--model` пройшов повний цикл.
+- ~~Зовнішні git-споживачі `llm-cascade` поза `task` — R2.~~ **Закрито R2 (2026-07-24):** зовнішніх git-dep-споживачів поза `task` немає (org-wide code search + локальний скан). Єдиний споживач — `task/owner/owner-llm` (`llm-cascade = { git = "nitra/7n-rules" }` без tag/rev; де-факто пін — commit-SHA у `Cargo.lock`). Для T4 потрібен **один** alias-місток (`llm-cascade = { package = "llm-lib", … }`), тимчасовий — до explicit-міграції `task` на нове імʼя + tag-пін `llm-lib-v<semver>`. `tauri-plugin-agent` стане споживачем лише в T9, вже на імені `llm-lib` (alias не потрібен).
 
 **Свідомо відкладені (не блокують реалізацію):**
 - Повний переїзд `tauri-plugin-agent` у репо `7n-rules` — переглянути після T9/T10, коли плагін стане тонким.
-- Довгострокова доля `model-tiers.mjs`: паритет-тест назавжди чи napi-заміна (втрачається zero-native імпорт) — не блокер.
 - Durability довгих батчів (batch-id, survive-restart) — потрібне лише справжньому `/v1/batches`, тобто v2.
 - Публікація крейта на crates.io — переглянути, якщо з'являться споживачі поза org.
 - Синхронізація версії `agent-client-protocol` між крейтом і споживачами — операційна конвенція, узгодити темп оновлень.
