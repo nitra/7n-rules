@@ -980,6 +980,117 @@ describe('runFixPipeline — test-gate veto (in-file collateral, upsert-order ca
 })
 
 /**
+ * Detector «missing-jsdoc»: порушення на файл `target.js`, якщо перший рядок не
+ * `/**`-jsdoc — file+line-атрибуція (`line: 1`) вмикає in-file hunk-level veto нижче.
+ */
+const MISSING_JSDOC_DETECTOR = [
+  "import { readFileSync } from 'node:fs'",
+  "import { join } from 'node:path'",
+  'export function lint(ctx) {',
+  "  const content = readFileSync(join(ctx.cwd, 'target.js'), 'utf8')",
+  "  if (content.startsWith('/**')) return { violations: [] }",
+  "  return { violations: [{ reason: 'missing-jsdoc', message: 'no jsdoc', file: 'target.js', data: { line: 1 } }] }",
+  '}',
+  ''
+].join('\n')
+
+/**
+ * Фікстура «upsert-order.js» (real-world репро, addendum 2026-07-24): порушення
+ * (відсутній JSDoc) — на самому початку файлу; задокументований intentional-workaround —
+ * далеко внизу, поза будь-яким розумним вікном навколо `violation.line: 1`.
+ */
+const TARGET_JS_ORIGINAL = [
+  'function doStuff() {',
+  '  return 1',
+  '}',
+  '',
+  ...Array.from({ length: 30 }, (_, i) => `// padding ${i}`),
+  '',
+  '// INTENTIONAL: Bun SQL не збирає jsonb[] коректно — не «виправляти» під час lint.',
+  'const workaround = 1',
+  ''
+].join('\n')
+
+const TARGET_JS_GOOD_FIX = `/**\n * Does stuff.\n */\n${TARGET_JS_ORIGINAL}`
+
+const TARGET_JS_BAD_FIX = TARGET_JS_GOOD_FIX.replace(
+  '\n// INTENTIONAL: Bun SQL не збирає jsonb[] коректно — не «виправляти» під час lint.\nconst workaround = 1',
+  '\nconst workaround = 1'
+)
+
+describe('runFixPipeline — in-file hunk-level collateral veto (upsert-order.js addendum 2026-07-24)', () => {
+  test('фікс порушення на line:1 + видалення intentional-workaround далеко внизу → veto, rollback, ескалація', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir, MISSING_JSDOC_DETECTOR)
+      const target = join(dir, 'target.js')
+      writeFileSync(target, TARGET_JS_ORIGINAL)
+
+      const tracePath = join(dir, 'llm-trace.jsonl')
+      const prevTrace = env.N_LLM_TRACE_PATH
+      env.N_LLM_TRACE_PATH = tracePath
+      try {
+        const worker = (_v, ctx) => {
+          ctx.recordWrite(target)
+          // local-min виправляє jsdoc і заодно тихцем прибирає задокументований workaround
+          // далеко внизу файлу — та сама колатеральна правка, що й у реальному репро.
+          writeFileSync(target, ctx.tier === 'local-min' ? TARGET_JS_BAD_FIX : TARGET_JS_GOOD_FIX)
+        }
+        const code = await runFixPipeline({
+          rulesDir,
+          cwd: dir,
+          full: true,
+          log: () => {
+            /* no-op logger */
+          },
+          deps: { ladder: TWO_RUNG, workerFor: () => worker }
+        })
+        expect(code).toBe(0)
+        const final = readFileSync(target, 'utf8')
+        expect(final).toContain('/**')
+        // Workaround пережив veto local-min-рунга — cloud-min закрив без колатеральної правки.
+        expect(final).toContain('INTENTIONAL')
+        expect(final).toContain('const workaround = 1')
+
+        const traceLines = readFileSync(tracePath, 'utf8')
+          .trim()
+          .split('\n')
+          .map(l => JSON.parse(l))
+        const veto = traceLines.find(r => r.kind === 'collateral-veto')
+        expect(veto).toMatchObject({ rule: 'probe', rung: 'local-min', cleanDetect: true })
+        expect(veto.rejectedFiles).toEqual([])
+        expect(veto.rejectedHunks[0]).toContain('target.js')
+      } finally {
+        if (prevTrace === undefined) delete env.N_LLM_TRACE_PATH
+        else env.N_LLM_TRACE_PATH = prevTrace
+      }
+    })
+  })
+
+  test('фікс лише поруч із violation.line → без veto, закривається першим rung-ом', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir, MISSING_JSDOC_DETECTOR)
+      const target = join(dir, 'target.js')
+      writeFileSync(target, TARGET_JS_ORIGINAL)
+      const worker = (_v, ctx) => {
+        ctx.recordWrite(target)
+        writeFileSync(target, TARGET_JS_GOOD_FIX)
+      }
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: { ladder: ONE_RUNG, workerFor: () => worker }
+      })
+      expect(code).toBe(0)
+      expect(readFileSync(target, 'utf8')).toContain('INTENTIONAL')
+    })
+  })
+})
+
+/**
  * Detector «doc-беклог»: порушення на кожен відсутній docs/{a,b}.md — модель
  * doc-files-worker-а, де кожен файл — самодостатній кінцевий стан (issue #16).
  */
