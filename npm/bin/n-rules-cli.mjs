@@ -1723,21 +1723,19 @@ Skip-логіка CI (яка джоба взагалі потрібна): npx @7
 `)
 }
 
+/* eslint-disable sonarjs/cognitive-complexity -- runCli: плаский CLI-роутер на ~10 команд, кожен
+   case одразу делегує у свій модуль; не нова складність від рефакторингу (той самий код раніше
+   жив на топ-рівні модуля, не вимірювався як функція, до guard-обгортки за isRunAsCli).
+   Розбиття на per-case хендлер-функції додало б непрямий стан (command/args/effectiveRoot/
+   root-guard) без реального зниження складності читання. */
 /**
  * CLI: маршрутизація команд. Виконує повний дельта/full lint, sync, release тощо
  * залежно від `argv` (типово `process.argv.slice(2)`), включно з фінальним
  * встановленням exit-коду (`process.exitCode`/`process.emit('exit', …)`/`process.reallyExit`).
- *
- * Cognitive Complexity лінтера тут високий навмисно: це плаский switch на ~10 команд, кожен
- * case одразу делегує у свій модуль — не нова складність від рефакторингу (той самий код
- * раніше жив на топ-рівні модуля, не вимірювався як функція, до guard-обгортки за isRunAsCli).
- * Розбиття на per-case хендлер-функції додало б непрямий стан (command/args/effectiveRoot/
- * root-guard) без реального зниження складності читання.
  * @param {string[]} argv аргументи CLI без `node`/шляху скрипта (типово `process.argv.slice(2)`)
  * @returns {Promise<void>}
  */
 export async function runCli(argv) {
-  // eslint-disable-line sonarjs/cognitive-complexity -- див. JSDoc вище
   let [command, ...args] = argv
 
   // Deprecated-аліаси до уніфікації lint-поверхні (spec 2026-06-29): старі
