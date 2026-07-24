@@ -874,7 +874,7 @@ describe('runFixPipeline — semantic-collateral veto (App.vue case, §12 addend
  * концерн, тому теж не ловить). Розширення `.js` — навмисне: сестринський
  * тест-файл шукається лише для файлів з JS/TS/Vue-конвенції (n-test.mdc).
  * @param {boolean} mangle Чи псувати сусідній рядок (для local-min rung-а).
- * @returns {import('../../types.mjs').FixWorkerFn} Fix-worker.
+ * @returns {import('../types.mjs').FixWorkerFn} Fix-worker.
  */
 function makeInFileCollateralWorker(mangle) {
   return (_v, ctx) => {
