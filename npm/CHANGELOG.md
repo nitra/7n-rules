@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.48.2] - 2026-07-24
+
+### Fixed
+
+- n-rules.js CLI dispatch guarded behind isRunAsCli — testable без сайд-ефектів на import
+
 ## [1.48.1] - 2026-07-24
 
 ### Fixed
