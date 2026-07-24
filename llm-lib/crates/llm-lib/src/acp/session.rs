@@ -121,6 +121,11 @@ pub enum SessionEvent {
 /// Запит дозволу, що чекає на відповідь ззовні ([`PermissionMode::External`]).
 #[derive(Debug)]
 pub struct PermissionRequestEvent {
+    /// Деталі tool-call-а, на який агент просить дозвіл (`title`,
+    /// `tool_call_id`, …) — потрібні зовнішньому responder-у, щоб показати
+    /// людині, *що саме* просить дозволу (permission-UI плагіна, T9), а не
+    /// лише перелік варіантів відповіді.
+    pub tool_call: agent_client_protocol::schema::v1::ToolCallUpdate,
     /// Варіанти дозволу, з яких викликач обирає один
     /// ([`PermissionRequestEvent::respond`]) — той самий `PermissionOption`,
     /// що йде в протокольний запит (id/name/kind).
@@ -263,7 +268,8 @@ pub async fn create_session(
                     PermissionMode::External => {
                         let _ = permission_event_tx.send(SessionEvent::PermissionRequest(
                             Box::new(PermissionRequestEvent {
-                                options: request.options.clone(),
+                                tool_call: request.tool_call,
+                                options: request.options,
                                 responder,
                             }),
                         ));
