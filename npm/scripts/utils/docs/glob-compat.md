@@ -3,29 +3,35 @@ type: JS Module
 title: glob-compat.mjs
 resource: npm/scripts/utils/glob-compat.mjs
 docgen:
-  crc: a226a048
-  model: manual
-  tier: manual
+  crc: 0c6af731
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
   score: 100
+  issues: judge-refine:kept-original,judge:inaccurate:0.98
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Runtime-нейтральний glob-обхід для коду, що виконується і під Bun, і під Node. Потрібен, бо hook запускається через `npx` → Node, де глобал `Bun` не визначений (top-level `new Bun.Glob(...)` зривав import модуля-детектора), а прямий `node:fs/promises#glob` не працює на self-hosted Linux Bun 1.3.14, де Node-compat шим не надає export `glob`. Реалізація вибирається за середовищем виконання: `Bun.Glob` під Bun, `node:fs/promises#glob` під Node (гарантовано за `engines: node >=25`).
+Файл забезпечує runtime-нейтральний glob-обхід для коду, що має працювати і під Bun, і під Node. Це потрібно, щоб імпорт модуля не падав у hook-сценаріях, які запускаються через `npx` у Node, де глобал `Bun` не визначений і top-level `new Bun.Glob` ламає завантаження модуля. Вибір механізму обходу відбувається за середовищем виконання: `Bun.Glob` під Bun, `node:fs/promises#glob` під Node (`node >=25`). Публічні точки файлу — `resolveGlobScan` і `hasIgnoredPathSegment`; друга відсікає шляхи через службові теки перед подальшою обробкою.
+
+## Поведінка
+
+`resolveGlobScan` уніфікує результат сканування glob перед подальшою ітерацією: якщо `Bun.Glob.scan` повертає Promise, він дочікується розв’язання, якщо вже повертає async-iterable — передає його далі без змін. Це прибирає різницю між середовищами виконання й дозволяє наступним крокам працювати з одним форматом даних.
+
+`hasIgnoredPathSegment` застосовує спільне правило відсікання службових тек до відносних шляхів, щоб результати glob-обходу не потрапляли в обробку, якщо шлях проходить через одну з ігнорованих тек. Перевірка працює по сегментах шляху, тож однаковий результат дає і для Unix-, і для Windows-розділювачів.
+
+Разом ці функції формують потік: сканування дає сирі збіги, `resolveGlobScan` стабілізує форму їх повернення, а `hasIgnoredPathSegment` відсікає небажані шляхи до передачі результатів далі. Поведінка узгоджується з очікуваннями, закладеними в `package.json`.
 
 ## Публічний API
 
-- `scanGlob(pattern, cwd)` — async-генератор: ітерує відносні (до `cwd`) шляхи файлів, що відповідають glob-патерну (наприклад, `cf/*/package.json`).
-- `hasIgnoredPathSegment(relPath, ignoredDirs)` — чи містить відносний шлях сегмент зі службових тек (наприклад, `node_modules`), які glob-обхід має ігнорувати; еквівалент ignore-патернів `**/<dir>/**` по кожній теці з `ignoredDirs`. Розділювачі `\` нормалізуються до `/`.
-
-## Де використовується
-
-- `npm/scripts/lib/workspaces.mjs` — розгортання workspace-патернів із `*`.
-- `npm/scripts/utils/resolve-js-root.mjs` — резолв JS-roots за workspace-патернами.
-- `npm/rules/changelog/lib/package-manifest.mjs` — пошук `pyproject.toml` по репо.
-- `npm/rules/tauri/core_test_isolation/main.mjs` — glob-члени `[workspace] members` і обхід `**/*.rs`.
+- resolveGlobScan — Розрізняє дві форми повернення `Bun.Glob#scan()`: async-iterable напряму
+(macOS) або Promise, що резолвиться в async-iterable (спостережено на
+self-hosted Linux Bun 1.3.14 — `yield*` на Promise падає з "is not async
+iterable", бо в Promise немає ні `Symbol.asyncIterator`, ні `Symbol.iterator`).
+- hasIgnoredPathSegment — Чи містить відносний шлях сегмент зі службових тек, які glob-обхід має ігнорувати.
+Еквівалент колишніх ignore-патернів `**\/<dir>/**` по кожній теці з `ignoredDirs`.
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
-- Не фільтрує результати сам: ігнорування службових тек — відповідальність викликача (через `hasIgnoredPathSegment` або власні перевірки).
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
