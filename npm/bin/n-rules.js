@@ -103,6 +103,7 @@ import { upgradeNRulesToLatestAndBunInstall } from '../scripts/upgrade-n-rules-a
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
 import { isTazeOrchestratorSkillArgs, runSkillsCli } from '../scripts/skills-cli.mjs'
 import { syncSetupBunDepsAction } from '../scripts/sync-setup-bun-deps-action.mjs'
+import { isRunAsCli } from '../scripts/cli-entry.mjs'
 
 const PACKAGE_NAME = '@7n/rules'
 const CONFIG_FILE = '.n-rules.json'
@@ -135,7 +136,7 @@ const CONFIG_SORTED_ARRAY_KEYS = /** @type {const} */ (['rules', 'skills', 'disa
  * @param {Record<string, unknown>} config об'єкт конфігу перед записом на диск
  * @returns {Record<string, unknown>} копія з відсортованими масивами для відомих ключів
  */
-function sortConfigIdArrays(config) {
+export function sortConfigIdArrays(config) {
   const out = { ...config }
   for (const key of CONFIG_SORTED_ARRAY_KEYS) {
     const v = out[key]
@@ -152,7 +153,7 @@ function sortConfigIdArrays(config) {
  * @param {string} [bundledRulesDir] каталог `rules/` у корені пакету
  * @returns {Promise<string[]>} відсортовані id правил (імена підкаталогів)
  */
-async function discoverBundledRuleNames(bundledRulesDir = BUNDLED_RULES_DIR) {
+export async function discoverBundledRuleNames(bundledRulesDir = BUNDLED_RULES_DIR) {
   if (!existsSync(bundledRulesDir)) {
     throw new Error(
       `Не знайдено каталог правил пакету.\n` +
@@ -177,7 +178,7 @@ async function discoverBundledRuleNames(bundledRulesDir = BUNDLED_RULES_DIR) {
  * @param {string} [bundledSkillsDir] каталог `skills/` у корені пакету
  * @returns {Promise<string[]>} відсортовані id
  */
-async function discoverBundledSkillNames(bundledSkillsDir = BUNDLED_SKILLS_DIR) {
+export async function discoverBundledSkillNames(bundledSkillsDir = BUNDLED_SKILLS_DIR) {
   if (!existsSync(bundledSkillsDir)) {
     return []
   }
@@ -193,7 +194,7 @@ async function discoverBundledSkillNames(bundledSkillsDir = BUNDLED_SKILLS_DIR) 
  * @param {string} rulesDir абсолютний шлях до `.cursor/rules`
  * @returns {Promise<void>}
  */
-async function migrateLegacyManagedRuleFilenames(rulesDir) {
+export async function migrateLegacyManagedRuleFilenames(rulesDir) {
   if (!existsSync(rulesDir)) {
     return
   }
@@ -222,7 +223,7 @@ async function migrateLegacyManagedRuleFilenames(rulesDir) {
  * береться з legacy-імен (`.n-rules.json`, потім `nitra-cursor.json`) з переписуванням `$schema` на новий URL
  * @returns {Promise<void>}
  */
-async function migrateLegacyConfigIfNeeded() {
+export async function migrateLegacyConfigIfNeeded() {
   const root = cwd()
   await migrateLegacyManagedRuleFilenames(join(root, RULES_DIR))
 
@@ -254,7 +255,7 @@ async function migrateLegacyConfigIfNeeded() {
  * Повертає розпарсений package.json з кореня або null, якщо файл відсутній/некоректний.
  * @returns {Promise<unknown | null>} обʼєкт package.json або null
  */
-async function readRootPackageJsonSafe() {
+export async function readRootPackageJsonSafe() {
   const packageJsonPath = join(cwd(), 'package.json')
   if (!existsSync(packageJsonPath)) {
     return null
@@ -272,7 +273,7 @@ async function readRootPackageJsonSafe() {
  * @param {string[]} rulesDirs упорядковані rules-каталоги (ядро + плагіни)
  * @returns {Promise<{ names: string[], sources: Map<string, string>, extras: Map<string, string[]> }>} імена правил, їх джерела і mixin-теки
  */
-async function aggregateRuleSources(rulesDirs) {
+export async function aggregateRuleSources(rulesDirs) {
   /** @type {Map<string, string>} */
   const sources = new Map()
   /** @type {Map<string, string[]>} каталоги `rules/<id>/` mixin-джерел (не власник main.mdc) */
@@ -304,7 +305,7 @@ async function aggregateRuleSources(rulesDirs) {
  * @param {string[]} rulesDirs упорядковані rules-каталоги
  * @returns {Promise<string[][]>} імена правил per-dir у тому ж порядку
  */
-async function listRuleNamesPerDir(rulesDirs) {
+export async function listRuleNamesPerDir(rulesDirs) {
   /** @type {string[][]} */
   const out = []
   for (const [i, dir] of rulesDirs.entries()) {
@@ -329,7 +330,7 @@ async function listRuleNamesPerDir(rulesDirs) {
  * @param {Map<string, string[]>} extras акумулятор mixin-тек (мутується)
  * @returns {Promise<void>}
  */
-async function collectMixinDirs(dir, ownNames, extras) {
+export async function collectMixinDirs(dir, ownNames, extras) {
   let entries
   try {
     entries = await readdir(dir, { withFileTypes: true })
@@ -349,7 +350,7 @@ async function collectMixinDirs(dir, ownNames, extras) {
  * @param {{ bundledRulesDir?: string, bundledSkillsDir?: string }} [paths] каталоги з пакету-джерела (після `bun i` — зазвичай `node_modules/@7n/rules`)
  * @returns {Promise<{ $schema: string, rules: string[], skills: string[], version?: string } & Record<string, unknown>>} rules, skills (id без префікса n-); поле version у файлі за наявності ігнорується при синхронізації правил
  */
-async function readConfig(paths = {}) {
+export async function readConfig(paths = {}) {
   const bundledRulesDir = paths.bundledRulesDir ?? BUNDLED_RULES_DIR
   const bundledSkillsDir = paths.bundledSkillsDir ?? BUNDLED_SKILLS_DIR
   await migrateLegacyConfigIfNeeded()
@@ -526,7 +527,7 @@ function logRuleMigrationsIfAny(parsedConfig) {
  * @param {string} ruleName шлях або базове ім'я, з суфіксом .mdc або без
  * @returns {string} id правила (без .mdc, без шляху)
  */
-function normalizeRuleName(ruleName) {
+export function normalizeRuleName(ruleName) {
   const name = basename(String(ruleName).trim())
   return name.endsWith('.mdc') ? name.slice(0, -'.mdc'.length) : name
 }
@@ -543,7 +544,7 @@ function normalizeRuleName(ruleName) {
  * @param {string[]} [extraRuleDirs] каталоги `rules/<id>/` mixin-джерел (без main.mdc)
  * @returns {Promise<string>} текст правила для запису в `.cursor/rules/n-*.mdc`
  */
-async function readBundledRuleContent(rule, bundledRulesDir = BUNDLED_RULES_DIR, extraRuleDirs = []) {
+export async function readBundledRuleContent(rule, bundledRulesDir = BUNDLED_RULES_DIR, extraRuleDirs = []) {
   const id = normalizeRuleName(rule)
   const bundledPath = join(bundledRulesDir, id, 'main.mdc')
   if (!existsSync(bundledPath)) {
@@ -565,7 +566,7 @@ async function readBundledRuleContent(rule, bundledRulesDir = BUNDLED_RULES_DIR,
  * @param {string} skillName елемент масиву skills або ім'я каталогу
  * @returns {string} id без префікса n-
  */
-function normalizeSkillId(skillName) {
+export function normalizeSkillId(skillName) {
   let s = basename(String(skillName).trim())
   if (s.startsWith(RULE_PREFIX)) {
     s = s.slice(RULE_PREFIX.length)
@@ -578,7 +579,7 @@ function normalizeSkillId(skillName) {
  * @param {string} skillId id без префікса (або з префіксом n- у конфігу — нормалізується)
  * @returns {string} наприклад n-fix
  */
-function managedSkillDirName(skillId) {
+export function managedSkillDirName(skillId) {
   return `${RULE_PREFIX}${normalizeSkillId(skillId)}`
 }
 
@@ -587,7 +588,7 @@ function managedSkillDirName(skillId) {
  * @param {string} text повний вміст SKILL.md
  * @returns {string | null} один рядок опису або null
  */
-function extractSkillDescription(text) {
+export function extractSkillDescription(text) {
   const fm = text.match(YAML_FRONTMATTER_RE)
   if (!fm) {
     return null
@@ -616,7 +617,7 @@ function extractSkillDescription(text) {
  * @param {string} desc один рядок з YAML frontmatter SKILL.md
  * @returns {string} той самий рядок після заміни літералу з кутовими дужками навколо id на плейсхолдер у фігурних дужках (MD033).
  */
-function skillDescriptionSafeForMarkdownInline(desc) {
+export function skillDescriptionSafeForMarkdownInline(desc) {
   return desc.replaceAll('<id>', '{id}')
 }
 
@@ -626,7 +627,7 @@ function skillDescriptionSafeForMarkdownInline(desc) {
  * @param {string} descriptionRaw значення з `extractSkillDescription` (може бути порожнім)
  * @returns {string} блок `---` … `---` і порожній рядок після
  */
-function formatClaudeCommandFrontmatter(descriptionRaw) {
+export function formatClaudeCommandFrontmatter(descriptionRaw) {
   let text = skillDescriptionSafeForMarkdownInline(String(descriptionRaw || '').trim())
   if (!text) {
     text = 'Див. SKILL.md у каталозі скілу в .cursor/skills.'
@@ -642,7 +643,7 @@ function formatClaudeCommandFrontmatter(descriptionRaw) {
  * @param {string} descriptionRaw значення з `extractSkillDescription` (може бути порожнім)
  * @returns {string} блок `---` … `---` і порожній рядок після
  */
-function formatPiSkillFrontmatter(skillName, descriptionRaw) {
+export function formatPiSkillFrontmatter(skillName, descriptionRaw) {
   let text = skillDescriptionSafeForMarkdownInline(String(descriptionRaw || '').trim())
   if (!text) {
     text = 'Див. SKILL.md у каталозі скілу в .cursor/skills.'
@@ -655,7 +656,7 @@ function formatPiSkillFrontmatter(skillName, descriptionRaw) {
  * @param {string[]} configRules елементи масиву rules з конфігу
  * @returns {Set<string>} множина очікуваних імен файлів (наприклад n-bun.mdc)
  */
-function expectedManagedRuleBasenames(configRules) {
+export function expectedManagedRuleBasenames(configRules) {
   return new Set(configRules.map(rule => `${RULE_PREFIX}${normalizeRuleName(rule)}.mdc`))
 }
 
@@ -666,7 +667,7 @@ function expectedManagedRuleBasenames(configRules) {
  * @param {string[]} configRules елементи масиву rules з .n-rules.json
  * @returns {Promise<string[]>} відсортовані імена видалених файлів
  */
-async function removeOrphanManagedRuleFiles(rulesDir, configRules) {
+export async function removeOrphanManagedRuleFiles(rulesDir, configRules) {
   if (!existsSync(rulesDir)) {
     return []
   }
@@ -689,7 +690,7 @@ async function removeOrphanManagedRuleFiles(rulesDir, configRules) {
  * Директорія вважається skill-каталогом, якщо це підкаталог (без префікса `.`).
  * @returns {Promise<string[]>} імена директорій (наприклад `n-fix`, `custom-skill`)
  */
-async function listProjectSkillDirNames() {
+export async function listProjectSkillDirNames() {
   const skillsRoot = join(cwd(), SKILLS_DIR)
   if (!existsSync(skillsRoot)) {
     return []
@@ -705,7 +706,7 @@ async function listProjectSkillDirNames() {
  * Формує markdown-рядки для секції Skills у AGENTS.md з усіх skill-директорій на диску.
  * @returns {Promise<{ name: string }[]>} елементи з полем name для Mustache-секції skills
  */
-async function buildSkillBulletItems() {
+export async function buildSkillBulletItems() {
   const skillsRoot = join(cwd(), SKILLS_DIR)
   const skillDirNames = await listProjectSkillDirNames()
   const items = []
@@ -732,7 +733,7 @@ async function buildSkillBulletItems() {
  * @param {string[]} configSkills елементи масиву skills з .n-rules.json
  * @returns {Promise<string[]>} імена видалених каталогів
  */
-async function removeOrphanManagedSkillDirs(skillsRoot, configSkills) {
+export async function removeOrphanManagedSkillDirs(skillsRoot, configSkills) {
   if (!existsSync(skillsRoot)) {
     return []
   }
@@ -800,7 +801,7 @@ function buildClaudeDocFilesSectionLines() {
  * Рендерить секцію Skills для CLAUDE.md з урахуванням наявних slash-команд.
  * @returns {Promise<string[]>} готові рядки секції (або порожній масив)
  */
-async function buildClaudeSkillsSectionLines() {
+export async function buildClaudeSkillsSectionLines() {
   const skillDirNames = await listProjectSkillDirNames()
   if (skillDirNames.length === 0) {
     return []
@@ -837,7 +838,7 @@ async function buildClaudeSkillsSectionLines() {
 /**
  * @param {string[]} [ignore] директорії заборонені для редагування
  */
-async function syncClaudeMd(ignore) {
+export async function syncClaudeMd(ignore) {
   const lines = [`<!-- Цей файл генерується автоматично через \`npx ${PACKAGE_NAME}\`. Не редагуй вручну. -->`, '']
 
   if (Array.isArray(ignore) && ignore.length > 0) {
@@ -874,7 +875,7 @@ async function syncClaudeMd(ignore) {
  * @param {string} [agentsTemplatePath] шлях до AGENTS.template.md у корені пакету-джерела
  * @returns {Promise<void>} завершення запису файлу
  */
-async function syncAgentsMd(agentsTemplatePath = BUNDLED_AGENTS_TEMPLATE_PATH) {
+export async function syncAgentsMd(agentsTemplatePath = BUNDLED_AGENTS_TEMPLATE_PATH) {
   if (!existsSync(agentsTemplatePath)) {
     throw new Error(
       `Не знайдено шаблон ${AGENTS_TEMPLATE_FILE} у пакеті.\n` +
@@ -904,7 +905,7 @@ async function syncAgentsMd(agentsTemplatePath = BUNDLED_AGENTS_TEMPLATE_PATH) {
  * @param {{ plugins?: unknown } | null} [config] конфіг `.n-rules.json` — активні плагіни для SKILL-фрагментів
  * @returns {Promise<{ success: number, fail: number }>} лічильники успішних і невдалих копіювань
  */
-async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR, config = null) {
+export async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR, config = null) {
   if (configSkills.length === 0 || !existsSync(bundledSkillsDir)) {
     return { success: 0, fail: 0 }
   }
@@ -971,7 +972,7 @@ async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR, c
  * @param {string} [bundledSkillsDir] каталог `skills/` у корені пакету-джерела
  * @returns {Promise<{ success: number, fail: number }>} лічильники успішних і невдалих записів
  */
-async function syncCommands(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
+export async function syncCommands(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
   if (configSkills.length === 0 || !existsSync(bundledSkillsDir)) {
     return { success: 0, fail: 0 }
   }
@@ -1019,7 +1020,7 @@ async function syncCommands(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR)
  * @param {string[]} configSkills id без префікса n-
  * @returns {Promise<string[]>} імена видалених файлів
  */
-async function removeOrphanManagedCommandFiles(commandsDir, configSkills) {
+export async function removeOrphanManagedCommandFiles(commandsDir, configSkills) {
   if (!existsSync(commandsDir)) {
     return []
   }
@@ -1043,7 +1044,7 @@ async function removeOrphanManagedCommandFiles(commandsDir, configSkills) {
  * @param {string[]} configSkills id керованих skills (вже оброблені syncCommands)
  * @returns {Promise<{ success: number, fail: number }>} лічильники успішних і невдалих записів
  */
-async function syncLocalOnlySkillCommands(configSkills) {
+export async function syncLocalOnlySkillCommands(configSkills) {
   const skillsRoot = join(cwd(), SKILLS_DIR)
   if (!existsSync(skillsRoot)) return { success: 0, fail: 0 }
 
@@ -1090,7 +1091,7 @@ async function syncLocalOnlySkillCommands(configSkills) {
  * @param {string[]} configSkills id керованих skills
  * @returns {Promise<string[]>} імена видалених файлів
  */
-async function removeOrphanLocalSkillCommandFiles(commandsDir, configSkills) {
+export async function removeOrphanLocalSkillCommandFiles(commandsDir, configSkills) {
   if (!existsSync(commandsDir)) return []
 
   const managedDirNames = new Set(configSkills.map(s => managedSkillDirName(s)))
@@ -1117,7 +1118,7 @@ async function removeOrphanLocalSkillCommandFiles(commandsDir, configSkills) {
  * @param {string} [bundledSkillsDir] каталог `skills/` у корені пакету-джерела
  * @returns {Promise<{ success: number, fail: number }>} лічильники успішних і невдалих записів
  */
-async function syncPiSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
+export async function syncPiSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
   if (configSkills.length === 0 || !existsSync(bundledSkillsDir)) {
     return { success: 0, fail: 0 }
   }
@@ -1167,7 +1168,7 @@ async function syncPiSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR)
  * @param {string[]} configSkills id керованих skills (уже оброблені syncPiSkills)
  * @returns {Promise<{ success: number, fail: number }>} лічильники успішних і невдалих записів
  */
-async function syncLocalOnlyPiSkills(configSkills) {
+export async function syncLocalOnlyPiSkills(configSkills) {
   const skillsRoot = join(cwd(), SKILLS_DIR)
   if (!existsSync(skillsRoot)) return { success: 0, fail: 0 }
 
@@ -1216,7 +1217,7 @@ async function syncLocalOnlyPiSkills(configSkills) {
  * @param {string[]} configSkills id без префікса n-
  * @returns {Promise<string[]>} імена видалених директорій
  */
-async function removeOrphanManagedPiSkillDirs(piSkillsDir, configSkills) {
+export async function removeOrphanManagedPiSkillDirs(piSkillsDir, configSkills) {
   if (!existsSync(piSkillsDir)) return []
   const expected = new Set(configSkills.map(s => managedSkillDirName(s)))
   const entries = await readdir(piSkillsDir, { withFileTypes: true })
@@ -1238,7 +1239,7 @@ async function removeOrphanManagedPiSkillDirs(piSkillsDir, configSkills) {
  * @param {string[]} configSkills id керованих skills
  * @returns {Promise<string[]>} імена видалених директорій
  */
-async function removeOrphanLocalPiSkillDirs(piSkillsDir, configSkills) {
+export async function removeOrphanLocalPiSkillDirs(piSkillsDir, configSkills) {
   if (!existsSync(piSkillsDir)) return []
   const managedDirNames = new Set(configSkills.map(s => managedSkillDirName(s)))
   const allDirNames = new Set(await listProjectSkillDirNames())
@@ -1259,7 +1260,7 @@ async function removeOrphanLocalPiSkillDirs(piSkillsDir, configSkills) {
  * @param {unknown} error виняток із catch
  * @returns {string} текст повідомлення
  */
-function errorMessage(error) {
+export function errorMessage(error) {
   return error instanceof Error ? error.message : String(error)
 }
 
@@ -1270,7 +1271,7 @@ function errorMessage(error) {
  * @param {() => Promise<T>} action операція
  * @returns {Promise<T>} результат операції
  */
-async function runSyncStep(prefix, action) {
+export async function runSyncStep(prefix, action) {
   try {
     return await action()
   } catch (error) {
@@ -1291,7 +1292,7 @@ async function runSyncStep(prefix, action) {
  * @param {() => Promise<T>} action крок синку, що повертає обʼєкт із лічильником помилок `fail`
  * @returns {Promise<T>} результат `action` без змін
  */
-async function captureOutput(action) {
+export async function captureOutput(action) {
   const buffer = []
   const realStdoutWrite = process.stdout.write
   const realLog = console.log
@@ -1333,7 +1334,13 @@ async function captureOutput(action) {
  * @param {Map<string, string[]>} [ruleExtras] мапа `ruleId → rules/<id>-теки` mixin-джерел (concern-mdc доінлайнюються)
  * @returns {Promise<{ successCount: number, failCount: number }>} статистика копіювання
  */
-async function syncManagedRuleFiles(rules, bundledRulesDir, rulesDir, ruleSources = new Map(), ruleExtras = new Map()) {
+export async function syncManagedRuleFiles(
+  rules,
+  bundledRulesDir,
+  rulesDir,
+  ruleSources = new Map(),
+  ruleExtras = new Map()
+) {
   let successCount = 0
   let failCount = 0
   for (const rule of rules) {
@@ -1363,7 +1370,7 @@ async function syncManagedRuleFiles(rules, bundledRulesDir, rulesDir, ruleSource
  * @param {string[]} names перелік елементів
  * @returns {void}
  */
-function logRemovedManagedItems(title, basePath, names) {
+export function logRemovedManagedItems(title, basePath, names) {
   if (names.length === 0) {
     return
   }
@@ -1378,7 +1385,7 @@ function logRemovedManagedItems(title, basePath, names) {
  * @param {string} packageRoot корінь пакету (тека з `package.json`)
  * @returns {Promise<string | null>} semver рядком або null, якщо файлу/поля немає або JSON некоректний
  */
-async function readBundledVersionAt(packageRoot) {
+export async function readBundledVersionAt(packageRoot) {
   const p = join(packageRoot, 'package.json')
   if (!existsSync(p)) {
     return null
@@ -1411,7 +1418,7 @@ async function readBundledVersionAt(packageRoot) {
  * @returns {Promise<void>} повертається лише якщо re-exec не потрібен; інакше кидає `ReexecHandoff`,
  *   який ловить top-level catch і прокидає exit-код у `process.exitCode`
  */
-async function reexecIfPackageVersionChanged(effectivePackageRoot, startVersion) {
+export async function reexecIfPackageVersionChanged(effectivePackageRoot, startVersion) {
   if (env.NITRA_CURSOR_REEXEC === '1') {
     return
   }
@@ -1443,7 +1450,7 @@ async function reexecIfPackageVersionChanged(effectivePackageRoot, startVersion)
  * Top-level catch розпізнає її й виставляє `process.exitCode = code` без stack-trace —
  * процес тоді коректно завершується з тим самим кодом, що й child re-exec-у.
  */
-class ReexecHandoff extends Error {
+export class ReexecHandoff extends Error {
   /**
    * @param {number} code exit-код, який повернув child-процес
    */
@@ -1458,7 +1465,7 @@ class ReexecHandoff extends Error {
  * Копіює правила з каталогу `mdc/` установленого пакету та синхронізує `.cursor/rules`
  * @returns {Promise<void>}
  */
-async function runSync() {
+export async function runSync() {
   console.log(`\n🔧 ${PACKAGE_NAME} — завантаження cursor-правил\n`)
 
   const projectRoot = cwd()
@@ -1634,7 +1641,7 @@ const ROOT_GUARDED_COMMANDS = new Set([undefined, '', 'lint', 'release'])
  * @param {string | undefined} cmd підкоманда CLI (або undefined для дефолтного sync)
  * @returns {string} фраза «що саме мутує CWD»
  */
-function describeRootGuardedAction(cmd) {
+export function describeRootGuardedAction(cmd) {
   switch (cmd) {
     case undefined:
     case '': {
@@ -1656,7 +1663,7 @@ function describeRootGuardedAction(cmd) {
  * Довідка для `n-rules lint --help`: прапори unified lint surface
  * (spec 2026-06-29 fix-by-default, spec 2026-07-03 глобальна черга --full).
  */
-function printLintHelp() {
+export function printLintHelp() {
   console.log(`Використання: npx @7n/rules lint [rule|concern ...] [прапори]
 
 За замовчуванням лінт іде дельтою (змінені файли vs origin) і одразу
@@ -1704,300 +1711,313 @@ Skip-логіка CI (яка джоба взагалі потрібна): npx @7
 `)
 }
 
-// CLI: маршрутизація команд
-let [command, ...args] = process.argv.slice(2)
+/**
+ * CLI: маршрутизація команд. Виконує повний дельта/full lint, sync, release тощо
+ * залежно від `argv` (типово `process.argv.slice(2)`), включно з фінальним
+ * встановленням exit-коду (`process.exitCode`/`process.emit('exit', …)`/`process.reallyExit`).
+ * @param {string[]} argv аргументи CLI без `node`/шляху скрипта (типово `process.argv.slice(2)`)
+ * @returns {Promise<void>}
+ */
+export async function runCli(argv) {
+  let [command, ...args] = argv
 
-// Deprecated-аліаси до уніфікації lint-поверхні (spec 2026-06-29): старі
-// підкоманди `lint-<scope>` замінені на `lint <scope>`. Аліас тут — щоб
-// існуючі package.json/CI споживачів (lint-text/lint-ga тощо) не ламались
-// мовчки з непрозорим "Невідома команда" при мажорному бампі пакету.
-const LEGACY_LINT_COMMAND_ALIASES = {
-  'lint-ga': 'ga',
-  'lint-text': 'text',
-  'lint-rego': 'rego',
-  'lint-k8s': 'k8s',
-  'lint-docker': 'docker'
-}
-if (command in LEGACY_LINT_COMMAND_ALIASES) {
-  const scope = LEGACY_LINT_COMMAND_ALIASES[command]
-  console.error(`⚠️  "${command}" застаріла назва команди — використовуйте "n-rules lint ${scope}"`)
-  args = [scope, ...args]
-  command = 'lint'
-}
+  // Deprecated-аліаси до уніфікації lint-поверхні (spec 2026-06-29): старі
+  // підкоманди `lint-<scope>` замінені на `lint <scope>`. Аліас тут — щоб
+  // існуючі package.json/CI споживачів (lint-text/lint-ga тощо) не ламались
+  // мовчки з непрозорим "Невідома команда" при мажорному бампі пакету.
+  const LEGACY_LINT_COMMAND_ALIASES = {
+    'lint-ga': 'ga',
+    'lint-text': 'text',
+    'lint-rego': 'rego',
+    'lint-k8s': 'k8s',
+    'lint-docker': 'docker'
+  }
+  if (command in LEGACY_LINT_COMMAND_ALIASES) {
+    const scope = LEGACY_LINT_COMMAND_ALIASES[command]
+    console.error(`⚠️  "${command}" застаріла назва команди — використовуйте "n-rules lint ${scope}"`)
+    args = [scope, ...args]
+    command = 'lint'
+  }
 
-// `lint --help`/`-h` — чиста довідка, без root-guard і без мутації devDependencies.
-const isLintHelp = command === 'lint' && (args.includes('--help') || args.includes('-h'))
+  // `lint --help`/`-h` — чиста довідка, без root-guard і без мутації devDependencies.
+  const isLintHelp = command === 'lint' && (args.includes('--help') || args.includes('-h'))
 
-try {
-  if (isLintHelp) {
-    printLintHelp()
-  } else {
-    // Root-guard до перших мутацій: дефолтний sync скаффолдить .cursor/.claude/CLAUDE.md/
-    // .n-rules.json + bun install, а lint/release переписують файли в CWD —
-    // усе це ключиться на cwd(). Запуск із піддиректорії git-репо (типово прямий
-    // `bun npm/bin/n-rules.js` не з кореня) зачепив би не той каталог → STOP. Read-only та
-    // `--root`-команди (doc-aggregate, rename-yaml-extensions) не зачіпаємо.
-    // `lint` з явним `--cwd` — свідомий вибір кореня (MT ганяє `## Check` вузла з
-    // node-dir усередині worktree, live e2e 2026-07-12): guard і devDeps-ensure
-    // цілять у ЦІЛЬОВИЙ каталог, а не процесний cwd.
-    const lintCwdIdx = command === 'lint' ? args.indexOf('--cwd') : -1
-    const effectiveRoot = lintCwdIdx !== -1 && args[lintCwdIdx + 1] ? resolve(args[lintCwdIdx + 1]) : cwd()
-    if (ROOT_GUARDED_COMMANDS.has(command)) {
-      assertCwdIsProjectRoot(effectiveRoot, describeRootGuardedAction(command))
-    }
-    // `ci` (plan) — read-only гейт-команда для CI-джоб: не мутує package.json
-    // (ensure дописав би devDependency прямо в чекауті pipeline-агента).
-    // `skill <runner> taze` — JS-оркестрований worktree-only шлях
-    // (skills/taze/js/orchestrate.mjs): сам створює worktree і гейтить на
-    // чистоту дерева ДО checkout. Мутація тут забруднила б дерево прямо
-    // перед тим гейтом і провалювала б auto-create на інакше чистому дереві —
-    // оркестратор сам робить self-upgrade devDependency вже ВСЕРЕДИНІ
-    // щойно створеного worktree, після власного гейту чистоти.
-    const skipDevDepsEnsure = command === 'skill' && isTazeOrchestratorSkillArgs(args)
-    if (command !== 'ci' && !skipDevDepsEnsure) await ensureNRulesInRootDevDependencies(effectiveRoot)
-    // Підкоманди-оркестратори (hook/lint/skill/adr-normalize-local/taze/release тощо)
-    // можуть спавнити внутрішню agent/LLM-сесію — ADR Stop-hooks (capture/normalize)
-    // мають пропустити її як технічний шум, не людську думку (spec 2026-06-30).
-    env.ADR_HOOKS_SKIP = '1'
-    switch (command) {
-      case 'rename-yaml-extensions': {
-        const code = await runRenameYamlExtensionsCli(args)
-        if (code !== 0) {
-          process.exitCode = 1
-        }
-
-        break
+  try {
+    if (isLintHelp) {
+      printLintHelp()
+    } else {
+      // Root-guard до перших мутацій: дефолтний sync скаффолдить .cursor/.claude/CLAUDE.md/
+      // .n-rules.json + bun install, а lint/release переписують файли в CWD —
+      // усе це ключиться на cwd(). Запуск із піддиректорії git-репо (типово прямий
+      // `bun npm/bin/n-rules.js` не з кореня) зачепив би не той каталог → STOP. Read-only та
+      // `--root`-команди (doc-aggregate, rename-yaml-extensions) не зачіпаємо.
+      // `lint` з явним `--cwd` — свідомий вибір кореня (MT ганяє `## Check` вузла з
+      // node-dir усередині worktree, live e2e 2026-07-12): guard і devDeps-ensure
+      // цілять у ЦІЛЬОВИЙ каталог, а не процесний cwd.
+      const lintCwdIdx = command === 'lint' ? args.indexOf('--cwd') : -1
+      const effectiveRoot = lintCwdIdx !== -1 && args[lintCwdIdx + 1] ? resolve(args[lintCwdIdx + 1]) : cwd()
+      if (ROOT_GUARDED_COMMANDS.has(command)) {
+        assertCwdIsProjectRoot(effectiveRoot, describeRootGuardedAction(command))
       }
-      case 'hook': {
-        // Thin hook entrypoint для Claude Code hooks. Делегує в runLint, перекодовує exit 1→2.
-        //   --post-tool-use  PostToolUse: file_path зі stdin JSON
-        //   --stop           Stop: робоче дерево vs HEAD
-        const { runHookCli } = await import('../scripts/hook.mjs')
-        process.exitCode = await runHookCli(args)
-
-        break
-      }
-      case 'lint': {
-        // Unified lint surface (spec 2026-06-29). Осі: --full (весь репо vs дельта) ×
-        // --no-fix (detect-only). Позиційні аргументи — scoped rule/concern фільтр.
-        // Fix-by-default: detect → T0 → LLM-ladder (run-fix). --no-fix: лише detect.
-        const cwdIdx = args.indexOf('--cwd')
-        const cwdArg = cwdIdx === -1 ? cwd() : resolve(args[cwdIdx + 1])
-        // --path: на відміну від --cwd (підміняє корінь), лишає корінь/config
-        // незмінними й лише звужує файловий набір до заданої піддиректорії
-        // (той самий explicitFiles-шлях, що вже годує hook --post-tool-use/--stop).
-        const pathIdx = args.indexOf('--path')
-        const pathArg = pathIdx === -1 ? null : args[pathIdx + 1]
-        // --base <ref>: явна база дельти для CI (merge-base HEAD ↔ ref замість
-        // каскаду main→origin/main) — надійний diff у checkout-ах з fetch.
-        const baseIdx = args.indexOf('--base')
-        const baseRef = baseIdx === -1 ? null : args[baseIdx + 1]
-        const repoWide = args.includes('--repo-wide')
-        const rules = args.filter(
-          (a, i) =>
-            !a.startsWith('-') &&
-            !(cwdIdx !== -1 && i === cwdIdx + 1) &&
-            !(pathIdx !== -1 && i === pathIdx + 1) &&
-            !(baseIdx !== -1 && i === baseIdx + 1)
-        )
-        if (repoWide && (pathArg !== null || rules.length > 0)) {
-          throw new Error('--repo-wide не поєднується з --path чи scoped rule/concern фільтром — оберіть щось одне')
-        }
-        // --path (сервіс-канон): дефолт — перетин піддерева з git-дельтою, лише
-        // per-file concerns (pathMode). --path --full — історична поведінка: все
-        // піддерево, full-scope concerns при збігу glob ідуть whole-repo. База
-        // дельти не резолвиться → fail-open на повне піддерево (не мовчазний скіп).
-        let pathFiles = null
-        let pathMode = false
-        if (pathArg !== null) {
-          const { collectPathScopedFiles, collectPathScopedChangedFiles } =
-            await import('../scripts/lib/lint-surface/path-scope.mjs')
-          if (args.includes('--full')) {
-            pathFiles = await collectPathScopedFiles(cwdArg, pathArg)
-          } else {
-            const scoped = await collectPathScopedChangedFiles(cwdArg, pathArg, { baseRef })
-            if (scoped.baseResolved) {
-              pathFiles = scoped.files
-              pathMode = true
-            } else {
-              console.warn(
-                '⚠️ lint --path: база дельти не резолвиться (немає main/origin/main чи --base-ref) — fail-open: лінтиться все піддерево'
-              )
-              pathFiles = await collectPathScopedFiles(cwdArg, pathArg)
-            }
+      // `ci` (plan) — read-only гейт-команда для CI-джоб: не мутує package.json
+      // (ensure дописав би devDependency прямо в чекауті pipeline-агента).
+      // `skill <runner> taze` — JS-оркестрований worktree-only шлях
+      // (skills/taze/js/orchestrate.mjs): сам створює worktree і гейтить на
+      // чистоту дерева ДО checkout. Мутація тут забруднила б дерево прямо
+      // перед тим гейтом і провалювала б auto-create на інакше чистому дереві —
+      // оркестратор сам робить self-upgrade devDependency вже ВСЕРЕДИНІ
+      // щойно створеного worktree, після власного гейту чистоти.
+      const skipDevDepsEnsure = command === 'skill' && isTazeOrchestratorSkillArgs(args)
+      if (command !== 'ci' && !skipDevDepsEnsure) await ensureNRulesInRootDevDependencies(effectiveRoot)
+      // Підкоманди-оркестратори (hook/lint/skill/adr-normalize-local/taze/release тощо)
+      // можуть спавнити внутрішню agent/LLM-сесію — ADR Stop-hooks (capture/normalize)
+      // мають пропустити її як технічний шум, не людську думку (spec 2026-06-30).
+      env.ADR_HOOKS_SKIP = '1'
+      switch (command) {
+        case 'rename-yaml-extensions': {
+          const code = await runRenameYamlExtensionsCli(args)
+          if (code !== 0) {
+            process.exitCode = 1
           }
-        }
-        // --full + --path: buildPlan ігнорує full, коли передано explicitFiles (той самий
-        // шлях), тож і тут full-вісь вважаємо неактивною — інакше глобальний machine-wide
-        // лок --full брався б для швидкого scoped-прогону без причини.
-        const full = args.includes('--full') && pathArg === null && !repoWide
-        const lintOpts = {
-          cwd: cwdArg,
-          full,
-          rules,
-          verbose: args.includes('--verbose'),
-          files: pathFiles,
-          pathMode,
-          repoWide,
-          baseRef
-        }
-        const noFix = args.includes('--no-fix')
-        // `--full` без `--no-fix` мутує ВЕСЬ репо (не лише дельту) — той самий клас
-        // ризику, що й taze: якщо запущено поза .worktrees/, треба ізолювати. `--no-fix`
-        // (detect-only, нуль мутацій) і не-full (дельта, за дизайном працює на живому
-        // дереві задачі, worktree-ізоляція зламала б саму суть дельти) — пропускаємо.
-        const needsWorktreeIsolation = full && !noFix
-        const worktree = needsWorktreeIsolation
-          ? await ensureRunningInWorktree(cwdArg, spawnSync, line => console.log(line), {
-              suffix: 'lint',
-              description: 'n-rules lint --full: worktree-only full-repo run'
-            })
-          : { cwd: cwdArg, autoCreated: false, branchArg: null }
-        const runCwd = worktree.cwd
-        // Глобальна черга full-прогонів (spec 2026-07-03): одночасно виконується один
-        // `lint --full` на машину, паралельні --full чекають лока і бачать чергу та
-        // живий прогрес активного прогону; не-full запуски йдуть без лока
-        // (див. lint-lock.mjs). Publisher пише знімки прогресу для черги.
-        const { withGlobalLintLock, createProgressPublisher } =
-          await import('../scripts/lib/lint-surface/lint-lock.mjs')
-        try {
-          process.exitCode = await withGlobalLintLock({ ...lintOpts, cwd: runCwd, noFix }, async () => {
-            const runOpts = { ...lintOpts, cwd: runCwd }
-            const publisher = runOpts.full ? createProgressPublisher() : null
-            if (publisher) runOpts.onProgress = publisher.onUpdate
-            try {
-              if (noFix) {
-                const { detectAll } = await import('../scripts/lib/lint-surface/run-detectors.mjs')
-                // окрема змінна замість (await detectAll(...)).exitCode — no-await-expression-member (oxlint)
-                const detectResult = await detectAll(runOpts)
-                return detectResult.exitCode
-              }
-              const { runFixPipeline } = await import('../scripts/lib/lint-surface/run-fix.mjs')
-              return await runFixPipeline(runOpts)
-            } finally {
-              publisher?.stop()
-            }
-          })
-        } finally {
-          // Лише для АВТОстворених worktree (лінт уже сидів у своєму — не наш, не чіпаємо).
-          if (worktree.autoCreated) {
-            let bringBackFailed = true
-            try {
-              const bringBackResult = await bringChangesBackToOriginal(runCwd, cwdArg, spawnSync, line =>
-                console.log(line)
-              )
-              bringBackFailed = bringBackResult.failed
-            } catch (error) {
-              console.log(
-                `⚠️ Перенесення змін назад провалилось: ${error instanceof Error ? error.message : String(error)}`
-              )
-            }
-            // Прибираємо worktree лише якщо перенесення точно вдалось — інакше
-            // не перенесені зміни згорять разом з деревом.
-            if (bringBackFailed) {
-              console.log(
-                `⚠️ Перенесення назад не підтверджено — worktree "${worktree.branchArg}" лишається для ручного розбору.`
-              )
-            } else {
-              removeAutoCreatedWorktree(worktree.branchArg, cwdArg, spawnSync, line => console.log(line))
-            }
-          }
-        }
 
-        break
-      }
-      case 'ci': {
-        // n-rules ci plan — skip-логіка сервіс-орієнтованого CI-канону: рахує
-        // перетин git-дельти з --path (каталог сервісу) і віддає job outputs
-        // «які lint-домени запускати» для GitHub Actions (--github →
-        // $GITHUB_OUTPUT) та Azure Pipelines (--azure → ##vso-рядки).
-        const { runCiPlanCli } = await import('../scripts/lib/lint-surface/ci-plan.mjs')
-        process.exitCode = await runCiPlanCli(args)
-
-        break
-      }
-      case 'taze': {
-        // n-rules taze diff — read-only semver-diff package.json ↔ package.json.taze-bak
-        // (root + воркспейси) для скілу n-taze: скрипт класифікує major-оновлення,
-        // агент отримує готовий список замість ручного порівняння бекапів.
-        // Живе у плагіні @7n/rules-lang-js (фаза 5a spec lang-plugins-extraction) —
-        // резолвимо його taze-handler і беремо named-експорт runTazeCli.
-        const { getHandlers } = await import('../scripts/lib/resolve-plugins.mjs')
-        const { readNRulesConfigLite } = await import('../scripts/lib/read-n-rules-config-lite.mjs')
-        const config = await readNRulesConfigLite(cwd())
-        const handler = getHandlers(cwd(), config, 'taze').find(h => h.pluginName === '@7n/rules-lang-js')
-        if (!handler) {
-          console.error(
-            '❌ taze diff потребує плагін @7n/rules-lang-js (npm/bun-гілка) — запусти npx @7n/rules для авто-встановлення'
-          )
-          process.exitCode = 1
           break
         }
-        const { pathToFileURL } = await import('node:url')
-        // eslint-disable-next-line no-unsanitized/method
-        const { runTazeCli } = await import(pathToFileURL(handler.modulePath).href)
-        process.exitCode = await runTazeCli(args)
+        case 'hook': {
+          // Thin hook entrypoint для Claude Code hooks. Делегує в runLint, перекодовує exit 1→2.
+          //   --post-tool-use  PostToolUse: file_path зі stdin JSON
+          //   --stop           Stop: робоче дерево vs HEAD
+          const { runHookCli } = await import('../scripts/hook.mjs')
+          process.exitCode = await runHookCli(args)
 
-        break
-      }
-      case 'release': {
-        const { runReleaseCli } = await import('../rules/release/release.mjs')
-        process.exitCode = await runReleaseCli(args)
+          break
+        }
+        case 'lint': {
+          // Unified lint surface (spec 2026-06-29). Осі: --full (весь репо vs дельта) ×
+          // --no-fix (detect-only). Позиційні аргументи — scoped rule/concern фільтр.
+          // Fix-by-default: detect → T0 → LLM-ladder (run-fix). --no-fix: лише detect.
+          const cwdIdx = args.indexOf('--cwd')
+          const cwdArg = cwdIdx === -1 ? cwd() : resolve(args[cwdIdx + 1])
+          // --path: на відміну від --cwd (підміняє корінь), лишає корінь/config
+          // незмінними й лише звужує файловий набір до заданої піддиректорії
+          // (той самий explicitFiles-шлях, що вже годує hook --post-tool-use/--stop).
+          const pathIdx = args.indexOf('--path')
+          const pathArg = pathIdx === -1 ? null : args[pathIdx + 1]
+          // --base <ref>: явна база дельти для CI (merge-base HEAD ↔ ref замість
+          // каскаду main→origin/main) — надійний diff у checkout-ах з fetch.
+          const baseIdx = args.indexOf('--base')
+          const baseRef = baseIdx === -1 ? null : args[baseIdx + 1]
+          const repoWide = args.includes('--repo-wide')
+          const rules = args.filter(
+            (a, i) =>
+              !a.startsWith('-') &&
+              !(cwdIdx !== -1 && i === cwdIdx + 1) &&
+              !(pathIdx !== -1 && i === pathIdx + 1) &&
+              !(baseIdx !== -1 && i === baseIdx + 1)
+          )
+          if (repoWide && (pathArg !== null || rules.length > 0)) {
+            throw new Error('--repo-wide не поєднується з --path чи scoped rule/concern фільтром — оберіть щось одне')
+          }
+          // --path (сервіс-канон): дефолт — перетин піддерева з git-дельтою, лише
+          // per-file concerns (pathMode). --path --full — історична поведінка: все
+          // піддерево, full-scope concerns при збігу glob ідуть whole-repo. База
+          // дельти не резолвиться → fail-open на повне піддерево (не мовчазний скіп).
+          let pathFiles = null
+          let pathMode = false
+          if (pathArg !== null) {
+            const { collectPathScopedFiles, collectPathScopedChangedFiles } =
+              await import('../scripts/lib/lint-surface/path-scope.mjs')
+            if (args.includes('--full')) {
+              pathFiles = await collectPathScopedFiles(cwdArg, pathArg)
+            } else {
+              const scoped = await collectPathScopedChangedFiles(cwdArg, pathArg, { baseRef })
+              if (scoped.baseResolved) {
+                pathFiles = scoped.files
+                pathMode = true
+              } else {
+                console.warn(
+                  '⚠️ lint --path: база дельти не резолвиться (немає main/origin/main чи --base-ref) — fail-open: лінтиться все піддерево'
+                )
+                pathFiles = await collectPathScopedFiles(cwdArg, pathArg)
+              }
+            }
+          }
+          // --full + --path: buildPlan ігнорує full, коли передано explicitFiles (той самий
+          // шлях), тож і тут full-вісь вважаємо неактивною — інакше глобальний machine-wide
+          // лок --full брався б для швидкого scoped-прогону без причини.
+          const full = args.includes('--full') && pathArg === null && !repoWide
+          const lintOpts = {
+            cwd: cwdArg,
+            full,
+            rules,
+            verbose: args.includes('--verbose'),
+            files: pathFiles,
+            pathMode,
+            repoWide,
+            baseRef
+          }
+          const noFix = args.includes('--no-fix')
+          // `--full` без `--no-fix` мутує ВЕСЬ репо (не лише дельту) — той самий клас
+          // ризику, що й taze: якщо запущено поза .worktrees/, треба ізолювати. `--no-fix`
+          // (detect-only, нуль мутацій) і не-full (дельта, за дизайном працює на живому
+          // дереві задачі, worktree-ізоляція зламала б саму суть дельти) — пропускаємо.
+          const needsWorktreeIsolation = full && !noFix
+          const worktree = needsWorktreeIsolation
+            ? await ensureRunningInWorktree(cwdArg, spawnSync, line => console.log(line), {
+                suffix: 'lint',
+                description: 'n-rules lint --full: worktree-only full-repo run'
+              })
+            : { cwd: cwdArg, autoCreated: false, branchArg: null }
+          const runCwd = worktree.cwd
+          // Глобальна черга full-прогонів (spec 2026-07-03): одночасно виконується один
+          // `lint --full` на машину, паралельні --full чекають лока і бачать чергу та
+          // живий прогрес активного прогону; не-full запуски йдуть без лока
+          // (див. lint-lock.mjs). Publisher пише знімки прогресу для черги.
+          const { withGlobalLintLock, createProgressPublisher } =
+            await import('../scripts/lib/lint-surface/lint-lock.mjs')
+          try {
+            process.exitCode = await withGlobalLintLock({ ...lintOpts, cwd: runCwd, noFix }, async () => {
+              const runOpts = { ...lintOpts, cwd: runCwd }
+              const publisher = runOpts.full ? createProgressPublisher() : null
+              if (publisher) runOpts.onProgress = publisher.onUpdate
+              try {
+                if (noFix) {
+                  const { detectAll } = await import('../scripts/lib/lint-surface/run-detectors.mjs')
+                  // окрема змінна замість (await detectAll(...)).exitCode — no-await-expression-member (oxlint)
+                  const detectResult = await detectAll(runOpts)
+                  return detectResult.exitCode
+                }
+                const { runFixPipeline } = await import('../scripts/lib/lint-surface/run-fix.mjs')
+                return await runFixPipeline(runOpts)
+              } finally {
+                publisher?.stop()
+              }
+            })
+          } finally {
+            // Лише для АВТОстворених worktree (лінт уже сидів у своєму — не наш, не чіпаємо).
+            if (worktree.autoCreated) {
+              let bringBackFailed = true
+              try {
+                const bringBackResult = await bringChangesBackToOriginal(runCwd, cwdArg, spawnSync, line =>
+                  console.log(line)
+                )
+                bringBackFailed = bringBackResult.failed
+              } catch (error) {
+                console.log(
+                  `⚠️ Перенесення змін назад провалилось: ${error instanceof Error ? error.message : String(error)}`
+                )
+              }
+              // Прибираємо worktree лише якщо перенесення точно вдалось — інакше
+              // не перенесені зміни згорять разом з деревом.
+              if (bringBackFailed) {
+                console.log(
+                  `⚠️ Перенесення назад не підтверджено — worktree "${worktree.branchArg}" лишається для ручного розбору.`
+                )
+              } else {
+                removeAutoCreatedWorktree(worktree.branchArg, cwdArg, spawnSync, line => console.log(line))
+              }
+            }
+          }
 
-        break
-      }
-      case 'skill': {
-        process.exitCode = await runSkillsCli(args)
+          break
+        }
+        case 'ci': {
+          // n-rules ci plan — skip-логіка сервіс-орієнтованого CI-канону: рахує
+          // перетин git-дельти з --path (каталог сервісу) і віддає job outputs
+          // «які lint-домени запускати» для GitHub Actions (--github →
+          // $GITHUB_OUTPUT) та Azure Pipelines (--azure → ##vso-рядки).
+          const { runCiPlanCli } = await import('../scripts/lib/lint-surface/ci-plan.mjs')
+          process.exitCode = await runCiPlanCli(args)
 
-        break
-      }
-      case 'adr-normalize-local': {
-        // Local-backend ADR-нормалізації: викликається з .claude/hooks/normalize-decisions.sh
-        // як заміна single-shot LLM-виклику. Проганяє конвеєр (retrieval→edge-judge→
-        // cluster→gen) на малій локальній моделі й друкує `{operations}` JSON у stdout.
-        const { runAdrNormalizeLocalCli } = await import('../scripts/lib/adr/normalize-cli.mjs')
-        process.exitCode = await runAdrNormalizeLocalCli(args)
+          break
+        }
+        case 'taze': {
+          // n-rules taze diff — read-only semver-diff package.json ↔ package.json.taze-bak
+          // (root + воркспейси) для скілу n-taze: скрипт класифікує major-оновлення,
+          // агент отримує готовий список замість ручного порівняння бекапів.
+          // Живе у плагіні @7n/rules-lang-js (фаза 5a spec lang-plugins-extraction) —
+          // резолвимо його taze-handler і беремо named-експорт runTazeCli.
+          const { getHandlers } = await import('../scripts/lib/resolve-plugins.mjs')
+          const { readNRulesConfigLite } = await import('../scripts/lib/read-n-rules-config-lite.mjs')
+          const config = await readNRulesConfigLite(cwd())
+          const handler = getHandlers(cwd(), config, 'taze').find(h => h.pluginName === '@7n/rules-lang-js')
+          if (!handler) {
+            console.error(
+              '❌ taze diff потребує плагін @7n/rules-lang-js (npm/bun-гілка) — запусти npx @7n/rules для авто-встановлення'
+            )
+            process.exitCode = 1
+            break
+          }
+          const { pathToFileURL } = await import('node:url')
+          // eslint-disable-next-line no-unsanitized/method
+          const { runTazeCli } = await import(pathToFileURL(handler.modulePath).href)
+          process.exitCode = await runTazeCli(args)
 
-        break
-      }
-      case undefined:
-      case '': {
-        await runSync()
+          break
+        }
+        case 'release': {
+          const { runReleaseCli } = await import('../rules/release/release.mjs')
+          process.exitCode = await runReleaseCli(args)
 
-        break
-      }
-      default: {
-        console.error(`❌ Невідома команда: ${command}`)
-        console.error(
-          `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), ci plan, taze, release, skill, doc-aggregate`
-        )
-        process.exitCode = 1
+          break
+        }
+        case 'skill': {
+          process.exitCode = await runSkillsCli(args)
+
+          break
+        }
+        case 'adr-normalize-local': {
+          // Local-backend ADR-нормалізації: викликається з .claude/hooks/normalize-decisions.sh
+          // як заміна single-shot LLM-виклику. Проганяє конвеєр (retrieval→edge-judge→
+          // cluster→gen) на малій локальній моделі й друкує `{operations}` JSON у stdout.
+          const { runAdrNormalizeLocalCli } = await import('../scripts/lib/adr/normalize-cli.mjs')
+          process.exitCode = await runAdrNormalizeLocalCli(args)
+
+          break
+        }
+        case undefined:
+        case '': {
+          await runSync()
+
+          break
+        }
+        default: {
+          console.error(`❌ Невідома команда: ${command}`)
+          console.error(
+            `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), ci plan, taze, release, skill, doc-aggregate`
+          )
+          process.exitCode = 1
+        }
       }
     }
+  } catch (error) {
+    // TypeError/RangeError/ReferenceError сигналять баг у самому коді (не навмисне
+    // user-facing повідомлення) — друкуємо stack одразу, інакше діагностика вимагає
+    // патчити node_modules вручну (як під час діагностики цього ж класу вад).
+    const isProgrammerError =
+      error instanceof TypeError || error instanceof RangeError || error instanceof ReferenceError
+    if (error instanceof ReexecHandoff) {
+      process.exitCode = error.code
+    } else if (isProgrammerError && error.stack) {
+      console.error(error.stack)
+      process.exitCode = 1
+    } else if (error instanceof Error && error.message) {
+      console.error(error.message)
+      process.exitCode = 1
+    } else {
+      console.error(error)
+      process.exitCode = 1
+    }
   }
-} catch (error) {
-  // TypeError/RangeError/ReferenceError сигналять баг у самому коді (не навмисне
-  // user-facing повідомлення) — друкуємо stack одразу, інакше діагностика вимагає
-  // патчити node_modules вручну (як під час діагностики цього ж класу вад).
-  const isProgrammerError = error instanceof TypeError || error instanceof RangeError || error instanceof ReferenceError
-  if (error instanceof ReexecHandoff) {
-    process.exitCode = error.code
-  } else if (isProgrammerError && error.stack) {
-    console.error(error.stack)
-    process.exitCode = 1
-  } else if (error instanceof Error && error.message) {
-    console.error(error.message)
-    process.exitCode = 1
-  } else {
-    console.error(error)
-    process.exitCode = 1
-  }
+
+  // Pi-агент тримає TCP keep-alive сокет відкритим — явний вихід, щоб не висіти.
+  // Відтворюємо семантику process.exit() без самого виклику (n/no-process-exit):
+  // фіксуємо код, віддаємо 'exit'-слухачам, далі — примусове завершення через reallyExit.
+  const exitCode = process.exitCode ?? 0
+  process.exitCode = exitCode
+  process.emit('exit', exitCode)
+  process.reallyExit(exitCode)
 }
 
-// Pi-агент тримає TCP keep-alive сокет відкритим — явний вихід, щоб не висіти.
-// Відтворюємо семантику process.exit() без самого виклику (n/no-process-exit):
-// фіксуємо код, віддаємо 'exit'-слухачам, далі — примусове завершення через reallyExit.
-const exitCode = process.exitCode ?? 0
-process.exitCode = exitCode
-process.emit('exit', exitCode)
-process.reallyExit(exitCode)
+if (isRunAsCli(import.meta.url)) {
+  await runCli(process.argv.slice(2))
+}
