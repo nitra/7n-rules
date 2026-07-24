@@ -20,11 +20,14 @@ export { bringChangesBackToOriginal, removeAutoCreatedWorktree } from '../../../
  * pi-агент (`@7n/llm-lib/agent-skill`; текст перехоплюється через `deps.out`,
  * бо `runAgentSkill` не повертає його напряму — лише стрімить у stdout).
  * `cursor`/`codex` — napi-міст ACP (`@7n/llm-lib/acp`; текст — прямий return,
- * idle-timeout і видимість прогресу вже вбудовані в сам міст).
+ * idle-timeout і видимість прогресу вже вбудовані в сам міст). Тір `avg`
+ * (рішення И/Ф3, задача T7) — паритет з pi-гілкою: `runAcpAgent` резолвить
+ * tier→env/args/post-session-config у Rust, а не бере модель з персонального
+ * CLI-конфіга на машині.
  * @param {'pi' | 'cursor' | 'codex'} runner раннер
  * @param {string} prompt промпт для одного пакета
  * @param {string} cwd робочий каталог
- * @param {{ runAgentSkill?: (prompt: string, opts?: object) => Promise<{ok: boolean, error: string|null}>, runAcpAgent?: (kind: string, prompt: string, cwd: string) => Promise<string> }} [deps] інжекти для тестів
+ * @param {{ runAgentSkill?: (prompt: string, opts?: object) => Promise<{ok: boolean, error: string|null}>, runAcpAgent?: (kind: string, prompt: string, cwd: string, opts?: {tier?: string}) => Promise<string> }} [deps] інжекти для тестів
  * @returns {Promise<{ ok: boolean, text: string, error: string|null }>} результат виклику
  */
 export async function callRunner(runner, prompt, cwd, deps = {}) {
@@ -50,7 +53,7 @@ export async function callRunner(runner, prompt, cwd, deps = {}) {
     runAcpAgent = acpModule.runAcpAgent
   }
   try {
-    const text = await runAcpAgent(runner, prompt, cwd)
+    const text = await runAcpAgent(runner, prompt, cwd, { tier: 'avg' })
     return { ok: true, text, error: null }
   } catch (error) {
     return { ok: false, text: '', error: error instanceof Error ? error.message : String(error) }

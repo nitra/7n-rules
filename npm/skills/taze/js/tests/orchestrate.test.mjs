@@ -98,11 +98,12 @@ describe('callRunner', () => {
     expect(calls[0].opts.cwd).toBe('/tmp/project')
   })
 
-  test('cursor/codex: успіх — return тексту напряму', async () => {
+  test('cursor/codex: успіх — return тексту напряму, тір avg паритетно pi-гілці', async () => {
     const result = await callRunner('codex', 'do it', '/tmp/project', {
-      runAcpAgent: (kind, prompt, cwd) => {
+      runAcpAgent: (kind, prompt, cwd, opts) => {
         expect(kind).toBe('codex')
         expect(cwd).toBe('/tmp/project')
+        expect(opts).toEqual({ tier: 'avg' })
         return 'зрефакторено'
       }
     })
