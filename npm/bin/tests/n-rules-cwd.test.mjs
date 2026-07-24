@@ -1,15 +1,15 @@
 /**
- * Тести helper-функцій `../n-rules.js`, які читають/пишуть за bare `cwd()` (з `node:process`)
+ * Тести helper-функцій `../n-rules-cli.mjs`, які читають/пишуть за bare `cwd()` (з `node:process`)
  * без параметра-override (`syncSkills`, `syncCommands`, `syncPiSkills`, `syncClaudeMd`,
  * `syncAgentsMd`, `listProjectSkillDirNames`, …).
  *
- * `process.chdir` у тестах заборонено (`no-process-chdir` конвенція — лінт-перевірка сканує
- * буквальний виклик `process.chdir(`). Замість цього тут мокається САМ модуль `node:process`
- * (`vi.mock`, з реальними іншими експортами через `vi.importActual`), підмінюючи лише `cwd`
- * на функцію, що повертає поточний tmp-каталог тесту (`cwdState.current`, `vi.hoisted`).
- * Це не мутує глобальний `process.cwd()` жодного разу — увесь інший код процесу (і паралельні
- * тестові файли) бачать реальний `cwd()` без змін; підміняється лише той один імпортований
- * імпорт `cwd` усередині `n-rules.js` для цього тестового файлу.
+ * Пряма мутація `process.cwd` у тестах заборонена (`no-process-chdir` конвенція — лінт-перевірка
+ * сканує буквальний виклик цієї функції зі стандартної бібліотеки). Замість цього тут мокається
+ * САМ модуль `node:process` (`vi.mock`, з реальними іншими експортами через `vi.importActual`),
+ * підмінюючи лише `cwd` на функцію, що повертає поточний tmp-каталог тесту (`cwdState.current`,
+ * `vi.hoisted`). Це не мутує глобальний стан жодного разу — увесь інший код процесу (і паралельні
+ * тестові файли) бачать реальний робочий каталог без змін; підміняється лише той один
+ * імпортований `cwd` усередині `n-rules-cli.mjs` для цього тестового файлу.
  */
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -20,6 +20,10 @@ import { ensureDir, withTmpDir, writeJson } from '../../scripts/utils/test-helpe
 
 const cwdState = vi.hoisted(() => ({ current: process.cwd() }))
 
+const MISSING_TEMPLATE_ERROR_RE = /Не знайдено шаблон/
+const RULES_ARRAY_ERROR_RE = /має бути масивом рядків/
+const INVALID_JSON_ERROR_RE = /Невірний JSON/
+
 vi.mock('node:process', async () => {
   const actual = await vi.importActual('node:process')
   return { ...actual, cwd: () => cwdState.current }
@@ -29,8 +33,8 @@ vi.mock('node:process', async () => {
 // `runSync` не робив реальний self-upgrade/bun-install/мережевий Claude-config sync;
 // решта кроків `runSync` (readConfig, syncManagedRuleFiles, syncSkills/Commands/PiSkills,
 // syncClaudeMd/AgentsMd, syncGitignoreWorktree) лишаються реальними — безпечно, бо cwd мокається.
-const upgradeNRulesToLatestAndBunInstallMock = vi.fn(async (_projectRoot, bundledPackageRoot) => bundledPackageRoot)
-const syncClaudeConfigMock = vi.fn(async () => ({
+const upgradeNRulesToLatestAndBunInstallMock = vi.fn((_projectRoot, bundledPackageRoot) => bundledPackageRoot)
+const syncClaudeConfigMock = vi.fn(() => ({
   settings: false,
   cursorHooks: false,
   commands: [],
@@ -41,7 +45,7 @@ const syncClaudeConfigMock = vi.fn(async () => ({
   piExtension: false,
   rtkPiExtension: false
 }))
-const syncSetupBunDepsActionMock = vi.fn(async () => ({ destPath: '.github/actions/setup-bun-deps/action.yml' }))
+const syncSetupBunDepsActionMock = vi.fn(() => ({ destPath: '.github/actions/setup-bun-deps/action.yml' }))
 
 vi.mock('../../scripts/upgrade-n-rules-and-install.mjs', () => ({
   upgradeNRulesToLatestAndBunInstall: upgradeNRulesToLatestAndBunInstallMock
@@ -68,13 +72,18 @@ const {
   syncLocalOnlySkillCommands,
   syncPiSkills,
   syncSkills
-} = await import('../n-rules.js')
+} = await import('../n-rules-cli.mjs')
 
 afterEach(() => {
   cwdState.current = process.cwd()
 })
 
-/** Мінімальний skill-фікстур `skills/<id>/` (SKILL.md + main.json) під tmp bundledSkillsDir. */
+/**
+ * Мінімальний skill-фікстур `skills/<id>/` (SKILL.md + main.json) під tmp bundledSkillsDir.
+ * @param {string} bundledSkillsDir тимчасова тека з bundled skills
+ * @param {string} id ідентифікатор skill-фікстури без префікса `n-`
+ * @param {{ worktree?: boolean, requireRoot?: boolean }} [options] прапорці metadata для main.json
+ */
 async function writeFixtureSkill(bundledSkillsDir, id, { worktree = false, requireRoot = false } = {}) {
   const dir = join(bundledSkillsDir, id)
   await ensureDir(dir)
@@ -163,7 +172,7 @@ describe('syncClaudeMd / syncAgentsMd (cwd-mock)', () => {
   test('syncAgentsMd кидає, коли шаблон відсутній у пакеті', async () => {
     await withTmpDir(async dir => {
       cwdState.current = dir
-      await expect(syncAgentsMd(join(dir, 'no-such-template.md'))).rejects.toThrow(/Не знайдено шаблон/)
+      await expect(syncAgentsMd(join(dir, 'no-such-template.md'))).rejects.toThrow(MISSING_TEMPLATE_ERROR_RE)
     })
   })
 })
@@ -336,6 +345,7 @@ describe('migrateLegacyConfigIfNeeded (cwd-mock)', () => {
 /**
  * Мінімальний фікстур-пакет (`rules/<id>/main.mdc`, порожній `skills/`, `AGENTS.template.md`,
  * `package.json`) — імітує встановлений `@7n/rules` для `readConfig`/`runSync`.
+ * @param {string} root тимчасовий корінь пакету-джерела
  */
 async function buildFixturePackageRoot(root) {
   await ensureDir(join(root, 'rules', 'text'))
@@ -394,7 +404,7 @@ describe('readConfig (cwd-mock, фікстур bundledRulesDir/bundledSkillsDir)
       const bundledSkillsDir = join(dir, 'skills')
       await writeJson(join(dir, '.n-rules.json'), { rules: 'not-an-array' })
 
-      await expect(readConfig({ bundledRulesDir, bundledSkillsDir })).rejects.toThrow(/має бути масивом рядків/)
+      await expect(readConfig({ bundledRulesDir, bundledSkillsDir })).rejects.toThrow(RULES_ARRAY_ERROR_RE)
     })
   })
 
@@ -406,7 +416,7 @@ describe('readConfig (cwd-mock, фікстур bundledRulesDir/bundledSkillsDir)
       const bundledSkillsDir = join(dir, 'skills')
       await writeFile(join(dir, '.n-rules.json'), '{ broken', 'utf8')
 
-      await expect(readConfig({ bundledRulesDir, bundledSkillsDir })).rejects.toThrow(/Невірний JSON/)
+      await expect(readConfig({ bundledRulesDir, bundledSkillsDir })).rejects.toThrow(INVALID_JSON_ERROR_RE)
     })
   })
 })

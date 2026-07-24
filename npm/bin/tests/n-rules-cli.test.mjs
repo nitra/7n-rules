@@ -15,26 +15,28 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { getFakeTazeCliCalls } from './fixtures/fake-lang-js-taze-handler.mjs'
+
 const here = dirname(fileURLToPath(import.meta.url))
 const fakeTazeHandlerPath = join(here, 'fixtures', 'fake-lang-js-taze-handler.mjs')
 
-const runRenameYamlExtensionsCliMock = vi.fn(async () => 0)
-const runHookCliMock = vi.fn(async () => 0)
-const runCiPlanCliMock = vi.fn(async () => 0)
-const runReleaseCliMock = vi.fn(async () => 0)
-const runSkillsCliMock = vi.fn(async () => 0)
+const runRenameYamlExtensionsCliMock = vi.fn(() => 0)
+const runHookCliMock = vi.fn(() => 0)
+const runCiPlanCliMock = vi.fn(() => 0)
+const runReleaseCliMock = vi.fn(() => 0)
+const runSkillsCliMock = vi.fn(() => 0)
 const isTazeOrchestratorSkillArgsMock = vi.fn(() => false)
-const runAdrNormalizeLocalCliMock = vi.fn(async () => 0)
+const runAdrNormalizeLocalCliMock = vi.fn(() => 0)
 const assertCwdIsProjectRootMock = vi.fn()
-const ensureNRulesInRootDevDependenciesMock = vi.fn(async () => {})
+const ensureNRulesInRootDevDependenciesMock = vi.fn()
 const getHandlersMock = vi.fn(() => [])
-const readNRulesConfigLiteMock = vi.fn(async () => ({}))
-const withGlobalLintLockMock = vi.fn(async (_opts, fn) => fn())
+const readNRulesConfigLiteMock = vi.fn(() => ({}))
+const withGlobalLintLockMock = vi.fn((_opts, fn) => fn())
 const createProgressPublisherMock = vi.fn(() => ({ onUpdate: vi.fn(), stop: vi.fn() }))
-const detectAllMock = vi.fn(async () => ({ exitCode: 0 }))
-const runFixPipelineMock = vi.fn(async () => 0)
-const ensureRunningInWorktreeMock = vi.fn(async cwdArg => ({ cwd: cwdArg, autoCreated: false, branchArg: null }))
-const bringChangesBackToOriginalMock = vi.fn(async () => ({ failed: false }))
+const detectAllMock = vi.fn(() => ({ exitCode: 0 }))
+const runFixPipelineMock = vi.fn(() => 0)
+const ensureRunningInWorktreeMock = vi.fn(cwdArg => ({ cwd: cwdArg, autoCreated: false, branchArg: null }))
+const bringChangesBackToOriginalMock = vi.fn(() => ({ failed: false }))
 const removeAutoCreatedWorktreeMock = vi.fn()
 
 vi.mock('../rename-yaml-extensions.mjs', () => ({
@@ -77,7 +79,7 @@ vi.mock('../../scripts/lib/auto-worktree.mjs', () => ({
   removeAutoCreatedWorktree: removeAutoCreatedWorktreeMock
 }))
 
-const { runCli } = await import('../n-rules.js')
+const { runCli } = await import('../n-rules-cli.mjs')
 
 // `runCli` завжди (незалежно від гілки switch) завершується реальним
 // `process.emit('exit', exitCode); process.reallyExit(exitCode)` — це існуюча поведінка CLI,
@@ -86,7 +88,7 @@ const { runCli } = await import('../n-rules.js')
 // у тестовому воркері (vitest pool: 'forks') він убив би сам тестовий процес. Тому мокається
 // лише `reallyExit` (no-op) — `process.emit('exit', …)` лишаємо реальним, він синхронний і
 // не завершує процес сам собою.
-vi.spyOn(process, 'reallyExit').mockImplementation(() => undefined)
+vi.spyOn(process, 'reallyExit').mockReturnValue()
 
 describe('runCli', () => {
   beforeEach(() => {
@@ -100,7 +102,7 @@ describe('runCli', () => {
   })
 
   test('lint --help друкує довідку без root-guard і без ensure devDependencies', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const logSpy = vi.spyOn(console, 'log').mockReturnValue()
     await runCli(['lint', '--help'])
     const text = logSpy.mock.calls.map(c => c.join(' ')).join('\n')
     expect(text).toContain('Використання: npx @7n/rules lint')
@@ -110,14 +112,14 @@ describe('runCli', () => {
   })
 
   test('lint -h — той самий довідковий шлях', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const logSpy = vi.spyOn(console, 'log').mockReturnValue()
     await runCli(['lint', '-h'])
     expect(logSpy).toHaveBeenCalled()
     logSpy.mockRestore()
   })
 
   test('невідома команда → stderr "Невідома команда" + exitCode 1', async () => {
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const errSpy = vi.spyOn(console, 'error').mockReturnValue()
     await runCli(['bogus-command-xyz'])
     expect(process.exitCode).toBe(1)
     expect(errSpy.mock.calls[0][0]).toContain('Невідома команда: bogus-command-xyz')
@@ -125,7 +127,7 @@ describe('runCli', () => {
   })
 
   test('legacy alias lint-ga → deprecation warning + маршрутизація в lint ga (root-guard активний)', async () => {
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const errSpy = vi.spyOn(console, 'error').mockReturnValue()
     await runCli(['lint-ga'])
     expect(errSpy.mock.calls[0][0]).toContain('застаріла назва команди')
     expect(assertCwdIsProjectRootMock).toHaveBeenCalledTimes(1)
@@ -170,12 +172,12 @@ describe('runCli', () => {
     await runCli(['taze', 'diff'])
     expect(getHandlersMock).toHaveBeenCalled()
     expect(process.exitCode).toBe(0)
-    expect(globalThis.__fakeTazeCliCalls.at(-1)).toEqual(['diff'])
+    expect(getFakeTazeCliCalls().at(-1)).toEqual(['diff'])
   })
 
   test('taze без активного @7n/rules-lang-js хендлера → помилка, exitCode 1', async () => {
     getHandlersMock.mockReturnValueOnce([])
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const errSpy = vi.spyOn(console, 'error').mockReturnValue()
     await runCli(['taze', 'diff'])
     expect(process.exitCode).toBe(1)
     expect(errSpy.mock.calls[0][0]).toContain('@7n/rules-lang-js')
@@ -237,7 +239,7 @@ describe('runCli', () => {
   })
 
   test('lint --repo-wide з --path кидає помилку конфлікту прапорів', async () => {
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const errSpy = vi.spyOn(console, 'error').mockReturnValue()
     await runCli(['lint', '--repo-wide', '--path', 'run/nexus'])
     expect(process.exitCode).toBe(1)
     expect(errSpy.mock.calls[0][0]).toContain('--repo-wide не поєднується')

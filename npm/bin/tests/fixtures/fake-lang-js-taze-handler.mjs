@@ -4,12 +4,21 @@
  * динамічним `import(pathToFileURL(handler.modulePath).href)` за шляхом з `getHandlers`.
  */
 
+/** @type {string[][]} */
+const calls = []
+
+/**
+ * @returns {string[][]} усі виклики `runTazeCli` цього фікстур-модуля (для перевірки в тесті)
+ */
+export function getFakeTazeCliCalls() {
+  return calls
+}
+
 /**
  * @param {string[]} args сирі аргументи після `taze`
- * @returns {Promise<number>} завжди 0 — фіксує факт виклику через `globalThis`
+ * @returns {number} завжди 0 — фіксує факт виклику у `calls`
  */
-export async function runTazeCli(args) {
-  globalThis.__fakeTazeCliCalls = globalThis.__fakeTazeCliCalls ?? []
-  globalThis.__fakeTazeCliCalls.push(args)
+export function runTazeCli(args) {
+  calls.push(args)
   return 0
 }

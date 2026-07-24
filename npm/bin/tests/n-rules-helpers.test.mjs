@@ -10,8 +10,9 @@
  * навмисно НЕ викликаються з мутацією файлової системи; лише ті, що безпечні read-only
  * у реальному робочому каталозі тестового процесу (`npm/`), де очікувано відсутні артефакти.
  */
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { join } from 'node:path'
+import { env } from 'node:process'
 
 import { ensureDir, withTmpDir, writeJson } from '../../scripts/utils/test-helpers.mjs'
 
@@ -50,7 +51,11 @@ import {
   skillDescriptionSafeForMarkdownInline,
   sortConfigIdArrays,
   syncManagedRuleFiles
-} from '../n-rules.js'
+} from '../n-rules-cli.mjs'
+
+const MISSING_RULES_DIR_RE = /Не знайдено каталог правил/
+const EMPTY_RULES_DIR_RE = /немає підкаталогів з main.mdc/
+const MISSING_RULE_MAIN_MDC_RE = /Немає файлу ghost\/main\.mdc/
 
 describe('normalizeRuleName', () => {
   test('шлях з .mdc → чистий id', () => {
@@ -179,13 +184,18 @@ describe('errorMessage', () => {
   })
 })
 
+const DEFAULT_SYNC_DESCRIPTION_RE = /Дефолтна синхронізація/
+const AUTO_FIX_DESCRIPTION_RE = /авто-fix/
+const VERSION_BUMP_DESCRIPTION_RE = /бампає version/
+const PROJECT_MUTATION_DESCRIPTION_RE = /мутує проєкт/
+
 describe('describeRootGuardedAction', () => {
   test.each([
-    [undefined, /Дефолтна синхронізація/],
-    ['', /Дефолтна синхронізація/],
-    ['lint', /авто-fix/],
-    ['release', /бампає version/],
-    ['unknown-cmd', /мутує проєкт/]
+    [undefined, DEFAULT_SYNC_DESCRIPTION_RE],
+    ['', DEFAULT_SYNC_DESCRIPTION_RE],
+    ['lint', AUTO_FIX_DESCRIPTION_RE],
+    ['release', VERSION_BUMP_DESCRIPTION_RE],
+    ['unknown-cmd', PROJECT_MUTATION_DESCRIPTION_RE]
   ])('%s', (cmd, re) => {
     expect(describeRootGuardedAction(cmd)).toMatch(re)
   })
@@ -194,12 +204,13 @@ describe('describeRootGuardedAction', () => {
 describe('printLintHelp', () => {
   test('друкує довідку з ключовими прапорами', () => {
     const calls = []
-    const orig = console.log
-    console.log = (...args) => calls.push(args.join(' '))
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      calls.push(args.join(' '))
+    })
     try {
       printLintHelp()
     } finally {
-      console.log = orig
+      spy.mockRestore()
     }
     const text = calls.join('\n')
     expect(text).toContain('--full')
@@ -225,13 +236,13 @@ describe('discoverBundledRuleNames', () => {
   })
 
   test('відсутній каталог → throws', async () => {
-    await expect(discoverBundledRuleNames('/no/such/dir/definitely')).rejects.toThrow(/Не знайдено каталог правил/)
+    await expect(discoverBundledRuleNames('/no/such/dir/definitely')).rejects.toThrow(MISSING_RULES_DIR_RE)
   })
 
   test('каталог без валідних правил → throws', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'empty-subdir'))
-      await expect(discoverBundledRuleNames(dir)).rejects.toThrow(/немає підкаталогів з main.mdc/)
+      await expect(discoverBundledRuleNames(dir)).rejects.toThrow(EMPTY_RULES_DIR_RE)
     })
   })
 })
@@ -337,7 +348,7 @@ describe('aggregateRuleSources / listRuleNamesPerDir', () => {
 
       const { names, sources, extras } = await aggregateRuleSources([coreDir, pluginDir])
 
-      expect(names.sort()).toEqual(['a', 'b', 'c'])
+      expect(names.toSorted()).toEqual(['a', 'b', 'c'])
       expect(sources.get('a')).toBe(coreDir)
       expect(sources.get('b')).toBe(coreDir)
       expect(sources.get('c')).toBe(pluginDir)
@@ -366,7 +377,7 @@ describe('aggregateRuleSources / listRuleNamesPerDir', () => {
   })
 
   test('listRuleNamesPerDir: ядро (перший елемент) відсутнє → throws', async () => {
-    await expect(listRuleNamesPerDir(['/no/such/core/rules/dir'])).rejects.toThrow(/Не знайдено каталог правил/)
+    await expect(listRuleNamesPerDir(['/no/such/core/rules/dir'])).rejects.toThrow(MISSING_RULES_DIR_RE)
   })
 })
 
@@ -480,29 +491,30 @@ describe('readBundledRuleContent', () => {
   test('відсутній main.mdc → throws з іменем правила', async () => {
     await withTmpDir(async dir => {
       await ensureDir(dir)
-      await expect(readBundledRuleContent('ghost', dir)).rejects.toThrow(/Немає файлу ghost\/main\.mdc/)
+      await expect(readBundledRuleContent('ghost', dir)).rejects.toThrow(MISSING_RULE_MAIN_MDC_RE)
     })
   })
 })
 
 describe('runSyncStep', () => {
   test('повертає результат дії за успіху', async () => {
-    const result = await runSyncStep('❌ ', async () => 42)
+    const result = await runSyncStep('❌ ', () => 42)
     expect(result).toBe(42)
   })
   test('логує префікс+повідомлення і прокидає виняток', async () => {
     const errSpy = []
-    const orig = console.error
-    console.error = (...args) => errSpy.push(args.join(' '))
+    const spy = vi.spyOn(console, 'error').mockImplementation((...args) => {
+      errSpy.push(args.join(' '))
+    })
     try {
       await expect(
-        runSyncStep('❌ Опис: ', async () => {
+        runSyncStep('❌ Опис: ', () => {
           throw new Error('бум')
         })
       ).rejects.toThrow('бум')
       expect(errSpy.join('\n')).toContain('❌ Опис: бум')
     } finally {
-      console.error = orig
+      spy.mockRestore()
     }
   })
 })
@@ -516,7 +528,7 @@ describe('captureOutput', () => {
       return true
     }
     try {
-      const result = await captureOutput(async () => {
+      const result = await captureOutput(() => {
         console.log('прихований рядок успіху')
         return { fail: 0 }
       })
@@ -535,7 +547,7 @@ describe('captureOutput', () => {
       return true
     }
     try {
-      const result = await captureOutput(async () => {
+      const result = await captureOutput(() => {
         console.log('рядок з помилкою')
         return { fail: 1 }
       })
@@ -555,7 +567,7 @@ describe('captureOutput', () => {
     }
     try {
       await expect(
-        captureOutput(async () => {
+        captureOutput(() => {
           console.log('перед падінням')
           throw new Error('крах')
         })
@@ -601,23 +613,25 @@ describe('syncManagedRuleFiles', () => {
 describe('logRemovedManagedItems', () => {
   test('порожній список — нічого не логує', () => {
     const calls = []
-    const orig = console.log
-    console.log = (...args) => calls.push(args.join(' '))
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      calls.push(args.join(' '))
+    })
     try {
       logRemovedManagedItems('правила', '.cursor/rules', [])
     } finally {
-      console.log = orig
+      spy.mockRestore()
     }
     expect(calls).toEqual([])
   })
   test('непорожній список — логує заголовок і кожен елемент', () => {
     const calls = []
-    const orig = console.log
-    console.log = (...args) => calls.push(args.join(' '))
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      calls.push(args.join(' '))
+    })
     try {
       logRemovedManagedItems('правила', '.cursor/rules', ['n-a.mdc', 'n-b.mdc'])
     } finally {
-      console.log = orig
+      spy.mockRestore()
     }
     const text = calls.join('\n')
     expect(text).toContain('Видалено правила поза списком')
@@ -628,26 +642,26 @@ describe('logRemovedManagedItems', () => {
 
 describe('reexecIfPackageVersionChanged / ReexecHandoff', () => {
   test('NITRA_CURSOR_REEXEC=1 → рано повертається, без читання версій', async () => {
-    const prev = process.env.NITRA_CURSOR_REEXEC
-    process.env.NITRA_CURSOR_REEXEC = '1'
+    const prev = env.NITRA_CURSOR_REEXEC
+    env.NITRA_CURSOR_REEXEC = '1'
     try {
       await expect(reexecIfPackageVersionChanged('/no/such/root', '1.0.0')).resolves.toBeUndefined()
     } finally {
-      if (prev === undefined) delete process.env.NITRA_CURSOR_REEXEC
-      else process.env.NITRA_CURSOR_REEXEC = prev
+      if (prev === undefined) delete env.NITRA_CURSOR_REEXEC
+      else env.NITRA_CURSOR_REEXEC = prev
     }
   })
 
   test('однакові версії до/після — рано повертається', async () => {
-    const prev = process.env.NITRA_CURSOR_REEXEC
-    delete process.env.NITRA_CURSOR_REEXEC
+    const prev = env.NITRA_CURSOR_REEXEC
+    delete env.NITRA_CURSOR_REEXEC
     try {
       await withTmpDir(async dir => {
         await writeJson(join(dir, 'package.json'), { version: '1.2.3' })
         await expect(reexecIfPackageVersionChanged(dir, '1.2.3')).resolves.toBeUndefined()
       })
     } finally {
-      if (prev !== undefined) process.env.NITRA_CURSOR_REEXEC = prev
+      if (prev !== undefined) env.NITRA_CURSOR_REEXEC = prev
     }
   })
 
@@ -656,8 +670,8 @@ describe('reexecIfPackageVersionChanged / ReexecHandoff', () => {
   })
 
   test('версії відрізняються, але новий bin/n-rules.js відсутній — рано повертається (без spawnSync)', async () => {
-    const prev = process.env.NITRA_CURSOR_REEXEC
-    delete process.env.NITRA_CURSOR_REEXEC
+    const prev = env.NITRA_CURSOR_REEXEC
+    delete env.NITRA_CURSOR_REEXEC
     try {
       await withTmpDir(async dir => {
         await writeJson(join(dir, 'package.json'), { version: '2.0.0' })
@@ -665,7 +679,7 @@ describe('reexecIfPackageVersionChanged / ReexecHandoff', () => {
         await expect(reexecIfPackageVersionChanged(dir, '1.0.0')).resolves.toBeUndefined()
       })
     } finally {
-      if (prev !== undefined) process.env.NITRA_CURSOR_REEXEC = prev
+      if (prev !== undefined) env.NITRA_CURSOR_REEXEC = prev
     }
   })
 
