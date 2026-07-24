@@ -3,7 +3,11 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { getDocFilesExtensions, getHandlers } from '../../../scripts/lib/resolve-plugins.mjs'
+import {
+  getDocFilesExtensions,
+  getHandlers,
+  getUnavailableDeclaredPlugins
+} from '../../../scripts/lib/resolve-plugins.mjs'
 
 /**
  * Мовні розширення doc-files від плагінів (фаза 4 spec lang-plugins-extraction).
@@ -80,6 +84,19 @@ export async function loadDocFilesExtractors(cwd) {
   }
   EXTRACTOR_CACHE.set(cwd, map)
   return map
+}
+
+/**
+ * Задекларовані у `.n-rules.json` плагіни, недоступні в `node_modules` — рахується лише
+ * коли мапа doc-files-розширень порожня (інакше принаймні один плагін реально доступний,
+ * шукати "недоступні" немає сенсу — не hot-path concern, рахується лише в рідкісному
+ * порожньому випадку).
+ * @param {string} cwd корінь репозиторію
+ * @returns {string[]} npm-імена задекларованих, але не встановлених плагінів (порожньо — усе гаразд)
+ */
+export function unavailableDocFilesPlugins(cwd) {
+  if (Object.keys(pluginDocFilesExtensions(cwd)).length > 0) return []
+  return getUnavailableDeclaredPlugins(cwd, readPluginsConfigSync(cwd))
 }
 
 /** Скидає кеші (для тестів). */

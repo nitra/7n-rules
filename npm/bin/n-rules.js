@@ -105,6 +105,21 @@ import { isTazeOrchestratorSkillArgs, runSkillsCli } from '../scripts/skills-cli
 import { syncSetupBunDepsAction } from '../scripts/sync-setup-bun-deps-action.mjs'
 import { isRunAsCli } from '../scripts/cli-entry.mjs'
 
+/**
+ * Чи потребуватиме `lint <args>` worktree-ізоляції (той самий предикат, що й
+ * `needsWorktreeIsolation` у `case 'lint'`, обчислений із сирих CLI-args ДО
+ * парсингу `lintOpts`) — щоб self-upgrade devDependency не забруднив дерево
+ * ПЕРЕД гейтом чистоти `ensureRunningInWorktree` (той самий клас проблеми,
+ * що й `skill taze`, див. коментар над `skipDevDepsEnsure`).
+ * @param {string[]} args сирі аргументи після `lint`
+ * @returns {boolean} true, якщо `--full` без `--no-fix`/`--path`/`--repo-wide`
+ */
+function isLintFullFixArgs(args) {
+  return (
+    args.includes('--full') && !args.includes('--path') && !args.includes('--repo-wide') && !args.includes('--no-fix')
+  )
+}
+
 const PACKAGE_NAME = '@7n/rules'
 const CONFIG_FILE = '.n-rules.json'
 /** Публічний URL JSON Schema для поля `$schema` у `.n-rules.json` (IDE); вміст правил CLI читає лише з диска пакету */
@@ -1767,7 +1782,13 @@ export async function runCli(argv) {
       // перед тим гейтом і провалювала б auto-create на інакше чистому дереві —
       // оркестратор сам робить self-upgrade devDependency вже ВСЕРЕДИНІ
       // щойно створеного worktree, після власного гейту чистоти.
-      const skipDevDepsEnsure = command === 'skill' && isTazeOrchestratorSkillArgs(args)
+      // `lint --full` (без --no-fix/--path/--repo-wide) — той самий клас ризику:
+      // `needsWorktreeIsolation` нижче в `case 'lint'` гейтить на чистоту дерева
+      // ЧЕРЕЗ `ensureRunningInWorktree`; self-upgrade тут забруднив би те саме
+      // дерево прямо перед тим гейтом. Відкладаємо ensure до ПІСЛЯ
+      // `ensureRunningInWorktree` (виклик у `case 'lint'`, спрямований на runCwd).
+      const skipDevDepsEnsure =
+        (command === 'skill' && isTazeOrchestratorSkillArgs(args)) || (command === 'lint' && isLintFullFixArgs(args))
       if (command !== 'ci' && !skipDevDepsEnsure) await ensureNRulesInRootDevDependencies(effectiveRoot)
       // Підкоманди-оркестратори (hook/lint/skill/adr-normalize-local/taze/release тощо)
       // можуть спавнити внутрішню agent/LLM-сесію — ADR Stop-hooks (capture/normalize)
@@ -1860,6 +1881,8 @@ export async function runCli(argv) {
           // ризику, що й taze: якщо запущено поза .worktrees/, треба ізолювати. `--no-fix`
           // (detect-only, нуль мутацій) і не-full (дельта, за дизайном працює на живому
           // дереві задачі, worktree-ізоляція зламала б саму суть дельти) — пропускаємо.
+          // (той самий предикат, що й `isLintFullFixArgs` вище — тримаємо єдиним джерелом,
+          // інакше `skipDevDepsEnsure` і цей гейт можуть розійтись.)
           const needsWorktreeIsolation = full && !noFix
           const worktree = needsWorktreeIsolation
             ? await ensureRunningInWorktree(cwdArg, spawnSync, line => console.log(line), {
@@ -1868,6 +1891,10 @@ export async function runCli(argv) {
               })
             : { cwd: cwdArg, autoCreated: false, branchArg: null }
           const runCwd = worktree.cwd
+          // Ensure відкладений із root-guard-блоку (skipDevDepsEnsure вище) саме для
+          // цього шляху — self-upgrade тепер усередині (auto-created) worktree, ПІСЛЯ
+          // гейту чистоти, а не до нього.
+          if (needsWorktreeIsolation) await ensureNRulesInRootDevDependencies(runCwd)
           // Глобальна черга full-прогонів (spec 2026-07-03): одночасно виконується один
           // `lint --full` на машину, паралельні --full чекають лока і бачать чергу та
           // живий прогрес активного прогону; не-full запуски йдуть без лока

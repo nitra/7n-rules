@@ -82,6 +82,11 @@
           "type": "number",
           "description": "Мінімальний mutation score у відсотках (лише повний вимір: lint --full / lint test).",
           "default": 80
+        },
+        "classifyConfidenceThreshold": {
+          "type": "number",
+          "description": "Confidence-поріг LLM-класифікації survived-мутантів (allowed gaps). ≤1 — увімкнено; дефолт 1.1 = вимкнено (rollout-mode).",
+          "default": 1.1
         }
       }
     },

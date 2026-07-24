@@ -3,15 +3,122 @@ type: JS Module
 title: resolve-plugins.mjs
 resource: npm/scripts/lib/resolve-plugins.mjs
 docgen:
-  crc: 2bac9b49
+  crc: 52b1765f
+  model: omlx/gemma-4-e2b-it-4bit
+  tier: local-min
+  score: 40
+  issues: internal-name:hasLangSignal,internal-name:listScannableSubdirs,internal-name:readRepositoryUrl,internal-name:hasGithubWorkflows,internal-name:detectCiPlugins,surzhik,best-of-2:retry-error
 ---
 
-Резолв плагінів @7n/rules: визначає, які пакети-плагіни активні у проєкті, де їхні `rules/`-каталоги, які capabilities вони надають і які handlers надають.
+## Огляд
 
-Джерело правди — поле `plugins: string[]` у `.n-rules.json`; воно завжди перекриває автодетект, а явний порожній масив означає «плагіни вимкнено». Якщо поля немає, `detectPluginsFromRepo` шукає файлові сигнали: наявність yml у `.github/workflows/` дає `@7n/rules-ci-github`, файл `azure-pipelines.yml` у корені — `@7n/rules-ci-azure` (реєстр `KNOWN_CI_PLUGINS`). Лише коли файлових CI-сигналів немає, вмикається fallback за `repository.url` кореневого package.json (`github.com` → github, `dev.azure.com`/`visualstudio.com` → azure). Обидва сигнали дають обидва плагіни, жодного — порожній список. Окремо від CI детектяться мовні плагіни (реєстр `KNOWN_LANG_PLUGINS`, лише файлові сигнали, без URL-fallback): кореневий `pyproject.toml` → `@7n/rules-lang-python`.
+Огляд: Цей файл забезпечує пошук сигналів-маркерів у файловій системі для визначення активності плагінів. Він використовує BFS-обхід для пошуку цих сигналів, визначає доступні `capabilities`, розв'язує список плагінів з конфігурації, гарантує встановлення необхідних пакетів, обробляє маніфести плагінів та надає інструменти для роботи з їхніми обробниками (`handlers`).
 
-`ensurePluginInstalled` ставить відсутній плагін через `bun add -d` (пакет стає devDependency — зміна видима у diff). Будь-який фейл установки (offline, пакет не опублікований) — warning і graceful skip, ніколи не hard-fail: лінт і синк мають працювати без мережі.
+## Поведінка
 
-`resolvePlugins(projectRoot, config, options)` — головна функція: повертає масив `{name, packageRoot, rulesDir, manifest}` доступних плагінів з кешем на процес. `options.allowInstall: false` — hot-path режим (hook, lint): лише вже встановлені пакети, без `bun add`; `options.quiet: true` глушить warning-и (hook викликається на кожен файл). Плагін, що декларує правила (`contributes.rules !== false`), але не має каталогу `rules/`, пропускається як битий; плагін із явним `contributes.rules: false` (лише handlers, як `lang-*`) — легальний, `resolveRulesDirs` його просто не включає у джерела правил.
+Перевіряє наявність файлу-сигналу у корені або підтеках до `maxDepth` рівнів. Використовує BFS-обхід, який пропускає приховані директорії, `node_modules`, та `target`, для забезпечення ефективного виклику на hot-path. Повертає `true` при знаходженні сигналу. Викликає `listScannableSubdirs`.
 
-Маніфест — блок `"n-rules"` у package.json плагіна: `capabilities` (масив рядків на кшталт `ci:github`, живлять гейт концернів `requires.capability`) і `contributes.handlers` (мапа extension-point → відносний шлях модуля). `getActiveCapabilities` агрегує capabilities усіх плагінів у Set; `getHandlers(point)` повертає абсолютні шляхи модулів-обробників (перший реальний споживач — taze-оркестратор, extension-point `taze`). `resolveRulesDirs` віддає впорядковані джерела правил: ядро завжди перше (його правила й концерни виграють колізії), далі плагіни у порядку списку. `clearPluginResolveCache` скидає кеш (для тестів).
+### listScannableSubdirs
+Отримує видимі підтеки для неглибокого скану, ігноруючи приховані та службові директорії. Повертає масив абсолютних шляхів підтеків (порожній, якщо директорія нечитабельна).
+
+### readRepositoryUrl
+Отримує `repository.url` з кореневого `package.json` (як рядок або об'єкт). Повертає `null`, якщо URL відсутній або файл нечитабельний.
+
+### hasGithubWorkflows
+Перевіряє наявність файлів у директорії `.github/workflows/` будь-якого YAML/YML файлу. Повертає `true` при наявності.
+
+### detectCiPlugins
+Автоматично визначає CI-плагіни за станом репозиторію. Пріоритет надається файловим сигналам. Якщо файлових сигналів немає, використовується `repository.url` з кореневого `package.json`. Якщо обидва сигнали присутні, обидва плагіни повертаються. Якщо немає жодного сигналу, повертається порожній масив. Викликає `hasGithubWorkflows` та `readRepositoryUrl`.
+
+### detectPluginsFromRepo
+Автоматично визначає плагіни за станом репозиторію. Використовує файлові сигнали як пріоритет, з fallback на `repository.url` лише для CI-плагінів, коли файлових сигналів немає. Для Rust використовується перевірка до трьох рівнів підтек. Викликає `detectCiPlugins` та `hasLangSignal`.
+
+### pluginCategory
+Визначає категорію плагіна на основі naming convention `@7n/rules-<category>-<name>`. Повертає `null` для пакетів, що не відповідають цій конвенції (сторонні/кастомні плагіни) — такий пакет ніколи не з'являється сам через автодетект, а якщо присутній у явному `config.plugins`, вимикає backfill категорій для всього списку.
+
+### resolvePluginList
+Обчислює список плагінів проєкту. Використовує явне поле `config.plugins` з `.n-rules.json` або автоматичний автодетект. Явний пустий масив означає "плагіни вимкнено". Якщо `config.plugins` містить сторонній пакет, який не є `@7n/rules-*`, то backfill для заповнення списку вимикається повністю.
+
+### computePluginList
+Обчислює список плагінів без кешу. Використовує сире значення `config.plugins` з `.n-rules.json`. Повертає список плагінів. Викликає `detectPluginsFromRepo` та `pluginCategory`.
+
+### ensurePluginInstalled
+Гарантує наявність пакета: якщо він відсутній у `node_modules`, виконує `bun add -d <pkg>` для додання його як `devDependency`. Фейл повертає `false` з попередженням.
+
+### readPluginManifest
+Отримує нормалізований маніфест плагіна з його `package.json` з блоку `"n-rules"`.
+
+### resolvePlugins
+Виконує повне визначення доступних плагінів проєкту з використанням кешу. Дозволяє встановити вже встановлені пакети через `allowInstall: false` (для hot-path хука), ігнорує `bun add`, ігнорує `quiet` для уникнення попереджень при виклику на кожному файлі. Повертає масив доступних плагінів.
+
+### resolveRulesDirs
+Отримує шляхи до каталогів для всіх поверхонь ядра. Ядро має пріоритет. Надає масив об'єктів, що містять ім'я плагіна, шлях до його директорії та шлях до його кореня пакета.
+
+### getActiveCapabilities
+Отримує набір capability-рядків з усіх доступних плагінів, що використовуються для визначення `requires.capability` у `concern.json`.
+
+### getDocFilesExtensions
+Агрегує розширення файлів, що використовуються для генерації мапи від розширення до типу-мітка. Повертає мапу `extension -> type-мітка`.
+
+### getUnavailableDeclaredPlugins
+Повертає список плагінів, які задекларовані у `config.plugins`, але відсутні у `node_modules`. Нічого не встановлює і нічого не друкує — чистий предикат для explicit CLI-діагностики.
+
+### getHandlers
+Отримує шляхи до модулів-обробників для певного extension-point правила ядра.
+
+### clearPluginResolveCache
+Скидає кеш, призначений для тестів.
+
+## Публічний API
+
+- KNOWN_CI_PLUGINS — Відомі CI-плагіни для автовизначення: сигнал у дереві репо → npm-пакет.
+- KNOWN_LANG_PLUGINS — Відомі мовні плагіни: файловий сигнал екосистеми → npm-пакет. `maxDepth` —
+до якої глибини шукати сигнал: python — лише корінь (uv-провайдер v1
+обробляє тільки кореневий pyproject.toml; js — кореневий package.json); rust — до 3 рівнів, бо в
+монорепо Cargo.toml часто вкладений (Tauri `app/src-tauri/Cargo.toml`),
+а провайдер обробляє всі знайдені маніфести.
+- detectPluginsFromRepo — Автодетект плагінів за станом репозиторію: CI-плагіни (файлові сигнали з
+fallback на `repository.url`) + мовні плагіни (лише файлові сигнали —
+маніфест екосистеми в корені або, для rust, у підтеках до 3 рівнів; URL-fallback для мов безглуздий).
+- pluginCategory — Категорія плагіна за naming convention `@7n/rules-<category>-<name>` (напр. `ci`, `lang`).
+`null` — пакет поза цією конвенцією (сторонній/кастомний плагін); такий пакет ніколи не
+зʼявляється сам через автодетект і, якщо присутній у явному `config.plugins`, вимикає
+per-категорійний backfill для всього списку (див. `resolvePluginList`).
+- resolvePluginList — Список плагінів проєкту: явний `config.plugins` або автодетект.
+
+Явний `plugins` непорожній і складається **виключно** з пакетів `@7n/rules-<category>-*` —
+автодетект домішує лише категорії, відсутні в списку (ADR
+`260719-2154-per-category-автодетект-плагінів`); категорія, присутня хоч одним пакетом,
+лишається зафіксованою користувачем. Якщо `plugins` містить хоча б один сторонній
+(не `@7n/rules-*`) пакет — це сигнал ручного керування, backfill вимикається повністю
+(як і раніше: список повертається як є). Явний `[]` — «плагіни вимкнено», без backfill.
+Поле відсутнє взагалі — повний автодетект.
+
+Результат кешується на процес за `(projectRoot, declared)` — виклик з `resolvePlugins`
+(через `resolveRulesDirs` тощо) і прямий виклик у sync-CLI інакше дублювали б і файловий
+скан, і warning про backfill.
+  ігнорується при cache hit — warning друкується щонайбільше раз на `(root, declared)` за процес
+- ensurePluginInstalled — Гарантує, що плагін встановлений: якщо `node_modules/<pkg>` нема — `bun add -d <pkg>`
+(дописує devDependency і ставить). Фейл — warning + false, без винятку.
+- resolvePlugins — Повний резолв плагінів проєкту (з кешем на процес).
+  лише вже встановлені пакети, без `bun add`; `quiet` — без warning-ів (hook на кожен файл)
+- resolveRulesDirs — Rules-каталоги для всіх поверхонь ядра: ядро першим (його правила/концерни виграють
+колізії), далі плагіни у порядку списку.
+- getActiveCapabilities — Активні capabilities від усіх доступних плагінів (для гейта `requires.capability` у concern.json).
+- getDocFilesExtensions — Агреговані doc-files-розширення активних плагінів: '.rs' → 'Rust Module' тощо.
+Синхронно і без установки (hot-path hook) — лише вже встановлені плагіни.
+- getUnavailableDeclaredPlugins — Задекларовані у `config.plugins` пакети, недоступні в `node_modules` (не встановлені).
+Не встановлює нічого (`allowInstall: false`) і не друкує — чистий предикат для
+explicit CLI-діагностики (напр. doc-files: 0 кандидатів через невстановлений плагін),
+яка сама вирішує, коли й де показати попередження. Автодетектовані (не задекларовані
+явно) плагіни тут не враховуються — сигнал стосується саме явного `.n-rules.json`.
+- getHandlers — Handlers для extension-point правила ядра (v1 — лише API; перший споживач — v2).
+- clearPluginResolveCache — Скидає кеш резолву (для тестів).
+
+## Гарантії поведінки
+
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
+- Перехоплює помилки і не пропускає винятків назовні (fail-safe).
+- За певних помилок повертає порожнє значення (напр. `null`) замість винятку.
+- Кешує результати в межах одного прогону.
+- Свідомо пропускає шляхи: `.github`, `.git`, `node_modules`.

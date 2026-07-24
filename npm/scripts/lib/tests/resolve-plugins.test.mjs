@@ -12,6 +12,7 @@ import {
   ensurePluginInstalled,
   getActiveCapabilities,
   getHandlers,
+  getUnavailableDeclaredPlugins,
   pluginCategory,
   resolvePluginList,
   resolvePlugins,
@@ -313,6 +314,30 @@ describe('resolvePlugins', () => {
       const a = resolvePlugins(dir, { plugins: ['@x/p'] }, { allowInstall: false })
       const b = resolvePlugins(dir, { plugins: ['@x/p'] }, { allowInstall: false })
       expect(b).toBe(a)
+    })
+  })
+})
+
+describe('getUnavailableDeclaredPlugins', () => {
+  test('задекларований, але не встановлений плагін — у списку, без console.warn', async () => {
+    await withTmpDir(dir => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(noop)
+      expect(getUnavailableDeclaredPlugins(dir, { plugins: ['@7n/rules-lang-js'] })).toEqual(['@7n/rules-lang-js'])
+      expect(warn).not.toHaveBeenCalled()
+    })
+  })
+
+  test('встановлений плагін — не потрапляє у список', async () => {
+    await withTmpDir(async dir => {
+      await writeFakePlugin(dir, '@7n/rules-lang-js', {})
+      expect(getUnavailableDeclaredPlugins(dir, { plugins: ['@7n/rules-lang-js'] })).toEqual([])
+    })
+  })
+
+  test('немає config.plugins — порожній список', async () => {
+    await withTmpDir(dir => {
+      expect(getUnavailableDeclaredPlugins(dir, {})).toEqual([])
+      expect(getUnavailableDeclaredPlugins(dir, null)).toEqual([])
     })
   })
 })

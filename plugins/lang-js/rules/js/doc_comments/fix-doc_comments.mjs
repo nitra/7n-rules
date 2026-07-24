@@ -17,7 +17,16 @@ const LINE_COMMENT_PREFIX_RE = /^\s*\/\/\s?/
  * @returns {string} JSDoc-блок
  */
 export function promoteLineBlock(block, indent) {
-  const texts = block.split('\n').map(l => l.replace(LINE_COMMENT_PREFIX_RE, '').trimEnd())
+  const texts = block
+    .split('\n')
+    // `*` + `/` у тексті (глоби на кшталт `**` + `/*.js`) передчасно закривали б JSDoc —
+    // екрануємо backslash-ом, стандартна практика для слешів у doc-коментарях.
+    .map(l =>
+      l
+        .replace(LINE_COMMENT_PREFIX_RE, '')
+        .trimEnd()
+        .replaceAll('*/', String.raw`*\/`)
+    )
   if (texts.length === 1) return `${indent}/** ${texts[0]} */`
   return [`${indent}/**`, ...texts.map(t => `${indent} * ${t}`.trimEnd()), `${indent} */`].join('\n')
 }

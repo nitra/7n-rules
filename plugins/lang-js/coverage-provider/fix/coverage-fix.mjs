@@ -16,9 +16,11 @@ import { env } from 'node:process'
 
 // `@7n/llm-lib` — dependency ядра `@7n/rules`, не плагіна: динамічний import
 // (top-level await) — той самий патерн, що `rules/js/eslint/fix-worker.mjs`.
-const { CLOUD_MAX } = await import('@7n/llm-lib/model-tiers')
+const { CLOUD_AVG, CLOUD_MAX } = await import('@7n/llm-lib/model-tiers')
 
-const MODEL = env.N_CURSOR_COVERAGE_FIX_MODEL ?? CLOUD_MAX
+// `||`, не `??`: тир-константи — порожні рядки, коли N_CLOUD_*_MODEL env не задані
+// (поза ladder-ом, що завжди передає ctx.model) — падало «модель не знайдена: <порожньо>».
+const MODEL = env.N_CURSOR_COVERAGE_FIX_MODEL || CLOUD_MAX || CLOUD_AVG
 
 /**
  * Дефолтна стеля мутантів на один batch (один агентний виклик зі своїм таймаут-вікном).
@@ -122,7 +124,7 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
 
     const prompt = await buildFixPrompt(batch, projectRoot)
     const res = await runFix('test', prompt, projectRoot, {
-      model: opts.model ?? MODEL,
+      model: opts.model || MODEL,
       tier: opts.tier,
       timeoutMs: deadlineAt ? Math.max(1000, deadlineAt - Date.now()) : undefined,
       feedback: opts.feedback ?? null,
