@@ -26,12 +26,16 @@
 
 /// Агенти
 pub mod acp;
+/// Тип 2b (batch) — емуляція чанкованим конкурентним прогоном через Тип 2a
+/// (рішення Р, задача T6). Справжній `/v1/batches` — поза обсягом v1.
+pub mod batch;
 /// Локальні та хмарні агенти (Local/Cloud).
 pub mod local_cloud;
 /// Моделі та рівні (Tiers) для вибору LLM.
 pub mod tiers;
 
 pub use acp::{one_shot_acp, one_shot_acp_with_tier, AcpAgentKind};
+pub use batch::{submit as submit_batch, BatchConfig, BatchItem, BatchProgress, BatchResult};
 pub use local_cloud::LocalCloud;
 pub use tiers::{resolve_model, Tier};
 

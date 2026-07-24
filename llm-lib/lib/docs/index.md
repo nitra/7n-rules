@@ -10,6 +10,7 @@ resource: llm-lib/lib/
 | [agent-fix.mjs](agent-fix.md)             | JS Module |
 | [agent-skill.mjs](agent-skill.md)         | JS Module |
 | [anchored-edit.mjs](anchored-edit.md)     | JS Module |
+| [batch.mjs](batch.md)                     | JS Module |
 | [body-capture.mjs](body-capture.md)       | JS Module |
 | [chain.mjs](chain.md)                     | JS Module |
 | [chains-report.mjs](chains-report.md)     | JS Module |

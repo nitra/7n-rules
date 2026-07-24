@@ -9,11 +9,13 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use llm_lib::acp::AcpAgentKind;
 use llm_lib::local_cloud::LocalProvider;
 use llm_lib::{LlmError, LocalCloud, Tier};
 use napi::bindgen_prelude::*;
+use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
 
 fn to_napi_err(e: LlmError) -> Error {
@@ -162,4 +164,138 @@ pub async fn one_shot_local_cloud(
         spec => cascade.one_shot_with_spec(spec, system, &prompt).await,
     };
     result.map_err(to_napi_err)
+}
+
+/// Один item вхідного batch-у (Тип 2b, задача T6): дзеркалить
+/// [`llm_lib::batch::BatchItem`] у JS-обʼєкт.
+#[napi(object)]
+pub struct BatchItemInput {
+    /// Ідентифікатор, яким викликач звʼязує запит із результатом.
+    pub custom_id: String,
+    /// User-репліка чату.
+    pub prompt: String,
+    /// Опційна system-репліка item-у (якщо не задано — береться
+    /// `options.system`, той самий дефолт, що й [`one_shot_local_cloud`]).
+    pub system: Option<String>,
+}
+
+/// Ліміти чанка/конкурентності для [`submit_batch`]. Незадане поле —
+/// дефолт [`llm_lib::batch::BatchConfig::default`] (чанк 35, конкурентність 2,
+/// рішення Р, бенч-калібрування — `docs/specs/2026-07-24-batch-emulation-bench.md`).
+#[napi(object)]
+#[derive(Default)]
+pub struct BatchConfigInput {
+    /// Скільки items обробляється в одному чанку.
+    pub chunk_size: Option<u32>,
+    /// Скільки items одного чанка виконуються паралельно.
+    pub concurrency: Option<u32>,
+}
+
+/// Результат одного item batch-у: рівно одне з `ok`/`error` заповнене —
+/// дзеркалить [`llm_lib::batch::BatchResult::outcome`] без `Result`-типу,
+/// якого немає в JS.
+#[napi(object)]
+pub struct BatchResultOutput {
+    /// Той самий `custom_id`, що й у вхідному [`BatchItemInput`].
+    pub custom_id: String,
+    /// Текст відповіді — заповнене на успіху.
+    pub ok: Option<String>,
+    /// Повідомлення про помилку саме цього item — заповнене на невдачі.
+    pub error: Option<String>,
+}
+
+/// Емуляція Типу 2b (batch, рішення Р спеки, задача T6): чанкований
+/// конкурентний прогін `items` через [`llm_lib::LocalCloud`] (той самий
+/// `model_spec_or_tier`/`options`-контракт, що й [`one_shot_local_cloud`]),
+/// під інтерфейсом `submit → progress → results`. Помилка одного item чи
+/// одного чанка не валить весь batch — потрапляє в `error`-поле саме
+/// цього [`BatchResultOutput`].
+///
+/// `on_progress` — опційний JS-колбек `(completed, total) => void`,
+/// викликається napi `ThreadsafeFunction`-ом (рішення для T6: прогрес не
+/// акумулюється в Rust і не блокує event loop Node — кожне завершення
+/// item-у публікується окремим non-blocking викликом у JS-потік).
+#[napi]
+pub async fn submit_batch(
+    model_spec_or_tier: String,
+    items: Vec<BatchItemInput>,
+    options: Option<OneShotLocalCloudOptions>,
+    config: Option<BatchConfigInput>,
+    on_progress: Option<Arc<ThreadsafeFunction<(u32, u32), ()>>>,
+) -> Result<Vec<BatchResultOutput>> {
+    let options = options.unwrap_or_default();
+    let providers: HashMap<String, LocalProvider> = match options.local_providers {
+        Some(v) => serde_json::from_value(v)
+            .map_err(|e| Error::from_reason(format!("невалідний localProviders: {e}")))?,
+        None => HashMap::new(),
+    };
+    let cascade = Arc::new(LocalCloud::new(providers));
+    let global_system = options.system;
+    let model_spec_or_tier = Arc::new(model_spec_or_tier);
+
+    let batch_items: Vec<llm_lib::batch::BatchItem> = items
+        .into_iter()
+        .map(|item| llm_lib::batch::BatchItem {
+            custom_id: item.custom_id,
+            prompt: item.prompt,
+            system: item.system,
+        })
+        .collect();
+
+    let mut batch_config = llm_lib::batch::BatchConfig::default();
+    if let Some(cfg) = config {
+        if let Some(chunk_size) = cfg.chunk_size {
+            batch_config.chunk_size = chunk_size as usize;
+        }
+        if let Some(concurrency) = cfg.concurrency {
+            batch_config.concurrency = concurrency as usize;
+        }
+    }
+
+    let executor = {
+        let cascade = Arc::clone(&cascade);
+        let model_spec_or_tier = Arc::clone(&model_spec_or_tier);
+        move |item: llm_lib::batch::BatchItem| {
+            let cascade = Arc::clone(&cascade);
+            let model_spec_or_tier = Arc::clone(&model_spec_or_tier);
+            let system = item.system.clone().or_else(|| global_system.clone());
+            async move {
+                let system = system.as_deref();
+                match model_spec_or_tier.as_str() {
+                    "min" => cascade.one_shot(Tier::Min, system, &item.prompt).await,
+                    "avg" => cascade.one_shot(Tier::Avg, system, &item.prompt).await,
+                    "max" => cascade.one_shot(Tier::Max, system, &item.prompt).await,
+                    spec => cascade.one_shot_with_spec(spec, system, &item.prompt).await,
+                }
+            }
+        }
+    };
+
+    let on_progress_fn = move |progress: llm_lib::batch::BatchProgress| {
+        if let Some(tsfn) = &on_progress {
+            tsfn.call(
+                Ok((progress.completed as u32, progress.total as u32)),
+                ThreadsafeFunctionCallMode::NonBlocking,
+            );
+        }
+    };
+
+    let results =
+        llm_lib::batch::submit(batch_items, &batch_config, executor, on_progress_fn).await;
+
+    Ok(results
+        .into_iter()
+        .map(|result| match result.outcome {
+            Ok(text) => BatchResultOutput {
+                custom_id: result.custom_id,
+                ok: Some(text),
+                error: None,
+            },
+            Err(message) => BatchResultOutput {
+                custom_id: result.custom_id,
+                ok: None,
+                error: Some(message),
+            },
+        })
+        .collect())
 }
