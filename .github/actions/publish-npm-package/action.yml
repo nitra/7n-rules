@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-action.json
+
+name: Publish npm package
+description: >-
+  npm publish одного пакета через OIDC trusted publishing (JS-DevTools/npm-publish).
+  Виклик з continue-on-error: true на боці кроку-споживача дає per-пакет fail-isolation
+  (steps.<id>.outcome лишається доступним, workflow не переривається на одній невдачі).
+
+inputs:
+  package-json-path:
+    description: Шлях до package.json пакета, який публікується
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: JS-DevTools/npm-publish@v4.1.5
+      with:
+        package: ${{ inputs.package-json-path }}
