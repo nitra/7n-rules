@@ -5,7 +5,7 @@
  * Промпт збирає інструкцію скілу + контекст поточного CWD (`package.json`, `tsconfig.json`,
  * `.n-rules.json`) — далі stdout або виконання через один з раннерів: вбудований
  * pi-агент, чи зовнішній ACP-агент. `cursor`/`codex` — через `@7n/llm-lib/acp`
- * (napi-міст до `llm_cascade::acp`, без власного JSON-RPC у JS); deprecated
+ * (napi-міст до `llm_lib::acp`, без власного JSON-RPC у JS); deprecated
  * `claude` — окремий JS-шим (`./lib/acp-runner.mjs`), бо Rust-крейт його не моделює.
  *
  * `skill <runner> taze` — виняток із загального шляху "весь SKILL.md одним промптом":
@@ -40,7 +40,7 @@ const RUNNERS = new Set(['pi', 'cursor', 'codex', 'claude'])
 /**
  * Раннери, що йдуть через зовнішнього ACP-агента, і чи deprecated (друкує попередження
  * перед запуском). `cursor`/`codex` — napi-міст `@7n/llm-lib/acp`; `claude` — окремий
- * JS-шим `runAcpRunner` (Rust-крейт `llm_cascade::acp` `claude` не моделює).
+ * JS-шим `runAcpRunner` (Rust-крейт `llm_lib::acp` `claude` не моделює).
  */
 const ACP_RUNNERS = {
   claude: { deprecated: true },
@@ -173,7 +173,7 @@ async function runPiRunner(prompt, rawSkillName, skillsRoot, projectDir, logErro
 
 /**
  * Делегує виконання скіла зовнішньому ACP-агенту. `cursor`/`codex` — через
- * `@7n/llm-lib/acp` (napi-міст до `llm_cascade::acp`: спавн, `session/prompt`,
+ * `@7n/llm-lib/acp` (napi-міст до `llm_lib::acp`: спавн, `session/prompt`,
  * автоапрув дозволів — усе в Rust, без JSON-RPC у JS). `claude` — deprecated
  * JS-шим `runAcpRunner` (Rust його не моделює); буде прибрано (мігруй на `skill pi`).
  * На відміну від колишнього стрімінгу по чанках, napi-шлях повертає повний текст

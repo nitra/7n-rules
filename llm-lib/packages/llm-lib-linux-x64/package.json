@@ -1,7 +1,7 @@
 {
   "name": "@7n/llm-lib-linux-x64",
   "version": "2.7.6",
-  "description": "Prebuilt llm-cascade napi addon for @7n/llm-lib — Linux x64 (glibc)",
+  "description": "Prebuilt llm-lib napi addon for @7n/llm-lib — Linux x64 (glibc)",
   "license": "ISC",
   "author": "v@nitra.ai",
   "repository": {
@@ -10,7 +10,7 @@
     "directory": "llm-lib/packages/llm-lib-linux-x64"
   },
   "files": [
-    "llm-cascade-napi.linux-x64-gnu.node"
+    "llm-lib-napi.linux-x64-gnu.node"
   ],
   "os": [
     "linux"

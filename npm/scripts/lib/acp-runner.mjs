@@ -3,7 +3,7 @@
  * agentclientprotocol.com) — JSON-RPC поверх stdio.
  *
  * `cursor`/`codex` мігрували на `@7n/llm-lib/acp` (napi-міст до
- * `llm_cascade::acp` — та сама протокольна логіка, але в Rust, без
+ * `llm_lib::acp` — та сама протокольна логіка, але в Rust, без
  * дублювання в JS). `claude` лишається тут як окремий JS-шим, бо Rust-крейт
  * `AcpAgentKind` його не моделює (лише `Cursor`/`Codex`); підʼєднання йде
  * через офіційний TS SDK `@zed-industries/agent-client-protocol`, а дозволи

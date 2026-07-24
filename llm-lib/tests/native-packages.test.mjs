@@ -1,5 +1,5 @@
 /**
- * Консистентність платформних підпакетів napi-аддона `llm-cascade` з loader-ом
+ * Консистентність платформних підпакетів napi-аддона `llm-lib` з loader-ом
  * `lib/internal/native.mjs`: для кожної v1-платформи (darwin-arm64, linux-x64)
  * `resolveNativeAddon` запитує `@7n/llm-lib-<platform>-<arch>/<артефакт>` — тест
  * звіряє, що відповідний пакет існує в `llm-lib/packages/` з коректними

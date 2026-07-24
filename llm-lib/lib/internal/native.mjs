@@ -1,14 +1,14 @@
 /**
- * Loader napi-аддона `llm-cascade` (Rust-ядро `llm-lib/crates/llm-cascade-napi`
- * → `llm-cascade`) — за зразком `mt/npm/lib/core/native.mjs`.
+ * Loader napi-аддона `llm-lib` (Rust-ядро `llm-lib/crates/llm-lib-napi`
+ * → `llm-lib`) — за зразком `mt/npm/lib/core/native.mjs`.
  *
  * Порядок пошуку:
  *   1. N_LLM_LIB_NATIVE_ADDON — явний override шляху до аддона (dev / CI / тести).
  *   2. Platform-підпакет `@7n/llm-lib-<platform>-<arch>` (napi-артефакт
- *      `llm-cascade-napi.<triple>.node`).
+ *      `llm-lib-napi.<triple>.node`).
  *   3. Dev-fallback: `<repoRoot>/target/release|debug/` (сирий cdylib з
- *      `cargo build -p llm-cascade-napi`) та вивід `napi build` у
- *      `llm-lib/crates/llm-cascade-napi/`.
+ *      `cargo build -p llm-lib-napi`) та вивід `napi build` у
+ *      `llm-lib/crates/llm-lib-napi/`.
  *   4. Інакше — зрозуміла помилка з підказкою.
  *
  * Аддон завантажується через `process.dlopen` — працює і для `.node`, і для
@@ -48,16 +48,16 @@ function dlopenAddon(p) {
 }
 
 /**
- * Ім'я cdylib-файлу для платформи (вивід `cargo build -p llm-cascade-napi`).
+ * Ім'я cdylib-файлу для платформи (вивід `cargo build -p llm-lib-napi`).
  * @param {string} platform process.platform
  * @returns {string} ім'я бібліотеки
  */
 function cdylibName(platform) {
-  return platform === 'darwin' ? 'libllm_cascade_napi.dylib' : 'libllm_cascade_napi.so'
+  return platform === 'darwin' ? 'libllm_lib_napi.dylib' : 'libllm_lib_napi.so'
 }
 
 /**
- * Резолвить шлях до napi-аддона `llm-cascade`.
+ * Резолвить шлях до napi-аддона `llm-lib`.
  * @param {{
  *   env?: Record<string, string | undefined>,
  *   platform?: string,
@@ -86,7 +86,7 @@ export function resolveNativeAddon(deps = {}) {
   // 2. Platform-підпакет.
   if (suffix) {
     try {
-      return requireResolve(`@7n/llm-lib-${key}/llm-cascade-napi.${suffix}.node`)
+      return requireResolve(`@7n/llm-lib-${key}/llm-lib-napi.${suffix}.node`)
     } catch {
       // не встановлено — пробуємо dev-fallback
     }
@@ -97,7 +97,7 @@ export function resolveNativeAddon(deps = {}) {
     join(repoRoot, 'target', profile, cdylibName(platform))
   )
   if (suffix) {
-    candidates.push(join(repoRoot, 'llm-lib', 'crates', 'llm-cascade-napi', `llm-cascade-napi.${suffix}.node`))
+    candidates.push(join(repoRoot, 'llm-lib', 'crates', 'llm-lib-napi', `llm-lib-napi.${suffix}.node`))
   }
   for (const candidate of candidates) {
     if (exists(candidate)) return candidate
@@ -105,9 +105,9 @@ export function resolveNativeAddon(deps = {}) {
 
   // 4. Помилка з підказкою.
   throw new Error(
-    `llm-cascade native addon: немає збірки для "${key}". ` +
+    `llm-lib native addon: немає збірки для "${key}". ` +
       `Постав N_LLM_LIB_NATIVE_ADDON=/шлях/до/аддона, додай підпакет @7n/llm-lib-${key}, ` +
-      `або збери локально: cargo build --release -p llm-cascade-napi`
+      `або збери локально: cargo build --release -p llm-lib-napi`
   )
 }
 

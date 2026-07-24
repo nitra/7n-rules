@@ -2,8 +2,8 @@
  * ACP (Agent Client Protocol, Zed) — доступ до `cursor`/`codex` через
  * особисту підписку (вже залогінений локально CLI), не API-ключ.
  *
- * Тонкий JS-клієнт до Rust-крейта `llm_cascade::acp` через napi FFI
- * in-process (`llm-lib/crates/llm-cascade-napi`) — жодного власного
+ * Тонкий JS-клієнт до Rust-крейта `llm_lib::acp` через napi FFI
+ * in-process (`llm-lib/crates/llm-lib-napi`) — жодного власного
  * ACP JSON-RPC/`ClientSideConnection` тут; уся протокольна логіка (спавн
  * агента, `session/prompt`, автоапрув `session/request_permission`) живе
  * в Rust, разом з watchdog-поведінкою на мертвий/незапущений дочірній процес.
