@@ -19,6 +19,16 @@ on:
     branches:
       - dev
       - main
+    paths:
+      - "**/*.js"
+      - "**/*.mjs"
+      - "**/*.cjs"
+      - "**/*.jsx"
+      - "**/*.ts"
+      - "**/*.tsx"
+      - "**/*.vue"
+      - "**/eslint.config.*"
+      - "**/.oxlintrc.json"
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}

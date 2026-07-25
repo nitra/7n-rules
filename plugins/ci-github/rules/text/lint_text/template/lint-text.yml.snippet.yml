@@ -32,6 +32,28 @@ on:
     branches:
       - dev
       - main
+    paths:
+      - '**/*.js'
+      - '**/*.ts'
+      - '**/*.vue'
+      - '**/*.html'
+      - '**/*.css'
+      - '**/*.scss'
+      - '**/*.less'
+      - '**/*.json'
+      - '**/*.jsonc'
+      - '**/*.yaml'
+      - '**/*.yml'
+      - '**/*.toml'
+      - '**/*.xml'
+      - '**/*.md'
+      - '**/*.mdc'
+      - '**/*.mdс'
+      - '**/*.txt'
+      - '**/*.go'
+      - '**/*.py'
+      - '**/*.php'
+      - '**/*.sh'
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}

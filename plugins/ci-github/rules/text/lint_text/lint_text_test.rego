@@ -17,7 +17,7 @@ template_data := {"snippet": {
 	"name": "Lint Text",
 	"on": {
 		"push": {"branches": ["dev", "main"], "paths": push_paths},
-		"pull_request": {"branches": ["dev", "main"]},
+		"pull_request": {"branches": ["dev", "main"], "paths": push_paths},
 	},
 	"jobs": {"text": {
 		"runs-on": "ubuntu-latest",
@@ -38,7 +38,7 @@ canonical_input := {
 	"name": "Lint Text",
 	"true": {
 		"push": {"branches": ["dev", "main"], "paths": push_paths},
-		"pull_request": {"branches": ["dev", "main"]},
+		"pull_request": {"branches": ["dev", "main"], "paths": push_paths},
 	},
 	"jobs": {"text": {
 		"runs-on": "ubuntu-latest",
@@ -82,6 +82,12 @@ test_deny_missing_lint_text_run if {
 	)
 	some msg in lint_text.deny with input as bad with data.template as template_data
 	contains(msg, "n-rules lint text --no-fix")
+}
+
+test_deny_missing_required_pr_path if {
+	bad := json.patch(canonical_input, [{"op": "replace", "path": "/true/pull_request/paths", "value": ["**/*.md"]}])
+	some msg in lint_text.deny with input as bad with data.template as template_data
+	contains(msg, "pull_request.paths")
 }
 
 test_data_template_drives_name if {

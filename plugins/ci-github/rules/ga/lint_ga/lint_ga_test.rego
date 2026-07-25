@@ -8,7 +8,7 @@ template_data := {"snippet": {
 	"name": "Lint GA",
 	"on": {
 		"push": {"branches": ["dev", "main"], "paths": [".github/actions/**", ".github/workflows/**"]},
-		"pull_request": {"branches": ["dev", "main"]},
+		"pull_request": {"branches": ["dev", "main"], "paths": [".github/actions/**", ".github/workflows/**"]},
 	},
 	"jobs": {"lint-ga": {
 		"runs-on": "ubuntu-latest",
@@ -30,7 +30,7 @@ canonical_input := {
 	"name": "Lint GA",
 	"true": {
 		"push": {"branches": ["dev", "main"], "paths": [".github/actions/**", ".github/workflows/**"]},
-		"pull_request": {"branches": ["dev", "main"]},
+		"pull_request": {"branches": ["dev", "main"], "paths": [".github/actions/**", ".github/workflows/**"]},
 	},
 	"jobs": {"lint-ga": {
 		"runs-on": "ubuntu-latest",
@@ -68,6 +68,12 @@ test_deny_missing_required_path if {
 	bad := json.patch(canonical_input, [{"op": "replace", "path": "/true/push/paths", "value": [".github/workflows/**"]}])
 	some msg in lint_ga.deny with input as bad with data.template as template_data
 	contains(msg, "push.paths")
+}
+
+test_deny_missing_required_pr_path if {
+	bad := json.patch(canonical_input, [{"op": "replace", "path": "/true/pull_request/paths", "value": [".github/workflows/**"]}])
+	some msg in lint_ga.deny with input as bad with data.template as template_data
+	contains(msg, "pull_request.paths")
 }
 
 test_deny_missing_required_uses if {

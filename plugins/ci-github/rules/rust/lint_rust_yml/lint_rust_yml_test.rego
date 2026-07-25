@@ -3,7 +3,9 @@ package rust.lint_rust_yml_test
 import data.rust.lint_rust_yml
 import rego.v1
 
-template_data := {"snippet": {"jobs": {"lint": {"steps": [
+pr_paths := ["**/*.rs", "**/Cargo.toml"]
+
+template_data := {"snippet": {"on": {"pull_request": {"paths": pr_paths}}, "jobs": {"lint": {"steps": [
 	{"uses": "actions/checkout@v6"},
 	{"uses": "dtolnay/rust-toolchain@stable", "with": {"components": "rustfmt, clippy"}},
 	{"uses": "Swatinem/rust-cache@v2"},
@@ -11,7 +13,7 @@ template_data := {"snippet": {"jobs": {"lint": {"steps": [
 	{"run": "cargo clippy --all-targets --all-features -- -D warnings"},
 ]}}}}
 
-canonical_wf := {"jobs": {"lint": {"steps": [
+canonical_wf := {"true": {"pull_request": {"paths": pr_paths}}, "jobs": {"lint": {"steps": [
 	{"uses": "actions/checkout@v6"},
 	{"uses": "dtolnay/rust-toolchain@stable", "with": {"components": "rustfmt, clippy"}},
 	{"uses": "Swatinem/rust-cache@v2"},
@@ -53,6 +55,12 @@ test_deny_missing_toolchain_uses if {
 	]}}}
 	some msg in lint_rust_yml.deny with input as wf with data.template as template_data
 	contains(msg, "dtolnay/rust-toolchain@stable")
+}
+
+test_deny_missing_required_pr_path if {
+	wf := json.patch(canonical_wf, [{"op": "replace", "path": "/true/pull_request/paths", "value": ["**/*.rs"]}])
+	some msg in lint_rust_yml.deny with input as wf with data.template as template_data
+	contains(msg, "pull_request.paths")
 }
 
 test_deny_toolchain_missing_rustfmt_component if {

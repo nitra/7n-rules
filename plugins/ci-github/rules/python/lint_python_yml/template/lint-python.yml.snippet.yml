@@ -15,6 +15,11 @@ on:
     branches:
       - dev
       - main
+    paths:
+      - '**/*.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/lint-python.yml'
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}
