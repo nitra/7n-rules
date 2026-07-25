@@ -30,6 +30,7 @@ const MODEL = env.N_CURSOR_COVERAGE_FIX_MODEL || CLOUD_MAX || CLOUD_AVG
  * Override: `N_CURSOR_COVERAGE_FIX_BATCH_MUTANTS`.
  */
 const DEFAULT_BATCH_MUTANT_BUDGET = 40
+const TEST_FILE_RE = /(?:^|\/)[^/]+\.(?:test|spec)\.[^/]+$/
 
 /**
  * @typedef {{line:number, col:number, mutantType:string, original:string, replacement:string}} MutantDetail
@@ -91,7 +92,7 @@ export function batchSurvived(survived, budget) {
  * @param {SurvivedFileGroup[]} survived вцілілі мутанти, згруповані по файлах
  * @param {string} projectRoot абсолютний шлях до кореня проєкту
  * @param {FixSurvivedOptions} [opts] ctx-поля ladder-а + інʼєкції для тестів
- * @returns {Promise<{fixed: string[], failed: {files: string[], error: string}[], touchedFiles: string[]}>} файли за batches, що завершились успішно/помилкою, і фактично змінені файли
+ * @returns {Promise<{fixed: string[], failed: {files: string[], error: string}[], touchedFiles: string[]}>} фактично змінені test-файли, failed batches і ті самі test-файли
  */
 export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
   const totalMutants = survived.reduce((s, g) => s + g.mutants.length, 0)
@@ -131,26 +132,51 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
       caller: `fix:test/coverage:${opts.tier ?? 'mutants'}:batch${i + 1}`,
       recordWrite: opts.recordWrite,
       chain: opts.chain ?? null,
-      targetFiles: files
+      editMode: 'test-generation',
+      sourceFiles: files
     })
-    if (res.error) {
-      console.error(`✗ batch ${i + 1}/${batches.length} не завершився: ${res.error}`)
+    const writtenTests = (res.touchedFiles ?? []).filter(file => TEST_FILE_RE.test(file))
+    const unexpectedWrites = (res.touchedFiles ?? []).filter(file => !TEST_FILE_RE.test(file))
+    const noOp = !res.error && writtenTests.length === 0
+    const error =
+      res.error ??
+      (unexpectedWrites.length > 0
+        ? `недопустимі записи поза test-файлами: ${unexpectedWrites.join(', ')}`
+        : noOp
+          ? noOpReason(res.telemetry)
+          : null)
+    if (error) {
+      if (unexpectedWrites.length > 0) res.rollback?.()
+      console.error(`✗ batch ${i + 1}/${batches.length} не завершився: ${error}`)
       console.error(`  Файли batch (частковий прогрес зареєстровано через recordWrite): ${files.join(', ')}`)
-      failed.push({ files, error: res.error })
+      failed.push({ files, error })
       continue
     }
-    fixed.push(...files)
-    touchedFiles.push(...(res.touchedFiles ?? []))
+    fixed.push(...writtenTests)
+    touchedFiles.push(...writtenTests)
   }
 
   if (failed.length > 0) {
-    console.log(`\n⚠️  coverage fix: ${fixed.length} файл(ів) успішно, ${failed.length} batch(ів) з помилкою:`)
+    console.log(`\n⚠️  coverage fix: ${fixed.length} test-файл(ів) змінено, ${failed.length} batch(ів) failed/no-op:`)
     for (const f of failed) console.log(`  ✗ ${f.files.join(', ')} — ${f.error}`)
   } else {
-    console.log(`\n✓ coverage fix: усі ${batches.length} batch(ів) завершено (${fixed.length} файл(ів)).`)
+    console.log(`\n✓ coverage fix: усі ${batches.length} batch(ів) змінили ${fixed.length} test-файл(ів).`)
   }
 
   return { fixed, failed, touchedFiles }
+}
+
+/**
+ * Формує діагностику no-op сесії, зокрема для completion без tool-call/write.
+ * @param {object|null|undefined} telemetry телеметрія `runAgentFix`
+ * @returns {string} причина failed batch
+ */
+function noOpReason(telemetry) {
+  const turns = telemetry?.turnCount ?? 0
+  const tools = telemetry?.toolCallCount ?? 0
+  const usage = telemetry?.usage?.totalTokens
+  const usagePart = Number.isFinite(usage) ? `, usage.totalTokens=${usage}` : ''
+  return `no-op: агент завершився без записів (turnCount=${turns}, toolCallCount=${tools}${usagePart})`
 }
 
 /**
@@ -208,7 +234,9 @@ export async function buildFixPrompt(survived, projectRoot) {
     ...sections,
     '',
     '## Правила',
-    '- Не змінюй source-файли — лише test-файли.',
+    '- Source-файли наведені лише як контекст; не редагуй їх.',
+    '- Дозволено знайти, створити або змінити повʼязані `*.test.*` / `*.spec.*` файли у test-каталогах.',
+    '- Для ізоляції unit-тесту дозволені звичайні Vitest mock/stub без зміни production-коду.',
     '- Використовуй той самий test-фреймворк, що вже в проєкті.',
     '- Запусти тести проєкту (`bunx vitest run` чи відповідну команду) після кожного файлу — переконайся, що 0 fail.',
     '- Якщо мутант охоплений іншим новим тестом — не дублюй.'

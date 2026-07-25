@@ -68,6 +68,7 @@ describe('fixWorker', () => {
       '/p/tests/a.test.mjs',
       '/p/tests/b.test.mjs'
     ])
+    expect(res.failed).toEqual([])
   })
 
   test('прокидає recordWrite/tier у ctx хуків', async () => {
@@ -100,7 +101,7 @@ describe('fixWorker', () => {
     const res = await fixWorker([{ reason: 'coverage-below-threshold', file: 'a.mjs', data: { pct: 1 } }], CTX, {
       resolveProviders: () => Promise.resolve([provider])
     })
-    expect(res).toEqual({ touchedFiles: [] })
+    expect(res).toEqual({ touchedFiles: [], failed: [] })
   })
 
   test('виняток одного хука не зупиняє наступні', async () => {
@@ -142,5 +143,29 @@ describe('fixWorker', () => {
     expect(provider.generateTests).not.toHaveBeenCalled()
     expect(provider.fixFailingTests).not.toHaveBeenCalled()
     expect(res.touchedFiles).toEqual([])
+    expect(res.failed).toEqual([])
+  })
+
+  test('явно віддає failed/no-op batch від coverage hook', async () => {
+    const provider = fakeProvider({
+      fixSurvived: vi.fn().mockResolvedValue({
+        touchedFiles: [],
+        failed: [{ files: ['src/a.mjs'], error: 'no-op: агент завершився без записів' }]
+      })
+    })
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => null)
+    const res = await fixWorker(
+      [{ reason: 'mutation-below-threshold', data: { survived: [{ file: 'src/a.mjs', mutants: [{ line: 1 }] }] } }],
+      CTX,
+      { resolveProviders: () => Promise.resolve([provider]) }
+    )
+    expect(res).toEqual({
+      touchedFiles: [],
+      failed: [
+        { provider: 'fake', hook: 'fixSurvived', files: ['src/a.mjs'], error: 'no-op: агент завершився без записів' }
+      ]
+    })
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('failed/no-op'))
+    warnSpy.mockRestore()
   })
 })

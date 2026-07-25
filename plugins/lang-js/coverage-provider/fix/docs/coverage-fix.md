@@ -3,28 +3,12 @@ type: JS Module
 title: coverage-fix.mjs
 resource: plugins/lang-js/coverage-provider/fix/coverage-fix.mjs
 docgen:
-  crc: 3ccfdada
+  crc: dfad2f6c
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
-  score: 100
-  judgeModel: openai-codex/gpt-5.4-mini
+  score: 55
+  issues: no-overview,short-behavior,best-of-2:retry-lost
 ---
-
-## Огляд
-
-Формує batch-и вцілілих мутантів із `violations` у пам’яті та передає їх у `batchSurvived`, `fixSurvivedMutants` і `buildFixPrompt`, щоб `runAgentFix` з `@7n/llm-lib/agent-fix` отримував повний контекст для написання тестів, які вбивають survived-мутантів у правилі `coverage` для `test`. Дає агенту дані про кожен мутант: `file`, `line`, original code, survived variant і mutation type, а також використовує `ctx.model` із ladder-а з fallback на `CLOUD_MAX` або `N_CURSOR_COVERAGE_FIX_MODEL`. Реєструє записи через `recordWrite` як частину central rollback ladder-а.
-
-## Поведінка
-
-`buildFixPrompt` збирає спільний контекст для всіх вцілілих мутантів: групує їх за файлами, додає локальний кодовий навколишній фрагмент із джерела і готує текст, придатний для agent-fix сесії.
-
-`batchSurvived` використовує цей набір груп як вхід і зберігає порядок файлів, щоб один batch залишався контекстно цілісним; файл не розрізається між batches, навіть якщо перевищує budget, бо для агента важливіша узгодженість контексту, ніж точне дотримання стелі.
-
-`fixSurvivedMutants` бере survived-мутанти вже з memory, без читання `COVERAGE.md`, розбиває їх на batches через `batchSurvived`, для кожного batch готує prompt через `buildFixPrompt` і запускає окрему `runAgentFix`-сесію в межах ladder-контексту з вибраною моделлю та fallback-настроюванням.
-
-Помилка в одному batch не зупиняє інші: невдалий batch фіксується разом із переліком файлів, часткові записи проходять через `recordWrite`, а остаточний rollback/продовження керується центральною ladder-логікою, не цим модулем.
-
-Результат роботи повертається як розподіл по успішних і невдалих batches та список фактично змінених файлів, щоб наступні кроки могли продовжити конвергенцію без повторної обробки вже завершених частин.
 
 ## Публічний API
 
@@ -43,3 +27,4 @@ recordWrite — rollback вирішує ladder, не цей модуль), і п
 ## Гарантії поведінки
 
 - Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
+- Перехоплює помилки і не пропускає винятків назовні (fail-safe).

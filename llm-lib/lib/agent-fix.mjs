@@ -150,34 +150,61 @@ async function runVerifyLoop({ session, verify, verifyMax, timeoutMs, startedAt,
  * правкою (хардкод значення, симуляція поведінки) — промпт явно це забороняє, а
  * verdict-veto consumer-а (re-check) відхиляє такі правки поза target-файлами.
  * @param {{ ruleId: string, violation: string, ruleText?: string, feedback?: object,
- *   targetFiles?: string[] }} args параметри промпта; `targetFiles` — файли порушення,
- *   єдині наявні файли, які дозволено редагувати (порожньо/відсутнє — без переліку).
+ *   targetFiles?: string[], sourceFiles?: string[], editMode?: 'generic'|'test-generation' }} args параметри промпта.
+ *   У generic-режимі `targetFiles` — єдині наявні файли, які дозволено редагувати.
+ *   `test-generation` відділяє read-only source-контекст від test-файлів, які агент
+ *   може знайти, створити або змінити.
  * @returns {string} промпт
  */
-export function buildFixPrompt({ ruleId, violation, ruleText, feedback, targetFiles, anchoredEdits = false }) {
+export function buildFixPrompt({
+  ruleId,
+  violation,
+  ruleText,
+  feedback,
+  targetFiles,
+  sourceFiles,
+  editMode = 'generic',
+  anchoredEdits = false
+}) {
   const parts = [`Виправ порушення правила "${ruleId}" у цьому проєкті.`]
   if (ruleText) parts.push(`## Правило\n${ruleText}`)
   parts.push(`## Порушення\n${violation}`)
-  if (Array.isArray(targetFiles) && targetFiles.length > 0) {
+  if (editMode === 'generic' && Array.isArray(targetFiles) && targetFiles.length > 0) {
     parts.push(
       '## Target-файли (єдині наявні файли, які дозволено редагувати)\n' + targetFiles.map(f => `- ${f}`).join('\n')
     )
   }
+  if (editMode === 'test-generation' && Array.isArray(sourceFiles) && sourceFiles.length > 0) {
+    parts.push('## Source-файли (лише для читання)\n' + sourceFiles.map(f => `- ${f}`).join('\n'))
+  }
   if (feedback?.previousError) {
     parts.push(`## Попередня спроба не спрацювала\n${feedback.previousError}\nСпробуй інший підхід.`)
   }
-  parts.push(
-    '## Обмеження (обовʼязкові)\n' +
-      'Дозволені ЛИШЕ механічні зміни, що прямо усувають наведене порушення правила:\n' +
-      '- НЕ змінюй бізнес-логіку і поведінку коду.\n' +
-      '- НЕ хардкодь значення замість викликів функцій чи обчислень.\n' +
-      '- НЕ симулюй і не заглушуй поведінку (stub/mock/"simulate").\n' +
-      '- НЕ редагуй наявні файли поза порушенням; нові файли створюй лише якщо цього прямо вимагає правило.\n' +
-      'Якщо порушення не усувається механічною правкою — зупинись, нічого не змінюючи.',
-    'Перед редагуванням JS/TS-файлу спершу виклич `ast_facts` на ньому. ' +
-      'Після правок виклич `self_check`, щоб підтвердити, що порушення зникло. ' +
-      'Редагуй лише потрібне, не чіпай стороннє.'
-  )
+  if (editMode === 'test-generation') {
+    parts.push(
+      '## Обмеження test-generation (обовʼязкові)\n' +
+        '- Source-файли — лише контекст для читання; НЕ редагуй production source або його поведінку.\n' +
+        '- Знайди, створи або зміни лише повʼязані `*.test.*` / `*.spec.*` файли, зокрема у test-каталогах.\n' +
+        '- Для ізоляції unit-тесту дозволені звичайні Vitest mock/stub, якщо вони не змінюють production-код.\n' +
+        '- Новий тест мусить перевіряти поведінку, що вбиває описаний мутант; не маскуй його ignore/exclude.\n' +
+        'Якщо неможливо написати коректний тест без зміни production source — зупинись, нічого не змінюючи.',
+      'Перед редагуванням JS/TS test-файлу спершу прочитай потрібний контекст. ' +
+        'Після правок виклич `self_check` і запусти релевантні Vitest-тести. Редагуй лише потрібні test-файли.'
+    )
+  } else {
+    parts.push(
+      '## Обмеження (обовʼязкові)\n' +
+        'Дозволені ЛИШЕ механічні зміни, що прямо усувають наведене порушення правила:\n' +
+        '- НЕ змінюй бізнес-логіку і поведінку коду.\n' +
+        '- НЕ хардкодь значення замість викликів функцій чи обчислень.\n' +
+        '- НЕ симулюй і не заглушуй поведінку (stub/mock/"simulate").\n' +
+        '- НЕ редагуй наявні файли поза порушенням; нові файли створюй лише якщо цього прямо вимагає правило.\n' +
+        'Якщо порушення не усувається механічною правкою — зупинись, нічого не змінюючи.',
+      'Перед редагуванням JS/TS-файлу спершу виклич `ast_facts` на ньому. ' +
+        'Після правок виклич `self_check`, щоб підтвердити, що порушення зникло. ' +
+        'Редагуй лише потрібне, не чіпай стороннє.'
+    )
+  }
   if (anchoredEdits) {
     parts.push(
       'Наявні файли читай і редагуй ЛИШЕ через `read_anchored` → `edit_anchored` ' +
@@ -283,7 +310,7 @@ async function defaultCreateSession({
  * @param {{
  *   model: string, tier?: string, feedback?: object, caller?: string, timeoutMs?: number, ruleText?: string,
  *   chain?: object,
- *   targetFiles?: string[],
+ *   targetFiles?: string[], sourceFiles?: string[], editMode?: 'generic'|'test-generation',
  *   verify?: (args: { touchedFiles: string[] }) => Promise<{ ok: boolean, output?: string }> | { ok: boolean, output?: string },
  *   verifyMax?: number,
  *   anchoredEdits?: boolean,
@@ -306,6 +333,8 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     ruleText,
     chain = null,
     targetFiles,
+    sourceFiles,
+    editMode = 'generic',
     verify = null,
     verifyMax = VERIFY_MAX_DEFAULT,
     anchoredEdits = false,
@@ -418,7 +447,16 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     }
   })
 
-  const fixPrompt = buildFixPrompt({ ruleId, violation, ruleText, feedback, targetFiles, anchoredEdits })
+  const fixPrompt = buildFixPrompt({
+    ruleId,
+    violation,
+    ruleText,
+    feedback,
+    targetFiles,
+    sourceFiles,
+    editMode,
+    anchoredEdits
+  })
   const pHash = promptHash(fixPrompt)
   const startedAt = clock()
   let error = null
@@ -458,6 +496,9 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     stepUsage.output += t.usage?.output ?? 0
     stepUsage.totalTokens += t.usage?.totalTokens ?? 0
   }
+  // Повна відповідь без tool-call і записів — окремо позначаємо: usage не є
+  // єдиним критерієм, бо деякі провайдери його не віддають.
+  const emptyCompletion = toolCallCount === 0 && touchedFiles.length === 0
   chain?.note({ model: modelSpec, usage: stepUsage, error })
   trace({
     caller,
@@ -478,6 +519,8 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     turnCount,
     toolCallCount,
     touchedFiles,
+    usage: stepUsage,
+    emptyCompletion,
     backstopHit,
     verifyAttempts: verifyAttempts.length,
     verifyOk: verifyAttempts.length > 0 ? verifyAttempts.at(-1).ok : null,
@@ -494,9 +537,11 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     model: modelSpec,
     promptHash: pHash,
     prompt: fixPrompt,
-    output: { touchedFiles, edits: guard.state.editLog },
+    output: { touchedFiles, edits: guard.state.editLog, emptyCompletion },
     usage: stepUsage,
     error
   })
+  telemetry.emptyCompletion = emptyCompletion
+  telemetry.usage = stepUsage
   return { applied: touchedFiles.length > 0, touchedFiles, telemetry, error, rollback: guard.rollback }
 }
