@@ -14,6 +14,14 @@ package python.lint_python_yml
 
 import rego.v1
 
+# Conftest поточних версій читає YAML 1.2 (`on`), але старі версії віддавали
+# YAML 1.1 boolean-key (`true`). Приймаємо обидві форми, щоб policy не мовчала.
+gha_on := object.get(input, "on", object.get(input, "true", {}))
+
+expected_pr_paths := {p | some p in data.template.snippet.on.pull_request.paths}
+
+actual_pr_paths := object.get(object.get(gha_on, "pull_request", {}), "paths", [])
+
 # Усі `uses` з канону workflow (по всіх job'ах template).
 expected_uses contains u if {
 	some job in data.template.snippet.jobs
@@ -44,6 +52,11 @@ deny contains msg if {
 }
 
 deny contains msg if {
+	not paths_superset_of(actual_pr_paths, expected_pr_paths)
+	msg := "lint-python.yml: on.pull_request.paths має містити очікувані glob-и (python.mdc)"
+}
+
+deny contains msg if {
 	msg := "lint-python.yml: actions/checkout@v6 потребує `with: persist-credentials: false` (python.mdc)"
 	some job in object.get(input, "jobs", {})
 	some step in object.get(job, "steps", [])
@@ -66,3 +79,7 @@ step_run_to_text(step) := step.run if is_string(step.run)
 else := concat("\n", [s | some s in step.run]) if is_array(step.run)
 
 else := ""
+
+paths_superset_of(actual, expected) if {
+	expected & {p | some p in actual} == expected
+}

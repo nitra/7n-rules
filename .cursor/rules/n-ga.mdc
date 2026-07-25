@@ -93,6 +93,9 @@ on:
     branches:
       - dev
       - main
+    paths:
+      - '.github/actions/**'
+      - '.github/workflows/**'
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}

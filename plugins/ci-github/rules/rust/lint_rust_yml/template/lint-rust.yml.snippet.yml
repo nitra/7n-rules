@@ -16,6 +16,12 @@ on:
     branches:
       - dev
       - main
+    paths:
+      - '**/*.rs'
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+      - '**/rustfmt.toml'
+      - '**/clippy.toml'
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}

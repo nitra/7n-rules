@@ -8,7 +8,9 @@ import rego.v1
 
 # ── Аліаси ─────────────────────────────────────────────────────────────────
 
-gha_on := input["true"]
+# Conftest поточних версій читає YAML 1.2 (`on`), але старі версії віддавали
+# YAML 1.1 boolean-key (`true`). Приймаємо обидві форми, щоб policy не мовчала.
+gha_on := object.get(input, "on", object.get(input, "true", {}))
 
 job := input.jobs["lint-ga"]
 
@@ -25,6 +27,10 @@ expected_push_branches := {b | some b in data.template.snippet.on.push.branches}
 expected_pr_branches := {b | some b in data.template.snippet.on.pull_request.branches}
 
 expected_push_paths := {p | some p in data.template.snippet.on.push.paths}
+
+expected_pr_paths := {p | some p in data.template.snippet.on.pull_request.paths}
+
+actual_pr_paths := object.get(object.get(gha_on, "pull_request", {}), "paths", [])
 
 expected_runs_on := data.template.snippet.jobs["lint-ga"]["runs-on"]
 
@@ -64,6 +70,11 @@ deny contains msg if {
 deny contains msg if {
 	not paths_superset_of(gha_on.push.paths, expected_push_paths)
 	msg := "lint-ga.yml: on.push.paths має містити .github/actions/** і .github/workflows/** (ga.mdc)"
+}
+
+deny contains msg if {
+	not paths_superset_of(actual_pr_paths, expected_pr_paths)
+	msg := "lint-ga.yml: on.pull_request.paths має містити .github/actions/** і .github/workflows/** (ga.mdc)"
 }
 
 deny contains msg if {

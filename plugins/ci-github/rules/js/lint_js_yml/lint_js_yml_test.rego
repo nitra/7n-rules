@@ -3,13 +3,15 @@ package js.lint_js_yml_test
 import data.js.lint_js_yml
 import rego.v1
 
-template_data := {"snippet": {"jobs": {"eslint": {"steps": [
+pr_paths := ["**/*.js", "**/*.mjs", "**/.oxlintrc.json"]
+
+template_data := {"snippet": {"on": {"pull_request": {"paths": pr_paths}}, "jobs": {"eslint": {"steps": [
 	{"uses": "actions/checkout@v6", "with": {"persist-credentials": false}},
 	{"uses": "./.github/actions/setup-bun-deps"},
 	{"name": "Eslint", "run": "n-rules lint js --no-fix"},
 ]}}}}
 
-canonical_input := {"jobs": {"eslint": {"steps": [
+canonical_input := {"true": {"pull_request": {"paths": pr_paths}}, "jobs": {"eslint": {"steps": [
 	{"uses": "actions/checkout@v6", "with": {"persist-credentials": false}},
 	{"uses": "./.github/actions/setup-bun-deps"},
 	{"name": "Eslint", "run": "n-rules lint js --no-fix"},
@@ -30,6 +32,12 @@ test_deny_missing_required_run if {
 	count(lint_js_yml.deny) > 0 with input as wf with data.template as template_data
 }
 
+test_deny_missing_required_pr_path if {
+	wf := json.patch(canonical_input, [{"op": "replace", "path": "/true/pull_request/paths", "value": ["**/*.js"]}])
+	some msg in lint_js_yml.deny with input as wf with data.template as template_data
+	contains(msg, "pull_request.paths")
+}
+
 test_deny_oxlint_fix_in_ci if {
 	wf := {"jobs": {"eslint": {"steps": [{"run": "bunx oxlint --fix"}]}}}
 	some msg in lint_js_yml.deny with input as wf with data.template as template_data
@@ -43,7 +51,7 @@ test_deny_eslint_fix_in_ci if {
 }
 
 # SHA-пін (zizmor ref-pin) задовольняє канонічний тег — фіксер не даунгрейдить.
-sha_pinned_input := {"jobs": {"eslint": {"steps": [
+sha_pinned_input := {"true": {"pull_request": {"paths": pr_paths}}, "jobs": {"eslint": {"steps": [
 	{"uses": "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10", "with": {"persist-credentials": false}},
 	{"uses": "./.github/actions/setup-bun-deps"},
 	{"name": "Eslint", "run": "n-rules lint js --no-fix"},
