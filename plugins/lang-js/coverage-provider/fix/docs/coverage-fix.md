@@ -3,7 +3,7 @@ type: JS Module
 title: coverage-fix.mjs
 resource: plugins/lang-js/coverage-provider/fix/coverage-fix.mjs
 docgen:
-  crc: dfad2f6c
+  crc: 5c6c94e1
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 55

@@ -24,6 +24,7 @@ resource: npm/scripts/lib/lint-surface/
 | [run-fix.mjs](run-fix.md)                                   | JS Module |
 | [scheduler.mjs](scheduler.md)                               | JS Module |
 | [snapshot.mjs](snapshot.md)                                 | JS Module |
+| [test-gate.mjs](test-gate.md)                               | JS Module |
 | [tier-sampling-bench.mjs](tier-sampling-bench.md)           | JS Module |
 | [tier-sampling-experiment.mjs](tier-sampling-experiment.md) | JS Module |
 | [types.mjs](types.md)                                       | JS Module |

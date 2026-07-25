@@ -8,6 +8,7 @@ import {
   branchSlug,
   buildTriagePrompt,
   callRunner,
+  cleanupSource,
   conflictFiles,
   dedupeRefs,
   formatReport,
@@ -90,7 +91,8 @@ describe('Git inventory helpers', () => {
         ref: 'refs/remotes/origin/feature/a',
         oid: 'abc',
         date: '2026-01-02',
-        worktree: '/repo/.worktrees/feature-a'
+        worktree: '/repo/.worktrees/feature-a',
+        aliases: ['refs/heads/feature/a', 'refs/remotes/origin/feature/a']
       }
     ])
   })
@@ -152,6 +154,7 @@ describe('runGitReconcileOrchestrator', () => {
       log: line => logs.push(line),
       deps: {
         inventoryRepository: () => inventory(),
+        cleanupSource: candidate => ({ status: `removed:${candidate.source}` }),
         callRunner: () =>
           Promise.resolve({
             ok: true,
@@ -193,12 +196,14 @@ describe('runGitReconcileOrchestrator', () => {
         source: REVIEW_BRANCH.source,
         status: 'pr-created',
         branch: 'codex/reconcile-useful',
-        url: 'https://example.test/pr/1'
+        url: 'https://example.test/pr/1',
+        cleanup: { status: `removed:${REVIEW_BRANCH.source}` }
       },
       {
         source: 'stash:stash@{0}',
         status: 'drop-recommended',
-        rationale: 'тимчасовий debug'
+        rationale: 'тимчасовий debug',
+        cleanup: { status: 'removed:stash:stash@{0}' }
       }
     ])
     expect(logs.at(-1)).toContain('drop-recommended')
@@ -210,6 +215,7 @@ describe('runGitReconcileOrchestrator', () => {
       log: () => {},
       deps: {
         inventoryRepository: () => inventory({ stashes: [] }),
+        cleanupSource: () => ({ status: 'removed' }),
         callRunner: () => Promise.resolve({ ok: true, error: null, text: 'not-json' }),
         createPullRequest: () => {
           throw new Error('не має викликатися')
@@ -233,6 +239,7 @@ describe('runGitReconcileOrchestrator', () => {
       log: () => {},
       deps: {
         inventoryRepository: () => inventory({ stashes: [] }),
+        cleanupSource: () => ({ status: 'removed' }),
         callRunner: () =>
           Promise.resolve({
             ok: true,
@@ -259,6 +266,48 @@ describe('runGitReconcileOrchestrator', () => {
     expect(result.ok).toBe(false)
     expect(result.report).toContain('tests failed')
     expect(result.results[0].worktree).toBe('/repo/.worktrees/reconcile-useful')
+  })
+})
+
+describe('cleanupSource', () => {
+  test('branch cleanup видаляє точні local і remote aliases без shell', () => {
+    const calls = []
+    const result = cleanupSource(
+      {
+        source: REVIEW_BRANCH.source,
+        ref: REVIEW_BRANCH.ref,
+        aliases: ['refs/heads/feature/a', 'refs/remotes/origin/feature/a']
+      },
+      '/repo',
+      (command, args) => {
+        calls.push([command, args])
+        return { status: 0, stdout: '', stderr: '' }
+      }
+    )
+
+    expect(result).toEqual({ status: 'removed' })
+    expect(calls).toEqual([
+      ['git', ['branch', '-D', 'feature/a']],
+      ['git', ['push', 'origin', '--delete', 'feature/a']]
+    ])
+  })
+
+  test('stash cleanup повторно знаходить ref за стабільним OID', () => {
+    const calls = []
+    const result = cleanupSource(
+      { source: 'stash:stash@{4}', oid: 'stash-oid' },
+      '/repo',
+      (command, args) => {
+        calls.push([command, args])
+        if (args[0] === 'stash' && args[1] === 'list') {
+          return { status: 0, stdout: 'stash@{1}\0stash-oid\n', stderr: '' }
+        }
+        return { status: 0, stdout: '', stderr: '' }
+      }
+    )
+
+    expect(result).toEqual({ status: 'removed' })
+    expect(calls.at(-1)).toEqual(['git', ['stash', 'drop', 'stash@{1}']])
   })
 })
 

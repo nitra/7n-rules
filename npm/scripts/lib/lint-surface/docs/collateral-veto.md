@@ -3,27 +3,40 @@ type: JS Module
 title: collateral-veto.mjs
 resource: npm/scripts/lib/lint-surface/collateral-veto.mjs
 docgen:
-  crc: a0b41453
+  crc: 96d4ee38
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
+  score: 55
+  issues: no-overview,short-behavior,best-of-2:retry-lost
 ---
-
-## Огляд
-
-Semantic-collateral veto для verdict-фази fix-pipeline (spec pi-fix-engine-migration §12, addendum 2026-07-05). Закриває клас collateral слабких локальних моделей: «виправляючи» правило, модель робить семантичну правку у сторонньому файлі, яка не порушує жодного правила й тому проходить canonical re-detect (кейс App.vue: хардкод версії з коментарем «we simulate it being available» замість виклику `getVersion`). Правки ВСЕРЕДИНІ вже-таргетованого файлу цей модуль не ловить — цей клас (упущений workaround поряд із фіксом) покриває [test-gate.mjs](./test-gate.md) (addendum 2026-07-24).
-
-## Поведінка
-
-1. `findCollateralEdits` порівнює список змінених наявних файлів rung-а (`snapshot.modifiedExisting()`) із target-set порушення (`violations[].file ∪ item.files`) і повертає правки поза target-set.
-2. Нові файли до veto не входять — легітимний клас (scaffold, доки поряд із кодом); їх покриває re-check зачеплених файлів і rollback.
-3. Порожній target-set (whole-repo концерни без `file` у violations) → veto незастосовний: свідомий fail-open, повертається порожній масив.
-4. Усі шляхи realpath-нормалізуються (`realpathBestEffort`, той самий патерн, що у write-guard llm-lib) — знімає symlink-розбіжності macOS (`/tmp` → `/private/tmp`); caller relativize-ить результати від так само нормалізованого cwd.
 
 ## Публічний API
 
-- `findCollateralEdits({ modifiedExisting, targetFiles, cwd })` — нормалізовані абсолютні шляхи відхилених правок; порожньо — collateral немає або target-set невідомий.
-- `resolveTargetSet(targetFiles, cwd)` — нормалізована множина realpath-абсолютних шляхів target-set; спільна основа для collateral-veto (файли ПОЗА target-set) і test-gate (файли ВСЕРЕДИНІ target-set).
-- `realpathBestEffort(p)` — realpath з найкращих зусиль (наявний файл → повний realpath; неіснуючий → realpath батьківської теки + basename; інакше — як є).
+- realpathBestEffort — realpath шляху з найкращих зусиль: для наявного — повний realpath; для ще-неіснуючого —
+realpath батьківської теки + basename; інакше — як є. Знімає розбіжність symlink-шляхів
+(macOS `/tmp` → `/private/tmp`) між snapshot-ключами і target-set (той самий патерн,
+що у write-guard llm-lib). Експортовано, щоб caller relativize-ив результати veto від
+так само нормалізованого cwd.
+- resolveTargetSet — Нормалізує target-set порушення у множину realpath-абсолютних шляхів — спільна
+основа і для collateral-veto (файли ПОЗА target-set), і для test-gate
+(файли ВСЕРЕДИНІ target-set, для яких перевіряються сестринські тести).
+- findCollateralEdits — Обчислює collateral-правки rung-а: наявні (на момент S1) файли, змінені поза
+target-set порушення. Runner на непорожньому результаті відхиляє clean-вердикт
+rung-а (rollback + feedback + телеметрія `kind:"collateral-veto"`).
+  modifiedExisting — абсолютні шляхи наявних файлів, змінених відносно S1
+  (`snapshot.modifiedExisting()`); targetFiles — файли порушення
+  (`violations[].file ∪ item.files`), відносні до cwd або абсолютні.
+- HUNK_WINDOW — Дефолтне вікно (рядків з обох боків `violation.data.line`), у межах якого зміна вважається «поруч із порушенням».
+- findInFileCollateralEdits — In-file hunk-level veto (§12 addendum 2026-07-24): rung змінив файл, що вже входить
+у target-set порушення, але змінений рядковий діапазон виходить за межі вікна навколо
+КОЖНОЇ `violation.data.line` цього файлу — сигнал колатеральної правки поза власне
+порушенням (клас upsert-order.js: LLM видалив сусідній задокументований обхід бага,
+виправляючи doc-comment над функцією). Fail-open: якщо для файлу немає жодного
+порушення з відомим `line`, hunk неможливо відповідально обмежити — повертає null.
+  preImage/current — вміст файлу до/після rung-а; violationLines — номери рядків
+  порушень ЦЬОГО rung-а в ЦЬОМУ файлі; window — половина ширини допустимого вікна.
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
-- Ніколи не кидає: помилки realpath ігноруються з поверненням шляху як є.
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
+- Перехоплює помилки і не пропускає винятків назовні (fail-safe).

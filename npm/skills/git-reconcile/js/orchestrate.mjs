@@ -95,7 +95,7 @@ function branchName(ref) {
  * worktree-protection локального ref переноситься у запис.
  * @param {Array<{ref:string, oid:string, date:string}>} refs сирі refs
  * @param {Map<string,string>} worktrees branch→path
- * @returns {Array<{ref:string, oid:string, date:string, worktree:string|null}>} refs
+ * @returns {Array<{ref:string, oid:string, date:string, worktree:string|null,aliases:string[]}>} refs
  */
 export function dedupeRefs(refs, worktrees) {
   const byOid = new Map()
@@ -104,10 +104,14 @@ export function dedupeRefs(refs, worktrees) {
     const existing = byOid.get(item.oid)
     const worktree = worktrees.get(item.ref) ?? existing?.worktree ?? null
     const isRemote = item.ref.startsWith('refs/remotes/origin/')
+    const aliases = [...new Set([...(existing?.aliases ?? []), item.ref])].toSorted()
     if (!existing || isRemote) {
-      byOid.set(item.oid, { ...item, worktree })
+      byOid.set(item.oid, { ...item, worktree, aliases })
     } else if (worktree) {
       existing.worktree = worktree
+      existing.aliases = aliases
+    } else {
+      existing.aliases = aliases
     }
   }
   return [...byOid.values()].toSorted((a, b) => a.ref.localeCompare(b.ref))
@@ -256,17 +260,18 @@ export function inventoryRepository(cwd, deps = {}) {
     }
   })
 
-  const stashRows = git(['stash', 'list', '--format=%gd%x00%gs'], cwd, spawnFn).stdout
+  const stashRows = git(['stash', 'list', '--format=%gd%x00%H%x00%gs'], cwd, spawnFn).stdout
     .split('\n')
     .filter(Boolean)
   const stashes = stashRows.map(line => {
-    const [ref, subject] = line.split('\0')
+    const [ref, oid, subject] = line.split('\0')
     const changedFiles = git(['stash', 'show', '--name-status', ref], cwd, spawnFn).stdout
       .split('\n')
       .filter(Boolean)
     return {
       source: `${SOURCE_STASH_PREFIX}${ref}`,
       ref,
+      oid,
       subject,
       state: 'review',
       changedFiles
@@ -450,7 +455,7 @@ async function resolveConflict({ runner, source, worktreeCwd, deps, spawnFn }) {
  * @param {object} args контекст
  * @returns {Promise<void>}
  */
-async function applySource({ source, commits, runner, rootCwd, worktreeCwd, deps, spawnFn }) {
+async function applySource({ source, sourceOid, commits, runner, rootCwd, worktreeCwd, deps, spawnFn }) {
   if (source.startsWith(SOURCE_BRANCH_PREFIX)) {
     for (const oid of commits) {
       const result = git(['cherry-pick', oid], worktreeCwd, spawnFn, { allowFailure: true })
@@ -471,7 +476,7 @@ async function applySource({ source, commits, runner, rootCwd, worktreeCwd, deps
   }
 
   const stashRef = source.slice(SOURCE_STASH_PREFIX.length)
-  const patch = git(['stash', 'show', '-p', '--binary', stashRef], rootCwd, spawnFn).stdout
+  const patch = git(['stash', 'show', '-p', '--binary', sourceOid ?? stashRef], rootCwd, spawnFn).stdout
   const applied = git(['apply', '--3way', '-'], worktreeCwd, spawnFn, {
     allowFailure: true,
     input: patch
@@ -526,6 +531,7 @@ async function createPullRequest({ candidate, group, runner, rootCwd, deps, spaw
   try {
     await applySource({
       source,
+      sourceOid: candidate.oid,
       commits,
       runner,
       rootCwd,
@@ -597,6 +603,43 @@ async function createPullRequest({ candidate, group, runner, rootCwd, deps, spaw
 }
 
 /**
+ * Видаляє точний source після Git-доказу неактуальності або успішного
+ * перенесення. Protected/open-PR refs не потрапляють у цей крок.
+ * @param {object} candidate inventory source
+ * @param {string} rootCwd корінь репо
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {{status:string,error?:string}} cleanup result
+ */
+export function cleanupSource(candidate, rootCwd, spawnFn = spawnSync) {
+  try {
+    if (candidate.source.startsWith(SOURCE_STASH_PREFIX)) {
+      const rows = git(['stash', 'list', '--format=%gd%x00%H'], rootCwd, spawnFn).stdout
+        .split('\n')
+        .filter(Boolean)
+        .map(line => line.split('\0'))
+      const row = rows.find(([, oid]) => oid === candidate.oid)
+      if (!row) return { status: 'already-removed' }
+      git(['stash', 'drop', row[0]], rootCwd, spawnFn)
+      return { status: 'removed' }
+    }
+
+    for (const ref of candidate.aliases ?? [candidate.ref]) {
+      if (ref.startsWith('refs/remotes/origin/')) {
+        git(['push', 'origin', '--delete', branchName(ref)], rootCwd, spawnFn)
+      } else if (ref.startsWith('refs/heads/')) {
+        git(['branch', '-D', branchName(ref)], rootCwd, spawnFn)
+      }
+    }
+    return { status: 'removed' }
+  } catch (error) {
+    return {
+      status: 'cleanup-failed',
+      error: error instanceof Error ? error.message : String(error)
+    }
+  }
+}
+
+/**
  * Формує deterministic report.
  * @param {{inventory:object,results:Array<object>}} args дані
  * @returns {string} markdown
@@ -606,7 +649,8 @@ export function formatReport({ inventory, results }) {
   for (const branch of inventory.branches) {
     if (branch.state === 'review') continue
     const suffix = branch.pr?.url ? ` — ${branch.pr.url}` : branch.worktree ? ` — ${branch.worktree}` : ''
-    lines.push(`- \`${branch.name}\`: ${branch.state}${suffix}`)
+    const cleanup = branch.cleanup ? `; cleanup=${branch.cleanup.status}` : ''
+    lines.push(`- \`${branch.name}\`: ${branch.state}${cleanup}${suffix}`)
   }
   for (const result of results) {
     const suffix = result.url
@@ -616,7 +660,8 @@ export function formatReport({ inventory, results }) {
         : result.rationale
           ? ` — ${result.rationale}`
           : ''
-    lines.push(`- \`${result.source}\`: ${result.status}${suffix}`)
+    const cleanup = result.cleanup ? `; cleanup=${result.cleanup.status}` : ''
+    lines.push(`- \`${result.source}\`: ${result.status}${cleanup}${suffix}`)
   }
   for (const warning of inventory.warnings) lines.push(`- ⚠️ ${warning}`)
   return lines.join('\n')
@@ -638,6 +683,7 @@ export async function runGitReconcileOrchestrator(options = {}) {
   const call = deps.callRunner ?? callRunner
   const inventoryFn = deps.inventoryRepository ?? inventoryRepository
   const createPr = deps.createPullRequest ?? createPullRequest
+  const cleanup = deps.cleanupSource ?? cleanupSource
   const inventory = inventoryFn(rootCwd, { spawnFn })
   const candidates = [...inventory.branches, ...inventory.stashes].filter(item => item.state === 'review')
   const decisions = []
@@ -704,6 +750,22 @@ export async function runGitReconcileOrchestrator(options = {}) {
           log
         }).then(result => ({ source: decision.source, ...result }))
       )
+    }
+  }
+
+  for (const branch of inventory.branches) {
+    if (['merged', 'patch-equivalent'].includes(branch.state) && !branch.worktree && !branch.pr) {
+      branch.cleanup = cleanup(branch, rootCwd, spawnFn)
+    }
+  }
+  for (const [source, candidate] of bySource) {
+    const sourceResults = results.filter(result => result.source === source)
+    const shouldRemove =
+      sourceResults.some(result => result.status === 'drop-recommended') ||
+      (sourceResults.length > 0 && sourceResults.every(result => result.status === 'pr-created'))
+    if (shouldRemove) {
+      const cleanupResult = cleanup(candidate, rootCwd, spawnFn)
+      for (const result of sourceResults) result.cleanup = cleanupResult
     }
   }
 
