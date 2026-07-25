@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0] - 2026-07-25
+
+### Changed
+
+- Rust-крейти перейменовано: llm-cascade → llm-lib, llm-cascade-napi → llm-lib-napi, CascadeError → LlmError; napi-артефакти llm-lib-napi.`triple`.node; git-споживачам — dependency-alias llm-cascade = { package = "llm-lib" }
+- changelog presence: додано change-файл для змін у plugins/lang-rust
+
 ## [0.12.0] - 2026-07-24
 
 ### Added

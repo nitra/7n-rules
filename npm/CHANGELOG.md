@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.49.0] - 2026-07-25
+
+### Added
+
+- Додано JS-оркестрований skill `n-git-reconcile` для аналізу гілок, worktree та stash і перенесення корисних змін у готові PR. CI smoke-check використовує завантажений Linux native addon до release, тому перевіряє native-залежні CLI-модулі в тому самому runtime, що й publish.
+
+### Changed
+
+- Rust-крейти перейменовано: llm-cascade → llm-lib, llm-cascade-napi → llm-lib-napi, CascadeError → LlmError; napi-артефакти llm-lib-napi.`triple`.node; git-споживачам — dependency-alias llm-cascade = { package = "llm-lib" }
+- n-taze: callRunner для cursor/codex передає tier 'avg' у runAcpAgent — модель тіру замість персонального CLI-конфіга (паритет з pi-гілкою)
+- changelog presence: додано change-файл для змін у npm
+- doc-files: генерація N файлів одним 2b-batch (submitBatch @7n/llm-lib) з per-item ізоляцією помилок; фолбек на послідовний шлях без native-аддона чи з deadlineAt
+
+### Fixed
+
+- changelog consistency: додано change-файл для змін у npm/rules/changelog
+- scanGlob: захист від Bun.Glob#scan(), що повертає Promise (self-hosted Linux Bun 1.3.14) — детектори не валять весь lint-прогін
+- Виправлено profile генерації тестів для survived Stryker-мутантів
+
 ## [1.48.2] - 2026-07-24
 
 ### Fixed

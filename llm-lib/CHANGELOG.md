@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.9.0] - 2026-07-25
+
+### Added
+
+- acp: публічний session-API (create_session/prompt/cancel, стрім SessionEvent, зовнішній permission-responder, опційний post-session config-крок для Pi); one_shot_acp — фасад над session
+- acp: пресети агентів — AcpAgentKind::Pi (npx -y pi-acp), тір-мапи Codex (CODEX_CONFIG luna/terra/sol), Cursor (--model з ефорт-суфіксами), Pi (post-session provider/modelId), UI-лейбли; one_shot_acp_with_tier
+- napi/JS: oneShotAcp(kind, prompt, cwd, {tier}) з kind 'pi', getAcpPresets(), oneShotLocalCloud (Тип 2a, модуль ./local-cloud); model-tiers.mjs: resolveModel — napi-делегація в tiers.rs
+- llm_lib::batch — емуляція Типу 2b (submit → progress → results, чанк 35/конкурентність 2, помилка item не валить batch); napi submitBatch з ThreadsafeFunction-прогресом; JS-модуль ./batch
+
+### Changed
+
+- acp: транспортний шар spawn/init/session виділено в acp/transport.rs (build_acp_args: env-префікси + extra-args), one_shot_acp — тонкий фасад без зміни поведінки
+- Rust-крейти перейменовано: llm-cascade → llm-lib, llm-cascade-napi → llm-lib-napi, CascadeError → LlmError; napi-артефакти llm-lib-napi.`triple`.node; git-споживачам — dependency-alias llm-cascade = { package = "llm-lib" }
+
+### Fixed
+
+- Виправлено profile генерації тестів для survived Stryker-мутантів
+
 ## [2.8.8] - 2026-07-24
 
 ### Changed
