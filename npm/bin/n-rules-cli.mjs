@@ -99,7 +99,7 @@ import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { syncGitignoreWorktree } from '../scripts/lib/sync-gitignore-worktree.mjs'
 import { upgradeNRulesToLatestAndBunInstall } from '../scripts/upgrade-n-rules-and-install.mjs'
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
-import { isTazeOrchestratorSkillArgs, runSkillsCli } from '../scripts/skills-cli.mjs'
+import { isJsOrchestratedSkillArgs, runSkillsCli } from '../scripts/skills-cli.mjs'
 import { syncSetupBunDepsAction } from '../scripts/sync-setup-bun-deps-action.mjs'
 
 /**
@@ -1778,19 +1778,16 @@ export async function runCli(argv) {
       }
       // `ci` (plan) — read-only гейт-команда для CI-джоб: не мутує package.json
       // (ensure дописав би devDependency прямо в чекауті pipeline-агента).
-      // `skill <runner> taze` — JS-оркестрований worktree-only шлях
-      // (skills/taze/js/orchestrate.mjs): сам створює worktree і гейтить на
-      // чистоту дерева ДО checkout. Мутація тут забруднила б дерево прямо
-      // перед тим гейтом і провалювала б auto-create на інакше чистому дереві —
-      // оркестратор сам робить self-upgrade devDependency вже ВСЕРЕДИНІ
-      // щойно створеного worktree, після власного гейту чистоти.
+      // `skill <runner> taze|git-reconcile` — JS-оркестровані шляхи: самі
+      // виконують Git/worktree preflight до мутацій. Self-upgrade тут
+      // забруднив би дерево до їхнього власного гейту.
       // `lint --full` (без --no-fix/--path/--repo-wide) — той самий клас ризику:
       // `needsWorktreeIsolation` нижче в `case 'lint'` гейтить на чистоту дерева
       // ЧЕРЕЗ `ensureRunningInWorktree`; self-upgrade тут забруднив би те саме
       // дерево прямо перед тим гейтом. Відкладаємо ensure до ПІСЛЯ
       // `ensureRunningInWorktree` (виклик у `case 'lint'`, спрямований на runCwd).
       const skipDevDepsEnsure =
-        (command === 'skill' && isTazeOrchestratorSkillArgs(args)) || (command === 'lint' && isLintFullFixArgs(args))
+        (command === 'skill' && isJsOrchestratedSkillArgs(args)) || (command === 'lint' && isLintFullFixArgs(args))
       if (command !== 'ci' && !skipDevDepsEnsure) await ensureNRulesInRootDevDependencies(effectiveRoot)
       // Підкоманди-оркестратори (hook/lint/skill/adr-normalize-local/taze/release тощо)
       // можуть спавнити внутрішню agent/LLM-сесію — ADR Stop-hooks (capture/normalize)

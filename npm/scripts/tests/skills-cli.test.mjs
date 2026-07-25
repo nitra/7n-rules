@@ -8,6 +8,7 @@ import { describe, expect, test } from 'vitest'
 
 import {
   buildSkillPrompt,
+  isJsOrchestratedSkillArgs,
   isTazeOrchestratorSkillArgs,
   listSkillIds,
   normalizeSkillId,
@@ -61,6 +62,18 @@ describe('isTazeOrchestratorSkillArgs', () => {
 
   test('порожні аргументи → false', () => {
     expect(isTazeOrchestratorSkillArgs([])).toBe(false)
+  })
+})
+
+describe('isJsOrchestratedSkillArgs', () => {
+  test('pi taze і codex git-reconcile → true', () => {
+    expect(isJsOrchestratedSkillArgs(['pi', 'taze'])).toBe(true)
+    expect(isJsOrchestratedSkillArgs(['codex', 'n-git-reconcile'])).toBe(true)
+  })
+
+  test('claude та generic skill → false', () => {
+    expect(isJsOrchestratedSkillArgs(['claude', 'git-reconcile'])).toBe(false)
+    expect(isJsOrchestratedSkillArgs(['pi', 'lint'])).toBe(false)
   })
 })
 
@@ -447,6 +460,48 @@ describe('runSkillsCli', () => {
       },
       deps: {
         runTazeOrchestrator: () => Promise.resolve({ ok: false, report: 'помилка', results: [] })
+      }
+    })
+
+    expect(code).toBe(1)
+  })
+
+  test('git-reconcile: JS-оркестратор отримує runner, cwd і task', async () => {
+    const root = join(tmpdir(), `skills-cli-git-reconcile-${Date.now()}`)
+    mkdirSync(join(root, 'skills'), { recursive: true })
+    const calls = []
+    const code = await runSkillsCli(['pi', 'n-git-reconcile', 'аналізуй', 'stash'], {
+      packageRoot: root,
+      projectDir: root,
+      log: () => {
+        /* noop: тест перевіряє dispatch */
+      },
+      deps: {
+        runGitReconcileOrchestrator: opts => {
+          calls.push(opts)
+          return Promise.resolve({ ok: true, report: 'ok' })
+        }
+      }
+    })
+
+    expect(code).toBe(0)
+    expect(calls).toHaveLength(1)
+    expect(calls[0].runner).toBe('pi')
+    expect(calls[0].cwd).toBe(root)
+    expect(calls[0].task).toBe('аналізуй stash')
+  })
+
+  test('git-reconcile: провальний оркестратор → exit 1', async () => {
+    const root = join(tmpdir(), `skills-cli-git-reconcile-fail-${Date.now()}`)
+    mkdirSync(join(root, 'skills'), { recursive: true })
+    const code = await runSkillsCli(['cursor', 'git-reconcile'], {
+      packageRoot: root,
+      projectDir: root,
+      log: () => {
+        /* noop */
+      },
+      deps: {
+        runGitReconcileOrchestrator: () => Promise.resolve({ ok: false, report: 'failed' })
       }
     })
 

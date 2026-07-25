@@ -8,12 +8,11 @@
  * (napi-міст до `llm_lib::acp`, без власного JSON-RPC у JS); deprecated
  * `claude` — окремий JS-шим (`./lib/acp-runner.mjs`), бо Rust-крейт його не моделює.
  *
- * `skill <runner> taze` — виняток із загального шляху "весь SKILL.md одним промптом":
- * делегує в `../skills/taze/js/orchestrate.mjs`, який детерміновано (без LLM) робить
- * бекап/масовий bump/diff/прибирання і лише по одному ОБМЕЖЕНОМУ виклику `<runner>`
- * на кожен major-пакет — замість одного величезного непрозорого ходу на весь монорепо
- * (той, single-shot, раніше зависав без діагностики; per-пакет виклики успадковують
- * власний timeout раннера, і падіння одного пакета не втрачає прогрес по інших).
+ * `skill <runner> taze|git-reconcile` — JS-оркестровані винятки із загального
+ * шляху "весь SKILL.md одним промптом". `taze` детерміновано робить
+ * backup/bump/diff/cleanup і викликає LLM лише для major-міграцій;
+ * `git-reconcile` детерміновано інвентаризує Git-граф, готує worktree/PR і
+ * викликає LLM лише для semantic triage та conflict resolution.
  *
  * Підтримувані формати:
  *   `npx \@7n/rules skill list`
@@ -36,6 +35,7 @@ import { readSkillMetaRaw, skillTier } from './lib/skill-meta.mjs'
 
 /** Виконавці скіла. `pi` — вбудований (рекомендований); `cursor`/`codex`/`claude` — зовнішні ACP-агенти (`claude` — deprecated). */
 const RUNNERS = new Set(['pi', 'cursor', 'codex', 'claude'])
+const JS_ORCHESTRATED_SKILLS = new Set(['taze', 'git-reconcile'])
 
 /**
  * Раннери, що йдуть через зовнішнього ACP-агента, і чи deprecated (друкує попередження
@@ -236,6 +236,33 @@ async function runTazeOrchestratorCli(runner, projectDir, log, logError, deps = 
 }
 
 /**
+ * Виконує `git-reconcile` через JS-оркестратор: Git inventory/patch-equivalence/
+ * worktree/cherry-pick/gates/push/PR — детерміновано; LLM — лише semantic triage
+ * та conflict resolution.
+ * @param {'pi' | 'cursor' | 'codex'} runner LLM-раннер для bounded кроків
+ * @param {string} projectDir корінь проєкту
+ * @param {string} task додатковий намір користувача
+ * @param {(line: string) => void} log прогрес/звіт
+ * @param {(line: string) => void} logError помилки
+ * @param {{ runGitReconcileOrchestrator?: (opts: object) => Promise<{ok:boolean,report:string}> }} [deps] інжекти
+ * @returns {Promise<number>} exit code
+ */
+async function runGitReconcileOrchestratorCli(runner, projectDir, task, log, logError, deps = {}) {
+  let orchestrate = deps.runGitReconcileOrchestrator
+  if (!orchestrate) {
+    const module = await import('../skills/git-reconcile/js/orchestrate.mjs')
+    orchestrate = module.runGitReconcileOrchestrator
+  }
+  try {
+    const result = await orchestrate({ cwd: projectDir, runner, task, log, deps })
+    return result.ok ? 0 : 1
+  } catch (error) {
+    logError(error instanceof Error ? error.message : String(error))
+    return 1
+  }
+}
+
+/**
  * Корінь пакета `@7n/rules` (каталог з `skills/`, `rules/`, …).
  * @param {string} [fromModuleUrl] для тестів — `import.meta.url`, відносно якого шукати корінь
  * @returns {string} абсолютний шлях до кореня пакета
@@ -259,6 +286,18 @@ export function resolveBundledPackageRoot(fromModuleUrl = import.meta.url) {
 export function isTazeOrchestratorSkillArgs(argv) {
   const [first, second] = argv
   return RUNNERS.has(first) && first !== 'claude' && normalizeSkillId(second) === 'taze'
+}
+
+/**
+ * Чи аргументи ведуть у будь-який JS-оркестрований skill. Потрібно верхньому
+ * CLI, щоб не мутувати root package.json self-upgrade-ом до власного preflight
+ * оркестратора.
+ * @param {string[]} argv аргументи після `skill`
+ * @returns {boolean} true для taze/git-reconcile з pi/cursor/codex
+ */
+export function isJsOrchestratedSkillArgs(argv) {
+  const [first, second] = argv
+  return RUNNERS.has(first) && first !== 'claude' && JS_ORCHESTRATED_SKILLS.has(normalizeSkillId(second))
 }
 
 /**
@@ -295,10 +334,21 @@ export async function runSkillsCli(argv, options = {}) {
       if (!second) {
         throw new Error(`Skill name is required after "${first}"`)
       }
-      if (first !== 'claude' && normalizeSkillId(second) === 'taze') {
+      const skillId = normalizeSkillId(second)
+      if (first !== 'claude' && skillId === 'taze') {
         return await runTazeOrchestratorCli(
           /** @type {'pi' | 'cursor' | 'codex'} */ (first),
           projectDir,
+          log,
+          logError,
+          deps
+        )
+      }
+      if (first !== 'claude' && skillId === 'git-reconcile') {
+        return await runGitReconcileOrchestratorCli(
+          /** @type {'pi' | 'cursor' | 'codex'} */ (first),
+          projectDir,
+          rest.join(' '),
           log,
           logError,
           deps
