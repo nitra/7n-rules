@@ -100,8 +100,9 @@ jobs:
 
       - name: Smoke-check CLI-модулів (ловить hoisting-регресії залежностей до релізу)
         # Native-залежні CLI-модулі імпортуються в smoke-check, тому artifacts мають
-        # бути доступні до цього кроку, а не лише перед publish.
-        run: node npm/scripts/smoke-check-imports.mjs
+        # бути доступні до цього кроку. Loader бере explicit override, бо
+        # downloaded artifact не є встановленим platform npm-підпакетом.
+        run: N_LLM_LIB_NATIVE_ADDON="$PWD/llm-lib/packages/llm-lib-linux-x64/llm-lib-napi.linux-x64-gnu.node" node npm/scripts/smoke-check-imports.mjs
 
       - name: Release (bump + CHANGELOG + tag)
         # N_RULES_RELEASE_PUSH=0: bump/CHANGELOG/тег лишаються локальними в цьому checkout,
