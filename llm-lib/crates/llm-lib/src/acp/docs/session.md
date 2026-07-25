@@ -3,7 +3,7 @@ type: Rust Module
 title: session.rs
 resource: llm-lib/crates/llm-lib/src/acp/session.rs
 docgen:
-  crc: 32c76196
+  crc: 00413fc3
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 55

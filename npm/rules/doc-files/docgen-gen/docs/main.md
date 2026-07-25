@@ -3,30 +3,12 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/doc-files/docgen-gen/main.mjs
 docgen:
-  crc: a9cc5441
-  model: openai-codex/gpt-5.5
-  tier: cloud-avg
-  score: 55
-  issues: internal-name:isApiGap,internal-name:renderApiLine,internal-name:oneShotDoc,internal-name:finishUnsupported,anchor-miss:(abie.mdc),best-of-2:retry-error
+  crc: 80c789c7
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
+  score: 10
+  issues: no-overview,short-behavior,internal-name:isApiGap,internal-name:renderApiLine,internal-name:oneShotDoc,internal-name:finishUnsupported,anchor-miss:(abie.mdc),best-of-2:retry-lost
 ---
-
-## Огляд
-
-Файл формує Markdown-документацію для коду через послідовний або batch-шлях: готує текст для LLM, збирає API-секцію, очищує службову мета-нарацію, оцінює результат через `scoreDoc` і повертає готовий документ. Він існує, щоб генерація була повторюваною й контрольованою: з часовим обмеженням через `capTimeoutToDeadline`, локальною моделлю за замовчуванням `DEFAULT_LOCAL_MODEL`, підготовкою batch-елементів у `prepareBatchItem`, завершенням їх обробки у `finishBatchItem` та кешуванням у межах одного прогону.
-
-## Поведінка
-
-`generateDoc` керує повним шляхом створення документації: бере файл і наявний Markdown, зберігає захищене «Призначення» через `splitProtected`, обирає `DEFAULT_LOCAL_MODEL` за замовчуванням, готує джерело для LLM, збирає секції, повертає Markdown разом з оцінкою, ознакою degraded і метриками LLM-викликів.
-
-Спільний часовий бюджет застосовується до LLM-кроків через `capTimeoutToDeadline`: якщо дедлайн наближається, окремі виклики отримують менший ліміт, а після вичерпання бюджету генерація зупиняється як тимчасова помилка, щоб batch або користувач могли повторити прогін.
-
-Текст від моделі проходить нормалізацію перед оцінюванням і записом: `stripLeadingPreamble` прибирає чатову мета-нарацію, зокрема небажані службові вступи на кшталт маркерів ``, а захищений блок повертається в документ через `insertProtected` одразу після головного заголовка.
-
-`buildApiSection` мінімізує LLM-виклики для «Публічного API»: покриті описом експорти потрапляють у секцію детерміновано, а модель залучається лише для реальних прогалин. Завдяки цьому API-секція стабільніша й менше схильна до галюцинацій.
-
-`scoreDoc` виконує детерміновану перевірку готового Markdown: оцінює відповідність факт-листу, наявність обовʼязкових анкорів і відсутність службових символів у публічних секціях. Низька оцінка не скасовує результат автоматично, а позначає його як degraded для подальшого retry або ручного рішення.
-
-Batch-шлях розділений на підготовку й фініш: `prepareBatchItem` створює все потрібне для зовнішнього batch-виклику без звернення до LLM, а `finishBatchItem` приймає готовий текст відповіді, очищує його, відновлює захищене «Призначення» та застосовує те саме детерміноване оцінювання, що й послідовна генерація.
 
 ## Публічний API
 
