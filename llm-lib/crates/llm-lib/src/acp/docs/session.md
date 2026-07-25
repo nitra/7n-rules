@@ -3,33 +3,12 @@ type: Rust Module
 title: session.rs
 resource: llm-lib/crates/llm-lib/src/acp/session.rs
 docgen:
-  crc: 5f1e4cf8
-  model: openai-codex/gpt-5.5
-  tier: cloud-avg
-  score: 100
-  issues: judge-refine:kept-original,judge:inaccurate:0.99
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: 32c76196
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
+  score: 55
+  issues: no-overview,short-behavior,best-of-2:retry-lost
 ---
-
-## Огляд
-
-Файл надає публічний session-API для довгоживучої ACP-сесії без залежності від Tauri: [`SessionOptions`] описує створення сесії, [`create_session`] повертається лише після handshake `initialize` → `session/new` → опційний `session/set_config_option`, а керування відбувається через [`SessionHandle::prompt`] і [`SessionHandle::cancel`]. Події сесії надходять через відкритий потік, зокрема [`SessionEvent::PermissionRequest`] для запитів дозволів.
-
-API існує, щоб винести модель живого ACP-з’єднання, prompt/cancel і permission-відповіді на повторно використовуваний рівень крейта. [`PermissionMode::External`] передає запити дозволів зовнішньому responder-у, а [`PermissionMode::AutoApprove`] використовує той самий потік подій: [`drive_auto_approve`] читає запити дозволів і відповідає автоматично.
-
-## Поведінка
-
-`SessionOptions` описує майбутню довгоживучу ACP-сесію: режим дозволів через `PermissionMode`, робочу теку, можливі можливості агента та опційний `PostSessionConfig`. `PostSessionConfig` створюється через `new` і передає вже готову пару для post-session конфігурації, яку `create_session` застосовує після відкриття сесії, але до першого `prompt`.
-
-`create_session` спочатку запускає агента, проходить handshake, відкриває сесію й лише після цього повертає `SessionHandle`. Це гарантує, що помилки запуску, авторизації або post-session конфігурації повертаються одразу, а не проявляються пізніше як закритий канал під час першого `prompt`.
-
-Після створення сесії ACP-з’єднання належить фоновій задачі. Зовнішній код взаємодіє з ним через `SessionHandle`: `prompt` надсилає новий хід і повертає тільки фінальний статус, а всі проміжні оновлення потрапляють у потік `SessionEvent`. `cancel` просить скасувати поточний хід і не чекає окремого підтвердження. Сесія живе, доки існує хоча б один клон `SessionHandle`.
-
-`SessionEvent` є спільним каналом для результатів роботи сесії: туди йдуть оновлення відповіді агента та запити дозволів. Для `PermissionMode::External` кожен запит дозволу приходить як `PermissionRequestEvent`; викликач має відповісти через `respond` або відхилити через `cancel`. Якщо з’єднання вже закрите, відповідь або скасування повертають provider-помилку.
-
-`PermissionMode::AutoApprove` використовує той самий permission-механізм, що й зовнішній режим, але рішення ухвалюється автоматично. `drive_auto_approve` може читати потік `SessionEvent`, ігнорувати звичайні оновлення та відповідати на `PermissionRequestEvent` автоматично через `respond`; якщо відповідний варіант недоступний, запит скасовується через `cancel`.
-
-`prompt`, `cancel`, `respond` і `create_session` не приховують збої ACP-з’єднання: закритий канал, помилка агента, idle-timeout або невдалий handshake повертаються як provider-помилки. Одноразовий фасад лишається окремим шляхом і не змінює поведінку довгоживучої session-моделі.
 
 ## Публічний API
 

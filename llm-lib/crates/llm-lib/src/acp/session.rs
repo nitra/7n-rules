@@ -31,10 +31,10 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use agent_client_protocol::schema::v1::{
-    ClientCapabilities, InitializeRequest, McpServer, NewSessionRequest, PermissionOption,
-    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-    SelectedPermissionOutcome, SessionConfigId, SessionUpdate, SetSessionConfigOptionRequest,
-    StopReason,
+    ClientCapabilities, ContentBlock, ContentChunk, InitializeRequest, McpServer,
+    NewSessionRequest, PermissionOption, RequestPermissionOutcome, RequestPermissionRequest,
+    RequestPermissionResponse, SelectedPermissionOutcome, SessionConfigId, SessionUpdate,
+    SetSessionConfigOptionRequest, StopReason,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{AcpAgent, Client, Responder};
@@ -121,6 +121,11 @@ pub enum SessionEvent {
 /// Запит дозволу, що чекає на відповідь ззовні ([`PermissionMode::External`]).
 #[derive(Debug)]
 pub struct PermissionRequestEvent {
+    /// Деталі tool-call-а, на який агент просить дозвіл (`title`,
+    /// `tool_call_id`, …) — потрібні зовнішньому responder-у, щоб показати
+    /// людині, *що саме* просить дозволу (permission-UI плагіна, T9), а не
+    /// лише перелік варіантів відповіді.
+    pub tool_call: agent_client_protocol::schema::v1::ToolCallUpdate,
     /// Варіанти дозволу, з яких викликач обирає один
     /// ([`PermissionRequestEvent::respond`]) — той самий `PermissionOption`,
     /// що йде в протокольний запит (id/name/kind).
@@ -263,7 +268,8 @@ pub async fn create_session(
                     PermissionMode::External => {
                         let _ = permission_event_tx.send(SessionEvent::PermissionRequest(
                             Box::new(PermissionRequestEvent {
-                                options: request.options.clone(),
+                                tool_call: request.tool_call,
+                                options: request.options,
                                 responder,
                             }),
                         ));
@@ -322,6 +328,7 @@ pub async fn create_session(
                 }
 
                 let session_id = session.session_id().clone();
+                let mut startup_noise = unsolicited_startup_text(session.meta().as_ref());
                 if let Some(ready_tx) = ready_tx.take() {
                     let _ = ready_tx.send(Ok(()));
                 }
@@ -329,8 +336,14 @@ pub async fn create_session(
                 while let Some(command) = command_rx.recv().await {
                     match command {
                         SessionCommand::Prompt { text, reply } => {
-                            let outcome =
-                                run_prompt_turn(&mut session, idle_timeout, text, &event_tx).await;
+                            let outcome = run_prompt_turn(
+                                &mut session,
+                                idle_timeout,
+                                text,
+                                &event_tx,
+                                &mut startup_noise,
+                            )
+                            .await;
                             let _ = reply.send(outcome);
                         }
                         SessionCommand::Cancel => {
@@ -369,12 +382,15 @@ pub async fn create_session(
 /// Один prompt-хід: надсилає `text`, пересилає кожен `SessionUpdate` у
 /// канал подій через [`transport::drive_turn`] (idle-timeout + progress-
 /// логування, та сама операційна броня, що й у [`super::one_shot_acp`]),
-/// повертає фінальний `StopReason`.
+/// повертає фінальний `StopReason`. `startup_noise` — задекларований агентом
+/// startup-текст ([`unsolicited_startup_text`]); ідентичний йому чанк не
+/// потрапляє в канал подій ([`is_startup_noise`]).
 async fn run_prompt_turn<S>(
     session: &mut S,
     idle_timeout: std::time::Duration,
     text: String,
     event_tx: &mpsc::UnboundedSender<SessionEvent>,
+    startup_noise: &mut Option<String>,
 ) -> Result<StopReason, LlmError>
 where
     S: AcpSessionUpdates + SendsPrompt,
@@ -384,10 +400,51 @@ where
         .map_err(|e| LlmError::Provider(e.to_string()))?;
 
     transport::drive_turn(session, idle_timeout, |update| {
+        if is_startup_noise(startup_noise, update) {
+            return;
+        }
         let _ = event_tx.send(SessionEvent::Update(Box::new(update.clone())));
     })
     .await
     .map_err(|e| LlmError::Provider(e.to_string()))
+}
+
+/// Startup-текст, який агент задекларував у `_meta` відповіді `session/new`
+/// (нині лише pi: `pi-acp` кладе банер версії + update-нотіс у
+/// `_meta.piAcp.startupInfo` **і** дублює той самий текст першим
+/// `agent_message_chunk` нової сесії — задумано під Zed, який рендерить його
+/// окремим привітанням). Для headless/чат-споживачів крейта це шум, що
+/// приклеюється до першої відповіді, тож задекларований текст фільтрується
+/// з потоку подій точним збігом — без евристик і незалежно від
+/// per-машинних настройок pi (`quietStartup`).
+fn unsolicited_startup_text(
+    meta: Option<&serde_json::Map<String, serde_json::Value>>,
+) -> Option<String> {
+    let text = meta?.get("piAcp")?.get("startupInfo")?.as_str()?;
+    (!text.is_empty()).then(|| text.to_string())
+}
+
+/// `true`, якщо `update` — той самий startup-чанк, що його агент задекларував
+/// у `_meta` ([`unsolicited_startup_text`]): текстовий `AgentMessageChunk`,
+/// ідентичний очікуваному. Спрацьовує щонайбільше раз — після збігу
+/// `startup_noise` скидається, і подальші (навіть ідентичні) чанки проходять
+/// як звичайний контент.
+fn is_startup_noise(startup_noise: &mut Option<String>, update: &SessionUpdate) -> bool {
+    let Some(expected) = startup_noise.as_deref() else {
+        return false;
+    };
+    let SessionUpdate::AgentMessageChunk(ContentChunk {
+        content: ContentBlock::Text(text),
+        ..
+    }) = update
+    else {
+        return false;
+    };
+    if text.text != expected {
+        return false;
+    }
+    *startup_noise = None;
+    true
 }
 
 /// Мінімальний зріз `ActiveSession::send_prompt`, потрібний
@@ -495,6 +552,7 @@ mod tests {
                 std::time::Duration::from_millis(50),
                 "привіт".to_string(),
                 &event_tx,
+                &mut None,
             ),
         )
         .await;
@@ -522,5 +580,48 @@ mod tests {
         let config = PostSessionConfig::new("model", "openai-codex/gpt-5.6-terra");
         assert_eq!(config.config_id, "model");
         assert_eq!(config.value, "openai-codex/gpt-5.6-terra");
+    }
+
+    fn text_chunk(text: &str) -> SessionUpdate {
+        SessionUpdate::AgentMessageChunk(ContentChunk::new(ContentBlock::Text(
+            agent_client_protocol::schema::v1::TextContent::new(text),
+        )))
+    }
+
+    /// Той самий шлях, що й `session/new` від `pi-acp`: startup-текст лежить
+    /// у `_meta.piAcp.startupInfo`.
+    #[test]
+    fn unsolicited_startup_text_reads_pi_acp_meta() {
+        let meta = serde_json::json!({ "piAcp": { "startupInfo": "pi v0.80.10\n---" } });
+        let meta = meta.as_object().cloned();
+        assert_eq!(
+            unsolicited_startup_text(meta.as_ref()),
+            Some("pi v0.80.10\n---".to_string())
+        );
+
+        assert_eq!(unsolicited_startup_text(None), None);
+        let empty = serde_json::json!({ "piAcp": { "startupInfo": "" } });
+        assert_eq!(unsolicited_startup_text(empty.as_object()), None);
+        let other = serde_json::json!({ "somethingElse": true });
+        assert_eq!(unsolicited_startup_text(other.as_object()), None);
+    }
+
+    /// Фільтр гасить рівно один ідентичний чанк: інший текст проходить,
+    /// а повторний ідентичний після збігу — теж (це вже легітимний контент).
+    #[test]
+    fn is_startup_noise_drops_exactly_one_matching_chunk() {
+        let mut noise = Some("pi v0.80.10".to_string());
+
+        assert!(!is_startup_noise(&mut noise, &text_chunk("відповідь")));
+        assert!(noise.is_some(), "чанк без збігу не скидає фільтр");
+
+        assert!(is_startup_noise(&mut noise, &text_chunk("pi v0.80.10")));
+        assert!(noise.is_none(), "після збігу фільтр вимикається");
+
+        assert!(
+            !is_startup_noise(&mut noise, &text_chunk("pi v0.80.10")),
+            "повторний ідентичний текст — легітимний контент"
+        );
+        assert!(!is_startup_noise(&mut None, &text_chunk("будь-що")));
     }
 }
