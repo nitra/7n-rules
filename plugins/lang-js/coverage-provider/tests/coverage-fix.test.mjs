@@ -4,7 +4,10 @@ import { env } from 'node:process'
 import { fixSurvivedMutants, buildFixPrompt, batchSurvived } from '../fix/coverage-fix.mjs'
 
 vi.mock('node:fs/promises', () => ({ readFile: vi.fn() }))
-vi.mock('node:path', () => ({ join: vi.fn((...a) => a.join('/')) }))
+vi.mock('node:path', async importOriginal => {
+  const actual = await importOriginal()
+  return { ...actual, join: vi.fn((...a) => a.join('/')) }
+})
 
 const ROOT = '/proj'
 const survived = [
@@ -93,19 +96,28 @@ describe('coverage-fix.mjs', () => {
         'test',
         expect.any(String),
         ROOT,
-        expect.objectContaining({ recordWrite, tier: 'cloud-min', targetFiles: ['src/util.js'] })
+        expect.objectContaining({
+          recordWrite,
+          tier: 'cloud-min',
+          editMode: 'test-generation',
+          sourceFiles: ['src/util.js']
+        })
       )
+      expect(runAgentFix.mock.calls[0][3]).not.toHaveProperty('targetFiles')
       expect(result).toEqual({
-        fixed: ['src/util.js'],
+        fixed: ['/proj/tests/util.test.mjs'],
         failed: [],
         touchedFiles: ['/proj/tests/util.test.mjs']
       })
       logSpy.mockRestore()
     })
 
-    it('splits large survived lists into multiple batches, one agent call each', async () => {
+    it('marks an agent completion without writes as failed/no-op', async () => {
       vi.mocked(readFile).mockResolvedValue('const x = true')
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+        return
+      })
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {
         return
       })
       const runAgentFix = vi.fn(() => Promise.resolve({ touchedFiles: [] }))
@@ -114,8 +126,16 @@ describe('coverage-fix.mjs', () => {
       const result = await fixSurvivedMutants(big, ROOT, { runAgentFix })
 
       expect(runAgentFix).toHaveBeenCalledTimes(2)
-      expect(result).toEqual({ fixed: ['a.js', 'b.js'], failed: [], touchedFiles: [] })
+      expect(result).toEqual({
+        fixed: [],
+        failed: [
+          { files: ['a.js'], error: 'no-op: агент завершився без записів (turnCount=0, toolCallCount=0)' },
+          { files: ['b.js'], error: 'no-op: агент завершився без записів (turnCount=0, toolCallCount=0)' }
+        ],
+        touchedFiles: []
+      })
       logSpy.mockRestore()
+      errSpy.mockRestore()
     })
 
     it('one failing batch does not block the others and is reported, not thrown', async () => {
@@ -129,15 +149,15 @@ describe('coverage-fix.mjs', () => {
       const runAgentFix = vi
         .fn()
         .mockResolvedValueOnce({ error: 'skill timeout 900000ms' })
-        .mockResolvedValueOnce({ touchedFiles: [] })
+        .mockResolvedValueOnce({ touchedFiles: ['/proj/tests/b.test.mjs'] })
       const big = [groupWith('a.js', 25), groupWith('b.js', 20)]
 
       const result = await fixSurvivedMutants(big, ROOT, { runAgentFix })
 
       expect(result).toEqual({
-        fixed: ['b.js'],
+        fixed: ['/proj/tests/b.test.mjs'],
         failed: [{ files: ['a.js'], error: 'skill timeout 900000ms' }],
-        touchedFiles: []
+        touchedFiles: ['/proj/tests/b.test.mjs']
       })
       expect(runAgentFix).toHaveBeenCalledTimes(2)
       logSpy.mockRestore()
@@ -168,6 +188,8 @@ describe('coverage-fix.mjs', () => {
       expect(prompt).toContain('Рядок 5')
       expect(prompt).toContain('true')
       expect(prompt).toContain('false')
+      expect(prompt).toContain('лише як контекст')
+      expect(prompt).toContain('Vitest mock/stub')
     })
 
     it('handles missing source file gracefully', async () => {

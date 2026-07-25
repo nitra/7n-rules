@@ -126,6 +126,22 @@ describe('buildFixPrompt', () => {
     expect(p).toContain('- src/a.mjs')
     expect(p).toContain('- src/b.vue')
   })
+
+  test('test-generation: source лише для читання, test-файли та Vitest mock/stub дозволені', () => {
+    const p = buildFixPrompt({
+      ruleId: 'test',
+      violation: 'survived mutant',
+      editMode: 'test-generation',
+      sourceFiles: ['src/a.mjs']
+    })
+    expect(p).toContain('## Source-файли (лише для читання)')
+    expect(p).toContain('- src/a.mjs')
+    expect(p).toContain('*.test.*` / `*.spec.*')
+    expect(p).toContain('Vitest mock/stub')
+    expect(p).toContain('НЕ редагуй production source')
+    expect(p).not.toContain('єдині наявні файли, які дозволено редагувати')
+    expect(p).not.toContain('НЕ симулюй і не заглушуй')
+  })
 })
 
 describe('error-шляхи (без git/pi)', () => {
@@ -202,6 +218,20 @@ describe('happy-path (справжній write-guard на temp git-репо)', (
     expect(r.telemetry.edits[0]).toMatchObject({ tool: 'edit', edits: [{ oldText: 'OLD', newText: 'NEW' }] })
     expect(typeof r.rollback).toBe('function')
     expect(trace).toHaveBeenCalledWith(expect.objectContaining({ kind: 'agent', rule: 'n-ci4', backend: 'pi-ai' }))
+  })
+
+  test('порожній completion має телеметрію emptyCompletion навіть без usage', async () => {
+    const trace = vi.fn()
+    const r = await runAgentFix('n-ci4', '❌ v', dir, {
+      model: 'omlx/gemma',
+      deps: { root: dir, registry, createSession: fakeVerifyCreate([]), trace }
+    })
+    expect(r.error).toBeNull()
+    expect(r.applied).toBe(false)
+    expect(r.telemetry).toMatchObject({ turnCount: 0, toolCallCount: 0, emptyCompletion: true })
+    expect(trace).toHaveBeenCalledWith(
+      expect.objectContaining({ emptyCompletion: true, usage: expect.objectContaining({ totalTokens: 0 }) })
+    )
   })
 
   test('timeoutMs: зависла сесія (prompt ніколи не резолвиться) → fix timeout + session.abort', async () => {

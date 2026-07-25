@@ -9,7 +9,9 @@
  *   - glue:          CLI entry / runStandardRule wrapper (integration covers)
  *   - wrapper:       тонкий spawn/fetch wrapper (integration covers)
  */
-import { z } from 'zod'
+// Namespace import сумісний із Bun+Vitest трансформацією Zod 4, де named `z`
+// може бути undefined попри наявність у runtime ESM namespace.
+import * as z from 'zod'
 
 // Трохи ширше за prompt-ліміт (500) — запас на моделі, які трохи перевищують
 // інструкцію; понад це вже truncate-имо самі перед валідацією (REASON_SOFT_MAX нижче).
