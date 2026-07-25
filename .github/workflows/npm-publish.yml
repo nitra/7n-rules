@@ -93,13 +93,15 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
 
-      - name: Smoke-check CLI-модулів (ловить hoisting-регресії залежностей до релізу)
-        run: node npm/scripts/smoke-check-imports.mjs
-
       - name: Download napi addons
         uses: actions/download-artifact@v4
         with:
           path: llm-lib/packages # → llm-lib/packages/<pkg>/llm-lib-napi.<triple>.node
+
+      - name: Smoke-check CLI-модулів (ловить hoisting-регресії залежностей до релізу)
+        # Native-залежні CLI-модулі імпортуються в smoke-check, тому artifacts мають
+        # бути доступні до цього кроку, а не лише перед publish.
+        run: node npm/scripts/smoke-check-imports.mjs
 
       - name: Release (bump + CHANGELOG + tag)
         # N_RULES_RELEASE_PUSH=0: bump/CHANGELOG/тег лишаються локальними в цьому checkout,
