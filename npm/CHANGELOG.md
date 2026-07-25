@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.49.1] - 2026-07-25
+
+### Added
+
+- Додано JS-оркестрований skill `n-git-reconcile` для аналізу гілок, worktree та stash і перенесення корисних змін у готові PR. CI smoke-check використовує завантажений Linux native addon до release, тому перевіряє native-залежні CLI-модулі в тому самому runtime, що й publish.
+
+### Fixed
+
+- Виправлено profile генерації тестів для survived Stryker-мутантів
+
 ## [1.49.0] - 2026-07-25
 
 ### Added
