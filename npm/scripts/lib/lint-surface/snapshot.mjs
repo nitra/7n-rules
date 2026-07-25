@@ -34,6 +34,8 @@ const ABSENT = Symbol('absent')
  *   або зроблено durable-позначку
  * @property {() => string[]} modifiedExisting наявні на момент S1 файли, чий поточний
  *   вміст відрізняється від pre-image (вхід semantic-collateral veto; нові файли не входять)
+ * @property {(absPath: string) => string|null} preImageOf pre-image вмісту файлу на момент
+ *   S1, або null якщо файл не було записано чи він не існував (вхід in-file hunk-level veto)
  */
 
 /**
@@ -78,6 +80,10 @@ export function createSnapshot() {
           ([abs, pre]) => pre !== ABSENT && !durable.has(abs) && (!existsSync(abs) || readFileSync(abs, 'utf8') !== pre)
         )
         .map(([abs]) => abs)
+    },
+    preImageOf(absPath) {
+      const pre = preImages.get(absPath)
+      return pre === undefined || pre === ABSENT ? null : pre
     }
   }
 }

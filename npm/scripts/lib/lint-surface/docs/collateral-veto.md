@@ -3,12 +3,12 @@ type: JS Module
 title: collateral-veto.mjs
 resource: npm/scripts/lib/lint-surface/collateral-veto.mjs
 docgen:
-  crc: 16d3ef02
+  crc: a0b41453
 ---
 
 ## Огляд
 
-Semantic-collateral veto для verdict-фази fix-pipeline (spec pi-fix-engine-migration §12, addendum 2026-07-05). Закриває клас collateral слабких локальних моделей: «виправляючи» правило, модель робить семантичну правку у сторонньому файлі, яка не порушує жодного правила й тому проходить canonical re-detect (кейс App.vue: хардкод версії з коментарем «we simulate it being available» замість виклику `getVersion`).
+Semantic-collateral veto для verdict-фази fix-pipeline (spec pi-fix-engine-migration §12, addendum 2026-07-05). Закриває клас collateral слабких локальних моделей: «виправляючи» правило, модель робить семантичну правку у сторонньому файлі, яка не порушує жодного правила й тому проходить canonical re-detect (кейс App.vue: хардкод версії з коментарем «we simulate it being available» замість виклику `getVersion`). Правки ВСЕРЕДИНІ вже-таргетованого файлу цей модуль не ловить — цей клас (упущений workaround поряд із фіксом) покриває [test-gate.mjs](./test-gate.md) (addendum 2026-07-24).
 
 ## Поведінка
 
@@ -20,6 +20,7 @@ Semantic-collateral veto для verdict-фази fix-pipeline (spec pi-fix-engin
 ## Публічний API
 
 - `findCollateralEdits({ modifiedExisting, targetFiles, cwd })` — нормалізовані абсолютні шляхи відхилених правок; порожньо — collateral немає або target-set невідомий.
+- `resolveTargetSet(targetFiles, cwd)` — нормалізована множина realpath-абсолютних шляхів target-set; спільна основа для collateral-veto (файли ПОЗА target-set) і test-gate (файли ВСЕРЕДИНІ target-set).
 - `realpathBestEffort(p)` — realpath з найкращих зусиль (наявний файл → повний realpath; неіснуючий → realpath батьківської теки + basename; інакше — як є).
 
 ## Гарантії поведінки
