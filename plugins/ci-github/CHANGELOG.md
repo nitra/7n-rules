@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.9.7] - 2026-07-25
+
+### Changed
+
+- Оптимізовано path-фільтри lint workflow для pull request
+
 ## [1.9.6] - 2026-07-24
 
 ### Changed
