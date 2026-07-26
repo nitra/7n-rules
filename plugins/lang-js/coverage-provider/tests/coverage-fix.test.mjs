@@ -81,7 +81,7 @@ describe('coverage-fix.mjs', () => {
       const result = await fixSurvivedMutants([], ROOT, { runAgentFix })
       expect(logSpy).toHaveBeenCalledWith('✓ Всі мутанти вбиті — доповнення тестів не потрібне')
       expect(runAgentFix).not.toHaveBeenCalled()
-      expect(result).toEqual({ fixed: [], failed: [], touchedFiles: [], batches: [] })
+      expect(result).toEqual({ fixed: [], failed: [], deferred: [], touchedFiles: [], batches: [] })
       logSpy.mockRestore()
     })
 
@@ -287,15 +287,23 @@ describe('coverage-fix.mjs', () => {
       const result = await fixSurvivedMutants([groupWith('run/api/src/constants.js', 82)], ROOT, {
         runAgentFix,
         timeoutMs: 120_000,
-        coverageTimeout: { requestedMs: 150_000, workerDeadlineMs: 120_000, effectiveHookTimeoutMs: 120_000 }
+        coverageTimeout: {
+          requestedMs: 150_000,
+          workerDeadlineMs: 120_000,
+          effectiveHookTimeoutMs: 120_000,
+          survivedBatchesPerRung: 1
+        }
       })
 
-      expect(runAgentFix).toHaveBeenCalledTimes(5)
+      expect(runAgentFix).toHaveBeenCalledTimes(1)
       expect(runAgentFix.mock.calls.every(([, , , opts]) => opts.sourceFiles[0] === 'run/api/src/constants.js')).toBe(
         true
       )
       expect(result.failed[0]).toMatchObject({ files: ['run/api/src/constants.js'], error: 'fix timeout 95999ms' })
-      expect(result.batches).toHaveLength(5)
+      expect(result.failed).toHaveLength(1)
+      expect(result.deferred).toHaveLength(4)
+      expect(result.deferred.every(batch => batch.reason === 'one survived-mutant batch per rung')).toBe(true)
+      expect(result.batches).toHaveLength(1)
       expect(result.batches[0]).toMatchObject({
         batch: 1,
         sourceFileCount: 1,
@@ -322,6 +330,7 @@ describe('coverage-fix.mjs', () => {
         }
       })
       expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('promptChars=4321'))
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('4 deferred'))
       expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('const secret = true'))
       nowSpy.mockRestore()
       logSpy.mockRestore()

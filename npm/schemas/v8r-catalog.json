@@ -20,6 +20,8 @@
       "fileMatch": [
         ".licensee.json",
         "**/.licensee.json",
+        ".kubescape-exceptions.json",
+        "**/.kubescape-exceptions.json",
         "docs/specs/**/*.json",
         "docs/plans/**/*.json",
         "any.json",

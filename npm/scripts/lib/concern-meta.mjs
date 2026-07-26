@@ -38,6 +38,8 @@ import { join } from 'node:path'
  *   ladder-а — ladder одразу стартує з cloud-min. Для concern-ів, де local-tier емпірично не встигає
  *   дати результат у межах свого бюджету (напр. js/eslint — 0/12 успіхів у реальному прогоні, лише
  *   витрачений час).
+ * @property {number|undefined} cloudTimeoutMs опційний budget cloud rung-а concern-а;
+ *   не змінює глобальні timeout-и ladder-а чи інші concern-и.
  */
 
 /**
@@ -131,7 +133,8 @@ export async function readConcernMeta(concernDir, name) {
     lint,
     requiresCapability,
     fixability: parseFixability(raw.fixability),
-    skipLocalTier: raw.skipLocalTier === true
+    skipLocalTier: raw.skipLocalTier === true,
+    cloudTimeoutMs: Number.isInteger(raw.cloudTimeoutMs) && raw.cloudTimeoutMs > 0 ? raw.cloudTimeoutMs : undefined
   }
 }
 

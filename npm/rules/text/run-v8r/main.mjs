@@ -46,13 +46,15 @@
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, delimiter, dirname, isAbsolute, join } from 'node:path'
+import { basename, delimiter, dirname, isAbsolute, join, relative } from 'node:path'
 import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
+import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
+import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 
 /** Розширення, які валідує v8r — фільтр delta-списку файлів у `lint(ctx)`. */
@@ -347,6 +349,25 @@ export async function runV8rWithFiles(files, verbose = false) {
 }
 
 /**
+ * Збирає файли форматів v8r для full-режиму, поважаючи `.gitignore` та
+ * `.n-rules.json:ignore`, як інші full-scope concern-и.
+ * @param {string} root абсолютний корінь репозиторію
+ * @returns {Promise<string[]>} відносні до root шляхи файлів для v8r
+ */
+export async function findV8rFiles(root) {
+  const ignorePaths = await loadCursorIgnorePaths(root)
+  const files = []
+  await walkDir(
+    root,
+    file => {
+      if (V8R_EXT_RE.test(file)) files.push(relative(root, file))
+    },
+    ignorePaths
+  )
+  return files.toSorted((a, b) => a.localeCompare(b))
+}
+
+/**
  * Будує violation-повідомлення з опційною деталлю `✖ …`-рядків v8r — без неї LLM fix-worker
  * бачить лише "щось не пройшло" й не має інформації, який файл/поле саме порушує схему.
  * @param {string} detail рядки `✖ …` з `runV8rWithGlobs`/`runV8rWithFiles` (може бути порожнім)
@@ -358,7 +379,7 @@ function v8rFailMessage(detail) {
 }
 
 /**
- * Detector text/run-v8r: read-only v8r по `ctx.files` (delta) або за дефолтними glob-ами (full).
+ * Detector text/run-v8r: read-only v8r по `ctx.files` (delta) або всіх форматних файлах поза `.n-rules.json:ignore` (full).
  * @param {import('../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
  * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат detector-а
  */
@@ -369,7 +390,8 @@ export async function lint(ctx) {
   const verbose = ctx.verbose === true
 
   if (ctx.files === undefined) {
-    const { code, detail } = await runV8rWithGlobs(DEFAULT_V8R_GLOBS, verbose)
+    const files = await findV8rFiles(ctx.cwd)
+    const { code, detail } = await runV8rWithFiles(files, verbose)
     if (code !== 0) fail(v8rFailMessage(detail), 'v8r')
     return reporter.result()
   }

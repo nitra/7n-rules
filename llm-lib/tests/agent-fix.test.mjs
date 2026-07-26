@@ -101,6 +101,7 @@ function fakeTransportErrorCreate(errorMessage) {
       },
       abort: vi.fn(),
       prompt: async () => {
+        await Promise.resolve()
         sub({ type: 'turn_start' })
         sub({
           type: 'message_end',

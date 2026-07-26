@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from 'vitest'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { env } from 'node:process'
 import { parse as parseToml } from 'smol-toml'
 
 import { release, runReleaseCli } from '../release.mjs'
@@ -364,15 +365,15 @@ describe('runReleaseCli', () => {
       await writeFile(join(dir, 'CHANGELOG.md'), '# Changelog\n')
       await mkdir(join(dir, '.changes'), { recursive: true })
       await writeFile(join(dir, '.changes', '1.md'), '---\nbump: patch\nsection: Fixed\n---\nfix\n')
-      const previousOutput = process.env.GITHUB_OUTPUT
-      process.env.GITHUB_OUTPUT = outputPath
+      const previousOutput = env.GITHUB_OUTPUT
+      env.GITHUB_OUTPUT = outputPath
       try {
         await expect(
           runReleaseCli([], { cwd: dir, date: '2026-01-01', runGit: () => Promise.resolve(''), push: false })
         ).resolves.toBe(0)
       } finally {
-        if (previousOutput === undefined) delete process.env.GITHUB_OUTPUT
-        else process.env.GITHUB_OUTPUT = previousOutput
+        if (previousOutput === undefined) delete env.GITHUB_OUTPUT
+        else env.GITHUB_OUTPUT = previousOutput
       }
       await expect(readFile(outputPath, 'utf8')).resolves.toBe('workspaces=["."]\n')
     })

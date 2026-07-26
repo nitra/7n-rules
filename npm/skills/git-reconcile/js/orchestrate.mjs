@@ -1,16 +1,19 @@
 /** @see ./docs/orchestrate.md */
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { appendFileSync, existsSync, readFileSync } from 'node:fs'
+import { dirname, isAbsolute, join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { env } from 'node:process'
 
-import { createProgressReporter } from '../../../scripts/lib/lint-surface/progress.mjs'
+import { renderProgressLine } from '../../../scripts/lib/lint-surface/progress.mjs'
 import { readGitPolicy } from '../../../scripts/lib/git-policy.mjs'
 
 const LLM_TIERS = ['min', 'max']
 const REVIEW_BATCH_SIZE = 10
 const PROMPT_TEXT_LIMIT = 12_000
+const PROGRESS_HEARTBEAT_MS = 30_000
+const DEFAULT_PR_CONCURRENCY = 3
+const MAX_PR_CONCURRENCY = 4
 const SOURCE_BRANCH_PREFIX = 'branch:'
 const SOURCE_STASH_PREFIX = 'stash:'
 const CONTENT_CONFLICT_RE = /^CONFLICT \(.+?\): Merge conflict in (.+)$/
@@ -30,7 +33,10 @@ function noop() {
   // Навмисно порожньо: caller не запросив progress output.
 }
 
-/** @param {string} cwd корінь репозиторію @returns {string} remote ref базової гілки */
+/**
+ * @param {string} cwd корінь репозиторію
+ * @returns {string} remote ref базової гілки
+ */
 function policyBaseRef(cwd) {
   return `origin/${readGitPolicy(cwd).baseBranch}`
 }
@@ -47,37 +53,81 @@ function elapsedLabel(startedAt, now) {
 }
 
 /**
- * Створює точний progress reporter для однієї фази. У TTY тримає живий bar,
- * у non-TTY додає незмінювані рядки початку етапів і завершених одиниць.
+ * Створює ANSI-free snapshot progress для однієї фази. Однаковий append-only
+ * формат у TTY/CI не засмічує captured output cursor-control кодами, а
+ * heartbeat показує elapsed time довгих LLM-етапів.
  * @param {object} args параметри фази
  * @returns {{step:(key:string,detail:string,tier?:string)=>void,done:(key:string)=>void,stop:()=>void}} reporter
  */
-function createPhaseProgress(args) {
-  const { total, unitLabel, phase, log, isTTY, reporterFactory } = args
+export function createPhaseProgress(args) {
+  const {
+    total,
+    unitLabel,
+    phase,
+    log,
+    now = () => performance.now(),
+    heartbeatMs = PROGRESS_HEARTBEAT_MS,
+    setIntervalFn = setInterval,
+    clearIntervalFn = clearInterval
+  } = args
   if (total === 0) return { step: noop, done: noop, stop: noop }
 
-  const baseLog = text => log(text.endsWith('\n') ? text.slice(0, -1) : text)
-  const reporter = reporterFactory({
-    total,
-    log: baseLog,
-    isTTY,
-    unitLabel,
-    withFixed: false
-  })
-  let lastNonTtyLabel = ''
+  const active = new Map()
+  const completed = new Set()
+
+  /**
+   * Рендерить один append-only snapshot без керувальних ANSI-послідовностей.
+   * @param {string} prefix статус
+   * @param {string} current поточний етап
+   * @param {number|null} startedAt початок активної одиниці
+   */
+  function render(prefix, current, startedAt = null) {
+    const elapsed = startedAt === null ? '' : ` · elapsed ${elapsedLabel(startedAt, now)}`
+    log(
+      `${prefix} ${renderProgressLine({
+        done: completed.size,
+        total,
+        found: 0,
+        fixed: 0,
+        current,
+        unitLabel,
+        withFixed: false
+      })}${elapsed}`
+    )
+  }
+
+  const heartbeat = setIntervalFn(() => {
+    if (active.size === 0) return
+    const labels = active
+      .values()
+      .map(item => item.label)
+      .toArray()
+      .join(' | ')
+    const oldest = Math.min(...active.values().map(item => item.startedAt))
+    render('💓', labels, oldest)
+  }, heartbeatMs)
+  heartbeat?.unref?.()
 
   return {
-    step: (_key, detail, tier) => {
+    step: (key, detail, tier) => {
       const label = `${phase} · ${detail}`
-      reporter.concernStart(label, tier)
       const rendered = tier ? `${label} · ${tier}` : label
-      if (!isTTY && rendered !== lastNonTtyLabel) {
-        log(`⏳ ${rendered}`)
-        lastNonTtyLabel = rendered
-      }
+      const previous = active.get(key)
+      const startedAt = previous?.startedAt ?? now()
+      if (previous?.label === rendered) return
+      active.set(key, { label: rendered, startedAt })
+      render('⏳', rendered, startedAt)
     },
-    done: key => reporter.concernDone(key),
-    stop: () => reporter.stop()
+    done: key => {
+      if (completed.has(key)) return
+      const current = active.get(key)?.label ?? `${phase} · ${key}`
+      active.delete(key)
+      completed.add(key)
+      render('✅', current)
+    },
+    stop: () => {
+      clearIntervalFn(heartbeat)
+    }
   }
 }
 
@@ -181,6 +231,7 @@ function branchName(ref) {
  * @param {Array<{ref:string, oid:string, date:string}>} refs сирі refs
  * @param {Map<string,string>} worktrees branch→path
  * @param {Map<string,string>} worktreeCommits checkout HEAD OID→path
+ * @param {string[]} protectedBranches захищені policy branches
  * @returns {Array<{ref:string, oid:string, date:string, worktree:string|null,aliases:string[]}>} refs
  */
 export function dedupeRefs(refs, worktrees, worktreeCommits = new Map(), protectedBranches = ['main']) {
@@ -471,7 +522,7 @@ export async function callRunner(runner, prompt, cwd, deps = {}, tier = 'max') {
  * @returns {Promise<{ok:boolean,text:string,error:string|null,tier:'min'|'max',validation?:object,attempts:Array<object>}>} результат
  */
 export async function callWithValidatedFallback(args) {
-  const { runner, prompt, cwd, validate, deps = {}, log = noop, label = 'LLM', onAttempt = noop } = args
+  const { runner, prompt, cwd, validate, remediate, deps = {}, log = noop, label = 'LLM', onAttempt = noop } = args
   const call = deps.callRunner ?? callRunner
   const attempts = []
   let retryPrompt = prompt
@@ -484,10 +535,18 @@ export async function callWithValidatedFallback(args) {
       attempts.push({ tier, ok: false, validation })
       return { ...outcome, tier, validation, attempts }
     }
-    const validation = await validate(outcome)
-    attempts.push({ tier, ok: outcome.ok, validation })
+    let validation = await validate(outcome)
+    let remediation = null
+    if (!validation.ok && tier === 'min' && remediate) {
+      remediation = await remediate(validation)
+      if (remediation?.attempted) {
+        validation = await validate(outcome)
+        if (validation.ok) log(`↺ ${label}: deterministic fixer усунув min validation failure`)
+      }
+    }
+    attempts.push({ tier, ok: outcome.ok, validation, ...(remediation && { remediation }) })
     if (validation.ok) {
-      return { ...outcome, tier, validation, attempts }
+      return { ...outcome, tier, validation, attempts, ...(remediation?.attempted && { remediated: true }) }
     }
     if (tier === 'min') {
       const reason = (validation.error ?? outcome.error ?? 'невідома помилка validation').slice(0, PROMPT_TEXT_LIMIT)
@@ -656,6 +715,29 @@ function createReconcileWorktree(title, source, cwd, spawnFn) {
 }
 
 /**
+ * Додає `.worktrees/` до локального Git exclude без tracked-змін у consumer.
+ * Це не замінює repository Vitest excludes, але не лишає root checkout dirty
+ * через керовані або forensic worktree.
+ * @param {string} cwd корінь repository
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {boolean} чи локальний exclude було змінено
+ */
+export function ensureLocalWorktreeExclude(cwd, spawnFn = spawnSync) {
+  try {
+    const excludePath = git(['rev-parse', '--git-path', 'info/exclude'], cwd, spawnFn).stdout.trim()
+    if (!excludePath) return false
+    const absoluteExcludePath = isAbsolute(excludePath) ? excludePath : join(cwd, excludePath)
+    const existing = existsSync(absoluteExcludePath) ? readFileSync(absoluteExcludePath, 'utf8') : ''
+    if (existing.split('\n').some(line => line.trim() === '.worktrees/')) return false
+    const separator = existing.length > 0 && !existing.endsWith('\n') ? '\n' : ''
+    appendFileSync(absoluteExcludePath, `${separator}.worktrees/\n`)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Прибирає reconciliation worktree або fail-closed лишає source неочищеним.
  * @param {{branch:string,cwd:string}} worktree створений worktree
  * @param {string} rootCwd корінь репо
@@ -811,7 +893,9 @@ export function sourceDirectories(paths) {
  * @returns {string[]} directories
  */
 function changedPaths(cwd, spawnFn) {
-  const tracked = git(['diff', '--name-only', policyBaseRef(cwd), '--'], cwd, spawnFn).stdout.split('\n').filter(Boolean)
+  const tracked = git(['diff', '--name-only', policyBaseRef(cwd), '--'], cwd, spawnFn)
+    .stdout.split('\n')
+    .filter(Boolean)
   const untracked = git(['ls-files', '--others', '--exclude-standard'], cwd, spawnFn).stdout.split('\n').filter(Boolean)
   return [...new Set([...tracked, ...untracked])]
 }
@@ -859,17 +943,65 @@ function validateScopedProjectGates(cwd, spawnFn, onProgress = noop) {
       allowFailure: true
     })
     if (docs.status !== 0) {
-      return { ok: false, error: `doc-files (${path}): ${docs.stderr || docs.stdout}` }
+      return {
+        ok: false,
+        error: `doc-files (${path}): ${docs.stderr || docs.stdout}`,
+        remediation: 'canonical-fixers'
+      }
     }
     onProgress(`scoped lint (${path})`)
     const lint = run('npx', ['@7n/rules', 'lint', '--path', path, '--no-fix'], cwd, spawnFn, {
       allowFailure: true
     })
     if (lint.status !== 0) {
-      return { ok: false, error: `scoped lint (${path}): ${lint.stderr || lint.stdout}` }
+      return {
+        ok: false,
+        error: `scoped lint (${path}): ${lint.stderr || lint.stdout}`,
+        remediation: 'canonical-fixers'
+      }
     }
   }
   return { ok: true }
+}
+
+/**
+ * Запускає canonical fixers у worktree до ескалації min→max. Це прибирає
+ * formatting/CSpell/doc/changelog дефекти без повторного behavioral LLM.
+ * @param {string} cwd worktree
+ * @param {typeof spawnSync} spawnFn інжект
+ * @param {{remediation?:string}} validation провалена validation
+ * @param {(stage:string)=>void} [onProgress] stage callback
+ * @returns {{attempted:boolean,ok:boolean,error?:string}} результат
+ */
+export function remediateBehaviorState(cwd, spawnFn = spawnSync, validation = {}, onProgress = noop) {
+  if (validation.remediation !== 'canonical-fixers') return { attempted: false, ok: false }
+
+  for (const path of changedSourceDirectories(cwd, spawnFn)) {
+    onProgress(`deterministic fix (${path})`)
+    const fixed = run('npx', ['@7n/rules', 'lint', '--path', path], cwd, spawnFn, {
+      allowFailure: true
+    })
+    if (fixed.status !== 0) {
+      return {
+        attempted: true,
+        ok: false,
+        error: `canonical fix (${path}): ${fixed.stderr || fixed.stdout}`
+      }
+    }
+  }
+
+  onProgress('deterministic changelog fix')
+  const changelog = run('npx', ['@7n/rules', 'lint', 'changelog'], cwd, spawnFn, {
+    allowFailure: true
+  })
+  if (changelog.status !== 0) {
+    return {
+      attempted: true,
+      ok: false,
+      error: `canonical changelog fix: ${changelog.stderr || changelog.stdout}`
+    }
+  }
+  return { attempted: true, ok: true }
 }
 
 /**
@@ -947,7 +1079,11 @@ export function validateBehaviorState(cwd, spawnFn = spawnSync, baseline = null,
   onProgress('changelog')
   const changelog = run('npx', ['@7n/rules', 'lint', 'changelog', '--no-fix'], cwd, spawnFn, { allowFailure: true })
   if (changelog.status !== 0) {
-    return { ok: false, error: `changelog gate: ${changelog.stderr || changelog.stdout}` }
+    return {
+      ok: false,
+      error: `changelog gate: ${changelog.stderr || changelog.stdout}`,
+      remediation: 'canonical-fixers'
+    }
   }
   return { ok: true }
 }
@@ -1064,7 +1200,9 @@ async function finalizeBehavior(args) {
     label: `behavior ${source}`,
     onAttempt: ({ tier }) => onProgress('behavior validation', tier),
     validate: () =>
-      validateBehaviorState(worktreeCwd, spawnFn, baseline, step => onProgress(`behavior validation: ${step}`))
+      validateBehaviorState(worktreeCwd, spawnFn, baseline, step => onProgress(`behavior validation: ${step}`)),
+    remediate: validation =>
+      remediateBehaviorState(worktreeCwd, spawnFn, validation, step => onProgress(`behavior validation: ${step}`))
   })
   if (!outcome.ok) throw new Error(`LLM behavioral verification: ${outcome.error}`)
   return outcome.text.slice(0, PROMPT_TEXT_LIMIT)
@@ -1325,69 +1463,130 @@ async function triageCandidates(args) {
 }
 
 /**
- * Матеріалізує одне triage-рішення у report results.
+ * Матеріалізує одну PR-групу з наперед визначеним progress index.
  * @param {object} args orchestration context
- * @returns {Promise<Array<object>>} results одного source
+ * @returns {Promise<object>} result одного source/group
  */
-async function materializeDecision(args) {
-  const { decision, candidate, runner, rootCwd, baselineCache, deps, spawnFn, log, createPr, progress, prState } = args
-  if (decision.action !== 'pr') {
-    return [
-      {
+async function materializePrGroup(args) {
+  const {
+    decision,
+    candidate,
+    group,
+    prIndex,
+    prTotal,
+    runner,
+    rootCwd,
+    baselineCache,
+    deps,
+    spawnFn,
+    log,
+    createPr,
+    progress
+  } = args
+  const key = `pr-${prIndex}`
+  const prefix = `${prIndex}/${prTotal} · ${decision.source}`
+  progress.step(key, `${prefix} · worktree`)
+  try {
+    const result = await createPr({
+      candidate: { ...candidate, rationale: decision.rationale },
+      group,
+      runner,
+      rootCwd,
+      baselineCache,
+      deps,
+      spawnFn,
+      log,
+      onProgress: (step, tier) => progress.step(key, `${prefix} · ${step}`, tier)
+    })
+    return {
+      source: decision.source,
+      ...(candidate.oid && { oid: candidate.oid }),
+      ...result
+    }
+  } finally {
+    progress.done(key)
+  }
+}
+
+/**
+ * Виконує async jobs із bounded concurrency та стабільним порядком output.
+ * @param {Array<()=>Promise<object>>} jobs jobs
+ * @param {number} concurrency одночасні jobs
+ * @returns {Promise<object[]>} результати в порядку jobs
+ */
+export async function runWithConcurrency(jobs, concurrency) {
+  const results = Array.from({ length: jobs.length })
+  let next = 0
+  /** Виконує наступні jobs до вичерпання спільної черги. */
+  async function worker() {
+    while (next < jobs.length) {
+      const index = next
+      next += 1
+      results[index] = await jobs[index]()
+    }
+  }
+  const workerCount = Math.min(jobs.length, Math.max(1, concurrency))
+  await Promise.all(Array.from({ length: workerCount }, () => worker()))
+  return results
+}
+
+/**
+ * Нормалізує bounded concurrency PR-фази.
+ * @param {unknown} value override/env value
+ * @returns {number} 1..MAX_PR_CONCURRENCY
+ */
+export function normalizePrConcurrency(value) {
+  const parsed = Math.trunc(Number(value))
+  if (!Number.isFinite(parsed)) return DEFAULT_PR_CONCURRENCY
+  return Math.min(MAX_PR_CONCURRENCY, Math.max(1, parsed))
+}
+
+/**
+ * Перетворює validated decisions у PR/keep/drop results. Незалежні PR-групи
+ * виконуються паралельно з bounded concurrency, cleanup стартує лише після
+ * завершення всіх jobs.
+ * @param {object} args orchestration context
+ * @returns {Promise<{bySource:Map<string,object>,results:Array<object>}>} materialized state
+ */
+async function materializeDecisions(args) {
+  const { decisions, candidates, prConcurrency, prTotal } = args
+  const bySource = new Map(candidates.map(candidate => [candidate.source, candidate]))
+  const resultSlots = []
+  const jobs = []
+  let prIndex = 0
+  for (const decision of decisions) {
+    const candidate = bySource.get(decision.source)
+    if (!candidate) continue
+    if (decision.action !== 'pr') {
+      resultSlots.push({
         source: decision.source,
         status: decision.action === 'drop' ? 'drop-recommended' : 'kept',
         rationale: decision.rationale ?? '',
         ...(decision.incomplete === true && { incomplete: true }),
         ...(candidate.oid && { oid: candidate.oid })
-      }
-    ]
-  }
-
-  const results = []
-  for (const group of decision.groups) {
-    prState.index += 1
-    const key = `pr-${prState.index}`
-    const prefix = `${prState.index}/${prState.total} · ${decision.source}`
-    progress.step(key, `${prefix} · worktree`)
-    try {
-      const result = await createPr({
-        candidate: { ...candidate, rationale: decision.rationale },
-        group,
-        runner,
-        rootCwd,
-        baselineCache,
-        deps,
-        spawnFn,
-        log,
-        onProgress: (step, tier) => progress.step(key, `${prefix} · ${step}`, tier)
       })
-      results.push({
-        source: decision.source,
-        ...(candidate.oid && { oid: candidate.oid }),
-        ...result
+      continue
+    }
+    for (const group of decision.groups) {
+      prIndex += 1
+      const fixedIndex = prIndex
+      const resultIndex = resultSlots.length
+      resultSlots.push(null)
+      jobs.push(async () => {
+        resultSlots[resultIndex] = await materializePrGroup({
+          ...args,
+          decision,
+          candidate,
+          group,
+          prIndex: fixedIndex,
+          prTotal
+        })
+        return resultSlots[resultIndex]
       })
-    } finally {
-      progress.done(key)
     }
   }
-  return results
-}
-
-/**
- * Перетворює всі validated decisions у PR/keep/drop results.
- * @param {object} args orchestration context
- * @returns {Promise<{bySource:Map<string,object>,results:Array<object>}>} materialized state
- */
-async function materializeDecisions(args) {
-  const { decisions, candidates } = args
-  const bySource = new Map(candidates.map(candidate => [candidate.source, candidate]))
-  const results = []
-  for (const decision of decisions) {
-    const candidate = bySource.get(decision.source)
-    if (!candidate) continue
-    results.push(...(await materializeDecision({ ...args, decision, candidate })))
-  }
-  return { bySource, results }
+  await runWithConcurrency(jobs, prConcurrency)
+  return { bySource, results: resultSlots.filter(Boolean) }
 }
 
 /**
@@ -1476,14 +1675,20 @@ export async function runGitReconcileOrchestrator(options = {}) {
   const inventoryFn = deps.inventoryRepository ?? inventoryRepository
   const createPr = deps.createPullRequest ?? createPullRequest
   const cleanup = deps.cleanupSource ?? cleanupSource
-  const reporterFactory = deps.createProgressReporter ?? createProgressReporter
-  const isTTY = options.isTTY ?? process.stdout.isTTY === true
   const now = deps.now ?? (() => performance.now())
+  const setIntervalFn = deps.setIntervalFn ?? setInterval
+  const clearIntervalFn = deps.clearIntervalFn ?? clearInterval
+  const heartbeatMs = deps.heartbeatMs ?? PROGRESS_HEARTBEAT_MS
+  const prConcurrency = normalizePrConcurrency(deps.prConcurrency ?? env.N_GIT_RECONCILE_CONCURRENCY)
   const baselineCache = new Map()
 
   const inventoryStartedAt = now()
   log('⏳ 1/4 inventory')
   const inventory = inventoryFn(rootCwd, { spawnFn })
+  if (deps.ensureLocalWorktreeExclude !== false) {
+    const ensureExclude = deps.ensureLocalWorktreeExclude ?? ensureLocalWorktreeExclude
+    if (ensureExclude(rootCwd, spawnFn)) log('🛡️ Додано `.worktrees/` до локального `.git/info/exclude`')
+  }
   const candidates = [...inventory.branches, ...inventory.stashes].filter(item => item.state === 'review')
   log(
     `✅ 1/4 inventory · ${elapsedLabel(inventoryStartedAt, now)} · ${inventory.branches.length} branches · ${inventory.stashes.length} stash`
@@ -1495,8 +1700,10 @@ export async function runGitReconcileOrchestrator(options = {}) {
     unitLabel: 'triage-пакетів',
     phase: '2/4 triage',
     log,
-    isTTY,
-    reporterFactory
+    now,
+    heartbeatMs,
+    setIntervalFn,
+    clearIntervalFn
   })
   const triageStartedAt = now()
   let decisions
@@ -1523,11 +1730,12 @@ export async function runGitReconcileOrchestrator(options = {}) {
     unitLabel: 'PR-груп',
     phase: '3/4 PR',
     log,
-    isTTY,
-    reporterFactory
+    now,
+    heartbeatMs,
+    setIntervalFn,
+    clearIntervalFn
   })
   const prStartedAt = now()
-  const prState = { index: 0, total: prTotal }
   let materialized
   try {
     materialized = await materializeDecisions({
@@ -1541,7 +1749,8 @@ export async function runGitReconcileOrchestrator(options = {}) {
       log,
       createPr,
       progress: prProgress,
-      prState
+      prTotal,
+      prConcurrency
     })
   } finally {
     prProgress.stop()
@@ -1555,8 +1764,10 @@ export async function runGitReconcileOrchestrator(options = {}) {
     unitLabel: 'джерел',
     phase: '4/4 cleanup',
     log,
-    isTTY,
-    reporterFactory
+    now,
+    heartbeatMs,
+    setIntervalFn,
+    clearIntervalFn
   })
   const cleanupStartedAt = now()
   const cleanupState = { index: 0 }

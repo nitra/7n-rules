@@ -67,7 +67,10 @@ export function resolveChangedBase(cwd = process.cwd(), baseRef = null) {
   }
   if (baseRef) return mergeBaseWith(baseRef) || null
   const { integrationBranches } = readGitPolicy(cwd)
-  const bases = integrationBranches.flatMap(name => [`origin/${name}`, name]).map(mergeBaseWith).filter(Boolean)
+  const bases = integrationBranches
+    .flatMap(name => [`origin/${name}`, name])
+    .map(ref => mergeBaseWith(ref))
+    .filter(Boolean)
   if (bases.length === 0) return null
   let newest = bases[0]
   for (const candidate of bases.slice(1)) {

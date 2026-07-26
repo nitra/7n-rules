@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.9.8] - 2026-07-26
+
+### Fixed
+
+- GA workflow validation дозволяє canonical optional language config paths до появи самих конфігів.
+
 ## [1.9.7] - 2026-07-25
 
 ### Changed

@@ -85,6 +85,7 @@ export default {
       model: ctx?.model,
       tier: ctx?.tier,
       timeoutMs: ctx?.timeoutMs,
+      coverageTimeout: ctx?.coverageTimeout,
       recordWrite: ctx?.recordWrite,
       chain: ctx?.chain ?? null,
       feedback: ctx?.feedback ?? null
@@ -93,6 +94,8 @@ export default {
     return {
       touchedFiles: res.touchedFiles,
       failed: res.failed,
+      deferred: res.deferred,
+      batches: res.batches,
       feedback: previousError ? { previousError } : null
     }
   },

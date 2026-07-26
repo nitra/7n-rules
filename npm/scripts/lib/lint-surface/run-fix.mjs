@@ -614,7 +614,9 @@ function noteT0Phase(t0, chainExtra, touchedAbs) {
 }
 
 /**
- * Ladder concern-а: повний, або без local-tier rung-ів (`concern.skipLocalTier`) —
+ * Ladder concern-а: повний, або без local-tier rung-ів (`concern.skipLocalTier`).
+ * Concern може замінити cloud budget своїм `cloudTimeoutMs`; глобальний ladder та
+ * всі інші concern-и лишаються без змін.
  * concern-и, де local-min/local-min-retry емпірично не встигають дати результат
  * у межах свого бюджету (concern-meta.mjs).
  * @param {Rung[]} ladder Повний ladder pipeline-у.
@@ -622,7 +624,10 @@ function noteT0Phase(t0, chainExtra, touchedAbs) {
  * @returns {Rung[]} Ladder, застосовний до цього concern-а.
  */
 function selectLadder(ladder, concern) {
-  return concern.skipLocalTier ? ladder.filter(rung => !rung.local) : ladder
+  const selected = concern.skipLocalTier ? ladder.filter(rung => !rung.local) : ladder
+  return concern.cloudTimeoutMs
+    ? selected.map(rung => (rung.local ? rung : { ...rung, timeoutMs: concern.cloudTimeoutMs }))
+    : selected
 }
 
 /**

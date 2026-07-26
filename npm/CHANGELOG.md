@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.49.12] - 2026-07-26
+
+### Fixed
+
+- Git-reconcile отримав ANSI-free progress, heartbeat, canonical fixer pass і bounded parallel PR jobs.
+
+## [1.49.11] - 2026-07-26
+
+### Fixed
+
+- Додано окремий 180-секундний cloud budget для survived-mutant coverage batch і deferred решти batch-ів
+
+## [1.49.10] - 2026-07-26
+
+### Fixed
+
+- Зареєстровано схему для .kubescape-exceptions.json у каталозі v8r
+- Поважати .n-rules.json:ignore у full-скані v8r
+
 ## [1.49.9] - 2026-07-26
 
 ### Changed

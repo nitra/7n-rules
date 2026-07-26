@@ -55,19 +55,11 @@ describe('fixWorker', () => {
     )
 
     expect(resolveProviders).toHaveBeenCalledWith('/p')
-    expect(provider.generateTests).toHaveBeenCalledWith(
-      expect.objectContaining({ cwd: '/p', files: [{ file: 'src/a.mjs', pct: 12.5, reason: '' }] })
-    )
-    expect(provider.generateStories).toHaveBeenCalledWith(
-      expect.objectContaining({ cwd: '/p', files: [{ file: 'src/Card.vue', pct: 0, reason: '' }] })
-    )
+    expect(provider.generateTests).not.toHaveBeenCalled()
+    expect(provider.generateStories).not.toHaveBeenCalled()
     expect(provider.fixSurvived).toHaveBeenCalledWith(expect.objectContaining({ survived: [survivedGroup] }))
-    expect(provider.fixFailingTests).toHaveBeenCalledTimes(1)
-    expect(res.touchedFiles.toSorted()).toEqual([
-      '/p/src/Card.stories.js',
-      '/p/tests/a.test.mjs',
-      '/p/tests/b.test.mjs'
-    ])
+    expect(provider.fixFailingTests).not.toHaveBeenCalled()
+    expect(res.touchedFiles.toSorted()).toEqual(['/p/tests/b.test.mjs'])
     expect(res.failed).toEqual([])
   })
 
@@ -82,11 +74,12 @@ describe('fixWorker', () => {
     expect(hookArgs.ctx.coverageTimeout).toEqual({
       requestedMs: null,
       workerDeadlineMs: null,
-      effectiveHookTimeoutMs: null
+      effectiveHookTimeoutMs: null,
+      survivedBatchesPerRung: 1
     })
   })
 
-  test('передає coverage hook фактичний 80%-deadline worker-а для batch diagnosis', async () => {
+  test('передає survived hook повний coverage budget та policy одного batch-а', async () => {
     const provider = fakeProvider()
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000)
     await fixWorker(
@@ -98,8 +91,13 @@ describe('fixWorker', () => {
       { resolveProviders: () => Promise.resolve([provider]) }
     )
     expect(provider.fixSurvived.mock.calls[0][0].ctx).toMatchObject({
-      timeoutMs: 8000,
-      coverageTimeout: { requestedMs: 10_000, workerDeadlineMs: 8000, effectiveHookTimeoutMs: 8000 }
+      timeoutMs: 10_000,
+      coverageTimeout: {
+        requestedMs: 10_000,
+        workerDeadlineMs: 10_000,
+        effectiveHookTimeoutMs: 10_000,
+        survivedBatchesPerRung: 1
+      }
     })
     nowSpy.mockRestore()
   })
@@ -124,7 +122,7 @@ describe('fixWorker', () => {
     const res = await fixWorker([{ reason: 'coverage-below-threshold', file: 'a.mjs', data: { pct: 1 } }], CTX, {
       resolveProviders: () => Promise.resolve([provider])
     })
-    expect(res).toEqual({ touchedFiles: [], failed: [], feedback: null })
+    expect(res).toEqual({ touchedFiles: [], failed: [], deferred: [], feedback: null })
   })
 
   test('виняток одного хука не зупиняє наступні', async () => {
@@ -187,6 +185,7 @@ describe('fixWorker', () => {
       failed: [
         { provider: 'fake', hook: 'fixSurvived', files: ['src/a.mjs'], error: 'no-op: агент завершився без записів' }
       ],
+      deferred: [],
       feedback: null
     })
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('failed/no-op'))
