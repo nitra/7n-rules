@@ -59,7 +59,18 @@ export function groupViolations(violations) {
  */
 function hookCtx(ctx, deadlineAt) {
   const remaining = deadlineAt ? Math.max(1000, deadlineAt - Date.now()) : ctx.timeoutMs
-  return { ...ctx, timeoutMs: remaining }
+  const workerDeadlineMs = ctx.timeoutMs ? Math.round(ctx.timeoutMs * DEADLINE_FRACTION) : null
+  return {
+    ...ctx,
+    timeoutMs: remaining,
+    // Не змінює бюджет: лише дає coverage hook-у фактичний контекст, щоб його
+    // verdict міг відрізнити timeout batch-а від 80%-deadline самого worker-а.
+    coverageTimeout: {
+      requestedMs: ctx.timeoutMs ?? null,
+      workerDeadlineMs,
+      effectiveHookTimeoutMs: remaining ?? null
+    }
+  }
 }
 
 /** @type {FixWorkerFn} */

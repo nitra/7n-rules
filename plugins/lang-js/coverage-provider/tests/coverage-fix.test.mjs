@@ -78,7 +78,7 @@ describe('coverage-fix.mjs', () => {
       const result = await fixSurvivedMutants([], ROOT, { runAgentFix })
       expect(logSpy).toHaveBeenCalledWith('✓ Всі мутанти вбиті — доповнення тестів не потрібне')
       expect(runAgentFix).not.toHaveBeenCalled()
-      expect(result).toEqual({ fixed: [], failed: [], touchedFiles: [] })
+      expect(result).toEqual({ fixed: [], failed: [], touchedFiles: [], batches: [] })
       logSpy.mockRestore()
     })
 
@@ -104,10 +104,16 @@ describe('coverage-fix.mjs', () => {
         })
       )
       expect(runAgentFix.mock.calls[0][3]).not.toHaveProperty('targetFiles')
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         fixed: ['/proj/tests/util.test.mjs'],
         failed: [],
         touchedFiles: ['/proj/tests/util.test.mjs']
+      })
+      expect(result.batches[0]).toMatchObject({
+        batch: 1,
+        configuredBudget: 40,
+        promptChars: expect.any(Number),
+        verdict: { allowedTestWrites: 1, blockedWrites: 0, backstopHit: false }
       })
       logSpy.mockRestore()
     })
@@ -126,11 +132,17 @@ describe('coverage-fix.mjs', () => {
       const result = await fixSurvivedMutants(big, ROOT, { runAgentFix })
 
       expect(runAgentFix).toHaveBeenCalledTimes(2)
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         fixed: [],
         failed: [
-          { files: ['a.js'], error: 'no-op: агент завершився без записів (turnCount=0, toolCallCount=0)' },
-          { files: ['b.js'], error: 'no-op: агент завершився без записів (turnCount=0, toolCallCount=0)' }
+          {
+            files: ['a.js'],
+            error: 'no-op: агент завершився без записів (turnCount=0, toolCallCount=0, stopReason=-, blockedWrites=0)'
+          },
+          {
+            files: ['b.js'],
+            error: 'no-op: агент завершився без записів (turnCount=0, toolCallCount=0, stopReason=-, blockedWrites=0)'
+          }
         ],
         touchedFiles: []
       })
@@ -154,12 +166,69 @@ describe('coverage-fix.mjs', () => {
 
       const result = await fixSurvivedMutants(big, ROOT, { runAgentFix })
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         fixed: ['/proj/tests/b.test.mjs'],
         failed: [{ files: ['a.js'], error: 'skill timeout 900000ms' }],
         touchedFiles: ['/proj/tests/b.test.mjs']
       })
       expect(runAgentFix).toHaveBeenCalledTimes(2)
+      logSpy.mockRestore()
+      errSpy.mockRestore()
+    })
+
+    it('повертає і друкує timeout verdict з telemetry без prompt-а або source-коду', async () => {
+      env.N_CURSOR_COVERAGE_FIX_BATCH_MUTANTS = '40'
+      vi.mocked(readFile).mockResolvedValue('const secret = true')
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => null)
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => null)
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(10_000)
+      const runAgentFix = vi.fn().mockResolvedValue({
+        touchedFiles: [],
+        error: 'fix timeout 95999ms',
+        telemetry: {
+          promptChars: 4321,
+          wallMs: 95_999,
+          turnCount: 2,
+          toolCallCount: 1,
+          turns: [{ finish: 'length' }],
+          edits: [{ path: '/proj/tests/constants.test.mjs' }],
+          blocks: [{ path: '/proj/run/api/src/constants.js', reason: 'test-generation' }],
+          backstopHit: false
+        }
+      })
+
+      const result = await fixSurvivedMutants([groupWith('run/api/src/constants.js', 82)], ROOT, {
+        runAgentFix,
+        timeoutMs: 120_000,
+        coverageTimeout: { requestedMs: 150_000, workerDeadlineMs: 120_000, effectiveHookTimeoutMs: 120_000 }
+      })
+
+      expect(result.failed[0]).toMatchObject({ files: ['run/api/src/constants.js'], error: 'fix timeout 95999ms' })
+      expect(result.batches[0]).toMatchObject({
+        batch: 1,
+        sourceFileCount: 1,
+        mutantCount: 82,
+        configuredBudget: 40,
+        oversizedAtomicFile: true,
+        oversizedFiles: ['run/api/src/constants.js'],
+        promptChars: 4321,
+        requestedTimeoutMs: 150_000,
+        workerDeadlineMs: 120_000,
+        effectiveTimeoutMs: 120_000,
+        wallMs: 95_999,
+        verdict: {
+          turnCount: 2,
+          toolCallCount: 1,
+          stopReasons: ['length'],
+          error: 'fix timeout 95999ms',
+          allowedTestWrites: 1,
+          blockedWrites: 1,
+          backstopHit: false
+        }
+      })
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('promptChars=4321'))
+      expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('const secret = true'))
+      nowSpy.mockRestore()
       logSpy.mockRestore()
       errSpy.mockRestore()
     })

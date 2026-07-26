@@ -509,7 +509,11 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     blocks: guard.state.blocks,
     backstopHit,
     verifyAttempts,
-    wallMs: clock() - startedAt
+    // У trace це вже є, але consumer-ам batch-діагностики потрібен той самий
+    // безпечний агрегат без доступу до повного prompt-а чи capture body.
+    promptChars: fixPrompt.length,
+    wallMs: clock() - startedAt,
+    error
   }
   // Usage кроку для chain-агрегатів: сума по turns агентної сесії.
   const stepUsage = { input: 0, output: 0, totalTokens: 0 }

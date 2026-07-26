@@ -3,12 +3,31 @@ type: JS Module
 title: coverage-fix.mjs
 resource: plugins/lang-js/coverage-provider/fix/coverage-fix.mjs
 docgen:
-  crc: 5c6c94e1
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
-  score: 55
-  issues: no-overview,short-behavior,best-of-2:retry-lost
+  crc: c753eef6
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
+  score: 100
+  issues: judge-refine:kept-original,judge:inaccurate:0.98
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
+
+## Огляд
+
+Файл запускає агентний fix-шлях для survived-мутантів правила `test`, щоб дописувати або створювати тести, які вбивають вцілілі мутанти Stryker. Він бере мутанти лише з in-memory `violations`: читання `COVERAGE.md` у цьому шляху більше немає.
+
+Fix-сесії виконуються через `runAgentFix` з `@7n/llm-lib/agent-fix`. Агент отримує керовані батчі з контекстом по мутантах і самостійно знаходить або створює test-файли, а зміни реєструються через `recordWrite` для central rollback ladder-а.
+
+Модель береться з `ctx.model`; fallback — `CLOUD_MAX` або `N_CURSOR_COVERAGE_FIX_MODEL`. Шлях працює fail-safe: помилки перехоплюються, додаються до підсумку й не кидаються назовні.
+
+## Поведінка
+
+fixSurvivedMutants отримує survived-мутанти вже з in-memory violations і запускає fix-потік без читання колишніх extract-файлів. Спершу дані групуються через batchSurvived, щоб агентні сесії працювали з керованими порціями, але контекст одного файлу не розривався між різними batch.
+
+Для кожного batch fixSurvivedMutants формує завдання через buildFixPrompt: агент отримує перелік мутантів по файлах із локальним контекстом, оригінальним кодом, вцілілим варіантом і типом мутації. Далі агентна fix-сесія самостійно знаходить або створює test-файли, які мають убити ці мутанти.
+
+Записи не виконуються цим модулем напряму: зміни, зроблені агентом, реєструються write-guard-ом для централізованого rollback у ladder. Модель береться з контексту ladder-а, а за відсутності — з налаштованих fallback-джерел.
+
+Помилка окремого batch не зупиняє решту fix-потоку. fixSurvivedMutants збирає успішно змінені test-файли, failed batches і безпечну batch-діагностику без prompt-а, model output чи source-коду, після чого повертає підсумок назовні без прокидання винятків. Власних retry-циклів немає: повторні спроби й конвергенцію забезпечує ladder.
 
 ## Публічний API
 
