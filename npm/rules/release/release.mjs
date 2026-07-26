@@ -14,6 +14,7 @@ import { CHANGES_DIR, readChangeFiles } from './lib/change-file.mjs'
 import { defaultRunGit, synthesizeChangeFromCommits } from './lib/fallback.mjs'
 
 const SEMVER_LINE_RE = /("version"\s*:\s*")[^"]*(")/
+const LLM_LIB_DEPENDENCY_LINE_RE = /("@7n\/llm-lib"\s*:\s*")[^"]*(")/
 const PY_VERSION_LINE_RE = /^(version\s*=\s*")[^"]*(")/m
 
 /**
@@ -32,6 +33,28 @@ async function writeManifestVersion(cwd, manifest, newVersion) {
     throw new Error(
       `release: не вдалося оновити version у ${manifest.ws}/${manifest.manifestRel} — патерн version не знайдено`
     )
+  }
+  await writeFile(path, replaced)
+}
+
+/**
+ * Синхронізує точну runtime-залежність `@7n/rules` з одночасно випущеним
+ * `@7n/llm-lib`. Точний pin змушує consumer lockfile оновити transport разом
+ * з rules, а не зберегти стару сумісну транзитивну версію.
+ * @param {string} cwd корінь монорепо
+ * @param {Array<{ ws: string, name: string | null, newVersion: string }>} released щойно випущені workspace-и
+ * @returns {Promise<void>} результат
+ */
+async function synchronizeRulesLlmLibDependency(cwd, released) {
+  const llmLib = released.find(entry => entry.name === '@7n/llm-lib')
+  const rules = released.find(entry => entry.name === '@7n/rules')
+  if (!llmLib || !rules) return
+
+  const path = join(cwd, rules.ws, 'package.json')
+  const text = await readFile(path, 'utf8')
+  const replaced = text.replace(LLM_LIB_DEPENDENCY_LINE_RE, (_match, p1, p2) => `${p1}${llmLib.newVersion}${p2}`)
+  if (replaced === text) {
+    throw new Error(`release: не вдалося синхронізувати @7n/llm-lib у ${rules.ws}/package.json`)
   }
   await writeFile(path, replaced)
 }
@@ -196,6 +219,7 @@ export async function release(opts = {}) {
   }
 
   if (released.length > 0) {
+    await synchronizeRulesLlmLibDependency(cwd, released)
     await commitAndPushRelease(released, tags, runGit, push)
   }
   return released

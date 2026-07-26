@@ -1,13 +1,78 @@
 /** @see ./docs/orchestrate.md */
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { performance } from 'node:perf_hooks'
+
+import { createProgressReporter } from '../../../scripts/lib/lint-surface/progress.mjs'
 
 const BASE_REF = 'origin/main'
+const LLM_TIERS = ['min', 'max']
 const REVIEW_BATCH_SIZE = 10
 const PROMPT_TEXT_LIMIT = 12_000
 const SOURCE_BRANCH_PREFIX = 'branch:'
 const SOURCE_STASH_PREFIX = 'stash:'
+const CONTENT_CONFLICT_RE = /^CONFLICT \(.+?\): Merge conflict in (.+)$/
+const MODIFY_DELETE_CONFLICT_RE = /^CONFLICT \(modify\/delete\): (.+?) deleted in /
+const REF_HEADS_RE = /^refs\/heads\//
+const REF_ORIGIN_RE = /^refs\/remotes\/origin\//
+const RENAME_DELETE_CONFLICT_RE = /^CONFLICT \(rename\/delete\): .+? renamed to (.+?) in .+?, but deleted/
+const SOURCE_CODE_RE = /\.(?:js|mjs|ts|vue|rs|py)$/
+const WHITESPACE_RE = /\s+/
+const REF_INVENTORY_FORMAT = ['%(refname)', '%00', '%(object', 'name)', '%00', '%(committer', 'date:iso-strict)'].join(
+  ''
+)
+
+/** Порожній callback для опційного progress log. */
+function noop() {
+  // Навмисно порожньо: caller не запросив progress output.
+}
+
+/**
+ * Форматує elapsed time без удаваної точності.
+ * @param {number} startedAt початок у мілісекундах
+ * @param {() => number} now монотонне джерело часу
+ * @returns {string} коротка тривалість
+ */
+function elapsedLabel(startedAt, now) {
+  const elapsed = Math.max(0, now() - startedAt)
+  return elapsed < 1000 ? `${Math.round(elapsed)} ms` : `${(elapsed / 1000).toFixed(1)} s`
+}
+
+/**
+ * Створює точний progress reporter для однієї фази. У TTY тримає живий bar,
+ * у non-TTY додає незмінювані рядки початку етапів і завершених одиниць.
+ * @param {object} args параметри фази
+ * @returns {{step:(key:string,detail:string,tier?:string)=>void,done:(key:string)=>void,stop:()=>void}} reporter
+ */
+function createPhaseProgress(args) {
+  const { total, unitLabel, phase, log, isTTY, reporterFactory } = args
+  if (total === 0) return { step: noop, done: noop, stop: noop }
+
+  const baseLog = text => log(text.endsWith('\n') ? text.slice(0, -1) : text)
+  const reporter = reporterFactory({
+    total,
+    log: baseLog,
+    isTTY,
+    unitLabel,
+    withFixed: false
+  })
+  let lastNonTtyLabel = ''
+
+  return {
+    step: (_key, detail, tier) => {
+      const label = `${phase} · ${detail}`
+      reporter.concernStart(label, tier)
+      const rendered = tier ? `${label} · ${tier}` : label
+      if (!isTTY && rendered !== lastNonTtyLabel) {
+        log(`⏳ ${rendered}`)
+        lastNonTtyLabel = rendered
+      }
+    },
+    done: key => reporter.concernDone(key),
+    stop: () => reporter.stop()
+  }
+}
 
 /**
  * Виконує команду без shell-інтерполяції.
@@ -19,11 +84,13 @@ const SOURCE_STASH_PREFIX = 'stash:'
  * @returns {{ status: number, stdout: string, stderr: string }} результат
  */
 function run(command, args, cwd, spawnFn, options = {}) {
+  const env = { ...process.env, GIT_EDITOR: 'true' }
+  if (command === 'npx') delete env.npm_config_package
   const result = spawnFn(command, args, {
     cwd,
     encoding: 'utf8',
     input: options.input,
-    env: { ...process.env, GIT_EDITOR: 'true' },
+    env,
     maxBuffer: 16 * 1024 * 1024
   })
   const normalized = {
@@ -66,19 +133,30 @@ function parseJson(text, fallback) {
 }
 
 /**
+ * Парсить branch refs і всі checkout HEAD OID, включно з detached worktree.
+ * @param {string} text porcelain
+ * @returns {{branches:Map<string,string>,commits:Map<string,string>}} захищені checkout
+ */
+function parseWorktreeState(text) {
+  const branches = new Map()
+  const commits = new Map()
+  let path = ''
+  for (const line of text.split('\n')) {
+    if (line.startsWith('worktree ')) path = line.slice('worktree '.length)
+    if (line.startsWith('HEAD ')) commits.set(line.slice('HEAD '.length), path)
+    if (line.startsWith('branch ')) branches.set(line.slice('branch '.length), path)
+    if (line.length === 0) path = ''
+  }
+  return { branches, commits }
+}
+
+/**
  * Парсить `git worktree list --porcelain` у branch→path.
  * @param {string} text porcelain
  * @returns {Map<string, string>} повний ref гілки → checkout
  */
 export function parseWorktrees(text) {
-  const out = new Map()
-  let path = ''
-  for (const line of text.split('\n')) {
-    if (line.startsWith('worktree ')) path = line.slice('worktree '.length)
-    if (line.startsWith('branch ')) out.set(line.slice('branch '.length), path)
-    if (line.length === 0) path = ''
-  }
-  return out
+  return parseWorktreeState(text).branches
 }
 
 /**
@@ -87,7 +165,7 @@ export function parseWorktrees(text) {
  * @returns {string} коротке ім'я
  */
 function branchName(ref) {
-  return ref.replace(/^refs\/heads\//, '').replace(/^refs\/remotes\/origin\//, '')
+  return ref.replace(REF_HEADS_RE, '').replace(REF_ORIGIN_RE, '')
 }
 
 /**
@@ -95,14 +173,15 @@ function branchName(ref) {
  * worktree-protection локального ref переноситься у запис.
  * @param {Array<{ref:string, oid:string, date:string}>} refs сирі refs
  * @param {Map<string,string>} worktrees branch→path
+ * @param {Map<string,string>} worktreeCommits checkout HEAD OID→path
  * @returns {Array<{ref:string, oid:string, date:string, worktree:string|null,aliases:string[]}>} refs
  */
-export function dedupeRefs(refs, worktrees) {
+export function dedupeRefs(refs, worktrees, worktreeCommits = new Map()) {
   const byOid = new Map()
   for (const item of refs) {
     if (item.ref === 'refs/remotes/origin/HEAD' || branchName(item.ref) === 'main') continue
     const existing = byOid.get(item.oid)
-    const worktree = worktrees.get(item.ref) ?? existing?.worktree ?? null
+    const worktree = worktrees.get(item.ref) ?? worktreeCommits.get(item.oid) ?? existing?.worktree ?? null
     const isRemote = item.ref.startsWith('refs/remotes/origin/')
     const aliases = [...new Set([...(existing?.aliases ?? []), item.ref])].toSorted()
     if (!existing || isRemote) {
@@ -114,7 +193,23 @@ export function dedupeRefs(refs, worktrees) {
       existing.aliases = aliases
     }
   }
-  return [...byOid.values()].toSorted((a, b) => a.ref.localeCompare(b.ref))
+  return byOid
+    .values()
+    .toArray()
+    .toSorted((a, b) => a.ref.localeCompare(b.ref))
+}
+
+/**
+ * Класифікує branch лише за вже зібраними Git-фактами.
+ * @param {{merged:boolean,novelCommitIds:string[],pr:object|null,worktree:string|null}} facts факти
+ * @returns {string} state
+ */
+function branchState({ merged, novelCommitIds, pr, worktree }) {
+  if (merged) return 'merged'
+  if (novelCommitIds.length === 0) return 'patch-equivalent'
+  if (pr) return 'open-pr'
+  if (worktree) return 'protected'
+  return 'review'
 }
 
 /**
@@ -138,13 +233,13 @@ function openPullRequests(cwd, spawnFn) {
 
 /**
  * Збирає compact commit metadata лише для patch-унікальних non-merge комітів.
- * @param {string[]} oids commit ids
+ * @param {string[]} commitIds commit ids
  * @param {string} cwd корінь
  * @param {typeof spawnSync} spawnFn інжект
  * @returns {Array<{oid:string,subject:string}>} коміти
  */
-function commitMetadata(oids, cwd, spawnFn) {
-  return oids.map(oid => {
+function commitMetadata(commitIds, cwd, spawnFn) {
+  return commitIds.map(oid => {
     const subject = git(['show', '-s', '--format=%s', oid], cwd, spawnFn).stdout.trim()
     return { oid, subject }
   })
@@ -158,9 +253,9 @@ function commitMetadata(oids, cwd, spawnFn) {
 export function conflictFiles(text) {
   const files = new Set()
   for (const line of text.split('\n')) {
-    const content = line.match(/^CONFLICT \(.+?\): Merge conflict in (.+)$/)
-    const rename = line.match(/^CONFLICT \(rename\/delete\): .+? renamed to (.+?) in .+?, but deleted/)
-    const modifyDelete = line.match(/^CONFLICT \(modify\/delete\): (.+?) deleted in /)
+    const content = line.match(CONTENT_CONFLICT_RE)
+    const rename = line.match(RENAME_DELETE_CONFLICT_RE)
+    const modifyDelete = line.match(MODIFY_DELETE_CONFLICT_RE)
     const path = content?.[1] ?? rename?.[1] ?? modifyDelete?.[1]
     if (path) files.add(path)
   }
@@ -179,25 +274,21 @@ export function inventoryRepository(cwd, deps = {}) {
   git(['fetch', '--prune', 'origin'], cwd, spawnFn)
   git(['rev-parse', '--verify', BASE_REF], cwd, spawnFn)
 
-  const worktrees = parseWorktrees(git(['worktree', 'list', '--porcelain'], cwd, spawnFn).stdout)
+  const worktreeState = parseWorktreeState(git(['worktree', 'list', '--porcelain'], cwd, spawnFn).stdout)
   const refLines = git(
-    [
-      'for-each-ref',
-      '--format=%(refname)%00%(objectname)%00%(committerdate:iso-strict)',
-      'refs/heads',
-      'refs/remotes/origin'
-    ],
+    ['for-each-ref', `--format=${REF_INVENTORY_FORMAT}`, 'refs/heads', 'refs/remotes/origin'],
     cwd,
     spawnFn
-  ).stdout
-    .split('\n')
+  )
+    .stdout.split('\n')
     .filter(Boolean)
   const refs = dedupeRefs(
     refLines.map(line => {
       const [ref, oid, date] = line.split('\0')
       return { ref, oid, date }
     }),
-    worktrees
+    worktreeState.branches,
+    worktreeState.commits
   )
   const prs = openPullRequests(cwd, spawnFn)
   const warnings = []
@@ -205,44 +296,31 @@ export function inventoryRepository(cwd, deps = {}) {
 
   const branches = refs.map(item => {
     const name = branchName(item.ref)
-    const merged = git(['merge-base', '--is-ancestor', item.ref, BASE_REF], cwd, spawnFn, {
-      allowFailure: true
-    }).status === 0
-    const novelOids = merged
+    const merged =
+      git(['merge-base', '--is-ancestor', item.ref, BASE_REF], cwd, spawnFn, {
+        allowFailure: true
+      }).status === 0
+    const novelCommitIds = merged
       ? []
-      : git(
-          ['rev-list', '--right-only', '--cherry-pick', '--no-merges', `${BASE_REF}...${item.ref}`],
-          cwd,
-          spawnFn
-        ).stdout
-          .split('\n')
+      : git(['rev-list', '--right-only', '--cherry-pick', '--no-merges', `${BASE_REF}...${item.ref}`], cwd, spawnFn)
+          .stdout.split('\n')
           .filter(Boolean)
           .toReversed()
     const counts = git(['rev-list', '--left-right', '--count', `${BASE_REF}...${item.ref}`], cwd, spawnFn)
       .stdout.trim()
-      .split(/\s+/)
+      .split(WHITESPACE_RE)
       .map(Number)
     const pr = prs.get(name) ?? null
-    const state = merged
-      ? 'merged'
-      : novelOids.length === 0
-        ? 'patch-equivalent'
-        : pr
-          ? 'open-pr'
-          : item.worktree
-            ? 'protected'
-            : 'review'
+    const state = branchState({ merged, novelCommitIds, pr, worktree: item.worktree })
     const changedFiles =
       state === 'review'
-        ? git(['diff', '--name-status', `${BASE_REF}...${item.ref}`], cwd, spawnFn).stdout
-            .split('\n')
+        ? git(['diff', '--name-status', `${BASE_REF}...${item.ref}`], cwd, spawnFn)
+            .stdout.split('\n')
             .filter(Boolean)
             .slice(0, 200)
         : []
     const mergeTree =
-      state === 'review'
-        ? git(['merge-tree', BASE_REF, item.ref], cwd, spawnFn, { allowFailure: true }).stdout
-        : ''
+      state === 'review' ? git(['merge-tree', BASE_REF, item.ref], cwd, spawnFn, { allowFailure: true }).stdout : ''
     return {
       source: `${SOURCE_BRANCH_PREFIX}${item.ref}`,
       ref: item.ref,
@@ -254,20 +332,16 @@ export function inventoryRepository(cwd, deps = {}) {
       pr,
       behind: counts[0] ?? 0,
       ahead: counts[1] ?? 0,
-      commits: commitMetadata(novelOids, cwd, spawnFn),
+      commits: commitMetadata(novelCommitIds, cwd, spawnFn),
       changedFiles,
       conflicts: conflictFiles(mergeTree)
     }
   })
 
-  const stashRows = git(['stash', 'list', '--format=%gd%x00%H%x00%gs'], cwd, spawnFn).stdout
-    .split('\n')
-    .filter(Boolean)
+  const stashRows = git(['stash', 'list', '--format=%gd%x00%H%x00%gs'], cwd, spawnFn).stdout.split('\n').filter(Boolean)
   const stashes = stashRows.map(line => {
     const [ref, oid, subject] = line.split('\0')
-    const changedFiles = git(['stash', 'show', '--name-status', ref], cwd, spawnFn).stdout
-      .split('\n')
-      .filter(Boolean)
+    const changedFiles = git(['stash', 'show', '--name-status', ref], cwd, spawnFn).stdout.split('\n').filter(Boolean)
     return {
       source: `${SOURCE_STASH_PREFIX}${ref}`,
       ref,
@@ -312,7 +386,12 @@ export function buildTriagePrompt(candidates, task = '') {
  */
 export function parseDecisionEnvelope(text) {
   const trimmed = text.trim()
-  const unfenced = trimmed.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  let unfenced = trimmed
+  if (unfenced.startsWith('```')) {
+    const firstLineEnd = unfenced.indexOf('\n')
+    unfenced = firstLineEnd === -1 ? '' : unfenced.slice(firstLineEnd + 1)
+    if (unfenced.endsWith('```')) unfenced = unfenced.slice(0, -3).trim()
+  }
   const first = unfenced.indexOf('{')
   const last = unfenced.lastIndexOf('}')
   if (first === -1 || last <= first) return null
@@ -326,9 +405,10 @@ export function parseDecisionEnvelope(text) {
  * @param {string} prompt промпт
  * @param {string} cwd робочий каталог
  * @param {object} deps інжекти
+ * @param {'min'|'max'} [tier] model tier
  * @returns {Promise<{ok:boolean,text:string,error:string|null}>} результат
  */
-export async function callRunner(runner, prompt, cwd, deps = {}) {
+export async function callRunner(runner, prompt, cwd, deps = {}, tier = 'max') {
   if (runner === 'pi') {
     let runAgentSkill = deps.runAgentSkill
     if (!runAgentSkill) {
@@ -338,7 +418,7 @@ export async function callRunner(runner, prompt, cwd, deps = {}) {
     let text = ''
     const result = await runAgentSkill(prompt, {
       skillId: 'git-reconcile',
-      tier: 'max',
+      tier,
       cwd,
       deps: { out: chunk => (text += chunk) }
     })
@@ -351,11 +431,143 @@ export async function callRunner(runner, prompt, cwd, deps = {}) {
     runAcpAgent = module.runAcpAgent
   }
   try {
-    const text = await runAcpAgent(runner, prompt, cwd, { tier: 'max' })
+    const text = await runAcpAgent(runner, prompt, cwd, { tier })
     return { ok: true, text, error: null }
   } catch (error) {
     return { ok: false, text: '', error: error instanceof Error ? error.message : String(error) }
   }
+}
+
+/**
+ * Виконує bounded LLM-крок через min, валідовує результат JS-функцією і
+ * викликає max лише після конкретного провалу.
+ * @param {object} args параметри
+ * @returns {Promise<{ok:boolean,text:string,error:string|null,tier:'min'|'max',validation?:object,attempts:Array<object>}>} результат
+ */
+export async function callWithValidatedFallback(args) {
+  const { runner, prompt, cwd, validate, deps = {}, log = noop, label = 'LLM', onAttempt = noop } = args
+  const call = deps.callRunner ?? callRunner
+  const attempts = []
+  let retryPrompt = prompt
+
+  for (const tier of LLM_TIERS) {
+    onAttempt({ label, tier })
+    const outcome = await call(runner, retryPrompt, cwd, deps, tier)
+    if (!outcome.ok) {
+      const validation = { ok: false, error: outcome.error ?? `${tier} runner failed` }
+      attempts.push({ tier, ok: false, validation })
+      return { ...outcome, tier, validation, attempts }
+    }
+    const validation = await validate(outcome)
+    attempts.push({ tier, ok: outcome.ok, validation })
+    if (validation.ok) {
+      return { ...outcome, tier, validation, attempts }
+    }
+    if (tier === 'min') {
+      const reason = (validation.error ?? outcome.error ?? 'невідома помилка validation').slice(0, PROMPT_TEXT_LIMIT)
+      log(`↗ ${label}: min не пройшов validation (${reason}); повторюю на max`)
+      retryPrompt = [
+        prompt,
+        `Попередня min-спроба не пройшла deterministic validation: ${reason}.`,
+        'Виправ причину validation; не розширюй scope.'
+      ].join('\n\n')
+    } else {
+      return {
+        ok: false,
+        text: outcome.text,
+        error: validation.error ?? outcome.error ?? 'max validation failed',
+        tier,
+        validation,
+        attempts
+      }
+    }
+  }
+
+  throw new Error('Недосяжний стан LLM fallback')
+}
+
+/**
+ * Перевіряє branch groups та їх commit OID.
+ * @param {object} decision LLM decision
+ * @param {object} candidate inventory candidate
+ * @returns {string|null} validation error
+ */
+function validateBranchGroups(decision, candidate) {
+  const validCommitIds = new Set(candidate.commits?.map(commit => commit.oid))
+  const selectedCommitIds = new Set()
+  for (const group of decision.groups) {
+    if (!Array.isArray(group.commits) || group.commits.length === 0) {
+      return `branch group без commits для ${decision.source}`
+    }
+    if (group.commits.some(oid => !validCommitIds.has(oid))) {
+      return `branch group містить невідомий commit для ${decision.source}`
+    }
+    if (group.commits.some(oid => selectedCommitIds.has(oid))) {
+      return `commit повторюється між groups для ${decision.source}`
+    }
+    for (const oid of group.commits) selectedCommitIds.add(oid)
+  }
+  return null
+}
+
+/**
+ * Перевіряє groups одного PR-рішення.
+ * @param {object} decision LLM decision
+ * @param {object} candidate inventory candidate
+ * @returns {string|null} validation error
+ */
+function validatePrDecision(decision, candidate) {
+  if (!Array.isArray(decision.groups) || decision.groups.length === 0) {
+    return `pr без groups для ${decision.source}`
+  }
+  if (decision.groups.some(group => typeof group.title !== 'string' || group.title.trim().length === 0)) {
+    return `pr group без title для ${decision.source}`
+  }
+  if (!decision.source.startsWith(SOURCE_BRANCH_PREFIX)) {
+    return decision.groups.length === 1 ? null : `неподільний stash має містити рівно одну pr group: ${decision.source}`
+  }
+  return validateBranchGroups(decision, candidate)
+}
+
+/**
+ * Перевіряє одне triage-рішення.
+ * @param {object} decision LLM decision
+ * @param {object|undefined} candidate inventory candidate
+ * @param {Set<string>} seen уже оброблені source
+ * @returns {string|null} validation error
+ */
+function validateDecision(decision, candidate, seen) {
+  if (!candidate || seen.has(decision.source)) {
+    return `невідомий або дубльований source: ${decision.source}`
+  }
+  seen.add(decision.source)
+  if (!['pr', 'keep', 'drop'].includes(decision.action)) {
+    return `невалідний action для ${decision.source}`
+  }
+  return decision.action === 'pr' ? validatePrDecision(decision, candidate) : null
+}
+
+/**
+ * Структурно перевіряє triage-рішення: рівно один verdict на candidate,
+ * валідні actions/groups і лише відомі commit OID.
+ * @param {{text:string}} outcome LLM output
+ * @param {Array<object>} candidates batch
+ * @returns {{ok:boolean,error?:string,value?:object}} validation
+ */
+export function validateTriageOutcome(outcome, candidates) {
+  const envelope = parseDecisionEnvelope(outcome.text)
+  if (!Array.isArray(envelope?.decisions)) return { ok: false, error: 'відсутній decisions array' }
+  if (envelope.decisions.length !== candidates.length) {
+    return { ok: false, error: 'кількість decisions не збігається з candidates' }
+  }
+
+  const bySource = new Map(candidates.map(candidate => [candidate.source, candidate]))
+  const seen = new Set()
+  for (const decision of envelope.decisions) {
+    const error = validateDecision(decision, bySource.get(decision.source), seen)
+    if (error) return { ok: false, error }
+  }
+  return { ok: true, value: envelope }
 }
 
 /**
@@ -423,9 +635,191 @@ function createReconcileWorktree(title, source, cwd, spawnFn) {
  * @returns {string[]} шляхи
  */
 function unresolvedFiles(cwd, spawnFn) {
-  return git(['diff', '--name-only', '--diff-filter=U'], cwd, spawnFn).stdout
-    .split('\n')
-    .filter(Boolean)
+  return git(['diff', '--name-only', '--diff-filter=U'], cwd, spawnFn).stdout.split('\n').filter(Boolean)
+}
+
+/**
+ * Пропускає лише підтверджений empty cherry-pick: sequencer активний,
+ * конфліктів немає, staged diff порожній.
+ * @param {string} cwd worktree
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {boolean} чи виконано cherry-pick --skip
+ */
+export function skipEmptyCherryPick(cwd, spawnFn = spawnSync) {
+  const inProgress =
+    git(['rev-parse', '-q', '--verify', 'CHERRY_PICK_HEAD'], cwd, spawnFn, {
+      allowFailure: true
+    }).status === 0
+  if (!inProgress || unresolvedFiles(cwd, spawnFn).length > 0) return false
+  const stagedEmpty =
+    git(['diff', '--cached', '--quiet'], cwd, spawnFn, {
+      allowFailure: true
+    }).status === 0
+  if (!stagedEmpty) return false
+  git(['cherry-pick', '--skip'], cwd, spawnFn)
+  return true
+}
+
+/**
+ * Перевіряє, що agentic-крок залишив Git у консистентному стані.
+ * @param {string} cwd worktree
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {{ok:boolean,error?:string}} validation
+ */
+function validateGitState(cwd, spawnFn) {
+  const unresolved = unresolvedFiles(cwd, spawnFn)
+  if (unresolved.length > 0) {
+    return { ok: false, error: `нерозв'язані конфлікти: ${unresolved.join(', ')}` }
+  }
+  const diffCheck = git(['diff', '--check'], cwd, spawnFn, { allowFailure: true })
+  if (diffCheck.status !== 0) {
+    return { ok: false, error: `git diff --check: ${diffCheck.stderr || diffCheck.stdout}` }
+  }
+  return { ok: true }
+}
+
+/** Межі стабільного Vitest failure identifier. */
+const ANSI_ESCAPE = String.fromCodePoint(27)
+const TEST_FAILURE_PREFIX = 'FAIL  '
+
+/**
+ * Витягає стабільні Vitest failure identifiers без summary/timing.
+ * @param {string} output stdout + stderr
+ * @returns {Set<string>} suite/test failures
+ */
+export function testFailureSignatures(output) {
+  const signatures = new Set()
+  for (const line of output.split('\n')) {
+    const start = line.indexOf(TEST_FAILURE_PREFIX)
+    if (start === -1) continue
+    const signature = line
+      .slice(start + TEST_FAILURE_PREFIX.length)
+      .split(ANSI_ESCAPE, 1)[0]
+      .trim()
+    if (signature) signatures.add(signature)
+  }
+  return signatures
+}
+
+/**
+ * Дозволяє red baseline лише якщо після перенесення не з'явилось нових
+ * Vitest failures. Нерозпізнаний red output завжди fail-closed.
+ * @param {{status:number,stdout:string,stderr:string}|null} baseline до змін
+ * @param {{status:number,stdout:string,stderr:string}} current після змін
+ * @returns {boolean} чи test gate пройдено
+ */
+export function acceptsTestOutcome(baseline, current) {
+  if (current.status === 0) return true
+  if (!baseline || baseline.status === 0) return false
+  const before = testFailureSignatures(`${baseline.stdout}\n${baseline.stderr}`)
+  const after = testFailureSignatures(`${current.stdout}\n${current.stderr}`)
+  return before.size > 0 && after.size > 0 && [...after].every(signature => before.has(signature))
+}
+
+/**
+ * Зводить змінені code paths до найвужчих директорій для scoped gates.
+ * @param {string[]} paths relative paths
+ * @returns {string[]} унікальні sorted directories
+ */
+export function sourceDirectories(paths) {
+  return [...new Set(paths.filter(path => SOURCE_CODE_RE.test(path)).map(path => dirname(path)))].toSorted()
+}
+
+/**
+ * Збирає tracked і untracked code directories відносно origin/main.
+ * @param {string} cwd worktree
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {string[]} directories
+ */
+function changedSourceDirectories(cwd, spawnFn) {
+  const tracked = git(['diff', '--name-only', BASE_REF, '--'], cwd, spawnFn).stdout.split('\n').filter(Boolean)
+  const untracked = git(['ls-files', '--others', '--exclude-standard'], cwd, spawnFn).stdout.split('\n').filter(Boolean)
+  return sourceDirectories([...tracked, ...untracked]).filter(path => existsSync(join(cwd, path === '.' ? '' : path)))
+}
+
+/**
+ * Генерує docs і запускає unified read-only lint лише в директоріях
+ * зміненого коду, не торкаючись repository-wide baseline.
+ * @param {string} cwd worktree
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {{ok:boolean,error?:string}} gate
+ */
+function validateScopedProjectGates(cwd, spawnFn) {
+  for (const path of changedSourceDirectories(cwd, spawnFn)) {
+    const docs = run('npx', ['@7n/rules', 'lint', 'doc-files', '--path', path], cwd, spawnFn, {
+      allowFailure: true
+    })
+    if (docs.status !== 0) {
+      return { ok: false, error: `doc-files (${path}): ${docs.stderr || docs.stdout}` }
+    }
+    const lint = run('npx', ['@7n/rules', 'lint', '--path', path, '--no-fix'], cwd, spawnFn, {
+      allowFailure: true
+    })
+    if (lint.status !== 0) {
+      return { ok: false, error: `scoped lint (${path}): ${lint.stderr || lint.stdout}` }
+    }
+  }
+  return { ok: true }
+}
+
+/**
+ * Встановлює frozen Bun dependencies, якщо новий worktree їх ще не має.
+ * @param {string} cwd worktree
+ * @param {typeof spawnSync} spawnFn інжект
+ */
+function ensureWorktreeDependencies(cwd, spawnFn) {
+  if (!existsSync(join(cwd, 'package.json')) || !existsSync(join(cwd, 'bun.lock'))) return
+  if (existsSync(join(cwd, 'node_modules'))) return
+  run('bun', ['install', '--frozen-lockfile'], cwd, spawnFn)
+}
+
+/**
+ * Фіксує test baseline на чистому origin/main до перенесення source.
+ * @param {string} cwd worktree
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {{tests:{status:number,stdout:string,stderr:string}|null}} baseline
+ */
+export function captureBehaviorBaseline(cwd, spawnFn = spawnSync) {
+  ensureWorktreeDependencies(cwd, spawnFn)
+  const packageJsonPath = join(cwd, 'package.json')
+  if (!existsSync(packageJsonPath)) return { tests: null }
+  const packageJson = parseJson(readFileSync(packageJsonPath, 'utf8'), {})
+  const tests = packageJson?.scripts?.test ? run('bun', ['run', 'test'], cwd, spawnFn, { allowFailure: true }) : null
+  return { tests }
+}
+
+/**
+ * Додає до Git-state validation test script із репозиторію і changelog gate.
+ * Саме ці докази вирішують, чи приймати min-результат або ескалювати на max.
+ * @param {string} cwd worktree
+ * @param {typeof spawnSync} spawnFn інжект
+ * @param {{tests:{status:number,stdout:string,stderr:string}|null}|null} [baseline] стан origin/main
+ * @returns {{ok:boolean,error?:string}} validation
+ */
+export function validateBehaviorState(cwd, spawnFn = spawnSync, baseline = null) {
+  const gitState = validateGitState(cwd, spawnFn)
+  if (!gitState.ok) return gitState
+  const projectGates = validateScopedProjectGates(cwd, spawnFn)
+  if (!projectGates.ok) return projectGates
+  const postGateGitState = validateGitState(cwd, spawnFn)
+  if (!postGateGitState.ok) return postGateGitState
+
+  const packageJsonPath = join(cwd, 'package.json')
+  if (existsSync(packageJsonPath)) {
+    const packageJson = parseJson(readFileSync(packageJsonPath, 'utf8'), {})
+    if (packageJson?.scripts?.test) {
+      const tests = run('bun', ['run', 'test'], cwd, spawnFn, { allowFailure: true })
+      if (!acceptsTestOutcome(baseline?.tests ?? null, tests)) {
+        return { ok: false, error: `bun run test: ${tests.stderr || tests.stdout}` }
+      }
+    }
+  }
+
+  const changelog = run('npx', ['@7n/rules', 'lint', 'changelog', '--no-fix'], cwd, spawnFn, { allowFailure: true })
+  if (changelog.status !== 0) {
+    return { ok: false, error: `changelog gate: ${changelog.stderr || changelog.stdout}` }
+  }
+  return { ok: true }
 }
 
 /**
@@ -433,20 +827,28 @@ function unresolvedFiles(cwd, spawnFn) {
  * @param {object} args контекст
  * @returns {Promise<void>}
  */
-async function resolveConflict({ runner, source, worktreeCwd, deps, spawnFn }) {
+async function resolveConflict(args) {
+  const { runner, source, worktreeCwd, deps, spawnFn, log, onProgress = noop } = args
   const unresolved = unresolvedFiles(worktreeCwd, spawnFn)
   const prompt = [
     `У worktree ${worktreeCwd} JS уже застосував ${source} до свіжого origin/main.`,
     `Розв'яжи лише змістові конфлікти: ${unresolved.join(', ')}.`,
-    'Порівняй current main та намір перенесеної зміни; не використовуй ours/theirs всліпу.',
+    'Порівняй current main та намір перенесеної зміни; не використовуй ours/theirs механічно.',
     'Збережи актуальну поведінку main, перенеси лише відсутню корисну частину.',
     'За потреби онови regression test. Не commit, не push, не створюй PR і не видаляй refs.',
-    'Наприкінці прибери conflict markers і коротко переліч перевірки.'
+    'Наприкінці прибери conflict markers і коротко наведи виконані перевірки.'
   ].join('\n\n')
-  const outcome = await callRunner(runner, prompt, worktreeCwd, deps)
+  const outcome = await callWithValidatedFallback({
+    runner,
+    prompt,
+    cwd: worktreeCwd,
+    deps,
+    log,
+    label: `conflict ${source}`,
+    onAttempt: ({ tier }) => onProgress('resolve conflict', tier),
+    validate: () => validateGitState(worktreeCwd, spawnFn)
+  })
   if (!outcome.ok) throw new Error(`LLM conflict resolution: ${outcome.error}`)
-  const remaining = unresolvedFiles(worktreeCwd, spawnFn)
-  if (remaining.length > 0) throw new Error(`Нерозв'язані конфлікти: ${remaining.join(', ')}`)
   git(['add', '-A'], worktreeCwd, spawnFn)
 }
 
@@ -455,15 +857,17 @@ async function resolveConflict({ runner, source, worktreeCwd, deps, spawnFn }) {
  * @param {object} args контекст
  * @returns {Promise<void>}
  */
-async function applySource({ source, sourceOid, commits, runner, rootCwd, worktreeCwd, deps, spawnFn }) {
+async function applySource(args) {
+  const { source, sourceOid, commits, runner, rootCwd, worktreeCwd, deps, spawnFn, log, onProgress = noop } = args
   if (source.startsWith(SOURCE_BRANCH_PREFIX)) {
     for (const oid of commits) {
       const result = git(['cherry-pick', oid], worktreeCwd, spawnFn, { allowFailure: true })
       if (result.status === 0) continue
       if (unresolvedFiles(worktreeCwd, spawnFn).length === 0) {
+        if (skipEmptyCherryPick(worktreeCwd, spawnFn)) continue
         throw new Error(`cherry-pick ${oid}: ${result.stderr || result.stdout}`)
       }
-      await resolveConflict({ runner, source: oid, worktreeCwd, deps, spawnFn })
+      await resolveConflict({ runner, source: oid, worktreeCwd, deps, spawnFn, log, onProgress })
       if (
         git(['rev-parse', '-q', '--verify', 'CHERRY_PICK_HEAD'], worktreeCwd, spawnFn, {
           allowFailure: true
@@ -485,7 +889,7 @@ async function applySource({ source, sourceOid, commits, runner, rootCwd, worktr
     if (unresolvedFiles(worktreeCwd, spawnFn).length === 0) {
       throw new Error(`git apply ${stashRef}: ${applied.stderr || applied.stdout}`)
     }
-    await resolveConflict({ runner, source: stashRef, worktreeCwd, deps, spawnFn })
+    await resolveConflict({ runner, source: stashRef, worktreeCwd, deps, spawnFn, log, onProgress })
   }
 }
 
@@ -494,18 +898,28 @@ async function applySource({ source, sourceOid, commits, runner, rootCwd, worktr
  * @param {object} args контекст
  * @returns {Promise<string>} текст відповіді
  */
-async function finalizeBehavior({ runner, source, rationale, worktreeCwd, deps }) {
+async function finalizeBehavior(args) {
+  const { runner, source, rationale, worktreeCwd, baseline, deps, spawnFn, log, onProgress = noop } = args
   const prompt = [
     `JS переніс ${source} на свіжий origin/main у ${worktreeCwd}.`,
     `Очікувана користь: ${rationale}`,
     'Перевір реальний diff і call sites. Доведи лише перенесену поведінку до готовності:',
     '- додай/онови regression test, якщо це bug fix;',
     '- виконай найвужчі релевантні тести;',
-    '- виконай repository-required docs/change checks;',
     '- не роби unrelated refactor або formatting churn.',
+    'Не запускай full repository tests, doc generation, lint або changelog: після твоїх правок це детерміновано виконає JS.',
     'Не commit, не push, не створюй PR і не видаляй refs. Якщо поведінку неможливо безпечно підтвердити — нічого не маскуй, поверни чіткий blocker.'
   ].join('\n\n')
-  const outcome = await callRunner(runner, prompt, worktreeCwd, deps)
+  const outcome = await callWithValidatedFallback({
+    runner,
+    prompt,
+    cwd: worktreeCwd,
+    deps,
+    log,
+    label: `behavior ${source}`,
+    onAttempt: ({ tier }) => onProgress('behavior validation', tier),
+    validate: () => validateBehaviorState(worktreeCwd, spawnFn, baseline)
+  })
   if (!outcome.ok) throw new Error(`LLM behavioral verification: ${outcome.error}`)
   return outcome.text.slice(0, PROMPT_TEXT_LIMIT)
 }
@@ -516,19 +930,24 @@ async function finalizeBehavior({ runner, source, rationale, worktreeCwd, deps }
  * @param {object} args параметри
  * @returns {Promise<{status:string,url?:string,branch?:string,error?:string,worktree?:string}>} результат
  */
-async function createPullRequest({ candidate, group, runner, rootCwd, deps, spawnFn, log }) {
+async function createPullRequest(args) {
+  const { candidate, group, runner, rootCwd, deps, spawnFn, log, onProgress = noop } = args
   const source = candidate.source
-  const validOids = new Set(candidate.commits?.map(commit => commit.oid) ?? [])
+  const validCommitIds = new Set(candidate.commits?.map(commit => commit.oid))
   const commits = source.startsWith(SOURCE_BRANCH_PREFIX)
-    ? (group.commits ?? []).filter(oid => validOids.has(oid))
+    ? (group.commits ?? []).filter(oid => validCommitIds.has(oid))
     : []
   if (source.startsWith(SOURCE_BRANCH_PREFIX) && commits.length === 0) {
     return { status: 'kept', error: 'LLM не вибрала жодного валідного commit oid' }
   }
 
+  onProgress('worktree')
   const worktree = createReconcileWorktree(group.title, source, rootCwd, spawnFn)
   log(`🌿 ${source} → ${worktree.branch}`)
   try {
+    onProgress('baseline tests')
+    const baseline = captureBehaviorBaseline(worktree.cwd, spawnFn)
+    onProgress('apply')
     await applySource({
       source,
       sourceOid: candidate.oid,
@@ -537,39 +956,45 @@ async function createPullRequest({ candidate, group, runner, rootCwd, deps, spaw
       rootCwd,
       worktreeCwd: worktree.cwd,
       deps,
-      spawnFn
+      spawnFn,
+      log,
+      onProgress
     })
     const verification = await finalizeBehavior({
       runner,
       source,
       rationale: group.rationale ?? candidate.rationale ?? '',
       worktreeCwd: worktree.cwd,
-      deps
+      baseline,
+      deps,
+      spawnFn,
+      log,
+      onProgress
     })
+    onProgress('Git validation')
     const unresolved = unresolvedFiles(worktree.cwd, spawnFn)
     if (unresolved.length > 0) throw new Error(`Нерозв'язані конфлікти: ${unresolved.join(', ')}`)
     git(['diff', '--check'], worktree.cwd, spawnFn)
     git(['add', '-A'], worktree.cwd, spawnFn)
-    const staged = git(['diff', '--cached', '--quiet'], worktree.cwd, spawnFn, {
-      allowFailure: true
-    }).status !== 0
+    const staged =
+      git(['diff', '--cached', '--quiet'], worktree.cwd, spawnFn, {
+        allowFailure: true
+      }).status !== 0
     if (staged) git(['commit', '-m', group.title], worktree.cwd, spawnFn)
     const ahead = Number(git(['rev-list', '--count', `${BASE_REF}..HEAD`], worktree.cwd, spawnFn).stdout.trim())
     if (!ahead) throw new Error('Після reconciliation немає змін відносно origin/main')
 
-    const changelog = run(
-      'npx',
-      ['@7n/rules', 'lint', 'changelog', '--no-fix'],
-      worktree.cwd,
-      spawnFn,
-      { allowFailure: true }
-    )
+    const changelog = run('npx', ['@7n/rules', 'lint', 'changelog', '--no-fix'], worktree.cwd, spawnFn, {
+      allowFailure: true
+    })
     if (changelog.status !== 0) {
       throw new Error(`changelog gate: ${changelog.stderr || changelog.stdout}`)
     }
     git(['diff', '--check', `${BASE_REF}...HEAD`], worktree.cwd, spawnFn)
+    onProgress('push')
     git(['push', '-u', 'origin', worktree.branch], worktree.cwd, spawnFn)
 
+    onProgress('create PR')
     const body = [
       `Джерело: \`${source}\`.`,
       '',
@@ -588,6 +1013,7 @@ async function createPullRequest({ candidate, group, runner, rootCwd, deps, spaw
       worktree.cwd,
       spawnFn
     ).stdout.trim()
+    onProgress('remove worktree')
     run('npx', ['@7n/mt', 'worktree', 'remove', worktree.branch], rootCwd, spawnFn, {
       allowFailure: true
     })
@@ -613,8 +1039,8 @@ async function createPullRequest({ candidate, group, runner, rootCwd, deps, spaw
 export function cleanupSource(candidate, rootCwd, spawnFn = spawnSync) {
   try {
     if (candidate.source.startsWith(SOURCE_STASH_PREFIX)) {
-      const rows = git(['stash', 'list', '--format=%gd%x00%H'], rootCwd, spawnFn).stdout
-        .split('\n')
+      const rows = git(['stash', 'list', '--format=%gd%x00%H'], rootCwd, spawnFn)
+        .stdout.split('\n')
         .filter(Boolean)
         .map(line => line.split('\0'))
       const row = rows.find(([, oid]) => oid === candidate.oid)
@@ -648,19 +1074,20 @@ export function formatReport({ inventory, results }) {
   const lines = ['## git-reconcile: підсумок']
   for (const branch of inventory.branches) {
     if (branch.state === 'review') continue
-    const suffix = branch.pr?.url ? ` — ${branch.pr.url}` : branch.worktree ? ` — ${branch.worktree}` : ''
-    const cleanup = branch.cleanup ? `; cleanup=${branch.cleanup.status}` : ''
+    let suffix = ''
+    if (branch.pr?.url) suffix = ` — ${branch.pr.url}`
+    else if (branch.worktree) suffix = ` — ${branch.worktree}`
+    const cleanupOid = branch.oid ? `; oid=${branch.oid}` : ''
+    const cleanup = branch.cleanup ? `; cleanup=${branch.cleanup.status}${cleanupOid}` : ''
     lines.push(`- \`${branch.name}\`: ${branch.state}${cleanup}${suffix}`)
   }
   for (const result of results) {
-    const suffix = result.url
-      ? ` — ${result.url}`
-      : result.error
-        ? ` — ${result.error}`
-        : result.rationale
-          ? ` — ${result.rationale}`
-          : ''
-    const cleanup = result.cleanup ? `; cleanup=${result.cleanup.status}` : ''
+    let suffix = ''
+    if (result.url) suffix = ` — ${result.url}`
+    else if (result.error) suffix = ` — ${result.error}`
+    else if (result.rationale) suffix = ` — ${result.rationale}`
+    const cleanupOid = result.oid ? `; oid=${result.oid}` : ''
+    const cleanup = result.cleanup ? `; cleanup=${result.cleanup.status}${cleanupOid}` : ''
     lines.push(`- \`${result.source}\`: ${result.status}${cleanup}${suffix}`)
   }
   for (const warning of inventory.warnings) lines.push(`- ⚠️ ${warning}`)
@@ -668,9 +1095,190 @@ export function formatReport({ inventory, results }) {
 }
 
 /**
+ * Повертає fail-closed keep-рішення для всього batch.
+ * @param {Array<object>} batch candidates
+ * @param {string} error validation/runner error
+ * @returns {Array<object>} keep decisions
+ */
+function failedTriageDecisions(batch, error) {
+  return batch.map(candidate => ({
+    source: candidate.source,
+    action: 'keep',
+    rationale: `LLM triage failed: ${error}`,
+    incomplete: true,
+    groups: []
+  }))
+}
+
+/**
+ * Виконує min→validation→max triage по bounded batches.
+ * @param {object} args orchestration context
+ * @returns {Promise<Array<object>>} decisions
+ */
+async function triageCandidates(args) {
+  const { candidates, runner, task, rootCwd, deps, log, progress } = args
+  const decisions = []
+  for (let offset = 0; offset < candidates.length; offset += REVIEW_BATCH_SIZE) {
+    const batch = candidates.slice(offset, offset + REVIEW_BATCH_SIZE)
+    const key = `triage-${offset}`
+    const detail = `${offset + 1}-${offset + batch.length}/${candidates.length}`
+    progress.step(key, detail)
+    let outcome
+    try {
+      outcome = await callWithValidatedFallback({
+        runner,
+        prompt: buildTriagePrompt(batch, task),
+        cwd: rootCwd,
+        deps,
+        log,
+        label: `triage ${detail}`,
+        onAttempt: ({ tier }) => progress.step(key, detail, tier),
+        validate: result => validateTriageOutcome(result, batch)
+      })
+    } finally {
+      progress.done(key)
+    }
+    if (outcome.ok) decisions.push(...outcome.validation.value.decisions)
+    else decisions.push(...failedTriageDecisions(batch, outcome.error))
+  }
+  return decisions
+}
+
+/**
+ * Матеріалізує одне triage-рішення у report results.
+ * @param {object} args orchestration context
+ * @returns {Promise<Array<object>>} results одного source
+ */
+async function materializeDecision(args) {
+  const { decision, candidate, runner, rootCwd, deps, spawnFn, log, createPr, progress, prState } = args
+  if (decision.action !== 'pr') {
+    return [
+      {
+        source: decision.source,
+        status: decision.action === 'drop' ? 'drop-recommended' : 'kept',
+        rationale: decision.rationale ?? '',
+        ...(decision.incomplete === true && { incomplete: true }),
+        ...(candidate.oid && { oid: candidate.oid })
+      }
+    ]
+  }
+
+  const results = []
+  for (const group of decision.groups) {
+    prState.index += 1
+    const key = `pr-${prState.index}`
+    const prefix = `${prState.index}/${prState.total} · ${decision.source}`
+    progress.step(key, `${prefix} · worktree`)
+    try {
+      const result = await createPr({
+        candidate: { ...candidate, rationale: decision.rationale },
+        group,
+        runner,
+        rootCwd,
+        deps,
+        spawnFn,
+        log,
+        onProgress: (step, tier) => progress.step(key, `${prefix} · ${step}`, tier)
+      })
+      results.push({
+        source: decision.source,
+        ...(candidate.oid && { oid: candidate.oid }),
+        ...result
+      })
+    } finally {
+      progress.done(key)
+    }
+  }
+  return results
+}
+
+/**
+ * Перетворює всі validated decisions у PR/keep/drop results.
+ * @param {object} args orchestration context
+ * @returns {Promise<{bySource:Map<string,object>,results:Array<object>}>} materialized state
+ */
+async function materializeDecisions(args) {
+  const { decisions, candidates } = args
+  const bySource = new Map(candidates.map(candidate => [candidate.source, candidate]))
+  const results = []
+  for (const decision of decisions) {
+    const candidate = bySource.get(decision.source)
+    if (!candidate) continue
+    results.push(...(await materializeDecision({ ...args, decision, candidate })))
+  }
+  return { bySource, results }
+}
+
+/**
+ * Прибирає Git-доведені merged/patch-equivalent branches.
+ * @param {object} args cleanup context
+ */
+function cleanupInactiveBranches(args) {
+  const { inventory, cleanup, rootCwd, spawnFn, progress, cleanupState } = args
+  for (const branch of inventory.branches) {
+    const inactive = ['merged', 'patch-equivalent'].includes(branch.state)
+    if (inactive && !branch.worktree && !branch.pr) {
+      cleanupState.index += 1
+      const key = `cleanup-${cleanupState.index}`
+      progress.step(key, branch.source)
+      try {
+        branch.cleanup = cleanup(branch, rootCwd, spawnFn)
+      } finally {
+        progress.done(key)
+      }
+    }
+  }
+}
+
+/**
+ * Прибирає source лише після drop або успіху всіх його PR groups.
+ * @param {object} args cleanup context
+ */
+function cleanupMaterializedSources(args) {
+  const { bySource, results, cleanup, rootCwd, spawnFn, progress, cleanupState } = args
+  for (const [source, candidate] of bySource) {
+    const sourceResults = results.filter(result => result.source === source)
+    const dropped = sourceResults.some(result => result.status === 'drop-recommended')
+    const allPrCreated = sourceResults.length > 0 && sourceResults.every(result => result.status === 'pr-created')
+    if (!dropped && !allPrCreated) continue
+    cleanupState.index += 1
+    const key = `cleanup-${cleanupState.index}`
+    progress.step(key, source)
+    try {
+      const cleanupResult = cleanup(candidate, rootCwd, spawnFn)
+      for (const result of sourceResults) result.cleanup = cleanupResult
+    } finally {
+      progress.done(key)
+    }
+  }
+}
+
+/**
+ * Рахує точний cleanup total після завершення PR-фази.
+ * @param {object} inventory Git inventory
+ * @param {Map<string,object>} bySource review sources
+ * @param {Array<object>} results результати PR-фази
+ * @returns {number} кількість sources
+ */
+function countCleanupSources(inventory, bySource, results) {
+  const inactive = inventory.branches.filter(branch => {
+    return ['merged', 'patch-equivalent'].includes(branch.state) && !branch.worktree && !branch.pr
+  }).length
+  const reviewed = bySource
+    .keys()
+    .filter(source => {
+      const sourceResults = results.filter(result => result.source === source)
+      const dropped = sourceResults.some(result => result.status === 'drop-recommended')
+      const allPrCreated = sourceResults.length > 0 && sourceResults.every(result => result.status === 'pr-created')
+      return dropped || allPrCreated
+    })
+    .toArray().length
+  return inactive + reviewed
+}
+
+/**
  * JS-оркестратор: inventory → bounded LLM triage → deterministic PR pipeline.
- * Нічого не видаляє; `drop` є лише рекомендацією у звіті.
- * @param {{cwd?:string,runner?:'pi'|'cursor'|'codex',task?:string,log?:(line:string)=>void,deps?:object}} [options] опції
+ * @param {{cwd?:string,runner?:'pi'|'cursor'|'codex',task?:string,log?:(line:string)=>void,isTTY?:boolean,deps?:object}} [options] опції
  * @returns {Promise<{ok:boolean,report:string,inventory:object,results:Array<object>}>} результат
  */
 export async function runGitReconcileOrchestrator(options = {}) {
@@ -680,97 +1288,116 @@ export async function runGitReconcileOrchestrator(options = {}) {
   const log = options.log ?? (line => console.log(line))
   const deps = options.deps ?? {}
   const spawnFn = deps.spawnFn ?? spawnSync
-  const call = deps.callRunner ?? callRunner
   const inventoryFn = deps.inventoryRepository ?? inventoryRepository
   const createPr = deps.createPullRequest ?? createPullRequest
   const cleanup = deps.cleanupSource ?? cleanupSource
+  const reporterFactory = deps.createProgressReporter ?? createProgressReporter
+  const isTTY = options.isTTY ?? process.stdout.isTTY === true
+  const now = deps.now ?? (() => performance.now())
+
+  const inventoryStartedAt = now()
+  log('⏳ 1/4 inventory')
   const inventory = inventoryFn(rootCwd, { spawnFn })
   const candidates = [...inventory.branches, ...inventory.stashes].filter(item => item.state === 'review')
-  const decisions = []
+  log(
+    `✅ 1/4 inventory · ${elapsedLabel(inventoryStartedAt, now)} · ${inventory.branches.length} branches · ${inventory.stashes.length} stash`
+  )
 
-  for (let offset = 0; offset < candidates.length; offset += REVIEW_BATCH_SIZE) {
-    const batch = candidates.slice(offset, offset + REVIEW_BATCH_SIZE)
-    log(`🧠 semantic triage ${offset + 1}-${offset + batch.length}/${candidates.length}`)
-    const outcome = await call(runner, buildTriagePrompt(batch, task), rootCwd, deps)
-    if (!outcome.ok) {
-      for (const candidate of batch) {
-        decisions.push({
-          source: candidate.source,
-          action: 'keep',
-          rationale: `LLM triage failed: ${outcome.error}`,
-          groups: []
-        })
-      }
-      continue
-    }
-    const envelope = parseDecisionEnvelope(outcome.text)
-    const returned = Array.isArray(envelope?.decisions) ? envelope.decisions : []
-    const bySource = new Map(returned.map(decision => [decision.source, decision]))
-    for (const candidate of batch) {
-      const decision = bySource.get(candidate.source)
-      decisions.push(
-        decision && ['pr', 'keep', 'drop'].includes(decision.action)
-          ? decision
-          : { source: candidate.source, action: 'keep', rationale: 'Невалідна LLM-відповідь', groups: [] }
-      )
-    }
+  const triageTotal = Math.ceil(candidates.length / REVIEW_BATCH_SIZE)
+  const triageProgress = createPhaseProgress({
+    total: triageTotal,
+    unitLabel: 'triage-пакетів',
+    phase: '2/4 triage',
+    log,
+    isTTY,
+    reporterFactory
+  })
+  const triageStartedAt = now()
+  let decisions
+  try {
+    decisions = await triageCandidates({
+      candidates,
+      runner,
+      task,
+      rootCwd,
+      deps,
+      log,
+      progress: triageProgress
+    })
+  } finally {
+    triageProgress.stop()
   }
+  log(`✅ 2/4 triage · ${elapsedLabel(triageStartedAt, now)} · ${triageTotal} batches`)
 
-  const bySource = new Map(candidates.map(candidate => [candidate.source, candidate]))
-  const results = []
-  for (const decision of decisions) {
-    const candidate = bySource.get(decision.source)
-    if (!candidate) continue
-    if (decision.action !== 'pr') {
-      results.push({
-        source: decision.source,
-        status: decision.action === 'drop' ? 'drop-recommended' : 'kept',
-        rationale: decision.rationale ?? ''
-      })
-      continue
-    }
-    const groups = Array.isArray(decision.groups) ? decision.groups : []
-    if (groups.length === 0) {
-      results.push({
-        source: decision.source,
-        status: 'kept',
-        error: 'LLM позначила pr без groups'
-      })
-      continue
-    }
-    for (const group of groups) {
-      results.push(
-        await createPr({
-          candidate: { ...candidate, rationale: decision.rationale },
-          group,
-          runner,
-          rootCwd,
-          deps,
-          spawnFn,
-          log
-        }).then(result => ({ source: decision.source, ...result }))
-      )
-    }
+  const prTotal = decisions.reduce((total, decision) => {
+    return total + (decision.action === 'pr' && Array.isArray(decision.groups) ? decision.groups.length : 0)
+  }, 0)
+  const prProgress = createPhaseProgress({
+    total: prTotal,
+    unitLabel: 'PR-груп',
+    phase: '3/4 PR',
+    log,
+    isTTY,
+    reporterFactory
+  })
+  const prStartedAt = now()
+  const prState = { index: 0, total: prTotal }
+  let materialized
+  try {
+    materialized = await materializeDecisions({
+      decisions,
+      candidates,
+      runner,
+      rootCwd,
+      deps,
+      spawnFn,
+      log,
+      createPr,
+      progress: prProgress,
+      prState
+    })
+  } finally {
+    prProgress.stop()
   }
+  log(`✅ 3/4 PR · ${elapsedLabel(prStartedAt, now)} · ${prTotal} groups`)
 
-  for (const branch of inventory.branches) {
-    if (['merged', 'patch-equivalent'].includes(branch.state) && !branch.worktree && !branch.pr) {
-      branch.cleanup = cleanup(branch, rootCwd, spawnFn)
-    }
+  const { bySource, results } = materialized
+  const cleanupCount = countCleanupSources(inventory, bySource, results)
+  const cleanupProgress = createPhaseProgress({
+    total: cleanupCount,
+    unitLabel: 'джерел',
+    phase: '4/4 cleanup',
+    log,
+    isTTY,
+    reporterFactory
+  })
+  const cleanupStartedAt = now()
+  const cleanupState = { index: 0 }
+  try {
+    cleanupInactiveBranches({
+      inventory,
+      cleanup,
+      rootCwd,
+      spawnFn,
+      progress: cleanupProgress,
+      cleanupState
+    })
+    cleanupMaterializedSources({
+      bySource,
+      results,
+      cleanup,
+      rootCwd,
+      spawnFn,
+      progress: cleanupProgress,
+      cleanupState
+    })
+  } finally {
+    cleanupProgress.stop()
   }
-  for (const [source, candidate] of bySource) {
-    const sourceResults = results.filter(result => result.source === source)
-    const shouldRemove =
-      sourceResults.some(result => result.status === 'drop-recommended') ||
-      (sourceResults.length > 0 && sourceResults.every(result => result.status === 'pr-created'))
-    if (shouldRemove) {
-      const cleanupResult = cleanup(candidate, rootCwd, spawnFn)
-      for (const result of sourceResults) result.cleanup = cleanupResult
-    }
-  }
+  log(`✅ 4/4 cleanup · ${elapsedLabel(cleanupStartedAt, now)} · ${cleanupCount} sources`)
 
   const report = formatReport({ inventory, results })
   log(report)
-  const ok = results.every(result => result.status !== 'failed')
+  const ok = results.every(result => result.status !== 'failed' && result.incomplete !== true)
   return { ok, report, inventory, results }
 }

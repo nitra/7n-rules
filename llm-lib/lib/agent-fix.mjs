@@ -106,10 +106,11 @@ function astUnavailable() {
  * джерелом правди — тут лише рання й точніша петля всередині рунга.
  * @param {{ session: object, verify: (args: { touchedFiles: string[] }) => Promise<{ ok: boolean, output?: string }> | { ok: boolean, output?: string },
  *   verifyMax: number, timeoutMs: number, startedAt: number, clock: () => number,
- *   guard: { touchedFiles: () => string[] }, fixPrompt: string }} args контекст петлі.
+ *   guard: { touchedFiles: () => string[] }, fixPrompt: string,
+ *   getTransportError: () => string|null }} args контекст петлі.
  * @returns {Promise<{ verifyAttempts: Array<{ ok: boolean, infra?: boolean }>, error: string|null }>} результат петлі.
  */
-async function runVerifyLoop({ session, verify, verifyMax, timeoutMs, startedAt, clock, guard, fixPrompt }) {
+async function runVerifyLoop({ session, verify, verifyMax, timeoutMs, startedAt, clock, guard, fixPrompt, getTransportError }) {
   const verifyAttempts = []
   for (let attempt = 0; ; attempt++) {
     let evidence
@@ -137,6 +138,8 @@ async function runVerifyLoop({ session, verify, verifyMax, timeoutMs, startedAt,
       failOnMemoryGuard(promptError.message, fixPrompt)
       return { verifyAttempts, error: promptError.message }
     }
+    const transportError = getTransportError()
+    if (transportError) return { verifyAttempts, error: transportError }
   }
 }
 
@@ -414,6 +417,7 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
   let turnCount = 0
   let toolCallCount = 0
   let backstopHit = false
+  let transportError = null
   session.subscribe(event => {
     switch (event.type) {
       case 'turn_start': {
@@ -435,9 +439,16 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
       }
       case 'message_end': {
         const t = turns.at(-1)
-        if (t && event.message?.usage) {
-          t.usage = event.message.usage
-          t.finish = event.message.stopReason ?? null
+        if (t) {
+          t.usage = event.message?.usage ?? null
+          t.finish = event.message?.stopReason ?? null
+        }
+        if (event.message?.stopReason === 'error') {
+          const messageError = event.message.errorMessage
+          transportError ??=
+            typeof messageError === 'string' && messageError.trim()
+              ? messageError
+              : 'LLM transport завершився з помилкою без повідомлення'
         }
         break
       }
@@ -466,11 +477,22 @@ export async function runAgentFix(ruleId, violation, cwd, opts = {}) {
     error = promptError.message
     failOnMemoryGuard(error, fixPrompt)
   }
+  if (!error && transportError) error = transportError
 
   // Evidence-гейт: verify → (не ok) → фідбек у ТУ САМУ сесію (див. runVerifyLoop).
   let verifyAttempts = []
   if (verify && !error) {
-    const loop = await runVerifyLoop({ session, verify, verifyMax, timeoutMs, startedAt, clock, guard, fixPrompt })
+    const loop = await runVerifyLoop({
+      session,
+      verify,
+      verifyMax,
+      timeoutMs,
+      startedAt,
+      clock,
+      guard,
+      fixPrompt,
+      getTransportError: () => transportError
+    })
     verifyAttempts = loop.verifyAttempts
     error = loop.error
   }

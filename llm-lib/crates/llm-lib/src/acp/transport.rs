@@ -27,6 +27,12 @@ use agent_client_protocol::{AcpAgent, Error as AcpError, SessionMessage};
 
 use crate::LlmError;
 
+/// `npm exec --package=...` експортує цю службову змінну в дочірні процеси.
+/// Якщо ACP-команда сама запускається через `npx`, успадковане значення
+/// підміняє її package selector: замість `@agentclientprotocol/*-acp`
+/// вкладений `npx` намагається виконати package зовнішнього `npm exec`.
+const NPM_CONFIG_PACKAGE: &str = "npm_config_package";
+
 /// Idle-timeout — без жодної `session/update`-події від агента, не загальна
 /// тривалість ходу (реальний хід законно триває довго, поки регулярно щось
 /// відбувається). Захист від протокольного/агентського зависання: без нього
@@ -53,7 +59,12 @@ pub(crate) fn build_acp_args(
     extra_args: &[String],
     extra_env: &HashMap<String, String>,
 ) -> Vec<String> {
-    let mut argv: Vec<String> = extra_env.iter().map(|(k, v)| format!("{k}={v}")).collect();
+    let nested_npx = command.split_whitespace().next() == Some("npx");
+    let mut argv = Vec::new();
+    if nested_npx && !extra_env.contains_key(NPM_CONFIG_PACKAGE) {
+        argv.push(format!("{NPM_CONFIG_PACKAGE}="));
+    }
+    argv.extend(extra_env.iter().map(|(k, v)| format!("{k}={v}")));
     argv.extend(command.split_whitespace().map(str::to_string));
     argv.extend(extra_args.iter().cloned());
     argv
@@ -243,6 +254,7 @@ mod tests {
         assert_eq!(
             args,
             vec![
+                "npm_config_package=",
                 "CODEX_CONFIG=model=\"sol\"",
                 "npx",
                 "-y",
@@ -256,6 +268,42 @@ mod tests {
     fn build_acp_args_with_no_env_or_extra_args_splits_only_the_command() {
         let args = build_acp_args("agent acp", &[], &HashMap::new());
         assert_eq!(args, vec!["agent", "acp"]);
+    }
+
+    #[test]
+    fn build_acp_args_sanitizes_parent_package_for_nested_npx() {
+        let args = build_acp_args(
+            "npx -y @agentclientprotocol/codex-acp@latest",
+            &[],
+            &HashMap::new(),
+        );
+        assert_eq!(
+            args,
+            vec![
+                "npm_config_package=",
+                "npx",
+                "-y",
+                "@agentclientprotocol/codex-acp@latest",
+            ]
+        );
+    }
+
+    #[test]
+    fn build_acp_args_preserves_explicit_nested_npx_package_override() {
+        let mut env = HashMap::new();
+        env.insert(
+            NPM_CONFIG_PACKAGE.to_string(),
+            "@agentclientprotocol/custom-acp".to_string(),
+        );
+        let args = build_acp_args("npx custom-acp", &[], &env);
+        assert_eq!(
+            args,
+            vec![
+                "npm_config_package=@agentclientprotocol/custom-acp",
+                "npx",
+                "custom-acp",
+            ]
+        );
     }
 
     #[test]
