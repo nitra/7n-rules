@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.49.13] - 2026-07-26
+
+### Fixed
+
+- Виправлено фактичний шлях worktree, setup failure і spawnSync-діагностику в git-reconcile
+- pass coverage mutation verdict feedback to the next ladder rung
+
 ## [1.49.12] - 2026-07-26
 
 ### Fixed

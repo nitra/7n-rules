@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.22.11] - 2026-07-26
+
+### Added
+
+- Додано постійне taze-виключення для підтверджених peer-перешкод major-оновлень
+
+### Fixed
+
+- verify generated coverage tests with Stryker
+
 ## [0.22.10] - 2026-07-26
 
 ### Changed
