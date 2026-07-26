@@ -20,6 +20,7 @@ resource: npm/scripts/lib/
 | [ensure-tool.mjs](ensure-tool.md)                                           | JS Module |
 | [generated-markdown.mjs](generated-markdown.md)                             | JS Module |
 | [gha-workflow.mjs](gha-workflow.md)                                         | JS Module |
+| [git-policy.mjs](git-policy.md)                                             | JS Module |
 | [glob-to-regex.mjs](glob-to-regex.md)                                       | JS Module |
 | [inline-template-links.mjs](inline-template-links.md)                       | JS Module |
 | [js-source-signals.mjs](js-source-signals.md)                               | JS Module |
