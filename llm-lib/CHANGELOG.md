@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.9.7] - 2026-07-26
+
+### Fixed
+
+- ACP semantic idle timeout більше не подовжується шумними progress events.
+
 ## [2.9.6] - 2026-07-26
 
 ### Fixed

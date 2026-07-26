@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.12] - 2026-07-26
+
+### Fixed
+
+- Git-reconcile отримав ANSI-free progress, heartbeat, canonical fixer pass і bounded parallel PR jobs.
+
 ## [1.49.11] - 2026-07-26
 
 ### Fixed
