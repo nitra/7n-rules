@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.9] - 2026-07-26
+
+### Changed
+
+- Add configurable Git delta policy
+
 ## [1.49.8] - 2026-07-26
 
 ### Changed
