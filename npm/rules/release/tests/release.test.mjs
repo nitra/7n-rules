@@ -156,6 +156,40 @@ describe('release', () => {
     })
   })
 
+  test('@7n/rules отримує точну нову @7n/llm-lib версію при спільному релізі', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+        workspaces: ['llm-lib', 'npm']
+      })
+      for (const [ws, pkg] of [
+        ['llm-lib', { name: '@7n/llm-lib', version: '2.9.1', files: ['CHANGELOG.md'] }],
+        [
+          'npm',
+          {
+            name: '@7n/rules',
+            version: '1.49.1',
+            files: ['CHANGELOG.md'],
+            dependencies: { '@7n/llm-lib': '2.9.1' }
+          }
+        ]
+      ]) {
+        await mkdir(join(dir, ws, '.changes'), { recursive: true })
+        await writeJson(join(dir, ws, 'package.json'), pkg)
+        await writeFile(join(dir, ws, 'CHANGELOG.md'), '# Changelog\n')
+        await writeFile(join(dir, ws, '.changes', '1.md'), '---\nbump: patch\nsection: Fixed\n---\nfix\n')
+      }
+
+      await release({ cwd: dir, date: '2026-07-26', runGit: () => Promise.resolve('') })
+
+      const rules = JSON.parse(await readFile(join(dir, 'npm', 'package.json'), 'utf8'))
+      expect(rules.version).toBe('1.49.2')
+      expect(rules.dependencies['@7n/llm-lib']).toBe('2.9.2')
+    })
+  })
+
   test('fallback через release(): немає change-файлів, але є коміти → синтез + тег, без помилки rm', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.0.0', files: ['CHANGELOG.md'] })

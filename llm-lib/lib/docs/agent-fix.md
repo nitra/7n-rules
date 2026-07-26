@@ -3,25 +3,41 @@ type: JS Module
 title: agent-fix.mjs
 resource: llm-lib/lib/agent-fix.mjs
 docgen:
-  crc: 907ba309
+  crc: 73c7797b
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
-  score: 55
-  issues: no-overview,short-behavior,best-of-2:retry-lost
+  score: 90
+  issues: internal-name:runVerifyLoop,judge-refine:kept-original,judge:inaccurate:0.98
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
+
+## Огляд
+
+`buildVerifyFeedbackPrompt`, `buildFixPrompt` і `runAgentFix` описують локальний agent-fix цикл: перші дві функції формують промпти для перевірки та виправлення, а `runAgentFix` запускає саму спробу правки. Це потрібно, щоб тримати зміни в межах заданого `violation` і пов’язаного контексту та віддавати керований результат для подальшого кроку.
+
+Усі публічні точки входу працюють fail-safe: помилки перехоплюються всередині, назовні винятки не виходять.
+
+## Поведінка
+
+Поточний `violation` стає джерелом правди для стартового fix-пrompt, а `ruleText`, `feedback`, `targetFiles`, `sourceFiles` і `editMode` лише уточнюють межі та контекст правки. `buildFixPrompt` формує жорстко обмежений запит на механічні зміни, щоб агент не розмивав помилку семантичними “виправленнями” поза дозволеними файлами; далі цей prompt передається в ту саму сесію, де виконуються правки, і після цього запускається внутрішня verify-петля.
+
+`runAgentFix` оркеструє один рунг від старту до завершення: створює сесію, дає їй prompt для правки, збирає результати редагування, а потім передає контроль у verify-loop. Якщо перевірка повертає порушення, `buildVerifyFeedbackPrompt` перетворює їх на фідбек для тієї ж сесії, щоб ітерація була локальною і не втрачала вже зроблені зміни.
+
+`runVerifyLoop` зупиняється лише коли перевірка стає ok, вичерпується ліміт спроб або закінчується спільний time budget рунга; він не заводить нові таймери й не маскує помилки самої перевірки. Якщо перевірка падає як інфраструктура, це повертається як помилка без спалювання ітерацій. Фінальний результат `runAgentFix` завжди fail-safe: або застосована правка з переліком touched files і telemetry, або контрольована помилка з можливістю rollback.
 
 ## Публічний API
 
 - buildVerifyFeedbackPrompt — Будує фідбек-prompt verify-ітерації: точний вивід canonical-перевірки + нагадування
-обмежень (той самий semantic-collateral guard, що й у buildFixPrompt).
+  обмежень (той самий semantic-collateral guard, що й у buildFixPrompt).
 - buildFixPrompt — Будує fix-промпт для рунга: правило + порушення + (опц.) target-файли + (опц.) feedback
-попереднього провалу + жорсткий блок обмежень (лише механічні зміни) + інструкція
-«ast_facts перед edit, self_check після».
+  попереднього провалу + жорсткий блок обмежень (лише механічні зміни) + інструкція
+  «ast_facts перед edit, self_check після».
 
 Блок обмежень — перший шар semantic-collateral guard (спека pi-migration §12,
 addendum 2026-07-05): слабкі локальні моделі схильні «виправляти» правило семантичною
 правкою (хардкод значення, симуляція поведінки) — промпт явно це забороняє, а
 verdict-veto consumer-а (re-check) відхиляє такі правки поза target-файлами.
+
 - runAgentFix — Проводить ОДНУ агентну fix-спробу (рунг) для правила.
 
 ## Гарантії поведінки
