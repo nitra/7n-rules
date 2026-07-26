@@ -1,7 +1,8 @@
 /**
  * Тести для taze/provider.mjs:
  *   - форма EcosystemProvider (валідна за assertEcosystemProvider ядра);
- *   - buildDependencyPrompt: промпт містить пакет/версії, лише кроки 4-6;
+ *   - buildDependencyPrompt: промпт містить пакет/версії та інструкцію для
+ *     ідемпотентного taze-виключення лише за підтвердженої peer-перешкоди;
  *   - backupWorkspacePackageFiles/cleanupWorkspaceBackups: реальні tmp-файли;
  *   - bump: bunx taze + bun install, throw на провалі;
  *   - diff: мапінг workspace → manifest (контракт порту);
@@ -94,6 +95,20 @@ describe('buildDependencyPrompt', () => {
     expect(prompt).toContain('^17.0.0 → ^18.0.0')
     expect(prompt).toContain('breaking changes')
     expect(prompt).not.toContain('bunx taze')
+  })
+
+  test('для підтвердженої peer-перешкоди описує ідемпотентний taze-виключення', () => {
+    const prompt = buildDependencyPrompt({ manifest: 'npm', pkg: 'graphql', from: '^16.14.2', to: '^17.0.0' })
+
+    expect(prompt).toContain('taze.config.ts')
+    expect(prompt).toContain("'graphql': 'ignore'")
+    expect(prompt).toContain('peerDependencies')
+    expect(prompt).toContain('не дублюй')
+    expect(prompt).toContain('^16.14.2')
+    expect(prompt).toContain('bun install')
+    expect(prompt).toContain('Безпосередньо над записом залиш коментар')
+    expect(prompt).toContain('URL його package.json/README')
+    expect(prompt).toContain('НЕ додавай taze-виключення')
   })
 })
 
