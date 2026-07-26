@@ -93,8 +93,8 @@ export function batchSurvived(survived, budget) {
  * @property {string} [model] "provider/model-id" ladder-а (ctx.model); без нього — MODEL-фолбек
  * @property {string} [tier] поточний rung ladder-а (ctx.tier) — thinking-level і caller-мітка
  * @property {number} [timeoutMs] бюджет часу на ВЕСЬ прогін — кожен batch отримує залишок
- * @property {{requestedMs:number|null,workerDeadlineMs:number|null,effectiveHookTimeoutMs:number|null}} [coverageTimeout]
- *   timeout-и worker-а: початковий rung, його 80%-deadline та фактичний бюджет хука
+ * @property {{requestedMs:number|null,workerDeadlineMs:number|null,effectiveHookTimeoutMs:number|null,survivedBatchesPerRung?:number}} [coverageTimeout]
+ *   timeout-и worker-а та policy кількості survived batch-ів на rung
  * @property {(absPath: string) => void} [recordWrite] реєстрація записів агента для central rollback
  * @property {object} [chain] chain handle concern-а — кожен batch стає кроком ланцюжка
  * @property {object} [feedback] structured diagnosis попереднього rung-а
@@ -110,13 +110,13 @@ export function batchSurvived(survived, budget) {
  * @param {SurvivedFileGroup[]} survived вцілілі мутанти, згруповані по файлах
  * @param {string} projectRoot абсолютний шлях до кореня проєкту
  * @param {FixSurvivedOptions} [opts] ctx-поля ladder-а + інʼєкції для тестів
- * @returns {Promise<{fixed: string[], failed: {files: string[], error: string, diagnosis: object}[], touchedFiles: string[], batches: object[]}>} фактично змінені test-файли, failed batches, batch-діагностика і ті самі test-файли
+ * @returns {Promise<{fixed: string[], failed: {files: string[], error: string, diagnosis: object}[], deferred: object[], touchedFiles: string[], batches: object[]}>} фактично змінені test-файли, failed/deferred batch-и та діагностика
  */
 export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
   const totalMutants = survived.reduce((s, g) => s + g.mutants.length, 0)
   if (totalMutants === 0) {
     console.log('✓ Всі мутанти вбиті — доповнення тестів не потрібне')
-    return { fixed: [], failed: [], touchedFiles: [], batches: [] }
+    return { fixed: [], failed: [], deferred: [], touchedFiles: [], batches: [] }
   }
 
   const runFix = await resolveRunFix(opts)
@@ -129,33 +129,25 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
 
   const fixed = []
   const failed = []
+  const deferred = []
   const touchedFiles = []
   const batchDiagnostics = []
+  const maxBatches = opts.coverageTimeout?.survivedBatchesPerRung ?? batches.length
   for (const [i, batch] of batches.entries()) {
     const files = batch.map(g => g.file)
     const batchMutants = batch.reduce((s, g) => s + g.mutants.length, 0)
     const oversizedFiles = batch.filter(g => (g.sourceMutantCount ?? g.mutants.length) > budget).map(g => g.file)
     const oversizedSubBatch = batch.some(g => g.sourceMutantCount && g.mutants.length < g.sourceMutantCount)
-    if (deadlineAt && Date.now() >= deadlineAt) {
-      const diagnosis = batchDiagnosis({
-        i,
-        total: batches.length,
+    if (i >= maxBatches) {
+      const deferredBatch = {
+        batch: i + 1,
+        batchCount: batches.length,
         files,
-        batchMutants,
-        budget,
-        oversizedFiles,
-        oversizedSubBatch,
-        requestedTimeoutMs: opts.coverageTimeout?.requestedMs ?? opts.timeoutMs ?? null,
-        workerDeadlineMs: opts.coverageTimeout?.workerDeadlineMs ?? null,
-        effectiveTimeoutMs: 0,
-        wallMs: 0,
-        error: 'worker deadline exhausted before batch start'
-      })
-      batchDiagnostics.push(diagnosis)
-      const error = 'worker deadline exhausted before batch start'
-      console.error(`✗ batch ${i + 1}/${batches.length} не стартував: ${error}`)
-      console.error(`  ${formatBatchDiagnosis(diagnosis)}`)
-      failed.push({ files, error, diagnosis })
+        mutantCount: batchMutants,
+        reason: 'one survived-mutant batch per rung'
+      }
+      deferred.push(deferredBatch)
+      console.log(`  ⏭ batch ${i + 1}/${batches.length} deferred: ${deferredBatch.reason}`)
       continue
     }
     console.log(
@@ -194,6 +186,7 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
       requestedTimeoutMs,
       workerDeadlineMs,
       effectiveTimeoutMs,
+      survivedBatchesPerRung: opts.coverageTimeout?.survivedBatchesPerRung ?? null,
       wallMs: res.telemetry?.wallMs ?? Date.now() - startedAt,
       telemetry: res.telemetry,
       error,
@@ -212,9 +205,9 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
     touchedFiles.push(...writtenTests)
   }
 
-  logCoverageSummary(failed, fixed, batches)
+  logCoverageSummary(failed, deferred, fixed, batches)
 
-  return { fixed, failed, touchedFiles, batches: batchDiagnostics }
+  return { fixed, failed, deferred, touchedFiles, batches: batchDiagnostics }
 }
 
 /**
@@ -249,13 +242,17 @@ function resolveBatchError(res, unexpectedWrites, noOp) {
  * @param {object[]} batches діагностика всіх batch-ів
  * @returns {void}
  */
-function logCoverageSummary(failed, fixed, batches) {
+function logCoverageSummary(failed, deferred, fixed, batches) {
   if (failed.length > 0) {
-    console.log(`\n⚠️  coverage fix: ${fixed.length} test-файл(ів) змінено, ${failed.length} batch(ів) failed/no-op:`)
+    console.log(
+      `\n⚠️  coverage fix: ${batches.length - deferred.length} batch(ів) запущено, ${deferred.length} deferred, ${fixed.length} test-файл(ів) змінено, ${failed.length} batch(ів) failed/no-op:`
+    )
     for (const f of failed) console.log(`  ✗ ${f.files.join(', ')} — ${f.error}`)
     return
   }
-  console.log(`\n✓ coverage fix: усі ${batches.length} batch(ів) змінили ${fixed.length} test-файл(ів).`)
+  console.log(
+    `\n✓ coverage fix: ${batches.length - deferred.length} batch(ів) запущено, ${deferred.length} deferred, ${fixed.length} test-файл(ів) змінено.`
+  )
 }
 
 /**
@@ -272,6 +269,7 @@ function logCoverageSummary(failed, fixed, batches) {
  * @param {number|null} args.requestedTimeoutMs запитаний timeout для worker-а
  * @param {number|null} args.workerDeadlineMs deadline worker-а
  * @param {number|null} args.effectiveTimeoutMs timeout, реально переданий batch-у
+ * @param {number|null} [args.survivedBatchesPerRung=null] policy кількості agent batch-ів у rung
  * @param {number|null} args.wallMs тривалість batch-а
  * @param {object|null} [args.telemetry=null] telemetry `runAgentFix`
  * @param {string|null} [args.error=null] помилка batch-а
@@ -290,6 +288,7 @@ function batchDiagnosis({
   requestedTimeoutMs,
   workerDeadlineMs,
   effectiveTimeoutMs,
+  survivedBatchesPerRung = null,
   wallMs,
   telemetry = null,
   error = null,
@@ -315,6 +314,7 @@ function batchDiagnosis({
     requestedTimeoutMs,
     workerDeadlineMs,
     effectiveTimeoutMs,
+    survivedBatchesPerRung,
     wallMs,
     verdict: {
       turnCount: telemetry?.turnCount ?? 0,
@@ -339,7 +339,7 @@ function formatBatchDiagnosis(diagnosis) {
   return [
     `diagnosis: files=${diagnosis.sourceFileCount}, mutants=${diagnosis.mutantCount}, budget=${diagnosis.configuredBudget}`,
     `oversizedSourceFile=${diagnosis.oversizedSourceFile}, oversizedSubBatch=${diagnosis.oversizedSubBatch}, promptChars=${diagnosis.promptChars}`,
-    `timeout(requested/worker/effective)=${diagnosis.requestedTimeoutMs}/${diagnosis.workerDeadlineMs}/${diagnosis.effectiveTimeoutMs}ms`,
+    `timeout(requested/worker/effective)=${diagnosis.requestedTimeoutMs}/${diagnosis.workerDeadlineMs}/${diagnosis.effectiveTimeoutMs}ms; survivedBatchesPerRung=${diagnosis.survivedBatchesPerRung}`,
     `wallMs=${diagnosis.wallMs}`,
     `verdict(turns/tools/stops/error/testWrites/blocked/backstop)=${verdict.turnCount}/${verdict.toolCallCount}/${verdict.stopReasons.join(',') || '-'} / ${verdict.error ?? '-'} / ${verdict.allowedTestWrites}/${verdict.blockedWrites}/${verdict.backstopHit}`
   ].join('; ')
