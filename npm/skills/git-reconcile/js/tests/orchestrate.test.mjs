@@ -901,6 +901,63 @@ describe('runGitReconcileOrchestrator', () => {
     expect(result.results[0].worktree).toBe('/repo/.worktrees/reconcile-useful')
   })
 
+  test('worktree setup failure fail-closed лишає source і зберігає фактичний collision path та spawnSync ENOENT', async () => {
+    const cleanupCalls = []
+    const branch = 'codex/reconcile-fix-jwt-bridge-workspace-dockerfile-and'
+    const actualWorktree = `/repo/.worktrees/${branch}-2`
+    const result = await runGitReconcileOrchestrator({
+      cwd: '/repo',
+      log: noop,
+      deps: {
+        inventoryRepository: () => inventory({ stashes: [] }),
+        cleanupSource: candidate => {
+          cleanupCalls.push(candidate.source)
+          return { status: 'removed' }
+        },
+        callRunner: () =>
+          Promise.resolve({
+            ok: true,
+            error: null,
+            text: JSON.stringify({
+              decisions: [
+                {
+                  source: REVIEW_BRANCH.source,
+                  action: 'pr',
+                  groups: [{ title: 'Fix JWT bridge workspace Dockerfile and trailing separator', commits: ['abc123'] }]
+                }
+              ]
+            })
+          }),
+        spawnFn: (command, args, options) => {
+          if (command === 'git' && args[0] === 'show-ref') return { status: 1, stdout: '', stderr: '' }
+          if (command === 'git' && args[0] === 'ls-remote') return { status: 1, stdout: '', stderr: '' }
+          if (command === 'git' && args[0] === 'worktree') {
+            return {
+              status: 0,
+              stdout: ['worktree /repo', 'HEAD base', 'branch refs/heads/main', '', `worktree ${actualWorktree}`, 'HEAD base', `branch refs/heads/${branch}`, ''].join('\n'),
+              stderr: ''
+            }
+          }
+          if (command === 'git' && args[0] === 'switch') {
+            expect(options.cwd).toBe(actualWorktree)
+            return { status: null, stdout: '', stderr: '', error: Object.assign(new Error('spawnSync git ENOENT'), { code: 'ENOENT' }) }
+          }
+          return { status: 0, stdout: '', stderr: '' }
+        }
+      }
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.results[0]).toMatchObject({
+      source: REVIEW_BRANCH.source,
+      status: 'failed',
+      branch,
+      worktree: actualWorktree
+    })
+    expect(result.results[0].error).toContain('ENOENT')
+    expect(cleanupCalls).not.toContain(REVIEW_BRANCH.source)
+  })
+
   test('semantic patch-equivalent group не створює cleanup blocker', async () => {
     const cleaned = []
     const result = await runGitReconcileOrchestrator({
@@ -985,6 +1042,7 @@ describe('report helpers', () => {
   test('branchSlug обмежує ref до безпечного короткого slug', () => {
     expect(branchSlug('Fix: Привіт / API!!!')).toBe('fix-api')
     expect(branchSlug('***')).toBe('change')
+    expect(branchSlug('a'.repeat(39) + '!')).toBe('a'.repeat(39))
   })
 
   test('formatReport показує merged/protected/PR і warnings', () => {

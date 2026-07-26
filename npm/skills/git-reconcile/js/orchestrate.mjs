@@ -138,7 +138,7 @@ export function createPhaseProgress(args) {
  * @param {string} cwd робочий каталог
  * @param {typeof spawnSync} spawnFn інжект для тестів
  * @param {{ allowFailure?: boolean, input?: string }} [options] режим помилки та stdin
- * @returns {{ status: number, stdout: string, stderr: string }} результат
+ * @returns {{ status: number, stdout: string, stderr: string, error: string }} результат
  */
 function run(command, args, cwd, spawnFn, options = {}) {
   const childEnv = { ...env, GIT_EDITOR: 'true' }
@@ -153,11 +153,12 @@ function run(command, args, cwd, spawnFn, options = {}) {
   const normalized = {
     status: result.status ?? 1,
     stdout: result.stdout ?? '',
-    stderr: result.stderr ?? ''
+    stderr: result.stderr ?? '',
+    error: result.error ? `${result.error.name ?? 'Error'}${result.error.code ? ` ${result.error.code}` : ''}: ${result.error.message}` : ''
   }
   if (!options.allowFailure && normalized.status !== 0) {
     throw new Error(
-      `${command} ${args.join(' ')} → exit ${normalized.status}: ${normalized.stderr || normalized.stdout}`
+      `${command} ${args.join(' ')} → exit ${normalized.status}: ${normalized.stderr || normalized.stdout || normalized.error}`
     )
   }
   return normalized
@@ -666,6 +667,7 @@ export function branchSlug(value) {
     .replaceAll(/[^a-z0-9]+/g, '-')
     .replaceAll(/^-|-$/g, '')
     .slice(0, 40)
+    .replaceAll(/^-|-$/g, '')
   return slug || 'change'
 }
 
@@ -706,12 +708,22 @@ function chooseBranch(title, cwd, spawnFn) {
 function createReconcileWorktree(title, source, cwd, spawnFn) {
   const baseRef = policyBaseRef(cwd)
   const branch = chooseBranch(title, cwd, spawnFn)
-  run('npx', ['@7n/mt', 'worktree', 'create', branch, `git-reconcile: ${source}`], cwd, spawnFn)
-  const worktreeCwd = join(cwd, '.worktrees', branch.replaceAll('/', '-'))
-  git(['switch', '--detach', baseRef], worktreeCwd, spawnFn)
-  git(['branch', '-f', branch, baseRef], worktreeCwd, spawnFn)
-  git(['switch', branch], worktreeCwd, spawnFn)
-  return { branch, cwd: worktreeCwd }
+  let worktreeCwd
+  try {
+    run('npx', ['@7n/mt', 'worktree', 'create', branch, `git-reconcile: ${source}`], cwd, spawnFn)
+    const worktrees = parseWorktrees(git(['worktree', 'list', '--porcelain'], cwd, spawnFn).stdout)
+    worktreeCwd = worktrees.get(`refs/heads/${branch}`)
+    if (!worktreeCwd) throw new Error(`@7n/mt не зареєстрував worktree для ${branch}`)
+    git(['switch', '--detach', baseRef], worktreeCwd, spawnFn)
+    git(['branch', '-f', branch, baseRef], worktreeCwd, spawnFn)
+    git(['switch', branch], worktreeCwd, spawnFn)
+    return { branch, cwd: worktreeCwd }
+  } catch (error) {
+    const setupError = error instanceof Error ? error : new Error(String(error))
+    setupError.branch = branch
+    if (worktreeCwd) setupError.worktree = worktreeCwd
+    throw setupError
+  }
 }
 
 /**
@@ -1225,11 +1237,12 @@ async function createPullRequest(args) {
     return { status: 'kept', error: 'LLM не вибрала жодного валідного commit oid' }
   }
 
-  onProgress('worktree')
-  const worktree = createReconcileWorktree(group.title, source, rootCwd, spawnFn)
+  let worktree
   let createdPr
-  log(`🌿 ${source} → ${worktree.branch}`)
   try {
+    onProgress('worktree')
+    worktree = createReconcileWorktree(group.title, source, rootCwd, spawnFn)
+    log(`🌿 ${source} → ${worktree.branch}`)
     const sourceMayChangeCode = (candidate.changedFiles ?? []).some(path => SOURCE_CODE_RE.test(path))
     let baseline = null
     if (sourceMayChangeCode) {
@@ -1318,11 +1331,12 @@ async function createPullRequest(args) {
     removeReconcileWorktree(worktree, rootCwd, spawnFn)
     return { status: 'pr-created', url: createdPr, branch: worktree.branch }
   } catch (error) {
+    const setup = /** @type {{branch?:string,worktree?:string}} */ (error)
     return {
       status: 'failed',
       error: error instanceof Error ? error.message : String(error),
-      branch: worktree.branch,
-      worktree: worktree.cwd,
+      branch: worktree?.branch ?? setup.branch,
+      worktree: worktree?.cwd ?? setup.worktree,
       ...(createdPr && { url: createdPr })
     }
   }
