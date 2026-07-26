@@ -113,6 +113,15 @@ pub(crate) fn acp_verbose() -> bool {
     env::var("N_LLM_ACP_VERBOSE").is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
 
+/// Чи друкувати короткі non-text ACP progress events. Оркестратори з власним
+/// progress UI можуть вимкнути дубльований stderr через
+/// `N_LLM_ACP_PROGRESS=0`; verbose завжди має пріоритет.
+pub(crate) fn acp_progress_enabled() -> bool {
+    acp_verbose()
+        || !env::var("N_LLM_ACP_PROGRESS")
+            .is_ok_and(|v| v == "0" || v.eq_ignore_ascii_case("false"))
+}
+
 /// Один короткий рядок для non-text ACP-події — без `raw_input`/`raw_output`
 /// інструментів і без тексту чанків `AgentThoughtChunk`/`UserMessageChunk` (стрім по токенах).
 /// `N_LLM_ACP_VERBOSE=1` (`acp_verbose()`) повертає повний `{:?}` замість
@@ -194,7 +203,7 @@ where
                                 ..
                             })
                         );
-                        if !quiet_text_chunk && !is_agent_text_chunk {
+                        if acp_progress_enabled() && !quiet_text_chunk && !is_agent_text_chunk {
                             eprintln!("acp progress: {}", summarize_update(update));
                         }
                         on_update(update);

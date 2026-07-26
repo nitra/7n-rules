@@ -3,12 +3,9 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/skills/git-reconcile/js/orchestrate.mjs
 docgen:
-  crc: 09f8b69d
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
-  score: 100
-  issues: judge-refine:kept-original,judge:inaccurate:0.99
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: f0c9ea76
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  score: 70
 ---
 
 ## Огляд
@@ -19,59 +16,42 @@ JS виконує inventory, validation, materialization, gates, PR і cleanup, 
 
 ## Поведінка
 
-- Збирає refs, worktree, open PR, patch-equivalent commits і stash. Detached
-  worktree захищає за checkout HEAD OID.
+- Збирає refs, aliases, worktree, open PR, patch-equivalent commits і stash.
+  Detached worktree захищає за checkout HEAD OID.
 - Ізолює вкладені `npx` від `npm_config_package` зовнішнього `npm exec`.
+- Приглушує дубльовані ACP events, якщо користувач не ввімкнув explicit verbose.
 - Показує inventory elapsed time та окремі progress bars для triage, PR і
-  cleanup; у non-TTY виводить append-only progress.
-- Перевіряє повноту triage, groups та commit OID. Infrastructure failure
-  runner завершує крок одразу; `max` запускається лише після валідної
-  відповіді, що не пройшла validation.
-- Створює worktree від `origin/main`, за потреби ставить frozen Bun
-  dependencies і фіксує test baseline до перенесення source.
-- Red baseline допускається лише для розпізнаних Vitest failures, якщо
-  post-change набір не містить нових failures. Нерозпізнаний output
-  fail-closed.
-- Зводить tracked+untracked code paths до унікальних директорій. Для кожної
-  запускає scoped `doc-files` fix та unified lint `--no-fix`, не скануючи
-  repository-wide baseline.
-- Empty cherry-pick пропускається лише за активного `CHERRY_PICK_HEAD`,
-  відсутніх conflicts і порожнього staged diff.
-- Після LLM edits JS сам виконує Git checks, repository tests і changelog
-  gate. LLM prompt дозволяє лише narrow tests.
-- Створює PR і лише після успіху точково прибирає перенесені або доведено
-  неактуальні refs/stash; cleanup refs у звіті мають точний OID.
+  cleanup; довгі deterministic gates отримують окремі stage labels.
+- Перевіряє повноту triage, groups та commit OID. `max` запускається лише після
+  конкретного провалу validation.
+- Створює worktree від `origin/main`; baseline tests кешує за OID бази між
+  PR-групами. Для змін без code paths behavioral LLM не викликається.
+- Red baseline допускається лише для розпізнаних Vitest failures без нових
+  failures після перенесення.
+- Для code paths запускає scoped `doc-files`, lint і tests. Перед push запускає
+  domain lint для non-code paths, changelog та `git diff --check`.
+- Після conflict resolution порожній cherry-pick пропускається лише за
+  активного `CHERRY_PICK_HEAD`, відсутніх conflicts і порожнього staged diff.
+- Tree-diff guard двічі відсікає semantic no-op. Порожня група отримує
+  `patch-equivalent`, worktree прибирається, push і PR не виконуються.
+- Cleanup видаляє всі точні local/remote aliases і звітує їх. Failed source
+  зберігає branch, worktree і, якщо PR уже створено, його URL.
 
 ## Публічний API
 
-- parseWorktrees — Парсить `git worktree list --porcelain` у branch→path.
-- dedupeRefs — Дедуплікує local/remote refs одного commit: remote має пріоритет, але
-worktree-protection локального ref переноситься у запис.
-- conflictFiles — Витягає конфліктні файли з `git merge-tree`.
-- inventoryRepository — Збирає детермінований Git inventory. Нічого не видаляє і не змінює у
-checkout, крім оновлення remote refs через fetch --prune.
-- buildTriagePrompt — Формує bounded semantic-triage prompt. Git-факти вже пораховані JS; модель
-не виконує shell-команди й повертає лише JSON-рішення.
-- parseDecisionEnvelope — Витягає JSON object із чистої або fenced відповіді.
-- callRunner — Викликає вибраний LLM runner для одного bounded-завдання.
-- callWithValidatedFallback — Виконує bounded LLM-крок через min, валідовує результат JS-функцією і
-викликає max лише після конкретного провалу.
-- validateTriageOutcome — Структурно перевіряє triage-рішення: рівно один verdict на candidate,
-валідні actions/groups і лише відомі commit OID.
-- branchSlug — Перетворює довільний title/ref на branch slug.
-- skipEmptyCherryPick — Пропускає лише підтверджений empty cherry-pick: sequencer активний,
-конфліктів немає, staged diff порожній.
-- testFailureSignatures — Витягає стабільні Vitest failure identifiers без summary/timing.
-- acceptsTestOutcome — Дозволяє red baseline лише якщо після перенесення не з'явилось нових
-Vitest failures. Нерозпізнаний red output завжди fail-closed.
-- sourceDirectories — Зводить змінені code paths до найвужчих директорій для scoped gates.
-- captureBehaviorBaseline — Фіксує test baseline на чистому origin/main до перенесення source.
-- validateBehaviorState — Додає до Git-state validation test script із репозиторію і changelog gate.
-Саме ці докази вирішують, чи приймати min-результат або ескалювати на max.
-- cleanupSource — Видаляє точний source після Git-доказу неактуальності або успішного
-перенесення. Protected/open-PR refs не потрапляють у цей крок.
-- formatReport — Формує deterministic report.
-- runGitReconcileOrchestrator — JS-оркестратор: inventory → bounded LLM triage → deterministic PR pipeline.
+- `parseWorktrees` — парсить `git worktree list --porcelain`.
+- `dedupeRefs` — зводить local/remote refs одного commit зі збереженням aliases.
+- `inventoryRepository` — збирає детермінований Git inventory.
+- `callWithValidatedFallback` — виконує min → validation → max fallback.
+- `finishCherryPick` — пропускає semantic no-op або продовжує непорожній pick.
+- `hasChangesFromBase` — перевіряє реальний tree diff, а не commits ahead.
+- `captureCachedBehaviorBaseline` — кешує test baseline за OID `origin/main`.
+- `changedNonCodeDirectories` — групує non-code paths у domain directories.
+- `validateBehaviorState` — перевіряє scoped code gates і test regression.
+- `validateFinalProjectGates` — перевіряє non-code domains та changelog.
+- `cleanupSource` — видаляє тільки доказово безпечні точні refs або stash.
+- `formatReport` — формує deterministic звіт із cleanup та failure details.
+- `runGitReconcileOrchestrator` — координує inventory, triage, PR і cleanup.
 
 ## Гарантії поведінки
 
@@ -82,4 +62,5 @@ Vitest failures. Нерозпізнаний red output завжди fail-closed.
 - Stash видаляється точково за стабільним commit ID; `git stash clear` не
   використовується.
 - Worktree із проваленим перенесенням зберігається для діагностики.
+- Порожній tree diff не може створити remote branch або PR.
 - Progress не змішує фази з різною вартістю в удаваний global percentage.
