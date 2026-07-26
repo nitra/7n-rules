@@ -207,9 +207,7 @@ describe('coverage-fix.mjs', () => {
       })
 
       expect(runAgentFix).toHaveBeenCalledTimes(5)
-      expect(runAgentFix.mock.calls.every(([, , , opts]) => opts.sourceFiles[0] === 'run/api/src/constants.js')).toBe(
-        true
-      )
+      expect(runAgentFix.mock.calls.every(call => call[3].sourceFiles[0] === 'run/api/src/constants.js')).toBe(true)
       expect(result.failed[0]).toMatchObject({ files: ['run/api/src/constants.js'], error: 'fix timeout 95999ms' })
       expect(result.batches).toHaveLength(5)
       expect(result.batches[0]).toMatchObject({

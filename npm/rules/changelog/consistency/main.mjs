@@ -602,7 +602,10 @@ async function checkPublishedWorkspacePendingGitChanges(manifest, _Vcurrent, sub
     return
   }
 
-  if (policy.releaseBranches.includes(branch ?? '') && (await workspaceHasRelevantChangesAgainstBase('HEAD', manifest.ws, subWorkspaces, cwd))) {
+  if (
+    policy.releaseBranches.includes(branch ?? '') &&
+    (await workspaceHasRelevantChangesAgainstBase('HEAD', manifest.ws, subWorkspaces, cwd))
+  ) {
     await fixOrFailPublishedWorkspace(manifest, label, mf, autofix, pass, fail, cwd)
   }
 }

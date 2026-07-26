@@ -29,6 +29,12 @@ const REQUIRED_WORKFLOWS = ['clean-ga-workflows.yml', 'clean-merged-branch.yml',
 const CHECKOUT_PERSIST_RE = /persist-credentials/u
 
 /**
+ * Language workflow policies вимагають ці config paths наперед, навіть коли
+ * конкретний consumer ще не має відповідного tool config.
+ */
+const OPTIONAL_CANONICAL_PATH_GLOBS = new Set(['pyproject.toml', 'uv.lock', '**/rustfmt.toml', '**/clippy.toml'])
+
+/**
  * Structured fix-hint (#3) для rego-violation про `actions/checkout` без
  * `persist-credentials: false` — щоб T0 (`fix-workflows.mjs`) автофіксив детерміновано,
  * не парсячи message. Повертає `{ reason, file, data }` або undefined.
@@ -75,6 +81,10 @@ function gitHasAnyTrackedFileMatchingGlob(globPattern, cwd) {
 function shouldValidateWorkflowPathsGlob(p) {
   // Негативні патерни — лише виключають, їх існування не перевіряємо.
   if (p.startsWith('!')) return false
+
+  // Canonical language configs можуть зʼявитися пізніше, але мають уже
+  // активувати відповідний workflow без синхронної правки CI.
+  if (OPTIONAL_CANONICAL_PATH_GLOBS.has(p)) return false
 
   // “Розширення-фільтри” (або brace-варіанти) пропускаємо: вони можуть бути заготовками.
   return !p.includes('*.')

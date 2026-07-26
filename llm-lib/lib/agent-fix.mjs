@@ -110,7 +110,17 @@ function astUnavailable() {
  *   getTransportError: () => string|null }} args контекст петлі.
  * @returns {Promise<{ verifyAttempts: Array<{ ok: boolean, infra?: boolean }>, error: string|null }>} результат петлі.
  */
-async function runVerifyLoop({ session, verify, verifyMax, timeoutMs, startedAt, clock, guard, fixPrompt, getTransportError }) {
+async function runVerifyLoop({
+  session,
+  verify,
+  verifyMax,
+  timeoutMs,
+  startedAt,
+  clock,
+  guard,
+  fixPrompt,
+  getTransportError
+}) {
   const verifyAttempts = []
   for (let attempt = 0; ; attempt++) {
     let evidence

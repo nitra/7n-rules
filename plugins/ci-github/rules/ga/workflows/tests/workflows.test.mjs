@@ -142,6 +142,9 @@ on:
       - '.github/workflows/**'
   pull_request:
     branches: [dev, main]
+    paths:
+      - '.github/actions/**'
+      - '.github/workflows/**'
 concurrency:
   group: \${{ github.ref }}-\${{ github.workflow }}
   cancel-in-progress: true
@@ -200,6 +203,38 @@ jobs:
 
   execFileSync('git', ['add', '-A'], { cwd: dir })
 }
+
+describe('check-ga: optional canonical config paths', () => {
+  test('не вимагає наявності language config, який workflow має підхопити в майбутньому', async () => {
+    await withTmpDir(async dir => {
+      await setupCanonicalGaProject(dir)
+      await writeFile(
+        join(dir, '.github/workflows', 'optional-config.yml'),
+        `name: Optional config
+on:
+  pull_request:
+    paths:
+      - pyproject.toml
+      - uv.lock
+      - "**/rustfmt.toml"
+      - "**/clippy.toml"
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - run: echo ok
+`,
+        'utf8'
+      )
+      await withShellcheckStubInPath(async () => {
+        const violations = await mainStructural(dir)
+        expect(violations.filter(v => v.reason === 'unmatched-paths-glob')).toEqual([])
+      })
+    })
+  })
+})
 
 describe('check-ga: відсутній .github/workflows', () => {
   test('exit 1 — директорія .github/workflows не існує', async () => {

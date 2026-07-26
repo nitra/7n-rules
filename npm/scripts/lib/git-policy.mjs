@@ -22,7 +22,7 @@ function branchName(value) {
  * Повертає effective policy. `releaseBranches` одночасно є integration-кандидатами
  * delta та захищеними довгоживучими гілками; `baseBranch` додається до обох наборів.
  * @param {string} [cwd] корінь репозиторію
- * @returns {{baseBranch:string,releaseBranches:string[],integrationBranches:string[],protectedBranches:string[]}}
+ * @returns {{baseBranch:string,releaseBranches:string[],integrationBranches:string[],protectedBranches:string[]}} effective Git policy
  */
 export function readGitPolicy(cwd = process.cwd()) {
   let raw = null
@@ -38,7 +38,9 @@ export function readGitPolicy(cwd = process.cwd()) {
   }
   const git = raw && typeof raw.git === 'object' && !Array.isArray(raw.git) ? raw.git : {}
   const baseBranch = branchName(git.baseBranch) ?? DEFAULT_BASE_BRANCH
-  const configuredRelease = Array.isArray(git.releaseBranches) ? git.releaseBranches.map(branchName).filter(Boolean) : []
+  const configuredRelease = Array.isArray(git.releaseBranches)
+    ? git.releaseBranches.map(value => branchName(value)).filter(Boolean)
+    : []
   const releaseBranches = configuredRelease.length > 0 ? [...new Set(configuredRelease)] : [DEFAULT_BASE_BRANCH]
   const integrationBranches = [...new Set([baseBranch, ...releaseBranches])]
   return { baseBranch, releaseBranches, integrationBranches, protectedBranches: integrationBranches }

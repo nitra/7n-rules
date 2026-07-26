@@ -267,15 +267,15 @@ function logCoverageSummary(failed, fixed, batches) {
  * @param {number} args.batchMutants кількість мутантів у batch-і
  * @param {number} args.budget налаштована стеля мутантів на batch
  * @param {string[]} args.oversizedFiles source-файли, що перевищили budget до sub-batching
- * @param {boolean} [args.oversizedSubBatch=false] чи batch є частиною oversized source-файлу
- * @param {number|null} [args.promptChars=null] довжина prompt-а в символах
+ * @param {boolean} [args.oversizedSubBatch] чи batch є частиною oversized source-файлу
+ * @param {number|null} [args.promptChars] довжина prompt-а в символах
  * @param {number|null} args.requestedTimeoutMs запитаний timeout для worker-а
  * @param {number|null} args.workerDeadlineMs deadline worker-а
  * @param {number|null} args.effectiveTimeoutMs timeout, реально переданий batch-у
  * @param {number|null} args.wallMs тривалість batch-а
- * @param {object|null} [args.telemetry=null] telemetry `runAgentFix`
- * @param {string|null} [args.error=null] помилка batch-а
- * @param {string[]} [args.writtenTests=[]] дозволені test-файли, змінені агентом
+ * @param {object|null} [args.telemetry] telemetry `runAgentFix`
+ * @param {string|null} [args.error] помилка batch-а
+ * @param {string[]} [args.writtenTests] дозволені test-файли, змінені агентом
  * @returns {object} безпечний структурований verdict
  */
 function batchDiagnosis({
@@ -297,9 +297,8 @@ function batchDiagnosis({
 }) {
   const stops = [...new Set((telemetry?.turns ?? []).map(turn => turn.finish).filter(Boolean))]
   const edits = telemetry?.edits
-  const allowedTestWrites = Array.isArray(edits)
-    ? edits.filter(edit => TEST_FILE_RE.test(edit.path)).length
-    : writtenTests.length
+  const allowedTestWrites = (Array.isArray(edits) ? edits.filter(edit => TEST_FILE_RE.test(edit.path)) : writtenTests)
+    .length
   return {
     batch: i + 1,
     batchCount: total,
