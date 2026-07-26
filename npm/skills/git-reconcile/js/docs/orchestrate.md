@@ -3,7 +3,7 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/skills/git-reconcile/js/orchestrate.mjs
 docgen:
-  crc: c3233b69
+  crc: 6e9cb156
   model: openai-codex/gpt-5.5
   tier: cloud-avg
   score: 100
@@ -21,7 +21,7 @@ docgen:
 
 Для review-кандидатів `buildTriagePrompt` формує обмежене завдання для LLM: модель отримує вже пораховані Git-факти й має повернути лише JSON-рішення. `callRunner` викликає обраний runner, `parseDecisionEnvelope` дістає структуровану відповідь, а `validateTriageOutcome` приймає тільки повний і узгоджений набір рішень для поточного batch. `callWithValidatedFallback` спершу пробує дешевший рівень, а дорожчий використовує лише після конкретного validation failure.
 
-Під час матеріалізації рішення source переноситься у керований worktree. `branchSlug` забезпечує передбачувані rescue-гілки, а `ensureLocalWorktreeExclude` не дає службовим worktree забруднювати root `git status`. Якщо cherry-pick стає порожнім, `skipEmptyCherryPick` дозволяє skip лише для доведеного semantic no-op, а `finishCherryPick` завершує активний перенос без прийняття неперевіреного Git-стану. `hasChangesFromBase` відсікає PR без реального tree diff.
+Під час матеріалізації рішення source переноситься у керований worktree. `branchSlug` забезпечує передбачувані rescue-гілки без крайового дефіса після скорочення, а `ensureLocalWorktreeExclude` не дає службовим worktree забруднювати root `git status`. Після `@7n/mt` actual checkout визначається через `git worktree list --porcelain`, тому collision sanitized-каталогу не веде до реконструйованого cwd. Setup failure повертається як `failed` лише для цієї PR-групи з branch, фактичним worktree та `spawnSync`-діагностикою; source і forensic checkout не очищуються. Якщо cherry-pick стає порожнім, `skipEmptyCherryPick` дозволяє skip лише для доведеного semantic no-op, а `finishCherryPick` завершує активний перенос без прийняття неперевіреного Git-стану. `hasChangesFromBase` відсікає PR без реального tree diff.
 
 Behavior-gates будуються навколо baseline: `captureBehaviorBaseline` фіксує стан чистої `origin/<baseBranch>` із repository Git policy, а `captureCachedBehaviorBaseline` перевикористовує цей результат у межах одного прогону для однакової бази. `validateBehaviorState` перевіряє Git-консистентність, scoped lint/docs і test outcome; правила запуску тестів і скриптів беруться з `package.json`. `testFailureSignatures` нормалізує failures, а `acceptsTestOutcome` дозволяє red baseline тільки без нових failures. Якщо валідація падає через типовий formatting, CSpell, docs або changelog-дефект, `remediateBehaviorState` запускає canonical fixers перед ескалацією LLM.
 
@@ -31,58 +31,42 @@ Behavior-gates будуються навколо baseline: `captureBehaviorBasel
 
 ## Публічний API
 
-- createPhaseProgress — Створює ANSI-free snapshot progress для однієї фази. Однаковий append-only
-формат у TTY/CI не засмічує captured output cursor-control кодами, а
-heartbeat показує elapsed time довгих LLM-етапів.
+- createPhaseProgress — Створює ANSI-free snapshot progress для однієї фази.
 - parseWorktrees — Парсить `git worktree list --porcelain` у branch→path.
-- dedupeRefs — Дедуплікує local/remote refs одного commit: remote має пріоритет, але
-worktree-protection локального ref переноситься у запис.
+- dedupeRefs — Дедуплікує local/remote refs одного commit.
 - conflictFiles — Витягає конфліктні файли з `git merge-tree`.
-- inventoryRepository — Збирає детермінований Git inventory. Нічого не видаляє і не змінює у
-checkout, крім оновлення remote refs через fetch --prune.
-- buildTriagePrompt — Формує bounded semantic-triage prompt. Git-факти вже пораховані JS; модель
-не виконує shell-команди й повертає лише JSON-рішення.
+- inventoryRepository — Збирає детермінований Git inventory.
+- buildTriagePrompt — Формує bounded semantic-triage prompt.
 - parseDecisionEnvelope — Витягає JSON object із чистої або fenced відповіді.
 - callRunner — Викликає вибраний LLM runner для одного bounded-завдання.
-- callWithValidatedFallback — Виконує bounded LLM-крок через min, валідовує результат JS-функцією і
-викликає max лише після конкретного провалу.
-- validateTriageOutcome — Структурно перевіряє triage-рішення: рівно один verdict на candidate,
-валідні actions/groups і лише відомі commit OID.
-- branchSlug — Перетворює довільний title/ref на branch slug.
-- ensureLocalWorktreeExclude — Додає `.worktrees/` до локального Git exclude без tracked-змін у consumer.
-Це не замінює repository Vitest excludes, але не лишає root checkout dirty
-через керовані або forensic worktree.
-- skipEmptyCherryPick — Пропускає лише підтверджений empty cherry-pick: sequencer активний,
-конфліктів немає, staged diff порожній.
-- finishCherryPick — Завершує активний cherry-pick: semantic no-op пропускає, непорожній
-продовжує. Відсутній sequencer не потребує дії.
-- hasChangesFromBase — Перевіряє реальний tree diff, а не лише кількість commits ahead.
-- testFailureSignatures — Витягає стабільні Vitest failure identifiers без summary/timing.
-- acceptsTestOutcome — Дозволяє red baseline лише якщо після перенесення не з'явилось нових
-Vitest failures. Нерозпізнаний red output завжди fail-closed.
-- sourceDirectories — Зводить змінені code paths до найвужчих директорій для scoped gates.
-- changedNonCodeDirectories — Повертає директорії non-code змін для фінального domain lint.
-- remediateBehaviorState — Запускає canonical fixers у worktree до ескалації min→max. Це прибирає
-formatting/CSpell/doc/changelog дефекти без повторного behavioral LLM.
-- captureBehaviorBaseline — Фіксує test baseline на чистій policy base branch до перенесення source.
-- captureCachedBehaviorBaseline — Повторно використовує test baseline однієї policy base branch між PR-групами.
-Залежності все одно встановлюються в кожному окремому worktree.
-- validateBehaviorState — Додає до Git-state validation test script із репозиторію і changelog gate.
-Саме ці докази вирішують, чи приймати min-результат або ескалювати на max.
-- validateFinalProjectGates — Фінальний domain gate охоплює non-code зміни, зокрема workflows, dependency
-manifests і правила. Code directories уже пройшли scoped lint і tests.
-- cleanupSource — Видаляє точний source після Git-доказу неактуальності або успішного
-перенесення. Protected/open-PR refs не потрапляють у цей крок.
+- callWithValidatedFallback — Виконує min, валідує результат і викликає max лише після validation failure.
+- validateTriageOutcome — Структурно перевіряє triage-рішення.
+- branchSlug — Перетворює title/ref на валідний короткий branch slug.
+- ensureLocalWorktreeExclude — Додає `.worktrees/` до локального Git exclude без tracked-змін.
+- skipEmptyCherryPick — Пропускає лише підтверджений empty cherry-pick.
+- finishCherryPick — Завершує активний cherry-pick.
+- hasChangesFromBase — Перевіряє реальний tree diff, а не commits ahead.
+- testFailureSignatures — Витягає стабільні Vitest failure identifiers.
+- acceptsTestOutcome — Дозволяє red baseline лише без нових failures.
+- sourceDirectories — Зводить code paths до найвужчих директорій для scoped gates.
+- changedNonCodeDirectories — Повертає директорії non-code змін для domain lint.
+- remediateBehaviorState — Запускає canonical fixers перед behavioral max fallback.
+- captureBehaviorBaseline — Фіксує test baseline на чистій policy base branch.
+- captureCachedBehaviorBaseline — Кешує test baseline між PR-групами.
+- validateBehaviorState — Додає Git-state validation, tests і changelog gate.
+- validateFinalProjectGates — Перевіряє фінальні non-code domain gates.
+- cleanupSource — Видаляє тільки доказово безпечний точний source.
 - formatReport — Формує deterministic report.
-- runWithConcurrency — Виконує async jobs із bounded concurrency та стабільним порядком output.
+- runWithConcurrency — Виконує async jobs із bounded concurrency та стабільним output.
 - normalizePrConcurrency — Нормалізує bounded concurrency PR-фази.
-- runGitReconcileOrchestrator — JS-оркестратор: inventory → bounded LLM triage → deterministic PR pipeline.
+- runGitReconcileOrchestrator — Координує inventory, triage, PR і cleanup.
 
 ## Гарантії поведінки
 
 - Progress є append-only та не містить ANSI cursor-control sequences.
 - Не більше чотирьох PR-груп виконуються одночасно; типовий ліміт — три.
 - Canonical fixers мають пріоритет перед behavioral `max` fallback.
-- Cleanup починається лише після завершення всіх PR jobs і не видаляє
-  protected/open-PR/failed sources.
+- Cleanup починається лише після завершення всіх PR jobs і не видаляє protected/open-PR/failed sources.
+- `spawnSync.error`, зокрема `ENOENT`, не губиться в command diagnostics.
+- Setup failure зберігає forensic worktree і не зупиняє незалежні PR-групи.
 - Test baseline кешується за OID policy base branch у межах одного прогону.
