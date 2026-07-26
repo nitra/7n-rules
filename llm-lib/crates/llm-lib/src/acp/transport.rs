@@ -3,8 +3,8 @@
 //! Портовано зі скелету `tauri-plugin-agent/src/acp/mod.rs`
 //! (`build_acp_args`, handshake `initialize` → `session/new`), але без
 //! Tauri-специфіки (`AppHandle`/`Emitter`/`State`) і з обов'язковою
-//! операційною бронею cascade, якої плагін не мав: idle-timeout на кожен
-//! update-read, `summarize_update`/`N_LLM_ACP_VERBOSE` progress-логування,
+//! операційною бронею cascade, якої плагін не мав: semantic idle-timeout,
+//! `summarize_update`/`N_LLM_ACP_VERBOSE` progress-логування,
 //! типізований [`LlmError`] замість `String`.
 //!
 //! Обидва фасади крейта йдуть через нього: [`super::session::create_session`]
@@ -16,7 +16,7 @@
 
 use std::collections::HashMap;
 use std::env;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use agent_client_protocol::schema::v1::{
     ContentBlock, ContentChunk, PermissionOption, PermissionOptionId, PermissionOptionKind,
@@ -33,12 +33,10 @@ use crate::LlmError;
 /// вкладений `npx` намагається виконати package зовнішнього `npm exec`.
 const NPM_CONFIG_PACKAGE: &str = "npm_config_package";
 
-/// Idle-timeout — без жодної `session/update`-події від агента, не загальна
-/// тривалість ходу (реальний хід законно триває довго, поки регулярно щось
-/// відбувається). Захист від протокольного/агентського зависання: без нього
-/// відсутність відповіді на `session/request_permission` чи будь-яка інша
-/// тиша висить назавжди (саме так провалився живий прогін `skill codex taze`
-/// до фіксу дозволів — 57+ хвилин без жодного виводу). Override:
+/// Semantic idle-timeout — без нового tool-call або agent output, не загальна
+/// тривалість ходу. Usage/thought/config/tool-update шум не подовжує deadline,
+/// тому завислий агент не може жити вічно лише завдяки progress events.
+/// Захист також зупиняє повну протокольну тишу. Override:
 /// `N_LLM_ACP_IDLE_TIMEOUT_MS`.
 pub(crate) fn idle_timeout() -> Duration {
     Duration::from_millis(
@@ -149,15 +147,20 @@ pub(crate) fn summarize_update(update: &SessionUpdate) -> String {
     }
 }
 
-/// Читає events одного prompt-ходу до `StopReason`, з `idle_timeout` на
-/// кожне окреме читання (а не на весь хід разом — це і є "видимість": не-
-/// текстові події (`tool_call`/`plan`/…) логуються в stderr замість
-/// мовчазного відкидання (за замовчуванням — одним коротким рядком,
-/// `N_LLM_ACP_VERBOSE=1` — повним `{:?}`), і саме кожна така подія скидає
-/// таймер — реальний прогрес не зупиняє годинник, зупиняє лише справжня
-/// тиша). Текстові `AgentThoughtChunk`/`UserMessageChunk` не логуються
-/// зовсім (лише скидають таймер) — потокенний стрім думок агента інакше
-/// затоплював stderr.
+/// Чи є update змістовним прогресом, який подовжує semantic idle deadline.
+/// Usage/thought/config/tool-update шум навмисно не скидає watchdog: ACP
+/// агенти можуть нескінченно надсилати такі events уже після filesystem edits.
+fn resets_idle_timeout(update: &SessionUpdate) -> bool {
+    matches!(
+        update,
+        SessionUpdate::AgentMessageChunk(_) | SessionUpdate::ToolCall(_)
+    )
+}
+
+/// Читає events одного prompt-ходу до `StopReason`, з semantic
+/// `idle_timeout`: deadline скидають лише новий tool-call або текст/контент
+/// відповіді агента. Usage/thought/config/tool-update events логуються за
+/// чинною progress-політикою, але не можуть тримати завислий хід живим.
 ///
 /// `on_update` отримує кожен `SessionUpdate` (текстові шматки включно) —
 /// викликач вирішує, що з ним робити: акумулювати текст
@@ -171,21 +174,26 @@ pub(crate) async fn drive_turn<S>(
 where
     S: AcpSessionUpdates,
 {
+    let mut idle_deadline = Instant::now() + idle_timeout;
     loop {
-        let update = tokio::time::timeout(idle_timeout, session.read_update())
+        let remaining = idle_deadline.saturating_duration_since(Instant::now());
+        let update = tokio::time::timeout(remaining, session.read_update())
             .await
             .map_err(|_| {
                 AcpError::internal_error().data(Some(serde_json::json!(format!(
-                    "acp: немає жодної session/update-події {idle_timeout:?} — ймовірно завис"
+                    "acp: немає змістовного agent/tool прогресу {idle_timeout:?} — ймовірно завис"
                 ))))
             })??;
 
         match update {
             SessionMessage::SessionMessage(dispatch) => {
                 let on_update = &mut on_update;
+                let mut meaningful_activity = false;
+                let activity_seen = &mut meaningful_activity;
                 MatchDispatch::new(dispatch)
                     .if_notification(async move |notification: SessionNotification| {
                         let update = &notification.update;
+                        *activity_seen = resets_idle_timeout(update);
                         let quiet_text_chunk = matches!(
                             update,
                             SessionUpdate::AgentThoughtChunk(ContentChunk {
@@ -211,6 +219,9 @@ where
                     })
                     .await
                     .otherwise_ignore()?;
+                if meaningful_activity {
+                    idle_deadline = Instant::now() + idle_timeout;
+                }
             }
             SessionMessage::StopReason(reason) => return Ok(reason),
             _ => {}
@@ -244,6 +255,25 @@ struct NeverUpdatingSession;
 impl AcpSessionUpdates for NeverUpdatingSession {
     async fn read_update(&mut self) -> Result<SessionMessage, AcpError> {
         std::future::pending().await
+    }
+}
+
+/// Фейкова сесія, яка безкінечно шле Plan-шум без agent output/tool-call.
+#[cfg(test)]
+struct NoisySession;
+
+#[cfg(test)]
+impl AcpSessionUpdates for NoisySession {
+    async fn read_update(&mut self) -> Result<SessionMessage, AcpError> {
+        use agent_client_protocol::schema::v1::Plan;
+        use agent_client_protocol::{Dispatch, UntypedMessage};
+
+        tokio::time::sleep(Duration::from_millis(5)).await;
+        let notification = SessionNotification::new("test", SessionUpdate::Plan(Plan::new(vec![])));
+        let message = UntypedMessage::new("session/update", notification)?;
+        Ok(SessionMessage::SessionMessage(Dispatch::Notification(
+            message,
+        )))
     }
 }
 
@@ -417,6 +447,18 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn progress_noise_does_not_reset_semantic_idle_timeout() {
+        let result = tokio::time::timeout(
+            Duration::from_secs(1),
+            drive_turn(&mut NoisySession, Duration::from_millis(40), |_update| {}),
+        )
+        .await;
+
+        let outcome = result.expect("semantic idle-timeout має спрацювати попри Plan events");
+        assert!(outcome.is_err(), "progress noise не має тримати хід живим");
+    }
+
     /// `ToolCall`/`ToolCallUpdate` за замовчуванням (без `N_LLM_ACP_VERBOSE`)
     /// дають короткий рядок без `raw_input`/`raw_output` — саме вони роздували
     /// stderr на `taze` (jest issue: повний Debug тягнув увесь JSON тулза).
@@ -447,5 +489,16 @@ mod tests {
             summarize_update(&SessionUpdate::Plan(plan)),
             "plan: 2 entries"
         );
+    }
+
+    #[test]
+    fn only_agent_output_or_new_tool_call_resets_semantic_idle_timeout() {
+        use agent_client_protocol::schema::v1::{Plan, ToolCall};
+
+        let plan = SessionUpdate::Plan(Plan::new(vec![]));
+        let tool_call = SessionUpdate::ToolCall(ToolCall::new("id-1", "Edit foo.rs"));
+
+        assert!(!resets_idle_timeout(&plan));
+        assert!(resets_idle_timeout(&tool_call));
     }
 }

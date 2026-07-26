@@ -121,7 +121,11 @@ describe('resolveChangedBase', () => {
       git(dir, ['init', '-q', '--initial-branch=dev'])
       git(dir, ['config', 'user.email', 't@t'])
       git(dir, ['config', 'user.name', 't'])
-      writeFileSync(join(dir, '.n-rules.json'), JSON.stringify({ git: { baseBranch: 'dev', releaseBranches: ['tr-qa', 'tr'] } }), 'utf8')
+      writeFileSync(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({ git: { baseBranch: 'dev', releaseBranches: ['tr-qa', 'tr'] } }),
+        'utf8'
+      )
       writeFileSync(join(dir, 'base.js'), 'export const a = 1\n', 'utf8')
       git(dir, ['add', '.'])
       git(dir, ['commit', '-qm', 'init'])

@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: plugins/ci-github/rules/ga/workflows/main.mjs
 docgen:
-  crc: 0e45c8c5
+  crc: 0eb11a60
 ---
 
 ## Огляд
@@ -14,7 +14,7 @@ Please provide the code you want me to document.
 
 Поведінка:
 checkShellcheckInstalled перевіряє локальну наявність інструменту `shellcheck` у системному PATH, щоб забезпечити узгодженість логіки CI та локального запуску.
-main виконує комплексну перевірку відповідності репозиторію правилам `ga.mdc`, включаючи валідацію структури GitHub Actions workflow, аналіз посилань на файли за допомогою `git ls-files` та пошук залишків MegaLinter. При цьому він ігнорує шляхи, що стосуються `.github` та `.git`.
+main виконує комплексну перевірку відповідності репозиторію правилам `ga.mdc`, включаючи валідацію структури GitHub Actions workflow, аналіз посилань на файли за допомогою `git ls-files` та пошук залишків MegaLinter. Canonical language config paths не вважаються stale, якщо сам config ще відсутній: workflow має бути готовий підхопити його появу без окремої синхронної правки CI.
 lint запускає стандартний лінтинг, який включає перевірку `actionlint` та `zizmor` для забезпечення якості YAML-файлів та робочого середовища, а також ініціює повну перевірку `main`.
 runLintGaCli запускає процес лінтингу `ga` через командний інтерфейс.
 

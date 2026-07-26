@@ -3,7 +3,7 @@ type: JS Module
 title: git-policy.mjs
 resource: npm/scripts/lib/git-policy.mjs
 docgen:
-  crc: 5809ac19
+  crc: 057bf20c
   model: openai-codex/gpt-5.5
   tier: cloud-avg
   score: 100
