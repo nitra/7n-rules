@@ -84,6 +84,33 @@ function fakeVerifyCreate(prompts) {
   })
 }
 
+/**
+ * Fake pi-сесія, де transport завершує assistant-turn помилкою без rejection
+ * з боку `session.prompt()`.
+ * @param {string} errorMessage діагностика провайдера
+ * @returns {import('vitest').Mock} vi.fn-фабрика createSession
+ */
+function fakeTransportErrorCreate(errorMessage) {
+  return vi.fn(async ({ factory }) => {
+    await Promise.resolve()
+    factory({ on: () => null })
+    let sub = noop
+    return {
+      subscribe: fn => {
+        sub = fn
+      },
+      abort: vi.fn(),
+      prompt: async () => {
+        sub({ type: 'turn_start' })
+        sub({
+          type: 'message_end',
+          message: { role: 'assistant', stopReason: 'error', errorMessage }
+        })
+      }
+    }
+  })
+}
+
 describe('buildFixPrompt', () => {
   test('містить правило, порушення, інструкцію ast_facts/self_check', () => {
     const p = buildFixPrompt({ ruleId: 'n-ci4', violation: '❌ bad', ruleText: 'правило X' })
@@ -313,6 +340,25 @@ describe('happy-path (справжній write-guard на temp git-репо)', (
     })
     expect(r.error).toBe('boom')
     expect(r.touchedFiles).toContain(join(dir, 'src.mjs'))
+  })
+
+  test('Pi transport error без rejection повертається в result/trace і не запускає verify', async () => {
+    const trace = vi.fn()
+    const captureBody = vi.fn()
+    const verify = vi.fn()
+    const errorMessage = 'Your authentication token has been invalidated. Please try signing in again.'
+    const r = await runAgentFix('n-ci4', '❌ v', dir, {
+      model: 'openai-codex/gpt-5.4-mini',
+      verify,
+      deps: { root: dir, registry, createSession: fakeTransportErrorCreate(errorMessage), trace, captureBody }
+    })
+
+    expect(r.error).toBe(errorMessage)
+    expect(r.applied).toBe(false)
+    expect(r.telemetry.turns).toMatchObject([{ finish: 'error', usage: null }])
+    expect(verify).not.toHaveBeenCalled()
+    expect(trace).toHaveBeenCalledWith(expect.objectContaining({ error: errorMessage }))
+    expect(captureBody).toHaveBeenCalledWith(expect.objectContaining({ error: errorMessage }))
   })
 
   test('memory-guard rejection → друкує fix-промпт у stdout і кидає Error', async () => {
