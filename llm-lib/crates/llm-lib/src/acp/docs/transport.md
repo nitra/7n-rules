@@ -3,11 +3,11 @@ type: Rust Module
 title: transport.rs
 resource: llm-lib/crates/llm-lib/src/acp/transport.rs
 docgen:
-  crc: d57b15c5
+  crc: 2e4bf2c6
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100
-  issues: judge-refine:kept-original,judge:inaccurate:0.98
+  issues: judge-refine:kept-original,judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
@@ -30,6 +30,8 @@ permission і читає один prompt-хід із progress та idle-timeout.
   не до всієї тривалості ходу.
 - Передає всі `SessionUpdate` викликачу. Коротко логує non-text progress;
   `N_LLM_ACP_VERBOSE=1` вмикає повний debug output.
+- `N_LLM_ACP_PROGRESS=0` приглушує короткі progress events для оркестраторів
+  із власним UI. Явний verbose має пріоритет і не приглушується.
 
 ## Публічний API
 
@@ -37,6 +39,8 @@ permission і читає один prompt-хід із progress та idle-timeout.
 - `build_acp_args` — готує env та argv для `AcpAgent::from_args`.
 - `spec_for` — створює agent specification із tier env/arguments.
 - `pick_auto_permission_option` — обирає non-interactive permission.
+- `acp_verbose` — вмикає повний debug output.
+- `acp_progress_enabled` — враховує quiet progress і verbose override.
 - `summarize_update` — стискає progress event без raw tool payload.
 - `drive_turn` — читає prompt-хід до `StopReason`.
 - `AcpSessionUpdates` — мінімальна абстракція джерела ACP updates.
@@ -48,3 +52,4 @@ permission і читає один prompt-хід із progress та idle-timeout.
 - Регулярні ACP events продовжують хід незалежно від загальної тривалості.
 - Тиша, protocol error і spawn/spec error повертаються як помилки, а не
   маскуються порожнім результатом.
+- Quiet progress не вимикає idle-timeout і не приховує events від callback.

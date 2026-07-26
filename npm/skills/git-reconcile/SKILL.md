@@ -23,7 +23,9 @@ npx @7n/rules skill pi git-reconcile
 
 JS виконує `fetch`, inventory, patch-equivalence, дедуплікацію refs, збір
 worktree/PR/stash, підготовку worktree від `origin/main`, cherry-pick або
-застосування stash, gates, commit, push, PR і фінальний звіт.
+застосування stash, gates, commit, push, PR і фінальний звіт. Semantic no-op
+після conflict resolution детерміновано пропускає через `cherry-pick --skip`;
+порожній tree diff не push-иться і не створює PR.
 
 LLM отримує лише bounded-завдання:
 
@@ -72,6 +74,11 @@ transport. Після провалу `max` джерело fail-closed лишає
   `npm exec --package`.
 - За невизначеності джерело лишається `kept`; misleading ready PR не
   створюється.
+- Перед push обов'язково проходять фінальний tree-diff guard, domain lint для
+  non-code paths, changelog і `git diff --check`; code changes додатково
+  проходять scoped docs/lint та tests.
+- Behavioral LLM не викликається для змін без code paths; test baseline
+  актуального `origin/main` кешується між PR-групами.
 - Cleanup виконує лише JS і тільки після inventory/PR-фази: видаляє точні refs,
   уже merged/patch-equivalent, явно класифіковані як `drop` або повністю
   перенесені в успішний PR.
@@ -85,5 +92,5 @@ transport. Після провалу `max` джерело fail-closed лишає
 Оркестратор повертає для кожного джерела один verdict: `merged`,
 `patch-equivalent`, `open-pr`, `protected`, `pr-created`, `kept`,
 `drop-recommended` або `failed`. Для `pr-created` додає URL, перенесені коміти,
-конфлікти та виконані перевірки. Для cleanup ref звіт також містить точний OID,
-щоб видалення можна було аудіювати після завершення.
+конфлікти та виконані перевірки. Для cleanup ref звіт також містить точний OID
+і видалені aliases, а для failure — branch та збережений worktree.

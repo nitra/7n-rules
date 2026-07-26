@@ -12,10 +12,14 @@ import {
   buildTriagePrompt,
   callRunner,
   callWithValidatedFallback,
+  captureCachedBehaviorBaseline,
+  changedNonCodeDirectories,
   cleanupSource,
   conflictFiles,
   dedupeRefs,
+  finishCherryPick,
   formatReport,
+  hasChangesFromBase,
   parseDecisionEnvelope,
   parseWorktrees,
   runGitReconcileOrchestrator,
@@ -23,6 +27,7 @@ import {
   sourceDirectories,
   testFailureSignatures,
   validateBehaviorState,
+  validateFinalProjectGates,
   validateTriageOutcome
 } from '../orchestrate.mjs'
 
@@ -201,6 +206,31 @@ describe('LLM boundary', () => {
         options: { tier: 'min' }
       }
     ])
+  })
+
+  test('callRunner приховує ACP event spam і відновлює env після виклику', async () => {
+    const previous = env.N_LLM_ACP_PROGRESS
+    delete env.N_LLM_ACP_PROGRESS
+    let progressDuringCall
+    try {
+      await callRunner(
+        'codex',
+        'triage',
+        '/repo',
+        {
+          runAcpAgent: () => {
+            progressDuringCall = env.N_LLM_ACP_PROGRESS
+            return Promise.resolve('done')
+          }
+        },
+        'min'
+      )
+      expect(progressDuringCall).toBe('0')
+      expect(env.N_LLM_ACP_PROGRESS).toBeUndefined()
+    } finally {
+      if (previous === undefined) delete env.N_LLM_ACP_PROGRESS
+      else env.N_LLM_ACP_PROGRESS = previous
+    }
   })
 
   test('validated fallback приймає min без виклику max', async () => {
@@ -445,6 +475,51 @@ describe('worktree validation', () => {
     expect(calls).not.toContainEqual(['cherry-pick', '--skip'])
   })
 
+  test('після conflict resolution empty cherry-pick пропускається замість continue', () => {
+    const calls = []
+    const action = finishCherryPick('/repo', (_command, args) => {
+      calls.push(args)
+      return { status: 0, stdout: args[0] === 'rev-parse' ? 'oid\n' : '', stderr: '' }
+    })
+
+    expect(action).toBe('skipped')
+    expect(calls).toContainEqual(['cherry-pick', '--skip'])
+    expect(calls).not.toContainEqual(['cherry-pick', '--continue'])
+  })
+
+  test('tree-diff guard відхиляє commits ahead із нульовим фінальним diff', () => {
+    const noOp = hasChangesFromBase('/repo', (_command, args) => {
+      if (args[0] === 'ls-files') return { status: 0, stdout: '', stderr: '' }
+      return { status: 0, stdout: '', stderr: '' }
+    })
+    const changed = hasChangesFromBase('/repo', (_command, args) => {
+      if (args[0] === 'diff' && args[1] === '--quiet' && args[2] === 'origin/main...HEAD') {
+        return { status: 1, stdout: '', stderr: '' }
+      }
+      return { status: 0, stdout: '', stderr: '' }
+    })
+
+    expect(noOp).toBe(false)
+    expect(changed).toBe(true)
+  })
+
+  test('test baseline кешується за origin/main OID', () => {
+    const cache = new Map()
+    const calls = []
+    const spawnFn = (command, args) => {
+      calls.push([command, args])
+      if (args[0] === 'rev-parse') return { status: 0, stdout: 'base-oid\n', stderr: '' }
+      return { status: 0, stdout: '', stderr: '' }
+    }
+
+    const first = captureCachedBehaviorBaseline('/repo-without-package-json', cache, spawnFn)
+    const second = captureCachedBehaviorBaseline('/repo-without-package-json', cache, spawnFn)
+
+    expect(first.cached).toBe(false)
+    expect(second.cached).toBe(true)
+    expect(calls.filter(([, args]) => args[0] === 'rev-parse')).toHaveLength(2)
+  })
+
   test('приймає clean Git state, зелений test script і changelog gate', () => {
     const calls = []
     const result = validateBehaviorState(process.cwd(), (command, args) => {
@@ -485,6 +560,40 @@ describe('worktree validation', () => {
       if (previous === undefined) delete env.npm_config_package
       else env.npm_config_package = previous
     }
+  })
+
+  test('non-code paths групуються в domain directories', () => {
+    const paths = changedNonCodeDirectories(process.cwd(), (_command, args) => {
+      if (args[0] === 'diff') {
+        return {
+          status: 0,
+          stdout: 'npm/skills/git-reconcile/SKILL.md\n.github/workflows/ci.yml\nsrc/code.mjs\n',
+          stderr: ''
+        }
+      }
+      return { status: 0, stdout: '', stderr: '' }
+    })
+
+    expect(paths).toEqual(['.github/workflows', 'npm/skills/git-reconcile'])
+  })
+
+  test('final gate запускає domain lint до changelog', () => {
+    const calls = []
+    const result = validateFinalProjectGates(process.cwd(), (command, args) => {
+      calls.push([command, args])
+      if (command === 'git' && args[0] === 'diff') {
+        return { status: 0, stdout: 'npm/skills/git-reconcile/SKILL.md\n', stderr: '' }
+      }
+      return { status: 0, stdout: '', stderr: '' }
+    })
+
+    expect(result).toEqual({ ok: true })
+    expect(calls).toEqual([
+      ['git', ['diff', '--name-only', 'origin/main', '--']],
+      ['git', ['ls-files', '--others', '--exclude-standard']],
+      ['npx', ['@7n/rules', 'lint', '--path', 'npm/skills/git-reconcile', '--no-fix']],
+      ['npx', ['@7n/rules', 'lint', 'changelog', '--no-fix']]
+    ])
   })
 })
 
@@ -629,6 +738,44 @@ describe('runGitReconcileOrchestrator', () => {
     expect(result.report).toContain('tests failed')
     expect(result.results[0].worktree).toBe('/repo/.worktrees/reconcile-useful')
   })
+
+  test('semantic patch-equivalent group не створює cleanup blocker', async () => {
+    const cleaned = []
+    const result = await runGitReconcileOrchestrator({
+      cwd: '/repo',
+      log: noop,
+      deps: {
+        inventoryRepository: () => inventory({ stashes: [] }),
+        cleanupSource: candidate => {
+          cleaned.push(candidate.source)
+          return { status: 'removed' }
+        },
+        callRunner: () =>
+          Promise.resolve({
+            ok: true,
+            error: null,
+            text: JSON.stringify({
+              decisions: [
+                {
+                  source: REVIEW_BRANCH.source,
+                  action: 'pr',
+                  groups: [{ title: 'fix: already integrated', commits: ['abc123'] }]
+                }
+              ]
+            })
+          }),
+        createPullRequest: () =>
+          Promise.resolve({
+            status: 'patch-equivalent',
+            branch: 'codex/reconcile-already-integrated'
+          })
+      }
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.results[0].status).toBe('patch-equivalent')
+    expect(cleaned).toContain(REVIEW_BRANCH.source)
+  })
 })
 
 describe('cleanupSource', () => {
@@ -647,7 +794,10 @@ describe('cleanupSource', () => {
       }
     )
 
-    expect(result).toEqual({ status: 'removed' })
+    expect(result).toEqual({
+      status: 'removed',
+      removedRefs: ['refs/heads/feature/a', 'refs/remotes/origin/feature/a']
+    })
     expect(calls).toEqual([
       ['git', ['branch', '-D', 'feature/a']],
       ['git', ['push', 'origin', '--delete', 'feature/a']]
@@ -664,7 +814,7 @@ describe('cleanupSource', () => {
       return { status: 0, stdout: '', stderr: '' }
     })
 
-    expect(result).toEqual({ status: 'removed' })
+    expect(result).toEqual({ status: 'removed', removedRefs: ['stash@{1}'] })
     expect(calls.at(-1)).toEqual(['git', ['stash', 'drop', 'stash@{1}']])
   })
 })
