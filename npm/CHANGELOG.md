@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.49.10] - 2026-07-26
+
+### Fixed
+
+- Зареєстровано схему для .kubescape-exceptions.json у каталозі v8r
+- Поважати .n-rules.json:ignore у full-скані v8r
+
 ## [1.49.9] - 2026-07-26
 
 ### Changed
