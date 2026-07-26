@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.3] - 2026-07-26
+
+### Changed
+
+- `n-git-reconcile` починає bounded LLM-кроки на `min`, переходить на `max` лише після валідної відповіді з validation failure, захищає detached worktree за OID, порівнює tests із baseline `origin/main`, запускає doc-files/lint лише для змінених code directories, безпечно пропускає empty cherry-pick, ізолює nested `npx`, повертає non-zero для неповного triage і показує точний фазовий progress.
+
 ## [1.49.2] - 2026-07-26
 
 ### Fixed

@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.9.3] - 2026-07-26
+
+### Fixed
+
+- ACP transport очищає успадкований `npm_config_package` для вкладеного `npx`, щоб Codex і Pi агенти запускалися з `npm exec --package`.
+
 ## [2.9.2] - 2026-07-26
 
 ### Fixed
