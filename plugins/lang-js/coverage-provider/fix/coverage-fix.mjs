@@ -30,11 +30,16 @@ const MODEL = env.N_CURSOR_COVERAGE_FIX_MODEL || CLOUD_MAX || CLOUD_AVG
  * Override: `N_CURSOR_COVERAGE_FIX_BATCH_MUTANTS`.
  */
 const DEFAULT_BATCH_MUTANT_BUDGET = 40
+/**
+ * Великий source-файл дробиться на окремі test-generation групи. Їх не
+ * пакуємо назад разом: один файл із 82 mutants не повинен знову дати prompt на 40+.
+ */
+const OVERSIZED_FILE_SUB_BATCH_MUTANTS = 20
 const TEST_FILE_RE = /(?:^|\/)[^/]+\.(?:test|spec)\.[^/]+$/
 
 /**
  * @typedef {{line:number, col:number, mutantType:string, original:string, replacement:string}} MutantDetail
- * @typedef {{file:string, mutants:MutantDetail[], exampleTest:{testFile:string,code:string|null}|null, recommendationText:string|null}} SurvivedFileGroup
+ * @typedef {{file:string, mutants:MutantDetail[], exampleTest:{testFile:string,code:string|null}|null, recommendationText:string|null, sourceMutantCount?:number}} SurvivedFileGroup
  */
 
 /**
@@ -47,10 +52,10 @@ function resolveBatchBudget() {
 }
 
 /**
- * Ділить групи вцілілих мутантів на batches, кожен у межах `budget` мутантів сумарно —
- * жадібне пакування у порядку вхідного масиву. Файл ніколи не ріжеться навпіл (мутанти
- * одного файлу завжди в одному batch, навіть якщо сам файл перевищує budget) — узгодженість
- * контексту для агента важливіша за точне дотримання стелі.
+ * Ділить групи вцілілих мутантів на batches у межах `budget` мутантів сумарно — жадібне
+ * пакування у порядку вхідного масиву. Звичайний файл не ріжеться, але source-файл, що
+ * сам перевищує budget, ділиться на ізольовані групи по 20 mutants (або менше, якщо
+ * budget нижчий). Групи не пакуються назад разом, щоб не відтворити oversized prompt.
  * @param {SurvivedFileGroup[]} survived вцілілі мутанти, згруповані по файлах
  * @param {number} budget стеля мутантів на batch
  * @returns {SurvivedFileGroup[][]} batches (кожен — підмножина `survived`)
@@ -60,6 +65,17 @@ export function batchSurvived(survived, budget) {
   let current = []
   let currentCount = 0
   for (const group of survived) {
+    if (group.mutants.length > budget) {
+      if (current.length > 0) batches.push(current)
+      current = []
+      currentCount = 0
+      const sourceMutantCount = group.sourceMutantCount ?? group.mutants.length
+      const subBatchSize = Math.min(OVERSIZED_FILE_SUB_BATCH_MUTANTS, budget)
+      for (let start = 0; start < group.mutants.length; start += subBatchSize) {
+        batches.push([{ ...group, mutants: group.mutants.slice(start, start + subBatchSize), sourceMutantCount }])
+      }
+      continue
+    }
     if (current.length > 0 && currentCount + group.mutants.length > budget) {
       batches.push(current)
       current = []
@@ -103,11 +119,7 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
     return { fixed: [], failed: [], touchedFiles: [], batches: [] }
   }
 
-  let runFix = opts.runAgentFix
-  if (!runFix) {
-    const agentFixModule = await import('@7n/llm-lib/agent-fix')
-    runFix = agentFixModule.runAgentFix
-  }
+  const runFix = await resolveRunFix(opts)
   const budget = resolveBatchBudget()
   const batches = batchSurvived(survived, budget)
   const deadlineAt = opts.timeoutMs ? Date.now() + opts.timeoutMs : null
@@ -122,7 +134,8 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
   for (const [i, batch] of batches.entries()) {
     const files = batch.map(g => g.file)
     const batchMutants = batch.reduce((s, g) => s + g.mutants.length, 0)
-    const oversizedFiles = batch.filter(g => g.mutants.length > budget).map(g => g.file)
+    const oversizedFiles = batch.filter(g => (g.sourceMutantCount ?? g.mutants.length) > budget).map(g => g.file)
+    const oversizedSubBatch = batch.some(g => g.sourceMutantCount && g.mutants.length < g.sourceMutantCount)
     if (deadlineAt && Date.now() >= deadlineAt) {
       const diagnosis = batchDiagnosis({
         i,
@@ -131,6 +144,7 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
         batchMutants,
         budget,
         oversizedFiles,
+        oversizedSubBatch,
         requestedTimeoutMs: opts.coverageTimeout?.requestedMs ?? opts.timeoutMs ?? null,
         workerDeadlineMs: opts.coverageTimeout?.workerDeadlineMs ?? null,
         effectiveTimeoutMs: 0,
@@ -145,13 +159,13 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
       continue
     }
     console.log(
-      `\n🤖 batch ${i + 1}/${batches.length}: ${files.length} файл(ів), ${batchMutants} мутантів, budget=${budget}, oversizedAtomicFile=${oversizedFiles.length > 0} — ${files.join(', ')}\n`
+      `\n🤖 batch ${i + 1}/${batches.length}: ${files.length} файл(ів), ${batchMutants} мутантів, budget=${budget}, oversizedSourceFile=${oversizedFiles.length > 0}, oversizedSubBatch=${oversizedSubBatch} — ${files.join(', ')}\n`
     )
 
     const prompt = await buildFixPrompt(batch, projectRoot)
     const requestedTimeoutMs = opts.coverageTimeout?.requestedMs ?? opts.timeoutMs ?? null
     const workerDeadlineMs = opts.coverageTimeout?.workerDeadlineMs ?? null
-    const effectiveTimeoutMs = deadlineAt ? Math.max(1000, deadlineAt - Date.now()) : opts.timeoutMs ?? null
+    const effectiveTimeoutMs = deadlineAt ? Math.max(1000, deadlineAt - Date.now()) : (opts.timeoutMs ?? null)
     const startedAt = Date.now()
     const res = await runFix('test', prompt, projectRoot, {
       model: opts.model || MODEL,
@@ -167,13 +181,7 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
     const writtenTests = (res.touchedFiles ?? []).filter(file => TEST_FILE_RE.test(file))
     const unexpectedWrites = (res.touchedFiles ?? []).filter(file => !TEST_FILE_RE.test(file))
     const noOp = !res.error && writtenTests.length === 0
-    const error =
-      res.error ??
-      (unexpectedWrites.length > 0
-        ? `недопустимі записи поза test-файлами: ${unexpectedWrites.join(', ')}`
-        : noOp
-          ? noOpReason(res.telemetry)
-          : null)
+    const error = resolveBatchError(res, unexpectedWrites, noOp)
     const diagnosis = batchDiagnosis({
       i,
       total: batches.length,
@@ -181,6 +189,7 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
       batchMutants,
       budget,
       oversizedFiles,
+      oversizedSubBatch,
       promptChars: res.telemetry?.promptChars ?? prompt.length,
       requestedTimeoutMs,
       workerDeadlineMs,
@@ -203,19 +212,70 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
     touchedFiles.push(...writtenTests)
   }
 
-  if (failed.length > 0) {
-    console.log(`\n⚠️  coverage fix: ${fixed.length} test-файл(ів) змінено, ${failed.length} batch(ів) failed/no-op:`)
-    for (const f of failed) console.log(`  ✗ ${f.files.join(', ')} — ${f.error}`)
-  } else {
-    console.log(`\n✓ coverage fix: усі ${batches.length} batch(ів) змінили ${fixed.length} test-файл(ів).`)
-  }
+  logCoverageSummary(failed, fixed, batches)
 
   return { fixed, failed, touchedFiles, batches: batchDiagnostics }
 }
 
 /**
+ * Повертає інʼєктований `runAgentFix` або lazy-завантажує агентний fixer для runtime.
+ * @param {FixSurvivedOptions} opts ctx-поля ladder-а та тестові інʼєкції
+ * @returns {Promise<typeof import('@7n/llm-lib/agent-fix').runAgentFix>} функція агентного fix-а
+ */
+async function resolveRunFix(opts) {
+  if (opts.runAgentFix) return opts.runAgentFix
+  const agentFixModule = await import('@7n/llm-lib/agent-fix')
+  return agentFixModule.runAgentFix
+}
+
+/**
+ * Визначає причину failed batch за результатом агента й політикою дозволених записів.
+ * @param {{error?: string|null, telemetry?: object|null}} res результат `runAgentFix`
+ * @param {string[]} unexpectedWrites файли, які агент змінив поза дозволеними test/spec шляхами
+ * @param {boolean} noOp чи агент завершився без помилки і без test-записів
+ * @returns {string|null} текст помилки batch-а або `null`, якщо batch успішний
+ */
+function resolveBatchError(res, unexpectedWrites, noOp) {
+  if (res.error) return res.error
+  if (unexpectedWrites.length > 0) return `недопустимі записи поза test-файлами: ${unexpectedWrites.join(', ')}`
+  if (noOp) return noOpReason(res.telemetry)
+  return null
+}
+
+/**
+ * Логує підсумок coverage-fix після всіх batch-ів.
+ * @param {{files: string[], error: string}[]} failed failed/no-op batch-и
+ * @param {string[]} fixed змінені test-файли
+ * @param {object[]} batches діагностика всіх batch-ів
+ * @returns {void}
+ */
+function logCoverageSummary(failed, fixed, batches) {
+  if (failed.length > 0) {
+    console.log(`\n⚠️  coverage fix: ${fixed.length} test-файл(ів) змінено, ${failed.length} batch(ів) failed/no-op:`)
+    for (const f of failed) console.log(`  ✗ ${f.files.join(', ')} — ${f.error}`)
+    return
+  }
+  console.log(`\n✓ coverage fix: усі ${batches.length} batch(ів) змінили ${fixed.length} test-файл(ів).`)
+}
+
+/**
  * Складає serializable діагностику batch-а без prompt-а, model output чи source-коду.
  * @param {object} args дані batch-а та telemetry `runAgentFix`
+ * @param {number} args.i індекс batch-а з нуля
+ * @param {number} args.total загальна кількість batch-ів
+ * @param {string[]} args.files source-файли batch-а
+ * @param {number} args.batchMutants кількість мутантів у batch-і
+ * @param {number} args.budget налаштована стеля мутантів на batch
+ * @param {string[]} args.oversizedFiles source-файли, що перевищили budget до sub-batching
+ * @param {boolean} [args.oversizedSubBatch=false] чи batch є частиною oversized source-файлу
+ * @param {number|null} [args.promptChars=null] довжина prompt-а в символах
+ * @param {number|null} args.requestedTimeoutMs запитаний timeout для worker-а
+ * @param {number|null} args.workerDeadlineMs deadline worker-а
+ * @param {number|null} args.effectiveTimeoutMs timeout, реально переданий batch-у
+ * @param {number|null} args.wallMs тривалість batch-а
+ * @param {object|null} [args.telemetry=null] telemetry `runAgentFix`
+ * @param {string|null} [args.error=null] помилка batch-а
+ * @param {string[]} [args.writtenTests=[]] дозволені test-файли, змінені агентом
  * @returns {object} безпечний структурований verdict
  */
 function batchDiagnosis({
@@ -225,6 +285,7 @@ function batchDiagnosis({
   batchMutants,
   budget,
   oversizedFiles,
+  oversizedSubBatch = false,
   promptChars = null,
   requestedTimeoutMs,
   workerDeadlineMs,
@@ -245,7 +306,10 @@ function batchDiagnosis({
     sourceFileCount: files.length,
     mutantCount: batchMutants,
     configuredBudget: budget,
-    oversizedAtomicFile: oversizedFiles.length > 0,
+    oversizedSourceFile: oversizedFiles.length > 0,
+    oversizedAtomicFile: oversizedFiles.length > 0 && !oversizedSubBatch,
+    oversizedSubBatch,
+    oversizedSubBatchMutantLimit: oversizedSubBatch ? OVERSIZED_FILE_SUB_BATCH_MUTANTS : null,
     oversizedFiles,
     promptChars,
     requestedTimeoutMs,
@@ -265,12 +329,16 @@ function batchDiagnosis({
   }
 }
 
-/** @param {object} diagnosis безпечна batch-діагностика */
+/**
+ * Форматує batch-діагностику в компактний рядок для логів.
+ * @param {object} diagnosis безпечна batch-діагностика
+ * @returns {string} однорядковий опис diagnosis для stderr/stdout
+ */
 function formatBatchDiagnosis(diagnosis) {
   const verdict = diagnosis.verdict
   return [
     `diagnosis: files=${diagnosis.sourceFileCount}, mutants=${diagnosis.mutantCount}, budget=${diagnosis.configuredBudget}`,
-    `oversizedAtomicFile=${diagnosis.oversizedAtomicFile}, promptChars=${diagnosis.promptChars}`,
+    `oversizedSourceFile=${diagnosis.oversizedSourceFile}, oversizedSubBatch=${diagnosis.oversizedSubBatch}, promptChars=${diagnosis.promptChars}`,
     `timeout(requested/worker/effective)=${diagnosis.requestedTimeoutMs}/${diagnosis.workerDeadlineMs}/${diagnosis.effectiveTimeoutMs}ms`,
     `wallMs=${diagnosis.wallMs}`,
     `verdict(turns/tools/stops/error/testWrites/blocked/backstop)=${verdict.turnCount}/${verdict.toolCallCount}/${verdict.stopReasons.join(',') || '-'} / ${verdict.error ?? '-'} / ${verdict.allowedTestWrites}/${verdict.blockedWrites}/${verdict.backstopHit}`
