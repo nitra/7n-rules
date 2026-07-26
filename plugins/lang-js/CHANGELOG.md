@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.22.10] - 2026-07-26
+
+### Changed
+
+- Allow JSON text arrays before jsonb cast (#226)
+
 ## [0.22.9] - 2026-07-26
 
 ### Added
