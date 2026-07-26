@@ -14,10 +14,46 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Native artifacts потрібні лише коли змінюється сам Rust/N-API контур.
+  # JS-релізи llm-lib і npm/plugin workspace-и використовують останній сумісний
+  # prebuilt addon, не витрачаючи два runner-и на повторну компіляцію binary.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      native: ${{ steps.native.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Detect native addon changes
+        id: native
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          BASE="$BEFORE"
+          if [ "$BASE" = '0000000000000000000000000000000000000000' ]; then
+            if ! git rev-parse --verify --quiet HEAD^ >/dev/null; then
+              echo 'changed=true' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            BASE='HEAD^'
+          fi
+          if git diff --quiet "$BASE" HEAD -- Cargo.toml Cargo.lock llm-lib/crates; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          fi
+
   # ── Збірка prebuilt napi-аддона llm-lib для платформних підпакетів ───────
   # За зразком nitra/mt npm-publish.yml (build-binaries): v1-платформи —
   # darwin-arm64 + linux-x64-gnu, дзеркало NAPI_SUFFIXES у llm-lib/lib/internal/native.mjs.
   build-native:
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
     permissions:
       contents: read # лише checkout; артефакти йдуть через runtime-токен
     strategy:
@@ -60,7 +96,11 @@ jobs:
           if-no-files-found: error
 
   release-publish:
-    needs: build-native
+    needs: [changes, build-native]
+    # `build-native` intentionally skips for npm/plugin-only releases.
+    if: >-
+      always() && needs.changes.result == 'success' &&
+      (needs.build-native.result == 'success' || needs.build-native.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: write # commit-back версії + git-тег
@@ -94,11 +134,13 @@ jobs:
           git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
 
       - name: Download napi addons
+        if: needs.changes.outputs.native == 'true'
         uses: actions/download-artifact@v4
         with:
           path: llm-lib/packages # → llm-lib/packages/<pkg>/llm-lib-napi.<triple>.node
 
       - name: Smoke-check CLI-модулів (ловить hoisting-регресії залежностей до релізу)
+        if: needs.changes.outputs.native == 'true'
         # Native-залежні CLI-модулі імпортуються в smoke-check, тому artifacts мають
         # бути доступні до цього кроку. Loader бере explicit override, бо
         # downloaded artifact не є встановленим platform npm-підпакетом.
@@ -114,10 +156,11 @@ jobs:
         env:
           N_RULES_RELEASE_PUSH: '0'
 
-      # Версії платформних підпакетів тримаємо в lockstep з @7n/llm-lib (як у nitra/mt);
-      # optionalDependencies головного пакета теж синхронізуються з новою версією
-      # перед публікацією. У git лишається плейсхолдер — канонічне значення проставляє CI.
+      # Новий prebuilt addon публікуємо лише після Rust/N-API змін. JS-релізи
+      # @7n/llm-lib зберігають посилання на останній сумісний platform package,
+      # тому не вимагають повторної native-збірки.
       - name: Sync platform versions to @7n/llm-lib
+        if: needs.changes.outputs.native == 'true'
         run: |
           VERSION=$(node -p "require('./llm-lib/package.json').version")
           echo "Publishing @7n/llm-lib platform packages at version $VERSION"
@@ -130,6 +173,7 @@ jobs:
       # вказують на ці версії, тож інсталяція свіжого @7n/llm-lib мусить знаходити
       # prebuilt-аддон у registry.
       - name: Publish @7n/llm-lib-darwin-arm64
+        if: needs.changes.outputs.native == 'true'
         id: publish-llm-lib-darwin-arm64
         continue-on-error: true
         uses: ./.github/actions/publish-npm-package
@@ -137,6 +181,7 @@ jobs:
           package-json-path: llm-lib/packages/llm-lib-darwin-arm64/package.json
 
       - name: Publish @7n/llm-lib-linux-x64
+        if: needs.changes.outputs.native == 'true'
         id: publish-llm-lib-linux-x64
         continue-on-error: true
         uses: ./.github/actions/publish-npm-package
