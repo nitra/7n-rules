@@ -4,7 +4,7 @@
  * у CI на `main` (n-rules-release-design, варіант A). Сам нічого не публікує.
  */
 import { existsSync } from 'node:fs'
-import { readFile, rm, writeFile } from 'node:fs/promises'
+import { appendFile, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { env } from 'node:process'
 
@@ -226,6 +226,18 @@ export async function release(opts = {}) {
 }
 
 /**
+ * Передає GitHub Actions перелік workspace-ів, для яких release справді створив
+ * нову версію. Publish-кроки використовують його замість broad path-filter-а,
+ * щоб не викликати npm publish для пакетів без нового релізу.
+ * @param {Array<{ ws: string }>} released фактично випущені workspaces
+ * @returns {Promise<void>} завершення запису або no-op поза GitHub Actions
+ */
+async function writeReleasedWorkspacesOutput(released) {
+  if (!env.GITHUB_OUTPUT) return
+  await appendFile(env.GITHUB_OUTPUT, `workspaces=${JSON.stringify(released.map(({ ws }) => ws))}\n`)
+}
+
+/**
  * @param {string[]} _args аргументи CLI (наразі без опцій)
  * @param {import('./release.mjs').ReleaseOpts} [opts] опції для тестів (cwd, date, runGit, push)
  * @returns {Promise<number>} exit-код
@@ -237,6 +249,7 @@ export async function runReleaseCli(_args, opts = {}) {
     // через `env:` на кроці — поле, якого немає в канонічному сніпеті, тож subset-перевірка не ламається.
     const push = opts.push ?? (env.N_RULES_RELEASE_PUSH ?? env.N_CURSOR_RELEASE_PUSH) !== '0'
     const released = await release({ ...opts, push })
+    await writeReleasedWorkspacesOutput(released)
     if (released.length === 0) {
       console.log('release: немає змін для релізу')
     } else {

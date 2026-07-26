@@ -147,6 +147,7 @@ jobs:
         run: N_LLM_LIB_NATIVE_ADDON="$PWD/llm-lib/packages/llm-lib-linux-x64/llm-lib-napi.linux-x64-gnu.node" node npm/scripts/smoke-check-imports.mjs
 
       - name: Release (bump + CHANGELOG + tag)
+        id: release
         # N_RULES_RELEASE_PUSH=0: bump/CHANGELOG/тег лишаються локальними в цьому checkout,
         # доки не підтвердиться хоч один успішний publish нижче — інакше git version
         # випереджає registry на кожній невдачі (саме так CI дійшов до 14.11.1 у git при
@@ -156,11 +157,14 @@ jobs:
         env:
           N_RULES_RELEASE_PUSH: '0'
 
-      # Новий prebuilt addon публікуємо лише після Rust/N-API змін. JS-релізи
-      # @7n/llm-lib зберігають посилання на останній сумісний platform package,
-      # тому не вимагають повторної native-збірки.
+      # `release` записує в step output лише workspaces з новою версією. Кожен
+      # publish step нижче перевіряє цей список, тому npm не отримує повторних
+      # викликів для пакетів, яких поточний commit не релізить.
+      # Новий prebuilt addon публікуємо лише після Rust/N-API змін.
       - name: Sync platform versions to @7n/llm-lib
-        if: needs.changes.outputs.native == 'true'
+        if: >-
+          needs.changes.outputs.native == 'true' &&
+          contains(fromJSON(steps.release.outputs.workspaces), 'llm-lib')
         run: |
           VERSION=$(node -p "require('./llm-lib/package.json').version")
           echo "Publishing @7n/llm-lib platform packages at version $VERSION"
@@ -173,7 +177,9 @@ jobs:
       # вказують на ці версії, тож інсталяція свіжого @7n/llm-lib мусить знаходити
       # prebuilt-аддон у registry.
       - name: Publish @7n/llm-lib-darwin-arm64
-        if: needs.changes.outputs.native == 'true'
+        if: >-
+          needs.changes.outputs.native == 'true' &&
+          contains(fromJSON(steps.release.outputs.workspaces), 'llm-lib')
         id: publish-llm-lib-darwin-arm64
         continue-on-error: true
         uses: ./.github/actions/publish-npm-package
@@ -181,7 +187,9 @@ jobs:
           package-json-path: llm-lib/packages/llm-lib-darwin-arm64/package.json
 
       - name: Publish @7n/llm-lib-linux-x64
-        if: needs.changes.outputs.native == 'true'
+        if: >-
+          needs.changes.outputs.native == 'true' &&
+          contains(fromJSON(steps.release.outputs.workspaces), 'llm-lib')
         id: publish-llm-lib-linux-x64
         continue-on-error: true
         uses: ./.github/actions/publish-npm-package
@@ -192,6 +200,7 @@ jobs:
       # тож інсталяція свіжого @7n/rules мусить знаходити пакет у registry.
       # continue-on-error: невдача одного з пакетів не має блокувати публікацію іншого.
       - name: Publish @7n/llm-lib
+        if: contains(fromJSON(steps.release.outputs.workspaces), 'llm-lib')
         id: publish-llm-lib
         continue-on-error: true
         uses: ./.github/actions/publish-npm-package
@@ -199,6 +208,7 @@ jobs:
           package-json-path: llm-lib/package.json
 
       - name: Publish package
+        if: contains(fromJSON(steps.release.outputs.workspaces), 'npm')
         id: publish-cursor
         continue-on-error: true
         uses: JS-DevTools/npm-publish@v4.1.5
@@ -208,6 +218,7 @@ jobs:
       # Плагіни публікуються ПІСЛЯ ядра: peerDependency спрямована на @7n/rules,
       # тож інсталяція свіжого плагіна мусить знаходити сумісне ядро в registry.
       - name: Publish @7n/rules-ci-github
+        if: contains(fromJSON(steps.release.outputs.workspaces), 'plugins/ci-github')
         id: publish-ci-github
         continue-on-error: true
         uses: ./.github/actions/publish-npm-package
@@ -215,6 +226,7 @@ jobs:
           package-json-path: plugins/ci-github/package.json
 
       - name: Publish @7n/rules-ci-azure
+        if: contains(fromJSON(steps.release.outputs.workspaces), 'plugins/ci-azure')
         id: publish-ci-azure
         continue-on-error: true
         uses: ./.github/actions/publish-npm-package
@@ -222,6 +234,7 @@ jobs:
           package-json-path: plugins/ci-azure/package.json
 
       - name: Publish @7n/rules-lang-python
+        if: contains(fromJSON(steps.release.outputs.workspaces), 'plugins/lang-python')
         id: publish-lang-python
         continue-on-error: true
         uses: ./.github/actions/publish-npm-package
@@ -229,6 +242,7 @@ jobs:
           package-json-path: plugins/lang-python/package.json
 
       - name: Publish @7n/rules-lang-rust
+        if: contains(fromJSON(steps.release.outputs.workspaces), 'plugins/lang-rust')
         id: publish-lang-rust
         continue-on-error: true
         uses: ./.github/actions/publish-npm-package
@@ -236,6 +250,7 @@ jobs:
           package-json-path: plugins/lang-rust/package.json
 
       - name: Publish @7n/rules-lang-js
+        if: contains(fromJSON(steps.release.outputs.workspaces), 'plugins/lang-js')
         id: publish-lang-js
         continue-on-error: true
         uses: ./.github/actions/publish-npm-package
