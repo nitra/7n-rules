@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.6] - 2026-07-26
+
+### Fixed
+
+- Дроблено oversized source-file coverage mutants на ізольовані групи по 20.
+
 ## [1.49.5] - 2026-07-26
 
 ### Fixed
