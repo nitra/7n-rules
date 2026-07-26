@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.7] - 2026-07-26
+
+### Fixed
+
+- Усунено порожні PR, помилкові empty cherry-pick, неповний cleanup aliases і зайві LLM-виклики в `git-reconcile`.
+
 ## [1.49.6] - 2026-07-26
 
 ### Fixed
