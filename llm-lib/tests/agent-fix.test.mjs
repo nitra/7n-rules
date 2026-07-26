@@ -213,7 +213,9 @@ describe('happy-path (справжній write-guard на temp git-репо)', (
       rung: 'local-min',
       turnCount: 1,
       toolCallCount: 1,
-      backstopHit: false
+      backstopHit: false,
+      promptChars: expect.any(Number),
+      error: null
     })
     expect(r.telemetry.edits[0]).toMatchObject({ tool: 'edit', edits: [{ oldText: 'OLD', newText: 'NEW' }] })
     expect(typeof r.rollback).toBe('function')

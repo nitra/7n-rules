@@ -79,6 +79,25 @@ describe('fixWorker', () => {
     const hookArgs = provider.generateTests.mock.calls[0][0]
     expect(hookArgs.ctx.recordWrite).toBe(CTX.recordWrite)
     expect(hookArgs.ctx.tier).toBe('cloud-avg')
+    expect(hookArgs.ctx.coverageTimeout).toEqual({
+      requestedMs: null,
+      workerDeadlineMs: null,
+      effectiveHookTimeoutMs: null
+    })
+  })
+
+  test('передає coverage hook фактичний 80%-deadline worker-а для batch diagnosis', async () => {
+    const provider = fakeProvider()
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    await fixWorker([{ reason: 'mutation-below-threshold', data: { survived: [{ file: 'a.mjs', mutants: [{ line: 1 }] }] } }], {
+      ...CTX,
+      timeoutMs: 10_000
+    }, { resolveProviders: () => Promise.resolve([provider]) })
+    expect(provider.fixSurvived.mock.calls[0][0].ctx).toMatchObject({
+      timeoutMs: 8000,
+      coverageTimeout: { requestedMs: 10_000, workerDeadlineMs: 8000, effectiveHookTimeoutMs: 8000 }
+    })
+    nowSpy.mockRestore()
   })
 
   test('без violations свого профілю хуки генерації не викликаються', async () => {

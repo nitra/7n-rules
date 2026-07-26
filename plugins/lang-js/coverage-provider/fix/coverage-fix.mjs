@@ -77,6 +77,8 @@ export function batchSurvived(survived, budget) {
  * @property {string} [model] "provider/model-id" ladder-а (ctx.model); без нього — MODEL-фолбек
  * @property {string} [tier] поточний rung ladder-а (ctx.tier) — thinking-level і caller-мітка
  * @property {number} [timeoutMs] бюджет часу на ВЕСЬ прогін — кожен batch отримує залишок
+ * @property {{requestedMs:number|null,workerDeadlineMs:number|null,effectiveHookTimeoutMs:number|null}} [coverageTimeout]
+ *   timeout-и worker-а: початковий rung, його 80%-deadline та фактичний бюджет хука
  * @property {(absPath: string) => void} [recordWrite] реєстрація записів агента для central rollback
  * @property {object} [chain] chain handle concern-а — кожен batch стає кроком ланцюжка
  * @property {object} [feedback] structured diagnosis попереднього rung-а
@@ -92,13 +94,13 @@ export function batchSurvived(survived, budget) {
  * @param {SurvivedFileGroup[]} survived вцілілі мутанти, згруповані по файлах
  * @param {string} projectRoot абсолютний шлях до кореня проєкту
  * @param {FixSurvivedOptions} [opts] ctx-поля ladder-а + інʼєкції для тестів
- * @returns {Promise<{fixed: string[], failed: {files: string[], error: string}[], touchedFiles: string[]}>} фактично змінені test-файли, failed batches і ті самі test-файли
+ * @returns {Promise<{fixed: string[], failed: {files: string[], error: string, diagnosis: object}[], touchedFiles: string[], batches: object[]}>} фактично змінені test-файли, failed batches, batch-діагностика і ті самі test-файли
  */
 export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
   const totalMutants = survived.reduce((s, g) => s + g.mutants.length, 0)
   if (totalMutants === 0) {
     console.log('✓ Всі мутанти вбиті — доповнення тестів не потрібне')
-    return { fixed: [], failed: [], touchedFiles: [] }
+    return { fixed: [], failed: [], touchedFiles: [], batches: [] }
   }
 
   let runFix = opts.runAgentFix
@@ -106,7 +108,8 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
     const agentFixModule = await import('@7n/llm-lib/agent-fix')
     runFix = agentFixModule.runAgentFix
   }
-  const batches = batchSurvived(survived, resolveBatchBudget())
+  const budget = resolveBatchBudget()
+  const batches = batchSurvived(survived, budget)
   const deadlineAt = opts.timeoutMs ? Date.now() + opts.timeoutMs : null
   console.log(
     `\n🤖 coverage fix: ${totalMutants} вцілілих мутантів, ${survived.length} файл(ів) → ${batches.length} batch(ів)...\n`
@@ -115,19 +118,45 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
   const fixed = []
   const failed = []
   const touchedFiles = []
+  const batchDiagnostics = []
   for (const [i, batch] of batches.entries()) {
-    if (deadlineAt && Date.now() >= deadlineAt) break
     const files = batch.map(g => g.file)
     const batchMutants = batch.reduce((s, g) => s + g.mutants.length, 0)
+    const oversizedFiles = batch.filter(g => g.mutants.length > budget).map(g => g.file)
+    if (deadlineAt && Date.now() >= deadlineAt) {
+      const diagnosis = batchDiagnosis({
+        i,
+        total: batches.length,
+        files,
+        batchMutants,
+        budget,
+        oversizedFiles,
+        requestedTimeoutMs: opts.coverageTimeout?.requestedMs ?? opts.timeoutMs ?? null,
+        workerDeadlineMs: opts.coverageTimeout?.workerDeadlineMs ?? null,
+        effectiveTimeoutMs: 0,
+        wallMs: 0,
+        error: 'worker deadline exhausted before batch start'
+      })
+      batchDiagnostics.push(diagnosis)
+      const error = 'worker deadline exhausted before batch start'
+      console.error(`✗ batch ${i + 1}/${batches.length} не стартував: ${error}`)
+      console.error(`  ${formatBatchDiagnosis(diagnosis)}`)
+      failed.push({ files, error, diagnosis })
+      continue
+    }
     console.log(
-      `\n🤖 batch ${i + 1}/${batches.length}: ${files.length} файл(ів), ${batchMutants} мутантів — ${files.join(', ')}\n`
+      `\n🤖 batch ${i + 1}/${batches.length}: ${files.length} файл(ів), ${batchMutants} мутантів, budget=${budget}, oversizedAtomicFile=${oversizedFiles.length > 0} — ${files.join(', ')}\n`
     )
 
     const prompt = await buildFixPrompt(batch, projectRoot)
+    const requestedTimeoutMs = opts.coverageTimeout?.requestedMs ?? opts.timeoutMs ?? null
+    const workerDeadlineMs = opts.coverageTimeout?.workerDeadlineMs ?? null
+    const effectiveTimeoutMs = deadlineAt ? Math.max(1000, deadlineAt - Date.now()) : opts.timeoutMs ?? null
+    const startedAt = Date.now()
     const res = await runFix('test', prompt, projectRoot, {
       model: opts.model || MODEL,
       tier: opts.tier,
-      timeoutMs: deadlineAt ? Math.max(1000, deadlineAt - Date.now()) : undefined,
+      timeoutMs: effectiveTimeoutMs ?? undefined,
       feedback: opts.feedback ?? null,
       caller: `fix:test/coverage:${opts.tier ?? 'mutants'}:batch${i + 1}`,
       recordWrite: opts.recordWrite,
@@ -145,11 +174,29 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
         : noOp
           ? noOpReason(res.telemetry)
           : null)
+    const diagnosis = batchDiagnosis({
+      i,
+      total: batches.length,
+      files,
+      batchMutants,
+      budget,
+      oversizedFiles,
+      promptChars: res.telemetry?.promptChars ?? prompt.length,
+      requestedTimeoutMs,
+      workerDeadlineMs,
+      effectiveTimeoutMs,
+      wallMs: res.telemetry?.wallMs ?? Date.now() - startedAt,
+      telemetry: res.telemetry,
+      error,
+      writtenTests
+    })
+    batchDiagnostics.push(diagnosis)
+    console.log(`  ${formatBatchDiagnosis(diagnosis)}`)
     if (error) {
       if (unexpectedWrites.length > 0) res.rollback?.()
       console.error(`✗ batch ${i + 1}/${batches.length} не завершився: ${error}`)
       console.error(`  Файли batch (частковий прогрес зареєстровано через recordWrite): ${files.join(', ')}`)
-      failed.push({ files, error })
+      failed.push({ files, error, diagnosis })
       continue
     }
     fixed.push(...writtenTests)
@@ -163,7 +210,71 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
     console.log(`\n✓ coverage fix: усі ${batches.length} batch(ів) змінили ${fixed.length} test-файл(ів).`)
   }
 
-  return { fixed, failed, touchedFiles }
+  return { fixed, failed, touchedFiles, batches: batchDiagnostics }
+}
+
+/**
+ * Складає serializable діагностику batch-а без prompt-а, model output чи source-коду.
+ * @param {object} args дані batch-а та telemetry `runAgentFix`
+ * @returns {object} безпечний структурований verdict
+ */
+function batchDiagnosis({
+  i,
+  total,
+  files,
+  batchMutants,
+  budget,
+  oversizedFiles,
+  promptChars = null,
+  requestedTimeoutMs,
+  workerDeadlineMs,
+  effectiveTimeoutMs,
+  wallMs,
+  telemetry = null,
+  error = null,
+  writtenTests = []
+}) {
+  const stops = [...new Set((telemetry?.turns ?? []).map(turn => turn.finish).filter(Boolean))]
+  const edits = telemetry?.edits
+  const allowedTestWrites = Array.isArray(edits)
+    ? edits.filter(edit => TEST_FILE_RE.test(edit.path)).length
+    : writtenTests.length
+  return {
+    batch: i + 1,
+    batchCount: total,
+    sourceFileCount: files.length,
+    mutantCount: batchMutants,
+    configuredBudget: budget,
+    oversizedAtomicFile: oversizedFiles.length > 0,
+    oversizedFiles,
+    promptChars,
+    requestedTimeoutMs,
+    workerDeadlineMs,
+    effectiveTimeoutMs,
+    wallMs,
+    verdict: {
+      turnCount: telemetry?.turnCount ?? 0,
+      toolCallCount: telemetry?.toolCallCount ?? 0,
+      stopReasons: stops,
+      error: error ?? telemetry?.error ?? null,
+      allowedTestWrites,
+      blockedWrites: telemetry?.blocks?.length ?? 0,
+      backstopHit: telemetry?.backstopHit ?? false,
+      emptyCompletion: telemetry?.emptyCompletion ?? false
+    }
+  }
+}
+
+/** @param {object} diagnosis безпечна batch-діагностика */
+function formatBatchDiagnosis(diagnosis) {
+  const verdict = diagnosis.verdict
+  return [
+    `diagnosis: files=${diagnosis.sourceFileCount}, mutants=${diagnosis.mutantCount}, budget=${diagnosis.configuredBudget}`,
+    `oversizedAtomicFile=${diagnosis.oversizedAtomicFile}, promptChars=${diagnosis.promptChars}`,
+    `timeout(requested/worker/effective)=${diagnosis.requestedTimeoutMs}/${diagnosis.workerDeadlineMs}/${diagnosis.effectiveTimeoutMs}ms`,
+    `wallMs=${diagnosis.wallMs}`,
+    `verdict(turns/tools/stops/error/testWrites/blocked/backstop)=${verdict.turnCount}/${verdict.toolCallCount}/${verdict.stopReasons.join(',') || '-'} / ${verdict.error ?? '-'} / ${verdict.allowedTestWrites}/${verdict.blockedWrites}/${verdict.backstopHit}`
+  ].join('; ')
 }
 
 /**
@@ -176,7 +287,9 @@ function noOpReason(telemetry) {
   const tools = telemetry?.toolCallCount ?? 0
   const usage = telemetry?.usage?.totalTokens
   const usagePart = Number.isFinite(usage) ? `, usage.totalTokens=${usage}` : ''
-  return `no-op: агент завершився без записів (turnCount=${turns}, toolCallCount=${tools}${usagePart})`
+  const stops = [...new Set((telemetry?.turns ?? []).map(turn => turn.finish).filter(Boolean))]
+  const blocked = telemetry?.blocks?.length ?? 0
+  return `no-op: агент завершився без записів (turnCount=${turns}, toolCallCount=${tools}, stopReason=${stops.join(',') || '-'}, blockedWrites=${blocked}${usagePart})`
 }
 
 /**
