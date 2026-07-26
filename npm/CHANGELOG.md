@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.11] - 2026-07-26
+
+### Fixed
+
+- Додано окремий 180-секундний cloud budget для survived-mutant coverage batch і deferred решти batch-ів
+
 ## [1.49.10] - 2026-07-26
 
 ### Fixed
