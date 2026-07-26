@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.9.4] - 2026-07-26
+
+### Fixed
+
+- Додано безпечну telemetry batch verdict для coverage timeout-ів.
+
 ## [2.9.3] - 2026-07-26
 
 ### Fixed
