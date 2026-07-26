@@ -89,7 +89,12 @@ export default {
       chain: ctx?.chain ?? null,
       feedback: ctx?.feedback ?? null
     })
-    return { touchedFiles: res.touchedFiles }
+    const previousError = res.failed.map(failure => failure.error).join('\n')
+    return {
+      touchedFiles: res.touchedFiles,
+      failed: res.failed,
+      feedback: previousError ? { previousError } : null
+    }
   },
 
   /**

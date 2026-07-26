@@ -88,6 +88,7 @@ export async function fixWorker(violations, ctx, deps = {}) {
   const touchedFiles = []
   /** @type {Array<{provider: string, hook: string, files: string[], error: string}>} */
   const failed = []
+  let feedback = null
   /**
    * Викликає опційний fix-hook провайдера, збирає touchedFiles; виняток хука не
    * валить решту хуків/провайдерів — success визначає canonical re-detect.
@@ -101,6 +102,7 @@ export async function fixWorker(violations, ctx, deps = {}) {
     try {
       const res = await provider[hook]({ ...args, cwd: ctx.cwd, ctx: hookCtx(ctx, deadlineAt) })
       touchedFiles.push(...(res?.touchedFiles ?? []))
+      if (res?.feedback?.previousError) feedback = res.feedback
       for (const failure of res?.failed ?? []) {
         const error = failure?.error ?? 'невідома причина'
         const files = failure?.files ?? []
@@ -126,5 +128,5 @@ export async function fixWorker(violations, ctx, deps = {}) {
     }
   }
 
-  return { touchedFiles, failed }
+  return { touchedFiles, failed, feedback }
 }

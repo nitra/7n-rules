@@ -300,6 +300,128 @@ export function parseStrykerReport(report, jsRoot) {
 }
 
 /**
+ * Зіставляє деталь survived-мутанта з записом canonical Stryker report.
+ * @param {{line:number,col:number,mutantType:string,replacement:string}} target мутант із попереднього report
+ * @param {{location?:{start?:{line?:number,column?:number}},mutatorName?:string,replacement?:string}} candidate мутант із нового report
+ * @returns {boolean} чи це той самий мутант
+ */
+function isTargetMutant(target, candidate) {
+  return (
+    candidate.location?.start?.line === target.line &&
+    candidate.location?.start?.column === target.col &&
+    (candidate.mutatorName ?? 'Unknown') === target.mutantType &&
+    (candidate.replacement ?? '') === target.replacement
+  )
+}
+
+/**
+ * Один scoped Stryker-прогін після agent test-write. Старий mutation.json видаляється
+ * як report-артефакт (не Stryker cache) до запуску, щоб попередній incremental report
+ * не міг стати доказом нового успіху. Кожен target мусить бути знайдений у свіжому
+ * report; batch приймається лише коли хоча б один target став Killed або Timeout.
+ * @param {{cwd:string, batch:Array<{file:string,mutants:Array<object>}>, runner?:typeof defaultRunner}} args корінь, target batch і runner
+ * @returns {Promise<{ok:boolean,targetCount:number,killed:number,remaining:number,covered0:number,reason:string|null}>} mutation verdict
+ */
+export async function verifyScopedMutationBatch({ cwd, batch, runner = defaultRunner }) {
+  const roots = await resolveAllJsRoots(cwd)
+  const perRoot = new Map()
+  for (const group of batch) {
+    const candidates = roots
+      .map(root => ({ root, file: scopeToRoot([group.file], cwd, root)[0] }))
+      .filter(candidate => candidate.file)
+      .sort((a, b) => b.root.length - a.root.length)
+    const selected = candidates[0]
+    if (!selected) {
+      return {
+        ok: false,
+        targetCount: batch.reduce((count, item) => count + item.mutants.length, 0),
+        killed: 0,
+        remaining: 0,
+        covered0: 0,
+        reason: `reporter failure: source поза JS workspace: ${group.file}`
+      }
+    }
+    const entry = perRoot.get(selected.root) ?? { files: [], groups: [] }
+    entry.files.push(selected.file)
+    entry.groups.push({ ...group, file: selected.file })
+    perRoot.set(selected.root, entry)
+  }
+
+  let targetCount = 0
+  let killed = 0
+  let remaining = 0
+  let covered0 = 0
+  for (const [root, { files, groups }] of perRoot) {
+    const reportPath = join(root, 'reports', 'stryker', 'mutation.json')
+    await rm(reportPath, { force: true })
+    const code = await runner.runStryker({ cwd: root, mutate: [...new Set(files)] })
+    if (code !== 0) {
+      return { ok: false, targetCount, killed, remaining, covered0, reason: `reporter failure: Stryker exit ${code}` }
+    }
+    if (!existsSync(reportPath)) {
+      return {
+        ok: false,
+        targetCount,
+        killed,
+        remaining,
+        covered0,
+        reason: 'reporter failure: scoped Stryker не залишив mutation.json'
+      }
+    }
+    const report = JSON.parse(await readFile(reportPath, 'utf8'))
+    for (const group of groups) {
+      const mutants = report.files?.[group.file]?.mutants
+      if (!Array.isArray(mutants)) {
+        return {
+          ok: false,
+          targetCount,
+          killed,
+          remaining,
+          covered0,
+          reason: `reporter failure: scoped report не містить ${group.file}`
+        }
+      }
+      for (const target of group.mutants) {
+        targetCount += 1
+        const result = mutants.find(mutant => isTargetMutant(target, mutant))
+        if (!result) {
+          return {
+            ok: false,
+            targetCount,
+            killed,
+            remaining,
+            covered0,
+            reason: `reporter failure: scoped report не містить target mutant ${group.file}:${target.line}:${target.col}`
+          }
+        }
+        if (result.status === 'Killed' || result.status === 'Timeout') killed += 1
+        else if (result.status === 'NoCoverage') {
+          covered0 += 1
+          remaining += 1
+        } else if (result.status === 'Survived') remaining += 1
+        else {
+          return {
+            ok: false,
+            targetCount,
+            killed,
+            remaining,
+            covered0,
+            reason: `reporter failure: target має непідтверджений статус ${result.status ?? 'unknown'}`
+          }
+        }
+      }
+    }
+  }
+  const reason =
+    killed === 0
+      ? covered0 > 0
+        ? 'covered 0: target mutants лишились без покриття'
+        : 'no-improvement: жоден target mutant не вбитий'
+      : null
+  return { ok: killed > 0, targetCount, killed, remaining, covered0, reason }
+}
+
+/**
  * Шлях до локально встановленого Stryker core-bin (поряд із плагінами на кшталт
  * `@stryker-mutator/vitest-runner`). Запуск саме його через `node` — не `npx`/`bunx` —
  * дає Stryker побачити локальні плагіни при plugin-discovery.
