@@ -4,6 +4,10 @@
  */
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { existsSync } from 'node:fs'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+
+import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual('node:fs')
@@ -15,7 +19,7 @@ vi.mock('../../../../scripts/utils/spawn-async.mjs', async () => {
   return { ...actual, spawnAsync: vi.fn(actual.spawnAsync) }
 })
 
-const { runV8rWithGlobs } = await import('../main.mjs')
+const { lint, runV8rWithGlobs } = await import('../main.mjs')
 const { spawnAsync } = await import('../../../../scripts/utils/spawn-async.mjs')
 
 describe('runV8rWithGlobs — error paths', () => {
@@ -277,5 +281,36 @@ describe('runV8rWithGlobs — error paths', () => {
     }
     expect(result.code).toBe(1)
     expect(result.detail).toContain('other.yml is invalid')
+  })
+})
+
+describe('lint — full scope', () => {
+  afterEach(() => vi.clearAllMocks())
+
+  test('поважає .n-rules.json:ignore під час full-скану', async () => {
+    await withTmpDir(async root => {
+      await mkdir(join(root, 'generated'), { recursive: true })
+      await writeFile(join(root, '.n-rules.json'), JSON.stringify({ ignore: ['generated'] }), 'utf8')
+      await writeFile(join(root, 'kept.json'), '{}', 'utf8')
+      await writeFile(join(root, 'generated', 'ignored.json'), '{}', 'utf8')
+      vi.mocked(spawnAsync).mockResolvedValueOnce({
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+        signal: null,
+        timedOut: false,
+        aborted: false
+      })
+
+      const result = await lint({ cwd: root, ruleId: 'text', concernId: 'run-v8r' })
+
+      expect(result.violations).toEqual([])
+      expect(vi.mocked(spawnAsync)).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(['x', 'v8r', 'kept.json']),
+        expect.any(Object)
+      )
+      expect(vi.mocked(spawnAsync).mock.calls[0][1]).not.toContain('generated/ignored.json')
+    })
   })
 })
