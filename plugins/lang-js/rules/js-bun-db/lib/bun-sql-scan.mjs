@@ -948,6 +948,27 @@ function isJsonStringifyCall(node) {
 }
 
 /**
+ * Дозволяє JSON-текст для вкладених значень у PostgreSQL `text[]`.
+ * Bun SQL розгортає JS-масив у SQL-масив; без stringify `unnest(...::text[])`
+ * втрачає зовнішній JSON-масив перед подальшим `::jsonb` cast.
+ * @param {unknown} node AST node
+ * @returns {boolean} чи це `sql.array(..., 'text')`
+ */
+function isTextArrayCall(node) {
+  if (!node || typeof node !== 'object' || node.type !== 'CallExpression' || !Array.isArray(node.arguments)) return false
+  const callee = node.callee
+  const type = node.arguments[1]
+  return (
+    callee?.type === 'MemberExpression' &&
+    !callee.computed &&
+    callee.property?.type === 'Identifier' &&
+    callee.property.name === 'array' &&
+    type?.type === 'Literal' &&
+    type.value === 'text'
+  )
+}
+
+/**
  * Знаходить виклики `JSON.stringify(...)::jsonb` всередині SQL template literal-ів.
  * Bun SQL серіалізує об'єкти/масиви у JSON автоматично — явний `JSON.stringify`
  * перед `::jsonb` призводить до подвійної серіалізації (js-bun-db.mdc).
@@ -1001,6 +1022,9 @@ export function findJsonStringifyBeforeJsonbInText(content, virtualPath = 'scan.
           ? nextQuasi.value.raw
           : ''
 
+      // `text[] → unnest → ::jsonb` є окремим безпечним контрактом: stringify
+      // зберігає вкладений JSON-масив, тоді як Bun SQL інакше розгортає його.
+      if (isTextArrayCall(expr)) continue
       if (JSONB_CAST_RE.test(rawAfter) || hasSqlArrayStringify) {
         out.push({
           line: offsetToLine(content, expr.start),
