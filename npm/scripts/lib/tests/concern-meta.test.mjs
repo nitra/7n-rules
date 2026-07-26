@@ -91,6 +91,19 @@ describe('concern-meta — lint surface', () => {
     })
   })
 
+  test('cloudTimeoutMs нормалізується лише для додатного integer', async () => {
+    await withTmpDir(async dir => {
+      const withOverride = await seedConcern(dir, 'test', 'coverage', {
+        lint: { scope: 'per-file' },
+        cloudTimeoutMs: 180_000
+      })
+      expect((await readConcernMeta(withOverride, 'coverage')).cloudTimeoutMs).toBe(180_000)
+
+      const invalid = await seedConcern(dir, 'test', 'invalid', { lint: { scope: 'per-file' }, cloudTimeoutMs: 0 })
+      expect((await readConcernMeta(invalid, 'invalid')).cloudTimeoutMs).toBeUndefined()
+    })
+  })
+
   test('listConcerns ігнорує теки без concern.json', async () => {
     await withTmpDir(async dir => {
       await seedConcern(dir, 'rule', 'real', { lint: { scope: 'full' } })

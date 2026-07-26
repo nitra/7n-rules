@@ -60,4 +60,12 @@ describe('run-v8r', () => {
       .map(({ url }) => url)
     expect(missing).toEqual([])
   })
+
+  test('.kubescape-exceptions.json має permissive-схему для власної конвенції @7n/rules', () => {
+    const catalog = JSON.parse(readFileSync(V8R_CATALOG_PATH, 'utf8'))
+    const schema = catalog.schemas.find(({ url }) => url === 'any.json')
+    expect(schema?.fileMatch).toEqual(
+      expect.arrayContaining(['.kubescape-exceptions.json', '**/.kubescape-exceptions.json'])
+    )
+  })
 })

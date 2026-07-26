@@ -23,6 +23,11 @@
       "type": "boolean",
       "description": "Дефолт `false` (поле можна опускати). `true` пропускає local-min/local-min-retry rung-и LLM-ladder-а для цього concern-а — перша спроба одразу йде на cloud-min. Для concern-ів, де local-tier (слабка локальна модель, короткий бюджет) емпірично майже завжди лише витрачає час rung-а без результату, перш ніж ladder однаково ескалює далі."
     },
+    "cloudTimeoutMs": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Опційний budget одного cloud rung-а лише для цього concern-а. Замінює timeout cloud-min/cloud-avg у ladder, не змінюючи глобальний `N_CLOUD_FIX_TIMEOUT_MS` або інші concern-и."
+    },
     "check": {
       "type": "boolean",
       "const": true,
