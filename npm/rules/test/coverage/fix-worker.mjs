@@ -90,6 +90,7 @@ export async function fixWorker(violations, ctx, deps = {}) {
   const touchedFiles = []
   /** @type {Array<{provider: string, hook: string, files: string[], error: string}>} */
   const failed = []
+  let feedback = null
   const deferred = []
   /**
    * Викликає опційний fix-hook провайдера, збирає touchedFiles; виняток хука не
@@ -104,6 +105,7 @@ export async function fixWorker(violations, ctx, deps = {}) {
     try {
       const res = await provider[hook]({ ...args, cwd: ctx.cwd, ctx: hookCtx(ctx, deadlineAt) })
       touchedFiles.push(...(res?.touchedFiles ?? []))
+      if (res?.feedback?.previousError) feedback = res.feedback
       deferred.push(...(res?.deferred ?? []))
       for (const failure of res?.failed ?? []) {
         const error = failure?.error ?? 'невідома причина'
@@ -135,5 +137,5 @@ export async function fixWorker(violations, ctx, deps = {}) {
     }
   }
 
-  return { touchedFiles, failed, deferred }
+  return { touchedFiles, failed, deferred, feedback }
 }

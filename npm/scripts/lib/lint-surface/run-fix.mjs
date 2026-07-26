@@ -454,6 +454,10 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
 
   const vetoed = after.length === 0 && !error && (collateralAll.length > 0 || brokenTest !== null)
   const touchedFiles = workerResult?.touchedFiles ?? []
+  // Provider може повернути quality-verdict без worker exception (наприклад,
+  // generated coverage test зелений у Vitest, але не вбив target mutant). Це
+  // не змінює retry policy; лише дає наступному ladder rung-у конкретний feedback.
+  const workerFeedback = workerResult?.feedback?.previousError ?? null
 
   if (after.length === 0 && !error && !vetoed) {
     log(`  ✅ ${rung.tier} (${rung.model}): ${ruleId}/${concernName}\n`)
@@ -501,7 +505,7 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
     outcome: {
       action: decideAfterFailure(rung, error),
       violations: after.length > 0 ? after : violations,
-      feedback: { previousModel: rung.model, previousError: error ?? silentFailureNote }
+      feedback: { previousModel: rung.model, previousError: error ?? workerFeedback ?? silentFailureNote }
     }
   }
 }

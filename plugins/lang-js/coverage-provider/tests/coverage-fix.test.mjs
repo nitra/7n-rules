@@ -91,9 +91,20 @@ describe('coverage-fix.mjs', () => {
         return
       })
       const recordWrite = vi.fn()
-      const runAgentFix = vi.fn(() => Promise.resolve({ touchedFiles: ['/proj/tests/util.test.mjs'] }))
+      const verifyMutation = vi.fn(() =>
+        Promise.resolve({ ok: true, targetCount: 1, killed: 1, remaining: 0, covered0: 0, reason: null })
+      )
+      const runAgentFix = vi.fn(async (_rule, _prompt, _cwd, options) => {
+        await options.verify({ touchedFiles: ['/proj/tests/util.test.mjs'] })
+        return { touchedFiles: ['/proj/tests/util.test.mjs'], rollback: vi.fn() }
+      })
 
-      const result = await fixSurvivedMutants(survived, ROOT, { runAgentFix, recordWrite, tier: 'cloud-min' })
+      const result = await fixSurvivedMutants(survived, ROOT, {
+        runAgentFix,
+        verifyMutation,
+        recordWrite,
+        tier: 'cloud-min'
+      })
 
       expect(runAgentFix).toHaveBeenCalledWith(
         'test',
@@ -116,8 +127,14 @@ describe('coverage-fix.mjs', () => {
         batch: 1,
         configuredBudget: 40,
         promptChars: expect.any(Number),
-        verdict: { allowedTestWrites: 1, blockedWrites: 0, backstopHit: false }
+        verdict: {
+          allowedTestWrites: 1,
+          blockedWrites: 0,
+          backstopHit: false,
+          mutation: { targetCount: 1, killed: 1, remaining: 0, covered0: 0 }
+        }
       })
+      expect(verifyMutation).toHaveBeenCalledWith({ cwd: ROOT, batch: survived })
       logSpy.mockRestore()
     })
 
@@ -161,13 +178,19 @@ describe('coverage-fix.mjs', () => {
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {
         return
       })
+      const verifyMutation = vi.fn(() =>
+        Promise.resolve({ ok: true, targetCount: 20, killed: 1, remaining: 19, covered0: 0, reason: null })
+      )
       const runAgentFix = vi
         .fn()
         .mockResolvedValueOnce({ error: 'skill timeout 900000ms' })
-        .mockResolvedValueOnce({ touchedFiles: ['/proj/tests/b.test.mjs'] })
+        .mockImplementationOnce(async (_rule, _prompt, _cwd, options) => {
+          await options.verify({ touchedFiles: ['/proj/tests/b.test.mjs'] })
+          return { touchedFiles: ['/proj/tests/b.test.mjs'], rollback: vi.fn() }
+        })
       const big = [groupWith('a.js', 25), groupWith('b.js', 20)]
 
-      const result = await fixSurvivedMutants(big, ROOT, { runAgentFix })
+      const result = await fixSurvivedMutants(big, ROOT, { runAgentFix, verifyMutation })
 
       expect(result).toMatchObject({
         fixed: ['/proj/tests/b.test.mjs'],
@@ -175,6 +198,67 @@ describe('coverage-fix.mjs', () => {
         touchedFiles: ['/proj/tests/b.test.mjs']
       })
       expect(runAgentFix).toHaveBeenCalledTimes(2)
+      logSpy.mockRestore()
+      errSpy.mockRestore()
+    })
+
+    it('відкочує зелений, але mutation-irrelevant test і повертає useful quality feedback', async () => {
+      vi.mocked(readFile).mockResolvedValue('const x = true')
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => null)
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => null)
+      const rollback = vi.fn()
+      const verifyMutation = vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          targetCount: 1,
+          killed: 0,
+          remaining: 1,
+          covered0: 1,
+          reason: 'covered 0: target mutants лишились без покриття'
+        })
+      )
+      const runAgentFix = vi.fn(async (_rule, _prompt, _cwd, options) => {
+        await options.verify({ touchedFiles: ['/proj/tests/util.test.mjs'] })
+        return { touchedFiles: ['/proj/tests/util.test.mjs'], rollback }
+      })
+
+      const result = await fixSurvivedMutants(survived, ROOT, { runAgentFix, verifyMutation })
+
+      expect(result).toMatchObject({
+        fixed: [],
+        touchedFiles: [],
+        failed: [{ files: ['src/util.js'], error: expect.stringContaining('covered 0') }]
+      })
+      expect(result.batches[0].verdict.mutation).toMatchObject({ targetCount: 1, killed: 0, remaining: 1, covered0: 1 })
+      expect(rollback).toHaveBeenCalledOnce()
+      logSpy.mockRestore()
+      errSpy.mockRestore()
+    })
+
+    it('відкочує test batch, коли scoped Stryker runner або reporter не дали verdict', async () => {
+      vi.mocked(readFile).mockResolvedValue('const x = true')
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => null)
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => null)
+      const rollback = vi.fn()
+      const verifyMutation = vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          targetCount: 1,
+          killed: 0,
+          remaining: 0,
+          covered0: 0,
+          reason: 'reporter failure: Stryker exit 1'
+        })
+      )
+      const runAgentFix = vi.fn(async (_rule, _prompt, _cwd, options) => {
+        await options.verify({ touchedFiles: ['/proj/tests/util.test.mjs'] })
+        return { touchedFiles: ['/proj/tests/util.test.mjs'], rollback }
+      })
+
+      const result = await fixSurvivedMutants(survived, ROOT, { runAgentFix, verifyMutation })
+
+      expect(result.failed[0].error).toContain('reporter failure')
+      expect(rollback).toHaveBeenCalledOnce()
       logSpy.mockRestore()
       errSpy.mockRestore()
     })

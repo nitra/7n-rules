@@ -16,7 +16,8 @@ import {
   findExampleTest,
   parseStrykerReport,
   scopeToRoot,
-  scopeToStorybookRoot
+  scopeToStorybookRoot,
+  verifyScopedMutationBatch
 } from '../js-collector.mjs'
 
 const JS_COVERAGE_EXIT_RE = /JS coverage.*exit 1/
@@ -617,6 +618,119 @@ describe('scopeToRoot', () => {
     const cwd = '/repo'
     const files = ['a.vue', 'b.stories.js', 'c.js']
     expect(scopeToRoot(files, cwd, cwd)).toEqual(['a.vue', 'b.stories.js', 'c.js'])
+  })
+})
+
+describe('verifyScopedMutationBatch', () => {
+  const target = {
+    file: 'src/a.js',
+    mutants: [{ line: 1, col: 6, mutantType: 'BooleanLiteral', original: 'true', replacement: 'false' }]
+  }
+
+  test('приймає лише свіжий scoped report, де target mutant killed', async () => {
+    const dir = makeFixture({ devDependencies: { vitest: '^2.0.0' } })
+    mkdirSync(join(dir, 'src'), { recursive: true })
+    writeFileSync(join(dir, 'src', 'a.js'), 'const x = true\n')
+    const reportDir = join(dir, 'reports', 'stryker')
+    mkdirSync(reportDir, { recursive: true })
+    // Stale survived report мусить бути видалений до runner-а, а не прийнятий як evidence.
+    writeFileSync(
+      join(reportDir, 'mutation.json'),
+      JSON.stringify({ files: { 'src/a.js': { mutants: [{ status: 'Survived' }] } } })
+    )
+    const calls = []
+    const runner = {
+      runStryker({ cwd, mutate }) {
+        calls.push({ cwd, mutate })
+        writeFileSync(
+          join(cwd, 'reports', 'stryker', 'mutation.json'),
+          JSON.stringify({
+            files: {
+              'src/a.js': {
+                mutants: [
+                  {
+                    status: 'Killed',
+                    mutatorName: 'BooleanLiteral',
+                    replacement: 'false',
+                    location: { start: { line: 1, column: 6 } }
+                  }
+                ]
+              }
+            }
+          })
+        )
+        return 0
+      }
+    }
+
+    await expect(verifyScopedMutationBatch({ cwd: dir, batch: [target], runner })).resolves.toEqual({
+      ok: true,
+      targetCount: 1,
+      killed: 1,
+      remaining: 0,
+      covered0: 0,
+      reason: null
+    })
+    expect(calls).toEqual([{ cwd: dir, mutate: ['src/a.js'] }])
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('відхиляє green Vitest-equivalent batch, коли target лишився survived або covered 0', async () => {
+    const dir = makeFixture({ devDependencies: { vitest: '^2.0.0' } })
+    mkdirSync(join(dir, 'src'), { recursive: true })
+    writeFileSync(join(dir, 'src', 'a.js'), 'const x = true\n')
+    const runner = {
+      runStryker({ cwd }) {
+        mkdirSync(join(cwd, 'reports', 'stryker'), { recursive: true })
+        writeFileSync(
+          join(cwd, 'reports', 'stryker', 'mutation.json'),
+          JSON.stringify({
+            files: {
+              'src/a.js': {
+                mutants: [
+                  {
+                    status: 'NoCoverage',
+                    mutatorName: 'BooleanLiteral',
+                    replacement: 'false',
+                    location: { start: { line: 1, column: 6 } }
+                  }
+                ]
+              }
+            }
+          })
+        )
+        return 0
+      }
+    }
+
+    await expect(verifyScopedMutationBatch({ cwd: dir, batch: [target], runner })).resolves.toMatchObject({
+      ok: false,
+      killed: 0,
+      remaining: 1,
+      covered0: 1,
+      reason: 'covered 0: target mutants лишились без покриття'
+    })
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('повертає reporter failure, коли scoped runner падає або не залишає report', async () => {
+    const dir = makeFixture({ devDependencies: { vitest: '^2.0.0' } })
+    mkdirSync(join(dir, 'src'), { recursive: true })
+    writeFileSync(join(dir, 'src', 'a.js'), 'const x = true\n')
+
+    await expect(
+      verifyScopedMutationBatch({ cwd: dir, batch: [target], runner: { runStryker: () => 1 } })
+    ).resolves.toMatchObject({
+      ok: false,
+      reason: 'reporter failure: Stryker exit 1'
+    })
+    await expect(
+      verifyScopedMutationBatch({ cwd: dir, batch: [target], runner: { runStryker: () => 0 } })
+    ).resolves.toMatchObject({
+      ok: false,
+      reason: 'reporter failure: scoped Stryker не залишив mutation.json'
+    })
+    rmSync(dir, { recursive: true, force: true })
   })
 })
 

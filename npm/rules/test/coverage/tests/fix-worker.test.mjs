@@ -122,7 +122,7 @@ describe('fixWorker', () => {
     const res = await fixWorker([{ reason: 'coverage-below-threshold', file: 'a.mjs', data: { pct: 1 } }], CTX, {
       resolveProviders: () => Promise.resolve([provider])
     })
-    expect(res).toEqual({ touchedFiles: [], failed: [], deferred: [] })
+    expect(res).toEqual({ touchedFiles: [], failed: [], deferred: [], feedback: null })
   })
 
   test('виняток одного хука не зупиняє наступні', async () => {
@@ -185,9 +185,26 @@ describe('fixWorker', () => {
       failed: [
         { provider: 'fake', hook: 'fixSurvived', files: ['src/a.mjs'], error: 'no-op: агент завершився без записів' }
       ],
-      deferred: []
+      deferred: [],
+      feedback: null
     })
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('failed/no-op'))
     warnSpy.mockRestore()
+  })
+
+  test('передає quality verdict провайдера як feedback наступного ladder rung-а', async () => {
+    const provider = fakeProvider({
+      fixSurvived: vi.fn().mockResolvedValue({
+        touchedFiles: [],
+        failed: [{ files: ['src/a.mjs'], error: 'mutation verdict: targets=1, killed=0' }],
+        feedback: { previousError: 'mutation verdict: targets=1, killed=0, covered0=1' }
+      })
+    })
+    const res = await fixWorker(
+      [{ reason: 'mutation-below-threshold', data: { survived: [{ file: 'src/a.mjs', mutants: [{ line: 1 }] }] } }],
+      CTX,
+      { resolveProviders: () => Promise.resolve([provider]) }
+    )
+    expect(res.feedback).toEqual({ previousError: 'mutation verdict: targets=1, killed=0, covered0=1' })
   })
 })

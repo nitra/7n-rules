@@ -14,6 +14,8 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { env } from 'node:process'
 
+import { verifyScopedMutationBatch } from '../js-collector.mjs'
+
 // `@7n/llm-lib` — dependency ядра `@7n/rules`, не плагіна: динамічний import
 // (top-level await) — той самий патерн, що `rules/js/eslint/fix-worker.mjs`.
 const { CLOUD_AVG, CLOUD_MAX } = await import('@7n/llm-lib/model-tiers')
@@ -99,6 +101,7 @@ export function batchSurvived(survived, budget) {
  * @property {object} [chain] chain handle concern-а — кожен batch стає кроком ланцюжка
  * @property {object} [feedback] structured diagnosis попереднього rung-а
  * @property {typeof import('@7n/llm-lib/agent-fix').runAgentFix} [runAgentFix] інʼєкція для тестів
+ * @property {(args: {cwd:string,batch:SurvivedFileGroup[]}) => Promise<object>} [verifyMutation] scoped Stryker verdict для тестів
  */
 
 /**
@@ -159,6 +162,33 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
     const workerDeadlineMs = opts.coverageTimeout?.workerDeadlineMs ?? null
     const effectiveTimeoutMs = deadlineAt ? Math.max(1000, deadlineAt - Date.now()) : (opts.timeoutMs ?? null)
     const startedAt = Date.now()
+    let mutationVerdict = null
+    const verifyMutation = async ({ touchedFiles }) => {
+      if (!touchedFiles.some(file => TEST_FILE_RE.test(file))) {
+        mutationVerdict = {
+          ok: false,
+          targetCount: batchMutants,
+          killed: 0,
+          remaining: batchMutants,
+          covered0: 0,
+          reason: 'no-op: агент не записав test-файл до mutation verification'
+        }
+      } else {
+        try {
+          mutationVerdict = await (opts.verifyMutation ?? verifyScopedMutationBatch)({ cwd: projectRoot, batch })
+        } catch (error) {
+          mutationVerdict = {
+            ok: false,
+            targetCount: batchMutants,
+            killed: 0,
+            remaining: batchMutants,
+            covered0: 0,
+            reason: `reporter failure: ${String(error?.message ?? error)}`
+          }
+        }
+      }
+      return { ok: mutationVerdict.ok, output: formatMutationVerdict(mutationVerdict) }
+    }
     const res = await runFix('test', prompt, projectRoot, {
       model: opts.model || MODEL,
       tier: opts.tier,
@@ -168,12 +198,25 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
       recordWrite: opts.recordWrite,
       chain: opts.chain ?? null,
       editMode: 'test-generation',
-      sourceFiles: files
+      sourceFiles: files,
+      verify: verifyMutation,
+      // Один canonical scoped Stryker verdict на batch. Нову model-ітерацію
+      // запускає наступний ladder rung із його structured feedback, не цей batch.
+      verifyMax: 0
     })
     const writtenTests = (res.touchedFiles ?? []).filter(file => TEST_FILE_RE.test(file))
     const unexpectedWrites = (res.touchedFiles ?? []).filter(file => !TEST_FILE_RE.test(file))
     const noOp = !res.error && writtenTests.length === 0
-    const error = resolveBatchError(res, unexpectedWrites, noOp)
+    const error = resolveBatchError(res, unexpectedWrites, noOp, mutationVerdict)
+    let rollback = { attempted: false, outcome: 'not-needed' }
+    if (error) {
+      try {
+        res.rollback?.()
+        rollback = { attempted: true, outcome: 'completed' }
+      } catch (rollbackError) {
+        rollback = { attempted: true, outcome: `failed: ${String(rollbackError?.message ?? rollbackError)}` }
+      }
+    }
     const diagnosis = batchDiagnosis({
       i,
       total: batches.length,
@@ -190,12 +233,15 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
       wallMs: res.telemetry?.wallMs ?? Date.now() - startedAt,
       telemetry: res.telemetry,
       error,
-      writtenTests
+      writtenTests,
+      mutationVerdict,
+      rollback
     })
     batchDiagnostics.push(diagnosis)
     console.log(`  ${formatBatchDiagnosis(diagnosis)}`)
     if (error) {
-      if (unexpectedWrites.length > 0) res.rollback?.()
+      // Guard має pre-image лише записів ЦЬОГО agent batch-а, тому rollback не
+      // торкається раніше підтверджених test changes інших batch-ів.
       console.error(`✗ batch ${i + 1}/${batches.length} не завершився: ${error}`)
       console.error(`  Файли batch (частковий прогрес зареєстровано через recordWrite): ${files.join(', ')}`)
       failed.push({ files, error, diagnosis })
@@ -228,11 +274,28 @@ async function resolveRunFix(opts) {
  * @param {boolean} noOp чи агент завершився без помилки і без test-записів
  * @returns {string|null} текст помилки batch-а або `null`, якщо batch успішний
  */
-function resolveBatchError(res, unexpectedWrites, noOp) {
+function resolveBatchError(res, unexpectedWrites, noOp, mutationVerdict) {
+  // runAgentFix стисло позначає verify-failure. Для ladder feedback потрібен
+  // власне mutation verdict (targets/killed/covered0), а не загальний рядок.
+  if (res.error?.startsWith('verify:') && mutationVerdict) return formatMutationVerdict(mutationVerdict)
   if (res.error) return res.error
   if (unexpectedWrites.length > 0) return `недопустимі записи поза test-файлами: ${unexpectedWrites.join(', ')}`
   if (noOp) return noOpReason(res.telemetry)
+  if (!mutationVerdict?.ok) return formatMutationVerdict(mutationVerdict)
   return null
+}
+
+/**
+ * Стислий feedback mutation verdict-а для agent verify-loop і наступного ladder rung-а.
+ * @param {{targetCount?:number,killed?:number,remaining?:number,covered0?:number,reason?:string|null}|null} verdict результат scoped Stryker
+ * @returns {string} безпечна причина quality failure
+ */
+function formatMutationVerdict(verdict) {
+  if (!verdict) return 'reporter failure: mutation verification не повернула verdict'
+  return (
+    `mutation verdict: targets=${verdict.targetCount ?? 0}, killed=${verdict.killed ?? 0}, ` +
+    `remaining=${verdict.remaining ?? 0}, covered0=${verdict.covered0 ?? 0}; ${verdict.reason ?? 'accepted'}`
+  )
 }
 
 /**
@@ -271,9 +334,11 @@ function logCoverageSummary(failed, deferred, fixed, batches) {
  * @param {number|null} args.effectiveTimeoutMs timeout, реально переданий batch-у
  * @param {number|null} [args.survivedBatchesPerRung=null] policy кількості agent batch-ів у rung
  * @param {number|null} args.wallMs тривалість batch-а
- * @param {object|null} [args.telemetry] telemetry `runAgentFix`
- * @param {string|null} [args.error] помилка batch-а
- * @param {string[]} [args.writtenTests] дозволені test-файли, змінені агентом
+ * @param {object|null} [args.telemetry=null] telemetry `runAgentFix`
+ * @param {string|null} [args.error=null] помилка batch-а
+ * @param {string[]} [args.writtenTests=[]] дозволені test-файли, змінені агентом
+ * @param {object|null} [args.mutationVerdict=null] canonical scoped Stryker verdict
+ * @param {{attempted:boolean,outcome:string}} [args.rollback] результат локального rollback batch-а
  * @returns {object} безпечний структурований verdict
  */
 function batchDiagnosis({
@@ -292,7 +357,9 @@ function batchDiagnosis({
   wallMs,
   telemetry = null,
   error = null,
-  writtenTests = []
+  writtenTests = [],
+  mutationVerdict = null,
+  rollback = { attempted: false, outcome: 'not-needed' }
 }) {
   const stops = [...new Set((telemetry?.turns ?? []).map(turn => turn.finish).filter(Boolean))]
   const edits = telemetry?.edits
@@ -323,7 +390,9 @@ function batchDiagnosis({
       allowedTestWrites,
       blockedWrites: telemetry?.blocks?.length ?? 0,
       backstopHit: telemetry?.backstopHit ?? false,
-      emptyCompletion: telemetry?.emptyCompletion ?? false
+      emptyCompletion: telemetry?.emptyCompletion ?? false,
+      mutation: mutationVerdict,
+      rollback
     }
   }
 }
@@ -340,7 +409,8 @@ function formatBatchDiagnosis(diagnosis) {
     `oversizedSourceFile=${diagnosis.oversizedSourceFile}, oversizedSubBatch=${diagnosis.oversizedSubBatch}, promptChars=${diagnosis.promptChars}`,
     `timeout(requested/worker/effective)=${diagnosis.requestedTimeoutMs}/${diagnosis.workerDeadlineMs}/${diagnosis.effectiveTimeoutMs}ms; survivedBatchesPerRung=${diagnosis.survivedBatchesPerRung}`,
     `wallMs=${diagnosis.wallMs}`,
-    `verdict(turns/tools/stops/error/testWrites/blocked/backstop)=${verdict.turnCount}/${verdict.toolCallCount}/${verdict.stopReasons.join(',') || '-'} / ${verdict.error ?? '-'} / ${verdict.allowedTestWrites}/${verdict.blockedWrites}/${verdict.backstopHit}`
+    `verdict(turns/tools/stops/error/testWrites/blocked/backstop)=${verdict.turnCount}/${verdict.toolCallCount}/${verdict.stopReasons.join(',') || '-'} / ${verdict.error ?? '-'} / ${verdict.allowedTestWrites}/${verdict.blockedWrites}/${verdict.backstopHit}`,
+    `mutation(targets/killed/remaining/covered0)=${verdict.mutation?.targetCount ?? '-'}/${verdict.mutation?.killed ?? '-'}/${verdict.mutation?.remaining ?? '-'}/${verdict.mutation?.covered0 ?? '-'}; rollback=${verdict.rollback.outcome}`
   ].join('; ')
 }
 
@@ -418,6 +488,8 @@ export async function buildFixPrompt(survived, projectRoot) {
     '- Дозволено знайти, створити або змінити повʼязані `*.test.*` / `*.spec.*` файли у test-каталогах.',
     '- Для ізоляції unit-тесту дозволені звичайні Vitest mock/stub без зміни production-коду.',
     '- Використовуй той самий test-фреймворк, що вже в проєкті.',
+    '- Зелений Vitest сам по собі НЕ є успіхом: після batch-а scoped Stryker перевіряє саме ці target mutants.',
+    '- Тест має зробити щонайменше один target mutant `Killed` або `Timeout`; `covered 0`, відсутній report чи no-improvement буде відкочено.',
     '- Запусти тести проєкту (`bunx vitest run` чи відповідну команду) після кожного файлу — переконайся, що 0 fail.',
     '- Якщо мутант охоплений іншим новим тестом — не дублюй.'
   ].join('\n')
