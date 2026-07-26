@@ -89,10 +89,14 @@ describe('fixWorker', () => {
   test('передає coverage hook фактичний 80%-deadline worker-а для batch diagnosis', async () => {
     const provider = fakeProvider()
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000)
-    await fixWorker([{ reason: 'mutation-below-threshold', data: { survived: [{ file: 'a.mjs', mutants: [{ line: 1 }] }] } }], {
-      ...CTX,
-      timeoutMs: 10_000
-    }, { resolveProviders: () => Promise.resolve([provider]) })
+    await fixWorker(
+      [{ reason: 'mutation-below-threshold', data: { survived: [{ file: 'a.mjs', mutants: [{ line: 1 }] }] } }],
+      {
+        ...CTX,
+        timeoutMs: 10_000
+      },
+      { resolveProviders: () => Promise.resolve([provider]) }
+    )
     expect(provider.fixSurvived.mock.calls[0][0].ctx).toMatchObject({
       timeoutMs: 8000,
       coverageTimeout: { requestedMs: 10_000, workerDeadlineMs: 8000, effectiveHookTimeoutMs: 8000 }

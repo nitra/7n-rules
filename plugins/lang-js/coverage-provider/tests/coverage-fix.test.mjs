@@ -63,9 +63,12 @@ describe('coverage-fix.mjs', () => {
       expect(batchSurvived([a, b], 40)).toEqual([[a], [b]])
     })
 
-    it('keeps a single group that alone exceeds budget in its own batch (never split)', () => {
-      const big = groupWith('big.js', 100)
-      expect(batchSurvived([big], 40)).toEqual([[big]])
+    it('splits an oversized source-file into isolated 20-mutant sub-batches', () => {
+      const big = groupWith('big.js', 82)
+      const batches = batchSurvived([big], 40)
+      expect(batches.map(batch => batch[0].mutants.length)).toEqual([20, 20, 20, 20, 2])
+      expect(batches.every(batch => batch.length === 1)).toBe(true)
+      expect(batches.map(batch => batch[0].sourceMutantCount)).toEqual([82, 82, 82, 82, 82])
     })
   })
 
@@ -176,7 +179,7 @@ describe('coverage-fix.mjs', () => {
       errSpy.mockRestore()
     })
 
-    it('повертає і друкує timeout verdict з telemetry без prompt-а або source-коду', async () => {
+    it('дробить oversized source-file, зберігає source read-only і друкує timeout verdict без prompt-а', async () => {
       env.N_CURSOR_COVERAGE_FIX_BATCH_MUTANTS = '40'
       vi.mocked(readFile).mockResolvedValue('const secret = true')
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => null)
@@ -203,13 +206,21 @@ describe('coverage-fix.mjs', () => {
         coverageTimeout: { requestedMs: 150_000, workerDeadlineMs: 120_000, effectiveHookTimeoutMs: 120_000 }
       })
 
+      expect(runAgentFix).toHaveBeenCalledTimes(5)
+      expect(runAgentFix.mock.calls.every(([, , , opts]) => opts.sourceFiles[0] === 'run/api/src/constants.js')).toBe(
+        true
+      )
       expect(result.failed[0]).toMatchObject({ files: ['run/api/src/constants.js'], error: 'fix timeout 95999ms' })
+      expect(result.batches).toHaveLength(5)
       expect(result.batches[0]).toMatchObject({
         batch: 1,
         sourceFileCount: 1,
-        mutantCount: 82,
+        mutantCount: 20,
         configuredBudget: 40,
-        oversizedAtomicFile: true,
+        oversizedSourceFile: true,
+        oversizedAtomicFile: false,
+        oversizedSubBatch: true,
+        oversizedSubBatchMutantLimit: 20,
         oversizedFiles: ['run/api/src/constants.js'],
         promptChars: 4321,
         requestedTimeoutMs: 150_000,
