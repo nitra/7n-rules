@@ -599,6 +599,14 @@ const r = sql\`SELECT \${s}\`
     expect(findJsonStringifyBeforeJsonbInText(code)).toHaveLength(0)
   })
 
+  test("JSON.stringify у pgWrite.array(..., 'text') для unnest → ::jsonb дозволений", () => {
+    const code = `
+import { pgWrite } from './db.mjs'
+const r = pgWrite\`SELECT unnest(\${pgWrite.array(rows.map(row => JSON.stringify(row.items)), 'text')}::text[])::jsonb\`
+`
+    expect(findJsonStringifyBeforeJsonbInText(code)).toHaveLength(0)
+  })
+
   test('файл без Bun SQL і без TemplateLiteral → порожній результат', () => {
     const code = `const s = JSON.stringify({ a: 1 })`
     expect(findJsonStringifyBeforeJsonbInText(code)).toHaveLength(0)
