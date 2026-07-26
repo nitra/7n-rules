@@ -18,8 +18,9 @@
  * (assert порту вимагає лише detect/collect/collectPerFile). Хуки отримують
  * FixContext-поля (model/tier/timeoutMs/recordWrite/chain/signal/feedback);
  * recordWrite прокидається до кожного місця запису (rollback-контракт ladder-а).
- * Дедлайн: DEADLINE_FRACTION від ctx.timeoutMs гейтить СТАРТ наступного хука
- * (як js/eslint fix-worker); залишок бюджету передається хуку як timeoutMs.
+ * Coverage-specific cloud rung дає survived-mutant agent batch повний budget:
+ * outer runner backstop лишається ×1.25. Один survived batch стартує за rung;
+ * решта є deferred telemetry, а не timeout/no-op failure.
  * Власних retry-циклів немає — success визначає canonical re-detect runner-а.
  * @typedef {import('../../../scripts/lib/lint-surface/types.mjs').FixWorkerFn} FixWorkerFn
  * @typedef {import('../../../scripts/lib/lint-surface/types.mjs').FixContext} FixContext
@@ -27,8 +28,8 @@
  */
 import { resolveProviders } from './main.mjs'
 
-/** Частка ctx.timeoutMs, після якої не стартує наступний хук (запас до backstop ×1.25). */
-const DEADLINE_FRACTION = 0.8
+/** Один survived-mutant agent batch за coverage rung. */
+const SURVIVED_BATCHES_PER_RUNG = 1
 
 /** `.vue`-файли → generateStories, решта → generateTests. */
 const VUE_FILE_RE = /\.vue$/
@@ -59,7 +60,7 @@ export function groupViolations(violations) {
  */
 function hookCtx(ctx, deadlineAt) {
   const remaining = deadlineAt ? Math.max(1000, deadlineAt - Date.now()) : ctx.timeoutMs
-  const workerDeadlineMs = ctx.timeoutMs ? Math.round(ctx.timeoutMs * DEADLINE_FRACTION) : null
+  const workerDeadlineMs = ctx.timeoutMs ?? null
   return {
     ...ctx,
     timeoutMs: remaining,
@@ -68,7 +69,8 @@ function hookCtx(ctx, deadlineAt) {
     coverageTimeout: {
       requestedMs: ctx.timeoutMs ?? null,
       workerDeadlineMs,
-      effectiveHookTimeoutMs: remaining ?? null
+      effectiveHookTimeoutMs: remaining ?? null,
+      survivedBatchesPerRung: SURVIVED_BATCHES_PER_RUNG
     }
   }
 }
@@ -76,7 +78,7 @@ function hookCtx(ctx, deadlineAt) {
 /** @type {FixWorkerFn} */
 export async function fixWorker(violations, ctx, deps = {}) {
   // Дедлайн фіксується ДО резолву провайдерів — їх завантаження теж у бюджеті рунга.
-  const deadlineAt = ctx.timeoutMs ? Date.now() + Math.round(ctx.timeoutMs * DEADLINE_FRACTION) : null
+  const deadlineAt = ctx.timeoutMs ? Date.now() + ctx.timeoutMs : null
   const expired = () => deadlineAt !== null && Date.now() >= deadlineAt
 
   const providers = await (deps.resolveProviders ?? resolveProviders)(ctx.cwd)
@@ -88,6 +90,7 @@ export async function fixWorker(violations, ctx, deps = {}) {
   const touchedFiles = []
   /** @type {Array<{provider: string, hook: string, files: string[], error: string}>} */
   const failed = []
+  const deferred = []
   /**
    * Викликає опційний fix-hook провайдера, збирає touchedFiles; виняток хука не
    * валить решту хуків/провайдерів — success визначає canonical re-detect.
@@ -101,6 +104,7 @@ export async function fixWorker(violations, ctx, deps = {}) {
     try {
       const res = await provider[hook]({ ...args, cwd: ctx.cwd, ctx: hookCtx(ctx, deadlineAt) })
       touchedFiles.push(...(res?.touchedFiles ?? []))
+      deferred.push(...(res?.deferred ?? []))
       for (const failure of res?.failed ?? []) {
         const error = failure?.error ?? 'невідома причина'
         const files = failure?.files ?? []
@@ -115,9 +119,14 @@ export async function fixWorker(violations, ctx, deps = {}) {
   }
 
   for (const provider of providers) {
+    // Survived mutants мають власний cloud budget: не витрачаємо його на інші
+    // LLM hooks перед єдиним агентним batch-ем цього rung-а.
+    if (survived.length > 0) {
+      await runHook(provider, 'fixSurvived', { survived })
+      continue
+    }
     if (jsFiles.length > 0) await runHook(provider, 'generateTests', { files: jsFiles })
     if (vueFiles.length > 0) await runHook(provider, 'generateStories', { files: vueFiles })
-    if (survived.length > 0) await runHook(provider, 'fixSurvived', { survived })
     // Після генерації: тести, що впали (зокрема щойно згенеровані), чиняться
     // окремим хуком — свіжий vitest-прогін усередині провайдера. Без жодної
     // роботи вище (порожній профіль violations) хук не стартує.
@@ -126,5 +135,5 @@ export async function fixWorker(violations, ctx, deps = {}) {
     }
   }
 
-  return { touchedFiles, failed }
+  return { touchedFiles, failed, deferred }
 }
