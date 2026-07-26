@@ -116,6 +116,25 @@ describe('resolveChangedBase', () => {
     })
   })
 
+  test('Git policy без main: бере найновіший merge-base серед base і release гілок', async () => {
+    await withTmpDir(dir => {
+      git(dir, ['init', '-q', '--initial-branch=dev'])
+      git(dir, ['config', 'user.email', 't@t'])
+      git(dir, ['config', 'user.name', 't'])
+      writeFileSync(join(dir, '.n-rules.json'), JSON.stringify({ git: { baseBranch: 'dev', releaseBranches: ['tr-qa', 'tr'] } }), 'utf8')
+      writeFileSync(join(dir, 'base.js'), 'export const a = 1\n', 'utf8')
+      git(dir, ['add', '.'])
+      git(dir, ['commit', '-qm', 'init'])
+      writeFileSync(join(dir, 'integration.js'), 'export const i = 1\n', 'utf8')
+      git(dir, ['add', '.'])
+      git(dir, ['commit', '-qm', 'integration'])
+      const newest = headSha(dir)
+      git(dir, ['branch', 'tr'])
+      git(dir, ['checkout', '-qb', 'feature'])
+      expect(resolveChangedBase(dir)).toBe(newest)
+    })
+  })
+
   test('явний baseRef вимикає вибір — merge-base лише проти нього', async () => {
     await withTmpDir(dir => {
       initRepo(dir)

@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
+import { readGitPolicy } from '../../../scripts/lib/git-policy.mjs'
 import {
   getMonorepoProjectRootDirs,
   manifestFilePath,
@@ -34,12 +35,6 @@ const AUTOFIX_SECTION = 'Changed'
 
 /** Fallback-опис, коли subject останнього коміту порожній (напр. порожній репозиторій). */
 const AUTOFIX_FALLBACK_MESSAGE = 'оновлення'
-
-/** Кандидати інтеграційними тести гілки для feature-гілок (перша наявна; див. n-changelog.mdc). */
-const FEATURE_BASE_BRANCH_CANDIDATES = Object.freeze(['dev', 'main'])
-
-/** Гілка `dev`: local-only не активний (крім незакомічених registry-published). */
-const LOCAL_ONLY_SKIP_BRANCH = 'dev'
 
 /**
  * Префікси шляхів (posix), які не вважаються релізними змінами — інверсія glob (n-changelog.mdc):
@@ -191,28 +186,30 @@ async function resolveMergeBase(baseRef, cwd) {
  * @returns {Promise<{ ref: string, label: string } | null>} результат
  */
 async function resolveChangelogComparisonPoint(branch, cwd) {
-  if (branch === LOCAL_ONLY_SKIP_BRANCH) {
+  const policy = readGitPolicy(cwd)
+  if (branch === policy.baseBranch) {
     return null
   }
 
-  if (branch === 'main') {
-    const originMainRaw = await gitOrNull(['rev-parse', '--verify', '--quiet', 'origin/main'], cwd)
-    const originMainSha = originMainRaw?.trim()
+  if (policy.releaseBranches.includes(branch ?? '')) {
+    const originRef = `origin/${branch}`
+    const originRaw = await gitOrNull(['rev-parse', '--verify', '--quiet', originRef], cwd)
+    const originSha = originRaw?.trim()
     const headRaw = await gitOrNull(['rev-parse', 'HEAD'], cwd)
     const headSha = headRaw?.trim()
-    if (originMainSha && headSha && (originMainSha === headSha || (await isGitAncestor('origin/main', 'HEAD', cwd)))) {
-      return { ref: 'origin/main', label: 'main' }
+    if (originSha && headSha && (originSha === headSha || (await isGitAncestor(originRef, 'HEAD', cwd)))) {
+      return { ref: originRef, label: branch }
     }
     const parent = await gitOrNull(['rev-parse', '--verify', '--quiet', 'HEAD~1'], cwd)
     if (typeof parent === 'string' && parent.trim().length > 0) {
-      return { ref: parent.trim(), label: 'main~1' }
+      return { ref: parent.trim(), label: `${branch}~1` }
     }
     return null
   }
 
   // Feature-гілка: база — новіший merge-base серед локальної та origin-версії кандидата
   // (див. resolveNewestMergeBase; застарілий локальний main не має перекривати origin).
-  for (const name of FEATURE_BASE_BRANCH_CANDIDATES) {
+  for (const name of policy.integrationBranches) {
     const mergeBase = await resolveNewestMergeBase(name, cwd)
     if (!mergeBase) {
       continue
@@ -591,7 +588,8 @@ async function checkPublishedWorkspacePendingGitChanges(manifest, _Vcurrent, sub
 
   const branch = await currentBranchName(cwd)
 
-  if (branch === LOCAL_ONLY_SKIP_BRANCH) {
+  const policy = readGitPolicy(cwd)
+  if (branch === policy.baseBranch) {
     if (await workspaceHasRelevantChangesAgainstBase('HEAD', manifest.ws, subWorkspaces, cwd)) {
       await fixOrFailPublishedWorkspace(manifest, label, mf, autofix, pass, fail, cwd)
     }
@@ -604,7 +602,7 @@ async function checkPublishedWorkspacePendingGitChanges(manifest, _Vcurrent, sub
     return
   }
 
-  if (branch === 'main' && (await workspaceHasRelevantChangesAgainstBase('HEAD', manifest.ws, subWorkspaces, cwd))) {
+  if (policy.releaseBranches.includes(branch ?? '') && (await workspaceHasRelevantChangesAgainstBase('HEAD', manifest.ws, subWorkspaces, cwd))) {
     await fixOrFailPublishedWorkspace(manifest, label, mf, autofix, pass, fail, cwd)
   }
 }
@@ -732,13 +730,14 @@ async function runLocalOnlyChecks(localOnly, subWorkspaces, autofix, pass, fail,
     return
   }
   const branch = await currentBranchName(cwd)
-  if (branch === LOCAL_ONLY_SKIP_BRANCH) {
-    pass('changelog: поточна гілка = dev — local-only перевірку пропущено')
+  const policy = readGitPolicy(cwd)
+  if (branch === policy.baseBranch) {
+    pass(`changelog: поточна гілка = ${policy.baseBranch} — local-only перевірку пропущено`)
     return
   }
   const comparison = await resolveChangelogComparisonPoint(branch, cwd)
   if (!comparison) {
-    pass('changelog: ref dev/main (та origin/*) не знайдено — local-only перевірку пропущено')
+    pass('changelog: Git policy refs (та origin/*) не знайдено — local-only перевірку пропущено')
     return
   }
 

@@ -15,14 +15,14 @@
 
 ### local-only
 
-**npm:** `private: true` або без `files`. **Python:** без пари name+version для реєстру. База залежить від гілки:
+**npm:** `private: true` або без `files`. **Python:** без пари name+version для реєстру. Гілки визначає `.n-rules.json:git`: `baseBranch` (за замовчуванням `main`) і `releaseBranches` (за замовчуванням `["main"]`). На обох значеннях за замовчуванням блок `git` у конфіг не пишуть.
 
-1. На **`dev`** local-only не активний (крім незакомічених registry-published).
-2. На **`main`** — diff від **`origin/main`** (попередній опублікований `main`); без remote — від `HEAD~1`. **`dev` не використовується** як база на `main`.
-3. На **feature-гілці** — merge-base з **`dev`**, якщо є; інакше з **`main`** (репо без `dev`). За наявності `origin/*` беремо новішу з двох баз (локальна гілка-кандидат vs `origin/`-версія) — застарілий локальний `main`/`dev` не має перекривати вже інтегровану в origin історію, і навпаки.
+1. На **`baseBranch`** local-only не активний (крім незакомічених registry-published).
+2. На гілці з **`releaseBranches`** — diff від її `origin/<branch>`; без remote — від `HEAD~1`.
+3. На feature-гілці — merge-base з кандидатами `baseBranch` і `releaseBranches`. Для кожного кандидата локальна та `origin/`-версії порівнюються, береться новіша спільна база; порядок кандидатів детермінований конфігом.
 4. Drift `version` від бази → **fail** (ручний bump заборонено). Зміни фіксуй change-файлом; bump зробить CI.
 
-Якщо немає git або немає `dev`/`main`/`origin/main` — local-only пропускається.
+Якщо немає git або refs із Git policy — local-only пропускається.
 
 Merge-коміт (готовий, з другим предком, або `MERGE_HEAD` під час незавершеного `git commit`) пропускається цілком — changeset документують feature-коміти, а не інтеграційний merge.
 

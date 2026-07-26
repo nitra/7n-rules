@@ -6,8 +6,8 @@ import { performance } from 'node:perf_hooks'
 import { env } from 'node:process'
 
 import { createProgressReporter } from '../../../scripts/lib/lint-surface/progress.mjs'
+import { readGitPolicy } from '../../../scripts/lib/git-policy.mjs'
 
-const BASE_REF = 'origin/main'
 const LLM_TIERS = ['min', 'max']
 const REVIEW_BATCH_SIZE = 10
 const PROMPT_TEXT_LIMIT = 12_000
@@ -28,6 +28,11 @@ const REF_INVENTORY_FORMAT = ['%(refname)', '%00', '%(object', 'name)', '%00', '
 /** Порожній callback для опційного progress log. */
 function noop() {
   // Навмисно порожньо: caller не запросив progress output.
+}
+
+/** @param {string} cwd корінь репозиторію @returns {string} remote ref базової гілки */
+function policyBaseRef(cwd) {
+  return `origin/${readGitPolicy(cwd).baseBranch}`
 }
 
 /**
@@ -178,10 +183,10 @@ function branchName(ref) {
  * @param {Map<string,string>} worktreeCommits checkout HEAD OID→path
  * @returns {Array<{ref:string, oid:string, date:string, worktree:string|null,aliases:string[]}>} refs
  */
-export function dedupeRefs(refs, worktrees, worktreeCommits = new Map()) {
+export function dedupeRefs(refs, worktrees, worktreeCommits = new Map(), protectedBranches = ['main']) {
   const byOid = new Map()
   for (const item of refs) {
-    if (item.ref === 'refs/remotes/origin/HEAD' || branchName(item.ref) === 'main') continue
+    if (item.ref === 'refs/remotes/origin/HEAD' || protectedBranches.includes(branchName(item.ref))) continue
     const existing = byOid.get(item.oid)
     const worktree = worktrees.get(item.ref) ?? worktreeCommits.get(item.oid) ?? existing?.worktree ?? null
     const isRemote = item.ref.startsWith('refs/remotes/origin/')
@@ -282,8 +287,10 @@ export function conflictFiles(text) {
  */
 export function inventoryRepository(cwd, deps = {}) {
   const spawnFn = deps.spawnFn ?? spawnSync
+  const policy = readGitPolicy(cwd)
+  const baseRef = policyBaseRef(cwd)
   git(['fetch', '--prune', 'origin'], cwd, spawnFn)
-  git(['rev-parse', '--verify', BASE_REF], cwd, spawnFn)
+  git(['rev-parse', '--verify', baseRef], cwd, spawnFn)
 
   const worktreeState = parseWorktreeState(git(['worktree', 'list', '--porcelain'], cwd, spawnFn).stdout)
   const refLines = git(
@@ -299,7 +306,8 @@ export function inventoryRepository(cwd, deps = {}) {
       return { ref, oid, date }
     }),
     worktreeState.branches,
-    worktreeState.commits
+    worktreeState.commits,
+    policy.protectedBranches
   )
   const prInventory = openPullRequests(cwd, spawnFn)
   const prs = prInventory.items
@@ -308,16 +316,16 @@ export function inventoryRepository(cwd, deps = {}) {
   const branches = refs.map(item => {
     const name = branchName(item.ref)
     const merged =
-      git(['merge-base', '--is-ancestor', item.ref, BASE_REF], cwd, spawnFn, {
+      git(['merge-base', '--is-ancestor', item.ref, baseRef], cwd, spawnFn, {
         allowFailure: true
       }).status === 0
     const novelCommitIds = merged
       ? []
-      : git(['rev-list', '--right-only', '--cherry-pick', '--no-merges', `${BASE_REF}...${item.ref}`], cwd, spawnFn)
+      : git(['rev-list', '--right-only', '--cherry-pick', '--no-merges', `${baseRef}...${item.ref}`], cwd, spawnFn)
           .stdout.split('\n')
           .filter(Boolean)
           .toReversed()
-    const counts = git(['rev-list', '--left-right', '--count', `${BASE_REF}...${item.ref}`], cwd, spawnFn)
+    const counts = git(['rev-list', '--left-right', '--count', `${baseRef}...${item.ref}`], cwd, spawnFn)
       .stdout.trim()
       .split(WHITESPACE_RE)
       .map(Number)
@@ -325,13 +333,13 @@ export function inventoryRepository(cwd, deps = {}) {
     const state = branchState({ merged, novelCommitIds, pr, worktree: item.worktree })
     const changedFiles =
       state === 'review'
-        ? git(['diff', '--name-status', `${BASE_REF}...${item.ref}`], cwd, spawnFn)
+        ? git(['diff', '--name-status', `${baseRef}...${item.ref}`], cwd, spawnFn)
             .stdout.split('\n')
             .filter(Boolean)
             .slice(0, 200)
         : []
     const mergeTree =
-      state === 'review' ? git(['merge-tree', BASE_REF, item.ref], cwd, spawnFn, { allowFailure: true }).stdout : ''
+      state === 'review' ? git(['merge-tree', baseRef, item.ref], cwd, spawnFn, { allowFailure: true }).stdout : ''
     return {
       source: `${SOURCE_BRANCH_PREFIX}${item.ref}`,
       ref: item.ref,
@@ -364,7 +372,7 @@ export function inventoryRepository(cwd, deps = {}) {
     }
   })
 
-  return { base: BASE_REF, branches, stashes, warnings }
+  return { base: baseRef, baseBranch: policy.baseBranch, branches, stashes, warnings }
 }
 
 /**
@@ -629,7 +637,7 @@ function chooseBranch(title, cwd, spawnFn) {
 
 /**
  * Створює керований worktree та детерміновано пересаджує його branch на
- * origin/main без зміни вихідного checkout.
+ * policy base ref без зміни вихідного checkout.
  * @param {string} title PR title
  * @param {string} source source id
  * @param {string} cwd корінь
@@ -637,11 +645,12 @@ function chooseBranch(title, cwd, spawnFn) {
  * @returns {{branch:string,cwd:string}} worktree
  */
 function createReconcileWorktree(title, source, cwd, spawnFn) {
+  const baseRef = policyBaseRef(cwd)
   const branch = chooseBranch(title, cwd, spawnFn)
   run('npx', ['@7n/mt', 'worktree', 'create', branch, `git-reconcile: ${source}`], cwd, spawnFn)
   const worktreeCwd = join(cwd, '.worktrees', branch.replaceAll('/', '-'))
-  git(['switch', '--detach', BASE_REF], worktreeCwd, spawnFn)
-  git(['branch', '-f', branch, BASE_REF], worktreeCwd, spawnFn)
+  git(['switch', '--detach', baseRef], worktreeCwd, spawnFn)
+  git(['branch', '-f', branch, baseRef], worktreeCwd, spawnFn)
   git(['switch', branch], worktreeCwd, spawnFn)
   return { branch, cwd: worktreeCwd }
 }
@@ -718,11 +727,12 @@ export function finishCherryPick(cwd, spawnFn = spawnSync) {
  * @returns {boolean} чи є що переносити в PR
  */
 export function hasChangesFromBase(cwd, spawnFn = spawnSync) {
+  const baseRef = policyBaseRef(cwd)
   return (
-    git(['diff', '--quiet', `${BASE_REF}...HEAD`], cwd, spawnFn, {
+    git(['diff', '--quiet', `${baseRef}...HEAD`], cwd, spawnFn, {
       allowFailure: true
     }).status !== 0 ||
-    git(['diff', '--quiet', BASE_REF, '--'], cwd, spawnFn, {
+    git(['diff', '--quiet', baseRef, '--'], cwd, spawnFn, {
       allowFailure: true
     }).status !== 0 ||
     git(['ls-files', '--others', '--exclude-standard'], cwd, spawnFn).stdout.trim().length > 0
@@ -795,13 +805,13 @@ export function sourceDirectories(paths) {
 }
 
 /**
- * Збирає tracked і untracked code directories відносно origin/main.
+ * Збирає tracked і untracked code directories відносно policy base ref.
  * @param {string} cwd worktree
  * @param {typeof spawnSync} spawnFn інжект
  * @returns {string[]} directories
  */
 function changedPaths(cwd, spawnFn) {
-  const tracked = git(['diff', '--name-only', BASE_REF, '--'], cwd, spawnFn).stdout.split('\n').filter(Boolean)
+  const tracked = git(['diff', '--name-only', policyBaseRef(cwd), '--'], cwd, spawnFn).stdout.split('\n').filter(Boolean)
   const untracked = git(['ls-files', '--others', '--exclude-standard'], cwd, spawnFn).stdout.split('\n').filter(Boolean)
   return [...new Set([...tracked, ...untracked])]
 }
@@ -874,7 +884,7 @@ function ensureWorktreeDependencies(cwd, spawnFn) {
 }
 
 /**
- * Фіксує test baseline на чистому origin/main до перенесення source.
+ * Фіксує test baseline на чистій policy base гілці до перенесення source.
  * @param {string} cwd worktree
  * @param {typeof spawnSync} spawnFn інжект
  * @returns {{tests:{status:number,stdout:string,stderr:string}|null}} baseline
@@ -889,7 +899,7 @@ export function captureBehaviorBaseline(cwd, spawnFn = spawnSync) {
 }
 
 /**
- * Повторно використовує test baseline одного origin/main між PR-групами.
+ * Повторно використовує test baseline однієї policy base гілки між PR-групами.
  * Залежності все одно встановлюються в кожному окремому worktree.
  * @param {string} cwd worktree
  * @param {Map<string,object>} cache кеш за OID бази
@@ -898,7 +908,7 @@ export function captureBehaviorBaseline(cwd, spawnFn = spawnSync) {
  */
 export function captureCachedBehaviorBaseline(cwd, cache, spawnFn = spawnSync) {
   ensureWorktreeDependencies(cwd, spawnFn)
-  const baseOid = git(['rev-parse', BASE_REF], cwd, spawnFn).stdout.trim()
+  const baseOid = git(['rev-parse', policyBaseRef(cwd)], cwd, spawnFn).stdout.trim()
   if (cache.has(baseOid)) return { baseline: cache.get(baseOid), cached: true }
   const baseline = captureBehaviorBaseline(cwd, spawnFn)
   cache.set(baseOid, baseline)
@@ -910,7 +920,7 @@ export function captureCachedBehaviorBaseline(cwd, cache, spawnFn = spawnSync) {
  * Саме ці докази вирішують, чи приймати min-результат або ескалювати на max.
  * @param {string} cwd worktree
  * @param {typeof spawnSync} spawnFn інжект
- * @param {{tests:{status:number,stdout:string,stderr:string}|null}|null} [baseline] стан origin/main
+ * @param {{tests:{status:number,stdout:string,stderr:string}|null}|null} [baseline] стан policy base гілки
  * @param {(stage:string)=>void} [onProgress] stage callback
  * @returns {{ok:boolean,error?:string}} validation
  */
@@ -972,7 +982,7 @@ async function resolveConflict(args) {
   const { runner, source, worktreeCwd, deps, spawnFn, log, onProgress = noop } = args
   const unresolved = unresolvedFiles(worktreeCwd, spawnFn)
   const prompt = [
-    `У worktree ${worktreeCwd} JS уже застосував ${source} до свіжого origin/main.`,
+    `У worktree ${worktreeCwd} JS уже застосував ${source} до свіжої policy base гілки.`,
     `Розв'яжи лише змістові конфлікти: ${unresolved.join(', ')}.`,
     'Порівняй current main та намір перенесеної зміни; не використовуй ours/theirs механічно.',
     'Збережи актуальну поведінку main, перенеси лише відсутню корисну частину.',
@@ -1036,7 +1046,7 @@ async function applySource(args) {
 async function finalizeBehavior(args) {
   const { runner, source, rationale, worktreeCwd, baseline, deps, spawnFn, log, onProgress = noop } = args
   const prompt = [
-    `JS переніс ${source} на свіжий origin/main у ${worktreeCwd}.`,
+    `JS переніс ${source} на свіжу policy base гілку у ${worktreeCwd}.`,
     `Очікувана користь: ${rationale}`,
     'Перевір реальний diff і call sites. Доведи лише перенесену поведінку до готовності:',
     '- додай/онови regression test, якщо це bug fix;',
@@ -1140,7 +1150,9 @@ async function createPullRequest(args) {
     onProgress('delta lint')
     const finalGates = validateFinalProjectGates(worktree.cwd, spawnFn)
     if (!finalGates.ok) throw new Error(finalGates.error)
-    git(['diff', '--check', `${BASE_REF}...HEAD`], worktree.cwd, spawnFn)
+    const baseRef = policyBaseRef(worktree.cwd)
+    const baseBranch = readGitPolicy(worktree.cwd).baseBranch
+    git(['diff', '--check', `${baseRef}...HEAD`], worktree.cwd, spawnFn)
     onProgress('push')
     git(['push', '-u', 'origin', worktree.branch], worktree.cwd, spawnFn)
 
@@ -1148,10 +1160,10 @@ async function createPullRequest(args) {
     const body = [
       `Джерело: \`${source}\`.`,
       '',
-      group.rationale ?? candidate.rationale ?? 'Корисну поведінку перенесено на актуальний main.',
+      group.rationale ?? candidate.rationale ?? `Корисну поведінку перенесено на актуальний ${baseBranch}.`,
       '',
       'Перевірки:',
-      '- `git diff --check origin/main...HEAD`',
+      `- \`git diff --check ${baseRef}...HEAD\``,
       '- scoped code lint/tests та domain lint для non-code paths',
       '- `npx @7n/rules lint changelog --no-fix`',
       verification ? `- LLM behavioral verification: ${verification.slice(0, 1000)}` : ''
@@ -1160,7 +1172,7 @@ async function createPullRequest(args) {
       .join('\n')
     createdPr = run(
       'gh',
-      ['pr', 'create', '--base', 'main', '--head', worktree.branch, '--title', group.title, '--body', body],
+      ['pr', 'create', '--base', baseBranch, '--head', worktree.branch, '--title', group.title, '--body', body],
       worktree.cwd,
       spawnFn
     ).stdout.trim()

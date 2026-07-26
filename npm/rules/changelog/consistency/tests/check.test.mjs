@@ -136,6 +136,9 @@ async function git(args, cwd) {
     ['-c', 'user.name=test', '-c', 'user.email=test@test', '-c', 'commit.gpgsign=false', ...args],
     { cwd }
   )
+  if (args[0] === 'init') {
+    await writeJson(join(cwd, '.n-rules.json'), { git: { baseBranch: 'dev', releaseBranches: ['main'] } })
+  }
 }
 
 /**

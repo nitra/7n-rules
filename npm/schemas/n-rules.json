@@ -59,6 +59,24 @@
         "minLength": 1
       }
     },
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Git policy проєкту. Відсутній блок еквівалентний baseBranch/releaseBranches = main.",
+      "properties": {
+        "baseBranch": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Головна integration-гілка і перший кандидат бази delta; за замовчуванням main."
+        },
+        "releaseBranches": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Довгоживучі release/integration гілки; разом з baseBranch утворюють delta та protected набір. За замовчуванням [main].",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
     "version": {
       "type": "string",
       "description": "Застаріле поле, ігнорується CLI. Правила завжди копіюються з каталогу mdc/ установленого пакету (node_modules або кеш npx); змініть версію через оновлення залежності."

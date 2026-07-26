@@ -17,6 +17,25 @@ version: '1.21'
 
 Це **не** привід саботувати чіткі інструкції: коли користувач після дискусії підтвердив напрям — агент виконує без подальшого опору.
 
+## Git policy у `.n-rules.json`
+
+Git-поведінка CLI, changelog і Git tooling визначається одним опційним блоком:
+
+```json
+{
+  "git": {
+    "baseBranch": "dev",
+    "releaseBranches": ["tr-qa", "tr", "md-qa", "md", "cy-qa", "cy"]
+  }
+}
+```
+
+- `baseBranch` — одна головна integration-гілка: feature/changelog base і перший кандидат delta. Дефолт — `main`.
+- `releaseBranches` — довгоживучі гілки release/integration topology. Разом із `baseBranch` вони є кандидатами `merge-base` для delta та захищеними від branch-cleanup. Дефолт — `["main"]`.
+- Якщо effective `baseBranch` і `releaseBranches` обидва дорівнюють `main`, блок `git` у `.n-rules.json` **не пиши**: це вбудований backward-compatible default. Додавай його лише за відхилення від цієї моделі.
+- `releaseBranches` не означає дозвіл на npm publish: publish workflow має явно визначати свої production-тригери, якщо QA і production гілки відрізняються.
+- Явний `lint --base <ref>` завжди має пріоритет над policy. Коли кілька merge-base непорівнювані, порядок `baseBranch`, потім `releaseBranches` є детермінованим tie-breaker.
+
 ## Структура правила (concern-directory layout — з 2026-06-28)
 
 Кожне правило живе в **одній** директорії `npm/rules/{rule}/`. Кожен концерн — **власна піддиректорія** `{concern}/` з обов'язковим маркером `concern.json`. Helpers — у peer-каталозі `utils/`:
