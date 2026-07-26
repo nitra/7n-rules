@@ -2,7 +2,10 @@
  * Тести git-reconcile: парсинг Git inventory, bounded LLM contract і
  * orchestration без реальних worktree/push/PR.
  */
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { env } from 'node:process'
+import { resolve } from 'node:path'
 
 import { describe, expect, test } from 'vitest'
 
@@ -16,13 +19,18 @@ import {
   changedNonCodeDirectories,
   cleanupSource,
   conflictFiles,
+  createPhaseProgress,
   dedupeRefs,
+  ensureLocalWorktreeExclude,
   finishCherryPick,
   formatReport,
   hasChangesFromBase,
+  normalizePrConcurrency,
   parseDecisionEnvelope,
   parseWorktrees,
+  remediateBehaviorState,
   runGitReconcileOrchestrator,
+  runWithConcurrency,
   skipEmptyCherryPick,
   sourceDirectories,
   testFailureSignatures,
@@ -40,6 +48,7 @@ const REVIEW_BRANCH = {
   changedFiles: ['M\tsrc/a.mjs'],
   conflicts: []
 }
+const NPM_ROOT = resolve(import.meta.dirname, '../../../..')
 
 /**
  * Формує мінімальний inventory для orchestration tests.
@@ -75,6 +84,18 @@ function inventory(overrides = {}) {
 /** Порожній test logger. */
 function noop() {
   // Навмисно порожньо: цей тест не перевіряє progress output.
+}
+
+/**
+ * Повертає відносний шлях локального Git exclude для test spawn.
+ * @returns {{status:number,stdout:string,stderr:string}} fake spawn result
+ */
+function localExcludeGitPath() {
+  return {
+    status: 0,
+    stdout: '.git/info/exclude\n',
+    stderr: ''
+  }
 }
 
 describe('Git inventory helpers', () => {
@@ -326,6 +347,37 @@ describe('LLM boundary', () => {
     expect(result.ok).toBe(false)
     expect(result.error).toBe('ACP handshake failed')
   })
+
+  test('canonical remediation приймає min без виклику max', async () => {
+    const tiers = []
+    let validationCount = 0
+    const result = await callWithValidatedFallback({
+      runner: 'codex',
+      prompt: 'behavior',
+      cwd: '/repo',
+      deps: {
+        callRunner: (_runner, _prompt, _cwd, _deps, tier) => {
+          tiers.push(tier)
+          return Promise.resolve({ ok: true, text: 'done', error: null })
+        }
+      },
+      validate: () => {
+        validationCount += 1
+        return validationCount === 1
+          ? { ok: false, error: 'missing changeset', remediation: 'canonical-fixers' }
+          : { ok: true }
+      },
+      remediate: validation => ({
+        attempted: validation.remediation === 'canonical-fixers',
+        ok: true
+      })
+    })
+
+    expect(tiers).toEqual(['min'])
+    expect(result.tier).toBe('min')
+    expect(result.remediated).toBe(true)
+    expect(result.attempts[0].remediation).toEqual({ attempted: true, ok: true })
+  })
 })
 
 describe('triage validation', () => {
@@ -563,26 +615,26 @@ describe('worktree validation', () => {
   })
 
   test('non-code paths групуються в domain directories', () => {
-    const paths = changedNonCodeDirectories(process.cwd(), (_command, args) => {
+    const paths = changedNonCodeDirectories(NPM_ROOT, (_command, args) => {
       if (args[0] === 'diff') {
         return {
           status: 0,
-          stdout: 'npm/skills/git-reconcile/SKILL.md\n.github/workflows/ci.yml\nsrc/code.mjs\n',
+          stdout: 'skills/git-reconcile/SKILL.md\nrules/release/main.mdc\nskills/git-reconcile/js/code.mjs\n',
           stderr: ''
         }
       }
       return { status: 0, stdout: '', stderr: '' }
     })
 
-    expect(paths).toEqual(['.github/workflows', 'npm/skills/git-reconcile'])
+    expect(paths).toEqual(['rules/release', 'skills/git-reconcile'])
   })
 
   test('final gate запускає domain lint до changelog', () => {
     const calls = []
-    const result = validateFinalProjectGates(process.cwd(), (command, args) => {
+    const result = validateFinalProjectGates(NPM_ROOT, (command, args) => {
       calls.push([command, args])
       if (command === 'git' && args[0] === 'diff') {
-        return { status: 0, stdout: 'npm/skills/git-reconcile/SKILL.md\n', stderr: '' }
+        return { status: 0, stdout: 'skills/git-reconcile/SKILL.md\n', stderr: '' }
       }
       return { status: 0, stdout: '', stderr: '' }
     })
@@ -591,9 +643,119 @@ describe('worktree validation', () => {
     expect(calls).toEqual([
       ['git', ['diff', '--name-only', 'origin/main', '--']],
       ['git', ['ls-files', '--others', '--exclude-standard']],
-      ['npx', ['@7n/rules', 'lint', '--path', 'npm/skills/git-reconcile', '--no-fix']],
+      ['npx', ['@7n/rules', 'lint', '--path', 'skills/git-reconcile', '--no-fix']],
       ['npx', ['@7n/rules', 'lint', 'changelog', '--no-fix']]
     ])
+  })
+
+  test('canonical remediation запускає scoped fix і changelog fix', () => {
+    const calls = []
+    const result = remediateBehaviorState(
+      NPM_ROOT,
+      (command, args) => {
+        calls.push([command, args])
+        if (command === 'git' && args[0] === 'diff') {
+          return { status: 0, stdout: 'skills/git-reconcile/js/orchestrate.mjs\n', stderr: '' }
+        }
+        return { status: 0, stdout: '', stderr: '' }
+      },
+      { remediation: 'canonical-fixers' }
+    )
+
+    expect(result).toEqual({ attempted: true, ok: true })
+    expect(calls).toContainEqual(['npx', ['@7n/rules', 'lint', '--path', 'skills/git-reconcile/js']])
+    expect(calls).toContainEqual(['npx', ['@7n/rules', 'lint', 'changelog']])
+  })
+})
+
+describe('progress і bounded concurrency', () => {
+  test('local worktree exclude резолвить git-path відносно repository cwd', () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'git-reconcile-exclude-'))
+    const infoDir = resolve(root, '.git/info')
+    mkdirSync(infoDir, { recursive: true })
+    try {
+      expect(ensureLocalWorktreeExclude(root, localExcludeGitPath)).toBe(true)
+      expect(ensureLocalWorktreeExclude(root, localExcludeGitPath)).toBe(false)
+      expect(readFileSync(resolve(infoDir, 'exclude'), 'utf8')).toBe('.worktrees/\n')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('progress snapshots не містять ANSI та показують heartbeat elapsed', () => {
+    const logs = []
+    let heartbeat
+    let cleared = false
+    let now = 0
+    const progress = createPhaseProgress({
+      total: 2,
+      unitLabel: 'PR-груп',
+      phase: '3/4 PR',
+      log: line => {
+        logs.push(line)
+      },
+      now: () => now,
+      heartbeatMs: 30_000,
+      setIntervalFn: callback => {
+        heartbeat = callback
+        return { unref: noop }
+      },
+      clearIntervalFn: () => {
+        cleared = true
+      }
+    })
+
+    progress.step('pr-1', '1/2 · source · behavior', 'min')
+    now = 65_000
+    heartbeat()
+    progress.done('pr-1')
+    progress.stop()
+
+    expect(logs.some(line => line.includes('elapsed 65.0 s'))).toBe(true)
+    expect(logs.some(line => line.includes('[██████████░░░░░░░░░░] 1/2 PR-груп'))).toBe(true)
+    expect(logs.every(line => !line.includes(String.fromCodePoint(27)))).toBe(true)
+    expect(cleared).toBe(true)
+  })
+
+  test('PR concurrency нормалізується до bounded 1..4', () => {
+    expect(normalizePrConcurrency()).toBe(3)
+    expect(normalizePrConcurrency(0)).toBe(1)
+    expect(normalizePrConcurrency(8)).toBe(4)
+    expect(normalizePrConcurrency(2)).toBe(2)
+  })
+
+  test('runWithConcurrency запускає незалежні jobs паралельно і зберігає порядок', async () => {
+    const started = []
+    const { promise: first, resolve: releaseFirst } = Promise.withResolvers()
+    const { promise: second, resolve: releaseSecond } = Promise.withResolvers()
+    const running = runWithConcurrency(
+      [
+        async () => {
+          started.push(1)
+          await first
+          return 'one'
+        },
+        async () => {
+          started.push(2)
+          await second
+          return 'two'
+        },
+        () => {
+          started.push(3)
+          return Promise.resolve('three')
+        }
+      ],
+      2
+    )
+
+    await Promise.resolve()
+    expect(started).toEqual([1, 2])
+    releaseSecond()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(started).toEqual([1, 2, 3])
+    releaseFirst()
+    await expect(running).resolves.toEqual(['one', 'two', 'three'])
   })
 })
 
