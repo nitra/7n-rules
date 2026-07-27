@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.18] - 2026-07-27
+
+### Fixed
+
+- Preserve independently verified coverage test batches through concern rollback
+
 ## [1.49.17] - 2026-07-27
 
 ### Fixed

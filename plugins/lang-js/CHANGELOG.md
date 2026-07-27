@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.22.16] - 2026-07-27
+
+### Fixed
+
+- Preserve independently verified coverage test batches through concern rollback
+
 ## [0.22.15] - 2026-07-27
 
 ### Fixed
