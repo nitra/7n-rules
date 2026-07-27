@@ -82,6 +82,15 @@ describe('utils_imports.check', () => {
     })
   })
 
+  test('utils/ у reports/ (Stryker sandbox) ігнорується', async () => {
+    await withTmpDir(async dir => {
+      const sandboxUtils = join(dir, 'reports', 'stryker', '.tmp', 'sandbox-1', 'src', 'utils')
+      await mkdir(sandboxUtils, { recursive: true })
+      await writeFile(join(sandboxUtils, 'bad.mjs'), "import { x } from '../lib.mjs'\nexport const y = x\n", 'utf8')
+      expect(await check(dir)).toBe(0)
+    })
+  })
+
   test('utils/ з підкаталогом helpers/ → рекурсивно збирає файли', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'utils', 'helpers'), { recursive: true })
