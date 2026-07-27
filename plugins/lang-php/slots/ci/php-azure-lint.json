@@ -1,0 +1,10 @@
+{
+  "targetCapability": "ci:azure",
+  "artifactId": "lint-php",
+  "targetPath": "azure-pipelines.yml",
+  "format": "yaml",
+  "mode": "patch-existing",
+  "template": "./azure/lint-php.snippet.yml",
+  "mergeStrategy": "contains-step",
+  "fix": false
+}

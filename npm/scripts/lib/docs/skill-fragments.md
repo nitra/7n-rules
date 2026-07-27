@@ -3,25 +3,39 @@ type: JS Module
 title: skill-fragments.mjs
 resource: npm/scripts/lib/skill-fragments.mjs
 docgen:
-  crc: 8b9c6f98
+  crc: f2285520
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
+  score: 80
 ---
 
 ## Огляд
 
-Фрагменти SKILL.md від плагінів (фаза 4b spec lang-plugins-extraction): плагін шипить конвенційний файл `skills/<skillId>/SKILL.fragment.md` із власною секцією скіла (напр. Rust-гілку taze), а синк доклеює фрагменти активних плагінів до скопійованого `SKILL.md` між стабільними маркерами. Так мовні знання скіла їдуть разом із кодом плагіна, а не сиротіють у ядрі.
+Фрагменти SKILL.md від плагінів (Фаза 2, spec
+2026-07-27-universal-plugin-slots-lang-php-extraction — переведено на slot bus, §5.1.9).
 
-## Поведінка
-
-- **collectSkillFragments** — збирає фрагменти скіла з активних плагінів у порядку списку плагінів; відсутній чи порожній файл фрагмента мовчки пропускається.
-- **injectSkillFragments** — вшиває блок фрагментів у текст SKILL.md між маркерами `n-rules:plugin-fragments:start/end` (кожен фрагмент — у власних маркерах з іменем плагіна). Ре-синк ідемпотентний: наявний блок замінюється повністю; порожній список фрагментів — блок прибирається зовсім, текст без блоку не змінюється.
+Плагін декларує contribution слоту `skills.fragment@1` (`id` = skillId, `resource` →
+власний `skills/<skillId>/SKILL.fragment.md` — власну секцію скіла, напр. Rust-гілку taze).
+Під час синку скіла ядро доклеює фрагменти АКТИВНИХ contributions до скопійованого
+`SKILL.md` між стабільними маркерами — ре-синк ідемпотентний: наявний блок замінюється
+повністю, без активних фрагментів — видаляється. Так мовні знання їдуть разом із кодом
+плагіна, а не сиротіють у ядрі.
 
 ## Публічний API
 
-- FRAGMENTS_START / FRAGMENTS_END — стабільні маркери блоку фрагментів.
-- collectSkillFragments(skillId, plugins) — знайдені фрагменти `{ pluginName, content }`.
-- injectSkillFragments(content, fragments) — текст SKILL.md з актуальним блоком.
+- FRAGMENTS_START — Маркер початку блоку плагінних фрагментів (стабільний).
+- FRAGMENTS_END — Маркер кінця блоку плагінних фрагментів.
+- collectSkillFragments — Збирає фрагменти скіла зі slot graph (у порядку графа — resolved plugin order → manifest
+order). Contribution `id` слоту `skills.fragment@1` — це і є `skillId` (envelope вимагає
+рівно одне з `resource`/`value`, тож окремого поля для skillId у payload нема, spec §5.2).
+- injectSkillFragments — Вшиває блок фрагментів у текст SKILL.md (перед фінальним переносом рядка).
+Наявний блок між маркерами замінюється; порожній список фрагментів — блок
+прибирається зовсім.
+
+## Сценарії використання
+
+- `npm/scripts/lib/tests/skill-fragments.test.mjs` (collectSkillFragments; injectSkillFragments) — збирає фрагменти активних плагінів у порядку графа; порожній фрагмент — ігнорується; плагін без жодного skills.fragment contribution — не впливає на результат; доклеює блок у кінець з маркерами плагінів; ре-синк ідемпотентний: блок замінюється, не дублюється; ще 2
 
 ## Гарантії поведінки
 
-- Read-only щодо ФС: лише читає файли фрагментів; запис робить викликач (синк).
-- Ідемпотентність вшивання: повторний виклик із тим самим списком не змінює текст.
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.

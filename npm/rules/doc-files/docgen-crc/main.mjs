@@ -84,10 +84,11 @@ export function parseDocFrontmatter(md) {
 const MAX_ISSUE_CODES = 8
 
 /**
- * OKF `type` для файлу-джерела за розширенням — лише з декларацій активних
- * lang-плагінів (`contributes.docFiles.extensions`: js/mjs/ts/vue — lang-js,
- * `.rs`/`.py` — lang-rust/lang-python); вбудованих типів у ядрі немає
- * (фаза 5b spec lang-plugins-extraction). Невідоме розширення → 'Source File'.
+ * OKF `type` для файлу-джерела за розширенням — лише з `doc-files.extensions@1`
+ * contributions активних lang-плагінів (js/mjs/ts/vue — lang-js, `.rs`/`.py` —
+ * lang-rust/lang-python); вбудованих типів у ядрі немає (фаза 5b spec
+ * lang-plugins-extraction, переведено на slot bus Фазою 2). Невідоме розширення →
+ * 'Source File'.
  * @param {string} sourcePath відносний шлях джерела
  * @returns {string} тип концепту
  */

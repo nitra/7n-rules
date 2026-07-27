@@ -10,7 +10,20 @@
  * Semver-утиліти (caret-класифікація major/minor) живуть саме тут — єдине
  * джерело правила для всіх мовних плагінів, без імпорту внутрішніх шляхів
  * `@7n/rules` і без циклу plugin-api ↔ плагін.
+ *
+ * Фаза 3 (spec 2026-07-27-universal-plugin-slots-lang-php-extraction, §3.3, §7.1): canonical
+ * payload-контракт слоту `ci.artifact@1` — re-export з `slot-contracts-ci.mjs`. Consumer-и
+ * (`@7n/rules-ci-github`, `@7n/rules-ci-azure`) і майбутні contributors (`@7n/rules-lang-php`)
+ * імпортують форму payload-у й assertion-helpers звідси, не з internal `scripts/lib/*`.
  */
+export {
+  CI_ARTIFACT_ID_RE,
+  isSafeRepoRelativePath,
+  isSafeTemplateRelPath,
+  loadCiArtifactPayload,
+  resolveArtifactTemplatePath,
+  validateCiArtifactPayload
+} from './slot-contracts-ci.mjs'
 // Заякорено на початок (після можливих range-операторів `^~>=<`, пробілів, `v`),
 // щоб НЕ ловити версію всередині protocol-specifier-ів (`workspace:1.0.0`, `npm:x@1.2.3`).
 const SEMVER_RE = /^[\s~^>=<v]*(\d+)\.(\d+)\.(\d+)/
@@ -42,8 +55,18 @@ export function isBreaking(from, to) {
   return from.patch !== to.patch
 }
 
-/** Версія контракту plugin-api: плагін декларує `requiresPluginApi`, несумісність → skip, не креш. */
-export const PLUGIN_API_VERSION = 1
+/**
+ * Версія контракту plugin-api: плагін декларує `requiresPluginApi`, несумісність → skip, не креш.
+ *
+ * `2` (spec 2026-07-27-universal-plugin-slots-lang-php-extraction, Фаза 1) — breaking envelope
+ * зміна: universal typed slot bus (`n-rules.slots.{provides,consumes}`, `resolveSlotGraph` у
+ * `plugin-slots.mjs`) замінює `contributes.rules/handlers/docFiles` як цільовий контракт.
+ * Legacy `contributes.*` лишається робочим до Фази 2 (повна first-party migration) — версія тут
+ * підіймається одразу, бо саме `requiresPluginApi` є enforcement-точкою: плагін без цього поля
+ * або зі старим значенням у slot graph не потрапляє (діагностика, не крах); legacy-поверхні й
+ * далі обслуговують його contributes-based contributions без змін.
+ */
+export const PLUGIN_API_VERSION = 2
 
 /**
  * @typedef {(cmd: string, args: string[], opts?: object) => { status: number|null, stdout: string, stderr: string }} SpawnFn

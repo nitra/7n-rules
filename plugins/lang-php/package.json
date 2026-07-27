@@ -1,0 +1,74 @@
+{
+  "name": "@7n/rules-lang-php",
+  "version": "0.1.0",
+  "description": "Плагін @7n/rules: PHP/Composer-екосистема — lint (PHPCS Security, PHP-CS-Fixer, PHPStan, Psalm, composer audit) + CI-артефакти GitHub/Azure",
+  "keywords": [
+    "php",
+    "composer",
+    "lint",
+    "n-rules-plugin"
+  ],
+  "homepage": "https://github.com/nitra/7n-rules#readme",
+  "bugs": {
+    "url": "https://github.com/nitra/7n-rules/issues"
+  },
+  "license": "ISC",
+  "author": "v@nitra.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nitra/7n-rules.git",
+    "directory": "plugins/lang-php"
+  },
+  "type": "module",
+  "files": [
+    "rules",
+    "slots",
+    "CHANGELOG.md",
+    "!**/*.test.mjs",
+    "!**/*_test.rego",
+    "!**/fixtures/**",
+    "!**/tests/**"
+  ],
+  "n-rules": {
+    "requiresPluginApi": 2,
+    "capabilities": [
+      "lang:php"
+    ],
+    "slots": {
+      "provides": [
+        { "slot": "rules.directory", "version": 1, "id": "php-rules", "resource": "./rules" },
+        {
+          "slot": "ci.artifact",
+          "version": 1,
+          "id": "php-github-lint",
+          "resource": "./slots/ci/php-github-lint.json",
+          "requires": { "capabilities": ["ci:github"] }
+        },
+        {
+          "slot": "ci.artifact",
+          "version": 1,
+          "id": "php-azure-lint",
+          "resource": "./slots/ci/php-azure-lint.json",
+          "requires": { "capabilities": ["ci:azure"] }
+        },
+        {
+          "slot": "ci.artifact",
+          "version": 1,
+          "id": "php-lint-text-patch",
+          "resource": "./slots/ci/php-lint-text-patch.json",
+          "requires": { "capabilities": ["ci:github"] }
+        }
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@7n/rules": ">=1.2.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "bun": ">=1.3",
+    "node": ">=24"
+  }
+}

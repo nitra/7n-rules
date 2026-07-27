@@ -6,12 +6,12 @@ import { jsDocCommentBefore } from './js-facts.mjs'
 
 /**
  * Мовний doc-files-екстрактор JS-екосистеми для конвеєра `@7n/rules`
- * (extension-point `doc-files`, фаза 5b spec lang-plugins-extraction: ядро —
+ * (слот `doc-files.extractor@1`, фаза 5b spec lang-plugins-extraction: ядро —
  * двигун без мовної специфіки): факт-лист (`extractFacts`) для js/mjs/ts і
  * юніти (`extractUnits`) через oxc AST. Розширення `.js`/`.mjs`/`.ts`/`.vue`
- * та їхні OKF-типи декларуються маніфестом плагіна
- * (`contributes.docFiles.extensions`) — hot-path ядра читає їх синхронно;
- * цей модуль вантажиться лише на шляху генерації.
+ * та їхні OKF-типи декларуються окремою contribution-ою `doc-files.extensions@1`
+ * (inline `value`) — hot-path ядра читає її синхронно; цей модуль
+ * (`doc-files.extractor@1`, resource) вантажиться лише на шляху генерації.
  */
 
 const BUILTIN_MODULES = new Set([

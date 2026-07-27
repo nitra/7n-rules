@@ -29,6 +29,7 @@ resource: npm/scripts/lib/
 | [load-cursor-config.mjs](load-cursor-config.md)                             | JS Module |
 | [mirror-parity.mjs](mirror-parity.md)                                       | JS Module |
 | [plugin-api.mjs](plugin-api.md)                                             | JS Module |
+| [plugin-slots.mjs](plugin-slots.md)                                         | JS Module |
 | [read-n-rules-config-lite.mjs](read-n-rules-config-lite.md)                 | JS Module |
 | [resolve-plugins.mjs](resolve-plugins.md)                                   | JS Module |
 | [resolve-target-files.mjs](resolve-target-files.md)                         | JS Module |

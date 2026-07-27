@@ -22,17 +22,24 @@
   "type": "module",
   "files": [
     "rules",
+    "slots",
     "CHANGELOG.md",
     "!**/*.test.mjs",
     "!**/*_test.rego",
     "!**/fixtures/**"
   ],
   "n-rules": {
+    "requiresPluginApi": 2,
     "capabilities": [
       "ci:azure"
     ],
-    "contributes": {
-      "rules": true
+    "slots": {
+      "provides": [
+        { "slot": "rules.directory", "version": 1, "id": "azure-rules", "resource": "./rules" }
+      ],
+      "consumes": [
+        { "slot": "ci.artifact", "versions": [1], "handler": "./slots/ci-artifact-consumer.mjs" }
+      ]
     }
   },
   "peerDependencies": {

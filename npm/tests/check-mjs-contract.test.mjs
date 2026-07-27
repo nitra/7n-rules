@@ -76,11 +76,11 @@ async function listConcerns(ruleDir) {
 }
 
 describe('concern contract — усі правила', () => {
-  test('24 правила ядра (ga → ci-github; rust/python/js-сімʼя+style → lang-плагіни; test — core-власник, lang-js mixin)', () => {
-    expect(ruleIds.length).toBe(24)
+  test('23 правила ядра (ga → ci-github; rust/python/php/js-сімʼя+style → lang-плагіни; test — core-власник, lang-js mixin)', () => {
+    expect(ruleIds.length).toBe(23)
   })
 
-  test('плагіни монорепо володіють правилами ga, azure-pipelines, rust, python і js-сімʼєю', () => {
+  test('плагіни монорепо володіють правилами ga, azure-pipelines, rust, python, php і js-сімʼєю', () => {
     const owners = pluginRuleDirs
       .filter(p => p.owner)
       .map(p => `${p.plugin}/${p.id}`)
@@ -98,6 +98,7 @@ describe('concern contract — усі правила', () => {
       'lang-js/style',
       'lang-js/tool-surface',
       'lang-js/vue',
+      'lang-php/php',
       'lang-python/python',
       'lang-rust/rust'
     ])

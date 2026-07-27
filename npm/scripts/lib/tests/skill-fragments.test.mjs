@@ -1,39 +1,74 @@
 /**
- * Тести фрагментів SKILL.md від плагінів: збір конвенційних
- * `skills/<id>/SKILL.fragment.md`, ідемпотентне вшивання/заміна/прибирання
- * блоку між маркерами.
+ * Тести фрагментів SKILL.md від плагінів: збір `skills.fragment@1` contributions зі slot
+ * graph (Фаза 2 — slot bus), ідемпотентне вшивання/заміна/прибирання блоку між маркерами.
  */
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test } from 'vitest'
 
 import { withTmpDir } from '../../utils/test-helpers.mjs'
+import { clearSlotResolveCache, resolveSlotGraph } from '../plugin-slots.mjs'
+import { clearPluginResolveCache } from '../resolve-plugins.mjs'
 import { collectSkillFragments, FRAGMENTS_END, FRAGMENTS_START, injectSkillFragments } from '../skill-fragments.mjs'
 
 const BASE = '---\nname: taze\n---\n\n# taze\n\nОсновний текст.\n'
 
-describe('collectSkillFragments', () => {
-  test('збирає фрагменти активних плагінів у порядку списку', async () => {
-    await withTmpDir(async dir => {
-      const a = join(dir, 'plug-a')
-      const b = join(dir, 'plug-b')
-      await mkdir(join(a, 'skills', 'taze'), { recursive: true })
-      await writeFile(join(a, 'skills', 'taze', 'SKILL.fragment.md'), '## Rust-гілка\n\nтекст A\n')
-      await mkdir(join(b, 'skills', 'other'), { recursive: true })
+afterEach(() => {
+  clearSlotResolveCache()
+  clearPluginResolveCache()
+})
 
-      const fragments = collectSkillFragments('taze', [
-        { name: '@x/a', packageRoot: a },
-        { name: '@x/b', packageRoot: b }
-      ])
-      expect(fragments).toEqual([{ pluginName: '@x/a', content: '## Rust-гілка\n\nтекст A' }])
+/**
+ * Ставить у tmp-репо фейковий плагін API v2 з `skills.fragment@1` contribution.
+ * @param {string} dir корінь tmp-репо
+ * @param {string} name npm-ім'я плагіна
+ * @param {{ skillId?: string, content?: string | null }} [opts] `content: null` — без ресурсу взагалі
+ * @returns {Promise<void>}
+ */
+async function writeFakeFragmentPlugin(dir, name, { skillId = 'taze', content = '## Rust-гілка\n\nтекст A\n' } = {}) {
+  const packageRoot = join(dir, 'node_modules', name)
+  await mkdir(packageRoot, { recursive: true })
+  const provides =
+    content === null
+      ? []
+      : [{ slot: 'skills.fragment', version: 1, id: skillId, resource: `./skills/${skillId}/SKILL.fragment.md` }]
+  await writeFile(
+    join(packageRoot, 'package.json'),
+    JSON.stringify({
+      name,
+      version: '1.0.0',
+      'n-rules': { requiresPluginApi: 2, contributes: { rules: false }, slots: { provides } }
+    })
+  )
+  if (content !== null) {
+    await mkdir(join(packageRoot, 'skills', skillId), { recursive: true })
+    await writeFile(join(packageRoot, 'skills', skillId, 'SKILL.fragment.md'), content)
+  }
+}
+
+describe('collectSkillFragments', () => {
+  test('збирає фрагменти активних плагінів у порядку графа', async () => {
+    await withTmpDir(async dir => {
+      await writeFakeFragmentPlugin(dir, '@x/a', { content: '## Rust-гілка\n\nтекст A\n' })
+      await writeFakeFragmentPlugin(dir, '@x/b', { skillId: 'other', content: 'інший скіл' })
+      const graph = resolveSlotGraph(dir, { plugins: ['@x/a', '@x/b'] }, { allowInstall: false, quiet: true })
+      expect(collectSkillFragments('taze', graph)).toEqual([{ pluginName: '@x/a', content: '## Rust-гілка\n\nтекст A' }])
     })
   })
 
   test('порожній фрагмент — ігнорується', async () => {
     await withTmpDir(async dir => {
-      await mkdir(join(dir, 'skills', 'taze'), { recursive: true })
-      await writeFile(join(dir, 'skills', 'taze', 'SKILL.fragment.md'), '\n  \n')
-      expect(collectSkillFragments('taze', [{ name: '@x/a', packageRoot: dir }])).toEqual([])
+      await writeFakeFragmentPlugin(dir, '@x/a', { content: '\n  \n' })
+      const graph = resolveSlotGraph(dir, { plugins: ['@x/a'] }, { allowInstall: false, quiet: true })
+      expect(collectSkillFragments('taze', graph)).toEqual([])
+    })
+  })
+
+  test('плагін без жодного skills.fragment contribution — не впливає на результат', async () => {
+    await withTmpDir(async dir => {
+      await writeFakeFragmentPlugin(dir, '@x/a', { content: null })
+      const graph = resolveSlotGraph(dir, { plugins: ['@x/a'] }, { allowInstall: false, quiet: true })
+      expect(collectSkillFragments('taze', graph)).toEqual([])
     })
   })
 })

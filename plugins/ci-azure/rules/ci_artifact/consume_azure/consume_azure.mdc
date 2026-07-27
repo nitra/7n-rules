@@ -1,0 +1,21 @@
+## Generic `ci.artifact@1` consumer (Azure Pipelines)
+
+Правило перевіряє CI-артефакти, які постачають language-плагіни (напр. майбутній
+`@7n/rules-lang-php`) через universal typed slot `ci.artifact@1` (mixin `@7n/rules-ci-azure`) —
+без жодного PHP чи іншого мовного literal у цьому пакеті.
+
+### Поведінка
+
+`mergeStrategy: "contains-step"`: серед `script`-кроків `azure-pipelines.yml` на БУДЬ-ЯКІЙ
+глибині (`steps`/`jobs`/`stages` вкладені довільно) має бути запуск canonical-команди
+(`n-rules <cmd>` або `@7n/rules <cmd>`, `<cmd>` — з `template` contribution-у) АБО загальний
+`n-rules lint --no-fix --full` / `@7n/rules lint --no-fix --full` (повний прогін покриває всі
+домени — окремий крок не потрібен). Обов'язковий read-only marker `--no-fix` десь у тому самому
+script-блобі.
+
+`mode: "patch-existing"` — `azure-pipelines.yml` належить окремому, самостійному концерну
+(структура pipeline-файлу); його відсутність — НЕ порушення цього generic-у, перевірка мовчки
+пропускається.
+
+v1 — diagnostic-only: payload `fix` завжди `false` (жоден consumer не приймає
+`fix: true`-descriptor для `mergeStrategy: "contains-step"`), T0-фіксу немає — лише violation.

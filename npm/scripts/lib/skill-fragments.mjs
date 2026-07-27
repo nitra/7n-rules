@@ -1,15 +1,17 @@
 /**
- * Фрагменти SKILL.md від плагінів (фаза 4b spec lang-plugins-extraction).
+ * Фрагменти SKILL.md від плагінів (Фаза 2, spec
+ * 2026-07-27-universal-plugin-slots-lang-php-extraction — переведено на slot bus, §5.1.9).
  *
- * Плагін шипить конвенційний файл `skills/<skillId>/SKILL.fragment.md` —
- * власну секцію скіла (напр. Rust-гілку taze). Під час синку скіла ядро
- * доклеює фрагменти АКТИВНИХ плагінів до скопійованого `SKILL.md` між
- * стабільними маркерами — ре-синк ідемпотентний: наявний блок замінюється
- * повністю, без активних фрагментів — видаляється. Так мовні знання їдуть
- * разом із кодом плагіна, а не сиротіють у ядрі.
+ * Плагін декларує contribution слоту `skills.fragment@1` (`id` = skillId, `resource` →
+ * власний `skills/<skillId>/SKILL.fragment.md` — власну секцію скіла, напр. Rust-гілку taze).
+ * Під час синку скіла ядро доклеює фрагменти АКТИВНИХ contributions до скопійованого
+ * `SKILL.md` між стабільними маркерами — ре-синк ідемпотентний: наявний блок замінюється
+ * повністю, без активних фрагментів — видаляється. Так мовні знання їдуть разом із кодом
+ * плагіна, а не сиротіють у ядрі.
  */
-import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync } from 'node:fs'
+
+import { getSlotContributions } from './plugin-slots.mjs'
 
 /** Маркер початку блоку плагінних фрагментів (стабільний). */
 export const FRAGMENTS_START = '<!-- n-rules:plugin-fragments:start -->'
@@ -17,18 +19,19 @@ export const FRAGMENTS_START = '<!-- n-rules:plugin-fragments:start -->'
 export const FRAGMENTS_END = '<!-- n-rules:plugin-fragments:end -->'
 
 /**
- * Збирає фрагменти скіла з активних плагінів (у порядку списку плагінів).
+ * Збирає фрагменти скіла зі slot graph (у порядку графа — resolved plugin order → manifest
+ * order). Contribution `id` слоту `skills.fragment@1` — це і є `skillId` (envelope вимагає
+ * рівно одне з `resource`/`value`, тож окремого поля для skillId у payload нема, spec §5.2).
  * @param {string} skillId id скіла без префікса (напр. `taze`)
- * @param {Array<{ name: string, packageRoot: string }>} plugins активні плагіни (з `resolvePlugins`)
+ * @param {import('./plugin-slots.mjs').SlotGraph} graph граф від `resolveSlotGraph`
  * @returns {Array<{ pluginName: string, content: string }>} знайдені фрагменти
  */
-export function collectSkillFragments(skillId, plugins) {
+export function collectSkillFragments(skillId, graph) {
   const out = []
-  for (const plugin of plugins) {
-    const fragmentPath = join(plugin.packageRoot, 'skills', skillId, 'SKILL.fragment.md')
-    if (!existsSync(fragmentPath)) continue
-    const content = readFileSync(fragmentPath, 'utf8').trim()
-    if (content !== '') out.push({ pluginName: plugin.name, content })
+  for (const c of getSlotContributions(graph, 'skills.fragment', [1])) {
+    if (c.id !== skillId || c.resourcePath === null) continue
+    const content = readFileSync(c.resourcePath, 'utf8').trim()
+    if (content !== '') out.push({ pluginName: c.pluginName, content })
   }
   return out
 }

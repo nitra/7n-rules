@@ -3,29 +3,20 @@ type: JS Module
 title: run-detectors.mjs
 resource: npm/scripts/lib/lint-surface/run-detectors.mjs
 docgen:
-  crc: 9f044303
+  crc: a48109bd
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
-  score: 100
-  issues: judge-refine:kept-original,judge:inaccurate:0.99
+  score: 75
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Файл формує єдину поверхню для `n-rules lint --no-fix`: від discovery правил і вибору меж запуску до виконання `lint` для кожного concern та збору нормалізованих violations. Його результатом є список порушень, який використовує fix-pipeline для подальшої обробки, тоді як сам detect не змінює дерево файлів.
+Detect-only оркестратор unified lint surface (`n-rules lint --no-fix`).
 
-## Поведінка
-
-DEFAULT_RULES_DIR задає базовий корінь правил, від якого стартує discovery, коли споживач не передав власні каталоги.
-
-buildDetectPlan спочатку визначає набір rules-каталогів, відбирає concern-и за capability і застосовує опційний rule-level `applies` gate. Лише після цього він будує план виконання за режимом прогону: scoped, delta, full або repo-wide. Сам план фіксує, які concern-и запускаються whole-repo, а які лише по перетину з файлами, щоб detect і fix-pipeline працювали з однаковою картиною.
-
-loadEnabledLintRules використовує той самий discovery-ланцюжок, але повертає не план, а повну мапу concern-и за rule-id разом із множиною активних правил. Це потрібно зовнішнім споживачам, які мають знати, що реально доступно для прогону, не запускаючи сам detector-цикл.
-
-computeActiveDomains дає скорочений зріз цієї ж моделі: для заданого набору файлів показує, які rule-id справді активуються хоча б одним per-file concern-ом. Full-scope перевірки тут навмисно не враховуються, бо їхня зона відповідає repo-wide прогону.
-
-detectAll бере готовий план, виконує його, збирає normalized violations і повертає ще й derived exitCode. Увесь шлях read-only: нічого не записує в дерево, не змінює конфіг і не покладається на мутації поза межами збирання результатів. Фільтрація та видимість правил спираються на .n-rules.json, тож саме він визначає, які rules каталоги й concern-и вважаються активними.
+Discovery → scope-selection → `lint(ctx)` per concern → нормалізовані violations.
+Без мутацій, без LLM. Fix-pipeline (T0 + ladder) обгортає цей модуль і споживає
+його violations; сам detect ніколи не пише в дерево.
 
 ## Публічний API
 
@@ -42,7 +33,9 @@ concern тригериться на цих файлах (та сама табл�
 full-scope перевірки — справа `--repo-wide`).
 - detectAll — Запускає detect-only прохід. Повертає всі violations і похідний exitCode.
 
-Rule-level `applies` у `<rule>/applies/main.mjs` може повернути `false`, щоб виключити всі concern-и правила з плану для поточного репозиторію.
+## Сценарії використання
+
+- `npm/scripts/lib/lint-surface/tests/run-detectors.test.mjs` (detectAll — exit codes; detectAll — scoping) — clean → exit 0; violations → exit 1, ruleId/concernId домішані з ctx; detector кидає → exit 2; невалідний violation (без reason) → exit 2; absolute file-path відхиляється → exit 2; ще 15
 
 ## Гарантії поведінки
 

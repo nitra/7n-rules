@@ -151,11 +151,11 @@ export async function withBinRemovedFromPath(bin, fn) {
 }
 
 /**
- * Ставить у tmp-репо фейковий плагін `@7n/rules-lang-js` (маніфест із doc-files
- * розширеннями JS-екосистеми) і активує його через `.n-rules.json`. Потрібен
- * тестам doc-files: після фази 5b (spec lang-plugins-extraction) ядро не має
- * вбудованих кодових розширень — без активного lang-плагіна скан не бачить
- * жодного джерела.
+ * Ставить у tmp-репо фейковий плагін `@7n/rules-lang-js` (маніфест API v2 з
+ * `doc-files.extensions@1` contribution — JS-екосистема) і активує його через `.n-rules.json`.
+ * Потрібен тестам doc-files: ядро не має вбудованих кодових розширень — без активного
+ * lang-плагіна скан не бачить жодного джерела (Фаза 2, spec
+ * 2026-07-27-universal-plugin-slots-lang-php-extraction — переведено на slot bus).
  * @param {string} dir абсолютний корінь tmp-репо (від `withTmpDir`)
  * @returns {Promise<void>}
  */
@@ -168,11 +168,16 @@ export async function installFakeLangJsPlugin(dir) {
       name: '@7n/rules-lang-js',
       version: '0.0.0-test',
       'n-rules': {
-        contributes: {
-          rules: false,
-          docFiles: {
-            extensions: { '.js': 'JS Module', '.mjs': 'JS Module', '.ts': 'TS Module', '.vue': 'Vue Component' }
-          }
+        requiresPluginApi: 2,
+        slots: {
+          provides: [
+            {
+              slot: 'doc-files.extensions',
+              version: 1,
+              id: 'doc-files-ext-js',
+              value: { '.js': 'JS Module', '.mjs': 'JS Module', '.ts': 'TS Module', '.vue': 'Vue Component' }
+            }
+          ]
         }
       }
     })

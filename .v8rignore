@@ -8,6 +8,7 @@ npm/schemas/rule-meta.json
 npm/schemas/skill-meta.json
 npm/schemas/concern.json
 npm/schemas/layers-config.json
+npm/schemas/plugin-manifest.json
 npm/schemas/v8r-catalog.json
 npm/schemas/vendor/**
 .claude/settings.local.json
@@ -20,6 +21,7 @@ npm/tsconfig.emit-types.json
 npm/scripts/lib/tests/__fixtures__/**
 npm/rules/*/*/template/**
 plugins/*/rules/*/*/template/**
+plugins/*/slots/ci/**
 .cursor/hooks.json
 .docgen-scan.json
 npm/config/capability-matrix.json

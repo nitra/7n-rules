@@ -10,6 +10,7 @@
     "@7n/rules-lang-python",
     "@7n/rules-lang-rust",
     "@7n/rules-lang-js",
+    "@7n/rules-lang-php",
     "@7n/llm-lib",
     "vue",
     "jscpd",
@@ -118,6 +119,7 @@
         "rules/*/*/main.mjs",
         "rules/*/*/fix-*.mjs",
         "rules/**/*.test.mjs",
+        "slots/*.mjs",
         "stryker.config.mjs",
         "vitest.config.mjs"
       ],
@@ -131,6 +133,7 @@
         "rules/*/*/main.mjs",
         "rules/*/*/fix-*.mjs",
         "rules/**/*.test.mjs",
+        "slots/*.mjs",
         "stryker.config.mjs",
         "vitest.config.mjs"
       ],
@@ -183,6 +186,19 @@
       "project": [
         "**/*.{js,mjs}",
         "!rules/test/storybook-*/template/**"
+      ]
+    },
+    "plugins/lang-php": {
+      "entry": [
+        "rules/*/*/main.mjs",
+        "rules/*/*/fix-*.mjs",
+        "rules/**/*.test.mjs",
+        "slots/**/*.test.mjs",
+        "stryker.config.mjs",
+        "vitest.config.mjs"
+      ],
+      "project": [
+        "**/*.{js,mjs}"
       ]
     }
   }

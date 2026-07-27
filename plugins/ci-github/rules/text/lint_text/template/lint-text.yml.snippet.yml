@@ -25,7 +25,6 @@ on:
       - '**/*.txt'
       - '**/*.go'
       - '**/*.py'
-      - '**/*.php'
       - '**/*.sh'
 
   pull_request:
@@ -52,7 +51,6 @@ on:
       - '**/*.txt'
       - '**/*.go'
       - '**/*.py'
-      - '**/*.php'
       - '**/*.sh'
 
 concurrency:

@@ -2,7 +2,7 @@
  * Тести для skills/taze/js/orchestrate.mjs:
  *   - callRunner: pi (текст через deps.out) vs cursor/codex (return/throw);
  *   - formatReport: детермінований markdown-звіт (npm-гілка + екосистеми провайдерів);
- *   - loadPluginTazeProviders: handler-модулі плагінів → валідні провайдери, битий плагін → warning+пропуск;
+ *   - loadPluginTazeProviders: taze.provider@1 contributions плагінів → валідні провайдери, битий плагін → warning+пропуск;
  *   - runTazeOrchestrator: повна ітерація з інжектованими провайдерами (без реальних bunx/cargo/LLM);
  *   - реекспорти bringChangesBackToOriginal/removeAutoCreatedWorktree: спільний
  *     набір `describeAutoWorktreeBridge` (scripts/utils/tests/auto-worktree-suite.mjs).
@@ -252,11 +252,13 @@ describe('loadPluginTazeProviders', () => {
     cleanup: () => Promise.resolve()
   }
 
-  test('handler-модуль плагіна → валідний провайдер', async () => {
+  test('taze.provider contribution → валідний провайдер', async () => {
     const providers = await loadPluginTazeProviders('/repo', noop, {
       readNRulesConfigLite: () => ({ plugins: undefined }),
-      resolvePlugins: () => [],
-      getHandlers: () => [{ pluginName: '@7n/rules-lang-python', modulePath: '/repo/node_modules/p/provider.mjs' }],
+      resolveSlotGraph: () => ({}),
+      getSlotContributions: () => [
+        { pluginName: '@7n/rules-lang-python', resourcePath: '/repo/node_modules/p/provider.mjs' }
+      ],
       importModule: () => Promise.resolve({ default: validProvider })
     })
     expect(providers).toEqual([validProvider])
@@ -271,10 +273,10 @@ describe('loadPluginTazeProviders', () => {
       },
       {
         readNRulesConfigLite: () => ({ plugins: undefined }),
-        resolvePlugins: () => [],
-        getHandlers: () => [
-          { pluginName: '@7n/rules-lang-broken', modulePath: '/repo/broken.mjs' },
-          { pluginName: '@7n/rules-lang-python', modulePath: '/repo/ok.mjs' }
+        resolveSlotGraph: () => ({}),
+        getSlotContributions: () => [
+          { pluginName: '@7n/rules-lang-broken', resourcePath: '/repo/broken.mjs' },
+          { pluginName: '@7n/rules-lang-python', resourcePath: '/repo/ok.mjs' }
         ],
         importModule: url =>
           url.includes('broken')
@@ -286,11 +288,11 @@ describe('loadPluginTazeProviders', () => {
     expect(logs.some(l => l.includes('@7n/rules-lang-broken'))).toBe(true)
   })
 
-  test('без handlers → порожній список', async () => {
+  test('без contributions → порожній список', async () => {
     const providers = await loadPluginTazeProviders('/repo', noop, {
       readNRulesConfigLite: () => ({ plugins: [] }),
-      resolvePlugins: () => [],
-      getHandlers: () => []
+      resolveSlotGraph: () => ({}),
+      getSlotContributions: () => []
     })
     expect(providers).toEqual([])
   })
