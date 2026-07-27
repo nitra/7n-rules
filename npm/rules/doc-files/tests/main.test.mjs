@@ -3,7 +3,8 @@ import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
 import { withTmpDir, ensureDir, installFakeLangJsPlugin } from '../../../scripts/utils/test-helpers.mjs'
-import { crc32, stampDoc } from '../docgen-crc/main.mjs'
+import { crc32, documentationCrc, stampDoc } from '../docgen-crc/main.mjs'
+import { buildTestEvidenceIndex } from '../docgen-test-context/main.mjs'
 
 import { lint } from '../check/main.mjs'
 
@@ -83,12 +84,35 @@ describe('lint — детект (read-only detector)', () => {
     })
   })
 
-  test('quick: ігнорує не-кандидати (тести, node_modules)', async () => {
+  test('quick: ігнорує test-файл без звʼязку із source', async () => {
     await withTmpDir(async root => {
       await installFakeLangJsPlugin(root)
       await ensureDir(join(root, 'src'))
       await writeFile(join(root, 'src', 'a.test.mjs'), 'test\n')
       expect(await violationsCount(root, ['src/a.test.mjs'])).toBe(0)
+    })
+  })
+
+  test('quick: зміна повʼязаного тесту перевіряє й позначає stale доку source-файлу', async () => {
+    await withTmpDir(async root => {
+      await installFakeLangJsPlugin(root)
+      await ensureDir(join(root, 'src', 'tests'))
+      await ensureDir(join(root, 'src', 'docs'))
+      const source = join(root, 'src', 'a.mjs')
+      const testFile = join(root, 'src', 'tests', 'a.test.mjs')
+      const testRel = 'src/tests/a.test.mjs'
+      await writeFile(source, 'export const a = () => 1\n')
+      await writeFile(testFile, "import { a } from '../a.mjs'\ntest('повертає 1', () => expect(a()).toBe(1))\n")
+      const index = buildTestEvidenceIndex(root)
+      await writeFile(
+        join(root, 'src', 'docs', 'a.md'),
+        stampDoc('# a\n\n## Огляд\n\nтест\n', 'src/a.mjs', documentationCrc(source, index))
+      )
+
+      expect(await violationsCount(root, [testRel])).toBe(0)
+
+      await writeFile(testFile, "import { a } from '../a.mjs'\ntest('повертає число', () => expect(a()).toBe(1))\n")
+      expect(await violationsCount(root, [testRel])).toBeGreaterThan(0)
     })
   })
 

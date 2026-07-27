@@ -85,9 +85,10 @@ function intentContext(intent) {
  * @param {string} src вміст файлу
  * @param {object|null} [anchors] анкори файлу для обовʼязкового включення
  * @param {string|null} [intent] захищена секція «Призначення» як read-only контекст
+ * @param {{ complementaryBehavior?: boolean }} [opts] LLM доповнює лише прогалини між comments і кодом
  * @returns {Array<{key:string, messages:object[], numPredict:number}>} набір секційних промптів (лише behavior)
  */
-export function sectionMessages(facts, src, anchors = null, intent = null) {
+export function sectionMessages(facts, src, anchors = null, intent = null, { complementaryBehavior = false } = {}) {
   const factsTxt = factsSummary(facts)
   const anch = anchorsBlock(anchors)
   const intentCtx = intentContext(intent)
@@ -108,12 +109,15 @@ export function sectionMessages(facts, src, anchors = null, intent = null) {
   const noInternal = facts.internalSymbols?.length
     ? ` НЕ згадуй за іменами службові функції: ${facts.internalSymbols.join(', ')}.`
     : ''
+  const complementaryInstruction = complementaryBehavior
+    ? ' «Огляд» і «Публічний API» уже дослівно зібрані з авторських коментарів. Додай ЛИШЕ крос-функціональний потік, порядок кроків, error-flow або concurrency, яких там немає; не перефразовуй авторський текст. Якщо доповнювати нічого — поверни рівно NONE.'
+    : ''
   const behavior = {
     key: 'behavior',
     numPredict: 500,
     messages: msgs(
       `${STYLE}\n\nФАЙЛ ${facts.relPath}:\n\`\`\`\n${src}\n\`\`\`\n\nВІДОМІ ФАКТИ:\n${factsTxt}${anch}${intentCtx}`,
-      `Напиши вміст секції «Поведінка»: ${behaviorTask}.${onlyExports} Якщо у фактах є свідомі пропуски шляхів — згадай їх там, де доречно (не вигадуй інших «не перевіряє»). НЕ пиши аргументи функцій у дужках, без regex.${noInternal} Без заголовка, без додаткових ## чи # підзаголовків усередині секції.`
+      `Напиши вміст секції «Поведінка»: ${behaviorTask}.${onlyExports}${complementaryInstruction} Сценарії з test/spec-файлів рендерить JS окремою секцією — не згадуй і не відтворюй їх. Якщо у фактах є свідомі пропуски шляхів — згадай їх там, де доречно (не вигадуй інших «не перевіряє»). НЕ пиши аргументи функцій у дужках, без regex.${noInternal} Без заголовка, без додаткових ## чи # підзаголовків усередині секції.`
     )
   }
   return [behavior]
@@ -275,7 +279,7 @@ export function oneShotMessages(facts, src) {
   const multi = (facts.exports?.length || 0) > 1
   return msgs(
     STYLE,
-    `Напиши документацію для файлу. Секції: ## Огляд (1-3 речення), ## Поведінка (нумерований/маркований алгоритм), ${multi ? '## Публічний API (назва + що робить), ' : ''}## Гарантії поведінки.\n\nФАЙЛ ${facts.relPath}:\n\`\`\`\n${src}\n\`\`\``
+    `Напиши документацію для файлу. Секції: ## Огляд (1-3 речення), ## Поведінка (нумерований/маркований алгоритм), ${multi ? '## Публічний API (назва + що робить), ' : ''}## Гарантії поведінки. Не додавай «Сценарії використання»: її детерміновано рендерить JS із повʼязаних test/spec-файлів.\n\nФАЙЛ ${facts.relPath}:\n\`\`\`\n${src}\n\`\`\``
   )
 }
 

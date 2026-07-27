@@ -4,6 +4,7 @@ import { basename, extname } from 'node:path'
 import { crc32 as zlibCrc32 } from 'node:zlib'
 import { env } from 'node:process'
 import { pluginDocFilesExtensions } from '../docgen-scan/lang-extensions.mjs'
+import { testEvidenceForSource } from '../docgen-test-context/main.mjs'
 
 /** Поріг degraded: дока зі `score` нижче вважається неякісною. */
 export const QUALITY_THRESHOLD = Number(env.N_CURSOR_DOC_FILES_THRESHOLD ?? 70) || 70
@@ -17,6 +18,21 @@ export const QUALITY_THRESHOLD = Number(env.N_CURSOR_DOC_FILES_THRESHOLD ?? 70) 
 export function crc32(input) {
   const buf = typeof input === 'string' ? Buffer.from(input, 'utf8') : input
   return zlibCrc32(buf).toString(16).padStart(8, '0')
+}
+
+/**
+ * CRC повного evidence для файлової доки. Без повʼязаних тестів лишається
+ * back-compatible CRC самого source; за наявності тестів додає їхні шляхи та
+ * вміст, тому зміна usage-сценарію детерміновано робить доку stale.
+ * @param {string} sourceAbsPath абсолютний шлях source-файлу
+ * @param {ReturnType<import('../docgen-test-context/main.mjs').buildTestEvidenceIndex>|null} [testIndex] source↔tests index
+ * @returns {string} CRC32 source + повʼязаних тестів
+ */
+export function documentationCrc(sourceAbsPath, testIndex = null) {
+  const source = readFileSync(sourceAbsPath)
+  if (!testIndex) return crc32(source)
+  const { crcPayload } = testEvidenceForSource(sourceAbsPath, testIndex)
+  return crc32(crcPayload ? Buffer.concat([source, Buffer.from(crcPayload, 'utf8')]) : source)
 }
 
 /** Провідний YAML-frontmatter-блок `---\n…\n---`. */
@@ -186,16 +202,17 @@ export function readDocTier(docAbsPath) {
 }
 
 /**
- * Стан застарілості доки відносно її джерела.
- * `missing` — доки немає; `crc-mismatch` — CRC джерела ≠ CRC у доці; інакше свіжа.
+ * Стан застарілості доки відносно evidence: source + повʼязані тести.
+ * `missing` — доки немає; `crc-mismatch` — evidence CRC ≠ CRC у доці; інакше свіжа.
  * @param {string} sourceAbsPath абсолютний шлях джерела
  * @param {string} docAbsPath абсолютний шлях md-доки
+ * @param {ReturnType<import('../docgen-test-context/main.mjs').buildTestEvidenceIndex>|null} [testIndex] source↔tests index
  * @returns {{ stale: boolean, reason: 'missing'|'crc-mismatch'|null }} стан застарілості
  */
-export function staleness(sourceAbsPath, docAbsPath) {
+export function staleness(sourceAbsPath, docAbsPath, testIndex = null) {
   const docCrc = readDocCrc(docAbsPath)
   if (docCrc === null) return { stale: true, reason: 'missing' }
-  const srcCrc = crc32(readFileSync(sourceAbsPath))
+  const srcCrc = documentationCrc(sourceAbsPath, testIndex)
   if (srcCrc !== docCrc) return { stale: true, reason: 'crc-mismatch' }
   return { stale: false, reason: null }
 }

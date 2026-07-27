@@ -403,6 +403,7 @@ Rego-пакет: `ga.lint_ga`
 - `on.push.branches` — superset: містить `dev` і `main`
 - `on.pull_request.branches` — superset: містить `dev` і `main`
 - `on.push.paths` — superset: містить `.github/actions/**` і `.github/workflows/**`
+- `on.pull_request.paths` — superset: містить `.github/actions/**` і `.github/workflows/**`
 - `jobs.lint-ga` — job має існувати
 - `jobs.lint-ga.runs-on` — за template (`ubuntu-latest`)
 - `jobs.lint-ga.permissions.contents` — `read`

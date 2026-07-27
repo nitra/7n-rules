@@ -34,6 +34,28 @@ describe('sectionMessages — Огляд більше не тут (R3)', () => {
     expect(user).toContain('check, parse')
     expect(user).toMatch(RE_EXACT_NAMES)
   })
+
+  test('Поведінка не отримує test evidence: сценарії рендерить JS окремою секцією', () => {
+    const facts = {
+      ...FACTS,
+      testScenarios: ['повертає null для відсутнього запису'],
+      testEvidence: 'ПІДТВЕРДЖЕНІ СЦЕНАРІЇ ВИКОРИСТАННЯ З ПОВʼЯЗАНИХ ТЕСТІВ:\ntest code'
+    }
+    const behavior = sectionMessages(facts, 'src', null).find(s => s.key === 'behavior')
+    const system = behavior.messages[0].content
+    const user = behavior.messages[1].content
+    expect(system).not.toContain('повертає null для відсутнього запису')
+    expect(system).not.toContain('test code')
+    expect(user).toContain('рендерить JS окремою секцією')
+  })
+
+  test('гібридний режим просить доповнити comments лише відсутнім потоком', () => {
+    const behavior = sectionMessages(FACTS, 'src', null, null, { complementaryBehavior: true }).find(
+      s => s.key === 'behavior'
+    )
+    expect(behavior.messages[1].content).toContain('не перефразовуй авторський текст')
+    expect(behavior.messages[1].content).toContain('поверни рівно NONE')
+  })
 })
 
 describe('overviewMessages — узагальнення Поведінки (R3)', () => {

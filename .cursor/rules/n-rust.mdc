@@ -5,7 +5,7 @@ alwaysApply: false
 version: '1.5'
 ---
 
-Правило забезпечує форматування (rustfmt), лінт (clippy), CI workflow та покриття для Rust-проєктів. Doc-коментарі: файл із pub-елементами має //!-header і ///-опис над кожним top-level pub-елементом (концерн doc_comments — джерело дослівної doc-files-доки; T0 підвищує суміжні //-коментарі, решту дописує LLM-ladder).
+Правило забезпечує форматування (rustfmt), лінт (clippy), CI workflow та покриття для Rust-проєктів. Doc-коментарі: файл із pub-елементами має //!-header і ///-опис над кожним top-level pub-елементом. Якщо вони змістовні, doc-files дослівно збирає «Огляд» і «Публічний API» без LLM; T0 підвищує суміжні //-коментарі, решту дописує LLM-ladder.
 
 ## Налаштування mutation-testing для Rust: `.cargo/mutants.toml`
 

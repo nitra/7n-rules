@@ -32,12 +32,15 @@ vi.mock('../../docgen-scan/main.mjs', () => ({
   scanOrphanedDocs: () => [] // у batch-тестах orphan-перевірка незначима
 }))
 vi.mock('../../docgen-crc/main.mjs', () => ({
-  crc32: () => 'crc',
+  documentationCrc: () => 'crc',
   stampDoc: md => md,
   readDocQuality: readDocQualityMock,
   readDocTier: readDocTierMock,
   readDocModel: () => null,
   QUALITY_THRESHOLD: 80
+}))
+vi.mock('@7n/llm-lib/batch', () => ({
+  submitBatch: vi.fn(() => Promise.reject(new Error('native batch unavailable in orchestration unit tests')))
 }))
 // (pi-міграція: docgen-files-batch більше не імпортує lib/llm.mjs — preflight прибрано,
 // доступність моделі тепер per-call у generateDoc; circuit-breaker тестуємо через generateDocMock)
@@ -259,6 +262,23 @@ describe('runGenerationBatch — 2b-batch шлях (T8, native доступни�
     // localhost:11434) — дефолтний конфіг ОБОВʼЯЗКОВО прокидається у submitBatchImpl.
     expect(submitBatchImpl.mock.calls[1][2]).toMatchObject({ localProviders: { omlx: expect.any(Object) } })
     expect(generateDocMock).not.toHaveBeenCalled() // послідовний шлях не зачеплено
+  })
+
+  test('comment-only елементи штампуються без реального submitBatch', async () => {
+    prepareBatchItemMock.mockImplementation(async file =>
+      ({
+        ...(await prepOk(file)),
+        mode: 'comment-only',
+        messages: []
+      })
+    )
+    finishBatchItemMock.mockReturnValue({ md: '# doc\n', score: 90, issues: [], degraded: false, model: 'omlx/x' })
+    const submitBatchImpl = vi.fn(() => Promise.resolve([]))
+    const code = await runGenerationBatch(targets(3), '/fake-root', { submitBatchImpl })
+    expect(code).toBe(0)
+    expect(submitBatchImpl).toHaveBeenCalledTimes(1) // лише availability-проба
+    expect(finishBatchItemMock).toHaveBeenCalledTimes(3)
+    expect(finishBatchItemMock.mock.calls[0][1]).toMatchObject({ mode: 'comment-only' })
   })
 
   test('помилка ОДНОГО item-у не валить решту batch-у (permanent → skip, err → errors)', async () => {

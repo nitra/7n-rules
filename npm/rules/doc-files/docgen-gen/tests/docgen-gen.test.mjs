@@ -5,9 +5,12 @@ import { readFileSync } from 'node:fs'
 import {
   buildApiSection,
   capTimeoutToDeadline,
+  commentDocumentationMode,
   finishBatchItem,
   generateDoc,
+  hasCompleteCommentDocumentation,
   insertProtected,
+  insertTestScenarios,
   prepareBatchItem,
   scoreDoc,
   splitProtected,
@@ -385,6 +388,22 @@ describe('prepareBatchItem / finishBatchItem — T8 2b-batch (без LLM-вик�
     expect(prep.intent).toBe('Контракт від людини.')
   })
 
+  test('prepareBatchItem: comment-only не створює batch prompt', async () => {
+    extractorState.facts = FACTS_FULLY_COMMENTED
+    readFileSync.mockReturnValue(SRC)
+    const prep = await prepareBatchItem('/x.mjs')
+    expect(prep.mode).toBe('comment-only')
+    expect(prep.messages).toEqual([])
+  })
+
+  test('prepareBatchItem: comment+behavior відправляє лише вузький behavior prompt', async () => {
+    extractorState.facts = FACTS_SHORT_COMMENTED
+    readFileSync.mockReturnValue(SRC)
+    const prep = await prepareBatchItem('/x.mjs')
+    expect(prep.mode).toBe('comment+behavior')
+    expect(prep.messages.at(-1).content).toContain('не перефразовуй авторський текст')
+  })
+
   test('finishBatchItem: unsupported + refusal-філер → score=0, degraded', () => {
     readFileSync.mockReturnValue('print(1)\n')
     const facts = { relPath: 'x.py', lang: 'py', unsupported: true, exports: [], imports: {}, markers: {} }
@@ -424,6 +443,38 @@ describe('prepareBatchItem / finishBatchItem — T8 2b-batch (без LLM-вик�
     })
     expect(r.score).toBeLessThan(80)
     expect(r.degraded).toBe(true)
+  })
+
+  test('finishBatchItem: comment-only збирається без відповіді batch-моделі', () => {
+    const r = finishBatchItem('', {
+      facts: FACTS_FULLY_COMMENTED,
+      anchors: null,
+      src: SRC,
+      intent: null,
+      model: 'omlx/test',
+      mode: 'comment-only'
+    })
+    expect(r.md).toContain(FACTS_FULLY_COMMENTED.header)
+    expect(r.degraded).toBe(false)
+  })
+})
+
+describe('insertTestScenarios — JS-рендер test evidence', () => {
+  test('додає окрему секцію перед гарантіями без інтерпретації LLM', () => {
+    const md = insertTestScenarios('# math.mjs\n\n## Гарантії поведінки\n\n- Без мережі.\n', {
+      testScenarioFiles: [{ path: 'src/tests/math.test.mjs', scenarios: ['додає два числа'] }]
+    })
+    expect(md).toContain('## Сценарії використання\n\n- `src/tests/math.test.mjs` — додає два числа')
+    expect(md.indexOf('## Сценарії використання')).toBeLessThan(md.indexOf('## Гарантії поведінки'))
+  })
+
+  test('замінює спробу LLM написати цю секцію детермінованим вмістом', () => {
+    const md = insertTestScenarios(
+      '# math.mjs\n\n## Сценарії використання\n\n- вигадане твердження\n\n## Огляд\n\nТекст.\n',
+      { testScenarioFiles: [{ path: 'src/tests/math.test.mjs', scenarios: ['додає два числа'] }] }
+    )
+    expect(md).not.toContain('вигадане твердження')
+    expect(md).toContain('додає два числа')
   })
 })
 
@@ -478,6 +529,17 @@ const FACTS_SINGLE_COVERED = {
   markers: {}
 }
 
+const FACTS_FULLY_COMMENTED = {
+  ...FACTS_SINGLE_COVERED,
+  header:
+    'Обчислює значення для зовнішнього виклику та повертає стабільний результат. Використовується як вузький адаптер публічного API без прихованого стану. Обробляє лише локальне перетворення без мережі, черги чи прихованого стану, тому результат залежить лише від переданого значення. Авторський контракт достатній для самостійного використання модуля.'
+}
+
+const FACTS_SHORT_COMMENTED = {
+  ...FACTS_SINGLE_COVERED,
+  header: 'Обчислює значення для зовнішнього виклику.'
+}
+
 const SRC = 'export function doThing() { return 1 }\n'
 
 describe('orchestratedDoc / judge — supported-file happy path (мок extractFacts + runOneShot)', () => {
@@ -512,6 +574,76 @@ describe('orchestratedDoc / judge — supported-file happy path (мок extractF
     // Покритий JSDoc-експорт рендериться Stage 1 (дослівно, 0 LLM) — apiGap-промпт не летить:
     // behavior + overview + criticOverview + judge = рівно 4 виклики, без 5-го (apiGap).
     expect(runOneShot).toHaveBeenCalledTimes(4)
+  })
+
+  test('повні авторські коментарі → документ збирається без жодного LLM-виклику', async () => {
+    extractorState.facts = FACTS_FULLY_COMMENTED
+    readFileSync.mockReturnValue(SRC)
+    const r = await generateDoc('/foo.mjs')
+    expect(r.md).toContain('## Огляд\n\nОбчислює значення для зовнішнього виклику та повертає')
+    expect(r.md).toContain('- doThing — Обчислює значення X.')
+    expect(r.md).not.toContain('## Поведінка')
+    expect(r.llmCalls).toBe(0)
+    expect(runOneShot).not.toHaveBeenCalled()
+  })
+
+  test('без header або з непокритим API лишається LLM fallback', () => {
+    expect(hasCompleteCommentDocumentation(FACTS_SINGLE_COVERED)).toBe(false)
+    expect(hasCompleteCommentDocumentation(FACTS_FULLY_COMMENTED)).toBe(true)
+    expect(
+      hasCompleteCommentDocumentation({ ...FACTS_FULLY_COMMENTED, exports: [{ name: 'doThing', desc: '' }] })
+    ).toBe(false)
+  })
+
+  test('короткий header з повним API → LLM лише для додаткової Поведінки', async () => {
+    extractorState.facts = FACTS_SHORT_COMMENTED
+    readFileSync.mockReturnValue(SRC)
+    runOneShot.mockImplementation(
+      routedOneShot({
+        behavior: '1. Приймає значення.\n2. Повертає обчислений результат.',
+        judge: JUDGE_ACCURATE
+      })
+    )
+    const r = await generateDoc('/foo.mjs')
+    expect(r.md).toContain('## Огляд\n\nОбчислює значення для зовнішнього виклику.')
+    expect(r.md).toContain('## Поведінка\n\n1. Приймає значення.')
+    expect(r.md).toContain('- doThing — Обчислює значення X.')
+    expect(r.llmCalls).toBeGreaterThanOrEqual(1)
+    expect(r.llmCalls).toBeLessThanOrEqual(2)
+  })
+
+  test('гібридний judge бачить тільки LLM-додаток, а не авторські секції', async () => {
+    extractorState.facts = FACTS_SHORT_COMMENTED
+    readFileSync.mockReturnValue(SRC)
+    let judgePrompt = ''
+    runOneShot.mockImplementation(
+      routedOneShot({
+        behavior: '1. Приймає значення.\n2. Повертає обчислений результат.',
+        judge: user => {
+          judgePrompt = user
+          return JUDGE_ACCURATE
+        }
+      })
+    )
+    await generateDoc('/foo.mjs')
+    expect(judgePrompt).toContain('## Поведінка')
+    expect(judgePrompt).not.toContain('## Огляд')
+    expect(judgePrompt).not.toContain('## Публічний API')
+  })
+
+  test('гібридний режим не створює порожню Поведінку, коли LLM повертає NONE', async () => {
+    extractorState.facts = FACTS_SHORT_COMMENTED
+    readFileSync.mockReturnValue(SRC)
+    runOneShot.mockImplementation(routedOneShot({ behavior: 'NONE' }))
+    const r = await generateDoc('/foo.mjs')
+    expect(r.md).not.toContain('## Поведінка')
+    expect(r.llmCalls).toBe(1)
+  })
+
+  test('режим за header і flow: детальний наратив → comment-only, короткий → comment+behavior', () => {
+    expect(commentDocumentationMode(FACTS_FULLY_COMMENTED, SRC)).toBe('comment-only')
+    expect(commentDocumentationMode(FACTS_SHORT_COMMENTED, SRC)).toBe('comment+behavior')
+    expect(commentDocumentationMode(FACTS_SINGLE_COVERED, SRC)).toBe('fallback')
   })
 
   test('buildApiSection: мікс покритий+прогалина → apiGap LLM лише на прогалину (без critique-refine, gap.length!==exps.length)', async () => {
