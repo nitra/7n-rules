@@ -3,24 +3,27 @@ type: JS Module
 title: acp.mjs
 resource: llm-lib/lib/acp.mjs
 docgen:
-  crc: 587f1966
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
-  score: 100
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: 1ed416a1
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
+  score: 80
 ---
 
 ## Огляд
 
-Публічна точка входу `runAcpAgent` для запуску ACP-агента `cursor`, `codex` або `pi` через локально залогінений CLI без API-ключа. Це тонкий JS-міст до `llm_lib::acp` у `llm-lib/crates/llm-lib-napi`, без власної ACP JSON-RPC чи `ClientSideConnection` логіки; протокольна поведінка, `session/prompt`, `session/request_permission`, `tier→env/args/post-session-config` resolving і watchdog на мертвий або незапущений дочірній процес зосереджені в Rust. `AcpAgentKind` охоплює лише `cursor`/`codex`/`pi`; `claude` тут відсутній, а deprecated `claude`-runner лишається окремим JS-шимом у `@7n/rules` (`npm/scripts/lib/acp-runner.mjs`).
+ACP (Agent Client Protocol, Zed) — доступ до `cursor`/`codex`/`pi` через
+особисту підписку (вже залогінений локально CLI), не API-ключ.
 
-## Поведінка
+Тонкий JS-клієнт до Rust-крейта `llm_lib::acp` через napi FFI
+in-process (`llm-lib/crates/llm-lib-napi`) — жодного власного
+ACP JSON-RPC/`ClientSideConnection` тут; уся протокольна логіка (спавн
+агента, `session/prompt`, автоапрув `session/request_permission`,
+тір→env/args/post-session-config резолвінг) живе в Rust, разом з
+watchdog-поведінкою на мертвий/незапущений дочірній процес.
 
-1. `runAcpAgent` запускає один запит до ACP-агента з особистою підпискою для `cursor`, `codex` або `pi` у межах поточного робочого каталогу.
-2. Якщо задано `tier`, передає цю абстракцію в нативний шар, щоб далі саме Rust визначив відповідні параметри сесії для вибраного агента.
-3. Якщо `tier` не задано, використовує стандартну поведінку персонально залогіненого CLI без окремого вибору рівня.
-4. Для виконання звертається до нативної реалізації в процесі, яка вже містить протокольну логіку, запуск сесії та обробку дозволів; цей файл не реалізує власний ACP-обмін і не працює з `claude`.
-5. Повертає повний текст відповіді агента після завершення одного ходу.
+`claude` тут немає — Rust-крейт моделює лише `cursor`/`codex`/`pi`
+(`AcpAgentKind`); deprecated `claude`-раннер лишається окремим
+JS-шимом у `@7n/rules` (`npm/scripts/lib/acp-runner.mjs`).
 
 ## Публічний API
 
@@ -29,6 +32,10 @@ docgen:
 Rust сам резолвить tier→env/args/post-session-config з пресету агента
 (`one_shot_acp_with_tier`) — жодного JS-хелпера "пресет→env" тут немає.
 Без `tier` — стара поведінка (модель = персональний конфіг CLI на машині).
+
+## Сценарії використання
+
+- `llm-lib/tests/acp.test.mjs` (runAcpAgent; getAcpPresets (smoke через реально збудований napi-аддон)) — делегує kind/prompt/cwd у native.oneShotAcp і віддає його результат; без опцій (старий виклик без 4-го аргументу) — tier не заданий; tier прокидається в native.oneShotAcp четвертим аргументом; kind
 
 ## Гарантії поведінки
 

@@ -1,10 +1,8 @@
 ---
 type: Directory Index
-title: npm/rules/js-bun-redis/lib
+title: plugins/lang-js/rules/js-bun-redis/lib
 resource: plugins/lang-js/rules/js-bun-redis/lib/
 ---
-
-# npm/rules/js-bun-redis/lib
 
 | Файл                                  | Тип       |
 | ------------------------------------- | --------- |

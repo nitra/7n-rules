@@ -3,33 +3,42 @@ type: JS Module
 title: template-deep-merge.mjs
 resource: npm/scripts/lib/fix/template-deep-merge.mjs
 docgen:
-  crc: 90221a92
-  model: openai-codex/gpt-5.4-mini
-  score: 100
-  issues: judge:inaccurate:0.98
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: b04d82e4
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
+  score: 60
 ---
 
 ## Огляд
 
-Файл створює T0-патерн для одного target-файлу за канонічним `template/*.snippet.{json,jsonc,yml,yaml}` свого concern-а, який резолвиться через `ctx.concernDir`, щоб уніфіковано приводити `engine:"template"` і `engine:"rego"` до потрібного стану без ручного редагування. Для merge об’єкти поєднуються по ключах, масиви зводяться до union за структурним підмножинним збігом, а leaf-значення замінюються канонічним значенням із snippet; якщо target-файл відсутній, snippet копіюється без merge. Для JSON/JSONC застосовується plain-object merge з `JSON.stringify`, а для YAML — `Document API` (`setIn`/`addIn`/`hasIn`), щоб зберігати наявні коментарі й форматування та створювати лише те, чого бракує. `createTemplateFixPattern` працює fail-safe: не кидає винятків назовні й за відсутності потрібного snippet або некоректного входу повертає порожнє значення.
+Спільний T0-autofix writer для policy-концернів "один target-файл + один канонічний
+`template/*.snippet.{json,jsonc,yml,yaml}`" (`engine:"template"` і `engine:"rego"`
+з тим самим snippet-шаблоном). Deep-merge snippet → target: об'єкти мерджаться по
+ключах, масиви — union за структурним підмножинним збігом (`checkSnippet`-семантика,
+як у детекторі — жодного окремого визначення "збігу"); якщо структурного збігу немає,
+але є елемент з тим самим `name`/`uses` (`identityKey`) — той елемент оновлюється
+on-place, а не дублюється поряд (напр. bump канонічного `run`/версії `uses`); листя —
+перезаписується канонічним значенням. Файл відсутній → копіюється сам snippet (без merge).
 
-## Поведінка
+JSON/JSONC — plain-object merge + `JSON.stringify`. YAML — `yaml` Document API
+(`setIn`/`addIn`/`hasIn`), щоб зберегти коментарі й форматування наявного файлу;
+створюється лише те, чого бракує.
 
-1. `createTemplateFixPattern` формує T0-патерн для одного цільового файлу, який приводить його до стану, описаного канонічним snippet-файлом у `template/` свого concern-а.
-2. Під час запуску патерн спершу визначає, чи стосується порушення саме цього цільового файлу; якщо ні — нічого не змінює.
-3. Далі він шукає відповідний snippet-файл для цільового файлу; якщо snippet не знайдено або немає контексту concern-а, зміни не виконуються.
-4. Якщо цільового файлу ще немає, він створює його з вмісту snippet без merge — як початковий канонічний стан.
-5. Якщо цільовий файл уже існує, патерн зливає snippet у наявний вміст: об’єкти доповнюються по ключах, масиви поповнюються лише відсутніми структурно елементами, а прості значення замінюються канонічними.
-6. Для JSON і JSONC результат записується як нормалізований JSON-текст; якщо вхід невалідний або файл уже відповідає snippet-у, він лишається без змін.
-7. Для YAML збереження робиться так, щоб не втрачати коментарі й форматування; якщо YAML невалідний, або вже відповідає snippet-у, файл не чіпається.
-8. У разі успішного оновлення патерн фіксує запис і повідомляє, що цільовий файл приведено у відповідність snippet.
+Кожен викличний concern передає лише `{ id, targetPath }` — сам writer резолвить
+snippet-файл у `template/` свого concern-а через `ctx.concernDir` (той самий
+механізм, що й `vscode-ext-add.mjs`).
 
 ## Публічний API
 
-- createTemplateFixPattern — Формує T0-патерн, який вирівнює `targetPath` під `template/*.snippet.*` для свого concern-а; працює як deep-merge, не ламає повторні запуски і лишає одного writer-а для single-target snippet-концернів з `engine:"template"` або `engine:"rego"` на тому самому snippet-шаблоні.
+- createTemplateFixPattern — Створює T0-патерн, що приводить `targetPath` у відповідність `template/*.snippet.*`
+свого concern-а (deep-merge, idempotent). Один writer — для будь-якого single-target
+snippet-концерну (`engine:"template"` чи `engine:"rego"` з тим самим snippet-шаблоном).
+
+## Сценарії використання
+
+- `npm/scripts/lib/tests/template-deep-merge.test.mjs` (createTemplateFixPattern — JSON; createTemplateFixPattern — YAML) — файл відсутній → створюється зі snippet; файл є, полю бракує потрібного значення → мердж додає, не ламає існуюче; вже відповідає snippet → без змін (idempotent); невалідний JSON у target → не чіпає (touchedFiles порожній); workflow-файл відсутній → створюється зі snippet as-is; ще 6
 
 ## Гарантії поведінки
 
-- Перехоплює помилки і не пропускає винятків назовні (fail-safe).
-- За певних помилок повертає порожнє значення (напр. `null`) замість винятку.
+- Містить локальні fail-safe гілки; інші помилки можуть поширюватися назовні.
+- Деякі локальні fail-safe гілки повертають порожнє значення (напр. `null`) замість винятку.

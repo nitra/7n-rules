@@ -173,6 +173,29 @@ describe('createTemplateFixPattern — YAML', () => {
       const res = await p.apply(violationsFor('.github/workflows/npm-publish.yml'), { cwd: dir, concernDir })
       expect(res.touchedFiles).toHaveLength(0)
     }))
+
+  test('крок з тим самим name, але застарілим run (drift у канонічному шаблоні) → оновлює on-place, не дублює', () =>
+    withTmp(async dir => {
+      const concernDir = join(dir, 'concern')
+      writeSnippet(concernDir, 'npm-publish.yml.snippet.yml', SNIPPET)
+      mkdirSync(join(dir, '.github/workflows'), { recursive: true })
+      const stale = [
+        'jobs:',
+        '  release-publish:',
+        '    steps:',
+        '      - name: Release (bump + CHANGELOG + tag)',
+        '        run: bunx n-rules release --old-flag',
+        ''
+      ].join('\n')
+      writeFileSync(join(dir, '.github/workflows/npm-publish.yml'), stale, 'utf8')
+      const p = createTemplateFixPattern({ id: 't', targetPath: '.github/workflows/npm-publish.yml' })
+      const res = await p.apply(violationsFor('.github/workflows/npm-publish.yml'), { cwd: dir, concernDir })
+      expect(res.touchedFiles).toHaveLength(1)
+      const out = readFileSync(join(dir, '.github/workflows/npm-publish.yml'), 'utf8')
+      expect(out.match(/name: Release \(bump \+ CHANGELOG \+ tag\)/g)).toHaveLength(1)
+      expect(out).toContain('run: bunx n-rules release')
+      expect(out).not.toContain('--old-flag')
+    }))
 })
 
 describe('createTemplateFixPattern — гейтинг', () => {

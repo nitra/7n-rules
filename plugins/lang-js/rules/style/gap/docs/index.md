@@ -1,6 +1,6 @@
 ---
 type: Directory Index
-title: npm/rules/style/gap
+title: plugins/lang-js/rules/style/gap
 resource: plugins/lang-js/rules/style/gap/
 ---
 

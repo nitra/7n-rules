@@ -3,8 +3,10 @@
  * `template/*.snippet.{json,jsonc,yml,yaml}`" (`engine:"template"` і `engine:"rego"`
  * з тим самим snippet-шаблоном). Deep-merge snippet → target: об'єкти мерджаться по
  * ключах, масиви — union за структурним підмножинним збігом (`checkSnippet`-семантика,
- * як у детекторі — жодного окремого визначення "збігу"), листя — перезаписується
- * канонічним значенням. Файл відсутній → копіюється сам snippet (без merge).
+ * як у детекторі — жодного окремого визначення "збігу"); якщо структурного збігу немає,
+ * але є елемент з тим самим `name`/`uses` (`identityKey`) — той елемент оновлюється
+ * on-place, а не дублюється поряд (напр. bump канонічного `run`/версії `uses`); листя —
+ * перезаписується канонічним значенням. Файл відсутній → копіюється сам snippet (без merge).
  *
  * JSON/JSONC — plain-object merge + `JSON.stringify`. YAML — `yaml` Document API
  * (`setIn`/`addIn`/`hasIn`), щоб зберегти коментарі й форматування наявного файлу;
@@ -33,6 +35,36 @@ function containedIn(actualArray, needle) {
 }
 
 /**
+ * Ключ ідентичності елемента масиву об'єктів (GH Actions `step` тощо) — використовується,
+ * щоб при drift (напр. канонічний `run`/`with` змінився) мердж ОНОВЛЮВАВ той самий елемент
+ * on-place, а не додавав структурно-новий дублікат поряд зі старим (той самий `name`/`uses`,
+ * але інший вміст — раніше `containedIn` це не бачив, бо порівнює цілий об'єкт).
+ * `uses` матчиться без версії (`actions/x@v6` → `actions/x`), щоб bump версії теж мерджився
+ * on-place, а не дублював крок.
+ * @param {unknown} obj елемент масиву
+ * @returns {string|null} ключ ідентичності або null, якщо об'єкт не має name/uses
+ */
+function identityKey(obj) {
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return null
+  if (typeof obj.name === 'string') return `name:${obj.name}`
+  if (typeof obj.uses === 'string') return `uses:${obj.uses.split('@', 1)[0]}`
+  return null
+}
+
+/**
+ * Індекс елемента `actualArray` з тим самим `identityKey`, що й `needle` (-1, якщо
+ * `needle` не має ідентичності або збігу немає).
+ * @param {unknown[]} actualArray наявний масив
+ * @param {unknown} needle елемент snippet-а
+ * @returns {number} індекс або -1
+ */
+function findIdentityIndex(actualArray, needle) {
+  const key = identityKey(needle)
+  if (key === null) return -1
+  return actualArray.findIndex(a => identityKey(a) === key)
+}
+
+/**
  * Шукає `<basename>.snippet.<ext>` у `template/` concern-а (перебір відомих розширень).
  * @param {string} templateDir абсолютний шлях до `template/` concern-а
  * @param {string} targetBasename basename цільового файлу (напр. `npm-publish.yml`)
@@ -57,7 +89,10 @@ function mergeJsonValue(actual, snippet) {
   if (Array.isArray(snippet)) {
     const arr = Array.isArray(actual) ? [...actual] : []
     for (const needle of snippet) {
-      if (!containedIn(arr, needle)) arr.push(needle)
+      if (containedIn(arr, needle)) continue
+      const idx = findIdentityIndex(arr, needle)
+      if (idx === -1) arr.push(needle)
+      else arr[idx] = mergeJsonValue(arr[idx], needle)
     }
     return arr
   }
@@ -71,8 +106,9 @@ function mergeJsonValue(actual, snippet) {
 
 /**
  * Deep-merge snippet у YAML `Document` за шляхом (мутує `doc`). Масиви — `addIn` лише
- * відсутніх (структурно) елементів; об'єкти — рекурсія по ключах (`setIn` створює
- * проміжні мапи автоматично); листя — `setIn`.
+ * структурно відсутніх елементів; елемент з тим самим `name`/`uses`, але іншим вмістом —
+ * оновлюється on-place (рекурсивний `setIn` по його індексу), а не дублюється; об'єкти —
+ * рекурсія по ключах (`setIn` створює проміжні мапи автоматично); листя — `setIn`.
  * @param {import('yaml').Document} doc YAML-документ (мутується)
  * @param {unknown} snippet канонічний фрагмент на цьому шляху
  * @param {Array<string|number>} path шлях у документі
@@ -87,7 +123,17 @@ function mergeYamlDoc(doc, snippet, path) {
     const existing = doc.getIn(path)
     const existingJs = existing && typeof existing.toJS === 'function' ? existing.toJS(doc) : []
     for (const needle of snippet) {
-      if (!containedIn(existingJs, needle)) doc.addIn(path, needle)
+      if (containedIn(existingJs, needle)) continue
+      const idx = findIdentityIndex(existingJs, needle)
+      if (idx === -1) {
+        doc.addIn(path, needle)
+        existingJs.push(needle)
+      } else {
+        // Той самий `name`/`uses`, але вміст розійшовся (напр. канонічний `run` змінився) —
+        // оновлюємо існуючий елемент on-place замість дублювання (`addIn` поряд).
+        mergeYamlDoc(doc, needle, [...path, idx])
+        existingJs[idx] = needle
+      }
     }
     return
   }

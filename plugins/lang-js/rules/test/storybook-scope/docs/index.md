@@ -1,6 +1,6 @@
 ---
 type: Directory Index
-title: plugins/lang-js/rules/storybook/scope
+title: plugins/lang-js/rules/test/storybook-scope
 resource: plugins/lang-js/rules/test/storybook-scope/
 ---
 
