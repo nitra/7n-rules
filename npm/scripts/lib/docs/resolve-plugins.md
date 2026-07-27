@@ -3,10 +3,10 @@ type: JS Module
 title: resolve-plugins.mjs
 resource: npm/scripts/lib/resolve-plugins.mjs
 docgen:
-  crc: 35d3fc38
-  model: openai-codex/gpt-5.5
-  tier: cloud-avg
-  score: 55
+  crc: 9ca40184
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
+  score: 60
 ---
 
 ## Огляд
@@ -55,7 +55,11 @@ spec 2026-07-27-universal-plugin-slots-lang-php-extraction, Фаза 2 — full 
 до якої глибини шукати сигнал: python — лише корінь (uv-провайдер v1
 обробляє тільки кореневий pyproject.toml; js — кореневий package.json); rust — до 3 рівнів, бо в
 монорепо Cargo.toml часто вкладений (Tauri `app/src-tauri/Cargo.toml`),
-а провайдер обробляє всі знайдені маніфести.
+а провайдер обробляє всі знайдені маніфести; php — до 2 рівнів (nested Composer workspaces,
+ADR `2026-07-27-nested-composer-workspace-detection`: типові `services/api/composer.json`,
+`backend/composer.json`), бо `vendor/<vendor>/<package>/composer.json` лежить на глибині 3 і
+лишається поза детектом навіть без покладання на skip-теку `vendor` нижче (яка вже відсікає
+весь `vendor/**` явно, незалежно від глибини).
 - detectPluginsFromRepo — Автодетект плагінів за станом репозиторію: CI-плагіни (файлові сигнали з
 fallback на `repository.url`) + мовні плагіни (лише файлові сигнали —
 маніфест екосистеми в корені або, для rust, у підтеках до 3 рівнів; URL-fallback для мов безглуздий).
@@ -80,9 +84,12 @@ sync-CLI інакше дублювали б і файловий скан, і war
 - KNOWN_PLUGIN_RANGES — Сумісний semver-range для first-party плагінів: обмежує автоматичну інсталяцію (`ensurePluginInstalled`)
 поточною core-сумісною лінією, щоб майбутній несумісний major/minor плагіна не встановився
 мовчки поверх старого core (Фаза 0, spec 2026-07-27-universal-plugin-slots-lang-php-extraction.md
-§10). Для `0.x`-пакетів — caret на поточний minor (`^0.22`, а не голий `^0`, який під caret-
-семантикою розгортається у весь діапазон `0.x`); для `>=1` — caret на поточний major (`^1`).
+§10). Для `0.x`-пакетів — caret на поточний minor (`^0.23`, а не голий `^0`, який під caret-
+семантикою розгортається у весь діапазон `0.x`); для `>=1` — caret на поточний major (`^2`).
 Невідомий (сторонній, не з цієї таблиці) пакет інсталюється без обмеження версії — як і раніше.
+Ranges відповідають лініям із `requiresPluginApi: 2` (перші релізи: core 1.52.0, ci 2.0.0,
+lang-js 0.23.0, lang-python 0.11.0, lang-rust 0.14.0, lang-php 0.2.x) — старіші лінії
+new-core виключає зі slot graph, тож автоматична інсталяція не має їх приносити.
 - ensurePluginInstalled — Гарантує, що плагін встановлений: якщо `node_modules/<pkg>` нема — `bun add -d <pkg>`
 (дописує devDependency і ставить). Для first-party пакетів з `KNOWN_PLUGIN_RANGES` версія
 обмежується сумісним range (`<pkg>@^<major>` або `@^<major>.<minor>` для `0.x`); сторонні
@@ -99,7 +106,7 @@ explicit CLI-діагностики (напр. doc-files: 0 кандидатів
 
 ## Сценарії використання
 
-- `npm/scripts/lib/tests/resolve-plugins.test.mjs` (detectPluginsFromRepo; pluginCategory) — .github/workflows з yml → ci-github; azure-pipelines.yml → ci-azure; обидва файлові сигнали → обидва плагіни; порожній .github/workflows → fallback на repository.url (dev.azure.com); repository як string з github.com → ci-github (+ lang-js за package.json); ще 33
+- `npm/scripts/lib/tests/resolve-plugins.test.mjs` (detectPluginsFromRepo; pluginCategory) — .github/workflows з yml → ci-github; azure-pipelines.yml → ci-azure; обидва файлові сигнали → обидва плагіни; порожній .github/workflows → fallback на repository.url (dev.azure.com); repository як string з github.com → ci-github (+ lang-js за package.json); ще 35
 
 ## Гарантії поведінки
 

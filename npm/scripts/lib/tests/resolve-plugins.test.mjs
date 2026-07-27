@@ -174,10 +174,37 @@ describe('detectPluginsFromRepo', () => {
     })
   })
 
-  test('вкладений composer.json НЕ детектиться (php — лише корінь, maxDepth 0)', async () => {
+  test('вкладений composer.json (глибина 1-2, nested Composer workspace) → lang-php', async () => {
     await withTmpDir(async dir => {
+      // Глибина 1 — типовий монорепо-кейс (`backend/composer.json`).
+      await mkdir(join(dir, 'backend'), { recursive: true })
+      await writeFile(join(dir, 'backend', 'composer.json'), '{"name": "acme/backend"}\n')
+      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-lang-php'])
+    })
+
+    await withTmpDir(async dir => {
+      // Глибина 2 — типовий монорепо-кейс (`services/api/composer.json`).
       await mkdir(join(dir, 'services', 'api'), { recursive: true })
       await writeFile(join(dir, 'services', 'api', 'composer.json'), '{"name": "acme/api"}\n')
+      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-lang-php'])
+    })
+  })
+
+  test('composer.json за межею глибини (3+) НЕ детектиться (maxDepth 2)', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'a', 'b', 'c'), { recursive: true })
+      await writeFile(join(dir, 'a', 'b', 'c', 'composer.json'), '{"name": "acme/deep"}\n')
+      expect(detectPluginsFromRepo(dir)).toEqual([])
+    })
+  })
+
+  test('composer.json вкладених vendor-пакетів (глибина 3, типова структура `vendor/<org>/<pkg>`) НЕ детектиться навіть без .gitignore', async () => {
+    await withTmpDir(async dir => {
+      // vendor вже у LANG_SCAN_SKIP_DIRS, але перевіряємо і межу глибини незалежно від
+      // skip-списку: типова структура vendor-пакета (`vendor/<org>/<pkg>/composer.json`)
+      // лежить на глибині 3, за межею maxDepth 2, тож подвійно убезпечена.
+      await mkdir(join(dir, 'vendor', 'monolog', 'monolog'), { recursive: true })
+      await writeFile(join(dir, 'vendor', 'monolog', 'monolog', 'composer.json'), '{"name": "monolog/monolog"}\n')
       expect(detectPluginsFromRepo(dir)).toEqual([])
     })
   })
