@@ -14,7 +14,13 @@ import { basename, dirname, join, relative } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { createProgressReporter } from '../../../scripts/lib/lint-surface/progress.mjs'
-import { generateDoc, DEFAULT_LOCAL_MODEL, prepareBatchItem, finishBatchItem } from '../docgen-gen/main.mjs'
+import {
+  generateDoc,
+  DEFAULT_LOCAL_MODEL,
+  prepareBatchItem,
+  finishBatchItem,
+  classifyDocgenError
+} from '../docgen-gen/main.mjs'
 import {
   documentationCrc,
   stampDoc,
@@ -25,30 +31,9 @@ import {
 } from '../docgen-crc/main.mjs'
 import { resolveRoot, scanForDocFiles, scanOrphanedDocs } from '../docgen-scan/main.mjs'
 import { buildTestEvidenceIndex } from '../docgen-test-context/main.mjs'
+import { runWaveBatch } from '../docgen-wave-batch/main.mjs'
 import { submitBatch as submitBatchNative } from '@7n/llm-lib/batch'
 import { defaultLocalProviders } from '@7n/llm-lib/local-providers'
-
-/** Regex-класифікатори помилки генерації (module-scope, без ре-компіляції на виклик). */
-const ERR_PERMANENT_RE = /prompt too long|pre-send guard|too long/i
-const ERR_SYSTEMIC_RE = /registry:|session:|не знайдена|memory|enomem|connection refused|econnrefused/i
-const ERR_TRANSIENT_RE = /timeout|etimedout/i
-
-/**
- * Класифікує помилку генерації для batch-логіки (замінює `classifyOmlxError` після
- * pi-міграції — помилки приходять як винятки з generateDoc/pi-one-shot):
- *   - `permanent` — pre-send guard «Prompt too long» → skip (не ретраїти);
- *   - `systemic`  — модель/сервер/registry/RAM упали → circuit-breaker abort;
- *   - `transient` — таймаут (можна було б ретраїти);
- *   - `infra`     — інше (рахуємо як помилку, але без abort).
- * @param {string} msg повідомлення помилки
- * @returns {'permanent'|'systemic'|'transient'|'infra'} клас
- */
-function classifyDocgenError(msg) {
-  if (ERR_PERMANENT_RE.test(msg)) return 'permanent'
-  if (ERR_SYSTEMIC_RE.test(msg)) return 'systemic'
-  if (ERR_TRANSIENT_RE.test(msg)) return 'transient'
-  return 'infra'
-}
 
 /**
  * Парсить `--limit N` / `--from N` / прапори режимів для дозапуску великого прогону.
@@ -139,7 +124,7 @@ function deadlineReached(deadlineAt, done) {
  * @param {number} bytes розмір файлу в байтах
  * @returns {string} напр. `12.3KB ~3.1k tok`
  */
-function fmtSize(bytes) {
+export function fmtSize(bytes) {
   return `${(bytes / 1024).toFixed(1)}KB ~${(bytes / 4 / 1000).toFixed(1)}k tok`
 }
 
@@ -256,6 +241,15 @@ export async function nativeBatchAvailable(submitBatchImpl, useCache = true) {
  * (викликач цього шляху не проставляє дедлайн — гейт `!opts.deadlineAt` у
  * `runGenerationBatch`; fix-pipeline рунги лишаються на послідовному шляху,
  * де м'який дедлайн підтримується).
+ *
+ * Фаза 2 (спека `2026-07-27-batch-local-avg-real-batches.md`): елементи, для
+ * яких `commentDocumentationMode` дав `'comment+behavior'`/`'fallback'` (і
+ * файл НЕ `unsupported` — той все ще one-shot нижче) ідуть у
+ * [`runWaveBatch`] замість one-shot `oneShotMessages` — багатохвильовий
+ * конвеєр секцій/critique/refine/judge/best-of-2 на весь набір одразу
+ * (та сама якість, що й послідовний `generateDoc`, без per-file await).
+ * `unsupported`-файли (мова без юніт-шару) лишаються на one-shot-шляху нижче
+ * — там немає секційного конвеєра, яким можна було б скористатись.
  * @param {Array<object>} targets елементи scanForDocFiles
  * @param {string} root абсолютний корінь
  * @param {{ model?: string, tier?: string|null, localProviders?: object, submitBatchImpl?: (modelSpecOrTier: string, items: Array<object>, opts?: object) => Promise<Array<object>>, testIndex: ReturnType<typeof buildTestEvidenceIndex> }} opts модель/тир/local-provider-конфіг (інакше `defaultLocalProviders()`)/інжект submitBatch/source↔tests index
@@ -283,17 +277,27 @@ async function runBatchPass(targets, root, opts, stats, { reporter, emit }) {
   }
   if (llmPrepared.length === 0) return
 
-  const items = llmPrepared.map(p => ({
+  const localProviders = opts.localProviders ?? defaultLocalProviders()
+  const oneShotPrepared = llmPrepared.filter(p => p.facts.unsupported)
+  const wavePrepared = llmPrepared.filter(p => !p.facts.unsupported)
+
+  if (wavePrepared.length > 0) {
+    await runWaveBatch(wavePrepared, { model, tier: opts.tier ?? null, localProviders, submitBatchImpl }, stats, {
+      out
+    })
+  }
+  if (oneShotPrepared.length === 0) return
+
+  const items = oneShotPrepared.map(p => ({
     customId: p.file.sourcePath,
     prompt: p.messages.find(m => m.role === 'user')?.content ?? '',
     system: p.messages.find(m => m.role === 'system')?.content
   }))
-  const onProgress = makeBatchProgress(reporter, targets.length - llmPrepared.length, targets.length)
-  const localProviders = opts.localProviders ?? defaultLocalProviders()
+  const onProgress = makeBatchProgress(reporter, targets.length - oneShotPrepared.length, targets.length)
   const results = await submitBatchImpl(model, items, { onProgress, localProviders })
   const byId = new Map(results.map(r => [r.customId, r]))
 
-  for (const p of llmPrepared) {
+  for (const p of oneShotPrepared) {
     processBatchResult(byId.get(p.file.sourcePath), p, { model, tier: opts.tier ?? null, stats, out })
   }
 }

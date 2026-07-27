@@ -90,6 +90,22 @@ export function parseDocVerdict(rawText) {
 }
 
 /**
+ * Messages для judge-виклику (винесено з [`judgeDoc`] для batch-хвилі
+ * `docgen-wave-batch`: там суддя йде окремим `submitBatch`-викликом на всі
+ * файли одразу, а не await тут-таки на кожен файл).
+ * @param {string} src вміст вихідного файлу
+ * @param {string} doc згенерована документація
+ * @returns {Array<{role:string,content:string}>} messages-масив для LLM-судді
+ */
+export function judgeMessages(src, doc) {
+  const user = `SOURCE FILE:\n\`\`\`\n${src.slice(0, 12_000)}\n\`\`\`\n\nGENERATED DOC:\n\`\`\`md\n${doc.slice(0, 8000)}\n\`\`\`\n\nReturn the JSON verdict.`
+  return [
+    { role: 'system', content: JUDGE_SYSTEM },
+    { role: 'user', content: user }
+  ]
+}
+
+/**
  * Судить згенерований док сильною моделлю проти джерела.
  * @param {string} src вміст вихідного файлу
  * @param {string} doc згенерована документація
@@ -97,12 +113,8 @@ export function parseDocVerdict(rawText) {
  * @returns {{verdict: string, confidence: number, reason: string}} verdict судді
  */
 export async function judgeDoc(src, doc, { model = JUDGE_MODEL, timeoutMs = 120_000, chain = null } = {}) {
-  const user = `SOURCE FILE:\n\`\`\`\n${src.slice(0, 12_000)}\n\`\`\`\n\nGENERATED DOC:\n\`\`\`md\n${doc.slice(0, 8000)}\n\`\`\`\n\nReturn the JSON verdict.`
   const res = await runOneShot({
-    messages: [
-      { role: 'system', content: JUDGE_SYSTEM },
-      { role: 'user', content: user }
-    ],
+    messages: judgeMessages(src, doc),
     modelSpec: model,
     timeoutMs,
     caller: 'docgen-judge',
