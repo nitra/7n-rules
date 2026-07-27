@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.52.1] - 2026-07-27
+
+### Fixed
+
+- Тести `runCli` детерміновані під `bun run --bun vitest`: reset `process.exitCode` явним `0` замість `undefined` (Bun ігнорує присвоєння `undefined`, і код протікав між тестами) + перевірка успішного виходу через аргумент `reallyExit`
+
 ## [1.52.0] - 2026-07-27
 
 ### Changed

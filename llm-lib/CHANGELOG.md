@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.10.1] - 2026-07-27
+
+### Fixed
+
+- Smoke-тест `resolveModel` через живий napi-аддон стабільний під `bun run --bun vitest`: каскад ганяється в дочірньому процесі з env при spawn, бо Bun не передає записи `process.env` у нативний environ (Rust `env::var` бачив ambient-значення замість `vi.stubEnv`)
+
 ## [2.10.0] - 2026-07-27
 
 ### Added

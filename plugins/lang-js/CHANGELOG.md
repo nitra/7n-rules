@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.23.1] - 2026-07-27
+
+### Fixed
+
+- `runtime-probe`: probe-скрипт передається дочірньому node файлом замість stdin (`--input-type=module` + `input`) — під `bun run --bun` `node` у PATH є bun-shim, який не виконує скрипт зі stdin, і всі probe поверталися `{}`
+
 ## [0.23.0] - 2026-07-27
 
 ### Changed
