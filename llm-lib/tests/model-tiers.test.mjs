@@ -9,10 +9,18 @@
  *     (юніт) + опційний smoke через реально збудований аддон (нижче)
  */
 
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+
 import { describe, expect, test, vi } from 'vitest'
 import { formatModelSpec, isLocalModel, parseModelId, resolveModel, thinkingLevelForTier } from '../lib/model-tiers.mjs'
 import { resolveModelSpec } from '../lib/internal/registry.mjs'
-import { loadNative, resolveNativeAddon } from '../lib/internal/native.mjs'
+import { resolveNativeAddon } from '../lib/internal/native.mjs'
+
+const here = dirname(fileURLToPath(import.meta.url))
 
 /**
  * Чи є під рукою реально збудований napi-аддон (dev cargo-збірка чи явний
@@ -154,14 +162,35 @@ describe('resolveModel (napi-делегація, інжектований fake-n
 })
 
 describe('resolveModel (smoke через реально збудований napi-аддон)', () => {
+  // Каскад ганяється в дочірньому процесі з env, заданим при spawn, а не через
+  // `vi.stubEnv` у самому тесті: під Bun запис у `process.env` не доходить до
+  // нативного environ (setenv не викликається), тож Rust `env::var` аддона
+  // бачив би ambient-значення машини замість стабів. Env зі `spawnSync`
+  // ОС передає процесу при запуску — його аддон бачить в обох runtime (node і bun).
   test.skipIf(!nativeAddonAvailable())('той самий каскад, що й Rust tiers.rs::resolve_model, через живий аддон', () => {
-    vi.stubEnv('N_LOCAL_MIN_MODEL', 'omlx/local-min-smoke')
-    vi.stubEnv('N_CLOUD_MIN_MODEL', '')
+    const script = `
+import { loadNative } from ${JSON.stringify(pathToFileURL(join(here, '..', 'lib', 'internal', 'native.mjs')).href)}
+import { resolveModel } from ${JSON.stringify(pathToFileURL(join(here, '..', 'lib', 'model-tiers.mjs')).href)}
+process.stdout.write(resolveModel('min', { native: loadNative() }))
+`
+    const dir = mkdtempSync(join(tmpdir(), 'model-tiers-smoke-'))
     try {
-      const native = loadNative()
-      expect(resolveModel('min', { native })).toBe('omlx/local-min-smoke')
+      const scriptPath = join(dir, 'smoke.mjs')
+      writeFileSync(scriptPath, script)
+      const proc = spawnSync(process.execPath, [scriptPath], {
+        encoding: 'utf8',
+        timeout: 20_000,
+        env: {
+          ...process.env,
+          N_LLM_LIB_NATIVE_ADDON: resolveNativeAddon(),
+          N_LOCAL_MIN_MODEL: 'omlx/local-min-smoke',
+          N_CLOUD_MIN_MODEL: ''
+        }
+      })
+      expect(proc.status, proc.stderr).toBe(0)
+      expect(proc.stdout).toBe('omlx/local-min-smoke')
     } finally {
-      vi.unstubAllEnvs()
+      rmSync(dir, { recursive: true, force: true })
     }
   })
 })
