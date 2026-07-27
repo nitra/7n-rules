@@ -108,6 +108,20 @@ describe('scoreDoc — R5 анкор-покриття', () => {
   })
 })
 
+describe('scoreDoc — R10 непідтверджені file/config markers', () => {
+  test('вигаданий .mdc marker, зокрема після Unicode-тексту, опускає score нижче порогу', () => {
+    const md = CLEAN.replace('Підтверджує, що bun.lock присутній.', 'Посилається на правило перегенеровується.mdc).')
+    const { score, issues } = scoreDoc(md, FACTS, { src: 'export const a = 1\n' })
+    expect(issues).toContain('unknown-marker:перегенеровується.mdc')
+    expect(score).toBeLessThan(70)
+  })
+
+  test('marker, підтверджений source, не штрафується', () => {
+    const md = CLEAN.replace('Підтверджує, що bun.lock присутній.', 'Посилається на правило (bun.mdc).')
+    expect(scoreDoc(md, FACTS, { src: "throw new Error('(bun.mdc)')" }).issues).not.toContain('unknown-marker:bun.mdc')
+  })
+})
+
 describe('scoreDoc — R7 суржик', () => {
   test('русизм у тексті → surzhik', () => {
     const md = CLEAN.replace(
@@ -396,12 +410,12 @@ describe('prepareBatchItem / finishBatchItem — T8 2b-batch (без LLM-вик�
     expect(prep.messages).toEqual([])
   })
 
-  test('prepareBatchItem: comment+behavior відправляє лише вузький behavior prompt', async () => {
+  test('prepareBatchItem: короткий, але повний коментарний контракт не створює batch prompt', async () => {
     extractorState.facts = FACTS_SHORT_COMMENTED
     readFileSync.mockReturnValue(SRC)
     const prep = await prepareBatchItem('/x.mjs')
-    expect(prep.mode).toBe('comment+behavior')
-    expect(prep.messages.at(-1).content).toMatch(/не перефразовуй авторський текст/iu)
+    expect(prep.mode).toBe('comment-only')
+    expect(prep.messages).toEqual([])
   })
 
   test('finishBatchItem: unsupported + refusal-філер → score=0, degraded', () => {
@@ -607,7 +621,7 @@ describe('orchestratedDoc / judge — supported-file happy path (мок extractF
     ).toBe(false)
   })
 
-  test('короткий header з повним API → LLM лише для додаткової Поведінки', async () => {
+  test('короткий header з повним API → дослівний deterministic документ без LLM', async () => {
     extractorState.facts = FACTS_SHORT_COMMENTED
     readFileSync.mockReturnValue(SRC)
     runOneShot.mockImplementation(
@@ -618,13 +632,13 @@ describe('orchestratedDoc / judge — supported-file happy path (мок extractF
     )
     const r = await generateDoc('/foo.mjs')
     expect(r.md).toContain('## Огляд\n\nОбчислює значення для зовнішнього виклику.')
-    expect(r.md).toContain('## Поведінка\n\n1. Приймає значення.')
+    expect(r.md).not.toContain('## Поведінка')
     expect(r.md).toContain('- doThing — Обчислює значення X.')
-    expect(r.llmCalls).toBeGreaterThanOrEqual(1)
-    expect(r.llmCalls).toBeLessThanOrEqual(2)
+    expect(r.llmCalls).toBe(0)
+    expect(runOneShot).not.toHaveBeenCalled()
   })
 
-  test('гібридний judge бачить тільки LLM-додаток, а не авторські секції', async () => {
+  test('повний коментарний контракт не запускає judge', async () => {
     extractorState.facts = FACTS_SHORT_COMMENTED
     readFileSync.mockReturnValue(SRC)
     let judgePrompt = ''
@@ -638,23 +652,21 @@ describe('orchestratedDoc / judge — supported-file happy path (мок extractF
       })
     )
     await generateDoc('/foo.mjs')
-    expect(judgePrompt).toContain('## Поведінка')
-    expect(judgePrompt).not.toContain('## Огляд')
-    expect(judgePrompt).not.toContain('## Публічний API')
+    expect(judgePrompt).toBe('')
+    expect(runOneShot).not.toHaveBeenCalled()
   })
 
-  test('гібридний режим не створює порожню Поведінку, коли LLM повертає NONE', async () => {
+  test('повний коментарний контракт не створює Поведінку та не викликає LLM', async () => {
     extractorState.facts = FACTS_SHORT_COMMENTED
     readFileSync.mockReturnValue(SRC)
-    runOneShot.mockImplementation(routedOneShot({ behavior: 'NONE' }))
     const r = await generateDoc('/foo.mjs')
     expect(r.md).not.toContain('## Поведінка')
-    expect(r.llmCalls).toBe(1)
+    expect(r.llmCalls).toBe(0)
   })
 
-  test('режим за header і flow: детальний наратив → comment-only, короткий → comment+behavior', () => {
+  test('повні авторські коментарі → comment-only незалежно від розміру header чи flow', () => {
     expect(commentDocumentationMode(FACTS_FULLY_COMMENTED, SRC)).toBe('comment-only')
-    expect(commentDocumentationMode(FACTS_SHORT_COMMENTED, SRC)).toBe('comment+behavior')
+    expect(commentDocumentationMode(FACTS_SHORT_COMMENTED, SRC)).toBe('comment-only')
     expect(commentDocumentationMode(FACTS_SINGLE_COVERED, SRC)).toBe('fallback')
   })
 

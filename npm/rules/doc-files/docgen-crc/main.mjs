@@ -10,6 +10,13 @@ import { testEvidenceForSource } from '../docgen-test-context/main.mjs'
 export const QUALITY_THRESHOLD = Number(env.N_CURSOR_DOC_FILES_THRESHOLD ?? 70) || 70
 
 /**
+ * Версія детермінованих правил рендеру. Підвищуємо її, коли зміна промптів,
+ * шаблонів або post-processing повинна перегенерувати навіть незмінений source.
+ * Входить у CRC, тому окремий стан у frontmatter не потрібен.
+ */
+export const DOCGEN_RENDER_REVISION = '2'
+
+/**
  * CRC32 вмісту у hex (8 символів, з провідними нулями). Делегує у нативний
  * `node:zlib.crc32` — без ручної бітової арифметики.
  * @param {string|Buffer} input текст або байти джерела
@@ -21,18 +28,18 @@ export function crc32(input) {
 }
 
 /**
- * CRC повного evidence для файлової доки. Без повʼязаних тестів лишається
- * back-compatible CRC самого source; за наявності тестів додає їхні шляхи та
- * вміст, тому зміна usage-сценарію детерміновано робить доку stale.
+ * CRC повного evidence для файлової доки: source, повʼязані тести й версія
+ * детермінованого рендеру. Тому зміна usage-сценарію або шаблону робить доку
+ * stale навіть без редагування самого source.
  * @param {string} sourceAbsPath абсолютний шлях source-файлу
  * @param {ReturnType<import('../docgen-test-context/main.mjs').buildTestEvidenceIndex>|null} [testIndex] source↔tests index
+ * @param {string} [revision] revision рендеру; інʼєкція потрібна лише для тестів
  * @returns {string} CRC32 source + повʼязаних тестів
  */
-export function documentationCrc(sourceAbsPath, testIndex = null) {
+export function documentationCrc(sourceAbsPath, testIndex = null, revision = DOCGEN_RENDER_REVISION) {
   const source = readFileSync(sourceAbsPath)
-  if (!testIndex) return crc32(source)
-  const { crcPayload } = testEvidenceForSource(sourceAbsPath, testIndex)
-  return crc32(crcPayload ? Buffer.concat([source, Buffer.from(crcPayload, 'utf8')]) : source)
+  const { crcPayload } = testIndex ? testEvidenceForSource(sourceAbsPath, testIndex) : { crcPayload: '' }
+  return crc32(Buffer.concat([source, Buffer.from(`\0docgen-render\0${revision}${crcPayload}`, 'utf8')]))
 }
 
 /** Провідний YAML-frontmatter-блок `---\n…\n---`. */

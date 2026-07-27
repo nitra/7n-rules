@@ -133,7 +133,9 @@ export async function runOneShot({
   try {
     // Заголовки кореляції — лише локальним моделям (myllm стоїть тільки перед ними).
     const headerChain = spec && isLocalModel(spec) ? chain : null
-    session = await createSession({ registry, model, cwd, thinkingLevel, maxTokens, chain: headerChain })
+    session = await withTimeout(createSession({ registry, model, cwd, thinkingLevel, maxTokens, chain: headerChain }), timeoutMs, {
+      label: 'one-shot session'
+    })
   } catch (error) {
     return fail(`session: ${error.message}`, spec)
   }
@@ -152,7 +154,7 @@ export async function runOneShot({
 
   let promptError = null
   try {
-    await withTimeout(session.prompt(userText), timeoutMs, { label: 'one-shot' })
+    await withTimeout(session.prompt(userText), timeoutMs, { label: 'one-shot', onTimeout: () => session.abort?.() })
   } catch (error) {
     promptError = error.message
     failOnMemoryGuard(promptError, userText)

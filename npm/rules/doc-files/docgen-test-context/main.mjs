@@ -12,6 +12,7 @@ const SCENARIO_RE = /\b(describe|test|it)\s*\(\s*['"`]([^'"`\n]{1,200})['"`]/gu
 const QUERY_OR_HASH_RE = /[?#]/u
 const SOURCE_EXTENSIONS = Object.freeze(['.mjs', '.cjs', '.js', '.jsx', '.ts', '.tsx', '.vue', '.py', '.rs'])
 const TEST_SUFFIX_RE = /\.(?:test|spec)$/u
+const RUST_INLINE_TEST_RE = /#\s*\[\s*(?:[A-Za-z_]\w*::)?test\s*\](?:\s*#\s*\[[^\]]+\])*\s*(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z_]\w*)/gu
 
 /**
  * Чи шлях має форму окремого test/spec-файлу, який може описувати usage-сценарії.
@@ -155,12 +156,32 @@ function scenarioNames(content) {
   const groups = []
   const scenarios = []
   for (const match of content.matchAll(SCENARIO_RE)) {
-    const title = match[2].trim()
+    const title = match[2].trim().replace(/\s*\(lines?\s+\d[\d,\s\-/]*\)\s*$/iu, '')
     if (!title) continue
     if (match[1] === 'describe') groups.push(title)
     else scenarios.push(title)
   }
   return { groups: [...new Set(groups)], scenarios: [...new Set(scenarios)] }
+}
+
+/**
+ * Витягує назви Rust unit-тестів, що живуть у тому самому `.rs` source.
+ * Це не потребує окремого AST: `#[test]`/`#[tokio::test]` перед `fn` —
+ * стабільний синтаксичний контракт Rust, а байти файлу вже входять у source CRC.
+ * @param {string} sourceAbs абсолютний шлях Rust source-файлу
+ * @param {string} relPath шлях від кореня репозиторію
+ * @returns {Array<{path:string,groups:string[],scenarios:string[],inline:true}>} один synthetic evidence-record або порожньо
+ */
+function rustInlineTestEvidence(sourceAbs, relPath) {
+  if (!sourceAbs.endsWith('.rs')) return []
+  let source
+  try {
+    source = readFileSync(sourceAbs, 'utf8')
+  } catch {
+    return []
+  }
+  const scenarios = [...new Set([...source.matchAll(RUST_INLINE_TEST_RE)].map(match => match[1].replaceAll('_', ' ')))]
+  return scenarios.length ? [{ path: relPath, groups: [], scenarios, inline: true }] : []
 }
 
 /**
@@ -172,9 +193,11 @@ function scenarioNames(content) {
  */
 export function testEvidenceForSource(sourceAbs, index) {
   const tests = index.bySource.get(resolve(sourceAbs)) ?? []
-  if (tests.length === 0) return { files: [], crcPayload: '' }
-
-  const files = tests.map(test => ({ path: test.relPath, ...scenarioNames(test.content) }))
+  const relPath = relative(index.root, resolve(sourceAbs)).split(sep).join('/')
+  const files = [
+    ...tests.map(test => ({ path: test.relPath, ...scenarioNames(test.content) })),
+    ...rustInlineTestEvidence(resolve(sourceAbs), relPath)
+  ]
   const crcPayload = tests.map(test => `\0${test.relPath}\0${test.content}`).join('')
   return { files, crcPayload }
 }
@@ -184,7 +207,7 @@ export function testEvidenceForSource(sourceAbs, index) {
  * Назви походять безпосередньо з `describe`/`test`/`it`, тому LLM не може їх
  * перефразувати або додати неіснуючу поведінку; показуємо до пʼяти прикладів,
  * а решту чесно рахуємо, щоб не дублювати весь test-suite у документації.
- * @param {Array<{path:string, groups?:string[], scenarios:string[]}>} files повʼязані test-файли зі сценаріями
+ * @param {Array<{path:string, groups?:string[], scenarios:string[], inline?:boolean}>} files повʼязані test-файли зі сценаріями
  * @returns {string} вміст секції «Сценарії використання» без заголовка
  */
 export function renderTestScenarios(files) {
@@ -192,9 +215,12 @@ export function renderTestScenarios(files) {
     .filter(test => test.scenarios.length > 0)
     .map(test => {
       const groups = (test.groups ?? []).slice(0, 2).join('; ')
-      const examples = test.scenarios.slice(0, 5).join('; ')
+      const examples = test.scenarios
+        .slice(0, 5)
+        .map(scenario => scenario.replace(/\s*\(lines?\s+\d[\d,\s\-/]*\)\s*$/iu, ''))
+        .join('; ')
       const rest = test.scenarios.length - 5
-      const scope = groups ? ` (${groups})` : ''
+      const scope = test.inline ? ' (inline Rust tests)' : groups ? ` (${groups})` : ''
       const more = rest > 0 ? `; ще ${rest}` : ''
       return `- \`${test.path}\`${scope} — ${examples}${more}`
     })

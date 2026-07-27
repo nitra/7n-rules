@@ -151,6 +151,8 @@ const NORMALIZED_SPACE_RE = /\s+/g
 const H2_HEADING_RE = /^##\s.+$/gm
 const TEST_SCENARIOS_HEADING = '## Сценарії використання'
 const BEHAVIOR_HEADING = '## Поведінка'
+const FILE_MARKER_RE = /(?<![\p{L}\p{N}_/])([\p{L}\p{N}_-]+(?:\.[\p{L}\p{N}_-]+)*\.(?:mdc|json|ya?ml|toml|ini))\b/gu
+const UNKNOWN_MARKER_PENALTY = 35
 
 /**
  * R9: зрізає провідні чат-преамбули й дубль назви секції з початку тексту.
@@ -310,6 +312,28 @@ function anchorMissPenalty(md, anchors, src, issues) {
 }
 
 /**
+ * Машинний текст не має вигадувати назви rule/config-файлів. На відміну від
+ * дозволених анкорів, такий marker не підтверджується source і знижує score
+ * нижче порогу, щоб best-of-2 або degraded-потік не прийняв його мовчки.
+ * @param {string} md зібраний документ
+ * @param {string} src вміст файлу
+ * @param {string[]} issues акумулятор кодів проблем (мутується)
+ * @returns {number} штраф за непідтверджені file/config markers
+ */
+function unknownMarkerPenalty(md, src, issues) {
+  let penalty = 0
+  const seen = new Set()
+  for (const match of splitProtected(md).without.matchAll(FILE_MARKER_RE)) {
+    const marker = match[1]
+    if (seen.has(marker) || src.includes(marker)) continue
+    seen.add(marker)
+    penalty += UNKNOWN_MARKER_PENALTY
+    issues.push(`unknown-marker:${marker}`)
+  }
+  return penalty
+}
+
+/**
  * Stage 2.5 — детермінований скоринг (0 токенів): перевіряє вихід проти фактів.
  * @param {string} md зібраний документ
  * @param {object} facts факт-лист про файл
@@ -378,6 +402,8 @@ export function scoreDoc(md, facts, { anchors = null, src = '' } = {}) {
   if (anchors && src) {
     score -= anchorMissPenalty(md, anchors, src, issues)
   }
+
+  if (src) score -= unknownMarkerPenalty(md, src, issues)
 
   // R7: суржик/русизми — лише в машинних секціях (захищене «Призначення» — людське, не штрафуємо)
   if (SURZHIK_RE.test(splitProtected(md).without)) {
@@ -452,37 +478,18 @@ export function hasCompleteCommentDocumentation(facts) {
   return Boolean(facts.header?.trim()) && (facts.exports ?? []).every(exp => !isApiGap(exp))
 }
 
-/** Мінімальний розмір header, який може бути лише pointer-ом, а не наративом. */
-const SHORT_HEADER_CHARS = 240
-/** Один докладний public API може сам закрити короткий header-pointer. */
-const SUFFICIENT_SINGLE_API_CHARS = 160
-/** Сигнали потоку, який доцільно стисло звʼязати окремою «Поведінкою». */
-const BEHAVIOR_FLOW_RE =
-  /\b(?:await|Promise\.all|Semaphore|JoinSet|chunks|concurr|retry|queue|state|workflow|resolver|provider|catch|try|match)\b/i
-
 /**
- * Вибирає гібридний режим для повністю прокоментованого source. Короткий
- * header майже напевно є pointer-ом, а середній header разом із явним flow у
- * коді потребує короткого LLM-доповнення. Детальний наратив лишається 0-LLM.
+ * Вибирає маршрут за якістю авторських коментарів. Повний header разом із
+ * описами всіх public API — джерело істини: рендеримо їх дослівно без LLM.
+ * Неповні коментарі лишають fallback-маршрут, де модель доповнює лише те,
+ * чого немає у source; це однаково працює для JS, Rust і Python.
  * @param {object} facts факт-лист мовного екстрактора
  * @param {string} src вміст source-файлу
  * @returns {'fallback'|'comment-only'|'comment+behavior'} режим генерації
  */
 export function commentDocumentationMode(facts, src) {
-  if (!hasCompleteCommentDocumentation(facts)) return 'fallback'
-  const headerSize = facts.header.trim().replaceAll(NORMALIZED_SPACE_RE, ' ').length
-  const exports = facts.exports ?? []
-  const apiSize = exports
-    .map(exp => exp.desc?.replaceAll(NORMALIZED_SPACE_RE, ' ').length ?? 0)
-    .reduce((sum, size) => sum + size, 0)
-  // У маленькому модулі один ретельно описаний API уже є поведінковим
-  // контрактом. LLM тут найчастіше додає загальні фрази замість глибини.
-  if (headerSize < SHORT_HEADER_CHARS && exports.length === 1 && apiSize >= SUFFICIENT_SINGLE_API_CHARS) {
-    return 'comment-only'
-  }
-  if (headerSize < SHORT_HEADER_CHARS) return 'comment+behavior'
-  if (headerSize < 900 && BEHAVIOR_FLOW_RE.test(src)) return 'comment+behavior'
-  return 'comment-only'
+  void src
+  return hasCompleteCommentDocumentation(facts) ? 'comment-only' : 'fallback'
 }
 
 /**
@@ -748,8 +755,11 @@ function resolvePromptSrc({ facts, estTokens, langExtractors, ext, src, file }) 
   return structured ? buildUnitDigest(units) : src
 }
 
-/** Максимальний час генерації одного LLM-виклику. */
-const LOCAL_TIMEOUT_MS = 5 * 60 * 1000
+/**
+ * Максимальний час одного local LLM-виклику. Пʼять хвилин на одну секцію
+ * блокували весь doc-files rung; override лишає простір для великих локальних моделей.
+ */
+const LOCAL_TIMEOUT_MS = Number(env.N_CURSOR_DOCGEN_TIMEOUT_MS) || 60_000
 
 /** Контекстне вікно локальної моделі в токенах (оцінка; override — N_CURSOR_DOCGEN_CTX). */
 const DEFAULT_CONTEXT_TOKENS = 131072

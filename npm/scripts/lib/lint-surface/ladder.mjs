@@ -25,7 +25,7 @@ import { env } from 'node:process'
 // і весь прогрес відкочується, бо після cloud-avg немає наступного rung-а для
 // повторної спроби. cloud-avg — останній шанс ladder-а (і під DEFAULT_MAX_AVG-кепом),
 // тож дорожчий за нього бюджет виправдано менш економний, ніж cloud-min.
-const LOCAL_TIMEOUT_MS = Number(env.N_LOCAL_FIX_TIMEOUT_MS) || 45_000
+const LOCAL_TIMEOUT_MS = Number(env.N_LOCAL_FIX_TIMEOUT_MS) || 90_000
 const CLOUD_TIMEOUT_MS = Number(env.N_CLOUD_FIX_TIMEOUT_MS) || 120_000
 const CLOUD_AVG_TIMEOUT_MS = Number(env.N_CLOUD_AVG_FIX_TIMEOUT_MS) || 180_000
 

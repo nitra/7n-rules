@@ -40,6 +40,7 @@ function fakeSession({
   let cb = noop
   return {
     model,
+    abort: vi.fn(),
     subscribe: fn => {
       cb = fn
     },
@@ -103,6 +104,12 @@ describe('runOneShot', () => {
     expect(deps.createSession).not.toHaveBeenCalled()
   })
 
+  test('створення session, що зависло, → контрольований timeout', async () => {
+    const deps = { registry, trace: vi.fn(), createSession: () => Promise.race([]) }
+    const r = await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: 'omlx/x', timeoutMs: 20, deps })
+    expect(r.error).toMatch(RE_TIMEOUT)
+  })
+
   test('prompt кидає → error, частковий текст збережено', async () => {
     const deps = baseDeps(fakeSession({ deltas: ['part'], promptError: 'boom' }))
     const r = await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: 'omlx/x', deps })
@@ -111,7 +118,8 @@ describe('runOneShot', () => {
   })
 
   test('timeout → error', async () => {
-    const deps = baseDeps(fakeSession({ deltas: ['late'], delayMs: 200 }))
+    const session = fakeSession({ deltas: ['late'], delayMs: 200 })
+    const deps = baseDeps(session)
     const r = await runOneShot({
       messages: [{ role: 'user', content: 'x' }],
       modelSpec: 'omlx/x',
@@ -119,6 +127,7 @@ describe('runOneShot', () => {
       deps
     })
     expect(r.error).toMatch(RE_TIMEOUT)
+    expect(session.abort).toHaveBeenCalledTimes(1)
   })
 
   test('memory-guard rejection → друкує тіло запиту в stdout і кидає Error, без structured error', async () => {
