@@ -6,12 +6,13 @@ import {
   isApiGap,
   renderApiLine,
   apiGapMessages,
+  guaranteesFromMarkers,
   buildUnitDigest
 } from '../main.mjs'
 
 const RE_EXACT_NAMES = /РІВНО ці публічні імена/
 const RE_GENERIC_BAN = /відповідність контракту|обробка даних/
-
+const RE_COMPLEMENTARY_TEXT = /не перефразовуй авторський текст/iu
 const FACTS = {
   relPath: 'npm/rules/bun/js/layout.mjs',
   header: 'перевірка bun-розкладки',
@@ -33,6 +34,40 @@ describe('sectionMessages — Огляд більше не тут (R3)', () => {
     const user = behavior.messages.at(-1).content
     expect(user).toContain('check, parse')
     expect(user).toMatch(RE_EXACT_NAMES)
+  })
+
+  test('Поведінка не отримує test evidence: сценарії рендерить JS окремою секцією', () => {
+    const facts = {
+      ...FACTS,
+      testScenarios: ['повертає null для відсутнього запису'],
+      testEvidence: 'ПІДТВЕРДЖЕНІ СЦЕНАРІЇ ВИКОРИСТАННЯ З ПОВʼЯЗАНИХ ТЕСТІВ:\ntest code'
+    }
+    const behavior = sectionMessages(facts, 'src', null).find(s => s.key === 'behavior')
+    const system = behavior.messages[0].content
+    const user = behavior.messages[1].content
+    expect(system).not.toContain('повертає null для відсутнього запису')
+    expect(system).not.toContain('test code')
+    expect(user).toContain('рендерить JS окремою секцією')
+  })
+
+  test('гібридний режим просить доповнити comments лише відсутнім потоком', () => {
+    const behavior = sectionMessages(FACTS, 'src', null, null, { complementaryBehavior: true }).find(
+      s => s.key === 'behavior'
+    )
+    expect(behavior.messages[1].content).toMatch(RE_COMPLEMENTARY_TEXT)
+    expect(behavior.messages[1].content).toContain('заборонені обходи каталогів')
+    expect(behavior.messages[1].content).not.toContain('нумерований алгоритм у бізнес-термінах')
+    expect(behavior.messages[1].content).toContain('не вимагає налаштування')
+    expect(behavior.messages[1].content).toContain('поверни рівно NONE')
+  })
+})
+
+describe('guaranteesFromMarkers — лише file-local твердження', () => {
+  test('fail-safe маркер не обіцяє, що всі помилки лишаються всередині модуля', () => {
+    const md = guaranteesFromMarkers({ markers: { catchesErrors: true, returnsFalsyOnFail: true } })
+    expect(md).toContain('локальні fail-safe гілки')
+    expect(md).toContain('інші помилки можуть поширюватися назовні')
+    expect(md).not.toContain('не пропускає винятків назовні')
   })
 })
 

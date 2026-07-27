@@ -13,9 +13,10 @@ version: '1.0'
 у теці `docs/` **поряд із самим файлом** (`<dir>/docs/<stem>.md`). Це **обовʼязковий крок кожної
 задачі** — як `lint`: після зміни коду його дока має бути перегенерована.
 
-Застарілість визначається **детерміновано за CRC**: кожна дока несе у frontmatter контрольну
-суму байтів джерела на момент генерації. Дока **застаріла**, якщо її немає або
-`crc(поточне джерело) ≠ crc у frontmatter`.
+Застарілість визначається **детерміновано за CRC evidence**: кожна дока несе у frontmatter
+контрольну суму source + повʼязаних test/spec-файлів на момент генерації. Без повʼязаних
+тестів це звичайний CRC source. Дока **застаріла**, якщо її немає або поточний evidence CRC
+не збігається з `crc` у frontmatter.
 
 ```markdown
 ---
@@ -60,6 +61,18 @@ npx @7n/rules lint doc-files
 (`stale`) → генерує локальною моделлю → пише доку зі **свіжим CRC** (і degraded-маркером,
 якщо не дотягнула) → друкує прогрес і підсумок.
 
+Повʼязані тести визначаються за relative reference, який резолвиться у source (`import`,
+`require`, dynamic import, `vi.mock` тощо), плюс naming/layout evidence (`foo.test` → `foo`
+або `module/tests/*` → module `main`/`index`). Shared test helpers, які тест лише імпортує,
+не стають evidence. JS детерміновано рендерить один компактний рядок на test-файл: до двох
+груп, пʼять дослівних прикладів і точний лічильник решти; test-код і сценарії не потрапляють до
+моделі. Зміна такого тесту робить source-доку stale.
+
+Авторські коментарі теж є першоджерелом: для JSDoc, rustdoc і Python docstring-ів JS дослівно
+збирає «Огляд» і «Публічний API». Детальний наратив дає `comment-only` (0 LLM); короткий
+pointer або складний flow — `comment+behavior`, де LLM дописує тільки «Поведінку», а judge
+перевіряє лише її. За неповних коментарів лишається звичайний `fallback`.
+
 ### Крок 2: Підтвердження
 
 Дочекайся підсумку `✓ OK: <N>  ⚠ degraded: <D>  ✗ Err: <E>`. Якщо є помилки — перелічи
@@ -80,7 +93,9 @@ preflight). Degraded — не помилка: дока існує, CRC свіж�
 ## Нотатки
 
 - Не комітити автоматично — користувач вирішує, коли комітити згенеровану доку.
-- Scanner ігнорує `node_modules`, `dist`, `.git`, `__pycache__`, `coverage`, `.cursor`, `.claude`,
-  усі теки `docs/`, а також `*.test.*` / `*.spec.*` / `*.d.ts`. Кореневий repo `docs/` —
-  system-wide only: file-level docs туди не пишуться. Список glob-ів — `docgen-ignore.mjs`.
+- Scanner не створює окремих док для `*.test.*` / `*.spec.*`, але використовує повʼязані
+  тести як evidence для source-доки. Він ігнорує `node_modules`, `dist`, `.git`,
+  `__pycache__`, `coverage`, `.cursor`, `.claude`, усі теки `docs/` і `*.d.ts`.
+  Кореневий repo `docs/` — system-wide only: file-level docs туди не пишуться. Список
+  glob-ів — `docgen-ignore.mjs`.
 - Агрегуюча документація (module-summary, доменні доки) — окремий скіл `doc-aggregate`, за запитом.

@@ -1,5 +1,5 @@
 ---
-description: Файлова документація — обовʼязковий крок задачі (як lint); unified lint surface, concern doc-files/check — детект застарілості за CRC джерела + fix-by-default генерація local-only конвеєром (omlx)
+description: Файлова документація — обовʼязковий крок задачі (як lint); unified lint surface, concern doc-files/check — детект застарілості за CRC source + повʼязаних тестів і fix-by-default генерація local-only конвеєром (omlx)
 globs: "**/*.{js,mjs,ts,vue,py,rs},**/docs/**"
 alwaysApply: true
 version: '2.0'
@@ -7,7 +7,37 @@ version: '2.0'
 
 Кожен кодовий файл (`.js .mjs .ts .vue .py .rs`, крім тестів і `.d.ts`) має **актуальну**
 файлову доку поряд: `<dir>/docs/<stem>.md`. Це **обовʼязковий крок кожної задачі**, нарівні
-з lint. Актуальність детермінується за **CRC** джерела, записаним у frontmatter доки.
+з lint. Актуальність детермінується за **CRC evidence** — source + повʼязані test/spec-файли,
+записаним у frontmatter доки. Без повʼязаних тестів CRC лишається CRC самого source.
+
+## Тести як підтверджені usage-сценарії
+
+Test/spec-файли не отримують власної файлової доки, але доповнюють документацію source-файлу,
+якщо relative reference у тесті (`import`, `require`, dynamic import, `vi.mock` тощо)
+резолвиться саме в цей source і звʼязок підтверджує naming/layout (`foo.test` → `foo` або
+`module/tests/*` → module `main`/`index`). Це відсіює shared test helpers, які тест лише
+використовує. JS-оркестратор бере назви `describe`/`test`/`it` і детерміновано рендерить один
+компактний рядок на test-файл: до двох груп, пʼять дослівних прикладів і точний лічильник решти.
+Test-код і сценарії не передаються
+моделі, тож вона не може їх перефразувати або вигадати нові.
+
+Зміна повʼязаного тесту змінює evidence CRC і робить source-доку stale. У per-file режимі
+змінений тест reverse-map-иться до source-файлів, на які він посилається.
+
+## Авторські коментарі без LLM
+
+Якщо мовний екстрактор знайшов змістовний file header і змістовний опис кожного public API,
+doc-files збирає «Огляд» та «Публічний API» **дослівно**. Це працює для JSDoc (`/** */`),
+rustdoc (`//!`/`///`) і Python docstring-ів. У документ потрапляють також детерміновані
+«Сценарії використання» та «Гарантії поведінки».
+
+JS обирає один із трьох режимів:
+
+- `comment-only` — змістовний header вже пояснює потік; LLM і semantic judge не запускаються;
+- `comment+behavior` — короткий header/pointer без достатнього API-контракту або явний складний flow у коді: LLM пише лише
+  коротку «Поведінку», не може змінити авторські секції, а judge перевіряє тільки цей додаток;
+- `fallback` — header або хоча б один public API не має змістовного коментаря, тому лишається
+  звичний LLM-шлях.
 
 ## Одна команда — unified lint surface
 
@@ -25,13 +55,14 @@ unified lint surface (spec `docs/specs/2026-06-29-unified-lint-surface.md`) і �
 
 ## Stale = `missing` ∪ `crc-mismatch`
 
-Дока застаріла, якщо її **немає** (`missing`) або `crc(джерело) ≠ crc` у frontmatter
+Дока застаріла, якщо її **немає** (`missing`) або `crc(source + related tests) ≠ crc` у frontmatter
 (`crc-mismatch`). Це і є `violations`, які повертає `lint(ctx)` концерну.
 
-Алгоритм детекту (кандидати, ignore-дерево, CRC, реверс-мапінг доки→джерело) — у
+Алгоритм детекту (кандидати, ignore-дерево, evidence CRC, реверс-мапінг доки/тесту→джерело) — у
 `docgen-scan/main.mjs` / `docgen-crc/main.mjs` / `docgen-ignore/main.mjs`, детектор — у
-`check/main.mjs` (`lint(ctx)`), fix — лише `check/fix-worker.mjs` (LLM-регенерація); тут —
-лише людинозрозумілий контракт, без дублювання логіки.
+`docgen-test-context/main.mjs` / `check/main.mjs` (`lint(ctx)`), fix — лише
+`check/fix-worker.mjs` (LLM-регенерація); тут — лише людинозрозумілий контракт, без
+дублювання логіки.
 
 T0-штампу CRC для `crc-mismatch` **немає навмисно**: свіжий CRC поверх старого тексту
 назавжди маскує дрейф (CRC-гейт вважає доку актуальною і вона більше не регенерується).

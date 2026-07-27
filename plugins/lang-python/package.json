@@ -22,6 +22,7 @@
   "type": "module",
   "files": [
     "coverage-provider",
+    "doc-files",
     "rules",
     "taze",
     "skills",
@@ -39,7 +40,8 @@
       "rules": true,
       "handlers": {
         "taze": "./taze/provider.mjs",
-        "coverage": "./coverage-provider/provider.mjs"
+        "coverage": "./coverage-provider/provider.mjs",
+        "doc-files": "./doc-files/extractors.mjs"
       },
       "docFiles": {
         "extensions": {
