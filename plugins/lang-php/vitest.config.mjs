@@ -10,7 +10,11 @@ import { defineConfig } from 'vitest/config'
  */
 export default defineConfig({
   test: {
-    include: ['rules/**/tests/**/*.test.{js,mjs}', 'slots/**/tests/**/*.test.{js,mjs}'],
+    include: [
+      'rules/**/tests/**/*.test.{js,mjs}',
+      'slots/**/tests/**/*.test.{js,mjs}',
+      'taze/tests/**/*.test.{js,mjs}'
+    ],
     exclude: ['**/node_modules/**'],
     environment: 'node',
     env: { GIT_TRACE2_EVENT: '0', N_LLM_TRACE_PATH: join(tmpdir(), 'n-rules-plugin-vitest-llm-trace.jsonl') },

@@ -1,11 +1,12 @@
 {
   "name": "@7n/rules-lang-php",
   "version": "0.2.1",
-  "description": "Плагін @7n/rules: PHP/Composer-екосистема — lint (PHPCS Security, PHP-CS-Fixer, PHPStan, Psalm, composer audit) + CI-артефакти GitHub/Azure",
+  "description": "Плагін @7n/rules: PHP/Composer-екосистема — lint (PHPCS Security, PHP-CS-Fixer, PHPStan, Psalm, composer audit) + CI-артефакти GitHub/Azure + taze-провайдер (composer.json)",
   "keywords": [
     "php",
     "composer",
     "lint",
+    "taze",
     "n-rules-plugin"
   ],
   "homepage": "https://github.com/nitra/7n-rules#readme",
@@ -23,6 +24,8 @@
   "files": [
     "rules",
     "slots",
+    "skills",
+    "taze",
     "CHANGELOG.md",
     "!**/*.test.mjs",
     "!**/*_test.rego",
@@ -57,7 +60,9 @@
           "id": "php-lint-text-patch",
           "resource": "./slots/ci/php-lint-text-patch.json",
           "requires": { "capabilities": ["ci:github"] }
-        }
+        },
+        { "slot": "taze.provider", "version": 1, "id": "taze-php", "resource": "./taze/provider.mjs" },
+        { "slot": "skills.fragment", "version": 1, "id": "taze", "resource": "./skills/taze/SKILL.fragment.md" }
       ]
     }
   },

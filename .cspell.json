@@ -129,6 +129,7 @@
     "omlx",
     "oneshot",
     "onlyfull",
+    "phpunit",
     "plancache",
     "prependpath",
     "quikrun",
