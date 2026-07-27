@@ -3,7 +3,7 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/skills/git-reconcile/js/orchestrate.mjs
 docgen:
-  crc: fc877b0d
+  crc: bfaf50c9
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
@@ -20,7 +20,9 @@ docgen:
 
 Для корисної групи JS створює ізольований worktree від policy base, застосовує commits або stash і відсікає порожній tree diff. `captureCachedBehaviorBaseline` кешує Promise baseline за base OID, щоб concurrent PR-групи не дублювали test run. `validateBehaviorState` перевіряє Git state, scoped docs/lint, tests відносно baseline і changelog. `remediateBehaviorState` запускає canonical fixers для code та non-code directories; після remediation final gates повторюються у read-only режимі.
 
-Після фінальних gates `collectPullRequestFacts` збирає bounded final diff, commit metadata, changed paths, triage rationale та behavioral verification. `describePullRequest` викликає min-модель, а `validatePullRequestDescription` перевіряє JSON schema, factual evidence paths і перевагу business/architecture змісту; residual failure повторюється на max. `renderPullRequestBody` детерміновано ставить секції «Навіщо», «Бізнес-результат» та «Архітектура» перед поведінковими деталями, а source і evidence paths ховає в технічний `<details>`.
+Після фінальних gates `collectPullRequestFacts` збирає bounded final diff, commit metadata, changed paths, triage rationale та behavioral verification. `pullRequestDiffProfile` окремо розпізнає валідний `release-lock-only` PR: `.changes/` разом із lockfile проходить до review, але не вважається новою runtime implementation. `describePullRequest` викликає min-модель, а `validatePullRequestDescription` перевіряє JSON schema, factual evidence paths і перевагу business/architecture змісту; residual failure повторюється на max.
+
+`renderPullRequestBody` детерміновано ставить секції «Навіщо», «Бізнес-результат» та «Архітектура» перед поведінковими деталями, а source і evidence paths ховає в технічний `<details>`. Для `release-lock-only` final diff JS маркує business outcome як intent change entry та підставляє чесні architecture/behavior твердження про відсутність нового runtime delta.
 
 `runAsync` запускає install, tests, lint і PR checks без блокування event loop. Після push та `gh pr create` функція `verifyPullRequestReadiness` очікує terminal checks і передає набори PR/base checks у `classifyPullRequestChecks`. Якщо initial rollup порожній, orchestration дає GitHub коротке вікно на реєстрацію checks і повторює watch. Успішний outcome `pr-created` повертається лише для `ready`; regression, baseline-red, pending, timeout або unreadable checks зберігають branch, URL і worktree та блокують cleanup.
 
@@ -36,7 +38,7 @@ docgen:
 - `createPhaseProgress` — формує ANSI-free progress snapshots і heartbeat.
 - `parseWorktrees`, `dedupeRefs`, `conflictFiles`, `inventoryRepository` — збирають і нормалізують Git inventory.
 - `buildTriagePrompt`, `parseDecisionEnvelope`, `validateTriageOutcome` — задають і перевіряють bounded triage contract.
-- `collectPullRequestFacts`, `validatePullRequestDescription`, `describePullRequest`, `renderPullRequestBody` — готують, перевіряють і формують business/architecture narrative фінального PR.
+- `collectPullRequestFacts`, `pullRequestDiffProfile`, `validatePullRequestDescription`, `describePullRequest`, `renderPullRequestBody` — готують, класифікують, перевіряють і формують business/architecture narrative фінального PR.
 - `callRunner`, `callWithValidatedFallback` — викликають runner за схемою `min → validation → max`.
 - `captureBehaviorBaseline`, `captureCachedBehaviorBaseline` — фіксують і кешують test baseline.
 - `validateBehaviorState`, `validateFinalProjectGates`, `remediateBehaviorState` — виконують behavioral та canonical gates.
@@ -53,6 +55,7 @@ docgen:
 - Baseline test Promise дедуплікується між concurrent PR-групами одного base OID.
 - Canonical fixers охоплюють code/non-code scope, після чого gates повторюються без fix.
 - PR description спирається лише на bounded final facts, а evidence paths завжди належать реальному diff.
+- `.changes/` разом із lockfile проходить до PR, але narrative не приписує такому diff нову runtime architecture або behavior.
 - Business/architecture narrative має не меншу вагу, ніж behavior/risk details; повторно невалідний опис блокує push.
 - PR вважається створеним успішно лише після terminal green checks.
 - Порожній PR check rollup fail-closed зберігає forensic worktree.

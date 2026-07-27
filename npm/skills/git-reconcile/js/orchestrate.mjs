@@ -27,6 +27,7 @@ const REF_ORIGIN_RE = /^refs\/remotes\/origin\//
 const RENAME_DELETE_CONFLICT_RE = /^CONFLICT \(rename\/delete\): .+? renamed to (.+?) in .+?, but deleted/
 const SOURCE_CODE_RE = /\.(?:js|mjs|ts|vue|rs|py)$/
 const CHANGE_ENTRY_RE = /(^|\/)\.changes\/[^/]+\.md$/
+const LOCKFILE_RE = /(^|\/)(?:bun\.lockb?|Cargo\.lock|package-lock\.json|pnpm-lock\.yaml|poetry\.lock|uv\.lock|yarn\.lock)$/
 const WHITESPACE_RE = /\s+/
 const PR_DESCRIPTION_ARRAY_FIELDS = [
   'businessOutcomes',
@@ -40,6 +41,13 @@ const REF_INVENTORY_FORMAT = ['%(refname)', '%00', '%(object', 'name)', '%00', '
 )
 
 /** @typedef {(command:string,args:string[],options:object)=>object|Promise<object>} CommandRunner */
+
+const RELEASE_LOCK_ARCHITECTURE = [
+  'Фінальний diff не змінює runtime architecture: PR переносить release metadata та зафіксований dependency lock state.'
+]
+const RELEASE_LOCK_BEHAVIOR = [
+  'Фінальний diff не додає runtime behavior; product outcome нижче є наміром, зафіксованим у change entry.'
+]
 
 /** Порожній callback для опційного progress log. */
 function noop() {
@@ -793,8 +801,29 @@ export function collectPullRequestFacts(args) {
     baseRef,
     commits: git(['log', '--format=%h%x09%s', range], cwd, spawnFn).stdout.split('\n').filter(Boolean),
     changedPaths,
+    diffProfile: pullRequestDiffProfile(changedPaths),
     diffStat: git(['diff', '--stat', range], cwd, spawnFn).stdout.trim(),
     diff: diff.length > PR_DIFF_TEXT_LIMIT ? `${diff.slice(0, PR_DIFF_TEXT_LIMIT)}\n[diff truncated by JS]` : diff
+  }
+}
+
+/**
+ * Класифікує фінальний diff без LLM, щоб release metadata + lockfile
+ * залишались валідним PR, але narrative не приписував їм runtime-зміни.
+ * @param {string[]} paths фактичні changed paths
+ * @returns {{kind:'general'|'release-lock-only',releaseEntryPaths:string[],lockfilePaths:string[]}}
+ */
+export function pullRequestDiffProfile(paths) {
+  const releaseEntryPaths = paths.filter(path => CHANGE_ENTRY_RE.test(path))
+  const lockfilePaths = paths.filter(path => LOCKFILE_RE.test(path))
+  const knownPaths = new Set([...releaseEntryPaths, ...lockfilePaths])
+  return {
+    kind:
+      releaseEntryPaths.length > 0 && lockfilePaths.length > 0 && paths.every(path => knownPaths.has(path))
+        ? 'release-lock-only'
+        : 'general',
+    releaseEntryPaths,
+    lockfilePaths
   }
 }
 
@@ -805,6 +834,10 @@ export function collectPullRequestFacts(args) {
  * @returns {string} промпт
  */
 export function buildPullRequestDescriptionPrompt(facts) {
+  const scopeRule =
+    facts.diffProfile?.kind === 'release-lock-only'
+      ? 'Final diff містить лише release entries та lockfile. Це валідний PR: опиши product intent із change entry, але не стверджуй, що цей PR сам реалізує runtime behavior або змінює runtime architecture.'
+      : 'Чітко відрізняй intent source commit від змін, які справді присутні у final diff.'
   return [
     'Ти формуєш лише зміст PR description за вже зібраними JS-фактами.',
     'Не запускай команди, не редагуй файли, не створюй PR і не вигадуй відсутній контекст.',
@@ -812,6 +845,7 @@ export function buildPullRequestDescriptionPrompt(facts) {
     'Не переказуй diff по функціях і рядках. Називай implementation detail лише коли він є важливим architecture contract.',
     'Не вигадуй клієнтів, фінансові метрики, deployment status або гарантії. Якщо бізнес-контекст обмежений, чесно сформулюй підтверджений operational/developer outcome.',
     'Кожне твердження обґрунтуй facts; evidencePaths мають бути точними changedPaths.',
+    scopeRule,
     'Business context разом із businessOutcomes та architectureChanges має бути не коротшим за behaviorChanges разом із risksAndCompatibility.',
     'Поверни лише JSON object без markdown:',
     '{"businessContext":"...","businessOutcomes":["..."],"architectureChanges":["..."],"behaviorChanges":["..."],"risksAndCompatibility":["..."],"evidencePaths":["path/from/changedPaths"]}',
@@ -827,7 +861,7 @@ export function buildPullRequestDescriptionPrompt(facts) {
  * @returns {{ok:boolean,error?:string,value?:object}} validation
  */
 export function validatePullRequestDescription(outcome, facts) {
-  const description = parseDecisionEnvelope(outcome.text)
+  let description = parseDecisionEnvelope(outcome.text)
   if (!description) return { ok: false, error: 'відсутній JSON object опису PR' }
   if (
     typeof description.businessContext !== 'string' ||
@@ -858,6 +892,16 @@ export function validatePullRequestDescription(outcome, facts) {
     description.evidencePaths.some(path => typeof path !== 'string' || !changedPaths.has(path))
   ) {
     return { ok: false, error: 'evidencePaths мають бути непорожнім subset фактичних changedPaths' }
+  }
+  if (facts.diffProfile?.kind === 'release-lock-only') {
+    description = {
+      ...description,
+      businessOutcomes: description.businessOutcomes.map(
+        outcome => `Product intent, зафіксований у change entry: ${outcome.trim()}`
+      ),
+      architectureChanges: RELEASE_LOCK_ARCHITECTURE,
+      behaviorChanges: RELEASE_LOCK_BEHAVIOR
+    }
   }
   const focusedLength =
     description.businessContext.length +
@@ -890,9 +934,18 @@ function markdownBullets(values) {
 export function renderPullRequestBody({ description, facts }) {
   const inline = value => String(value).trim().split(WHITESPACE_RE).join(' ')
   const evidence = description.evidencePaths.map(path => `- \`${path.replaceAll('`', '\\`')}\``).join('\n')
+  const scopeNotice =
+    facts.diffProfile?.kind === 'release-lock-only'
+      ? [
+          '> [!NOTE]',
+          '> Final diff цього PR містить лише release metadata та lockfile. Product outcome нижче описує intent change entry, а не нову runtime implementation у цьому diff.',
+          ''
+        ]
+      : []
   return [
     '## Навіщо',
     '',
+    ...scopeNotice,
     description.businessContext.trim(),
     '',
     '## Бізнес-результат',

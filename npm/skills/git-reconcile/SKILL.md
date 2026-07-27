@@ -99,6 +99,10 @@ transport. Після провалу `max` джерело fail-closed лишає
   JSON, а JS рендерить PR body із видимими секціями «Навіщо»,
   «Бізнес-результат», «Архітектура», «Поведінка» та «Ризики та сумісність»;
   source і evidence paths лишаються у collapsed technical details.
+- `.changes/` разом із lockfile є валідним release PR. JS позначає такий final
+  diff як `release-lock-only`: product claims рендеряться як intent change
+  entry, а architecture/behavior секції детерміновано не заявляють runtime
+  changes, яких немає у фінальному diff.
 - Невалідний PR description повторюється на max; повторний провал fail-closed
   зберігає worktree і не push-ить гілку з misleading описом.
 - Canonical fixers охоплюють code і non-code directories; після механічного
