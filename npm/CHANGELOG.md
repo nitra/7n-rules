@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.20] - 2026-07-27
+
+### Fixed
+
+- Allow committed branch changes and keep empty PR check rollups fail-closed
+
 ## [1.49.19] - 2026-07-27
 
 ### Fixed
