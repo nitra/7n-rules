@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.23] - 2026-07-27
+
+### Fixed
+
+- Treat reconcile diffs containing only release entries as patch-equivalent
+
 ## [1.49.22] - 2026-07-27
 
 ### Fixed

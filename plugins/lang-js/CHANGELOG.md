@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.22.18] - 2026-07-27
+
+### Changed
+
+- release: @7n/rules-lang-js@0.22.17; fix(js): skip generated reports in utils scan (#238); fix(vue): allow Vue imports in test files (#237)
+
 ## [0.22.17] - 2026-07-27
 
 ### Fixed
