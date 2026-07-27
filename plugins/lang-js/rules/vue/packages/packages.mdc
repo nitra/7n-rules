@@ -4,7 +4,7 @@ Concern `packages` перевіряє залежності, `vite.config`, `vite
 
 ### Заборона явних value-імпортів з `vue`
 
-Потрібно використовувати `unplugin-auto-import` для автоматичного імпортування Vue API. Коли `'vue'` додано до `AutoImport.imports` у `vite.config`, явні value-імпорти вигляду `import { ref, computed } from 'vue'` у файлах додатка **заборонені** — API Vue підставляється автоматично.
+Потрібно використовувати `unplugin-auto-import` для автоматичного імпортування Vue API. Коли `'vue'` додано до `AutoImport.imports` у `vite.config`, явні value-імпорти вигляду `import { ref, computed } from 'vue'` у файлах додатка **заборонені** — API Vue підставляється автоматично. Файли тестів (`__tests__/`, `*.test.*`, `*.spec.*`) не проходять через цей Vite transform, тому їхні явні runtime-імпорти з `vue` дозволені.
 
 Дозволені лише:
 

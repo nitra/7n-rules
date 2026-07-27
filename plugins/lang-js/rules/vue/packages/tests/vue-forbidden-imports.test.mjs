@@ -12,6 +12,7 @@ import {
   findForbiddenVueImportsInText,
   isNodeBuiltinSpecifier,
   isVueImportScanSourceFile,
+  shouldSkipFileForVueAutoImportScan,
   shouldSkipFileForVueImportScan
 } from '../../lib/vue-forbidden-imports.mjs'
 
@@ -82,6 +83,13 @@ const x = 1
     expect(isVueImportScanSourceFile('src/App.vue')).toBe(true)
     expect(isVueImportScanSourceFile('vite.config.ts')).toBe(true)
     expect(isVueImportScanSourceFile('README.md')).toBe(false)
+  })
+
+  test('shouldSkipFileForVueAutoImportScan — тестові файли не проходять через Vite auto-import', () => {
+    expect(shouldSkipFileForVueAutoImportScan('src/__tests__/settings.spec.mjs')).toBe(true)
+    expect(shouldSkipFileForVueAutoImportScan('src/App.test.ts')).toBe(true)
+    expect(shouldSkipFileForVueAutoImportScan('src/components/Widget.spec.tsx')).toBe(true)
+    expect(shouldSkipFileForVueAutoImportScan('src/composables/settings.mjs')).toBe(false)
   })
 
   test('contentForVueImportScan', () => {

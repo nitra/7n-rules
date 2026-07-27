@@ -8,6 +8,7 @@ import {
   findForbiddenNodeImportsInVueFile,
   findForbiddenVueImportsInSourceFile,
   isVueImportScanSourceFile,
+  shouldSkipFileForVueAutoImportScan,
   shouldSkipFileForVueImportScan
 } from '../lib/vue-forbidden-imports.mjs'
 import { loadCursorIgnorePaths } from '@7n/rules/scripts/lib/load-cursor-config.mjs'
@@ -406,7 +407,7 @@ async function checkVueImportViolations(
     absPackageRoot,
     absPath => {
       const rel = relative(absPackageRoot, absPath).split('\\').join('/')
-      if (!shouldSkipFileForVueImportScan(rel) && isVueImportScanSourceFile(rel)) {
+      if (!shouldSkipFileForVueAutoImportScan(rel) && isVueImportScanSourceFile(rel)) {
         sourcePaths.push(absPath)
       }
     },

@@ -140,6 +140,21 @@ export function shouldSkipFileForVueImportScan(relativePosix) {
 }
 
 /**
+ * Чи слід пропустити файл під час перевірки value-імпортів Vue, які має
+ * підставляти unplugin-auto-import. Test-runner не застосовує Vite transform
+ * до файлів тестів, тому їхні runtime-імпорти з `vue` мають лишатися явними.
+ * @param {string} relativePosix шлях з posix-слешами
+ * @returns {boolean} `true`, якщо файл не проходить перевірку auto-import
+ */
+export function shouldSkipFileForVueAutoImportScan(relativePosix) {
+  if (shouldSkipFileForVueImportScan(relativePosix)) {
+    return true
+  }
+  const base = relativePosix.split('/').pop() || ''
+  return relativePosix.includes('/__tests__/') || /\.(?:test|spec)\.[cm]?[jt]sx?$/u.test(base)
+}
+
+/**
  * Чи сканувати цей файл за розширенням.
  * @param {string} relativePath відносний шлях до файлу
  * @returns {boolean} `true`, якщо розширення підходить для пошуку import
