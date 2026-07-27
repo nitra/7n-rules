@@ -4,8 +4,6 @@ title: npm/rules/docker/lib
 resource: npm/rules/docker/lib/
 ---
 
-# npm/rules/docker/lib
-
 | Файл                                              | Тип       |
 | ------------------------------------------------- | --------- |
 | [docker-hadolint.mjs](docker-hadolint.md)         | JS Module |

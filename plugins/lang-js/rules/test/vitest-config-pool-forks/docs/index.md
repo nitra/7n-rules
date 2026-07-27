@@ -1,10 +1,8 @@
 ---
 type: Directory Index
-title: npm/rules/test/vitest-config-pool-forks
+title: plugins/lang-js/rules/test/vitest-config-pool-forks
 resource: plugins/lang-js/rules/test/vitest-config-pool-forks/
 ---
-
-# npm/rules/test/vitest-config-pool-forks
 
 | Файл                | Тип       |
 | ------------------- | --------- |

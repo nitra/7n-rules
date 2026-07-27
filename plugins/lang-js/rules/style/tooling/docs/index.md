@@ -1,10 +1,8 @@
 ---
 type: Directory Index
-title: npm/rules/style/tooling
+title: plugins/lang-js/rules/style/tooling
 resource: plugins/lang-js/rules/style/tooling/
 ---
-
-# npm/rules/style/tooling
 
 | Файл                              | Тип       |
 | --------------------------------- | --------- |

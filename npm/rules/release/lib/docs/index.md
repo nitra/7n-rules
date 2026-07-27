@@ -4,8 +4,6 @@ title: npm/rules/release/lib
 resource: npm/rules/release/lib/
 ---
 
-# npm/rules/release/lib
-
 | Файл                              | Тип       |
 | --------------------------------- | --------- |
 | [aggregate.mjs](aggregate.md)     | JS Module |

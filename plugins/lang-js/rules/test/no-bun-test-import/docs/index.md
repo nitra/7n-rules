@@ -1,6 +1,6 @@
 ---
 type: Directory Index
-title: npm/rules/test/no-bun-test-import
+title: plugins/lang-js/rules/test/no-bun-test-import
 resource: plugins/lang-js/rules/test/no-bun-test-import/
 ---
 

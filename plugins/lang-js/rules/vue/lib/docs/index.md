@@ -1,10 +1,8 @@
 ---
 type: Directory Index
-title: npm/rules/vue/lib
+title: plugins/lang-js/rules/vue/lib
 resource: plugins/lang-js/rules/vue/lib/
 ---
-
-# npm/rules/vue/lib
 
 | Файл                                                  | Тип       |
 | ----------------------------------------------------- | --------- |

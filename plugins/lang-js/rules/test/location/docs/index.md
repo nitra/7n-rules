@@ -1,10 +1,8 @@
 ---
 type: Directory Index
-title: npm/rules/test/location
+title: plugins/lang-js/rules/test/location
 resource: plugins/lang-js/rules/test/location/
 ---
-
-# npm/rules/test/location
 
 | Файл                | Тип       |
 | ------------------- | --------- |

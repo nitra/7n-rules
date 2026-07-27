@@ -1,10 +1,8 @@
 ---
 type: Directory Index
-title: npm/rules/test/no-console-store-restore
+title: plugins/lang-js/rules/test/no-console-store-restore
 resource: plugins/lang-js/rules/test/no-console-store-restore/
 ---
-
-# npm/rules/test/no-console-store-restore
 
 | Файл                | Тип       |
 | ------------------- | --------- |

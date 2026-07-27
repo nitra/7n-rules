@@ -1,11 +1,10 @@
 ---
 type: Directory Index
-title: npm/rules/style/lint
+title: plugins/lang-js/rules/style/lint
 resource: plugins/lang-js/rules/style/lint/
 ---
 
-# npm/rules/style/lint
-
-| Файл                | Тип       |
-| ------------------- | --------- |
-| [main.mjs](main.md) | JS Module |
+| Файл                        | Тип       |
+| --------------------------- | --------- |
+| [fix-lint.mjs](fix-lint.md) | JS Module |
+| [main.mjs](main.md)         | JS Module |
