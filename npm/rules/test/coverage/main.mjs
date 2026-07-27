@@ -113,7 +113,7 @@ export async function lint(ctx) {
     }
 
     if (!(await provider.detect(cwd))) continue
-    let rows = await provider.collect(cwd, {})
+    let rows = await provider.collect(cwd, { mutationRefreshFiles: ctx.mutationRefreshFiles ?? [] })
 
     // LLM-класифікація survived-мутантів (allowed gaps): verdict-и
     // equivalent/defensive/glue/wrapper з confidence ≥ порогу виключаються зі

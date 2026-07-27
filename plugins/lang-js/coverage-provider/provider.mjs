@@ -93,6 +93,7 @@ export default {
     const previousError = res.failed.map(failure => failure.error).join('\n')
     return {
       touchedFiles: res.touchedFiles,
+      mutationRefreshFiles: res.mutationRefreshFiles,
       failed: res.failed,
       deferred: res.deferred,
       batches: res.batches,

@@ -60,6 +60,7 @@ describe('fixWorker', () => {
     expect(provider.fixSurvived).toHaveBeenCalledWith(expect.objectContaining({ survived: [survivedGroup] }))
     expect(provider.fixFailingTests).not.toHaveBeenCalled()
     expect(res.touchedFiles.toSorted()).toEqual(['/p/tests/b.test.mjs'])
+    expect(res.mutationRefreshFiles).toEqual([])
     expect(res.failed).toEqual([])
   })
 
@@ -122,7 +123,7 @@ describe('fixWorker', () => {
     const res = await fixWorker([{ reason: 'coverage-below-threshold', file: 'a.mjs', data: { pct: 1 } }], CTX, {
       resolveProviders: () => Promise.resolve([provider])
     })
-    expect(res).toEqual({ touchedFiles: [], failed: [], deferred: [], feedback: null })
+    expect(res).toEqual({ touchedFiles: [], mutationRefreshFiles: [], failed: [], deferred: [], feedback: null })
   })
 
   test('виняток одного хука не зупиняє наступні', async () => {
@@ -182,6 +183,7 @@ describe('fixWorker', () => {
     )
     expect(res).toEqual({
       touchedFiles: [],
+      mutationRefreshFiles: [],
       failed: [
         { provider: 'fake', hook: 'fixSurvived', files: ['src/a.mjs'], error: 'no-op: агент завершився без записів' }
       ],
@@ -190,6 +192,21 @@ describe('fixWorker', () => {
     })
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('failed/no-op'))
     warnSpy.mockRestore()
+  })
+
+  test('передає source-файли accepted mutation batch у canonical re-detect', async () => {
+    const provider = fakeProvider({
+      fixSurvived: vi.fn().mockResolvedValue({
+        touchedFiles: ['/p/tests/a.test.mjs'],
+        mutationRefreshFiles: ['src/a.mjs']
+      })
+    })
+    const res = await fixWorker(
+      [{ reason: 'mutation-below-threshold', data: { survived: [{ file: 'src/a.mjs', mutants: [{ line: 1 }] }] } }],
+      CTX,
+      { resolveProviders: () => Promise.resolve([provider]) }
+    )
+    expect(res.mutationRefreshFiles).toEqual(['src/a.mjs'])
   })
 
   test('передає quality verdict провайдера як feedback наступного ladder rung-а', async () => {

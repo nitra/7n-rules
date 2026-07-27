@@ -88,6 +88,7 @@ export async function fixWorker(violations, ctx, deps = {}) {
 
   /** @type {string[]} */
   const touchedFiles = []
+  const mutationRefreshFiles = []
   /** @type {Array<{provider: string, hook: string, files: string[], error: string}>} */
   const failed = []
   let feedback = null
@@ -105,6 +106,7 @@ export async function fixWorker(violations, ctx, deps = {}) {
     try {
       const res = await provider[hook]({ ...args, cwd: ctx.cwd, ctx: hookCtx(ctx, deadlineAt) })
       touchedFiles.push(...(res?.touchedFiles ?? []))
+      mutationRefreshFiles.push(...(res?.mutationRefreshFiles ?? []))
       if (res?.feedback?.previousError) feedback = res.feedback
       deferred.push(...(res?.deferred ?? []))
       for (const failure of res?.failed ?? []) {
@@ -137,5 +139,5 @@ export async function fixWorker(violations, ctx, deps = {}) {
     }
   }
 
-  return { touchedFiles, failed, deferred, feedback }
+  return { touchedFiles, mutationRefreshFiles: [...new Set(mutationRefreshFiles)], failed, deferred, feedback }
 }

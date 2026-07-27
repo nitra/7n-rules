@@ -736,6 +736,39 @@ async function readParsedMutationReport(jsRoot, isStorybookRootPkg) {
 }
 
 /**
+ * Re-runs only source files whose generated tests already passed the scoped
+ * cache-independent verifier, then overlays their fresh results on the canonical
+ * report. The consumer incremental cache remains untouched and still supplies
+ * every unrelated file.
+ * @param {string} jsRoot workspace root
+ * @param {string} cwd project root
+ * @param {typeof defaultRunner} runner Stryker runner
+ * @param {string[]} refreshFiles project-relative source files
+ * @param {boolean} isStorybookRootPkg whether the root is a Storybook package
+ * @returns {Promise<{caught:number,total:number,survived:Array<object>}|null>} fresh merged result, or null without files in this root
+ */
+async function refreshParsedMutationReport(jsRoot, cwd, runner, refreshFiles, isStorybookRootPkg) {
+  const mutate = [...new Set(scopeToRoot(refreshFiles, cwd, jsRoot))]
+  if (mutate.length === 0) return null
+  if (isStorybookRootPkg) assertStorybookStrykerIsolation(jsRoot, relative(cwd, jsRoot))
+  const reportDir = await mkdtemp(join(tmpdir(), 'stryker-canonical-refresh-'))
+  const reportPath = join(reportDir, 'mutation.json')
+  try {
+    const code = await runner.runStryker({ cwd: jsRoot, mutate, isolatedReportPath: reportPath })
+    if (code !== 0) throw new Error(`js coverage: fresh scoped Stryker exit ${code}`)
+    if (!existsSync(reportPath)) throw new Error('js coverage: fresh scoped Stryker не залишив mutation.json')
+    const canonicalPath = join(jsRoot, 'reports', 'stryker', 'mutation.json')
+    const [canonical, fresh] = await Promise.all([
+      readFile(canonicalPath, 'utf8').then(JSON.parse),
+      readFile(reportPath, 'utf8').then(JSON.parse)
+    ])
+    return parseStrykerReport({ ...canonical, files: { ...canonical.files, ...fresh.files } }, jsRoot)
+  } finally {
+    await rm(reportDir, { recursive: true, force: true })
+  }
+}
+
+/**
  * Збирає метрики покриття + мутаційного тестування для **одного** JS-root.
  *
  * Full-режим (`scope === null`): vitest на всьому suite + Stryker на всіх файлах
@@ -765,9 +798,10 @@ async function readParsedMutationReport(jsRoot, isStorybookRootPkg) {
  * @param {string} cwd корінь проєкту (для рібейзингу `survived[].file`)
  * @param {typeof defaultRunner} runner spawn-ін'єкція (повний або частковий)
  * @param {{files:string[], base:string|null}|null} [scope] changed-scope (null = full-режим)
+ * @param {string[]} [mutationRefreshFiles] Source-файли, які треба освіжити без consumer incremental cache
  * @returns {Promise<{coverage:object, mutation:{caught:number,total:number}, survived:Array<object>} | null>} результати або null коли full-режим і workspace без тестів
  */
-async function collectOneRoot(jsRoot, cwd, runner, scope = null) {
+async function collectOneRoot(jsRoot, cwd, runner, scope = null, mutationRefreshFiles = []) {
   const wsRel = relative(cwd, jsRoot)
 
   // Bun-native workspace: coverage через `bun test`, mutation пропускається
@@ -847,7 +881,9 @@ async function collectOneRoot(jsRoot, cwd, runner, scope = null) {
   // спершу fail-fast контракт канону: stryker.config.* → ізольований vitest.stryker.config.*.
   if (isStorybook) assertStorybookStrykerIsolation(jsRoot, wsRel)
   await runner.runStryker(scope ? { cwd: jsRoot, mutate: mutateSrc } : { cwd: jsRoot })
-  const parsed = await readParsedMutationReport(jsRoot, excludeStorybookProject)
+  const parsed =
+    (await refreshParsedMutationReport(jsRoot, cwd, runner, mutationRefreshFiles, excludeStorybookProject)) ??
+    (await readParsedMutationReport(jsRoot, excludeStorybookProject))
 
   return {
     coverage,
@@ -1140,7 +1176,7 @@ async function collectChangedRoot(jsRoot, cwd, runner, opts) {
  * нема. Якщо змін нема ніде — повертає `[]` без error-логу (оркестратор трактує
  * порожній changed-scope як pass).
  * @param {string} cwd корінь проєкту
- * @param {{runner?: typeof defaultRunner, changedFiles?: string[], base?: string|null}} [opts] runner-ін'єкція + changed-scope
+ * @param {{runner?: typeof defaultRunner, changedFiles?: string[], base?: string|null, mutationRefreshFiles?: string[]}} [opts] runner-ін'єкція + changed-scope або fresh mutation scope
  * @returns {Promise<Array<{area:string, coverage:object, mutation:{caught:number,total:number}, survived:Array<object>}>>} рядки `JS`/`Vue (Storybook)` — лише ті, де є дані
  */
 export async function collect(cwd, opts = {}) {
@@ -1155,7 +1191,7 @@ export async function collect(cwd, opts = {}) {
     const { js, storybook } = changed
       ? await collectChangedRoot(jsRoot, cwd, runner, opts)
       : {
-          js: await collectOneRoot(jsRoot, cwd, runner, null),
+          js: await collectOneRoot(jsRoot, cwd, runner, null, opts.mutationRefreshFiles ?? []),
           storybook: await collectStorybookForRoot(jsRoot, cwd, runner, null)
         }
     if (js !== null) jsResults.push(js)

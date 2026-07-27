@@ -114,6 +114,55 @@ describe('js coverage detect()', () => {
 })
 
 describe('js coverage collect()', () => {
+  test('overlay-ить fresh scoped mutation report після accepted test-write замість stale incremental result', async () => {
+    const dir = makeFixture({ devDependencies: { vitest: '^2.0.0' } })
+    mkdirSync(join(dir, 'src'), { recursive: true })
+    writeFileSync(join(dir, 'src', 'a.js'), 'export const enabled = true\n')
+    const reportDir = join(dir, 'reports', 'stryker')
+    mkdirSync(reportDir, { recursive: true })
+    const stale = {
+      files: {
+        'src/a.js': {
+          mutants: [
+            {
+              status: 'Survived',
+              mutatorName: 'BooleanLiteral',
+              replacement: 'false',
+              location: { start: { line: 1, column: 23 }, end: { line: 1, column: 27 } }
+            }
+          ]
+        }
+      }
+    }
+    writeFileSync(join(reportDir, 'mutation.json'), JSON.stringify(stale))
+    const runner = {
+      runJsCoverage({ lcovDir }) {
+        writeFileSync(join(lcovDir, 'lcov.info'), 'LF:1\nLH:1\nFNF:1\nFNH:1\n')
+        return 0
+      },
+      runStryker({ isolatedReportPath }) {
+        if (!isolatedReportPath) return 0 // consumer incremental run leaves stale canonical report intact
+        writeFileSync(
+          isolatedReportPath,
+          JSON.stringify({
+            files: {
+              'src/a.js': {
+                mutants: [{ ...stale.files['src/a.js'].mutants[0], status: 'Killed' }]
+              }
+            }
+          })
+        )
+        return 0
+      }
+    }
+
+    const rows = await collect(dir, { runner, mutationRefreshFiles: ['src/a.js'] })
+    expect(rows[0].mutation).toEqual({ caught: 1, total: 1 })
+    expect(rows[0].survived).toEqual([])
+    expect(readFileSync(join(reportDir, 'mutation.json'), 'utf8')).toBe(JSON.stringify(stale))
+    rmSync(dir, { recursive: true, force: true })
+  })
+
   test('парсить lcov + stryker mutation.json і повертає один CoverageRow', async () => {
     const dir = makeFixture({ scripts: { 'test:coverage': 'bun test --coverage' } })
 

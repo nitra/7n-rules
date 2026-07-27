@@ -81,7 +81,7 @@ describe('coverage-fix.mjs', () => {
       const result = await fixSurvivedMutants([], ROOT, { runAgentFix })
       expect(logSpy).toHaveBeenCalledWith('✓ Всі мутанти вбиті — доповнення тестів не потрібне')
       expect(runAgentFix).not.toHaveBeenCalled()
-      expect(result).toEqual({ fixed: [], failed: [], deferred: [], touchedFiles: [], batches: [] })
+      expect(result).toEqual({ fixed: [], failed: [], deferred: [], touchedFiles: [], mutationRefreshFiles: [], batches: [] })
       logSpy.mockRestore()
     })
 
@@ -129,7 +129,8 @@ describe('coverage-fix.mjs', () => {
       expect(result).toMatchObject({
         fixed: ['/proj/tests/util.test.mjs'],
         failed: [],
-        touchedFiles: ['/proj/tests/util.test.mjs']
+        touchedFiles: ['/proj/tests/util.test.mjs'],
+        mutationRefreshFiles: ['src/util.js']
       })
       expect(result.batches[0]).toMatchObject({
         batch: 1,

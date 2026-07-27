@@ -126,10 +126,18 @@ function isStandaloneConcern(patterns) {
  * @param {string} cwd Робоча директорія для запуску детектора.
  * @param {import('./progress.mjs').ProgressReporter|null} [progress] Reporter прогресу.
  * @param {boolean} [verbose] Детальний вивід (прокидається у ctx concern-а).
+ * @param {string[]} [mutationRefreshFiles] Source-файли з cache-independent mutation verdict-ом.
  * @returns {Promise<LintViolation[]>} Актуальні порушення concern-а після re-detect.
  */
-async function reDetect(item, cwd, progress = null, verbose = false) {
-  const ctx = { cwd, ruleId: item.entry.ruleId, concernId: item.entry.concern.name, files: item.files, verbose }
+async function reDetect(item, cwd, progress = null, verbose = false, mutationRefreshFiles = []) {
+  const ctx = {
+    cwd,
+    ruleId: item.entry.ruleId,
+    concernId: item.entry.concern.name,
+    files: item.files,
+    verbose,
+    mutationRefreshFiles
+  }
   const res = await runConcernDetector(item.entry.concern, ctx)
   progress?.detectSnapshot(progressKey(item), res.violations.length)
   return res.violations
@@ -416,7 +424,7 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
   // ніколи не виконується.
   let after
   try {
-    after = await reDetect(item, cwd, progress, verbose)
+    after = await reDetect(item, cwd, progress, verbose, workerResult?.mutationRefreshFiles ?? [])
   } catch (detectError) {
     snapshot.rollback()
     throw detectError
