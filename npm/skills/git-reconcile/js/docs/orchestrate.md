@@ -3,7 +3,7 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/skills/git-reconcile/js/orchestrate.mjs
 docgen:
-  crc: f87f22fc
+  crc: 59ea7f47
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
@@ -20,11 +20,11 @@ docgen:
 
 Для корисної групи JS створює ізольований worktree від policy base, застосовує commits або stash і відсікає порожній tree diff. `captureCachedBehaviorBaseline` кешує Promise baseline за base OID, щоб concurrent PR-групи не дублювали test run. `validateBehaviorState` перевіряє Git state, scoped docs/lint, tests відносно baseline і changelog. `remediateBehaviorState` запускає canonical fixers для code та non-code directories; після remediation final gates повторюються у read-only режимі.
 
-`runAsync` запускає install, tests, lint і PR checks без блокування event loop. Після push та `gh pr create` функція `verifyPullRequestReadiness` очікує terminal checks і передає набори PR/base checks у `classifyPullRequestChecks`. Успішний outcome `pr-created` повертається лише для `ready`; regression, baseline-red, pending, timeout або unreadable checks зберігають branch, URL і worktree та блокують cleanup.
+`runAsync` запускає install, tests, lint і PR checks без блокування event loop. Після push та `gh pr create` функція `verifyPullRequestReadiness` очікує terminal checks і передає набори PR/base checks у `classifyPullRequestChecks`. Якщо initial rollup порожній, orchestration дає GitHub коротке вікно на реєстрацію checks і повторює watch. Успішний outcome `pr-created` повертається лише для `ready`; regression, baseline-red, pending, timeout або unreadable checks зберігають branch, URL і worktree та блокують cleanup.
 
 `commitPendingChanges` створює додатковий commit лише для staged remediation. Чистий index після перенесення branch-source є валідним, коли корисні commits уже присутні в `HEAD`. Порожній PR check rollup вважається непідтвердженим, а не успішним.
 
-`cleanupSource` видаляє лише точний доказово безпечний branch/stash. Cleanup review-source дозволений після `drop` або коли всі його групи завершились `pr-created` чи `patch-equivalent`; `failed` і всі `pr-checks-*` outcomes лишають source та forensic worktree.
+`pruneForensicDependencies` прибирає лише rebuildable `node_modules` зі збереженого forensic worktree. `cleanupSource` видаляє лише точний доказово безпечний branch/stash. Cleanup review-source дозволений після `drop` або коли всі його групи завершились `pr-created` чи `patch-equivalent`; `failed` і всі `pr-checks-*` outcomes лишають source та forensic worktree.
 
 ## Публічний API
 
@@ -36,6 +36,7 @@ docgen:
 - `captureBehaviorBaseline`, `captureCachedBehaviorBaseline` — фіксують і кешують test baseline.
 - `validateBehaviorState`, `validateFinalProjectGates`, `remediateBehaviorState` — виконують behavioral та canonical gates.
 - `commitPendingChanges` — комітить лише staged remediation, не вимагаючи порожнього commit для вже перенесених commits.
+- `pruneForensicDependencies` — звільняє rebuildable dependencies без втрати Git evidence.
 - `classifyPullRequestChecks`, `verifyPullRequestReadiness` — класифікують CI відносно base commit.
 - `formatOutcomeCounts`, `formatReport` — формують точний deterministic summary.
 - `cleanupSource`, `runGitReconcileOrchestrator` — виконують безпечний cleanup і координують повний flow.
@@ -47,6 +48,7 @@ docgen:
 - Canonical fixers охоплюють code/non-code scope, після чого gates повторюються без fix.
 - PR вважається створеним успішно лише після terminal green checks.
 - Порожній PR check rollup fail-closed зберігає forensic worktree.
+- Forensic worktree зберігає Git evidence без накопичення `node_modules`.
 - CI regression, baseline-red або непідтверджений стан завершують orchestration non-zero і зберігають forensic refs/worktree.
 - Cleanup не видаляє protected, open-PR, kept, failed або `pr-checks-*` sources.
 - `spawnSync.error`, зокрема `ENOENT`, зберігається в command diagnostics.
