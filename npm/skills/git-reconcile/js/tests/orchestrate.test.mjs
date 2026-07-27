@@ -2,6 +2,7 @@
  * Тести git-reconcile: парсинг Git inventory, bounded LLM contract і
  * orchestration без реальних worktree/push/PR.
  */
+// cspell:ignore gitdir lockfiles
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { tmpdir } from 'node:os'
@@ -20,6 +21,7 @@ import {
   captureCachedBehaviorBaseline,
   changedNonCodeDirectories,
   classifyPullRequestChecks,
+  cleanupObsoleteWorktrees,
   cleanupSource,
   collectPullRequestFacts,
   commitPendingChanges,
@@ -27,17 +29,21 @@ import {
   createPhaseProgress,
   dedupeRefs,
   describePullRequest,
+  discardPatchEquivalentWorktree,
   ensureLocalWorktreeExclude,
   finishCherryPick,
   formatOutcomeCounts,
   formatReport,
   hasChangesFromBase,
   hasOnlyChangeEntries,
-  pullRequestDiffProfile,
   normalizePrConcurrency,
   parseDecisionEnvelope,
+  parseWorktreeInventory,
   parseWorktrees,
+  passFinalProjectGates,
+  pullRequestDiffProfile,
   pruneForensicDependencies,
+  releasedChangeEntries,
   remediateBehaviorState,
   renderPullRequestBody,
   runAsync,
@@ -47,9 +53,11 @@ import {
   sourceDirectories,
   testFailureSignatures,
   validateBehaviorState,
+  validateChangedLockfiles,
   validateFinalProjectGates,
   validatePullRequestDescription,
   validateTriageOutcome,
+  verificationSummary,
   verifyPullRequestReadiness
 } from '../orchestrate.mjs'
 
@@ -173,6 +181,7 @@ function inventory(overrides = {}) {
         changedFiles: ['M\tsrc/wip.mjs']
       }
     ],
+    worktrees: [],
     warnings: [],
     ...overrides
   }
@@ -181,6 +190,26 @@ function inventory(overrides = {}) {
 /** Порожній test logger. */
 function noop() {
   // Навмисно порожньо: цей тест не перевіряє progress output.
+}
+
+/**
+ * Формує fake runner для негативних final-gate сценаріїв.
+ * @param {'domain'|'changelog'} failedStage етап, який має впасти
+ * @returns {(command:string,args:string[])=>{status:number,stdout:string,stderr:string}} spawn-compatible runner
+ */
+function finalGateSpawn(failedStage) {
+  return (command, args) => {
+    if (command === 'git' && args[0] === 'diff') {
+      return { status: 0, stdout: 'skills/git-reconcile/SKILL.md\n', stderr: '' }
+    }
+    if (command === 'npx' && failedStage === 'domain' && args.includes('--path')) {
+      return { status: 1, stdout: '', stderr: 'domain failed' }
+    }
+    if (command === 'npx' && failedStage === 'changelog' && args.includes('changelog')) {
+      return { status: 1, stdout: '', stderr: 'changelog failed' }
+    }
+    return { status: 0, stdout: '', stderr: '' }
+  }
 }
 
 /**
@@ -213,6 +242,42 @@ describe('Git inventory helpers', () => {
     expect([...parsed]).toEqual([
       ['refs/heads/main', '/repo'],
       ['refs/heads/feature/a', '/repo/.worktrees/feature-a']
+    ])
+  })
+
+  test('parseWorktreeInventory зберігає detached, prunable і locked records', () => {
+    expect(
+      parseWorktreeInventory(
+        [
+          'worktree /repo/.claude/worktrees/stale',
+          'HEAD abc',
+          'detached',
+          'prunable gitdir file points to non-existent location',
+          '',
+          'worktree /repo/.worktrees/locked',
+          'HEAD def',
+          'branch refs/heads/locked',
+          'locked busy',
+          ''
+        ].join('\n')
+      )
+    ).toEqual([
+      {
+        path: '/repo/.claude/worktrees/stale',
+        head: 'abc',
+        branch: null,
+        detached: true,
+        prunable: true,
+        locked: false
+      },
+      {
+        path: '/repo/.worktrees/locked',
+        head: 'def',
+        branch: 'refs/heads/locked',
+        detached: false,
+        prunable: false,
+        locked: true
+      }
     ])
   })
 
@@ -503,6 +568,9 @@ describe('LLM boundary', () => {
     })
     expect(facts.commits).toEqual(['abc123\tfix: useful'])
     expect(facts.diffStat).toBe('2 files changed')
+    expect(facts.verification).toBe(
+      'Behavioral LLM review завершено; acceptance підтверджують фінальні детерміновані Git, tests, lint і changelog gates.'
+    )
     expect(calls.every(([command]) => command === 'git')).toBe(true)
   })
 
@@ -559,7 +627,7 @@ describe('LLM boundary', () => {
       facts: {
         baseRef: 'origin/main',
         source: REVIEW_BRANCH.source,
-        verification: 'focused tests pass'
+        verification: verificationSummary('raw agent transcript with internal exploration')
       }
     })
 
@@ -567,6 +635,15 @@ describe('LLM boundary', () => {
     expect(body.indexOf('## Архітектура')).toBeLessThan(body.indexOf('## Поведінка'))
     expect(body).toContain('<summary>Технічні докази перенесення</summary>')
     expect(body).toContain('`src/a.mjs`')
+    expect(body).not.toContain('raw agent transcript')
+    expect(body).toContain('фінальні детерміновані Git, tests, lint і changelog gates')
+  })
+
+  test('verification summary окремо описує empty та no-code outcomes', () => {
+    expect(verificationSummary('')).toBe('')
+    expect(verificationSummary('Додатковий behavioral LLM не потрібен: code paths не змінено.')).toContain(
+      'final diff не містить code paths'
+    )
   })
 
   test('release entry + lockfile лишається PR, але narrative не приписує runtime-зміни', () => {
@@ -599,6 +676,53 @@ describe('LLM boundary', () => {
       facts: { ...facts, baseRef: 'origin/main', source: REVIEW_BRANCH.source }
     })
     expect(body).toContain('Final diff цього PR містить лише release metadata та lockfile')
+  })
+
+  test('release-lock-only diff відсіює exact intent, уже опублікований у base CHANGELOG', () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'git-reconcile-release-'))
+    mkdirSync(resolve(root, 'app/.changes'), { recursive: true })
+    writeFileSync(
+      resolve(root, 'app/.changes/260723-0932.md'),
+      ['---', 'bump: patch', 'section: Changed', '---', 'Панель правила вже постійна частина сторінки.'].join('\n')
+    )
+    const profile = pullRequestDiffProfile(['app/.changes/260723-0932.md', 'bun.lock'])
+
+    try {
+      expect(
+        releasedChangeEntries(root, 'origin/main', profile, (_command, args) => {
+          expect(args).toEqual(['show', 'origin/main:app/CHANGELOG.md'])
+          return {
+            status: 0,
+            stdout: '## [1.2.3]\n\n### Changed\n\n- Панель правила вже постійна частина сторінки.\n',
+            stderr: ''
+          }
+        })
+      ).toEqual(['app/.changes/260723-0932.md'])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('released entries fail-closed для відсутнього CHANGELOG і порожнього narrative', () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'git-reconcile-release-empty-'))
+    mkdirSync(resolve(root, '.changes'))
+    writeFileSync(resolve(root, '.changes/empty.md'), '---\nbump: patch\n---\n')
+    try {
+      expect(
+        releasedChangeEntries(
+          root,
+          'origin/main',
+          { releaseEntryPaths: ['missing/.changes/entry.md', '.changes/empty.md'] },
+          (_command, args) => ({
+            status: args[1].includes('missing') ? 1 : 0,
+            stdout: 'existing changelog',
+            stderr: ''
+          })
+        )
+      ).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 
   test('PR description використовує min→validation→max fallback', async () => {
@@ -713,6 +837,127 @@ describe('worktree validation', () => {
     expect(hasOnlyChangeEntries(['owner/.changes/260713-0931.md', 'bun.lock'])).toBe(false)
     expect(hasOnlyChangeEntries(['owner/.changes/260713-0931.md', 'owner/src/lib.rs'])).toBe(false)
     expect(hasOnlyChangeEntries([])).toBe(false)
+  })
+
+  test('patch-equivalent guard прибирає no-op, change-only і вже опублікований release intent', () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'git-reconcile-discard-'))
+    const worktree = { cwd: root, branch: 'codex/reconcile-fixture' }
+    const progress = []
+    mkdirSync(resolve(root, 'app/.changes'), { recursive: true })
+    writeFileSync(
+      resolve(root, 'app/.changes/released.md'),
+      ['---', 'bump: patch', '---', 'Опублікована зміна поведінки.'].join('\n')
+    )
+
+    const runCase = paths =>
+      discardPatchEquivalentWorktree({
+        worktree,
+        rootCwd: '/repo',
+        onProgress: step => {
+          progress.push(step)
+        },
+        spawnFn: (command, args) => {
+          if (command === 'npx') return { status: 0, stdout: '', stderr: '' }
+          if (args[0] === 'show') {
+            return { status: 0, stdout: '### Fixed\n\n- Опублікована зміна поведінки.\n', stderr: '' }
+          }
+          if (args[0] === 'ls-files') return { status: 0, stdout: '', stderr: '' }
+          if (args.includes('--name-only')) return { status: 0, stdout: `${paths.join('\n')}\n`, stderr: '' }
+          if (args[0] === 'diff' && args.includes('--quiet')) {
+            return { status: paths.length === 0 ? 0 : 1, stdout: '', stderr: '' }
+          }
+          return { status: 0, stdout: '', stderr: '' }
+        }
+      })
+
+    try {
+      expect(runCase([])).toEqual({ status: 'patch-equivalent', branch: worktree.branch })
+      expect(runCase(['app/.changes/unreleased.md'])).toMatchObject({
+        status: 'patch-equivalent',
+        rationale: expect.stringContaining('тільки release entries')
+      })
+      expect(runCase(['app/.changes/released.md', 'bun.lock'])).toMatchObject({
+        status: 'patch-equivalent',
+        rationale: expect.stringContaining('base CHANGELOG')
+      })
+      expect(progress).toEqual([
+        'remove no-op worktree',
+        'remove change-only worktree',
+        'remove already-released worktree'
+      ])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('final bun.lock завжди проходить frozen validation навіть за наявного node_modules', async () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'git-reconcile-lock-'))
+    writeFileSync(resolve(root, 'package.json'), '{"name":"fixture"}')
+    writeFileSync(resolve(root, 'bun.lock'), '{}')
+    const commands = []
+
+    try {
+      const result = await validateChangedLockfiles(
+        root,
+        (_command, args) => {
+          if (args[0] === 'diff') return { status: 0, stdout: 'bun.lock\n', stderr: '' }
+          if (args[0] === 'ls-files') return { status: 0, stdout: '', stderr: '' }
+          return { status: 0, stdout: '', stderr: '' }
+        },
+        (command, args) => {
+          commands.push([command, args])
+          return Promise.resolve({ status: 1, stdout: '', stderr: 'lockfile had changes' })
+        }
+      )
+
+      expect(commands).toEqual([['bun', ['install', '--frozen-lockfile']]])
+      expect(result).toMatchObject({
+        ok: false,
+        remediation: 'bun-lockfile'
+      })
+      expect(result.error).toContain('lockfile had changes')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('final gates синхронізують stale bun.lock один раз і перевіряють його повторно', async () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'git-reconcile-final-lock-'))
+    writeFileSync(resolve(root, 'package.json'), '{}\n')
+    writeFileSync(resolve(root, 'bun.lock'), '')
+    const commands = []
+    let frozenAttempts = 0
+    try {
+      const result = await passFinalProjectGates({
+        cwd: root,
+        onProgress: step => {
+          commands.push(['progress', step])
+        },
+        spawnFn: (_command, args) => {
+          if (args[0] === 'diff') return { status: 0, stdout: 'bun.lock\n', stderr: '' }
+          return { status: 0, stdout: '', stderr: '' }
+        },
+        asyncSpawnFn: (command, args) => {
+          commands.push([command, ...args])
+          if (command === 'bun' && args.includes('--frozen-lockfile')) {
+            frozenAttempts += 1
+            return Promise.resolve({
+              status: frozenAttempts === 1 ? 1 : 0,
+              stdout: '',
+              stderr: frozenAttempts === 1 ? 'stale lock' : ''
+            })
+          }
+          return Promise.resolve({ status: 0, stdout: '', stderr: '' })
+        }
+      })
+
+      expect(result).toEqual({ ok: true })
+      expect(commands).toContainEqual(['progress', 'synchronize final bun.lock'])
+      expect(commands).toContainEqual(['bun', 'install', '--lockfile-only', '--ignore-scripts'])
+      expect(frozenAttempts).toBe(2)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 
   test('scoped gates отримують лише унікальні директорії зміненого коду', () => {
@@ -912,6 +1157,19 @@ describe('worktree validation', () => {
       ['npx', ['@7n/rules', 'lint', '--path', 'skills/git-reconcile', '--no-fix']],
       ['npx', ['@7n/rules', 'lint', 'changelog', '--no-fix']]
     ])
+  })
+
+  test('final gate повертає точний domain lint або changelog blocker', async () => {
+    await expect(validateFinalProjectGates(NPM_ROOT, finalGateSpawn('domain'))).resolves.toEqual({
+      ok: false,
+      error: 'domain lint (skills/git-reconcile): domain failed',
+      remediation: 'canonical-fixers'
+    })
+    await expect(validateFinalProjectGates(NPM_ROOT, finalGateSpawn('changelog'))).resolves.toEqual({
+      ok: false,
+      error: 'changelog gate: changelog failed',
+      remediation: 'canonical-fixers'
+    })
   })
 
   test('canonical remediation запускає scoped fix і changelog fix', async () => {
@@ -1359,6 +1617,144 @@ describe('runGitReconcileOrchestrator', () => {
 })
 
 describe('cleanupSource', () => {
+  test('cleanup worktree прибирає stale record і clean merged transient checkout, але зберігає dirty та unique', () => {
+    const calls = []
+    const merged = {
+      source: 'branch:refs/heads/merged',
+      ref: 'refs/heads/merged',
+      oid: 'merged-oid',
+      state: 'merged',
+      worktree: '/repo/.worktrees/merged'
+    }
+    const openPullRequest = {
+      source: 'branch:refs/heads/open-pr',
+      ref: 'refs/heads/open-pr',
+      oid: 'open-pr-oid',
+      state: 'open-pr',
+      worktree: '/repo/.worktrees/open-pr',
+      pr: { url: 'https://example.test/pr/7' }
+    }
+    const state = inventory({
+      base: 'origin/main',
+      branches: [merged, openPullRequest],
+      worktrees: [
+        {
+          path: '/private/tmp/stale',
+          head: 'stale',
+          prunable: true,
+          current: false,
+          locked: false,
+          protected: false,
+          dirty: null,
+          managed: false
+        },
+        {
+          path: '/repo/.worktrees/merged',
+          head: 'merged-oid',
+          branch: 'refs/heads/merged',
+          prunable: false,
+          current: false,
+          locked: false,
+          protected: false,
+          dirty: false,
+          managed: true
+        },
+        {
+          path: '/repo/.worktrees/dirty',
+          head: 'merged-oid',
+          branch: 'refs/heads/dirty',
+          prunable: false,
+          current: false,
+          locked: false,
+          protected: false,
+          dirty: true,
+          managed: true
+        },
+        {
+          path: '/repo/.worktrees/open-pr',
+          head: 'open-pr-oid',
+          branch: 'refs/heads/open-pr',
+          prunable: false,
+          current: false,
+          locked: false,
+          protected: false,
+          dirty: false,
+          managed: true
+        },
+        {
+          path: '/repo/.claude/worktrees/unique',
+          head: 'unique-oid',
+          branch: null,
+          prunable: false,
+          current: false,
+          locked: false,
+          protected: false,
+          dirty: false,
+          managed: true
+        }
+      ]
+    })
+
+    const outcomes = cleanupObsoleteWorktrees(state, '/repo', (command, args) => {
+      calls.push([command, args])
+      if (command === 'git' && args[0] === 'merge-base') {
+        return { status: args[2] === 'merged-oid' ? 0 : 1, stdout: '', stderr: '' }
+      }
+      return { status: 0, stdout: '', stderr: '' }
+    })
+
+    expect(outcomes).toEqual([
+      { path: '/private/tmp/stale', status: 'pruned' },
+      { path: '/repo/.worktrees/merged', status: 'removed' }
+    ])
+    expect(calls).toContainEqual(['git', ['worktree', 'prune']])
+    expect(calls).toContainEqual(['npx', ['@7n/mt', 'worktree', 'remove', 'merged']])
+    expect(calls).not.toContainEqual(['npx', ['@7n/mt', 'worktree', 'remove', 'open-pr']])
+    expect(calls).not.toContainEqual(['git', ['worktree', 'remove', '/repo/.claude/worktrees/unique']])
+    expect(merged.worktree).toBeNull()
+  })
+
+  test('cleanup fail-closed зберігає stale, warning-protected і failed transient worktree', () => {
+    const stale = {
+      path: '/private/tmp/stale',
+      head: 'stale',
+      prunable: true,
+      current: false,
+      locked: false,
+      protected: false,
+      dirty: null,
+      managed: false
+    }
+    expect(
+      cleanupObsoleteWorktrees(
+        inventory({ worktrees: [stale], warnings: ['GitHub inventory unavailable'] }),
+        '/repo',
+        () => ({ status: 1, stdout: '', stderr: 'prune failed' })
+      )
+    ).toEqual([{ path: stale.path, status: 'cleanup-failed', error: 'prune failed' }])
+
+    const detached = {
+      path: '/repo/.claude/worktrees/merged',
+      head: 'merged-oid',
+      branch: null,
+      prunable: false,
+      current: false,
+      locked: false,
+      protected: false,
+      dirty: false,
+      managed: true
+    }
+    expect(
+      cleanupObsoleteWorktrees(inventory({ worktrees: [detached], branches: [] }), '/repo', (_command, args) => {
+        if (args[0] === 'merge-base') return { status: 0, stdout: '', stderr: '' }
+        if (args[0] === 'worktree' && args[1] === 'remove') {
+          return { status: 1, stdout: '', stderr: 'remove failed' }
+        }
+        return { status: 0, stdout: '', stderr: '' }
+      })
+    ).toEqual([{ path: detached.path, status: 'cleanup-failed', error: 'remove failed' }])
+  })
+
   test('branch cleanup видаляє точні local і remote aliases без shell', () => {
     const calls = []
     const result = cleanupSource(
@@ -1379,7 +1775,9 @@ describe('cleanupSource', () => {
       removedRefs: ['refs/heads/feature/a', 'refs/remotes/origin/feature/a']
     })
     expect(calls).toEqual([
+      ['git', ['show-ref', '--verify', '--quiet', 'refs/heads/feature/a']],
       ['git', ['branch', '-D', 'feature/a']],
+      ['git', ['ls-remote', '--exit-code', '--heads', 'origin', 'feature/a']],
       ['git', ['push', 'origin', '--delete', 'feature/a']]
     ])
   })
@@ -1396,6 +1794,33 @@ describe('cleanupSource', () => {
 
     expect(result).toEqual({ status: 'removed', removedRefs: ['stash@{1}'] })
     expect(calls.at(-1)).toEqual(['git', ['stash', 'drop', 'stash@{1}']])
+  })
+
+  test('cleanupSource безпечно приймає вже відсутні refs і повертає command failure', () => {
+    expect(
+      cleanupSource({ source: 'stash:stash@{4}', oid: 'missing' }, '/repo', () => ({
+        status: 0,
+        stdout: '',
+        stderr: ''
+      }))
+    ).toEqual({ status: 'already-removed', removedRefs: [] })
+
+    expect(
+      cleanupSource(
+        {
+          source: REVIEW_BRANCH.source,
+          aliases: ['refs/heads/missing', 'refs/remotes/origin/missing']
+        },
+        '/repo',
+        () => ({ status: 1, stdout: '', stderr: '' })
+      )
+    ).toEqual({ status: 'removed', removedRefs: [] })
+
+    expect(
+      cleanupSource({ source: 'stash:stash@{4}', oid: 'broken' }, '/repo', () => {
+        throw new Error('Git unavailable')
+      })
+    ).toEqual({ status: 'cleanup-failed', error: 'Git unavailable' })
   })
 })
 
@@ -1415,9 +1840,16 @@ describe('report helpers', () => {
           { name: 'with-pr', state: 'open-pr', pr: { url: 'https://example.test/pr/2' } }
         ],
         stashes: [],
+        worktreeCleanup: [{ path: '/repo/.worktrees/stale', status: 'cleanup-failed', error: 'locked' }],
         warnings: ['gh недоступний']
       }),
-      results: []
+      results: [
+        {
+          source: 'branch:feature/a',
+          status: 'patch-equivalent',
+          cleanup: { status: 'removed', removedRefs: ['refs/heads/feature/a'] }
+        }
+      ]
     })
 
     expect(report).toContain('`merged`: merged')
@@ -1425,16 +1857,22 @@ describe('report helpers', () => {
     expect(report).toContain('/repo/.worktrees/protected')
     expect(report).toContain('https://example.test/pr/2')
     expect(report).toContain('gh недоступний')
+    expect(report).toContain('worktree `/repo/.worktrees/stale`: cleanup-failed — locked')
+    expect(report).toContain('refs=`refs/heads/feature/a`')
   })
 
-  test('PR checks розрізняють ready, baseline red, regression і pending', () => {
+  test('PR checks називають regression лише проти green base check', () => {
     expect(classifyPullRequestChecks([], []).status).toBe('pr-checks-unverified')
     expect(classifyPullRequestChecks([{ name: 'test', conclusion: 'SUCCESS' }], [])).toEqual({ status: 'ready' })
     expect(
       classifyPullRequestChecks([{ name: 'test', conclusion: 'FAILURE' }], [{ name: 'test', conclusion: 'FAILURE' }])
         .status
     ).toBe('pr-checks-baseline-red')
-    expect(classifyPullRequestChecks([{ name: 'test', conclusion: 'FAILURE' }], []).status).toBe('pr-checks-regressed')
+    expect(classifyPullRequestChecks([{ name: 'test', conclusion: 'FAILURE' }], []).status).toBe('pr-checks-unverified')
+    expect(
+      classifyPullRequestChecks([{ name: 'test', conclusion: 'FAILURE' }], [{ name: 'test', conclusion: 'SUCCESS' }])
+        .status
+    ).toBe('pr-checks-regressed')
     expect(classifyPullRequestChecks([{ name: 'test', status: 'IN_PROGRESS' }], []).status).toBe('pr-checks-unverified')
   })
 
