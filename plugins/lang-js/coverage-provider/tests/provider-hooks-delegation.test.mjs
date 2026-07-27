@@ -12,7 +12,9 @@ vi.mock('../fix/gen-stories.mjs', () => ({
   generateStories: vi.fn(() => Promise.resolve({ touchedFiles: ['/p/src/A.stories.js'] }))
 }))
 vi.mock('../fix/coverage-fix.mjs', () => ({
-  fixSurvivedMutants: vi.fn(() => Promise.resolve({ fixed: [], failed: [], touchedFiles: ['/p/tests/b.test.mjs'] }))
+  fixSurvivedMutants: vi.fn(() =>
+    Promise.resolve({ fixed: [], failed: [], touchedFiles: ['/p/tests/b.test.mjs'], mutationRefreshFiles: ['src/a.mjs'] })
+  )
 }))
 vi.mock('../fix/fix-tests.mjs', () => ({
   fixFailingTests: vi.fn(() => Promise.resolve({ count: 0, fixed: 0, remaining: 0, touchedFiles: [] }))
@@ -48,6 +50,7 @@ describe('fix-hooks провайдера — делегація у fix-моду�
   test('fixSurvived: прокидає ladder ctx-поля у fixSurvivedMutants', async () => {
     const res = await provider.fixSurvived({ cwd: '/p', survived: [{ file: 'a.js', mutants: [{}] }], ctx: CTX })
     expect(res.touchedFiles).toEqual(['/p/tests/b.test.mjs'])
+    expect(res.mutationRefreshFiles).toEqual(['src/a.mjs'])
     const { fixSurvivedMutants } = await import('../fix/coverage-fix.mjs')
     expect(fixSurvivedMutants).toHaveBeenCalledWith(
       [{ file: 'a.js', mutants: [{}] }],

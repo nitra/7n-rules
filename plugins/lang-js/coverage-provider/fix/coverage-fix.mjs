@@ -113,13 +113,13 @@ export function batchSurvived(survived, budget) {
  * @param {SurvivedFileGroup[]} survived вцілілі мутанти, згруповані по файлах
  * @param {string} projectRoot абсолютний шлях до кореня проєкту
  * @param {FixSurvivedOptions} [opts] ctx-поля ladder-а + інʼєкції для тестів
- * @returns {Promise<{fixed: string[], failed: {files: string[], error: string, diagnosis: object}[], deferred: object[], touchedFiles: string[], batches: object[]}>} фактично змінені test-файли, failed/deferred batch-и та діагностика
+ * @returns {Promise<{fixed: string[], failed: {files: string[], error: string, diagnosis: object}[], deferred: object[], touchedFiles: string[], mutationRefreshFiles: string[], batches: object[]}>} фактично змінені test-файли, source-файли для fresh canonical mutation re-detect, failed/deferred batch-и та діагностика
  */
 export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
   const totalMutants = survived.reduce((s, g) => s + g.mutants.length, 0)
   if (totalMutants === 0) {
     console.log('✓ Всі мутанти вбиті — доповнення тестів не потрібне')
-    return { fixed: [], failed: [], deferred: [], touchedFiles: [], batches: [] }
+    return { fixed: [], failed: [], deferred: [], touchedFiles: [], mutationRefreshFiles: [], batches: [] }
   }
 
   const runFix = await resolveRunFix(opts)
@@ -134,6 +134,9 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
   const failed = []
   const deferred = []
   const touchedFiles = []
+  // Accepted batch уже має cache-independent proof. Outer canonical detect мусить
+  // освіжити саме ці source-файли, а не повторно прийняти stale incremental result.
+  const mutationRefreshFiles = []
   const batchDiagnostics = []
   const maxBatches = opts.coverageTimeout?.survivedBatchesPerRung ?? batches.length
   for (const [i, batch] of batches.entries()) {
@@ -249,11 +252,12 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
     }
     fixed.push(...writtenTests)
     touchedFiles.push(...writtenTests)
+    mutationRefreshFiles.push(...files)
   }
 
   logCoverageSummary(failed, deferred, fixed, batches)
 
-  return { fixed, failed, deferred, touchedFiles, batches: batchDiagnostics }
+  return { fixed, failed, deferred, touchedFiles, mutationRefreshFiles: [...new Set(mutationRefreshFiles)], batches: batchDiagnostics }
 }
 
 /**
