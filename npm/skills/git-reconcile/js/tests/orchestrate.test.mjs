@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { env } from 'node:process'
 import { resolve } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 
 import { describe, expect, test } from 'vitest'
 
@@ -752,9 +753,7 @@ describe('progress і bounded concurrency', () => {
     })
     progress.step('slow', 'slow test')
     const running = runAsync(process.execPath, ['-e', 'setTimeout(() => {}, 100)'], process.cwd(), spawn)
-    await new Promise(resolvePromise => {
-      setTimeout(resolvePromise, 40)
-    })
+    await delay(40)
     expect(logs.some(line => line.startsWith('💓'))).toBe(true)
     await running
     progress.done('slow')

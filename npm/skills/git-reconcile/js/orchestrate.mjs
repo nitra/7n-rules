@@ -1,5 +1,6 @@
 /** @see ./docs/orchestrate.md */
 import { spawn, spawnSync } from 'node:child_process'
+import { once } from 'node:events'
 import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import { dirname, isAbsolute, join } from 'node:path'
 import { performance } from 'node:perf_hooks'
@@ -239,9 +240,13 @@ export async function runAsync(command, args, cwd, spawnFn, options = {}) {
         }, options.timeoutMs)
       : null
   timer?.unref?.()
-  const status = await new Promise(resolve => {
-    spawned.on('close', code => resolve(code ?? 1))
-  })
+  let status
+  try {
+    const [exitCode] = await once(spawned, 'close')
+    status = exitCode ?? 1
+  } catch {
+    status = 1
+  }
   if (timer) clearTimeout(timer)
   const normalized = {
     status,
@@ -261,7 +266,7 @@ export async function runAsync(command, args, cwd, spawnFn, options = {}) {
  * Production використовує non-blocking spawn, а існуючі sync test doubles
  * лишаються єдиним джерелом детермінованих результатів.
  * @param {CommandRunner} spawnFn sync runner
- * @param {CommandRunner|undefined} asyncSpawnFn явний async runner
+ * @param {CommandRunner|null|undefined} asyncSpawnFn явний async runner
  * @returns {CommandRunner} runner довгих команд
  */
 function resolveAsyncSpawn(spawnFn, asyncSpawnFn) {
@@ -1050,9 +1055,10 @@ export function changedNonCodeDirectories(cwd, spawnFn = spawnSync) {
  * @param {string} cwd worktree
  * @param {typeof spawnSync} spawnFn інжект
  * @param {(stage:string)=>void} [onProgress] stage callback
- * @returns {{ok:boolean,error?:string}} gate
+ * @param {CommandRunner|null} [asyncSpawnFn] async runner
+ * @returns {Promise<{ok:boolean,error?:string}>} gate
  */
-async function validateScopedProjectGates(cwd, spawnFn, onProgress = noop, asyncSpawnFn) {
+async function validateScopedProjectGates(cwd, spawnFn, onProgress = noop, asyncSpawnFn = null) {
   const longRunner = resolveAsyncSpawn(spawnFn, asyncSpawnFn)
   for (const path of changedSourceDirectories(cwd, spawnFn)) {
     onProgress(`doc-files (${path})`)
@@ -1088,14 +1094,15 @@ async function validateScopedProjectGates(cwd, spawnFn, onProgress = noop, async
  * @param {typeof spawnSync} spawnFn інжект
  * @param {{remediation?:string}} validation провалена validation
  * @param {(stage:string)=>void} [onProgress] stage callback
- * @returns {{attempted:boolean,ok:boolean,error?:string}} результат
+ * @param {CommandRunner|null} [asyncSpawnFn] async runner
+ * @returns {Promise<{attempted:boolean,ok:boolean,error?:string}>} результат
  */
 export async function remediateBehaviorState(
   cwd,
   spawnFn = spawnSync,
   validation = {},
   onProgress = noop,
-  asyncSpawnFn
+  asyncSpawnFn = null
 ) {
   if (validation.remediation !== 'canonical-fixers') return { attempted: false, ok: false }
 
@@ -1134,6 +1141,8 @@ export async function remediateBehaviorState(
  * Встановлює frozen Bun dependencies, якщо новий worktree їх ще не має.
  * @param {string} cwd worktree
  * @param {typeof spawnSync} spawnFn інжект
+ * @param {CommandRunner|undefined} asyncSpawnFn async runner
+ * @returns {Promise<void>} завершення install
  */
 async function ensureWorktreeDependencies(cwd, spawnFn, asyncSpawnFn) {
   if (!existsSync(join(cwd, 'package.json')) || !existsSync(join(cwd, 'bun.lock'))) return
@@ -1145,9 +1154,10 @@ async function ensureWorktreeDependencies(cwd, spawnFn, asyncSpawnFn) {
  * Фіксує test baseline на чистій policy base гілці до перенесення source.
  * @param {string} cwd worktree
  * @param {typeof spawnSync} spawnFn інжект
- * @returns {{tests:{status:number,stdout:string,stderr:string}|null}} baseline
+ * @param {CommandRunner|null} [asyncSpawnFn] async runner
+ * @returns {Promise<{tests:{status:number,stdout:string,stderr:string}|null}>} baseline
  */
-export async function captureBehaviorBaseline(cwd, spawnFn = spawnSync, asyncSpawnFn) {
+export async function captureBehaviorBaseline(cwd, spawnFn = spawnSync, asyncSpawnFn = null) {
   await ensureWorktreeDependencies(cwd, spawnFn, asyncSpawnFn)
   const packageJsonPath = join(cwd, 'package.json')
   if (!existsSync(packageJsonPath)) return { tests: null }
@@ -1164,9 +1174,10 @@ export async function captureBehaviorBaseline(cwd, spawnFn = spawnSync, asyncSpa
  * @param {string} cwd worktree
  * @param {Map<string,object>} cache кеш за OID бази
  * @param {typeof spawnSync} spawnFn інжект
- * @returns {{baseline:object,cached:boolean}} baseline і ознака cache hit
+ * @param {CommandRunner|null} [asyncSpawnFn] async runner
+ * @returns {Promise<{baseline:object,cached:boolean}>} baseline і ознака cache hit
  */
-export async function captureCachedBehaviorBaseline(cwd, cache, spawnFn = spawnSync, asyncSpawnFn) {
+export async function captureCachedBehaviorBaseline(cwd, cache, spawnFn = spawnSync, asyncSpawnFn = null) {
   await ensureWorktreeDependencies(cwd, spawnFn, asyncSpawnFn)
   const baseOid = git(['rev-parse', policyBaseRef(cwd)], cwd, spawnFn).stdout.trim()
   if (cache.has(baseOid)) return { baseline: await cache.get(baseOid), cached: true }
@@ -1189,14 +1200,15 @@ export async function captureCachedBehaviorBaseline(cwd, cache, spawnFn = spawnS
  * @param {typeof spawnSync} spawnFn інжект
  * @param {{tests:{status:number,stdout:string,stderr:string}|null}|null} [baseline] стан policy base гілки
  * @param {(stage:string)=>void} [onProgress] stage callback
- * @returns {{ok:boolean,error?:string}} validation
+ * @param {CommandRunner|null} [asyncSpawnFn] async runner
+ * @returns {Promise<{ok:boolean,error?:string}>} validation
  */
 export async function validateBehaviorState(
   cwd,
   spawnFn = spawnSync,
   baseline = null,
   onProgress = noop,
-  asyncSpawnFn
+  asyncSpawnFn = null
 ) {
   const gitState = validateGitState(cwd, spawnFn)
   if (!gitState.ok) return gitState
@@ -1242,9 +1254,10 @@ export async function validateBehaviorState(
  * manifests і правила. Code directories уже пройшли scoped lint і tests.
  * @param {string} cwd worktree
  * @param {typeof spawnSync} spawnFn інжект
- * @returns {{ok:boolean,error?:string}} gate
+ * @param {CommandRunner|null} [asyncSpawnFn] async runner
+ * @returns {Promise<{ok:boolean,error?:string}>} gate
  */
-export async function validateFinalProjectGates(cwd, spawnFn = spawnSync, asyncSpawnFn) {
+export async function validateFinalProjectGates(cwd, spawnFn = spawnSync, asyncSpawnFn = null) {
   const longRunner = resolveAsyncSpawn(spawnFn, asyncSpawnFn)
   for (const path of changedNonCodeDirectories(cwd, spawnFn)) {
     const lint = await runAsync('npx', ['@7n/rules', 'lint', '--path', path, '--no-fix'], cwd, longRunner, {
@@ -1385,7 +1398,7 @@ async function finalizeBehavior(args) {
 /**
  * Нормалізує GitHub check/status до стабільного імені та стану.
  * @param {object} check statusCheckRollup або check-run
- * @returns {{name:string,state:'success'|'failure'|'pending'}}
+ * @returns {{name:string,state:'success'|'failure'|'pending'}} нормалізований check
  */
 function normalizeGitHubCheck(check) {
   const name = check.name ?? check.context ?? check.workflowName ?? 'unnamed-check'
@@ -1404,7 +1417,7 @@ function normalizeGitHubCheck(check) {
  * failed check уже падає на base.
  * @param {object[]} prChecks PR statusCheckRollup
  * @param {object[]} baseChecks check-runs base commit
- * @returns {{status:'ready'|'pr-checks-regressed'|'pr-checks-baseline-red'|'pr-checks-unverified',error?:string}}
+ * @returns {{status:'ready'|'pr-checks-regressed'|'pr-checks-baseline-red'|'pr-checks-unverified',error?:string}} класифікація
  */
 export function classifyPullRequestChecks(prChecks, baseChecks) {
   const normalizedPr = prChecks.map(check => normalizeGitHubCheck(check))

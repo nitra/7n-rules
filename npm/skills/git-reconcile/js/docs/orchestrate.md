@@ -3,7 +3,7 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/skills/git-reconcile/js/orchestrate.mjs
 docgen:
-  crc: 71c57408
+  crc: e28dcd28
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
@@ -20,7 +20,7 @@ docgen:
 
 Для корисної групи JS створює ізольований worktree від policy base, застосовує commits або stash і відсікає порожній tree diff. `captureCachedBehaviorBaseline` кешує Promise baseline за base OID, щоб concurrent PR-групи не дублювали test run. `validateBehaviorState` перевіряє Git state, scoped docs/lint, tests відносно baseline і changelog. `remediateBehaviorState` запускає canonical fixers для code та non-code directories; після remediation final gates повторюються у read-only режимі.
 
-`runAsync` запускає install, tests, lint і PR checks без блокування event loop. Після push та `gh pr create` функція `verifyPullRequestReadiness` очікує terminal checks і передає PR/base rollups у `classifyPullRequestChecks`. Успішний outcome `pr-created` повертається лише для `ready`; regression, baseline-red, pending, timeout або unreadable checks зберігають branch, URL і worktree та блокують cleanup.
+`runAsync` запускає install, tests, lint і PR checks без блокування event loop. Після push та `gh pr create` функція `verifyPullRequestReadiness` очікує terminal checks і передає набори PR/base checks у `classifyPullRequestChecks`. Успішний outcome `pr-created` повертається лише для `ready`; regression, baseline-red, pending, timeout або unreadable checks зберігають branch, URL і worktree та блокують cleanup.
 
 `cleanupSource` видаляє лише точний доказово безпечний branch/stash. Cleanup review-source дозволений після `drop` або коли всі його групи завершились `pr-created` чи `patch-equivalent`; `failed` і всі `pr-checks-*` outcomes лишають source та forensic worktree.
 
