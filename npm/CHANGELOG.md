@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.25] - 2026-07-27
+
+### Fixed
+
+- Збережено --path scope у doc-files fixer
+
 ## [1.49.24] - 2026-07-27
 
 ### Changed
