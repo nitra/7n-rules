@@ -1,0 +1,16 @@
+---
+description: Generic-споживач ci.artifact@1 — CI-артефакти, які декларують активні мовні плагіни (required-file/patch-existing), матеріалізуються й перевіряються CI-плагіном провайдера
+version: '1.0'
+alwaysApply: false
+---
+
+Правило `ci_artifact` — generic-споживач slot-у `ci.artifact@1` (spec
+`2026-07-27-universal-plugin-slots-lang-php-extraction`). Мовні плагіни (напр.
+`@7n/rules-lang-php`) декларують CI-артефакти декларативно — descriptor + template; це правило
+матеріалізує їх для свого CI-провайдера: перевіряє наявність/канонічність цільових файлів
+(`required-file`), домерджує provider-specific патчі до чинних generic-артефактів
+(`patch-existing`) і, де дозволено descriptor-ом (`fix: true`), виконує детермінований T0-фікс.
+
+Правило активне завжди при встановленому CI-плагіні: без активних contributions воно — тихий
+no-op (zero-touch), тому мовний плагін не потребує CI-плагіна і навпаки. Колізія `artifactId`
+між двома плагінами — помилка з provenance обох сторін, без тихого перезапису.

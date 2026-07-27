@@ -697,3 +697,19 @@ versioning, rollout і PHP ownership ухвалені цією специфік�
    домішується — це очікувано, а не регресія.
 7. **`tooling` glob.** Концерн `tooling` правила `php` лінтує зокрема
    `.github/workflows/lint-php.yml`; зафіксовано у 6.1, що glob переїжджає як є.
+
+**2026-07-27 — знахідки parity battery (Фаза 5), рішення дозакріплені:**
+
+8. **Активація generic-правила `ci_artifact`.** Старі PHP CI-концерни були mixin-ами до
+   авто-активного правила `php`; новий generic consumer — окреме правило, і без власного
+   `main.json` він ніколи не активувався б (мовчазна втрата enforcement). Рішення: обидва
+   CI-плагіни шиплять `ci_artifact/main.json` з `auto: "завжди"` — без активних contributions
+   правило є тихим no-op, тож zero-touch (рішення Ї) зберігається.
+9. **Простір імен концернів спільний для однакового rule id з різних плагінів.** Обидва
+   CI-плагіни шиплять правило `ci_artifact`; однойменний концерн `consume` колідував
+   (перший плагін вигравав, Azure-перевірки мовчки не виконувались). Рішення: provider-distinct
+   імена концернів (`consume` у GitHub, `consume_azure` в Azure) — за чинною конвенцією
+   `lint_docker_yml`/`lint_pipeline_docker`.
+10. **`fix: false` descriptor-а потребує `fixability: "config"` у concern.json.** Дефолтна
+    fixability `code` дозволяла LLM-ladder мутувати `azure-pipelines.yml` всупереч
+    `fix: false` payload-а. Зафіксовано: Azure generic concern — `fixability: "config"`.
