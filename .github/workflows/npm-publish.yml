@@ -265,6 +265,14 @@ jobs:
         with:
           package-json-path: plugins/lang-js/package.json
 
+      - name: Publish @7n/rules-lang-php
+        if: contains(fromJSON(steps.release.outputs.workspaces), 'plugins/lang-php')
+        id: publish-lang-php
+        continue-on-error: true
+        uses: ./.github/actions/publish-npm-package
+        with:
+          package-json-path: plugins/lang-php/package.json
+
       # Агрегує outcome усіх publish-кроків через steps-контекст (JSON), а не переліком
       # id вручну — новий пакет (крок з id, що починається на "publish-") автоматично
       # враховується тут і в push/fail-gate нижче, без правок цієї умови.

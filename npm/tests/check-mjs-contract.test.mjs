@@ -87,6 +87,8 @@ describe('concern contract — усі правила', () => {
       .toSorted((a, b) => a.localeCompare(b))
     expect(owners).toEqual([
       'ci-azure/azure-pipelines',
+      'ci-azure/ci_artifact',
+      'ci-github/ci_artifact',
       'ci-github/ga',
       'lang-js/bun',
       'lang-js/js',
