@@ -31,7 +31,8 @@ LLM отримує лише bounded-завдання:
 
 1. semantic triage кандидатів, які JS не може оцінити за Git-фактами;
 2. розв'язання змістових конфліктів і перевірку перенесеної поведінки у вже
-   підготовленому worktree.
+   підготовленому worktree;
+3. бізнесовий та архітектурний опис PR за bounded-фактами фінального diff.
 
 LLM не видаляє refs, не створює worktree, не push-ить і не відкриває PR.
 LLM виконує лише narrow tests, потрібні під час правок; full repository tests,
@@ -55,6 +56,8 @@ heartbeat з elapsed time. Формат однаковий у TTY/CI, тому c
 
 - triage — повноту verdicts, schema, groups і commit OID;
 - worktree — відсутність conflict markers та `git diff --check`;
+- PR description — JSON schema, evidence paths із реального diff і перевагу
+  business/architecture змісту над behavior/risk details;
 - поведінку — repository test script відносно test baseline чистої
   `origin/<baseBranch>` і changelog gate. Red baseline приймається лише для
   розпізнаних Vitest failures, якщо після перенесення не додалось нових.
@@ -91,6 +94,13 @@ transport. Після провалу `max` джерело fail-closed лишає
 - Перед push обов'язково проходять фінальний tree-diff guard, domain lint для
   non-code paths, changelog і `git diff --check`; code changes додатково
   проходять scoped docs/lint та tests.
+- Перед push JS передає min-моделі bounded final diff, commit metadata,
+  triage rationale і behavioral verification. Модель повертає лише validated
+  JSON, а JS рендерить PR body із видимими секціями «Навіщо»,
+  «Бізнес-результат», «Архітектура», «Поведінка» та «Ризики та сумісність»;
+  source і evidence paths лишаються у collapsed technical details.
+- Невалідний PR description повторюється на max; повторний провал fail-closed
+  зберігає worktree і не push-ить гілку з misleading описом.
 - Canonical fixers охоплюють code і non-code directories; після механічного
   виправлення фінальні gates обов'язково запускаються повторно без fix.
 - Behavioral LLM не викликається для змін без code paths; test baseline
