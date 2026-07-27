@@ -25,6 +25,7 @@ const REF_HEADS_RE = /^refs\/heads\//
 const REF_ORIGIN_RE = /^refs\/remotes\/origin\//
 const RENAME_DELETE_CONFLICT_RE = /^CONFLICT \(rename\/delete\): .+? renamed to (.+?) in .+?, but deleted/
 const SOURCE_CODE_RE = /\.(?:js|mjs|ts|vue|rs|py)$/
+const CHANGE_ENTRY_RE = /(^|\/)\.changes\/[^/]+\.md$/
 const WHITESPACE_RE = /\s+/
 const ACP_PROGRESS_ENV = 'N_LLM_ACP_PROGRESS'
 const REF_INVENTORY_FORMAT = ['%(refname)', '%00', '%(object', 'name)', '%00', '%(committer', 'date:iso-strict)'].join(
@@ -1009,6 +1010,16 @@ export function sourceDirectories(paths) {
 }
 
 /**
+ * Визначає технічний залишок, який містить лише release entries. Такі файли
+ * не доводять окремої корисної поведінки й не мають породжувати PR.
+ * @param {string[]} paths змінені шляхи відносно policy base
+ * @returns {boolean} чи всі зміни лежать безпосередньо у `.changes/`
+ */
+export function hasOnlyChangeEntries(paths) {
+  return paths.length > 0 && paths.every(path => CHANGE_ENTRY_RE.test(path))
+}
+
+/**
  * Збирає tracked і untracked code directories відносно policy base ref.
  * @param {string} cwd worktree
  * @param {typeof spawnSync} spawnFn інжект
@@ -1020,6 +1031,40 @@ function changedPaths(cwd, spawnFn) {
     .filter(Boolean)
   const untracked = git(['ls-files', '--others', '--exclude-standard'], cwd, spawnFn).stdout.split('\n').filter(Boolean)
   return [...new Set([...tracked, ...untracked])]
+}
+
+/**
+ * @param {string} cwd worktree
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {boolean} чи tree diff складається лише з release entries
+ */
+function hasOnlyChangeEntriesFromBase(cwd, spawnFn) {
+  return hasOnlyChangeEntries(changedPaths(cwd, spawnFn))
+}
+
+/**
+ * Прибирає no-op або change-only worktree до дорогих behavioral/CI gates.
+ * @param {object} args контекст materialized worktree
+ * @returns {{status:string,branch:string,rationale?:string}|null} terminal outcome
+ */
+function discardPatchEquivalentWorktree(args) {
+  const { worktree, rootCwd, spawnFn, onProgress, validated = false } = args
+  if (!hasChangesFromBase(worktree.cwd, spawnFn)) {
+    onProgress('remove no-op worktree')
+    removeReconcileWorktree(worktree, rootCwd, spawnFn)
+    return { status: 'patch-equivalent', branch: worktree.branch }
+  }
+  if (!hasOnlyChangeEntriesFromBase(worktree.cwd, spawnFn)) return null
+
+  onProgress('remove change-only worktree')
+  removeReconcileWorktree(worktree, rootCwd, spawnFn)
+  return {
+    status: 'patch-equivalent',
+    branch: worktree.branch,
+    rationale: validated
+      ? 'Після Git validation лишилися тільки release entries у .changes/'
+      : 'Після перенесення лишилися тільки release entries у .changes/'
+  }
 }
 
 /**
@@ -1635,11 +1680,8 @@ async function createPullRequest(args) {
       log,
       onProgress
     })
-    if (!hasChangesFromBase(worktree.cwd, spawnFn)) {
-      onProgress('remove no-op worktree')
-      removeReconcileWorktree(worktree, rootCwd, spawnFn)
-      return { status: 'patch-equivalent', branch: worktree.branch }
-    }
+    const appliedOutcome = discardPatchEquivalentWorktree({ worktree, rootCwd, spawnFn, onProgress })
+    if (appliedOutcome) return appliedOutcome
     const verification =
       changedSourceDirectories(worktree.cwd, spawnFn).length > 0
         ? await finalizeBehavior({
@@ -1659,11 +1701,14 @@ async function createPullRequest(args) {
     if (unresolved.length > 0) throw new Error(`Нерозв'язані конфлікти: ${unresolved.join(', ')}`)
     git(['diff', '--check'], worktree.cwd, spawnFn)
     git(['add', '-A'], worktree.cwd, spawnFn)
-    if (!hasChangesFromBase(worktree.cwd, spawnFn)) {
-      onProgress('remove no-op worktree')
-      removeReconcileWorktree(worktree, rootCwd, spawnFn)
-      return { status: 'patch-equivalent', branch: worktree.branch }
-    }
+    const validatedOutcome = discardPatchEquivalentWorktree({
+      worktree,
+      rootCwd,
+      spawnFn,
+      onProgress,
+      validated: true
+    })
+    if (validatedOutcome) return validatedOutcome
     onProgress('delta lint')
     const finalGates = await passFinalProjectGates({
       cwd: worktree.cwd,

@@ -30,6 +30,7 @@ import {
   formatOutcomeCounts,
   formatReport,
   hasChangesFromBase,
+  hasOnlyChangeEntries,
   normalizePrConcurrency,
   parseDecisionEnvelope,
   parseWorktrees,
@@ -540,6 +541,12 @@ describe('triage validation', () => {
 })
 
 describe('worktree validation', () => {
+  test('change-only diff не породжує PR', () => {
+    expect(hasOnlyChangeEntries(['owner/.changes/260713-0931.md', 'app/.changes/260715-1655.md'])).toBe(true)
+    expect(hasOnlyChangeEntries(['owner/.changes/260713-0931.md', 'owner/src/lib.rs'])).toBe(false)
+    expect(hasOnlyChangeEntries([])).toBe(false)
+  })
+
   test('scoped gates отримують лише унікальні директорії зміненого коду', () => {
     expect(
       sourceDirectories([

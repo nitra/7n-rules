@@ -3,7 +3,7 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/skills/git-reconcile/js/orchestrate.mjs
 docgen:
-  crc: 59ea7f47
+  crc: 69749e90
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
@@ -24,6 +24,8 @@ docgen:
 
 `commitPendingChanges` створює додатковий commit лише для staged remediation. Чистий index після перенесення branch-source є валідним, коли корисні commits уже присутні в `HEAD`. Порожній PR check rollup вважається непідтвердженим, а не успішним.
 
+`hasOnlyChangeEntries` відсікає tree diff, у якому лишилися тільки `*/.changes/*.md`: такий результат вважається `patch-equivalent`, не створює PR і дозволяє cleanup source branch.
+
 `pruneForensicDependencies` прибирає лише rebuildable `node_modules` зі збереженого forensic worktree. `cleanupSource` видаляє лише точний доказово безпечний branch/stash. Cleanup review-source дозволений після `drop` або коли всі його групи завершились `pr-created` чи `patch-equivalent`; `failed` і всі `pr-checks-*` outcomes лишають source та forensic worktree.
 
 ## Публічний API
@@ -36,6 +38,7 @@ docgen:
 - `captureBehaviorBaseline`, `captureCachedBehaviorBaseline` — фіксують і кешують test baseline.
 - `validateBehaviorState`, `validateFinalProjectGates`, `remediateBehaviorState` — виконують behavioral та canonical gates.
 - `commitPendingChanges` — комітить лише staged remediation, не вимагаючи порожнього commit для вже перенесених commits.
+- `hasOnlyChangeEntries` — розпізнає release-metadata-only diff, який не потребує PR.
 - `pruneForensicDependencies` — звільняє rebuildable dependencies без втрати Git evidence.
 - `classifyPullRequestChecks`, `verifyPullRequestReadiness` — класифікують CI відносно base commit.
 - `formatOutcomeCounts`, `formatReport` — формують точний deterministic summary.
@@ -49,6 +52,7 @@ docgen:
 - PR вважається створеним успішно лише після terminal green checks.
 - Порожній PR check rollup fail-closed зберігає forensic worktree.
 - Forensic worktree зберігає Git evidence без накопичення `node_modules`.
+- Diff лише з `.changes` не створює PR і не блокує cleanup source branch.
 - CI regression, baseline-red або непідтверджений стан завершують orchestration non-zero і зберігають forensic refs/worktree.
 - Cleanup не видаляє protected, open-PR, kept, failed або `pr-checks-*` sources.
 - `spawnSync.error`, зокрема `ENOENT`, зберігається в command diagnostics.
