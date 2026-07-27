@@ -9,9 +9,10 @@
  * @typedef {import('../concern-meta.mjs').ConcernMeta} ConcernMeta
  * @typedef {{ ruleId: string, concern: ConcernMeta }} LintEntry
  */
+import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { env } from 'node:process'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import picomatch from 'picomatch'
 
@@ -122,6 +123,46 @@ async function filterByCapabilities(byRule, opts) {
   for (const [ruleId, concerns] of Object.entries(byRule)) {
     const kept = concerns.filter(c => c.requiresCapability === undefined || caps.has(c.requiresCapability))
     if (kept.length > 0) out[ruleId] = kept
+  }
+  return out
+}
+
+/**
+ * Застосовує опційний rule-level gate з `<rule>/applies/main.mjs` до всіх
+ * concern-ів правила. Це потрібно для доменних правил, чий канон має сенс
+ * лише за наявності конкретної topology в репозиторії: один gate не дає
+ * policy- й JS-concern-ам розійтися у власних евристиках застосовності.
+ *
+ * @param {Record<string, ConcernMeta[]>} byRule concerns за rule-id.
+ * @param {string} cwd корінь репозиторію, який лінтиться.
+ * @returns {Promise<Record<string, ConcernMeta[]>>} лише застосовні правила.
+ */
+async function filterByRuleApplies(byRule, cwd) {
+  /** @type {Record<string, ConcernMeta[]>} */
+  const out = {}
+  for (const [ruleId, concerns] of Object.entries(byRule)) {
+    const firstConcern = concerns[0]
+    if (!firstConcern) continue
+    const appliesPath = join(dirname(firstConcern.dir), 'applies', 'main.mjs')
+    if (!existsSync(appliesPath)) {
+      out[ruleId] = concerns
+      continue
+    }
+    let applies
+    try {
+      const mod = await import(pathToFileURL(appliesPath).href)
+      applies = mod.applies
+    } catch (error) {
+      throw new Error(`rule ${ruleId}: не вдалося завантажити applies gate: ${error.message}`)
+    }
+    if (applies === undefined) {
+      out[ruleId] = concerns
+      continue
+    }
+    if (typeof applies !== 'function') {
+      throw new Error(`rule ${ruleId}: applies/main.mjs має експортувати applies(cwd)`)
+    }
+    if (await applies(cwd)) out[ruleId] = concerns
   }
   return out
 }
@@ -267,7 +308,8 @@ export async function buildDetectPlan(opts) {
  */
 export async function loadEnabledLintRules(opts) {
   const rulesDirs = await effectiveRulesDirs(opts)
-  const byRule = await filterByCapabilities(await readLintConcernsByRuleMulti(rulesDirs), opts)
+  const capable = await filterByCapabilities(await readLintConcernsByRuleMulti(rulesDirs), opts)
+  const byRule = await filterByRuleApplies(capable, opts.cwd)
   const enabledSet = new Set(await enabledRuleIds(byRule, opts.cwd, rulesDirs))
   return { byRule, enabledSet }
 }
@@ -618,7 +660,8 @@ export async function detectAll(opts) {
   const baseLog = opts.log ?? (s => process.stdout.write(s))
 
   const rulesDirs = await effectiveRulesDirs(opts)
-  const byRule = await filterByCapabilities(await readLintConcernsByRuleMulti(rulesDirs), opts)
+  const capable = await filterByCapabilities(await readLintConcernsByRuleMulti(rulesDirs), opts)
+  const byRule = await filterByRuleApplies(capable, cwd)
   const plan = await buildPlan({
     byRule,
     full,
