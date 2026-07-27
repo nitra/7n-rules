@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.26] - 2026-07-27
+
+### Fixed
+
+- gate incompatible plugin API version and pin first-party plugin installs to a compatible semver range
+
 ## [1.49.25] - 2026-07-27
 
 ### Fixed
