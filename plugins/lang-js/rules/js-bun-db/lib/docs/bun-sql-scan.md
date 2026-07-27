@@ -3,9 +3,9 @@ type: JS Module
 title: bun-sql-scan.mjs
 resource: plugins/lang-js/rules/js-bun-db/lib/bun-sql-scan.mjs
 docgen:
-  crc: 033da74d
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
+  crc: 9b920f97
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
   score: 100
   issues: judge-refine:kept-original,judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini
@@ -13,21 +13,23 @@ docgen:
 
 ## Огляд
 
-Сканер аналізує AST у JS/TS-файлах через `oxc-parser` і шукає конкретні небезпечні патерни для `import { sql, SQL } from 'bun'`: `new SQL` всередині функції, виклики `sql.unsafe` без маркера `// n-rules:allow-unsafe: <reason>`, а також динамічні списки в tagged template, де потрібне `sql`, а не готовий SQL-фрагмент. Окремо враховуються винятки для `pg` і `LISTEN/NOTIFY`, щоб дозволені сценарії не маскували справжні ризики. Якщо файл не парситься або містить синтаксичні помилки, перевірка повертає порожній результат.
+AST-сканер для Bun SQL (`import { sql, SQL } from 'bun'`) знаходить міграційно небезпечні патерни через `oxc-parser`, без regex по тексту коду. Він виявляє `new SQL` всередині функції, бо пул підключень має бути module-level singleton, а не створюватися на кожен виклик handler-а.
+
+Сканер забороняє будь-який `<obj>.unsafe` без маркера `// n-rules:allow-unsafe: <reason>` на тому ж або попередньому рядку. Виняток має бути явно пояснений для ревʼю: `unsafe` допустимий лише для контрольованих кодом SQL-ідентифікаторів або dynamic SQL/DDL, а не для user input.
+
+Також сканер знаходить залишки `pg`, небезпечні SQL-списки на кшталт `arr.join` у tagged template, випадки без `sql`, JSONB-серіалізацію та масиви без явного pg-типу. Якщо файл не парситься або має syntax errors, результат порожній: спочатку треба виправити синтаксис і повторити перевірку.
 
 ## Поведінка
 
-Скан запускається лише для JS/TS-файлів, придатних для AST-проходу, і лише там, де є Bun SQL-імпорт; якщо джерело не парситься або має синтаксичну помилку, перевірка нічого не повертає, щоб не маскувати проблему коду.
+Сканування починається з відбору файлів через isBunSqlScanSourceFile або дешевих текстових pre-filterʼів на кшталт textHasPgLibImport. Далі публічні пошукові функції отримують вихідний текст, будують AST і повертають списки знахідок із рядком та фрагментом коду; якщо код не парситься, результат порожній, бо синтаксис має бути виправлений до повторної перевірки.
 
-findPgLibImportInText і textHasPgLibImport дають дешевий і точний сигнал, що файл уже використовує `pg`, а findPgListenNotifyUsageInText окремо відсіює випадки, де PostgreSQL потрібен як виняток через LISTEN/NOTIFY.
+findBunSqlPerRequestConnectionInText, findBunSqlUnsafeUseWithoutAllowMarkerInText, findBunSqlUnsafeWithInterpolatedTemplateInText, findBunSqlPgLeftoverCallInText, findUnsafeBunSqlDynamicSqlListInText, findUnsafeBunSqlInListMissingEmptyGuardInText, findJsonStringifyBeforeJsonbInText і findSqlArrayWithoutTypeArgInText разом формують перевірки міграції на Bun SQL: вони ловлять створення пулу в runtime-шляху, небезпечний dynamic SQL, залишки pg-поведінки, некоректні списки, зайву JSON-серіалізацію та масиви без явного pg-типу. Маркери дозволу враховуються лише як локальний opt-in для ревʼю і повідомлень правила (js-bun-db.mdc), але не скасовують заборону на інтерпольовані unsafe-шаблони.
 
-findPgFormatShimDefinitionInText та findPgFormatLikeQueryWrapperInText шукають сумісні з `pg` шими й обгортки, які можуть приховувати небезпечний SQL-потік під безпечними назвами; такі знахідки потрібні, щоб міграція на Bun SQL не залишала старі поверхні інʼєкції непоміченими.
+findPgFormatShimDefinitionInText і findPgFormatLikeQueryWrapperInText працюють як додатковий шар проти маскування старих pg-підходів: вони знаходять сумісні з pg-format шими та query-обгортки, які повертають injection-поверхню під безпечними назвами.
 
-findBunSqlPerRequestConnectionInText, findBunSqlUnsafeUseWithoutAllowMarkerInText і findBunSqlUnsafeWithInterpolatedTemplateInText працюють як основний захист: перша ловить створення SQL-пулу в межах обробника замість singleton на рівні модуля, друга вимагає явного маркера для кожного unsafe-виклику, а третя блокує вставку інтерполяції в unsafe навіть із маркером, бо це все ще структурно небезпечно. Маркери повідомлень у (js-bun-db.mdc) використовуються як opt-in і завжди мають стояти безпосередньо біля виклику.
+findPgLibImportInText деталізує місця імпорту pg після текстового сигналу від textHasPgLibImport, а findPgListenNotifyUsageInText позначає випадки LISTEN/NOTIFY як причину, чому pg може лишатися свідомим винятком під час міграції.
 
-findBunSqlPgLeftoverCallInText відсікає зайві `connect`/`end` у файлах із Bun SQL-імпортом, а findUnsafeBunSqlDynamicSqlListInText та findUnsafeBunSqlInListMissingEmptyGuardInText охороняють шаблонні списки: перша не дає пропустити `join` усередині SQL-списків, друга вимагає винести `IN`-значення в змінну й поставити guard на порожній список перед запитом.
-
-findJsonStringifyBeforeJsonbInText і findSqlArrayWithoutTypeArgInText ловлять ще два небезпечні переходи між JS і SQL: подвійне JSON-serializing перед `::jsonb` та масиви без вказаного елементарного типу, які ламають очікуваний pg-тип і дають неправильний запит.
+Усі результати залишаються в памʼяті та повертаються викликачеві для lint-повідомлень; файл не записує зміни у ФС чи БД.
 
 ## Публічний API
 
