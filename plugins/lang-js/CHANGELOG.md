@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.22.15] - 2026-07-27
+
+### Fixed
+
+- Обмежено npm-module репозиторіями з npm publisher topology
+
 ## [0.22.14] - 2026-07-27
 
 ### Fixed
