@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.11.0] - 2026-07-27
+
+### Added
+
+- `submitBatch` тепер обирає між клієнтською емуляцією і справжнім `/v1/batches` litellm batch-adapter-а (`backend: 'auto'|'emulated'|'openai-batches'`) — автоматично вмикається, коли резолвлений провайдер `litellm` і адаптер відповідає на capability-пробу.
+
 ## [2.10.1] - 2026-07-27
 
 ### Fixed
