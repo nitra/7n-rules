@@ -12,7 +12,7 @@ import {
   scanForDocFiles,
   scanOrphanedDocs
 } from '../main.mjs'
-import { crc32, documentationCrc, stampDoc } from '../../docgen-crc/main.mjs'
+import { documentationCrc, stampDoc } from '../../docgen-crc/main.mjs'
 import { buildTestEvidenceIndex } from '../../docgen-test-context/main.mjs'
 
 // Root монорепо: всі lang-плагіни активні у .n-rules.json (js/rust/python).
@@ -84,7 +84,7 @@ describe('scanForDocFiles (CRC staleness)', () => {
       await writeFile(join(root, 'src', 'foo.js'), 'export const a = 1\n')
       await writeFile(
         join(root, 'src', 'docs', 'foo.md'),
-        stampDoc('## Огляд\n', 'src/foo.js', crc32('export const a = 1\n'))
+        stampDoc('## Огляд\n', 'src/foo.js', documentationCrc(join(root, 'src', 'foo.js')))
       )
 
       expect(describeFile(root, 'src/foo.js')).toMatchObject({ stale: false, reason: null })
@@ -147,7 +147,10 @@ describe('scanForDocFiles (CRC staleness)', () => {
       const body = 'export const a = 1\n'
       await ensureDir(join(root, 'src', 'docs'))
       await writeFile(join(root, 'src', 'foo.js'), body)
-      await writeFile(join(root, 'src', 'docs', 'foo.md'), stampDoc('## Огляд\n', 'src/foo.js', crc32(body)))
+      await writeFile(
+        join(root, 'src', 'docs', 'foo.md'),
+        stampDoc('## Огляд\n', 'src/foo.js', documentationCrc(join(root, 'src', 'foo.js')))
+      )
 
       expect(describeFile(root, 'src/foo.js')).toMatchObject({ stale: false, foreign: false })
     })
@@ -187,7 +190,10 @@ describe('scanOrphanedDocs', () => {
       const body = 'export const a = 1\n'
       await ensureDir(join(root, 'src', 'docs'))
       await writeFile(join(root, 'src', 'a.mjs'), body)
-      await writeFile(join(root, 'src', 'docs', 'a.md'), stampDoc('## Огляд\n\nтест\n', 'src/a.mjs', crc32(body)))
+      await writeFile(
+        join(root, 'src', 'docs', 'a.md'),
+        stampDoc('## Огляд\n\nтест\n', 'src/a.mjs', documentationCrc(join(root, 'src', 'a.mjs')))
+      )
       expect(scanOrphanedDocs(root)).toEqual([])
     })
   })

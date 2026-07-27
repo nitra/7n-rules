@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
 import { withTmpDir, ensureDir, installFakeLangJsPlugin } from '../../../scripts/utils/test-helpers.mjs'
-import { crc32, documentationCrc, stampDoc } from '../docgen-crc/main.mjs'
+import { documentationCrc, stampDoc } from '../docgen-crc/main.mjs'
 import { buildTestEvidenceIndex } from '../docgen-test-context/main.mjs'
 
 import { lint } from '../check/main.mjs'
@@ -28,7 +28,7 @@ async function writeSourceWithFreshDoc(root, rel, body) {
   await writeFile(join(root, rel), body)
   const docRel = join(rel, '..', 'docs', `${rel.split('/').at(-1).replace(EXT_RE, '')}.md`)
   await ensureDir(join(root, docRel, '..'))
-  await writeFile(join(root, docRel), stampDoc('# x\n\n## Огляд\n\nтест\n', rel, crc32(Buffer.from(body))))
+  await writeFile(join(root, docRel), stampDoc('# x\n\n## Огляд\n\nтест\n', rel, documentationCrc(join(root, rel))))
 }
 
 describe('lint — детект (read-only detector)', () => {

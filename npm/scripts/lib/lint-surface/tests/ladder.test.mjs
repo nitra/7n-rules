@@ -17,15 +17,15 @@ afterEach(() => {
 })
 
 describe('buildLadder — per-tier таймаути (ADR 260620-0556)', () => {
-  test('дефолти без env: local 45s, cloud-min 120s, cloud-avg 180s', async () => {
+  test('дефолти без env: local 90s, cloud-min 120s, cloud-avg 180s', async () => {
     vi.stubEnv('N_LOCAL_FIX_TIMEOUT_MS', '')
     vi.stubEnv('N_CLOUD_FIX_TIMEOUT_MS', '')
     vi.stubEnv('N_CLOUD_AVG_FIX_TIMEOUT_MS', '')
     const { buildLadder } = await freshLadder()
     const ladder = buildLadder({ localMin: 'l/min', cloudMin: 'c/min', cloudAvg: 'c/avg' })
     expect(ladder.map(r => [r.tier, r.timeoutMs])).toEqual([
-      ['local-min', 45_000],
-      ['local-min-retry', 45_000],
+      ['local-min', 90_000],
+      ['local-min-retry', 90_000],
       ['cloud-min', 120_000],
       ['cloud-avg', 180_000]
     ])

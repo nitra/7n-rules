@@ -80,6 +80,28 @@ describe('buildTestEvidenceIndex', () => {
       expect(testEvidenceForSource(helper, index).files).toEqual([])
     })
   })
+
+  test('витягує inline Rust #[test] як сценарії без окремого AST', async () => {
+    await withTmpDir(async root => {
+      const source = join(root, 'src', 'tiers.rs')
+      await ensureDir(join(root, 'src'))
+      await writeFile(
+        source,
+        '#[cfg(test)]\nmod tests {\n  #[test]\n  fn min_falls_back_to_cloud() {}\n  #[tokio::test]\n  async fn async_path_is_supported() {}\n}\n'
+      )
+
+      const evidence = testEvidenceForSource(source, buildTestEvidenceIndex(root))
+      expect(evidence.files).toEqual([
+        {
+          path: 'src/tiers.rs',
+          groups: [],
+          scenarios: ['min falls back to cloud', 'async path is supported'],
+          inline: true
+        }
+      ])
+      expect(evidence.crcPayload).toBe('')
+    })
+  })
 })
 
 describe('renderTestScenarios', () => {
@@ -93,6 +115,12 @@ describe('renderTestScenarios', () => {
     const scenarios = ['один', 'два', 'три', 'чотири', 'пʼять', 'шість', 'сім']
     expect(renderTestScenarios([{ path: 'src/tests/math.test.mjs', scenarios }])).toBe(
       '- `src/tests/math.test.mjs` — один; два; три; чотири; пʼять; ще 2'
+    )
+  })
+
+  test('не переносить у документацію службові посилання на номери рядків із test title', () => {
+    expect(renderTestScenarios([{ path: 'src/tests/math.test.mjs', scenarios: ['додає два числа (lines 12-14)'] }])).toBe(
+      '- `src/tests/math.test.mjs` — додає два числа'
     )
   })
 

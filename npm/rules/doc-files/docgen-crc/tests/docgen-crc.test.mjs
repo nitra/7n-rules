@@ -5,8 +5,10 @@ import { writeFile } from 'node:fs/promises'
 import { withTmpDir, ensureDir } from '../../../../scripts/utils/test-helpers.mjs'
 import {
   QUALITY_THRESHOLD,
+  DOCGEN_RENDER_REVISION,
   buildDocFrontmatter,
   crc32,
+  documentationCrc,
   parseDocFrontmatter,
   readDocCrc,
   readDocModel,
@@ -194,10 +196,27 @@ describe('readDocCrc / staleness', () => {
 
       expect(staleness(src, doc)).toEqual({ stale: true, reason: 'missing' })
 
-      await writeFile(doc, stampDoc('## Огляд\n', 'foo.js', crc32('export const a = 1\n')))
+      await writeFile(doc, stampDoc('## Огляд\n', 'foo.js', documentationCrc(src)))
       expect(staleness(src, doc)).toEqual({ stale: false, reason: null })
 
       await writeFile(src, 'export const a = 2\n')
+      expect(staleness(src, doc)).toEqual({ stale: true, reason: 'crc-mismatch' })
+    })
+  })
+
+  test('зміна revision рендеру робить доку stale без зміни source', async () => {
+    await withTmpDir(async root => {
+      await ensureDir(join(root, 'docs'))
+      const src = join(root, 'foo.js')
+      const doc = join(root, 'docs', 'foo.md')
+      await writeFile(src, 'export const a = 1\n')
+
+      const oldCrc = documentationCrc(src, null, '1')
+      const currentCrc = documentationCrc(src)
+      expect(DOCGEN_RENDER_REVISION).toBe('2')
+      expect(currentCrc).not.toBe(oldCrc)
+
+      await writeFile(doc, stampDoc('## Огляд\n', 'foo.js', oldCrc))
       expect(staleness(src, doc)).toEqual({ stale: true, reason: 'crc-mismatch' })
     })
   })
