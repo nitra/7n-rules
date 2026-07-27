@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.10.0] - 2026-07-27
+
+### Added
+
+- llm-lib: додано litellm як другий local-provider (перемикач omlx/litellm через `N_LOCAL_*_MODEL`, `defaultLocalProviders()` з `N_OMLX_*`/`N_LITELLM_*` env)
+
 ## [2.9.9] - 2026-07-27
 
 ### Fixed

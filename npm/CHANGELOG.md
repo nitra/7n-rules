@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.51.0] - 2026-07-27
+
+### Added
+
+- doc-files/docgen-files-batch: `defaultLocalProviders()` перенесено в `@7n/llm-lib/local-providers` — batch-шлях тепер конфігурує і omlx, і litellm одночасно замість лише omlx
+
+### Fixed
+
+- doc-files/docgen-gen, release: переформулювання у docs/main.md і docs/release.md для проходження cspell (repo-wide text-lint fix); .cspell.json: додано rebuildable/rollups до словника (npm/CHANGELOG.md не редагується вручну)
+
+## [1.50.2] - 2026-07-27
+
+### Fixed
+
+- тести: детермінізм і сумісність з обома раннерами (vitest, bun test) — mirror-parity (регенеровані дзеркала npm-module/vue + гард на невстановлені плагіни), ensure-tool під bun test (захоплення оригіналів до моків, синхронна фабрика, afterAll-відновлення mock.module — прибирає протікання withLock у run-standard-lint), docgen-gen judge-тести без залежності від ambient N_CLOUD_MIN_MODEL, skills-хелпери n-rules-cli з явним root-параметром
+
 ## [1.50.1] - 2026-07-27
 
 ### Changed

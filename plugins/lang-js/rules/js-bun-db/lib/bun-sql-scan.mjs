@@ -955,7 +955,8 @@ function isJsonStringifyCall(node) {
  * @returns {boolean} чи це `sql.array(..., 'text')`
  */
 function isTextArrayCall(node) {
-  if (!node || typeof node !== 'object' || node.type !== 'CallExpression' || !Array.isArray(node.arguments)) return false
+  if (!node || typeof node !== 'object' || node.type !== 'CallExpression' || !Array.isArray(node.arguments))
+    return false
   const callee = node.callee
   const type = node.arguments[1]
   return (

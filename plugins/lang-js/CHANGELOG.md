@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.22.22] - 2026-07-27
+
+### Fixed
+
+- normalize licensee allowlist and workspace license metadata
+- js-bun-db/bun-sql-scan: переформулювання у docs/bun-sql-scan.md для проходження cspell (repo-wide text-lint fix)
+
+## [0.22.21] - 2026-07-27
+
+### Fixed
+
+- дзеркало .cursor/rules/n-vue.mdc регенеровано з канону правила vue: дописка про дозволені runtime-імпорти з vue у тест-файлах (#237) не потрапила у дзеркало
+
 ## [0.22.20] - 2026-07-27
 
 ### Changed

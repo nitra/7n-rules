@@ -17,7 +17,16 @@ import {
 const JS_SOURCE_RE = /\.(?:[cm]?[jt]sx?)$/u
 const TEST_FILE_RE = /\.test\.[cm]?[jt]sx?$/u
 const PARENT_RELATIVE_RE = /^\.\.(?:\/|$)/u
-const SKIP_DIR_NAMES = new Set(['node_modules', '.git', 'dist', 'coverage', 'reports', '.turbo', '.next', '__fixtures__'])
+const SKIP_DIR_NAMES = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  'coverage',
+  'reports',
+  '.turbo',
+  '.next',
+  '__fixtures__'
+])
 
 /**
  * Чи каталог `dir` входить у список ignore (точний збіг або префікс).

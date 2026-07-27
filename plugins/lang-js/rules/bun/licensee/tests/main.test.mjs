@@ -76,7 +76,7 @@ describe('bun/licensee detector', () => {
     })
   })
 
-  test('bun не в PATH → bun-missing', async () => {
+  test('бун не в PATH → bun-missing', async () => {
     spawnAsyncMock.mockReset()
     const resolveCmdModule = await import('@7n/rules/scripts/utils/resolve-cmd.mjs')
     vi.spyOn(resolveCmdModule, 'resolveCmd').mockReturnValueOnce('')
@@ -86,6 +86,63 @@ describe('bun/licensee detector', () => {
       expect(violations).toHaveLength(1)
       expect(violations[0].reason).toBe('bun-missing')
       expect(spawnAsyncMock).not.toHaveBeenCalled()
+    })
+  })
+
+  test('стороння NOT APPROVED ліцензія → license-violation, метадані власного пакета без license → license-metadata-invalid (окремо)', async () => {
+    spawnAsyncMock.mockReset()
+    spawnAsyncMock.mockResolvedValue({
+      exitCode: 1,
+      stdout:
+        'lru-cache@11.5.1\n' +
+        '  NOT APPROVED\n' +
+        '  Terms: BlueOak-1.0.0\n' +
+        '  Repository: git+ssh://git@github.com/isaacs/node-lru-cache.git\n\n' +
+        'foo@0.0.0\n' +
+        '  NOT APPROVED\n' +
+        '  Terms: Invalid license metadata\n' +
+        '  Repository: None listed\n',
+      stderr: ''
+    })
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, '.licensee.json'), '{}', 'utf8')
+      const { violations } = await lint({ cwd: dir, ruleId: 'bun', concernId: 'licensee' })
+
+      const metadataViolations = violations.filter(v => v.reason === 'license-metadata-invalid')
+      expect(metadataViolations).toHaveLength(1)
+      expect(metadataViolations[0].data).toEqual({ package: 'foo' })
+
+      const violationOnly = violations.filter(v => v.reason === 'license-violation')
+      expect(violationOnly).toHaveLength(1)
+      expect(violationOnly[0].message).toContain('lru-cache@11.5.1')
+      expect(violationOnly[0].message).not.toContain('foo@0.0.0')
+    })
+  })
+
+  test('лише Invalid license metadata (без сторонніх порушень) → тільки license-metadata-invalid', async () => {
+    spawnAsyncMock.mockReset()
+    spawnAsyncMock.mockResolvedValue({
+      exitCode: 1,
+      stdout: 'root-pkg@0.0.0\n  NOT APPROVED\n  Terms: Invalid license metadata\n  Repository: None listed\n',
+      stderr: ''
+    })
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, '.licensee.json'), '{}', 'utf8')
+      const { violations } = await lint({ cwd: dir, ruleId: 'bun', concernId: 'licensee' })
+      expect(violations).toHaveLength(1)
+      expect(violations[0].reason).toBe('license-metadata-invalid')
+      expect(violations[0].data).toEqual({ package: 'root-pkg' })
+    })
+  })
+
+  test('нерозпізнаний формат stdout → fallback на агрегований license-violation', async () => {
+    spawnAsyncMock.mockReset()
+    spawnAsyncMock.mockResolvedValue({ exitCode: 1, stdout: 'щось геть інше без блоків пакетів', stderr: '' })
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, '.licensee.json'), '{}', 'utf8')
+      const { violations } = await lint({ cwd: dir, ruleId: 'bun', concernId: 'licensee' })
+      expect(violations).toHaveLength(1)
+      expect(violations[0].reason).toBe('license-violation')
     })
   })
 })
