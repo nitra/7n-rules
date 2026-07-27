@@ -287,7 +287,7 @@ function resolveBatchError(res, unexpectedWrites, noOp, mutationVerdict) {
 
 /**
  * Стислий feedback mutation verdict-а для agent verify-loop і наступного ladder rung-а.
- * @param {{targetCount?:number,killed?:number,remaining?:number,covered0?:number,reason?:string|null}|null} verdict результат scoped Stryker
+ * @param {{targetCount?:number,killed?:number,remaining?:number,covered0?:number,cacheIndependent?:boolean,reason?:string|null}|null} verdict результат scoped Stryker
  * @returns {string} безпечна причина quality failure
  */
 function formatMutationVerdict(verdict) {
@@ -410,7 +410,7 @@ function formatBatchDiagnosis(diagnosis) {
     `timeout(requested/worker/effective)=${diagnosis.requestedTimeoutMs}/${diagnosis.workerDeadlineMs}/${diagnosis.effectiveTimeoutMs}ms; survivedBatchesPerRung=${diagnosis.survivedBatchesPerRung}`,
     `wallMs=${diagnosis.wallMs}`,
     `verdict(turns/tools/stops/error/testWrites/blocked/backstop)=${verdict.turnCount}/${verdict.toolCallCount}/${verdict.stopReasons.join(',') || '-'} / ${verdict.error ?? '-'} / ${verdict.allowedTestWrites}/${verdict.blockedWrites}/${verdict.backstopHit}`,
-    `mutation(targets/killed/remaining/covered0)=${verdict.mutation?.targetCount ?? '-'}/${verdict.mutation?.killed ?? '-'}/${verdict.mutation?.remaining ?? '-'}/${verdict.mutation?.covered0 ?? '-'}; rollback=${verdict.rollback.outcome}`
+    `mutation(targets/killed/remaining/covered0/cacheIndependent)=${verdict.mutation?.targetCount ?? '-'}/${verdict.mutation?.killed ?? '-'}/${verdict.mutation?.remaining ?? '-'}/${verdict.mutation?.covered0 ?? '-'}/${verdict.mutation?.cacheIndependent ?? false}; rollback=${verdict.rollback.outcome}`
   ].join('; ')
 }
 

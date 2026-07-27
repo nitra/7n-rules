@@ -627,23 +627,28 @@ describe('verifyScopedMutationBatch', () => {
     mutants: [{ line: 1, col: 6, mutantType: 'BooleanLiteral', original: 'true', replacement: 'false' }]
   }
 
-  test('приймає лише свіжий scoped report, де target mutant killed', async () => {
+  test('ігнорує stale incremental result після зміни test-файлу й приймає isolated killed report', async () => {
     const dir = makeFixture({ devDependencies: { vitest: '^2.0.0' } })
     mkdirSync(join(dir, 'src'), { recursive: true })
     writeFileSync(join(dir, 'src', 'a.js'), 'const x = true\n')
     const reportDir = join(dir, 'reports', 'stryker')
     mkdirSync(reportDir, { recursive: true })
-    // Stale survived report мусить бути видалений до runner-а, а не прийнятий як evidence.
+    // Слабкий test залишив survivor у consumer cache/report. Новий точний test має
+    // перевірятись окремо: verifier не читає та не змінює жоден із цих артефактів.
     writeFileSync(
       join(reportDir, 'mutation.json'),
       JSON.stringify({ files: { 'src/a.js': { mutants: [{ status: 'Survived' }] } } })
     )
+    writeFileSync(join(reportDir, 'incremental.json'), JSON.stringify({ mutantResults: ['Survived'] }))
+    const staleReport = readFileSync(join(reportDir, 'mutation.json'), 'utf8')
+    const staleIncremental = readFileSync(join(reportDir, 'incremental.json'), 'utf8')
     const calls = []
     const runner = {
-      runStryker({ cwd, mutate }) {
-        calls.push({ cwd, mutate })
+      runStryker({ cwd, mutate, isolatedReportPath }) {
+        calls.push({ cwd, mutate, isolatedReportPath })
+        expect(isolatedReportPath).not.toBe(join(cwd, 'reports', 'stryker', 'mutation.json'))
         writeFileSync(
-          join(cwd, 'reports', 'stryker', 'mutation.json'),
+          isolatedReportPath,
           JSON.stringify({
             files: {
               'src/a.js': {
@@ -669,9 +674,13 @@ describe('verifyScopedMutationBatch', () => {
       killed: 1,
       remaining: 0,
       covered0: 0,
+      cacheIndependent: true,
       reason: null
     })
-    expect(calls).toEqual([{ cwd: dir, mutate: ['src/a.js'] }])
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).toMatchObject({ cwd: dir, mutate: ['src/a.js'] })
+    expect(readFileSync(join(reportDir, 'mutation.json'), 'utf8')).toBe(staleReport)
+    expect(readFileSync(join(reportDir, 'incremental.json'), 'utf8')).toBe(staleIncremental)
     rmSync(dir, { recursive: true, force: true })
   })
 
@@ -680,10 +689,9 @@ describe('verifyScopedMutationBatch', () => {
     mkdirSync(join(dir, 'src'), { recursive: true })
     writeFileSync(join(dir, 'src', 'a.js'), 'const x = true\n')
     const runner = {
-      runStryker({ cwd }) {
-        mkdirSync(join(cwd, 'reports', 'stryker'), { recursive: true })
+      runStryker({ isolatedReportPath }) {
         writeFileSync(
-          join(cwd, 'reports', 'stryker', 'mutation.json'),
+          isolatedReportPath,
           JSON.stringify({
             files: {
               'src/a.js': {
@@ -728,7 +736,7 @@ describe('verifyScopedMutationBatch', () => {
       verifyScopedMutationBatch({ cwd: dir, batch: [target], runner: { runStryker: () => 0 } })
     ).resolves.toMatchObject({
       ok: false,
-      reason: 'reporter failure: scoped Stryker не залишив mutation.json'
+      reason: 'reporter failure: scoped Stryker не залишив isolated mutation.json'
     })
     rmSync(dir, { recursive: true, force: true })
   })

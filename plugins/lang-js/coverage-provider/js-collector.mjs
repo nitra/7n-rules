@@ -6,11 +6,12 @@
  * coverage-провайдера плагіна `@7n/rules-lang-js` (концерн `coverage` правила `test`).
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { resolveAllJsRoots } from './lib/resolve-js-root.mjs'
 import { addCoverage, addMutation } from './aggregate.mjs'
@@ -315,12 +316,13 @@ function isTargetMutant(target, candidate) {
 }
 
 /**
- * Один scoped Stryker-прогін після agent test-write. Старий mutation.json видаляється
- * як report-артефакт (не Stryker cache) до запуску, щоб попередній incremental report
- * не міг стати доказом нового успіху. Кожен target мусить бути знайдений у свіжому
- * report; batch приймається лише коли хоча б один target став Killed або Timeout.
+ * Один cache-independent scoped Stryker-прогін після agent test-write. Він бере
+ * consumer config за основу, але пише report у тимчасову директорію й примусово
+ * вимикає incremental, тому не читає та не змінює consumer `incremental.json`.
+ * Кожен target мусить бути знайдений у свіжому report; batch приймається лише коли
+ * хоча б один target став Killed або Timeout.
  * @param {{cwd:string, batch:Array<{file:string,mutants:Array<object>}>, runner?:typeof defaultRunner}} args корінь, target batch і runner
- * @returns {Promise<{ok:boolean,targetCount:number,killed:number,remaining:number,covered0:number,reason:string|null}>} mutation verdict
+ * @returns {Promise<{ok:boolean,targetCount:number,killed:number,remaining:number,covered0:number,cacheIndependent:true,reason:string|null}>} mutation verdict
  */
 export async function verifyScopedMutationBatch({ cwd, batch, runner = defaultRunner }) {
   const roots = await resolveAllJsRoots(cwd)
@@ -338,6 +340,7 @@ export async function verifyScopedMutationBatch({ cwd, batch, runner = defaultRu
         killed: 0,
         remaining: 0,
         covered0: 0,
+        cacheIndependent: true,
         reason: `reporter failure: source поза JS workspace: ${group.file}`
       }
     }
@@ -352,64 +355,84 @@ export async function verifyScopedMutationBatch({ cwd, batch, runner = defaultRu
   let remaining = 0
   let covered0 = 0
   for (const [root, { files, groups }] of perRoot) {
-    const reportPath = join(root, 'reports', 'stryker', 'mutation.json')
-    await rm(reportPath, { force: true })
-    const code = await runner.runStryker({ cwd: root, mutate: [...new Set(files)] })
-    if (code !== 0) {
-      return { ok: false, targetCount, killed, remaining, covered0, reason: `reporter failure: Stryker exit ${code}` }
-    }
-    if (!existsSync(reportPath)) {
-      return {
-        ok: false,
-        targetCount,
-        killed,
-        remaining,
-        covered0,
-        reason: 'reporter failure: scoped Stryker не залишив mutation.json'
-      }
-    }
-    const report = JSON.parse(await readFile(reportPath, 'utf8'))
-    for (const group of groups) {
-      const mutants = report.files?.[group.file]?.mutants
-      if (!Array.isArray(mutants)) {
+    const reportDir = await mkdtemp(join(tmpdir(), 'stryker-scoped-'))
+    const reportPath = join(reportDir, 'mutation.json')
+    try {
+      const code = await runner.runStryker({
+        cwd: root,
+        mutate: [...new Set(files)],
+        isolatedReportPath: reportPath
+      })
+      if (code !== 0) {
         return {
           ok: false,
           targetCount,
           killed,
           remaining,
           covered0,
-          reason: `reporter failure: scoped report не містить ${group.file}`
+          cacheIndependent: true,
+          reason: `reporter failure: Stryker exit ${code}`
         }
       }
-      for (const target of group.mutants) {
-        targetCount += 1
-        const result = mutants.find(mutant => isTargetMutant(target, mutant))
-        if (!result) {
+      if (!existsSync(reportPath)) {
+        return {
+          ok: false,
+          targetCount,
+          killed,
+          remaining,
+          covered0,
+          cacheIndependent: true,
+          reason: 'reporter failure: scoped Stryker не залишив isolated mutation.json'
+        }
+      }
+      const report = JSON.parse(await readFile(reportPath, 'utf8'))
+      for (const group of groups) {
+        const mutants = report.files?.[group.file]?.mutants
+        if (!Array.isArray(mutants)) {
           return {
             ok: false,
             targetCount,
             killed,
             remaining,
             covered0,
-            reason: `reporter failure: scoped report не містить target mutant ${group.file}:${target.line}:${target.col}`
+            cacheIndependent: true,
+            reason: `reporter failure: scoped report не містить ${group.file}`
           }
         }
-        if (result.status === 'Killed' || result.status === 'Timeout') killed += 1
-        else if (result.status === 'NoCoverage') {
-          covered0 += 1
-          remaining += 1
-        } else if (result.status === 'Survived') remaining += 1
-        else {
-          return {
-            ok: false,
-            targetCount,
-            killed,
-            remaining,
-            covered0,
-            reason: `reporter failure: target має непідтверджений статус ${result.status ?? 'unknown'}`
+        for (const target of group.mutants) {
+          targetCount += 1
+          const result = mutants.find(mutant => isTargetMutant(target, mutant))
+          if (!result) {
+            return {
+              ok: false,
+              targetCount,
+              killed,
+              remaining,
+              covered0,
+              cacheIndependent: true,
+              reason: `reporter failure: scoped report не містить target mutant ${group.file}:${target.line}:${target.col}`
+            }
+          }
+          if (result.status === 'Killed' || result.status === 'Timeout') killed += 1
+          else if (result.status === 'NoCoverage') {
+            covered0 += 1
+            remaining += 1
+          } else if (result.status === 'Survived') remaining += 1
+          else {
+            return {
+              ok: false,
+              targetCount,
+              killed,
+              remaining,
+              covered0,
+              cacheIndependent: true,
+              reason: `reporter failure: target має непідтверджений статус ${result.status ?? 'unknown'}`
+            }
           }
         }
       }
+    } finally {
+      await rm(reportDir, { recursive: true, force: true })
     }
   }
   const reason =
@@ -418,7 +441,7 @@ export async function verifyScopedMutationBatch({ cwd, batch, runner = defaultRu
         ? 'covered 0: target mutants лишились без покриття'
         : 'no-improvement: жоден target mutant не вбитий'
       : null
-  return { ok: killed > 0, targetCount, killed, remaining, covered0, reason }
+  return { ok: killed > 0, targetCount, killed, remaining, covered0, cacheIndependent: true, reason }
 }
 
 /**
@@ -454,6 +477,34 @@ function resolveLocalStrykerBin() {
 const STRYKER_CONFIG_NAMES = ['stryker.config.mjs', 'stryker.config.js']
 /** Маркер посилання на ізольований vitest-конфіг Stryker (канон Storybook, Кластер 5). */
 const STRYKER_ISOLATED_VITEST_CONFIG_RE = /vitest\.stryker\.config/
+
+/**
+ * Записує одноразовий ESM-config для scoped verification. Імпортує consumer config,
+ * тож зберігає його plugins/vitest/mutate policy, але відокремлює report і вимикає
+ * incremental cache. Тимчасовий файл видаляє caller одразу після Stryker-прогону.
+ * @param {string} cwd consumer workspace
+ * @param {string} reportPath абсолютний шлях isolated mutation.json
+ * @returns {string} абсолютний шлях тимчасового config
+ * @throws {Error} коли consumer config відсутній
+ */
+function writeScopedStrykerConfig(cwd, reportPath) {
+  const configName = STRYKER_CONFIG_NAMES.find(name => existsSync(join(cwd, name)))
+  if (!configName) throw new Error('scoped Stryker потребує consumer stryker.config.mjs або stryker.config.js')
+  const configPath = join(dirname(reportPath), 'stryker.scoped.config.mjs')
+  const configUrl = pathToFileURL(join(cwd, configName)).href
+  writeFileSync(
+    configPath,
+    [
+      `import consumerConfig from ${JSON.stringify(configUrl)}`,
+      'export default {',
+      '  ...consumerConfig,',
+      '  incremental: false,',
+      `  jsonReporter: { ...consumerConfig.jsonReporter, fileName: ${JSON.stringify(reportPath)} }`,
+      '}'
+    ].join('\n')
+  )
+  return configPath
+}
 
 /**
  * Fail-fast контракт канону Storybook (Кластер 5) для JS-виміру мутації: на
@@ -609,7 +660,7 @@ export const defaultRunner = {
       return []
     }
   },
-  runStryker({ cwd, mutate }) {
+  runStryker({ cwd, mutate, isolatedReportPath }) {
     // Plugin-discovery Stryker (`@stryker-mutator/*`) globиться відносно CORE-install-каталогу
     // (`core/dist/src/di/plugin-loader.js` → `../../../../../@stryker-mutator/*`). Тож core
     // МАЄ вантажитись із проєктного `node_modules`, де поряд лежить `@stryker-mutator/vitest-runner`.
@@ -617,12 +668,20 @@ export const defaultRunner = {
     // падають `Cannot find TestRunner plugin "vitest"`. Тому резолвимо локальний core-bin через
     // `import.meta.url` і запускаємо його через `node`. Fallback на `npx`, якщо не встановлено.
     // mutate (непорожній) ⇔ --changed-режим: мутуємо лише змінені production-файли цього root.
+    // isolatedReportPath наявний лише в verifier-і після agent write: одноразовий config
+    // вимикає incremental і не торкається canonical report/cache consumer-а.
     const mutateArgs = mutate && mutate.length > 0 ? ['--mutate', mutate.join(',')] : []
+    const scopedConfigPath = isolatedReportPath ? writeScopedStrykerConfig(cwd, isolatedReportPath) : null
+    const runArgs = ['run', ...mutateArgs, ...(scopedConfigPath ? [scopedConfigPath] : [])]
     const strykerBin = resolveLocalStrykerBin()
-    const r = strykerBin
-      ? spawnSync(strykerBin, ['run', ...mutateArgs], { cwd, stdio: 'inherit', env: process.env })
-      : spawnSync('npx', ['@stryker-mutator/core', 'run', ...mutateArgs], { cwd, stdio: 'inherit', env: process.env })
-    return r.status ?? 1
+    try {
+      const r = strykerBin
+        ? spawnSync(strykerBin, runArgs, { cwd, stdio: 'inherit', env: process.env })
+        : spawnSync('npx', ['@stryker-mutator/core', ...runArgs], { cwd, stdio: 'inherit', env: process.env })
+      return r.status ?? 1
+    } finally {
+      if (scopedConfigPath) rmSync(scopedConfigPath, { force: true })
+    }
   },
   runStorybookStrykerFull({ cwd }) {
     // Full-режим Storybook-мутація через canonical `stryker.storybook.config.mjs`

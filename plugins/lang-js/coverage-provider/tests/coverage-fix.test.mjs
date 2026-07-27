@@ -92,7 +92,15 @@ describe('coverage-fix.mjs', () => {
       })
       const recordWrite = vi.fn()
       const verifyMutation = vi.fn(() =>
-        Promise.resolve({ ok: true, targetCount: 1, killed: 1, remaining: 0, covered0: 0, reason: null })
+        Promise.resolve({
+          ok: true,
+          targetCount: 1,
+          killed: 1,
+          remaining: 0,
+          covered0: 0,
+          cacheIndependent: true,
+          reason: null
+        })
       )
       const runAgentFix = vi.fn(async (_rule, _prompt, _cwd, options) => {
         await options.verify({ touchedFiles: ['/proj/tests/util.test.mjs'] })
@@ -131,7 +139,7 @@ describe('coverage-fix.mjs', () => {
           allowedTestWrites: 1,
           blockedWrites: 0,
           backstopHit: false,
-          mutation: { targetCount: 1, killed: 1, remaining: 0, covered0: 0 }
+          mutation: { targetCount: 1, killed: 1, remaining: 0, covered0: 0, cacheIndependent: true }
         }
       })
       expect(verifyMutation).toHaveBeenCalledWith({ cwd: ROOT, batch: survived })
