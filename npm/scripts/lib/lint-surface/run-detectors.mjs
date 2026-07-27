@@ -527,7 +527,15 @@ async function buildPlan({
  */
 async function runPlanItem({ entry, files }, { cwd, verbose, progress, log, signal }) {
   /** @type {LintContext} */
-  const ctx = { cwd, ruleId: entry.ruleId, concernId: entry.concern.name, files, verbose, signal }
+  const ctx = {
+    cwd,
+    ruleId: entry.ruleId,
+    concernId: entry.concern.name,
+    files,
+    verbose,
+    signal,
+    reportProgressDetail: progress?.detail
+  }
   const key = `${entry.ruleId}/${entry.concern.name}`
   progress?.concernStart(key)
   if (verbose) {

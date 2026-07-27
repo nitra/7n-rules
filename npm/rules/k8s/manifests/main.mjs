@@ -6690,8 +6690,13 @@ export async function lint(ctx) {
   // (spec docs/specs/2026-07-02-text-check-per-file-split-design.md §6) ──
   const dirs = await findK8sRoots(root, ignorePaths)
   if (dirs.length > 0) {
-    const ks = await runKubescape(dirs, root, verbose)
-    if (ks !== 0 && ks !== 127) fail('kubescape знайшов ризики у маніфестах (k8s.mdc)', 'kubescape')
+    const ks = await runKubescape(dirs, root, verbose, { onProgress: ctx.reportProgressDetail })
+    if (ks.status !== 0 && ks.status !== 127) {
+      const message = ks.timedOut
+        ? `kubescape timeout: ${relative(root, ks.target)} (ліміт ${KUBESCAPE_SCAN_TIMEOUT_LABEL})`
+        : 'kubescape знайшов ризики у маніфестах (k8s.mdc)'
+      fail(message, 'kubescape')
+    }
   }
 
   // ── JS/rego cross-file перевірки (колишній check, read-only) ──
@@ -6798,6 +6803,10 @@ export async function findK8sRoots(root, ignorePaths = []) {
 const KUBESCAPE_EXCEPTIONS_FILE = '.kubescape-exceptions.json'
 const KUSTOMIZATION_FILE = 'kustomization.yaml'
 const KUBESCAPE_MISSING_HINT = 'kubescape не знайдено в PATH. Встанови з https://github.com/kubescape/kubescape#readme'
+/** Bounded wall-clock limit кожного зовнішнього scan; spawnAsync завершує child process. */
+export const KUBESCAPE_SCAN_TIMEOUT_MS = 5 * 60_000
+const KUBESCAPE_SCAN_TIMEOUT_LABEL = '5 хв'
+const KUBESCAPE_SCAN_TIMEOUT_ARG = '5m'
 const KUBERNETES_VERSION = '1.33.9'
 const DATREE_CRD_SCHEMA_LOCATION =
   'https://datreeio.github.io/CRDs-catalog/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
@@ -7004,9 +7013,11 @@ async function runKustomizeBuild(kubectlPath, dir, verbose = false) {
  * @param {string|Buffer} manifest вміст маніфеста для сканування.
  * @param {string} root корінь репозиторію (для user-файла винятків).
  * @param {boolean} [verbose] показати повний нативний вивід kubescape (`stdio: 'inherit'`).
- * @returns {Promise<{ status: number, enoent: boolean }>} exit-код і прапорець відсутнього тула.
+ * @param {{ spawn?: typeof spawnAsync, useDefault?: boolean }} [opts] тестова інʼєкція spawn і cache-safe режим після першого target-а.
+ * @returns {Promise<{ status: number, enoent: boolean, timedOut: boolean }>} exit-код, відсутність тула і timeout.
  */
-async function runKubescapeManifest(kubescapePath, manifest, root, verbose = false) {
+export async function runKubescapeManifest(kubescapePath, manifest, root, verbose = false, opts = {}) {
+  const exec = opts.spawn ?? spawnAsync
   const dir = mkdtempSync(join(tmpdir(), 'nitra-cursor-k8s-'))
   const file = join(dir, 'manifest.yaml')
   const exceptionsArgs = buildKubescapeExceptionsArgs(root, autoJobCronJobProbeExceptions(String(manifest)))
@@ -7014,13 +7025,24 @@ async function runKubescapeManifest(kubescapePath, manifest, root, verbose = fal
   try {
     writeFileSync(file, manifest)
     try {
-      const r = await spawnAsync(kubescapePath, ['scan', file, '--severity-threshold', 'high', ...exceptionsArgs], {
-        stdio: verbose ? 'inherit' : 'pipe'
-      })
-      return { status: r.exitCode ?? 1, enoent: false }
+      const r = await exec(
+        kubescapePath,
+        [
+          'scan',
+          file,
+          '--severity-threshold',
+          'high',
+          '--scan-timeout',
+          KUBESCAPE_SCAN_TIMEOUT_ARG,
+          ...(opts.useDefault ? ['--use-default'] : []),
+          ...exceptionsArgs
+        ],
+        { stdio: verbose ? 'inherit' : 'pipe', timeoutMs: KUBESCAPE_SCAN_TIMEOUT_MS }
+      )
+      return { status: r.exitCode ?? 1, enoent: false, timedOut: r.timedOut === true }
     } catch (error) {
       const enoent = Boolean(error && error.code === 'ENOENT')
-      return { status: 1, enoent }
+      return { status: 1, enoent, timedOut: false }
     }
   } finally {
     cleanupKubescapeExceptionsArgs(exceptionsArgs, root)
@@ -7036,24 +7058,37 @@ async function runKubescapeManifest(kubescapePath, manifest, root, verbose = fal
  * @param {string} dir каталог для сканування.
  * @param {string} root корінь репозиторію (для user-файла винятків).
  * @param {boolean} [verbose] показати повний нативний вивід kubescape (`stdio: 'inherit'`) і хід сканування.
- * @returns {Promise<number>} exit-код (127 якщо тул відсутній).
+ * @param {{ spawn?: typeof spawnAsync, useDefault?: boolean }} [opts] тестова інʼєкція spawn і cache-safe режим після першого target-а.
+ * @returns {Promise<{ status: number, timedOut: boolean }>} exit-код (127 якщо тул відсутній) і timeout.
  */
-async function scanRawK8sDir(kubescapePath, dir, root, verbose = false) {
+async function scanRawK8sDir(kubescapePath, dir, root, verbose = false, opts = {}) {
+  const exec = opts.spawn ?? spawnAsync
   if (verbose) console.log(`run-k8s: kubescape scan ${dir} (без kustomization — сирий dir-скан)`)
   const yamlText = await readAllYamlTextUnderDir(dir)
   const exceptionsArgs = buildKubescapeExceptionsArgs(root, autoJobCronJobProbeExceptions(yamlText))
   if (verbose && exceptionsArgs.length > 0) console.log(`run-k8s: kubescape exceptions — ${exceptionsArgs[1]}`)
   try {
-    const r = await spawnAsync(kubescapePath, ['scan', dir, '--severity-threshold', 'high', ...exceptionsArgs], {
-      stdio: verbose ? 'inherit' : 'pipe'
-    })
-    return r.exitCode ?? 1
+    const r = await exec(
+      kubescapePath,
+      [
+        'scan',
+        dir,
+        '--severity-threshold',
+        'high',
+        '--scan-timeout',
+        KUBESCAPE_SCAN_TIMEOUT_ARG,
+        ...(opts.useDefault ? ['--use-default'] : []),
+        ...exceptionsArgs
+      ],
+      { stdio: verbose ? 'inherit' : 'pipe', timeoutMs: KUBESCAPE_SCAN_TIMEOUT_MS }
+    )
+    return { status: r.exitCode ?? 1, timedOut: r.timedOut === true }
   } catch (error) {
     if (error && error.code === 'ENOENT') {
       console.error(KUBESCAPE_MISSING_HINT)
-      return 127
+      return { status: 127, timedOut: false }
     }
-    return 1
+    return { status: 1, timedOut: false }
   } finally {
     cleanupKubescapeExceptionsArgs(exceptionsArgs, root)
   }
@@ -7066,21 +7101,22 @@ async function scanRawK8sDir(kubescapePath, dir, root, verbose = false) {
  * @param {string[]} kdirs каталоги з kustomization.
  * @param {string} root корінь репозиторію (для user-файла винятків).
  * @param {boolean} [verbose] показати повний нативний вивід kubectl/kubescape і хід сканування.
- * @returns {Promise<number>} 0 якщо всі чисті, інакше перший ненульовий exit-код (127 — тул відсутній).
+ * @param {{ spawn?: typeof spawnAsync, useDefault?: boolean }} [opts] тестова інʼєкція spawn і cache-safe режим після першого target-а.
+ * @returns {Promise<{ status: number, target: string|null, timedOut: boolean }>} результат одного або кількох target-ів.
  */
-async function scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, root, verbose = false) {
+async function scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, root, verbose = false, opts = {}) {
   for (const kdir of kdirs) {
     if (verbose) console.log(`run-k8s: kubectl kustomize ${kdir} | kubescape scan <tmp>`)
     const build = await runKustomizeBuild(kubectlPath, kdir, verbose)
-    if (build.status !== 0) return build.status
-    const ks = await runKubescapeManifest(kubescapePath, build.stdout, root, verbose)
+    if (build.status !== 0) return { status: build.status, target: kdir, timedOut: false }
+    const ks = await runKubescapeManifest(kubescapePath, build.stdout, root, verbose, opts)
     if (ks.enoent) {
       console.error(KUBESCAPE_MISSING_HINT)
-      return 127
+      return { status: 127, target: kdir, timedOut: false }
     }
-    if (ks.status !== 0) return ks.status
+    if (ks.status !== 0) return { status: ks.status, target: kdir, timedOut: ks.timedOut }
   }
-  return 0
+  return { status: 0, target: null, timedOut: false }
 }
 
 /**
@@ -7090,27 +7126,47 @@ async function scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, root, ver
  * @param {string[]} dirs абсолютні шляхи k8s-коренів.
  * @param {string} root корінь репозиторію (для user-файла винятків).
  * @param {boolean} [verbose] показати повний нативний вивід kubectl/kubescape (`stdio: 'inherit'`) і хід сканування.
- * @returns {Promise<number>} 0 якщо все чисто, інакше перший ненульовий exit-код (127 — тул відсутній).
+ * @param {{ kubescapePath?: string, kubectlPath?: string, spawn?: typeof spawnAsync, onProgress?: (progress: { label: string, done: number, total: number, current: string }) => void }} [opts] залежності й granular live progress.
+ * @returns {Promise<{ status: number, target: string|null, timedOut: boolean }>} результат усіх target-ів.
  */
-async function runKubescape(dirs, root, verbose = false) {
-  const kubescapePath = ensureTool('kubescape')
+export async function runKubescape(dirs, root, verbose = false, opts = {}) {
+  const kubescapePath = opts.kubescapePath ?? ensureTool('kubescape')
   let kubectlPath = null
+  /** @type {Array<{ kind: 'raw'|'kustomize', dir: string }>} */
+  const targets = []
   for (const d of dirs) {
     const kdirs = await findKustomizationDirs(d)
     if (kdirs.length === 0) {
-      const rawStatus = await scanRawK8sDir(kubescapePath, d, root, verbose)
-      if (rawStatus !== 0) return rawStatus
-      continue
+      targets.push({ kind: 'raw', dir: d })
+    } else {
+      for (const dir of kdirs) targets.push({ kind: 'kustomize', dir })
     }
-    if (kubectlPath === null) {
-      kubectlPath = resolveCmd('kubectl')
-      if (!kubectlPath) {
-        console.error('kubectl не знайдено в PATH. Встанови з https://kubernetes.io/docs/tasks/tools/#kubectl')
-        return 127
-      }
-    }
-    const buildStatus = await scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, root, verbose)
-    if (buildStatus !== 0) return buildStatus
   }
-  return 0
+
+  let done = 0
+  let cacheReady = false
+  for (const target of targets) {
+    opts.onProgress?.({ label: 'kubescape', done, total: targets.length, current: relative(root, target.dir) })
+    if (target.kind === 'raw') {
+      const result = await scanRawK8sDir(kubescapePath, target.dir, root, verbose, { ...opts, useDefault: cacheReady })
+      if (result.status !== 0) return { ...result, target: target.dir }
+    } else {
+      if (kubectlPath === null) {
+        kubectlPath = opts.kubectlPath ?? resolveCmd('kubectl')
+        if (!kubectlPath) {
+          console.error('kubectl не знайдено в PATH. Встанови з https://kubernetes.io/docs/tasks/tools/#kubectl')
+          return { status: 127, target: target.dir, timedOut: false }
+        }
+      }
+      const result = await scanKustomizeK8sDirs(kubectlPath, kubescapePath, [target.dir], root, verbose, {
+        ...opts,
+        useDefault: cacheReady
+      })
+      if (result.status !== 0) return result
+    }
+    cacheReady = true
+    done += 1
+    opts.onProgress?.({ label: 'kubescape', done, total: targets.length, current: relative(root, target.dir) })
+  }
+  return { status: 0, target: null, timedOut: false }
 }
