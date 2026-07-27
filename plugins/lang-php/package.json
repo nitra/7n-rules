@@ -28,6 +28,7 @@
     "taze",
     "CHANGELOG.md",
     "doc-files",
+    "coverage-provider",
     "!**/*.test.mjs",
     "!**/*_test.rego",
     "!**/fixtures/**",
@@ -104,6 +105,12 @@
           "value": {
             ".php": "PHP Module"
           }
+        },
+        {
+          "slot": "coverage.provider",
+          "version": 1,
+          "id": "coverage-php",
+          "resource": "./coverage-provider/provider.mjs"
         }
       ]
     }

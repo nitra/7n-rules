@@ -11,6 +11,7 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     include: [
+      'coverage-provider/tests/**/*.test.{js,mjs}',
       'doc-files/tests/**/*.test.{js,mjs}',
       'rules/**/tests/**/*.test.{js,mjs}',
       'slots/**/tests/**/*.test.{js,mjs}',
