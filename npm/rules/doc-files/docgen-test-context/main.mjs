@@ -8,7 +8,7 @@ import { isDocgenIgnored } from '../docgen-ignore/main.mjs'
 
 const JS_TEST_RE = /\.(?:test|spec)\.(?:[cm]?[jt]sx?)$/u
 const RELATIVE_LITERAL_RE = /(['"])(\.{1,2}\/[^'"\n]+)\1/gu
-const SCENARIO_RE = /\b(?:describe|test|it)\s*\(\s*['"`]([^'"`\n]{1,200})['"`]/gu
+const SCENARIO_RE = /\b(describe|test|it)\s*\(\s*['"`]([^'"`\n]{1,200})['"`]/gu
 const QUERY_OR_HASH_RE = /[?#]/u
 const SOURCE_EXTENSIONS = Object.freeze(['.mjs', '.cjs', '.js', '.jsx', '.ts', '.tsx', '.vue', '.py', '.rs'])
 const TEST_SUFFIX_RE = /\.(?:test|spec)$/u
@@ -146,11 +146,21 @@ export function buildTestEvidenceIndex(root) {
 
 /**
  * Витягує назви describe/test/it як короткі підтверджені usage-сценарії.
+ * `describe` дає контекст групи, а `test`/`it` — приклади поведінки; це дає
+ * змогу не перетворювати docs складного модуля на повний список unit-тестів.
  * @param {string} content вміст тесту
- * @returns {string[]} унікальні назви у порядку появи
+ * @returns {{ groups: string[], scenarios: string[] }} унікальні назви у порядку появи
  */
 function scenarioNames(content) {
-  return [...new Set(Array.from(content.matchAll(SCENARIO_RE), match => match[1].trim()).filter(Boolean))]
+  const groups = []
+  const scenarios = []
+  for (const match of content.matchAll(SCENARIO_RE)) {
+    const title = match[2].trim()
+    if (!title) continue
+    if (match[1] === 'describe') groups.push(title)
+    else scenarios.push(title)
+  }
+  return { groups: [...new Set(groups)], scenarios: [...new Set(scenarios)] }
 }
 
 /**
@@ -158,26 +168,37 @@ function scenarioNames(content) {
  * Test-код не потрапляє до LLM prompt: опис тестового usage лишається дослівним.
  * @param {string} sourceAbs абсолютний шлях source-файлу
  * @param {ReturnType<typeof buildTestEvidenceIndex>} index source↔tests index
- * @returns {{ files: Array<{path:string,scenarios:string[]}>, crcPayload:string }} сценарії і повний CRC payload
+ * @returns {{ files: Array<{path:string,groups:string[],scenarios:string[]}>, crcPayload:string }} сценарії і повний CRC payload
  */
 export function testEvidenceForSource(sourceAbs, index) {
   const tests = index.bySource.get(resolve(sourceAbs)) ?? []
   if (tests.length === 0) return { files: [], crcPayload: '' }
 
-  const files = tests.map(test => ({ path: test.relPath, scenarios: scenarioNames(test.content) }))
+  const files = tests.map(test => ({ path: test.relPath, ...scenarioNames(test.content) }))
   const crcPayload = tests.map(test => `\0${test.relPath}\0${test.content}`).join('')
   return { files, crcPayload }
 }
 
 /**
- * Детерміновано рендерить підтверджені тестами сценарії у Markdown. Назви
- * походять безпосередньо з `describe`/`test`/`it`, тому LLM не може їх
- * перефразувати або додати неіснуючу поведінку.
- * @param {Array<{path:string, scenarios:string[]}>} files повʼязані test-файли зі сценаріями
+ * Детерміновано рендерить компактні підтверджені тестами сценарії у Markdown.
+ * Назви походять безпосередньо з `describe`/`test`/`it`, тому LLM не може їх
+ * перефразувати або додати неіснуючу поведінку; показуємо до пʼяти прикладів,
+ * а решту чесно рахуємо, щоб не дублювати весь test-suite у документації.
+ * @param {Array<{path:string, groups?:string[], scenarios:string[]}>} files повʼязані test-файли зі сценаріями
  * @returns {string} вміст секції «Сценарії використання» без заголовка
  */
 export function renderTestScenarios(files) {
-  return files.flatMap(test => test.scenarios.map(scenario => `- \`${test.path}\` — ${scenario}`)).join('\n')
+  return files
+    .filter(test => test.scenarios.length > 0)
+    .map(test => {
+      const groups = (test.groups ?? []).slice(0, 2).join('; ')
+      const examples = test.scenarios.slice(0, 5).join('; ')
+      const rest = test.scenarios.length - 5
+      const scope = groups ? ` (${groups})` : ''
+      const more = rest > 0 ? `; ще ${rest}` : ''
+      return `- \`${test.path}\`${scope} — ${examples}${more}`
+    })
+    .join('\n')
 }
 
 /**

@@ -401,7 +401,7 @@ describe('prepareBatchItem / finishBatchItem — T8 2b-batch (без LLM-вик�
     readFileSync.mockReturnValue(SRC)
     const prep = await prepareBatchItem('/x.mjs')
     expect(prep.mode).toBe('comment+behavior')
-    expect(prep.messages.at(-1).content).toContain('не перефразовуй авторський текст')
+    expect(prep.messages.at(-1).content).toMatch(/не перефразовуй авторський текст/iu)
   })
 
   test('finishBatchItem: unsupported + refusal-філер → score=0, degraded', () => {
@@ -644,6 +644,14 @@ describe('orchestratedDoc / judge — supported-file happy path (мок extractF
     expect(commentDocumentationMode(FACTS_FULLY_COMMENTED, SRC)).toBe('comment-only')
     expect(commentDocumentationMode(FACTS_SHORT_COMMENTED, SRC)).toBe('comment+behavior')
     expect(commentDocumentationMode(FACTS_SINGLE_COVERED, SRC)).toBe('fallback')
+  })
+
+  test('короткий pointer з одним докладним API → comment-only, без generic LLM-додатку', () => {
+    const facts = {
+      ...FACTS_SHORT_COMMENTED,
+      exports: [{ name: 'doThing', desc: 'Ретельно описує єдиний публічний контракт: перевіряє наявність документації, приймає лише однорядковий pointer-коментар і реєструє порушення, коли авторський наратив дублює окремий Markdown-файл.' }]
+    }
+    expect(commentDocumentationMode(facts, SRC)).toBe('comment-only')
   })
 
   test('buildApiSection: мікс покритий+прогалина → apiGap LLM лише на прогалину (без critique-refine, gap.length!==exps.length)', async () => {

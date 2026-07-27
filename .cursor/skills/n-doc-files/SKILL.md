@@ -78,8 +78,8 @@ npx @7n/rules lint doc-files
 Повʼязані тести визначаються за relative reference, який резолвиться у source (`import`,
 `require`, dynamic import, `vi.mock` тощо), плюс naming/layout evidence (`foo.test` → `foo`
 або `module/tests/*` → module `main`/`index`). Shared test helpers, які тест лише імпортує,
-не стають evidence. JS дослівно рендерить назви `describe`/`test`/`it` в окремій секції
-«Сценарії використання» разом зі шляхом test-файлу; test-код і сценарії не потрапляють до
+не стають evidence. JS детерміновано рендерить один компактний рядок на test-файл: до двох
+груп, пʼять дослівних прикладів і точний лічильник решти; test-код і сценарії не потрапляють до
 моделі. Зміна такого тесту робить source-доку stale.
 
 Авторські коментарі теж є першоджерелом: для JSDoc, rustdoc і Python docstring-ів JS дослівно

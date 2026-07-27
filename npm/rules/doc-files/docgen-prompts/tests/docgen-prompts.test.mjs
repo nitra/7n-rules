@@ -53,7 +53,10 @@ describe('sectionMessages — Огляд більше не тут (R3)', () => {
     const behavior = sectionMessages(FACTS, 'src', null, null, { complementaryBehavior: true }).find(
       s => s.key === 'behavior'
     )
-    expect(behavior.messages[1].content).toContain('не перефразовуй авторський текст')
+    expect(behavior.messages[1].content).toMatch(/не перефразовуй авторський текст/iu)
+    expect(behavior.messages[1].content).toContain('заборонені обходи каталогів')
+    expect(behavior.messages[1].content).not.toContain('нумерований алгоритм у бізнес-термінах')
+    expect(behavior.messages[1].content).toContain('не вимагає налаштування')
     expect(behavior.messages[1].content).toContain('поверни рівно NONE')
   })
 })

@@ -40,7 +40,7 @@ describe('buildTestEvidenceIndex', () => {
       const index = buildTestEvidenceIndex(root)
       const evidence = testEvidenceForSource(source, index)
 
-      expect(evidence.files).toEqual([{ path: 'src/tests/math.test.mjs', scenarios: ['додає два числа'] }])
+      expect(evidence.files).toEqual([{ path: 'src/tests/math.test.mjs', groups: [], scenarios: ['додає два числа'] }])
       expect(evidence).not.toHaveProperty('prompt')
       expect(sourceFilesForTest(related, index)).toEqual([source])
       expect(sourceFilesForTest(unrelated, index)).toEqual([])
@@ -83,9 +83,16 @@ describe('buildTestEvidenceIndex', () => {
 })
 
 describe('renderTestScenarios', () => {
-  test('зберігає test-шлях і назву сценарію дослівно, без LLM-інтерпретації', () => {
-    expect(renderTestScenarios([{ path: 'src/tests/math.test.mjs', scenarios: ['додає два числа'] }])).toBe(
-      '- `src/tests/math.test.mjs` — додає два числа'
+  test('зберігає test-шлях і назви сценаріїв дослівно, без LLM-інтерпретації', () => {
+    expect(renderTestScenarios([{ path: 'src/tests/math.test.mjs', groups: ['math'], scenarios: ['додає два числа'] }])).toBe(
+      '- `src/tests/math.test.mjs` (math) — додає два числа'
+    )
+  })
+
+  test('обмежує довгий test-suite пʼятьма прикладами та точним лічильником решти', () => {
+    const scenarios = ['один', 'два', 'три', 'чотири', 'пʼять', 'шість', 'сім']
+    expect(renderTestScenarios([{ path: 'src/tests/math.test.mjs', scenarios }])).toBe(
+      '- `src/tests/math.test.mjs` — один; два; три; чотири; пʼять; ще 2'
     )
   })
 

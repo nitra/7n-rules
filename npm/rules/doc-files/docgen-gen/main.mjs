@@ -438,6 +438,8 @@ export function hasCompleteCommentDocumentation(facts) {
 
 /** Мінімальний розмір header, який може бути лише pointer-ом, а не наративом. */
 const SHORT_HEADER_CHARS = 240
+/** Один докладний public API може сам закрити короткий header-pointer. */
+const SUFFICIENT_SINGLE_API_CHARS = 160
 /** Сигнали потоку, який доцільно стисло звʼязати окремою «Поведінкою». */
 const BEHAVIOR_FLOW_RE =
   /\b(?:await|Promise\.all|Semaphore|JoinSet|chunks|concurr|retry|queue|state|workflow|resolver|provider|catch|try|match)\b/i
@@ -453,6 +455,13 @@ const BEHAVIOR_FLOW_RE =
 export function commentDocumentationMode(facts, src) {
   if (!hasCompleteCommentDocumentation(facts)) return 'fallback'
   const headerSize = facts.header.trim().replaceAll(/\s+/g, ' ').length
+  const exports = facts.exports ?? []
+  const apiSize = exports.map(exp => exp.desc?.replaceAll(/\s+/g, ' ').length ?? 0).reduce((sum, size) => sum + size, 0)
+  // У маленькому модулі один ретельно описаний API уже є поведінковим
+  // контрактом. LLM тут найчастіше додає загальні фрази замість глибини.
+  if (headerSize < SHORT_HEADER_CHARS && exports.length === 1 && apiSize >= SUFFICIENT_SINGLE_API_CHARS) {
+    return 'comment-only'
+  }
   if (headerSize < SHORT_HEADER_CHARS) return 'comment+behavior'
   if (headerSize < 900 && BEHAVIOR_FLOW_RE.test(src)) return 'comment+behavior'
   return 'comment-only'
