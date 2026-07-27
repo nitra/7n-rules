@@ -11,7 +11,6 @@ import {
 } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { basename, dirname, join, relative } from 'node:path'
-import { env } from 'node:process'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { createProgressReporter } from '../../../scripts/lib/lint-surface/progress.mjs'
@@ -19,6 +18,7 @@ import { generateDoc, DEFAULT_LOCAL_MODEL, prepareBatchItem, finishBatchItem } f
 import { crc32, stampDoc, readDocQuality, readDocModel, readDocTier, QUALITY_THRESHOLD } from '../docgen-crc/main.mjs'
 import { resolveRoot, scanForDocFiles, scanOrphanedDocs } from '../docgen-scan/main.mjs'
 import { submitBatch as submitBatchNative } from '@7n/llm-lib/batch'
+import { defaultLocalProviders } from '@7n/llm-lib/local-providers'
 
 /** Regex-класифікатори помилки генерації (module-scope, без ре-компіляції на виклик). */
 const ERR_PERMANENT_RE = /prompt too long|pre-send guard|too long/i
@@ -225,23 +225,6 @@ export async function nativeBatchAvailable(submitBatchImpl, useCache = true) {
   }
   if (useCache) nativeBatchAvailableCache = result
   return result
-}
-
-/**
- * `localProviders` для Rust-крейта `llm_lib::local_cloud` (2b-batch, T8):
- * інша половина конфігурації, ніж у sequential-шляху. `generateDoc`/`callLlm`
- * ходять через `runOneShot` (pi ModelRegistry, свій резолв ендпоінта — читає
- * pi-конфіг), а `submitBatch` — через Rust `LocalCloud`, якому явний
- * `{ omlx: { baseUrl, apiKey } }` ОБОВʼЯЗКОВИЙ: без нього незнайомий provider-
- * префікс (`"omlx/…"`) падає крізь cloud-гілку genai, яка бачить голу назву
- * моделі без провайдера й типово вгадує адаптер Ollama (`localhost:11434`,
- * жива помилка з бенчу T8) — тихий, неочевидний збій. Той самий baseUrl-
- * конвент, що й `llm-lib/tests/batch.test.mjs` та `examples/batch_bench.rs`.
- * Override — `opts.localProviders` (кастомний конфіг для нестандартного порту).
- * @returns {{ omlx: { baseUrl: string, apiKey: string|null } }} дефолтна мапа локальних провайдерів
- */
-function defaultLocalProviders() {
-  return { omlx: { baseUrl: 'http://127.0.0.1:8000/v1/', apiKey: env.OMLX_API_KEY ?? null } }
 }
 
 /**

@@ -38,6 +38,10 @@ describe('isLocalModel', () => {
     expect(isLocalModel('anthropic/claude-fable-5')).toBe(false)
   })
 
+  test('litellm-провайдер — теж локальний за дефолтом (перемикач omlx/litellm через тир-env)', () => {
+    expect(isLocalModel('litellm/gemma-4-26b-awq')).toBe(true)
+  })
+
   test('порожній/malformed spec — не локальний', () => {
     expect(isLocalModel('')).toBe(false)
     expect(isLocalModel('no-slash')).toBe(false)
