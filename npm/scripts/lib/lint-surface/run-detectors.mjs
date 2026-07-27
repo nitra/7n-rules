@@ -285,7 +285,8 @@ function sortEntries(entries) {
  */
 export async function buildDetectPlan(opts) {
   const rulesDirs = await effectiveRulesDirs(opts)
-  const byRule = await filterByCapabilities(await readLintConcernsByRuleMulti(rulesDirs), opts)
+  const capable = await filterByCapabilities(await readLintConcernsByRuleMulti(rulesDirs), opts)
+  const byRule = await filterByRuleApplies(capable, opts.cwd)
   return buildPlan({
     byRule,
     full: opts.full === true,
