@@ -1,10 +1,10 @@
-//! Тип 2b (OpenAI-сумісний API, batch) — **лише емуляція** у v1 (рішення Р
-//! спеки `2026-07-23-llm-cascade-single-source-spec.md`): чанкований
-//! конкурентний прогін через [`crate::local_cloud`] (Тип 2a) під тим самим
-//! інтерфейсом `submit → progress → results`, яким користувалися б і зі
-//! справжнім OpenAI Batch API (`/v1/batches`, v2) — перший споживач (локальний
-//! omlx) його не має. Той самий інтерфейс незалежно від того, хто батчить:
-//! сервер (v2) чи клієнт (v1, тут).
+//! Тип 2b (OpenAI-сумісний API, batch) — [`dispatch`] обирає між клієнтською
+//! емуляцією (v1, рішення Р спеки `2026-07-23-llm-cascade-single-source-spec.md`:
+//! чанкований конкурентний прогін через [`crate::local_cloud`], Тип 2a) і
+//! справжнім `/v1/batches` litellm batch-adapter-а ([`crate::remote_batch`],
+//! спека `2026-07-27-batch-local-avg-real-batches.md`) — той самий контракт
+//! `submit → progress → results` для обох, викликач (napi-міст) не відрізняє
+//! бекенд. omlx (без реального Batch API) завжди йде емуляцією.
 //!
 //! **Помилка одного item чи одного чанка не валить увесь batch** — вона
 //! потрапляє у відповідний [`BatchResult::outcome`], решта items
@@ -18,6 +18,9 @@ use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 
+use crate::local_cloud::LocalCloud;
+use crate::remote_batch::{self, RemoteBatchConfig};
+use crate::tiers::parse_model_spec;
 use crate::LlmError;
 
 /// Ліміти чанка/конкурентності. Дефолти — стартові з рішення Р спеки (чанк
@@ -177,6 +180,106 @@ where
         results.extend(chunk_results);
     }
     results
+}
+
+/// Провайдер, для якого сьогодні розгорнутий справжній `/v1/batches`
+/// litellm-adapter (спека `2026-07-27-batch-local-avg-real-batches.md`,
+/// рішення Б: тир-правило «litellm-провайдер ⇒ справжній batch»). Єдине
+/// місце цього рядка — розширення на інший провайдер зі своїм Batch API
+/// міняє лише цю константу, не виклик-сайти.
+const REMOTE_BATCH_PROVIDER: &str = "litellm";
+
+/// Вибір бекенда для [`dispatch`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Backend {
+    /// Клієнтська емуляція (Тип 2a, чанкований прогін) — без мережевої capability-проби.
+    Emulated,
+    /// Справжній `/v1/batches` — без capability-проби (явний вибір
+    /// викликача, помилка мережі повертається як є), для БУДЬ-ЯКОГО
+    /// провайдера, зареєстрованого в `local_providers` (не лише
+    /// [`REMOTE_BATCH_PROVIDER`] — той обмежує тільки `Auto`). Провайдер, не
+    /// зареєстрований узагалі (немає `base_url`/`api_key`), гейтується так
+    /// само, як і `Auto` без проби — падає на емуляцію, а не хибу: явний
+    /// вибір бекенда описує лише, ЯКИЙ backend бажаний, не гарантує його
+    /// застосовність без потрібного конфігу.
+    OpenAiBatches,
+    /// Дефолт: емуляція для будь-якого провайдера, крім
+    /// [`REMOTE_BATCH_PROVIDER`]; для нього — кешована capability-проба
+    /// ([`crate::remote_batch::probe_cached`]), і лише за позитивного
+    /// результату — справжній Batch API.
+    Auto,
+}
+
+/// Диспетчер Типу 2b: резолвить `model_spec_or_tier` через
+/// [`LocalCloud::resolve_spec`], визначає провайдер і — за `backend` —
+/// виконує batch або через [`submit`] (емуляція, executor —
+/// [`LocalCloud::one_shot_with_spec`] на резолвлений spec), або через
+/// [`crate::remote_batch::submit`] (справжній `/v1/batches`, лише bare
+/// model-id без provider-префікса — той самий, що адаптер очікує в тілі
+/// `chat/completions`).
+///
+/// # Errors
+/// [`LlmError::NoModelConfigured`]/[`LlmError::InvalidModelSpec`] з
+/// [`LocalCloud::resolve_spec`]/парсингу spec-у; [`LlmError::Provider`] з
+/// обраного бекенда (мережа, невалідна відповідь адаптера).
+#[allow(clippy::too_many_arguments)]
+pub async fn dispatch<Progress>(
+    cascade: &LocalCloud,
+    model_spec_or_tier: &str,
+    items: Vec<BatchItem>,
+    backend: Backend,
+    emulated_config: &BatchConfig,
+    remote_config: &RemoteBatchConfig,
+    global_system: Option<String>,
+    on_progress: Progress,
+) -> Result<Vec<BatchResult>, LlmError>
+where
+    Progress: Fn(BatchProgress) + Send + Sync + 'static,
+{
+    let spec = cascade.resolve_spec(model_spec_or_tier)?;
+    let (provider, _) = parse_model_spec(&spec).map_err(LlmError::InvalidModelSpec)?;
+
+    let remote_provider_config = cascade.provider_config(provider).filter(|_| {
+        matches!(backend, Backend::OpenAiBatches)
+            || (backend == Backend::Auto && provider == REMOTE_BATCH_PROVIDER)
+    });
+
+    let use_remote = match (backend, remote_provider_config) {
+        (Backend::Emulated, _) => false,
+        (_, None) => false,
+        (Backend::OpenAiBatches, Some(_)) => true,
+        (Backend::Auto, Some(config)) => {
+            remote_batch::probe_cached(&config.base_url, config.api_key.as_deref()).await
+        }
+    };
+
+    if use_remote {
+        let config = remote_provider_config.expect("перевірено вище (use_remote=true)");
+        let (_, model_name) = parse_model_spec(&spec).map_err(LlmError::InvalidModelSpec)?;
+        return remote_batch::submit(
+            &config.base_url,
+            config.api_key.as_deref(),
+            model_name,
+            items,
+            remote_config,
+            on_progress,
+        )
+        .await;
+    }
+
+    let cascade = cascade.clone();
+    let spec = Arc::new(spec);
+    let executor = move |item: BatchItem| {
+        let cascade = cascade.clone();
+        let spec = Arc::clone(&spec);
+        let system = item.system.clone().or_else(|| global_system.clone());
+        async move {
+            cascade
+                .one_shot_with_spec(&spec, system.as_deref(), &item.prompt)
+                .await
+        }
+    };
+    Ok(submit(items, emulated_config, executor, on_progress).await)
 }
 
 #[cfg(test)]
@@ -389,5 +492,112 @@ mod tests {
         };
         let results = submit(items, &config, echo_executor, no_progress).await;
         assert_eq!(results.len(), 3);
+    }
+
+    fn provider(base_url: &str) -> crate::local_cloud::LocalProvider {
+        crate::local_cloud::LocalProvider {
+            base_url: base_url.to_string(),
+            api_key: None,
+        }
+    }
+
+    /// Порожній набір items не спричиняє жодного мережевого виклику в жодному
+    /// шляху ([`submit`] і [`crate::remote_batch::submit`] обидва
+    /// short-circuit-ять на `is_empty`) — безпечно перевіряти сам вибір
+    /// бекенда без піднімання мок-сервера.
+    #[tokio::test]
+    async fn dispatch_never_probes_for_non_remote_provider() {
+        let mut providers = std::collections::HashMap::new();
+        // Порт 1 — привілейований, гарантовано нічого не слухає; якби Auto
+        // помилково пробував "omlx" (не REMOTE_BATCH_PROVIDER), проба
+        // зависла б чи провалилась замість тихого short-circuit на 0 items.
+        providers.insert("omlx".to_string(), provider("http://127.0.0.1:1/v1/"));
+        let cascade = LocalCloud::new(providers);
+
+        let results = dispatch(
+            &cascade,
+            "omlx/some-model",
+            Vec::new(),
+            Backend::Auto,
+            &BatchConfig::default(),
+            &RemoteBatchConfig::default(),
+            None,
+            no_progress,
+        )
+        .await
+        .expect("порожній batch не має провалюватись");
+        assert!(results.is_empty());
+    }
+
+    #[tokio::test]
+    async fn dispatch_auto_falls_back_to_emulation_when_litellm_probe_fails() {
+        let mut providers = std::collections::HashMap::new();
+        // Порт узятий і відразу звільнений — жоден слухач не піднятий, тож
+        // capability-проба гарантовано провалюється (адаптер "недоступний").
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        drop(listener);
+        providers.insert(
+            "litellm".to_string(),
+            provider(&format!("http://{addr}/v1/")),
+        );
+        let cascade = LocalCloud::new(providers);
+
+        let results = dispatch(
+            &cascade,
+            "litellm/gemma-4-26b-awq",
+            Vec::new(),
+            Backend::Auto,
+            &BatchConfig::default(),
+            &RemoteBatchConfig::default(),
+            None,
+            no_progress,
+        )
+        .await
+        .expect("недоступний адаптер має тихо впасти на емуляцію, не на помилку");
+        assert!(results.is_empty());
+    }
+
+    #[tokio::test]
+    async fn dispatch_emulated_ignores_litellm_provider() {
+        let mut providers = std::collections::HashMap::new();
+        providers.insert("litellm".to_string(), provider("http://127.0.0.1:1/v1/"));
+        let cascade = LocalCloud::new(providers);
+
+        // Backend::Emulated форсує емуляцію навіть для litellm — з 0 items
+        // це доводиться відсутністю HTTP-виклику (інакше проба чи HTTP до
+        // непіднятого порту 1 провалили б виклик мережевою помилкою).
+        let results = dispatch(
+            &cascade,
+            "litellm/gemma-4-26b-awq",
+            Vec::new(),
+            Backend::Emulated,
+            &BatchConfig::default(),
+            &RemoteBatchConfig::default(),
+            None,
+            no_progress,
+        )
+        .await
+        .expect("Backend::Emulated з 0 items не має бити в мережу");
+        assert!(results.is_empty());
+    }
+
+    #[tokio::test]
+    async fn dispatch_unregistered_provider_falls_back_to_emulation_even_for_explicit_backend() {
+        let cascade = LocalCloud::new(std::collections::HashMap::new());
+
+        let results = dispatch(
+            &cascade,
+            "litellm/gemma-4-26b-awq",
+            Vec::new(),
+            Backend::OpenAiBatches,
+            &BatchConfig::default(),
+            &RemoteBatchConfig::default(),
+            None,
+            no_progress,
+        )
+        .await
+        .expect("незареєстрований провайдер не має падати навіть за явного backend");
+        assert!(results.is_empty());
     }
 }

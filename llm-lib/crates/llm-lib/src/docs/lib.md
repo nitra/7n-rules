@@ -3,30 +3,14 @@ type: Rust Module
 title: lib.rs
 resource: llm-lib/crates/llm-lib/src/lib.rs
 docgen:
-  crc: a9fb65b2
-  model: openai-codex/gpt-5.5
-  tier: cloud-avg
-  score: 100
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: 88ee8dc6
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  score: 80
 ---
 
 ## Огляд
 
-Файл задає спільний формат помилок для Rust-каскаду доступу до LLM, сумісного з env-контрактом `@7n/llm-lib` (`model-tiers.mjs`) і розширеного local/cloud тирами через [`genai`] та ACP-бекендами особистих підписок. Він потрібен, щоб зберігати гарантію **жодного вбудованого retry**: кожен `one_shot_*` означає рівно один виклик, після якого збій повертається як `LlmError` у складі результату.
-
-Рішення про fallback, ескалацію tier або перехід на інший backend залишається за викликачем. Типова драбина може йти від `local-min → cloud-min → cloud-avg`, ставити ACP-підписки `Cursor`/`Codex` перед метрованим ключем і завершуватися викликом на `Tier::Max`.
-
-## Поведінка
-
-1. `LlmError` уніфікує збої каскадного доступу до LLM в одному публічному форматі, щоб викликач міг сам вирішувати, чи ескалувати запит на інший tier або backend.
-
-2. Якщо для потрібного tier немає налаштованої моделі в environment-контракті, `LlmError` повідомляє про відсутність конфігурації замість автоматичного fallback.
-
-3. Якщо опис моделі не відповідає очікуваному формату provider/model, `LlmError` позначає це як помилку конфігурації, щоб не виконувати запит до невизначеного backend.
-
-4. Якщо збій стається на стороні провайдера, ACP-агента, процесу або мережевого виклику, `LlmError` передає текстову причину без додаткової вкладеної типізації.
-
-5. `LlmError` не запускає повтори й не будує драбину ескалації самостійно: кожна невдача повертається викликачу як результат одного LLM-виклику.
+Каскадний доступ до LLM — Rust-аналог env-контракту `@7n/llm-lib` (model-tiers.mjs), розширений ACP-бекендами особистих підписок (Codex, Cursor CLI) поряд із local/cloud тирами через [`genai`].  # Філософія (успадкована з `@7n/llm-lib`)  **Жодного вбудованого retry.** Кожен `one_shot_*` — рівно один виклик; невдача повертається як [`LlmError`], а драбину ескалації (як `local-min → cloud-min → cloud-avg` у JS-шарі) будує викликач, компонуючи примітиви крейта. Приклад драбини з ACP-підпискою попереду метрованого ключа:  ```no_run use llm_lib::{acp::{AcpAgentKind, one_shot_acp}, local_cloud::LocalCloud, tiers::Tier};  # async fn ladder(local_cloud: &LocalCloud, prompt: &str, cwd: &std::path::Path) -> Result<String, llm_lib::LlmError> { if let Ok(text) = one_shot_acp(AcpAgentKind::Cursor, prompt, cwd).await { return Ok(text); } if let Ok(text) = one_shot_acp(AcpAgentKind::Codex, prompt, cwd).await { return Ok(text); } local_cloud.one_shot(Tier::Max, None, prompt).await # } ```
 
 ## Публічний API
 
@@ -34,5 +18,5 @@ docgen:
 
 ## Гарантії поведінки
 
-- Невдалі LLM-виклики подаються викликачу як `LlmError` у складі результату.
-- Повтори, fallback і ескалацію між tier/backend виконує викликач, а не сам формат помилки.
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
+- Деякі локальні fail-safe гілки повертають порожнє значення (напр. `null`) замість винятку.

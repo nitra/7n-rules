@@ -138,4 +138,36 @@ impl LocalCloud {
             .map(str::to_owned)
             .ok_or_else(|| LlmError::Provider("порожня відповідь моделі".to_string()))
     }
+
+    /// Резолвить `"min"/"avg"/"max"` тир (чи повертає spec як є) у явний
+    /// `"provider/model-id"` — той самий контракт розпізнавання тиру, що
+    /// й [`Self::one_shot`]/[`Self::one_shot_with_spec`] (задача T5), винесений
+    /// окремо для [`crate::batch::dispatch`]: перед виконанням batch-у треба
+    /// знати провайдер ДО того, як обирати між емуляцією і справжнім
+    /// `/v1/batches`.
+    ///
+    /// # Errors
+    /// [`LlmError::NoModelConfigured`] якщо тир не резолвиться в жодну env-модель.
+    pub fn resolve_spec(&self, model_spec_or_tier: &str) -> Result<String, LlmError> {
+        match model_spec_or_tier {
+            "min" => {
+                crate::tiers::resolve_model(Tier::Min).ok_or(LlmError::NoModelConfigured(Tier::Min))
+            }
+            "avg" => {
+                crate::tiers::resolve_model(Tier::Avg).ok_or(LlmError::NoModelConfigured(Tier::Avg))
+            }
+            "max" => {
+                crate::tiers::resolve_model(Tier::Max).ok_or(LlmError::NoModelConfigured(Tier::Max))
+            }
+            spec => Ok(spec.to_string()),
+        }
+    }
+
+    /// Конфіг зареєстрованого локального провайдера за префіксом (`omlx`,
+    /// `litellm` тощо) — `None`, якщо провайдер не зареєстрований у мапі,
+    /// переданій у [`Self::new`].
+    #[must_use]
+    pub fn provider_config(&self, provider: &str) -> Option<&LocalProvider> {
+        self.local_providers.get(provider)
+    }
 }
