@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.0.0] - 2026-07-27
+
+### Added
+
+- Generic ci.artifact@1 consumer: contains-step перевірка lint-кроку Azure Pipelines на будь-якій глибині, diagnostic-only
+
+### Changed
+
+- Маніфест плагіна переведено на universal slot bus (`requiresPluginApi: 2`, `slots.provides` з `rules.directory@1` замість `contributes.rules`) — spec 2026-07-27-universal-plugin-slots-lang-php-extraction, Фаза 2.
+
+### Fixed
+
+- Concern `ci_artifact/consume` перейменовано на `ci_artifact/consume_azure` — колізія імені з
+однойменним `consume`-концерном `@7n/rules-ci-github` глушила Azure-перевірку (перший власник
+виграє за іменем концерну), коли обидва CI-плагіни активні в одному consumer-репо
+(spec 2026-07-27-universal-plugin-slots-lang-php-extraction, Фаза 5 parity battery)
+
+### Removed
+
+- PHP-specific mixin-концерн `rules/php/lint_pipeline_php/**` видалено (Фаза 4 spec universal-plugin-slots-lang-php-extraction) — Azure lint-степ `php` тепер обслуговує generic `ci.artifact@1` consumer (contains-step, diagnostic-only) через contribution `@7n/rules-lang-php`
+
 ## [1.4.8] - 2026-07-24
 
 ### Changed

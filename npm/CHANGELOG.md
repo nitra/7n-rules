@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.52.0] - 2026-07-27
+
+### Changed
+
+- Universal typed slot bus (plugin API v2, phase 1): resolveSlotGraph/getSlotContributions/getSlotConsumers/loadSlotConsumer у npm/scripts/lib/plugin-slots.mjs, envelope validation і path-безпека для slots.provides/consumes, PLUGIN_API_VERSION 1→2, machine-readable plugin-manifest.json schema.
+
 ## [1.51.0] - 2026-07-27
 
 ### Added

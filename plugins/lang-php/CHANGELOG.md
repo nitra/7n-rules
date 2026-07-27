@@ -1,3 +1,9 @@
 # Changelog
 
+## [0.2.0] - 2026-07-27
+
+### Added
+
+- Перший реліз: правило `php` (PHPCS Security, PHP-CS-Fixer, PHPStan/Psalm, composer audit) перенесено з ядра `@7n/rules` (Фаза 4 spec universal-plugin-slots-lang-php-extraction) через `rules.directory@1`; три `ci.artifact@1` contributions постачають PHP-specific CI-артефакти без прямої залежності від `ci-github`/`ci-azure` — GitHub `lint-php.yml` (required-file), Azure lint-степ (contains-step, diagnostic-only), патч `lint-text.yml` (`**/*.php` у `push.paths`/`pull_request.paths`)
+
 All notable changes to this project will be documented in this file.

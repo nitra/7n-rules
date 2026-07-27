@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.0.0] - 2026-07-27
+
+### Added
+
+- Generic ci.artifact@1 consumer: deep-subset merge, GitHub Actions workflow artifacts (required-file/patch-existing), T0-фікс
+
+### Changed
+
+- Маніфест плагіна переведено на universal slot bus (`requiresPluginApi: 2`, `slots.provides` з `rules.directory@1` замість `contributes.rules`) — spec 2026-07-27-universal-plugin-slots-lang-php-extraction, Фаза 2.
+
+### Removed
+
+- PHP-specific mixin-концерн `rules/php/lint_php_yml/**` видалено (Фаза 4 spec universal-plugin-slots-lang-php-extraction) — GitHub `lint-php.yml` тепер обслуговує generic `ci.artifact@1` consumer через contribution `@7n/rules-lang-php`; статичний `lint-text.yml` template більше не містить безумовний `**/*.php` glob — тепер `patch-existing` contribution того самого плагіна
+
 ## [1.9.8] - 2026-07-26
 
 ### Fixed
