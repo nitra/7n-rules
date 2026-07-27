@@ -15,13 +15,15 @@
     },
     {
       "name": "any.json",
-      "description": "Заглушка-схема (приймає будь-який JSON) — bespoke tool-конфіги й one-off артефакти без офіційної схеми",
+      "description": "Заглушка-схема (приймає будь-який JSON) — bespoke tool-конфіги, VS Code extension recommendations і one-off артефакти без офіційної схеми",
       "url": "any.json",
       "fileMatch": [
         ".licensee.json",
         "**/.licensee.json",
         ".kubescape-exceptions.json",
         "**/.kubescape-exceptions.json",
+        ".vscode/extensions.json",
+        "**/.vscode/extensions.json",
         "docs/specs/**/*.json",
         "docs/plans/**/*.json",
         "any.json",
