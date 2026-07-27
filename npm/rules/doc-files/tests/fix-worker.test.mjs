@@ -58,6 +58,21 @@ describe('fix-worker — crc-mismatch іде через регенерацію, 
     })
   })
 
+  test('scoped violations: генерує лише цілі detector-а, без full-tree re-scan', async () => {
+    await withTmpDir(async root => {
+      await installFakeLangJsPlugin(root)
+      await writeSourceWithDoc(root, 'run/api/a.mjs', 'export const a = 2\n', 'export const a = 1\n')
+      await writeSourceWithDoc(root, 'run/other/b.mjs', 'export const b = 2\n', 'export const b = 1\n')
+      runGenerationBatch.mockClear()
+
+      await fixWorker([{ reason: 'crc-mismatch', file: 'run/api/a.mjs' }], { cwd: root })
+
+      expect(runGenerationBatch).toHaveBeenCalledTimes(1)
+      const [targets] = runGenerationBatch.mock.calls[0]
+      expect(targets).toEqual([expect.objectContaining({ sourcePath: 'run/api/a.mjs' })])
+    })
+  })
+
   test('інваріант: у check немає T0 fix-check.mjs (безумовний CRC-штамп маскував дрейф назавжди)', () => {
     // Історичний баг: T0-патерн `doc-files-stamp-crc` штампував свіжий CRC у frontmatter
     // будь-якої crc-mismatch доки БЕЗ регенерації тексту — після цього CRC-гейт вважав

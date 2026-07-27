@@ -24,16 +24,19 @@ const DEADLINE_FRACTION = 0.8
 /** @type {FixWorkerFn} */
 export async function fixWorker(violations, ctx) {
   const { cwd } = ctx
-  const { scanForDocFiles } = await import('../docgen-scan/main.mjs')
+  const { describeFile } = await import('../docgen-scan/main.mjs')
   const { runGenerationBatch, purgeOrphanedDocs } = await import('../docgen-files-batch/main.mjs')
 
   /** @type {string[]} */
   const touchedFiles = []
   const recordDoc = ctx.recordDurableWrite ?? ctx.recordWrite
 
-  // Re-scan дає повні target-обʼєкти {sourcePath, docPath, reason, …}, що їх потребує
-  // runGenerationBatch (violation несе лише file+docPath).
-  const stale = scanForDocFiles(cwd).filter(f => f.stale)
+  // Відновлюємо повні target-обʼєкти лише для порушень detector-а. Повний re-scan
+  // тут ігнорував би explicit files від hook/`lint --path` і генерував би docs
+  // для всього checkout.
+  const stale = [...new Set(violations.filter(v => v.reason !== 'orphaned-doc' && v.file).map(v => v.file))]
+    .map(sourcePath => describeFile(cwd, sourcePath))
+    .filter(f => f.stale)
   if (stale.length > 0) {
     for (const f of stale) {
       const docAbs = join(cwd, f.docPath)
