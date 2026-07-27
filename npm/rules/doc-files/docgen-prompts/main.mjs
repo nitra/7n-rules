@@ -48,7 +48,8 @@ function factsSummary(facts) {
   if (m.readOnly) lines.push('Власних операцій запису (ФС/БД) у файлі немає (імпортовані модулі не аналізувались)')
   if (m.network) lines.push('Звертається до мережі')
   if (m.catchesErrors) lines.push('Містить локальні fail-safe гілки; інші помилки можуть поширюватися назовні')
-  if (m.returnsFalsyOnFail) lines.push('Деякі локальні fail-safe гілки повертають порожнє значення (напр. null) замість винятку')
+  if (m.returnsFalsyOnFail)
+    lines.push('Деякі локальні fail-safe гілки повертають порожнє значення (напр. null) замість винятку')
   lines.push(m.caches ? 'Кешування: так, у межах прогону' : 'Кешування: НЕМАЄ — не згадуй кеш у гарантіях')
   return lines.join('\n')
 }
@@ -263,7 +264,8 @@ export function guaranteesFromMarkers(facts) {
   if (m.readOnly)
     lines.push('- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.')
   if (m.catchesErrors) lines.push('- Містить локальні fail-safe гілки; інші помилки можуть поширюватися назовні.')
-  if (m.returnsFalsyOnFail) lines.push('- Деякі локальні fail-safe гілки повертають порожнє значення (напр. `null`) замість винятку.')
+  if (m.returnsFalsyOnFail)
+    lines.push('- Деякі локальні fail-safe гілки повертають порожнє значення (напр. `null`) замість винятку.')
   if (m.caches) lines.push('- Кешує результати в межах одного прогону.')
   if (m.skips?.length) {
     lines.push(`- Свідомо пропускає шляхи: ${m.skips.map(s => '`' + s + '`').join(', ')}.`)

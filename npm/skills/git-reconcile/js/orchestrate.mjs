@@ -27,7 +27,8 @@ const REF_ORIGIN_RE = /^refs\/remotes\/origin\//
 const RENAME_DELETE_CONFLICT_RE = /^CONFLICT \(rename\/delete\): .+? renamed to (.+?) in .+?, but deleted/
 const SOURCE_CODE_RE = /\.(?:js|mjs|ts|vue|rs|py)$/
 const CHANGE_ENTRY_RE = /(^|\/)\.changes\/[^/]+\.md$/
-const LOCKFILE_RE = /(^|\/)(?:bun\.lockb?|Cargo\.lock|package-lock\.json|pnpm-lock\.yaml|poetry\.lock|uv\.lock|yarn\.lock)$/
+const LOCKFILE_RE =
+  /(^|\/)(?:bun\.lockb?|Cargo\.lock|package-lock\.json|pnpm-lock\.yaml|poetry\.lock|uv\.lock|yarn\.lock)$/
 const WHITESPACE_RE = /\s+/
 const PR_DESCRIPTION_ARRAY_FIELDS = [
   'businessOutcomes',
