@@ -811,7 +811,7 @@ export function collectPullRequestFacts(args) {
  * Класифікує фінальний diff без LLM, щоб release metadata + lockfile
  * залишались валідним PR, але narrative не приписував їм runtime-зміни.
  * @param {string[]} paths фактичні changed paths
- * @returns {{kind:'general'|'release-lock-only',releaseEntryPaths:string[],lockfilePaths:string[]}}
+ * @returns {{kind:'general'|'release-lock-only',releaseEntryPaths:string[],lockfilePaths:string[]}} профіль final diff
  */
 export function pullRequestDiffProfile(paths) {
   const releaseEntryPaths = paths.filter(path => CHANGE_ENTRY_RE.test(path))
