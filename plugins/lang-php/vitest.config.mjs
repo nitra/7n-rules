@@ -11,6 +11,7 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     include: [
+      'doc-files/tests/**/*.test.{js,mjs}',
       'rules/**/tests/**/*.test.{js,mjs}',
       'slots/**/tests/**/*.test.{js,mjs}',
       'taze/tests/**/*.test.{js,mjs}'
