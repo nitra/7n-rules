@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.21] - 2026-07-27
+
+### Fixed
+
+- v8r: validate VS Code extension recommendations with the local catalog
+
 ## [1.49.20] - 2026-07-27
 
 ### Fixed
