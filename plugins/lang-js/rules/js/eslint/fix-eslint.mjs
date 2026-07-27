@@ -16,6 +16,7 @@ import { resolve } from 'node:path'
 
 import { ESLint } from 'eslint'
 
+import { resolveCmd } from '@7n/rules/scripts/utils/resolve-cmd.mjs'
 import { filterJsFiles } from './main.mjs'
 
 /**
@@ -42,8 +43,13 @@ async function runLinterFix(jsFiles, cwd) {
   const abs = jsFiles.map(f => resolve(cwd, f))
   const before = new Map(abs.map(a => [a, readOrNull(a)]))
 
-  // oxlint --fix (CLI): авто-fixable oxc-правила.
-  spawnSync('bunx', ['oxlint', '--fix', ...jsFiles], { cwd, encoding: 'utf8' })
+  // oxlint --fix (CLI): авто-fixable oxc-правила. `bunx` — через resolveCmd (абсолютний
+  // шлях), не літералом: вкладений spawn('bunx', …) падає ENOENT, коли зовнішній
+  // n-rules викликаний напряму (bun bin/n-rules.js), а не через bun x n-rules (той самий
+  // клас проблеми, що й у runOxlintJson, main.mjs). Відсутність bunx тут best-effort —
+  // eslint --fix нижче все одно виконається незалежно.
+  const bunx = resolveCmd('bunx')
+  if (bunx) spawnSync(bunx, ['oxlint', '--fix', ...jsFiles], { cwd, encoding: 'utf8', env: process.env })
 
   // eslint --fix (API): outputFixes пише виправлені файли на диск.
   const eslint = new ESLint({ cwd, fix: true })

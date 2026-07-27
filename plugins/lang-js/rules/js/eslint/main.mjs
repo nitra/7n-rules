@@ -7,6 +7,7 @@ import { resolve, relative } from 'node:path'
 import { ESLint } from 'eslint'
 
 import { addedLinesByFile } from '@7n/rules/scripts/lib/diff-added-lines.mjs'
+import { resolveCmd } from '@7n/rules/scripts/utils/resolve-cmd.mjs'
 import { spawnAsync } from '@7n/rules/scripts/utils/spawn-async.mjs'
 import { WORKTREE_CHECKOUT_GLOBS } from '@7n/rules/scripts/utils/walkDir.mjs'
 import { classifyFindings, eslintResultsToFindings, parseOxlint } from '../lint-findings/main.mjs'
@@ -24,12 +25,24 @@ export function filterJsFiles(files) {
 /**
  * Async (не блокує event loop) — детектор може виконуватись у parallel lane `detectAll()`
  * (ADR 260716-1354).
+ *
+ * `bunx` резолвиться через `resolveCmd` (абсолютний шлях), не літералом — спостережено
+ * на self-hosted Linux CI, що вкладений `spawn('bunx', …)` падає `ENOENT`, коли зовнішній
+ * `n-rules` викликаний напряму (`bun bin/n-rules.js`), а не через `bun x n-rules`, попри
+ * той самий `$PATH` на рівні CI-кроку — `bun x` інакше резолвить бінарники для дочірніх
+ * процесів, ніж пряма інвокація. `env: process.env` — явно, бо Bun вмикає snapshot
+ * оточення на старті процесу і не бачить runtime-змін `process.env.PATH` без цього
+ * (той самий застережний коментар, що й у `resolve-cmd.mjs`).
  * @param {string[]} args аргументи запуску oxlint
  * @param {string} cwd робочий каталог
  * @returns {Promise<{ status: number, stdout: string, stderr: string }>} код завершення, stdout і stderr процесу
  */
 async function runOxlintJson(args, cwd) {
-  const r = await spawnAsync('bunx', args, { cwd })
+  const bunx = resolveCmd('bunx')
+  if (!bunx) {
+    throw new Error('bunx не знайдено в PATH — потрібен для oxlint (js/eslint detector)')
+  }
+  const r = await spawnAsync(bunx, args, { cwd, env: process.env })
   return { status: typeof r.exitCode === 'number' ? r.exitCode : 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' }
 }
 

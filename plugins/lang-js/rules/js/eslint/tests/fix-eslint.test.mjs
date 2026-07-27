@@ -8,8 +8,28 @@ import { join } from 'node:path'
 
 import { describe, expect, test, vi } from 'vitest'
 
-import { patterns } from '../fix-eslint.mjs'
-import { withTmpDir } from '@7n/rules/scripts/utils/test-helpers.mjs'
+const spawnSyncMock = vi.fn(() => ({ status: 0 }))
+vi.mock('node:child_process', () => ({ spawnSync: spawnSyncMock }))
+
+const resolveCmdMock = vi.fn(() => '/usr/local/bin/bunx')
+vi.mock('@7n/rules/scripts/utils/resolve-cmd.mjs', () => ({ resolveCmd: resolveCmdMock }))
+
+const lintFilesMock = vi.fn(() => [])
+const outputFixesMock = vi.fn()
+vi.mock('eslint', () => ({
+  ESLint: class {
+    static outputFixes(...args) {
+      return outputFixesMock(...args)
+    }
+
+    lintFiles(...args) {
+      return lintFilesMock(...args)
+    }
+  }
+}))
+
+const { patterns } = await import('../fix-eslint.mjs')
+const { withTmpDir } = await import('@7n/rules/scripts/utils/test-helpers.mjs')
 
 const AUTOFIX = patterns[0]
 const MECHANICAL = patterns[1]
@@ -32,6 +52,41 @@ describe('js-eslint-autofix pattern', () => {
   test('apply: лише не-js файли → лінтери не запускаються, touchedFiles порожній', async () => {
     const res = await AUTOFIX.apply([{ reason: 'x', message: 'm', file: 'README.md' }], { cwd: '/nonexistent-cwd' })
     expect(res.touchedFiles).toEqual([])
+  })
+
+  test('apply: js-файл, bunx резолвиться → spawnSync з абсолютним шляхом резолвлений через resolveCmd', async () => {
+    await withTmpDir(async dir => {
+      const file = join(dir, 'a.js')
+      writeFileSync(file, 'const x = 1\n', 'utf8')
+      spawnSyncMock.mockClear()
+      resolveCmdMock.mockClear().mockReturnValueOnce('/usr/local/bin/bunx')
+      lintFilesMock.mockResolvedValueOnce([])
+
+      await AUTOFIX.apply([{ reason: 'x', message: 'm', file: 'a.js' }], { cwd: dir })
+
+      expect(resolveCmdMock).toHaveBeenCalledWith('bunx')
+      expect(spawnSyncMock).toHaveBeenCalledWith(
+        '/usr/local/bin/bunx',
+        ['oxlint', '--fix', 'a.js'],
+        expect.objectContaining({ cwd: dir })
+      )
+      expect(outputFixesMock).toHaveBeenCalled()
+    })
+  })
+
+  test('apply: bunx не знайдено в PATH → oxlint --fix пропускається, eslint --fix все одно виконується', async () => {
+    await withTmpDir(async dir => {
+      const file = join(dir, 'a.js')
+      writeFileSync(file, 'const x = 1\n', 'utf8')
+      spawnSyncMock.mockClear()
+      resolveCmdMock.mockClear().mockReturnValueOnce(null)
+      lintFilesMock.mockResolvedValueOnce([])
+
+      await AUTOFIX.apply([{ reason: 'x', message: 'm', file: 'a.js' }], { cwd: dir })
+
+      expect(spawnSyncMock).not.toHaveBeenCalled()
+      expect(outputFixesMock).toHaveBeenCalled()
+    })
   })
 })
 
