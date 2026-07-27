@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.50.1] - 2026-07-27
+
+### Changed
+
+- Описи release PR із `.changes/` та lockfile тепер відокремлюють product intent від фактичного runtime diff.
+
 ## [1.50.0] - 2026-07-27
 
 ### Added
