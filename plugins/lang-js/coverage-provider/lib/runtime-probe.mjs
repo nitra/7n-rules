@@ -9,7 +9,7 @@
  * 4. probeHelpers — extracts non-exported helper functions from source and calls them
  *    with generic param combos to reveal their actual output shapes.
  */
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -158,22 +158,30 @@ function capModuleResults(results) {
  * порожньому аргументі шляху) не бачать файлів проєкту — вихід
  * детермінований між машинами і не може випадково затягнути великий
  * файл репозиторію у LLM-промпт.
+ *
+ * Скрипт передається файлом (`probe.mjs` поза cwd), а не через stdin
+ * (`--input-type=module` + `input`): під `bun run --bun` `node` у PATH — це
+ * bun-shim, який не виконує скрипт зі stdin («does not support a repl»),
+ * а файл виконує однаково і справжній node, і shim.
  * @param {string} script код для виконання
  * @param {number} [timeout] ліміт очікування в мс; за замовчуванням `PROBE_TIMEOUT_MS`
  * @returns {import('node:child_process').SpawnSyncReturns<string>} результат spawnSync
  */
 function spawnProbe(script, timeout = PROBE_TIMEOUT_MS) {
-  const cwd = mkdtempSync(join(tmpdir(), 'n-probe-'))
+  const root = mkdtempSync(join(tmpdir(), 'n-probe-'))
   try {
-    return spawnSync('node', ['--input-type=module'], {
-      input: script,
+    const scriptPath = join(root, 'probe.mjs')
+    writeFileSync(scriptPath, script)
+    const cwd = join(root, 'cwd')
+    mkdirSync(cwd)
+    return spawnSync('node', [scriptPath], {
       encoding: 'utf8',
       timeout,
       env: { ...process.env },
       cwd
     })
   } finally {
-    rmSync(cwd, { recursive: true, force: true })
+    rmSync(root, { recursive: true, force: true })
   }
 }
 

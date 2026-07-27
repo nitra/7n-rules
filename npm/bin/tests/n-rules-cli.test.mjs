@@ -88,17 +88,20 @@ const { runCli } = await import('../n-rules-cli.mjs')
 // у тестовому воркері (vitest pool: 'forks') він убив би сам тестовий процес. Тому мокається
 // лише `reallyExit` (no-op) — `process.emit('exit', …)` лишаємо реальним, він синхронний і
 // не завершує процес сам собою.
-vi.spyOn(process, 'reallyExit').mockReturnValue()
+const reallyExitSpy = vi.spyOn(process, 'reallyExit').mockReturnValue()
 
 describe('runCli', () => {
+  // Reset — явний `0`, а не `undefined`: Bun (на відміну від Node) ігнорує
+  // присвоєння `process.exitCode = undefined`/`null` і `delete` — раз виставлений
+  // код інакше протікав би між тестами під `bun run --bun vitest`.
   beforeEach(() => {
     vi.clearAllMocks()
-    process.exitCode = undefined
+    process.exitCode = 0
   })
 
   afterEach(() => {
     // Не тягнемо exitCode тестової команди у власний exit-код vitest-процесу.
-    process.exitCode = undefined
+    process.exitCode = 0
   })
 
   test('lint --help друкує довідку без root-guard і без ensure devDependencies', async () => {
@@ -147,9 +150,12 @@ describe('runCli', () => {
   test('rename-yaml-extensions з кодом 0 — exitCode лишається успішним (0)', async () => {
     runRenameYamlExtensionsCliMock.mockResolvedValueOnce(0)
     await runCli(['rename-yaml-extensions'])
-    // Фінальний блок `runCli` (`process.exitCode ?? 0`) завжди виставляє явний 0,
-    // навіть якщо жодна гілка switch не торкнулась exitCode.
+    // Фінальний блок `runCli` (`process.exitCode ?? 0`) завершує процес явним 0.
+    // Перевірка — на аргумент `reallyExit`, а не на ambient `process.exitCode`:
+    // це спостережуваний exit-код CLI і він не залежить від runtime-нюансів
+    // reset-у exitCode (див. коментар у beforeEach).
     expect(process.exitCode).toBe(0)
+    expect(reallyExitSpy).toHaveBeenCalledWith(0)
   })
 
   test('hook делегує у runHookCli і копіює його exitCode', async () => {
