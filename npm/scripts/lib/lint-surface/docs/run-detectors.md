@@ -3,7 +3,7 @@ type: JS Module
 title: run-detectors.mjs
 resource: npm/scripts/lib/lint-surface/run-detectors.mjs
 docgen:
-  crc: e9224e37
+  crc: 9f044303
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100
@@ -19,7 +19,7 @@ docgen:
 
 DEFAULT_RULES_DIR задає базовий корінь правил, від якого стартує discovery, коли споживач не передав власні каталоги.
 
-buildDetectPlan спочатку визначає набір rules-каталогів, потім відбирає лише доступні concern-и з урахуванням capability, далі будує план виконання за режимом прогону: scoped, delta, full або repo-wide. Сам план фіксує, які concern-и запускаються whole-repo, а які лише по перетину з файлами, щоб detect і fix-pipeline працювали з однаковою картиною.
+buildDetectPlan спочатку визначає набір rules-каталогів, відбирає concern-и за capability і застосовує опційний rule-level `applies` gate. Лише після цього він будує план виконання за режимом прогону: scoped, delta, full або repo-wide. Сам план фіксує, які concern-и запускаються whole-repo, а які лише по перетину з файлами, щоб detect і fix-pipeline працювали з однаковою картиною.
 
 loadEnabledLintRules використовує той самий discovery-ланцюжок, але повертає не план, а повну мапу concern-и за rule-id разом із множиною активних правил. Це потрібно зовнішнім споживачам, які мають знати, що реально доступно для прогону, не запускаючи сам detector-цикл.
 
@@ -41,6 +41,8 @@ concern тригериться на цих файлах (та сама табл�
 Правила без жодного per-file concern не потрапляють у результат (їхні
 full-scope перевірки — справа `--repo-wide`).
 - detectAll — Запускає detect-only прохід. Повертає всі violations і похідний exitCode.
+
+Rule-level `applies` у `<rule>/applies/main.mjs` може повернути `false`, щоб виключити всі concern-и правила з плану для поточного репозиторію.
 
 ## Гарантії поведінки
 
