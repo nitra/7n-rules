@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.19] - 2026-07-27
+
+### Fixed
+
+- Pin @7n/rules to llm-lib with aligned native addon metadata
+
 ## [1.49.18] - 2026-07-27
 
 ### Fixed
