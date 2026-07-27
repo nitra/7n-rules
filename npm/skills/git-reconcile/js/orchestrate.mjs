@@ -13,6 +13,7 @@ import { readGitPolicy } from '../../../scripts/lib/git-policy.mjs'
 const LLM_TIERS = ['min', 'max']
 const REVIEW_BATCH_SIZE = 10
 const PROMPT_TEXT_LIMIT = 12_000
+const PR_DIFF_TEXT_LIMIT = 24_000
 const PROGRESS_HEARTBEAT_MS = 30_000
 const PR_CHECK_TIMEOUT_MS = 15 * 60_000
 const DEFAULT_PR_CONCURRENCY = 3
@@ -27,6 +28,12 @@ const RENAME_DELETE_CONFLICT_RE = /^CONFLICT \(rename\/delete\): .+? renamed to 
 const SOURCE_CODE_RE = /\.(?:js|mjs|ts|vue|rs|py)$/
 const CHANGE_ENTRY_RE = /(^|\/)\.changes\/[^/]+\.md$/
 const WHITESPACE_RE = /\s+/
+const PR_DESCRIPTION_ARRAY_FIELDS = [
+  'businessOutcomes',
+  'architectureChanges',
+  'behaviorChanges',
+  'risksAndCompatibility'
+]
 const ACP_PROGRESS_ENV = 'N_LLM_ACP_PROGRESS'
 const REF_INVENTORY_FORMAT = ['%(refname)', '%00', '%(object', 'name)', '%00', '%(committer', 'date:iso-strict)'].join(
   ''
@@ -768,6 +775,184 @@ export function validateTriageOutcome(outcome, candidates) {
 }
 
 /**
+ * Збирає bounded факти з фінального diff для grounded бізнесового й
+ * архітектурного опису PR без повторного repository exploration моделлю.
+ * @param {object} args контекст готового PR
+ * @returns {object} факти опису PR
+ */
+export function collectPullRequestFacts(args) {
+  const { cwd, baseRef, source, title, rationale = '', verification = '', spawnFn = spawnSync } = args
+  const range = `${baseRef}...HEAD`
+  const changedPaths = git(['diff', '--name-only', range], cwd, spawnFn).stdout.split('\n').filter(Boolean)
+  const diff = git(['diff', '--no-ext-diff', '--unified=2', range], cwd, spawnFn).stdout
+  return {
+    source,
+    title,
+    rationale,
+    verification,
+    baseRef,
+    commits: git(['log', '--format=%h%x09%s', range], cwd, spawnFn).stdout.split('\n').filter(Boolean),
+    changedPaths,
+    diffStat: git(['diff', '--stat', range], cwd, spawnFn).stdout.trim(),
+    diff: diff.length > PR_DIFF_TEXT_LIMIT ? `${diff.slice(0, PR_DIFF_TEXT_LIMIT)}\n[diff truncated by JS]` : diff
+  }
+}
+
+/**
+ * Формує bounded prompt, який забороняє implementation-changelog і вимагає
+ * business/architecture narrative лише з підготовлених JS-фактів.
+ * @param {object} facts фінальні Git та behavioral факти
+ * @returns {string} промпт
+ */
+export function buildPullRequestDescriptionPrompt(facts) {
+  return [
+    'Ти формуєш лише зміст PR description за вже зібраними JS-фактами.',
+    'Не запускай команди, не редагуй файли, не створюй PR і не вигадуй відсутній контекст.',
+    'Поясни передусім: навіщо зміна потрібна, який дає продуктово-операційний результат, як змінює responsibilities, boundaries, contracts або data/control flow.',
+    'Не переказуй diff по функціях і рядках. Називай implementation detail лише коли він є важливим architecture contract.',
+    'Не вигадуй клієнтів, фінансові метрики, deployment status або гарантії. Якщо бізнес-контекст обмежений, чесно сформулюй підтверджений operational/developer outcome.',
+    'Кожне твердження обґрунтуй facts; evidencePaths мають бути точними changedPaths.',
+    'Business context разом із businessOutcomes та architectureChanges має бути не коротшим за behaviorChanges разом із risksAndCompatibility.',
+    'Поверни лише JSON object без markdown:',
+    '{"businessContext":"...","businessOutcomes":["..."],"architectureChanges":["..."],"behaviorChanges":["..."],"risksAndCompatibility":["..."],"evidencePaths":["path/from/changedPaths"]}',
+    JSON.stringify(facts)
+  ].join('\n\n')
+}
+
+/**
+ * Перевіряє структуру, factual anchors і перевагу business/architecture
+ * змісту перед дрібними деталями реалізації.
+ * @param {{text:string}} outcome LLM output
+ * @param {{changedPaths:string[]}} facts фінальні Git-факти
+ * @returns {{ok:boolean,error?:string,value?:object}} validation
+ */
+export function validatePullRequestDescription(outcome, facts) {
+  const description = parseDecisionEnvelope(outcome.text)
+  if (!description) return { ok: false, error: 'відсутній JSON object опису PR' }
+  if (
+    typeof description.businessContext !== 'string' ||
+    description.businessContext.trim().length < 40 ||
+    description.businessContext.length > 1200 ||
+    description.businessContext.includes('\n')
+  ) {
+    return { ok: false, error: 'businessContext має бути змістовним однорядковим текстом' }
+  }
+  for (const field of PR_DESCRIPTION_ARRAY_FIELDS) {
+    const values = description[field]
+    if (
+      !Array.isArray(values) ||
+      values.length === 0 ||
+      values.length > 5 ||
+      values.some(
+        value => typeof value !== 'string' || value.trim().length < 15 || value.length > 600 || value.includes('\n')
+      )
+    ) {
+      return { ok: false, error: `${field} має містити 1-5 змістовних однорядкових пунктів` }
+    }
+  }
+  const changedPaths = new Set(facts.changedPaths)
+  if (
+    !Array.isArray(description.evidencePaths) ||
+    description.evidencePaths.length === 0 ||
+    description.evidencePaths.length > 12 ||
+    description.evidencePaths.some(path => typeof path !== 'string' || !changedPaths.has(path))
+  ) {
+    return { ok: false, error: 'evidencePaths мають бути непорожнім subset фактичних changedPaths' }
+  }
+  const focusedLength =
+    description.businessContext.length +
+    description.businessOutcomes.join('').length +
+    description.architectureChanges.join('').length
+  const detailLength = description.behaviorChanges.join('').length + description.risksAndCompatibility.join('').length
+  if (focusedLength < detailLength) {
+    return { ok: false, error: 'business та architecture зміст коротший за behavior/risk details' }
+  }
+  return { ok: true, value: description }
+}
+
+/**
+ * Форматує validated narrative items як Markdown bullets.
+ * @param {string[]} values пункти секції
+ * @returns {string} Markdown
+ */
+function markdownBullets(values) {
+  return values.map(value => `- ${value.trim()}`).join('\n')
+}
+
+/**
+ * Рендерить стабільний PR body: business та architecture секції видимі
+ * першими, а source/evidence залишаються у forensic details.
+ * @param {object} args validated description та deterministic facts
+ * @param {object} args.description validated narrative
+ * @param {object} args.facts deterministic Git facts
+ * @returns {string} Markdown PR body
+ */
+export function renderPullRequestBody({ description, facts }) {
+  const inline = value => String(value).trim().split(WHITESPACE_RE).join(' ')
+  const evidence = description.evidencePaths.map(path => `- \`${path.replaceAll('`', '\\`')}\``).join('\n')
+  return [
+    '## Навіщо',
+    '',
+    description.businessContext.trim(),
+    '',
+    '## Бізнес-результат',
+    '',
+    markdownBullets(description.businessOutcomes),
+    '',
+    '## Архітектура',
+    '',
+    markdownBullets(description.architectureChanges),
+    '',
+    '## Поведінка',
+    '',
+    markdownBullets(description.behaviorChanges),
+    '',
+    '## Ризики та сумісність',
+    '',
+    markdownBullets(description.risksAndCompatibility),
+    '',
+    '## Перевірки',
+    '',
+    `- \`git diff --check ${facts.baseRef}...HEAD\``,
+    '- scoped code lint/tests та domain lint для non-code paths',
+    '- `npx @7n/rules lint changelog --no-fix`',
+    ...(facts.verification ? [`- LLM behavioral verification: ${inline(facts.verification).slice(0, 1000)}`] : []),
+    '',
+    '<details>',
+    '<summary>Технічні докази перенесення</summary>',
+    '',
+    `Джерело: \`${facts.source.replaceAll('`', '\\`')}\`.`,
+    '',
+    evidence,
+    '',
+    '</details>'
+  ].join('\n')
+}
+
+/**
+ * Генерує validated PR narrative через min→validation→max над фінальним diff.
+ * @param {object} args контекст готового worktree
+ * @returns {Promise<string>} deterministic Markdown body
+ */
+export async function describePullRequest(args) {
+  const { runner, cwd, baseRef, source, title, rationale, verification, deps, spawnFn, log, onProgress = noop } = args
+  const collectFacts = deps.collectPullRequestFacts ?? collectPullRequestFacts
+  const facts = collectFacts({ cwd, baseRef, source, title, rationale, verification, spawnFn })
+  const outcome = await callWithValidatedFallback({
+    runner,
+    prompt: buildPullRequestDescriptionPrompt(facts),
+    cwd,
+    deps,
+    log,
+    label: `PR description ${source}`,
+    onAttempt: ({ tier }) => onProgress('PR description', tier),
+    validate: result => validatePullRequestDescription(result, facts)
+  })
+  if (!outcome.ok) throw new Error(`LLM PR description: ${outcome.error}`)
+  return renderPullRequestBody({ description: outcome.validation.value, facts })
+}
+
+/**
  * Перетворює довільний title/ref на branch slug.
  * @param {string} value title/ref
  * @returns {string} slug
@@ -1153,8 +1338,9 @@ export async function remediateBehaviorState(
   if (validation.remediation !== 'canonical-fixers') return { attempted: false, ok: false }
 
   const longRunner = resolveAsyncSpawn(spawnFn, asyncSpawnFn)
-  const changedDirectories = [...new Set([...changedSourceDirectories(cwd, spawnFn), ...changedNonCodeDirectories(cwd, spawnFn)])]
-    .toSorted()
+  const changedDirectories = [
+    ...new Set([...changedSourceDirectories(cwd, spawnFn), ...changedNonCodeDirectories(cwd, spawnFn)])
+  ].toSorted()
   for (const path of changedDirectories) {
     onProgress(`deterministic fix (${path})`)
     const fixed = await runAsync('npx', ['@7n/rules', 'lint', '--path', path], cwd, longRunner, {
@@ -1503,7 +1689,7 @@ export function classifyPullRequestChecks(prChecks, baseChecks) {
 }
 
 /**
- * Видаляє лише rebuildable dependencies зі збереженого forensic worktree.
+ * Видаляє лише відновлювані dependencies зі збереженого forensic worktree.
  * Git metadata, commits і tracked/untracked зміни не зачіпаються.
  * @param {string} worktreeCwd шлях worktree
  * @returns {boolean} чи було що прибрати
@@ -1531,13 +1717,9 @@ export async function verifyPullRequestReadiness(args) {
     allowFailure: true,
     timeoutMs: PR_CHECK_TIMEOUT_MS
   })
-  let view = await runAsync(
-    'gh',
-    ['pr', 'view', url, '--json', 'statusCheckRollup,baseRefOid'],
-    cwd,
-    longRunner,
-    { allowFailure: true }
-  )
+  let view = await runAsync('gh', ['pr', 'view', url, '--json', 'statusCheckRollup,baseRefOid'], cwd, longRunner, {
+    allowFailure: true
+  })
   if (view.status !== 0) {
     return { status: 'pr-checks-unverified', error: `Не вдалося прочитати PR checks: ${view.stderr || view.error}` }
   }
@@ -1548,13 +1730,9 @@ export async function verifyPullRequestReadiness(args) {
       allowFailure: true,
       timeoutMs: PR_CHECK_TIMEOUT_MS
     })
-    view = await runAsync(
-      'gh',
-      ['pr', 'view', url, '--json', 'statusCheckRollup,baseRefOid'],
-      cwd,
-      longRunner,
-      { allowFailure: true }
-    )
+    view = await runAsync('gh', ['pr', 'view', url, '--json', 'statusCheckRollup,baseRefOid'], cwd, longRunner, {
+      allowFailure: true
+    })
     if (view.status !== 0) {
       return {
         status: 'pr-checks-unverified',
@@ -1721,23 +1899,24 @@ async function createPullRequest(args) {
     const baseRef = policyBaseRef(worktree.cwd)
     const baseBranch = readGitPolicy(worktree.cwd).baseBranch
     git(['diff', '--check', `${baseRef}...HEAD`], worktree.cwd, spawnFn)
+    const describePr = deps.describePullRequest ?? describePullRequest
+    const body = await describePr({
+      runner,
+      cwd: worktree.cwd,
+      baseRef,
+      source,
+      title: group.title,
+      rationale: group.rationale ?? candidate.rationale ?? '',
+      verification,
+      deps,
+      spawnFn,
+      log,
+      onProgress
+    })
     onProgress('push')
     git(['push', '-u', 'origin', worktree.branch], worktree.cwd, spawnFn)
 
     onProgress('create PR')
-    const body = [
-      `Джерело: \`${source}\`.`,
-      '',
-      group.rationale ?? candidate.rationale ?? `Корисну поведінку перенесено на актуальний ${baseBranch}.`,
-      '',
-      'Перевірки:',
-      `- \`git diff --check ${baseRef}...HEAD\``,
-      '- scoped code lint/tests та domain lint для non-code paths',
-      '- `npx @7n/rules lint changelog --no-fix`',
-      verification ? `- LLM behavioral verification: ${verification.slice(0, 1000)}` : ''
-    ]
-      .filter(Boolean)
-      .join('\n')
     createdPr = run(
       'gh',
       ['pr', 'create', '--base', baseBranch, '--head', worktree.branch, '--title', group.title, '--body', body],
@@ -2268,12 +2447,7 @@ export async function runGitReconcileOrchestrator(options = {}) {
 
   const report = formatReport({ inventory, results })
   log(report)
-  const blockingStatuses = new Set([
-    'failed',
-    'pr-checks-regressed',
-    'pr-checks-baseline-red',
-    'pr-checks-unverified'
-  ])
+  const blockingStatuses = new Set(['failed', 'pr-checks-regressed', 'pr-checks-baseline-red', 'pr-checks-unverified'])
   const ok = results.every(result => !blockingStatuses.has(result.status) && result.incomplete !== true)
   return { ok, report, inventory, results }
 }

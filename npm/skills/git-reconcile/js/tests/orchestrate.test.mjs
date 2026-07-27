@@ -21,10 +21,12 @@ import {
   changedNonCodeDirectories,
   classifyPullRequestChecks,
   cleanupSource,
+  collectPullRequestFacts,
   commitPendingChanges,
   conflictFiles,
   createPhaseProgress,
   dedupeRefs,
+  describePullRequest,
   ensureLocalWorktreeExclude,
   finishCherryPick,
   formatOutcomeCounts,
@@ -36,6 +38,7 @@ import {
   parseWorktrees,
   pruneForensicDependencies,
   remediateBehaviorState,
+  renderPullRequestBody,
   runAsync,
   runGitReconcileOrchestrator,
   runWithConcurrency,
@@ -44,6 +47,7 @@ import {
   testFailureSignatures,
   validateBehaviorState,
   validateFinalProjectGates,
+  validatePullRequestDescription,
   validateTriageOutcome,
   verifyPullRequestReadiness
 } from '../orchestrate.mjs'
@@ -87,7 +91,7 @@ describe('commitPendingChanges', () => {
 })
 
 describe('forensic worktree hygiene', () => {
-  test('видаляє лише rebuildable node_modules', () => {
+  test('видаляє лише відновлюваний node_modules', () => {
     const root = mkdtempSync(resolve(tmpdir(), 'git-reconcile-forensic-'))
     mkdirSync(resolve(root, 'node_modules'))
     writeFileSync(resolve(root, 'node_modules', 'package.json'), '{}')
@@ -469,6 +473,131 @@ describe('LLM boundary', () => {
     expect(result.tier).toBe('min')
     expect(result.remediated).toBe(true)
     expect(result.attempts[0].remediation).toEqual({ attempted: true, ok: true })
+  })
+
+  test('PR facts збираються з фінального range', () => {
+    const calls = []
+    const facts = collectPullRequestFacts({
+      cwd: '/repo',
+      baseRef: 'origin/main',
+      source: REVIEW_BRANCH.source,
+      title: 'fix: useful',
+      rationale: 'готовий fix',
+      verification: 'tests pass',
+      spawnFn: (command, args) => {
+        calls.push([command, args])
+        const joined = args.join(' ')
+        if (joined.includes('--name-only')) return { status: 0, stdout: 'src/a.mjs\nREADME.md\n', stderr: '' }
+        if (args[0] === 'log') return { status: 0, stdout: 'abc123\tfix: useful\n', stderr: '' }
+        if (joined.includes('--stat')) return { status: 0, stdout: '2 files changed\n', stderr: '' }
+        return { status: 0, stdout: 'diff --git a/src/a.mjs b/src/a.mjs\n', stderr: '' }
+      }
+    })
+
+    expect(facts.changedPaths).toEqual(['src/a.mjs', 'README.md'])
+    expect(facts.commits).toEqual(['abc123\tfix: useful'])
+    expect(facts.diffStat).toBe('2 files changed')
+    expect(calls.every(([command]) => command === 'git')).toBe(true)
+  })
+
+  test('PR description validation вимагає factual evidence та business/architecture emphasis', () => {
+    const facts = { changedPaths: ['src/a.mjs'] }
+    const valid = {
+      businessContext:
+        'Команда отримує передбачуваний reconcile flow без ручного переписування опису після перенесення змін.',
+      businessOutcomes: ['Зменшується час review завдяки поясненню цінності зміни для команди.'],
+      architectureChanges: [
+        'Окремий narrative boundary перетворює фінальний Git diff на перевірений контракт опису PR.'
+      ],
+      behaviorChanges: ['PR відкривається лише після успішної валідації структурованого опису.'],
+      risksAndCompatibility: ['Git cleanup і CI readiness залишаються без змін.'],
+      evidencePaths: ['src/a.mjs']
+    }
+
+    expect(validatePullRequestDescription({ text: JSON.stringify(valid) }, facts)).toEqual({
+      ok: true,
+      value: valid
+    })
+    expect(
+      validatePullRequestDescription({ text: JSON.stringify({ ...valid, evidencePaths: ['src/missing.mjs'] }) }, facts)
+        .error
+    ).toContain('changedPaths')
+    expect(
+      validatePullRequestDescription(
+        {
+          text: JSON.stringify({
+            ...valid,
+            businessContext: 'Підтверджений бізнес-контекст лишається навмисно стислим для цієї перевірки.',
+            businessOutcomes: ['Короткий підтверджений результат для команди review.'],
+            architectureChanges: ['Коротка підтверджена зміна architecture boundary.'],
+            behaviorChanges: ['Дуже детальний опис поведінки '.repeat(12)],
+            risksAndCompatibility: ['Дуже детальний опис ризиків і сумісності '.repeat(12)]
+          })
+        },
+        facts
+      ).error
+    ).toContain('коротший')
+  })
+
+  test('PR body ставить business та architecture перед технічними доказами', () => {
+    const description = {
+      businessContext: 'Reconcile PR пояснює цінність зміни до переходу до технічних доказів.',
+      businessOutcomes: ['Reviewer швидше розуміє очікуваний продуктово-операційний результат.'],
+      architectureChanges: ['Narrative layer описує responsibilities і contracts фінального diff.'],
+      behaviorChanges: ['PR отримує стабільний структурований опис.'],
+      risksAndCompatibility: ['Наявний CI та cleanup contract не змінюються.'],
+      evidencePaths: ['src/a.mjs']
+    }
+    const body = renderPullRequestBody({
+      description,
+      facts: {
+        baseRef: 'origin/main',
+        source: REVIEW_BRANCH.source,
+        verification: 'focused tests pass'
+      }
+    })
+
+    expect(body.indexOf('## Бізнес-результат')).toBeLessThan(body.indexOf('## Архітектура'))
+    expect(body.indexOf('## Архітектура')).toBeLessThan(body.indexOf('## Поведінка'))
+    expect(body).toContain('<summary>Технічні докази перенесення</summary>')
+    expect(body).toContain('`src/a.mjs`')
+  })
+
+  test('PR description використовує min→validation→max fallback', async () => {
+    const tiers = []
+    const valid = {
+      businessContext: 'Команда отримує архітектурний і бізнесовий опис reconcile-зміни на основі фінального diff.',
+      businessOutcomes: ['Reviewer бачить підтверджений operational outcome до implementation details.'],
+      architectureChanges: ['Description boundary відокремлює factual Git context від Markdown rendering.'],
+      behaviorChanges: ['PR отримує структурований body.'],
+      risksAndCompatibility: ['Наявний cleanup flow залишається сумісним.'],
+      evidencePaths: ['src/a.mjs']
+    }
+    const body = await describePullRequest({
+      runner: 'codex',
+      cwd: '/repo',
+      baseRef: 'origin/main',
+      source: REVIEW_BRANCH.source,
+      title: 'fix: useful',
+      rationale: 'готовий fix',
+      verification: 'tests pass',
+      spawnFn: () => ({ status: 0, stdout: '', stderr: '' }),
+      log: noop,
+      deps: {
+        collectPullRequestFacts: args => ({ ...args, changedPaths: ['src/a.mjs'] }),
+        callRunner: (_runner, _prompt, _cwd, _deps, tier) => {
+          tiers.push(tier)
+          return Promise.resolve({
+            ok: true,
+            text: tier === 'min' ? '{"businessContext":"invalid"}' : JSON.stringify(valid),
+            error: null
+          })
+        }
+      }
+    })
+
+    expect(tiers).toEqual(['min', 'max'])
+    expect(body).toContain('## Архітектура')
   })
 })
 
@@ -1113,13 +1242,27 @@ describe('runGitReconcileOrchestrator', () => {
           if (command === 'git' && args[0] === 'worktree') {
             return {
               status: 0,
-              stdout: ['worktree /repo', 'HEAD base', 'branch refs/heads/main', '', `worktree ${actualWorktree}`, 'HEAD base', `branch refs/heads/${branch}`, ''].join('\n'),
+              stdout: [
+                'worktree /repo',
+                'HEAD base',
+                'branch refs/heads/main',
+                '',
+                `worktree ${actualWorktree}`,
+                'HEAD base',
+                `branch refs/heads/${branch}`,
+                ''
+              ].join('\n'),
               stderr: ''
             }
           }
           if (command === 'git' && args[0] === 'switch') {
             expect(options.cwd).toBe(actualWorktree)
-            return { status: null, stdout: '', stderr: '', error: Object.assign(new Error('spawnSync git ENOENT'), { code: 'ENOENT' }) }
+            return {
+              status: null,
+              stdout: '',
+              stderr: '',
+              error: Object.assign(new Error('spawnSync git ENOENT'), { code: 'ENOENT' })
+            }
           }
           return { status: 0, stdout: '', stderr: '' }
         }
@@ -1249,17 +1392,11 @@ describe('report helpers', () => {
     expect(classifyPullRequestChecks([], []).status).toBe('pr-checks-unverified')
     expect(classifyPullRequestChecks([{ name: 'test', conclusion: 'SUCCESS' }], [])).toEqual({ status: 'ready' })
     expect(
-      classifyPullRequestChecks(
-        [{ name: 'test', conclusion: 'FAILURE' }],
-        [{ name: 'test', conclusion: 'FAILURE' }]
-      ).status
+      classifyPullRequestChecks([{ name: 'test', conclusion: 'FAILURE' }], [{ name: 'test', conclusion: 'FAILURE' }])
+        .status
     ).toBe('pr-checks-baseline-red')
-    expect(classifyPullRequestChecks([{ name: 'test', conclusion: 'FAILURE' }], []).status).toBe(
-      'pr-checks-regressed'
-    )
-    expect(classifyPullRequestChecks([{ name: 'test', status: 'IN_PROGRESS' }], []).status).toBe(
-      'pr-checks-unverified'
-    )
+    expect(classifyPullRequestChecks([{ name: 'test', conclusion: 'FAILURE' }], []).status).toBe('pr-checks-regressed')
+    expect(classifyPullRequestChecks([{ name: 'test', status: 'IN_PROGRESS' }], []).status).toBe('pr-checks-unverified')
   })
 
   test('outcome counters точні й deterministic', () => {
