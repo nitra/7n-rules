@@ -81,7 +81,14 @@ describe('coverage-fix.mjs', () => {
       const result = await fixSurvivedMutants([], ROOT, { runAgentFix })
       expect(logSpy).toHaveBeenCalledWith('✓ Всі мутанти вбиті — доповнення тестів не потрібне')
       expect(runAgentFix).not.toHaveBeenCalled()
-      expect(result).toEqual({ fixed: [], failed: [], deferred: [], touchedFiles: [], mutationRefreshFiles: [], batches: [] })
+      expect(result).toEqual({
+        fixed: [],
+        failed: [],
+        deferred: [],
+        touchedFiles: [],
+        mutationRefreshFiles: [],
+        batches: []
+      })
       logSpy.mockRestore()
     })
 
@@ -91,6 +98,7 @@ describe('coverage-fix.mjs', () => {
         return
       })
       const recordWrite = vi.fn()
+      const recordDurableWrite = vi.fn()
       const verifyMutation = vi.fn(() =>
         Promise.resolve({
           ok: true,
@@ -111,6 +119,7 @@ describe('coverage-fix.mjs', () => {
         runAgentFix,
         verifyMutation,
         recordWrite,
+        recordDurableWrite,
         tier: 'cloud-min'
       })
 
@@ -144,6 +153,7 @@ describe('coverage-fix.mjs', () => {
         }
       })
       expect(verifyMutation).toHaveBeenCalledWith({ cwd: ROOT, batch: survived })
+      expect(recordDurableWrite).toHaveBeenCalledWith('/proj/tests/util.test.mjs')
       logSpy.mockRestore()
     })
 
@@ -270,6 +280,33 @@ describe('coverage-fix.mjs', () => {
       expect(rollback).toHaveBeenCalledOnce()
       logSpy.mockRestore()
       errSpy.mockRestore()
+    })
+
+    it('не позначає durable cache-dependent batch', async () => {
+      vi.mocked(readFile).mockResolvedValue('const x = true')
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => null)
+      const recordDurableWrite = vi.fn()
+      const verifyMutation = vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          targetCount: 1,
+          killed: 1,
+          remaining: 0,
+          covered0: 0,
+          cacheIndependent: false,
+          reason: null
+        })
+      )
+      const runAgentFix = vi.fn(async (_rule, _prompt, _cwd, options) => {
+        await options.verify({ touchedFiles: ['/proj/tests/util.test.mjs'] })
+        return { touchedFiles: ['/proj/tests/util.test.mjs'], rollback: vi.fn() }
+      })
+
+      const result = await fixSurvivedMutants(survived, ROOT, { runAgentFix, verifyMutation, recordDurableWrite })
+
+      expect(result.fixed).toEqual(['/proj/tests/util.test.mjs'])
+      expect(recordDurableWrite).not.toHaveBeenCalled()
+      logSpy.mockRestore()
     })
 
     it('дробить oversized source-file, зберігає source read-only і друкує timeout verdict без prompt-а', async () => {

@@ -98,6 +98,7 @@ export function batchSurvived(survived, budget) {
  * @property {{requestedMs:number|null,workerDeadlineMs:number|null,effectiveHookTimeoutMs:number|null,survivedBatchesPerRung?:number}} [coverageTimeout]
  *   timeout-и worker-а та policy кількості survived batch-ів на rung
  * @property {(absPath: string) => void} [recordWrite] реєстрація записів агента для central rollback
+ * @property {(absPath: string) => void} [recordDurableWrite] позначає доказово підтверджений test-файл як самодостатній кінцевий артефакт
  * @property {object} [chain] chain handle concern-а — кожен batch стає кроком ланцюжка
  * @property {object} [feedback] structured diagnosis попереднього rung-а
  * @property {typeof import('@7n/llm-lib/agent-fix').runAgentFix} [runAgentFix] інʼєкція для тестів
@@ -253,11 +254,25 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
     fixed.push(...writtenTests)
     touchedFiles.push(...writtenTests)
     mutationRefreshFiles.push(...files)
+    // Scoped Stryker може вважати batch корисним уже після одного killed mutant-а,
+    // але durable-артефакт допускається лише за повного незалежного доказу для
+    // ВСІХ target mutants. Інакше outer ladder мусить відкотити test разом із
+    // незакритим coverage concern-ом як звичайну проміжну правку.
+    if (isDurableMutationProof(mutationVerdict, batchMutants)) {
+      for (const testFile of writtenTests) opts.recordDurableWrite?.(testFile)
+    }
   }
 
   logCoverageSummary(failed, deferred, fixed, batches)
 
-  return { fixed, failed, deferred, touchedFiles, mutationRefreshFiles: [...new Set(mutationRefreshFiles)], batches: batchDiagnostics }
+  return {
+    fixed,
+    failed,
+    deferred,
+    touchedFiles,
+    mutationRefreshFiles: [...new Set(mutationRefreshFiles)],
+    batches: batchDiagnostics
+  }
 }
 
 /**
@@ -287,6 +302,27 @@ function resolveBatchError(res, unexpectedWrites, noOp, mutationVerdict) {
   if (noOp) return noOpReason(res.telemetry)
   if (!mutationVerdict?.ok) return formatMutationVerdict(mutationVerdict)
   return null
+}
+
+/**
+ * Відрізняє повний cache-independent Stryker proof від частково корисного
+ * verdict-а. Лише такий proof дозволяє test-артефакту пережити rollback rung-а.
+ * @param {object|null} verdict scoped mutation verdict batch-а
+ * @param {number} batchMutants точна кількість target mutants у batch-і
+ * @returns {boolean} чи всі target mutants незалежно підтверджено вбитими
+ */
+function isDurableMutationProof(verdict, batchMutants) {
+  return (
+    verdict?.ok === true &&
+    verdict.cacheIndependent === true &&
+    verdict.targetCount === batchMutants &&
+    verdict.killed === batchMutants &&
+    verdict.remaining === 0 &&
+    verdict.covered0 === 0 &&
+    verdict.reason == null &&
+    verdict.error == null &&
+    (!Array.isArray(verdict.errors) || verdict.errors.length === 0)
+  )
 }
 
 /**

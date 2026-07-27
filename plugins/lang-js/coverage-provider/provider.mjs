@@ -87,6 +87,7 @@ export default {
       timeoutMs: ctx?.timeoutMs,
       coverageTimeout: ctx?.coverageTimeout,
       recordWrite: ctx?.recordWrite,
+      recordDurableWrite: ctx?.recordDurableWrite,
       chain: ctx?.chain ?? null,
       feedback: ctx?.feedback ?? null
     })
