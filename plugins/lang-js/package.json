@@ -69,7 +69,7 @@
   },
   "peerDependencies": {
     "@7n/llm-lib": ">=2.8.0",
-    "@7n/rules": ">=1.27.0",
+    "@7n/rules": ">=1.52.0",
     "vue": "^3.0.0"
   },
   "publishConfig": {

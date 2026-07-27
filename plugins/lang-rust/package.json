@@ -58,7 +58,7 @@
     "smol-toml": "^1.7.0"
   },
   "peerDependencies": {
-    "@7n/rules": ">=1.15.0",
+    "@7n/rules": ">=1.52.0",
     "@7n/llm-lib": "*"
   },
   "publishConfig": {
