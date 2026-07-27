@@ -5,7 +5,15 @@ alwaysApply: false
 version: '1.14'
 ---
 
-Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.github/workflows/`**; опційно **`demo/`**.
+## Scope
+
+Це правило стосується лише репозиторію, що публікує npm package. Його застосовують, коли
+вже є `npm/`, кореневий workspace `npm` або workflow `npm-publish.yml`. Звичайний Bun service
+monorepo з `package.json` та workspaces сервісів не стає npm-module лише через це й не має
+створювати фіктивний `npm/` або workspace `npm`.
+
+Для publisher-а канон лишається повним: `npm/`, кореневий `package.json`, type emission, hk
+та publish workflow перевіряються разом.
 
 ## Версія та CHANGELOG
 

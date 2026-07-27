@@ -456,15 +456,29 @@ describe('removeOrphanLocalSkillCommandFiles', () => {
   })
 })
 
-describe('cwd()-залежні read-only helpers (реальний cwd тестового процесу — npm/, без .cursor/skills)', () => {
-  test('listProjectSkillDirNames повертає [] коли .cursor/skills відсутній у cwd', async () => {
-    expect(await listProjectSkillDirNames()).toEqual([])
+describe('skills-хелпери з явним root (ambient cwd різниться між запусками — з кореня repo .cursor/skills існує)', () => {
+  test('listProjectSkillDirNames повертає [] коли .cursor/skills відсутній у root', async () => {
+    await withTmpDir(async dir => {
+      expect(await listProjectSkillDirNames(dir)).toEqual([])
+    })
+  })
+  test('listProjectSkillDirNames віддає відсортовані підкаталоги без прихованих', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, '.cursor/skills/n-zeta'))
+      await ensureDir(join(dir, '.cursor/skills/custom'))
+      await ensureDir(join(dir, '.cursor/skills/.hidden'))
+      expect(await listProjectSkillDirNames(dir)).toEqual(['custom', 'n-zeta'])
+    })
   })
   test('buildSkillBulletItems повертає [] коли немає skill-директорій', async () => {
-    expect(await buildSkillBulletItems()).toEqual([])
+    await withTmpDir(async dir => {
+      expect(await buildSkillBulletItems(dir)).toEqual([])
+    })
   })
   test('buildClaudeSkillsSectionLines повертає [] коли немає skill-директорій', async () => {
-    expect(await buildClaudeSkillsSectionLines()).toEqual([])
+    await withTmpDir(async dir => {
+      expect(await buildClaudeSkillsSectionLines(dir)).toEqual([])
+    })
   })
 })
 
