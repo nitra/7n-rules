@@ -3,10 +3,11 @@ type: JS Module
 title: extractors.mjs
 resource: plugins/lang-python/doc-files/extractors.mjs
 docgen:
-  crc: 77d310c4
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
+  crc: 5c0349a2
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
   score: 80
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
@@ -21,11 +22,7 @@ docgen:
 
 ## Сценарії використання
 
-- `plugins/lang-python/doc-files/tests/extractors.test.mjs` — extractFactsPython
-- `plugins/lang-python/doc-files/tests/extractors.test.mjs` — module та public def docstring-и стають дослівними facts
-- `plugins/lang-python/doc-files/tests/extractors.test.mjs` — підтримує багаторядкові module та class docstring-и
-- `plugins/lang-python/doc-files/tests/extractors.test.mjs` — не вважає непокритий public API повною документацією
-- `plugins/lang-python/doc-files/tests/extractors.test.mjs` — handler декларує Python extension
+- `plugins/lang-python/doc-files/tests/extractors.test.mjs` (extractFactsPython) — module та public def docstring-и стають дослівними facts; підтримує багаторядкові module та class docstring-и; не вважає непокритий public API повною документацією; handler декларує Python extension
 
 ## Гарантії поведінки
 

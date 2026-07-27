@@ -84,9 +84,9 @@ describe('buildTestEvidenceIndex', () => {
 
 describe('renderTestScenarios', () => {
   test('зберігає test-шлях і назви сценаріїв дослівно, без LLM-інтерпретації', () => {
-    expect(renderTestScenarios([{ path: 'src/tests/math.test.mjs', groups: ['math'], scenarios: ['додає два числа'] }])).toBe(
-      '- `src/tests/math.test.mjs` (math) — додає два числа'
-    )
+    expect(
+      renderTestScenarios([{ path: 'src/tests/math.test.mjs', groups: ['math'], scenarios: ['додає два числа'] }])
+    ).toBe('- `src/tests/math.test.mjs` (math) — додає два числа')
   })
 
   test('обмежує довгий test-suite пʼятьма прикладами та точним лічильником решти', () => {

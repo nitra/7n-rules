@@ -11,7 +11,7 @@ import {
 
 const RE_EXACT_NAMES = /РІВНО ці публічні імена/
 const RE_GENERIC_BAN = /відповідність контракту|обробка даних/
-
+const RE_COMPLEMENTARY_TEXT = /не перефразовуй авторський текст/iu
 const FACTS = {
   relPath: 'npm/rules/bun/js/layout.mjs',
   header: 'перевірка bun-розкладки',
@@ -53,7 +53,7 @@ describe('sectionMessages — Огляд більше не тут (R3)', () => {
     const behavior = sectionMessages(FACTS, 'src', null, null, { complementaryBehavior: true }).find(
       s => s.key === 'behavior'
     )
-    expect(behavior.messages[1].content).toMatch(/не перефразовуй авторський текст/iu)
+    expect(behavior.messages[1].content).toMatch(RE_COMPLEMENTARY_TEXT)
     expect(behavior.messages[1].content).toContain('заборонені обходи каталогів')
     expect(behavior.messages[1].content).not.toContain('нумерований алгоритм у бізнес-термінах')
     expect(behavior.messages[1].content).toContain('не вимагає налаштування')

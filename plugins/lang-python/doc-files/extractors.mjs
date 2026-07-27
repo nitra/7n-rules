@@ -8,9 +8,12 @@
 const PUBLIC_DEF_RE = /^(?:async\s+)?(def|class)\s+([A-Za-z]\w*)/
 const DOCSTRING_START_RE = /^\s*(?:[bB]?[fF]?[rR]?[uU]?)("""|''')/
 const HEADER_SKIP_RE = /^(?:#!|#|\s*$|from\s+__future__\s+import\s+)/
-const WRITE_RE = /\b(?:open\([^)]*,\s*['"][wa+]|Path\([^)]*\)\.(?:write_text|write_bytes)|os\.(?:remove|unlink|mkdir)|shutil\.)/
+const WRITE_RE =
+  /\b(?:open\([^)]*,\s*['"][wa+]|Path\([^)]*\)\.(?:write_text|write_bytes)|os\.(?:remove|unlink|mkdir)|shutil\.)/
 const NETWORK_RE = /\b(?:requests|httpx|aiohttp|urllib|socket)\b/i
 const CACHE_RE = /\b(?:cache|cached|lru_cache|memoize)\b/i
+const EXCEPT_RE = /\bexcept\b/
+const EXCEPT_RETURNS_FALSY_RE = /\bexcept\b[\s\S]{0,400}?\breturn\s+(?:None|False|['"]{2})/
 
 /**
  * Нормалізує авторський docstring для Markdown, зберігаючи текст і абзаци.
@@ -101,7 +104,11 @@ function collectExports(lines) {
     const match = text.match(PUBLIC_DEF_RE)
     if (!match) continue
     const headerEnd = headerEndLine(lines, line)
-    exports.push({ name: match[2], kind: match[1], desc: headerEnd === -1 ? '' : docstringAfterHeader(lines, headerEnd) })
+    exports.push({
+      name: match[2],
+      kind: match[1],
+      desc: headerEnd === -1 ? '' : docstringAfterHeader(lines, headerEnd)
+    })
   }
   return exports
 }
@@ -127,8 +134,8 @@ export function extractFactsPython(src, relPath) {
     localSymbols: [],
     markers: {
       readOnly: !WRITE_RE.test(src),
-      catchesErrors: /\bexcept\b/.test(src),
-      returnsFalsyOnFail: /\bexcept\b[\s\S]{0,400}?\breturn\s+(?:None|False|['"]{2})/.test(src),
+      catchesErrors: EXCEPT_RE.test(src),
+      returnsFalsyOnFail: EXCEPT_RETURNS_FALSY_RE.test(src),
       network: NETWORK_RE.test(src),
       caches: CACHE_RE.test(src),
       skips: []

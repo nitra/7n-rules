@@ -649,7 +649,12 @@ describe('orchestratedDoc / judge — supported-file happy path (мок extractF
   test('короткий pointer з одним докладним API → comment-only, без generic LLM-додатку', () => {
     const facts = {
       ...FACTS_SHORT_COMMENTED,
-      exports: [{ name: 'doThing', desc: 'Ретельно описує єдиний публічний контракт: перевіряє наявність документації, приймає лише однорядковий pointer-коментар і реєструє порушення, коли авторський наратив дублює окремий Markdown-файл.' }]
+      exports: [
+        {
+          name: 'doThing',
+          desc: 'Ретельно описує єдиний публічний контракт: перевіряє наявність документації, приймає лише однорядковий pointer-коментар і реєструє порушення, коли авторський наратив дублює окремий Markdown-файл.'
+        }
+      ]
     }
     expect(commentDocumentationMode(facts, SRC)).toBe('comment-only')
   })

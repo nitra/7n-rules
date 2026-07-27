@@ -85,7 +85,7 @@ function intentContext(intent) {
  * @param {string} src вміст файлу
  * @param {object|null} [anchors] анкори файлу для обовʼязкового включення
  * @param {string|null} [intent] захищена секція «Призначення» як read-only контекст
- * @param {{ complementaryBehavior?: boolean }} [opts] LLM доповнює лише прогалини між comments і кодом
+ * @param {{ complementaryBehavior: boolean }} [opts] LLM доповнює лише прогалини між comments і кодом
  * @returns {Array<{key:string, messages:object[], numPredict:number}>} набір секційних промптів (лише behavior)
  */
 export function sectionMessages(facts, src, anchors = null, intent = null, { complementaryBehavior = false } = {}) {
@@ -133,7 +133,7 @@ const STUB_DESC_RE = /^опис\.?$/i
 /**
  * Stage 2 (gap-детект, 0 токенів): чи є опис експорту прогалиною — відсутній
  * або JSDoc-заглушка без сенсу.
- * @param {{desc?:string}} exp запис експорту з факт-листа
+ * @param {{desc:string}} exp запис експорту з факт-листа
  * @returns {boolean} true — опис потрібно синтезувати LLM (Stage 3)
  */
 export function isApiGap(exp) {

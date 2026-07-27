@@ -265,13 +265,11 @@ describe('runGenerationBatch — 2b-batch шлях (T8, native доступни�
   })
 
   test('comment-only елементи штампуються без реального submitBatch', async () => {
-    prepareBatchItemMock.mockImplementation(async file =>
-      ({
-        ...(await prepOk(file)),
-        mode: 'comment-only',
-        messages: []
-      })
-    )
+    prepareBatchItemMock.mockImplementation(async file => ({
+      ...(await prepOk(file)),
+      mode: 'comment-only',
+      messages: []
+    }))
     finishBatchItemMock.mockReturnValue({ md: '# doc\n', score: 90, issues: [], degraded: false, model: 'omlx/x' })
     const submitBatchImpl = vi.fn(() => Promise.resolve([]))
     const code = await runGenerationBatch(targets(3), '/fake-root', { submitBatchImpl })

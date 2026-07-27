@@ -8,10 +8,20 @@ import { startChain } from '@7n/llm-lib/chain'
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { docPathForSource } from '../docgen-scan/main.mjs'
 import { loadDocFilesExtractors } from '../docgen-scan/lang-extensions.mjs'
-import { buildTestEvidenceIndex, renderTestScenarios, testEvidenceForSource } from '../docgen-test-context/main.mjs'
+import {
+  buildTestEvidenceIndex,
+  renderTestScenarios,
+  testEvidenceForSource
+} from '../docgen-test-context/main.mjs'
 import { extractAnchors, anchorTokens } from '../docgen-extract-anchors/main.mjs'
 import { QUALITY_THRESHOLD } from '../docgen-crc/main.mjs'
-import { JUDGE_ENABLED, JUDGE_MODEL, detectRefusalFiller, judgeDoc, judgeFailsDoc } from '../docgen-judge/main.mjs'
+import {
+  JUDGE_ENABLED,
+  JUDGE_MODEL,
+  detectRefusalFiller,
+  judgeDoc,
+  judgeFailsDoc
+} from '../docgen-judge/main.mjs'
 import {
   oneShotMessages,
   sectionMessages,
@@ -139,6 +149,11 @@ const PROTECTED_HEADING = 'Призначення'
 const PROTECTED_START_RE = /^##\s+Призначення\s*$/
 const H2_RE = /^##\s/
 const H1_RE = /^#\s/
+const SIGNATURE_CALL_RE = /([`\w$.]{1,80})\([^()]{0,300}\)/g
+const NORMALIZED_SPACE_RE = /\s+/g
+const H2_HEADING_RE = /^##\s.+$/gm
+const TEST_SCENARIOS_HEADING = '## Сценарії використання'
+const BEHAVIOR_HEADING = '## Поведінка'
 
 /**
  * R9: зрізає провідні чат-преамбули й дубль назви секції з початку тексту.
@@ -182,7 +197,7 @@ function stripSection(text) {
  */
 function stripSignatures(text) {
   let t = text
-  for (let i = 0; i < 2; i++) t = t.replaceAll(/([`\w$.]{1,80})\([^()]{0,300}\)/g, '$1')
+  for (let i = 0; i < 2; i++) t = t.replaceAll(SIGNATURE_CALL_RE, '$1')
   return t
 }
 
@@ -454,9 +469,9 @@ const BEHAVIOR_FLOW_RE =
  */
 export function commentDocumentationMode(facts, src) {
   if (!hasCompleteCommentDocumentation(facts)) return 'fallback'
-  const headerSize = facts.header.trim().replaceAll(/\s+/g, ' ').length
+  const headerSize = facts.header.trim().replaceAll(NORMALIZED_SPACE_RE, ' ').length
   const exports = facts.exports ?? []
-  const apiSize = exports.map(exp => exp.desc?.replaceAll(/\s+/g, ' ').length ?? 0).reduce((sum, size) => sum + size, 0)
+  const apiSize = exports.map(exp => exp.desc?.replaceAll(NORMALIZED_SPACE_RE, ' ').length ?? 0).reduce((sum, size) => sum + size, 0)
   // У маленькому модулі один ретельно описаний API уже є поведінковим
   // контрактом. LLM тут найчастіше додає загальні фрази замість глибини.
   if (headerSize < SHORT_HEADER_CHARS && exports.length === 1 && apiSize >= SUFFICIENT_SINGLE_API_CHARS) {
@@ -471,12 +486,12 @@ export function commentDocumentationMode(facts, src) {
  * Збирає документ лише з авторських коментарів і детермінованих фактів.
  * @param {object} facts факт-лист мовного екстрактора
  * @param {string|null} intent захищена секція «Призначення»
- * @returns {{ md: string }} zero-LLM Markdown-документ
+ * @param {string} [behavior] додаткова LLM-секція «Поведінка» для comment+behavior режиму
  */
 function commentOnlyDoc(facts, intent, behavior = '') {
   const sections = {
     overview: facts.header.trim(),
-    api: (facts.exports ?? []).map(renderApiLine).join('\n'),
+    api: (facts.exports ?? []).map(exp => renderApiLine(exp)).join('\n'),
     behavior,
     scenarios: renderTestScenarios(facts.testScenarioFiles ?? []),
     guarantees: guaranteesFromMarkers(facts)
@@ -523,6 +538,34 @@ function assemble(stem, sections) {
 }
 
 /**
+ * Видаляє H2-секцію з Markdown без regex з довільним тілом секції.
+ * @param {string} md зібраний Markdown-документ
+ * @param {string} heading точний H2-заголовок секції
+ * @returns {string} документ без секції
+ */
+function removeH2Section(md, heading) {
+  const lines = md.split('\n')
+  const start = lines.findIndex(line => line.trim() === heading)
+  if (start === -1) return md
+  const end = lines.findIndex((line, index) => index > start && H2_RE.test(line))
+  return [...lines.slice(0, start), ...lines.slice(end === -1 ? lines.length : end)].join('\n')
+}
+
+/**
+ * Повертає тіло H2-секції з Markdown без regex з довільним тілом секції.
+ * @param {string} md зібраний Markdown-документ
+ * @param {string} heading точний H2-заголовок секції
+ * @returns {string} тіло секції або порожній рядок
+ */
+function h2SectionBody(md, heading) {
+  const lines = md.split('\n')
+  const start = lines.findIndex(line => line.trim() === heading)
+  if (start === -1) return ''
+  const end = lines.findIndex((line, index) => index > start && H2_RE.test(line))
+  return lines.slice(start + 1, end === -1 ? lines.length : end).join('\n').trim()
+}
+
+/**
  * Додає test-сценарії до one-shot/batch-документа. Для unsupported мов основний
  * Markdown ще повертає LLM, але test-секція лишається виключно JS-рендером.
  * @param {string} md зібраний Markdown-документ
@@ -532,7 +575,7 @@ function assemble(stem, sections) {
 export function insertTestScenarios(md, facts) {
   const scenarios = renderTestScenarios(facts.testScenarioFiles ?? [])
   if (!scenarios) return md
-  const withoutOld = md.replaceAll(/^## Сценарії використання\s*$[\s\S]*?(?=^## |(?![\s\S]))/gmu, '').trimEnd()
+  const withoutOld = removeH2Section(md, TEST_SCENARIOS_HEADING).trimEnd()
   const section = `## Сценарії використання\n\n${scenarios}`
   const guarantees = '\n\n## Гарантії поведінки'
   const at = withoutOld.indexOf(guarantees)
@@ -608,7 +651,8 @@ function semanticEvidence(src) {
  * @returns {string} мінімальний документ з однією секцією або порожній рядок
  */
 function behaviorOnlyDocument(md) {
-  const match = md.match(/^## Поведінка\s*$\n([\s\S]*?)(?=^## |$(?![\s\S]))/mu)
+  const body = h2SectionBody(md, BEHAVIOR_HEADING)
+  return body ? `# Поведінка\n\n## Поведінка\n\n${body}\n` : ''
   return match ? `# Поведінка\n\n## Поведінка\n\n${match[1].trim()}\n` : ''
 }
 
@@ -630,13 +674,13 @@ async function judgeRefinePass(r, judge, { facts, anchors, src, score, model, ch
   if (!fixed.startsWith('#')) fixed = `# ${basename(facts.relPath)}\n\n${fixed}`
   const fixedMd = insertProtected(fixed + '\n', intentBody)
   // Guard 1: рерайт не має губити секції (малі моделі інколи повертають фрагмент)
-  const origHeadings = r.md.match(/^##\s.+$/gm) ?? []
+  const origHeadings = r.md.match(H2_HEADING_RE) ?? []
   if (origHeadings.some(h => !fixedMd.includes(h))) return null
   // Guard 2: det-score не має падати
   const sFixed = scoreDoc(fixedMd, facts, { anchors, src })
   if (sFixed.score < score) return null
   // Guard 3: повторний суддя (той самий scope: inaccurate)
-  const judge2 = { ...(await judgeDoc(semanticEvidence(src, facts), fixedMd, { chain })), model: JUDGE_MODEL }
+  const judge2 = { ...(await judgeDoc(semanticEvidence(src), fixedMd, { chain })), model: JUDGE_MODEL }
   if (judgeFailsDoc(judge2)) return null
   return { md: fixedMd, score: sFixed.score, issues: sFixed.issues, judge: judge2 }
 }
