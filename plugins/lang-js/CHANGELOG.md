@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.22.17] - 2026-07-27
+
+### Fixed
+
+- vue/packages: allow explicit Vue runtime imports in test files outside Vite auto-import
+
 ## [0.22.16] - 2026-07-27
 
 ### Fixed
