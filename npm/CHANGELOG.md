@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.17] - 2026-07-27
+
+### Fixed
+
+- Keep git-reconcile progress live and PR readiness fail-closed
+
 ## [1.49.16] - 2026-07-27
 
 ### Fixed
