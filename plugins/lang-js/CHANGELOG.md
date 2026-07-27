@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.22.12] - 2026-07-27
+
+### Fixed
+
+- isolate Stryker cache for coverage batch verification
+
 ## [0.22.11] - 2026-07-26
 
 ### Added
