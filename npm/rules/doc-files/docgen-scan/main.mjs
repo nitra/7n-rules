@@ -24,9 +24,10 @@ function isSystemWideDocsRoot(root) {
 
 /**
  * Чи є файл кодовим джерелом для документування. Розширення декларують ЛИШЕ
- * активні lang-плагіни (`n-rules.contributes.docFiles.extensions` — js/mjs/ts/vue
+ * `doc-files.extensions@1` contributions активних lang-плагінів (js/mjs/ts/vue
  * дає `@7n/rules-lang-js`, .rs/.py — lang-rust/lang-python); у ядрі вбудованих
- * розширень немає (фаза 5b spec lang-plugins-extraction).
+ * розширень немає (фаза 5b spec lang-plugins-extraction, переведено на slot bus
+ * Фазою 2 spec 2026-07-27-universal-plugin-slots-lang-php-extraction).
  * @param {string} fileName базове ім'я файлу
  * @param {string} root корінь репозиторію (джерело плагінних розширень)
  * @returns {boolean} true — документуємо; false — пропускаємо

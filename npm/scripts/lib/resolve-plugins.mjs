@@ -20,15 +20,21 @@
  * (`allowInstall: false`).
  *
  * Маніфест плагіна — блок `"n-rules"` у його package.json:
- * `{ "capabilities": ["ci:github"], "contributes": { "rules": true, "handlers": { "<point>": "./mod.mjs" } } }`.
- * `capabilities` живлять гейт концернів (`concern.json` → `requires.capability`);
- * `handlers` — іменовані extension-points правил ядра (v1: лише API, споживачі — v2).
+ * `{ "requiresPluginApi": 2, "capabilities": ["ci:github"], "slots": { "provides": [...] } }`.
+ * `capabilities` живлять гейт концернів (`concern.json` → `requires.capability`) і
+ * `requires.capabilities` у slot contributions. Composition-контракт (rules, handlers,
+ * doc-files-розширення, skill-фрагменти) повністю на universal slot bus (`plugin-slots.mjs`,
+ * spec 2026-07-27-universal-plugin-slots-lang-php-extraction, Фаза 2 — full migration): цей
+ * модуль лишається відповідальним ЛИШЕ за низькорівневий резолв — які пакети активні, де їхній
+ * `packageRoot`, який у них `n-rules`-маніфест (сире `capabilities`/`requiresPluginApi`/`slots`),
+ * без жодної нормалізації composition-полів.
  *
- * Сумісність plugin API (Фаза 0, spec 2026-07-27-universal-plugin-slots-lang-php-extraction.md
- * §10): маніфест може декларувати число `requiresPluginApi`. Якщо воно більше за
- * `PLUGIN_API_VERSION` цього core — плагін несумісний і пропускається у `resolvePlugins()` із
- * warning (окрім `quiet:true`, де пропуск тихий). Відсутнє або нечислове поле — сумісний, як і
- * всі чинні на сьогодні маніфести (жоден з них поля ще не декларує).
+ * Сумісність plugin API (Фаза 0, §10 тієї ж спеки): маніфест може декларувати число
+ * `requiresPluginApi`. Якщо воно більше за `PLUGIN_API_VERSION` цього core — плагін несумісний і
+ * пропускається у `resolvePlugins()` із warning (окрім `quiet:true`, де пропуск тихий). Відсутнє
+ * або нечислове поле — сумісний (та ж перевірка діє і для плагінів, що ще не дійшли до
+ * `requiresPluginApi: 2` — цей модуль сам їх не гейтує за версією v2, це робить
+ * `plugin-slots.mjs` окремо для slot graph).
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
@@ -51,7 +57,8 @@ export const KNOWN_CI_PLUGINS = Object.freeze({
 export const KNOWN_LANG_PLUGINS = Object.freeze({
   js: { signal: 'package.json', pkg: '@7n/rules-lang-js', maxDepth: 0 },
   python: { signal: 'pyproject.toml', pkg: '@7n/rules-lang-python', maxDepth: 0 },
-  rust: { signal: 'Cargo.toml', pkg: '@7n/rules-lang-rust', maxDepth: 3 }
+  rust: { signal: 'Cargo.toml', pkg: '@7n/rules-lang-rust', maxDepth: 3 },
+  php: { signal: 'composer.json', pkg: '@7n/rules-lang-php', maxDepth: 0 }
 })
 
 /** Теки, у які неглибокий скан мовних сигналів не заходить (плюс усі приховані). */
@@ -204,8 +211,8 @@ const PLUGIN_LIST_CACHE = new Map()
  * Поле відсутнє взагалі — повний автодетект.
  *
  * Результат кешується на процес за `(projectRoot, declared)` — виклик з `resolvePlugins`
- * (через `resolveRulesDirs` тощо) і прямий виклик у sync-CLI інакше дублювали б і файловий
- * скан, і warning про backfill.
+ * (через `resolveSlotGraph`/`resolveRulesDirs` у `plugin-slots.mjs` тощо) і прямий виклик у
+ * sync-CLI інакше дублювали б і файловий скан, і warning про backfill.
  * @param {string} projectRoot корінь репозиторію
  * @param {{ plugins?: unknown } | null | undefined} config розпарсений `.n-rules.json` (може бути відсутній)
  * @param {{ quiet?: boolean }} [options] `quiet:true` — без warning-у про плагін, доданий автодетектом (hot-path);
@@ -266,7 +273,8 @@ export const KNOWN_PLUGIN_RANGES = Object.freeze({
   '@7n/rules-ci-azure': '^1',
   '@7n/rules-lang-js': '^0.22',
   '@7n/rules-lang-python': '^0.10',
-  '@7n/rules-lang-rust': '^0.13'
+  '@7n/rules-lang-rust': '^0.13',
+  '@7n/rules-lang-php': '^0.1'
 })
 
 /**
@@ -300,51 +308,47 @@ export function ensurePluginInstalled(projectRoot, packageName, spawnFn = spawnS
  * @typedef {object} ResolvedPlugin
  * @property {string} name npm-ім'я пакета (`@7n/rules` для ядра)
  * @property {string} packageRoot абсолютний корінь пакета
- * @property {string} rulesDir абсолютний шлях до `rules/` пакета
- * @property {{ capabilities: string[], requiresPluginApi: number | null, contributes: { rules?: boolean, handlers?: Record<string, string>, docFilesExtensions?: Record<string, string> } }} manifest нормалізований блок `n-rules` з package.json плагіна
+ * @property {{
+ *   capabilities: string[],
+ *   requiresPluginApi: unknown,
+ *   slots: { provides?: unknown, consumes?: unknown } | null,
+ *   manifestError: string | null
+ * }} manifest нормалізований блок `n-rules` з package.json плагіна (composition-поля —
+ *   `slots.provides`/`slots.consumes` — сирі, без нормалізації; їх валідує/матеріалізує
+ *   `plugin-slots.mjs`)
  */
 
 /**
- * Маніфест плагіна з блоку `"n-rules"` його package.json (з дефолтами).
- * `requiresPluginApi` — необов'язкове число; нечислове/відсутнє значення нормалізується у
- * `null` (сумісний за замовчуванням — сумісність перевіряє `resolvePlugins()`).
+ * Маніфест плагіна з блоку `"n-rules"` його package.json (з дефолтами). Повертає лише
+ * низькорівневі поля — `capabilities`, СИРІ `requiresPluginApi`/`slots` (universal slot bus,
+ * spec 2026-07-27-universal-plugin-slots-lang-php-extraction) — без будь-якої
+ * composition-нормалізації (legacy `contributes.rules/handlers/docFiles` видалено Фазою 2, spec
+ * §5.1.10): це відповідальність `plugin-slots.mjs` (`resolveSlotGraph`), яка перетворює
+ * `slots.*` на граф із envelope validation і diagnostics. Тут лише структурний guard
+ * верхнього рівня (об'єкт, не масив) — щоб споживач не впав на `undefined.provides`.
  * @param {string} packageRoot корінь пакета
  * @returns {ResolvedPlugin['manifest']} нормалізований маніфест
  */
 function readPluginManifest(packageRoot) {
   /** @type {ResolvedPlugin['manifest']} */
-  const fallback = {
-    capabilities: [],
-    requiresPluginApi: null,
-    contributes: { rules: true, handlers: {}, docFilesExtensions: {} }
+  const fallback = { capabilities: [], requiresPluginApi: undefined, slots: null, manifestError: null }
+  let pkg
+  try {
+    pkg = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
+  } catch (error) {
+    // Битий/нечитабельний package.json — окремо від «нема поля n-rules»: slot-graph (§9.1
+    // spec 2026-07-27-universal-plugin-slots) мусить дати diagnostic саме на цей випадок,
+    // тоді як відсутність "n-rules" — легітимний стан (пакет без плагін-маніфесту).
+    return { ...fallback, manifestError: error instanceof Error ? error.message : String(error) }
   }
   try {
-    const pkg = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
     const raw = pkg?.['n-rules']
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return fallback
     const capabilities = Array.isArray(raw.capabilities) ? raw.capabilities.filter(c => typeof c === 'string') : []
-    const requiresPluginApi =
-      typeof raw.requiresPluginApi === 'number' && Number.isFinite(raw.requiresPluginApi) ? raw.requiresPluginApi : null
-    const contributes = raw.contributes && typeof raw.contributes === 'object' ? raw.contributes : {}
-    const handlers =
-      contributes.handlers && typeof contributes.handlers === 'object' && !Array.isArray(contributes.handlers)
-        ? Object.fromEntries(Object.entries(contributes.handlers).filter(([, v]) => typeof v === 'string'))
-        : {}
-    // Декларативні doc-files-розширення (`docFiles.extensions`: '.rs' → 'Rust Module') —
-    // саме в маніфесті, а не в handler-модулі, щоб hot-path (hook per-file) читав їх
-    // синхронно без динамічного import.
-    const rawDocFiles = contributes.docFiles && typeof contributes.docFiles === 'object' ? contributes.docFiles : {}
-    const docFilesExtensions =
-      rawDocFiles.extensions && typeof rawDocFiles.extensions === 'object' && !Array.isArray(rawDocFiles.extensions)
-        ? Object.fromEntries(
-            Object.entries(rawDocFiles.extensions).filter(([k, v]) => k.startsWith('.') && typeof v === 'string')
-          )
-        : {}
-    return {
-      capabilities,
-      requiresPluginApi,
-      contributes: { rules: contributes.rules !== false, handlers, docFilesExtensions }
-    }
+    // `slots` — сирий блок { provides, consumes } як є в JSON (лише guard "це plain object,
+    // не масив"); plugin-slots.mjs сам валідує кожен елемент provides/consumes і форму масивів.
+    const slots = raw.slots && typeof raw.slots === 'object' && !Array.isArray(raw.slots) ? raw.slots : null
+    return { capabilities, requiresPluginApi: raw.requiresPluginApi, slots, manifestError: null }
   } catch {
     return fallback
   }
@@ -355,18 +359,24 @@ function readPluginManifest(packageRoot) {
  * slots-міграції: `requiresPluginApi > PLUGIN_API_VERSION`). Друкує warning (окрім
  * `quiet:true`) — виносить умову й побічний ефект з `resolvePlugins()`, щоб не роздувати її
  * cognitive complexity.
+ * Маніфест тримає СИРЕ значення `requiresPluginApi` (його друкує в diagnostics slot-broker),
+ * тому числова нормалізація «нечислове/відсутнє → сумісний» живе саме тут.
  * @param {string} name npm-ім'я плагіна (для повідомлення)
  * @param {ResolvedPlugin['manifest']} manifest нормалізований маніфест плагіна
  * @param {boolean} quiet без warning-у
  * @returns {boolean} true — плагін несумісний, пропускаємо
  */
 function isIncompatiblePluginApi(name, manifest, quiet) {
-  if (manifest.requiresPluginApi === null || manifest.requiresPluginApi <= PLUGIN_API_VERSION) return false
+  const required =
+    typeof manifest.requiresPluginApi === 'number' && Number.isFinite(manifest.requiresPluginApi)
+      ? manifest.requiresPluginApi
+      : null
+  if (required === null || required <= PLUGIN_API_VERSION) return false
   // Плагін декларує plugin API, несумісний із цією core-лінією — пропускаємо, а не
   // завантажуємо його як rules-only з мовчазною втратою handlers/doc-files/fragments.
   if (!quiet) {
     console.warn(
-      `⚠️  Плагін ${name} потребує plugin API v${manifest.requiresPluginApi}, ця core-лінія підтримує v${PLUGIN_API_VERSION} — пропускаю, онови @7n/rules\n`
+      `⚠️  Плагін ${name} потребує plugin API v${required}, ця core-лінія підтримує v${PLUGIN_API_VERSION} — пропускаю, онови @7n/rules\n`
     )
   }
   return true
@@ -402,66 +412,9 @@ export function resolvePlugins(projectRoot, config, options = {}) {
     }
     const manifest = readPluginManifest(packageRoot)
     if (isIncompatiblePluginApi(name, manifest, options.quiet === true)) continue
-    const rulesDir = join(packageRoot, 'rules')
-    if (manifest.contributes.rules && !existsSync(rulesDir)) {
-      // Плагін ДЕКЛАРУЄ правила (rules !== false), але каталогу нема — битий пакет.
-      // Плагін без правил (лише handlers, напр. lang-* до фази 3) — легальний.
-      if (options.quiet !== true) console.warn(`⚠️  Плагін ${name} без каталогу rules/ — пропускаю\n`)
-      continue
-    }
-    out.push({ name, packageRoot, rulesDir, manifest })
+    out.push({ name, packageRoot, manifest })
   }
   RESOLVE_CACHE.set(cacheKey, out)
-  return out
-}
-
-/**
- * Rules-каталоги для всіх поверхонь ядра: ядро першим (його правила/концерни виграють
- * колізії), далі плагіни у порядку списку.
- * @param {string} projectRoot корінь репозиторію
- * @param {{ plugins?: unknown } | null | undefined} config розпарсений `.n-rules.json`
- * @param {string} bundledRulesDir `rules/` встановленого/вбудованого ядра
- * @param {{ allowInstall?: boolean }} [options] прокидається у `resolvePlugins`
- * @returns {Array<{ name: string, rulesDir: string, packageRoot: string | null }>} джерела правил
- */
-export function resolveRulesDirs(projectRoot, config, bundledRulesDir, options = {}) {
-  const plugins = resolvePlugins(projectRoot, config, options)
-  return [
-    { name: '@7n/rules', rulesDir: bundledRulesDir, packageRoot: null },
-    ...plugins
-      .filter(p => p.manifest.contributes.rules && existsSync(p.rulesDir))
-      .map(p => ({ name: p.name, rulesDir: p.rulesDir, packageRoot: p.packageRoot }))
-  ]
-}
-
-/**
- * Активні capabilities від усіх доступних плагінів (для гейта `requires.capability` у concern.json).
- * @param {string} projectRoot корінь репозиторію
- * @param {{ plugins?: unknown } | null | undefined} config розпарсений `.n-rules.json`
- * @param {{ allowInstall?: boolean }} [options] прокидається у `resolvePlugins`
- * @returns {Set<string>} набір capability-рядків (напр. `ci:github`)
- */
-export function getActiveCapabilities(projectRoot, config, options = {}) {
-  const caps = new Set()
-  for (const p of resolvePlugins(projectRoot, config, options)) {
-    for (const c of p.manifest.capabilities) caps.add(c)
-  }
-  return caps
-}
-
-/**
- * Агреговані doc-files-розширення активних плагінів: '.rs' → 'Rust Module' тощо.
- * Синхронно і без установки (hot-path hook) — лише вже встановлені плагіни.
- * @param {string} projectRoot корінь репозиторію
- * @param {{ plugins?: unknown } | null | undefined} config розпарсений `.n-rules.json`
- * @returns {Record<string, string>} мапа розширення → тип-мітка доки
- */
-export function getDocFilesExtensions(projectRoot, config) {
-  /** @type {Record<string, string>} */
-  const out = {}
-  for (const p of resolvePlugins(projectRoot, config, { allowInstall: false, quiet: true })) {
-    Object.assign(out, p.manifest.contributes.docFilesExtensions)
-  }
   return out
 }
 
@@ -483,22 +436,6 @@ export function getUnavailableDeclaredPlugins(projectRoot, config) {
   const root = resolve(projectRoot)
   const availableNames = new Set(resolvePlugins(root, config, { allowInstall: false, quiet: true }).map(p => p.name))
   return declared.filter(name => !availableNames.has(name))
-}
-
-/**
- * Handlers для extension-point правила ядра (v1 — лише API; перший споживач — v2).
- * @param {string} projectRoot корінь репозиторію
- * @param {{ plugins?: unknown } | null | undefined} config розпарсений `.n-rules.json`
- * @param {string} point ім'я extension-point (напр. `doc-files`)
- * @returns {Array<{ pluginName: string, modulePath: string }>} абсолютні шляхи модулів-обробників
- */
-export function getHandlers(projectRoot, config, point) {
-  const out = []
-  for (const p of resolvePlugins(projectRoot, config, { allowInstall: false })) {
-    const rel = p.manifest.contributes.handlers[point]
-    if (typeof rel === 'string') out.push({ pluginName: p.name, modulePath: join(p.packageRoot, rel) })
-  }
-  return out
 }
 
 /** Скидає кеш резолву (для тестів). */

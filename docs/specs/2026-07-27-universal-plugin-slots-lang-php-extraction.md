@@ -290,8 +290,9 @@ handler-модуля: default export `EcosystemProvider` (оркестратор
 - `contributes.rules` → `rules.directory@1`;
 - `handlers.taze` → `taze.provider@1`;
 - `handlers.coverage` → `coverage.provider@1`;
-- `handlers.doc-files` → `doc-files.extractor@1` (лише `lang-js` і `lang-rust`;
-  `lang-python` extractor-а не має);
+- `handlers.doc-files` → `doc-files.extractor@1` (усі три: `lang-python` отримав
+  власний extractor у PR #243 «combine comments and test scenarios», уже після першої
+  редакції цієї спеки);
 - `docFiles.extensions` → `doc-files.extensions@1`;
 - `skills/taze/SKILL.fragment.md` (єдиний чинний fragment у всіх трьох плагінах) →
   explicit `skills.fragment@1`.
@@ -684,8 +685,10 @@ versioning, rollout і PHP ownership ухвалені цією специфік�
 4. **Точні імена/шляхи.** Manifest-поле — `contributes.docFiles.extensions`
    (а не `docFilesExtensions`, це внутрішня нормалізована назва); PHP CI rules —
    `ci-github/rules/php/lint_php_yml/**` і `ci-azure/rules/php/lint_pipeline_php/**`;
-   доданий інвентар усіх legacy call sites у 5.1; `lang-python` не має doc-files
-   extractor-а (5.2); Azure rego вже приймає обидві команди (7.3).
+   доданий інвентар усіх legacy call sites у 5.1; Azure rego вже приймає обидві
+   команди (7.3). Примітка про відсутність doc-files extractor-а у `lang-python`
+   застаріла того ж дня: PR #243 додав його разом із legacy-декларацією в manifest,
+   тож slots-міграція зберігає його як `doc-files.extractor@1` (5.2).
 5. **Винятки PHP-literals у CI plugins.** До «жодних PHP literals» (5.3) додано явні
    винятки з таблиці 8: назва third-party action `phpdocker-io/...` і `*.php` у
    doc-коментарі `ga/workflows/main.mjs`.
@@ -694,3 +697,19 @@ versioning, rollout і PHP ownership ухвалені цією специфік�
    домішується — це очікувано, а не регресія.
 7. **`tooling` glob.** Концерн `tooling` правила `php` лінтує зокрема
    `.github/workflows/lint-php.yml`; зафіксовано у 6.1, що glob переїжджає як є.
+
+**2026-07-27 — знахідки parity battery (Фаза 5), рішення дозакріплені:**
+
+8. **Активація generic-правила `ci_artifact`.** Старі PHP CI-концерни були mixin-ами до
+   авто-активного правила `php`; новий generic consumer — окреме правило, і без власного
+   `main.json` він ніколи не активувався б (мовчазна втрата enforcement). Рішення: обидва
+   CI-плагіни шиплять `ci_artifact/main.json` з `auto: "завжди"` — без активних contributions
+   правило є тихим no-op, тож zero-touch (рішення Ї) зберігається.
+9. **Простір імен концернів спільний для однакового rule id з різних плагінів.** Обидва
+   CI-плагіни шиплять правило `ci_artifact`; однойменний концерн `consume` колідував
+   (перший плагін вигравав, Azure-перевірки мовчки не виконувались). Рішення: provider-distinct
+   імена концернів (`consume` у GitHub, `consume_azure` в Azure) — за чинною конвенцією
+   `lint_docker_yml`/`lint_pipeline_docker`.
+10. **`fix: false` descriptor-а потребує `fixability: "config"` у concern.json.** Дефолтна
+    fixability `code` дозволяла LLM-ladder мутувати `azure-pipelines.yml` всупереч
+    `fix: false` payload-а. Зафіксовано: Azure generic concern — `fixability: "config"`.

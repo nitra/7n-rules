@@ -9,7 +9,7 @@ alwaysApply: false
 
 ## Покриття + мутаційне тестування (концерн coverage)
 
-Покриття вимірюється як звичайний lint-концерн (spec 2026-07-22, влиття `@7n/test` у `@7n/rules`) — пакета `@7n/test` і файлу `COVERAGE.md` більше немає. Мовну специфіку постачають coverage-провайдери плагінів (`contributes.handlers.coverage`): `@7n/rules-lang-js` — vitest + Stryker (vitest-runner, `coverageAnalysis: 'perTest'`) + окремий Storybook-вимір; провайдери rust/python — у відповідних плагінах.
+Покриття вимірюється як звичайний lint-концерн (spec 2026-07-22, влиття `@7n/test` у `@7n/rules`) — пакета `@7n/test` і файлу `COVERAGE.md` більше немає. Мовну специфіку постачають coverage-провайдери плагінів (слот `coverage.provider@1`): `@7n/rules-lang-js` — vitest + Stryker (vitest-runner, `coverageAnalysis: 'perTest'`) + окремий Storybook-вимір; провайдери rust/python — у відповідних плагінах.
 
 - **Делта-lint** (`npx @7n/rules lint`): легкий per-file вимір покриття рядків лише змінених файлів, без мутаційного тестування; файл нижче порогу → порушення.
 - **`npx @7n/rules lint test --no-fix`** — повний вимір (coverage + мутаційне тестування по всіх workspaces) лише з гейтом: нижче порогу → ненульовий exit. **Канонічний CI-крок.**

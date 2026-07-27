@@ -10,7 +10,7 @@ dotenv_install_run := "curl -sSfL https://git.io/JLbXn | sh -s -- -b /usr/local/
 push_paths := [
 	"**/*.js", "**/*.ts", "**/*.vue", "**/*.html", "**/*.css", "**/*.scss", "**/*.less",
 	"**/*.json", "**/*.jsonc", "**/*.yaml", "**/*.yml", "**/*.toml", "**/*.xml",
-	"**/*.md", "**/*.mdc", "**/*.mdс", "**/*.txt", "**/*.go", "**/*.py", "**/*.php", "**/*.sh",
+	"**/*.md", "**/*.mdc", "**/*.mdс", "**/*.txt", "**/*.go", "**/*.py", "**/*.sh",
 ]
 
 template_data := {"snippet": {

@@ -111,8 +111,8 @@ export async function bumpUvDependencies(cwd, spawnFn, log, deps = {}) {
 
 /**
  * EcosystemProvider Python/uv для taze-оркестратора ядра — контракт
- * `@7n/rules/plugin-api`, реєструється маніфестом package.json плагіна
- * (`n-rules.contributes.handlers.taze`).
+ * `@7n/rules/plugin-api`, реєструється contribution-ою `taze.provider@1`
+ * (id `taze-python`).
  * @type {import('@7n/rules/plugin-api').EcosystemProvider}
  */
 const pythonProvider = {

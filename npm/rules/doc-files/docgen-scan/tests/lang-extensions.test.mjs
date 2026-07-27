@@ -11,10 +11,10 @@ import {
 } from '../lang-extensions.mjs'
 
 /**
- * Пише фейковий плагін з handler-модулем `doc-files` у node_modules tmp-репо
+ * Пише фейковий плагін API v2 з `doc-files.extractor@1` contribution у node_modules tmp-репо
  * і декларує його в `.n-rules.json`.
  * @param {string} dir корінь tmp-репо
- * @param {string} handlerBody вміст handler-модуля (ESM default export)
+ * @param {string} handlerBody вміст модуля-екстрактора (ESM default export)
  */
 async function installFakeHandlerPlugin(dir, handlerBody) {
   const pkgRoot = join(dir, 'node_modules', '@x', 'lang-fake')
@@ -24,7 +24,15 @@ async function installFakeHandlerPlugin(dir, handlerBody) {
     JSON.stringify({
       name: '@x/lang-fake',
       version: '0.0.0',
-      'n-rules': { contributes: { rules: false, handlers: { 'doc-files': './handler.mjs' } } }
+      'n-rules': {
+        requiresPluginApi: 2,
+        contributes: { rules: false },
+        slots: {
+          provides: [
+            { slot: 'doc-files.extractor', version: 1, id: 'doc-files-fake', resource: './handler.mjs' }
+          ]
+        }
+      }
     })
   )
   await writeFile(join(pkgRoot, 'handler.mjs'), handlerBody)

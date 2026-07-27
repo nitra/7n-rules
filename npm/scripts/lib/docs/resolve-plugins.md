@@ -3,35 +3,50 @@ type: JS Module
 title: resolve-plugins.mjs
 resource: npm/scripts/lib/resolve-plugins.mjs
 docgen:
-  crc: e7eaf408
+  crc: 35d3fc38
   model: openai-codex/gpt-5.5
   tier: cloud-avg
-  score: 90
-  issues: surzhik,judge-refine:kept-original,judge:inaccurate:0.99
-  judgeModel: openai-codex/gpt-5.4-mini
+  score: 55
 ---
 
 ## Огляд
 
-Файл визначає, які плагіни `@7n/rules` активні для проєкту, щоб core міг підключити правильні каталоги правил, capabilities, документаційні розширення та handlers. Джерело правди — поле `plugins: string[]` у `.n-rules.json`: явний `[]` вимикає плагіни й автодетект, а відсутнє поле запускає повний `detectPluginsFromRepo`.
+Резолв плагінів `@7n/rules`: які пакети-плагіни активні у проєкті, де їхні `rules/`,
+які capabilities вони дають і які handlers надають.
 
-Якщо `plugins` непорожній і містить лише пакети за конвенцією `@7n/rules-<category>-<name>`, автодетект домішує тільки відсутні категорії. Будь-який сторонній пакет у списку вимикає backfill повністю, щоб змішана або користувацька конфігурація залишалась ручною й передбачуваною.
+Джерело правди — поле `plugins: string[]` у `.n-rules.json`. Явний `[]` = «плагіни
+вимкнено» (автодетект не застосовується). Якщо поля немає взагалі — повний автодетект
+(`detectPluginsFromRepo`). Якщо `plugins` непорожній і складається **виключно** з пакетів
+за конвенцією `@7n/rules-<category>-<name>` (напр. `ci`, `lang`) — автодетект домішує
+лише ті категорії, яких у списку немає (ADR `260719-2154-per-category-автодетект-плагінів`);
+будь-який сторонній (не `@7n/rules-*`) пакет у списку вимикає backfill повністю — змішаний
+чи повністю кастомний список означає ручне керування, без сюрпризів. Файлові сигнали
+автодетекту: `.github/workflows/*.yml` → `@7n/rules-ci-github`; `azure-pipelines.yml` →
+`@7n/rules-ci-azure`, а без них — fallback за `repository.url` кореневого package.json
+(`github.com` / `dev.azure.com`).
 
-Автодетект спирається на файлові сигнали `.github/workflows/*.yml` і `azure-pipelines.yml`, а за їх відсутності — на `repository.url` з ознаками `github.com` або `dev.azure.com`. Резолв працює fail-safe: недоступні, не встановлені або несумісні плагіни не зривають lint/sync, а пропускаються; для несумісного `requiresPluginApi > PLUGIN_API_VERSION` видається warning, крім режиму `quiet:true`, де пропуск тихий. Результати кешуються в межах прогону.
+Установка: `ensurePluginInstalled` — плагін стає devDependency через `bun add -d` (bun сам
+резолвить актуальну версію; зміна видима у diff package.json). Фейл установки (offline,
+пакет ще не опублікований) — warning + graceful skip, ніколи не hard-fail: лінт/синк
+мають працювати без мережі. Hot-path (hook) НЕ встановлює — лише резолвить уже встановлені
+(`allowInstall: false`).
 
-## Поведінка
+Маніфест плагіна — блок `"n-rules"` у його package.json:
+`{ "requiresPluginApi": 2, "capabilities": ["ci:github"], "slots": { "provides": [...] } }`.
+`capabilities` живлять гейт концернів (`concern.json` → `requires.capability`) і
+`requires.capabilities` у slot contributions. Composition-контракт (rules, handlers,
+doc-files-розширення, skill-фрагменти) повністю на universal slot bus (`plugin-slots.mjs`,
+spec 2026-07-27-universal-plugin-slots-lang-php-extraction, Фаза 2 — full migration): цей
+модуль лишається відповідальним ЛИШЕ за низькорівневий резолв — які пакети активні, де їхній
+`packageRoot`, який у них `n-rules`-маніфест (сире `capabilities`/`requiresPluginApi`/`slots`),
+без жодної нормалізації composition-полів.
 
-`resolvePluginList` бере список із `.n-rules.json`: відсутнє поле запускає повний автодетект через `detectPluginsFromRepo`, явний порожній список вимикає плагіни, а непорожній список може доповнюватися лише відсутніми категоріями. `pluginCategory` визначає ці категорії; якщо у списку є сторонній пакет, backfill не застосовується.
-
-`detectPluginsFromRepo` зіставляє файлові сигнали з `KNOWN_CI_PLUGINS` і `KNOWN_LANG_PLUGINS`. Для CI файлові сигнали мають пріоритет, а fallback за URL з кореневого `package.json` використовується лише коли CI-конфігів немає. Для мов працюють тільки файлові сигнали; під час неглибокого скану службові й приховані каталоги на кшталт `.github`, `.git` і `node_modules` не обходяться.
-
-`resolvePlugins` перетворює обрані імена на доступні плагіни: за потреби делегує встановлення в `ensurePluginInstalled`, читає маніфест, відкидає несумісні плагіни й не зриває виконання через недоступний пакет. `KNOWN_PLUGIN_RANGES` обмежує версії first-party плагінів під час автоматичного встановлення, щоб core і плагіни лишалися сумісними.
-
-Результати резолву кешуються в межах процесу, щоб повторні виклики з тих самих даних не дублювали сканування, встановлення та попередження. `clearPluginResolveCache` скидає цей спільний стан для ізольованих перевірок.
-
-`resolveRulesDirs` використовує `resolvePlugins`, щоб зібрати джерела правил: core іде першим, далі активні плагіни у визначеному порядку. `getActiveCapabilities` агрегує capabilities з маніфестів; ці значення використовуються для гейтів у `concern.json`.
-
-`getDocFilesExtensions` і `getHandlers` читають внесок активних плагінів для документаційних розширень та extension-points. `getUnavailableDeclaredPlugins` окремо перевіряє саме явно задекларовані, але недоступні пакети, щоб CLI міг показати діагностику без автоматичного встановлення.
+Сумісність plugin API (Фаза 0, §10 тієї ж спеки): маніфест може декларувати число
+`requiresPluginApi`. Якщо воно більше за `PLUGIN_API_VERSION` цього core — плагін несумісний і
+пропускається у `resolvePlugins()` із warning (окрім `quiet:true`, де пропуск тихий). Відсутнє
+або нечислове поле — сумісний (та ж перевірка діє і для плагінів, що ще не дійшли до
+`requiresPluginApi: 2` — цей модуль сам їх не гейтує за версією v2, це робить
+`plugin-slots.mjs` окремо для slot graph).
 
 ## Публічний API
 
@@ -59,8 +74,8 @@ per-категорійний backfill для всього списку (див. 
 Поле відсутнє взагалі — повний автодетект.
 
 Результат кешується на процес за `(projectRoot, declared)` — виклик з `resolvePlugins`
-(через `resolveRulesDirs` тощо) і прямий виклик у sync-CLI інакше дублювали б і файловий
-скан, і warning про backfill.
+(через `resolveSlotGraph`/`resolveRulesDirs` у `plugin-slots.mjs` тощо) і прямий виклик у
+sync-CLI інакше дублювали б і файловий скан, і warning про backfill.
   ігнорується при cache hit — warning друкується щонайбільше раз на `(root, declared)` за процес
 - KNOWN_PLUGIN_RANGES — Сумісний semver-range для first-party плагінів: обмежує автоматичну інсталяцію (`ensurePluginInstalled`)
 поточною core-сумісною лінією, щоб майбутній несумісний major/minor плагіна не встановився
@@ -75,23 +90,21 @@ per-категорійний backfill для всього списку (див. 
 винятку.
 - resolvePlugins — Повний резолв плагінів проєкту (з кешем на процес).
   лише вже встановлені пакети, без `bun add`; `quiet` — без warning-ів (hook на кожен файл)
-- resolveRulesDirs — Rules-каталоги для всіх поверхонь ядра: ядро першим (його правила/концерни виграють
-колізії), далі плагіни у порядку списку.
-- getActiveCapabilities — Активні capabilities від усіх доступних плагінів (для гейта `requires.capability` у concern.json).
-- getDocFilesExtensions — Агреговані doc-files-розширення активних плагінів: '.rs' → 'Rust Module' тощо.
-Синхронно і без установки (hot-path hook) — лише вже встановлені плагіни.
 - getUnavailableDeclaredPlugins — Задекларовані у `config.plugins` пакети, недоступні в `node_modules` (не встановлені).
 Не встановлює нічого (`allowInstall: false`) і не друкує — чистий предикат для
 explicit CLI-діагностики (напр. doc-files: 0 кандидатів через невстановлений плагін),
 яка сама вирішує, коли й де показати попередження. Автодетектовані (не задекларовані
 явно) плагіни тут не враховуються — сигнал стосується саме явного `.n-rules.json`.
-- getHandlers — Handlers для extension-point правила ядра (v1 — лише API; перший споживач — v2).
 - clearPluginResolveCache — Скидає кеш резолву (для тестів).
+
+## Сценарії використання
+
+- `npm/scripts/lib/tests/resolve-plugins.test.mjs` (detectPluginsFromRepo; pluginCategory) — .github/workflows з yml → ci-github; azure-pipelines.yml → ci-azure; обидва файлові сигнали → обидва плагіни; порожній .github/workflows → fallback на repository.url (dev.azure.com); repository як string з github.com → ci-github (+ lang-js за package.json); ще 33
 
 ## Гарантії поведінки
 
 - Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
-- Перехоплює помилки і не пропускає винятків назовні (fail-safe).
-- За певних помилок повертає порожнє значення (напр. `null`) замість винятку.
+- Містить локальні fail-safe гілки; інші помилки можуть поширюватися назовні.
+- Деякі локальні fail-safe гілки повертають порожнє значення (напр. `null`) замість винятку.
 - Кешує результати в межах одного прогону.
 - Свідомо пропускає шляхи: `.github`, `.git`, `node_modules`.

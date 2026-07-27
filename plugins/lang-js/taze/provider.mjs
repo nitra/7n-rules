@@ -92,7 +92,7 @@ function runCommand(cmd, args, cwd, spawnFn) {
  * EcosystemProvider npm/bun для taze-оркестратора ядра (фаза 5a spec
  * lang-plugins-extraction: ядро — двигун без мовної специфіки, JS-екосистема —
  * такий самий плагін, як Rust/Python). Контракт `@7n/rules/plugin-api`,
- * реєструється маніфестом (`n-rules.contributes.handlers.taze`).
+ * реєструється contribution-ою `taze.provider@1` (id `taze-js`).
  * `diff.major` записи мапляться workspace → manifest (контракт порту).
  * @type {import('@7n/rules/plugin-api').EcosystemProvider}
  */

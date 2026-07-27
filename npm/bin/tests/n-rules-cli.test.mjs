@@ -29,7 +29,7 @@ const isJsOrchestratedSkillArgsMock = vi.fn(() => false)
 const runAdrNormalizeLocalCliMock = vi.fn(() => 0)
 const assertCwdIsProjectRootMock = vi.fn()
 const ensureNRulesInRootDevDependenciesMock = vi.fn()
-const getHandlersMock = vi.fn(() => [])
+const getSlotContributionsMock = vi.fn(() => [])
 const readNRulesConfigLiteMock = vi.fn(() => ({}))
 const withGlobalLintLockMock = vi.fn((_opts, fn) => fn())
 const createProgressPublisherMock = vi.fn(() => ({ onUpdate: vi.fn(), stop: vi.fn() }))
@@ -59,10 +59,12 @@ vi.mock('../../scripts/ensure-n-rules-dev-dependencies.mjs', () => ({
   ensureNRulesInRootDevDependencies: ensureNRulesInRootDevDependenciesMock
 }))
 vi.mock('../../scripts/lib/resolve-plugins.mjs', () => ({
-  resolvePluginList: vi.fn(() => []),
-  resolvePlugins: vi.fn(() => []),
+  resolvePluginList: vi.fn(() => [])
+}))
+vi.mock('../../scripts/lib/plugin-slots.mjs', () => ({
+  resolveSlotGraph: vi.fn(() => ({})),
   resolveRulesDirs: vi.fn(() => []),
-  getHandlers: getHandlersMock
+  getSlotContributions: getSlotContributionsMock
 }))
 vi.mock('../../scripts/lib/read-n-rules-config-lite.mjs', () => ({
   readNRulesConfigLite: readNRulesConfigLiteMock
@@ -167,20 +169,20 @@ describe('runCli', () => {
     expect(ensureNRulesInRootDevDependenciesMock).not.toHaveBeenCalled()
   })
 
-  test('taze резолвить handler @7n/rules-lang-js і делегує у runTazeCli', async () => {
-    getHandlersMock.mockReturnValueOnce([{ pluginName: '@7n/rules-lang-js', modulePath: fakeTazeHandlerPath }])
+  test('taze резолвить contribution "taze-js" і делегує у runTazeCli', async () => {
+    getSlotContributionsMock.mockReturnValueOnce([{ id: 'taze-js', resourcePath: fakeTazeHandlerPath }])
     await runCli(['taze', 'diff'])
-    expect(getHandlersMock).toHaveBeenCalled()
+    expect(getSlotContributionsMock).toHaveBeenCalledWith(expect.anything(), 'taze.provider', [1])
     expect(process.exitCode).toBe(0)
     expect(getFakeTazeCliCalls().at(-1)).toEqual(['diff'])
   })
 
-  test('taze без активного @7n/rules-lang-js хендлера → помилка, exitCode 1', async () => {
-    getHandlersMock.mockReturnValueOnce([])
+  test('taze без активного contribution "taze-js" → помилка, exitCode 1', async () => {
+    getSlotContributionsMock.mockReturnValueOnce([])
     const errSpy = vi.spyOn(console, 'error').mockReturnValue()
     await runCli(['taze', 'diff'])
     expect(process.exitCode).toBe(1)
-    expect(errSpy.mock.calls[0][0]).toContain('@7n/rules-lang-js')
+    expect(errSpy.mock.calls[0][0]).toContain('taze.provider')
     errSpy.mockRestore()
   })
 

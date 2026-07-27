@@ -6,8 +6,8 @@ import { pathToFileURL } from 'node:url'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { assertCoverageProvider } from '../../../scripts/lib/plugin-api.mjs'
+import { getSlotContributions, resolveSlotGraph } from '../../../scripts/lib/plugin-slots.mjs'
 import { readNRulesConfigLite } from '../../../scripts/lib/read-n-rules-config-lite.mjs'
-import { getHandlers } from '../../../scripts/lib/resolve-plugins.mjs'
 import { applyVerdicts } from './lib/classify/apply.mjs'
 import { classify } from './lib/classify/index.mjs'
 
@@ -51,7 +51,8 @@ export async function readThresholds(cwd) {
 
 /**
  * Резолвить активні coverage-провайдери мовних плагінів (порт `coverage`
- * plugin-api, реєстрація через `contributes.handlers.coverage`). Обовʼязкова
+ * plugin-api, реєстрація через слот `coverage.provider@1`, spec
+ * 2026-07-27-universal-plugin-slots-lang-php-extraction §5.1.6). Обовʼязкова
  * частина контракту — detect/collect/collectPerFile (assert); fix-hooks
  * (generateTests/generateStories/fixSurvived/fixFailingTests) опційні —
  * `fix-worker.mjs` перевіряє їх через `typeof`.
@@ -60,10 +61,12 @@ export async function readThresholds(cwd) {
  */
 export async function resolveProviders(cwd) {
   const config = await readNRulesConfigLite(cwd)
+  const graph = resolveSlotGraph(cwd, config, { allowInstall: false })
   const providers = []
-  for (const handler of getHandlers(cwd, config, 'coverage')) {
-    const mod = await import(pathToFileURL(handler.modulePath).href)
-    providers.push(assertCoverageProvider(mod.default, handler.pluginName))
+  for (const c of getSlotContributions(graph, 'coverage.provider', [1])) {
+    if (c.resourcePath === null) continue
+    const mod = await import(pathToFileURL(c.resourcePath).href)
+    providers.push(assertCoverageProvider(mod.default, c.pluginName))
   }
   return providers
 }

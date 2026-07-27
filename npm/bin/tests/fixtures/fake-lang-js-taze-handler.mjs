@@ -1,7 +1,8 @@
 /**
  * Фейковий handler-модуль для тесту `case 'taze'` у `runCli` (`../n-rules-cli.test.mjs`):
  * імітує `runTazeCli`, який реально живе у плагіні `@7n/rules-lang-js` і резолвиться
- * динамічним `import(pathToFileURL(handler.modulePath).href)` за шляхом з `getHandlers`.
+ * динамічним `import(pathToFileURL(contribution.resourcePath).href)` за шляхом
+ * contribution-у `taze.provider@1` з id `taze-js`.
  */
 
 /** @type {string[][]} */

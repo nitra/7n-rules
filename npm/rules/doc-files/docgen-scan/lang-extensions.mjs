@@ -3,19 +3,17 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import {
-  getDocFilesExtensions,
-  getHandlers,
-  getUnavailableDeclaredPlugins
-} from '../../../scripts/lib/resolve-plugins.mjs'
+import { getSlotContributions, resolveSlotGraph } from '../../../scripts/lib/plugin-slots.mjs'
+import { getUnavailableDeclaredPlugins } from '../../../scripts/lib/resolve-plugins.mjs'
 
 /**
- * Мовні розширення doc-files від плагінів (фаза 4 spec lang-plugins-extraction).
+ * Мовні розширення doc-files від плагінів (Фаза 2, spec
+ * 2026-07-27-universal-plugin-slots-lang-php-extraction — переведено на slot bus, §5.1.7/8).
  *
- * Розширення (`.rs` → 'Rust Module') декларуються в МАНІФЕСТІ плагіна
- * (`n-rules.contributes.docFiles.extensions`) — hot-path (hook на кожен файл)
- * читає їх синхронно без динамічного import. Екстрактори фактів/юнітів —
- * у handler-модулі (`contributes.handlers['doc-files']`), вантажаться лише
+ * Розширення (`.rs` → 'Rust Module') декларуються inline-value contribution-ом
+ * `doc-files.extensions@1` — hot-path (hook на кожен файл) читає їх синхронно через
+ * `resolveSlotGraph`/`getSlotContributions` (сам broker синхронний, без динамічного import).
+ * Екстрактори фактів/юнітів — resource contribution `doc-files.extractor@1`, вантажаться лише
  * на асинхронному шляху генерації.
  */
 
@@ -46,23 +44,28 @@ function readPluginsConfigSync(cwd) {
 }
 
 /**
- * Мапа doc-files-розширень від плагінів для репо (`.rs` → 'Rust Module', …),
- * з кешем на процес. Порожня мапа — жодний активний плагін їх не декларує.
+ * Мапа doc-files-розширень від плагінів для репо (`.rs` → 'Rust Module', …) — зливає inline
+ * `value` усіх `doc-files.extensions@1` contributions (порядок графа, останній перекриває
+ * ключ-дублікат), з кешем на процес. Порожня мапа — жодний активний плагін їх не декларує.
  * @param {string} cwd корінь репозиторію
  * @returns {Record<string, string>} розширення → тип-мітка
  */
 export function pluginDocFilesExtensions(cwd) {
   const cached = EXT_CACHE.get(cwd)
   if (cached) return cached
-  const out = getDocFilesExtensions(cwd, readPluginsConfigSync(cwd))
+  const graph = resolveSlotGraph(cwd, readPluginsConfigSync(cwd), { allowInstall: false, quiet: true })
+  /** @type {Record<string, string>} */
+  const out = {}
+  for (const c of getSlotContributions(graph, 'doc-files.extensions', [1])) {
+    if (c.value && typeof c.value === 'object' && !Array.isArray(c.value)) Object.assign(out, c.value)
+  }
   EXT_CACHE.set(cwd, out)
   return out
 }
 
 /**
- * Асинхронно вантажить мовні екстрактори з handler-модулів плагінів
- * (extension-point `doc-files`): default-експорт
- * `{ id, extensions: string[], extractFacts?, extractUnits? }`.
+ * Асинхронно вантажить мовні екстрактори з `doc-files.extractor@1` contributions
+ * (resource — модуль): default-експорт `{ id, extensions: string[], extractFacts?, extractUnits? }`.
  * Битий модуль — мовчазний пропуск (генерація тоді йде whole-file шляхом).
  * @param {string} cwd корінь репозиторію
  * @returns {Promise<Map<string, { id: string, extractFacts?: (src: string, relPath: string) => object, extractUnits?: (src: string, relPath: string) => Array<object>|null }>>} розширення → екстрактор
@@ -70,11 +73,13 @@ export function pluginDocFilesExtensions(cwd) {
 export async function loadDocFilesExtractors(cwd) {
   const cached = EXTRACTOR_CACHE.get(cwd)
   if (cached) return cached
+  const graph = resolveSlotGraph(cwd, readPluginsConfigSync(cwd), { allowInstall: false, quiet: true })
   const map = new Map()
-  for (const handler of getHandlers(cwd, readPluginsConfigSync(cwd), 'doc-files')) {
+  for (const c of getSlotContributions(graph, 'doc-files.extractor', [1])) {
+    if (c.resourcePath === null) continue
     try {
       // eslint-disable-next-line no-unsanitized/method
-      const mod = await import(pathToFileURL(handler.modulePath).href)
+      const mod = await import(pathToFileURL(c.resourcePath).href)
       const extractor = mod.default
       if (!extractor || typeof extractor !== 'object' || !Array.isArray(extractor.extensions)) continue
       for (const ext of extractor.extensions) map.set(ext, extractor)

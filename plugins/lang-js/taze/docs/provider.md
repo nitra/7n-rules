@@ -3,25 +3,21 @@ type: JS Module
 title: provider.mjs
 resource: plugins/lang-js/taze/provider.mjs
 docgen:
-  crc: 6135f3c4
-  model: openai-codex/gpt-5.5
-  tier: cloud-avg
+  crc: a10f1940
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
   score: 90
-  issues: internal-name:collectTazeDiff,judge-refine:kept-original,judge:inaccurate:0.99
+  issues: internal-name:collectTazeDiff,judge-refine:kept-original,judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Файл реалізує npm/bun-провайдер для taze: формує цільовий prompt для одного major-оновлення, запускає оновлення та керує резервними копіями `package.json` у workspace. Це дає оркестратору детермінований diff версій і безпечне прибирання тимчасового стану.
+Під час оновлення залежностей у межах одного прогону він збирає дані для окремого запиту на розбір розбіжностей, використовує кеш для повторних звернень і працює через мережу. Це дає змогу відділяти вже відомі результати від нових перевірок і підтримувати послідовність обробки воркспейсів без зайвих повторів.
 
 ## Поведінка
 
-backupWorkspacePackageFiles фіксує початковий стан workspace-маніфестів із `package.json` перед оновленням залежностей, щоб подальший крок міг відрізнити major-зміни від безпечніших bump-ів. Після оновлення через `bunx taze` і `bun install` buildDependencyPrompt формує текстове завдання для одного major-переходу: воно передає LLM лише контекст конкретного пакета, його версій і маніфесту, а не весь репозиторій.
-
-Промпт відрізняє неоднозначну міграцію від підтвердженої peer-перешкоди. Для останньої він вимагає повернути сумісну версію залежності, синхронізувати lockfile і точково, без дублювання, записати нативний `packageMode`-виняток у кореневий `taze.config.ts` з посиланням на конкретну причину.
-
-cleanupWorkspaceBackups завершує цикл після застосування або перевірки змін: прибирає тимчасові копії workspace-маніфестів і повертає репозиторій до штатного стану без службових артефактів.
+Під час оновлення залежностей `backupWorkspacePackageFiles` спершу знімає локальні копії `package.json` для воркспейсів, щоб зафіксувати стан до зміни версій і далі відрізнити major-зміни від minor у межах одного прогону. Після цього `buildDependencyPrompt` формує промпт лише для одного запису major-розбіжності, спираючись на збережений початковий стан, цільовий стан після bump і дані маніфесту з `package.json`; цей промпт передається далі як вхід для ітеративної частини процесу, де мережевий виклик залежить від доступності зовнішнього сервісу `https://bun.sh`. Завершення циклу забезпечує `cleanupWorkspaceBackups`, яке прибирає тимчасові копії `package.json` у всіх воркспейсах, щоб не залишати проміжний стан після проходу. Уся логіка працює як кеш у межах одного прогону: результати збереження й промптів використовуються лише для поточної сесії, без збереження між запусками.
 
 ## Публічний API
 
@@ -31,6 +27,10 @@ cleanupWorkspaceBackups завершує цикл після застосува�
 - backupWorkspacePackageFiles — Бекапить package.json кожного воркспейсу (крок 1 SKILL.md) — потрібно для
 класифікації major/minor через `collectTazeDiff` після bump-у.
 - cleanupWorkspaceBackups — Прибирає бекапи package.json усіх воркспейсів (крок 7 SKILL.md).
+
+## Сценарії використання
+
+- `plugins/lang-js/taze/tests/provider.test.mjs` (jsProvider (форма контракту); buildDependencyPrompt) — валідний EcosystemProvider за assertEcosystemProvider ядра; detect: кореневий package.json → один маніфест; без нього — тиша; available: bun відсутній → ok:false з причиною; bump: bunx taze -w -r latest + bun install; bump: провал команди → кидає з exit-кодом+stderr; ще 4
 
 ## Гарантії поведінки
 

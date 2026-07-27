@@ -144,9 +144,9 @@ function runCargo(args, cwd, spawnFn) {
 
 /**
  * EcosystemProvider Rust/Cargo для taze-оркестратора ядра — контракт
- * `@7n/rules/plugin-api`, реєструється маніфестом package.json плагіна
- * (`n-rules.contributes.handlers.taze`). Фаза 2 spec
- * 2026-07-18-lang-plugins-extraction: виїхав з ядра без зміни сигнатур порту.
+ * `@7n/rules/plugin-api`, реєструється contribution-ою `taze.provider@1`
+ * (id `taze-rust`). Фаза 2 spec 2026-07-18-lang-plugins-extraction: виїхав
+ * з ядра без зміни сигнатур порту.
  * @type {import('@7n/rules/plugin-api').EcosystemProvider}
  */
 const rustProvider = {

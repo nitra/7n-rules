@@ -1,0 +1,10 @@
+{
+  "targetCapability": "ci:github",
+  "artifactId": "lint-php",
+  "targetPath": ".github/workflows/lint-php.yml",
+  "format": "yaml",
+  "mode": "required-file",
+  "template": "./github/lint-php.yml.snippet.yml",
+  "mergeStrategy": "deep-subset",
+  "fix": true
+}

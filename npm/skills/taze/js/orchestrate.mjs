@@ -9,8 +9,8 @@ import {
   removeAutoCreatedWorktree
 } from '../../../scripts/lib/auto-worktree.mjs'
 import { assertEcosystemProvider } from '../../../scripts/lib/plugin-api.mjs'
+import { getSlotContributions, resolveSlotGraph } from '../../../scripts/lib/plugin-slots.mjs'
 import { readNRulesConfigLite } from '../../../scripts/lib/read-n-rules-config-lite.mjs'
-import { getHandlers, resolvePlugins } from '../../../scripts/lib/resolve-plugins.mjs'
 import { readMigrationCache, withKnownMigrationNotes, writeMigrationCache } from './migration-cache.mjs'
 
 export { bringChangesBackToOriginal, removeAutoCreatedWorktree } from '../../../scripts/lib/auto-worktree.mjs'
@@ -63,31 +63,31 @@ export async function callRunner(runner, prompt, cwd, deps = {}) {
 /**
  * Завантажує EcosystemProvider-и з активних плагінів проєкту: `.n-rules.json`
  * (або автодетект за файловими сигналами — `pyproject.toml` → lang-python) →
- * `resolvePlugins` (плагін доставляється автоматично при першому запуску) → handler-модулі
- * extension-point `taze` → default-експорт кожного валідується
- * `assertEcosystemProvider`. Битий плагін (нема модуля/невалідна форма) —
- * warning і пропуск, не провал прогону.
+ * `resolveSlotGraph` (плагін доставляється автоматично при першому запуску, allowInstall
+ * за замовчуванням) → `taze.provider@1` contributions → default-експорт кожного валідується
+ * `assertEcosystemProvider` (spec 2026-07-27-universal-plugin-slots-lang-php-extraction §5.1.5).
+ * Битий плагін (нема ресурсу/невалідна форма) — warning і пропуск, не провал прогону.
  * @param {string} cwd корінь репо
  * @param {(line: string) => void} log колбек прогресу
- * @param {{ readNRulesConfigLite?: (cwd: string) => Promise<object>, resolvePlugins?: (root: string, config: object, opts?: object) => object[], getHandlers?: (root: string, config: object, point: string) => Array<{pluginName: string, modulePath: string}>, importModule?: (url: string) => Promise<object> }} [deps] інжекти для тестів
+ * @param {{ readNRulesConfigLite?: (cwd: string) => Promise<object>, resolveSlotGraph?: (root: string, config: object, opts?: object) => object, getSlotContributions?: (graph: object, slot: string, versions?: number[]) => object[], importModule?: (url: string) => Promise<object> }} [deps] інжекти для тестів
  * @returns {Promise<object[]>} валідні провайдери плагінів
  */
 export async function loadPluginTazeProviders(cwd, log, deps = {}) {
   const readConfig = deps.readNRulesConfigLite ?? readNRulesConfigLite
   const config = await readConfig(cwd)
-  const resolve = deps.resolvePlugins ?? resolvePlugins
-  resolve(cwd, config)
-  const handlers = (deps.getHandlers ?? getHandlers)(cwd, config, 'taze')
+  const graph = (deps.resolveSlotGraph ?? resolveSlotGraph)(cwd, config)
+  const contributions = (deps.getSlotContributions ?? getSlotContributions)(graph, 'taze.provider', [1])
   // eslint-disable-next-line no-unsanitized/method
   const importModule = deps.importModule ?? (url => import(url))
 
   const providers = []
-  for (const handler of handlers) {
+  for (const c of contributions) {
+    if (c.resourcePath === null) continue
     try {
-      const mod = await importModule(pathToFileURL(handler.modulePath).href)
-      providers.push(assertEcosystemProvider(mod.default, handler.pluginName))
+      const mod = await importModule(pathToFileURL(c.resourcePath).href)
+      providers.push(assertEcosystemProvider(mod.default, c.pluginName))
     } catch (error) {
-      log(`⚠️ Плагін ${handler.pluginName}: taze-провайдер не завантажився — ${error.message}`)
+      log(`⚠️ Плагін ${c.pluginName}: taze-провайдер не завантажився — ${error.message}`)
     }
   }
   return providers

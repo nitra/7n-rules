@@ -14,26 +14,26 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { appendDiscoveredMdcFiles, inlineTemplateLinks } from './inline-template-links.mjs'
+import { resolveRulesDirs } from './plugin-slots.mjs'
 import { readNRulesConfigLite } from './read-n-rules-config-lite.mjs'
-import { resolvePlugins } from './resolve-plugins.mjs'
 
 const MIRROR_PREFIX = 'n-'
 const MDC_EXT = '.mdc'
 
 /**
- * Rules-джерела репо у порядку пріоритету: ядро, потім АКТИВНІ плагіни (з `.n-rules.json`,
- * резолв через node_modules — той самий шлях, що у синку; неактивні plugins/* монорепо
- * не враховуються, бо їх нема і в дзеркалах).
+ * Rules-джерела репо у порядку пріоритету: ядро, потім `rules.directory@1` contributions
+ * АКТИВНИХ плагінів (з `.n-rules.json`, резолв через node_modules — той самий шлях, що у
+ * синку; неактивні plugins/* монорепо не враховуються, бо їх нема і в дзеркалах).
  * @param {string} repoRoot корінь репо
  * @returns {Promise<string[]>} абсолютні шляхи rules-каталогів
  */
 async function repoRulesDirs(repoRoot) {
-  const dirs = [join(repoRoot, 'npm/rules')]
   const config = await readNRulesConfigLite(repoRoot)
-  for (const plugin of resolvePlugins(repoRoot, { plugins: config.plugins }, { allowInstall: false, quiet: true })) {
-    dirs.push(plugin.rulesDir)
-  }
-  return dirs
+  const dirs = resolveRulesDirs(repoRoot, { plugins: config.plugins }, join(repoRoot, 'npm/rules'), {
+    allowInstall: false,
+    quiet: true
+  })
+  return dirs.map(d => d.rulesDir)
 }
 
 /**

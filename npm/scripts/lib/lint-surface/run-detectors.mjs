@@ -18,8 +18,8 @@ import picomatch from 'picomatch'
 
 import { listConcerns } from '../concern-meta.mjs'
 import { collectChangedFilesSince, resolveChangedBase } from '../changed-files.mjs'
+import { getActiveCapabilities, resolveRulesDirs } from '../plugin-slots.mjs'
 import { readNRulesConfigLite, isRuleEnabled } from '../read-n-rules-config-lite.mjs'
-import { getActiveCapabilities, resolvePlugins } from '../resolve-plugins.mjs'
 import { isSerialLane } from './blocking-inventory.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
 import { renderViolations, renderDiagnostics } from './render.mjs'
@@ -98,8 +98,8 @@ async function effectiveRulesDirs(opts) {
   if (Array.isArray(opts.rulesDirs) && opts.rulesDirs.length > 0) return opts.rulesDirs
   const base = opts.rulesDir ?? DEFAULT_RULES_DIR
   const config = await readNRulesConfigLite(opts.cwd)
-  const plugins = resolvePlugins(opts.cwd, { plugins: config.plugins }, { allowInstall: false, quiet: true })
-  return [base, ...plugins.map(p => p.rulesDir)]
+  const dirs = resolveRulesDirs(opts.cwd, { plugins: config.plugins }, base, { allowInstall: false, quiet: true })
+  return dirs.map(d => d.rulesDir)
 }
 
 /**
@@ -132,7 +132,6 @@ async function filterByCapabilities(byRule, opts) {
  * concern-ів правила. Це потрібно для доменних правил, чий канон має сенс
  * лише за наявності конкретної topology в репозиторії: один gate не дає
  * policy- й JS-concern-ам розійтися у власних евристиках застосовності.
- *
  * @param {Record<string, ConcernMeta[]>} byRule concerns за rule-id.
  * @param {string} cwd корінь репозиторію, який лінтиться.
  * @returns {Promise<Record<string, ConcernMeta[]>>} лише застосовні правила.
@@ -160,7 +159,7 @@ async function filterByRuleApplies(byRule, cwd) {
       continue
     }
     if (typeof applies !== 'function') {
-      throw new Error(`rule ${ruleId}: applies/main.mjs має експортувати applies(cwd)`)
+      throw new TypeError(`rule ${ruleId}: applies/main.mjs має експортувати applies(cwd)`)
     }
     if (await applies(cwd)) out[ruleId] = concerns
   }
