@@ -246,6 +246,23 @@ describe('buildDetectPlan — сервіс-канон (scoped+files, pathMode, r
       for (const p of plan) expect(p.files).toBeUndefined()
     })
   })
+
+  test('rule-level applies-гейт false → правило виключене з плану (regression #254)', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = join(dir, 'rules')
+      await seedDetector(rulesDir, 'gated', 'check', { scope: 'full', glob: ['**/*'] }, CLEAN)
+      await mkdir(join(rulesDir, 'gated', 'applies'), { recursive: true })
+      await writeFile(
+        join(rulesDir, 'gated', 'applies', 'main.mjs'),
+        'export function applies() { return false }\n',
+        'utf8'
+      )
+      await seedDetector(rulesDir, 'probe', 'check', { scope: 'full', glob: ['**/*'] }, CLEAN)
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['probe', 'gated'] })
+      const plan = await buildDetectPlan({ rulesDir, cwd: dir, full: true })
+      expect(plan.map(p => p.entry.ruleId)).toEqual(['probe'])
+    })
+  })
 })
 
 describe('warnAboutRulesWithoutConcerns — дрейф .n-rules.json#rules vs rulesDirs', () => {
