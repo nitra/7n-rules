@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.22.22] - 2026-07-27
+
+### Fixed
+
+- normalize licensee allowlist and workspace license metadata
+
 ## [0.22.21] - 2026-07-27
 
 ### Fixed
