@@ -10,7 +10,20 @@
  * Semver-утиліти (caret-класифікація major/minor) живуть саме тут — єдине
  * джерело правила для всіх мовних плагінів, без імпорту внутрішніх шляхів
  * `@7n/rules` і без циклу plugin-api ↔ плагін.
+ *
+ * Фаза 3 (spec 2026-07-27-universal-plugin-slots-lang-php-extraction, §3.3, §7.1): canonical
+ * payload-контракт слоту `ci.artifact@1` — re-export з `slot-contracts-ci.mjs`. Consumer-и
+ * (`@7n/rules-ci-github`, `@7n/rules-ci-azure`) і майбутні contributors (`@7n/rules-lang-php`)
+ * імпортують форму payload-у й assertion-helpers звідси, не з internal `scripts/lib/*`.
  */
+export {
+  CI_ARTIFACT_ID_RE,
+  isSafeRepoRelativePath,
+  isSafeTemplateRelPath,
+  loadCiArtifactPayload,
+  resolveArtifactTemplatePath,
+  validateCiArtifactPayload
+} from './slot-contracts-ci.mjs'
 // Заякорено на початок (після можливих range-операторів `^~>=<`, пробілів, `v`),
 // щоб НЕ ловити версію всередині protocol-specifier-ів (`workspace:1.0.0`, `npm:x@1.2.3`).
 const SEMVER_RE = /^[\s~^>=<v]*(\d+)\.(\d+)\.(\d+)/

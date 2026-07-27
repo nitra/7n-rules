@@ -118,6 +118,7 @@
         "rules/*/*/main.mjs",
         "rules/*/*/fix-*.mjs",
         "rules/**/*.test.mjs",
+        "slots/*.mjs",
         "stryker.config.mjs",
         "vitest.config.mjs"
       ],
@@ -131,6 +132,7 @@
         "rules/*/*/main.mjs",
         "rules/*/*/fix-*.mjs",
         "rules/**/*.test.mjs",
+        "slots/*.mjs",
         "stryker.config.mjs",
         "vitest.config.mjs"
       ],

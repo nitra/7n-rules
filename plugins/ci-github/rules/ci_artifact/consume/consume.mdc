@@ -1,0 +1,26 @@
+## Generic `ci.artifact@1` consumer (GitHub Actions)
+
+Правило матеріалізує CI-артефакти, які постачають language-плагіни (напр. майбутній
+`@7n/rules-lang-php`) через universal typed slot `ci.artifact@1` (mixin
+`@7n/rules-ci-github`) — без жодного PHP чи іншого мовного literal у цьому пакеті: уся
+domain-семантика приходить з payload-у contribution-а (`targetCapability`, `artifactId`,
+`targetPath`, `template`, `mergeStrategy`, `mode`, `fix`).
+
+### Поведінка
+
+| mode | ціль існує | ціль відсутня |
+| --- | --- | --- |
+| `required-file` | deep-subset diff проти `template` | violation, T0 створює файл з `template` |
+| `patch-existing` | deep-subset diff проти `template` | без violation (файл належить іншому концерну) |
+
+`mergeStrategy: "deep-subset"`: обʼєкти мерджаться рекурсивно по ключах canonical-фрагмента
+(природно покриває GitHub `jobs` — вже keyed object); scalar-масиви (напр. `on.push.paths`) —
+ordered set-union, наявні consumer-specific записи не видаляються; масиви обʼєктів (напр.
+`steps`) — identity-based: canonical-елемент шукається в actual за першим наявним полем
+`id` → `uses` → `name`, мерджаться лише його поля.
+
+T0-фікс (`fixability: "config"`, без LLM ladder) застосовується лише коли
+`descriptor.fix === true`; ідемпотентний — повторний прогін після фіксу дає 0 violations.
+
+Дві contributions з ОДНАКОВИМ `artifactId` від РІЗНИХ плагінів — domain collision (spec §9.10):
+жодна з них не матеріалізується, замість цього — один violation з provenance обох сторін.
