@@ -433,6 +433,18 @@ describe('prepareBatchItem / finishBatchItem — T8 2b-batch (без LLM-вик�
     expect(r.md).toContain('# x.py')
   })
 
+  test('finishBatchItem: прибирає порожній inline code з модельного тексту', () => {
+    const facts = { relPath: 'x.py', lang: 'py', unsupported: true, exports: [], imports: [], markers: {} }
+    const r = finishBatchItem('## Огляд\n\nМаркер `` не є фактом. Внутрішній приклад (abie.mdc) не документуй.\n', {
+      facts,
+      source: 'pass',
+      testEvidence: null
+    })
+    expect(r.md).not.toContain('Маркер')
+    expect(r.md).not.toContain('``')
+    expect(r.md).not.toContain('abie.mdc')
+  })
+
   test('finishBatchItem: det-скорер рахує score як і для orchestrated шляху (нижче порогу → degraded)', () => {
     const r = finishBatchItem('## Огляд\n\nX.\n', {
       facts: { ...FACTS, relPath: 'x.mjs' },

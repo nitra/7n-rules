@@ -3,10 +3,10 @@ type: JS Module
 title: extractors.mjs
 resource: plugins/lang-python/doc-files/extractors.mjs
 docgen:
-  crc: 5c0349a2
-  model: openai-codex/gpt-5.5
-  tier: cloud-avg
-  score: 80
+  crc: 8c2d8b4d
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
+  score: 100
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
@@ -14,6 +14,14 @@ docgen:
 
 Витягує Python module/class/function docstring-и для дослівної doc-files-документації.
 Завдяки цьому повністю прокоментований Python-файл не потребує LLM-генерації.
+
+## Поведінка
+
+extractFactsPython повертає факт-лист лише для переданого вмісту файлу та відносного шляху; у результаті окремо зберігаються header, exports, imports, markers і порожні списки для внутрішніх та локальних символів.
+
+Для імпортів свідомо не розрізняються stdlib, external та internal: stdlib залишається порожнім, а всі знайдені import-згадки потрапляють до external.
+
+Markers відображають лише наявні в коді сигнали поведінки: read-only, catchesErrors, returnsFalsyOnFail, network і caches; список skips у результаті завжди порожній.
 
 ## Публічний API
 

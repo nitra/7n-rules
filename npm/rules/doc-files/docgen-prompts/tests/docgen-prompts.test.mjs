@@ -6,6 +6,7 @@ import {
   isApiGap,
   renderApiLine,
   apiGapMessages,
+  guaranteesFromMarkers,
   buildUnitDigest
 } from '../main.mjs'
 
@@ -58,6 +59,15 @@ describe('sectionMessages — Огляд більше не тут (R3)', () => {
     expect(behavior.messages[1].content).not.toContain('нумерований алгоритм у бізнес-термінах')
     expect(behavior.messages[1].content).toContain('не вимагає налаштування')
     expect(behavior.messages[1].content).toContain('поверни рівно NONE')
+  })
+})
+
+describe('guaranteesFromMarkers — лише file-local твердження', () => {
+  test('fail-safe маркер не обіцяє, що всі помилки лишаються всередині модуля', () => {
+    const md = guaranteesFromMarkers({ markers: { catchesErrors: true, returnsFalsyOnFail: true } })
+    expect(md).toContain('локальні fail-safe гілки')
+    expect(md).toContain('інші помилки можуть поширюватися назовні')
+    expect(md).not.toContain('не пропускає винятків назовні')
   })
 })
 

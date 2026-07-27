@@ -8,20 +8,10 @@ import { startChain } from '@7n/llm-lib/chain'
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { docPathForSource } from '../docgen-scan/main.mjs'
 import { loadDocFilesExtractors } from '../docgen-scan/lang-extensions.mjs'
-import {
-  buildTestEvidenceIndex,
-  renderTestScenarios,
-  testEvidenceForSource
-} from '../docgen-test-context/main.mjs'
+import { buildTestEvidenceIndex, renderTestScenarios, testEvidenceForSource } from '../docgen-test-context/main.mjs'
 import { extractAnchors, anchorTokens } from '../docgen-extract-anchors/main.mjs'
 import { QUALITY_THRESHOLD } from '../docgen-crc/main.mjs'
-import {
-  JUDGE_ENABLED,
-  JUDGE_MODEL,
-  detectRefusalFiller,
-  judgeDoc,
-  judgeFailsDoc
-} from '../docgen-judge/main.mjs'
+import { JUDGE_ENABLED, JUDGE_MODEL, detectRefusalFiller, judgeDoc, judgeFailsDoc } from '../docgen-judge/main.mjs'
 import {
   oneShotMessages,
   sectionMessages,
@@ -104,6 +94,13 @@ async function callLlm(messages, model, opts = {}) {
 
 const FENCE_OPEN_RE = /^```[a-z]*\n?/
 const FENCE_CLOSE_RE = /\n?```\s*$/
+const EMPTY_INLINE_CODE_RE = /``/g
+// Порожній code span — артефакт LLM, а не валідний факт про файл. Зрізаємо всю
+// фразу: інакше після видалення лише `` лишається вигадане твердження довкола.
+const EMPTY_INLINE_CODE_SENTENCE_RE = /[^.!?\n]*``[^.!?\n]*[.!?]/g
+// Внутрішній приклад із коментарів на кшталт `(foo.mdc)` не є поведінкою
+// модуля. Модель інколи переносить його у prose, тому таку фразу відкидаємо.
+const PAREN_MDC_SENTENCE_RE = /[^.!?\n]*\([^()\n]+\.mdc\)[^.!?\n]*[.!?]/g
 const LEADING_HEADING_RE = /^#{1,6}[ \t]{1,8}[^\n]{0,400}\n{1,8}/
 // R9: чат-преамбули малих моделей — «озвучування завдання» перед відповіддю
 // («Ось оновлена чорнетка секції…», «Як технічний письменник, я створю…»,
@@ -185,7 +182,11 @@ function stripSection(text) {
     t = t.replace(FENCE_OPEN_RE, '').replace(FENCE_CLOSE_RE, '').trim()
   }
   t = t.replace(LEADING_HEADING_RE, '') // зрізати випадковий заголовок
-  return stripLeadingPreamble(t.trim()).trim()
+  return stripLeadingPreamble(t.trim())
+    .replaceAll(EMPTY_INLINE_CODE_SENTENCE_RE, '')
+    .replaceAll(PAREN_MDC_SENTENCE_RE, '')
+    .replaceAll(EMPTY_INLINE_CODE_RE, '')
+    .trim()
 }
 
 /**
@@ -471,7 +472,9 @@ export function commentDocumentationMode(facts, src) {
   if (!hasCompleteCommentDocumentation(facts)) return 'fallback'
   const headerSize = facts.header.trim().replaceAll(NORMALIZED_SPACE_RE, ' ').length
   const exports = facts.exports ?? []
-  const apiSize = exports.map(exp => exp.desc?.replaceAll(NORMALIZED_SPACE_RE, ' ').length ?? 0).reduce((sum, size) => sum + size, 0)
+  const apiSize = exports
+    .map(exp => exp.desc?.replaceAll(NORMALIZED_SPACE_RE, ' ').length ?? 0)
+    .reduce((sum, size) => sum + size, 0)
   // У маленькому модулі один ретельно описаний API уже є поведінковим
   // контрактом. LLM тут найчастіше додає загальні фрази замість глибини.
   if (headerSize < SHORT_HEADER_CHARS && exports.length === 1 && apiSize >= SUFFICIENT_SINGLE_API_CHARS) {
@@ -562,7 +565,10 @@ function h2SectionBody(md, heading) {
   const start = lines.findIndex(line => line.trim() === heading)
   if (start === -1) return ''
   const end = lines.findIndex((line, index) => index > start && H2_RE.test(line))
-  return lines.slice(start + 1, end === -1 ? lines.length : end).join('\n').trim()
+  return lines
+    .slice(start + 1, end === -1 ? lines.length : end)
+    .join('\n')
+    .trim()
 }
 
 /**

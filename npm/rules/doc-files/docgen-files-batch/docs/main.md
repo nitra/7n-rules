@@ -3,25 +3,33 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/doc-files/docgen-files-batch/main.mjs
 docgen:
-  crc: 26d7897d
+  crc: 309bc059
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
-  score: 80
-  issues: internal-name:generateOne,internal-name:runBatchPass,judge-refine:kept-original,judge:inaccurate:0.99
+  score: 75
+  issues: internal-name:generateOne,internal-name:runBatchPass,anchor-miss:http://127.0.0.1:8000/v1/,judge-refine:kept-original,judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-`selectTargets` визначає, які файли потребують оновлення, а `nativeBatchAvailable` — чи доступний batch-режим для поточного прогону. `runDocFilesGenCli` запускає генерацію документації, `runGenerationBatch` виконує її у batch-режимі, а `runDocFilesStampCli` оновлює службові позначки прогону. Після генерації `generateDirIndex` підтримує directory index в узгодженому стані, а `purgeOrphanedDocs` прибирає застарілі артефакти, щоб дерево документації лишалося чистим. Усе це працює fail-safe: помилки перехоплюються, назовні не кидаються, а проміжні результати зберігаються в межах одного прогону через кешування.
+Визначає цілі для оновлення, генерує й синхронізує docs/ з кодом, оновлює directory index і прибирає orphaned docs, які більше не прив’язані до актуальних джерел. Працює як fail-safe: мережеві звернення не виносять винятки назовні, а результати прогону кешуються в межах одного запуску.
 
 ## Поведінка
 
-Потік починається з відбору цілей: базовий режим бере лише застарілі або degraded-доки, які ще не отримували повторної спроби для поточної версії джерела; режим overwrite примусово бере все. Після цього preflight перевіряє, чи доступний native batch-шлях із локальним provider, і тільки тоді весь набір іде одним batch-запитом; якщо ні — прогін переходить у послідовний режим. Обидва шляхи працюють з одним і тим самим набором правил: помилки класифікуються однаково, кожен результат або записується як успішний/деградований, або потрапляє в помилки чи skipped, а зміни на диск фіксуються одразу, щоб наступний прогін підхопив лише те, що ще лишилося.
+Генерація документації стартує з виявлення цілей через selectTargets: у звичайному режимі беруться застарілі або degraded-доки, які ще не отримували повторної спроби для поточної версії джерела; у режимі overwrite обробляються всі. Це робить прогін сходинковим: після невдалої спроби degraded-док більше не чіпається, доки не зміниться джерело, а новий CRC автоматично повертає його в потік.
 
-Batch-прогін і послідовний прогін сходяться в одному підсумку: статистика, перелік помилок, перелік пропусків і оновлені документи з новим CRC. У batch-режимі всі придатні файли готуються заздалегідь, а ті, що не проходять pre-send guard, одразу виходять зі статусом помилки або skip і не потрапляють у LLM. У послідовному режимі кожен файл обробляється окремо, з м’яким дедлайном для поступового добирання великих рунів; системні збої можуть зупинити прогін достроково, але вже записане лишається на диску. Для локального batch-шляху очікується провайдер `omlx` з базою `http://127.0.0.1:8000/v1/`, і результат кешується в межах прогону, щоб не перевіряти одне й те саме повторно.
+runDocFilesGenCli збирає підсумковий сценарій: спершу прибирає сирітські доки, потім запускає генерацію для відібраних цілей, а в кінці оновлює індекс директорії. Якщо прогін зупиняється достроково або через помилки, зроблене лишається на диску з актуальними CRC, тому наступний запуск підхоплює тільки пропущене.
 
-Командний вхід `runDocFilesGenCli` спочатку чистить сирітські доки через `purgeOrphanedDocs`, потім відбирає цілі, запускає генерацію і наприкінці оновлює directory index через `generateDirIndex`. Якщо прогін переривається через системний аборт або дедлайн, це відображається окремо, але зроблені файли не губляться. `runDocFilesStampCli` працює окремо від генерації: він лише синхронізує наявні доки з джерелом і підтримує directory index у консистентному стані без звернення до LLM.
+runGenerationBatch є спільним ядром усієї генерації. Воно бере відібрані цілі, робить preflight для локального бекенда і далі вибирає між послідовним шляхом та batch-шляхом. Якщо доступний native batch-аддон і немає м’якого дедлайну, весь набір іде одним submitBatch, і результати розкладаються назад по файлах. Якщо batch-режим недоступний або примусово вимкнений, обробка йде по одному файлу з fail-safe обробкою помилок та circuit-breaker для системних збоїв підряд. М’який дедлайн підтримується лише на послідовному шляху: перший файл завжди стартує, а наступні зупиняються, коли час вичерпано. Усі стани та лічильники накопичуються в спільній статистиці, а вихідний код відображає лише підсумок прогону.
+
+nativeBatchAvailable використовується як перемикач між batch і fallback-потоком. Перевірка не виконує LLM-виклику, а лише підтверджує, що native-реалізація доступна; результат кешується в межах прогону, щоб не повторювати однакову перевірку.
+
+generateDirIndex підтримує актуальний directory index у docs/ після будь-яких змін у наборах доків. Він читає наявні markdown-файли, витягує frontmatter і будує оглядову таблицю лише для реальних документів; сам index.md не чіпається, якщо в директорії більше нічого немає.
+
+purgeOrphanedDocs прибирає доки, для яких уже немає source-файлів, і після цього синхронізує індекс директорії. Це тримає docs/ у стані, де в ньому лишається тільки те, що ще прив’язане до коду, а порожні директорії очищуються до мінімально можливого стану.
+
+runDocFilesStampCli працює окремо від генерації: він детерміновано оновлює frontmatter у вже наявних доках без звернення до LLM. Це корисно для міграції та для відновлення метаданих, коли треба синхронізувати source і crc без зміни тексту документа.
 
 ## Публічний API
 
@@ -67,41 +75,9 @@ T8 (2b-batch, рішення Р): коли доступний native-аддон 
 
 ## Сценарії використання
 
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — runDocFilesGenCli — circuit-breaker / класифікація
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — 3 systemic підряд → abort, exit 2, решта не обробляється
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — permanent → skip, прогін триває, exit 0
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — ok між systemic скидає streak → без abort
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — selectTargets — stale + degraded-once guard
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — default: stale | degraded-not-cloud-avg → обрано; good | degraded-cloud-avg → пропущено
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — --overwrite → усі цілі незалежно від стану
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — foreign (рукописна дока): без --overwrite не ціль, з --overwrite — explicit перезапис
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — runGenerationBatch — м
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — дедлайн у минулому → перший файл обробляється, решта відкладається, штатний exit 0
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — без deadlineAt → увесь беклог, як раніше
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — deadlineAt прокидається у generateDoc — дедлайн ріже і файл у процесі
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — nativeBatchAvailable — детекція native-аддону (T8)
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — submitBatchImpl резолвиться → true, кешується (той самий impl не викликається вдруге)
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — submitBatchImpl кидає (аддон не зібраний) → false, послідовний фолбек
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — useCache=false: кожен виклик перевіряє заново (не залежить від попереднього результату)
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — runGenerationBatch — 2b-batch шлях (T8, native доступний)
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — N файлів одним submitBatchImpl-викликом (не по одному через generateDoc)
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — comment-only елементи штампуються без реального submitBatch
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — помилка ОДНОГО item-у не валить решту batch-у (permanent → skip, err → errors)
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — deadlineAt заданий → фолбек на послідовний шлях (batch не викликається)
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — forceSequential=true → фолбек на послідовний шлях навіть коли submitBatchImpl доступний
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — native-аддон недоступний (submitBatchImpl кидає) → послідовний фолбек, файли все одно оброблені
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — runDocFilesGenCli — foreign-доки (захист людського змісту)
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` — docPath існує без docgen-frontmatter → skip із попередженням, генерація не викликається
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-stamp.test.mjs` — runDocFilesStampCli — збереження frontmatter-полів
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-stamp.test.mjs` — stamp оновлює crc і НЕ губить tier/judgeModel/model/score/issues
-- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-stamp.test.mjs` — stamp доки без quality-полів не вигадує їх і зберігає tier
-- `npm/rules/doc-files/docgen-files-batch/tests/generate-dir-index.test.mjs` — generateDirIndex — MD025/single-title
-- `npm/rules/doc-files/docgen-files-batch/tests/generate-dir-index.test.mjs` — згенерований index.md без H1 у тілі; markdownlint не репортить MD025
-- `npm/rules/doc-files/docgen-files-batch/tests/generate-dir-index.test.mjs` — контроль чутливості: frontmatter title + H1 у тілі → markdownlint репортить MD025
-- `npm/rules/doc-files/docgen-files-batch/tests/generate-dir-index.test.mjs` — generateDirIndex — чужий index.md не перезаписується
-- `npm/rules/doc-files/docgen-files-batch/tests/generate-dir-index.test.mjs` — людський index.md без frontmatter лишається недоторканим
-- `npm/rules/doc-files/docgen-files-batch/tests/generate-dir-index.test.mjs` — index.md як дока source-файлу (type JS Module) лишається недоторканою
-- `npm/rules/doc-files/docgen-files-batch/tests/generate-dir-index.test.mjs` — власний Directory Index перегенеровується; без інших док index не створюється
+- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` (runDocFilesGenCli — circuit-breaker / класифікація; selectTargets — stale + degraded-once guard) — 3 systemic підряд → abort, exit 2, решта не обробляється; permanent → skip, прогін триває, exit 0; ok між systemic скидає streak → без abort; default: stale | degraded-not-cloud-avg → обрано; good | degraded-cloud-avg → пропущено; --overwrite → усі цілі незалежно від стану; ще 14
+- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-stamp.test.mjs` (runDocFilesStampCli — збереження frontmatter-полів) — stamp оновлює crc і НЕ губить tier/judgeModel/model/score/issues; stamp доки без quality-полів не вигадує їх і зберігає tier
+- `npm/rules/doc-files/docgen-files-batch/tests/generate-dir-index.test.mjs` (generateDirIndex — MD025/single-title; generateDirIndex — чужий index.md не перезаписується) — згенерований index.md без H1 у тілі; markdownlint не репортить MD025; контроль чутливості: frontmatter title + H1 у тілі → markdownlint репортить MD025; людський index.md без frontmatter лишається недоторканим; index.md як дока source-файлу (type JS Module) лишається недоторканою; власний Directory Index перегенеровується; без інших док index не створюється
 
 ## Гарантії поведінки
 
