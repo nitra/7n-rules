@@ -133,6 +133,14 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
 
+      - name: Synchronize main before release
+        # Інший publish-run міг уже випустити той самий workspace між event checkout
+        # та цим кроком. Fast-forward бере його version/CHANGELOG, щоб наступний
+        # release обрав новий semver, а не помилково вважав `npm publish` дублем успіхом.
+        run: |
+          git fetch origin main --tags
+          git merge --ff-only origin/main
+
       - name: Download napi addons
         if: needs.changes.outputs.native == 'true'
         uses: actions/download-artifact@v4
