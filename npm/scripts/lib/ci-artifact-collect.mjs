@@ -97,9 +97,12 @@ export async function collectCiArtifactContributions(cwd, targetCapability) {
  */
 export function reportCiArtifactCollectionDiagnostics(reporter, collected) {
   for (const { contribution, reason } of collected.errors) {
-    reporter.fail(`ci.artifact contribution "${contribution.id}" (${contribution.pluginName}) — невалідний payload: ${reason}`, {
-      reason: 'invalid-payload'
-    })
+    reporter.fail(
+      `ci.artifact contribution "${contribution.id}" (${contribution.pluginName}) — невалідний payload: ${reason}`,
+      {
+        reason: 'invalid-payload'
+      }
+    )
   }
   for (const { artifactId, group } of collected.collisions) {
     const provenance = group.map(g => `${g.contribution.pluginName}#${g.contribution.id}`).join(', ')

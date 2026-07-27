@@ -9,6 +9,8 @@ template_data := {"snippet": {
 	"tabWidth": 2,
 	"useTabs": false,
 	"printWidth": 120,
+	"trailingComma": "none",
+	"arrowParens": "avoid",
 	"ignorePatterns": ["**/hasura/metadata/**", "**/schema.graphql", "**/auto-imports.d.ts"],
 }}
 
@@ -20,7 +22,7 @@ valid_cfg := {
 	"semi": false,
 	"singleQuote": true,
 	"tabWidth": 2,
-	"trailingComma": "all",
+	"trailingComma": "none",
 	"useTabs": false,
 	"ignorePatterns": ["**/hasura/metadata/**", "**/schema.graphql", "**/auto-imports.d.ts"],
 }
@@ -36,6 +38,16 @@ test_deny_semi_true if {
 
 test_deny_tabwidth_wrong if {
 	bad := json.patch(valid_cfg, [{"op": "replace", "path": "/tabWidth", "value": 4}])
+	count(oxfmtrc.deny) > 0 with input as bad with data.template as template_data
+}
+
+test_deny_trailing_comma_wrong if {
+	bad := json.patch(valid_cfg, [{"op": "replace", "path": "/trailingComma", "value": "all"}])
+	count(oxfmtrc.deny) > 0 with input as bad with data.template as template_data
+}
+
+test_deny_arrow_parens_wrong if {
+	bad := json.patch(valid_cfg, [{"op": "replace", "path": "/arrowParens", "value": "always"}])
 	count(oxfmtrc.deny) > 0 with input as bad with data.template as template_data
 }
 

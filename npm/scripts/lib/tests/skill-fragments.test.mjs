@@ -52,7 +52,9 @@ describe('collectSkillFragments', () => {
       await writeFakeFragmentPlugin(dir, '@x/a', { content: '## Rust-гілка\n\nтекст A\n' })
       await writeFakeFragmentPlugin(dir, '@x/b', { skillId: 'other', content: 'інший скіл' })
       const graph = resolveSlotGraph(dir, { plugins: ['@x/a', '@x/b'] }, { allowInstall: false, quiet: true })
-      expect(collectSkillFragments('taze', graph)).toEqual([{ pluginName: '@x/a', content: '## Rust-гілка\n\nтекст A' }])
+      expect(collectSkillFragments('taze', graph)).toEqual([
+        { pluginName: '@x/a', content: '## Rust-гілка\n\nтекст A' }
+      ])
     })
   })
 

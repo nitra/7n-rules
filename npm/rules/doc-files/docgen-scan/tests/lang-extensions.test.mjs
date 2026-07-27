@@ -28,9 +28,7 @@ async function installFakeHandlerPlugin(dir, handlerBody) {
         requiresPluginApi: 2,
         contributes: { rules: false },
         slots: {
-          provides: [
-            { slot: 'doc-files.extractor', version: 1, id: 'doc-files-fake', resource: './handler.mjs' }
-          ]
+          provides: [{ slot: 'doc-files.extractor', version: 1, id: 'doc-files-fake', resource: './handler.mjs' }]
         }
       }
     })

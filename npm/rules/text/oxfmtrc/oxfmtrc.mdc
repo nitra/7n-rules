@@ -7,5 +7,5 @@ Rego-пакет: `text.oxfmtrc`
 **Що перевіряється:**
 
 - Наявність усіх обов'язкових ключів (presence-only): `arrowParens`, `printWidth`, `bracketSpacing`, `bracketSameLine`, `semi`, `singleQuote`, `tabWidth`, `trailingComma`, `useTabs`
-- Scalar leafs: точні значення відповідно до канонічного snippet
+- Scalar leafs: точні значення відповідно до канонічного snippet (`semi`, `singleQuote`, `tabWidth`, `useTabs`, `printWidth`, `trailingComma`, `arrowParens`)
 - `ignorePatterns`: масив має бути надмножиною канонічних glob-ів (subset-of перевірка)
