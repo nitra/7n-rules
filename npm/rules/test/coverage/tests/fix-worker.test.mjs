@@ -22,7 +22,14 @@ function fakeProvider(overrides = {}) {
   }
 }
 
-const CTX = { cwd: '/p', ruleId: 'test', concernId: 'coverage', tier: 'cloud-avg', recordWrite: vi.fn() }
+const CTX = {
+  cwd: '/p',
+  ruleId: 'test',
+  concernId: 'coverage',
+  tier: 'cloud-avg',
+  recordWrite: vi.fn(),
+  recordDurableWrite: vi.fn()
+}
 
 describe('groupViolations', () => {
   test('розкладає violations на files-нижче-порогу і survived-групи', () => {
@@ -64,13 +71,14 @@ describe('fixWorker', () => {
     expect(res.failed).toEqual([])
   })
 
-  test('прокидає recordWrite/tier у ctx хуків', async () => {
+  test('прокидає write-guards/tier у ctx хуків', async () => {
     const provider = fakeProvider()
     await fixWorker([{ reason: 'coverage-below-threshold', file: 'a.mjs', data: { pct: 1 } }], CTX, {
       resolveProviders: () => Promise.resolve([provider])
     })
     const hookArgs = provider.generateTests.mock.calls[0][0]
     expect(hookArgs.ctx.recordWrite).toBe(CTX.recordWrite)
+    expect(hookArgs.ctx.recordDurableWrite).toBe(CTX.recordDurableWrite)
     expect(hookArgs.ctx.tier).toBe('cloud-avg')
     expect(hookArgs.ctx.coverageTimeout).toEqual({
       requestedMs: null,

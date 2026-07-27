@@ -16,8 +16,9 @@
  *
  * Fix-hooks опційні в контракті провайдера — перевірка через `typeof`
  * (assert порту вимагає лише detect/collect/collectPerFile). Хуки отримують
- * FixContext-поля (model/tier/timeoutMs/recordWrite/chain/signal/feedback);
- * recordWrite прокидається до кожного місця запису (rollback-контракт ladder-а).
+ * FixContext-поля (model/tier/timeoutMs/recordWrite/recordDurableWrite/chain/signal/feedback);
+ * обидва write-guard-и прокидаються до кожного hook-а: durable доступний лише
+ * coverage provider-у для independently verified mutation batch-а.
  * Coverage-specific cloud rung дає survived-mutant agent batch повний budget:
  * outer runner backstop лишається ×1.25. Один survived batch стартує за rung;
  * решта є deferred telemetry, а не timeout/no-op failure.

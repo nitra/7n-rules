@@ -13,14 +13,19 @@ vi.mock('../fix/gen-stories.mjs', () => ({
 }))
 vi.mock('../fix/coverage-fix.mjs', () => ({
   fixSurvivedMutants: vi.fn(() =>
-    Promise.resolve({ fixed: [], failed: [], touchedFiles: ['/p/tests/b.test.mjs'], mutationRefreshFiles: ['src/a.mjs'] })
+    Promise.resolve({
+      fixed: [],
+      failed: [],
+      touchedFiles: ['/p/tests/b.test.mjs'],
+      mutationRefreshFiles: ['src/a.mjs']
+    })
   )
 }))
 vi.mock('../fix/fix-tests.mjs', () => ({
   fixFailingTests: vi.fn(() => Promise.resolve({ count: 0, fixed: 0, remaining: 0, touchedFiles: [] }))
 }))
 
-const CTX = { recordWrite: vi.fn(), model: 'm', tier: 'cloud-min', timeoutMs: 60_000 }
+const CTX = { recordWrite: vi.fn(), recordDurableWrite: vi.fn(), model: 'm', tier: 'cloud-min', timeoutMs: 60_000 }
 
 describe('fix-hooks провайдера — делегація у fix-модулі', () => {
   test('generateTests: assess-need → gen-tests, повертає touchedFiles', async () => {
@@ -55,7 +60,13 @@ describe('fix-hooks провайдера — делегація у fix-моду�
     expect(fixSurvivedMutants).toHaveBeenCalledWith(
       [{ file: 'a.js', mutants: [{}] }],
       '/p',
-      expect.objectContaining({ model: 'm', tier: 'cloud-min', timeoutMs: 60_000, recordWrite: CTX.recordWrite })
+      expect.objectContaining({
+        model: 'm',
+        tier: 'cloud-min',
+        timeoutMs: 60_000,
+        recordWrite: CTX.recordWrite,
+        recordDurableWrite: CTX.recordDurableWrite
+      })
     )
   })
 

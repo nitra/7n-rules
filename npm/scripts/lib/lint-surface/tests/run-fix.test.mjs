@@ -1130,6 +1130,56 @@ function durableOneThenHangWorker(violations, ctx) {
 }
 
 describe('runFixPipeline — durable-write worker (issue #16: doc-черга не стирається)', () => {
+  test('підтверджений coverage test переживає rollback незакритого global concern-а', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir)
+      const testPath = join(dir, 'tests', 'constants.test.mjs')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      const worker = (_violations, ctx) => {
+        // Імітація cache-independent scoped Stryker verdict-а: усі target mutants
+        // batch-а killed. Global concern навмисно лишається з порушеннями.
+        ctx.recordWrite(testPath)
+        ctx.recordDurableWrite(testPath)
+        writeFileSync(testPath, 'export {}\n')
+      }
+
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {},
+        deps: { ladder: ONE_RUNG, workerFor: () => worker }
+      })
+
+      expect(code).toBe(1)
+      expect(readFileSync(testPath, 'utf8')).toBe('export {}\n')
+    })
+  })
+
+  test('непідтверджений coverage test відкочується разом із незакритим concern-ом', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir)
+      const testPath = join(dir, 'tests', 'constants.test.mjs')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      const worker = (_violations, ctx) => {
+        // Failed/partial verdict не викликає recordDurableWrite.
+        ctx.recordWrite(testPath)
+        writeFileSync(testPath, 'export {}\n')
+      }
+
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {},
+        deps: { ladder: ONE_RUNG, workerFor: () => worker }
+      })
+
+      expect(code).toBe(1)
+      expect(existsSync(testPath)).toBe(false)
+    })
+  })
+
   test('часткова робота durable-worker-а переживає rollback; наступний rung продовжує з решти', async () => {
     await withTmpDir(async dir => {
       const rulesDir = await seedConcern(dir, DOCS_BACKLOG_DETECTOR)
