@@ -1,10 +1,8 @@
 ---
 type: Directory Index
-title: npm/rules/bun/licensee
+title: plugins/lang-js/rules/bun/licensee
 resource: plugins/lang-js/rules/bun/licensee/
 ---
-
-# npm/rules/bun/licensee
 
 | Файл                                | Тип       |
 | ----------------------------------- | --------- |
