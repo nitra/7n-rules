@@ -1420,6 +1420,12 @@ function normalizeGitHubCheck(check) {
  * @returns {{status:'ready'|'pr-checks-regressed'|'pr-checks-baseline-red'|'pr-checks-unverified',error?:string}} класифікація
  */
 export function classifyPullRequestChecks(prChecks, baseChecks) {
+  if (prChecks.length === 0) {
+    return {
+      status: 'pr-checks-unverified',
+      error: 'PR check rollup порожній: GitHub checks ще не зареєстровані'
+    }
+  }
   const normalizedPr = prChecks.map(check => normalizeGitHubCheck(check))
   const pending = normalizedPr.filter(check => check.state === 'pending')
   if (pending.length > 0) {
@@ -1527,6 +1533,26 @@ async function passFinalProjectGates(args) {
 }
 
 /**
+ * Комітить лише зміни, які лишилися в index після final gates. Branch sources
+ * можуть уже мати готові commits після cherry-pick, тому чистий index є
+ * валідним станом і не потребує порожнього commit.
+ * @param {string} cwd worktree
+ * @param {string} title commit message
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {boolean} чи створено commit
+ */
+export function commitPendingChanges(cwd, title, spawnFn = spawnSync) {
+  git(['add', '-A'], cwd, spawnFn)
+  const staged =
+    git(['diff', '--cached', '--quiet'], cwd, spawnFn, {
+      allowFailure: true
+    }).status !== 0
+  if (!staged) return false
+  git(['commit', '-m', title], cwd, spawnFn)
+  return true
+}
+
+/**
  * Створює один готовий PR. При будь-якому провалі worktree лишається для
  * ручного відновлення; прибирається тільки після успішних CI checks.
  * @param {object} args параметри
@@ -1594,11 +1620,6 @@ async function createPullRequest(args) {
     if (unresolved.length > 0) throw new Error(`Нерозв'язані конфлікти: ${unresolved.join(', ')}`)
     git(['diff', '--check'], worktree.cwd, spawnFn)
     git(['add', '-A'], worktree.cwd, spawnFn)
-    const staged =
-      git(['diff', '--cached', '--quiet'], worktree.cwd, spawnFn, {
-        allowFailure: true
-      }).status !== 0
-    if (!staged) throw new Error('Після Git validation немає staged змін')
     if (!hasChangesFromBase(worktree.cwd, spawnFn)) {
       onProgress('remove no-op worktree')
       removeReconcileWorktree(worktree, rootCwd, spawnFn)
@@ -1612,8 +1633,7 @@ async function createPullRequest(args) {
       onProgress
     })
     if (!finalGates.ok) throw new Error(finalGates.error)
-    git(['add', '-A'], worktree.cwd, spawnFn)
-    git(['commit', '-m', group.title], worktree.cwd, spawnFn)
+    commitPendingChanges(worktree.cwd, group.title, spawnFn)
     const baseRef = policyBaseRef(worktree.cwd)
     const baseBranch = readGitPolicy(worktree.cwd).baseBranch
     git(['diff', '--check', `${baseRef}...HEAD`], worktree.cwd, spawnFn)
