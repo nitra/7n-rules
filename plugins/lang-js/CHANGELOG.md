@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.22.14] - 2026-07-27
+
+### Fixed
+
+- refresh canonical mutation results after generated coverage tests
+
 ## [0.22.13] - 2026-07-27
 
 ### Changed
