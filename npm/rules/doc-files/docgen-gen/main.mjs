@@ -8,6 +8,7 @@ import { startChain } from '@7n/llm-lib/chain'
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { docPathForSource } from '../docgen-scan/main.mjs'
 import { loadDocFilesExtractors } from '../docgen-scan/lang-extensions.mjs'
+import { buildTestEvidenceIndex, renderTestScenarios, testEvidenceForSource } from '../docgen-test-context/main.mjs'
 import { extractAnchors, anchorTokens } from '../docgen-extract-anchors/main.mjs'
 import { QUALITY_THRESHOLD } from '../docgen-crc/main.mjs'
 import { JUDGE_ENABLED, JUDGE_MODEL, detectRefusalFiller, judgeDoc, judgeFailsDoc } from '../docgen-judge/main.mjs'
@@ -93,6 +94,13 @@ async function callLlm(messages, model, opts = {}) {
 
 const FENCE_OPEN_RE = /^```[a-z]*\n?/
 const FENCE_CLOSE_RE = /\n?```\s*$/
+const EMPTY_INLINE_CODE_RE = /``/g
+// Порожній code span — артефакт LLM, а не валідний факт про файл. Зрізаємо всю
+// фразу: інакше після видалення лише `` лишається вигадане твердження довкола.
+const EMPTY_INLINE_CODE_SENTENCE_RE = /[^.!?\n]*``[^.!?\n]*[.!?]/g
+// Внутрішній приклад із коментарів на кшталт `(foo.mdc)` не є поведінкою
+// модуля. Модель інколи переносить його у prose, тому таку фразу відкидаємо.
+const PAREN_MDC_SENTENCE_RE = /[^.!?\n]*\([^()\n]+\.mdc\)[^.!?\n]*[.!?]/g
 const LEADING_HEADING_RE = /^#{1,6}[ \t]{1,8}[^\n]{0,400}\n{1,8}/
 // R9: чат-преамбули малих моделей — «озвучування завдання» перед відповіддю
 // («Ось оновлена чорнетка секції…», «Як технічний письменник, я створю…»,
@@ -138,6 +146,11 @@ const PROTECTED_HEADING = 'Призначення'
 const PROTECTED_START_RE = /^##\s+Призначення\s*$/
 const H2_RE = /^##\s/
 const H1_RE = /^#\s/
+const SIGNATURE_CALL_RE = /([`\w$.]{1,80})\([^()]{0,300}\)/g
+const NORMALIZED_SPACE_RE = /\s+/g
+const H2_HEADING_RE = /^##\s.+$/gm
+const TEST_SCENARIOS_HEADING = '## Сценарії використання'
+const BEHAVIOR_HEADING = '## Поведінка'
 
 /**
  * R9: зрізає провідні чат-преамбули й дубль назви секції з початку тексту.
@@ -169,7 +182,11 @@ function stripSection(text) {
     t = t.replace(FENCE_OPEN_RE, '').replace(FENCE_CLOSE_RE, '').trim()
   }
   t = t.replace(LEADING_HEADING_RE, '') // зрізати випадковий заголовок
-  return stripLeadingPreamble(t.trim()).trim()
+  return stripLeadingPreamble(t.trim())
+    .replaceAll(EMPTY_INLINE_CODE_SENTENCE_RE, '')
+    .replaceAll(PAREN_MDC_SENTENCE_RE, '')
+    .replaceAll(EMPTY_INLINE_CODE_RE, '')
+    .trim()
 }
 
 /**
@@ -181,7 +198,7 @@ function stripSection(text) {
  */
 function stripSignatures(text) {
   let t = text
-  for (let i = 0; i < 2; i++) t = t.replaceAll(/([`\w$.]{1,80})\([^()]{0,300}\)/g, '$1')
+  for (let i = 0; i < 2; i++) t = t.replaceAll(SIGNATURE_CALL_RE, '$1')
   return t
 }
 
@@ -425,6 +442,67 @@ export async function buildApiSection(facts, anchors, model, timeoutMs, temperat
 }
 
 /**
+ * Чи коментарі автора повністю покривають машинну документацію: header дає
+ * «Огляд», а змістовні описи всіх public API — відповідну секцію. У такому
+ * разі LLM не потрібна: текст зберігається дослівно для JS, Rust і Python.
+ * @param {object} facts факт-лист мовного екстрактора
+ * @returns {boolean} true, якщо можна зібрати документ без LLM
+ */
+export function hasCompleteCommentDocumentation(facts) {
+  return Boolean(facts.header?.trim()) && (facts.exports ?? []).every(exp => !isApiGap(exp))
+}
+
+/** Мінімальний розмір header, який може бути лише pointer-ом, а не наративом. */
+const SHORT_HEADER_CHARS = 240
+/** Один докладний public API може сам закрити короткий header-pointer. */
+const SUFFICIENT_SINGLE_API_CHARS = 160
+/** Сигнали потоку, який доцільно стисло звʼязати окремою «Поведінкою». */
+const BEHAVIOR_FLOW_RE =
+  /\b(?:await|Promise\.all|Semaphore|JoinSet|chunks|concurr|retry|queue|state|workflow|resolver|provider|catch|try|match)\b/i
+
+/**
+ * Вибирає гібридний режим для повністю прокоментованого source. Короткий
+ * header майже напевно є pointer-ом, а середній header разом із явним flow у
+ * коді потребує короткого LLM-доповнення. Детальний наратив лишається 0-LLM.
+ * @param {object} facts факт-лист мовного екстрактора
+ * @param {string} src вміст source-файлу
+ * @returns {'fallback'|'comment-only'|'comment+behavior'} режим генерації
+ */
+export function commentDocumentationMode(facts, src) {
+  if (!hasCompleteCommentDocumentation(facts)) return 'fallback'
+  const headerSize = facts.header.trim().replaceAll(NORMALIZED_SPACE_RE, ' ').length
+  const exports = facts.exports ?? []
+  const apiSize = exports
+    .map(exp => exp.desc?.replaceAll(NORMALIZED_SPACE_RE, ' ').length ?? 0)
+    .reduce((sum, size) => sum + size, 0)
+  // У маленькому модулі один ретельно описаний API уже є поведінковим
+  // контрактом. LLM тут найчастіше додає загальні фрази замість глибини.
+  if (headerSize < SHORT_HEADER_CHARS && exports.length === 1 && apiSize >= SUFFICIENT_SINGLE_API_CHARS) {
+    return 'comment-only'
+  }
+  if (headerSize < SHORT_HEADER_CHARS) return 'comment+behavior'
+  if (headerSize < 900 && BEHAVIOR_FLOW_RE.test(src)) return 'comment+behavior'
+  return 'comment-only'
+}
+
+/**
+ * Збирає документ лише з авторських коментарів і детермінованих фактів.
+ * @param {object} facts факт-лист мовного екстрактора
+ * @param {string|null} intent захищена секція «Призначення»
+ * @param {string} [behavior] додаткова LLM-секція «Поведінка» для comment+behavior режиму
+ */
+function commentOnlyDoc(facts, intent, behavior = '') {
+  const sections = {
+    overview: facts.header.trim(),
+    api: (facts.exports ?? []).map(exp => renderApiLine(exp)).join('\n'),
+    behavior,
+    scenarios: renderTestScenarios(facts.testScenarioFiles ?? []),
+    guarantees: guaranteesFromMarkers(facts)
+  }
+  return { md: insertProtected(assemble(basename(facts.relPath), sections), intent) }
+}
+
+/**
  * One-shot: один виклик LLM на весь документ (для unsupported-структур).
  * @param {object} facts факт-лист
  * @param {string} src вміст файлу
@@ -437,7 +515,7 @@ async function oneShotDoc(facts, src, model, timeoutMs = LOCAL_TIMEOUT_MS, { int
   const text = await callLlm(oneShotMessages(facts, src), model, { timeoutMs })
   let md = stripSignatures(stripSection(text))
   if (!md.startsWith('#')) md = `# ${basename(facts.relPath)}\n\n${md}`
-  return { md: insertProtected(md + '\n', intent) }
+  return { md: insertProtected(insertTestScenarios(md + '\n', facts), intent) }
 }
 
 /**
@@ -451,6 +529,7 @@ function assemble(stem, sections) {
     ['overview', '## Огляд'],
     ['behavior', '## Поведінка'],
     ['api', '## Публічний API'],
+    ['scenarios', '## Сценарії використання'],
     ['guarantees', '## Гарантії поведінки']
   ]
   const parts = [`# ${stem}`]
@@ -459,6 +538,55 @@ function assemble(stem, sections) {
     if (body && body.trim()) parts.push(`${title}\n\n${body.trim()}`)
   }
   return parts.join('\n\n') + '\n'
+}
+
+/**
+ * Видаляє H2-секцію з Markdown без regex з довільним тілом секції.
+ * @param {string} md зібраний Markdown-документ
+ * @param {string} heading точний H2-заголовок секції
+ * @returns {string} документ без секції
+ */
+function removeH2Section(md, heading) {
+  const lines = md.split('\n')
+  const start = lines.findIndex(line => line.trim() === heading)
+  if (start === -1) return md
+  const end = lines.findIndex((line, index) => index > start && H2_RE.test(line))
+  return [...lines.slice(0, start), ...lines.slice(end === -1 ? lines.length : end)].join('\n')
+}
+
+/**
+ * Повертає тіло H2-секції з Markdown без regex з довільним тілом секції.
+ * @param {string} md зібраний Markdown-документ
+ * @param {string} heading точний H2-заголовок секції
+ * @returns {string} тіло секції або порожній рядок
+ */
+function h2SectionBody(md, heading) {
+  const lines = md.split('\n')
+  const start = lines.findIndex(line => line.trim() === heading)
+  if (start === -1) return ''
+  const end = lines.findIndex((line, index) => index > start && H2_RE.test(line))
+  return lines
+    .slice(start + 1, end === -1 ? lines.length : end)
+    .join('\n')
+    .trim()
+}
+
+/**
+ * Додає test-сценарії до one-shot/batch-документа. Для unsupported мов основний
+ * Markdown ще повертає LLM, але test-секція лишається виключно JS-рендером.
+ * @param {string} md зібраний Markdown-документ
+ * @param {object} facts факт-лист із `testScenarioFiles`
+ * @returns {string} документ із детермінованою секцією сценаріїв
+ */
+export function insertTestScenarios(md, facts) {
+  const scenarios = renderTestScenarios(facts.testScenarioFiles ?? [])
+  if (!scenarios) return md
+  const withoutOld = removeH2Section(md, TEST_SCENARIOS_HEADING).trimEnd()
+  const section = `## Сценарії використання\n\n${scenarios}`
+  const guarantees = '\n\n## Гарантії поведінки'
+  const at = withoutOld.indexOf(guarantees)
+  if (at === -1) return `${withoutOld}\n\n${section}\n`
+  return `${withoutOld.slice(0, at)}\n\n${section}${withoutOld.slice(at)}\n`
 }
 
 /**
@@ -478,10 +606,21 @@ async function orchestratedDoc(
   timeoutMs,
   { anchors = null, temperature = 0.2, intent = null } = {}
 ) {
+  const commentMode = commentDocumentationMode(facts, src)
+  if (commentMode === 'comment-only') return commentOnlyDoc(facts, intent)
+  if (commentMode === 'comment+behavior') {
+    const [behaviorPrompt] = sectionMessages(facts, src, anchors, intent, { complementaryBehavior: true })
+    const behavior = stripSignatures(
+      stripSection(await callLlm(behaviorPrompt.messages, model, { timeoutMs, temperature }))
+    )
+    return { md: commentOnlyDoc(facts, intent, CRITIC_NONE_RE.test(behavior.trim()) ? '' : behavior).md }
+  }
   const sections = {}
   const anc = anchors ?? extractAnchors(src)
   // E3: «Гарантії» — детермінований шаблон з markers (0 LLM-запитів, 0 generic-фраз)
   sections.guarantees = guaranteesFromMarkers(facts)
+  // Test/spec назви рендеряться JS-ом дослівно, а не потрапляють у LLM prompt.
+  sections.scenarios = renderTestScenarios(facts.testScenarioFiles ?? [])
   // Спершу Поведінка — єдина секція з кодом (sectionMessages повертає лише її)
   for (const s of sectionMessages(facts, src, anc, intent)) {
     sections[s.key] = stripSignatures(stripSection(await callLlm(s.messages, model, { timeoutMs, temperature })))
@@ -503,6 +642,27 @@ async function orchestratedDoc(
 }
 
 /**
+ * Semantic evidence для judge: лише source-код; test-сценарії формує JS.
+ * @param {string} src source-код
+ * @returns {string} evidence для judge
+ */
+function semanticEvidence(src) {
+  return src
+}
+
+/**
+ * Витягує LLM-секцію «Поведінка» для вузького semantic judge. Авторські
+ * «Огляд»/API не оцінюються моделлю і не можуть бути нею переписані.
+ * @param {string} md зібраний Markdown-документ
+ * @returns {string} мінімальний документ з однією секцією або порожній рядок
+ */
+function behaviorOnlyDocument(md) {
+  const body = h2SectionBody(md, BEHAVIOR_HEADING)
+  return body ? `# Поведінка\n\n## Поведінка\n\n${body}\n` : ''
+  return match ? `# Поведінка\n\n## Поведінка\n\n${match[1].trim()}\n` : ''
+}
+
+/**
  * №6 — judge-refine: суддя назвав конкретні неточності (`judge.reason`) — один
  * локальний refine-прохід замість лише маркування degraded. Приймаємо виправлену
  * версію ТІЛЬКИ якщо: det-score не впав, усі ## заголовки збережені, і повторний
@@ -520,13 +680,13 @@ async function judgeRefinePass(r, judge, { facts, anchors, src, score, model, ch
   if (!fixed.startsWith('#')) fixed = `# ${basename(facts.relPath)}\n\n${fixed}`
   const fixedMd = insertProtected(fixed + '\n', intentBody)
   // Guard 1: рерайт не має губити секції (малі моделі інколи повертають фрагмент)
-  const origHeadings = r.md.match(/^##\s.+$/gm) ?? []
+  const origHeadings = r.md.match(H2_HEADING_RE) ?? []
   if (origHeadings.some(h => !fixedMd.includes(h))) return null
   // Guard 2: det-score не має падати
   const sFixed = scoreDoc(fixedMd, facts, { anchors, src })
   if (sFixed.score < score) return null
   // Guard 3: повторний суддя (той самий scope: inaccurate)
-  const judge2 = { ...(await judgeDoc(src, fixedMd, { chain })), model: JUDGE_MODEL }
+  const judge2 = { ...(await judgeDoc(semanticEvidence(src), fixedMd, { chain })), model: JUDGE_MODEL }
   if (judgeFailsDoc(judge2)) return null
   return { md: fixedMd, score: sFixed.score, issues: sFixed.issues, judge: judge2 }
 }
@@ -541,7 +701,7 @@ async function judgeRefinePass(r, judge, { facts, anchors, src, score, model, ch
 async function runJudgeGate({ r, score, issues, facts, anchors, src, model, chain }) {
   let judge = null
   try {
-    judge = { ...(await judgeDoc(src, r.md, { chain })), model: JUDGE_MODEL }
+    judge = { ...(await judgeDoc(semanticEvidence(src, facts), r.md, { chain })), model: JUDGE_MODEL }
     // №6: суддя назвав конкретні неточності → один локальний refine-прохід
     // (опт-аут: N_CURSOR_DOCGEN_JUDGE_REFINE=0). Прийнято лише коли всі
     // guard-и judgeRefinePass пройдені; інакше — degraded, як раніше.
@@ -610,10 +770,13 @@ function srcTokenBudget() {
  * (js/mjs/ts — lang-js, `.rs` — lang-rust; whole-file `unsupported`-fallback, якщо
  * екстрактора для розширення нема).
  * @param {string} file абсолютний шлях джерела
+ * @param {ReturnType<typeof buildTestEvidenceIndex>|null} [testIndex] source↔tests index
  * @returns {Promise<{ src: string, estTokens: number, ext: string, langExtractors: Map<string, object>, facts: object }>} усе потрібне обом callers перед LLM-викликом
  */
-async function loadSrcAndFacts(file) {
+async function loadSrcAndFacts(file, testIndex = null) {
   const src = readFileSync(file, 'utf8')
+  const evidenceIndex = testIndex ?? (existsSync(file) ? buildTestEvidenceIndex(process.cwd()) : null)
+  const testEvidence = evidenceIndex ? testEvidenceForSource(file, evidenceIndex) : { files: [] }
   const estTokens = Math.round(Buffer.byteLength(src, 'utf8') / 4)
   const budget = srcTokenBudget()
   if (estTokens > budget) {
@@ -623,7 +786,7 @@ async function loadSrcAndFacts(file) {
   }
   const langExtractors = await loadDocFilesExtractors(process.cwd())
   const ext = `.${file.split('.').pop()}`.toLowerCase()
-  const facts = langExtractors.get(ext)?.extractFacts?.(src, file) ?? {
+  const extractedFacts = langExtractors.get(ext)?.extractFacts?.(src, file) ?? {
     relPath: file,
     lang: ext.slice(1),
     unsupported: true,
@@ -631,6 +794,10 @@ async function loadSrcAndFacts(file) {
     exports: [],
     imports: {},
     markers: {}
+  }
+  const facts = {
+    ...extractedFacts,
+    testScenarioFiles: testEvidence.files
   }
   return { src, estTokens, ext, langExtractors, facts }
 }
@@ -674,7 +841,7 @@ function finishUnsupported(r, { t0, model, chainExtra }) {
  * з вищою температурою (best-of-2); якщо й він не допоміг — результат
  * позначається `degraded`, рішення про перегенерацію приймає batch/користувач.
  * @param {string} file абсолютний шлях джерела
- * @param {{ model?: string, threshold?: number, existingMd?: string|null, chainFactory?: typeof startChain, deadlineAt?: number|null }} [opts] model-id, поріг degraded, наявна дока (для збереження захищеної секції), фабрика ланцюжка (інжект для тестів), deadlineAt — мʼякий дедлайн fix-pipeline (epoch ms): per-call таймаути ріжуться під залишок бюджету, вичерпаний бюджет обриває генерацію transient-помилкою
+ * @param {{ model?: string, threshold?: number, existingMd?: string|null, chainFactory?: typeof startChain, deadlineAt?: number|null, testIndex?: ReturnType<typeof buildTestEvidenceIndex>|null }} [opts] model-id, поріг degraded, наявна дока (для збереження захищеної секції), фабрика ланцюжка (інжект для тестів), deadlineAt — мʼякий дедлайн fix-pipeline (epoch ms): per-call таймаути ріжуться під залишок бюджету, вичерпаний бюджет обриває генерацію transient-помилкою; testIndex — спільний source↔tests index батчу
  * @returns {{ md: string, ms: number, llmMs: number, llmCalls: number, score: number|null, issues: string[], degraded: boolean, model: string }} документ і метадані генерації (ms — увесь файл; llmMs/llmCalls — лише LLM; решта ms — оркестрація)
  */
 export async function generateDoc(
@@ -684,11 +851,12 @@ export async function generateDoc(
     threshold = QUALITY_THRESHOLD,
     existingMd = null,
     chainFactory = startChain,
-    deadlineAt = null
+    deadlineAt = null,
+    testIndex = null
   } = {}
 ) {
   // Guard ДО створення ланцюжка: skip без LLM — не задача.
-  const { src, estTokens, ext, langExtractors, facts } = await loadSrcAndFacts(file)
+  const { src, estTokens, ext, langExtractors, facts } = await loadSrcAndFacts(file, testIndex)
   const t0 = Date.now()
   llmMeter = { calls: 0, ms: 0 }
   const chain = chainFactory({ kind: 'doc-generate', unit: facts.relPath, cwd: process.cwd() })
@@ -717,6 +885,7 @@ export async function generateDoc(
     // Варіант B: захищена секція «Призначення» з наявної доки — зберегти й подати як контекст
     const intent = existingMd ? splitProtected(existingMd).body : null
     const anchors = facts.unsupported ? null : extractAnchors(src)
+    const commentMode = commentDocumentationMode(facts, src)
     const promptSrc = resolvePromptSrc({ facts, estTokens, langExtractors, ext, src, file })
     let r = facts.unsupported
       ? await oneShotDoc(facts, src, model, LOCAL_TIMEOUT_MS, { intent })
@@ -731,6 +900,49 @@ export async function generateDoc(
 
     // Stage 2.5: детермінований скоринг (0 токенів)
     let { score, issues } = scoreDoc(r.md, facts, { anchors, src })
+
+    // Авторські header/API-коментарі — уже джерело істини. Для comment-only
+    // LLM не запускається зовсім; comment+behavior судить лише LLM-секцію.
+    if (commentMode === 'comment-only') {
+      chainExtra.score = score
+      chainExtra.degraded = false
+      return {
+        ...r,
+        ms: Date.now() - t0,
+        llmMs: llmMeter.ms,
+        llmCalls: llmMeter.calls,
+        score,
+        issues,
+        degraded: false,
+        model
+      }
+    }
+
+    if (commentMode === 'comment+behavior') {
+      const behaviorDoc = behaviorOnlyDocument(r.md)
+      let judge = null
+      if (JUDGE_ENABLED && behaviorDoc) {
+        judge = { ...(await judgeDoc(semanticEvidence(src), behaviorDoc, { chain })), model: JUDGE_MODEL }
+        if (judgeFailsDoc(judge)) {
+          r = commentOnlyDoc(facts, intent)
+          ;({ score, issues } = scoreDoc(r.md, facts, { anchors, src }))
+          issues.push('behavior-judge-removed')
+        }
+      }
+      chainExtra.score = score
+      chainExtra.degraded = false
+      return {
+        ...r,
+        ms: Date.now() - t0,
+        llmMs: llmMeter.ms,
+        llmCalls: llmMeter.calls,
+        score,
+        issues,
+        judge,
+        degraded: false,
+        model
+      }
+    }
 
     // E4: best-of-2 — один retry з вищою температурою, det-вибір кращого
     if (score < threshold && env.N_CURSOR_DOCGEN_BEST_OF !== '0') {
@@ -786,14 +998,21 @@ export async function generateDoc(
  * всі файли разом). Кидає ту саму помилку pre-send guard, що й `generateDoc`
  * (класифікується `permanent` у batch-оркестраторі — skip, не помилка прогону).
  * @param {string} file абсолютний шлях джерела
- * @param {{ existingMd?: string|null }} [opts] наявна дока (для захищеної секції «Призначення»)
- * @returns {Promise<{ facts: object, anchors: object|null, src: string, messages: Array<{role:string,content:string}>, intent: string|null }>} усе потрібне для item-у batch-у й пізнішого фінішу
+ * @param {{ existingMd?: string|null, testIndex?: ReturnType<typeof buildTestEvidenceIndex>|null }} [opts] наявна дока (для захищеної секції «Призначення») і спільний source↔tests index
+ * @returns {Promise<{ facts: object, anchors: object|null, src: string, mode: string, messages: Array<{role:string,content:string}>, intent: string|null }>} усе потрібне для item-у batch-у й пізнішого фінішу; `comment-only` повертає порожні messages
  */
-export async function prepareBatchItem(file, { existingMd = null } = {}) {
-  const { src, facts } = await loadSrcAndFacts(file)
+export async function prepareBatchItem(file, { existingMd = null, testIndex = null } = {}) {
+  const { src, facts } = await loadSrcAndFacts(file, testIndex)
   const anchors = facts.unsupported ? null : extractAnchors(src)
   const intent = existingMd ? splitProtected(existingMd).body : null
-  return { facts, anchors, src, messages: oneShotMessages(facts, src), intent }
+  const mode = facts.unsupported ? 'fallback' : commentDocumentationMode(facts, src)
+  const messages =
+    mode === 'comment-only'
+      ? []
+      : mode === 'comment+behavior'
+        ? sectionMessages(facts, src, anchors, intent, { complementaryBehavior: true })[0].messages
+        : oneShotMessages(facts, src)
+  return { facts, anchors, src, mode, messages, intent }
 }
 
 /**
@@ -803,13 +1022,28 @@ export async function prepareBatchItem(file, { existingMd = null } = {}) {
  * викликається (мінімальний обсяг T8 — генерація; judge лишається опційним
  * розширенням послідовного шляху).
  * @param {string} text сирий текст відповіді моделі для цього item-у
- * @param {{ facts: object, anchors: object|null, src: string, intent: string|null, model: string, threshold?: number }} ctx контекст item-у (з `prepareBatchItem`)
+ * @param {{ facts: object, anchors: object|null, src: string, intent: string|null, model: string, threshold?: number, mode?: string }} ctx контекст item-у (з `prepareBatchItem`)
  * @returns {{ md: string, score: number|null, issues: string[], degraded: boolean, model: string }} результат генерації для штампу/запису
  */
-export function finishBatchItem(text, { facts, anchors, src, intent, model, threshold = QUALITY_THRESHOLD }) {
+export function finishBatchItem(
+  text,
+  { facts, anchors, src, intent, model, threshold = QUALITY_THRESHOLD, mode = null }
+) {
+  const commentMode = mode ?? (facts.unsupported ? 'fallback' : commentDocumentationMode(facts, src))
+  if (commentMode === 'comment-only') {
+    const md = commentOnlyDoc(facts, intent).md
+    const { score, issues } = scoreDoc(md, facts, { anchors, src })
+    return { md, score, issues, degraded: false, model }
+  }
+  if (commentMode === 'comment+behavior') {
+    const behavior = stripSignatures(stripSection(text))
+    const md = commentOnlyDoc(facts, intent, CRITIC_NONE_RE.test(behavior.trim()) ? '' : behavior).md
+    const { score, issues } = scoreDoc(md, facts, { anchors, src })
+    return { md, score, issues, degraded: false, model }
+  }
   let md = stripSignatures(stripSection(text))
   if (!md.startsWith('#')) md = `# ${basename(facts.relPath)}\n\n${md}`
-  md = insertProtected(md + '\n', intent)
+  md = insertProtected(insertTestScenarios(md + '\n', facts), intent)
   if (facts.unsupported) {
     const refusal = detectRefusalFiller(splitProtected(md).without)
     return {

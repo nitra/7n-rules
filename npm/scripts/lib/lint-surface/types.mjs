@@ -24,6 +24,8 @@
  * @property {AbortSignal} [signal] сигнал скасування — лише у parallel lane `detectAll()`
  *   (`N_RULES_LINT_CONCURRENCY>1`, ADR 260716-1354); async-детектори (`spawnAsync`-based)
  *   прокидають його далі, щоб перерватись при infrastructure-помилці іншого concern-а
+ * @property {(detail: { label: string, done: number, total: number, current: string } | null) => void} [reportProgressDetail]
+ *   optional read-only live detail поточного concern-а для full-lint observer-а
  */
 
 /**

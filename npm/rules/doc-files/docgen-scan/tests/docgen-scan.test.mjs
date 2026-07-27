@@ -12,7 +12,8 @@ import {
   scanForDocFiles,
   scanOrphanedDocs
 } from '../main.mjs'
-import { crc32, stampDoc } from '../../docgen-crc/main.mjs'
+import { crc32, documentationCrc, stampDoc } from '../../docgen-crc/main.mjs'
+import { buildTestEvidenceIndex } from '../../docgen-test-context/main.mjs'
 
 // Root монорепо: всі lang-плагіни активні у .n-rules.json (js/rust/python).
 const repoRoot = new URL('../../../../..', import.meta.url).pathname
@@ -90,6 +91,33 @@ describe('scanForDocFiles (CRC staleness)', () => {
 
       await writeFile(join(root, 'src', 'foo.js'), 'export const a = 999\n')
       expect(describeFile(root, 'src/foo.js')).toMatchObject({ stale: true, reason: 'crc-mismatch' })
+    })
+  })
+
+  test('CRC враховує повʼязаний тест: зміна usage-сценарію робить доку stale', async () => {
+    await withTmpDir(async root => {
+      await installFakeLangJsPlugin(root)
+      await ensureDir(join(root, 'src', 'tests'))
+      await ensureDir(join(root, 'src', 'docs'))
+      const source = join(root, 'src', 'foo.mjs')
+      const testFile = join(root, 'src', 'tests', 'foo.test.mjs')
+      const doc = join(root, 'src', 'docs', 'foo.md')
+      await writeFile(source, 'export const foo = () => 1\n')
+      await writeFile(testFile, "import { foo } from '../foo.mjs'\ntest('повертає 1', () => expect(foo()).toBe(1))\n")
+      const index = buildTestEvidenceIndex(root)
+      await writeFile(doc, stampDoc('## Огляд\n', 'src/foo.mjs', documentationCrc(source, index)))
+
+      expect(describeFile(root, 'src/foo.mjs', index)).toMatchObject({ stale: false, reason: null })
+
+      await writeFile(
+        testFile,
+        "import { foo } from '../foo.mjs'\ntest('повертає число', () => expect(foo()).toBe(1))\n"
+      )
+      const changedIndex = buildTestEvidenceIndex(root)
+      expect(describeFile(root, 'src/foo.mjs', changedIndex)).toMatchObject({
+        stale: true,
+        reason: 'crc-mismatch'
+      })
     })
   })
 

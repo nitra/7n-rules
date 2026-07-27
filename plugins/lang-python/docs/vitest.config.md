@@ -3,7 +3,7 @@ type: JS Module
 title: vitest.config.mjs
 resource: plugins/lang-python/vitest.config.mjs
 docgen:
-  crc: d8e4554f
+  crc: 56741dc3
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 100
@@ -20,7 +20,7 @@ docgen:
 Налаштовує оточення для запуску тестів плагіна `lang-python` у фреймворку Vitest.
 1. Визначає спеціальне оточення для тестування, яке встановлює `GIT_TRACE2_EVENT` у значення '0' для відключення трекінгу ядра Git-AI.
 2. Вказує шлях для логування трасування LLM у тимчасову директорію системи.
-3. Обмежує область пошуку тестів лише файлами в каталогах `taze/tests`, `rules/**/tests` та `coverage-provider/tests`.
+3. Обмежує область пошуку тестів лише файлами в каталогах `taze/tests`, `rules/**/tests`, `doc-files/tests` та `coverage-provider/tests`.
 4. Ігнорує будь-які файли всередині папки `node_modules`.
 5. Використовує середовище 'node' для виконання тестів.
 6. Встановлює максимальний час тайм-ауту для тестів на 20000 мілісекунд та використовує пул 'forks' для ізоляції процесів.

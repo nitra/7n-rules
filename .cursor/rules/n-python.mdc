@@ -5,7 +5,7 @@ alwaysApply: false
 version: '1.1'
 ---
 
-Docstring-и: модуль із публічними def/class має module-docstring, кожен top-level публічний def/class — docstring (концерн doc_comments; T0 перетворює суміжний #-коментар на docstring, решту дописує LLM-ladder).
+Docstring-и: модуль із публічними def/class має module-docstring, кожен top-level публічний def/class — docstring. Якщо вони змістовні, doc-files дослівно збирає «Огляд» і «Публічний API» без LLM (концерн doc_comments; T0 перетворює суміжний #-коментар на docstring, решту дописує LLM-ladder).
 
 Python-проєкти ведуться **виключно** на [uv](https://docs.astral.sh/uv/) — єдиний пакет-менеджер і резолвер. **Poetry заборонено.** Середовище: `uv sync --frozen` (строго з `uv.lock`).
 

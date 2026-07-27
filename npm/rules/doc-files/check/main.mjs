@@ -1,11 +1,12 @@
 /**
  * lint-поверхня doc-files: детект застарілих файлових документацій (per-file, з reverse-mapом).
  */
-import { join, dirname, basename, extname } from 'node:path'
+import { join, dirname, basename, extname, relative } from 'node:path'
 import { existsSync, readdirSync } from 'node:fs'
 
 import { describeFile, isDocCandidate, isSourceFile, scanForDocFiles, scanOrphanedDocs } from '../docgen-scan/main.mjs'
 import { unavailableDocFilesPlugins } from '../docgen-scan/lang-extensions.mjs'
+import { buildTestEvidenceIndex, isDocgenTestFile, sourceFilesForTest } from '../docgen-test-context/main.mjs'
 
 const DOC_MD_RE = /(?:^|\/)docs\/[^/]+\.md$/u
 
@@ -38,15 +39,21 @@ function sourceForDoc(cwd, docRel) {
  * Зводить перелік змінених файлів до множини вихідних кодових файлів.
  * @param {string[]} files змінені шляхи (джерела або .md-доки)
  * @param {string} cwd робочий каталог
+ * @param {ReturnType<typeof buildTestEvidenceIndex>} testIndex source↔tests index
  * @returns {string[]} відносні шляхи джерел
  */
-function sourcesFromChanged(files, cwd) {
+function sourcesFromChanged(files, cwd, testIndex) {
   const out = new Set()
   for (const raw of files) {
     const rel = raw.split('\\').join('/')
     if (DOC_MD_RE.test(rel)) {
       const src = sourceForDoc(cwd, rel)
       if (src) out.add(src)
+    } else if (isDocgenTestFile(basename(rel))) {
+      for (const sourceAbs of sourceFilesForTest(join(cwd, rel), testIndex)) {
+        const sourceRel = relative(cwd, sourceAbs).split('\\').join('/')
+        if (isDocCandidate(cwd, sourceRel)) out.add(sourceRel)
+      }
     } else if (isDocCandidate(cwd, rel) && existsSync(join(cwd, rel))) {
       out.add(rel)
     }
@@ -61,8 +68,9 @@ function sourcesFromChanged(files, cwd) {
  */
 export function collectStale(files, cwd) {
   if (files === undefined) return scanForDocFiles(cwd).filter(f => f.stale)
-  const sources = sourcesFromChanged(files, cwd)
-  return sources.map(src => describeFile(cwd, src)).filter(f => f.stale)
+  const testIndex = buildTestEvidenceIndex(cwd)
+  const sources = sourcesFromChanged(files, cwd, testIndex)
+  return sources.map(src => describeFile(cwd, src, testIndex)).filter(f => f.stale)
 }
 
 /**
@@ -86,14 +94,19 @@ export function lint(ctx) {
       })
     )
   }
-  for (const orphan of scanOrphanedDocs(cwd)) {
-    violations.push(
-      /** @type {Partial<import('../../../scripts/lib/lint-surface/types.mjs').LintViolation>} */ ({
-        reason: 'orphaned-doc',
-        message: `сирітський док (source видалено): ${orphan}`,
-        file: orphan
-      })
-    )
+  // Явний files-набір (hook/--path) не містить межі дерева для безпечного
+  // orphan-скану. Повний скан тут порушив би scope і міг би видалити доки поза
+  // сервісом, тому orphan-cleanup лишається лише repo-wide прогоном.
+  if (files === undefined) {
+    for (const orphan of scanOrphanedDocs(cwd)) {
+      violations.push(
+        /** @type {Partial<import('../../../scripts/lib/lint-surface/types.mjs').LintViolation>} */ ({
+          reason: 'orphaned-doc',
+          message: `сирітський док (source видалено): ${orphan}`,
+          file: orphan
+        })
+      )
+    }
   }
 
   const unavailable = unavailableDocFilesPlugins(cwd)

@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process'
 import { isDocgenIgnored } from '../docgen-ignore/main.mjs'
 import { parseDocFrontmatter, readDocCrc, staleness } from '../docgen-crc/main.mjs'
 import { pluginDocFilesExtensions } from './lang-extensions.mjs'
+import { buildTestEvidenceIndex } from '../docgen-test-context/main.mjs'
 
 /** `*.test.*`, `*.spec.*`, `*.stories.*` — тести й Storybook CSF-файли, документувати не треба. */
 const TEST_FILE_RE = /\.(?:test|spec|stories)\.[^.]+$/u
@@ -72,15 +73,16 @@ export function isDocCandidate(root, relPath) {
  * у проєкті-споживачі; сканер бачив його як `missing` і затирав чат-філером моделі.
  * @param {string} root абсолютний корінь
  * @param {string} sourcePath posix-шлях джерела від кореня
+ * @param {ReturnType<typeof buildTestEvidenceIndex>|null} [testIndex] source↔tests index
  * @returns {{sourcePath:string, docPath:string, stale:boolean, reason:'missing'|'crc-mismatch'|null, foreign:boolean}} опис файлу
  */
-export function describeFile(root, sourcePath) {
+export function describeFile(root, sourcePath, testIndex = null) {
   const docPath = docPathForSource(sourcePath)
   const docAbsPath = join(root, docPath)
   if (existsSync(docAbsPath) && readDocCrc(docAbsPath) === null) {
     return { sourcePath, docPath, stale: false, reason: null, foreign: true }
   }
-  const { stale, reason } = staleness(join(root, sourcePath), docAbsPath)
+  const { stale, reason } = staleness(join(root, sourcePath), docAbsPath, testIndex)
   return { sourcePath, docPath, stale, reason, foreign: false }
 }
 
@@ -190,6 +192,7 @@ function gitIgnoredPaths(root, relPaths) {
  */
 export function scanForDocFiles(root) {
   const results = []
+  const testIndex = buildTestEvidenceIndex(root)
 
   /** @param {string} dir поточний каталог обходу */
   function walk(dir) {
@@ -209,7 +212,7 @@ export function scanForDocFiles(root) {
         if (isSystemWideDocsRoot(root) && dirname(relPath) === '.') continue
         const sourcePath = relPath.split(sep).join('/')
         if (isDocgenIgnored(sourcePath)) continue
-        results.push(describeFile(root, sourcePath))
+        results.push(describeFile(root, sourcePath, testIndex))
       }
     }
   }

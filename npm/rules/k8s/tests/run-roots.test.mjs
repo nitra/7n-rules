@@ -14,7 +14,10 @@ import {
   findK8sRoots,
   findKustomizationDirs,
   k8sRootFromFile,
-  pathHasK8sSegment
+  KUBESCAPE_SCAN_TIMEOUT_MS,
+  pathHasK8sSegment,
+  runKubescape,
+  runKubescapeManifest
 } from '../manifests/main.mjs'
 import { withTmpDir } from '../../../scripts/utils/test-helpers.mjs'
 
@@ -224,6 +227,54 @@ describe('findKustomizationDirs', () => {
       await writeFile(join(k8sDir, 'deploy.yaml'), 'apiVersion: apps/v1\nkind: Deployment\n', 'utf8')
       const dirs = await findKustomizationDirs(k8sDir)
       expect(dirs).toEqual([])
+    })
+  })
+})
+
+describe('Kubescape wrapper — bounded scan та granular targets', () => {
+  test('передає spawnAsync bounded timeout і повертає fail-closed timeout result', async () => {
+    await withTmpDir(async root => {
+      const calls = []
+      const result = await runKubescapeManifest('kubescape', 'apiVersion: v1\nkind: ConfigMap\n', root, false, {
+        spawn: async (...args) => {
+          calls.push(args)
+          return { exitCode: null, timedOut: true }
+        }
+      })
+      expect(calls).toHaveLength(1)
+      expect(calls[0][1]).toContain('--scan-timeout')
+      expect(calls[0][2]).toMatchObject({ timeoutMs: KUBESCAPE_SCAN_TIMEOUT_MS })
+      expect(result).toMatchObject({ status: 1, enoent: false, timedOut: true })
+    })
+  })
+
+  test('сканує всі Kustomize overlays, progress монотонний, а після першого scan використовує local cache', async () => {
+    await withTmpDir(async root => {
+      const k8s = join(root, 'jobs', 'foo', 'k8s')
+      for (const env of ['base', 'qa', 'release']) {
+        await mkdir(join(k8s, env), { recursive: true })
+        await writeFile(join(k8s, env, 'kustomization.yaml'), 'resources: []\n', 'utf8')
+      }
+      const calls = []
+      const progress = []
+      const result = await runKubescape([k8s], root, false, {
+        kubescapePath: 'kubescape',
+        kubectlPath: '/bin/echo',
+        spawn: async (...args) => {
+          calls.push(args)
+          return { exitCode: 0, timedOut: false }
+        },
+        onProgress: state => {
+          progress.push(state)
+        }
+      })
+      expect(result).toMatchObject({ status: 0, timedOut: false })
+      expect(calls).toHaveLength(3)
+      expect(calls[0][1]).not.toContain('--use-default')
+      expect(calls.slice(1).every(([, args]) => args.includes('--use-default'))).toBe(true)
+      expect(progress.map(s => s.done)).toEqual([0, 1, 1, 2, 2, 3])
+      expect(progress.every(s => s.total === 3)).toBe(true)
+      expect(progress.at(-1)).toMatchObject({ current: 'jobs/foo/k8s/release', done: 3, total: 3 })
     })
   })
 })

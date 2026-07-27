@@ -3,35 +3,33 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/doc-files/docgen-files-batch/main.mjs
 docgen:
-  crc: fee22ba9
-  model: openai-codex/gpt-5.5
-  tier: cloud-avg
-  score: 80
-  issues: internal-name:generateOne,internal-name:runBatchPass,judge-refine:kept-original,judge:inaccurate:0.99
+  crc: 309bc059
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
+  score: 75
+  issues: internal-name:generateOne,internal-name:runBatchPass,anchor-miss:http://127.0.0.1:8000/v1/,judge-refine:kept-original,judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Файл забезпечує вибір source-файлів для документації через `selectTargets`, перевірку доступності batch-генерації через `nativeBatchAvailable`, створення `docs/`-індексів через `generateDirIndex`, видалення сирітських документів через `purgeOrphanedDocs` і запуск CLI-сценаріїв через `runDocFilesGenCli` та `runDocFilesStampCli`. Batch-генерація виконується через `runGenerationBatch`.
-
-Він потрібен, щоб створення, оновлення, індексація та очищення поведінкової документації виконувалися без винятків назовні: помилки перехоплюються fail-safe, а повторні обчислення зменшуються кешуванням у межах прогону.
+Визначає цілі для оновлення, генерує й синхронізує docs/ з кодом, оновлює directory index і прибирає orphaned docs, які більше не прив’язані до актуальних джерел. Працює як fail-safe: мережеві звернення не виносять винятки назовні, а результати прогону кешуються в межах одного запуску.
 
 ## Поведінка
 
-`runDocFilesGenCli` запускає повний прогін: прибирає сирітські документи через `purgeOrphanedDocs`, відбирає актуальні цілі через `selectTargets`, передає їх у `runGenerationBatch`, а після завершення повертає exit-код за результатом помилок або дострокового abort.
+Генерація документації стартує з виявлення цілей через selectTargets: у звичайному режимі беруться застарілі або degraded-доки, які ще не отримували повторної спроби для поточної версії джерела; у режимі overwrite обробляються всі. Це робить прогін сходинковим: після невдалої спроби degraded-док більше не чіпається, доки не зміниться джерело, а новий CRC автоматично повертає його в потік.
 
-`selectTargets` визначає, які source-файли потребують документації: за замовчуванням бере відсутні, застарілі або degraded-документи з невикористаною спробою повтору для поточної версії source; у режимі overwrite пропускає все. Це дає прогону властивість збіжності: невдалі degraded-документи не ретраяться безкінечно, але знову потрапляють у роботу після зміни source.
+runDocFilesGenCli збирає підсумковий сценарій: спершу прибирає сирітські доки, потім запускає генерацію для відібраних цілей, а в кінці оновлює індекс директорії. Якщо прогін зупиняється достроково або через помилки, зроблене лишається на диску з актуальними CRC, тому наступний запуск підхоплює тільки пропущене.
 
-`runGenerationBatch` є спільним ядром для CLI та внутрішніх lint/fix-сценаріїв. Воно перевіряє доступність локального backend, обирає batch-шлях через `nativeBatchAvailable` або послідовний fallback, накопичує статистику успішних, degraded, skipped і failed результатів, не викидає помилки назовні та перетворює стан прогону на стабільний exit-код. За наявності м’якого дедлайну прогін завершується з частковим durable-прогресом: уже записані документи лишаються на диску, а наступний запуск підбирає решту через CRC-стан.
+runGenerationBatch є спільним ядром усієї генерації. Воно бере відібрані цілі, робить preflight для локального бекенда і далі вибирає між послідовним шляхом та batch-шляхом. Якщо доступний native batch-аддон і немає м’якого дедлайну, весь набір іде одним submitBatch, і результати розкладаються назад по файлах. Якщо batch-режим недоступний або примусово вимкнений, обробка йде по одному файлу з fail-safe обробкою помилок та circuit-breaker для системних збоїв підряд. М’який дедлайн підтримується лише на послідовному шляху: перший файл завжди стартує, а наступні зупиняються, коли час вичерпано. Усі стани та лічильники накопичуються в спільній статистиці, а вихідний код відображає лише підсумок прогону.
 
-`nativeBatchAvailable` кешує в межах прогону факт доступності native batch backend. Якщо backend недоступний або платформа не підтримується, `runGenerationBatch` прозоро лишається на послідовному шляху без зміни зовнішнього контракту CLI, skill або hook.
+nativeBatchAvailable використовується як перемикач між batch і fallback-потоком. Перевірка не виконує LLM-виклику, а лише підтверджує, що native-реалізація доступна; результат кешується в межах прогону, щоб не повторювати однакову перевірку.
 
-Результати генерації записуються у відповідні markdown-документи зі штампом source-стану, model/tier-метаданими та якісним статусом. Після прогону `runGenerationBatch` оновлює directory index через `generateDirIndex`, щоб `docs/` відображав поточний набір документів.
+generateDirIndex підтримує актуальний directory index у docs/ після будь-яких змін у наборах доків. Він читає наявні markdown-файли, витягує frontmatter і будує оглядову таблицю лише для реальних документів; сам index.md не чіпається, якщо в директорії більше нічого немає.
 
-`purgeOrphanedDocs` підтримує дерево документації чистим перед генерацією: видаляє документи без source-файлів, оновлює індекси через `generateDirIndex`, а порожні `docs/`-директорії прибирає. Якщо в директорії немає документів, `generateDirIndex` не створює зайвий `index.md`.
+purgeOrphanedDocs прибирає доки, для яких уже немає source-файлів, і після цього синхронізує індекс директорії. Це тримає docs/ у стані, де в ньому лишається тільки те, що ще прив’язане до коду, а порожні директорії очищуються до мінімально можливого стану.
 
-`runDocFilesStampCli` не генерує текст і не звертається до LLM. Він детерміновано оновлює штамп наявних документів для міграційних або ремонтних сценаріїв, зберігаючи наявні model/tier та якісні метадані, після чого синхронізує directory index через `generateDirIndex`.
+runDocFilesStampCli працює окремо від генерації: він детерміновано оновлює frontmatter у вже наявних доках без звернення до LLM. Це корисно для міграції та для відновлення метаданих, коли треба синхронізувати source і crc без зміни тексту документа.
 
 ## Публічний API
 
@@ -74,6 +72,12 @@ T8 (2b-batch, рішення Р): коли доступний native-аддон 
 у НАЯВНИХ доках без виклику LLM. Для міграції док, які ще не мають CRC.
 Поля `model`, `tier` та якості (`score`/`issues`/`judgeModel`) при цьому зберігаються
 з наявного frontmatter.
+
+## Сценарії використання
+
+- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs` (runDocFilesGenCli — circuit-breaker / класифікація; selectTargets — stale + degraded-once guard) — 3 systemic підряд → abort, exit 2, решта не обробляється; permanent → skip, прогін триває, exit 0; ok між systemic скидає streak → без abort; default: stale | degraded-not-cloud-avg → обрано; good | degraded-cloud-avg → пропущено; --overwrite → усі цілі незалежно від стану; ще 14
+- `npm/rules/doc-files/docgen-files-batch/tests/docgen-files-stamp.test.mjs` (runDocFilesStampCli — збереження frontmatter-полів) — stamp оновлює crc і НЕ губить tier/judgeModel/model/score/issues; stamp доки без quality-полів не вигадує їх і зберігає tier
+- `npm/rules/doc-files/docgen-files-batch/tests/generate-dir-index.test.mjs` (generateDirIndex — MD025/single-title; generateDirIndex — чужий index.md не перезаписується) — згенерований index.md без H1 у тілі; markdownlint не репортить MD025; контроль чутливості: frontmatter title + H1 у тілі → markdownlint репортить MD025; людський index.md без frontmatter лишається недоторканим; index.md як дока source-файлу (type JS Module) лишається недоторканою; власний Directory Index перегенеровується; без інших док index не створюється
 
 ## Гарантії поведінки
 

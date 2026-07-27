@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.13.1] - 2026-07-27
+
+### Changed
+
+- fix(llm-lib): align native addon packages (#228)
+
 ## [0.13.0] - 2026-07-25
 
 ### Changed

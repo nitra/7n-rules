@@ -33,6 +33,7 @@ import {
   formatReport,
   hasChangesFromBase,
   hasOnlyChangeEntries,
+  pullRequestDiffProfile,
   normalizePrConcurrency,
   parseDecisionEnvelope,
   parseWorktrees,
@@ -495,6 +496,11 @@ describe('LLM boundary', () => {
     })
 
     expect(facts.changedPaths).toEqual(['src/a.mjs', 'README.md'])
+    expect(facts.diffProfile).toEqual({
+      kind: 'general',
+      releaseEntryPaths: [],
+      lockfilePaths: []
+    })
     expect(facts.commits).toEqual(['abc123\tfix: useful'])
     expect(facts.diffStat).toBe('2 files changed')
     expect(calls.every(([command]) => command === 'git')).toBe(true)
@@ -561,6 +567,38 @@ describe('LLM boundary', () => {
     expect(body.indexOf('## Архітектура')).toBeLessThan(body.indexOf('## Поведінка'))
     expect(body).toContain('<summary>Технічні докази перенесення</summary>')
     expect(body).toContain('`src/a.mjs`')
+  })
+
+  test('release entry + lockfile лишається PR, але narrative не приписує runtime-зміни', () => {
+    const facts = {
+      changedPaths: ['app/.changes/260723-0932.md', 'bun.lock'],
+      diffProfile: pullRequestDiffProfile(['app/.changes/260723-0932.md', 'bun.lock'])
+    }
+    const candidate = {
+      businessContext:
+        'Change entry фіксує product intent постійно показувати правило для схожих листів у контексті сторінки.',
+      businessOutcomes: ['Панель правила стає постійно видимою на сторінці листа.'],
+      architectureChanges: ['Сторінка тепер безпосередньо володіє панеллю правила.'],
+      behaviorChanges: ['Кнопка Rule більше не відкриває modal.'],
+      risksAndCompatibility: ['Lockfile має лишатися відтворюваним після перенесення.'],
+      evidencePaths: ['app/.changes/260723-0932.md', 'bun.lock']
+    }
+
+    const validated = validatePullRequestDescription({ text: JSON.stringify(candidate) }, facts)
+    expect(validated.ok).toBe(true)
+    expect(validated.value.businessOutcomes[0]).toContain('Product intent, зафіксований у change entry')
+    expect(validated.value.architectureChanges).toEqual([
+      'Фінальний diff не змінює runtime architecture: PR переносить release metadata та зафіксований dependency lock state.'
+    ])
+    expect(validated.value.behaviorChanges).toEqual([
+      'Фінальний diff не додає runtime behavior; product outcome нижче є наміром, зафіксованим у change entry.'
+    ])
+
+    const body = renderPullRequestBody({
+      description: validated.value,
+      facts: { ...facts, baseRef: 'origin/main', source: REVIEW_BRANCH.source }
+    })
+    expect(body).toContain('Final diff цього PR містить лише release metadata та lockfile')
   })
 
   test('PR description використовує min→validation→max fallback', async () => {
@@ -672,6 +710,7 @@ describe('triage validation', () => {
 describe('worktree validation', () => {
   test('change-only diff не породжує PR', () => {
     expect(hasOnlyChangeEntries(['owner/.changes/260713-0931.md', 'app/.changes/260715-1655.md'])).toBe(true)
+    expect(hasOnlyChangeEntries(['owner/.changes/260713-0931.md', 'bun.lock'])).toBe(false)
     expect(hasOnlyChangeEntries(['owner/.changes/260713-0931.md', 'owner/src/lib.rs'])).toBe(false)
     expect(hasOnlyChangeEntries([])).toBe(false)
   })

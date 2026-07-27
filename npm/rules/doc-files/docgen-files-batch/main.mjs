@@ -15,8 +15,16 @@ import { basename, dirname, join, relative } from 'node:path'
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { createProgressReporter } from '../../../scripts/lib/lint-surface/progress.mjs'
 import { generateDoc, DEFAULT_LOCAL_MODEL, prepareBatchItem, finishBatchItem } from '../docgen-gen/main.mjs'
-import { crc32, stampDoc, readDocQuality, readDocModel, readDocTier, QUALITY_THRESHOLD } from '../docgen-crc/main.mjs'
+import {
+  documentationCrc,
+  stampDoc,
+  readDocQuality,
+  readDocModel,
+  readDocTier,
+  QUALITY_THRESHOLD
+} from '../docgen-crc/main.mjs'
 import { resolveRoot, scanForDocFiles, scanOrphanedDocs } from '../docgen-scan/main.mjs'
+import { buildTestEvidenceIndex } from '../docgen-test-context/main.mjs'
 import { submitBatch as submitBatchNative } from '@7n/llm-lib/batch'
 import { defaultLocalProviders } from '@7n/llm-lib/local-providers'
 
@@ -147,10 +155,16 @@ function fmtSize(bytes) {
  * @param {string} root абсолютний корінь
  * @param {{ done: number, total: number }} progress позиція у прогресі
  * @param {{ ok: number, degraded: number, err: number, errors: string[], skipped: string[] }} stats акумулятор
- * @param {{ model?: string, tier?: string|null, emit?: (s: string) => void, deadlineAt?: number|null }} [opts] модель/тир для штампу; emit — логер рядка результату; deadlineAt — мʼякий дедлайн fix-pipeline для generateDoc
+ * @param {{ model?: string, tier?: string|null, emit?: (s: string) => void, deadlineAt?: number|null, testIndex?: ReturnType<typeof buildTestEvidenceIndex> }} [opts] модель/тир для штампу; emit — логер рядка результату; deadlineAt — мʼякий дедлайн fix-pipeline для generateDoc; testIndex — спільний source↔tests index
  * @returns {Promise<'ok'|'permanent'|'systemic'|'transient'>} результат для керування циклом
  */
-async function generateOne(file, root, progress, stats, { model, tier, emit, deadlineAt = null } = {}) {
+async function generateOne(
+  file,
+  root,
+  progress,
+  stats,
+  { model, tier, emit, deadlineAt = null, testIndex = buildTestEvidenceIndex(root) } = {}
+) {
   const out = emit ?? (s => process.stdout.write(s))
   const sourceAbs = join(root, file.sourcePath)
   let size = 0
@@ -164,8 +178,8 @@ async function generateOne(file, root, progress, stats, { model, tier, emit, dea
     const docAbs = join(root, file.docPath)
     // Варіант B: передаємо наявну доку, щоб зберегти захищену секцію «Призначення»
     const existingMd = existsSync(docAbs) ? readFileSync(docAbs, 'utf8') : null
-    const result = await generateDoc(sourceAbs, { existingMd, model, deadlineAt })
-    const crc = crc32(readFileSync(sourceAbs))
+    const result = await generateDoc(sourceAbs, { existingMd, model, deadlineAt, testIndex })
+    const crc = documentationCrc(sourceAbs, testIndex)
     mkdirSync(dirname(docAbs), { recursive: true })
     const quality =
       result.score === null
@@ -244,7 +258,7 @@ export async function nativeBatchAvailable(submitBatchImpl, useCache = true) {
  * де м'який дедлайн підтримується).
  * @param {Array<object>} targets елементи scanForDocFiles
  * @param {string} root абсолютний корінь
- * @param {{ model?: string, tier?: string|null, localProviders?: object, submitBatchImpl?: (modelSpecOrTier: string, items: Array<object>, opts?: object) => Promise<Array<object>> }} opts модель/тир/local-provider-конфіг (інакше `defaultLocalProviders()`)/інжект submitBatch
+ * @param {{ model?: string, tier?: string|null, localProviders?: object, submitBatchImpl?: (modelSpecOrTier: string, items: Array<object>, opts?: object) => Promise<Array<object>>, testIndex: ReturnType<typeof buildTestEvidenceIndex> }} opts модель/тир/local-provider-конфіг (інакше `defaultLocalProviders()`)/інжект submitBatch/source↔tests index
  * @param {{ ok: number, degraded: number, err: number, errors: string[], skipped: string[] }} stats акумулятор (мутується)
  * @param {{ reporter?: object, emit?: (s: string) => void }} io прогрес-репортер і логер рядка результату
  * @returns {Promise<void>}
@@ -254,20 +268,28 @@ async function runBatchPass(targets, root, opts, stats, { reporter, emit }) {
   const submitBatchImpl = opts.submitBatchImpl ?? submitBatchNative
   const out = emit ?? (s => process.stdout.write(s))
 
-  const prepared = await prepareBatchTargets(targets, root, stats, { reporter, out })
+  const prepared = await prepareBatchTargets(targets, root, stats, { reporter, out }, opts.testIndex)
   if (prepared.length === 0) return
 
-  const items = prepared.map(p => ({
+  // Авторські comments уже є джерелом істини: штампуємо такі документи тут,
+  // не створюючи порожній native batch і не торкаючись LLM.
+  const llmPrepared = prepared.filter(p => p.mode !== 'comment-only')
+  for (const p of prepared.filter(p => p.mode === 'comment-only')) {
+    processBatchResult({ ok: '' }, p, { model, tier: opts.tier ?? null, stats, out })
+  }
+  if (llmPrepared.length === 0) return
+
+  const items = llmPrepared.map(p => ({
     customId: p.file.sourcePath,
     prompt: p.messages.find(m => m.role === 'user')?.content ?? '',
     system: p.messages.find(m => m.role === 'system')?.content
   }))
-  const onProgress = makeBatchProgress(reporter, targets.length - prepared.length, targets.length)
+  const onProgress = makeBatchProgress(reporter, targets.length - llmPrepared.length, targets.length)
   const localProviders = opts.localProviders ?? defaultLocalProviders()
   const results = await submitBatchImpl(model, items, { onProgress, localProviders })
   const byId = new Map(results.map(r => [r.customId, r]))
 
-  for (const p of prepared) {
+  for (const p of llmPrepared) {
     processBatchResult(byId.get(p.file.sourcePath), p, { model, tier: opts.tier ?? null, stats, out })
   }
 }
@@ -280,9 +302,10 @@ async function runBatchPass(targets, root, opts, stats, { reporter, emit }) {
  * @param {string} root абсолютний корінь
  * @param {{ ok: number, degraded: number, err: number, errors: string[], skipped: string[] }} stats акумулятор (мутується)
  * @param {{ reporter?: object, out: (s: string) => void }} io прогрес-репортер і логер
- * @returns {Promise<Array<object>>} елементи, готові до batch-у (file/sourceAbs/docAbs/size/facts/anchors/src/messages/intent)
+ * @param {ReturnType<typeof buildTestEvidenceIndex>} testIndex source↔tests index
+ * @returns {Promise<Array<object>>} елементи, готові до batch-у або 0-LLM запису (file/sourceAbs/docAbs/size/facts/anchors/src/mode/messages/intent/testIndex)
  */
-async function prepareBatchTargets(targets, root, stats, { reporter, out }) {
+async function prepareBatchTargets(targets, root, stats, { reporter, out }, testIndex) {
   const prepared = []
   for (const file of targets) {
     const sourceAbs = join(root, file.sourcePath)
@@ -295,8 +318,8 @@ async function prepareBatchTargets(targets, root, stats, { reporter, out }) {
     }
     const existingMd = existsSync(docAbs) ? readFileSync(docAbs, 'utf8') : null
     try {
-      const prep = await prepareBatchItem(sourceAbs, { existingMd })
-      prepared.push({ file, sourceAbs, docAbs, size, ...prep })
+      const prep = await prepareBatchItem(sourceAbs, { existingMd, testIndex })
+      prepared.push({ file, sourceAbs, docAbs, size, testIndex, ...prep })
     } catch (error) {
       recordBatchOutcome(stats, out, file.sourcePath, size, error.message)
     }
@@ -373,8 +396,15 @@ function processBatchResult(r, p, { model, tier, stats, out }) {
     )
     return
   }
-  const finished = finishBatchItem(r.ok, { facts: p.facts, anchors: p.anchors, src: p.src, intent: p.intent, model })
-  const crc = crc32(readFileSync(p.sourceAbs))
+  const finished = finishBatchItem(r.ok, {
+    facts: p.facts,
+    anchors: p.anchors,
+    src: p.src,
+    intent: p.intent,
+    model,
+    mode: p.mode
+  })
+  const crc = documentationCrc(p.sourceAbs, p.testIndex)
   mkdirSync(dirname(p.docAbs), { recursive: true })
   const quality =
     finished.score === null
@@ -615,7 +645,8 @@ async function runSequentialPass(targets, root, opts, stats, { reporter, emit })
       model: opts.model,
       tier: opts.tier,
       emit,
-      deadlineAt: opts.deadlineAt ?? null
+      deadlineAt: opts.deadlineAt ?? null,
+      testIndex: opts.testIndex
     })
     reporter?.concernDone(file.sourcePath)
     // Circuit-breaker: K systemic-збоїв підряд → негайний abort (середовище впало,
@@ -665,6 +696,8 @@ export async function runGenerationBatch(targets, root, opts = {}) {
 
   if (headline) console.log(headline)
   const stats = { ok: 0, degraded: 0, err: 0, errors: [], skipped: [] }
+  const testIndex = buildTestEvidenceIndex(root)
+  const runOpts = { ...opts, testIndex }
 
   // ProgressReporter (канон scripts.mdc): бар по файлах лише в TTY; не-TTY лишає
   // поточні append-рядки [done/total] без дубльованого ⏱-зведення.
@@ -689,10 +722,10 @@ export async function runGenerationBatch(targets, root, opts = {}) {
   let deadlineHit = false
   try {
     if (useBatch) {
-      await runBatchPass(targets, root, { ...opts, submitBatchImpl }, stats, { reporter, emit })
+      await runBatchPass(targets, root, { ...runOpts, submitBatchImpl }, stats, { reporter, emit })
       done = targets.length
     } else {
-      ;({ done, aborted, deadlineHit } = await runSequentialPass(targets, root, opts, stats, { reporter, emit }))
+      ;({ done, aborted, deadlineHit } = await runSequentialPass(targets, root, runOpts, stats, { reporter, emit }))
     }
   } finally {
     reporter?.stop()
@@ -721,12 +754,13 @@ export async function runGenerationBatch(targets, root, opts = {}) {
  */
 export function runDocFilesStampCli(argv) {
   const root = resolveRoot(argv)
+  const testIndex = buildTestEvidenceIndex(root)
   let stamped = 0
   for (const file of scanForDocFiles(root)) {
     const docAbs = join(root, file.docPath)
     if (!existsSync(docAbs)) continue
     const sourceAbs = join(root, file.sourcePath)
-    const crc = crc32(readFileSync(sourceAbs))
+    const crc = documentationCrc(sourceAbs, testIndex)
     const md = readFileSync(docAbs, 'utf8')
     const { score, issues, judgeModel } = readDocQuality(docAbs)
     const model = readDocModel(docAbs)

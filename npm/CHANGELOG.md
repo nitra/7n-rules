@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.50.1] - 2026-07-27
+
+### Changed
+
+- Описи release PR із `.changes/` та lockfile тепер відокремлюють product intent від фактичного runtime diff.
+
+## [1.50.0] - 2026-07-27
+
+### Added
+
+- doc-files без LLM рендерить test-сценарії та повністю прокоментовані JS, Rust і Python файли, а для коротких comments додає лише відсутню «Поведінку»
+
+### Fixed
+
+- Прискорено k8s full lint і додано live статус черги
+
+## [1.49.26] - 2026-07-27
+
+### Fixed
+
+- gate incompatible plugin API version and pin first-party plugin installs to a compatible semver range
+
+## [1.49.25] - 2026-07-27
+
+### Fixed
+
+- Збережено --path scope у doc-files fixer
+
 ## [1.49.24] - 2026-07-27
 
 ### Changed

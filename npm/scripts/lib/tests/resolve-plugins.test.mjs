@@ -4,6 +4,7 @@
  */
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import {
@@ -13,11 +14,13 @@ import {
   getActiveCapabilities,
   getHandlers,
   getUnavailableDeclaredPlugins,
+  KNOWN_PLUGIN_RANGES,
   pluginCategory,
   resolvePluginList,
   resolvePlugins,
   resolveRulesDirs
 } from '../resolve-plugins.mjs'
+import { PLUGIN_API_VERSION } from '../plugin-api.mjs'
 import { withTmpDir } from '../../utils/test-helpers.mjs'
 
 afterEach(() => {
@@ -28,6 +31,19 @@ afterEach(() => {
 /** Порожній mock-обробник для spyOn(console.warn) — глушить вивід у тестах. */
 function noop() {
   /* навмисно порожньо */
+}
+
+/**
+ * Синхронно матеріалізує фейковий встановлений пакет у `node_modules` — імітує ефект
+ * реального `bun add` усередині фейкового `spawnFn` (spawnSync — синхронний, тому заглушка
+ * теж лишається синхронною; `existsSync(installed)` після виклику інакше бачив би порожньо).
+ * @param {string} dir корінь tmp-репо
+ * @param {string} name npm-ім'я пакета
+ */
+function materializeFakePluginSync(dir, name) {
+  const root = join(dir, 'node_modules', name)
+  mkdirSync(root, { recursive: true })
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ name, version: '1.0.0' }))
 }
 
 /**
@@ -316,6 +332,51 @@ describe('resolvePlugins', () => {
       expect(b).toBe(a)
     })
   })
+
+  test('requiresPluginApi > PLUGIN_API_VERSION — warning з required/actual, плагін пропускається', async () => {
+    await withTmpDir(async dir => {
+      await writeFakePlugin(dir, '@x/future', {
+        manifest: { requiresPluginApi: PLUGIN_API_VERSION + 1, capabilities: ['x:y'] }
+      })
+      const warn = vi.spyOn(console, 'warn').mockImplementation(noop)
+      expect(resolvePlugins(dir, { plugins: ['@x/future'] }, { allowInstall: false })).toEqual([])
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('@x/future'))
+      const [message] = warn.mock.calls[0]
+      expect(message).toContain(`v${PLUGIN_API_VERSION + 1}`)
+      expect(message).toContain(`v${PLUGIN_API_VERSION}`)
+    })
+  })
+
+  test('requiresPluginApi несумісний + quiet:true — пропуск без warning', async () => {
+    await withTmpDir(async dir => {
+      await writeFakePlugin(dir, '@x/future', {
+        manifest: { requiresPluginApi: PLUGIN_API_VERSION + 1 }
+      })
+      const warn = vi.spyOn(console, 'warn').mockImplementation(noop)
+      expect(resolvePlugins(dir, { plugins: ['@x/future'] }, { allowInstall: false, quiet: true })).toEqual([])
+      expect(warn).not.toHaveBeenCalled()
+    })
+  })
+
+  test('requiresPluginApi <= PLUGIN_API_VERSION — сумісний, резолвиться як звичайно', async () => {
+    await withTmpDir(async dir => {
+      await writeFakePlugin(dir, '@x/compatible', {
+        manifest: { requiresPluginApi: PLUGIN_API_VERSION, capabilities: ['x:y'] }
+      })
+      const plugins = resolvePlugins(dir, { plugins: ['@x/compatible'] }, { allowInstall: false })
+      expect(plugins).toHaveLength(1)
+      expect(plugins[0].manifest.requiresPluginApi).toBe(PLUGIN_API_VERSION)
+    })
+  })
+
+  test('без requiresPluginApi у маніфесті — сумісний, як і раніше (нормалізується у null)', async () => {
+    await withTmpDir(async dir => {
+      await writeFakePlugin(dir, '@x/legacy', { manifest: { capabilities: ['x:y'] } })
+      const plugins = resolvePlugins(dir, { plugins: ['@x/legacy'] }, { allowInstall: false })
+      expect(plugins).toHaveLength(1)
+      expect(plugins[0].manifest.requiresPluginApi).toBeNull()
+    })
+  })
 })
 
 describe('getUnavailableDeclaredPlugins', () => {
@@ -353,6 +414,47 @@ describe('ensurePluginInstalled', () => {
   test('без package.json проєкту → false', async () => {
     await withTmpDir(dir => {
       expect(ensurePluginInstalled(dir, '@x/p')).toBe(false)
+    })
+  })
+
+  test('first-party пакет — bun add -d викликається з @<range> з KNOWN_PLUGIN_RANGES', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'x' }))
+      const spawnFn = vi.fn(() => {
+        // Імітуємо успішну установку: реальний bun add створив би пакет у node_modules.
+        materializeFakePluginSync(dir, '@7n/rules-lang-js')
+        return { status: 0, stdout: '', stderr: '' }
+      })
+      const ok = ensurePluginInstalled(dir, '@7n/rules-lang-js', spawnFn)
+      expect(ok).toBe(true)
+      expect(spawnFn).toHaveBeenCalledWith(
+        'bun',
+        ['add', '-d', `@7n/rules-lang-js@${KNOWN_PLUGIN_RANGES['@7n/rules-lang-js']}`],
+        expect.objectContaining({ cwd: dir })
+      )
+    })
+  })
+
+  test('невідомий (сторонній) пакет — bun add -d викликається без обмеження версії', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'x' }))
+      const spawnFn = vi.fn(() => {
+        materializeFakePluginSync(dir, '@x/custom')
+        return { status: 0, stdout: '', stderr: '' }
+      })
+      const ok = ensurePluginInstalled(dir, '@x/custom', spawnFn)
+      expect(ok).toBe(true)
+      expect(spawnFn).toHaveBeenCalledWith('bun', ['add', '-d', '@x/custom'], expect.objectContaining({ cwd: dir }))
+    })
+  })
+
+  test('фейл установки (spawnFn повертає ненульовий status) — warning + false', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'x' }))
+      const warn = vi.spyOn(console, 'warn').mockImplementation(noop)
+      const spawnFn = vi.fn(() => ({ status: 1, stdout: '', stderr: 'offline' }))
+      expect(ensurePluginInstalled(dir, '@7n/rules-lang-python', spawnFn)).toBe(false)
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('@7n/rules-lang-python'))
     })
   })
 })
