@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.22.19] - 2026-07-27
+
+### Fixed
+
+- republish the utils-imports reports exclusion skipped by a concurrent release
+
 ## [0.22.18] - 2026-07-27
 
 ### Changed
