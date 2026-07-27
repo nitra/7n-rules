@@ -9,6 +9,36 @@ import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/viol
 import { resolveCmd } from '@7n/rules/scripts/utils/resolve-cmd.mjs'
 import { spawnAsync } from '@7n/rules/scripts/utils/spawn-async.mjs'
 
+/** `Terms:`-значення, яким `licensee` позначає власний пакет без валідного SPDX у `license` (не сторонню ліцензію). */
+const INVALID_METADATA_TERMS = 'Invalid license metadata'
+
+/** Роздільник блоків одного пакета у `--errors-only` stdout `licensee` (порожній рядок). */
+const BLOCK_SEPARATOR_RE = /\n\s*\n/u
+
+/**
+ * Розбиває `--errors-only` stdout `licensee` на блоки одного пакета (розділені порожнім
+ * рядком): перший рядок — `name@version` (scoped `@scope/name@version` теж), далі —
+ * `  Terms: <SPDX або "Invalid license metadata">` серед інших полів.
+ * @param {string} stdout сирий stdout `licensee --errors-only`
+ * @returns {Array<{ name: string, terms: string, block: string }>} розібрані блоки
+ */
+function parseLicenseeBlocks(stdout) {
+  return stdout
+    .split(BLOCK_SEPARATOR_RE)
+    .map(b => b.trim())
+    .filter(Boolean)
+    .map(block => {
+      const lines = block.split('\n')
+      const header = lines[0].trim()
+      const termsLine = lines.find(l => l.trim().startsWith('Terms:'))
+      const terms = termsLine ? termsLine.split('Terms:', 2)[1].trim() : ''
+      const atIdx = header.lastIndexOf('@')
+      const name = atIdx > 0 ? header.slice(0, atIdx) : header
+      return { name, terms, block }
+    })
+    .filter(b => b.name.length > 0)
+}
+
 /**
  * Detector bun/licensee: ліцензії npm-залежностей через `licensee` (read-only).
  * @param {import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст lint-прогону
@@ -60,9 +90,34 @@ export async function lint(ctx) {
       ]
       return result
     }
-    const stdout = (r.stdout ?? '').trim().slice(0, 2000)
-    const detail = stdout ? `\n${stdout}` : ''
-    fail(`lint-bun: licensee — порушення ліцензій (код ${r.exitCode}, bun.mdc)${detail}`, 'license-violation')
+    const stdout = (r.stdout ?? '').trim()
+    const blocks = parseLicenseeBlocks(stdout)
+    const metadataBlocks = blocks.filter(b => b.terms === INVALID_METADATA_TERMS)
+    const thirdPartyBlocks = blocks.filter(b => b.terms !== INVALID_METADATA_TERMS)
+
+    // Розділяємо на дві причини: `license-metadata-invalid` (власний пакет workspace без
+    // валідного SPDX у `license` — детермінований T0-фікс) і `license-violation` (реальна
+    // заборонена стороння ліцензія — потребує людського рішення про policy). Якщо блоки
+    // не розібрались (формат `licensee` змінився) — fallback на старий агрегований
+    // `license-violation` з повним stdout, щоб не втратити сигнал про порушення.
+    if (blocks.length === 0) {
+      const detail = stdout ? `\n${stdout.slice(0, 2000)}` : ''
+      fail(`lint-bun: licensee — порушення ліцензій (код ${r.exitCode}, bun.mdc)${detail}`, 'license-violation')
+    } else {
+      for (const b of metadataBlocks) {
+        fail(`lint-bun: licensee — ${b.name}: Invalid license metadata (bun.mdc)`, {
+          reason: 'license-metadata-invalid',
+          data: { package: b.name }
+        })
+      }
+      if (thirdPartyBlocks.length > 0) {
+        const detail = thirdPartyBlocks
+          .map(b => b.block)
+          .join('\n\n')
+          .slice(0, 2000)
+        fail(`lint-bun: licensee — порушення ліцензій (код ${r.exitCode}, bun.mdc)\n${detail}`, 'license-violation')
+      }
+    }
   }
   return reporter.result()
 }
