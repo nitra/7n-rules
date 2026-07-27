@@ -3,30 +3,36 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/doc-files/docgen-gen/main.mjs
 docgen:
-  crc: 3b1b2242
+  crc: 3602c159
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
-  score: 0
-  issues: refusal-filler,internal-name:isApiGap,internal-name:renderApiLine,internal-name:commentOnlyDoc,internal-name:oneShotDoc,internal-name:orchestratedDoc,internal-name:finishUnsupported,anchor-miss:(abie.mdc)
+  score: 55
+  issues: internal-name:isApiGap,internal-name:renderApiLine,internal-name:oneShotDoc,internal-name:finishUnsupported,anchor-miss:(abie.mdc),best-of-2:retry-won
 ---
 
 ## Огляд
 
-Файл зберігає поведінкову документацію поруч із кодом і не дає перезаписати захищені фрагменти, включно з «Призначення». Він працює через послідовність `stripLeadingPreamble`, `splitProtected` і `insertProtected`, щоб відокремлювати керовані частини від людських вставок і повертати їх у фінальний текст без втрат.
+Файл збирає Markdown-документацію з коментарів і захищеної секції `## Призначення`, а за потреби додає LLM-підказки так, щоб авторський текст лишався на місці, а шаблонні вставки не псувалися. Він потрібен, щоб зберігати зміст коду як поведінковий опис і однаково обробляти послідовний та batch-режим.
 
-Для побудови API-опису використовується `buildApiSection`, а повноту коментарної документації перевіряє `hasCompleteCommentDocumentation` разом із `commentDocumentationMode`. Якщо коментарів недостатньо, процес переходить до генерації через `generateDoc`; якщо достатньо, результат лишається в межах наявного контексту. Окремо додаються тестові сценарії через `insertTestScenarios`, щоб документація відображала очікувану поведінку в перевірках.
-
-Оцінювання й відбір версій документа виконуються через `scoreDoc`, а пакетна обробка чернеток проходить через `prepareBatchItem` і `finishBatchItem`. Для модельного кроку використовується `DEFAULT_LOCAL_MODEL`, а кешування в межах одного прогону зменшує повторні обчислення для вже оброблених фрагментів.
+Anchors: `## Призначення`, `generateDoc`, `prepareBatchItem`, `finishBatchItem`, `scoreDoc`, `buildApiSection`, `insertTestScenarios`, `commentDocumentationMode`
 
 ## Поведінка
 
-Генератор працює як послідовний конвеєр: спочатку обмежує доступний час виклику, потім читає файл, витягає факти й у разі наявності попередньої документації зберігає захищену секцію «Призначення». Далі потік розгалужується між comment-only, one-shot і orchestrated режимами, але в усіх випадках результат проходить через однакові етапи очищення, складання та оцінювання. Маркери повідомлень на кшталт `` мають лишатися дослівними як стабільні прив’язки до джерела.
+Базовий ліміт виклику спершу підрізається під залишок часу до мʼякого дедлайну, тож генерація не стартує, коли бюджет уже вичерпано. Це правило проходить через увесь ланцюжок і дозволяє перетворювати простий timeout на контрольований transient-збій, а не на псевдопомилку документації.
 
-`capTimeoutToDeadline` і `DEFAULT_LOCAL_MODEL` задають межі виконання та базову локальну модель, а `prepareBatchItem` використовує той самий preflight, що й `generateDoc`, але без LLM-виклику: він лише готує факти, анкори, сире джерело, режим і messages для batch-обробки. Якщо джерело завелике або не підтримується екстрактором, файл відсікається до старту генерації; якщо є повністю покриті авторські коментарі, `hasCompleteCommentDocumentation` дозволяє зібрати документ без моделі. `commentDocumentationMode` вибирає, чи достатньо лише коментарів, чи потрібне доповнення поведінки, а `generateDoc` уже на цій основі вирішує між `commentOnlyDoc`, `oneShotDoc`, `orchestratedDoc` і завершенням unsupported-шляху.
+Потік генерації починається з підготовки джерела й фактів, далі захищена секція `## Призначення` відділяється від решти документа, щоб її можна було зберігати без участі моделі. Після цього текст секцій очищається від чат-преамбул, зайвих сигнатур і випадкових обгорток, а потім знову вкладається назад у фінальний Markdown у фіксованій позиції.
 
-`splitProtected` та `insertProtected` керують незмінною секцією «Призначення» як окремим шаром поверх машинно згенерованого Markdown: вона вирізається з наявної доки перед обробкою і вставляється назад у фіксоване місце після складання. `stripLeadingPreamble` прибирає чат-преамбули, щоб модельний текст не збирав у документ службові фрази, а `insertTestScenarios` додає детерміновану секцію сценаріїв окремо від основного LLM-потоку. Це дозволяє зберігати людські вставки, не змішуючи їх із генерацією.
+`commentDocumentationMode` визначає, чи можна зібрати документ майже повністю з авторських коментарів, чи потрібен додатковий наратив від моделі, чи слід переходити в fallback. `hasCompleteCommentDocumentation` дає найсильніший короткий шлях: коли коментарі вже повністю покривають зміст, документ формується без LLM і зберігає авторський текст дослівно. `DEFAULT_LOCAL_MODEL` задає локальний model-id за замовчуванням для всіх гілок, де модель усе ж потрібна.
 
-`buildApiSection` і `commentDocumentationMode` формують міст між авторським JSDoc і машинною документацією: якщо public API вже достатньо описаний, секція збирається без моделі; якщо лишаються прогалини, модель доповнює тільки їх. `scoreDoc` перевіряє зібраний документ проти фактів, а `generateDoc` використовує цей скоринг для деградованого стану та повторної спроби з іншим режимом, якщо якість нижча за поріг. `finishBatchItem` робить той самий фінальний крок для batch-результату, але без окремого judge-етапу, тому його вихід зберігає ту саму структуру й ті самі метрики, що й послідовний шлях.
+У повністю коментованому режимі `insertTestScenarios` лише додає окрему JS-згенеровану секцію сценаріїв, не втручаючись у решту тексту. Сам зібраний Markdown далі проходить через `scoreDoc`, де він звіряється з фактами файлу, захищеною секцією та наявними анкорами; відсутність помітних фрагментів із джерела знижує оцінку, але не ламає саму генерацію. Якщо документ не дотягує до порогу, він позначається degraded, щоб наступний batch або користувач міг вирішити, чи потрібен повторний прогін.
+
+`buildApiSection` працює як окремий безгалюциногенний канал для публічного API: покриті коментарями експорти йдуть у текст напряму, а модель залучається лише на прогалини. Це зменшує ризик переписування вже наявної документації й тримає API-опис узгодженим із джерелом. `splitProtected` та `insertProtected` тут залишаються спільним механізмом, щоб захищений зміст не губився між різними режимами складання.
+
+`generateDoc` збирає все в один послідовний процес: читає файл, оцінює доступний бюджет, обирає режим, виконує один або кілька LLM-кроків, потім рахує детермінований score і, за потреби, пробує ще раз із вищою температурою. На виході це дає готовий Markdown, метрики часу й лічильники LLM-викликів, а також прапорець degraded. Саме тут найповніше сходяться всі попередні правила, включно з мʼяким дедлайном, захищеною секцією і фінальним скорингом.
+
+`prepareBatchItem` повторює той самий preflight, але без LLM, щоб batch-шар міг відправити багато файлів одним submit і не дублювати логіку підготовки. Воно повертає готові дані для item-у, включно з messages або порожнім набором для comment-only шляху, а також збережений intent для вставляння назад у фінальний текст.
+
+`finishBatchItem` застосовує той самий фініш, що й послідовний шлях: очищає відповідь, відновлює захищений блок, додає сценарії, рахує score і виставляє degraded за тим самим правилом. Різниця лише в тому, що модельний виклик уже відбувся на batch-рівні, тож тут залишається чиста постобробка без додаткових мережевих кроків.
 
 ## Публічний API
 
@@ -76,85 +82,7 @@ pre-send guard і той самий факт-лист/one-shot messages, що й
 
 ## Сценарії використання
 
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — scoreDoc — R4 generic-overview
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — абстрактний Огляд штрафується і опускає score під поріг
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — конкретний Огляд не штрафується
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — scoreDoc — R6 витік службових імен
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — неекспортована функція у Поведінці → internal-name
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — scoreDoc — R5 анкор-покриття
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — пропущений валідний анкор → anchor-miss + штраф
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — наявний анкор → без штрафу
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — фейковий анкор (немає в src) не вимагається
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — scoreDoc — R7 суржик
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — русизм у тексті → surzhik
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — scoreDoc — еталон
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — чистий документ → 100, без issues
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — scoreDoc — R8 refusal/чат-філер (пре-гейт перед judge, issue #16)
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — «Я готовий писати… Надайте мені код» → refusal-filler, degraded попри валідну структуру
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — refusal-фраза лише в захищеному людському «Призначенні» → не штрафується
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — generateDoc — pre-send byte-guard
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — джерело понад бюджет → throw Prompt too long (skip, без LLM)
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — capTimeoutToDeadline — зріз per-call таймауту під дедлайн рунга
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — без дедлайну → базовий ліміт без змін
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — залишок до дедлайну менший за базовий → ріжеться до залишку
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — дедлайн у минулому → 0 (виклик не має стартувати)
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — залишок більший за базовий → базовий ліміт
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — generateDoc — deadline fix-pipeline
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — вичерпаний бюджет → transient-помилка «timeout» без LLM-виклику, chain закривається fail
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — splitProtected — захищена секція «Призначення» (Варіант B)
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — витягує тіло, межа на наступному H2; ### усередині не обриває
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — without прибирає блок, лишає машинні секції
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — немає секції → body=null, without=md без змін
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — insertProtected — вставка після H1
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — intent потрапляє між H1 і першою машинною секцією
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — порожній intent → без змін
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — roundtrip: insert → split повертає те саме тіло
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — scoreDoc — захищена секція виключена зі скорингу
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — суржик у «Призначення» НЕ штрафує
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — суржик у машинній секції — штрафує (контроль)
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — buildApiSection — Stage 1/3 гібрид (ADR 260719-2155): без LLM, коли немає прогалин
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — немає експортів → порожня секція, без виклику LLM
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — єдиний непокритий експорт → порожня секція (лишається у Поведінці)
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — усі експорти покриті JSDoc → дослівний рендер, 0 LLM-викликів
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — JSDoc-заглушка «опис.» вважається прогалиною (isApiGap): покритий рядок дослівно, прогалина — з LLM
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — stripLeadingPreamble — R9 чат-преамбули (живі приклади gemma-4, efes 2026-07-21)
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — «Ось оновлена чорнетка секції…» зрізається, контент лишається
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — «Як технічний письменник, я створю…» зрізається
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — дубль назви секції першим рядком («Поведінка:») зрізається
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — дві мета-рядки поспіль зрізаються обидві
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — звичайний текст без преамбули — без змін
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — текст, що ЛИШЕ з преамбули — порожній рядок (не сміття)
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — «Оглядає…»/«Створює…» на початку легітимного речення НЕ зрізаються (без false positive)
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — scoreDoc — R9 chat-preamble штраф
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — преамбула в машинній секції → chat-preamble, score падає
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — преамбула лише в захищеному «Призначенні» → не штрафується
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — чистий документ → без chat-preamble
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — prepareBatchItem / finishBatchItem — T8 2b-batch (без LLM-виклику)
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — prepareBatchItem: pre-send guard кидає ту саму помилку, що й generateDoc (без LLM)
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — prepareBatchItem: повертає facts/anchors/src/messages/intent для допустимого джерела
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — prepareBatchItem: захищена секція «Призначення» з наявної доки → intent
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — prepareBatchItem: comment-only не створює batch prompt
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — prepareBatchItem: comment+behavior відправляє лише вузький behavior prompt
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — finishBatchItem: unsupported + refusal-філер → score=0, degraded
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — finishBatchItem: unsupported + чистий текст → score=null, не degraded
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — finishBatchItem: det-скорер рахує score як і для orchestrated шляху (нижче порогу → degraded)
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — finishBatchItem: comment-only збирається без відповіді batch-моделі
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — insertTestScenarios — JS-рендер test evidence
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — додає окрему секцію перед гарантіями без інтерпретації LLM
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — замінює спробу LLM написати цю секцію детермінованим вмістом
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — orchestratedDoc / judge — supported-file happy path (мок extractFacts + runOneShot)
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — happy path: покритий API без LLM, критик NONE, суддя accurate → чистий success
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — повні авторські коментарі → документ збирається без жодного LLM-виклику
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — без header або з непокритим API лишається LLM fallback
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — короткий header з повним API → LLM лише для додаткової Поведінки
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — гібридний judge бачить тільки LLM-додаток, а не авторські секції
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — гібридний режим не створює порожню Поведінку, коли LLM повертає NONE
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — режим за header і flow: детальний наратив → comment-only, короткий → comment+behavior
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — buildApiSection: мікс покритий+прогалина → apiGap LLM лише на прогалину (без critique-refine, gap.length!==exps.length)
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — buildApiSection: усі експорти — прогалина → apiGap LLM + critique-refine (критик знайшов дефект)
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — best-of-2: перша спроба нижче порогу, ретрай кращий →
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — judge gate: inaccurate → judge-refine приймається (заголовки збережено, score не впав, повторний суддя accurate)
-- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` — judge gate: inaccurate → judge-refine відхилено (рерайт губить заголовок) → лишається degraded
+- `npm/rules/doc-files/docgen-gen/tests/docgen-gen.test.mjs` (scoreDoc — R4 generic-overview; scoreDoc — R6 витік службових імен) — абстрактний Огляд штрафується і опускає score під поріг; конкретний Огляд не штрафується; неекспортована функція у Поведінці → internal-name; пропущений валідний анкор → anchor-miss + штраф; наявний анкор → без штрафу; ще 57
 
 ## Гарантії поведінки
 

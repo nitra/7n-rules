@@ -3,27 +3,31 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/doc-files/docgen-test-context/main.mjs
 docgen:
-  crc: 7013a702
+  crc: 2dc03678
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100
-  issues: judge-refine:kept-original,judge:inaccurate:0.98
+  issues: judge-refine:kept-original,judge:inaccurate:0.97
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Збирає підтверджені зв’язки між source-файлами та test/spec-файлами в один індекс, щоб для кожного source можна було показати пов’язані сценарії, а для кожного test — знайти відповідні source-файли. Підтримує лише вже підтверджені зв’язки й не переносить у документацію неперевірений test-код. Працює fail-safe: не пропускає помилки назовні та за окремих збійних ситуацій повертає порожнє значення замість винятку.
+`isDocgenTestFile` визначає, чи файл тесту або специфікації може бути використаний як джерело доказів для документації. `buildTestEvidenceIndex` формує індекс зв’язків між тестами та source-файлами, щоб далі знаходити релевантні підтвердження поведінки. `testEvidenceForSource` і `sourceFilesForTest` дають змогу отримати відповідні зв’язки в обидва боки, а `renderTestScenarios` перетворює їх на текст сценаріїв для docs.
+
+Усі публічні операції працюють fail-safe: помилки перехоплюються, назовні вони не пробиваються, а в окремих випадках замість винятку повертається порожнє значення, зокрема `null`.
 
 ## Поведінка
 
-buildTestEvidenceIndex збирає для репозиторію єдину карту зв’язків між source і test/spec-файлами, а isDocgenTestFile відсіює лише ті імена, які можуть бути окремими тестовими файлами для опису usage-сценаріїв. Зв’язок уважається доведеним тільки тоді, коли тест посилається на реальний source через relative string literal; записи без такого зв’язку не потрапляють до індексу. Якщо під час обходу або резолву трапляється помилка, обробка не падає назовні, а повертає порожній результат або null там, де це доречно.
+isDocgenTestFile відбирає лише окремі test/spec-файли, щоб їх можна було використати як джерело підтверджених usage-сценаріїв, а не як частину самого source.
 
-testEvidenceForSource читає цей індекс для конкретного source і формує два виходи: список пов’язаних test-файлів із підтвердженими сценаріями та детермінований CRC payload. До payload потрапляють лише дані, потрібні для перевірки стабільності, а сам test-код у prompt не переноситься — у документацію йде лише дослівно підтверджена назва сценарію.
+buildTestEvidenceIndex обходить репозиторій, збирає такі test/spec-файли, витягає з них лише ті посилання, що реально ведуть до існуючих source-файлів, і формує спільний індекс зв’язків source↔tests для подальшої побудови документації. Якщо під час обходу чи резолву щось ламається, процес лишається fail-safe і повертає порожні або часткові результати замість винятку.
 
-sourceFilesForTest працює у зворотному напрямку: з індексу бере всі source-файли, на які посилається конкретний test/spec, і повертає лише ті, що були підтверджені тим самим правилом relative reference до реального файлу.
+testEvidenceForSource бере цей індекс і перетворює підтверджені зв’язки на дані для рендеру сценаріїв та окремий детермінований payload для CRC. У документацію не потрапляє код тестів; зберігаються лише самі назви поведінкових сценаріїв.
 
-renderTestScenarios отримує вже зібрані пов’язані test-файли зі сценаріями й детерміновано рендерить їх у Markdown-розділ «Сценарії використання». Джерелом назв є тільки підтверджені test/describe/it-назви, тому цей шар не додає нової поведінки від себе і не перефразовує її.
+renderTestScenarios отримує вже відібрані тестові файли й стабільно рендерить їх у компактну секцію з підтвердженими сценаріями. Вона не вигадує нову поведінку й не перефразовує назви сценаріїв, а показує лише те, що було явно знайдено в тестах.
+
+sourceFilesForTest використовує той самий індекс, щоб для конкретного test/spec-файлу повернути пов’язані source-файли. Це дає змогу зв’язувати змінені тести з джерелами, для яких вони справді є доказом поведінки.
 
 ## Публічний API
 
@@ -33,35 +37,16 @@ Rust unit-тести всередині source-файлу вже входять 
 лише через relative string literal, що резолвиться у реальний файл.
 - testEvidenceForSource — Формує дані для JS-рендеру сценаріїв і детермінований payload для CRC.
 Test-код не потрапляє до LLM prompt: опис тестового usage лишається дослівним.
-- renderTestScenarios — Детерміновано рендерить підтверджені тестами сценарії у Markdown. Назви
-походять безпосередньо з `describe`/`test`/`it`, тому LLM не може їх
-перефразувати або додати неіснуючу поведінку.
+- renderTestScenarios — Детерміновано рендерить компактні підтверджені тестами сценарії у Markdown.
+Назви походять безпосередньо з `describe`/`test`/`it`, тому LLM не може їх
+перефразувати або додати неіснуючу поведінку; показуємо до пʼяти прикладів,
+а решту чесно рахуємо, щоб не дублювати весь test-suite у документації.
 - sourceFilesForTest — Source-файли, на які посилається конкретний змінений test/spec-файл.
 
 ## Сценарії використання
 
-- `npm/rules/doc-files/docgen-test-context/tests/main.test.mjs` — isDocgenTestFile
-- `npm/rules/doc-files/docgen-test-context/tests/main.test.mjs` — розпізнає JS/TS test/spec і Python test naming
-- `npm/rules/doc-files/docgen-test-context/tests/main.test.mjs` — звичайний source-файл не є тестом
-- `npm/rules/doc-files/docgen-test-context/tests/main.test.mjs` — buildTestEvidenceIndex
-- `npm/rules/doc-files/docgen-test-context/tests/main.test.mjs` — звʼязує source лише з тестом, що реально посилається на нього
-- `npm/rules/doc-files/docgen-test-context/tests/main.test.mjs` — інший сценарій
-- `npm/rules/doc-files/docgen-test-context/tests/main.test.mjs` — підтримує import без розширення і vi.mock relative reference
-- `npm/rules/doc-files/docgen-test-context/tests/main.test.mjs` — не вважає shared test helper джерелом поведінки лише через import
-- `npm/rules/doc-files/docgen-test-context/tests/main.test.mjs` — renderTestScenarios
-- `npm/rules/doc-files/docgen-test-context/tests/main.test.mjs` — зберігає test-шлях і назву сценарію дослівно, без LLM-інтерпретації
-- `npm/rules/doc-files/docgen-test-context/tests/main.test.mjs` — порожній набір сценаріїв не створює вміст секції
-- `npm/rules/doc-files/tests/main.test.mjs` — lint — детект (read-only detector)
-- `npm/rules/doc-files/tests/main.test.mjs` — ci (files=undefined): ловить відсутню доку у дереві
-- `npm/rules/doc-files/tests/main.test.mjs` — ci: свіжа дока → 0 violations
-- `npm/rules/doc-files/tests/main.test.mjs` — quick: змінене джерело без доки → violation; порожній набір → 0
-- `npm/rules/doc-files/tests/main.test.mjs` — quick: реверс-мапінг — змінена дока веде до перевірки джерела
-- `npm/rules/doc-files/tests/main.test.mjs` — quick: ігнорує test-файл без звʼязку із source
-- `npm/rules/doc-files/tests/main.test.mjs` — quick: зміна повʼязаного тесту перевіряє й позначає stale доку source-файлу
-- `npm/rules/doc-files/tests/main.test.mjs` — свіже дерево: stale не репортуються
-- `npm/rules/doc-files/tests/main.test.mjs` — violation несе reason і шлях джерела у message
-- `npm/rules/doc-files/tests/main.test.mjs` — плагін задекларований, але не встановлений (свіжий worktree без bun install) — 0 violations + warn-діагностика
-- `npm/rules/doc-files/tests/main.test.mjs` — плагін встановлений — без діагностики, навіть якщо 0 violations
+- `npm/rules/doc-files/docgen-test-context/tests/main.test.mjs` (isDocgenTestFile; buildTestEvidenceIndex) — розпізнає JS/TS test/spec і Python test naming; звичайний source-файл не є тестом; звʼязує source лише з тестом, що реально посилається на нього; інший сценарій; підтримує import без розширення і vi.mock relative reference; ще 4
+- `npm/rules/doc-files/tests/main.test.mjs` (lint — детект (read-only detector)) — ci (files=undefined): ловить відсутню доку у дереві; ci: свіжа дока → 0 violations; quick: змінене джерело без доки → violation; порожній набір → 0; quick: реверс-мапінг — змінена дока веде до перевірки джерела; quick: ігнорує test-файл без звʼязку із source; ще 5
 
 ## Гарантії поведінки
 
