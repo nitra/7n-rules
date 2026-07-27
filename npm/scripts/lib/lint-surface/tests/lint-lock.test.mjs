@@ -6,7 +6,13 @@ import { cwd as processCwd } from 'node:process'
 import { describe, expect, test } from 'vitest'
 
 import { withTmpDir } from '../../../utils/test-helpers.mjs'
-import { createProgressPublisher, lintLockFingerprint, renderWaitLine, withGlobalLintLock } from '../lint-lock.mjs'
+import {
+  createProgressPublisher,
+  lintLockFingerprint,
+  readOwnerProgress,
+  renderWaitLine,
+  withGlobalLintLock
+} from '../lint-lock.mjs'
 
 const TREE_FP = 'a'.repeat(64)
 const RE_SHA256_HEX = /^[0-9a-f]{64}$/u
@@ -175,6 +181,46 @@ describe('createProgressPublisher — стан-файл прогресу для 
       expect(fs.existsSync(file)).toBe(false)
     })
   })
+
+  test('versioned snapshot має phase/detail, heartbeat, а ETA зʼявляється лише після достатнього прогресу', async () => {
+    await withTmpDir(dir => {
+      let now = 10_000
+      const file = join(dir, 'progress.json')
+      const publisher = createProgressPublisher({ file, minIntervalMs: 0, heartbeatIntervalMs: 60_000, now: () => now })
+      publisher.onUpdate({
+        done: 2,
+        total: 12,
+        found: 0,
+        fixed: 0,
+        current: 'k8s/manifest',
+        detail: { label: 'kubescape', done: 2, total: 8, current: 'jobs/foo/k8s/qa' }
+      })
+      let snap = JSON.parse(fs.readFileSync(file, 'utf8'))
+      expect(snap).toMatchObject({ version: 2, phase: 'k8s/manifest', step: 'kubescape', etaMs: null })
+      now += 6_000
+      publisher.onUpdate({
+        done: 2,
+        total: 12,
+        found: 0,
+        fixed: 0,
+        current: 'k8s/manifest',
+        detail: { label: 'kubescape', done: 3, total: 8, current: 'jobs/foo/k8s/release' }
+      })
+      snap = JSON.parse(fs.readFileSync(file, 'utf8'))
+      expect(snap.etaMs).toBeGreaterThan(0)
+      publisher.stop()
+    })
+  })
+
+  test('observer відкидає застарілий або неповний snapshot, не вигадуючи ETA', async () => {
+    await withTmpDir(dir => {
+      const file = join(dir, 'progress.json')
+      fs.writeFileSync(file, JSON.stringify({ pid: process.pid, version: 1, heartbeatAt: Date.now(), etaMs: 1 }))
+      expect(readOwnerProgress(process.pid, file)).toBeNull()
+      fs.writeFileSync(file, JSON.stringify({ pid: process.pid, version: 2, heartbeatAt: Date.now() - 61_000 }))
+      expect(readOwnerProgress(process.pid, file)).toBeNull()
+    })
+  })
 })
 
 describe('renderWaitLine — рядок черги', () => {
@@ -197,5 +243,27 @@ describe('renderWaitLine — рядок черги', () => {
     expect(line).toContain('у черзі #1/1')
     expect(line).toContain('працює pid 111')
     expect(line).not.toContain('[')
+  })
+
+  test('показує owner phase, granular Kubescape progress та обережний ETA', () => {
+    const snap = {
+      version: 2,
+      done: 5,
+      total: 12,
+      found: 0,
+      fixed: 0,
+      current: 'k8s/manifest',
+      phase: 'k8s/manifest',
+      step: 'kubescape',
+      detail: { label: 'kubescape', done: 47, total: 133, current: 'jobs/foo/k8s/tr' },
+      etaMs: 120_000,
+      updatedAt: Date.now(),
+      heartbeatAt: Date.now()
+    }
+    const line = renderWaitLine({ pid: 111, cwd: '/repos/owner' }, [], snap)
+    expect(line).toContain('k8s/manifest')
+    expect(line).toContain('kubescape 47/133')
+    expect(line).toContain('jobs/foo/k8s/tr')
+    expect(line).toContain('ETA ≈ 2 хв')
   })
 })

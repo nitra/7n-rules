@@ -22,7 +22,7 @@ const BAR_WIDTH = 20
  * Рендерить один рядок прогресу — спільний формат для TTY-бара цього reporter-а
  * та для прогресу чужого прогону, який показує процес у черзі
  * (`lint-lock.mjs` читає знімок зі стан-файлу і показує його тим самим рядком).
- * @param {{ done: number, total: number, found: number, fixed: number, current: string, unitLabel?: string, withFixed?: boolean }} snap знімок прогресу
+ * @param {{ done: number, total: number, found: number, fixed: number, current: string, unitLabel?: string, withFixed?: boolean, detail?: { label: string, done: number, total: number, current: string } | null }} snap знімок прогресу
  * @returns {string} готовий рядок бара
  */
 export function renderProgressLine(snap) {
@@ -31,7 +31,10 @@ export function renderProgressLine(snap) {
   const filled = Math.round(progress * BAR_WIDTH)
   const bar = '█'.repeat(filled) + '░'.repeat(BAR_WIDTH - filled)
   const ticker = (snap.withFixed ?? true) ? ` · знайдено ${snap.found} · виправлено ${snap.fixed}` : ''
-  return `[${bar}] ${snap.done}/${snap.total} ${unitLabel}${ticker} · ${snap.current}`
+  const sub = snap.detail
+    ? ` · ${snap.detail.label} ${snap.detail.done}/${snap.detail.total} · ${snap.detail.current}`
+    : ''
+  return `[${bar}] ${snap.done}/${snap.total} ${unitLabel}${ticker} · ${snap.current}${sub}`
 }
 
 /**
@@ -61,6 +64,7 @@ function formatBar(_options, params, payload) {
  * @property {(label: string, tier?: string) => void} concernStart оновити суфікс поточної одиниці
  * @property {(key: string, count: number) => void} detectSnapshot знімок detect/re-detect (кількість порушень)
  * @property {(key: string) => void} concernDone одиницю оброблено (закриту чи ні) — бар +1
+ * @property {(detail: { label: string, done: number, total: number, current: string } | null) => void} detail опублікувати деталізацію поточного concern-а
  * @property {() => { done: number, total: number, found: number, fixed: number }} summary поточні лічильники
  * @property {() => void} stop фінальний render і звільнення TTY-рядка
  */
@@ -89,6 +93,8 @@ export function createProgressReporter(opts) {
   const counters = new Map()
   let done = 0
   let current = '…'
+  /** @type {{ label: string, done: number, total: number, current: string } | null} */
+  let detail = null
 
   /**
    * Пер-ключ стан лічильників (лениве створення).
@@ -139,7 +145,7 @@ export function createProgressReporter(opts) {
   /** Перемальовує бар актуальним payload-ом (TTY) і публікує знімок назовні. */
   function redraw() {
     const { found, fixed } = tally()
-    opts.onUpdate?.({ done, total, found, fixed, current })
+    opts.onUpdate?.({ done, total, found, fixed, current, detail })
     if (!bar) return
     bar.update(done, { unitLabel, withFixed, found, fixed, current })
   }
@@ -153,6 +159,12 @@ export function createProgressReporter(opts) {
 
     concernStart: (label, tier) => {
       current = tier ? `${label} (${tier})` : label
+      detail = null
+      redraw()
+    },
+
+    detail: next => {
+      detail = next
       redraw()
     },
 

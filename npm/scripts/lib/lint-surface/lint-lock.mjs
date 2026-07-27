@@ -66,6 +66,15 @@ const NON_TTY_WAIT_LOG_INTERVAL_MS = 10_000
 /** Знімок прогресу вважається живим, якщо оновлювався не давніше за це. */
 const PROGRESS_FRESH_MS = 60_000
 
+/** Версія контракту published snapshot-а; observer-и ігнорують неповні старі записи. */
+const PROGRESS_SNAPSHOT_VERSION = 2
+
+/** Частота heartbeat owner-а: довгий один target лишається видимим для процесу в черзі. */
+const PUBLISH_HEARTBEAT_INTERVAL_MS = 5_000
+
+/** Мінімум завершених targets, коли швидкість вже достатня для обережного ETA. */
+const ETA_MIN_COMPLETED_TARGETS = 3
+
 /**
  * Fingerprint для TTL-дедуплікації: стан робочого дерева + варіант виклику lint.
  * null (→ дедуплікація вимкнена, черга працює) коли:
@@ -90,26 +99,68 @@ export function lintLockFingerprint(variant, getTreeFp = worktreeFingerprint) {
  * Publisher прогресу активного прогону: приймає знімки від
  * `createProgressReporter({ onUpdate })` і (throttled) пише їх у стан-файл,
  * звідки процеси в черзі читають прогрес-бар активного прогону.
- * @param {{file?: string, minIntervalMs?: number}} [opts] override-и для тестів
- * @returns {{ onUpdate: (snap: { done: number, total: number, found: number, fixed: number, current: string }) => void, stop: () => void }} publisher
+ * @param {{file?: string, minIntervalMs?: number, heartbeatIntervalMs?: number, now?: () => number}} [opts] override-и для тестів
+ * @returns {{ onUpdate: (snap: { done: number, total: number, found: number, fixed: number, current: string, detail?: { label: string, done: number, total: number, current: string } | null }) => void, stop: () => void }} publisher
  */
 export function createProgressPublisher(opts = {}) {
   const file = opts.file ?? PROGRESS_FILE
   const minIntervalMs = opts.minIntervalMs ?? PUBLISH_MIN_INTERVAL_MS
+  const heartbeatIntervalMs = opts.heartbeatIntervalMs ?? PUBLISH_HEARTBEAT_INTERVAL_MS
+  const now = opts.now ?? Date.now
   let lastWriteAt = 0
+  let lastSnap = null
+  let phaseStartedAt = 0
+
+  /** Записує атомарно достатній для observer-а snapshot; помилки лишаються best-effort. */
+  function publish(snap, heartbeat = false) {
+    const at = now()
+    const detail = snap.detail ?? null
+    if (!heartbeat && (!lastSnap || lastSnap.current !== snap.current || lastSnap.detail?.label !== detail?.label))
+      phaseStartedAt = at
+    const completed = detail?.done ?? 0
+    const remaining = Math.max(0, (detail?.total ?? 0) - completed)
+    const elapsed = phaseStartedAt > 0 ? at - phaseStartedAt : 0
+    const etaMs =
+      !heartbeat && detail && completed >= ETA_MIN_COMPLETED_TARGETS && remaining > 0 && elapsed > 0
+        ? Math.round((elapsed / completed) * remaining)
+        : (lastSnap?.etaMs ?? null)
+    const record = {
+      version: PROGRESS_SNAPSHOT_VERSION,
+      pid: process.pid,
+      cwd: processCwd(),
+      updatedAt: heartbeat ? (lastSnap?.updatedAt ?? at) : at,
+      heartbeatAt: at,
+      phase: snap.current,
+      step: detail?.label ?? null,
+      done: snap.done,
+      total: snap.total,
+      found: snap.found,
+      fixed: snap.fixed,
+      current: snap.current,
+      detail,
+      etaMs
+    }
+    lastSnap = record
+    try {
+      mkdirSync(dirname(file), { recursive: true })
+      writeFileSync(file, JSON.stringify(record))
+    } catch {
+      // best-effort: без стан-файлу процеси в черзі просто не побачать бар
+    }
+  }
+  const heartbeat = setInterval(() => {
+    if (lastSnap) publish(lastSnap, true)
+  }, heartbeatIntervalMs)
+  heartbeat.unref?.()
   return {
     onUpdate: snap => {
-      const now = Date.now()
-      if (now - lastWriteAt < minIntervalMs) return
-      lastWriteAt = now
-      try {
-        mkdirSync(dirname(file), { recursive: true })
-        writeFileSync(file, JSON.stringify({ pid: process.pid, updatedAt: now, cwd: processCwd(), ...snap }))
-      } catch {
-        // best-effort: без стан-файлу процеси в черзі просто не побачать бар
-      }
+      const at = now()
+      if (at - lastWriteAt < minIntervalMs) return
+      lastWriteAt = at
+      publish(snap)
     },
     stop: () => {
+      clearInterval(heartbeat)
       try {
         rmSync(file, { force: true })
       } catch {
@@ -155,13 +206,14 @@ function listQueue(queueDir) {
  * застарілий або належить не поточному власнику лока.
  * @param {number} ownerPid PID власника лока
  * @param {string} progressFile шлях стан-файлу прогресу
- * @returns {{ done: number, total: number, found: number, fixed: number, current: string } | null} знімок
+ * @returns {{ done: number, total: number, found: number, fixed: number, current: string, phase: string, step: string|null, detail: { label: string, done: number, total: number, current: string }|null, etaMs: number|null, updatedAt: number, heartbeatAt: number } | null} знімок
  */
-function readOwnerProgress(ownerPid, progressFile) {
+export function readOwnerProgress(ownerPid, progressFile) {
   try {
     const snap = JSON.parse(readFileSync(progressFile, 'utf8'))
     if (snap?.pid !== ownerPid) return null
-    if (Date.now() - snap.updatedAt > PROGRESS_FRESH_MS) return null
+    if (snap?.version !== PROGRESS_SNAPSHOT_VERSION || typeof snap.heartbeatAt !== 'number') return null
+    if (Date.now() - snap.heartbeatAt > PROGRESS_FRESH_MS) return null
     return snap
   } catch {
     return null
@@ -180,13 +232,24 @@ export function renderWaitLine(owner, queue, snap) {
   const myIdx = queue.findIndex(e => e.pid === process.pid)
   const pos = (myIdx === -1 ? queue.length : myIdx) + 1
   const ownerDir = owner.cwd ? ` (${basename(owner.cwd)})` : ''
-  const bar = snap ? ` · ${renderProgressLine(snap)}` : ''
+  const eta =
+    snap?.etaMs !== null && snap?.etaMs !== undefined && Date.now() - snap.updatedAt <= PROGRESS_FRESH_MS
+      ? ` · ETA ≈ ${formatEta(snap.etaMs)}`
+      : ''
+  const bar = snap ? ` · ${renderProgressLine(snap)}${eta}` : ''
   const others = queue
     .filter(e => e.pid !== process.pid)
     .map(e => `pid ${e.pid} (${basename(e.cwd)})`)
     .join(', ')
   const tail = others ? ` · чекають: ${others}` : ''
   return `⏳ lint --full у черзі #${pos}/${Math.max(queue.length, pos)} · працює pid ${owner.pid}${ownerDir}${bar}${tail}`
+}
+
+/** Форматує короткий ETA; caller передає лише вже перевірену обережну оцінку. */
+function formatEta(ms) {
+  const seconds = Math.max(1, Math.round(ms / 1000))
+  if (seconds < 60) return `${seconds} с`
+  return `${Math.ceil(seconds / 60)} хв`
 }
 
 /**
@@ -213,13 +276,15 @@ function createWaitUi(opts = {}) {
       } catch {
         // best-effort: без реєстрації процес просто не видно у списку черги
       }
+      // non-TTY мусить сказати про очікування одразу, а не через перший інтервал poll-а.
+      lastAppendAt = 0
     },
     onWaitTick: owner => {
       const line = renderWaitLine(owner, listQueue(queueDir), readOwnerProgress(owner.pid, progressFile))
       if (isTTY) {
         // \r + ANSI clear-line: один рядок, що перемальовується на кожен tick
         log(`\r\u{1B}[2K${line}`)
-      } else if (Date.now() - lastAppendAt >= NON_TTY_WAIT_LOG_INTERVAL_MS) {
+      } else if (lastAppendAt === 0 || Date.now() - lastAppendAt >= NON_TTY_WAIT_LOG_INTERVAL_MS) {
         lastAppendAt = Date.now()
         log(`${line}\n`)
       }
