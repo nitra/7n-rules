@@ -1,10 +1,11 @@
 /** @see ./docs/orchestrate.md */
 import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
-import { appendFileSync, existsSync, readFileSync } from 'node:fs'
+import { appendFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
 import { dirname, isAbsolute, join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { env } from 'node:process'
+import { setTimeout as delay } from 'node:timers/promises'
 
 import { renderProgressLine } from '../../../scripts/lib/lint-surface/progress.mjs'
 import { readGitPolicy } from '../../../scripts/lib/git-policy.mjs'
@@ -1457,18 +1458,35 @@ export function classifyPullRequestChecks(prChecks, baseChecks) {
 }
 
 /**
+ * Видаляє лише rebuildable dependencies зі збереженого forensic worktree.
+ * Git metadata, commits і tracked/untracked зміни не зачіпаються.
+ * @param {string} worktreeCwd шлях worktree
+ * @returns {boolean} чи було що прибрати
+ */
+export function pruneForensicDependencies(worktreeCwd) {
+  const dependencies = join(worktreeCwd, 'node_modules')
+  if (!existsSync(dependencies)) return false
+  try {
+    rmSync(dependencies, { recursive: true, force: true })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Чекає terminal CI state й порівнює failed checks з base commit.
  * @param {object} args PR context
  * @returns {Promise<{status:string,error?:string}>} readiness
  */
 export async function verifyPullRequestReadiness(args) {
-  const { url, cwd, spawnFn = spawnSync, asyncSpawnFn } = args
+  const { url, cwd, spawnFn = spawnSync, asyncSpawnFn, delayFn = delay } = args
   const longRunner = resolveAsyncSpawn(spawnFn, asyncSpawnFn)
   await runAsync('gh', ['pr', 'checks', url, '--watch', '--interval', '10'], cwd, longRunner, {
     allowFailure: true,
     timeoutMs: PR_CHECK_TIMEOUT_MS
   })
-  const view = await runAsync(
+  let view = await runAsync(
     'gh',
     ['pr', 'view', url, '--json', 'statusCheckRollup,baseRefOid'],
     cwd,
@@ -1478,7 +1496,28 @@ export async function verifyPullRequestReadiness(args) {
   if (view.status !== 0) {
     return { status: 'pr-checks-unverified', error: `Не вдалося прочитати PR checks: ${view.stderr || view.error}` }
   }
-  const pr = parseJson(view.stdout, null)
+  let pr = parseJson(view.stdout, null)
+  if (pr && Array.isArray(pr.statusCheckRollup) && pr.statusCheckRollup.length === 0) {
+    await delayFn(10_000)
+    await runAsync('gh', ['pr', 'checks', url, '--watch', '--interval', '10'], cwd, longRunner, {
+      allowFailure: true,
+      timeoutMs: PR_CHECK_TIMEOUT_MS
+    })
+    view = await runAsync(
+      'gh',
+      ['pr', 'view', url, '--json', 'statusCheckRollup,baseRefOid'],
+      cwd,
+      longRunner,
+      { allowFailure: true }
+    )
+    if (view.status !== 0) {
+      return {
+        status: 'pr-checks-unverified',
+        error: `Не вдалося повторно прочитати PR checks: ${view.stderr || view.error}`
+      }
+    }
+    pr = parseJson(view.stdout, null)
+  }
   if (!pr || !Array.isArray(pr.statusCheckRollup) || !pr.baseRefOid) {
     return { status: 'pr-checks-unverified', error: 'GitHub повернув неповний PR check rollup' }
   }
@@ -1669,6 +1708,8 @@ async function createPullRequest(args) {
       asyncSpawnFn: deps.asyncSpawnFn
     })
     if (readiness.status !== 'ready') {
+      onProgress('prune forensic dependencies')
+      pruneForensicDependencies(worktree.cwd)
       return {
         status: readiness.status,
         error: readiness.error,
@@ -1682,6 +1723,10 @@ async function createPullRequest(args) {
     return { status: 'pr-created', url: createdPr, branch: worktree.branch }
   } catch (error) {
     const setup = /** @type {{branch?:string,worktree?:string}} */ (error)
+    if (worktree?.cwd) {
+      onProgress('prune forensic dependencies')
+      pruneForensicDependencies(worktree.cwd)
+    }
     return {
       status: 'failed',
       error: error instanceof Error ? error.message : String(error),

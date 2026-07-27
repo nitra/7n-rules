@@ -2,7 +2,7 @@
  * Тести git-reconcile: парсинг Git inventory, bounded LLM contract і
  * orchestration без реальних worktree/push/PR.
  */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { env } from 'node:process'
@@ -33,6 +33,7 @@ import {
   normalizePrConcurrency,
   parseDecisionEnvelope,
   parseWorktrees,
+  pruneForensicDependencies,
   remediateBehaviorState,
   runAsync,
   runGitReconcileOrchestrator,
@@ -42,7 +43,8 @@ import {
   testFailureSignatures,
   validateBehaviorState,
   validateFinalProjectGates,
-  validateTriageOutcome
+  validateTriageOutcome,
+  verifyPullRequestReadiness
 } from '../orchestrate.mjs'
 
 const REVIEW_BRANCH = {
@@ -80,6 +82,62 @@ describe('commitPendingChanges', () => {
 
     expect(committed).toBe(true)
     expect(calls.at(-1)).toEqual(['git', ['commit', '-m', 'fix: useful']])
+  })
+})
+
+describe('forensic worktree hygiene', () => {
+  test('видаляє лише rebuildable node_modules', () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'git-reconcile-forensic-'))
+    mkdirSync(resolve(root, 'node_modules'))
+    writeFileSync(resolve(root, 'node_modules', 'package.json'), '{}')
+    writeFileSync(resolve(root, 'evidence.txt'), 'keep')
+
+    try {
+      expect(pruneForensicDependencies(root)).toBe(true)
+      expect(existsSync(resolve(root, 'node_modules'))).toBe(false)
+      expect(readFileSync(resolve(root, 'evidence.txt'), 'utf8')).toBe('keep')
+      expect(pruneForensicDependencies(root)).toBe(false)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('повторно чекає checks після порожнього initial rollup', async () => {
+    let viewCount = 0
+    const delays = []
+    const result = await verifyPullRequestReadiness({
+      url: 'https://example.test/pr/1',
+      cwd: '/repo',
+      delayFn: milliseconds => {
+        delays.push(milliseconds)
+        return Promise.resolve()
+      },
+      asyncSpawnFn: (_command, args) => {
+        if (args[0] === 'pr' && args[1] === 'view') {
+          viewCount += 1
+          return Promise.resolve({
+            status: 0,
+            stdout: JSON.stringify({
+              baseRefOid: 'base',
+              statusCheckRollup: viewCount === 1 ? [] : [{ name: 'lint', conclusion: 'SUCCESS' }]
+            }),
+            stderr: ''
+          })
+        }
+        if (args[0] === 'repo') return Promise.resolve({ status: 0, stdout: 'owner/repo\n', stderr: '' })
+        if (args[0] === 'api') {
+          return Promise.resolve({
+            status: 0,
+            stdout: JSON.stringify({ check_runs: [{ name: 'lint', conclusion: 'SUCCESS' }] }),
+            stderr: ''
+          })
+        }
+        return Promise.resolve({ status: 0, stdout: '', stderr: '' })
+      }
+    })
+
+    expect(delays).toEqual([10_000])
+    expect(result).toEqual({ status: 'ready' })
   })
 })
 
