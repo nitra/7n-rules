@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.24] - 2026-07-27
+
+### Changed
+
+- git-reconcile формує PR descriptions із пріоритетом бізнес-контексту та архітектури за validated final diff
+
 ## [1.49.23] - 2026-07-27
 
 ### Fixed
