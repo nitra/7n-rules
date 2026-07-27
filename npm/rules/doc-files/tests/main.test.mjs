@@ -58,6 +58,21 @@ describe('lint — детект (read-only detector)', () => {
     })
   })
 
+  test('quick: не шукає сирітські docs поза explicit files', async () => {
+    await withTmpDir(async root => {
+      await installFakeLangJsPlugin(root)
+      await writeSourceWithFreshDoc(root, 'run/api/a.mjs', 'export const a = 1\n')
+      await ensureDir(join(root, 'run/other/docs'))
+      await writeFile(
+        join(root, 'run/other/docs/deleted.md'),
+        stampDoc('# Сирітська дока\n', 'run/other/deleted.mjs', 'deadbeef')
+      )
+
+      expect(await violationsCount(root, ['run/api/a.mjs'])).toBe(0)
+      expect(await violationsCount(root)).toBeGreaterThan(0)
+    })
+  })
+
   test('quick: реверс-мапінг — змінена дока веде до перевірки джерела', async () => {
     await withTmpDir(async root => {
       await installFakeLangJsPlugin(root)
