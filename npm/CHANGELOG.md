@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.52.2] - 2026-07-27
+
+### Fixed
+
+- KNOWN_PLUGIN_RANGES оновлено на сумісні з plugin API v2 лінії (ci ^2, lang-js ^0.23, lang-python ^0.11, lang-rust ^0.14, lang-php ^0.2) — автоматична інсталяція більше не тягне legacy-плагіни, які новий core виключає зі slot graph
+
 ## [1.52.1] - 2026-07-27
 
 ### Fixed

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.23.2] - 2026-07-27
+
+### Fixed
+
+- peerDependency @7n/rules піднято до >=1.52.0 — перша core-версія з universal slot bus (plugin API v2)
+
 ## [0.23.1] - 2026-07-27
 
 ### Fixed

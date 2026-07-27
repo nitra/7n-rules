@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.1] - 2026-07-27
+
+### Fixed
+
+- Першу публікацію в npm registry розблоковано (publish-крок у CI був відсутній); peerDependency @7n/rules піднято до >=1.52.0
+
 ## [0.2.0] - 2026-07-27
 
 ### Added
