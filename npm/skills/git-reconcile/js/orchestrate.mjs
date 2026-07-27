@@ -1,5 +1,5 @@
 /** @see ./docs/orchestrate.md */
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import { dirname, isAbsolute, join } from 'node:path'
 import { performance } from 'node:perf_hooks'
@@ -12,6 +12,7 @@ const LLM_TIERS = ['min', 'max']
 const REVIEW_BATCH_SIZE = 10
 const PROMPT_TEXT_LIMIT = 12_000
 const PROGRESS_HEARTBEAT_MS = 30_000
+const PR_CHECK_TIMEOUT_MS = 15 * 60_000
 const DEFAULT_PR_CONCURRENCY = 3
 const MAX_PR_CONCURRENCY = 4
 const SOURCE_BRANCH_PREFIX = 'branch:'
@@ -28,9 +29,22 @@ const REF_INVENTORY_FORMAT = ['%(refname)', '%00', '%(object', 'name)', '%00', '
   ''
 )
 
+/** @typedef {(command:string,args:string[],options:object)=>object|Promise<object>} CommandRunner */
+
 /** Порожній callback для опційного progress log. */
 function noop() {
   // Навмисно порожньо: caller не запросив progress output.
+}
+
+/**
+ * Форматує spawn error без вкладених template literals.
+ * @param {object|undefined|null} error process error
+ * @returns {string} діагностика
+ */
+function formatProcessError(error) {
+  if (!error) return ''
+  const code = error.code ? ` ${error.code}` : ''
+  return `${error.name ?? 'Error'}${code}: ${error.message}`
 }
 
 /**
@@ -154,7 +168,7 @@ function run(command, args, cwd, spawnFn, options = {}) {
     status: result.status ?? 1,
     stdout: result.stdout ?? '',
     stderr: result.stderr ?? '',
-    error: result.error ? `${result.error.name ?? 'Error'}${result.error.code ? ` ${result.error.code}` : ''}: ${result.error.message}` : ''
+    error: formatProcessError(result.error)
   }
   if (!options.allowFailure && normalized.status !== 0) {
     throw new Error(
@@ -162,6 +176,96 @@ function run(command, args, cwd, spawnFn, options = {}) {
     )
   }
   return normalized
+}
+
+/**
+ * Виконує довгу команду без блокування event loop, щоб progress heartbeat
+ * продовжував працювати під час install/test/lint/PR checks. Інжектований
+ * sync runner у unit tests також підтримується.
+ * @param {string} command виконуваний файл
+ * @param {string[]} args аргументи
+ * @param {string} cwd робочий каталог
+ * @param {CommandRunner} spawnFn async або sync runner
+ * @param {{ allowFailure?: boolean, input?: string, timeoutMs?: number }} [options] режим
+ * @returns {Promise<{status:number,stdout:string,stderr:string,error:string}>} результат
+ */
+export async function runAsync(command, args, cwd, spawnFn, options = {}) {
+  const childEnv = { ...env, GIT_EDITOR: 'true' }
+  if (command === 'npx') delete childEnv.npm_config_package
+  const spawned = spawnFn(command, args, {
+    cwd,
+    env: childEnv,
+    stdio: ['pipe', 'pipe', 'pipe']
+  })
+  if (!spawned || typeof spawned.on !== 'function') {
+    const result = await spawned
+    const normalized = {
+      status: result?.status ?? 1,
+      stdout: result?.stdout ?? '',
+      stderr: result?.stderr ?? '',
+      error: formatProcessError(result?.error)
+    }
+    if (!options.allowFailure && normalized.status !== 0) {
+      throw new Error(
+        `${command} ${args.join(' ')} → exit ${normalized.status}: ${normalized.stderr || normalized.stdout || normalized.error}`
+      )
+    }
+    return normalized
+  }
+
+  const stdout = []
+  const stderr = []
+  let processError = ''
+  let timedOut = false
+  spawned.stdout?.setEncoding?.('utf8')
+  spawned.stderr?.setEncoding?.('utf8')
+  spawned.stdout?.on('data', chunk => {
+    stdout.push(chunk)
+  })
+  spawned.stderr?.on('data', chunk => {
+    stderr.push(chunk)
+  })
+  spawned.on('error', error => {
+    processError = formatProcessError(error)
+  })
+  if (options.input === undefined) spawned.stdin?.end()
+  else spawned.stdin?.end(options.input)
+
+  const timer =
+    options.timeoutMs > 0
+      ? setTimeout(() => {
+          timedOut = true
+          spawned.kill('SIGTERM')
+        }, options.timeoutMs)
+      : null
+  timer?.unref?.()
+  const status = await new Promise(resolve => {
+    spawned.on('close', code => resolve(code ?? 1))
+  })
+  if (timer) clearTimeout(timer)
+  const normalized = {
+    status,
+    stdout: stdout.join(''),
+    stderr: stderr.join(''),
+    error: timedOut ? `Timeout after ${options.timeoutMs}ms` : processError
+  }
+  if (!options.allowFailure && normalized.status !== 0) {
+    throw new Error(
+      `${command} ${args.join(' ')} → exit ${normalized.status}: ${normalized.stderr || normalized.stdout || normalized.error}`
+    )
+  }
+  return normalized
+}
+
+/**
+ * Production використовує non-blocking spawn, а існуючі sync test doubles
+ * лишаються єдиним джерелом детермінованих результатів.
+ * @param {CommandRunner} spawnFn sync runner
+ * @param {CommandRunner|undefined} asyncSpawnFn явний async runner
+ * @returns {CommandRunner} runner довгих команд
+ */
+function resolveAsyncSpawn(spawnFn, asyncSpawnFn) {
+  return asyncSpawnFn ?? (spawnFn === spawnSync ? spawn : spawnFn)
 }
 
 /**
@@ -948,10 +1052,11 @@ export function changedNonCodeDirectories(cwd, spawnFn = spawnSync) {
  * @param {(stage:string)=>void} [onProgress] stage callback
  * @returns {{ok:boolean,error?:string}} gate
  */
-function validateScopedProjectGates(cwd, spawnFn, onProgress = noop) {
+async function validateScopedProjectGates(cwd, spawnFn, onProgress = noop, asyncSpawnFn) {
+  const longRunner = resolveAsyncSpawn(spawnFn, asyncSpawnFn)
   for (const path of changedSourceDirectories(cwd, spawnFn)) {
     onProgress(`doc-files (${path})`)
-    const docs = run('npx', ['@7n/rules', 'lint', 'doc-files', '--path', path], cwd, spawnFn, {
+    const docs = await runAsync('npx', ['@7n/rules', 'lint', 'doc-files', '--path', path], cwd, longRunner, {
       allowFailure: true
     })
     if (docs.status !== 0) {
@@ -962,7 +1067,7 @@ function validateScopedProjectGates(cwd, spawnFn, onProgress = noop) {
       }
     }
     onProgress(`scoped lint (${path})`)
-    const lint = run('npx', ['@7n/rules', 'lint', '--path', path, '--no-fix'], cwd, spawnFn, {
+    const lint = await runAsync('npx', ['@7n/rules', 'lint', '--path', path, '--no-fix'], cwd, longRunner, {
       allowFailure: true
     })
     if (lint.status !== 0) {
@@ -985,12 +1090,21 @@ function validateScopedProjectGates(cwd, spawnFn, onProgress = noop) {
  * @param {(stage:string)=>void} [onProgress] stage callback
  * @returns {{attempted:boolean,ok:boolean,error?:string}} результат
  */
-export function remediateBehaviorState(cwd, spawnFn = spawnSync, validation = {}, onProgress = noop) {
+export async function remediateBehaviorState(
+  cwd,
+  spawnFn = spawnSync,
+  validation = {},
+  onProgress = noop,
+  asyncSpawnFn
+) {
   if (validation.remediation !== 'canonical-fixers') return { attempted: false, ok: false }
 
-  for (const path of changedSourceDirectories(cwd, spawnFn)) {
+  const longRunner = resolveAsyncSpawn(spawnFn, asyncSpawnFn)
+  const changedDirectories = [...new Set([...changedSourceDirectories(cwd, spawnFn), ...changedNonCodeDirectories(cwd, spawnFn)])]
+    .toSorted()
+  for (const path of changedDirectories) {
     onProgress(`deterministic fix (${path})`)
-    const fixed = run('npx', ['@7n/rules', 'lint', '--path', path], cwd, spawnFn, {
+    const fixed = await runAsync('npx', ['@7n/rules', 'lint', '--path', path], cwd, longRunner, {
       allowFailure: true
     })
     if (fixed.status !== 0) {
@@ -1003,7 +1117,7 @@ export function remediateBehaviorState(cwd, spawnFn = spawnSync, validation = {}
   }
 
   onProgress('deterministic changelog fix')
-  const changelog = run('npx', ['@7n/rules', 'lint', 'changelog'], cwd, spawnFn, {
+  const changelog = await runAsync('npx', ['@7n/rules', 'lint', 'changelog'], cwd, longRunner, {
     allowFailure: true
   })
   if (changelog.status !== 0) {
@@ -1021,10 +1135,10 @@ export function remediateBehaviorState(cwd, spawnFn = spawnSync, validation = {}
  * @param {string} cwd worktree
  * @param {typeof spawnSync} spawnFn інжект
  */
-function ensureWorktreeDependencies(cwd, spawnFn) {
+async function ensureWorktreeDependencies(cwd, spawnFn, asyncSpawnFn) {
   if (!existsSync(join(cwd, 'package.json')) || !existsSync(join(cwd, 'bun.lock'))) return
   if (existsSync(join(cwd, 'node_modules'))) return
-  run('bun', ['install', '--frozen-lockfile'], cwd, spawnFn)
+  await runAsync('bun', ['install', '--frozen-lockfile'], cwd, resolveAsyncSpawn(spawnFn, asyncSpawnFn))
 }
 
 /**
@@ -1033,12 +1147,14 @@ function ensureWorktreeDependencies(cwd, spawnFn) {
  * @param {typeof spawnSync} spawnFn інжект
  * @returns {{tests:{status:number,stdout:string,stderr:string}|null}} baseline
  */
-export function captureBehaviorBaseline(cwd, spawnFn = spawnSync) {
-  ensureWorktreeDependencies(cwd, spawnFn)
+export async function captureBehaviorBaseline(cwd, spawnFn = spawnSync, asyncSpawnFn) {
+  await ensureWorktreeDependencies(cwd, spawnFn, asyncSpawnFn)
   const packageJsonPath = join(cwd, 'package.json')
   if (!existsSync(packageJsonPath)) return { tests: null }
   const packageJson = parseJson(readFileSync(packageJsonPath, 'utf8'), {})
-  const tests = packageJson?.scripts?.test ? run('bun', ['run', 'test'], cwd, spawnFn, { allowFailure: true }) : null
+  const tests = packageJson?.scripts?.test
+    ? await runAsync('bun', ['run', 'test'], cwd, resolveAsyncSpawn(spawnFn, asyncSpawnFn), { allowFailure: true })
+    : null
   return { tests }
 }
 
@@ -1050,13 +1166,20 @@ export function captureBehaviorBaseline(cwd, spawnFn = spawnSync) {
  * @param {typeof spawnSync} spawnFn інжект
  * @returns {{baseline:object,cached:boolean}} baseline і ознака cache hit
  */
-export function captureCachedBehaviorBaseline(cwd, cache, spawnFn = spawnSync) {
-  ensureWorktreeDependencies(cwd, spawnFn)
+export async function captureCachedBehaviorBaseline(cwd, cache, spawnFn = spawnSync, asyncSpawnFn) {
+  await ensureWorktreeDependencies(cwd, spawnFn, asyncSpawnFn)
   const baseOid = git(['rev-parse', policyBaseRef(cwd)], cwd, spawnFn).stdout.trim()
-  if (cache.has(baseOid)) return { baseline: cache.get(baseOid), cached: true }
-  const baseline = captureBehaviorBaseline(cwd, spawnFn)
-  cache.set(baseOid, baseline)
-  return { baseline, cached: false }
+  if (cache.has(baseOid)) return { baseline: await cache.get(baseOid), cached: true }
+  const pending = captureBehaviorBaseline(cwd, spawnFn, asyncSpawnFn)
+  cache.set(baseOid, pending)
+  try {
+    const baseline = await pending
+    cache.set(baseOid, baseline)
+    return { baseline, cached: false }
+  } catch (error) {
+    cache.delete(baseOid)
+    throw error
+  }
 }
 
 /**
@@ -1068,10 +1191,16 @@ export function captureCachedBehaviorBaseline(cwd, cache, spawnFn = spawnSync) {
  * @param {(stage:string)=>void} [onProgress] stage callback
  * @returns {{ok:boolean,error?:string}} validation
  */
-export function validateBehaviorState(cwd, spawnFn = spawnSync, baseline = null, onProgress = noop) {
+export async function validateBehaviorState(
+  cwd,
+  spawnFn = spawnSync,
+  baseline = null,
+  onProgress = noop,
+  asyncSpawnFn
+) {
   const gitState = validateGitState(cwd, spawnFn)
   if (!gitState.ok) return gitState
-  const projectGates = validateScopedProjectGates(cwd, spawnFn, onProgress)
+  const projectGates = await validateScopedProjectGates(cwd, spawnFn, onProgress, asyncSpawnFn)
   if (!projectGates.ok) return projectGates
   const postGateGitState = validateGitState(cwd, spawnFn)
   if (!postGateGitState.ok) return postGateGitState
@@ -1081,7 +1210,9 @@ export function validateBehaviorState(cwd, spawnFn = spawnSync, baseline = null,
     const packageJson = parseJson(readFileSync(packageJsonPath, 'utf8'), {})
     if (packageJson?.scripts?.test) {
       onProgress('project tests')
-      const tests = run('bun', ['run', 'test'], cwd, spawnFn, { allowFailure: true })
+      const tests = await runAsync('bun', ['run', 'test'], cwd, resolveAsyncSpawn(spawnFn, asyncSpawnFn), {
+        allowFailure: true
+      })
       if (!acceptsTestOutcome(baseline?.tests ?? null, tests)) {
         return { ok: false, error: `bun run test: ${tests.stderr || tests.stdout}` }
       }
@@ -1089,7 +1220,13 @@ export function validateBehaviorState(cwd, spawnFn = spawnSync, baseline = null,
   }
 
   onProgress('changelog')
-  const changelog = run('npx', ['@7n/rules', 'lint', 'changelog', '--no-fix'], cwd, spawnFn, { allowFailure: true })
+  const changelog = await runAsync(
+    'npx',
+    ['@7n/rules', 'lint', 'changelog', '--no-fix'],
+    cwd,
+    resolveAsyncSpawn(spawnFn, asyncSpawnFn),
+    { allowFailure: true }
+  )
   if (changelog.status !== 0) {
     return {
       ok: false,
@@ -1107,17 +1244,30 @@ export function validateBehaviorState(cwd, spawnFn = spawnSync, baseline = null,
  * @param {typeof spawnSync} spawnFn інжект
  * @returns {{ok:boolean,error?:string}} gate
  */
-export function validateFinalProjectGates(cwd, spawnFn = spawnSync) {
+export async function validateFinalProjectGates(cwd, spawnFn = spawnSync, asyncSpawnFn) {
+  const longRunner = resolveAsyncSpawn(spawnFn, asyncSpawnFn)
   for (const path of changedNonCodeDirectories(cwd, spawnFn)) {
-    const lint = run('npx', ['@7n/rules', 'lint', '--path', path, '--no-fix'], cwd, spawnFn, {
+    const lint = await runAsync('npx', ['@7n/rules', 'lint', '--path', path, '--no-fix'], cwd, longRunner, {
       allowFailure: true
     })
-    if (lint.status !== 0) return { ok: false, error: `domain lint (${path}): ${lint.stderr || lint.stdout}` }
+    if (lint.status !== 0) {
+      return {
+        ok: false,
+        error: `domain lint (${path}): ${lint.stderr || lint.stdout}`,
+        remediation: 'canonical-fixers'
+      }
+    }
   }
-  const changelog = run('npx', ['@7n/rules', 'lint', 'changelog', '--no-fix'], cwd, spawnFn, {
+  const changelog = await runAsync('npx', ['@7n/rules', 'lint', 'changelog', '--no-fix'], cwd, longRunner, {
     allowFailure: true
   })
-  if (changelog.status !== 0) return { ok: false, error: `changelog gate: ${changelog.stderr || changelog.stdout}` }
+  if (changelog.status !== 0) {
+    return {
+      ok: false,
+      error: `changelog gate: ${changelog.stderr || changelog.stdout}`,
+      remediation: 'canonical-fixers'
+    }
+  }
   return { ok: true }
 }
 
@@ -1212,17 +1362,160 @@ async function finalizeBehavior(args) {
     label: `behavior ${source}`,
     onAttempt: ({ tier }) => onProgress('behavior validation', tier),
     validate: () =>
-      validateBehaviorState(worktreeCwd, spawnFn, baseline, step => onProgress(`behavior validation: ${step}`)),
+      validateBehaviorState(
+        worktreeCwd,
+        spawnFn,
+        baseline,
+        step => onProgress(`behavior validation: ${step}`),
+        deps.asyncSpawnFn
+      ),
     remediate: validation =>
-      remediateBehaviorState(worktreeCwd, spawnFn, validation, step => onProgress(`behavior validation: ${step}`))
+      remediateBehaviorState(
+        worktreeCwd,
+        spawnFn,
+        validation,
+        step => onProgress(`behavior validation: ${step}`),
+        deps.asyncSpawnFn
+      )
   })
   if (!outcome.ok) throw new Error(`LLM behavioral verification: ${outcome.error}`)
   return outcome.text.slice(0, PROMPT_TEXT_LIMIT)
 }
 
 /**
+ * Нормалізує GitHub check/status до стабільного імені та стану.
+ * @param {object} check statusCheckRollup або check-run
+ * @returns {{name:string,state:'success'|'failure'|'pending'}}
+ */
+function normalizeGitHubCheck(check) {
+  const name = check.name ?? check.context ?? check.workflowName ?? 'unnamed-check'
+  const rawState = String(check.conclusion ?? check.state ?? check.status ?? '').toUpperCase()
+  const successful = ['SUCCESS', 'NEUTRAL', 'SKIPPED'].includes(rawState)
+  const pending = ['', 'EXPECTED', 'PENDING', 'QUEUED', 'IN_PROGRESS', 'REQUESTED', 'WAITING'].includes(rawState)
+  let state = 'failure'
+  if (successful) state = 'success'
+  else if (pending) state = 'pending'
+  return { name, state }
+}
+
+/**
+ * Класифікує PR checks відносно checks base commit. Будь-який pending/unknown
+ * стан fail-closed зберігає worktree; baseline-red дозволений лише коли кожен
+ * failed check уже падає на base.
+ * @param {object[]} prChecks PR statusCheckRollup
+ * @param {object[]} baseChecks check-runs base commit
+ * @returns {{status:'ready'|'pr-checks-regressed'|'pr-checks-baseline-red'|'pr-checks-unverified',error?:string}}
+ */
+export function classifyPullRequestChecks(prChecks, baseChecks) {
+  const normalizedPr = prChecks.map(check => normalizeGitHubCheck(check))
+  const pending = normalizedPr.filter(check => check.state === 'pending')
+  if (pending.length > 0) {
+    return {
+      status: 'pr-checks-unverified',
+      error: `Незавершені PR checks: ${pending.map(check => check.name).join(', ')}`
+    }
+  }
+  const failed = normalizedPr.filter(check => check.state === 'failure')
+  if (failed.length === 0) return { status: 'ready' }
+
+  const failedOnBase = new Set(
+    baseChecks
+      .map(check => normalizeGitHubCheck(check))
+      .filter(check => check.state === 'failure')
+      .map(check => check.name)
+  )
+  const regressions = failed.filter(check => !failedOnBase.has(check.name))
+  if (regressions.length > 0) {
+    return {
+      status: 'pr-checks-regressed',
+      error: `Нові failed PR checks: ${regressions.map(check => check.name).join(', ')}`
+    }
+  }
+  return {
+    status: 'pr-checks-baseline-red',
+    error: `PR checks повторюють failed base checks: ${failed.map(check => check.name).join(', ')}`
+  }
+}
+
+/**
+ * Чекає terminal CI state й порівнює failed checks з base commit.
+ * @param {object} args PR context
+ * @returns {Promise<{status:string,error?:string}>} readiness
+ */
+export async function verifyPullRequestReadiness(args) {
+  const { url, cwd, spawnFn = spawnSync, asyncSpawnFn } = args
+  const longRunner = resolveAsyncSpawn(spawnFn, asyncSpawnFn)
+  await runAsync('gh', ['pr', 'checks', url, '--watch', '--interval', '10'], cwd, longRunner, {
+    allowFailure: true,
+    timeoutMs: PR_CHECK_TIMEOUT_MS
+  })
+  const view = await runAsync(
+    'gh',
+    ['pr', 'view', url, '--json', 'statusCheckRollup,baseRefOid'],
+    cwd,
+    longRunner,
+    { allowFailure: true }
+  )
+  if (view.status !== 0) {
+    return { status: 'pr-checks-unverified', error: `Не вдалося прочитати PR checks: ${view.stderr || view.error}` }
+  }
+  const pr = parseJson(view.stdout, null)
+  if (!pr || !Array.isArray(pr.statusCheckRollup) || !pr.baseRefOid) {
+    return { status: 'pr-checks-unverified', error: 'GitHub повернув неповний PR check rollup' }
+  }
+  const repository = await runAsync(
+    'gh',
+    ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'],
+    cwd,
+    longRunner,
+    { allowFailure: true }
+  )
+  if (repository.status !== 0 || !repository.stdout.trim()) {
+    return { status: 'pr-checks-unverified', error: `Не вдалося визначити GitHub repository: ${repository.stderr}` }
+  }
+  const base = await runAsync(
+    'gh',
+    ['api', `repos/${repository.stdout.trim()}/commits/${pr.baseRefOid}/check-runs?per_page=100`],
+    cwd,
+    longRunner,
+    { allowFailure: true }
+  )
+  if (base.status !== 0) {
+    return { status: 'pr-checks-unverified', error: `Не вдалося прочитати base checks: ${base.stderr || base.error}` }
+  }
+  const basePayload = parseJson(base.stdout, null)
+  if (!basePayload || !Array.isArray(basePayload.check_runs)) {
+    return { status: 'pr-checks-unverified', error: 'GitHub повернув неповний base check rollup' }
+  }
+  return classifyPullRequestChecks(pr.statusCheckRollup, basePayload.check_runs)
+}
+
+/**
+ * Запускає final gates і один canonical remediation pass.
+ * @param {object} args gate context
+ * @returns {Promise<{ok:boolean,error?:string}>} фінальний стан
+ */
+async function passFinalProjectGates(args) {
+  const { cwd, spawnFn, asyncSpawnFn, onProgress } = args
+  let finalGates = await validateFinalProjectGates(cwd, spawnFn, asyncSpawnFn)
+  if (finalGates.ok || finalGates.remediation !== 'canonical-fixers') return finalGates
+
+  onProgress('canonical final remediation')
+  const remediation = await remediateBehaviorState(
+    cwd,
+    spawnFn,
+    finalGates,
+    step => onProgress(`canonical final remediation: ${step}`),
+    asyncSpawnFn
+  )
+  if (!remediation.ok) return { ok: false, error: remediation.error ?? finalGates.error }
+  finalGates = await validateFinalProjectGates(cwd, spawnFn, asyncSpawnFn)
+  return finalGates
+}
+
+/**
  * Створює один готовий PR. При будь-якому провалі worktree лишається для
- * ручного відновлення; прибирається тільки після успішного gh pr create.
+ * ручного відновлення; прибирається тільки після успішних CI checks.
  * @param {object} args параметри
  * @returns {Promise<{status:string,url?:string,branch?:string,error?:string,worktree?:string}>} результат
  */
@@ -1247,7 +1540,7 @@ async function createPullRequest(args) {
     let baseline = null
     if (sourceMayChangeCode) {
       onProgress('baseline tests')
-      const captured = captureCachedBehaviorBaseline(worktree.cwd, baselineCache, spawnFn)
+      const captured = await captureCachedBehaviorBaseline(worktree.cwd, baselineCache, spawnFn, deps.asyncSpawnFn)
       baseline = captured.baseline
       if (captured.cached) onProgress('baseline tests (cached)')
     }
@@ -1292,15 +1585,22 @@ async function createPullRequest(args) {
       git(['diff', '--cached', '--quiet'], worktree.cwd, spawnFn, {
         allowFailure: true
       }).status !== 0
-    if (staged) git(['commit', '-m', group.title], worktree.cwd, spawnFn)
+    if (!staged) throw new Error('Після Git validation немає staged змін')
     if (!hasChangesFromBase(worktree.cwd, spawnFn)) {
       onProgress('remove no-op worktree')
       removeReconcileWorktree(worktree, rootCwd, spawnFn)
       return { status: 'patch-equivalent', branch: worktree.branch }
     }
     onProgress('delta lint')
-    const finalGates = validateFinalProjectGates(worktree.cwd, spawnFn)
+    const finalGates = await passFinalProjectGates({
+      cwd: worktree.cwd,
+      spawnFn,
+      asyncSpawnFn: deps.asyncSpawnFn,
+      onProgress
+    })
     if (!finalGates.ok) throw new Error(finalGates.error)
+    git(['add', '-A'], worktree.cwd, spawnFn)
+    git(['commit', '-m', group.title], worktree.cwd, spawnFn)
     const baseRef = policyBaseRef(worktree.cwd)
     const baseBranch = readGitPolicy(worktree.cwd).baseBranch
     git(['diff', '--check', `${baseRef}...HEAD`], worktree.cwd, spawnFn)
@@ -1327,6 +1627,23 @@ async function createPullRequest(args) {
       worktree.cwd,
       spawnFn
     ).stdout.trim()
+    onProgress('PR checks')
+    const readinessVerifier = deps.verifyPullRequestReadiness ?? verifyPullRequestReadiness
+    const readiness = await readinessVerifier({
+      url: createdPr,
+      cwd: worktree.cwd,
+      spawnFn,
+      asyncSpawnFn: deps.asyncSpawnFn
+    })
+    if (readiness.status !== 'ready') {
+      return {
+        status: readiness.status,
+        error: readiness.error,
+        url: createdPr,
+        branch: worktree.branch,
+        worktree: worktree.cwd
+      }
+    }
     onProgress('remove worktree')
     removeReconcileWorktree(worktree, rootCwd, spawnFn)
     return { status: 'pr-created', url: createdPr, branch: worktree.branch }
@@ -1393,12 +1710,28 @@ function formatRemovedRefs(cleanup) {
 }
 
 /**
+ * Рахує точні outcomes без змішування створеного PR з CI-ready PR.
+ * @param {Array<{status:string}>} results результати materialization
+ * @returns {string} стабільний summary
+ */
+export function formatOutcomeCounts(results) {
+  const counts = new Map()
+  for (const result of results) counts.set(result.status, (counts.get(result.status) ?? 0) + 1)
+  return counts
+    .keys()
+    .toArray()
+    .toSorted((left, right) => left.localeCompare(right))
+    .map(status => `${status}=${counts.get(status)}`)
+    .join(', ')
+}
+
+/**
  * Формує deterministic report.
  * @param {{inventory:object,results:Array<object>}} args дані
  * @returns {string} markdown
  */
 export function formatReport({ inventory, results }) {
-  const lines = ['## git-reconcile: підсумок']
+  const lines = ['## git-reconcile: підсумок', `- Outcomes: ${formatOutcomeCounts(results) || 'none'}`]
   for (const branch of inventory.branches) {
     if (branch.state === 'review') continue
     let suffix = ''
@@ -1697,7 +2030,7 @@ export async function runGitReconcileOrchestrator(options = {}) {
   const baselineCache = new Map()
 
   const inventoryStartedAt = now()
-  log('⏳ 1/4 inventory')
+  log('⏳ етап 1/4: inventory')
   const inventory = inventoryFn(rootCwd, { spawnFn })
   if (deps.ensureLocalWorktreeExclude !== false) {
     const ensureExclude = deps.ensureLocalWorktreeExclude ?? ensureLocalWorktreeExclude
@@ -1705,14 +2038,14 @@ export async function runGitReconcileOrchestrator(options = {}) {
   }
   const candidates = [...inventory.branches, ...inventory.stashes].filter(item => item.state === 'review')
   log(
-    `✅ 1/4 inventory · ${elapsedLabel(inventoryStartedAt, now)} · ${inventory.branches.length} branches · ${inventory.stashes.length} stash`
+    `✅ етап 1/4: inventory · ${elapsedLabel(inventoryStartedAt, now)} · ${inventory.branches.length} branches · ${inventory.stashes.length} stash`
   )
 
   const triageTotal = Math.ceil(candidates.length / REVIEW_BATCH_SIZE)
   const triageProgress = createPhaseProgress({
     total: triageTotal,
     unitLabel: 'triage-пакетів',
-    phase: '2/4 triage',
+    phase: 'етап 2/4: triage',
     log,
     now,
     heartbeatMs,
@@ -1734,7 +2067,7 @@ export async function runGitReconcileOrchestrator(options = {}) {
   } finally {
     triageProgress.stop()
   }
-  log(`✅ 2/4 triage · ${elapsedLabel(triageStartedAt, now)} · ${triageTotal} batches`)
+  log(`✅ етап 2/4: triage · ${elapsedLabel(triageStartedAt, now)} · ${triageTotal} batches`)
 
   const prTotal = decisions.reduce((total, decision) => {
     return total + (decision.action === 'pr' && Array.isArray(decision.groups) ? decision.groups.length : 0)
@@ -1742,7 +2075,7 @@ export async function runGitReconcileOrchestrator(options = {}) {
   const prProgress = createPhaseProgress({
     total: prTotal,
     unitLabel: 'PR-груп',
-    phase: '3/4 PR',
+    phase: 'етап 3/4: PR',
     log,
     now,
     heartbeatMs,
@@ -1769,14 +2102,16 @@ export async function runGitReconcileOrchestrator(options = {}) {
   } finally {
     prProgress.stop()
   }
-  log(`✅ 3/4 PR · ${elapsedLabel(prStartedAt, now)} · ${prTotal} groups`)
+  log(
+    `✅ етап 3/4: PR · ${elapsedLabel(prStartedAt, now)} · ${prTotal} groups · ${formatOutcomeCounts(materialized.results) || 'none'}`
+  )
 
   const { bySource, results } = materialized
   const cleanupCount = countCleanupSources(inventory, bySource, results)
   const cleanupProgress = createPhaseProgress({
     total: cleanupCount,
     unitLabel: 'джерел',
-    phase: '4/4 cleanup',
+    phase: 'етап 4/4: cleanup',
     log,
     now,
     heartbeatMs,
@@ -1806,10 +2141,16 @@ export async function runGitReconcileOrchestrator(options = {}) {
   } finally {
     cleanupProgress.stop()
   }
-  log(`✅ 4/4 cleanup · ${elapsedLabel(cleanupStartedAt, now)} · ${cleanupCount} sources`)
+  log(`✅ етап 4/4: cleanup · ${elapsedLabel(cleanupStartedAt, now)} · ${cleanupCount} sources`)
 
   const report = formatReport({ inventory, results })
   log(report)
-  const ok = results.every(result => result.status !== 'failed' && result.incomplete !== true)
+  const blockingStatuses = new Set([
+    'failed',
+    'pr-checks-regressed',
+    'pr-checks-baseline-red',
+    'pr-checks-unverified'
+  ])
+  const ok = results.every(result => !blockingStatuses.has(result.status) && result.incomplete !== true)
   return { ok, report, inventory, results }
 }

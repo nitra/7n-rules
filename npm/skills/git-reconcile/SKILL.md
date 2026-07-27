@@ -44,7 +44,8 @@ time без вигаданого total, а `triage`, `PR` і `cleanup` — ок�
 append-only bar snapshots за вже відомими batches/groups/sources. Поточний
 LLM-етап показує tier `min` або `max`; довгі етапи кожні 30 секунд отримують
 heartbeat з elapsed time. Формат однаковий у TTY/CI, тому captured output не
-містить cursor-control spam.
+містить cursor-control spam. Install, tests, lint і очікування PR checks
+виконуються через non-blocking child processes, тому heartbeat не завмирає.
 
 Незалежні PR-групи виконуються з bounded concurrency `3`; override
 `N_GIT_RECONCILE_CONCURRENCY=1..4`. Порядок фінального звіту лишається
@@ -90,8 +91,14 @@ transport. Після провалу `max` джерело fail-closed лишає
 - Перед push обов'язково проходять фінальний tree-diff guard, domain lint для
   non-code paths, changelog і `git diff --check`; code changes додатково
   проходять scoped docs/lint та tests.
+- Canonical fixers охоплюють code і non-code directories; після механічного
+  виправлення фінальні gates обов'язково запускаються повторно без fix.
 - Behavioral LLM не викликається для змін без code paths; test baseline
   актуальної policy base branch кешується між PR-групами.
+- Після `gh pr create` JS чекає terminal CI state і порівнює failed checks із
+  base commit. Лише `ready` PR дозволяє cleanup; regression, baseline-red,
+  timeout, pending або unreadable checks зберігають branch, URL і worktree та
+  завершують команду non-zero.
 - Cleanup виконує лише JS і тільки після inventory/PR-фази: видаляє точні refs,
   уже merged/patch-equivalent, явно класифіковані як `drop` або повністю
   перенесені в успішний PR.
@@ -104,6 +111,8 @@ transport. Після провалу `max` джерело fail-closed лишає
 
 Оркестратор повертає для кожного джерела один verdict: `merged`,
 `patch-equivalent`, `open-pr`, `protected`, `pr-created`, `kept`,
-`drop-recommended` або `failed`. Для `pr-created` додає URL, перенесені коміти,
-конфлікти та виконані перевірки. Для cleanup ref звіт також містить точний OID
-і видалені aliases, а для failure — branch та збережений worktree.
+`drop-recommended`, `pr-checks-regressed`, `pr-checks-baseline-red`,
+`pr-checks-unverified` або `failed`. `pr-created` означає, що checks завершились
+успішно; для непідтвердженого PR звіт зберігає URL, branch, worktree і точну
+причину. Summary містить точний count кожного outcome. Для cleanup ref звіт
+також містить точний OID і видалені aliases.

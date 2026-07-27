@@ -3,6 +3,7 @@
  * orchestration без реальних worktree/push/PR.
  */
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { spawn } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { env } from 'node:process'
 import { resolve } from 'node:path'
@@ -17,18 +18,21 @@ import {
   callWithValidatedFallback,
   captureCachedBehaviorBaseline,
   changedNonCodeDirectories,
+  classifyPullRequestChecks,
   cleanupSource,
   conflictFiles,
   createPhaseProgress,
   dedupeRefs,
   ensureLocalWorktreeExclude,
   finishCherryPick,
+  formatOutcomeCounts,
   formatReport,
   hasChangesFromBase,
   normalizePrConcurrency,
   parseDecisionEnvelope,
   parseWorktrees,
   remediateBehaviorState,
+  runAsync,
   runGitReconcileOrchestrator,
   runWithConcurrency,
   skipEmptyCherryPick,
@@ -555,7 +559,7 @@ describe('worktree validation', () => {
     expect(changed).toBe(true)
   })
 
-  test('test baseline кешується за origin/main OID', () => {
+  test('test baseline кешується за origin/main OID', async () => {
     const cache = new Map()
     const calls = []
     const spawnFn = (command, args) => {
@@ -564,17 +568,17 @@ describe('worktree validation', () => {
       return { status: 0, stdout: '', stderr: '' }
     }
 
-    const first = captureCachedBehaviorBaseline('/repo-without-package-json', cache, spawnFn)
-    const second = captureCachedBehaviorBaseline('/repo-without-package-json', cache, spawnFn)
+    const first = await captureCachedBehaviorBaseline('/repo-without-package-json', cache, spawnFn)
+    const second = await captureCachedBehaviorBaseline('/repo-without-package-json', cache, spawnFn)
 
     expect(first.cached).toBe(false)
     expect(second.cached).toBe(true)
     expect(calls.filter(([, args]) => args[0] === 'rev-parse')).toHaveLength(2)
   })
 
-  test('приймає clean Git state, зелений test script і changelog gate', () => {
+  test('приймає clean Git state, зелений test script і changelog gate', async () => {
     const calls = []
-    const result = validateBehaviorState(process.cwd(), (command, args) => {
+    const result = await validateBehaviorState(process.cwd(), (command, args) => {
       calls.push([command, args])
       return { status: 0, stdout: '', stderr: '' }
     })
@@ -584,9 +588,9 @@ describe('worktree validation', () => {
     expect(calls).toContainEqual(['npx', ['@7n/rules', 'lint', 'changelog', '--no-fix']])
   })
 
-  test('test failure блокує min-результат до changelog gate', () => {
+  test('test failure блокує min-результат до changelog gate', async () => {
     const calls = []
-    const result = validateBehaviorState(process.cwd(), (command, args) => {
+    const result = await validateBehaviorState(process.cwd(), (command, args) => {
       calls.push([command, args])
       if (command === 'bun') return { status: 1, stdout: '', stderr: 'regression' }
       return { status: 0, stdout: '', stderr: '' }
@@ -597,12 +601,12 @@ describe('worktree validation', () => {
     expect(calls.some(([command]) => command === 'npx')).toBe(false)
   })
 
-  test('nested npx не успадковує package selector зовнішнього npm exec', () => {
+  test('nested npx не успадковує package selector зовнішнього npm exec', async () => {
     const previous = env.npm_config_package
     env.npm_config_package = '/tmp/outer-package'
     let npxEnv
     try {
-      const result = validateBehaviorState('/repo-without-package-json', (command, _args, options) => {
+      const result = await validateBehaviorState('/repo-without-package-json', (command, _args, options) => {
         if (command === 'npx') npxEnv = options.env
         return { status: 0, stdout: '', stderr: '' }
       })
@@ -629,9 +633,9 @@ describe('worktree validation', () => {
     expect(paths).toEqual(['rules/release', 'skills/git-reconcile'])
   })
 
-  test('final gate запускає domain lint до changelog', () => {
+  test('final gate запускає domain lint до changelog', async () => {
     const calls = []
-    const result = validateFinalProjectGates(NPM_ROOT, (command, args) => {
+    const result = await validateFinalProjectGates(NPM_ROOT, (command, args) => {
       calls.push([command, args])
       if (command === 'git' && args[0] === 'diff') {
         return { status: 0, stdout: 'skills/git-reconcile/SKILL.md\n', stderr: '' }
@@ -648,9 +652,9 @@ describe('worktree validation', () => {
     ])
   })
 
-  test('canonical remediation запускає scoped fix і changelog fix', () => {
+  test('canonical remediation запускає scoped fix і changelog fix', async () => {
     const calls = []
-    const result = remediateBehaviorState(
+    const result = await remediateBehaviorState(
       NPM_ROOT,
       (command, args) => {
         calls.push([command, args])
@@ -665,6 +669,24 @@ describe('worktree validation', () => {
     expect(result).toEqual({ attempted: true, ok: true })
     expect(calls).toContainEqual(['npx', ['@7n/rules', 'lint', '--path', 'skills/git-reconcile/js']])
     expect(calls).toContainEqual(['npx', ['@7n/rules', 'lint', 'changelog']])
+  })
+
+  test('canonical remediation виправляє non-code domain без behavioral LLM', async () => {
+    const calls = []
+    const result = await remediateBehaviorState(
+      NPM_ROOT,
+      (command, args) => {
+        calls.push([command, args])
+        if (command === 'git' && args[0] === 'diff') {
+          return { status: 0, stdout: 'skills/git-reconcile/SKILL.md\n', stderr: '' }
+        }
+        return { status: 0, stdout: '', stderr: '' }
+      },
+      { remediation: 'canonical-fixers' }
+    )
+
+    expect(result).toEqual({ attempted: true, ok: true })
+    expect(calls).toContainEqual(['npx', ['@7n/rules', 'lint', '--path', 'skills/git-reconcile']])
   })
 })
 
@@ -715,6 +737,28 @@ describe('progress і bounded concurrency', () => {
     expect(logs.some(line => line.includes('[██████████░░░░░░░░░░] 1/2 PR-груп'))).toBe(true)
     expect(logs.every(line => !line.includes(String.fromCodePoint(27)))).toBe(true)
     expect(cleared).toBe(true)
+  })
+
+  test('async child не блокує heartbeat довгої команди', async () => {
+    const logs = []
+    const progress = createPhaseProgress({
+      total: 1,
+      unitLabel: 'команд',
+      phase: 'validation',
+      log: line => {
+        logs.push(line)
+      },
+      heartbeatMs: 10
+    })
+    progress.step('slow', 'slow test')
+    const running = runAsync(process.execPath, ['-e', 'setTimeout(() => {}, 100)'], process.cwd(), spawn)
+    await new Promise(resolvePromise => {
+      setTimeout(resolvePromise, 40)
+    })
+    expect(logs.some(line => line.startsWith('💓'))).toBe(true)
+    await running
+    progress.done('slow')
+    progress.stop()
   })
 
   test('PR concurrency нормалізується до bounded 1..4', () => {
@@ -831,12 +875,12 @@ describe('runGitReconcileOrchestrator', () => {
         cleanup: { status: 'removed:stash:stash@{0}' }
       }
     ])
-    expect(logs).toContain('⏳ 1/4 inventory')
-    expect(logs.some(line => line.startsWith('✅ 1/4 inventory · 0 ms'))).toBe(true)
-    expect(logs.some(line => line.includes('2/4 triage · 1-2/2 · min'))).toBe(true)
+    expect(logs).toContain('⏳ етап 1/4: inventory')
+    expect(logs.some(line => line.startsWith('✅ етап 1/4: inventory · 0 ms'))).toBe(true)
+    expect(logs.some(line => line.includes('етап 2/4: triage · 1-2/2 · min'))).toBe(true)
     expect(logs.some(line => line.includes('1/1 triage-пакетів'))).toBe(true)
-    expect(logs.some(line => line.includes(`3/4 PR · 1/1 · ${REVIEW_BRANCH.source} · worktree`))).toBe(true)
-    expect(logs.some(line => line.includes('4/4 cleanup · stash:stash@{0}'))).toBe(true)
+    expect(logs.some(line => line.includes(`етап 3/4: PR · 1/1 · ${REVIEW_BRANCH.source} · worktree`))).toBe(true)
+    expect(logs.some(line => line.includes('етап 4/4: cleanup · stash:stash@{0}'))).toBe(true)
     expect(logs.some(line => line.includes('3/3 джерел'))).toBe(true)
     expect(logs.at(-1)).toContain('drop-recommended')
   })
@@ -899,6 +943,49 @@ describe('runGitReconcileOrchestrator', () => {
     expect(result.ok).toBe(false)
     expect(result.report).toContain('tests failed')
     expect(result.results[0].worktree).toBe('/repo/.worktrees/reconcile-useful')
+  })
+
+  test('непідтверджені PR checks блокують cleanup і загальний success', async () => {
+    const cleanupCalls = []
+    const result = await runGitReconcileOrchestrator({
+      cwd: '/repo',
+      log: noop,
+      deps: {
+        inventoryRepository: () => inventory({ stashes: [] }),
+        cleanupSource: candidate => {
+          cleanupCalls.push(candidate.source)
+          return { status: 'removed' }
+        },
+        callRunner: () =>
+          Promise.resolve({
+            ok: true,
+            error: null,
+            text: JSON.stringify({
+              decisions: [
+                {
+                  source: REVIEW_BRANCH.source,
+                  action: 'pr',
+                  rationale: 'готовий fix',
+                  groups: [{ title: 'fix: useful', commits: ['abc123'] }]
+                }
+              ]
+            })
+          }),
+        createPullRequest: () =>
+          Promise.resolve({
+            status: 'pr-checks-regressed',
+            branch: 'codex/reconcile-useful',
+            url: 'https://example.test/pr/1',
+            worktree: '/repo/.worktrees/reconcile-useful',
+            error: 'new failed check'
+          })
+      }
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.results[0].status).toBe('pr-checks-regressed')
+    expect(result.results[0].worktree).toBe('/repo/.worktrees/reconcile-useful')
+    expect(cleanupCalls).toEqual(['branch:refs/remotes/origin/already-merged'])
   })
 
   test('worktree setup failure fail-closed лишає source і зберігає фактичний collision path та spawnSync ENOENT', async () => {
@@ -1064,5 +1151,32 @@ describe('report helpers', () => {
     expect(report).toContain('/repo/.worktrees/protected')
     expect(report).toContain('https://example.test/pr/2')
     expect(report).toContain('gh недоступний')
+  })
+
+  test('PR checks розрізняють ready, baseline red, regression і pending', () => {
+    expect(classifyPullRequestChecks([{ name: 'test', conclusion: 'SUCCESS' }], [])).toEqual({ status: 'ready' })
+    expect(
+      classifyPullRequestChecks(
+        [{ name: 'test', conclusion: 'FAILURE' }],
+        [{ name: 'test', conclusion: 'FAILURE' }]
+      ).status
+    ).toBe('pr-checks-baseline-red')
+    expect(classifyPullRequestChecks([{ name: 'test', conclusion: 'FAILURE' }], []).status).toBe(
+      'pr-checks-regressed'
+    )
+    expect(classifyPullRequestChecks([{ name: 'test', status: 'IN_PROGRESS' }], []).status).toBe(
+      'pr-checks-unverified'
+    )
+  })
+
+  test('outcome counters точні й deterministic', () => {
+    expect(
+      formatOutcomeCounts([
+        { status: 'pr-created' },
+        { status: 'kept' },
+        { status: 'pr-created' },
+        { status: 'pr-checks-unverified' }
+      ])
+    ).toBe('kept=1, pr-checks-unverified=1, pr-created=2')
   })
 })
