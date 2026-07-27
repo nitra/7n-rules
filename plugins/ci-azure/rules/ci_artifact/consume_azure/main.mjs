@@ -4,7 +4,6 @@ import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/viol
 
 // `slots/` — публікується разом з пакетом (spec §7.3); `package.json#files` цього плагіна
 // доповнить оркестратор інтеграції (Фаза 3 явно НЕ чіпає plugin manifests, spec-задача).
-// eslint-disable-next-line n/no-unpublished-import
 import { diagnoseArtifact, loadCanonicalCommand } from '../../../slots/ci-artifact-consumer.mjs'
 import { collectArtifacts } from './collect-artifacts.mjs'
 

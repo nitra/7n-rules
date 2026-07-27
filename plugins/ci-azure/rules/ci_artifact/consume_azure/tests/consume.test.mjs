@@ -16,7 +16,7 @@ import { clearPluginResolveCache } from '@7n/rules/scripts/lib/resolve-plugins.m
 import { withTmpDir, writeJson } from '@7n/rules/scripts/utils/test-helpers.mjs'
 
 const ruleId = 'rules/ci_artifact'
-const concernId = 'rules/ci_artifact/consume'
+const concernId = 'rules/ci_artifact/consume_azure'
 const TARGET_PATH = 'azure-pipelines.yml'
 const DOT_PREFIX_RE = /^\.\//u
 

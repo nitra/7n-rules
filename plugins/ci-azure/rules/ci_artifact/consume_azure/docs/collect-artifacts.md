@@ -1,7 +1,7 @@
 ---
 type: JS Module
 title: collect-artifacts.mjs
-resource: plugins/ci-azure/rules/ci_artifact/consume/collect-artifacts.mjs
+resource: plugins/ci-azure/rules/ci_artifact/consume_azure/collect-artifacts.mjs
 docgen:
   crc: 74241d83
 ---

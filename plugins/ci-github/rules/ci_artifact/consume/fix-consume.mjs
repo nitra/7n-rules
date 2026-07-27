@@ -8,7 +8,6 @@
  * попередньої contribution, тож contribution Б (напр. `patch-existing`) бачить уже застосовану
  * contribution А (напр. `required-file`).
  */
-// eslint-disable-next-line n/no-unpublished-import
 import { applyDeepSubsetFix, loadCanonicalTemplate } from '../../../slots/ci-artifact-consumer.mjs'
 import { collectArtifacts } from './collect-artifacts.mjs'
 
