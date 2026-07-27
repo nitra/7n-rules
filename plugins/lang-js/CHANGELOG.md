@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.22] - 2026-07-27
+
+### Fixed
+
+- normalize licensee allowlist and workspace license metadata
+- js-bun-db/bun-sql-scan: переформулювання у docs/bun-sql-scan.md для проходження cspell (repo-wide text-lint fix)
+
 ## [0.22.21] - 2026-07-27
 
 ### Fixed

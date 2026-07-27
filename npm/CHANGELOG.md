@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.51.0] - 2026-07-27
+
+### Added
+
+- doc-files/docgen-files-batch: `defaultLocalProviders()` перенесено в `@7n/llm-lib/local-providers` — batch-шлях тепер конфігурує і omlx, і litellm одночасно замість лише omlx
+
+### Fixed
+
+- doc-files/docgen-gen, release: переформулювання у docs/main.md і docs/release.md для проходження cspell (repo-wide text-lint fix); .cspell.json: додано rebuildable/rollups до словника (npm/CHANGELOG.md не редагується вручну)
+
 ## [1.50.2] - 2026-07-27
 
 ### Fixed
