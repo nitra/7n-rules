@@ -13,7 +13,7 @@ docgen:
 
 ## Огляд
 
-AST-сканер для Bun SQL (`import { sql, SQL } from 'bun'`) знаходить міграційно небезпечні патерни через `oxc-parser`, без regex по тексту коду. Він виявляє `new SQL` всередині функції, бо пул підключень має бути module-level singleton, а не створюватися на кожен виклик handler-а.
+AST-сканер для Bun SQL (`import { sql, SQL } from 'bun'`) знаходить патерни, небезпечні для міграції, через `oxc-parser`, без regex по тексту коду. Він виявляє `new SQL` всередині функції, бо пул підключень має бути module-level singleton, а не створюватися на кожен виклик handler-а.
 
 Сканер забороняє будь-який `<obj>.unsafe` без маркера `// n-rules:allow-unsafe: <reason>` на тому ж або попередньому рядку. Виняток має бути явно пояснений для ревʼю: `unsafe` допустимий лише для контрольованих кодом SQL-ідентифікаторів або dynamic SQL/DDL, а не для user input.
 
@@ -21,7 +21,7 @@ AST-сканер для Bun SQL (`import { sql, SQL } from 'bun'`) знаход�
 
 ## Поведінка
 
-Сканування починається з відбору файлів через isBunSqlScanSourceFile або дешевих текстових pre-filterʼів на кшталт textHasPgLibImport. Далі публічні пошукові функції отримують вихідний текст, будують AST і повертають списки знахідок із рядком та фрагментом коду; якщо код не парситься, результат порожній, бо синтаксис має бути виправлений до повторної перевірки.
+Сканування починається з відбору файлів через isBunSqlScanSourceFile або дешевих текстових попередніх фільтрів на кшталт textHasPgLibImport. Далі публічні пошукові функції отримують вихідний текст, будують AST і повертають списки знахідок із рядком та фрагментом коду; якщо код не парситься, результат порожній, бо синтаксис має бути виправлений до повторної перевірки.
 
 findBunSqlPerRequestConnectionInText, findBunSqlUnsafeUseWithoutAllowMarkerInText, findBunSqlUnsafeWithInterpolatedTemplateInText, findBunSqlPgLeftoverCallInText, findUnsafeBunSqlDynamicSqlListInText, findUnsafeBunSqlInListMissingEmptyGuardInText, findJsonStringifyBeforeJsonbInText і findSqlArrayWithoutTypeArgInText разом формують перевірки міграції на Bun SQL: вони ловлять створення пулу в runtime-шляху, небезпечний dynamic SQL, залишки pg-поведінки, некоректні списки, зайву JSON-серіалізацію та масиви без явного pg-типу. Маркери дозволу враховуються лише як локальний opt-in для ревʼю і повідомлень правила (js-bun-db.mdc), але не скасовують заборону на інтерпольовані unsafe-шаблони.
 
