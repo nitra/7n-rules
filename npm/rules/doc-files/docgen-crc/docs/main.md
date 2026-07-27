@@ -3,41 +3,35 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/doc-files/docgen-crc/main.mjs
 docgen:
-  crc: fdddffc3
+  crc: d4e4c192
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100
-  issues: judge:error
+  issues: judge-refine:kept-original,judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-`crc32` обчислює детермінований 8-символьний hex CRC для рядка або Buffer; `documentationCrc` і `parseDocFrontmatter` зв’язують вміст документа з його frontmatter. `buildDocFrontmatter` і `stampDoc` записують fresh metadata для `CRC`, `model`, `tier` та `quality`, причому `stampDoc` ще й керує маркером `degraded`. `readDocCrc`, `readDocModel`, `readDocTier` і `readDocQuality` відновлюють ці значення з доки, а `QUALITY_THRESHOLD` задає дефолтний поріг 70. `staleness` порівнює source і doc, щоб відрізняти `missing`, `crc-mismatch` і `fresh`.
+Модуль працює з Markdown frontmatter як зі сховищем службових відомостей документа: витягує їх через `parseDocFrontmatter`, формує через `buildDocFrontmatter`, позначає через `stampDoc` і оцінює актуальність через `staleness`. Для контролю стану доки він читає окремі поля за допомогою `readDocCrc`, `readDocQuality`, `readDocModel` і `readDocTier`, а `documentationCrc` та `crc32` використовує для обчислення контрольної суми. `QUALITY_THRESHOLD` задає межу, нижче якої якість вважається недостатньою.
 
 ## Поведінка
 
-QUALITY_THRESHOLD задає дефолтний поріг оцінки якості для читання й маркування доки; у перевірених сценаріях цей поріг дорівнює 70.
+`QUALITY_THRESHOLD` задає межу, нижче якої дока вважається недостатньо якісною для стабільного стану; це правило впливає на оцінку, але не змінює саме обчислення CRC.
 
-crc32 дає детермінований 8-символьний hex для рядка або Buffer; однаковий вміст завжди дає той самий CRC, а різний — інший; відомий вектор `123456789` зводиться до `cbf43926`.
+`crc32` є базовим примітивом для всіх перевірок цілісності: з нього формується короткий hex-ідентифікатор, який далі зберігається у frontmatter або використовується для порівняння актуальності.
 
-documentationCrc обчислює CRC для поведінкової документації не лише з джерела, а й з пов’язаного evidence тестів, якщо він є; без пов’язаних тестів лишається сумісним із CRC самого source, тож зміна лише сценарію використання робить доку застарілою.
+`documentationCrc` об’єднує source з пов’язаними тестами, якщо такий evidence доступний, і повертає єдиний CRC для доки; без пов’язаних тестів лишається сумісним зі старим варіантом, де враховується лише source.
 
-parseDocFrontmatter відокремлює frontmatter від тіла доки й повертає нормалізовані метадані; якщо frontmatter немає, тіло лишається без змін, а метадані відсутні; старі доки без частини полів читаються як сумісні: відсутні `model`, `tier`, `score`, `issues` та `judgeModel` стають порожніми значеннями.
+`parseDocFrontmatter` відокремлює службові метадані доки від її тіла та нормалізує відсутні поля до безпечних значень, щоб інші читачі могли працювати і зі старими, і з новими документами.
 
-buildDocFrontmatter формує frontmatter так, щоб спочатку були OKF-поля джерела, а потім вкладений блок якості та генератора; `model` і `tier` додаються лише коли вони є, а `issues` скорочуються до YAML-безпечних кодів і мають обмеження на кількість; quality може співіснувати з model, причому score та issues зберігаються й читаються назад без втрат.
+`buildDocFrontmatter` збирає канонічний frontmatter для доки на основі source, CRC і якості, тримаючи OKF-поля на верхньому рівні, а службові дані — у вкладеному `docgen:`.
 
-stampDoc переоформлює існуючу MD-доку: знімає старий frontmatter і додає свіжий, не змінюючи тіло; коли quality є, у frontmatter лишається degraded-сигнал разом із score/issues, а коли quality зникає — цей стан теж знімається; `model` переноситься у новий frontmatter разом із рештою актуальних метаданих.
+`stampDoc` застосовує цей канонічний frontmatter до Markdown-документа: забирає старий блок, якщо він є, і замінює його свіжими даними з поточного source та оцінки.
 
-readDocCrc повертає CRC, уже записаний у frontmatter; якщо доки немає або CRC не зафіксований, результат `null`.
+`readDocCrc`, `readDocQuality`, `readDocModel` і `readDocTier` працюють як читачі збереженого стану доки: вони беруть дані з frontmatter, не залежачи від тіла документа, і повертають відсутні значення як `null` або порожні списки там, де це сумісно зі старими файлами.
 
-readDocQuality читає збережену оцінку доки; за відсутності доки або score повертає `score: null`, порожній список issues і `judgeModel: null`; коли якість записана, значення відновлюються назад без втрат.
-
-readDocModel повертає збережену модель генератора або `null`, якщо доки немає чи поле не записане.
-
-readDocTier повертає tier моделі генератора або `null`, якщо доки немає чи поле не записане.
-
-staleness порівнює evidence source з CRC, записаним у відповідній доці: коли доки немає, стан `missing`; коли CRC не збігається, `crc-mismatch`; при збігу дока свіжа; для пов’язаних тестів у evidence враховується й їхній вплив на CRC доки, тому зміна сценарію використання може зробити документацію stale навіть без зміни source.
+`staleness` зводить усе разом: порівнює збережений CRC доки з актуальним evidence CRC і визначає, чи дока відсутня, чи стала застарілою, чи лишається свіжою.
 
 ## Публічний API
 
@@ -61,6 +55,11 @@ back-compatible CRC самого source; за наявності тестів д
 - readDocTier — Tier моделі-генератора зі frontmatter доки; `null` — доки немає або поле відсутнє.
 - staleness — Стан застарілості доки відносно evidence: source + повʼязані тести.
 `missing` — доки немає; `crc-mismatch` — evidence CRC ≠ CRC у доці; інакше свіжа.
+
+## Сценарії використання
+
+- `npm/rules/doc-files/docgen-crc/tests/docgen-crc.test.mjs` (crc32; frontmatter) — детермінований, 8-символьний hex; різний вміст → різний CRC; той самий — однаковий для рядка і Buffer; відомий вектор: CRC32; buildDocFrontmatter → парситься назад (без quality — score:null); model: повний id пишеться після crc і парситься назад; ще 15
+- `npm/rules/doc-files/tests/main.test.mjs` (lint — детект (read-only detector)) — ci (files=undefined): ловить відсутню доку у дереві; ci: свіжа дока → 0 violations; quick: змінене джерело без доки → violation; порожній набір → 0; quick: не шукає сирітські docs поза explicit files; quick: реверс-мапінг — змінена дока веде до перевірки джерела; ще 6
 
 ## Гарантії поведінки
 

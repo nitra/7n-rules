@@ -2,11 +2,12 @@
 import { extractUnitsRs } from './units-rs.mjs'
 
 /**
- * Мовний doc-files-екстрактор Rust для конвеєра `@7n/rules` (extension-point
- * `doc-files`, фаза 4 spec lang-plugins-extraction): факт-лист (`extractFacts`)
- * і юніти (`extractUnits`) для `.rs`-файлів. Розширення `.rs` → 'Rust Module'
- * декларується маніфестом плагіна (`contributes.docFiles.extensions`) — hot-path
- * ядра читає його синхронно; цей модуль вантажиться лише на шляху генерації.
+ * Мовний doc-files-екстрактор Rust для конвеєра `@7n/rules` (слот
+ * `doc-files.extractor@1`, фаза 4 spec lang-plugins-extraction): факт-лист
+ * (`extractFacts`) і юніти (`extractUnits`) для `.rs`-файлів. Розширення
+ * `.rs` → 'Rust Module' декларується окремою contribution-ою
+ * `doc-files.extensions@1` (inline `value`) — hot-path ядра читає її синхронно;
+ * цей модуль (resource) вантажиться лише на шляху генерації.
  */
 
 // ── Rust-екстрактор ──────────────────────────────────────────────────────────

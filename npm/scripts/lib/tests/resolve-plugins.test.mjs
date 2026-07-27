@@ -1,6 +1,11 @@
 /**
  * Тести резолву плагінів: детект за файлами/repository.url, пріоритет config.plugins,
- * graceful skip невстановлених, читання маніфесту (capabilities/handlers), кеш.
+ * graceful skip невстановлених, читання маніфесту (capabilities/requiresPluginApi/slots), кеш.
+ *
+ * Composition-поверхні (rules.directory, taze.provider, coverage.provider, doc-files.*,
+ * skills.fragment) переїхали на `plugin-slots.mjs` (Фаза 2, spec
+ * 2026-07-27-universal-plugin-slots-lang-php-extraction) — їхні тести там-таки, разом з
+ * broker-тестами Фази 1 (`plugin-slots.test.mjs`).
  */
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -11,14 +16,11 @@ import {
   clearPluginResolveCache,
   detectPluginsFromRepo,
   ensurePluginInstalled,
-  getActiveCapabilities,
-  getHandlers,
   getUnavailableDeclaredPlugins,
   KNOWN_PLUGIN_RANGES,
   pluginCategory,
   resolvePluginList,
-  resolvePlugins,
-  resolveRulesDirs
+  resolvePlugins
 } from '../resolve-plugins.mjs'
 import { PLUGIN_API_VERSION } from '../plugin-api.mjs'
 import { withTmpDir } from '../../utils/test-helpers.mjs'
@@ -47,21 +49,17 @@ function materializeFakePluginSync(dir, name) {
 }
 
 /**
- * Створює фейковий встановлений плагін у node_modules tmp-репо.
+ * Створює фейковий встановлений плагін у node_modules tmp-репо (без фізичного `rules/` —
+ * legacy `contributes.rules`-гейт видалено Фазою 2, resolvePlugins() більше не вимагає
+ * каталогу правил для жодного плагіна).
  * @param {string} dir корінь tmp-репо
  * @param {string} name npm-ім'я плагіна
- * @param {{ manifest?: object, withRules?: boolean }} [opts] manifest — блок n-rules; withRules=false — без rules/
+ * @param {{ manifest?: object }} [opts] manifest — блок n-rules
  */
 async function writeFakePlugin(dir, name, opts = {}) {
   const root = join(dir, 'node_modules', name)
   await mkdir(root, { recursive: true })
   await writeFile(join(root, 'package.json'), JSON.stringify({ name, version: '1.0.0', 'n-rules': opts.manifest }))
-  if (opts.withRules !== false) {
-    const ruleDir = join(root, 'rules', 'fake-rule')
-    await mkdir(ruleDir, { recursive: true })
-    await writeFile(join(ruleDir, 'main.json'), JSON.stringify({ auto: 'завжди' }))
-    await writeFile(join(ruleDir, 'main.mdc'), '---\ndescription: fake\n---\nfake\n')
-  }
 }
 
 describe('detectPluginsFromRepo', () => {
@@ -238,7 +236,7 @@ describe('resolvePluginList', () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'x' }))
       const warn = vi.spyOn(console, 'warn').mockImplementation(noop)
-      // Реальний виклик у n-rules.js: напряму (readConfig) + всередині resolveRulesDirs →
+      // Реальний виклик у n-rules.js: напряму (readConfig) + всередині resolveSlotGraph →
       // resolvePlugins — той самий (projectRoot, declared) не повинен друкувати warning двічі.
       const config = { plugins: ['@7n/rules-ci-github'] }
       const a = resolvePluginList(dir, config)
@@ -267,15 +265,13 @@ describe('resolvePluginList', () => {
 })
 
 describe('resolvePlugins', () => {
-  test('встановлений плагін резолвиться з manifest-ом', async () => {
+  test('встановлений плагін резолвиться з manifest-ом (без вимоги фізичного rules/)', async () => {
     await withTmpDir(async dir => {
-      await writeFakePlugin(dir, '@7n/rules-ci-azure', {
-        manifest: { capabilities: ['ci:azure'], contributes: { handlers: { 'doc-files': './handlers/x.mjs' } } }
-      })
+      await writeFakePlugin(dir, '@7n/rules-ci-azure', { manifest: { capabilities: ['ci:azure'] } })
       const plugins = resolvePlugins(dir, { plugins: ['@7n/rules-ci-azure'] })
       expect(plugins).toHaveLength(1)
       expect(plugins[0].name).toBe('@7n/rules-ci-azure')
-      expect(plugins[0].rulesDir.endsWith(join('node_modules', '@7n/rules-ci-azure', 'rules'))).toBe(true)
+      expect(plugins[0].packageRoot.endsWith(join('node_modules', '@7n/rules-ci-azure'))).toBe(true)
       expect(plugins[0].manifest.capabilities).toEqual(['ci:azure'])
     })
   })
@@ -289,38 +285,12 @@ describe('resolvePlugins', () => {
     })
   })
 
-  test('плагін без rules/, що ДЕКЛАРУЄ правила — warning + skip (битий пакет)', async () => {
+  test('плагін без rules/ — легальний (legacy contributes.rules-гейт видалено Фазою 2)', async () => {
     await withTmpDir(async dir => {
-      await writeFakePlugin(dir, '@x/no-rules', { withRules: false })
-      const warn = vi.spyOn(console, 'warn').mockImplementation(noop)
-      expect(resolvePlugins(dir, { plugins: ['@x/no-rules'] }, { allowInstall: false })).toEqual([])
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('без каталогу rules/'))
-    })
-  })
-
-  test('плагін без rules/ з contributes.rules:false — легальний (лише handlers, як lang-*)', async () => {
-    await withTmpDir(async dir => {
-      await writeFakePlugin(dir, '@7n/rules-lang-python', {
-        withRules: false,
-        manifest: {
-          capabilities: ['lang:python'],
-          contributes: { rules: false, handlers: { taze: './taze/provider.mjs' } }
-        }
-      })
+      await writeFakePlugin(dir, '@7n/rules-lang-python', { manifest: { capabilities: ['lang:python'] } })
       const plugins = resolvePlugins(dir, { plugins: ['@7n/rules-lang-python'] }, { allowInstall: false })
       expect(plugins).toHaveLength(1)
-      expect(plugins[0].manifest.contributes.rules).toBe(false)
-
-      // resolveRulesDirs НЕ включає такий плагін (нема що зливати).
-      const dirs = resolveRulesDirs(dir, { plugins: ['@7n/rules-lang-python'] }, '/bundled/rules', {
-        allowInstall: false
-      })
-      expect(dirs.map(d => d.name)).toEqual(['@7n/rules'])
-
-      // Але handlers і capabilities доступні.
-      expect(getHandlers(dir, { plugins: ['@7n/rules-lang-python'] }, 'taze')).toHaveLength(1)
-      const caps = getActiveCapabilities(dir, { plugins: ['@7n/rules-lang-python'] }, { allowInstall: false })
-      expect([...caps]).toEqual(['lang:python'])
+      expect(plugins[0].manifest.capabilities).toEqual(['lang:python'])
     })
   })
 
@@ -457,39 +427,6 @@ describe('ensurePluginInstalled', () => {
       const spawnFn = vi.fn(() => ({ status: 1, stdout: '', stderr: 'offline' }))
       expect(ensurePluginInstalled(dir, '@7n/rules-lang-python', spawnFn)).toBe(false)
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('@7n/rules-lang-python'))
-    })
-  })
-})
-
-describe('resolveRulesDirs / capabilities / handlers', () => {
-  test('ядро завжди перше, плагіни за ним', async () => {
-    await withTmpDir(async dir => {
-      await writeFakePlugin(dir, '@x/p', { manifest: { capabilities: ['ci:azure'] } })
-      const dirs = resolveRulesDirs(dir, { plugins: ['@x/p'] }, '/bundled/rules', { allowInstall: false })
-      expect(dirs.map(d => d.name)).toEqual(['@7n/rules', '@x/p'])
-      expect(dirs[0].rulesDir).toBe('/bundled/rules')
-    })
-  })
-
-  test('getActiveCapabilities агрегує з усіх плагінів', async () => {
-    await withTmpDir(async dir => {
-      await writeFakePlugin(dir, '@x/a', { manifest: { capabilities: ['ci:github', 'x:y'] } })
-      await writeFakePlugin(dir, '@x/b', { manifest: { capabilities: ['ci:azure'] } })
-      const caps = getActiveCapabilities(dir, { plugins: ['@x/a', '@x/b'] }, { allowInstall: false })
-      expect([...caps].toSorted()).toEqual(['ci:azure', 'ci:github', 'x:y'])
-    })
-  })
-
-  test('getHandlers повертає абсолютні шляхи модулів', async () => {
-    await withTmpDir(async dir => {
-      await writeFakePlugin(dir, '@x/lang-rust', {
-        manifest: { contributes: { handlers: { 'doc-files': './handlers/rust.mjs' } } }
-      })
-      const handlers = getHandlers(dir, { plugins: ['@x/lang-rust'] }, 'doc-files')
-      expect(handlers).toHaveLength(1)
-      expect(handlers[0].pluginName).toBe('@x/lang-rust')
-      expect(handlers[0].modulePath.endsWith(join('@x/lang-rust', 'handlers/rust.mjs'))).toBe(true)
-      expect(getHandlers(dir, { plugins: ['@x/lang-rust'] }, 'unknown')).toEqual([])
     })
   })
 })

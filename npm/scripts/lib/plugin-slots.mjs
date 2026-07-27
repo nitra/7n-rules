@@ -1,6 +1,7 @@
 /**
  * Universal typed slot bus для плагінів `@7n/rules` (spec
- * `2026-07-27-universal-plugin-slots-lang-php-extraction`, Фаза 1 — контракт і broker).
+ * `2026-07-27-universal-plugin-slots-lang-php-extraction`, Фаза 1 — контракт і broker; Фаза 2 —
+ * усі first-party core consumers переведені на нього, legacy `contributes`-шлях видалено).
  *
  * Один плагін-маніфест (`package.json#n-rules`) може декларувати `slots.provides` (contributions —
  * immutable дані чи посилання на package-relative resource) і `slots.consumes` (consumers — які
@@ -8,8 +9,8 @@
  *
  * - резолвить усі `requiresPluginApi === 2` плагіни (через наявний {@link resolvePlugins}) у один
  *   immutable граф contributions/consumers/diagnostics (`resolveSlotGraph`, СИНХРОННО — той самий
- *   hot-path-контракт, що вже мав `getDocFilesExtensions`: hook на кожен файл не може платити за
- *   динамічний import);
+ *   hot-path-контракт, що мав ще legacy doc-files-розширення до Фази 2: hook на кожен файл не може
+ *   платити за динамічний import);
  * - валідує envelope (slot/version/id regex, рівно один з resource/value, безпечність шляху —
  *   без абсолютних шляхів, `..`-сегментів і symlink escape за межі packageRoot);
  * - НІКОЛИ не читає вміст `resource` і не імпортує consumer-handler під час discovery — це
@@ -17,10 +18,9 @@
  *   імпорт відбувається лише в {@link loadSlotConsumer}, яку викликає сам surface, що знає, який
  *   slot він матеріалізує.
  *
- * Плагіни без `requiresPluginApi === 2` (усі, що існують станом на Фазу 1 — жоден маніфест його ще
- * не декларує) не потрапляють у граф — вони отримують diagnostic і далі обслуговуються legacy
- * `contributes`-поверхнями `resolve-plugins.mjs` без змін (Фаза 2 видаляє legacy шлях, не ця
- * фаза). Це навмисний перехідний стан.
+ * Плагін без `requiresPluginApi === 2` не потрапляє у граф — з Фази 2 це означає, що жодна
+ * first-party поверхня (rules, taze, coverage, doc-files, skill-фрагменти) його НЕ бачить: warning
+ * diagnostic, а не мовчазна деградація. Це не перехідний стан, а цільова поведінка §9.2.
  */
 import { existsSync, realpathSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, resolve as resolvePath, sep } from 'node:path'
@@ -400,7 +400,7 @@ function acceptPlugin(plugin, diagnostics) {
         name,
         null,
         null,
-        `Плагін ${name} не входить у slot graph: очікується requiresPluginApi=${PLUGIN_API_VERSION}, отримано ${actual} — обслуговується legacy contributes-поверхнями до Фази 2.`
+        `Плагін ${name} не входить у slot graph: очікується requiresPluginApi=${PLUGIN_API_VERSION}, отримано ${actual} — жодна first-party поверхня (rules/taze/coverage/doc-files/skills) його не бачить, онови плагін.`
       )
     )
     return false
@@ -510,9 +510,9 @@ function appendVersionMismatchDiagnostics(contributions, consumers, diagnostics)
  * {@link resolvePlugins}). Hot-path-контракт: без await, без динамічного import — читає лише те,
  * що вже на диску (existsSync/realpathSync), ніколи не викликає consumer-handler.
  *
- * Плагін без `requiresPluginApi === 2` НЕ входить у граф (§9.2) — легітимний перехідний стан,
- * доки Фаза 2 не переведе first-party плагіни на slots; такий плагін і далі обслуговується
- * legacy `contributes`-поверхнями `resolve-plugins.mjs` без змін.
+ * Плагін без `requiresPluginApi === 2` НЕ входить у граф (§9.2) — з Фази 2 (legacy `contributes`
+ * повністю видалено) це означає, що жодна first-party поверхня його не бачить: warning
+ * diagnostic, а не мовчазна деградація до старого шляху.
  *
  * Три послідовні проходи (винесені у {@link acceptPlugin}/{@link collectPluginContributions}/
  * {@link collectPluginConsumers}/{@link appendVersionMismatchDiagnostics} — інакше єдина функція
@@ -595,6 +595,44 @@ export function getSlotContributions(graph, slot, supportedVersions) {
  */
 export function getSlotConsumers(graph, slot) {
   return graph.consumers.filter(c => c.slot === slot)
+}
+
+/**
+ * Rules-каталоги для всіх поверхонь ядра (Фаза 2, spec §5.1.1/§5.1.4): ядро першим (його
+ * правила/концерни виграють колізії), далі `rules.directory@1` contributions у порядку графа
+ * (resolved plugin order → manifest order). Замінює legacy `resolveRulesDirs`
+ * (`resolve-plugins.mjs`, видалено) — та сама сигнатура/форма результату, тепер повністю на
+ * slot graph: плагін-contributor більше не мусить фізично мати `rules/` за конвенцією, лише
+ * валідний `rules.directory@1` resource (будь-який безпечний package-relative шлях).
+ * @param {string} projectRoot корінь репозиторію
+ * @param {{ plugins?: unknown } | null | undefined} config розпарсений `.n-rules.json`
+ * @param {string} bundledRulesDir `rules/` встановленого/вбудованого ядра
+ * @param {{ allowInstall?: boolean, quiet?: boolean }} [options] прокидається у {@link resolveSlotGraph}
+ * @returns {Array<{ name: string, rulesDir: string, packageRoot: string | null }>} джерела правил
+ */
+export function resolveRulesDirs(projectRoot, config, bundledRulesDir, options = {}) {
+  const graph = resolveSlotGraph(projectRoot, config, options)
+  const contributions = getSlotContributions(graph, 'rules.directory', [1])
+  return [
+    { name: '@7n/rules', rulesDir: bundledRulesDir, packageRoot: null },
+    ...contributions.map(c => ({ name: c.pluginName, rulesDir: c.resourcePath, packageRoot: c.packageRoot }))
+  ]
+}
+
+/**
+ * Активні capabilities від усіх доступних плагінів (spec §5.1.11) — та сама сигнатура/семантика,
+ * що legacy `getActiveCapabilities` (`resolve-plugins.mjs`, видалено), тепер живиться з
+ * {@link resolveSlotGraph}: `graph.capabilities` уже агрегує capabilities УСІХ наявних плагінів
+ * (не лише тих, що увійшли у slot graph — гейт `requiresPluginApi` тут не застосовний, capability
+ * gate має лишатись коректним і під час поетапної Фази 2-міграції). Повертає ту саму (кешовану на
+ * графі) мутабельну референцію `Set` — викликачі лише читають (`.has`), не мутують.
+ * @param {string} projectRoot корінь репозиторію
+ * @param {{ plugins?: unknown } | null | undefined} config розпарсений `.n-rules.json`
+ * @param {{ allowInstall?: boolean, quiet?: boolean }} [options] прокидається у {@link resolveSlotGraph}
+ * @returns {Set<string>} набір capability-рядків (напр. `ci:github`)
+ */
+export function getActiveCapabilities(projectRoot, config, options = {}) {
+  return resolveSlotGraph(projectRoot, config, options).capabilities
 }
 
 /**

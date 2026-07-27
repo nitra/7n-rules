@@ -10,7 +10,7 @@
     "requiresPluginApi": {
       "type": "integer",
       "minimum": 1,
-      "description": "Версія контракту plugin-api, яку декларує плагін (поточна core-вимога — PLUGIN_API_VERSION у plugin-api.mjs, зараз 2). Плагін з іншим значенням (або без цього поля) не входить у slot graph — legacy contributes-поверхні обслуговують його без змін до Фази 2."
+      "description": "Версія контракту plugin-api, яку декларує плагін (поточна core-вимога — PLUGIN_API_VERSION у plugin-api.mjs, зараз 2). Плагін з іншим значенням (або без цього поля) не входить у slot graph — жодна first-party поверхня (rules/taze/coverage/doc-files/skills) його не бачить."
     },
     "capabilities": {
       "type": "array",

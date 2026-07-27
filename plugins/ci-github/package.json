@@ -29,11 +29,14 @@
     "!**/tests/**"
   ],
   "n-rules": {
+    "requiresPluginApi": 2,
     "capabilities": [
       "ci:github"
     ],
-    "contributes": {
-      "rules": true
+    "slots": {
+      "provides": [
+        { "slot": "rules.directory", "version": 1, "id": "github-rules", "resource": "./rules" }
+      ]
     }
   },
   "peerDependencies": {

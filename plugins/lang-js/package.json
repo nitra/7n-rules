@@ -33,24 +33,29 @@
     "!**/tests/**"
   ],
   "n-rules": {
+    "requiresPluginApi": 2,
     "capabilities": [
       "lang:js"
     ],
-    "contributes": {
-      "rules": true,
-      "handlers": {
-        "taze": "./taze/provider.mjs",
-        "doc-files": "./doc-files/extractors.mjs",
-        "coverage": "./coverage-provider/provider.mjs"
-      },
-      "docFiles": {
-        "extensions": {
-          ".js": "JS Module",
-          ".mjs": "JS Module",
-          ".ts": "TS Module",
-          ".vue": "Vue Component"
-        }
-      }
+    "slots": {
+      "provides": [
+        { "slot": "rules.directory", "version": 1, "id": "js-rules", "resource": "./rules" },
+        { "slot": "taze.provider", "version": 1, "id": "taze-js", "resource": "./taze/provider.mjs" },
+        { "slot": "coverage.provider", "version": 1, "id": "coverage-js", "resource": "./coverage-provider/provider.mjs" },
+        { "slot": "doc-files.extractor", "version": 1, "id": "doc-files-js", "resource": "./doc-files/extractors.mjs" },
+        {
+          "slot": "doc-files.extensions",
+          "version": 1,
+          "id": "doc-files-ext-js",
+          "value": {
+            ".js": "JS Module",
+            ".mjs": "JS Module",
+            ".ts": "TS Module",
+            ".vue": "Vue Component"
+          }
+        },
+        { "slot": "skills.fragment", "version": 1, "id": "taze", "resource": "./skills/taze/SKILL.fragment.md" }
+      ]
     }
   },
   "dependencies": {

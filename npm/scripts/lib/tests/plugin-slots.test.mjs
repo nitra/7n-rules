@@ -12,9 +12,11 @@ import { join } from 'node:path'
 
 import {
   clearSlotResolveCache,
+  getActiveCapabilities,
   getSlotConsumers,
   getSlotContributions,
   loadSlotConsumer,
+  resolveRulesDirs,
   resolveSlotGraph
 } from '../plugin-slots.mjs'
 import { clearPluginResolveCache } from '../resolve-plugins.mjs'
@@ -628,6 +630,46 @@ describe('loadSlotConsumer — ЄДИНЕ місце динамічного impo
       await writeResource(packageRoot, './handler.mjs', 'export default { id: "x" }')
       const graph = resolveSlotGraph(dir, { plugins: ['@x/no-validate'] }, { allowInstall: false, quiet: true })
       await expect(loadSlotConsumer(graph.consumers[0])).rejects.toThrow(MISSING_VALIDATE_RE)
+    })
+  })
+})
+
+describe('resolveRulesDirs — core consumer rules.directory@1 (Фаза 2, spec §5.1.1/§5.1.4)', () => {
+  test('ядро завжди перше, далі rules.directory@1 contributions у порядку графа', async () => {
+    await withTmpDir(async dir => {
+      const packageRoot = await writeFakeSlotPlugin(dir, '@x/p', {
+        capabilities: ['ci:azure'],
+        provides: [{ slot: 'rules.directory', version: 1, id: 'p-rules', resource: './rules' }]
+      })
+      await writeResource(packageRoot, './rules', '')
+      const dirs = resolveRulesDirs(dir, { plugins: ['@x/p'] }, '/bundled/rules', { allowInstall: false, quiet: true })
+      expect(dirs.map(d => d.name)).toEqual(['@7n/rules', '@x/p'])
+      expect(dirs[0]).toEqual({ name: '@7n/rules', rulesDir: '/bundled/rules', packageRoot: null })
+      expect(dirs[1].rulesDir.endsWith(join('@x/p', 'rules'))).toBe(true)
+    })
+  })
+
+  test('плагін без rules.directory contribution — не потрапляє у результат (лише ядро)', async () => {
+    await withTmpDir(async dir => {
+      await writeFakeSlotPlugin(dir, '@x/handlers-only', {
+        provides: [{ slot: 'taze.provider', version: 1, id: 'taze-x', resource: './provider.mjs' }]
+      })
+      const dirs = resolveRulesDirs(dir, { plugins: ['@x/handlers-only'] }, '/bundled/rules', {
+        allowInstall: false,
+        quiet: true
+      })
+      expect(dirs.map(d => d.name)).toEqual(['@7n/rules'])
+    })
+  })
+})
+
+describe('getActiveCapabilities — spec §5.1.11', () => {
+  test('агрегує capabilities з усіх наявних плагінів', async () => {
+    await withTmpDir(async dir => {
+      await writeFakeSlotPlugin(dir, '@x/a', { capabilities: ['ci:github', 'x:y'] })
+      await writeFakeSlotPlugin(dir, '@x/b', { capabilities: ['ci:azure'] })
+      const caps = getActiveCapabilities(dir, { plugins: ['@x/a', '@x/b'] }, { allowInstall: false, quiet: true })
+      expect([...caps].toSorted()).toEqual(['ci:azure', 'ci:github', 'x:y'])
     })
   })
 })

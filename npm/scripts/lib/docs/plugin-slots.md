@@ -3,35 +3,83 @@ type: JS Module
 title: plugin-slots.mjs
 resource: npm/scripts/lib/plugin-slots.mjs
 docgen:
-  crc: 4896f347
+  crc: 8634f51d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  score: 45
-  issues: no-overview,internal-name:resolveSafePackagePath,anchor-miss:package.json,anchor-miss:.n-rules.json,surzhik
+  tier: local-min
+  score: 75
 ---
 
-Цей модуль є універсальним механізмом для управління слотами плагінів (`plugin-slots`) у системі `@7n/rules`. Він збирає та валідує всі декларації, які плагіни надають (`provides`) або вимагають (`consumes`), формуючи детермінований граф залежностей. Основна мета — забезпечити безпечне, стабільне та швидке з'єднання між компонентами без виконання I/O під час фази дискавері.
+## Огляд
 
-## Поведінка
-1. **Ініціалізація графа:** Модуль ініціює сканування всіх плагінів, що підтримують версію API `2`.
-2. **Визначення можливостей (Capabilities):** Збирається повний набір `capabilities` від усіх плагінів, незалежно від того, чи входять вони у фінальний граф.
-3. **Прийняття плагіна:** Кожен плагін проходить перевірку відповідності API. Плагіни, які не відповідають вимозі `requiresPluginApi === 2`, у граф НЕ потрапляють, але отримують попередження.
-4. **Валідація контрибуцій (`slots.provides`):** Для кожного прийнятого плагіна валідується кожен його елемент `provides`. Це включає перевірку коректності ID слоту та контрибуції, заборонених полів та логіки `resource` XOR `value`.
-5. **Валідація шляхів:** Безпечність шляху для `resource` та `handler` перевіряється суворо: шлях має бути відносним, починатися з `./` і не виходити за межі кореня пакета (`packageRoot`), використовуючи функцію `resolveSafePackagePath`.
-6. **Валідація консюмерів (`slots.consumes`):** Кожен елемент `consumes` валідується на відповідність формату, а шлях до `handler`-модуля перевіряється на безпечність.
-7. **Діагностика несумісності:** Виконується перевірка, чи відповідає версія контрибуції будь-якому зареєстрованому `consumer` для цього слоту. Несумісні контрибуції фіксуються як помилки.
-8. **Формування графа:** Після всіх проходів створюється незмінний об'єкт `SlotGraph`, який містить усі валідні контрибуції, консюмери, список прийнятих плагінів та всі зібрані діагностичні повідомлення.
-9. **Завантаження консюмера:** Функція `loadSlotConsumer` є єдиним місцем, де відбувається динамічний імпорт (runtime) модуля-обробника, використовуючи шлях, зафіксований під час сканування, та валідує його експорт.
+Universal typed slot bus для плагінів `@7n/rules` (spec
+`2026-07-27-universal-plugin-slots-lang-php-extraction`, Фаза 1 — контракт і broker; Фаза 2 —
+усі first-party core consumers переведені на нього, legacy `contributes`-шлях видалено).
+
+Один плагін-маніфест (`package.json#n-rules`) може декларувати `slots.provides` (contributions —
+immutable дані чи посилання на package-relative resource) і `slots.consumes` (consumers — які
+версії слоту surface вміє матеріалізувати, і через який handler-модуль). Цей модуль:
+
+- резолвить усі `requiresPluginApi === 2` плагіни (через наявний {@link resolvePlugins}) у один
+  immutable граф contributions/consumers/diagnostics (`resolveSlotGraph`, СИНХРОННО — той самий
+  hot-path-контракт, що мав ще legacy doc-files-розширення до Фази 2: hook на кожен файл не може
+  платити за динамічний import);
+- валідує envelope (slot/version/id regex, рівно один з resource/value, безпечність шляху —
+  без абсолютних шляхів, `..`-сегментів і symlink escape за межі packageRoot);
+- НІКОЛИ не читає вміст `resource` і не імпортує consumer-handler під час discovery — це
+  принципово унеможливлює runtime-цикли contributions→contributions (рішення І spec, §2);
+  імпорт відбувається лише в {@link loadSlotConsumer}, яку викликає сам surface, що знає, який
+  slot він матеріалізує.
+
+Плагін без `requiresPluginApi === 2` не потрапляє у граф — з Фази 2 це означає, що жодна
+first-party поверхня (rules, taze, coverage, doc-files, skill-фрагменти) його НЕ бачить: warning
+diagnostic, а не мовчазна деградація. Це не перехідний стан, а цільова поведінка §9.2.
 
 ## Публічний API
-`resolveSlotGraph` — Збирає та повертає незмінний граф залежностей слотів для даного проекту.
-`getSlotContributions` — Фільтрує загальний граф, повертаючи контрибуції для заданого слоту, які відповідають вимогам версії та активним можливостям.
-`getSlotConsumers` — Повертає список усіх зареєстрованих консюмерів для певного слоту.
-`loadSlotConsumer` — Асинхронно завантажує та валідує модуль-обробник, вказаний у консюмері.
-`clearSlotResolveCache` — Очищує внутрішній кеш графа, змушуючи повторне виконання сканування при наступному виклику.
+
+- resolveSlotGraph — Резолвить один immutable slot graph для проєкту — СИНХРОННО, один filesystem/plugin scan на
+`(projectRoot, config, allowInstall)` (кешовано на процес, той самий ключ, що й
+{@link resolvePlugins}). Hot-path-контракт: без await, без динамічного import — читає лише те,
+що вже на диску (existsSync/realpathSync), ніколи не викликає consumer-handler.
+
+Плагін без `requiresPluginApi === 2` НЕ входить у граф (§9.2) — з Фази 2 (legacy `contributes`
+повністю видалено) це означає, що жодна first-party поверхня його не бачить: warning
+diagnostic, а не мовчазна деградація до старого шляху.
+
+Три послідовні проходи (винесені у {@link acceptPlugin}/{@link collectPluginContributions}/
+{@link collectPluginConsumers}/{@link appendVersionMismatchDiagnostics} — інакше єдина функція
+перевищує поріг когнітивної складності лінтера): (1) capabilities УСІХ наявних плагінів
+— ПОВНІСТЮ, до валідації жодної contribution (інакше плагін A раніше у списку з
+`requires.capabilities` на capability плагіна B, пізнішого у списку, хибно вважав би її
+неактивною); (2) acceptance + envelope validation кожного плагіна; (3) version-mismatch
+діагностика на вже повному наборі contributions/consumers.
+- getSlotContributions — Contributions одного слоту, відфільтровані за підтримуваними версіями і активними
+capabilities графа — capability-гейт застосовується ТУТ, тобто ДО того, як викликач прочитає
+`resourcePath` (spec §12 acceptance: "capabilities застосовуються до contributions до
+завантаження resource"). Синхронна — жодного I/O, лише фільтр вже готового графа.
+- getSlotConsumers — Consumers одного слоту (без фільтра версій — викликач сам звіряє свій набір версій).
+- resolveRulesDirs — Rules-каталоги для всіх поверхонь ядра (Фаза 2, spec §5.1.1/§5.1.4): ядро першим (його
+правила/концерни виграють колізії), далі `rules.directory@1` contributions у порядку графа
+(resolved plugin order → manifest order). Замінює legacy `resolveRulesDirs`
+(`resolve-plugins.mjs`, видалено) — та сама сигнатура/форма результату, тепер повністю на
+slot graph: плагін-contributor більше не мусить фізично мати `rules/` за конвенцією, лише
+валідний `rules.directory@1` resource (будь-який безпечний package-relative шлях).
+- getActiveCapabilities — Активні capabilities від усіх доступних плагінів (spec §5.1.11) — та сама сигнатура/семантика,
+що legacy `getActiveCapabilities` (`resolve-plugins.mjs`, видалено), тепер живиться з
+{@link resolveSlotGraph}: `graph.capabilities` уже агрегує capabilities УСІХ наявних плагінів
+(не лише тих, що увійшли у slot graph — гейт `requiresPluginApi` тут не застосовний, capability
+gate має лишатись коректним і під час поетапної Фази 2-міграції). Повертає ту саму (кешовану на
+графі) мутабельну референцію `Set` — викликачі лише читають (`.has`), не мутують.
+- loadSlotConsumer — ЄДИНЕ місце динамічного import consumer-handler-а (spec §3.4: "module import відбувається лише
+в loadSlotConsumer()"). Викликається САМИМ surface-ом, коли він реально матеріалізує contributions
+цього слоту — ніколи під час discovery (`resolveSlotGraph`). Перевіряє форму default-експорту
+(§3.3): обʼєкт, стабільний `id`, функція `validate`.
+- clearSlotResolveCache — Скидає кеш slot graph (для тестів).
+
+## Сценарії використання
+
+- `npm/scripts/lib/tests/plugin-slots.test.mjs` (resolveSlotGraph — sync-контракт і кеш; resolveSlotGraph — requiresPluginApi gate (§9.2)) — повертає звичайний обʼєкт синхронно, без Promise; повторний виклик з тими самими аргументами — та сама (кешована) референція; clearSlotResolveCache() скидає кеш — наступний виклик повертає нову референцію; граф заморожений (top-level) — Array.prototype.push на замороженому масиві кидає; плагін без requiresPluginApi не входить у граф — warning diagnostic, contributions ігноруються; ще 36
 
 ## Гарантії поведінки
-* **Синхронність discovery:** Функція `resolveSlotGraph` завжди виконується синхронно; жодних `await` не відбувається під час сканування файлової системи та плагін-маніфестів.
-* **Незмінність графа:** Повернутий `SlotGraph` є незмінним об'єктом, що забезпечує стабільність при його подальшому використанні.
-* **Безпечність шляхів:** Будь-який шлях, визначений у маніфестах, гарантовано валідується як безпечний (не виходить за межі `packageRoot`), ігноруючи стан файлової системи, окрім для перевірки існування при необхідності.
-* **Ізоляція I/O:** Усі операції, що читають вміст файлів контрибуції або імпортують хендлери, виконуються лише в `loadSlotConsumer`, а не під час збору графа.
-* **Детермінованість:** Порядок збору контрибуцій та консюмерів визначається порядком у маніфестах після прийняття плагіна.
+
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
+- Кешує результати в межах одного прогону.

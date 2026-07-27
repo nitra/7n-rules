@@ -31,7 +31,15 @@ function makeFixture() {
     join(pluginRoot, 'package.json'),
     JSON.stringify({
       name: '@7n/rules-lang-js',
-      'n-rules': { contributes: { rules: false, docFiles: { extensions: { '.mjs': 'JS Module' } } } }
+      'n-rules': {
+        requiresPluginApi: 2,
+        contributes: { rules: false },
+        slots: {
+          provides: [
+            { slot: 'doc-files.extensions', version: 1, id: 'doc-files-ext-js', value: { '.mjs': 'JS Module' } }
+          ]
+        }
+      }
     })
   )
   writeFileSync(join(root, '.n-rules.json'), JSON.stringify({ plugins: ['@7n/rules-lang-js'] }))

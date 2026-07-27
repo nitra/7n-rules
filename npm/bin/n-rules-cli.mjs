@@ -93,7 +93,8 @@ import { collectSkillFragments, injectSkillFragments } from '../scripts/lib/skil
 import { injectRootNotice } from '../scripts/lib/root-notice.mjs'
 import { listProjectRulesMdcFiles } from '../scripts/lib/list-project-rules-mdc.mjs'
 import { ensureNRulesInRootDevDependencies } from '../scripts/ensure-n-rules-dev-dependencies.mjs'
-import { resolvePluginList, resolvePlugins, resolveRulesDirs } from '../scripts/lib/resolve-plugins.mjs'
+import { resolvePluginList } from '../scripts/lib/resolve-plugins.mjs'
+import { resolveRulesDirs, resolveSlotGraph } from '../scripts/lib/plugin-slots.mjs'
 import { assertCwdIsProjectRoot } from '../scripts/lib/assert-project-root.mjs'
 import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { syncGitignoreWorktree } from '../scripts/lib/sync-gitignore-worktree.mjs'
@@ -924,9 +925,10 @@ export async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS
 
   const skillsRoot = join(cwd(), SKILLS_DIR)
   await mkdir(skillsRoot, { recursive: true })
-  // Активні плагіни — джерело конвенційних фрагментів skills/<id>/SKILL.fragment.md
-  // (фаза 4b spec lang-plugins-extraction): мовні гілки скіла їдуть з плагіном.
-  const activePlugins = resolvePlugins(cwd(), config, { allowInstall: false, quiet: true })
+  // Slot graph — джерело contributions `skills.fragment@1` (spec
+  // 2026-07-27-universal-plugin-slots-lang-php-extraction §5.1.9): мовні гілки скіла їдуть
+  // з плагіном.
+  const slotGraph = resolveSlotGraph(cwd(), config, { allowInstall: false, quiet: true })
 
   let success = 0
   let fail = 0
@@ -956,7 +958,7 @@ export async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS
           if (entry.name === 'SKILL.md') {
             content = injectWorktreeNotice(content, worktree)
             content = injectRootNotice(content, rootOnly)
-            content = injectSkillFragments(content, collectSkillFragments(id, activePlugins))
+            content = injectSkillFragments(content, collectSkillFragments(id, slotGraph))
           }
           await writeFile(join(destDir, entry.name), content, 'utf8')
         }
@@ -1960,22 +1962,26 @@ export async function runCli(argv) {
           // n-rules taze diff — read-only semver-diff package.json ↔ package.json.taze-bak
           // (root + воркспейси) для скілу n-taze: скрипт класифікує major-оновлення,
           // агент отримує готовий список замість ручного порівняння бекапів.
-          // Живе у плагіні @7n/rules-lang-js (фаза 5a spec lang-plugins-extraction) —
-          // резолвимо його taze-handler і беремо named-експорт runTazeCli.
-          const { getHandlers } = await import('../scripts/lib/resolve-plugins.mjs')
+          // Слот taze.provider@1 покриває обидва способи споживання handler-модуля
+          // (default export EcosystemProvider і named export runTazeCli, spec
+          // 2026-07-27-universal-plugin-slots-lang-php-extraction §4/§5.1.5) — беремо
+          // contribution за стабільним id "taze-js" (конвенція taze-<name>), НЕ за
+          // hardcoded npm-іменем плагіна.
+          const { getSlotContributions, resolveSlotGraph } = await import('../scripts/lib/plugin-slots.mjs')
           const { readNRulesConfigLite } = await import('../scripts/lib/read-n-rules-config-lite.mjs')
           const config = await readNRulesConfigLite(cwd())
-          const handler = getHandlers(cwd(), config, 'taze').find(h => h.pluginName === '@7n/rules-lang-js')
-          if (!handler) {
+          const graph = resolveSlotGraph(cwd(), config, { allowInstall: false })
+          const contribution = getSlotContributions(graph, 'taze.provider', [1]).find(c => c.id === 'taze-js')
+          if (!contribution) {
             console.error(
-              '❌ taze diff потребує плагін @7n/rules-lang-js (npm/bun-гілка) — запусти npx @7n/rules для авто-встановлення'
+              '❌ taze diff потребує npm/bun-провайдер (taze.provider "taze-js") — встанови @7n/rules-lang-js: запусти npx @7n/rules для авто-встановлення'
             )
             process.exitCode = 1
             break
           }
           const { pathToFileURL } = await import('node:url')
           // eslint-disable-next-line no-unsanitized/method
-          const { runTazeCli } = await import(pathToFileURL(handler.modulePath).href)
+          const { runTazeCli } = await import(pathToFileURL(contribution.resourcePath).href)
           process.exitCode = await runTazeCli(args)
 
           break

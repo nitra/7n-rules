@@ -3,9 +3,9 @@ type: JS Module
 title: resolve-plugins.mjs
 resource: npm/scripts/lib/resolve-plugins.mjs
 docgen:
-  crc: d16bcf35
-  model: openai-codex/gpt-5.5
-  tier: cloud-avg
+  crc: c43ca72b
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
   score: 60
 ---
 
@@ -32,15 +32,21 @@ docgen:
 (`allowInstall: false`).
 
 Маніфест плагіна — блок `"n-rules"` у його package.json:
-`{ "capabilities": ["ci:github"], "contributes": { "rules": true, "handlers": { "<point>": "./mod.mjs" } } }`.
-`capabilities` живлять гейт концернів (`concern.json` → `requires.capability`);
-`handlers` — іменовані extension-points правил ядра (v1: лише API, споживачі — v2).
+`{ "requiresPluginApi": 2, "capabilities": ["ci:github"], "slots": { "provides": [...] } }`.
+`capabilities` живлять гейт концернів (`concern.json` → `requires.capability`) і
+`requires.capabilities` у slot contributions. Composition-контракт (rules, handlers,
+doc-files-розширення, skill-фрагменти) повністю на universal slot bus (`plugin-slots.mjs`,
+spec 2026-07-27-universal-plugin-slots-lang-php-extraction, Фаза 2 — full migration): цей
+модуль лишається відповідальним ЛИШЕ за низькорівневий резолв — які пакети активні, де їхній
+`packageRoot`, який у них `n-rules`-маніфест (сире `capabilities`/`requiresPluginApi`/`slots`),
+без жодної нормалізації composition-полів.
 
-Сумісність plugin API (Фаза 0, spec 2026-07-27-universal-plugin-slots-lang-php-extraction.md
-§10): маніфест може декларувати число `requiresPluginApi`. Якщо воно більше за
-`PLUGIN_API_VERSION` цього core — плагін несумісний і пропускається у `resolvePlugins()` із
-warning (окрім `quiet:true`, де пропуск тихий). Відсутнє або нечислове поле — сумісний, як і
-всі чинні на сьогодні маніфести (жоден з них поля ще не декларує).
+Сумісність plugin API (Фаза 0, §10 тієї ж спеки): маніфест може декларувати число
+`requiresPluginApi`. Якщо воно більше за `PLUGIN_API_VERSION` цього core — плагін несумісний і
+пропускається у `resolvePlugins()` із warning (окрім `quiet:true`, де пропуск тихий). Відсутнє
+або нечислове поле — сумісний (та ж перевірка діє і для плагінів, що ще не дійшли до
+`requiresPluginApi: 2` — цей модуль сам їх не гейтує за версією v2, це робить
+`plugin-slots.mjs` окремо для slot graph).
 
 ## Публічний API
 
@@ -68,8 +74,8 @@ per-категорійний backfill для всього списку (див. 
 Поле відсутнє взагалі — повний автодетект.
 
 Результат кешується на процес за `(projectRoot, declared)` — виклик з `resolvePlugins`
-(через `resolveRulesDirs` тощо) і прямий виклик у sync-CLI інакше дублювали б і файловий
-скан, і warning про backfill.
+(через `resolveSlotGraph`/`resolveRulesDirs` у `plugin-slots.mjs` тощо) і прямий виклик у
+sync-CLI інакше дублювали б і файловий скан, і warning про backfill.
   ігнорується при cache hit — warning друкується щонайбільше раз на `(root, declared)` за процес
 - KNOWN_PLUGIN_RANGES — Сумісний semver-range для first-party плагінів: обмежує автоматичну інсталяцію (`ensurePluginInstalled`)
 поточною core-сумісною лінією, щоб майбутній несумісний major/minor плагіна не встановився
@@ -84,22 +90,16 @@ per-категорійний backfill для всього списку (див. 
 винятку.
 - resolvePlugins — Повний резолв плагінів проєкту (з кешем на процес).
   лише вже встановлені пакети, без `bun add`; `quiet` — без warning-ів (hook на кожен файл)
-- resolveRulesDirs — Rules-каталоги для всіх поверхонь ядра: ядро першим (його правила/концерни виграють
-колізії), далі плагіни у порядку списку.
-- getActiveCapabilities — Активні capabilities від усіх доступних плагінів (для гейта `requires.capability` у concern.json).
-- getDocFilesExtensions — Агреговані doc-files-розширення активних плагінів: '.rs' → 'Rust Module' тощо.
-Синхронно і без установки (hot-path hook) — лише вже встановлені плагіни.
 - getUnavailableDeclaredPlugins — Задекларовані у `config.plugins` пакети, недоступні в `node_modules` (не встановлені).
 Не встановлює нічого (`allowInstall: false`) і не друкує — чистий предикат для
 explicit CLI-діагностики (напр. doc-files: 0 кандидатів через невстановлений плагін),
 яка сама вирішує, коли й де показати попередження. Автодетектовані (не задекларовані
 явно) плагіни тут не враховуються — сигнал стосується саме явного `.n-rules.json`.
-- getHandlers — Handlers для extension-point правила ядра (v1 — лише API; перший споживач — v2).
 - clearPluginResolveCache — Скидає кеш резолву (для тестів).
 
 ## Сценарії використання
 
-- `npm/scripts/lib/tests/resolve-plugins.test.mjs` (detectPluginsFromRepo; pluginCategory) — .github/workflows з yml → ci-github; azure-pipelines.yml → ci-azure; обидва файлові сигнали → обидва плагіни; порожній .github/workflows → fallback на repository.url (dev.azure.com); repository як string з github.com → ci-github (+ lang-js за package.json); ще 35
+- `npm/scripts/lib/tests/resolve-plugins.test.mjs` (detectPluginsFromRepo; pluginCategory) — .github/workflows з yml → ci-github; azure-pipelines.yml → ci-azure; обидва файлові сигнали → обидва плагіни; порожній .github/workflows → fallback на repository.url (dev.azure.com); repository як string з github.com → ci-github (+ lang-js за package.json); ще 31
 
 ## Гарантії поведінки
 
