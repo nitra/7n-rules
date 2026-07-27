@@ -107,10 +107,16 @@ impl AcpAgentKind {
                 };
                 TierPreset::args_only(label, vec!["--model".to_string(), model_id.to_string()])
             }
+            // Pi-тіри (оновлене рішення З.1, 2026-07-27): min/avg — локальні
+            // моделі (безкоштовні), max — підписка codex. Передумова на
+            // машині: провайдери `omlx`/`litellm` описані в pi
+            // (`~/.pi/agent/models.json`; litellm — https://llm.7n.ai/v1/ з
+            // ключем) — інакше `session/set_config_option` на спавні
+            // провалиться. Деталі litellm-провайдера — PR nitra/7n-rules#249.
             AcpAgentKind::Pi => {
                 let (label, model) = match tier {
-                    Tier::Min => ("GPT-5.6 Luna", "openai-codex/gpt-5.6-luna"),
-                    Tier::Avg => ("GPT-5.6 Terra", "openai-codex/gpt-5.6-terra"),
+                    Tier::Min => ("Gemma 4 E4B (omlx)", "omlx/gemma-4-e4b-it-OptiQ-4bit"),
+                    Tier::Avg => ("Gemma 4 26B (LiteLLM)", "litellm/gemma-4-26b-awq"),
                     Tier::Max => ("GPT-5.6 Sol", "openai-codex/gpt-5.6-sol"),
                 };
                 TierPreset::post_session(label, "model", model.to_string())
@@ -179,12 +185,12 @@ mod tests {
         );
         let config = min.post_session_config.expect("pi несе post-session-крок");
         assert_eq!(config.config_id, "model");
-        assert_eq!(config.value, "openai-codex/gpt-5.6-luna");
+        assert_eq!(config.value, "omlx/gemma-4-e4b-it-OptiQ-4bit");
 
         let avg = AcpAgentKind::Pi.tier_preset(Tier::Avg);
         assert_eq!(
             avg.post_session_config.unwrap().value,
-            "openai-codex/gpt-5.6-terra"
+            "litellm/gemma-4-26b-awq"
         );
 
         let max = AcpAgentKind::Pi.tier_preset(Tier::Max);
