@@ -301,13 +301,24 @@ export function ensurePluginInstalled(projectRoot, packageName, spawnFn = spawnS
  * @property {string} name npm-ім'я пакета (`@7n/rules` для ядра)
  * @property {string} packageRoot абсолютний корінь пакета
  * @property {string} rulesDir абсолютний шлях до `rules/` пакета
- * @property {{ capabilities: string[], requiresPluginApi: number | null, contributes: { rules?: boolean, handlers?: Record<string, string>, docFilesExtensions?: Record<string, string> } }} manifest нормалізований блок `n-rules` з package.json плагіна
+ * @property {{
+ *   capabilities: string[],
+ *   contributes: { rules?: boolean, handlers?: Record<string, string>, docFilesExtensions?: Record<string, string> },
+ *   requiresPluginApi: unknown,
+ *   slots: { provides?: unknown, consumes?: unknown } | null,
+ *   manifestError: string | null
+ * }} manifest нормалізований блок `n-rules` з package.json плагіна
  */
 
 /**
  * Маніфест плагіна з блоку `"n-rules"` його package.json (з дефолтами).
- * `requiresPluginApi` — необов'язкове число; нечислове/відсутнє значення нормалізується у
- * `null` (сумісний за замовчуванням — сумісність перевіряє `resolvePlugins()`).
+ *
+ * Крім legacy `contributes` (нормалізований, як і раніше), повертає СИРІ `requiresPluginApi`
+ * і `slots` (universal slot bus, spec 2026-07-27) — без нормалізації/валідації типів усередині
+ * полів: це відповідальність `plugin-slots.mjs` (`resolveSlotGraph`), яка й перетворює їх на
+ * граф із envelope validation і diagnostics; сумісність legacy-резолвера окремо нормалізує
+ * `isIncompatiblePluginApi`. Тут лише структурний guard верхнього рівня (об'єкт, не масив) —
+ * щоб споживач не впав на `undefined.provides`.
  * @param {string} packageRoot корінь пакета
  * @returns {ResolvedPlugin['manifest']} нормалізований маніфест
  */
@@ -315,16 +326,24 @@ function readPluginManifest(packageRoot) {
   /** @type {ResolvedPlugin['manifest']} */
   const fallback = {
     capabilities: [],
-    requiresPluginApi: null,
-    contributes: { rules: true, handlers: {}, docFilesExtensions: {} }
+    contributes: { rules: true, handlers: {}, docFilesExtensions: {} },
+    requiresPluginApi: undefined,
+    slots: null,
+    manifestError: null
+  }
+  let pkg
+  try {
+    pkg = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
+  } catch (error) {
+    // Битий/нечитабельний package.json — окремо від «нема поля n-rules»: slot-graph (§9.1
+    // spec 2026-07-27-universal-plugin-slots) мусить дати diagnostic саме на цей випадок,
+    // тоді як відсутність "n-rules" — легітимний стан (пакет без плагін-маніфесту).
+    return { ...fallback, manifestError: error instanceof Error ? error.message : String(error) }
   }
   try {
-    const pkg = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
     const raw = pkg?.['n-rules']
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return fallback
     const capabilities = Array.isArray(raw.capabilities) ? raw.capabilities.filter(c => typeof c === 'string') : []
-    const requiresPluginApi =
-      typeof raw.requiresPluginApi === 'number' && Number.isFinite(raw.requiresPluginApi) ? raw.requiresPluginApi : null
     const contributes = raw.contributes && typeof raw.contributes === 'object' ? raw.contributes : {}
     const handlers =
       contributes.handlers && typeof contributes.handlers === 'object' && !Array.isArray(contributes.handlers)
@@ -340,10 +359,15 @@ function readPluginManifest(packageRoot) {
             Object.entries(rawDocFiles.extensions).filter(([k, v]) => k.startsWith('.') && typeof v === 'string')
           )
         : {}
+    // `slots` — сирий блок { provides, consumes } як є в JSON (лише guard "це plain object,
+    // не масив"); plugin-slots.mjs сам валідує кожен елемент provides/consumes і форму масивів.
+    const slots = raw.slots && typeof raw.slots === 'object' && !Array.isArray(raw.slots) ? raw.slots : null
     return {
       capabilities,
-      requiresPluginApi,
-      contributes: { rules: contributes.rules !== false, handlers, docFilesExtensions }
+      contributes: { rules: contributes.rules !== false, handlers, docFilesExtensions },
+      requiresPluginApi: raw.requiresPluginApi,
+      slots,
+      manifestError: null
     }
   } catch {
     return fallback
@@ -355,18 +379,24 @@ function readPluginManifest(packageRoot) {
  * slots-міграції: `requiresPluginApi > PLUGIN_API_VERSION`). Друкує warning (окрім
  * `quiet:true`) — виносить умову й побічний ефект з `resolvePlugins()`, щоб не роздувати її
  * cognitive complexity.
+ * Маніфест тримає СИРЕ значення `requiresPluginApi` (його друкує в diagnostics slot-broker),
+ * тому числова нормалізація «нечислове/відсутнє → сумісний» живе саме тут.
  * @param {string} name npm-ім'я плагіна (для повідомлення)
  * @param {ResolvedPlugin['manifest']} manifest нормалізований маніфест плагіна
  * @param {boolean} quiet без warning-у
  * @returns {boolean} true — плагін несумісний, пропускаємо
  */
 function isIncompatiblePluginApi(name, manifest, quiet) {
-  if (manifest.requiresPluginApi === null || manifest.requiresPluginApi <= PLUGIN_API_VERSION) return false
+  const required =
+    typeof manifest.requiresPluginApi === 'number' && Number.isFinite(manifest.requiresPluginApi)
+      ? manifest.requiresPluginApi
+      : null
+  if (required === null || required <= PLUGIN_API_VERSION) return false
   // Плагін декларує plugin API, несумісний із цією core-лінією — пропускаємо, а не
   // завантажуємо його як rules-only з мовчазною втратою handlers/doc-files/fragments.
   if (!quiet) {
     console.warn(
-      `⚠️  Плагін ${name} потребує plugin API v${manifest.requiresPluginApi}, ця core-лінія підтримує v${PLUGIN_API_VERSION} — пропускаю, онови @7n/rules\n`
+      `⚠️  Плагін ${name} потребує plugin API v${required}, ця core-лінія підтримує v${PLUGIN_API_VERSION} — пропускаю, онови @7n/rules\n`
     )
   }
   return true

@@ -42,8 +42,18 @@ export function isBreaking(from, to) {
   return from.patch !== to.patch
 }
 
-/** Версія контракту plugin-api: плагін декларує `requiresPluginApi`, несумісність → skip, не креш. */
-export const PLUGIN_API_VERSION = 1
+/**
+ * Версія контракту plugin-api: плагін декларує `requiresPluginApi`, несумісність → skip, не креш.
+ *
+ * `2` (spec 2026-07-27-universal-plugin-slots-lang-php-extraction, Фаза 1) — breaking envelope
+ * зміна: universal typed slot bus (`n-rules.slots.{provides,consumes}`, `resolveSlotGraph` у
+ * `plugin-slots.mjs`) замінює `contributes.rules/handlers/docFiles` як цільовий контракт.
+ * Legacy `contributes.*` лишається робочим до Фази 2 (повна first-party migration) — версія тут
+ * підіймається одразу, бо саме `requiresPluginApi` є enforcement-точкою: плагін без цього поля
+ * або зі старим значенням у slot graph не потрапляє (діагностика, не крах); legacy-поверхні й
+ * далі обслуговують його contributes-based contributions без змін.
+ */
+export const PLUGIN_API_VERSION = 2
 
 /**
  * @typedef {(cmd: string, args: string[], opts?: object) => { status: number|null, stdout: string, stderr: string }} SpawnFn

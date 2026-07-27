@@ -369,12 +369,14 @@ describe('resolvePlugins', () => {
     })
   })
 
-  test('без requiresPluginApi у маніфесті — сумісний, як і раніше (нормалізується у null)', async () => {
+  test('без requiresPluginApi у маніфесті — сумісний, як і раніше (сире значення лишається undefined)', async () => {
     await withTmpDir(async dir => {
       await writeFakePlugin(dir, '@x/legacy', { manifest: { capabilities: ['x:y'] } })
       const plugins = resolvePlugins(dir, { plugins: ['@x/legacy'] }, { allowInstall: false })
       expect(plugins).toHaveLength(1)
-      expect(plugins[0].manifest.requiresPluginApi).toBeNull()
+      // Маніфест тримає СИРЕ requiresPluginApi (його друкує slot-broker у diagnostics);
+      // нормалізацію «нечислове/відсутнє → сумісний» робить isIncompatiblePluginApi.
+      expect(plugins[0].manifest.requiresPluginApi).toBeUndefined()
     })
   })
 })

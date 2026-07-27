@@ -8,6 +8,7 @@ npm/schemas/rule-meta.json
 npm/schemas/skill-meta.json
 npm/schemas/concern.json
 npm/schemas/layers-config.json
+npm/schemas/plugin-manifest.json
 npm/schemas/v8r-catalog.json
 npm/schemas/vendor/**
 .claude/settings.local.json
