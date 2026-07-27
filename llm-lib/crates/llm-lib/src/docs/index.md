@@ -4,10 +4,11 @@ title: llm-lib/crates/llm-lib/src
 resource: llm-lib/crates/llm-lib/src/
 ---
 
-| Файл                             | Тип         |
-| -------------------------------- | ----------- |
-| [acp.rs](acp.md)                 | Rust Module |
-| [batch.rs](batch.md)             | Rust Module |
-| [lib.rs](lib.md)                 | Rust Module |
-| [local_cloud.rs](local_cloud.md) | Rust Module |
-| [tiers.rs](tiers.md)             | Rust Module |
+| Файл                               | Тип         |
+| ---------------------------------- | ----------- |
+| [acp.rs](acp.md)                   | Rust Module |
+| [batch.rs](batch.md)               | Rust Module |
+| [lib.rs](lib.md)                   | Rust Module |
+| [local_cloud.rs](local_cloud.md)   | Rust Module |
+| [remote_batch.rs](remote_batch.md) | Rust Module |
+| [tiers.rs](tiers.md)               | Rust Module |

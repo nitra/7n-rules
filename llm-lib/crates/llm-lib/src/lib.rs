@@ -26,16 +26,24 @@
 
 /// Агенти
 pub mod acp;
-/// Тип 2b (batch) — емуляція чанкованим конкурентним прогоном через Тип 2a
-/// (рішення Р, задача T6). Справжній `/v1/batches` — поза обсягом v1.
+/// Тип 2b (batch) — [`batch::dispatch`] обирає між клієнтською емуляцією
+/// (чанкований конкурентний прогін через Тип 2a, рішення Р задачі T6) і
+/// справжнім `/v1/batches` litellm-адаптера ([`remote_batch`]), коли
+/// резолвлений провайдер це підтримує.
 pub mod batch;
 /// Локальні та хмарні агенти (Local/Cloud).
 pub mod local_cloud;
+/// Тип 2b, справжній бекенд: `/v1/batches` litellm batch-adapter поверх
+/// upload/poll/output-протоколу OpenAI Batch API.
+pub mod remote_batch;
 /// Моделі та рівні (Tiers) для вибору LLM.
 pub mod tiers;
 
 pub use acp::{one_shot_acp, one_shot_acp_with_tier, AcpAgentKind};
-pub use batch::{submit as submit_batch, BatchConfig, BatchItem, BatchProgress, BatchResult};
+pub use batch::{
+    dispatch as dispatch_batch, submit as submit_batch, Backend as BatchBackend, BatchConfig,
+    BatchItem, BatchProgress, BatchResult,
+};
 pub use local_cloud::LocalCloud;
 pub use tiers::{resolve_model, Tier};
 
