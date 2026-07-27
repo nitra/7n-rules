@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.9.9] - 2026-07-27
+
+### Fixed
+
+- install matching native addon packages
+
 ## [2.9.8] - 2026-07-27
 
 ### Changed
