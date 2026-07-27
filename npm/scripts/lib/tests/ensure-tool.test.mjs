@@ -7,7 +7,7 @@
  * і для async-варіанта — in-process single-flight (конкурентні виклики того самого
  * toolId колапсують в один `withLock`).
  */
-import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
+import { afterAll, describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
 import { env } from 'node:process'
 
 // JSON-import, не `node:fs` — статичний `import {readFileSync} from 'node:fs'` тут ламає
@@ -21,18 +21,34 @@ const existsSyncMock = vi.fn()
 const spawnSyncMock = vi.fn()
 const withLockMock = vi.fn()
 
-vi.mock('../../utils/resolve-cmd.mjs', () => ({
-  resolveCmd: resolveCmdMock
-}))
-vi.mock('../../utils/with-lock.mjs', () => ({
-  withLock: withLockMock
-}))
-vi.mock('node:fs', async () => {
-  // readFileSync лишається реальним (spread actual) — resolvePinnedVersion/checkToolPinsFreshness
-  // читають справжній tool-pins.json; тільки install-мутації (mkdir/mkdtemp/chmod/rename/rm) мокаються.
-  const actual = await vi.importActual('node:fs')
+// Під `bun test` (vitest-шим із bun:test) `vi.importActual` відсутній, а module-моки —
+// глобальний `mock.module` на весь процес: вони протікають у наступні тест-файли прогону
+// (withLock → undefined ламав run-standard-lint.test.mjs). Тому для bun: (1) оригінали
+// захоплюємо ДО реєстрації моків — динамічний import тут ще повертає справжні модулі,
+// тоді як усередині factory він повертає сам мок; (2) в afterAll повертаємо оригінали
+// через mock.module. Під vitest importActual є, моки ізольовані per-file — bun-гілки
+// не виконуються.
+const IS_BUN_TEST_RUNNER = typeof vi.importActual !== 'function'
+// Саме shallow-копії ({...ns}), не namespace: bun, застосовуючи мок, патчить
+// namespace-обʼєкт уже завантаженого модуля на місці, тож збережене посилання на
+// namespace після реєстрації показувало б уже замінені exports.
+const actualModules = IS_BUN_TEST_RUNNER
+  ? new Map([
+      ['node:fs', { ...(await import('node:fs')) }],
+      ['node:child_process', { ...(await import('node:child_process')) }],
+      ['../../utils/resolve-cmd.mjs', { ...(await import('../../utils/resolve-cmd.mjs')) }],
+      ['../../utils/with-lock.mjs', { ...(await import('../../utils/with-lock.mjs')) }]
+    ])
+  : null
+
+/**
+ * Мутації fs, що мокаються поверх реального модуля: install-шляхи (mkdir/mkdtemp/
+ * chmod/rename/rm) і existsSync; readFileSync лишається реальним (spread actual) —
+ * resolvePinnedVersion/checkToolPinsFreshness читають справжній tool-pins.json.
+ * @returns {object} override-поля, які factory підставляє поверх реального node:fs
+ */
+function fsOverrides() {
   return {
-    ...actual,
     existsSync: existsSyncMock,
     mkdirSync: vi.fn(),
     mkdtempSync: vi.fn(),
@@ -40,10 +56,35 @@ vi.mock('node:fs', async () => {
     renameSync: vi.fn(),
     rmSync: vi.fn()
   }
+}
+
+vi.mock('../../utils/resolve-cmd.mjs', () => ({
+  resolveCmd: resolveCmdMock
+}))
+vi.mock('../../utils/with-lock.mjs', () => ({
+  withLock: withLockMock
+}))
+vi.mock('node:fs', () => {
+  // bun: фабрика мусить бути синхронною (async-фабрика з await всередині вішає раннер
+  // нескінченним циклом на першому імпорті) — оригінал береться із захопленого заздалегідь
+  // actualModules. vitest: importActual в async-гілці, promise-результат фабрики підтримується.
+  if (IS_BUN_TEST_RUNNER) return { ...actualModules.get('node:fs'), ...fsOverrides() }
+  return (async () => {
+    const actual = await vi.importActual('node:fs')
+    return { ...actual, ...fsOverrides() }
+  })()
 })
 vi.mock('node:child_process', () => ({
   spawnSync: spawnSyncMock
 }))
+
+afterAll(async () => {
+  // Тільки bun: mock.module глобальний на процес — повертаємо оригінальні модулі,
+  // щоб моки не протікали у наступні тест-файли того самого прогону.
+  if (!IS_BUN_TEST_RUNNER) return
+  const { mock } = await import('bun:test')
+  for (const [spec, mod] of actualModules) mock.module(spec, () => mod)
+})
 
 const { ensureTool, ensureToolAsync, ensureHkInstall, fetchLatestVersion, checkToolPinsFreshness, TOOLS } =
   await import('../ensure-tool.mjs')

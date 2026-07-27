@@ -21,6 +21,16 @@ import { runOneShot } from '@7n/llm-lib/one-shot'
 vi.mock('node:fs', async importOriginal => ({ ...(await importOriginal()), readFileSync: vi.fn() }))
 vi.mock('@7n/llm-lib/one-shot', async importOriginal => ({ ...(await importOriginal()), runOneShot: vi.fn() }))
 
+// JUDGE_ENABLED — модульна константа docgen-judge, обчислена з ambient env
+// (Boolean(CLOUD_MIN) ← N_CLOUD_MIN_MODEL): без примусового override judge-тести нижче падали б
+// на машинах без цієї env-змінної і мовчки не покривали б гейт. Вмикаємо примусово;
+// judgeDoc/judgeFailsDoc лишаються реальними (їхній runOneShot вже замокано вище).
+vi.mock('../../docgen-judge/main.mjs', async importOriginal => ({
+  ...(await importOriginal()),
+  JUDGE_ENABLED: true,
+  JUDGE_MODEL: 'test/judge-model'
+}))
+
 // Supported-шлях (orchestratedDoc/judge, задача T8-coverage): без lang-плагінів у
 // цьому dev-середовищі extractFacts ЗАВЖДИ unsupported, тож orchestratedDoc/
 // runJudgeGate ніколи не виконувались жодним тестом. Підміняємо loadDocFilesExtractors,
@@ -41,6 +51,8 @@ const FACTS = { markers: { caches: false }, internalSymbols: [], localSymbols: [
 
 // Матчер помилки pre-send byte-guard (module scope — без ре-компіляції).
 const PROMPT_TOO_LONG = /Prompt too long/
+// Матчер вузького behavior-промпта batch-режиму (module scope — без ре-компіляції).
+const BEHAVIOR_ONLY_PROMPT = /не перефразовуй авторський текст/iu
 // Матчер помилки вичерпаного дедлайну fix-pipeline (module scope — без ре-компіляції).
 const DEADLINE_TIMEOUT = /docgen deadline: .*timeout/
 
@@ -401,7 +413,7 @@ describe('prepareBatchItem / finishBatchItem — T8 2b-batch (без LLM-вик�
     readFileSync.mockReturnValue(SRC)
     const prep = await prepareBatchItem('/x.mjs')
     expect(prep.mode).toBe('comment+behavior')
-    expect(prep.messages.at(-1).content).toMatch(/не перефразовуй авторський текст/iu)
+    expect(prep.messages.at(-1).content).toMatch(BEHAVIOR_ONLY_PROMPT)
   })
 
   test('finishBatchItem: unsupported + refusal-філер → score=0, degraded', () => {

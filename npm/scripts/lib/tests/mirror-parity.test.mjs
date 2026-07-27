@@ -10,6 +10,8 @@ import { describe, expect, test } from 'vitest'
 
 import { withTmpDir } from '../../utils/test-helpers.mjs'
 import { findMirrorDrift, listManagedMirrors } from '../mirror-parity.mjs'
+import { readNRulesConfigLite } from '../read-n-rules-config-lite.mjs'
+import { getUnavailableDeclaredPlugins } from '../resolve-plugins.mjs'
 
 /** Корінь репо від цього тесту: tests → lib → scripts → npm → <root>. */
 const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..')
@@ -52,6 +54,10 @@ describe('findMirrorDrift', () => {
 })
 
 describe('live parity (цей репо)', () => {
+  test('усі задекларовані плагіни встановлені (інакше drift-гард порівнює не з тим каноном)', async () => {
+    const config = await readNRulesConfigLite(REPO_ROOT)
+    expect(getUnavailableDeclaredPlugins(REPO_ROOT, config)).toEqual([])
+  })
   test('.cursor/rules/n-*.mdc == inlined-канон (нема дрейфу)', async () => {
     expect(await findMirrorDrift(REPO_ROOT)).toEqual([])
   })
