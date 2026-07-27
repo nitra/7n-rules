@@ -23,10 +23,17 @@
  * `{ "capabilities": ["ci:github"], "contributes": { "rules": true, "handlers": { "<point>": "./mod.mjs" } } }`.
  * `capabilities` живлять гейт концернів (`concern.json` → `requires.capability`);
  * `handlers` — іменовані extension-points правил ядра (v1: лише API, споживачі — v2).
+ *
+ * Сумісність plugin API (Фаза 0, spec 2026-07-27-universal-plugin-slots-lang-php-extraction.md
+ * §10): маніфест може декларувати число `requiresPluginApi`. Якщо воно більше за
+ * `PLUGIN_API_VERSION` цього core — плагін несумісний і пропускається у `resolvePlugins()` із
+ * warning (окрім `quiet:true`, де пропуск тихий). Відсутнє або нечислове поле — сумісний, як і
+ * всі чинні на сьогодні маніфести (жоден з них поля ще не декларує).
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
+import { PLUGIN_API_VERSION } from './plugin-api.mjs'
 
 /** Відомі CI-плагіни для автовизначення: сигнал у дереві репо → npm-пакет. */
 export const KNOWN_CI_PLUGINS = Object.freeze({
@@ -247,18 +254,40 @@ function computePluginList(root, declared, options) {
 }
 
 /**
+ * Сумісний semver-range для first-party плагінів: обмежує автоматичну інсталяцію (`ensurePluginInstalled`)
+ * поточною core-сумісною лінією, щоб майбутній несумісний major/minor плагіна не встановився
+ * мовчки поверх старого core (Фаза 0, spec 2026-07-27-universal-plugin-slots-lang-php-extraction.md
+ * §10). Для `0.x`-пакетів — caret на поточний minor (`^0.22`, а не голий `^0`, який під caret-
+ * семантикою розгортається у весь діапазон `0.x`); для `>=1` — caret на поточний major (`^1`).
+ * Невідомий (сторонній, не з цієї таблиці) пакет інсталюється без обмеження версії — як і раніше.
+ */
+export const KNOWN_PLUGIN_RANGES = Object.freeze({
+  '@7n/rules-ci-github': '^1',
+  '@7n/rules-ci-azure': '^1',
+  '@7n/rules-lang-js': '^0.22',
+  '@7n/rules-lang-python': '^0.10',
+  '@7n/rules-lang-rust': '^0.13'
+})
+
+/**
  * Гарантує, що плагін встановлений: якщо `node_modules/<pkg>` нема — `bun add -d <pkg>`
- * (дописує devDependency і ставить). Фейл — warning + false, без винятку.
+ * (дописує devDependency і ставить). Для first-party пакетів з `KNOWN_PLUGIN_RANGES` версія
+ * обмежується сумісним range (`<pkg>@^<major>` або `@^<major>.<minor>` для `0.x`); сторонні
+ * пакети встановлюються без обмеження, bun сам резолвить latest. Фейл — warning + false, без
+ * винятку.
  * @param {string} projectRoot корінь репозиторію
  * @param {string} packageName npm-ім'я плагіна
+ * @param {typeof import('node:child_process').spawnSync} [spawnFn] інжект для тестів (типово — реальний `spawnSync`)
  * @returns {boolean} true — пакет доступний у node_modules після виклику
  */
-export function ensurePluginInstalled(projectRoot, packageName) {
+export function ensurePluginInstalled(projectRoot, packageName, spawnFn = spawnSync) {
   const installed = join(projectRoot, 'node_modules', packageName, 'package.json')
   if (existsSync(installed)) return true
   if (!existsSync(join(projectRoot, 'package.json'))) return false
 
-  const r = spawnSync('bun', ['add', '-d', packageName], { cwd: projectRoot, encoding: 'utf8', shell: false })
+  const range = KNOWN_PLUGIN_RANGES[packageName]
+  const spec = range ? `${packageName}@${range}` : packageName
+  const r = spawnFn('bun', ['add', '-d', spec], { cwd: projectRoot, encoding: 'utf8', shell: false })
   if (r.error || r.status !== 0) {
     const reason = r.error ? r.error.message : `bun add exit ${r.status}`
     console.warn(`⚠️  Плагін ${packageName} не встановився (${reason}) — пропускаю\n`)
@@ -272,22 +301,30 @@ export function ensurePluginInstalled(projectRoot, packageName) {
  * @property {string} name npm-ім'я пакета (`@7n/rules` для ядра)
  * @property {string} packageRoot абсолютний корінь пакета
  * @property {string} rulesDir абсолютний шлях до `rules/` пакета
- * @property {{ capabilities: string[], contributes: { rules?: boolean, handlers?: Record<string, string>, docFilesExtensions?: Record<string, string> } }} manifest нормалізований блок `n-rules` з package.json плагіна
+ * @property {{ capabilities: string[], requiresPluginApi: number | null, contributes: { rules?: boolean, handlers?: Record<string, string>, docFilesExtensions?: Record<string, string> } }} manifest нормалізований блок `n-rules` з package.json плагіна
  */
 
 /**
  * Маніфест плагіна з блоку `"n-rules"` його package.json (з дефолтами).
+ * `requiresPluginApi` — необов'язкове число; нечислове/відсутнє значення нормалізується у
+ * `null` (сумісний за замовчуванням — сумісність перевіряє `resolvePlugins()`).
  * @param {string} packageRoot корінь пакета
  * @returns {ResolvedPlugin['manifest']} нормалізований маніфест
  */
 function readPluginManifest(packageRoot) {
   /** @type {ResolvedPlugin['manifest']} */
-  const fallback = { capabilities: [], contributes: { rules: true, handlers: {}, docFilesExtensions: {} } }
+  const fallback = {
+    capabilities: [],
+    requiresPluginApi: null,
+    contributes: { rules: true, handlers: {}, docFilesExtensions: {} }
+  }
   try {
     const pkg = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
     const raw = pkg?.['n-rules']
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return fallback
     const capabilities = Array.isArray(raw.capabilities) ? raw.capabilities.filter(c => typeof c === 'string') : []
+    const requiresPluginApi =
+      typeof raw.requiresPluginApi === 'number' && Number.isFinite(raw.requiresPluginApi) ? raw.requiresPluginApi : null
     const contributes = raw.contributes && typeof raw.contributes === 'object' ? raw.contributes : {}
     const handlers =
       contributes.handlers && typeof contributes.handlers === 'object' && !Array.isArray(contributes.handlers)
@@ -303,10 +340,36 @@ function readPluginManifest(packageRoot) {
             Object.entries(rawDocFiles.extensions).filter(([k, v]) => k.startsWith('.') && typeof v === 'string')
           )
         : {}
-    return { capabilities, contributes: { rules: contributes.rules !== false, handlers, docFilesExtensions } }
+    return {
+      capabilities,
+      requiresPluginApi,
+      contributes: { rules: contributes.rules !== false, handlers, docFilesExtensions }
+    }
   } catch {
     return fallback
   }
+}
+
+/**
+ * Чи декларує маніфест plugin API, несумісний із цією core-лінією (Фаза 0 передумова повної
+ * slots-міграції: `requiresPluginApi > PLUGIN_API_VERSION`). Друкує warning (окрім
+ * `quiet:true`) — виносить умову й побічний ефект з `resolvePlugins()`, щоб не роздувати її
+ * cognitive complexity.
+ * @param {string} name npm-ім'я плагіна (для повідомлення)
+ * @param {ResolvedPlugin['manifest']} manifest нормалізований маніфест плагіна
+ * @param {boolean} quiet без warning-у
+ * @returns {boolean} true — плагін несумісний, пропускаємо
+ */
+function isIncompatiblePluginApi(name, manifest, quiet) {
+  if (manifest.requiresPluginApi === null || manifest.requiresPluginApi <= PLUGIN_API_VERSION) return false
+  // Плагін декларує plugin API, несумісний із цією core-лінією — пропускаємо, а не
+  // завантажуємо його як rules-only з мовчазною втратою handlers/doc-files/fragments.
+  if (!quiet) {
+    console.warn(
+      `⚠️  Плагін ${name} потребує plugin API v${manifest.requiresPluginApi}, ця core-лінія підтримує v${PLUGIN_API_VERSION} — пропускаю, онови @7n/rules\n`
+    )
+  }
+  return true
 }
 
 /**
@@ -338,6 +401,7 @@ export function resolvePlugins(projectRoot, config, options = {}) {
       continue
     }
     const manifest = readPluginManifest(packageRoot)
+    if (isIncompatiblePluginApi(name, manifest, options.quiet === true)) continue
     const rulesDir = join(packageRoot, 'rules')
     if (manifest.contributes.rules && !existsSync(rulesDir)) {
       // Плагін ДЕКЛАРУЄ правила (rules !== false), але каталогу нема — битий пакет.
