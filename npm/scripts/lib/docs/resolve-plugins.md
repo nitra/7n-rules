@@ -3,10 +3,10 @@ type: JS Module
 title: resolve-plugins.mjs
 resource: npm/scripts/lib/resolve-plugins.mjs
 docgen:
-  crc: c43ca72b
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
-  score: 60
+  crc: 35d3fc38
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
+  score: 55
 ---
 
 ## Огляд
@@ -99,7 +99,7 @@ explicit CLI-діагностики (напр. doc-files: 0 кандидатів
 
 ## Сценарії використання
 
-- `npm/scripts/lib/tests/resolve-plugins.test.mjs` (detectPluginsFromRepo; pluginCategory) — .github/workflows з yml → ci-github; azure-pipelines.yml → ci-azure; обидва файлові сигнали → обидва плагіни; порожній .github/workflows → fallback на repository.url (dev.azure.com); repository як string з github.com → ci-github (+ lang-js за package.json); ще 31
+- `npm/scripts/lib/tests/resolve-plugins.test.mjs` (detectPluginsFromRepo; pluginCategory) — .github/workflows з yml → ci-github; azure-pipelines.yml → ci-azure; обидва файлові сигнали → обидва плагіни; порожній .github/workflows → fallback на repository.url (dev.azure.com); repository як string з github.com → ci-github (+ lang-js за package.json); ще 33
 
 ## Гарантії поведінки
 

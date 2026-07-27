@@ -21,6 +21,7 @@ npm/tsconfig.emit-types.json
 npm/scripts/lib/tests/__fixtures__/**
 npm/rules/*/*/template/**
 plugins/*/rules/*/*/template/**
+plugins/*/slots/ci/**
 .cursor/hooks.json
 .docgen-scan.json
 npm/config/capability-matrix.json

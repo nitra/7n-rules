@@ -57,7 +57,8 @@ export const KNOWN_CI_PLUGINS = Object.freeze({
 export const KNOWN_LANG_PLUGINS = Object.freeze({
   js: { signal: 'package.json', pkg: '@7n/rules-lang-js', maxDepth: 0 },
   python: { signal: 'pyproject.toml', pkg: '@7n/rules-lang-python', maxDepth: 0 },
-  rust: { signal: 'Cargo.toml', pkg: '@7n/rules-lang-rust', maxDepth: 3 }
+  rust: { signal: 'Cargo.toml', pkg: '@7n/rules-lang-rust', maxDepth: 3 },
+  php: { signal: 'composer.json', pkg: '@7n/rules-lang-php', maxDepth: 0 }
 })
 
 /** Теки, у які неглибокий скан мовних сигналів не заходить (плюс усі приховані). */
@@ -272,7 +273,8 @@ export const KNOWN_PLUGIN_RANGES = Object.freeze({
   '@7n/rules-ci-azure': '^1',
   '@7n/rules-lang-js': '^0.22',
   '@7n/rules-lang-python': '^0.10',
-  '@7n/rules-lang-rust': '^0.13'
+  '@7n/rules-lang-rust': '^0.13',
+  '@7n/rules-lang-php': '^0.1'
 })
 
 /**

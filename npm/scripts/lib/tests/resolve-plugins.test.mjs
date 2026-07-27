@@ -163,6 +163,25 @@ describe('detectPluginsFromRepo', () => {
     })
   })
 
+  test('composer.json → lang-php (незалежно від CI-сигналів)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'composer.json'), '{"name": "acme/demo"}\n')
+      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-lang-php'])
+
+      await mkdir(join(dir, '.github', 'workflows'), { recursive: true })
+      await writeFile(join(dir, '.github', 'workflows', 'ci.yml'), 'name: CI\n')
+      expect(detectPluginsFromRepo(dir)).toEqual(['@7n/rules-ci-github', '@7n/rules-lang-php'])
+    })
+  })
+
+  test('вкладений composer.json НЕ детектиться (php — лише корінь, maxDepth 0)', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'services', 'api'), { recursive: true })
+      await writeFile(join(dir, 'services', 'api', 'composer.json'), '{"name": "acme/api"}\n')
+      expect(detectPluginsFromRepo(dir)).toEqual([])
+    })
+  })
+
   test('вкладений pyproject.toml НЕ детектиться (python — лише корінь, uv v1)', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'services', 'api'), { recursive: true })

@@ -11,7 +11,8 @@
     "plugins/ci-azure",
     "plugins/lang-python",
     "plugins/lang-rust",
-    "plugins/lang-js"
+    "plugins/lang-js",
+    "plugins/lang-php"
   ],
   "type": "module",
   "scripts": {
@@ -31,7 +32,8 @@
     "@7n/rules-ci-azure": "workspace:*",
     "@7n/rules-lang-python": "workspace:*",
     "@7n/rules-lang-rust": "workspace:*",
-    "@7n/rules-lang-js": "workspace:*"
+    "@7n/rules-lang-js": "workspace:*",
+    "@7n/rules-lang-php": "workspace:*"
   },
   "stylelint": {
     "extends": "@nitra/stylelint-config"
