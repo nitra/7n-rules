@@ -700,10 +700,11 @@ export async function removeOrphanManagedRuleFiles(rulesDir, configRules) {
 /**
  * Повертає відсортований список директорій skills у `.cursor/skills`.
  * Директорія вважається skill-каталогом, якщо це підкаталог (без префікса `.`).
+ * @param {string} [root] корінь проєкту (default — `cwd()`; явний параметр робить функцію тестованою без залежності від ambient cwd)
  * @returns {Promise<string[]>} імена директорій (наприклад `n-fix`, `custom-skill`)
  */
-export async function listProjectSkillDirNames() {
-  const skillsRoot = join(cwd(), SKILLS_DIR)
+export async function listProjectSkillDirNames(root = cwd()) {
+  const skillsRoot = join(root, SKILLS_DIR)
   if (!existsSync(skillsRoot)) {
     return []
   }
@@ -716,11 +717,12 @@ export async function listProjectSkillDirNames() {
 
 /**
  * Формує markdown-рядки для секції Skills у AGENTS.md з усіх skill-директорій на диску.
+ * @param {string} [root] корінь проєкту (default — `cwd()`)
  * @returns {Promise<{ name: string }[]>} елементи з полем name для Mustache-секції skills
  */
-export async function buildSkillBulletItems() {
-  const skillsRoot = join(cwd(), SKILLS_DIR)
-  const skillDirNames = await listProjectSkillDirNames()
+export async function buildSkillBulletItems(root = cwd()) {
+  const skillsRoot = join(root, SKILLS_DIR)
+  const skillDirNames = await listProjectSkillDirNames(root)
   const items = []
   for (const dirName of skillDirNames) {
     const skillMdPath = join(skillsRoot, dirName, 'SKILL.md')
@@ -811,17 +813,18 @@ function buildClaudeDocFilesSectionLines() {
 
 /**
  * Рендерить секцію Skills для CLAUDE.md з урахуванням наявних slash-команд.
+ * @param {string} [root] корінь проєкту (default — `cwd()`)
  * @returns {Promise<string[]>} готові рядки секції (або порожній масив)
  */
-export async function buildClaudeSkillsSectionLines() {
-  const skillDirNames = await listProjectSkillDirNames()
+export async function buildClaudeSkillsSectionLines(root = cwd()) {
+  const skillDirNames = await listProjectSkillDirNames(root)
   if (skillDirNames.length === 0) {
     return []
   }
 
   const lines = ['', '## Skills', '']
-  const skillsRoot = join(cwd(), SKILLS_DIR)
-  const commandsRoot = join(cwd(), COMMANDS_DIR)
+  const skillsRoot = join(root, SKILLS_DIR)
+  const commandsRoot = join(root, COMMANDS_DIR)
   for (const dirName of skillDirNames) {
     const skillMdPath = join(skillsRoot, dirName, 'SKILL.md')
     const commandPath = join(commandsRoot, `${dirName}.md`)

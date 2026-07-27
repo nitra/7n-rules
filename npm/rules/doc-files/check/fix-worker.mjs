@@ -25,6 +25,7 @@ const DEADLINE_FRACTION = 0.8
 export async function fixWorker(violations, ctx) {
   const { cwd } = ctx
   const { describeFile } = await import('../docgen-scan/main.mjs')
+  const { buildTestEvidenceIndex } = await import('../docgen-test-context/main.mjs')
   const { runGenerationBatch, purgeOrphanedDocs } = await import('../docgen-files-batch/main.mjs')
 
   /** @type {string[]} */
@@ -33,10 +34,15 @@ export async function fixWorker(violations, ctx) {
 
   // Відновлюємо повні target-обʼєкти лише для порушень detector-а. Повний re-scan
   // тут ігнорував би explicit files від hook/`lint --path` і генерував би docs
-  // для всього checkout.
-  const stale = [...new Set(violations.filter(v => v.reason !== 'orphaned-doc' && v.file).map(v => v.file))]
-    .map(sourcePath => describeFile(cwd, sourcePath))
-    .filter(f => f.stale)
+  // для всього checkout. testIndex обовʼязковий тут так само, як у detector-а
+  // (collectStale): без нього доки, застарілі ЛИШЕ через зміну test-evidence
+  // (source не мінявся), виглядали б свіжими, випадали з фільтра і ніколи не
+  // регенерувались — порушення висіло б вічно.
+  const testIndex = buildTestEvidenceIndex(cwd)
+  const stale = Array.from(
+    new Set(violations.filter(v => v.reason !== 'orphaned-doc' && v.file).map(v => v.file)),
+    sourcePath => describeFile(cwd, sourcePath, testIndex)
+  ).filter(f => f.stale)
   if (stale.length > 0) {
     for (const f of stale) {
       const docAbs = join(cwd, f.docPath)
@@ -52,7 +58,8 @@ export async function fixWorker(violations, ctx) {
       headline: `📄 doc-files: генерація ${stale.length} доки(ів)`,
       model: ctx.model,
       tier: ctx.tier,
-      deadlineAt
+      deadlineAt,
+      testIndex
     })
   }
 
