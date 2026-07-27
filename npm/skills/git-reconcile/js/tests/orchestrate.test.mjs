@@ -21,6 +21,7 @@ import {
   changedNonCodeDirectories,
   classifyPullRequestChecks,
   cleanupSource,
+  commitPendingChanges,
   conflictFiles,
   createPhaseProgress,
   dedupeRefs,
@@ -54,6 +55,33 @@ const REVIEW_BRANCH = {
   conflicts: []
 }
 const NPM_ROOT = resolve(import.meta.dirname, '../../../..')
+
+describe('commitPendingChanges', () => {
+  test('приймає чистий index, коли корисні commits уже є в branch', () => {
+    const calls = []
+    const committed = commitPendingChanges('/repo', 'fix: useful', (command, args) => {
+      calls.push([command, args])
+      return { status: 0, stdout: '', stderr: '' }
+    })
+
+    expect(committed).toBe(false)
+    expect(calls).toEqual([
+      ['git', ['add', '-A']],
+      ['git', ['diff', '--cached', '--quiet']]
+    ])
+  })
+
+  test('комітить staged remediation після final gates', () => {
+    const calls = []
+    const committed = commitPendingChanges('/repo', 'fix: useful', (command, args) => {
+      calls.push([command, args])
+      return { status: args[0] === 'diff' ? 1 : 0, stdout: '', stderr: '' }
+    })
+
+    expect(committed).toBe(true)
+    expect(calls.at(-1)).toEqual(['git', ['commit', '-m', 'fix: useful']])
+  })
+})
 
 /**
  * Формує мінімальний inventory для orchestration tests.
@@ -1153,6 +1181,7 @@ describe('report helpers', () => {
   })
 
   test('PR checks розрізняють ready, baseline red, regression і pending', () => {
+    expect(classifyPullRequestChecks([], []).status).toBe('pr-checks-unverified')
     expect(classifyPullRequestChecks([{ name: 'test', conclusion: 'SUCCESS' }], [])).toEqual({ status: 'ready' })
     expect(
       classifyPullRequestChecks(
