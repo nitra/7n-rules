@@ -290,8 +290,9 @@ handler-модуля: default export `EcosystemProvider` (оркестратор
 - `contributes.rules` → `rules.directory@1`;
 - `handlers.taze` → `taze.provider@1`;
 - `handlers.coverage` → `coverage.provider@1`;
-- `handlers.doc-files` → `doc-files.extractor@1` (лише `lang-js` і `lang-rust`;
-  `lang-python` extractor-а не має);
+- `handlers.doc-files` → `doc-files.extractor@1` (усі три: `lang-python` отримав
+  власний extractor у PR #243 «combine comments and test scenarios», уже після першої
+  редакції цієї спеки);
 - `docFiles.extensions` → `doc-files.extensions@1`;
 - `skills/taze/SKILL.fragment.md` (єдиний чинний fragment у всіх трьох плагінах) →
   explicit `skills.fragment@1`.
@@ -684,8 +685,10 @@ versioning, rollout і PHP ownership ухвалені цією специфік�
 4. **Точні імена/шляхи.** Manifest-поле — `contributes.docFiles.extensions`
    (а не `docFilesExtensions`, це внутрішня нормалізована назва); PHP CI rules —
    `ci-github/rules/php/lint_php_yml/**` і `ci-azure/rules/php/lint_pipeline_php/**`;
-   доданий інвентар усіх legacy call sites у 5.1; `lang-python` не має doc-files
-   extractor-а (5.2); Azure rego вже приймає обидві команди (7.3).
+   доданий інвентар усіх legacy call sites у 5.1; Azure rego вже приймає обидві
+   команди (7.3). Примітка про відсутність doc-files extractor-а у `lang-python`
+   застаріла того ж дня: PR #243 додав його разом із legacy-декларацією в manifest,
+   тож slots-міграція зберігає його як `doc-files.extractor@1` (5.2).
 5. **Винятки PHP-literals у CI plugins.** До «жодних PHP literals» (5.3) додано явні
    винятки з таблиці 8: назва third-party action `phpdocker-io/...` і `*.php` у
    doc-коментарі `ga/workflows/main.mjs`.
