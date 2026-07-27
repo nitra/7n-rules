@@ -126,6 +126,7 @@ function isStandaloneConcern(patterns) {
  * @param {string} cwd Робоча директорія для запуску детектора.
  * @param {import('./progress.mjs').ProgressReporter|null} [progress] Reporter прогресу.
  * @param {boolean} [verbose] Детальний вивід (прокидається у ctx concern-а).
+ * @param {string[]} [mutationRefreshFiles] Source-файли з cache-independent mutation verdict-ом.
  * @returns {Promise<LintViolation[]>} Актуальні порушення concern-а після re-detect.
  */
 async function reDetect(item, cwd, progress = null, verbose = false, mutationRefreshFiles = []) {

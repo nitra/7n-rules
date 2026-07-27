@@ -798,6 +798,7 @@ async function refreshParsedMutationReport(jsRoot, cwd, runner, refreshFiles, is
  * @param {string} cwd корінь проєкту (для рібейзингу `survived[].file`)
  * @param {typeof defaultRunner} runner spawn-ін'єкція (повний або частковий)
  * @param {{files:string[], base:string|null}|null} [scope] changed-scope (null = full-режим)
+ * @param {string[]} [mutationRefreshFiles] Source-файли, які треба освіжити без consumer incremental cache
  * @returns {Promise<{coverage:object, mutation:{caught:number,total:number}, survived:Array<object>} | null>} результати або null коли full-режим і workspace без тестів
  */
 async function collectOneRoot(jsRoot, cwd, runner, scope = null, mutationRefreshFiles = []) {
@@ -1175,7 +1176,7 @@ async function collectChangedRoot(jsRoot, cwd, runner, opts) {
  * нема. Якщо змін нема ніде — повертає `[]` без error-логу (оркестратор трактує
  * порожній changed-scope як pass).
  * @param {string} cwd корінь проєкту
- * @param {{runner?: typeof defaultRunner, changedFiles?: string[], base?: string|null}} [opts] runner-ін'єкція + changed-scope
+ * @param {{runner?: typeof defaultRunner, changedFiles?: string[], base?: string|null, mutationRefreshFiles?: string[]}} [opts] runner-ін'єкція + changed-scope або fresh mutation scope
  * @returns {Promise<Array<{area:string, coverage:object, mutation:{caught:number,total:number}, survived:Array<object>}>>} рядки `JS`/`Vue (Storybook)` — лише ті, де є дані
  */
 export async function collect(cwd, opts = {}) {
