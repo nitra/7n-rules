@@ -22,6 +22,9 @@ vi.mock('eslint', () => ({
 const spawnAsyncMock = vi.fn()
 vi.mock('@7n/rules/scripts/utils/spawn-async.mjs', () => ({ spawnAsync: spawnAsyncMock }))
 
+const resolveCmdMock = vi.fn(() => '/usr/local/bin/bunx')
+vi.mock('@7n/rules/scripts/utils/resolve-cmd.mjs', () => ({ resolveCmd: resolveCmdMock }))
+
 const addedLinesByFileMock = vi.fn()
 vi.mock('@7n/rules/scripts/lib/diff-added-lines.mjs', async importOriginal => {
   const actual = await importOriginal()
@@ -119,5 +122,14 @@ describe('lint', () => {
     const preExisting = result.violations.find(v => v.reason === 'old-rule')
     expect(introduced.severity).toBe('error')
     expect(preExisting.severity).toBe('warn')
+  })
+
+  test('bunx не знайдено в PATH → зрозуміла помилка, а не ENOENT з spawn', async () => {
+    lintFilesMock.mockResolvedValueOnce([])
+    resolveCmdMock.mockReturnValueOnce(null)
+    spawnAsyncMock.mockClear()
+
+    await expect(lint({ cwd: '/root/proj', files: undefined })).rejects.toThrow('bunx не знайдено в PATH')
+    expect(spawnAsyncMock).not.toHaveBeenCalled()
   })
 })
