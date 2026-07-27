@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.22] - 2026-07-27
+
+### Fixed
+
+- Retry initial PR check discovery and prune rebuildable forensic dependencies
+
 ## [1.49.21] - 2026-07-27
 
 ### Fixed
