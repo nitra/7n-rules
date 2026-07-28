@@ -1,0 +1,19 @@
+docs/superpowers/specs/2026-07-28-open-pr-remediation-design.md
+  s_4ed034b2325d4a::t_a1af56b8c6cc0f 1-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "eb042a50dbabb4ed4f206b0ea597f01cdc1b0b9f",
+  "prompts": {},
+  "sessions": {
+    "s_4ed034b2325d4a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa9e1-fcf8-7082-9435-2aacdc2eae0d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
