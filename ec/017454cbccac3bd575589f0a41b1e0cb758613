@@ -1,0 +1,19 @@
+bun.lock
+  s_b3612676a321e8::t_6a8a50a11bed4c 40,63,69,93,103,113,135,142,157,2540-2541
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "ec017454cbccac3bd575589f0a41b1e0cb758613",
+  "prompts": {},
+  "sessions": {
+    "s_b3612676a321e8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0566590e-191f-468f-920e-ab9a7f7f1186",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
