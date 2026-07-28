@@ -1,0 +1,19 @@
+npm/scripts/sync-claude-config.mjs
+  s_3b13aaf5bffb50::t_528a1a49bab906 79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c4e79f6372d555a54b9de9d13d831cfd27e9cd20",
+  "prompts": {},
+  "sessions": {
+    "s_3b13aaf5bffb50": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa919-380c-7913-8616-b4bc6856cb97",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
