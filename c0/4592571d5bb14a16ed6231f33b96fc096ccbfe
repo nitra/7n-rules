@@ -1,0 +1,19 @@
+npm/scripts/hook.mjs
+  s_4dc954414c48e8::t_3c1e3998e5438c 81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c04592571d5bb14a16ed6231f33b96fc096ccbfe",
+  "prompts": {},
+  "sessions": {
+    "s_4dc954414c48e8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4acfbd8-de1a-4367-bc4d-450f0bf92601",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
