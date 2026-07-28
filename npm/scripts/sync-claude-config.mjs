@@ -507,7 +507,6 @@ function codexHooksWithAdrHook(hooks) {
  * @param {Record<string, HookGroup[]> | undefined} template hooks-секція з `codex-hooks.template.json`
  * @param {object} [options] опції merge-у
  * @param {boolean} [options.includeAdrHook] чи додати ADR Stop-hook групи (правило `adr`)
- * @param {boolean} [options.includeLocalAiHook] застарілий прапорець: Codex rtk hook не підтримується
  * @returns {Record<string, HookGroup[]>} результат merge-у (порожні події видаляються)
  */
 export function mergeCodexHooks(existing, template, options = {}) {
@@ -526,7 +525,6 @@ export function mergeCodexHooks(existing, template, options = {}) {
  * @param {string} templateDir каталог `.claude-template/` усередині пакету
  * @param {object} [options] опції merge-у
  * @param {boolean} [options.includeAdrHook] чи додавати ADR Stop-hook групи
- * @param {boolean} [options.includeLocalAiHook] застарілий прапорець, збережений для сумісності викликів
  * @returns {Promise<{ written: boolean, path: string }>} результат: чи писали файл, та його відносний шлях
  */
 export async function syncCodexHooksConfig(projectRoot, templateDir, options = {}) {
@@ -899,7 +897,7 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
   }
   const settings = await syncClaudeSettings(projectRoot, templateDir, { includeAdrHook, includeLocalAiHook })
   const cursorHooks = await syncCursorHooksConfig(projectRoot, { includeAdrHook, includeLocalAiHook })
-  const codexHooks = await syncCodexHooksConfig(projectRoot, templateDir, { includeAdrHook, includeLocalAiHook })
+  const codexHooks = await syncCodexHooksConfig(projectRoot, templateDir, { includeAdrHook })
   const commands = await syncClaudeCommands(projectRoot, templateDir)
   return {
     settings: settings.written,

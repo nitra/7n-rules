@@ -419,17 +419,12 @@ describe('mergeCodexHooks', () => {
     expect(merged.Stop[1].hooks[0].command).toContain('.claude/hooks/normalize-decisions.sh')
   })
 
-  test('includeLocalAiHook не додає непідтримуваний rtk hook у Codex', () => {
-    const merged = mergeCodexHooks(undefined, baseTemplate, { includeLocalAiHook: true })
-    expect(merged.PreToolUse).toBeUndefined()
-  })
-
   test('повторний merge не дублює managed-групи; вимкнення прибирає їх', () => {
-    const withBoth = mergeCodexHooks(undefined, baseTemplate, { includeAdrHook: true, includeLocalAiHook: true })
-    const again = mergeCodexHooks(withBoth, baseTemplate, { includeAdrHook: true, includeLocalAiHook: true })
+    const withAdr = mergeCodexHooks(undefined, baseTemplate, { includeAdrHook: true })
+    const again = mergeCodexHooks(withAdr, baseTemplate, { includeAdrHook: true })
     expect(again.Stop).toHaveLength(2)
     expect(again.PreToolUse).toBeUndefined()
-    const disabled = mergeCodexHooks(again, baseTemplate, { includeAdrHook: false, includeLocalAiHook: false })
+    const disabled = mergeCodexHooks(again, baseTemplate)
     expect(disabled.Stop).toBeUndefined()
     expect(disabled.PreToolUse).toBeUndefined()
     expect(disabled.PostToolUse).toHaveLength(1)
@@ -437,7 +432,7 @@ describe('mergeCodexHooks', () => {
 
   test('зберігає користувацькі групи поряд з managed', () => {
     const existing = { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo my-hook' }] }] }
-    const merged = mergeCodexHooks(existing, baseTemplate, { includeLocalAiHook: true })
+    const merged = mergeCodexHooks(existing, baseTemplate)
     expect(merged.PreToolUse).toHaveLength(1)
     expect(merged.PreToolUse[0].hooks[0].command).toBe('echo my-hook')
   })

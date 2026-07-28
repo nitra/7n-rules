@@ -3,7 +3,7 @@ type: JS Module
 title: sync-claude-config.mjs
 resource: npm/scripts/sync-claude-config.mjs
 docgen:
-  crc: 7e76e00d
+  crc: dddda436
   model: omlx/gemma-4-e2b-it-4bit
   tier: local-min
   score: 35
@@ -95,7 +95,7 @@ cleanup-у `.claude/hooks/{capture,normalize}-decisions.sh`).
 
 ## Сценарії використання
 
-- `npm/scripts/tests/sync-claude-config.test.mjs` (mergeAllowList; mergeHooks) — union без дублікатів, порядок: спочатку існуючі; обробляє undefined по обидва боки; видаляє managed-групу (у т.ч. legacy; зберігає користувацькі групи поряд з managed; legacy Stop-hook (; ще 44
+- `npm/scripts/tests/sync-claude-config.test.mjs` (mergeAllowList; mergeHooks) — union без дублікатів, порядок: спочатку існуючі; обробляє undefined по обидва боки; видаляє managed-групу (у т.ч. legacy; зберігає користувацькі групи поряд з managed; legacy Stop-hook (; ще 43
 
 ## Гарантії поведінки
 
