@@ -1,0 +1,46 @@
+npm/scripts/tests/sync-claude-config.test.mjs
+  s_4dc954414c48e8::t_f028e9c27b9253 23,29,37
+  s_4dc954414c48e8::t_32021625a8d03c 536
+  s_4dc954414c48e8::t_17fce0722cb8b1 397-448
+  s_4dc954414c48e8::t_d4c9ac739e5217 462-466
+  s_4dc954414c48e8::t_036513b1d0f16e 78-92
+  s_4dc954414c48e8::t_9c3ec377166d5a 833-851
+npm/scripts/sync-claude-config.mjs
+  s_4dc954414c48e8::t_80461a6a60d83a 940,945
+  s_4dc954414c48e8::t_f40abdf94f352d 196-248
+  s_4dc954414c48e8::t_8801b77f2d4ebd 888,894
+  s_4dc954414c48e8::t_3a17bf851c9e1e 65,195,508-588
+  s_4dc954414c48e8::t_538cee01372ce4 66-76,91-92,101-102
+npm/scripts/docs/sync-claude-config.md
+  s_4dc954414c48e8::t_fd2d8cf25a0ae4 6-10,13,15-79,81-99,101,103,107
+npm/.claude-template/codex-hooks.template.json
+  s_4dc954414c48e8::t_6f75786e316dfa 1-16
+npm/scripts/tests/hook.test.mjs
+  s_4dc954414c48e8::t_aaeb323668cd07 1-98
+npm/scripts/hook.mjs
+  s_4dc954414c48e8::t_357c7018f89715 2-3,6-15
+  s_4dc954414c48e8::t_3f3e99a597325d 57-61,63-91,93,95-97,99,101-106,108
+  s_4dc954414c48e8::t_e8ca872331545e 138-141
+.v8rignore
+  s_4dc954414c48e8::t_bd60465200ba6c 16
+npm/scripts/docs/hook.md
+  s_4dc954414c48e8::t_ff6008e05748c2 6-9,12,14-15,17-27,29,31-38,40,42,46-47
+npm/bin/n-rules-cli.mjs
+  s_4dc954414c48e8::t_1e8358f7aa3e7c 1620
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "8968d7186bcf146eb718441e9978ac2782de1b90",
+  "prompts": {},
+  "sessions": {
+    "s_4dc954414c48e8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4acfbd8-de1a-4367-bc4d-450f0bf92601",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
