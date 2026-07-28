@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.23.3] - 2026-07-28
+
+### Changed
+
+- release: @7n/llm-lib@2.10.1, @7n/rules@1.52.1, @7n/rules-lang-js@0.23.1
+- Механічно додано change-файл для поточних змін у workspace.
+
+### Fixed
+
+- `js/eslint` (`main.mjs`, `fix-eslint.mjs`) резолвить `bunx` через `resolveCmd` (абсолютний шлях) замість літерала — вкладений `spawn('bunx', …)` падав `ENOENT` на self-hosted CI, коли зовнішній `n-rules` викликаний напряму (`bun bin/n-rules.js`), а не через `bun x n-rules`.
+
 ## [0.23.2] - 2026-07-27
 
 ### Fixed

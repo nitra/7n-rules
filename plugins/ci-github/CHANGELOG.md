@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.2] - 2026-07-28
+
+### Changed
+
+- release: @7n/llm-lib@2.10.1, @7n/rules@1.52.1, @7n/rules-lang-js@0.23.1
+- Механічно додано change-файл для поточних змін у workspace.
+
 ## [2.0.1] - 2026-07-27
 
 ### Fixed
