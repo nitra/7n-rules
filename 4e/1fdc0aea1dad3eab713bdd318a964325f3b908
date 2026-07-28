@@ -1,0 +1,33 @@
+npm/scripts/lib/plugin-slots.mjs
+  s_4ed034b2325d4a::t_5573b705877eb8 628
+npm/rules/doc-files/docgen-scan/docs/lang-extensions.md
+  s_4ed034b2325d4a::t_5573b705877eb8 23,27,45
+.cspell.json
+  s_4ed034b2325d4a::t_5573b705877eb8 50
+npm/scripts/lib/docs/plugin-slots.md
+  s_4ed034b2325d4a::t_5573b705877eb8 71
+plugins/lang-rust/doc-files/docs/extractors.md
+  s_4ed034b2325d4a::t_5573b705877eb8 20
+llm-lib/crates/llm-lib-napi/src/docs/lib.md
+  s_4ed034b2325d4a::t_5573b705877eb8 17
+plugins/lang-python/taze/docs/provider.md
+  s_4ed034b2325d4a::t_5573b705877eb8 22
+npm/rules/doc-files/docgen-scan/docs/main.md
+  s_4ed034b2325d4a::t_5573b705877eb8 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "4e1fdc0aea1dad3eab713bdd318a964325f3b908",
+  "prompts": {},
+  "sessions": {
+    "s_4ed034b2325d4a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa9e1-fcf8-7082-9435-2aacdc2eae0d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
