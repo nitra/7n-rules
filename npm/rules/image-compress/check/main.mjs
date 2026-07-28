@@ -1,9 +1,11 @@
 /**
  * lint-поверхня image-compress/check: read-only detector синхронності image-файлів із
- * `.n-minify-image.tsv` (`@nitra/minify-image --json`). Стиснення (`--write`) — окремий
- * fix, не в detector-і.
+ * `.n-minify-image.tsv` (`@nitra/minify-image --json`, запущений через `bunx` — пакет
+ * використовує `Bun.Image`, bun-only global). Стиснення (`--write`) — окремий fix, не
+ * в detector-і.
  */
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
+import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 
 const JSON_MAX_BUFFER = 20 * 1024 * 1024
@@ -26,15 +28,29 @@ export async function lint(ctx) {
   const { fail } = reporter
   const cwd = ctx.cwd
 
+  // `@nitra/minify-image` v4 використовує `Bun.Image` (bun-only global) — запуск через
+  // `npx` (Node) мовчки провалює компресію (Bun.Image відсутній) і детектор хибно репортує
+  // майже всі файли як такі, що потребують стиснення. Тому запускаємо через `bunx`
+  // (резолвиться через resolveCmd — абсолютний шлях, той самий патерн, що й js/eslint).
+  // Якщо bunx відсутній у PATH (CI-образ лише з Node) — пропускаємо detector з info-діагностикою,
+  // як security/scan пропускає скан за відсутності trufflehog.
+  const bunx = resolveCmd('bunx')
+  if (!bunx) {
+    return {
+      violations: [],
+      diagnostics: [{ level: 'info', message: 'image-compress: `bunx` не знайдено в PATH — перевірку пропущено' }]
+    }
+  }
+
   let r
   try {
-    r = await spawnAsync('npx', ['@nitra/minify-image', '--src=.', '--json'], {
+    r = await spawnAsync(bunx, ['@nitra/minify-image', '--src=.', '--json'], {
       cwd,
       env: process.env,
       maxBuffer: JSON_MAX_BUFFER
     })
   } catch (error) {
-    fail(`image-compress: не вдалося запустити npx @nitra/minify-image --json: ${error.message}`, 'tool-error')
+    fail(`image-compress: не вдалося запустити bunx @nitra/minify-image --json: ${error.message}`, 'tool-error')
     return reporter.result()
   }
   if (r.exitCode !== 0) {
