@@ -1,0 +1,30 @@
+npm/rules/image-compress/tests/main.test.mjs
+  s_b3612676a321e8::t_b16a2069fa3d20 15,21,24-26,40,52,63-75
+  s_b3612676a321e8::t_792089cec8c753 76-77
+npm/rules/image-compress/check/docs/main.md
+  s_b3612676a321e8::t_9df9fb6bbdef50 6-7,12-14,18-23,27,31-32
+npm/.changes/260728-0733.md
+  s_b3612676a321e8::t_21b077df238142 1-5
+npm/rules/image-compress/check/main.mjs
+  s_b3612676a321e8::t_de85b23a56554e 31-44,47,53
+  s_b3612676a321e8::t_d7e07210613203 8
+  s_b3612676a321e8::t_5ec0374b9cbac7 3-5
+bun.lock
+  s_b3612676a321e8::t_6a8a50a11bed4c 40,63,69,93,103,113,135,142,157,2540-2541
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "8df9abe5f5a4e1b435a1f41cb6cd80ccb5809fb7",
+  "prompts": {},
+  "sessions": {
+    "s_b3612676a321e8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0566590e-191f-468f-920e-ab9a7f7f1186",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
