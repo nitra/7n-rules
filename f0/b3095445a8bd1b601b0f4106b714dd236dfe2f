@@ -1,0 +1,21 @@
+npm/rules/image-compress/check/fix-check.mjs
+  s_de17bbc746fc0b::t_b0199cb7d0ec00 3-5,18-19,25-27,33,39,43,49
+npm/.changes/260728-1731.md
+  s_de17bbc746fc0b::t_fc33c64179cefe 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "f0b3095445a8bd1b601b0f4106b714dd236dfe2f",
+  "prompts": {},
+  "sessions": {
+    "s_de17bbc746fc0b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1afa97ff-9125-41e1-a06d-aa4c2b0cdfd7",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
