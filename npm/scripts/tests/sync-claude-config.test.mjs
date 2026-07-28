@@ -20,11 +20,13 @@ import {
   LEGACY_STOP_HOOK_COMMAND_MARKER,
   MANAGED_HOOK_COMMAND_MARKER,
   mergeAllowList,
+  mergeCodexHooks,
   mergeCursorHooksConfig,
   mergeHooks,
   mergeSettings,
   removeOrphanAdrHookLib,
   RTK_CLAUDE_HOOK_COMMAND_MARKER,
+  RTK_CODEX_HOOK_COMMAND_MARKER,
   RTK_CURSOR_HOOK_COMMAND_MARKER,
   RTK_PI_EXTENSION_FILE,
   syncAdrHookLibScripts,
@@ -32,6 +34,7 @@ import {
   syncClaudeCommands,
   syncClaudeConfig,
   syncClaudeSettings,
+  syncCodexHooksConfig,
   syncGitignoreAdrFragment
 } from '../sync-claude-config.mjs'
 import { withTmpDir, writeJson } from '../utils/test-helpers.mjs'
@@ -70,6 +73,21 @@ async function setupTemplate(cwdAbs, tpl = {}) {
   await writeFile(
     join(cwdAbs, TEMPLATE_REL, 'settings.template.json'),
     `${JSON.stringify(settings, null, 2)}\n`,
+    'utf8'
+  )
+  const codexHooks = tpl.codexHooks ?? {
+    hooks: {
+      PostToolUse: [
+        {
+          matcher: 'apply_patch',
+          hooks: [{ type: 'command', command: 'npx --no @7n/rules hook --post-tool-use', timeout: 300 }]
+        }
+      ]
+    }
+  }
+  await writeFile(
+    join(cwdAbs, TEMPLATE_REL, 'codex-hooks.template.json'),
+    `${JSON.stringify(codexHooks, null, 2)}\n`,
     'utf8'
   )
   await writeFile(
@@ -376,6 +394,58 @@ describe('mergeSettings (local-ai)', () => {
   })
 })
 
+describe('mergeCodexHooks', () => {
+  const baseTemplate = {
+    PostToolUse: [
+      {
+        matcher: 'apply_patch',
+        hooks: [{ type: 'command', command: 'npx --no @7n/rules hook --post-tool-use', timeout: 300 }]
+      }
+    ]
+  }
+
+  test('без опцій — лише базовий PostToolUse lint-hook', () => {
+    const merged = mergeCodexHooks(undefined, baseTemplate)
+    expect(merged.PostToolUse).toHaveLength(1)
+    expect(merged.PostToolUse[0].matcher).toBe('apply_patch')
+    expect(merged.Stop).toBeUndefined()
+    expect(merged.PreToolUse).toBeUndefined()
+  })
+
+  test('includeAdrHook додає ADR capture+normalize групи у Stop', () => {
+    const merged = mergeCodexHooks(undefined, baseTemplate, { includeAdrHook: true })
+    expect(merged.Stop).toHaveLength(2)
+    expect(merged.Stop[0].hooks[0].command).toContain(ADR_HOOK_COMMAND_MARKER)
+    expect(merged.Stop[0].hooks[0].async).toBeUndefined()
+    expect(merged.Stop[1].hooks[0].command).toContain('.claude/hooks/normalize-decisions.sh')
+  })
+
+  test('includeLocalAiHook додає rtk-групу у PreToolUse з matcher Bash', () => {
+    const merged = mergeCodexHooks(undefined, baseTemplate, { includeLocalAiHook: true })
+    expect(merged.PreToolUse).toHaveLength(1)
+    expect(merged.PreToolUse[0].matcher).toBe('Bash')
+    expect(merged.PreToolUse[0].hooks[0].command).toContain(RTK_CODEX_HOOK_COMMAND_MARKER)
+  })
+
+  test('повторний merge не дублює managed-групи; вимкнення прибирає їх', () => {
+    const withBoth = mergeCodexHooks(undefined, baseTemplate, { includeAdrHook: true, includeLocalAiHook: true })
+    const again = mergeCodexHooks(withBoth, baseTemplate, { includeAdrHook: true, includeLocalAiHook: true })
+    expect(again.Stop).toHaveLength(2)
+    expect(again.PreToolUse).toHaveLength(1)
+    const disabled = mergeCodexHooks(again, baseTemplate, { includeAdrHook: false, includeLocalAiHook: false })
+    expect(disabled.Stop).toBeUndefined()
+    expect(disabled.PreToolUse).toBeUndefined()
+    expect(disabled.PostToolUse).toHaveLength(1)
+  })
+
+  test('зберігає користувацькі групи поряд з managed', () => {
+    const existing = { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo my-hook' }] }] }
+    const merged = mergeCodexHooks(existing, baseTemplate, { includeLocalAiHook: true })
+    expect(merged.PreToolUse).toHaveLength(2)
+    expect(merged.PreToolUse[0].hooks[0].command).toBe('echo my-hook')
+  })
+})
+
 describe('syncClaudeConfig (інтеграція)', () => {
   test('створює settings.json із managed PostToolUse групою', async () => {
     await withTmpDir(async cwdAbs => {
@@ -389,6 +459,11 @@ describe('syncClaudeConfig (інтеграція)', () => {
       expect(settings.hooks.PostToolUse[0].hooks[0].command).toContain(MANAGED_HOOK_COMMAND_MARKER)
       expect(settings.hooks.PostToolUse[0].hooks[0].timeout).toBe(300)
       expect(settings.hooks.Stop).toBeUndefined()
+      expect(result.codexHooks).toBe(true)
+      const codexHooks = JSON.parse(await readFile(join(cwdAbs, '.codex/hooks.json'), 'utf8'))
+      expect(codexHooks.hooks.PostToolUse[0].matcher).toBe('apply_patch')
+      expect(codexHooks.hooks.PostToolUse[0].hooks[0].command).toContain(MANAGED_HOOK_COMMAND_MARKER)
+      expect(codexHooks.hooks.Stop).toBeUndefined()
     })
   })
 
@@ -458,6 +533,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
       expect(result).toEqual({
         settings: false,
         cursorHooks: false,
+        codexHooks: false,
         commands: [],
         adrHook: false,
         adrNormalizeHook: false,
@@ -751,6 +827,25 @@ describe('syncClaudeConfig (інтеграція)', () => {
     await withTmpDir(async cwdAbs => {
       const result = await syncClaudeSettings(cwdAbs, join(cwdAbs, 'nonexistent'))
       expect(result).toEqual({ written: false, path: '' })
+    })
+  })
+
+  test('syncCodexHooksConfig — template file відсутній → { written: false }', async () => {
+    await withTmpDir(async cwdAbs => {
+      const result = await syncCodexHooksConfig(cwdAbs, join(cwdAbs, 'nonexistent'))
+      expect(result).toEqual({ written: false, path: '' })
+    })
+  })
+
+  test('syncCodexHooksConfig — ідемпотентний повторний виклик, не дублює managed-групу', async () => {
+    await withTmpDir(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs)
+      const templateDir = join(pkgRoot, '.claude-template')
+      await syncCodexHooksConfig(cwdAbs, templateDir, { includeAdrHook: true })
+      await syncCodexHooksConfig(cwdAbs, templateDir, { includeAdrHook: true })
+      const codexHooks = JSON.parse(await readFile(join(cwdAbs, '.codex/hooks.json'), 'utf8'))
+      expect(codexHooks.hooks.Stop).toHaveLength(2)
+      expect(codexHooks.hooks.PostToolUse).toHaveLength(1)
     })
   })
 

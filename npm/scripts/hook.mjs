@@ -1,10 +1,18 @@
 /**
- * Thin hook entrypoint для Claude Code hooks: зчитує контекст (stdin / git),
- * делегує в `detectAll` (read-only), перекодовує exit-код у hook-протокол (1 → 2).
+ * Thin hook entrypoint для Claude Code / Cursor / Codex CLI hooks: зчитує контекст
+ * (stdin / git), делегує в `detectAll` (read-only), перекодовує exit-код у hook-протокол (1 → 2).
  *
  * Режими:
- *   --post-tool-use  PostToolUse: file_path зі stdin JSON Claude Code.
- *   --stop           Stop: робоче дерево vs HEAD (`git diff HEAD` + untracked).
+ *   --post-tool-use  PostToolUse: шлях(и) зміненого файлу зі stdin JSON — Claude Code
+ *                     (`tool_input.file_path`, один файл) або Codex CLI (`tool_name: "apply_patch"`,
+ *                     `tool_input.command` — V4A-патч `*** Begin Patch ... *** End Patch`, можливо
+ *                     кілька файлів; джерело формату: openai/codex apply_patch_tool_instructions.md).
+ *                     NB: покриття PostToolUse для `apply_patch` у Codex CLI станом на час написання
+ *                     задокументовано суперечливо (відкритий issue openai/codex#16732 — "ApplyPatchHandler
+ *                     doesn't emit PreToolUse/PostToolUse hook event") — на частині версій подія може
+ *                     не спрацювати взагалі; Stop-hook нижче лишається надійним fallback.
+ *   --stop           Stop: робоче дерево vs HEAD (`git diff HEAD` + untracked) — payload-незалежний,
+ *                     працює однаково для Claude Code, Cursor і Codex CLI.
  */
 import { once } from 'node:events'
 import { relative, resolve } from 'node:path'
@@ -46,19 +54,58 @@ async function readStdin() {
   return chunks.join('')
 }
 
+const V4A_ADD_FILE_RE = /^\*\*\* Add File: (.+)$/u
+const V4A_UPDATE_FILE_RE = /^\*\*\* Update File: (.+)$/u
+const V4A_MOVE_TO_RE = /^\*\*\* Move to: (.+)$/u
+const EOL_RE = /\r?\n/u
+
 /**
- * Дістає `tool_input.file_path` зі stdin JSON Claude Code PostToolUse hook.
- * @param {string} json сирий stdin
- * @returns {string|null} шлях до файлу або null, якщо відсутній/невалідний JSON
+ * Дістає шляхи файлів з V4A-патча Codex CLI apply_patch (`*** Begin Patch ... *** End Patch`).
+ * `Update File` з наступним рядком `Move to` рахує лише фінальний (перейменований) шлях;
+ * `Delete File` пропускається — файла більше нема, лінтити нічого.
+ * @param {string} patch сирий текст патча з `tool_input.command`
+ * @returns {string[]} шляхи файлів для лінту (може бути порожньо — патч лише видаляє файли)
  */
-export function extractFilePath(json) {
-  if (!json) return null
-  try {
-    const fp = JSON.parse(json)?.tool_input?.file_path
-    return typeof fp === 'string' && fp !== '' ? fp : null
-  } catch {
-    return null
+export function extractCodexPatchPaths(patch) {
+  const lines = patch.split(EOL_RE)
+  const paths = []
+  for (let i = 0; i < lines.length; i++) {
+    const addMatch = V4A_ADD_FILE_RE.exec(lines[i])
+    if (addMatch) {
+      paths.push(addMatch[1].trim())
+      continue
+    }
+    const updateMatch = V4A_UPDATE_FILE_RE.exec(lines[i])
+    if (updateMatch) {
+      const moveMatch = V4A_MOVE_TO_RE.exec(lines[i + 1] ?? '')
+      paths.push((moveMatch ? moveMatch[1] : updateMatch[1]).trim())
+    }
   }
+  return paths
+}
+
+/**
+ * Дістає шлях(и) зміненого файлу зі stdin JSON PostToolUse hook — Claude Code
+ * (`tool_input.file_path`, один файл) або Codex CLI (`tool_name: "apply_patch"`,
+ * `tool_input.command` — V4A-патч, можливо кілька файлів). Інші інструменти (Bash/Shell тощо)
+ * не мають жодного з цих полів — повертає порожній масив (нема що лінтити).
+ * @param {string} json сирий stdin
+ * @returns {string[]} шляхи файлів (порожньо — невалідний JSON, не file-edit tool, або лише видалення)
+ */
+export function extractFilePaths(json) {
+  if (!json) return []
+  let parsed
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    return []
+  }
+  const fp = parsed?.tool_input?.file_path
+  if (typeof fp === 'string' && fp !== '') return [fp]
+  if (parsed?.tool_name === 'apply_patch' && typeof parsed?.tool_input?.command === 'string') {
+    return extractCodexPatchPaths(parsed.tool_input.command)
+  }
+  return []
 }
 
 /**
@@ -88,9 +135,10 @@ export async function runHookCli(argv) {
   }
 
   if (postToolUse) {
-    const fp = extractFilePath(await readStdin())
-    if (!fp) return 0
-    const { exitCode } = await detectAll({ files: [toRelativePosix(fp, cwd)], cwd, log: logToStderr })
+    const paths = extractFilePaths(await readStdin())
+    if (paths.length === 0) return 0
+    const files = paths.map(fp => toRelativePosix(fp, cwd))
+    const { exitCode } = await detectAll({ files, cwd, log: logToStderr })
     return exitCode === 0 ? 0 : 2
   }
 
