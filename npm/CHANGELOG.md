@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.53.0] - 2026-07-28
+
+### Changed
+
+- oxfmtrc: canonical trailingComma=none, arrowParens=avoid
+
+### Fixed
+
+- template-deep-merge: оновлювати елемент масиву (name/uses) on-place при drift замість дублювання (steps з тим самим name у workflow-фіксерах)
+- Уточнено діагностичні коментарі `glob-compat.mjs`: crash `yield* … is not async iterable` (#203) корелює з тим, чи зовнішній `n-rules` викликаний через `bun x`, а не з ОС/Bun-версією; задокументовано, що `bun x <локальна-devDependency>` не застосовує `patchedDependencies`.
+- buildDetectPlan: застосовувати rule-level applies-гейт (filterByRuleApplies), як у detectAll
+- image-compress/check: run @nitra/minify-image via bun instead of npx/Node
+
 ## [1.52.2] - 2026-07-27
 
 ### Fixed
