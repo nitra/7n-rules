@@ -37,7 +37,7 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.11.0",
+      "version": "2.12.0",
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
       },
@@ -60,13 +60,13 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.52.2",
+      "version": "1.53.0",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
       },
       "dependencies": {
-        "@7n/llm-lib": "2.10.1",
+        "@7n/llm-lib": "2.12.0",
         "@7n/mt": "^0.5.1",
         "@zed-industries/agent-client-protocol": "^0.4.5",
         "ajv": "^8.20.0",
@@ -100,7 +100,7 @@
     },
     "plugins/ci-github": {
       "name": "@7n/rules-ci-github",
-      "version": "2.0.1",
+      "version": "2.0.2",
       "dependencies": {
         "yaml": "^2.9.0",
       },
@@ -110,7 +110,7 @@
     },
     "plugins/lang-js": {
       "name": "@7n/rules-lang-js",
-      "version": "0.23.2",
+      "version": "0.23.3",
       "dependencies": {
         "eslint": "^10.4.1",
         "globby": "^16.0.0",
@@ -139,7 +139,7 @@
     },
     "plugins/lang-python": {
       "name": "@7n/rules-lang-python",
-      "version": "0.11.1",
+      "version": "0.11.2",
       "dependencies": {
         "globby": "^16.0.0",
         "smol-toml": "^1.7.0",
@@ -2536,8 +2536,6 @@
     "zod-to-json-schema": ["zod-to-json-schema@3.25.2", "", { "peerDependencies": { "zod": "^3.25.28 || ^4" } }, "sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA=="],
 
     "zwitch": ["zwitch@2.0.4", "", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
-
-    "@7n/rules/@7n/llm-lib": ["@7n/llm-lib@2.10.1", "", { "optionalDependencies": { "@7n/llm-lib-darwin-arm64": "2.9.7", "@7n/llm-lib-linux-x64": "2.9.7" }, "peerDependencies": { "@earendil-works/pi-ai": "~0.80.10", "@earendil-works/pi-coding-agent": "~0.80.10" }, "optionalPeers": ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent"], "bin": { "n-llm-chains-report": "bin/chains-report.mjs" } }, "sha512-vzrSh9M+LYn7ULp8k+pH9zJkc1F1Xk2IaGlk1ybTGbSl2i7C/pDLiFAmZVn0UhCQK1rfvpztoP52ttuEmpgzcQ=="],
 
     "@aws-sdk/credential-provider-http/@smithy/node-http-handler": ["@smithy/node-http-handler@4.9.6", "", { "dependencies": { "@smithy/core": "^3.29.4", "@smithy/types": "^4.16.1", "tslib": "^2.6.2" } }, "sha512-odd+HYx3OLcXRSEz0ZeF3JQdSYdK8QnRgA2N87cPW7coWIbKfRk7a9VQjfeWQLqnzrDLk23KMEn46p8N7M/JFg=="],
 
