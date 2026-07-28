@@ -1,0 +1,19 @@
+docs/superpowers/plans/2026-07-28-cspell-baseline.md
+  s_4ed034b2325d4a::t_2c9091907a1852 1-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "76b97ec19d422e47716560f9e7817fb23376e34a",
+  "prompts": {},
+  "sessions": {
+    "s_4ed034b2325d4a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa9e1-fcf8-7082-9435-2aacdc2eae0d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
