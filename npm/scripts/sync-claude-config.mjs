@@ -63,12 +63,6 @@ export const RTK_CLAUDE_HOOK_COMMAND_MARKER = 'rtk hook claude'
 /** Маркер rtk preToolUse hook'а у `.cursor/hooks.json` (правило `local-ai`). */
 export const RTK_CURSOR_HOOK_COMMAND_MARKER = 'rtk hook cursor'
 /**
- * Legacy-маркер помилкового Codex rtk hook'а. Лишається лише щоб наступний sync прибрав
- * його зі старих `.codex/hooks.json`; новий hook не генерується, бо rtk не має підкоманди
- * `hook codex`.
- */
-export const RTK_CODEX_HOOK_COMMAND_MARKER = 'rtk hook codex'
-/**
  * Усі маркери managed-hook'ів пакета — за ними відрізняємо свої записи від користувацьких.
  * Legacy stop-hook включений сюди, щоб старі entries автоматично видалялись при наступному sync-у.
  */
@@ -82,8 +76,7 @@ export const MANAGED_HOOK_COMMAND_MARKERS = Object.freeze([
   LEGACY_STOP_HOOK_COMMAND_MARKER,
   ADR_HOOK_COMMAND_MARKER,
   ADR_NORMALIZE_HOOK_COMMAND_MARKER,
-  RTK_CLAUDE_HOOK_COMMAND_MARKER,
-  RTK_CODEX_HOOK_COMMAND_MARKER
+  RTK_CLAUDE_HOOK_COMMAND_MARKER
 ])
 
 const CLAUDE_DIR = '.claude'

@@ -3,7 +3,7 @@ type: JS Module
 title: sync-claude-config.mjs
 resource: npm/scripts/sync-claude-config.mjs
 docgen:
-  crc: dddda436
+  crc: c1eda647
   model: omlx/gemma-4-e2b-it-4bit
   tier: local-min
   score: 35
