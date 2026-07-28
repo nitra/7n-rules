@@ -1,0 +1,27 @@
+npm/AGENTS.template.md
+  s_3b13aaf5bffb50::t_02cf3fc6195e88 35
+  s_3b13aaf5bffb50::t_ae0492f335004c 33-34,36
+npm/scripts/sync-claude-config.mjs
+  s_3b13aaf5bffb50::t_ae0492f335004c 66-68,510,514,521-522,529
+npm/scripts/tests/sync-claude-config.test.mjs
+  s_3b13aaf5bffb50::t_5a5fb3167dde05 422,424,431,441
+npm/bin/tests/n-rules-cwd.test.mjs
+  s_3b13aaf5bffb50::t_ed29cfe6b87fc0 179
+  s_3b13aaf5bffb50::t_5a5fb3167dde05 172-178,180-183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "50073cb120a9dcda80ada5b6836943cb6eb2d407",
+  "prompts": {},
+  "sessions": {
+    "s_3b13aaf5bffb50": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa919-380c-7913-8616-b4bc6856cb97",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
