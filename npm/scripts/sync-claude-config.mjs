@@ -63,15 +63,9 @@ export const RTK_CLAUDE_HOOK_COMMAND_MARKER = 'rtk hook claude'
 /** Маркер rtk preToolUse hook'а у `.cursor/hooks.json` (правило `local-ai`). */
 export const RTK_CURSOR_HOOK_COMMAND_MARKER = 'rtk hook cursor'
 /**
- * Маркер rtk PreToolUse hook'а у `.codex/hooks.json` (правило `local-ai`) — best-guess
- * підкоманда, НЕ підтверджена офіційно. rtk (rtk-ai/rtk) додав підтримку Codex CLI через
- * AGENTS.md-інструкції (PR rtk-ai/rtk#377 «add Codex CLI support via AGENTS.md + RTK.md
- * workflow»), а не через programmatic PreToolUse command-rewrite, як для Claude/Cursor —
- * тому чи існує взагалі підкоманда `rtk hook codex`, не перевірено. Fail-open guard
- * (`command -v rtk`) рятує лише від «rtk не встановлено»: якщо rtk встановлено, але
- * підкоманда відсутня, rtk поверне ненульовий exit і PreToolUse СПРАЦЮЄ як блокуючий —
- * на відміну від Claude/Cursor guard тут немає страховки саме на цей випадок. Виправити,
- * коли rtk підтвердить реальний контракт для Codex.
+ * Legacy-маркер помилкового Codex rtk hook'а. Лишається лише щоб наступний sync прибрав
+ * його зі старих `.codex/hooks.json`; новий hook не генерується, бо rtk не має підкоманди
+ * `hook codex`.
  */
 export const RTK_CODEX_HOOK_COMMAND_MARKER = 'rtk hook codex'
 /**
@@ -227,21 +221,6 @@ const CODEX_ADR_NORMALIZE_STOP_HOOK_GROUP = Object.freeze({
         `bash "$root/${ADR_NORMALIZE_HOOK_COMMAND_MARKER}"'`
       ].join(' '),
       timeout: 600
-    })
-  ])
-})
-
-/**
- * Канонічна Codex CLI rtk PreToolUse-група (правило `local-ai`) — best-guess, див.
- * {@link RTK_CODEX_HOOK_COMMAND_MARKER} щодо непідтвердженого контракту підкоманди.
- */
-const CODEX_RTK_PRE_TOOL_USE_HOOK_GROUP = Object.freeze({
-  matcher: 'Bash',
-  hooks: Object.freeze([
-    Object.freeze({
-      type: 'command',
-      command: `command -v rtk >/dev/null 2>&1 && exec ${RTK_CODEX_HOOK_COMMAND_MARKER}; exit 0`,
-      timeout: 30
     })
   ])
 })
@@ -521,21 +500,6 @@ function codexHooksWithAdrHook(hooks) {
 }
 
 /**
- * Будує копію hooks-секції темплейту Codex із доданою rtk PreToolUse-групою.
- * @param {Record<string, HookGroup[]> | undefined} hooks вихідна hooks-секція темплейту
- * @returns {Record<string, HookGroup[]>} копія з доданою rtk-групою
- */
-function codexHooksWithRtkHook(hooks) {
-  /** @type {Record<string, HookGroup[]>} */
-  const out = {}
-  for (const [event, groups] of Object.entries(hooks ?? {})) {
-    out[event] = Array.isArray(groups) ? [...groups] : []
-  }
-  out.PreToolUse = [...(out.PreToolUse ?? []), CODEX_RTK_PRE_TOOL_USE_HOOK_GROUP]
-  return out
-}
-
-/**
  * Зливає hooks-секцію `.codex/hooks.json`. Формат ідентичний `.claude/settings.json.hooks`
  * (matcher + hooks[] з type/command/timeout — підтверджено `vendor/codex-hooks.json`), тож
  * перевикористовує ту саму {@link mergeHooks}.
@@ -543,28 +507,26 @@ function codexHooksWithRtkHook(hooks) {
  * @param {Record<string, HookGroup[]> | undefined} template hooks-секція з `codex-hooks.template.json`
  * @param {object} [options] опції merge-у
  * @param {boolean} [options.includeAdrHook] чи додати ADR Stop-hook групи (правило `adr`)
- * @param {boolean} [options.includeLocalAiHook] чи додати rtk PreToolUse-групу (правило `local-ai`)
+ * @param {boolean} [options.includeLocalAiHook] застарілий прапорець: Codex rtk hook не підтримується
  * @returns {Record<string, HookGroup[]>} результат merge-у (порожні події видаляються)
  */
 export function mergeCodexHooks(existing, template, options = {}) {
-  let effectiveTemplate = options.includeAdrHook ? codexHooksWithAdrHook(template) : (template ?? {})
-  if (options.includeLocalAiHook) {
-    effectiveTemplate = codexHooksWithRtkHook(effectiveTemplate)
-  }
+  const effectiveTemplate = options.includeAdrHook ? codexHooksWithAdrHook(template) : (template ?? {})
   return mergeHooks(existing, effectiveTemplate)
 }
 
 /**
  * Синхронізує `.codex/hooks.json` для Codex CLI: базовий PostToolUse lint-hook (правило-
  * незалежний, з темплейту `codex-hooks.template.json`, matcher `apply_patch` — best-guess,
- * див. JSDoc {@link ../../hook.mjs}) + опційні ADR Stop-hook групи та rtk PreToolUse-група.
+ * див. JSDoc {@link ../../hook.mjs}) + опційні ADR Stop-hook групи. Codex не має rtk hook:
+ * інтеграція rtk відбувається через пряму інструкцію в AGENTS.md.
  * На відміну від `.claude/settings.json` тут немає секції `permissions` — Codex тримає
  * дозволи окремо в `config.toml`.
  * @param {string} projectRoot корінь проєкту, куди писати
  * @param {string} templateDir каталог `.claude-template/` усередині пакету
  * @param {object} [options] опції merge-у
  * @param {boolean} [options.includeAdrHook] чи додавати ADR Stop-hook групи
- * @param {boolean} [options.includeLocalAiHook] чи додавати rtk PreToolUse-групу
+ * @param {boolean} [options.includeLocalAiHook] застарілий прапорець, збережений для сумісності викликів
  * @returns {Promise<{ written: boolean, path: string }>} результат: чи писали файл, та його відносний шлях
  */
 export async function syncCodexHooksConfig(projectRoot, templateDir, options = {}) {

@@ -26,7 +26,6 @@ import {
   mergeSettings,
   removeOrphanAdrHookLib,
   RTK_CLAUDE_HOOK_COMMAND_MARKER,
-  RTK_CODEX_HOOK_COMMAND_MARKER,
   RTK_CURSOR_HOOK_COMMAND_MARKER,
   RTK_PI_EXTENSION_FILE,
   syncAdrHookLibScripts,
@@ -420,18 +419,16 @@ describe('mergeCodexHooks', () => {
     expect(merged.Stop[1].hooks[0].command).toContain('.claude/hooks/normalize-decisions.sh')
   })
 
-  test('includeLocalAiHook додає rtk-групу у PreToolUse з matcher Bash', () => {
+  test('includeLocalAiHook не додає непідтримуваний rtk hook у Codex', () => {
     const merged = mergeCodexHooks(undefined, baseTemplate, { includeLocalAiHook: true })
-    expect(merged.PreToolUse).toHaveLength(1)
-    expect(merged.PreToolUse[0].matcher).toBe('Bash')
-    expect(merged.PreToolUse[0].hooks[0].command).toContain(RTK_CODEX_HOOK_COMMAND_MARKER)
+    expect(merged.PreToolUse).toBeUndefined()
   })
 
   test('повторний merge не дублює managed-групи; вимкнення прибирає їх', () => {
     const withBoth = mergeCodexHooks(undefined, baseTemplate, { includeAdrHook: true, includeLocalAiHook: true })
     const again = mergeCodexHooks(withBoth, baseTemplate, { includeAdrHook: true, includeLocalAiHook: true })
     expect(again.Stop).toHaveLength(2)
-    expect(again.PreToolUse).toHaveLength(1)
+    expect(again.PreToolUse).toBeUndefined()
     const disabled = mergeCodexHooks(again, baseTemplate, { includeAdrHook: false, includeLocalAiHook: false })
     expect(disabled.Stop).toBeUndefined()
     expect(disabled.PreToolUse).toBeUndefined()
@@ -441,7 +438,7 @@ describe('mergeCodexHooks', () => {
   test('зберігає користувацькі групи поряд з managed', () => {
     const existing = { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo my-hook' }] }] }
     const merged = mergeCodexHooks(existing, baseTemplate, { includeLocalAiHook: true })
-    expect(merged.PreToolUse).toHaveLength(2)
+    expect(merged.PreToolUse).toHaveLength(1)
     expect(merged.PreToolUse[0].hooks[0].command).toBe('echo my-hook')
   })
 })

@@ -169,6 +169,18 @@ describe('syncClaudeMd / syncAgentsMd (cwd-mock)', () => {
     })
   })
 
+  test('syncAgentsMd додає Codex пряму RTK-інструкцію з bundled шаблону', async () => {
+    await withTmpDir(async dir => {
+      cwdState.current = dir
+
+      await syncAgentsMd()
+
+      const text = await readFile(join(dir, 'AGENTS.md'), 'utf8')
+      expect(text).toContain('використовуй підтримувані rtk wrappers')
+      expect(text).not.toContain('@RTK.md')
+    })
+  })
+
   test('syncAgentsMd кидає, коли шаблон відсутній у пакеті', async () => {
     await withTmpDir(async dir => {
       cwdState.current = dir

@@ -3,7 +3,7 @@ type: JS Module
 title: sync-claude-config.mjs
 resource: npm/scripts/sync-claude-config.mjs
 docgen:
-  crc: c5fe96c7
+  crc: 7e76e00d
   model: omlx/gemma-4-e2b-it-4bit
   tier: local-min
   score: 35
@@ -20,15 +20,9 @@ docgen:
 - CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER — Маркер Cursor ADR Normalize Stop-hook'а — той самий script path, але в `.cursor/hooks.json`.
 - RTK_CLAUDE_HOOK_COMMAND_MARKER — Маркер rtk PreToolUse hook'а у `.claude/settings.json` (правило `local-ai`).
 - RTK_CURSOR_HOOK_COMMAND_MARKER — Маркер rtk preToolUse hook'а у `.cursor/hooks.json` (правило `local-ai`).
-- RTK_CODEX_HOOK_COMMAND_MARKER — Маркер rtk PreToolUse hook'а у `.codex/hooks.json` (правило `local-ai`) — best-guess
-підкоманда, НЕ підтверджена офіційно. rtk (rtk-ai/rtk) додав підтримку Codex CLI через
-AGENTS.md-інструкції (PR rtk-ai/rtk#377 «add Codex CLI support via AGENTS.md + RTK.md
-workflow»), а не через programmatic PreToolUse command-rewrite, як для Claude/Cursor —
-тому чи існує взагалі підкоманда `rtk hook codex`, не перевірено. Fail-open guard
-(`command -v rtk`) рятує лише від «rtk не встановлено»: якщо rtk встановлено, але
-підкоманда відсутня, rtk поверне ненульовий exit і PreToolUse СПРАЦЮЄ як блокуючий —
-на відміну від Claude/Cursor guard тут немає страховки саме на цей випадок. Виправити,
-коли rtk підтвердить реальний контракт для Codex.
+- RTK_CODEX_HOOK_COMMAND_MARKER — Legacy-маркер помилкового Codex rtk hook'а. Лишається лише щоб наступний sync прибрав
+його зі старих `.codex/hooks.json`; новий hook не генерується, бо rtk не має підкоманди
+`hook codex`.
 - MANAGED_HOOK_COMMAND_MARKERS — Усі маркери managed-hook'ів пакета — за ними відрізняємо свої записи від користувацьких.
 Legacy stop-hook включений сюди, щоб старі entries автоматично видалялись при наступному sync-у.
 - PI_DIR — Корінь pi.dev артефактів у проєкті-споживачі.
@@ -57,7 +51,8 @@ Cursor читає project-level config з `.cursor/hooks.json`; hook scripts л�
 перевикористовує ту саму {@link mergeHooks}.
 - syncCodexHooksConfig — Синхронізує `.codex/hooks.json` для Codex CLI: базовий PostToolUse lint-hook (правило-
 незалежний, з темплейту `codex-hooks.template.json`, matcher `apply_patch` — best-guess,
-див. JSDoc {@link ../../hook.mjs}) + опційні ADR Stop-hook групи та rtk PreToolUse-група.
+див. JSDoc {@link ../../hook.mjs}) + опційні ADR Stop-hook групи. Codex не має rtk hook:
+інтеграція rtk відбувається через пряму інструкцію в AGENTS.md.
 На відміну від `.claude/settings.json` тут немає секції `permissions` — Codex тримає
 дозволи окремо в `config.toml`.
 - syncClaudeSettings — Синхронізує `.claude/settings.json` за темплейтом, зберігаючи решту
