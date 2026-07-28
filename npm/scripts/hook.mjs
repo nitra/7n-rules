@@ -78,7 +78,7 @@ export function extractCodexPatchPaths(patch) {
     const updateMatch = V4A_UPDATE_FILE_RE.exec(lines[i])
     if (updateMatch) {
       const moveMatch = V4A_MOVE_TO_RE.exec(lines[i + 1] ?? '')
-      paths.push((moveMatch ? moveMatch[1] : updateMatch[1]).trim())
+      paths.push((moveMatch || updateMatch)[1].trim())
     }
   }
   return paths
