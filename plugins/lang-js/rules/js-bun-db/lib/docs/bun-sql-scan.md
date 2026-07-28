@@ -3,33 +3,31 @@ type: JS Module
 title: bun-sql-scan.mjs
 resource: plugins/lang-js/rules/js-bun-db/lib/bun-sql-scan.mjs
 docgen:
-  crc: 9b920f97
-  model: openai-codex/gpt-5.5
-  tier: cloud-avg
-  score: 100
-  issues: judge-refine:kept-original,judge:inaccurate:0.99
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: fd70e9dc
+  model: omlx/gemma-4-e2b-it-4bit
+  tier: local-min
+  score: 80
 ---
 
 ## Огляд
 
-AST-сканер для Bun SQL (`import { sql, SQL } from 'bun'`) знаходить патерни, небезпечні для міграції, через `oxc-parser`, без regex по тексту коду. Він виявляє `new SQL` всередині функції, бо пул підключень має бути module-level singleton, а не створюватися на кожен виклик handler-а.
+AST-сканер небезпечних патернів Bun SQL (`import { sql, SQL } from 'bun'`).
 
-Сканер забороняє будь-який `<obj>.unsafe` без маркера `// n-rules:allow-unsafe: <reason>` на тому ж або попередньому рядку. Виняток має бути явно пояснений для ревʼю: `unsafe` допустимий лише для контрольованих кодом SQL-ідентифікаторів або dynamic SQL/DDL, а не для user input.
+Знаходить:
+- `new SQL(...)` всередині функції — пул має бути singleton на рівні модуля,
+  а не на кожен виклик handler-а.
+- Будь-який виклик `<obj>.unsafe(...)` без маркера-коментаря `// n-rules:allow-unsafe: <reason>`
+  на тому ж рядку або рядком вище. `sql.unsafe` за замовчуванням заборонено: дозволено
+  тільки якщо значення контролюється кодом (не user input) і потрібно підставити
+  назву таблиці/колонки або dynamic SQL/DDL. Інакше — переробити на tagged template
+  `sql\`...\${value}...\``. Маркер фіксує цю причину для ревʼюера.
+- Динамічні SQL-списки у tagged template `sql\`... IN (${arr.join(',')}) ...\``:
+  навіть «через tagged template» у запит потрапляє готовий шматок SQL замість
+  параметризованих значень — треба `sql([...])`.
 
-Також сканер знаходить залишки `pg`, небезпечні SQL-списки на кшталт `arr.join` у tagged template, випадки без `sql`, JSONB-серіалізацію та масиви без явного pg-типу. Якщо файл не парситься або має syntax errors, результат порожній: спочатку треба виправити синтаксис і повторити перевірку.
-
-## Поведінка
-
-Сканування починається з відбору файлів через isBunSqlScanSourceFile або дешевих текстових попередніх фільтрів на кшталт textHasPgLibImport. Далі публічні пошукові функції отримують вихідний текст, будують AST і повертають списки знахідок із рядком та фрагментом коду; якщо код не парситься, результат порожній, бо синтаксис має бути виправлений до повторної перевірки.
-
-findBunSqlPerRequestConnectionInText, findBunSqlUnsafeUseWithoutAllowMarkerInText, findBunSqlUnsafeWithInterpolatedTemplateInText, findBunSqlPgLeftoverCallInText, findUnsafeBunSqlDynamicSqlListInText, findUnsafeBunSqlInListMissingEmptyGuardInText, findJsonStringifyBeforeJsonbInText і findSqlArrayWithoutTypeArgInText разом формують перевірки міграції на Bun SQL: вони ловлять створення пулу в runtime-шляху, небезпечний dynamic SQL, залишки pg-поведінки, некоректні списки, зайву JSON-серіалізацію та масиви без явного pg-типу. Маркери дозволу враховуються лише як локальний opt-in для ревʼю і повідомлень правила (js-bun-db.mdc), але не скасовують заборону на інтерпольовані unsafe-шаблони.
-
-findPgFormatShimDefinitionInText і findPgFormatLikeQueryWrapperInText працюють як додатковий шар проти маскування старих pg-підходів: вони знаходять сумісні з pg-format шими та query-обгортки, які повертають injection-поверхню під безпечними назвами.
-
-findPgLibImportInText деталізує місця імпорту pg після текстового сигналу від textHasPgLibImport, а findPgListenNotifyUsageInText позначає випадки LISTEN/NOTIFY як причину, чому pg може лишатися свідомим винятком під час міграції.
-
-Усі результати залишаються в памʼяті та повертаються викликачеві для lint-повідомлень; файл не записує зміни у ФС чи БД.
+Семантика — через **oxc-parser**, без regex по тексту коду.
+Якщо файл не парситься / містить синтаксичні помилки — повертаємо порожній
+результат: спочатку треба полагодити синтаксис, потім перезапустити перевірку.
 
 ## Публічний API
 
@@ -108,6 +106,10 @@ Bun SQL серіалізує об'єкти/масиви у JSON автомати
 - findSqlArrayWithoutTypeArgInText — Знаходить виклики `sql.array(arr)` / `pgWrite.array(arr)` / `pgRead.array(arr)` без
 обов'язкового другого аргументу (типу pg-елемента). Без типу Bun не може вивести
 pg-тип, що призводить до mismatch (js-bun-db.mdc).
+
+## Сценарії використання
+
+- `plugins/lang-js/rules/js-bun-db/lib/tests/bun-sql-scan.test.mjs` (isBunSqlScanSourceFile; textHasBunSqlImport) — true для .mjs, .ts, .tsx, .cjs; false для .d.ts (декларації); false для нерелевантних розширень; true для .js (base case); true для import { sql } from; ще 66
 
 ## Гарантії поведінки
 

@@ -3,25 +3,24 @@ type: JS Module
 title: coverage-fix.mjs
 resource: plugins/lang-js/coverage-provider/fix/coverage-fix.mjs
 docgen:
-  crc: 0d33f7b7
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
-  score: 100
-  issues: judge-refine:kept-original,judge:inaccurate:0.98
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: 7370f53d
+  model: omlx/gemma-4-e2b-it-4bit
+  tier: local-min
+  score: 80
 ---
 
 ## Огляд
 
-`npx @7n/rules lint test` запускає `runAgentFix` з `@7n/llm-lib/agent-fix` для survived-мутантів coverage-правила `test`: кожен агентний batch отримує контекст із file, line, оригінальним кодом, survived-варіантом і типом мутації, сам знаходить або створює test-файли, щоб убити вцілілі Stryker-мутанти. Зміни реєструються через `recordWrite` у central rollback ladder, а сесія не валить увесь прогін, якщо одна спроба завершується fail-safe. Модель береться з `ctx.model`, а fallback — `CLOUD_MAX` або `N_CURSOR_COVERAGE_FIX_MODEL`.
+Fix-шлях survived-мутантів концерну `coverage` правила `test`
+(\`npx \@7n/rules lint test\`): агентні fix-сесії `runAgentFix`
+(`\@7n/llm-lib/agent-fix`) пишуть тести, що вбивають вцілілі мутанти Stryker.
+Агент отримує список мутантів з контекстом (file, line, оригінальний код,
+вцілілий варіант, тип мутації) і самостійно знаходить/створює test-файли;
+записи реєструються write-guard-ом через `recordWrite` (central rollback
+ladder-а). Survived приходять in-memory з violations — читання COVERAGE.md
+(колишній coverage-fix-extract) померло разом із файлом.
 
-## Поведінка
-
-batchSurvived розкладає вцілілі мутанти з уже наявного in-memory списку по файлах у черзі batch-ів так, щоб кожен запуск лишався в межах допустимого бюджету; надто великі source-файли не змішуються назад з іншими, щоб не породжувати oversized prompt і не розмазувати контекст по кількох сесіях.
-
-buildFixPrompt збирає для кожного batch-а rich-промпт з переліком вцілілих мутантів і локальним контекстом із source-файлу навколо кожного з них; саме цей текст стає вхідними даними для агентної fix-сесії, щоб агент міг сам знайти або створити test-файли без звернення до COVERAGE.md.
-
-fixSurvivedMutants бере batches, сформовані batchSurvived, і послідовно запускає для кожного окрему agent-fix сесію через runAgentFix; результати кожного batch-а зводяться в діагностику, а успішні зміни реєструються через central write-guard, щоб rollback керувався ladder-ом, а не цим модулем. Якщо один batch падає або завершується без корисної дії, це не зупиняє наступні: помилка фіксується разом зі списком файлів batch-а, прогін продовжується, а власних retry-циклів тут немає.
+Модель: `ctx.model` ladder-а, fallback CLOUD_MAX або N_CURSOR_COVERAGE_FIX_MODEL.
 
 ## Публічний API
 
@@ -37,7 +36,11 @@ recordWrite — rollback вирішує ladder, не цей модуль), і п
 - buildFixPrompt — Формує rich-промпт для агента: список вцілілих мутантів згрупований по файлах,
 з контекстом ±3 рядки навколо кожного мутанта з source-файлу.
 
+## Сценарії використання
+
+- `plugins/lang-js/coverage-provider/tests/coverage-fix.test.mjs` (coverage-fix.mjs; batchSurvived) — returns empty array for empty input; keeps groups under budget in a single batch; splits into new batch once budget would be exceeded; splits an oversized source-file into isolated 20-mutant sub-batches; logs and returns early when survived is empty; ще 10
+
 ## Гарантії поведінки
 
-- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
-- Перехоплює помилки і не пропускає винятків назовні (fail-safe).
+- Містить локальні fail-safe гілки; інші помилки можуть поширюватися назовні.
+- Кешує результати в межах одного прогону.

@@ -20,9 +20,6 @@ docgen:
 - CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER — Маркер Cursor ADR Normalize Stop-hook'а — той самий script path, але в `.cursor/hooks.json`.
 - RTK_CLAUDE_HOOK_COMMAND_MARKER — Маркер rtk PreToolUse hook'а у `.claude/settings.json` (правило `local-ai`).
 - RTK_CURSOR_HOOK_COMMAND_MARKER — Маркер rtk preToolUse hook'а у `.cursor/hooks.json` (правило `local-ai`).
-- RTK_CODEX_HOOK_COMMAND_MARKER — Legacy-маркер помилкового Codex rtk hook'а. Лишається лише щоб наступний sync прибрав
-його зі старих `.codex/hooks.json`; новий hook не генерується, бо rtk не має підкоманди
-`hook codex`.
 - MANAGED_HOOK_COMMAND_MARKERS — Усі маркери managed-hook'ів пакета — за ними відрізняємо свої записи від користувацьких.
 Legacy stop-hook включений сюди, щоб старі entries автоматично видалялись при наступному sync-у.
 - PI_DIR — Корінь pi.dev артефактів у проєкті-споживачі.
