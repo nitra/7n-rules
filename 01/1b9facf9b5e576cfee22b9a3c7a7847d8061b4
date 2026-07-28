@@ -1,0 +1,21 @@
+npm/.changes/260728-2145.md
+  s_3b13aaf5bffb50::t_4b6cbb174d5b30 1-5
+plugins/lang-js/.changes/260728-2145.md
+  s_3b13aaf5bffb50::t_fa61947044bd6f 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "011b9facf9b5e576cfee22b9a3c7a7847d8061b4",
+  "prompts": {},
+  "sessions": {
+    "s_3b13aaf5bffb50": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa919-380c-7913-8616-b4bc6856cb97",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
