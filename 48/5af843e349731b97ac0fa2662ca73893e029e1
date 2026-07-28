@@ -1,0 +1,23 @@
+llm-lib/.changes/260728-2223.md
+  s_3b04bfa0cd6c95::t_5687b23fd405cc 1-5
+plugins/lang-python/.changes/260728-2223.md
+  s_3b04bfa0cd6c95::t_93d8c7f9b0f35d 1-5
+plugins/lang-rust/.changes/260728-2223.md
+  s_3b04bfa0cd6c95::t_35ae3ab957aa2f 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "485af843e349731b97ac0fa2662ca73893e029e1",
+  "prompts": {},
+  "sessions": {
+    "s_3b04bfa0cd6c95": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019fa9e1-fcf8-7082-9435-2aacdc2eae0d",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
