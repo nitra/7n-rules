@@ -138,7 +138,7 @@ describe('runAgentSkill', () => {
     )
   })
 
-  test('modelSpec порожній: telemetry.model — фактично резолвлена pi-модель, не echo spec', async () => {
+  test('явний modelSpec зберігається у telemetry', async () => {
     const { session } = fakeSession({ model: { provider: 'omlx', id: 'gemma-4' } })
     const chain = {
       nextStep: vi.fn(() => 1),
@@ -148,18 +148,19 @@ describe('runAgentSkill', () => {
     }
     const r = await runAgentSkill('P', {
       skillId: 's',
-      modelSpec: '',
+      modelSpec: 'omlx/selected',
       chain,
       deps: { registry, createSession: () => Promise.resolve(session), trace: vi.fn() }
     })
-    expect(r.telemetry.model).toBe('omlx/gemma-4')
-    expect(chain.note).toHaveBeenCalledWith(expect.objectContaining({ model: 'omlx/gemma-4' }))
+    expect(r.telemetry.model).toBe('omlx/selected')
+    expect(chain.note).toHaveBeenCalledWith(expect.objectContaining({ model: 'omlx/selected' }))
   })
 
   test('prompt кидає → ok:false + error', async () => {
     const { session } = fakeSession({ events: [{ type: 'turn_start' }], promptError: 'boom' })
     const r = await runAgentSkill('P', {
       skillId: 's',
+      tier: 'min',
       deps: { registry, createSession: () => Promise.resolve(session), trace: vi.fn() }
     })
     expect(r.ok).toBe(false)
@@ -177,6 +178,7 @@ describe('runAgentSkill', () => {
     const captureBody = vi.fn()
     await runAgentSkill('пітч', {
       skillId: 's',
+      tier: 'min',
       modelSpec: 'omlx/x',
       deps: { registry, createSession: () => Promise.resolve(session), trace: vi.fn(), captureBody, out: () => null }
     })
@@ -190,6 +192,7 @@ describe('runAgentSkill', () => {
     const { session, abort } = fakeSession({ events })
     const r = await runAgentSkill('P', {
       skillId: 's',
+      modelSpec: 'omlx/selected',
       deps: { registry, createSession: () => Promise.resolve(session), trace: vi.fn() }
     })
     expect(abort).toHaveBeenCalled()
@@ -205,6 +208,7 @@ describe('runAgentSkill', () => {
     await expect(
       runAgentSkill('PROMPT', {
         skillId: 's',
+        tier: 'min',
         deps: { registry, createSession: () => Promise.resolve(session), trace: vi.fn() }
       })
     ).rejects.toThrow('omlx memory-guard')

@@ -3,9 +3,9 @@ type: JS Module
 title: acp.mjs
 resource: llm-lib/lib/acp.mjs
 docgen:
-  crc: 1ed416a1
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
+  crc: 022452f4
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
   score: 80
 ---
 
@@ -22,8 +22,7 @@ ACP JSON-RPC/`ClientSideConnection` тут; уся протокольна лог
 watchdog-поведінкою на мертвий/незапущений дочірній процес.
 
 `claude` тут немає — Rust-крейт моделює лише `cursor`/`codex`/`pi`
-(`AcpAgentKind`); deprecated `claude`-раннер лишається окремим
-JS-шимом у `@7n/rules` (`npm/scripts/lib/acp-runner.mjs`).
+(`AcpAgentKind`); `claude` тут навмисно не підтримується.
 
 ## Публічний API
 
@@ -31,11 +30,11 @@ JS-шимом у `@7n/rules` (`npm/scripts/lib/acp-runner.mjs`).
 рішення И) — опційний абстрактний тир (`min`/`avg`/`max`): якщо заданий,
 Rust сам резолвить tier→env/args/post-session-config з пресету агента
 (`one_shot_acp_with_tier`) — жодного JS-хелпера "пресет→env" тут немає.
-Без `tier` — стара поведінка (модель = персональний конфіг CLI на машині).
+Без `tier` виклик заборонений, крім явного `mode:'interactive'` для персонального CLI-конфіга.
 
 ## Сценарії використання
 
-- `llm-lib/tests/acp.test.mjs` (runAcpAgent; getAcpPresets (smoke через реально збудований napi-аддон)) — делегує kind/prompt/cwd у native.oneShotAcp і віддає його результат; без опцій (старий виклик без 4-го аргументу) — tier не заданий; tier прокидається в native.oneShotAcp четвертим аргументом; kind
+- `llm-lib/tests/acp.test.mjs` (runAcpAgent; getAcpPresets (smoke через реально збудований napi-аддон)) — interactive mode делегує kind/prompt/cwd у native.oneShotAcp і віддає його результат; без tier або interactive mode — fail-closed; tier прокидається в native.oneShotAcp четвертим аргументом; kind
 
 ## Гарантії поведінки
 

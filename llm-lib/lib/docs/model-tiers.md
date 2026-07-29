@@ -3,30 +3,21 @@ type: JS Module
 title: model-tiers.mjs
 resource: llm-lib/lib/model-tiers.mjs
 docgen:
-  crc: 1f021997
-  model: openai-codex/gpt-5.4-mini
-  score: 90
-  issues: surzhik,judge-refine:kept-original,judge:inaccurate:0.99
+  crc: 1953f7a9
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min-retry
+  score: 100
+  issues: judge:error
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-`LOCAL_MIN`, `LOCAL_AVG` і `LOCAL_MAX` задають локальні рівні моделі, а `CLOUD_MIN`, `CLOUD_AVG` і `CLOUD_MAX` — відповідні хмарні рівні. `resolveModel` і `resolveLocalModel` вибирають модель для заданого tier, `thinkingLevelForTier` пов’язує tier із рівнем thinking, `parseModelId` розбирає `provider/model-id`, `formatModelSpec` формує цей запис назад, а `isLocalModel` перевіряє, чи належить модель до локальних.
+Файл відповідає за визначення та вибір моделі для виконання завдань. Він інтерпретує граничні значення, такі як `LOCAL_MIN`, `LOCAL_AVG`, `LOCAL_MAX` для локальних моделей та `CLOUD_MIN`, `CLOUD_AVG`, `CLOUD_MAX` для хмарних моделей. На основі цих значень відбувається пошук відповідної моделі через функцію `resolveModel`. Після вибору моделі, відповідно до її типу, визначається відповідний рівень обробки за допомогою `thinkingLevelForTier`.
 
 ## Поведінка
 
-LOCAL_MIN, LOCAL_AVG, LOCAL_MAX, CLOUD_MIN, CLOUD_AVG і CLOUD_MAX задають єдину сходинку вибору моделі: від локальних tier до хмарних, з поступовим підняттям сили відповіді. Ця шкала є спільною основою для всіх резолверів у файлі: вона визначає, куди саме ескалює запит і який рівень reasoning очікується на виході.
-
-resolveModel переводить абстрактний tier у фактичний `"provider/model-id"` і виступає верхнім входом для каскадного вибору. Якщо tier невідомий, помилка виникає тут, а не на рівні native-шару, щоб зберегти стабільний контракт для викликів із JavaScript. Результат або веде до конкретної моделі, або лишається порожнім значенням, коли спрацьовує по замовчуванню дефолт провайдера substrate.
-
-resolveLocalModel працює лише в межах local-лінійки й використовує fallback у бік сильніших local tiers. Він не піднімається в cloud-діапазон: перехід у хмару очікується від викликачів, які будують власну ladder-політику. Це тримає локальну логіку відокремленою від рішень про escalation.
-
-thinkingLevelForTier прив’язує rung-tier до дискретного рівня thinking, щоб downstream-логіка могла узгоджено інтерпретувати силу запиту. Тут intentionally присутній cloud-max як експериментальний рівень, але він не є частиною production ladder.
-
-parseModelId і formatModelSpec утворюють пару для переходу між рядковим `"provider/model-id"` і структурованим представленням моделі. Перший розбирає специфікацію на provider та id, другий відновлює рядок із фактично резолвленої моделі, коли початковий modelSpec був порожній і вибір зробив сам pi. Це дозволяє передавати назву моделі далі по ланцюжку без втрати того, що саме було обрано.
-
-isLocalModel використовує parseModelId, щоб віднести специфікацію до локальної чи ні, і тим самим підтримує рішення про local/cloud-агрегацію та chain-заголовки. Локальність визначається або через local tier, або через провайдера з дозволеного набору; при цьому "активність" провайдера не виводиться з наявності запису в мапі, а залежить від фактичного префікса model-spec.
+Значення `LOCAL_MIN`, `LOCAL_AVG`, `LOCAL_MAX`, `CLOUD_MIN`, `CLOUD_AVG`, `CLOUD_MAX` визначаються через змінні середовища, використовуючи префікси, які можуть бути налаштовані для вказівки на конкретні моделі. Ці значення слугують стартовими точками для визначення моделі та її рівні у ланцюжку. Коли викликається `resolveModel` з певною стартовою сходинкою, ця сходинка використовується для каскадного пошуку моделі, починаючи з локальних мінімальних та переходячи до хмарних, якщо необхідна модель не знайдена локально. Результат `resolveModel` повертає ідентифікатор моделі у форматі `"provider/model-id"`. Цей ідентифікатор може бути перетворений на пару `provider` та `id` за допомогою `parseModelId` або знову відформатований назад у `"provider/model-id"` за допомогою `formatModelSpec`, що корисно при отриманні дефолтної моделі від системи. `isLocalModel` приймає специфікатор моделі та визначає, чи належить вона до локальних моделей, спираючись на визначені стартові тири або на налаштування провайдерів у змінній середовища. Якщо ідентифікатор моделі відомий, `thinkingLevelForTier` визначає відповідний рівень складності (від `low` до `xhigh`) на основі того, який із визначених тирів був обраний.
 
 ## Публічний API
 
@@ -36,19 +27,12 @@ isLocalModel використовує parseModelId, щоб віднести сп
 - CLOUD_MIN — Мінімальний хмарний (потрібен ключ у pi auth). Напр.: openai/gpt-5.4-mini
 - CLOUD_AVG — Середній хмарний. Напр.: openai/gpt-5.4
 - CLOUD_MAX — Максимальний хмарний. Напр.: openai/gpt-5.5
-- resolveModel — Каскадне розв'язання абстрактного тиру в `"provider/model-id"` —
-napi-делегація в `llm_lib::resolve_model` (задача T5, рішення Е): та сама
-логіка, що й Rust-каскад у `tiers.rs`:
-  'min' → LOCAL_MIN → LOCAL_AVG → LOCAL_MAX → CLOUD_MIN
-  'avg' → LOCAL_AVG → LOCAL_MAX → CLOUD_AVG
-  'max' → LOCAL_MAX → CLOUD_MAX
-Тир валідується тут (не в Rust) — щоб зберегти контракт `TypeError` для
-невідомого тиру без потреби мапити помилку з napi-боку.
-- resolveLocalModel — Резолвить local model для звичайного (не batch) виклику від запитаного
-`N_LOCAL_*` tier до сильніших local tiers. Наприклад, запит `MIN` бере
-`MIN → AVG → MAX`, а запит `AVG` — `AVG → MAX`. Cloud tier навмисно не
-входить до цього fallback: caller, який потребує cloud escalation, будує
-її власною ladder-політикою.
+- resolveModel — Універсально резолвить модель від явної env-сходинки:
+- LOCAL_MIN → LOCAL_AVG → LOCAL_MAX → CLOUD_MIN → CLOUD_AVG → CLOUD_MAX;
+- LOCAL_AVG → LOCAL_MAX → CLOUD_AVG → CLOUD_MAX;
+- LOCAL_MAX → CLOUD_MAX;
+- cloud-старти проходять лише відповідну й сильніші cloud-сходинки.
+`min`/`avg`/`max` лишаються alias-ами відповідних `N_LOCAL_*_MODEL`.
 - thinkingLevelForTier — `thinkingLevel` за rung-тиром fix-драбини: слабка локальна — `low`,
 cloud-min — `medium`, cloud-avg — `high`, cloud-max (experiment-only tier,
 не в production ladder) — `xhigh`.
@@ -68,7 +52,7 @@ model-spec, не за наявністю запису в мапі. Викори�
 
 ## Сценарії використання
 
-- `llm-lib/tests/model-tiers.test.mjs` (isLocalModel; parseModelId) — omlx-провайдер — локальний (дефолт N_LLM_LOCAL_PROVIDERS); litellm-провайдер — теж локальний за дефолтом (перемикач omlx/litellm через тир-env); порожній/malformed spec — не локальний; кастомний список провайдерів через env (ізольований re-import); звичайна пара; ще 12
+- `llm-lib/tests/model-tiers.test.mjs` (isLocalModel; parseModelId) — omlx-провайдер — локальний (дефолт N_LLM_LOCAL_PROVIDERS); litellm-провайдер — теж локальний за дефолтом (перемикач omlx/litellm через тир-env); порожній/malformed spec — не локальний; кастомний список провайдерів через env (ізольований re-import); звичайна пара; ще 9
 
 ## Гарантії поведінки
 

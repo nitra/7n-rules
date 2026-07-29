@@ -3,31 +3,34 @@ type: JS Module
 title: local-cloud.mjs
 resource: llm-lib/lib/local-cloud.mjs
 docgen:
-  crc: fc09aee2
+  crc: cedae6fe
   model: openai-codex/gpt-5.5
   tier: cloud-avg
-  score: 100
+  score: 80
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Надає Node-доступ до одного OpenAI-сумісного запиту `chat/completions` для локального або хмарного провайдера через спільний Rust-шар. `oneShotLocalCloud` існує як тонкий JS-вхід до `llm_lib::local_cloud` через `napi FFI in-process` у `llm-lib/crates/llm-lib-napi`, щоб визначення моделей, конфігурація локальних провайдерів і HTTP-взаємодія залишалися в єдиній реалізації без окремого клієнта в JS і без агентського циклу.
+Тип 2a (OpenAI-сумісний API, sync) для Node — прямий HTTP до OpenAI-compatible
+ендпоінта (`chat/completions`): локальні провайдери (напр. omlx) і хмарні
+(стандартна автентифікація провайдера) — без агентського циклу.
 
-## Поведінка
-
-1. `oneShotLocalCloud` приймає запит на один OpenAI-сумісний chat-виклик для локального або хмарного провайдера без агентського циклу.
-2. Визначає цільову модель як явну специфікацію провайдера або як абстрактний тир, щоб використовувати спільне правило резолву моделей із Rust-шару.
-3. Передає текст користувача, optional system-повідомлення та конфігурацію локальних провайдерів до in-process Rust-клієнта через napi FFI.
-4. Делегує HTTP-взаємодію з OpenAI-compatible ендпоінтом Rust-реалізації, щоб у JS-шарі не виникало окремого клієнта й розрізненого читання `settings.json`.
-5. Повертає текст відповіді моделі як результат одного синхронного за сценарієм запиту.
+Тонкий JS-клієнт до Rust-крейта `llm_lib::local_cloud` через napi FFI
+in-process (`llm-lib/crates/llm-lib-napi`) — жодного власного HTTP-клієнта
+тут (анти-приклад, якого це уникає: `mlmail` читає `~/.omlx/settings.json`
+і б'є в ендпоінт напряму замість спільної точки, задача T5/рішення Н).
 
 ## Публічний API
 
-- oneShotLocalCloud — Один chat-виклик Типу 2a. `modelSpecOrTier` — або явний `"provider/model-id"`,
-або абстрактний тир (`min`/`avg`/`max`, рішення К), що резолвиться в Rust
+- oneShotLocalCloud — Один chat-виклик Типу 2a. `modelSpecOrTier` — явний `"provider/model-id"`,
+абстрактний tier або `N_LOCAL_*_MODEL`/`N_CLOUD_*_MODEL` selector
 через ту саму [`llm_lib::resolve_model`], що й `resolveModel` з
 `model-tiers.mjs`.
+
+## Сценарії використання
+
+- `llm-lib/tests/local-cloud.test.mjs` (oneShotLocalCloud) — делегує modelSpecOrTier/prompt у native.oneShotLocalCloud і віддає його результат; явний; localProviders і system прокидаються в options; без опцій (лише modelSpecOrTier/prompt) — localProviders/system undefined
 
 ## Гарантії поведінки
 

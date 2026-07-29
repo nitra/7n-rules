@@ -235,7 +235,7 @@ describe('runOneShot', () => {
     )
   })
 
-  test('modelSpec порожній: model — фактично резолвлена pi-модель із session.model, не echo spec', async () => {
+  test('явний modelSpec повертається як model', async () => {
     const usage = { totalTokens: 4 }
     const deps = baseDeps(fakeSession({ deltas: ['ok'], usage, model: { provider: 'omlx', id: 'gemma-4' } }))
     const chain = {
@@ -244,17 +244,17 @@ describe('runOneShot', () => {
       traceFields: () => ({ chainId: 'cid-empty', chainKind: 'k', chainUnit: 'u', chainStep: 1 }),
       headers: () => ({})
     }
-    const r = await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: '', chain, deps })
-    expect(r.model).toBe('omlx/gemma-4')
-    expect(chain.note).toHaveBeenCalledWith(expect.objectContaining({ model: 'omlx/gemma-4' }))
+    const r = await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: 'omlx/selected', chain, deps })
+    expect(r.model).toBe('omlx/selected')
+    expect(chain.note).toHaveBeenCalledWith(expect.objectContaining({ model: 'omlx/selected' }))
   })
 
-  test('modelSpec порожній і session.model недоступна: model — null (не echo "")', async () => {
+  test('явний modelSpec не залежить від session.model', async () => {
     const deps = baseDeps(fakeSession({ deltas: ['ok'] }))
     const chain = { nextStep: vi.fn(() => 1), note: vi.fn(), traceFields: () => ({}), headers: () => ({}) }
-    const r = await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: '', chain, deps })
-    expect(r.model).toBeNull()
-    expect(chain.note).toHaveBeenCalledWith(expect.objectContaining({ model: null }))
+    const r = await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: 'omlx/selected', chain, deps })
+    expect(r.model).toBe('omlx/selected')
+    expect(chain.note).toHaveBeenCalledWith(expect.objectContaining({ model: 'omlx/selected' }))
   })
 
   test('captureBody не падає без chain (chainId/step — undefined)', async () => {

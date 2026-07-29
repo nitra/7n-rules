@@ -853,12 +853,11 @@ export async function loadSrcAndFacts(file, testIndex = null) {
 }
 
 /**
- * Дефолтна модель: N_CURSOR_DOCGEN_MODEL → resolveModel('min') (→ N_LOCAL_MIN_MODEL).
- * Без хардкод-fallback: модель налаштовує кожен локально (`N_LOCAL_MIN_MODEL`); якщо
- * нічого не задано — порожньо, і preflight оркестратора фейлить гучно (а не шле
- * запит до неіснуючої моделі).
+ * Дефолтна модель: явний N_CURSOR_DOCGEN_MODEL або universal policy від
+ * N_LOCAL_MIN_MODEL до N_CLOUD_MAX_MODEL. Без hardcoded model fallback: якщо жодна
+ * сходинка не задана, preflight оркестратора фейлить гучно.
  */
-export const DEFAULT_LOCAL_MODEL = env.N_CURSOR_DOCGEN_MODEL ?? resolveModel('min')
+export const DEFAULT_LOCAL_MODEL = env.N_CURSOR_DOCGEN_MODEL ?? resolveModel('N_LOCAL_MIN_MODEL')
 
 /**
  * Фініш unsupported-джерела (vue/py до юніт-шару): скорер не застосовний — score=null,

@@ -47,7 +47,7 @@ export async function callText(prompt, opts = {}) {
   while (true) {
     const r = await runOneShot({
       messages: [{ role: 'user', content: prompt }],
-      modelSpec: opts.model ?? '',
+      ...(opts.model ? { modelSpec: opts.model } : { modelTier: 'min' }),
       maxTokens,
       timeoutMs: 0,
       cwd: opts.cwd,
@@ -86,7 +86,7 @@ export async function callText(prompt, opts = {}) {
 export async function callAgent(prompt, cwd, opts = {}) {
   const r = await runAgentSkill(prompt, {
     skillId: '7n-test',
-    modelSpec: opts.model ?? '',
+    ...(opts.model ? { modelSpec: opts.model } : { tier: 'min' }),
     cwd,
     timeoutMs: AGENT_TIMEOUT_MS,
     maxTokens: 0, // без стелі: агент пише цілі тест-файли (паритет зі старим CLI-шляхом)

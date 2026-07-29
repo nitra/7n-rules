@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use llm_lib::acp::AcpAgentKind;
 use llm_lib::local_cloud::LocalProvider;
-use llm_lib::{LlmError, LocalCloud, Tier};
+use llm_lib::{LlmError, LocalCloud, ModelEnv, Tier};
 use napi::bindgen_prelude::*;
 use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
@@ -40,6 +40,20 @@ fn parse_tier(s: &str) -> Result<Tier> {
         "max" => Ok(Tier::Max),
         other => Err(Error::from_reason(format!(
             "невідомий тир {other:?}: очікується \"min\"/\"avg\"/\"max\""
+        ))),
+    }
+}
+
+fn parse_model_env(s: &str) -> Result<ModelEnv> {
+    match s {
+        "N_LOCAL_MIN_MODEL" | "min" => Ok(ModelEnv::LocalMin),
+        "N_LOCAL_AVG_MODEL" | "avg" => Ok(ModelEnv::LocalAvg),
+        "N_LOCAL_MAX_MODEL" | "max" => Ok(ModelEnv::LocalMax),
+        "N_CLOUD_MIN_MODEL" => Ok(ModelEnv::CloudMin),
+        "N_CLOUD_AVG_MODEL" => Ok(ModelEnv::CloudAvg),
+        "N_CLOUD_MAX_MODEL" => Ok(ModelEnv::CloudMax),
+        other => Err(Error::from_reason(format!(
+            "невідома model env-сходинка {other:?}: очікується N_LOCAL_*_MODEL або N_CLOUD_*_MODEL"
         ))),
     }
 }
@@ -116,13 +130,13 @@ pub fn get_acp_presets() -> serde_json::Value {
     serde_json::Value::Object(kinds)
 }
 
-/// Каскадне розв'язання абстрактного тиру (`min`/`avg`/`max`) у
-/// `"provider/model-id"` за `N_LOCAL_*`/`N_CLOUD_*` env — чиста функція,
+/// Каскадне розв'язання від явної `N_LOCAL_*_MODEL`/`N_CLOUD_*_MODEL`
+/// сходинки у `"provider/model-id"` — чиста функція,
 /// без мережевого виклику. Єдине джерело правди для `resolveModel` з
 /// `llm-lib/lib/model-tiers.mjs` (задача T5, рішення Е).
 #[napi]
-pub fn resolve_model(tier: String) -> Result<Option<String>> {
-    Ok(llm_lib::resolve_model(parse_tier(&tier)?))
+pub fn resolve_model(start: String) -> Result<Option<String>> {
+    Ok(llm_lib::resolve_model_from(parse_model_env(&start)?))
 }
 
 /// Опції [`one_shot_local_cloud`]: конфіг локальних провайдерів (`omlx` тощо)
@@ -139,9 +153,10 @@ pub struct OneShotLocalCloudOptions {
 }
 
 /// Один chat-виклик Типу 2a (OpenAI-сумісний API, sync) для Node.
-/// `model_spec_or_tier` — або явний `"provider/model-id"`, або абстрактний
-/// тир (`min`/`avg`/`max`), що резолвиться через [`llm_lib::resolve_model`]
-/// (та сама функція, що й [`resolve_model`] napi-експорт вище) — задача T5.
+/// `model_spec_or_tier` — явний `"provider/model-id"`, абстрактний tier
+/// (`min`/`avg`/`max`) або `N_LOCAL_*_MODEL`/`N_CLOUD_*_MODEL` selector.
+/// Tier і selector резолвляться тією самою universal policy, що й
+/// [`resolve_model`] napi-експорт вище.
 #[napi]
 pub async fn one_shot_local_cloud(
     model_spec_or_tier: String,
@@ -157,11 +172,9 @@ pub async fn one_shot_local_cloud(
     let cascade = LocalCloud::new(providers);
     let system = options.system.as_deref();
 
-    let result = match model_spec_or_tier.as_str() {
-        "min" => cascade.one_shot(Tier::Min, system, &prompt).await,
-        "avg" => cascade.one_shot(Tier::Avg, system, &prompt).await,
-        "max" => cascade.one_shot(Tier::Max, system, &prompt).await,
-        spec => cascade.one_shot_with_spec(spec, system, &prompt).await,
+    let result = match cascade.resolve_spec(&model_spec_or_tier) {
+        Ok(spec) => cascade.one_shot_with_spec(&spec, system, &prompt).await,
+        Err(error) => Err(error),
     };
     result.map_err(to_napi_err)
 }

@@ -5,8 +5,7 @@
  * Промпт збирає інструкцію скілу + контекст поточного CWD (`package.json`, `tsconfig.json`,
  * `.n-rules.json`) — далі stdout або виконання через один з раннерів: вбудований
  * pi-агент, чи зовнішній ACP-агент. `cursor`/`codex` — через `@7n/llm-lib/acp`
- * (napi-міст до `llm_lib::acp`, без власного JSON-RPC у JS); deprecated
- * `claude` — окремий JS-шим (`./lib/acp-runner.mjs`), бо Rust-крейт його не моделює.
+ * (napi-міст до `llm_lib::acp`, без власного JSON-RPC у JS).
  *
  * `skill <runner> taze|git-reconcile` — JS-оркестровані винятки із загального
  * шляху "весь SKILL.md одним промптом". `taze` детерміновано робить
@@ -21,7 +20,6 @@
  *   `npx \@7n/rules skill pi taze "онови залежності"`
  *   `npx \@7n/rules skill cursor taze` — Cursor CLI через ACP (`cursor-agent acp`)
  *   `npx \@7n/rules skill codex taze` — Codex через ACP (napi-міст `@7n/llm-lib/acp`, Rust спавнить `npx \@agentclientprotocol/codex-acp`)
- *   `npx \@7n/rules skill claude taze` — deprecated: Claude Code через ACP-адаптер
  */
 
 import { runAcpAgent } from '@7n/llm-lib/acp'
@@ -30,23 +28,11 @@ import { dirname, join } from 'node:path'
 import { cwd, stdout } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { runAcpRunner } from './lib/acp-runner.mjs'
 import { readSkillMetaRaw, skillTier } from './lib/skill-meta.mjs'
 
-/** Виконавці скіла. `pi` — вбудований (рекомендований); `cursor`/`codex`/`claude` — зовнішні ACP-агенти (`claude` — deprecated). */
-const RUNNERS = new Set(['pi', 'cursor', 'codex', 'claude'])
+/** Виконавці скіла. `pi` — вбудований (рекомендований); `cursor`/`codex` — зовнішні ACP-агенти. */
+const RUNNERS = new Set(['pi', 'cursor', 'codex'])
 const JS_ORCHESTRATED_SKILLS = new Set(['taze', 'git-reconcile'])
-
-/**
- * Раннери, що йдуть через зовнішнього ACP-агента, і чи deprecated (друкує попередження
- * перед запуском). `cursor`/`codex` — napi-міст `@7n/llm-lib/acp`; `claude` — окремий
- * JS-шим `runAcpRunner` (Rust-крейт `llm_lib::acp` `claude` не моделює).
- */
-const ACP_RUNNERS = {
-  claude: { deprecated: true },
-  cursor: { deprecated: false },
-  codex: { deprecated: false }
-}
 
 const USAGE_LINES = [
   'Usage:',
@@ -55,7 +41,6 @@ const USAGE_LINES = [
   '  npx @7n/rules skill pi <skill-id> ["task"]      # вбудований pi-агент (рекомендовано)',
   '  npx @7n/rules skill cursor <skill-id> ["task"]  # Cursor CLI через ACP',
   '  npx @7n/rules skill codex <skill-id> ["task"]   # Codex через ACP-адаптер',
-  '  npx @7n/rules skill claude <skill-id> ["task"]  # deprecated',
   '',
   'Skill id: каталог у пакеті (lint, taze, …) або з префіксом n- (n-lint → lint).'
 ]
@@ -178,30 +163,19 @@ async function runPiRunner(prompt, rawSkillName, skillsRoot, projectDir, logErro
  * JS-шим `runAcpRunner` (Rust його не моделює); буде прибрано (мігруй на `skill pi`).
  * На відміну від колишнього стрімінгу по чанках, napi-шлях повертає повний текст
  * лише по завершенню ходу — Rust-функція не стрімить проміжні токени в JS.
- * @param {'claude' | 'cursor' | 'codex'} kind якого ACP-агента запускати
+ * @param {'cursor' | 'codex'} kind якого ACP-агента запускати
  * @param {string} prompt промпт скіла
  * @param {string} projectDir робочий каталог агента
  * @param {(line: string) => void} logError вивід попередження/помилок
- * @param {{ runAcpRunner?: typeof runAcpRunner, runAcpAgent?: typeof runAcpAgent, out?: (chunk: string) => void }} [deps] інжекти для тестів
+ * @param {{ runAcpAgent?: typeof runAcpAgent, out?: (chunk: string) => void }} [deps] інжекти для тестів
  * @returns {Promise<number>} exit code (0 — успіх, 1 — інакше)
  */
 async function runLlmCli(kind, prompt, projectDir, logError, deps = {}) {
-  const runner = ACP_RUNNERS[kind]
-
-  if (runner.deprecated) {
-    logError(`[deprecated] skill ${kind} → use 'skill pi'; зовнішній ACP-агент буде прибрано`)
-  }
-
-  if (kind === 'claude') {
-    const runAcp = deps.runAcpRunner ?? runAcpRunner
-    return runAcp(kind, prompt, projectDir, logError)
-  }
-
   const runNativeAcp = deps.runAcpAgent ?? runAcpAgent
   const out = deps.out ?? (chunk => stdout.write(chunk))
 
   try {
-    out(await runNativeAcp(kind, prompt, projectDir))
+    out(await runNativeAcp(kind, prompt, projectDir, { mode: 'interactive' }))
     return 0
   } catch (error) {
     logError(error instanceof Error ? error.message : String(error))

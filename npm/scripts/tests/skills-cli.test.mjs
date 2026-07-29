@@ -330,14 +330,13 @@ describe('runSkillsCli', () => {
     expect(errors.join('\n')).toContain('модель не знайдена')
   })
 
-  test('claude runner: deprecated-warning + ACP-раннер отримує prompt', async () => {
+  test('claude runner вилучено з поверхні CLI', async () => {
     const root = join(tmpdir(), `skills-cli-claude-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
     mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
     writeFileSync(join(skillsRoot, 'fix', 'SKILL.md'), '# Fix\n')
 
     const errors = []
-    const calls = []
     const code = await runSkillsCli(['claude', 'fix'], {
       packageRoot: root,
       projectDir: root,
@@ -347,20 +346,11 @@ describe('runSkillsCli', () => {
       logError: line => {
         errors.push(line)
       },
-      deps: {
-        runAcpRunner: (kind, prompt) => {
-          calls.push({ kind, prompt })
-          return Promise.resolve(0)
-        }
-      }
+      deps: {}
     })
 
-    expect(code).toBe(0)
-    expect(errors.join('\n')).toContain('[deprecated]')
-    expect(errors.join('\n')).toContain('claude')
-    expect(calls).toHaveLength(1)
-    expect(calls[0].kind).toBe('claude')
-    expect(calls[0].prompt).toContain('# Fix')
+    expect(code).toBe(1)
+    expect(errors.join('\n')).toContain('Usage:')
   })
 
   test('cursor runner: без deprecated-warning, делегує в @7n/llm-lib/acp', async () => {
@@ -545,7 +535,7 @@ describe('runSkillsCli', () => {
     expect(code).toBe(1)
   })
 
-  test('taze: claude НЕ делегує в оркестратор (лишається на generic ACP-шляху)', async () => {
+  test('taze: claude runner вилучено', async () => {
     const root = join(tmpdir(), `skills-cli-taze-claude-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
     mkdirSync(join(skillsRoot, 'taze'), { recursive: true })
@@ -574,8 +564,8 @@ describe('runSkillsCli', () => {
       }
     })
 
-    expect(code).toBe(0)
+    expect(code).toBe(1)
     expect(orchestratorCalls).toHaveLength(0)
-    expect(acpCalls).toHaveLength(1)
+    expect(acpCalls).toHaveLength(0)
   })
 })

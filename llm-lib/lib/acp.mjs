@@ -10,8 +10,7 @@
  * watchdog-поведінкою на мертвий/незапущений дочірній процес.
  *
  * `claude` тут немає — Rust-крейт моделює лише `cursor`/`codex`/`pi`
- * (`AcpAgentKind`); deprecated `claude`-раннер лишається окремим
- * JS-шимом у `@7n/rules` (`npm/scripts/lib/acp-runner.mjs`).
+ * (`AcpAgentKind`); `claude` тут навмисно не підтримується.
  */
 import { loadNative } from './internal/native.mjs'
 
@@ -20,17 +19,19 @@ import { loadNative } from './internal/native.mjs'
  * рішення И) — опційний абстрактний тир (`min`/`avg`/`max`): якщо заданий,
  * Rust сам резолвить tier→env/args/post-session-config з пресету агента
  * (`one_shot_acp_with_tier`) — жодного JS-хелпера "пресет→env" тут немає.
- * Без `tier` — стара поведінка (модель = персональний конфіг CLI на машині).
+ * Без `tier` виклик заборонений, крім явного `mode:'interactive'` для персонального CLI-конфіга.
  * @param {'cursor' | 'codex' | 'pi'} kind провайдер
  * @param {string} prompt промпт
  * @param {string} cwd робочий каталог сесії агента (каталог проєкту-викликача)
  * @param {{
- *   tier?: 'min' | 'avg' | 'max',
+ *   tier?: 'min' | 'avg' | 'max', mode?: 'interactive',
  *   native?: { oneShotAcp: (kind: string, prompt: string, cwd: string, tier?: string) => Promise<string> }
  * }} [options] тир + інжект `native` для тестів (той самий 4-й аргумент, що й раніше — сумісність зі старим `{ native }`-викликом збережена)
  * @returns {Promise<string>} повний текст відповіді до кінця ходу
  */
-export function runAcpAgent(kind, prompt, cwd, { tier, native } = {}) {
+export function runAcpAgent(kind, prompt, cwd, { tier, mode, native } = {}) {
+  if (!tier && mode !== 'interactive') throw new TypeError('runAcpAgent: передай tier або явно mode:"interactive"')
+  if (tier && mode) throw new TypeError('runAcpAgent: tier і mode взаємовиключні')
   const nativeImpl = native ?? loadNative()
   return nativeImpl.oneShotAcp(kind, prompt, cwd, tier)
 }

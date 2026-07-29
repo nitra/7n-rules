@@ -3,22 +3,16 @@ type: Rust Module
 title: local_cloud.rs
 resource: llm-lib/crates/llm-lib/src/local_cloud.rs
 docgen:
-  crc: 273ed14d
-  model: litellm/gemma-4-26b-awq
-  score: 100
+  crc: 79038c04
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
+  score: 70
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
 One-shot виклики через [`genai`] — локальні тири (кастомний OpenAI-сумісний ендпоінт, напр. omlx) і хмарні тири (стандартна автентифікація genai за змінними середовища провайдера).  Без retry: один HTTP-виклик на [`crate::one_shot_local_or_cloud`] — той самий fail-fast принцип, що й у `runOneShot` з `@7n/llm-lib`.
-
-## Поведінка
-
-Використання `LocalProvider` вимагає, щоб `base_url` закінчувався символом слеша (наприклад, `http://127.0.0.1:8000/v1/`), інакше останній сегмент шляху буде втрачено через семантику об'єднання URL. Налаштування авторизації для локальних серверів може залежати від параметрів у `settings.json`.
-
-`LocalCloud` забезпечує одноразові запити до LLM з принципом fail-fast без повторних спроб. Метод `one_shot` використовує конфігурацію тирів, тоді як `one_shot_with_spec` дозволяє виконувати запит за прямим вказанням моделі. Обидва методи повертають текст відповіді або помилку провайдера чи невалідний формат специфікації.
-
-`resolve_spec` перетворює назви рівнів на специфікації моделей, дозволяючи підготувати запит до виконання. `provider_config` надає доступ до налаштувань локального провайдера за його префіксом, якщо він був зареєстрований при ініціалізації через `new`.
 
 ## Публічний API
 
@@ -27,7 +21,7 @@ One-shot виклики через [`genai`] — локальні тири (ка
 - new — `local_providers`: мапа `provider-префікс → конфіг`, напр. `{"omlx": LocalProvider { base_url: "http://127.0.0.1:8000/v1", api_key: Some(key) }}`.
 - one_shot — Один виклик чату для абстрактного тиру: резолвить `"provider/model-id"` через [`resolve_model`], б'є в local- чи cloud-клієнт залежно від того, чи `provider` є в `local_providers`.  # Errors [`LlmError::NoModelConfigured`] якщо для тиру не задано жодної env-змінної; [`LlmError::Provider`] на помилку самого виклику.
 - one_shot_with_spec — Той самий один виклик чату, що й [`Self::one_shot`], але з явним `"provider/model-id"` замість тиру (задача T5, napi `oneShotLocalCloud`: приймає або тір, або явний model-spec — тут другий шлях, без жодного звернення до [`resolve_model`]/env).  # Errors [`LlmError::InvalidModelSpec`] якщо `spec` не парситься; [`LlmError::Provider`] на помилку самого виклику.
-- resolve_spec — Резолвить `"min"/"avg"/"max"` тир (чи повертає spec як є) у явний `"provider/model-id"` — той самий контракт розпізнавання тиру, що й [`Self::one_shot`]/[`Self::one_shot_with_spec`] (задача T5), винесений окремо для [`crate::batch::dispatch`]: перед виконанням batch-у треба знати провайдер ДО того, як обирати між емуляцією і справжнім `/v1/batches`.  # Errors [`LlmError::NoModelConfigured`] якщо тир не резолвиться в жодну env-модель.
+- resolve_spec — Резолвить tier/env-селектор (чи повертає spec як є) у явний `"provider/model-id"` — той самий контракт розпізнавання тиру, що й [`Self::one_shot`]/[`Self::one_shot_with_spec`] (задача T5), винесений окремо для [`crate::batch::dispatch`]: перед виконанням batch-у треба знати провайдер ДО того, як обирати між емуляцією і справжнім `/v1/batches`.  # Errors [`LlmError::NoModelConfigured`] якщо тир не резолвиться в жодну env-модель.
 - provider_config — Конфіг зареєстрованого локального провайдера за префіксом (`omlx`, `litellm` тощо) — `None`, якщо провайдер не зареєстрований у мапі, переданій у [`Self::new`].
 
 ## Гарантії поведінки

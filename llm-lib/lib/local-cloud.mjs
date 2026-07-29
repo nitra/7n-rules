@@ -11,11 +11,11 @@
 import { loadNative } from './internal/native.mjs'
 
 /**
- * Один chat-виклик Типу 2a. `modelSpecOrTier` — або явний `"provider/model-id"`,
- * або абстрактний тир (`min`/`avg`/`max`, рішення К), що резолвиться в Rust
+ * Один chat-виклик Типу 2a. `modelSpecOrTier` — явний `"provider/model-id"`,
+ * абстрактний tier або `N_LOCAL_*_MODEL`/`N_CLOUD_*_MODEL` selector
  * через ту саму [`llm_lib::resolve_model`], що й `resolveModel` з
  * `model-tiers.mjs`.
- * @param {string} modelSpecOrTier `"provider/model-id"` або `'min'|'avg'|'max'`
+ * @param {string} modelSpecOrTier `"provider/model-id"`, tier або env-selector
  * @param {string} prompt user-репліка
  * @param {{
  *   localProviders?: Record<string, { baseUrl: string, apiKey?: string | null }>,

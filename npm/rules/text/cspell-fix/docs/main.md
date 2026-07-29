@@ -3,8 +3,9 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/text/cspell-fix/main.mjs
 docgen:
-  crc: 865fc27d
-  model: openai-codex/gpt-5.4-mini
+  crc: 7a4bf3b0
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
   score: 75
 ---
 
@@ -29,7 +30,7 @@ typo лишаються → cspell повертає !=0 → exit 1 (людина
 ## Публічний API
 
 - MAX_CLASSIFY_WORDS — Максимум distinct-слів під класифікацію за прогін (без тихого обрізання — логуємо надлишок).
-- fixModel — Локальна fix-модель із fallback `MIN → AVG → MAX`.
+- fixModel — Preferred fix-модель з universal fallback від local-min до cloud-max.
 - detectCspell — Запускає `cspell` над `files` (delta) або над `.` (full), захоплюючи вивід. Скоуп файлів, які
 cspell реально перевіряє, і так визначає сам `.cspell.json` (globs/ignorePaths) — переданий
 `files` лише звужує аргументи CLI, не дублює цю логіку. Без `verbose` вимикає власний
@@ -50,6 +51,7 @@ Async (не блокує event loop) — детектор може викону�
 
 ## Сценарії використання
 
+- `npm/rules/text/cspell-fix/tests/cspell-fix-unit.test.mjs` (cspell-fix unit policy) — fixModel делегує universal resolver від local-min selector; classifyPrompt містить усі слова й bounded JSON contract; detectCspell формує quiet/verbose args і нормалізує відсутній exitCode; detectCspell трактує Files checked: 0 як чистий результат; runCspellText fail-closed без npx; ще 4
 - `npm/rules/text/cspell-fix/tests/cspell-fix.test.mjs` (unknownWords; appendWordsToDict) — витягує distinct-слова з виводу cspell; порожній вивід → []; дописує нові слова у .cspell.json#words (sorted/dedup), повертає к-сть доданих; порожній список або відсутній конфіг → 0; файл повністю в ignorePaths (Files checked: 0) → code:0, не порушення; ще 1
 
 ## Гарантії поведінки

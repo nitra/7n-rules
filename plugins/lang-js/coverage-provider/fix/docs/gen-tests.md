@@ -3,8 +3,9 @@ type: JS Module
 title: gen-tests.mjs
 resource: plugins/lang-js/coverage-provider/fix/gen-tests.mjs
 docgen:
-  crc: 739ce109
-  model: openai-codex/gpt-5.4-mini
+  crc: c3c1f90a
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
   score: 80
 ---
 
@@ -20,7 +21,8 @@ docgen:
   4. Валідація локально згенерованих блоків; fallback на cloud при анти-патернах.
   5. Merge header + блоки → запис тест-файлу (через `recordWrite` ladder-а).
 
-Локальна модель — opts.localModel або `N_LOCAL_MIN_MODEL → AVG → MAX`. Всі виклики йдуть
+Preferred model — opts.localModel або універсальна драбина від
+`N_LOCAL_MIN_MODEL` до cloud-моделей. Всі виклики йдуть
 через LLM-хелпер концерну (`lib/llm.mjs` ядра). Без локальної моделі (або без
 export-ів) — fallback на single-file cloud-генерацію. Валідація блоків жене
 project-local vitest споживача (`bunx vitest run`) — bundled-vitest shim

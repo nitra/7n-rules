@@ -3,8 +3,9 @@ type: Rust Module
 title: lib.rs
 resource: llm-lib/crates/llm-lib/src/lib.rs
 docgen:
-  crc: 88ee8dc6
+  crc: 9ce93040
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
   score: 80
 ---
 

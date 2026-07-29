@@ -45,7 +45,7 @@ pub use batch::{
     BatchItem, BatchProgress, BatchResult,
 };
 pub use local_cloud::LocalCloud;
-pub use tiers::{resolve_model, Tier};
+pub use tiers::{resolve_model, resolve_model_from, ModelEnv, Tier};
 
 /// Помилка каскаду. Навмисно плоска — деталі провайдера/ACP-агента вже
 /// в тексті, без вкладеної типізації для кожного backend-у.

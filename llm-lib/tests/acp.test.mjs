@@ -27,7 +27,7 @@ function nativeAddonAvailable() {
 }
 
 describe('runAcpAgent', () => {
-  test('делегує kind/prompt/cwd у native.oneShotAcp і віддає його результат', async () => {
+  test('interactive mode делегує kind/prompt/cwd у native.oneShotAcp і віддає його результат', async () => {
     const calls = []
     const native = {
       oneShotAcp: (kind, prompt, cwd) => {
@@ -35,14 +35,14 @@ describe('runAcpAgent', () => {
         return Promise.resolve('відповідь')
       }
     }
-    await expect(runAcpAgent('codex', 'зроби X', '/proj', { native })).resolves.toBe('відповідь')
+    await expect(runAcpAgent('codex', 'зроби X', '/proj', { mode: 'interactive', native })).resolves.toBe('відповідь')
     expect(calls).toEqual([['codex', 'зроби X', '/proj']])
   })
 
-  test('без опцій (старий виклик без 4-го аргументу) — tier не заданий', async () => {
+  test('без tier або interactive mode — fail-closed', () => {
     const native = { oneShotAcp: vi.fn(() => Promise.resolve('ok')) }
-    await runAcpAgent('cursor', 'prompt', '/proj', { native })
-    expect(native.oneShotAcp).toHaveBeenCalledWith('cursor', 'prompt', '/proj', undefined)
+    expect(() => runAcpAgent('cursor', 'prompt', '/proj', { native })).toThrow(TypeError)
+    expect(native.oneShotAcp).not.toHaveBeenCalled()
   })
 
   test('tier прокидається в native.oneShotAcp четвертим аргументом', async () => {
@@ -76,10 +76,10 @@ describe('getAcpPresets (smoke через реально збудований na
         }
       }
 
-      // Pi резолвить тір через post-session config, не env/args (рішення З.1).
+      // JS smoke перевіряє форму napi bridge; конкретний preset покритий Rust unit-тестом.
       expect(presets.pi.tiers.min.postSessionConfig).toEqual({
         configId: 'model',
-        value: 'openai-codex/gpt-5.6-luna'
+        value: expect.any(String)
       })
       // Codex — через env.
       expect(presets.codex.tiers.avg.env.CODEX_CONFIG).toBe('{"model":"gpt-5.6-terra"}')
