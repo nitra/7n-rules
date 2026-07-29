@@ -220,15 +220,15 @@ describe('js-eslint-autofix — nullable guard через central fix pipeline',
       )
       writeFileSync(join(dir, 'eslint.config.mjs'), `export { default } from ${JSON.stringify(eslintConfigUrl)}\n`)
 
-      const nullablePath = join(dir, 'nullable.mjs')
-      writeFileSync(nullablePath, 'export function isNullish(value) { return value == null }\n')
+      const nullablePath = join(dir, 'nullable.cjs')
+      writeFileSync(nullablePath, 'exports.isNullish = value => value == null\n')
       let nullableWorkerCalled = false
       const nullableCode = await runFixPipeline({
         rulesDir: join(dir, 'rules'),
         cwd: dir,
         rules: ['js'],
-        files: ['nullable.mjs'],
-        log: () => {},
+        files: ['nullable.cjs'],
+        log: message => message,
         deps: {
           ladder,
           workerFor: () => () => {
@@ -240,9 +240,9 @@ describe('js-eslint-autofix — nullable guard через central fix pipeline',
       expect(nullableCode).toBe(0)
       expect(nullableWorkerCalled).toBe(false)
       expect(readFileSync(nullablePath, 'utf8')).toContain('value == null')
-      const { isNullish } = await import(`${pathToFileURL(nullablePath).href}?nullable-guard`)
+      const { isNullish } = loadActualModule(nullablePath)
       expect(isNullish(null)).toBe(true)
-      expect(isNullish(undefined)).toBe(true)
+      expect(isNullish()).toBe(true)
       expect(isNullish('ordinary')).toBe(false)
 
       const loosePath = join(dir, 'loose.mjs')
@@ -253,7 +253,7 @@ describe('js-eslint-autofix — nullable guard через central fix pipeline',
         cwd: dir,
         rules: ['js'],
         files: ['loose.mjs'],
-        log: () => {},
+        log: message => message,
         deps: {
           ladder,
           workerFor: () => () => {

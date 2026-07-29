@@ -1,13 +1,9 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { readFile } from 'node:fs/promises'
-import { createRequire } from 'node:module'
 import { env } from 'node:process'
 import { fixSurvivedMutants, buildFixPrompt, batchSurvived } from '../fix/coverage-fix.mjs'
 
-const loadActualModule = createRequire(import.meta.url)
-const actualPath = loadActualModule('node:path')
 vi.mock('node:fs/promises', () => ({ readFile: vi.fn() }))
-vi.mock('node:path', () => ({ ...actualPath, join: vi.fn((...a) => a.join('/')) }))
 
 const ROOT = '/proj'
 const survived = [
@@ -342,9 +338,7 @@ describe('coverage-fix.mjs', () => {
       })
 
       expect(runAgentFix).toHaveBeenCalledTimes(1)
-      expect(runAgentFix.mock.calls.every(call => call[3].sourceFiles[0] === 'run/api/src/constants.js')).toBe(
-        true
-      )
+      expect(runAgentFix.mock.calls.every(call => call[3].sourceFiles[0] === 'run/api/src/constants.js')).toBe(true)
       expect(result.failed[0]).toMatchObject({ files: ['run/api/src/constants.js'], error: 'fix timeout 95999ms' })
       expect(result.failed).toHaveLength(1)
       expect(result.deferred).toHaveLength(4)
