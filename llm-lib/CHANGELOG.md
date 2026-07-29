@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.13.1] - 2026-07-29
+
+### Fixed
+
+- local-providers.test: герметизація від ambient N_OMLX_*/N_LITELLM_* env (тест «без env» падав на машинах зі справжнім N_LITELLM_API_KEY)
+
 ## [2.13.0] - 2026-07-29
 
 ### Changed
