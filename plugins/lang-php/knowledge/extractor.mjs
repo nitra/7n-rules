@@ -289,13 +289,21 @@ export function analyzeFile(input) {
   }
 }
 
-/** Повертає parser-derived PHP member-call name. */
+/**
+ * Повертає parser-derived PHP member-call name.
+ * @param {unknown} node PHP AST node
+ * @returns {string | null} member-call name
+ */
 function testCallName(node) {
   if (node?.kind !== 'call') return null
   return nodeName(node.what?.offset) ?? nodeName(node.what)
 }
 
-/** Збирає active PHPUnit test* methods з assert* call через php-parser AST. */
+/**
+ * Збирає active PHPUnit test* methods з assert* call через php-parser AST.
+ * @param {{file: {path: string, content: string}}} input test source
+ * @returns {{ok: true, scenarios: object[]} | {ok: false, diagnostics: object[]}} scenarios or blocking diagnostic
+ */
 export function collectTestScenarios({ file }) {
   if (!file || typeof file.path !== 'string' || typeof file.content !== 'string' || !file.path.endsWith('.php')) {
     return failure('invalid-file-input', file?.path ?? null, 'PHP test collector потребує .php file.')
@@ -346,5 +354,5 @@ const phpKnowledgeExtractor = Object.freeze({
   collectTestScenarios
 })
 
-/** Експортує PHP full-parser adapter для knowledge.extractor@1. */
+/* Експортує PHP full-parser adapter для knowledge.extractor@1. */
 export default phpKnowledgeExtractor

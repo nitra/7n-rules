@@ -1,4 +1,4 @@
-/** Tests for deterministic package-owned structured config and contract ingestion. */
+/* Tests for deterministic package-owned structured config and contract ingestion. */
 import { createHash } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -8,7 +8,11 @@ import { describe, expect, test } from 'vitest'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 import { loadStructuredSources, mergeStructuredFragments } from '../structured-sources.mjs'
 
-/** Returns a resolved root-domain fixture with one explicitly excluded nested package. */
+/* Returns a resolved root-domain fixture with one explicitly excluded nested package. */
+/**
+ * @param {string} root fixture root
+ * @returns {object} resolved domain
+ */
 function domain(root) {
   return {
     id: 'npm:@fixture/orders',
@@ -21,7 +25,11 @@ function domain(root) {
   }
 }
 
-/** Writes the smallest package manifest accepted as a package-owned config source. */
+/* Writes the smallest package manifest accepted as a package-owned config source. */
+/**
+ * @param {string} root fixture root
+ * @returns {Promise<void>} completion
+ */
 async function packageManifest(root) {
   await writeFile(join(root, 'package.json'), '{"name":"@fixture/orders","version":"1.0.0"}\n', 'utf8')
 }

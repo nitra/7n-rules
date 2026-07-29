@@ -60,27 +60,49 @@ const STRUCTURED_CLAIM_PREDICATES = new Set([
   'declares-openapi-operation'
 ])
 
-/** Creates a stable structured-source diagnostic. */
+/**
+ * Creates a stable structured-source diagnostic.
+ * @param {string} code machine-readable diagnostic code
+ * @param {string} detail human-readable diagnostic detail
+ * @param {string | null} [path] owned relative source path
+ * @returns {{code: string, detail: string, path: string | null}} stable diagnostic
+ */
 function diagnostic(code, detail, path = null) {
   return { code, detail, path }
 }
 
-/** Returns a short stable digest for graph identities. */
+/**
+ * Returns a short stable digest for graph identities.
+ * @param {string} value identity payload
+ * @returns {string} SHA-256 digest prefix
+ */
 function digest(value) {
   return createHash('sha256').update(value).digest('hex').slice(0, 24)
 }
 
-/** Returns an exact source content hash. */
+/**
+ * Returns an exact source content hash.
+ * @param {string} content source text
+ * @returns {string} SHA-256 content fingerprint
+ */
 function contentHash(content) {
   return `sha256:${createHash('sha256').update(content).digest('hex')}`
 }
 
-/** Returns true for a JSON object without array semantics. */
+/**
+ * Returns true for a JSON object without array semantics.
+ * @param {unknown} value candidate value
+ * @returns {boolean} whether value is a non-array object
+ */
 function isObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
-/** Creates one deterministic, artifact-backed implemented claim. */
+/**
+ * Creates one deterministic, artifact-backed implemented claim.
+ * @param {{domainId: string, subjectId: string, predicate: string, value: Record<string, unknown>, evidenceId: string, sourceFingerprint: string}} input claim fields
+ * @returns {Record<string, unknown>} normalized implemented claim
+ */
 function structuredClaim({ domainId, subjectId, predicate, value, evidenceId, sourceFingerprint }) {
   const evidenceIds = [evidenceId]
   return {
@@ -95,7 +117,11 @@ function structuredClaim({ domainId, subjectId, predicate, value, evidenceId, so
   }
 }
 
-/** Returns public OpenAPI operation claims without serializing operation content. */
+/**
+ * Returns public OpenAPI operation claims without serializing operation content.
+ * @param {{domainId: string, subjectId: string, value: Record<string, unknown>, evidenceId: string, sourceFingerprint: string}} input schema context
+ * @returns {Record<string, unknown>[]} public operation claims
+ */
 function openApiClaims({ domainId, subjectId, value, evidenceId, sourceFingerprint }) {
   if (!isObject(value?.paths)) return []
   return Object.entries(value.paths)
@@ -115,7 +141,11 @@ function openApiClaims({ domainId, subjectId, value, evidenceId, sourceFingerpri
     )
 }
 
-/** Returns public AsyncAPI channel claims without serializing channel messages or bindings. */
+/**
+ * Returns public AsyncAPI channel claims without serializing channel messages or bindings.
+ * @param {{domainId: string, subjectId: string, value: Record<string, unknown>, evidenceId: string, sourceFingerprint: string}} input schema context
+ * @returns {Record<string, unknown>[]} public channel claims
+ */
 function asyncApiClaims({ domainId, subjectId, value, evidenceId, sourceFingerprint }) {
   if (!isObject(value?.channels)) return []
   return Object.keys(value.channels)
@@ -132,7 +162,11 @@ function asyncApiClaims({ domainId, subjectId, value, evidenceId, sourceFingerpr
     )
 }
 
-/** Returns GraphQL operation and type-definition surface claims from the parsed AST. */
+/**
+ * Returns GraphQL operation and type-definition surface claims from the parsed AST.
+ * @param {{domainId: string, subjectId: string, value: {definitions?: object[]}, evidenceId: string, sourceFingerprint: string}} input schema context
+ * @returns {Record<string, unknown>[]} public GraphQL claims
+ */
 function graphqlClaims({ domainId, subjectId, value, evidenceId, sourceFingerprint }) {
   if (!Array.isArray(value?.definitions)) return []
   return value.definitions
@@ -167,7 +201,11 @@ function graphqlClaims({ domainId, subjectId, value, evidenceId, sourceFingerpri
     .toSorted((left, right) => left.id.localeCompare(right.id))
 }
 
-/** Returns a JSON Schema title/type claim without projecting arbitrary schema values. */
+/**
+ * Returns a JSON Schema title/type claim without projecting arbitrary schema values.
+ * @param {{domainId: string, subjectId: string, value: {title?: unknown, type?: unknown}, evidenceId: string, sourceFingerprint: string}} input schema context
+ * @returns {Record<string, unknown>[]} public JSON Schema claims
+ */
 function jsonSchemaClaims({ domainId, subjectId, value, evidenceId, sourceFingerprint }) {
   const claimValue = {}
   if (typeof value?.title === 'string') claimValue.title = value.title
@@ -188,7 +226,11 @@ function jsonSchemaClaims({ domainId, subjectId, value, evidenceId, sourceFinger
   ]
 }
 
-/** Returns deterministic contract-surface claims for a parsed schema artifact. */
+/**
+ * Returns deterministic contract-surface claims for a parsed schema artifact.
+ * @param {{domain: {id: string}, kind: string, format: string, hash: string, value: Record<string, unknown>, schemaId: string, contractId: string, evidenceId: string}} input artifact context
+ * @returns {Record<string, unknown>[]} deterministic claims
+ */
 function schemaClaims({ domain, kind, format, hash, value, schemaId, contractId, evidenceId }) {
   const claims = [
     structuredClaim({
@@ -222,18 +264,31 @@ function schemaClaims({ domain, kind, format, hash, value, schemaId, contractId,
   return claims.toSorted((left, right) => left.id.localeCompare(right.id))
 }
 
-/** Converts a filesystem path to a stable POSIX relative path. */
+/**
+ * Converts a filesystem path to a stable POSIX relative path.
+ * @param {string} path filesystem path
+ * @returns {string} POSIX path
+ */
 function toPosix(path) {
   return path.split(sep).join('/')
 }
 
-/** Returns true only for a strict path inside an owned domain. */
+/**
+ * Returns true only for a strict path inside an owned domain.
+ * @param {string} root owned absolute root
+ * @param {string} path candidate absolute path
+ * @returns {boolean} whether the path stays within root
+ */
 function isWithin(root, path) {
   const rel = relative(root, path)
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
 }
 
-/** Builds nested documentation-domain ignore patterns relative to the current domain. */
+/**
+ * Builds nested documentation-domain ignore patterns relative to the current domain.
+ * @param {{sourceRoot?: string, excludedSourceRoots?: string[]}} domain resolved domain
+ * @returns {string[]} stable glob exclusions
+ */
 function nestedDomainIgnores(domain) {
   if (!Array.isArray(domain?.excludedSourceRoots) || typeof domain.sourceRoot !== 'string') return []
   return domain.excludedSourceRoots
@@ -243,7 +298,12 @@ function nestedDomainIgnores(domain) {
     .toSorted()
 }
 
-/** Identifies a recognized structured artifact from its owned relative path. */
+/**
+ * Identifies a recognized structured artifact from its owned relative path.
+ * @param {string} path owned relative path
+ * @param {string} manifestName root manifest basename
+ * @returns {'manifest'|'openapi'|'asyncapi'|'graphql'|'json-schema'|'config'} artifact kind
+ */
 function artifactKind(path, manifestName) {
   const name = basename(path).toLowerCase()
   if (name === manifestName.toLowerCase()) return 'manifest'
@@ -254,7 +314,13 @@ function artifactKind(path, manifestName) {
   return 'config'
 }
 
-/** Parses a recognized artifact with its native structured parser only. */
+/**
+ * Parses a recognized artifact with its native structured parser only.
+ * @param {string} kind recognized artifact kind
+ * @param {string} path owned relative path
+ * @param {string} content source text
+ * @returns {{ok: true, value: Record<string, unknown>, format: string} | {ok: false, diagnostic: Record<string, unknown>}} parsed artifact or diagnostic
+ */
 function parseArtifact(kind, path, content) {
   try {
     if (kind === 'graphql') return { ok: true, value: parseGraphql(content), format: 'graphql' }
@@ -275,7 +341,12 @@ function parseArtifact(kind, path, content) {
   }
 }
 
-/** Reads one discovered artifact without permitting a symlink to leave its domain. */
+/**
+ * Reads one discovered artifact without permitting a symlink to leave its domain.
+ * @param {string} root owned absolute root
+ * @param {string} path owned relative path
+ * @returns {Promise<{ok: true, content: string} | {ok: false, diagnostic: Record<string, unknown>}>} owned content or diagnostic
+ */
 async function readOwnedArtifact(root, path) {
   const absolute = resolve(root, path)
   try {
@@ -295,7 +366,11 @@ async function readOwnedArtifact(root, path) {
   }
 }
 
-/** Makes a deterministic public/package node and evidence record for one artifact. */
+/**
+ * Makes a deterministic public/package node and evidence record for one artifact.
+ * @param {{domain: {id: string}, path: string, kind: string, format: string, hash: string, value: Record<string, unknown>}} input artifact context
+ * @returns {{nodes: object[], edges: object[], evidence: object[], claims: object[]}} projected graph fragment
+ */
 function sourceNode({ domain, path, kind, format, hash, value }) {
   const token = digest(`${kind}:${path}`)
   const base = {
@@ -378,7 +453,13 @@ function sourceNode({ domain, path, kind, format, hash, value }) {
   }
 }
 
-/** Validates semantic requirements that parsers cannot express by syntax alone. */
+/**
+ * Validates semantic requirements that parsers cannot express by syntax alone.
+ * @param {string} kind recognized artifact kind
+ * @param {unknown} value parsed artifact value
+ * @param {string} path owned relative path
+ * @returns {{ok: true} | {ok: false, diagnostic: Record<string, unknown>}} validation result
+ */
 function validateArtifact(kind, value, path) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return { ok: false, diagnostic: diagnostic('structured-root-invalid', `${kind} має бути structured object.`, path) }
@@ -474,7 +555,12 @@ export async function loadStructuredSources({ domain }) {
   }
 }
 
-/** Returns whether a claim value can contain only public artifact metadata. */
+/**
+ * Returns whether a claim value can contain only public artifact metadata.
+ * @param {string} predicate claim predicate
+ * @param {unknown} value claim payload
+ * @returns {boolean} whether the payload is safe public metadata
+ */
 function isSafeClaimValue(predicate, value) {
   if (!isObject(value)) return false
   const keys = Object.keys(value).toSorted()
@@ -510,7 +596,12 @@ function isSafeClaimValue(predicate, value) {
   return false
 }
 
-/** Validates one artifact-backed claim before it can join a candidate graph. */
+/**
+ * Validates one artifact-backed claim before it can join a candidate graph.
+ * @param {unknown} claim candidate claim
+ * @param {{domain: {id: string}, nodeIds: Set<string>, evidenceIds: Set<string>, contentHash: string}} context local graph context
+ * @returns {boolean} whether the claim is deterministic and local
+ */
 function validStructuredClaim(claim, { domain, nodeIds, evidenceIds, contentHash }) {
   if (!isObject(claim) || claim.layer !== 'implemented' || !STRUCTURED_CLAIM_PREDICATES.has(claim.predicate))
     return false
@@ -540,7 +631,12 @@ function validStructuredClaim(claim, { domain, nodeIds, evidenceIds, contentHash
   )
 }
 
-/** Validates one injected structured graph fragment before it can extend a candidate. */
+/**
+ * Validates one injected structured graph fragment before it can extend a candidate.
+ * @param {unknown} fragment candidate fragment
+ * @param {{id: string}} domain owning domain
+ * @returns {{ok: true, value: Record<string, unknown>} | {ok: false, diagnostics: Record<string, unknown>[]}} validated fragment or diagnostics
+ */
 function validateFragment(fragment, domain) {
   const path = fragment?.file?.path
   if (!fragment || fragment.ok !== true || typeof path !== 'string' || typeof fragment.file.contentHash !== 'string') {
@@ -631,7 +727,12 @@ function validateFragment(fragment, domain) {
   return diagnostics.length > 0 ? { ok: false, diagnostics } : { ok: true, value: { ...fragment, claims } }
 }
 
-/** Adds one validated fragment to mutable graph collections or returns identity collisions. */
+/**
+ * Adds one validated fragment to mutable graph collections or returns identity collisions.
+ * @param {{nodes: object[], edges: object[], evidence: object[], claims: object[], file: {path: string}}} fragment validated fragment
+ * @param {{nodes: object[], edges: object[], evidence: object[], claims: object[], nodeIds: Set<string>, edgeIds: Set<string>, evidenceIds: Set<string>, claimIds: Set<string>}} collections mutable graph collections
+ * @returns {Record<string, unknown>[]} identity-collision diagnostics
+ */
 function mergeFragmentCollections(
   fragment,
   { nodes, edges, evidence, claims, nodeIds, edgeIds, evidenceIds, claimIds }

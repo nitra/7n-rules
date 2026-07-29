@@ -364,7 +364,12 @@ export async function analyzeFile(input) {
   }
 }
 
-/** Чи parser-derived subtree має identifier/attribute name. */
+/**
+ * Чи parser-derived subtree має identifier/attribute name.
+ * @param {object} node Tree-sitter node
+ * @param {string} expected expected identifier or attribute name
+ * @returns {boolean} whether the subtree contains the name
+ */
 function testNameInTree(node, expected) {
   let found = false
   walkNamed(node, [], child => {
@@ -374,7 +379,11 @@ function testNameInTree(node, expected) {
   return found
 }
 
-/** Збирає active pytest/unittest test_* functions з assert_statement через Tree-sitter. */
+/**
+ * Збирає active pytest/unittest test_* functions з assert_statement через Tree-sitter.
+ * @param {{file: {path: string, content: string}}} input test source
+ * @returns {Promise<{ok: true, scenarios: object[]} | {ok: false, diagnostics: object[]}>} scenarios or blocking diagnostic
+ */
 export async function collectTestScenarios({ file }) {
   if (!file || typeof file.path !== 'string' || typeof file.content !== 'string' || !file.path.endsWith('.py')) {
     return failure('invalid-file-input', file?.path ?? null, 'Python test collector потребує .py file.')
@@ -423,5 +432,5 @@ const pythonKnowledgeExtractor = Object.freeze({
   collectTestScenarios
 })
 
-/** Надає versioned `knowledge.extractor@1` provider для Python. */
+/* Надає versioned `knowledge.extractor@1` provider для Python. */
 export default pythonKnowledgeExtractor

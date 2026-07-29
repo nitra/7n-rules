@@ -724,7 +724,11 @@ function readFileInput(input) {
   return { ok: true, file }
 }
 
-/** Повертає AST member chain без text parsing. */
+/**
+ * Повертає AST member chain без text parsing.
+ * @param {unknown} expression OXC expression node
+ * @returns {string[]} callee member names
+ */
 function testCalleeChain(expression) {
   if (!expression || typeof expression !== 'object') return []
   if (expression.type === 'Identifier') return [expression.name]
@@ -734,7 +738,11 @@ function testCalleeChain(expression) {
   return expression.type === 'CallExpression' ? testCalleeChain(expression.callee) : []
 }
 
-/** Збирає active Vitest/Jest-style assertion scenarios через OXC AST. */
+/**
+ * Збирає active Vitest/Jest-style assertion scenarios через OXC AST.
+ * @param {{file: {path: string, content: string}}} input test source
+ * @returns {{ok: true, scenarios: object[]} | {ok: false, diagnostics: object[]}} scenarios or blocking diagnostic
+ */
 export function collectTestScenarios({ file }) {
   const parsed = parseProgramAndCommentsOrNull(file?.content, file?.path)
   if (!parsed?.program)
@@ -871,5 +879,5 @@ const jsKnowledgeExtractor = Object.freeze({
   collectTestScenarios
 })
 
-/** Надає versioned `knowledge.extractor@1` provider для JS/TS/Vue. */
+/* Надає versioned `knowledge.extractor@1` provider для JS/TS/Vue. */
 export default jsKnowledgeExtractor

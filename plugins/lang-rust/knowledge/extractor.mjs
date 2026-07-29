@@ -31,7 +31,7 @@ const UNIT_TYPES = new Set([
 const require = createRequire(import.meta.url)
 const RUST_WASM_PATH = require.resolve('tree-sitter-rust/tree-sitter-rust.wasm')
 
-/** @type {Promise<import('web-tree-sitter').Language> | null} */
+/* @type {Promise<import('web-tree-sitter').Language> | null} */
 let languagePromise = null
 
 /**
@@ -450,13 +450,23 @@ export async function analyzeFile(input) {
   }
 }
 
-/** Обходить Tree-sitter node без text/brace fallback. */
+/**
+ * Обходить Tree-sitter node без text/brace fallback.
+ * @param {object} node Tree-sitter node
+ * @param {(node: object) => void} visit visitor callback
+ * @returns {void} completion
+ */
 function walkSyntax(node, visit) {
   visit(node)
   for (const child of node.namedChildren) walkSyntax(child, visit)
 }
 
-/** Чи AST subtree містить parser-derived identifier. */
+/**
+ * Чи AST subtree містить parser-derived identifier.
+ * @param {object} node Tree-sitter node
+ * @param {string} name expected identifier
+ * @returns {boolean} whether the identifier occurs
+ */
 function hasIdentifier(node, name) {
   let found = false
   walkSyntax(node, child => {
@@ -465,7 +475,11 @@ function hasIdentifier(node, name) {
   return found
 }
 
-/** Збирає active #[test] scenarios та assert!/assert_* macros через Rust grammar. */
+/**
+ * Збирає active #[test] scenarios та assert!/assert_* macros через Rust grammar.
+ * @param {{file: {path: string, content: string}}} input test source
+ * @returns {Promise<{ok: true, scenarios: object[]} | {ok: false, diagnostics: object[]}>} scenarios or blocking diagnostic
+ */
 export async function collectTestScenarios({ file }) {
   if (!file || typeof file.path !== 'string' || typeof file.content !== 'string' || !file.path.endsWith('.rs')) {
     return failure('invalid-file-input', file?.path ?? null, 'Rust test collector потребує .rs file.')
@@ -519,5 +533,5 @@ const rustKnowledgeExtractor = Object.freeze({
   collectTestScenarios
 })
 
-/** Надає versioned `knowledge.extractor@1` provider для Rust. */
+/* Надає versioned `knowledge.extractor@1` provider для Rust. */
 export default rustKnowledgeExtractor
