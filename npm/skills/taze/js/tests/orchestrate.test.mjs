@@ -25,6 +25,7 @@ const AUTH_FAILURE_MESSAGE =
   "Authentication required. Please run 'agent login' first, then call authenticate() with methodId 'cursor_login'."
 
 const NOT_IN_WORKTREE_RE = /не в ізольованому worktree/
+const SKIPPED_ENTRY_RE = /пропущено/i
 
 /** Заглушка `log`/`copyFile`/`rm` для тестів, де побічний ефект не перевіряється. */
 function noop() {
@@ -140,7 +141,7 @@ describe('isAcpAuthFailureMessage', () => {
 
   test('порожнє/відсутнє повідомлення — false, не кидає', () => {
     expect(isAcpAuthFailureMessage(null)).toBe(false)
-    expect(isAcpAuthFailureMessage(undefined)).toBe(false)
+    expect(isAcpAuthFailureMessage()).toBe(false)
     expect(isAcpAuthFailureMessage('')).toBe(false)
   })
 })
@@ -733,11 +734,11 @@ describe('runTazeOrchestrator', () => {
     expect(ecoA.results[0]).toMatchObject({ pkg: 'pkg-a1', ok: false, error: AUTH_FAILURE_MESSAGE })
     expect(ecoA.results[1]).toMatchObject({ pkg: 'pkg-a2', ok: false })
     expect(ecoA.results[1].error).not.toBe(AUTH_FAILURE_MESSAGE)
-    expect(ecoA.results[1].error).toMatch(/пропущено/i)
+    expect(ecoA.results[1].error).toMatch(SKIPPED_ENTRY_RE)
 
     expect(ecoB.results).toHaveLength(1)
     expect(ecoB.results[0]).toMatchObject({ pkg: 'pkg-b1', ok: false })
-    expect(ecoB.results[0].error).toMatch(/пропущено/i)
+    expect(ecoB.results[0].error).toMatch(SKIPPED_ENTRY_RE)
 
     // bump/diff/cleanup виконались для ОБОХ екосистем попри короткий шлях —
     // пропускається лише per-пакетний LLM-виклик, не вся екосистема.

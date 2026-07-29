@@ -61,6 +61,12 @@ export async function callRunner(runner, prompt, cwd, deps = {}) {
 }
 
 /**
+ * Модульна область — не всередині {@link isAcpAuthFailureMessage}, щоб не
+ * компілювати той самий regex заново на кожному виклику (`e18e/prefer-static-regex`).
+ */
+const ACP_AUTH_FAILURE_RE = /authentication required|agent login|cursor_login|codex login/i
+
+/**
  * Розпізнає "ACP-агент не залогінений" у повідомленні помилки `callRunner`
  * (`cursor`/`codex`-гілка, `runAcpAgent`) — не будь-яку помилку ACP-мосту.
  * Використовується, щоб зупинити повторення ЗАВІДОМО безнадійного виклику
@@ -77,7 +83,7 @@ export async function callRunner(runner, prompt, cwd, deps = {}) {
  */
 export function isAcpAuthFailureMessage(message) {
   if (!message) return false
-  return /authentication required|agent login|cursor_login|codex login/i.test(message)
+  return ACP_AUTH_FAILURE_RE.test(message)
 }
 
 /**
@@ -111,6 +117,64 @@ export async function loadPluginTazeProviders(cwd, log, deps = {}) {
     }
   }
   return providers
+}
+
+/**
+ * Один major-запис у пропущеному (через попередній ACP-auth провал) стані —
+ * винесено окремо з {@link runEcosystem}, щоб не роздувати її cognitive
+ * complexity літералом-об'єктом.
+ * @param {{pkg: string, manifest: string, from: string, to: string}} entry major-запис
+ * @param {(line: string) => void} log колбек прогресу
+ * @returns {{pkg: string, manifest: string, from: string, to: string, ok: false, text: '', error: string}} пропущений результат
+ */
+function skipMajorEntryAfterAcpAuthFailure(entry, log) {
+  const outcome = {
+    ok: false,
+    text: '',
+    error:
+      'пропущено: ACP-автентифікація раніше провалилась у цьому прогоні — виконай `agent login` (cursor_login/codex login) і запусти taze знову'
+  }
+  log(`  ❌ ${entry.pkg}: ${outcome.error}`)
+  return { ...entry, ...outcome }
+}
+
+/**
+ * Викликає раннер на один major-запис (з кешем міграції) і, для ACP-раннерів,
+ * позначає `runState.acpAuthFailed` при першому auth-провалі — винесено
+ * окремо з {@link runEcosystem}, щоб тримати цикл по `diff.major` під лімітом
+ * cognitive complexity.
+ * @param {{pkg: string, manifest: string, from: string, to: string}} entry major-запис
+ * @param {{provider: import('../../../scripts/lib/plugin-api.mjs').EcosystemProvider, runner: string, cwd: string, deps: object, call: typeof callRunner, log: (line: string) => void, isAcpRunner: boolean, runState: {acpAuthFailed: boolean}, readCache: typeof readMigrationCache, writeCache: typeof writeMigrationCache}} ctx контекст виклику
+ * @returns {Promise<object>} злитий з `outcome` запис для `eco.results`
+ */
+async function runMajorEntry(
+  entry,
+  { provider, runner, cwd, deps, call, log, isAcpRunner, runState, readCache, writeCache }
+) {
+  let prompt = provider.promptFor(entry)
+  const cached = await readCache(entry.pkg, entry.from, entry.to, deps)
+  if (cached) {
+    log(`  ♻️ Кешована міграція з "${cached.sourceRepo}" — пропускаю повторне CHANGELOG-дослідження`)
+    prompt = withKnownMigrationNotes(prompt, cached)
+  }
+  const outcome = await call(runner, prompt, cwd, deps)
+  log(outcome.ok ? `  ✅ ${entry.pkg}` : `  ❌ ${entry.pkg}: ${outcome.error}`)
+  if (isAcpRunner && !outcome.ok && !runState.acpAuthFailed && isAcpAuthFailureMessage(outcome.error)) {
+    runState.acpAuthFailed = true
+    log(
+      `⚠️ ACP-автентифікація (${runner}) провалилась — решта major-пакетів у цьому прогоні пропускається без повторних викликів. Виконай \`agent login\` (methodId ${runner === 'cursor' ? 'cursor_login' : 'codex login'}) і запусти taze знову.`
+    )
+  }
+  if (outcome.ok && outcome.text) {
+    await writeCache(
+      entry.pkg,
+      entry.from,
+      entry.to,
+      { notes: outcome.text, sourceRepo: cwd, updatedAt: new Date().toISOString() },
+      deps
+    )
+  }
+  return { ...entry, ...outcome }
 }
 
 /**
@@ -166,41 +230,24 @@ async function runEcosystem(provider, { cwd, runner, log, deps, spawnFn, call, r
       log(`🔧 [${provider.id}] ${entry.pkg} (${entry.manifest}): ${entry.from} → ${entry.to}...`)
 
       if (isAcpRunner && runState.acpAuthFailed) {
-        const outcome = {
-          ok: false,
-          text: '',
-          error:
-            'пропущено: ACP-автентифікація раніше провалилась у цьому прогоні — виконай `agent login` (cursor_login/codex login) і запусти taze знову'
-        }
-        eco.results.push({ ...entry, ...outcome })
-        log(`  ❌ ${entry.pkg}: ${outcome.error}`)
+        eco.results.push(skipMajorEntryAfterAcpAuthFailure(entry, log))
         continue
       }
 
-      let prompt = provider.promptFor(entry)
-      const cached = await readCache(entry.pkg, entry.from, entry.to, deps)
-      if (cached) {
-        log(`  ♻️ Кешована міграція з "${cached.sourceRepo}" — пропускаю повторне CHANGELOG-дослідження`)
-        prompt = withKnownMigrationNotes(prompt, cached)
-      }
-      const outcome = await call(runner, prompt, cwd, deps)
-      eco.results.push({ ...entry, ...outcome })
-      log(outcome.ok ? `  ✅ ${entry.pkg}` : `  ❌ ${entry.pkg}: ${outcome.error}`)
-      if (isAcpRunner && !outcome.ok && !runState.acpAuthFailed && isAcpAuthFailureMessage(outcome.error)) {
-        runState.acpAuthFailed = true
-        log(
-          `⚠️ ACP-автентифікація (${runner}) провалилась — решта major-пакетів у цьому прогоні пропускається без повторних викликів. Виконай \`agent login\` (methodId ${runner === 'cursor' ? 'cursor_login' : 'codex login'}) і запусти taze знову.`
-        )
-      }
-      if (outcome.ok && outcome.text) {
-        await writeCache(
-          entry.pkg,
-          entry.from,
-          entry.to,
-          { notes: outcome.text, sourceRepo: cwd, updatedAt: new Date().toISOString() },
-          deps
-        )
-      }
+      eco.results.push(
+        await runMajorEntry(entry, {
+          provider,
+          runner,
+          cwd,
+          deps,
+          call,
+          log,
+          isAcpRunner,
+          runState,
+          readCache,
+          writeCache
+        })
+      )
     }
 
     await provider.cleanup(cwd, eco.manifests, deps)
