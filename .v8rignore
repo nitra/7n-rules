@@ -11,6 +11,7 @@ npm/schemas/layers-config.json
 npm/schemas/plugin-manifest.json
 npm/schemas/v8r-catalog.json
 npm/rules/ci4/package_knowledge/schema/knowledge-graph-v1.schema.json
+npm/rules/ci4/package_knowledge/tests/fixtures/**
 npm/schemas/vendor/**
 .claude/settings.local.json
 npm/.claude-template/settings.template.json

@@ -64,7 +64,7 @@ function adjacency(graph) {
     }
     targetsBySource.get(edge.fromId).add(edge.toId)
   }
-  return new Map([...targetsBySource].map(([id, targets]) => [id, [...targets].toSorted(compareIds)]))
+  return new Map(Array.from(targetsBySource, ([id, targets]) => [id, [...targets].toSorted(compareIds)]))
 }
 
 /**

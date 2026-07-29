@@ -3,7 +3,7 @@ type: JS Module
 title: impact.mjs
 resource: npm/rules/ci4/package_knowledge/impact.mjs
 docgen:
-  crc: 2c070ef1
+  crc: d33c625d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80

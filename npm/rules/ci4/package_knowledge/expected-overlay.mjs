@@ -51,7 +51,10 @@ function claimFailure(claim) {
     return 'invalid-expected-claim'
   }
   if (!Array.isArray(claim.evidenceIds) || claim.evidenceIds.length === 0) return 'expected-without-evidence'
-  if (new Set(claim.evidenceIds).size !== claim.evidenceIds.length || claim.evidenceIds.some(id => typeof id !== 'string' || id === '')) {
+  if (
+    new Set(claim.evidenceIds).size !== claim.evidenceIds.length ||
+    claim.evidenceIds.some(id => typeof id !== 'string' || id === '')
+  ) {
     return 'invalid-expected-evidence'
   }
   if (typeof claim.confidence !== 'number' || claim.confidence < 0 || claim.confidence > 1) {
@@ -60,6 +63,7 @@ function claimFailure(claim) {
   return null
 }
 
+/* eslint-disable sonarjs/cognitive-complexity -- one fail-closed pass preserves cross-collection overlay invariants */
 /**
  * Adds explicit expected claims and evidence without mutating the input graph.
  *
@@ -106,14 +110,20 @@ export function applyExpectedOverlay(graph, overlay = {}) {
     }
     newEvidenceIds.add(item.id)
   }
-  const availableEvidenceIds = new Set([...evidenceIds, ...newEvidenceIds])
+  const availableEvidenceIds = evidenceIds.union(newEvidenceIds)
   const newClaimIds = new Set()
 
   for (const rawClaim of claims) {
     const claimId = rawClaim && typeof rawClaim === 'object' ? rawClaim.id : null
     const failure = claimFailure(rawClaim)
     if (failure) {
-      diagnostics.push(diagnostic(failure, 'Expected claim не має повного evidence-backed contract.', typeof claimId === 'string' ? claimId : null))
+      diagnostics.push(
+        diagnostic(
+          failure,
+          'Expected claim не має повного evidence-backed contract.',
+          typeof claimId === 'string' ? claimId : null
+        )
+      )
       continue
     }
     if (rawClaim.layer !== undefined && rawClaim.layer !== 'expected') {
@@ -125,11 +135,15 @@ export function applyExpectedOverlay(graph, overlay = {}) {
       continue
     }
     if (!nodeIds.has(rawClaim.subjectId)) {
-      diagnostics.push(diagnostic('unknown-expected-subject', `Subject "${rawClaim.subjectId}" відсутній у graph.`, rawClaim.id))
+      diagnostics.push(
+        diagnostic('unknown-expected-subject', `Subject "${rawClaim.subjectId}" відсутній у graph.`, rawClaim.id)
+      )
       continue
     }
     if (rawClaim.evidenceIds.some(id => !availableEvidenceIds.has(id))) {
-      diagnostics.push(diagnostic('unknown-expected-evidence', 'Expected claim посилається на відсутнє evidence.', rawClaim.id))
+      diagnostics.push(
+        diagnostic('unknown-expected-evidence', 'Expected claim посилається на відсутнє evidence.', rawClaim.id)
+      )
       continue
     }
     newClaimIds.add(rawClaim.id)
@@ -165,9 +179,11 @@ export function applyExpectedOverlay(graph, overlay = {}) {
       claims: [...graph.claims.map(claim => canonicalize(claim)), ...expectedClaims].toSorted((left, right) =>
         left.id.localeCompare(right.id)
       ),
-      evidence: [...graph.evidence.map(item => canonicalize(item)), ...evidence.map(item => canonicalize(item))].toSorted(
-        (left, right) => left.id.localeCompare(right.id)
-      )
+      evidence: [
+        ...graph.evidence.map(item => canonicalize(item)),
+        ...evidence.map(item => canonicalize(item))
+      ].toSorted((left, right) => left.id.localeCompare(right.id))
     }
   }
 }
+/* eslint-enable sonarjs/cognitive-complexity */

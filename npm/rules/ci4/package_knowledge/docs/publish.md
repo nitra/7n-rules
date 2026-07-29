@@ -3,26 +3,18 @@ type: JS Module
 title: publish.mjs
 resource: npm/rules/ci4/package_knowledge/publish.mjs
 docgen:
-  crc: c598e812
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
-  score: 100
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: a313cb21
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
+  score: 75
 ---
 
 ## Огляд
 
-`publishKnowledgeArtifacts` публікує knowledge artifacts у `docs/` як публічний крок оновлення документації пакета. Це потрібно, щоб зміни в knowledge artifacts потрапляли в корінь пакета послідовно й у придатному для публікації вигляді.
+Публікує validated package knowledge artifacts атомарною заміною docs tree.
 
-## Поведінка
-
-1. `publishKnowledgeArtifacts` спочатку відсіює некоректний запит: джерело публікації має бути абсолютним шляхом, набір кандидатів — об’єктом, і серед них обов’язково має бути `docs/.docgen/manifest.json`.
-2. Далі вона приймає тільки документи в межах `docs/` і тільки текстові значення; усе інше зупиняє публікацію з діагностикою.
-3. Після цього `publishKnowledgeArtifacts` вимагає зовнішню перевірку від викликача й не продовжує роботу, якщо та не підтвердила готовність змін.
-4. Для кожного Markdown-документа вона порівнює новий вміст із поточним станом і не дозволяє змінювати захищені ділянки вже опублікованих файлів; для нових файлів перевіряє, що вміст придатний до публікації.
-5. Якщо попередні перевірки пройдено, `publishKnowledgeArtifacts` готує тимчасову staging-область, копіює туди чинні docs, накладає кандидатні зміни та лише після цього переходить до заміни.
-6. Публікація завершується атомарною підміною docs у корені пакета: або оновлюється весь набір артефактів разом, або при збої відновлюється попередній стан.
-7. У разі будь-якої помилки `publishKnowledgeArtifacts` повертає відмову з діагностикою, не залишаючи частково опублікований стан.
+Staging на тому самому volume і rollback гарантують, що parser, validator
+або protected-zone failure не залишить частково оновлену документацію.
 
 ## Публічний API
 
@@ -32,7 +24,7 @@ and manifest bytes untouched.
 
 ## Сценарії використання
 
-- `npm/rules/ci4/package_knowledge/tests/publish.test.mjs` (atomic package knowledge publication) — caller validation failure leaves docs and manifest byte-identical; publishes through stage only after validation and preserves protected zones; protected-zone conflict aborts before replacing committed docs
+- `npm/rules/ci4/package_knowledge/tests/publish.test.mjs` (atomic package knowledge publication) — rejects invalid requests before touching the filesystem; turns validator exceptions into blocking diagnostics; caller validation failure leaves docs and manifest byte-identical; publishes through stage only after validation and preserves protected zones; protected-zone conflict aborts before replacing committed docs; ще 1
 
 ## Гарантії поведінки
 

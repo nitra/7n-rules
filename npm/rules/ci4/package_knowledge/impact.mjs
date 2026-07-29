@@ -28,7 +28,7 @@ function isDomainPath(path) {
     typeof path === 'string' &&
     path !== '' &&
     !path.startsWith('/') &&
-    !path.split('/').some(segment => segment === '..' || segment === '')
+    path.split('/').every(segment => segment !== '..' && segment !== '')
   )
 }
 
@@ -67,6 +67,7 @@ function publicTopic(topic) {
   }
 }
 
+/* eslint-disable sonarjs/cognitive-complexity -- one domain boundary keeps privacy-safe impact projection atomic */
 /**
  * Повертає domain-contained impact set за topic ID або alias.
  * @param {{ graph: Record<string, unknown>, topics: Array<Record<string, unknown>>, topicId: string }} input graph, topics і target
@@ -95,16 +96,20 @@ export function createImpactSlice({ graph, topics, topicId }) {
   for (const id of reachableIds) {
     const node = nodeById.get(id)
     if (!node) continue
-    if (node.kind === 'code-unit' && isDomainPath(node.attributes?.sourcePath)) files.add(node.attributes.sourcePath)
-    if (node.kind === 'config' && isDomainPath(node.attributes?.sourcePath)) configs.add(node.attributes.sourcePath)
-    if (node.kind === 'test' && isDomainPath(node.attributes?.sourcePath)) tests.add(node.attributes.sourcePath)
+    if (node.kind === 'code-unit' && isDomainPath(node.attributes?.sourcePath)) {
+      files.add(node.attributes.sourcePath)
+    } else if (node.kind === 'config' && isDomainPath(node.attributes?.sourcePath)) {
+      configs.add(node.attributes.sourcePath)
+    } else if (node.kind === 'test' && isDomainPath(node.attributes?.sourcePath)) {
+      tests.add(node.attributes.sourcePath)
+    }
     if (node.kind === 'integration' && node.visibility === 'external') {
       contracts.push({ id: node.id, name: typeof node.name === 'string' ? node.name : node.id })
     }
   }
   for (const item of evidence) {
     if (item.kind === 'code') files.add(item.path)
-    if (item.kind === 'config') configs.add(item.path)
+    else if (item.kind === 'config') configs.add(item.path)
   }
 
   return {
@@ -121,3 +126,4 @@ export function createImpactSlice({ graph, topics, topicId }) {
     }
   }
 }
+/* eslint-enable sonarjs/cognitive-complexity */

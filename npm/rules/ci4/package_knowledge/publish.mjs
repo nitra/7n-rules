@@ -1,3 +1,10 @@
+/**
+ * Публікує validated package knowledge artifacts атомарною заміною docs tree.
+ *
+ * Staging на тому самому volume і rollback гарантують, що parser, validator
+ * або protected-zone failure не залишить частково оновлену документацію.
+ */
+
 import { cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
@@ -7,12 +14,21 @@ import { assertProtectedZonesPreserved, parseKnowledgeZones } from './zones.mjs'
 const DOCS_PREFIX = 'docs/'
 const MANIFEST_PATH = 'docs/.docgen/manifest.json'
 
-/** @param {string} code @param {string} detail */
+/**
+ * Створює publication diagnostic.
+ * @param {string} code machine code
+ * @param {string} detail explanation
+ * @returns {{code: string, detail: string}} diagnostic
+ */
 function diagnostic(code, detail) {
   return { code, detail }
 }
 
-/** @param {string} path @returns {boolean} whether it is a safe docs-relative candidate path */
+/**
+ * Перевіряє docs-relative candidate path.
+ * @param {string} path candidate path
+ * @returns {boolean} whether it is a safe docs-relative candidate path
+ */
 function isSafeDocsPath(path) {
   return (
     typeof path === 'string' &&
@@ -22,6 +38,21 @@ function isSafeDocsPath(path) {
   )
 }
 
+/**
+ * Прибирає тимчасовий path без маскування основного publication result.
+ * @param {string} path temporary path
+ * @returns {Promise<boolean>} чи cleanup завершився без помилки
+ */
+async function bestEffortRemove(path) {
+  try {
+    await rm(path, { recursive: true, force: true })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/* eslint-disable sonarjs/cognitive-complexity -- publication transaction keeps validation, swap and rollback in one boundary */
 /**
  * Atomically publishes caller-validated docs candidates. All writes first land in a same-volume
  * staging directory; a failed validator, zone check or staging operation leaves committed docs
@@ -81,7 +112,7 @@ export async function publishKnowledgeArtifacts(input) {
     const stageDocs = join(stage, 'docs')
     if (existsSync(docsRoot)) await cp(docsRoot, stageDocs, { recursive: true })
     else await mkdir(stageDocs, { recursive: true })
-    for (const [path, content] of Object.entries(files).sort(([left], [right]) => left.localeCompare(right))) {
+    for (const [path, content] of Object.entries(files).toSorted(([left], [right]) => left.localeCompare(right))) {
       const target = join(stage, path)
       await mkdir(dirname(target), { recursive: true })
       await writeFile(target, content, 'utf8')
@@ -96,18 +127,24 @@ export async function publishKnowledgeArtifacts(input) {
       if (existsSync(backup)) await rename(backup, docsRoot)
       throw error
     }
-    if (existsSync(backup)) await rm(backup, { recursive: true, force: true }).catch(() => {})
-    await rm(stage, { recursive: true, force: true }).catch(() => {})
+    if (existsSync(backup)) await bestEffortRemove(backup)
+    await bestEffortRemove(stage)
     return { ok: true }
   } catch (error) {
-    if (!committed && backup && existsSync(backup) && !existsSync(docsRoot))
-      await rename(backup, docsRoot).catch(() => {})
+    if (!committed && backup && existsSync(backup) && !existsSync(docsRoot)) {
+      try {
+        await rename(backup, docsRoot)
+      } catch {
+        // Original publication error remains the authoritative diagnostic.
+      }
+    }
     return {
       ok: false,
       diagnostics: [diagnostic('publish-failed', error instanceof Error ? error.message : String(error))]
     }
   } finally {
-    if (stage) await rm(stage, { recursive: true, force: true }).catch(() => {})
-    if (backup && existsSync(backup)) await rm(backup, { recursive: true, force: true }).catch(() => {})
+    if (stage) await bestEffortRemove(stage)
+    if (backup && existsSync(backup)) await bestEffortRemove(backup)
   }
 }
+/* eslint-enable sonarjs/cognitive-complexity */

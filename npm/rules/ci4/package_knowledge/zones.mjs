@@ -1,19 +1,37 @@
+/**
+ * Парсить і захищає AUTOGEN, MANUAL та EXPECTED zones у generated Markdown.
+ *
+ * Strict markers, stable IDs і content hashes не дозволяють генератору
+ * мовчки перезаписати authored context або explicit expectations.
+ */
+
 import { createHash } from 'node:crypto'
 
 const MARKER_RE =
   /<!--\s*(AUTOGEN|MANUAL|EXPECTED):(start|end)\s+id="([a-z][a-z0-9-]{0,127})"(?:\s+hash="(sha256:[a-f0-9]{64})")?\s*-->/gu
 const ZONE_LIKE_RE = /<!--\s*([A-Z]+):(start|end)\b/gu
 
-/** @param {string} content zone content @returns {string} stable SHA-256 marker value */
+/**
+ * Обчислює stable hash вмісту zone.
+ * @param {string} content zone content
+ * @returns {string} stable SHA-256 marker value
+ */
 export function zoneHash(content) {
   return `sha256:${createHash('sha256').update(content).digest('hex')}`
 }
 
-/** @param {string} code machine code @param {string} detail explanation @param {string | null} [path] document path */
+/**
+ * Створює stable zone diagnostic.
+ * @param {string} code machine code
+ * @param {string} detail explanation
+ * @param {string | null} [path] document path
+ * @returns {{code: string, detail: string, path: string | null}} diagnostic
+ */
 function diagnostic(code, detail, path = null) {
   return { code, detail, path }
 }
 
+/* eslint-disable sonarjs/cognitive-complexity -- strict marker state machine keeps pairing and hash invariants together */
 /**
  * Parses strict protected/generated zone markers and validates pairing, global stable IDs and
  * AUTOGEN hashes. Text outside an explicit zone is returned as implicit MANUAL content so a
@@ -25,6 +43,7 @@ function diagnostic(code, detail, path = null) {
 export function parseKnowledgeZones(markdown, path = null) {
   if (typeof markdown !== 'string')
     return { ok: false, diagnostics: [diagnostic('invalid-markdown', 'Markdown має бути рядком.', path)] }
+  const diagnostics = []
   const markers = Array.from(markdown.matchAll(MARKER_RE), match => ({
     kind: match[1],
     action: match[2],
@@ -33,7 +52,6 @@ export function parseKnowledgeZones(markdown, path = null) {
     start: match.index,
     end: match.index + match[0].length
   }))
-  const diagnostics = []
   const validMarkerStarts = new Set(markers.map(marker => marker.start))
   for (const marker of markdown.matchAll(ZONE_LIKE_RE)) {
     if (!['AUTOGEN', 'MANUAL', 'EXPECTED'].includes(marker[1])) {
@@ -113,6 +131,7 @@ export function parseKnowledgeZones(markdown, path = null) {
   if (diagnostics.length > 0) return { ok: false, diagnostics }
   return { ok: true, zones, implicitManual }
 }
+/* eslint-enable sonarjs/cognitive-complexity */
 
 /**
  * Applies only declared AUTOGEN replacements and recalculates their hashes. Protected and
@@ -163,8 +182,8 @@ export function applyAutogenUpdates(markdown, updates, path = null) {
  */
 export function assertProtectedZonesPreserved(previous, candidate, path = null) {
   const left = parseKnowledgeZones(previous, path)
-  const right = parseKnowledgeZones(candidate, path)
   if (!left.ok) return left
+  const right = parseKnowledgeZones(candidate, path)
   if (!right.ok) return right
   const diagnostics = []
   const oldProtected = left.zones.filter(zone => zone.kind !== 'AUTOGEN')

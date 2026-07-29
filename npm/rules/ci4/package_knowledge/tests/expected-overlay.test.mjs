@@ -9,6 +9,10 @@ import { applyExpectedOverlay } from '../expected-overlay.mjs'
 const FIXTURE = join(import.meta.dirname, 'fixtures', 'gaps', 'base-graph.json')
 const SUBJECT_ID = 'code-unit:npm:@fixture/orders:js:submitOrder'
 
+/**
+ * Читає pristine base graph fixture.
+ * @returns {Promise<Record<string, unknown>>} graph fixture
+ */
 async function baseGraph() {
   return JSON.parse(await readFile(FIXTURE, 'utf8'))
 }
@@ -78,6 +82,64 @@ describe('applyExpectedOverlay', () => {
     expect(result).toEqual({
       ok: false,
       diagnostics: [expect.objectContaining({ code: 'unknown-expected-subject' })]
+    })
+  })
+
+  test('adds new expectation evidence and rejects malformed overlay contracts', async () => {
+    const graph = await baseGraph()
+    const added = applyExpectedOverlay(graph, {
+      evidence: [{ id: 'evidence:new-spec', kind: 'spec', path: 'docs/new.md', contentHash: 'new-hash' }],
+      claims: [
+        {
+          id: 'claim:expected:new',
+          subjectId: SUBJECT_ID,
+          predicate: 'order-status',
+          value: 'reviewed',
+          evidenceIds: ['evidence:new-spec'],
+          confidence: 1,
+          sourceFingerprint: 'expected-new'
+        }
+      ]
+    })
+
+    expect(added.ok).toBe(true)
+    expect(added.graph.evidence).toContainEqual(expect.objectContaining({ id: 'evidence:new-spec' }))
+    expect(applyExpectedOverlay(null)).toMatchObject({ ok: false })
+    expect(applyExpectedOverlay({})).toMatchObject({ ok: false })
+    expect(applyExpectedOverlay(graph, { claims: {}, evidence: [] })).toMatchObject({ ok: false })
+  })
+
+  test('blocks duplicate, unknown and invalid expectation evidence', async () => {
+    const graph = await baseGraph()
+    const baseClaim = {
+      id: 'claim:expected:invalid',
+      subjectId: SUBJECT_ID,
+      predicate: 'order-status',
+      value: 'accepted',
+      evidenceIds: ['evidence:missing'],
+      confidence: 1,
+      sourceFingerprint: 'expected-hash'
+    }
+
+    expect(
+      applyExpectedOverlay(graph, {
+        evidence: [{ id: 'evidence:spec' }, { id: 'evidence:duplicate' }, { id: 'evidence:duplicate' }],
+        claims: [
+          baseClaim,
+          { ...baseClaim, id: 'claim:expected:layer', layer: 'implemented', evidenceIds: ['evidence:spec'] },
+          { ...baseClaim, id: 'claim:implemented:accepts-order', evidenceIds: ['evidence:spec'] },
+          { ...baseClaim, id: 'claim:expected:confidence', confidence: 2, evidenceIds: ['evidence:spec'] }
+        ]
+      })
+    ).toMatchObject({
+      ok: false,
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({ code: 'duplicate-evidence-id' }),
+        expect.objectContaining({ code: 'unknown-expected-evidence' }),
+        expect.objectContaining({ code: 'invalid-expected-layer' }),
+        expect.objectContaining({ code: 'duplicate-claim-id' }),
+        expect.objectContaining({ code: 'invalid-expected-confidence' })
+      ])
     })
   })
 })

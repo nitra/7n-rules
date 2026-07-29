@@ -76,7 +76,10 @@ function validateMapping(mapping, expectedById, implementedById, evidenceIds) {
   ) {
     return {
       ok: false,
-      diagnostic: diagnostic('invalid-gap-mapping', 'Mapping має exact expected/implemented IDs, relation і evidenceIds[].')
+      diagnostic: diagnostic(
+        'invalid-gap-mapping',
+        'Mapping має exact expected/implemented IDs, relation і evidenceIds[].'
+      )
     }
   }
   if (!expectedById.has(mapping.expectedClaimId) || !implementedById.has(mapping.implementedClaimId)) {
@@ -85,8 +88,14 @@ function validateMapping(mapping, expectedById, implementedById, evidenceIds) {
       diagnostic: diagnostic('unknown-gap-claim', 'Mapping посилається на відсутній expected або implemented claim.')
     }
   }
-  if (new Set(mapping.evidenceIds).size !== mapping.evidenceIds.length || mapping.evidenceIds.some(id => !evidenceIds.has(id))) {
-    return { ok: false, diagnostic: diagnostic('invalid-gap-evidence', 'Mapping не має валідного evidence provenance.') }
+  if (
+    new Set(mapping.evidenceIds).size !== mapping.evidenceIds.length ||
+    mapping.evidenceIds.some(id => !evidenceIds.has(id))
+  ) {
+    return {
+      ok: false,
+      diagnostic: diagnostic('invalid-gap-evidence', 'Mapping не має валідного evidence provenance.')
+    }
   }
   return { ok: true, value: mapping }
 }
@@ -102,14 +111,23 @@ export function evaluateGaps({ graph, mappings = [], validation = {}, minimumCon
   if (!graph || typeof graph !== 'object' || !Array.isArray(graph.claims) || !Array.isArray(graph.evidence)) {
     return { ok: false, diagnostics: [diagnostic('invalid-gap-graph', 'Graph має містити claims[] та evidence[].')] }
   }
-  if (!Array.isArray(mappings) || typeof minimumConfidence !== 'number' || minimumConfidence < 0 || minimumConfidence > 1) {
+  if (
+    !Array.isArray(mappings) ||
+    typeof minimumConfidence !== 'number' ||
+    minimumConfidence < 0 ||
+    minimumConfidence > 1
+  ) {
     return {
       ok: false,
-      diagnostics: [diagnostic('invalid-gap-input', 'mappings має бути масивом, minimumConfidence — числом від 0 до 1.')]
+      diagnostics: [
+        diagnostic('invalid-gap-input', 'mappings має бути масивом, minimumConfidence — числом від 0 до 1.')
+      ]
     }
   }
 
-  const expectedClaims = graph.claims.filter(claim => claim?.layer === 'expected').toSorted((left, right) => left.id.localeCompare(right.id))
+  const expectedClaims = graph.claims
+    .filter(claim => claim?.layer === 'expected')
+    .toSorted((left, right) => left.id.localeCompare(right.id))
   if (expectedClaims.length === 0) return { ok: true, gaps: [] }
 
   const expectedById = new Map(expectedClaims.map(claim => [claim.id, claim]))
@@ -122,12 +140,15 @@ export function evaluateGaps({ graph, mappings = [], validation = {}, minimumCon
   if (mappingDiagnostics.length > 0) {
     return {
       ok: false,
-      diagnostics: mappingDiagnostics.toSorted((left, right) => `${left.code}:${left.message}`.localeCompare(`${right.code}:${right.message}`))
+      diagnostics: mappingDiagnostics.toSorted((left, right) =>
+        `${left.code}:${left.message}`.localeCompare(`${right.code}:${right.message}`)
+      )
     }
   }
 
   const mappingsByExpected = new Map()
-  for (const mapping of checkedMappings.map(result => result.value)) {
+  for (const result of checkedMappings) {
+    const mapping = result.value
     const items = mappingsByExpected.get(mapping.expectedClaimId) ?? []
     items.push(mapping)
     mappingsByExpected.set(mapping.expectedClaimId, items)
@@ -140,7 +161,9 @@ export function evaluateGaps({ graph, mappings = [], validation = {}, minimumCon
     const implementationClaims = claimMappings.map(mapping => implementedById.get(mapping.implementedClaimId))
     const strongExpected = hasStrongEvidence(expectedClaim, evidenceIds, minimumConfidence)
     const strongMappings = claimMappings.every(mapping => mapping.evidenceIds.length > 0)
-    const strongImplemented = implementationClaims.every(claim => hasStrongEvidence(claim, evidenceIds, minimumConfidence))
+    const strongImplemented = implementationClaims.every(claim =>
+      hasStrongEvidence(claim, evidenceIds, minimumConfidence)
+    )
     const relations = new Set(claimMappings.map(mapping => mapping.relation))
     let status
     if (!strongExpected || !strongMappings || !strongImplemented || relations.size > 1) {

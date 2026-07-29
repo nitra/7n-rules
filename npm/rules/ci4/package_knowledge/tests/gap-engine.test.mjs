@@ -12,6 +12,11 @@ const EXPECTED_ID = 'claim:expected:order-accepted'
 const IMPLEMENTED_ID = 'claim:implemented:accepts-order'
 const SUBJECT_ID = 'code-unit:npm:@fixture/orders:js:submitOrder'
 
+/**
+ * Створює graph з одним explicit expectation.
+ * @param {Record<string, unknown>} [overrides] expected claim overrides
+ * @returns {Promise<Record<string, unknown>>} overlaid graph
+ */
 async function graphWithExpectation(overrides = {}) {
   const graph = JSON.parse(await readFile(FIXTURE, 'utf8'))
   const result = applyExpectedOverlay(graph, {
@@ -41,7 +46,14 @@ describe('evaluateGaps', () => {
   test('marks an exact evidence-backed equivalent mapping as satisfied', async () => {
     const result = evaluateGaps({
       graph: await graphWithExpectation(),
-      mappings: [{ expectedClaimId: EXPECTED_ID, implementedClaimId: IMPLEMENTED_ID, relation: 'equivalent', evidenceIds: ['evidence:mapping'] }]
+      mappings: [
+        {
+          expectedClaimId: EXPECTED_ID,
+          implementedClaimId: IMPLEMENTED_ID,
+          relation: 'equivalent',
+          evidenceIds: ['evidence:mapping']
+        }
+      ]
     })
 
     expect(result).toEqual({
@@ -66,7 +78,14 @@ describe('evaluateGaps', () => {
   test('marks an exact contradictory mapping as diverged', async () => {
     const result = evaluateGaps({
       graph: await graphWithExpectation(),
-      mappings: [{ expectedClaimId: EXPECTED_ID, implementedClaimId: IMPLEMENTED_ID, relation: 'contradicts', evidenceIds: ['evidence:mapping'] }]
+      mappings: [
+        {
+          expectedClaimId: EXPECTED_ID,
+          implementedClaimId: IMPLEMENTED_ID,
+          relation: 'contradicts',
+          evidenceIds: ['evidence:mapping']
+        }
+      ]
     })
     expect(result.gaps[0].status).toBe('diverged')
   })
@@ -76,13 +95,30 @@ describe('evaluateGaps', () => {
     lowConfidenceGraph.claims.find(claim => claim.id === IMPLEMENTED_ID).confidence = 0.5
     const lowConfidence = evaluateGaps({
       graph: lowConfidenceGraph,
-      mappings: [{ expectedClaimId: EXPECTED_ID, implementedClaimId: IMPLEMENTED_ID, relation: 'equivalent', evidenceIds: ['evidence:mapping'] }]
+      mappings: [
+        {
+          expectedClaimId: EXPECTED_ID,
+          implementedClaimId: IMPLEMENTED_ID,
+          relation: 'equivalent',
+          evidenceIds: ['evidence:mapping']
+        }
+      ]
     })
     const ambiguous = evaluateGaps({
       graph: await graphWithExpectation(),
       mappings: [
-        { expectedClaimId: EXPECTED_ID, implementedClaimId: IMPLEMENTED_ID, relation: 'equivalent', evidenceIds: ['evidence:mapping'] },
-        { expectedClaimId: EXPECTED_ID, implementedClaimId: IMPLEMENTED_ID, relation: 'contradicts', evidenceIds: ['evidence:mapping'] }
+        {
+          expectedClaimId: EXPECTED_ID,
+          implementedClaimId: IMPLEMENTED_ID,
+          relation: 'equivalent',
+          evidenceIds: ['evidence:mapping']
+        },
+        {
+          expectedClaimId: EXPECTED_ID,
+          implementedClaimId: IMPLEMENTED_ID,
+          relation: 'contradicts',
+          evidenceIds: ['evidence:mapping']
+        }
       ]
     })
 
@@ -91,10 +127,19 @@ describe('evaluateGaps', () => {
   })
 
   test('returns parser and coverage blockers instead of unresolved gaps', async () => {
-    const parser = evaluateGaps({ graph: await graphWithExpectation(), validation: { parser: { ok: false, message: 'Syntax error' } } })
-    const coverage = evaluateGaps({ graph: await graphWithExpectation(), validation: { coverage: { ok: false, message: 'Required edge missing' } } })
+    const parser = evaluateGaps({
+      graph: await graphWithExpectation(),
+      validation: { parser: { ok: false, message: 'Syntax error' } }
+    })
+    const coverage = evaluateGaps({
+      graph: await graphWithExpectation(),
+      validation: { coverage: { ok: false, message: 'Required edge missing' } }
+    })
 
     expect(parser).toEqual({ ok: false, diagnostics: [{ code: 'parser-blocked', message: 'Syntax error' }] })
-    expect(coverage).toEqual({ ok: false, diagnostics: [{ code: 'coverage-blocked', message: 'Required edge missing' }] })
+    expect(coverage).toEqual({
+      ok: false,
+      diagnostics: [{ code: 'coverage-blocked', message: 'Required edge missing' }]
+    })
   })
 })

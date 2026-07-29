@@ -3,7 +3,7 @@ type: JS Module
 title: expected-overlay.mjs
 resource: npm/rules/ci4/package_knowledge/expected-overlay.mjs
 docgen:
-  crc: be9d0abf
+  crc: f2351a91
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
@@ -26,7 +26,7 @@ at a node in the current domain, otherwise publication is blocked.
 
 ## Сценарії використання
 
-- `npm/rules/ci4/package_knowledge/tests/expected-overlay.test.mjs` (applyExpectedOverlay) — adds explicit expected claim immutably in stable order; blocks expectation without evidence instead of publishing unsupported intent; blocks references to a subject outside the domain graph
+- `npm/rules/ci4/package_knowledge/tests/expected-overlay.test.mjs` (applyExpectedOverlay) — adds explicit expected claim immutably in stable order; blocks expectation without evidence instead of publishing unsupported intent; blocks references to a subject outside the domain graph; adds new expectation evidence and rejects malformed overlay contracts; blocks duplicate, unknown and invalid expectation evidence
 
 ## Гарантії поведінки
 
