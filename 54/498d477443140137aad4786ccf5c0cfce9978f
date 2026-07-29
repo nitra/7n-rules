@@ -1,0 +1,59 @@
+npm/rules/k8s/tests/run-roots.test.mjs
+  s_3b13aaf5bffb50::t_eb6f6f38c1fd02 239,263
+plugins/lang-js/coverage-provider/tests/coverage-fix.test.mjs
+  s_3b13aaf5bffb50::t_eb6f6f38c1fd02 345
+eslint.config.js
+  s_3b13aaf5bffb50::t_414a3ae6aa1ba6 82-84
+npm/scripts/lib/lint-surface/lint-lock.mjs
+  s_3b13aaf5bffb50::t_414a3ae6aa1ba6 73,114-119,253-257
+npm/scripts/lib/lint-surface/tests/run-fix.test.mjs
+  s_3b13aaf5bffb50::t_204e481932c232 1150,1174
+npm/scripts/lib/lint-surface/run-detectors.mjs
+  s_3b13aaf5bffb50::t_414a3ae6aa1ba6 155
+npm/scripts/lib/lint-surface/run-fix.mjs
+  s_3b13aaf5bffb50::t_eb6f6f38c1fd02 486-489
+npm/scripts/lib/tests/concern-meta.test.mjs
+  s_3b13aaf5bffb50::t_eb6f6f38c1fd02 100-101,104-105
+plugins/lang-js/coverage-provider/tests/js-collector.test.mjs
+  s_3b13aaf5bffb50::t_eb6f6f38c1fd02 143
+npm/scripts/lib/lint-surface/docs/lint-lock.md
+  s_3b13aaf5bffb50::t_73c8aa4b610125 6-9,14-21,23-34,36-40,53-54,60-63,66-67
+npm/scripts/lib/lint-surface/docs/run-fix.md
+  s_4ed034b2325d4a::t_25cf3f4e7b75de 6-9,12-22,28-31,34
+npm/scripts/lib/lint-surface/tests/lint-lock.test.mjs
+  s_3b13aaf5bffb50::t_3254b1492f972a 200
+npm/scripts/lib/lint-surface/docs/run-detectors.md
+  s_1c3e3d2bb900a5::t_5165ea7bc1aea4 6-8,37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "54498d477443140137aad4786ccf5c0cfce9978f",
+  "prompts": {},
+  "sessions": {
+    "s_1c3e3d2bb900a5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fabd8-445d-7d72-8c59-1f0206f25f53",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_3b13aaf5bffb50": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa919-380c-7913-8616-b4bc6856cb97",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_4ed034b2325d4a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa9e1-fcf8-7082-9435-2aacdc2eae0d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
