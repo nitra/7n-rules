@@ -63,7 +63,7 @@ npx @nitra/cursor fix <id>
 Якщо логіка нетривіальна або її легко зламати — додай **`npm/tests/check-<id>.test.mjs`** (або розшир наявні тести). Після змін:
 
 ```bash
-cd npm && bun test
+cd npm && bun run test
 ```
 
 ### 5. Спрощення `.mdc` (людинозрозумілий текст)
@@ -76,11 +76,11 @@ cd npm && bun test
 ### 6. Верифікація та версія пакета
 
 - Після змін у **`npm/`** (`.mdc`, `check-*.mjs`, тести) підвищ **patch**-версію в **`npm/package.json`** на **+1** від останнього збереженого в git стану (**n-npm-module**).
-- Переконайся, що **`npx @nitra/cursor fix <id>`** і за потреби **`cd npm && bun test`** проходять без помилок.
+- Переконайся, що **`npx @nitra/cursor fix <id>`** і за потреби **`cd npm && bun run test`** проходять без помилок.
 
 ```bash
 npx @nitra/cursor fix <id>
-cd npm && bun test
+cd npm && bun run test
 ```
 
 ## Антипатерни
