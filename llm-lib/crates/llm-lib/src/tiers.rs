@@ -1,9 +1,7 @@
 //! Тир-конфіг моделей — Rust-порт `model-tiers.mjs` з `@7n/llm-lib`.
 //!
-//! Тільки резолвінг env → `"provider/model-id"`. Жодного retry/каскаду тут:
-//! як і JS-шар, ці primitives свідомо не повторюють виклик — драбину
-//! (local-min → cloud-min → cloud-avg, чи з ACP-агентами) будує caller,
-//! композуючи [`resolve_model`] і виклики з [`crate::local_cloud`]/[`crate::acp`].
+//! Єдина policy вибору моделі: caller задає стартову env-сходинку, а resolver
+//! переходить лише до сильніших моделей, спочатку local, потім cloud.
 
 use std::env;
 
@@ -16,6 +14,17 @@ pub enum Tier {
     Avg,
     /// Найпотужніша модель.
     Max,
+}
+
+/// Явна стартова сходинка універсальної model-policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ModelEnv {
+    LocalMin,
+    LocalAvg,
+    LocalMax,
+    CloudMin,
+    CloudAvg,
+    CloudMax,
 }
 
 /// Читає env-змінну, порожній рядок трактує як відсутню (той самий `?? ''`,
@@ -54,22 +63,39 @@ pub fn cloud_max() -> Option<String> {
     env_var("N_CLOUD_MAX_MODEL")
 }
 
-/// Каскадне розв'язання абстрактного тиру в `"provider/model-id"` — той самий
-/// порядок, що й `resolveModel` у `model-tiers.mjs`:
-/// - `Min` → `LOCAL_MIN → LOCAL_AVG → LOCAL_MAX → CLOUD_MIN`
-/// - `Avg` → `LOCAL_AVG → LOCAL_MAX → CLOUD_AVG`
-/// - `Max` → `LOCAL_MAX → CLOUD_MAX`
+/// Резолвить модель від явної env-сходинки, пропускаючи слабші рівні:
 ///
-/// `None`, якщо жодна відповідна env-змінна не задана.
+/// - `LocalMin`: local min → local avg → local max → cloud min → cloud avg → cloud max;
+/// - `LocalAvg`: local avg → local max → cloud avg → cloud max;
+/// - `LocalMax`: local max → cloud max;
+/// - cloud-старти проходять лише відповідну й сильніші cloud-сходинки.
+#[must_use]
+pub fn resolve_model_from(start: ModelEnv) -> Option<String> {
+    match start {
+        ModelEnv::LocalMin => local_min()
+            .or_else(local_avg)
+            .or_else(local_max)
+            .or_else(cloud_min)
+            .or_else(cloud_avg)
+            .or_else(cloud_max),
+        ModelEnv::LocalAvg => local_avg()
+            .or_else(local_max)
+            .or_else(cloud_avg)
+            .or_else(cloud_max),
+        ModelEnv::LocalMax => local_max().or_else(cloud_max),
+        ModelEnv::CloudMin => cloud_min().or_else(cloud_avg).or_else(cloud_max),
+        ModelEnv::CloudAvg => cloud_avg().or_else(cloud_max),
+        ModelEnv::CloudMax => cloud_max(),
+    }
+}
+
+/// Backward-compatible tier facade: кожен tier починається з відповідної local-сходинки.
 #[must_use]
 pub fn resolve_model(tier: Tier) -> Option<String> {
     match tier {
-        Tier::Min => local_min()
-            .or_else(local_avg)
-            .or_else(local_max)
-            .or_else(cloud_min),
-        Tier::Avg => local_avg().or_else(local_max).or_else(cloud_avg),
-        Tier::Max => local_max().or_else(cloud_max),
+        Tier::Min => resolve_model_from(ModelEnv::LocalMin),
+        Tier::Avg => resolve_model_from(ModelEnv::LocalAvg),
+        Tier::Max => resolve_model_from(ModelEnv::LocalMax),
     }
 }
 
@@ -124,12 +150,15 @@ mod tests {
     }
 
     #[test]
-    fn min_cascades_through_local_then_cloud_min() {
+    fn min_cascades_through_all_stronger_models() {
         with_env(&[("N_LOCAL_AVG_MODEL", "omlx/avg")], || {
             assert_eq!(resolve_model(Tier::Min).as_deref(), Some("omlx/avg"));
         });
         with_env(&[("N_CLOUD_MIN_MODEL", "openai/mini")], || {
             assert_eq!(resolve_model(Tier::Min).as_deref(), Some("openai/mini"));
+        });
+        with_env(&[("N_CLOUD_MAX_MODEL", "openai/max")], || {
+            assert_eq!(resolve_model(Tier::Min).as_deref(), Some("openai/max"));
         });
         with_env(&[], || {
             assert_eq!(resolve_model(Tier::Min), None);
@@ -141,6 +170,25 @@ mod tests {
         with_env(&[("N_CLOUD_MIN_MODEL", "openai/mini")], || {
             assert_eq!(resolve_model(Tier::Avg), None);
         });
+        with_env(&[("N_CLOUD_MAX_MODEL", "openai/max")], || {
+            assert_eq!(resolve_model(Tier::Avg).as_deref(), Some("openai/max"));
+        });
+    }
+
+    #[test]
+    fn cloud_selector_skips_all_local_models() {
+        with_env(
+            &[
+                ("N_LOCAL_MAX_MODEL", "omlx/max"),
+                ("N_CLOUD_AVG_MODEL", "openai/avg"),
+            ],
+            || {
+                assert_eq!(
+                    resolve_model_from(ModelEnv::CloudMin).as_deref(),
+                    Some("openai/avg")
+                );
+            },
+        );
     }
 
     #[test]

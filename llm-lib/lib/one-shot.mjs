@@ -81,7 +81,7 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel, maxTo
  */
 export async function runOneShot({
   messages,
-  modelTier = 'min',
+  modelTier,
   modelSpec,
   thinkingLevel,
   timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -122,7 +122,8 @@ export async function runOneShot({
   let model
   try {
     registry = deps.registry ?? (await getReg())
-    spec = modelSpec ?? resolveModel(modelTier)
+    if (!modelSpec && !modelTier) return fail('model selection: передай modelTier або явний modelSpec', null)
+    spec = modelSpec || resolveModel(modelTier)
     model = spec ? resolveModelSpec(registry, spec) : null
     if (spec && !model) return fail(`модель не знайдена: ${spec}`, spec)
   } catch (error) {

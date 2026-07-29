@@ -9,7 +9,8 @@
  *   4. Валідація локально згенерованих блоків; fallback на cloud при анти-патернах.
  *   5. Merge header + блоки → запис тест-файлу (через `recordWrite` ladder-а).
  *
- * Локальна модель — opts.localModel або env N_LOCAL_MIN_MODEL. Всі виклики йдуть
+ * Preferred model — opts.localModel або універсальна драбина від
+ * `N_LOCAL_MIN_MODEL` до cloud-моделей. Всі виклики йдуть
  * через LLM-хелпер концерну (`lib/llm.mjs` ядра). Без локальної моделі (або без
  * export-ів) — fallback на single-file cloud-генерацію. Валідація блоків жене
  * project-local vitest споживача (`bunx vitest run`) — bundled-vitest shim
@@ -18,7 +19,6 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { join, relative, dirname } from 'node:path'
-import { env } from 'node:process'
 
 import { callText, MEMORY_ERROR_RE } from '@7n/rules/rules/test/coverage/lib/llm.mjs'
 import { extractExportsWithComplexity } from './classify-exports.mjs'
@@ -30,6 +30,7 @@ import { probeModule, probeFetchCalls, probeTimeVariants, probeHelpers } from '.
 // `rules/js/eslint/fix-worker.mjs`.
 const { budgetFor } = await import('@7n/llm-lib/prompt-budget')
 const { startChain } = await import('@7n/llm-lib/chain')
+const { resolveModel: resolveTierModel } = await import('@7n/llm-lib/model-tiers')
 
 const MAX_SRC_BYTES = 6000
 
@@ -92,6 +93,7 @@ const BLOCK_COMMENT_LINE_RE = /^\/\/ .+\n/gm
  * @typedef {object} GenerateTestsOptions
  * @property {PiCallFn} [callText] кастомний cloud-виклик
  * @property {string|null} [localModel] id локальної моделі; null — cloud-only режим
+ * @property {(selector: string) => string} [resolveModel] інжектований model-resolver для тестів
  * @property {GenerateOneFn} [generateOne] кастомний single-file генератор
  * @property {RecordWriteFn} [recordWrite] реєстрація запису для central rollback
  *   ladder-а (викликається ПЕРЕД writeFileSync; тимчасові валідаційні файли не реєструються)
@@ -1154,13 +1156,13 @@ async function generateOneTest(fileInfo, dir, callTextFn, recordWrite) {
 // ---------------------------------------------------------------------------
 
 /**
- * Резолвить ефективний id локальної моделі.
+ * Резолвить preferred model через універсальну model policy.
  * @param {GenerateTestsOptions} opts опції генерації
  * @returns {string | null} id локальної моделі або null для cloud-only режиму
  */
-function resolveLocalModel(opts) {
+function resolvePreferredModel(opts) {
   if (opts.localModel !== undefined) return opts.localModel
-  return env.N_LOCAL_MIN_MODEL ?? null
+  return (opts.resolveModel ?? resolveTierModel)('N_LOCAL_MIN_MODEL') || null
 }
 
 /**
@@ -1225,7 +1227,7 @@ export async function generateTests(files, dir, opts = {}) {
 
   const callTextFn = opts.callText ?? callText
   const recordWrite = opts.recordWrite ?? null
-  const localModel = resolveLocalModel(opts)
+  const localModel = resolvePreferredModel(opts)
   const localFn = localModel
     ? (prompt, callOpts = {}) => callTextFn(prompt, { ...callOpts, model: localModel, cwd: dir })
     : null

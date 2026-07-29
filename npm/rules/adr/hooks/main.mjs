@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { delimiter, dirname, join } from 'node:path'
 import { env } from 'node:process'
+import { isLocalModel, resolveModel } from '@7n/llm-lib/model-tiers'
 import { fileURLToPath } from 'node:url'
 
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
@@ -271,7 +272,8 @@ function checkCaptureBackendAvailable(reporter, cwd) {
   const { pass } = reporter
   const backend = env.CAPTURE_DECISIONS_BACKEND || 'pi'
   const piCmd = findPiCmd(cwd)
-  const hasLocalModel = Boolean(env.CAPTURE_DECISIONS_PI_MODEL || env.N_LOCAL_MIN_MODEL)
+  const resolvedModel = resolveModel('N_LOCAL_MIN_MODEL')
+  const hasLocalModel = Boolean(env.CAPTURE_DECISIONS_PI_MODEL || (resolvedModel && isLocalModel(resolvedModel)))
   const hasClaude = isBinaryInPath('claude')
   const hasCursor = isBinaryInPath('cursor-agent')
 

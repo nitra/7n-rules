@@ -183,7 +183,7 @@ export function buildEdges(drafts, cleanList, opts = {}) {
 
 // ─────────────────────────── batch-каскад: спільна інфраструктура ──────────────
 
-const LOCAL = () => resolveModel('min')
+const resolvePreferredModel = () => resolveModel('N_LOCAL_MIN_MODEL')
 
 /**
  * Один `submitBatch`-виклик-хвиля на всі `items` разом. Провал САМОГО
@@ -792,7 +792,7 @@ async function normalizePipelineCore(drafts, cleanList, opts, chain) {
     votes: opts.votes ?? 2,
     stats,
     chain,
-    tier1: opts.tier1 ?? LOCAL(),
+    tier1: opts.tier1 ?? resolvePreferredModel(),
     tier2: opts.tier2 ?? CLOUD_MIN,
     localProviders: opts.localProviders ?? defaultLocalProviders(),
     submitBatchImpl: opts.submitBatchImpl ?? submitBatchNative

@@ -143,10 +143,10 @@ describe('resolveModel (napi-делегація, інжектований fake-n
     expect(native.resolveModel).not.toHaveBeenCalled()
   })
 
-  test('делегує рівно tier у native.resolveModel і повертає результат як є', () => {
+  test('tier alias делегує відповідну env-сходинку і повертає результат як є', () => {
     const native = { resolveModel: vi.fn(() => 'omlx/local') }
     expect(resolveModel('min', { native })).toBe('omlx/local')
-    expect(native.resolveModel).toHaveBeenCalledWith('min')
+    expect(native.resolveModel).toHaveBeenCalledWith('N_LOCAL_MIN_MODEL')
   })
 
   test('native повертає null (жодної env-моделі для тиру) → порожній рядок', () => {
@@ -154,10 +154,25 @@ describe('resolveModel (napi-делегація, інжектований fake-n
     expect(resolveModel('avg', { native })).toBe('')
   })
 
-  test.each(['min', 'avg', 'max'])('%s — валідний тир, native викликається', tier => {
+  test.each([
+    ['min', 'N_LOCAL_MIN_MODEL'],
+    ['avg', 'N_LOCAL_AVG_MODEL'],
+    ['max', 'N_LOCAL_MAX_MODEL'],
+    ['N_CLOUD_MIN_MODEL', 'N_CLOUD_MIN_MODEL'],
+    ['N_CLOUD_AVG_MODEL', 'N_CLOUD_AVG_MODEL'],
+    ['N_CLOUD_MAX_MODEL', 'N_CLOUD_MAX_MODEL']
+  ])('%s → %s', (selector, start) => {
     const native = { resolveModel: vi.fn(() => null) }
-    resolveModel(tier, { native })
-    expect(native.resolveModel).toHaveBeenCalledWith(tier)
+    resolveModel(selector, { native })
+    expect(native.resolveModel).toHaveBeenCalledWith(start)
+  })
+})
+
+describe('resolveModel (універсальна env-драбина)', () => {
+  test('явний cloud selector передається без local-пониження', () => {
+    const native = { resolveModel: vi.fn(() => 'openai/avg') }
+    expect(resolveModel('N_CLOUD_AVG_MODEL', { native })).toBe('openai/avg')
+    expect(native.resolveModel).toHaveBeenCalledWith('N_CLOUD_AVG_MODEL')
   })
 })
 
@@ -171,7 +186,7 @@ describe('resolveModel (smoke через реально збудований nap
     const script = `
 import { loadNative } from ${JSON.stringify(pathToFileURL(join(here, '..', 'lib', 'internal', 'native.mjs')).href)}
 import { resolveModel } from ${JSON.stringify(pathToFileURL(join(here, '..', 'lib', 'model-tiers.mjs')).href)}
-process.stdout.write(resolveModel('min', { native: loadNative() }))
+process.stdout.write(resolveModel('N_LOCAL_MIN_MODEL', { native: loadNative() }))
 `
     const dir = mkdtempSync(join(tmpdir(), 'model-tiers-smoke-'))
     try {

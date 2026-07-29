@@ -299,17 +299,30 @@ describe('generateTests — per-export mode', () => {
     expect(vi.mocked(callText).mock.calls[0][1]?.model).toBeUndefined()
   })
 
-  it('uses localModel from N_LOCAL_MIN_MODEL env when no opts.localModel', async () => {
-    env.N_LOCAL_MIN_MODEL = LOCAL_MODEL
+  it('uses universal resolver result when opts.localModel is absent', async () => {
     vi.mocked(extractExportsWithComplexity).mockReturnValue([{ name: 'foo', complexity: 'simple' }])
     vi.mocked(callText).mockResolvedValue("```js\nimport { vi } from 'vitest'\n```")
 
-    await generateTests([{ file: mockFile, pct: 0, reason: '' }], mockDir)
+    await generateTests([{ file: mockFile, pct: 0, reason: '' }], mockDir, {
+      resolveModel: selector => {
+        expect(selector).toBe('N_LOCAL_MIN_MODEL')
+        return LOCAL_MODEL
+      }
+    })
 
     const localCall = vi.mocked(callText).mock.calls.find(([, opts]) => opts?.model === LOCAL_MODEL)
     expect(localCall).toBeDefined()
+  })
 
-    delete env.N_LOCAL_MIN_MODEL
+  it('uses the fallback result returned by the universal resolver', async () => {
+    vi.mocked(extractExportsWithComplexity).mockReturnValue([{ name: 'foo', complexity: 'simple' }])
+    vi.mocked(callText).mockResolvedValue("```js\nimport { vi } from 'vitest'\n```")
+
+    await generateTests([{ file: mockFile, pct: 0, reason: '' }], mockDir, {
+      resolveModel: () => 'omlx/local-avg'
+    })
+
+    expect(vi.mocked(callText).mock.calls.some(([, opts]) => opts?.model === 'omlx/local-avg')).toBe(true)
   })
 
   it('opts.localModel = null forces cloud-only even when env is set', async () => {

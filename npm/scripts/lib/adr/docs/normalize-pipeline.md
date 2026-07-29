@@ -3,9 +3,9 @@ type: JS Module
 title: normalize-pipeline.mjs
 resource: npm/scripts/lib/adr/normalize-pipeline.mjs
 docgen:
-  crc: 6ecb05c0
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
+  crc: afbf162f
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
   score: 80
 ---
 

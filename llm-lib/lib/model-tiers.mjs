@@ -34,29 +34,40 @@ export const CLOUD_AVG = env.N_CLOUD_AVG_MODEL ?? ''
 /** Максимальний хмарний. Напр.: openai/gpt-5.5 */
 export const CLOUD_MAX = env.N_CLOUD_MAX_MODEL ?? ''
 
-/** Валідні тири — та сама множина, що й `parse_tier` у napi-крейті. */
-const KNOWN_TIERS = new Set(['min', 'avg', 'max'])
+/** Абстрактний tier → явна стартова env-сходинка. */
+const TIER_START = {
+  min: 'N_LOCAL_MIN_MODEL',
+  avg: 'N_LOCAL_AVG_MODEL',
+  max: 'N_LOCAL_MAX_MODEL'
+}
+const MODEL_ENV_KEYS = new Set([
+  'N_LOCAL_MIN_MODEL',
+  'N_LOCAL_AVG_MODEL',
+  'N_LOCAL_MAX_MODEL',
+  'N_CLOUD_MIN_MODEL',
+  'N_CLOUD_AVG_MODEL',
+  'N_CLOUD_MAX_MODEL'
+])
 
 /**
- * Каскадне розв'язання абстрактного тиру в `"provider/model-id"` —
- * napi-делегація в `llm_lib::resolve_model` (задача T5, рішення Е): та сама
- * логіка, що й Rust-каскад у `tiers.rs`:
- *   'min' → LOCAL_MIN → LOCAL_AVG → LOCAL_MAX → CLOUD_MIN
- *   'avg' → LOCAL_AVG → LOCAL_MAX → CLOUD_AVG
- *   'max' → LOCAL_MAX → CLOUD_MAX
- * Тир валідується тут (не в Rust) — щоб зберегти контракт `TypeError` для
- * невідомого тиру без потреби мапити помилку з napi-боку.
- * @param {'min'|'avg'|'max'} tier тир
- * @param {{ native?: { resolveModel: (tier: string) => string | null } }} [deps] інжект `native` для тестів
+ * Універсально резолвить модель від явної env-сходинки:
+ * - LOCAL_MIN → LOCAL_AVG → LOCAL_MAX → CLOUD_MIN → CLOUD_AVG → CLOUD_MAX;
+ * - LOCAL_AVG → LOCAL_MAX → CLOUD_AVG → CLOUD_MAX;
+ * - LOCAL_MAX → CLOUD_MAX;
+ * - cloud-старти проходять лише відповідну й сильніші cloud-сходинки.
+ * `min`/`avg`/`max` лишаються alias-ами відповідних `N_LOCAL_*_MODEL`.
+ * @param {'min'|'avg'|'max'|'N_LOCAL_MIN_MODEL'|'N_LOCAL_AVG_MODEL'|'N_LOCAL_MAX_MODEL'|'N_CLOUD_MIN_MODEL'|'N_CLOUD_AVG_MODEL'|'N_CLOUD_MAX_MODEL'} requested стартова сходинка
+ * @param {{ native?: { resolveModel: (start: string) => string | null } }} [deps] інжект `native` для тестів
  * @returns {string} `"provider/model-id"` або `''` (дефолт провайдера substrate)
  * @throws {TypeError} якщо tier невідомий
  */
-export function resolveModel(tier, deps = {}) {
-  if (!KNOWN_TIERS.has(tier)) {
-    throw new TypeError(`resolveModel: unknown tier "${tier}". Use 'min', 'avg', or 'max'.`)
+export function resolveModel(requested, deps = {}) {
+  const start = TIER_START[requested] ?? requested
+  if (!MODEL_ENV_KEYS.has(start)) {
+    throw new TypeError(`resolveModel: unknown model selector ${JSON.stringify(requested)}.`)
   }
   const native = deps.native ?? loadNative()
-  return native.resolveModel(tier) ?? ''
+  return native.resolveModel(start) ?? ''
 }
 
 // ── Escalation-rung → thinkingLevel ──────────────────────────────────────────

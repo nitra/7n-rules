@@ -15,10 +15,10 @@
  * Гейт: валідні слова після дописування у словник зникають; нерозкласифіковані та
  * typo лишаються → cspell повертає !=0 → exit 1 (людина доправляє одруки вручну).
  */
-import { env } from 'node:process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { resolveModel } from '@7n/llm-lib/model-tiers'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { spawnAsync } from '../../../scripts/utils/spawn-async.mjs'
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
@@ -31,10 +31,10 @@ const FILES_CHECKED_RE = /Files checked:\s*(\d+)/u
 export const MAX_CLASSIFY_WORDS = 80
 
 /**
- * Локальна fix-модель (рішення: єдиний knob `N_LOCAL_MIN_MODEL`).
- * @returns {string} ідентифікатор моделі з env або порожній рядок.
+ * Preferred fix-модель з universal fallback від local-min до cloud-max.
+ * @returns {string} ідентифікатор моделі або порожній рядок.
  */
-export const fixModel = () => env.N_LOCAL_MIN_MODEL || ''
+export const fixModel = () => resolveModel('N_LOCAL_MIN_MODEL')
 
 /**
  * Запускає `cspell` над `files` (delta) або над `.` (full), захоплюючи вивід. Скоуп файлів, які

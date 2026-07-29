@@ -29,8 +29,8 @@ import { loadNative } from './internal/native.mjs'
 /**
  * Batch-виклик Типу 2b. `modelSpecOrTier` — той самий контракт, що й у
  * [`oneShotLocalCloud`] з `local-cloud.mjs`: явний `"provider/model-id"`
- * або абстрактний тир (`min`/`avg`/`max`).
- * @param {string} modelSpecOrTier `"provider/model-id"` або `'min'|'avg'|'max'`
+ * абстрактний тир (`min`/`avg`/`max`) або явний env-selector.
+ * @param {string} modelSpecOrTier `"provider/model-id"`, tier або env-selector
  * @param {BatchItem[]} items вхідні items (`customId` — унікальний у межах виклику)
  * @param {{
  *   localProviders?: Record<string, { baseUrl: string, apiKey?: string | null }>,

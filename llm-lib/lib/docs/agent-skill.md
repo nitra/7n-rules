@@ -3,33 +3,31 @@ type: JS Module
 title: agent-skill.mjs
 resource: llm-lib/lib/agent-skill.mjs
 docgen:
-  crc: b7312bad
+  crc: 7c86fb8b
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100
-  issues: judge:error
+  issues: judge-refine:kept-original,judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Організовує один запуск skill і керує його виконанням у межах поточного контексту, щоб агент отримував потрібний стан для роботи. Має локальні fail-safe гілки для контрольованих збоїв; інші помилки можуть поширюватися назовні.
+Файл запускає один агентський skill-run і передає виконання в існуючу сесію, щоб пов’язати його з обраним tier або modelSpec та зберегти трасування контексту. Це потрібно, щоб виклик або завершився успішно, або повернув діагностовану помилку; частина fail-safe гілок обробляється локально, а інші помилки можуть поширюватися назовні.
 
 ## Поведінка
 
-1. Приймає готовий prompt для одного skill-запуску та фіксує контекст виконання: skill, tier, modelSpec, cwd, timeout, maxTokens, caller і chain.
-2. Переходить у наступний крок chain, якщо ланцюжок передано, і готує кореляцію для подальшого обліку.
-3. Обирає модель через registry; якщо модель явно задана, але не знаходиться, завершує запуск без виконання skill.
-4. Створює pi-сесію з повним набором built-in tools, включно з bash, і прив’язує до неї поточний working directory та рівень thinking.
-5. Для локальних моделей додає chain-кореляцію; для інших моделей цього не робить.
-6. Запускає один skill-цикл і стрімить текст відповіді в stdout у міру надходження.
-7. Рахує turns і tool calls; якщо turns перевищують аварійну стелю, зупиняє виконання як runaway-backstop.
-8. Обмежує час виконання; при timeout перериває сесію.
-9. Якщо модель або registry недоступні, повертає fail-safe результат із помилкою без продовження прогону.
-10. Якщо під час prompt виникає memory-guard rejection для локального model-сервера, завершує як fail-fast і не маскує помилку.
-11. Після завершення формує telemetry з фактичним model, turns, tool calls, backstop-станом і тривалістю.
-12. Передає результат у chain і trace, а також зберігає capture для подальшого аналізу прогону.
-13. Повертає ознаку успіху, telemetry і текст помилки; успіх можливий лише коли немає помилки й не спрацював backstop.
+1. Приймає готовий prompt для одного skill-run і фіксує контекст виконання: skill, tier, modelSpec, cwd, thinkingLevel, timeout, maxTokens, caller та chain.
+2. Перемикає ланцюжок на наступний крок, якщо chain передано, і готує контрольну позначку для трасування запиту.
+3. Перевіряє, чи задано спосіб вибору моделі: або tier, або явний modelSpec. Якщо ні — завершує невдачею без запуску сесії.
+4. Визначає цільову модель і перевіряє, чи вона доступна в registry. Якщо модель не знайдена або registry недоступний — завершує невдачею з діагностикою.
+5. Створює агентську сесію з повним набором вбудованих tools і без write-guard; для локальних моделей може підключити chain-кореляцію, для інших — ні.
+6. Підписується на події сесії, щоб рахувати turns і tool-виклики, стрімити текст відповіді у stdout та зберегти підсумкове usage з фінального повідомлення.
+7. Запускає виконання prompt із пер-call timeout і runaway-backstop на turns. Якщо ліміт turns перевищено або спрацьовує timeout, сесію зупиняє.
+8. Якщо під час запуску виникає memory-guard rejection для локального model-сервера, повертає failure-поведінку з друком prompt і помилкою замість structured result.
+9. Після завершення формує підсумок виконання: фактичну модель, кількість turns, кількість tool-викликів, факт спрацювання backstop і тривалість.
+10. Оновлює chain і trace, а також зберігає capture-дані для подальшого аналізу: prompt, output, usage, error і кореляційні поля.
+11. Повертає успіх лише тоді, коли немає помилки і не спрацював backstop; інакше повертає невдачу з telemetry, де це можливо.
 
 ## Публічний API
 
@@ -37,7 +35,7 @@ docgen:
 
 ## Сценарії використання
 
-- `llm-lib/tests/agent-skill.test.mjs` (runAgentSkill) — happy-path: ok, телеметрія, стрім тексту, trace kind:; createSession отримує тиру → thinkingLevel і cwd; maxTokens прокидається у createSession (0 = без стелі); з chain: step/note/chain-поля у trace; хмарна модель → chain:null у сесію; modelSpec порожній: telemetry.model — фактично резолвлена pi-модель, не echo spec; ще 5
+- `llm-lib/tests/agent-skill.test.mjs` (runAgentSkill) — happy-path: ok, телеметрія, стрім тексту, trace kind:; createSession отримує тиру → thinkingLevel і cwd; maxTokens прокидається у createSession (0 = без стелі); з chain: step/note/chain-поля у trace; хмарна модель → chain:null у сесію; явний modelSpec зберігається у telemetry; ще 5
 
 ## Гарантії поведінки
 

@@ -13,7 +13,7 @@ use genai::chat::{ChatMessage, ChatRequest};
 use genai::resolver::{AuthData, Endpoint, ServiceTargetResolver};
 use genai::Client;
 
-use crate::tiers::{parse_model_spec, resolve_model, Tier};
+use crate::tiers::{parse_model_spec, resolve_model, resolve_model_from, ModelEnv, Tier};
 use crate::LlmError;
 
 /// Конфіг одного локального/кастомного OpenAI-сумісного провайдера.
@@ -139,7 +139,7 @@ impl LocalCloud {
             .ok_or_else(|| LlmError::Provider("порожня відповідь моделі".to_string()))
     }
 
-    /// Резолвить `"min"/"avg"/"max"` тир (чи повертає spec як є) у явний
+    /// Резолвить tier/env-селектор (чи повертає spec як є) у явний
     /// `"provider/model-id"` — той самий контракт розпізнавання тиру, що
     /// й [`Self::one_shot`]/[`Self::one_shot_with_spec`] (задача T5), винесений
     /// окремо для [`crate::batch::dispatch`]: перед виконанням batch-у треба
@@ -150,14 +150,23 @@ impl LocalCloud {
     /// [`LlmError::NoModelConfigured`] якщо тир не резолвиться в жодну env-модель.
     pub fn resolve_spec(&self, model_spec_or_tier: &str) -> Result<String, LlmError> {
         match model_spec_or_tier {
-            "min" => {
-                crate::tiers::resolve_model(Tier::Min).ok_or(LlmError::NoModelConfigured(Tier::Min))
+            "min" | "N_LOCAL_MIN_MODEL" => {
+                resolve_model_from(ModelEnv::LocalMin).ok_or(LlmError::NoModelConfigured(Tier::Min))
             }
-            "avg" => {
-                crate::tiers::resolve_model(Tier::Avg).ok_or(LlmError::NoModelConfigured(Tier::Avg))
+            "avg" | "N_LOCAL_AVG_MODEL" => {
+                resolve_model_from(ModelEnv::LocalAvg).ok_or(LlmError::NoModelConfigured(Tier::Avg))
             }
-            "max" => {
-                crate::tiers::resolve_model(Tier::Max).ok_or(LlmError::NoModelConfigured(Tier::Max))
+            "max" | "N_LOCAL_MAX_MODEL" => {
+                resolve_model_from(ModelEnv::LocalMax).ok_or(LlmError::NoModelConfigured(Tier::Max))
+            }
+            "N_CLOUD_MIN_MODEL" => {
+                resolve_model_from(ModelEnv::CloudMin).ok_or(LlmError::NoModelConfigured(Tier::Min))
+            }
+            "N_CLOUD_AVG_MODEL" => {
+                resolve_model_from(ModelEnv::CloudAvg).ok_or(LlmError::NoModelConfigured(Tier::Avg))
+            }
+            "N_CLOUD_MAX_MODEL" => {
+                resolve_model_from(ModelEnv::CloudMax).ok_or(LlmError::NoModelConfigured(Tier::Max))
             }
             spec => Ok(spec.to_string()),
         }

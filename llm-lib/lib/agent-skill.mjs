@@ -6,7 +6,7 @@
  * Виконує один скіл як pi-агента: готовий промпт-рядок → `session.prompt`.
  * Повний user-trust набір вбудованих tools (`read/grep/find/edit/write/ls/bash`), БЕЗ
  * write-guard — скіл є явною user-invocation (паритет із `claude -p`, який теж без
- * обмежень). Модель — з ОДНОГО тиру (дефолт `max`), без escalation-сходів fix-engine.
+ * обмежень). Модель задається явним тиром або `modelSpec`, без escalation-сходів fix-engine.
  * Runaway-backstop: turn-ceiling + per-call timeout. Асистентський текст стрімиться
  * у stdout (паритет із `claude -p`). Телеметрія `kind:"skill"` у глобальний trace.
  *
@@ -80,7 +80,7 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel, maxTo
 export async function runAgentSkill(prompt, opts = {}) {
   const {
     skillId = 'skill',
-    tier = 'max',
+    tier,
     modelSpec,
     cwd = process.cwd(),
     thinkingLevel,
@@ -122,7 +122,8 @@ export async function runAgentSkill(prompt, opts = {}) {
   let model
   try {
     registry = deps.registry ?? (await getReg())
-    spec = modelSpec ?? resolveModel(tier) // '' допустимо → дефолт провайдера pi
+    if (!modelSpec && !tier) return fail('model selection: передай tier або явний modelSpec', null)
+    spec = modelSpec || resolveModel(tier)
     model = spec ? resolveModelSpec(registry, spec) : null
     if (spec && !model) return fail(`модель не знайдена: ${spec}`, spec)
   } catch (error) {
