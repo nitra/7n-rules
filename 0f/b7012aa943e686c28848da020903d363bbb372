@@ -1,0 +1,213 @@
+.codex/hooks.json
+  s_41ac711edb279f::t_473173d7d62222 5,9,17,21-32
+.cspell.json
+  s_41ac711edb279f::t_4765d32f7b6c24 35-38,40-74,80,85,87-88,101-103,111,113-114,116-117,123,149-150,157-158,182,192,195-218,223,238,247,263,280-282,285,296,306,316,327,332,337,348,355,360-362,386,402,409,418-419,439-444,469-479,492,504-505,510-512,535,556,566-596,603,613,623,627,644,650-656,664,677-678,685,692,700-701,712,714-719,731-735,741,759,769,772-794
+.cursor/rules/n-text.mdc
+  s_41ac711edb279f::t_996604a89a4fb2 35-36,260
+.cursor/rules/n-worktree.mdc
+  s_41ac711edb279f::t_d85d6b5b922c53 2,9-11,17,20-23,105-109,129
+.cursor/rules/scripts.mdc
+  s_41ac711edb279f::t_399e1ccfa34d0b 360
+.cursor/skills/mdc-check/SKILL.md
+  s_41ac711edb279f::t_8204b934a5cc55 66,79,83
+.cursor/skills/n-adr-normalize/SKILL.md
+  s_41ac711edb279f::t_64136ae644538f 11,23,28,32
+.cursor/skills/n-lint/SKILL.md
+  s_41ac711edb279f::t_4c9983faf27c83 10,22,27,31,124
+.cursor/skills/n-llm-patch/SKILL.md
+  s_41ac711edb279f::t_d5de6113dde55d 252
+.cursor/skills/n-taze/SKILL.md
+  s_41ac711edb279f::t_085871bad61a51 12,24,29,33,338
+.github/workflows/npm-publish.yml
+  s_41ac711edb279f::t_3a4a9275a3e94d 290-293,298,306-323
+AGENTS.md
+  s_41ac711edb279f::t_4bf1d2001753a1 63-66
+docs/adr/2026-07-27-nested-composer-workspace-detection.md
+  s_41ac711edb279f::t_ab26f6916fc755 1-103
+docs/superpowers/specs/2026-07-29-github-package-releases-design.md
+  s_41ac711edb279f::t_cd5ff3a8eb9282 18,22-25,27
+llm-lib/CHANGELOG.md
+  s_41ac711edb279f::t_698bec180ef6ae 3-8
+llm-lib/package.json
+  s_41ac711edb279f::t_f98a8d41400321 3
+npm/CHANGELOG.md
+  s_41ac711edb279f::t_451fcf0e882fd7 3-49
+npm/bin/n-rules-cli.mjs
+  s_41ac711edb279f::t_35cea9d9c971d7 1897,1945,1948
+npm/bin/tests/n-rules-cli.test.mjs
+  s_41ac711edb279f::t_bf2f9f2f1731b3 38
+npm/package.json
+  s_41ac711edb279f::t_3557dbd6b15862 3,68
+npm/rules/doc-files/docgen-files-batch/docs/main.md
+  s_41ac711edb279f::t_7922f18207d14f 6-7,9-10,13-20,29-30
+npm/rules/doc-files/docgen-files-batch/main.mjs
+  s_41ac711edb279f::t_5a1c8a9dbc57b6 17-23,34,127,244-252,280-291,296,300
+npm/rules/doc-files/docgen-files-batch/tests/docgen-files-batch.test.mjs
+  s_41ac711edb279f::t_1dabc868e73bbd 11-18,35-41
+npm/rules/doc-files/docgen-gen/docs/main.md
+  s_41ac711edb279f::t_1ce3eeceb14065 6-10,13-32,35-42,45,49-53,58-63,76-77,80-92
+npm/rules/doc-files/docgen-gen/main.mjs
+  s_41ac711edb279f::t_8a4bccedd9492b 30-53,150-151,204,232,444-465,481-483,488,545,578,710,786,826
+npm/rules/doc-files/docgen-judge/docs/main.md
+  s_41ac711edb279f::t_44abacf1edfbbe 6-11,16,20-26,30-43,47
+npm/rules/doc-files/docgen-judge/main.mjs
+  s_41ac711edb279f::t_565a3a4c280846 92-107,117
+npm/rules/doc-files/docgen-wave-batch/docs/index.md
+  s_41ac711edb279f::t_1573f9fc4456c2 1-9
+npm/rules/doc-files/docgen-wave-batch/docs/main.md
+  s_41ac711edb279f::t_39df7355b222a6 1-57
+npm/rules/doc-files/docgen-wave-batch/main.mjs
+  s_41ac711edb279f::t_3fd312eccc69aa 1-541
+npm/rules/doc-files/docgen-wave-batch/tests/docgen-wave-batch.test.mjs
+  s_41ac711edb279f::t_5004440fa8edb4 1-352
+npm/rules/worktree/main.mdc
+  s_41ac711edb279f::t_660725860ad33b 2,9-11,17,20-23,79-83,103
+npm/scripts/docs/auto-rules.md
+  s_41ac711edb279f::t_9198a71a41f383 6,8-9,12,14,16-28,32-38,40-47,49-53,55-56
+npm/scripts/github-package-release.mjs
+  s_41ac711edb279f::t_d69961ae12951c 84-103,110-116
+npm/scripts/lib/auto-worktree.mjs
+  s_41ac711edb279f::t_5786cc1e318c70 33,35,53,55-56,72,111-113,115,118,233,238-239,244-246,248
+npm/scripts/lib/docs/auto-worktree.md
+  s_41ac711edb279f::t_718194e1ea1607 6,8-10,20,22,54,60-63
+npm/scripts/lib/docs/resolve-plugins.md
+  s_41ac711edb279f::t_8809cc7204a13e 6-9,58-62,87-88,90-92,109
+npm/scripts/lib/docs/worktree-notice.md
+  s_41ac711edb279f::t_43f6143e4613be 6,8-9,14,16-19,21-24,32-35
+npm/scripts/lib/resolve-plugins.mjs
+  s_41ac711edb279f::t_2d27824a9f5742 55-59,65
+npm/scripts/lib/tests/auto-worktree.test.mjs
+  s_41ac711edb279f::t_63ee9233c77e7a 4,38,53,74,76,80,94,96
+npm/scripts/lib/tests/resolve-plugins.test.mjs
+  s_41ac711edb279f::t_3b6d13e614c475 177,179-186,189-207
+npm/scripts/lib/tests/worktree-notice.test.mjs
+  s_41ac711edb279f::t_7ff420f98c9e3d 31,108,113,119
+npm/scripts/lib/worktree-notice.mjs
+  s_41ac711edb279f::t_267d334d594ec1 10-11,119,131,136,140
+npm/scripts/tests/auto-rules.test.mjs
+  s_41ac711edb279f::t_5200092882b35f 40,51-52,57-58,312-335
+npm/scripts/tests/github-package-release.test.mjs
+  s_41ac711edb279f::t_426be283a9ee34 7-13,62-79,88-95
+npm/scripts/tests/skills-cli.test.mjs
+  s_41ac711edb279f::t_fa6cb4cb9f788d 424-460
+npm/scripts/utils/tests/auto-worktree-suite.mjs
+  s_41ac711edb279f::t_c9725ead1c3fd5 24,197,209
+npm/scripts/utils/tests/docs/auto-worktree-suite.md
+  s_41ac711edb279f::t_443fdb52459e1a 17-18
+npm/skills/git-reconcile/SKILL.md
+  s_41ac711edb279f::t_8e931214f8abca 30-35,84-86,106-109,119-123,131-135,140-143
+npm/skills/git-reconcile/js/docs/orchestrate.md
+  s_41ac711edb279f::t_8c0d7a90784451 6-8,10-11,16,20-27,29,31
+npm/skills/git-reconcile/js/orchestrate.mjs
+  s_41ac711edb279f::t_6ca9feda1d0e5d 2,33,41,43-53,332,334,339-345,347-374,376-386,398-406,430-431,433,449-540,618,635,637-638,642-643,680,709-724,971,981-993,1014-1054,1197,1249,1253,1256,1260,1263,1274-1275,1280,1284-1285,1288-1293,1296-1297,1331,1336,1507,1514-1528,1780-1781,1807-1833,1987-1988,1990,1994-2001,2098,2101-2116,2210,2232-2240,2307-2423,2448-2451,2454-2455,2496-2525,2533-2535,2537-2540,2808,2894
+npm/skills/git-reconcile/js/tests/orchestrate.test.mjs
+  s_41ac711edb279f::t_56fb124801c3d0 5,24,32,37,42,44-45,47,56,58,62,186,197-216,250-285,319-390,645-647,704,712-720,755-801,916-1036,1236-1248,1583,1585-1587,1630-1631,1649,1695-1832,1853,1855,1873-1899,1918,1921-1927,1935-1936,1939,1946-1950
+npm/skills/lint/SKILL.md
+  s_41ac711edb279f::t_b7027b7fb24022 92
+npm/skills/llm-patch/SKILL.md
+  s_41ac711edb279f::t_9d97165ad57e0e 252
+npm/skills/taze/js/orchestrate.mjs
+  s_41ac711edb279f::t_272ca2483e8de4 63-88,122-179,185-195,197,200,228,231-234,236-250,378,392,396,421-427,430
+npm/skills/taze/js/tests/orchestrate.test.mjs
+  s_41ac711edb279f::t_16ec939995d663 18,24-26,28,128-148,345,348,367,661,696,699-804
+plugins/lang-js/CHANGELOG.md
+  s_41ac711edb279f::t_a0eba746c7680c 3-14
+plugins/lang-js/package.json
+  s_41ac711edb279f::t_9277bc3fbeb574 3
+plugins/lang-js/skills/taze/SKILL.fragment.md
+  s_41ac711edb279f::t_c80a200dc22ed6 54
+plugins/lang-php/CHANGELOG.md
+  s_41ac711edb279f::t_73800dc7aa04dc 3-17
+plugins/lang-php/coverage-provider/clover.mjs
+  s_41ac711edb279f::t_b38f894ab8e81c 1-115
+plugins/lang-php/coverage-provider/docs/clover.md
+  s_41ac711edb279f::t_0a66cc2b289f0a 1-45
+plugins/lang-php/coverage-provider/docs/index.md
+  s_41ac711edb279f::t_ad4e6bfe51a7a0 1-11
+plugins/lang-php/coverage-provider/docs/infection.md
+  s_41ac711edb279f::t_15f897fd283f22 1-36
+plugins/lang-php/coverage-provider/docs/provider.md
+  s_41ac711edb279f::t_951fef9f2d7e01 1-33
+plugins/lang-php/coverage-provider/infection.mjs
+  s_41ac711edb279f::t_614bc71eae1f13 1-59
+plugins/lang-php/coverage-provider/provider.mjs
+  s_41ac711edb279f::t_36cff10d23665c 1-248
+plugins/lang-php/coverage-provider/tests/clover.test.mjs
+  s_41ac711edb279f::t_e256cea17b786f 1-60
+plugins/lang-php/coverage-provider/tests/infection.test.mjs
+  s_41ac711edb279f::t_2dc71d98a35cd0 1-76
+plugins/lang-php/coverage-provider/tests/provider.test.mjs
+  s_41ac711edb279f::t_2ef2608406fed7 1-259
+plugins/lang-php/doc-files/docs/extractors.md
+  s_41ac711edb279f::t_f14545796e1ee2 1-30
+plugins/lang-php/doc-files/docs/index.md
+  s_41ac711edb279f::t_aafff6137654dc 1-9
+plugins/lang-php/doc-files/extractors.mjs
+  s_41ac711edb279f::t_60a7476f28983f 1-184
+plugins/lang-php/doc-files/tests/extractors.test.mjs
+  s_41ac711edb279f::t_6328d6a30226fc 1-238
+plugins/lang-php/docs/vitest.config.md
+  s_41ac711edb279f::t_9de4e57fa765c6 6-8,19,21,23
+plugins/lang-php/package.json
+  s_41ac711edb279f::t_1eca541d86dd54 3-4,9,27-28,30-31,44-49,55-59,66-70,77-113
+plugins/lang-php/rules/php/composer_manifest/composer_manifest.mdc
+  s_41ac711edb279f::t_81278191276828 1-62
+plugins/lang-php/rules/php/composer_manifest/concern.json
+  s_41ac711edb279f::t_16a637070ebbfd 1-5
+plugins/lang-php/rules/php/composer_manifest/docs/index.md
+  s_41ac711edb279f::t_e7c4e7cbd072c0 1-9
+plugins/lang-php/rules/php/composer_manifest/docs/main.md
+  s_41ac711edb279f::t_78381cdab9da20 1-34
+plugins/lang-php/rules/php/composer_manifest/main.mjs
+  s_41ac711edb279f::t_5bc3bf51a1a986 1-123
+plugins/lang-php/rules/php/composer_manifest/tests/main.test.mjs
+  s_41ac711edb279f::t_7840123df1ce84 1-184
+plugins/lang-php/rules/php/main.json
+  s_41ac711edb279f::t_a5f739042455e0 1
+plugins/lang-php/rules/php/project/docs/main.md
+  s_41ac711edb279f::t_8d62701bc80b19 6-9,22-28
+plugins/lang-php/rules/php/project/main.mjs
+  s_41ac711edb279f::t_a8da4b4b0cba01 9-15
+plugins/lang-php/rules/php/tooling/docs/main.md
+  s_41ac711edb279f::t_ce08663429a59f 6-8,15-16,20
+plugins/lang-php/rules/php/tooling/main.mjs
+  s_41ac711edb279f::t_1b670cbbaeb8e3 1-6
+plugins/lang-php/rules/php/tooling/tooling.mdc
+  s_41ac711edb279f::t_0505c155abda7f 61,65-84
+plugins/lang-php/skills/taze/SKILL.fragment.md
+  s_41ac711edb279f::t_c45b5badf883b8 1-72
+plugins/lang-php/taze/composer-diff.mjs
+  s_41ac711edb279f::t_ef283967a2813a 1-130
+plugins/lang-php/taze/docs/composer-diff.md
+  s_41ac711edb279f::t_a89f945cb23ed1 1-51
+plugins/lang-php/taze/docs/index.md
+  s_41ac711edb279f::t_3b667f05223503 1-10
+plugins/lang-php/taze/docs/provider.md
+  s_41ac711edb279f::t_c5e955acffeb84 1-57
+plugins/lang-php/taze/provider.mjs
+  s_41ac711edb279f::t_14d60206bd9e06 1-131
+plugins/lang-php/taze/tests/composer-diff.test.mjs
+  s_41ac711edb279f::t_cacbc8e0fbaf8e 1-166
+plugins/lang-php/taze/tests/provider.test.mjs
+  s_41ac711edb279f::t_8c40e2b7580e87 1-195
+plugins/lang-php/vitest.config.mjs
+  s_41ac711edb279f::t_d100186d48be09 13-19
+llm-lib/crates/llm-lib/src/acp/session.rs
+  s_41ac711edb279f::t_eba4eff0a109c3 215-237,265-282,285-292,331,344,360,367,396,401-414,426-429,556-638
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "0fb7012aa943e686c28848da020903d363bbb372",
+  "prompts": {},
+  "sessions": {
+    "s_41ac711edb279f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ef20106-c7ae-47fa-9d7d-083c21a16192",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
