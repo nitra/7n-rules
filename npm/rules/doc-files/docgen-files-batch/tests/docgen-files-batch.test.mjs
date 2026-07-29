@@ -8,6 +8,14 @@
  */
 import { describe, expect, test, vi, beforeEach } from 'vitest'
 
+// Дублікат REGEX-класифікаторів `classifyDocgenError` (тепер живе в
+// docgen-gen.mjs, фаза 2) на рівні модуля тесту — module-scope, без
+// ре-компіляції на виклик (importOriginal-спред у vi.mock тут нестабільно
+// підхоплює нові exports з незʼясованої причини, пряме визначення надійніше).
+const ERR_PERMANENT_RE = /prompt too long|pre-send guard|too long/i
+const ERR_SYSTEMIC_RE = /registry:|session:|не знайдена|memory|enomem|connection refused|econnrefused/i
+const ERR_TRANSIENT_RE = /timeout|etimedout/i
+
 const { generateDocMock, scanMock, readDocQualityMock, readDocTierMock, prepareBatchItemMock, finishBatchItemMock } =
   vi.hoisted(() => ({
     generateDocMock: vi.fn(),
@@ -24,7 +32,13 @@ vi.mock('../../docgen-gen/main.mjs', () => ({
   generateDoc: generateDocMock,
   DEFAULT_LOCAL_MODEL: 'omlx/test-model',
   prepareBatchItem: prepareBatchItemMock,
-  finishBatchItem: finishBatchItemMock
+  finishBatchItem: finishBatchItemMock,
+  classifyDocgenError: msg => {
+    if (ERR_PERMANENT_RE.test(msg)) return 'permanent'
+    if (ERR_SYSTEMIC_RE.test(msg)) return 'systemic'
+    if (ERR_TRANSIENT_RE.test(msg)) return 'transient'
+    return 'infra'
+  }
 }))
 vi.mock('../../docgen-scan/main.mjs', () => ({
   resolveRoot: () => '/fake-root',

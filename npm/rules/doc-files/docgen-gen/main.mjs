@@ -27,6 +27,30 @@ import {
   judgeRefineMessages
 } from '../docgen-prompts/main.mjs'
 
+/** Regex-класифікатори помилки генерації (module-scope, без ре-компіляції на виклик). */
+const ERR_PERMANENT_RE = /prompt too long|pre-send guard|too long/i
+const ERR_SYSTEMIC_RE = /registry:|session:|не знайдена|memory|enomem|connection refused|econnrefused/i
+const ERR_TRANSIENT_RE = /timeout|etimedout/i
+
+/**
+ * Класифікує помилку генерації для batch-логіки (замінює `classifyOmlxError` після
+ * pi-міграції — помилки приходять як винятки з generateDoc/pi-one-shot):
+ *   - `permanent` — pre-send guard «Prompt too long» → skip (не ретраїти);
+ *   - `systemic`  — модель/сервер/registry/RAM упали → circuit-breaker abort;
+ *   - `transient` — таймаут (можна було б ретраїти);
+ *   - `infra`     — інше (рахуємо як помилку, але без abort).
+ * Живе тут (не в `docgen-files-batch`), щоб `docgen-wave-batch` (фаза 2) теж
+ * могла її імпортувати без циклічної залежності між двома batch-оркестраторами.
+ * @param {string} msg повідомлення помилки
+ * @returns {'permanent'|'systemic'|'transient'|'infra'} клас
+ */
+export function classifyDocgenError(msg) {
+  if (ERR_PERMANENT_RE.test(msg)) return 'permanent'
+  if (ERR_SYSTEMIC_RE.test(msg)) return 'systemic'
+  if (ERR_TRANSIENT_RE.test(msg)) return 'transient'
+  return 'infra'
+}
+
 /** Облік LLM-викликів і часу в них у межах однієї генерації (скидається на старті generateDoc). */
 let llmMeter = { calls: 0, ms: 0 }
 
@@ -123,7 +147,8 @@ const SECTION_HEADING_RE = /^##\s+(.+)/
 const SECTION_KEY_CLEAN_RE = /[^а-яіїєґa-z0-9]/gi
 const CACHE_MENTION_RE = /кеш/i
 const CACHE_NEGATION_RE = /(?:не|без)\s+(?:\S+\s+)?кеш|немає\s+кеш/i
-const CRITIC_NONE_RE = /^\s*NONE\s*$/i
+/** Критик (E2/Wave C) відповідає рівно цим словом — дефектів немає, refine не потрібен. */
+export const CRITIC_NONE_RE = /^\s*NONE\s*$/i
 // R4: абстрактні «нічого-не-кажучі» формули, які обходять exact-blocklist і дають score=100.
 // Масив дрібних патернів замість однієї alternation-regex (sonarjs/regex-complexity); .some() еквівалентний.
 const GENERIC_RES = [
@@ -176,7 +201,7 @@ export function stripLeadingPreamble(t) {
  * @param {string} text сирий вихід моделі
  * @returns {string} очищений текст секції
  */
-function stripSection(text) {
+export function stripSection(text) {
   let t = text.trim()
   if (t.startsWith('```')) {
     t = t.replace(FENCE_OPEN_RE, '').replace(FENCE_CLOSE_RE, '').trim()
@@ -204,7 +229,7 @@ function stripUnsupportedSentences(text) {
  * @param {string} text текст секції
  * @returns {string} текст без сигнатур у дужках
  */
-function stripSignatures(text) {
+export function stripSignatures(text) {
   let t = text
   for (let i = 0; i < 2; i++) t = t.replaceAll(SIGNATURE_CALL_RE, '$1')
   return t
@@ -417,6 +442,28 @@ async function critiqueRefineSection(sectionKey, draft, facts, anchors, model, t
 }
 
 /**
+ * Stage 1/3 (гібрид doc-files, ADR 260719-2155), чиста частина: обчислює
+ * дослівний блок покритих JSDoc-описом експортів (0 LLM) і список прогалин
+ * (`isApiGap`), без жодного виклику моделі — виокремлено з
+ * [`buildApiSection`] для повторного використання batch-оркестратором
+ * хвиль (`docgen-wave-batch`), де LLM-виклик прогалини йде окремою
+ * batch-хвилею, а не await тут-таки.
+ * @param {object} facts факт-лист
+ * @returns {{ coveredBlock: string, gap: Array<object>, needsCritique: boolean }|null} план секції або `null`, якщо секції взагалі не буде (0 чи 1 непокритий експорт)
+ */
+export function apiSectionPlan(facts) {
+  const exps = facts.exports ?? []
+  if (!exps.length) return null
+  if (exps.length === 1 && isApiGap(exps[0])) return null
+  const covered = exps.filter(e => !isApiGap(e))
+  const gap = exps.filter(isApiGap)
+  const coveredBlock = covered.map(e => renderApiLine(e)).join('\n')
+  // E2: critique→refine лише коли ВСІ експорти — прогалина (там модель найбільш
+  // схильна зривати на generic-фрази без жодного JSDoc-«якоря» поруч).
+  return { coveredBlock, gap, needsCritique: gap.length > 0 && gap.length === exps.length }
+}
+
+/**
  * Stage 1/3 (гібрид doc-files, ADR 260719-2155): «Публічний API» — покриті
  * JSDoc-описом експорти рендеряться дослівно (`renderApiLine`, 0 токенів, 0
  * галюцинацій), LLM викликається лише на прогалини (`isApiGap`). Якщо прогалин
@@ -431,19 +478,14 @@ async function critiqueRefineSection(sectionKey, draft, facts, anchors, model, t
  * @returns {Promise<string>} текст секції «Публічний API» (може бути порожнім рядком)
  */
 export async function buildApiSection(facts, anchors, model, timeoutMs, temperature = 0.2) {
-  const exps = facts.exports ?? []
-  if (!exps.length) return ''
-  if (exps.length === 1 && isApiGap(exps[0])) return ''
-  const covered = exps.filter(e => !isApiGap(e))
-  const gap = exps.filter(isApiGap)
-  const coveredBlock = covered.map(e => renderApiLine(e)).join('\n')
+  const plan = apiSectionPlan(facts)
+  if (!plan) return ''
+  const { coveredBlock, gap, needsCritique } = plan
   if (!gap.length) return coveredBlock
   let gapDraft = stripSignatures(
     stripSection(await callLlm(apiGapMessages(gap, anchors), model, { timeoutMs, temperature }))
   )
-  // E2: critique→refine лише коли ВСІ експорти — прогалина (там модель найбільш
-  // схильна зривати на generic-фрази без жодного JSDoc-«якоря» поруч).
-  if (gap.length === exps.length) {
+  if (needsCritique) {
     gapDraft = await critiqueRefineSection('api', gapDraft, facts, anchors, model, timeoutMs)
   }
   return [coveredBlock, gapDraft].filter(Boolean).join('\n')
@@ -500,7 +542,7 @@ export function commentDocumentationMode(facts, src) {
  * @param {string} [behavior] додаткова LLM-секція «Поведінка» для comment+behavior режиму
  * @returns {{md:string}} зібрана Markdown-дока
  */
-function commentOnlyDoc(facts, intent, behavior = '') {
+export function commentOnlyDoc(facts, intent, behavior = '') {
   const sections = {
     overview: facts.header.trim(),
     api: (facts.exports ?? []).map(exp => renderApiLine(exp)).join('\n'),
@@ -533,7 +575,7 @@ async function oneShotDoc(facts, src, model, timeoutMs = LOCAL_TIMEOUT_MS, { int
  * @param {Record<string, string>} sections тексти секцій за ключами
  * @returns {string} зібраний md-документ
  */
-function assemble(stem, sections) {
+export function assemble(stem, sections) {
   const order = [
     ['overview', '## Огляд'],
     ['behavior', '## Поведінка'],
@@ -665,7 +707,7 @@ function semanticEvidence(src) {
  * @param {string} md зібраний Markdown-документ
  * @returns {string} мінімальний документ з однією секцією або порожній рядок
  */
-function behaviorOnlyDocument(md) {
+export function behaviorOnlyDocument(md) {
   const body = h2SectionBody(md, BEHAVIOR_HEADING)
   return body ? `# Поведінка\n\n## Поведінка\n\n${body}\n` : ''
 }
@@ -741,7 +783,7 @@ async function runJudgeGate({ r, score, issues, facts, anchors, src, model, chai
  * @param {{ facts: object, estTokens: number, langExtractors: Map<string, object>, ext: string, src: string, file: string }} ctx контекст генерації
  * @returns {string} повний src або юніт-дайджест
  */
-function resolvePromptSrc({ facts, estTokens, langExtractors, ext, src, file }) {
+export function resolvePromptSrc({ facts, estTokens, langExtractors, ext, src, file }) {
   if (facts.unsupported || estTokens <= UNIT_DIGEST_TOKENS) return src
   const units = langExtractors.get(ext)?.extractUnits?.(src, file)
   if (!units?.length) return src
@@ -781,7 +823,7 @@ function srcTokenBudget() {
  * @param {ReturnType<typeof buildTestEvidenceIndex>|null} [testIndex] source↔tests index
  * @returns {Promise<{ src: string, estTokens: number, ext: string, langExtractors: Map<string, object>, facts: object }>} усе потрібне обом callers перед LLM-викликом
  */
-async function loadSrcAndFacts(file, testIndex = null) {
+export async function loadSrcAndFacts(file, testIndex = null) {
   const src = readFileSync(file, 'utf8')
   const evidenceIndex = testIndex ?? (existsSync(file) ? buildTestEvidenceIndex(process.cwd()) : null)
   const testEvidence = evidenceIndex ? testEvidenceForSource(file, evidenceIndex) : { files: [] }

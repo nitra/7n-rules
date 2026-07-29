@@ -3,12 +3,20 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/doc-files/docgen-files-batch/main.mjs
 docgen:
-  crc: 7531d04c
-  model: omlx/gemma-4-e2b-it-4bit
+  crc: c52eb1ef
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
-  score: 35
-  issues: no-overview,short-behavior,internal-name:generateOne,internal-name:runBatchPass,best-of-2:retry-lost
+  score: 40
+  issues: internal-name:parseGenArgs,internal-name:generateOne,internal-name:runBatchPass,internal-name:recordBatchOutcome,internal-name:reportStats,internal-name:runSequentialPass,best-of-2:retry-error
 ---
+
+## Огляд
+
+Файл відповідає за автоматизовану генерацію та управління документацією на основі вихідного коду. Він використовує функцію `selectTargets` для вибору цілей генерації, забезпечує визначення формату розміру через `fmtSize` та перевіряє доступність нативної пакетної обробки через `nativeBatchAvailable`. Дозволяє очищати застарілі документи за допомогою `purgeOrphanedDocs` та керувати прогонами генерації (послідовними чи пакетними) через `runGenerationBatch`. Процес генерації підтримує кешування протягом одного прогону та має локальні fail-safe гілки для мінімізації ризиків.
+
+## Поведінка
+
+При запуску через `runDocFilesGenCli`, функція `parseGenArgs` зчитує аргументи командного рядка, визначаючи ліміти та режими. Далі, `purgeOrphanedDocs` очищає сирітські доки та оновлює індекс. `selectTargets` визначає цілі генерації документації на основі встановлених режимів та результатів сканування. Основний потік ініціюється `runGenerationBatch`, який керує логікою генерації. Він спочатку викликає `nativeBatchAvailable`, щоб визначити можливість пакетної обробки. Якщо аддон доступний та відсутній `deadlineAt`, то `runBatchPass` використовується для пакетного прогону. Якщо ж умови для батчу не виконані або використовується послідовний режим, ініціюється ручний прогін через `runSequentialPass`. У рамках цих прогонів для кожного файлу може застосовуватися внутрішня логіка, яка взаємодіє з `fmtSize` для діагностики розміру джерела та з `recordBatchOutcome` для класифікації помилок. Зібрані дані про успішні та некоректні файли акумулюються. Після завершення прогону, `reportStats` надає підсумковий звіт. Для оновлення метаданих в існуючих документах використовується `runDocFilesStampCli`, який взаємодіє з `generateDirIndex` для синхронізації індексу. `generateDirIndex` відповідає за створення або оновлення загального каталогу документації з усіма виявленими файлами.
 
 ## Публічний API
 
@@ -18,6 +26,8 @@ docgen:
 Degraded-док отримує рівно ОДИН доретрай на версію джерела: після невдалого доретраю
 (лишився degraded) штампується `retried: true` і його більше не чіпають до зміни джерела
 (нова версія → CRC-mismatch → stale → лічильник скидається). Конвеєр сходиться без прапора.
+- fmtSize — Діагностика розміру джерела (для дослідження, що роздуває контекст):
+байти + груба оцінка токенів (~bytes/4). Без size-guard-гейта — лише вивід.
 - nativeBatchAvailable — Чи доступний native-аддон `@7n/llm-lib` для 2b-batch (T8, рішення Р). Викликає
 `submitBatchImpl` з порожнім `items` — це не робить жодного LLM-виклику
 (Rust-крейт повертає порожній результат до резолву моделі), лише перевіряє,
