@@ -3,7 +3,7 @@ type: JS Module
 title: concern-meta.mjs
 resource: npm/scripts/lib/concern-meta.mjs
 docgen:
-  crc: 8ac34a12
+  crc: d452f9b7
   model: omlx/gemma-4-e2b-it-4bit
   tier: local-min
   score: 80
