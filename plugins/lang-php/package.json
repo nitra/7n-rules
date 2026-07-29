@@ -1,11 +1,12 @@
 {
   "name": "@7n/rules-lang-php",
   "version": "0.2.1",
-  "description": "Плагін @7n/rules: PHP/Composer-екосистема — lint (PHPCS Security, PHP-CS-Fixer, PHPStan, Psalm, composer audit) + CI-артефакти GitHub/Azure",
+  "description": "Плагін @7n/rules: PHP/Composer-екосистема — lint (PHPCS Security, PHP-CS-Fixer, PHPStan, Psalm, composer audit) + CI-артефакти GitHub/Azure + taze-провайдер (composer.json)",
   "keywords": [
     "php",
     "composer",
     "lint",
+    "taze",
     "n-rules-plugin"
   ],
   "homepage": "https://github.com/nitra/7n-rules#readme",
@@ -23,7 +24,11 @@
   "files": [
     "rules",
     "slots",
+    "skills",
+    "taze",
     "CHANGELOG.md",
+    "doc-files",
+    "coverage-provider",
     "!**/*.test.mjs",
     "!**/*_test.rego",
     "!**/fixtures/**",
@@ -36,27 +41,76 @@
     ],
     "slots": {
       "provides": [
-        { "slot": "rules.directory", "version": 1, "id": "php-rules", "resource": "./rules" },
+        {
+          "slot": "rules.directory",
+          "version": 1,
+          "id": "php-rules",
+          "resource": "./rules"
+        },
         {
           "slot": "ci.artifact",
           "version": 1,
           "id": "php-github-lint",
           "resource": "./slots/ci/php-github-lint.json",
-          "requires": { "capabilities": ["ci:github"] }
+          "requires": {
+            "capabilities": [
+              "ci:github"
+            ]
+          }
         },
         {
           "slot": "ci.artifact",
           "version": 1,
           "id": "php-azure-lint",
           "resource": "./slots/ci/php-azure-lint.json",
-          "requires": { "capabilities": ["ci:azure"] }
+          "requires": {
+            "capabilities": [
+              "ci:azure"
+            ]
+          }
         },
         {
           "slot": "ci.artifact",
           "version": 1,
           "id": "php-lint-text-patch",
           "resource": "./slots/ci/php-lint-text-patch.json",
-          "requires": { "capabilities": ["ci:github"] }
+          "requires": {
+            "capabilities": [
+              "ci:github"
+            ]
+          }
+        },
+        {
+          "slot": "taze.provider",
+          "version": 1,
+          "id": "taze-php",
+          "resource": "./taze/provider.mjs"
+        },
+        {
+          "slot": "skills.fragment",
+          "version": 1,
+          "id": "taze",
+          "resource": "./skills/taze/SKILL.fragment.md"
+        },
+        {
+          "slot": "doc-files.extractor",
+          "version": 1,
+          "id": "doc-files-php",
+          "resource": "./doc-files/extractors.mjs"
+        },
+        {
+          "slot": "doc-files.extensions",
+          "version": 1,
+          "id": "doc-files-ext-php",
+          "value": {
+            ".php": "PHP Module"
+          }
+        },
+        {
+          "slot": "coverage.provider",
+          "version": 1,
+          "id": "coverage-php",
+          "resource": "./coverage-provider/provider.mjs"
         }
       ]
     }

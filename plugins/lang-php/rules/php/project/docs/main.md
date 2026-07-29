@@ -3,11 +3,10 @@ type: JS Module
 title: main.mjs
 resource: plugins/lang-php/rules/php/project/main.mjs
 docgen:
-  crc: 30595da1
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
-  score: 65
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: 69f93307
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
+  score: 70
 ---
 
 ## Огляд
@@ -19,6 +18,13 @@ phpstan/psalm потребують повного project-graph (autoload, class
 одному файлі дає неповний/хибний результат; composer audit — project-wide dependency
 audit. Не входять у delta-план (§5): спрацьовують лише через `n-rules lint --full` або
 scoped `n-rules lint php`.
+
+Nested Composer workspaces (ADR `2026-07-27-nested-composer-workspace-detection`): цей
+детектор свідомо читає лише кореневий `composer.json`/`vendor/bin/*` (`ctx.cwd`) — вкладені
+Composer-проєкти (`services/api/composer.json`) активують правило `php` (auto.glob до глибини
+2), і кожен `.php`-файл лінтиться per-file концернами `cs_fixer`/`phpcs` незалежно від того,
+під яким вкладеним composer.json він лежить, але НЕ проганяються тут через
+`composer audit`/PHPStan/Psalm. Деталі й обґрунтування — `docs/adr/`, `tooling/tooling.mdc`.
 
 ## Публічний API
 

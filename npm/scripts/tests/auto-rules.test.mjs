@@ -37,6 +37,7 @@ const ALL_RULES = [
   'k8s',
   'nginx-default-tpl',
   'npm-module',
+  'php',
   'rust',
   'security',
   'style',
@@ -47,12 +48,14 @@ const ALL_RULES = [
 ]
 
 // Як у проді (bin/n-rules.js): rules-джерела = ядро + активні плагіни.
-// rust/python — власність lang-плагінів (фаза 3), js-сімʼя — lang-js (фаза 5c).
+// rust/python — власність lang-плагінів (фаза 3), js-сімʼя — lang-js (фаза 5c),
+// php — lang-php (spec 2026-07-27-universal-plugin-slots-lang-php-extraction).
 const RULES_DIRS = [
   new URL('../../rules/', import.meta.url).pathname,
   new URL('../../../plugins/lang-js/rules/', import.meta.url).pathname,
   new URL('../../../plugins/lang-rust/rules/', import.meta.url).pathname,
-  new URL('../../../plugins/lang-python/rules/', import.meta.url).pathname
+  new URL('../../../plugins/lang-python/rules/', import.meta.url).pathname,
+  new URL('../../../plugins/lang-php/rules/', import.meta.url).pathname
 ]
 
 /**
@@ -303,6 +306,30 @@ describe('detectAutoRules', () => {
       expect(actual.rules.includes('vue')).toBe(false)
       expect(actual.rules.includes('image-compress')).toBe(true)
       expect(actual.rules.includes('image-avif')).toBe(false)
+    })
+  })
+
+  test('glob-активація: правило php з вкладеним composer.json (nested Composer workspace, глибина 1-2)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'app' })
+      await ensureDir(join(dir, 'services', 'api'))
+      await writeFile(join(dir, 'services', 'api', 'composer.json'), '{"name": "acme/api"}\n', 'utf8')
+
+      const actual = await detectAutoRulesInCwd(dir)
+
+      expect(actual.rules.includes('php')).toBe(true)
+    })
+  })
+
+  test('glob-активація: правило php НЕ активується композером за межею глибини (3+)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'app' })
+      await ensureDir(join(dir, 'a', 'b', 'c'))
+      await writeFile(join(dir, 'a', 'b', 'c', 'composer.json'), '{"name": "acme/deep"}\n', 'utf8')
+
+      const actual = await detectAutoRulesInCwd(dir)
+
+      expect(actual.rules.includes('php')).toBe(false)
     })
   })
 

@@ -1,0 +1,62 @@
+## Канон кореневого `composer.json`
+
+Той самий дух, що `npm-module` тримає для `package.json` — єдина канонічна форма кореневого
+manifest-у, а не довільна конфігурація.
+
+### Що перевіряється
+
+- **Валідний JSON.** Синтаксично битий `composer.json` — окреме порушення з деталями
+  парсер-помилки; решта перевірок цього concern-а в такому разі не виконуються.
+- **`config.sort-packages: true`.** Залежності в `require`/`require-dev` тримаються
+  відсортованими за іменем — детермінований diff при `composer require`/`composer update`,
+  без ручного сортування чи шуму в PR. Фікс: `composer config sort-packages true`.
+- **`license` присутній.** Непорожній рядок (SPDX-ідентифікатор, наприклад `"MIT"`) або
+  непорожній масив ідентифікаторів. Проєкти без відкритої ліцензії позначають явно —
+  `"proprietary"`.
+- **`require.php` — явний version-constraint.** Поле має бути присутнім і не бути голим
+  wildcard-ом (`"*"`) — саме `require.php` фіксує мінімальну підтримувану версію PHP
+  (у парі з `php.mdc`, де канон — PHP 8.5), а не залишає її мовчазно "будь-якою".
+- **`composer validate --strict --no-check-publish`.** Запускається лише якщо `composer`
+  є в `PATH`; за відсутності бінарника цей крок мовчки пропускається (`composer-missing`
+  як окрему причину порушення репортить `php/project`, що вимагає `composer` для
+  `composer audit`).
+
+### Приклади
+
+✓ Правильно:
+
+```json
+{
+  "name": "nitra/demo",
+  "license": "MIT",
+  "require": { "php": ">=8.5" },
+  "config": { "sort-packages": true }
+}
+```
+
+✗ Неправильно — `config.sort-packages` не увімкнено:
+
+```json
+{ "config": {} }
+```
+
+✗ Неправильно — без `license`:
+
+```json
+{ "require": { "php": ">=8.5" } }
+```
+
+✗ Неправильно — `require.php` без явного constraint-у:
+
+```json
+{ "require": { "php": "*" } }
+```
+
+### Причини порушень (reason)
+
+- `composer-manifest-invalid-json` — синтаксично битий JSON.
+- `composer-manifest-sort-packages` — `config.sort-packages` не `true`.
+- `composer-manifest-license-missing` — відсутнє/порожнє поле `license`.
+- `composer-manifest-php-constraint-missing` — відсутній або невизначений `require.php`.
+- `composer-manifest-validate-failed` — `composer validate --strict --no-check-publish`
+  завершився ненульовим кодом.

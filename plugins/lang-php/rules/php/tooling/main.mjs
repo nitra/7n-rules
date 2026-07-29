@@ -1,4 +1,9 @@
-/** @see ./docs/tooling.md */
+/**
+ * @see ./docs/tooling.md
+ *
+ * Nested Composer workspaces (ADR `2026-07-27-nested-composer-workspace-detection`): перевіряє
+ * лише кореневий `composer.json`/`package.json` (свідоме обмеження — деталі в `tooling.mdc`).
+ */
 import { existsSync } from 'node:fs'
 
 import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/violation-reporter.mjs'

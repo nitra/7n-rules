@@ -3,34 +3,54 @@ type: JS Module
 title: auto-rules.mjs
 resource: npm/scripts/auto-rules.mjs
 docgen:
-  crc: 5707eb47
+  crc: a0d63eec
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  score: 90
+  tier: local-min
+  score: 25
 ---
 
-Автоматично визначає правила та скіли для конфігурації `.n-rules.json`, скануючи мета-дані з `npm/rules/<id>/main.json` та аналізуючи структуру проєкту, зокрема `package.json`. Система виводить `AUTO_RULE_ORDER` (алфавітно) та `AUTO_RULE_DEPENDENCIES` для кожного правила. Для кожного правила обчислюється специфікація активації (`specMatches`), яка може бути безумовною (`always`), заснованою на шаблонах файлів (`glob`), або предикатною. Процес враховує винятки (`disable-rules`) та виконує транзитивне розгортання залежностей. Збираються контент-факти (GQL, bun-sql, hasura) для точного застосування правил. Також відбувається автоматичне виявлення скілів з `./auto-skills.mjs`, після чого всі виявлені правила та скіли зливаються у конфіг, враховуючи міграцію ID.
+## Огляд
 
-## Поведінка
+Автовизначення правил для `.n-rules.json` за meta-даними з `npm/rules/<id>/main.json`.
 
-discoverRuleAutoActivation сканує директорію `rules` та виявляє мета-дані для автоматичного визначення правил.
-AUTO_RULE_ORDER надає стабільний алфавітний порядок для всіх правил, виявлених під час автоматичного визначення.
-AUTO_RULE_DEPENDENCIES визначає транзитивні залежності між правилами, виявленими під час автоматичного визначення.
-collectAutoRuleFacts обходить дерево проєкту, збираючи контент-факти про наявність певних структур (наприклад, GQL, Hasura, Rego).
-detectAutoRules визначає список правил, які мають бути активні, на основі мета-даних правил та зібраних контент-фактів, враховуючи виключення.
-mergeConfigWithAutoDetected об'єднує конфігурацію користувача з результатами автоматичного визначення правил та скілів, прибираючи з конфігу ті елементи, яких більше немає у пакеті.
+Основна роль: `discoverRuleAutoActivation` читає `npm/rules/<id>/main.json`, виводить
+`AUTO_RULE_ORDER` (алфавітно) і `AUTO_RULE_DEPENDENCIES` з meta, а потім для кожного правила
+обчислює spec активації через `specMatches`: `always` — безумовно; `glob` — перевірка
+файлів через `globToRegex`; `predicate` — незводимий предикат із реєстру `RULE_PREDICATES`
+(у `lib/rule-predicates.mjs`). Транзитивне розгортання залежностей — `resolveRuleDependencies`.
+
+`collectAutoRuleFacts` зберігається для content-фактів (GQL, bun-sql, hasura) і власних тестів.
+
+Враховує винятки `disable-rules`: елементи зі списку не додаються автоматично.
+
+Автодетект скілів — у `./auto-skills.mjs` (умови — у `npm/skills/<skill>/main.json`).
+`mergeConfigWithAutoDetected` нижче приймає вже виявлені rules і skills і вливає
+їх у конфіг із поправкою на legacy-id (`migrateRuleIds`).
 
 ## Публічний API
 
-discoverRuleAutoActivation — Зчитує `main.json` для кожного правила у `npm/rules/<id>/` та створює список правил, які можуть активуватися автоматично.
-AUTO_RULE_ORDER — Визначає порядок застосування автоматичних правил за алфавітом.
-AUTO_RULE_DEPENDENCIES — Створює граф залежностей між автоматичними правилами, використовуючи метадані.
-collectAutoRuleFacts — Сканує структуру проєкту та збирає факти про вміст, необхідні для визначення, які автоматичні правила активувати.
-detectAutoRules — Визначає, які автоматичні правила доступні на основі файлу `main.json` кожного правила.
-mergeConfigWithAutoDetected — Обновлює конфігурацію, додаючи автоматично виявлені правила, і очищає список доступних правил/навичок від тих, що більше не існують у пакеті, фіксуючи видалені ID у полі `pruned`.
+- discoverRuleAutoActivation — Скан `npm/rules/<id>/main.json` → мапа id → RuleAutoSpec (лише правила з розпізнаним auto).
+- getRuleAutoActivation — Агрегована мапа активації по кількох rules-каталогах (ядро + плагіни): правила
+зливаються за id, перший власник виграє (порядок каталогів = пріоритет).
+Без `rulesDirs` — вбудовані module-level константи (шлях без плагінів).
+- AUTO_RULE_ORDER — Стабільний алфавітний порядок (замість хардкод-масиву).
+- AUTO_RULE_DEPENDENCIES — Граф залежностей із meta (Type C) — замість хардкод-константи.
+- collectAutoRuleFacts — Обходить дерево проєкту, збираючи content-факти для предикатів автоувімкнення.
+
+`hasRegoFile` і `hasTempoDir` лишаються для зворотної сумісності з прямими читачами
+фактів (тести, зовнішній код); саме автоувімкнення тепер data-driven через main.json.
+- detectAutoRules — Визначає авто-правила згідно з `rules/<rule>/main.json`.
+- mergeConfigWithAutoDetected — Доповнює конфіг автодетектом (лише додає; існуючі вручну задані елементи не прибирає),
+а за наявності `availableRules`/`availableSkills` ще й прибирає з `rules`/`skills`
+неактуальні id, яких уже немає у пакеті (наприклад, правило чи скіл видалено з нової
+версії \@7n/rules) — інакше sync щоразу падав би на завантаженні відсутнього
+`rules/<id>.mdc` чи `skills/<id>/`. Прибрані id повертаються у полі `pruned` (для логу).
+
+## Сценарії використання
+
+- `npm/scripts/tests/auto-rules.test.mjs` (detectAutoRules; mergeConfigWithAutoDetected) — додає правила за ознаками проєкту; додає js-bun-db при pg у dependencies; додає js-bun-db при pg-format у dependencies; додає js-bun-db при імпорті sql з bun; додає js-bun-redis при ioredis у dependencies; ще 47
 
 ## Гарантії поведінки
 
-- Перехоплює помилки і не пропускає винятків назовні (fail-safe).
-- Свідомо пропускає шляхи: `.git`, `node_modules`.
-
-**Multi-dir (плагіни):** `getRuleAutoActivation(rulesDirs)` агрегує активацію по кількох rules-каталогах (ядро перше, перший власник виграє, кеш на процес); `detectAutoRules` приймає опційний `rulesDirs`.
+- Містить локальні fail-safe гілки; інші помилки можуть поширюватися назовні.
+- Кешує результати в межах одного прогону.
