@@ -1,0 +1,53 @@
+npm/rules/doc-files/docgen-scan/docs/lang-extensions.md
+  s_4ed034b2325d4a::t_5573b705877eb8 23,27,45
+.cspell.json
+  s_4ed034b2325d4a::t_5573b705877eb8 50
+  s_4ed034b2325d4a::t_90185613f9ad5f 117
+plugins/lang-rust/doc-files/docs/extractors.md
+  s_4ed034b2325d4a::t_5573b705877eb8 20
+llm-lib/crates/llm-lib-napi/src/docs/lib.md
+  s_4ed034b2325d4a::t_5573b705877eb8 17
+plugins/lang-python/taze/docs/provider.md
+  s_4ed034b2325d4a::t_5573b705877eb8 22
+npm/rules/doc-files/docgen-scan/docs/main.md
+  s_4ed034b2325d4a::t_5573b705877eb8 26
+llm-lib/.changes/260728-2223.md
+  s_3b04bfa0cd6c95::t_5687b23fd405cc 1-4
+  s_4ed034b2325d4a::t_85f61052fc3db7 5
+plugins/lang-python/.changes/260728-2223.md
+  s_3b04bfa0cd6c95::t_93d8c7f9b0f35d 1-4
+  s_4ed034b2325d4a::t_faafb9bbd6a193 5
+plugins/lang-rust/.changes/260728-2223.md
+  s_3b04bfa0cd6c95::t_35ae3ab957aa2f 1-4
+  s_4ed034b2325d4a::t_faafb9bbd6a193 5
+npm/scripts/lib/plugin-slots.mjs
+  s_4ed034b2325d4a::t_90185613f9ad5f 628
+.claude/settings.local.json
+  s_4ed034b2325d4a::t_e4c108d1a225ed 44-46
+npm/scripts/lib/docs/plugin-slots.md
+  s_4ed034b2325d4a::t_e4c108d1a225ed 71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "1a011c729fbe1a15bd5fd0cf71056b6859c7b52c",
+  "prompts": {},
+  "sessions": {
+    "s_3b04bfa0cd6c95": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019fa9e1-fcf8-7082-9435-2aacdc2eae0d",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_4ed034b2325d4a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa9e1-fcf8-7082-9435-2aacdc2eae0d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
