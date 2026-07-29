@@ -8,13 +8,13 @@
  * result блокує candidate, а не перетворюється на припущення про expectation.
  */
 
-import { createHash } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { isAbsolute, join, relative, sep } from 'node:path'
 
 import { globby } from 'globby'
 
 import { BEHAVIORAL_CLAIM_TAXONOMY } from './claims.mjs'
+import { canonicalHash as hash, canonicalize, loadVersionedCache, saveVersionedCache } from './deterministic.mjs'
 import { parseKnowledgeZones } from './zones.mjs'
 
 const DEFAULT_MODEL_POLICY = Object.freeze(['min', 'avg', 'max'])
@@ -33,32 +33,6 @@ const IGNORED_PATHS = Object.freeze([
   '**/.venv/**',
   '**/venv/**'
 ])
-
-/**
- * Створює стабільний SHA-256 fingerprint JSON-подібного значення.
- * @param {unknown} value input
- * @returns {string} prefixed SHA-256
- */
-function hash(value) {
-  return `sha256:${createHash('sha256')
-    .update(JSON.stringify(canonicalize(value)))
-    .digest('hex')}`
-}
-
-/**
- * Канонізує JSON-подібне значення для stable cache/output.
- * @param {unknown} value input
- * @returns {unknown} stable copy
- */
-function canonicalize(value) {
-  if (Array.isArray(value)) return value.map(item => canonicalize(item))
-  if (!value || typeof value !== 'object') return value
-  return Object.fromEntries(
-    Object.entries(value)
-      .toSorted(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => [key, canonicalize(item)])
-  )
-}
 
 /**
  * Повертає stable blocking diagnostic.
@@ -574,42 +548,6 @@ export function parseExpectedSourceResult(text, refs, source) {
  * @param {{version?: number, entries?: Record<string, unknown>} | undefined} suppliedCache injected cache
  * @returns {Promise<{version: number, entries: Record<string, unknown>}>} normalized cache
  */
-async function loadCache(cachePath, suppliedCache) {
-  if (suppliedCache) {
-    if (!suppliedCache.entries || typeof suppliedCache.entries !== 'object' || Array.isArray(suppliedCache.entries))
-      suppliedCache.entries = {}
-    suppliedCache.version = CACHE_VERSION
-    return suppliedCache
-  }
-  if (!cachePath) return { version: CACHE_VERSION, entries: {} }
-  try {
-    const parsed = JSON.parse(await readFile(cachePath, 'utf8'))
-    if (
-      parsed?.version === CACHE_VERSION &&
-      parsed.entries &&
-      typeof parsed.entries === 'object' &&
-      !Array.isArray(parsed.entries)
-    )
-      return parsed
-  } catch (error) {
-    if (error?.code !== 'ENOENT') throw error
-  }
-  return { version: CACHE_VERSION, entries: {} }
-}
-
-/**
- * Atomically writes only successfully validated mapping responses.
- * @param {string | undefined} cachePath cache target
- * @param {{version: number, entries: Record<string, unknown>}} cache cache data
- * @returns {Promise<void>} completion
- */
-async function saveCache(cachePath, cache) {
-  if (!cachePath) return
-  await mkdir(join(cachePath, '..'), { recursive: true })
-  const temporary = `${cachePath}.tmp`
-  await writeFile(temporary, `${JSON.stringify(canonicalize(cache))}\n`, 'utf8')
-  await rename(temporary, cachePath)
-}
 
 /**
  * Збирає source claims у stable overlay, deduplicating corroborated intent.
@@ -773,7 +711,7 @@ export async function mapExpectedSources({
   modelPolicy = DEFAULT_MODEL_POLICY,
   submitBatchImpl
 }) {
-  const cache = await loadCache(cachePath, suppliedCache)
+  const cache = await loadVersionedCache(cachePath, suppliedCache, CACHE_VERSION)
   const refs = graphReferences(graph)
   if (!refs.ok) return { ok: false, diagnostics: refs.diagnostics, cache: canonicalize(cache) }
   const normalized = normalizeSources(sources)
@@ -824,7 +762,7 @@ export async function mapExpectedSources({
     cache,
     mapped
   })
-  await saveCache(cachePath, cache)
+  await saveVersionedCache(cachePath, cache)
   if (ladder.pending.length > 0) {
     return {
       ok: false,

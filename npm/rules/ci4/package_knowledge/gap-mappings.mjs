@@ -4,11 +4,9 @@
  * проходять strict semantic comparator, щоб невизначеність не ставала missing.
  */
 
-import { createHash } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
-
 import { submitBatch as submitBatchNative } from '@7n/llm-lib/batch'
+
+import { canonicalHash as hash, canonicalize, loadVersionedCache, saveVersionedCache } from './deterministic.mjs'
 
 /**
  * Версія strict claim-comparison result schema.
@@ -27,32 +25,6 @@ const CACHE_VERSION = 1
 const RELATIONS = new Set(['equivalent', 'contradicts'])
 
 /**
- * Канонізує JSON-подібні дані для stable hash і cache snapshot.
- * @param {unknown} value JSON-like input
- * @returns {unknown} stable copy
- */
-function canonicalize(value) {
-  if (Array.isArray(value)) return value.map(item => canonicalize(item))
-  if (!value || typeof value !== 'object') return value
-  return Object.fromEntries(
-    Object.entries(value)
-      .toSorted(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => [key, canonicalize(item)])
-  )
-}
-
-/**
- * Створює SHA-256 fingerprint canonical value.
- * @param {unknown} value stable input
- * @returns {string} prefixed digest
- */
-function hash(value) {
-  return `sha256:${createHash('sha256')
-    .update(JSON.stringify(canonicalize(value)))
-    .digest('hex')}`
-}
-
-/**
  * Створює stable comparison diagnostic.
  * @param {string} code machine-readable failure code
  * @param {string} message human-readable detail
@@ -69,44 +41,6 @@ function diagnostic(code, message, expectedClaimId = null) {
  * @param {{version?: number, entries?: Record<string, unknown>} | undefined} suppliedCache cache supplied by caller
  * @returns {Promise<{version: number, entries: Record<string, unknown>}>} normalized cache
  */
-async function loadCache(cachePath, suppliedCache) {
-  if (suppliedCache) {
-    if (!suppliedCache.entries || typeof suppliedCache.entries !== 'object' || Array.isArray(suppliedCache.entries)) {
-      suppliedCache.entries = {}
-    }
-    suppliedCache.version = CACHE_VERSION
-    return suppliedCache
-  }
-  if (!cachePath) return { version: CACHE_VERSION, entries: {} }
-  try {
-    const parsed = JSON.parse(await readFile(cachePath, 'utf8'))
-    if (
-      parsed?.version === CACHE_VERSION &&
-      parsed.entries &&
-      typeof parsed.entries === 'object' &&
-      !Array.isArray(parsed.entries)
-    ) {
-      return { version: CACHE_VERSION, entries: parsed.entries }
-    }
-  } catch (error) {
-    if (error?.code !== 'ENOENT') throw error
-  }
-  return { version: CACHE_VERSION, entries: {} }
-}
-
-/**
- * Зберігає тільки strict accepted semantic comparison results.
- * @param {string | undefined} cachePath optional durable cache path
- * @param {{version: number, entries: Record<string, unknown>}} cache cache state
- * @returns {Promise<void>} completion
- */
-async function saveCache(cachePath, cache) {
-  if (!cachePath) return
-  await mkdir(dirname(cachePath), { recursive: true })
-  const temporaryPath = `${cachePath}.tmp`
-  await writeFile(temporaryPath, `${JSON.stringify(canonicalize(cache))}\n`)
-  await rename(temporaryPath, cachePath)
-}
 
 /**
  * Визначає рівність exact canonical assertion, незалежно від evidence provenance.
@@ -399,7 +333,7 @@ export async function compareClaimMappings({
   submitBatchImpl = submitBatchNative,
   batchOptions = {}
 }) {
-  const cache = await loadCache(cachePath, suppliedCache)
+  const cache = await loadVersionedCache(cachePath, suppliedCache, CACHE_VERSION)
   const claims = comparisonClaims(graph)
   if (!claims.ok) return { ok: false, diagnostics: claims.diagnostics, cache: canonicalize(cache) }
   if (claims.expected.length === 0)
@@ -417,7 +351,7 @@ export async function compareClaimMappings({
   const state = { mappings: plan.mappings, unresolved: new Set() }
   const pending = selectPendingWork(plan.work, cache, state)
   const resolved = await resolveWork({ pending, cache, state, modelPolicy, submitBatchImpl, batchOptions })
-  await saveCache(cachePath, cache)
+  await saveVersionedCache(cachePath, cache)
   if (resolved.pending.length > 0) {
     return {
       ok: false,

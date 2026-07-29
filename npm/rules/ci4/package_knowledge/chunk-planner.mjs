@@ -6,7 +6,7 @@
  * детермінованим execution plan для map/reduce orchestration.
  */
 
-import { createHash } from 'node:crypto'
+import { canonicalHash as fingerprint, canonicalize } from './deterministic.mjs'
 
 const DEFAULT_MAX_TOKENS = 1200
 const DEFAULT_REDUCE_INPUTS = 8
@@ -20,32 +20,6 @@ const DEFAULT_REDUCE_INPUTS = 8
  */
 function diagnostic(code, detail, path = null) {
   return { code, detail, path }
-}
-
-/**
- * Створює SHA-256 fingerprint для stable IDs і cache keys.
- * @param {unknown} value canonical input
- * @returns {string} prefixed SHA-256 hash
- */
-function fingerprint(value) {
-  return `sha256:${createHash('sha256')
-    .update(JSON.stringify(canonicalize(value)))
-    .digest('hex')}`
-}
-
-/**
- * Рекурсивно стабілізує object keys перед hashing і serialization.
- * @param {unknown} value arbitrary value
- * @returns {unknown} canonical value
- */
-function canonicalize(value) {
-  if (Array.isArray(value)) return value.map(item => canonicalize(item))
-  if (!value || typeof value !== 'object') return value
-  return Object.fromEntries(
-    Object.entries(value)
-      .toSorted(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => [key, canonicalize(item)])
-  )
 }
 
 /**

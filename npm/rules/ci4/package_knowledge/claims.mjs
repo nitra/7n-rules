@@ -8,11 +8,9 @@
  * business/architecture taxonomy; довільні predicates та coverage bypass блокуються.
  */
 
-import { createHash } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
-
 import { submitBatch as submitBatchNative } from '@7n/llm-lib/batch'
+
+import { canonicalHash as hash, canonicalize, loadVersionedCache, saveVersionedCache } from './deterministic.mjs'
 
 /**
  * Версія schema для structured claims cache і validation.
@@ -46,32 +44,6 @@ export const BEHAVIORAL_CLAIM_TAXONOMY = Object.freeze([
 ])
 
 const CACHE_VERSION = 1
-
-/**
- * Канонізує JSON-подібне значення для stable hashes і output.
- * @param {unknown} value довільне JSON-подібне значення
- * @returns {unknown} stable copy
- */
-function canonicalize(value) {
-  if (Array.isArray(value)) return value.map(item => canonicalize(item))
-  if (!value || typeof value !== 'object') return value
-  return Object.fromEntries(
-    Object.entries(value)
-      .toSorted(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => [key, canonicalize(item)])
-  )
-}
-
-/**
- * Створює SHA-256 hash canonical input.
- * @param {unknown} value stable input
- * @returns {string} SHA-256 value із prefix
- */
-function hash(value) {
-  return `sha256:${createHash('sha256')
-    .update(JSON.stringify(canonicalize(value)))
-    .digest('hex')}`
-}
 
 /**
  * Створює stable blocker.
@@ -119,44 +91,6 @@ export function createClaimsCacheKey({ kind, parserVersion, promptVersion, schem
  * @param {{version?: number, entries?: Record<string, unknown>} | undefined} suppliedCache injectable cache for tests/callers
  * @returns {Promise<{version: number, entries: Record<string, unknown>}>} normalized cache
  */
-async function loadCache(cachePath, suppliedCache) {
-  if (suppliedCache) {
-    if (!suppliedCache.entries || typeof suppliedCache.entries !== 'object' || Array.isArray(suppliedCache.entries)) {
-      suppliedCache.entries = {}
-    }
-    suppliedCache.version = CACHE_VERSION
-    return suppliedCache
-  }
-  if (!cachePath) return { version: CACHE_VERSION, entries: {} }
-  try {
-    const parsed = JSON.parse(await readFile(cachePath, 'utf8'))
-    if (
-      parsed?.version === CACHE_VERSION &&
-      parsed.entries &&
-      typeof parsed.entries === 'object' &&
-      !Array.isArray(parsed.entries)
-    ) {
-      return { version: CACHE_VERSION, entries: parsed.entries }
-    }
-  } catch (error) {
-    if (error?.code !== 'ENOENT') throw error
-  }
-  return { version: CACHE_VERSION, entries: {} }
-}
-
-/**
- * Зберігає тільки успішні structured results без volatile metadata.
- * @param {string | null | undefined} cachePath cache location
- * @param {{version: number, entries: Record<string, unknown>}} cache cache state
- * @returns {Promise<void>} completion
- */
-async function saveCache(cachePath, cache) {
-  if (!cachePath) return
-  await mkdir(dirname(cachePath), { recursive: true })
-  const temporaryPath = `${cachePath}.tmp`
-  await writeFile(temporaryPath, `${JSON.stringify(canonicalize(cache))}\n`)
-  await rename(temporaryPath, cachePath)
-}
 
 /**
  * Нормалізує map chunk без generated identities.
@@ -687,7 +621,7 @@ export async function buildStructuredClaims({
   submitBatchImpl = submitBatchNative,
   batchOptions = {}
 }) {
-  const cache = await loadCache(cachePath, suppliedCache)
+  const cache = await loadVersionedCache(cachePath, suppliedCache, CACHE_VERSION)
   const refs = graphReferences(graph)
   if (!refs.ok) return { ok: false, blockers: refs.blockers, cache: cacheSnapshot(cache) }
   if (typeof parserVersion !== 'string' || parserVersion === '') {
@@ -750,7 +684,7 @@ export async function buildStructuredClaims({
     batchOptions
   })
   if (!mapped.ok) {
-    await saveCache(cachePath, cache)
+    await saveVersionedCache(cachePath, cache)
     return {
       ok: false,
       blockers: mapped.blockers.toSorted((left, right) => left.chunkId.localeCompare(right.chunkId)),
@@ -764,7 +698,7 @@ export async function buildStructuredClaims({
     if (level === 0) {
       if (work.length === 1) {
         const final = mapped.results.get(work[0].id)
-        await saveCache(cachePath, cache)
+        await saveVersionedCache(cachePath, cache)
         return {
           ok: true,
           claims: collectClaims(allResults),
@@ -778,7 +712,7 @@ export async function buildStructuredClaims({
     }
     const resolved = await resolveWave({ work, cache, refs, modelPolicy, submitBatchImpl, batchOptions })
     if (resolved.blockers.length > 0) {
-      await saveCache(cachePath, cache)
+      await saveVersionedCache(cachePath, cache)
       return {
         ok: false,
         blockers: resolved.blockers.toSorted((left, right) => left.chunkId.localeCompare(right.chunkId)),
@@ -789,7 +723,7 @@ export async function buildStructuredClaims({
     allResults.push(...levelResults)
     if (work.length === 1) {
       const final = levelResults[0]
-      await saveCache(cachePath, cache)
+      await saveVersionedCache(cachePath, cache)
       return {
         ok: true,
         claims: collectClaims(allResults),

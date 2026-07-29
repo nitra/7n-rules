@@ -4,11 +4,9 @@
  * пропускає канонічний graph далі або повертає blocking diagnostics.
  */
 
-import { createHash } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
-
 import { submitBatch as submitBatchNative } from '@7n/llm-lib/batch'
+
+import { canonicalHash as hash, canonicalize, loadVersionedCache, saveVersionedCache } from './deterministic.mjs'
 
 /**
  * Версія strict entailment response schema і cache entries.
@@ -24,32 +22,6 @@ export const ENTAILMENT_PROMPT_VERSION = 'package-knowledge-entailment-v1'
 export const DEFAULT_ENTAILMENT_MODEL_POLICY = ['min', 'avg', 'max']
 
 const CACHE_VERSION = 1
-
-/**
- * Канонізує JSON-подібні дані перед hash або external result.
- * @param {unknown} value довільне JSON-подібне значення
- * @returns {unknown} byte-stable copy
- */
-function canonicalize(value) {
-  if (Array.isArray(value)) return value.map(item => canonicalize(item))
-  if (!value || typeof value !== 'object') return value
-  return Object.fromEntries(
-    Object.entries(value)
-      .toSorted(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => [key, canonicalize(item)])
-  )
-}
-
-/**
- * Формує SHA-256 fingerprint canonical value.
- * @param {unknown} value stable input
- * @returns {string} prefixed SHA-256
- */
-function hash(value) {
-  return `sha256:${createHash('sha256')
-    .update(JSON.stringify(canonicalize(value)))
-    .digest('hex')}`
-}
 
 /**
  * Створює stable blocking diagnostic entailment gate.
@@ -68,39 +40,6 @@ function diagnostic(code, message, claimId = null) {
  * @param {{version?: number, entries?: Record<string, unknown>} | undefined} suppliedCache injected cache
  * @returns {Promise<{version: number, entries: Record<string, unknown>}>} normalized cache
  */
-async function loadCache(cachePath, suppliedCache) {
-  if (suppliedCache) {
-    if (!suppliedCache.entries || typeof suppliedCache.entries !== 'object' || Array.isArray(suppliedCache.entries)) {
-      suppliedCache.entries = {}
-    }
-    suppliedCache.version = CACHE_VERSION
-    return suppliedCache
-  }
-  if (!cachePath) return { version: CACHE_VERSION, entries: {} }
-  try {
-    const parsed = JSON.parse(await readFile(cachePath, 'utf8'))
-    if (parsed?.version === CACHE_VERSION && parsed.entries && typeof parsed.entries === 'object' && !Array.isArray(parsed.entries)) {
-      return { version: CACHE_VERSION, entries: parsed.entries }
-    }
-  } catch (error) {
-    if (error?.code !== 'ENOENT') throw error
-  }
-  return { version: CACHE_VERSION, entries: {} }
-}
-
-/**
- * Записує лише вже accepted strict verifier results.
- * @param {string | undefined} cachePath optional durable cache path
- * @param {{version: number, entries: Record<string, unknown>}} cache cache state
- * @returns {Promise<void>} completion
- */
-async function saveCache(cachePath, cache) {
-  if (!cachePath) return
-  await mkdir(dirname(cachePath), { recursive: true })
-  const temporaryPath = `${cachePath}.tmp`
-  await writeFile(temporaryPath, `${JSON.stringify(canonicalize(cache))}\n`)
-  await rename(temporaryPath, cachePath)
-}
 
 /**
  * Нормалізує content map незалежно від Map або plain object input.
@@ -113,7 +52,12 @@ function evidenceContent(evidenceContentById, evidenceId) {
     const value = evidenceContentById.get(evidenceId)
     return typeof value === 'string' && value !== '' ? value : null
   }
-  if (!evidenceContentById || typeof evidenceContentById !== 'object' || Array.isArray(evidenceContentById) || !Object.hasOwn(evidenceContentById, evidenceId)) {
+  if (
+    !evidenceContentById ||
+    typeof evidenceContentById !== 'object' ||
+    Array.isArray(evidenceContentById) ||
+    !Object.hasOwn(evidenceContentById, evidenceId)
+  ) {
     return null
   }
   const value = evidenceContentById[evidenceId]
@@ -128,18 +72,38 @@ function evidenceContent(evidenceContentById, evidenceId) {
  */
 function prepareClaim(claim, evidenceContentById) {
   const claimId = claim && typeof claim === 'object' && typeof claim.id === 'string' ? claim.id : null
-  if (!claim || typeof claim !== 'object' || Array.isArray(claim) || !claimId || !Array.isArray(claim.evidenceIds) || claim.evidenceIds.length === 0) {
-    return { ok: false, diagnostic: diagnostic('invalid-entailment-claim', 'Claim мусить мати id та непорожній evidenceIds[].', claimId) }
+  if (
+    !claim ||
+    typeof claim !== 'object' ||
+    Array.isArray(claim) ||
+    !claimId ||
+    !Array.isArray(claim.evidenceIds) ||
+    claim.evidenceIds.length === 0
+  ) {
+    return {
+      ok: false,
+      diagnostic: diagnostic('invalid-entailment-claim', 'Claim мусить мати id та непорожній evidenceIds[].', claimId)
+    }
   }
-  if (claim.evidenceIds.some(id => typeof id !== 'string' || id === '') || new Set(claim.evidenceIds).size !== claim.evidenceIds.length) {
-    return { ok: false, diagnostic: diagnostic('invalid-entailment-evidence', 'Claim має невалідний evidenceIds[].', claimId) }
+  if (
+    claim.evidenceIds.some(id => typeof id !== 'string' || id === '') ||
+    new Set(claim.evidenceIds).size !== claim.evidenceIds.length
+  ) {
+    return {
+      ok: false,
+      diagnostic: diagnostic('invalid-entailment-evidence', 'Claim має невалідний evidenceIds[].', claimId)
+    }
   }
   const evidence = claim.evidenceIds.toSorted().map(id => ({ id, content: evidenceContent(evidenceContentById, id) }))
   const missing = evidence.find(item => item.content === null)
   if (missing) {
     return {
       ok: false,
-      diagnostic: diagnostic('missing-evidence-content', `Немає local source content для evidence ${missing.id}.`, claimId)
+      diagnostic: diagnostic(
+        'missing-evidence-content',
+        `Немає local source content для evidence ${missing.id}.`,
+        claimId
+      )
     }
   }
   return {
@@ -183,18 +147,25 @@ export function parseEntailmentResult(text, claimId) {
   } catch {
     return { ok: false, reason: 'invalid-entailment-json' }
   }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { ok: false, reason: 'invalid-entailment-shape' }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+    return { ok: false, reason: 'invalid-entailment-shape' }
   const keys = Object.keys(parsed).toSorted()
   if (JSON.stringify(keys) !== JSON.stringify(['claimId', 'entails', 'unsupportedFields'])) {
     return { ok: false, reason: 'invalid-entailment-shape' }
   }
-  if (parsed.claimId !== claimId || typeof parsed.entails !== 'boolean' || !Array.isArray(parsed.unsupportedFields) || parsed.unsupportedFields.some(field => typeof field !== 'string' || field === '')) {
+  if (
+    parsed.claimId !== claimId ||
+    typeof parsed.entails !== 'boolean' ||
+    !Array.isArray(parsed.unsupportedFields) ||
+    parsed.unsupportedFields.some(field => typeof field !== 'string' || field === '')
+  ) {
     return { ok: false, reason: 'invalid-entailment-shape' }
   }
   if (new Set(parsed.unsupportedFields).size !== parsed.unsupportedFields.length) {
     return { ok: false, reason: 'invalid-entailment-shape' }
   }
-  if (parsed.entails !== true || parsed.unsupportedFields.length !== 0) return { ok: false, reason: 'claim-not-entailed' }
+  if (parsed.entails !== true || parsed.unsupportedFields.length !== 0)
+    return { ok: false, reason: 'claim-not-entailed' }
   return { ok: true }
 }
 
@@ -208,8 +179,18 @@ export function parseEntailmentResult(text, claimId) {
  */
 async function submitWave(pending, tier, submitBatchImpl, batchOptions) {
   try {
-    const responses = await submitBatchImpl(tier, pending.map(item => ({ customId: item.id, prompt: item.prompt })), batchOptions)
-    return new Map(Array.isArray(responses) ? responses.filter(response => typeof response?.customId === 'string').map(response => [response.customId, response]) : [])
+    const responses = await submitBatchImpl(
+      tier,
+      pending.map(item => ({ customId: item.id, prompt: item.prompt })),
+      batchOptions
+    )
+    return new Map(
+      Array.isArray(responses)
+        ? responses
+            .filter(response => typeof response?.customId === 'string')
+            .map(response => [response.customId, response])
+        : []
+    )
   } catch {
     return new Map()
   }
@@ -245,22 +226,47 @@ export async function verifyEvidenceEntailment({
   submitBatchImpl = submitBatchNative,
   batchOptions = {}
 }) {
-  const cache = await loadCache(cachePath, suppliedCache)
+  const cache = await loadVersionedCache(cachePath, suppliedCache, CACHE_VERSION)
   if (!graph || typeof graph !== 'object' || Array.isArray(graph) || !Array.isArray(graph.claims)) {
-    return { ok: false, diagnostics: [diagnostic('invalid-entailment-graph', 'Graph мусить містити claims[].')], cache: canonicalize(cache) }
+    return {
+      ok: false,
+      diagnostics: [diagnostic('invalid-entailment-graph', 'Graph мусить містити claims[].')],
+      cache: canonicalize(cache)
+    }
   }
   const claims = graph.claims.filter(claim => claim?.layer === 'implemented' || claim?.layer === 'expected')
   if (claims.length === 0) return { ok: true, claims: graph.claims, cache: canonicalize(cache) }
   const prepared = claims.map(claim => prepareClaim(claim, evidenceContentById))
   const invalid = prepared.filter(item => !item.ok).map(item => item.diagnostic)
   if (invalid.length > 0) {
-    return { ok: false, diagnostics: invalid.toSorted((left, right) => `${left.claimId}:${left.code}`.localeCompare(`${right.claimId}:${right.code}`)), cache: canonicalize(cache) }
+    return {
+      ok: false,
+      diagnostics: invalid.toSorted((left, right) =>
+        `${left.claimId}:${left.code}`.localeCompare(`${right.claimId}:${right.code}`)
+      ),
+      cache: canonicalize(cache)
+    }
   }
   if (!Array.isArray(modelPolicy) || JSON.stringify(modelPolicy) !== JSON.stringify(DEFAULT_ENTAILMENT_MODEL_POLICY)) {
-    return { ok: false, diagnostics: [diagnostic('invalid-entailment-model-policy', 'Entailment використовує universal policy min -> avg -> max.')], cache: canonicalize(cache) }
+    return {
+      ok: false,
+      diagnostics: [
+        diagnostic('invalid-entailment-model-policy', 'Entailment використовує universal policy min -> avg -> max.')
+      ],
+      cache: canonicalize(cache)
+    }
   }
-  if (typeof promptVersion !== 'string' || promptVersion === '' || typeof schemaVersion !== 'string' || schemaVersion === '') {
-    return { ok: false, diagnostics: [diagnostic('invalid-entailment-version', 'promptVersion і schemaVersion мають бути непорожніми.')], cache: canonicalize(cache) }
+  if (
+    typeof promptVersion !== 'string' ||
+    promptVersion === '' ||
+    typeof schemaVersion !== 'string' ||
+    schemaVersion === ''
+  ) {
+    return {
+      ok: false,
+      diagnostics: [diagnostic('invalid-entailment-version', 'promptVersion і schemaVersion мають бути непорожніми.')],
+      cache: canonicalize(cache)
+    }
   }
   const work = prepared.map(item => {
     const cacheKey = createEntailmentCacheKey({ ...item.work, promptVersion, schemaVersion, modelPolicy })
@@ -285,12 +291,18 @@ export async function verifyEvidenceEntailment({
     }
     pending = retry
   }
-  await saveCache(cachePath, cache)
+  await saveVersionedCache(cachePath, cache)
   if (pending.length > 0) {
     return {
       ok: false,
       diagnostics: pending
-        .map(item => diagnostic(failures.get(item.id) ?? 'unresolved-entailment', 'Claim не пройшов strict evidence entailment verifier.', item.id))
+        .map(item =>
+          diagnostic(
+            failures.get(item.id) ?? 'unresolved-entailment',
+            'Claim не пройшов strict evidence entailment verifier.',
+            item.id
+          )
+        )
         .toSorted((left, right) => `${left.claimId}:${left.code}`.localeCompare(`${right.claimId}:${right.code}`)),
       cache: canonicalize(cache)
     }

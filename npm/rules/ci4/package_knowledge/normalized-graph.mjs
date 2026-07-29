@@ -9,6 +9,8 @@
 
 import { createHash } from 'node:crypto'
 
+import { canonicalize } from './deterministic.mjs'
+
 const EDGE_KINDS = new Set([
   'contains',
   'triggers',
@@ -37,23 +39,6 @@ const EVIDENCE_ROLES = new Set(['syntax', 'doc', 'attribute'])
  */
 function digest(value) {
   return createHash('sha256').update(value).digest('hex').slice(0, 24)
-}
-
-/**
- * Рекурсивно впорядковує ключі обʼєктів для byte-stable JSON.
- * Порядок semantic collections задає builder; ця функція стабілізує лише
- * довільні adapter attributes.
- * @param {unknown} value input value
- * @returns {unknown} canonicalized value
- */
-function canonicalize(value) {
-  if (Array.isArray(value)) return value.map(item => canonicalize(item))
-  if (!value || typeof value !== 'object') return value
-  return Object.fromEntries(
-    Object.entries(value)
-      .toSorted(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => [key, canonicalize(item)])
-  )
 }
 
 /**
