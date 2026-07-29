@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.3] - 2026-07-29
+
+### Changed
+
+- Тест ci.artifact дескрипторів використовує спільний канон @7n/rules/scripts/utils/tests/ci-artifact-descriptor-tests.mjs (jscpd dedup з @7n/rules-lang-js)
+
 ## [0.2.2] - 2026-07-29
 
 ### Added

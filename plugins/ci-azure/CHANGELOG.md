@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.0] - 2026-07-29
+
+### Removed
+
+- Видалено js-специфічний CI-концерн (lint_pipeline_js) — власність перенесена в @7n/rules-lang-js через ci.artifact@1 contribution
+- Rust Azure CI-lint-крок (`lint_pipeline_rust`) винесено в `@7n/rules-lang-rust` `ci.artifact@1` contribution — обслуговує generic ci.artifact consumer
+- Python-специфічні CI-артефакти (rules/python/lint_pipeline_python) видалено — тепер @7n/rules-lang-python own них через ci.artifact@1 contribution, обслуговується generic consumer-ом
+
 ## [2.0.1] - 2026-07-27
 
 ### Fixed

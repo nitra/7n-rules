@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.4] - 2026-07-29
+
+### Added
+
+- lang-python: patch-existing contribution для .py-globs у lint-text.yml (ci.artifact@1)
+- Власні Python CI-артефакти (lint-python.yml GitHub required-file, azure-pipelines lint-крок patch-existing) через ci.artifact@1 contributions — точне повторення PHP-патерну
+
 ## [0.11.3] - 2026-07-29
 
 ### Changed

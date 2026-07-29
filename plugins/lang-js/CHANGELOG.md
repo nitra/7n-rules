@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.23.7] - 2026-07-29
+
+### Added
+
+- lang-js: patch-existing contribution для JS-globs у lint-text.yml (ci.artifact@1)
+- Own JS CI-артефакти (lint-js.yml, azure lint-степ) через ci.artifact@1 contributions (точний повтор PHP-патерну)
+
+### Fixed
+
+- безпечний nullable guard у JS lint fix pipeline
+
 ## [0.23.6] - 2026-07-29
 
 ### Changed
