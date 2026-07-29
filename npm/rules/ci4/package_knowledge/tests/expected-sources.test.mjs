@@ -119,7 +119,7 @@ describe('Expected source mapping', () => {
         {
           customId: 'source:spec:orders',
           ok: JSON.stringify({
-            claims: [{ subjectId: SUBJECT_ID, predicate: 'order-status', value: 'accepted', evidenceIds: ['evidence:expected:spec'], confidence: 1 }]
+            claims: [{ subjectId: SUBJECT_ID, predicate: 'outcome', value: 'accepted', evidenceIds: ['evidence:expected:spec'], confidence: 1 }]
           })
         }
       ])
@@ -135,6 +135,13 @@ describe('Expected source mapping', () => {
     expect(
       parseExpectedSourceResult(
         JSON.stringify({ claims: [{ subjectId: 'code-unit:unknown', predicate: 'x', value: true, evidenceIds: ['evidence:unknown'], confidence: 1 }] }),
+        { nodeIds: new Set([SUBJECT_ID]), evidenceIds: new Set(['evidence:expected:spec']) },
+        source()
+      )
+    ).toEqual({ ok: false, reason: 'unknown-expected-mapping-reference' })
+    expect(
+      parseExpectedSourceResult(
+        JSON.stringify({ claims: [{ subjectId: SUBJECT_ID, predicate: 'arbitrary-relation', value: true, evidenceIds: ['evidence:expected:spec'], confidence: 1 }] }),
         { nodeIds: new Set([SUBJECT_ID]), evidenceIds: new Set(['evidence:expected:spec']) },
         source()
       )

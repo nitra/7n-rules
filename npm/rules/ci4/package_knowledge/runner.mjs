@@ -7,6 +7,8 @@
  * fail-closed межі без реальних plugin або LLM викликів.
  * Після Expected overlay runner верифікує evidence entailment, автоматично
  * порівнює expected↔implemented claims і лише тоді materializes gaps/render.
+ * Перед semantic роботою source inventory fail-closed перевіряє language
+ * adapters; package без code може пройти contract-only шлях без LLM claims.
  */
 
 import { createHash } from 'node:crypto'

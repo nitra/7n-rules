@@ -202,7 +202,7 @@ describe('buildStructuredClaims', () => {
               claims: [
                 {
                   subjectId: 'node:notify',
-                  predicate: 'produces',
+                  predicate: 'outcome',
                   value: 'notice',
                   evidenceIds: ['evidence:notify'],
                   confidence: 1
@@ -234,12 +234,41 @@ describe('buildStructuredClaims', () => {
               claims: [
                 {
                   subjectId: 'node:submit',
-                  predicate: 'produces',
+                  predicate: 'outcome',
                   value: 'order',
                   evidenceIds: ['evidence:notify'],
                   confidence: 1
                 }
               ],
+              coveredNodeIds: ['node:submit'],
+              coveredEdgeIds: []
+            })
+          }))
+        )
+      )
+    })
+
+    expect(result).toMatchObject({ ok: false, blockers: [{ code: 'invalid-claim-refs', chunkId: 'chunk:submit' }] })
+  })
+
+  test('rejects claim predicates outside the stable behavioral taxonomy', async () => {
+    const result = await buildStructuredClaims({
+      graph: GRAPH,
+      chunks: [CHUNKS[0]],
+      parserVersion: 'oxc@1',
+      modelPolicy: ['min'],
+      submitBatchImpl: vi.fn((tier, items) =>
+        Promise.resolve(
+          items.map(item => ({
+            customId: item.customId,
+            ok: JSON.stringify({
+              claims: [{
+                subjectId: 'node:submit',
+                predicate: 'arbitrary-relation',
+                value: 'order',
+                evidenceIds: ['evidence:submit'],
+                confidence: 1
+              }],
               coveredNodeIds: ['node:submit'],
               coveredEdgeIds: []
             })

@@ -93,6 +93,15 @@ describe('buildNormalizedGraph', () => {
         visibility: 'private'
       })
     )
+    expect(result.graph.evidence).toContainEqual(
+      expect.objectContaining({
+        kind: 'code',
+        path: 'src/internal.mjs',
+        symbolId: createCodeUnitId(domain.id, 'js', 'internalHelper'),
+        role: 'syntax',
+        span: { startByte: 0, endByte: 8 }
+      })
+    )
   })
 
   it('represents external dependencies as opaque contract nodes', () => {

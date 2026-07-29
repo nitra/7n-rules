@@ -3,7 +3,7 @@ type: JS Module
 title: candidate.mjs
 resource: npm/rules/ci4/package_knowledge/candidate.mjs
 docgen:
-  crc: f8071a49
+  crc: 87fa1bbf
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
@@ -23,7 +23,7 @@ gap engine, topic discovery та quality gates в одну атомарну оп
 
 ## Сценарії використання
 
-- `npm/rules/ci4/package_knowledge/tests/candidate.test.mjs` (buildKnowledgeCandidate) — builds a complete graph in stable source order; applies explicit expectations and deterministic gaps; integrates previous-manifest identity migration into candidate discovery; blocks missing extractors and thrown parser calls without partial graph; blocks incomplete extractor coverage at the final candidate gate
+- `npm/rules/ci4/package_knowledge/tests/candidate.test.mjs` (buildKnowledgeCandidate) — builds a complete graph in stable source order; applies explicit expectations and deterministic gaps; merges injected structured config and contract fragments before graph validation; integrates previous-manifest identity migration into candidate discovery; blocks missing extractors and thrown parser calls without partial graph; ще 1
 
 ## Гарантії поведінки
 

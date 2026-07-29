@@ -117,7 +117,7 @@ async function staleGeneratedPages({ root, files }) {
     const parsed = parseKnowledgeZones(await readFile(join(root, path), 'utf8'), path)
     if (!parsed.ok) continue
     const zoneId = zoneIdForGeneratedPath(path)
-    if (!zoneId || !parsed.zones.some(zone => zone.kind === 'AUTOGEN' && zone.id === zoneId)) continue
+    if (!zoneId || parsed.zones.every(zone => !(zone.kind === 'AUTOGEN' && zone.id === zoneId))) continue
     const protectedZones = parsed.zones.filter(zone => zone.kind === 'MANUAL' || zone.kind === 'EXPECTED')
     if (protectedZones.length > 0 || parsed.implicitManual.some(content => content !== '')) {
       diagnostics.push(

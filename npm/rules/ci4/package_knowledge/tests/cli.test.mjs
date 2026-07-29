@@ -107,21 +107,21 @@ describe('runDocsCli', () => {
   test('build defaults to SHADOW and forwards publish only when explicit', async () => {
     await withTmpDir(async root => {
       const calls = []
-      const buildImpl = input => {
+      const buildImpl = async input => {
         calls.push(input)
         return { ok: true, mode: input.publish ? 'published' : 'shadow', domainId: input.domainId }
       }
       const shadow = await runDocsCli(['build', '--domain', 'npm:@fixture/orders'], {
         repoRoot: root,
         buildImpl,
-        stdout: () => null,
-        stderr: () => null
+        stdout: () => {},
+        stderr: () => {}
       })
       const published = await runDocsCli(['build', '--domain', 'npm:@fixture/orders', '--publish'], {
         repoRoot: root,
         buildImpl,
-        stdout: () => null,
-        stderr: () => null
+        stdout: () => {},
+        stderr: () => {}
       })
 
       expect(shadow).toBe(0)

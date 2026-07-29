@@ -3,7 +3,7 @@ type: JS Module
 title: claims.mjs
 resource: npm/rules/ci4/package_knowledge/claims.mjs
 docgen:
-  crc: 92a27ca9
+  crc: 4b86fda7
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
@@ -17,6 +17,8 @@ docgen:
 LLM лише добирає structured твердження для відомих deterministic references.
 Canonical claim IDs, cache keys, coverage і final ordering належать цьому core,
 тому неповний або невалідний result ніколи не стає candidate graph.
+Кожна required semantic unit мусить мати evidence-backed claim зі stable
+business/architecture taxonomy; довільні predicates та coverage bypass блокуються.
 
 ## Публічний API
 
@@ -33,14 +35,9 @@ Each wave has one `submitBatch` call per universal tier and retries only the
 failed items on a stronger tier. A missing, invalid, or uncovered result is a
 blocking diagnostic; no whole-domain retry or fallback claim is produced.
 
-Кожна required semantic unit мусить мати хоча б один claim з local evidence.
-Prompt задає stable behavioral taxonomy для business та architecture projection,
-але дозволяє лише той її subset, який підтверджує evidence; coverage-only
-LLM bypass не підтримується.
-
 ## Сценарії використання
 
-- `npm/rules/ci4/package_knowledge/tests/claims.test.mjs` (buildStructuredClaims) — executes map waves in dependency order and injects canonical dependency summaries; uses successful map and reduce cache entries without any LLM call; escalates only failed chunk to next universal tier; fails closed after invalid JSON instead of accepting unverified claims; blocks missing result and uncovered required edge; ще 3
+- `npm/rules/ci4/package_knowledge/tests/claims.test.mjs` (buildStructuredClaims) — executes map waves in dependency order and injects canonical dependency summaries; uses successful map and reduce cache entries without any LLM call; escalates only failed chunk to next universal tier; fails closed after invalid JSON instead of accepting unverified claims; requires a behavioral claim for every required semantic unit and states the stable taxonomy in the prompt; ще 5
 
 ## Гарантії поведінки
 

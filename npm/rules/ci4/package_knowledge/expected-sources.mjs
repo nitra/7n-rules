@@ -1,7 +1,9 @@
 /**
  * Знаходить explicit Expected sources і строго мапить їх на package graph.
  *
- * Markdown zones/ADR/spec scope та JS test scenarios збираються детерміновано.
+ * Markdown zones/ADR/spec scope та parser-backed JS/Rust/Python/PHP test scenarios
+ * збираються детерміновано. Expected claims використовують ту саму stable
+ * behavioral taxonomy, що й Implemented claims.
  * LLM бачить лише source evidence і canonical graph IDs; malformed або ambiguous
  * result блокує candidate, а не перетворюється на припущення про expectation.
  */
@@ -12,6 +14,7 @@ import { isAbsolute, join, relative, sep } from 'node:path'
 
 import { globby } from 'globby'
 
+import { BEHAVIORAL_CLAIM_TAXONOMY } from './claims.mjs'
 import { parseKnowledgeZones } from './zones.mjs'
 
 const DEFAULT_MODEL_POLICY = Object.freeze(['min', 'avg', 'max'])
@@ -368,12 +371,13 @@ function normalizedIds(value) {
  */
 function mappingPrompt({ source, refs }) {
   const contract = {
-    claims: [{ subjectId: '<known node ID>', predicate: '<non-empty relation>', value: '<JSON value>', evidenceIds: ['<known evidence ID>'], confidence: 1 }]
+    claims: [{ subjectId: '<known node ID>', predicate: '<behavioral taxonomy value>', value: '<JSON value>', evidenceIds: ['<known evidence ID>'], confidence: 1 }]
   }
   return [
     'Return exactly one JSON object, without Markdown or prose.',
     'Do not create an expectation when the supplied source is not explicit enough.',
     'Do not invent node IDs or evidence IDs. Every claim must include this source evidence ID.',
+    `Use only this stable behavioral taxonomy: ${BEHAVIORAL_CLAIM_TAXONOMY.join(', ')}.`,
     `Known node IDs: ${JSON.stringify([...refs.nodeIds].toSorted())}.`,
     `Known evidence IDs: ${JSON.stringify([...refs.evidenceIds].toSorted())}.`,
     `Required source evidence ID: ${source.evidence.id}.`,
@@ -406,7 +410,8 @@ export function parseExpectedSourceResult(text, refs, source) {
     }
     const evidenceIds = normalizedIds(claim.evidenceIds)
     if (
-      typeof claim.subjectId !== 'string' || !refs.nodeIds.has(claim.subjectId) || typeof claim.predicate !== 'string' || claim.predicate === '' ||
+      typeof claim.subjectId !== 'string' || !refs.nodeIds.has(claim.subjectId) ||
+      typeof claim.predicate !== 'string' || !BEHAVIORAL_CLAIM_TAXONOMY.includes(claim.predicate) ||
       !evidenceIds || evidenceIds.length === 0 || !evidenceIds.includes(source.evidence.id) || evidenceIds.some(id => !refs.evidenceIds.has(id)) ||
       typeof claim.confidence !== 'number' || claim.confidence < 0 || claim.confidence > 1
     ) {

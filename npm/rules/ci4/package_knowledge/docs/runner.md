@@ -3,7 +3,7 @@ type: JS Module
 title: runner.mjs
 resource: npm/rules/ci4/package_knowledge/runner.mjs
 docgen:
-  crc: ed06d63d
+  crc: 9c16a8fb
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 60
@@ -20,8 +20,8 @@ resolver, adapters, parser candidate, planner, claims, renderer, validator
 fail-closed межі без реальних plugin або LLM викликів.
 Після Expected overlay runner верифікує evidence entailment, автоматично
 порівнює expected↔implemented claims і лише тоді materializes gaps/render.
-
-Перед adapter loading runner inventory-ить фактично присутні code extensions у domain і передає їх як `requiredExtensions`. Inventory blocker зупиняє pipeline до adapters, source loading і LLM work. Якщо inventory порожній, package може бути contract-only: runner не вимагає extractor, не викликає language source loader/planner/claims та будує candidate із structured artifacts.
+Перед semantic роботою source inventory fail-closed перевіряє language
+adapters; package без code може пройти contract-only шлях без LLM claims.
 
 ## Публічний API
 
@@ -31,7 +31,7 @@ are validated and materialized under the system cache, never under domain docs.
 
 ## Сценарії використання
 
-- `npm/rules/ci4/package_knowledge/tests/runner.test.mjs` — inventory/adapters/source ordering, missing language plugin blocker, contract-only package і SHADOW/publish pipeline.
+- `npm/rules/ci4/package_knowledge/tests/runner.test.mjs` (buildPackageKnowledge) — passes the discovered inventory to adapter and source loaders before candidate work; blocks inventory diagnostics before adapters, source loading and LLM work; blocks a discovered extension when its adapter plugin is missing; builds a contract-only package without extractors, source loader or LLM claims; SHADOW validates and stages candidate, then unchanged cache performs zero LLM calls; ще 12
 
 ## Гарантії поведінки
 

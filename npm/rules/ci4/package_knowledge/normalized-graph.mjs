@@ -230,6 +230,25 @@ export function buildNormalizedGraph({ domain, fragments }) {
         }),
         sourceFingerprint: fragment.file.contentHash ?? null
       })
+      const declarationEvidenceInput = canonicalize({
+        path: fileKey,
+        role: 'syntax',
+        span: unit.span,
+        symbolId: id
+      })
+      const declarationEvidenceId = `evidence:${digest(JSON.stringify(declarationEvidenceInput))}`
+      if (!evidenceIds.has(declarationEvidenceId)) {
+        evidenceIds.add(declarationEvidenceId)
+        evidence.push({
+          id: declarationEvidenceId,
+          kind: 'code',
+          path: fileKey,
+          symbolId: id,
+          span: canonicalize(unit.span),
+          contentHash: fragment.file.contentHash ?? null,
+          role: 'syntax'
+        })
+      }
     }
     localIdsByFile.set(fileKey, localMap)
   }

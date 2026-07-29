@@ -3,7 +3,7 @@ type: JS Module
 title: topic-discovery.mjs
 resource: npm/rules/ci4/package_knowledge/topic-discovery.mjs
 docgen:
-  crc: 4b3ee777
+  crc: 900c29f9
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
@@ -11,15 +11,14 @@ docgen:
 
 ## Огляд
 
-Public entries з однаковим outcome/contract closure формують один stable flow;
-distinct closures лишаються окремими, а legacy single-entry IDs зберігаються як aliases.
-
 Відкриває детерміновані package-knowledge topics із normalized graph.
 
 Public entry points є первинними seeds. Outcome та external integration
 стають окремими seeds лише коли їх не охоплює public flow. Це зберігає
 компактні process topics, не залежить від LLM title і не вимагає показувати
 private implementation у наступних projections.
+Public entries з однаковим outcome/contract closure формують один stable flow;
+distinct closures лишаються окремими, а legacy IDs зберігаються як aliases.
 
 ## Публічний API
 
@@ -34,7 +33,7 @@ standalone seed, що важливо для event-driven або contract-only do
 
 ## Сценарії використання
 
-- `npm/rules/ci4/package_knowledge/tests/topic-discovery.test.mjs` (discoverTopics) — uses public flow anchors and title-independent stable identity; keeps explicit aliases and resolves them to the canonical topic
+- `npm/rules/ci4/package_knowledge/tests/topic-discovery.test.mjs` (discoverTopics) — uses public flow anchors and title-independent stable identity; keeps explicit aliases and resolves them to the canonical topic; groups public entries sharing the same outcome and contract closure, preserving legacy IDs as aliases; keeps entries with distinct outcome closures as separate flows
 
 ## Гарантії поведінки
 

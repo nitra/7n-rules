@@ -3,7 +3,7 @@ type: JS Module
 title: chunk-planner.mjs
 resource: npm/rules/ci4/package_knowledge/chunk-planner.mjs
 docgen:
-  crc: 313f55f9
+  crc: a72cd409
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
@@ -29,7 +29,7 @@ higher-level graph layer планувати інші node kinds тільки з�
 
 ## Сценарії використання
 
-- `npm/rules/ci4/package_knowledge/tests/chunk-planner.test.mjs` (planSemanticChunks) — uses exact UTF-8 byte slices and rejects a span through a unicode code point; keeps cycles in one SCC chunk and schedules dependencies before callers; is byte-stable across input order and fingerprints all cache policy inputs; covers every required node and edge instead of truncating a tail for the budget; fails explicitly for an oversized unit and an oversized SCC rather than clipping source
+- `npm/rules/ci4/package_knowledge/tests/chunk-planner.test.mjs` (planSemanticChunks) — uses exact UTF-8 byte slices and rejects a span through a unicode code point; keeps cycles in one SCC chunk and schedules dependencies before callers; is byte-stable across input order and fingerprints all cache policy inputs; covers every required node and edge instead of truncating a tail for the budget; plans only code-unit-originated edges by default while retaining structured graph relations; ще 1
 
 ## Гарантії поведінки
 

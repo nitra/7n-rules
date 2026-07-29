@@ -5,6 +5,8 @@
  * стають окремими seeds лише коли їх не охоплює public flow. Це зберігає
  * компактні process topics, не залежить від LLM title і не вимагає показувати
  * private implementation у наступних projections.
+ * Public entries з однаковим outcome/contract closure формують один stable flow;
+ * distinct closures лишаються окремими, а legacy IDs зберігаються як aliases.
  */
 
 import { createHash } from 'node:crypto'

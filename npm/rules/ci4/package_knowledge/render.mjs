@@ -4,6 +4,8 @@
  * Модуль не аналізує source, не викликає LLM і не публікує файли. Він створює
  * повний candidate file map, а publication лишається відповідальністю
  * `publish.mjs` після окремої validation-перевірки.
+ * Людські AS-IS сторінки групують лише evidence-backed business/architecture
+ * claims, а private symbol names зберігаються тільки у machine manifest.
  */
 
 import { createHash } from 'node:crypto'

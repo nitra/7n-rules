@@ -3,9 +3,9 @@ type: JS Module
 title: load-adapters.mjs
 resource: npm/rules/ci4/package_knowledge/load-adapters.mjs
 docgen:
-  crc: 39d09664
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
+  crc: c58d0f43
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
   score: 80
 ---
 
@@ -26,7 +26,7 @@ Loader вимагає явні repository/domain roots і повертає ли�
 
 ## Сценарії використання
 
-- `npm/rules/ci4/package_knowledge/tests/load-adapters.test.mjs` (loadKnowledgeAdapters) — реєструє обидва versioned slots у manifest-порядку без нового plugin mechanism; preserves optional full-parser test collector on knowledge extractor adapter; зберігає детермінований порядок plugins для domain і extractor adapter-ів; вимагає явні абсолютні repoRoot і domainRoot, не використовує cwd; блокує domainRoot поза межами repoRoot; ще 5
+- `npm/rules/ci4/package_knowledge/tests/load-adapters.test.mjs` (loadKnowledgeAdapters) — реєструє обидва versioned slots у manifest-порядку без нового plugin mechanism; preserves optional full-parser test collector on knowledge extractor adapter; зберігає детермінований порядок plugins для domain і extractor adapter-ів; вимагає явні абсолютні repoRoot і domainRoot, не використовує cwd; блокує domainRoot поза межами repoRoot; ще 6
 
 ## Гарантії поведінки
 

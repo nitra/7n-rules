@@ -4,6 +4,8 @@
  * LLM лише добирає structured твердження для відомих deterministic references.
  * Canonical claim IDs, cache keys, coverage і final ordering належать цьому core,
  * тому неповний або невалідний result ніколи не стає candidate graph.
+ * Кожна required semantic unit мусить мати evidence-backed claim зі stable
+ * business/architecture taxonomy; довільні predicates та coverage bypass блокуються.
  */
 
 import { createHash } from 'node:crypto'
@@ -385,7 +387,7 @@ export function parseClaimsResult(text, refs, chunk) {
       !refs.nodeIds.has(rawClaim.subjectId) ||
       !chunk.requiredNodeIds.includes(rawClaim.subjectId) ||
       typeof rawClaim.predicate !== 'string' ||
-      rawClaim.predicate === '' ||
+      !BEHAVIORAL_CLAIM_TAXONOMY.includes(rawClaim.predicate) ||
       !evidenceIds ||
       evidenceIds.length === 0 ||
       evidenceIds.some(id => !refs.evidenceIds.has(id) || !chunk.allowedEvidenceIds.includes(id)) ||

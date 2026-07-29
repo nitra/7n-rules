@@ -73,7 +73,7 @@ function successfulBatch() {
           ok: JSON.stringify({
             claims: nodes.map(subjectId => ({
               subjectId,
-              predicate: 'implements',
+              predicate: 'outcome',
               value: true,
               evidenceIds: [evidence[0]],
               confidence: 1
@@ -109,7 +109,7 @@ function comparisonBatch() {
         return {
           customId: item.customId,
           ok: JSON.stringify({
-            claims: nodes.map(subjectId => ({ subjectId, predicate: 'implements', value: true, evidenceIds: [evidence[0]], confidence: 1 })),
+            claims: nodes.map(subjectId => ({ subjectId, predicate: 'outcome', value: true, evidenceIds: [evidence[0]], confidence: 1 })),
             coveredNodeIds: nodes,
             coveredEdgeIds: edges
           })
@@ -149,7 +149,7 @@ function mappedExpected(graph) {
     ok: true,
     overlay: {
       evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/specs/orders.md', contentHash: 'sha256:expected' }],
-      claims: [{ id: 'claim:expected', subjectId: graph.nodes[0].id, predicate: 'implements', value: true, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }]
+      claims: [{ id: 'claim:expected', subjectId: graph.nodes[0].id, predicate: 'outcome', value: true, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }]
     }
   }
 }
@@ -420,7 +420,7 @@ describe('buildPackageKnowledge', () => {
       const result = await buildPackageKnowledge(
         inputs(root, extractor(), {
           submitBatchImpl: successfulBatch(),
-          expectedOverlay: { claims: [{ id: 'claim:expected:diverged', subjectId: 'code-unit:npm:@fixture/orders:js:src/orders.mjs#submit', predicate: 'implements', value: false, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }], evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/spec.md', contentHash: 'sha256:expected' }] },
+          expectedOverlay: { claims: [{ id: 'claim:expected:diverged', subjectId: 'code-unit:npm:@fixture/orders:js:src/orders.mjs#submit', predicate: 'outcome', value: false, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }], evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/spec.md', contentHash: 'sha256:expected' }] },
           compareGapMappingsImpl: comparator
         })
       )
@@ -432,7 +432,7 @@ describe('buildPackageKnowledge', () => {
 
   test('renders explicit ambiguous comparison as unresolved', async () => {
     await withTmpDir(async root => {
-      const expected = { id: 'claim:expected:ambiguous', subjectId: 'code-unit:npm:@fixture/orders:js:src/orders.mjs#submit', predicate: 'implements', value: false, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }
+      const expected = { id: 'claim:expected:ambiguous', subjectId: 'code-unit:npm:@fixture/orders:js:src/orders.mjs#submit', predicate: 'outcome', value: false, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }
       const result = await buildPackageKnowledge(
         inputs(root, extractor(), {
           submitBatchImpl: successfulBatch(),
@@ -491,7 +491,7 @@ describe('buildPackageKnowledge', () => {
 
   test('passes unchanged gap cache to comparator for zero-call repeat', async () => {
     await withTmpDir(async root => {
-      const expected = { id: 'claim:expected:cached', subjectId: 'code-unit:npm:@fixture/orders:js:src/orders.mjs#submit', predicate: 'implements', value: false, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }
+      const expected = { id: 'claim:expected:cached', subjectId: 'code-unit:npm:@fixture/orders:js:src/orders.mjs#submit', predicate: 'outcome', value: false, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }
       const cache = { entries: {} }
       const gapCache = { entries: {} }
       const firstBatch = comparisonBatch()

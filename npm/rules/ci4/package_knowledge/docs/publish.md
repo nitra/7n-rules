@@ -3,7 +3,7 @@ type: JS Module
 title: publish.mjs
 resource: npm/rules/ci4/package_knowledge/publish.mjs
 docgen:
-  crc: a313cb21
+  crc: 10a819d4
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 75
@@ -11,10 +11,10 @@ docgen:
 
 ## Огляд
 
-Публікує validated package knowledge artifacts атомарною заміною docs tree та прибирає лише stale canonical package-knowledge pages, підтверджені попереднім manifest і валідними AUTOGEN markers.
+Публікує validated package knowledge artifacts атомарною заміною docs tree.
 
-Staging на тому самому volume і rollback гарантують, що parser, validator,
-protected-zone failure або migration blocker не залишить частково оновлену документацію. Legacy file docs не видаляються; obsolete generated page з `MANUAL`/`EXPECTED` або authored text блокує publication до явної migration.
+Staging на тому самому volume і rollback гарантують, що parser, validator
+або protected-zone failure не залишить частково оновлену документацію.
 
 ## Публічний API
 
@@ -24,9 +24,8 @@ and manifest bytes untouched.
 
 ## Сценарії використання
 
-- `npm/rules/ci4/package_knowledge/tests/publish.test.mjs` (atomic package knowledge publication) — validates requests and caller gates before filesystem mutation; preserves protected zones; removes obsolete canonical generated pages without touching legacy file docs; blocks protected stale pages before swap; ще 1
+- `npm/rules/ci4/package_knowledge/tests/publish.test.mjs` (atomic package knowledge publication) — rejects invalid requests before touching the filesystem; turns validator exceptions into blocking diagnostics; caller validation failure leaves docs and manifest byte-identical; publishes through stage only after validation and preserves protected zones; protected-zone conflict aborts before replacing committed docs; ще 3
 
 ## Гарантії поведінки
 
-- Видаляє лише canonical package-knowledge Markdown з exact AUTOGEN ownership, підтверджений previous manifest.
-- MANUAL, EXPECTED і authored text на obsolete generated page є fail-closed migration blocker-ами.
+- (специфічних машинно-виведених гарантій немає)
