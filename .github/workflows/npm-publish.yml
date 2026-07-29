@@ -204,6 +204,38 @@ jobs:
         with:
           package-json-path: llm-lib/packages/llm-lib-linux-x64/package.json
 
+      # «Sync platform versions» вище править package.json лише в робочому дереві CI —
+      # release-коміт створено ДО синку, тож без цього кроку піни в git назавжди
+      # відстають від registry (git тримав 2.9.7 при опублікованих 2.13.2, що дало
+      # 42 фейли повного bun run test і червоний Lint repo-wide 2026-07-29: локальний
+      # install монорепо тягнув несумісний prebuilt addon). Follow-up-коміт (не amend —
+      # теги вже стоять на release-коміті) приземлює піни + перегенерований bun.lock;
+      # `git push --follow-tags` нижче несе обидва коміти. Гейт на успіх обох
+      # платформних publish: піни не мають вказувати на неопубліковані версії.
+      # continue-on-error: невдача (напр., registry ще не віддає щойно опубліковані
+      # версії у bun install) не має блокувати push release-коміту.
+      - name: Commit синк платформних пінів
+        if: >-
+          needs.changes.outputs.native == 'true' &&
+          contains(fromJSON(steps.release.outputs.workspaces), 'llm-lib') &&
+          steps.publish-llm-lib-darwin-arm64.outcome == 'success' &&
+          steps.publish-llm-lib-linux-x64.outcome == 'success'
+        continue-on-error: true
+        run: |
+          # bun.lock мусить оновитися разом із пінами, інакше наступний
+          # frozen-lockfile install у CI впаде на розбіжності. Точковий
+          # `bun update <pkg>` (exact-піни щойно синхронізовано) замість повного
+          # install: перегенеровує лише ці записи lock. Ретраї — на лаг
+          # реплікації registry одразу після publish.
+          n=0
+          until bun update @7n/llm-lib-darwin-arm64 @7n/llm-lib-linux-x64; do
+            n=$((n + 1))
+            [ "$n" -ge 5 ] && { echo "::warning::registry не віддає нові платформні версії — піни лишаються незакоміченими"; exit 1; }
+            sleep 15
+          done
+          git add llm-lib/package.json llm-lib/packages/llm-lib-darwin-arm64/package.json llm-lib/packages/llm-lib-linux-x64/package.json bun.lock
+          git commit -m "chore(release): синк пінів платформних napi-пакетів @7n/llm-lib"
+
       # llm-lib публікується ПЕРШИМ серед JS-пакетів: @7n/rules залежить від @7n/llm-lib,
       # тож інсталяція свіжого @7n/rules мусить знаходити пакет у registry.
       # continue-on-error: невдача одного з пакетів не має блокувати публікацію іншого.
