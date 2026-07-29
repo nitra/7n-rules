@@ -15,15 +15,33 @@ import { submitBatch as submitBatchNative } from '@7n/llm-lib/batch'
 /**
  * Версія schema для structured claims cache і validation.
  */
-export const CLAIM_SCHEMA_VERSION = 'package-knowledge-claims-v1'
+export const CLAIM_SCHEMA_VERSION = 'package-knowledge-claims-v2'
 /**
  * Версія prompt contract для structured claims batch pipeline.
  */
-export const CLAIM_PROMPT_VERSION = 'package-knowledge-claims-v1'
+export const CLAIM_PROMPT_VERSION = 'package-knowledge-claims-v2'
 /**
  * Default model policy tiers для map/reduce escalation.
  */
 export const DEFAULT_MODEL_POLICY = ['min', 'avg', 'max']
+
+/** Stable evidence-backed categories permitted in behavioral claim prompts. */
+export const BEHAVIORAL_CLAIM_TAXONOMY = Object.freeze([
+  'purpose',
+  'actor',
+  'trigger',
+  'precondition',
+  'step',
+  'business-rule',
+  'state-change',
+  'integration',
+  'outcome',
+  'alternative-flow',
+  'error-flow',
+  'responsibility',
+  'config',
+  'persistence'
+])
 
 const CACHE_VERSION = 1
 
@@ -297,6 +315,9 @@ function buildPrompt({ kind, chunk, allowedEvidenceIds }) {
     'Return exactly one JSON object, without Markdown or prose.',
     'Do not return claim IDs, topic IDs, node IDs, edge IDs, or evidence IDs that are not supplied.',
     'Every claim needs at least one supplied evidence ID. Do not infer missing behavior.',
+    `Use only the evidence-supported subset of this stable behavioral taxonomy: ${BEHAVIORAL_CLAIM_TAXONOMY.join(', ')}.`,
+    'Each required node must have at least one claim; do not return a coverage-only or non-behavioral bypass marker.',
+    'Private source symbols may support a claim, but describe their role and effect; never copy a private symbol name into a human-facing claim value.',
     `Stage: ${kind}.`,
     `Required node IDs: ${JSON.stringify(chunk.requiredNodeIds)}.`,
     `Required edge IDs: ${JSON.stringify(chunk.requiredEdgeIds)}.`,
@@ -390,6 +411,10 @@ export function parseClaimsResult(text, refs, chunk) {
       confidence: rawClaim.confidence,
       sourceFingerprint: hash({ chunkId: chunk.id, claim: rawClaim })
     })
+  }
+  const claimedNodeIds = new Set(claims.map(claim => claim.subjectId))
+  if (chunk.requiredNodeIds.some(id => !claimedNodeIds.has(id))) {
+    return { ok: false, reason: 'behavioral-coverage-incomplete' }
   }
   return {
     ok: true,
@@ -625,10 +650,6 @@ function cacheSnapshot(cache) {
  * Each wave has one `submitBatch` call per universal tier and retries only the
  * failed items on a stronger tier. A missing, invalid, or uncovered result is a
  * blocking diagnostic; no whole-domain retry or fallback claim is produced.
- *
- * Planner adapter для кожного map chunk мусить передати тільки його local
- * `allowedEvidenceIds`, а також `wave` і `dependsOnChunkIds`; dependencies
- * мають посилатися лише на вже завершені попередні waves.
  * @param {{
  *   graph: Record<string, unknown>, chunks: unknown[], parserVersion: string,
  *   promptVersion?: string, schemaVersion?: string, modelPolicy?: string[],

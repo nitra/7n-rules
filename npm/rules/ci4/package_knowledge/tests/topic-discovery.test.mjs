@@ -64,4 +64,33 @@ describe('discoverTopics', () => {
     expect(topics[0].aliases).toEqual(['process:legacy-order'])
     expect(resolveTopic(topics, 'process:legacy-order')).toMatchObject({ id: canonical.id })
   })
+
+  test('groups public entries sharing the same outcome and contract closure, preserving legacy IDs as aliases', () => {
+    const graph = graphFixture()
+    const second = `code-unit:${DOMAIN_ID}:js:src/orders.mjs#retryOrder`
+    graph.nodes.push({ id: second, kind: 'code-unit', name: 'retryOrder', visibility: 'public', domainId: DOMAIN_ID })
+    graph.edges.push(
+      { id: 'edge:retry-private', fromId: second, toId: PRIVATE_ID, evidenceIds: ['e:retry-private'] }
+    )
+
+    const topics = discoverTopics(graph)
+
+    expect(topics).toHaveLength(1)
+    expect(topics[0].anchorIds).toEqual([CONTRACT_ID, OUTCOME_ID, SUBMIT_ID, second].toSorted())
+    expect(topics[0].aliases).toHaveLength(2)
+    expect(resolveTopic(topics, topics[0].aliases[0])).toMatchObject({ id: topics[0].id })
+  })
+
+  test('keeps entries with distinct outcome closures as separate flows', () => {
+    const graph = graphFixture()
+    const second = `code-unit:${DOMAIN_ID}:js:src/orders.mjs#cancelOrder`
+    const cancelled = 'outcome:order-cancelled'
+    graph.nodes.push(
+      { id: second, kind: 'code-unit', name: 'cancelOrder', visibility: 'public', domainId: DOMAIN_ID },
+      { id: cancelled, kind: 'outcome', name: 'Order cancelled', visibility: 'public', domainId: DOMAIN_ID }
+    )
+    graph.edges.push({ id: 'edge:cancelled', fromId: second, toId: cancelled, evidenceIds: ['e:cancelled'] })
+
+    expect(discoverTopics(graph).filter(topic => topic.kind === 'process')).toHaveLength(2)
+  })
 })

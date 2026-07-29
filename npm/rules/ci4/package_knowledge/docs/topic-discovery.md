@@ -3,13 +3,16 @@ type: JS Module
 title: topic-discovery.mjs
 resource: npm/rules/ci4/package_knowledge/topic-discovery.mjs
 docgen:
-  crc: 0c71a34f
+  crc: 4b3ee777
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
 ---
 
 ## Огляд
+
+Public entries з однаковим outcome/contract closure формують один stable flow;
+distinct closures лишаються окремими, а legacy single-entry IDs зберігаються як aliases.
 
 Відкриває детерміновані package-knowledge topics із normalized graph.
 

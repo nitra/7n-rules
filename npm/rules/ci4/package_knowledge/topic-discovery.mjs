@@ -127,6 +127,28 @@ function aliasesForTopic(topicId, aliasesByTopicId) {
   )
 }
 
+/** Повертає legacy single-entry identity для migration aliases. */
+function singleEntryTopicId(domainId, seed, outcomeIds, contractIds) {
+  return `process:${domainId}:${digest({ seedId: seed.id, outcomeIds, contractIds })}`
+}
+
+/** Групує тільки entry points з однаковим non-empty outcome/contract closure. */
+function publicFlowGroups(graph, publicSeeds, nodeById) {
+  const groups = new Map()
+  for (const seed of publicSeeds) {
+    const closure = collectReachableNodeIds(graph, [seed.id])
+    const outcomeIds = closure.filter(id => nodeById.get(id)?.kind === 'outcome')
+    const contractIds = closure.filter(id => isExternalIntegration(nodeById.get(id)))
+    const closureKey = outcomeIds.length + contractIds.length > 0
+      ? JSON.stringify({ outcomeIds, contractIds })
+      : `seed:${seed.id}`
+    const group = groups.get(closureKey) ?? { seeds: [], outcomeIds, contractIds }
+    group.seeds.push(seed)
+    groups.set(closureKey, group)
+  }
+  return [...groups.values()].toSorted((left, right) => compareIds(left.seeds[0].id, right.seeds[0].id))
+}
+
 /**
  * Відкриває stable process/contract topics із graph seeds.
  *
@@ -147,27 +169,45 @@ export function discoverTopics(graph, { aliasesByTopicId = {} } = {}) {
   const boundarySeeds = nodes.filter(
     node => (node.kind === 'outcome' || isExternalIntegration(node)) && !covered.has(node.id)
   )
-  const seeds = [...publicSeeds, ...boundarySeeds].toSorted((left, right) => compareIds(left.id, right.id))
+  const publicTopics = publicFlowGroups(graph, publicSeeds, nodeById).map(group => {
+    const seeds = group.seeds.toSorted((left, right) => compareIds(left.id, right.id))
+    const grouped = seeds.length > 1
+    const legacyIds = seeds.map(seed => singleEntryTopicId(domainId, seed, group.outcomeIds, group.contractIds))
+    const id = grouped
+      ? `process:${domainId}:${digest({ entryIds: seeds.map(seed => seed.id), outcomeIds: group.outcomeIds, contractIds: group.contractIds })}`
+      : legacyIds[0]
+    const aliases = [...new Set([
+      ...aliasesForTopic(id, aliasesByTopicId),
+      ...(grouped ? legacyIds : [])
+    ].filter(alias => alias !== id))].toSorted(compareIds)
+    return {
+      id,
+      kind: 'process',
+      title: titleForSeed(seeds[0]),
+      domainId,
+      anchorIds: [...seeds.map(seed => seed.id), ...group.outcomeIds, ...group.contractIds]
+        .filter((item, index, all) => all.indexOf(item) === index)
+        .toSorted(compareIds),
+      aliases
+    }
+  })
+  const standaloneTopics = boundarySeeds.map(seed => {
+    const closure = collectReachableNodeIds(graph, [seed.id])
+    const outcomeIds = closure.filter(id => nodeById.get(id)?.kind === 'outcome')
+    const contractIds = closure.filter(id => isExternalIntegration(nodeById.get(id)))
+    const kind = isExternalIntegration(seed) ? 'contract' : 'process'
+    const id = `${kind}:${domainId}:${digest({ seedId: seed.id, outcomeIds, contractIds })}`
+    return {
+      id,
+      kind,
+      title: titleForSeed(seed),
+      domainId,
+      anchorIds: [seed.id, ...outcomeIds, ...contractIds].filter((item, index, all) => all.indexOf(item) === index).toSorted(compareIds),
+      aliases: aliasesForTopic(id, aliasesByTopicId)
+    }
+  })
 
-  return seeds
-    .map(seed => {
-      const closure = collectReachableNodeIds(graph, [seed.id])
-      const outcomeIds = closure.filter(id => nodeById.get(id)?.kind === 'outcome')
-      const contractIds = closure.filter(id => isExternalIntegration(nodeById.get(id)))
-      const anchorIds = [seed.id, ...outcomeIds, ...contractIds]
-        .filter((id, index, all) => all.indexOf(id) === index)
-        .toSorted(compareIds)
-      const kind = isExternalIntegration(seed) ? 'contract' : 'process'
-      const id = `${kind}:${domainId}:${digest({ seedId: seed.id, outcomeIds, contractIds })}`
-      return {
-        id,
-        kind,
-        title: titleForSeed(seed),
-        domainId,
-        anchorIds,
-        aliases: aliasesForTopic(id, aliasesByTopicId)
-      }
-    })
+  return [...publicTopics, ...standaloneTopics]
     .toSorted((left, right) => compareIds(left.id, right.id))
 }
 

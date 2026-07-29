@@ -3,13 +3,17 @@ type: JS Module
 title: render.mjs
 resource: npm/rules/ci4/package_knowledge/render.mjs
 docgen:
-  crc: 56bfa0fe
+  crc: d1ca9c47
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
+  tier: local-min-retry
   score: 75
 ---
 
 ## Огляд
+
+Рендерить claim-driven українські AS-IS fragments: показує лише підтверджені
+purpose, flow, rules, state, boundaries та outcomes, а private symbol names
+залишає тільки у manifest traceability.
 
 Рендерить deterministic Markdown і manifest-проєкції package knowledge graph.
 

@@ -24,6 +24,22 @@ const PAGE_KIND_LABELS = {
   contract: 'Контракт',
   process: 'Процес'
 }
+const CLAIM_SECTION_TITLES = Object.freeze({
+  purpose: 'Призначення',
+  actor: 'Actors',
+  trigger: 'Trigger',
+  precondition: 'Передумови',
+  step: 'Основний потік',
+  'business-rule': 'Business rules',
+  'state-change': 'Зміни стану',
+  integration: 'Integration boundaries',
+  outcome: 'Результати',
+  'alternative-flow': 'Alternative flows',
+  'error-flow': 'Error flows',
+  responsibility: 'Відповідальності',
+  config: 'Configuration',
+  persistence: 'Persistence'
+})
 
 /**
  * Створює stable renderer diagnostic.
@@ -205,17 +221,36 @@ function factList(facts, fallback) {
   return facts.length > 0 ? facts.map(fact => `- ${fact}`).join('\n') : fallback
 }
 
+/** Рендерить тільки присутні evidence-backed claim categories у stable order. */
+function claimSections(claims, hiddenNames, fallback) {
+  const byPredicate = new Map()
+  for (const claim of claims) {
+    const predicate = safeText(claim.predicate, hiddenNames, 'evidence-backed behavior')
+    const values = byPredicate.get(predicate) ?? []
+    values.push(safeValue(claim.value, hiddenNames))
+    byPredicate.set(predicate, values)
+  }
+  const known = Object.keys(CLAIM_SECTION_TITLES).filter(predicate => byPredicate.has(predicate))
+  const unknown = [...byPredicate.keys()].filter(predicate => !Object.hasOwn(CLAIM_SECTION_TITLES, predicate)).toSorted(compareStrings)
+  const sections = [...known, ...unknown].map(predicate => {
+    const title = CLAIM_SECTION_TITLES[predicate] ?? 'Інші підтверджені факти'
+    const facts = [...new Set(byPredicate.get(predicate))]
+      .map(value => (Object.hasOwn(CLAIM_SECTION_TITLES, predicate) ? value : `${predicate}: ${value}.`))
+      .toSorted(compareStrings)
+    return `## ${title}\n\n${factList(facts, fallback)}`
+  })
+  return sections.length > 0 ? sections.join('\n\n') : fallback
+}
+
 /* eslint-disable unicorn/no-array-callback-reference -- named claim formatter is intentionally reused for both layers */
 /**
  * Collects topic-local public facts and reverse impact paths.
  * @param {{graph: Record<string, unknown>, topic: Record<string, unknown>, hiddenNames: Set<string>}} input render context
- * @returns {{implemented: string[], expected: string[], outcomes: string[], contracts: string[], gaps: string[], paths: string[]}} safe topic facts
+ * @returns {{implementedClaims: object[], expectedClaims: object[], outcomes: string[], contracts: string[], gaps: string[], paths: string[]}} safe topic facts
  */
 function topicFacts({ graph, topic, hiddenNames }) {
   const reachable = new Set(collectReachableNodeIds(graph, topic.anchorIds))
   const claims = graph.claims.filter(claim => reachable.has(claim.subjectId))
-  const claimFact = claim =>
-    `${safeText(claim.predicate, hiddenNames, 'evidence-backed behavior')}: ${safeValue(claim.value, hiddenNames)}.`
   const publicNodes = graph.nodes.filter(node => reachable.has(node.id) && node.visibility !== 'private')
   const namesFor = kind =>
     publicNodes
@@ -232,13 +267,15 @@ function topicFacts({ graph, topic, hiddenNames }) {
     ? [...impact.slice.files, ...impact.slice.tests, ...impact.slice.configs].toSorted(compareStrings)
     : []
   return {
+    implementedClaims: claims.filter(claim => claim.layer === 'implemented').toSorted((left, right) => compareStrings(left.id, right.id)),
+    expectedClaims: claims.filter(claim => claim.layer === 'expected').toSorted((left, right) => compareStrings(left.id, right.id)),
     implemented: claims
       .filter(claim => claim.layer === 'implemented')
-      .map(claimFact)
+      .map(claim => `${safeText(claim.predicate, hiddenNames, 'evidence-backed behavior')}: ${safeValue(claim.value, hiddenNames)}.`)
       .toSorted(compareStrings),
     expected: claims
       .filter(claim => claim.layer === 'expected')
-      .map(claimFact)
+      .map(claim => `${safeText(claim.predicate, hiddenNames, 'evidence-backed behavior')}: ${safeValue(claim.value, hiddenNames)}.`)
       .toSorted(compareStrings),
     outcomes: namesFor('outcome'),
     contracts: namesFor('integration'),
@@ -261,6 +298,12 @@ function renderTopic({ graph, topic, hiddenNames }) {
     Array.isArray(topic.aliases) && topic.aliases.length > 0
       ? `\n\nПопередні stable aliases: ${topic.aliases.length}.`
       : ''
+  if (facts.implementedClaims.length > 0 || facts.expectedClaims.length > 0) {
+    return `# ${label}: ${title}\n\n## Implemented AS-IS\n\n${claimSections(facts.implementedClaims, hiddenNames, 'Немає evidence-backed implemented behavioral claims для цього topic.')}\n\n## Outcomes і contracts\n\nOutcomes:\n${factList(facts.outcomes, 'Немає підтвердженого public outcome.')}\n\nContracts:\n${factList(facts.contracts, 'Немає підтвердженого external contract.')}\n\n## Affected paths\n\n${factList(
+      facts.paths.map(path => `\`${path}\``),
+      'Reverse impact paths відсутні у поточній graph projection.'
+    )}\n\n## Expected behavior\n\n${claimSections(facts.expectedClaims, hiddenNames, 'Для topic немає explicit expected claim.')}\n\n## Local implementation gaps\n\n${factList(facts.gaps, 'Для topic немає actionable implementation gaps.')}${aliases}\n`
+  }
   return `# ${label}: ${title}\n\n## Implemented AS-IS\n\nЦей self-contained fragment описує підтверджену поточну поведінку ${label.toLowerCase()} у domain \`${graph.domain.name}\`. Він не припускає intent поза evidence graph.\n\n## Призначення\n\n${title} надає evidence-backed boundary для зміни та перевірки поведінки domain.\n\n## Actors і trigger\n\nПотік починається з підтвердженого topic anchor і завершується зафіксованим результатом або external contract boundary.\n\n## Передумови\n\nВхід до ${label.toLowerCase()} доступний у межах owning domain, а потрібні integration boundaries представлені у traceability manifest.\n\n## Implemented facts\n\n${factList(facts.implemented, 'Для topic немає окремого implemented claim; AS-IS обмежений evidence-backed graph boundary.')}\n\n## Outcomes і contracts\n\nOutcomes:\n${factList(facts.outcomes, 'Немає окремо названого public outcome.')}\n\nContracts:\n${factList(facts.contracts, 'Немає external contract у reachable graph.')}\n\n## Affected paths\n\n${factList(
     facts.paths.map(path => `\`${path}\``),
     'Reverse impact paths відсутні у поточній graph projection.'
@@ -281,6 +324,12 @@ function renderArchitecture({ graph, hiddenNames }) {
     boundaries.length > 0
       ? boundaries.map(name => `- External boundary: ${name}`).join('\n')
       : '- Evidence-backed domain responsibility.'
+  const architectureClaims = graph.claims
+    .filter(claim => claim.layer === 'implemented' && ['responsibility', 'config', 'persistence', 'integration', 'state-change'].includes(claim.predicate))
+    .toSorted((left, right) => compareStrings(left.id, right.id))
+  if (architectureClaims.length > 0) {
+    return `# Architecture: ${safeText(graph.domain.name, hiddenNames, 'Package domain')}\n\n## Implemented AS-IS\n\n${claimSections(architectureClaims, hiddenNames, 'Немає evidence-backed architecture claims.')}\n\n## Boundaries\n\n${lines}\n\n## Traceability\n\nManifest зберігає reverse evidence links до files, tests, configuration і contracts.\n`
+  }
   return `# Architecture: ${safeText(graph.domain.name, hiddenNames, 'Package domain')}\n\n## Implemented AS-IS\n\nDomain architecture describes confirmed responsibilities and external boundaries without naming private implementation symbols.\n\n## Boundaries\n\n${lines}\n\n## Traceability\n\nThe manifest preserves reverse evidence links to files, tests, configuration and contracts.\n`
 }
 

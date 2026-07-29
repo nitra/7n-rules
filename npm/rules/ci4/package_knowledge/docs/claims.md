@@ -3,7 +3,7 @@ type: JS Module
 title: claims.mjs
 resource: npm/rules/ci4/package_knowledge/claims.mjs
 docgen:
-  crc: 305f2156
+  crc: 92a27ca9
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
@@ -23,6 +23,7 @@ Canonical claim IDs, cache keys, coverage і final ordering належать ц�
 - CLAIM_SCHEMA_VERSION — Версія schema для structured claims cache і validation.
 - CLAIM_PROMPT_VERSION — Версія prompt contract для structured claims batch pipeline.
 - DEFAULT_MODEL_POLICY — Default model policy tiers для map/reduce escalation.
+- BEHAVIORAL_CLAIM_TAXONOMY — Stable evidence-backed categories permitted in behavioral claim prompts.
 - createImplementedClaimId — Створює canonical claim identity. LLM ніколи не передає цей ID у contract.
 - createClaimsCacheKey — Створює cache key, що залежить від parser/prompt/schema/model policy/content.
 - parseClaimsResult — Parses and validates one strict LLM result against deterministic references.
@@ -32,9 +33,10 @@ Each wave has one `submitBatch` call per universal tier and retries only the
 failed items on a stronger tier. A missing, invalid, or uncovered result is a
 blocking diagnostic; no whole-domain retry or fallback claim is produced.
 
-Planner adapter для кожного map chunk мусить передати тільки його local
-`allowedEvidenceIds`, а також `wave` і `dependsOnChunkIds`; dependencies
-мають посилатися лише на вже завершені попередні waves.
+Кожна required semantic unit мусить мати хоча б один claim з local evidence.
+Prompt задає stable behavioral taxonomy для business та architecture projection,
+але дозволяє лише той її subset, який підтверджує evidence; coverage-only
+LLM bypass не підтримується.
 
 ## Сценарії використання
 

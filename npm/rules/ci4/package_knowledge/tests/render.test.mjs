@@ -164,6 +164,48 @@ describe('renderKnowledgeArtifacts', () => {
     expect(markdown).not.toContain(PRIVATE_ID)
   })
 
+  test('renders a detailed planning fragment from behavioral claims while keeping private facts semantic-only', () => {
+    const graph = graphFixture()
+    graph.edges.push(
+      { id: 'edge:private', fromId: PUBLIC_ID, toId: PRIVATE_ID, kind: 'invokes', evidenceIds: ['e:public'] },
+      { id: 'edge:private-outcome', fromId: PRIVATE_ID, toId: OUTCOME_ID, kind: 'produces', evidenceIds: ['e:public'] }
+    )
+    graph.claims.push(
+      { id: 'claim:purpose', subjectId: PUBLIC_ID, layer: 'implemented', predicate: 'purpose', value: 'Приймає замовлення клієнта.', evidenceIds: ['e:public'], confidence: 1 },
+      { id: 'claim:trigger', subjectId: PUBLIC_ID, layer: 'implemented', predicate: 'trigger', value: 'HTTP запит на створення замовлення.', evidenceIds: ['e:public'], confidence: 1 },
+      { id: 'claim:rule', subjectId: PUBLIC_ID, layer: 'implemented', predicate: 'business-rule', value: 'Замовлення приймається лише після перевірки даних.', evidenceIds: ['e:public'], confidence: 1 },
+      { id: 'claim:private-state', subjectId: PRIVATE_ID, layer: 'implemented', predicate: 'state-change', value: 'Підтверджений стан замовлення зберігається.', evidenceIds: ['e:public'], confidence: 1 }
+    )
+
+    const result = renderKnowledgeArtifacts({ graph })
+    const process = result.files['docs/explanation/processes/dcfd264583ed8d3acfe0e103.md']
+
+    expect(process).toContain('## Призначення')
+    expect(process).toContain('## Trigger')
+    expect(process).toContain('## Business rules')
+    expect(process).toContain('## Зміни стану')
+    expect(process).toContain('Підтверджений стан замовлення зберігається.')
+    expect(process).not.toContain('persistOrder')
+  })
+
+  test('uses architecture claims for configuration, persistence, integration and state', () => {
+    const graph = graphFixture()
+    graph.claims.push(
+      { id: 'claim:config', subjectId: PUBLIC_ID, layer: 'implemented', predicate: 'config', value: 'Використовує конфігурацію платіжного провайдера.', evidenceIds: ['e:public'], confidence: 1 },
+      { id: 'claim:persistence', subjectId: PUBLIC_ID, layer: 'implemented', predicate: 'persistence', value: 'Зберігає підтверджене замовлення.', evidenceIds: ['e:public'], confidence: 1 },
+      { id: 'claim:integration', subjectId: PUBLIC_ID, layer: 'implemented', predicate: 'integration', value: 'Передає платіж у зовнішній контракт.', evidenceIds: ['e:public'], confidence: 1 },
+      { id: 'claim:state', subjectId: PUBLIC_ID, layer: 'implemented', predicate: 'state-change', value: 'Позначає замовлення створеним.', evidenceIds: ['e:public'], confidence: 1 }
+    )
+
+    const result = renderKnowledgeArtifacts({ graph })
+    const architecture = result.files['docs/explanation/architecture.md']
+
+    expect(architecture).toContain('## Configuration')
+    expect(architecture).toContain('## Persistence')
+    expect(architecture).toContain('## Integration boundaries')
+    expect(architecture).toContain('## Зміни стану')
+  })
+
   test('updates AUTOGEN while preserving supplied MANUAL and EXPECTED zones', () => {
     const old =
       'Manual prefix\n<!-- MANUAL:start id="context" -->Preserve this.<!-- MANUAL:end id="context" -->\n<!-- EXPECTED:start id="must-create" -->Expected behavior.<!-- EXPECTED:end id="must-create" -->\n<!-- AUTOGEN:start id="package-index" hash="' +

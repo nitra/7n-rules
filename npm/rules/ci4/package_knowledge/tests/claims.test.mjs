@@ -38,16 +38,16 @@ const CHUNKS = [
  * @returns {string} valid JSON result
  */
 function validResult(item) {
-  const isNotify = item.customId.includes('notify') || item.prompt.includes('node:notify')
-  const subjectId = isNotify ? 'node:notify' : 'node:submit'
-  const evidenceId = isNotify ? 'evidence:notify' : 'evidence:submit'
-  const coveredNodeIds =
-    item.prompt.includes('node:submit') && item.prompt.includes('node:notify')
-      ? ['node:notify', 'node:submit']
-      : [subjectId]
-  const coveredEdgeIds = item.prompt.includes('edge:submit-notify') ? ['edge:submit-notify'] : []
+  const coveredNodeIds = JSON.parse(item.prompt.match(/Required node IDs: (\[[^\n]+\])\./u)[1])
+  const coveredEdgeIds = JSON.parse(item.prompt.match(/Required edge IDs: (\[[^\n]*\])\./u)[1])
   return JSON.stringify({
-    claims: [{ subjectId, predicate: 'produces', value: subjectId, evidenceIds: [evidenceId], confidence: 1 }],
+    claims: coveredNodeIds.map(subjectId => ({
+      subjectId,
+      predicate: 'outcome',
+      value: subjectId,
+      evidenceIds: [subjectId === 'node:notify' ? 'evidence:notify' : 'evidence:submit'],
+      confidence: 1
+    })),
     coveredNodeIds,
     coveredEdgeIds
   })
@@ -84,7 +84,7 @@ describe('buildStructuredClaims', () => {
       createImplementedClaimId({
         domainId: 'npm:@fixture/orders',
         subjectId: 'node:submit',
-        predicate: 'produces',
+        predicate: 'outcome',
         value: 'node:submit',
         evidenceIds: ['evidence:submit']
       })
@@ -159,6 +159,26 @@ describe('buildStructuredClaims', () => {
 
     expect(result).toMatchObject({ ok: false, blockers: [{ code: 'invalid-json', chunkId: 'chunk:submit' }] })
     expect(submitBatchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  test('requires a behavioral claim for every required semantic unit and states the stable taxonomy in the prompt', async () => {
+    const submitBatchImpl = vi.fn((tier, items) => {
+      expect(items[0].prompt).toContain('purpose, actor, trigger, precondition, step, business-rule, state-change, integration, outcome')
+      return Promise.resolve(items.map(item => ({
+        customId: item.customId,
+        ok: JSON.stringify({ claims: [], coveredNodeIds: ['node:submit'], coveredEdgeIds: [] })
+      })))
+    })
+
+    const result = await buildStructuredClaims({
+      graph: GRAPH,
+      chunks: [CHUNKS[0]],
+      parserVersion: 'oxc@1',
+      modelPolicy: ['min'],
+      submitBatchImpl
+    })
+
+    expect(result).toMatchObject({ ok: false, blockers: [{ code: 'behavioral-coverage-incomplete', chunkId: 'chunk:submit' }] })
   })
 
   test('blocks missing result and uncovered required edge', async () => {
