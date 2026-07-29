@@ -1,0 +1,91 @@
+.cursor/rules/n-worktree.mdc
+  s_67be698dba3bc2::t_4f2463e15ae748 2,9-11,17,20-23,105-109,129
+.cursor/skills/n-adr-normalize/SKILL.md
+  s_67be698dba3bc2::t_a5976f2eeedc2b 11,23,28,32
+.cursor/skills/n-lint/SKILL.md
+  s_67be698dba3bc2::t_1125209fc6a0ae 10,22,27,31
+.cursor/skills/n-taze/SKILL.md
+  s_67be698dba3bc2::t_5ac06ebcc2e3d1 12,24,29,33
+bun.lock
+  s_67be698dba3bc2::t_6988f2effb89a1 40,63,69,102,112,141
+npm/bin/n-rules-cli.mjs
+  s_bf9055cb2deadf::t_9c504257e43264 1896,1944,1947
+npm/scripts/lib/auto-worktree.mjs
+  s_bf9055cb2deadf::t_638bdea614000b 33,35,53,55-56,72,111-113,115,118,233,238-239,244-246,248
+npm/scripts/lib/docs/auto-worktree.md
+  s_bf9055cb2deadf::t_3a51474f3560b8 6,8-10,20,22,54,60-63
+npm/scripts/lib/docs/worktree-notice.md
+  s_bf9055cb2deadf::t_fe250ac4849122 6,8-9,14,16-19,21-24,32-35
+npm/scripts/lib/worktree-notice.mjs
+  s_bf9055cb2deadf::t_ca7c965c125680 10-11,119,131,136,140
+npm/scripts/utils/tests/docs/auto-worktree-suite.md
+  s_63dde748387f99::t_1d942f8cf998f5 17-18
+npm/skills/git-reconcile/js/orchestrate.mjs
+  s_c958e49c0708f8::t_f1f01248b71030 1025,1029,1032,1036,1039,1050-1051,1056,1060-1061,1064-1069,1072-1073,1107,1112
+npm/skills/taze/js/orchestrate.mjs
+  s_bf9055cb2deadf::t_1d23bbe3de6ae3 280,294,298
+npm/.changes/260729-0925.md
+  s_41ac711edb279f::t_f3bf785b858496 1-5
+npm/rules/worktree/main.mdc
+  s_67be698dba3bc2::t_0e4029042482b6 2,9-11,17,20-23,79-83,103
+npm/scripts/lib/tests/worktree-notice.test.mjs
+  s_67be698dba3bc2::t_19a1f762a91f90 108,113,119
+npm/skills/git-reconcile/js/tests/orchestrate.test.mjs
+  s_dc4b335591f8b2::t_239c39f6c31d89 1251,1253-1255,1298-1299,1317
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "adddf14bf0ba7e177d635c9fbd61cc76df6a2257",
+  "prompts": {},
+  "sessions": {
+    "s_41ac711edb279f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ef20106-c7ae-47fa-9d7d-083c21a16192",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_63dde748387f99": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "922a74f7-2b81-429f-8799-7fae36558fbc",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_67be698dba3bc2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fabea-e3c4-7401-8e4c-79d709399c72",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_bf9055cb2deadf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019fa919-380c-7913-8616-b4bc6856cb97",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_c958e49c0708f8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019faa18-22a7-7b50-bb68-94475d98aee1",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_dc4b335591f8b2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-af066e5d5023887db",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
