@@ -1,0 +1,49 @@
+npm/rules/doc-files/docgen-files-batch/docs/main.md
+  s_3b04bfa0cd6c95::t_b17131c28a4e25 6-10,63
+npm/rules/doc-files/docgen-gen/docs/main.md
+  s_4ed034b2325d4a::t_ca930a56316fe6 6-10
+npm/rules/doc-files/docgen-prompts/docs/main.md
+  s_cca60e0a4b2873::t_d410a83a51aba5 6-10
+npm/scripts/lib/docs/concern-meta.md
+  s_bf9055cb2deadf::t_b89f62d8715ca9 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "2ead26fdef134b44d5883dbc440ac13d67003ce3",
+  "prompts": {},
+  "sessions": {
+    "s_3b04bfa0cd6c95": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019fa9e1-fcf8-7082-9435-2aacdc2eae0d",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_4ed034b2325d4a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa9e1-fcf8-7082-9435-2aacdc2eae0d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_bf9055cb2deadf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019fa919-380c-7913-8616-b4bc6856cb97",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_cca60e0a4b2873": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019fabd8-445d-7d72-8c59-1f0206f25f53",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
