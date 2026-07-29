@@ -3,7 +3,7 @@ type: JS Module
 title: fix-eslint.mjs
 resource: plugins/lang-js/rules/js/eslint/fix-eslint.mjs
 docgen:
-  crc: 07b6b2a1
+  crc: 23f799d7
   model: omlx/gemma-4-e2b-it-4bit
   tier: local-min
   score: 55

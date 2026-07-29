@@ -3,7 +3,8 @@ type: JS Module
 title: coverage-fix.mjs
 resource: plugins/lang-js/coverage-provider/fix/coverage-fix.mjs
 docgen:
-  crc: b52adc16
+  crc: ce313716
+  crc: 252ded78
   model: omlx/gemma-4-e2b-it-4bit
   tier: local-min
   score: 80
