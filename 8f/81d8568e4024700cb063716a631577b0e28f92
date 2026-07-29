@@ -1,0 +1,33 @@
+.github/workflows/npm-publish.yml
+  s_dc4b335591f8b2::t_d781dc7f6199de 290-293,298,306-323
+docs/superpowers/specs/2026-07-29-github-package-releases-design.md
+  s_3b13aaf5bffb50::t_532a88d0fa95e4 18,22-25,27
+npm/scripts/github-package-release.mjs
+  s_dc4b335591f8b2::t_0187361f838177 84-103,110-116
+npm/scripts/tests/github-package-release.test.mjs
+  s_3b13aaf5bffb50::t_ad68e00eddab77 7-13,62-79,88-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "8f81d8568e4024700cb063716a631577b0e28f92",
+  "prompts": {},
+  "sessions": {
+    "s_3b13aaf5bffb50": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa919-380c-7913-8616-b4bc6856cb97",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_dc4b335591f8b2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-af066e5d5023887db",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
