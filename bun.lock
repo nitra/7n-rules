@@ -140,6 +140,7 @@
       "name": "@7n/rules-lang-python",
       "version": "0.11.4",
       "dependencies": {
+        "@vscode/tree-sitter-wasm": "^0.3.1",
         "globby": "^16.0.0",
         "smol-toml": "^1.7.0",
       },
@@ -939,6 +940,8 @@
     "@volar/language-core": ["@volar/language-core@2.4.23", "", { "dependencies": { "@volar/source-map": "2.4.23" } }, "sha512-hEEd5ET/oSmBC6pi1j6NaNYRWoAiDhINbT8rmwtINugR39loROSlufGdYMF9TaKGfz+ViGs1Idi3mAhnuPcoGQ=="],
 
     "@volar/source-map": ["@volar/source-map@2.4.23", "", {}, "sha512-Z1Uc8IB57Lm6k7q6KIDu/p+JWtf3xsXJqAX/5r18hYOTpJyBn0KXUR8oTJ4WFYOcDzWC9n3IflGgHowx6U6z9Q=="],
+
+    "@vscode/tree-sitter-wasm": ["@vscode/tree-sitter-wasm@0.3.1", "", {}, "sha512-RJFoomET6FajjG511fmQxeBQfU6M24a0aFZPqpid+ttIxanWf1VGytBG0UmsGjt07qmIPJS8U31D+aecuCucsQ=="],
 
     "@vue-macros/api": ["@vue-macros/api@3.1.3", "", { "dependencies": { "@vue-macros/common": "3.1.3", "neverthrow": "^8.2.0", "oxc-resolver": "^11.8.3" } }, "sha512-H8lP2nQ1fUPVgmxPipbVl/qSuoXvd2JjceX1SALJ+TULjGzt8ET/JIZiPI1XB7sPWCpPn8qweWG1QGrDtJtxRQ=="],
 

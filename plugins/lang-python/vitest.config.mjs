@@ -15,6 +15,7 @@ export default defineConfig({
       'rules/**/tests/**/*.test.{js,mjs}',
       'slots/**/tests/**/*.test.{js,mjs}',
       'doc-files/tests/**/*.test.{js,mjs}',
+      'knowledge/tests/**/*.test.{js,mjs}',
       'coverage-provider/tests/**/*.test.{js,mjs}'
     ],
     exclude: ['**/node_modules/**'],
