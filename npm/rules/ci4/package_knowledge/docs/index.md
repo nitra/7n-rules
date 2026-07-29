@@ -15,6 +15,7 @@ resource: npm/rules/ci4/package_knowledge/
 | [load-adapters.mjs](load-adapters.md)       | JS Module |
 | [normalized-graph.mjs](normalized-graph.md) | JS Module |
 | [publish.mjs](publish.md)                   | JS Module |
+| [source-loader.mjs](source-loader.md)       | JS Module |
 | [topic-discovery.mjs](topic-discovery.md)   | JS Module |
 | [validator.mjs](validator.md)               | JS Module |
 | [zones.mjs](zones.md)                       | JS Module |
