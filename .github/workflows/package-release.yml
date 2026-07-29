@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
 jobs:
   create-release:
     runs-on: ubuntu-latest
@@ -20,6 +24,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+          # реліз-тригер (push tag) + кеш = ризик cache-poisoning (zizmor); кеш тут не потрібен
+          package-manager-cache: false
 
       - name: Prepare release notes
         run: node npm/scripts/github-package-release.mjs "$GITHUB_REF_NAME" "$RUNNER_TEMP/release-notes.md"
