@@ -86,12 +86,69 @@ describe('knowledge.extractor@1 JS adapter', () => {
     expect(result.units[0].span.startByte).toBeGreaterThan(content.indexOf('<script'))
   })
 
-  test('Vue template без template-edge analyzer-а повертає explicit blocking diagnostic', () => {
-    const content = '<template>{{ save() }}</template><script setup>export const save = () => true</script>'
+  test('Vue template утворює units та edges для unicode handler, local call і component boundary', () => {
+    const content = [
+      '<template>',
+      '  <UiCard @save="зберегти($event)" :title="заголовок">{{ renderTitle(замовлення) }}</UiCard>',
+      '</template>',
+      '<script setup>',
+      'import { track } from \'@fixture/analytics\'',
+      'export const зберегти = order => track(order)',
+      'const renderTitle = order => order.name',
+      'const заголовок = \'Замовлення\'',
+      'const замовлення = {}',
+      '</script>'
+    ].join('\n')
+    const result = analyzeFile(input('src/Card.vue', content))
+    const handler = result.units.find(unit => unit.kind === 'template-directive' && unit.name === '@save')
+    expect(result).toMatchObject({ ok: true, coverage: { complete: true, requiredUnits: 6, requiredEdges: 4 } })
+    expect(handler).toMatchObject({ localId: 'template:directive:0', attributes: { directive: 'on', argument: 'save' } })
+    expect(result.entryPoints).toContainEqual({ localId: handler.localId, reason: 'template-event:save' })
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'triggers',
+          fromLocalId: handler.localId,
+          to: { localId: 'unit:зберегти:0' },
+          evidence: expect.arrayContaining([
+            expect.objectContaining({
+              span: expect.objectContaining({
+                startByte: Buffer.byteLength(content.slice(0, content.indexOf('зберегти($event)')), 'utf8')
+              })
+            })
+          ])
+        }),
+        expect.objectContaining({
+          kind: 'invokes',
+          fromLocalId: 'template:interpolation:0',
+          to: { localId: 'unit:renderTitle:0' }
+        }),
+        expect.objectContaining({
+          kind: 'integrates',
+          fromLocalId: 'template:component:0',
+          to: { unresolvedSpecifier: 'vue-component:UiCard', opaque: true }
+        })
+      ])
+    )
+    expect(buildNormalizedGraph({
+      domain: {
+        id: 'npm:@fixture/app',
+        ecosystem: 'npm',
+        name: '@fixture/app',
+        rootManifest: 'package.json',
+        sourceFingerprint: 'sha256:domain'
+      },
+      fragments: [result]
+    }).ok).toBe(true)
+  })
+
+  test('Vue malformed template повертає blocking parser diagnostic без partial graph', () => {
+    const content = '<template><UiCard></template><script setup>const save = () => true</script>'
     const result = analyzeFile(input('src/Card.vue', content))
     expect(result).toEqual({
       ok: false,
-      diagnostics: [expect.objectContaining({ code: 'vue-template-edges-unsupported', path: 'src/Card.vue' })]
+      diagnostics: [expect.objectContaining({ code: 'vue-sfc-parse-error', path: 'src/Card.vue' })]
     })
+    expect(result).not.toHaveProperty('units')
   })
 })

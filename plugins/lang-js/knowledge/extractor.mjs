@@ -1,15 +1,22 @@
 /**
  * Будує fail-closed normalized fragments для JS/TS/Vue package-knowledge.
  *
- * Adapter використовує OXC для всіх script-файлів та existing `vueScriptBlock`
- * для SFC. Він не має whole-file fallback: помилка parser-а або template, для
- * якого ще не реалізовано semantic edges, повертає blocking diagnostic.
+ * Adapter використовує OXC для всіх script-файлів, а `@vue/compiler-sfc` і
+ * `@vue/compiler-dom` — для SFC/template AST. Він не має whole-file fallback:
+ * parser або непокритий template expression повертає blocking diagnostic.
  */
 
 import { Buffer } from 'node:buffer'
 
 import { parseProgramAndCommentsOrNull, walkAstWithAncestors } from '@7n/rules/scripts/utils/ast-scan-utils.mjs'
-import { vueScriptBlock } from '../doc-files/vue.mjs'
+
+let vueCompilers = null
+try {
+  const [compilerSfc, compilerDom] = await Promise.all([import('@vue/compiler-sfc'), import('@vue/compiler-dom')])
+  vueCompilers = { compilerSfc, compilerDom }
+} catch {
+  /* compiler dependencies are unavailable: .vue analysis must fail closed */
+}
 
 const EXTENSIONS = Object.freeze(['.js', '.mjs', '.cjs', '.ts', '.jsx', '.tsx', '.vue'])
 const PARSER = Object.freeze({ id: 'oxc+vue-sfc', grammarVersion: 'oxc-0.137.0', runtimeVersion: 'vue-sfc-3' })
@@ -182,6 +189,43 @@ function callIdentity(node) {
 }
 
 /**
+ * Повертає root identifier expression-а, не вгадуючи його з тексту.
+ * @param {Record<string, unknown>} node OXC expression node
+ * @returns {string | null} локальний або import binding root
+ */
+function expressionRoot(node) {
+  if (node.type === 'ParenthesizedExpression') return node.expression ? expressionRoot(node.expression) : null
+  if (node.type === 'Identifier') return node.name
+  if (node.type === 'MemberExpression' && !node.computed && node.object?.type === 'Identifier') return node.object.name
+  return node.type === 'CallExpression' ? callIdentity(node).root : null
+}
+
+/**
+ * Повертає єдиний expression з OXC Program, створеного для template expression.
+ * @param {Record<string, unknown>} program OXC Program
+ * @returns {Record<string, unknown> | null} expression або null
+ */
+function singleProgramExpression(program) {
+  const statement = program.body?.[0]
+  if (program.body?.length !== 1 || statement?.type !== 'ExpressionStatement' || !statement.expression) return null
+  return /** @type {Record<string, unknown>} */ (statement.expression)
+}
+
+/**
+ * Перетворює parser-relative template expression span у span повного Vue SFC.
+ * @param {string} original повний SFC source
+ * @param {number} templateOffset UTF-16 offset початку template content
+ * @param {number} expressionOffset UTF-16 offset expression у template content
+ * @param {number} start OXC offset у expression parser input
+ * @param {number} end OXC offset у expression parser input
+ * @param {number} [wrapperOffset] службовий prefix навколо expression
+ * @returns {{ startByte: number, endByte: number }} UTF-8 byte span
+ */
+function templateExpressionSpan(original, templateOffset, expressionOffset, start, end, wrapperOffset = 0) {
+  return span(original, expressionOffset + start - wrapperOffset, expressionOffset + end - wrapperOffset, templateOffset)
+}
+
+/**
  * Будує evidence-backed invoke/integrate edges від кожного semantic unit.
  * @param {Array<Record<string, unknown>>} units semantic units
  * @param {Map<string, string>} importedBindings local import → module specifier
@@ -216,6 +260,381 @@ function collectEdges(units, importedBindings, filePath, original, baseOffset) {
     })
   }
   return edges.toSorted((left, right) =>
+    JSON.stringify([left.fromLocalId, left.kind, left.to, left.evidence[0].span]).localeCompare(
+      JSON.stringify([right.fromLocalId, right.kind, right.to, right.evidence[0].span])
+    )
+  )
+}
+
+/**
+ * Створює syntax evidence для template AST location у повному SFC.
+ * @param {string} filePath source path
+ * @param {string} original повний SFC source
+ * @param {number} templateOffset UTF-16 offset template content
+ * @param {{ start: { offset: number }, end: { offset: number } }} location Vue AST location
+ * @returns {Array<{ path: string, role: string, span: { startByte: number, endByte: number } }>} provenance
+ */
+function templateEvidence(filePath, original, templateOffset, location) {
+  return [{ path: filePath, role: 'syntax', span: span(original, location.start.offset, location.end.offset, templateOffset) }]
+}
+
+/**
+ * Додає один deterministic template code-unit.
+ * @param {{ units: Array<Record<string, unknown>>, ordinals: Map<string, number>, filePath: string, kind: string, name: string, location: object, original: string, templateOffset: number, attributes?: Record<string, unknown> }} input unit source
+ * @returns {Record<string, unknown>} normalized unit
+ */
+function addTemplateUnit({ units, ordinals, filePath, kind, name, location, original, templateOffset, attributes = {} }) {
+  const ordinal = ordinals.get(kind) ?? 0
+  ordinals.set(kind, ordinal + 1)
+  const localId = `template:${kind}:${ordinal}`
+  const unit = {
+    localId,
+    kind: `template-${kind}`,
+    name,
+    qualifiedPath: `${filePath}#${localId}`,
+    visibility: 'internal',
+    signature: name,
+    span: span(original, location.start.offset, location.end.offset, templateOffset),
+    attributes: { template: true, ...attributes }
+  }
+  units.push(unit)
+  return unit
+}
+
+/**
+ * Створює edge до local script unit або opaque imported integration.
+ * @param {{ edges: Array<Record<string, unknown>>, fromLocalId: string, kind: string, root: string | null, localUnits: Map<string, string>, importedBindings: Map<string, string>, evidence: Array<Record<string, unknown>> }} input edge facts
+ * @returns {void}
+ */
+function addTemplateTargetEdge({ edges, fromLocalId, kind, root, localUnits, importedBindings, evidence }) {
+  if (!root) return
+  const localId = localUnits.get(root)
+  if (localId) {
+    edges.push({ kind, fromLocalId, to: { localId }, evidence })
+    return
+  }
+  const specifier = importedBindings.get(root)
+  if (specifier) edges.push({ kind: 'integrates', fromLocalId, to: { unresolvedSpecifier: specifier, opaque: true }, evidence })
+}
+
+/**
+ * Розбирає template JS expression OXC-ом, не змішуючи її з HTML-парсером.
+ * `v-on` може містити statement-list, інші directive/interpolation expression
+ * мусять бути рівно одним JS expression; незрозумілий синтаксис блокує fragment.
+ * @param {string} content compiler-dom SimpleExpression content
+ * @param {boolean} eventHandler чи дозволений handler statement-list
+ * @returns {{ program: Record<string, unknown>, wrapperOffset: number, root: string | null } | null} OXC result
+ */
+function parseTemplateExpression(content, eventHandler) {
+  const wrapperOffset = eventHandler ? 0 : 1
+  const parsed = parseProgramAndCommentsOrNull(eventHandler ? content : `(${content})`, 'template-expression.ts')
+  if (!parsed?.program) return null
+  const expression = singleProgramExpression(parsed.program)
+  if (!eventHandler && !expression) return null
+  return { program: parsed.program, wrapperOffset, root: expression ? expressionRoot(expression) : null }
+}
+
+/**
+ * Додає effect edges усіх викликів template expression-а та handler root link.
+ * @param {{ parsed: { program: Record<string, unknown>, wrapperOffset: number, root: string | null }, eventHandler: boolean, expressionOffset: number, expressionLocation: object, unit: Record<string, unknown>, filePath: string, original: string, templateOffset: number, localUnits: Map<string, string>, importedBindings: Map<string, string>, edges: Array<Record<string, unknown>> }} input expression facts
+ * @returns {void}
+ */
+function addTemplateExpressionEdges({
+  parsed,
+  eventHandler,
+  expressionOffset,
+  expressionLocation,
+  unit,
+  filePath,
+  original,
+  templateOffset,
+  localUnits,
+  importedBindings,
+  edges
+}) {
+  const fullEvidence = templateEvidence(filePath, original, templateOffset, expressionLocation)
+  if (eventHandler) {
+    addTemplateTargetEdge({
+      edges,
+      fromLocalId: unit.localId,
+      kind: 'triggers',
+      root: parsed.root,
+      localUnits,
+      importedBindings,
+      evidence: fullEvidence
+    })
+  }
+  walkAstWithAncestors(parsed.program, [], node => {
+    if (node.type !== 'CallExpression') return
+    const { root } = callIdentity(node)
+    const evidence = [
+      {
+        path: filePath,
+        role: 'syntax',
+        span: templateExpressionSpan(
+          original,
+          templateOffset,
+          expressionOffset,
+          node.start,
+          node.end,
+          parsed.wrapperOffset
+        )
+      }
+    ]
+    addTemplateTargetEdge({
+      edges,
+      fromLocalId: unit.localId,
+      kind: eventHandler ? 'triggers' : 'invokes',
+      root,
+      localUnits,
+      importedBindings,
+      evidence
+    })
+  })
+}
+
+/**
+ * Визначає, чи AST element є integration boundary компонента, а не native HTML.
+ * compiler-dom позначає PascalCase та dynamic `<component>` як COMPONENT; custom
+ * elements у kebab-case додатково зберігаються як boundary без текстових евристик.
+ * @param {Record<string, unknown>} node Vue ELEMENT node
+ * @returns {boolean} чи потрібен opaque component contract
+ */
+function isComponentBoundary(node) {
+  return node.tagType === 1 || (node.tagType === 0 && node.tag.includes('-'))
+}
+
+/**
+ * Аналізує одне directive expression або dynamic argument; за неможливості
+ * повного OXC coverage повертає blocking detail, а не пропускає поведінку.
+ * @param {{ expression: Record<string, unknown>, eventHandler: boolean, unit: Record<string, unknown>, filePath: string, original: string, templateOffset: number, localUnits: Map<string, string>, importedBindings: Map<string, string>, edges: Array<Record<string, unknown>> }} input template expression context
+ * @returns {string | null} blocking detail або null
+ */
+function analyzeTemplateExpression({
+  expression,
+  eventHandler,
+  unit,
+  filePath,
+  original,
+  templateOffset,
+  localUnits,
+  importedBindings,
+  edges
+}) {
+  if (expression.isStatic || !expression.content.trim()) return null
+  const parsed = parseTemplateExpression(expression.content, eventHandler)
+  if (!parsed) return `OXC не зміг повністю розібрати ${eventHandler ? 'event handler' : 'template expression'} "${expression.content}".`
+  addTemplateExpressionEdges({
+    parsed,
+    eventHandler,
+    expressionOffset: expression.loc.start.offset,
+    expressionLocation: expression.loc,
+    unit,
+    filePath,
+    original,
+    templateOffset,
+    localUnits,
+    importedBindings,
+    edges
+  })
+  return null
+}
+
+/**
+ * Додає semantic unit для directive й аналізує його expression/динамічний arg.
+ * @param {{ prop: Record<string, unknown>, units: Array<Record<string, unknown>>, ordinals: Map<string, number>, filePath: string, original: string, templateOffset: number, localUnits: Map<string, string>, importedBindings: Map<string, string>, edges: Array<Record<string, unknown>>, entryPoints: Array<Record<string, unknown>> }} input directive context
+ * @returns {string | null} blocking detail або null
+ */
+function analyzeTemplateDirective({
+  prop,
+  units,
+  ordinals,
+  filePath,
+  original,
+  templateOffset,
+  localUnits,
+  importedBindings,
+  edges,
+  entryPoints
+}) {
+  const eventHandler = prop.name === 'on'
+  const unit = addTemplateUnit({
+    units,
+    ordinals,
+    filePath,
+    kind: 'directive',
+    name: prop.rawName ?? `v-${prop.name}`,
+    location: prop.loc,
+    original,
+    templateOffset,
+    attributes: {
+      directive: prop.name,
+      argument: prop.arg?.content ?? null,
+      modifiers: prop.modifiers ?? []
+    }
+  })
+  if (eventHandler) entryPoints.push({ localId: unit.localId, reason: `template-event:${prop.arg?.content ?? 'dynamic'}` })
+  const expressionDetail = prop.exp
+    ? analyzeTemplateExpression({
+        expression: prop.exp,
+        eventHandler,
+        unit,
+        filePath,
+        original,
+        templateOffset,
+        localUnits,
+        importedBindings,
+        edges
+      })
+    : null
+  if (expressionDetail) return expressionDetail
+  if (!prop.arg || prop.arg.isStatic) return null
+  return analyzeTemplateExpression({
+    expression: prop.arg,
+    eventHandler: false,
+    unit,
+    filePath,
+    original,
+    templateOffset,
+    localUnits,
+    importedBindings,
+    edges
+  })
+}
+
+/**
+ * Аналізує component boundary і всі directive props одного template element.
+ * @param {{ node: Record<string, unknown>, units: Array<Record<string, unknown>>, ordinals: Map<string, number>, filePath: string, original: string, templateOffset: number, localUnits: Map<string, string>, importedBindings: Map<string, string>, edges: Array<Record<string, unknown>>, entryPoints: Array<Record<string, unknown>> }} input element context
+ * @returns {string | null} blocking detail або null
+ */
+function analyzeTemplateElement({
+  node,
+  units,
+  ordinals,
+  filePath,
+  original,
+  templateOffset,
+  localUnits,
+  importedBindings,
+  edges,
+  entryPoints
+}) {
+  if (isComponentBoundary(node)) {
+    const unit = addTemplateUnit({
+      units,
+      ordinals,
+      filePath,
+      kind: 'component',
+      name: node.tag,
+      location: node.loc,
+      original,
+      templateOffset,
+      attributes: { tag: node.tag }
+    })
+    edges.push({
+      kind: 'integrates',
+      fromLocalId: unit.localId,
+      to: { unresolvedSpecifier: `vue-component:${node.tag}`, opaque: true },
+      evidence: templateEvidence(filePath, original, templateOffset, node.loc)
+    })
+  }
+  for (const prop of node.props ?? []) {
+    if (prop.type === 6) continue
+    if (prop.type !== 7) return `compiler-dom повернув непідтримуваний template prop node type ${String(prop.type)}.`
+    const detail = analyzeTemplateDirective({
+      prop,
+      units,
+      ordinals,
+      filePath,
+      original,
+      templateOffset,
+      localUnits,
+      importedBindings,
+      edges,
+      entryPoints
+    })
+    if (detail) return detail
+  }
+  return null
+}
+
+/**
+ * Обходить compiler-dom template AST і повертає всі template units/edges або
+ * один blocking diagnostic detail. Кожен directive/interpolation/component
+ * отримує coverage unit; parser не має silent skip branches.
+ * @param {{ ast: Record<string, unknown>, units: Array<Record<string, unknown>>, filePath: string, original: string, templateOffset: number, scriptUnits: Array<Record<string, unknown>>, imports: Array<Record<string, unknown>> }} input template source
+ * @returns {{ edges: Array<Record<string, unknown>>, entryPoints: Array<Record<string, unknown>> } | { detail: string }} complete template behavior або failure
+ */
+function analyzeTemplate({ ast, units, filePath, original, templateOffset, scriptUnits, imports }) {
+  const edges = []
+  const entryPoints = []
+  const ordinals = new Map()
+  const localUnits = new Map(scriptUnits.map(unit => [unit.name, unit.localId]))
+  const importedBindings = new Map(imports.flatMap(item => item.bindings.map(binding => [binding.localName, item.specifier])))
+  let detail = null
+  const visit = node => {
+    if (detail || !node || typeof node !== 'object') return
+    if (node.type === 0) {
+      for (const child of node.children ?? []) visit(child)
+      return
+    }
+    if (node.type === 1) {
+      detail = analyzeTemplateElement({
+        node,
+        units,
+        ordinals,
+        filePath,
+        original,
+        templateOffset,
+        localUnits,
+        importedBindings,
+        edges,
+        entryPoints
+      })
+      if (detail) return
+      for (const child of node.children ?? []) visit(child)
+      return
+    }
+    if (node.type === 5) {
+      const unit = addTemplateUnit({
+        units,
+        ordinals,
+        filePath,
+        kind: 'interpolation',
+        name: 'interpolation',
+        location: node.loc,
+        original,
+        templateOffset,
+        attributes: { expression: node.content?.content ?? '' }
+      })
+      detail = analyzeTemplateExpression({
+        expression: node.content,
+        eventHandler: false,
+        unit,
+        filePath,
+        original,
+        templateOffset,
+        localUnits,
+        importedBindings,
+        edges
+      })
+      return
+    }
+    if (node.type !== 2 && node.type !== 3) detail = `compiler-dom повернув непідтримуваний template AST node type ${String(node.type)}.`
+  }
+  visit(ast)
+  return detail ? { detail } : { edges, entryPoints }
+}
+
+/**
+ * Дедуплікує edges, залишаючи відмінні evidence spans як окремі факти.
+ * @param {Array<Record<string, unknown>>} edges normalized edges
+ * @returns {Array<Record<string, unknown>>} stable unique edges
+ */
+function sortEdges(edges) {
+  const unique = new Map()
+  for (const edge of edges) unique.set(JSON.stringify([edge.fromLocalId, edge.kind, edge.to, edge.evidence]), edge)
+  return unique.values().toArray().toSorted((left, right) =>
     JSON.stringify([left.fromLocalId, left.kind, left.to, left.evidence[0].span]).localeCompare(
       JSON.stringify([right.fromLocalId, right.kind, right.to, right.evidence[0].span])
     )
@@ -296,30 +715,79 @@ export function analyzeFile(input) {
     return { ok: true, parser: PARSER, file: { ...read.file, language: languageFromPath(read.file.path) }, ...analyzed }
   }
 
-  const sfc = vueScriptBlock(read.file.content, read.file.path)
-  if (!sfc) {
+  if (!vueCompilers) {
     return failure(
-      'vue-script-parse-error',
+      'vue-template-parser-unavailable',
       read.file.path,
-      'compiler-sfc не зміг розібрати Vue SFC або script-блок відсутній.'
+      'Для Vue template аналізу потрібні @vue/compiler-sfc та @vue/compiler-dom.'
     )
   }
-  if (sfc.descriptor.template?.content?.trim()) {
-    return failure(
-      'vue-template-edges-unsupported',
-      read.file.path,
-      'Vue template містить поведінку, але template semantic edges ще не реалізовані; publication заблоковано.'
-    )
+  let sfc
+  try {
+    sfc = vueCompilers.compilerSfc.parse(read.file.content, { filename: read.file.path })
+  } catch {
+    return failure('vue-sfc-parse-error', read.file.path, 'compiler-sfc не зміг розібрати Vue SFC.')
   }
-  const pseudoPath = read.file.path.slice(0, -'.vue'.length) + `.${sfc.block.lang === 'ts' ? 'ts' : 'js'}`
+  if (sfc.errors.length > 0) {
+    return failure('vue-sfc-parse-error', read.file.path, `compiler-sfc: ${String(sfc.errors[0])}`)
+  }
+  const block = sfc.descriptor.scriptSetup ?? sfc.descriptor.script
+  if (!block?.content?.trim()) {
+    return failure('vue-script-parse-error', read.file.path, 'Vue SFC не містить непорожнього script-блоку.')
+  }
+  const pseudoPath = read.file.path.slice(0, -'.vue'.length) + `.${block.lang === 'ts' ? 'ts' : 'js'}`
   const analyzed = analyzeScript(
-    { ...read.file, content: sfc.block.content },
+    { ...read.file, content: block.content },
     read.file.content,
     pseudoPath,
-    sfc.block.loc.start.offset
+    block.loc.start.offset
   )
   if (!analyzed) return failure('parse-error', read.file.path, 'OXC не зміг повністю розпарсити Vue script-блок.')
-  return { ok: true, parser: PARSER, file: { ...read.file, language: 'vue' }, ...analyzed }
+  const template = sfc.descriptor.template
+  if (!template?.content.trim()) return { ok: true, parser: PARSER, file: { ...read.file, language: 'vue' }, ...analyzed }
+  const templateErrors = []
+  let ast
+  try {
+    ast = vueCompilers.compilerDom.baseParse(template.content, {
+      onError: error => {
+        templateErrors.push(error)
+      }
+    })
+  } catch {
+    return failure('vue-template-parse-error', read.file.path, 'compiler-dom не зміг розібрати Vue template.')
+  }
+  if (templateErrors.length > 0) {
+    return failure('vue-template-parse-error', read.file.path, `compiler-dom: ${templateErrors[0].message}`)
+  }
+  const templateResult = analyzeTemplate({
+    ast,
+    units: analyzed.units,
+    filePath: read.file.path,
+    original: read.file.content,
+    templateOffset: template.loc.start.offset,
+    scriptUnits: analyzed.units,
+    imports: analyzed.imports
+  })
+  if ('detail' in templateResult) return failure('vue-template-expression-unsupported', read.file.path, templateResult.detail)
+  const units = analyzed.units
+  const edges = sortEdges([...analyzed.edges, ...templateResult.edges])
+  return {
+    ok: true,
+    parser: PARSER,
+    file: { ...read.file, language: 'vue' },
+    units,
+    edges,
+    imports: analyzed.imports,
+    entryPoints: [...analyzed.entryPoints, ...templateResult.entryPoints],
+    chunks: units.map(unit => ({ id: `chunk:${unit.localId}`, unitLocalIds: [unit.localId], span: unit.span })),
+    coverage: {
+      requiredUnits: units.length,
+      coveredUnits: units.length,
+      requiredEdges: edges.length,
+      coveredEdges: edges.length,
+      complete: true
+    }
+  }
 }
 
 const jsKnowledgeExtractor = Object.freeze({
