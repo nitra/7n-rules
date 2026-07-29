@@ -22,11 +22,29 @@
  *   ── assemble (JS)    — operations[] у форматі, сумісному з apply-ops
  *
  * Повертає той самий operations[]-контракт, що й single-shot — apply-логіка спільна.
+ *
+ * Batch-хвилі (уніфікація на `@7n/llm-lib/batch`, спека
+ * `docs/specs/2026-07-27-batch-local-avg-real-batches.md`, кластер E): кожна
+ * LLM-стадія — ОДИН `submitBatch`-виклик на ВСІ незалежні items стадії
+ * (усі ребра Stage 1, усі self-consistency голоси, усі драфти Stage 1b/2/3)
+ * замість послідовного `for`-циклу з await на кожен виклик. Стадії лишаються
+ * послідовними МІЖ собою (Stage 1b/2/3 читають рішення, обчислені з
+ * результатів Stage 1) — паралелиться лише ВСЕРЕДИНІ стадії.
+ *
+ * Спрощення проти попереднього послідовного шляху (задокументовано, не
+ * випадковість): `callWithCascade` робив до 2-3 локальних СПРОБ ОДНОГО tier1
+ * перед хмарною ескалацією; тут — рівно один tier1-прохід на стадію, і лише
+ * ті items, чия tier1-відповідь не розпарсилась, ідуть у хмарну хвилю (якщо
+ * `allowCloud`). Це той самий tier1→tier2→conservative-fallback каскад, без
+ * повтору tier1 перед ескалацією — на великому batch-і агрегована якість
+ * tier1 вже статистично стабільна, а item, що впав, швидше відновлюється
+ * хмарним tier2, ніж повторним локальним проходом.
  */
 // Namespace-імпорт замість `import { z }`: Bun показує фантомний `__esModule` на ESM-неймспейсах,
 // через що interop у vitest приймає default-експорт zod за CJS-обгортку і губить named-експорт `z`.
 import * as z from 'zod'
-import { runOneShot } from '@7n/llm-lib/one-shot'
+import { submitBatch as submitBatchNative } from '@7n/llm-lib/batch'
+import { defaultLocalProviders } from '@7n/llm-lib/local-providers'
 import { startChain } from '@7n/llm-lib/chain'
 import { CLOUD_MIN, resolveModel } from '@7n/llm-lib/model-tiers'
 
@@ -53,7 +71,6 @@ const RE_STATUS = /\*\*Status:\*\*/
 const RE_DATE = /\*\*Date:\*\*\s*\d{4}-\d{2}-\d{2}/
 const RE_TOKEN_SPLIT = /[^a-zа-яіїєґ0-9]+/i
 const RE_DRAFT_ADR_TITLE = /^#{1,2}\s+ADR\s+(.+)$/m
-const RE_INFRA_ERROR = /registry:|session:|не знайдена/i
 const RE_YAML_FRONTMATTER = /^---\n([\s\S]*?)\n---/
 const RE_TYPE_ADR = /^type:\s*ADR\s*$/m
 
@@ -62,13 +79,13 @@ const RE_TYPE_ADR = /^type:\s*ADR\s*$/m
  * @param {string} raw сира відповідь LLM
  * @returns {string} текст без обгортки code-fence
  */
-const stripFence = (raw) => raw.replace(RE_FENCE_OPEN, '').replace(RE_FENCE_CLOSE, '').trim()
+const stripFence = raw => raw.replace(RE_FENCE_OPEN, '').replace(RE_FENCE_CLOSE, '').trim()
 /**
  * Назва clean-ADR → людський заголовок (без .md і timestamp-префікса).
  * @param {string} s basename clean-ADR
  * @returns {string} людський заголовок
  */
-const stripAdrName = (s) => s.replace(RE_MD_EXT, '').replace(RE_TS_PREFIX, '')
+const stripAdrName = s => s.replace(RE_MD_EXT, '').replace(RE_TS_PREFIX, '')
 
 /**
  * Токенізує назву/слаг у множину значущих токенів (kebab + пробіли, без стоп-слів).
@@ -82,7 +99,7 @@ export function tokenize(s) {
       .replace(RE_MD_EXT, '')
       .replace(RE_TS_PREFIX, '')
       .split(RE_TOKEN_SPLIT)
-      .filter((t) => t.length > 2 && !STOP.has(t))
+      .filter(t => t.length > 2 && !STOP.has(t))
   )
 }
 
@@ -99,7 +116,8 @@ export function jaccard(a, b) {
   return inter / (a.size + b.size - inter)
 }
 
-const MADR_SECTION = /^(Context and Problem|Considered Options|Decision Outcome|Consequences|More Information|report|summary|Attempt|Reason|Update)\b/i
+const MADR_SECTION =
+  /^(Context and Problem|Considered Options|Decision Outcome|Consequences|More Information|report|summary|Attempt|Reason|Update)\b/i
 
 /**
  * Витягує заголовок драфта. Капчер пише `## ADR <title>` — він у пріоритеті
@@ -141,8 +159,8 @@ export function isNoDecision(body) {
 export function buildEdges(drafts, cleanList, opts = {}) {
   const simThreshold = opts.simThreshold ?? 0.12
   const topKClean = opts.topKClean ?? 3
-  const draftTok = drafts.map((d) => tokenize(`${d.file} ${draftTitle(d.body)}`))
-  const cleanTok = new Map(cleanList.map((c) => [c, tokenize(c)]))
+  const draftTok = drafts.map(d => tokenize(`${d.file} ${draftTitle(d.body)}`))
+  const cleanTok = new Map(cleanList.map(c => [c, tokenize(c)]))
 
   const dd = []
   for (let i = 0; i < drafts.length; i++) {
@@ -163,64 +181,80 @@ export function buildEdges(drafts, cleanList, opts = {}) {
   return { dd, dc }
 }
 
-// ─────────────────────────── LLM helper: tier cascade ──────────────────────────
+// ─────────────────────────── batch-каскад: спільна інфраструктура ──────────────
 
 const LOCAL = () => resolveModel('min')
 
 /**
- * Виклик LLM з локальним ретраєм і (опційно) хмарною ескалацією.
- * @param {Array<{role:string,content:string}>} messages чат-повідомлення для LLM
- * @param {(raw:string)=>any} parse валідатор (кидає на невалідному)
- * @param {{label:string, allowCloud:boolean, attempts?:number, stats:object, maxTokens?:number}} cfg конфіг каскаду (мітка, дозвіл на хмару, спроби, лічильники, ліміт токенів)
- * @returns {Promise<any>} результат parse
- * @throws {Error} якщо всі спроби провалені
+ * Один `submitBatch`-виклик-хвиля на всі `items` разом. Провал САМОГО
+ * виклику хвилі (напр. невалідний model-spec) не кидає далі — повертає
+ * порожню мапу: викликач (`runCascade`) трактує це як "усі items цього тиру
+ * невдалі" й іде до наступного тиру/fallback, той самий
+ * graceful-degradation принцип, що й у попередньому `callWithCascade`.
+ * @param {Array<{customId:string, prompt:string, system?:string}>} items items хвилі
+ * @param {string} model model-spec тиру — порожній рядок пропускає хвилю без мережевого виклику
+ * @param {{localProviders:object, submitBatchImpl:(model:string, items:Array<object>, opts?:object)=>Promise<Array<object>>}} cfg конфіг виклику
+ * @returns {Promise<Map<string, {ok?:string, error?:string}>>} результати за `customId`
  */
-async function callWithCascade(messages, parse, cfg) {
-  const attempts = cfg.attempts ?? 2
-  let lastErr = null
-  for (let a = 0; a < attempts; a++) {
-    cfg.stats.localCalls++
-    const res = await runOneShot({
-      messages,
-      modelSpec: LOCAL(),
-      timeoutMs: 120_000,
-      caller: `adr-pipe:${cfg.label}`,
-      chain: cfg.chain ?? null
-    })
-    if (!res.error) {
+async function runWave(items, model, cfg) {
+  if (items.length === 0 || !model) return new Map()
+  try {
+    const results = await cfg.submitBatchImpl(model, items, { localProviders: cfg.localProviders })
+    return new Map(results.map(r => [r.customId, r]))
+  } catch {
+    return new Map()
+  }
+}
+
+/**
+ * Спільний 2-хвильовий каскад для всіх 4 LLM-стадій: tier1-хвиля на ВСІ
+ * items → ті, чия відповідь не пройшла `parse` (мережева помилка чи
+ * невалідний вихід), ідуть у tier2-хвилю (лише якщо `cfg.allowCloud` і
+ * `cfg.tier2` задано) → що лишилось невдалим — не потрапляє в результат
+ * (caller застосовує свій callsite-специфічний conservative fallback).
+ * @param {Array<{customId:string, prompt:string, system?:string}>} items усі items стадії
+ * @param {(raw:string)=>any} parse валідатор/парсер відповіді (кидає на невалідному)
+ * @param {{tier1:string, tier2:string, allowCloud:boolean, localProviders:object, submitBatchImpl:Function, stats:object}} cfg конфіг каскаду
+ * @returns {Promise<Map<string, any>>} customId → розпарсений результат (лише items, що пройшли якийсь тир)
+ */
+async function runCascade(items, parse, cfg) {
+  const parsed = new Map()
+  if (items.length === 0) return parsed
+
+  cfg.stats.localCalls += items.length
+  const tier1Results = await runWave(items, cfg.tier1, cfg)
+  const failed = []
+  for (const item of items) {
+    const r = tier1Results.get(item.customId)
+    if (r?.ok) {
       try {
-        return parse(res.content)
-      } catch (error) {
-        lastErr = error // невалідний вихід → наступна спроба
+        parsed.set(item.customId, parse(r.ok))
         continue
+      } catch {
+        // невалідний вихід tier1 → кандидат на tier2 нижче
       }
     }
-    lastErr = new Error(res.error)
-    // infra (registry/session/модель недоступна) → ретрай локально марний.
-    if (RE_INFRA_ERROR.test(res.error)) break
+    failed.push(item)
   }
-  if (cfg.allowCloud && CLOUD_MIN) {
-    cfg.stats.cloudCalls++
-    cfg.stats.escalations++
-    const res = await runOneShot({
-      messages,
-      modelSpec: CLOUD_MIN,
-      timeoutMs: 120_000,
-      caller: `adr-pipe:${cfg.label}:cloud`,
-      chain: cfg.chain ?? null
-    })
-    if (res.error) {
-      lastErr = new Error(res.error)
-    } else {
-      try {
-        return parse(res.content)
-      } catch (error) {
-        lastErr = error
+
+  if (failed.length > 0 && cfg.allowCloud && cfg.tier2) {
+    cfg.stats.cloudCalls += failed.length
+    cfg.stats.escalations += failed.length
+    const tier2Results = await runWave(failed, cfg.tier2, cfg)
+    for (const item of failed) {
+      const r = tier2Results.get(item.customId)
+      if (r?.ok) {
+        try {
+          parsed.set(item.customId, parse(r.ok))
+        } catch {
+          // невалідний вихід і на tier2 → лишається без результату, fallback у caller
+        }
       }
     }
   }
-  cfg.stats.failures++
-  throw lastErr ?? new Error('callWithCascade: no result')
+
+  cfg.stats.failures += items.length - parsed.size
+  return parsed
 }
 
 /**
@@ -252,39 +286,119 @@ const EDGE_SYS = `Ти порівнюєш два короткі записи а�
 same=true ЛИШЕ якщо це по суті одне рішення (дублікат, уточнення, продовження тієї самої теми). Різні аспекти однієї підсистеми, але окремі рішення → same=false. Якщо сумніваєшся — false.`
 
 /**
- * Бінарний суддя «те саме рішення?» з self-consistency. Консервативний: `same`
- * лише якщо ВСІ голоси кажуть same з confidence ≥ minConf. Харднінг #2: для
- * draft↔draft (ризик over-merge) піднімаємо до 3 голосів і порога 0.6.
- * @param {string} aTitle заголовок запису A
- * @param {string} aBody тіло запису A
- * @param {string} bTitle заголовок запису B
- * @param {string} bBody тіло запису B
- * @param {{allowCloud:boolean, votes?:number, stats:object}} cfg конфіг каскаду (дозвіл на хмару, голоси, лічильники)
- * @param {{votes?:number, minConf?:number}} [vote] override голосів і порога на тип ребра
- * @returns {{same:boolean, votes:object[]}} підтвердження same та сирі голоси
+ * Одна пара-кандидат для edge-judge: draft↔draft (`kind:'dd'`) чи
+ * draft↔clean (`kind:'dc'`) — з кількістю self-consistency голосів і
+ * порогом впевненості для консенсусу.
+ * @typedef {{ id: string, kind: 'dd'|'dc', aTitle: string, aBody: string, bTitle: string, bBody: string, votes: number, minConf: number, draftIdx?: number, cleanName?: string }} EdgeSpec
  */
-async function judgeEdge(aTitle, aBody, bTitle, bBody, cfg, vote = {}) {
-  const nVotes = vote.votes ?? cfg.votes ?? 2
-  const minConf = vote.minConf ?? 0.5
-  const user = `Запис A — "${aTitle}":\n${aBody.slice(0, 1500)}\n\n---\n\nЗапис B — "${bTitle}":\n${bBody.slice(0, 1500)}\n\nЦе одне й те саме рішення?`
-  const parse = raw => EdgeSchema.parse(extractJson(raw))
-  const votes = []
-  for (let v = 0; v < nVotes; v++) {
-    try {
-      votes.push(
-        await callWithCascade([{ role: 'system', content: EDGE_SYS }, { role: 'user', content: user }], parse, {
-          label: 'edge',
-          allowCloud: cfg.allowCloud,
-          stats: cfg.stats,
-          maxTokens: 300
-        })
-      )
-    } catch {
-      votes.push({ same: false, confidence: 0, reason: 'judge failed → conservative different' })
+
+/**
+ * Будує кандидати-ребра Stage 1 у вигляді `EdgeSpec[]`: draft↔draft — 3
+ * голоси/поріг 0.6 (харднінг #2, ризик over-merge вищий), draft↔clean —
+ * `votes` голосів/поріг 0.5 (той самий дефолт, що й раніше в `judgeEdge`).
+ * @param {[number,number][]} dd ребра draft-draft
+ * @param {[number,string][]} dc ребра draft-clean
+ * @param {{file:string, body:string}[]} drafts батч чернеток
+ * @param {string[]} titles заголовки драфтів (той самий індекс, що й `drafts`)
+ * @param {number} votes кількість голосів для draft↔clean
+ * @returns {EdgeSpec[]} специфікації ребер для batch-хвилі
+ */
+function buildEdgeSpecs(dd, dc, drafts, titles, votes) {
+  const specs = []
+  for (const [i, j] of dd) {
+    specs.push({
+      id: `dd:${i}:${j}`,
+      kind: 'dd',
+      aTitle: titles[i],
+      aBody: drafts[i].body,
+      bTitle: titles[j],
+      bBody: drafts[j].body,
+      votes: 3,
+      minConf: 0.6
+    })
+  }
+  for (const [i, c] of dc) {
+    const cTitle = stripAdrName(c)
+    specs.push({
+      id: `dc:${i}:${c}`,
+      kind: 'dc',
+      aTitle: titles[i],
+      aBody: drafts[i].body,
+      bTitle: cTitle,
+      bBody: cTitle,
+      votes,
+      minConf: 0.5,
+      draftIdx: i,
+      cleanName: c
+    })
+  }
+  return specs
+}
+
+/**
+ * Розгортає `EdgeSpec[]` у плоский список batch-items — по одному на голос
+ * (`<spec.id>::v<index>`), щоб self-consistency голоси йшли ОДНІЄЮ хвилею
+ * разом з усіма іншими ребрами.
+ * @param {EdgeSpec[]} specs специфікації ребер
+ * @returns {Array<{customId:string, prompt:string, system:string}>} batch-items
+ */
+function edgeVoteItems(specs) {
+  const items = []
+  for (const spec of specs) {
+    const user = `Запис A — "${spec.aTitle}":\n${spec.aBody.slice(0, 1500)}\n\n---\n\nЗапис B — "${spec.bTitle}":\n${spec.bBody.slice(0, 1500)}\n\nЦе одне й те саме рішення?`
+    for (let v = 0; v < spec.votes; v++) {
+      items.push({ customId: `${spec.id}::v${v}`, prompt: user, system: EDGE_SYS })
     }
   }
-  const sameCount = votes.filter(v => v.same && v.confidence >= minConf).length
-  return { same: sameCount === votes.length, votes }
+  return items
+}
+
+/**
+ * Stage 1: судить усі ребра (draft↔draft і draft↔clean) ОДНИМ каскадом
+ * голосів. Консервативний: `same` лише якщо ВСІ голоси кажуть same з
+ * confidence ≥ `minConf` — голос без результату (обидва тири провалились)
+ * трактується як `same:false` (conservative fallback), той самий принцип,
+ * що й у попередньому послідовному `judgeEdge`.
+ * @param {[number,number][]} dd ребра draft-draft
+ * @param {[number,string][]} dc ребра draft-clean
+ * @param {{file:string, body:string}[]} drafts батч чернеток
+ * @param {string[]} titles заголовки драфтів
+ * @param {{votes:number, allowCloud:boolean, tier1:string, tier2:string, localProviders:object, submitBatchImpl:Function, stats:object}} cfg конфіг каскаду
+ * @returns {Promise<{ ddSame: Map<string, boolean>, cleanTarget: Array<string|null> }>} підтверджені draft-draft ребра й перший підтверджений clean-target на драфт
+ */
+async function judgeEdges(dd, dc, drafts, titles, cfg) {
+  const specs = buildEdgeSpecs(dd, dc, drafts, titles, cfg.votes)
+  const items = edgeVoteItems(specs)
+  const parse = raw => EdgeSchema.parse(extractJson(raw))
+  const parsed = await runCascade(items, parse, cfg)
+
+  const ddSame = new Map()
+  const cleanTargetCandidates = new Map() // draftIdx → [{cleanName, same}] у вхідному порядку кандидатів
+  for (const spec of specs) {
+    let sameCount = 0
+    for (let v = 0; v < spec.votes; v++) {
+      const vote = parsed.get(`${spec.id}::v${v}`) ?? { same: false, confidence: 0 }
+      if (vote.same && vote.confidence >= spec.minConf) sameCount++
+    }
+    const same = sameCount === spec.votes
+    if (spec.kind === 'dd') {
+      ddSame.set(spec.id, same)
+    } else {
+      if (!cleanTargetCandidates.has(spec.draftIdx)) cleanTargetCandidates.set(spec.draftIdx, [])
+      cleanTargetCandidates.get(spec.draftIdx).push({ cleanName: spec.cleanName, same })
+    }
+  }
+
+  // Перший підтверджений кандидат у вхідному порядку — той самий вибір, що
+  // й попередній послідовний break-on-first-match (тепер обчислений постфактум,
+  // бо batch не може "зупинитись" на середині хвилі).
+  const cleanTarget = Array.from({ length: drafts.length }).fill(null)
+  for (const [draftIdx, candidates] of cleanTargetCandidates) {
+    const hit = candidates.find(c => c.same)
+    if (hit) cleanTarget[draftIdx] = hit.cleanName
+  }
+
+  return { ddSame, cleanTarget }
 }
 
 // ─────────────────────────── Stage 1b: kind-judge (LLM) ────────────────────────
@@ -296,34 +410,40 @@ const KindSchema = z.object({
 
 const KIND_SYS = `Ти оцінюєш чернетку архітектурного рішення (ADR). Визнач:
 - "standalone" — це самостійне рішення, варте збереження як decision record.
-- "trivial" — порожнє / тривіальне / косметичне / без реального рішення, можна видалити.
+- "trivial" — порожня / тривіальна / косметична / без реального рішення, можна видалити.
 
 Поверни ЛИШЕ JSON: { "kind": "standalone"|"trivial", "reason": "<коротко українською>" }
 Якщо сумніваєшся — "standalone" (краще зберегти).`
 
-async function judgeKind(title, body, cfg) {
-  const user = `Чернетка — "${title}":\n${body.slice(0, 2500)}\n\nstandalone чи trivial?`
+/**
+ * Stage 1b: одна batch-хвиля kind-judge для ВСІХ драфтів, що лишились
+ * одинаками без clean-target. Fallback (обидва тири провалились) —
+ * `standalone` (той самий conservative-дефолт, що й раніше).
+ * @param {number[]} draftIdxs індекси драфтів, що потребують kind-judge
+ * @param {{file:string, body:string}[]} drafts батч чернеток
+ * @param {string[]} titles заголовки драфтів
+ * @param {object} cfg конфіг каскаду (див. `runCascade`)
+ * @returns {Promise<Map<number, {kind:string, reason:string}>>} вердикт за індексом драфта
+ */
+async function judgeKinds(draftIdxs, drafts, titles, cfg) {
+  const items = draftIdxs.map(i => ({
+    customId: `kind:${i}`,
+    prompt: `Чернетка — "${titles[i]}":\n${drafts[i].body.slice(0, 2500)}\n\nstandalone чи trivial?`,
+    system: KIND_SYS
+  }))
   const parse = raw => KindSchema.parse(extractJson(raw))
-  try {
-    return await callWithCascade([{ role: 'system', content: KIND_SYS }, { role: 'user', content: user }], parse, {
-      label: 'kind',
-      allowCloud: cfg.allowCloud,
-      stats: cfg.stats,
-      maxTokens: 200
-    })
-  } catch {
-    return { kind: 'standalone', reason: 'judge failed → conservative standalone' }
+  const parsed = await runCascade(items, parse, cfg)
+
+  const out = new Map()
+  for (const i of draftIdxs) {
+    out.set(i, parsed.get(`kind:${i}`) ?? { kind: 'standalone', reason: 'judge failed → conservative standalone' })
   }
+  return out
 }
 
 // ─────────────────────────── Stage 2: gen-MADR (LLM) ───────────────────────────
 
-const MADR_HEADINGS = [
-  '## Context and Problem Statement',
-  '## Considered Options',
-  '## Decision Outcome',
-  '## More Information'
-]
+const MADR_HEADINGS = ['## Context and Problem Statement', '## Considered Options', '## Decision Outcome', '## More Information']
 
 /**
  * Детермінований гейт якості згенерованого MADR.
@@ -371,8 +491,13 @@ const GEN_SYS = `Ти витягуєш зміст архітектурного �
 
 Поверни ЛИШЕ JSON, без code-fence, без передмови.`
 
-const slugify = (title) =>
-  title.toLowerCase().replace(RE_SLUG_NONWORD, '-').replace(RE_LEAD_HYPHEN, '').slice(0, 60).replace(RE_TRAIL_HYPHEN, '') || 'adr'
+const slugify = title =>
+  title
+    .toLowerCase()
+    .replace(RE_SLUG_NONWORD, '-')
+    .replace(RE_LEAD_HYPHEN, '')
+    .slice(0, 60)
+    .replace(RE_TRAIL_HYPHEN, '') || 'adr'
 
 const RE_FNAME_DATE = /^(\d{2})(\d{2})(\d{2})-/
 const RE_TRAIL_DOT = /\.+\s*$/
@@ -392,8 +517,8 @@ export function madrDate(captured, file = '') {
   return m ? `20${m[1]}-${m[2]}-${m[3]}` : ''
 }
 
-const secStr = (v) => (typeof v === 'string' ? v.trim() : v === null || v === undefined ? '' : String(v).trim())
-const secArr = (v) => (Array.isArray(v) ? v.map(secStr).filter(Boolean) : secStr(v) ? [secStr(v)] : [])
+const secStr = v => (typeof v === 'string' ? v.trim() : v === null || v === undefined ? '' : String(v).trim())
+const secArr = v => (Array.isArray(v) ? v.map(secStr).filter(Boolean) : secStr(v) ? [secStr(v)] : [])
 
 /**
  * Нормалізує сирий JSON-вивід gen-моделі у строгу форму секцій. Толерантна до
@@ -424,13 +549,15 @@ export function normalizeSections(obj) {
  */
 export function assembleMadr({ title, date, sections: s }) {
   // Знімаємо кінцеву крапку контенту, бо шаблон додає свою (інакше "..").
-  const noDot = (x) => x.replace(RE_TRAIL_DOT, '')
-  const optBlock = s.options.length ? s.options.map((o) => `* ${o}`).join('\n') : 'Інші варіанти не обговорювалися.'
-  const cons = [...s.good.map((g) => `* Good, because ${noDot(g)}.`), ...s.bad.map((b) => `* Bad, because ${noDot(b)}.`)]
+  const noDot = x => x.replace(RE_TRAIL_DOT, '')
+  const optBlock = s.options.length ? s.options.map(o => `* ${o}`).join('\n') : 'Інші варіанти не обговорювалися.'
+  const cons = [...s.good.map(g => `* Good, because ${noDot(g)}.`), ...s.bad.map(b => `* Bad, because ${noDot(b)}.`)]
   const consBlock = cons.length ? cons.join('\n') : 'Підтверджених наслідків не зафіксовано.'
   const outcome = s.chosen
     ? `Chosen option: "${s.chosen}"${s.rationale ? `, because ${noDot(s.rationale)}` : ''}.`
-    : s.rationale ? `${noDot(s.rationale)}.` : 'Рішення зафіксовано у чернетці.'
+    : s.rationale
+      ? `${noDot(s.rationale)}.`
+      : 'Рішення зафіксовано у чернетці.'
   const titleYaml = title.replaceAll('\\', String.raw`\\`).replaceAll('"', String.raw`\"`)
   return [
     '---',
@@ -460,82 +587,150 @@ export function assembleMadr({ title, date, sections: s }) {
 }
 
 /**
- * Stage 2: перетворює одну чернетку на валідний MADR-документ. Модель лише
- * витягує зміст секцій як JSON; каркас збирає JS, результат проганяється через
- * валідатор із ретраями каскаду. При невдачі повертає `valid: false` без вмісту.
- * @param {string} title заголовок рішення
- * @param {string} body тіло чернетки (обрізається до безпечного розміру)
- * @param {string} captured момент фіксації чернетки (для дати MADR)
- * @param {{allowCloud: boolean, stats: object}} cfg конфіг каскаду й лічильники
- * @param {string} [file] шлях чернетки — fallback-джерело дати
- * @returns {Promise<{content: string | null, slug: string, valid: boolean, error?: string}>} зібраний документ або позначка невдачі
+ * Stage 2: одна batch-хвиля gen-MADR для ВСІХ драфтів, вирішених як
+ * `rewrite` (anchors + standalones). Модель лише витягує зміст секцій як
+ * JSON; каркас збирає JS, результат проганяється через валідатор.
+ * @param {number[]} draftIdxs індекси драфтів для генерації
+ * @param {{file:string, body:string}[]} drafts батч чернеток
+ * @param {string[]} titles заголовки драфтів
+ * @param {string[]} captured `captured`-поле кожного драфта (для дати)
+ * @param {object} cfg конфіг каскаду (див. `runCascade`)
+ * @returns {Promise<Map<number, {content:string|null, slug:string, valid:boolean, error?:string}>>} результат gen-MADR за індексом драфта
  */
-export async function genMadr(title, body, captured, cfg, file = '') {
-  const date = madrDate(captured, file)
-  const slug = slugify(title)
-  const user = `Чернетка "${title}":\n\n${body.slice(0, 4000)}\n\nВитягни зміст рішення у JSON.`
-  const parse = raw => {
+async function genMadrs(draftIdxs, drafts, titles, captured, cfg) {
+  const items = draftIdxs.map(i => ({
+    customId: `gen:${i}`,
+    prompt: `Чернетка "${titles[i]}":\n\n${drafts[i].body.slice(0, 4000)}\n\nВитягни зміст рішення у JSON.`,
+    system: GEN_SYS
+  }))
+  const parseFor = i => raw => {
     const sections = normalizeSections(extractJson(raw))
     if (!sections.context && !sections.chosen && !sections.rationale) {
       throw new Error('empty extraction (no context/decision)')
     }
-    const content = assembleMadr({ title, date, sections })
+    const content = assembleMadr({ title: titles[i], date: madrDate(captured[i], drafts[i].file), sections })
     const v = validateMadr(content)
     if (!v.ok) throw new Error(`MADR invalid: ${v.errors.join('; ')}`)
     return content
   }
-  try {
-    const content = await callWithCascade([{ role: 'system', content: GEN_SYS }, { role: 'user', content: user }], parse, {
-      label: 'gen',
-      allowCloud: cfg.allowCloud,
-      stats: cfg.stats,
-      attempts: 3,
-      maxTokens: 2048
-    })
-    return { content, slug, valid: true }
-  } catch (error) {
-    cfg.stats.madrInvalid++
-    return { content: null, slug, valid: false, error: error.message }
+  // parse залежить від `i` (title/date/file різні на item) — `keyedCascade`
+  // (на відміну від `runCascade`) передає в parse і customId, тож резолвимо i звідти.
+  const parse = (raw, customId) => parseFor(Number(customId.slice('gen:'.length)))(raw)
+  const parsed = await keyedCascade(items, parse, cfg)
+
+  const out = new Map()
+  for (const i of draftIdxs) {
+    const slug = slugify(titles[i])
+    const content = parsed.get(`gen:${i}`)
+    if (content) {
+      out.set(i, { content, slug, valid: true })
+    } else {
+      cfg.stats.madrInvalid++
+      out.set(i, { content: null, slug, valid: false, error: 'gen-MADR failed (both tiers)' })
+    }
   }
+  return out
+}
+
+/**
+ * `runCascade`, але `parse` отримує і сирий текст, і `customId` — потрібно
+ * там, де валідація/збірка залежить від того, ДО ЯКОГО саме item-у належить
+ * відповідь (gen-MADR/gen-merge: title/date/file різні на кожен драфт).
+ * @param {Array<{customId:string, prompt:string, system?:string}>} items усі items стадії
+ * @param {(raw:string, customId:string)=>any} parse валідатор/парсер, що знає customId
+ * @param {object} cfg конфіг каскаду
+ * @returns {Promise<Map<string, any>>} customId → розпарсений результат
+ */
+async function keyedCascade(items, parse, cfg) {
+  const parsed = new Map()
+  if (items.length === 0) return parsed
+
+  cfg.stats.localCalls += items.length
+  const tier1Results = await runWave(items, cfg.tier1, cfg)
+  const failed = []
+  for (const item of items) {
+    const r = tier1Results.get(item.customId)
+    if (r?.ok) {
+      try {
+        parsed.set(item.customId, parse(r.ok, item.customId))
+        continue
+      } catch {
+        // невалідний вихід tier1 → кандидат на tier2 нижче
+      }
+    }
+    failed.push(item)
+  }
+
+  if (failed.length > 0 && cfg.allowCloud && cfg.tier2) {
+    cfg.stats.cloudCalls += failed.length
+    cfg.stats.escalations += failed.length
+    const tier2Results = await runWave(failed, cfg.tier2, cfg)
+    for (const item of failed) {
+      const r = tier2Results.get(item.customId)
+      if (r?.ok) {
+        try {
+          parsed.set(item.customId, parse(r.ok, item.customId))
+        } catch {
+          // невалідний вихід і на tier2 → лишається без результату
+        }
+      }
+    }
+  }
+
+  cfg.stats.failures += items.length - parsed.size
+  return parsed
 }
 
 // ─────────────────────────── Stage 3: gen-merge (LLM) ──────────────────────────
 
 // Каркас merge-блоку («## Update <date>») — теж JS-власність. Модель пише ЛИШЕ
-// новий зміст-прозу; заголовок із детермінованою датою додає genMerge.
+// новий зміст-прозу; заголовок із детермінованою датою додає JS нижче.
 const MERGE_SYS = `Ти готуєш короткий додаток до існуючого ADR. Напиши ЛИШЕ новий зміст (проза/bullets), якого ще НЕМА в цільовому ADR — уточнення/виправлення/продовження. Стисло, українською, без заголовків, без code-fence, без передмови.`
 
-async function genMerge(title, body, captured, targetTitle, cfg, file = '') {
-  const date = madrDate(captured, file)
-  const user = `Цільовий ADR: "${targetTitle}".\nЧернетка-доповнення "${title}" (${date}):\n${body.slice(0, 2500)}\n\nЛише новий зміст, без заголовка.`
-  const head = `## Update ${date}`
-  const parse = (raw) => {
+/**
+ * Stage 3: одна batch-хвиля gen-merge для ВСІХ драфтів, вирішених як
+ * merge (у ціль-anchor чи в існуючий clean-ADR). Fallback (обидва тири
+ * провалились) — канонічний заголовок без додаткового змісту.
+ * @param {Array<{idx:number, targetTitle:string}>} entries драфт-індекс + заголовок цілі злиття
+ * @param {{file:string, body:string}[]} drafts батч чернеток
+ * @param {string[]} titles заголовки драфтів
+ * @param {string[]} captured `captured`-поле кожного драфта
+ * @param {object} cfg конфіг каскаду (див. `runCascade`)
+ * @returns {Promise<Map<number, string>>} готовий merge-блок (`## Update <date>\n\n...`) за індексом драфта
+ */
+async function genMerges(entries, drafts, titles, captured, cfg) {
+  const heads = new Map(entries.map(e => [e.idx, `## Update ${madrDate(captured[e.idx], drafts[e.idx].file)}`]))
+  const items = entries.map(e => ({
+    customId: `merge:${e.idx}`,
+    prompt: `Цільовий ADR: "${e.targetTitle}".\nЧернетка-доповнення "${titles[e.idx]}" (${madrDate(captured[e.idx], drafts[e.idx].file)}):\n${drafts[e.idx].body.slice(0, 2500)}\n\nЛише новий зміст, без заголовка.`,
+    system: MERGE_SYS
+  }))
+  const parse = (raw, customId) => {
+    const idx = Number(customId.slice('merge:'.length))
     const t = stripFence(raw)
     // Захист від моделі, що все одно вписала свій заголовок: знімаємо його, щоб
     // не подвоїти. Канонічний head додаємо детерміновано нижче.
     const cleaned = RE_UPDATE_HEAD.test(t) ? t.replace(RE_UPDATE_HEAD_LINE, '').trim() : t
     if (!cleaned) throw new Error('empty merge additions')
-    return `${head}\n\n${cleaned}`
+    return `${heads.get(idx)}\n\n${cleaned}`
   }
-  try {
-    return await callWithCascade([{ role: 'system', content: MERGE_SYS }, { role: 'user', content: user }], parse, {
-      label: 'merge',
-      allowCloud: cfg.allowCloud,
-      stats: cfg.stats,
-      attempts: 2,
-      maxTokens: 1500
-    })
-  } catch {
-    return `${head}\n\n(доповнення з чернетки "${title}")`
+  const parsed = await keyedCascade(items, parse, cfg)
+
+  const out = new Map()
+  for (const e of entries) {
+    out.set(e.idx, parsed.get(`merge:${e.idx}`) ?? `${heads.get(e.idx)}\n\n(доповнення з чернетки "${titles[e.idx]}")`)
   }
+  return out
 }
 
 // ─────────────────────────── union-find ────────────────────────────────────────
 
 function makeDSU(n) {
   const p = Array.from({ length: n }, (_, i) => i)
-  const find = (x) => (p[x] === x ? x : (p[x] = find(p[x])))
-  const union = (a, b) => { p[find(a)] = find(b) }
+  const find = x => (p[x] === x ? x : (p[x] = find(p[x])))
+  const union = (a, b) => {
+    p[find(a)] = find(b)
+  }
   return { find, union }
 }
 
@@ -555,13 +750,13 @@ const noop = () => {
  * Головний конвеєр. Повертає operations[] (контракт single-shot) + stats.
  * @param {{file:string, body:string}[]} drafts батч чернеток
  * @param {string[]} cleanList clean basename-и
- * @param {{allowCloud?:boolean, votes?:number, onProgress?:(m:string)=>void, chainFactory?:typeof startChain}} [opts] хмарна ескалація, кількість голосів, колбек прогресу, фабрика ланцюжка (інжект для тестів)
+ * @param {{allowCloud?:boolean, votes?:number, onProgress?:(m:string)=>void, chainFactory?:typeof startChain, tier1?:string, tier2?:string, localProviders?:object, submitBatchImpl?:Function}} [opts] хмарна ескалація, кількість голосів, колбек прогресу, фабрика ланцюжка (інжект для тестів), override моделей/local-providers/submitBatch (інжект для тестів)
  * @returns {{operations:object[], stats:object, trace:object}} операції apply-ops, лічильники та діагностичний trace
  */
 export async function normalizePipeline(drafts, cleanList, opts = {}) {
-  // Один ланцюжок на весь прогін: edge-judge працює по ребрах ДО утворення
-  // кластерів, тож per-cluster chain не покрив би першу половину викликів;
-  // per-stage розріз аналітика бере з caller (`adr-pipe:<label>`).
+  // Один ланцюжок на весь прогін: batch-хвилі не мають per-item-гранулярності
+  // (submitBatch не приймає chain на item), тож chain лишається
+  // прогін-рівневим — той самий tradeoff, що й у doc-files batch-шляху (T8).
   const chain = (opts.chainFactory ?? startChain)({
     kind: 'adr-normalize',
     unit: `batch:${drafts.length}`,
@@ -584,7 +779,7 @@ export async function normalizePipeline(drafts, cleanList, opts = {}) {
  * Тіло конвеєра (chain належить обгортці normalizePipeline).
  * @param {{file:string, body:string}[]} drafts батч чернеток
  * @param {string[]} cleanList clean basename-и
- * @param {{allowCloud?:boolean, votes?:number, onProgress?:(m:string)=>void}} opts опції прогону
+ * @param {{allowCloud?:boolean, votes?:number, onProgress?:(m:string)=>void, tier1?:string, tier2?:string, localProviders?:object, submitBatchImpl?:Function}} opts опції прогону
  * @param {object} chain chain handle
  * @returns {Promise<{operations:object[], stats:object, trace:object}>} результат конвеєра
  */
@@ -592,14 +787,23 @@ async function normalizePipelineCore(drafts, cleanList, opts, chain) {
   const allowCloud = opts.allowCloud ?? false
   const log = opts.onProgress ?? noop
   const stats = { localCalls: 0, cloudCalls: 0, escalations: 0, failures: 0, madrInvalid: 0 }
-  const cfg = { allowCloud, votes: opts.votes ?? 2, stats, chain }
+  const cfg = {
+    allowCloud,
+    votes: opts.votes ?? 2,
+    stats,
+    chain,
+    tier1: opts.tier1 ?? LOCAL(),
+    tier2: opts.tier2 ?? CLOUD_MIN,
+    localProviders: opts.localProviders ?? defaultLocalProviders(),
+    submitBatchImpl: opts.submitBatchImpl ?? submitBatchNative
+  }
 
-  const titles = drafts.map((d) => draftTitle(d.body) || d.file.replace(RE_MD_EXT, ''))
-  const captured = drafts.map((d) => captureField(d.body, 'captured'))
+  const titles = drafts.map(d => draftTitle(d.body) || d.file.replace(RE_MD_EXT, ''))
+  const captured = drafts.map(d => captureField(d.body, 'captured'))
 
   // Харднінг #1: детермінований no-decision гейт. Такі драфти не кластеризуємо й
   // не rewrite-имо — одразу delete (без LLM), як це робить gold.
-  const noDec = drafts.map((d) => isNoDecision(d.body))
+  const noDec = drafts.map(d => isNoDecision(d.body))
   if (noDec.some(Boolean)) log(`no-decision гейт: ${noDec.filter(Boolean).length} драфт(ів) → delete`)
 
   // Stage 0: retrieval (ребра, що торкаються no-decision драфтів, відкидаємо)
@@ -608,26 +812,17 @@ async function normalizePipelineCore(drafts, cleanList, opts, chain) {
   const dc = edges.dc.filter(([i]) => !noDec[i])
   log(`retrieval: ${dd.length} draft-draft ребер, ${dc.length} draft-clean кандидатів`)
 
-  // Stage 1: judge draft↔draft ребра (харднінг #2: 3 голоси, conf ≥ 0.6 проти over-merge)
+  // Stage 1: одна batch-хвиля на ВСІ ребра (dd + dc, усі self-consistency голоси разом)
   const dsu = makeDSU(drafts.length)
-  const confirmedDD = []
+  const { ddSame, cleanTarget } = await judgeEdges(dd, dc, drafts, titles, cfg)
+  let confirmedDDCount = 0
   for (const [i, j] of dd) {
-    const r = await judgeEdge(titles[i], drafts[i].body, titles[j], drafts[j].body, cfg, { votes: 3, minConf: 0.6 })
-    if (r.same) { dsu.union(i, j); confirmedDD.push([i, j]) }
-  }
-  log(`edge-judge: ${confirmedDD.length}/${dd.length} draft-draft ребер підтверджено`)
-
-  // Stage 1: judge draft↔clean → найкращий existing-target на драфт
-  const cleanTarget = Array.from({ length: drafts.length }).fill(null)
-  const dcByDraft = new Map()
-  for (const [i, c] of dc) { if (!dcByDraft.has(i)) dcByDraft.set(i, []); dcByDraft.get(i).push(c) }
-  for (const [i, cands] of dcByDraft) {
-    for (const c of cands) {
-      const cTitle = stripAdrName(c)
-      const r = await judgeEdge(titles[i], drafts[i].body, cTitle, cTitle, cfg)
-      if (r.same) { cleanTarget[i] = c; break }
+    if (ddSame.get(`dd:${i}:${j}`)) {
+      dsu.union(i, j)
+      confirmedDDCount++
     }
   }
+  log(`edge-judge: ${confirmedDDCount}/${dd.length} draft-draft ребер підтверджено`)
   log(`clean-match: ${cleanTarget.filter(Boolean).length} драфтів вже покриті clean-ADR`)
 
   // Cluster (JS): групуємо за DSU
@@ -644,7 +839,7 @@ async function normalizePipelineCore(drafts, cleanList, opts, chain) {
   for (const [, members] of clusters) {
     if (members.length > 1) {
       // anchor — лише серед non-noDec (no-decision не може бути канонічним rewrite)
-      const live = members.filter((m) => !noDec[m])
+      const live = members.filter(m => !noDec[m])
       // anchor = індекс із найдовшим drafts[idx].body.length; при рівності — перший
       // зустрінутий (еквівалент reduce з `>=`, що зберігає поточний акумулятор a).
       const candidates = live.length ? live : members
@@ -655,7 +850,9 @@ async function normalizePipelineCore(drafts, cleanList, opts, chain) {
       decision[anchor] = { op: 'rewrite' }
       for (const m of members) {
         if (m === anchor) continue
-        decision[m] = noDec[m] ? { op: 'delete', reason: 'рішення не прийняте (transcript обірвався)' } : { op: 'merge-anchor', anchorIdx: anchor }
+        decision[m] = noDec[m]
+          ? { op: 'delete', reason: 'рішення не прийняте (transcript обірвався)' }
+          : { op: 'merge-anchor', anchorIdx: anchor }
       }
     } else {
       const i = members[0]
@@ -665,48 +862,62 @@ async function normalizePipelineCore(drafts, cleanList, opts, chain) {
     }
   }
 
-  // одинаки без clean-target → kind-judge
-  for (let i = 0; i < drafts.length; i++) {
-    if (decision[i].op === 'kind') {
-      const k = await judgeKind(titles[i], drafts[i].body, cfg)
+  // Stage 1b: одна batch-хвиля kind-judge для ВСІХ одинаків без clean-target
+  const kindIdxs = []
+  for (let i = 0; i < drafts.length; i++) if (decision[i].op === 'kind') kindIdxs.push(i)
+  if (kindIdxs.length > 0) {
+    const kinds = await judgeKinds(kindIdxs, drafts, titles, cfg)
+    for (const i of kindIdxs) {
+      const k = kinds.get(i)
       decision[i] = k.kind === 'trivial' ? { op: 'delete', reason: k.reason } : { op: 'rewrite' }
     }
   }
 
-  // Stage 2: gen-MADR для всіх rewrite (anchors + standalones)
+  // Stage 2: одна batch-хвиля gen-MADR для ВСІХ rewrite (anchors + standalones)
   const slugByIdx = Array.from({ length: drafts.length }).fill(null)
-  for (let i = 0; i < drafts.length; i++) {
-    if (decision[i].op !== 'rewrite') continue
-    const g = await genMadr(titles[i], drafts[i].body, captured[i], cfg, drafts[i].file)
-    slugByIdx[i] = g.slug
-    if (g.valid) {
-      operations.push({ op: 'rewrite', file: drafts[i].file, slug: g.slug, content: g.content })
-    } else {
-      decision[i] = { op: 'gen-failed' }
-      log(`gen-MADR FAILED для ${drafts[i].file}: ${g.error}`)
+  const rewriteIdxs = []
+  for (let i = 0; i < drafts.length; i++) if (decision[i].op === 'rewrite') rewriteIdxs.push(i)
+  if (rewriteIdxs.length > 0) {
+    const gens = await genMadrs(rewriteIdxs, drafts, titles, captured, cfg)
+    for (const i of rewriteIdxs) {
+      const g = gens.get(i)
+      slugByIdx[i] = g.slug
+      if (g.valid) {
+        operations.push({ op: 'rewrite', file: drafts[i].file, slug: g.slug, content: g.content })
+      } else {
+        decision[i] = { op: 'gen-failed' }
+        log(`gen-MADR FAILED для ${drafts[i].file}: ${g.error}`)
+      }
     }
   }
 
-  // Stage 3: merges
+  // Stage 3: одна batch-хвиля gen-merge для ВСІХ merge (anchor + existing)
+  const mergeEntries = []
   for (let i = 0; i < drafts.length; i++) {
     const d = decision[i]
     if (d.op === 'merge-anchor') {
       const slug = slugByIdx[d.anchorIdx]
-      if (!slug) { log(`merge-anchor ${drafts[i].file}: anchor gen failed → skip`); continue }
-      const add = await genMerge(titles[i], drafts[i].body, captured[i], titles[d.anchorIdx], cfg, drafts[i].file)
-      operations.push({ op: 'merge-into', file: drafts[i].file, target: `${slug}.md`, additions: add })
+      if (!slug) {
+        log(`merge-anchor ${drafts[i].file}: anchor gen failed → skip`)
+        continue
+      }
+      mergeEntries.push({ idx: i, targetTitle: titles[d.anchorIdx], targetFile: `${slug}.md` })
     } else if (d.op === 'merge-existing') {
-      const cTitle = stripAdrName(d.target)
-      const add = await genMerge(titles[i], drafts[i].body, captured[i], cTitle, cfg, drafts[i].file)
-      operations.push({ op: 'merge-into', file: drafts[i].file, target: d.target, additions: add })
+      mergeEntries.push({ idx: i, targetTitle: stripAdrName(d.target), targetFile: d.target })
     } else if (d.op === 'delete') {
       operations.push({ op: 'delete', file: drafts[i].file, reason: d.reason })
+    }
+  }
+  if (mergeEntries.length > 0) {
+    const merges = await genMerges(mergeEntries, drafts, titles, captured, cfg)
+    for (const e of mergeEntries) {
+      operations.push({ op: 'merge-into', file: drafts[e.idx].file, target: e.targetFile, additions: merges.get(e.idx) })
     }
   }
 
   const trace = {
     titles,
-    clusters: Array.from(clusters.values(), (m) => m.map((i) => drafts[i].file)),
+    clusters: Array.from(clusters.values(), m => m.map(i => drafts[i].file)),
     cleanTargets: cleanTarget.map((c, i) => (c ? [drafts[i].file, c] : null)).filter(Boolean),
     decisions: decision.map((d, i) => [drafts[i].file, d.op])
   }
