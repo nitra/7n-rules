@@ -7,8 +7,9 @@
 ## Межі
 
 - Один Release на один наявний package-тег, наприклад `@7n/rules@1.54.0`.
-- Один універсальний workflow обробляє всі package-теги; окремі workflow для workspaces не створюються.
-- Вміст Release береться з секції тієї ж версії у `CHANGELOG.md` workspace-пакета.
+- Один універсальний workflow обробляє теги **всіх publishable npm workspaces** монорепо: core packages, CI- та language-плагіни, а також platform packages, якщо release engine створює для них тег.
+- Workflow не містить списку пакетів: за package name із тегу він знаходить відповідний `package.json` у workspace tree й читає `CHANGELOG.md` поряд із ним.
+- Вміст Release береться з секції тієї ж версії у `CHANGELOG.md` знайденого пакета.
 - npm publish лишається незалежним: збій створення Release не відкочує вже опублікований пакет.
 - Першим релізом буде тег `@7n/rules`, створений release-процесом після merge PR #266; його опис походить із нової секції `npm/CHANGELOG.md`, згенерованої з change-файлу PR.
 
@@ -19,7 +20,7 @@
 Workflow:
 
 1. Checkout робить повну історію на tag commit.
-2. Скрипт розбирає тег на package name та version, зіставляє package name з workspace `package.json` і визначає шлях до його `CHANGELOG.md`.
+2. Скрипт розбирає тег на package name та version, обходить усі `package.json` publishable workspaces, зіставляє package name й визначає шлях до його `CHANGELOG.md`.
 3. Скрипт витягує Markdown між заголовком `## [<version>]` і наступним заголовком того ж рівня.
 4. `gh release create` створює Release з tag name, заголовком `<package>@<version>` та витягнутим описом.
 
