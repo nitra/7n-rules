@@ -35,7 +35,7 @@ const withGlobalLintLockMock = vi.fn((_opts, fn) => fn())
 const createProgressPublisherMock = vi.fn(() => ({ onUpdate: vi.fn(), stop: vi.fn() }))
 const detectAllMock = vi.fn(() => ({ exitCode: 0 }))
 const runFixPipelineMock = vi.fn(() => 0)
-const ensureRunningInWorktreeMock = vi.fn(cwdArg => ({ cwd: cwdArg, autoCreated: false, branchArg: null }))
+const ensureRunningInWorktreeMock = vi.fn(cwdArg => ({ cwd: cwdArg, autoCreated: false, worktreeName: null }))
 const bringChangesBackToOriginalMock = vi.fn(() => ({ failed: false }))
 const removeAutoCreatedWorktreeMock = vi.fn()
 
