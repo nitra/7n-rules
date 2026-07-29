@@ -34,6 +34,9 @@ export const CLOUD_AVG = env.N_CLOUD_AVG_MODEL ?? ''
 /** Максимальний хмарний. Напр.: openai/gpt-5.5 */
 export const CLOUD_MAX = env.N_CLOUD_MAX_MODEL ?? ''
 
+/** Порядок fallback для звичайних local-only викликів (batch його не використовує). */
+const LOCAL_MODEL_ENV_KEYS = ['N_LOCAL_MIN_MODEL', 'N_LOCAL_AVG_MODEL', 'N_LOCAL_MAX_MODEL']
+
 /** Валідні тири — та сама множина, що й `parse_tier` у napi-крейті. */
 const KNOWN_TIERS = new Set(['min', 'avg', 'max'])
 
@@ -57,6 +60,26 @@ export function resolveModel(tier, deps = {}) {
   }
   const native = deps.native ?? loadNative()
   return native.resolveModel(tier) ?? ''
+}
+
+/**
+ * Резолвить local model для звичайного (не batch) виклику від запитаного
+ * `N_LOCAL_*` tier до сильніших local tiers. Наприклад, запит `MIN` бере
+ * `MIN → AVG → MAX`, а запит `AVG` — `AVG → MAX`. Cloud tier навмисно не
+ * входить до цього fallback: caller, який потребує cloud escalation, будує
+ * її власною ladder-політикою.
+ * @param {'N_LOCAL_MIN_MODEL'|'N_LOCAL_AVG_MODEL'|'N_LOCAL_MAX_MODEL'} requestedEnv запитаний local tier
+ * @param {Record<string, string|undefined>} [values] env для тестів
+ * @returns {string} перша задана модель або порожній рядок
+ */
+export function resolveLocalModel(requestedEnv = 'N_LOCAL_MIN_MODEL', values = env) {
+  const start = LOCAL_MODEL_ENV_KEYS.indexOf(requestedEnv)
+  if (start === -1) {
+    throw new TypeError(
+      `resolveLocalModel: unknown local tier ${JSON.stringify(requestedEnv)}. Use N_LOCAL_MIN_MODEL, N_LOCAL_AVG_MODEL, or N_LOCAL_MAX_MODEL.`
+    )
+  }
+  return LOCAL_MODEL_ENV_KEYS.slice(start).map(name => values[name] ?? '').find(Boolean) ?? ''
 }
 
 // ── Escalation-rung → thinkingLevel ──────────────────────────────────────────

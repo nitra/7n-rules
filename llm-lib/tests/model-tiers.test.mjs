@@ -16,7 +16,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { describe, expect, test, vi } from 'vitest'
-import { formatModelSpec, isLocalModel, parseModelId, resolveModel, thinkingLevelForTier } from '../lib/model-tiers.mjs'
+import { formatModelSpec, isLocalModel, parseModelId, resolveLocalModel, resolveModel, thinkingLevelForTier } from '../lib/model-tiers.mjs'
 import { resolveModelSpec } from '../lib/internal/registry.mjs'
 import { resolveNativeAddon } from '../lib/internal/native.mjs'
 
@@ -158,6 +158,30 @@ describe('resolveModel (napi-делегація, інжектований fake-n
     const native = { resolveModel: vi.fn(() => null) }
     resolveModel(tier, { native })
     expect(native.resolveModel).toHaveBeenCalledWith(tier)
+  })
+})
+
+describe('resolveLocalModel (звичайні виклики, без batch)', () => {
+  test('MIN переходить на AVG і MAX, не торкаючись cloud tiers', () => {
+    expect(resolveLocalModel('N_LOCAL_MIN_MODEL', { N_LOCAL_AVG_MODEL: 'omlx/avg' })).toBe('omlx/avg')
+    expect(resolveLocalModel('N_LOCAL_MIN_MODEL', { N_LOCAL_MAX_MODEL: 'omlx/max' })).toBe('omlx/max')
+  })
+
+  test('AVG пропускає MIN і переходить лише на MAX', () => {
+    expect(
+      resolveLocalModel('N_LOCAL_AVG_MODEL', {
+        N_LOCAL_MIN_MODEL: 'omlx/min',
+        N_LOCAL_MAX_MODEL: 'omlx/max'
+      })
+    ).toBe('omlx/max')
+  })
+
+  test('без local tier повертає порожній рядок навіть за cloud model', () => {
+    expect(resolveLocalModel('N_LOCAL_MIN_MODEL', { N_CLOUD_MIN_MODEL: 'openai/mini' })).toBe('')
+  })
+
+  test('невідомий ключ → TypeError', () => {
+    expect(() => resolveLocalModel('N_CLOUD_MIN_MODEL')).toThrow(TypeError)
   })
 })
 

@@ -9,7 +9,7 @@
  *   4. Валідація локально згенерованих блоків; fallback на cloud при анти-патернах.
  *   5. Merge header + блоки → запис тест-файлу (через `recordWrite` ladder-а).
  *
- * Локальна модель — opts.localModel або env N_LOCAL_MIN_MODEL. Всі виклики йдуть
+ * Локальна модель — opts.localModel або `N_LOCAL_MIN_MODEL → AVG → MAX`. Всі виклики йдуть
  * через LLM-хелпер концерну (`lib/llm.mjs` ядра). Без локальної моделі (або без
  * export-ів) — fallback на single-file cloud-генерацію. Валідація блоків жене
  * project-local vitest споживача (`bunx vitest run`) — bundled-vitest shim
@@ -18,7 +18,6 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { join, relative, dirname } from 'node:path'
-import { env } from 'node:process'
 
 import { callText, MEMORY_ERROR_RE } from '@7n/rules/rules/test/coverage/lib/llm.mjs'
 import { extractExportsWithComplexity } from './classify-exports.mjs'
@@ -30,6 +29,7 @@ import { probeModule, probeFetchCalls, probeTimeVariants, probeHelpers } from '.
 // `rules/js/eslint/fix-worker.mjs`.
 const { budgetFor } = await import('@7n/llm-lib/prompt-budget')
 const { startChain } = await import('@7n/llm-lib/chain')
+const { resolveLocalModel: resolveLocalTierModel } = await import('@7n/llm-lib/model-tiers')
 
 const MAX_SRC_BYTES = 6000
 
@@ -1160,7 +1160,7 @@ async function generateOneTest(fileInfo, dir, callTextFn, recordWrite) {
  */
 function resolveLocalModel(opts) {
   if (opts.localModel !== undefined) return opts.localModel
-  return env.N_LOCAL_MIN_MODEL ?? null
+  return resolveLocalTierModel('N_LOCAL_MIN_MODEL') || null
 }
 
 /**

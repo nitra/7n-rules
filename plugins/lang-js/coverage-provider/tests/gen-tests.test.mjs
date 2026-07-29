@@ -312,6 +312,17 @@ describe('generateTests — per-export mode', () => {
     delete env.N_LOCAL_MIN_MODEL
   })
 
+  it('falls back from N_LOCAL_MIN_MODEL to N_LOCAL_AVG_MODEL', async () => {
+    env.N_LOCAL_AVG_MODEL = 'omlx/local-avg'
+    vi.mocked(extractExportsWithComplexity).mockReturnValue([{ name: 'foo', complexity: 'simple' }])
+    vi.mocked(callText).mockResolvedValue("```js\nimport { vi } from 'vitest'\n```")
+
+    await generateTests([{ file: mockFile, pct: 0, reason: '' }], mockDir)
+
+    expect(vi.mocked(callText).mock.calls.some(([, opts]) => opts?.model === 'omlx/local-avg')).toBe(true)
+    delete env.N_LOCAL_AVG_MODEL
+  })
+
   it('opts.localModel = null forces cloud-only even when env is set', async () => {
     env.N_LOCAL_MIN_MODEL = LOCAL_MODEL
     vi.mocked(extractExportsWithComplexity).mockReturnValue([{ name: 'foo', complexity: 'simple' }])
