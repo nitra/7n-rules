@@ -3,26 +3,36 @@ type: JS Module
 title: local-providers.mjs
 resource: llm-lib/lib/local-providers.mjs
 docgen:
-  crc: 6513b04f
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
+  crc: cd7b4cfa
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
   score: 100
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Дефолтна мапа local-провайдерів для `llm_lib::local_cloud` у форматі `{ prefix: { baseUrl, apiKey } }`, яку споживають `oneShotLocalCloud` і `submitBatch`.
-
-`omlx` і `litellm` завжди присутні в мапі одночасно, а фактичний виклик іде рівно в один клієнт за `provider`-префіксом у model-spec. Якщо spec не вказує на певний префікс, відповідний запис у мапі не отримує запиту.
+Файл надає стандартну мапу local-провайдерів для `llm_lib::local_cloud` у формі `{ prefix: { baseUrl, apiKey } }`, щоб JS-частина могла передати Rust-крейту готові endpoints для `oneShotLocalCloud` і `submitBatch`. `defaultLocalProviders` завжди описує `omlx` і `litellm` одночасно, а фактичний мережевий запит отримує лише провайдер, чий префікс вибрано в model-spec, наприклад `N_LOCAL_MIN_MODEL`.
 
 ## Поведінка
 
-1. `defaultLocalProviders` формує єдиний дефолтний набір local-провайдерів для `llm_lib::local_cloud`, щоб обидва зареєстровані напрямки — `omlx` і `litellm` — були доступні одночасно в очікуваному `{ prefix: { baseUrl, apiKey } }` форматі для `oneShotLocalCloud` і `submitBatch`.
-2. Для `omlx` функція бере `baseUrl` з `N_OMLX_BASE_URL`, а якщо його немає — підставляє `http://127.0.0.1:8000/v1/`; `apiKey` бере з `N_OMLX_API_KEY`, інакше лишає порожнім значенням.
-3. Для `litellm` функція бере `baseUrl` з `N_LITELLM_BASE_URL`, а якщо його немає — підставляє `https://llm.7n.ai/v1/`; `apiKey` бере з `N_LITELLM_API_KEY`, інакше лишає порожнім значенням.
-4. Функція не вирішує, який провайдер “активний” сама по собі: вибір фактично визначається тим, який provider-префікс вказаний у model-spec на кшталт `N_LOCAL_MIN_MODEL`.
-5. Коли model-spec вказує на один префікс, `LocalCloud::one_shot_with_spec` звертається рівно до відповідного клієнта; другий запис у мапі залишається запасним і не отримує запитів, доки жоден spec на нього не посилається.
+1. `defaultLocalProviders` формує стандартний набір local-провайдерів для `llm_lib::local_cloud`, щоб JS-частина передавала Rust-крейту готову мапу endpoint-ів у спільному форматі.
+
+2. До мапи завжди входять `omlx` і `litellm`; наявність обох записів не означає одночасне використання обох провайдерів.
+
+3. Активним стає лише провайдер, чий префікс вибрано в model-spec, тому запит спрямовується до одного відповідного клієнта.
+
+4. Для `omlx` використовується локальна адреса за замовчуванням `http://127.0.0.1:8000/v1/`, щоб підтримати локальний LLM-сервер без обов’язкової конфігурації.
+
+5. Для `litellm` використовується віддалена адреса за замовчуванням `https://llm.7n.ai/v1/`, щоб мати готовий fallback-провайдер для централізованого LLM endpoint-а.
+
+6. Значення адрес і ключів доступу можуть надходити з оточення, щоб одна й та сама логіка працювала в локальному, CI та production-середовищах без зміни коду.
+
+7. Файл лише збирає конфігурацію провайдерів і не виконує власних операцій запису.
+
+## Сценарії використання
+
+- `llm-lib/tests/local-providers.test.mjs` (defaultLocalProviders) — без env — дефолтні baseUrl для omlx і litellm, apiKey null; обидва провайдери завжди присутні одночасно (жоден не вимикається іншим); N_OMLX_BASE_URL/N_OMLX_API_KEY перекривають дефолт omlx; N_LITELLM_BASE_URL/N_LITELLM_API_KEY перекривають дефолт litellm
 
 ## Гарантії поведінки
 

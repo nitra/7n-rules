@@ -85,6 +85,10 @@ describe('releaseTagsForWorkspaces', () => {
   })
 })
 
+// Workflow-файли живуть у корені репо: tests → scripts → npm → <root>; шлях від
+// import.meta.dirname, бо cwd прогону буває і коренем, і npm (delta coverage hook).
+const REPO_ROOT = join(import.meta.dirname, '..', '..', '..')
+
 test('package-release workflow обробляє package-теги і створює відсутній Release', () => {
   const workflow = readFileSync(join(REPO_ROOT, '.github/workflows/package-release.yml'), 'utf8')
 

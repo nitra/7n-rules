@@ -16,6 +16,8 @@ import { defaultRunGit, synthesizeChangeFromCommits } from './lib/fallback.mjs'
 const SEMVER_LINE_RE = /("version"\s*:\s*")[^"]*(")/
 const LLM_LIB_DEPENDENCY_LINE_RE = /("@7n\/llm-lib"\s*:\s*")[^"]*(")/
 const PY_VERSION_LINE_RE = /^(version\s*=\s*")[^"]*(")/m
+const LLM_LIB_PACKAGE = '@7n/llm-lib'
+const RULES_PACKAGE = '@7n/rules'
 
 /**
  * Записує нову version у маніфест, зберігаючи форматування файлу.
@@ -57,6 +59,53 @@ async function synchronizeRulesLlmLibDependency(cwd, released) {
     throw new Error(`release: не вдалося синхронізувати @7n/llm-lib у ${rules.ws}/package.json`)
   }
   await writeFile(path, replaced)
+}
+
+/**
+ * Форс patch-реліз `@7n/rules`, коли в трейні випущено `@7n/llm-lib` без rules.
+ * Без цього exact-pin у package.json rules лишається на попередній версії llm-lib
+ * до наступного «природного» релізу rules — рекурентний дрейф, який ловить
+ * npm/tests/llm-lib-pin.test.mjs. Сам pin далі оновлює
+ * `synchronizeRulesLlmLibDependency` (rules уже буде серед released).
+ * @param {string} cwd корінь монорепо
+ * @param {string[]} workspaces workspace-и, які обходив реліз
+ * @param {Array<{ ws: string, name: string | null, newVersion: string }>} released щойно випущені workspace-и
+ * @param {string} date `YYYY-MM-DD`
+ * @returns {Promise<{ entry: { ws: string, name: string | null, newVersion: string }, tag: string } | null>} синтезований реліз rules або null
+ */
+async function forceRulesReleaseForLlmLib(cwd, workspaces, released, date) {
+  const llmLib = released.find(entry => entry.name === LLM_LIB_PACKAGE)
+  if (!llmLib || released.some(entry => entry.name === RULES_PACKAGE)) return null
+
+  for (const ws of workspaces) {
+    const manifest = await readPackageManifest(ws, cwd)
+    if (!manifest || manifest.name !== RULES_PACKAGE || !manifest.version) continue
+    const syntheticChange = {
+      file: null,
+      entry: {
+        bump: 'patch',
+        section: 'Fixed',
+        description: `оновлено pin \`${LLM_LIB_PACKAGE}\` до ${llmLib.newVersion} (автосинк релізного трейна)`
+      }
+    }
+    const agg = aggregateWorkspace({
+      currentVersion: manifest.version,
+      changeFiles: [syntheticChange],
+      date,
+      maxBumpCap: manifest.maxBump
+    })
+    if (!agg) return null
+    console.warn(
+      `⚠️  ${ws}: ${LLM_LIB_PACKAGE}@${llmLib.newVersion} випущено без ${RULES_PACKAGE} — форс patch-реліз для синку pin-а`
+    )
+    await writeManifestVersion(cwd, manifest, agg.newVersion)
+    await prependWorkspaceChangelog(cwd, ws, agg.sectionBlock)
+    return {
+      entry: { ws, name: manifest.name, newVersion: agg.newVersion },
+      tag: `${manifest.name}@${agg.newVersion}`
+    }
+  }
+  return null
 }
 
 /**
@@ -219,6 +268,11 @@ export async function release(opts = {}) {
   }
 
   if (released.length > 0) {
+    const forcedRules = await forceRulesReleaseForLlmLib(cwd, workspaces, released, date)
+    if (forcedRules) {
+      released.push(forcedRules.entry)
+      tags.push(forcedRules.tag)
+    }
     await synchronizeRulesLlmLibDependency(cwd, released)
     await commitAndPushRelease(released, tags, runGit, push)
   }
