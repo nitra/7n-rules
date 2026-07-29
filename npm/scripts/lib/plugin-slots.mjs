@@ -625,7 +625,7 @@ export function resolveRulesDirs(projectRoot, config, bundledRulesDir, options =
  * {@link resolveSlotGraph}: `graph.capabilities` уже агрегує capabilities УСІХ наявних плагінів
  * (не лише тих, що увійшли у slot graph — гейт `requiresPluginApi` тут не застосовний, capability
  * gate має лишатись коректним і під час поетапної Фази 2-міграції). Повертає ту саму (кешовану на
- * графі) змінювану референцію `Set` — викликачі лише читають (`.has`), не мутують.
+ * графі) мутабельну референцію `Set` — викликачі лише читають (`.has`), не мутують.
  * @param {string} projectRoot корінь репозиторію
  * @param {{ plugins?: unknown } | null | undefined} config розпарсений `.n-rules.json`
  * @param {{ allowInstall?: boolean, quiet?: boolean }} [options] прокидається у {@link resolveSlotGraph}
