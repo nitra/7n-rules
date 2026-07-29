@@ -34,7 +34,7 @@ export const MAX_CLASSIFY_WORDS = 80
  * Preferred fix-модель з universal fallback від local-min до cloud-max.
  * @returns {string} ідентифікатор моделі або порожній рядок.
  */
-export const fixModel = () => resolveModel('N_LOCAL_MIN_MODEL')
+export const fixModel = () => resolveModel('min')
 
 /**
  * Запускає `cspell` над `files` (delta) або над `.` (full), захоплюючи вивід. Скоуп файлів, які
