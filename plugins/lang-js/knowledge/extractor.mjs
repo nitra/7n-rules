@@ -222,7 +222,12 @@ function singleProgramExpression(program) {
  * @returns {{ startByte: number, endByte: number }} UTF-8 byte span
  */
 function templateExpressionSpan(original, templateOffset, expressionOffset, start, end, wrapperOffset = 0) {
-  return span(original, expressionOffset + start - wrapperOffset, expressionOffset + end - wrapperOffset, templateOffset)
+  return span(
+    original,
+    expressionOffset + start - wrapperOffset,
+    expressionOffset + end - wrapperOffset,
+    templateOffset
+  )
 }
 
 /**
@@ -275,7 +280,9 @@ function collectEdges(units, importedBindings, filePath, original, baseOffset) {
  * @returns {Array<{ path: string, role: string, span: { startByte: number, endByte: number } }>} provenance
  */
 function templateEvidence(filePath, original, templateOffset, location) {
-  return [{ path: filePath, role: 'syntax', span: span(original, location.start.offset, location.end.offset, templateOffset) }]
+  return [
+    { path: filePath, role: 'syntax', span: span(original, location.start.offset, location.end.offset, templateOffset) }
+  ]
 }
 
 /**
@@ -283,7 +290,17 @@ function templateEvidence(filePath, original, templateOffset, location) {
  * @param {{ units: Array<Record<string, unknown>>, ordinals: Map<string, number>, filePath: string, kind: string, name: string, location: object, original: string, templateOffset: number, attributes?: Record<string, unknown> }} input unit source
  * @returns {Record<string, unknown>} normalized unit
  */
-function addTemplateUnit({ units, ordinals, filePath, kind, name, location, original, templateOffset, attributes = {} }) {
+function addTemplateUnit({
+  units,
+  ordinals,
+  filePath,
+  kind,
+  name,
+  location,
+  original,
+  templateOffset,
+  attributes = {}
+}) {
   const ordinal = ordinals.get(kind) ?? 0
   ordinals.set(kind, ordinal + 1)
   const localId = `template:${kind}:${ordinal}`
@@ -314,7 +331,8 @@ function addTemplateTargetEdge({ edges, fromLocalId, kind, root, localUnits, imp
     return
   }
   const specifier = importedBindings.get(root)
-  if (specifier) edges.push({ kind: 'integrates', fromLocalId, to: { unresolvedSpecifier: specifier, opaque: true }, evidence })
+  if (specifier)
+    edges.push({ kind: 'integrates', fromLocalId, to: { unresolvedSpecifier: specifier, opaque: true }, evidence })
 }
 
 /**
@@ -423,7 +441,8 @@ function analyzeTemplateExpression({
 }) {
   if (expression.isStatic || !expression.content.trim()) return null
   const parsed = parseTemplateExpression(expression.content, eventHandler)
-  if (!parsed) return `OXC не зміг повністю розібрати ${eventHandler ? 'event handler' : 'template expression'} "${expression.content}".`
+  if (!parsed)
+    return `OXC не зміг повністю розібрати ${eventHandler ? 'event handler' : 'template expression'} "${expression.content}".`
   addTemplateExpressionEdges({
     parsed,
     eventHandler,
@@ -473,7 +492,8 @@ function analyzeTemplateDirective({
       modifiers: prop.modifiers ?? []
     }
   })
-  if (eventHandler) entryPoints.push({ localId: unit.localId, reason: `template-event:${prop.arg?.content ?? 'dynamic'}` })
+  if (eventHandler)
+    entryPoints.push({ localId: unit.localId, reason: `template-event:${prop.arg?.content ?? 'dynamic'}` })
   const expressionDetail = prop.exp
     ? analyzeTemplateExpression({
         expression: prop.exp,
@@ -570,7 +590,9 @@ function analyzeTemplate({ ast, units, filePath, original, templateOffset, scrip
   const entryPoints = []
   const ordinals = new Map()
   const localUnits = new Map(scriptUnits.map(unit => [unit.name, unit.localId]))
-  const importedBindings = new Map(imports.flatMap(item => item.bindings.map(binding => [binding.localName, item.specifier])))
+  const importedBindings = new Map(
+    imports.flatMap(item => item.bindings.map(binding => [binding.localName, item.specifier]))
+  )
   let detail = null
   const visit = node => {
     if (detail || !node || typeof node !== 'object') return
@@ -620,7 +642,8 @@ function analyzeTemplate({ ast, units, filePath, original, templateOffset, scrip
       })
       return
     }
-    if (node.type !== 2 && node.type !== 3) detail = `compiler-dom повернув непідтримуваний template AST node type ${String(node.type)}.`
+    if (node.type !== 2 && node.type !== 3)
+      detail = `compiler-dom повернув непідтримуваний template AST node type ${String(node.type)}.`
   }
   visit(ast)
   return detail ? { detail } : { edges, entryPoints }
@@ -634,11 +657,14 @@ function analyzeTemplate({ ast, units, filePath, original, templateOffset, scrip
 function sortEdges(edges) {
   const unique = new Map()
   for (const edge of edges) unique.set(JSON.stringify([edge.fromLocalId, edge.kind, edge.to, edge.evidence]), edge)
-  return unique.values().toArray().toSorted((left, right) =>
-    JSON.stringify([left.fromLocalId, left.kind, left.to, left.evidence[0].span]).localeCompare(
-      JSON.stringify([right.fromLocalId, right.kind, right.to, right.evidence[0].span])
+  return unique
+    .values()
+    .toArray()
+    .toSorted((left, right) =>
+      JSON.stringify([left.fromLocalId, left.kind, left.to, left.evidence[0].span]).localeCompare(
+        JSON.stringify([right.fromLocalId, right.kind, right.to, right.evidence[0].span])
+      )
     )
-  )
 }
 
 /**
@@ -711,20 +737,33 @@ function testCalleeChain(expression) {
 /** Збирає active Vitest/Jest-style assertion scenarios через OXC AST. */
 export function collectTestScenarios({ file }) {
   const parsed = parseProgramAndCommentsOrNull(file?.content, file?.path)
-  if (!parsed?.program) return failure('expected-test-parse-failed', file?.path ?? null, 'OXC не зміг розібрати test source.')
+  if (!parsed?.program)
+    return failure('expected-test-parse-failed', file?.path ?? null, 'OXC не зміг розібрати test source.')
   const scenarios = []
   walkAstWithAncestors(parsed.program, [], (node, ancestors) => {
     if (node.type !== 'CallExpression') return
     const chain = testCalleeChain(node.callee)
     if (!['test', 'it'].includes(chain[0]) || ['skip', 'todo', 'skipIf'].some(item => chain.includes(item))) return
-    if (ancestors.some(parent => parent.type === 'CallExpression' && ['skip', 'todo', 'skipIf'].some(item => testCalleeChain(parent.callee).includes(item)))) return
+    if (
+      ancestors.some(
+        parent =>
+          parent.type === 'CallExpression' &&
+          ['skip', 'todo', 'skipIf'].some(item => testCalleeChain(parent.callee).includes(item))
+      )
+    )
+      return
     let asserted = false
     walkAstWithAncestors(node, [], child => {
-      if (child.type === 'CallExpression' && ['expect', 'assert'].includes(testCalleeChain(child.callee)[0])) asserted = true
+      if (child.type === 'CallExpression' && ['expect', 'assert'].includes(testCalleeChain(child.callee)[0]))
+        asserted = true
     })
     if (!asserted || typeof node.start !== 'number' || typeof node.end !== 'number') return
     const title = node.arguments?.[0]?.value
-    scenarios.push({ content: file.content.slice(node.start, node.end), span: span(file.content, node.start, node.end, 0), anchor: typeof title === 'string' ? title : `${node.start}:${node.end}` })
+    scenarios.push({
+      content: file.content.slice(node.start, node.end),
+      span: span(file.content, node.start, node.end, 0),
+      anchor: typeof title === 'string' ? title : `${node.start}:${node.end}`
+    })
   })
   return { ok: true, scenarios: scenarios.toSorted((left, right) => left.span.startByte - right.span.startByte) }
 }
@@ -775,7 +814,8 @@ export function analyzeFile(input) {
   )
   if (!analyzed) return failure('parse-error', read.file.path, 'OXC не зміг повністю розпарсити Vue script-блок.')
   const template = sfc.descriptor.template
-  if (!template?.content.trim()) return { ok: true, parser: PARSER, file: { ...read.file, language: 'vue' }, ...analyzed }
+  if (!template?.content.trim())
+    return { ok: true, parser: PARSER, file: { ...read.file, language: 'vue' }, ...analyzed }
   const templateErrors = []
   let ast
   try {
@@ -799,7 +839,8 @@ export function analyzeFile(input) {
     scriptUnits: analyzed.units,
     imports: analyzed.imports
   })
-  if ('detail' in templateResult) return failure('vue-template-expression-unsupported', read.file.path, templateResult.detail)
+  if ('detail' in templateResult)
+    return failure('vue-template-expression-unsupported', read.file.path, templateResult.detail)
   const units = analyzed.units
   const edges = sortEdges([...analyzed.edges, ...templateResult.edges])
   return {

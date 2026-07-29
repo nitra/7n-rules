@@ -3,7 +3,7 @@ type: JS Module
 title: extractor.mjs
 resource: plugins/lang-js/knowledge/extractor.mjs
 docgen:
-  crc: 903a7f36
+  crc: 58cff396
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
@@ -19,8 +19,8 @@ parser або непокритий template expression повертає blocking
 
 ## Публічний API
 
+- collectTestScenarios — Збирає active Vitest/Jest-style assertion scenarios через OXC AST.
 - analyzeFile — Аналізує один JS/TS/Vue source-file у deterministic normalized fragment.
-- collectTestScenarios — Збирає active assertion scenarios з JS test source через OXC parser.
 
 ## Сценарії використання
 

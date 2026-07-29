@@ -20,9 +20,9 @@ gitignore і не переходить через symlinks. Він поверт�
 
 ## Поведінка
 
-discoverDomainCodeExtensions повертає блокер, якщо root домену не є absolute path або якщо root недоступний через filesystem error; у таких випадках користувач отримує diagnostics замість списку розширень. Він знаходить лише наявні `.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.tsx`, `.vue`, `.rs`, `.py` та `.php`, враховує gitignore, не переходить symlinks, а шляхи в межах `.git` і `node_modules` свідомо пропускаються.
+discoverDomainCodeExtensions повертає diagnostic, що блокує виконання, якщо root домену не є absolute path або якщо root недоступний через filesystem error; у таких випадках користувач отримує diagnostics замість списку розширень. Він знаходить лише наявні `.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.tsx`, `.vue`, `.rs`, `.py` та `.php`, враховує gitignore, не переходить symlinks, а шляхи в межах `.git` і `node_modules` свідомо пропускаються.
 
-loadDomainSources повертає блокер за тих самих умов для root, а також коли передані extensions не відповідають очікуваному формату. Успішний результат містить лише стабільні relative paths і вміст source-файлів; будь-яка помилка під час обробки окремого source перетворюється на diagnostics і зупиняє видачу результату.
+loadDomainSources повертає diagnostic, що блокує виконання, за тих самих умов для root, а також коли передані extensions не відповідають очікуваному формату. Успішний результат містить лише стабільні relative paths і вміст source-файлів; будь-яка помилка під час обробки окремого source перетворюється на diagnostics і зупиняє видачу результату.
 
 Обидві функції працюють у межах одного domain і не змішують source з вкладених domains; для цього враховуються exclusions nested domains. Якщо під час перевірки source виявляється вихід за boundary через symlink або файл стає недоступним, це також повертається як blocker.
 

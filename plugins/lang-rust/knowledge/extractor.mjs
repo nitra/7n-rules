@@ -477,23 +477,32 @@ export async function collectTestScenarios({ file }) {
     parser.setLanguage(language)
     tree = parser.parse(file.content)
   } catch (error) {
-    return failure('parser-runtime-error', file.path, `Tree-sitter Rust test parser не ініціалізувався: ${String(error)}`)
+    return failure(
+      'parser-runtime-error',
+      file.path,
+      `Tree-sitter Rust test parser не ініціалізувався: ${String(error)}`
+    )
   }
-  if (!tree?.rootNode || tree.rootNode.hasError) return failure('expected-test-parse-failed', file.path, 'Tree-sitter Rust не зміг розібрати test source.')
+  if (!tree?.rootNode || tree.rootNode.hasError)
+    return failure('expected-test-parse-failed', file.path, 'Tree-sitter Rust не зміг розібрати test source.')
   const scenarios = []
   const children = tree.rootNode.namedChildren
   for (let index = 0; index < children.length; index++) {
     const node = children[index]
     if (node.type !== 'function_item') continue
     const attributes = []
-    for (let cursor = index - 1; cursor >= 0 && children[cursor].type === 'attribute_item'; cursor--) attributes.push(children[cursor])
-    if (!attributes.some(attribute => hasIdentifier(attribute, 'test')) || attributes.some(attribute => hasIdentifier(attribute, 'ignore'))) continue
+    for (let cursor = index - 1; cursor >= 0 && children[cursor].type === 'attribute_item'; cursor--)
+      attributes.push(children[cursor])
+    if (
+      attributes.every(attribute => !hasIdentifier(attribute, 'test')) ||
+      attributes.some(attribute => hasIdentifier(attribute, 'ignore'))
+    )
+      continue
     let asserted = false
     walkSyntax(node, child => {
-      if (child.type === 'macro_invocation') {
-        const macro = childOfType(child, 'identifier')?.text
-        if (macro === 'assert' || macro === 'assert_eq' || macro === 'assert_ne') asserted = true
-      }
+      if (child.type !== 'macro_invocation') return
+      const macro = childOfType(child, 'identifier')?.text
+      if (macro === 'assert' || macro === 'assert_eq' || macro === 'assert_ne') asserted = true
     })
     const name = itemName(node)
     if (asserted && name) scenarios.push({ content: node.text, span: span(file.content, node), anchor: name })

@@ -201,10 +201,24 @@ function schemaClaims({ domain, kind, format, hash, value, schemaId, contractId,
     })
   ]
   const context = { domainId: domain.id, subjectId: contractId, value, evidenceId, sourceFingerprint: hash }
-  if (kind === 'openapi') claims.push(...openApiClaims(context))
-  else if (kind === 'asyncapi') claims.push(...asyncApiClaims(context))
-  else if (kind === 'graphql') claims.push(...graphqlClaims(context))
-  else if (kind === 'json-schema') claims.push(...jsonSchemaClaims({ ...context, subjectId: schemaId }))
+  switch (kind) {
+    case 'openapi': {
+      claims.push(...openApiClaims(context))
+      break
+    }
+    case 'asyncapi': {
+      claims.push(...asyncApiClaims(context))
+      break
+    }
+    case 'graphql': {
+      claims.push(...graphqlClaims(context))
+      break
+    }
+    case 'json-schema': {
+      claims.push(...jsonSchemaClaims({ ...context, subjectId: schemaId }))
+      break
+    }
+  }
   return claims.toSorted((left, right) => left.id.localeCompare(right.id))
 }
 
@@ -267,7 +281,10 @@ async function readOwnedArtifact(root, path) {
   try {
     const resolved = await realpath(absolute)
     if (!isWithin(root, resolved)) {
-      return { ok: false, diagnostic: diagnostic('structured-outside-domain', `Artifact ${path} виходить за domain boundary.`, path) }
+      return {
+        ok: false,
+        diagnostic: diagnostic('structured-outside-domain', `Artifact ${path} виходить за domain boundary.`, path)
+      }
     }
     return { ok: true, content: await readFile(resolved, 'utf8') }
   } catch (error) {
@@ -287,8 +304,9 @@ function sourceNode({ domain, path, kind, format, hash, value }) {
     sourceFingerprint: hash
   }
   const evidenceKind = kind === 'manifest' || kind === 'config' ? 'config' : 'schema'
+  const evidenceIdentity = `${evidenceKind}:${path}:${hash}`
   const source = {
-    id: `evidence:${digest(`${evidenceKind}:${path}:${hash}`)}`,
+    id: `evidence:${digest(evidenceIdentity)}`,
     kind: evidenceKind,
     path,
     contentHash: hash,
@@ -312,14 +330,12 @@ function sourceNode({ domain, path, kind, format, hash, value }) {
       ]
     }
   }
-  const label =
-    typeof value?.info?.title === 'string'
-      ? value.info.title
-      : typeof value?.name === 'string'
-        ? value.name
-        : basename(path)
+  let label = basename(path)
+  if (typeof value?.info?.title === 'string') label = value.info.title
+  else if (typeof value?.name === 'string') label = value.name
   const schemaId = `schema:${domain.id}:${token}`
   const contractId = `contract:${domain.id}:${token}`
+  const edgeIdentity = `${schemaId}:implements:${contractId}:${source.id}`
   return {
     nodes: [
       {
@@ -341,7 +357,7 @@ function sourceNode({ domain, path, kind, format, hash, value }) {
     ],
     edges: [
       {
-        id: `edge:${digest(`${schemaId}:implements:${contractId}:${source.id}`)}`,
+        id: `edge:${digest(edgeIdentity)}`,
         kind: 'implements',
         fromId: schemaId,
         toId: contractId,
@@ -368,9 +384,15 @@ function validateArtifact(kind, value, path) {
     return { ok: false, diagnostic: diagnostic('structured-root-invalid', `${kind} має бути structured object.`, path) }
   }
   if (kind === 'openapi' && typeof value.openapi !== 'string')
-    return { ok: false, diagnostic: diagnostic('openapi-version-missing', 'OpenAPI artifact не має string openapi version.', path) }
+    return {
+      ok: false,
+      diagnostic: diagnostic('openapi-version-missing', 'OpenAPI artifact не має string openapi version.', path)
+    }
   if (kind === 'asyncapi' && typeof value.asyncapi !== 'string')
-    return { ok: false, diagnostic: diagnostic('asyncapi-version-missing', 'AsyncAPI artifact не має string asyncapi version.', path) }
+    return {
+      ok: false,
+      diagnostic: diagnostic('asyncapi-version-missing', 'AsyncAPI artifact не має string asyncapi version.', path)
+    }
   if (kind === 'json-schema' && typeof value.$schema !== 'string')
     return { ok: false, diagnostic: diagnostic('json-schema-id-missing', 'JSON Schema не має string $schema.', path) }
   return { ok: true }
@@ -382,8 +404,16 @@ function validateArtifact(kind, value, path) {
  * @returns {Promise<{ok: true, fragments: object[], evidenceContentById: Record<string, string>} | {ok: false, diagnostics: object[]}>} graph fragments or blockers
  */
 export async function loadStructuredSources({ domain }) {
-  if (!domain || typeof domain.root !== 'string' || !isAbsolute(domain.root) || typeof domain.rootManifest !== 'string') {
-    return { ok: false, diagnostics: [diagnostic('invalid-structured-domain', 'Domain має містити absolute root і rootManifest.')] }
+  if (
+    !domain ||
+    typeof domain.root !== 'string' ||
+    !isAbsolute(domain.root) ||
+    typeof domain.rootManifest !== 'string'
+  ) {
+    return {
+      ok: false,
+      diagnostics: [diagnostic('invalid-structured-domain', 'Domain має містити absolute root і rootManifest.')]
+    }
   }
   let root
   try {
@@ -399,7 +429,9 @@ export async function loadStructuredSources({ domain }) {
     followSymbolicLinks: false,
     ignore: [...DEFAULT_IGNORES, ...nestedDomainIgnores(domain)]
   })
-  const paths = [...new Set([manifestName, ...discovered.map(toPosix)])].toSorted((left, right) => left.localeCompare(right))
+  const paths = [...new Set([manifestName, ...discovered.map(path => toPosix(path))])].toSorted((left, right) =>
+    left.localeCompare(right)
+  )
   const fragments = []
   const evidenceContentById = {}
   const diagnostics = []
@@ -428,13 +460,17 @@ export async function loadStructuredSources({ domain }) {
   if (diagnostics.length > 0) {
     return {
       ok: false,
-      diagnostics: diagnostics.toSorted((left, right) => `${left.path ?? ''}:${left.code}`.localeCompare(`${right.path ?? ''}:${right.code}`))
+      diagnostics: diagnostics.toSorted((left, right) =>
+        `${left.path ?? ''}:${left.code}`.localeCompare(`${right.path ?? ''}:${right.code}`)
+      )
     }
   }
   return {
     ok: true,
     fragments: fragments.toSorted((left, right) => left.file.path.localeCompare(right.file.path)),
-    evidenceContentById: Object.fromEntries(Object.entries(evidenceContentById).toSorted(([left], [right]) => left.localeCompare(right)))
+    evidenceContentById: Object.fromEntries(
+      Object.entries(evidenceContentById).toSorted(([left], [right]) => left.localeCompare(right))
+    )
   }
 }
 
@@ -508,7 +544,16 @@ function validStructuredClaim(claim, { domain, nodeIds, evidenceIds, contentHash
 function validateFragment(fragment, domain) {
   const path = fragment?.file?.path
   if (!fragment || fragment.ok !== true || typeof path !== 'string' || typeof fragment.file.contentHash !== 'string') {
-    return { ok: false, diagnostics: [diagnostic('invalid-structured-fragment', 'Structured fragment має містити ok, file.path і contentHash.', path ?? null)] }
+    return {
+      ok: false,
+      diagnostics: [
+        diagnostic(
+          'invalid-structured-fragment',
+          'Structured fragment має містити ok, file.path і contentHash.',
+          path ?? null
+        )
+      ]
+    }
   }
   if (
     !Array.isArray(fragment.nodes) ||
@@ -516,24 +561,59 @@ function validateFragment(fragment, domain) {
     !Array.isArray(fragment.evidence) ||
     (fragment.claims !== undefined && !Array.isArray(fragment.claims))
   ) {
-    return { ok: false, diagnostics: [diagnostic('invalid-structured-fragment', 'Structured fragment має nodes, edges і evidence arrays.', path)] }
+    return {
+      ok: false,
+      diagnostics: [
+        diagnostic('invalid-structured-fragment', 'Structured fragment має nodes, edges і evidence arrays.', path)
+      ]
+    }
   }
   const diagnostics = []
   for (const node of fragment.nodes) {
-    if (!node || typeof node.id !== 'string' || !NODE_KINDS.has(node.kind) || !VISIBILITIES.has(node.visibility) || node.domainId !== domain.id) {
-      diagnostics.push(diagnostic('invalid-structured-node', 'Structured node має known kind, visibility і owning domain.', path))
+    if (
+      !node ||
+      typeof node.id !== 'string' ||
+      !NODE_KINDS.has(node.kind) ||
+      !VISIBILITIES.has(node.visibility) ||
+      node.domainId !== domain.id
+    ) {
+      diagnostics.push(
+        diagnostic('invalid-structured-node', 'Structured node має known kind, visibility і owning domain.', path)
+      )
     }
   }
   for (const evidence of fragment.evidence) {
-    if (!evidence || typeof evidence.id !== 'string' || !EVIDENCE_KINDS.has(evidence.kind) || evidence.path !== path || typeof evidence.contentHash !== 'string') {
-      diagnostics.push(diagnostic('invalid-structured-evidence', 'Structured evidence має exact source path/content hash і known kind.', path))
+    if (
+      !evidence ||
+      typeof evidence.id !== 'string' ||
+      !EVIDENCE_KINDS.has(evidence.kind) ||
+      evidence.path !== path ||
+      typeof evidence.contentHash !== 'string'
+    ) {
+      diagnostics.push(
+        diagnostic(
+          'invalid-structured-evidence',
+          'Structured evidence має exact source path/content hash і known kind.',
+          path
+        )
+      )
     }
   }
   const ids = new Set(fragment.nodes.map(node => node?.id))
   const evidenceIds = new Set(fragment.evidence.map(evidence => evidence?.id))
   for (const edge of fragment.edges) {
-    if (!edge || typeof edge.id !== 'string' || !EDGE_KINDS.has(edge.kind) || !ids.has(edge.fromId) || !ids.has(edge.toId) || !Array.isArray(edge.evidenceIds) || edge.evidenceIds.some(id => !evidenceIds.has(id))) {
-      diagnostics.push(diagnostic('invalid-structured-edge', 'Structured edge має local nodes і evidence provenance.', path))
+    if (
+      !edge ||
+      typeof edge.id !== 'string' ||
+      !EDGE_KINDS.has(edge.kind) ||
+      !ids.has(edge.fromId) ||
+      !ids.has(edge.toId) ||
+      !Array.isArray(edge.evidenceIds) ||
+      edge.evidenceIds.some(id => !evidenceIds.has(id))
+    ) {
+      diagnostics.push(
+        diagnostic('invalid-structured-edge', 'Structured edge має local nodes і evidence provenance.', path)
+      )
     }
   }
   const claims = fragment.claims ?? []
@@ -551,17 +631,67 @@ function validateFragment(fragment, domain) {
   return diagnostics.length > 0 ? { ok: false, diagnostics } : { ok: true, value: { ...fragment, claims } }
 }
 
+/** Adds one validated fragment to mutable graph collections or returns identity collisions. */
+function mergeFragmentCollections(
+  fragment,
+  { nodes, edges, evidence, claims, nodeIds, edgeIds, evidenceIds, claimIds }
+) {
+  const diagnostics = []
+  for (const node of fragment.nodes) {
+    if (nodeIds.has(node.id)) diagnostics.push(diagnostic('duplicate-structured-node', node.id, fragment.file.path))
+    else {
+      nodeIds.add(node.id)
+      nodes.push(node)
+    }
+  }
+  for (const item of fragment.evidence) {
+    if (evidenceIds.has(item.id))
+      diagnostics.push(diagnostic('duplicate-structured-evidence', item.id, fragment.file.path))
+    else {
+      evidenceIds.add(item.id)
+      evidence.push(item)
+    }
+  }
+  for (const edge of fragment.edges) {
+    if (edgeIds.has(edge.id)) diagnostics.push(diagnostic('duplicate-structured-edge', edge.id, fragment.file.path))
+    else {
+      edgeIds.add(edge.id)
+      edges.push(edge)
+    }
+  }
+  for (const claim of fragment.claims) {
+    if (claimIds.has(claim.id)) diagnostics.push(diagnostic('duplicate-structured-claim', claim.id, fragment.file.path))
+    else {
+      claimIds.add(claim.id)
+      claims.push(claim)
+    }
+  }
+  return diagnostics
+}
+
 /**
  * Merges deterministic structured fragments into a normalized language graph.
  * @param {{graph: Record<string, unknown>, domain: Record<string, unknown>, fragments?: unknown[]}} input graph and injected fragments
  * @returns {{ok: true, graph: Record<string, unknown>} | {ok: false, diagnostics: object[]}} extended graph or blockers
  */
 export function mergeStructuredFragments({ graph, domain, fragments = [] }) {
-  if (!Array.isArray(fragments)) return { ok: false, diagnostics: [diagnostic('invalid-structured-fragments', 'structuredFragments має бути масивом.')] }
+  if (!Array.isArray(fragments))
+    return {
+      ok: false,
+      diagnostics: [diagnostic('invalid-structured-fragments', 'structuredFragments має бути масивом.')]
+    }
   const checked = fragments.map(fragment => validateFragment(fragment, domain))
   const diagnostics = checked.flatMap(result => (result.ok ? [] : result.diagnostics))
-  if (diagnostics.length > 0) return { ok: false, diagnostics: diagnostics.toSorted((left, right) => `${left.path ?? ''}:${left.code}`.localeCompare(`${right.path ?? ''}:${right.code}`)) }
-  const sorted = checked.map(result => result.value).toSorted((left, right) => left.file.path.localeCompare(right.file.path))
+  if (diagnostics.length > 0)
+    return {
+      ok: false,
+      diagnostics: diagnostics.toSorted((left, right) =>
+        `${left.path ?? ''}:${left.code}`.localeCompare(`${right.path ?? ''}:${right.code}`)
+      )
+    }
+  const sorted = checked
+    .map(result => result.value)
+    .toSorted((left, right) => left.file.path.localeCompare(right.file.path))
   const nodes = [...graph.nodes]
   const edges = [...graph.edges]
   const evidence = [...graph.evidence]
@@ -571,36 +701,17 @@ export function mergeStructuredFragments({ graph, domain, fragments = [] }) {
   const evidenceIds = new Set(evidence.map(item => item.id))
   const claimIds = new Set(claims.map(claim => claim.id))
   for (const fragment of sorted) {
-    for (const node of fragment.nodes) {
-      if (nodeIds.has(node.id)) diagnostics.push(diagnostic('duplicate-structured-node', node.id, fragment.file.path))
-      else {
-        nodeIds.add(node.id)
-        nodes.push(node)
-      }
-    }
-    for (const item of fragment.evidence) {
-      if (evidenceIds.has(item.id)) diagnostics.push(diagnostic('duplicate-structured-evidence', item.id, fragment.file.path))
-      else {
-        evidenceIds.add(item.id)
-        evidence.push(item)
-      }
-    }
-    for (const edge of fragment.edges) {
-      if (edgeIds.has(edge.id)) diagnostics.push(diagnostic('duplicate-structured-edge', edge.id, fragment.file.path))
-      else {
-        edgeIds.add(edge.id)
-        edges.push(edge)
-      }
-    }
-    for (const claim of fragment.claims) {
-      if (claimIds.has(claim.id)) diagnostics.push(diagnostic('duplicate-structured-claim', claim.id, fragment.file.path))
-      else {
-        claimIds.add(claim.id)
-        claims.push(claim)
-      }
-    }
+    diagnostics.push(
+      ...mergeFragmentCollections(fragment, { nodes, edges, evidence, claims, nodeIds, edgeIds, evidenceIds, claimIds })
+    )
   }
-  if (diagnostics.length > 0) return { ok: false, diagnostics: diagnostics.toSorted((left, right) => `${left.path ?? ''}:${left.code}`.localeCompare(`${right.path ?? ''}:${right.code}`)) }
+  if (diagnostics.length > 0)
+    return {
+      ok: false,
+      diagnostics: diagnostics.toSorted((left, right) =>
+        `${left.path ?? ''}:${left.code}`.localeCompare(`${right.path ?? ''}:${right.code}`)
+      )
+    }
   return {
     ok: true,
     graph: {

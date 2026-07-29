@@ -302,11 +302,19 @@ export function collectTestScenarios({ file }) {
   }
   let ast
   try {
-    ast = new PhpParser({ parser: { php7: true, version: '8.3' }, ast: { withPositions: true } }).parseCode(file.content, file.path)
+    ast = new PhpParser({ parser: { php7: true, version: '8.3' }, ast: { withPositions: true } }).parseCode(
+      file.content,
+      file.path
+    )
   } catch (error) {
-    return failure('expected-test-parse-failed', file.path, `PHP parser не зміг розібрати test source: ${String(error)}`)
+    return failure(
+      'expected-test-parse-failed',
+      file.path,
+      `PHP parser не зміг розібрати test source: ${String(error)}`
+    )
   }
-  if (!ast?.loc || !Array.isArray(ast.children) || (ast.errors?.length ?? 0) > 0) return failure('expected-test-parse-failed', file.path, 'PHP parser повернув неповний test AST.')
+  if (!ast?.loc || !Array.isArray(ast.children) || (ast.errors?.length ?? 0) > 0)
+    return failure('expected-test-parse-failed', file.path, 'PHP parser повернув неповний test AST.')
   const scenarios = []
   visit(ast, node => {
     const methodName = nodeName(node.name)
@@ -319,7 +327,12 @@ export function collectTestScenarios({ file }) {
       if (name.startsWith('assert')) asserted = true
       if (name === 'markTestSkipped' || name === 'markTestIncomplete') disabled = true
     })
-    if (asserted && !disabled) scenarios.push({ content: node.loc.source ?? file.content.slice(node.loc.start.offset, node.loc.end.offset), span: span(file.content, node), anchor: methodName })
+    if (asserted && !disabled)
+      scenarios.push({
+        content: node.loc.source ?? file.content.slice(node.loc.start.offset, node.loc.end.offset),
+        span: span(file.content, node),
+        anchor: methodName
+      })
   })
   return { ok: true, scenarios: scenarios.toSorted((left, right) => left.span.startByte - right.span.startByte) }
 }

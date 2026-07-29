@@ -2,7 +2,7 @@ import { Buffer } from 'node:buffer'
 
 import { describe, expect, test } from 'vitest'
 
-import rustKnowledgeExtractor, { analyzeFile } from '../extractor.mjs'
+import rustKnowledgeExtractor, { analyzeFile, collectTestScenarios } from '../extractor.mjs'
 
 /**
  * Створює immutable source evidence для Rust extractor-а.
@@ -134,6 +134,31 @@ describe('knowledge.extractor@1 Rust adapter', () => {
     await expect(analyzeFile(input('src/not-rust.txt', 'text'))).resolves.toEqual({
       ok: false,
       diagnostics: [expect.objectContaining({ code: 'unsupported-extension', path: 'src/not-rust.txt' })]
+    })
+  })
+
+  test('collects active asserted #[test] functions but excludes ignored and assertion-free cases', async () => {
+    const content = [
+      '#[test]',
+      'fn accepts_order() { assert_eq!(1, 1); }',
+      '#[ignore]',
+      '#[test]',
+      'fn ignored_order() { assert!(false); }',
+      '#[test]',
+      'fn without_assertion() {}'
+    ].join('\n')
+    const result = await collectTestScenarios({ file: { path: 'tests/orders.rs', content } })
+
+    expect(result).toMatchObject({ ok: true })
+    expect(result.scenarios).toEqual([
+      expect.objectContaining({ anchor: 'accepts_order', content: expect.stringContaining('assert_eq') })
+    ])
+  })
+
+  test('test collector returns a blocking diagnostic for a non-Rust file', async () => {
+    await expect(collectTestScenarios({ file: { path: 'tests/orders.txt', content: '' } })).resolves.toEqual({
+      ok: false,
+      diagnostics: [expect.objectContaining({ code: 'invalid-file-input', path: 'tests/orders.txt' })]
     })
   })
 })

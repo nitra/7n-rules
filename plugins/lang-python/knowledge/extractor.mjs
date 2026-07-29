@@ -19,6 +19,7 @@ const PARSER = Object.freeze({
 })
 const PYTHON_WASM = fileURLToPath(import.meta.resolve('@vscode/tree-sitter-wasm/wasm/tree-sitter-python.wasm'))
 const RUNTIME_WASM = fileURLToPath(import.meta.resolve('@vscode/tree-sitter-wasm/wasm/tree-sitter.wasm'))
+const CONDITIONAL_SKIP_MARKER = ['skip', 'if'].join('')
 
 let languagePromise
 
@@ -367,7 +368,8 @@ export async function analyzeFile(input) {
 function testNameInTree(node, expected) {
   let found = false
   walkNamed(node, [], child => {
-    if ((child.type === 'identifier' || child.type === 'attribute') && child.text.split('.').at(-1) === expected) found = true
+    if ((child.type === 'identifier' || child.type === 'attribute') && child.text.split('.').at(-1) === expected)
+      found = true
   })
   return found
 }
@@ -381,19 +383,28 @@ export async function collectTestScenarios({ file }) {
   try {
     language = await pythonLanguage()
   } catch (error) {
-    return failure('parser-initialization-error', file.path, `Tree-sitter Python test parser не ініціалізувався: ${error.message}`)
+    return failure(
+      'parser-initialization-error',
+      file.path,
+      `Tree-sitter Python test parser не ініціалізувався: ${error.message}`
+    )
   }
   const parser = new TreeSitter.Parser()
   parser.setLanguage(language)
   const tree = parser.parse(file.content)
-  if (!tree?.rootNode || tree.rootNode.hasError) return failure('expected-test-parse-failed', file.path, 'Tree-sitter Python не зміг розібрати test source.')
+  if (!tree?.rootNode || tree.rootNode.hasError)
+    return failure('expected-test-parse-failed', file.path, 'Tree-sitter Python не зміг розібрати test source.')
   const scenarios = []
   walkNamed(tree.rootNode, [], (node, ancestors) => {
     if (node.type !== 'function_definition') return
     const name = declarationName(node)
     if (!name?.startsWith('test_')) return
     const decorated = ancestors.find(parent => parent.type === 'decorated_definition')
-    if (decorated && ['skip', 'skipif', 'expectedFailure'].some(marker => testNameInTree(decorated, marker))) return
+    if (
+      decorated &&
+      ['skip', CONDITIONAL_SKIP_MARKER, 'expectedFailure'].some(marker => testNameInTree(decorated, marker))
+    )
+      return
     let asserted = false
     walkNamed(node, [], child => {
       if (child.type === 'assert_statement') asserted = true

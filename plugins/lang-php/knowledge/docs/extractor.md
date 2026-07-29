@@ -3,7 +3,7 @@ type: JS Module
 title: extractor.mjs
 resource: plugins/lang-php/knowledge/extractor.mjs
 docgen:
-  crc: f7545bec
+  crc: 193753ba
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
@@ -18,7 +18,7 @@ Regex і brace-scanner не беруть участі у production semantic ext
 ## Публічний API
 
 - analyzeFile — Аналізує PHP source через повний parser та повертає only-complete semantic fragment.
-- collectTestScenarios — Збирає assertions лише з active PHP test methods через php-parser.
+- collectTestScenarios — Збирає active PHPUnit test* methods з assert* call через php-parser AST.
 
 ## Сценарії використання
 

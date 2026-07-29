@@ -57,7 +57,11 @@ describe('structured package knowledge sources', () => {
       ])
       const contract = result.fragments.find(fragment => fragment.file.path === 'contracts/openapi.yaml')
       expect(contract.nodes).toContainEqual(
-        expect.objectContaining({ kind: 'config', visibility: 'public', attributes: expect.objectContaining({ artifact: 'schema' }) })
+        expect.objectContaining({
+          kind: 'config',
+          visibility: 'public',
+          attributes: expect.objectContaining({ artifact: 'schema' })
+        })
       )
       expect(contract.nodes).toContainEqual(
         expect.objectContaining({ kind: 'integration', name: 'Payments API', visibility: 'external' })

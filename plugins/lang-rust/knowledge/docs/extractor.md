@@ -3,7 +3,7 @@ type: JS Module
 title: extractor.mjs
 resource: plugins/lang-rust/knowledge/extractor.mjs
 docgen:
-  crc: 3ffb0e2a
+  crc: 6b78648a
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
@@ -21,7 +21,7 @@ blocking diagnostic, без partial fragment-а або whole-file fallback.
 ## Публічний API
 
 - analyzeFile — Аналізує один Rust source-file через Tree-sitter WASM.
-- collectTestScenarios — Збирає assertions лише з active Rust `#[test]` functions через Tree-sitter WASM.
+- collectTestScenarios — Збирає active #[test] scenarios та assert!/assert_* macros через Rust grammar.
 
 ## Сценарії використання
 

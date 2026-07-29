@@ -3,7 +3,7 @@ import { Buffer } from 'node:buffer'
 import { describe, expect, test } from 'vitest'
 
 import { buildNormalizedGraph } from '../../../../npm/rules/ci4/package_knowledge/normalized-graph.mjs'
-import phpKnowledgeExtractor, { analyzeFile } from '../extractor.mjs'
+import phpKnowledgeExtractor, { analyzeFile, collectTestScenarios } from '../extractor.mjs'
 
 /**
  * Створює extractor input fixture.
@@ -88,6 +88,34 @@ describe('knowledge.extractor@1 PHP adapter', () => {
     expect(analyzeFile(input('src/Nope.phtml', '<?php echo 1;'))).toEqual({
       ok: false,
       diagnostics: [expect.objectContaining({ code: 'unsupported-extension' })]
+    })
+  })
+
+  test('collects asserted active PHPUnit test methods but excludes skipped and helper methods', () => {
+    const content = [
+      '<?php',
+      'final class OrdersTest {',
+      '  public function testAcceptsOrder() { $this->assertSame(1, 1); }',
+      '  public function testSkipped() { $this->markTestSkipped(); $this->assertTrue(false); }',
+      '  public function helper() { $this->assertTrue(true); }',
+      '}'
+    ].join('\n')
+    const result = collectTestScenarios({ file: { path: 'tests/OrdersTest.php', content } })
+
+    expect(result).toMatchObject({ ok: true })
+    expect(result.scenarios).toEqual([
+      expect.objectContaining({ anchor: 'testAcceptsOrder', content: expect.stringContaining('assertSame') })
+    ])
+  })
+
+  test('test collector returns blocking diagnostics for invalid input and malformed PHP', () => {
+    expect(collectTestScenarios({ file: { path: 'tests/Nope.txt', content: '' } })).toEqual({
+      ok: false,
+      diagnostics: [expect.objectContaining({ code: 'invalid-file-input', path: 'tests/Nope.txt' })]
+    })
+    expect(collectTestScenarios({ file: { path: 'tests/Broken.php', content: '<?php function broken( {' } })).toEqual({
+      ok: false,
+      diagnostics: [expect.objectContaining({ code: 'expected-test-parse-failed', path: 'tests/Broken.php' })]
     })
   })
 })

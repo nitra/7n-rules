@@ -3,7 +3,7 @@ type: JS Module
 title: extractor.mjs
 resource: plugins/lang-python/knowledge/extractor.mjs
 docgen:
-  crc: c164a7cc
+  crc: aacbda94
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
@@ -20,7 +20,7 @@ Adapter використовує повний Tree-sitter Python parser у WASM.
 ## Публічний API
 
 - analyzeFile — Аналізує один Python source-file у deterministic normalized fragment.
-- collectTestScenarios — Збирає assertions лише з active Python test functions через Tree-sitter WASM.
+- collectTestScenarios — Збирає active pytest/unittest test_* functions з assert_statement через Tree-sitter.
 
 ## Сценарії використання
 

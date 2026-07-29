@@ -101,7 +101,10 @@ describe('discoverDomainCodeExtensions', () => {
       await mkdir(join(root, 'packages', 'nested'), { recursive: true })
       await writeFile(join(root, 'packages', 'nested', 'hidden.py'), '')
 
-      await expect(discoverDomainCodeExtensions({ domain: domain(root) })).resolves.toEqual({ ok: true, extensions: [] })
+      await expect(discoverDomainCodeExtensions({ domain: domain(root) })).resolves.toEqual({
+        ok: true,
+        extensions: []
+      })
     })
   })
 
@@ -114,7 +117,10 @@ describe('discoverDomainCodeExtensions', () => {
       await writeFile(join(outside, 'secret.ts'), '')
       await symlink(outside, join(root, 'linked'))
 
-      await expect(discoverDomainCodeExtensions({ domain: domain(root) })).resolves.toEqual({ ok: true, extensions: [] })
+      await expect(discoverDomainCodeExtensions({ domain: domain(root) })).resolves.toEqual({
+        ok: true,
+        extensions: []
+      })
     })
   })
 })

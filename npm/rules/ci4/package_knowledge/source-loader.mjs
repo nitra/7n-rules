@@ -155,13 +155,16 @@ export async function discoverDomainCodeExtensions({ domain }) {
       ]
     }
   }
-  const paths = await globby(SUPPORTED_CODE_EXTENSIONS.map(extension => `**/*${extension}`), {
-    cwd: root,
-    onlyFiles: true,
-    gitignore: true,
-    followSymbolicLinks: false,
-    ignore: [...DEFAULT_IGNORES, ...nestedDomainIgnores(domain)]
-  })
+  const paths = await globby(
+    SUPPORTED_CODE_EXTENSIONS.map(extension => `**/*${extension}`),
+    {
+      cwd: root,
+      onlyFiles: true,
+      gitignore: true,
+      followSymbolicLinks: false,
+      ignore: [...DEFAULT_IGNORES, ...nestedDomainIgnores(domain)]
+    }
+  )
   const results = await Promise.all(paths.toSorted().map(path => readDomainSource(root, path)))
   const diagnostics = results.filter(result => !result.ok).map(result => result.diagnostic)
   if (diagnostics.length > 0) return { ok: false, diagnostics }

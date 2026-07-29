@@ -92,17 +92,20 @@ describe('knowledge.extractor@1 JS adapter', () => {
       '  <UiCard @save="зберегти($event)" :title="заголовок">{{ renderTitle(замовлення) }}</UiCard>',
       '</template>',
       '<script setup>',
-      'import { track } from \'@fixture/analytics\'',
+      "import { track } from '@fixture/analytics'",
       'export const зберегти = order => track(order)',
       'const renderTitle = order => order.name',
-      'const заголовок = \'Замовлення\'',
+      "const заголовок = 'Замовлення'",
       'const замовлення = {}',
       '</script>'
     ].join('\n')
     const result = analyzeFile(input('src/Card.vue', content))
     const handler = result.units.find(unit => unit.kind === 'template-directive' && unit.name === '@save')
     expect(result).toMatchObject({ ok: true, coverage: { complete: true, requiredUnits: 6, requiredEdges: 4 } })
-    expect(handler).toMatchObject({ localId: 'template:directive:0', attributes: { directive: 'on', argument: 'save' } })
+    expect(handler).toMatchObject({
+      localId: 'template:directive:0',
+      attributes: { directive: 'on', argument: 'save' }
+    })
     expect(result.entryPoints).toContainEqual({ localId: handler.localId, reason: 'template-event:save' })
     expect(result.edges).toEqual(
       expect.arrayContaining([
@@ -130,16 +133,18 @@ describe('knowledge.extractor@1 JS adapter', () => {
         })
       ])
     )
-    expect(buildNormalizedGraph({
-      domain: {
-        id: 'npm:@fixture/app',
-        ecosystem: 'npm',
-        name: '@fixture/app',
-        rootManifest: 'package.json',
-        sourceFingerprint: 'sha256:domain'
-      },
-      fragments: [result]
-    }).ok).toBe(true)
+    expect(
+      buildNormalizedGraph({
+        domain: {
+          id: 'npm:@fixture/app',
+          ecosystem: 'npm',
+          name: '@fixture/app',
+          rootManifest: 'package.json',
+          sourceFingerprint: 'sha256:domain'
+        },
+        fragments: [result]
+      }).ok
+    ).toBe(true)
   })
 
   test('Vue malformed template повертає blocking parser diagnostic без partial graph', () => {
