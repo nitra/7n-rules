@@ -394,7 +394,9 @@ pub async fn create_session(
             .await;
 
         if let Err(err) = &result {
-            eprintln!("acp: фонова задача сесії завершилась помилкою: {err}");
+            transport::log_line(format!(
+                "acp: фонова задача сесії завершилась помилкою: {err}"
+            ));
         }
 
         // Fallback-відправник: якщо гонка в `connect_with` (`future::select`
@@ -534,7 +536,9 @@ pub async fn drive_auto_approve(mut rx: mpsc::UnboundedReceiver<SessionEvent>) {
                 None => request.cancel(),
             };
             if let Err(err) = result {
-                eprintln!("acp: auto-approve не зміг відповісти на дозвіл: {err}");
+                transport::log_line(format!(
+                    "acp: auto-approve не зміг відповісти на дозвіл: {err}"
+                ));
             }
         }
     }
