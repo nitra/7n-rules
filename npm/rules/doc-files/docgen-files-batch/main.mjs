@@ -273,9 +273,13 @@ async function runBatchPass(targets, root, opts, stats, { reporter, emit }) {
 
   // Авторські comments уже є джерелом істини: штампуємо такі документи тут,
   // не створюючи порожній native batch і не торкаючись LLM.
-  const llmPrepared = prepared.filter(p => p.mode !== 'comment-only')
-  for (const p of prepared.filter(p => p.mode === 'comment-only')) {
-    processBatchResult({ ok: '' }, p, { model, tier: opts.tier ?? null, stats, out })
+  const llmPrepared = []
+  for (const preparedItem of prepared) {
+    if (preparedItem.mode === 'comment-only') {
+      processBatchResult({ ok: '' }, preparedItem, { model, tier: opts.tier ?? null, stats, out })
+    } else {
+      llmPrepared.push(preparedItem)
+    }
   }
   if (llmPrepared.length === 0) return
 

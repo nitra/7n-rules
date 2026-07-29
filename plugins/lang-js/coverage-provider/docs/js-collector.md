@@ -3,7 +3,7 @@ type: JS Module
 title: js-collector.mjs
 resource: plugins/lang-js/coverage-provider/js-collector.mjs
 docgen:
-  crc: 520a4f73
+  crc: 3c452712
   model: omlx/gemma-4-e2b-it-4bit
   tier: local-min
   score: 55
