@@ -85,15 +85,24 @@ function graphFixture({ gap = true, topics } = {}) {
         sourceFingerprint: 'sha256:expected'
       }
     ],
-    topics:
-      topics ?? [
-            { id: 'process:orders', kind: 'process', title: 'submitOrder', domainId: DOMAIN_ID, anchorIds: [PUBLIC_ID] },
-            { id: 'contract:orders', kind: 'contract', title: 'payments', domainId: DOMAIN_ID, anchorIds: [CONTRACT_ID] }
-      ],
+    topics: topics ?? [
+      { id: 'process:orders', kind: 'process', title: 'submitOrder', domainId: DOMAIN_ID, anchorIds: [PUBLIC_ID] },
+      { id: 'contract:orders', kind: 'contract', title: 'payments', domainId: DOMAIN_ID, anchorIds: [CONTRACT_ID] }
+    ],
     gaps: gap
-      ? [{ id: 'gap:expected', status: 'missing', expectedClaimId: 'claim:expected', implementedClaimIds: [], evidenceIds: ['e:public'] }]
+      ? [
+          {
+            id: 'gap:expected',
+            status: 'missing',
+            expectedClaimId: 'claim:expected',
+            implementedClaimIds: [],
+            evidenceIds: ['e:public']
+          }
+        ]
       : [],
-    evidence: [{ id: 'e:public', kind: 'code', path: 'src/orders.mjs', symbolId: PUBLIC_ID, contentHash: 'sha256:evidence' }]
+    evidence: [
+      { id: 'e:public', kind: 'code', path: 'src/orders.mjs', symbolId: PUBLIC_ID, contentHash: 'sha256:evidence' }
+    ]
   }
 }
 
@@ -136,7 +145,11 @@ describe('renderKnowledgeArtifacts', () => {
     const second = renderKnowledgeArtifacts({ graph: structuredClone(graph) })
 
     expect(first).toEqual(second)
-    expect(Object.keys(first.files).toSorted()).toEqual(['docs/.docgen/manifest.json', 'docs/explanation/architecture.md', 'docs/index.md'])
+    expect(Object.keys(first.files).toSorted()).toEqual([
+      'docs/.docgen/manifest.json',
+      'docs/explanation/architecture.md',
+      'docs/index.md'
+    ])
     expect(JSON.stringify(first.files)).not.toContain('2026-')
   })
 
@@ -152,7 +165,10 @@ describe('renderKnowledgeArtifacts', () => {
   })
 
   test('updates AUTOGEN while preserving supplied MANUAL and EXPECTED zones', () => {
-    const old = 'Manual prefix\n<!-- MANUAL:start id="context" -->Preserve this.<!-- MANUAL:end id="context" -->\n<!-- EXPECTED:start id="must-create" -->Expected behavior.<!-- EXPECTED:end id="must-create" -->\n<!-- AUTOGEN:start id="package-index" hash="' + zoneHash('old') + '" -->old<!-- AUTOGEN:end id="package-index" -->'
+    const old =
+      'Manual prefix\n<!-- MANUAL:start id="context" -->Preserve this.<!-- MANUAL:end id="context" -->\n<!-- EXPECTED:start id="must-create" -->Expected behavior.<!-- EXPECTED:end id="must-create" -->\n<!-- AUTOGEN:start id="package-index" hash="' +
+      zoneHash('old') +
+      '" -->old<!-- AUTOGEN:end id="package-index" -->'
     const result = renderKnowledgeArtifacts({ graph: graphFixture(), existingFiles: { 'docs/index.md': old } })
 
     expect(result).toMatchObject({ ok: true })
@@ -162,7 +178,10 @@ describe('renderKnowledgeArtifacts', () => {
   })
 
   test('fails closed when an authored page has no declared AUTOGEN target', () => {
-    const result = renderKnowledgeArtifacts({ graph: graphFixture(), existingFiles: { 'docs/index.md': '# Handwritten' } })
+    const result = renderKnowledgeArtifacts({
+      graph: graphFixture(),
+      existingFiles: { 'docs/index.md': '# Handwritten' }
+    })
 
     expect(result).toMatchObject({ ok: false, diagnostics: [{ code: 'autogen-zone-required', path: 'docs/index.md' }] })
   })

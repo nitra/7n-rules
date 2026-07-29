@@ -125,7 +125,7 @@ async function loadCache(cachePath, suppliedCache) {
 }
 
 /**
- * Persistує тільки успішні structured results без volatile metadata.
+ * Зберігає тільки успішні structured results без volatile metadata.
  * @param {string | null | undefined} cachePath cache location
  * @param {{version: number, entries: Record<string, unknown>}} cache cache state
  * @returns {Promise<void>} completion

@@ -3,7 +3,7 @@ type: JS Module
 title: render.mjs
 resource: npm/rules/ci4/package_knowledge/render.mjs
 docgen:
-  crc: 2ae8a973
+  crc: 56bfa0fe
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 75

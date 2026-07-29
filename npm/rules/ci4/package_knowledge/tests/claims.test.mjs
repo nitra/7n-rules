@@ -10,7 +10,13 @@ const GRAPH = {
 }
 
 const CHUNKS = [
-  { id: 'chunk:submit', prompt: 'submit flow', contentHash: 'sha256:submit', requiredNodeIds: ['node:submit'], requiredEdgeIds: [] },
+  {
+    id: 'chunk:submit',
+    prompt: 'submit flow',
+    contentHash: 'sha256:submit',
+    requiredNodeIds: ['node:submit'],
+    requiredEdgeIds: []
+  },
   {
     id: 'chunk:notify',
     prompt: 'notify flow',
@@ -29,7 +35,10 @@ function validResult(item) {
   const isNotify = item.customId.includes('notify') || item.prompt.includes('node:notify')
   const subjectId = isNotify ? 'node:notify' : 'node:submit'
   const evidenceId = isNotify ? 'evidence:notify' : 'evidence:submit'
-  const coveredNodeIds = item.prompt.includes('node:submit') && item.prompt.includes('node:notify') ? ['node:notify', 'node:submit'] : [subjectId]
+  const coveredNodeIds =
+    item.prompt.includes('node:submit') && item.prompt.includes('node:notify')
+      ? ['node:notify', 'node:submit']
+      : [subjectId]
   const coveredEdgeIds = item.prompt.includes('edge:submit-notify') ? ['edge:submit-notify'] : []
   return JSON.stringify({
     claims: [{ subjectId, predicate: 'produces', value: subjectId, evidenceIds: [evidenceId], confidence: 1 }],
@@ -43,13 +52,20 @@ function validResult(item) {
  * @returns {ReturnType<typeof vi.fn>} injectable submitBatch
  */
 function successfulBatch() {
-  return vi.fn((tier, items) => Promise.resolve(items.toReversed().map(item => ({ customId: item.customId, ok: validResult(item) }))))
+  return vi.fn((tier, items) =>
+    Promise.resolve(items.toReversed().map(item => ({ customId: item.customId, ok: validResult(item) })))
+  )
 }
 
 describe('buildStructuredClaims', () => {
   test('submits one map batch per wave and creates canonical IDs in deterministic core', async () => {
     const submitBatchImpl = successfulBatch()
-    const result = await buildStructuredClaims({ graph: GRAPH, chunks: CHUNKS, parserVersion: 'oxc@1', submitBatchImpl })
+    const result = await buildStructuredClaims({
+      graph: GRAPH,
+      chunks: CHUNKS,
+      parserVersion: 'oxc@1',
+      submitBatchImpl
+    })
 
     expect(result.ok).toBe(true)
     expect(submitBatchImpl).toHaveBeenCalledTimes(2)
@@ -70,9 +86,21 @@ describe('buildStructuredClaims', () => {
   test('uses successful map and reduce cache entries without any LLM call', async () => {
     const cache = { entries: {} }
     const first = successfulBatch()
-    const initial = await buildStructuredClaims({ graph: GRAPH, chunks: CHUNKS, parserVersion: 'oxc@1', cache, submitBatchImpl: first })
+    const initial = await buildStructuredClaims({
+      graph: GRAPH,
+      chunks: CHUNKS,
+      parserVersion: 'oxc@1',
+      cache,
+      submitBatchImpl: first
+    })
     const second = vi.fn()
-    const cached = await buildStructuredClaims({ graph: GRAPH, chunks: CHUNKS, parserVersion: 'oxc@1', cache, submitBatchImpl: second })
+    const cached = await buildStructuredClaims({
+      graph: GRAPH,
+      chunks: CHUNKS,
+      parserVersion: 'oxc@1',
+      cache,
+      submitBatchImpl: second
+    })
 
     expect(initial.ok).toBe(true)
     expect(cached).toEqual(initial)
@@ -83,13 +111,22 @@ describe('buildStructuredClaims', () => {
     const submitBatchImpl = vi.fn((tier, items) => {
       if (tier === 'min') {
         return Promise.resolve(
-          items.map(item => (item.customId === 'chunk:notify' ? { customId: item.customId, error: 'transient' } : { customId: item.customId, ok: validResult(item) }))
+          items.map(item =>
+            item.customId === 'chunk:notify'
+              ? { customId: item.customId, error: 'transient' }
+              : { customId: item.customId, ok: validResult(item) }
+          )
         )
       }
       return Promise.resolve(items.map(item => ({ customId: item.customId, ok: validResult(item) })))
     })
 
-    const result = await buildStructuredClaims({ graph: GRAPH, chunks: CHUNKS, parserVersion: 'oxc@1', submitBatchImpl })
+    const result = await buildStructuredClaims({
+      graph: GRAPH,
+      chunks: CHUNKS,
+      parserVersion: 'oxc@1',
+      submitBatchImpl
+    })
 
     expect(result.ok).toBe(true)
     expect(submitBatchImpl.mock.calls[0][1]).toHaveLength(2)
@@ -98,7 +135,9 @@ describe('buildStructuredClaims', () => {
   })
 
   test('fails closed after invalid JSON instead of accepting unverified claims', async () => {
-    const submitBatchImpl = vi.fn((tier, items) => Promise.resolve(items.map(item => ({ customId: item.customId, ok: 'not JSON' }))))
+    const submitBatchImpl = vi.fn((tier, items) =>
+      Promise.resolve(items.map(item => ({ customId: item.customId, ok: 'not JSON' })))
+    )
 
     const result = await buildStructuredClaims({
       graph: GRAPH,
@@ -130,7 +169,15 @@ describe('buildStructuredClaims', () => {
           items.map(item => ({
             customId: item.customId,
             ok: JSON.stringify({
-              claims: [{ subjectId: 'node:notify', predicate: 'produces', value: 'notice', evidenceIds: ['evidence:notify'], confidence: 1 }],
+              claims: [
+                {
+                  subjectId: 'node:notify',
+                  predicate: 'produces',
+                  value: 'notice',
+                  evidenceIds: ['evidence:notify'],
+                  confidence: 1
+                }
+              ],
               coveredNodeIds: ['node:notify'],
               coveredEdgeIds: []
             })
@@ -144,7 +191,12 @@ describe('buildStructuredClaims', () => {
   })
 
   test('returns byte-stable result despite reversed batch completion order', async () => {
-    const left = await buildStructuredClaims({ graph: GRAPH, chunks: CHUNKS, parserVersion: 'oxc@1', submitBatchImpl: successfulBatch() })
+    const left = await buildStructuredClaims({
+      graph: GRAPH,
+      chunks: CHUNKS,
+      parserVersion: 'oxc@1',
+      submitBatchImpl: successfulBatch()
+    })
     const right = await buildStructuredClaims({
       graph: GRAPH,
       chunks: [...CHUNKS].toReversed(),

@@ -205,6 +205,7 @@ function factList(facts, fallback) {
   return facts.length > 0 ? facts.map(fact => `- ${fact}`).join('\n') : fallback
 }
 
+/* eslint-disable unicorn/no-array-callback-reference -- named claim formatter is intentionally reused for both layers */
 /**
  * Collects topic-local public facts and reverse impact paths.
  * @param {{graph: Record<string, unknown>, topic: Record<string, unknown>, hiddenNames: Set<string>}} input render context
@@ -245,6 +246,7 @@ function topicFacts({ graph, topic, hiddenNames }) {
     paths
   }
 }
+/* eslint-enable unicorn/no-array-callback-reference */
 
 /**
  * Builds a self-contained AS-IS fragment for one discovered topic.
@@ -282,6 +284,7 @@ function renderArchitecture({ graph, hiddenNames }) {
   return `# Architecture: ${safeText(graph.domain.name, hiddenNames, 'Package domain')}\n\n## Implemented AS-IS\n\nDomain architecture describes confirmed responsibilities and external boundaries without naming private implementation symbols.\n\n## Boundaries\n\n${lines}\n\n## Traceability\n\nThe manifest preserves reverse evidence links to files, tests, configuration and contracts.\n`
 }
 
+/* eslint-disable sonarjs/no-nested-template-literals -- String.raw is required for Mermaid quote escaping */
 /**
  * Returns Mermaid only for a graph edge whose two visible endpoints are public.
  * @param {Record<string, unknown>} graph knowledge graph
@@ -300,6 +303,7 @@ function renderMermaid(graph, hiddenNames) {
   const to = safeText(nodes.get(edge.toId).name, hiddenNames, 'Outcome')
   return `\n\n\`\`\`mermaid\nflowchart LR\n  source["${from.replaceAll('"', String.raw`\"`)}"] --> target["${to.replaceAll('"', String.raw`\"`)}"]\n\`\`\``
 }
+/* eslint-enable sonarjs/no-nested-template-literals */
 
 /**
  * Builds the required package navigation page.

@@ -3,7 +3,7 @@ type: JS Module
 title: claims.mjs
 resource: npm/rules/ci4/package_knowledge/claims.mjs
 docgen:
-  crc: d1c4de3e
+  crc: d6fab6c2
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
