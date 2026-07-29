@@ -1,0 +1,37 @@
+.cspell.json
+  s_41ac711edb279f::t_ea46b93f690658 31-33,78,239,255,382,404,473,480,495,505,515,561-562,612
+llm-lib/.changes/260729-0957.md
+  s_1c3e3d2bb900a5::t_94b92fde9a8251 1-5
+llm-lib/crates/llm-lib/src/acp/docs/session.md
+  s_41ac711edb279f::t_129f59cefd1410 6-9,12-15,35-36
+llm-lib/crates/llm-lib/src/acp/docs/transport.md
+  s_41ac711edb279f::t_fe911e1b285eda 6-9,14,18-27,31-40,44-47
+llm-lib/crates/llm-lib/src/acp/session.rs
+  s_41ac711edb279f::t_a82a00ae9355e5 364-366,489-491
+llm-lib/crates/llm-lib/src/acp/transport.rs
+  s_41ac711edb279f::t_91d398969d825b 19-20,116-150,252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5c8ddb42aa645384a963aad1161eb374deec3619",
+  "prompts": {},
+  "sessions": {
+    "s_1c3e3d2bb900a5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fabd8-445d-7d72-8c59-1f0206f25f53",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_41ac711edb279f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ef20106-c7ae-47fa-9d7d-083c21a16192",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
