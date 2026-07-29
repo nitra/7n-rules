@@ -1,0 +1,10 @@
+{
+  "targetCapability": "ci:azure",
+  "artifactId": "lint-js",
+  "targetPath": "azure-pipelines.yml",
+  "format": "yaml",
+  "mode": "patch-existing",
+  "template": "./azure/lint-js.snippet.yml",
+  "mergeStrategy": "contains-step",
+  "fix": false
+}

@@ -23,6 +23,7 @@
     "coverage-provider",
     "doc-files",
     "rules",
+    "slots",
     "taze",
     "skills",
     "CHANGELOG.md",
@@ -72,6 +73,28 @@
           "version": 1,
           "id": "js-rules",
           "resource": "./rules"
+        },
+        {
+          "slot": "ci.artifact",
+          "version": 1,
+          "id": "js-github-lint",
+          "resource": "./slots/ci/js-github-lint.json",
+          "requires": {
+            "capabilities": [
+              "ci:github"
+            ]
+          }
+        },
+        {
+          "slot": "ci.artifact",
+          "version": 1,
+          "id": "js-azure-lint",
+          "resource": "./slots/ci/js-azure-lint.json",
+          "requires": {
+            "capabilities": [
+              "ci:azure"
+            ]
+          }
         },
         {
           "slot": "taze.provider",
