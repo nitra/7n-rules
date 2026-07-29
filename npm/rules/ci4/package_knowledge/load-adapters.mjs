@@ -1,3 +1,11 @@
+/**
+ * Матеріалізує package-knowledge adapters через універсальний plugin slot bus.
+ *
+ * Loader вимагає явні repository/domain roots і повертає лише повний валідний
+ * набір adapters. Broken resource, contract mismatch або відсутній extractor
+ * для потрібного extension є blocking diagnostic без whole-file fallback.
+ */
+
 import { realpath } from 'node:fs/promises'
 import { isAbsolute, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -34,7 +42,7 @@ const SLOT_VERSION = 1
  * @property {1} apiVersion
  * @property {string[]} extensions
  * @property {{ id: string, grammarVersion: string, runtimeVersion: string }} parser
- * @property {(input: { domain: object, file: string, signal?: AbortSignal }) => object | Promise<object>} analyzeFile
+ * @property {(input: { domain: object, file: { path: string, content: string, contentHash: string }, signal?: AbortSignal }) => object | Promise<object>} analyzeFile
  */
 
 /**
