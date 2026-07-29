@@ -1,0 +1,51 @@
+.cursor/rules/scripts.mdc
+  s_41ac711edb279f::t_79357e8c8f0626 360
+.cursor/skills/mdc-check/SKILL.md
+  s_41ac711edb279f::t_be6b02b23d2363 66,79,83
+.cursor/skills/n-llm-patch/SKILL.md
+  s_41ac711edb279f::t_a6d4f10bca3f24 252
+npm/.changes/260729-0930.md
+  s_d9956680cf6df3::t_f910da8a6ce472 1-5
+plugins/lang-js/.changes/260729-0930.md
+  s_d9956680cf6df3::t_6e86d2cb954366 1-5
+plugins/lang-js/skills/taze/SKILL.fragment.md
+  s_3b13aaf5bffb50::t_60f941f800f74b 54
+.cursor/skills/n-taze/SKILL.md
+  s_d9956680cf6df3::t_3b8a2ea42f084a 338
+npm/skills/lint/SKILL.md
+  s_41ac711edb279f::t_3916411ee5849e 92
+npm/skills/llm-patch/SKILL.md
+  s_3b13aaf5bffb50::t_6907e9c8677e30 252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d697aa30953625a5c7599d4a1158fba34360d2f0",
+  "prompts": {},
+  "sessions": {
+    "s_3b13aaf5bffb50": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa919-380c-7913-8616-b4bc6856cb97",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_41ac711edb279f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ef20106-c7ae-47fa-9d7d-083c21a16192",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_d9956680cf6df3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9d757fc0-a479-402c-9700-65204ba3b01e",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
