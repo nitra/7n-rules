@@ -197,7 +197,7 @@ function collectEdges(units, importedBindings, filePath, original, baseOffset) {
       if (node.type !== 'CallExpression') return
       const { name, root } = callIdentity(node)
       if (!root) return
-      const evidence = [{ path: filePath, role: 'call', span: span(original, node.start, node.end, baseOffset) }]
+      const evidence = [{ path: filePath, role: 'syntax', span: span(original, node.start, node.end, baseOffset) }]
       const target = localUnits.get(root)
       if (target && target !== unit.localId) {
         edges.push({ kind: 'invokes', fromLocalId: unit.localId, to: { localId: target }, evidence })

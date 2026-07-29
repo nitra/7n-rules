@@ -1,5 +1,5 @@
 /** Tests for deterministic package knowledge domain discovery and schema. */
-import { cp, readdir, readFile, rename } from 'node:fs/promises'
+import { cp, readdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import Ajv2020 from 'ajv/dist/2020.js'
@@ -110,6 +110,15 @@ describe('package knowledge domain resolver', () => {
     expect(canonicalDomainName('composer', 'Fixture/Library')).toBe('fixture/library')
     expect(canonicalDomainName('npm', '@fixture/pkg')).toBe('@fixture/pkg')
     expect(canonicalDomainName('cargo', '')).toBeNull()
+  })
+
+  test('skips workspace-only Cargo and config-only Python manifests', async () => {
+    await withTmpDir(async root => {
+      await writeFile(join(root, 'Cargo.toml'), '[workspace]\nmembers = ["crates/*"]\n')
+      await writeFile(join(root, 'pyproject.toml'), '[tool.ruff]\nline-length = 120\n')
+
+      await expect(resolveDocumentationDomains(root)).resolves.toEqual({ domains: [], diagnostics: [] })
+    })
   })
 })
 

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { Buffer } from 'node:buffer'
 
+import { buildNormalizedGraph } from '../../../../npm/rules/ci4/package_knowledge/normalized-graph.mjs'
 import jsKnowledgeExtractor, { analyzeFile } from '../extractor.mjs'
 
 /** @param {string} path @param {string} content @returns {{ domain: object, file: { path: string, content: string, contentHash: string } }} adapter input */
@@ -49,6 +50,18 @@ describe('knowledge.extractor@1 JS adapter', () => {
     expect(result.entryPoints).toEqual([{ localId: 'unit:submit:0', reason: 'export' }])
     expect(result.chunks).toHaveLength(3)
     expect(result.coverage).toMatchObject({ requiredUnits: 3, coveredUnits: 3, requiredEdges: 2, complete: true })
+    expect(
+      buildNormalizedGraph({
+        domain: {
+          id: 'npm:@fixture/app',
+          ecosystem: 'npm',
+          name: '@fixture/app',
+          rootManifest: 'package.json',
+          sourceFingerprint: 'sha256:domain'
+        },
+        fragments: [result]
+      }).ok
+    ).toBe(true)
   })
 
   test('OXC parse error блокує publication без partial graph або fallback', () => {

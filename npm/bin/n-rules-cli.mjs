@@ -18,6 +18,7 @@
  *                                     CI = `lint --no-fix --full` (весь репо, нуль мутацій/LLM).
  *   `npx \@7n/rules ci plan`     — skip-логіка сервіс-орієнтованого CI-канону: перетин дельти з `--path` → job outputs
  *                                     «які lint-домени запускати» (`--github` → $GITHUB_OUTPUT, `--azure` → ##vso).
+ *   `npx \@7n/rules docs domains` — read-only package knowledge index; також `index`, `slice` і `validate`.
  *   `npx \@7n/rules skill list`     — скіли пакета без синку в проєкт
  *   `npx \@7n/rules skill taze`     — промпт на stdout
  *   `npx \@7n/rules skill cursor taze ["task"]` — Cursor CLI (`cursor-agent -p`)
@@ -1647,12 +1648,11 @@ export async function runSync() {
 }
 
 /**
- * Команди, що мутують проєкт у CWD і вимагають кореня репо. `undefined`/`''` —
- * дефолтний sync; `check` — deprecated-alias `fix`. Решта (read-only,
- * `--root`-команди `doc-aggregate`/`rename-yaml-extensions`,
- * sub-лінтери) гард не зачіпає.
+ * Команди, яким потрібен repository root: mutating sync/lint/release і read-only
+ * package knowledge resolver. Решта read-only `--root`-команд та sub-лінтерів
+ * мають власну root resolution.
  */
-const ROOT_GUARDED_COMMANDS = new Set([undefined, '', 'lint', 'release'])
+const ROOT_GUARDED_COMMANDS = new Set([undefined, '', 'lint', 'release', 'docs'])
 
 /**
  * Короткий опис дії для тексту root-guard помилки за іменем команди.
@@ -1670,6 +1670,9 @@ export function describeRootGuardedAction(cmd) {
     }
     case 'release': {
       return '`release` бампає version і переписує CHANGELOG у поточному каталозі'
+    }
+    case 'docs': {
+      return '`docs` читає package knowledge domains від repository root'
     }
     default: {
       return 'Команда @7n/rules мутує проєкт у поточному каталозі'
@@ -1793,7 +1796,9 @@ export async function runCli(argv) {
       // дерево прямо перед тим гейтом. Відкладаємо ensure до ПІСЛЯ
       // `ensureRunningInWorktree` (виклик у `case 'lint'`, спрямований на runCwd).
       const skipDevDepsEnsure =
-        (command === 'skill' && isJsOrchestratedSkillArgs(args)) || (command === 'lint' && isLintFullFixArgs(args))
+        command === 'docs' ||
+        (command === 'skill' && isJsOrchestratedSkillArgs(args)) ||
+        (command === 'lint' && isLintFullFixArgs(args))
       if (command !== 'ci' && !skipDevDepsEnsure) await ensureNRulesInRootDevDependencies(effectiveRoot)
       // Підкоманди-оркестратори (hook/lint/skill/adr-normalize-local/taze/release тощо)
       // можуть спавнити внутрішню agent/LLM-сесію — ADR Stop-hooks (capture/normalize)
@@ -2010,6 +2015,12 @@ export async function runCli(argv) {
 
           break
         }
+        case 'docs': {
+          const { runDocsCli } = await import('../rules/ci4/package_knowledge/cli.mjs')
+          process.exitCode = await runDocsCli(args, { repoRoot: effectiveRoot })
+
+          break
+        }
         case undefined:
         case '': {
           await runSync()
@@ -2019,7 +2030,7 @@ export async function runCli(argv) {
         default: {
           console.error(`❌ Невідома команда: ${command}`)
           console.error(
-            `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), ci plan, taze, release, skill, doc-aggregate`
+            `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, hook, adr-normalize-local, lint (включно зі scope: lint ga|rego|k8s|docker|text), ci plan, docs, taze, release, skill, doc-aggregate`
           )
           process.exitCode = 1
         }

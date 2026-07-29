@@ -84,7 +84,7 @@ export function canonicalDomainName(ecosystem, name) {
  * parsing fails or its required name field is absent.
  * @param {Ecosystem} ecosystem package ecosystem
  * @param {string} manifestPath absolute manifest path
- * @returns {Promise<{ name: string | null, error: string | null }>}
+ * @returns {Promise<{ name: string | null, error: string | null, skip: boolean }>}
  */
 async function readManifestName(ecosystem, manifestPath) {
   try {
@@ -92,15 +92,16 @@ async function readManifestName(ecosystem, manifestPath) {
     if (ecosystem === 'npm' || ecosystem === 'composer') {
       const parsed = JSON.parse(text)
       const value = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed.name : null
-      return { name: canonicalDomainName(ecosystem, value), error: null }
+      return { name: canonicalDomainName(ecosystem, value), error: null, skip: false }
     }
 
     const parsed = parseToml(text)
     const root = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
     if (ecosystem === 'cargo') {
       const pkg = root.package
+      if (!pkg && root.workspace) return { name: null, error: null, skip: true }
       const value = pkg && typeof pkg === 'object' && !Array.isArray(pkg) ? pkg.name : null
-      return { name: canonicalDomainName(ecosystem, value), error: null }
+      return { name: canonicalDomainName(ecosystem, value), error: null, skip: false }
     }
 
     const project = root.project
@@ -108,10 +109,11 @@ async function readManifestName(ecosystem, manifestPath) {
     const tool = root.tool
     const poetry = tool && typeof tool === 'object' && !Array.isArray(tool) ? tool.poetry : null
     const poetryName = poetry && typeof poetry === 'object' && !Array.isArray(poetry) ? poetry.name : null
-    return { name: canonicalDomainName(ecosystem, projectName ?? poetryName), error: null }
+    if (!project && !poetry) return { name: null, error: null, skip: true }
+    return { name: canonicalDomainName(ecosystem, projectName ?? poetryName), error: null, skip: false }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
-    return { name: null, error: detail }
+    return { name: null, error: detail, skip: false }
   }
 }
 
@@ -171,7 +173,7 @@ export async function resolveDocumentationDomains(cwd = process.cwd()) {
     const ecosystem = MANIFESTS.get(manifestPath.split(sep).at(-1))
     if (!ecosystem) continue
     const rootManifest = toPosixRelative(relative(repositoryRoot, manifestPath))
-    const { name, error } = await readManifestName(ecosystem, manifestPath)
+    const { name, error, skip } = await readManifestName(ecosystem, manifestPath)
     if (error) {
       diagnostics.push({
         severity: 'error',
@@ -181,6 +183,7 @@ export async function resolveDocumentationDomains(cwd = process.cwd()) {
       })
       continue
     }
+    if (skip) continue
     if (!name) {
       diagnostics.push({
         severity: 'error',

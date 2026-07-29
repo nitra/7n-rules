@@ -28,6 +28,7 @@ const EDGE_KINDS = new Set([
   'recovers',
   'produces'
 ])
+const EVIDENCE_ROLES = new Set(['syntax', 'doc', 'attribute'])
 
 /**
  * Повертає короткий deterministic digest для synthetic IDs і fingerprints.
@@ -280,9 +281,17 @@ export function buildNormalizedGraph({ domain, fragments }) {
         diagnostics.push(diagnostic('edge-without-evidence', `${edge.kind} edge не має provenance.`, fileKey))
         continue
       }
-      if (edge.evidence.some(item => !isValidByteSpan(item?.span))) {
+      if (
+        edge.evidence.some(
+          item => !isValidByteSpan(item?.span) || (item?.role !== undefined && !EVIDENCE_ROLES.has(item.role))
+        )
+      ) {
         diagnostics.push(
-          diagnostic('invalid-edge-evidence', `${edge.kind} edge має evidence без валідного UTF-8 byte span.`, fileKey)
+          diagnostic(
+            'invalid-edge-evidence',
+            `${edge.kind} edge має evidence без валідного UTF-8 byte span або provenance role.`,
+            fileKey
+          )
         )
         continue
       }
