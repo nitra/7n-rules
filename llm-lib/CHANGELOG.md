@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.13.1] - 2026-07-29
+
+### Fixed
+
+- local-providers.test: герметизація від ambient N_OMLX_*/N_LITELLM_* env (тест «без env» падав на машинах зі справжнім N_LITELLM_API_KEY)
+
+## [2.13.0] - 2026-07-29
+
+### Changed
+
+- llm-lib v0.2.3: pi-тіри переглянуто (рішення З.1) — min/avg тепер локальні моделі (omlx/gemma-4-e4b-it-OptiQ-4bit, litellm/gemma-4-26b-awq через llm.7n.ai), max лишається openai-codex/gpt-5.6-sol; передумова — провайдери omlx/litellm у pi models.json
+
 ## [2.12.3] - 2026-07-29
 
 ### Fixed

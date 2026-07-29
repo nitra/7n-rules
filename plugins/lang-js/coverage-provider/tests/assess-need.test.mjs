@@ -4,11 +4,22 @@ import { assessNeed } from '../fix/assess-need.mjs'
 import { quickClassify } from '../lib/quick-classify.mjs'
 
 vi.mock('node:fs', () => ({ existsSync: vi.fn(), readFileSync: vi.fn() }))
-vi.mock('node:path', () => ({ join: vi.fn((...a) => a.join('/')) }))
-vi.mock('@7n/rules/rules/test/coverage/lib/llm.mjs', () => ({ callText: vi.fn() }))
 
 const DIR = '/proj'
-const mockCallText = vi.fn()
+
+const VALID_VERDICT = JSON.stringify({ needsTests: true, reason: 'має логіку' })
+
+/**
+ * Фейковий `submitBatchImpl`: маршрутизує відповідь за customId (тут —
+ * `fileInfo.file`) через передану функцію `responder(customId) => {ok}|{error}`.
+ * @param {(customId: string) => {ok?: string, error?: string}} responder функція відповіді за customId
+ * @returns {(model: string, items: Array<object>) => Promise<Array<object>>} fake submitBatch
+ */
+function fakeSubmitBatch(responder) {
+  return vi.fn((model, items) =>
+    Promise.resolve(items.map(item => ({ customId: item.customId, ...responder(item.customId) })))
+  )
+}
 
 describe('quickClassify', () => {
   it('returns false for pure re-export file', () => {
@@ -67,20 +78,22 @@ describe('assessNeed', () => {
 
   it('returns needsTests:false when file not found', async () => {
     vi.mocked(existsSync).mockReturnValue(false)
-    const result = await assessNeed([{ file: 'src/a.mjs', pct: 0 }], DIR, { callText: mockCallText })
+    const submitBatchImpl = vi.fn()
+    const result = await assessNeed([{ file: 'src/a.mjs', pct: 0 }], DIR, { submitBatchImpl })
     expect(result[0].needsTests).toBe(false)
     expect(result[0].reason).toBe('файл недоступний')
-    expect(mockCallText).not.toHaveBeenCalled()
+    expect(submitBatchImpl).not.toHaveBeenCalled()
   })
 
   it('skips LLM for re-export files', async () => {
     vi.mocked(existsSync).mockReturnValue(true)
     vi.mocked(readFileSync).mockReturnValue('export { x } from "./x.mjs"')
+    const submitBatchImpl = vi.fn()
 
-    const result = await assessNeed([{ file: 'src/b.mjs', pct: 0 }], DIR, { callText: mockCallText })
+    const result = await assessNeed([{ file: 'src/b.mjs', pct: 0 }], DIR, { submitBatchImpl })
     expect(result[0].needsTests).toBe(false)
     expect(result[0].reason).toContain('реекспорти')
-    expect(mockCallText).not.toHaveBeenCalled()
+    expect(submitBatchImpl).not.toHaveBeenCalled()
   })
 
   it('skips LLM for files with obvious branches+functions', async () => {
@@ -91,19 +104,25 @@ describe('assessNeed', () => {
         return x.trim()
       }
     `)
+    const submitBatchImpl = vi.fn()
 
-    const result = await assessNeed([{ file: 'src/c.mjs', pct: 0 }], DIR, { callText: mockCallText })
+    const result = await assessNeed([{ file: 'src/c.mjs', pct: 0 }], DIR, { submitBatchImpl })
     expect(result[0].needsTests).toBe(true)
-    expect(mockCallText).not.toHaveBeenCalled()
+    expect(submitBatchImpl).not.toHaveBeenCalled()
   })
 
-  it('calls LLM for ambiguous files', async () => {
+  it('calls LLM (one batch wave) for ambiguous files', async () => {
     vi.mocked(existsSync).mockReturnValue(true)
     vi.mocked(readFileSync).mockReturnValue('export const x = 1')
-    mockCallText.mockResolvedValue('{"needsTests": true, "reason": "має логіку"}')
+    const submitBatchImpl = fakeSubmitBatch(() => ({ ok: VALID_VERDICT }))
 
-    const result = await assessNeed([{ file: 'src/a.mjs', pct: 20 }], DIR, { callText: mockCallText })
-    expect(mockCallText).toHaveBeenCalledOnce()
+    const result = await assessNeed([{ file: 'src/a.mjs', pct: 20 }], DIR, {
+      tier1: 'x/a',
+      tier2: 'x/b',
+      submitBatchImpl
+    })
+    expect(submitBatchImpl).toHaveBeenCalledTimes(1)
+    expect(submitBatchImpl.mock.calls[0][0]).toBe('x/a')
     expect(result[0].needsTests).toBe(true)
     expect(result[0].reason).toBe('має логіку')
   })
@@ -111,55 +130,114 @@ describe('assessNeed', () => {
   it('returns needsTests:false when LLM says false', async () => {
     vi.mocked(existsSync).mockReturnValue(true)
     vi.mocked(readFileSync).mockReturnValue('const x = 1')
-    mockCallText.mockResolvedValue('{"needsTests": false, "reason": "лише константа"}')
+    const submitBatchImpl = fakeSubmitBatch(() => ({
+      ok: JSON.stringify({ needsTests: false, reason: 'лише константа' })
+    }))
 
-    const result = await assessNeed([{ file: 'src/b.mjs', pct: 0 }], DIR, { callText: mockCallText })
+    const result = await assessNeed([{ file: 'src/b.mjs', pct: 0 }], DIR, {
+      tier1: 'x/a',
+      tier2: 'x/b',
+      submitBatchImpl
+    })
     expect(result[0].needsTests).toBe(false)
   })
 
   it('defaults needsTests:true on LLM parse error', async () => {
     vi.mocked(existsSync).mockReturnValue(true)
     vi.mocked(readFileSync).mockReturnValue('const x = 1')
-    mockCallText.mockResolvedValue('not json')
+    const submitBatchImpl = fakeSubmitBatch(() => ({ ok: 'not json' }))
 
-    const result = await assessNeed([{ file: 'src/c.mjs', pct: 10 }], DIR, { callText: mockCallText })
+    const result = await assessNeed([{ file: 'src/c.mjs', pct: 10 }], DIR, {
+      tier1: 'x/a',
+      tier2: 'x/b',
+      submitBatchImpl
+    })
     expect(result[0].needsTests).toBe(true)
   })
 
-  it('defaults needsTests:true when callText throws', async () => {
+  it('escalates to tier2 when tier1 wave fails, defaults needsTests:true if tier2 also fails', async () => {
     vi.mocked(existsSync).mockReturnValue(true)
     vi.mocked(readFileSync).mockReturnValue('const x = 1')
-    mockCallText.mockRejectedValue(new Error('network error'))
+    const submitBatchImpl = fakeSubmitBatch(() => ({ error: 'network error' }))
 
-    const result = await assessNeed([{ file: 'src/d.mjs', pct: 5 }], DIR, { callText: mockCallText })
+    const result = await assessNeed([{ file: 'src/d.mjs', pct: 5 }], DIR, {
+      tier1: 'x/a',
+      tier2: 'x/b',
+      submitBatchImpl
+    })
+    expect(submitBatchImpl).toHaveBeenCalledTimes(2)
     expect(result[0].needsTests).toBe(true)
+    expect(result[0].reason).toBe('оцінка не вдалась — вважаємо що потрібні тести')
   })
 
   it('truncates large files before sending to LLM', async () => {
     vi.mocked(existsSync).mockReturnValue(true)
     vi.mocked(readFileSync).mockReturnValue('x'.repeat(10000))
-    mockCallText.mockResolvedValue('{"needsTests": false, "reason": "test"}')
+    const submitBatchImpl = fakeSubmitBatch(() => ({ ok: JSON.stringify({ needsTests: false, reason: 'test' }) }))
 
-    await assessNeed([{ file: 'src/big.mjs', pct: 0 }], DIR, { callText: mockCallText })
-    const prompt = mockCallText.mock.calls[0][0]
+    await assessNeed([{ file: 'src/big.mjs', pct: 0 }], DIR, { tier1: 'x/a', tier2: 'x/b', submitBatchImpl })
+    const prompt = submitBatchImpl.mock.calls[0][1][0].prompt
     expect(prompt).toContain('truncated')
   })
 
-  it('processes multiple files: local for obvious, LLM for ambiguous', async () => {
+  it('processes multiple files: local for obvious, one batch call for ambiguous', async () => {
     vi.mocked(existsSync).mockReturnValue(true)
     vi.mocked(readFileSync)
       .mockReturnValueOnce('export { foo } from "./foo.mjs"') // obvious false
       .mockReturnValueOnce('const x = 1') // ambiguous → LLM
-    mockCallText.mockResolvedValue('{"needsTests": true, "reason": "logic"}')
+    const submitBatchImpl = fakeSubmitBatch(() => ({ ok: VALID_VERDICT }))
 
     const files = [
       { file: 'src/a.mjs', pct: 0 },
       { file: 'src/b.mjs', pct: 20 }
     ]
-    const result = await assessNeed(files, DIR, { callText: mockCallText })
+    const result = await assessNeed(files, DIR, { tier1: 'x/a', tier2: 'x/b', submitBatchImpl })
     expect(result).toHaveLength(2)
     expect(result[0].needsTests).toBe(false) // local
     expect(result[1].needsTests).toBe(true) // LLM
-    expect(mockCallText).toHaveBeenCalledTimes(1) // only 1 LLM call, not 2
+    expect(submitBatchImpl).toHaveBeenCalledTimes(1) // one batch wave, not per-file
+    expect(submitBatchImpl.mock.calls[0][1]).toHaveLength(1) // only the ambiguous file went to LLM
+  })
+
+  it('N неоднозначних файлів — один submitBatchImpl-виклик на хвилю, не по файлу', async () => {
+    vi.mocked(existsSync).mockReturnValue(true)
+    vi.mocked(readFileSync).mockReturnValue('const x = 1')
+    const submitBatchImpl = fakeSubmitBatch(() => ({ ok: VALID_VERDICT }))
+
+    const files = Array.from({ length: 4 }, (_, i) => ({ file: `src/f${i}.mjs`, pct: i }))
+    const result = await assessNeed(files, DIR, { tier1: 'x/a', tier2: 'x/b', submitBatchImpl })
+    expect(submitBatchImpl).toHaveBeenCalledTimes(1)
+    expect(submitBatchImpl.mock.calls[0][1]).toHaveLength(4)
+    expect(result).toHaveLength(4)
+  })
+
+  it('порядок повернення відповідає вхідному порядку файлів, незалежно від порядку в результаті батчу', async () => {
+    vi.mocked(existsSync).mockReturnValue(true)
+    vi.mocked(readFileSync).mockReturnValue('const x = 1')
+    // submitBatch повертає результати у зворотному порядку — реалістично для конкурентного виконання.
+    const submitBatchImpl = vi.fn((model, items) =>
+      Promise.resolve(items.toReversed().map(i => ({ customId: i.customId, ok: VALID_VERDICT })))
+    )
+
+    const files = [
+      { file: 'src/a.mjs', pct: 1 },
+      { file: 'src/b.mjs', pct: 2 }
+    ]
+    const result = await assessNeed(files, DIR, { tier1: 'x/a', tier2: 'x/b', submitBatchImpl })
+    expect(result.map(r => r.file)).toEqual(['src/a.mjs', 'src/b.mjs'])
+  })
+
+  it('submitBatchImpl сам кидає помилку (напр. невалідний model-spec) — graceful fallback, не throw', async () => {
+    vi.mocked(existsSync).mockReturnValue(true)
+    vi.mocked(readFileSync).mockReturnValue('const x = 1')
+    const submitBatchImpl = vi.fn(() => Promise.reject(new Error('invalid model spec')))
+
+    const result = await assessNeed([{ file: 'src/e.mjs', pct: 5 }], DIR, {
+      tier1: 'x/a',
+      tier2: 'x/b',
+      submitBatchImpl
+    })
+    expect(result[0].needsTests).toBe(true)
+    expect(result[0].reason).toBe('оцінка не вдалась — вважаємо що потрібні тести')
   })
 })

@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.57.2] - 2026-07-29
+
+### Fixed
+
+- release: реліз `@7n/llm-lib` без `@7n/rules` тепер форсить patch-реліз rules із автосинком exact-pin `@7n/llm-lib` (рекурентний дрейф llm-lib-pin зник); resolveCmd — чистий JS-скан PATH без субпроцесу which (EAGAIN-флейки run-shellcheck під повним прогоном)
+
+## [1.57.1] - 2026-07-29
+
+### Changed
+
+- feat(llm-lib): v0.2.3 — pi-тіри на локальні моделі (оновлене рішення З.1)
+
 ## [1.57.0] - 2026-07-29
 
 ### Changed

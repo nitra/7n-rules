@@ -191,6 +191,87 @@ describe('release', () => {
     })
   })
 
+  test('реліз @7n/llm-lib без @7n/rules → форс patch-реліз rules із синком pin-а', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+        workspaces: ['llm-lib', 'npm']
+      })
+      await mkdir(join(dir, 'llm-lib', '.changes'), { recursive: true })
+      await writeJson(join(dir, 'llm-lib', 'package.json'), {
+        name: '@7n/llm-lib',
+        version: '2.12.2',
+        files: ['CHANGELOG.md']
+      })
+      await writeFile(join(dir, 'llm-lib', 'CHANGELOG.md'), '# Changelog\n')
+      await writeFile(join(dir, 'llm-lib', '.changes', '1.md'), '---\nbump: patch\nsection: Fixed\n---\nfix llm\n')
+      // rules БЕЗ change-файлів — раніше пін лишався на 2.12.2 до наступного релізу rules
+      await mkdir(join(dir, 'npm'), { recursive: true })
+      await writeJson(join(dir, 'npm', 'package.json'), {
+        name: '@7n/rules',
+        version: '1.56.0',
+        files: ['CHANGELOG.md'],
+        dependencies: { '@7n/llm-lib': '2.12.2' }
+      })
+      await writeFile(join(dir, 'npm', 'CHANGELOG.md'), '# Changelog\n')
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => null)
+      const gitCalls = []
+      const runGit = args => {
+        gitCalls.push(args.join(' '))
+        return Promise.resolve('')
+      }
+      let released
+      try {
+        released = await release({ cwd: dir, date: '2026-07-29', runGit })
+      } finally {
+        warnSpy.mockRestore()
+      }
+
+      expect(released.map(r => `${r.name}@${r.newVersion}`).toSorted()).toEqual([
+        '@7n/llm-lib@2.12.3',
+        '@7n/rules@1.56.1'
+      ])
+      const rules = JSON.parse(await readFile(join(dir, 'npm', 'package.json'), 'utf8'))
+      expect(rules.version).toBe('1.56.1')
+      expect(rules.dependencies['@7n/llm-lib']).toBe('2.12.3')
+      const changelog = await readFile(join(dir, 'npm', 'CHANGELOG.md'), 'utf8')
+      expect(changelog).toContain('## [1.56.1] - 2026-07-29')
+      expect(changelog).toContain('оновлено pin `@7n/llm-lib` до 2.12.3')
+      expect(gitCalls).toContain('tag -a @7n/rules@1.56.1 -m @7n/rules@1.56.1')
+    })
+  })
+
+  test('реліз без llm-lib → rules не форситься (нема зайвих patch-релізів)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+        workspaces: ['other', 'npm']
+      })
+      await mkdir(join(dir, 'other', '.changes'), { recursive: true })
+      await writeJson(join(dir, 'other', 'package.json'), { name: 'other', version: '1.0.0', files: ['CHANGELOG.md'] })
+      await writeFile(join(dir, 'other', 'CHANGELOG.md'), '# Changelog\n')
+      await writeFile(join(dir, 'other', '.changes', '1.md'), '---\nbump: patch\nsection: Fixed\n---\nfix\n')
+      await mkdir(join(dir, 'npm'), { recursive: true })
+      await writeJson(join(dir, 'npm', 'package.json'), {
+        name: '@7n/rules',
+        version: '1.56.0',
+        files: ['CHANGELOG.md'],
+        dependencies: { '@7n/llm-lib': '2.12.3' }
+      })
+      await writeFile(join(dir, 'npm', 'CHANGELOG.md'), '# Changelog\n')
+
+      const released = await release({ cwd: dir, date: '2026-07-29', runGit: () => Promise.resolve('') })
+
+      expect(released.map(r => r.name)).toEqual(['other'])
+      expect(JSON.parse(await readFile(join(dir, 'npm', 'package.json'), 'utf8')).version).toBe('1.56.0')
+    })
+  })
+
   test('fallback через release(): немає change-файлів, але є коміти → синтез + тег, без помилки rm', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.0.0', files: ['CHANGELOG.md'] })

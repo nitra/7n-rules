@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.24.0] - 2026-07-29
+
+### Changed
+
+- `assessNeed` (LLM-довизначення потреби в тестах, coverage-provider) переведено на `submitBatch`-хвилю: усі неоднозначні файли одним викликом на tier1, з ескалацією на tier2 замість конкурентного `Promise.all` окремих one-shot-викликів (спека `docs/specs/2026-07-27-batch-local-avg-real-batches.md`)
+
+## [0.23.10] - 2026-07-29
+
+### Fixed
+
+- Тести fix-eslint: усунено lint-порушення (no-empty-function, no-useless-undefined, точковий disable для динамічного import у tmpdir)
+
+## [0.23.9] - 2026-07-29
+
+### Changed
+
+- feat(llm-lib): v0.2.3 — pi-тіри на локальні моделі (оновлене рішення З.1)
+
 ## [0.23.8] - 2026-07-29
 
 ### Changed
