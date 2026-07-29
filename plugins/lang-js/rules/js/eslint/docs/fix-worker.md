@@ -3,7 +3,7 @@ type: JS Module
 title: fix-worker.mjs
 resource: plugins/lang-js/rules/js/eslint/fix-worker.mjs
 docgen:
-  crc: 6371bb44
+  crc: 6979ded4
   model: manual
 ---
 
@@ -19,6 +19,24 @@ Custom fix-worker `js/eslint` (перекриває дефолтний `default-
 4. На кожен файл — окремий `runAgentFix` із `targetFiles: [file]` і власним `verify` (`verifyFile`): item-scoped canonical re-detect лише цього файлу, не всього concern-а — інакше evidence-гейт хибно вважав би файл незакритим через порушення в ІНШИХ файлах.
 5. Один файл, що завершився з `error` АБО кинув виняток (try/catch у тілі воркера), не обриває пул — пропускається, решта файлів обробляються незалежно.
 6. Повертає лише `touchedFiles` з успішних (`!error`) викликів; success rung-а все одно визначає whole-concern canonical re-detect runner-а (`runRung`), не цей worker.
+
+## Захист identity tagged-template тегів
+
+LLM-фікс схильний "спрощувати" identity tagged-template теги (`PROTECTED_TAG_NAMES`: `gql`,
+`sql`, `graphql`, `html`, `css`) на `String.raw`/plain template, коли конкретне eslint-порушення
+поруч технічно цього не потребує — runtime-поведінка ідентична, але це ламає editor tooling
+(напр. `gql` — GraphQL syntax highlighting/`.graphqlrc.yml`) чи runtime-семантику (`sql`).
+
+- Перед стартом файлу — `readProtectedTagsSafe` сканує (`oxc-parser` AST, `.vue` — лише
+  `<script>`-блоки) множину захищених тегів, наявних ДО фіксу.
+- Непорожня множина → `ruleText` runAgentFix отримує явне попередження не видаляти й не
+  підміняти ці теги.
+- `verifyFile` після lint-перевірки ДОДАТКОВО звіряє захищені теги файлу після фіксу з
+  `protectedBefore`: зникнення хоч одного — `ok: false` із поясненням, що йде у той самий
+  verify-feedback-цикл (`runVerifyLoop`, agent-fix.mjs), що й для звичайних порушень.
+- Парсинг, що не вдався (синтаксична помилка, файл не читається), fail-open деградує до
+  порожньої множини — консервативно: краще пропустити захист, ніж хибно заблокувати
+  легітимний фікс.
 
 ## Публічний API
 
