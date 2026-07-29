@@ -3,21 +3,27 @@ type: JS Module
 title: extractor.mjs
 resource: plugins/lang-php/knowledge/extractor.mjs
 docgen:
-  crc: 35972a52
+  crc: af042a5e
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
+  score: 80
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-PHP knowledge extractor будує normalized semantic fragment лише з AST, отриманого
-повним `php-parser`. Parser failure або непідтримуваний файл повертає blocking
-diagnostic без partial graph і fallback.
+Будує fail-closed normalized fragments для PHP package-knowledge через php-parser AST.
+Regex і brace-scanner не беруть участі у production semantic extraction.
 
 ## Публічний API
 
-- analyzeFile — Аналізує один PHP source-файл, формує units, imports, semantic
-  edges, chunks і complete coverage ledger з UTF-8 byte spans.
+- analyzeFile — Аналізує PHP source через повний parser та повертає only-complete semantic fragment.
+
+## Сценарії використання
+
+- `plugins/lang-php/knowledge/tests/extractor.test.mjs` (knowledge.extractor@1 PHP adapter) — declares the full PHP parser contract and its only extension; extracts public/private units, imports, calls, chunks and complete UTF-8 coverage; malformed syntax blocks publication without partial graph or fallback; unsupported file extension is a structured blocking diagnostic
 
 ## Гарантії поведінки
 
-- Private units лишаються evidence, а public units стають entry points.
-- Cross-package `use`/static calls подаються як opaque integrations.
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
+- Містить локальні fail-safe гілки; інші помилки можуть поширюватися назовні.

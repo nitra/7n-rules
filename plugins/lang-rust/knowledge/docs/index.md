@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: plugins/lang-php/knowledge
-resource: plugins/lang-php/knowledge/
+title: plugins/lang-rust/knowledge
+resource: plugins/lang-rust/knowledge/
 ---
 
 | Файл                          | Тип       |

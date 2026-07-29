@@ -1,17 +1,30 @@
 ---
+type: JS Module
+title: extractor.mjs
+resource: plugins/lang-python/knowledge/extractor.mjs
 docgen:
-  crc: pending
+  crc: c164a7cc
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
+  score: 80
 ---
 
 ## Огляд
 
-`knowledge/extractor.mjs` перетворює Python source-файл на fail-closed normalized fragment для package knowledge graph. Tree-sitter Python WASM розбирає весь файл; syntax error, unsupported wildcard import або збій runtime повертають blocking diagnostic без часткового graph чи fallback.
+Будує fail-closed normalized fragments для Python package-knowledge.
 
-## Поведінка
+Adapter використовує повний Tree-sitter Python parser у WASM. Він не
+застосовує regex або indent scanner для source-семантики: ERROR node,
+невідомий import wildcard чи помилка ініціалізації блокують publication.
 
-Екстрактор виділяє public і private functions, classes та methods, будує стабільні UTF-8 byte spans, chunks і coverage ledger. Calls до однозначного local symbol стають `invokes`, а calls через import binding — `integrates` до opaque contract; кожен edge має source evidence.
+## Публічний API
 
-## Де використовується
+- analyzeFile — Аналізує один Python source-file у deterministic normalized fragment.
 
-- `plugins/lang-python/package.json` — реєструє versioned `knowledge.extractor@1` provider `knowledge-python`.
-- `plugins/lang-python/knowledge/tests/extractor.test.mjs` — перевіряє Tree-sitter contract, unicode spans, units, edges, coverage і fail-closed diagnostics.
+## Сценарії використання
+
+- `plugins/lang-python/knowledge/tests/extractor.test.mjs` (knowledge.extractor@1 Python adapter) — декларує Tree-sitter WASM parser contract і Python extension; будує public/private units, imports, semantic edges, chunks і coverage з UTF-8 byte spans; parser error блокує publication без partial graph або fallback; unsupported source extension та wildcard import мають blocking diagnostics
+
+## Гарантії поведінки
+
+- Містить локальні fail-safe гілки; інші помилки можуть поширюватися назовні.
