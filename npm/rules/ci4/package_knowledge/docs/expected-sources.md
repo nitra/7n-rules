@@ -3,7 +3,7 @@ type: JS Module
 title: expected-sources.mjs
 resource: npm/rules/ci4/package_knowledge/expected-sources.mjs
 docgen:
-  crc: 40354c26
+  crc: e327fb55
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min-retry
   score: 80
@@ -23,15 +23,15 @@ result блокує candidate, а не перетворюється на при�
 ## Публічний API
 
 - discoverExpectedSources — Знаходить authored Markdown і parser-backed executable tests, що є sources explicit expectation.
-ADR/spec беруться лише за exact domain marker; локальні EXPECTED zones already
-belong to owning domain. Disabled tests не створюють source без corroboration.
+  ADR/spec беруться лише за exact domain marker; локальні EXPECTED zones already
+  belong to owning domain. Disabled tests не створюють source без corroboration.
 - parseExpectedSourceResult — Перевіряє raw LLM mapping result against current canonical graph references.
 - mapExpectedSources — Мапить discovered explicit sources до existing canonical graph IDs via strict
-per-source model ladder. Empty input bypasses transport completely.
+  per-source model ladder. Empty input bypasses transport completely.
 
 ## Сценарії використання
 
-- `npm/rules/ci4/package_knowledge/tests/expected-sources.test.mjs` (Expected source discovery; Expected source mapping) — collects EXPECTED zone, scoped accepted ADR/spec and active assertion scenario in stable order; accepts an order; does not turn disabled tests into expectation without a corroborating source; discovers a non-JS test through its full-parser adapter; collects Rust assertions only from active #[test] functions; ще 3
+- `npm/rules/ci4/package_knowledge/tests/expected-sources.test.mjs` (Expected source discovery; Expected source mapping) — collects EXPECTED zone, scoped accepted ADR/spec and active assertion scenario in stable order; accepts an order; does not turn disabled tests into expectation without a corroborating source; discovers a non-JS test through its full-parser adapter; collects Rust assertions only from active #[test] functions; ще 4
 
 ## Гарантії поведінки
 

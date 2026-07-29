@@ -5,10 +5,12 @@ import { join } from 'node:path'
 import { describe, expect, test, vi } from 'vitest'
 
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
-import jsKnowledgeExtractor from '../../../../../plugins/lang-js/knowledge/extractor.mjs'
-import phpKnowledgeExtractor from '../../../../../plugins/lang-php/knowledge/extractor.mjs'
+import jsKnowledgeExtractor, {
+  collectTestScenarios as collectJsTestScenarios
+} from '../../../../../plugins/lang-js/knowledge/extractor.mjs'
+import { collectTestScenarios as collectPhpTestScenarios } from '../../../../../plugins/lang-php/knowledge/extractor.mjs'
 import pythonKnowledgeExtractor from '../../../../../plugins/lang-python/knowledge/extractor.mjs'
-import rustKnowledgeExtractor from '../../../../../plugins/lang-rust/knowledge/extractor.mjs'
+import { collectTestScenarios as collectRustTestScenarios } from '../../../../../plugins/lang-rust/knowledge/extractor.mjs'
 import { discoverExpectedSources, mapExpectedSources, parseExpectedSourceResult } from '../expected-sources.mjs'
 
 const DOMAIN_ID = 'npm:@fixture/orders'
@@ -45,13 +47,35 @@ describe('Expected source discovery', () => {
       await mkdir(join(root, 'docs', 'adr'), { recursive: true })
       await mkdir(join(root, 'docs', 'specs'), { recursive: true })
       await mkdir(join(root, 'tests'), { recursive: true })
-      await writeFile(join(root, 'docs', 'index.md'), '<!-- EXPECTED:start id="accept-order" -->Order must be accepted.<!-- EXPECTED:end id="accept-order" -->')
-      await writeFile(join(root, 'docs', 'adr', 'accepted.md'), `<!-- PACKAGE-KNOWLEDGE:domain id="${DOMAIN_ID}" -->\n**Status:** Accepted\n\nUse accepted orders.\n`)
-      await writeFile(join(root, 'docs', 'adr', 'draft.md'), `<!-- PACKAGE-KNOWLEDGE:domain id="${DOMAIN_ID}" -->\n**Status:** Proposed\n`)
-      await writeFile(join(root, 'docs', 'specs', 'orders.md'), `<!-- PACKAGE-KNOWLEDGE:domain id="${DOMAIN_ID}" -->\n# Orders\n\nOrders need review.\n`)
-      await writeFile(join(root, 'tests', 'orders.test.mjs'), "test('accepts an order', () => { expect(save()).toBe(true) })\ntest.skip('disabled alone', () => { expect(save()).toBe(true) })\n")
+      await writeFile(
+        join(root, 'docs', 'index.md'),
+        '<!-- EXPECTED:start id="accept-order" -->Order must be accepted.<!-- EXPECTED:end id="accept-order" -->'
+      )
+      await writeFile(
+        join(root, 'docs', 'adr', 'accepted.md'),
+        `<!-- PACKAGE-KNOWLEDGE:domain id="${DOMAIN_ID}" -->\n**Status:** Accepted\n\nUse accepted orders.\n`
+      )
+      await writeFile(
+        join(root, 'docs', 'adr', 'draft.md'),
+        `<!-- PACKAGE-KNOWLEDGE:domain id="${DOMAIN_ID}" -->\n**Status:** Proposed\n`
+      )
+      await writeFile(
+        join(root, 'docs', 'specs', 'orders.md'),
+        `<!-- PACKAGE-KNOWLEDGE:domain id="${DOMAIN_ID}" -->\n# Orders\n\nOrders need review.\n`
+      )
+      await writeFile(
+        join(root, 'tests', 'orders.test.mjs'),
+        "test('accepts an order', () => { expect(save()).toBe(true) })\ntest.skip('disabled alone', () => { expect(save()).toBe(true) })\n"
+      )
 
-      const result = await discoverExpectedSources({ repoRoot: root, domain: { id: DOMAIN_ID, root }, extractors: [jsKnowledgeExtractor], testFiles: [{ path: 'tests/orders.test.mjs', content: await readFile(join(root, 'tests', 'orders.test.mjs'), 'utf8') }] })
+      const result = await discoverExpectedSources({
+        repoRoot: root,
+        domain: { id: DOMAIN_ID, root },
+        extractors: [jsKnowledgeExtractor],
+        testFiles: [
+          { path: 'tests/orders.test.mjs', content: await readFile(join(root, 'tests', 'orders.test.mjs'), 'utf8') }
+        ]
+      })
 
       expect(result).toMatchObject({ ok: true })
       expect(result.sources.map(item => item.evidence.kind).toSorted()).toEqual(['adr', 'manual', 'spec', 'test'])
@@ -61,7 +85,9 @@ describe('Expected source discovery', () => {
   })
 
   test('does not turn disabled tests into expectation without a corroborating source', () => {
-    const result = jsKnowledgeExtractor.collectTestScenarios({ file: { path: 'tests/orders.test.mjs', content: "test.skip('disabled', () => { expect(save()).toBe(true) })" } })
+    const result = collectJsTestScenarios({
+      file: { path: 'tests/orders.test.mjs', content: "test.skip('disabled', () => { expect(save()).toBe(true) })" }
+    })
 
     expect(result).toEqual({ ok: true, scenarios: [] })
   })
@@ -71,20 +97,28 @@ describe('Expected source discovery', () => {
       await mkdir(join(root, 'tests'), { recursive: true })
       await writeFile(join(root, 'tests', 'orders.py'), 'def test_accepts_order():\n    assert save()\n')
 
-      const result = await discoverExpectedSources({ repoRoot: root, domain: { id: DOMAIN_ID, root }, extractors: [pythonKnowledgeExtractor], testFiles: [{ path: 'tests/orders.py', content: 'def test_accepts_order():\n    assert save()\n' }] })
+      const result = await discoverExpectedSources({
+        repoRoot: root,
+        domain: { id: DOMAIN_ID, root },
+        extractors: [pythonKnowledgeExtractor],
+        testFiles: [{ path: 'tests/orders.py', content: 'def test_accepts_order():\n    assert save()\n' }]
+      })
 
       expect(result).toEqual({
         ok: true,
-        sources: [expect.objectContaining({ evidence: expect.objectContaining({ kind: 'test', path: 'tests/orders.py' }) })]
+        sources: [
+          expect.objectContaining({ evidence: expect.objectContaining({ kind: 'test', path: 'tests/orders.py' }) })
+        ]
       })
     })
   })
 
   test('collects Rust assertions only from active #[test] functions', async () => {
-    const result = await rustKnowledgeExtractor.collectTestScenarios({
+    const result = await collectRustTestScenarios({
       file: {
         path: 'tests/orders.rs',
-        content: '#[test]\nfn saves_order() {\n    assert_eq!(save(), true);\n}\n\n#[test]\n#[ignore]\nfn ignored_order() {\n    assert!(save());\n}\n'
+        content:
+          '#[test]\nfn saves_order() {\n    assert_eq!(save(), true);\n}\n\n#[test]\n#[ignore]\nfn ignored_order() {\n    assert!(save());\n}\n'
       }
     })
 
@@ -92,10 +126,11 @@ describe('Expected source discovery', () => {
   })
 
   test('collects PHP assertions only from active test methods', () => {
-    const result = phpKnowledgeExtractor.collectTestScenarios({
+    const result = collectPhpTestScenarios({
       file: {
         path: 'tests/OrdersTest.php',
-        content: '<?php\nfinal class OrdersTest {\n    public function testSavesOrder(): void {\n        $this->assertTrue(save());\n    }\n\n    public function testSkippedOrder(): void {\n        $this->markTestSkipped();\n        $this->assertTrue(save());\n    }\n}\n'
+        content:
+          '<?php\nfinal class OrdersTest {\n    public function testSavesOrder(): void {\n        $this->assertTrue(save());\n    }\n\n    public function testSkippedOrder(): void {\n        $this->markTestSkipped();\n        $this->assertTrue(save());\n    }\n}\n'
       }
     })
 
@@ -119,29 +154,68 @@ describe('Expected source mapping', () => {
         {
           customId: 'source:spec:orders',
           ok: JSON.stringify({
-            claims: [{ subjectId: SUBJECT_ID, predicate: 'outcome', value: 'accepted', evidenceIds: ['evidence:expected:spec'], confidence: 1 }]
+            claims: [
+              {
+                subjectId: SUBJECT_ID,
+                predicate: 'outcome',
+                value: 'accepted',
+                evidenceIds: ['evidence:expected:spec'],
+                confidence: 1
+              }
+            ]
           })
         }
       ])
     )
     const first = await mapExpectedSources({ graph: graph(), sources: [source()], cache, submitBatchImpl: transport })
     const secondTransport = vi.fn()
-    const second = await mapExpectedSources({ graph: graph(), sources: [source()], cache, submitBatchImpl: secondTransport })
+    const second = await mapExpectedSources({
+      graph: graph(),
+      sources: [source()],
+      cache,
+      submitBatchImpl: secondTransport
+    })
 
-    expect(first).toMatchObject({ ok: true, overlay: { claims: [expect.objectContaining({ subjectId: SUBJECT_ID })], evidence: [expect.objectContaining({ id: 'evidence:expected:spec' })] } })
+    expect(first).toMatchObject({
+      ok: true,
+      overlay: {
+        claims: [expect.objectContaining({ subjectId: SUBJECT_ID })],
+        evidence: [expect.objectContaining({ id: 'evidence:expected:spec' })]
+      }
+    })
     expect(transport).toHaveBeenCalledWith('min', expect.any(Array))
     expect(second).toMatchObject({ ok: true, overlay: { claims: [expect.any(Object)] } })
     expect(secondTransport).not.toHaveBeenCalled()
     expect(
       parseExpectedSourceResult(
-        JSON.stringify({ claims: [{ subjectId: 'code-unit:unknown', predicate: 'x', value: true, evidenceIds: ['evidence:unknown'], confidence: 1 }] }),
+        JSON.stringify({
+          claims: [
+            {
+              subjectId: 'code-unit:unknown',
+              predicate: 'x',
+              value: true,
+              evidenceIds: ['evidence:unknown'],
+              confidence: 1
+            }
+          ]
+        }),
         { nodeIds: new Set([SUBJECT_ID]), evidenceIds: new Set(['evidence:expected:spec']) },
         source()
       )
     ).toEqual({ ok: false, reason: 'unknown-expected-mapping-reference' })
     expect(
       parseExpectedSourceResult(
-        JSON.stringify({ claims: [{ subjectId: SUBJECT_ID, predicate: 'arbitrary-relation', value: true, evidenceIds: ['evidence:expected:spec'], confidence: 1 }] }),
+        JSON.stringify({
+          claims: [
+            {
+              subjectId: SUBJECT_ID,
+              predicate: 'arbitrary-relation',
+              value: true,
+              evidenceIds: ['evidence:expected:spec'],
+              confidence: 1
+            }
+          ]
+        }),
         { nodeIds: new Set([SUBJECT_ID]), evidenceIds: new Set(['evidence:expected:spec']) },
         source()
       )
@@ -149,8 +223,16 @@ describe('Expected source mapping', () => {
   })
 
   test('blocks invalid graph, policy, and missing uncached transport', async () => {
-    expect(await mapExpectedSources({ graph: {}, sources: [source()] })).toMatchObject({ ok: false, diagnostics: [{ code: 'invalid-expected-source-graph' }] })
-    expect(await mapExpectedSources({ graph: graph(), sources: [source()], modelPolicy: ['min'], submitBatchImpl: vi.fn() })).toMatchObject({ ok: false, diagnostics: [{ code: 'invalid-expected-model-policy' }] })
-    expect(await mapExpectedSources({ graph: graph(), sources: [source()] })).toMatchObject({ ok: false, diagnostics: [{ code: 'expected-mapping-transport-missing' }] })
+    expect(await mapExpectedSources({ graph: {}, sources: [source()] })).toMatchObject({
+      ok: false,
+      diagnostics: [{ code: 'invalid-expected-source-graph' }]
+    })
+    expect(
+      await mapExpectedSources({ graph: graph(), sources: [source()], modelPolicy: ['min'], submitBatchImpl: vi.fn() })
+    ).toMatchObject({ ok: false, diagnostics: [{ code: 'invalid-expected-model-policy' }] })
+    expect(await mapExpectedSources({ graph: graph(), sources: [source()] })).toMatchObject({
+      ok: false,
+      diagnostics: [{ code: 'expected-mapping-transport-missing' }]
+    })
   })
 })

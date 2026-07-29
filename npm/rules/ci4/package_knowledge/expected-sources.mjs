@@ -40,7 +40,9 @@ const IGNORED_PATHS = Object.freeze([
  * @returns {string} prefixed SHA-256
  */
 function hash(value) {
-  return `sha256:${createHash('sha256').update(JSON.stringify(canonicalize(value))).digest('hex')}`
+  return `sha256:${createHash('sha256')
+    .update(JSON.stringify(canonicalize(value)))
+    .digest('hex')}`
 }
 
 /**
@@ -105,14 +107,20 @@ function sourceScope(markdown, path) {
   const diagnostics = []
   for (const marker of markdown.matchAll(SOURCE_SCOPE_LIKE_RE)) {
     if (!markerStarts.has(marker.index)) {
-      diagnostics.push(diagnostic('invalid-expected-source-scope', 'Domain scope marker має містити non-empty id="...".', path))
+      diagnostics.push(
+        diagnostic('invalid-expected-source-scope', 'Domain scope marker має містити non-empty id="...".', path)
+      )
     }
   }
   if (new Set(markers).size > 1 || markers.length > 1) {
-    diagnostics.push(diagnostic('ambiguous-expected-source-scope', 'ADR/spec мусить бути scoped рівно до одного domain.', path))
+    diagnostics.push(
+      diagnostic('ambiguous-expected-source-scope', 'ADR/spec мусить бути scoped рівно до одного domain.', path)
+    )
   }
   if (markers.some(id => id === '')) {
-    diagnostics.push(diagnostic('invalid-expected-source-scope', 'Domain scope marker має містити non-empty id="...".', path))
+    diagnostics.push(
+      diagnostic('invalid-expected-source-scope', 'Domain scope marker має містити non-empty id="...".', path)
+    )
   }
   if (diagnostics.length > 0) return { ok: false, diagnostics }
   return { ok: true, domainId: markers[0] ?? null }
@@ -164,22 +172,42 @@ function isAcceptedAdr(markdown) {
   return ACCEPTED_ADR_STATUS_RE.test(markdown)
 }
 
-/** Sorts discovery diagnostics deterministically by path and code. */
+/**
+ * Sorts discovery diagnostics deterministically by path and code.
+ * @param {Record<string, unknown>} left first diagnostic
+ * @param {Record<string, unknown>} right second diagnostic
+ * @returns {number} locale comparison
+ */
 function expectedSourceDiagnosticOrder(left, right) {
   return `${left.path ?? ''}:${left.code}`.localeCompare(`${right.path ?? ''}:${right.code}`)
 }
 
-/** Sorts expected-source identities deterministically. */
+/**
+ * Sorts expected-source identities deterministically.
+ * @param {Record<string, unknown>} left first source
+ * @param {Record<string, unknown>} right second source
+ * @returns {number} locale comparison
+ */
 function expectedSourceIdOrder(left, right) {
   return left.id.localeCompare(right.id)
 }
 
-/** Returns whether a parsed manual zone carries non-empty expectation text. */
+/**
+ * Returns whether a parsed manual zone carries non-empty expectation text.
+ * @param {{kind: string, content: string}} zone parsed documentation zone
+ * @returns {boolean} whether the zone is an explicit expectation
+ */
 function isExpectedZone(zone) {
   return zone.kind === 'EXPECTED' && zone.content.trim() !== ''
 }
 
-/** Collects explicit EXPECTED zones from package-owned documentation. */
+/**
+ * Collects explicit EXPECTED zones from package-owned documentation.
+ * @param {string} domainRoot absolute domain root
+ * @param {string[]} domainDocs package-owned documentation paths
+ * @param {Array<Record<string, unknown>>} diagnostics mutable blocking diagnostics
+ * @returns {Promise<Array<Record<string, unknown>>>} discovered manual sources
+ */
 async function collectDomainExpectedSources(domainRoot, domainDocs, diagnostics) {
   const sources = []
   for (const path of domainDocs.toSorted()) {
@@ -205,7 +233,11 @@ async function collectDomainExpectedSources(domainRoot, domainDocs, diagnostics)
   return sources
 }
 
-/** Collects accepted ADR/spec sources explicitly scoped to the current domain. */
+/**
+ * Collects accepted ADR/spec sources explicitly scoped to the current domain.
+ * @param {{repoRoot: string, domain: Record<string, unknown>, repositoryDocs: string[], diagnostics: Array<Record<string, unknown>>}} input repository discovery context
+ * @returns {Promise<Array<Record<string, unknown>>>} discovered repository sources
+ */
 async function collectScopedRepositoryExpectedSources({ repoRoot, domain, repositoryDocs, diagnostics }) {
   const sources = []
   for (const path of repositoryDocs.toSorted()) {
@@ -232,7 +264,11 @@ async function collectScopedRepositoryExpectedSources({ repoRoot, domain, reposi
   return sources
 }
 
-/** Indexes test-scenario collectors by source extension. */
+/**
+ * Indexes test-scenario collectors by source extension.
+ * @param {Array<Record<string, unknown>>} extractors registered knowledge extractors
+ * @returns {Map<string, Record<string, unknown>>} extractor by extension
+ */
 function expectedExtractorByExtension(extractors) {
   const extractorByExtension = new Map()
   for (const extractor of extractors) {
@@ -243,7 +279,11 @@ function expectedExtractorByExtension(extractors) {
   return extractorByExtension
 }
 
-/** Collects active parser-backed assertion scenarios as Expected sources. */
+/**
+ * Collects active parser-backed assertion scenarios as Expected sources.
+ * @param {{testFiles: Array<Record<string, unknown>>, extractors: Array<Record<string, unknown>>, diagnostics: Array<Record<string, unknown>>}} input test discovery context
+ * @returns {Promise<Array<Record<string, unknown>>>} discovered test sources
+ */
 async function collectTestExpectedSources({ testFiles, extractors, diagnostics }) {
   const sources = []
   const extractorByExtension = expectedExtractorByExtension(extractors)
@@ -251,7 +291,13 @@ async function collectTestExpectedSources({ testFiles, extractors, diagnostics }
     const extension = file.path.slice(file.path.lastIndexOf('.')).toLowerCase()
     const extractor = extractorByExtension.get(extension)
     if (!extractor || typeof extractor.collectTestScenarios !== 'function') {
-      diagnostics.push(diagnostic('expected-test-parser-missing', 'knowledge.extractor@1 не надає full-parser test collector.', file.path))
+      diagnostics.push(
+        diagnostic(
+          'expected-test-parser-missing',
+          'knowledge.extractor@1 не надає full-parser test collector.',
+          file.path
+        )
+      )
       continue
     }
     const scenarios = await extractor.collectTestScenarios({ file })
@@ -274,11 +320,27 @@ async function collectTestExpectedSources({ testFiles, extractors, diagnostics }
  * @returns {Promise<{ok: true, sources: Array<Record<string, unknown>>} | {ok: false, diagnostics: object[]}>} deterministic sources або blockers
  */
 export async function discoverExpectedSources({ repoRoot, domain, extractors = [], testFiles = [] }) {
-  if (typeof repoRoot !== 'string' || !isAbsolute(repoRoot) || !domain || typeof domain.root !== 'string' || !isAbsolute(domain.root) || typeof domain.id !== 'string' || domain.id === '') {
-    return { ok: false, diagnostics: [diagnostic('invalid-expected-source-domain', 'Потрібні absolute repoRoot/domain.root і domain.id.')] }
+  if (
+    typeof repoRoot !== 'string' ||
+    !isAbsolute(repoRoot) ||
+    !domain ||
+    typeof domain.root !== 'string' ||
+    !isAbsolute(domain.root) ||
+    typeof domain.id !== 'string' ||
+    domain.id === ''
+  ) {
+    return {
+      ok: false,
+      diagnostics: [diagnostic('invalid-expected-source-domain', 'Потрібні absolute repoRoot/domain.root і domain.id.')]
+    }
   }
   const domainIgnores = [...IGNORED_PATHS, ...nestedDomainIgnores(repoRoot, domain)]
-  const domainDocs = await globby('docs/**/*.md', { cwd: domain.root, onlyFiles: true, gitignore: true, ignore: domainIgnores })
+  const domainDocs = await globby('docs/**/*.md', {
+    cwd: domain.root,
+    onlyFiles: true,
+    gitignore: true,
+    ignore: domainIgnores
+  })
   const repositoryDocs = await globby(['docs/adr/**/*.md', 'docs/specs/**/*.md'], {
     cwd: repoRoot,
     onlyFiles: true,
@@ -306,13 +368,28 @@ export async function discoverExpectedSources({ repoRoot, domain, extractors = [
  * @returns {{ok: true, domainId: string, nodeIds: Set<string>, evidenceIds: Set<string>} | {ok: false, diagnostics: object[]}} reference index
  */
 function graphReferences(graph) {
-  if (!graph || typeof graph !== 'object' || typeof graph.domain?.id !== 'string' || !Array.isArray(graph.nodes) || !Array.isArray(graph.evidence)) {
-    return { ok: false, diagnostics: [diagnostic('invalid-expected-source-graph', 'Graph мусить мати domain.id, nodes[] та evidence[].')] }
+  if (
+    !graph ||
+    typeof graph !== 'object' ||
+    typeof graph.domain?.id !== 'string' ||
+    !Array.isArray(graph.nodes) ||
+    !Array.isArray(graph.evidence)
+  ) {
+    return {
+      ok: false,
+      diagnostics: [diagnostic('invalid-expected-source-graph', 'Graph мусить мати domain.id, nodes[] та evidence[].')]
+    }
   }
   const nodeIds = graph.nodes.map(node => node?.id)
   const evidenceIds = graph.evidence.map(evidence => evidence?.id)
-  if (nodeIds.some(id => typeof id !== 'string' || id === '') || evidenceIds.some(id => typeof id !== 'string' || id === '')) {
-    return { ok: false, diagnostics: [diagnostic('invalid-expected-source-graph', 'Graph IDs мусять бути непорожніми.') ] }
+  if (
+    nodeIds.some(id => typeof id !== 'string' || id === '') ||
+    evidenceIds.some(id => typeof id !== 'string' || id === '')
+  ) {
+    return {
+      ok: false,
+      diagnostics: [diagnostic('invalid-expected-source-graph', 'Graph IDs мусять бути непорожніми.')]
+    }
   }
   return { ok: true, domainId: graph.domain.id, nodeIds: new Set(nodeIds), evidenceIds: new Set(evidenceIds) }
 }
@@ -323,30 +400,51 @@ function graphReferences(graph) {
  * @returns {{ok: true, sources: Array<Record<string, unknown>>} | {ok: false, diagnostics: object[]}} strict source records
  */
 function normalizeSources(sources) {
-  if (!Array.isArray(sources)) return { ok: false, diagnostics: [diagnostic('invalid-expected-sources', 'sources має бути масивом.')] }
+  if (!Array.isArray(sources))
+    return { ok: false, diagnostics: [diagnostic('invalid-expected-sources', 'sources має бути масивом.')] }
   const diagnostics = []
   const ids = new Set()
   const evidenceIds = new Set()
   for (const source of sources) {
     const evidence = source?.evidence
     if (
-      !source || typeof source !== 'object' || Array.isArray(source) || typeof source.id !== 'string' || source.id === '' ||
-      typeof source.content !== 'string' || source.content.trim() === '' || !evidence || typeof evidence !== 'object' ||
-      typeof evidence.id !== 'string' || evidence.id === '' || typeof evidence.kind !== 'string' || typeof evidence.path !== 'string' ||
-      typeof evidence.contentHash !== 'string' || evidence.contentHash === ''
+      !source ||
+      typeof source !== 'object' ||
+      Array.isArray(source) ||
+      typeof source.id !== 'string' ||
+      source.id === '' ||
+      typeof source.content !== 'string' ||
+      source.content.trim() === '' ||
+      !evidence ||
+      typeof evidence !== 'object' ||
+      typeof evidence.id !== 'string' ||
+      evidence.id === '' ||
+      typeof evidence.kind !== 'string' ||
+      typeof evidence.path !== 'string' ||
+      typeof evidence.contentHash !== 'string' ||
+      evidence.contentHash === ''
     ) {
-      diagnostics.push(diagnostic('invalid-expected-source', 'Source мусить мати id, content і complete evidence.', null))
+      diagnostics.push(
+        diagnostic('invalid-expected-source', 'Source мусить мати id, content і complete evidence.', null)
+      )
       continue
     }
     if (ids.has(source.id) || evidenceIds.has(evidence.id)) {
-      diagnostics.push(diagnostic('duplicate-expected-source', `Повторний source/evidence ID ${source.id}.`, evidence.path))
+      diagnostics.push(
+        diagnostic('duplicate-expected-source', `Повторний source/evidence ID ${source.id}.`, evidence.path)
+      )
       continue
     }
     ids.add(source.id)
     evidenceIds.add(evidence.id)
   }
   if (diagnostics.length > 0) return { ok: false, diagnostics }
-  return { ok: true, sources: Array.from(sources, source => canonicalize(source)).toSorted((left, right) => left.id.localeCompare(right.id)) }
+  return {
+    ok: true,
+    sources: Array.from(sources, source => canonicalize(source)).toSorted((left, right) =>
+      left.id.localeCompare(right.id)
+    )
+  }
 }
 
 /**
@@ -367,7 +465,12 @@ function hasExactKeys(value, keys) {
  * @returns {string[] | null} stable IDs or null
  */
 function normalizedIds(value) {
-  if (!Array.isArray(value) || value.some(id => typeof id !== 'string' || id === '') || new Set(value).size !== value.length) return null
+  if (
+    !Array.isArray(value) ||
+    value.some(id => typeof id !== 'string' || id === '') ||
+    new Set(value).size !== value.length
+  )
+    return null
   return [...value].toSorted()
 }
 
@@ -378,7 +481,15 @@ function normalizedIds(value) {
  */
 function mappingPrompt({ source, refs }) {
   const contract = {
-    claims: [{ subjectId: '<known node ID>', predicate: '<behavioral taxonomy value>', value: '<JSON value>', evidenceIds: ['<known evidence ID>'], confidence: 1 }]
+    claims: [
+      {
+        subjectId: '<known node ID>',
+        predicate: '<behavioral taxonomy value>',
+        value: '<JSON value>',
+        evidenceIds: ['<known evidence ID>'],
+        confidence: 1
+      }
+    ]
   }
   return [
     'Return exactly one JSON object, without Markdown or prose.',
@@ -407,20 +518,38 @@ export function parseExpectedSourceResult(text, refs, source) {
   } catch {
     return { ok: false, reason: 'invalid-expected-source-json' }
   }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !hasExactKeys(parsed, ['claims']) || !Array.isArray(parsed.claims)) {
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    Array.isArray(parsed) ||
+    !hasExactKeys(parsed, ['claims']) ||
+    !Array.isArray(parsed.claims)
+  ) {
     return { ok: false, reason: 'invalid-expected-source-shape' }
   }
   const claims = []
   for (const claim of parsed.claims) {
-    if (!claim || typeof claim !== 'object' || Array.isArray(claim) || !hasExactKeys(claim, ['subjectId', 'predicate', 'value', 'evidenceIds', 'confidence'])) {
+    if (
+      !claim ||
+      typeof claim !== 'object' ||
+      Array.isArray(claim) ||
+      !hasExactKeys(claim, ['subjectId', 'predicate', 'value', 'evidenceIds', 'confidence'])
+    ) {
       return { ok: false, reason: 'invalid-expected-claim-shape' }
     }
     const evidenceIds = normalizedIds(claim.evidenceIds)
     if (
-      typeof claim.subjectId !== 'string' || !refs.nodeIds.has(claim.subjectId) ||
-      typeof claim.predicate !== 'string' || !BEHAVIORAL_CLAIM_TAXONOMY.includes(claim.predicate) ||
-      !evidenceIds || evidenceIds.length === 0 || !evidenceIds.includes(source.evidence.id) || evidenceIds.some(id => !refs.evidenceIds.has(id)) ||
-      typeof claim.confidence !== 'number' || claim.confidence < 0 || claim.confidence > 1
+      typeof claim.subjectId !== 'string' ||
+      !refs.nodeIds.has(claim.subjectId) ||
+      typeof claim.predicate !== 'string' ||
+      !BEHAVIORAL_CLAIM_TAXONOMY.includes(claim.predicate) ||
+      !evidenceIds ||
+      evidenceIds.length === 0 ||
+      !evidenceIds.includes(source.evidence.id) ||
+      evidenceIds.some(id => !refs.evidenceIds.has(id)) ||
+      typeof claim.confidence !== 'number' ||
+      claim.confidence < 0 ||
+      claim.confidence > 1
     ) {
       return { ok: false, reason: 'unknown-expected-mapping-reference' }
     }
@@ -433,7 +562,10 @@ export function parseExpectedSourceResult(text, refs, source) {
       sourceId: source.id
     })
   }
-  return { ok: true, claims: claims.toSorted((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))) }
+  return {
+    ok: true,
+    claims: claims.toSorted((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)))
+  }
 }
 
 /**
@@ -444,14 +576,21 @@ export function parseExpectedSourceResult(text, refs, source) {
  */
 async function loadCache(cachePath, suppliedCache) {
   if (suppliedCache) {
-    if (!suppliedCache.entries || typeof suppliedCache.entries !== 'object' || Array.isArray(suppliedCache.entries)) suppliedCache.entries = {}
+    if (!suppliedCache.entries || typeof suppliedCache.entries !== 'object' || Array.isArray(suppliedCache.entries))
+      suppliedCache.entries = {}
     suppliedCache.version = CACHE_VERSION
     return suppliedCache
   }
   if (!cachePath) return { version: CACHE_VERSION, entries: {} }
   try {
     const parsed = JSON.parse(await readFile(cachePath, 'utf8'))
-    if (parsed?.version === CACHE_VERSION && parsed.entries && typeof parsed.entries === 'object' && !Array.isArray(parsed.entries)) return parsed
+    if (
+      parsed?.version === CACHE_VERSION &&
+      parsed.entries &&
+      typeof parsed.entries === 'object' &&
+      !Array.isArray(parsed.entries)
+    )
+      return parsed
   } catch (error) {
     if (error?.code !== 'ENOENT') throw error
   }
@@ -489,46 +628,78 @@ function overlayFromMappings(domainId, sources, mappedClaims) {
     group.confidence = Math.min(group.confidence, claim.confidence)
     groups.set(key, group)
   }
-  const claims = groups.values().map(group => {
-    const evidenceIds = [...group.evidenceIds].toSorted()
-    return {
-      id: `claim:expected:${hash({ domainId, subjectId: group.subjectId, predicate: group.predicate, value: group.value, evidenceIds }).slice(7, 31)}`,
-      subjectId: group.subjectId,
-      predicate: group.predicate,
-      value: group.value,
-      evidenceIds,
-      confidence: group.confidence,
-      sourceFingerprint: hash({ sourceIds: [...group.sourceIds].toSorted(), subjectId: group.subjectId, predicate: group.predicate, value: group.value })
-    }
-  }).toArray().toSorted(expectedSourceIdOrder)
+  const claims = groups
+    .values()
+    .map(group => {
+      const evidenceIds = [...group.evidenceIds].toSorted()
+      return {
+        id: `claim:expected:${hash({ domainId, subjectId: group.subjectId, predicate: group.predicate, value: group.value, evidenceIds }).slice(7, 31)}`,
+        subjectId: group.subjectId,
+        predicate: group.predicate,
+        value: group.value,
+        evidenceIds,
+        confidence: group.confidence,
+        sourceFingerprint: hash({
+          sourceIds: [...group.sourceIds].toSorted(),
+          subjectId: group.subjectId,
+          predicate: group.predicate,
+          value: group.value
+        })
+      }
+    })
+    .toArray()
+    .toSorted(expectedSourceIdOrder)
   const usedEvidence = new Set(claims.flatMap(claim => claim.evidenceIds))
-  const evidence = sources.map(source => source.evidence).filter(item => usedEvidence.has(item.id)).toSorted((left, right) => left.id.localeCompare(right.id))
+  const evidence = sources
+    .map(source => source.evidence)
+    .filter(item => usedEvidence.has(item.id))
+    .toSorted((left, right) => left.id.localeCompare(right.id))
   return { claims, evidence }
 }
 
-/** Reuses only strict valid cached Expected mappings. */
+/**
+ * Reuses only strict valid cached Expected mappings.
+ * @param {Array<Record<string, unknown>>} work source mapping work
+ * @param {{entries: Record<string, unknown>}} cache persistent mapping cache
+ * @param {Record<string, unknown>} mappingRefs allowed graph references
+ * @returns {{mapped: Array<Record<string, unknown>>, pending: Array<Record<string, unknown>>}} cached mappings and misses
+ */
 function collectCachedExpectedMappings(work, cache, mappingRefs) {
   const mapped = []
   const pending = []
   for (const item of work) {
     const cached = cache.entries[item.cacheKey]
-    const checked = typeof cached === 'string' ? parseExpectedSourceResult(cached, mappingRefs, item.source) : { ok: false }
+    const checked =
+      typeof cached === 'string' ? parseExpectedSourceResult(cached, mappingRefs, item.source) : { ok: false }
     if (checked.ok) mapped.push(...checked.claims)
     else pending.push(item)
   }
   return { mapped, pending }
 }
 
-/** Submits one retry tier and turns transport errors into empty responses. */
+/**
+ * Submits one retry tier and turns transport errors into empty responses.
+ * @param {string} tier universal model tier
+ * @param {Array<Record<string, unknown>>} pending source work
+ * @param {(model: string, items: Array<object>) => Promise<Array<object>>} submitBatchImpl batch transport
+ * @returns {Promise<Array<Record<string, unknown>>>} transport responses or empty array
+ */
 async function submitExpectedMappingBatch(tier, pending, submitBatchImpl) {
   try {
-    return await submitBatchImpl(tier, pending.map(item => ({ customId: item.source.id, prompt: item.prompt })))
+    return await submitBatchImpl(
+      tier,
+      pending.map(item => ({ customId: item.source.id, prompt: item.prompt }))
+    )
   } catch {
     return []
   }
 }
 
-/** Indexes batch responses by source ID, ignoring malformed transport entries. */
+/**
+ * Indexes batch responses by source ID, ignoring malformed transport entries.
+ * @param {unknown} responses batch transport output
+ * @returns {Map<string, Record<string, unknown>>} response by source ID
+ */
 function expectedResponsesById(responses) {
   const responseById = new Map()
   if (!Array.isArray(responses)) return responseById
@@ -538,7 +709,11 @@ function expectedResponsesById(responses) {
   return responseById
 }
 
-/** Applies one tier's strict results and returns only retryable source work. */
+/**
+ * Applies one tier's strict results and returns only retryable source work.
+ * @param {{pending: Array<Record<string, unknown>>, responseById: Map<string, Record<string, unknown>>, mappingRefs: Record<string, unknown>, cache: {entries: Record<string, unknown>}, mapped: Array<Record<string, unknown>>, failures: Map<string, string>}} input retry state
+ * @returns {Array<Record<string, unknown>>} retryable work
+ */
 function applyExpectedMappingResponses({ pending, responseById, mappingRefs, cache, mapped, failures }) {
   const retry = []
   for (const item of pending) {
@@ -561,7 +736,11 @@ function applyExpectedMappingResponses({ pending, responseById, mappingRefs, cac
   return retry
 }
 
-/** Resolves Expected source misses through the universal model ladder. */
+/**
+ * Resolves Expected source misses through the universal model ladder.
+ * @param {{pending: Array<Record<string, unknown>>, modelPolicy: string[], submitBatchImpl: (model: string, items: Array<object>) => Promise<Array<object>>, mappingRefs: Record<string, unknown>, cache: {entries: Record<string, unknown>}, mapped: Array<Record<string, unknown>>}} input ladder state
+ * @returns {Promise<{pending: Array<Record<string, unknown>>, failures: Map<string, string>}>} unresolved work and failure codes
+ */
 async function runExpectedMappingLadder({ pending, modelPolicy, submitBatchImpl, mappingRefs, cache, mapped }) {
   const failures = new Map()
   let pendingItems = pending
@@ -586,23 +765,53 @@ async function runExpectedMappingLadder({ pending, modelPolicy, submitBatchImpl,
  * @param {{graph: Record<string, unknown>, sources: unknown[], cache?: {version?: number, entries?: Record<string, unknown>}, cachePath?: string, modelPolicy?: string[], submitBatchImpl?: (model: string, items: Array<object>) => Promise<Array<object>>}} input mapping request
  * @returns {Promise<{ok: true, overlay: {claims: object[], evidence: object[]}, cache: object} | {ok: false, diagnostics: object[], cache: object}>} overlay or blockers
  */
-export async function mapExpectedSources({ graph, sources, cache: suppliedCache, cachePath, modelPolicy = DEFAULT_MODEL_POLICY, submitBatchImpl }) {
+export async function mapExpectedSources({
+  graph,
+  sources,
+  cache: suppliedCache,
+  cachePath,
+  modelPolicy = DEFAULT_MODEL_POLICY,
+  submitBatchImpl
+}) {
   const cache = await loadCache(cachePath, suppliedCache)
   const refs = graphReferences(graph)
   if (!refs.ok) return { ok: false, diagnostics: refs.diagnostics, cache: canonicalize(cache) }
   const normalized = normalizeSources(sources)
   if (!normalized.ok) return { ok: false, diagnostics: normalized.diagnostics, cache: canonicalize(cache) }
-  if (normalized.sources.length === 0) return { ok: true, overlay: { claims: [], evidence: [] }, cache: canonicalize(cache) }
+  if (normalized.sources.length === 0)
+    return { ok: true, overlay: { claims: [], evidence: [] }, cache: canonicalize(cache) }
   if (!Array.isArray(modelPolicy) || JSON.stringify(modelPolicy) !== JSON.stringify(DEFAULT_MODEL_POLICY)) {
-    return { ok: false, diagnostics: [diagnostic('invalid-expected-model-policy', 'Expected mapping використовує universal policy min -> avg -> max.')], cache: canonicalize(cache) }
+    return {
+      ok: false,
+      diagnostics: [
+        diagnostic('invalid-expected-model-policy', 'Expected mapping використовує universal policy min -> avg -> max.')
+      ],
+      cache: canonicalize(cache)
+    }
   }
   if (typeof submitBatchImpl !== 'function') {
-    return { ok: false, diagnostics: [diagnostic('expected-mapping-transport-missing', 'Потрібен submitBatch transport для uncached Expected sources.')], cache: canonicalize(cache) }
+    return {
+      ok: false,
+      diagnostics: [
+        diagnostic(
+          'expected-mapping-transport-missing',
+          'Потрібен submitBatch transport для uncached Expected sources.'
+        )
+      ],
+      cache: canonicalize(cache)
+    }
   }
   const sourceEvidenceIds = new Set(normalized.sources.map(source => source.evidence.id))
   const mappingRefs = { ...refs, evidenceIds: refs.evidenceIds.union(sourceEvidenceIds) }
   const work = normalized.sources.map(source => {
-    const cacheKey = hash({ schema: 'package-knowledge-expected-v1', policy: modelPolicy, domainId: refs.domainId, nodeIds: [...refs.nodeIds].toSorted(), evidenceIds: [...mappingRefs.evidenceIds].toSorted(), source })
+    const cacheKey = hash({
+      schema: 'package-knowledge-expected-v1',
+      policy: modelPolicy,
+      domainId: refs.domainId,
+      nodeIds: [...refs.nodeIds].toSorted(),
+      evidenceIds: [...mappingRefs.evidenceIds].toSorted(),
+      source
+    })
     return { source, cacheKey, prompt: mappingPrompt({ source, refs: mappingRefs }) }
   })
   const cached = collectCachedExpectedMappings(work, cache, mappingRefs)
@@ -619,9 +828,21 @@ export async function mapExpectedSources({ graph, sources, cache: suppliedCache,
   if (ladder.pending.length > 0) {
     return {
       ok: false,
-      diagnostics: ladder.pending.map(item => diagnostic(ladder.failures.get(item.source.id) ?? 'unresolved-expected-source', 'Expected source не пройшов universal model ladder.', item.source.evidence.path)).toSorted(expectedSourceDiagnosticOrder),
+      diagnostics: ladder.pending
+        .map(item =>
+          diagnostic(
+            ladder.failures.get(item.source.id) ?? 'unresolved-expected-source',
+            'Expected source не пройшов universal model ladder.',
+            item.source.evidence.path
+          )
+        )
+        .toSorted(expectedSourceDiagnosticOrder),
       cache: canonicalize(cache)
     }
   }
-  return { ok: true, overlay: overlayFromMappings(refs.domainId, normalized.sources, mapped), cache: canonicalize(cache) }
+  return {
+    ok: true,
+    overlay: overlayFromMappings(refs.domainId, normalized.sources, mapped),
+    cache: canonicalize(cache)
+  }
 }
