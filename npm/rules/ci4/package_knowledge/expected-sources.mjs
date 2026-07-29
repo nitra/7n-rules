@@ -164,18 +164,22 @@ function isAcceptedAdr(markdown) {
   return ACCEPTED_ADR_STATUS_RE.test(markdown)
 }
 
+/** Sorts discovery diagnostics deterministically by path and code. */
 function expectedSourceDiagnosticOrder(left, right) {
   return `${left.path ?? ''}:${left.code}`.localeCompare(`${right.path ?? ''}:${right.code}`)
 }
 
+/** Sorts expected-source identities deterministically. */
 function expectedSourceIdOrder(left, right) {
   return left.id.localeCompare(right.id)
 }
 
+/** Returns whether a parsed manual zone carries non-empty expectation text. */
 function isExpectedZone(zone) {
   return zone.kind === 'EXPECTED' && zone.content.trim() !== ''
 }
 
+/** Collects explicit EXPECTED zones from package-owned documentation. */
 async function collectDomainExpectedSources(domainRoot, domainDocs, diagnostics) {
   const sources = []
   for (const path of domainDocs.toSorted()) {
@@ -201,6 +205,7 @@ async function collectDomainExpectedSources(domainRoot, domainDocs, diagnostics)
   return sources
 }
 
+/** Collects accepted ADR/spec sources explicitly scoped to the current domain. */
 async function collectScopedRepositoryExpectedSources({ repoRoot, domain, repositoryDocs, diagnostics }) {
   const sources = []
   for (const path of repositoryDocs.toSorted()) {
@@ -227,6 +232,7 @@ async function collectScopedRepositoryExpectedSources({ repoRoot, domain, reposi
   return sources
 }
 
+/** Indexes test-scenario collectors by source extension. */
 function expectedExtractorByExtension(extractors) {
   const extractorByExtension = new Map()
   for (const extractor of extractors) {
@@ -237,6 +243,7 @@ function expectedExtractorByExtension(extractors) {
   return extractorByExtension
 }
 
+/** Collects active parser-backed assertion scenarios as Expected sources. */
 async function collectTestExpectedSources({ testFiles, extractors, diagnostics }) {
   const sources = []
   const extractorByExtension = expectedExtractorByExtension(extractors)
@@ -499,6 +506,7 @@ function overlayFromMappings(domainId, sources, mappedClaims) {
   return { claims, evidence }
 }
 
+/** Reuses only strict valid cached Expected mappings. */
 function collectCachedExpectedMappings(work, cache, mappingRefs) {
   const mapped = []
   const pending = []
@@ -511,6 +519,7 @@ function collectCachedExpectedMappings(work, cache, mappingRefs) {
   return { mapped, pending }
 }
 
+/** Submits one retry tier and turns transport errors into empty responses. */
 async function submitExpectedMappingBatch(tier, pending, submitBatchImpl) {
   try {
     return await submitBatchImpl(tier, pending.map(item => ({ customId: item.source.id, prompt: item.prompt })))
@@ -519,6 +528,7 @@ async function submitExpectedMappingBatch(tier, pending, submitBatchImpl) {
   }
 }
 
+/** Indexes batch responses by source ID, ignoring malformed transport entries. */
 function expectedResponsesById(responses) {
   const responseById = new Map()
   if (!Array.isArray(responses)) return responseById
@@ -528,6 +538,7 @@ function expectedResponsesById(responses) {
   return responseById
 }
 
+/** Applies one tier's strict results and returns only retryable source work. */
 function applyExpectedMappingResponses({ pending, responseById, mappingRefs, cache, mapped, failures }) {
   const retry = []
   for (const item of pending) {
@@ -550,6 +561,7 @@ function applyExpectedMappingResponses({ pending, responseById, mappingRefs, cac
   return retry
 }
 
+/** Resolves Expected source misses through the universal model ladder. */
 async function runExpectedMappingLadder({ pending, modelPolicy, submitBatchImpl, mappingRefs, cache, mapped }) {
   const failures = new Map()
   let pendingItems = pending
@@ -593,49 +605,21 @@ export async function mapExpectedSources({ graph, sources, cache: suppliedCache,
     const cacheKey = hash({ schema: 'package-knowledge-expected-v1', policy: modelPolicy, domainId: refs.domainId, nodeIds: [...refs.nodeIds].toSorted(), evidenceIds: [...mappingRefs.evidenceIds].toSorted(), source })
     return { source, cacheKey, prompt: mappingPrompt({ source, refs: mappingRefs }) }
   })
-  const mapped = []
-  let pending = []
-  for (const item of work) {
-    const cached = cache.entries[item.cacheKey]
-    const checked = typeof cached === 'string' ? parseExpectedSourceResult(cached, mappingRefs, item.source) : { ok: false }
-    if (checked.ok) mapped.push(...checked.claims)
-    else pending.push(item)
-  }
-  const failures = new Map()
-  for (const tier of modelPolicy) {
-    if (pending.length === 0) break
-    let responses = []
-    try {
-      responses = await submitBatchImpl(tier, pending.map(item => ({ customId: item.source.id, prompt: item.prompt })))
-    } catch {
-      responses = []
-    }
-    const responseById = new Map(Array.isArray(responses) ? responses.filter(item => typeof item?.customId === 'string').map(item => [item.customId, item]) : [])
-    const retry = []
-    for (const item of pending) {
-      const response = responseById.get(item.source.id)
-      if (typeof response?.ok !== 'string') {
-        failures.set(item.source.id, response?.error ? 'expected-source-batch-error' : 'expected-source-missing-result')
-        retry.push(item)
-        continue
-      }
-      const checked = parseExpectedSourceResult(response.ok, mappingRefs, item.source)
-      if (!checked.ok) {
-        failures.set(item.source.id, checked.reason)
-        retry.push(item)
-        continue
-      }
-      cache.entries[item.cacheKey] = response.ok
-      mapped.push(...checked.claims)
-      failures.delete(item.source.id)
-    }
-    pending = retry
-  }
+  const cached = collectCachedExpectedMappings(work, cache, mappingRefs)
+  const mapped = cached.mapped
+  const ladder = await runExpectedMappingLadder({
+    pending: cached.pending,
+    modelPolicy,
+    submitBatchImpl,
+    mappingRefs,
+    cache,
+    mapped
+  })
   await saveCache(cachePath, cache)
-  if (pending.length > 0) {
+  if (ladder.pending.length > 0) {
     return {
       ok: false,
-      diagnostics: pending.map(item => diagnostic(failures.get(item.source.id) ?? 'unresolved-expected-source', 'Expected source не пройшов universal model ladder.', item.source.evidence.path)).toSorted((left, right) => `${left.path}:${left.code}`.localeCompare(`${right.path}:${right.code}`)),
+      diagnostics: ladder.pending.map(item => diagnostic(ladder.failures.get(item.source.id) ?? 'unresolved-expected-source', 'Expected source не пройшов universal model ladder.', item.source.evidence.path)).toSorted(expectedSourceDiagnosticOrder),
       cache: canonicalize(cache)
     }
   }

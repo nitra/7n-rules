@@ -3,7 +3,7 @@ type: JS Module
 title: cli.mjs
 resource: npm/rules/ci4/package_knowledge/cli.mjs
 docgen:
-  crc: db5e9f87
+  crc: 0bc9b6e8
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 70
@@ -23,7 +23,7 @@ artifacts лише з `--publish`; index/slice/validate лишаються read-
 
 ## Сценарії використання
 
-- `npm/rules/ci4/package_knowledge/tests/cli.test.mjs` (runDocsCli) — build defaults to SHADOW and forwards publish only when explicit; lists portable package domains without absolute runtime roots; returns a compact index and validates the owning manifest; returns a slice without leaking private symbol IDs; fails explicitly for missing manifest and invalid command; ще 1
+- `npm/rules/ci4/package_knowledge/tests/cli.test.mjs` (runDocsCli) — build defaults to SHADOW and forwards publish only when explicit; lists portable package domains without absolute runtime roots; returns a compact index and validates the owning manifest; returns a slice without leaking private symbol IDs; fails explicitly for missing manifest and invalid command; ще 2
 
 ## Гарантії поведінки
 

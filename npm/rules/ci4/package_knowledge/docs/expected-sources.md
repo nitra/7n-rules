@@ -3,9 +3,9 @@ type: JS Module
 title: expected-sources.mjs
 resource: npm/rules/ci4/package_knowledge/expected-sources.mjs
 docgen:
-  crc: e30c5c02
+  crc: 40354c26
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
+  tier: local-min-retry
   score: 80
   judgeModel: openai-codex/gpt-5.4-mini
 ---

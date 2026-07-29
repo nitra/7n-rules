@@ -230,4 +230,15 @@ describe('runDocsCli', () => {
       expect(await readFile(path, 'utf8')).toBe(before)
     })
   })
+
+  test('reports missing or unknown slice topic explicitly', async () => {
+    await withTmpDir(async root => {
+      await writeDomain(root)
+      const missing = await captureRun(root, ['slice', '--domain', 'npm:@fixture/orders'])
+      const unknown = await captureRun(root, ['slice', '--domain', 'npm:@fixture/orders', '--topic', 'missing'])
+
+      expect(JSON.parse(missing.err[0])).toMatchObject({ code: 'topic-required' })
+      expect(JSON.parse(unknown.err[0])).toMatchObject({ code: 'topic-not-found' })
+    })
+  })
 })

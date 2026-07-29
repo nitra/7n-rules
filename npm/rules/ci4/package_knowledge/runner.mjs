@@ -61,7 +61,7 @@ function blocked(stage, diagnostics, domainId = '') {
  * @returns {string | null} source slice
  */
 function utf8ByteSlice(content, span) {
-  if (!span || !Number.isInteger(span.startByte) || !Number.isInteger(span.endByte) || span.startByte < 0 || span.endByte < span.startByte) return null
+  if (!span || !Number.isSafeInteger(span.startByte) || !Number.isSafeInteger(span.endByte) || span.startByte < 0 || span.endByte < span.startByte) return null
   const bytes = Buffer.from(content, 'utf8')
   if (span.endByte > bytes.length) return null
   const slice = bytes.subarray(span.startByte, span.endByte)
@@ -159,7 +159,7 @@ function mergeGapMappings(automatic, explicit) {
   }
   const byIdentity = new Map()
   const diagnostics = []
-  for (const mapping of automatic.concat(explicit)) {
+  for (const mapping of [...automatic, explicit]) {
     if (!mapping || typeof mapping !== 'object' || typeof mapping.expectedClaimId !== 'string' || typeof mapping.implementedClaimId !== 'string') {
       diagnostics.push({ code: 'invalid-gap-mapping', message: 'Gap mapping не має exact expected/implemented IDs.' })
       continue

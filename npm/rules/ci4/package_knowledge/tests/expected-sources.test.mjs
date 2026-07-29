@@ -147,4 +147,10 @@ describe('Expected source mapping', () => {
       )
     ).toEqual({ ok: false, reason: 'unknown-expected-mapping-reference' })
   })
+
+  test('blocks invalid graph, policy, and missing uncached transport', async () => {
+    expect(await mapExpectedSources({ graph: {}, sources: [source()] })).toMatchObject({ ok: false, diagnostics: [{ code: 'invalid-expected-source-graph' }] })
+    expect(await mapExpectedSources({ graph: graph(), sources: [source()], modelPolicy: ['min'], submitBatchImpl: vi.fn() })).toMatchObject({ ok: false, diagnostics: [{ code: 'invalid-expected-model-policy' }] })
+    expect(await mapExpectedSources({ graph: graph(), sources: [source()] })).toMatchObject({ ok: false, diagnostics: [{ code: 'expected-mapping-transport-missing' }] })
+  })
 })

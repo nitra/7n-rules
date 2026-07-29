@@ -3,9 +3,9 @@ type: JS Module
 title: runner.mjs
 resource: npm/rules/ci4/package_knowledge/runner.mjs
 docgen:
-  crc: 9c16a8fb
+  crc: d2a45d05
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
+  tier: local-min-retry
   score: 60
   judgeModel: openai-codex/gpt-5.4-mini
 ---

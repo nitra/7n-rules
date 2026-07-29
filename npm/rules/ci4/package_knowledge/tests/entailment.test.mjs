@@ -135,4 +135,18 @@ describe('verifyEvidenceEntailment', () => {
     expect(result).toMatchObject({ ok: true, claims: [] })
     expect(submitBatchImpl).not.toHaveBeenCalled()
   })
+
+  test('fails invalid verifier inputs before transport', async () => {
+    const transport = vi.fn()
+    const invalidGraph = await verifyEvidenceEntailment({ graph: {}, evidenceContentById: {}, submitBatchImpl: transport })
+    const invalidPolicy = await verifyEvidenceEntailment({ graph: graph([IMPLEMENTED]), evidenceContentById: EVIDENCE_CONTENT, modelPolicy: ['min'], submitBatchImpl: transport })
+    const invalidVersion = await verifyEvidenceEntailment({ graph: graph([IMPLEMENTED]), evidenceContentById: EVIDENCE_CONTENT, promptVersion: '', submitBatchImpl: transport })
+    const blankMapContent = await verifyEvidenceEntailment({ graph: graph([IMPLEMENTED]), evidenceContentById: new Map([['evidence:submit', '']]), submitBatchImpl: transport })
+
+    expect(invalidGraph).toMatchObject({ ok: false, diagnostics: [{ code: 'invalid-entailment-graph' }] })
+    expect(invalidPolicy).toMatchObject({ ok: false, diagnostics: [{ code: 'invalid-entailment-model-policy' }] })
+    expect(invalidVersion).toMatchObject({ ok: false, diagnostics: [{ code: 'invalid-entailment-version' }] })
+    expect(blankMapContent).toMatchObject({ ok: false, diagnostics: [{ code: 'missing-evidence-content' }] })
+    expect(transport).not.toHaveBeenCalled()
+  })
 })
