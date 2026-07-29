@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.55.2] - 2026-07-29
+
+### Changed
+
+- Nested Composer workspace detection: `KNOWN_LANG_PLUGINS.php.maxDepth` 0 → 2, авто-детект правила
+`php` тепер бачить вкладені `composer.json` (`services/api/composer.json`, `backend/composer.json`)
+
 ## [1.55.1] - 2026-07-29
 
 ### Fixed
