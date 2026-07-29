@@ -5,6 +5,7 @@ import { describe, expect, test, vi } from 'vitest'
 
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 import { buildPackageKnowledge } from '../runner.mjs'
+import { compareClaimMappings } from '../gap-mappings.mjs'
 
 const DOMAIN_ID = 'npm:@fixture/orders'
 
@@ -77,6 +78,38 @@ function successfulBatch() {
               evidenceIds: [evidence[0]],
               confidence: 1
             })),
+            coveredNodeIds: nodes,
+            coveredEdgeIds: edges
+          })
+        }
+      })
+    )
+  )
+}
+
+/** Повертає transport, який розрізняє claims і semantic gap-comparison prompts. */
+function comparisonBatch() {
+  return vi.fn((tier, items) =>
+    Promise.resolve(
+      items.map(item => {
+        if (item.prompt.includes('implementedCandidates')) {
+          const candidates = JSON.parse(item.prompt.split('\n').at(-1)).implementedCandidates
+          return {
+            customId: item.customId,
+            ok: JSON.stringify({
+              expectedClaimId: item.customId,
+              comparisons: [{ implementedClaimId: candidates[0].id, relation: 'contradicts' }],
+              unresolved: false
+            })
+          }
+        }
+        const nodes = JSON.parse(item.prompt.match(/Required node IDs: (\[[^\n]+\])\./u)[1])
+        const edges = JSON.parse(item.prompt.match(/Required edge IDs: (\[[^\n]+\])\./u)[1])
+        const evidence = JSON.parse(item.prompt.match(/Allowed evidence IDs: (\[[^\n]+\])\./u)[1])
+        return {
+          customId: item.customId,
+          ok: JSON.stringify({
+            claims: nodes.map(subjectId => ({ subjectId, predicate: 'implements', value: true, evidenceIds: [evidence[0]], confidence: 1 })),
             coveredNodeIds: nodes,
             coveredEdgeIds: edges
           })
@@ -246,15 +279,26 @@ describe('buildPackageKnowledge', () => {
     })
   })
 
-  test('ingests automatic Expected overlay only after implemented claims are available', async () => {
+  test('makes an exact automatic Expected match satisfied with zero comparison LLM calls', async () => {
     await withTmpDir(async root => {
       const discovered = vi.fn(() => Promise.resolve({ ok: true, sources: [expectedSource()] }))
       const mapped = vi.fn(({ graph }) => Promise.resolve(mappedExpected(graph)))
+      const batch = successfulBatch()
+      let comparisonResult
+      const comparator = vi.fn(async input => {
+        comparisonResult = await compareClaimMappings(input)
+        return comparisonResult
+      })
+      const cache = { entries: {} }
+      const gapCache = { entries: {} }
       const result = await buildPackageKnowledge(
         inputs(root, extractor(), {
-          submitBatchImpl: successfulBatch(),
+          submitBatchImpl: batch,
+          cache,
+          gapCache,
           discoverExpectedSourcesImpl: discovered,
-          mapExpectedSourcesImpl: mapped
+          mapExpectedSourcesImpl: mapped,
+          compareGapMappingsImpl: comparator
         })
       )
 
@@ -263,7 +307,126 @@ describe('buildPackageKnowledge', () => {
         expect.objectContaining({ repoRoot: root, domain: expect.objectContaining({ id: DOMAIN_ID }) })
       )
       expect(mapped.mock.calls[0][0].graph.claims).toHaveLength(1)
-      expect(await readFile(join(result.stagingPath, 'docs', 'implementation-gaps.md'), 'utf8')).toContain('Status: missing')
+      expect(comparator).toHaveBeenCalledTimes(1)
+      expect(comparisonResult.mappings[0]).toMatchObject({ relation: 'equivalent' })
+      expect(batch).toHaveBeenCalledTimes(1)
+      const manifest = JSON.parse(await readFile(join(result.stagingPath, 'docs', '.docgen', 'manifest.json'), 'utf8'))
+      expect(manifest.gaps).toEqual([expect.objectContaining({ expectedClaimId: 'claim:expected', status: 'satisfied' })])
+    })
+  })
+
+  test('renders semantic comparator contradiction as diverged', async () => {
+    await withTmpDir(async root => {
+      const comparator = vi.fn(async ({ graph }) => {
+        const implemented = graph.claims.find(claim => claim.layer === 'implemented')
+        const expected = graph.claims.find(claim => claim.layer === 'expected')
+        return {
+          ok: true,
+          mappings: [{ expectedClaimId: expected.id, implementedClaimId: implemented.id, relation: 'contradicts', evidenceIds: [...expected.evidenceIds, ...implemented.evidenceIds].toSorted() }],
+          unresolvedExpectedClaimIds: [],
+          cache: { version: 1, entries: {} }
+        }
+      })
+      const result = await buildPackageKnowledge(
+        inputs(root, extractor(), {
+          submitBatchImpl: successfulBatch(),
+          expectedOverlay: { claims: [{ id: 'claim:expected:diverged', subjectId: 'code-unit:npm:@fixture/orders:js:src/orders.mjs#submit', predicate: 'implements', value: false, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }], evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/spec.md', contentHash: 'sha256:expected' }] },
+          compareGapMappingsImpl: comparator
+        })
+      )
+
+      expect(result).toMatchObject({ ok: true, mode: 'shadow' })
+      expect(await readFile(join(result.stagingPath, 'docs', 'implementation-gaps.md'), 'utf8')).toContain('Status: diverged')
+    })
+  })
+
+  test('renders explicit ambiguous comparison as unresolved', async () => {
+    await withTmpDir(async root => {
+      const expected = { id: 'claim:expected:ambiguous', subjectId: 'code-unit:npm:@fixture/orders:js:src/orders.mjs#submit', predicate: 'implements', value: false, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }
+      const result = await buildPackageKnowledge(
+        inputs(root, extractor(), {
+          submitBatchImpl: successfulBatch(),
+          expectedOverlay: { claims: [expected], evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/spec.md', contentHash: 'sha256:expected' }] },
+          compareGapMappingsImpl: vi.fn(async () => ({ ok: true, mappings: [], unresolvedExpectedClaimIds: [expected.id], cache: { version: 1, entries: {} } }))
+        })
+      )
+
+      expect(result).toMatchObject({ ok: true, mode: 'shadow' })
+      expect(await readFile(join(result.stagingPath, 'docs', 'implementation-gaps.md'), 'utf8')).toContain('Status: unresolved')
+    })
+  })
+
+  test('blocks malformed comparison before rendering or publishing', async () => {
+    await withTmpDir(async root => {
+      const render = vi.fn()
+      const publish = vi.fn()
+      const result = await buildPackageKnowledge(
+        inputs(root, extractor(), {
+          publish: true,
+          submitBatchImpl: successfulBatch(),
+          compareGapMappingsImpl: vi.fn(async () => ({ ok: false, diagnostics: [{ code: 'invalid-comparison-json' }] })),
+          renderImpl: render,
+          publishImpl: publish
+        })
+      )
+
+      expect(result).toMatchObject({ ok: false, stage: 'gap-mappings', diagnostics: [{ code: 'invalid-comparison-json' }] })
+      expect(render).not.toHaveBeenCalled()
+      expect(publish).not.toHaveBeenCalled()
+    })
+  })
+
+  test('blocks duplicate explicit mapping instead of silently overriding automatic relation', async () => {
+    await withTmpDir(async root => {
+      const mapping = {
+        expectedClaimId: 'claim:expected',
+        implementedClaimId: 'claim:implemented',
+        relation: 'equivalent',
+        evidenceIds: ['evidence:expected']
+      }
+      const render = vi.fn()
+      const result = await buildPackageKnowledge(
+        inputs(root, extractor(), {
+          submitBatchImpl: successfulBatch(),
+          gapMappings: [mapping],
+          compareGapMappingsImpl: vi.fn(async () => ({ ok: true, mappings: [mapping], unresolvedExpectedClaimIds: [], cache: { version: 1, entries: {} } })),
+          renderImpl: render
+        })
+      )
+
+      expect(result).toMatchObject({ ok: false, stage: 'gap-mappings', diagnostics: [{ code: 'duplicate-gap-mapping' }] })
+      expect(render).not.toHaveBeenCalled()
+    })
+  })
+
+  test('passes unchanged gap cache to comparator for zero-call repeat', async () => {
+    await withTmpDir(async root => {
+      const expected = { id: 'claim:expected:cached', subjectId: 'code-unit:npm:@fixture/orders:js:src/orders.mjs#submit', predicate: 'implements', value: false, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }
+      const cache = { entries: {} }
+      const gapCache = { entries: {} }
+      const firstBatch = comparisonBatch()
+      const first = await buildPackageKnowledge(
+        inputs(root, extractor(), {
+          cache,
+          gapCache,
+          expectedOverlay: { claims: [expected], evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/spec.md', contentHash: 'sha256:expected' }] },
+          submitBatchImpl: firstBatch
+        })
+      )
+      const secondBatch = vi.fn()
+      const second = await buildPackageKnowledge(
+        inputs(root, extractor(), {
+          cache,
+          gapCache,
+          expectedOverlay: { claims: [expected], evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/spec.md', contentHash: 'sha256:expected' }] },
+          submitBatchImpl: secondBatch
+        })
+      )
+
+      expect(first).toMatchObject({ ok: true, mode: 'shadow' })
+      expect(second).toMatchObject({ ok: true, mode: 'shadow' })
+      expect(firstBatch).toHaveBeenCalledTimes(2)
+      expect(secondBatch).not.toHaveBeenCalled()
     })
   })
 
@@ -275,7 +438,8 @@ describe('buildPackageKnowledge', () => {
       const batch = successfulBatch()
       const verifier = vi.fn(async input => {
         expect(Object.values(input.evidenceContentById)).toContain(codeEvidence)
-        for (const claim of input.graph.claims.filter(claim => claim.layer === 'implemented' || claim.layer === 'expected')) {
+        const semanticClaims = input.graph.claims.filter(claim => claim.layer === 'implemented' || claim.layer === 'expected')
+        for (const claim of semanticClaims) {
           for (const evidenceId of claim.evidenceIds) expect(input.evidenceContentById[evidenceId]).toEqual(expect.any(String))
         }
         expect(input.evidenceContentById).toMatchObject({

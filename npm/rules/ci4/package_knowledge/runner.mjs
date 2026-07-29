@@ -5,6 +5,8 @@
  * resolver, adapters, parser candidate, planner, claims, renderer, validator
  * та atomic publisher. Усі залежності інʼєктовані, щоб tests перевіряли
  * fail-closed межі без реальних plugin або LLM викликів.
+ * Після Expected overlay runner верифікує evidence entailment, автоматично
+ * порівнює expected↔implemented claims і лише тоді materializes gaps/render.
  */
 
 import { createHash } from 'node:crypto'
@@ -20,6 +22,7 @@ import { verifyEvidenceEntailment } from './entailment.mjs'
 import { applyExpectedOverlay } from './expected-overlay.mjs'
 import { discoverExpectedSources, mapExpectedSources } from './expected-sources.mjs'
 import { evaluateGaps } from './gap-engine.mjs'
+import { compareClaimMappings } from './gap-mappings.mjs'
 import { loadKnowledgeAdapters } from './load-adapters.mjs'
 import { publishKnowledgeArtifacts } from './publish.mjs'
 import { renderKnowledgeArtifacts } from './render.mjs'
@@ -143,6 +146,48 @@ function claimsChunks(chunks, graph) {
 }
 
 /**
+ * Обʼєднує automatic та explicit gap mappings без неявного пріоритету caller-а.
+ * @param {unknown} automatic comparator-produced mappings
+ * @param {unknown} explicit caller-provided mappings
+ * @returns {{ok: true, mappings: unknown[]} | {ok: false, diagnostics: object[]}} merged mappings або blockers
+ */
+function mergeGapMappings(automatic, explicit) {
+  if (!Array.isArray(automatic) || !Array.isArray(explicit)) {
+    return { ok: false, diagnostics: [{ code: 'invalid-gap-mappings', message: 'Automatic та explicit gap mappings мають бути масивами.' }] }
+  }
+  const byIdentity = new Map()
+  const diagnostics = []
+  for (const mapping of automatic.concat(explicit)) {
+    if (!mapping || typeof mapping !== 'object' || typeof mapping.expectedClaimId !== 'string' || typeof mapping.implementedClaimId !== 'string') {
+      diagnostics.push({ code: 'invalid-gap-mapping', message: 'Gap mapping не має exact expected/implemented IDs.' })
+      continue
+    }
+    const identity = `${mapping.expectedClaimId}\u{0}${mapping.implementedClaimId}`
+    const prior = byIdentity.get(identity)
+    if (!prior) {
+      byIdentity.set(identity, mapping)
+      continue
+    }
+    const priorEvidence = Array.isArray(prior.evidenceIds) ? JSON.stringify([...prior.evidenceIds].toSorted()) : null
+    const nextEvidence = Array.isArray(mapping.evidenceIds) ? JSON.stringify([...mapping.evidenceIds].toSorted()) : null
+    const same = prior.relation === mapping.relation && priorEvidence !== null && priorEvidence === nextEvidence
+    diagnostics.push({
+      code: same ? 'duplicate-gap-mapping' : 'conflicting-gap-mapping',
+      message: `Gap mapping ${mapping.expectedClaimId} → ${mapping.implementedClaimId} задано більше одного разу.`
+    })
+  }
+  if (diagnostics.length > 0) return { ok: false, diagnostics: diagnostics.toSorted((left, right) => `${left.code}:${left.message}`.localeCompare(`${right.code}:${right.message}`)) }
+  return {
+    ok: true,
+    mappings: byIdentity.values().toArray().toSorted((left, right) =>
+      `${left.expectedClaimId}:${left.implementedClaimId}:${left.relation}`.localeCompare(
+        `${right.expectedClaimId}:${right.implementedClaimId}:${right.relation}`
+      )
+    )
+  }
+}
+
+/**
  * Читає поточні Markdown views лише для preservation protected zones. Manifest
  * навмисно не читається: generated candidate завжди є повною projection graph.
  * @param {string} domainRoot absolute domain root
@@ -248,8 +293,8 @@ async function writeShadowCandidate(stagingPath, files, deps = {}) {
  * `publish: true` is the only path that invokes the existing atomic publisher.
  * @param {{
  *   repoRoot: string, domainId: string, publish?: boolean, expectedOverlay?: object,
- *   gapMappings?: unknown[], aliasesByTopicId?: Record<string, string[]>, cache?: object, expectedCache?: object, entailmentCache?: object,
- *   cachePath?: string, expectedCachePath?: string, entailmentCachePath?: string, config?: object, submitBatchImpl?: Function,
+ *   gapMappings?: unknown[], aliasesByTopicId?: Record<string, string[]>, cache?: object, expectedCache?: object, entailmentCache?: object, gapCache?: object,
+ *   cachePath?: string, expectedCachePath?: string, entailmentCachePath?: string, gapCachePath?: string, config?: object, submitBatchImpl?: (model: string, items: Array<object>, options?: object) => Promise<Array<object>>,
  *   resolveDomainsImpl?: typeof resolveDocumentationDomains, loadAdaptersImpl?: typeof loadKnowledgeAdapters,
  *   loadSourcesImpl?: typeof loadDomainSources, buildCandidateImpl?: typeof buildKnowledgeCandidate,
  *   loadStructuredSourcesImpl?: typeof loadStructuredSources,
@@ -259,6 +304,7 @@ async function writeShadowCandidate(stagingPath, files, deps = {}) {
  *   readPreviousManifestImpl?: typeof readPreviousManifest, discoverExpectedSourcesImpl?: typeof discoverExpectedSources,
  *   mapExpectedSourcesImpl?: typeof mapExpectedSources,
  *   verifyEntailmentImpl?: typeof verifyEvidenceEntailment,
+ *   compareGapMappingsImpl?: typeof compareClaimMappings,
  *   writeShadowCandidateImpl?: typeof writeShadowCandidate
  * }} input explicit runtime request and injectable dependencies
  * @returns {Promise<Record<string, unknown>>} build outcome with mode and diagnostics
@@ -382,7 +428,21 @@ export async function buildPackageKnowledge(input) {
     submitBatchImpl: input.submitBatchImpl
   })
   if (!entailment.ok) return blocked('entailment', entailment.diagnostics, domain.id)
-  const gaps = evaluateGaps({ graph: overlaid.graph, mappings: input.gapMappings ?? [] })
+  const compareGapMappings = input.compareGapMappingsImpl ?? compareClaimMappings
+  const comparison = await compareGapMappings({
+    graph: overlaid.graph,
+    cache: input.gapCache,
+    cachePath: input.gapCachePath ?? join(dirname(cachePath), 'gap-mappings.json'),
+    submitBatchImpl: input.submitBatchImpl
+  })
+  if (!comparison.ok) return blocked('gap-mappings', comparison.diagnostics, domain.id)
+  const mergedMappings = mergeGapMappings(comparison.mappings, input.gapMappings ?? [])
+  if (!mergedMappings.ok) return blocked('gap-mappings', mergedMappings.diagnostics, domain.id)
+  const gaps = evaluateGaps({
+    graph: overlaid.graph,
+    mappings: mergedMappings.mappings,
+    unresolvedExpectedClaimIds: comparison.unresolvedExpectedClaimIds
+  })
   if (!gaps.ok) return blocked('gaps', gaps.diagnostics, domain.id)
   const graph = {
     ...overlaid.graph,
