@@ -6,6 +6,7 @@ import { clearSlotResolveCache } from '../../../../scripts/lib/plugin-slots.mjs'
 import { clearPluginResolveCache } from '../../../../scripts/lib/resolve-plugins.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 import { loadKnowledgeAdapters } from '../load-adapters.mjs'
+import { discoverDomainCodeExtensions } from '../source-loader.mjs'
 
 afterEach(() => {
   clearSlotResolveCache()
@@ -159,6 +160,28 @@ describe('loadKnowledgeAdapters', () => {
         config: { plugins: [] },
         requiredExtensions: ['.js']
       })
+      expect(result).toMatchObject({ blocked: true, adapters: null })
+      expect(result.diagnostics).toEqual([
+        expect.objectContaining({ code: 'missing-extractor-extension', slot: 'knowledge.extractor', blocking: true })
+      ])
+    })
+  })
+
+  test('blocks a discovered language whose extractor plugin is not installed', async () => {
+    await withTmpDir(async repoRoot => {
+      await mkdir(join(repoRoot, 'src'), { recursive: true })
+      await writeFile(join(repoRoot, 'src', 'orders.ts'), 'export const orders = []\n')
+      const inventory = await discoverDomainCodeExtensions({
+        domain: { id: 'npm:@fixture/root', root: repoRoot, sourceRoot: '.', excludedSourceRoots: [] }
+      })
+      const result = await loadKnowledgeAdapters({
+        repoRoot,
+        domainRoot: repoRoot,
+        config: { plugins: [] },
+        requiredExtensions: inventory.extensions
+      })
+
+      expect(inventory).toEqual({ ok: true, extensions: ['.ts'] })
       expect(result).toMatchObject({ blocked: true, adapters: null })
       expect(result.diagnostics).toEqual([
         expect.objectContaining({ code: 'missing-extractor-extension', slot: 'knowledge.extractor', blocking: true })

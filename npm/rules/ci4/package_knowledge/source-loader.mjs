@@ -7,7 +7,7 @@
  */
 
 import { readFile, realpath } from 'node:fs/promises'
-import { isAbsolute, relative, resolve, sep } from 'node:path'
+import { extname, isAbsolute, relative, resolve, sep } from 'node:path'
 
 import { globby } from 'globby'
 
@@ -23,6 +23,18 @@ const DEFAULT_IGNORES = Object.freeze([
   '**/venv/**'
 ])
 const EXTENSION_RE = /^\.[a-z0-9]+$/iu
+const SUPPORTED_CODE_EXTENSIONS = Object.freeze([
+  '.cjs',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.php',
+  '.py',
+  '.rs',
+  '.ts',
+  '.tsx',
+  '.vue'
+])
 
 /**
  * Створює blocking source diagnostic.
@@ -114,6 +126,48 @@ async function readDomainSource(root, path) {
         toPosix(path)
       )
     }
+  }
+}
+
+/**
+ * Виявляє наявні підтримувані code extensions без залежності від встановлених adapters.
+ *
+ * Кожен recognized file перечитується через той самий containment gate, тому race,
+ * unreadable file або symlink escape блокує вибір adapter-ів до candidate pipeline.
+ * @param {{domain: Record<string, unknown>}} input resolved domain
+ * @returns {Promise<{ok: true, extensions: string[]} | {ok: false, diagnostics: Array<Record<string, unknown>>}>} present extensions або blockers
+ */
+export async function discoverDomainCodeExtensions({ domain }) {
+  if (!domain || typeof domain.root !== 'string' || !isAbsolute(domain.root)) {
+    return {
+      ok: false,
+      diagnostics: [diagnostic('invalid-domain-root', 'Resolved domain мусить мати absolute root.')]
+    }
+  }
+  let root
+  try {
+    root = await realpath(domain.root)
+  } catch (error) {
+    return {
+      ok: false,
+      diagnostics: [
+        diagnostic('domain-root-unavailable', error instanceof Error ? error.message : String(error), domain.root)
+      ]
+    }
+  }
+  const paths = await globby(SUPPORTED_CODE_EXTENSIONS.map(extension => `**/*${extension}`), {
+    cwd: root,
+    onlyFiles: true,
+    gitignore: true,
+    followSymbolicLinks: false,
+    ignore: [...DEFAULT_IGNORES, ...nestedDomainIgnores(domain)]
+  })
+  const results = await Promise.all(paths.toSorted().map(path => readDomainSource(root, path)))
+  const diagnostics = results.filter(result => !result.ok).map(result => result.diagnostic)
+  if (diagnostics.length > 0) return { ok: false, diagnostics }
+  return {
+    ok: true,
+    extensions: [...new Set(results.map(result => extname(result.source.path).toLowerCase()))].toSorted()
   }
 }
 
