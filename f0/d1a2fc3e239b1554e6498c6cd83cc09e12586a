@@ -1,0 +1,23 @@
+npm/scripts/lib/plugin-slots.mjs
+  s_4ed034b2325d4a::t_90185613f9ad5f 628
+llm-lib/.changes/260728-2223.md
+  s_4ed034b2325d4a::t_85f61052fc3db7 5
+.cspell.json
+  s_4ed034b2325d4a::t_90185613f9ad5f 117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "f0d1a2fc3e239b1554e6498c6cd83cc09e12586a",
+  "prompts": {},
+  "sessions": {
+    "s_4ed034b2325d4a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa9e1-fcf8-7082-9435-2aacdc2eae0d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
