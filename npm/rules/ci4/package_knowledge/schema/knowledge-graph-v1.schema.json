@@ -14,7 +14,14 @@
     "claims": { "type": "array", "items": { "$ref": "#/$defs/claim" } },
     "topics": { "type": "array", "items": { "$ref": "#/$defs/topic" } },
     "gaps": { "type": "array", "items": { "$ref": "#/$defs/gap" } },
-    "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } }
+    "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+    "protectedZonesByTopicId": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "$ref": "#/$defs/protectedZone" }
+      }
+    }
   },
   "$defs": {
     "id": { "type": "string", "minLength": 1 },
@@ -131,6 +138,16 @@
         "expectedClaimId": { "$ref": "#/$defs/id" },
         "implementedClaimIds": { "type": "array", "items": { "$ref": "#/$defs/id" }, "uniqueItems": true },
         "evidenceIds": { "type": "array", "items": { "$ref": "#/$defs/id" }, "uniqueItems": true }
+      }
+    },
+    "protectedZone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "content"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["MANUAL", "EXPECTED"] },
+        "content": { "type": "string" }
       }
     },
     "evidence": {

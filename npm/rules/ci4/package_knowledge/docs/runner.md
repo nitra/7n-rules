@@ -3,7 +3,7 @@ type: JS Module
 title: runner.mjs
 resource: npm/rules/ci4/package_knowledge/runner.mjs
 docgen:
-  crc: 714925fc
+  crc: b6dd58c2
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 75
@@ -15,8 +15,8 @@ docgen:
 Оркеструє повну генерацію package knowledge у shadow або publish режимі.
 
 Runner не має власної semantic schema: він послідовно з'єднує наявні
-resolver, adapters, parser candidate, planner, claims, renderer, validator
-та atomic publisher. Усі залежності інʼєктовані, щоб tests перевіряли
+resolver, adapters, parser candidate, implemented claims, Expected source
+mapping, renderer, validator та atomic publisher. Усі залежності інʼєктовані, щоб tests перевіряли
 fail-closed межі без реальних plugin або LLM викликів.
 
 ## Публічний API
@@ -27,8 +27,9 @@ are validated and materialized under the system cache, never under domain docs.
 
 ## Сценарії використання
 
-- `npm/rules/ci4/package_knowledge/tests/runner.test.mjs` (buildPackageKnowledge) — SHADOW validates and stages candidate, then unchanged cache performs zero LLM calls; parser failure is fail-closed and does not replace existing docs; explicit publish atomically adds generated views and preserves unrelated legacy docs
+- `npm/rules/ci4/package_knowledge/tests/runner.test.mjs` (buildPackageKnowledge) — SHADOW validates and stages candidate, then unchanged cache performs zero LLM calls; parser failure is fail-closed and does not replace existing docs; explicit publish atomically adds generated views and preserves unrelated legacy docs; ingests automatic Expected overlay only after implemented claims are available
 
 ## Гарантії поведінки
 
-- Кешує результати в межах одного прогону.
+- Читає existing docs і previous manifest до candidate build, щоб protected topic zones переживали migration.
+- Мапить automatic Expected sources після implemented claims, а injected overlay додає тим самим fail-closed contract.

@@ -140,4 +140,31 @@ describe('buildPackageKnowledge', () => {
       expect(await readFile(join(root, 'docs', '.docgen', 'manifest.json'), 'utf8')).toContain(DOMAIN_ID)
     })
   })
+
+  test('ingests automatic Expected overlay only after implemented claims are available', async () => {
+    await withTmpDir(async root => {
+      const discovered = vi.fn(() => Promise.resolve({ ok: true, sources: [{ id: 'source:expected', content: 'Must accept.', evidence: { id: 'evidence:expected', kind: 'spec', path: 'docs/specs/orders.md', contentHash: 'sha256:expected' } }] }))
+      const mapped = vi.fn(({ graph }) =>
+        Promise.resolve({
+          ok: true,
+          overlay: {
+            evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/specs/orders.md', contentHash: 'sha256:expected' }],
+            claims: [{ id: 'claim:expected', subjectId: graph.nodes[0].id, predicate: 'implements', value: true, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }]
+          }
+        })
+      )
+      const result = await buildPackageKnowledge(
+        inputs(root, extractor(), {
+          submitBatchImpl: successfulBatch(),
+          discoverExpectedSourcesImpl: discovered,
+          mapExpectedSourcesImpl: mapped
+        })
+      )
+
+      expect(result).toMatchObject({ ok: true, mode: 'shadow' })
+      expect(discovered).toHaveBeenCalledWith({ repoRoot: root, domain: expect.objectContaining({ id: DOMAIN_ID }) })
+      expect(mapped.mock.calls[0][0].graph.claims).toHaveLength(1)
+      expect(await readFile(join(result.stagingPath, 'docs', 'implementation-gaps.md'), 'utf8')).toContain('Status: missing')
+    })
+  })
 })

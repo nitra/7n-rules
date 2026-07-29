@@ -9,20 +9,22 @@
 
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
-import { join, relative } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import { buildKnowledgeCandidate } from './candidate.mjs'
 import { planSemanticChunks } from './chunk-planner.mjs'
 import { buildStructuredClaims, CLAIM_PROMPT_VERSION, CLAIM_SCHEMA_VERSION, DEFAULT_MODEL_POLICY } from './claims.mjs'
 import { resolveDocumentationDomains } from './domain-resolver.mjs'
+import { applyExpectedOverlay } from './expected-overlay.mjs'
+import { discoverExpectedSources, mapExpectedSources } from './expected-sources.mjs'
 import { evaluateGaps } from './gap-engine.mjs'
 import { loadKnowledgeAdapters } from './load-adapters.mjs'
 import { publishKnowledgeArtifacts } from './publish.mjs'
 import { renderKnowledgeArtifacts } from './render.mjs'
 import { loadDomainSources } from './source-loader.mjs'
-import { discoverTopics } from './topic-discovery.mjs'
 import { validateKnowledgeGraph } from './validator.mjs'
+import { parseKnowledgeZones } from './zones.mjs'
 import { readNRulesConfigLite } from '../../../scripts/lib/read-n-rules-config-lite.mjs'
 
 /**
@@ -73,6 +75,9 @@ function claimsChunks(chunks, graph) {
       id: chunk.id,
       requiredNodeIds: chunk.nodeIds,
       requiredEdgeIds: chunk.edgeIds,
+      allowedEvidenceIds: evidenceRefs.map(evidence => evidence.id).toSorted(),
+      dependsOnChunkIds: chunk.dependsOnChunkIds,
+      wave: chunk.wave,
       contentHash: chunk.cacheFingerprint,
       prompt: JSON.stringify({
         unitSlices: chunk.unitSlices,
@@ -115,6 +120,60 @@ async function readExistingMarkdown(domainRoot, deps = {}) {
 }
 
 /**
+ * Читає попередній committed manifest до candidate build. Malformed manifest
+ * блокує rename/protected-zone migration, замість silent first-run fallback.
+ * @param {string} domainRoot absolute domain root
+ * @returns {Promise<{ok: true, manifest: Record<string, unknown> | undefined} | {ok: false, diagnostics: object[]}>} manifest або blocker
+ */
+async function readPreviousManifest(domainRoot) {
+  const path = join(domainRoot, 'docs', '.docgen', 'manifest.json')
+  try {
+    const manifest = JSON.parse(await readFile(path, 'utf8'))
+    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+      return blocked('previous-manifest', [{ code: 'manifest-invalid', path }])
+    }
+    return { ok: true, manifest }
+  } catch (error) {
+    if (error?.code === 'ENOENT') return { ok: true, manifest: undefined }
+    return blocked('previous-manifest', [{ code: 'manifest-read-failed', path, detail: String(error) }])
+  }
+}
+
+/**
+ * Відновлює topic-owned protected zones із поточних generated pages. Token
+ * повторює renderer identity, тож registry не залежить від human title/path.
+ * @param {Record<string, string>} files existing Markdown files
+ * @param {Record<string, unknown> | undefined} manifest prior graph manifest
+ * @returns {{ok: true, registry: Record<string, unknown[]>} | {ok: false, diagnostics: object[]}} topic registry
+ */
+function protectedZonesFromPages(files, manifest) {
+  const directories = {
+    capability: 'docs/explanation/capabilities',
+    contract: 'docs/reference/contracts',
+    process: 'docs/explanation/processes'
+  }
+  const registry = {}
+  const diagnostics = []
+  for (const topic of manifest?.topics ?? []) {
+    if (!topic || typeof topic.id !== 'string' || !directories[topic.kind]) continue
+    const token = createHash('sha256').update(topic.id).digest('hex').slice(0, 24)
+    const path = `${directories[topic.kind]}/${token}.md`
+    const content = files[path]
+    if (content === undefined) continue
+    const parsed = parseKnowledgeZones(content, path)
+    if (!parsed.ok) {
+      diagnostics.push(...parsed.diagnostics)
+      continue
+    }
+    const zones = parsed.zones
+      .filter(zone => zone.kind === 'MANUAL' || zone.kind === 'EXPECTED')
+      .map(zone => ({ id: zone.id, kind: zone.kind, content: zone.content }))
+    if (zones.length > 0) registry[topic.id] = zones
+  }
+  return diagnostics.length > 0 ? { ok: false, diagnostics } : { ok: true, registry }
+}
+
+/**
  * Writes a validated shadow candidate outside the repository. This makes build
  * inspectable while guaranteeing that legacy or committed docs remain untouched.
  * @param {string} stagingPath cache/staging root
@@ -136,13 +195,15 @@ async function writeShadowCandidate(stagingPath, files, deps = {}) {
  * `publish: true` is the only path that invokes the existing atomic publisher.
  * @param {{
  *   repoRoot: string, domainId: string, publish?: boolean, expectedOverlay?: object,
- *   gapMappings?: unknown[], aliasesByTopicId?: Record<string, string[]>, cache?: object,
- *   cachePath?: string, config?: object, submitBatchImpl?: Function,
+ *   gapMappings?: unknown[], aliasesByTopicId?: Record<string, string[]>, cache?: object, expectedCache?: object,
+ *   cachePath?: string, expectedCachePath?: string, config?: object, submitBatchImpl?: Function,
  *   resolveDomainsImpl?: typeof resolveDocumentationDomains, loadAdaptersImpl?: typeof loadKnowledgeAdapters,
  *   loadSourcesImpl?: typeof loadDomainSources, buildCandidateImpl?: typeof buildKnowledgeCandidate,
  *   planChunksImpl?: typeof planSemanticChunks, buildClaimsImpl?: typeof buildStructuredClaims,
  *   renderImpl?: typeof renderKnowledgeArtifacts, validateImpl?: typeof validateKnowledgeGraph,
  *   publishImpl?: typeof publishKnowledgeArtifacts, readExistingMarkdownImpl?: typeof readExistingMarkdown,
+ *   readPreviousManifestImpl?: typeof readPreviousManifest, discoverExpectedSourcesImpl?: typeof discoverExpectedSources,
+ *   mapExpectedSourcesImpl?: typeof mapExpectedSources,
  *   writeShadowCandidateImpl?: typeof writeShadowCandidate
  * }} input explicit runtime request and injectable dependencies
  * @returns {Promise<Record<string, unknown>>} build outcome with mode and diagnostics
@@ -158,6 +219,18 @@ export async function buildPackageKnowledge(input) {
   if (resolved.diagnostics?.length > 0) return blocked('domain-resolution', resolved.diagnostics, domainId)
   const domain = resolved.domains?.find(candidate => candidate.id === domainId)
   if (!domain) return blocked('domain-resolution', [{ code: 'domain-not-found', domainId }], domainId)
+
+  const readExisting = input.readExistingMarkdownImpl ?? readExistingMarkdown
+  let existingFiles
+  try {
+    existingFiles = await readExisting(domain.root)
+  } catch (error) {
+    return blocked('existing-docs', [{ code: 'existing-docs-read-failed', detail: String(error) }], domain.id)
+  }
+  const previous = await (input.readPreviousManifestImpl ?? readPreviousManifest)(domain.root)
+  if (!previous.ok) return { ...previous, domainId: domain.id }
+  const protectedZones = protectedZonesFromPages(existingFiles, previous.manifest)
+  if (!protectedZones.ok) return blocked('protected-zones', protectedZones.diagnostics, domain.id)
 
   const config = input.config ?? (await readNRulesConfigLite(repoRoot))
   const loadAdapters = input.loadAdaptersImpl ?? loadKnowledgeAdapters
@@ -180,9 +253,11 @@ export async function buildPackageKnowledge(input) {
     domain: candidateDomain,
     sources: loaded.sources,
     extractors,
-    expectedOverlay: input.expectedOverlay ?? {},
+    expectedOverlay: {},
     gapMappings: [],
-    aliasesByTopicId: input.aliasesByTopicId ?? {}
+    aliasesByTopicId: input.aliasesByTopicId ?? {},
+    previousManifest: previous.manifest,
+    protectedZonesByTopicId: protectedZones.registry
   })
   if (!candidate.ok) return blocked('candidate', candidate.diagnostics, domain.id)
 
@@ -215,16 +290,32 @@ export async function buildPackageKnowledge(input) {
     ...candidate.graph,
     claims: [...candidate.graph.claims, ...claims.claims].toSorted((left, right) => left.id.localeCompare(right.id))
   }
-  const gaps = evaluateGaps({ graph: graphWithClaims, mappings: input.gapMappings ?? [] })
+  const discoverExpected = input.discoverExpectedSourcesImpl ?? discoverExpectedSources
+  const discoveredExpected = await discoverExpected({ repoRoot, domain })
+  if (!discoveredExpected.ok) return blocked('expected-sources', discoveredExpected.diagnostics, domain.id)
+  const expectedCachePath = input.expectedCachePath ?? join(dirname(cachePath), 'expected.json')
+  const mapExpected = input.mapExpectedSourcesImpl ?? mapExpectedSources
+  const mappedExpected = await mapExpected({
+    graph: graphWithClaims,
+    sources: discoveredExpected.sources,
+    cache: input.expectedCache,
+    cachePath: expectedCachePath,
+    submitBatchImpl: input.submitBatchImpl
+  })
+  if (!mappedExpected.ok) return blocked('expected-mapping', mappedExpected.diagnostics, domain.id)
+  const expectedOverlay = {
+    claims: [...mappedExpected.overlay.claims, ...(input.expectedOverlay?.claims ?? [])],
+    evidence: [...mappedExpected.overlay.evidence, ...(input.expectedOverlay?.evidence ?? [])]
+  }
+  const overlaid = applyExpectedOverlay(graphWithClaims, expectedOverlay)
+  if (!overlaid.ok) return blocked('expected-overlay', overlaid.diagnostics, domain.id)
+  const gaps = evaluateGaps({ graph: overlaid.graph, mappings: input.gapMappings ?? [] })
   if (!gaps.ok) return blocked('gaps', gaps.diagnostics, domain.id)
-  const graph = { ...graphWithClaims, topics: discoverTopics(graphWithClaims, { aliasesByTopicId: input.aliasesByTopicId ?? {} }), gaps: gaps.gaps }
-
-  const readExisting = input.readExistingMarkdownImpl ?? readExistingMarkdown
-  let existingFiles
-  try {
-    existingFiles = await readExisting(domain.root)
-  } catch (error) {
-    return blocked('existing-docs', [{ code: 'existing-docs-read-failed', detail: String(error) }], domain.id)
+  const graph = {
+    ...overlaid.graph,
+    topics: candidate.graph.topics,
+    gaps: gaps.gaps,
+    protectedZonesByTopicId: candidate.protectedZonesByTopicId
   }
   const render = input.renderImpl ?? renderKnowledgeArtifacts
   const rendered = render({ graph, existingFiles })
