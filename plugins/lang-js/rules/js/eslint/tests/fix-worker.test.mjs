@@ -262,7 +262,7 @@ describe('js/eslint fixWorker', () => {
     test('файл без захищених тегів → ruleText undefined', async () => {
       await writeFile(join(cwd, 'a.js'), 'const q = 1\n')
       lintMock.mockResolvedValue({ violations: [] })
-      runAgentFixMock.mockImplementationOnce(async (ruleId, violationText, callCwd, opts) => {
+      runAgentFixMock.mockImplementationOnce((ruleId, violationText, callCwd, opts) => {
         expect(opts.ruleText).toBeUndefined()
         return { applied: true, touchedFiles: [join(cwd, 'a.js')], error: null }
       })

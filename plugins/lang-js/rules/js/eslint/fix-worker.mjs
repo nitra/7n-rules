@@ -89,12 +89,16 @@ function scriptContentForTagScan(content, relPath) {
  */
 function protectedTagNamesIn(content, relPath) {
   const scan = scriptContentForTagScan(content, relPath)
-  const virtualPath = relPath.endsWith('.vue') ? relPath.replace(/\.vue$/u, '.ts') : relPath
+  const virtualPath = relPath.endsWith('.vue') ? `${relPath.slice(0, relPath.length - '.vue'.length)}.ts` : relPath
   const program = parseProgramOrNull(scan, virtualPath)
   if (!program) return new Set()
   const found = new Set()
   walkAstWithAncestors(program, [], node => {
-    if (node.type === 'TaggedTemplateExpression' && node.tag?.type === 'Identifier' && PROTECTED_TAG_NAMES.has(node.tag.name)) {
+    if (
+      node.type === 'TaggedTemplateExpression' &&
+      node.tag?.type === 'Identifier' &&
+      PROTECTED_TAG_NAMES.has(node.tag.name)
+    ) {
       found.add(node.tag.name)
     }
   })
