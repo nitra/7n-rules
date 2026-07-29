@@ -1,0 +1,28 @@
+npm/scripts/github-package-release.mjs
+  s_3b13aaf5bffb50::t_f134fe09606078 3,6-7,31-65
+  s_3b13aaf5bffb50::t_aa2ee3ead0790a 1,5,8-30,66
+  s_3b13aaf5bffb50::t_edaeb5f906be04 2,4,67-96
+.github/workflows/package-release.yml
+  s_3b13aaf5bffb50::t_beac71ec9efe6e 1-35
+npm/scripts/tests/github-package-release.test.mjs
+  s_3b13aaf5bffb50::t_69404fe869b1ac 3,54-62
+  s_3b13aaf5bffb50::t_b2aa6f5ff8a0d1 7,36-51
+  s_3b13aaf5bffb50::t_f305dcb000f1c2 1,5,8-23,53,63
+  s_3b13aaf5bffb50::t_190ef130edce49 2,4,6,24-35,52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "9e9c0917b5e1aa1941cb59f1923ba05658272a8d",
+  "prompts": {},
+  "sessions": {
+    "s_3b13aaf5bffb50": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa919-380c-7913-8616-b4bc6856cb97",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
