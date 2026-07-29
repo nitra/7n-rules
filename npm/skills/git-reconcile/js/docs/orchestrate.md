@@ -3,7 +3,7 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/skills/git-reconcile/js/orchestrate.mjs
 docgen:
-  crc: ce5e2e20
+  crc: bf77cc0a
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100
@@ -13,18 +13,19 @@ docgen:
 
 ## Огляд
 
-Модуль оркеструє повний цикл `git-reconcile`: збирає Git-факти, делегує моделі лише semantic triage та конфлікти, переносить корисні зміни у свіжий worktree, перевіряє результат і прибирає тільки доведено зайві refs та worktree.
+Модуль оркеструє `git-reconcile`: збирає Git-факти, нормалізує branch/worktree/stash inventory, делегує моделі лише semantic triage та конфлікти, переносить корисні зміни у свіжий worktree, перевіряє результат і прибирає тільки доведено зайві sources.
 
 ## Поведінка
 
-- Inventory містить повні worktree records, dirty/protected/locked стан і відкриті PR. Якщо GitHub inventory неповний, cleanup діє fail-closed.
-- LLM отримує bounded facts і працює через `min → validation → max`; Git-операції, gates та cleanup залишаються детермінованими.
-- `.changes + lockfile` є валідним release PR. Якщо exact release narrative вже є у base `CHANGELOG.md`, такий source вважається patch-equivalent і окремий PR не створюється.
-- Змінений `bun.lock` завжди проходить `bun install --frozen-lockfile`, незалежно від наявності `node_modules`. За потреби один canonical remediation оновлює lockfile, після чого всі guards виконуються повторно.
-- PR description будується з final diff, ставить business та architecture вище implementation details і не публікує raw agent transcript.
-- Failed PR check є regression лише коли однойменний check був green на exact base commit. Відсутній або pending baseline лишає PR непідтвердженим.
-- Cleanup прибирає stale records та clean inactive worktree лише з керованих transient namespaces. Current, dirty, locked, protected, open-PR і worktree з унікальними commits зберігаються.
+- Після `fetch --prune` local branch ancestry-aware зіставляється зі своїм tracking upstream без фізичного fast-forward.
+- `synced` і `behind-only` утворюють один candidate на remote tip; `ahead` — один candidate на local tip; `diverged` лишає два незалежні candidates.
+- Local worktree protection переноситься на effective candidate, тому grouping не дозволяє cleanup активного checkout.
+- Local і remote refs зберігаються як точні aliases для фінального cleanup, але pre-analysis не виконує `pull`, `merge --ff-only` або `update-ref`.
+- LLM працює через `min → validation → max` лише над bounded Git-фактами; Git-операції, gates, PR і cleanup виконує JS.
+- `.changes + lockfile` є валідним release PR, доки exact release narrative ще не присутній у base `CHANGELOG.md`.
+- Змінений `bun.lock`, tests, scoped docs/lint, changelog, final diff і CI baseline проходять детерміновані gates.
+- Cleanup зберігає current, dirty, locked, protected, open-PR та worktree з унікальними commits.
 
 ## Перевірки
 
-Regression suite покриває parser worktree-стану, patch-equivalent guard, lockfile remediation, bounded PR narrative, CI baseline classification, safe cleanup і повний orchestration flow.
+Regression suite покриває tracking ancestry, effective-tip selection, diverged histories, worktree protection, patch-equivalence, lockfile remediation, CI classification і safe cleanup.

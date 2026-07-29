@@ -27,6 +27,12 @@ worktree/PR/stash, підготовку worktree від `origin/<baseBranch>`, c
 після conflict resolution детерміновано пропускає через `cherry-pick --skip`;
 порожній tree diff не push-иться і не створює PR.
 
+Після `fetch` JS ancestry-aware групує local branch із tracking upstream без
+фізичного fast-forward: `synced`/`behind-only` аналізує за remote tip, `ahead` —
+за local tip, а `diverged` лишає двома незалежними sources. Local worktree
+protection переноситься на effective candidate, тому grouping не робить
+checkout небезпечним для cleanup.
+
 LLM отримує лише bounded-завдання:
 
 1. semantic triage кандидатів, які JS не може оцінити за Git-фактами;
@@ -75,6 +81,9 @@ transport. Після провалу `max` джерело fail-closed лишає
 ## Інваріанти
 
 - База — тільки свіжий `origin/<baseBranch>` із repository Git policy.
+- Pre-analysis не виконує `merge --ff-only`, `pull` або `update-ref`: tracking
+  relation визначається read-only через `merge-base --is-ancestor`, а local і
+  remote refs зберігаються як точні cleanup aliases.
 - Живі worktree, включно з detached HEAD за commit OID, та гілки відкритих
   PR — protected.
 - Стара дата або великий divergence не означають, що зміна непотрібна.
