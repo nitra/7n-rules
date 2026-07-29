@@ -1,0 +1,29 @@
+bun.lock
+  s_b3612676a321e8::t_5aa5a515a9af19 40,63,69,93,103,113,135,142,157,2540-2541
+.claude/settings.local.json
+  s_4dc954414c48e8::t_45a9cd91494830 44-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "1a6d7426cad0625a239b88d075a6a001153e663f",
+  "prompts": {},
+  "sessions": {
+    "s_4dc954414c48e8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4acfbd8-de1a-4367-bc4d-450f0bf92601",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_b3612676a321e8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0566590e-191f-468f-920e-ab9a7f7f1186",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
