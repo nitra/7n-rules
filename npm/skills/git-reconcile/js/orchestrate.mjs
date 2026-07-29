@@ -1022,21 +1022,21 @@ export function branchSlug(value) {
 }
 
 /**
- * Обирає вільну rescue-гілку.
+ * Обирає вільний native `mt` name для rescue-worktree.
  * @param {string} title PR title
  * @param {string} cwd корінь
  * @param {typeof spawnSync} spawnFn інжект
- * @returns {string} branch
+ * @returns {string} worktree name
  */
 function chooseBranch(title, cwd, spawnFn) {
-  const base = `codex/reconcile-${branchSlug(title)}`
+  const base = `reconcile-${branchSlug(title)}`
   let candidate = base
   let suffix = 2
   while (
-    git(['show-ref', '--verify', '--quiet', `refs/heads/${candidate}`], cwd, spawnFn, {
+    git(['show-ref', '--verify', '--quiet', `refs/heads/mt/${candidate}`], cwd, spawnFn, {
       allowFailure: true
     }).status === 0 ||
-    git(['ls-remote', '--exit-code', '--heads', 'origin', candidate], cwd, spawnFn, {
+    git(['ls-remote', '--exit-code', '--heads', 'origin', `mt/${candidate}`], cwd, spawnFn, {
       allowFailure: true
     }).status === 0
   ) {
@@ -1047,27 +1047,30 @@ function chooseBranch(title, cwd, spawnFn) {
 }
 
 /**
- * Створює керований worktree та детерміновано пересаджує його branch на
- * policy base ref без зміни вихідного checkout.
+ * Створює керований native `mt` worktree від policy base ref без зміни
+ * вихідного checkout.
  * @param {string} title PR title
  * @param {string} source source id
  * @param {string} cwd корінь
  * @param {typeof spawnSync} spawnFn інжект
- * @returns {{branch:string,cwd:string}} worktree
+ * @returns {{branch:string,worktreeName:string,cwd:string}} worktree
  */
 function createReconcileWorktree(title, source, cwd, spawnFn) {
   const baseRef = policyBaseRef(cwd)
-  const branch = chooseBranch(title, cwd, spawnFn)
+  const worktreeName = chooseBranch(title, cwd, spawnFn)
+  const branch = `mt/${worktreeName}`
   let worktreeCwd
   try {
-    run('npx', ['@7n/mt', 'worktree', 'create', branch, `git-reconcile: ${source}`], cwd, spawnFn)
+    run(
+      'mt',
+      ['worktree', 'create', worktreeName, '--base', baseRef, '--description', `git-reconcile: ${source}`],
+      cwd,
+      spawnFn
+    )
     const worktrees = parseWorktrees(git(['worktree', 'list', '--porcelain'], cwd, spawnFn).stdout)
     worktreeCwd = worktrees.get(`refs/heads/${branch}`)
-    if (!worktreeCwd) throw new Error(`@7n/mt не зареєстрував worktree для ${branch}`)
-    git(['switch', '--detach', baseRef], worktreeCwd, spawnFn)
-    git(['branch', '-f', branch, baseRef], worktreeCwd, spawnFn)
-    git(['switch', branch], worktreeCwd, spawnFn)
-    return { branch, cwd: worktreeCwd }
+    if (!worktreeCwd) throw new Error(`mt не зареєстрував worktree для ${branch}`)
+    return { branch, worktreeName, cwd: worktreeCwd }
   } catch (error) {
     const setupError = error instanceof Error ? error : new Error(String(error))
     setupError.branch = branch
@@ -1101,12 +1104,12 @@ export function ensureLocalWorktreeExclude(cwd, spawnFn = spawnSync) {
 
 /**
  * Прибирає reconciliation worktree або fail-closed лишає source неочищеним.
- * @param {{branch:string,cwd:string}} worktree створений worktree
+ * @param {{branch:string,worktreeName:string,cwd:string}} worktree створений worktree
  * @param {string} rootCwd корінь репо
  * @param {typeof spawnSync} spawnFn інжект
  */
 function removeReconcileWorktree(worktree, rootCwd, spawnFn) {
-  const removed = run('npx', ['@7n/mt', 'worktree', 'remove', worktree.branch], rootCwd, spawnFn, {
+  const removed = run('mt', ['worktree', 'remove', worktree.worktreeName, '--force'], rootCwd, spawnFn, {
     allowFailure: true
   })
   if (removed.status !== 0) {

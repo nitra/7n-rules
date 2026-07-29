@@ -1,7 +1,7 @@
 /**
  * Тести для `auto-worktree.mjs`:
  *   - ensureRunningInWorktree: вже worktree → без змін; поза worktree →
- *     auto-create (`npx \@7n/mt worktree create` + `bun install`); detached HEAD →
+ *     auto-create (`mt worktree create` + `bun install`); detached HEAD →
  *     кидає; requireCleanTree → кидає на брудному дереві, не кидає на чистому
  *     і коли вимкнено.
  *   - bringChangesBackToOriginal/removeAutoCreatedWorktree: спільний набір
@@ -35,7 +35,7 @@ describe('ensureRunningInWorktree', () => {
       noop,
       WORKTREE_OPTS
     )
-    expect(result).toEqual({ cwd: '/repo/.worktrees/main-lint', autoCreated: false, branchArg: null })
+    expect(result).toEqual({ cwd: '/repo/.worktrees/main-lint', autoCreated: false, worktreeName: null })
     expect(calls).toEqual(['git rev-parse --show-toplevel'])
   })
 
@@ -50,7 +50,7 @@ describe('ensureRunningInWorktree', () => {
       noop,
       WORKTREE_OPTS
     )
-    expect(result).toEqual({ cwd: '/repo/.claude/worktrees/task-abc123', autoCreated: false, branchArg: null })
+    expect(result).toEqual({ cwd: '/repo/.claude/worktrees/task-abc123', autoCreated: false, worktreeName: null })
     expect(calls).toEqual(['git rev-parse --show-toplevel'])
   })
 
@@ -71,13 +71,13 @@ describe('ensureRunningInWorktree', () => {
     expect(result).toEqual({
       cwd: join('/Users/dev/repo', '.worktrees', 'main-lint'),
       autoCreated: true,
-      branchArg: 'main-lint'
+      worktreeName: 'main-lint'
     })
-    expect(calls).toContain('npx @7n/mt worktree create main-lint n-lint: worktree-only skill')
+    expect(calls).toContain('mt worktree create main-lint --description n-lint: worktree-only skill')
     expect(calls.some(c => c.startsWith('bun install'))).toBe(true)
   })
 
-  test('гілка зі slash — branchArg лишає slash, шлях worktree — sanitized (slash → -)', async () => {
+  test('гілка зі slash — worktree name і шлях sanitized (slash → -)', async () => {
     const calls = []
     const result = await ensureRunningInWorktree(
       '/repo',
@@ -91,9 +91,9 @@ describe('ensureRunningInWorktree', () => {
       noop,
       WORKTREE_OPTS
     )
-    expect(result.branchArg).toBe('feature/x-lint')
+    expect(result.worktreeName).toBe('feature-x-lint')
     expect(result.cwd).toBe(join('/repo', '.worktrees', 'feature-x-lint'))
-    expect(calls).toContain('npx @7n/mt worktree create feature/x-lint n-lint: worktree-only skill')
+    expect(calls).toContain('mt worktree create feature-x-lint --description n-lint: worktree-only skill')
   })
 
   test('detached HEAD (немає поточної гілки) — кидає, не створює worktree', async () => {

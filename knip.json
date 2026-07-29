@@ -83,7 +83,6 @@
       "ignoreDependencies": [
         "@anthropic-ai/claude-code",
         "@anthropic-ai/sdk",
-        "@7n/mt",
         "github-actionlint",
         "v8r",
         "ajv",

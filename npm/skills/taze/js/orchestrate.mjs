@@ -277,7 +277,7 @@ export async function runTazeOrchestrator(options = {}) {
    * повністю — `bringChangesBackToOriginal` кидає або повертає
    * `failed: true`), worktree НЕ прибирається: джерело ще не перенесених
    * файлів лишається на диску для ручного відновлення замість того, щоб
-   * зникнути разом з `npx \@7n/mt worktree remove`.
+   * зникнути разом з `mt worktree remove`.
    * @returns {Promise<void>}
    */
   const cleanupAutoCreatedWorktree = async () => {
@@ -291,11 +291,11 @@ export async function runTazeOrchestrator(options = {}) {
     }
     if (failed) {
       log(
-        `⚠️ Перенесення назад не вдалось повністю — worktree "${cwd}" (гілка "${worktree.branchArg}") НЕ прибирається, розберіться вручну.`
+        `⚠️ Перенесення назад не вдалось повністю — worktree "${cwd}" (name "${worktree.worktreeName}") НЕ прибирається, розберіться вручну.`
       )
       return
     }
-    removeAutoCreatedWorktree(worktree.branchArg, originalCwd, spawnFn, log)
+    removeAutoCreatedWorktree(worktree.worktreeName, originalCwd, spawnFn, log)
   }
 
   // SIGINT/SIGTERM (Ctrl-C, таймаут зовнішнього раннера, `kill`) без обробника

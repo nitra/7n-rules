@@ -30,9 +30,9 @@ async function defaultConfirm(message) {
  * JS-код, що не годує SKILL.md жодному LLM-агенту (тож агентський preflight-блок
  * з `worktree-notice.mjs` нікому виконувати). Якщо `cwd` вже під `.worktrees/`
  * (репо-конвенція) або `.claude/worktrees/` (worktree харнесу Claude Code,
- * куди `npx \@7n/mt worktree create` класти заборонено — `n-worktree.mdc`) —
+ * куди `mt worktree create` класти заборонено — `n-worktree.mdc`) —
  * повертає його без змін. Інакше сам створює `.worktrees/<branch>-<suffix>`
- * (`npx \@7n/mt worktree create`) і ставить залежності (`bun install`).
+ * (`mt worktree create`) і ставить залежності (`bun install`).
  *
  * **Гейт на чисте дерево.** Auto-create читає стан і потім переносить зміни
  * назад копіюванням файлів (`bringChangesBackToOriginal`) — а не git merge.
@@ -50,10 +50,10 @@ async function defaultConfirm(message) {
  * @param {string} cwd каталог для перевірки
  * @param {typeof import('node:child_process').spawnSync} spawnFn інжект для тестів
  * @param {(line: string) => void} log колбек прогресу
- * @param {{ suffix: string, description: string, requireCleanTree?: boolean }} opts `suffix` — коротка (до 10 символів) назва задачі для `<branch>-<suffix>`; `description` — текст для `npx \@7n/mt worktree create`
+ * @param {{ suffix: string, description: string, requireCleanTree?: boolean }} opts `suffix` — коротка (до 10 символів) назва задачі для `<branch>-<suffix>`; `description` — текст для `mt worktree create --description`
  * @param {{ confirm?: (message: string) => Promise<boolean> }} [deps] `confirm` — інжект для тестів/альтернативного UX (дефолт — `defaultConfirm`, readline y/N)
- * @returns {Promise<{ cwd: string, autoCreated: boolean, branchArg: string|null }>} `autoCreated: false` — `cwd` без змін
- *   (вже worktree); `autoCreated: true` — `cwd` щойно створеного worktree і `branchArg`, з яким його створено
+ * @returns {Promise<{ cwd: string, autoCreated: boolean, worktreeName: string|null }>} `autoCreated: false` — `cwd` без змін
+ *   (вже worktree); `autoCreated: true` — `cwd` щойно створеного worktree і його native `mt` name
  */
 export async function ensureRunningInWorktree(
   cwd,
@@ -69,7 +69,7 @@ export async function ensureRunningInWorktree(
   const isClaudeHarnessWorktree = pathSegments.some(
     (seg, i) => seg === '.claude' && pathSegments[i + 1] === 'worktrees'
   )
-  if (segments.has('.worktrees') || isClaudeHarnessWorktree) return { cwd, autoCreated: false, branchArg: null }
+  if (segments.has('.worktrees') || isClaudeHarnessWorktree) return { cwd, autoCreated: false, worktreeName: null }
 
   const branchResult = spawnFn('git', ['branch', '--show-current'], { cwd, encoding: 'utf8' })
   const currentBranch = branchResult.status === 0 ? branchResult.stdout.trim() : ''
@@ -108,15 +108,14 @@ export async function ensureRunningInWorktree(
     }
   }
 
-  const branchArg = `${currentBranch}-${suffix}`
-  const pathSegment = branchArg.replaceAll('/', '-')
-  log(`⚠️ "${cwd}" не в ізольованому worktree — створюю ".worktrees/${pathSegment}"...`)
-  runCommand('npx', ['@7n/mt', 'worktree', 'create', branchArg, description], cwd, spawnFn)
+  const worktreeName = `${currentBranch}-${suffix}`.replaceAll('/', '-')
+  log(`⚠️ "${cwd}" не в ізольованому worktree — створюю ".worktrees/${worktreeName}"...`)
+  runCommand('mt', ['worktree', 'create', worktreeName, '--description', description], cwd, spawnFn)
 
-  const newCwd = join(cwd, '.worktrees', pathSegment)
+  const newCwd = join(cwd, '.worktrees', worktreeName)
   log('📥 bun install (bootstrap нового дерева)...')
   runCommand('bun', ['install'], newCwd, spawnFn)
-  return { cwd: newCwd, autoCreated: true, branchArg }
+  return { cwd: newCwd, autoCreated: true, worktreeName }
 }
 
 /**
@@ -231,22 +230,22 @@ export async function bringChangesBackToOriginal(worktreeCwd, originalCwd, spawn
 
 /**
  * Прибирає автостворений worktree разом з його ефемерною git-гілкою
- * (`npx \@7n/mt worktree remove <branch>`) — викликати лише ПІСЛЯ
+ * (`mt worktree remove <name> --force`) — викликати лише ПІСЛЯ
  * `bringChangesBackToOriginal`, інакше зміни згорять разом з деревом.
  * Не кидає при провалі — це прибирання, а не крок, від якого залежить
  * результат прогону; провал лише логується, worktree лишається для
  * ручного розбору.
- * @param {string} branchArg гілка, з якою worktree був створений (з `ensureRunningInWorktree`)
- * @param {string} originalCwd вихідне дерево, звідки виконати `npx \@7n/mt worktree remove`
+ * @param {string} worktreeName name, з яким worktree був створений (з `ensureRunningInWorktree`)
+ * @param {string} originalCwd вихідне дерево, звідки виконати `mt worktree remove`
  * @param {typeof import('node:child_process').spawnSync} spawnFn інжект для тестів
  * @param {(line: string) => void} log колбек прогресу
  * @returns {void}
  */
-export function removeAutoCreatedWorktree(branchArg, originalCwd, spawnFn, log) {
-  log(`🧹 Прибираю автостворений worktree "${branchArg}"...`)
-  const result = spawnFn('npx', ['@7n/mt', 'worktree', 'remove', branchArg], { cwd: originalCwd, encoding: 'utf8' })
+export function removeAutoCreatedWorktree(worktreeName, originalCwd, spawnFn, log) {
+  log(`🧹 Прибираю автостворений worktree "${worktreeName}"...`)
+  const result = spawnFn('mt', ['worktree', 'remove', worktreeName, '--force'], { cwd: originalCwd, encoding: 'utf8' })
   if (result.status !== 0) {
-    log(`⚠️ Не вдалось прибрати worktree "${branchArg}" — приберіть вручну (${result.stderr || result.stdout})`)
+    log(`⚠️ Не вдалось прибрати worktree "${worktreeName}" — приберіть вручну (${result.stderr || result.stdout})`)
   }
 }
 

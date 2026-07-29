@@ -67,7 +67,6 @@
       },
       "dependencies": {
         "@7n/llm-lib": "2.12.0",
-        "@7n/mt": "^0.5.1",
         "@zed-industries/agent-client-protocol": "^0.4.5",
         "ajv": "^8.20.0",
         "cli-progress": "^3.12.0",
@@ -173,12 +172,6 @@
     "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.9.7", "", { "os": "darwin", "cpu": "arm64" }, "sha512-J2xneopCQ5mRcMbcOpfGXH+MhC4oy1ax76lB1sQKo5gKzQNTEl36DQPiToi9mYLbt+p8FQwhKTL5KDx/1Yt6Lw=="],
 
     "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.9.7", "", { "os": "linux", "cpu": "x64" }, "sha512-qKwUSXXOfZ8SfshDLdQtmPDB5oX5y//AB5BRNgbkNABvTZ5pA5I9yINJoaKmm2qOvErxkeQMZRmYSTbh845Vvg=="],
-
-    "@7n/mt": ["@7n/mt@0.5.1", "", { "optionalDependencies": { "@7n/mt-darwin-arm64": "0.5.1", "@7n/mt-linux-x64": "0.5.1" }, "bin": { "mt": "bin/mt.js" } }, "sha512-fIP75AODAX6ri+Geznpph0BJR0kkOWeCarSNJCibLCPH3vnfbEvHC9/MgTk3zg9cYIGEFAHd1gkCEnOekexIdg=="],
-
-    "@7n/mt-darwin-arm64": ["@7n/mt-darwin-arm64@0.5.1", "", { "os": "darwin", "cpu": "arm64" }, "sha512-ozofQxbsdrv7cVZJeb9P9MLwzpdNxdqTcmzRQjwSf316TK8ptxzZhU0b24CsoH/Ia98zhbJLBPsdK/ueHWFl4Q=="],
-
-    "@7n/mt-linux-x64": ["@7n/mt-linux-x64@0.5.1", "", { "os": "linux", "cpu": "x64" }, "sha512-c4b1c435vfGZcRKkLnWcoKs8O6KTATFFx6gPGnid4ee+JDqzyhtxb5kzxYkcTQySO8iBHPAtUMEOBCHDrF1UjQ=="],
 
     "@7n/rules": ["@7n/rules@workspace:npm"],
 

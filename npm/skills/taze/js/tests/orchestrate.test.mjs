@@ -316,10 +316,10 @@ describe('runTazeOrchestrator', () => {
         ecosystemProviders: []
       }
     })
-    expect(calls).toContain('npx @7n/mt worktree create main-taze n-taze: worktree-only skill')
+    expect(calls).toContain('mt worktree create main-taze --description n-taze: worktree-only skill')
     expect(calls.some(c => c.startsWith('bun install'))).toBe(true)
     expect(calls).toContain('git status --porcelain')
-    expect(calls).toContain('npx @7n/mt worktree remove main-taze')
+    expect(calls).toContain('mt worktree remove main-taze --force')
     expect(result.ok).toBe(true)
   })
 
@@ -338,7 +338,7 @@ describe('runTazeOrchestrator', () => {
       }
     })
     expect(calls.some(c => c.startsWith('git status'))).toBe(false)
-    expect(calls.some(c => c.startsWith('npx @7n/mt worktree remove'))).toBe(false)
+    expect(calls.some(c => c.startsWith('mt worktree remove'))).toBe(false)
   })
 
   test('поза .worktrees/ і без визначеної гілки (detached HEAD) — кидає, не створює worktree', async () => {
@@ -632,7 +632,7 @@ describe('runTazeOrchestrator', () => {
       process.on = originalOn
     }
 
-    expect(calls).toContain('npx @7n/mt worktree remove main-taze')
+    expect(calls).toContain('mt worktree remove main-taze --force')
     expect(exitCode).toBe(1)
   })
 
@@ -667,7 +667,7 @@ describe('runTazeOrchestrator', () => {
     })
 
     expect(result.ok).toBe(true)
-    expect(calls).not.toContain('npx @7n/mt worktree remove main-taze')
+    expect(calls).not.toContain('mt worktree remove main-taze --force')
     expect(logs.some(l => l.includes('НЕ прибирається'))).toBe(true)
   })
 })
