@@ -3,12 +3,17 @@
  * `coverage` правила `test`, команда \`npx \@7n/rules lint test\`).
  *
  * Швидка локальна евристика (`quickClassify`, спільна з делта-гейтом) відсіює
- * очевидні випадки — LLM викликається лише для неоднозначних файлів.
+ * очевидні випадки — LLM викликається лише для неоднозначних файлів, ОДНИМ
+ * `submitBatch`-викликом на всі неоднозначні файли разом (уніфікація на
+ * `@7n/llm-lib/batch`, спека `docs/specs/2026-07-27-batch-local-avg-real-batches.md`,
+ * кластер E) замість конкурентного `Promise.all` окремих one-shot-викликів.
  */
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { callText } from '@7n/rules/rules/test/coverage/lib/llm.mjs'
+import { submitBatch as submitBatchNative } from '@7n/llm-lib/batch'
+import { defaultLocalProviders } from '@7n/llm-lib/local-providers'
+import { CLOUD_MIN, LOCAL_MIN } from '@7n/llm-lib/model-tiers'
 import { quickClassify } from '../lib/quick-classify.mjs'
 
 const MAX_CONTENT_BYTES = 6000
@@ -30,12 +35,7 @@ needsTests: true when:
 - Business logic with conditions or non-trivial contracts
 - Pure functions that can be unit-tested cheaply`
 
-/**
- * @callback AssessCallTextFn
- * @param {string} prompt текст запиту для моделі
- * @param {{cwd?: string}} [opts] параметри виклику
- * @returns {Promise<string>} текстова відповідь моделі
- */
+const FALLBACK = { needsTests: true, reason: 'оцінка не вдалась — вважаємо що потрібні тести' }
 
 /**
  * Витягує підрядок від першої `{` до останньої `}` — кандидат JSON-обʼєкта
@@ -52,52 +52,142 @@ function extractJsonCandidate(text) {
 }
 
 /**
- * Оцінює один файл: спершу локальна евристика, потім LLM для неоднозначних.
- * @param {{file: string, pct: number}} fileInfo файл із рівнем покриття
- * @param {string} dir корінь проєкту
- * @param {AssessCallTextFn} callTextFn text-виклик LLM
- * @returns {Promise<{file: string, pct: number, needsTests: boolean, reason: string}>} вердикт для файлу
+ * Парсить сиру відповідь моделі у вердикт. Кидає на структурно невалідному
+ * JSON (кандидат є, але не парситься) — caller (batch-каскад) трактує це як
+ * невдачу тиру й іде на наступний тир/fallback.
+ * @param {string} raw сира відповідь моделі
+ * @returns {{needsTests: boolean, reason: string}} вердикт
  */
-async function assessOne(fileInfo, dir, callTextFn) {
-  const absPath = join(dir, fileInfo.file)
-  if (!existsSync(absPath)) return { ...fileInfo, needsTests: false, reason: 'файл недоступний' }
+function parseVerdict(raw) {
+  const parsed = JSON.parse(extractJsonCandidate(raw) ?? '{}')
+  return { needsTests: parsed.needsTests !== false, reason: typeof parsed.reason === 'string' ? parsed.reason : '' }
+}
 
-  const rawContent = readFileSync(absPath, 'utf8')
+/**
+ * Один item черги: файл-кандидат на LLM-оцінку разом із готовим промптом.
+ * @typedef {{ fileInfo: {file: string, pct: number}, prompt: string }} PendingItem
+ */
 
-  const quick = quickClassify(rawContent)
-  if (quick !== null) return { ...fileInfo, ...quick }
-
-  let content = rawContent
-  if (content.length > MAX_CONTENT_BYTES) content = content.slice(0, MAX_CONTENT_BYTES) + '\n...(truncated)'
-
-  const prompt =
-    `${SYSTEM_PROMPT}\n\n` +
-    `## File: ${fileInfo.file} (current coverage: ${fileInfo.pct.toFixed(1)}%)\n\n` +
-    `\`\`\`\n${content}\n\`\`\``
-
-  try {
-    const text = await callTextFn(prompt, { cwd: dir })
-    const parsed = JSON.parse(extractJsonCandidate(text) ?? '{}')
-    return {
-      ...fileInfo,
-      needsTests: parsed.needsTests !== false,
-      reason: typeof parsed.reason === 'string' ? parsed.reason : ''
+/**
+ * Розділяє файли на готові вердикти (файл недоступний / `quickClassify`
+ * вирішив локально) і чергу на LLM (неоднозначні, з уже зібраним промптом).
+ * @param {Array<{file: string, pct: number}>} files непокриті файли
+ * @param {string} dir корінь проєкту
+ * @returns {{ verdicts: Array<object|null>, pending: PendingItem[] }} вердикти (з `null`-заповнювачами для `pending`) і черга на LLM
+ */
+function prepareQueue(files, dir) {
+  const verdicts = []
+  const pending = []
+  for (const fileInfo of files) {
+    const absPath = join(dir, fileInfo.file)
+    if (!existsSync(absPath)) {
+      verdicts.push({ ...fileInfo, needsTests: false, reason: 'файл недоступний' })
+      continue
     }
+
+    const rawContent = readFileSync(absPath, 'utf8')
+    const quick = quickClassify(rawContent)
+    if (quick !== null) {
+      verdicts.push({ ...fileInfo, ...quick })
+      continue
+    }
+
+    let content = rawContent
+    if (content.length > MAX_CONTENT_BYTES) content = content.slice(0, MAX_CONTENT_BYTES) + '\n...(truncated)'
+    const prompt =
+      `${SYSTEM_PROMPT}\n\n` +
+      `## File: ${fileInfo.file} (current coverage: ${fileInfo.pct.toFixed(1)}%)\n\n` +
+      `\`\`\`\n${content}\n\`\`\``
+    pending.push({ fileInfo, prompt })
+    verdicts.push(null) // заповнюється після batch-хвиль
+  }
+  return { verdicts, pending }
+}
+
+/**
+ * Одна batch-хвиля: `submitBatch(model, items)` на всі `items` разом. Провал
+ * САМОГО виклику хвилі не кидає далі — порожня мапа трактується як "усі items
+ * цієї хвилі невдалі", той самий graceful-degradation принцип, що й у
+ * `test/coverage/lib/classify`.
+ * @param {PendingItem[]} items items хвилі
+ * @param {string} model model-spec тиру — порожній рядок пропускає хвилю
+ * @param {object} localProviders конфіг локальних провайдерів
+ * @param {(model: string, items: Array<object>, opts?: object) => Promise<Array<object>>} submitBatchImpl injectable submitBatch (тест/прод)
+ * @returns {Promise<Map<string, {ok?: string, error?: string}>>} результати за `customId` (`fileInfo.file`)
+ */
+async function runWave(items, model, localProviders, submitBatchImpl) {
+  if (items.length === 0 || !model) return new Map()
+  try {
+    const results = await submitBatchImpl(
+      model,
+      items.map(i => ({ customId: i.fileInfo.file, prompt: i.prompt })),
+      {
+        localProviders
+      }
+    )
+    return new Map(results.map(r => [r.customId, r]))
   } catch {
-    return { ...fileInfo, needsTests: true, reason: 'оцінка не вдалась — вважаємо що потрібні тести' }
+    return new Map()
   }
 }
 
 /**
  * Оцінює список непокритих файлів: чи потрібні їм тести.
- * Очевидні випадки (реекспорти, функції з розгалуженнями) вирішуються локально,
- * LLM викликається лише для неоднозначних.
+ * Очевидні випадки (реекспорти, функції з розгалуженнями) вирішуються локально;
+ * неоднозначні йдуть ОДНОЮ batch-хвилею на tier1, ті, чию відповідь не вдалось
+ * розпарсити, — другою хвилею на tier2, решта — conservative fallback.
  * @param {Array<{file: string, pct: number}>} files непокриті файли
  * @param {string} dir корінь проєкту
- * @param {{ callText?: AssessCallTextFn }} [opts] інʼєкція text-виклику для тестів
- * @returns {Promise<Array<{file: string, pct: number, needsTests: boolean, reason: string}>>} вердикти по файлах
+ * @param {{ tier1?: string, tier2?: string, localProviders?: object,
+ *   submitBatchImpl?: (model: string, items: Array<object>, opts?: object) => Promise<Array<object>> }} [opts]
+ *   `tier1`/`tier2` — явні model-specs (дефолт: `LOCAL_MIN`/`CLOUD_MIN`); `submitBatchImpl` — інʼєкція `submitBatch` (тест)
+ * @returns {Promise<Array<{file: string, pct: number, needsTests: boolean, reason: string}>>} вердикти по файлах, у вхідному порядку
  */
-export function assessNeed(files, dir, opts = {}) {
-  const callTextFn = opts.callText ?? callText
-  return Promise.all(files.map(f => assessOne(f, dir, callTextFn)))
+export async function assessNeed(files, dir, opts = {}) {
+  const submitBatchImpl = opts.submitBatchImpl ?? submitBatchNative
+  const tier1 = opts.tier1 ?? LOCAL_MIN
+  const tier2 = opts.tier2 ?? CLOUD_MIN
+  const localProviders = opts.localProviders ?? defaultLocalProviders()
+
+  const { verdicts, pending } = prepareQueue(files, dir)
+  if (pending.length === 0) return verdicts
+
+  const tier1Results = await runWave(pending, tier1, localProviders, submitBatchImpl)
+  const tier1Failed = []
+  const resolved = new Map()
+  for (const item of pending) {
+    const r = tier1Results.get(item.fileInfo.file)
+    if (r?.ok) {
+      try {
+        resolved.set(item.fileInfo.file, parseVerdict(r.ok))
+        continue
+      } catch {
+        // невалідний вихід tier1 → кандидат на tier2 нижче
+      }
+    }
+    tier1Failed.push(item)
+  }
+
+  if (tier1Failed.length > 0) {
+    const tier2Results = await runWave(tier1Failed, tier2, localProviders, submitBatchImpl)
+    for (const item of tier1Failed) {
+      const r = tier2Results.get(item.fileInfo.file)
+      if (r?.ok) {
+        try {
+          resolved.set(item.fileInfo.file, parseVerdict(r.ok))
+          continue
+        } catch {
+          // впало і на tier2 → fallback нижче
+        }
+      }
+      resolved.set(item.fileInfo.file, FALLBACK)
+    }
+  }
+
+  let pendingCursor = 0
+  return verdicts.map(v => {
+    if (v !== null) return v
+    const item = pending[pendingCursor++]
+    return { ...item.fileInfo, ...resolved.get(item.fileInfo.file) }
+  })
 }
