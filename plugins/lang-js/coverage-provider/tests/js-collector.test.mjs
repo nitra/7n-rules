@@ -140,6 +140,7 @@ describe('js coverage collect()', () => {
         writeFileSync(join(lcovDir, 'lcov.info'), 'LF:1\nLH:1\nFNF:1\nFNH:1\n')
         return 0
       },
+      // eslint-disable-next-line sonarjs/no-invariant-returns -- mock runner завжди сигналізує успішний Stryker exit.
       runStryker({ isolatedReportPath }) {
         if (!isolatedReportPath) return 0 // consumer incremental run leaves stale canonical report intact
         writeFileSync(

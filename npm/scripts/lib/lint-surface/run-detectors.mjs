@@ -152,7 +152,7 @@ async function filterByRuleApplies(byRule, cwd) {
       const mod = await import(pathToFileURL(appliesPath).href)
       applies = mod.applies
     } catch (error) {
-      throw new Error(`rule ${ruleId}: не вдалося завантажити applies gate: ${error.message}`)
+      throw new Error(`rule ${ruleId}: не вдалося завантажити applies gate: ${error.message}`, { cause: error })
     }
     if (applies === undefined) {
       out[ruleId] = concerns
