@@ -1,0 +1,27 @@
+npm/bin/tests/n-rules-cli.test.mjs
+  s_67be698dba3bc2::t_597c47b1041b21 38
+npm/scripts/lib/tests/auto-worktree.test.mjs
+  s_67be698dba3bc2::t_01f79569fb388a 4,38,53,74,76,80,94,96
+npm/scripts/lib/tests/worktree-notice.test.mjs
+  s_67be698dba3bc2::t_fa69299f04fa8b 31
+npm/scripts/utils/tests/auto-worktree-suite.mjs
+  s_67be698dba3bc2::t_ec5c697f99fe4e 24,197,209
+npm/skills/taze/js/tests/orchestrate.test.mjs
+  s_67be698dba3bc2::t_53af01f023a3ff 319,322,341,635,670
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "af1760ba8a002d5fda72292c216dc72c5f187221",
+  "prompts": {},
+  "sessions": {
+    "s_67be698dba3bc2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fabea-e3c4-7401-8e4c-79d709399c72",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
