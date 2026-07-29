@@ -10,3 +10,4 @@ resource: npm/rules/ci4/package_knowledge/
 | [domain-resolver.mjs](domain-resolver.md)   | JS Module |
 | [load-adapters.mjs](load-adapters.md)       | JS Module |
 | [normalized-graph.mjs](normalized-graph.md) | JS Module |
+| [validator.mjs](validator.md)               | JS Module |
