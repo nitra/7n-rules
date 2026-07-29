@@ -78,7 +78,8 @@ function canonicalize(value) {
 function canonicalGraph(graph) {
   const output = canonicalize(graph)
   for (const key of ['nodes', 'edges', 'claims', 'topics', 'gaps', 'evidence']) {
-    if (Array.isArray(output[key])) output[key] = output[key].toSorted((left, right) => compareStrings(left.id, right.id))
+    if (Array.isArray(output[key]))
+      output[key] = output[key].toSorted((left, right) => compareStrings(left.id, right.id))
   }
   return output
 }
@@ -137,7 +138,10 @@ function autogenZone(id, content) {
 function renderPage({ path, zoneId, content, existing }) {
   if (existing === undefined) return { ok: true, markdown: autogenZone(zoneId, content) }
   if (typeof existing !== 'string') {
-    return { ok: false, diagnostics: [diagnostic('invalid-existing-page', 'Existing page має бути Markdown string.', path)] }
+    return {
+      ok: false,
+      diagnostics: [diagnostic('invalid-existing-page', 'Existing page має бути Markdown string.', path)]
+    }
   }
   const parsed = parseKnowledgeZones(existing, path)
   if (!parsed.ok) return parsed
@@ -185,7 +189,9 @@ function topicsByKind(topics) {
 function needsArchitecture(graph) {
   const nodes = Array.isArray(graph.nodes) ? graph.nodes : []
   const responsibilities = nodes.filter(node => node?.domainId === graph.domain.id && node.kind === 'component')
-  const boundaries = nodes.filter(node => node?.domainId === graph.domain.id && node.kind === 'integration' && node.visibility === 'external')
+  const boundaries = nodes.filter(
+    node => node?.domainId === graph.domain.id && node.kind === 'integration' && node.visibility === 'external'
+  )
   return responsibilities.length > 1 || boundaries.length > 0
 }
 
@@ -207,7 +213,8 @@ function factList(facts, fallback) {
 function topicFacts({ graph, topic, hiddenNames }) {
   const reachable = new Set(collectReachableNodeIds(graph, topic.anchorIds))
   const claims = graph.claims.filter(claim => reachable.has(claim.subjectId))
-  const claimFact = claim => `${safeText(claim.predicate, hiddenNames, 'evidence-backed behavior')}: ${safeValue(claim.value, hiddenNames)}.`
+  const claimFact = claim =>
+    `${safeText(claim.predicate, hiddenNames, 'evidence-backed behavior')}: ${safeValue(claim.value, hiddenNames)}.`
   const publicNodes = graph.nodes.filter(node => reachable.has(node.id) && node.visibility !== 'private')
   const namesFor = kind =>
     publicNodes
@@ -220,10 +227,18 @@ function topicFacts({ graph, topic, hiddenNames }) {
     .map(gap => `Status: ${gap.status}.`)
     .toSorted(compareStrings)
   const impact = createImpactSlice({ graph, topics: graph.topics, topicId: topic.id })
-  const paths = impact.ok ? [...impact.slice.files, ...impact.slice.tests, ...impact.slice.configs].toSorted(compareStrings) : []
+  const paths = impact.ok
+    ? [...impact.slice.files, ...impact.slice.tests, ...impact.slice.configs].toSorted(compareStrings)
+    : []
   return {
-    implemented: claims.filter(claim => claim.layer === 'implemented').map(claimFact).toSorted(compareStrings),
-    expected: claims.filter(claim => claim.layer === 'expected').map(claimFact).toSorted(compareStrings),
+    implemented: claims
+      .filter(claim => claim.layer === 'implemented')
+      .map(claimFact)
+      .toSorted(compareStrings),
+    expected: claims
+      .filter(claim => claim.layer === 'expected')
+      .map(claimFact)
+      .toSorted(compareStrings),
     outcomes: namesFor('outcome'),
     contracts: namesFor('integration'),
     gaps,
@@ -240,8 +255,14 @@ function renderTopic({ graph, topic, hiddenNames }) {
   const label = PAGE_KIND_LABELS[topic.kind]
   const title = safeText(topic.title, hiddenNames, `${label} домену`)
   const facts = topicFacts({ graph, topic, hiddenNames })
-  const aliases = Array.isArray(topic.aliases) && topic.aliases.length > 0 ? `\n\nПопередні stable aliases: ${topic.aliases.length}.` : ''
-  return `# ${label}: ${title}\n\n## Implemented AS-IS\n\nЦей self-contained fragment описує підтверджену поточну поведінку ${label.toLowerCase()} у domain \`${graph.domain.name}\`. Він не припускає intent поза evidence graph.\n\n## Призначення\n\n${title} надає evidence-backed boundary для зміни та перевірки поведінки domain.\n\n## Actors і trigger\n\nПотік починається з підтвердженого topic anchor і завершується зафіксованим результатом або external contract boundary.\n\n## Передумови\n\nВхід до ${label.toLowerCase()} доступний у межах owning domain, а потрібні integration boundaries представлені у traceability manifest.\n\n## Implemented facts\n\n${factList(facts.implemented, 'Для topic немає окремого implemented claim; AS-IS обмежений evidence-backed graph boundary.')}\n\n## Outcomes і contracts\n\nOutcomes:\n${factList(facts.outcomes, 'Немає окремо названого public outcome.')}\n\nContracts:\n${factList(facts.contracts, 'Немає external contract у reachable graph.')}\n\n## Affected paths\n\n${factList(facts.paths.map(path => `\`${path}\``), 'Reverse impact paths відсутні у поточній graph projection.')}\n\n## Alternative flows і rules\n\nAlternative та error-flow details відображаються лише тоді, коли їх представляють graph edges і claims; цей fragment не додає непідтверджених сценаріїв.\n\n## Expected behavior\n\n${factList(facts.expected, 'Для topic немає explicit expected claim. Відсутність expectation не створює implementation gap.')}\n\n## Local implementation gaps\n\n${factList(facts.gaps, 'Для topic немає actionable implementation gaps.')}${aliases}\n`
+  const aliases =
+    Array.isArray(topic.aliases) && topic.aliases.length > 0
+      ? `\n\nПопередні stable aliases: ${topic.aliases.length}.`
+      : ''
+  return `# ${label}: ${title}\n\n## Implemented AS-IS\n\nЦей self-contained fragment описує підтверджену поточну поведінку ${label.toLowerCase()} у domain \`${graph.domain.name}\`. Він не припускає intent поза evidence graph.\n\n## Призначення\n\n${title} надає evidence-backed boundary для зміни та перевірки поведінки domain.\n\n## Actors і trigger\n\nПотік починається з підтвердженого topic anchor і завершується зафіксованим результатом або external contract boundary.\n\n## Передумови\n\nВхід до ${label.toLowerCase()} доступний у межах owning domain, а потрібні integration boundaries представлені у traceability manifest.\n\n## Implemented facts\n\n${factList(facts.implemented, 'Для topic немає окремого implemented claim; AS-IS обмежений evidence-backed graph boundary.')}\n\n## Outcomes і contracts\n\nOutcomes:\n${factList(facts.outcomes, 'Немає окремо названого public outcome.')}\n\nContracts:\n${factList(facts.contracts, 'Немає external contract у reachable graph.')}\n\n## Affected paths\n\n${factList(
+    facts.paths.map(path => `\`${path}\``),
+    'Reverse impact paths відсутні у поточній graph projection.'
+  )}\n\n## Alternative flows і rules\n\nAlternative та error-flow details відображаються лише тоді, коли їх представляють graph edges і claims; цей fragment не додає непідтверджених сценаріїв.\n\n## Expected behavior\n\n${factList(facts.expected, 'Для topic немає explicit expected claim. Відсутність expectation не створює implementation gap.')}\n\n## Local implementation gaps\n\n${factList(facts.gaps, 'Для topic немає actionable implementation gaps.')}${aliases}\n`
 }
 
 /**
@@ -254,7 +275,10 @@ function renderArchitecture({ graph, hiddenNames }) {
     .filter(node => node?.domainId === graph.domain.id && node.kind === 'integration' && node.visibility === 'external')
     .map(node => safeText(node.name, hiddenNames, 'External contract'))
     .toSorted(compareStrings)
-  const lines = boundaries.length > 0 ? boundaries.map(name => `- External boundary: ${name}`).join('\n') : '- Evidence-backed domain responsibility.'
+  const lines =
+    boundaries.length > 0
+      ? boundaries.map(name => `- External boundary: ${name}`).join('\n')
+      : '- Evidence-backed domain responsibility.'
   return `# Architecture: ${safeText(graph.domain.name, hiddenNames, 'Package domain')}\n\n## Implemented AS-IS\n\nDomain architecture describes confirmed responsibilities and external boundaries without naming private implementation symbols.\n\n## Boundaries\n\n${lines}\n\n## Traceability\n\nThe manifest preserves reverse evidence links to files, tests, configuration and contracts.\n`
 }
 
@@ -274,7 +298,7 @@ function renderMermaid(graph, hiddenNames) {
   if (!edge) return ''
   const from = safeText(nodes.get(edge.fromId).name, hiddenNames, 'Source')
   const to = safeText(nodes.get(edge.toId).name, hiddenNames, 'Outcome')
-  return `\n\n\`\`\`mermaid\nflowchart LR\n  source["${from.replaceAll('"', '\\"')}"] --> target["${to.replaceAll('"', '\\"')}"]\n\`\`\``
+  return `\n\n\`\`\`mermaid\nflowchart LR\n  source["${from.replaceAll('"', String.raw`\"`)}"] --> target["${to.replaceAll('"', String.raw`\"`)}"]\n\`\`\``
 }
 
 /**
@@ -292,7 +316,8 @@ function renderIndex({ graph, topics, architecture, hiddenNames }) {
       sections.push(`- [${safeText(topic.title, hiddenNames, PAGE_KIND_LABELS[kind])}](${path})`)
     }
   }
-  const navigation = sections.length > 0 ? sections.join('\n') : '- Наразі graph не має evidence-backed dedicated topics.'
+  const navigation =
+    sections.length > 0 ? sections.join('\n') : '- Наразі graph не має evidence-backed dedicated topics.'
   return `# Package knowledge: ${safeText(graph.domain.name, hiddenNames, 'Package domain')}\n\n## Implemented AS-IS\n\nЦя навігація є deterministic projection одного documentation domain. Вона веде лише до meaningful pages і не розкриває private implementation symbols.\n\n## Views\n\n${navigation}\n\n## Traceability\n\n\`docs/.docgen/manifest.json\` містить stable topic identities, claims, evidence та reverse impact data.\n`
 }
 
@@ -302,7 +327,9 @@ function renderIndex({ graph, topics, architecture, hiddenNames }) {
  * @returns {string} generated Markdown body
  */
 function renderGaps(graph) {
-  const gaps = graph.gaps.filter(gap => gap.status !== 'satisfied').toSorted((left, right) => compareStrings(left.id, right.id))
+  const gaps = graph.gaps
+    .filter(gap => gap.status !== 'satisfied')
+    .toSorted((left, right) => compareStrings(left.id, right.id))
   const rows = gaps.map(gap => `- Status: ${gap.status}; explicit expectation requires review.`).join('\n')
   return `# Implementation gaps\n\n## Explicit expectation comparison\n\n${rows}\n\nOnly explicit expected claims participate in this view; absent expectations are not defects.\n`
 }
@@ -313,11 +340,20 @@ function renderGaps(graph) {
  * @returns {{ok: true, files: Record<string, string>} | {ok: false, diagnostics: Array<Record<string, unknown>>}} candidate map or blocking diagnostics
  */
 export function renderKnowledgeArtifacts({ graph, existingFiles = {} }) {
-  if (!graph || typeof graph !== 'object' || !graph.domain || typeof graph.domain.id !== 'string' || graph.domain.id === '') {
+  if (
+    !graph ||
+    typeof graph !== 'object' ||
+    !graph.domain ||
+    typeof graph.domain.id !== 'string' ||
+    graph.domain.id === ''
+  ) {
     return { ok: false, diagnostics: [diagnostic('invalid-render-graph', 'Graph має містити owning domain ID.')] }
   }
   if (!existingFiles || typeof existingFiles !== 'object' || Array.isArray(existingFiles)) {
-    return { ok: false, diagnostics: [diagnostic('invalid-existing-files', 'existingFiles має бути path → Markdown map.')] }
+    return {
+      ok: false,
+      diagnostics: [diagnostic('invalid-existing-files', 'existingFiles має бути path → Markdown map.')]
+    }
   }
   const manifest = canonicalGraph(graph)
   const hiddenNames = privateNames(manifest)
@@ -353,11 +389,17 @@ export function renderKnowledgeArtifacts({ graph, existingFiles = {} }) {
   const diagnostics = []
   for (const page of pages) {
     const rendered = renderPage({ ...page, existing: existingFiles[page.path] })
-    if (!rendered.ok) diagnostics.push(...rendered.diagnostics)
-    else files[page.path] = rendered.markdown
+    if (rendered.ok) {
+      files[page.path] = rendered.markdown
+    } else {
+      diagnostics.push(...rendered.diagnostics)
+    }
   }
   if (diagnostics.length > 0) {
-    return { ok: false, diagnostics: diagnostics.toSorted((left, right) => compareStrings(left.path ?? '', right.path ?? '')) }
+    return {
+      ok: false,
+      diagnostics: diagnostics.toSorted((left, right) => compareStrings(left.path ?? '', right.path ?? ''))
+    }
   }
   const humanMarkdown = Object.entries(files)
     .filter(([path]) => path.endsWith('.md'))
@@ -367,7 +409,9 @@ export function renderKnowledgeArtifacts({ graph, existingFiles = {} }) {
   if (leaked.length > 0) {
     return {
       ok: false,
-      diagnostics: leaked.toSorted(compareStrings).map(name => diagnostic('private-symbol-leak', `Human Markdown містить private symbol name "${name}".`))
+      diagnostics: leaked
+        .toSorted(compareStrings)
+        .map(name => diagnostic('private-symbol-leak', `Human Markdown містить private symbol name "${name}".`))
     }
   }
   return { ok: true, files }

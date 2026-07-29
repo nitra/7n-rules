@@ -12,8 +12,17 @@ import { dirname } from 'node:path'
 
 import { submitBatch as submitBatchNative } from '@7n/llm-lib/batch'
 
+/**
+ * Версія schema для structured claims cache і validation.
+ */
 export const CLAIM_SCHEMA_VERSION = 'package-knowledge-claims-v1'
+/**
+ * Версія prompt contract для structured claims batch pipeline.
+ */
 export const CLAIM_PROMPT_VERSION = 'package-knowledge-claims-v1'
+/**
+ * Default model policy tiers для map/reduce escalation.
+ */
 export const DEFAULT_MODEL_POLICY = ['min', 'avg', 'max']
 
 const CACHE_VERSION = 1
@@ -24,7 +33,7 @@ const CACHE_VERSION = 1
  * @returns {unknown} stable copy
  */
 function canonicalize(value) {
-  if (Array.isArray(value)) return value.map(canonicalize)
+  if (Array.isArray(value)) return value.map(item => canonicalize(item))
   if (!value || typeof value !== 'object') return value
   return Object.fromEntries(
     Object.entries(value)
@@ -39,7 +48,9 @@ function canonicalize(value) {
  * @returns {string} SHA-256 value із prefix
  */
 function hash(value) {
-  return `sha256:${createHash('sha256').update(JSON.stringify(canonicalize(value))).digest('hex')}`
+  return `sha256:${createHash('sha256')
+    .update(JSON.stringify(canonicalize(value)))
+    .digest('hex')}`
 }
 
 /**
@@ -99,7 +110,12 @@ async function loadCache(cachePath, suppliedCache) {
   if (!cachePath) return { version: CACHE_VERSION, entries: {} }
   try {
     const parsed = JSON.parse(await readFile(cachePath, 'utf8'))
-    if (parsed?.version === CACHE_VERSION && parsed.entries && typeof parsed.entries === 'object' && !Array.isArray(parsed.entries)) {
+    if (
+      parsed?.version === CACHE_VERSION &&
+      parsed.entries &&
+      typeof parsed.entries === 'object' &&
+      !Array.isArray(parsed.entries)
+    ) {
       return { version: CACHE_VERSION, entries: parsed.entries }
     }
   } catch (error) {
@@ -169,7 +185,10 @@ function graphReferences(graph) {
   ]
   const refs = { ok: true, domainId: graph.domain.id }
   for (const [collection, property] of collections) {
-    if (!Array.isArray(graph[collection]) || graph[collection].some(item => typeof item?.id !== 'string' || item.id === '')) {
+    if (
+      !Array.isArray(graph[collection]) ||
+      graph[collection].some(item => typeof item?.id !== 'string' || item.id === '')
+    ) {
       return { ok: false, blockers: [blocker('invalid-graph', 'graph', `Graph має містити ${collection} з IDs.`)] }
     }
     refs[property] = new Set(graph[collection].map(item => item.id))
@@ -234,7 +253,12 @@ export function parseClaimsResult(text, refs, chunk) {
   } catch {
     return { ok: false, reason: 'invalid-json' }
   }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !hasExactKeys(parsed, ['claims', 'coveredNodeIds', 'coveredEdgeIds'])) {
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    Array.isArray(parsed) ||
+    !hasExactKeys(parsed, ['claims', 'coveredNodeIds', 'coveredEdgeIds'])
+  ) {
     return { ok: false, reason: 'invalid-json-shape' }
   }
   const coveredNodeIds = normalizedIds(parsed.coveredNodeIds)
@@ -251,7 +275,8 @@ export function parseClaimsResult(text, refs, chunk) {
   if (!Array.isArray(parsed.claims)) return { ok: false, reason: 'invalid-claims' }
   const claims = []
   for (const rawClaim of parsed.claims) {
-    if (!rawClaim || typeof rawClaim !== 'object' || Array.isArray(rawClaim)) return { ok: false, reason: 'invalid-claim' }
+    if (!rawClaim || typeof rawClaim !== 'object' || Array.isArray(rawClaim))
+      return { ok: false, reason: 'invalid-claim' }
     if (!hasExactKeys(rawClaim, ['subjectId', 'predicate', 'value', 'evidenceIds', 'confidence'])) {
       return { ok: false, reason: 'invalid-claim-shape' }
     }
@@ -315,7 +340,9 @@ async function runBatchWave(pending, tier, submitBatchImpl, batchOptions) {
       batchOptions
     )
     if (!Array.isArray(results)) return new Map()
-    return new Map(results.filter(result => typeof result?.customId === 'string').map(result => [result.customId, result]))
+    return new Map(
+      results.filter(result => typeof result?.customId === 'string').map(result => [result.customId, result])
+    )
   } catch {
     return new Map()
   }
@@ -342,7 +369,7 @@ function selectCachedWork(work, cache, refs) {
 
 /**
  * Runs one logical wave with local per-item escalation and successful cache writes.
- * @param {{work: Array<Record<string, unknown>>, cache: Record<string, unknown>, refs: Record<string, unknown>, modelPolicy: string[], submitBatchImpl: Function, batchOptions: object}} input wave context
+ * @param {{work: Array<Record<string, unknown>>, cache: Record<string, unknown>, refs: Record<string, unknown>, modelPolicy: string[], submitBatchImpl: (model: string, items: Array<object>, options?: object) => Promise<Array<object>>, batchOptions: object}} input wave context
  * @returns {Promise<{results: Map<string, Record<string, unknown>>, blockers: Array<Record<string, string>>}>} completed results or local blockers
  */
 async function resolveWave({ work, cache, refs, modelPolicy, submitBatchImpl, batchOptions }) {
@@ -375,7 +402,9 @@ async function resolveWave({ work, cache, refs, modelPolicy, submitBatchImpl, ba
   }
   return {
     results,
-    blockers: pending.map(item => blocker(failures.get(item.id) ?? 'unresolved-chunk', item.id, 'LLM result не пройшов local model ladder.'))
+    blockers: pending.map(item =>
+      blocker(failures.get(item.id) ?? 'unresolved-chunk', item.id, 'LLM result не пройшов local model ladder.')
+    )
   }
 }
 
@@ -409,7 +438,13 @@ function createReduceWork(groups, results, policy, allowedEvidenceIds, level) {
     const claims = childResults.flatMap(result => result.claims)
     const id = `reduce:${level}:${index}`
     const content = { childIds: group.map(child => child.id), claims, requiredNodeIds, requiredEdgeIds }
-    const chunk = { id, prompt: JSON.stringify(canonicalize(content)), requiredNodeIds, requiredEdgeIds, contentHash: hash(content) }
+    const chunk = {
+      id,
+      prompt: JSON.stringify(canonicalize(content)),
+      requiredNodeIds,
+      requiredEdgeIds,
+      contentHash: hash(content)
+    }
     const cacheKey = createClaimsCacheKey({ kind: 'reduce', ...policy, contentHash: chunk.contentHash })
     return { ...chunk, cacheKey, prompt: buildPrompt({ kind: 'reduce', chunk, allowedEvidenceIds }) }
   })
@@ -425,7 +460,10 @@ function collectClaims(results) {
   for (const result of results) {
     for (const claim of result.claims) byId.set(claim.id, claim)
   }
-  return [...byId.values()].toSorted((left, right) => left.id.localeCompare(right.id))
+  return byId
+    .values()
+    .toArray()
+    .toSorted((left, right) => left.id.localeCompare(right.id))
 }
 
 /**
@@ -447,7 +485,9 @@ function cacheSnapshot(cache) {
  *   graph: Record<string, unknown>, chunks: unknown[], parserVersion: string,
  *   promptVersion?: string, schemaVersion?: string, modelPolicy?: string[],
  *   reduceFanIn?: number, cache?: {version?: number, entries?: Record<string, unknown>},
- *   cachePath?: string, submitBatchImpl?: Function, batchOptions?: object
+ *   cachePath?: string,
+ *   submitBatchImpl?: (model: string, items: Array<object>, options?: object) => Promise<Array<object>>,
+ *   batchOptions?: object
  * }} input structured analysis inputs
  * @returns {Promise<{ok: true, claims: Array<Record<string, unknown>>, coverage: {nodeIds: string[], edgeIds: string[]}, cache: Record<string, unknown>} | {ok: false, blockers: Array<Record<string, string>>, cache: Record<string, unknown>}>} complete claims or blockers
  */
@@ -481,14 +521,18 @@ export async function buildStructuredClaims({
       cache: cacheSnapshot(cache)
     }
   }
-  if (!Array.isArray(modelPolicy) || modelPolicy.length === 0 || modelPolicy.some(tier => !['min', 'avg', 'max'].includes(tier))) {
+  if (
+    !Array.isArray(modelPolicy) ||
+    modelPolicy.length === 0 ||
+    modelPolicy.some(tier => !['min', 'avg', 'max'].includes(tier))
+  ) {
     return {
       ok: false,
       blockers: [blocker('invalid-model-policy', 'map', 'modelPolicy має містити universal tiers min/avg/max.')],
       cache: cacheSnapshot(cache)
     }
   }
-  if (!Number.isInteger(reduceFanIn) || reduceFanIn < 2) {
+  if (!Number.isSafeInteger(reduceFanIn) || reduceFanIn < 2) {
     return {
       ok: false,
       blockers: [blocker('invalid-reduce-fan-in', 'reduce', 'reduceFanIn мусить бути integer >= 2.')],
@@ -496,7 +540,7 @@ export async function buildStructuredClaims({
     }
   }
 
-  const normalized = chunks.map(normalizeMapChunk)
+  const normalized = chunks.map((chunk, index) => normalizeMapChunk(chunk, index))
   const invalidChunks = normalized.filter(result => !result.ok).map(result => result.blocker)
   if (invalidChunks.length > 0) {
     return {

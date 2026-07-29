@@ -3,31 +3,28 @@ type: JS Module
 title: render.mjs
 resource: npm/rules/ci4/package_knowledge/render.mjs
 docgen:
-  crc: 59471d4a
+  crc: 2ae8a973
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
+  score: 75
 ---
 
 ## Огляд
 
-Детерміновано перетворює один validated package knowledge graph на candidate
-Markdown pages і schema-compatible manifest без викликів LLM або publication.
-Згенеровані сторінки мають hashed `AUTOGEN` zones; наявні `MANUAL` та
-`EXPECTED` zones зберігаються через zone contract.
+Рендерить deterministic Markdown і manifest-проєкції package knowledge graph.
+
+Модуль не аналізує source, не викликає LLM і не публікує файли. Він створює
+повний candidate file map, а publication лишається відповідальністю
+`publish.mjs` після окремої validation-перевірки.
 
 ## Публічний API
 
-- `renderKnowledgeArtifacts` — повертає in-memory file map для index, meaningful
-  topic/architecture/gap pages і `docs/.docgen/manifest.json`; блокує невалідний
-  graph або authored page без оголошеного `AUTOGEN` target.
+- renderKnowledgeArtifacts — Renders candidate Markdown pages and a schema-compatible manifest.
 
 ## Сценарії використання
 
-- `npm/rules/ci4/package_knowledge/tests/render.test.mjs` — рендерить лише
-  meaningful views, зберігає byte determinism, не створює gap page без
-  actionable gap, не розкриває private symbols і зберігає protected zones.
+- `npm/rules/ci4/package_knowledge/tests/render.test.mjs` (renderKnowledgeArtifacts) — renders only meaningful views, an actionable gaps page and schema-compatible manifest; renders a dedicated capability page when a deterministic topic supplies one; is byte-deterministic and does not create empty page trees or gaps without an explicit gap; does not leak private names into human Markdown; updates AUTOGEN while preserving supplied MANUAL and EXPECTED zones; ще 1
 
 ## Гарантії поведінки
 
-- Human Markdown не містить private names або IDs; private traceability лишається
-  лише в manifest.
-- Topic fragments materialize local implemented/expected claims, outcomes,
-  contracts і reverse impact paths без непідтвердженого narrative.
+- (специфічних машинно-виведених гарантій немає)
