@@ -24,11 +24,11 @@ function domain(root) {
 }
 
 /** Повертає complete JS extractor або parser failure для atomicity test. */
-function extractor({ fails = false, evidenceSpan } = {}) {
+function extractor({ fails = false, evidenceSpan, extensions = ['.mjs'] } = {}) {
   return {
     id: 'fixture-js',
     apiVersion: 1,
-    extensions: ['.mjs'],
+    extensions,
     parser: { id: 'fixture', grammarVersion: '1', runtimeVersion: '1' },
     collectTestScenarios: vi.fn(() => ({ ok: true, scenarios: [] })),
     analyzeFile: vi.fn(({ file }) => {
@@ -125,6 +125,7 @@ function inputs(root, adapter, extra = {}) {
     repoRoot: root,
     domainId: DOMAIN_ID,
     resolveDomainsImpl: vi.fn(async () => ({ domains: [domain(root)], diagnostics: [] })),
+    discoverDomainCodeExtensionsImpl: vi.fn(async () => ({ ok: true, extensions: ['.mjs'] })),
     loadAdaptersImpl: vi.fn(async () => ({ blocked: false, diagnostics: [], adapters: { domain: [], extractor: [adapter] } })),
     loadSourcesImpl: vi.fn(async () => ({ ok: true, sources: [{ path: 'src/orders.mjs', content: 'export function submit() {}' }] })),
     loadStructuredSourcesImpl: vi.fn(async () => ({ ok: true, fragments: [] })),
@@ -203,6 +204,95 @@ function structuredContract() {
 }
 
 describe('buildPackageKnowledge', () => {
+  test('passes the discovered inventory to adapter and source loaders before candidate work', async () => {
+    await withTmpDir(async root => {
+      const inventory = vi.fn(async () => ({ ok: true, extensions: ['.py', '.ts'] }))
+      const adapters = vi.fn(async () => ({ blocked: false, diagnostics: [], adapters: { domain: [], extractor: [extractor({ extensions: ['.py', '.ts'] })] } }))
+      const sources = vi.fn(async () => ({
+        ok: true,
+        sources: [
+          { path: 'src/orders.py', content: 'def submit(): pass\n' },
+          { path: 'src/orders.ts', content: 'export function submit() {}' }
+        ]
+      }))
+      const result = await buildPackageKnowledge(
+        inputs(root, extractor(), {
+          discoverDomainCodeExtensionsImpl: inventory,
+          loadAdaptersImpl: adapters,
+          loadSourcesImpl: sources,
+          submitBatchImpl: successfulBatch()
+        })
+      )
+
+      expect(result).toMatchObject({ ok: true, mode: 'shadow' })
+      expect(inventory).toHaveBeenCalledWith({ domain: expect.objectContaining({ id: DOMAIN_ID }) })
+      expect(adapters).toHaveBeenCalledWith(expect.objectContaining({ requiredExtensions: ['.py', '.ts'] }))
+      expect(sources).toHaveBeenCalledWith({ domain: expect.objectContaining({ id: DOMAIN_ID }), extensions: ['.py', '.ts'] })
+    })
+  })
+
+  test('blocks inventory diagnostics before adapters, source loading and LLM work', async () => {
+    await withTmpDir(async root => {
+      const adapters = vi.fn()
+      const sources = vi.fn()
+      const batch = successfulBatch()
+      const result = await buildPackageKnowledge(
+        inputs(root, extractor(), {
+          discoverDomainCodeExtensionsImpl: vi.fn(async () => ({ ok: false, diagnostics: [{ code: 'source-read-failed' }] })),
+          loadAdaptersImpl: adapters,
+          loadSourcesImpl: sources,
+          submitBatchImpl: batch
+        })
+      )
+
+      expect(result).toMatchObject({ ok: false, stage: 'source-inventory', diagnostics: [{ code: 'source-read-failed' }] })
+      expect(adapters).not.toHaveBeenCalled()
+      expect(sources).not.toHaveBeenCalled()
+      expect(batch).not.toHaveBeenCalled()
+    })
+  })
+
+  test('blocks a discovered extension when its adapter plugin is missing', async () => {
+    await withTmpDir(async root => {
+      const sources = vi.fn()
+      const result = await buildPackageKnowledge(
+        inputs(root, extractor(), {
+          discoverDomainCodeExtensionsImpl: vi.fn(async () => ({ ok: true, extensions: ['.rs'] })),
+          loadAdaptersImpl: vi.fn(async () => ({
+            blocked: true,
+            diagnostics: [{ code: 'missing-extractor-extension', extension: '.rs' }],
+            adapters: null
+          })),
+          loadSourcesImpl: sources
+        })
+      )
+
+      expect(result).toMatchObject({ ok: false, stage: 'adapters', diagnostics: [{ code: 'missing-extractor-extension' }] })
+      expect(sources).not.toHaveBeenCalled()
+    })
+  })
+
+  test('builds a contract-only package without extractors, source loader or LLM claims', async () => {
+    await withTmpDir(async root => {
+      const sources = vi.fn()
+      const batch = successfulBatch()
+      const result = await buildPackageKnowledge(
+        inputs(root, extractor(), {
+          discoverDomainCodeExtensionsImpl: vi.fn(async () => ({ ok: true, extensions: [] })),
+          loadAdaptersImpl: vi.fn(async () => ({ blocked: false, diagnostics: [], adapters: { domain: [], extractor: [] } })),
+          loadSourcesImpl: sources,
+          loadStructuredSourcesImpl: vi.fn(async () => structuredContract()),
+          submitBatchImpl: batch
+        })
+      )
+
+      expect(result).toMatchObject({ ok: true, mode: 'shadow' })
+      expect(sources).not.toHaveBeenCalled()
+      expect(batch).not.toHaveBeenCalled()
+      expect(await readFile(join(result.stagingPath, 'docs', '.docgen', 'manifest.json'), 'utf8')).toContain('Orders API')
+    })
+  })
+
   test('SHADOW validates and stages candidate, then unchanged cache performs zero LLM calls', async () => {
     await withTmpDir(async root => {
       const cache = { entries: {} }

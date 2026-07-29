@@ -26,7 +26,7 @@ import { compareClaimMappings } from './gap-mappings.mjs'
 import { loadKnowledgeAdapters } from './load-adapters.mjs'
 import { publishKnowledgeArtifacts } from './publish.mjs'
 import { renderKnowledgeArtifacts } from './render.mjs'
-import { loadDomainSources } from './source-loader.mjs'
+import { discoverDomainCodeExtensions, loadDomainSources } from './source-loader.mjs'
 import { loadStructuredSources } from './structured-sources.mjs'
 import { validateKnowledgeGraph } from './validator.mjs'
 import { parseKnowledgeZones } from './zones.mjs'
@@ -295,7 +295,8 @@ async function writeShadowCandidate(stagingPath, files, deps = {}) {
  *   repoRoot: string, domainId: string, publish?: boolean, expectedOverlay?: object,
  *   gapMappings?: unknown[], aliasesByTopicId?: Record<string, string[]>, cache?: object, expectedCache?: object, entailmentCache?: object, gapCache?: object,
  *   cachePath?: string, expectedCachePath?: string, entailmentCachePath?: string, gapCachePath?: string, config?: object, submitBatchImpl?: (model: string, items: Array<object>, options?: object) => Promise<Array<object>>,
- *   resolveDomainsImpl?: typeof resolveDocumentationDomains, loadAdaptersImpl?: typeof loadKnowledgeAdapters,
+ *   resolveDomainsImpl?: typeof resolveDocumentationDomains, discoverDomainCodeExtensionsImpl?: typeof discoverDomainCodeExtensions,
+ *   loadAdaptersImpl?: typeof loadKnowledgeAdapters,
  *   loadSourcesImpl?: typeof loadDomainSources, buildCandidateImpl?: typeof buildKnowledgeCandidate,
  *   loadStructuredSourcesImpl?: typeof loadStructuredSources,
  *   planChunksImpl?: typeof planSemanticChunks, buildClaimsImpl?: typeof buildStructuredClaims,
@@ -334,16 +335,21 @@ export async function buildPackageKnowledge(input) {
   if (!protectedZones.ok) return blocked('protected-zones', protectedZones.diagnostics, domain.id)
 
   const config = input.config ?? (await readNRulesConfigLite(repoRoot))
+  const discoverExtensions = input.discoverDomainCodeExtensionsImpl ?? discoverDomainCodeExtensions
+  const inventory = await discoverExtensions({ domain })
+  if (!inventory.ok) return blocked('source-inventory', inventory.diagnostics, domain.id)
   const loadAdapters = input.loadAdaptersImpl ?? loadKnowledgeAdapters
-  const adapters = await loadAdapters({ repoRoot, domainRoot: domain.root, config })
+  const adapters = await loadAdapters({ repoRoot, domainRoot: domain.root, config, requiredExtensions: inventory.extensions })
   if (adapters.blocked || !adapters.adapters) return blocked('adapters', adapters.diagnostics, domain.id)
   const extractors = adapters.adapters.extractor
-  if (!Array.isArray(extractors) || extractors.length === 0)
+  if (!Array.isArray(extractors) || (inventory.extensions.length > 0 && extractors.length === 0))
     return blocked('adapters', [{ code: 'missing-extractors', message: 'Немає knowledge.extractor@1 adapters.' }], domain.id)
 
-  const extensions = [...new Set(extractors.flatMap(adapter => adapter.extensions))].toSorted()
   const loadSources = input.loadSourcesImpl ?? loadDomainSources
-  const loaded = await loadSources({ domain, extensions })
+  const loaded =
+    inventory.extensions.length === 0
+      ? { ok: true, sources: [] }
+      : await loadSources({ domain, extensions: inventory.extensions })
   if (!loaded.ok) return blocked('sources', loaded.diagnostics, domain.id)
   const loadStructured = input.loadStructuredSourcesImpl ?? loadStructuredSources
   const structured = await loadStructured({ domain })
@@ -366,34 +372,35 @@ export async function buildPackageKnowledge(input) {
   })
   if (!candidate.ok) return blocked('candidate', candidate.diagnostics, domain.id)
 
-  const parser = parserVersion(extractors)
-  const planChunks = input.planChunksImpl ?? planSemanticChunks
-  const plan = planChunks({
-    graph: candidate.graph,
-    sources: loaded.sources,
-    parser: { version: parser },
-    schema: { version: CLAIM_SCHEMA_VERSION },
-    prompt: { version: CLAIM_PROMPT_VERSION },
-    modelPolicy: { tiers: DEFAULT_MODEL_POLICY }
-  })
-  if (!plan.ok) return blocked('chunk-plan', plan.diagnostics, domain.id)
-
   const cachePath = input.cachePath ?? join(tmpdir(), 'n-rules-package-knowledge', fingerprint(domain.id).slice(7), 'claims.json')
-  const buildClaims = input.buildClaimsImpl ?? buildStructuredClaims
-  const claims = await buildClaims({
-    graph: candidate.graph,
-    chunks: claimsChunks(plan.plan.chunks, candidate.graph),
-    parserVersion: parser,
-    modelPolicy: DEFAULT_MODEL_POLICY,
-    cache: input.cache,
-    cachePath,
-    submitBatchImpl: input.submitBatchImpl
-  })
-  if (!claims.ok) return blocked('claims', claims.blockers, domain.id)
-
-  const graphWithClaims = {
-    ...candidate.graph,
-    claims: [...candidate.graph.claims, ...claims.claims].toSorted((left, right) => left.id.localeCompare(right.id))
+  let graphWithClaims = candidate.graph
+  if (inventory.extensions.length > 0) {
+    const parser = parserVersion(extractors)
+    const planChunks = input.planChunksImpl ?? planSemanticChunks
+    const plan = planChunks({
+      graph: candidate.graph,
+      sources: loaded.sources,
+      parser: { version: parser },
+      schema: { version: CLAIM_SCHEMA_VERSION },
+      prompt: { version: CLAIM_PROMPT_VERSION },
+      modelPolicy: { tiers: DEFAULT_MODEL_POLICY }
+    })
+    if (!plan.ok) return blocked('chunk-plan', plan.diagnostics, domain.id)
+    const buildClaims = input.buildClaimsImpl ?? buildStructuredClaims
+    const claims = await buildClaims({
+      graph: candidate.graph,
+      chunks: claimsChunks(plan.plan.chunks, candidate.graph),
+      parserVersion: parser,
+      modelPolicy: DEFAULT_MODEL_POLICY,
+      cache: input.cache,
+      cachePath,
+      submitBatchImpl: input.submitBatchImpl
+    })
+    if (!claims.ok) return blocked('claims', claims.blockers, domain.id)
+    graphWithClaims = {
+      ...candidate.graph,
+      claims: [...candidate.graph.claims, ...claims.claims].toSorted((left, right) => left.id.localeCompare(right.id))
+    }
   }
   const discoverExpected = input.discoverExpectedSourcesImpl ?? discoverExpectedSources
   const discoveredExpected = await discoverExpected({ repoRoot, domain, extractors, testFiles: loaded.sources })

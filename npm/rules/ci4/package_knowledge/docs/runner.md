@@ -21,6 +21,8 @@ fail-closed межі без реальних plugin або LLM викликів.
 Після Expected overlay runner верифікує evidence entailment, автоматично
 порівнює expected↔implemented claims і лише тоді materializes gaps/render.
 
+Перед adapter loading runner inventory-ить фактично присутні code extensions у domain і передає їх як `requiredExtensions`. Inventory blocker зупиняє pipeline до adapters, source loading і LLM work. Якщо inventory порожній, package може бути contract-only: runner не вимагає extractor, не викликає language source loader/planner/claims та будує candidate із structured artifacts.
+
 ## Публічний API
 
 - buildPackageKnowledge — Builds one package knowledge domain. The default is SHADOW: candidate docs
@@ -29,7 +31,7 @@ are validated and materialized under the system cache, never under domain docs.
 
 ## Сценарії використання
 
-- `npm/rules/ci4/package_knowledge/tests/runner.test.mjs` (buildPackageKnowledge) — SHADOW validates and stages candidate, then unchanged cache performs zero LLM calls; parser failure is fail-closed and does not replace existing docs; passes structured fragments into the candidate and rendered manifest; blocks malformed structured sources before candidate work and preserves committed docs; explicit publish atomically adds generated views and preserves unrelated legacy docs; ще 7
+- `npm/rules/ci4/package_knowledge/tests/runner.test.mjs` — inventory/adapters/source ordering, missing language plugin blocker, contract-only package і SHADOW/publish pipeline.
 
 ## Гарантії поведінки
 
