@@ -68,7 +68,7 @@ slot graph: плагін-contributor більше не мусить фізичн
 {@link resolveSlotGraph}: `graph.capabilities` уже агрегує capabilities УСІХ наявних плагінів
 (не лише тих, що увійшли у slot graph — гейт `requiresPluginApi` тут не застосовний, capability
 gate має лишатись коректним і під час поетапної Фази 2-міграції). Повертає ту саму (кешовану на
-графі) змінювану референцію `Set` — викликачі лише читають (`.has`), не мутують.
+графі) мутабельну референцію `Set` — викликачі лише читають (`.has`), не мутують.
 - loadSlotConsumer — ЄДИНЕ місце динамічного import consumer-handler-а (spec §3.4: "module import відбувається лише
 в loadSlotConsumer()"). Викликається САМИМ surface-ом, коли він реально матеріалізує contributions
 цього слоту — ніколи під час discovery (`resolveSlotGraph`). Перевіряє форму default-експорту
