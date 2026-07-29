@@ -31,10 +31,10 @@ assertProtectedZonesPreserved перевіряє, чи збережено кож
 
 - zoneHash — Обчислює stable hash вмісту zone.
 - parseKnowledgeZones — Parses strict protected/generated zone markers and validates pairing, global stable IDs and
-AUTOGEN hashes. Text outside an explicit zone is returned as implicit MANUAL content so a
-publisher can preserve it byte-for-byte.
+  AUTOGEN hashes. Text outside an explicit zone is returned as implicit MANUAL content so a
+  publisher can preserve it byte-for-byte.
 - applyAutogenUpdates — Applies only declared AUTOGEN replacements and recalculates their hashes. Protected and
-implicit MANUAL content is never selected as a writable target.
+  implicit MANUAL content is never selected as a writable target.
 - assertProtectedZonesPreserved — Verifies that a generated candidate keeps every existing protected/implicit manual byte.
 
 ## Сценарії використання

@@ -9,14 +9,18 @@ import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 /**
  * Обгортає generated content у valid AUTOGEN markers.
  * @param {string} content generated content
+ * @param {string} [id] zone identity
  * @returns {string} marked zone
  */
-const auto = (content, id = 'summary') =>
-  `<!-- AUTOGEN:start id="${id}" hash="${zoneHash(content)}" -->${content}<!-- AUTOGEN:end id="${id}" -->`
+function auto(content, id = 'summary') {
+  return `<!-- AUTOGEN:start id="${id}" hash="${zoneHash(content)}" -->${content}<!-- AUTOGEN:end id="${id}" -->`
+}
 
-/** Returns a minimal previous package-knowledge manifest for stale-page ownership. */
-const knowledgeManifest = () =>
-  JSON.stringify({ schemaVersion: 1, domain: { id: 'npm:@fixture/orders' }, nodes: [], topics: [] })
+/* Returns a minimal previous package-knowledge manifest for stale-page ownership. */
+/** @returns {string} serialized minimal manifest */
+function knowledgeManifest() {
+  return JSON.stringify({ schemaVersion: 1, domain: { id: 'npm:@fixture/orders' }, nodes: [], topics: [] })
+}
 
 /**
  * Створює committed docs tree перед publication test.

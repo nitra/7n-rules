@@ -3,9 +3,9 @@ type: JS Module
 title: publish.mjs
 resource: npm/rules/ci4/package_knowledge/publish.mjs
 docgen:
-  crc: 0d847d40
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
+  crc: a4aa6678
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min-retry
   score: 75
 ---
 

@@ -533,5 +533,5 @@ const rustKnowledgeExtractor = Object.freeze({
   collectTestScenarios
 })
 
-/* Надає versioned `knowledge.extractor@1` provider для Rust. */
+/** Надає versioned `knowledge.extractor@1` provider для Rust. */
 export default rustKnowledgeExtractor

@@ -3,7 +3,7 @@ type: JS Module
 title: gap-mappings.mjs
 resource: npm/rules/ci4/package_knowledge/gap-mappings.mjs
 docgen:
-  crc: f080ae50
+  crc: 6f1c9c2d
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 80
@@ -36,4 +36,5 @@ candidate детерміновано лишає expectation missing.
 
 ## Гарантії поведінки
 
+- Містить локальні fail-safe гілки; інші помилки можуть поширюватися назовні.
 - Кешує результати в межах одного прогону.

@@ -2,6 +2,9 @@ import { describe, expect, test, vi } from 'vitest'
 
 import { buildStructuredClaims, createImplementedClaimId } from '../claims.mjs'
 
+const REQUIRED_NODE_IDS_RE = /Required node IDs: (\[[^\n]+\])\./u
+const REQUIRED_EDGE_IDS_RE = /Required edge IDs: (\[[^\n]*\])\./u
+
 const GRAPH = {
   domain: { id: 'npm:@fixture/orders' },
   nodes: [{ id: 'node:submit' }, { id: 'node:notify' }],
@@ -38,8 +41,8 @@ const CHUNKS = [
  * @returns {string} valid JSON result
  */
 function validResult(item) {
-  const coveredNodeIds = JSON.parse(item.prompt.match(/Required node IDs: (\[[^\n]+\])\./u)[1])
-  const coveredEdgeIds = JSON.parse(item.prompt.match(/Required edge IDs: (\[[^\n]*\])\./u)[1])
+  const coveredNodeIds = JSON.parse(item.prompt.match(REQUIRED_NODE_IDS_RE)[1])
+  const coveredEdgeIds = JSON.parse(item.prompt.match(REQUIRED_EDGE_IDS_RE)[1])
   return JSON.stringify({
     claims: coveredNodeIds.map(subjectId => ({
       subjectId,

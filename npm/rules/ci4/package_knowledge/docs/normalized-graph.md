@@ -3,10 +3,11 @@ type: JS Module
 title: normalized-graph.mjs
 resource: npm/rules/ci4/package_knowledge/normalized-graph.mjs
 docgen:
-  crc: 6089f0af
+  crc: 212665a6
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 80
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд

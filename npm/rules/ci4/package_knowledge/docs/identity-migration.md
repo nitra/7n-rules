@@ -18,9 +18,9 @@ identity або protected narrative. Невизначений split/merge пов
 ## Публічний API
 
 - reconcileTopicIdentities — Reconciles newly discovered topics against a committed manifest. Exact IDs
-remain unchanged; a unique high-confidence rename receives the old canonical
-ID and retains its aliases. Split/merge and protected-zone uncertainty return
-an explicit plan without silently selecting a topic.
+  remain unchanged; a unique high-confidence rename receives the old canonical
+  ID and retains its aliases. Split/merge and protected-zone uncertainty return
+  an explicit plan without silently selecting a topic.
 
 ## Сценарії використання
 

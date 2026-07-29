@@ -3,7 +3,7 @@ type: JS Module
 title: runner.mjs
 resource: npm/rules/ci4/package_knowledge/runner.mjs
 docgen:
-  crc: d2a45d05
+  crc: 3220576d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min-retry
   score: 60

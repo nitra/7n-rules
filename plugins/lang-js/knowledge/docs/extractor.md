@@ -3,7 +3,7 @@ type: JS Module
 title: extractor.mjs
 resource: plugins/lang-js/knowledge/extractor.mjs
 docgen:
-  crc: 58cff396
+  crc: 963f0a6a
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80

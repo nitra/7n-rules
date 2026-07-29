@@ -61,7 +61,14 @@ function blocked(stage, diagnostics, domainId = '') {
  * @returns {string | null} source slice
  */
 function utf8ByteSlice(content, span) {
-  if (!span || !Number.isSafeInteger(span.startByte) || !Number.isSafeInteger(span.endByte) || span.startByte < 0 || span.endByte < span.startByte) return null
+  if (
+    !span ||
+    !Number.isSafeInteger(span.startByte) ||
+    !Number.isSafeInteger(span.endByte) ||
+    span.startByte < 0 ||
+    span.endByte < span.startByte
+  )
+    return null
   const bytes = Buffer.from(content, 'utf8')
   if (span.endByte > bytes.length) return null
   const slice = bytes.subarray(span.startByte, span.endByte)
@@ -100,7 +107,9 @@ function entailmentEvidenceContentById({ graph, sources, structuredEvidenceConte
       .map(source => [source.evidence.id, source.content])
   )
   const structured = Object.fromEntries(
-    Object.entries(structuredEvidenceContentById ?? {}).filter(([id, content]) => typeof id === 'string' && typeof content === 'string')
+    Object.entries(structuredEvidenceContentById ?? {}).filter(
+      ([id, content]) => typeof id === 'string' && typeof content === 'string'
+    )
   )
   return { ...sourceEvidenceContentById({ graph, sources }), ...structured, ...expected }
 }
@@ -118,6 +127,16 @@ function parserVersion(extractors) {
 }
 
 /**
+ * Перевіряє, чи edge містить конкретне evidence.
+ * @param {Record<string, unknown>} edge semantic edge
+ * @param {string} evidenceId evidence identity
+ * @returns {boolean} whether evidence belongs to edge
+ */
+function edgeContainsEvidence(edge, evidenceId) {
+  return edge.evidence.some(item => item.id === evidenceId)
+}
+
+/**
  * Адаптує planner slices до strict claims map contract, не втрачаючи required coverage.
  * @param {Array<Record<string, unknown>>} chunks planner chunks
  * @param {Record<string, unknown>} graph graph that owns evidence references
@@ -125,9 +144,10 @@ function parserVersion(extractors) {
  */
 function claimsChunks(chunks, graph) {
   return chunks.map(chunk => {
-    const edgeContainsEvidence = (edge, evidenceId) => edge.evidence.some(item => item.id === evidenceId)
     const evidenceRefs = (graph.evidence ?? []).filter(
-      evidence => chunk.nodeIds.includes(evidence.symbolId) || chunk.edgeEvidence.some(edge => edgeContainsEvidence(edge, evidence.id))
+      evidence =>
+        chunk.nodeIds.includes(evidence.symbolId) ||
+        chunk.edgeEvidence.some(edge => edgeContainsEvidence(edge, evidence.id))
     )
     return {
       id: chunk.id,
@@ -155,12 +175,22 @@ function claimsChunks(chunks, graph) {
  */
 function mergeGapMappings(automatic, explicit) {
   if (!Array.isArray(automatic) || !Array.isArray(explicit)) {
-    return { ok: false, diagnostics: [{ code: 'invalid-gap-mappings', message: 'Automatic та explicit gap mappings мають бути масивами.' }] }
+    return {
+      ok: false,
+      diagnostics: [
+        { code: 'invalid-gap-mappings', message: 'Automatic та explicit gap mappings мають бути масивами.' }
+      ]
+    }
   }
   const byIdentity = new Map()
   const diagnostics = []
-  for (const mapping of [...automatic, explicit]) {
-    if (!mapping || typeof mapping !== 'object' || typeof mapping.expectedClaimId !== 'string' || typeof mapping.implementedClaimId !== 'string') {
+  for (const mapping of [...automatic, ...explicit]) {
+    if (
+      !mapping ||
+      typeof mapping !== 'object' ||
+      typeof mapping.expectedClaimId !== 'string' ||
+      typeof mapping.implementedClaimId !== 'string'
+    ) {
       diagnostics.push({ code: 'invalid-gap-mapping', message: 'Gap mapping не має exact expected/implemented IDs.' })
       continue
     }
@@ -178,14 +208,23 @@ function mergeGapMappings(automatic, explicit) {
       message: `Gap mapping ${mapping.expectedClaimId} → ${mapping.implementedClaimId} задано більше одного разу.`
     })
   }
-  if (diagnostics.length > 0) return { ok: false, diagnostics: diagnostics.toSorted((left, right) => `${left.code}:${left.message}`.localeCompare(`${right.code}:${right.message}`)) }
+  if (diagnostics.length > 0)
+    return {
+      ok: false,
+      diagnostics: diagnostics.toSorted((left, right) =>
+        `${left.code}:${left.message}`.localeCompare(`${right.code}:${right.message}`)
+      )
+    }
   return {
     ok: true,
-    mappings: byIdentity.values().toArray().toSorted((left, right) =>
-      `${left.expectedClaimId}:${left.implementedClaimId}:${left.relation}`.localeCompare(
-        `${right.expectedClaimId}:${right.implementedClaimId}:${right.relation}`
+    mappings: byIdentity
+      .values()
+      .toArray()
+      .toSorted((left, right) =>
+        `${left.expectedClaimId}:${left.implementedClaimId}:${left.relation}`.localeCompare(
+          `${right.expectedClaimId}:${right.implementedClaimId}:${right.relation}`
+        )
       )
-    )
   }
 }
 
@@ -275,7 +314,7 @@ function protectedZonesFromPages(files, manifest) {
 
 /**
  * Writes a validated shadow candidate outside the repository. This makes build
- * inspectable while guaranteeing that legacy or committed docs remain untouched.
+ * available for inspection while guaranteeing that legacy or committed docs remain untouched.
  * @param {string} stagingPath cache/staging root
  * @param {Record<string, string>} files candidate artifacts
  * @param {{ mkdirImpl?: typeof mkdir, writeFileImpl?: typeof writeFile }} [deps] injectable filesystem access
@@ -287,6 +326,246 @@ async function writeShadowCandidate(stagingPath, files, deps = {}) {
     await (deps.mkdirImpl ?? mkdir)(join(target, '..'), { recursive: true })
     await (deps.writeFileImpl ?? writeFile)(target, content, 'utf8')
   }
+}
+
+/**
+ * Resolves one domain and loads every deterministic input needed by later stages.
+ * @param {Record<string, unknown>} input build request and injected dependencies
+ * @param {string} repoRoot repository root
+ * @param {string} domainId requested domain identity
+ * @returns {Promise<Record<string, unknown>>} blocking result or loaded build context
+ */
+async function loadBuildContext(input, repoRoot, domainId) {
+  const resolveDomains = input.resolveDomainsImpl ?? resolveDocumentationDomains
+  const resolved = await resolveDomains(repoRoot)
+  if (resolved.diagnostics?.length > 0) return blocked('domain-resolution', resolved.diagnostics, domainId)
+  const domain = resolved.domains?.find(candidate => candidate.id === domainId)
+  if (!domain) return blocked('domain-resolution', [{ code: 'domain-not-found', domainId }], domainId)
+
+  let existingFiles
+  try {
+    existingFiles = await (input.readExistingMarkdownImpl ?? readExistingMarkdown)(domain.root)
+  } catch (error) {
+    return blocked('existing-docs', [{ code: 'existing-docs-read-failed', detail: String(error) }], domain.id)
+  }
+  const previous = await (input.readPreviousManifestImpl ?? readPreviousManifest)(domain.root)
+  if (!previous.ok) return { ...previous, domainId: domain.id }
+  const protectedZones = protectedZonesFromPages(existingFiles, previous.manifest)
+  if (!protectedZones.ok) return blocked('protected-zones', protectedZones.diagnostics, domain.id)
+
+  const config = input.config ?? (await readNRulesConfigLite(repoRoot))
+  const inventory = await (input.discoverDomainCodeExtensionsImpl ?? discoverDomainCodeExtensions)({ domain })
+  if (!inventory.ok) return blocked('source-inventory', inventory.diagnostics, domain.id)
+  const adapters = await (input.loadAdaptersImpl ?? loadKnowledgeAdapters)({
+    repoRoot,
+    domainRoot: domain.root,
+    config,
+    requiredExtensions: inventory.extensions
+  })
+  if (adapters.blocked || !adapters.adapters) return blocked('adapters', adapters.diagnostics, domain.id)
+  const extractors = adapters.adapters.extractor
+  if (!Array.isArray(extractors) || (inventory.extensions.length > 0 && extractors.length === 0)) {
+    return blocked(
+      'adapters',
+      [{ code: 'missing-extractors', message: 'Немає knowledge.extractor@1 adapters.' }],
+      domain.id
+    )
+  }
+
+  const loaded =
+    inventory.extensions.length === 0
+      ? { ok: true, sources: [] }
+      : await (input.loadSourcesImpl ?? loadDomainSources)({ domain, extensions: inventory.extensions })
+  if (!loaded.ok) return blocked('sources', loaded.diagnostics, domain.id)
+  const structured = await (input.loadStructuredSourcesImpl ?? loadStructuredSources)({ domain })
+  if (!structured.ok) return blocked('structured-sources', structured.diagnostics, domain.id)
+  const sourceFingerprint = fingerprint(
+    loaded.sources
+      .map(source => ({ path: source.path, content: source.content }))
+      .toSorted((left, right) => left.path.localeCompare(right.path))
+  )
+  const candidate = await (input.buildCandidateImpl ?? buildKnowledgeCandidate)({
+    domain: { ...domain, sourceFingerprint },
+    sources: loaded.sources,
+    extractors,
+    structuredFragments: structured.fragments,
+    expectedOverlay: {},
+    gapMappings: [],
+    aliasesByTopicId: input.aliasesByTopicId ?? {},
+    previousManifest: previous.manifest,
+    protectedZonesByTopicId: protectedZones.registry
+  })
+  if (!candidate.ok) return blocked('candidate', candidate.diagnostics, domain.id)
+  const cachePath =
+    input.cachePath ?? join(tmpdir(), 'n-rules-package-knowledge', fingerprint(domain.id).slice(7), 'claims.json')
+  return {
+    ok: true,
+    repoRoot,
+    domain,
+    existingFiles,
+    inventory,
+    extractors,
+    loaded,
+    structured,
+    sourceFingerprint,
+    candidate,
+    cachePath
+  }
+}
+
+/**
+ * Adds Implemented claims to a deterministic candidate graph.
+ * @param {Record<string, unknown>} input build request and injected dependencies
+ * @param {Record<string, unknown>} context loaded build context
+ * @returns {Promise<Record<string, unknown>>} blocking result or graph with Implemented claims
+ */
+async function addImplementedClaims(input, context) {
+  const { candidate, domain, extractors, inventory, loaded, cachePath } = context
+  if (inventory.extensions.length === 0) return { ok: true, graph: candidate.graph }
+  const parser = parserVersion(extractors)
+  const plan = (input.planChunksImpl ?? planSemanticChunks)({
+    graph: candidate.graph,
+    sources: loaded.sources,
+    parser: { version: parser },
+    schema: { version: CLAIM_SCHEMA_VERSION },
+    prompt: { version: CLAIM_PROMPT_VERSION },
+    modelPolicy: { tiers: DEFAULT_MODEL_POLICY }
+  })
+  if (!plan.ok) return blocked('chunk-plan', plan.diagnostics, domain.id)
+  const claims = await (input.buildClaimsImpl ?? buildStructuredClaims)({
+    graph: candidate.graph,
+    chunks: claimsChunks(plan.plan.chunks, candidate.graph),
+    parserVersion: parser,
+    modelPolicy: DEFAULT_MODEL_POLICY,
+    cache: input.cache,
+    cachePath,
+    submitBatchImpl: input.submitBatchImpl
+  })
+  if (!claims.ok) return blocked('claims', claims.blockers, domain.id)
+  return {
+    ok: true,
+    graph: {
+      ...candidate.graph,
+      claims: [...candidate.graph.claims, ...claims.claims].toSorted((left, right) => left.id.localeCompare(right.id))
+    }
+  }
+}
+
+/**
+ * Adds Expected claims, verifies entailment and materializes explicit gaps.
+ * @param {Record<string, unknown>} input build request and injected dependencies
+ * @param {Record<string, unknown>} context loaded build context
+ * @param {Record<string, unknown>} implementedGraph graph with Implemented claims
+ * @returns {Promise<Record<string, unknown>>} blocking result or complete layered graph
+ */
+async function addExpectedAndGaps(input, context, implementedGraph) {
+  const { cachePath, candidate, domain, extractors, loaded, repoRoot, structured } = context
+  const discoveredExpected = await (input.discoverExpectedSourcesImpl ?? discoverExpectedSources)({
+    repoRoot,
+    domain,
+    extractors,
+    testFiles: loaded.sources
+  })
+  if (!discoveredExpected.ok) return blocked('expected-sources', discoveredExpected.diagnostics, domain.id)
+  const mappedExpected = await (input.mapExpectedSourcesImpl ?? mapExpectedSources)({
+    graph: implementedGraph,
+    sources: discoveredExpected.sources,
+    cache: input.expectedCache,
+    cachePath: input.expectedCachePath ?? join(dirname(cachePath), 'expected.json'),
+    submitBatchImpl: input.submitBatchImpl
+  })
+  if (!mappedExpected.ok) return blocked('expected-mapping', mappedExpected.diagnostics, domain.id)
+  const overlaid = applyExpectedOverlay(implementedGraph, {
+    claims: [...mappedExpected.overlay.claims, ...(input.expectedOverlay?.claims ?? [])],
+    evidence: [...mappedExpected.overlay.evidence, ...(input.expectedOverlay?.evidence ?? [])]
+  })
+  if (!overlaid.ok) return blocked('expected-overlay', overlaid.diagnostics, domain.id)
+  const entailment = await (input.verifyEntailmentImpl ?? verifyEvidenceEntailment)({
+    graph: overlaid.graph,
+    evidenceContentById: entailmentEvidenceContentById({
+      graph: overlaid.graph,
+      sources: loaded.sources,
+      structuredEvidenceContentById: structured.evidenceContentById,
+      expectedSources: discoveredExpected.sources
+    }),
+    cache: input.entailmentCache,
+    cachePath: input.entailmentCachePath ?? join(dirname(cachePath), 'entailment.json'),
+    submitBatchImpl: input.submitBatchImpl
+  })
+  if (!entailment.ok) return blocked('entailment', entailment.diagnostics, domain.id)
+  const comparison = await (input.compareGapMappingsImpl ?? compareClaimMappings)({
+    graph: overlaid.graph,
+    cache: input.gapCache,
+    cachePath: input.gapCachePath ?? join(dirname(cachePath), 'gap-mappings.json'),
+    submitBatchImpl: input.submitBatchImpl
+  })
+  if (!comparison.ok) return blocked('gap-mappings', comparison.diagnostics, domain.id)
+  const mergedMappings = mergeGapMappings(comparison.mappings, input.gapMappings ?? [])
+  if (!mergedMappings.ok) return blocked('gap-mappings', mergedMappings.diagnostics, domain.id)
+  const gaps = evaluateGaps({
+    graph: overlaid.graph,
+    mappings: mergedMappings.mappings,
+    unresolvedExpectedClaimIds: comparison.unresolvedExpectedClaimIds
+  })
+  if (!gaps.ok) return blocked('gaps', gaps.diagnostics, domain.id)
+  return {
+    ok: true,
+    graph: {
+      ...overlaid.graph,
+      topics: candidate.graph.topics,
+      gaps: gaps.gaps,
+      protectedZonesByTopicId: candidate.protectedZonesByTopicId
+    }
+  }
+}
+
+/**
+ * Renders, validates and optionally publishes one complete layered graph.
+ * @param {Record<string, unknown>} input build request and injected dependencies
+ * @param {Record<string, unknown>} context loaded build context
+ * @param {Record<string, unknown>} graph complete layered graph
+ * @returns {Promise<Record<string, unknown>>} final build outcome
+ */
+async function materializeBuild(input, context, graph) {
+  const { cachePath, candidate, domain, existingFiles, sourceFingerprint } = context
+  const rendered = (input.renderImpl ?? renderKnowledgeArtifacts)({ graph, existingFiles })
+  if (!rendered.ok) return blocked('render', rendered.diagnostics, domain.id)
+  const humanProjection = Object.entries(rendered.files)
+    .filter(([path]) => path.endsWith('.md'))
+    .map(([, content]) => content)
+    .join('\n')
+  const validate = input.validateImpl ?? validateKnowledgeGraph
+  const validateGraph = () =>
+    validate({ graph, fragments: candidate.fragments, expectedDomainId: domain.id, humanProjection })
+  const validation = await validateGraph()
+  if (!validation.ok) return blocked('validate', validation.diagnostics, domain.id)
+
+  const stagingPath = join(
+    tmpdir(),
+    'n-rules-package-knowledge',
+    fingerprint(domain.id).slice(7),
+    sourceFingerprint.slice(7)
+  )
+  try {
+    await (input.writeShadowCandidateImpl ?? writeShadowCandidate)(stagingPath, rendered.files)
+  } catch (error) {
+    return blocked('shadow', [{ code: 'shadow-write-failed', detail: String(error) }], domain.id)
+  }
+  const result = {
+    ok: true,
+    mode: input.publish ? 'published' : 'shadow',
+    domainId: domain.id,
+    cachePath,
+    stagingPath,
+    files: Object.keys(rendered.files).toSorted()
+  }
+  if (!input.publish) return result
+  const publication = await (input.publishImpl ?? publishKnowledgeArtifacts)({
+    domainRoot: domain.root,
+    files: rendered.files,
+    validate: validateGraph
+  })
+  return publication.ok ? result : blocked('publish', publication.diagnostics, domain.id)
 }
 
 /**
@@ -318,173 +597,11 @@ export async function buildPackageKnowledge(input) {
   if (typeof repoRoot !== 'string' || repoRoot === '' || typeof domainId !== 'string' || domainId === '') {
     return blocked('input', [{ code: 'domain-required', message: 'Потрібні repoRoot і --domain <id>.' }])
   }
-  const resolveDomains = input.resolveDomainsImpl ?? resolveDocumentationDomains
-  const resolved = await resolveDomains(repoRoot)
-  if (resolved.diagnostics?.length > 0) return blocked('domain-resolution', resolved.diagnostics, domainId)
-  const domain = resolved.domains?.find(candidate => candidate.id === domainId)
-  if (!domain) return blocked('domain-resolution', [{ code: 'domain-not-found', domainId }], domainId)
-
-  const readExisting = input.readExistingMarkdownImpl ?? readExistingMarkdown
-  let existingFiles
-  try {
-    existingFiles = await readExisting(domain.root)
-  } catch (error) {
-    return blocked('existing-docs', [{ code: 'existing-docs-read-failed', detail: String(error) }], domain.id)
-  }
-  const previous = await (input.readPreviousManifestImpl ?? readPreviousManifest)(domain.root)
-  if (!previous.ok) return { ...previous, domainId: domain.id }
-  const protectedZones = protectedZonesFromPages(existingFiles, previous.manifest)
-  if (!protectedZones.ok) return blocked('protected-zones', protectedZones.diagnostics, domain.id)
-
-  const config = input.config ?? (await readNRulesConfigLite(repoRoot))
-  const discoverExtensions = input.discoverDomainCodeExtensionsImpl ?? discoverDomainCodeExtensions
-  const inventory = await discoverExtensions({ domain })
-  if (!inventory.ok) return blocked('source-inventory', inventory.diagnostics, domain.id)
-  const loadAdapters = input.loadAdaptersImpl ?? loadKnowledgeAdapters
-  const adapters = await loadAdapters({ repoRoot, domainRoot: domain.root, config, requiredExtensions: inventory.extensions })
-  if (adapters.blocked || !adapters.adapters) return blocked('adapters', adapters.diagnostics, domain.id)
-  const extractors = adapters.adapters.extractor
-  if (!Array.isArray(extractors) || (inventory.extensions.length > 0 && extractors.length === 0))
-    return blocked('adapters', [{ code: 'missing-extractors', message: 'Немає knowledge.extractor@1 adapters.' }], domain.id)
-
-  const loadSources = input.loadSourcesImpl ?? loadDomainSources
-  const loaded =
-    inventory.extensions.length === 0
-      ? { ok: true, sources: [] }
-      : await loadSources({ domain, extensions: inventory.extensions })
-  if (!loaded.ok) return blocked('sources', loaded.diagnostics, domain.id)
-  const loadStructured = input.loadStructuredSourcesImpl ?? loadStructuredSources
-  const structured = await loadStructured({ domain })
-  if (!structured.ok) return blocked('structured-sources', structured.diagnostics, domain.id)
-  const sourceFingerprint = fingerprint(
-    loaded.sources.map(source => ({ path: source.path, content: source.content })).toSorted((left, right) => left.path.localeCompare(right.path))
-  )
-  const candidateDomain = { ...domain, sourceFingerprint }
-  const buildCandidate = input.buildCandidateImpl ?? buildKnowledgeCandidate
-  const candidate = await buildCandidate({
-    domain: candidateDomain,
-    sources: loaded.sources,
-    extractors,
-    structuredFragments: structured.fragments,
-    expectedOverlay: {},
-    gapMappings: [],
-    aliasesByTopicId: input.aliasesByTopicId ?? {},
-    previousManifest: previous.manifest,
-    protectedZonesByTopicId: protectedZones.registry
-  })
-  if (!candidate.ok) return blocked('candidate', candidate.diagnostics, domain.id)
-
-  const cachePath = input.cachePath ?? join(tmpdir(), 'n-rules-package-knowledge', fingerprint(domain.id).slice(7), 'claims.json')
-  let graphWithClaims = candidate.graph
-  if (inventory.extensions.length > 0) {
-    const parser = parserVersion(extractors)
-    const planChunks = input.planChunksImpl ?? planSemanticChunks
-    const plan = planChunks({
-      graph: candidate.graph,
-      sources: loaded.sources,
-      parser: { version: parser },
-      schema: { version: CLAIM_SCHEMA_VERSION },
-      prompt: { version: CLAIM_PROMPT_VERSION },
-      modelPolicy: { tiers: DEFAULT_MODEL_POLICY }
-    })
-    if (!plan.ok) return blocked('chunk-plan', plan.diagnostics, domain.id)
-    const buildClaims = input.buildClaimsImpl ?? buildStructuredClaims
-    const claims = await buildClaims({
-      graph: candidate.graph,
-      chunks: claimsChunks(plan.plan.chunks, candidate.graph),
-      parserVersion: parser,
-      modelPolicy: DEFAULT_MODEL_POLICY,
-      cache: input.cache,
-      cachePath,
-      submitBatchImpl: input.submitBatchImpl
-    })
-    if (!claims.ok) return blocked('claims', claims.blockers, domain.id)
-    graphWithClaims = {
-      ...candidate.graph,
-      claims: [...candidate.graph.claims, ...claims.claims].toSorted((left, right) => left.id.localeCompare(right.id))
-    }
-  }
-  const discoverExpected = input.discoverExpectedSourcesImpl ?? discoverExpectedSources
-  const discoveredExpected = await discoverExpected({ repoRoot, domain, extractors, testFiles: loaded.sources })
-  if (!discoveredExpected.ok) return blocked('expected-sources', discoveredExpected.diagnostics, domain.id)
-  const expectedCachePath = input.expectedCachePath ?? join(dirname(cachePath), 'expected.json')
-  const mapExpected = input.mapExpectedSourcesImpl ?? mapExpectedSources
-  const mappedExpected = await mapExpected({
-    graph: graphWithClaims,
-    sources: discoveredExpected.sources,
-    cache: input.expectedCache,
-    cachePath: expectedCachePath,
-    submitBatchImpl: input.submitBatchImpl
-  })
-  if (!mappedExpected.ok) return blocked('expected-mapping', mappedExpected.diagnostics, domain.id)
-  const expectedOverlay = {
-    claims: [...mappedExpected.overlay.claims, ...(input.expectedOverlay?.claims ?? [])],
-    evidence: [...mappedExpected.overlay.evidence, ...(input.expectedOverlay?.evidence ?? [])]
-  }
-  const overlaid = applyExpectedOverlay(graphWithClaims, expectedOverlay)
-  if (!overlaid.ok) return blocked('expected-overlay', overlaid.diagnostics, domain.id)
-  const verifyEntailment = input.verifyEntailmentImpl ?? verifyEvidenceEntailment
-  const entailment = await verifyEntailment({
-    graph: overlaid.graph,
-    evidenceContentById: entailmentEvidenceContentById({
-      graph: overlaid.graph,
-      sources: loaded.sources,
-      structuredEvidenceContentById: structured.evidenceContentById,
-      expectedSources: discoveredExpected.sources
-    }),
-    cache: input.entailmentCache,
-    cachePath: input.entailmentCachePath ?? join(dirname(cachePath), 'entailment.json'),
-    submitBatchImpl: input.submitBatchImpl
-  })
-  if (!entailment.ok) return blocked('entailment', entailment.diagnostics, domain.id)
-  const compareGapMappings = input.compareGapMappingsImpl ?? compareClaimMappings
-  const comparison = await compareGapMappings({
-    graph: overlaid.graph,
-    cache: input.gapCache,
-    cachePath: input.gapCachePath ?? join(dirname(cachePath), 'gap-mappings.json'),
-    submitBatchImpl: input.submitBatchImpl
-  })
-  if (!comparison.ok) return blocked('gap-mappings', comparison.diagnostics, domain.id)
-  const mergedMappings = mergeGapMappings(comparison.mappings, input.gapMappings ?? [])
-  if (!mergedMappings.ok) return blocked('gap-mappings', mergedMappings.diagnostics, domain.id)
-  const gaps = evaluateGaps({
-    graph: overlaid.graph,
-    mappings: mergedMappings.mappings,
-    unresolvedExpectedClaimIds: comparison.unresolvedExpectedClaimIds
-  })
-  if (!gaps.ok) return blocked('gaps', gaps.diagnostics, domain.id)
-  const graph = {
-    ...overlaid.graph,
-    topics: candidate.graph.topics,
-    gaps: gaps.gaps,
-    protectedZonesByTopicId: candidate.protectedZonesByTopicId
-  }
-  const render = input.renderImpl ?? renderKnowledgeArtifacts
-  const rendered = render({ graph, existingFiles })
-  if (!rendered.ok) return blocked('render', rendered.diagnostics, domain.id)
-  const humanProjection = Object.entries(rendered.files)
-    .filter(([path]) => path.endsWith('.md'))
-    .map(([, content]) => content)
-    .join('\n')
-  const validate = input.validateImpl ?? validateKnowledgeGraph
-  const validation = await validate({ graph, fragments: candidate.fragments, expectedDomainId: domain.id, humanProjection })
-  if (!validation.ok) return blocked('validate', validation.diagnostics, domain.id)
-
-  const stagingPath = join(tmpdir(), 'n-rules-package-knowledge', fingerprint(domain.id).slice(7), sourceFingerprint.slice(7))
-  try {
-    await (input.writeShadowCandidateImpl ?? writeShadowCandidate)(stagingPath, rendered.files)
-  } catch (error) {
-    return blocked('shadow', [{ code: 'shadow-write-failed', detail: String(error) }], domain.id)
-  }
-  if (!input.publish) {
-    return { ok: true, mode: 'shadow', domainId: domain.id, cachePath, stagingPath, files: Object.keys(rendered.files).toSorted() }
-  }
-  const publish = input.publishImpl ?? publishKnowledgeArtifacts
-  const publication = await publish({
-    domainRoot: domain.root,
-    files: rendered.files,
-    validate: async () => validate({ graph, fragments: candidate.fragments, expectedDomainId: domain.id, humanProjection })
-  })
-  if (!publication.ok) return blocked('publish', publication.diagnostics, domain.id)
-  return { ok: true, mode: 'published', domainId: domain.id, cachePath, stagingPath, files: Object.keys(rendered.files).toSorted() }
+  const context = await loadBuildContext(input, repoRoot, domainId)
+  if (!context.ok) return context
+  const implemented = await addImplementedClaims(input, context)
+  if (!implemented.ok) return implemented
+  const layered = await addExpectedAndGaps(input, context, implemented.graph)
+  if (!layered.ok) return layered
+  return materializeBuild(input, context, layered.graph)
 }

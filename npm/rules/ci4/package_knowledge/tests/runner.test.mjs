@@ -1,4 +1,4 @@
-/** Tests end-to-end SHADOW/publish generation with fully injected parser and LLM transport. */
+/* Tests end-to-end SHADOW/publish generation with fully injected parser and LLM transport. */
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, test, vi } from 'vitest'
@@ -8,8 +8,15 @@ import { buildPackageKnowledge } from '../runner.mjs'
 import { compareClaimMappings } from '../gap-mappings.mjs'
 
 const DOMAIN_ID = 'npm:@fixture/orders'
+const REQUIRED_NODE_IDS_RE = /Required node IDs: (\[[^\n]+\])\./u
+const REQUIRED_EDGE_IDS_RE = /Required edge IDs: (\[[^\n]+\])\./u
+const ALLOWED_EVIDENCE_IDS_RE = /Allowed evidence IDs: (\[[^\n]+\])\./u
 
-/** Створює one-file domain fixture, який resolver повертає без filesystem scan. */
+/* Створює one-file domain fixture, який resolver повертає без filesystem scan. */
+/**
+ * @param {string} root fixture root
+ * @returns {object} resolved domain
+ */
 function domain(root) {
   return {
     id: DOMAIN_ID,
@@ -23,7 +30,11 @@ function domain(root) {
   }
 }
 
-/** Повертає complete JS extractor або parser failure для atomicity test. */
+/* Повертає complete JS extractor або parser failure для atomicity test. */
+/**
+ * @param {{fails?: boolean, evidenceSpan?: object, extensions?: string[]}} [options] extractor options
+ * @returns {object} fixture extractor
+ */
 function extractor({ fails = false, evidenceSpan, extensions = ['.mjs'] } = {}) {
   return {
     id: 'fixture-js',
@@ -51,7 +62,9 @@ function extractor({ fails = false, evidenceSpan, extensions = ['.mjs'] } = {}) 
             kind: 'invokes',
             fromLocalId: 'submit',
             to: { unresolvedSpecifier: 'fixture-transport', opaque: true },
-            evidence: [{ span: evidenceSpan ?? { startByte: 0, endByte: Buffer.byteLength(file.content) }, role: 'syntax' }]
+            evidence: [
+              { span: evidenceSpan ?? { startByte: 0, endByte: Buffer.byteLength(file.content) }, role: 'syntax' }
+            ]
           }
         ],
         coverage: { requiredUnits: 1, coveredUnits: 1, requiredEdges: 1, coveredEdges: 1, complete: true }
@@ -60,14 +73,15 @@ function extractor({ fails = false, evidenceSpan, extensions = ['.mjs'] } = {}) 
   }
 }
 
-/** Відповідає strict claims contract на всі map/reduce items без реального LLM. */
+/* Відповідає strict claims contract на всі map/reduce items без реального LLM. */
+/** @returns {ReturnType<typeof vi.fn>} claims transport */
 function successfulBatch() {
   return vi.fn((tier, items) =>
     Promise.resolve(
       items.map(item => {
-        const nodes = JSON.parse(item.prompt.match(/Required node IDs: (\[[^\n]+\])\./u)[1])
-        const edges = JSON.parse(item.prompt.match(/Required edge IDs: (\[[^\n]+\])\./u)[1])
-        const evidence = JSON.parse(item.prompt.match(/Allowed evidence IDs: (\[[^\n]+\])\./u)[1])
+        const nodes = JSON.parse(item.prompt.match(REQUIRED_NODE_IDS_RE)[1])
+        const edges = JSON.parse(item.prompt.match(REQUIRED_EDGE_IDS_RE)[1])
+        const evidence = JSON.parse(item.prompt.match(ALLOWED_EVIDENCE_IDS_RE)[1])
         return {
           customId: item.customId,
           ok: JSON.stringify({
@@ -87,7 +101,8 @@ function successfulBatch() {
   )
 }
 
-/** Повертає transport, який розрізняє claims і semantic gap-comparison prompts. */
+/* Повертає transport, який розрізняє claims і semantic gap-comparison prompts. */
+/** @returns {ReturnType<typeof vi.fn>} mixed comparison transport */
 function comparisonBatch() {
   return vi.fn((tier, items) =>
     Promise.resolve(
@@ -103,13 +118,19 @@ function comparisonBatch() {
             })
           }
         }
-        const nodes = JSON.parse(item.prompt.match(/Required node IDs: (\[[^\n]+\])\./u)[1])
-        const edges = JSON.parse(item.prompt.match(/Required edge IDs: (\[[^\n]+\])\./u)[1])
-        const evidence = JSON.parse(item.prompt.match(/Allowed evidence IDs: (\[[^\n]+\])\./u)[1])
+        const nodes = JSON.parse(item.prompt.match(REQUIRED_NODE_IDS_RE)[1])
+        const edges = JSON.parse(item.prompt.match(REQUIRED_EDGE_IDS_RE)[1])
+        const evidence = JSON.parse(item.prompt.match(ALLOWED_EVIDENCE_IDS_RE)[1])
         return {
           customId: item.customId,
           ok: JSON.stringify({
-            claims: nodes.map(subjectId => ({ subjectId, predicate: 'outcome', value: true, evidenceIds: [evidence[0]], confidence: 1 })),
+            claims: nodes.map(subjectId => ({
+              subjectId,
+              predicate: 'outcome',
+              value: true,
+              evidenceIds: [evidence[0]],
+              confidence: 1
+            })),
             coveredNodeIds: nodes,
             coveredEdgeIds: edges
           })
@@ -119,22 +140,42 @@ function comparisonBatch() {
   )
 }
 
-/** Створює інʼєкції real core pipeline поверх контрольованих domain/adapters/sources. */
+/* Створює інʼєкції real core pipeline поверх контрольованих domain/adapters/sources. */
+/**
+ * @param {string} root fixture root
+ * @param {object} adapter fixture extractor
+ * @param {object} [extra] overrides
+ * @returns {object} runner inputs
+ */
 function inputs(root, adapter, extra = {}) {
   return {
     repoRoot: root,
     domainId: DOMAIN_ID,
-    resolveDomainsImpl: vi.fn(async () => ({ domains: [domain(root)], diagnostics: [] })),
-    discoverDomainCodeExtensionsImpl: vi.fn(async () => ({ ok: true, extensions: ['.mjs'] })),
-    loadAdaptersImpl: vi.fn(async () => ({ blocked: false, diagnostics: [], adapters: { domain: [], extractor: [adapter] } })),
-    loadSourcesImpl: vi.fn(async () => ({ ok: true, sources: [{ path: 'src/orders.mjs', content: 'export function submit() {}' }] })),
-    loadStructuredSourcesImpl: vi.fn(async () => ({ ok: true, fragments: [] })),
-    verifyEntailmentImpl: vi.fn(async ({ graph }) => ({ ok: true, claims: graph.claims, cache: { version: 1, entries: {} } })),
+    resolveDomainsImpl: vi.fn(() => ({ domains: [domain(root)], diagnostics: [] })),
+    discoverDomainCodeExtensionsImpl: vi.fn(() => ({ ok: true, extensions: ['.mjs'] })),
+    loadAdaptersImpl: vi.fn(() => ({
+      blocked: false,
+      diagnostics: [],
+      adapters: { domain: [], extractor: [adapter] }
+    })),
+    loadSourcesImpl: vi.fn(() => ({
+      ok: true,
+      sources: [{ path: 'src/orders.mjs', content: 'export function submit() {}' }]
+    })),
+    loadStructuredSourcesImpl: vi.fn(() => ({ ok: true, fragments: [] })),
+    verifyEntailmentImpl: vi.fn(({ graph }) => ({
+      ok: true,
+      claims: graph.claims,
+      cache: { version: 1, entries: {} }
+    })),
     ...extra
   }
 }
 
-/** Створює explicit Expected source fixture з local evidence content. */
+/* Створює explicit Expected source fixture з local evidence content. */
+/**
+ * @returns {object} Expected source
+ */
 function expectedSource() {
   return {
     id: 'source:expected',
@@ -143,18 +184,35 @@ function expectedSource() {
   }
 }
 
-/** Повертає mapped Expected overlay для current implemented graph. */
+/**
+ * Повертає mapped Expected overlay для current implemented graph.
+ * @param {object} graph implemented graph
+ * @returns {object} mapped overlay
+ */
 function mappedExpected(graph) {
   return {
     ok: true,
     overlay: {
-      evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/specs/orders.md', contentHash: 'sha256:expected' }],
-      claims: [{ id: 'claim:expected', subjectId: graph.nodes[0].id, predicate: 'outcome', value: true, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }]
+      evidence: [
+        { id: 'evidence:expected', kind: 'spec', path: 'docs/specs/orders.md', contentHash: 'sha256:expected' }
+      ],
+      claims: [
+        {
+          id: 'claim:expected',
+          subjectId: graph.nodes[0].id,
+          predicate: 'outcome',
+          value: true,
+          evidenceIds: ['evidence:expected'],
+          confidence: 1,
+          sourceFingerprint: 'sha256:expected'
+        }
+      ]
     }
   }
 }
 
-/** Returns one schema-evidenced external contract fragment for runner injection. */
+/* Returns one schema-evidenced external contract fragment for runner injection. */
+/** @returns {object} structured contract fixture */
 function structuredContract() {
   const configId = `config:${DOMAIN_ID}:openapi`
   const contractId = `contract:${DOMAIN_ID}:orders-api`
@@ -187,7 +245,13 @@ function structuredContract() {
           }
         ],
         edges: [
-          { id: 'edge:orders-openapi', kind: 'implements', fromId: configId, toId: contractId, evidenceIds: [evidenceId] }
+          {
+            id: 'edge:orders-openapi',
+            kind: 'implements',
+            fromId: configId,
+            toId: contractId,
+            evidenceIds: [evidenceId]
+          }
         ],
         evidence: [
           {
@@ -206,9 +270,13 @@ function structuredContract() {
 describe('buildPackageKnowledge', () => {
   test('passes the discovered inventory to adapter and source loaders before candidate work', async () => {
     await withTmpDir(async root => {
-      const inventory = vi.fn(async () => ({ ok: true, extensions: ['.py', '.ts'] }))
-      const adapters = vi.fn(async () => ({ blocked: false, diagnostics: [], adapters: { domain: [], extractor: [extractor({ extensions: ['.py', '.ts'] })] } }))
-      const sources = vi.fn(async () => ({
+      const inventory = vi.fn(() => ({ ok: true, extensions: ['.py', '.ts'] }))
+      const adapters = vi.fn(() => ({
+        blocked: false,
+        diagnostics: [],
+        adapters: { domain: [], extractor: [extractor({ extensions: ['.py', '.ts'] })] }
+      }))
+      const sources = vi.fn(() => ({
         ok: true,
         sources: [
           { path: 'src/orders.py', content: 'def submit(): pass\n' },
@@ -227,7 +295,10 @@ describe('buildPackageKnowledge', () => {
       expect(result).toMatchObject({ ok: true, mode: 'shadow' })
       expect(inventory).toHaveBeenCalledWith({ domain: expect.objectContaining({ id: DOMAIN_ID }) })
       expect(adapters).toHaveBeenCalledWith(expect.objectContaining({ requiredExtensions: ['.py', '.ts'] }))
-      expect(sources).toHaveBeenCalledWith({ domain: expect.objectContaining({ id: DOMAIN_ID }), extensions: ['.py', '.ts'] })
+      expect(sources).toHaveBeenCalledWith({
+        domain: expect.objectContaining({ id: DOMAIN_ID }),
+        extensions: ['.py', '.ts']
+      })
     })
   })
 
@@ -238,14 +309,21 @@ describe('buildPackageKnowledge', () => {
       const batch = successfulBatch()
       const result = await buildPackageKnowledge(
         inputs(root, extractor(), {
-          discoverDomainCodeExtensionsImpl: vi.fn(async () => ({ ok: false, diagnostics: [{ code: 'source-read-failed' }] })),
+          discoverDomainCodeExtensionsImpl: vi.fn(() => ({
+            ok: false,
+            diagnostics: [{ code: 'source-read-failed' }]
+          })),
           loadAdaptersImpl: adapters,
           loadSourcesImpl: sources,
           submitBatchImpl: batch
         })
       )
 
-      expect(result).toMatchObject({ ok: false, stage: 'source-inventory', diagnostics: [{ code: 'source-read-failed' }] })
+      expect(result).toMatchObject({
+        ok: false,
+        stage: 'source-inventory',
+        diagnostics: [{ code: 'source-read-failed' }]
+      })
       expect(adapters).not.toHaveBeenCalled()
       expect(sources).not.toHaveBeenCalled()
       expect(batch).not.toHaveBeenCalled()
@@ -257,8 +335,8 @@ describe('buildPackageKnowledge', () => {
       const sources = vi.fn()
       const result = await buildPackageKnowledge(
         inputs(root, extractor(), {
-          discoverDomainCodeExtensionsImpl: vi.fn(async () => ({ ok: true, extensions: ['.rs'] })),
-          loadAdaptersImpl: vi.fn(async () => ({
+          discoverDomainCodeExtensionsImpl: vi.fn(() => ({ ok: true, extensions: ['.rs'] })),
+          loadAdaptersImpl: vi.fn(() => ({
             blocked: true,
             diagnostics: [{ code: 'missing-extractor-extension', extension: '.rs' }],
             adapters: null
@@ -267,7 +345,11 @@ describe('buildPackageKnowledge', () => {
         })
       )
 
-      expect(result).toMatchObject({ ok: false, stage: 'adapters', diagnostics: [{ code: 'missing-extractor-extension' }] })
+      expect(result).toMatchObject({
+        ok: false,
+        stage: 'adapters',
+        diagnostics: [{ code: 'missing-extractor-extension' }]
+      })
       expect(sources).not.toHaveBeenCalled()
     })
   })
@@ -278,10 +360,14 @@ describe('buildPackageKnowledge', () => {
       const batch = successfulBatch()
       const result = await buildPackageKnowledge(
         inputs(root, extractor(), {
-          discoverDomainCodeExtensionsImpl: vi.fn(async () => ({ ok: true, extensions: [] })),
-          loadAdaptersImpl: vi.fn(async () => ({ blocked: false, diagnostics: [], adapters: { domain: [], extractor: [] } })),
+          discoverDomainCodeExtensionsImpl: vi.fn(() => ({ ok: true, extensions: [] })),
+          loadAdaptersImpl: vi.fn(() => ({
+            blocked: false,
+            diagnostics: [],
+            adapters: { domain: [], extractor: [] }
+          })),
           loadSourcesImpl: sources,
-          loadStructuredSourcesImpl: vi.fn(async () => structuredContract()),
+          loadStructuredSourcesImpl: vi.fn(() => structuredContract()),
           submitBatchImpl: batch
         })
       )
@@ -289,7 +375,9 @@ describe('buildPackageKnowledge', () => {
       expect(result).toMatchObject({ ok: true, mode: 'shadow' })
       expect(sources).not.toHaveBeenCalled()
       expect(batch).not.toHaveBeenCalled()
-      expect(await readFile(join(result.stagingPath, 'docs', '.docgen', 'manifest.json'), 'utf8')).toContain('Orders API')
+      expect(await readFile(join(result.stagingPath, 'docs', '.docgen', 'manifest.json'), 'utf8')).toContain(
+        'Orders API'
+      )
     })
   })
 
@@ -325,7 +413,7 @@ describe('buildPackageKnowledge', () => {
 
   test('passes structured fragments into the candidate and rendered manifest', async () => {
     await withTmpDir(async root => {
-      const loader = vi.fn(async () => structuredContract())
+      const loader = vi.fn(() => structuredContract())
       const result = await buildPackageKnowledge(
         inputs(root, extractor(), { loadStructuredSourcesImpl: loader, submitBatchImpl: successfulBatch() })
       )
@@ -345,12 +433,19 @@ describe('buildPackageKnowledge', () => {
       const batch = successfulBatch()
       const result = await buildPackageKnowledge(
         inputs(root, extractor(), {
-          loadStructuredSourcesImpl: vi.fn(async () => ({ ok: false, diagnostics: [{ code: 'structured-parse-failed' }] })),
+          loadStructuredSourcesImpl: vi.fn(() => ({
+            ok: false,
+            diagnostics: [{ code: 'structured-parse-failed' }]
+          })),
           submitBatchImpl: batch
         })
       )
 
-      expect(result).toMatchObject({ ok: false, stage: 'structured-sources', diagnostics: [{ code: 'structured-parse-failed' }] })
+      expect(result).toMatchObject({
+        ok: false,
+        stage: 'structured-sources',
+        diagnostics: [{ code: 'structured-parse-failed' }]
+      })
       expect(batch).not.toHaveBeenCalled()
       await expect(readFile(join(root, 'docs', 'index.md'), 'utf8')).resolves.toBe('legacy document\n')
     })
@@ -360,7 +455,9 @@ describe('buildPackageKnowledge', () => {
     await withTmpDir(async root => {
       await mkdir(join(root, 'docs'), { recursive: true })
       await writeFile(join(root, 'docs', 'legacy.md'), 'keep legacy file documentation\n', 'utf8')
-      const result = await buildPackageKnowledge(inputs(root, extractor(), { publish: true, submitBatchImpl: successfulBatch() }))
+      const result = await buildPackageKnowledge(
+        inputs(root, extractor(), { publish: true, submitBatchImpl: successfulBatch() })
+      )
 
       expect(result).toMatchObject({ ok: true, mode: 'published', domainId: DOMAIN_ID })
       expect(await readFile(join(root, 'docs', 'legacy.md'), 'utf8')).toBe('keep legacy file documentation\n')
@@ -401,18 +498,27 @@ describe('buildPackageKnowledge', () => {
       expect(comparisonResult.mappings[0]).toMatchObject({ relation: 'equivalent' })
       expect(batch).toHaveBeenCalledTimes(1)
       const manifest = JSON.parse(await readFile(join(result.stagingPath, 'docs', '.docgen', 'manifest.json'), 'utf8'))
-      expect(manifest.gaps).toEqual([expect.objectContaining({ expectedClaimId: 'claim:expected', status: 'satisfied' })])
+      expect(manifest.gaps).toEqual([
+        expect.objectContaining({ expectedClaimId: 'claim:expected', status: 'satisfied' })
+      ])
     })
   })
 
   test('renders semantic comparator contradiction as diverged', async () => {
     await withTmpDir(async root => {
-      const comparator = vi.fn(async ({ graph }) => {
+      const comparator = vi.fn(({ graph }) => {
         const implemented = graph.claims.find(claim => claim.layer === 'implemented')
         const expected = graph.claims.find(claim => claim.layer === 'expected')
         return {
           ok: true,
-          mappings: [{ expectedClaimId: expected.id, implementedClaimId: implemented.id, relation: 'contradicts', evidenceIds: [...expected.evidenceIds, ...implemented.evidenceIds].toSorted() }],
+          mappings: [
+            {
+              expectedClaimId: expected.id,
+              implementedClaimId: implemented.id,
+              relation: 'contradicts',
+              evidenceIds: [...expected.evidenceIds, ...implemented.evidenceIds].toSorted()
+            }
+          ],
           unresolvedExpectedClaimIds: [],
           cache: { version: 1, entries: {} }
         }
@@ -420,29 +526,62 @@ describe('buildPackageKnowledge', () => {
       const result = await buildPackageKnowledge(
         inputs(root, extractor(), {
           submitBatchImpl: successfulBatch(),
-          expectedOverlay: { claims: [{ id: 'claim:expected:diverged', subjectId: 'code-unit:npm:@fixture/orders:js:src/orders.mjs#submit', predicate: 'outcome', value: false, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }], evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/spec.md', contentHash: 'sha256:expected' }] },
+          expectedOverlay: {
+            claims: [
+              {
+                id: 'claim:expected:diverged',
+                subjectId: 'code-unit:npm:@fixture/orders:js:src/orders.mjs#submit',
+                predicate: 'outcome',
+                value: false,
+                evidenceIds: ['evidence:expected'],
+                confidence: 1,
+                sourceFingerprint: 'sha256:expected'
+              }
+            ],
+            evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/spec.md', contentHash: 'sha256:expected' }]
+          },
           compareGapMappingsImpl: comparator
         })
       )
 
       expect(result).toMatchObject({ ok: true, mode: 'shadow' })
-      expect(await readFile(join(result.stagingPath, 'docs', 'implementation-gaps.md'), 'utf8')).toContain('Status: diverged')
+      expect(await readFile(join(result.stagingPath, 'docs', 'implementation-gaps.md'), 'utf8')).toContain(
+        'Status: diverged'
+      )
     })
   })
 
   test('renders explicit ambiguous comparison as unresolved', async () => {
     await withTmpDir(async root => {
-      const expected = { id: 'claim:expected:ambiguous', subjectId: 'code-unit:npm:@fixture/orders:js:src/orders.mjs#submit', predicate: 'outcome', value: false, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }
+      const expected = {
+        id: 'claim:expected:ambiguous',
+        subjectId: 'code-unit:npm:@fixture/orders:js:src/orders.mjs#submit',
+        predicate: 'outcome',
+        value: false,
+        evidenceIds: ['evidence:expected'],
+        confidence: 1,
+        sourceFingerprint: 'sha256:expected'
+      }
       const result = await buildPackageKnowledge(
         inputs(root, extractor(), {
           submitBatchImpl: successfulBatch(),
-          expectedOverlay: { claims: [expected], evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/spec.md', contentHash: 'sha256:expected' }] },
-          compareGapMappingsImpl: vi.fn(async () => ({ ok: true, mappings: [], unresolvedExpectedClaimIds: [expected.id], cache: { version: 1, entries: {} } }))
+          expectedOverlay: {
+            claims: [expected],
+            evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/spec.md', contentHash: 'sha256:expected' }]
+          },
+          compareGapMappingsImpl: vi.fn(() => ({
+            ok: true,
+            mappings: [],
+            unresolvedExpectedClaimIds: [expected.id],
+            cache: { version: 1, entries: {} }
+          }))
         })
       )
 
       expect(result).toMatchObject({ ok: true, mode: 'shadow' })
-      expect(await readFile(join(result.stagingPath, 'docs', 'implementation-gaps.md'), 'utf8')).toContain('Status: unresolved')
+      expect(await readFile(join(result.stagingPath, 'docs', 'implementation-gaps.md'), 'utf8')).toContain(
+        'Status: unresolved'
+      )
     })
   })
 
@@ -454,13 +593,20 @@ describe('buildPackageKnowledge', () => {
         inputs(root, extractor(), {
           publish: true,
           submitBatchImpl: successfulBatch(),
-          compareGapMappingsImpl: vi.fn(async () => ({ ok: false, diagnostics: [{ code: 'invalid-comparison-json' }] })),
+          compareGapMappingsImpl: vi.fn(() => ({
+            ok: false,
+            diagnostics: [{ code: 'invalid-comparison-json' }]
+          })),
           renderImpl: render,
           publishImpl: publish
         })
       )
 
-      expect(result).toMatchObject({ ok: false, stage: 'gap-mappings', diagnostics: [{ code: 'invalid-comparison-json' }] })
+      expect(result).toMatchObject({
+        ok: false,
+        stage: 'gap-mappings',
+        diagnostics: [{ code: 'invalid-comparison-json' }]
+      })
       expect(render).not.toHaveBeenCalled()
       expect(publish).not.toHaveBeenCalled()
     })
@@ -479,19 +625,36 @@ describe('buildPackageKnowledge', () => {
         inputs(root, extractor(), {
           submitBatchImpl: successfulBatch(),
           gapMappings: [mapping],
-          compareGapMappingsImpl: vi.fn(async () => ({ ok: true, mappings: [mapping], unresolvedExpectedClaimIds: [], cache: { version: 1, entries: {} } })),
+          compareGapMappingsImpl: vi.fn(() => ({
+            ok: true,
+            mappings: [mapping],
+            unresolvedExpectedClaimIds: [],
+            cache: { version: 1, entries: {} }
+          })),
           renderImpl: render
         })
       )
 
-      expect(result).toMatchObject({ ok: false, stage: 'gap-mappings', diagnostics: [{ code: 'duplicate-gap-mapping' }] })
+      expect(result).toMatchObject({
+        ok: false,
+        stage: 'gap-mappings',
+        diagnostics: [{ code: 'duplicate-gap-mapping' }]
+      })
       expect(render).not.toHaveBeenCalled()
     })
   })
 
   test('passes unchanged gap cache to comparator for zero-call repeat', async () => {
     await withTmpDir(async root => {
-      const expected = { id: 'claim:expected:cached', subjectId: 'code-unit:npm:@fixture/orders:js:src/orders.mjs#submit', predicate: 'outcome', value: false, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }
+      const expected = {
+        id: 'claim:expected:cached',
+        subjectId: 'code-unit:npm:@fixture/orders:js:src/orders.mjs#submit',
+        predicate: 'outcome',
+        value: false,
+        evidenceIds: ['evidence:expected'],
+        confidence: 1,
+        sourceFingerprint: 'sha256:expected'
+      }
       const cache = { entries: {} }
       const gapCache = { entries: {} }
       const firstBatch = comparisonBatch()
@@ -499,7 +662,10 @@ describe('buildPackageKnowledge', () => {
         inputs(root, extractor(), {
           cache,
           gapCache,
-          expectedOverlay: { claims: [expected], evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/spec.md', contentHash: 'sha256:expected' }] },
+          expectedOverlay: {
+            claims: [expected],
+            evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/spec.md', contentHash: 'sha256:expected' }]
+          },
           submitBatchImpl: firstBatch
         })
       )
@@ -508,7 +674,10 @@ describe('buildPackageKnowledge', () => {
         inputs(root, extractor(), {
           cache,
           gapCache,
-          expectedOverlay: { claims: [expected], evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/spec.md', contentHash: 'sha256:expected' }] },
+          expectedOverlay: {
+            claims: [expected],
+            evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/spec.md', contentHash: 'sha256:expected' }]
+          },
           submitBatchImpl: secondBatch
         })
       )
@@ -526,11 +695,14 @@ describe('buildPackageKnowledge', () => {
       const codeEvidence = 'export function submit() {}'
       const codeEvidenceStart = Buffer.byteLength("export const status = '🙂';\n")
       const batch = successfulBatch()
-      const verifier = vi.fn(async input => {
+      const verifier = vi.fn(input => {
         expect(Object.values(input.evidenceContentById)).toContain(codeEvidence)
-        const semanticClaims = input.graph.claims.filter(claim => claim.layer === 'implemented' || claim.layer === 'expected')
+        const semanticClaims = input.graph.claims.filter(
+          claim => claim.layer === 'implemented' || claim.layer === 'expected'
+        )
         for (const claim of semanticClaims) {
-          for (const evidenceId of claim.evidenceIds) expect(input.evidenceContentById[evidenceId]).toEqual(expect.any(String))
+          for (const evidenceId of claim.evidenceIds)
+            expect(input.evidenceContentById[evidenceId]).toEqual(expect.any(String))
         }
         expect(input.evidenceContentById).toMatchObject({
           'evidence:orders-openapi': 'openapi: 3.1.0\n',
@@ -540,14 +712,20 @@ describe('buildPackageKnowledge', () => {
         return { ok: true, claims: input.graph.claims, cache: { version: 1, entries: {} } }
       })
       const result = await buildPackageKnowledge(
-        inputs(root, extractor({ evidenceSpan: { startByte: codeEvidenceStart, endByte: codeEvidenceStart + Buffer.byteLength(codeEvidence) } }), {
-          loadSourcesImpl: vi.fn(async () => ({ ok: true, sources: [{ path: 'src/orders.mjs', content: code }] })),
-          loadStructuredSourcesImpl: vi.fn(async () => structuredContract()),
-          discoverExpectedSourcesImpl: vi.fn(async () => ({ ok: true, sources: [expectedSource()] })),
-          mapExpectedSourcesImpl: vi.fn(async ({ graph }) => mappedExpected(graph)),
-          verifyEntailmentImpl: verifier,
-          submitBatchImpl: batch
-        })
+        inputs(
+          root,
+          extractor({
+            evidenceSpan: { startByte: codeEvidenceStart, endByte: codeEvidenceStart + Buffer.byteLength(codeEvidence) }
+          }),
+          {
+            loadSourcesImpl: vi.fn(() => ({ ok: true, sources: [{ path: 'src/orders.mjs', content: code }] })),
+            loadStructuredSourcesImpl: vi.fn(() => structuredContract()),
+            discoverExpectedSourcesImpl: vi.fn(() => ({ ok: true, sources: [expectedSource()] })),
+            mapExpectedSourcesImpl: vi.fn(({ graph }) => mappedExpected(graph)),
+            verifyEntailmentImpl: verifier,
+            submitBatchImpl: batch
+          }
+        )
       )
 
       expect(result).toMatchObject({ ok: true, mode: 'shadow' })
@@ -564,7 +742,7 @@ describe('buildPackageKnowledge', () => {
         inputs(root, extractor(), {
           publish: true,
           submitBatchImpl: successfulBatch(),
-          verifyEntailmentImpl: vi.fn(async () => ({ ok: false, diagnostics: [{ code: 'claim-not-entailed' }] })),
+          verifyEntailmentImpl: vi.fn(() => ({ ok: false, diagnostics: [{ code: 'claim-not-entailed' }] })),
           renderImpl: render,
           publishImpl: publish
         })

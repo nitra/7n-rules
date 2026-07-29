@@ -3,10 +3,10 @@ type: JS Module
 title: source-loader.mjs
 resource: npm/rules/ci4/package_knowledge/source-loader.mjs
 docgen:
-  crc: 9f9a15b2
+  crc: 05878c8b
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
-  score: 90
+  score: 100
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
@@ -20,15 +20,16 @@ gitignore і не переходить через symlinks. Він поверт�
 
 ## Поведінка
 
-discoverDomainCodeExtensions повертає diagnostic, що блокує виконання, якщо root домену не є absolute path або якщо root недоступний через filesystem error; у таких випадках користувач отримує diagnostics замість списку розширень. Він знаходить лише наявні `.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.tsx`, `.vue`, `.rs`, `.py` та `.php`, враховує gitignore, не переходить symlinks, а шляхи в межах `.git` і `node_modules` свідомо пропускаються.
+discoverDomainCodeExtensions повертає перелік підтримуваних code extensions лише для абсолютного domain root; якщо root недоступний або невалідний, функція зупиняється з діагностикою. Під час збору результату недоступні файли, вихід за boundary через symlink або інші проблеми читання блокують відповідь і не дають часткового переліку.
 
-loadDomainSources повертає diagnostic, що блокує виконання, за тих самих умов для root, а також коли передані extensions не відповідають очікуваному формату. Успішний результат містить лише стабільні relative paths і вміст source-файлів; будь-яка помилка під час обробки окремого source перетворюється на diagnostics і зупиняє видачу результату.
-
-Обидві функції працюють у межах одного domain і не змішують source з вкладених domains; для цього враховуються exclusions nested domains. Якщо під час перевірки source виявляється вихід за boundary через symlink або файл стає недоступним, це також повертається як blocker.
+loadDomainSources приймає лише абсолютний domain root і непорожній набір valid extensions; інакше повертає діагностику без результату. На виході дає стабільні relative paths і content лише для файлів із переданими extensions; пошук не зачіпає .git і node_modules, а також не включає вкладені domains. Будь-яка помилка читання, недоступний root або escape за boundary через symlink переводять виклик у diagnostic flow без часткового успіху.
 
 ## Публічний API
 
-- discoverDomainCodeExtensions — Виявляє наявні підтримувані code extensions без залежності від встановлених adapters; unreadable file або symlink escape блокує вибір adapter-ів.
+- discoverDomainCodeExtensions — Виявляє наявні підтримувані code extensions без залежності від встановлених adapters.
+
+Кожен recognized file перечитується через той самий containment gate, тому race,
+unreadable file або symlink escape блокує вибір adapter-ів до candidate pipeline.
 - loadDomainSources — Завантажує всі source files одного domain без source nested packages.
 
 ## Сценарії використання

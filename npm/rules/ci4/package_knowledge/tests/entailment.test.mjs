@@ -69,7 +69,12 @@ describe('verifyEvidenceEntailment', () => {
 
   test('blocks unrelated or contradictory claims after the strict ladder', async () => {
     const submitBatchImpl = vi.fn((tier, items) =>
-      Promise.resolve(items.map(item => ({ customId: item.customId, ok: JSON.stringify({ claimId: item.customId, entails: false, unsupportedFields: ['value'] }) })))
+      Promise.resolve(
+        items.map(item => ({
+          customId: item.customId,
+          ok: JSON.stringify({ claimId: item.customId, entails: false, unsupportedFields: ['value'] })
+        }))
+      )
     )
 
     const result = await verifyEvidenceEntailment({
@@ -124,7 +129,10 @@ describe('verifyEvidenceEntailment', () => {
       submitBatchImpl
     })
 
-    expect(result).toMatchObject({ ok: false, diagnostics: [expect.objectContaining({ code: 'missing-evidence-content', claimId: EXPECTED.id })] })
+    expect(result).toMatchObject({
+      ok: false,
+      diagnostics: [expect.objectContaining({ code: 'missing-evidence-content', claimId: EXPECTED.id })]
+    })
     expect(submitBatchImpl).not.toHaveBeenCalled()
   })
 
@@ -138,10 +146,28 @@ describe('verifyEvidenceEntailment', () => {
 
   test('fails invalid verifier inputs before transport', async () => {
     const transport = vi.fn()
-    const invalidGraph = await verifyEvidenceEntailment({ graph: {}, evidenceContentById: {}, submitBatchImpl: transport })
-    const invalidPolicy = await verifyEvidenceEntailment({ graph: graph([IMPLEMENTED]), evidenceContentById: EVIDENCE_CONTENT, modelPolicy: ['min'], submitBatchImpl: transport })
-    const invalidVersion = await verifyEvidenceEntailment({ graph: graph([IMPLEMENTED]), evidenceContentById: EVIDENCE_CONTENT, promptVersion: '', submitBatchImpl: transport })
-    const blankMapContent = await verifyEvidenceEntailment({ graph: graph([IMPLEMENTED]), evidenceContentById: new Map([['evidence:submit', '']]), submitBatchImpl: transport })
+    const invalidGraph = await verifyEvidenceEntailment({
+      graph: {},
+      evidenceContentById: {},
+      submitBatchImpl: transport
+    })
+    const invalidPolicy = await verifyEvidenceEntailment({
+      graph: graph([IMPLEMENTED]),
+      evidenceContentById: EVIDENCE_CONTENT,
+      modelPolicy: ['min'],
+      submitBatchImpl: transport
+    })
+    const invalidVersion = await verifyEvidenceEntailment({
+      graph: graph([IMPLEMENTED]),
+      evidenceContentById: EVIDENCE_CONTENT,
+      promptVersion: '',
+      submitBatchImpl: transport
+    })
+    const blankMapContent = await verifyEvidenceEntailment({
+      graph: graph([IMPLEMENTED]),
+      evidenceContentById: new Map([['evidence:submit', '']]),
+      submitBatchImpl: transport
+    })
 
     expect(invalidGraph).toMatchObject({ ok: false, diagnostics: [{ code: 'invalid-entailment-graph' }] })
     expect(invalidPolicy).toMatchObject({ ok: false, diagnostics: [{ code: 'invalid-entailment-model-policy' }] })

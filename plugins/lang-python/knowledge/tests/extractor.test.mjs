@@ -3,7 +3,7 @@ import { Buffer } from 'node:buffer'
 import { describe, expect, test } from 'vitest'
 
 import { buildNormalizedGraph } from '../../../../npm/rules/ci4/package_knowledge/normalized-graph.mjs'
-import pythonKnowledgeExtractor, { analyzeFile } from '../extractor.mjs'
+import pythonKnowledgeExtractor, { analyzeFile, collectTestScenarios } from '../extractor.mjs'
 
 /**
  * Створює test input для Python knowledge extractor.
@@ -117,6 +117,30 @@ describe('knowledge.extractor@1 Python adapter', () => {
     await expect(analyzeFile(input('src/wildcard.py', 'from integrations import *\n'))).resolves.toEqual({
       ok: false,
       diagnostics: [expect.objectContaining({ code: 'unsupported-import-syntax', path: 'src/wildcard.py' })]
+    })
+  })
+
+  test('збирає лише active Python assertions як explicit Expected scenarios', async () => {
+    const content = [
+      'def test_accepts_order():',
+      '    assert submit()',
+      '',
+      '@pytest.mark.skip',
+      'def test_skipped_order():',
+      '    assert submit()',
+      '',
+      'def helper():',
+      '    assert submit()'
+    ].join('\n')
+
+    await expect(collectTestScenarios({ file: { path: 'tests/test_orders.py', content } })).resolves.toEqual({
+      ok: true,
+      scenarios: [
+        expect.objectContaining({
+          anchor: 'test_accepts_order',
+          content: expect.stringContaining('assert submit()')
+        })
+      ]
     })
   })
 })

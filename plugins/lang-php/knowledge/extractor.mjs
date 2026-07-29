@@ -354,5 +354,5 @@ const phpKnowledgeExtractor = Object.freeze({
   collectTestScenarios
 })
 
-/* Експортує PHP full-parser adapter для knowledge.extractor@1. */
+/** Експортує PHP full-parser adapter для knowledge.extractor@1. */
 export default phpKnowledgeExtractor

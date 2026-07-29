@@ -3,9 +3,9 @@ type: JS Module
 title: claims.mjs
 resource: npm/rules/ci4/package_knowledge/claims.mjs
 docgen:
-  crc: 318f4fc7
-  model: openai-codex/gpt-5.5
-  tier: cloud-avg
+  crc: 40d1d30b
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
   score: 80
   judgeModel: openai-codex/gpt-5.4-mini
 ---
@@ -41,4 +41,5 @@ blocking diagnostic; no whole-domain retry or fallback claim is produced.
 
 ## Гарантії поведінки
 
+- Містить локальні fail-safe гілки; інші помилки можуть поширюватися назовні.
 - Кешує результати в межах одного прогону.

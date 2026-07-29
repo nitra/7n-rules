@@ -3,9 +3,9 @@ type: JS Module
 title: topic-discovery.mjs
 resource: npm/rules/ci4/package_knowledge/topic-discovery.mjs
 docgen:
-  crc: 2aba0243
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
+  crc: 325cdc64
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min-retry
   score: 80
 ---
 
@@ -23,12 +23,13 @@ distinct closures лишаються окремими, а legacy IDs збері�
 ## Публічний API
 
 - collectReachableNodeIds — Знаходить directed reachable closure. Cyclic SCC потрапляє цілком, бо обхід
-продовжується до fixed point тільки за підтвердженими edges.
+  продовжується до fixed point тільки за підтвердженими edges.
 - discoverTopics — Відкриває stable process/contract topics із graph seeds.
 
 Integration та outcome не дублюють topic public entry point, якщо він уже
 evidence-backed досягає відповідної boundary. Інакше вони лишаються
 standalone seed, що важливо для event-driven або contract-only domain.
+
 - resolveTopic — Шукає canonical topic за його current ID або historical alias.
 
 ## Сценарії використання

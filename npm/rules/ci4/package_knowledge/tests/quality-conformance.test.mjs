@@ -24,7 +24,7 @@ async function readFixture(name) {
 /**
  * Додає discovered topics до fixture graph, не змінюючи canonical fixture bytes.
  * @param {Record<string, unknown>} graph fixture graph
- * @returns {Record<string, unknown>} renderable graph
+ * @returns {Record<string, unknown>} render-ready graph
  */
 function graphWithTopics(graph) {
   const candidate = structuredClone(graph)
@@ -97,9 +97,9 @@ describe('package-knowledge golden quality conformance', () => {
       .map(([, content]) => content)
       .join('\n')
 
-    await expect(
-      validateKnowledgeGraph({ graph, fragments: [{ ok: false }], humanProjection })
-    ).resolves.toMatchObject({ ok: false, diagnostics: [expect.objectContaining({ code: 'extractor-fragment-failed' })] })
+    await expect(validateKnowledgeGraph({ graph, fragments: [{ ok: false }], humanProjection })).resolves.toMatchObject(
+      { ok: false, diagnostics: [expect.objectContaining({ code: 'extractor-fragment-failed' })] }
+    )
     await expect(
       validateKnowledgeGraph({
         graph,

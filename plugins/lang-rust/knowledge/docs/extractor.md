@@ -3,7 +3,7 @@ type: JS Module
 title: extractor.mjs
 resource: plugins/lang-rust/knowledge/extractor.mjs
 docgen:
-  crc: 6b78648a
+  crc: ba73ccf5
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
@@ -25,7 +25,7 @@ blocking diagnostic, без partial fragment-а або whole-file fallback.
 
 ## Сценарії використання
 
-- `plugins/lang-rust/knowledge/tests/extractor.test.mjs` (knowledge.extractor@1 Rust adapter) — декларує versioned Tree-sitter WASM contract для .rs; будує public/private units, AST imports і local/opaque call edges; UTF-8 spans лишаються byte-stable для unicode перед declaration-ом; malformed Rust повертає blocking parse diagnostic без partial graph; unsupported extension повертає явний blocking diagnostic
+- `plugins/lang-rust/knowledge/tests/extractor.test.mjs` (knowledge.extractor@1 Rust adapter) — декларує versioned Tree-sitter WASM contract для .rs; будує public/private units, AST imports і local/opaque call edges; UTF-8 spans лишаються byte-stable для unicode перед declaration-ом; malformed Rust повертає blocking parse diagnostic без partial graph; unsupported extension повертає явний blocking diagnostic; ще 2
 
 ## Гарантії поведінки
 

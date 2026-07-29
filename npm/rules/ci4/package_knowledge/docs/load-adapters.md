@@ -3,9 +3,9 @@ type: JS Module
 title: load-adapters.mjs
 resource: npm/rules/ci4/package_knowledge/load-adapters.mjs
 docgen:
-  crc: 82cbaae6
-  model: openai-codex/gpt-5.5
-  tier: cloud-avg
+  crc: 91645cb5
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
   score: 80
 ---
 
@@ -20,9 +20,9 @@ Loader вимагає явні repository/domain roots і повертає ли�
 ## Публічний API
 
 - loadKnowledgeAdapters — Матеріалізує мовні knowledge adapters через універсальний slot bus. `repoRoot` і
-`domainRoot` обовʼязкові та явні: loader не визначає domain boundary і не читає `cwd`.
-Він повертає `adapters: null` за першої blocking-проблеми, тому caller фізично не може
-продовжити з частковим набором або whole-file fallback.
+  `domainRoot` обовʼязкові та явні: loader не визначає domain boundary і не читає `cwd`.
+  Він повертає `adapters: null` за першої blocking-проблеми, тому caller фізично не може
+  продовжити з частковим набором або whole-file fallback.
 
 ## Сценарії використання
 

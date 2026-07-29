@@ -227,12 +227,15 @@ export async function runDocsCli(args, options = {}) {
       writeJson(stderr, { code: 'domain-required', message: 'Потрібен --domain <id>.' })
       return 1
     }
-    const unknownFlags = args.filter(argument => argument.startsWith('--') && !['--domain', '--publish'].includes(argument))
+    const unknownFlags = args.filter(
+      argument => argument.startsWith('--') && !['--domain', '--publish'].includes(argument)
+    )
     if (unknownFlags.length > 0) {
       writeJson(stderr, { code: 'unknown-build-option', message: `Невідома build option: ${unknownFlags[0]}.` })
       return 1
     }
-    const build = options.buildImpl ?? (await import('./runner.mjs')).buildPackageKnowledge
+    const runner = await import('./runner.mjs')
+    const build = options.buildImpl ?? runner.buildPackageKnowledge
     const result = await build({ repoRoot, domainId, publish: args.includes('--publish') })
     writeJson(result.ok ? stdout : stderr, result)
     return result.ok ? 0 : 1

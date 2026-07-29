@@ -10,11 +10,7 @@
         "confidence": 1
       }
     ],
-    "evidence": [
-      { "id": "evidence:code" },
-      { "id": "evidence:spec" },
-      { "id": "evidence:mapping" }
-    ]
+    "evidence": [{ "id": "evidence:code" }, { "id": "evidence:spec" }, { "id": "evidence:mapping" }]
   },
   "expectedClaim": {
     "id": "claim:expected:order-accepted",

@@ -3,7 +3,7 @@ type: JS Module
 title: expected-sources.mjs
 resource: npm/rules/ci4/package_knowledge/expected-sources.mjs
 docgen:
-  crc: e327fb55
+  crc: 78e3a49d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min-retry
   score: 80
@@ -23,11 +23,11 @@ result блокує candidate, а не перетворюється на при�
 ## Публічний API
 
 - discoverExpectedSources — Знаходить authored Markdown і parser-backed executable tests, що є sources explicit expectation.
-  ADR/spec беруться лише за exact domain marker; локальні EXPECTED zones already
-  belong to owning domain. Disabled tests не створюють source без corroboration.
+ADR/spec беруться лише за exact domain marker; локальні EXPECTED zones already
+belong to owning domain. Disabled tests не створюють source без corroboration.
 - parseExpectedSourceResult — Перевіряє raw LLM mapping result against current canonical graph references.
 - mapExpectedSources — Мапить discovered explicit sources до existing canonical graph IDs via strict
-  per-source model ladder. Empty input bypasses transport completely.
+per-source model ladder. Empty input bypasses transport completely.
 
 ## Сценарії використання
 
@@ -35,5 +35,6 @@ result блокує candidate, а не перетворюється на при�
 
 ## Гарантії поведінки
 
+- Містить локальні fail-safe гілки; інші помилки можуть поширюватися назовні.
 - Кешує результати в межах одного прогону.
 - Свідомо пропускає шляхи: `.git`, `node_modules`.
