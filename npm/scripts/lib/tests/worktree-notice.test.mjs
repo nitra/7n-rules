@@ -105,17 +105,17 @@ describe('injectWorktreeNotice', () => {
     const resynced = injectWorktreeNotice(tampered, true)
     expect(resynced.split(WORKTREE_START)).toHaveLength(2)
     expect(resynced).toContain('один інстанс за раз')
-    expect(resynced).toContain('feature/x-fix')
+    expect(resynced).toContain('feature-x-fix')
   })
 
   test('suffix береться з назви скіла і обрізається до 10 символів', () => {
     const out = injectWorktreeNotice(SKILL.replace('name: fix', 'name: n-coverage-fix'), true)
-    expect(out).toContain('feature/x-coverage-f')
+    expect(out).toContain('feature-x-coverage-f')
     expect(out).toContain('n-coverage-f: worktree-only skill')
   })
 
   test('suffix транслітерує кирилицю', () => {
     const out = injectWorktreeNotice(SKILL.replace('name: fix', 'name: Фікс тестів'), true)
-    expect(out).toContain('feature/x-fiks-testi')
+    expect(out).toContain('feature-x-fiks-testi')
   })
 })

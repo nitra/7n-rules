@@ -1248,10 +1248,11 @@ describe('runGitReconcileOrchestrator', () => {
     expect(cleanupCalls).toEqual(['branch:refs/remotes/origin/already-merged'])
   })
 
-  test('worktree setup failure fail-closed лишає source і зберігає фактичний collision path та spawnSync ENOENT', async () => {
+  test('провал native mt worktree create fail-closed лишає source та повертає spawnSync ENOENT', async () => {
     const cleanupCalls = []
-    const branch = 'codex/reconcile-fix-jwt-bridge-workspace-dockerfile-and'
-    const actualWorktree = `/repo/.worktrees/${branch}-2`
+    const worktreeName = 'reconcile-fix-jwt-bridge-workspace-dockerfile-and'
+    const branch = `mt/${worktreeName}`
+    const actualWorktree = `/repo/.worktrees/${worktreeName}`
     const result = await runGitReconcileOrchestrator({
       cwd: '/repo',
       log: noop,
@@ -1294,8 +1295,8 @@ describe('runGitReconcileOrchestrator', () => {
               stderr: ''
             }
           }
-          if (command === 'git' && args[0] === 'switch') {
-            expect(options.cwd).toBe(actualWorktree)
+          if (command === 'mt') {
+            expect(options.cwd).toBe('/repo')
             return {
               status: null,
               stdout: '',
@@ -1313,7 +1314,7 @@ describe('runGitReconcileOrchestrator', () => {
       source: REVIEW_BRANCH.source,
       status: 'failed',
       branch,
-      worktree: actualWorktree
+      worktree: undefined
     })
     expect(result.results[0].error).toContain('ENOENT')
     expect(cleanupCalls).not.toContain(REVIEW_BRANCH.source)

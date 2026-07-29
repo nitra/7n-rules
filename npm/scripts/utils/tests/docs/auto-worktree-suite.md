@@ -14,8 +14,8 @@ docgen:
 
 - `describeAutoWorktreeBridge({ bringChangesBackToOriginal, removeAutoCreatedWorktree, branch })` — реєструє два describe-блоки:
   - **bringChangesBackToOriginal** — порожній `git status` → нічого не копіює; копіювання наявного файлу і видалення відсутнього в оригіналі; перейменування (`old -> new` у porcelain) переносить лише нову назву; провал `git status` → лог-попередження без перенесення.
-  - **removeAutoCreatedWorktree** — виклик `npx @7n/mt worktree remove <branch>` з `cwd=originalCwd`; провал команди не кидає, лише логує.
-- `branch` — назва worktree-гілки в тестах remove (`main-lint` у lint-мосту, `main-taze` у taze).
+  - **removeAutoCreatedWorktree** — виклик `mt worktree remove <name> --force` з `cwd=originalCwd`; провал команди не кидає, лише логує.
+- `branch` — native `mt` name worktree у тестах remove (`main-lint` у lint-мосту, `main-taze` у taze).
 
 ## Гарантії поведінки
 
