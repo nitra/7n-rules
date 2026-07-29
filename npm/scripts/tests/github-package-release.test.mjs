@@ -12,6 +12,9 @@ import {
   releaseTagsForWorkspaces
 } from '../github-package-release.mjs'
 
+/** Корінь репо від цього тесту: tests → scripts → npm → <root> — workflows читаємо звідти, не від CWD. */
+const REPO_ROOT = join(import.meta.dirname, '..', '..', '..')
+
 describe('parsePackageTag', () => {
   test('розділяє scoped package і semver за останнім @', () => {
     expect(parsePackageTag('@7n/rules@1.54.0')).toEqual({ name: '@7n/rules', version: '1.54.0' })
@@ -24,7 +27,8 @@ describe('parsePackageTag', () => {
 
 describe('extractChangelogSection', () => {
   test('повертає тільки секцію запитаної версії', () => {
-    const changelog = '# Changelog\n\n## [1.2.0] - 2026-07-29\n\n### Added\n\n- Нове\n\n## [1.1.0] - 2026-07-01\n\n### Fixed\n\n- Старе\n'
+    const changelog =
+      '# Changelog\n\n## [1.2.0] - 2026-07-29\n\n### Added\n\n- Нове\n\n## [1.1.0] - 2026-07-01\n\n### Fixed\n\n- Старе\n'
 
     expect(extractChangelogSection(changelog, '1.2.0')).toBe('## [1.2.0] - 2026-07-29\n\n### Added\n\n- Нове')
   })
@@ -49,7 +53,11 @@ describe('prepareGitHubRelease', () => {
       const packageDir = join(root, 'packages', 'rules')
       await ensureDir(packageDir)
       await writeJson(join(packageDir, 'package.json'), { name: '@7n/rules', version: '1.54.0' })
-      await writeFile(join(packageDir, 'CHANGELOG.md'), '# Changelog\n\n## [1.54.0] - 2026-07-29\n\n### Added\n\n- GitHub Releases\n', 'utf8')
+      await writeFile(
+        join(packageDir, 'CHANGELOG.md'),
+        '# Changelog\n\n## [1.54.0] - 2026-07-29\n\n### Added\n\n- GitHub Releases\n',
+        'utf8'
+      )
 
       expect(prepareGitHubRelease(root, '@7n/rules@1.54.0')).toEqual({
         title: '@7n/rules@1.54.0',
@@ -78,7 +86,7 @@ describe('releaseTagsForWorkspaces', () => {
 })
 
 test('package-release workflow обробляє package-теги і створює відсутній Release', () => {
-  const workflow = readFileSync('.github/workflows/package-release.yml', 'utf8')
+  const workflow = readFileSync(join(REPO_ROOT, '.github/workflows/package-release.yml'), 'utf8')
 
   expect(workflow).toContain("tags:\n      - '@*@*'")
   expect(workflow).toContain('contents: write')
@@ -87,7 +95,7 @@ test('package-release workflow обробляє package-теги і створю
 })
 
 test('npm-publish створює Releases після власного push тегів', () => {
-  const workflow = readFileSync('.github/workflows/npm-publish.yml', 'utf8')
+  const workflow = readFileSync(join(REPO_ROOT, '.github/workflows/npm-publish.yml'), 'utf8')
 
   expect(workflow).toContain('Create GitHub Releases')
   expect(workflow).toContain('successful-tags')
