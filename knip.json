@@ -163,6 +163,7 @@
         "rules/*/*/main.mjs",
         "rules/*/*/fix-*.mjs",
         "rules/**/*.test.mjs",
+        "slots/**/*.test.mjs",
         "taze/provider.mjs",
         "taze/**/*.test.mjs",
         "stryker.config.mjs",

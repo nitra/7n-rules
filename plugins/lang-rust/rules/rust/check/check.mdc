@@ -13,4 +13,4 @@
 
 ### Канон CI workflow `.github/workflows/lint-rust.yml`
 
-Канонічний workflow, drift-safe перевірка (`rust.lint_rust_yml`) і вимога `Swatinem/rust-cache@v2` — `npm/rules/rust/lint_rust_yml/lint_rust_yml.mdc`. Тут лише сам лінт-скрипт; CI-канон workflow **не дублюється**.
+Канонічний workflow (GitHub Actions) і canonical lint-степ (Azure Pipelines) — `ci.artifact@1` contributions цього пакета: `slots/ci/rust-github-lint.json` (+ шаблон `slots/ci/github/lint-rust.yml.snippet.yml`) і `slots/ci/rust-azure-lint.json` (+ `slots/ci/azure/lint-rust.snippet.yml`); матеріалізує їх generic consumer `@7n/rules-ci-github`/`@7n/rules-ci-azure`. Вимога `Swatinem/rust-cache@v2` для решти workflow-файлів (coverage, release) — `rust/toolchain_cache` у `@7n/rules-ci-github`. Тут лише сам лінт-скрипт; CI-канон workflow **не дублюється**.
