@@ -1,0 +1,62 @@
+npm/scripts/lib/concern-meta.mjs
+  s_3b13aaf5bffb50::t_735f36d072dae7 137
+npm/rules/doc-files/docgen-files-batch/main.mjs
+  s_3b13aaf5bffb50::t_7be2b7c31a9186 276-282
+npm/rules/doc-files/docgen-prompts/main.mjs
+  s_3b13aaf5bffb50::t_7be2b7c31a9186 105-112
+npm/rules/doc-files/docgen-gen/main.mjs
+  s_3b13aaf5bffb50::t_44d754ee83101f 102,186-194,196-197
+  s_3b13aaf5bffb50::t_7be2b7c31a9186 501,712,1015-1020
+  s_3b13aaf5bffb50::t_f5037f5b99796f 896-912,924-925,947-949
+  s_3b13aaf5bffb50::t_ea99aa13c89d22 185,888-895,913-923
+  s_3b13aaf5bffb50::t_c3613f8d1c9289 103,195
+npm/rules/k8s/manifests/main.mjs
+  s_3b13aaf5bffb50::t_7a16d36b4f80d8 7123-7139,7153
+  s_cca60e0a4b2873::t_e0b768dac3a5f5 7122
+npm/scripts/lib/docs/concern-meta.md
+  s_4ed034b2325d4a::t_68a8da91dc2614 6-9,14,16,18-21,23,25,29-31
+plugins/lang-js/coverage-provider/docs/js-collector.md
+  s_6b393151abb6e3::t_2f51a5f699e734 6
+plugins/lang-js/coverage-provider/fix/docs/coverage-fix.md
+  s_6b393151abb6e3::t_8aabb6e63fdbaf 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6c6ac10c5fcf41d4a78a83047f0ee3e86e8ee2f8",
+  "prompts": {},
+  "sessions": {
+    "s_3b13aaf5bffb50": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa919-380c-7913-8616-b4bc6856cb97",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_4ed034b2325d4a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa9e1-fcf8-7082-9435-2aacdc2eae0d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_6b393151abb6e3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "55b9f038-4355-4b55-a74a-8f8511246c9d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_cca60e0a4b2873": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019fabd8-445d-7d72-8c59-1f0206f25f53",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
