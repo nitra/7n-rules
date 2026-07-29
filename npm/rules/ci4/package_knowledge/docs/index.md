@@ -22,6 +22,7 @@ resource: npm/rules/ci4/package_knowledge/
 | [render.mjs](render.md)                         | JS Module |
 | [runner.mjs](runner.md)                         | JS Module |
 | [source-loader.mjs](source-loader.md)           | JS Module |
+| [structured-sources.mjs](structured-sources.md) | JS Module |
 | [topic-discovery.mjs](topic-discovery.md)       | JS Module |
 | [validator.mjs](validator.md)                   | JS Module |
 | [zones.mjs](zones.md)                           | JS Module |

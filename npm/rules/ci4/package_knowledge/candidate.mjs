@@ -13,6 +13,7 @@ import { applyExpectedOverlay } from './expected-overlay.mjs'
 import { evaluateGaps } from './gap-engine.mjs'
 import { buildNormalizedGraph } from './normalized-graph.mjs'
 import { reconcileTopicIdentities } from './identity-migration.mjs'
+import { mergeStructuredFragments } from './structured-sources.mjs'
 import { discoverTopics } from './topic-discovery.mjs'
 import { validateKnowledgeGraph } from './validator.mjs'
 
@@ -133,6 +134,7 @@ async function extractSource(extractor, domain, source, signal) {
  *   domain: Record<string, unknown>,
  *   sources: Array<{path: string, content: string}>,
  *   extractors: Array<Record<string, unknown>>,
+ *   structuredFragments?: unknown[],
  *   expectedOverlay?: {claims?: unknown[], evidence?: unknown[]},
  *   gapMappings?: unknown[],
  *   aliasesByTopicId?: Record<string, string[]>,
@@ -147,6 +149,7 @@ export async function buildKnowledgeCandidate({
   domain,
   sources,
   extractors,
+  structuredFragments = [],
   expectedOverlay = {},
   gapMappings = [],
   aliasesByTopicId = {},
@@ -189,7 +192,9 @@ export async function buildKnowledgeCandidate({
 
   const normalizedGraph = buildNormalizedGraph({ domain, fragments })
   if (!normalizedGraph.ok) return normalizedGraph
-  const overlaid = applyExpectedOverlay(normalizedGraph.graph, expectedOverlay)
+  const structured = mergeStructuredFragments({ graph: normalizedGraph.graph, domain, fragments: structuredFragments })
+  if (!structured.ok) return structured
+  const overlaid = applyExpectedOverlay(structured.graph, expectedOverlay)
   if (!overlaid.ok) return overlaid
   const gapResult = evaluateGaps({
     graph: overlaid.graph,

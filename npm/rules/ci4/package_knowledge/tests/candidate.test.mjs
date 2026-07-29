@@ -91,6 +91,77 @@ describe('buildKnowledgeCandidate', () => {
     ])
   })
 
+  test('merges injected structured config and contract fragments before graph validation', async () => {
+    const configId = 'config:npm:@fixture/orders:package'
+    const schemaId = 'schema:npm:@fixture/orders:openapi'
+    const contractId = 'contract:npm:@fixture/orders:openapi'
+    const evidenceId = 'evidence:openapi'
+    const result = await buildKnowledgeCandidate({
+      domain: DOMAIN,
+      sources: [{ path: 'src/order.mjs', content: 'export function submit() {}' }],
+      extractors: [extractor()],
+      structuredFragments: [
+        {
+          ok: true,
+          file: { path: 'contracts/openapi.yaml', contentHash: 'sha256:openapi' },
+          nodes: [
+            {
+              id: configId,
+              kind: 'config',
+              name: 'package.json',
+              visibility: 'package',
+              domainId: DOMAIN.id,
+              attributes: { sourcePath: 'package.json' },
+              sourceFingerprint: 'sha256:package'
+            },
+            {
+              id: schemaId,
+              kind: 'config',
+              name: 'Orders schema',
+              visibility: 'public',
+              domainId: DOMAIN.id,
+              attributes: { sourcePath: 'contracts/openapi.yaml', artifact: 'schema' },
+              sourceFingerprint: 'sha256:openapi'
+            },
+            {
+              id: contractId,
+              kind: 'integration',
+              name: 'Orders API',
+              visibility: 'external',
+              domainId: DOMAIN.id,
+              attributes: { sourcePath: 'contracts/openapi.yaml', boundary: 'contract' },
+              sourceFingerprint: 'sha256:openapi'
+            }
+          ],
+          edges: [
+            { id: 'edge:openapi', kind: 'implements', fromId: schemaId, toId: contractId, evidenceIds: [evidenceId] }
+          ],
+          evidence: [
+            {
+              id: evidenceId,
+              kind: 'schema',
+              path: 'contracts/openapi.yaml',
+              symbolId: schemaId,
+              contentHash: 'sha256:openapi'
+            }
+          ]
+        }
+      ]
+    })
+
+    expect(result).toMatchObject({ ok: true })
+    expect(result.graph.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: configId, kind: 'config' }),
+        expect.objectContaining({ id: schemaId, kind: 'config', attributes: expect.objectContaining({ artifact: 'schema' }) }),
+        expect.objectContaining({ id: contractId, kind: 'integration', visibility: 'external' })
+      ])
+    )
+    expect(result.graph.evidence).toContainEqual(
+      expect.objectContaining({ id: evidenceId, path: 'contracts/openapi.yaml', contentHash: 'sha256:openapi' })
+    )
+  })
+
   test('integrates previous-manifest identity migration into candidate discovery', async () => {
     const previous = await buildKnowledgeCandidate({
       domain: DOMAIN,
