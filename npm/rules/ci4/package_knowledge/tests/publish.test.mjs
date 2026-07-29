@@ -11,8 +11,12 @@ import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
  * @param {string} content generated content
  * @returns {string} marked zone
  */
-const auto = content =>
-  `<!-- AUTOGEN:start id="summary" hash="${zoneHash(content)}" -->${content}<!-- AUTOGEN:end id="summary" -->`
+const auto = (content, id = 'summary') =>
+  `<!-- AUTOGEN:start id="${id}" hash="${zoneHash(content)}" -->${content}<!-- AUTOGEN:end id="${id}" -->`
+
+/** Returns a minimal previous package-knowledge manifest for stale-page ownership. */
+const knowledgeManifest = () =>
+  JSON.stringify({ schemaVersion: 1, domain: { id: 'npm:@fixture/orders' }, nodes: [], topics: [] })
 
 /**
  * Створює committed docs tree перед publication test.
@@ -141,6 +145,53 @@ describe('atomic package knowledge publication', () => {
       })
       expect(valid).toEqual({ ok: true })
       expect(await readFile(join(domainRoot, 'docs', 'index.md'), 'utf8')).toContain('new')
+    })
+  })
+
+  test('removes stale canonical generated pages while preserving legacy file docs', async () => {
+    await withTmpDir(async domainRoot => {
+      await mkdir(join(domainRoot, 'docs', 'explanation', 'processes'), { recursive: true })
+      await mkdir(join(domainRoot, 'docs', '.docgen'), { recursive: true })
+      await writeFile(join(domainRoot, 'docs', '.docgen', 'manifest.json'), knowledgeManifest(), 'utf8')
+      await writeFile(
+        join(domainRoot, 'docs', 'explanation', 'processes', 'aaaaaaaaaaaaaaaaaaaaaaaa.md'),
+        auto('obsolete process', 'process-aaaaaaaaaaaaaaaaaaaaaaaa'),
+        'utf8'
+      )
+      await writeFile(join(domainRoot, 'docs', 'legacy.md'), 'legacy file documentation\n', 'utf8')
+
+      await expect(
+        publishKnowledgeArtifacts({
+          domainRoot,
+          files: { 'docs/.docgen/manifest.json': knowledgeManifest(), 'docs/index.md': auto('fresh', 'package-index') },
+          validate: () => ({ ok: true })
+        })
+      ).resolves.toEqual({ ok: true })
+      await expect(
+        readFile(join(domainRoot, 'docs', 'explanation', 'processes', 'aaaaaaaaaaaaaaaaaaaaaaaa.md'), 'utf8')
+      ).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(readFile(join(domainRoot, 'docs', 'legacy.md'), 'utf8')).resolves.toBe('legacy file documentation\n')
+    })
+  })
+
+  test('blocks stale generated removal with protected content and leaves the tree byte-identical', async () => {
+    await withTmpDir(async domainRoot => {
+      const stalePath = join(domainRoot, 'docs', 'explanation', 'processes', 'bbbbbbbbbbbbbbbbbbbbbbbb.md')
+      const stale = `${auto('obsolete process', 'process-bbbbbbbbbbbbbbbbbbbbbbbb')}<!-- MANUAL:start id="migration" -->keep<!-- MANUAL:end id="migration" -->`
+      await mkdir(join(domainRoot, 'docs', 'explanation', 'processes'), { recursive: true })
+      await mkdir(join(domainRoot, 'docs', '.docgen'), { recursive: true })
+      await writeFile(join(domainRoot, 'docs', '.docgen', 'manifest.json'), knowledgeManifest(), 'utf8')
+      await writeFile(stalePath, stale, 'utf8')
+
+      const result = await publishKnowledgeArtifacts({
+        domainRoot,
+        files: { 'docs/.docgen/manifest.json': knowledgeManifest(), 'docs/index.md': auto('fresh', 'package-index') },
+        validate: () => ({ ok: true })
+      })
+
+      expect(result).toEqual({ ok: false, diagnostics: [expect.objectContaining({ code: 'stale-generated-protected' })] })
+      await expect(readFile(stalePath, 'utf8')).resolves.toBe(stale)
+      await expect(readFile(join(domainRoot, 'docs', '.docgen', 'manifest.json'), 'utf8')).resolves.toBe(knowledgeManifest())
     })
   })
 })

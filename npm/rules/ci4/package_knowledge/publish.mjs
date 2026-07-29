@@ -5,7 +5,7 @@
  * або protected-zone failure не залишить частково оновлену документацію.
  */
 
-import { cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
@@ -13,6 +13,8 @@ import { assertProtectedZonesPreserved, parseKnowledgeZones } from './zones.mjs'
 
 const DOCS_PREFIX = 'docs/'
 const MANIFEST_PATH = 'docs/.docgen/manifest.json'
+const GENERATED_PAGE_PATH =
+  /^docs\/(?:index\.md|implementation-gaps\.md|explanation\/architecture\.md|explanation\/(?:capabilities|processes)\/[a-f0-9]{24}\.md|reference\/contracts\/[a-f0-9]{24}\.md)$/u
 
 /**
  * Створює publication diagnostic.
@@ -36,6 +38,96 @@ function isSafeDocsPath(path) {
     !isAbsolute(path) &&
     !relative('docs', path).startsWith('..')
   )
+}
+
+/**
+ * Підтверджує, що committed manifest належить package-knowledge projection.
+ * @param {string} content committed manifest bytes
+ * @returns {boolean} true лише для мінімально впізнаваного knowledge graph
+ */
+function isKnowledgeManifest(content) {
+  try {
+    const manifest = JSON.parse(content)
+    return (
+      manifest?.schemaVersion === 1 &&
+      typeof manifest.domain?.id === 'string' &&
+      Array.isArray(manifest.nodes) &&
+      Array.isArray(manifest.topics)
+    )
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Визначає expected AUTOGEN zone ID за canonical generated page path.
+ * @param {string} path docs-relative Markdown path
+ * @returns {string | null} owning zone ID або null для не-package page
+ */
+function zoneIdForGeneratedPath(path) {
+  if (path === 'docs/index.md') return 'package-index'
+  if (path === 'docs/explanation/architecture.md') return 'package-architecture'
+  if (path === 'docs/implementation-gaps.md') return 'implementation-gaps'
+  const match = path.match(/^docs\/(?:explanation\/(capabilities|processes)|reference\/(contracts))\/([a-f0-9]{24})\.md$/u)
+  if (!match) return null
+  const kind = match[1] === 'capabilities' ? 'capability' : match[1] === 'processes' ? 'process' : 'contract'
+  return `${kind}-${match[3]}`
+}
+
+/**
+ * Збирає всі Markdown paths у docs без переходу за symlink boundaries.
+ * @param {string} root absolute domain root
+ * @param {string} [directory] docs-relative directory
+ * @returns {Promise<string[]>} sorted docs-relative Markdown paths
+ */
+async function listMarkdownPaths(root, directory = 'docs') {
+  const absolute = join(root, directory)
+  let entries
+  try {
+    entries = await readdir(absolute, { withFileTypes: true })
+  } catch (error) {
+    if (error?.code === 'ENOENT') return []
+    throw error
+  }
+  const paths = []
+  for (const entry of entries) {
+    const path = `${directory}/${entry.name}`
+    if (entry.isDirectory()) paths.push(...(await listMarkdownPaths(root, path)))
+    else if (entry.isFile() && path.endsWith('.md')) paths.push(path)
+  }
+  return paths.toSorted((left, right) => left.localeCompare(right))
+}
+
+/**
+ * Finds obsolete package-knowledge pages from a prior valid manifest. A page is
+ * owned only when its canonical route and AUTOGEN ID agree; legacy docs remain
+ * outside this set even when they live under docs/.
+ * @param {{root: string, files: Record<string, string>}} input current root and candidate files
+ * @returns {Promise<{ok: true, paths: string[]} | {ok: false, diagnostics: object[]}>} stale paths or migration blockers
+ */
+async function staleGeneratedPages({ root, files }) {
+  const previousManifestPath = join(root, MANIFEST_PATH)
+  if (!existsSync(previousManifestPath) || !isKnowledgeManifest(await readFile(previousManifestPath, 'utf8')))
+    return { ok: true, paths: [] }
+  const candidatePaths = new Set(Object.keys(files))
+  const paths = []
+  const diagnostics = []
+  for (const path of await listMarkdownPaths(root)) {
+    if (candidatePaths.has(path) || !GENERATED_PAGE_PATH.test(path)) continue
+    const parsed = parseKnowledgeZones(await readFile(join(root, path), 'utf8'), path)
+    if (!parsed.ok) continue
+    const zoneId = zoneIdForGeneratedPath(path)
+    if (!zoneId || !parsed.zones.some(zone => zone.kind === 'AUTOGEN' && zone.id === zoneId)) continue
+    const protectedZones = parsed.zones.filter(zone => zone.kind === 'MANUAL' || zone.kind === 'EXPECTED')
+    if (protectedZones.length > 0 || parsed.implicitManual.some(content => content !== '')) {
+      diagnostics.push(
+        diagnostic('stale-generated-protected', `Obsolete generated page ${path} містить authored protected content.`, path)
+      )
+      continue
+    }
+    paths.push(path)
+  }
+  return diagnostics.length > 0 ? { ok: false, diagnostics } : { ok: true, paths }
 }
 
 /**
@@ -103,6 +195,8 @@ export async function publishKnowledgeArtifacts(input) {
     const preserved = assertProtectedZonesPreserved(previous, candidate, path)
     if (!preserved.ok) return preserved
   }
+  const stale = await staleGeneratedPages({ root, files })
+  if (!stale.ok) return stale
 
   let stage = null
   let backup = null
@@ -117,6 +211,7 @@ export async function publishKnowledgeArtifacts(input) {
       await mkdir(dirname(target), { recursive: true })
       await writeFile(target, content, 'utf8')
     }
+    for (const path of stale.paths) await rm(join(stage, path), { force: true })
     backup = await mkdtemp(join(root, '.package-knowledge-backup-'))
     await rm(backup, { recursive: true, force: true })
     if (existsSync(docsRoot)) await rename(docsRoot, backup)
