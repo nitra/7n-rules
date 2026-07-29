@@ -22,6 +22,7 @@
   "files": [
     "coverage-provider",
     "doc-files",
+    "knowledge",
     "rules",
     "slots",
     "taze",
@@ -113,6 +114,12 @@
           "version": 1,
           "id": "doc-files-js",
           "resource": "./doc-files/extractors.mjs"
+        },
+        {
+          "slot": "knowledge.extractor",
+          "version": 1,
+          "id": "knowledge-js",
+          "resource": "./knowledge/extractor.mjs"
         },
         {
           "slot": "doc-files.extensions",
