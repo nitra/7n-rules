@@ -1,0 +1,197 @@
+.cspell.json
+  s_0f9f5a6359bf71::t_2561c5113c449c 94,298,664
+.cursor/rules/n-python.mdc
+  s_0f9f5a6359bf71::t_2f3b9a89ded373 3,5,88-97
+.jscpd.json
+  s_0f9f5a6359bf71::t_517c4ea884260b 36,43-44
+.vscode/extensions.json
+  s_0f9f5a6359bf71::t_888046c36a7581 15-17
+bun.lock
+  s_0f9f5a6359bf71::t_67a29a6d2240e7 40,63,69,92,102,112,133,140,155
+knip.json
+  s_0f9f5a6359bf71::t_ae01041872576d 149,166,182
+npm/.changes/260729-1043.md
+  s_0f9f5a6359bf71::t_447855526f4b22 5
+npm/.changes/260729-1045.md
+  s_0f9f5a6359bf71::t_64a03e03b2cd11 1-5
+npm/.changes/260729-1228.md
+  s_0f9f5a6359bf71::t_cd074655ee34af 2-3,5
+npm/CHANGELOG.md
+  s_0f9f5a6359bf71::t_cb17d18b20daa5 3-16
+npm/package.json
+  s_0f9f5a6359bf71::t_0c869829bee6a5 3
+npm/rules/test/coverage/lib/classify/index.mjs
+  s_0f9f5a6359bf71::t_77684b68673702 4-13,17-18,31-34,38-42,44-45,47-53,55-71,74,78-88,90-100,105-106,109-112,116,119,128-132,134-164,167
+npm/rules/test/coverage/lib/classify/tests/index.test.mjs
+  s_0f9f5a6359bf71::t_6b3a0d0c6a4eb0 11-24,27-46,48,58,61,63,65,69-70,72,74-76,79-86,88-100,103-109,113-120,122-127,130-141,145-173
+npm/scripts/docs/github-package-release.md
+  s_0f9f5a6359bf71::t_b2c65885ffa0e2 6-7,9-10,19-31
+npm/scripts/lib/adr/docs/normalize-pipeline.md
+  s_0f9f5a6359bf71::t_2c30d19307472e 6-9,14-16,18-25,27-34,36,38-44,46-53,79-82
+npm/scripts/lib/adr/normalize-pipeline.mjs
+  s_0f9f5a6359bf71::t_744354c5d67253 25-41,46-47,82,88,102,119-120,162-163,184,189-197,199-229,231,233-234,237,239-251,255-257,289-367,369-371,373-388,391-401,413,418-433,435-439,441,446,494-500,520-521,552-554,558-560,590-598,600-606,611,616-677,679-681,687,690-709,715,717-721,723,730-733,753,757-759,782,790-799,801-802,806,815,817-818,820-822,825,842,853-855,865-871,876,878-890,894-895,900-904,906,911-916,920
+npm/scripts/lib/adr/tests/normalize-pipeline-orchestration.test.mjs
+  s_0f9f5a6359bf71::t_bc21c4ace56421 1-275
+npm/scripts/lib/docs/index.md
+  s_0f9f5a6359bf71::t_065597c67f9a16 48
+npm/scripts/lib/docs/taze-diff.md
+  s_0f9f5a6359bf71::t_b7eff9c2d4e845 3-4,6-9,15,19,21,23,25-30,32,34,39-40
+npm/scripts/lib/taze-diff.mjs
+  s_0f9f5a6359bf71::t_b210236679d48a 1-56
+npm/scripts/lib/tests/taze-diff.test.mjs
+  s_0f9f5a6359bf71::t_9b0cb16c576dab 1-88
+npm/scripts/tests/github-package-release.test.mjs
+  s_0f9f5a6359bf71::t_446e3d0dd1c589 2-3,16,89,98
+npm/scripts/utils/tests/ci-artifact-descriptor-tests.mjs
+  s_0f9f5a6359bf71::t_2388fd9cc85622 1-51
+npm/scripts/utils/tests/docs/ci-artifact-descriptor-tests.md
+  s_0f9f5a6359bf71::t_f7a979271325cc 3-4,6-9,14-18,20-22,26-28
+npm/scripts/utils/tests/docs/index.md
+  s_0f9f5a6359bf71::t_9b489653940222 3-4,7-10
+npm/skills/doc-aggregate/SKILL.md
+  s_0f9f5a6359bf71::t_2130371168f209 50
+npm/skills/git-reconcile/SKILL.md
+  s_0f9f5a6359bf71::t_9a3a5d5f37e140 30-34,69-71,153-154,163-165
+npm/skills/git-reconcile/js/docs/orchestrate.md
+  s_0f9f5a6359bf71::t_ae607ff57a6314 6,10,16-18,22-40,44-46
+npm/skills/git-reconcile/js/orchestrate.mjs
+  s_0f9f5a6359bf71::t_d404af4e897ef5 2,22,696,716-789,802-805,808,994-1005,2572-2717,2748-2760,2767-2774,2781,2966,2969,2971-2984,3025,3037,3156
+npm/skills/git-reconcile/js/tests/orchestrate.test.mjs
+  s_0f9f5a6359bf71::t_3e347f44bf909c 40,56,79-129,444-461,484-485,920,937,956,972,983-1015,1537,1544,1632,1672,1719,1789,1808-1843,2089-2132
+plugins/ci-azure/CHANGELOG.md
+  s_0f9f5a6359bf71::t_d5c877ce7ae5f8 3-10
+plugins/ci-azure/package.json
+  s_0f9f5a6359bf71::t_14a71cb282e353 3
+plugins/ci-github/CHANGELOG.md
+  s_0f9f5a6359bf71::t_41aa62d0be2711 3-11
+plugins/ci-github/package.json
+  s_0f9f5a6359bf71::t_1a21e0e7ff6092 3
+plugins/ci-github/rules/text/lint_text/lint_text_test.rego
+  s_0f9f5a6359bf71::t_22366b9b7dd941 11,13
+plugins/lang-js/.changes/260729-1228.md
+  s_0f9f5a6359bf71::t_20e2e059dcb9e6 1-5
+plugins/lang-js/CHANGELOG.md
+  s_0f9f5a6359bf71::t_6337a9a8d4703f 3-13
+plugins/lang-js/doc-files/docs/extractors.md
+  s_0f9f5a6359bf71::t_1702b4e1a1c4c7 6,16,20-29,43
+plugins/lang-js/doc-files/docs/units-js.md
+  s_0f9f5a6359bf71::t_3435d39e3137ae 6,8,10,16-20,24-30,34-39,43
+plugins/lang-js/doc-files/extractors.mjs
+  s_0f9f5a6359bf71::t_050383cb38411f 394,431
+plugins/lang-js/doc-files/tests/extractors.test.mjs
+  s_0f9f5a6359bf71::t_6d96d01cae9825 62-80
+plugins/lang-js/doc-files/tests/units-js.test.mjs
+  s_0f9f5a6359bf71::t_cf1b3cc3d4c804 63
+plugins/lang-js/docs/vitest.config.md
+  s_0f9f5a6359bf71::t_8a363f41f47613 6-8,15,19,23
+plugins/lang-js/package.json
+  s_0f9f5a6359bf71::t_33cecbd75950ac 3,26,77-98,125-128,136-146
+plugins/lang-js/slots/ci/azure/lint-js.snippet.yml
+  s_0f9f5a6359bf71::t_41df7bf50df726 1
+plugins/lang-js/slots/ci/github/lint-text-js.snippet.yml
+  s_0f9f5a6359bf71::t_6c3392ef593c73 1-11
+plugins/lang-js/slots/ci/js-azure-lint.json
+  s_0f9f5a6359bf71::t_a6914223cd9dbe 2-9
+plugins/lang-js/slots/ci/js-github-lint.json
+  s_0f9f5a6359bf71::t_b2ce25aa26b0f0 2-9
+plugins/lang-js/slots/ci/js-lint-text-patch.json
+  s_0f9f5a6359bf71::t_6e75b0d6ab6fb9 2-9
+plugins/lang-js/slots/tests/ci-artifact-descriptors.test.mjs
+  s_0f9f5a6359bf71::t_c0dfbfcbc0a7df 2-6,8-9,13-14,16-17,19-47
+plugins/lang-js/slots/tests/ci-artifact-parity.test.mjs
+  s_0f9f5a6359bf71::t_c7eca7201e068c 1-118
+plugins/lang-js/taze/diff.mjs
+  s_0f9f5a6359bf71::t_755218b002b54f 4-5,22-23
+plugins/lang-js/taze/docs/diff.md
+  s_0f9f5a6359bf71::t_d3907de4df670a 6-10,15,19-35,39
+plugins/lang-js/vitest.config.mjs
+  s_0f9f5a6359bf71::t_bafd67f384b01e 17-18
+plugins/lang-php/.changes/260729-1228.md
+  s_0f9f5a6359bf71::t_becf40078c0dd0 1-5
+plugins/lang-php/CHANGELOG.md
+  s_0f9f5a6359bf71::t_c0824dad7a6c48 3-8
+plugins/lang-php/package.json
+  s_0f9f5a6359bf71::t_44de44b0270595 3
+plugins/lang-php/slots/tests/ci-artifact-descriptors.test.mjs
+  s_0f9f5a6359bf71::t_93ede83edc7e7f 3-6,13-14,19-33,35
+plugins/lang-php/taze/composer-diff.mjs
+  s_0f9f5a6359bf71::t_0b31da1465236f 4,53-58
+plugins/lang-php/taze/docs/composer-diff.md
+  s_0f9f5a6359bf71::t_9e8b16c73f262d 6,9-10,16-18,22-26,28,30
+plugins/lang-python/CHANGELOG.md
+  s_0f9f5a6359bf71::t_51ec2ed4d73f60 3-9
+plugins/lang-python/docs/vitest.config.md
+  s_0f9f5a6359bf71::t_02f4ac88470c26 23
+plugins/lang-python/package.json
+  s_0f9f5a6359bf71::t_80293eb9a28780 3,27,43-88,93-95,97-113
+plugins/lang-python/rules/python/main.mdc
+  s_0f9f5a6359bf71::t_9336f09614107f 3,5
+plugins/lang-python/rules/python/tooling/tooling.mdc
+  s_0f9f5a6359bf71::t_b1deacd49efdff 8
+plugins/lang-python/rules/python/vscode_extensions/concern.json
+  s_0f9f5a6359bf71::t_fa0739a7aea713 6,9
+plugins/lang-python/rules/python/vscode_extensions/docs/fix-vscode_extensions.md
+  s_0f9f5a6359bf71::t_453ed9a87f57b1 3-4,6,15,19-23
+plugins/lang-python/rules/python/vscode_extensions/docs/index.md
+  s_0f9f5a6359bf71::t_00c7e390248f6f 3-4,7-9
+plugins/lang-python/rules/python/vscode_extensions/fix-vscode_extensions.mjs
+  s_0f9f5a6359bf71::t_2f02a71132a883 1
+plugins/lang-python/rules/python/vscode_extensions/template/extensions.json.snippet.json
+  s_0f9f5a6359bf71::t_c75b4cd5413f0f 1
+plugins/lang-python/rules/python/vscode_extensions/vscode_extensions.mdc
+  s_0f9f5a6359bf71::t_9a8f740081fd01 1-9
+plugins/lang-python/rules/python/vscode_extensions/vscode_extensions.rego
+  s_0f9f5a6359bf71::t_3f857a91872653 1,4-7,12-14
+plugins/lang-python/rules/python/vscode_extensions/vscode_extensions_test.rego
+  s_0f9f5a6359bf71::t_9711c0907980ad 1,3,6,8-10,13-15,18-21,24-38
+plugins/lang-python/slots/ci/azure/lint-python.snippet.yml
+  s_0f9f5a6359bf71::t_a0d84a3c24da83 1
+plugins/lang-python/slots/ci/github/lint-text-python.snippet.yml
+  s_0f9f5a6359bf71::t_fdda51fe33acc0 1-7
+plugins/lang-python/slots/ci/python-azure-lint.json
+  s_0f9f5a6359bf71::t_731efa1c928f7b 1-10
+plugins/lang-python/slots/ci/python-github-lint.json
+  s_0f9f5a6359bf71::t_cb1d894529a5dd 1-10
+plugins/lang-python/slots/ci/python-lint-text-patch.json
+  s_0f9f5a6359bf71::t_f39f4b007aa892 1-10
+plugins/lang-python/slots/tests/ci-artifact-descriptors.test.mjs
+  s_0f9f5a6359bf71::t_b5c38f2c487743 2-7,9-10,14,16-17,19-31,33-54,57-66
+plugins/lang-python/slots/tests/ci-artifact-parity.test.mjs
+  s_0f9f5a6359bf71::t_8ba470508f8010 1-168
+plugins/lang-python/vitest.config.mjs
+  s_0f9f5a6359bf71::t_ac517ac465b4c7 16
+plugins/lang-rust/CHANGELOG.md
+  s_0f9f5a6359bf71::t_73ac7e57edae72 3-8
+plugins/lang-rust/docs/vitest.config.md
+  s_0f9f5a6359bf71::t_c027a95a631f16 6-8,15,19-21
+plugins/lang-rust/package.json
+  s_0f9f5a6359bf71::t_afe1410c5f53a2 3,29,44-57
+plugins/lang-rust/rules/rust/check/check.mdc
+  s_0f9f5a6359bf71::t_40800e442c78e2 16
+plugins/lang-rust/slots/ci/azure/lint-rust.snippet.yml
+  s_0f9f5a6359bf71::t_dd19c7cc1c6a6d 1
+plugins/lang-rust/slots/ci/rust-azure-lint.json
+  s_0f9f5a6359bf71::t_aa45fa1f09fc3b 1-10
+plugins/lang-rust/slots/ci/rust-github-lint.json
+  s_0f9f5a6359bf71::t_a93fb39b3b5731 1-10
+plugins/lang-rust/slots/tests/ci-artifact-descriptors.test.mjs
+  s_0f9f5a6359bf71::t_788dd8cebe09d9 1-105
+plugins/lang-rust/vitest.config.mjs
+  s_0f9f5a6359bf71::t_66ac48be92f21c 17-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "2006762b411948d1c2c4fe09251be3a6735265ea",
+  "prompts": {},
+  "sessions": {
+    "s_0f9f5a6359bf71": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019faa18-22a7-7b50-bb68-94475d98aee1",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
