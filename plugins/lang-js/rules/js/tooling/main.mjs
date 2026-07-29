@@ -127,7 +127,7 @@ function compareOxlintJsPlugins(expected, actual, failures) {
     )
     return
   }
-  const missing = expected.filter(plugin => !actual.some(entry => deepEqualOxlintCanonical(entry, plugin)))
+  const missing = expected.filter(plugin => actual.every(entry => !deepEqualOxlintCanonical(entry, plugin)))
   if (missing.length > 0) {
     failures.push(
       `.oxlintrc.json: jsPlugins має містити канонічні plugins — додай: ${missing.map(plugin => JSON.stringify(plugin)).join(', ')}`
@@ -208,7 +208,7 @@ export function planOxlintrcFix(actual, canonical) {
       const canonicalPlugins = Array.isArray(expected) ? expected : []
       merged.jsPlugins = [
         ...existing,
-        ...canonicalPlugins.filter(plugin => !existing.some(entry => deepEqualOxlintCanonical(entry, plugin)))
+        ...canonicalPlugins.filter(plugin => existing.every(entry => !deepEqualOxlintCanonical(entry, plugin)))
       ]
       continue
     }

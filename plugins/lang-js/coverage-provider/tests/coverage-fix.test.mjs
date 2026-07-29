@@ -1,13 +1,13 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { readFile } from 'node:fs/promises'
-import { createRequire } from 'node:module'
 import { env } from 'node:process'
 import { fixSurvivedMutants, buildFixPrompt, batchSurvived } from '../fix/coverage-fix.mjs'
 
-const loadActualModule = createRequire(import.meta.url)
-const actualPath = loadActualModule('node:path')
 vi.mock('node:fs/promises', () => ({ readFile: vi.fn() }))
-vi.mock('node:path', () => ({ ...actualPath, join: vi.fn((...a) => a.join('/')) }))
+vi.mock('node:path', async importOriginal => {
+  const actual = await importOriginal()
+  return { ...actual, join: vi.fn((...a) => a.join('/')) }
+})
 
 const ROOT = '/proj'
 const survived = [
