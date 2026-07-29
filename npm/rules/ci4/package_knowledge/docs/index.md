@@ -6,6 +6,7 @@ resource: npm/rules/ci4/package_knowledge/
 
 | Файл                                        | Тип       |
 | ------------------------------------------- | --------- |
+| [candidate.mjs](candidate.md)               | JS Module |
 | [cli.mjs](cli.md)                           | JS Module |
 | [domain-resolver.mjs](domain-resolver.md)   | JS Module |
 | [expected-overlay.mjs](expected-overlay.md) | JS Module |
