@@ -36,6 +36,18 @@ describe('verifyOxlintRcAgainstCanonical', () => {
     expect(v.ok).toBe(false)
   })
 
+  test('додатковий локальний jsPlugin дозволений — ok', () => {
+    const extended = {
+      ...canonicalOxlint,
+      jsPlugins: [...canonicalOxlint.jsPlugins, './npm/oxlint-e18e-plugin.mjs']
+    }
+
+    const v = verifyOxlintRcAgainstCanonical(extended, canonicalOxlint)
+
+    expect(v.ok).toBe(true)
+    expect(v.failures).toHaveLength(0)
+  })
+
   test('мінімальний фрагмент без повного канону — не ok', () => {
     const v = verifyOxlintRcAgainstCanonical(
       {
@@ -156,5 +168,12 @@ describe('planOxlintrcFix', () => {
     const v = verifyOxlintRcAgainstCanonical(merged, canonicalOxlint)
     expect(v.ok).toBe(true)
     expect(merged.jsPlugins).toEqual(canonicalOxlint.jsPlugins)
+  })
+
+  test('локальний jsPlugin зберігається, а канонічний додається', () => {
+    const merged = planOxlintrcFix({ ...canonicalOxlint, jsPlugins: ['./npm/oxlint-e18e-plugin.mjs'] }, canonicalOxlint)
+
+    expect(merged.jsPlugins).toEqual(['./npm/oxlint-e18e-plugin.mjs', ...canonicalOxlint.jsPlugins])
+    expect(verifyOxlintRcAgainstCanonical(merged, canonicalOxlint).ok).toBe(true)
   })
 })

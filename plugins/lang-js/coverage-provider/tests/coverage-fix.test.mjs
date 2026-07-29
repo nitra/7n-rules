@@ -5,8 +5,8 @@ import { fixSurvivedMutants, buildFixPrompt, batchSurvived } from '../fix/covera
 
 vi.mock('node:fs/promises', () => ({ readFile: vi.fn() }))
 vi.mock('node:path', async importOriginal => {
-  const actualPath = await importOriginal()
-  return { ...actualPath, join: vi.fn((...a) => a.join('/')) }
+  const actual = await importOriginal()
+  return { ...actual, join: vi.fn((...a) => a.join('/')) }
 })
 
 const ROOT = '/proj'

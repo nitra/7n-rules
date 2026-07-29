@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { readFileSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 
@@ -12,8 +13,7 @@ import {
   releaseTagsForWorkspaces
 } from '../github-package-release.mjs'
 
-/** Корінь репо від цього тесту: tests → scripts → npm → <root> — workflows читаємо звідти, не від CWD. */
-const REPO_ROOT = join(import.meta.dirname, '..', '..', '..')
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 
 describe('parsePackageTag', () => {
   test('розділяє scoped package і semver за останнім @', () => {

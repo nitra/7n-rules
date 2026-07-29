@@ -3,20 +3,37 @@ type: JS Module
 title: diff.mjs
 resource: plugins/lang-js/taze/diff.mjs
 docgen:
-  crc: e9789318
+  crc: 024e2644
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
+  score: 100
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Детермінований semver-diff npm/bun-гілки taze: порівнює package.json кожного воркспейсу з `.taze-bak`-бекапом і класифікує зміни залежностей на major vs minor/patch за caret-правилом (`isBreaking`/`parseVersion` з `@7n/rules/plugin-api`).
+Файл описує порівняння двох станів `package.json` і збирає підсумок змін у залежностях, щоб швидко бачити, що саме оновилося та як це розподіляється за типами змін. Використовується для читання результату без власних змін у файлах.
 
 ## Поведінка
 
-- **diffPackageJson** — порівнює два розпарсені package.json по dependencies/devDependencies/peerDependencies/optionalDependencies; не-semver специфікатори (workspace:*, git-url) ігноруються.
-- **collectTazeDiff** — агрегує diff по root + воркспейсах монорепо (`getMonorepoPackageRootDirs` ядра); воркспейс без бекапу пропускається.
-- **runTazeCli** — CLI-обгортка (`n-rules taze diff`): друкує компактний JSON `{ major, minorPatch, totalChanged }`.
+`diffPackageJson` порівнює стан залежностей між старим і новим `package.json` і приводить зміни до форми, придатної для монорепозиторного звіту: major-розбіжності отримують мітку воркспейсу, а minor/patch накопичуються окремо як лічильник.
+
+`collectTazeDiff` обходить воркспейси, бере для кожного пару `package.json` і `package.json.taze-bak`, пропускає воркспейси без повної пари файлів і зводить усе в один результат для всього репозиторію. Саме `package.json` є джерелом порівняння у цьому потоці.
+
+`runTazeCli` запускає read-only CLI-процес: перевіряє режим `diff`, отримує суфікс бекапу з аргументів, викликає `collectTazeDiff` і або друкує компактний JSON-звіт у stdout, або завершується з помилкою, якщо бекапи не знайдені чи вхідні умови неповні.
+
+## Публічний API
+
+- diffPackageJson — Порівнює два package.json-обʼєкти й повертає зміни залежностей.
+- collectTazeDiff — Збирає diff по всьому монорепо: для кожного воркспейсу порівнює
+`<ws>/package.json` з `<ws>/package.json<backupSuffix>`.
+- runTazeCli — CLI: `n-rules taze diff` друкує компактний JSON зі списком major-оновлень і
+лічбою minor/patch. Read-only.
+
+## Сценарії використання
+
+- порівняння стану залежностей між `package.json` і його backup-версією для звіту по монорепозиторію
 
 ## Гарантії поведінки
 
-- Read-only: лише читає файли, нічого не пише.
-- Відсутній або невалідний бекап/маніфест — пропуск без винятку.
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
