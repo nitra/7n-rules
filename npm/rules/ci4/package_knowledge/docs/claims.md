@@ -3,7 +3,7 @@ type: JS Module
 title: claims.mjs
 resource: npm/rules/ci4/package_knowledge/claims.mjs
 docgen:
-  crc: d6fab6c2
+  crc: 305f2156
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
@@ -32,9 +32,13 @@ Each wave has one `submitBatch` call per universal tier and retries only the
 failed items on a stronger tier. A missing, invalid, or uncovered result is a
 blocking diagnostic; no whole-domain retry or fallback claim is produced.
 
+Planner adapter для кожного map chunk мусить передати тільки його local
+`allowedEvidenceIds`, а також `wave` і `dependsOnChunkIds`; dependencies
+мають посилатися лише на вже завершені попередні waves.
+
 ## Сценарії використання
 
-- `npm/rules/ci4/package_knowledge/tests/claims.test.mjs` (buildStructuredClaims) — submits one map batch per wave and creates canonical IDs in deterministic core; uses successful map and reduce cache entries without any LLM call; escalates only failed chunk to next universal tier; fails closed after invalid JSON instead of accepting unverified claims; blocks missing result and uncovered required edge; ще 1
+- `npm/rules/ci4/package_knowledge/tests/claims.test.mjs` (buildStructuredClaims) — executes map waves in dependency order and injects canonical dependency summaries; uses successful map and reduce cache entries without any LLM call; escalates only failed chunk to next universal tier; fails closed after invalid JSON instead of accepting unverified claims; blocks missing result and uncovered required edge; ще 3
 
 ## Гарантії поведінки
 

@@ -151,10 +151,26 @@ function normalizeMapChunk(raw, index) {
   }
   const requiredNodeIds = normalizedIds(raw.requiredNodeIds)
   const requiredEdgeIds = normalizedIds(raw.requiredEdgeIds ?? [])
-  if (!requiredNodeIds || !requiredEdgeIds || typeof raw.prompt !== 'string' || raw.prompt === '') {
+  const allowedEvidenceIds = normalizedIds(raw.allowedEvidenceIds)
+  const dependsOnChunkIds = normalizedIds(raw.dependsOnChunkIds ?? [])
+  if (
+    !requiredNodeIds ||
+    !requiredEdgeIds ||
+    !allowedEvidenceIds ||
+    allowedEvidenceIds.length === 0 ||
+    !dependsOnChunkIds ||
+    !Number.isSafeInteger(raw.wave) ||
+    raw.wave < 0 ||
+    typeof raw.prompt !== 'string' ||
+    raw.prompt === ''
+  ) {
     return {
       ok: false,
-      blocker: blocker('invalid-chunk', chunkId, 'Chunk потребує id, prompt, requiredNodeIds[] і requiredEdgeIds[].')
+      blocker: blocker(
+        'invalid-chunk',
+        chunkId,
+        'Chunk потребує id, prompt, wave, requiredNodeIds[], allowedEvidenceIds[] і dependsOnChunkIds[].'
+      )
     }
   }
   return {
@@ -164,9 +180,71 @@ function normalizeMapChunk(raw, index) {
       prompt: raw.prompt,
       requiredNodeIds,
       requiredEdgeIds,
+      allowedEvidenceIds,
+      dependsOnChunkIds,
+      wave: raw.wave,
       contentHash: typeof raw.contentHash === 'string' && raw.contentHash !== '' ? raw.contentHash : hash(raw)
     }
   }
+}
+
+/**
+ * Валідує map dependency graph до LLM call: кожна залежність мусить існувати,
+ * бути у попередній wave і не створювати цикл.
+ * @param {Array<Record<string, unknown>>} chunks normalized map chunks
+ * @param {Set<string>} graphEvidenceIds known graph evidence
+ * @returns {{ok: true, byWave: Map<number, Array<Record<string, unknown>>>} | {ok: false, blockers: Array<Record<string, string>>}} validated execution plan or blockers
+ */
+function validateMapPlan(chunks, graphEvidenceIds) {
+  const byId = new Map()
+  const blockers = []
+  for (const chunk of chunks) {
+    if (byId.has(chunk.id)) blockers.push(blocker('duplicate-chunk-id', chunk.id, 'Chunk ID має бути унікальним.'))
+    byId.set(chunk.id, chunk)
+    if (chunk.allowedEvidenceIds.some(id => !graphEvidenceIds.has(id))) {
+      blockers.push(blocker('unknown-chunk-evidence', chunk.id, 'Chunk посилається на evidence поза graph.'))
+    }
+  }
+  for (const chunk of chunks) {
+    for (const dependencyId of chunk.dependsOnChunkIds) {
+      const dependency = byId.get(dependencyId)
+      if (!dependency) {
+        blockers.push(blocker('unknown-chunk-dependency', chunk.id, `Не знайдено dependency ${dependencyId}.`))
+      } else if (dependency.wave >= chunk.wave) {
+        blockers.push(
+          blocker('invalid-chunk-dependency-wave', chunk.id, `Dependency ${dependencyId} мусить бути у попередній wave.`)
+        )
+      }
+    }
+  }
+  const visiting = new Set()
+  const visited = new Set()
+  const visit = chunk => {
+    if (visiting.has(chunk.id)) {
+      blockers.push(blocker('cyclic-chunk-dependency', chunk.id, 'Chunk dependency graph містить цикл.'))
+      return
+    }
+    if (visited.has(chunk.id)) return
+    visiting.add(chunk.id)
+    for (const dependencyId of chunk.dependsOnChunkIds) {
+      const dependency = byId.get(dependencyId)
+      if (dependency) visit(dependency)
+    }
+    visiting.delete(chunk.id)
+    visited.add(chunk.id)
+  }
+  for (const chunk of chunks) visit(chunk)
+  if (blockers.length > 0) {
+    return { ok: false, blockers: blockers.toSorted((left, right) => `${left.code}:${left.chunkId}`.localeCompare(`${right.code}:${right.chunkId}`)) }
+  }
+  const byWave = new Map()
+  for (const chunk of chunks) {
+    const wave = byWave.get(chunk.wave) ?? []
+    wave.push(chunk)
+    byWave.set(chunk.wave, wave)
+  }
+  for (const wave of byWave.values()) wave.sort((left, right) => left.id.localeCompare(right.id))
+  return { ok: true, byWave }
 }
 
 /**
@@ -243,7 +321,7 @@ function hasExactKeys(value, expected) {
  * Parses and validates one strict LLM result against deterministic references.
  * @param {string} text raw LLM response
  * @param {{domainId: string, nodeIds: Set<string>, edgeIds: Set<string>, evidenceIds: Set<string>}} refs known graph references
- * @param {{id: string, requiredNodeIds: string[], requiredEdgeIds: string[]}} chunk covered work unit
+ * @param {{id: string, requiredNodeIds: string[], requiredEdgeIds: string[], allowedEvidenceIds: string[]}} chunk covered work unit
  * @returns {{ok: true, result: Record<string, unknown>} | {ok: false, reason: string}} accepted result or a fail-closed reason
  */
 export function parseClaimsResult(text, refs, chunk) {
@@ -289,7 +367,7 @@ export function parseClaimsResult(text, refs, chunk) {
       rawClaim.predicate === '' ||
       !evidenceIds ||
       evidenceIds.length === 0 ||
-      evidenceIds.some(id => !refs.evidenceIds.has(id)) ||
+      evidenceIds.some(id => !refs.evidenceIds.has(id) || !chunk.allowedEvidenceIds.includes(id)) ||
       typeof rawClaim.confidence !== 'number' ||
       rawClaim.confidence < 0 ||
       rawClaim.confidence > 1
@@ -409,6 +487,71 @@ async function resolveWave({ work, cache, refs, modelPolicy, submitBatchImpl, ba
 }
 
 /**
+ * Готує один map work item після завершення всіх declared dependencies.
+ * Dependency claims стають єдиним додатковим evidence context для caller-а;
+ * глобальні graph evidence не відкриваються за межами його chunk scope.
+ * @param {Record<string, unknown>} chunk normalized map chunk
+ * @param {Map<string, Record<string, unknown>>} completed dependency results
+ * @param {{parserVersion: string, promptVersion: string, schemaVersion: string, modelPolicy: string[]}} policy cache dimensions
+ * @returns {Record<string, unknown>} strict map work item
+ */
+function createMapWork(chunk, completed, policy) {
+  const dependencies = chunk.dependsOnChunkIds.map(id => ({ id, result: completed.get(id) }))
+  const dependencyClaims = dependencies.flatMap(item => item.result.claims)
+  const allowedEvidenceIds = [
+    ...new Set([...chunk.allowedEvidenceIds, ...dependencyClaims.flatMap(claim => claim.evidenceIds)])
+  ].toSorted()
+  const dependencySummaries = dependencies.map(({ id, result }) => ({
+    id,
+    claims: result.claims,
+    coveredNodeIds: result.coveredNodeIds,
+    coveredEdgeIds: result.coveredEdgeIds
+  }))
+  const content = {
+    contentHash: chunk.contentHash,
+    wave: chunk.wave,
+    dependsOnChunkIds: chunk.dependsOnChunkIds,
+    allowedEvidenceIds,
+    dependencySummaries
+  }
+  const work = {
+    ...chunk,
+    allowedEvidenceIds,
+    contentHash: hash(content),
+    prompt: JSON.stringify(canonicalize({ source: chunk.prompt, dependencySummaries }))
+  }
+  return {
+    ...work,
+    cacheKey: createClaimsCacheKey({ kind: 'map', ...policy, contentHash: work.contentHash }),
+    prompt: buildPrompt({ kind: 'map', chunk: work, allowedEvidenceIds: new Set(allowedEvidenceIds) })
+  }
+}
+
+/**
+ * Виконує map chunks у порядку dependency waves. Пізніший chunk фізично не
+ * потрапляє в batch до successful/cached canonical result усіх dependencies.
+ * @param {{byWave: Map<number, Array<Record<string, unknown>>>, cache: Record<string, unknown>, refs: Record<string, unknown>, policy: Record<string, unknown>, modelPolicy: string[], submitBatchImpl: Function, batchOptions: object}} input map execution state
+ * @returns {Promise<{ok: true, work: Array<Record<string, unknown>>, results: Map<string, Record<string, unknown>>, allResults: Array<Record<string, unknown>>} | {ok: false, blockers: Array<Record<string, string>>}>} completed map work or blockers
+ */
+async function resolveMapWaves({ byWave, cache, refs, policy, modelPolicy, submitBatchImpl, batchOptions }) {
+  const results = new Map()
+  const work = []
+  const allResults = []
+  for (const wave of [...byWave.keys()].toSorted((left, right) => left - right)) {
+    const waveWork = byWave.get(wave).map(chunk => createMapWork(chunk, results, policy))
+    const resolved = await resolveWave({ work: waveWork, cache, refs, modelPolicy, submitBatchImpl, batchOptions })
+    if (resolved.blockers.length > 0) return { ok: false, blockers: resolved.blockers }
+    for (const item of waveWork) {
+      const result = resolved.results.get(item.id)
+      results.set(item.id, result)
+      allResults.push(result)
+    }
+    work.push(...waveWork)
+  }
+  return { ok: true, work, results, allResults }
+}
+
+/**
  * Групує finished children для наступного hierarchical reduce level.
  * @param {Array<Record<string, unknown>>} children completed child work units
  * @param {number} fanIn maximum children per reduce item
@@ -426,16 +569,16 @@ function reduceGroups(children, fanIn) {
  * @param {Array<Array<Record<string, unknown>>>} groups child groups
  * @param {Map<string, Record<string, unknown>>} results completed child results
  * @param {{parserVersion: string, promptVersion: string, schemaVersion: string, modelPolicy: string[]}} policy cache dimensions
- * @param {Set<string>} allowedEvidenceIds graph evidence refs
  * @param {number} level reduce level
  * @returns {Array<Record<string, unknown>>} next hierarchical work
  */
-function createReduceWork(groups, results, policy, allowedEvidenceIds, level) {
+function createReduceWork(groups, results, policy, level) {
   return groups.map((group, index) => {
     const childResults = group.map(child => results.get(child.id))
     const requiredNodeIds = [...new Set(childResults.flatMap(result => result.coveredNodeIds))].toSorted()
     const requiredEdgeIds = [...new Set(childResults.flatMap(result => result.coveredEdgeIds))].toSorted()
     const claims = childResults.flatMap(result => result.claims)
+    const allowedEvidenceIds = [...new Set(claims.flatMap(claim => claim.evidenceIds))].toSorted()
     const id = `reduce:${level}:${index}`
     const content = { childIds: group.map(child => child.id), claims, requiredNodeIds, requiredEdgeIds }
     const chunk = {
@@ -443,6 +586,7 @@ function createReduceWork(groups, results, policy, allowedEvidenceIds, level) {
       prompt: JSON.stringify(canonicalize(content)),
       requiredNodeIds,
       requiredEdgeIds,
+      allowedEvidenceIds,
       contentHash: hash(content)
     }
     const cacheKey = createClaimsCacheKey({ kind: 'reduce', ...policy, contentHash: chunk.contentHash })
@@ -481,6 +625,10 @@ function cacheSnapshot(cache) {
  * Each wave has one `submitBatch` call per universal tier and retries only the
  * failed items on a stronger tier. A missing, invalid, or uncovered result is a
  * blocking diagnostic; no whole-domain retry or fallback claim is produced.
+ *
+ * Planner adapter для кожного map chunk мусить передати тільки його local
+ * `allowedEvidenceIds`, а також `wave` і `dependsOnChunkIds`; dependencies
+ * мають посилатися лише на вже завершені попередні waves.
  * @param {{
  *   graph: Record<string, unknown>, chunks: unknown[], parserVersion: string,
  *   promptVersion?: string, schemaVersion?: string, modelPolicy?: string[],
@@ -549,16 +697,46 @@ export async function buildStructuredClaims({
       cache: cacheSnapshot(cache)
     }
   }
+  const plan = validateMapPlan(
+    normalized.map(result => result.chunk),
+    refs.evidenceIds
+  )
+  if (!plan.ok) {
+    return { ok: false, blockers: plan.blockers, cache: cacheSnapshot(cache) }
+  }
   const policy = { parserVersion, promptVersion, schemaVersion, modelPolicy: [...modelPolicy] }
-  const initialWork = normalized.map(result => {
-    const chunk = result.chunk
-    const cacheKey = createClaimsCacheKey({ kind: 'map', ...policy, contentHash: chunk.contentHash })
-    return { ...chunk, cacheKey, prompt: buildPrompt({ kind: 'map', chunk, allowedEvidenceIds: refs.evidenceIds }) }
+  const mapped = await resolveMapWaves({
+    byWave: plan.byWave,
+    cache,
+    refs,
+    policy,
+    modelPolicy,
+    submitBatchImpl,
+    batchOptions
   })
-  const allResults = []
-  let work = initialWork
+  if (!mapped.ok) {
+    await saveCache(cachePath, cache)
+    return { ok: false, blockers: mapped.blockers.toSorted((left, right) => left.chunkId.localeCompare(right.chunkId)), cache: cacheSnapshot(cache) }
+  }
+  const allResults = [...mapped.allResults]
+  let work = mapped.work
   let level = 0
   while (work.length > 0) {
+    if (level === 0) {
+      if (work.length === 1) {
+        const final = mapped.results.get(work[0].id)
+        await saveCache(cachePath, cache)
+        return {
+          ok: true,
+          claims: collectClaims(allResults),
+          coverage: { nodeIds: final.coveredNodeIds, edgeIds: final.coveredEdgeIds },
+          cache: cacheSnapshot(cache)
+        }
+      }
+      work = createReduceWork(reduceGroups(work, reduceFanIn), mapped.results, policy, level)
+      level++
+      continue
+    }
     const resolved = await resolveWave({ work, cache, refs, modelPolicy, submitBatchImpl, batchOptions })
     if (resolved.blockers.length > 0) {
       await saveCache(cachePath, cache)
@@ -580,7 +758,7 @@ export async function buildStructuredClaims({
         cache: cacheSnapshot(cache)
       }
     }
-    work = createReduceWork(reduceGroups(work, reduceFanIn), resolved.results, policy, refs.evidenceIds, level)
+    work = createReduceWork(reduceGroups(work, reduceFanIn), resolved.results, policy, level)
     level++
   }
   return {
