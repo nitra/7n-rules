@@ -357,7 +357,7 @@ export { patterns } from '../../../scripts/lib/fix/vscode-ext-add.mjs'
 
 Тести **співрозташовуються з джерелом**: `check.mjs` ↔ `check.test.mjs` у тій самій директорії; `<concern>.rego` ↔ `<concern>_test.rego` у `policy/<concern>/`. Bun-тести правила — `npm/rules/<id>/js/*.test.mjs`, тести крос-правильної інфраструктури — поруч у `npm/scripts/` чи `npm/scripts/utils/`. Окремої директорії `npm/tests/` для нових тестів **не використовуй** — лишай тільки для справді спільних fixtures, які потрібні ≥2 правилам.
 
-Після змін у скриптах запускай тести: `bun test` у каталозі пакета (без аргументу — підбере всі `*.test.mjs` рекурсивно) або через `scripts.test` у `npm/package.json`. Після змін у rego/template — `bun run lint-rego` (regal + `conftest verify` для `_test.rego`).
+Після змін у скриптах запускай тести: `bun run test` у каталозі пакета (`scripts.test` у `npm/package.json` = `vitest run`) — **не** голий `bun test`: він обходить `scripts.test` і піднімає нативний Bun-раннер над тими самими `*.test.mjs`, написаними під vitest API (`vi.stubEnv`/`vi.mocked` там відсутні, тести падають). Після змін у rego/template — `bun run lint-rego` (regal + `conftest verify` для `_test.rego`).
 
 ## Завершення задачі після правок у пакетному workspace
 
