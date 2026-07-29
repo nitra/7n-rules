@@ -91,6 +91,25 @@ describe('buildKnowledgeCandidate', () => {
     ])
   })
 
+  test('integrates previous-manifest identity migration into candidate discovery', async () => {
+    const previous = await buildKnowledgeCandidate({
+      domain: DOMAIN,
+      sources: [{ path: 'src/orders.mjs', content: 'export function submit() {}' }],
+      extractors: [extractor()]
+    })
+    const result = await buildKnowledgeCandidate({
+      domain: DOMAIN,
+      sources: [{ path: 'src/flows/orders.mjs', content: 'export function submit() {}' }],
+      extractors: [extractor()],
+      previousManifest: previous.graph
+    })
+
+    expect(previous.ok).toBe(true)
+    expect(result).toMatchObject({ ok: true })
+    expect(result.graph.topics).toEqual([expect.objectContaining({ id: previous.graph.topics[0].id })])
+    expect(result.migrationPlan).toMatchObject({ status: 'resolved' })
+  })
+
   test('blocks missing extractors and thrown parser calls without partial graph', async () => {
     const missing = await buildKnowledgeCandidate({
       domain: DOMAIN,

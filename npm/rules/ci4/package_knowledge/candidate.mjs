@@ -12,6 +12,7 @@ import { extname } from 'node:path'
 import { applyExpectedOverlay } from './expected-overlay.mjs'
 import { evaluateGaps } from './gap-engine.mjs'
 import { buildNormalizedGraph } from './normalized-graph.mjs'
+import { reconcileTopicIdentities } from './identity-migration.mjs'
 import { discoverTopics } from './topic-discovery.mjs'
 import { validateKnowledgeGraph } from './validator.mjs'
 
@@ -135,10 +136,12 @@ async function extractSource(extractor, domain, source, signal) {
  *   expectedOverlay?: {claims?: unknown[], evidence?: unknown[]},
  *   gapMappings?: unknown[],
  *   aliasesByTopicId?: Record<string, string[]>,
+ *   previousManifest?: Record<string, unknown>,
+ *   protectedZonesByTopicId?: Record<string, unknown[]>,
  *   minimumGapConfidence?: number,
  *   signal?: AbortSignal
  * }} input pipeline inputs
- * @returns {Promise<{ok: true, graph: Record<string, unknown>, fragments: Array<Record<string, unknown>>} | {ok: false, diagnostics: Array<Record<string, unknown>>}>} candidate або blockers
+ * @returns {Promise<{ok: true, graph: Record<string, unknown>, fragments: Array<Record<string, unknown>>, migrationPlan: Record<string, unknown>, protectedZonesByTopicId: Record<string, unknown[]>} | {ok: false, diagnostics: Array<Record<string, unknown>>}>} candidate або blockers
  */
 export async function buildKnowledgeCandidate({
   domain,
@@ -147,6 +150,8 @@ export async function buildKnowledgeCandidate({
   expectedOverlay = {},
   gapMappings = [],
   aliasesByTopicId = {},
+  previousManifest,
+  protectedZonesByTopicId,
   minimumGapConfidence = 1,
   signal
 }) {
@@ -194,9 +199,17 @@ export async function buildKnowledgeCandidate({
   })
   if (!gapResult.ok) return gapResult
 
+  const discoveredTopics = discoverTopics(overlaid.graph, { aliasesByTopicId })
+  const migration = reconcileTopicIdentities({
+    previousManifest,
+    graph: overlaid.graph,
+    topics: discoveredTopics,
+    protectedZonesByTopicId
+  })
+  if (!migration.ok) return migration
   const graph = {
     ...overlaid.graph,
-    topics: discoverTopics(overlaid.graph, { aliasesByTopicId }),
+    topics: migration.topics,
     gaps: gapResult.gaps
   }
   const validation = await validateKnowledgeGraph({
@@ -205,5 +218,11 @@ export async function buildKnowledgeCandidate({
     expectedDomainId: domain.id
   })
   if (!validation.ok) return validation
-  return { ok: true, graph, fragments }
+  return {
+    ok: true,
+    graph,
+    fragments,
+    migrationPlan: migration.migrationPlan,
+    protectedZonesByTopicId: migration.protectedZonesByTopicId
+  }
 }
