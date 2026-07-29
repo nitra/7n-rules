@@ -334,26 +334,26 @@ function createComponents(nodeIds, edges) {
   }
   for (const targets of adjacency.values()) targets.sort((left, right) => left.localeCompare(right))
   const indices = new Map()
-  const lowlinks = new Map()
+  const lowLinks = new Map()
   const stack = []
   const onStack = new Set()
   const groups = []
   let index = 0
   const visit = nodeId => {
     indices.set(nodeId, index)
-    lowlinks.set(nodeId, index)
+    lowLinks.set(nodeId, index)
     index += 1
     stack.push(nodeId)
     onStack.add(nodeId)
     for (const targetId of adjacency.get(nodeId)) {
       if (!indices.has(targetId)) {
         visit(targetId)
-        lowlinks.set(nodeId, Math.min(lowlinks.get(nodeId), lowlinks.get(targetId)))
+        lowLinks.set(nodeId, Math.min(lowLinks.get(nodeId), lowLinks.get(targetId)))
       } else if (onStack.has(targetId)) {
-        lowlinks.set(nodeId, Math.min(lowlinks.get(nodeId), indices.get(targetId)))
+        lowLinks.set(nodeId, Math.min(lowLinks.get(nodeId), indices.get(targetId)))
       }
     }
-    if (lowlinks.get(nodeId) !== indices.get(nodeId)) return
+    if (lowLinks.get(nodeId) !== indices.get(nodeId)) return
     const members = []
     let memberId = null
     while (memberId !== nodeId) {
