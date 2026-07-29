@@ -4,7 +4,13 @@ import { readFileSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 
 import { ensureDir, withTmpDir, writeJson } from '../utils/test-helpers.mjs'
-import { extractChangelogSection, findPublishablePackage, parsePackageTag, prepareGitHubRelease } from '../github-package-release.mjs'
+import {
+  extractChangelogSection,
+  findPublishablePackage,
+  parsePackageTag,
+  prepareGitHubRelease,
+  releaseTagsForWorkspaces
+} from '../github-package-release.mjs'
 
 describe('parsePackageTag', () => {
   test('розділяє scoped package і semver за останнім @', () => {
@@ -53,6 +59,24 @@ describe('prepareGitHubRelease', () => {
   })
 })
 
+describe('releaseTagsForWorkspaces', () => {
+  test('перетворює release-workspaces на package-теги без списку пакетів у workflow', async () => {
+    await withTmpDir(async root => {
+      const rulesDir = join(root, 'npm')
+      const jsDir = join(root, 'plugins', 'lang-js')
+      await ensureDir(rulesDir)
+      await ensureDir(jsDir)
+      await writeJson(join(rulesDir, 'package.json'), { name: '@7n/rules', version: '1.54.0' })
+      await writeJson(join(jsDir, 'package.json'), { name: '@7n/rules-lang-js', version: '0.23.4' })
+
+      expect(releaseTagsForWorkspaces(root, ['npm', 'plugins/lang-js'])).toEqual([
+        '@7n/rules@1.54.0',
+        '@7n/rules-lang-js@0.23.4'
+      ])
+    })
+  })
+})
+
 test('package-release workflow обробляє package-теги і створює відсутній Release', () => {
   const workflow = readFileSync('.github/workflows/package-release.yml', 'utf8')
 
@@ -60,4 +84,12 @@ test('package-release workflow обробляє package-теги і створю
   expect(workflow).toContain('contents: write')
   expect(workflow).toContain('gh release view')
   expect(workflow).toContain('gh release create')
+})
+
+test('npm-publish створює Releases після власного push тегів', () => {
+  const workflow = readFileSync('.github/workflows/npm-publish.yml', 'utf8')
+
+  expect(workflow).toContain('Create GitHub Releases')
+  expect(workflow).toContain('successful-tags')
+  expect(workflow).toContain('github-package-release.mjs --tags')
 })

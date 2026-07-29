@@ -82,11 +82,38 @@ export function prepareGitHubRelease(root, tag) {
 }
 
 /**
+ * Перетворює release-workspaces на package-теги за поточними manifests.
+ * @param {string} root абсолютний корінь репозиторію
+ * @param {string[]} workspaces відносні шляхи workspace-ів із release engine
+ * @returns {string[]} package-теги у порядку вхідних workspace-ів
+ */
+export function releaseTagsForWorkspaces(root, workspaces) {
+  if (!Array.isArray(workspaces)) throw new Error('Release workspaces must be an array')
+  return workspaces.map(workspace => {
+    if (typeof workspace !== 'string' || workspace === '' || workspace.split('/').some(part => part === '.' || part === '..')) {
+      throw new Error(`Unsupported workspace path: ${workspace}`)
+    }
+    const manifest = JSON.parse(readFileSync(join(root, workspace, 'package.json'), 'utf8'))
+    if (manifest.private === true || typeof manifest.name !== 'string' || typeof manifest.version !== 'string') {
+      throw new Error(`Workspace is not publishable: ${workspace}`)
+    }
+    return `${manifest.name}@${manifest.version}`
+  })
+}
+
+/**
  * Записує release notes у переданий шлях для GitHub Actions workflow.
  * @param {string[]} args CLI аргументи: tag і абсолютний шлях notes-файлу
  * @returns {void}
  */
 export function run(args) {
+  if (args[0] === '--tags') {
+    if (args.length !== 2) throw new Error('Usage: github-package-release.mjs --tags <json-array>')
+    const tags = JSON.parse(args[1])
+    if (!Array.isArray(tags)) throw new Error('Release tags must be an array')
+    for (const tag of tags) console.log(parsePackageTag(tag).name + '@' + parsePackageTag(tag).version)
+    return
+  }
   const [tag, notesPath] = args
   if (!tag || !notesPath) throw new Error('Usage: github-package-release.mjs <package-tag> <notes-path>')
   const release = prepareGitHubRelease(process.cwd(), tag)
