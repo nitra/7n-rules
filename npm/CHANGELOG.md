@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.55.3] - 2026-07-29
+
+### Changed
+
+- Git-reconcile ancestry-aware групує local branch із tracking upstream без фізичного fast-forward перед аналізом
+
 ## [1.55.2] - 2026-07-29
 
 ### Changed
