@@ -3,9 +3,44 @@
  *
  * Використовується для виклику зовнішніх інструментів через абсолютний шлях
  * замість команди з PATH (sonarjs/no-os-command-from-path).
+ *
+ * Реалізація — чистий JS-скан тек PATH, БЕЗ субпроцесу `which`/`where`:
+ * spawn під навантаженим повним тест-прогоном транзієнтно падав (EAGAIN),
+ * і «команда є» перетворювалось на null — порядко-залежні флейки гардів
+ * на кшталт run-shellcheck. Скан читає `process.env.PATH` на кожен виклик,
+ * тож runtime-підстановки PATH у тестах видимі одразу (на відміну від
+ * Bun-снапшота оточення для дочірніх процесів).
  */
-import { spawnSync } from 'node:child_process'
-import { platform } from 'node:process'
+import { accessSync, constants, statSync } from 'node:fs'
+import { delimiter, join } from 'node:path'
+import { env, platform } from 'node:process'
+
+const WINDOWS_DEFAULT_PATHEXT = '.COM;.EXE;.BAT;.CMD'
+
+/**
+ * Чи є шлях виконуваним звичайним файлом (тека з ім'ям команди — не збіг).
+ * @param {string} path абсолютний шлях-кандидат
+ * @returns {boolean} true — існує, файл, виконуваний
+ */
+function isExecutableFile(path) {
+  try {
+    if (!statSync(path).isFile()) return false
+    accessSync(path, constants.X_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Суфікси-кандидати імені команди: POSIX — лише саме ім'я; Windows — саме ім'я
+ * (якщо розширення вже вказане) плюс розширення з PATHEXT (семантика `where`).
+ * @returns {string[]} суфікси, що додаються до імені команди
+ */
+function candidateSuffixes() {
+  if (platform !== 'win32') return ['']
+  return ['', ...(env.PATHEXT ?? WINDOWS_DEFAULT_PATHEXT).split(';').filter(Boolean)]
+}
 
 /**
  * Повертає абсолютний шлях до команди в PATH або null, якщо команда не знайдена.
@@ -13,13 +48,13 @@ import { platform } from 'node:process'
  * @returns {string | null} абсолютний шлях або null
  */
 export function resolveCmd(cmd) {
-  const whichCmd = platform === 'win32' ? 'where' : 'which'
-  // Явно передаємо `process.env`, інакше Bun вмикає snapshot оточення на старті процесу
-  // і не бачить змін `process.env.PATH` у runtime (типова ситуація — підстановка стабів у тестах).
-  const result = spawnSync(whichCmd, [cmd], { encoding: 'utf8', env: process.env })
-  if (result.status !== 0 || result.error) {
-    return null
+  const suffixes = candidateSuffixes()
+  for (const dir of (env.PATH ?? '').split(delimiter)) {
+    if (!dir) continue
+    for (const suffix of suffixes) {
+      const candidate = join(dir, cmd + suffix)
+      if (isExecutableFile(candidate)) return candidate
+    }
   }
-  const line = result.stdout.trim().split('\n', 1)[0].trim()
-  return line || null
+  return null
 }

@@ -1,4 +1,6 @@
-import { afterEach, describe, expect, test, vi } from 'vitest'
+import { env } from 'node:process'
+
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 // http-схема будується динамічно: internal cluster DNS у тесті — не реальна
 // небезпечна адреса, лінт (no-insecure-url/no-clear-text-protocols/prefer-https)
@@ -7,9 +9,27 @@ const COLON_SLASH = '://'
 const HTTP = 'http' + COLON_SLASH
 const INTERNAL_LITELLM_URL = `${HTTP}litellm-service.litellm.svc.n.internal:4000/v1/`
 
+// Оточення розробника/CI може мати справжні N_OMLX_*/N_LITELLM_* — тести
+// «без env» і override-тести мають стартувати з чистого стану, інакше
+// ambient-ключ (напр. N_LITELLM_API_KEY) просочується в дефолтну мапу.
+const PROVIDER_ENV_KEYS = ['N_OMLX_BASE_URL', 'N_OMLX_API_KEY', 'N_LITELLM_BASE_URL', 'N_LITELLM_API_KEY']
+/** @type {Record<string, string | undefined>} */
+const ambientEnv = {}
+
+beforeEach(() => {
+  for (const name of PROVIDER_ENV_KEYS) {
+    ambientEnv[name] = env[name]
+    delete env[name]
+  }
+})
+
 afterEach(() => {
   vi.unstubAllEnvs()
   vi.resetModules()
+  for (const name of PROVIDER_ENV_KEYS) {
+    if (ambientEnv[name] === undefined) delete env[name]
+    else env[name] = ambientEnv[name]
+  }
 })
 
 describe('defaultLocalProviders', () => {

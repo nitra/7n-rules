@@ -5,19 +5,19 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { spawnSync } from 'node:child_process'
 
 import { listShellScriptPaths, runShellcheckText } from '../run-shellcheck/main.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { withTmpDir } from '../../../scripts/utils/test-helpers.mjs'
 
-// resolveCmd('shellcheck'/'patch'/'git') лишається на реальному spawnSync (out-of-scope
-// hand-written "which"-хелпер) — цей мок потрібен лише тесту "patch absent", щоб
-// детерміновано підробити відсутність `patch` незалежно від реального PATH середовища.
-vi.mock('node:child_process', async () => {
-  const actual = await vi.importActual('node:child_process')
-  return { ...actual, spawnSync: vi.fn(actual.spawnSync) }
+// Мок потрібен лише тесту "patch absent": детерміновано підробити відсутність
+// `patch` незалежно від реального PATH середовища (за замовчуванням — реальна
+// реалізація, guards інших тестів працюють зі справжнім PATH).
+vi.mock('../../../scripts/utils/resolve-cmd.mjs', async () => {
+  const actual = await vi.importActual('../../../scripts/utils/resolve-cmd.mjs')
+  return { ...actual, resolveCmd: vi.fn(actual.resolveCmd) }
 })
+const { resolveCmd: actualResolveCmd } = await vi.importActual('../../../scripts/utils/resolve-cmd.mjs')
 
 // Самі виклики git/shellcheck/patch у main.mjs мігровані на spawnAsync (ADR 260716-1354) —
 // саме його підміняємо мок-версією для симуляції результатів/помилок зовнішніх інструментів.
@@ -35,10 +35,7 @@ describe('run-shellcheck error paths', () => {
       expect(resolveCmd('shellcheck')).toBeFalsy()
       return
     }
-    const actual = await vi.importActual('node:child_process')
-    vi.mocked(spawnSync)
-      .mockImplementationOnce(actual.spawnSync) // which shellcheck -> real (found)
-      .mockReturnValueOnce({ status: 1, stdout: '', stderr: '', error: null, pid: 0, signal: null }) // which patch -> not found
+    vi.mocked(resolveCmd).mockImplementation(cmd => (cmd === 'patch' ? null : actualResolveCmd(cmd)))
     const errLines = []
     const origErr = process.stderr.write.bind(process.stderr)
     process.stderr.write = chunk => {
@@ -53,6 +50,7 @@ describe('run-shellcheck error paths', () => {
       })
     } finally {
       process.stderr.write = origErr
+      vi.mocked(resolveCmd).mockImplementation(actualResolveCmd)
     }
     expect(code).toBe(1)
     expect(errLines.join('')).toContain('patch')
