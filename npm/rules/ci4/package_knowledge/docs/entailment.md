@@ -29,6 +29,10 @@ Runner integration hook: викликати після claims плюс Expected 
 gap/render; передати source slices за кожним evidence ID і продовжити лише
 коли `ok: true`. Gate ніколи не повертає переписані claims.
 
+Runner формує цей private index з UTF-8 slices parsed code/test evidence,
+structured-source content та discovered Expected sources. Він не додається до
+graph або build result.
+
 ## Сценарії використання
 
 - `npm/rules/ci4/package_knowledge/tests/entailment.test.mjs` (verifyEvidenceEntailment) — passes supported implemented and expected claims without rewriting them; blocks unrelated or contradictory claims after the strict ladder; escalates malformed responses only for unresolved claims; uses unchanged successful per-claim cache without a model call; blocks any claim that lacks local evidence content before model submission; ще 1

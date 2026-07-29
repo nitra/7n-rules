@@ -16,6 +16,7 @@ import { buildKnowledgeCandidate } from './candidate.mjs'
 import { planSemanticChunks } from './chunk-planner.mjs'
 import { buildStructuredClaims, CLAIM_PROMPT_VERSION, CLAIM_SCHEMA_VERSION, DEFAULT_MODEL_POLICY } from './claims.mjs'
 import { resolveDocumentationDomains } from './domain-resolver.mjs'
+import { verifyEvidenceEntailment } from './entailment.mjs'
 import { applyExpectedOverlay } from './expected-overlay.mjs'
 import { discoverExpectedSources, mapExpectedSources } from './expected-sources.mjs'
 import { evaluateGaps } from './gap-engine.mjs'
@@ -46,6 +47,57 @@ function fingerprint(value) {
  */
 function blocked(stage, diagnostics, domainId = '') {
   return { ok: false, stage, domainId, diagnostics: Array.isArray(diagnostics) ? diagnostics : [] }
+}
+
+/**
+ * Повертає exact UTF-8 byte slice або null для невалідного half-open span.
+ * @param {string} content повний source text
+ * @param {unknown} span очікуваний byte span
+ * @returns {string | null} source slice
+ */
+function utf8ByteSlice(content, span) {
+  if (!span || !Number.isInteger(span.startByte) || !Number.isInteger(span.endByte) || span.startByte < 0 || span.endByte < span.startByte) return null
+  const bytes = Buffer.from(content, 'utf8')
+  if (span.endByte > bytes.length) return null
+  const slice = bytes.subarray(span.startByte, span.endByte)
+  const decoded = slice.toString('utf8')
+  return Buffer.from(decoded, 'utf8').equals(slice) ? decoded : null
+}
+
+/**
+ * Індексує graph evidence з parsed code/test sources без whole-file fallback
+ * за наявного span: відсутній або невалідний slice лишається unresolved.
+ * @param {{graph: Record<string, unknown>, sources: Array<{path: string, content: string}>}} input graph і parsed sources
+ * @returns {Record<string, string>} evidence ID до exact local content
+ */
+function sourceEvidenceContentById({ graph, sources }) {
+  const sourceByPath = new Map(sources.map(source => [source.path, source.content]))
+  const indexed = {}
+  for (const evidence of graph.evidence ?? []) {
+    if (typeof evidence?.id !== 'string' || typeof evidence.path !== 'string') continue
+    const content = sourceByPath.get(evidence.path)
+    if (typeof content !== 'string') continue
+    const value = evidence.span == null ? content : utf8ByteSlice(content, evidence.span)
+    if (value !== null) indexed[evidence.id] = value
+  }
+  return indexed
+}
+
+/**
+ * Будує private evidence index для entailment без додавання raw content у graph/result.
+ * @param {{graph: Record<string, unknown>, sources: Array<{path: string, content: string}>, structuredEvidenceContentById?: Record<string, string>, expectedSources: Array<Record<string, unknown>>}} input local evidence inputs
+ * @returns {Record<string, string>} evidence ID до exact local content
+ */
+function entailmentEvidenceContentById({ graph, sources, structuredEvidenceContentById, expectedSources }) {
+  const expected = Object.fromEntries(
+    expectedSources
+      .filter(source => typeof source?.evidence?.id === 'string' && typeof source.content === 'string')
+      .map(source => [source.evidence.id, source.content])
+  )
+  const structured = Object.fromEntries(
+    Object.entries(structuredEvidenceContentById ?? {}).filter(([id, content]) => typeof id === 'string' && typeof content === 'string')
+  )
+  return { ...sourceEvidenceContentById({ graph, sources }), ...structured, ...expected }
 }
 
 /**
@@ -196,8 +248,8 @@ async function writeShadowCandidate(stagingPath, files, deps = {}) {
  * `publish: true` is the only path that invokes the existing atomic publisher.
  * @param {{
  *   repoRoot: string, domainId: string, publish?: boolean, expectedOverlay?: object,
- *   gapMappings?: unknown[], aliasesByTopicId?: Record<string, string[]>, cache?: object, expectedCache?: object,
- *   cachePath?: string, expectedCachePath?: string, config?: object, submitBatchImpl?: Function,
+ *   gapMappings?: unknown[], aliasesByTopicId?: Record<string, string[]>, cache?: object, expectedCache?: object, entailmentCache?: object,
+ *   cachePath?: string, expectedCachePath?: string, entailmentCachePath?: string, config?: object, submitBatchImpl?: Function,
  *   resolveDomainsImpl?: typeof resolveDocumentationDomains, loadAdaptersImpl?: typeof loadKnowledgeAdapters,
  *   loadSourcesImpl?: typeof loadDomainSources, buildCandidateImpl?: typeof buildKnowledgeCandidate,
  *   loadStructuredSourcesImpl?: typeof loadStructuredSources,
@@ -206,6 +258,7 @@ async function writeShadowCandidate(stagingPath, files, deps = {}) {
  *   publishImpl?: typeof publishKnowledgeArtifacts, readExistingMarkdownImpl?: typeof readExistingMarkdown,
  *   readPreviousManifestImpl?: typeof readPreviousManifest, discoverExpectedSourcesImpl?: typeof discoverExpectedSources,
  *   mapExpectedSourcesImpl?: typeof mapExpectedSources,
+ *   verifyEntailmentImpl?: typeof verifyEvidenceEntailment,
  *   writeShadowCandidateImpl?: typeof writeShadowCandidate
  * }} input explicit runtime request and injectable dependencies
  * @returns {Promise<Record<string, unknown>>} build outcome with mode and diagnostics
@@ -315,6 +368,20 @@ export async function buildPackageKnowledge(input) {
   }
   const overlaid = applyExpectedOverlay(graphWithClaims, expectedOverlay)
   if (!overlaid.ok) return blocked('expected-overlay', overlaid.diagnostics, domain.id)
+  const verifyEntailment = input.verifyEntailmentImpl ?? verifyEvidenceEntailment
+  const entailment = await verifyEntailment({
+    graph: overlaid.graph,
+    evidenceContentById: entailmentEvidenceContentById({
+      graph: overlaid.graph,
+      sources: loaded.sources,
+      structuredEvidenceContentById: structured.evidenceContentById,
+      expectedSources: discoveredExpected.sources
+    }),
+    cache: input.entailmentCache,
+    cachePath: input.entailmentCachePath ?? join(dirname(cachePath), 'entailment.json'),
+    submitBatchImpl: input.submitBatchImpl
+  })
+  if (!entailment.ok) return blocked('entailment', entailment.diagnostics, domain.id)
   const gaps = evaluateGaps({ graph: overlaid.graph, mappings: input.gapMappings ?? [] })
   if (!gaps.ok) return blocked('gaps', gaps.diagnostics, domain.id)
   const graph = {

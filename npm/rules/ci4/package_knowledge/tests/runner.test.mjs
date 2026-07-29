@@ -23,7 +23,7 @@ function domain(root) {
 }
 
 /** Повертає complete JS extractor або parser failure для atomicity test. */
-function extractor({ fails = false } = {}) {
+function extractor({ fails = false, evidenceSpan } = {}) {
   return {
     id: 'fixture-js',
     apiVersion: 1,
@@ -50,7 +50,7 @@ function extractor({ fails = false } = {}) {
             kind: 'invokes',
             fromLocalId: 'submit',
             to: { unresolvedSpecifier: 'fixture-transport', opaque: true },
-            evidence: [{ span: { startByte: 0, endByte: Buffer.byteLength(file.content) }, role: 'syntax' }]
+            evidence: [{ span: evidenceSpan ?? { startByte: 0, endByte: Buffer.byteLength(file.content) }, role: 'syntax' }]
           }
         ],
         coverage: { requiredUnits: 1, coveredUnits: 1, requiredEdges: 1, coveredEdges: 1, complete: true }
@@ -95,7 +95,28 @@ function inputs(root, adapter, extra = {}) {
     loadAdaptersImpl: vi.fn(async () => ({ blocked: false, diagnostics: [], adapters: { domain: [], extractor: [adapter] } })),
     loadSourcesImpl: vi.fn(async () => ({ ok: true, sources: [{ path: 'src/orders.mjs', content: 'export function submit() {}' }] })),
     loadStructuredSourcesImpl: vi.fn(async () => ({ ok: true, fragments: [] })),
+    verifyEntailmentImpl: vi.fn(async ({ graph }) => ({ ok: true, claims: graph.claims, cache: { version: 1, entries: {} } })),
     ...extra
+  }
+}
+
+/** Створює explicit Expected source fixture з local evidence content. */
+function expectedSource() {
+  return {
+    id: 'source:expected',
+    content: 'Orders must be accepted.',
+    evidence: { id: 'evidence:expected', kind: 'spec', path: 'docs/specs/orders.md', contentHash: 'sha256:expected' }
+  }
+}
+
+/** Повертає mapped Expected overlay для current implemented graph. */
+function mappedExpected(graph) {
+  return {
+    ok: true,
+    overlay: {
+      evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/specs/orders.md', contentHash: 'sha256:expected' }],
+      claims: [{ id: 'claim:expected', subjectId: graph.nodes[0].id, predicate: 'implements', value: true, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }]
+    }
   }
 }
 
@@ -227,16 +248,8 @@ describe('buildPackageKnowledge', () => {
 
   test('ingests automatic Expected overlay only after implemented claims are available', async () => {
     await withTmpDir(async root => {
-      const discovered = vi.fn(() => Promise.resolve({ ok: true, sources: [{ id: 'source:expected', content: 'Must accept.', evidence: { id: 'evidence:expected', kind: 'spec', path: 'docs/specs/orders.md', contentHash: 'sha256:expected' } }] }))
-      const mapped = vi.fn(({ graph }) =>
-        Promise.resolve({
-          ok: true,
-          overlay: {
-            evidence: [{ id: 'evidence:expected', kind: 'spec', path: 'docs/specs/orders.md', contentHash: 'sha256:expected' }],
-            claims: [{ id: 'claim:expected', subjectId: graph.nodes[0].id, predicate: 'implements', value: true, evidenceIds: ['evidence:expected'], confidence: 1, sourceFingerprint: 'sha256:expected' }]
-          }
-        })
-      )
+      const discovered = vi.fn(() => Promise.resolve({ ok: true, sources: [expectedSource()] }))
+      const mapped = vi.fn(({ graph }) => Promise.resolve(mappedExpected(graph)))
       const result = await buildPackageKnowledge(
         inputs(root, extractor(), {
           submitBatchImpl: successfulBatch(),
@@ -251,6 +264,61 @@ describe('buildPackageKnowledge', () => {
       )
       expect(mapped.mock.calls[0][0].graph.claims).toHaveLength(1)
       expect(await readFile(join(result.stagingPath, 'docs', 'implementation-gaps.md'), 'utf8')).toContain('Status: missing')
+    })
+  })
+
+  test('passes exact code, structured and Expected evidence privately to entailment', async () => {
+    await withTmpDir(async root => {
+      const code = "export const status = '🙂';\nexport function submit() {}"
+      const codeEvidence = 'export function submit() {}'
+      const codeEvidenceStart = Buffer.byteLength("export const status = '🙂';\n")
+      const batch = successfulBatch()
+      const verifier = vi.fn(async input => {
+        expect(Object.values(input.evidenceContentById)).toContain(codeEvidence)
+        for (const claim of input.graph.claims.filter(claim => claim.layer === 'implemented' || claim.layer === 'expected')) {
+          for (const evidenceId of claim.evidenceIds) expect(input.evidenceContentById[evidenceId]).toEqual(expect.any(String))
+        }
+        expect(input.evidenceContentById).toMatchObject({
+          'evidence:orders-openapi': 'openapi: 3.1.0\n',
+          'evidence:expected': 'Orders must be accepted.'
+        })
+        expect(input.submitBatchImpl).toBe(batch)
+        return { ok: true, claims: input.graph.claims, cache: { version: 1, entries: {} } }
+      })
+      const result = await buildPackageKnowledge(
+        inputs(root, extractor({ evidenceSpan: { startByte: codeEvidenceStart, endByte: codeEvidenceStart + Buffer.byteLength(codeEvidence) } }), {
+          loadSourcesImpl: vi.fn(async () => ({ ok: true, sources: [{ path: 'src/orders.mjs', content: code }] })),
+          loadStructuredSourcesImpl: vi.fn(async () => structuredContract()),
+          discoverExpectedSourcesImpl: vi.fn(async () => ({ ok: true, sources: [expectedSource()] })),
+          mapExpectedSourcesImpl: vi.fn(async ({ graph }) => mappedExpected(graph)),
+          verifyEntailmentImpl: verifier,
+          submitBatchImpl: batch
+        })
+      )
+
+      expect(result).toMatchObject({ ok: true, mode: 'shadow' })
+      expect(result).not.toHaveProperty('evidenceContentById')
+      expect(verifier).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  test('blocks entailment before rendering or publish', async () => {
+    await withTmpDir(async root => {
+      const render = vi.fn()
+      const publish = vi.fn()
+      const result = await buildPackageKnowledge(
+        inputs(root, extractor(), {
+          publish: true,
+          submitBatchImpl: successfulBatch(),
+          verifyEntailmentImpl: vi.fn(async () => ({ ok: false, diagnostics: [{ code: 'claim-not-entailed' }] })),
+          renderImpl: render,
+          publishImpl: publish
+        })
+      )
+
+      expect(result).toMatchObject({ ok: false, stage: 'entailment', diagnostics: [{ code: 'claim-not-entailed' }] })
+      expect(render).not.toHaveBeenCalled()
+      expect(publish).not.toHaveBeenCalled()
     })
   })
 })
