@@ -1,0 +1,37 @@
+npm/package.json
+  s_c958e49c0708f8::t_4a11d4faf91ed7 68
+npm/scripts/tests/github-package-release.test.mjs
+  s_c958e49c0708f8::t_0ecbe4be96d90d 15-16,29-30,55-59,88,97
+plugins/lang-js/coverage-provider/tests/coverage-fix.test.mjs
+  s_c958e49c0708f8::t_48b7ad3db390e8 7-10
+plugins/lang-js/rules/js/tooling/docs/main.md
+  s_c958e49c0708f8::t_d953069b1edb51 6,25-30,34,36-37,41-42
+  s_c958e49c0708f8::t_1f02b6dc0345c9 7-9
+plugins/lang-js/coverage-provider/fix/docs/coverage-fix.md
+  s_c958e49c0708f8::t_36341cb5d5c342 6,9,25-34
+  s_c958e49c0708f8::t_1692d748b16e3d 35
+npm/.changes/260729-1301.md
+  s_c958e49c0708f8::t_0cbd97b0667b80 1-5
+npm/scripts/docs/github-package-release.md
+  s_c958e49c0708f8::t_e028d1603b740b 1-40
+npm/scripts/docs/index.md
+  s_c958e49c0708f8::t_3a1a1866e5fde3 14
+plugins/lang-js/rules/js/tooling/main.mjs
+  s_c958e49c0708f8::t_6ffa1bae806a8a 130,211
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "646351b5528160d53d47a000b2425e457d48efc4",
+  "prompts": {},
+  "sessions": {
+    "s_c958e49c0708f8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019faa18-22a7-7b50-bb68-94475d98aee1",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
