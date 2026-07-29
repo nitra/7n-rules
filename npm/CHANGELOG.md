@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.54.0] - 2026-07-29
+
+### Changed
+
+- fix(ci): resolve repository lint findings
+
+### Fixed
+
+- image-compress: T0-autofixer fix-check.mjs runs @nitra/minify-image via bunx instead of npx — matches the read-only detector fix (v4 uses Bun.Image, a bun-only global)
+
 ## [1.53.0] - 2026-07-28
 
 ### Changed
