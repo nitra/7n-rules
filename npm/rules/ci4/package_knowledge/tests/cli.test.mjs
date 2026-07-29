@@ -169,6 +169,7 @@ describe('runDocsCli', () => {
           role: 'syntax'
         }
       ])
+      expect(slice.impact).toEqual({ files: [], tests: [], contracts: [], configs: [] })
       expect(result.out[0]).not.toContain('privateHelper')
     })
   })

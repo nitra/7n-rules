@@ -3,7 +3,7 @@ type: JS Module
 title: cli.mjs
 resource: npm/rules/ci4/package_knowledge/cli.mjs
 docgen:
-  crc: e7c91839
+  crc: 41c58bfc
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 70

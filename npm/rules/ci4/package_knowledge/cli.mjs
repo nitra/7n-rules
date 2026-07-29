@@ -12,6 +12,7 @@ import { join } from 'node:path'
 import Ajv2020 from 'ajv/dist/2020.js'
 
 import { resolveDocumentationDomains } from './domain-resolver.mjs'
+import { createImpactSlice } from './impact.mjs'
 
 const SCHEMA_PATH = join(import.meta.dirname, 'schema', 'knowledge-graph-v1.schema.json')
 
@@ -164,6 +165,10 @@ function createIndex(manifest) {
 function createSlice(manifest, topicId) {
   const topic = manifest.topics.find(candidate => candidate.id === topicId || candidate.aliases?.includes(topicId))
   if (!topic) return { ok: false, code: 'topic-not-found', message: `Topic "${topicId}" не знайдено.` }
+  const impactResult = createImpactSlice({ graph: manifest, topics: manifest.topics, topicId: topic.id })
+  if (!impactResult.ok) {
+    return { ok: false, code: impactResult.code, message: impactResult.detail }
+  }
 
   const anchorIds = new Set(topic.anchorIds)
   const claims = manifest.claims.filter(claim => anchorIds.has(claim.subjectId))
@@ -178,6 +183,7 @@ function createSlice(manifest, topicId) {
   const evidence = manifest.evidence
     .filter(item => evidenceIds.has(item.id))
     .map(({ symbolId: _privateSymbolId, ...item }) => item)
+  const { domain: _impactDomain, topics: _impactTopics, ...impact } = impactResult.slice
 
   return {
     ok: true,
@@ -188,7 +194,8 @@ function createSlice(manifest, topicId) {
       nodes: manifest.nodes.filter(node => anchorIds.has(node.id) && node.visibility !== 'private'),
       claims,
       gaps,
-      evidence
+      evidence,
+      impact
     }
   }
 }
