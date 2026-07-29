@@ -3,12 +3,15 @@ type: Rust Module
 title: session.rs
 resource: llm-lib/crates/llm-lib/src/acp/session.rs
 docgen:
-  crc: 00413fc3
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
-  score: 55
-  issues: no-overview,short-behavior,best-of-2:retry-lost
+  crc: 14ca4f72
+  model: omlx/gemma-4-e2b-it-4bit
+  tier: local-min
+  score: 80
 ---
+
+## Огляд
+
+Публічний session-API крейта (задача T2, рішення В/В.1): довгоживуча ACP-сесія з відкритим потоком подій, зовнішнім permission-responder-ом і `cancel` — те, що сьогодні вміє лише `tauri-plugin-agent` (`tauri-plugin-agent/src/acp/mod.rs`), тут без жодної Tauri-залежності (`AppHandle`/`Emitter`/`State` — Tauri-emit лишається адаптеру-плагіну, T9). [`super::one_shot_acp`] лишається окремим тонким фасадом (один prompt + auto-approve + акумуляція тексту) над тим самим [`super::transport`]-шаром, поведінка якого не змінюється.  Архітектура — session builder ([`SessionOptions`]) → `create_session` спавнить фонову `tokio`-задачу, яка володіє ACP-з'єднанням (з'єднання живе рівно стільки, скільки триває `connect_with`-future — той самий патерн, що й у плагіні) і крутить mpsc-цикл команд (`prompt`/`cancel`); `create_session` не повертається, доки `initialize` → `session/new` → опційний `session/set_config_option` не завершаться (handshake-ready- синхронізація, як `acp_spawn_agent` у плагіні) — інакше перший [`SessionHandle::prompt`] або спливе незрозумілою помилкою "канал закритий", або зафіксує гонку з handshake.  Permission-семантики (рішення Л) — два режими одного механізму: [`PermissionMode::External`] пересилає кожен `session/request_permission` як [`SessionEvent::PermissionRequest`] у той самий канал подій, і викликач відповідає сам ([`PermissionRequestEvent::respond`]/ [`PermissionRequestEvent::cancel`]); [`PermissionMode::AutoApprove`] — готова стратегія **поверх того самого каналу**: [`drive_auto_approve`] читає ті самі `PermissionRequest`-події і одразу відповідає [`transport::pick_auto_permission_option`], без окремого протокольного шляху.
 
 ## Публічний API
 
@@ -29,5 +32,5 @@ docgen:
 ## Гарантії поведінки
 
 - Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
-- Перехоплює помилки і не пропускає винятків назовні (fail-safe).
-- За певних помилок повертає порожнє значення (напр. `null`) замість винятку.
+- Містить локальні fail-safe гілки; інші помилки можуть поширюватися назовні.
+- Деякі локальні fail-safe гілки повертають порожнє значення (напр. `null`) замість винятку.

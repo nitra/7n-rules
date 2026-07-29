@@ -16,6 +16,8 @@
 
 use std::collections::HashMap;
 use std::env;
+use std::sync::mpsc as std_mpsc;
+use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use agent_client_protocol::schema::v1::{
@@ -109,6 +111,41 @@ pub(crate) fn pick_auto_permission_option(
 /// пакетами це затоплювало stderr. Override: `N_LLM_ACP_VERBOSE=1`.
 pub(crate) fn acp_verbose() -> bool {
     env::var("N_LLM_ACP_VERBOSE").is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+}
+
+/// Виділений потік для stderr-виводу ACP-діагностики (progress/помилки
+/// фонової задачі/auto-approve) — розв'язує tokio-задачу сесії від
+/// блокуючого `write()` на stdio. `eprintln!` синхронно бере
+/// процес-глобальний lock `Stderr` на час системного виклику: якщо той
+/// заблокується (переповнений pipe/tty без активного читача — типовий
+/// випадок під конкурентними сесіями, що вдвічі й більше збільшують обсяг
+/// progress-логів), tokio-воркер зависає всередині `write`, а з ним і
+/// будь-який інший потік процесу, що теж чекає той самий lock (напр.
+/// незалежний heartbeat-принт викликача). [`log_line`] лишає сам
+/// блокуючий `eprintln!` тільки на цьому одному потоці; `send` у канал
+/// ніколи не блокує (unbounded — обсяг обмежений реальними подіями ходу,
+/// не довільним потоком байтів), тож ACP-задачі самі ніколи не чекають
+/// на stdio.
+fn log_sender() -> &'static std_mpsc::Sender<String> {
+    static SENDER: OnceLock<std_mpsc::Sender<String>> = OnceLock::new();
+    SENDER.get_or_init(|| {
+        let (tx, rx) = std_mpsc::channel::<String>();
+        std::thread::Builder::new()
+            .name("acp-log".to_string())
+            .spawn(move || {
+                while let Ok(line) = rx.recv() {
+                    eprintln!("{line}");
+                }
+            })
+            .expect("не вдалось запустити потік acp-log");
+        tx
+    })
+}
+
+/// Неблокуюче логування ACP-шляху — заміна прямого `eprintln!` у
+/// tokio-задачах сесії (див. [`log_sender`]).
+pub(crate) fn log_line(line: impl Into<String>) {
+    let _ = log_sender().send(line.into());
 }
 
 /// Чи друкувати короткі non-text ACP progress events. Оркестратори з власним
@@ -212,7 +249,7 @@ where
                             })
                         );
                         if acp_progress_enabled() && !quiet_text_chunk && !is_agent_text_chunk {
-                            eprintln!("acp progress: {}", summarize_update(update));
+                            log_line(format!("acp progress: {}", summarize_update(update)));
                         }
                         on_update(update);
                         Ok(())
