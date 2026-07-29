@@ -8,7 +8,7 @@
 
 import { createHash } from 'node:crypto'
 import { readFile, realpath } from 'node:fs/promises'
-import { basename, isAbsolute, relative, resolve, sep } from 'node:path'
+import { basename, isAbsolute, resolve } from 'node:path'
 
 import { parse as parseGraphql } from 'graphql'
 import { globby } from 'globby'
@@ -16,6 +16,7 @@ import { parse as parseToml } from 'smol-toml'
 import { parseDocument } from 'yaml'
 
 import { createImplementedClaimId } from './claims.mjs'
+import { isWithin, nestedDomainIgnores, toPosix } from './domain-paths.mjs'
 
 const ARTIFACT_PATTERNS = Object.freeze([
   '**/openapi.{json,yaml,yml}',
@@ -262,40 +263,6 @@ function schemaClaims({ domain, kind, format, hash, value, schemaId, contractId,
     }
   }
   return claims.toSorted((left, right) => left.id.localeCompare(right.id))
-}
-
-/**
- * Converts a filesystem path to a stable POSIX relative path.
- * @param {string} path filesystem path
- * @returns {string} POSIX path
- */
-function toPosix(path) {
-  return path.split(sep).join('/')
-}
-
-/**
- * Returns true only for a strict path inside an owned domain.
- * @param {string} root owned absolute root
- * @param {string} path candidate absolute path
- * @returns {boolean} whether the path stays within root
- */
-function isWithin(root, path) {
-  const rel = relative(root, path)
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
-}
-
-/**
- * Builds nested documentation-domain ignore patterns relative to the current domain.
- * @param {{sourceRoot?: string, excludedSourceRoots?: string[]}} domain resolved domain
- * @returns {string[]} stable glob exclusions
- */
-function nestedDomainIgnores(domain) {
-  if (!Array.isArray(domain?.excludedSourceRoots) || typeof domain.sourceRoot !== 'string') return []
-  return domain.excludedSourceRoots
-    .map(excluded => toPosix(relative(domain.sourceRoot === '.' ? '' : domain.sourceRoot, excluded)))
-    .filter(path => path !== '' && path !== '.' && !path.startsWith('../'))
-    .flatMap(path => [path, `${path}/**`])
-    .toSorted()
 }
 
 /**

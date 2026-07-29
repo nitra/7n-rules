@@ -10,6 +10,8 @@ import { Buffer } from 'node:buffer'
 
 import { parseProgramAndCommentsOrNull, walkAstWithAncestors } from '@7n/rules/scripts/utils/ast-scan-utils.mjs'
 
+import { collectCallEdges } from '@7n/rules/scripts/lib/plugin-api/call-edges.mjs'
+
 let vueCompilers = null
 try {
   const [compilerSfc, compilerDom] = await Promise.all([import('@vue/compiler-sfc'), import('@vue/compiler-dom')])
@@ -240,35 +242,20 @@ function templateExpressionSpan(original, templateOffset, expressionOffset, star
  * @returns {Array<Record<string, unknown>>} deterministic edges
  */
 function collectEdges(units, importedBindings, filePath, original, baseOffset) {
-  const localUnits = new Map(units.map(unit => [unit.name, unit.localId]))
-  const edges = []
-  for (const unit of units) {
-    walkAstWithAncestors(unit.ast, [], node => {
-      if (node.type !== 'CallExpression') return
-      const { root } = callIdentity(node)
-      if (!root) return
-      const evidence = [{ path: filePath, role: 'syntax', span: span(original, node.start, node.end, baseOffset) }]
-      const target = localUnits.get(root)
-      if (target && target !== unit.localId) {
-        edges.push({ kind: 'invokes', fromLocalId: unit.localId, to: { localId: target }, evidence })
-        return
-      }
-      const specifier = importedBindings.get(root)
-      if (specifier) {
-        edges.push({
-          kind: 'integrates',
-          fromLocalId: unit.localId,
-          to: { unresolvedSpecifier: specifier, opaque: true },
-          evidence
-        })
-      }
-    })
-  }
-  return edges.toSorted((left, right) =>
-    JSON.stringify([left.fromLocalId, left.kind, left.to, left.evidence[0].span]).localeCompare(
-      JSON.stringify([right.fromLocalId, right.kind, right.to, right.evidence[0].span])
-    )
-  )
+  return collectCallEdges({
+    units,
+    localUnits: new Map(units.map(unit => [unit.name, unit.localId])),
+    importedBindings,
+    callsForUnit(unit, visit) {
+      walkAstWithAncestors(unit.ast, [], node => {
+        if (node.type !== 'CallExpression') return
+        const { root } = callIdentity(node)
+        if (!root) return
+        const evidence = [{ path: filePath, role: 'syntax', span: span(original, node.start, node.end, baseOffset) }]
+        visit({ root, evidence })
+      })
+    }
+  })
 }
 
 /**
@@ -879,5 +866,5 @@ const jsKnowledgeExtractor = Object.freeze({
   collectTestScenarios
 })
 
-/* Надає versioned `knowledge.extractor@1` provider для JS/TS/Vue. */
+/** Надає versioned `knowledge.extractor@1` provider для JS/TS/Vue. */
 export default jsKnowledgeExtractor

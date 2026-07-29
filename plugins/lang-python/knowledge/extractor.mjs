@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url'
 
 import TreeSitter from '@vscode/tree-sitter-wasm'
 
+import { collectCallEdges } from '@7n/rules/scripts/lib/plugin-api/call-edges.mjs'
+
 const EXTENSIONS = Object.freeze(['.py'])
 const PARSER = Object.freeze({
   id: 'tree-sitter-python-wasm',
@@ -255,35 +257,20 @@ function walkUnitBody(node, unitRoot, visit) {
  * @returns {Array<Record<string, unknown>>} deterministic edges
  */
 function collectEdges(units, importedBindings, filePath, content) {
-  const localUnits = uniqueLocalUnits(units)
-  const edges = []
-  for (const unit of units) {
-    walkUnitBody(unit.ast, unit.ast, node => {
-      if (node.type !== 'call') return
-      const root = callRoot(node)
-      if (!root) return
-      const evidence = [{ path: filePath, role: 'syntax', span: span(content, node) }]
-      const target = localUnits.get(root)
-      if (target && target !== unit.localId) {
-        edges.push({ kind: 'invokes', fromLocalId: unit.localId, to: { localId: target }, evidence })
-        return
-      }
-      const specifier = importedBindings.get(root)
-      if (specifier) {
-        edges.push({
-          kind: 'integrates',
-          fromLocalId: unit.localId,
-          to: { unresolvedSpecifier: specifier, opaque: true },
-          evidence
-        })
-      }
-    })
-  }
-  return edges.toSorted((left, right) =>
-    JSON.stringify([left.fromLocalId, left.kind, left.to, left.evidence[0].span]).localeCompare(
-      JSON.stringify([right.fromLocalId, right.kind, right.to, right.evidence[0].span])
-    )
-  )
+  return collectCallEdges({
+    units,
+    localUnits: uniqueLocalUnits(units),
+    importedBindings,
+    callsForUnit(unit, visit) {
+      walkUnitBody(unit.ast, unit.ast, node => {
+        if (node.type !== 'call') return
+        const root = callRoot(node)
+        if (!root) return
+        const evidence = [{ path: filePath, role: 'syntax', span: span(content, node) }]
+        visit({ root, evidence })
+      })
+    }
+  })
 }
 
 /**
@@ -432,5 +419,5 @@ const pythonKnowledgeExtractor = Object.freeze({
   collectTestScenarios
 })
 
-/* Надає versioned `knowledge.extractor@1` provider для Python. */
+/** Надає versioned `knowledge.extractor@1` provider для Python. */
 export default pythonKnowledgeExtractor

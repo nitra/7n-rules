@@ -7,9 +7,11 @@
  */
 
 import { readFile, realpath } from 'node:fs/promises'
-import { extname, isAbsolute, relative, resolve, sep } from 'node:path'
+import { extname, isAbsolute, resolve } from 'node:path'
 
 import { globby } from 'globby'
+
+import { isWithin, nestedDomainIgnores, toPosix } from './domain-paths.mjs'
 
 const DEFAULT_IGNORES = Object.freeze([
   '**/.git/**',
@@ -48,26 +50,6 @@ function diagnostic(code, detail, path = null) {
 }
 
 /**
- * Перетворює platform path на stable POSIX path.
- * @param {string} path filesystem path
- * @returns {string} POSIX path
- */
-function toPosix(path) {
-  return path.split(sep).join('/')
-}
-
-/**
- * Перевіряє strict containment path-а у root.
- * @param {string} root absolute root
- * @param {string} path absolute candidate
- * @returns {boolean} whether candidate belongs to root
- */
-function isWithin(root, path) {
-  const rel = relative(root, path)
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
-}
-
-/**
  * Нормалізує owned extensions для glob.
  * @param {unknown} extensions adapter extensions
  * @returns {{ok: true, extensions: string[]} | {ok: false, diagnostics: Array<Record<string, unknown>>}} normalized extensions
@@ -84,20 +66,6 @@ function normalizeExtensions(extensions) {
     }
   }
   return { ok: true, extensions: [...new Set(extensions.map(extension => extension.toLowerCase()))].toSorted() }
-}
-
-/**
- * Будує ignore patterns для nested documentation domains.
- * @param {Record<string, unknown>} domain resolved domain
- * @returns {string[]} domain-relative ignore patterns
- */
-function nestedDomainIgnores(domain) {
-  if (!Array.isArray(domain.excludedSourceRoots) || typeof domain.sourceRoot !== 'string') return []
-  return domain.excludedSourceRoots
-    .map(excluded => toPosix(relative(domain.sourceRoot === '.' ? '' : domain.sourceRoot, excluded)))
-    .filter(path => path !== '' && path !== '.' && !path.startsWith('../'))
-    .flatMap(path => [path, `${path}/**`])
-    .toSorted()
 }
 
 /**
