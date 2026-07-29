@@ -34,6 +34,7 @@ import {
   finishCherryPick,
   formatOutcomeCounts,
   formatReport,
+  groupTrackingRefs,
   hasChangesFromBase,
   hasOnlyChangeEntries,
   normalizePrConcurrency,
@@ -52,6 +53,7 @@ import {
   skipEmptyCherryPick,
   sourceDirectories,
   testFailureSignatures,
+  trackingRelation,
   validateBehaviorState,
   validateChangedLockfiles,
   validateFinalProjectGates,
@@ -312,6 +314,78 @@ describe('Git inventory helpers', () => {
     )
 
     expect(refs[0].worktree).toBe('/repo/.worktrees/detached-feature')
+  })
+
+  test('trackingRelation класифікує ancestry лише read-only merge-base перевірками', () => {
+    const commands = []
+    const spawnFn = (_command, args) => {
+      commands.push(args)
+      const pair = `${args[2]}:${args[3]}`
+      return { status: ['local:remote', 'remote:ahead'].includes(pair) ? 0 : 1, stdout: '', stderr: '' }
+    }
+
+    expect(trackingRelation('same', 'same', '/repo', spawnFn)).toBe('synced')
+    expect(trackingRelation('local', 'remote', '/repo', spawnFn)).toBe('behind-only')
+    expect(trackingRelation('ahead', 'remote', '/repo', spawnFn)).toBe('ahead')
+    expect(trackingRelation('left', 'right', '/repo', spawnFn)).toBe('diverged')
+    expect(commands.every(args => args.slice(0, 2).join(' ') === 'merge-base --is-ancestor')).toBe(true)
+  })
+
+  test('groupTrackingRefs аналізує behind local branch за effective remote tip', () => {
+    const localRef = 'refs/heads/feature/a'
+    const upstreamRef = 'refs/remotes/origin/feature/a'
+    const refs = groupTrackingRefs(
+      [
+        { ref: localRef, oid: 'local-oid', date: '2026-01-01', upstream: upstreamRef },
+        { ref: upstreamRef, oid: 'remote-oid', date: '2026-01-02', upstream: '' }
+      ],
+      new Map([[localRef, '/repo/.worktrees/feature-a']]),
+      new Map(),
+      ['main'],
+      () => 'behind-only'
+    )
+
+    expect(refs).toEqual([
+      {
+        ref: upstreamRef,
+        oid: 'remote-oid',
+        date: '2026-01-02',
+        upstream: '',
+        aliases: [localRef, upstreamRef],
+        worktree: '/repo/.worktrees/feature-a',
+        tracking: {
+          state: 'behind-only',
+          localRef,
+          upstreamRef,
+          localOid: 'local-oid',
+          upstreamOid: 'remote-oid'
+        }
+      }
+    ])
+  })
+
+  test('groupTrackingRefs бере local tip для ahead і не зливає diverged refs', () => {
+    const localRef = 'refs/heads/feature/a'
+    const upstreamRef = 'refs/remotes/origin/feature/a'
+    const raw = [
+      { ref: localRef, oid: 'local-oid', date: '2026-01-02', upstream: upstreamRef },
+      { ref: upstreamRef, oid: 'remote-oid', date: '2026-01-01', upstream: '' }
+    ]
+    const ahead = groupTrackingRefs(raw, new Map(), new Map(), ['main'], () => 'ahead')
+    const diverged = groupTrackingRefs(raw, new Map(), new Map(), ['main'], () => 'diverged')
+
+    expect(ahead).toHaveLength(1)
+    expect(ahead[0]).toMatchObject({
+      ref: localRef,
+      oid: 'local-oid',
+      aliases: [localRef, upstreamRef],
+      tracking: { state: 'ahead' }
+    })
+    expect(diverged).toHaveLength(2)
+    expect(diverged.map(item => [item.ref, item.aliases, item.tracking.state])).toEqual([
+      [localRef, [localRef], 'diverged'],
+      [upstreamRef, [upstreamRef], 'diverged']
+    ])
   })
 
   test('conflictFiles витягає й дедуплікує шляхи merge-tree', () => {

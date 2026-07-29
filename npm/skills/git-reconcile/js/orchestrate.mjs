@@ -40,9 +40,17 @@ const PR_DESCRIPTION_ARRAY_FIELDS = [
 ]
 const NO_CODE_VERIFICATION = 'Додатковий behavioral LLM не потрібен: code paths не змінено.'
 const ACP_PROGRESS_ENV = 'N_LLM_ACP_PROGRESS'
-const REF_INVENTORY_FORMAT = ['%(refname)', '%00', '%(object', 'name)', '%00', '%(committer', 'date:iso-strict)'].join(
-  ''
-)
+const REF_INVENTORY_FORMAT = [
+  '%(refname)',
+  '%00',
+  '%(object',
+  'name)',
+  '%00',
+  '%(committer',
+  'date:iso-strict)',
+  '%00',
+  '%(upstream)'
+].join('')
 
 /** @typedef {(command:string,args:string[],options:object)=>object|Promise<object>} CommandRunner */
 
@@ -419,9 +427,10 @@ export function dedupeRefs(refs, worktrees, worktreeCommits = new Map(), protect
   for (const item of refs) {
     if (item.ref === 'refs/remotes/origin/HEAD' || protectedBranches.includes(branchName(item.ref))) continue
     const existing = byOid.get(item.oid)
-    const worktree = worktrees.get(item.ref) ?? worktreeCommits.get(item.oid) ?? existing?.worktree ?? null
+    const worktree =
+      worktrees.get(item.ref) ?? worktreeCommits.get(item.oid) ?? item.worktree ?? existing?.worktree ?? null
     const isRemote = item.ref.startsWith('refs/remotes/origin/')
-    const aliases = [...new Set([...(existing?.aliases ?? []), item.ref])].toSorted()
+    const aliases = [...new Set([...(existing?.aliases ?? []), ...(item.aliases ?? []), item.ref])].toSorted()
     if (!existing || isRemote) {
       byOid.set(item.oid, { ...item, worktree, aliases })
     } else if (worktree) {
@@ -435,6 +444,98 @@ export function dedupeRefs(refs, worktrees, worktreeCommits = new Map(), protect
     .values()
     .toArray()
     .toSorted((a, b) => a.ref.localeCompare(b.ref))
+}
+
+/**
+ * Визначає ancestry-відношення local branch до tracking upstream без зміни refs.
+ * @param {string} localOid local tip
+ * @param {string} upstreamOid upstream tip
+ * @param {string} cwd корінь репо
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {'synced'|'behind-only'|'ahead'|'diverged'} tracking state
+ */
+export function trackingRelation(localOid, upstreamOid, cwd, spawnFn = spawnSync) {
+  if (localOid === upstreamOid) return 'synced'
+  const localIsAncestor =
+    git(['merge-base', '--is-ancestor', localOid, upstreamOid], cwd, spawnFn, {
+      allowFailure: true
+    }).status === 0
+  if (localIsAncestor) return 'behind-only'
+  const upstreamIsAncestor =
+    git(['merge-base', '--is-ancestor', upstreamOid, localOid], cwd, spawnFn, {
+      allowFailure: true
+    }).status === 0
+  return upstreamIsAncestor ? 'ahead' : 'diverged'
+}
+
+/**
+ * Групує tracking-пару за effective tip без фізичного fast-forward.
+ * Behind/synced аналізуються за remote tip, ahead — за local tip, diverged
+ * лишаються двома незалежними sources. Worktree protection local ref
+ * переноситься на effective candidate.
+ * @param {Array<{ref:string,oid:string,date:string,upstream?:string}>} refs сирі refs
+ * @param {Map<string,string>} worktrees branch→path
+ * @param {Map<string,string>} worktreeCommits checkout HEAD OID→path
+ * @param {string[]} protectedBranches policy-protected branches
+ * @param {((localOid:string,upstreamOid:string)=>('synced'|'behind-only'|'ahead'|'diverged'))|null} relationFn ancestry classifier
+ * @returns {Array<object>} effective refs
+ */
+export function groupTrackingRefs(
+  refs,
+  worktrees,
+  worktreeCommits = new Map(),
+  protectedBranches = ['main'],
+  relationFn = null
+) {
+  const eligible = refs.filter(item => {
+    return item.ref !== 'refs/remotes/origin/HEAD' && !protectedBranches.includes(branchName(item.ref))
+  })
+  const byRef = new Map(eligible.map(item => [item.ref, item]))
+  const consumed = new Set()
+  const grouped = []
+  const localRefs = eligible
+    .filter(item => item.ref.startsWith('refs/heads/'))
+    .toSorted((left, right) => {
+      return left.ref.localeCompare(right.ref)
+    })
+
+  for (const local of localRefs) {
+    const upstream = local.upstream ? byRef.get(local.upstream) : null
+    if (!upstream || consumed.has(local.ref) || consumed.has(upstream.ref)) continue
+    const state = local.oid === upstream.oid ? 'synced' : (relationFn?.(local.oid, upstream.oid) ?? 'diverged')
+    const tracking = {
+      state,
+      localRef: local.ref,
+      upstreamRef: upstream.ref,
+      localOid: local.oid,
+      upstreamOid: upstream.oid
+    }
+    const worktree =
+      worktrees.get(local.ref) ??
+      worktrees.get(upstream.ref) ??
+      worktreeCommits.get(local.oid) ??
+      worktreeCommits.get(upstream.oid) ??
+      null
+    if (state === 'diverged') {
+      grouped.push(
+        { ...local, aliases: [local.ref], tracking, worktree },
+        { ...upstream, aliases: [upstream.ref], tracking, worktree }
+      )
+    } else {
+      const effective = state === 'ahead' ? local : upstream
+      grouped.push({
+        ...effective,
+        aliases: [local.ref, upstream.ref],
+        tracking,
+        worktree
+      })
+    }
+    consumed.add(local.ref)
+    consumed.add(upstream.ref)
+  }
+
+  const ungrouped = eligible.filter(item => !consumed.has(item.ref))
+  return dedupeRefs([...grouped, ...ungrouped], worktrees, worktreeCommits, protectedBranches)
 }
 
 /**
@@ -531,14 +632,15 @@ export function inventoryRepository(cwd, deps = {}) {
   )
     .stdout.split('\n')
     .filter(Boolean)
-  const refs = dedupeRefs(
+  const refs = groupTrackingRefs(
     refLines.map(line => {
-      const [ref, oid, date] = line.split('\0')
-      return { ref, oid, date }
+      const [ref, oid, date, upstream] = line.split('\0')
+      return { ref, oid, date, upstream }
     }),
     worktreeState.branches,
     worktreeState.commits,
-    policy.protectedBranches
+    policy.protectedBranches,
+    (localOid, upstreamOid) => trackingRelation(localOid, upstreamOid, cwd, spawnFn)
   )
   const prInventory = openPullRequests(cwd, spawnFn)
   const prs = prInventory.items
@@ -575,6 +677,7 @@ export function inventoryRepository(cwd, deps = {}) {
       source: `${SOURCE_BRANCH_PREFIX}${item.ref}`,
       ref: item.ref,
       aliases: item.aliases,
+      tracking: item.tracking ?? null,
       name,
       oid: item.oid,
       date: item.date,
