@@ -212,6 +212,29 @@ impl SessionHandle {
     }
 }
 
+/// Спільний send-слот для handshake-результату ([`create_session`]) — під
+/// `Mutex`, бо на нього претендують дві незалежні сторони гонки
+/// `connect_with` (`future::select` фонової transport-задачі й нашого
+/// `connect_with`-замикання, `agent-client-protocol`'s `jsonrpc.rs`): само
+/// замикання (звичайний шлях) і зовнішній fallback одразу після `.await`
+/// (шлях "фонова transport-задача перемогла гонку й закрила з'єднання
+/// раніше, ніж замикання встигло щось надіслати").
+type ReadySlot = std::sync::Arc<std::sync::Mutex<Option<oneshot::Sender<Result<(), String>>>>>;
+
+/// Надсилає `outcome` рівно один раз — хто перший забере слот `Some`, той і
+/// шле; повторний виклик (з іншої сторони гонки) — тихий no-op. Панікує лише
+/// при отруєній `Mutex` (інша сторона впала з паніки під локом), що для
+/// цього короткого некритичного розділу вважається неможливим на практиці.
+fn send_ready_once(ready_tx: &ReadySlot, outcome: Result<(), String>) {
+    if let Some(tx) = ready_tx
+        .lock()
+        .expect("ready-слот не має бути отруєним")
+        .take()
+    {
+        let _ = tx.send(outcome);
+    }
+}
+
 /// Спавнить агента (`spec`), відкриває сесію в `cwd` і тримає її живою у
 /// фоновій `tokio`-задачі, доки живий хоч один [`SessionHandle`].
 /// Повертається лише після успішного `initialize` → `session/new` →
@@ -239,16 +262,34 @@ pub async fn create_session(
     let (event_tx, event_rx) = mpsc::unbounded_channel::<SessionEvent>();
     let (ready_tx, ready_rx) = oneshot::channel::<Result<(), String>>();
 
+    // `ready_tx` треба ділити між `connect_with`-замиканням (внутрішнє
+    // "ready"-замикання, нижче) і кодом одразу після `.await` (зовнішній
+    // "fallback"-відправник): `Builder::connect_with` внутрішньо ганяє
+    // `future::select(background, foreground)` між фоновою transport-
+    // задачею й нашим замиканням — коли дочірній процес вмирає ще до
+    // handshake (напр. `cursor-agent` без `agent login`), фонова задача
+    // часто перемагає гонку й формує `crate::Error` з реальним stderr
+    // ("Process exited with …: Authentication required…", ACP-крейт це
+    // вже робить сам), а НАШЕ замикання просто дропається недопрацьованим
+    // — тож `ready_tx.take()`/`send` усередині замикання (нижче) ніколи не
+    // виконуються, і без зовнішнього fallback-відправника викликач бачив
+    // би лише загадкове "до підтвердження handshake" замість справжньої
+    // причини. `Arc<Mutex<Option<..>>>` (а не бере `Option` в замикання)
+    // саме тому, що обом сторонам гонки потрібен доступ до того самого
+    // send-слоту: хто перший дійде — той і шле.
+    let ready_tx = std::sync::Arc::new(std::sync::Mutex::new(Some(ready_tx)));
+    let ready_tx_fallback = std::sync::Arc::clone(&ready_tx);
+
     let permission_event_tx = event_tx.clone();
     tokio::spawn(async move {
-        // `ready_tx` — власність цього таска, повністю споживається
-        // всередині `connect_with`-замикання: кожен ранній вихід (`?` на
-        // init/session-new/config-кроці) сам шле `Err` перед поверненням,
-        // успішний шлях шле `Ok(())` перед входом у командний цикл. Тому
-        // зовнішнього "якщо `result` — `Err`" гілки після `.await` не
-        // потрібно (і вона не скомпілювалась би — `ready_tx` уже
-        // переміщено в замикання).
-        let mut ready_tx = Some(ready_tx);
+        // Усередині замикання `ready_tx` бере той самий спільний слот:
+        // кожен ранній вихід (`?` на init/session-new/config-кроці) сам
+        // шле `Err` перед поверненням, успішний шлях шле `Ok(())` перед
+        // входом у командний цикл — так само, як і раніше. Різниця лише в
+        // тому, що тепер це не єдиний відправник: якщо замикання так і не
+        // встигло виконатись (гонка вище), зовнішній fallback після
+        // `.await` (нижче) бере той самий слот і шле `result` сам.
+        let ready_tx = ready_tx;
 
         let result = Client
             .builder()
@@ -287,9 +328,7 @@ pub async fn create_session(
                     .block_task()
                     .await
                 {
-                    if let Some(ready_tx) = ready_tx.take() {
-                        let _ = ready_tx.send(Err(e.to_string()));
-                    }
+                    send_ready_once(&ready_tx, Err(e.to_string()));
                     return Err(e);
                 }
 
@@ -302,9 +341,7 @@ pub async fn create_session(
                 {
                     Ok(session) => session,
                     Err(e) => {
-                        if let Some(ready_tx) = ready_tx.take() {
-                            let _ = ready_tx.send(Err(e.to_string()));
-                        }
+                        send_ready_once(&ready_tx, Err(e.to_string()));
                         return Err(e);
                     }
                 };
@@ -320,18 +357,14 @@ pub async fn create_session(
                         .block_task()
                         .await
                     {
-                        if let Some(ready_tx) = ready_tx.take() {
-                            let _ = ready_tx.send(Err(e.to_string()));
-                        }
+                        send_ready_once(&ready_tx, Err(e.to_string()));
                         return Err(e);
                     }
                 }
 
                 let session_id = session.session_id().clone();
                 let mut startup_noise = unsolicited_startup_text(session.meta().as_ref());
-                if let Some(ready_tx) = ready_tx.take() {
-                    let _ = ready_tx.send(Ok(()));
-                }
+                send_ready_once(&ready_tx, Ok(()));
 
                 while let Some(command) = command_rx.recv().await {
                     match command {
@@ -360,8 +393,22 @@ pub async fn create_session(
             })
             .await;
 
-        if let Err(err) = result {
+        if let Err(err) = &result {
             eprintln!("acp: фонова задача сесії завершилась помилкою: {err}");
+        }
+
+        // Fallback-відправник: якщо гонка в `connect_with` (`future::select`
+        // фонової transport-задачі й нашого замикання, `jsonrpc.rs`) дозволила
+        // фоновій задачі завершитись раніше, ніж замикання встигло дійти до
+        // власного `send_ready_once` (ранній `?` на init/session-new/config-
+        // кроці або навіть успішний шлях), слот усе ще `Some` — беремо його тут
+        // і шлемо РЕАЛЬНИЙ `result` (не вигаданий fallback-текст). Якщо
+        // замикання вже забрало слот (звичайний випадок, без гонки), тут
+        // нічого не відбувається — `send_ready_once` — no-op на порожньому
+        // слоті.
+        match result {
+            Ok(()) => send_ready_once(&ready_tx_fallback, Ok(())),
+            Err(e) => send_ready_once(&ready_tx_fallback, Err(e.to_string())),
         }
     });
 
@@ -374,7 +421,10 @@ pub async fn create_session(
         )),
         Ok(Err(message)) => Err(LlmError::Provider(message)),
         Err(_) => Err(LlmError::Provider(
-            "acp: фонова задача сесії завершилась до підтвердження handshake".to_string(),
+            "acp: неочікуваний внутрішній стан — фонова задача сесії зникла, не надіславши \
+             жодного результату (ні через власне замикання, ні через fallback після \
+             connect_with)"
+                .to_string(),
         )),
     }
 }
@@ -497,6 +547,89 @@ mod tests {
 
     fn missing_binary_spec() -> AcpAgent {
         AcpAgent::from_str("nonexistent-acp-binary-xyz-session-test").unwrap()
+    }
+
+    /// Пише виконуваний shell-скрипт, що імітує неавторизований
+    /// `cursor-agent`: одразу друкує `stderr_message` у stderr і виходить з
+    /// ненульовим кодом, ще до того, як сказати бодай слово ACP JSON-RPC на
+    /// stdout. Це відтворює точно ту саму "дитина вмирає до handshake"-форму,
+    /// що й `cursor-agent` без `agent login` — і саме вона запускає гонку в
+    /// `connect_with` (`agent-client-protocol`'s `jsonrpc.rs`,
+    /// `future::select(background, foreground)`), де фонова transport-задача
+    /// може завершитись раніше нашого `connect_with`-замикання.
+    fn write_stderr_then_exit_script(stderr_message: &str) -> std::path::PathBuf {
+        use std::io::Write;
+        use std::os::unix::fs::PermissionsExt;
+
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("час не мав би йти назад від епохи")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "llm-lib-acp-session-test-auth-fail-{}-{unique}.sh",
+            std::process::id()
+        ));
+        let script = format!("#!/bin/sh\necho '{stderr_message}' >&2\nexit 1\n");
+
+        let mut file = std::fs::File::create(&path).expect("не вдалось створити тестовий скрипт");
+        file.write_all(script.as_bytes())
+            .expect("не вдалось записати тестовий скрипт");
+        drop(file);
+
+        let mut perms = std::fs::metadata(&path)
+            .expect("не вдалось прочитати метадані скрипта")
+            .permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&path, perms).expect("не вдалось виставити +x на скрипт");
+
+        path
+    }
+
+    /// Регресія на гонку `connect_with` (діагноз, з якого зроблено фікс
+    /// `send_ready_once`/[`ReadySlot`]): коли дочірній процес вмирає до
+    /// ACP-handshake з повідомленням у stderr (точнісінько як
+    /// неавторизований `cursor-agent`), `create_session` має повернути
+    /// `Err`, ЧИЄ повідомлення містить РЕАЛЬНИЙ stderr-текст — а не
+    /// загальний fallback "…до підтвердження handshake", яким раніше
+    /// маскувалась справжня причина щоразу, коли фонова transport-задача
+    /// перемагала гонку з нашим `connect_with`-замиканням.
+    #[tokio::test]
+    async fn create_session_of_auth_failing_child_surfaces_real_stderr_not_generic_fallback() {
+        let stderr_message = "Authentication required. Please run 'agent login' first, then call authenticate() with methodId 'cursor_login'.";
+        let script_path = write_stderr_then_exit_script(stderr_message);
+
+        let spec = AcpAgent::from_args([script_path.to_str().unwrap()])
+            .expect("шлях до тестового скрипта має бути валідною AcpAgent-спекою");
+
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            create_session(spec, &std::env::temp_dir(), SessionOptions::default()),
+        )
+        .await;
+
+        let _ = std::fs::remove_file(&script_path);
+
+        let outcome =
+            result.expect("процес, що одразу падає, не мав зависнути довше 5с очікування");
+        let Err(err) = outcome else {
+            panic!(
+                "неавторизований дочірній процес мав провалити create_session, а не повернути Ok"
+            );
+        };
+
+        let message = err.to_string();
+        assert!(
+            message.contains("Authentication required"),
+            "повідомлення має нести реальний stderr, отримали: {message}"
+        );
+        assert!(
+            message.contains("agent login") && message.contains("cursor_login"),
+            "повідомлення має нести реальний stderr, отримали: {message}"
+        );
+        assert!(
+            !message.contains("до підтвердження handshake"),
+            "не має маскуватись загальним fallback, отримали: {message}"
+        );
     }
 
     /// `create_session` не має зависати, якщо бінарник агента відсутній — та сама

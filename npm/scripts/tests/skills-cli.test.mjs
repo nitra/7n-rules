@@ -421,6 +421,43 @@ describe('runSkillsCli', () => {
     expect(errors.join('\n')).not.toContain('[deprecated]')
   })
 
+  // Регресія: llm-lib (`llm-lib/crates/llm-lib/src/acp/session.rs`,
+  // `create_session`) раніше міг маскувати реальну причину провалу ACP-
+  // handshake (напр. неавторизований `cursor-agent`) генеричним "до
+  // підтвердження handshake", коли фонова transport-задача перемагала гонку
+  // з нашим `connect_with`-замиканням. Фікс — `create_session` завжди
+  // повертає РЕАЛЬНИЙ текст помилки (включно зі stderr дочірнього процесу).
+  // Тут перевіряється, що `runLlmCli` (єдиний одноходовий ACP-виклик поза
+  // `taze`-циклом) не маскує/не обрізає це повідомлення — просто forward-ить
+  // `error.message` як є через `logError`.
+  test('cursor runner: реальне ACP auth-повідомлення (не generic-фолбек) доходить до logError без обрізання', async () => {
+    const root = join(tmpdir(), `skills-cli-cursor-auth-${Date.now()}`)
+    const skillsRoot = join(root, 'skills')
+    mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
+    writeFileSync(join(skillsRoot, 'fix', 'SKILL.md'), '# Fix\n')
+
+    const authMessage =
+      "Authentication required. Please run 'agent login' first, then call authenticate() with methodId 'cursor_login'."
+    const errors = []
+    const code = await runSkillsCli(['cursor', 'fix'], {
+      packageRoot: root,
+      projectDir: root,
+      log: () => {
+        /* noop: stdout не перевіряється в цьому тесті */
+      },
+      logError: line => {
+        errors.push(line)
+      },
+      deps: {
+        runAcpAgent: () => Promise.reject(new Error(authMessage))
+      }
+    })
+
+    expect(code).toBe(1)
+    expect(errors).toContain(authMessage)
+    expect(errors.join('\n')).not.toContain('до підтвердження handshake')
+  })
+
   test('taze: pi/cursor/codex делегують у runTazeOrchestrator замість generic-шляху', async () => {
     const root = join(tmpdir(), `skills-cli-taze-orchestrate-${Date.now()}`)
     mkdirSync(join(root, 'skills'), { recursive: true })
