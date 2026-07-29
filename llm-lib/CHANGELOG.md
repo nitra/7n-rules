@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.13.3] - 2026-07-29
+
+### Fixed
+
+- Піни платформних napi-пакетів (`optionalDependencies` + версії `llm-lib/packages/*`) підтягнуто до опублікованої 2.13.2: git застряг на 2.9.7 (збірки до уніфікації model resolution), через що install монорепо тягнув несумісний prebuilt addon — 42 фейли повного `bun run test` і червоний Lint repo-wide
+
 ## [2.13.2] - 2026-07-29
 
 ### Changed
