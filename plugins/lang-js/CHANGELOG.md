@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.24.2] - 2026-07-29
+
+### Fixed
+
+- js/eslint fix-worker: захист gql/sql tagged-template тегів від видалення LLM-автофіксом
+
 ## [0.24.1] - 2026-07-29
 
 ### Changed

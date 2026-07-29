@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.13.3] - 2026-07-29
+
+### Fixed
+
+- align @7n/llm-lib native addon optionalDependencies pin (2.9.7 → 2.13.2) — CI lint-repo was calling a stale native resolveModel binary that didn't support N_LOCAL_*_MODEL env-key selectors
+
 ## [2.13.2] - 2026-07-29
 
 ### Changed
