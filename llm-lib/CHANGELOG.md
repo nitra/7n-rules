@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.13.2] - 2026-07-29
+
+### Changed
+
+- Уніфіковано вибір моделей через `resolveModel`: явні local/cloud selectors
+використовують спільну Rust-драбину, а one-shot і agent runners вимагають
+tier або explicit model policy.
+
 ## [2.13.1] - 2026-07-29
 
 ### Fixed

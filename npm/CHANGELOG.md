@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.57.3] - 2026-07-29
+
+### Changed
+
+- LLM consumers переведено на universal model resolver; ACP-виклики без tier
+дозволено лише в explicit interactive mode, legacy Claude ACP shim видалено.
+
 ## [1.57.2] - 2026-07-29
 
 ### Fixed
