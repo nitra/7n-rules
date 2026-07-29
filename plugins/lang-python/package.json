@@ -40,7 +40,12 @@
     ],
     "slots": {
       "provides": [
-        { "slot": "rules.directory", "version": 1, "id": "python-rules", "resource": "./rules" },
+        {
+          "slot": "rules.directory",
+          "version": 1,
+          "id": "python-rules",
+          "resource": "./rules"
+        },
         {
           "slot": "ci.artifact",
           "version": 1,
@@ -63,16 +68,49 @@
             ]
           }
         },
-        { "slot": "taze.provider", "version": 1, "id": "taze-python", "resource": "./taze/provider.mjs" },
-        { "slot": "coverage.provider", "version": 1, "id": "coverage-python", "resource": "./coverage-provider/provider.mjs" },
-        { "slot": "doc-files.extractor", "version": 1, "id": "doc-files-python", "resource": "./doc-files/extractors.mjs" },
+        {
+          "slot": "taze.provider",
+          "version": 1,
+          "id": "taze-python",
+          "resource": "./taze/provider.mjs"
+        },
+        {
+          "slot": "coverage.provider",
+          "version": 1,
+          "id": "coverage-python",
+          "resource": "./coverage-provider/provider.mjs"
+        },
+        {
+          "slot": "doc-files.extractor",
+          "version": 1,
+          "id": "doc-files-python",
+          "resource": "./doc-files/extractors.mjs"
+        },
         {
           "slot": "doc-files.extensions",
           "version": 1,
           "id": "doc-files-ext-python",
-          "value": { ".py": "Python Module" }
+          "value": {
+            ".py": "Python Module"
+          }
         },
-        { "slot": "skills.fragment", "version": 1, "id": "taze", "resource": "./skills/taze/SKILL.fragment.md" }
+        {
+          "slot": "skills.fragment",
+          "version": 1,
+          "id": "taze",
+          "resource": "./skills/taze/SKILL.fragment.md"
+        },
+        {
+          "slot": "ci.artifact",
+          "version": 1,
+          "id": "python-lint-text-patch",
+          "resource": "./slots/ci/python-lint-text-patch.json",
+          "requires": {
+            "capabilities": [
+              "ci:github"
+            ]
+          }
+        }
       ]
     }
   },

@@ -1,0 +1,10 @@
+{
+  "targetCapability": "ci:github",
+  "artifactId": "lint-text-python",
+  "targetPath": ".github/workflows/lint-text.yml",
+  "format": "yaml",
+  "mode": "patch-existing",
+  "template": "./github/lint-text-python.snippet.yml",
+  "mergeStrategy": "deep-subset",
+  "fix": true
+}

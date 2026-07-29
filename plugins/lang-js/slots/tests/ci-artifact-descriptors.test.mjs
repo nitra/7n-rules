@@ -21,6 +21,10 @@ describeCiArtifactDescriptors({
   ciDir: CI_DIR,
   cases: [
     {
+      file: 'js-lint-text-patch.json',
+      expected: { targetCapability: 'ci:github', mode: 'patch-existing', mergeStrategy: 'deep-subset', fix: true }
+    },
+    {
       file: 'js-github-lint.json',
       expected: { targetCapability: 'ci:github', mode: 'required-file', mergeStrategy: 'deep-subset', fix: true }
     },

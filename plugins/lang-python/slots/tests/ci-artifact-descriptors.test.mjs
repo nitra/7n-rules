@@ -19,6 +19,10 @@ const CI_DIR = join(PACKAGE_ROOT, 'slots', 'ci')
 /** @type {Array<{ file: string, expected: Partial<import('@7n/rules/plugin-api').CiArtifactDescriptor> }>} */
 const DESCRIPTORS = [
   {
+    file: 'python-lint-text-patch.json',
+    expected: { targetCapability: 'ci:github', mode: 'patch-existing', mergeStrategy: 'deep-subset', fix: true }
+  },
+  {
     file: 'python-github-lint.json',
     expected: { targetCapability: 'ci:github', mode: 'required-file', mergeStrategy: 'deep-subset', fix: true }
   },

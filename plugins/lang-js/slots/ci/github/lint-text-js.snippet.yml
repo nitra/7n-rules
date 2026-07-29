@@ -1,0 +1,11 @@
+on:
+  push:
+    paths:
+      - '**/*.js'
+      - '**/*.ts'
+      - '**/*.vue'
+  pull_request:
+    paths:
+      - '**/*.js'
+      - '**/*.ts'
+      - '**/*.vue'
