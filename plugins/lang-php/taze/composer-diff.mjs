@@ -1,9 +1,7 @@
 /** @see ./docs/composer-diff.md */
-import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { isBreaking } from '@7n/rules/plugin-api'
+import { diffManifestDeps, readJsonOrNull } from '@7n/rules/scripts/lib/taze-diff.mjs'
 
 /** Поля composer.json із залежностями, які порівнюємо (аналог CARGO_DEP_FIELDS у lang-rust). */
 const COMPOSER_DEP_FIELDS = ['require', 'require-dev']
@@ -52,41 +50,12 @@ export function isRealComposerPackage(name) {
  * @returns {{major: Array<{manifest:string, pkg:string, from:string, to:string}>, minorPatch:number}} зміни
  */
 export function diffComposerJson(oldManifest, newManifest, manifest) {
-  const major = []
-  let minorPatch = 0
-  for (const field of COMPOSER_DEP_FIELDS) {
-    const oldDeps = oldManifest?.[field]
-    const newDeps = newManifest?.[field]
-    if (!oldDeps || !newDeps) continue
-    for (const [pkg, from] of Object.entries(oldDeps)) {
-      if (!isRealComposerPackage(pkg)) continue
-      const to = newDeps[pkg]
-      if (typeof from !== 'string' || typeof to !== 'string' || from === to) continue
-
-      const fromV = parseComposerVersion(from)
-      const toV = parseComposerVersion(to)
-      if (fromV && toV && isBreaking(fromV, toV)) {
-        major.push({ manifest, pkg, from, to })
-      } else {
-        minorPatch += 1
-      }
-    }
-  }
-  return { major, minorPatch }
-}
-
-/**
- * Читає й парсить JSON-файл, або повертає null, якщо файл відсутній/невалідний.
- * @param {string} path абсолютний шлях
- * @returns {Promise<object|null>} розпарсений обʼєкт або null
- */
-async function readJsonOrNull(path) {
-  if (!existsSync(path)) return null
-  try {
-    return JSON.parse(await readFile(path, 'utf8'))
-  } catch {
-    return null
-  }
+  const { major, minorPatch } = diffManifestDeps(oldManifest, newManifest, {
+    fields: COMPOSER_DEP_FIELDS,
+    parseVersion: parseComposerVersion,
+    filterPkg: isRealComposerPackage
+  })
+  return { major: major.map(entry => ({ manifest, ...entry })), minorPatch }
 }
 
 /**

@@ -45,6 +45,7 @@ resource: npm/scripts/lib/
 | [skill-meta.mjs](skill-meta.md)                                             | JS Module |
 | [slot-contracts-ci.mjs](slot-contracts-ci.md)                               | JS Module |
 | [sync-gitignore-worktree.mjs](sync-gitignore-worktree.md)                   | JS Module |
+| [taze-diff.mjs](taze-diff.md)                                               | JS Module |
 | [template.mjs](template.md)                                                 | JS Module |
 | [timing-summary.mjs](timing-summary.md)                                     | JS Module |
 | [workspaces.mjs](workspaces.md)                                             | JS Module |

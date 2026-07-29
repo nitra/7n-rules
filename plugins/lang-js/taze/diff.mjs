@@ -1,9 +1,8 @@
 /** @see ./docs/diff.md */
-import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { isBreaking, parseVersion } from '@7n/rules/plugin-api'
+import { parseVersion } from '@7n/rules/plugin-api'
+import { diffManifestDeps, readJsonOrNull } from '@7n/rules/scripts/lib/taze-diff.mjs'
 import { getMonorepoPackageRootDirs } from '@7n/rules/scripts/lib/workspaces.mjs'
 
 /** Поля package.json із залежностями, які порівнюємо. */
@@ -20,39 +19,8 @@ const DEFAULT_BACKUP_SUFFIX = '.taze-bak'
  * @returns {{major: Array<{workspace:string, pkg:string, from:string, to:string}>, minorPatch:number}} зміни
  */
 export function diffPackageJson(oldPkg, newPkg, workspace) {
-  const major = []
-  let minorPatch = 0
-  for (const field of DEP_FIELDS) {
-    const oldDeps = oldPkg?.[field]
-    const newDeps = newPkg?.[field]
-    if (!oldDeps || !newDeps) continue
-    for (const [pkg, from] of Object.entries(oldDeps)) {
-      const to = newDeps[pkg]
-      if (to === undefined || to === from) continue
-      const fromV = parseVersion(from)
-      const toV = parseVersion(to)
-      if (fromV && toV && isBreaking(fromV, toV)) {
-        major.push({ workspace, pkg, from, to })
-      } else {
-        minorPatch += 1
-      }
-    }
-  }
-  return { major, minorPatch }
-}
-
-/**
- * Читає JSON-файл або повертає null, якщо файл відсутній / невалідний.
- * @param {string} path абсолютний шлях
- * @returns {Promise<object|null>} розпарсений обʼєкт або null
- */
-async function readJsonOrNull(path) {
-  if (!existsSync(path)) return null
-  try {
-    return JSON.parse(await readFile(path, 'utf8'))
-  } catch {
-    return null
-  }
+  const { major, minorPatch } = diffManifestDeps(oldPkg, newPkg, { fields: DEP_FIELDS, parseVersion })
+  return { major: major.map(entry => ({ workspace, ...entry })), minorPatch }
 }
 
 /**
