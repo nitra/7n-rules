@@ -3,9 +3,9 @@ type: JS Module
 title: gap-engine.mjs
 resource: npm/rules/ci4/package_knowledge/gap-engine.mjs
 docgen:
-  crc: fc1f0a20
+  crc: 9dd13178
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
+  tier: local-min-retry
   score: 100
   judgeModel: openai-codex/gpt-5.4-mini
 ---
@@ -20,9 +20,7 @@ Engine приймає лише explicit structured mappings: він не вив�
 
 ## Поведінка
 
-Система не гарантує виявлення суперечностей або розбіжностей, якщо вони не представлені у вигляді явного структурованого зіставлення.
-При використанні функції `evaluateGaps`, невідповідності, що виникають через недостатню впевненість або внутрішні суперечності в наданих зіставленнях, залишаються у стані незавершеного вирішення.
-Функція `evaluateGaps` не містить внутрішніх механізмів для самостійного виведення семантичної відповідності для прозових описів.
+evaluateGaps повертає об'єкт, що містить результат перевірки або список діагностичних повідомлень у випадку невдачі. Успішний результат містить масив об'єктів, що описують виявлені розриви.
 
 ## Публічний API
 
@@ -30,7 +28,7 @@ Engine приймає лише explicit structured mappings: він не вив�
 
 ## Сценарії використання
 
-- `npm/rules/ci4/package_knowledge/tests/gap-engine.test.mjs` (evaluateGaps) — returns no gap when graph has no explicit expectation; marks an exact evidence-backed equivalent mapping as satisfied; marks an evidence-backed expectation without mapping as missing; marks an exact contradictory mapping as diverged; keeps low-confidence implementation and ambiguous mappings unresolved; ще 1
+- `npm/rules/ci4/package_knowledge/tests/gap-engine.test.mjs` (evaluateGaps) — returns no gap when graph has no explicit expectation; marks an exact evidence-backed equivalent mapping as satisfied; marks an evidence-backed expectation without mapping as missing; marks an exact contradictory mapping as diverged; keeps low-confidence implementation and ambiguous mappings unresolved; ще 2
 
 ## Гарантії поведінки
 

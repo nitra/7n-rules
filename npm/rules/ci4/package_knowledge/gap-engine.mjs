@@ -102,10 +102,10 @@ function validateMapping(mapping, expectedById, implementedById, evidenceIds) {
 
 /**
  * Evaluates deterministic gap statuses from explicit structured mappings.
- * @param {{ graph: Record<string, unknown>, mappings?: unknown[], validation?: { parser?: { ok?: boolean, message?: string }, coverage?: { ok?: boolean, message?: string } }, minimumConfidence?: number }} input graph and exact comparison facts
+ * @param {{ graph: Record<string, unknown>, mappings?: unknown[], unresolvedExpectedClaimIds?: string[], validation?: { parser?: { ok?: boolean, message?: string }, coverage?: { ok?: boolean, message?: string } }, minimumConfidence?: number }} input graph and exact comparison facts
  * @returns {{ ok: true, gaps: Array<Record<string, unknown>> } | { ok: false, diagnostics: Array<{ code: string, message: string }> }} sorted gaps or publication blockers
  */
-export function evaluateGaps({ graph, mappings = [], validation = {}, minimumConfidence = 1 }) {
+export function evaluateGaps({ graph, mappings = [], unresolvedExpectedClaimIds = [], validation = {}, minimumConfidence = 1 }) {
   const blockers = validationBlockers(validation)
   if (blockers.length > 0) return { ok: false, diagnostics: blockers }
   if (!graph || typeof graph !== 'object' || !Array.isArray(graph.claims) || !Array.isArray(graph.evidence)) {
@@ -113,6 +113,7 @@ export function evaluateGaps({ graph, mappings = [], validation = {}, minimumCon
   }
   if (
     !Array.isArray(mappings) ||
+    !Array.isArray(unresolvedExpectedClaimIds) ||
     typeof minimumConfidence !== 'number' ||
     minimumConfidence < 0 ||
     minimumConfidence > 1
@@ -120,7 +121,7 @@ export function evaluateGaps({ graph, mappings = [], validation = {}, minimumCon
     return {
       ok: false,
       diagnostics: [
-        diagnostic('invalid-gap-input', 'mappings має бути масивом, minimumConfidence — числом від 0 до 1.')
+        diagnostic('invalid-gap-input', 'mappings та unresolvedExpectedClaimIds мають бути масивами, minimumConfidence — числом від 0 до 1.')
       ]
     }
   }
@@ -131,6 +132,16 @@ export function evaluateGaps({ graph, mappings = [], validation = {}, minimumCon
   if (expectedClaims.length === 0) return { ok: true, gaps: [] }
 
   const expectedById = new Map(expectedClaims.map(claim => [claim.id, claim]))
+  if (
+    new Set(unresolvedExpectedClaimIds).size !== unresolvedExpectedClaimIds.length ||
+    unresolvedExpectedClaimIds.some(id => typeof id !== 'string' || !expectedById.has(id))
+  ) {
+    return {
+      ok: false,
+      diagnostics: [diagnostic('invalid-unresolved-expected', 'unresolvedExpectedClaimIds містить невідомий або дубльований expected claim.')]
+    }
+  }
+  const unresolvedExpected = new Set(unresolvedExpectedClaimIds)
   const implementedById = new Map(
     graph.claims.filter(claim => claim?.layer === 'implemented').map(claim => [claim.id, claim])
   )
@@ -166,7 +177,7 @@ export function evaluateGaps({ graph, mappings = [], validation = {}, minimumCon
     )
     const relations = new Set(claimMappings.map(mapping => mapping.relation))
     let status
-    if (!strongExpected || !strongMappings || !strongImplemented || relations.size > 1) {
+    if (unresolvedExpected.has(expectedClaim.id) || !strongExpected || !strongMappings || !strongImplemented || relations.size > 1) {
       status = 'unresolved'
     } else if (claimMappings.length === 0) {
       status = 'missing'

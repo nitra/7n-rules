@@ -126,6 +126,15 @@ describe('evaluateGaps', () => {
     expect(ambiguous.gaps[0].status).toBe('unresolved')
   })
 
+  test('honors explicit unresolved expected claims from semantic comparison', async () => {
+    const result = evaluateGaps({
+      graph: await graphWithExpectation(),
+      unresolvedExpectedClaimIds: [EXPECTED_ID]
+    })
+
+    expect(result.gaps[0]).toMatchObject({ status: 'unresolved', implementedClaimIds: [] })
+  })
+
   test('returns parser and coverage blockers instead of unresolved gaps', async () => {
     const parser = evaluateGaps({
       graph: await graphWithExpectation(),
