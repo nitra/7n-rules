@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.4] - 2026-07-29
+
+### Changed
+
+- Використання diffManifestDeps для порівняння залежностей composer.json
+
 ## [0.2.3] - 2026-07-29
 
 ### Changed

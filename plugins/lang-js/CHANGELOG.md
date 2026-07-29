@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.23.8] - 2026-07-29
+
+### Changed
+
+- Використовує diffManifestDeps для порівняння залежностей у package.json
+
+### Fixed
+
+- дозволено локальні Oxlint jsPlugins
+
 ## [0.23.7] - 2026-07-29
 
 ### Added
