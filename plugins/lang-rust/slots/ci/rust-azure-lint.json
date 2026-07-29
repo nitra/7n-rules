@@ -1,0 +1,10 @@
+{
+  "targetCapability": "ci:azure",
+  "artifactId": "lint-rust",
+  "targetPath": "azure-pipelines.yml",
+  "format": "yaml",
+  "mode": "patch-existing",
+  "template": "./azure/lint-rust.snippet.yml",
+  "mergeStrategy": "contains-step",
+  "fix": false
+}

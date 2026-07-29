@@ -47,7 +47,7 @@ node -e "const p=JSON.parse(require('fs').readFileSync('package.json','utf8')); 
 
 - `relRoot` = `<ws>` (напр. `npm`, `demo`)
 - `docPath` = `<ws>/docs/ARCHITECTURE.md`
-- `members` — кодові файли (`.mjs .ts .vue .py`, крім тестів) у `<ws>/`
+- `members` — кодові файли (розширення декларують lang-плагіни через `doc-files.extensions`, крім тестів) у `<ws>/`
 
 module-summary **завжди регенерується**. Розбий воркспейси на батчі по 5 і диспатч субагентів.
 Промпт кожного (підстав `relRoot`, `docPath`, `members`):

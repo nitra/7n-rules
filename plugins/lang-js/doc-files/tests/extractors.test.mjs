@@ -59,3 +59,22 @@ describe('localSymbols — неекспортовані top-level функції
     expect(symbols('export const a = 1\nexport function b() {}\n')).toEqual([])
   })
 })
+
+describe('extractFacts — .tsx/.jsx/.cjs підтримувані (не unsupported)', () => {
+  test('.tsx з JSX і типом пропсів парситься через oxc, не unsupported', () => {
+    const src = 'export function Widget(props: { title: string }) {\n  return <div>{props.title}</div>\n}\n'
+    const facts = extractFacts(src, 'x.tsx')
+    expect(facts.unsupported).toBeUndefined()
+    expect(facts.exports.map(e => e.name)).toContain('Widget')
+  })
+
+  test('.jsx парситься, не unsupported', () => {
+    const facts = extractFacts('export function A() {\n  return <span />\n}\n', 'x.jsx')
+    expect(facts.unsupported).toBeUndefined()
+  })
+
+  test('.cjs парситься, не unsupported', () => {
+    const facts = extractFacts('module.exports = {}\nexport function a() {}\n', 'x.cjs')
+    expect(facts.unsupported).toBeUndefined()
+  })
+})

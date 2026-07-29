@@ -1,0 +1,10 @@
+{
+  "targetCapability": "ci:github",
+  "artifactId": "lint-text-js",
+  "targetPath": ".github/workflows/lint-text.yml",
+  "format": "yaml",
+  "mode": "patch-existing",
+  "template": "./github/lint-text-js.snippet.yml",
+  "mergeStrategy": "deep-subset",
+  "fix": true
+}

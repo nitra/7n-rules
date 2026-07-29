@@ -23,6 +23,7 @@
     "coverage-provider",
     "doc-files",
     "rules",
+    "slots",
     "taze",
     "skills",
     "CHANGELOG.md",
@@ -74,6 +75,28 @@
           "resource": "./rules"
         },
         {
+          "slot": "ci.artifact",
+          "version": 1,
+          "id": "js-github-lint",
+          "resource": "./slots/ci/js-github-lint.json",
+          "requires": {
+            "capabilities": [
+              "ci:github"
+            ]
+          }
+        },
+        {
+          "slot": "ci.artifact",
+          "version": 1,
+          "id": "js-azure-lint",
+          "resource": "./slots/ci/js-azure-lint.json",
+          "requires": {
+            "capabilities": [
+              "ci:azure"
+            ]
+          }
+        },
+        {
           "slot": "taze.provider",
           "version": 1,
           "id": "taze-js",
@@ -99,7 +122,10 @@
             ".js": "JS Module",
             ".mjs": "JS Module",
             ".ts": "TS Module",
-            ".vue": "Vue Component"
+            ".vue": "Vue Component",
+            ".cjs": "JS Module",
+            ".jsx": "JSX Module",
+            ".tsx": "TSX Module"
           }
         },
         {
@@ -107,6 +133,17 @@
           "version": 1,
           "id": "taze",
           "resource": "./skills/taze/SKILL.fragment.md"
+        },
+        {
+          "slot": "ci.artifact",
+          "version": 1,
+          "id": "js-lint-text-patch",
+          "resource": "./slots/ci/js-lint-text-patch.json",
+          "requires": {
+            "capabilities": [
+              "ci:github"
+            ]
+          }
         }
       ]
     }

@@ -1,8 +1,8 @@
 ---
 description: Python — пакет-менеджер uv (без Poetry), PEP 621, lint-python
-globs: "**/*.py,pyproject.toml,uv.lock,.github/workflows/lint-python.yml"
+globs: "**/*.py,pyproject.toml,uv.lock,.github/workflows/lint-python.yml,.vscode/extensions.json"
 alwaysApply: false
-version: '1.1'
+version: '1.2'
 ---
 
 Docstring-и: модуль із публічними def/class має module-docstring, кожен top-level публічний def/class — docstring. Якщо вони змістовні, doc-files дослівно збирає «Огляд» і «Публічний API» без LLM (концерн doc_comments; T0 перетворює суміжний #-коментар на docstring, решту дописує LLM-ladder).
@@ -84,6 +84,16 @@ JS-перевірка (`npm/rules/python/tooling/main.mjs`) запускаєть
 - `npm/rules/python/mypy/main.mjs` — `mypy` (лише детект, немає autofix); per-file.
 
 Якщо `pyproject.toml` у корені відсутній — `tooling`/`project` виходять без порушень (перевіряють лише кореневий файл), але `workspace_root` ловить цей випадок як порушення (`missing-root-workspace`), якщо десь у дереві є вкладений `pyproject.toml` з `[project]` — інакше такі nested-пакети були б невидимі для всього плагіна. Якщо `pyproject.toml` є, але `uv` не знайдено в PATH — це помилка. `ruff`/`mypy`-кроки запускаються лише якщо інструмент доступний у середовищі (інакше крок пропускається з повідомленням).
+
+## Перевірка `.vscode/extensions.json` (Rego-gate)
+
+Rego-пакет: `python.vscode_extensions`
+
+Цільовий файл: `.vscode/extensions.json`
+
+Семантика `contains`: кожен запис з канону має бути присутнім у `recommendations` — додаткові розширення дозволені. Канон завантажується через `--data` з template-сніпету.
+
+Канонічний template: [extensions.json.snippet.json](./template/extensions.json.snippet.json)
 
 ## Один кореневий uv workspace на репозиторій
 

@@ -1,0 +1,10 @@
+{
+  "targetCapability": "ci:github",
+  "artifactId": "lint-rust",
+  "targetPath": ".github/workflows/lint-rust.yml",
+  "format": "yaml",
+  "mode": "required-file",
+  "template": "./github/lint-rust.yml.snippet.yml",
+  "mergeStrategy": "deep-subset",
+  "fix": true
+}
