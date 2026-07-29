@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.55.0] - 2026-07-29
+
+### Added
+
+- doc-files batch-шлях (T8, `'comment+behavior'`/повний конвеєр) тепер хвильовий (`docgen-wave-batch`): секції → critique → refine → best-of-2 → judge одним `submitBatch`-викликом на хвилю замість one-shot-промпта на файл — та сама якість, що й послідовний `generateDoc`, без per-file await. Помилка обов'язкового виклику валить лише свій файл.
+
+### Fixed
+
+- npm: skill/rule docs — замінено приклади голого 'bun test' на 'bun run test' (npm/package.json#scripts.test = vitest run; bare bun test обходить це й ганяє несумісний нативний Bun test runner)
+
 ## [1.54.3] - 2026-07-29
 
 ### Fixed

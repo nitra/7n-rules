@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.23.5] - 2026-07-29
+
+### Fixed
+
+- npm: skill/rule docs — замінено приклади голого 'bun test' на 'bun run test' (npm/package.json#scripts.test = vitest run; bare bun test обходить це й ганяє несумісний нативний Bun test runner)
+
 ## [0.23.4] - 2026-07-29
 
 ### Changed
