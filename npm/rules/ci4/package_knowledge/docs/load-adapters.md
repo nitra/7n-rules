@@ -3,7 +3,7 @@ type: JS Module
 title: load-adapters.mjs
 resource: npm/rules/ci4/package_knowledge/load-adapters.mjs
 docgen:
-  crc: 18a51c50
+  crc: 40b86e9d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80

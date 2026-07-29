@@ -47,11 +47,11 @@ function digest(value) {
  * @returns {unknown} canonicalized value
  */
 function canonicalize(value) {
-  if (Array.isArray(value)) return value.map(canonicalize)
+  if (Array.isArray(value)) return value.map(item => canonicalize(item))
   if (!value || typeof value !== 'object') return value
   return Object.fromEntries(
     Object.entries(value)
-      .sort(([left], [right]) => left.localeCompare(right))
+      .toSorted(([left], [right]) => left.localeCompare(right))
       .map(([key, item]) => [key, canonicalize(item)])
   )
 }
@@ -61,7 +61,7 @@ function canonicalize(value) {
  * @param {string} code machine-readable code
  * @param {string} detail human-readable detail
  * @param {string | null} [path] source path
- * @returns {{ code: string, detail: string, path: string | null }}
+ * @returns {{ code: string, detail: string, path: string | null }} stable diagnostic
  */
 function diagnostic(code, detail, path = null) {
   return { code, detail, path }
@@ -76,8 +76,8 @@ function isValidByteSpan(span) {
   return (
     Boolean(span) &&
     typeof span === 'object' &&
-    Number.isInteger(span.startByte) &&
-    Number.isInteger(span.endByte) &&
+    Number.isSafeInteger(span.startByte) &&
+    Number.isSafeInteger(span.endByte) &&
     span.startByte >= 0 &&
     span.endByte >= span.startByte
   )
@@ -86,7 +86,7 @@ function isValidByteSpan(span) {
 /**
  * Перевіряє мінімальний contract успішного file fragment.
  * @param {unknown} raw довільний extractor result
- * @returns {{ ok: true, value: Record<string, unknown> } | { ok: false, diagnostics: Array<Record<string, unknown>> }}
+ * @returns {{ ok: true, value: Record<string, unknown> } | { ok: false, diagnostics: Array<Record<string, unknown>> }} validated fragment result
  */
 function validateFragment(raw) {
   if (!raw || typeof raw !== 'object') {
@@ -138,15 +138,15 @@ export function createCodeUnitId(domainId, language, qualifiedPath) {
   return `code-unit:${domainId}:${language}:${qualifiedPath}`
 }
 
+/* eslint-disable sonarjs/cognitive-complexity -- atomic graph assembly keeps cross-collection invariants in one fail-closed boundary */
 /**
  * Будує normalized graph. Language fragments можуть надходити у будь-якому
  * порядку; результат і diagnostics завжди стабільно відсортовані.
- *
  * @param {{
  *   domain: { id: string, ecosystem: string, name: string, rootManifest: string, sourceFingerprint?: string },
  *   fragments: unknown[]
  * }} input domain та результати knowledge.extractor@1
- * @returns {{ ok: true, graph: Record<string, unknown> } | { ok: false, diagnostics: Array<Record<string, unknown>> }}
+ * @returns {{ ok: true, graph: Record<string, unknown> } | { ok: false, diagnostics: Array<Record<string, unknown>> }} complete graph або diagnostics
  */
 export function buildNormalizedGraph({ domain, fragments }) {
   if (!domain || typeof domain.id !== 'string' || domain.id === '') {
@@ -156,12 +156,12 @@ export function buildNormalizedGraph({ domain, fragments }) {
     return { ok: false, diagnostics: [diagnostic('invalid-fragments', 'fragments мусить бути масивом.')] }
   }
 
-  const checked = fragments.map(validateFragment)
+  const checked = fragments.map(fragment => validateFragment(fragment))
   const fragmentFailures = checked.flatMap(result => (result.ok ? [] : result.diagnostics))
   if (fragmentFailures.length > 0) {
     return {
       ok: false,
-      diagnostics: fragmentFailures.sort((left, right) =>
+      diagnostics: fragmentFailures.toSorted((left, right) =>
         `${left.path ?? ''}:${left.code}:${left.detail}`.localeCompare(
           `${right.path ?? ''}:${right.code}:${right.detail}`
         )
@@ -171,7 +171,7 @@ export function buildNormalizedGraph({ domain, fragments }) {
 
   const successful = checked
     .map(result => result.value)
-    .sort((left, right) => left.file.path.localeCompare(right.file.path))
+    .toSorted((left, right) => left.file.path.localeCompare(right.file.path))
   const nodes = []
   const edges = []
   const evidence = []
@@ -226,7 +226,7 @@ export function buildNormalizedGraph({ domain, fragments }) {
           qualifiedPath: unit.qualifiedPath,
           sourcePath: fragment.file.path,
           span: unit.span ?? null,
-          ...(unit.attributes ?? {})
+          ...unit.attributes
         }),
         sourceFingerprint: fragment.file.contentHash ?? null
       })
@@ -298,9 +298,7 @@ export function buildNormalizedGraph({ domain, fragments }) {
       const edgeEvidenceIds = []
       for (const item of edge.evidence) {
         const path = typeof item?.path === 'string' ? item.path : fileKey
-        const evidenceInput = JSON.stringify(
-          canonicalize({ path, role: item?.role ?? 'syntax', span: item?.span ?? null })
-        )
+        const evidenceInput = JSON.stringify(canonicalize({ path, role: item?.role ?? 'syntax', span: item.span }))
         const id = `evidence:${digest(evidenceInput)}`
         edgeEvidenceIds.push(id)
         if (!evidenceIds.has(id)) {
@@ -316,15 +314,16 @@ export function buildNormalizedGraph({ domain, fragments }) {
           })
         }
       }
-      const id = `edge:${digest(JSON.stringify([edge.kind, from, to, [...edgeEvidenceIds].sort()]))}`
-      edges.push({ id, kind: edge.kind, fromId: from, toId: to, evidenceIds: [...edgeEvidenceIds].sort() })
+      const sortedEvidenceIds = edgeEvidenceIds.toSorted()
+      const id = `edge:${digest(JSON.stringify([edge.kind, from, to, sortedEvidenceIds]))}`
+      edges.push({ id, kind: edge.kind, fromId: from, toId: to, evidenceIds: sortedEvidenceIds })
     }
   }
 
   if (diagnostics.length > 0) {
     return {
       ok: false,
-      diagnostics: diagnostics.sort((left, right) =>
+      diagnostics: diagnostics.toSorted((left, right) =>
         `${left.path ?? ''}:${left.code}:${left.detail}`.localeCompare(
           `${right.path ?? ''}:${right.code}:${right.detail}`
         )
@@ -333,9 +332,9 @@ export function buildNormalizedGraph({ domain, fragments }) {
   }
 
   nodes.push(...opaqueNodes.values())
-  nodes.sort((left, right) => left.id.localeCompare(right.id))
-  edges.sort((left, right) => left.id.localeCompare(right.id))
-  evidence.sort((left, right) => left.id.localeCompare(right.id))
+  const sortedNodes = nodes.toSorted((left, right) => left.id.localeCompare(right.id))
+  const sortedEdges = edges.toSorted((left, right) => left.id.localeCompare(right.id))
+  const sortedEvidence = evidence.toSorted((left, right) => left.id.localeCompare(right.id))
 
   return {
     ok: true,
@@ -348,18 +347,19 @@ export function buildNormalizedGraph({ domain, fragments }) {
         rootManifest: domain.rootManifest,
         sourceFingerprint: domain.sourceFingerprint
       }),
-      nodes,
-      edges,
+      nodes: sortedNodes,
+      edges: sortedEdges,
       claims: [],
       topics: [],
       gaps: [],
-      evidence
+      evidence: sortedEvidence
     }
   }
 }
+/* eslint-enable sonarjs/cognitive-complexity */
 
 /**
- * Серіалізує graph у byte-stable JSON для manifest, snapshot і cache keys.
+ * Серіалізує graph у byte-stable JSON для manifest, snapshot і reproducible fingerprints.
  * @param {unknown} graph normalized graph
  * @returns {string} canonical JSON із фінальним newline
  */

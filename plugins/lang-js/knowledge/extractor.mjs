@@ -88,6 +88,7 @@ function declarationsFromTopLevel(node) {
  * @param {number} baseOffset offset script у full content
  * @returns {Array<Record<string, unknown>>} units у source order
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity -- OXC declaration variants share one deterministic source-order pass
 function collectUnits(program, filePath, original, baseOffset) {
   const units = []
   const names = new Map()
@@ -195,7 +196,7 @@ function collectEdges(units, importedBindings, filePath, original, baseOffset) {
   for (const unit of units) {
     walkAstWithAncestors(unit.ast, [], node => {
       if (node.type !== 'CallExpression') return
-      const { name, root } = callIdentity(node)
+      const { root } = callIdentity(node)
       if (!root) return
       const evidence = [{ path: filePath, role: 'syntax', span: span(original, node.start, node.end, baseOffset) }]
       const target = localUnits.get(root)
@@ -214,7 +215,7 @@ function collectEdges(units, importedBindings, filePath, original, baseOffset) {
       }
     })
   }
-  return edges.sort((left, right) =>
+  return edges.toSorted((left, right) =>
     JSON.stringify([left.fromLocalId, left.kind, left.to, left.evidence[0].span]).localeCompare(
       JSON.stringify([right.fromLocalId, right.kind, right.to, right.evidence[0].span])
     )
@@ -235,7 +236,7 @@ function analyzeScript(file, original, parserPath, baseOffset) {
   const unitsWithAst = collectUnits(parsed.program, file.path, original, baseOffset)
   const { imports, importedBindings } = collectImports(parsed.program, original, baseOffset)
   const edges = collectEdges(unitsWithAst, importedBindings, file.path, original, baseOffset)
-  const units = unitsWithAst.map(({ ast, ...unit }) => unit)
+  const units = unitsWithAst.map(({ ast: _ast, ...unit }) => unit)
   return {
     units,
     edges,
@@ -269,7 +270,7 @@ function readFileInput(input) {
   ) {
     return { ok: false, result: failure('invalid-file-input', null, 'file має містити path, content і contentHash.') }
   }
-  if (!EXTENSIONS.some(extension => file.path.toLowerCase().endsWith(extension))) {
+  if (EXTENSIONS.every(extension => !file.path.toLowerCase().endsWith(extension))) {
     return {
       ok: false,
       result: failure('unsupported-extension', file.path, `JS knowledge extractor не підтримує ${file.path}.`)
@@ -321,7 +322,6 @@ export function analyzeFile(input) {
   return { ok: true, parser: PARSER, file: { ...read.file, language: 'vue' }, ...analyzed }
 }
 
-/** Versioned `knowledge.extractor@1` provider для JS/TS/Vue. */
 const jsKnowledgeExtractor = Object.freeze({
   id: 'knowledge-js',
   apiVersion: 1,
@@ -330,4 +330,5 @@ const jsKnowledgeExtractor = Object.freeze({
   analyzeFile
 })
 
+/** Надає versioned `knowledge.extractor@1` provider для JS/TS/Vue. */
 export default jsKnowledgeExtractor

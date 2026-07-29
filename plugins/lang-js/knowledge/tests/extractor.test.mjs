@@ -4,7 +4,12 @@ import { Buffer } from 'node:buffer'
 import { buildNormalizedGraph } from '../../../../npm/rules/ci4/package_knowledge/normalized-graph.mjs'
 import jsKnowledgeExtractor, { analyzeFile } from '../extractor.mjs'
 
-/** @param {string} path @param {string} content @returns {{ domain: object, file: { path: string, content: string, contentHash: string } }} adapter input */
+/**
+ * Створює test input для knowledge extractor.
+ * @param {string} path source path
+ * @param {string} content source content
+ * @returns {{ domain: object, file: { path: string, content: string, contentHash: string } }} adapter input
+ */
 function input(path, content) {
   return { domain: { id: 'npm:@fixture/app' }, file: { path, content, contentHash: `hash:${path}` } }
 }

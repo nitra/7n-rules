@@ -5,6 +5,11 @@ import { describe, expect, test } from 'vitest'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 import { runDocsCli } from '../cli.mjs'
 
+/**
+ * Створює test domain зі schema-valid committed manifest.
+ * @param {string} root tmp repository root
+ * @returns {Promise<void>} завершується після запису fixture
+ */
 async function writeDomain(root) {
   await writeFile(join(root, 'package.json'), JSON.stringify({ name: '@fixture/orders', private: true }))
   const manifest = {
@@ -77,13 +82,23 @@ async function writeDomain(root) {
   await writeFile(join(manifestDir, 'manifest.json'), JSON.stringify(manifest))
 }
 
+/**
+ * Перехоплює один CLI run без глобальної мутації console.
+ * @param {string} root tmp repository root
+ * @param {string[]} args docs command arguments
+ * @returns {Promise<{code: number, out: string[], err: string[]}>} captured result
+ */
 async function captureRun(root, args) {
   const out = []
   const err = []
   const code = await runDocsCli(args, {
     repoRoot: root,
-    stdout: line => out.push(line),
-    stderr: line => err.push(line)
+    stdout: line => {
+      out.push(line)
+    },
+    stderr: line => {
+      err.push(line)
+    }
   })
   return { code, out, err }
 }

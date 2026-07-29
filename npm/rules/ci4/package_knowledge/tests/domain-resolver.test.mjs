@@ -10,7 +10,12 @@ import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 const FIXTURES = join(import.meta.dirname, 'fixtures', 'domains')
 
-/** Materializes neutral fixture manifests under a temporary repository root. */
+/**
+ * Materializes neutral fixture manifests under a temporary repository root.
+ * @param {string} name fixture name
+ * @param {string} dir target tmp directory
+ * @returns {Promise<void>} completes after materialization
+ */
 async function materializeFixture(name, dir) {
   await cp(join(FIXTURES, name), dir, { recursive: true })
   const entries = await readdir(dir, { recursive: true, withFileTypes: true })
@@ -21,7 +26,12 @@ async function materializeFixture(name, dir) {
   }
 }
 
-/** Runs an assertion against an isolated materialized fixture repository. */
+/**
+ * Runs an assertion against an isolated materialized fixture repository.
+ * @param {string} name fixture name
+ * @param {(dir: string) => Promise<void>} callback isolated assertion
+ * @returns {Promise<void>} completes after cleanup
+ */
 async function withDomainFixture(name, callback) {
   await withTmpDir(async dir => {
     await materializeFixture(name, dir)

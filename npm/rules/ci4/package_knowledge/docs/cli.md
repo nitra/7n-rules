@@ -3,7 +3,7 @@ type: JS Module
 title: cli.mjs
 resource: npm/rules/ci4/package_knowledge/cli.mjs
 docgen:
-  crc: b150e30f
+  crc: e7c91839
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 70
@@ -29,3 +29,4 @@ docgen:
 
 - Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
 - Містить локальні fail-safe гілки; інші помилки можуть поширюватися назовні.
+- Кешує результати в межах одного прогону.

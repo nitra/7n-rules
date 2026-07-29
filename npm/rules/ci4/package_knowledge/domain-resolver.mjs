@@ -74,7 +74,7 @@ function toPosixRelative(path) {
 export function canonicalDomainName(ecosystem, name) {
   if (typeof name !== 'string' || name.trim() === '') return null
   const trimmed = name.trim()
-  if (ecosystem === 'python') return trimmed.toLowerCase().replace(/[._-]+/gu, '-')
+  if (ecosystem === 'python') return trimmed.toLowerCase().replaceAll(/[._-]+/gu, '-')
   if (ecosystem === 'composer') return trimmed.toLowerCase()
   return trimmed
 }
@@ -84,8 +84,9 @@ export function canonicalDomainName(ecosystem, name) {
  * parsing fails or its required name field is absent.
  * @param {Ecosystem} ecosystem package ecosystem
  * @param {string} manifestPath absolute manifest path
- * @returns {Promise<{ name: string | null, error: string | null, skip: boolean }>}
+ * @returns {Promise<{ name: string | null, error: string | null, skip: boolean }>} parsed identity result
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity -- four manifest formats are one bounded identity dispatch
 async function readManifestName(ecosystem, manifestPath) {
   try {
     const text = await readFile(manifestPath, 'utf8')
@@ -159,7 +160,7 @@ function isStrictDescendant(candidate, ancestor) {
  * manifests and duplicate canonical identities remain diagnostics instead of
  * silently receiving a path-derived fallback identity.
  * @param {string} [cwd] repository root
- * @returns {Promise<{ domains: DocumentationDomain[], diagnostics: DomainDiagnostic[] }>}
+ * @returns {Promise<{ domains: DocumentationDomain[], diagnostics: DomainDiagnostic[] }>} stable domains and diagnostics
  */
 export async function resolveDocumentationDomains(cwd = process.cwd()) {
   const repositoryRoot = resolve(cwd)
@@ -207,35 +208,38 @@ export async function resolveDocumentationDomains(cwd = process.cwd()) {
     })
   }
 
-  domains.sort((left, right) => left.id.localeCompare(right.id) || left.rootManifest.localeCompare(right.rootManifest))
-  for (const domain of domains) {
+  const sortedDomains = domains.toSorted(
+    (left, right) => left.id.localeCompare(right.id) || left.rootManifest.localeCompare(right.rootManifest)
+  )
+  for (const domain of sortedDomains) {
     domain.excludedSourceRoots = domains
       .filter(candidate => isStrictDescendant(candidate.sourceRoot, domain.sourceRoot))
       .map(candidate => candidate.sourceRoot)
-      .sort((left, right) => left.localeCompare(right))
+      .toSorted((left, right) => left.localeCompare(right))
   }
 
   const manifestsById = new Map()
-  for (const domain of domains) {
+  for (const domain of sortedDomains) {
     const manifests = manifestsById.get(domain.id) ?? []
     manifests.push(domain.rootManifest)
     manifestsById.set(domain.id, manifests)
   }
   for (const [domainId, manifests] of manifestsById) {
     if (manifests.length < 2) continue
-    manifests.sort((left, right) => left.localeCompare(right))
+    const sortedManifests = manifests.toSorted((left, right) => left.localeCompare(right))
     diagnostics.push({
       severity: 'error',
       code: 'duplicate-domain-id',
-      manifest: manifests[0],
+      manifest: sortedManifests[0],
       domainId,
-      manifests,
-      message: `Канонічна identity ${domainId} повторюється: ${manifests.join(', ')}`
+      manifests: sortedManifests,
+      message: `Канонічна identity ${domainId} повторюється: ${sortedManifests.join(', ')}`
     })
   }
-  diagnostics.sort((left, right) => left.code.localeCompare(right.code) || left.manifest.localeCompare(right.manifest))
-
-  return { domains, diagnostics }
+  const sortedDiagnostics = diagnostics.toSorted(
+    (left, right) => left.code.localeCompare(right.code) || left.manifest.localeCompare(right.manifest)
+  )
+  return { domains: sortedDomains, diagnostics: sortedDiagnostics }
 }
 
 /**

@@ -56,10 +56,7 @@ function publicDomain(domain) {
  * Резолвить domain і зупиняє CLI на будь-якій identity/manifest помилці.
  * @param {string} repoRoot repository root
  * @param {string | null} domainId requested domain ID
- * @returns {Promise<
- *   | { ok: true, domain: Record<string, unknown>, domains: Record<string, unknown>[] }
- *   | { ok: false, code: string, message: string, diagnostics?: unknown[] }
- * >}
+ * @returns {Promise<object>} resolved domain або structured failure
  */
 async function resolveRequestedDomain(repoRoot, domainId) {
   const { domains, diagnostics } = await resolveDocumentationDomains(repoRoot)
@@ -78,7 +75,7 @@ async function resolveRequestedDomain(repoRoot, domainId) {
       ok: false,
       code: 'domain-not-found',
       message: `Domain "${domainId}" не знайдено.`,
-      diagnostics: domains.map(publicDomain)
+      diagnostics: domains.map(domainItem => publicDomain(domainItem))
     }
   }
   return { ok: true, domain, domains }
@@ -87,10 +84,7 @@ async function resolveRequestedDomain(repoRoot, domainId) {
 /**
  * Читає committed manifest без fallback до cache або legacy doc-files.
  * @param {Record<string, unknown>} domain resolved domain
- * @returns {Promise<
- *   | { ok: true, manifest: Record<string, unknown>, path: string }
- *   | { ok: false, code: string, message: string }
- * >}
+ * @returns {Promise<object>} parsed manifest або structured failure
  */
 async function readManifest(domain) {
   const path = join(domain.root, 'docs', '.docgen', 'manifest.json')
@@ -111,7 +105,7 @@ async function readManifest(domain) {
  * Валідує manifest schema та identity owning domain-а.
  * @param {Record<string, unknown>} manifest parsed manifest
  * @param {Record<string, unknown>} domain resolved domain
- * @returns {Promise<{ ok: true } | { ok: false, code: string, message: string, errors?: unknown[] }>}
+ * @returns {Promise<{ ok: true } | { ok: false, code: string, message: string, errors?: unknown[] }>} validation result
  */
 async function validateManifest(manifest, domain) {
   const schema = JSON.parse(await readFile(SCHEMA_PATH, 'utf8'))
@@ -165,7 +159,7 @@ function createIndex(manifest) {
  * потрапляють у цей human/agent-facing view.
  * @param {Record<string, unknown>} manifest validated manifest
  * @param {string} topicId requested topic
- * @returns {{ ok: true, slice: Record<string, unknown> } | { ok: false, code: string, message: string }}
+ * @returns {{ ok: true, slice: Record<string, unknown> } | { ok: false, code: string, message: string }} topic slice або failure
  */
 function createSlice(manifest, topicId) {
   const topic = manifest.topics.find(candidate => candidate.id === topicId || candidate.aliases?.includes(topicId))
@@ -213,7 +207,10 @@ export async function runDocsCli(args, options = {}) {
 
   if (command === 'domains') {
     const result = await resolveDocumentationDomains(repoRoot)
-    writeJson(stdout, { domains: result.domains.map(publicDomain), diagnostics: result.diagnostics })
+    writeJson(stdout, {
+      domains: result.domains.map(domainItem => publicDomain(domainItem)),
+      diagnostics: result.diagnostics
+    })
     return result.diagnostics.length === 0 ? 0 : 1
   }
 

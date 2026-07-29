@@ -13,6 +13,13 @@ const domain = {
   sourceFingerprint: 'domain-hash'
 }
 
+/**
+ * Створює normalized extractor fragment для graph tests.
+ * @param {string} path source path
+ * @param {object[]} units semantic units
+ * @param {object[]} [edges] semantic edges
+ * @returns {object} extractor fragment
+ */
 function fragment(path, units, edges = []) {
   const unitsWithSpans = units.map((unit, index) => ({
     span: { startByte: index * 10, endByte: index * 10 + 8 },

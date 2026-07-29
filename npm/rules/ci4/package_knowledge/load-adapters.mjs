@@ -18,31 +18,31 @@ const SLOT_VERSION = 1
 
 /**
  * @typedef {object} KnowledgeAdapterDiagnostic
- * @property {'error'} severity
- * @property {true} blocking
- * @property {string} code
- * @property {string | null} slot
- * @property {string | null} plugin
- * @property {string | null} contributionId
- * @property {string} message
+ * @property {'error'} severity diagnostic severity
+ * @property {true} blocking чи блокує publication
+ * @property {string} code stable machine code
+ * @property {string | null} slot owning slot
+ * @property {string | null} plugin provider package
+ * @property {string | null} contributionId provider contribution ID
+ * @property {string} message user-facing explanation
  */
 
 /**
  * @typedef {object} KnowledgeDomainAdapter
- * @property {string} id
- * @property {1} apiVersion
- * @property {string} ecosystem
- * @property {(repoRoot: string) => object[] | Promise<object[]>} findDomains
- * @property {(path: string) => object | Promise<object>} resolveDomain
+ * @property {string} id stable adapter ID
+ * @property {1} apiVersion knowledge contract version
+ * @property {string} ecosystem owning ecosystem
+ * @property {(repoRoot: string) => object[] | Promise<object[]>} findDomains domain discovery
+ * @property {(path: string) => object | Promise<object>} resolveDomain path ownership resolver
  */
 
 /**
  * @typedef {object} KnowledgeExtractorAdapter
- * @property {string} id
- * @property {1} apiVersion
- * @property {string[]} extensions
- * @property {{ id: string, grammarVersion: string, runtimeVersion: string }} parser
- * @property {(input: { domain: object, file: { path: string, content: string, contentHash: string }, signal?: AbortSignal }) => object | Promise<object>} analyzeFile
+ * @property {string} id stable adapter ID
+ * @property {1} apiVersion knowledge contract version
+ * @property {string[]} extensions owned source extensions
+ * @property {{ id: string, grammarVersion: string, runtimeVersion: string }} parser parser provenance
+ * @property {(input: { domain: object, file: { path: string, content: string, contentHash: string }, signal?: AbortSignal }) => object | Promise<object>} analyzeFile fail-closed file analysis
  */
 
 /**
@@ -62,7 +62,7 @@ function blockingDiagnostic(code, slot, plugin, contributionId, message) {
  * Нормалізує явний абсолютний root і не дозволяє loader-у непомітно підмінити його `cwd`.
  * @param {unknown} value repoRoot або domainRoot від caller-а
  * @param {'repoRoot' | 'domainRoot'} name назва аргументу для diagnostic
- * @returns {Promise<{ ok: true, path: string } | { ok: false, diagnostic: KnowledgeAdapterDiagnostic }>}
+ * @returns {Promise<{ ok: true, path: string } | { ok: false, diagnostic: KnowledgeAdapterDiagnostic }>} normalized root або diagnostic
  */
 async function resolveExplicitRoot(value, name) {
   if (typeof value !== 'string' || !isAbsolute(value)) {
@@ -180,7 +180,7 @@ function validateExtractorAdapter(adapter, contribution) {
  * @param {import('../../../scripts/lib/plugin-slots.mjs').SlotContribution} contribution contribution з slot bus
  * @param {string} slot slot для diagnostic
  * @param {(adapter: unknown, contribution: import('../../../scripts/lib/plugin-slots.mjs').SlotContribution) => object | null} validate контрактна валідація adapter-а
- * @returns {Promise<{ adapter: object } | { diagnostic: KnowledgeAdapterDiagnostic }>}
+ * @returns {Promise<{ adapter: object } | { diagnostic: KnowledgeAdapterDiagnostic }>} adapter або blocking diagnostic
  */
 async function loadAdapter(contribution, slot, validate) {
   if (contribution.resourcePath === null) {
@@ -224,13 +224,14 @@ async function loadAdapter(contribution, slot, validate) {
   }
 }
 
+/* eslint-disable sonarjs/cognitive-complexity -- validation pipeline keeps blocking invariants in one atomic return boundary */
 /**
  * Матеріалізує мовні knowledge adapters через універсальний slot bus. `repoRoot` і
  * `domainRoot` обовʼязкові та явні: loader не визначає domain boundary і не читає `cwd`.
  * Він повертає `adapters: null` за першої blocking-проблеми, тому caller фізично не може
  * продовжити з частковим набором або whole-file fallback.
  * @param {{ repoRoot: string, domainRoot: string, config?: { plugins?: unknown } | null, requiredExtensions?: string[] }} input roots, config і файли domain-а, що треба аналізувати
- * @returns {Promise<{ blocked: boolean, diagnostics: readonly KnowledgeAdapterDiagnostic[], adapters: { domain: readonly KnowledgeDomainAdapter[], extractor: readonly KnowledgeExtractorAdapter[] } | null }>}
+ * @returns {Promise<object>} complete adapter set або blocking diagnostics
  */
 export async function loadKnowledgeAdapters(input) {
   const repo = await resolveExplicitRoot(input?.repoRoot, 'repoRoot')
@@ -363,3 +364,4 @@ export async function loadKnowledgeAdapters(input) {
     adapters: Object.freeze({ domain: Object.freeze(domainAdapters), extractor: Object.freeze(extractorAdapters) })
   })
 }
+/* eslint-enable sonarjs/cognitive-complexity */
