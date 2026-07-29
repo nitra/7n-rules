@@ -2,11 +2,11 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit",
+        "matcher": "apply_patch",
         "hooks": [
           {
             "type": "command",
-            "command": "npx --no @nitra/cursor hook --post-tool-use",
+            "command": "npx --no @7n/rules hook --post-tool-use",
             "timeout": 300
           }
         ]
@@ -14,11 +14,22 @@
     ],
     "Stop": [
       {
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "npx --no @nitra/cursor hook --stop",
-            "timeout": 120
+            "command": "bash -lc 'root=\"$PWD\"; if [ ! -f \"$root/.claude/hooks/capture-decisions.sh\" ] && [ -f \"$root/../.claude/hooks/capture-decisions.sh\" ]; then root=\"$root/..\"; fi; bash \"$root/.claude/hooks/capture-decisions.sh\"'",
+            "timeout": 180
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -lc 'root=\"$PWD\"; if [ ! -f \"$root/.claude/hooks/normalize-decisions.sh\" ] && [ -f \"$root/../.claude/hooks/normalize-decisions.sh\" ]; then root=\"$root/..\"; fi; bash \"$root/.claude/hooks/normalize-decisions.sh\"'",
+            "timeout": 600
           }
         ]
       }
