@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.23.10] - 2026-07-29
+
+### Fixed
+
+- Тести fix-eslint: усунено lint-порушення (no-empty-function, no-useless-undefined, точковий disable для динамічного import у tmpdir)
+
 ## [0.23.9] - 2026-07-29
 
 ### Changed
