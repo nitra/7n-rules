@@ -1,0 +1,73 @@
+.oxlintrc.json
+  s_086128cb7dad12::t_54b2ea341ee045 149,219
+plugins/lang-js/coverage-provider/fix/docs/coverage-fix.md
+  s_63dde748387f99::t_6b77dc7a2e9b93 6
+plugins/lang-js/coverage-provider/fix/docs/coverage-fix.md.orig
+  s_63dde748387f99::t_f4254a098a3b9f 1-60
+plugins/lang-js/coverage-provider/tests/coverage-fix.test.mjs
+  s_63dde748387f99::t_c97f478ce0e7f2 3,7-8,10,96,161,193,225,258,286,314,388,404,415
+plugins/lang-js/rules/js/eslint/docs/fix-eslint.md
+  s_1c3e3d2bb900a5::t_63b6d00c313ad9 6-10,15
+plugins/lang-js/rules/js/eslint/tests/fix-eslint.test.mjs
+  s_cca60e0a4b2873::t_6ad6409afa4568 6-7,9,13-14,16-19,174-270
+plugins/lang-js/rules/js/tooling/data/tooling/oxlint-canonical.json
+  s_4ed034b2325d4a::t_bf080a7761eabe 149,219
+bun.lock
+  s_d9956680cf6df3::t_34d75380280bfa 40,63,69,112,140,155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "983163267e8094923c74ca8cefacf66857921bb5",
+  "prompts": {},
+  "sessions": {
+    "s_086128cb7dad12": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "858b29e8-7e29-47f4-bfb8-74e55de49358",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_1c3e3d2bb900a5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fabd8-445d-7d72-8c59-1f0206f25f53",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_4ed034b2325d4a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa9e1-fcf8-7082-9435-2aacdc2eae0d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_63dde748387f99": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "922a74f7-2b81-429f-8799-7fae36558fbc",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_cca60e0a4b2873": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019fabd8-445d-7d72-8c59-1f0206f25f53",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_d9956680cf6df3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9d757fc0-a479-402c-9700-65204ba3b01e",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
