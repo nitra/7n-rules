@@ -228,7 +228,7 @@ describe('js-eslint-autofix — nullable guard через central fix pipeline',
         cwd: dir,
         rules: ['js'],
         files: ['nullable.mjs'],
-        log: () => {},
+        log: vi.fn(),
         deps: {
           ladder,
           workerFor: () => () => {
@@ -240,9 +240,10 @@ describe('js-eslint-autofix — nullable guard через central fix pipeline',
       expect(nullableCode).toBe(0)
       expect(nullableWorkerCalled).toBe(false)
       expect(readFileSync(nullablePath, 'utf8')).toContain('value == null')
+      // eslint-disable-next-line no-unsanitized/method -- шлях у tmpdir, згенерований самим тестом
       const { isNullish } = await import(`${pathToFileURL(nullablePath).href}?nullable-guard`)
       expect(isNullish(null)).toBe(true)
-      expect(isNullish(undefined)).toBe(true)
+      expect(isNullish()).toBe(true)
       expect(isNullish('ordinary')).toBe(false)
 
       const loosePath = join(dir, 'loose.mjs')
@@ -253,7 +254,7 @@ describe('js-eslint-autofix — nullable guard через central fix pipeline',
         cwd: dir,
         rules: ['js'],
         files: ['loose.mjs'],
-        log: () => {},
+        log: vi.fn(),
         deps: {
           ladder,
           workerFor: () => () => {
