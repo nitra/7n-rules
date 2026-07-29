@@ -18,7 +18,7 @@
  *                                     CI = `lint --no-fix --full` (весь репо, нуль мутацій/LLM).
  *   `npx \@7n/rules ci plan`     — skip-логіка сервіс-орієнтованого CI-канону: перетин дельти з `--path` → job outputs
  *                                     «які lint-домени запускати» (`--github` → $GITHUB_OUTPUT, `--azure` → ##vso).
- *   `npx \@7n/rules docs domains` — read-only package knowledge index; також `index`, `slice` і `validate`.
+ *   `npx \@7n/rules docs domains` — package knowledge index; `build --domain <id>` створює shadow candidate, `--publish` атомарно публікує його.
  *   `npx \@7n/rules skill list`     — скіли пакета без синку в проєкт
  *   `npx \@7n/rules skill taze`     — промпт на stdout
  *   `npx \@7n/rules skill cursor taze ["task"]` — Cursor CLI (`cursor-agent -p`)

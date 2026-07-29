@@ -104,6 +104,35 @@ async function captureRun(root, args) {
 }
 
 describe('runDocsCli', () => {
+  test('build defaults to SHADOW and forwards publish only when explicit', async () => {
+    await withTmpDir(async root => {
+      const calls = []
+      const buildImpl = input => {
+        calls.push(input)
+        return { ok: true, mode: input.publish ? 'published' : 'shadow', domainId: input.domainId }
+      }
+      const shadow = await runDocsCli(['build', '--domain', 'npm:@fixture/orders'], {
+        repoRoot: root,
+        buildImpl,
+        stdout: () => null,
+        stderr: () => null
+      })
+      const published = await runDocsCli(['build', '--domain', 'npm:@fixture/orders', '--publish'], {
+        repoRoot: root,
+        buildImpl,
+        stdout: () => null,
+        stderr: () => null
+      })
+
+      expect(shadow).toBe(0)
+      expect(published).toBe(0)
+      expect(calls).toEqual([
+        { repoRoot: root, domainId: 'npm:@fixture/orders', publish: false },
+        { repoRoot: root, domainId: 'npm:@fixture/orders', publish: true }
+      ])
+    })
+  })
+
   test('lists portable package domains without absolute runtime roots', async () => {
     await withTmpDir(async root => {
       await writeDomain(root)

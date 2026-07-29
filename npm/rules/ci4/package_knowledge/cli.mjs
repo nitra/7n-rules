@@ -1,9 +1,9 @@
 /**
- * Надає read-only CLI для package knowledge domains і committed manifests.
+ * Надає read-only CLI для committed package knowledge та explicit build surface.
  *
- * Команди не викликають LLM і не генерують документацію. Вони детерміновано
- * відкривають domain index/slice або валідують manifest v1, щоб agent міг
- * отримати малий impact context без broad repository search.
+ * Read commands не викликають LLM і не генерують документацію. Explicit
+ * `build` запускає generation runner у SHADOW за замовчуванням і публікує
+ * artifacts лише з `--publish`; index/slice/validate лишаються read-only.
  */
 
 import { readFile } from 'node:fs/promises'
@@ -221,11 +221,28 @@ export async function runDocsCli(args, options = {}) {
     return result.diagnostics.length === 0 ? 0 : 1
   }
 
+  if (command === 'build') {
+    const domainId = flagValue(args, '--domain')
+    if (!domainId) {
+      writeJson(stderr, { code: 'domain-required', message: 'Потрібен --domain <id>.' })
+      return 1
+    }
+    const unknownFlags = args.filter(argument => argument.startsWith('--') && !['--domain', '--publish'].includes(argument))
+    if (unknownFlags.length > 0) {
+      writeJson(stderr, { code: 'unknown-build-option', message: `Невідома build option: ${unknownFlags[0]}.` })
+      return 1
+    }
+    const build = options.buildImpl ?? (await import('./runner.mjs')).buildPackageKnowledge
+    const result = await build({ repoRoot, domainId, publish: args.includes('--publish') })
+    writeJson(result.ok ? stdout : stderr, result)
+    return result.ok ? 0 : 1
+  }
+
   if (!['index', 'slice', 'validate'].includes(command)) {
     writeJson(stderr, {
       code: 'unknown-docs-command',
       message:
-        'Очікується: docs domains | index --domain <id> | slice --domain <id> --topic <id> | validate --domain <id>.'
+        'Очікується: docs domains | build --domain <id> [--publish] | index --domain <id> | slice --domain <id> --topic <id> | validate --domain <id>.'
     })
     return 1
   }
