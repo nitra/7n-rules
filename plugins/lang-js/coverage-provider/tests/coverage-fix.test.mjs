@@ -4,10 +4,6 @@ import { env } from 'node:process'
 import { fixSurvivedMutants, buildFixPrompt, batchSurvived } from '../fix/coverage-fix.mjs'
 
 vi.mock('node:fs/promises', () => ({ readFile: vi.fn() }))
-vi.mock('node:path', async importOriginal => {
-  const actual = await importOriginal()
-  return { ...actual, join: vi.fn((...a) => a.join('/')) }
-})
 
 const ROOT = '/proj'
 const survived = [
@@ -93,7 +89,7 @@ describe('coverage-fix.mjs', () => {
     })
 
     it('calls agent-fix session for non-empty survived list with ladder ctx fields', async () => {
-      vi.mocked(readFile).mockResolvedValue('const x = true')
+      readFile.mockResolvedValue('const x = true')
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {
         return
       })
@@ -158,7 +154,7 @@ describe('coverage-fix.mjs', () => {
     })
 
     it('marks an agent completion without writes as failed/no-op', async () => {
-      vi.mocked(readFile).mockResolvedValue('const x = true')
+      readFile.mockResolvedValue('const x = true')
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {
         return
       })
@@ -190,7 +186,7 @@ describe('coverage-fix.mjs', () => {
     })
 
     it('one failing batch does not block the others and is reported, not thrown', async () => {
-      vi.mocked(readFile).mockResolvedValue('const x = true')
+      readFile.mockResolvedValue('const x = true')
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {
         return
       })
@@ -222,7 +218,7 @@ describe('coverage-fix.mjs', () => {
     })
 
     it('відкочує зелений, але mutation-irrelevant test і повертає useful quality feedback', async () => {
-      vi.mocked(readFile).mockResolvedValue('const x = true')
+      readFile.mockResolvedValue('const x = true')
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => null)
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => null)
       const rollback = vi.fn()
@@ -255,7 +251,7 @@ describe('coverage-fix.mjs', () => {
     })
 
     it('відкочує test batch, коли scoped Stryker runner або reporter не дали verdict', async () => {
-      vi.mocked(readFile).mockResolvedValue('const x = true')
+      readFile.mockResolvedValue('const x = true')
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => null)
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => null)
       const rollback = vi.fn()
@@ -283,7 +279,7 @@ describe('coverage-fix.mjs', () => {
     })
 
     it('не позначає durable cache-dependent batch', async () => {
-      vi.mocked(readFile).mockResolvedValue('const x = true')
+      readFile.mockResolvedValue('const x = true')
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => null)
       const recordDurableWrite = vi.fn()
       const verifyMutation = vi.fn(() =>
@@ -311,7 +307,7 @@ describe('coverage-fix.mjs', () => {
 
     it('дробить oversized source-file, зберігає source read-only і друкує timeout verdict без prompt-а', async () => {
       env.N_CURSOR_COVERAGE_FIX_BATCH_MUTANTS = '40'
-      vi.mocked(readFile).mockResolvedValue('const secret = true')
+      readFile.mockResolvedValue('const secret = true')
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => null)
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => null)
       const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(10_000)
@@ -342,9 +338,7 @@ describe('coverage-fix.mjs', () => {
       })
 
       expect(runAgentFix).toHaveBeenCalledTimes(1)
-      expect(runAgentFix.mock.calls.every(call => call[3].sourceFiles[0] === 'run/api/src/constants.js')).toBe(
-        true
-      )
+      expect(runAgentFix.mock.calls.every(call => call[3].sourceFiles[0] === 'run/api/src/constants.js')).toBe(true)
       expect(result.failed[0]).toMatchObject({ files: ['run/api/src/constants.js'], error: 'fix timeout 95999ms' })
       expect(result.failed).toHaveLength(1)
       expect(result.deferred).toHaveLength(4)
@@ -385,7 +379,7 @@ describe('coverage-fix.mjs', () => {
 
     it('honors N_CURSOR_COVERAGE_FIX_BATCH_MUTANTS override', async () => {
       env.N_CURSOR_COVERAGE_FIX_BATCH_MUTANTS = '3'
-      vi.mocked(readFile).mockResolvedValue('const x = true')
+      readFile.mockResolvedValue('const x = true')
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {
         return
       })
@@ -401,7 +395,7 @@ describe('coverage-fix.mjs', () => {
 
   describe('buildFixPrompt', () => {
     it('contains mutant details', async () => {
-      vi.mocked(readFile).mockResolvedValue('line1\nline2\nline3\nline4\nline5\nline6\n')
+      readFile.mockResolvedValue('line1\nline2\nline3\nline4\nline5\nline6\n')
       const prompt = await buildFixPrompt(survived, ROOT)
       expect(prompt).toContain('src/util.js')
       expect(prompt).toContain('Рядок 5')
@@ -412,7 +406,7 @@ describe('coverage-fix.mjs', () => {
     })
 
     it('handles missing source file gracefully', async () => {
-      vi.mocked(readFile).mockRejectedValue(new Error('ENOENT'))
+      readFile.mockRejectedValue(new Error('ENOENT'))
       const prompt = await buildFixPrompt(survived, ROOT)
       expect(prompt).toContain('src/util.js')
     })
