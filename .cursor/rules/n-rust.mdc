@@ -41,7 +41,7 @@ version: '1.5'
 
 ### Канон CI workflow `.github/workflows/lint-rust.yml`
 
-Канонічний workflow, drift-safe перевірка (`rust.lint_rust_yml`) і вимога `Swatinem/rust-cache@v2` — `npm/rules/rust/lint_rust_yml/lint_rust_yml.mdc`. Тут лише сам лінт-скрипт; CI-канон workflow **не дублюється**.
+Канонічний workflow (GitHub Actions) і canonical lint-степ (Azure Pipelines) — `ci.artifact@1` contributions цього пакета: `slots/ci/rust-github-lint.json` (+ шаблон `slots/ci/github/lint-rust.yml.snippet.yml`) і `slots/ci/rust-azure-lint.json` (+ `slots/ci/azure/lint-rust.snippet.yml`); матеріалізує їх generic consumer `@7n/rules-ci-github`/`@7n/rules-ci-azure`. Вимога `Swatinem/rust-cache@v2` для решти workflow-файлів (coverage, release) — `rust/toolchain_cache` у `@7n/rules-ci-github`. Тут лише сам лінт-скрипт; CI-канон workflow **не дублюється**.
 
 ## Doc-коментарі — джерело дослівної документації
 
@@ -128,24 +128,6 @@ T0-детектор (без spawn `cargo`) — читає лише FS + TOML (`s
 2. Перенеси всі `[profile.*]`-блоки з не-кореневих `Cargo.toml` у кореневий.
 3. Видали вкладені `[workspace]`-маніфести та їхні `Cargo.lock` — у репозиторії має лишитись
    один кореневий workspace і один кореневий `Cargo.lock`.
-
-## Перевірка `.github/workflows/lint-rust.yml`
-
-Rego-пакет: `rust.lint_rust_yml`
-
-Цільовий файл: `.github/workflows/lint-rust.yml`
-
-Перевіряє:
-
-- кожен `uses`-крок з канону присутній у workflow (підмножина): `actions/checkout@v6`, `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`
-- кожен `run`-крок з канону присутній як підрядок серед усіх `run`-кроків: `cargo fmt --all -- --check`, `cargo clippy --all-targets --all-features -- -D warnings`
-- канон завантажується через `--data` з template-сніпету — drift-safe: зміна шаблону автоматично рухає перевірку
-
-Канонічний template: [lint-rust.yml.snippet.yml](./template/lint-rust.yml.snippet.yml)
-
-Вимога `Swatinem/rust-cache@v2` після `dtolnay/rust-toolchain@…` тут перевіряється лише для цього конкретного файлу (як частина канону). Та сама вимога для **будь-якого** іншого workflow (coverage, release/build через `tauri-apps/tauri-action`, кастомні) — concern `rust/toolchain_cache`.
-
-Tauri-проєкти (`src-tauri/Cargo.toml`) додатково потребують у цьому файлі apt-кроку системних залежностей Linux перед Clippy — concern `tauri/linux_deps` (tauri.mdc), не частина канону тут.
 
 ## Rust-cache після rust-toolchain — у будь-якому workflow
 
