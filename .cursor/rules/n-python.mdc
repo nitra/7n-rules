@@ -69,7 +69,7 @@ JS-перевірка (`npm/rules/python/tooling/main.mjs`) запускаєть
 - `uv.lock` — має існувати (зафіксувати командою `uv lock`);
 - `poetry.lock` / `poetry.toml` — мають **бути відсутніми** (Poetry заборонено);
 - `package.json` — має бути у корені (js-обгортка lint є частиною монорепо);
-- `.github/workflows/lint-python.yml` — має існувати (структуру перевіряє Rego-полісі `python.lint_python_yml`).
+- `.github/workflows/lint-python.yml` — має існувати (canonical workflow надає `ci.artifact@1` contribution цього плагіна; структуру перевіряє провайдер-плагін `@7n/rules-ci-github`).
 
 Якщо `pyproject.toml` відсутній — перевірка пропускається з кодом 0 (проєкт не Python).
 
@@ -156,16 +156,3 @@ T0-детектор (без spawn `uv`) — читає лише FS + TOML (`smol
 3. Видали вкладені `[tool.uv.workspace]`-маніфести та вкладені `uv.lock` у не-виключених
    member-ах — у репозиторії має лишитись один кореневий workspace і один кореневий `uv.lock`
    (виключені через `workspace.exclude` пакети лишають свій власний `uv.lock`).
-
-## Rego-gate: перевірка `.github/workflows/lint-python.yml`
-
-Rego-пакет: `python.lint_python_yml`
-
-Цільовий файл: `.github/workflows/lint-python.yml`
-
-Перевіряє (drift-safe через `--data template`):
-
-- кожен `uses` з канону (підмножина) присутній у workflow: `actions/checkout@v6`, `./.github/actions/setup-bun-deps`, `astral-sh/setup-uv@v8.0.0`;
-- кожен `run` з канону є substring серед run-кроків: `uv sync --frozen`, `n-rules lint python --no-fix`.
-
-Канонічний workflow: [lint-python.yml.snippet.yml](./template/lint-python.yml.snippet.yml)

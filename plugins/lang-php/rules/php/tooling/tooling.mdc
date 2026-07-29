@@ -82,4 +82,3 @@ composer audit
 вкладеному проєкту вимагав би per-project `ctx.cwd`/reason-мапінгу у `violation-reporter` і ламав
 би vendor-relative шляхи `vendor/bin/*`, тому активація (сигнал «проєкт PHP») і глибина
 lint-перевірки (обсяг `project`/`tooling`) свідомо розведені.
-
