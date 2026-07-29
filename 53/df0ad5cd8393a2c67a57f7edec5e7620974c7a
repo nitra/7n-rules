@@ -1,0 +1,19 @@
+docs/superpowers/specs/2026-07-29-github-package-releases-design.md
+  s_3b13aaf5bffb50::t_d148bd1ee291f6 10-12,23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "53df0ad5cd8393a2c67a57f7edec5e7620974c7a",
+  "prompts": {},
+  "sessions": {
+    "s_3b13aaf5bffb50": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa919-380c-7913-8616-b4bc6856cb97",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
