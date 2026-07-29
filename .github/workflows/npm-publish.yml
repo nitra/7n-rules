@@ -287,16 +287,39 @@ jobs:
             var entries = Object.entries(steps).filter(function (e) { return e[0].indexOf('publish-') === 0; });
             var failed = entries.filter(function (e) { return e[1].outcome === 'failure'; }).map(function (e) { return e[0]; });
             var succeeded = entries.filter(function (e) { return e[1].outcome === 'success'; }).map(function (e) { return e[0]; });
+            var successfulTags = entries.filter(function (e) { return e[1].outcome === 'success'; }).map(function (e) {
+              var outputs = e[1].outputs || {};
+              return outputs.name && outputs.version ? outputs.name + '@' + outputs.version : null;
+            }).filter(Boolean);
             var summary = entries.map(function (e) { return e[0] + '=' + e[1].outcome; }).join(', ');
             var fs = require('node:fs');
             fs.appendFileSync(process.env.GITHUB_OUTPUT, 'any-success=' + (succeeded.length > 0) + '\n');
             fs.appendFileSync(process.env.GITHUB_OUTPUT, 'any-failure=' + (failed.length > 0) + '\n');
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'successful-tags=' + JSON.stringify(successfulTags) + '\n');
             fs.appendFileSync(process.env.GITHUB_OUTPUT, 'summary=' + summary + '\n');
           "
 
       - name: Push release-коміт + теги (лише якщо бодай один publish пройшов)
         if: steps.collect-publish-outcomes.outputs.any-success == 'true'
         run: git push --follow-tags
+
+      - name: Create GitHub Releases
+        if: steps.collect-publish-outcomes.outputs.any-success == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAGS: ${{ steps.collect-publish-outcomes.outputs.successful-tags }}
+        run: |
+          while IFS= read -r tag; do
+            notes="$(mktemp)"
+            node npm/scripts/github-package-release.mjs "$tag" "$notes"
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "GitHub Release already exists for $tag"
+            else
+              gh release create "$tag" --title "$tag" --notes-file "$notes"
+            fi
+            rm "$notes"
+          done < <(node npm/scripts/github-package-release.mjs --tags "$RELEASE_TAGS")
 
       - name: Fail job, якщо публікація хоч одного пакета впала
         if: steps.collect-publish-outcomes.outputs.any-failure == 'true'

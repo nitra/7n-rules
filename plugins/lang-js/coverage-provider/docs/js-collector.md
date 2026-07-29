@@ -3,27 +3,19 @@ type: JS Module
 title: js-collector.mjs
 resource: plugins/lang-js/coverage-provider/js-collector.mjs
 docgen:
-  crc: 686d2da0
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
-  score: 75
-  issues: internal-name:collectStorybookForRoot,internal-name:buildAreaRow,anchor-miss:https://alexop.dev/posts/mutation-testing-ai-agents-vitest-browser-mode/,judge-refine:kept-original,judge:inaccurate:0.99
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: 3c452712
+  model: omlx/gemma-4-e2b-it-4bit
+  tier: local-min
+  score: 55
 ---
 
 ## Огляд
 
-Збирає метрики coverage і mutation для JS/TS у спільний результат, щоб фіксувати стан тестового покриття та стійкість коду до мутацій в одному місці. Використовує `vitest run --coverage` і Stryker з `vitest-runner` та `perTest`, а також працює з кешуванням у межах прогону й може звертатися до мережі.
-
-## Поведінка
-
-collect спочатку звужує змінені файли до релевантного JS- або Storybook-скоупу, потім для кожного JS-root окремо вирішує, чи запускати повний або changed-режим, і вже після цього зводить coverage та mutation у спільні рядки `JS` і `Vue (Storybook)`. Дані для цього потоку беруться з `package.json` кореня та workspace-root-ів: detect вмикає колектор лише там, де є `vitest`, інакше дає silent skip, щоб не чіпати несумісні пакети. scopeToRoot і scopeToStorybookRoot працюють як різні фільтри одного changed-scope: перший лишає production JS/TS для Stryker mutate, другий — лише Vue-компоненти й stories для окремого Storybook-виміру, без змішування зон відповідальності.  
-
-У гілці JS collectOneRoot бере coverage з Vitest або Bun-native прогону, а mutation — зі Stryker; якщо workspace без тестів, full-режим зупиняється без результату, а в changed-режимі порожній coverage не маскує NoCoverage-мутанти для зміненого source. parseStrykerReport агрегує `mutation.json` у caught/total і групує survived за файлами, підтягаючи приклад тесту через findExampleTest; якщо source-файл недоступний, оригінальний фрагмент лишається порожнім, щоб не ламати звіт. extractFirstTestBlock використовується як стилевий приклад для survived-результатів, а findExampleTest бере його з найближчого test-файлу для пояснення, як виглядає релевантний тестовий контекст.  
-
-Для Storybook collect окремо стежить за тим, щоб зміни стосувалися саме Vue/story files і щоб root справді був канонічним Storybook-пакетом; повний режим тут може піти або через canonical Stryker command-runner, або чесно пропустити mutation, якщо конфіг відсутній. Поведінка навколо Storybook спирається на обмеження сучасного browser mode, яке не підтримується Stryker vitest-runner; контекст цього розходження описаний у https://alexop.dev/posts/mutation-testing-ai-agents-vitest-browser-mode/. readParsedMutationReport і assertStorybookStrykerIsolation захищають від пізніх падінь: перший вимагає наявний `mutation.json`, другий перевіряє, що Storybook-root не намагається запускатися через неізольований конфіг.  
-
-defaultRunner є спільною точкою запуску зовнішніх команд для всіх гілок, а collect передає його вниз як інʼєкцію, щоб зберегти однакову оркестрацію між roots і режимами. Результати збираються в окремі агрегати по площинах, а survived у фінальному виході рібейзяться відносно cwd, щоб подальший фіксер міг знаходити джерела без додаткових перетворень. Кеш у межах прогону зменшує повторні звернення до тих самих root-ів і report-файлів, але не змінює семантику: якщо `mutation.json` відсутній там, де він має бути за `package.json` і конфігом, це лишається помилкою конфігурації, а не успішним skip.
+JS/TS coverage + mutation-testing колектор: збирає метрики покриття
+(`vitest run --coverage`) і мутаційного тестування (Stryker з vitest-runner + perTest).
+Історія: жив у `@nitra/cursor` як rule-провайдер, потім (2026-07-10) — вбудований
+collector `@7n/test coverage`; після влиття `@7n/test` (spec 2026-07-22) — ядро
+coverage-провайдера плагіна `@7n/rules-lang-js` (концерн `coverage` правила `test`).
 
 ## Публічний API
 
@@ -44,6 +36,11 @@ defaultRunner є спільною точкою запуску зовнішніх
 - parseStrykerReport — Парс Stryker mutation.json: Killed+Timeout → caught; Survived+NoCoverage → до total.
 Compile/Runtime помилки виключаються з total.
 Survived мутанти групуються по файлах з exampleTest.
+- verifyScopedMutationBatch — Один cache-independent scoped Stryker-прогін після agent test-write. Він бере
+consumer config за основу, але пише report у тимчасову директорію й примусово
+вимикає incremental, тому не читає та не змінює consumer `incremental.json`.
+Кожен target мусить бути знайдений у свіжому report; batch приймається лише коли
+хоча б один target став Killed або Timeout.
 - defaultRunner — Дефолтний spawn-runner колектора (vitest/bun/Stryker/Storybook-прогони).
 Експортується для повторного використання делта-виміром (per-file.mjs) та інʼєкцій у тестах.
 - collect — Збирає JS-метрики покриття + мутаційного тестування, і окремо — Storybook-покриття
@@ -61,6 +58,10 @@ root-а (`scopeToRoot`), Storybook-вимір — лише змінені `.vue`
 (`scopeToStorybookRoot`); кожен вимір пропускається незалежно, якщо relevant-змін
 нема. Якщо змін нема ніде — повертає `[]` без error-логу (оркестратор трактує
 порожній changed-scope як pass).
+
+## Сценарії використання
+
+- `plugins/lang-js/coverage-provider/tests/js-collector.test.mjs` (js coverage detect(); js coverage collect()) — повертає true коли vitest у devDependencies; повертає true коли vitest у workspace-пакеті; повертає true коли vitest у кореневому package.json, відсутній у workspace (hoisted bun monorepo); повертає true коли vitest у (звичайних) dependencies; повертає false коли vitest відсутній; ще 59
 
 ## Гарантії поведінки
 

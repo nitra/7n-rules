@@ -1147,7 +1147,7 @@ describe('runFixPipeline — durable-write worker (issue #16: doc-черга н�
         rulesDir,
         cwd: dir,
         full: true,
-        log: () => {},
+        log: () => null,
         deps: { ladder: ONE_RUNG, workerFor: () => worker }
       })
 
@@ -1171,7 +1171,7 @@ describe('runFixPipeline — durable-write worker (issue #16: doc-черга н�
         rulesDir,
         cwd: dir,
         full: true,
-        log: () => {},
+        log: () => null,
         deps: { ladder: ONE_RUNG, workerFor: () => worker }
       })
 

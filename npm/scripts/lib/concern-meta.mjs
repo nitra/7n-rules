@@ -134,7 +134,7 @@ export async function readConcernMeta(concernDir, name) {
     requiresCapability,
     fixability: parseFixability(raw.fixability),
     skipLocalTier: raw.skipLocalTier === true,
-    cloudTimeoutMs: Number.isInteger(raw.cloudTimeoutMs) && raw.cloudTimeoutMs > 0 ? raw.cloudTimeoutMs : undefined
+    cloudTimeoutMs: Number.isSafeInteger(raw.cloudTimeoutMs) && raw.cloudTimeoutMs > 0 ? raw.cloudTimeoutMs : undefined
   }
 }
 

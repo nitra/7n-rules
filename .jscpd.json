@@ -2,9 +2,7 @@
   "gitignore": true,
   "exitCode": 1,
   "minLines": 25,
-  "reporters": [
-    "console"
-  ],
+  "reporters": ["console"],
   "ignore": [
     ".git/**",
     ".claude/worktrees/**",
@@ -39,6 +37,8 @@
     "npm/schemas/target.json",
     "npm/rules/k8s/hasura_httproute/tests/main.test.mjs",
     "plugins/lang-js/rules/test/storybook-scaffold/tests/scaffold.test.mjs",
-    "plugins/lang-js/rules/test/stryker_config/main.mjs"
+    "plugins/lang-js/rules/test/stryker_config/main.mjs",
+    "plugins/lang-python/package.json",
+    "plugins/lang-rust/package.json"
   ]
 }

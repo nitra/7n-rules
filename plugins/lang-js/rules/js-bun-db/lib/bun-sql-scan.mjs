@@ -1016,16 +1016,15 @@ export function findJsonStringifyBeforeJsonbInText(content, virtualPath = 'scan.
 
       if (!isDirectStringify && !hasSqlArrayStringify) continue
 
+      // `text[] → unnest → ::jsonb` є окремим безпечним контрактом: stringify
+      // зберігає вкладений JSON-масив, тоді як Bun SQL інакше розгортає його.
+      if (isTextArrayCall(expr)) continue
       // Quasi після expr (quasi[i+1]) — текст одразу після закриваючого }
       const nextQuasi = quasis[i + 1]
       const rawAfter =
         nextQuasi && typeof nextQuasi === 'object' && nextQuasi.value && typeof nextQuasi.value.raw === 'string'
           ? nextQuasi.value.raw
           : ''
-
-      // `text[] → unnest → ::jsonb` є окремим безпечним контрактом: stringify
-      // зберігає вкладений JSON-масив, тоді як Bun SQL інакше розгортає його.
-      if (isTextArrayCall(expr)) continue
       if (JSONB_CAST_RE.test(rawAfter) || hasSqlArrayStringify) {
         out.push({
           line: offsetToLine(content, expr.start),

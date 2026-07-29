@@ -1617,6 +1617,7 @@ export async function runSync() {
       const parts = []
       if (result.settings) parts.push('.claude/settings.json')
       if (result.cursorHooks) parts.push('.cursor/hooks.json')
+      if (result.codexHooks) parts.push('.codex/hooks.json')
       if (result.commands.length > 0) parts.push(`${result.commands.length} slash-commands`)
       if (result.adrHook) parts.push('.claude/hooks/capture-decisions.sh')
       if (result.adrNormalizeHook) parts.push('.claude/hooks/normalize-decisions.sh')

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.23.4] - 2026-07-29
+
+### Changed
+
+- fix(ci): resolve repository lint findings
+
 ## [0.23.3] - 2026-07-28
 
 ### Changed

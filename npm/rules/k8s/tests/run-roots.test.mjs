@@ -236,7 +236,7 @@ describe('Kubescape wrapper — bounded scan та granular targets', () => {
     await withTmpDir(async root => {
       const calls = []
       const result = await runKubescapeManifest('kubescape', 'apiVersion: v1\nkind: ConfigMap\n', root, false, {
-        spawn: async (...args) => {
+        spawn: (...args) => {
           calls.push(args)
           return { exitCode: null, timedOut: true }
         }
@@ -260,7 +260,7 @@ describe('Kubescape wrapper — bounded scan та granular targets', () => {
       const result = await runKubescape([k8s], root, false, {
         kubescapePath: 'kubescape',
         kubectlPath: '/bin/echo',
-        spawn: async (...args) => {
+        spawn: (...args) => {
           calls.push(args)
           return { exitCode: 0, timedOut: false }
         },

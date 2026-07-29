@@ -97,10 +97,10 @@ const FENCE_CLOSE_RE = /\n?```\s*$/
 const EMPTY_INLINE_CODE_RE = /``/g
 // Порожній code span — артефакт LLM, а не валідний факт про файл. Зрізаємо всю
 // фразу: інакше після видалення лише `` лишається вигадане твердження довкола.
-const EMPTY_INLINE_CODE_SENTENCE_RE = /[^.!?\n]*``[^.!?\n]*[.!?]/g
 // Внутрішній приклад із коментарів на кшталт `(foo.mdc)` не є поведінкою
 // модуля. Модель інколи переносить його у prose, тому таку фразу відкидаємо.
-const PAREN_MDC_SENTENCE_RE = /[^.!?\n]*\([^()\n]+\.mdc\)[^.!?\n]*[.!?]/g
+const PAREN_MDC_RE = /\([^()\n]+\.mdc\)/u
+const SENTENCE_BOUNDARY_RE = /(?<=[.!?])(?=\s|$)/u
 const LEADING_HEADING_RE = /^#{1,6}[ \t]{1,8}[^\n]{0,400}\n{1,8}/
 // R9: чат-преамбули малих моделей — «озвучування завдання» перед відповіддю
 // («Ось оновлена чорнетка секції…», «Як технічний письменник, я створю…»,
@@ -182,11 +182,19 @@ function stripSection(text) {
     t = t.replace(FENCE_OPEN_RE, '').replace(FENCE_CLOSE_RE, '').trim()
   }
   t = t.replace(LEADING_HEADING_RE, '') // зрізати випадковий заголовок
-  return stripLeadingPreamble(t.trim())
-    .replaceAll(EMPTY_INLINE_CODE_SENTENCE_RE, '')
-    .replaceAll(PAREN_MDC_SENTENCE_RE, '')
-    .replaceAll(EMPTY_INLINE_CODE_RE, '')
-    .trim()
+  return stripUnsupportedSentences(stripLeadingPreamble(t.trim())).replaceAll(EMPTY_INLINE_CODE_RE, '').trim()
+}
+
+/**
+ * Відкидає sentence-level LLM артефакти, не застосовуючи backtracking regex до всього тексту.
+ * @param {string} text очищений текст секції
+ * @returns {string} текст без речень із порожнім inline-code або внутрішнім `.mdc` прикладом
+ */
+function stripUnsupportedSentences(text) {
+  return text
+    .split(SENTENCE_BOUNDARY_RE)
+    .filter(sentence => !sentence.includes('``') && !PAREN_MDC_RE.test(sentence))
+    .join('')
 }
 
 /**
@@ -490,6 +498,7 @@ export function commentDocumentationMode(facts, src) {
  * @param {object} facts факт-лист мовного екстрактора
  * @param {string|null} intent захищена секція «Призначення»
  * @param {string} [behavior] додаткова LLM-секція «Поведінка» для comment+behavior режиму
+ * @returns {{md:string}} зібрана Markdown-дока
  */
 function commentOnlyDoc(facts, intent, behavior = '') {
   const sections = {
@@ -659,7 +668,6 @@ function semanticEvidence(src) {
 function behaviorOnlyDocument(md) {
   const body = h2SectionBody(md, BEHAVIOR_HEADING)
   return body ? `# Поведінка\n\n## Поведінка\n\n${body}\n` : ''
-  return match ? `# Поведінка\n\n## Поведінка\n\n${match[1].trim()}\n` : ''
 }
 
 /**
@@ -701,7 +709,7 @@ async function judgeRefinePass(r, judge, { facts, anchors, src, score, model, ch
 async function runJudgeGate({ r, score, issues, facts, anchors, src, model, chain }) {
   let judge = null
   try {
-    judge = { ...(await judgeDoc(semanticEvidence(src, facts), r.md, { chain })), model: JUDGE_MODEL }
+    judge = { ...(await judgeDoc(semanticEvidence(src), r.md, { chain })), model: JUDGE_MODEL }
     // №6: суддя назвав конкретні неточності → один локальний refine-прохід
     // (опт-аут: N_CURSOR_DOCGEN_JUDGE_REFINE=0). Прийнято лише коли всі
     // guard-и judgeRefinePass пройдені; інакше — degraded, як раніше.
@@ -878,6 +886,44 @@ export async function generateDoc(
   }
 
   /**
+   * Завершує comment-only/comment+behavior режим або повертає null для fallback.
+   * @param {{md:string}} r поточний документ
+   * @param {'comment-only'|'comment+behavior'|'fallback'} commentMode режим із коментарів
+   * @param {string|null} intent захищена секція «Призначення»
+   * @param {object|null} anchors anchors source-коду
+   * @returns {Promise<object|null>} готовий результат або null для fallback-шляху
+   */
+  async function finishCommentMode(r, commentMode, intent, anchors) {
+    if (commentMode === 'fallback') return null
+    let { score, issues } = scoreDoc(r.md, facts, { anchors, src })
+    let judge = null
+    if (commentMode === 'comment+behavior') {
+      const behaviorDoc = behaviorOnlyDocument(r.md)
+      if (JUDGE_ENABLED && behaviorDoc) {
+        judge = { ...(await judgeDoc(semanticEvidence(src), behaviorDoc, { chain })), model: JUDGE_MODEL }
+        if (judgeFailsDoc(judge)) {
+          r = commentOnlyDoc(facts, intent)
+          ;({ score, issues } = scoreDoc(r.md, facts, { anchors, src }))
+          issues.push('behavior-judge-removed')
+        }
+      }
+    }
+    chainExtra.score = score
+    chainExtra.degraded = false
+    return {
+      ...r,
+      ms: Date.now() - t0,
+      llmMs: llmMeter.ms,
+      llmCalls: llmMeter.calls,
+      score,
+      issues,
+      judge,
+      degraded: false,
+      model
+    }
+  }
+
+  /**
    * Тіло генерації (замикання над generateDoc-локалами); заповнює chainExtra.
    * @returns {Promise<object>} результат generateDoc
    */
@@ -898,51 +944,11 @@ export async function generateDoc(
       return finishUnsupported(r, { t0, model, chainExtra })
     }
 
+    const commentResult = await finishCommentMode(r, commentMode, intent, anchors)
+    if (commentResult) return commentResult
+
     // Stage 2.5: детермінований скоринг (0 токенів)
     let { score, issues } = scoreDoc(r.md, facts, { anchors, src })
-
-    // Авторські header/API-коментарі — уже джерело істини. Для comment-only
-    // LLM не запускається зовсім; comment+behavior судить лише LLM-секцію.
-    if (commentMode === 'comment-only') {
-      chainExtra.score = score
-      chainExtra.degraded = false
-      return {
-        ...r,
-        ms: Date.now() - t0,
-        llmMs: llmMeter.ms,
-        llmCalls: llmMeter.calls,
-        score,
-        issues,
-        degraded: false,
-        model
-      }
-    }
-
-    if (commentMode === 'comment+behavior') {
-      const behaviorDoc = behaviorOnlyDocument(r.md)
-      let judge = null
-      if (JUDGE_ENABLED && behaviorDoc) {
-        judge = { ...(await judgeDoc(semanticEvidence(src), behaviorDoc, { chain })), model: JUDGE_MODEL }
-        if (judgeFailsDoc(judge)) {
-          r = commentOnlyDoc(facts, intent)
-          ;({ score, issues } = scoreDoc(r.md, facts, { anchors, src }))
-          issues.push('behavior-judge-removed')
-        }
-      }
-      chainExtra.score = score
-      chainExtra.degraded = false
-      return {
-        ...r,
-        ms: Date.now() - t0,
-        llmMs: llmMeter.ms,
-        llmCalls: llmMeter.calls,
-        score,
-        issues,
-        judge,
-        degraded: false,
-        model
-      }
-    }
 
     // E4: best-of-2 — один retry з вищою температурою, det-вибір кращого
     if (score < threshold && env.N_CURSOR_DOCGEN_BEST_OF !== '0') {
@@ -1006,12 +1012,12 @@ export async function prepareBatchItem(file, { existingMd = null, testIndex = nu
   const anchors = facts.unsupported ? null : extractAnchors(src)
   const intent = existingMd ? splitProtected(existingMd).body : null
   const mode = facts.unsupported ? 'fallback' : commentDocumentationMode(facts, src)
-  const messages =
-    mode === 'comment-only'
-      ? []
-      : mode === 'comment+behavior'
-        ? sectionMessages(facts, src, anchors, intent, { complementaryBehavior: true })[0].messages
-        : oneShotMessages(facts, src)
+  let messages = []
+  if (mode === 'comment+behavior') {
+    messages = sectionMessages(facts, src, anchors, intent, { complementaryBehavior: true })[0].messages
+  } else if (mode !== 'comment-only') {
+    messages = oneShotMessages(facts, src)
+  }
   return { facts, anchors, src, mode, messages, intent }
 }
 

@@ -197,7 +197,7 @@ describe('createProgressPublisher — стан-файл прогресу для 
       })
       let snap = JSON.parse(fs.readFileSync(file, 'utf8'))
       expect(snap).toMatchObject({ version: 2, phase: 'k8s/manifest', step: 'kubescape', etaMs: null })
-      now += 6_000
+      now += 6000
       publisher.onUpdate({
         done: 2,
         total: 12,

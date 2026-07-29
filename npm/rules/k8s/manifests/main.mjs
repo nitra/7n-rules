@@ -7120,6 +7120,24 @@ async function scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, root, ver
 }
 
 /**
+ * Розгортає k8s-корені у raw та kustomize target-и для послідовного сканування.
+ * @param {string[]} dirs абсолютні шляхи k8s-коренів
+ * @returns {Promise<Array<{kind:'raw'|'kustomize',dir:string}>>} granular scan-target-и
+ */
+async function collectKubescapeTargets(dirs) {
+  const targets = []
+  for (const dir of dirs) {
+    const kdirs = await findKustomizationDirs(dir)
+    if (kdirs.length === 0) {
+      targets.push({ kind: 'raw', dir })
+    } else {
+      targets.push(...kdirs.map(kustomizeDir => ({ kind: 'kustomize', dir: kustomizeDir })))
+    }
+  }
+  return targets
+}
+
+/**
  * Оркеструє kubescape-скан по k8s-коренях: kustomize-каталоги збираються, решта — сирий скан.
  * Виняток C-0056/C-0018 для Job/CronJob — auto-generated з реального контенту кожного скан-таргету
  * (не один спільний файл на весь репо), див. `runKubescapeManifest`/`scanRawK8sDir`.
@@ -7132,16 +7150,7 @@ async function scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, root, ver
 export async function runKubescape(dirs, root, verbose = false, opts = {}) {
   const kubescapePath = opts.kubescapePath ?? ensureTool('kubescape')
   let kubectlPath = null
-  /** @type {Array<{ kind: 'raw'|'kustomize', dir: string }>} */
-  const targets = []
-  for (const d of dirs) {
-    const kdirs = await findKustomizationDirs(d)
-    if (kdirs.length === 0) {
-      targets.push({ kind: 'raw', dir: d })
-    } else {
-      for (const dir of kdirs) targets.push({ kind: 'kustomize', dir })
-    }
-  }
+  const targets = await collectKubescapeTargets(dirs)
 
   let done = 0
   let cacheReady = false

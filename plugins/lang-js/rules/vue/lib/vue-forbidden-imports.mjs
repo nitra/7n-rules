@@ -24,6 +24,7 @@ const NODE_BUILTIN_MODULES = new Set(builtinModules)
 
 const VUE_EXT_RE = /\.vue$/u
 const SOURCE_FILE_RE = /\.(vue|[cm]?[jt]sx?)$/
+const TEST_SOURCE_FILE_RE = /\.(?:test|spec)\.[cm]?[jt]sx?$/u
 
 /**
  * Мова для Oxc за шляхом файлу (розширення).
@@ -151,7 +152,7 @@ export function shouldSkipFileForVueAutoImportScan(relativePosix) {
     return true
   }
   const base = relativePosix.split('/').pop() || ''
-  return relativePosix.includes('/__tests__/') || /\.(?:test|spec)\.[cm]?[jt]sx?$/u.test(base)
+  return relativePosix.includes('/__tests__/') || TEST_SOURCE_FILE_RE.test(base)
 }
 
 /**

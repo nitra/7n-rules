@@ -316,6 +316,79 @@ function isTargetMutant(target, candidate) {
 }
 
 /**
+ * Повертає стандартизований failed verdict із накопиченими лічильниками.
+ * @param {{targetCount:number,killed:number,remaining:number,covered0:number}} tally накопичені метрики batch-а
+ * @param {string} reason причина зупинки scoped перевірки
+ * @returns {{ok:false,targetCount:number,killed:number,remaining:number,covered0:number,cacheIndependent:true,reason:string}} failed verdict
+ */
+function scopedMutationFailure(tally, reason) {
+  return { ok: false, ...tally, cacheIndependent: true, reason }
+}
+
+/**
+ * Оновлює лічильники scoped verdict-а та повертає опис непідтриманого статусу.
+ * @param {string|undefined} status статус мутанта зі Stryker report
+ * @param {{killed:number,remaining:number,covered0:number}} tally накопичені метрики batch-а
+ * @returns {string|null} помилка для невідомого статусу або `null`
+ */
+function recordScopedMutationStatus(status, tally) {
+  if (status === 'Killed' || status === 'Timeout') {
+    tally.killed += 1
+    return null
+  }
+  switch (status) {
+    case 'NoCoverage': {
+      tally.covered0 += 1
+      tally.remaining += 1
+      return null
+    }
+    case 'Survived': {
+      tally.remaining += 1
+      return null
+    }
+    default: {
+      return `reporter failure: target має непідтверджений статус ${status ?? 'unknown'}`
+    }
+  }
+}
+
+/**
+ * Перевіряє один JS-root і додає результати до спільних лічильників batch-а.
+ * @param {string} root абсолютний шлях JS workspace-а
+ * @param {string[]} files source-файли batch-а відносно workspace-а
+ * @param {Array<{file:string,mutants:Array<object>}>} groups цільові мутанти за файлами
+ * @param {typeof defaultRunner} runner Stryker runner
+ * @param {{targetCount:number,killed:number,remaining:number,covered0:number}} tally накопичені метрики batch-а
+ * @returns {Promise<string|null>} текст помилки або `null` після успішної перевірки
+ */
+async function verifyScopedMutationRoot(root, files, groups, runner, tally) {
+  const reportDir = await mkdtemp(join(tmpdir(), 'stryker-scoped-'))
+  const reportPath = join(reportDir, 'mutation.json')
+  try {
+    const code = await runner.runStryker({ cwd: root, mutate: [...new Set(files)], isolatedReportPath: reportPath })
+    if (code !== 0) return `reporter failure: Stryker exit ${code}`
+    if (!existsSync(reportPath)) return 'reporter failure: scoped Stryker не залишив isolated mutation.json'
+
+    const report = JSON.parse(await readFile(reportPath, 'utf8'))
+    for (const group of groups) {
+      const mutants = report.files?.[group.file]?.mutants
+      if (!Array.isArray(mutants)) return `reporter failure: scoped report не містить ${group.file}`
+      for (const target of group.mutants) {
+        tally.targetCount += 1
+        const result = mutants.find(mutant => isTargetMutant(target, mutant))
+        if (!result)
+          return `reporter failure: scoped report не містить target mutant ${group.file}:${target.line}:${target.col}`
+        const statusError = recordScopedMutationStatus(result.status, tally)
+        if (statusError) return statusError
+      }
+    }
+    return null
+  } finally {
+    await rm(reportDir, { recursive: true, force: true })
+  }
+}
+
+/**
  * Один cache-independent scoped Stryker-прогін після agent test-write. Він бере
  * consumer config за основу, але пише report у тимчасову директорію й примусово
  * вимикає incremental, тому не читає та не змінює consumer `incremental.json`.
@@ -331,7 +404,7 @@ export async function verifyScopedMutationBatch({ cwd, batch, runner = defaultRu
     const candidates = roots
       .map(root => ({ root, file: scopeToRoot([group.file], cwd, root)[0] }))
       .filter(candidate => candidate.file)
-      .sort((a, b) => b.root.length - a.root.length)
+      .toSorted((a, b) => b.root.length - a.root.length)
     const selected = candidates[0]
     if (!selected) {
       return {
@@ -350,98 +423,19 @@ export async function verifyScopedMutationBatch({ cwd, batch, runner = defaultRu
     perRoot.set(selected.root, entry)
   }
 
-  let targetCount = 0
-  let killed = 0
-  let remaining = 0
-  let covered0 = 0
+  const tally = { targetCount: 0, killed: 0, remaining: 0, covered0: 0 }
   for (const [root, { files, groups }] of perRoot) {
-    const reportDir = await mkdtemp(join(tmpdir(), 'stryker-scoped-'))
-    const reportPath = join(reportDir, 'mutation.json')
-    try {
-      const code = await runner.runStryker({
-        cwd: root,
-        mutate: [...new Set(files)],
-        isolatedReportPath: reportPath
-      })
-      if (code !== 0) {
-        return {
-          ok: false,
-          targetCount,
-          killed,
-          remaining,
-          covered0,
-          cacheIndependent: true,
-          reason: `reporter failure: Stryker exit ${code}`
-        }
-      }
-      if (!existsSync(reportPath)) {
-        return {
-          ok: false,
-          targetCount,
-          killed,
-          remaining,
-          covered0,
-          cacheIndependent: true,
-          reason: 'reporter failure: scoped Stryker не залишив isolated mutation.json'
-        }
-      }
-      const report = JSON.parse(await readFile(reportPath, 'utf8'))
-      for (const group of groups) {
-        const mutants = report.files?.[group.file]?.mutants
-        if (!Array.isArray(mutants)) {
-          return {
-            ok: false,
-            targetCount,
-            killed,
-            remaining,
-            covered0,
-            cacheIndependent: true,
-            reason: `reporter failure: scoped report не містить ${group.file}`
-          }
-        }
-        for (const target of group.mutants) {
-          targetCount += 1
-          const result = mutants.find(mutant => isTargetMutant(target, mutant))
-          if (!result) {
-            return {
-              ok: false,
-              targetCount,
-              killed,
-              remaining,
-              covered0,
-              cacheIndependent: true,
-              reason: `reporter failure: scoped report не містить target mutant ${group.file}:${target.line}:${target.col}`
-            }
-          }
-          if (result.status === 'Killed' || result.status === 'Timeout') killed += 1
-          else if (result.status === 'NoCoverage') {
-            covered0 += 1
-            remaining += 1
-          } else if (result.status === 'Survived') remaining += 1
-          else {
-            return {
-              ok: false,
-              targetCount,
-              killed,
-              remaining,
-              covered0,
-              cacheIndependent: true,
-              reason: `reporter failure: target має непідтверджений статус ${result.status ?? 'unknown'}`
-            }
-          }
-        }
-      }
-    } finally {
-      await rm(reportDir, { recursive: true, force: true })
-    }
+    const error = await verifyScopedMutationRoot(root, files, groups, runner, tally)
+    if (error) return scopedMutationFailure(tally, error)
   }
-  const reason =
-    killed === 0
-      ? covered0 > 0
+  let reason = null
+  if (tally.killed === 0) {
+    reason =
+      tally.covered0 > 0
         ? 'covered 0: target mutants лишились без покриття'
         : 'no-improvement: жоден target mutant не вбитий'
-      : null
-  return { ok: killed > 0, targetCount, killed, remaining, covered0, cacheIndependent: true, reason }
+  }
+  return { ok: tally.killed > 0, ...tally, cacheIndependent: true, reason }
 }
 
 /**
@@ -758,10 +752,12 @@ async function refreshParsedMutationReport(jsRoot, cwd, runner, refreshFiles, is
     if (code !== 0) throw new Error(`js coverage: fresh scoped Stryker exit ${code}`)
     if (!existsSync(reportPath)) throw new Error('js coverage: fresh scoped Stryker не залишив mutation.json')
     const canonicalPath = join(jsRoot, 'reports', 'stryker', 'mutation.json')
-    const [canonical, fresh] = await Promise.all([
-      readFile(canonicalPath, 'utf8').then(JSON.parse),
-      readFile(reportPath, 'utf8').then(JSON.parse)
+    const [canonicalSource, freshSource] = await Promise.all([
+      readFile(canonicalPath, 'utf8'),
+      readFile(reportPath, 'utf8')
     ])
+    const canonical = JSON.parse(canonicalSource)
+    const fresh = JSON.parse(freshSource)
     return parseStrykerReport({ ...canonical, files: { ...canonical.files, ...fresh.files } }, jsRoot)
   } finally {
     await rm(reportDir, { recursive: true, force: true })

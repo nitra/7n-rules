@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.54.1] - 2026-07-29
+
+### Changed
+
+- release: @7n/llm-lib@2.12.1, @7n/rules@1.54.0, @7n/rules-lang-js@0.23.4, @7n/rules-lang-python@0.11.3, @7n/rules-lang-rust@0.14.2
+
+## [1.54.0] - 2026-07-29
+
+### Changed
+
+- fix(ci): resolve repository lint findings
+
+### Fixed
+
+- image-compress: T0-autofixer fix-check.mjs runs @nitra/minify-image via bunx instead of npx — matches the read-only detector fix (v4 uses Bun.Image, a bun-only global)
+
 ## [1.53.0] - 2026-07-28
 
 ### Changed
