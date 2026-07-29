@@ -3,9 +3,9 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/text/cspell-fix/main.mjs
 docgen:
-  crc: 7a4bf3b0
-  model: openai-codex/gpt-5.5
-  tier: cloud-avg
+  crc: 9bbb4672
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
   score: 75
 ---
 
