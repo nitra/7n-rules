@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.57.1] - 2026-07-29
+
+### Changed
+
+- feat(llm-lib): v0.2.3 — pi-тіри на локальні моделі (оновлене рішення З.1)
+
+## [1.57.0] - 2026-07-29
+
+### Changed
+
+- Уніфікація adr-normalize та test/coverage classify() на batch-хвилі submitBatch: кожна LLM-стадія — один виклик на всі незалежні items замість послідовного циклу (спека 2026-07-27-batch-local-avg-real-batches, кластер E)
+- Додано taze-diff для порівняння залежностей маніфестів та readJsonOrNull
+
+### Fixed
+
+- Синхронізовано pin @7n/llm-lib з актуальною workspace-версією (2.12.3) — CI release lock-крок раніше не оновив npm/package.json
+- оновлено LLM runtime pin
+
 ## [1.56.0] - 2026-07-29
 
 ### Added

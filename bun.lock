@@ -60,13 +60,13 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.55.3",
+      "version": "1.56.0",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
       },
       "dependencies": {
-        "@7n/llm-lib": "2.12.2",
+        "@7n/llm-lib": "2.12.3",
         "@zed-industries/agent-client-protocol": "^0.4.5",
         "ajv": "^8.20.0",
         "cli-progress": "^3.12.0",
@@ -89,7 +89,7 @@
     },
     "plugins/ci-azure": {
       "name": "@7n/rules-ci-azure",
-      "version": "2.0.1",
+      "version": "2.1.0",
       "dependencies": {
         "yaml": "^2.9.0",
       },
@@ -99,7 +99,7 @@
     },
     "plugins/ci-github": {
       "name": "@7n/rules-ci-github",
-      "version": "2.0.2",
+      "version": "2.1.0",
       "dependencies": {
         "yaml": "^2.9.0",
       },
@@ -109,7 +109,7 @@
     },
     "plugins/lang-js": {
       "name": "@7n/rules-lang-js",
-      "version": "0.23.6",
+      "version": "0.23.7",
       "dependencies": {
         "eslint": "^10.4.1",
         "globby": "^16.0.0",
@@ -130,14 +130,14 @@
     },
     "plugins/lang-php": {
       "name": "@7n/rules-lang-php",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "peerDependencies": {
         "@7n/rules": ">=1.2.0",
       },
     },
     "plugins/lang-python": {
       "name": "@7n/rules-lang-python",
-      "version": "0.11.3",
+      "version": "0.11.4",
       "dependencies": {
         "globby": "^16.0.0",
         "smol-toml": "^1.7.0",
@@ -152,7 +152,7 @@
     },
     "plugins/lang-rust": {
       "name": "@7n/rules-lang-rust",
-      "version": "0.14.2",
+      "version": "0.14.3",
       "dependencies": {
         "globby": "^16.0.0",
         "smol-toml": "^1.7.0",
@@ -2529,8 +2529,6 @@
 
     "zwitch": ["zwitch@2.0.4", "", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
 
-    "@7n/rules/@7n/llm-lib": ["@7n/llm-lib@2.12.2", "", { "optionalDependencies": { "@7n/llm-lib-darwin-arm64": "2.12.2", "@7n/llm-lib-linux-x64": "2.12.2" }, "peerDependencies": { "@earendil-works/pi-ai": "~0.80.10", "@earendil-works/pi-coding-agent": "~0.80.10" }, "optionalPeers": ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent"], "bin": { "n-llm-chains-report": "bin/chains-report.mjs" } }, "sha512-OczF4Zom5XUgLYFgqulVuAFG1HjBGCtseOP+ApHv6u4M5OaN2aaPDdd7cBwFWqzxyhD7wcq8TGOtackJW3itzg=="],
-
     "@aws-sdk/credential-provider-http/@smithy/node-http-handler": ["@smithy/node-http-handler@4.9.6", "", { "dependencies": { "@smithy/core": "^3.29.4", "@smithy/types": "^4.16.1", "tslib": "^2.6.2" } }, "sha512-odd+HYx3OLcXRSEz0ZeF3JQdSYdK8QnRgA2N87cPW7coWIbKfRk7a9VQjfeWQLqnzrDLk23KMEn46p8N7M/JFg=="],
 
     "@aws-sdk/credential-provider-sso/@aws-sdk/token-providers": ["@aws-sdk/token-providers@3.1087.0", "", { "dependencies": { "@aws-sdk/core": "^3.975.2", "@aws-sdk/nested-clients": "^3.997.32", "@aws-sdk/types": "^3.974.1", "@smithy/core": "^3.29.3", "@smithy/types": "^4.16.1", "tslib": "^2.6.2" } }, "sha512-umM+qNq16f2fH+VLM5MqXW4ORNQAjk+TOSto73xbUHcKaU41L48j786r3UWQYlejeJk37NlvRYgxBT+MBkfaYQ=="],
@@ -2734,10 +2732,6 @@
     "write-file-atomic/signal-exit": ["signal-exit@4.1.0", "", {}, "sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw=="],
 
     "yargs/string-width": ["string-width@7.2.0", "", { "dependencies": { "emoji-regex": "^10.3.0", "get-east-asian-width": "^1.0.0", "strip-ansi": "^7.1.0" } }, "sha512-tsaTIkKW9b4N+AEj+SVA+WhJzV7/zMhcSu78mLKWSk7cXMOSHsBKFWUs0fWwq8QyK3MgJBQRX6Gbi4kYbdvGkQ=="],
-
-    "@7n/rules/@7n/llm-lib/@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.12.2", "", { "os": "darwin", "cpu": "arm64" }, "sha512-AHbWfwNXbQNxRqS+DwGVnDmd86Ru2+p5l/FOPnc8cKbUlTcMJP6RJWcmtNOtGSKbFX+uTgTeboUveqLza6qYCQ=="],
-
-    "@7n/rules/@7n/llm-lib/@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.12.2", "", { "os": "linux", "cpu": "x64" }, "sha512-cgYSO3rucl+iJMKmMK4FtlDSy1o0xlHgxHHkwCpjBD4IoDt5kg4EejeKV09DzIsex+0NdDNtDbD2uzHTCr1i8Q=="],
 
     "@babel/generator/@babel/types/@babel/helper-string-parser": ["@babel/helper-string-parser@8.0.0", "", {}, "sha512-6mJgmFFFIIO82vvoLt9XtRC7/TkzXfts1t/SpRX4IHSzMgqoPYCWesVu1udUPUWioAE/2fcG6WuI8zrkE1gwrg=="],
 
