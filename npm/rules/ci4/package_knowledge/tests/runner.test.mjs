@@ -29,6 +29,7 @@ function extractor({ fails = false } = {}) {
     apiVersion: 1,
     extensions: ['.mjs'],
     parser: { id: 'fixture', grammarVersion: '1', runtimeVersion: '1' },
+    collectTestScenarios: vi.fn(() => ({ ok: true, scenarios: [] })),
     analyzeFile: vi.fn(({ file }) => {
       if (fails) throw new Error('fixture parser failed')
       return {
@@ -162,7 +163,9 @@ describe('buildPackageKnowledge', () => {
       )
 
       expect(result).toMatchObject({ ok: true, mode: 'shadow' })
-      expect(discovered).toHaveBeenCalledWith({ repoRoot: root, domain: expect.objectContaining({ id: DOMAIN_ID }) })
+      expect(discovered).toHaveBeenCalledWith(
+        expect.objectContaining({ repoRoot: root, domain: expect.objectContaining({ id: DOMAIN_ID }) })
+      )
       expect(mapped.mock.calls[0][0].graph.claims).toHaveLength(1)
       expect(await readFile(join(result.stagingPath, 'docs', 'implementation-gaps.md'), 'utf8')).toContain('Status: missing')
     })

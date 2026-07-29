@@ -43,6 +43,7 @@ const SLOT_VERSION = 1
  * @property {string[]} extensions owned source extensions
  * @property {{ id: string, grammarVersion: string, runtimeVersion: string }} parser parser provenance
  * @property {(input: { domain: object, file: { path: string, content: string, contentHash: string }, signal?: AbortSignal }) => object | Promise<object>} analyzeFile fail-closed file analysis
+ * @property {((input: { file: { path: string, content: string, contentHash?: string } }) => object | Promise<object>) | undefined} collectTestScenarios optional full-parser active test collector
  */
 
 /**
@@ -170,7 +171,8 @@ function validateExtractorAdapter(adapter, contribution) {
       grammarVersion: parser.grammarVersion,
       runtimeVersion: parser.runtimeVersion
     }),
-    analyzeFile: adapter.analyzeFile
+    analyzeFile: adapter.analyzeFile,
+    ...(typeof adapter.collectTestScenarios === 'function' ? { collectTestScenarios: adapter.collectTestScenarios } : {})
   })
 }
 

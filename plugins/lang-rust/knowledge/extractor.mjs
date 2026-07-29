@@ -450,12 +450,64 @@ export async function analyzeFile(input) {
   }
 }
 
+/** Обходить Tree-sitter node без text/brace fallback. */
+function walkSyntax(node, visit) {
+  visit(node)
+  for (const child of node.namedChildren) walkSyntax(child, visit)
+}
+
+/** Чи AST subtree містить parser-derived identifier. */
+function hasIdentifier(node, name) {
+  let found = false
+  walkSyntax(node, child => {
+    if ((child.type === 'identifier' || child.type === 'type_identifier') && child.text === name) found = true
+  })
+  return found
+}
+
+/** Збирає active #[test] scenarios та assert!/assert_* macros через Rust grammar. */
+export async function collectTestScenarios({ file }) {
+  if (!file || typeof file.path !== 'string' || typeof file.content !== 'string' || !file.path.endsWith('.rs')) {
+    return failure('invalid-file-input', file?.path ?? null, 'Rust test collector потребує .rs file.')
+  }
+  let tree
+  try {
+    const language = await loadRustLanguage()
+    const parser = new Parser()
+    parser.setLanguage(language)
+    tree = parser.parse(file.content)
+  } catch (error) {
+    return failure('parser-runtime-error', file.path, `Tree-sitter Rust test parser не ініціалізувався: ${String(error)}`)
+  }
+  if (!tree?.rootNode || tree.rootNode.hasError) return failure('expected-test-parse-failed', file.path, 'Tree-sitter Rust не зміг розібрати test source.')
+  const scenarios = []
+  const children = tree.rootNode.namedChildren
+  for (let index = 0; index < children.length; index++) {
+    const node = children[index]
+    if (node.type !== 'function_item') continue
+    const attributes = []
+    for (let cursor = index - 1; cursor >= 0 && children[cursor].type === 'attribute_item'; cursor--) attributes.push(children[cursor])
+    if (!attributes.some(attribute => hasIdentifier(attribute, 'test')) || attributes.some(attribute => hasIdentifier(attribute, 'ignore'))) continue
+    let asserted = false
+    walkSyntax(node, child => {
+      if (child.type === 'macro_invocation') {
+        const macro = childOfType(child, 'identifier')?.text
+        if (macro === 'assert' || macro === 'assert_eq' || macro === 'assert_ne') asserted = true
+      }
+    })
+    const name = itemName(node)
+    if (asserted && name) scenarios.push({ content: node.text, span: span(file.content, node), anchor: name })
+  }
+  return { ok: true, scenarios: scenarios.toSorted((left, right) => left.span.startByte - right.span.startByte) }
+}
+
 const rustKnowledgeExtractor = Object.freeze({
   id: 'knowledge-rust',
   apiVersion: 1,
   extensions: EXTENSIONS,
   parser: PARSER,
-  analyzeFile
+  analyzeFile,
+  collectTestScenarios
 })
 
 /** Надає versioned `knowledge.extractor@1` provider для Rust. */

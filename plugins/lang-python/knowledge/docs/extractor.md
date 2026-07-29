@@ -20,6 +20,7 @@ Adapter використовує повний Tree-sitter Python parser у WASM.
 ## Публічний API
 
 - analyzeFile — Аналізує один Python source-file у deterministic normalized fragment.
+- collectTestScenarios — Збирає assertions лише з active Python test functions через Tree-sitter WASM.
 
 ## Сценарії використання
 

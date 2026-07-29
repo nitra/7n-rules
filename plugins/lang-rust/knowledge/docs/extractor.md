@@ -21,6 +21,7 @@ blocking diagnostic, без partial fragment-а або whole-file fallback.
 ## Публічний API
 
 - analyzeFile — Аналізує один Rust source-file через Tree-sitter WASM.
+- collectTestScenarios — Збирає assertions лише з active Rust `#[test]` functions через Tree-sitter WASM.
 
 ## Сценарії використання
 

@@ -18,6 +18,7 @@ Regex і brace-scanner не беруть участі у production semantic ext
 ## Публічний API
 
 - analyzeFile — Аналізує PHP source через повний parser та повертає only-complete semantic fragment.
+- collectTestScenarios — Збирає assertions лише з active PHP test methods через php-parser.
 
 ## Сценарії використання
 

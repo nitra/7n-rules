@@ -289,12 +289,48 @@ export function analyzeFile(input) {
   }
 }
 
+/** Повертає parser-derived PHP member-call name. */
+function testCallName(node) {
+  if (node?.kind !== 'call') return null
+  return nodeName(node.what?.offset) ?? nodeName(node.what)
+}
+
+/** Збирає active PHPUnit test* methods з assert* call через php-parser AST. */
+export function collectTestScenarios({ file }) {
+  if (!file || typeof file.path !== 'string' || typeof file.content !== 'string' || !file.path.endsWith('.php')) {
+    return failure('invalid-file-input', file?.path ?? null, 'PHP test collector потребує .php file.')
+  }
+  let ast
+  try {
+    ast = new PhpParser({ parser: { php7: true, version: '8.3' }, ast: { withPositions: true } }).parseCode(file.content, file.path)
+  } catch (error) {
+    return failure('expected-test-parse-failed', file.path, `PHP parser не зміг розібрати test source: ${String(error)}`)
+  }
+  if (!ast?.loc || !Array.isArray(ast.children) || (ast.errors?.length ?? 0) > 0) return failure('expected-test-parse-failed', file.path, 'PHP parser повернув неповний test AST.')
+  const scenarios = []
+  visit(ast, node => {
+    const methodName = nodeName(node.name)
+    if (node.kind !== 'method' || !methodName?.startsWith('test') || !node.loc) return
+    let asserted = false
+    let disabled = false
+    visit(node.body, child => {
+      const name = testCallName(child)
+      if (!name) return
+      if (name.startsWith('assert')) asserted = true
+      if (name === 'markTestSkipped' || name === 'markTestIncomplete') disabled = true
+    })
+    if (asserted && !disabled) scenarios.push({ content: node.loc.source ?? file.content.slice(node.loc.start.offset, node.loc.end.offset), span: span(file.content, node), anchor: methodName })
+  })
+  return { ok: true, scenarios: scenarios.toSorted((left, right) => left.span.startByte - right.span.startByte) }
+}
+
 const phpKnowledgeExtractor = Object.freeze({
   id: 'knowledge-php',
   apiVersion: 1,
   extensions: EXTENSIONS,
   parser: PARSER,
-  analyzeFile
+  analyzeFile,
+  collectTestScenarios
 })
 
 /** Експортує PHP full-parser adapter для knowledge.extractor@1. */

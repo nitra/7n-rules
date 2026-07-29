@@ -698,6 +698,37 @@ function readFileInput(input) {
   return { ok: true, file }
 }
 
+/** Повертає AST member chain без text parsing. */
+function testCalleeChain(expression) {
+  if (!expression || typeof expression !== 'object') return []
+  if (expression.type === 'Identifier') return [expression.name]
+  if (expression.type === 'MemberExpression' && !expression.computed && expression.property?.type === 'Identifier') {
+    return [...testCalleeChain(expression.object), expression.property.name]
+  }
+  return expression.type === 'CallExpression' ? testCalleeChain(expression.callee) : []
+}
+
+/** Збирає active Vitest/Jest-style assertion scenarios через OXC AST. */
+export function collectTestScenarios({ file }) {
+  const parsed = parseProgramAndCommentsOrNull(file?.content, file?.path)
+  if (!parsed?.program) return failure('expected-test-parse-failed', file?.path ?? null, 'OXC не зміг розібрати test source.')
+  const scenarios = []
+  walkAstWithAncestors(parsed.program, [], (node, ancestors) => {
+    if (node.type !== 'CallExpression') return
+    const chain = testCalleeChain(node.callee)
+    if (!['test', 'it'].includes(chain[0]) || ['skip', 'todo', 'skipIf'].some(item => chain.includes(item))) return
+    if (ancestors.some(parent => parent.type === 'CallExpression' && ['skip', 'todo', 'skipIf'].some(item => testCalleeChain(parent.callee).includes(item)))) return
+    let asserted = false
+    walkAstWithAncestors(node, [], child => {
+      if (child.type === 'CallExpression' && ['expect', 'assert'].includes(testCalleeChain(child.callee)[0])) asserted = true
+    })
+    if (!asserted || typeof node.start !== 'number' || typeof node.end !== 'number') return
+    const title = node.arguments?.[0]?.value
+    scenarios.push({ content: file.content.slice(node.start, node.end), span: span(file.content, node.start, node.end, 0), anchor: typeof title === 'string' ? title : `${node.start}:${node.end}` })
+  })
+  return { ok: true, scenarios: scenarios.toSorted((left, right) => left.span.startByte - right.span.startByte) }
+}
+
 /**
  * Аналізує один JS/TS/Vue source-file у deterministic normalized fragment.
  * @param {{ domain: object, file: { path: string, content: string, contentHash: string }, signal?: AbortSignal }} input source evidence
@@ -795,7 +826,8 @@ const jsKnowledgeExtractor = Object.freeze({
   apiVersion: 1,
   extensions: EXTENSIONS,
   parser: PARSER,
-  analyzeFile
+  analyzeFile,
+  collectTestScenarios
 })
 
 /** Надає versioned `knowledge.extractor@1` provider для JS/TS/Vue. */

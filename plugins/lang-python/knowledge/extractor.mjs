@@ -363,12 +363,53 @@ export async function analyzeFile(input) {
   }
 }
 
+/** Чи parser-derived subtree має identifier/attribute name. */
+function testNameInTree(node, expected) {
+  let found = false
+  walkNamed(node, [], child => {
+    if ((child.type === 'identifier' || child.type === 'attribute') && child.text.split('.').at(-1) === expected) found = true
+  })
+  return found
+}
+
+/** Збирає active pytest/unittest test_* functions з assert_statement через Tree-sitter. */
+export async function collectTestScenarios({ file }) {
+  if (!file || typeof file.path !== 'string' || typeof file.content !== 'string' || !file.path.endsWith('.py')) {
+    return failure('invalid-file-input', file?.path ?? null, 'Python test collector потребує .py file.')
+  }
+  let language
+  try {
+    language = await pythonLanguage()
+  } catch (error) {
+    return failure('parser-initialization-error', file.path, `Tree-sitter Python test parser не ініціалізувався: ${error.message}`)
+  }
+  const parser = new TreeSitter.Parser()
+  parser.setLanguage(language)
+  const tree = parser.parse(file.content)
+  if (!tree?.rootNode || tree.rootNode.hasError) return failure('expected-test-parse-failed', file.path, 'Tree-sitter Python не зміг розібрати test source.')
+  const scenarios = []
+  walkNamed(tree.rootNode, [], (node, ancestors) => {
+    if (node.type !== 'function_definition') return
+    const name = declarationName(node)
+    if (!name?.startsWith('test_')) return
+    const decorated = ancestors.find(parent => parent.type === 'decorated_definition')
+    if (decorated && ['skip', 'skipif', 'expectedFailure'].some(marker => testNameInTree(decorated, marker))) return
+    let asserted = false
+    walkNamed(node, [], child => {
+      if (child.type === 'assert_statement') asserted = true
+    })
+    if (asserted) scenarios.push({ content: node.text, span: span(file.content, node), anchor: name })
+  })
+  return { ok: true, scenarios: scenarios.toSorted((left, right) => left.span.startByte - right.span.startByte) }
+}
+
 const pythonKnowledgeExtractor = Object.freeze({
   id: 'knowledge-python',
   apiVersion: 1,
   extensions: EXTENSIONS,
   parser: PARSER,
-  analyzeFile
+  analyzeFile,
+  collectTestScenarios
 })
 
 /** Надає versioned `knowledge.extractor@1` provider для Python. */

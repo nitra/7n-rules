@@ -20,6 +20,7 @@ parser або непокритий template expression повертає blocking
 ## Публічний API
 
 - analyzeFile — Аналізує один JS/TS/Vue source-file у deterministic normalized fragment.
+- collectTestScenarios — Збирає active assertion scenarios з JS test source через OXC parser.
 
 ## Сценарії використання
 

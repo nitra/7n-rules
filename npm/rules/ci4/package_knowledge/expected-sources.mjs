@@ -12,22 +12,13 @@ import { isAbsolute, join, relative, sep } from 'node:path'
 
 import { globby } from 'globby'
 
-import { parseProgramOrNull, walkAstWithAncestors } from '../../../scripts/utils/ast-scan-utils.mjs'
 import { parseKnowledgeZones } from './zones.mjs'
 
 const DEFAULT_MODEL_POLICY = Object.freeze(['min', 'avg', 'max'])
 const CACHE_VERSION = 1
 const SOURCE_SCOPE_RE = /<!--\s*PACKAGE-KNOWLEDGE:domain\s+id="([^"]+)"\s*-->/gu
 const SOURCE_SCOPE_LIKE_RE = /<!--\s*PACKAGE-KNOWLEDGE:domain\b/gu
-const TEST_GLOB = '**/*.{test,spec}.{js,mjs,cjs,jsx,ts,tsx}'
-const UNSUPPORTED_TEST_GLOBS = Object.freeze([
-  '**/*.{test,spec}.{rs,py,php}',
-  '**/tests/**/*.rs',
-  '**/tests/**/*.py',
-  '**/tests/**/*.php',
-  '**/test_*.py',
-  '**/*_test.py'
-])
+const ACCEPTED_ADR_STATUS_RE = /^(?:\*\*)Status:(?:\*\*)\s+Accepted\s*$/mu
 const IGNORED_PATHS = Object.freeze([
   '**/.git/**',
   '**/.worktrees/**',
@@ -167,127 +158,32 @@ function expectedSource({ kind, path, content, span, anchor }) {
  * @returns {boolean} whether current ADR is accepted
  */
 function isAcceptedAdr(markdown) {
-  return /^(?:\*\*)Status:(?:\*\*)\s+Accepted\s*$/mu.test(markdown)
+  return ACCEPTED_ADR_STATUS_RE.test(markdown)
 }
 
-/**
- * Повертає chain ідентифікаторів для CallExpression callee через AST.
- * @param {Record<string, unknown> | undefined} expression callee expression
- * @returns {string[]} identifier/member chain
- */
-function calleeChain(expression) {
-  if (!expression || typeof expression !== 'object') return []
-  if (expression.type === 'Identifier' && typeof expression.name === 'string') return [expression.name]
-  if (expression.type === 'MemberExpression' && !expression.computed && expression.property?.type === 'Identifier') {
-    return [...calleeChain(expression.object), expression.property.name]
-  }
-  return expression.type === 'CallExpression' ? calleeChain(expression.callee) : []
+function expectedSourceDiagnosticOrder(left, right) {
+  return `${left.path ?? ''}:${left.code}`.localeCompare(`${right.path ?? ''}:${right.code}`)
 }
 
-/**
- * Чи CallExpression є assertions API, а не просто test shell.
- * @param {Record<string, unknown>} node AST node
- * @returns {boolean} whether the node is an assertion
- */
-function isAssertionCall(node) {
-  if (node.type !== 'CallExpression') return false
-  const chain = calleeChain(node.callee)
-  return chain[0] === 'expect' || chain[0] === 'assert'
+function expectedSourceIdOrder(left, right) {
+  return left.id.localeCompare(right.id)
 }
 
-/**
- * Чи виклик є disabled test suite/test case через AST member chain.
- * @param {Record<string, unknown>} node AST CallExpression
- * @returns {boolean} whether disabled
- */
-function isDisabledTestCall(node) {
-  const chain = calleeChain(node.callee)
-  return ['skip', 'todo', 'skipIf'].some(modifier => chain.includes(modifier))
+function isExpectedZone(zone) {
+  return zone.kind === 'EXPECTED' && zone.content.trim() !== ''
 }
 
-/**
- * Перевіряє, що test case має executable assertion у callback body.
- * @param {Record<string, unknown>} node test()/it() call
- * @returns {boolean} whether active assertion exists
- */
-function hasAssertion(node) {
-  let found = false
-  walkAstWithAncestors(node, [], child => {
-    if (isAssertionCall(child)) found = true
-  })
-  return found
-}
-
-/**
- * Збирає active assertion scenarios із JS test через OXC AST.
- * @param {string} content test source
- * @param {string} path virtual test path
- * @returns {{ok: true, scenarios: Array<{content: string, span: {startByte: number, endByte: number}, anchor: string}>} | {ok: false, diagnostics: object[]}} scenarios або parse blocker
- */
-export function collectActiveTestScenarios(content, path) {
-  const program = parseProgramOrNull(content, path)
-  if (!program) {
-    return { ok: false, diagnostics: [diagnostic('expected-test-parse-failed', 'OXC не зміг розібрати test source.', path)] }
-  }
-  const scenarios = []
-  walkAstWithAncestors(program, [], (node, ancestors) => {
-    if (node.type !== 'CallExpression') return
-    const chain = calleeChain(node.callee)
-    if (!['test', 'it'].includes(chain[0]) || isDisabledTestCall(node) || !hasAssertion(node)) return
-    const disabledAncestor = ancestors.some(
-      ancestor => ancestor.type === 'CallExpression' && isDisabledTestCall(ancestor)
-    )
-    if (disabledAncestor || typeof node.start !== 'number' || typeof node.end !== 'number') return
-    const title = node.arguments?.[0]?.value
-    const anchor = typeof title === 'string' ? title : `${node.start}:${node.end}`
-    scenarios.push({ content: content.slice(node.start, node.end), span: byteSpan(content, node.start, node.end), anchor })
-  })
-  return {
-    ok: true,
-    scenarios: scenarios.toSorted((left, right) =>
-      `${left.span.startByte}:${left.anchor}`.localeCompare(`${right.span.startByte}:${right.anchor}`)
-    )
-  }
-}
-
-/**
- * Знаходить authored Markdown і JS tests, що є sources explicit expectation.
- * ADR/spec беруться лише за exact domain marker; локальні EXPECTED zones already
- * belong to owning domain. Disabled tests не створюють source без corroboration.
- * Наявний non-JS test без full language parser блокує run, а не зникає мовчки.
- * @param {{repoRoot: string, domain: Record<string, unknown>}} input repository/domain boundary
- * @returns {Promise<{ok: true, sources: Array<Record<string, unknown>>} | {ok: false, diagnostics: object[]}>} deterministic sources або blockers
- */
-export async function discoverExpectedSources({ repoRoot, domain }) {
-  if (typeof repoRoot !== 'string' || !isAbsolute(repoRoot) || !domain || typeof domain.root !== 'string' || !isAbsolute(domain.root) || typeof domain.id !== 'string' || domain.id === '') {
-    return { ok: false, diagnostics: [diagnostic('invalid-expected-source-domain', 'Потрібні absolute repoRoot/domain.root і domain.id.')] }
-  }
-  const domainIgnores = [...IGNORED_PATHS, ...nestedDomainIgnores(repoRoot, domain)]
-  const domainDocs = await globby('docs/**/*.md', { cwd: domain.root, onlyFiles: true, gitignore: true, ignore: domainIgnores })
-  const repositoryDocs = await globby(['docs/adr/**/*.md', 'docs/specs/**/*.md'], {
-    cwd: repoRoot,
-    onlyFiles: true,
-    gitignore: true,
-    ignore: IGNORED_PATHS
-  })
-  const testPaths = await globby(TEST_GLOB, { cwd: domain.root, onlyFiles: true, gitignore: true, ignore: domainIgnores })
-  const unsupportedTests = await globby(UNSUPPORTED_TEST_GLOBS, {
-    cwd: domain.root,
-    onlyFiles: true,
-    gitignore: true,
-    ignore: domainIgnores
-  })
+async function collectDomainExpectedSources(domainRoot, domainDocs, diagnostics) {
   const sources = []
-  const diagnostics = []
-
   for (const path of domainDocs.toSorted()) {
-    const content = await readFile(join(domain.root, path), 'utf8')
+    const content = await readFile(join(domainRoot, path), 'utf8')
     const parsed = parseKnowledgeZones(content, toPosix(path))
     if (!parsed.ok) {
       diagnostics.push(...parsed.diagnostics)
       continue
     }
-    for (const zone of parsed.zones.filter(zone => zone.kind === 'EXPECTED' && zone.content.trim() !== '')) {
+    for (const zone of parsed.zones) {
+      if (!isExpectedZone(zone)) continue
       sources.push(
         expectedSource({
           kind: 'manual',
@@ -299,7 +195,11 @@ export async function discoverExpectedSources({ repoRoot, domain }) {
       )
     }
   }
+  return sources
+}
 
+async function collectScopedRepositoryExpectedSources({ repoRoot, domain, repositoryDocs, diagnostics }) {
+  const sources = []
   for (const path of repositoryDocs.toSorted()) {
     const absolute = join(repoRoot, path)
     const content = await readFile(absolute, 'utf8')
@@ -321,34 +221,73 @@ export async function discoverExpectedSources({ repoRoot, domain }) {
       })
     )
   }
+  return sources
+}
 
-  for (const path of testPaths.toSorted()) {
-    const content = await readFile(join(domain.root, path), 'utf8')
-    const scenarios = collectActiveTestScenarios(content, toPosix(path))
+function expectedExtractorByExtension(extractors) {
+  const extractorByExtension = new Map()
+  for (const extractor of extractors) {
+    for (const extension of extractor?.extensions ?? []) {
+      extractorByExtension.set(extension, extractor)
+    }
+  }
+  return extractorByExtension
+}
+
+async function collectTestExpectedSources({ testFiles, extractors, diagnostics }) {
+  const sources = []
+  const extractorByExtension = expectedExtractorByExtension(extractors)
+  for (const file of [...testFiles].toSorted((left, right) => left.path.localeCompare(right.path))) {
+    const extension = file.path.slice(file.path.lastIndexOf('.')).toLowerCase()
+    const extractor = extractorByExtension.get(extension)
+    if (!extractor || typeof extractor.collectTestScenarios !== 'function') {
+      diagnostics.push(diagnostic('expected-test-parser-missing', 'knowledge.extractor@1 не надає full-parser test collector.', file.path))
+      continue
+    }
+    const scenarios = await extractor.collectTestScenarios({ file })
     if (!scenarios.ok) {
       diagnostics.push(...scenarios.diagnostics)
       continue
     }
     for (const scenario of scenarios.scenarios) {
-      sources.push(expectedSource({ kind: 'test', path: toPosix(path), ...scenario }))
+      sources.push(expectedSource({ kind: 'test', path: file.path, ...scenario }))
     }
   }
-  for (const path of unsupportedTests.toSorted()) {
-    diagnostics.push(
-      diagnostic(
-        'expected-test-parser-missing',
-        'Executable expectation tests поза JS/TS потребують language-specific full parser, regex fallback заборонено.',
-        toPosix(path)
-      )
-    )
+  return sources
+}
+
+/**
+ * Знаходить authored Markdown і parser-backed executable tests, що є sources explicit expectation.
+ * ADR/spec беруться лише за exact domain marker; локальні EXPECTED zones already
+ * belong to owning domain. Disabled tests не створюють source без corroboration.
+ * @param {{repoRoot: string, domain: Record<string, unknown>, extractors?: Record<string, unknown>[], testFiles?: Array<{path: string, content: string}>}} input repository/domain boundary
+ * @returns {Promise<{ok: true, sources: Array<Record<string, unknown>>} | {ok: false, diagnostics: object[]}>} deterministic sources або blockers
+ */
+export async function discoverExpectedSources({ repoRoot, domain, extractors = [], testFiles = [] }) {
+  if (typeof repoRoot !== 'string' || !isAbsolute(repoRoot) || !domain || typeof domain.root !== 'string' || !isAbsolute(domain.root) || typeof domain.id !== 'string' || domain.id === '') {
+    return { ok: false, diagnostics: [diagnostic('invalid-expected-source-domain', 'Потрібні absolute repoRoot/domain.root і domain.id.')] }
   }
+  const domainIgnores = [...IGNORED_PATHS, ...nestedDomainIgnores(repoRoot, domain)]
+  const domainDocs = await globby('docs/**/*.md', { cwd: domain.root, onlyFiles: true, gitignore: true, ignore: domainIgnores })
+  const repositoryDocs = await globby(['docs/adr/**/*.md', 'docs/specs/**/*.md'], {
+    cwd: repoRoot,
+    onlyFiles: true,
+    gitignore: true,
+    ignore: IGNORED_PATHS
+  })
+  const diagnostics = []
+  const sources = [
+    ...(await collectDomainExpectedSources(domain.root, domainDocs, diagnostics)),
+    ...(await collectScopedRepositoryExpectedSources({ repoRoot, domain, repositoryDocs, diagnostics })),
+    ...(await collectTestExpectedSources({ testFiles, extractors, diagnostics }))
+  ]
   if (diagnostics.length > 0) {
     return {
       ok: false,
-      diagnostics: diagnostics.toSorted((left, right) => `${left.path ?? ''}:${left.code}`.localeCompare(`${right.path ?? ''}:${right.code}`))
+      diagnostics: diagnostics.toSorted(expectedSourceDiagnosticOrder)
     }
   }
-  return { ok: true, sources: sources.toSorted((left, right) => left.id.localeCompare(right.id)) }
+  return { ok: true, sources: sources.toSorted(expectedSourceIdOrder) }
 }
 
 /**
@@ -397,7 +336,7 @@ function normalizeSources(sources) {
     evidenceIds.add(evidence.id)
   }
   if (diagnostics.length > 0) return { ok: false, diagnostics }
-  return { ok: true, sources: [...sources].map(source => canonicalize(source)).toSorted((left, right) => left.id.localeCompare(right.id)) }
+  return { ok: true, sources: Array.from(sources, source => canonicalize(source)).toSorted((left, right) => left.id.localeCompare(right.id)) }
 }
 
 /**
@@ -533,12 +472,12 @@ function overlayFromMappings(domainId, sources, mappedClaims) {
   for (const claim of mappedClaims) {
     const key = JSON.stringify([claim.subjectId, claim.predicate, claim.value])
     const group = groups.get(key) ?? { ...claim, evidenceIds: new Set(), sourceIds: new Set(), confidence: 1 }
-    claim.evidenceIds.forEach(id => group.evidenceIds.add(id))
+    for (const id of claim.evidenceIds) group.evidenceIds.add(id)
     group.sourceIds.add(claim.sourceId)
     group.confidence = Math.min(group.confidence, claim.confidence)
     groups.set(key, group)
   }
-  const claims = groups.values().toArray().map(group => {
+  const claims = groups.values().map(group => {
     const evidenceIds = [...group.evidenceIds].toSorted()
     return {
       id: `claim:expected:${hash({ domainId, subjectId: group.subjectId, predicate: group.predicate, value: group.value, evidenceIds }).slice(7, 31)}`,
@@ -549,10 +488,79 @@ function overlayFromMappings(domainId, sources, mappedClaims) {
       confidence: group.confidence,
       sourceFingerprint: hash({ sourceIds: [...group.sourceIds].toSorted(), subjectId: group.subjectId, predicate: group.predicate, value: group.value })
     }
-  }).toSorted((left, right) => left.id.localeCompare(right.id))
+  }).toArray().toSorted(expectedSourceIdOrder)
   const usedEvidence = new Set(claims.flatMap(claim => claim.evidenceIds))
   const evidence = sources.map(source => source.evidence).filter(item => usedEvidence.has(item.id)).toSorted((left, right) => left.id.localeCompare(right.id))
   return { claims, evidence }
+}
+
+function collectCachedExpectedMappings(work, cache, mappingRefs) {
+  const mapped = []
+  const pending = []
+  for (const item of work) {
+    const cached = cache.entries[item.cacheKey]
+    const checked = typeof cached === 'string' ? parseExpectedSourceResult(cached, mappingRefs, item.source) : { ok: false }
+    if (checked.ok) mapped.push(...checked.claims)
+    else pending.push(item)
+  }
+  return { mapped, pending }
+}
+
+async function submitExpectedMappingBatch(tier, pending, submitBatchImpl) {
+  try {
+    return await submitBatchImpl(tier, pending.map(item => ({ customId: item.source.id, prompt: item.prompt })))
+  } catch {
+    return []
+  }
+}
+
+function expectedResponsesById(responses) {
+  const responseById = new Map()
+  if (!Array.isArray(responses)) return responseById
+  for (const item of responses) {
+    if (typeof item?.customId === 'string') responseById.set(item.customId, item)
+  }
+  return responseById
+}
+
+function applyExpectedMappingResponses({ pending, responseById, mappingRefs, cache, mapped, failures }) {
+  const retry = []
+  for (const item of pending) {
+    const response = responseById.get(item.source.id)
+    if (typeof response?.ok !== 'string') {
+      failures.set(item.source.id, response?.error ? 'expected-source-batch-error' : 'expected-source-missing-result')
+      retry.push(item)
+      continue
+    }
+    const checked = parseExpectedSourceResult(response.ok, mappingRefs, item.source)
+    if (!checked.ok) {
+      failures.set(item.source.id, checked.reason)
+      retry.push(item)
+      continue
+    }
+    cache.entries[item.cacheKey] = response.ok
+    mapped.push(...checked.claims)
+    failures.delete(item.source.id)
+  }
+  return retry
+}
+
+async function runExpectedMappingLadder({ pending, modelPolicy, submitBatchImpl, mappingRefs, cache, mapped }) {
+  const failures = new Map()
+  let pendingItems = pending
+  for (const tier of modelPolicy) {
+    if (pendingItems.length === 0) break
+    const responses = await submitExpectedMappingBatch(tier, pendingItems, submitBatchImpl)
+    pendingItems = applyExpectedMappingResponses({
+      pending: pendingItems,
+      responseById: expectedResponsesById(responses),
+      mappingRefs,
+      cache,
+      mapped,
+      failures
+    })
+  }
+  return { pending: pendingItems, failures }
 }
 
 /**

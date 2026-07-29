@@ -291,7 +291,7 @@ export async function buildPackageKnowledge(input) {
     claims: [...candidate.graph.claims, ...claims.claims].toSorted((left, right) => left.id.localeCompare(right.id))
   }
   const discoverExpected = input.discoverExpectedSourcesImpl ?? discoverExpectedSources
-  const discoveredExpected = await discoverExpected({ repoRoot, domain })
+  const discoveredExpected = await discoverExpected({ repoRoot, domain, extractors, testFiles: loaded.sources })
   if (!discoveredExpected.ok) return blocked('expected-sources', discoveredExpected.diagnostics, domain.id)
   const expectedCachePath = input.expectedCachePath ?? join(dirname(cachePath), 'expected.json')
   const mapExpected = input.mapExpectedSourcesImpl ?? mapExpectedSources

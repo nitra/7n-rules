@@ -1,11 +1,15 @@
 /** Tests for deterministic Expected source discovery and strict graph mapping. */
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { describe, expect, test, vi } from 'vitest'
 
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
-import { collectActiveTestScenarios, discoverExpectedSources, mapExpectedSources, parseExpectedSourceResult } from '../expected-sources.mjs'
+import jsKnowledgeExtractor from '../../../../../plugins/lang-js/knowledge/extractor.mjs'
+import phpKnowledgeExtractor from '../../../../../plugins/lang-php/knowledge/extractor.mjs'
+import pythonKnowledgeExtractor from '../../../../../plugins/lang-python/knowledge/extractor.mjs'
+import rustKnowledgeExtractor from '../../../../../plugins/lang-rust/knowledge/extractor.mjs'
+import { discoverExpectedSources, mapExpectedSources, parseExpectedSourceResult } from '../expected-sources.mjs'
 
 const DOMAIN_ID = 'npm:@fixture/orders'
 const SUBJECT_ID = 'code-unit:npm:@fixture/orders:js:submit'
@@ -47,7 +51,7 @@ describe('Expected source discovery', () => {
       await writeFile(join(root, 'docs', 'specs', 'orders.md'), `<!-- PACKAGE-KNOWLEDGE:domain id="${DOMAIN_ID}" -->\n# Orders\n\nOrders need review.\n`)
       await writeFile(join(root, 'tests', 'orders.test.mjs'), "test('accepts an order', () => { expect(save()).toBe(true) })\ntest.skip('disabled alone', () => { expect(save()).toBe(true) })\n")
 
-      const result = await discoverExpectedSources({ repoRoot: root, domain: { id: DOMAIN_ID, root } })
+      const result = await discoverExpectedSources({ repoRoot: root, domain: { id: DOMAIN_ID, root }, extractors: [jsKnowledgeExtractor], testFiles: [{ path: 'tests/orders.test.mjs', content: await readFile(join(root, 'tests', 'orders.test.mjs'), 'utf8') }] })
 
       expect(result).toMatchObject({ ok: true })
       expect(result.sources.map(item => item.evidence.kind).toSorted()).toEqual(['adr', 'manual', 'spec', 'test'])
@@ -57,23 +61,45 @@ describe('Expected source discovery', () => {
   })
 
   test('does not turn disabled tests into expectation without a corroborating source', () => {
-    const result = collectActiveTestScenarios("test.skip('disabled', () => { expect(save()).toBe(true) })", 'tests/orders.test.mjs')
+    const result = jsKnowledgeExtractor.collectTestScenarios({ file: { path: 'tests/orders.test.mjs', content: "test.skip('disabled', () => { expect(save()).toBe(true) })" } })
 
     expect(result).toEqual({ ok: true, scenarios: [] })
   })
 
-  test('blocks a non-JS test until its language adapter supplies a full parser', async () => {
+  test('discovers a non-JS test through its full-parser adapter', async () => {
     await withTmpDir(async root => {
       await mkdir(join(root, 'tests'), { recursive: true })
       await writeFile(join(root, 'tests', 'orders.py'), 'def test_accepts_order():\n    assert save()\n')
 
-      const result = await discoverExpectedSources({ repoRoot: root, domain: { id: DOMAIN_ID, root } })
+      const result = await discoverExpectedSources({ repoRoot: root, domain: { id: DOMAIN_ID, root }, extractors: [pythonKnowledgeExtractor], testFiles: [{ path: 'tests/orders.py', content: 'def test_accepts_order():\n    assert save()\n' }] })
 
       expect(result).toEqual({
-        ok: false,
-        diagnostics: [expect.objectContaining({ code: 'expected-test-parser-missing', path: 'tests/orders.py' })]
+        ok: true,
+        sources: [expect.objectContaining({ evidence: expect.objectContaining({ kind: 'test', path: 'tests/orders.py' }) })]
       })
     })
+  })
+
+  test('collects Rust assertions only from active #[test] functions', async () => {
+    const result = await rustKnowledgeExtractor.collectTestScenarios({
+      file: {
+        path: 'tests/orders.rs',
+        content: '#[test]\nfn saves_order() {\n    assert_eq!(save(), true);\n}\n\n#[test]\n#[ignore]\nfn ignored_order() {\n    assert!(save());\n}\n'
+      }
+    })
+
+    expect(result).toEqual({ ok: true, scenarios: [expect.objectContaining({ anchor: 'saves_order' })] })
+  })
+
+  test('collects PHP assertions only from active test methods', () => {
+    const result = phpKnowledgeExtractor.collectTestScenarios({
+      file: {
+        path: 'tests/OrdersTest.php',
+        content: '<?php\nfinal class OrdersTest {\n    public function testSavesOrder(): void {\n        $this->assertTrue(save());\n    }\n\n    public function testSkippedOrder(): void {\n        $this->markTestSkipped();\n        $this->assertTrue(save());\n    }\n}\n'
+      }
+    })
+
+    expect(result).toEqual({ ok: true, scenarios: [expect.objectContaining({ anchor: 'testSavesOrder' })] })
   })
 })
 
