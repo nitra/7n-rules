@@ -11,6 +11,7 @@ resource: npm/scripts/
 | [build-agents-commands.mjs](build-agents-commands.md)                     | JS Module |
 | [cli-entry.mjs](cli-entry.md)                                             | JS Module |
 | [ensure-n-rules-dev-dependencies.mjs](ensure-n-rules-dev-dependencies.md) | JS Module |
+| [github-package-release.mjs](github-package-release.md)                   | JS Module |
 | [hook.mjs](hook.md)                                                       | JS Module |
 | [post-tool-use-check.mjs](post-tool-use-check.md)                         | JS Module |
 | [rename-yaml-extensions.mjs](rename-yaml-extensions.md)                   | JS Module |
