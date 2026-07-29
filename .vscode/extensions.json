@@ -12,6 +12,8 @@
     "stylelint.vscode-stylelint",
     "tsandall.opa",
     "rust-lang.rust-analyzer",
-    "tamasfe.even-better-toml"
+    "tamasfe.even-better-toml",
+    "ms-python.python",
+    "charliermarsh.ruff"
   ]
 }

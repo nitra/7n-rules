@@ -1,0 +1,10 @@
+{
+  "targetCapability": "ci:github",
+  "artifactId": "lint-python",
+  "targetPath": ".github/workflows/lint-python.yml",
+  "format": "yaml",
+  "mode": "required-file",
+  "template": "./github/lint-python.yml.snippet.yml",
+  "mergeStrategy": "deep-subset",
+  "fix": true
+}

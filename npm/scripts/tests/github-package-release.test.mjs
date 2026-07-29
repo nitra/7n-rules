@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { readFileSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 
@@ -12,7 +13,7 @@ import {
   releaseTagsForWorkspaces
 } from '../github-package-release.mjs'
 
-const REPOSITORY_ROOT = join(import.meta.dirname, '..', '..', '..')
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 
 describe('parsePackageTag', () => {
   test('розділяє scoped package і semver за останнім @', () => {
@@ -85,7 +86,7 @@ describe('releaseTagsForWorkspaces', () => {
 })
 
 test('package-release workflow обробляє package-теги і створює відсутній Release', () => {
-  const workflow = readFileSync(join(REPOSITORY_ROOT, '.github/workflows/package-release.yml'), 'utf8')
+  const workflow = readFileSync(join(REPO_ROOT, '.github/workflows/package-release.yml'), 'utf8')
 
   expect(workflow).toContain("tags:\n      - '@*@*'")
   expect(workflow).toContain('contents: write')
@@ -94,7 +95,7 @@ test('package-release workflow обробляє package-теги і створю
 })
 
 test('npm-publish створює Releases після власного push тегів', () => {
-  const workflow = readFileSync(join(REPOSITORY_ROOT, '.github/workflows/npm-publish.yml'), 'utf8')
+  const workflow = readFileSync(join(REPO_ROOT, '.github/workflows/npm-publish.yml'), 'utf8')
 
   expect(workflow).toContain('Create GitHub Releases')
   expect(workflow).toContain('successful-tags')

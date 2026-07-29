@@ -6,9 +6,6 @@ on:
       - dev
       - main
     paths:
-      - '**/*.js'
-      - '**/*.ts'
-      - '**/*.vue'
       - '**/*.html'
       - '**/*.css'
       - '**/*.scss'
@@ -24,7 +21,6 @@ on:
       - '**/*.mdс'
       - '**/*.txt'
       - '**/*.go'
-      - '**/*.py'
       - '**/*.sh'
 
   pull_request:
@@ -32,9 +28,6 @@ on:
       - dev
       - main
     paths:
-      - '**/*.js'
-      - '**/*.ts'
-      - '**/*.vue'
       - '**/*.html'
       - '**/*.css'
       - '**/*.scss'
@@ -50,7 +43,6 @@ on:
       - '**/*.mdс'
       - '**/*.txt'
       - '**/*.go'
-      - '**/*.py'
       - '**/*.sh'
 
 concurrency:

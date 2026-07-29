@@ -60,7 +60,7 @@ describe('extractUnitsJs — юніти top-level', () => {
 describe('default-експорт handler-модуля doc-files', () => {
   test('форма екстрактора: id, розширення, обидві функції', () => {
     expect(jsDocFilesExtractor.id).toBe('js')
-    expect(jsDocFilesExtractor.extensions).toEqual(['.js', '.mjs', '.ts', '.vue'])
+    expect(jsDocFilesExtractor.extensions).toEqual(['.js', '.mjs', '.cjs', '.ts', '.jsx', '.tsx', '.vue'])
     expect(jsDocFilesExtractor.extractUnits(SRC, 'x.mjs').length).toBe(4)
   })
 

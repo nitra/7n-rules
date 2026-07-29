@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.14.3] - 2026-07-29
+
+### Added
+
+- Rust CI-артефакти (lint-rust.yml, azure lint-степ) через ci.artifact@1 slot contributions
+
 ## [0.14.2] - 2026-07-29
 
 ### Changed

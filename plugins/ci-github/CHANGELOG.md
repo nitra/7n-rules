@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.1.0] - 2026-07-29
+
+### Removed
+
+- text/lint_text: прибрано хардкод JS/TS/Vue/Python globs зі static template — тепер їх додають lang-js/lang-python через ci.artifact patch-existing (поведінка збережена при активних плагінах)
+- Видалено js-специфічні CI-концерни (lint_js_yml) — власність перенесена в @7n/rules-lang-js через ci.artifact@1 contribution
+- Rust GitHub CI-канон (lint-rust.yml) винесено в @7n/rules-lang-rust ci.artifact@1 contribution — обслуговує generic ci.artifact consumer
+- Python-специфічні CI-артефакти (rules/python/lint_python_yml) видалено — тепер @7n/rules-lang-python own них через ci.artifact@1 contribution, обслуговується generic consumer-ом
+
 ## [2.0.2] - 2026-07-28
 
 ### Changed

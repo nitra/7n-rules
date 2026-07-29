@@ -8,9 +8,9 @@ shellcheck_install_run := "sudo apt-get update && sudo apt-get install -y shellc
 dotenv_install_run := "curl -sSfL https://git.io/JLbXn | sh -s -- -b /usr/local/bin"
 
 push_paths := [
-	"**/*.js", "**/*.ts", "**/*.vue", "**/*.html", "**/*.css", "**/*.scss", "**/*.less",
+	"**/*.html", "**/*.css", "**/*.scss", "**/*.less",
 	"**/*.json", "**/*.jsonc", "**/*.yaml", "**/*.yml", "**/*.toml", "**/*.xml",
-	"**/*.md", "**/*.mdc", "**/*.mdс", "**/*.txt", "**/*.go", "**/*.py", "**/*.sh",
+	"**/*.md", "**/*.mdc", "**/*.mdс", "**/*.txt", "**/*.go", "**/*.sh",
 ]
 
 template_data := {"snippet": {

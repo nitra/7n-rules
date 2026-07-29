@@ -33,12 +33,14 @@
     "npm/rules/*/*/template/*.snippet.yaml",
     "plugins/*/rules/*/*/template/*.snippet.yml",
     "plugins/*/rules/*/*/template/*.snippet.yaml",
+    "plugins/*/slots/tests/ci-artifact-descriptors.test.mjs",
     "npm/schemas/concern.json",
     "npm/schemas/target.json",
     "npm/rules/k8s/hasura_httproute/tests/main.test.mjs",
     "plugins/lang-js/rules/test/storybook-scaffold/tests/scaffold.test.mjs",
     "plugins/lang-js/rules/test/stryker_config/main.mjs",
     "plugins/lang-python/package.json",
-    "plugins/lang-rust/package.json"
+    "plugins/lang-rust/package.json",
+    "plugins/*/slots/tests/ci-artifact-descriptors.test.mjs"
   ]
 }

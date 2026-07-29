@@ -27,6 +27,11 @@ worktree/PR/stash, підготовку worktree від `origin/<baseBranch>`, c
 після conflict resolution детерміновано пропускає через `cherry-pick --skip`;
 порожній tree diff не push-иться і не створює PR.
 
+Stash inventory охоплює tracked та untracked payload. JS без apply/checkout
+порівнює змінені paths із policy base і exact patch signature між stashes:
+absorbed або старіший exact duplicate стає `patch-equivalent`, а найновіший
+duplicate лишається canonical.
+
 Після `fetch` JS ancestry-aware групує local branch із tracking upstream без
 фізичного fast-forward: `synced`/`behind-only` аналізує за remote tip, `ahead` —
 за local tip, а `diverged` лишає двома незалежними sources. Local worktree
@@ -61,6 +66,9 @@ heartbeat з elapsed time. Формат однаковий у TTY/CI, тому c
 Кожен LLM-крок починається на tier `min`. JS детерміновано перевіряє:
 
 - triage — повноту verdicts, schema, groups і commit OID;
+- triage intent — `complete-useful → pr`, `incomplete/uncertain → keep`,
+  `obsolete → drop`; сам факт conflict не дозволяє downgrade корисної
+  завершеної зміни до `keep`, бо conflict resolution є наступним етапом;
 - worktree — відсутність conflict markers та `git diff --check`;
 - PR description — JSON schema, evidence paths із реального diff і перевагу
   business/architecture змісту над behavior/risk details;
@@ -142,7 +150,8 @@ transport. Після провалу `max` джерело fail-closed лишає
   перед refs cleanup лише якщо commit merged/patch-equivalent, немає open PR,
   а checkout не current, dirty, locked або policy-protected.
 - `git stash clear` заборонено; stash видаляється лише по одному після
-  підтвердженого перенесення і явного cleanup-запиту.
+  підтвердженого перенесення, Git-доведеної absorbed/exact-duplicate
+  equivalence або явного cleanup-запиту.
 
 ## Результат
 
@@ -151,5 +160,6 @@ transport. Після провалу `max` джерело fail-closed лишає
 `drop-recommended`, `pr-checks-regressed`, `pr-checks-baseline-red`,
 `pr-checks-unverified` або `failed`. `pr-created` означає, що checks завершились
 успішно; для непідтвердженого PR звіт зберігає URL, branch, worktree і точну
-причину. Summary містить точний count кожного outcome. Для cleanup ref звіт
-також містить точний OID і видалені aliases.
+причину. Summary містить точний count кожного outcome, фактичний залишок
+branches/worktrees/stashes після cleanup та агреговані причини retention.
+Для cleanup ref звіт також містить точний OID і видалені aliases.

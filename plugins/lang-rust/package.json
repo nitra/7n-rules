@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules-lang-rust",
-  "version": "0.14.2",
+  "version": "0.14.3",
   "description": "Плагін @7n/rules: Rust/Cargo-екосистема — taze-провайдер (Cargo.toml, cargo-edit)",
   "keywords": [
     "rust",
@@ -26,6 +26,7 @@
     "doc-files",
     "taze",
     "skills",
+    "slots",
     "CHANGELOG.md",
     "!**/*.test.mjs",
     "!**/*_test.rego",
@@ -40,6 +41,20 @@
     "slots": {
       "provides": [
         { "slot": "rules.directory", "version": 1, "id": "rust-rules", "resource": "./rules" },
+        {
+          "slot": "ci.artifact",
+          "version": 1,
+          "id": "rust-github-lint",
+          "resource": "./slots/ci/rust-github-lint.json",
+          "requires": { "capabilities": ["ci:github"] }
+        },
+        {
+          "slot": "ci.artifact",
+          "version": 1,
+          "id": "rust-azure-lint",
+          "resource": "./slots/ci/rust-azure-lint.json",
+          "requires": { "capabilities": ["ci:azure"] }
+        },
         { "slot": "taze.provider", "version": 1, "id": "taze-rust", "resource": "./taze/provider.mjs" },
         { "slot": "coverage.provider", "version": 1, "id": "coverage-rust", "resource": "./coverage-provider/provider.mjs" },
         { "slot": "doc-files.extractor", "version": 1, "id": "doc-files-rust", "resource": "./doc-files/extractors.mjs" },

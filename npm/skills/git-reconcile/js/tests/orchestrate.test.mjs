@@ -37,6 +37,7 @@ import {
   groupTrackingRefs,
   hasChangesFromBase,
   hasOnlyChangeEntries,
+  inventoryStashes,
   normalizePrConcurrency,
   parseDecisionEnvelope,
   parseWorktreeInventory,
@@ -52,6 +53,7 @@ import {
   runWithConcurrency,
   skipEmptyCherryPick,
   sourceDirectories,
+  summarizeRemaining,
   testFailureSignatures,
   trackingRelation,
   validateBehaviorState,
@@ -73,6 +75,57 @@ const REVIEW_BRANCH = {
   conflicts: []
 }
 const NPM_ROOT = resolve(import.meta.dirname, '../../../..')
+
+/**
+ * Емулює Git-відповіді для tracked, untracked, duplicate й absorbed stashes.
+ * @param {string} _command binary
+ * @param {string[]} args Git args
+ * @param {{input?:string}} options spawn options
+ * @returns {{status:number,stdout:string,stderr:string}} command result
+ */
+function stashInventorySpawn(_command, args, options) {
+  const command = args.join(' ')
+  if (command === 'stash list --format=%gd%x00%H%x00%gs') {
+    return {
+      status: 0,
+      stdout: [
+        'stash@{0}\0oid-0\0newest untracked',
+        'stash@{1}\0oid-1\0older duplicate',
+        'stash@{2}\0oid-2\0absorbed tracked'
+      ].join('\n'),
+      stderr: ''
+    }
+  }
+  if (command.startsWith('stash show --name-status --include-untracked')) {
+    const path = command.endsWith('stash@{2}') ? 'M\tsrc/absorbed.mjs' : 'A\tdocs/untracked.md'
+    return { status: 0, stdout: `${path}\n`, stderr: '' }
+  }
+  if (command.startsWith('stash show --patch --binary --include-untracked')) {
+    const patch = command.endsWith('stash@{2}') ? 'patch-absorbed' : 'patch-untracked'
+    return { status: 0, stdout: patch, stderr: '' }
+  }
+  if (command === 'hash-object --stdin') {
+    const hash = options.input === 'patch-absorbed' ? 'hash-absorbed' : 'hash-untracked'
+    return { status: 0, stdout: `${hash}\n`, stderr: '' }
+  }
+  if (command.startsWith('diff --name-only')) {
+    const paths = command.includes('stash@{2}') ? 'src/absorbed.mjs\n' : ''
+    return { status: 0, stdout: paths, stderr: '' }
+  }
+  if (command.startsWith('rev-parse --verify')) {
+    return { status: command.includes('stash@{2}') ? 1 : 0, stdout: 'third-parent\n', stderr: '' }
+  }
+  if (command.startsWith('ls-tree -r --name-only')) {
+    return { status: 0, stdout: 'docs/untracked.md\n', stderr: '' }
+  }
+  if (command.startsWith('diff --quiet origin/main stash@{2}')) {
+    return { status: 0, stdout: '', stderr: '' }
+  }
+  if (command.startsWith('diff --quiet origin/main stash@{')) {
+    return { status: 1, stdout: '', stderr: '' }
+  }
+  throw new Error(`unexpected command: ${command}`)
+}
 
 describe('commitPendingChanges', () => {
   test('приймає чистий index, коли корисні commits уже є в branch', () => {
@@ -388,6 +441,24 @@ describe('Git inventory helpers', () => {
     ])
   })
 
+  test('inventoryStashes бачить untracked payload і детерміновано відсіює absorbed та exact duplicate', () => {
+    const stashes = inventoryStashes('/repo', 'origin/main', stashInventorySpawn)
+
+    expect(stashes[0]).toMatchObject({
+      source: 'stash:stash@{0}',
+      state: 'review',
+      changedFiles: ['A\tdocs/untracked.md']
+    })
+    expect(stashes[1]).toMatchObject({
+      state: 'patch-equivalent',
+      equivalence: 'duplicate-of:stash:stash@{0}'
+    })
+    expect(stashes[2]).toMatchObject({
+      state: 'patch-equivalent',
+      equivalence: 'absorbed-in-base'
+    })
+  })
+
   test('conflictFiles витягає й дедуплікує шляхи merge-tree', () => {
     expect(
       conflictFiles(
@@ -410,6 +481,8 @@ describe('LLM boundary', () => {
     expect(prompt).toContain('лише JSON')
     expect(prompt).toContain('збережи завершені fixes')
     expect(prompt).toContain(REVIEW_BRANCH.source)
+    expect(prompt).toContain('Conflict сам по собі НЕ є причиною keep')
+    expect(prompt).toContain('semantic conflict resolution')
   })
 
   test('parseDecisionEnvelope приймає fenced JSON, відхиляє сміття', () => {
@@ -844,6 +917,7 @@ describe('triage validation', () => {
         decisions: [
           {
             source: REVIEW_BRANCH.source,
+            intent: 'complete-useful',
             action: 'pr',
             groups: [{ title: 'fix: useful', commits: ['abc123'] }]
           }
@@ -860,6 +934,7 @@ describe('triage validation', () => {
         decisions: [
           {
             source: REVIEW_BRANCH.source,
+            intent: 'complete-useful',
             action: 'pr',
             groups: [{ title: 'fix: useful', commits: ['unknown'] }]
           }
@@ -878,6 +953,7 @@ describe('triage validation', () => {
         decisions: [
           {
             source: REVIEW_BRANCH.source,
+            intent: 'complete-useful',
             action: 'pr',
             groups: [
               { title: 'fix: one', commits: ['abc123'] },
@@ -893,6 +969,7 @@ describe('triage validation', () => {
         decisions: [
           {
             source: stash.source,
+            intent: 'complete-useful',
             action: 'pr',
             groups: [{ title: 'fix: one' }, { title: 'fix: two' }]
           }
@@ -902,6 +979,39 @@ describe('triage validation', () => {
 
     expect(validateTriageOutcome(repeatedCommit, [REVIEW_BRANCH]).error).toContain('повторюється')
     expect(validateTriageOutcome(splitStash, [stash]).error).toContain('неподільний stash')
+  })
+
+  test('intent/action contract не дозволяє keep завершеної корисної зміни через conflict', () => {
+    const conflicted = { ...REVIEW_BRANCH, conflicts: ['src/a.mjs'] }
+    const invalidKeep = {
+      text: JSON.stringify({
+        decisions: [
+          {
+            source: conflicted.source,
+            intent: 'complete-useful',
+            action: 'keep',
+            rationale: 'корисний fix, але є conflict',
+            groups: []
+          }
+        ]
+      })
+    }
+    const validKeep = {
+      text: JSON.stringify({
+        decisions: [
+          {
+            source: conflicted.source,
+            intent: 'uncertain',
+            action: 'keep',
+            rationale: 'не вистачає доказів завершеності',
+            groups: []
+          }
+        ]
+      })
+    }
+
+    expect(validateTriageOutcome(invalidKeep, [conflicted]).error).toContain('intent/action не узгоджені')
+    expect(validateTriageOutcome(validKeep, [conflicted]).ok).toBe(true)
   })
 })
 
@@ -1424,12 +1534,14 @@ describe('runGitReconcileOrchestrator', () => {
               decisions: [
                 {
                   source: REVIEW_BRANCH.source,
+                  intent: 'complete-useful',
                   action: 'pr',
                   rationale: 'готовий fix',
                   groups: [{ title: 'fix: useful', commits: ['abc123'] }]
                 },
                 {
                   source: 'stash:stash@{0}',
+                  intent: 'obsolete',
                   action: 'drop',
                   rationale: 'тимчасовий debug',
                   groups: []
@@ -1517,6 +1629,7 @@ describe('runGitReconcileOrchestrator', () => {
               decisions: [
                 {
                   source: REVIEW_BRANCH.source,
+                  intent: 'complete-useful',
                   action: 'pr',
                   groups: [{ title: 'fix: useful', commits: ['abc123'] }]
                 }
@@ -1556,6 +1669,7 @@ describe('runGitReconcileOrchestrator', () => {
               decisions: [
                 {
                   source: REVIEW_BRANCH.source,
+                  intent: 'complete-useful',
                   action: 'pr',
                   rationale: 'готовий fix',
                   groups: [{ title: 'fix: useful', commits: ['abc123'] }]
@@ -1602,6 +1716,7 @@ describe('runGitReconcileOrchestrator', () => {
               decisions: [
                 {
                   source: REVIEW_BRANCH.source,
+                  intent: 'complete-useful',
                   action: 'pr',
                   groups: [{ title: 'Fix JWT bridge workspace Dockerfile and trailing separator', commits: ['abc123'] }]
                 }
@@ -1671,6 +1786,7 @@ describe('runGitReconcileOrchestrator', () => {
               decisions: [
                 {
                   source: REVIEW_BRANCH.source,
+                  intent: 'complete-useful',
                   action: 'pr',
                   groups: [{ title: 'fix: already integrated', commits: ['abc123'] }]
                 }
@@ -1688,6 +1804,42 @@ describe('runGitReconcileOrchestrator', () => {
     expect(result.ok).toBe(true)
     expect(result.results[0].status).toBe('patch-equivalent')
     expect(cleaned).toContain(REVIEW_BRANCH.source)
+  })
+
+  test('Git-доведений patch-equivalent stash не йде в LLM і прибирається за stable OID', async () => {
+    const cleaned = []
+    const result = await runGitReconcileOrchestrator({
+      cwd: '/repo',
+      log: noop,
+      deps: {
+        inventoryRepository: () =>
+          inventory({
+            branches: [],
+            stashes: [
+              {
+                source: 'stash:stash@{3}',
+                ref: 'stash@{3}',
+                oid: 'stash-oid',
+                state: 'patch-equivalent',
+                equivalence: 'absorbed-in-base',
+                changedFiles: ['M\tsrc/absorbed.mjs']
+              }
+            ]
+          }),
+        cleanupSource: candidate => {
+          cleaned.push(candidate.oid)
+          return { status: 'removed', removedRefs: [candidate.ref] }
+        },
+        callRunner: () => {
+          throw new Error('LLM не має викликатися')
+        }
+      }
+    })
+
+    expect(result.ok).toBe(true)
+    expect(cleaned).toEqual(['stash-oid'])
+    expect(result.report).toContain('Remaining: branches=0, worktrees=0, stashes=0')
+    expect(result.report).toContain('absorbed-in-base')
   })
 })
 
@@ -1934,6 +2086,50 @@ describe('report helpers', () => {
     expect(report).toContain('gh недоступний')
     expect(report).toContain('worktree `/repo/.worktrees/stale`: cleanup-failed — locked')
     expect(report).toContain('refs=`refs/heads/feature/a`')
+    expect(report).toContain('Remaining: branches=2, worktrees=0, stashes=0')
+  })
+
+  test('remaining summary рахує фактичний залишок і причини retention', () => {
+    const summary = summarizeRemaining({
+      inventory: inventory({
+        branches: [
+          {
+            source: 'branch:dirty',
+            state: 'merged',
+            worktree: '/repo/.worktrees/dirty'
+          },
+          { source: 'branch:kept', state: 'review' },
+          { source: 'branch:removed', state: 'merged', cleanup: { status: 'removed' } }
+        ],
+        stashes: [
+          { source: 'stash:kept', state: 'review' },
+          { source: 'stash:removed', state: 'patch-equivalent', cleanup: { status: 'removed' } }
+        ],
+        worktrees: [
+          { path: '/repo', current: true, dirty: true },
+          { path: '/repo/.worktrees/dirty', current: false, dirty: true },
+          { path: '/repo/.worktrees/removed', current: false, dirty: false }
+        ],
+        worktreeCleanup: [{ path: '/repo/.worktrees/removed', status: 'removed' }]
+      }),
+      results: [
+        {
+          source: 'branch:kept',
+          status: 'failed',
+          branch: 'codex/recovered',
+          worktree: '/repo/.worktrees/recovered'
+        },
+        { source: 'stash:kept', status: 'kept' }
+      ]
+    })
+
+    expect(summary).toEqual({
+      branches: 3,
+      stashes: 1,
+      worktrees: 3,
+      sourceReasons: 'dirty-worktree=1, failed=2, kept=1',
+      worktreeReasons: 'current=1, dirty=1, failed=1'
+    })
   })
 
   test('PR checks називають regression лише проти green base check', () => {

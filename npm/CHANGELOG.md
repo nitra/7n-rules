@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.56.0] - 2026-07-29
+
+### Added
+
+- Спільний тестовий канон ci.artifact@1 дескрипторів (describeCiArtifactDescriptors) для мовних плагінів — usable з @7n/rules-lang-php і @7n/rules-lang-js
+
+### Changed
+
+- SKILL doc-aggregate: формулювання про кодові розширення тепер посилається на doc-files.extensions замість хардкод-переліку (як doc-files SKILL)
+
+### Fixed
+
+- git-reconcile інвентаризує untracked stash, валідовує conflict-aware intent, безпечно очищає absorbed/duplicate stash і звітує фактичний залишок sources
+
 ## [1.55.3] - 2026-07-29
 
 ### Changed

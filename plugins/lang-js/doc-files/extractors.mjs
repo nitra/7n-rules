@@ -391,7 +391,7 @@ const VUE_HELPERS = {
 export function extractFacts(src, relPath) {
   const lang = relPath.split('.').pop()
   if (lang === 'vue') return extractFactsVue(src, relPath, VUE_HELPERS)
-  if (!['js', 'mjs', 'ts'].includes(lang)) {
+  if (!['js', 'mjs', 'cjs', 'ts', 'jsx', 'tsx'].includes(lang)) {
     return { relPath, lang, unsupported: true, header: '', exports: [], imports: {}, markers: {} }
   }
   const parsed = parseProgramAndCommentsOrNull(src, relPath)
@@ -428,7 +428,7 @@ function extractUnits(src, relPath) {
  */
 const jsDocFilesExtractor = {
   id: 'js',
-  extensions: ['.js', '.mjs', '.ts', '.vue'],
+  extensions: ['.js', '.mjs', '.cjs', '.ts', '.jsx', '.tsx', '.vue'],
   extractFacts,
   extractUnits
 }

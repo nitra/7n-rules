@@ -1,0 +1,10 @@
+{
+  "targetCapability": "ci:github",
+  "artifactId": "lint-js",
+  "targetPath": ".github/workflows/lint-js.yml",
+  "format": "yaml",
+  "mode": "required-file",
+  "template": "./github/lint-js.yml.snippet.yml",
+  "mergeStrategy": "deep-subset",
+  "fix": true
+}

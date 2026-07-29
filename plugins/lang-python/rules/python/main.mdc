@@ -1,8 +1,8 @@
 ---
 description: Python — пакет-менеджер uv (без Poetry), PEP 621, lint-python
-globs: "**/*.py,pyproject.toml,uv.lock,.github/workflows/lint-python.yml"
+globs: "**/*.py,pyproject.toml,uv.lock,.github/workflows/lint-python.yml,.vscode/extensions.json"
 alwaysApply: false
-version: '1.1'
+version: '1.2'
 ---
 
 Docstring-и: модуль із публічними def/class має module-docstring, кожен top-level публічний def/class — docstring. Якщо вони змістовні, doc-files дослівно збирає «Огляд» і «Публічний API» без LLM (концерн doc_comments; T0 перетворює суміжний #-коментар на docstring, решту дописує LLM-ladder).

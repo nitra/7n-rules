@@ -1,5 +1,5 @@
 /** @see ./docs/orchestrate.md */
-// cspell:ignore lockfiles
+// cspell:ignore lockfiles treeish
 import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { appendFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
@@ -19,6 +19,7 @@ const PROGRESS_HEARTBEAT_MS = 30_000
 const PR_CHECK_TIMEOUT_MS = 15 * 60_000
 const DEFAULT_PR_CONCURRENCY = 3
 const MAX_PR_CONCURRENCY = 4
+const STASH_PATH_LIMIT = 500
 const SOURCE_BRANCH_PREFIX = 'branch:'
 const SOURCE_STASH_PREFIX = 'stash:'
 const CONTENT_CONFLICT_RE = /^CONFLICT \(.+?\): Merge conflict in (.+)$/
@@ -692,19 +693,7 @@ export function inventoryRepository(cwd, deps = {}) {
     }
   })
 
-  const stashRows = git(['stash', 'list', '--format=%gd%x00%H%x00%gs'], cwd, spawnFn).stdout.split('\n').filter(Boolean)
-  const stashes = stashRows.map(line => {
-    const [ref, oid, subject] = line.split('\0')
-    const changedFiles = git(['stash', 'show', '--name-status', ref], cwd, spawnFn).stdout.split('\n').filter(Boolean)
-    return {
-      source: `${SOURCE_STASH_PREFIX}${ref}`,
-      ref,
-      oid,
-      subject,
-      state: 'review',
-      changedFiles
-    }
-  })
+  const stashes = inventoryStashes(cwd, baseRef, spawnFn)
 
   const worktrees = worktreeState.entries.map(entry => {
     const present = existsSync(entry.path)
@@ -725,6 +714,80 @@ export function inventoryRepository(cwd, deps = {}) {
 }
 
 /**
+ * Перевіряє, чи всі paths у stash tree вже мають тотожний стан у policy base.
+ * Великий payload fail-closed лишається на semantic triage.
+ * @param {string[]} paths змінені paths
+ * @param {string} baseRef policy base ref
+ * @param {string} treeish stash tree або untracked parent
+ * @param {string} cwd корінь репо
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {boolean} тотожність paths
+ */
+function stashPathsAbsorbed(paths, baseRef, treeish, cwd, spawnFn) {
+  if (paths.length === 0) return true
+  if (paths.length > STASH_PATH_LIMIT) return false
+  return (
+    git(['diff', '--quiet', baseRef, treeish, '--', ...paths], cwd, spawnFn, {
+      allowFailure: true
+    }).status === 0
+  )
+}
+
+/**
+ * Збирає tracked/untracked stash payload, absorbed-state та exact duplicate
+ * signature без checkout/apply. Найновіший exact duplicate лишається
+ * canonical, старіші стають patch-equivalent.
+ * @param {string} cwd корінь репо
+ * @param {string} baseRef policy base ref
+ * @param {typeof spawnSync} [spawnFn] інжект
+ * @returns {Array<object>} stash inventory
+ */
+export function inventoryStashes(cwd, baseRef, spawnFn = spawnSync) {
+  const stashRows = git(['stash', 'list', '--format=%gd%x00%H%x00%gs'], cwd, spawnFn).stdout.split('\n').filter(Boolean)
+  const canonicalBySignature = new Map()
+  return stashRows.map(line => {
+    const [ref, oid, subject] = line.split('\0')
+    const source = `${SOURCE_STASH_PREFIX}${ref}`
+    const changedFiles = git(['stash', 'show', '--name-status', '--include-untracked', ref], cwd, spawnFn)
+      .stdout.split('\n')
+      .filter(Boolean)
+      .slice(0, 200)
+    const trackedPaths = git(['diff', '--name-only', `${ref}^1`, ref], cwd, spawnFn)
+      .stdout.split('\n')
+      .filter(Boolean)
+    const untrackedParent = git(['rev-parse', '--verify', `${ref}^3`], cwd, spawnFn, {
+      allowFailure: true
+    })
+    const untrackedRef = untrackedParent.status === 0 ? `${ref}^3` : null
+    const untrackedPaths = untrackedRef
+      ? git(['ls-tree', '-r', '--name-only', untrackedRef], cwd, spawnFn).stdout.split('\n').filter(Boolean)
+      : []
+    const patch = git(['stash', 'show', '--patch', '--binary', '--include-untracked', ref], cwd, spawnFn)
+    const signature =
+      patch.status === 0
+        ? git(['hash-object', '--stdin'], cwd, spawnFn, { input: patch.stdout }).stdout.trim() || null
+        : null
+    const duplicateOf = signature ? canonicalBySignature.get(signature) : null
+    if (signature && !duplicateOf) canonicalBySignature.set(signature, source)
+    const absorbed =
+      stashPathsAbsorbed(trackedPaths, baseRef, ref, cwd, spawnFn) &&
+      (!untrackedRef || stashPathsAbsorbed(untrackedPaths, baseRef, untrackedRef, cwd, spawnFn))
+    let equivalence = null
+    if (absorbed) equivalence = 'absorbed-in-base'
+    else if (duplicateOf) equivalence = `duplicate-of:${duplicateOf}`
+    return {
+      source,
+      ref,
+      oid,
+      subject,
+      state: equivalence ? 'patch-equivalent' : 'review',
+      changedFiles,
+      ...(equivalence && { equivalence })
+    }
+  })
+}
+
+/**
  * Формує bounded semantic-triage prompt. Git-факти вже пораховані JS; модель
  * не виконує shell-команди й повертає лише JSON-рішення.
  * @param {Array<object>} candidates review branches/stashes
@@ -736,12 +799,13 @@ export function buildTriagePrompt(candidates, task = '') {
     'Ти виконуєш лише semantic triage уже зібраних Git-фактів.',
     'Не запускай команди, не редагуй файли, не створюй PR і не видаляй refs.',
     task ? `Намір користувача: ${task}` : '',
-    'Для кожного source поверни action: pr, keep або drop.',
-    'pr — лише завершена корисна поведінка; groups розділяють незалежні PR.',
-    'keep — бракує доказів або робота активна/незавершена. drop — явно артефакт/застаріле.',
+    'Для кожного source поверни intent: complete-useful, incomplete, uncertain або obsolete та узгоджений action: pr, keep або drop.',
+    'complete-useful → pr; incomplete/uncertain → keep; obsolete → drop. Groups розділяють незалежні PR.',
+    'Conflict сам по собі НЕ є причиною keep: якщо intent завершений і корисний, обирай pr; наступний етап semantic conflict resolution перенесе його на актуальну base.',
+    'keep — бракує доказів завершеності/корисності або робота активна/незавершена. drop — явно артефакт/застаріле.',
     'Для branch group commits — непорожній subset commit oid із facts. Для stash commits не потрібні.',
     'Відповідь — лише JSON без markdown:',
-    '{"decisions":[{"source":"branch:refs/remotes/origin/x","action":"pr","rationale":"...","groups":[{"title":"fix: ...","commits":["oid"]}]}]}',
+    '{"decisions":[{"source":"branch:refs/remotes/origin/x","intent":"complete-useful","action":"pr","rationale":"...","groups":[{"title":"fix: ...","commits":["oid"]}]}]}',
     JSON.stringify(candidates)
   ]
     .filter(Boolean)
@@ -926,6 +990,18 @@ function validateDecision(decision, candidate, seen) {
   seen.add(decision.source)
   if (!['pr', 'keep', 'drop'].includes(decision.action)) {
     return `невалідний action для ${decision.source}`
+  }
+  const actionByIntent = new Map([
+    ['complete-useful', 'pr'],
+    ['incomplete', 'keep'],
+    ['uncertain', 'keep'],
+    ['obsolete', 'drop']
+  ])
+  if (!actionByIntent.has(decision.intent)) {
+    return `невалідний intent для ${decision.source}`
+  }
+  if (actionByIntent.get(decision.intent) !== decision.action) {
+    return `intent/action не узгоджені для ${decision.source}`
   }
   return decision.action === 'pr' ? validatePrDecision(decision, candidate) : null
 }
@@ -2494,6 +2570,152 @@ export function formatOutcomeCounts(results) {
 }
 
 /**
+ * @param {object|undefined} cleanup cleanup outcome
+ * @returns {boolean} чи source доведено видалений
+ */
+function cleanupRemoved(cleanup) {
+  return ['removed', 'already-removed'].includes(cleanup?.status)
+}
+
+/**
+ * @param {Map<string,number>} counts reason counters
+ * @param {string} reason reason key
+ */
+function incrementReason(counts, reason) {
+  counts.set(reason, (counts.get(reason) ?? 0) + 1)
+}
+
+/**
+ * @param {Map<string,number>} counts reason counters
+ * @returns {string} stable counts
+ */
+function formatReasonCounts(counts) {
+  return counts
+    .keys()
+    .toArray()
+    .toSorted((left, right) => left.localeCompare(right))
+    .map(reason => `${reason}=${counts.get(reason)}`)
+    .join(', ')
+}
+
+/**
+ * Додає forensic worktrees, створені вже після початкового inventory.
+ * Наявність path у result означає, що lifecycle навмисно лишив checkout.
+ * @param {Array<object>} worktrees початкові worktrees
+ * @param {Array<object>} results materialization outcomes
+ * @returns {Array<object>} повний фактичний набір
+ */
+function appendMaterializedWorktrees(worktrees, results) {
+  const remaining = [...worktrees]
+  const knownPaths = new Set(remaining.map(worktree => worktree.path))
+  for (const result of results) {
+    if (!result.worktree || knownPaths.has(result.worktree)) continue
+    knownPaths.add(result.worktree)
+    remaining.push({
+      path: result.worktree,
+      branch: result.branch,
+      retentionReason: result.status
+    })
+  }
+  return remaining
+}
+
+/**
+ * @param {object} branch branch inventory
+ * @returns {string[]} normalized branch names
+ */
+function branchIdentityNames(branch) {
+  return [branch.name, branch.ref, ...(branch.aliases ?? [])].filter(Boolean).map(ref => branchName(ref))
+}
+
+/**
+ * Додає PR/forensic branches, створені після початкового inventory.
+ * Patch-equivalent lifecycle успішно видаляє свій transient worktree/branch.
+ * @param {Array<object>} branches початкові branches
+ * @param {Array<object>} results materialization outcomes
+ * @returns {Array<object>} повний фактичний набір
+ */
+function appendMaterializedBranches(branches, results) {
+  const remaining = [...branches]
+  const knownNames = new Set(remaining.flatMap(branch => branchIdentityNames(branch)))
+  for (const result of results) {
+    if (!result.branch || result.status === 'patch-equivalent' || knownNames.has(result.branch)) continue
+    knownNames.add(result.branch)
+    remaining.push({
+      source: `materialized:${result.branch}`,
+      ref: `refs/heads/${result.branch}`,
+      name: result.branch,
+      state: result.status,
+      worktree: result.worktree,
+      pr: result.url ? { url: result.url } : null,
+      retentionReason: result.status
+    })
+  }
+  return remaining
+}
+
+/**
+ * Рахує sources/worktrees, які реально лишилися після cleanup, і пояснює
+ * retention окремо для Git sources та checkout-ів.
+ * @param {{inventory:object,results:Array<object>}} args report state
+ * @returns {{branches:number,stashes:number,worktrees:number,sourceReasons:string,worktreeReasons:string}} summary
+ */
+export function summarizeRemaining({ inventory, results }) {
+  const resultsBySource = Map.groupBy(results, result => result.source)
+  const removedByResult = source => (resultsBySource.get(source) ?? []).some(result => cleanupRemoved(result.cleanup))
+  const removedPaths = new Set(
+    (inventory.worktreeCleanup ?? [])
+      .filter(worktree => ['removed', 'pruned'].includes(worktree.status))
+      .map(worktree => worktree.path)
+  )
+  const remainingWorktrees = appendMaterializedWorktrees(
+    (inventory.worktrees ?? []).filter(worktree => !removedPaths.has(worktree.path)),
+    results
+  )
+  const remainingBranches = appendMaterializedBranches(
+    (inventory.branches ?? []).filter(branch => {
+      return !cleanupRemoved(branch.cleanup) && !removedByResult(branch.source)
+    }),
+    results
+  )
+  const remainingStashes = (inventory.stashes ?? []).filter(stash => {
+    return !cleanupRemoved(stash.cleanup) && !removedByResult(stash.source)
+  })
+  const sourceReasons = new Map()
+  for (const branch of remainingBranches) {
+    const worktree = remainingWorktrees.find(item => item.path === branch.worktree)
+    const result = (resultsBySource.get(branch.source) ?? []).find(item => !cleanupRemoved(item.cleanup))
+    let reason = branch.retentionReason ?? result?.status ?? branch.state
+    if (branch.pr) reason = 'open-pr'
+    else if (worktree?.current) reason = 'current-worktree'
+    else if (worktree?.dirty) reason = 'dirty-worktree'
+    incrementReason(sourceReasons, reason)
+  }
+  for (const stash of remainingStashes) {
+    const result = (resultsBySource.get(stash.source) ?? []).find(item => !cleanupRemoved(item.cleanup))
+    incrementReason(sourceReasons, result?.status ?? stash.state)
+  }
+  const worktreeReasons = new Map()
+  for (const worktree of remainingWorktrees) {
+    const matchingBranches = remainingBranches.filter(branch => branch.worktree === worktree.path)
+    let reason = worktree.retentionReason ?? 'unique-or-unclassified'
+    if (worktree.current) reason = 'current'
+    else if (worktree.dirty) reason = 'dirty'
+    else if (worktree.locked) reason = 'locked'
+    else if (worktree.protected) reason = 'protected'
+    else if (matchingBranches.some(branch => branch.pr)) reason = 'open-pr'
+    incrementReason(worktreeReasons, reason)
+  }
+  return {
+    branches: remainingBranches.length,
+    stashes: remainingStashes.length,
+    worktrees: remainingWorktrees.length,
+    sourceReasons: formatReasonCounts(sourceReasons),
+    worktreeReasons: formatReasonCounts(worktreeReasons)
+  }
+}
+
+/**
  * @param {object} branch inventory branch
  * @returns {string|null} report line
  */
@@ -2524,18 +2746,39 @@ function formatResultReport(result) {
 }
 
 /**
+ * @param {object} stash inventory stash
+ * @returns {string|null} report line
+ */
+function formatStashReport(stash) {
+  if (stash.state === 'review') return null
+  const cleanupOid = stash.oid ? `; oid=${stash.oid}` : ''
+  const removedRefs = formatRemovedRefs(stash.cleanup)
+  const cleanup = stash.cleanup ? `; cleanup=${stash.cleanup.status}${cleanupOid}${removedRefs}` : ''
+  const equivalence = stash.equivalence ? ` — ${stash.equivalence}` : ''
+  return `- \`${stash.source}\`: ${stash.state}${cleanup}${equivalence}`
+}
+
+/**
  * Формує deterministic report.
  * @param {{inventory:object,results:Array<object>}} args дані
  * @returns {string} markdown
  */
 export function formatReport({ inventory, results }) {
-  const lines = ['## git-reconcile: підсумок', `- Outcomes: ${formatOutcomeCounts(results) || 'none'}`]
+  const remaining = summarizeRemaining({ inventory, results })
+  const lines = [
+    '## git-reconcile: підсумок',
+    `- Outcomes: ${formatOutcomeCounts(results) || 'none'}`,
+    `- Remaining: branches=${remaining.branches}, worktrees=${remaining.worktrees}, stashes=${remaining.stashes}`,
+    `- Remaining source reasons: ${remaining.sourceReasons || 'none'}`,
+    `- Remaining worktree reasons: ${remaining.worktreeReasons || 'none'}`
+  ]
   for (const worktree of inventory.worktreeCleanup ?? []) {
     const detail = worktree.error ? ` — ${worktree.error}` : ''
     lines.push(`- worktree \`${worktree.path}\`: ${worktree.status}${detail}`)
   }
   lines.push(
     ...inventory.branches.map(branch => formatBranchReport(branch)).filter(Boolean),
+    ...(inventory.stashes ?? []).map(stash => formatStashReport(stash)).filter(Boolean),
     ...results.map(result => formatResultReport(result))
   )
   for (const warning of inventory.warnings) lines.push(`- ⚠️ ${warning}`)
@@ -2720,22 +2963,25 @@ async function materializeDecisions(args) {
 }
 
 /**
- * Прибирає Git-доведені merged/patch-equivalent branches.
+ * Прибирає Git-доведені merged/patch-equivalent branches і stashes.
  * @param {object} args cleanup context
  */
-function cleanupInactiveBranches(args) {
+function cleanupInactiveSources(args) {
   const { inventory, cleanup, rootCwd, spawnFn, progress, cleanupState } = args
-  for (const branch of inventory.branches) {
-    const inactive = ['merged', 'patch-equivalent'].includes(branch.state)
-    if (inactive && !branch.worktree && !branch.pr) {
-      cleanupState.index += 1
-      const key = `cleanup-${cleanupState.index}`
-      progress.step(key, branch.source)
-      try {
-        branch.cleanup = cleanup(branch, rootCwd, spawnFn)
-      } finally {
-        progress.done(key)
-      }
+  const inactiveSources = [
+    ...inventory.branches.filter(source => {
+      return ['merged', 'patch-equivalent'].includes(source.state) && !source.worktree && !source.pr
+    }),
+    ...(inventory.stashes ?? []).filter(source => source.state === 'patch-equivalent')
+  ]
+  for (const source of inactiveSources) {
+    cleanupState.index += 1
+    const key = `cleanup-${cleanupState.index}`
+    progress.step(key, source.source)
+    try {
+      source.cleanup = cleanup(source, rootCwd, spawnFn)
+    } finally {
+      progress.done(key)
     }
   }
 }
@@ -2776,6 +3022,7 @@ function countCleanupSources(inventory, bySource, results) {
   const inactive = inventory.branches.filter(branch => {
     return ['merged', 'patch-equivalent'].includes(branch.state) && !branch.worktree && !branch.pr
   }).length
+  const inactiveStashes = (inventory.stashes ?? []).filter(stash => stash.state === 'patch-equivalent').length
   const reviewed = bySource
     .keys()
     .filter(source => {
@@ -2787,7 +3034,7 @@ function countCleanupSources(inventory, bySource, results) {
       return dropped || allTransferred
     })
     .toArray().length
-  return inactive + reviewed
+  return inactive + inactiveStashes + reviewed
 }
 
 /**
@@ -2906,7 +3153,7 @@ export async function runGitReconcileOrchestrator(options = {}) {
   const cleanupStartedAt = now()
   const cleanupState = { index: 0 }
   try {
-    cleanupInactiveBranches({
+    cleanupInactiveSources({
       inventory,
       cleanup,
       rootCwd,
