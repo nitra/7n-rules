@@ -1,4 +1,5 @@
 /** @see ./docs/orchestrate.md */
+// cspell:ignore lockfiles
 import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { appendFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
@@ -29,6 +30,7 @@ const SOURCE_CODE_RE = /\.(?:js|mjs|ts|vue|rs|py)$/
 const CHANGE_ENTRY_RE = /(^|\/)\.changes\/[^/]+\.md$/
 const LOCKFILE_RE =
   /(^|\/)(?:bun\.lockb?|Cargo\.lock|package-lock\.json|pnpm-lock\.yaml|poetry\.lock|uv\.lock|yarn\.lock)$/
+const LEADING_MARKDOWN_BULLET_RE = /^-\s+/
 const WHITESPACE_RE = /\s+/
 const PR_DESCRIPTION_ARRAY_FIELDS = [
   'businessOutcomes',
@@ -36,6 +38,7 @@ const PR_DESCRIPTION_ARRAY_FIELDS = [
   'behaviorChanges',
   'risksAndCompatibility'
 ]
+const NO_CODE_VERIFICATION = 'Додатковий behavioral LLM не потрібен: code paths не змінено.'
 const ACP_PROGRESS_ENV = 'N_LLM_ACP_PROGRESS'
 const REF_INVENTORY_FORMAT = ['%(refname)', '%00', '%(object', 'name)', '%00', '%(committer', 'date:iso-strict)'].join(
   ''
@@ -318,21 +321,61 @@ function parseJson(text, fallback) {
 }
 
 /**
- * Парсить branch refs і всі checkout HEAD OID, включно з detached worktree.
+ * Парсить branch refs, checkout HEAD OID і повні worktree records.
  * @param {string} text porcelain
- * @returns {{branches:Map<string,string>,commits:Map<string,string>}} захищені checkout
+ * @returns {{branches:Map<string,string>,commits:Map<string,string>,entries:Array<object>}} захищені checkout
  */
 function parseWorktreeState(text) {
   const branches = new Map()
   const commits = new Map()
-  let path = ''
-  for (const line of text.split('\n')) {
-    if (line.startsWith('worktree ')) path = line.slice('worktree '.length)
-    if (line.startsWith('HEAD ')) commits.set(line.slice('HEAD '.length), path)
-    if (line.startsWith('branch ')) branches.set(line.slice('branch '.length), path)
-    if (line.length === 0) path = ''
+  const entries = []
+  let entry = null
+  const flush = () => {
+    if (!entry) return
+    entries.push(entry)
+    entry = null
   }
-  return { branches, commits }
+  for (const line of text.split('\n')) {
+    if (line.startsWith('worktree ')) {
+      flush()
+      entry = {
+        path: line.slice('worktree '.length),
+        head: '',
+        branch: null,
+        detached: false,
+        prunable: false,
+        locked: false
+      }
+      continue
+    }
+    if (!entry) continue
+    if (line.startsWith('HEAD ')) {
+      entry.head = line.slice('HEAD '.length)
+      commits.set(entry.head, entry.path)
+    } else if (line.startsWith('branch ')) {
+      entry.branch = line.slice('branch '.length)
+      branches.set(entry.branch, entry.path)
+    } else if (line === 'detached') {
+      entry.detached = true
+    } else if (line.startsWith('prunable ')) {
+      entry.prunable = true
+    } else if (line === 'locked' || line.startsWith('locked ')) {
+      entry.locked = true
+    } else if (line.length === 0) {
+      flush()
+    }
+  }
+  flush()
+  return { branches, commits, entries }
+}
+
+/**
+ * Повертає повні worktree records для deterministic cleanup policy.
+ * @param {string} text porcelain
+ * @returns {Array<object>} records
+ */
+export function parseWorktreeInventory(text) {
+  return parseWorktreeState(text).entries
 }
 
 /**
@@ -342,6 +385,15 @@ function parseWorktreeState(text) {
  */
 export function parseWorktrees(text) {
   return parseWorktreeState(text).branches
+}
+
+/**
+ * Обмежує automatic cleanup лише transient worktree namespaces.
+ * @param {string} path абсолютний worktree path
+ * @returns {boolean} чи шлях належить керованому transient namespace
+ */
+function isManagedTransientWorktree(path) {
+  return path.includes('/.worktrees/') || path.includes('/.claude/worktrees/')
 }
 
 /**
@@ -462,7 +514,7 @@ export function conflictFiles(text) {
  * checkout, крім оновлення remote refs через fetch --prune.
  * @param {string} cwd корінь репо
  * @param {{ spawnFn?: typeof spawnSync }} [deps] інжекти
- * @returns {{base:string,branches:Array<object>,stashes:Array<object>,warnings:string[]}} inventory
+ * @returns {{base:string,branches:Array<object>,stashes:Array<object>,worktrees:Array<object>,warnings:string[]}} inventory
  */
 export function inventoryRepository(cwd, deps = {}) {
   const spawnFn = deps.spawnFn ?? spawnSync
@@ -551,7 +603,22 @@ export function inventoryRepository(cwd, deps = {}) {
     }
   })
 
-  return { base: baseRef, baseBranch: policy.baseBranch, branches, stashes, warnings }
+  const worktrees = worktreeState.entries.map(entry => {
+    const present = existsSync(entry.path)
+    const status =
+      present && !entry.prunable
+        ? git(['status', '--porcelain=v1'], entry.path, spawnFn, { allowFailure: true })
+        : { status: 1, stdout: '' }
+    return {
+      ...entry,
+      current: entry.path === cwd,
+      managed: isManagedTransientWorktree(entry.path),
+      dirty: status.status === 0 ? status.stdout.trim().length > 0 : null,
+      protected: entry.branch ? policy.protectedBranches.includes(branchName(entry.branch)) : false
+    }
+  })
+
+  return { base: baseRef, baseBranch: policy.baseBranch, branches, stashes, worktrees, warnings }
 }
 
 /**
@@ -798,7 +865,7 @@ export function collectPullRequestFacts(args) {
     source,
     title,
     rationale,
-    verification,
+    verification: verificationSummary(verification),
     baseRef,
     commits: git(['log', '--format=%h%x09%s', range], cwd, spawnFn).stdout.split('\n').filter(Boolean),
     changedPaths,
@@ -806,6 +873,19 @@ export function collectPullRequestFacts(args) {
     diffStat: git(['diff', '--stat', range], cwd, spawnFn).stdout.trim(),
     diff: diff.length > PR_DIFF_TEXT_LIMIT ? `${diff.slice(0, PR_DIFF_TEXT_LIMIT)}\n[diff truncated by JS]` : diff
   }
+}
+
+/**
+ * Перетворює довільний agent transcript на bounded deterministic verdict.
+ * @param {string} verification raw behavioral output або no-code sentinel
+ * @returns {string} безпечний summary для prompt і PR body
+ */
+export function verificationSummary(verification) {
+  if (!verification) return ''
+  if (verification === NO_CODE_VERIFICATION) {
+    return 'Behavioral LLM не викликався, бо final diff не містить code paths.'
+  }
+  return 'Behavioral LLM review завершено; acceptance підтверджують фінальні детерміновані Git, tests, lint і changelog gates.'
 }
 
 /**
@@ -826,6 +906,47 @@ export function pullRequestDiffProfile(paths) {
     releaseEntryPaths,
     lockfilePaths
   }
+}
+
+/**
+ * Відокремлює narrative change entry від YAML frontmatter.
+ * @param {string} text change entry
+ * @returns {string} normalized narrative
+ */
+function changeEntryNarrative(text) {
+  const lines = text.trim().split('\n')
+  let body = lines
+  if (lines[0]?.trim() === '---') {
+    const closing = lines.slice(1).findIndex(line => line.trim() === '---')
+    if (closing !== -1) body = lines.slice(closing + 2)
+  }
+  return body.join(' ').trim().replace(LEADING_MARKDOWN_BULLET_RE, '').split(WHITESPACE_RE).join(' ')
+}
+
+/**
+ * Знаходить release entries, exact narrative яких уже присутній у base
+ * CHANGELOG відповідного workspace.
+ * @param {string} cwd materialized worktree
+ * @param {string} baseRef policy base ref
+ * @param {{releaseEntryPaths:string[]}} profile final diff profile
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {string[]} already released entry paths
+ */
+export function releasedChangeEntries(cwd, baseRef, profile, spawnFn = spawnSync) {
+  const released = []
+  for (const entryPath of profile.releaseEntryPaths ?? []) {
+    const marker = '/.changes/'
+    const markerIndex = entryPath.indexOf(marker)
+    const workspace = markerIndex === -1 ? '' : entryPath.slice(0, markerIndex)
+    const changelogPath = workspace ? `${workspace}/CHANGELOG.md` : 'CHANGELOG.md'
+    const baseChangelog = git(['show', `${baseRef}:${changelogPath}`], cwd, spawnFn, { allowFailure: true })
+    if (baseChangelog.status !== 0) continue
+    const narrative = changeEntryNarrative(readFileSync(join(cwd, entryPath), 'utf8'))
+    if (!narrative) continue
+    const normalizedChangelog = baseChangelog.stdout.split(WHITESPACE_RE).join(' ')
+    if (normalizedChangelog.includes(narrative)) released.push(entryPath)
+  }
+  return released
 }
 
 /**
@@ -970,7 +1091,7 @@ export function renderPullRequestBody({ description, facts }) {
     `- \`git diff --check ${facts.baseRef}...HEAD\``,
     '- scoped code lint/tests та domain lint для non-code paths',
     '- `npx @7n/rules lint changelog --no-fix`',
-    ...(facts.verification ? [`- LLM behavioral verification: ${inline(facts.verification).slice(0, 1000)}`] : []),
+    ...(facts.verification ? [`- Behavioral verification: ${inline(facts.verification)}`] : []),
     '',
     '<details>',
     '<summary>Технічні докази перенесення</summary>',
@@ -1276,27 +1397,32 @@ function changedPaths(cwd, spawnFn) {
 }
 
 /**
- * @param {string} cwd worktree
- * @param {typeof spawnSync} spawnFn інжект
- * @returns {boolean} чи tree diff складається лише з release entries
- */
-function hasOnlyChangeEntriesFromBase(cwd, spawnFn) {
-  return hasOnlyChangeEntries(changedPaths(cwd, spawnFn))
-}
-
-/**
  * Прибирає no-op або change-only worktree до дорогих behavioral/CI gates.
  * @param {object} args контекст materialized worktree
  * @returns {{status:string,branch:string,rationale?:string}|null} terminal outcome
  */
-function discardPatchEquivalentWorktree(args) {
+export function discardPatchEquivalentWorktree(args) {
   const { worktree, rootCwd, spawnFn, onProgress, validated = false } = args
   if (!hasChangesFromBase(worktree.cwd, spawnFn)) {
     onProgress('remove no-op worktree')
     removeReconcileWorktree(worktree, rootCwd, spawnFn)
     return { status: 'patch-equivalent', branch: worktree.branch }
   }
-  if (!hasOnlyChangeEntriesFromBase(worktree.cwd, spawnFn)) return null
+  const paths = changedPaths(worktree.cwd, spawnFn)
+  const profile = pullRequestDiffProfile(paths)
+  if (profile.kind === 'release-lock-only') {
+    const released = releasedChangeEntries(worktree.cwd, policyBaseRef(worktree.cwd), profile, spawnFn)
+    if (released.length === profile.releaseEntryPaths.length) {
+      onProgress('remove already-released worktree')
+      removeReconcileWorktree(worktree, rootCwd, spawnFn)
+      return {
+        status: 'patch-equivalent',
+        branch: worktree.branch,
+        rationale: `Release intent уже присутній у base CHANGELOG: ${released.join(', ')}`
+      }
+    }
+  }
+  if (!hasOnlyChangeEntries(paths)) return null
 
   onProgress('remove change-only worktree')
   removeReconcileWorktree(worktree, rootCwd, spawnFn)
@@ -1548,6 +1674,8 @@ export async function validateBehaviorState(
  */
 export async function validateFinalProjectGates(cwd, spawnFn = spawnSync, asyncSpawnFn = null) {
   const longRunner = resolveAsyncSpawn(spawnFn, asyncSpawnFn)
+  const lockfiles = await validateChangedLockfiles(cwd, spawnFn, asyncSpawnFn)
+  if (!lockfiles.ok) return lockfiles
   for (const path of changedNonCodeDirectories(cwd, spawnFn)) {
     const lint = await runAsync('npx', ['@7n/rules', 'lint', '--path', path, '--no-fix'], cwd, longRunner, {
       allowFailure: true
@@ -1571,6 +1699,33 @@ export async function validateFinalProjectGates(cwd, spawnFn = spawnSync, asyncS
     }
   }
   return { ok: true }
+}
+
+/**
+ * Перевіряє final Bun lock state навіть коли node_modules уже існує.
+ * Baseline install не є доказом валідності lockfile після apply/remediation.
+ * @param {string} cwd worktree
+ * @param {typeof spawnSync} spawnFn інжект
+ * @param {CommandRunner|null} [asyncSpawnFn] async runner
+ * @returns {Promise<{ok:boolean,error?:string,remediation?:string}>} gate
+ */
+export async function validateChangedLockfiles(cwd, spawnFn = spawnSync, asyncSpawnFn = null) {
+  if (!existsSync(join(cwd, 'package.json')) || !existsSync(join(cwd, 'bun.lock'))) return { ok: true }
+  const paths = changedPaths(cwd, spawnFn)
+  if (!paths.includes('bun.lock')) return { ok: true }
+  const frozen = await runAsync(
+    'bun',
+    ['install', '--frozen-lockfile'],
+    cwd,
+    resolveAsyncSpawn(spawnFn, asyncSpawnFn),
+    { allowFailure: true }
+  )
+  if (frozen.status === 0) return { ok: true }
+  return {
+    ok: false,
+    error: `bun install --frozen-lockfile: ${frozen.stderr || frozen.stdout}`,
+    remediation: 'bun-lockfile'
+  }
 }
 
 /**
@@ -1726,17 +1881,21 @@ export function classifyPullRequestChecks(prChecks, baseChecks) {
   const failed = normalizedPr.filter(check => check.state === 'failure')
   if (failed.length === 0) return { status: 'ready' }
 
-  const failedOnBase = new Set(
-    baseChecks
-      .map(check => normalizeGitHubCheck(check))
-      .filter(check => check.state === 'failure')
-      .map(check => check.name)
+  const baseByName = new Map(
+    baseChecks.map(check => normalizeGitHubCheck(check)).map(check => [check.name, check.state])
   )
-  const regressions = failed.filter(check => !failedOnBase.has(check.name))
+  const regressions = failed.filter(check => baseByName.get(check.name) === 'success')
   if (regressions.length > 0) {
     return {
       status: 'pr-checks-regressed',
-      error: `Нові failed PR checks: ${regressions.map(check => check.name).join(', ')}`
+      error: `Failed PR checks були green на base: ${regressions.map(check => check.name).join(', ')}`
+    }
+  }
+  const uncovered = failed.filter(check => !baseByName.has(check.name) || baseByName.get(check.name) === 'pending')
+  if (uncovered.length > 0) {
+    return {
+      status: 'pr-checks-unverified',
+      error: `Немає terminal base baseline для failed PR checks: ${uncovered.map(check => check.name).join(', ')}`
     }
   }
   return {
@@ -1833,10 +1992,25 @@ export async function verifyPullRequestReadiness(args) {
  * @param {object} args gate context
  * @returns {Promise<{ok:boolean,error?:string}>} фінальний стан
  */
-async function passFinalProjectGates(args) {
+export async function passFinalProjectGates(args) {
   const { cwd, spawnFn, asyncSpawnFn, onProgress } = args
   let finalGates = await validateFinalProjectGates(cwd, spawnFn, asyncSpawnFn)
-  if (finalGates.ok || finalGates.remediation !== 'canonical-fixers') return finalGates
+  if (finalGates.ok) return finalGates
+  if (finalGates.remediation === 'bun-lockfile') {
+    onProgress('synchronize final bun.lock')
+    const synchronized = await runAsync(
+      'bun',
+      ['install', '--lockfile-only', '--ignore-scripts'],
+      cwd,
+      resolveAsyncSpawn(spawnFn, asyncSpawnFn),
+      { allowFailure: true }
+    )
+    if (synchronized.status !== 0) {
+      return { ok: false, error: `bun lockfile remediation: ${synchronized.stderr || synchronized.stdout}` }
+    }
+    return validateFinalProjectGates(cwd, spawnFn, asyncSpawnFn)
+  }
+  if (finalGates.remediation !== 'canonical-fixers') return finalGates
 
   onProgress('canonical final remediation')
   const remediation = await remediateBehaviorState(
@@ -1930,7 +2104,7 @@ async function createPullRequest(args) {
             log,
             onProgress
           })
-        : 'Додатковий behavioral LLM не потрібен: code paths не змінено.'
+        : NO_CODE_VERIFICATION
     onProgress('Git validation')
     const unresolved = unresolvedFiles(worktree.cwd, spawnFn)
     if (unresolved.length > 0) throw new Error(`Нерозв'язані конфлікти: ${unresolved.join(', ')}`)
@@ -1952,6 +2126,15 @@ async function createPullRequest(args) {
       onProgress
     })
     if (!finalGates.ok) throw new Error(finalGates.error)
+    git(['add', '-A'], worktree.cwd, spawnFn)
+    const finalOutcome = discardPatchEquivalentWorktree({
+      worktree,
+      rootCwd,
+      spawnFn,
+      onProgress,
+      validated: true
+    })
+    if (finalOutcome) return finalOutcome
     commitPendingChanges(worktree.cwd, group.title, spawnFn)
     const baseRef = policyBaseRef(worktree.cwd)
     const baseBranch = readGitPolicy(worktree.cwd).baseBranch
@@ -2019,6 +2202,123 @@ async function createPullRequest(args) {
 }
 
 /**
+ * Прибирає stale unlocked records і підтверджує фактичне зникнення записів.
+ * @param {object[]} worktrees worktree inventory
+ * @param {string} rootCwd корінь репо
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {Array<{path:string,status:string,error?:string}>} outcomes
+ */
+function pruneStaleWorktrees(worktrees, rootCwd, spawnFn) {
+  const prunable = worktrees.filter(worktree => worktree.prunable && !worktree.locked)
+  if (prunable.length === 0) return []
+  const pruned = git(['worktree', 'prune'], rootCwd, spawnFn, { allowFailure: true })
+  const remaining =
+    pruned.status === 0
+      ? new Set(
+          parseWorktreeInventory(
+            git(['worktree', 'list', '--porcelain'], rootCwd, spawnFn, { allowFailure: true }).stdout
+          ).map(worktree => worktree.path)
+        )
+      : new Set(prunable.map(worktree => worktree.path))
+  return prunable.map(worktree => {
+    const removed = pruned.status === 0 && !remaining.has(worktree.path)
+    return {
+      path: worktree.path,
+      status: removed ? 'pruned' : 'cleanup-failed',
+      ...(!removed && { error: pruned.stderr || pruned.stdout || 'record лишився після git worktree prune' })
+    }
+  })
+}
+
+/**
+ * @param {object} worktree worktree record
+ * @returns {boolean} чи дозволена automatic removal policy
+ */
+function removableWorktreeShape(worktree) {
+  const protectedState =
+    worktree.prunable || worktree.current || worktree.locked || worktree.protected || !worktree.managed
+  return !protectedState && worktree.dirty === false
+}
+
+/**
+ * @param {object} worktree worktree record
+ * @param {object[]} branches branch inventory
+ * @returns {object[]} refs, які відповідають checkout
+ */
+function branchesForWorktree(worktree, branches) {
+  return branches.filter(branch => {
+    return branch.worktree === worktree.path || (worktree.head && branch.oid === worktree.head)
+  })
+}
+
+/**
+ * @param {object} worktree worktree record
+ * @param {object[]} matchingBranches відповідні refs
+ * @param {object} inventory repository inventory
+ * @param {string} rootCwd корінь репо
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {boolean} чи checkout доведено inactive
+ */
+function isInactiveWorktree(worktree, matchingBranches, inventory, rootCwd, spawnFn) {
+  if (matchingBranches.some(branch => branch.pr)) return false
+  const inactiveByBranch =
+    matchingBranches.length > 0 &&
+    matchingBranches.every(branch => ['merged', 'patch-equivalent'].includes(branch.state))
+  if (inactiveByBranch) return true
+  if (!worktree.head) return false
+  return (
+    git(['merge-base', '--is-ancestor', worktree.head, inventory.base], rootCwd, spawnFn, {
+      allowFailure: true
+    }).status === 0
+  )
+}
+
+/**
+ * @param {object} worktree worktree record
+ * @param {string} rootCwd корінь репо
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {{status:number,stdout:string,stderr:string}} command result
+ */
+function removeTransientWorktree(worktree, rootCwd, spawnFn) {
+  const branch = worktree.branch ? branchName(worktree.branch) : null
+  if (branch && worktree.path.includes('/.worktrees/')) {
+    return run('npx', ['@7n/mt', 'worktree', 'remove', branch], rootCwd, spawnFn, { allowFailure: true })
+  }
+  return git(['worktree', 'remove', worktree.path], rootCwd, spawnFn, { allowFailure: true })
+}
+
+/**
+ * Прибирає лише stale records або clean inactive worktree у transient
+ * namespaces. Dirty/current/locked/protected/open-PR і унікальні worktree
+ * залишаються недоторканими.
+ * @param {object} inventory зібраний Git inventory
+ * @param {string} rootCwd корінь репо
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {Array<{path:string,status:string,error?:string}>} cleanup outcomes
+ */
+export function cleanupObsoleteWorktrees(inventory, rootCwd, spawnFn = spawnSync) {
+  const worktrees = inventory.worktrees ?? []
+  const outcomes = pruneStaleWorktrees(worktrees, rootCwd, spawnFn)
+  if ((inventory.warnings ?? []).length > 0) return outcomes
+  const removable = worktrees.filter(worktree => removableWorktreeShape(worktree))
+  for (const worktree of removable) {
+    const matchingBranches = branchesForWorktree(worktree, inventory.branches)
+    if (!isInactiveWorktree(worktree, matchingBranches, inventory, rootCwd, spawnFn)) continue
+    const removed = removeTransientWorktree(worktree, rootCwd, spawnFn)
+    const status = removed.status === 0 ? 'removed' : 'cleanup-failed'
+    outcomes.push({
+      path: worktree.path,
+      status,
+      ...(status !== 'removed' && { error: removed.stderr || removed.stdout })
+    })
+    if (status === 'removed') {
+      for (const candidate of matchingBranches) candidate.worktree = null
+    }
+  }
+  return outcomes
+}
+
+/**
  * Видаляє точний source після Git-доказу неактуальності або успішного
  * перенесення. Protected/open-PR refs не потрапляють у цей крок.
  * @param {object} candidate inventory source
@@ -2042,8 +2342,14 @@ export function cleanupSource(candidate, rootCwd, spawnFn = spawnSync) {
     const removedRefs = []
     for (const ref of candidate.aliases ?? [candidate.ref]) {
       if (ref.startsWith('refs/remotes/origin/')) {
+        const remote = git(['ls-remote', '--exit-code', '--heads', 'origin', branchName(ref)], rootCwd, spawnFn, {
+          allowFailure: true
+        })
+        if (remote.status !== 0) continue
         git(['push', 'origin', '--delete', branchName(ref)], rootCwd, spawnFn)
       } else if (ref.startsWith('refs/heads/')) {
+        const local = git(['show-ref', '--verify', '--quiet', ref], rootCwd, spawnFn, { allowFailure: true })
+        if (local.status !== 0) continue
         git(['branch', '-D', branchName(ref)], rootCwd, spawnFn)
       }
       removedRefs.push(ref)
@@ -2085,35 +2391,50 @@ export function formatOutcomeCounts(results) {
 }
 
 /**
+ * @param {object} branch inventory branch
+ * @returns {string|null} report line
+ */
+function formatBranchReport(branch) {
+  if (branch.state === 'review') return null
+  let suffix = ''
+  if (branch.pr?.url) suffix = ` — ${branch.pr.url}`
+  else if (branch.worktree) suffix = ` — ${branch.worktree}`
+  const cleanupOid = branch.oid ? `; oid=${branch.oid}` : ''
+  const removedRefs = formatRemovedRefs(branch.cleanup)
+  const cleanup = branch.cleanup ? `; cleanup=${branch.cleanup.status}${cleanupOid}${removedRefs}` : ''
+  return `- \`${branch.source ?? branch.name}\`: ${branch.state}${cleanup}${suffix}`
+}
+
+/**
+ * @param {object} result materialization result
+ * @returns {string} report line
+ */
+function formatResultReport(result) {
+  const details = [result.url, result.error, result.rationale, result.worktree && `worktree=${result.worktree}`].filter(
+    Boolean
+  )
+  const suffix = details.length > 0 ? ` — ${details.join('; ')}` : ''
+  const cleanupOid = result.oid ? `; oid=${result.oid}` : ''
+  const removedRefs = formatRemovedRefs(result.cleanup)
+  const cleanup = result.cleanup ? `; cleanup=${result.cleanup.status}${cleanupOid}${removedRefs}` : ''
+  return `- \`${result.source}\`: ${result.status}${cleanup}${suffix}`
+}
+
+/**
  * Формує deterministic report.
  * @param {{inventory:object,results:Array<object>}} args дані
  * @returns {string} markdown
  */
 export function formatReport({ inventory, results }) {
   const lines = ['## git-reconcile: підсумок', `- Outcomes: ${formatOutcomeCounts(results) || 'none'}`]
-  for (const branch of inventory.branches) {
-    if (branch.state === 'review') continue
-    let suffix = ''
-    if (branch.pr?.url) suffix = ` — ${branch.pr.url}`
-    else if (branch.worktree) suffix = ` — ${branch.worktree}`
-    const cleanupOid = branch.oid ? `; oid=${branch.oid}` : ''
-    const removedRefs = formatRemovedRefs(branch.cleanup)
-    const cleanup = branch.cleanup ? `; cleanup=${branch.cleanup.status}${cleanupOid}${removedRefs}` : ''
-    lines.push(`- \`${branch.source ?? branch.name}\`: ${branch.state}${cleanup}${suffix}`)
+  for (const worktree of inventory.worktreeCleanup ?? []) {
+    const detail = worktree.error ? ` — ${worktree.error}` : ''
+    lines.push(`- worktree \`${worktree.path}\`: ${worktree.status}${detail}`)
   }
-  for (const result of results) {
-    const details = [
-      result.url,
-      result.error,
-      result.rationale,
-      result.worktree && `worktree=${result.worktree}`
-    ].filter(Boolean)
-    const suffix = details.length > 0 ? ` — ${details.join('; ')}` : ''
-    const cleanupOid = result.oid ? `; oid=${result.oid}` : ''
-    const removedRefs = formatRemovedRefs(result.cleanup)
-    const cleanup = result.cleanup ? `; cleanup=${result.cleanup.status}${cleanupOid}${removedRefs}` : ''
-    lines.push(`- \`${result.source}\`: ${result.status}${cleanup}${suffix}`)
-  }
+  lines.push(
+    ...inventory.branches.map(branch => formatBranchReport(branch)).filter(Boolean),
+    ...results.map(result => formatResultReport(result))
+  )
   for (const warning of inventory.warnings) lines.push(`- ⚠️ ${warning}`)
   return lines.join('\n')
 }
@@ -2381,6 +2702,7 @@ export async function runGitReconcileOrchestrator(options = {}) {
   const inventoryFn = deps.inventoryRepository ?? inventoryRepository
   const createPr = deps.createPullRequest ?? createPullRequest
   const cleanup = deps.cleanupSource ?? cleanupSource
+  const cleanupWorktrees = deps.cleanupObsoleteWorktrees ?? cleanupObsoleteWorktrees
   const now = deps.now ?? (() => performance.now())
   const setIntervalFn = deps.setIntervalFn ?? setInterval
   const clearIntervalFn = deps.clearIntervalFn ?? clearInterval
@@ -2466,6 +2788,7 @@ export async function runGitReconcileOrchestrator(options = {}) {
   )
 
   const { bySource, results } = materialized
+  inventory.worktreeCleanup = cleanupWorktrees(inventory, rootCwd, spawnFn)
   const cleanupCount = countCleanupSources(inventory, bySource, results)
   const cleanupProgress = createPhaseProgress({
     total: cleanupCount,

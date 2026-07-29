@@ -94,6 +94,10 @@ transport. Після провалу `max` джерело fail-closed лишає
 - Перед push обов'язково проходять фінальний tree-diff guard, domain lint для
   non-code paths, changelog і `git diff --check`; code changes додатково
   проходять scoped docs/lint та tests.
+- Змінений `bun.lock` перед push завжди проходить
+  `bun install --frozen-lockfile`, навіть якщо `node_modules` уже існує.
+  Невалідний lock JS один раз синхронізує через lockfile-only install і
+  повторює final gates.
 - Перед push JS передає min-моделі bounded final diff, commit metadata,
   triage rationale і behavioral verification. Модель повертає лише validated
   JSON, а JS рендерить PR body із видимими секціями «Навіщо»,
@@ -103,6 +107,11 @@ transport. Після провалу `max` джерело fail-closed лишає
   diff як `release-lock-only`: product claims рендеряться як intent change
   entry, а architecture/behavior секції детерміновано не заявляють runtime
   changes, яких немає у фінальному diff.
+- Якщо exact narrative кожного `release-lock-only` change entry уже присутній
+  у base `CHANGELOG` відповідного workspace, source стає
+  `patch-equivalent`: повторний release PR не створюється.
+- Raw behavioral agent output не потрапляє ні в PR prompt, ні в PR body:
+  JS замінює його bounded verdict про cognitive review і фінальні gates.
 - Невалідний PR description повторюється на max; повторний провал fail-closed
   зберігає worktree і не push-ить гілку з misleading описом.
 - Canonical fixers охоплюють code і non-code directories; після механічного
@@ -110,14 +119,19 @@ transport. Після провалу `max` джерело fail-closed лишає
 - Behavioral LLM не викликається для змін без code paths; test baseline
   актуальної policy base branch кешується між PR-групами.
 - Після `gh pr create` JS чекає terminal CI state і порівнює failed checks із
-  base commit. Лише `ready` PR дозволяє cleanup; regression, baseline-red,
-  timeout, pending або unreadable checks зберігають branch, URL і worktree та
-  завершують команду non-zero.
+  base commit. Failure є regression лише якщо check з тим самим ім'ям був
+  green на base; відсутній або pending base check дає `unverified`, а не
+  вигаданий regression. Лише `ready` PR дозволяє cleanup; regression,
+  baseline-red, timeout, pending або unreadable checks зберігають branch, URL
+  і worktree та завершують команду non-zero.
 - Cleanup виконує лише JS і тільки після inventory/PR-фази: видаляє точні refs,
   уже merged/patch-equivalent, явно класифіковані як `drop` або повністю
   перенесені в успішний PR.
 - Live worktree, open PR, `kept` і будь-яке джерело з проваленим перенесенням
-  не видаляються.
+  не видаляються. Виняток — stale `prunable` records і clean inactive
+  worktree у transient `.worktrees/`/`.claude/worktrees/`: JS прибирає їх
+  перед refs cleanup лише якщо commit merged/patch-equivalent, немає open PR,
+  а checkout не current, dirty, locked або policy-protected.
 - `git stash clear` заборонено; stash видаляється лише по одному після
   підтвердженого перенесення і явного cleanup-запиту.
 
