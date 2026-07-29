@@ -3,11 +3,24 @@ type: JS Module
 title: coverage-fix.mjs
 resource: plugins/lang-js/coverage-provider/fix/coverage-fix.mjs
 docgen:
+<<<<<<< поточна (HEAD)
   crc: ce313716
+  model: omlx/gemma-4-e2b-it-4bit
+  tier: local-min
+  score: 80
+||||||| база
+  crc: 0d33f7b7
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
+  score: 100
+  issues: judge-refine:kept-original,judge:inaccurate:0.98
+  judgeModel: openai-codex/gpt-5.4-mini
+=======
   crc: 252ded78
   model: omlx/gemma-4-e2b-it-4bit
   tier: local-min
   score: 80
+>>>>>>> джерело (origin/main)
 ---
 
 ## Огляд

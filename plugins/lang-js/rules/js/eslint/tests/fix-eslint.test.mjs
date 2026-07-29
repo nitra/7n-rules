@@ -3,13 +3,20 @@
  * зовнішні лінтери + конфіг репо (перевірено вручну + e2e); тут — контракт патерну:
  * test-предикат і скоупинг лише js-файлів (без зайвого виклику лінтерів).
  */
-import { readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { describe, expect, test, vi } from 'vitest'
 
+const loadActualModule = createRequire(import.meta.url)
+const actualChildProcess = loadActualModule('node:child_process')
 const spawnSyncMock = vi.fn(() => ({ status: 0 }))
-vi.mock('node:child_process', () => ({ spawnSync: spawnSyncMock }))
+vi.mock('node:child_process', () => ({
+  ...actualChildProcess,
+  spawnSync: spawnSyncMock
+}))
 
 const resolveCmdMock = vi.fn(() => '/usr/local/bin/bunx')
 vi.mock('@7n/rules/scripts/utils/resolve-cmd.mjs', () => ({ resolveCmd: resolveCmdMock }))
@@ -161,6 +168,103 @@ describe('js-eslint-mechanical-text-fix pattern', () => {
         { cwd: dir, recordWrite: vi.fn() }
       )
       expect(res.touchedFiles.toSorted()).toEqual([fileA, fileB].toSorted())
+    })
+  })
+})
+
+describe('js-eslint-autofix — nullable guard через central fix pipeline', () => {
+  test('зберігає == null для null/undefined, а звичайне loose equality лишає порушенням', async () => {
+    const { runFixPipeline } = await import('../../../../../../npm/scripts/lib/lint-surface/run-fix.mjs')
+    const bunx = actualChildProcess.execFileSync('/usr/bin/env', ['which', 'bunx'], { encoding: 'utf8' }).trim()
+    resolveCmdMock.mockImplementation(() => bunx)
+    spawnSyncMock.mockImplementation((...args) => actualChildProcess.spawnSync(...args))
+    const detectorUrl = pathToFileURL(join(import.meta.dirname, '..', 'main.mjs')).href
+    const fixUrl = pathToFileURL(join(import.meta.dirname, '..', 'fix-eslint.mjs')).href
+    const canonicalPath = join(import.meta.dirname, '..', '..', 'tooling', 'data', 'tooling', 'oxlint-canonical.json')
+    const eslintConfigUrl = pathToFileURL(
+      join(import.meta.dirname, '..', '..', '..', '..', '..', '..', 'eslint.config.js')
+    ).href
+    const canonical = JSON.parse(readFileSync(canonicalPath, 'utf8'))
+    const ladder = [
+      {
+        tier: 'local-min',
+        model: 'test/no-llm',
+        feedback: false,
+        local: true,
+        isAvg: false,
+        timeoutMs: 1000
+      }
+    ]
+
+    await withTmpDir(async dir => {
+      const concernDir = join(dir, 'rules', 'js', 'eslint')
+      mkdirSync(concernDir, { recursive: true })
+      writeFileSync(
+        join(concernDir, 'concern.json'),
+        `${JSON.stringify({ lint: { scope: 'per-file', glob: ['**/*.mjs'] } }, null, 2)}\n`
+      )
+      writeFileSync(join(concernDir, 'main.mjs'), `export { lint } from ${JSON.stringify(detectorUrl)}\n`)
+      writeFileSync(join(concernDir, 'fix-eslint.mjs'), `export { patterns } from ${JSON.stringify(fixUrl)}\n`)
+      writeFileSync(
+        join(dir, '.oxlintrc.json'),
+        `${JSON.stringify(
+          {
+            rules: {
+              eqeqeq: canonical.rules.eqeqeq,
+              'no-eq-null': canonical.rules['no-eq-null']
+            }
+          },
+          null,
+          2
+        )}\n`
+      )
+      writeFileSync(join(dir, 'eslint.config.mjs'), `export { default } from ${JSON.stringify(eslintConfigUrl)}\n`)
+
+      const nullablePath = join(dir, 'nullable.mjs')
+      writeFileSync(nullablePath, 'export function isNullish(value) { return value == null }\n')
+      let nullableWorkerCalled = false
+      const nullableCode = await runFixPipeline({
+        rulesDir: join(dir, 'rules'),
+        cwd: dir,
+        rules: ['js'],
+        files: ['nullable.mjs'],
+        log: () => {},
+        deps: {
+          ladder,
+          workerFor: () => () => {
+            nullableWorkerCalled = true
+          }
+        }
+      })
+
+      expect(nullableCode).toBe(0)
+      expect(nullableWorkerCalled).toBe(false)
+      expect(readFileSync(nullablePath, 'utf8')).toContain('value == null')
+      const { isNullish } = await import(`${pathToFileURL(nullablePath).href}?nullable-guard`)
+      expect(isNullish(null)).toBe(true)
+      expect(isNullish(undefined)).toBe(true)
+      expect(isNullish('ordinary')).toBe(false)
+
+      const loosePath = join(dir, 'loose.mjs')
+      writeFileSync(loosePath, 'export function looselyEqual(left, right) { return left == right }\n')
+      let looseWorkerCalled = false
+      const looseCode = await runFixPipeline({
+        rulesDir: join(dir, 'rules'),
+        cwd: dir,
+        rules: ['js'],
+        files: ['loose.mjs'],
+        log: () => {},
+        deps: {
+          ladder,
+          workerFor: () => () => {
+            looseWorkerCalled = true
+          }
+        }
+      })
+
+      expect(looseCode).toBe(1)
+      expect(looseWorkerCalled).toBe(true)
+      expect(readFileSync(loosePath, 'utf8')).toContain('left == right')
     })
   })
 })
