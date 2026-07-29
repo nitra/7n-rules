@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.54.3] - 2026-07-29
+
+### Fixed
+
+- Git-reconcile відсіює вже опубліковані release entries, перевіряє final `bun.lock`, не виносить agent transcript у PR, коректно порівнює CI baseline і прибирає лише безпечні obsolete worktree
+
 ## [1.54.2] - 2026-07-29
 
 ### Changed
