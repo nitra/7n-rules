@@ -3,7 +3,7 @@ type: JS Module
 title: candidate.mjs
 resource: npm/rules/ci4/package_knowledge/candidate.mjs
 docgen:
-  crc: 87fa1bbf
+  crc: ae9f2072
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80

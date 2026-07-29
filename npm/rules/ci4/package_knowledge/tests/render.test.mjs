@@ -171,10 +171,42 @@ describe('renderKnowledgeArtifacts', () => {
       { id: 'edge:private-outcome', fromId: PRIVATE_ID, toId: OUTCOME_ID, kind: 'produces', evidenceIds: ['e:public'] }
     )
     graph.claims.push(
-      { id: 'claim:purpose', subjectId: PUBLIC_ID, layer: 'implemented', predicate: 'purpose', value: 'Приймає замовлення клієнта.', evidenceIds: ['e:public'], confidence: 1 },
-      { id: 'claim:trigger', subjectId: PUBLIC_ID, layer: 'implemented', predicate: 'trigger', value: 'HTTP запит на створення замовлення.', evidenceIds: ['e:public'], confidence: 1 },
-      { id: 'claim:rule', subjectId: PUBLIC_ID, layer: 'implemented', predicate: 'business-rule', value: 'Замовлення приймається лише після перевірки даних.', evidenceIds: ['e:public'], confidence: 1 },
-      { id: 'claim:private-state', subjectId: PRIVATE_ID, layer: 'implemented', predicate: 'state-change', value: 'Підтверджений стан замовлення зберігається.', evidenceIds: ['e:public'], confidence: 1 }
+      {
+        id: 'claim:purpose',
+        subjectId: PUBLIC_ID,
+        layer: 'implemented',
+        predicate: 'purpose',
+        value: 'Приймає замовлення клієнта.',
+        evidenceIds: ['e:public'],
+        confidence: 1
+      },
+      {
+        id: 'claim:trigger',
+        subjectId: PUBLIC_ID,
+        layer: 'implemented',
+        predicate: 'trigger',
+        value: 'HTTP запит на створення замовлення.',
+        evidenceIds: ['e:public'],
+        confidence: 1
+      },
+      {
+        id: 'claim:rule',
+        subjectId: PUBLIC_ID,
+        layer: 'implemented',
+        predicate: 'business-rule',
+        value: 'Замовлення приймається лише після перевірки даних.',
+        evidenceIds: ['e:public'],
+        confidence: 1
+      },
+      {
+        id: 'claim:private-state',
+        subjectId: PRIVATE_ID,
+        layer: 'implemented',
+        predicate: 'state-change',
+        value: 'Підтверджений стан замовлення зберігається.',
+        evidenceIds: ['e:public'],
+        confidence: 1
+      }
     )
 
     const result = renderKnowledgeArtifacts({ graph })
@@ -191,10 +223,42 @@ describe('renderKnowledgeArtifacts', () => {
   test('uses architecture claims for configuration, persistence, integration and state', () => {
     const graph = graphFixture()
     graph.claims.push(
-      { id: 'claim:config', subjectId: PUBLIC_ID, layer: 'implemented', predicate: 'config', value: 'Використовує конфігурацію платіжного провайдера.', evidenceIds: ['e:public'], confidence: 1 },
-      { id: 'claim:persistence', subjectId: PUBLIC_ID, layer: 'implemented', predicate: 'persistence', value: 'Зберігає підтверджене замовлення.', evidenceIds: ['e:public'], confidence: 1 },
-      { id: 'claim:integration', subjectId: PUBLIC_ID, layer: 'implemented', predicate: 'integration', value: 'Передає платіж у зовнішній контракт.', evidenceIds: ['e:public'], confidence: 1 },
-      { id: 'claim:state', subjectId: PUBLIC_ID, layer: 'implemented', predicate: 'state-change', value: 'Позначає замовлення створеним.', evidenceIds: ['e:public'], confidence: 1 }
+      {
+        id: 'claim:config',
+        subjectId: PUBLIC_ID,
+        layer: 'implemented',
+        predicate: 'config',
+        value: 'Використовує конфігурацію платіжного провайдера.',
+        evidenceIds: ['e:public'],
+        confidence: 1
+      },
+      {
+        id: 'claim:persistence',
+        subjectId: PUBLIC_ID,
+        layer: 'implemented',
+        predicate: 'persistence',
+        value: 'Зберігає підтверджене замовлення.',
+        evidenceIds: ['e:public'],
+        confidence: 1
+      },
+      {
+        id: 'claim:integration',
+        subjectId: PUBLIC_ID,
+        layer: 'implemented',
+        predicate: 'integration',
+        value: 'Передає платіж у зовнішній контракт.',
+        evidenceIds: ['e:public'],
+        confidence: 1
+      },
+      {
+        id: 'claim:state',
+        subjectId: PUBLIC_ID,
+        layer: 'implemented',
+        predicate: 'state-change',
+        value: 'Позначає замовлення створеним.',
+        evidenceIds: ['e:public'],
+        confidence: 1
+      }
     )
 
     const result = renderKnowledgeArtifacts({ graph })

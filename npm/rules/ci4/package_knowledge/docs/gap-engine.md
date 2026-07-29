@@ -3,9 +3,9 @@ type: JS Module
 title: gap-engine.mjs
 resource: npm/rules/ci4/package_knowledge/gap-engine.mjs
 docgen:
-  crc: 9dd13178
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min-retry
+  crc: 6612d972
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
   score: 100
   judgeModel: openai-codex/gpt-5.4-mini
 ---
@@ -20,7 +20,11 @@ Engine приймає лише explicit structured mappings: він не вив�
 
 ## Поведінка
 
-evaluateGaps повертає об'єкт, що містить результат перевірки або список діагностичних повідомлень у випадку невдачі. Успішний результат містить масив об'єктів, що описують виявлені розриви.
+evaluateGaps повертає або відсортований список gap-станів, або blocking diagnostics, якщо вхідна валідація чи зіставлення не проходять перевірку. Це робить результат придатним для публікації лише тоді, коли всі явні умови узгоджені.
+
+Функція працює лише з explicit structured mappings: якщо відповідність не підтверджена evidence-backed фактами або confidence нижча за політику, такий запис лишається unresolved замість того, щоб бути примусово інтерпретованим як gap. Суперечливі mapping-дані також не перетворюються на вигаданий висновок.
+
+Якщо validation для parser або coverage не є прийнятною, повертаються diagnostics із stable code та message, а не список gaps.
 
 ## Публічний API
 

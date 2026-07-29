@@ -80,7 +80,12 @@ async function loadCache(cachePath, suppliedCache) {
   if (!cachePath) return { version: CACHE_VERSION, entries: {} }
   try {
     const parsed = JSON.parse(await readFile(cachePath, 'utf8'))
-    if (parsed?.version === CACHE_VERSION && parsed.entries && typeof parsed.entries === 'object' && !Array.isArray(parsed.entries)) {
+    if (
+      parsed?.version === CACHE_VERSION &&
+      parsed.entries &&
+      typeof parsed.entries === 'object' &&
+      !Array.isArray(parsed.entries)
+    ) {
       return { version: CACHE_VERSION, entries: parsed.entries }
     }
   } catch (error) {
@@ -142,17 +147,31 @@ function comparisonClaims(graph) {
   if (!graph || typeof graph !== 'object' || Array.isArray(graph) || !Array.isArray(graph.claims)) {
     return { ok: false, diagnostics: [diagnostic('invalid-gap-mapping-graph', 'Graph мусить містити claims[].')] }
   }
-  const invalid = graph.claims.filter(claim =>
-    (claim?.layer === 'expected' || claim?.layer === 'implemented') &&
-    (!claim.id || !claim.subjectId || !claim.predicate || !Array.isArray(claim.evidenceIds) || claim.evidenceIds.length === 0)
+  const invalid = graph.claims.filter(
+    claim =>
+      (claim?.layer === 'expected' || claim?.layer === 'implemented') &&
+      (!claim.id ||
+        !claim.subjectId ||
+        !claim.predicate ||
+        !Array.isArray(claim.evidenceIds) ||
+        claim.evidenceIds.length === 0)
   )
   if (invalid.length > 0) {
-    return { ok: false, diagnostics: invalid.map(claim => diagnostic('invalid-gap-mapping-claim', 'Claim не має comparison contract.', claim?.id ?? null)) }
+    return {
+      ok: false,
+      diagnostics: invalid.map(claim =>
+        diagnostic('invalid-gap-mapping-claim', 'Claim не має comparison contract.', claim?.id ?? null)
+      )
+    }
   }
   return {
     ok: true,
-    expected: graph.claims.filter(claim => claim?.layer === 'expected').toSorted((left, right) => left.id.localeCompare(right.id)),
-    implemented: graph.claims.filter(claim => claim?.layer === 'implemented').toSorted((left, right) => left.id.localeCompare(right.id))
+    expected: graph.claims
+      .filter(claim => claim?.layer === 'expected')
+      .toSorted((left, right) => left.id.localeCompare(right.id)),
+    implemented: graph.claims
+      .filter(claim => claim?.layer === 'implemented')
+      .toSorted((left, right) => left.id.localeCompare(right.id))
   }
 }
 
@@ -180,19 +199,35 @@ export function parseGapMappingResult(text, expected, candidates) {
   } catch {
     return { ok: false, reason: 'invalid-comparison-json' }
   }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { ok: false, reason: 'invalid-comparison-shape' }
-  if (JSON.stringify(Object.keys(parsed).toSorted()) !== JSON.stringify(['comparisons', 'expectedClaimId', 'unresolved'])) {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+    return { ok: false, reason: 'invalid-comparison-shape' }
+  if (
+    JSON.stringify(Object.keys(parsed).toSorted()) !== JSON.stringify(['comparisons', 'expectedClaimId', 'unresolved'])
+  ) {
     return { ok: false, reason: 'invalid-comparison-shape' }
   }
-  if (parsed.expectedClaimId !== expected.id || typeof parsed.unresolved !== 'boolean' || !Array.isArray(parsed.comparisons)) {
+  if (
+    parsed.expectedClaimId !== expected.id ||
+    typeof parsed.unresolved !== 'boolean' ||
+    !Array.isArray(parsed.comparisons)
+  ) {
     return { ok: false, reason: 'invalid-comparison-shape' }
   }
   const comparisons = []
   for (const comparison of parsed.comparisons) {
-    if (!comparison || typeof comparison !== 'object' || Array.isArray(comparison) || JSON.stringify(Object.keys(comparison).toSorted()) !== JSON.stringify(['implementedClaimId', 'relation'])) {
+    if (
+      !comparison ||
+      typeof comparison !== 'object' ||
+      Array.isArray(comparison) ||
+      JSON.stringify(Object.keys(comparison).toSorted()) !== JSON.stringify(['implementedClaimId', 'relation'])
+    ) {
       return { ok: false, reason: 'invalid-comparison-shape' }
     }
-    if (typeof comparison.implementedClaimId !== 'string' || !candidates.has(comparison.implementedClaimId) || !RELATIONS.has(comparison.relation)) {
+    if (
+      typeof comparison.implementedClaimId !== 'string' ||
+      !candidates.has(comparison.implementedClaimId) ||
+      !RELATIONS.has(comparison.relation)
+    ) {
       return { ok: false, reason: 'unknown-comparison-claim' }
     }
     comparisons.push(comparison)
@@ -216,8 +251,18 @@ export function parseGapMappingResult(text, expected, candidates) {
  */
 async function submitWave(pending, tier, submitBatchImpl, batchOptions) {
   try {
-    const responses = await submitBatchImpl(tier, pending.map(item => ({ customId: item.expected.id, prompt: item.prompt })), batchOptions)
-    return new Map(Array.isArray(responses) ? responses.filter(response => typeof response?.customId === 'string').map(response => [response.customId, response]) : [])
+    const responses = await submitBatchImpl(
+      tier,
+      pending.map(item => ({ customId: item.expected.id, prompt: item.prompt })),
+      batchOptions
+    )
+    return new Map(
+      Array.isArray(responses)
+        ? responses
+            .filter(response => typeof response?.customId === 'string')
+            .map(response => [response.customId, response])
+        : []
+    )
   } catch {
     return new Map()
   }
@@ -279,7 +324,11 @@ function acceptComparison(state, item, checked) {
     return
   }
   const candidates = new Map(item.candidates.map(candidate => [candidate.id, candidate]))
-  state.mappings.push(...checked.comparisons.map(comparison => mapping(item.expected, candidates.get(comparison.implementedClaimId), comparison.relation)))
+  state.mappings.push(
+    ...checked.comparisons.map(comparison =>
+      mapping(item.expected, candidates.get(comparison.implementedClaimId), comparison.relation)
+    )
+  )
 }
 
 /**
@@ -353,9 +402,16 @@ export async function compareClaimMappings({
   const cache = await loadCache(cachePath, suppliedCache)
   const claims = comparisonClaims(graph)
   if (!claims.ok) return { ok: false, diagnostics: claims.diagnostics, cache: canonicalize(cache) }
-  if (claims.expected.length === 0) return { ok: true, mappings: [], unresolvedExpectedClaimIds: [], cache: canonicalize(cache) }
+  if (claims.expected.length === 0)
+    return { ok: true, mappings: [], unresolvedExpectedClaimIds: [], cache: canonicalize(cache) }
   if (!Array.isArray(modelPolicy) || JSON.stringify(modelPolicy) !== JSON.stringify(DEFAULT_GAP_MAPPING_MODEL_POLICY)) {
-    return { ok: false, diagnostics: [diagnostic('invalid-gap-mapping-model-policy', 'Comparator використовує universal policy min -> avg -> max.')], cache: canonicalize(cache) }
+    return {
+      ok: false,
+      diagnostics: [
+        diagnostic('invalid-gap-mapping-model-policy', 'Comparator використовує universal policy min -> avg -> max.')
+      ],
+      cache: canonicalize(cache)
+    }
   }
   const plan = planComparison(claims, { promptVersion, schemaVersion, modelPolicy })
   const state = { mappings: plan.mappings, unresolved: new Set() }
@@ -365,13 +421,25 @@ export async function compareClaimMappings({
   if (resolved.pending.length > 0) {
     return {
       ok: false,
-      diagnostics: resolved.pending.map(item => diagnostic(resolved.failures.get(item.expected.id) ?? 'unresolved-comparison', 'Expected claim не пройшов strict semantic comparator.', item.expected.id)).toSorted((left, right) => left.expectedClaimId.localeCompare(right.expectedClaimId)),
+      diagnostics: resolved.pending
+        .map(item =>
+          diagnostic(
+            resolved.failures.get(item.expected.id) ?? 'unresolved-comparison',
+            'Expected claim не пройшов strict semantic comparator.',
+            item.expected.id
+          )
+        )
+        .toSorted((left, right) => left.expectedClaimId.localeCompare(right.expectedClaimId)),
       cache: canonicalize(cache)
     }
   }
   return {
     ok: true,
-    mappings: state.mappings.toSorted((left, right) => `${left.expectedClaimId}:${left.implementedClaimId}:${left.relation}`.localeCompare(`${right.expectedClaimId}:${right.implementedClaimId}:${right.relation}`)),
+    mappings: state.mappings.toSorted((left, right) =>
+      `${left.expectedClaimId}:${left.implementedClaimId}:${left.relation}`.localeCompare(
+        `${right.expectedClaimId}:${right.implementedClaimId}:${right.relation}`
+      )
+    ),
     unresolvedExpectedClaimIds: [...state.unresolved].toSorted(),
     cache: canonicalize(cache)
   }

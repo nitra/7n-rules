@@ -15,6 +15,8 @@ const DOCS_PREFIX = 'docs/'
 const MANIFEST_PATH = 'docs/.docgen/manifest.json'
 const GENERATED_PAGE_PATH =
   /^docs\/(?:index\.md|implementation-gaps\.md|explanation\/architecture\.md|explanation\/(?:capabilities|processes)\/[a-f0-9]{24}\.md|reference\/contracts\/[a-f0-9]{24}\.md)$/u
+const GENERATED_TOPIC_PATH =
+  /^docs\/(?:explanation\/(capabilities|processes)|reference\/(contracts))\/([a-f0-9]{24})\.md$/u
 
 /**
  * Створює publication diagnostic.
@@ -24,6 +26,17 @@ const GENERATED_PAGE_PATH =
  */
 function diagnostic(code, detail) {
   return { code, detail }
+}
+
+/**
+ * Converts a generated directory name into the owning topic kind.
+ * @param {string | undefined} explanationDirectory explanation directory capture
+ * @returns {'capability' | 'process' | 'contract'} topic kind
+ */
+function topicKindForDirectory(explanationDirectory) {
+  if (explanationDirectory === 'capabilities') return 'capability'
+  if (explanationDirectory === 'processes') return 'process'
+  return 'contract'
 }
 
 /**
@@ -68,9 +81,9 @@ function zoneIdForGeneratedPath(path) {
   if (path === 'docs/index.md') return 'package-index'
   if (path === 'docs/explanation/architecture.md') return 'package-architecture'
   if (path === 'docs/implementation-gaps.md') return 'implementation-gaps'
-  const match = path.match(/^docs\/(?:explanation\/(capabilities|processes)|reference\/(contracts))\/([a-f0-9]{24})\.md$/u)
+  const match = path.match(GENERATED_TOPIC_PATH)
   if (!match) return null
-  const kind = match[1] === 'capabilities' ? 'capability' : match[1] === 'processes' ? 'process' : 'contract'
+  const kind = topicKindForDirectory(match[1])
   return `${kind}-${match[3]}`
 }
 
@@ -121,7 +134,7 @@ async function staleGeneratedPages({ root, files }) {
     const protectedZones = parsed.zones.filter(zone => zone.kind === 'MANUAL' || zone.kind === 'EXPECTED')
     if (protectedZones.length > 0 || parsed.implicitManual.some(content => content !== '')) {
       diagnostics.push(
-        diagnostic('stale-generated-protected', `Obsolete generated page ${path} містить authored protected content.`, path)
+        diagnostic('stale-generated-protected', `Obsolete generated page ${path} містить authored protected content.`)
       )
       continue
     }

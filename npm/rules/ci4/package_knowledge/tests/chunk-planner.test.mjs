@@ -195,7 +195,10 @@ describe('planSemanticChunks', () => {
             attributes: { sourcePath: 'contracts/openapi.yaml', boundary: 'contract' }
           }
         ],
-        [edge('edge:submit', 'node:submit', 'node:submit', 'e:submit'), edge('edge:contract', 'config:openapi', 'contract:orders-api', 'e:contract')],
+        [
+          edge('edge:submit', 'node:submit', 'node:submit', 'e:submit'),
+          edge('edge:contract', 'config:openapi', 'contract:orders-api', 'e:contract')
+        ],
         [
           { id: 'e:submit', path: 'src/orders.mjs', span: { startByte: 0, endByte: Buffer.byteLength(source) } },
           { id: 'e:contract', path: 'contracts/openapi.yaml' }

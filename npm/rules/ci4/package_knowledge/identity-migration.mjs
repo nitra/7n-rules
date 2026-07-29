@@ -22,9 +22,9 @@ function compareStrings(left, right) {
  * @returns {string[]} normalized values
  */
 function sortedStrings(values) {
-  return [...new Set(Array.isArray(values) ? values.filter(value => typeof value === 'string' && value !== '') : [])].toSorted(
-    compareStrings
-  )
+  return [
+    ...new Set(Array.isArray(values) ? values.filter(value => typeof value === 'string' && value !== '') : [])
+  ].toSorted(compareStrings)
 }
 
 /**
@@ -39,7 +39,7 @@ function semanticSignature(value) {
 }
 
 /**
- * Повертає Jaccard overlap двох set-подібних колекцій.
+ * Повертає частку спільних елементів двох set-подібних колекцій.
  * @param {string[]} left first collection
  * @param {string[]} right second collection
  * @returns {number} overlap from 0 to 1
@@ -94,7 +94,8 @@ function neighborhoods(graph) {
   const nodeById = new Map(nodes.filter(node => typeof node?.id === 'string').map(node => [node.id, node]))
   const values = new Map(Array.from(nodeById.keys(), id => [id, []]))
   for (const edge of Array.isArray(graph?.edges) ? graph.edges : []) {
-    if (!edge || typeof edge.fromId !== 'string' || typeof edge.toId !== 'string' || typeof edge.kind !== 'string') continue
+    if (!edge || typeof edge.fromId !== 'string' || typeof edge.toId !== 'string' || typeof edge.kind !== 'string')
+      continue
     const from = nodeById.get(edge.fromId)
     const to = nodeById.get(edge.toId)
     if (!from || !to) continue
@@ -192,7 +193,14 @@ function stableMappings(previousTopics, nextTopics) {
  * @param {{ previousManifest: Record<string, unknown>, graph: Record<string, unknown>, previousTopics: Array<Record<string, unknown>>, nextTopics: Array<Record<string, unknown>>, resolvedPreviousIds: Set<string>, resolvedNextIds: Set<string> }} input comparison inputs
  * @returns {Array<Record<string, unknown>>} deterministic candidate mappings
  */
-function migrationCandidates({ previousManifest, graph, previousTopics, nextTopics, resolvedPreviousIds, resolvedNextIds }) {
+function migrationCandidates({
+  previousManifest,
+  graph,
+  previousTopics,
+  nextTopics,
+  resolvedPreviousIds,
+  resolvedNextIds
+}) {
   const previousNeighborhoods = neighborhoods(previousManifest)
   const nextNeighborhoods = neighborhoods(graph)
   const candidates = []
@@ -200,13 +208,23 @@ function migrationCandidates({ previousManifest, graph, previousTopics, nextTopi
     if (resolvedPreviousIds.has(previousTopic.id)) continue
     for (const nextTopic of nextTopics) {
       if (resolvedNextIds.has(nextTopic.id) || previousTopic.kind !== nextTopic.kind) continue
-      const score = similarity(previousManifest, graph, previousTopic, nextTopic, previousNeighborhoods, nextNeighborhoods)
-      if (score >= MINIMUM_MATCH_SCORE) candidates.push({ fromTopicId: previousTopic.id, toTopicId: nextTopic.id, score })
+      const score = similarity(
+        previousManifest,
+        graph,
+        previousTopic,
+        nextTopic,
+        previousNeighborhoods,
+        nextNeighborhoods
+      )
+      if (score >= MINIMUM_MATCH_SCORE)
+        candidates.push({ fromTopicId: previousTopic.id, toTopicId: nextTopic.id, score })
     }
   }
   return candidates.toSorted(
     (left, right) =>
-      left.fromTopicId.localeCompare(right.fromTopicId) || left.toTopicId.localeCompare(right.toTopicId) || right.score - left.score
+      left.fromTopicId.localeCompare(right.fromTopicId) ||
+      left.toTopicId.localeCompare(right.toTopicId) ||
+      right.score - left.score
   )
 }
 
@@ -276,7 +294,9 @@ function protectedZoneDiagnostics(registry, mappings) {
  * @returns {Array<Record<string, unknown>>} reconciled topics
  */
 function applyMappings(nextTopics, previousById, mappings) {
-  const canonicalTopics = new Map(nextTopics.map(topic => [topic.id, { ...topic, aliases: sortedStrings(topic.aliases) }]))
+  const canonicalTopics = new Map(
+    nextTopics.map(topic => [topic.id, { ...topic, aliases: sortedStrings(topic.aliases) }])
+  )
   for (const mapping of mappings) {
     const previousTopic = previousById.get(mapping.fromTopicId)
     const nextTopic = canonicalTopics.get(mapping.toTopicId)
@@ -288,7 +308,10 @@ function applyMappings(nextTopics, previousById, mappings) {
       aliases: sortedStrings([...(previousTopic.aliases ?? []), ...(nextTopic.aliases ?? [])])
     })
   }
-  return canonicalTopics.values().toArray().toSorted((left, right) => compareStrings(left.id, right.id))
+  return canonicalTopics
+    .values()
+    .toArray()
+    .toSorted((left, right) => compareStrings(left.id, right.id))
 }
 
 /**
@@ -322,13 +345,23 @@ export function reconcileTopicIdentities({ previousManifest, graph, topics, prot
     resolvedNextIds: stable.nextIds
   })
   const ambiguity = ambiguityDiagnostics(candidates)
-  const mappings = ambiguity.length === 0 ? [...stable.mappings, ...candidates.map(candidate => ({ ...candidate, reason: 'semantic-rename' }))] : stable.mappings
+  const mappings =
+    ambiguity.length === 0
+      ? [...stable.mappings, ...candidates.map(candidate => ({ ...candidate, reason: 'semantic-rename' }))]
+      : stable.mappings
   const diagnostics = [...ambiguity, ...protectedZoneDiagnostics(registry, mappings)]
   if (diagnostics.length > 0) {
     return {
       ok: false,
-      diagnostics: diagnostics.toSorted((left, right) => `${left.code}:${left.previousTopicIds.join(',')}`.localeCompare(`${right.code}:${right.previousTopicIds.join(',')}`)),
-      migrationPlan: { status: 'blocked', mappings: mappings.toSorted((left, right) => compareStrings(left.fromTopicId, right.fromTopicId)) }
+      diagnostics: diagnostics.toSorted((left, right) =>
+        `${left.code}:${left.previousTopicIds.join(',')}`.localeCompare(
+          `${right.code}:${right.previousTopicIds.join(',')}`
+        )
+      ),
+      migrationPlan: {
+        status: 'blocked',
+        mappings: mappings.toSorted((left, right) => compareStrings(left.fromTopicId, right.fromTopicId))
+      }
     }
   }
 
@@ -338,6 +371,9 @@ export function reconcileTopicIdentities({ previousManifest, graph, topics, prot
     ok: true,
     topics: applyMappings(nextTopics, previousById, mappings),
     protectedZonesByTopicId: transferredZones,
-    migrationPlan: { status: 'resolved', mappings: mappings.toSorted((left, right) => compareStrings(left.fromTopicId, right.fromTopicId)) }
+    migrationPlan: {
+      status: 'resolved',
+      mappings: mappings.toSorted((left, right) => compareStrings(left.fromTopicId, right.fromTopicId))
+    }
   }
 }

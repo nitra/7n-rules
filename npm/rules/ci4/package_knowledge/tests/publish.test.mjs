@@ -189,9 +189,14 @@ describe('atomic package knowledge publication', () => {
         validate: () => ({ ok: true })
       })
 
-      expect(result).toEqual({ ok: false, diagnostics: [expect.objectContaining({ code: 'stale-generated-protected' })] })
+      expect(result).toEqual({
+        ok: false,
+        diagnostics: [expect.objectContaining({ code: 'stale-generated-protected' })]
+      })
       await expect(readFile(stalePath, 'utf8')).resolves.toBe(stale)
-      await expect(readFile(join(domainRoot, 'docs', '.docgen', 'manifest.json'), 'utf8')).resolves.toBe(knowledgeManifest())
+      await expect(readFile(join(domainRoot, 'docs', '.docgen', 'manifest.json'), 'utf8')).resolves.toBe(
+        knowledgeManifest()
+      )
     })
   })
 })

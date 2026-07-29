@@ -3,9 +3,9 @@ type: JS Module
 title: render.mjs
 resource: npm/rules/ci4/package_knowledge/render.mjs
 docgen:
-  crc: a764a784
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
+  crc: 876c85ce
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
   score: 75
 ---
 

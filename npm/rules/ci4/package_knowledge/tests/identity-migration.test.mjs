@@ -10,7 +10,13 @@ const OUTCOME_ID = 'outcome:order-created'
  * @param {{ publicId: string, publicName?: string, publicFingerprint?: string, topicId: string, title?: string }} input graph variation
  * @returns {Record<string, unknown>} graph з одним public process topic
  */
-function graph({ publicId, publicName = 'submitOrder', publicFingerprint = 'sha256:submit', topicId, title = publicName }) {
+function graph({
+  publicId,
+  publicName = 'submitOrder',
+  publicFingerprint = 'sha256:submit',
+  topicId,
+  title = publicName
+}) {
   return {
     domain: { id: DOMAIN_ID },
     nodes: [
@@ -34,7 +40,9 @@ function graph({ publicId, publicName = 'submitOrder', publicFingerprint = 'sha2
       }
     ],
     edges: [{ id: `edge:${publicId}`, fromId: publicId, toId: OUTCOME_ID, kind: 'produces', evidenceIds: ['e:flow'] }],
-    topics: [{ id: topicId, kind: 'process', title, domainId: DOMAIN_ID, anchorIds: [publicId, OUTCOME_ID], aliases: [] }]
+    topics: [
+      { id: topicId, kind: 'process', title, domainId: DOMAIN_ID, anchorIds: [publicId, OUTCOME_ID], aliases: [] }
+    ]
   }
 }
 
@@ -186,8 +194,14 @@ describe('reconcileTopicIdentities', () => {
       edges: [...first.edges, ...second.edges],
       topics: [...first.topics, ...second.topics]
     }
-    const nextFirst = graph({ publicId: `code-unit:${DOMAIN_ID}:js:src/new-a.mjs#submitOrder`, topicId: 'process:new-a' })
-    const nextSecond = graph({ publicId: `code-unit:${DOMAIN_ID}:js:src/new-b.mjs#submitOrder`, topicId: 'process:new-b' })
+    const nextFirst = graph({
+      publicId: `code-unit:${DOMAIN_ID}:js:src/new-a.mjs#submitOrder`,
+      topicId: 'process:new-a'
+    })
+    const nextSecond = graph({
+      publicId: `code-unit:${DOMAIN_ID}:js:src/new-b.mjs#submitOrder`,
+      topicId: 'process:new-b'
+    })
     const next = {
       ...nextFirst,
       nodes: [...nextFirst.nodes.filter(node => node.id !== OUTCOME_ID), ...nextSecond.nodes],
@@ -197,8 +211,18 @@ describe('reconcileTopicIdentities', () => {
 
     expect(reconcile(previous, next)).toEqual(
       reconcile(
-        { ...previous, nodes: [...previous.nodes].toReversed(), edges: [...previous.edges].toReversed(), topics: [...previous.topics].toReversed() },
-        { ...next, nodes: [...next.nodes].toReversed(), edges: [...next.edges].toReversed(), topics: [...next.topics].toReversed() }
+        {
+          ...previous,
+          nodes: [...previous.nodes].toReversed(),
+          edges: [...previous.edges].toReversed(),
+          topics: [...previous.topics].toReversed()
+        },
+        {
+          ...next,
+          nodes: [...next.nodes].toReversed(),
+          edges: [...next.edges].toReversed(),
+          topics: [...next.topics].toReversed()
+        }
       )
     )
   })

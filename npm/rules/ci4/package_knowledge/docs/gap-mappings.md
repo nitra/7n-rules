@@ -3,9 +3,9 @@ type: JS Module
 title: gap-mappings.mjs
 resource: npm/rules/ci4/package_knowledge/gap-mappings.mjs
 docgen:
-  crc: eae7d1e8
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
+  crc: f080ae50
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
   score: 80
   judgeModel: openai-codex/gpt-5.4-mini
 ---

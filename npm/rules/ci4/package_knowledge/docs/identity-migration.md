@@ -3,9 +3,9 @@ type: JS Module
 title: identity-migration.mjs
 resource: npm/rules/ci4/package_knowledge/identity-migration.mjs
 docgen:
-  crc: 7a64f2f8
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
+  crc: e861efd2
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
   score: 80
 ---
 

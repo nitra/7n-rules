@@ -96,10 +96,18 @@ describe('loadKnowledgeAdapters', () => {
   test('preserves optional full-parser test collector on knowledge extractor adapter', async () => {
     await withTmpDir(async repoRoot => {
       await installKnowledgePlugin(repoRoot, '@x/test-collector', {
-        extractor: "export default { id: 'extractor-js', apiVersion: 1, extensions: ['.js'], parser: { id: 'oxc', grammarVersion: '1', runtimeVersion: '1' }, analyzeFile: input => input, collectTestScenarios: () => ({ ok: true, scenarios: [] }) }\n"
+        extractor:
+          "export default { id: 'extractor-js', apiVersion: 1, extensions: ['.js'], parser: { id: 'oxc', grammarVersion: '1', runtimeVersion: '1' }, analyzeFile: input => input, collectTestScenarios: () => ({ ok: true, scenarios: [] }) }\n"
       })
-      const result = await loadKnowledgeAdapters({ repoRoot, domainRoot: repoRoot, config: { plugins: ['@x/test-collector'] } })
-      expect(result.adapters.extractor[0].collectTestScenarios({ file: { path: 'x.js', content: '' } })).toEqual({ ok: true, scenarios: [] })
+      const result = await loadKnowledgeAdapters({
+        repoRoot,
+        domainRoot: repoRoot,
+        config: { plugins: ['@x/test-collector'] }
+      })
+      expect(result.adapters.extractor[0].collectTestScenarios({ file: { path: 'x.js', content: '' } })).toEqual({
+        ok: true,
+        scenarios: []
+      })
     })
   })
 

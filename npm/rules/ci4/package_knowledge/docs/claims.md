@@ -3,9 +3,9 @@ type: JS Module
 title: claims.mjs
 resource: npm/rules/ci4/package_knowledge/claims.mjs
 docgen:
-  crc: 4b86fda7
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
+  crc: 318f4fc7
+  model: openai-codex/gpt-5.5
+  tier: cloud-avg
   score: 80
   judgeModel: openai-codex/gpt-5.4-mini
 ---

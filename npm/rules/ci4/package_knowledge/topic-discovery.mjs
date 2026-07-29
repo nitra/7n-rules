@@ -124,31 +124,47 @@ function titleForSeed(seed) {
 function aliasesForTopic(topicId, aliasesByTopicId) {
   const aliases = aliasesByTopicId?.[topicId]
   if (!Array.isArray(aliases)) return []
-  return [...new Set(aliases.filter(alias => typeof alias === 'string' && alias !== '' && alias !== topicId))].toSorted(
-    compareIds
-  )
+  return new Set(aliases.filter(alias => typeof alias === 'string' && alias !== '' && alias !== topicId))
+    .values()
+    .toArray()
+    .toSorted(compareIds)
 }
 
-/** Повертає legacy single-entry identity для migration aliases. */
+/**
+ * Повертає legacy single-entry identity для migration aliases.
+ * @param {string} domainId domain identity
+ * @param {Record<string, unknown>} seed public entry seed
+ * @param {string[]} outcomeIds reachable outcome IDs
+ * @param {string[]} contractIds reachable contract IDs
+ * @returns {string} legacy topic ID
+ */
 function singleEntryTopicId(domainId, seed, outcomeIds, contractIds) {
   return `process:${domainId}:${digest({ seedId: seed.id, outcomeIds, contractIds })}`
 }
 
-/** Групує тільки entry points з однаковим non-empty outcome/contract closure. */
+/**
+ * Групує тільки entry points з однаковим non-empty outcome/contract closure.
+ * @param {Record<string, unknown>} graph normalized graph
+ * @param {Array<Record<string, unknown>>} publicSeeds public entry points
+ * @param {Map<string, Record<string, unknown>>} nodeById graph nodes
+ * @returns {Array<{seeds: Array<Record<string, unknown>>, outcomeIds: string[], contractIds: string[]}>} grouped public flows
+ */
 function publicFlowGroups(graph, publicSeeds, nodeById) {
   const groups = new Map()
   for (const seed of publicSeeds) {
     const closure = collectReachableNodeIds(graph, [seed.id])
     const outcomeIds = closure.filter(id => nodeById.get(id)?.kind === 'outcome')
     const contractIds = closure.filter(id => isExternalIntegration(nodeById.get(id)))
-    const closureKey = outcomeIds.length + contractIds.length > 0
-      ? JSON.stringify({ outcomeIds, contractIds })
-      : `seed:${seed.id}`
+    const closureKey =
+      outcomeIds.length + contractIds.length > 0 ? JSON.stringify({ outcomeIds, contractIds }) : `seed:${seed.id}`
     const group = groups.get(closureKey) ?? { seeds: [], outcomeIds, contractIds }
     group.seeds.push(seed)
     groups.set(closureKey, group)
   }
-  return [...groups.values()].toSorted((left, right) => compareIds(left.seeds[0].id, right.seeds[0].id))
+  return groups
+    .values()
+    .toArray()
+    .toSorted((left, right) => compareIds(left.seeds[0].id, right.seeds[0].id))
 }
 
 /**
@@ -178,10 +194,11 @@ export function discoverTopics(graph, { aliasesByTopicId = {} } = {}) {
     const id = grouped
       ? `process:${domainId}:${digest({ entryIds: seeds.map(seed => seed.id), outcomeIds: group.outcomeIds, contractIds: group.contractIds })}`
       : legacyIds[0]
-    const aliases = [...new Set([
-      ...aliasesForTopic(id, aliasesByTopicId),
-      ...(grouped ? legacyIds : [])
-    ].filter(alias => alias !== id))].toSorted(compareIds)
+    const aliases = [
+      ...new Set(
+        [...aliasesForTopic(id, aliasesByTopicId), ...(grouped ? legacyIds : [])].filter(alias => alias !== id)
+      )
+    ].toSorted(compareIds)
     return {
       id,
       kind: 'process',
@@ -204,13 +221,14 @@ export function discoverTopics(graph, { aliasesByTopicId = {} } = {}) {
       kind,
       title: titleForSeed(seed),
       domainId,
-      anchorIds: [seed.id, ...outcomeIds, ...contractIds].filter((item, index, all) => all.indexOf(item) === index).toSorted(compareIds),
+      anchorIds: [seed.id, ...outcomeIds, ...contractIds]
+        .filter((item, index, all) => all.indexOf(item) === index)
+        .toSorted(compareIds),
       aliases: aliasesForTopic(id, aliasesByTopicId)
     }
   })
 
-  return [...publicTopics, ...standaloneTopics]
-    .toSorted((left, right) => compareIds(left.id, right.id))
+  return [...publicTopics, ...standaloneTopics].toSorted((left, right) => compareIds(left.id, right.id))
 }
 
 /**

@@ -171,7 +171,11 @@ describe('buildKnowledgeCandidate', () => {
     expect(result.graph.nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: configId, kind: 'config' }),
-        expect.objectContaining({ id: schemaId, kind: 'config', attributes: expect.objectContaining({ artifact: 'schema' }) }),
+        expect.objectContaining({
+          id: schemaId,
+          kind: 'config',
+          attributes: expect.objectContaining({ artifact: 'schema' })
+        }),
         expect.objectContaining({ id: contractId, kind: 'integration', visibility: 'external' })
       ])
     )

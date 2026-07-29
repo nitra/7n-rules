@@ -232,7 +232,11 @@ function validateMapPlan(chunks, graphEvidenceIds) {
         blockers.push(blocker('unknown-chunk-dependency', chunk.id, `Не знайдено dependency ${dependencyId}.`))
       } else if (dependency.wave >= chunk.wave) {
         blockers.push(
-          blocker('invalid-chunk-dependency-wave', chunk.id, `Dependency ${dependencyId} мусить бути у попередній wave.`)
+          blocker(
+            'invalid-chunk-dependency-wave',
+            chunk.id,
+            `Dependency ${dependencyId} мусить бути у попередній wave.`
+          )
         )
       }
     }
@@ -255,7 +259,12 @@ function validateMapPlan(chunks, graphEvidenceIds) {
   }
   for (const chunk of chunks) visit(chunk)
   if (blockers.length > 0) {
-    return { ok: false, blockers: blockers.toSorted((left, right) => `${left.code}:${left.chunkId}`.localeCompare(`${right.code}:${right.chunkId}`)) }
+    return {
+      ok: false,
+      blockers: blockers.toSorted((left, right) =>
+        `${left.code}:${left.chunkId}`.localeCompare(`${right.code}:${right.chunkId}`)
+      )
+    }
   }
   const byWave = new Map()
   for (const chunk of chunks) {
@@ -557,14 +566,17 @@ function createMapWork(chunk, completed, policy) {
 /**
  * Виконує map chunks у порядку dependency waves. Пізніший chunk фізично не
  * потрапляє в batch до successful/cached canonical result усіх dependencies.
- * @param {{byWave: Map<number, Array<Record<string, unknown>>>, cache: Record<string, unknown>, refs: Record<string, unknown>, policy: Record<string, unknown>, modelPolicy: string[], submitBatchImpl: Function, batchOptions: object}} input map execution state
+ * @param {{byWave: Map<number, Array<Record<string, unknown>>>, cache: Record<string, unknown>, refs: Record<string, unknown>, policy: Record<string, unknown>, modelPolicy: string[], submitBatchImpl: (model: string, items: Array<object>, options?: object) => Promise<Array<object>>, batchOptions: object}} input map execution state
  * @returns {Promise<{ok: true, work: Array<Record<string, unknown>>, results: Map<string, Record<string, unknown>>, allResults: Array<Record<string, unknown>>} | {ok: false, blockers: Array<Record<string, string>>}>} completed map work or blockers
  */
 async function resolveMapWaves({ byWave, cache, refs, policy, modelPolicy, submitBatchImpl, batchOptions }) {
   const results = new Map()
   const work = []
   const allResults = []
-  for (const wave of [...byWave.keys()].toSorted((left, right) => left - right)) {
+  for (const wave of byWave
+    .keys()
+    .toArray()
+    .toSorted((left, right) => left - right)) {
     const waveWork = byWave.get(wave).map(chunk => createMapWork(chunk, results, policy))
     const resolved = await resolveWave({ work: waveWork, cache, refs, modelPolicy, submitBatchImpl, batchOptions })
     if (resolved.blockers.length > 0) return { ok: false, blockers: resolved.blockers }
@@ -739,7 +751,11 @@ export async function buildStructuredClaims({
   })
   if (!mapped.ok) {
     await saveCache(cachePath, cache)
-    return { ok: false, blockers: mapped.blockers.toSorted((left, right) => left.chunkId.localeCompare(right.chunkId)), cache: cacheSnapshot(cache) }
+    return {
+      ok: false,
+      blockers: mapped.blockers.toSorted((left, right) => left.chunkId.localeCompare(right.chunkId)),
+      cache: cacheSnapshot(cache)
+    }
   }
   const allResults = [...mapped.allResults]
   let work = mapped.work

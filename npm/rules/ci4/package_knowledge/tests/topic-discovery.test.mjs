@@ -69,9 +69,7 @@ describe('discoverTopics', () => {
     const graph = graphFixture()
     const second = `code-unit:${DOMAIN_ID}:js:src/orders.mjs#retryOrder`
     graph.nodes.push({ id: second, kind: 'code-unit', name: 'retryOrder', visibility: 'public', domainId: DOMAIN_ID })
-    graph.edges.push(
-      { id: 'edge:retry-private', fromId: second, toId: PRIVATE_ID, evidenceIds: ['e:retry-private'] }
-    )
+    graph.edges.push({ id: 'edge:retry-private', fromId: second, toId: PRIVATE_ID, evidenceIds: ['e:retry-private'] })
 
     const topics = discoverTopics(graph)
 

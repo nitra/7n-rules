@@ -3,9 +3,9 @@ type: JS Module
 title: topic-discovery.mjs
 resource: npm/rules/ci4/package_knowledge/topic-discovery.mjs
 docgen:
-  crc: 900c29f9
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
+  crc: 2aba0243
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
   score: 80
 ---
 

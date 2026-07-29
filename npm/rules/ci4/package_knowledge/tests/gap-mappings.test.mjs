@@ -90,11 +90,21 @@ describe('compareClaimMappings', () => {
     const result = await compareClaimMappings({
       graph: sourceGraph,
       submitBatchImpl: vi.fn((tier, items) =>
-        Promise.resolve(items.map(item => ({ customId: item.customId, ok: comparison(item.customId, [{ implementedClaimId: divergent.id, relation: 'contradicts' }]) })))
+        Promise.resolve(
+          items.map(item => ({
+            customId: item.customId,
+            ok: comparison(item.customId, [{ implementedClaimId: divergent.id, relation: 'contradicts' }])
+          }))
+        )
       )
     })
 
-    expect(result).toMatchObject({ ok: true, mappings: [expect.objectContaining({ relation: 'contradicts', evidenceIds: ['evidence:expected', 'evidence:implemented'] })] })
+    expect(result).toMatchObject({
+      ok: true,
+      mappings: [
+        expect.objectContaining({ relation: 'contradicts', evidenceIds: ['evidence:expected', 'evidence:implemented'] })
+      ]
+    })
     expect(evaluateGaps({ graph: sourceGraph, mappings: result.mappings }).gaps[0].status).toBe('diverged')
   })
 
@@ -109,7 +119,13 @@ describe('compareClaimMappings', () => {
     })
 
     expect(result).toMatchObject({ ok: true, mappings: [], unresolvedExpectedClaimIds: [EXPECTED.id] })
-    expect(evaluateGaps({ graph: sourceGraph, mappings: result.mappings, unresolvedExpectedClaimIds: result.unresolvedExpectedClaimIds }).gaps[0].status).toBe('unresolved')
+    expect(
+      evaluateGaps({
+        graph: sourceGraph,
+        mappings: result.mappings,
+        unresolvedExpectedClaimIds: result.unresolvedExpectedClaimIds
+      }).gaps[0].status
+    ).toBe('unresolved')
   })
 
   test('escalates malformed results and reuses the unchanged successful cache', async () => {
@@ -117,7 +133,15 @@ describe('compareClaimMappings', () => {
     const sourceGraph = graph([EXPECTED, divergent])
     const cache = { entries: {} }
     const first = vi.fn((tier, items) =>
-      Promise.resolve(items.map(item => ({ customId: item.customId, ok: tier === 'min' ? 'not-json' : comparison(item.customId, [{ implementedClaimId: divergent.id, relation: 'equivalent' }]) })))
+      Promise.resolve(
+        items.map(item => ({
+          customId: item.customId,
+          ok:
+            tier === 'min'
+              ? 'not-json'
+              : comparison(item.customId, [{ implementedClaimId: divergent.id, relation: 'equivalent' }])
+        }))
+      )
     )
     const initial = await compareClaimMappings({ graph: sourceGraph, cache, submitBatchImpl: first })
     const second = vi.fn()

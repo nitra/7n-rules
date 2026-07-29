@@ -3,7 +3,7 @@ type: JS Module
 title: load-adapters.mjs
 resource: npm/rules/ci4/package_knowledge/load-adapters.mjs
 docgen:
-  crc: c58d0f43
+  crc: 82cbaae6
   model: openai-codex/gpt-5.5
   tier: cloud-avg
   score: 80

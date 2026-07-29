@@ -223,7 +223,13 @@ function factList(facts, fallback) {
   return facts.length > 0 ? facts.map(fact => `- ${fact}`).join('\n') : fallback
 }
 
-/** Рендерить тільки присутні evidence-backed claim categories у stable order. */
+/**
+ * Рендерить тільки присутні evidence-backed claim categories у stable order.
+ * @param {Array<Record<string, unknown>>} claims evidence-backed claims
+ * @param {Set<string>} hiddenNames private names
+ * @param {string} fallback absence text
+ * @returns {string} Markdown sections or fallback
+ */
 function claimSections(claims, hiddenNames, fallback) {
   const byPredicate = new Map()
   for (const claim of claims) {
@@ -233,18 +239,21 @@ function claimSections(claims, hiddenNames, fallback) {
     byPredicate.set(predicate, values)
   }
   const known = Object.keys(CLAIM_SECTION_TITLES).filter(predicate => byPredicate.has(predicate))
-  const unknown = [...byPredicate.keys()].filter(predicate => !Object.hasOwn(CLAIM_SECTION_TITLES, predicate)).toSorted(compareStrings)
+  const unknown = byPredicate
+    .keys()
+    .filter(predicate => !Object.hasOwn(CLAIM_SECTION_TITLES, predicate))
+    .toArray()
+    .toSorted(compareStrings)
   const sections = [...known, ...unknown].map(predicate => {
     const title = CLAIM_SECTION_TITLES[predicate] ?? 'Інші підтверджені факти'
-    const facts = [...new Set(byPredicate.get(predicate))]
-      .map(value => (Object.hasOwn(CLAIM_SECTION_TITLES, predicate) ? value : `${predicate}: ${value}.`))
-      .toSorted(compareStrings)
+    const facts = Array.from(new Set(byPredicate.get(predicate)), value =>
+      Object.hasOwn(CLAIM_SECTION_TITLES, predicate) ? value : `${predicate}: ${value}.`
+    ).toSorted(compareStrings)
     return `## ${title}\n\n${factList(facts, fallback)}`
   })
   return sections.length > 0 ? sections.join('\n\n') : fallback
 }
 
-/* eslint-disable unicorn/no-array-callback-reference -- named claim formatter is intentionally reused for both layers */
 /**
  * Collects topic-local public facts and reverse impact paths.
  * @param {{graph: Record<string, unknown>, topic: Record<string, unknown>, hiddenNames: Set<string>}} input render context
@@ -269,15 +278,25 @@ function topicFacts({ graph, topic, hiddenNames }) {
     ? [...impact.slice.files, ...impact.slice.tests, ...impact.slice.configs].toSorted(compareStrings)
     : []
   return {
-    implementedClaims: claims.filter(claim => claim.layer === 'implemented').toSorted((left, right) => compareStrings(left.id, right.id)),
-    expectedClaims: claims.filter(claim => claim.layer === 'expected').toSorted((left, right) => compareStrings(left.id, right.id)),
+    implementedClaims: claims
+      .filter(claim => claim.layer === 'implemented')
+      .toSorted((left, right) => compareStrings(left.id, right.id)),
+    expectedClaims: claims
+      .filter(claim => claim.layer === 'expected')
+      .toSorted((left, right) => compareStrings(left.id, right.id)),
     implemented: claims
       .filter(claim => claim.layer === 'implemented')
-      .map(claim => `${safeText(claim.predicate, hiddenNames, 'evidence-backed behavior')}: ${safeValue(claim.value, hiddenNames)}.`)
+      .map(
+        claim =>
+          `${safeText(claim.predicate, hiddenNames, 'evidence-backed behavior')}: ${safeValue(claim.value, hiddenNames)}.`
+      )
       .toSorted(compareStrings),
     expected: claims
       .filter(claim => claim.layer === 'expected')
-      .map(claim => `${safeText(claim.predicate, hiddenNames, 'evidence-backed behavior')}: ${safeValue(claim.value, hiddenNames)}.`)
+      .map(
+        claim =>
+          `${safeText(claim.predicate, hiddenNames, 'evidence-backed behavior')}: ${safeValue(claim.value, hiddenNames)}.`
+      )
       .toSorted(compareStrings),
     outcomes: namesFor('outcome'),
     contracts: namesFor('integration'),
@@ -285,7 +304,6 @@ function topicFacts({ graph, topic, hiddenNames }) {
     paths
   }
 }
-/* eslint-enable unicorn/no-array-callback-reference */
 
 /**
  * Builds a self-contained AS-IS fragment for one discovered topic.
@@ -327,7 +345,11 @@ function renderArchitecture({ graph, hiddenNames }) {
       ? boundaries.map(name => `- External boundary: ${name}`).join('\n')
       : '- Evidence-backed domain responsibility.'
   const architectureClaims = graph.claims
-    .filter(claim => claim.layer === 'implemented' && ['responsibility', 'config', 'persistence', 'integration', 'state-change'].includes(claim.predicate))
+    .filter(
+      claim =>
+        claim.layer === 'implemented' &&
+        ['responsibility', 'config', 'persistence', 'integration', 'state-change'].includes(claim.predicate)
+    )
     .toSorted((left, right) => compareStrings(left.id, right.id))
   if (architectureClaims.length > 0) {
     return `# Architecture: ${safeText(graph.domain.name, hiddenNames, 'Package domain')}\n\n## Implemented AS-IS\n\n${claimSections(architectureClaims, hiddenNames, 'Немає evidence-backed architecture claims.')}\n\n## Boundaries\n\n${lines}\n\n## Traceability\n\nManifest зберігає reverse evidence links до files, tests, configuration і contracts.\n`
@@ -335,7 +357,15 @@ function renderArchitecture({ graph, hiddenNames }) {
   return `# Architecture: ${safeText(graph.domain.name, hiddenNames, 'Package domain')}\n\n## Implemented AS-IS\n\nDomain architecture describes confirmed responsibilities and external boundaries without naming private implementation symbols.\n\n## Boundaries\n\n${lines}\n\n## Traceability\n\nThe manifest preserves reverse evidence links to files, tests, configuration and contracts.\n`
 }
 
-/* eslint-disable sonarjs/no-nested-template-literals -- String.raw is required for Mermaid quote escaping */
+/**
+ * Escapes a Mermaid node label without changing the rendered value.
+ * @param {string} value visible node label
+ * @returns {string} Mermaid-safe label
+ */
+function escapeMermaidLabel(value) {
+  return value.replaceAll('"', String.raw`\"`)
+}
+
 /**
  * Returns Mermaid only for a graph edge whose two visible endpoints are public.
  * @param {Record<string, unknown>} graph knowledge graph
@@ -352,9 +382,10 @@ function renderMermaid(graph, hiddenNames) {
   if (!edge) return ''
   const from = safeText(nodes.get(edge.fromId).name, hiddenNames, 'Source')
   const to = safeText(nodes.get(edge.toId).name, hiddenNames, 'Outcome')
-  return `\n\n\`\`\`mermaid\nflowchart LR\n  source["${from.replaceAll('"', String.raw`\"`)}"] --> target["${to.replaceAll('"', String.raw`\"`)}"]\n\`\`\``
+  const fromLabel = escapeMermaidLabel(from)
+  const toLabel = escapeMermaidLabel(to)
+  return `\n\n\`\`\`mermaid\nflowchart LR\n  source["${fromLabel}"] --> target["${toLabel}"]\n\`\`\``
 }
-/* eslint-enable sonarjs/no-nested-template-literals */
 
 /**
  * Builds the required package navigation page.

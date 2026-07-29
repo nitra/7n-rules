@@ -105,7 +105,13 @@ function validateMapping(mapping, expectedById, implementedById, evidenceIds) {
  * @param {{ graph: Record<string, unknown>, mappings?: unknown[], unresolvedExpectedClaimIds?: string[], validation?: { parser?: { ok?: boolean, message?: string }, coverage?: { ok?: boolean, message?: string } }, minimumConfidence?: number }} input graph and exact comparison facts
  * @returns {{ ok: true, gaps: Array<Record<string, unknown>> } | { ok: false, diagnostics: Array<{ code: string, message: string }> }} sorted gaps or publication blockers
  */
-export function evaluateGaps({ graph, mappings = [], unresolvedExpectedClaimIds = [], validation = {}, minimumConfidence = 1 }) {
+export function evaluateGaps({
+  graph,
+  mappings = [],
+  unresolvedExpectedClaimIds = [],
+  validation = {},
+  minimumConfidence = 1
+}) {
   const blockers = validationBlockers(validation)
   if (blockers.length > 0) return { ok: false, diagnostics: blockers }
   if (!graph || typeof graph !== 'object' || !Array.isArray(graph.claims) || !Array.isArray(graph.evidence)) {
@@ -121,7 +127,10 @@ export function evaluateGaps({ graph, mappings = [], unresolvedExpectedClaimIds 
     return {
       ok: false,
       diagnostics: [
-        diagnostic('invalid-gap-input', 'mappings та unresolvedExpectedClaimIds мають бути масивами, minimumConfidence — числом від 0 до 1.')
+        diagnostic(
+          'invalid-gap-input',
+          'mappings та unresolvedExpectedClaimIds мають бути масивами, minimumConfidence — числом від 0 до 1.'
+        )
       ]
     }
   }
@@ -138,7 +147,12 @@ export function evaluateGaps({ graph, mappings = [], unresolvedExpectedClaimIds 
   ) {
     return {
       ok: false,
-      diagnostics: [diagnostic('invalid-unresolved-expected', 'unresolvedExpectedClaimIds містить невідомий або дубльований expected claim.')]
+      diagnostics: [
+        diagnostic(
+          'invalid-unresolved-expected',
+          'unresolvedExpectedClaimIds містить невідомий або дубльований expected claim.'
+        )
+      ]
     }
   }
   const unresolvedExpected = new Set(unresolvedExpectedClaimIds)
@@ -177,7 +191,13 @@ export function evaluateGaps({ graph, mappings = [], unresolvedExpectedClaimIds 
     )
     const relations = new Set(claimMappings.map(mapping => mapping.relation))
     let status
-    if (unresolvedExpected.has(expectedClaim.id) || !strongExpected || !strongMappings || !strongImplemented || relations.size > 1) {
+    if (
+      unresolvedExpected.has(expectedClaim.id) ||
+      !strongExpected ||
+      !strongMappings ||
+      !strongImplemented ||
+      relations.size > 1
+    ) {
       status = 'unresolved'
     } else if (claimMappings.length === 0) {
       status = 'missing'

@@ -172,7 +172,7 @@ function validateExtractorAdapter(adapter, contribution) {
       runtimeVersion: parser.runtimeVersion
     }),
     analyzeFile: adapter.analyzeFile,
-    ...(typeof adapter.collectTestScenarios === 'function' ? { collectTestScenarios: adapter.collectTestScenarios } : {})
+    ...(typeof adapter.collectTestScenarios === 'function' && { collectTestScenarios: adapter.collectTestScenarios })
   })
 }
 
@@ -197,7 +197,7 @@ async function loadAdapter(contribution, slot, validate) {
     }
   }
   try {
-    // eslint-disable-next-line no-unsanitized/method
+    // eslint-disable-next-line no-unsanitized/method -- plugin slot resolver supplies a real resource path inside the explicit repository root
     const mod = await import(pathToFileURL(contribution.resourcePath).href)
     const adapter = validate(mod.default, contribution)
     if (!adapter) {

@@ -3,9 +3,9 @@ type: JS Module
 title: normalized-graph.mjs
 resource: npm/rules/ci4/package_knowledge/normalized-graph.mjs
 docgen:
-  crc: 51a473e3
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min-retry
+  crc: 6089f0af
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
   score: 80
 ---
 

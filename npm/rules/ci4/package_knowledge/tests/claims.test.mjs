@@ -163,11 +163,15 @@ describe('buildStructuredClaims', () => {
 
   test('requires a behavioral claim for every required semantic unit and states the stable taxonomy in the prompt', async () => {
     const submitBatchImpl = vi.fn((tier, items) => {
-      expect(items[0].prompt).toContain('purpose, actor, trigger, precondition, step, business-rule, state-change, integration, outcome')
-      return Promise.resolve(items.map(item => ({
-        customId: item.customId,
-        ok: JSON.stringify({ claims: [], coveredNodeIds: ['node:submit'], coveredEdgeIds: [] })
-      })))
+      expect(items[0].prompt).toContain(
+        'purpose, actor, trigger, precondition, step, business-rule, state-change, integration, outcome'
+      )
+      return Promise.resolve(
+        items.map(item => ({
+          customId: item.customId,
+          ok: JSON.stringify({ claims: [], coveredNodeIds: ['node:submit'], coveredEdgeIds: [] })
+        }))
+      )
     })
 
     const result = await buildStructuredClaims({
@@ -178,7 +182,10 @@ describe('buildStructuredClaims', () => {
       submitBatchImpl
     })
 
-    expect(result).toMatchObject({ ok: false, blockers: [{ code: 'behavioral-coverage-incomplete', chunkId: 'chunk:submit' }] })
+    expect(result).toMatchObject({
+      ok: false,
+      blockers: [{ code: 'behavioral-coverage-incomplete', chunkId: 'chunk:submit' }]
+    })
   })
 
   test('blocks missing result and uncovered required edge', async () => {
@@ -262,13 +269,15 @@ describe('buildStructuredClaims', () => {
           items.map(item => ({
             customId: item.customId,
             ok: JSON.stringify({
-              claims: [{
-                subjectId: 'node:submit',
-                predicate: 'arbitrary-relation',
-                value: 'order',
-                evidenceIds: ['evidence:submit'],
-                confidence: 1
-              }],
+              claims: [
+                {
+                  subjectId: 'node:submit',
+                  predicate: 'arbitrary-relation',
+                  value: 'order',
+                  evidenceIds: ['evidence:submit'],
+                  confidence: 1
+                }
+              ],
               coveredNodeIds: ['node:submit'],
               coveredEdgeIds: []
             })
@@ -298,7 +307,10 @@ describe('buildStructuredClaims', () => {
       submitBatchImpl
     })
 
-    expect(missing).toMatchObject({ ok: false, blockers: [{ code: 'unknown-chunk-dependency', chunkId: 'chunk:submit' }] })
+    expect(missing).toMatchObject({
+      ok: false,
+      blockers: [{ code: 'unknown-chunk-dependency', chunkId: 'chunk:submit' }]
+    })
     expect(cyclic).toMatchObject({ ok: false })
     expect(cyclic.blockers).toContainEqual(expect.objectContaining({ code: 'cyclic-chunk-dependency' }))
     expect(submitBatchImpl).not.toHaveBeenCalled()
