@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: plugins/lang-js/rules/vue/packages
-resource: plugins/lang-js/rules/vue/packages/
+title: plugins/lang-js/rules/js/utils_imports
+resource: plugins/lang-js/rules/js/utils_imports/
 ---
 
 | Файл                | Тип       |

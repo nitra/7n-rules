@@ -2,8 +2,6 @@
 
 **Дата:** 2026-07-27
 **Статус:** погоджено — готово до реалізації
-**Верифікація:** звірено з фактичним станом кодової бази 2026-07-27; внесені адаптації —
-розділ «Історія адаптацій» наприкінці
 **Зв'язані документи:** `docs/specs/2026-07-18-lang-plugins-extraction-spec.md`,
 `npm/scripts/lib/resolve-plugins.mjs`, `npm/scripts/lib/plugin-api.mjs`,
 `npm/scripts/lib/skill-fragments.mjs`
@@ -14,9 +12,8 @@ PHP-specific поведінка зараз розподілена між кіл�
 
 - `npm/rules/php/**` містить правило, lint concerns і PHP tooling documentation у core-пакеті
   `@7n/rules`;
-- `plugins/ci-github/rules/php/lint_php_yml/**` містить PHP-specific GitHub Actions workflow
-  (template `lint-php.yml.snippet.yml`), validation і T0 fix;
-- `plugins/ci-azure/rules/php/lint_pipeline_php/**` містить PHP-specific Azure validation;
+- `plugins/ci-github/rules/php/**` містить PHP-specific GitHub Actions workflow, validation і fix;
+- `plugins/ci-azure/rules/php/**` містить PHP-specific Azure validation;
 - `plugins/ci-github/rules/text/lint_text/**` і кореневий `.github/workflows/lint-text.yml`
   безумовно містять PHP glob;
 - історичні docs/ADR, license identifiers, Docker image names і назви сторонніх actions також
@@ -218,10 +215,6 @@ clearSlotResolveCache()
 - один filesystem/plugin scan на `(projectRoot, config, allowInstall)`;
 - immutable result;
 - deterministic ordering;
-- `resolveSlotGraph()` і `getSlotContributions()` **синхронні**: hot-path hook сьогодні
-  читає `doc-files` extensions синхронно без динамічного import
-  (див. коментар у `readPluginManifest`), і slot graph зберігає цю властивість;
-  асинхронним є лише `loadSlotConsumer()`;
 - diagnostics містять severity, code, plugin, slot, version і message;
 - module import відбувається лише в `loadSlotConsumer()`;
 - `allowInstall:false` ніколи не виконує network або package mutation.
@@ -234,17 +227,12 @@ clearSlotResolveCache()
 | `skills.fragment` | 1 | Markdown file + `value.skillId` | core skill sync |
 | `doc-files.extensions` | 1 | inline map `extension → document type` | core sync hot-path |
 | `doc-files.extractor` | 1 | module resource | core doc-files generation |
-| `taze.provider` | 1 | module resource | core taze orchestrator і CLI-підкоманда `n-rules taze` |
+| `taze.provider` | 1 | module resource | core taze orchestrator |
 | `coverage.provider` | 1 | module resource | core coverage orchestration |
 | `ci.artifact` | 1 | JSON descriptor resource | active CI plugin consumer |
 
 Нові surfaces не додають top-level fields у `n-rules`. Вони визначають новий slot contract,
 version і consumer.
-
-Payload contract `taze.provider@1` покриває **обидва** чинні способи споживання
-handler-модуля: default export `EcosystemProvider` (оркестратор) і named export
-`runTazeCli` (read-only `n-rules taze diff`). Обидва — частина документованого контракту
-слота, а не приватна деталь плагіна.
 
 ## 5. Повна міграція на slots
 
@@ -254,34 +242,21 @@ handler-модуля: default export `EcosystemProvider` (оркестратор
 2. Додати envelope validators та path containment checks.
 3. Додати slot graph, cache й diagnostics.
 4. Перевести `resolveRulesDirs()` на `rules.directory@1`.
-5. Замінити `getHandlers(..., 'taze')` на `taze.provider@1`. Це два call sites:
-   оркестратор (`npm/skills/taze/js/orchestrate.mjs`) і CLI-підкоманда `taze` у
-   `npm/bin/n-rules-cli.mjs`, яка зараз шукає handler за **hardcoded package name**
-   `@7n/rules-lang-js` і імпортує named export `runTazeCli`. Після міграції вибір —
-   за стабільним contribution `id` (не за npm-іменем пакета); package-name literal у
-   core видаляється.
-6. Замінити `getHandlers(..., 'coverage')` (call site: `npm/rules/test/coverage/main.mjs`)
-   на `coverage.provider@1`.
-7. Замінити `getDocFilesExtensions()` (call site:
-   `npm/rules/doc-files/docgen-scan/lang-extensions.mjs`) на `doc-files.extensions@1`.
-8. Замінити `getHandlers(..., 'doc-files')` (той самий `lang-extensions.mjs`) на
-   `doc-files.extractor@1`.
-9. Замінити `collectSkillFragments()` convention scan (call site: skill sync у
-   `npm/bin/n-rules-cli.mjs`) на `skills.fragment@1`.
+5. Замінити `getHandlers(..., 'taze')` на `taze.provider@1`.
+6. Замінити `getHandlers(..., 'coverage')` на `coverage.provider@1`.
+7. Замінити `getDocFilesExtensions()` на `doc-files.extensions@1`.
+8. Замінити `getHandlers(..., 'doc-files')` на `doc-files.extractor@1`.
+9. Замінити `collectSkillFragments()` convention scan на `skills.fragment@1`.
 10. Видалити legacy normalizers і exports:
     - `manifest.contributes.rules`;
     - `manifest.contributes.handlers`;
-    - `manifest.contributes.docFiles.extensions` (внутрішньо нормалізується
-      `readPluginManifest` як `docFilesExtensions`);
+    - `manifest.contributes.docFilesExtensions`;
     - `getHandlers()`;
     - `getDocFilesExtensions()`;
     - convention-only fragment lookup.
-11. `getActiveCapabilities()` (call site: `npm/scripts/lib/lint-surface/run-detectors.mjs`)
-    зберігає сигнатуру, але живиться зі slot graph — той самий scan/cache.
-12. Додати machine-readable manifest schema та fixtures для валідного/невалідного graph.
+11. Додати machine-readable manifest schema та fixtures для валідного/невалідного graph.
 
-Після міграції core не знає package names конкретних мов, крім таблиці автодетекту
-(`KNOWN_LANG_PLUGINS`/`KNOWN_CI_PLUGINS`).
+Після міграції core не знає package names конкретних мов, крім таблиці автодетекту.
 
 ### 5.2. Наявні language plugins
 
@@ -290,11 +265,9 @@ handler-модуля: default export `EcosystemProvider` (оркестратор
 - `contributes.rules` → `rules.directory@1`;
 - `handlers.taze` → `taze.provider@1`;
 - `handlers.coverage` → `coverage.provider@1`;
-- `handlers.doc-files` → `doc-files.extractor@1` (лише `lang-js` і `lang-rust`;
-  `lang-python` extractor-а не має);
+- `handlers.doc-files` → `doc-files.extractor@1`;
 - `docFiles.extensions` → `doc-files.extensions@1`;
-- `skills/taze/SKILL.fragment.md` (єдиний чинний fragment у всіх трьох плагінах) →
-  explicit `skills.fragment@1`.
+- `skills/taze/SKILL.fragment.md` → explicit `skills.fragment@1`.
 
 Файли provider/extractor/fragment можна не переміщати, якщо новий `resource` вказує на
 чинний безпечний path. Поведінка provider modules і payload types не змінюється.
@@ -309,10 +282,7 @@ handler-модуля: default export `EcosystemProvider` (оркестратор
 - видаляють PHP-specific rule directories після parity tests;
 - не імпортують `@7n/rules-lang-php`;
 - не містять `php`, `composer`, `phpstan`, `psalm`, `phpcs`, `php-cs-fixer` або PHP setup
-  literals у production code/templates, **за винятками з таблиці розділу 8**: назва
-  third-party action `phpdocker-io/github-actions-delete-abandoned-branches`
-  (rules `ga/clean_merged_branch`, `abie/clean_merged_ignore_branches`) і `*.php` як
-  ілюстративний приклад у doc-коментарі `ga/workflows/main.mjs` — не є language ownership.
+  literals у production code/templates.
 
 ## 6. Новий пакет `@7n/rules-lang-php`
 
@@ -348,8 +318,7 @@ php: {
 }
 ```
 
-Root-only signal зберігає поточну семантику `npm/rules/php/main.json`
-(`auto.glob: "composer.json"` без `**/` матчить лише кореневий шлях). Підтримка nested
+Root-only signal зберігає поточну семантику `npm/rules/php/main.json`. Підтримка nested
 Composer workspaces не входить у extraction і потребує окремого рішення.
 
 ### 6.1. Перенесення PHP rule
@@ -369,10 +338,7 @@ plugins/lang-php/rules/php/**
 - `cs_fixer` як per-file `**/*.php`;
 - `phpcs` як per-file `**/*.php`;
 - `project` як full-only;
-- `tooling` як full, включно з чинним lint glob
-  (`composer.json`, `package.json`, `.github/workflows/lint-php.yml`) — GitHub-specific
-  path у lang-правилі легальний, бо за рішенням Д provider-specific PHP artifacts
-  належать саме `lang-php`;
+- `tooling` як full;
 - усі violation reason IDs і user-facing command names;
 - `composer audit` як mandatory при активному PHP project;
 - optional skip для відсутніх vendor tools;
@@ -442,8 +408,7 @@ Consumer відхиляє невідомі поля payload у v1. Нове по
 - canonical mismatch → violation; fix виконує idempotent deep merge;
 - diagnostics містять contributor plugin та `artifactId`.
 
-PHP contributions переносять у `lang-php` (сьогодні —
-`plugins/ci-github/rules/php/lint_php_yml/**`):
+PHP contributions переносять у `lang-php`:
 
 1. повний чинний `lint-php.yml.snippet.yml`;
 2. patch до `lint-text.yml`, який додає `**/*.php` у `push.paths` і
@@ -458,33 +423,29 @@ consumer-а використовують нейтральні fixture identifier
 
 - підтримує `contains-step`;
 - обходить `steps/jobs/stages` на будь-якій глибині;
-- приймає canonical command або загальний `n-rules lint --no-fix --full`
-  (обидві гілки вже є у чинному `lint_pipeline_php.rego`);
+- приймає canonical command або загальний `n-rules lint --no-fix --full`;
 - перевіряє read-only marker `--no-fix`;
 - у v1 зберігає чинну поведінку `fix: false`;
 - diagnostics формуються з descriptor, без PHP literals у consumer.
 
-PHP step/template та message data живуть у `lang-php` (сьогодні —
-`plugins/ci-azure/rules/php/lint_pipeline_php/**`).
+PHP step/template та message data живуть у `lang-php`.
 
 ## 8. Класифікація всіх PHP-згадок
 
 | Категорія | Дія |
 |---|---|
 | `npm/rules/php/**` | Перенести в `plugins/lang-php/rules/php/**` |
-| `plugins/ci-github/rules/php/lint_php_yml/**` | Замінити generic consumer-ом; PHP payload/template/fix перенести в `lang-php` |
-| `plugins/ci-azure/rules/php/lint_pipeline_php/**` | Замінити generic consumer-ом; PHP payload/template перенести в `lang-php` |
+| `plugins/ci-github/rules/php/**` | Замінити generic consumer-ом; PHP payload/template перенести в `lang-php` |
+| `plugins/ci-azure/rules/php/**` | Замінити generic consumer-ом; PHP payload/template перенести в `lang-php` |
 | PHP glob у `lint-text` template/workflow | Винести в `lang-php` `patch-existing` contribution |
 | Активні tests PHP rule/CI | Перенести PHP-specific fixtures до `lang-php`; generic consumer tests залишити у CI plugins |
 | `KNOWN_LANG_PLUGINS` | Додати PHP autodetection |
-| Hardcoded `@7n/rules-lang-js` у CLI-підкоманді `taze` | Замінити вибором за contribution `id` (див. 5.1.5) — попутне очищення, без зміни поведінки |
 | Root workspaces/devDependencies/lock | Додати `lang-php` |
 | Поточні docs/index поруч із PHP code | Перенести разом із code і оновити links |
 | Історичні `docs/specs/**`, `docs/adr/**`, CHANGELOG | Не переписувати; це historical record |
 | `PHP-3.0`, `PHP-3.01` у Blue Oak data | Залишити: це SPDX/license identifiers |
 | `php` як дозволений Docker base image | Залишити в Docker rule |
-| `phpdocker-io/github-actions-delete-abandoned-branches` | Залишити в CI rules (`ga/clean_merged_branch`, `abie/clean_merged_ignore_branches`): це назва third-party action, не language logic |
-| `*.php` у doc-коментарі `ci-github/rules/ga/workflows/main.mjs` | Залишити: ілюстративний приклад glob-а, не language logic |
+| `phpdocker-io/github-actions-delete-abandoned-branches` | Залишити в CI rule: це назва third-party action, не language logic |
 | Приклади fenced code block `php` у documentation | Залишити там, де це syntax label або історичний приклад |
 | Generated/cache/report files | Не редагувати вручну; regenerated artifacts перевірити окремо |
 
@@ -498,8 +459,6 @@ PHP step/template та message data живуть у `lang-php` (сьогодні
 
 1. Manifest parse failure — plugin diagnostic, explicit CLI non-zero.
 2. `requiresPluginApi !== 2` — plugin не входить у graph; diagnostic містить required/actual.
-   Це стосується і плагінів **без** поля `requiresPluginApi` (усі дотеперішні manifests його
-   не декларують — core v1 поле ніколи не читав).
 3. Unsafe resource/handler path — hard error, resource не читається.
 4. Missing resource — hard error із plugin/slot/id/path.
 5. Unknown slot без consumer — silent no-op.
@@ -516,21 +475,6 @@ PHP step/template та message data живуть у `lang-php` (сьогодні
 
 Усі кроки виконуються в одному feature branch; target state мерджиться без legacy API.
 
-### Фаза 0 — передумова у поточній 1.x лінії (окремий PR поза feature branch)
-
-Чинний core **декларує** намір «плагін декларує `requiresPluginApi`, несумісність → skip»
-(коментар до `PLUGIN_API_VERSION` у `plugin-api.mjs`), але ніде його не читає. Без цього
-старий core, який автовстановлює плагіни без версії (`ensurePluginInstalled` →
-`bun add -d <pkg>` → latest), мовчки завантажив би нові slots-manifests як rules-only і
-втратив handlers/doc-files/fragments — без жодного diagnostic.
-
-1. Реалізувати у 1.x задекларований skip: плагін із `requiresPluginApi >
-   PLUGIN_API_VERSION` пропускається з warning (назва плагіна, required/actual).
-2. `ensurePluginInstalled` ставить first-party плагіни з major-обмеженням, сумісним із
-   поточною core-лінією (`bun add -d <pkg>@^<major>`), щоб автоінстал не приносив
-   несумісний major.
-3. Випустити це патч-релізом і дати йому розійтись **до** stable-промоції slots-набору.
-
 ### Фаза 1 — contract і broker
 
 1. Додати manifest schema, JSDoc types і fixtures.
@@ -541,11 +485,10 @@ PHP step/template та message data живуть у `lang-php` (сьогодні
 
 ### Фаза 2 — повна first-party migration
 
-1. Перевести core consumers на canonical slots (інвентар call sites — розділ 5.1).
+1. Перевести core consumers на canonical slots.
 2. Переписати manifests `lang-js`, `lang-python`, `lang-rust`, `ci-github`, `ci-azure`.
 3. Перевести explicit skill fragments.
-4. Запустити parity tests taze (оркестратор **і** CLI `taze diff`), coverage, doc-files,
-   rule discovery і skill sync.
+4. Запустити parity tests taze, coverage, doc-files, rule discovery і skill sync.
 5. Видалити legacy parsing/functions/tests.
 6. Gate: production `rg` не знаходить legacy manifest fields та imports.
 
@@ -594,22 +537,15 @@ PHP step/template та message data живуть у `lang-php` (сьогодні
 
 Release train:
 
-1. випустити патч 1.x із Фази 0 (enforcement `requiresPluginApi` + major-обмежений
-   автоінстал) і дочекатись його доступності;
-2. опублікувати узгоджений набір під pre-release dist-tag;
-3. виконати black-box install у чистих JS, PHP, Python і Rust fixtures;
-4. перевірити auto-install та explicit `.n-rules.json.plugins`;
-5. просувати весь набір у stable release як один coordinated operation;
-6. у release notes дати одну команду coordinated upgrade для explicit plugin users.
+1. опублікувати узгоджений набір під pre-release dist-tag;
+2. виконати black-box install у чистих JS, PHP, Python і Rust fixtures;
+3. перевірити auto-install та explicit `.n-rules.json.plugins`;
+4. просувати весь набір у stable release як один coordinated operation;
+5. у release notes дати одну команду coordinated upgrade для explicit plugin users.
 
-У target stable line немає runtime legacy adapter. Сумісність між лініями асиметрична, і
-спека це фіксує чесно:
-
-- **новий core + старі plugins**: старий manifest не декларує `requiresPluginApi: 2` →
-  плагін не входить у graph, diagnostic зрозумілий (розділ 9.2);
-- **старий core + нові plugins**: лише core з патчем Фази 0 дає зрозумілий skip-warning;
-  core без патча завантажив би нові плагіни як rules-only із мовчазною втратою handlers —
-  саме тому Фаза 0 і major-обмежений автоінстал є **передумовою** stable-промоції.
+У target stable line немає runtime legacy adapter. Старий core і старі plugins лишаються
+сумісними у своїй попередній release line; змішування major lines завершується зрозумілою
+plugin API compatibility error.
 
 ## 12. Tests і acceptance criteria
 
@@ -626,20 +562,15 @@ Release train:
 ### Full migration
 
 - у first-party manifests немає `contributes`;
-- у production code немає `getHandlers`, `getDocFilesExtensions`, implicit
-  `SKILL.fragment.md` scanning або package-name literals мовних плагінів поза таблицею
-  автодетекту (включно з `@7n/rules-lang-js` у CLI-підкоманді `taze`);
-- `rules`, skills, doc-files, taze (оркестратор і `taze diff`) і coverage parity tests
-  зелені;
+- у production code немає `getHandlers`, `getDocFilesExtensions` або implicit
+  `SKILL.fragment.md` scanning;
+- `rules`, skills, doc-files, taze і coverage parity tests зелені;
 - один plugin resolver/cache обслуговує всі surfaces.
 
 ### PHP
 
 - `n-rules lint php` має той самий scope, commands, skip policy, reason IDs і output semantics;
-- `composer.json` автоматично активує/встановлює `@7n/rules-lang-php` при повному
-  автодетекті та при per-category backfill; якщо категорія `lang` зафіксована явним
-  списком у `.n-rules.json.plugins` — плагін не домішується, це очікувана семантика
-  (ADR `260719-2154-per-category-автодетект-плагінів`);
+- `composer.json` автоматично активує/встановлює `@7n/rules-lang-php`;
 - без `composer.json` немає PHP plugin dependency або PHP diagnostics;
 - GitHub/Azure artifacts еквівалентні попередньому канону;
 - PHP glob у `lint-text` з'являється лише з активним `lang:php`;
@@ -663,34 +594,3 @@ Release train:
 versioning, rollout і PHP ownership ухвалені цією специфікацією. Нові PHP capabilities
 (`taze`, coverage, doc-files extraction) є окремими features, а не відкритими питаннями
 цього extraction.
-
-## Історія адаптацій
-
-**2026-07-27 — звірка з кодовою базою.** Погоджені рішення не змінені; уточнено факти:
-
-1. **CLI `n-rules taze` hardcode.** `npm/bin/n-rules-cli.mjs` шукає taze-handler за
-   package name `@7n/rules-lang-js` і імпортує named export `runTazeCli` — спека тепер
-   явно включає цей call site у міграцію (5.1.5), фіксує named export у контракті
-   `taze.provider@1` (розділ 4) і додає parity-перевірку `taze diff` (Фаза 2, розділ 12).
-2. **`requiresPluginApi` ніколи не читався.** Чинний core лише декларує
-   `PLUGIN_API_VERSION = 1`; жоден manifest поля не має, enforcement відсутній. Тому
-   «старий core + нові plugins» без додаткових дій деградує мовчки, а не падає зі
-   зрозумілою помилкою. Додано Фазу 0 (патч 1.x: skip-enforcement + major-обмежений
-   `ensurePluginInstalled`) як передумову release train; розділ 11 переписано чесно про
-   асиметрію сумісності.
-3. **Синхронність hot-path.** `getDocFilesExtensions()` сьогодні синхронний саме для
-   hook hot-path; вимогу синхронності `resolveSlotGraph()`/`getSlotContributions()`
-   зафіксовано у 3.4.
-4. **Точні імена/шляхи.** Manifest-поле — `contributes.docFiles.extensions`
-   (а не `docFilesExtensions`, це внутрішня нормалізована назва); PHP CI rules —
-   `ci-github/rules/php/lint_php_yml/**` і `ci-azure/rules/php/lint_pipeline_php/**`;
-   доданий інвентар усіх legacy call sites у 5.1; `lang-python` не має doc-files
-   extractor-а (5.2); Azure rego вже приймає обидві команди (7.3).
-5. **Винятки PHP-literals у CI plugins.** До «жодних PHP literals» (5.3) додано явні
-   винятки з таблиці 8: назва third-party action `phpdocker-io/...` і `*.php` у
-   doc-коментарі `ga/workflows/main.mjs`.
-6. **Уточнення acceptance.** Автоактивація `lang-php` описана з урахуванням
-   per-category backfill (ADR `260719-2154`): явно зафіксована категорія `lang` не
-   домішується — це очікувано, а не регресія.
-7. **`tooling` glob.** Концерн `tooling` правила `php` лінтує зокрема
-   `.github/workflows/lint-php.yml`; зафіксовано у 6.1, що glob переїжджає як є.
