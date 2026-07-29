@@ -7,6 +7,7 @@ import { Buffer } from 'node:buffer'
 
 import PhpParser from 'php-parser'
 
+// cspell:ignore usegroup propertylookup staticlookup
 const EXTENSIONS = Object.freeze(['.php'])
 const PARSER = Object.freeze({ id: 'php-parser', grammarVersion: 'php-8.3', runtimeVersion: 'php-parser-3.7.0' })
 
@@ -296,4 +297,5 @@ const phpKnowledgeExtractor = Object.freeze({
   analyzeFile
 })
 
+/** Експортує PHP full-parser adapter для knowledge.extractor@1. */
 export default phpKnowledgeExtractor

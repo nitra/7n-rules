@@ -18,7 +18,16 @@ const PARSER = Object.freeze({
   grammarVersion: 'tree-sitter-rust-0.24.0',
   runtimeVersion: 'web-tree-sitter-0.26.11'
 })
-const UNIT_TYPES = new Set(['function_item', 'struct_item', 'enum_item', 'trait_item', 'type_item', 'const_item', 'static_item', 'mod_item'])
+const UNIT_TYPES = new Set([
+  'function_item',
+  'struct_item',
+  'enum_item',
+  'trait_item',
+  'type_item',
+  'const_item',
+  'static_item',
+  'mod_item'
+])
 const require = createRequire(import.meta.url)
 const RUST_WASM_PATH = require.resolve('tree-sitter-rust/tree-sitter-rust.wasm')
 
@@ -92,7 +101,10 @@ function childOfType(node, type) {
  * @returns {string | null} identifier
  */
 function itemName(node) {
-  const preferred = node.type === 'struct_item' || node.type === 'enum_item' || node.type === 'trait_item' || node.type === 'type_item' ? 'type_identifier' : 'identifier'
+  const preferred =
+    node.type === 'struct_item' || node.type === 'enum_item' || node.type === 'trait_item' || node.type === 'type_item'
+      ? 'type_identifier'
+      : 'identifier'
   return childOfType(node, preferred)?.text ?? childOfType(node, 'identifier')?.text ?? null
 }
 
@@ -111,7 +123,16 @@ function visibility(node, inherited = 'private') {
  * @param {{ node: import('web-tree-sitter').SyntaxNode, filePath: string, content: string, name: string, kind?: string, inheritedVisibility?: 'public'|'private', scope?: string | null, ordinals: Map<string, number> }} input unit source
  * @returns {Record<string, unknown>} normalized local unit
  */
-function createUnit({ node, filePath, content, name, kind = node.type, inheritedVisibility = 'private', scope = null, ordinals }) {
+function createUnit({
+  node,
+  filePath,
+  content,
+  name,
+  kind = node.type,
+  inheritedVisibility = 'private',
+  scope = null,
+  ordinals
+}) {
   const scopedName = scope ? `${scope}::${name}` : name
   const ordinal = ordinals.get(scopedName) ?? 0
   ordinals.set(scopedName, ordinal + 1)
@@ -143,7 +164,8 @@ function collectUnits(root, filePath, content) {
     if (UNIT_TYPES.has(node.type)) {
       const name = itemName(node)
       if (name) units.push(createUnit({ node, filePath, content, name, ordinals }))
-      if (node.type === 'trait_item') collectAssociatedUnits(node, name, visibility(node), filePath, content, ordinals, units)
+      if (node.type === 'trait_item')
+        collectAssociatedUnits(node, name, visibility(node), filePath, content, ordinals, units)
       continue
     }
     if (node.type === 'impl_item') {
@@ -293,7 +315,11 @@ function collectImports(root, content) {
     if (declaration.type !== 'use_declaration') continue
     const target = declaration.namedChildren[0]
     if (!target) continue
-    imports.push({ specifier: target.text, bindings: bindingsForUseTarget(target, importedBindings), span: span(content, declaration) })
+    imports.push({
+      specifier: target.text,
+      bindings: bindingsForUseTarget(target, importedBindings),
+      span: span(content, declaration)
+    })
   }
   return { imports, importedBindings }
 }
@@ -370,7 +396,12 @@ function collectEdges(units, importedBindings, filePath, content) {
  */
 export async function analyzeFile(input) {
   const file = input?.file
-  if (!file || typeof file.path !== 'string' || typeof file.content !== 'string' || typeof file.contentHash !== 'string') {
+  if (
+    !file ||
+    typeof file.path !== 'string' ||
+    typeof file.content !== 'string' ||
+    typeof file.contentHash !== 'string'
+  ) {
     return failure('invalid-file-input', null, 'file має містити path, content і contentHash.')
   }
   if (!file.path.toLowerCase().endsWith('.rs')) {

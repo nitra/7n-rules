@@ -13,6 +13,7 @@ export default defineConfig({
     include: [
       'coverage-provider/tests/**/*.test.{js,mjs}',
       'doc-files/tests/**/*.test.{js,mjs}',
+      'knowledge/tests/**/*.test.{js,mjs}',
       'rules/**/tests/**/*.test.{js,mjs}',
       'slots/**/tests/**/*.test.{js,mjs}',
       'taze/tests/**/*.test.{js,mjs}'

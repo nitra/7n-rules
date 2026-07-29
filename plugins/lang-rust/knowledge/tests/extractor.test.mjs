@@ -44,9 +44,15 @@ describe('knowledge.extractor@1 Rust adapter', () => {
 
     expect(result).toMatchObject({ ok: true, file: { path: 'src/service.rs', language: 'rust' } })
     expect(result.units.map(unit => unit.name)).toEqual(['Service', 'submit', 'helper', 'run', 'internal'])
-    expect(result.units.find(unit => unit.name === 'submit')).toMatchObject({ visibility: 'public', localId: 'unit:submit:0' })
+    expect(result.units.find(unit => unit.name === 'submit')).toMatchObject({
+      visibility: 'public',
+      localId: 'unit:submit:0'
+    })
     expect(result.units.find(unit => unit.name === 'helper')).toMatchObject({ visibility: 'private' })
-    expect(result.units.find(unit => unit.name === 'run')).toMatchObject({ visibility: 'public', localId: 'unit:Service::run:0' })
+    expect(result.units.find(unit => unit.name === 'run')).toMatchObject({
+      visibility: 'public',
+      localId: 'unit:Service::run:0'
+    })
     expect(result.units.find(unit => unit.name === 'internal')).toMatchObject({ visibility: 'private' })
     expect(result.units.find(unit => unit.name === 'submit').span.startByte).toBe(
       Buffer.byteLength(content.slice(0, content.indexOf('pub fn submit')), 'utf8')
@@ -54,34 +60,48 @@ describe('knowledge.extractor@1 Rust adapter', () => {
     expect(result.imports).toEqual([
       expect.objectContaining({
         specifier: 'crate::storage::{persist, Store}',
-        bindings: expect.arrayContaining([expect.objectContaining({ localName: 'persist', importedName: 'crate::storage::persist' })])
+        bindings: expect.arrayContaining([
+          expect.objectContaining({ localName: 'persist', importedName: 'crate::storage::persist' })
+        ])
       }),
       expect.objectContaining({
         specifier: 'reqwest::Client as HttpClient',
         bindings: [{ localName: 'HttpClient', importedName: 'reqwest::Client' }]
       })
     ])
-    expect(result.edges).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        kind: 'integrates',
-        fromLocalId: 'unit:submit:0',
-        to: { unresolvedSpecifier: 'crate::storage::persist', opaque: true }
-      }),
-      expect.objectContaining({
-        kind: 'integrates',
-        fromLocalId: 'unit:submit:0',
-        to: { unresolvedSpecifier: 'reqwest::Client', opaque: true }
-      }),
-      expect.objectContaining({ kind: 'invokes', fromLocalId: 'unit:Service::run:0', to: { localId: 'unit:helper:0' } }),
-      expect.objectContaining({ kind: 'invokes', fromLocalId: 'unit:submit:0', to: { localId: 'unit:helper:0' } })
-    ]))
+    expect(result.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'integrates',
+          fromLocalId: 'unit:submit:0',
+          to: { unresolvedSpecifier: 'crate::storage::persist', opaque: true }
+        }),
+        expect.objectContaining({
+          kind: 'integrates',
+          fromLocalId: 'unit:submit:0',
+          to: { unresolvedSpecifier: 'reqwest::Client', opaque: true }
+        }),
+        expect.objectContaining({
+          kind: 'invokes',
+          fromLocalId: 'unit:Service::run:0',
+          to: { localId: 'unit:helper:0' }
+        }),
+        expect.objectContaining({ kind: 'invokes', fromLocalId: 'unit:submit:0', to: { localId: 'unit:helper:0' } })
+      ])
+    )
     expect(result.entryPoints).toEqual([
       { localId: 'unit:Service:0', reason: 'pub' },
       { localId: 'unit:submit:0', reason: 'pub' },
       { localId: 'unit:Service::run:0', reason: 'pub' }
     ])
     expect(result.chunks).toHaveLength(5)
-    expect(result.coverage).toEqual({ requiredUnits: 5, coveredUnits: 5, requiredEdges: 4, coveredEdges: 4, complete: true })
+    expect(result.coverage).toEqual({
+      requiredUnits: 5,
+      coveredUnits: 5,
+      requiredEdges: 4,
+      coveredEdges: 4,
+      complete: true
+    })
   })
 
   test('UTF-8 spans лишаються byte-stable для unicode перед declaration-ом', async () => {
@@ -92,7 +112,10 @@ describe('knowledge.extractor@1 Rust adapter', () => {
     expect(result.units).toEqual([
       expect.objectContaining({
         name: 'café',
-        span: { startByte: Buffer.byteLength('// український префікс\n', 'utf8'), endByte: Buffer.byteLength(content, 'utf8') }
+        span: {
+          startByte: Buffer.byteLength('// український префікс\n', 'utf8'),
+          endByte: Buffer.byteLength(content, 'utf8')
+        }
       })
     ])
   })
@@ -100,7 +123,10 @@ describe('knowledge.extractor@1 Rust adapter', () => {
   test('malformed Rust повертає blocking parse diagnostic без partial graph', async () => {
     const result = await analyzeFile(input('src/broken.rs', 'pub fn broken( {'))
 
-    expect(result).toEqual({ ok: false, diagnostics: [expect.objectContaining({ code: 'parse-error', path: 'src/broken.rs' })] })
+    expect(result).toEqual({
+      ok: false,
+      diagnostics: [expect.objectContaining({ code: 'parse-error', path: 'src/broken.rs' })]
+    })
     expect(result).not.toHaveProperty('units')
   })
 

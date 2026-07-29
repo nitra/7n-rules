@@ -3,7 +3,7 @@ type: JS Module
 title: extractor.mjs
 resource: plugins/lang-php/knowledge/extractor.mjs
 docgen:
-  crc: af042a5e
+  crc: f7545bec
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
