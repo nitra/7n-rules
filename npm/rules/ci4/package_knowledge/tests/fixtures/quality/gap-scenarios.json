@@ -1,0 +1,90 @@
+{
+  "baseGraph": {
+    "claims": [
+      {
+        "id": "claim:implemented:accepts-order",
+        "layer": "implemented",
+        "predicate": "order-status",
+        "value": "accepted",
+        "evidenceIds": ["evidence:code"],
+        "confidence": 1
+      }
+    ],
+    "evidence": [
+      { "id": "evidence:code" },
+      { "id": "evidence:spec" },
+      { "id": "evidence:mapping" }
+    ]
+  },
+  "expectedClaim": {
+    "id": "claim:expected:order-accepted",
+    "layer": "expected",
+    "predicate": "order-status",
+    "value": "accepted",
+    "evidenceIds": ["evidence:spec"],
+    "confidence": 1
+  },
+  "scenarios": [
+    {
+      "id": "no-expectation",
+      "expectedGaps": []
+    },
+    {
+      "id": "matching",
+      "withExpectation": true,
+      "mappings": [
+        {
+          "expectedClaimId": "claim:expected:order-accepted",
+          "implementedClaimId": "claim:implemented:accepts-order",
+          "relation": "equivalent",
+          "evidenceIds": ["evidence:mapping"]
+        }
+      ],
+      "expectedStatus": "satisfied"
+    },
+    {
+      "id": "missing",
+      "withExpectation": true,
+      "expectedStatus": "missing"
+    },
+    {
+      "id": "contradictory",
+      "withExpectation": true,
+      "mappings": [
+        {
+          "expectedClaimId": "claim:expected:order-accepted",
+          "implementedClaimId": "claim:implemented:accepts-order",
+          "relation": "contradicts",
+          "evidenceIds": ["evidence:mapping"]
+        }
+      ],
+      "expectedStatus": "diverged"
+    },
+    {
+      "id": "insufficient-mapping",
+      "withExpectation": true,
+      "implementedConfidence": 0.5,
+      "mappings": [
+        {
+          "expectedClaimId": "claim:expected:order-accepted",
+          "implementedClaimId": "claim:implemented:accepts-order",
+          "relation": "equivalent",
+          "evidenceIds": ["evidence:mapping"]
+        }
+      ],
+      "expectedStatus": "unresolved"
+    },
+    {
+      "id": "parser-failure",
+      "withExpectation": true,
+      "validation": { "parser": { "ok": false, "message": "Fixture syntax error" } },
+      "expectedBlocker": "parser-blocked"
+    },
+    {
+      "id": "coverage-failure",
+      "withExpectation": true,
+      "validation": { "coverage": { "ok": false, "message": "Fixture required edge missing" } },
+      "expectedBlocker": "coverage-blocked"
+    }
+  ]
+}

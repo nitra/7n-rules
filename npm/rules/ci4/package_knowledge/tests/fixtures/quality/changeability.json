@@ -1,0 +1,170 @@
+{
+  "domainId": "npm:@fixture/orders",
+  "privateSymbolName": "persistPayment",
+  "graph": {
+    "schemaVersion": 1,
+    "domain": {
+      "id": "npm:@fixture/orders",
+      "ecosystem": "npm",
+      "name": "@fixture/orders",
+      "rootManifest": "package.json",
+      "sourceFingerprint": "sha256:orders-domain"
+    },
+    "nodes": [
+      {
+        "id": "code-unit:npm:@fixture/orders:js:src/orders.mjs#submitOrder",
+        "kind": "code-unit",
+        "name": "submitOrder",
+        "visibility": "public",
+        "domainId": "npm:@fixture/orders",
+        "attributes": { "sourcePath": "src/orders.mjs" },
+        "sourceFingerprint": "sha256:submit-order"
+      },
+      {
+        "id": "code-unit:npm:@fixture/orders:js:src/persistence.mjs#persistPayment",
+        "kind": "code-unit",
+        "name": "persistPayment",
+        "visibility": "private",
+        "domainId": "npm:@fixture/orders",
+        "attributes": { "sourcePath": "src/persistence.mjs" },
+        "sourceFingerprint": "sha256:persist-payment"
+      },
+      {
+        "id": "outcome:order-created",
+        "kind": "outcome",
+        "name": "Order created",
+        "visibility": "public",
+        "domainId": "npm:@fixture/orders",
+        "attributes": {},
+        "sourceFingerprint": "sha256:order-created"
+      },
+      {
+        "id": "contract:payments",
+        "kind": "integration",
+        "name": "Payments API",
+        "visibility": "external",
+        "domainId": "npm:@fixture/orders",
+        "attributes": {},
+        "sourceFingerprint": "sha256:payments-api"
+      },
+      {
+        "id": "config:checkout",
+        "kind": "config",
+        "name": "Checkout configuration",
+        "visibility": "private",
+        "domainId": "npm:@fixture/orders",
+        "attributes": { "sourcePath": "config/checkout.json" },
+        "sourceFingerprint": "sha256:checkout-config"
+      },
+      {
+        "id": "code-unit:npm:@fixture/catalog:js:src/catalog.mjs#outside",
+        "kind": "code-unit",
+        "name": "outsideDomain",
+        "visibility": "public",
+        "domainId": "npm:@fixture/catalog",
+        "attributes": { "sourcePath": "../catalog/src/catalog.mjs" },
+        "sourceFingerprint": "sha256:outside-domain"
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge:submit-persists",
+        "fromId": "code-unit:npm:@fixture/orders:js:src/orders.mjs#submitOrder",
+        "toId": "code-unit:npm:@fixture/orders:js:src/persistence.mjs#persistPayment",
+        "kind": "invokes",
+        "evidenceIds": ["evidence:submit"]
+      },
+      {
+        "id": "edge:persistence-payment",
+        "fromId": "code-unit:npm:@fixture/orders:js:src/persistence.mjs#persistPayment",
+        "toId": "contract:payments",
+        "kind": "integrates",
+        "evidenceIds": ["evidence:payment"]
+      },
+      {
+        "id": "edge:persistence-config",
+        "fromId": "code-unit:npm:@fixture/orders:js:src/persistence.mjs#persistPayment",
+        "toId": "config:checkout",
+        "kind": "reads",
+        "evidenceIds": ["evidence:config"]
+      },
+      {
+        "id": "edge:persistence-outcome",
+        "fromId": "code-unit:npm:@fixture/orders:js:src/persistence.mjs#persistPayment",
+        "toId": "outcome:order-created",
+        "kind": "produces",
+        "evidenceIds": ["evidence:outcome"]
+      }
+    ],
+    "claims": [
+      {
+        "id": "claim:implemented:order-created",
+        "subjectId": "code-unit:npm:@fixture/orders:js:src/orders.mjs#submitOrder",
+        "layer": "implemented",
+        "predicate": "creates-order",
+        "value": true,
+        "evidenceIds": ["evidence:submit"],
+        "confidence": 1,
+        "sourceFingerprint": "sha256:implemented-order-created"
+      }
+    ],
+    "topics": [],
+    "gaps": [],
+    "evidence": [
+      {
+        "id": "evidence:submit",
+        "kind": "code",
+        "path": "src/orders.mjs",
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/orders.mjs#submitOrder",
+        "contentHash": "sha256:submit"
+      },
+      {
+        "id": "evidence:payment",
+        "kind": "code",
+        "path": "src/persistence.mjs",
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/persistence.mjs#persistPayment",
+        "contentHash": "sha256:payment"
+      },
+      {
+        "id": "evidence:config",
+        "kind": "config",
+        "path": "config/checkout.json",
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/persistence.mjs#persistPayment",
+        "contentHash": "sha256:config"
+      },
+      {
+        "id": "evidence:outcome",
+        "kind": "test",
+        "path": "tests/orders.test.mjs",
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/persistence.mjs#persistPayment",
+        "contentHash": "sha256:outcome"
+      },
+      {
+        "id": "evidence:outside",
+        "kind": "test",
+        "path": "../catalog/tests/catalog.test.mjs",
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/persistence.mjs#persistPayment",
+        "contentHash": "sha256:outside"
+      }
+    ]
+  },
+  "requiredImpact": {
+    "files": ["src/orders.mjs", "src/persistence.mjs"],
+    "tests": ["tests/orders.test.mjs"],
+    "contracts": [{ "id": "contract:payments", "name": "Payments API" }],
+    "configs": ["config/checkout.json"]
+  },
+  "completeFragments": [
+    {
+      "ok": true,
+      "file": { "path": "src/orders.mjs" },
+      "coverage": {
+        "requiredUnits": 2,
+        "coveredUnits": 2,
+        "requiredEdges": 4,
+        "coveredEdges": 4,
+        "complete": true
+      }
+    }
+  ]
+}
