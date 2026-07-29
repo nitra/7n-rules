@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import Ajv2020 from 'ajv/dist/2020.js'
 
 import { buildNormalizedGraph, createCodeUnitId, serializeKnowledgeGraph } from '../normalized-graph.mjs'
 
@@ -11,16 +14,20 @@ const domain = {
 }
 
 function fragment(path, units, edges = []) {
+  const unitsWithSpans = units.map((unit, index) => ({
+    span: { startByte: index * 10, endByte: index * 10 + 8 },
+    ...unit
+  }))
   return {
     ok: true,
     parser: { id: 'fixture', grammarVersion: '1', runtimeVersion: '1' },
     file: { path, language: 'js', contentHash: `hash:${path}` },
-    units,
+    units: unitsWithSpans,
     edges,
     entryPoints: [],
     imports: [],
     chunks: [],
-    coverage: { requiredUnits: units.length, requiredEdges: edges.length }
+    coverage: { requiredUnits: unitsWithSpans.length, requiredEdges: edges.length }
   }
 }
 
@@ -113,7 +120,7 @@ describe('buildNormalizedGraph', () => {
       expect.objectContaining({
         kind: 'integration',
         name: '@fixture/payments',
-        visibility: 'opaque',
+        visibility: 'external',
         attributes: { opaque: true, specifier: '@fixture/payments' }
       })
     )
@@ -170,5 +177,78 @@ describe('buildNormalizedGraph', () => {
     expect(result.diagnostics).toContainEqual(
       expect.objectContaining({ code: 'edge-without-evidence', path: 'src/submit.mjs' })
     )
+  })
+
+  it('rejects evidence without an exact UTF-8 byte span', () => {
+    const result = buildNormalizedGraph({
+      domain,
+      fragments: [
+        fragment(
+          'src/submit.mjs',
+          [
+            {
+              localId: 'submit',
+              kind: 'function',
+              name: 'submitOrder',
+              qualifiedPath: 'submitOrder',
+              visibility: 'public'
+            }
+          ],
+          [
+            {
+              kind: 'integrates',
+              fromLocalId: 'submit',
+              to: { unresolvedSpecifier: '@fixture/payments', opaque: true },
+              evidence: [{ path: 'src/submit.mjs', role: 'syntax' }]
+            }
+          ]
+        )
+      ]
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'invalid-edge-evidence', path: 'src/submit.mjs' })
+    )
+  })
+
+  it('emits a graph accepted by the committed v1 schema', async () => {
+    const result = buildNormalizedGraph({
+      domain,
+      fragments: [
+        fragment(
+          'src/submit.mjs',
+          [
+            {
+              localId: 'submit',
+              kind: 'function',
+              name: 'submitOrder',
+              qualifiedPath: 'submitOrder',
+              visibility: 'public'
+            }
+          ],
+          [
+            {
+              kind: 'integrates',
+              fromLocalId: 'submit',
+              to: { unresolvedSpecifier: '@fixture/payments', opaque: true },
+              evidence: [
+                {
+                  path: 'src/submit.mjs',
+                  role: 'syntax',
+                  span: { startByte: 10, endByte: 30, startLine: 1, startColumn: 10, endLine: 1, endColumn: 30 }
+                }
+              ]
+            }
+          ]
+        )
+      ]
+    })
+    const schemaPath = join(import.meta.dirname, '..', 'schema', 'knowledge-graph-v1.schema.json')
+    const schema = JSON.parse(await readFile(schemaPath, 'utf8'))
+    const validate = new Ajv2020({ strict: false }).compile(schema)
+
+    expect(result.ok).toBe(true)
+    expect(validate(result.graph), JSON.stringify(validate.errors)).toBe(true)
   })
 })

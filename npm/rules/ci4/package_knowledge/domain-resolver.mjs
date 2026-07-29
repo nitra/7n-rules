@@ -249,7 +249,9 @@ export function resolveDomainForPath(domains, sourcePath, cwd = process.cwd()) {
   const relativePath = toPosixRelative(relative(repositoryRoot, absolutePath))
   if (relativePath === '..' || relativePath.startsWith('../')) return null
 
-  const candidates = domains.filter(domain => relativePath === domain.sourceRoot || isStrictDescendant(relativePath, domain.sourceRoot))
+  const candidates = domains.filter(
+    domain => relativePath === domain.sourceRoot || isStrictDescendant(relativePath, domain.sourceRoot)
+  )
   candidates.sort((left, right) => {
     const depth = right.sourceRoot.split('/').length - left.sourceRoot.split('/').length
     return depth || left.id.localeCompare(right.id) || left.rootManifest.localeCompare(right.rootManifest)

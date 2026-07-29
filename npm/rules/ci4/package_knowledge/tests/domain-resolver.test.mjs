@@ -36,11 +36,36 @@ describe('package knowledge domain resolver', () => {
 
       expect(diagnostics).toEqual([])
       expect(domains).toEqual([
-        expect.objectContaining({ id: 'cargo:fixture-engine', ecosystem: 'cargo', name: 'fixture-engine', rootManifest: 'packages/engine/Cargo.toml' }),
-        expect.objectContaining({ id: 'composer:fixture/library', ecosystem: 'composer', name: 'fixture/library', rootManifest: 'tools/library/composer.json' }),
-        expect.objectContaining({ id: 'npm:@fixture/root', ecosystem: 'npm', name: '@fixture/root', rootManifest: 'package.json' }),
-        expect.objectContaining({ id: 'npm:@fixture/web', ecosystem: 'npm', name: '@fixture/web', rootManifest: 'packages/web/package.json' }),
-        expect.objectContaining({ id: 'python:orders-api', ecosystem: 'python', name: 'orders-api', rootManifest: 'services/orders/pyproject.toml' })
+        expect.objectContaining({
+          id: 'cargo:fixture-engine',
+          ecosystem: 'cargo',
+          name: 'fixture-engine',
+          rootManifest: 'packages/engine/Cargo.toml'
+        }),
+        expect.objectContaining({
+          id: 'composer:fixture/library',
+          ecosystem: 'composer',
+          name: 'fixture/library',
+          rootManifest: 'tools/library/composer.json'
+        }),
+        expect.objectContaining({
+          id: 'npm:@fixture/root',
+          ecosystem: 'npm',
+          name: '@fixture/root',
+          rootManifest: 'package.json'
+        }),
+        expect.objectContaining({
+          id: 'npm:@fixture/web',
+          ecosystem: 'npm',
+          name: '@fixture/web',
+          rootManifest: 'packages/web/package.json'
+        }),
+        expect.objectContaining({
+          id: 'python:orders-api',
+          ecosystem: 'python',
+          name: 'orders-api',
+          rootManifest: 'services/orders/pyproject.toml'
+        })
       ])
     })
   })
@@ -51,7 +76,12 @@ describe('package knowledge domain resolver', () => {
       const parent = domains.find(domain => domain.id === 'npm:@fixture/root')
 
       expect(parent?.sourceRoots).toEqual(['.'])
-      expect(parent?.excludedSourceRoots).toEqual(['packages/engine', 'packages/web', 'services/orders', 'tools/library'])
+      expect(parent?.excludedSourceRoots).toEqual([
+        'packages/engine',
+        'packages/web',
+        'services/orders',
+        'tools/library'
+      ])
       expect(resolveDomainForPath(domains, 'packages/web/src/app.mjs', root)?.id).toBe('npm:@fixture/web')
       expect(resolveDomainForPath(domains, 'src/index.mjs', root)?.id).toBe('npm:@fixture/root')
       expect(resolveDomainForPath(domains, join(root, '..', 'outside.mjs'), root)).toBeNull()
@@ -64,7 +94,11 @@ describe('package knowledge domain resolver', () => {
 
       expect(domains.map(domain => domain.id)).toEqual(['python:orders-api', 'python:orders-api'])
       expect(diagnostics).toEqual([
-        expect.objectContaining({ code: 'duplicate-domain-id', domainId: 'python:orders-api', manifests: ['python-one/pyproject.toml', 'python-two/pyproject.toml'] }),
+        expect.objectContaining({
+          code: 'duplicate-domain-id',
+          domainId: 'python:orders-api',
+          manifests: ['python-one/pyproject.toml', 'python-two/pyproject.toml']
+        }),
         expect.objectContaining({ code: 'manifest-name-missing', manifest: 'missing/Cargo.toml' }),
         expect.objectContaining({ code: 'manifest-parse-failed', manifest: 'bad/package.json' })
       ])
@@ -86,11 +120,54 @@ describe('knowledge graph v1 schema', () => {
     const validate = new Ajv2020({ strict: false }).compile(schema)
     const graph = {
       schemaVersion: 1,
-      domain: { id: 'npm:@fixture/root', ecosystem: 'npm', name: '@fixture/root', rootManifest: 'package.json', sourceFingerprint: 'sha256:root' },
-      nodes: [{ id: 'node:entry', kind: 'capability', name: 'Root capability', visibility: 'public', domainId: 'npm:@fixture/root', attributes: {}, sourceFingerprint: 'sha256:node' }],
-      edges: [{ id: 'edge:contains', fromId: 'node:entry', toId: 'node:entry', kind: 'contains', evidenceIds: ['evidence:code'] }],
-      claims: [{ id: 'claim:implemented', subjectId: 'node:entry', layer: 'implemented', predicate: 'does', value: 'work', evidenceIds: ['evidence:code'], confidence: 1, sourceFingerprint: 'sha256:claim' }],
-      topics: [{ id: 'topic:root', kind: 'capability', title: 'Root capability', domainId: 'npm:@fixture/root', anchorIds: ['node:entry'] }],
+      domain: {
+        id: 'npm:@fixture/root',
+        ecosystem: 'npm',
+        name: '@fixture/root',
+        rootManifest: 'package.json',
+        sourceFingerprint: 'sha256:root'
+      },
+      nodes: [
+        {
+          id: 'node:entry',
+          kind: 'capability',
+          name: 'Root capability',
+          visibility: 'public',
+          domainId: 'npm:@fixture/root',
+          attributes: {},
+          sourceFingerprint: 'sha256:node'
+        }
+      ],
+      edges: [
+        {
+          id: 'edge:contains',
+          fromId: 'node:entry',
+          toId: 'node:entry',
+          kind: 'contains',
+          evidenceIds: ['evidence:code']
+        }
+      ],
+      claims: [
+        {
+          id: 'claim:implemented',
+          subjectId: 'node:entry',
+          layer: 'implemented',
+          predicate: 'does',
+          value: 'work',
+          evidenceIds: ['evidence:code'],
+          confidence: 1,
+          sourceFingerprint: 'sha256:claim'
+        }
+      ],
+      topics: [
+        {
+          id: 'topic:root',
+          kind: 'capability',
+          title: 'Root capability',
+          domainId: 'npm:@fixture/root',
+          anchorIds: ['node:entry']
+        }
+      ],
       gaps: [],
       evidence: [{ id: 'evidence:code', kind: 'code', path: 'src/index.mjs', contentHash: 'sha256:evidence' }]
     }

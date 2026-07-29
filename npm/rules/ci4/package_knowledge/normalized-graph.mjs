@@ -67,6 +67,22 @@ function diagnostic(code, detail, path = null) {
 }
 
 /**
+ * Перевіряє half-open UTF-8 byte span.
+ * @param {unknown} span parser/evidence span
+ * @returns {boolean} чи span придатний для traceability
+ */
+function isValidByteSpan(span) {
+  return (
+    Boolean(span) &&
+    typeof span === 'object' &&
+    Number.isInteger(span.startByte) &&
+    Number.isInteger(span.endByte) &&
+    span.startByte >= 0 &&
+    span.endByte >= span.startByte
+  )
+}
+
+/**
  * Перевіряє мінімальний contract успішного file fragment.
  * @param {unknown} raw довільний extractor result
  * @returns {{ ok: true, value: Record<string, unknown> } | { ok: false, diagnostics: Array<Record<string, unknown>> }}
@@ -83,11 +99,21 @@ function validateFragment(raw) {
     return { ok: false, diagnostics }
   }
   const path = typeof raw.file?.path === 'string' ? raw.file.path : null
-  if (raw.ok !== true || path === null || typeof raw.file?.language !== 'string') {
+  if (
+    raw.ok !== true ||
+    path === null ||
+    typeof raw.file?.language !== 'string' ||
+    typeof raw.file?.contentHash !== 'string' ||
+    raw.file.contentHash === ''
+  ) {
     return {
       ok: false,
       diagnostics: [
-        diagnostic('invalid-fragment', 'Успішний fragment мусить мати ok=true і file.path/file.language.', path)
+        diagnostic(
+          'invalid-fragment',
+          'Успішний fragment мусить мати ok=true і непорожні file.path/file.language/file.contentHash.',
+          path
+        )
       ]
     }
   }
@@ -135,7 +161,9 @@ export function buildNormalizedGraph({ domain, fragments }) {
     return {
       ok: false,
       diagnostics: fragmentFailures.sort((left, right) =>
-        `${left.path ?? ''}:${left.code}:${left.detail}`.localeCompare(`${right.path ?? ''}:${right.code}:${right.detail}`)
+        `${left.path ?? ''}:${left.code}:${left.detail}`.localeCompare(
+          `${right.path ?? ''}:${right.code}:${right.detail}`
+        )
       )
     }
   }
@@ -161,9 +189,16 @@ export function buildNormalizedGraph({ domain, fragments }) {
         typeof unit.localId !== 'string' ||
         typeof unit.qualifiedPath !== 'string' ||
         typeof unit.kind !== 'string' ||
-        typeof unit.name !== 'string'
+        typeof unit.name !== 'string' ||
+        !isValidByteSpan(unit.span)
       ) {
-        diagnostics.push(diagnostic('invalid-unit', 'Unit має містити localId, qualifiedPath, kind і name.', fileKey))
+        diagnostics.push(
+          diagnostic(
+            'invalid-unit',
+            'Unit має містити localId, qualifiedPath, kind, name і валідний UTF-8 byte span.',
+            fileKey
+          )
+        )
         continue
       }
       if (localMap.has(unit.localId)) {
@@ -208,12 +243,16 @@ export function buildNormalizedGraph({ domain, fragments }) {
       }
       const from = localMap.get(edge.fromLocalId)
       if (!from) {
-        diagnostics.push(diagnostic('unknown-edge-source', `Edge посилається на невідомий localId "${edge.fromLocalId}".`, fileKey))
+        diagnostics.push(
+          diagnostic('unknown-edge-source', `Edge посилається на невідомий localId "${edge.fromLocalId}".`, fileKey)
+        )
         continue
       }
       let to = edge.to?.localId ? localMap.get(edge.to.localId) : null
       if (edge.to?.localId && !to) {
-        diagnostics.push(diagnostic('unknown-edge-target', `Edge посилається на невідомий localId "${edge.to.localId}".`, fileKey))
+        diagnostics.push(
+          diagnostic('unknown-edge-target', `Edge посилається на невідомий localId "${edge.to.localId}".`, fileKey)
+        )
         continue
       }
       if (!to && typeof edge.to?.unresolvedSpecifier === 'string' && edge.to.opaque === true) {
@@ -224,7 +263,7 @@ export function buildNormalizedGraph({ domain, fragments }) {
             id: to,
             kind: 'integration',
             name: specifier,
-            visibility: 'opaque',
+            visibility: 'external',
             domainId: domain.id,
             attributes: { opaque: true, specifier },
             sourceFingerprint: digest(specifier)
@@ -232,17 +271,27 @@ export function buildNormalizedGraph({ domain, fragments }) {
         }
       }
       if (!to) {
-        diagnostics.push(diagnostic('invalid-edge-target', 'Edge target має бути localId або opaque specifier.', fileKey))
+        diagnostics.push(
+          diagnostic('invalid-edge-target', 'Edge target має бути localId або opaque specifier.', fileKey)
+        )
         continue
       }
       if (!Array.isArray(edge.evidence) || edge.evidence.length === 0) {
         diagnostics.push(diagnostic('edge-without-evidence', `${edge.kind} edge не має provenance.`, fileKey))
         continue
       }
+      if (edge.evidence.some(item => !isValidByteSpan(item?.span))) {
+        diagnostics.push(
+          diagnostic('invalid-edge-evidence', `${edge.kind} edge має evidence без валідного UTF-8 byte span.`, fileKey)
+        )
+        continue
+      }
       const edgeEvidenceIds = []
       for (const item of edge.evidence) {
         const path = typeof item?.path === 'string' ? item.path : fileKey
-        const evidenceInput = JSON.stringify(canonicalize({ path, role: item?.role ?? 'syntax', span: item?.span ?? null }))
+        const evidenceInput = JSON.stringify(
+          canonicalize({ path, role: item?.role ?? 'syntax', span: item?.span ?? null })
+        )
         const id = `evidence:${digest(evidenceInput)}`
         edgeEvidenceIds.push(id)
         if (!evidenceIds.has(id)) {
@@ -252,14 +301,14 @@ export function buildNormalizedGraph({ domain, fragments }) {
             kind: 'code',
             path,
             symbolId: from,
-            span: canonicalize(item?.span ?? null),
+            span: canonicalize(item.span),
             contentHash: fragment.file.contentHash ?? null,
             role: item?.role ?? 'syntax'
           })
         }
       }
       const id = `edge:${digest(JSON.stringify([edge.kind, from, to, [...edgeEvidenceIds].sort()]))}`
-      edges.push({ id, kind: edge.kind, from, to, evidenceIds: [...edgeEvidenceIds].sort() })
+      edges.push({ id, kind: edge.kind, fromId: from, toId: to, evidenceIds: [...edgeEvidenceIds].sort() })
     }
   }
 
@@ -267,7 +316,9 @@ export function buildNormalizedGraph({ domain, fragments }) {
     return {
       ok: false,
       diagnostics: diagnostics.sort((left, right) =>
-        `${left.path ?? ''}:${left.code}:${left.detail}`.localeCompare(`${right.path ?? ''}:${right.code}:${right.detail}`)
+        `${left.path ?? ''}:${left.code}:${left.detail}`.localeCompare(
+          `${right.path ?? ''}:${right.code}:${right.detail}`
+        )
       )
     }
   }
@@ -281,7 +332,13 @@ export function buildNormalizedGraph({ domain, fragments }) {
     ok: true,
     graph: {
       schemaVersion: 1,
-      domain: canonicalize(domain),
+      domain: canonicalize({
+        id: domain.id,
+        ecosystem: domain.ecosystem,
+        name: domain.name,
+        rootManifest: domain.rootManifest,
+        sourceFingerprint: domain.sourceFingerprint
+      }),
       nodes,
       edges,
       claims: [],

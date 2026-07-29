@@ -84,7 +84,6 @@ docs/
 │   ├── contracts/<stable-topic-id>.md
 │   └── glossary.md
 ├── implementation-gaps.md
-├── adr/
 └── .docgen/manifest.json
 ```
 
@@ -158,8 +157,9 @@ Parse або coverage failure блокує publication, а не створює g
 ## ADR compatibility і migration
 
 Accepted ADR лишаються canonical architecture decisions та expectation evidence.
-До ADR vNext repository-root `docs/adr/` зберігає current MADR v4 minimal layout,
-capture/normalize flow і accepted-status rules з `adr`. Existing ADR-derived root
+До ADR vNext вони живуть лише в repository-root `docs/adr/`, який зберігає
+current MADR v4 minimal layout, capture/normalize flow і accepted-status rules з
+`adr`. Package-local `docs/adr/` не створюється. Existing ADR-derived root
 projections лишаються compatible під час migration.
 
 ADR більше не є єдиним autogen input: implemented views походять із code
