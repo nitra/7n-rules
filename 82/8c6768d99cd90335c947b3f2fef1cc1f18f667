@@ -1,0 +1,28 @@
+plugins/lang-js/rules/js/tooling/tests/tooling.test.mjs
+  s_c958e49c0708f8::t_b0043366d89cff 39-50,172-178
+plugins/lang-js/rules/js/tooling/main.mjs
+  s_c958e49c0708f8::t_e33955e2f8cfb0 115-137,169-173,206-210
+  s_c958e49c0708f8::t_850fe9bdce70cd 211-214
+docs/superpowers/plans/2026-07-29-allow-local-oxlint-jsplugins.md
+  s_c958e49c0708f8::t_d7b9a64c0c4a95 1-95
+plugins/lang-js/rules/js/tooling/docs/main.md
+  s_c958e49c0708f8::t_031e0d41946b01 31-33,39-40
+plugins/lang-js/.changes/260729-1157.md
+  s_c958e49c0708f8::t_9be86ffbfe1f39 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "828c6768d99cd90335c947b3f2fef1cc1f18f667",
+  "prompts": {},
+  "sessions": {
+    "s_c958e49c0708f8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019faa18-22a7-7b50-bb68-94475d98aee1",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
