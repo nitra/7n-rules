@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from 'vitest'
 
 import { buildKnowledgeCandidate } from '../candidate.mjs'
+import { createImplementedClaimId } from '../claims.mjs'
 
 const DOMAIN = {
   id: 'npm:@fixture/orders',
@@ -96,6 +97,22 @@ describe('buildKnowledgeCandidate', () => {
     const schemaId = 'schema:npm:@fixture/orders:openapi'
     const contractId = 'contract:npm:@fixture/orders:openapi'
     const evidenceId = 'evidence:openapi'
+    const structuredClaim = {
+      subjectId: schemaId,
+      layer: 'implemented',
+      predicate: 'declares-artifact',
+      value: { artifact: 'openapi', format: 'yaml' },
+      evidenceIds: [evidenceId],
+      confidence: 1,
+      sourceFingerprint: 'sha256:openapi'
+    }
+    structuredClaim.id = createImplementedClaimId({
+      domainId: DOMAIN.id,
+      subjectId: structuredClaim.subjectId,
+      predicate: structuredClaim.predicate,
+      value: structuredClaim.value,
+      evidenceIds: structuredClaim.evidenceIds
+    })
     const result = await buildKnowledgeCandidate({
       domain: DOMAIN,
       sources: [{ path: 'src/order.mjs', content: 'export function submit() {}' }],
@@ -144,7 +161,8 @@ describe('buildKnowledgeCandidate', () => {
               symbolId: schemaId,
               contentHash: 'sha256:openapi'
             }
-          ]
+          ],
+          claims: [structuredClaim]
         }
       ]
     })
@@ -160,6 +178,10 @@ describe('buildKnowledgeCandidate', () => {
     expect(result.graph.evidence).toContainEqual(
       expect.objectContaining({ id: evidenceId, path: 'contracts/openapi.yaml', contentHash: 'sha256:openapi' })
     )
+    expect(result.graph.claims).toContainEqual(
+      expect.objectContaining({ id: structuredClaim.id, layer: 'implemented' })
+    )
+    expect(result.graph.topics).toContainEqual(expect.objectContaining({ kind: 'contract', anchorIds: [contractId] }))
   })
 
   test('integrates previous-manifest identity migration into candidate discovery', async () => {

@@ -15,6 +15,8 @@ import { globby } from 'globby'
 import { parse as parseToml } from 'smol-toml'
 import { parseDocument } from 'yaml'
 
+import { createImplementedClaimId } from './claims.mjs'
+
 const ARTIFACT_PATTERNS = Object.freeze([
   '**/openapi.{json,yaml,yml}',
   '**/asyncapi.{json,yaml,yml}',
@@ -41,6 +43,22 @@ const NODE_KINDS = new Set(['config', 'integration'])
 const VISIBILITIES = new Set(['public', 'package', 'external'])
 const EVIDENCE_KINDS = new Set(['config', 'schema'])
 const EDGE_KINDS = new Set(['contains', 'implements'])
+const OPENAPI_METHODS = Object.freeze(['delete', 'get', 'head', 'options', 'patch', 'post', 'put', 'trace'])
+const GRAPHQL_TYPE_DEFINITIONS = new Set([
+  'EnumTypeDefinition',
+  'InputObjectTypeDefinition',
+  'InterfaceTypeDefinition',
+  'ObjectTypeDefinition',
+  'ScalarTypeDefinition',
+  'UnionTypeDefinition'
+])
+const STRUCTURED_CLAIM_PREDICATES = new Set([
+  'declares-artifact',
+  'declares-asyncapi-channel',
+  'declares-graphql-definition',
+  'declares-json-schema',
+  'declares-openapi-operation'
+])
 
 /** Creates a stable structured-source diagnostic. */
 function diagnostic(code, detail, path = null) {
@@ -55,6 +73,139 @@ function digest(value) {
 /** Returns an exact source content hash. */
 function contentHash(content) {
   return `sha256:${createHash('sha256').update(content).digest('hex')}`
+}
+
+/** Returns true for a JSON object without array semantics. */
+function isObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+/** Creates one deterministic, artifact-backed implemented claim. */
+function structuredClaim({ domainId, subjectId, predicate, value, evidenceId, sourceFingerprint }) {
+  const evidenceIds = [evidenceId]
+  return {
+    id: createImplementedClaimId({ domainId, subjectId, predicate, value, evidenceIds }),
+    subjectId,
+    layer: 'implemented',
+    predicate,
+    value,
+    evidenceIds,
+    confidence: 1,
+    sourceFingerprint
+  }
+}
+
+/** Returns public OpenAPI operation claims without serializing operation content. */
+function openApiClaims({ domainId, subjectId, value, evidenceId, sourceFingerprint }) {
+  if (!isObject(value?.paths)) return []
+  return Object.entries(value.paths)
+    .filter(([, pathItem]) => isObject(pathItem))
+    .toSorted(([left], [right]) => left.localeCompare(right))
+    .flatMap(([path, pathItem]) =>
+      OPENAPI_METHODS.filter(method => isObject(pathItem[method])).map(method =>
+        structuredClaim({
+          domainId,
+          subjectId,
+          predicate: 'declares-openapi-operation',
+          value: { path, method },
+          evidenceId,
+          sourceFingerprint
+        })
+      )
+    )
+}
+
+/** Returns public AsyncAPI channel claims without serializing channel messages or bindings. */
+function asyncApiClaims({ domainId, subjectId, value, evidenceId, sourceFingerprint }) {
+  if (!isObject(value?.channels)) return []
+  return Object.keys(value.channels)
+    .toSorted()
+    .map(channel =>
+      structuredClaim({
+        domainId,
+        subjectId,
+        predicate: 'declares-asyncapi-channel',
+        value: { channel },
+        evidenceId,
+        sourceFingerprint
+      })
+    )
+}
+
+/** Returns GraphQL operation and type-definition surface claims from the parsed AST. */
+function graphqlClaims({ domainId, subjectId, value, evidenceId, sourceFingerprint }) {
+  if (!Array.isArray(value?.definitions)) return []
+  return value.definitions
+    .flatMap(definition => {
+      const name = typeof definition?.name?.value === 'string' ? definition.name.value : null
+      if (definition?.kind === 'OperationDefinition') {
+        const claimValue = { definition: 'operation', operation: definition.operation }
+        if (name) claimValue.name = name
+        return [
+          structuredClaim({
+            domainId,
+            subjectId,
+            predicate: 'declares-graphql-definition',
+            value: claimValue,
+            evidenceId,
+            sourceFingerprint
+          })
+        ]
+      }
+      if (!GRAPHQL_TYPE_DEFINITIONS.has(definition?.kind) || !name) return []
+      return [
+        structuredClaim({
+          domainId,
+          subjectId,
+          predicate: 'declares-graphql-definition',
+          value: { definition: definition.kind, name },
+          evidenceId,
+          sourceFingerprint
+        })
+      ]
+    })
+    .toSorted((left, right) => left.id.localeCompare(right.id))
+}
+
+/** Returns a JSON Schema title/type claim without projecting arbitrary schema values. */
+function jsonSchemaClaims({ domainId, subjectId, value, evidenceId, sourceFingerprint }) {
+  const claimValue = {}
+  if (typeof value?.title === 'string') claimValue.title = value.title
+  if (typeof value?.type === 'string') claimValue.type = value.type
+  if (Array.isArray(value?.type) && value.type.every(type => typeof type === 'string')) {
+    claimValue.type = [...value.type].toSorted()
+  }
+  if (Object.keys(claimValue).length === 0) return []
+  return [
+    structuredClaim({
+      domainId,
+      subjectId,
+      predicate: 'declares-json-schema',
+      value: claimValue,
+      evidenceId,
+      sourceFingerprint
+    })
+  ]
+}
+
+/** Returns deterministic contract-surface claims for a parsed schema artifact. */
+function schemaClaims({ domain, kind, format, hash, value, schemaId, contractId, evidenceId }) {
+  const claims = [
+    structuredClaim({
+      domainId: domain.id,
+      subjectId: schemaId,
+      predicate: 'declares-artifact',
+      value: { artifact: kind, format },
+      evidenceId,
+      sourceFingerprint: hash
+    })
+  ]
+  const context = { domainId: domain.id, subjectId: contractId, value, evidenceId, sourceFingerprint: hash }
+  if (kind === 'openapi') claims.push(...openApiClaims(context))
+  else if (kind === 'asyncapi') claims.push(...asyncApiClaims(context))
+  else if (kind === 'graphql') claims.push(...graphqlClaims(context))
+  else if (kind === 'json-schema') claims.push(...jsonSchemaClaims({ ...context, subjectId: schemaId }))
+  return claims.toSorted((left, right) => left.id.localeCompare(right.id))
 }
 
 /** Converts a filesystem path to a stable POSIX relative path. */
@@ -148,7 +299,17 @@ function sourceNode({ domain, path, kind, format, hash, value }) {
     return {
       nodes: [{ id, kind: 'config', name: path, visibility: 'package', ...base }],
       edges: [],
-      evidence: [{ ...source, symbolId: id }]
+      evidence: [{ ...source, symbolId: id }],
+      claims: [
+        structuredClaim({
+          domainId: domain.id,
+          subjectId: id,
+          predicate: 'declares-artifact',
+          value: { artifact: kind, format },
+          evidenceId: source.id,
+          sourceFingerprint: hash
+        })
+      ]
     }
   }
   const label =
@@ -187,7 +348,17 @@ function sourceNode({ domain, path, kind, format, hash, value }) {
         evidenceIds: [source.id]
       }
     ],
-    evidence: [{ ...source, symbolId: schemaId }]
+    evidence: [{ ...source, symbolId: schemaId }],
+    claims: schemaClaims({
+      domain,
+      kind,
+      format,
+      hash,
+      value,
+      schemaId,
+      contractId,
+      evidenceId: source.id
+    })
   }
 }
 
@@ -267,13 +438,84 @@ export async function loadStructuredSources({ domain }) {
   }
 }
 
+/** Returns whether a claim value can contain only public artifact metadata. */
+function isSafeClaimValue(predicate, value) {
+  if (!isObject(value)) return false
+  const keys = Object.keys(value).toSorted()
+  if (predicate === 'declares-artifact') {
+    return (
+      keys.join(',') === 'artifact,format' && typeof value.artifact === 'string' && typeof value.format === 'string'
+    )
+  }
+  if (predicate === 'declares-openapi-operation') {
+    return keys.join(',') === 'method,path' && typeof value.method === 'string' && typeof value.path === 'string'
+  }
+  if (predicate === 'declares-asyncapi-channel') {
+    return keys.join(',') === 'channel' && typeof value.channel === 'string'
+  }
+  if (predicate === 'declares-graphql-definition') {
+    if (!keys.includes('definition') || keys.some(key => !['definition', 'name', 'operation'].includes(key)))
+      return false
+    return (
+      typeof value.definition === 'string' &&
+      (value.name === undefined || typeof value.name === 'string') &&
+      (value.operation === undefined || typeof value.operation === 'string')
+    )
+  }
+  if (predicate === 'declares-json-schema') {
+    if (keys.length === 0 || keys.some(key => !['title', 'type'].includes(key))) return false
+    return (
+      (value.title === undefined || typeof value.title === 'string') &&
+      (value.type === undefined ||
+        typeof value.type === 'string' ||
+        (Array.isArray(value.type) && value.type.every(type => typeof type === 'string')))
+    )
+  }
+  return false
+}
+
+/** Validates one artifact-backed claim before it can join a candidate graph. */
+function validStructuredClaim(claim, { domain, nodeIds, evidenceIds, contentHash }) {
+  if (!isObject(claim) || claim.layer !== 'implemented' || !STRUCTURED_CLAIM_PREDICATES.has(claim.predicate))
+    return false
+  if (
+    typeof claim.id !== 'string' ||
+    typeof claim.subjectId !== 'string' ||
+    !nodeIds.has(claim.subjectId) ||
+    !Array.isArray(claim.evidenceIds) ||
+    claim.evidenceIds.length === 0 ||
+    new Set(claim.evidenceIds).size !== claim.evidenceIds.length ||
+    claim.evidenceIds.some(id => !evidenceIds.has(id)) ||
+    claim.confidence !== 1 ||
+    claim.sourceFingerprint !== contentHash ||
+    !isSafeClaimValue(claim.predicate, claim.value)
+  ) {
+    return false
+  }
+  return (
+    claim.id ===
+    createImplementedClaimId({
+      domainId: domain.id,
+      subjectId: claim.subjectId,
+      predicate: claim.predicate,
+      value: claim.value,
+      evidenceIds: claim.evidenceIds
+    })
+  )
+}
+
 /** Validates one injected structured graph fragment before it can extend a candidate. */
 function validateFragment(fragment, domain) {
   const path = fragment?.file?.path
   if (!fragment || fragment.ok !== true || typeof path !== 'string' || typeof fragment.file.contentHash !== 'string') {
     return { ok: false, diagnostics: [diagnostic('invalid-structured-fragment', 'Structured fragment має містити ok, file.path і contentHash.', path ?? null)] }
   }
-  if (!Array.isArray(fragment.nodes) || !Array.isArray(fragment.edges) || !Array.isArray(fragment.evidence)) {
+  if (
+    !Array.isArray(fragment.nodes) ||
+    !Array.isArray(fragment.edges) ||
+    !Array.isArray(fragment.evidence) ||
+    (fragment.claims !== undefined && !Array.isArray(fragment.claims))
+  ) {
     return { ok: false, diagnostics: [diagnostic('invalid-structured-fragment', 'Structured fragment має nodes, edges і evidence arrays.', path)] }
   }
   const diagnostics = []
@@ -294,7 +536,19 @@ function validateFragment(fragment, domain) {
       diagnostics.push(diagnostic('invalid-structured-edge', 'Structured edge має local nodes і evidence provenance.', path))
     }
   }
-  return diagnostics.length > 0 ? { ok: false, diagnostics } : { ok: true, value: fragment }
+  const claims = fragment.claims ?? []
+  const claimIds = new Set()
+  for (const claim of claims) {
+    if (!validStructuredClaim(claim, { domain, nodeIds: ids, evidenceIds, contentHash: fragment.file.contentHash })) {
+      diagnostics.push(
+        diagnostic('invalid-structured-claim', 'Structured claim має бути deterministic, local та metadata-only.', path)
+      )
+      continue
+    }
+    if (claimIds.has(claim.id)) diagnostics.push(diagnostic('duplicate-structured-claim', claim.id, path))
+    claimIds.add(claim.id)
+  }
+  return diagnostics.length > 0 ? { ok: false, diagnostics } : { ok: true, value: { ...fragment, claims } }
 }
 
 /**
@@ -311,9 +565,11 @@ export function mergeStructuredFragments({ graph, domain, fragments = [] }) {
   const nodes = [...graph.nodes]
   const edges = [...graph.edges]
   const evidence = [...graph.evidence]
+  const claims = Array.isArray(graph.claims) ? [...graph.claims] : []
   const nodeIds = new Set(nodes.map(node => node.id))
   const edgeIds = new Set(edges.map(edge => edge.id))
   const evidenceIds = new Set(evidence.map(item => item.id))
+  const claimIds = new Set(claims.map(claim => claim.id))
   for (const fragment of sorted) {
     for (const node of fragment.nodes) {
       if (nodeIds.has(node.id)) diagnostics.push(diagnostic('duplicate-structured-node', node.id, fragment.file.path))
@@ -336,6 +592,13 @@ export function mergeStructuredFragments({ graph, domain, fragments = [] }) {
         edges.push(edge)
       }
     }
+    for (const claim of fragment.claims) {
+      if (claimIds.has(claim.id)) diagnostics.push(diagnostic('duplicate-structured-claim', claim.id, fragment.file.path))
+      else {
+        claimIds.add(claim.id)
+        claims.push(claim)
+      }
+    }
   }
   if (diagnostics.length > 0) return { ok: false, diagnostics: diagnostics.toSorted((left, right) => `${left.path ?? ''}:${left.code}`.localeCompare(`${right.path ?? ''}:${right.code}`)) }
   return {
@@ -344,6 +607,7 @@ export function mergeStructuredFragments({ graph, domain, fragments = [] }) {
       ...graph,
       nodes: nodes.toSorted((left, right) => left.id.localeCompare(right.id)),
       edges: edges.toSorted((left, right) => left.id.localeCompare(right.id)),
+      claims: claims.toSorted((left, right) => left.id.localeCompare(right.id)),
       evidence: evidence.toSorted((left, right) => left.id.localeCompare(right.id))
     }
   }

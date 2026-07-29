@@ -32,8 +32,19 @@ describe('structured package knowledge sources', () => {
       await mkdir(join(root, 'config'), { recursive: true })
       await mkdir(join(root, 'contracts'), { recursive: true })
       await packageManifest(root)
-      await writeFile(join(root, 'config', 'service.json'), '{"enabled":true}\n', 'utf8')
-      const openapi = 'openapi: 3.1.0\ninfo:\n  title: Payments API\n  version: 1.0.0\npaths: {}\n'
+      await writeFile(join(root, 'config', 'service.json'), '{"enabled":true,"apiToken":"not-for-manifest"}\n', 'utf8')
+      const openapi = [
+        'openapi: 3.1.0',
+        'info:',
+        '  title: Payments API',
+        '  version: 1.0.0',
+        'paths:',
+        '  /payments:',
+        '    post:',
+        '      responses:',
+        "        '200':",
+        '          description: accepted'
+      ].join('\n')
       await writeFile(join(root, 'contracts', 'openapi.yaml'), openapi, 'utf8')
 
       const result = await loadStructuredSources({ domain: domain(root) })
@@ -66,6 +77,16 @@ describe('structured package knowledge sources', () => {
       })
       expect(merged).toMatchObject({ ok: true })
       expect(merged.graph.edges).toContainEqual(expect.objectContaining({ kind: 'implements' }))
+      expect(merged.graph.claims).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ predicate: 'declares-artifact', value: { artifact: 'config', format: 'json' } }),
+          expect.objectContaining({
+            predicate: 'declares-openapi-operation',
+            value: { path: '/payments', method: 'post' }
+          })
+        ])
+      )
+      expect(JSON.stringify(merged.graph.claims)).not.toContain('not-for-manifest')
     })
   })
 
@@ -116,5 +137,120 @@ describe('structured package knowledge sources', () => {
     })
 
     expect(result).toEqual({ ok: false, diagnostics: [expect.objectContaining({ code: 'invalid-structured-node' })] })
+  })
+
+  test('projects only deterministic OpenAPI, AsyncAPI, GraphQL and JSON Schema surface claims', async () => {
+    await withTmpDir(async root => {
+      await mkdir(join(root, 'contracts'), { recursive: true })
+      await packageManifest(root)
+      await writeFile(
+        join(root, 'contracts', 'openapi.yaml'),
+        'openapi: 3.1.0\ninfo:\n  title: Orders API\n  version: 1.0.0\npaths:\n  /orders:\n    get: {}\n    post: {}\n',
+        'utf8'
+      )
+      await writeFile(
+        join(root, 'contracts', 'asyncapi.yaml'),
+        'asyncapi: 3.0.0\ninfo:\n  title: Orders events\n  version: 1.0.0\nchannels:\n  orders.created: {}\n  orders.cancelled: {}\n',
+        'utf8'
+      )
+      await writeFile(
+        join(root, 'contracts', 'schema.graphql'),
+        'type Order { id: ID! }\nquery GetOrder { order { id } }\n',
+        'utf8'
+      )
+      await writeFile(
+        join(root, 'contracts', 'orders.schema.json'),
+        '{"$schema":"https://json-schema.org/draft/2020-12/schema","title":"Order","type":["null","object"]}\n',
+        'utf8'
+      )
+
+      const first = await loadStructuredSources({ domain: domain(root) })
+      const second = await loadStructuredSources({ domain: domain(root) })
+      const claims = first.fragments.flatMap(fragment => fragment.claims)
+
+      expect(first.fragments.map(fragment => fragment.file.path)).toEqual(
+        second.fragments.map(fragment => fragment.file.path)
+      )
+      for (const fragment of first.fragments) {
+        const claimIds = fragment.claims.map(claim => claim.id)
+        expect(claimIds).toEqual(claimIds.toSorted())
+      }
+      expect(claims).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            predicate: 'declares-openapi-operation',
+            value: { path: '/orders', method: 'get' }
+          }),
+          expect.objectContaining({
+            predicate: 'declares-openapi-operation',
+            value: { path: '/orders', method: 'post' }
+          }),
+          expect.objectContaining({ predicate: 'declares-asyncapi-channel', value: { channel: 'orders.created' } }),
+          expect.objectContaining({
+            predicate: 'declares-graphql-definition',
+            value: { definition: 'ObjectTypeDefinition', name: 'Order' }
+          }),
+          expect.objectContaining({
+            predicate: 'declares-graphql-definition',
+            value: { definition: 'operation', operation: 'query', name: 'GetOrder' }
+          }),
+          expect.objectContaining({
+            predicate: 'declares-json-schema',
+            value: { title: 'Order', type: ['null', 'object'] }
+          })
+        ])
+      )
+      expect(JSON.stringify(claims)).not.toContain('description: accepted')
+
+      const fragment = first.fragments.find(item => item.claims.length > 0)
+      const duplicate = mergeStructuredFragments({
+        domain: domain(root),
+        graph: { nodes: [], edges: [], claims: [], evidence: [] },
+        fragments: [{ ...fragment, claims: [...fragment.claims, fragment.claims[0]] }]
+      })
+      expect(duplicate).toEqual({
+        ok: false,
+        diagnostics: [expect.objectContaining({ code: 'duplicate-structured-claim' })]
+      })
+    })
+  })
+
+  test('rejects a non-deterministic structured claim and duplicate claim identity', () => {
+    const fragment = {
+      ok: true,
+      file: { path: 'config/service.json', contentHash: 'sha256:config' },
+      nodes: [
+        {
+          id: 'config:npm:@fixture/orders:service',
+          kind: 'config',
+          name: 'config/service.json',
+          visibility: 'package',
+          domainId: 'npm:@fixture/orders',
+          attributes: { sourcePath: 'config/service.json' },
+          sourceFingerprint: 'sha256:config'
+        }
+      ],
+      edges: [],
+      evidence: [{ id: 'evidence:config', kind: 'config', path: 'config/service.json', contentHash: 'sha256:config' }],
+      claims: [
+        {
+          id: 'claim:not-deterministic',
+          subjectId: 'config:npm:@fixture/orders:service',
+          layer: 'implemented',
+          predicate: 'declares-artifact',
+          value: { artifact: 'config', format: 'json', secret: 'leak' },
+          evidenceIds: ['evidence:config'],
+          confidence: 1,
+          sourceFingerprint: 'sha256:config'
+        }
+      ]
+    }
+    const result = mergeStructuredFragments({
+      domain: { id: 'npm:@fixture/orders' },
+      graph: { nodes: [], edges: [], claims: [], evidence: [] },
+      fragments: [fragment]
+    })
+
+    expect(result).toEqual({ ok: false, diagnostics: [expect.objectContaining({ code: 'invalid-structured-claim' })] })
   })
 })
