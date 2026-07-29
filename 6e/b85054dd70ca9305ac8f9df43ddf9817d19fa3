@@ -1,0 +1,45 @@
+llm-lib/.changes/260729-0922.md
+  s_63dde748387f99::t_0dd92880d8fa5b 1-5
+npm/.changes/260729-0922.md
+  s_63dde748387f99::t_8088502834a230 1-5
+npm/scripts/tests/skills-cli.test.mjs
+  s_cfbff1632fd65a::t_bb8554e5590622 424-460
+llm-lib/crates/llm-lib/src/acp/session.rs
+  s_dc4b335591f8b2::t_d692fa71f4017c 215-237,265-282,285-292,331,344,360,367,396,399-412,424-427,552-634
+npm/skills/taze/js/orchestrate.mjs
+  s_dc4b335591f8b2::t_8e7768f78d09dd 63-82,121-131,133,136,164,167-179,189-194,374-380,383
+npm/skills/taze/js/tests/orchestrate.test.mjs
+  s_dc4b335591f8b2::t_fc1b6ac2e8c3a4 18,24-26,127-147,698-803
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6eb85054dd70ca9305ac8f9df43ddf9817d19fa3",
+  "prompts": {},
+  "sessions": {
+    "s_63dde748387f99": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "922a74f7-2b81-429f-8799-7fae36558fbc",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_cfbff1632fd65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019fabea-e3c4-7401-8e4c-79d709399c72",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_dc4b335591f8b2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-af066e5d5023887db",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
