@@ -1,0 +1,21 @@
+npm/skills/taze/js/orchestrate.mjs
+  s_63dde748387f99::t_ad1c3073ef83cd 63-68,86,122-179,233,237-250
+npm/skills/taze/js/tests/orchestrate.test.mjs
+  s_63dde748387f99::t_50aa176abfb447 28,144,737,741
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "828f439ebf0f9c36b36eaff3b28366149fd62a0b",
+  "prompts": {},
+  "sessions": {
+    "s_63dde748387f99": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "922a74f7-2b81-429f-8799-7fae36558fbc",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
