@@ -113,6 +113,29 @@ function compareOxlintIgnorePatterns(expected, actual, failures) {
 }
 
 /**
+ * Звіряє блок `jsPlugins`: кожен plugin із канону має бути присутній в actual;
+ * додаткові project-specific plugins дозволені для локальних wrapper-ів.
+ * @param {unknown} expected канонічний масив `jsPlugins`
+ * @param {unknown} actual поточний `jsPlugins` із `.oxlintrc.json`
+ * @param {string[]} failures буфер для помилок
+ */
+function compareOxlintJsPlugins(expected, actual, failures) {
+  if (!Array.isArray(expected)) return
+  if (!Array.isArray(actual)) {
+    failures.push(
+      '.oxlintrc.json: поле "jsPlugins" має бути масивом (канон задає мінімум, локальні wrapper-и дозволені)'
+    )
+    return
+  }
+  const missing = expected.filter(plugin => !actual.some(entry => deepEqualOxlintCanonical(entry, plugin)))
+  if (missing.length > 0) {
+    failures.push(
+      `.oxlintrc.json: jsPlugins має містити канонічні plugins — додай: ${missing.map(plugin => JSON.stringify(plugin)).join(', ')}`
+    )
+  }
+}
+
+/**
  * Перевіряє `.oxlintrc.json` проти канону пакета `@7n/rules` (усі правила з канону та інші поля з `oxlint-canonical.json`).
  * Додаткові ключі лише в `rules` дозволені; інші поля мають збігатися з каноном.
  * @param {unknown} cfg корінь JSON з `.oxlintrc.json`
@@ -140,6 +163,11 @@ export function verifyOxlintRcAgainstCanonical(cfg, canonical) {
 
     if (key === 'ignorePatterns') {
       compareOxlintIgnorePatterns(expected, actual, failures)
+      continue
+    }
+
+    if (key === 'jsPlugins') {
+      compareOxlintJsPlugins(expected, actual, failures)
       continue
     }
 
@@ -173,6 +201,15 @@ export function planOxlintrcFix(actual, canonical) {
       const existing = Array.isArray(merged.ignorePatterns) ? merged.ignorePatterns : []
       const canonPatterns = Array.isArray(expected) ? expected : []
       merged.ignorePatterns = [...existing, ...canonPatterns.filter(p => !existing.includes(p))]
+      continue
+    }
+    if (key === 'jsPlugins') {
+      const existing = Array.isArray(merged.jsPlugins) ? merged.jsPlugins : []
+      const canonicalPlugins = Array.isArray(expected) ? expected : []
+      merged.jsPlugins = [
+        ...existing,
+        ...canonicalPlugins.filter(plugin => !existing.some(entry => deepEqualOxlintCanonical(entry, plugin)))
+      ]
       continue
     }
     // Інші поля вимагають точного збігу з каноном (verifyOxlintRcAgainstCanonical) —
