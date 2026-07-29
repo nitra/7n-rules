@@ -1,0 +1,21 @@
+.cursor/rules/n-python.mdc
+  s_c958e49c0708f8::t_3680a5042c958c 72
+.cursor/rules/n-rust.mdc
+  s_c958e49c0708f8::t_2d2e33a2b96c59 44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "82db877c0af7c08edb7622035ef4714dae3601e7",
+  "prompts": {},
+  "sessions": {
+    "s_c958e49c0708f8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019faa18-22a7-7b50-bb68-94475d98aee1",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
