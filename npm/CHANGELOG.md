@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.54.2] - 2026-07-29
+
+### Changed
+
+- Міграція worktree-інтеграції на native CLI mt
+
 ## [1.54.1] - 2026-07-29
 
 ### Changed
