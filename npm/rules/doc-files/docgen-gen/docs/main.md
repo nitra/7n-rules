@@ -3,24 +3,64 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/doc-files/docgen-gen/main.mjs
 docgen:
-  crc: a5710594
-  model: omlx/gemma-4-e2b-it-4bit
-  tier: local-min
-  score: 5
-  issues: no-overview,short-behavior,internal-name:isApiGap,internal-name:renderApiLine,internal-name:oneShotDoc,internal-name:finishUnsupported,anchor-miss:(foo.mdc),anchor-miss:(abie.mdc)
+  crc: 3a8cf08e
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
+  score: 55
+  issues: internal-name:isApiGap,internal-name:renderApiLine,internal-name:oneShotDoc,internal-name:finishUnsupported,anchor-miss:(foo.mdc),best-of-2:retry-error
 ---
+
+## Огляд
+
+Файл зводить джерело, коментарі, test/spec-сценарії та факти про публічний API в одну поведінкову Markdown-документацію для коду, коли вже є частковий опис у коді. Окремо зберігає захищені фрагменти на кшталт `## Призначення` і `Публічний API`, щоб не втратити вже описану поведінку.
+
+У межах одного прогону кешує підготовку для послідовного та batch-шляху, щоб узгоджено обробляти однакові дані без повторної роботи.
+
+## Поведінка
+
+Потік починається з `loadSrcAndFacts`: вона зчитує джерело, відсікає надто великі файли ще до звернення до моделі та підтягує факт-лист із доступного language extractor. Далі `generateDoc` вирішує, який режим збірки потрібен, і передає спільні дані в гілку з `resolvePromptSrc`, `commentDocumentationMode`, `commentOnlyDoc`, `splitProtected`, `insertProtected`, `scoreDoc` та, за потреби, у LLM-орієнтовані кроки. Для стабільності таймаути на виклики підрізаються `capTimeoutToDeadline`, а помилки на шляху класифікує `classifyDocgenError`, щоб batch-логіка могла відрізняти пропуски, тимчасові збої й системні відмови.
+
+Коли джерело коротке й придатне до повного оброблення, `generateDoc` може піти через `commentDocumentationMode`: якщо авторські коментарі вже дають повний документ, `hasCompleteCommentDocumentation` дозволяє зібрати результат без LLM через `commentOnlyDoc` і `assemble`. Інакше вибирається гібридний шлях, де `stripLeadingPreamble` і `stripSection` очищають модельний текст, `stripSignatures` прибирає сигнатурні хвости, а `insertProtected` зберігає захищену секцію `## Призначення`, якщо вона вже була вхідною. У цій гілці `CRITIC_NONE_RE` відсікає випадки, коли критика не просить правок, і тоді початковий текст лишається без зайвого refine.
+
+Для секції `Публічний API` працює окремий гібридний шлях: `apiSectionPlan` спершу визначає, що вже покривається JSDoc-документацією, а `buildApiSection` збирає дослівно відтворювану частину й додає LLM лише на прогалини. Це зменшує ризик вигадок там, де опис уже є в коді, і тримає детерміновану частину відокремленою від генеративної. Далі `scoreDoc` перевіряє зібраний Markdown на відповідність фактам, а `assemble` зводить усі секції у фіксований порядок без зміни змісту.
+
+`prepareBatchItem` використовує той самий preflight, що й `generateDoc`, але зупиняється до LLM і віддає готовий пакет даних для batch-виклику. Саме тому `finishBatchItem` може після `submitBatch` застосувати той самий набір правил очищення, вставки захищеного блоку, додавання тестової секції та скорингу, не залежачи від послідовного шляху. `insertTestScenarios` додає окрему JS-рендерену секцію сценаріїв із test/spec-файлів, не змішуючи її з основним текстом документа.
+
+`DEFAULT_LOCAL_MODEL` задає базову модель для локального потоку, коли виклик не перевизначено зовні. Усі гілки спираються на спільний кеш у межах прогону, щоб повторні звернення не дублювали однакову підготовку й не розсинхронювали результат між секціями. `behaviorOnlyDocument` потрібен для вузького семантичного перегляду: він витягає лише поведінковий шар, щоб не змішувати його з авторським оглядом чи API-описом.
+
+If you want, I can also adapt this section to a more “docs-style” tone for the surrounding file.
 
 ## Публічний API
 
+- classifyDocgenError — Класифікує помилку генерації для batch-логіки (замінює `classifyOmlxError` після
+pi-міграції — помилки приходять як винятки з generateDoc/pi-one-shot):
+  - `permanent` — pre-send guard «Prompt too long» → skip (не ретраїти);
+  - `systemic`  — модель/сервер/registry/RAM упали → circuit-breaker abort;
+  - `transient` — таймаут (можна було б ретраїти);
+  - `infra`     — інше (рахуємо як помилку, але без abort).
+Живе тут (не в `docgen-files-batch`), щоб `docgen-wave-batch` (фаза 2) теж
+могла її імпортувати без циклічної залежності між двома batch-оркестраторами.
 - capTimeoutToDeadline — Ріже базовий per-call таймаут під залишок бюджету до дедлайну.
 Без дедлайну — базовий ліміт; після дедлайну — 0 (виклик не має стартувати).
+- CRITIC_NONE_RE — Критик (E2/Wave C) відповідає рівно цим словом — дефектів немає, refine не потрібен.
 - stripLeadingPreamble — R9: зрізає провідні чат-преамбули й дубль назви секції з початку тексту.
 Ітерується, поки перший непорожній рядок лишається мета-нарацією — модель
 інколи ставить дві поспіль («Як технічний письменник…» + «Ось оновлений…»).
+- stripSection — Прибирає код-фенс-обгортку (потрійні бектіки), випадковий провідний
+`##`-заголовок і чат-преамбули (R9) із секції.
+- stripSignatures — Stage 2 (детермінований лінт, 0 токенів): зрізає сигнатури `name(args)` → `name`.
+Два проходи — щоб зняти вкладені виклики на кшталт `check(cwd = process.cwd())`.
+Не чіпає дужки без ідентифікатора перед ними (напр. `(abie.mdc)`, «(наприклад)»).
 - splitProtected — Відокремлює захищену секцію `## Призначення` (Варіант B). Межа — наступний `## `
 (H2); `###`+ усередині не обривають блок.
 - insertProtected — Вставляє захищений блок `## Призначення` одразу після H1 (фіксована позиція).
 - scoreDoc — Stage 2.5 — детермінований скоринг (0 токенів): перевіряє вихід проти фактів.
+- apiSectionPlan — Stage 1/3 (гібрид doc-files, ADR 260719-2155), чиста частина: обчислює
+дослівний блок покритих JSDoc-описом експортів (0 LLM) і список прогалин
+(`isApiGap`), без жодного виклику моделі — виокремлено з
+[`buildApiSection`] для повторного використання batch-оркестратором
+хвиль (`docgen-wave-batch`), де LLM-виклик прогалини йде окремою
+batch-хвилею, а не await тут-таки.
 - buildApiSection — Stage 1/3 (гібрид doc-files, ADR 260719-2155): «Публічний API» — покриті
 JSDoc-описом експорти рендеряться дослівно (`renderApiLine`, 0 токенів, 0
 галюцинацій), LLM викликається лише на прогалини (`isApiGap`). Якщо прогалин
@@ -33,8 +73,23 @@ JSDoc-описом експорти рендеряться дослівно (`re
 - commentDocumentationMode — Вибирає гібридний режим для повністю прокоментованого source. Короткий
 header майже напевно є pointer-ом, а середній header разом із явним flow у
 коді потребує короткого LLM-доповнення. Детальний наратив лишається 0-LLM.
+- commentOnlyDoc — Збирає документ лише з авторських коментарів і детермінованих фактів.
+- assemble — Stage 3: фіксовані заголовки у фіксованому порядку.
 - insertTestScenarios — Додає test-сценарії до one-shot/batch-документа. Для unsupported мов основний
 Markdown ще повертає LLM, але test-секція лишається виключно JS-рендером.
+- behaviorOnlyDocument — Витягує LLM-секцію «Поведінка» для вузького semantic judge. Авторські
+«Огляд»/API не оцінюються моделлю і не можуть бути нею переписані.
+- resolvePromptSrc — №5 (бенч gemma-4): текст «коду файлу» для Behavior-промпта. Великий src
+(понад UNIT_DIGEST_TOKENS) → юніт-дайджест (імʼя + JSDoc + call-graph + тіло
+лише для непокритих юнітів) замість сирого коду: на ~6k токенів сирцю мала
+модель втрачає фокус і пише водянисто. Анкори/CRC — завжди від повного src
+(дайджест лише для промпта). units нема (парсинг упав чи мова без юніт-шару)
+— повний src, як раніше.
+- loadSrcAndFacts — Спільний pre-LLM preflight для `generateDoc` і `prepareBatchItem` (T8 2b-batch):
+читає джерело, ріже гігантів до LLM-виклику (pre-send guard — «Prompt too long»
+без жодного виклику) і резолвить факт-лист через мовний екстрактор lang-плагіна
+(js/mjs/ts — lang-js, `.rs` — lang-rust; whole-file `unsupported`-fallback, якщо
+екстрактора для розширення нема).
 - DEFAULT_LOCAL_MODEL — Дефолтна модель: N_CURSOR_DOCGEN_MODEL → resolveModel('min') (→ N_LOCAL_MIN_MODEL).
 Без хардкод-fallback: модель налаштовує кожен локально (`N_LOCAL_MIN_MODEL`); якщо
 нічого не задано — порожньо, і preflight оркестратора фейлить гучно (а не шле

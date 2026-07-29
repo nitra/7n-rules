@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.12.2] - 2026-07-29
+
+### Fixed
+
+- acp: create_session тепер завжди повертає реальну помилку handshake (напр. auth cursor-agent), а taze не повторює той самий провалений ACP-виклик по кожному major-пакету
+
 ## [2.12.1] - 2026-07-29
 
 ### Changed

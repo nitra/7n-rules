@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.23.6] - 2026-07-29
+
+### Changed
+
+- release: @7n/rules@1.55.0, @7n/rules-lang-js@0.23.5; docs: fix skill/rule examples suggesting bare `bun test` (#272)
+
+## [0.23.5] - 2026-07-29
+
+### Fixed
+
+- npm: skill/rule docs — замінено приклади голого 'bun test' на 'bun run test' (npm/package.json#scripts.test = vitest run; bare bun test обходить це й ганяє несумісний нативний Bun test runner)
+
 ## [0.23.4] - 2026-07-29
 
 ### Changed

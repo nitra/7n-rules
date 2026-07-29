@@ -21,7 +21,7 @@ function noop() {
  * @param {object} opts параметри набору
  * @param {typeof import('../../lib/auto-worktree.mjs')['bringChangesBackToOriginal']} opts.bringChangesBackToOriginal функція під тестом (прямий імпорт або реекспорт)
  * @param {typeof import('../../lib/auto-worktree.mjs')['removeAutoCreatedWorktree']} opts.removeAutoCreatedWorktree функція під тестом (прямий імпорт або реекспорт)
- * @param {string} opts.branch назва worktree-гілки у тестах remove (наприклад `main-lint`)
+ * @param {string} opts.branch назва worktree у тестах remove (наприклад `main-lint`)
  */
 export function describeAutoWorktreeBridge({ bringChangesBackToOriginal, removeAutoCreatedWorktree, branch }) {
   describe('bringChangesBackToOriginal', () => {
@@ -194,7 +194,7 @@ export function describeAutoWorktreeBridge({ bringChangesBackToOriginal, removeA
   })
 
   describe('removeAutoCreatedWorktree', () => {
-    test('викликає npx @7n/mt worktree remove <branch> з cwd=originalCwd', () => {
+    test('викликає mt worktree remove <name> --force з cwd=originalCwd', () => {
       const calls = []
       removeAutoCreatedWorktree(
         branch,
@@ -206,7 +206,7 @@ export function describeAutoWorktreeBridge({ bringChangesBackToOriginal, removeA
         noop
       )
       expect(calls).toEqual([
-        { cmd: 'npx', args: ['@7n/mt', 'worktree', 'remove', branch], opts: { cwd: '/orig', encoding: 'utf8' } }
+        { cmd: 'mt', args: ['worktree', 'remove', branch, '--force'], opts: { cwd: '/orig', encoding: 'utf8' } }
       ])
     })
 

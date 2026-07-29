@@ -60,6 +60,10 @@ Generated from the root `package.json` on each `npx @7n/rules` sync. Prefer `bun
 
 Before making changes, read the relevant rule files for the area you are working on.
 
+## RTK
+
+Якщо `rtk` встановлено, використовуй підтримувані rtk wrappers, щоб скорочувати вивід для LLM: `rtk git status`, `rtk rg pattern`, `rtk vitest run`, `rtk npm run build`. Для команд без wrapper-а виконуй оригінальну команду.
+
 ## Інваріант після змін
 
 `n-changelog.mdc` (alwaysApply) релевантне після **будь-якої** зміни файлів, не лише для релізу. Перед фінальною відповіддю виконай `npx @7n/rules lint changelog` (exit `0`) і познач результат рядком `Changelog: …` у відповіді.

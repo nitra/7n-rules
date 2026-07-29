@@ -15,12 +15,17 @@ import {
   bringChangesBackToOriginal,
   callRunner,
   formatReport,
+  isAcpAuthFailureMessage,
   loadPluginTazeProviders,
   removeAutoCreatedWorktree,
   runTazeOrchestrator
 } from '../orchestrate.mjs'
 
+const AUTH_FAILURE_MESSAGE =
+  "Authentication required. Please run 'agent login' first, then call authenticate() with methodId 'cursor_login'."
+
 const NOT_IN_WORKTREE_RE = /не в ізольованому worktree/
+const SKIPPED_ENTRY_RE = /пропущено/i
 
 /** Заглушка `log`/`copyFile`/`rm` для тестів, де побічний ефект не перевіряється. */
 function noop() {
@@ -117,6 +122,27 @@ describe('callRunner', () => {
       }
     })
     expect(result).toEqual({ ok: false, text: '', error: 'acp: idle-timeout' })
+  })
+})
+
+describe('isAcpAuthFailureMessage', () => {
+  test('розпізнає повідомлення про незалогінений cursor-agent', () => {
+    expect(isAcpAuthFailureMessage(AUTH_FAILURE_MESSAGE)).toBe(true)
+  })
+
+  test('розпізнає codex login case-insensitive', () => {
+    expect(isAcpAuthFailureMessage('please run CODEX LOGIN first')).toBe(true)
+  })
+
+  test('не розпізнає звичайну протокольну/мережеву помилку', () => {
+    expect(isAcpAuthFailureMessage('acp: idle-timeout')).toBe(false)
+    expect(isAcpAuthFailureMessage('ECONNREFUSED 127.0.0.1:1234')).toBe(false)
+  })
+
+  test('порожнє/відсутнє повідомлення — false, не кидає', () => {
+    expect(isAcpAuthFailureMessage(null)).toBe(false)
+    expect(isAcpAuthFailureMessage()).toBe(false)
+    expect(isAcpAuthFailureMessage('')).toBe(false)
   })
 })
 
@@ -316,10 +342,10 @@ describe('runTazeOrchestrator', () => {
         ecosystemProviders: []
       }
     })
-    expect(calls).toContain('npx @7n/mt worktree create main-taze n-taze: worktree-only skill')
+    expect(calls).toContain('mt worktree create main-taze --description n-taze: worktree-only skill')
     expect(calls.some(c => c.startsWith('bun install'))).toBe(true)
     expect(calls).toContain('git status --porcelain')
-    expect(calls).toContain('npx @7n/mt worktree remove main-taze')
+    expect(calls).toContain('mt worktree remove main-taze --force')
     expect(result.ok).toBe(true)
   })
 
@@ -338,7 +364,7 @@ describe('runTazeOrchestrator', () => {
       }
     })
     expect(calls.some(c => c.startsWith('git status'))).toBe(false)
-    expect(calls.some(c => c.startsWith('npx @7n/mt worktree remove'))).toBe(false)
+    expect(calls.some(c => c.startsWith('mt worktree remove'))).toBe(false)
   })
 
   test('поза .worktrees/ і без визначеної гілки (detached HEAD) — кидає, не створює worktree', async () => {
@@ -632,7 +658,7 @@ describe('runTazeOrchestrator', () => {
       process.on = originalOn
     }
 
-    expect(calls).toContain('npx @7n/mt worktree remove main-taze')
+    expect(calls).toContain('mt worktree remove main-taze --force')
     expect(exitCode).toBe(1)
   })
 
@@ -667,8 +693,114 @@ describe('runTazeOrchestrator', () => {
     })
 
     expect(result.ok).toBe(true)
-    expect(calls).not.toContain('npx @7n/mt worktree remove main-taze')
+    expect(calls).not.toContain('mt worktree remove main-taze --force')
     expect(logs.some(l => l.includes('НЕ прибирається'))).toBe(true)
+  })
+
+  test('ACP auth-провал на першому major — решта major/екосистем пропускається, без повторних callRunner (весь прогін, не одна екосистема)', async () => {
+    const runnerCalls = []
+    const majorA = [
+      { manifest: 'a.toml', pkg: 'pkg-a1', from: '1.0.0', to: '2.0.0' },
+      { manifest: 'a.toml', pkg: 'pkg-a2', from: '1.0.0', to: '2.0.0' }
+    ]
+    const majorB = [{ manifest: 'b.toml', pkg: 'pkg-b1', from: '1.0.0', to: '2.0.0' }]
+
+    const result = await runTazeOrchestrator({
+      cwd: '/tmp/project',
+      runner: 'cursor',
+      log: noop,
+      deps: {
+        spawnFn: fakeSpawn,
+        readMigrationCache: () => null,
+        writeMigrationCache: noop,
+        ecosystemProviders: [
+          fakeProvider('eco-a', [], { diff: () => Promise.resolve({ major: majorA, minorPatch: 0, totalChanged: 2 }) }),
+          fakeProvider('eco-b', [], { diff: () => Promise.resolve({ major: majorB, minorPatch: 0, totalChanged: 1 }) })
+        ],
+        callRunner: (runner, prompt, cwd) => {
+          runnerCalls.push({ runner, prompt, cwd })
+          return { ok: false, text: '', error: AUTH_FAILURE_MESSAGE }
+        }
+      }
+    })
+
+    // Лише перший major-запис узагалі йде в callRunner — решта (ще один у
+    // eco-a і один у eco-b) короткий шлях пропускає без виклику.
+    expect(runnerCalls).toHaveLength(1)
+    expect(runnerCalls[0].prompt).toBe('prompt:eco-a:pkg-a1')
+
+    const [ecoA, ecoB] = result.ecosystems
+    expect(ecoA.results).toHaveLength(2)
+    expect(ecoA.results[0]).toMatchObject({ pkg: 'pkg-a1', ok: false, error: AUTH_FAILURE_MESSAGE })
+    expect(ecoA.results[1]).toMatchObject({ pkg: 'pkg-a2', ok: false })
+    expect(ecoA.results[1].error).not.toBe(AUTH_FAILURE_MESSAGE)
+    expect(ecoA.results[1].error).toMatch(SKIPPED_ENTRY_RE)
+
+    expect(ecoB.results).toHaveLength(1)
+    expect(ecoB.results[0]).toMatchObject({ pkg: 'pkg-b1', ok: false })
+    expect(ecoB.results[0].error).toMatch(SKIPPED_ENTRY_RE)
+
+    // bump/diff/cleanup виконались для ОБОХ екосистем попри короткий шлях —
+    // пропускається лише per-пакетний LLM-виклик, не вся екосистема.
+    expect(result.ecosystems.every(eco => eco.processed)).toBe(true)
+    expect(result.ok).toBe(false)
+  })
+
+  test('НЕ auth-помилка (мережева/протокольна) — короткий шлях НЕ вмикається, наступний major все одно отримує виклик', async () => {
+    const runnerCalls = []
+    const major = [
+      { manifest: 'a.toml', pkg: 'pkg-a1', from: '1.0.0', to: '2.0.0' },
+      { manifest: 'a.toml', pkg: 'pkg-a2', from: '1.0.0', to: '2.0.0' }
+    ]
+
+    await runTazeOrchestrator({
+      cwd: '/tmp/project',
+      runner: 'codex',
+      log: noop,
+      deps: {
+        spawnFn: fakeSpawn,
+        readMigrationCache: () => null,
+        writeMigrationCache: noop,
+        ecosystemProviders: [
+          fakeProvider('eco-a', [], { diff: () => Promise.resolve({ major, minorPatch: 0, totalChanged: 2 }) })
+        ],
+        callRunner: (runner, prompt, cwd) => {
+          runnerCalls.push({ runner, prompt, cwd })
+          return { ok: false, text: '', error: 'acp: idle-timeout' }
+        }
+      }
+    })
+
+    expect(runnerCalls).toHaveLength(2)
+    expect(runnerCalls.map(c => c.prompt)).toEqual(['prompt:eco-a:pkg-a1', 'prompt:eco-a:pkg-a2'])
+  })
+
+  test('pi-раннер не зачіпає короткий шлях — auth-подібна помилка все одно повторює виклик на кожен пакет', async () => {
+    const runnerCalls = []
+    const major = [
+      { manifest: 'a.toml', pkg: 'pkg-a1', from: '1.0.0', to: '2.0.0' },
+      { manifest: 'a.toml', pkg: 'pkg-a2', from: '1.0.0', to: '2.0.0' }
+    ]
+
+    await runTazeOrchestrator({
+      cwd: '/tmp/project',
+      runner: 'pi',
+      log: noop,
+      deps: {
+        spawnFn: fakeSpawn,
+        readMigrationCache: () => null,
+        writeMigrationCache: noop,
+        ecosystemProviders: [
+          fakeProvider('eco-a', [], { diff: () => Promise.resolve({ major, minorPatch: 0, totalChanged: 2 }) })
+        ],
+        callRunner: (runner, prompt, cwd) => {
+          runnerCalls.push({ runner, prompt, cwd })
+          return { ok: false, text: '', error: AUTH_FAILURE_MESSAGE }
+        }
+      }
+    })
+
+    expect(runnerCalls).toHaveLength(2)
   })
 })
 

@@ -249,7 +249,7 @@ version: '1.0'
 
 # Як перевірити
 
-- `bun test` — зелений
+- `bun run test` — зелений
 - `node -p "require('./package.json').engines.node"` → `>=25`
 - `npx @7n/rules lint changelog` → exit `0`
 ```

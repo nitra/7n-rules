@@ -52,13 +52,17 @@ export const KNOWN_CI_PLUGINS = Object.freeze({
  * до якої глибини шукати сигнал: python — лише корінь (uv-провайдер v1
  * обробляє тільки кореневий pyproject.toml; js — кореневий package.json); rust — до 3 рівнів, бо в
  * монорепо Cargo.toml часто вкладений (Tauri `app/src-tauri/Cargo.toml`),
- * а провайдер обробляє всі знайдені маніфести.
+ * а провайдер обробляє всі знайдені маніфести; php — до 2 рівнів (nested Composer workspaces,
+ * ADR `2026-07-27-nested-composer-workspace-detection`: типові `services/api/composer.json`,
+ * `backend/composer.json`), бо `vendor/<vendor>/<package>/composer.json` лежить на глибині 3 і
+ * лишається поза детектом навіть без покладання на skip-теку `vendor` нижче (яка вже відсікає
+ * весь `vendor/**` явно, незалежно від глибини).
  */
 export const KNOWN_LANG_PLUGINS = Object.freeze({
   js: { signal: 'package.json', pkg: '@7n/rules-lang-js', maxDepth: 0 },
   python: { signal: 'pyproject.toml', pkg: '@7n/rules-lang-python', maxDepth: 0 },
   rust: { signal: 'Cargo.toml', pkg: '@7n/rules-lang-rust', maxDepth: 3 },
-  php: { signal: 'composer.json', pkg: '@7n/rules-lang-php', maxDepth: 0 }
+  php: { signal: 'composer.json', pkg: '@7n/rules-lang-php', maxDepth: 2 }
 })
 
 /** Теки, у які неглибокий скан мовних сигналів не заходить (плюс усі приховані). */

@@ -3,19 +3,12 @@ type: JS Module
 title: auto-worktree.mjs
 resource: npm/scripts/lib/auto-worktree.mjs
 docgen:
-  crc: 2a9e7bfd
+  crc: 108a743e
   model: omlx/gemma-4-e2b-it-4bit
-  tier: local-min-retry
-  score: 90
+  tier: local-min
+  score: 45
+  issues: no-overview,short-behavior,internal-name:copyDirectoryRecursive,best-of-2:retry-lost
 ---
-
-## Огляд
-
-Функції забезпечують ізоляцію роботи з кодом у worktree, перенесення змін між робочими середовищами та керування життєвим циклом створеного worktree. ensureRunningInWorktree гарантує роботу в ізольованому середовищі, bringChangesBackToOriginal переносить модифікації з worktree назад до основного репозиторію, використовуючи механізм копіювання, а не git merge, removeAutoCreatedWorktree забезпечує прибирання, видаляючи сам worktree після завершення операції.
-
-## Поведінка
-
-Поведінка: Функції взаємодіють для ізоляції роботи з кодом у worktree, перенесенні змін між робочими середовищами та керування життєвим циклом створюваного worktree. `ensureRunningInWorktree` гарантує роботу в ізольованому середовищі, тоді як `bringChangesBackToOriginal` переносить модифікації з worktree назад до основного репозиторію, використовуючи механізм копіювання, а не git merge. `removeAutoCreatedWorktree` забезпечує прибирання, видаляючи сам worktree, що виконується лише після завершення операції з `bringChangesBackToOriginal`.
 
 ## Публічний API
 
@@ -24,9 +17,9 @@ docgen:
 JS-код, що не годує SKILL.md жодному LLM-агенту (тож агентський preflight-блок
 з `worktree-notice.mjs` нікому виконувати). Якщо `cwd` вже під `.worktrees/`
 (репо-конвенція) або `.claude/worktrees/` (worktree харнесу Claude Code,
-куди `npx \@7n/mt worktree create` класти заборонено — `n-worktree.mdc`) —
+куди `mt worktree create` класти заборонено — `n-worktree.mdc`) —
 повертає його без змін. Інакше сам створює `.worktrees/<branch>-<suffix>`
-(`npx \@7n/mt worktree create`) і ставить залежності (`bun install`).
+(`mt worktree create`) і ставить залежності (`bun install`).
 
 **Гейт на чисте дерево.** Auto-create читає стан і потім переносить зміни
 назад копіюванням файлів (`bringChangesBackToOriginal`) — а не git merge.
@@ -58,11 +51,15 @@ merge/cherry-pick). Джерело істини — `git status --porcelain` у 
 рядок (суфікс `/` або реальний каталог на диску) копіюється рекурсивно
 (`copyDirectoryRecursive`) — весь вміст, а не один `copyFile`.
 - removeAutoCreatedWorktree — Прибирає автостворений worktree разом з його ефемерною git-гілкою
-(`npx \@7n/mt worktree remove <branch>`) — викликати лише ПІСЛЯ
+(`mt worktree remove <name> --force`) — викликати лише ПІСЛЯ
 `bringChangesBackToOriginal`, інакше зміни згорять разом з деревом.
 Не кидає при провалі — це прибирання, а не крок, від якого залежить
 результат прогону; провал лише логується, worktree лишається для
 ручного розбору.
+
+## Сценарії використання
+
+- `npm/scripts/lib/tests/auto-worktree.test.mjs` (ensureRunningInWorktree) — вже під .worktrees/ — повертає cwd без змін, нічого не створює; вже під .claude/worktrees/ (harness Claude Code) — повертає cwd без змін, нічого не створює; поза worktree, чисте дерево — сам створює worktree і ставить залежності; гілка зі slash — worktree name і шлях sanitized (slash → -); detached HEAD (немає поточної гілки) — кидає, не створює worktree; ще 4
 
 ## Гарантії поведінки
 

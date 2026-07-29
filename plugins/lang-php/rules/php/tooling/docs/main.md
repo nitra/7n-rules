@@ -3,25 +3,21 @@ type: JS Module
 title: main.mjs
 resource: plugins/lang-php/rules/php/tooling/main.mjs
 docgen:
-  crc: f75ae8cc
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
+  crc: eb9acef9
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
   score: 95
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Описує поведінку перевірки наявності кореневих файлів проєкту для команди `lint`.
-
-Використовується для виявлення відсутності обов’язкових файлів на рівні проєкту.
+Nested Composer workspaces (ADR `2026-07-27-nested-composer-workspace-detection`): перевіряє
+лише кореневий `composer.json`/`package.json` (свідоме обмеження — деталі в `tooling.mdc`).
 
 ## Поведінка
 
-1.
-2. Він підтверджує наявність `composer.json` і `package.json` у корені проєкту.
-3. Якщо обидва файли є, `lint` фіксує успіх; якщо будь-якого з них немає, повертає порушення з повідомленням про відсутній файл.
-4. Після цього `lint` завершує перевірку без додаткових змін у проєкті.
+Метод lint перевіряє наявність у кореневому каталозі файлів composer.json та package.json. Якщо ці файли відсутні, повідомляється про порушення відповідно до конфігурації php.mdc. Результат роботи методу полягає у підтвердженні наявності необхідних конфігураційних файлів, необхідних для роботи з проектом.
 
 ## Публічний API
 

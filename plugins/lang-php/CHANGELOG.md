@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.2] - 2026-07-29
+
+### Added
+
+- php: додано concern composer_manifest (канон composer.json)
+- PHP/Composer taze-провайдер (taze.provider@1, id taze-php) — детермінований bump composer require --with-all-dependencies по прямих require/require-dev, класифікація major/minor через caret-семантику; PHP-гілка SKILL.fragment.md
+- doc-files.extensions і doc-files.extractor: PHP docblock-екстрактор без AST/запуску php (class/interface/trait/enum/function/public-методи)
+- Провайдер coverage.provider@1 для PHP: PHPUnit/Pest clover-покриття (lines/functions) + опційне Infection mutation testing (caught/total, survived по файлах); collectPerFile — легкий делта-вимір per-file line coverage без мутаційки
+
+### Changed
+
+- Nested Composer workspace detection: `auto.glob` правила `php` тепер покриває глибину до 2
+рівнів (`*/composer.json`, `*/*/composer.json`); `project`/`tooling` лишаються root-only —
+задокументоване обмеження (ADR `2026-07-27-nested-composer-workspace-detection`)
+
 ## [0.2.1] - 2026-07-27
 
 ### Fixed

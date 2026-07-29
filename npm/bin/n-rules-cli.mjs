@@ -1894,7 +1894,7 @@ export async function runCli(argv) {
                 suffix: 'lint',
                 description: 'n-rules lint --full: worktree-only full-repo run'
               })
-            : { cwd: cwdArg, autoCreated: false, branchArg: null }
+            : { cwd: cwdArg, autoCreated: false, worktreeName: null }
           const runCwd = worktree.cwd
           // Ensure відкладений із root-guard-блоку (skipDevDepsEnsure вище) саме для
           // цього шляху — self-upgrade тепер усередині (auto-created) worktree, ПІСЛЯ
@@ -1942,10 +1942,10 @@ export async function runCli(argv) {
               // не перенесені зміни згорять разом з деревом.
               if (bringBackFailed) {
                 console.log(
-                  `⚠️ Перенесення назад не підтверджено — worktree "${worktree.branchArg}" лишається для ручного розбору.`
+                  `⚠️ Перенесення назад не підтверджено — worktree "${worktree.worktreeName}" лишається для ручного розбору.`
                 )
               } else {
-                removeAutoCreatedWorktree(worktree.branchArg, cwdArg, spawnSync, line => console.log(line))
+                removeAutoCreatedWorktree(worktree.worktreeName, cwdArg, spawnSync, line => console.log(line))
               }
             }
           }

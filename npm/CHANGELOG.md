@@ -1,5 +1,52 @@
 # Changelog
 
+## [1.55.3] - 2026-07-29
+
+### Changed
+
+- Git-reconcile ancestry-aware групує local branch із tracking upstream без фізичного fast-forward перед аналізом
+
+## [1.55.2] - 2026-07-29
+
+### Changed
+
+- Nested Composer workspace detection: `KNOWN_LANG_PLUGINS.php.maxDepth` 0 → 2, авто-детект правила
+`php` тепер бачить вкладені `composer.json` (`services/api/composer.json`, `backend/composer.json`)
+
+## [1.55.1] - 2026-07-29
+
+### Fixed
+
+- acp: create_session тепер завжди повертає реальну помилку handshake (напр. auth cursor-agent), а taze не повторює той самий провалений ACP-виклик по кожному major-пакету
+
+## [1.55.0] - 2026-07-29
+
+### Added
+
+- doc-files batch-шлях (T8, `'comment+behavior'`/повний конвеєр) тепер хвильовий (`docgen-wave-batch`): секції → critique → refine → best-of-2 → judge одним `submitBatch`-викликом на хвилю замість one-shot-промпта на файл — та сама якість, що й послідовний `generateDoc`, без per-file await. Помилка обов'язкового виклику валить лише свій файл.
+
+### Fixed
+
+- npm: skill/rule docs — замінено приклади голого 'bun test' на 'bun run test' (npm/package.json#scripts.test = vitest run; bare bun test обходить це й ганяє несумісний нативний Bun test runner)
+
+## [1.54.3] - 2026-07-29
+
+### Fixed
+
+- Git-reconcile відсіює вже опубліковані release entries, перевіряє final `bun.lock`, не виносить agent transcript у PR, коректно порівнює CI baseline і прибирає лише безпечні obsolete worktree
+
+## [1.54.2] - 2026-07-29
+
+### Changed
+
+- Міграція worktree-інтеграції на native CLI mt
+
+## [1.54.1] - 2026-07-29
+
+### Changed
+
+- release: @7n/llm-lib@2.12.1, @7n/rules@1.54.0, @7n/rules-lang-js@0.23.4, @7n/rules-lang-python@0.11.3, @7n/rules-lang-rust@0.14.2
+
 ## [1.54.0] - 2026-07-29
 
 ### Changed

@@ -15,16 +15,16 @@
 
 ## Архітектура
 
-Новий GitHub Actions workflow запускається подією `push` для тегів, які містять package name і semver. Він виконується після того, як `npm-publish` успішно опублікував пакет і відправив release-коміт разом із тегами.
+`npm-publish` створює GitHub Releases власним завершальним кроком після того, як успішно опублікував пакети й відправив release-коміт разом із тегами. Окремий tag-triggered workflow може лишатися лише як fallback для тегів, які пушить людина: GitHub не запускає workflow від tag push, виконаного через `GITHUB_TOKEN` іншого workflow.
 
 Workflow:
 
-1. Checkout робить повну історію на tag commit.
-2. Скрипт розбирає тег на package name та version, обходить усі `package.json` publishable workspaces, зіставляє package name й визначає шлях до його `CHANGELOG.md`.
-3. Скрипт витягує Markdown між заголовком `## [<version>]` і наступним заголовком того ж рівня.
-4. `gh release create` створює Release з tag name, заголовком `<package>@<version>` та витягнутим описом.
+1. Release engine повертає список workspaces з новою версією, а publish-кроки фіксують фактичні успішні package name/version.
+2. Після `git push --follow-tags` завершальний крок бере лише успішно опубліковані package-теги.
+3. Скрипт розбирає тег на package name та version, обходить усі `package.json` publishable workspaces, зіставляє package name й визначає шлях до його `CHANGELOG.md`.
+4. Скрипт витягує Markdown між заголовком `## [<version>]` і наступним заголовком того ж рівня, а `gh release create` створює Release з цим описом.
 
-Якщо Release вже існує, workflow завершується успішно без зміни його вмісту. Це робить повторні доставки tag push безпечними й не переписує вручну відредаговані release notes.
+Якщо Release вже існує, крок завершується успішно без зміни його вмісту. Помилка цього кроку не відкочує вже опублікований npm-пакет: `continue-on-error` зберігає незалежність npm publish, а CI лог лишається сигналом для ручного повтору.
 
 ## Дані та помилки
 

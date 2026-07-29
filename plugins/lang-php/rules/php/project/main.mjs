@@ -6,6 +6,13 @@
  * одному файлі дає неповний/хибний результат; composer audit — project-wide dependency
  * audit. Не входять у delta-план (§5): спрацьовують лише через `n-rules lint --full` або
  * scoped `n-rules lint php`.
+ *
+ * Nested Composer workspaces (ADR `2026-07-27-nested-composer-workspace-detection`): цей
+ * детектор свідомо читає лише кореневий `composer.json`/`vendor/bin/*` (`ctx.cwd`) — вкладені
+ * Composer-проєкти (`services/api/composer.json`) активують правило `php` (auto.glob до глибини
+ * 2), і кожен `.php`-файл лінтиться per-file концернами `cs_fixer`/`phpcs` незалежно від того,
+ * під яким вкладеним composer.json він лежить, але НЕ проганяються тут через
+ * `composer audit`/PHPStan/Psalm. Деталі й обґрунтування — `docs/adr/`, `tooling/tooling.mdc`.
  */
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'

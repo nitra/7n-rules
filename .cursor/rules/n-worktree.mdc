@@ -1,24 +1,26 @@
 ---
-description: Конвенція git-worktree у цьому репо — створення, інвентаризація та прибирання через `npx @7n/mt worktree`.
+description: Конвенція git-worktree у цьому репо — створення, інвентаризація та прибирання через native CLI `mt worktree`.
 globs:
 alwaysApply: true
 ---
 
 # Worktree-конвенція
 
-Усі git-worktree створюй і прибирай через `npx @7n/mt worktree` — він кладе їх у
-`.worktrees/` (gitignored, checkout `<sanit>/`) і веде інвентарний файл-опис у `.worktrees/.meta/`.
+Усі git-worktree створюй і прибирай через native CLI `mt worktree` — він кладе їх у
+`.worktrees/` (gitignored, checkout `<name>/`), створює власну гілку `mt/<name>` і
+зберігає опис у локальній Git-конфігурації цієї гілки.
 
 ## Розташування
 
 ```
 .worktrees/
-  feat-skill-meta/        ← git worktree checkout
-  feat-skill-meta.md      ← інвентарний опис поруч (gitignored через .worktrees/)
+  feat-skill-meta/        ← checkout гілки mt/feat-skill-meta
 ```
 
-Слеш у гілці перетворюється на дефіс: `feat/skill-meta` → `.worktrees/feat-skill-meta/`.
-Git-гілка лишається з оригінальним імʼям (`feat/skill-meta`).
+`<name>` має бути пласким: слеш у похідній назві перетворюй на дефіс, наприклад
+`feat/skill-meta` → `feat-skill-meta`. Git-гілка, яку створює CLI, завжди має префікс
+`mt/`: `mt/feat-skill-meta`. Опис належить цій гілці (`branch.mt/feat-skill-meta.description`),
+тому немає sidecar-файлів у `.worktrees/`.
 
 ## Налаштування редакторів
 
@@ -100,10 +102,11 @@ Zed **замінює** масив `file_scan_exclusions` цілком (не зл
 
 ## Команди
 
-- **Створити** (опис обовʼязковий): `npx @7n/mt worktree create <branch> "<навіщо>"`
-- **Інвентаризація**: `npx @7n/mt worktree list` (людино-) або `npx @7n/mt worktree inventory` (JSON)
-- **Прибрати** (ефемерний — прибирає й git-гілку): `npx @7n/mt worktree remove <branch>`
-- **Прибрати осиротілі інвентарі**: `npx @7n/mt worktree prune`
+- **Створити** (опис обовʼязковий): `mt worktree create <name> --description "<навіщо>"`
+- **Від базової гілки/рефа**: `mt worktree create <name> --base <ref> --description "<навіщо>"`
+- **Інвентаризація**: `mt worktree list` (людино-) або `mt worktree inventory` (JSON; містить `description`)
+- **Прибрати**: `mt worktree remove <name>`; за наявності незакомічених змін — додай `--force`. Команда прибирає checkout і лише власну гілку `mt/<name>`.
+- **Прибрати осиротілі Git-записи**: `mt worktree prune`
 
 ## Завершення гілки worktree
 
@@ -123,4 +126,4 @@ git checkout <base> && git merge --squash <branch> && git commit
 
 - Не клади worktree в `.claude/worktrees/` — це приватна директорія харнесу Claude Code.
 - Не клади worktree в батьківський каталог `../cursor-<name>` — ускладнює інвентаризацію.
-- Не створюй worktree вручну (`git worktree add`) повз `npx @7n/mt worktree create` — інакше не буде інвентарного опису.
+- Не створюй worktree вручну (`git worktree add`) повз `mt worktree create` — інакше не буде branch description в інвентаризації та безпечного lifecycle.

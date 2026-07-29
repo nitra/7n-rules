@@ -51,7 +51,7 @@ rg -n "<імпорт|функція|опція>" --type ts --type js --type vue
 ```bash
 npx @7n/rules lint
 bun run typecheck   # якщо є
-bun test            # якщо є
+bun run test        # якщо є
 ```
 
 ### Крок 7 — прибирання
