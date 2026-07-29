@@ -5,7 +5,7 @@ JS-перевірка (`npm/rules/python/tooling/main.mjs`) запускаєть
 - `uv.lock` — має існувати (зафіксувати командою `uv lock`);
 - `poetry.lock` / `poetry.toml` — мають **бути відсутніми** (Poetry заборонено);
 - `package.json` — має бути у корені (js-обгортка lint є частиною монорепо);
-- `.github/workflows/lint-python.yml` — має існувати (структуру перевіряє Rego-полісі `python.lint_python_yml`).
+- `.github/workflows/lint-python.yml` — має існувати (canonical workflow надає `ci.artifact@1` contribution цього плагіна; структуру перевіряє провайдер-плагін `@7n/rules-ci-github`).
 
 Якщо `pyproject.toml` відсутній — перевірка пропускається з кодом 0 (проєкт не Python).
 

@@ -24,6 +24,7 @@
     "coverage-provider",
     "doc-files",
     "rules",
+    "slots",
     "taze",
     "skills",
     "CHANGELOG.md",
@@ -40,6 +41,28 @@
     "slots": {
       "provides": [
         { "slot": "rules.directory", "version": 1, "id": "python-rules", "resource": "./rules" },
+        {
+          "slot": "ci.artifact",
+          "version": 1,
+          "id": "python-github-lint",
+          "resource": "./slots/ci/python-github-lint.json",
+          "requires": {
+            "capabilities": [
+              "ci:github"
+            ]
+          }
+        },
+        {
+          "slot": "ci.artifact",
+          "version": 1,
+          "id": "python-azure-lint",
+          "resource": "./slots/ci/python-azure-lint.json",
+          "requires": {
+            "capabilities": [
+              "ci:azure"
+            ]
+          }
+        },
         { "slot": "taze.provider", "version": 1, "id": "taze-python", "resource": "./taze/provider.mjs" },
         { "slot": "coverage.provider", "version": 1, "id": "coverage-python", "resource": "./coverage-provider/provider.mjs" },
         { "slot": "doc-files.extractor", "version": 1, "id": "doc-files-python", "resource": "./doc-files/extractors.mjs" },
