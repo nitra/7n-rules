@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.57.5] - 2026-07-29
+
+### Fixed
+
+- resolveModel-виклики переведено на tier-контракт ('min') після уніфікації model resolution (#291) — лагодить 32 фейли adr/hooks, docgen-*, cspell-fix
+
 ## [1.57.4] - 2026-07-29
 
 ### Fixed

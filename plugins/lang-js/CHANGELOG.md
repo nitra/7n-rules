@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.24.3] - 2026-07-29
+
+### Changed
+
+- release: @7n/llm-lib@2.13.3, @7n/rules-lang-js@0.24.2, @7n/rules@1.57.4; fix(js/eslint): guard identity tagged-template tags from LLM autofix (#293)
+
 ## [0.24.2] - 2026-07-29
 
 ### Fixed
