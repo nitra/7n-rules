@@ -176,6 +176,40 @@ describe('planSemanticChunks', () => {
     })
   })
 
+  it('plans only code-unit-originated edges by default while retaining structured graph relations', () => {
+    const source = 'submit();'
+    const result = planSemanticChunks({
+      graph: graph(
+        [
+          node('node:submit', 'src/orders.mjs', 0, Buffer.byteLength(source)),
+          {
+            id: 'config:openapi',
+            kind: 'config',
+            domainId: DOMAIN.id,
+            attributes: { sourcePath: 'contracts/openapi.yaml', artifact: 'schema' }
+          },
+          {
+            id: 'contract:orders-api',
+            kind: 'integration',
+            domainId: DOMAIN.id,
+            attributes: { sourcePath: 'contracts/openapi.yaml', boundary: 'contract' }
+          }
+        ],
+        [edge('edge:submit', 'node:submit', 'node:submit', 'e:submit'), edge('edge:contract', 'config:openapi', 'contract:orders-api', 'e:contract')],
+        [
+          { id: 'e:submit', path: 'src/orders.mjs', span: { startByte: 0, endByte: Buffer.byteLength(source) } },
+          { id: 'e:contract', path: 'contracts/openapi.yaml' }
+        ]
+      ),
+      sources: [{ path: 'src/orders.mjs', content: source }],
+      maxTokens: 100
+    })
+
+    expect(result).toMatchObject({ ok: true })
+    expect(result.plan.coverage.requiredEdgeIds).toEqual(['edge:submit'])
+    expect(result.plan.coverage.coveredEdgeIds).toEqual(['edge:submit'])
+  })
+
   it('fails explicitly for an oversized unit and an oversized SCC rather than clipping source', () => {
     const source = 'veryLongUnit();'
     const unit = planSemanticChunks({

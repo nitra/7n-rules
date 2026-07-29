@@ -12,7 +12,7 @@ resource: npm/rules/ci4/package_knowledge/structured-sources.mjs
 
 `loadStructuredSources` не переходить у nested documentation domains, не слідує symlink за domain boundary та зберігає exact relative path і SHA-256 content hash як evidence. Internal schema відображається як `config` node з `artifact: schema`; external API boundary — як `integration` node, а schema provenance — як `evidence.kind: schema` відповідно до graph schema v1.
 
-`mergeStructuredFragments` перевіряє injected fragments, evidence provenance та local edges перед детермінованим merge у normalized language graph. Duplicate identity або malformed fragment зупиняють candidate.
+`mergeStructuredFragments` перевіряє injected fragments, evidence provenance та local edges перед детермінованим merge у normalized language graph. Duplicate identity або malformed fragment зупиняють candidate. `runner` викликає discovery після language source loading і передає fragments у candidate; blocking loader result не доходить до claims, render або publication. Loader також повертає exact parsed artifact text у `evidenceContentById` для downstream entailment verification без повторного filesystem read.
 
 ## Публічний API
 

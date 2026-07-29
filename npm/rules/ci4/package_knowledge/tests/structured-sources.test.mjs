@@ -58,6 +58,7 @@ describe('structured package knowledge sources', () => {
           contentHash: `sha256:${createHash('sha256').update(openapi).digest('hex')}`
         })
       ])
+      expect(result.evidenceContentById[contract.evidence[0].id]).toBe(openapi)
       const merged = mergeStructuredFragments({
         domain: domain(root),
         graph: { nodes: [], edges: [], evidence: [] },
@@ -97,5 +98,23 @@ describe('structured package knowledge sources', () => {
       expect(result).toMatchObject({ ok: true })
       expect(result.fragments.map(fragment => fragment.file.path)).toEqual(['package.json'])
     })
+  })
+
+  test('rejects a schema node kind that graph schema v1 does not allow', () => {
+    const result = mergeStructuredFragments({
+      domain: { id: 'npm:@fixture/orders' },
+      graph: { nodes: [], edges: [], evidence: [] },
+      fragments: [
+        {
+          ok: true,
+          file: { path: 'schema.json', contentHash: 'sha256:schema' },
+          nodes: [{ id: 'schema:forbidden', kind: 'schema', visibility: 'public', domainId: 'npm:@fixture/orders' }],
+          edges: [],
+          evidence: []
+        }
+      ]
+    })
+
+    expect(result).toEqual({ ok: false, diagnostics: [expect.objectContaining({ code: 'invalid-structured-node' })] })
   })
 })

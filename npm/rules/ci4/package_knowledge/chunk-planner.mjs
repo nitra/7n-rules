@@ -216,7 +216,10 @@ function resolveRequiredEdges(graph, requiredNodes, requiredEdgeIds) {
     if (edgeById.has(edge.id)) diagnostics.push(diagnostic('edge-duplicate', `Повторний edge ID "${edge.id}".`))
     edgeById.set(edge.id, edge)
   }
-  const requested = requiredEdgeIds === undefined ? edges.map(edge => edge?.id) : requiredEdgeIds
+  const requested =
+    requiredEdgeIds === undefined
+      ? edges.filter(edge => requiredNodes.has(edge?.fromId)).map(edge => edge.id)
+      : requiredEdgeIds
   if (!Array.isArray(requested) || requested.some(id => typeof id !== 'string' || id === '')) {
     diagnostics.push(diagnostic('required-edges-invalid', 'requiredEdgeIds мусить бути масивом непорожніх IDs.'))
   }

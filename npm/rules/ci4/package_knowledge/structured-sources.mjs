@@ -37,7 +37,7 @@ const DEFAULT_IGNORES = Object.freeze([
   '**/.venv/**',
   '**/venv/**'
 ])
-const NODE_KINDS = new Set(['config', 'schema', 'integration'])
+const NODE_KINDS = new Set(['config', 'integration'])
 const VISIBILITIES = new Set(['public', 'package', 'external'])
 const EVIDENCE_KINDS = new Set(['config', 'schema'])
 const EDGE_KINDS = new Set(['contains', 'implements'])
@@ -208,7 +208,7 @@ function validateArtifact(kind, value, path) {
 /**
  * Discovers and parses package-owned structured sources without language adapters.
  * @param {{domain: Record<string, unknown>}} input resolved documentation domain
- * @returns {Promise<{ok: true, fragments: object[]} | {ok: false, diagnostics: object[]}>} graph fragments or blockers
+ * @returns {Promise<{ok: true, fragments: object[], evidenceContentById: Record<string, string>} | {ok: false, diagnostics: object[]}>} graph fragments or blockers
  */
 export async function loadStructuredSources({ domain }) {
   if (!domain || typeof domain.root !== 'string' || !isAbsolute(domain.root) || typeof domain.rootManifest !== 'string') {
@@ -230,6 +230,7 @@ export async function loadStructuredSources({ domain }) {
   })
   const paths = [...new Set([manifestName, ...discovered.map(toPosix)])].toSorted((left, right) => left.localeCompare(right))
   const fragments = []
+  const evidenceContentById = {}
   const diagnostics = []
   for (const path of paths) {
     const loaded = await readOwnedArtifact(root, path)
@@ -250,6 +251,7 @@ export async function loadStructuredSources({ domain }) {
     }
     const hash = contentHash(loaded.content)
     const projection = sourceNode({ domain, path, kind, format: parsed.format, hash, value: parsed.value })
+    for (const evidence of projection.evidence) evidenceContentById[evidence.id] = loaded.content
     fragments.push({ ok: true, file: { path, contentHash: hash }, ...projection })
   }
   if (diagnostics.length > 0) {
@@ -258,7 +260,11 @@ export async function loadStructuredSources({ domain }) {
       diagnostics: diagnostics.toSorted((left, right) => `${left.path ?? ''}:${left.code}`.localeCompare(`${right.path ?? ''}:${right.code}`))
     }
   }
-  return { ok: true, fragments: fragments.toSorted((left, right) => left.file.path.localeCompare(right.file.path)) }
+  return {
+    ok: true,
+    fragments: fragments.toSorted((left, right) => left.file.path.localeCompare(right.file.path)),
+    evidenceContentById: Object.fromEntries(Object.entries(evidenceContentById).toSorted(([left], [right]) => left.localeCompare(right)))
+  }
 }
 
 /** Validates one injected structured graph fragment before it can extend a candidate. */

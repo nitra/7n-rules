@@ -23,6 +23,7 @@ import { loadKnowledgeAdapters } from './load-adapters.mjs'
 import { publishKnowledgeArtifacts } from './publish.mjs'
 import { renderKnowledgeArtifacts } from './render.mjs'
 import { loadDomainSources } from './source-loader.mjs'
+import { loadStructuredSources } from './structured-sources.mjs'
 import { validateKnowledgeGraph } from './validator.mjs'
 import { parseKnowledgeZones } from './zones.mjs'
 import { readNRulesConfigLite } from '../../../scripts/lib/read-n-rules-config-lite.mjs'
@@ -199,6 +200,7 @@ async function writeShadowCandidate(stagingPath, files, deps = {}) {
  *   cachePath?: string, expectedCachePath?: string, config?: object, submitBatchImpl?: Function,
  *   resolveDomainsImpl?: typeof resolveDocumentationDomains, loadAdaptersImpl?: typeof loadKnowledgeAdapters,
  *   loadSourcesImpl?: typeof loadDomainSources, buildCandidateImpl?: typeof buildKnowledgeCandidate,
+ *   loadStructuredSourcesImpl?: typeof loadStructuredSources,
  *   planChunksImpl?: typeof planSemanticChunks, buildClaimsImpl?: typeof buildStructuredClaims,
  *   renderImpl?: typeof renderKnowledgeArtifacts, validateImpl?: typeof validateKnowledgeGraph,
  *   publishImpl?: typeof publishKnowledgeArtifacts, readExistingMarkdownImpl?: typeof readExistingMarkdown,
@@ -244,6 +246,9 @@ export async function buildPackageKnowledge(input) {
   const loadSources = input.loadSourcesImpl ?? loadDomainSources
   const loaded = await loadSources({ domain, extensions })
   if (!loaded.ok) return blocked('sources', loaded.diagnostics, domain.id)
+  const loadStructured = input.loadStructuredSourcesImpl ?? loadStructuredSources
+  const structured = await loadStructured({ domain })
+  if (!structured.ok) return blocked('structured-sources', structured.diagnostics, domain.id)
   const sourceFingerprint = fingerprint(
     loaded.sources.map(source => ({ path: source.path, content: source.content })).toSorted((left, right) => left.path.localeCompare(right.path))
   )
@@ -253,6 +258,7 @@ export async function buildPackageKnowledge(input) {
     domain: candidateDomain,
     sources: loaded.sources,
     extractors,
+    structuredFragments: structured.fragments,
     expectedOverlay: {},
     gapMappings: [],
     aliasesByTopicId: input.aliasesByTopicId ?? {},

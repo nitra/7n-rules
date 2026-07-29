@@ -94,7 +94,57 @@ function inputs(root, adapter, extra = {}) {
     resolveDomainsImpl: vi.fn(async () => ({ domains: [domain(root)], diagnostics: [] })),
     loadAdaptersImpl: vi.fn(async () => ({ blocked: false, diagnostics: [], adapters: { domain: [], extractor: [adapter] } })),
     loadSourcesImpl: vi.fn(async () => ({ ok: true, sources: [{ path: 'src/orders.mjs', content: 'export function submit() {}' }] })),
+    loadStructuredSourcesImpl: vi.fn(async () => ({ ok: true, fragments: [] })),
     ...extra
+  }
+}
+
+/** Returns one schema-evidenced external contract fragment for runner injection. */
+function structuredContract() {
+  const configId = `config:${DOMAIN_ID}:openapi`
+  const contractId = `contract:${DOMAIN_ID}:orders-api`
+  const evidenceId = 'evidence:orders-openapi'
+  return {
+    ok: true,
+    evidenceContentById: { 'evidence:orders-openapi': 'openapi: 3.1.0\n' },
+    fragments: [
+      {
+        ok: true,
+        file: { path: 'contracts/openapi.yaml', contentHash: 'sha256:openapi' },
+        nodes: [
+          {
+            id: configId,
+            kind: 'config',
+            name: 'Orders API schema',
+            visibility: 'public',
+            domainId: DOMAIN_ID,
+            attributes: { sourcePath: 'contracts/openapi.yaml', artifact: 'schema' },
+            sourceFingerprint: 'sha256:openapi'
+          },
+          {
+            id: contractId,
+            kind: 'integration',
+            name: 'Orders API',
+            visibility: 'external',
+            domainId: DOMAIN_ID,
+            attributes: { sourcePath: 'contracts/openapi.yaml', boundary: 'contract' },
+            sourceFingerprint: 'sha256:openapi'
+          }
+        ],
+        edges: [
+          { id: 'edge:orders-openapi', kind: 'implements', fromId: configId, toId: contractId, evidenceIds: [evidenceId] }
+        ],
+        evidence: [
+          {
+            id: evidenceId,
+            kind: 'schema',
+            path: 'contracts/openapi.yaml',
+            symbolId: configId,
+            contentHash: 'sha256:openapi'
+          }
+        ]
+      }
+    ]
   }
 }
 
@@ -126,6 +176,39 @@ describe('buildPackageKnowledge', () => {
       expect(result).toMatchObject({ ok: false, stage: 'candidate', diagnostics: [{ code: 'extractor-threw' }] })
       expect(batch).not.toHaveBeenCalled()
       expect(await readFile(join(root, 'docs', 'index.md'), 'utf8')).toBe('legacy document\n')
+    })
+  })
+
+  test('passes structured fragments into the candidate and rendered manifest', async () => {
+    await withTmpDir(async root => {
+      const loader = vi.fn(async () => structuredContract())
+      const result = await buildPackageKnowledge(
+        inputs(root, extractor(), { loadStructuredSourcesImpl: loader, submitBatchImpl: successfulBatch() })
+      )
+
+      expect(result).toMatchObject({ ok: true, mode: 'shadow' })
+      expect(loader).toHaveBeenCalledWith({ domain: expect.objectContaining({ id: DOMAIN_ID }) })
+      const manifest = await readFile(join(result.stagingPath, 'docs', '.docgen', 'manifest.json'), 'utf8')
+      expect(manifest).toContain('Orders API')
+      expect(manifest).toContain('contracts/openapi.yaml')
+    })
+  })
+
+  test('blocks malformed structured sources before candidate work and preserves committed docs', async () => {
+    await withTmpDir(async root => {
+      await mkdir(join(root, 'docs'), { recursive: true })
+      await writeFile(join(root, 'docs', 'index.md'), 'legacy document\n', 'utf8')
+      const batch = successfulBatch()
+      const result = await buildPackageKnowledge(
+        inputs(root, extractor(), {
+          loadStructuredSourcesImpl: vi.fn(async () => ({ ok: false, diagnostics: [{ code: 'structured-parse-failed' }] })),
+          submitBatchImpl: batch
+        })
+      )
+
+      expect(result).toMatchObject({ ok: false, stage: 'structured-sources', diagnostics: [{ code: 'structured-parse-failed' }] })
+      expect(batch).not.toHaveBeenCalled()
+      await expect(readFile(join(root, 'docs', 'index.md'), 'utf8')).resolves.toBe('legacy document\n')
     })
   })
 
