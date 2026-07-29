@@ -5,6 +5,9 @@
  * `runAgentFix`/`isLocalModel`/`extractContext`/`lint` — усі мокані, реальних LLM-викликів
  * і реального ESLint-прогону нема.
  */
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 const runAgentFixMock = vi.fn()
@@ -193,6 +196,88 @@ describe('js/eslint fixWorker', () => {
       model: 'openai-codex/gpt-5.4-mini',
       timeoutMs: 120_000,
       recordWrite: vi.fn()
+    })
+  })
+
+  describe('захист gql/sql tagged-template тегів', () => {
+    let cwd
+
+    beforeEach(async () => {
+      cwd = await mkdtemp(join(tmpdir(), 'fix-worker-gql-'))
+    })
+
+    afterEach(async () => {
+      await rm(cwd, { recursive: true, force: true })
+    })
+
+    test('файл із gql-тегом → ruleText попереджає про захищений тег, verify ok коли тег лишився', async () => {
+      await writeFile(join(cwd, 'a.js'), "import { gql } from 'x'\nconst q = gql`query { x }`\n")
+      lintMock.mockResolvedValue({ violations: [] })
+      runAgentFixMock.mockImplementationOnce(async (ruleId, violationText, callCwd, opts) => {
+        expect(opts.ruleText).toContain('gql')
+        const verdict = await opts.verify()
+        expect(verdict).toEqual({ ok: true, output: '' })
+        return { applied: true, touchedFiles: [join(cwd, 'a.js')], error: null }
+      })
+
+      await fixWorker([v('a.js', 'r1')], {
+        cwd,
+        ruleId: 'js',
+        concernId: 'eslint',
+        tier: 'cloud-min',
+        model: 'openai-codex/gpt-5.4-mini',
+        timeoutMs: 120_000,
+        recordWrite: vi.fn()
+      })
+
+      expect(runAgentFixMock).toHaveBeenCalledTimes(1)
+    })
+
+    test('LLM прибирає gql-тег (String.raw) → verify не ok, навіть якщо lint-порушення усунено', async () => {
+      await writeFile(join(cwd, 'a.js'), "import { gql } from 'x'\nconst q = gql`query { x }`\n")
+      lintMock.mockResolvedValue({ violations: [] })
+      runAgentFixMock.mockImplementationOnce(async (ruleId, violationText, callCwd, opts) => {
+        // Симулюємо LLM, що замінив identity-тег на String.raw — та сама runtime-поведінка,
+        // але захищений тег зник.
+        await writeFile(join(cwd, 'a.js'), 'const q = String.raw`query { x }`\n')
+        const verdict = await opts.verify()
+        expect(verdict.ok).toBe(false)
+        expect(verdict.output).toContain('gql')
+        return { applied: true, touchedFiles: [join(cwd, 'a.js')], error: null }
+      })
+
+      await fixWorker([v('a.js', 'r1')], {
+        cwd,
+        ruleId: 'js',
+        concernId: 'eslint',
+        tier: 'cloud-min',
+        model: 'openai-codex/gpt-5.4-mini',
+        timeoutMs: 120_000,
+        recordWrite: vi.fn()
+      })
+
+      expect(runAgentFixMock).toHaveBeenCalledTimes(1)
+    })
+
+    test('файл без захищених тегів → ruleText undefined', async () => {
+      await writeFile(join(cwd, 'a.js'), 'const q = 1\n')
+      lintMock.mockResolvedValue({ violations: [] })
+      runAgentFixMock.mockImplementationOnce(async (ruleId, violationText, callCwd, opts) => {
+        expect(opts.ruleText).toBeUndefined()
+        return { applied: true, touchedFiles: [join(cwd, 'a.js')], error: null }
+      })
+
+      await fixWorker([v('a.js', 'r1')], {
+        cwd,
+        ruleId: 'js',
+        concernId: 'eslint',
+        tier: 'cloud-min',
+        model: 'openai-codex/gpt-5.4-mini',
+        timeoutMs: 120_000,
+        recordWrite: vi.fn()
+      })
+
+      expect(runAgentFixMock).toHaveBeenCalledTimes(1)
     })
   })
 })
