@@ -37,7 +37,7 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.12.3",
+      "version": "2.13.2",
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
       },
@@ -46,8 +46,8 @@
         "@earendil-works/pi-coding-agent": "~0.80.10",
       },
       "optionalDependencies": {
-        "@7n/llm-lib-darwin-arm64": "2.9.7",
-        "@7n/llm-lib-linux-x64": "2.9.7",
+        "@7n/llm-lib-darwin-arm64": "2.13.2",
+        "@7n/llm-lib-linux-x64": "2.13.2",
       },
       "peerDependencies": {
         "@earendil-works/pi-ai": "~0.80.10",
@@ -60,7 +60,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.57.0",
+      "version": "1.57.3",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
@@ -107,7 +107,7 @@
     },
     "plugins/lang-js": {
       "name": "@7n/rules-lang-js",
-      "version": "0.23.8",
+      "version": "0.24.1",
       "dependencies": {
         "eslint": "^10.4.1",
         "globby": "^16.0.0",
@@ -128,7 +128,7 @@
     },
     "plugins/lang-php": {
       "name": "@7n/rules-lang-php",
-      "version": "0.2.4",
+      "version": "0.2.6",
       "peerDependencies": {
         "@7n/rules": ">=1.2.0",
       },
@@ -167,9 +167,9 @@
   "packages": {
     "@7n/llm-lib": ["@7n/llm-lib@workspace:llm-lib"],
 
-    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.9.7", "", { "os": "darwin", "cpu": "arm64" }, "sha512-J2xneopCQ5mRcMbcOpfGXH+MhC4oy1ax76lB1sQKo5gKzQNTEl36DQPiToi9mYLbt+p8FQwhKTL5KDx/1Yt6Lw=="],
+    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.13.2", "", { "os": "darwin", "cpu": "arm64" }, "sha512-S502yVIKLSC3V8mesmqTUGGTuiAvXpJvtpyp7FbiL6XOrvnGJw8uC5BUUlyxg334I0b+LNagBn9c+anx5AhUEg=="],
 
-    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.9.7", "", { "os": "linux", "cpu": "x64" }, "sha512-qKwUSXXOfZ8SfshDLdQtmPDB5oX5y//AB5BRNgbkNABvTZ5pA5I9yINJoaKmm2qOvErxkeQMZRmYSTbh845Vvg=="],
+    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.13.2", "", { "os": "linux", "cpu": "x64" }, "sha512-z/hwlMXPATwp9MxQvzwudogKvE1akfXkABW17dG223/5NOy5tvMwm3KOhQ6xHNhZSFKuA05Nv7CHZrXBvOkArw=="],
 
     "@7n/rules": ["@7n/rules@workspace:npm"],
 
