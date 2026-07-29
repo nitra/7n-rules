@@ -3,11 +3,10 @@ type: JS Module
 title: run-detectors.mjs
 resource: npm/scripts/lib/lint-surface/run-detectors.mjs
 docgen:
-  crc: a48109bd
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
+  crc: 8eef8a6e
+  model: omlx/gemma-4-e2b-it-4bit
+  tier: local-min
   score: 75
-  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
@@ -35,7 +34,7 @@ full-scope перевірки — справа `--repo-wide`).
 
 ## Сценарії використання
 
-- `npm/scripts/lib/lint-surface/tests/run-detectors.test.mjs` (detectAll — exit codes; detectAll — scoping) — clean → exit 0; violations → exit 1, ruleId/concernId домішані з ctx; detector кидає → exit 2; невалідний violation (без reason) → exit 2; absolute file-path відхиляється → exit 2; ще 15
+- `npm/scripts/lib/lint-surface/tests/run-detectors.test.mjs` (detectAll — exit codes; detectAll — scoping) — clean → exit 0; violations → exit 1, ruleId/concernId домішані з ctx; detector кидає → exit 2; невалідний violation (без reason) → exit 2; absolute file-path відхиляється → exit 2; ще 16
 
 ## Гарантії поведінки
 

@@ -97,10 +97,12 @@ describe('concern-meta — lint surface', () => {
         lint: { scope: 'per-file' },
         cloudTimeoutMs: 180_000
       })
-      expect((await readConcernMeta(withOverride, 'coverage')).cloudTimeoutMs).toBe(180_000)
+      const overriddenMeta = await readConcernMeta(withOverride, 'coverage')
+      expect(overriddenMeta.cloudTimeoutMs).toBe(180_000)
 
       const invalid = await seedConcern(dir, 'test', 'invalid', { lint: { scope: 'per-file' }, cloudTimeoutMs: 0 })
-      expect((await readConcernMeta(invalid, 'invalid')).cloudTimeoutMs).toBeUndefined()
+      const invalidMeta = await readConcernMeta(invalid, 'invalid')
+      expect(invalidMeta.cloudTimeoutMs).toBeUndefined()
     })
   })
 

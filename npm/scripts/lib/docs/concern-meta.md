@@ -3,29 +3,29 @@ type: JS Module
 title: concern-meta.mjs
 resource: npm/scripts/lib/concern-meta.mjs
 docgen:
-  crc: ccc325b1
-  model: manual
+  crc: d452f9b7
+  model: omlx/gemma-4-e2b-it-4bit
+  tier: local-min
+  score: 80
 ---
 
 ## Огляд
 
-Цей модуль зчитує та валідує схему конфігурації, визначену у `concern.json`. Він надає функції для отримання метаданих concern-ів та списку доступних concern-ів. Модуль працює в режимі fail-safe: при виявленні помилок він не генерує винятків, а повертає `null` замість них.
-
-## Поведінка
-
-Поведінка
-readConcernMeta зчитує і перевіряє файл concern.json у вказаній директорії concern-а, повертаючи метадані або null, якщо файл відсутній чи не валідний.
-listConcerns сканує директорію правил і повертає список усіх знайдених concern-ів у алфавітному порядку, ігноруючи каталоги без concern.json.
-Нормалізований meta несе `fixability` (`code`|`config`|`structural`); невідоме/відсутнє значення зводиться до `code` — дефолт, за яким concern лишається eligible для LLM-fix-ladder.
-Нормалізований meta несе також `skipLocalTier` (boolean, дефолт `false`): `true` — concern пропускає local-min/local-min-retry rung-и LLM-ladder-а, перша спроба одразу йде на cloud-min. Для concern-ів, де local-tier емпірично майже завжди лише витрачає бюджет rung-а без результату (напр. `js/eslint`).
+Парсер і нормалізатор `concern.json`. Єдине місце де читається і валідується схема concern-а.
 
 ## Публічний API
 
-readConcernMeta — Зчитує та уніфікує налаштування з `concern.json` у каталозі; повертає відсутність або недійсність.
-listConcerns — Повертає список усіх визначених concern-ів з підкаталогів `ruleDir` у алфавітному порядку, ігноруючи каталоги без `concern.json`.
+- readConcernMeta — Читає і нормалізує `concern.json` з каталогу.
+Повертає `null` якщо файл відсутній або не валідний.
+- listConcerns — Сканує підкаталоги `ruleDir` і повертає всі concern-и (у алфавітному порядку).
+Каталоги без `concern.json` ігноруються.
+
+## Сценарії використання
+
+- `npm/scripts/lib/tests/concern-meta.test.mjs` (concern-meta — policy.engine derivation; concern-meta — lint surface) — явний engine:; legacy check:; legacy без engine/check (Rego) → engine:; lint scope/glob нормалізується (string → array); skipLocalTier: true нормалізується, дефолт — false; ще 2
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
-- Перехоплює помилки і не пропускає винятків назовні (fail-safe).
-- За певних помилок повертає порожнє значення (напр. `null`) замість винятку.
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
+- Містить локальні fail-safe гілки; інші помилки можуть поширюватися назовні.
+- Деякі локальні fail-safe гілки повертають порожнє значення (напр. `null`) замість винятку.

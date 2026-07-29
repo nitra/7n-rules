@@ -143,8 +143,6 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
   for (const [i, batch] of batches.entries()) {
     const files = batch.map(g => g.file)
     const batchMutants = batch.reduce((s, g) => s + g.mutants.length, 0)
-    const oversizedFiles = batch.filter(g => (g.sourceMutantCount ?? g.mutants.length) > budget).map(g => g.file)
-    const oversizedSubBatch = batch.some(g => g.sourceMutantCount && g.mutants.length < g.sourceMutantCount)
     if (i >= maxBatches) {
       const deferredBatch = {
         batch: i + 1,
@@ -157,6 +155,8 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
       console.log(`  ⏭ batch ${i + 1}/${batches.length} deferred: ${deferredBatch.reason}`)
       continue
     }
+    const oversizedFiles = batch.filter(g => (g.sourceMutantCount ?? g.mutants.length) > budget).map(g => g.file)
+    const oversizedSubBatch = batch.some(g => g.sourceMutantCount && g.mutants.length < g.sourceMutantCount)
     console.log(
       `\n🤖 batch ${i + 1}/${batches.length}: ${files.length} файл(ів), ${batchMutants} мутантів, budget=${budget}, oversizedSourceFile=${oversizedFiles.length > 0}, oversizedSubBatch=${oversizedSubBatch} — ${files.join(', ')}\n`
     )
@@ -168,7 +168,7 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
     const startedAt = Date.now()
     let mutationVerdict = null
     const verifyMutation = async ({ touchedFiles }) => {
-      if (!touchedFiles.some(file => TEST_FILE_RE.test(file))) {
+      if (touchedFiles.every(file => !TEST_FILE_RE.test(file))) {
         mutationVerdict = {
           ok: false,
           targetCount: batchMutants,
@@ -291,6 +291,7 @@ async function resolveRunFix(opts) {
  * @param {{error?: string|null, telemetry?: object|null}} res результат `runAgentFix`
  * @param {string[]} unexpectedWrites файли, які агент змінив поза дозволеними test/spec шляхами
  * @param {boolean} noOp чи агент завершився без помилки і без test-записів
+ * @param {object|null} mutationVerdict scoped Stryker verdict batch-а
  * @returns {string|null} текст помилки batch-а або `null`, якщо batch успішний
  */
 function resolveBatchError(res, unexpectedWrites, noOp, mutationVerdict) {
@@ -319,8 +320,8 @@ function isDurableMutationProof(verdict, batchMutants) {
     verdict.killed === batchMutants &&
     verdict.remaining === 0 &&
     verdict.covered0 === 0 &&
-    verdict.reason == null &&
-    verdict.error == null &&
+    (verdict.reason === undefined || verdict.reason === null) &&
+    (verdict.error === undefined || verdict.error === null) &&
     (!Array.isArray(verdict.errors) || verdict.errors.length === 0)
   )
 }
@@ -341,6 +342,7 @@ function formatMutationVerdict(verdict) {
 /**
  * Логує підсумок coverage-fix після всіх batch-ів.
  * @param {{files: string[], error: string}[]} failed failed/no-op batch-и
+ * @param {object[]} deferred batch-и, відкладені policy rung-а
  * @param {string[]} fixed змінені test-файли
  * @param {object[]} batches діагностика всіх batch-ів
  * @returns {void}
@@ -372,12 +374,12 @@ function logCoverageSummary(failed, deferred, fixed, batches) {
  * @param {number|null} args.requestedTimeoutMs запитаний timeout для worker-а
  * @param {number|null} args.workerDeadlineMs deadline worker-а
  * @param {number|null} args.effectiveTimeoutMs timeout, реально переданий batch-у
- * @param {number|null} [args.survivedBatchesPerRung=null] policy кількості agent batch-ів у rung
+ * @param {number|null} [args.survivedBatchesPerRung] policy кількості agent batch-ів у rung
  * @param {number|null} args.wallMs тривалість batch-а
- * @param {object|null} [args.telemetry=null] telemetry `runAgentFix`
- * @param {string|null} [args.error=null] помилка batch-а
- * @param {string[]} [args.writtenTests=[]] дозволені test-файли, змінені агентом
- * @param {object|null} [args.mutationVerdict=null] canonical scoped Stryker verdict
+ * @param {object|null} [args.telemetry] telemetry `runAgentFix`
+ * @param {string|null} [args.error] помилка batch-а
+ * @param {string[]} [args.writtenTests] дозволені test-файли, змінені агентом
+ * @param {object|null} [args.mutationVerdict] canonical scoped Stryker verdict
  * @param {{attempted:boolean,outcome:string}} [args.rollback] результат локального rollback batch-а
  * @returns {object} безпечний структурований verdict
  */

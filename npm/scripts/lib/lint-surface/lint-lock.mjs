@@ -70,7 +70,7 @@ const PROGRESS_FRESH_MS = 60_000
 const PROGRESS_SNAPSHOT_VERSION = 2
 
 /** Частота heartbeat owner-а: довгий один target лишається видимим для процесу в черзі. */
-const PUBLISH_HEARTBEAT_INTERVAL_MS = 5_000
+const PUBLISH_HEARTBEAT_INTERVAL_MS = 5000
 
 /** Мінімум завершених targets, коли швидкість вже достатня для обережного ETA. */
 const ETA_MIN_COMPLETED_TARGETS = 3
@@ -111,7 +111,12 @@ export function createProgressPublisher(opts = {}) {
   let lastSnap = null
   let phaseStartedAt = 0
 
-  /** Записує атомарно достатній для observer-а snapshot; помилки лишаються best-effort. */
+  /**
+   * Записує атомарно достатній для observer-а snapshot; помилки лишаються best-effort.
+   * @param {{current:string,detail?:{label:string,done:number,total:number,current:string}|null}} snap поточний знімок прогресу
+   * @param {boolean} [heartbeat] чи це heartbeat без нової фази
+   * @returns {void}
+   */
   function publish(snap, heartbeat = false) {
     const at = now()
     const detail = snap.detail ?? null
@@ -245,7 +250,11 @@ export function renderWaitLine(owner, queue, snap) {
   return `⏳ lint --full у черзі #${pos}/${Math.max(queue.length, pos)} · працює pid ${owner.pid}${ownerDir}${bar}${tail}`
 }
 
-/** Форматує короткий ETA; caller передає лише вже перевірену обережну оцінку. */
+/**
+ * Форматує короткий ETA; caller передає лише вже перевірену обережну оцінку.
+ * @param {number} ms оцінка часу в мілісекундах
+ * @returns {string} короткий рядок часу
+ */
 function formatEta(ms) {
   const seconds = Math.max(1, Math.round(ms / 1000))
   if (seconds < 60) return `${seconds} с`

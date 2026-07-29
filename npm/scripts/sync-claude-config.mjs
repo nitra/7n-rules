@@ -85,6 +85,8 @@ const CLAUDE_COMMANDS_DIR = `${CLAUDE_DIR}/commands`
 const CLAUDE_HOOKS_DIR = `${CLAUDE_DIR}/hooks`
 const CURSOR_DIR = '.cursor'
 const CURSOR_HOOKS_FILE = `${CURSOR_DIR}/hooks.json`
+const CODEX_DIR = '.codex'
+const CODEX_HOOKS_FILE = `${CODEX_DIR}/hooks.json`
 const ADR_HOOK_SCRIPT_NAME = 'capture-decisions.sh'
 const ADR_NORMALIZE_HOOK_SCRIPT_NAME = 'normalize-decisions.sh'
 const ADR_HOOK_LIB_DIR = 'lib'
@@ -175,6 +177,45 @@ const CURSOR_ADR_NORMALIZE_STOP_HOOK = Object.freeze({
     `bash "$root/${CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER}"'`
   ].join(' '),
   timeout: 600
+})
+
+/**
+ * Канонічна Codex CLI ADR Stop-hook-група (правило `adr`). Codex не має аналога
+ * `$CLAUDE_PROJECT_DIR` — команди запускаються з cwd сесії (`vendor/codex-hooks.json`:
+ * «Commands run with the session cwd as their working directory»), тож використовуємо
+ * той самий `$PWD`-детект кореня, що й Cursor-варіант. `async` НЕ виставляємо: за тією ж
+ * схемою async-хендлери «not supported yet and async handlers are skipped» у поточному
+ * рантаймі Codex — `async: true` означав би, що хук узагалі не виконається.
+ */
+const CODEX_ADR_STOP_HOOK_GROUP = Object.freeze({
+  matcher: '',
+  hooks: Object.freeze([
+    Object.freeze({
+      type: 'command',
+      command: [
+        'bash -lc \'root="$PWD";',
+        `if [ ! -f "$root/${ADR_HOOK_COMMAND_MARKER}" ] && [ -f "$root/../${ADR_HOOK_COMMAND_MARKER}" ]; then root="$root/.."; fi;`,
+        `bash "$root/${ADR_HOOK_COMMAND_MARKER}"'`
+      ].join(' '),
+      timeout: 180
+    })
+  ])
+})
+
+/** Канонічна Codex CLI ADR normalize Stop-hook-група — той самий `$PWD`-підхід, без `async` (див. {@link CODEX_ADR_STOP_HOOK_GROUP}). */
+const CODEX_ADR_NORMALIZE_STOP_HOOK_GROUP = Object.freeze({
+  matcher: '',
+  hooks: Object.freeze([
+    Object.freeze({
+      type: 'command',
+      command: [
+        'bash -lc \'root="$PWD";',
+        `if [ ! -f "$root/${ADR_NORMALIZE_HOOK_COMMAND_MARKER}" ] && [ -f "$root/../${ADR_NORMALIZE_HOOK_COMMAND_MARKER}" ]; then root="$root/.."; fi;`,
+        `bash "$root/${ADR_NORMALIZE_HOOK_COMMAND_MARKER}"'`
+      ].join(' '),
+      timeout: 600
+    })
+  ])
 })
 
 /**
@@ -434,6 +475,68 @@ export async function syncCursorHooksConfig(projectRoot, options = {}) {
   await mkdir(join(projectRoot, CURSOR_DIR), { recursive: true })
   await writeFile(hooksPath, `${JSON.stringify(merged, null, 2)}\n`, 'utf8')
   return { written: true, path: CURSOR_HOOKS_FILE }
+}
+
+/**
+ * Будує копію hooks-секції темплейту Codex із доданою ADR Stop-hook-групою у `Stop`.
+ * @param {Record<string, HookGroup[]> | undefined} hooks вихідна hooks-секція темплейту
+ * @returns {Record<string, HookGroup[]>} копія з доданою ADR-групою
+ */
+function codexHooksWithAdrHook(hooks) {
+  /** @type {Record<string, HookGroup[]>} */
+  const out = {}
+  for (const [event, groups] of Object.entries(hooks ?? {})) {
+    out[event] = Array.isArray(groups) ? [...groups] : []
+  }
+  out.Stop = [...(out.Stop ?? []), CODEX_ADR_STOP_HOOK_GROUP, CODEX_ADR_NORMALIZE_STOP_HOOK_GROUP]
+  return out
+}
+
+/**
+ * Зливає hooks-секцію `.codex/hooks.json`. Формат ідентичний `.claude/settings.json.hooks`
+ * (matcher + hooks[] з type/command/timeout — підтверджено `vendor/codex-hooks.json`), тож
+ * перевикористовує ту саму {@link mergeHooks}.
+ * @param {Record<string, HookGroup[]> | undefined} existing поточна hooks-секція з `.codex/hooks.json`
+ * @param {Record<string, HookGroup[]> | undefined} template hooks-секція з `codex-hooks.template.json`
+ * @param {object} [options] опції merge-у
+ * @param {boolean} [options.includeAdrHook] чи додати ADR Stop-hook групи (правило `adr`)
+ * @returns {Record<string, HookGroup[]>} результат merge-у (порожні події видаляються)
+ */
+export function mergeCodexHooks(existing, template, options = {}) {
+  const effectiveTemplate = options.includeAdrHook ? codexHooksWithAdrHook(template) : (template ?? {})
+  return mergeHooks(existing, effectiveTemplate)
+}
+
+/**
+ * Синхронізує `.codex/hooks.json` для Codex CLI: базовий PostToolUse lint-hook (правило-
+ * незалежний, з темплейту `codex-hooks.template.json`, matcher `apply_patch` — best-guess,
+ * див. JSDoc {@link ../../hook.mjs}) + опційні ADR Stop-hook групи. Codex не має rtk hook:
+ * інтеграція rtk відбувається через пряму інструкцію в AGENTS.md.
+ * На відміну від `.claude/settings.json` тут немає секції `permissions` — Codex тримає
+ * дозволи окремо в `config.toml`.
+ * @param {string} projectRoot корінь проєкту, куди писати
+ * @param {string} templateDir каталог `.claude-template/` усередині пакету
+ * @param {object} [options] опції merge-у
+ * @param {boolean} [options.includeAdrHook] чи додавати ADR Stop-hook групи
+ * @returns {Promise<{ written: boolean, path: string }>} результат: чи писали файл, та його відносний шлях
+ */
+export async function syncCodexHooksConfig(projectRoot, templateDir, options = {}) {
+  const templatePath = join(templateDir, 'codex-hooks.template.json')
+  if (!existsSync(templatePath)) {
+    return { written: false, path: '' }
+  }
+  const template =
+    /** @type {{ hooks?: Record<string, HookGroup[]> }} */ (JSON.parse(await readFile(templatePath, 'utf8')))
+  const hooksPath = join(projectRoot, CODEX_HOOKS_FILE)
+  const existing =
+    /** @type {{ hooks?: Record<string, HookGroup[]> } | undefined} */ (await readJsonOrUndefined(hooksPath))
+  const mergedHooks = mergeCodexHooks(existing?.hooks, template.hooks, options)
+  if (Object.keys(mergedHooks).length === 0) {
+    return { written: false, path: '' }
+  }
+  await mkdir(join(projectRoot, CODEX_DIR), { recursive: true })
+  await writeFile(hooksPath, `${JSON.stringify({ hooks: mergedHooks }, null, 2)}\n`, 'utf8')
+  return { written: true, path: CODEX_HOOKS_FILE }
 }
 
 /**
@@ -735,12 +838,13 @@ export async function syncClaudeCommands(projectRoot, templateDir) {
  * @param {string} options.bundledPackageRoot корінь установленого `@7n/rules`
  * @param {boolean} options.enabled чи увімкнено sync (з `.n-rules.json` `claude-config`)
  * @param {string[]} [options.rules] список увімкнених правил із `.n-rules.json` — впливає на ADR Stop-hook (`adr`) і rtk hooks (`local-ai`)
- * @returns {Promise<{ settings: boolean, cursorHooks: boolean, commands: string[], adrHook: boolean, adrNormalizeHook: boolean, adrHookLib: string[], gitignoreAdr: boolean, piExtension: boolean, rtkPiExtension: boolean }>} прапорці записів settings/Cursor hooks/ADR-hook(s)/`.gitignore`/pi-extension(s), перелік lib-файлів і список slash-команд
+ * @returns {Promise<{ settings: boolean, cursorHooks: boolean, codexHooks: boolean, commands: string[], adrHook: boolean, adrNormalizeHook: boolean, adrHookLib: string[], gitignoreAdr: boolean, piExtension: boolean, rtkPiExtension: boolean }>} прапорці записів settings/Cursor hooks/Codex hooks/ADR-hook(s)/`.gitignore`/pi-extension(s), перелік lib-файлів і список slash-команд
  */
 export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enabled, rules = [] }) {
   const noop = {
     settings: false,
     cursorHooks: false,
+    codexHooks: false,
     commands: [],
     adrHook: false,
     adrNormalizeHook: false,
@@ -786,10 +890,12 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
   }
   const settings = await syncClaudeSettings(projectRoot, templateDir, { includeAdrHook, includeLocalAiHook })
   const cursorHooks = await syncCursorHooksConfig(projectRoot, { includeAdrHook, includeLocalAiHook })
+  const codexHooks = await syncCodexHooksConfig(projectRoot, templateDir, { includeAdrHook })
   const commands = await syncClaudeCommands(projectRoot, templateDir)
   return {
     settings: settings.written,
     cursorHooks: cursorHooks.written,
+    codexHooks: codexHooks.written,
     commands,
     adrHook: adrHook.written,
     adrNormalizeHook: adrNormalizeHook.written,

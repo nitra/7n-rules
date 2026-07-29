@@ -79,7 +79,9 @@ export default [
       'npm/scripts/lib/run-rule.mjs',
       'npm/tests/fix-mjs-contract.test.mjs',
       'npm/tests/check-mjs-contract.test.mjs',
-      'npm/rules/test/coverage/coverage.mjs'
+      'npm/rules/test/coverage/coverage.mjs',
+      // Шлях формується лише з discover-нутих rule directories, не з user input.
+      'npm/scripts/lib/lint-surface/run-detectors.mjs'
     ],
     rules: {
       'no-unsanitized/method': 'off'
