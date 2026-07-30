@@ -1,0 +1,11 @@
+## Перевірка `.vscode/extensions.json` (Rego-gate)
+
+Rego-пакет: `php.vscode_extensions`
+
+Цільовий файл: `.vscode/extensions.json`
+
+Семантика `contains`: кожен запис з канону має бути присутнім у `recommendations` — додаткові розширення дозволені. Канон завантажується через `--data` з template-сніпету.
+
+Канонічний template: [extensions.json.snippet.json](./template/extensions.json.snippet.json)
+
+Канонічний мінімум — `bmewburn.vscode-intelephense-client` (Intelephense): де-факто стандартний PHP LSP для VS Code (autocomplete, go-to-definition, діагностика на льоту), що не вимагає власного PHP-рантайму на машині розробника (на відміну від альтернатив на базі PHP CLI). php-доки (`tooling.mdc`) описують lint/analysis-інструменти (PHPCS, PHPStan, PHP-CS-Fixer, Psalm) через composer, але не редакторський LSP — цей концерн закриває саме IDE-розширення.

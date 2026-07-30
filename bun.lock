@@ -4,10 +4,6 @@
   "workspaces": {
     "": {
       "name": "mono",
-      "dependencies": {
-        "@7n/llm-lib-darwin-arm64": "^2.13.2",
-        "@7n/llm-lib-linux-x64": "^2.13.2",
-      },
       "devDependencies": {
         "@7n/rules": "workspace:*",
         "@7n/rules-ci-azure": "workspace:*",
@@ -41,7 +37,7 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.13.5",
+      "version": "2.13.7",
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
       },
@@ -64,7 +60,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.57.8",
+      "version": "1.58.2",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
@@ -113,7 +109,7 @@
     },
     "plugins/lang-js": {
       "name": "@7n/rules-lang-js",
-      "version": "0.24.3",
+      "version": "0.25.1",
       "dependencies": {
         "@vue/compiler-dom": "^3.0.0",
         "@vue/compiler-sfc": "^3.0.0",
@@ -136,7 +132,7 @@
     },
     "plugins/lang-php": {
       "name": "@7n/rules-lang-php",
-      "version": "0.2.6",
+      "version": "0.2.7",
       "dependencies": {
         "php-parser": "^3.7.0",
       },
@@ -146,7 +142,7 @@
     },
     "plugins/lang-python": {
       "name": "@7n/rules-lang-python",
-      "version": "0.11.4",
+      "version": "0.12.1",
       "dependencies": {
         "@vscode/tree-sitter-wasm": "^0.3.1",
         "globby": "^16.0.0",
@@ -162,7 +158,7 @@
     },
     "plugins/lang-rust": {
       "name": "@7n/rules-lang-rust",
-      "version": "0.14.3",
+      "version": "0.15.1",
       "dependencies": {
         "globby": "^16.0.0",
         "smol-toml": "^1.7.0",

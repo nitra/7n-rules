@@ -1,0 +1,10 @@
+{
+  "targetCapability": "ci:github",
+  "artifactId": "lint-style-vue",
+  "targetPath": ".github/workflows/lint-style.yml",
+  "format": "yaml",
+  "mode": "patch-existing",
+  "template": "./github/lint-style-vue.snippet.yml",
+  "mergeStrategy": "deep-subset",
+  "fix": true
+}

@@ -83,7 +83,7 @@
   },
   "peerDependencies": {
     "@7n/rules": ">=1.52.0",
-    "@7n/llm-lib": "*"
+    "@7n/llm-lib": ">=1.2.0"
   },
   "publishConfig": {
     "access": "public"
