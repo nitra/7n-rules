@@ -31,6 +31,16 @@ jobs:
 
       - uses: ./.github/actions/setup-bun-deps
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Без цього vitest падає на hard error native-loader-а (npm/scripts/lib/native.mjs):
+      # без JS-fallback (Р1 спеки rules-v2-rust-core-migration) delta-lint і Stop-hook
+      # хук-тести не мають чим резолвити rules-napi аддон на свіжому checkout.
+      - name: Build rules-napi addon
+        run: cargo build --release -p rules-napi
+
       - name: Full vitest run
         run: bun run test
         env:

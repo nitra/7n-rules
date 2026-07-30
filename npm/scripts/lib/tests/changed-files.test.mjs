@@ -7,6 +7,7 @@ import { collectChangedFiles, collectChangedFilesSince, resolveChangedBase } fro
 import { withTmpDir } from '../../utils/test-helpers.mjs'
 
 const UNREACHABLE_BASE_RE = /недосяжний/
+const FULL_SHA_RE = /^[0-9a-f]{40}$/
 
 /**
  * Поточний HEAD-комміт у dir (для використання як base).
@@ -159,6 +160,129 @@ describe('resolveChangedBase', () => {
       git(dir, ['add', '.'])
       git(dir, ['commit', '-qm', 'init'])
       expect(resolveChangedBase(dir)).toBeNull()
+    })
+  })
+
+  test('контракт: результат — або null, або повний 40-символьний hex sha', async () => {
+    await withTmpDir(dir => {
+      initRepo(dir)
+      writeFileSync(join(dir, 'next.js'), 'export const n = 1\n', 'utf8')
+      git(dir, ['add', '.'])
+      git(dir, ['commit', '-qm', 'next'])
+      git(dir, ['checkout', '-qb', 'feature'])
+      // З ref-ом (main існує) — рядок формату sha.
+      expect(resolveChangedBase(dir)).toMatch(FULL_SHA_RE)
+      // Без жодного сумісного ref-а — null, не порожній рядок/undefined.
+      expect(resolveChangedBase(dir, 'does-not-exist')).toBeNull()
+    })
+  })
+
+  test('linked worktree: виклик зсередини worktree дає той самий sha, що з основного дерева', async () => {
+    await withTmpDir(dir => {
+      const mainDir = join(dir, 'main')
+      mkdirSync(mainDir, { recursive: true })
+      initRepo(mainDir) // комміт A на main
+      writeFileSync(join(mainDir, 'upstream.js'), 'export const up = 1\n', 'utf8')
+      git(mainDir, ['add', '.'])
+      git(mainDir, ['commit', '-qm', 'upstream'])
+      const shaB = headSha(mainDir) // main зараз на B
+
+      const worktreeDir = join(dir, 'linked')
+      git(mainDir, ['worktree', 'add', '-q', worktreeDir, '-b', 'feature'])
+
+      // Обидва дерева бачать один і той самий git-об'єктний граф — той самий sha.
+      expect(resolveChangedBase(worktreeDir)).toBe(shaB)
+      expect(resolveChangedBase(worktreeDir)).toBe(resolveChangedBase(mainDir))
+    })
+  })
+
+  test('detached HEAD: merge-base рахується від HEAD навіть поза гілкою', async () => {
+    await withTmpDir(dir => {
+      initRepo(dir) // main на коміті A
+      const shaA = headSha(dir)
+      git(dir, ['checkout', '-qb', 'topic'])
+      writeFileSync(join(dir, 'topic.js'), 'export const t = 1\n', 'utf8')
+      git(dir, ['add', '.'])
+      git(dir, ['commit', '-qm', 'topic'])
+      const shaB = headSha(dir)
+      git(dir, ['checkout', '-q', shaB]) // detach: HEAD = B, поза будь-якою гілкою
+
+      const status = spawnSync('git', ['symbolic-ref', '-q', 'HEAD'], { cwd: dir })
+      expect(status.status).not.toBe(0) // sanity-check: справді detached
+
+      // main лишився на A; кандидат-гілка "main" все ще резолвиться відносно HEAD.
+      expect(resolveChangedBase(dir)).toBe(shaA)
+    })
+  })
+
+  test('явний integrationBranches-набір без жодного origin/*: лише локальні base+release гілки', async () => {
+    await withTmpDir(dir => {
+      git(dir, ['init', '-q', '--initial-branch=dev'])
+      git(dir, ['config', 'user.email', 't@t'])
+      git(dir, ['config', 'user.name', 't'])
+      writeFileSync(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({ git: { baseBranch: 'dev', releaseBranches: ['tr'] } }),
+        'utf8'
+      )
+      writeFileSync(join(dir, 'base.js'), 'export const a = 1\n', 'utf8')
+      git(dir, ['add', '.'])
+      git(dir, ['commit', '-qm', 'init'])
+      const shaA = headSha(dir)
+      git(dir, ['branch', 'tr']) // tr = локальна release-гілка на shaA, без жодного origin/* взагалі
+      writeFileSync(join(dir, 'more.js'), 'export const m = 1\n', 'utf8')
+      git(dir, ['add', '.'])
+      git(dir, ['commit', '-qm', 'more']) // dev іде далі — feature гілкується від старішої tr
+      git(dir, ['checkout', '-qb', 'feature', 'tr'])
+      // origin взагалі не існує (жодного remote) — лише локальні dev/tr дають merge-base.
+      // HEAD = shaA (tr); спільний предок і з dev (попереду), і з tr (сам HEAD) — shaA.
+      expect(resolveChangedBase(dir)).toBe(shaA)
+    })
+  })
+
+  test('shallow clone (--depth 1, файловий remote): fail-closed як голий git CLI', async () => {
+    await withTmpDir(dir => {
+      const srcDir = join(dir, 'src')
+      mkdirSync(srcDir, { recursive: true })
+      git(srcDir, ['init', '-q', '--initial-branch=main'])
+      git(srcDir, ['config', 'user.email', 't@t'])
+      git(srcDir, ['config', 'user.name', 't'])
+      writeFileSync(join(srcDir, 'a.txt'), 'a\n', 'utf8')
+      git(srcDir, ['add', '.'])
+      git(srcDir, ['commit', '-qm', 'C1'])
+      git(srcDir, ['branch', 'other']) // other = C1, залишається позаду
+      writeFileSync(join(srcDir, 'b.txt'), 'b\n', 'utf8')
+      git(srcDir, ['add', '.'])
+      git(srcDir, ['commit', '-qm', 'm2']) // main випереджає other на 1 коміт
+
+      const cloneDir = join(dir, 'clone')
+      const clone = spawnSync(
+        'git',
+        ['clone', '-q', '--depth', '1', '--no-single-branch', `file://${srcDir}`, cloneDir],
+        { encoding: 'utf8' }
+      )
+      expect(clone.status).toBe(0)
+      // Policy вказує лише на "other" (не "main") — інакше тривіальний збіг HEAD===origin/main
+      // (обидва на m2, без обходу історії) замаскував би розбіжність нижче.
+      writeFileSync(
+        join(cloneDir, '.n-rules.json'),
+        JSON.stringify({ git: { baseBranch: 'other', releaseBranches: ['other'] } }),
+        'utf8'
+      )
+
+      // Контрольна перевірка фікстури: сирий `git merge-base` на shallow-клоні не
+      // бачить спільного предка (shallow-обрізана історія приховує батьків m2) і
+      // падає з ненульовим exit-кодом.
+      const cliMergeBase = spawnSync('git', ['merge-base', 'HEAD', 'origin/other'], { cwd: cloneDir })
+      expect(cliMergeBase.status).not.toBe(0)
+
+      // native (`rules-core`) детектує shallow-репо (`Repository::is_shallow()`) і на
+      // такому репо рахує merge-base через ту саму porcelain-межу, що й дореформений
+      // JS, — не через gix-traversal (який ігнорує shallow-обрізання й дав би sha,
+      // навіть коли об'єкт-предок фізично присутній локально). Consumer-CI з
+      // fetch-depth:1 покладається саме на fail-closed null тут.
+      const result = resolveChangedBase(cloneDir)
+      expect(result).toBeNull()
     })
   })
 })
