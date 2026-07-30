@@ -18,6 +18,26 @@ function noop() {
   /* no-op: цей тест не перевіряє вивід */
 }
 
+/**
+ * Fake `deps.native` для `ensureRunningInWorktree` — без dlopen. `sanitizeWorktreeName`
+ * повторює `mt_core::sanitize` для вжитих у тестах векторів (slash → `-`);
+ * `worktreeCreate` пише виклик у спільний `calls` (той самий масив, куди пише
+ * fake `spawnFn`, — мінімізує диф старих асертів на колишній `mt worktree create`)
+ * і повертає `<repoRoot>/.worktrees/<name>`, той самий шлях, що раніше рахувався
+ * вручну через `join`.
+ * @param {string[]} calls спільний масив викликів
+ * @returns {{ sanitizeWorktreeName: (raw: string) => string, worktreeCreate: (repoRoot: string, name: string, description: string, base: string|null) => string }} fake native
+ */
+function makeFakeNative(calls) {
+  return {
+    sanitizeWorktreeName: raw => raw.replaceAll('/', '-'),
+    worktreeCreate: (repoRoot, name, description, base) => {
+      calls.push(`native.worktreeCreate ${repoRoot} ${name} ${description} ${base}`)
+      return join(repoRoot, '.worktrees', name)
+    }
+  }
+}
+
 const WORKTREE_OPTS = { suffix: 'lint', description: 'n-lint: worktree-only skill' }
 const DETACHED_HEAD_RE = /detached HEAD/
 const DIRTY_TREE_RE = /незакомічені зміни/
@@ -66,18 +86,19 @@ describe('ensureRunningInWorktree', () => {
         return { status: 0, stdout: '', stderr: '' }
       },
       noop,
-      WORKTREE_OPTS
+      WORKTREE_OPTS,
+      { native: makeFakeNative(calls) }
     )
     expect(result).toEqual({
       cwd: join('/Users/dev/repo', '.worktrees', 'main-lint'),
       autoCreated: true,
       worktreeName: 'main-lint'
     })
-    expect(calls).toContain('mt worktree create main-lint --description n-lint: worktree-only skill')
+    expect(calls).toContain('native.worktreeCreate /Users/dev/repo main-lint n-lint: worktree-only skill null')
     expect(calls.some(c => c.startsWith('bun install'))).toBe(true)
   })
 
-  test('гілка зі slash — worktree name і шлях sanitized (slash → -)', async () => {
+  test('гілка зі slash — worktree name і шлях sanitized через native.sanitizeWorktreeName (slash → -)', async () => {
     const calls = []
     const result = await ensureRunningInWorktree(
       '/repo',
@@ -89,11 +110,12 @@ describe('ensureRunningInWorktree', () => {
         return { status: 0, stdout: '', stderr: '' }
       },
       noop,
-      WORKTREE_OPTS
+      WORKTREE_OPTS,
+      { native: makeFakeNative(calls) }
     )
     expect(result.worktreeName).toBe('feature-x-lint')
     expect(result.cwd).toBe(join('/repo', '.worktrees', 'feature-x-lint'))
-    expect(calls).toContain('mt worktree create feature-x-lint --description n-lint: worktree-only skill')
+    expect(calls).toContain('native.worktreeCreate /repo feature-x-lint n-lint: worktree-only skill null')
   })
 
   test('detached HEAD (немає поточної гілки) — кидає, не створює worktree', async () => {
@@ -156,7 +178,8 @@ describe('ensureRunningInWorktree', () => {
         confirm: message => {
           confirmCalls.push(message)
           return Promise.resolve(true)
-        }
+        },
+        native: makeFakeNative(calls)
       }
     )
     expect(confirmCalls).toHaveLength(1)
@@ -198,7 +221,8 @@ describe('ensureRunningInWorktree', () => {
         confirm: message => {
           confirmCalls.push(message)
           return Promise.resolve(true)
-        }
+        },
+        native: makeFakeNative(calls)
       }
     )
     expect(result.autoCreated).toBe(true)

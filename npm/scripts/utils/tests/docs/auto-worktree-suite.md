@@ -3,21 +3,34 @@ type: JS Module
 title: auto-worktree-suite.mjs
 resource: npm/scripts/utils/tests/auto-worktree-suite.mjs
 docgen:
-  crc: c6d46014
+  crc: c4a9480d
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
+  score: 100
 ---
 
 ## Огляд
 
-Спільний vitest-набір для мосту auto-worktree: поведінковий контракт `bringChangesBackToOriginal`/`removeAutoCreatedWorktree` описаний в одному місці й реєструється двома тест-файлами — `scripts/lib/tests/auto-worktree.test.mjs` (прямий імпорт з `scripts/lib/auto-worktree.mjs`) та `skills/taze/js/tests/orchestrate.test.mjs` (реекспорт з `orchestrate.mjs`). Прибирає jscpd-дублікат тіл тестів між цими файлами.
+Спільний vitest-набір для мосту auto-worktree: той самий поведінковий
+контракт `bringChangesBackToOriginal`/`removeAutoCreatedWorktree`
+перевіряється і на прямому імпорті з `scripts/lib/auto-worktree.mjs`
+(auto-worktree.test.mjs), і на реекспорті зі `skills/taze/js/orchestrate.mjs`
+(orchestrate.test.mjs) — тіла тестів існують в одному місці.
+
+## Поведінка
+
+describeAutoWorktreeBridge визначає поведінковий контракт для синхронізації змін між worktree та оригінальним репозиторієм, включаючи сценарії успішного копіювання та обробки помилок.
+
+При використанні контракту при поверненні змін, якщо `git status` не вдається, функція повертає `failed: true` та порожній масив `brought`, а також логує попередження.
+
+При поверненні змін, якщо під час копіювання одного файлу виникає помилка, процес продовжується для інших файлів, але загальний результат позначається як `failed: true`.
+
+describeAutoWorktreeBridge також охоплює контракт `removeAutoCreatedWorktree`, який викликає функцію `native.worktreeRemove`, ігноруючи помилки виконання цієї функції, але логуючи попередження.
 
 ## Публічний API
 
-- `describeAutoWorktreeBridge({ bringChangesBackToOriginal, removeAutoCreatedWorktree, branch })` — реєструє два describe-блоки:
-  - **bringChangesBackToOriginal** — порожній `git status` → нічого не копіює; копіювання наявного файлу і видалення відсутнього в оригіналі; перейменування (`old -> new` у porcelain) переносить лише нову назву; провал `git status` → лог-попередження без перенесення.
-  - **removeAutoCreatedWorktree** — виклик `mt worktree remove <name> --force` з `cwd=originalCwd`; провал команди не кидає, лише логує.
-- `branch` — native `mt` name worktree у тестах remove (`main-lint` у lint-мосту, `main-taze` у taze).
+- describeAutoWorktreeBridge — Реєструє describe-блоки контракту повернення змін з worktree в оригінал.
 
 ## Гарантії поведінки
 
-- Файл — тест-підтримка: живе під `tests/`, у tarball пакета не потрапляє (`!**/tests/**` у `files`), імпортує `vitest` і `test-helpers.mjs`.
-- Викликати лише всередині vitest-контексту (реєструє describe/test на імпорт-виклику).
+- (специфічних машинно-виведених гарантій немає)

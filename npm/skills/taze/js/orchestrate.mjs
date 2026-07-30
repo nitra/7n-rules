@@ -343,10 +343,16 @@ export async function runTazeOrchestrator(options = {}) {
   const call = deps.callRunner ?? callRunner
 
   const originalCwd = options.cwd ?? process.cwd()
-  const worktree = await ensureRunningInWorktree(originalCwd, spawnFn, log, {
-    suffix: 'taze',
-    description: 'n-taze: worktree-only skill'
-  })
+  const worktree = await ensureRunningInWorktree(
+    originalCwd,
+    spawnFn,
+    log,
+    {
+      suffix: 'taze',
+      description: 'n-taze: worktree-only skill'
+    },
+    deps
+  )
   const cwd = worktree.cwd
 
   // Self-upgrade root package.json devDependency (`@7n/rules`) — навмисно
@@ -393,7 +399,7 @@ export async function runTazeOrchestrator(options = {}) {
       )
       return
     }
-    removeAutoCreatedWorktree(worktree.worktreeName, originalCwd, spawnFn, log)
+    removeAutoCreatedWorktree(worktree.worktreeName, originalCwd, spawnFn, log, deps)
   }
 
   // SIGINT/SIGTERM (Ctrl-C, таймаут зовнішнього раннера, `kill`) без обробника
