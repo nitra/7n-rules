@@ -6,6 +6,9 @@ on:
       - 'npm/**'
       - 'llm-lib/**'
       - 'plugins/**'
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
     branches:
       - main
 
@@ -42,10 +45,33 @@ jobs:
             fi
             BASE='HEAD^'
           fi
-          if git diff --quiet "$BASE" HEAD -- Cargo.toml Cargo.lock llm-lib/crates crates; then
-            echo 'changed=false' >> "$GITHUB_OUTPUT"
-          else
+          if ! git diff --quiet "$BASE" HEAD -- Cargo.toml Cargo.lock llm-lib/crates crates; then
             echo 'changed=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Fail-closed страховка (інцидент @7n/rules@1.59.0/1.59.1): скасований
+          # concurrency-ом build-native інакше губиться назавжди — наступні пуші
+          # вже «без Rust-змін», і головний пакет їде на npm без platform-пакетів.
+          # Тому native=true також коли будь-який пін platform-пакета з
+          # optionalDependencies відсутній у registry: гейт добудує й
+          # опублікує втрачене на найближчому пуші.
+          pins='@7n/llm-lib-darwin-arm64 llm-lib/package.json
+          @7n/llm-lib-linux-x64 llm-lib/package.json
+          @7n/rules-darwin-arm64 npm/package.json
+          @7n/rules-linux-x64 npm/package.json'
+          missing=false
+          while read -r pkg manifest; do
+            ver=$(node -p "require('./$manifest').optionalDependencies?.['$pkg'] ?? ''")
+            [ -z "$ver" ] && continue
+            if ! npm view "$pkg@$ver" version >/dev/null 2>&1; then
+              echo "⚠️ $pkg@$ver відсутній у registry — вмикаю build-native"
+              missing=true
+            fi
+          done <<< "$pins"
+          if [ "$missing" = true ]; then
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
           fi
 
   # ── Збірка prebuilt napi-аддонів llm-lib і rules-core для платформних підпакетів ─
