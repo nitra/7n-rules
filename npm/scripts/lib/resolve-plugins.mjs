@@ -403,7 +403,7 @@ function isIncompatiblePluginApi(name, manifest, quiet) {
 export function resolvePlugins(projectRoot, config, options = {}) {
   const root = resolve(projectRoot)
   const names = resolvePluginList(root, config, { quiet: options.quiet })
-  const cacheKey = `${root} ${names.join(',')} ${options.allowInstall !== false}`
+  const cacheKey = `${root}.${names.join(',')}.${options.allowInstall !== false}`
   const cached = RESOLVE_CACHE.get(cacheKey)
   if (cached) return cached
 

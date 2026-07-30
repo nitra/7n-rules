@@ -12,7 +12,15 @@ const INTERNAL_LITELLM_URL = `${HTTP}litellm-service.litellm.svc.n.internal:4000
 // Оточення розробника/CI може мати справжні N_OMLX_*/N_LITELLM_* — тести
 // «без env» і override-тести мають стартувати з чистого стану, інакше
 // ambient-ключ (напр. N_LITELLM_API_KEY) просочується в дефолтну мапу.
-const PROVIDER_ENV_KEYS = ['N_OMLX_BASE_URL', 'N_OMLX_API_KEY', 'N_LITELLM_BASE_URL', 'N_LITELLM_API_KEY']
+const PROVIDER_ENV_KEYS = [
+  'N_OMLX_BASE_URL',
+  'N_OMLX_API_KEY',
+  'N_LITELLM_BASE_URL',
+  'N_LITELLM_API_KEY',
+  // Без префікса — власна конвенція серверів (fallback для apiKey): теж ambient-небезпечні.
+  'OMLX_API_KEY',
+  'LITELLM_API_KEY'
+]
 /** @type {Record<string, string | undefined>} */
 const ambientEnv = {}
 
@@ -64,5 +72,21 @@ describe('defaultLocalProviders', () => {
       baseUrl: INTERNAL_LITELLM_URL,
       apiKey: 'litellm-key'
     })
+  })
+
+  test('apiKey-fallback без префікса: OMLX_API_KEY/LITELLM_API_KEY (конвенція серверів)', async () => {
+    vi.stubEnv('OMLX_API_KEY', 'server-omlx-key')
+    vi.stubEnv('LITELLM_API_KEY', 'server-litellm-key')
+    const { defaultLocalProviders } = await import('../lib/local-providers.mjs')
+    const providers = defaultLocalProviders()
+    expect(providers.omlx.apiKey).toBe('server-omlx-key')
+    expect(providers.litellm.apiKey).toBe('server-litellm-key')
+  })
+
+  test('N_-префіксований ключ має пріоритет над fallback без префікса', async () => {
+    vi.stubEnv('OMLX_API_KEY', 'server-omlx-key')
+    vi.stubEnv('N_OMLX_API_KEY', 'prefixed-wins')
+    const { defaultLocalProviders } = await import('../lib/local-providers.mjs')
+    expect(defaultLocalProviders().omlx.apiKey).toBe('prefixed-wins')
   })
 })
