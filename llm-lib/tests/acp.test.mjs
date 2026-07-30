@@ -51,6 +51,34 @@ describe('runAcpAgent', () => {
     expect(native.oneShotAcp).toHaveBeenCalledWith('cursor', 'prompt', '/proj', 'avg')
   })
 
+  test('denyCommandFragments йде через guarded native boundary', async () => {
+    const native = {
+      oneShotAcp: vi.fn(() => Promise.resolve('unguarded')),
+      oneShotAcpGuarded: vi.fn(() => Promise.resolve('guarded'))
+    }
+
+    await expect(
+      runAcpAgent('codex', 'prompt', '/proj', {
+        tier: 'min',
+        denyCommandFragments: ['bun run test'],
+        native
+      })
+    ).resolves.toBe('guarded')
+    expect(native.oneShotAcp).not.toHaveBeenCalled()
+    expect(native.oneShotAcpGuarded).toHaveBeenCalledWith('codex', 'prompt', '/proj', 'min', ['bun run test'])
+  })
+
+  test('denyCommandFragments fail-closed зі старим native addon', () => {
+    const native = { oneShotAcp: vi.fn(() => Promise.resolve('unguarded')) }
+    expect(() =>
+      runAcpAgent('codex', 'prompt', '/proj', {
+        tier: 'min',
+        denyCommandFragments: ['bun run test'],
+        native
+      })
+    ).toThrow('native не підтримує denyCommandFragments')
+  })
+
   test('kind "pi" пропускається у native без додаткової валідації на JS-рівні', async () => {
     const native = { oneShotAcp: vi.fn(() => Promise.resolve('ok')) }
     await runAcpAgent('pi', 'prompt', '/proj', { tier: 'min', native })

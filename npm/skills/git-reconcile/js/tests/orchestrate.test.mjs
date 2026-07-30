@@ -20,6 +20,7 @@ import {
   callWithValidatedFallback,
   captureCachedBehaviorBaseline,
   changedNonCodeDirectories,
+  changedNonCodeScopes,
   classifyPullRequestChecks,
   cleanupObsoleteWorktrees,
   cleanupSource,
@@ -649,6 +650,25 @@ describe('LLM boundary', () => {
     expect(result.tier).toBe('max')
     expect(result.error).toBe('tests failed')
     expect(result.attempts.map(attempt => attempt.tier)).toEqual(['min', 'max'])
+  })
+
+  test('validated fallback передає command denylist runner-у', async () => {
+    const runnerOptions = []
+    await callWithValidatedFallback({
+      runner: 'codex',
+      prompt: 'behavior',
+      cwd: '/repo',
+      runnerOptions: { denyCommandFragments: ['bun run test'] },
+      deps: {
+        callRunner: (_runner, _prompt, _cwd, _deps, _tier, options) => {
+          runnerOptions.push(options)
+          return Promise.resolve({ ok: true, text: 'done', error: null })
+        }
+      },
+      validate: () => ({ ok: true })
+    })
+
+    expect(runnerOptions).toEqual([{ denyCommandFragments: ['bun run test'] }])
   })
 
   test('runner failure завершується на min без марного max fallback', async () => {
@@ -1330,7 +1350,8 @@ describe('worktree validation', () => {
       if (args[0] === 'diff') {
         return {
           status: 0,
-          stdout: 'skills/git-reconcile/SKILL.md\nrules/release/main.mdc\nskills/git-reconcile/js/code.mjs\n',
+          stdout:
+            'package.json\nskills/git-reconcile/SKILL.md\nrules/release/main.mdc\nskills/git-reconcile/js/code.mjs\n',
           stderr: ''
         }
       }
@@ -1338,6 +1359,18 @@ describe('worktree validation', () => {
     })
 
     expect(paths).toEqual(['rules/release', 'skills/git-reconcile'])
+
+    const scopes = changedNonCodeScopes(NPM_ROOT, (_command, args) => {
+      if (args[0] === 'diff') {
+        return {
+          status: 0,
+          stdout: 'package.json\nskills/git-reconcile/SKILL.md\n',
+          stderr: ''
+        }
+      }
+      return { status: 0, stdout: '', stderr: '' }
+    })
+    expect(scopes).toEqual(['package.json', 'skills/git-reconcile'])
   })
 
   test('final gate запускає domain lint до changelog', async () => {
@@ -1363,12 +1396,14 @@ describe('worktree validation', () => {
     await expect(validateFinalProjectGates(NPM_ROOT, finalGateSpawn('domain'))).resolves.toEqual({
       ok: false,
       error: 'domain lint (skills/git-reconcile): domain failed',
-      remediation: 'canonical-fixers'
+      remediation: 'canonical-fixers',
+      remediationScopes: ['skills/git-reconcile']
     })
     await expect(validateFinalProjectGates(NPM_ROOT, finalGateSpawn('changelog'))).resolves.toEqual({
       ok: false,
       error: 'changelog gate: changelog failed',
-      remediation: 'canonical-fixers'
+      remediation: 'canonical-fixers',
+      remediationScopes: []
     })
   })
 
@@ -1407,6 +1442,24 @@ describe('worktree validation', () => {
 
     expect(result).toEqual({ attempted: true, ok: true })
     expect(calls).toContainEqual(['npx', ['@7n/rules', 'lint', '--path', 'skills/git-reconcile']])
+  })
+
+  test('canonical remediation не розширює scope поза failed gate', async () => {
+    const calls = []
+    await remediateBehaviorState(
+      NPM_ROOT,
+      (command, args) => {
+        calls.push([command, args])
+        if (command === 'git' && args[0] === 'diff') {
+          return { status: 0, stdout: 'jobs/a/src/a.mjs\njobs/b/src/b.mjs\n', stderr: '' }
+        }
+        return { status: 0, stdout: '', stderr: '' }
+      },
+      { remediation: 'canonical-fixers', remediationScopes: ['jobs/a/src'] }
+    )
+
+    expect(calls).toContainEqual(['npx', ['@7n/rules', 'lint', '--path', 'jobs/a/src']])
+    expect(calls).not.toContainEqual(['npx', ['@7n/rules', 'lint', '--path', 'jobs/b/src']])
   })
 })
 
