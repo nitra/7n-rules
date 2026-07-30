@@ -7,7 +7,11 @@ import { join } from 'node:path'
 
 import { describe, expect, test } from 'vitest'
 
-const REPOSITORY_ROOT = join(import.meta.dirname, '..', '..')
+import { realRepoRoot } from '../scripts/utils/test-helpers.mjs'
+
+// realRepoRoot, не відносний шлях від тестового файлу: sandbox-копія Stryker
+// містить лише npm/, а пін звіряється з файлами реального дерева.
+const REPOSITORY_ROOT = realRepoRoot()
 
 /**
  * @param {string} path шлях від кореня репозиторію

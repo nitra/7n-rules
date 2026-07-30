@@ -5,12 +5,15 @@ import { join } from 'node:path'
 import { describe, expect, test, vi } from 'vitest'
 
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+// Плагінні екстрактори — через пакетні specifier-и (workspace-симлінки node_modules/@7n/…),
+// а не відносний `../../../../../plugins/…`: sandbox-копія Stryker містить лише npm/,
+// тож відносний шлях там не резолвиться і весь suite падав на імпорті у dry-run.
 import jsKnowledgeExtractor, {
   collectTestScenarios as collectJsTestScenarios
-} from '../../../../../plugins/lang-js/knowledge/extractor.mjs'
-import { collectTestScenarios as collectPhpTestScenarios } from '../../../../../plugins/lang-php/knowledge/extractor.mjs'
-import pythonKnowledgeExtractor from '../../../../../plugins/lang-python/knowledge/extractor.mjs'
-import { collectTestScenarios as collectRustTestScenarios } from '../../../../../plugins/lang-rust/knowledge/extractor.mjs'
+} from '@7n/rules-lang-js/knowledge/extractor.mjs'
+import { collectTestScenarios as collectPhpTestScenarios } from '@7n/rules-lang-php/knowledge/extractor.mjs'
+import pythonKnowledgeExtractor from '@7n/rules-lang-python/knowledge/extractor.mjs'
+import { collectTestScenarios as collectRustTestScenarios } from '@7n/rules-lang-rust/knowledge/extractor.mjs'
 import { discoverExpectedSources, mapExpectedSources, parseExpectedSourceResult } from '../expected-sources.mjs'
 
 const DOMAIN_ID = 'npm:@fixture/orders'

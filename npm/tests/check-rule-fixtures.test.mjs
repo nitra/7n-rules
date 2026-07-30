@@ -7,8 +7,10 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { lint as lintNginx } from '../rules/nginx-default-tpl/template/main.mjs'
-import { lint as lintStyle } from '../../plugins/lang-js/rules/style/tooling/main.mjs'
-import { lint as lintVue } from '../../plugins/lang-js/rules/vue/packages/main.mjs'
+// Плагінні правила — пакетними specifier-ами, не `../../plugins/…`: sandbox-копія
+// Stryker містить лише npm/, відносний шлях там не резолвиться.
+import { lint as lintStyle } from '@7n/rules-lang-js/rules/style/tooling/main.mjs'
+import { lint as lintVue } from '@7n/rules-lang-js/rules/vue/packages/main.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
 
 // Адаптери під unified lint surface: detector → 0 (чисто) / 1 (є violations).

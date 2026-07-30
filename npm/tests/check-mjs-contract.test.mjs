@@ -11,8 +11,11 @@ import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { realRepoRoot } from '../scripts/utils/test-helpers.mjs'
+
 const RULES_DIR = new URL('../rules/', import.meta.url).pathname
-const PLUGINS_DIR = new URL('../../plugins/', import.meta.url).pathname
+// Через realRepoRoot, не відносно тестового файлу: sandbox-копія Stryker містить лише npm/.
+const PLUGINS_DIR = join(realRepoRoot(), 'plugins')
 
 /**
  * @param {string} dir rules-каталог

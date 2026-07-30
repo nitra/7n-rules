@@ -3,7 +3,8 @@
  * Тести для скілів — у `auto-skills.test.mjs`.
  */
 import { describe, expect, test } from 'vitest'
-import { join } from 'node:path'
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
 import { platform } from 'node:process'
 import { ensureDir, withTmpDir, writeJson } from '../utils/test-helpers.mjs'
 import { chmod, readFile, writeFile } from 'node:fs/promises'
@@ -50,12 +51,25 @@ const ALL_RULES = [
 // Як у проді (bin/n-rules.js): rules-джерела = ядро + активні плагіни.
 // rust/python — власність lang-плагінів (фаза 3), js-сімʼя — lang-js (фаза 5c),
 // php — lang-php (spec 2026-07-27-universal-plugin-slots-lang-php-extraction).
+// Плагінні каталоги — через пакетну резолюцію (workspace-симлінки node_modules/@7n/…),
+// а не відносний `../../../plugins/…`: sandbox-копія Stryker містить лише npm/, тож
+// відносний шлях там порожній і dry-run «втрачав» плагінні правила (bun/js/vue/…).
+const requireFromTest = createRequire(import.meta.url)
+
+/**
+ * @param {string} pkg npm-ім'я плагіна
+ * @returns {string} абсолютний шлях rules-каталогу плагіна
+ */
+function pluginRulesDir(pkg) {
+  return join(dirname(requireFromTest.resolve(`${pkg}/package.json`)), 'rules')
+}
+
 const RULES_DIRS = [
   new URL('../../rules/', import.meta.url).pathname,
-  new URL('../../../plugins/lang-js/rules/', import.meta.url).pathname,
-  new URL('../../../plugins/lang-rust/rules/', import.meta.url).pathname,
-  new URL('../../../plugins/lang-python/rules/', import.meta.url).pathname,
-  new URL('../../../plugins/lang-php/rules/', import.meta.url).pathname
+  pluginRulesDir('@7n/rules-lang-js'),
+  pluginRulesDir('@7n/rules-lang-rust'),
+  pluginRulesDir('@7n/rules-lang-python'),
+  pluginRulesDir('@7n/rules-lang-php')
 ]
 
 /**

@@ -1,10 +1,9 @@
 import { describe, expect, test } from 'vitest'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { readFileSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 
-import { ensureDir, withTmpDir, writeJson } from '../utils/test-helpers.mjs'
+import { ensureDir, realRepoRoot, withTmpDir, writeJson } from '../utils/test-helpers.mjs'
 import {
   extractChangelogSection,
   findPublishablePackage,
@@ -13,7 +12,9 @@ import {
   releaseTagsForWorkspaces
 } from '../github-package-release.mjs'
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
+// realRepoRoot, не відносний шлях від тестового файлу: sandbox-копія Stryker
+// містить лише npm/, а тести читають .github/workflows/* реального дерева.
+const REPO_ROOT = realRepoRoot()
 
 describe('parsePackageTag', () => {
   test('розділяє scoped package і semver за останнім @', () => {

@@ -11,11 +11,15 @@ import { readFile } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { realRepoRoot } from '../../utils/test-helpers.mjs'
+
 const binPath = join(dirname(fileURLToPath(import.meta.url)), '../../../bin/n-rules.js')
 // CLI dispatch (switch(command), ADR_HOOKS_SKIP тощо) живе в n-rules-cli.mjs, куди
 // bin/n-rules.js делегує через export async function runCli(argv) — guard за isRunAsCli
 // не дає імпортувати bin/n-rules.js напряму без реального запуску CLI.
-const cliSourcePath = join(dirname(fileURLToPath(import.meta.url)), '../../../bin/n-rules-cli.mjs')
+// Source-grep читає ПЕРВИННЕ джерело через realRepoRoot: у sandbox Stryker копія
+// інструментована мутантами, і текстові патерни (switch (command)) там переписані.
+const cliSourcePath = join(realRepoRoot(), 'npm', 'bin', 'n-rules-cli.mjs')
 
 const ADR_HOOKS_SKIP_RE = /ADR_HOOKS_SKIP\s*=\s*['"]1['"]/
 const SWITCH_COMMAND_RE = /switch\s*\(\s*command\s*\)/
