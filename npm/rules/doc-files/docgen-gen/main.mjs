@@ -62,55 +62,41 @@ let llmMeter = { calls: 0, ms: 0 }
 let activeChain = null
 
 /**
- * Дедлайн поточної генерації (epoch ms) — той самий lifecycle, що й activeChain:
- * виставляється на старті generateDoc (opts.deadlineAt від fix-pipeline), скидається
- * у finally. Ріже per-call таймаути так, що жоден LLM-виклик не переживає бюджет
- * рунга — інакше backstop runner-а вбиває worker, а батч-зомбі продовжує дзвонити
- * в локальну модель поверх наступного rung-а.
+ * Docgen не має deadline: явна генерація великого файла має дочекатися моделі,
+ * а не перетворитися на частковий результат через fix-ladder timeout. Зупинка
+ * лишається свідомою дією користувача через Ctrl-C у foreground CLI.
  */
-let activeDeadlineAt = null
-
-/**
- * Ріже базовий per-call таймаут під залишок бюджету до дедлайну.
- * Без дедлайну — базовий ліміт; після дедлайну — 0 (виклик не має стартувати).
- * @param {number} baseMs базовий ліміт виклику
- * @param {number|null} deadlineAt дедлайн (epoch ms) або null
- * @param {number} [now] поточний час (інжект для тестів)
- * @returns {number} ефективний ліміт у мс (0 — бюджет вичерпано)
- */
-export function capTimeoutToDeadline(baseMs, deadlineAt, now = Date.now()) {
-  if (!deadlineAt) return baseMs
-  return Math.min(baseMs, Math.max(0, deadlineAt - now))
-}
 
 /**
  * Обгортка LLM-виклику з обліком (тепер async поверх pi-one-shot): лічить кількість
  * викликів і сумарний час. Генерація одного файлу послідовна — лічильник без гонок.
  * Зберігає старий інтерфейс accountant'а: повертає рядок-вміст, кидає на помилці.
- * Таймаут виклику ріжеться під activeDeadlineAt; вичерпаний бюджет — помилка зі
- * словом «timeout» (класифікується transient у batch, не permanent/systemic).
+ * Відповідь очікується без time limit; foreground CLI лишається власником процесу,
+ * показує heartbeat і може бути перерваний Ctrl-C.
  * @param {Array<{role:string,content:string}>} messages чат-повідомлення
  * @param {string} model model-id (`provider/id`)
  * @param {{ timeoutMs?: number, caller?: string }} [opts] ліміт/мітка (temperature/maxTokens не підтримуються pi-one-shot)
  * @returns {Promise<string>} відповідь моделі
  */
 async function callLlm(messages, model, opts = {}) {
-  const timeoutMs = capTimeoutToDeadline(opts.timeoutMs ?? LOCAL_TIMEOUT_MS, activeDeadlineAt)
-  if (timeoutMs <= 0) {
-    throw new Error('docgen deadline: бюджет рунга fix-pipeline вичерпано до старту LLM-виклику (timeout)')
-  }
   const started = Date.now()
+  const heartbeat = setInterval(() => {
+    const seconds = Math.round((Date.now() - started) / 1000)
+    console.log(`  … doc-files: очікую ${model} вже ${seconds}s (Ctrl-C — скасувати)`)
+  }, 30_000)
   try {
     const res = await runOneShot({
       messages,
       modelSpec: model,
-      timeoutMs,
+      // `withTimeout(..., 0)` у llm-lib означає очікування без time limit.
+      timeoutMs: 0,
       caller: opts.caller ?? 'docgen',
       chain: activeChain
     })
     if (res.error) throw new Error(res.error)
     return res.content
   } finally {
+    clearInterval(heartbeat)
     llmMeter.calls += 1
     llmMeter.ms += Date.now() - started
   }
@@ -562,7 +548,7 @@ export function commentOnlyDoc(facts, intent, behavior = '') {
  * @param {{ intent?: string|null }} [opts] захищена секція «Призначення» для збереження
  * @returns {{ md: string }} зібраний документ
  */
-async function oneShotDoc(facts, src, model, timeoutMs = LOCAL_TIMEOUT_MS, { intent = null } = {}) {
+async function oneShotDoc(facts, src, model, timeoutMs = 0, { intent = null } = {}) {
   const text = await callLlm(oneShotMessages(facts, src), model, { timeoutMs })
   let md = stripSignatures(stripSection(text))
   if (!md.startsWith('#')) md = `# ${basename(facts.relPath)}\n\n${md}`
@@ -725,7 +711,7 @@ export function behaviorOnlyDocument(md) {
  */
 async function judgeRefinePass(r, judge, { facts, anchors, src, score, model, chain }) {
   const { body: intentBody, without } = splitProtected(r.md)
-  const fixedRaw = await callLlm(judgeRefineMessages(without, judge.reason), model, { timeoutMs: LOCAL_TIMEOUT_MS })
+  const fixedRaw = await callLlm(judgeRefineMessages(without, judge.reason), model, { timeoutMs: 0 })
   let fixed = stripSection(fixedRaw)
   if (!fixed.startsWith('#')) fixed = `# ${basename(facts.relPath)}\n\n${fixed}`
   const fixedMd = insertProtected(fixed + '\n', intentBody)
@@ -797,9 +783,6 @@ export function resolvePromptSrc({ facts, estTokens, langExtractors, ext, src, f
   const structured = units.length >= 4 && covered / units.length >= 0.6
   return structured ? buildUnitDigest(units) : src
 }
-
-/** Максимальний час генерації одного LLM-виклику. */
-const LOCAL_TIMEOUT_MS = 5 * 60 * 1000
 
 /** Контекстне вікно локальної моделі в токенах (оцінка; override — N_CURSOR_DOCGEN_CTX). */
 const DEFAULT_CONTEXT_TOKENS = 131072
@@ -890,7 +873,7 @@ function finishUnsupported(r, { t0, model, chainExtra }) {
  * з вищою температурою (best-of-2); якщо й він не допоміг — результат
  * позначається `degraded`, рішення про перегенерацію приймає batch/користувач.
  * @param {string} file абсолютний шлях джерела
- * @param {{ model?: string, threshold?: number, existingMd?: string|null, chainFactory?: typeof startChain, deadlineAt?: number|null, testIndex?: ReturnType<typeof buildTestEvidenceIndex>|null }} [opts] model-id, поріг degraded, наявна дока (для збереження захищеної секції), фабрика ланцюжка (інжект для тестів), deadlineAt — мʼякий дедлайн fix-pipeline (epoch ms): per-call таймаути ріжуться під залишок бюджету, вичерпаний бюджет обриває генерацію transient-помилкою; testIndex — спільний source↔tests index батчу
+ * @param {{ model?: string, threshold?: number, existingMd?: string|null, chainFactory?: typeof startChain, testIndex?: ReturnType<typeof buildTestEvidenceIndex>|null }} [opts] model-id, поріг degraded, наявна дока (для збереження захищеної секції), фабрика ланцюжка (інжект для тестів); testIndex — спільний source↔tests index батчу
  * @returns {{ md: string, ms: number, llmMs: number, llmCalls: number, score: number|null, issues: string[], degraded: boolean, model: string }} документ і метадані генерації (ms — увесь файл; llmMs/llmCalls — лише LLM; решта ms — оркестрація)
  */
 export async function generateDoc(
@@ -900,7 +883,6 @@ export async function generateDoc(
     threshold = QUALITY_THRESHOLD,
     existingMd = null,
     chainFactory = startChain,
-    deadlineAt = null,
     testIndex = null
   } = {}
 ) {
@@ -910,7 +892,6 @@ export async function generateDoc(
   llmMeter = { calls: 0, ms: 0 }
   const chain = chainFactory({ kind: 'doc-generate', unit: facts.relPath, cwd: process.cwd() })
   activeChain = chain
-  activeDeadlineAt = deadlineAt
   const chainExtra = {}
   try {
     return await generateDocCore()
@@ -919,7 +900,6 @@ export async function generateDoc(
     throw error
   } finally {
     activeChain = null
-    activeDeadlineAt = null
     let outcome = 'success'
     if (chainExtra.error) outcome = 'fail'
     else if (chainExtra.degraded) outcome = 'partial'
@@ -975,8 +955,8 @@ export async function generateDoc(
     const commentMode = commentDocumentationMode(facts, src)
     const promptSrc = resolvePromptSrc({ facts, estTokens, langExtractors, ext, src, file })
     let r = facts.unsupported
-      ? await oneShotDoc(facts, src, model, LOCAL_TIMEOUT_MS, { intent })
-      : await orchestratedDoc(facts, promptSrc, model, LOCAL_TIMEOUT_MS, { anchors, intent })
+      ? await oneShotDoc(facts, src, model, 0, { intent })
+      : await orchestratedDoc(facts, promptSrc, model, 0, { anchors, intent })
 
     // unsupported (vue/py до юніт-шару): скорер не застосовний — score=null, не degraded
     // (окрім refusal-пре-гейта — див. finishUnsupported).
@@ -994,7 +974,7 @@ export async function generateDoc(
     // E4: best-of-2 — один retry з вищою температурою, det-вибір кращого
     if (score < threshold && env.N_CURSOR_DOCGEN_BEST_OF !== '0') {
       try {
-        const r2 = await orchestratedDoc(facts, promptSrc, model, LOCAL_TIMEOUT_MS, {
+        const r2 = await orchestratedDoc(facts, promptSrc, model, 0, {
           anchors,
           temperature: 0.5,
           intent

@@ -108,17 +108,6 @@ function fmtTiming(r) {
 const SYSTEMIC_ABORT_STREAK = 3
 
 /**
- * Чи настав м'який дедлайн батчу. Перший файл стартує завжди (done=0) — інакше
- * прогін без жодного прогресу ніколи не зійдеться.
- * @param {number|null|undefined} deadlineAt дедлайн (epoch ms) або null/undefined
- * @param {number} done скільки файлів уже оброблено
- * @returns {boolean} true — наступний файл не стартуємо
- */
-function deadlineReached(deadlineAt, done) {
-  return Boolean(deadlineAt) && done > 0 && Date.now() >= deadlineAt
-}
-
-/**
  * Діагностика розміру джерела (для дослідження, що роздуває контекст):
  * байти + груба оцінка токенів (~bytes/4). Без size-guard-гейта — лише вивід.
  * @param {number} bytes розмір файлу в байтах
@@ -140,7 +129,7 @@ export function fmtSize(bytes) {
  * @param {string} root абсолютний корінь
  * @param {{ done: number, total: number }} progress позиція у прогресі
  * @param {{ ok: number, degraded: number, err: number, errors: string[], skipped: string[] }} stats акумулятор
- * @param {{ model?: string, tier?: string|null, emit?: (s: string) => void, deadlineAt?: number|null, testIndex?: ReturnType<typeof buildTestEvidenceIndex> }} [opts] модель/тир для штампу; emit — логер рядка результату; deadlineAt — мʼякий дедлайн fix-pipeline для generateDoc; testIndex — спільний source↔tests index
+ * @param {{ model?: string, tier?: string|null, emit?: (s: string) => void, testIndex?: ReturnType<typeof buildTestEvidenceIndex> }} [opts] модель/тир для штампу; emit — логер рядка результату; testIndex — спільний source↔tests index
  * @returns {Promise<'ok'|'permanent'|'systemic'|'transient'>} результат для керування циклом
  */
 async function generateOne(
@@ -148,7 +137,7 @@ async function generateOne(
   root,
   progress,
   stats,
-  { model, tier, emit, deadlineAt = null, testIndex = buildTestEvidenceIndex(root) } = {}
+  { model, tier, emit, testIndex = buildTestEvidenceIndex(root) } = {}
 ) {
   const out = emit ?? (s => process.stdout.write(s))
   const sourceAbs = join(root, file.sourcePath)
@@ -163,7 +152,7 @@ async function generateOne(
     const docAbs = join(root, file.docPath)
     // Варіант B: передаємо наявну доку, щоб зберегти захищену секцію «Призначення»
     const existingMd = existsSync(docAbs) ? readFileSync(docAbs, 'utf8') : null
-    const result = await generateDoc(sourceAbs, { existingMd, model, deadlineAt, testIndex })
+    const result = await generateDoc(sourceAbs, { existingMd, model, testIndex })
     const crc = documentationCrc(sourceAbs, testIndex)
     mkdirSync(dirname(docAbs), { recursive: true })
     const quality =
@@ -625,35 +614,27 @@ export function runDocFilesGenCli(argv) {
 
 /**
  * Послідовний фолбек-шлях (T8): циклом по одному файлу через `generateOne`, з
- * circuit-breaker'ом (K systemic-збоїв підряд → abort) і м'яким дедлайном
- * fix-pipeline. Той самий шлях, що й до T8 — вихід не змінився, лише
+ * circuit-breaker'ом (K systemic-збоїв підряд → abort). Той самий шлях, що й до T8 — вихід не змінився, лише
  * винесений в окрему функцію, щоб `runGenerationBatch` вибирав між ним і
  * `runBatchPass`.
  * @param {Array<object>} targets елементи scanForDocFiles
  * @param {string} root абсолютний корінь
- * @param {{ model?: string, tier?: string, deadlineAt?: number|null }} opts модель/тир/дедлайн
+ * @param {{ model?: string, tier?: string }} opts модель/тир
  * @param {{ ok: number, degraded: number, err: number, errors: string[], skipped: string[] }} stats акумулятор (мутується)
  * @param {{ reporter?: object, emit?: (s: string) => void }} io прогрес-репортер і логер
- * @returns {Promise<{ done: number, aborted: boolean, deadlineHit: boolean }>} підсумок проходу
+ * @returns {Promise<{ done: number, aborted: boolean }>} підсумок проходу
  */
 async function runSequentialPass(targets, root, opts, stats, { reporter, emit }) {
   let done = 0
   let systemicStreak = 0
   let aborted = false
-  let deadlineHit = false
   for (const file of targets) {
-    // М'який дедлайн (fix-pipeline): не стартуємо наступний файл після дедлайну.
-    if (deadlineReached(opts.deadlineAt, done)) {
-      deadlineHit = true
-      break
-    }
     done++
     reporter?.concernStart(file.sourcePath)
     const status = await generateOne(file, root, { done, total: targets.length }, stats, {
       model: opts.model,
       tier: opts.tier,
       emit,
-      deadlineAt: opts.deadlineAt ?? null,
       testIndex: opts.testIndex
     })
     reporter?.concernDone(file.sourcePath)
@@ -668,7 +649,7 @@ async function runSequentialPass(targets, root, opts, stats, { reporter, emit })
       systemicStreak = 0
     }
   }
-  return { done, aborted, deadlineHit }
+  return { done, aborted }
 }
 
 /**
@@ -677,22 +658,14 @@ async function runSequentialPass(targets, root, opts, stats, { reporter, emit })
  * abort) → підсумковий звіт. Перевикористовують і батч-CLI (`runDocFilesGenCli`),
  * і opportunistic lint-крок doc-files (scoped-набір змінених файлів).
  *
- * `deadlineAt` (epoch ms): м'який дедлайн fix-pipeline — перед стартом КОЖНОГО
- * наступного файлу (перший стартує завжди) батч звіряється з дедлайном і, коли час
- * вийшов, завершується штатно з частковим прогресом. Той самий дедлайн прокидається
- * у generateDoc: per-call LLM-таймаути ріжуться під залишок бюджету, тож і файл
- * У ПРОЦЕСІ обривається на дедлайні (transient-помилка), а не живе батчем-зомбі
- * поверх наступного rung-а. Зроблене записано по одному файлу (durable, свіжий
- * CRC) — наступний прогін підбирає решту за CRC.
  * T8 (2b-batch, рішення Р): коли доступний native-аддон `@7n/llm-lib` (`nativeBatchAvailable`)
- * і рунг БЕЗ `deadlineAt` (fix-pipeline рунги лишаються на послідовному шляху —
- * там дедлайн підтримується), увесь `targets` іде ОДНИМ `submitBatch` через
- * `runBatchPass` замість цього циклу по одному файлу. Zero-native споживачі
+ * увесь `targets` іде ОДНИМ `submitBatch` через `runBatchPass` замість цього циклу
+ * по одному файлу. Zero-native споживачі
  * (аддон не зібраний/платформа не підтримується) автоматично лишаються на
  * послідовному шляху нижче — жодної відмінності в CLI/skill/hook-контракті.
  * @param {Array<object>} targets елементи scanForDocFiles (sourcePath/docPath)
  * @param {string} root абсолютний корінь
- * @param {{ headline?: string, model?: string, tier?: string, deadlineAt?: number|null, submitBatchImpl?: (modelSpecOrTier: string, items: Array<object>, opts?: object) => Promise<Array<object>>, forceSequential?: boolean }} [opts] headline — рядок-шапка прогону у stdout; model/tier — override моделі і її типу (інакше DEFAULT_LOCAL_MODEL); deadlineAt — м'який дедлайн (epoch ms); submitBatchImpl — інжект `submitBatch` (тест); forceSequential — примусовий фолбек (тест/діагностика)
+ * @param {{ headline?: string, model?: string, tier?: string, submitBatchImpl?: (modelSpecOrTier: string, items: Array<object>, opts?: object) => Promise<Array<object>>, forceSequential?: boolean }} [opts] headline — рядок-шапка прогону у stdout; model/tier — override моделі і її типу (інакше DEFAULT_LOCAL_MODEL); submitBatchImpl — інжект `submitBatch` (тест); forceSequential — примусовий фолбек (тест/діагностика)
  * @returns {Promise<number>} 0 — без помилок; 1 — фейл preflight або є помилки; 2 — systemic-abort
  */
 export async function runGenerationBatch(targets, root, opts = {}) {
@@ -722,23 +695,21 @@ export async function runGenerationBatch(targets, root, opts = {}) {
   const emit = reporter ? reporter.log : undefined
 
   const submitBatchImpl = opts.submitBatchImpl ?? submitBatchNative
-  const useBatch =
-    !opts.forceSequential && !opts.deadlineAt && (await nativeBatchAvailable(submitBatchImpl, !opts.submitBatchImpl))
+  const useBatch = !opts.forceSequential && (await nativeBatchAvailable(submitBatchImpl, !opts.submitBatchImpl))
 
   let done
   let aborted = false
-  let deadlineHit = false
   try {
     if (useBatch) {
       await runBatchPass(targets, root, { ...runOpts, submitBatchImpl }, stats, { reporter, emit })
       done = targets.length
     } else {
-      ;({ done, aborted, deadlineHit } = await runSequentialPass(targets, root, runOpts, stats, { reporter, emit }))
+      ;({ done, aborted } = await runSequentialPass(targets, root, runOpts, stats, { reporter, emit }))
     }
   } finally {
     reporter?.stop()
   }
-  reportEarlyStop({ aborted, deadlineHit, done, total: targets.length })
+  reportEarlyStop({ aborted, deadlineHit: false, done, total: targets.length })
 
   reportStats(stats)
 

@@ -430,7 +430,10 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
     // сесію). Backstop ×1.25 страхує від worker-а, що ігнорує ctx.timeoutMs
     // (ADR 260620-0556: зависла cloud-SSE без гонки блокувала lint назавжди);
     // запас гарантує, що штатно першим спрацьовує внутрішній abort-шлях.
-    workerResult = await withTimeout(worker(violations, fixCtx), Math.round(rung.timeoutMs * 1.25), {
+    // doc-files — явна довга foreground-генерація: не відʼєднуємо її й не обриваємо
+    // backstop-ом. Всі інші fix-workers лишаються bounded, як і раніше.
+    const backstopMs = ruleId === 'doc-files' ? 0 : Math.round(rung.timeoutMs * 1.25)
+    workerResult = await withTimeout(worker(violations, fixCtx), backstopMs, {
       label: 'fix'
     })
   } catch (workerError) {

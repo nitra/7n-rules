@@ -18,9 +18,6 @@
  */
 import { join } from 'node:path'
 
-/** Частка ctx.timeoutMs, після якої батч не стартує наступний файл (запас до backstop ×1.25). */
-const DEADLINE_FRACTION = 0.8
-
 /** @type {FixWorkerFn} */
 export async function fixWorker(violations, ctx) {
   const { cwd } = ctx
@@ -49,16 +46,12 @@ export async function fixWorker(violations, ctx) {
       recordDoc?.(docAbs)
       touchedFiles.push(docAbs)
     }
-    // Deadline: батч сам зупиняється до backstop-таймауту рунга (fix timeout ×1.25) —
-    // повертає часткову роботу штатно, замість фонового батчу-зомбі поверх наступного rung-а.
-    // Дедлайн діє і всередині файлу: generateDoc ріже per-call LLM-таймаути під залишок
-    // бюджету, тож навіть перший файл, що не вкладається у рунг, обривається сам.
-    const deadlineAt = ctx.timeoutMs ? Date.now() + Math.round(ctx.timeoutMs * DEADLINE_FRACTION) : null
+    // Docgen працює у foreground до завершення всієї черги. Велику документацію не
+    // обриваємо timeout-ом: користувач бачить heartbeat і може свідомо натиснути Ctrl-C.
     await runGenerationBatch(stale, cwd, {
       headline: `📄 doc-files: генерація ${stale.length} доки(ів)`,
       model: ctx.model,
       tier: ctx.tier,
-      deadlineAt,
       testIndex
     })
   }

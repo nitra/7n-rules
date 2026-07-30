@@ -121,6 +121,17 @@ describe('runOneShot', () => {
     expect(r.error).toMatch(RE_TIMEOUT)
   })
 
+  test('timeoutMs=0 → чекає completion без time limit', async () => {
+    const deps = baseDeps(fakeSession({ deltas: ['done'], delayMs: 30 }))
+    const r = await runOneShot({
+      messages: [{ role: 'user', content: 'x' }],
+      modelSpec: 'omlx/x',
+      timeoutMs: 0,
+      deps
+    })
+    expect(r).toMatchObject({ content: 'done', error: null })
+  })
+
   test('memory-guard rejection → друкує тіло запиту в stdout і кидає Error, без structured error', async () => {
     const memoryMsg = 'Prefill would require ~12.32 GB peak but metal_cap ceiling is 11.84 GB.'
     const deps = baseDeps(fakeSession({ deltas: [], promptError: memoryMsg }))

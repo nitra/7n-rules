@@ -110,10 +110,10 @@ export function judgeMessages(src, doc) {
  * Судить згенерований док сильною моделлю проти джерела.
  * @param {string} src вміст вихідного файлу
  * @param {string} doc згенерована документація
- * @param {{model?: string, timeoutMs?: number}} [opts] override моделі/таймауту
+ * @param {{model?: string, timeoutMs?: number}} [opts] override моделі/таймауту (`0` = без ліміту)
  * @returns {{verdict: string, confidence: number, reason: string}} verdict судді
  */
-export async function judgeDoc(src, doc, { model = JUDGE_MODEL, timeoutMs = 120_000, chain = null } = {}) {
+export async function judgeDoc(src, doc, { model = JUDGE_MODEL, timeoutMs = 0, chain = null } = {}) {
   const res = await runOneShot({
     messages: judgeMessages(src, doc),
     modelSpec: model,
