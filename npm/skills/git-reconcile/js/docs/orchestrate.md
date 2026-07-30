@@ -3,7 +3,7 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/skills/git-reconcile/js/orchestrate.mjs
 docgen:
-  crc: 3f3e7340
+  crc: bfcea096
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100

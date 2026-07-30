@@ -20,6 +20,7 @@ const PR_CHECK_TIMEOUT_MS = 15 * 60_000
 const DEFAULT_PR_CONCURRENCY = 3
 const MAX_PR_CONCURRENCY = 4
 const STASH_PATH_LIMIT = 500
+const NODE_MODULES_BIN_RE = /[\\/]node_modules[\\/]\.bin[\\/]?$/
 const SOURCE_BRANCH_PREFIX = 'branch:'
 const SOURCE_STASH_PREFIX = 'stash:'
 const CONTENT_CONFLICT_RE = /^CONFLICT \(.+?\): Merge conflict in (.+)$/
@@ -211,10 +212,10 @@ function run(command, args, cwd, spawnFn, options = {}) {
 
 /**
  * Відкидає npm/bun shim-каталоги з PATH для виклику системного native binary.
- * Інакше `npx @7n/rules` може непомітно підмінити Rust CLI застарілим
+ * Інакше `npx \@7n/rules` може непомітно підмінити Rust CLI застарілим
  * `node_modules/.bin/mt` з іншим worktree contract.
- * @param {NodeJS.ProcessEnv} [sourceEnv] вхідне середовище
- * @returns {NodeJS.ProcessEnv} копія env із native-only PATH
+ * @param {object} [sourceEnv] вхідне середовище
+ * @returns {object} копія env із native-only PATH
  */
 export function nativeExecutableEnvironment(sourceEnv = env) {
   const result = { ...sourceEnv }
@@ -222,7 +223,7 @@ export function nativeExecutableEnvironment(sourceEnv = env) {
   if (!pathKey || !result[pathKey]) return result
   result[pathKey] = result[pathKey]
     .split(delimiter)
-    .filter(path => !/[\\/]node_modules[\\/]\.bin[\\/]?$/.test(path))
+    .filter(path => !NODE_MODULES_BIN_RE.test(path))
     .join(delimiter)
   return result
 }
