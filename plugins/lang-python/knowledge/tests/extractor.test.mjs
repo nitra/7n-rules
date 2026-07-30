@@ -2,7 +2,7 @@ import { Buffer } from 'node:buffer'
 
 import { describe, expect, test } from 'vitest'
 
-import { buildNormalizedGraph } from '../../../../npm/rules/ci4/package_knowledge/normalized-graph.mjs'
+import { buildNormalizedGraph } from '../../../../npm/rules/doc-files/package_knowledge/normalized-graph.mjs'
 import pythonKnowledgeExtractor, { analyzeFile, collectTestScenarios } from '../extractor.mjs'
 
 /**

@@ -524,8 +524,12 @@ describe('migrateRuleIds / detectLegacyRuleIds', () => {
     expect(migrateRuleIds(['bun', 'text', 'vue'])).toEqual(['bun', 'text', 'vue'])
   })
 
+  test('migrateRuleIds вливає legacy `ci4` у `doc-files` без дублювання', () => {
+    expect(migrateRuleIds(['ci4', 'doc-files'])).toEqual(['doc-files'])
+  })
+
   test('detectLegacyRuleIds повертає лише id з RULE_MIGRATIONS', () => {
-    expect(detectLegacyRuleIds(['image', 'bun', 'image-compress'])).toEqual(['image'])
+    expect(detectLegacyRuleIds(['image', 'bun', 'ci4', 'image-compress'])).toEqual(['image', 'ci4'])
     expect(detectLegacyRuleIds(['bun', 'text'])).toEqual([])
   })
 })

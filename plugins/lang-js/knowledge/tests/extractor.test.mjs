@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { Buffer } from 'node:buffer'
 
-import { buildNormalizedGraph } from '../../../../npm/rules/ci4/package_knowledge/normalized-graph.mjs'
+import { buildNormalizedGraph } from '../../../../npm/rules/doc-files/package_knowledge/normalized-graph.mjs'
 import jsKnowledgeExtractor, { analyzeFile } from '../extractor.mjs'
 
 /**

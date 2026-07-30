@@ -79,6 +79,7 @@ import {
   detectAutoRules,
   detectLegacyRuleIds,
   mergeConfigWithAutoDetected,
+  migrateRuleIds,
   normalizeIdList,
   RULE_MIGRATIONS
 } from '../scripts/auto-rules.mjs'
@@ -808,7 +809,7 @@ function buildClaudeDocFilesSectionLines() {
     '',
     '## Файлова документація (`doc-files` — обовʼязковий крок, як lint)',
     '',
-    'Після зміни чи додавання кодового файлу його файлова дока (`<dir>/docs/<stem>.md`) має бути **актуальною** — це **обовʼязковий крок кожної задачі**, нарівні з lint. Застарілість детермінується за **CRC** джерела у frontmatter доки. PostToolUse hook (`hook --post-tool-use`) **сигналить** про дрейф після правки через per-file lint правила. Регенерація — `/doc-files` (JS-оркестрована, не диспатч субагентів). Агрегуюча дока (module-summary, доменні) — окремий скіл `/doc-aggregate`, за запитом.',
+    'Після зміни чи додавання кодового файлу його файлова дока (`<dir>/docs/<stem>.md`) має бути **актуальною** — це **обовʼязковий крок кожної задачі**, нарівні з lint. Застарілість детермінується за **CRC** джерела у frontmatter доки. PostToolUse hook (`hook --post-tool-use`) **сигналить** про дрейф після правки через per-file lint правила. Регенерація — `/doc-files` (JS-оркестрована, не диспатч субагентів). Package-level business/architecture projection належить тій самій `doc-files` surface і запускається через atomic `n-rules docs …` workflow.',
     ''
   ]
 }
@@ -1838,12 +1839,14 @@ export async function runCli(argv) {
           const baseIdx = args.indexOf('--base')
           const baseRef = baseIdx === -1 ? null : args[baseIdx + 1]
           const repoWide = args.includes('--repo-wide')
-          const rules = args.filter(
-            (a, i) =>
-              !a.startsWith('-') &&
-              !(cwdIdx !== -1 && i === cwdIdx + 1) &&
-              !(pathIdx !== -1 && i === pathIdx + 1) &&
-              !(baseIdx !== -1 && i === baseIdx + 1)
+          const rules = migrateRuleIds(
+            args.filter(
+              (a, i) =>
+                !a.startsWith('-') &&
+                !(cwdIdx !== -1 && i === cwdIdx + 1) &&
+                !(pathIdx !== -1 && i === pathIdx + 1) &&
+                !(baseIdx !== -1 && i === baseIdx + 1)
+            )
           )
           if (repoWide && (pathArg !== null || rules.length > 0)) {
             throw new Error('--repo-wide не поєднується з --path чи scoped rule/concern фільтром — оберіть щось одне')
@@ -2016,7 +2019,7 @@ export async function runCli(argv) {
           break
         }
         case 'docs': {
-          const { runDocsCli } = await import('../rules/ci4/package_knowledge/cli.mjs')
+          const { runDocsCli } = await import('../rules/doc-files/package_knowledge/cli.mjs')
           process.exitCode = await runDocsCli(args, { repoRoot: effectiveRoot })
 
           break

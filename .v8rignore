@@ -10,8 +10,8 @@ npm/schemas/concern.json
 npm/schemas/layers-config.json
 npm/schemas/plugin-manifest.json
 npm/schemas/v8r-catalog.json
-npm/rules/ci4/package_knowledge/schema/knowledge-graph-v1.schema.json
-npm/rules/ci4/package_knowledge/tests/fixtures/**
+npm/rules/doc-files/package_knowledge/schema/knowledge-graph-v1.schema.json
+npm/rules/doc-files/package_knowledge/tests/fixtures/**
 npm/schemas/vendor/**
 .claude/settings.local.json
 npm/.claude-template/settings.template.json
@@ -31,4 +31,4 @@ npm/config/capability-matrix.json
 npm/data/blue-oak.json
 npm/scripts/lib/tool-pins.json
 .marksman.toml
-npm/rules/ci4/marksman_config/data/marksman_config/marksman.baseline.toml
+npm/rules/doc-files/marksman_config/data/marksman_config/marksman.baseline.toml
