@@ -3,7 +3,7 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/skills/git-reconcile/js/orchestrate.mjs
 docgen:
-  crc: 77886edb
+  crc: 9b659040
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100
@@ -13,53 +13,49 @@ docgen:
 
 ## Огляд
 
-Координує Git reconciliation для worktree, stash, branch і PR-фаз: збирає факти про repository, worktrees, stashes, conflicts, changed non-code scopes і pull request diff profile, а також готує triage, verification, cleanup і final PR description. Свідомо пропускає `node_modules` і кешує результати в межах прогону.
+Файл об’єднує inventory робочих дерев, triage, формування опису pull request, перевірки readiness, виконання reconcile-процесу та підсумкову звітність для роботи між worktree-ами. Він описує повний шлях: зібрати стан репозиторію, згрупувати tracking refs, оцінити конфлікти й зміни, сформувати результат triage, перевірити gates, застосувати виправлення, а потім зафіксувати підсумок і прибрати застарілі worktree-об’єкти та source-артефакти.
 
 ## Поведінка
 
-createPhaseProgress тримає живий, append-only прогрес для фаз оркестрації без ANSI-шума, щоб TTY і CI бачили однаковий слід виконання; цей слід далі відображає тривалі LLM-етапи через elapsed time.
+createPhaseProgress тримає прогрес виконання у append-only вигляді, щоб той самий потік підходив і для TTY, і для CI без зайвого noise. Він працює як спільний каркас для довгих фаз, а elapsed time використовується лише як короткий сигнал живості виконання.
 
-nativeExecutableEnvironment відсікає npm/bun shim-оточення з PATH, щоб усі native git/mt виклики ішли на системні binary, а не на локальні підміни з іншого worktree-контракту.
+nativeExecutableEnvironment відтинає project-local shim-и з PATH, щоб подальші git і native CLI виклики йшли до системних бінарників, а не до підмін із worktree. Це критично для стабільності репозиторних контрактів між різними checkout-ами.
 
-runAsync є основним каналом для довгих зовнішніх команд у фоновому режимі; він зберігає event loop вільним, а його результат потім використовують validation, install, lint і test-етапи.
+runAsync є базовим механізмом для тривалих зовнішніх команд у фоні, щоб progress heartbeat не завмирав під час install, test, lint і подібних кроків. Саме через нього проходять довгі gate-кроки, але результат завжди нормалізується в той самий shape, що й синхронний запуск.
 
-parseWorktreeInventory і parseWorktrees спільно перетворюють porcelain-вивід Git на керований inventory: перший дає повний набір worktree records для cleanup, другий — лише мапу branch→checkout для швидкого зіставлення.
+parseWorktreeInventory і parseWorktrees зводять porcelain-вивід Git до стабільної внутрішньої моделі worktree-ів і зв’язків branch→checkout. Далі ці дані живлять дедуплікацію, cleanup і захист активних checkout-ів; свідомо пропущені node_modules не входять у цей інвентарний контур.
 
-dedupeRefs, trackingRelation і groupTrackingRefs будують єдине уявлення про sources: local і remote refs зливаються в ефективні кандидати, tracking-стан визначається без зміни refs, а worktree-protection переноситься на той запис, який реально має бути захищений.
+dedupeRefs, trackingRelation і groupTrackingRefs разом перетворюють сирі refs на ефективні sources для подальшої обробки. Вони узгоджують local і remote представлення одного tip, зберігають worktree-protection для локальних ref-ів і окремо враховують ancestry стан upstream.
 
-conflictFiles постачає подальші recovery-кроки списком конфліктних шляхів із merge-tree, щоб оркестратор працював тільки з уже матеріалізованими проблемами.
+conflictFiles і inventoryRepository працюють на рівні deterministic Git inventory: перший витягає список конфліктів, другий збирає повну картину гілок, stash-ів і worktree-ів без мутації checkout, окрім оновлення remote refs через fetch --prune. Цей inventory стає входом для triage, cleanup і PR-матеріалізації.
 
-inventoryRepository зводить усі Git-факти в один детермінований snapshot, спираючись на package.json як на джерело проєктних правил, і не змінює checkout, окрім оновлення remote refs через fetch --prune; у той самий inventory входять branches, stashes, worktrees, warnings і захищені transient-обмеження, а шлях node_modules свідомо пропускається.
+inventoryStashes додає до інвентарю tracked, untracked, absorbed і exact duplicate stash-кандидати без apply або checkout. Саме тут вирішується, що лишається canonical, а що стає patch-equivalent і може бути прибране пізніше без втрати змісту.
 
-inventoryStashes додає до inventory stash-стани без checkout/apply, розрізняє absorbed payload і exact duplicates та зберігає canonical-версію найновішого дублікату.
+buildTriagePrompt і parseDecisionEnvelope утворюють межу між вже порахованими Git-фактами та JSON-відповіддю моделі. Промпт не дає моделі досліджувати репозиторій самостійно, а parseDecisionEnvelope приймає лише чистий JSON або fenced-варіант.
 
-buildTriagePrompt, parseDecisionEnvelope, callRunner, callWithValidatedFallback і validateTriageOutcome утворюють bounded LLM-контур: JS уже підготував факти, модель бачить лише обмежений prompt, повертає JSON-рішення, а fallback на max дозволений тільки після конкретної JS-валідації.
+callRunner і callWithValidatedFallback керують bounded LLM-кроками: спочатку мінімальний tier, далі JS-валідатор, і лише після конкретного провалу — ескалація на max. Такий контур зберігає детермінізм, а помилки не перетворюються на довільні зміни поведінки.
 
-collectPullRequestFacts, verificationSummary, pullRequestDiffProfile, releasedChangeEntries, buildPullRequestDescriptionPrompt, validatePullRequestDescription, renderPullRequestBody і describePullRequest формують PR narrative з уже зібраних Git- та behavioral-фактів: diff профілюється без LLM, changelog/release-only зміни відсікаються від implementation narrative, а фінальний body стабільно відокремлює business/architecture зміст від forensic detail.
+validateTriageOutcome відсікає невалідні triage-рішення до того, як вони потраплять у materialization. Вона тримає рівно один verdict на candidate, перевіряє відомі commit OID і не дозволяє model output розширювати межі batch.
 
-branchSlug нормалізує довільні title/ref до безпечного branch-представлення, яке далі використовують для створення імен worktree та інших derived refs.
+collectPullRequestFacts, verificationSummary і pullRequestDiffProfile формують grounded basis для PR-наративу. Перший збирає фінальні Git і behavioral факти, другий стискає поведінкові транскрипти до безпечного summary, третій відділяє загальний diff від release-lock-only сценаріїв, щоб narrative не приписував runtime-змін тим файлам, що їх не мають.
 
-ensureLocalWorktreeExclude додає локальний exclude для `.worktrees/`, щоб керовані або forensic worktree не лишали root checkout dirty.
+releasedChangeEntries, buildPullRequestDescriptionPrompt, validatePullRequestDescription, renderPullRequestBody і describePullRequest працюють як один ланцюг для PR body. Спершу відсікаються вже опубліковані change entries, потім збирається bounded prompt, після цього валідатор тримає фокус на business/architecture змісті, а renderPullRequestBody робить стабільний Markdown із видимими основними секціями першими. Уся ця гілка спирається на package.json як джерело репозиторних правил і сценаріїв, але не переписує їх у narrative.
 
-skipEmptyCherryPick і finishCherryPick керують sequencer-станом лише тоді, коли є підтверджений cherry-pick flow: empty no-op можна безпечно пропустити, а відсутність sequencer не вимагає дії.
+branchSlug, ensureLocalWorktreeExclude, skipEmptyCherryPick, finishCherryPick, hasChangesFromBase, testFailureSignatures і acceptsTestOutcome підтримують безпечну Git-поведінку під час переносів. Branch slug нормалізує назви для worktree-ів, local exclude прибирає noise від керованих checkout-ів, cherry-pick логіка пропускає лише справжні semantic no-op, а test gate дозволяє red baseline тільки якщо не з’явилися нові Vitest failures.
 
-hasChangesFromBase перевіряє реальний tree diff від policy base, а не кількість ahead commits, щоб не переплутати пустий перенос із справжньою зміною.
+sourceDirectories, hasOnlyChangeEntries, discardPatchEquivalentWorktree, changedNonCodeDirectories і changedNonCodeScopes ділять зміни на поведінкові та технічні. Це дає змогу рано відкидати no-op або release-entry-only worktree, а для non-code змін зберігати точні scopes без перетворення root-файлу на `.`.
 
-testFailureSignatures і acceptsTestOutcome разом тримають test gate fail-closed: дозволений red baseline не розширюється новими failures, а нерозпізнаний red output не проходить.
+remediateBehaviorState, captureBehaviorBaseline, captureCachedBehaviorBaseline, validateBehaviorState, validateFinalProjectGates, validateChangedLockfiles і classifyPullRequestChecks утворюють gate-ланцюг перед фіналізацією. Спочатку фіксується baseline, далі застосовуються scoped gates і changelog/test перевірки, а після цього окремо оцінюються final non-code зміни, lockfile-стан і GitHub checks; pending або unknown стани лишають worktree заблокованим, якщо немає доказів baseline-red.
 
-sourceDirectories, hasOnlyChangeEntries і discardPatchEquivalentWorktree відокремлюють справжні behavioral зміни від технічних залишків: code paths зводяться до найвужчих директорій, `.changes/` не вважається самостійною поведінковою цінністю, а no-op або change-only worktree прибирається до дорогих gates.
+pruneForensicDependencies, verifyPullRequestReadiness, passFinalProjectGates і commitPendingChanges завершують прийомку worktree. Спочатку очищаються лише відновлювані залежності forensic checkout-а, далі очікується terminal CI state, потім запускаються final gates з одним canonical remediation pass, і лише після цього комітиться те, що справді лишилося в index.
 
-changedNonCodeDirectories і changedNonCodeScopes виділяють non-code поверхню для фінальних domain lint-проходів, не зводячи root-зміни до `.` і не розмиваючи scoped validation на весь monorepo.
+cleanupObsoleteWorktrees і cleanupSource прибирають лише доведено зайві або безпечні для видалення checkout-и та source-ref-и. Перший працює по inventory й не чіпає dirty, protected, open-PR чи унікальні worktree, другий видаляє source тільки після Git-доказу неактуальності або успішного перенесення.
 
-remediateBehaviorState, captureBehaviorBaseline, captureCachedBehaviorBaseline, validateBehaviorState, validateFinalProjectGates, validateChangedLockfiles, classifyPullRequestChecks, pruneForensicDependencies, verifyPullRequestReadiness, passFinalProjectGates і commitPendingChanges формують late-stage gate pipeline: спочатку фіксується baseline на чистій policy base гілці, потім застосовуються canonical fixers і повторні validations, після чого перевіряються lockfiles, GitHub checks і readiness до коміту лише того, що лишилось в index.
+formatOutcomeCounts, summarizeRemaining і formatReport збирають фінальну звітність про те, що було створено, що лишилося і чому. Вони розділяють sources, worktrees і stashes, рахують причини retention окремо та формують deterministic Markdown без змішування створеного PR із CI-ready PR.
 
-cleanupObsoleteWorktrees і cleanupSource прибирають лише доведено зайве: stale або inactive transient worktree, merged/patch-equivalent sources чи точні sources, які вже не потрібні; dirty, current, locked, protected, open-PR і унікальні worktree залишаються недоторканими.
+runWithConcurrency і normalizePrConcurrency керують паралельністю PR-фаз. Перша виконує jobs у стабільному порядку output, друга обмежує override до безпечного діапазону, щоб bounded concurrency не ламала відтворюваність.
 
-formatOutcomeCounts, summarizeRemaining і formatReport збирають стабільний підсумок матеріалізації та cleanup: окремо рахуються створені PR, retained sources, worktrees і причини їх збереження, щоб репорт не змішував технічне очищення з реально завершеними змінами.
-
-runWithConcurrency і normalizePrConcurrency задають bounded паралельність PR-фази, зберігаючи порядок результатів і не даючи workspace-операціям розбігтися понад дозволений ліміт.
-
-runGitReconcileOrchestrator зшиває весь потік: спершу будує inventory, потім запускає bounded triage через LLM, далі materialize/cleanup, а на виході повертає deterministic report і зведений результат.
+runGitReconcileOrchestrator з’єднує все в один потік: inventory → triage → materialize → validate → cleanup → report. Вона бере дані з Git, проганяє їх через bounded LLM decisioning і детерміновані gates, а на виході повертає підсумковий inventory, results і репорт без прихованих мутацій за межами керованого worktree.
 
 ## Публічний API
 
@@ -165,7 +161,7 @@ retention окремо для Git sources та checkout-ів.
 
 ## Сценарії використання
 
-- `npm/skills/git-reconcile/js/tests/orchestrate.test.mjs` (commitPendingChanges; forensic worktree hygiene) — native executable PATH відкидає project-local npm і npx shims; приймає чистий index, коли корисні commits уже є в branch; комітить staged remediation після final gates; видаляє лише відновлюваний node_modules; повторно чекає checks після порожнього initial rollup; ще 77
+- `npm/skills/git-reconcile/js/tests/orchestrate.test.mjs` (commitPendingChanges; forensic worktree hygiene) — native executable PATH відкидає project-local npm і npx shims; приймає чистий index, коли корисні commits уже є в branch; комітить staged remediation після final gates; видаляє лише відновлюваний node_modules; повторно чекає checks після порожнього initial rollup; ще 80
 
 ## Гарантії поведінки
 

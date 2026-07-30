@@ -17,6 +17,8 @@ const PROMPT_TEXT_LIMIT = 12_000
 const PR_DIFF_TEXT_LIMIT = 24_000
 const PROGRESS_HEARTBEAT_MS = 30_000
 const PR_CHECK_TIMEOUT_MS = 15 * 60_000
+const PR_CHECK_REGISTRATION_RETRIES = 6
+const PR_CHECK_REGISTRATION_DELAY_MS = 10_000
 const DEFAULT_PR_CONCURRENCY = 3
 const MAX_PR_CONCURRENCY = 4
 const STASH_PATH_LIMIT = 500
@@ -2245,36 +2247,39 @@ export function pruneForensicDependencies(worktreeCwd) {
 export async function verifyPullRequestReadiness(args) {
   const { url, cwd, spawnFn = spawnSync, asyncSpawnFn, delayFn = delay } = args
   const longRunner = resolveAsyncSpawn(spawnFn, asyncSpawnFn)
-  await runAsync('gh', ['pr', 'checks', url, '--watch', '--interval', '10'], cwd, longRunner, {
-    allowFailure: true,
-    timeoutMs: PR_CHECK_TIMEOUT_MS
-  })
-  let view = await runAsync('gh', ['pr', 'view', url, '--json', 'statusCheckRollup,baseRefOid'], cwd, longRunner, {
-    allowFailure: true
-  })
-  if (view.status !== 0) {
-    return { status: 'pr-checks-unverified', error: `Не вдалося прочитати PR checks: ${view.stderr || view.error}` }
-  }
-  let pr = parseJson(view.stdout, null)
-  if (pr && Array.isArray(pr.statusCheckRollup) && pr.statusCheckRollup.length === 0) {
-    await delayFn(10_000)
+  let pr = null
+  for (let attempt = 0; attempt <= PR_CHECK_REGISTRATION_RETRIES; attempt += 1) {
     await runAsync('gh', ['pr', 'checks', url, '--watch', '--interval', '10'], cwd, longRunner, {
       allowFailure: true,
       timeoutMs: PR_CHECK_TIMEOUT_MS
     })
-    view = await runAsync('gh', ['pr', 'view', url, '--json', 'statusCheckRollup,baseRefOid'], cwd, longRunner, {
-      allowFailure: true
-    })
+    const view = await runAsync(
+      'gh',
+      ['pr', 'view', url, '--json', 'statusCheckRollup,baseRefOid,mergedAt'],
+      cwd,
+      longRunner,
+      { allowFailure: true }
+    )
     if (view.status !== 0) {
       return {
         status: 'pr-checks-unverified',
-        error: `Не вдалося повторно прочитати PR checks: ${view.stderr || view.error}`
+        error: `Не вдалося ${attempt === 0 ? '' : 'повторно '}прочитати PR checks: ${view.stderr || view.error}`
       }
     }
     pr = parseJson(view.stdout, null)
+    if (pr?.mergedAt) return { status: 'ready' }
+    if (!pr || !Array.isArray(pr.statusCheckRollup) || !pr.baseRefOid) break
+    if (pr.statusCheckRollup.length > 0) break
+    if (attempt < PR_CHECK_REGISTRATION_RETRIES) await delayFn(PR_CHECK_REGISTRATION_DELAY_MS)
   }
   if (!pr || !Array.isArray(pr.statusCheckRollup) || !pr.baseRefOid) {
     return { status: 'pr-checks-unverified', error: 'GitHub повернув неповний PR check rollup' }
+  }
+  if (pr.statusCheckRollup.length === 0) {
+    return {
+      status: 'pr-checks-unverified',
+      error: `PR check rollup порожній після ${PR_CHECK_REGISTRATION_RETRIES + 1} спроб реєстрації checks`
+    }
   }
   const repository = await runAsync(
     'gh',
@@ -2776,7 +2781,8 @@ function appendMaterializedBranches(branches, results) {
   const remaining = [...branches]
   const knownNames = new Set(remaining.flatMap(branch => branchIdentityNames(branch)))
   for (const result of results) {
-    if (!result.branch || result.status === 'patch-equivalent' || knownNames.has(result.branch)) continue
+    if (!result.branch || !result.worktree || result.status === 'patch-equivalent' || knownNames.has(result.branch))
+      continue
     knownNames.add(result.branch)
     remaining.push({
       source: `materialized:${result.branch}`,

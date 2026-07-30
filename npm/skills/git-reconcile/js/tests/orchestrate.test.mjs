@@ -225,6 +225,63 @@ describe('forensic worktree hygiene', () => {
     expect(delays).toEqual([10_000])
     expect(result).toEqual({ status: 'ready' })
   })
+
+  test('чекає кілька registration ticks, а не лише один', async () => {
+    let viewCount = 0
+    const delays = []
+    const result = await verifyPullRequestReadiness({
+      url: 'https://example.test/pr/1',
+      cwd: '/repo',
+      delayFn: milliseconds => {
+        delays.push(milliseconds)
+        return Promise.resolve()
+      },
+      asyncSpawnFn: (_command, args) => {
+        if (args[0] === 'pr' && args[1] === 'view') {
+          viewCount += 1
+          return Promise.resolve({
+            status: 0,
+            stdout: JSON.stringify({
+              baseRefOid: 'base',
+              statusCheckRollup: viewCount < 4 ? [] : [{ name: 'lint', conclusion: 'SUCCESS' }]
+            }),
+            stderr: ''
+          })
+        }
+        if (args[0] === 'repo') return Promise.resolve({ status: 0, stdout: 'owner/repo\n', stderr: '' })
+        if (args[0] === 'api') {
+          return Promise.resolve({
+            status: 0,
+            stdout: JSON.stringify({ check_runs: [{ name: 'lint', conclusion: 'SUCCESS' }] }),
+            stderr: ''
+          })
+        }
+        return Promise.resolve({ status: 0, stdout: '', stderr: '' })
+      }
+    })
+
+    expect(delays).toEqual([10_000, 10_000, 10_000])
+    expect(result).toEqual({ status: 'ready' })
+  })
+
+  test('merged PR є terminally absorbed без очікування check rollup', async () => {
+    const result = await verifyPullRequestReadiness({
+      url: 'https://example.test/pr/1',
+      cwd: '/repo',
+      asyncSpawnFn: (_command, args) => {
+        if (args[0] === 'pr' && args[1] === 'view') {
+          return Promise.resolve({
+            status: 0,
+            stdout: JSON.stringify({ baseRefOid: 'base', statusCheckRollup: [], mergedAt: '2026-07-30T08:00:00Z' }),
+            stderr: ''
+          })
+        }
+        return Promise.resolve({ status: 0, stdout: '', stderr: '' })
+      }
+    })
+
+    expect(result).toEqual({ status: 'ready' })
+  })
 })
 
 /**
@@ -2284,6 +2341,15 @@ describe('report helpers', () => {
       sourceReasons: 'dirty-worktree=1, failed=2, kept=1',
       worktreeReasons: 'current=1, dirty=1, failed=1'
     })
+  })
+
+  test('успішний PR без forensic worktree не рахує видалену mt-гілку як remaining', () => {
+    expect(
+      summarizeRemaining({
+        inventory: inventory({ branches: [], stashes: [], worktrees: [] }),
+        results: [{ source: REVIEW_BRANCH.source, status: 'pr-created', branch: 'mt/reconcile-useful' }]
+      })
+    ).toMatchObject({ branches: 0, worktrees: 0, stashes: 0, sourceReasons: '', worktreeReasons: '' })
   })
 
   test('PR checks називають regression лише проти green base check', () => {
