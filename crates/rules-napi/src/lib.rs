@@ -133,3 +133,23 @@ pub fn collect_changed_files_since(cwd: String, base: Option<String>) -> Result<
 pub fn is_worktree_checkout_path(rel_path: String) -> bool {
     rules_core::changed_files::is_worktree_checkout_path(&rel_path)
 }
+
+/// Рекурсивний filesystem scan — тонкий binding над
+/// [`rules_core::scan::walk_dir`] (D1 фази 4а
+/// `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`), точний
+/// семантичний порт `walkDir` (`npm/scripts/utils/walkDir.mjs`).
+///
+/// - `dir` — корінь обходу.
+/// - `extra_ignore_globs` — уже нормалізовані ignore-глоби (relative-posix
+///   від `dir`, із суфіксом `/**`); нормалізація лишається на боці
+///   JS-фасаду (D2 фази 4а), бо завʼязана на `process.cwd()`.
+///
+/// Повертає relative-posix шляхи файлів, відсортовані байтово-лексикографічно
+/// (детермінізм — doc-комент `rules_core::scan`, секція «Порядок»). Будь-яка
+/// помилка (неіснуючий/не-каталоговий `dir`, фатальна помилка обходу) →
+/// порожній список, тому сигнатура не повертає `Result` (fail-safe, той самий
+/// контракт, що й `collect_changed_files`).
+#[napi]
+pub fn walk_dir(dir: String, extra_ignore_globs: Vec<String>) -> Vec<String> {
+    rules_core::scan::walk_dir(&PathBuf::from(dir), &extra_ignore_globs)
+}

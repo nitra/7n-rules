@@ -25,6 +25,10 @@ gix = { version = "0.86", default-features = false, features = ["revision", "sha
 # крок ревʼю, той самий gix 0.86, що й тут (Р4 спеки) — cargo уніфікує
 # єдину версію в дереві залежностей.
 mt-core = { git = "https://github.com/nitra/mt-rust", rev = "8bdadf5a483ab0db9d62c2c25299edee4fa4c6b1" }
+# Двигун ripgrep для filesystem scan (D1 фази 4а спеки) — той самий
+# .gitignore-парсер, що й `rg`/`fd`, використовуємо замість ручного порту
+# globby-логіки.
+ignore = "0.4"
 
 [dev-dependencies]
 tempfile = "3"
