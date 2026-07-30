@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.7] - 2026-07-30
+
+### Changed
+
+- feat(ci4): discover package knowledge impacts
+
+### Fixed
+
+- knowledge tests: використовують canonical `doc-files/package_knowledge` core path після злиття CI4.
+
 ## [0.2.6] - 2026-07-29
 
 ### Fixed

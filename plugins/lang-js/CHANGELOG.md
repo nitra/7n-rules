@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.25.0] - 2026-07-30
+
+### Added
+
+- Додано fail-closed JS і Vue knowledge extractor
+
+### Fixed
+
+- knowledge tests: використовують canonical `doc-files/package_knowledge` core path після злиття CI4.
+
 ## [0.24.3] - 2026-07-29
 
 ### Changed

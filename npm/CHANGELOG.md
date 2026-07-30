@@ -1,5 +1,47 @@
 # Changelog
 
+## [1.58.0] - 2026-07-30
+
+### Added
+
+- ci4: додано resolver package knowledge domains і schema knowledge graph v1
+- Додано fail-closed loader knowledge plugin adapters
+- ci4: додано evidence-backed expected overlay і deterministic gap engine
+- Додано protected zones і atomic package knowledge publication
+- Додано детермінований planner semantic chunks для package knowledge
+- ci4: додано structured LLM claims map/reduce з fail-closed coverage і cache
+- Додано deterministic package knowledge Markdown renderer з privacy-safe topic projections.
+- Збережено stable package knowledge topic identity та protected zones під час однозначних rename/move; split і merge тепер блокуються explicit migration plan.
+- ci4: додано golden corpus для Changeability, Gap і projection quality gates package knowledge.
+- Додано automatic evidence-backed Expected ingestion з protected zones, scoped accepted ADR/spec і active JS/TS test assertions для package knowledge.
+- Додано parser-backed active test expectation evidence для JS, Rust, Python і PHP package knowledge domains.
+- ci4: додає strict entailment gate для evidence-backed implemented і expected claims.
+- ci4: додано deterministic ingestion package-owned config, schema evidence та API contracts.
+- ci4: runner додає package-owned config і contract fragments до package knowledge candidate.
+- ci4: інтегрує strict evidence entailment gate у package knowledge runner.
+- ci4: додає evidence-backed semantic claims для package-owned config і contract artifacts.
+- ci4: fail-closed виявляє потрібні language extensions до вибору knowledge adapters.
+- ci4: runner блокує відсутній language adapter і підтримує contract-only package domains.
+
+### Changed
+
+- Додано foundation для package-level knowledge graph: детерміновані canonical ID, provenance та fail-closed нормалізацію language fragments.
+- ci4: перетворює package knowledge на evidence-backed business та architecture AS-IS fragments.
+- ci4: уніфікує taxonomy Implemented і Expected claims та додає declaration evidence для кожної semantic unit.
+- ci4: спільно використовує domain path і parser-derived call-edge projection у package knowledge adapters.
+- doc-files: поглинає CI4 package knowledge, Marksman і VSCode tooling; legacy rule id ci4 автоматично мігрує до doc-files.
+
+### Fixed
+
+- ci4: atomic publisher прибирає stale generated package-knowledge pages без видалення legacy docs.
+- ci4: package knowledge claims обмежують evidence межами chunk та виконують dependency waves fail-closed.
+- ci4: автоматично зіставляє expected та implemented claims перед gap evaluation.
+- ci4: runner автоматично зіставляє expected та implemented claims перед gap render.
+- Виправлено quality gates для structured package knowledge та мовних extractor-ів.
+- ci4: стабілізує Expected mapping ladder та coverage package-knowledge gates.
+- ci4: завершує package knowledge pipeline — розділяє runner на fail-closed stages, уніфікує test config language plugins і закриває coverage/doc quality gates.
+- ci4: додає повні JSDoc контракти для structured sources і language knowledge extractor-ів.
+
 ## [1.57.8] - 2026-07-30
 
 ### Changed

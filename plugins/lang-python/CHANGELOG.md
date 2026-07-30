@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.12.0] - 2026-07-30
+
+### Added
+
+- Додано Tree-sitter WASM knowledge extractor для Python
+
+### Fixed
+
+- knowledge tests: використовують canonical `doc-files/package_knowledge` core path після злиття CI4.
+
 ## [0.11.4] - 2026-07-29
 
 ### Added

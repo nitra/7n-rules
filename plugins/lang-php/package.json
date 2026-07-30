@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules-lang-php",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Плагін @7n/rules: PHP/Composer-екосистема — lint (PHPCS Security, PHP-CS-Fixer, PHPStan, Psalm, composer audit) + CI-артефакти GitHub/Azure + taze-провайдер (composer.json)",
   "keywords": [
     "php",

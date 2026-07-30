@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.15.0] - 2026-07-30
+
+### Added
+
+- Додано Tree-sitter WASM knowledge extractor для Rust.
+
 ## [0.14.3] - 2026-07-29
 
 ### Added
