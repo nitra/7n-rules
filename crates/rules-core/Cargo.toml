@@ -18,6 +18,13 @@ thiserror = "1"
 # `Repository::merge_base`/`rev_parse_single` (тягне `index`); `sha1` —
 # object-hash backend для звичайних (не sha256) репозиторіїв.
 gix = { version = "0.86", default-features = false, features = ["revision", "sha1"] }
+# Р3 спеки: worktree lifecycle виключно через mt-core (репо публічний,
+# конвенції тегів `mt-core-v*` на боці mt-rust ще нема — пін по `rev`, не по
+# гілці). Пін оновлюється СИНХРОННО і СВІДОМО: коли mt-rust заводить теги,
+# перейти на них; до того — оновлення rev тут = окремий (не автоматичний)
+# крок ревʼю, той самий gix 0.86, що й тут (Р4 спеки) — cargo уніфікує
+# єдину версію в дереві залежностей.
+mt-core = { git = "https://github.com/nitra/mt-rust", rev = "8bdadf5a483ab0db9d62c2c25299edee4fa4c6b1" }
 
 [dev-dependencies]
 tempfile = "3"

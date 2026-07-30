@@ -55,3 +55,48 @@ pub fn resolve_changed_base(
     )
     .map_err(to_napi_err)
 }
+
+/// Санітизує довільний рядок (наприклад, `<current-branch>-<suffix>`) до
+/// безпечного компонента шляху worktree — тонкий binding над
+/// [`rules_core::worktree::sanitize_name`] (делегат `mt_core::sanitize`,
+/// Р3 спеки фази 2, задача B1).
+#[napi]
+pub fn sanitize_worktree_name(raw: String) -> String {
+    rules_core::worktree::sanitize_name(&raw)
+}
+
+/// Створює dev-worktree — тонкий binding над
+/// [`rules_core::worktree::create_dev_worktree`], що відтворює семантику
+/// `mt worktree create <name> [--base <ref>] --description <d>` (Р3 спеки).
+///
+/// - `repo_root` — корінь репозиторію (worktree завжди створюється в
+///   `<repo_root>/.worktrees/<name>`, rules-конвенція).
+/// - `base` — `None` мапиться на `"main"`, той самий дефолт, що в `mt` CLI.
+///
+/// Повертає абсолютний шлях щойно створеного worktree.
+#[napi]
+pub fn worktree_create(
+    repo_root: String,
+    name: String,
+    description: String,
+    base: Option<String>,
+) -> Result<String> {
+    rules_core::worktree::create_dev_worktree(
+        &PathBuf::from(repo_root),
+        &name,
+        &description,
+        base.as_deref(),
+    )
+    .map(|path| path.to_string_lossy().into_owned())
+    .map_err(to_napi_err)
+}
+
+/// Прибирає dev-worktree — тонкий binding над
+/// [`rules_core::worktree::remove_worktree`], що відтворює семантику
+/// `mt worktree remove <name> [--force]` (Р3 спеки), включно з видаленням
+/// гілки `mt/<name>`, якою worktree володіє.
+#[napi]
+pub fn worktree_remove(repo_root: String, name: String, force: bool) -> Result<()> {
+    rules_core::worktree::remove_worktree(&PathBuf::from(repo_root), &name, force)
+        .map_err(to_napi_err)
+}

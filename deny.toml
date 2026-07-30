@@ -31,6 +31,16 @@ name = "ring"
 expression = "MIT AND ISC AND OpenSSL"
 license-files = []
 
+# uluru (маленький LRU-кеш) — транзитивна залежність gix-pack, яку
+# активує feature "blocking-network-client" на `gix` у workspace mt-rust
+# (mt-core git dep, Р3 спеки docs/specs/2026-07-30-rules-v2-rust-core-migration.md,
+# фаза 2 B1). Точковий виняток, не розширення allow-списку репо-вайд:
+# MPL-2.0 — OSI-approved, file-level copyleft, прийнятний для одного
+# невеликого утилітарного крейта.
+[[licenses.exceptions]]
+allow = ["MPL-2.0"]
+name = "uluru"
+
 [bans]
 multiple-versions = "warn"
 wildcards = "allow"

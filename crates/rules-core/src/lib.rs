@@ -18,13 +18,17 @@
 pub mod changed_base;
 /// Versioned JSON DTO-межа з `rules-napi` (Р10 спеки).
 pub mod dto;
+/// Worktree lifecycle через `mt-core` (Р3 спеки, фаза 2 задача B1).
+pub mod worktree;
 
 /// Помилка `rules-core`. Навмисно плоска, за зразком `llm_lib::LlmError` —
-/// поки один варіант ([`RulesError::Git`]); нові категорії (fs, diagnostics)
-/// додаються варіантами по мірі міграції use case-ів.
+/// категорії додаються варіантами по мірі міграції use case-ів.
 #[derive(Debug, thiserror::Error)]
 pub enum RulesError {
     /// Помилка Git-запиту (merge-base, is-ancestor, rev-parse тощо).
     #[error("{0}")]
     Git(String),
+    /// Помилка worktree lifecycle через `mt-core` (create/remove — Р3 спеки).
+    #[error("{0}")]
+    Worktree(String),
 }
