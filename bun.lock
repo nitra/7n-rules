@@ -4,6 +4,10 @@
   "workspaces": {
     "": {
       "name": "mono",
+      "dependencies": {
+        "@7n/rules-darwin-arm64": "^1.62.0",
+        "@7n/rules-linux-x64": "^1.60.0",
+      },
       "devDependencies": {
         "@7n/rules": "workspace:*",
         "@7n/rules-ci-azure": "workspace:*",
@@ -60,7 +64,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.60.0",
+      "version": "1.62.0",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
@@ -83,8 +87,8 @@
         "zod": "^4.4.3",
       },
       "optionalDependencies": {
-        "@7n/rules-darwin-arm64": "1.60.0",
-        "@7n/rules-linux-x64": "1.60.0",
+        "@7n/rules-darwin-arm64": "1.62.0",
+        "@7n/rules-linux-x64": "1.62.0",
         "@earendil-works/pi-ai": "0.80.10",
         "@earendil-works/pi-coding-agent": "0.80.10",
       },
@@ -189,7 +193,7 @@
 
     "@7n/rules-ci-github": ["@7n/rules-ci-github@workspace:plugins/ci-github"],
 
-    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.59.2", "", { "os": "darwin", "cpu": "arm64" }, "sha512-VcJTIUKrGoU1c5ts93VickBgAhA6TAvVglzrXrD2sgKvBOSySQAVaUKu0tzBFOC6TywZalfNzadxqZzUssYcUw=="],
+    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.62.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-wIWaU9tFTOjr003PwlT6f62lVrxRG3D0v7xGXfaGZtn4pFUZBDpXirzKWJezoCNQ+WGd6HZGBRf3YP5MXEUw6w=="],
 
     "@7n/rules-lang-js": ["@7n/rules-lang-js@workspace:plugins/lang-js"],
 
@@ -199,7 +203,7 @@
 
     "@7n/rules-lang-rust": ["@7n/rules-lang-rust@workspace:plugins/lang-rust"],
 
-    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.59.2", "", { "os": "linux", "cpu": "x64" }, "sha512-3IC9DKnaK2wIcIomenytwmNfuNlmTO94xY52Vyal3tgOLXXDYsO+Ax4XuLj9Q7B1QQop150el5/B2vnA+Hev5Q=="],
+    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.60.0", "", { "os": "linux", "cpu": "x64" }, "sha512-fS216E164zzD5zGSoeWWFNDlYk0beTIGn+SFoObHDk4rOM+SK+7sBh71hH/vVDoyKE10UpVTFN97q6kyyEAwsw=="],
 
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.91.1", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-LAmu761tSN9r66ixvmciswUj/ZC+1Q4iAfpedTfSVLeswRwnY3n2Nb6Tsk+cLPP28aLOPWeMgIuTuCcMC6W/iw=="],
 
