@@ -93,7 +93,7 @@ pointer або складний flow — `comment+behavior`, де LLM допис
 проблемні файли. Exit-код `1` означає, що хоча б один файл не згенерувався (або не пройшов
 preflight). Degraded — не помилка: дока існує, CRC свіжий.
 
-## Правила стилю документа (за adr/ci4)
+## Правила стилю документа (за єдиною doc-files policy)
 
 - Мова — **УКРАЇНСЬКА** для всього тексту. Code identifiers, шляхи, імена API, команди — як у коді.
 - **Чистий Markdown.** Жодних HTML-обгорток. Єдиний виняток — машинний `docgen:`-frontmatter із CRC.
@@ -112,4 +112,7 @@ preflight). Degraded — не помилка: дока існує, CRC свіж�
   `__pycache__`, `coverage`, `.cursor`, `.claude`, усі теки `docs/` і `*.d.ts`.
   Кореневий repo `docs/` — system-wide only: file-level docs туди не пишуться. Список
   glob-ів — `docgen-ignore.mjs`.
-- Агрегуюча документація (module-summary, доменні доки) — окремий скіл `doc-aggregate`, за запитом.
+- Package-level business/architecture documentation належить цій самій `doc-files`
+  surface, але має окремий atomic CLI workflow: `n-rules docs domains`, `n-rules docs
+  build --domain <id>` і explicit `--publish`. File-level lint не публікує domain
+  projections автоматично.

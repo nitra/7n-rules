@@ -14,6 +14,8 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { migrateRuleIds } from './rule-meta-helpers.mjs'
+
 const CONFIG_FILE = '.n-rules.json'
 const LEGACY_CONFIG_FILE = '.n-cursor.json'
 
@@ -40,10 +42,10 @@ export async function readNRulesConfigLite(cwd = process.cwd()) {
   const raw = await readFile(configPath, 'utf8')
   /** @type {{ rules?: unknown, ['disable-rules']?: unknown, plugins?: unknown }} */
   const parsed = JSON.parse(raw)
-  const rules = Array.isArray(parsed.rules) ? parsed.rules.filter(r => typeof r === 'string') : []
-  const disableRules = Array.isArray(parsed['disable-rules'])
-    ? parsed['disable-rules'].filter(r => typeof r === 'string')
-    : []
+  const rules = migrateRuleIds(Array.isArray(parsed.rules) ? parsed.rules.filter(r => typeof r === 'string') : [])
+  const disableRules = migrateRuleIds(
+    Array.isArray(parsed['disable-rules']) ? parsed['disable-rules'].filter(r => typeof r === 'string') : []
+  )
   const plugins = Array.isArray(parsed.plugins) ? parsed.plugins.filter(p => typeof p === 'string') : undefined
   return { exists: true, rules, disableRules, plugins }
 }

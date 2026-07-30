@@ -525,11 +525,13 @@ export async function syncCodexHooksConfig(projectRoot, templateDir, options = {
   if (!existsSync(templatePath)) {
     return { written: false, path: '' }
   }
-  const template =
-    /** @type {{ hooks?: Record<string, HookGroup[]> }} */ (JSON.parse(await readFile(templatePath, 'utf8')))
+  const template = /** @type {{ hooks?: Record<string, HookGroup[]> }} */ (
+    JSON.parse(await readFile(templatePath, 'utf8'))
+  )
   const hooksPath = join(projectRoot, CODEX_HOOKS_FILE)
-  const existing =
-    /** @type {{ hooks?: Record<string, HookGroup[]> } | undefined} */ (await readJsonOrUndefined(hooksPath))
+  const existing = /** @type {{ hooks?: Record<string, HookGroup[]> } | undefined} */ (
+    await readJsonOrUndefined(hooksPath)
+  )
   const mergedHooks = mergeCodexHooks(existing?.hooks, template.hooks, options)
   if (Object.keys(mergedHooks).length === 0) {
     return { written: false, path: '' }

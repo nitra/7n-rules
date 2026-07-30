@@ -3,34 +3,34 @@ type: JS Module
 title: main.mjs
 resource: plugins/lang-js/rules/js/eslint/main.mjs
 docgen:
-  crc: 2af5dfb4
+  crc: fd74e843
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100
-  issues: judge-refine:kept-original,judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-lint-поверхня для js/eslint працює як read-only detector: вона відбирає JS-файли, нормалізує знахідки через `toViolation` і повертає підсумок через `lint`. Це потрібно, щоб окремо фіксувати статичні проблеми без зміни коду; виправлення винесене в окремий T0 `fix-eslint.mjs`, а не в detector.
+`lint` формує read-only lint-поверхню для JS-коду проєкту на основі `oxlint` і `eslint`: `filterJsFiles` відсіює не-JS файли, `toViolation` нормалізує знайдені порушення, а `lint` зводить результат у спільний звіт. Окреме виправлення через `oxlint --fix` і `eslint --fix` винесене в `fix-eslint.mjs` і не входить до detector-логіки. Файл не виконує власних операцій запису.
 
 ## Поведінка
 
-lint-поверхня працює як read-only detector: `lint` відбирає JS-подібні файли через `filterJsFiles`, запускає статичну перевірку по всьому проєкту або лише по переданому набору, зводить результати з двох джерел і повертає лише нормалізовані порушення. Для повного проходу всі знахідки одразу стають помилками; для часткового — результати додатково розділяються на нові й уже наявні, щоб нові блокували зміни, а старі лишалися як warning. `toViolation` уніфікує формат виходу: зберігає прив’язку до файла відносно робочого каталогу, додає рядок і джерело інструмента та приводить повідомлення до спільного вигляду. Дані входять із файлового списку або з повного сканування дерева, а виходять лише як масив violations без жодних побічних змін.
+`lint` спочатку відсіює не-JS файли через `filterJsFiles`, а далі працює лише з JS-подібним набором. Для кожного запуску збираються результати з двох read-only джерел: eslint і oxlint; обидва під час аналізу ігнорують worktree-checkout копії репозиторію. Якщо аналіз йде по конкретних файлах, `lint` звіряє знахідки з доданими рядками й розділяє їх на introduced та pre-existing, щоб помилки в новому коді йшли як error, а вже існуючі — як warn. Якщо файл не потрапляє в JS-набір, `lint` повертає порожній результат без звернення до лінтерів.
+
+`toViolation` приводить знайдену проблему до спільного формату, зберігаючи прив’язку до файлу в межах поточного робочого каталогу та нормалізуючи шлях для подальшого показу в результаті `lint`. Комбінація `filterJsFiles`, збору знахідок і `toViolation` формує єдиний потік: від початкового списку файлів до уніфікованого переліку порушень із рівнем важливості, придатним для read-only detector-поверхні.
 
 ## Публічний API
 
 - toViolation — Finding → LintViolation.
-- lint — Detector js/eslint: per-file (classify introduced/pre-existing) або full-project.
-- filterJsFiles — відбирає лише JavaScript-файли з вхідного списку, щоб подальша обробка працювала тільки з релевантними файлами
+- lint — Detector js/eslint: per-file (classify introduced/pre-existing).
+- filterJsFiles — відбирає лише JavaScript-файли, які потрібно враховувати для подальшої обробки.
 
 ## Сценарії використання
 
-- `plugins/lang-js/rules/js/eslint/tests/fix-worker.test.mjs` (js/eslint fixWorker) — без violations.file → touchedFiles: [], runAgentFix не викликається; два файли, обидва успішні → runAgentFix викликається по разу на файл, targetFiles/caller коректні, touchedFiles з обох; два файли — обидва стартують одразу (пул ≥ 2),; черга з > MAX_PARALLEL_FILES: файл поза першою хвилею не стартує, якщо дедлайн уже настав; файл, що кидає виняток (не структурований error) — не валить решту пулу; ще 2
-- `plugins/lang-js/rules/js/eslint/tests/main.test.mjs` (toViolation; filterJsFiles) — відносний finding.file (oxlint-стиль) → relative без; абсолютний finding.file (eslint API) → relative проти cwd; лишає лише js-подібні розширення; порожній вхід → порожній вихід; files === undefined → whole-project, oxlint + eslint через relative(cwd, resolve(cwd, …)); ще 3
+- `plugins/lang-js/rules/js/eslint/tests/main.test.mjs` (toViolation; filterJsFiles) — відносний finding.file (oxlint-стиль) → relative без; абсолютний finding.file (eslint API) → relative проти cwd; лишає лише js-подібні розширення; порожній вхід → порожній вихід; files із непорожнім списком → аналіз лише цих файлів; ще 3
 - `plugins/lang-js/rules/js/tests/main.test.mjs` (filterJsFiles) — лишає лише js-подібні розширення; порожній вхід → порожньо
 
 ## Гарантії поведінки
 
-- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
+- Власних операцій запису у файлі немає; виклики імпортованих модулів можуть писати.

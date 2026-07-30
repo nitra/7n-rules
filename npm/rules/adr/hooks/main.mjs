@@ -272,7 +272,7 @@ function checkCaptureBackendAvailable(reporter, cwd) {
   const { pass } = reporter
   const backend = env.CAPTURE_DECISIONS_BACKEND || 'pi'
   const piCmd = findPiCmd(cwd)
-  const resolvedModel = resolveModel('N_LOCAL_MIN_MODEL')
+  const resolvedModel = resolveModel('min')
   const hasLocalModel = Boolean(env.CAPTURE_DECISIONS_PI_MODEL || (resolvedModel && isLocalModel(resolvedModel)))
   const hasClaude = isBinaryInPath('claude')
   const hasCursor = isBinaryInPath('cursor-agent')

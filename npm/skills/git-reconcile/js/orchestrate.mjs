@@ -3,7 +3,7 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { appendFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
-import { dirname, isAbsolute, join } from 'node:path'
+import { delimiter, dirname, isAbsolute, join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { env } from 'node:process'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -20,6 +20,7 @@ const PR_CHECK_TIMEOUT_MS = 15 * 60_000
 const DEFAULT_PR_CONCURRENCY = 3
 const MAX_PR_CONCURRENCY = 4
 const STASH_PATH_LIMIT = 500
+const NODE_MODULES_BIN_RE = /[\\/]node_modules[\\/]\.bin[\\/]?$/
 const SOURCE_BRANCH_PREFIX = 'branch:'
 const SOURCE_STASH_PREFIX = 'stash:'
 const CONTENT_CONFLICT_RE = /^CONFLICT \(.+?\): Merge conflict in (.+)$/
@@ -182,11 +183,11 @@ export function createPhaseProgress(args) {
  * @param {string[]} args аргументи
  * @param {string} cwd робочий каталог
  * @param {typeof spawnSync} spawnFn інжект для тестів
- * @param {{ allowFailure?: boolean, input?: string }} [options] режим помилки та stdin
+ * @param {{ allowFailure?: boolean, input?: string, environment?: object }} [options] режим помилки, stdin та env
  * @returns {{ status: number, stdout: string, stderr: string, error: string }} результат
  */
 function run(command, args, cwd, spawnFn, options = {}) {
-  const childEnv = { ...env, GIT_EDITOR: 'true' }
+  const childEnv = { ...env, ...options.environment, GIT_EDITOR: 'true' }
   if (command === 'npx') delete childEnv.npm_config_package
   const result = spawnFn(command, args, {
     cwd,
@@ -207,6 +208,39 @@ function run(command, args, cwd, spawnFn, options = {}) {
     )
   }
   return normalized
+}
+
+/**
+ * Відкидає npm/bun shim-каталоги з PATH для виклику системного native binary.
+ * Інакше `npx \@7n/rules` може непомітно підмінити Rust CLI застарілим
+ * `node_modules/.bin/mt` з іншим worktree contract.
+ * @param {object} [sourceEnv] вхідне середовище
+ * @returns {object} копія env із native-only PATH
+ */
+export function nativeExecutableEnvironment(sourceEnv = env) {
+  const result = { ...sourceEnv }
+  const pathKey = Object.keys(result).find(key => key.toLowerCase() === 'path')
+  if (!pathKey || !result[pathKey]) return result
+  result[pathKey] = result[pathKey]
+    .split(delimiter)
+    .filter(path => !NODE_MODULES_BIN_RE.test(path))
+    .join(delimiter)
+  return result
+}
+
+/**
+ * Викликає тільки системний native `mt`, не project-local npm shim.
+ * @param {string[]} args аргументи CLI
+ * @param {string} cwd корінь репозиторію
+ * @param {typeof spawnSync} spawnFn інжект для тестів
+ * @param {{allowFailure?:boolean}} [options] режим помилки
+ * @returns {{status:number,stdout:string,stderr:string,error:string}} результат
+ */
+function nativeMt(args, cwd, spawnFn, options = {}) {
+  return run('mt', args, cwd, spawnFn, {
+    ...options,
+    environment: nativeExecutableEnvironment()
+  })
 }
 
 /**
@@ -839,9 +873,10 @@ export function parseDecisionEnvelope(text) {
  * @param {string} cwd робочий каталог
  * @param {object} deps інжекти
  * @param {'min'|'max'} [tier] model tier
+ * @param {{denyCommandFragments?:string[]}} [runnerOptions] обмеження runner-а
  * @returns {Promise<{ok:boolean,text:string,error:string|null}>} результат
  */
-export async function callRunner(runner, prompt, cwd, deps = {}, tier = 'max') {
+export async function callRunner(runner, prompt, cwd, deps = {}, tier = 'max', runnerOptions = {}) {
   if (runner === 'pi') {
     let runAgentSkill = deps.runAgentSkill
     if (!runAgentSkill) {
@@ -867,7 +902,7 @@ export async function callRunner(runner, prompt, cwd, deps = {}, tier = 'max') {
   const verbose = ['1', 'true'].includes((env.N_LLM_ACP_VERBOSE ?? '').toLowerCase())
   if (previousProgress === undefined && !verbose) env[ACP_PROGRESS_ENV] = '0'
   try {
-    const text = await runAcpAgent(runner, prompt, cwd, { tier })
+    const text = await runAcpAgent(runner, prompt, cwd, { tier, ...runnerOptions })
     return { ok: true, text, error: null }
   } catch (error) {
     return { ok: false, text: '', error: error instanceof Error ? error.message : String(error) }
@@ -884,14 +919,25 @@ export async function callRunner(runner, prompt, cwd, deps = {}, tier = 'max') {
  * @returns {Promise<{ok:boolean,text:string,error:string|null,tier:'min'|'max',validation?:object,attempts:Array<object>}>} результат
  */
 export async function callWithValidatedFallback(args) {
-  const { runner, prompt, cwd, validate, remediate, deps = {}, log = noop, label = 'LLM', onAttempt = noop } = args
+  const {
+    runner,
+    prompt,
+    cwd,
+    validate,
+    remediate,
+    deps = {},
+    log = noop,
+    label = 'LLM',
+    onAttempt = noop,
+    runnerOptions = {}
+  } = args
   const call = deps.callRunner ?? callRunner
   const attempts = []
   let retryPrompt = prompt
 
   for (const tier of LLM_TIERS) {
     onAttempt({ label, tier })
-    const outcome = await call(runner, retryPrompt, cwd, deps, tier)
+    const outcome = await call(runner, retryPrompt, cwd, deps, tier, runnerOptions)
     if (!outcome.ok) {
       const validation = { ok: false, error: outcome.error ?? `${tier} runner failed` }
       attempts.push({ tier, ok: false, validation })
@@ -1347,6 +1393,52 @@ function chooseBranch(title, cwd, spawnFn) {
 }
 
 /**
+ * Перевіряє native `mt` worktree contract до першої мутації.
+ * @param {string} cwd корінь репозиторію
+ * @param {typeof spawnSync} spawnFn інжект
+ */
+function validateNativeMtContract(cwd, spawnFn) {
+  const help = nativeMt(['worktree', 'create', '--help'], cwd, spawnFn, { allowFailure: true })
+  const text = `${help.stdout}\n${help.stderr}`
+  const missing = ['--base', '--description', '--json', 'mt/<name>'].filter(token => !text.includes(token))
+  if (help.status !== 0 || missing.length > 0) {
+    const detail = help.error || help.stderr || help.stdout || `exit ${help.status}`
+    throw new Error(`несумісний native mt worktree contract: missing ${missing.join(', ') || 'help'}; ${detail}`)
+  }
+}
+
+/**
+ * Прибирає лише worktree, синхронно створені невдалим `mt create` після
+ * pre-call snapshot. Це recovery для binary з хибним JSON/branch contract.
+ * @param {Map<string,string>} before branch→path до виклику
+ * @param {string} worktreeName передане native name
+ * @param {string} cwd корінь репозиторію
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {{branch?:string,worktree?:string}} артефакти, які не вдалося прибрати
+ */
+function rollbackPartialMtWorktree(before, worktreeName, cwd, spawnFn) {
+  const after = parseWorktrees(git(['worktree', 'list', '--porcelain'], cwd, spawnFn).stdout)
+  const ownedRefs = new Set([`refs/heads/mt/${worktreeName}`, `refs/heads/${worktreeName}`])
+  const added = [...after].filter(
+    ([ref, path]) => !before.has(ref) && ownedRefs.has(ref) && isManagedTransientWorktree(path)
+  )
+  if (added.length === 0) return {}
+  const remaining = {}
+  for (const [ref, path] of added) {
+    const removed = git(['worktree', 'remove', '--force', path], cwd, spawnFn, { allowFailure: true })
+    if (removed.status !== 0) {
+      remaining.branch ??= branchName(ref)
+      remaining.worktree ??= path
+      continue
+    }
+    const deleted = git(['branch', '-D', branchName(ref)], cwd, spawnFn, { allowFailure: true })
+    if (deleted.status !== 0) remaining.branch ??= branchName(ref)
+  }
+  git(['worktree', 'prune'], cwd, spawnFn, { allowFailure: true })
+  return remaining
+}
+
+/**
  * Створює керований native `mt` worktree від policy base ref без зміни
  * вихідного checkout.
  * @param {string} title PR title
@@ -1359,22 +1451,34 @@ function createReconcileWorktree(title, source, cwd, spawnFn) {
   const baseRef = policyBaseRef(cwd)
   const worktreeName = chooseBranch(title, cwd, spawnFn)
   const branch = `mt/${worktreeName}`
-  let worktreeCwd
+  let before
   try {
-    run(
-      'mt',
-      ['worktree', 'create', worktreeName, '--base', baseRef, '--description', `git-reconcile: ${source}`],
+    before = parseWorktrees(git(['worktree', 'list', '--porcelain'], cwd, spawnFn).stdout)
+    validateNativeMtContract(cwd, spawnFn)
+    const created = nativeMt(
+      ['--json', 'worktree', 'create', worktreeName, '--base', baseRef, '--description', `git-reconcile: ${source}`],
       cwd,
       spawnFn
     )
+    const contract = parseJson(created.stdout, null)
     const worktrees = parseWorktrees(git(['worktree', 'list', '--porcelain'], cwd, spawnFn).stdout)
-    worktreeCwd = worktrees.get(`refs/heads/${branch}`)
-    if (!worktreeCwd) throw new Error(`mt не зареєстрував worktree для ${branch}`)
+    const worktreeCwd = worktrees.get(`refs/heads/${branch}`)
+    if (
+      !contract ||
+      contract.name !== worktreeName ||
+      contract.branch !== branch ||
+      !isAbsolute(contract.path ?? '') ||
+      contract.path !== worktreeCwd
+    ) {
+      throw new Error(`mt повернув несумісний create JSON для ${branch}`)
+    }
     return { branch, worktreeName, cwd: worktreeCwd }
   } catch (error) {
     const setupError = error instanceof Error ? error : new Error(String(error))
     setupError.branch = branch
-    if (worktreeCwd) setupError.worktree = worktreeCwd
+    const remaining = before ? rollbackPartialMtWorktree(before, worktreeName, cwd, spawnFn) : {}
+    if (remaining.branch) setupError.branch = remaining.branch
+    if (remaining.worktree) setupError.worktree = remaining.worktree
     throw setupError
   }
 }
@@ -1409,7 +1513,7 @@ export function ensureLocalWorktreeExclude(cwd, spawnFn = spawnSync) {
  * @param {typeof spawnSync} spawnFn інжект
  */
 function removeReconcileWorktree(worktree, rootCwd, spawnFn) {
-  const removed = run('mt', ['worktree', 'remove', worktree.worktreeName, '--force'], rootCwd, spawnFn, {
+  const removed = nativeMt(['worktree', 'remove', worktree.worktreeName, '--force'], rootCwd, spawnFn, {
     allowFailure: true
   })
   if (removed.status !== 0) {
@@ -1507,6 +1611,20 @@ function validateGitState(cwd, spawnFn) {
 /** Межі стабільного Vitest failure identifier. */
 const ANSI_ESCAPE = String.fromCodePoint(27)
 const TEST_FAILURE_PREFIX = 'FAIL  '
+const COGNITIVE_GATE_COMMAND_DENYLIST = [
+  'bun run test',
+  'bun test',
+  'bun run build',
+  'npx @7n/rules lint',
+  'n-rules lint',
+  'bunx @7n/rules lint'
+]
+const COGNITIVE_GATE_COMMAND_LABELS = COGNITIVE_GATE_COMMAND_DENYLIST.map(command => '`' + command + '`').join(', ')
+const COGNITIVE_GATE_BOUNDARY = [
+  'Жорстка межа: JS після твого ходу сам запускає repository-wide gates.',
+  `Заборонені команди: ${COGNITIVE_GATE_COMMAND_LABELS}.`,
+  'Narrow test має явно називати конкретний test file або selector; якщо такого тесту немає, поверни blocker.'
+].join(' ')
 
 /**
  * Витягає стабільні Vitest failure identifiers без summary/timing.
@@ -1631,11 +1749,23 @@ function changedSourceDirectories(cwd, spawnFn) {
  * @returns {string[]} directories
  */
 export function changedNonCodeDirectories(cwd, spawnFn = spawnSync) {
+  return changedNonCodeScopes(cwd, spawnFn).filter(path => dirname(path) !== '.')
+}
+
+/**
+ * Повертає найвужчі scopes для non-code змін. Файл у корені лишається
+ * файлом, а не перетворюється на `.`: root lint може торкнутися всього
+ * monorepo і забруднити reconciliation unrelated autofix-ами.
+ * @param {string} cwd worktree
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {string[]} relative files або directories
+ */
+export function changedNonCodeScopes(cwd, spawnFn = spawnSync) {
   return [
     ...new Set(
       changedPaths(cwd, spawnFn)
         .filter(path => !SOURCE_CODE_RE.test(path))
-        .map(path => dirname(path))
+        .map(path => (dirname(path) === '.' ? path : dirname(path)))
     )
   ]
     .filter(path => existsSync(join(cwd, path === '.' ? '' : path)))
@@ -1662,7 +1792,8 @@ async function validateScopedProjectGates(cwd, spawnFn, onProgress = noop, async
       return {
         ok: false,
         error: `doc-files (${path}): ${docs.stderr || docs.stdout}`,
-        remediation: 'canonical-fixers'
+        remediation: 'canonical-fixers',
+        remediationScopes: [path]
       }
     }
     onProgress(`scoped lint (${path})`)
@@ -1673,7 +1804,8 @@ async function validateScopedProjectGates(cwd, spawnFn, onProgress = noop, async
       return {
         ok: false,
         error: `scoped lint (${path}): ${lint.stderr || lint.stdout}`,
-        remediation: 'canonical-fixers'
+        remediation: 'canonical-fixers',
+        remediationScopes: [path]
       }
     }
   }
@@ -1700,10 +1832,10 @@ export async function remediateBehaviorState(
   if (validation.remediation !== 'canonical-fixers') return { attempted: false, ok: false }
 
   const longRunner = resolveAsyncSpawn(spawnFn, asyncSpawnFn)
-  const changedDirectories = [
-    ...new Set([...changedSourceDirectories(cwd, spawnFn), ...changedNonCodeDirectories(cwd, spawnFn)])
-  ].toSorted()
-  for (const path of changedDirectories) {
+  const remediationScopes = Array.isArray(validation.remediationScopes)
+    ? validation.remediationScopes
+    : [...new Set([...changedSourceDirectories(cwd, spawnFn), ...changedNonCodeScopes(cwd, spawnFn)])].toSorted()
+  for (const path of remediationScopes) {
     onProgress(`deterministic fix (${path})`)
     const fixed = await runAsync('npx', ['@7n/rules', 'lint', '--path', path], cwd, longRunner, {
       allowFailure: true
@@ -1855,7 +1987,7 @@ export async function validateFinalProjectGates(cwd, spawnFn = spawnSync, asyncS
   const longRunner = resolveAsyncSpawn(spawnFn, asyncSpawnFn)
   const lockfiles = await validateChangedLockfiles(cwd, spawnFn, asyncSpawnFn)
   if (!lockfiles.ok) return lockfiles
-  for (const path of changedNonCodeDirectories(cwd, spawnFn)) {
+  for (const path of changedNonCodeScopes(cwd, spawnFn)) {
     const lint = await runAsync('npx', ['@7n/rules', 'lint', '--path', path, '--no-fix'], cwd, longRunner, {
       allowFailure: true
     })
@@ -1863,7 +1995,8 @@ export async function validateFinalProjectGates(cwd, spawnFn = spawnSync, asyncS
       return {
         ok: false,
         error: `domain lint (${path}): ${lint.stderr || lint.stdout}`,
-        remediation: 'canonical-fixers'
+        remediation: 'canonical-fixers',
+        remediationScopes: [path]
       }
     }
   }
@@ -1874,7 +2007,8 @@ export async function validateFinalProjectGates(cwd, spawnFn = spawnSync, asyncS
     return {
       ok: false,
       error: `changelog gate: ${changelog.stderr || changelog.stdout}`,
-      remediation: 'canonical-fixers'
+      remediation: 'canonical-fixers',
+      remediationScopes: []
     }
   }
   return { ok: true }
@@ -1921,6 +2055,7 @@ async function resolveConflict(args) {
     'Порівняй current main та намір перенесеної зміни; не використовуй ours/theirs механічно.',
     'Збережи актуальну поведінку main, перенеси лише відсутню корисну частину.',
     'За потреби онови regression test. Не commit, не push, не створюй PR і не видаляй refs.',
+    COGNITIVE_GATE_BOUNDARY,
     'Наприкінці прибери conflict markers і коротко наведи виконані перевірки.'
   ].join('\n\n')
   const outcome = await callWithValidatedFallback({
@@ -1931,6 +2066,7 @@ async function resolveConflict(args) {
     log,
     label: `conflict ${source}`,
     onAttempt: ({ tier }) => onProgress('resolve conflict', tier),
+    runnerOptions: { denyCommandFragments: COGNITIVE_GATE_COMMAND_DENYLIST },
     validate: () => validateGitState(worktreeCwd, spawnFn)
   })
   if (!outcome.ok) throw new Error(`LLM conflict resolution: ${outcome.error}`)
@@ -1986,7 +2122,7 @@ async function finalizeBehavior(args) {
     '- додай/онови regression test, якщо це bug fix;',
     '- виконай найвужчі релевантні тести;',
     '- не роби unrelated refactor або formatting churn.',
-    'Не запускай full repository tests, doc generation, lint або changelog: після твоїх правок це детерміновано виконає JS.',
+    COGNITIVE_GATE_BOUNDARY,
     'Не commit, не push, не створюй PR і не видаляй refs. Якщо поведінку неможливо безпечно підтвердити — нічого не маскуй, поверни чіткий blocker.'
   ].join('\n\n')
   const outcome = await callWithValidatedFallback({
@@ -1997,6 +2133,7 @@ async function finalizeBehavior(args) {
     log,
     label: `behavior ${source}`,
     onAttempt: ({ tier }) => onProgress('behavior validation', tier),
+    runnerOptions: { denyCommandFragments: COGNITIVE_GATE_COMMAND_DENYLIST },
     validate: () =>
       validateBehaviorState(
         worktreeCwd,

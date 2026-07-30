@@ -104,9 +104,22 @@ export class ToolProvisionError extends Error {
 
 /**
  * Повертає каталог керованого кешу бінарників для поточного OS.
+ *
+ * `N_CURSOR_TOOL_CACHE_DIR` — explicit test-only override, читається першим. Причина:
+ * під Bun (`bun run --bun vitest`, канонічний CI-запуск, `bun.lock`/root
+ * `package.json#scripts.test`) `os.homedir()` резолвиться ОДИН РАЗ при старті процесу
+ * і не реагує на runtime-підміну `process.env.HOME` (на відміну від Node.js, де
+ * `os.homedir()` читає `HOME` динамічно на кожен виклик) — негативні тести
+ * (`withBinRemovedFromPath` у `scripts/utils/test-helpers.mjs`), що ізолюють цей кеш
+ * підміною HOME на порожній tmp-каталог, під Bun мовчки НЕ спрацьовували б: тест бачив
+ * би реальний `~/.cache/@7n/rules/bin/<tool>`, якщо тул раніше кешувався в тому ж
+ * прогоні чи попереднім кроком CI. Прямий env-var читається щоразу через
+ * `process.env` — це звичайна мутація об'єкта, працює однаково під Node і Bun.
  * @returns {string} абсолютний шлях
  */
 function getCacheDir() {
+  const override = env['N_CURSOR_TOOL_CACHE_DIR']
+  if (override) return override
   if (platform === 'win32') {
     const localAppData = env['LOCALAPPDATA'] ?? join(homedir(), 'AppData', 'Local')
     return join(localAppData, '@7n', 'rules', 'bin')

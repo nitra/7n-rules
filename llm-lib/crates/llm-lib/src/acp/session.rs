@@ -97,8 +97,36 @@ pub struct SessionOptions {
     pub mcp_servers: Vec<McpServer>,
     /// Хто відповідає на дозволи.
     pub permission_mode: PermissionMode,
+    /// Case-insensitive fragments команд, які one-shot не має дозволяти.
+    /// Перевіряються у title та raw input tool call до auto-approve.
+    pub deny_command_fragments: Vec<String>,
     /// Опційний post-`session/new`-крок (рішення З.1).
     pub post_session_config: Option<PostSessionConfig>,
+}
+
+/// Чи tool-call містить заборонений command fragment.
+pub(crate) fn denies_tool_call(
+    tool_call: &agent_client_protocol::schema::v1::ToolCallUpdate,
+    deny_command_fragments: &[String],
+) -> bool {
+    if deny_command_fragments.is_empty() {
+        return false;
+    }
+    let title = tool_call
+        .fields
+        .title
+        .as_deref()
+        .unwrap_or_default()
+        .to_lowercase();
+    let raw_input = tool_call
+        .fields
+        .raw_input
+        .as_ref()
+        .map_or_else(String::new, |value| value.to_string().to_lowercase());
+    deny_command_fragments.iter().any(|fragment| {
+        let fragment = fragment.trim().to_lowercase();
+        !fragment.is_empty() && (title.contains(&fragment) || raw_input.contains(&fragment))
+    })
 }
 
 /// Подія, яку [`create_session`] публікує в канал подій.
@@ -254,6 +282,7 @@ pub async fn create_session(
     let cwd = cwd.to_path_buf();
     let idle_timeout = transport::idle_timeout();
     let permission_mode = options.permission_mode;
+    let deny_command_fragments = options.deny_command_fragments;
     let client_capabilities = options.client_capabilities;
     let mcp_servers = options.mcp_servers;
     let post_session_config = options.post_session_config;
@@ -297,13 +326,17 @@ pub async fn create_session(
                 async move |request: RequestPermissionRequest, responder, _cx| match permission_mode
                 {
                     PermissionMode::AutoApprove => {
-                        let outcome = match transport::pick_auto_permission_option(&request.options)
-                        {
-                            Some(option_id) => RequestPermissionOutcome::Selected(
-                                SelectedPermissionOutcome::new(option_id),
-                            ),
-                            None => RequestPermissionOutcome::Cancelled,
-                        };
+                        let outcome =
+                            if denies_tool_call(&request.tool_call, &deny_command_fragments) {
+                                RequestPermissionOutcome::Cancelled
+                            } else {
+                                match transport::pick_auto_permission_option(&request.options) {
+                                    Some(option_id) => RequestPermissionOutcome::Selected(
+                                        SelectedPermissionOutcome::new(option_id),
+                                    ),
+                                    None => RequestPermissionOutcome::Cancelled,
+                                }
+                            };
                         responder.respond(RequestPermissionResponse::new(outcome))
                     }
                     PermissionMode::External => {
@@ -710,6 +743,31 @@ mod tests {
         assert_eq!(options.permission_mode, PermissionMode::AutoApprove);
         assert!(options.post_session_config.is_none());
         assert!(options.mcp_servers.is_empty());
+        assert!(options.deny_command_fragments.is_empty());
+    }
+
+    #[test]
+    fn command_deny_policy_matches_title_and_raw_input_case_insensitively() {
+        use agent_client_protocol::schema::v1::{ToolCallUpdate, ToolCallUpdateFields};
+
+        let title = ToolCallUpdate::new(
+            "title",
+            ToolCallUpdateFields::new().title("BUN RUN TEST".to_string()),
+        );
+        let raw_input = ToolCallUpdate::new(
+            "raw",
+            ToolCallUpdateFields::new()
+                .raw_input(serde_json::json!({ "command": "npx @7n/rules lint" })),
+        );
+        let unrelated = ToolCallUpdate::new(
+            "other",
+            ToolCallUpdateFields::new().title("vitest run tests/router.test.mjs".to_string()),
+        );
+        let denied = vec!["bun run test".to_string(), "npx @7n/rules lint".to_string()];
+
+        assert!(denies_tool_call(&title, &denied));
+        assert!(denies_tool_call(&raw_input, &denied));
+        assert!(!denies_tool_call(&unrelated, &denied));
     }
 
     #[test]

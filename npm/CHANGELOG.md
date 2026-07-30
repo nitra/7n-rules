@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.57.8] - 2026-07-30
+
+### Changed
+
+- release: @7n/rules@1.57.7
+
+## [1.57.7] - 2026-07-30
+
+### Fixed
+
+- Герметичні tool-dependent тести для чистих CI-раннерів (ensure-tool cache isolation, GNU sed/tr Cyrillic portability, cold-cache timeouts)
+
+## [1.57.6] - 2026-07-30
+
+### Fixed
+
+- git-reconcile перевіряє native mt contract і прибирає partial worktree після несумісного create
+
+## [1.57.5] - 2026-07-29
+
+### Fixed
+
+- resolveModel-виклики переведено на tier-контракт ('min') після уніфікації model resolution (#291) — лагодить 32 фейли adr/hooks, docgen-*, cspell-fix
+
+## [1.57.4] - 2026-07-29
+
+### Fixed
+
+- оновлено pin `@7n/llm-lib` до 2.13.3 (автосинк релізного трейна)
+
 ## [1.57.3] - 2026-07-29
 
 ### Changed

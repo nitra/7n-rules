@@ -840,7 +840,7 @@ export async function loadSrcAndFacts(file, testIndex = null) {
  * N_LOCAL_MIN_MODEL до N_CLOUD_MAX_MODEL. Без hardcoded model fallback: якщо жодна
  * сходинка не задана, preflight оркестратора фейлить гучно.
  */
-export const DEFAULT_LOCAL_MODEL = env.N_CURSOR_DOCGEN_MODEL ?? resolveModel('N_LOCAL_MIN_MODEL')
+export const DEFAULT_LOCAL_MODEL = env.N_CURSOR_DOCGEN_MODEL ?? resolveModel('min')
 
 /**
  * Фініш unsupported-джерела (vue/py до юніт-шару): скорер не застосовний — score=null,

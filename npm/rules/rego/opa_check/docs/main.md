@@ -3,30 +3,29 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/rego/opa_check/main.mjs
 docgen:
-  crc: d5d66b52
+  crc: 1e626461
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  score: 100
-  issues: judge:inaccurate:0.96
+  tier: local-min
+  score: 80
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Поверхня лінтингу Rego (`rego/opa_check`) виконує читання конфігурацій політик OPA за допомогою `opa check --strict`. Для детекції політик працює у read-only режимі, не вносячи змін до файлової системи чи баз даних. При прийомі конфігурації приймає конкретний перелік `.rego` файлів через `ctx.files`, або, за відсутності цього, аналізує весь кореневий каталог `npm/rules`. Функція `lint` забезпечує перевірку синтаксично та стилістично незалежної від сусідніх файлів політики.
-
-## Поведінка
-
-1. Викликає функцію `lint`, яка перевіряє на відповідність специфікаціям Rego/OPA.
-2. Якщо контекст не вказує конкретних файлів, перевіряється весь каталог політик, якщо він існує.
-3. Якщо контекст вказує конкретні файли, перевіряються лише файли з розширенням `.rego`.
-4. Запускається зовнішній інструмент `opa` з аргументами `check --strict` для вибраних файлів або каталогу політик.
-5. Якщо `opa` завершується з кодом, що не дорівнює нулю, реєструється помилка, пов'язана з `opa check --strict`, включаючи вивід інструменту.
-6. У всіх випадках повертається результат перевірки.
+lint-поверхня rego/opa_check: read-only detector (`opa check --strict`). Per-file: приймає
+`ctx.files` (конкретні `.rego`), інакше `npm/rules` (весь policy-корінь, якщо існує) —
+контракт як у інших per-file detector-ів. Виділено з колишнього bundled `rego/check` (spec
+docs/specs/2026-07-02-text-check-per-file-split-design.md "Рішення python/php/rego") —
+`opa check` синтаксично/стилістично per-file-безпечний (не потребує сусідніх файлів).
 
 ## Публічний API
 
-lint — Виявляє порушення у коді на основі правил rego/opa_check (тільки для читання).
+- lint — Detector rego/opa_check (read-only).
+
+## Сценарії використання
+
+- `npm/rules/rego/opa_check/tests/main.test.mjs` (lint rego/opa_check) — returns no violations (skip) when no rego targets exist in cwd; detects rego files under npm/rules/* and fails on broken syntax; кидає коли opa відсутній у PATH і авто-install відключено (ensureTool hard-fail); passes on a well-formed rego under npm/rules/*/policy/
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.

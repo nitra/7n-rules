@@ -2,7 +2,7 @@
 
 **Дата:** 2026-07-29
 **Статус:** погоджено — готово до реалізації
-**Зв'язані документи:** `.cursor/rules/n-ci4.mdc`,
+**Зв'язані документи:** `.cursor/rules/n-doc-files.mdc`,
 `docs/specs/2026-07-27-batch-local-avg-real-batches.md`,
 `docs/specs/2026-07-18-lang-plugins-extraction-spec.md`,
 `docs/adr/260719-2155-doc-files-гібрид-коментарі-плюс-llm-і-vue-sfc-екстрактор.md`
@@ -596,9 +596,9 @@ n-rules docs validate --domain <id>
 
 ## 15. Орієнтовні implementation owners
 
-- `npm/rules/ci4/main.mdc` — layered truth, package domains,
+- `npm/rules/doc-files/main.mdc` — layered truth, package domains,
   Changeability/Gap tests.
-- `npm/rules/ci4/package_knowledge/` — freshness detector, generation worker,
+- `npm/rules/doc-files/package_knowledge/` — freshness detector, generation worker,
   deterministic validators.
 - `npm/rules/doc-files/` — compatibility surface і код, що переноситься або
   делегує новому engine під час migration.

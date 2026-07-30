@@ -183,7 +183,7 @@ export function buildEdges(drafts, cleanList, opts = {}) {
 
 // ─────────────────────────── batch-каскад: спільна інфраструктура ──────────────
 
-const resolvePreferredModel = () => resolveModel('N_LOCAL_MIN_MODEL')
+const resolvePreferredModel = () => resolveModel('min')
 
 /**
  * Один `submitBatch`-виклик-хвиля на всі `items` разом. Провал САМОГО

@@ -55,7 +55,6 @@ The primary development rules are stored in the Cursor rules directory:
 - .cursor/rules/n-adr.mdc
 - .cursor/rules/n-bun.mdc
 - .cursor/rules/n-changelog.mdc
-- .cursor/rules/n-ci4.mdc
 - .cursor/rules/n-doc-files.mdc
 - .cursor/rules/n-feedback.mdc
 - .cursor/rules/n-ga.mdc

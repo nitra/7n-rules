@@ -1,0 +1,40 @@
+name: Test
+
+# Повний vitest-прогін (той самий `bun run test`, що й локально). До 2026-07-29
+# тестового workflow не було взагалі — дрейф пінів платформних napi-пакетів
+# (git на 2.9.7 при опублікованій 2.13.2) поклав 42 тести лише локально,
+# а в CI проявився тільки непрямо через Lint repo-wide.
+on:
+  push:
+    branches:
+      - dev
+      - main
+
+  pull_request:
+    branches:
+      - dev
+      - main
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-bun-deps
+
+      - name: Full vitest run
+        run: bun run test
+        env:
+          # ensure-tool: авторизований lookup GitHub Releases (per-IP rate-limit на
+          # shared-runner-ах) — без токена тести, що тягнуть conftest/opa/oxfmt через
+          # ensure-tool, падають на чистому runner-і (той самий канон, що в lint-js.yml).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

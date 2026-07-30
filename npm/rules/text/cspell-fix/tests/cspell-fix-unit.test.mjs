@@ -31,7 +31,7 @@ describe('cspell-fix unit policy', () => {
   test('fixModel делегує universal resolver від local-min selector', () => {
     resolveModelMock.mockReturnValue('openai/cloud-fallback')
     expect(fixModel()).toBe('openai/cloud-fallback')
-    expect(resolveModelMock).toHaveBeenCalledWith('N_LOCAL_MIN_MODEL')
+    expect(resolveModelMock).toHaveBeenCalledWith('min')
   })
 
   test('classifyPrompt містить усі слова й bounded JSON contract', () => {
