@@ -3,7 +3,7 @@ type: JS Module
 title: coverage-fix.mjs
 resource: plugins/lang-js/coverage-provider/fix/coverage-fix.mjs
 docgen:
-  crc: b5124f14
+  crc: a748443b
   model: omlx/gemma-4-e2b-it-4bit
   tier: local-min
   score: 100
@@ -20,7 +20,8 @@ Fix-шлях survived-мутантів концерну `coverage` правил�
 ladder-а). Survived приходять in-memory з violations — читання COVERAGE.md
 (колишній coverage-fix-extract) померло разом із файлом.
 
-Модель: `ctx.model` ladder-а, fallback CLOUD_MAX або N_CURSOR_COVERAGE_FIX_MODEL.
+Модель: `ctx.model` ladder-а або `N_CURSOR_COVERAGE_FIX_MODEL`; поза ladder
+universal policy стартує з cloud-average і переходить до cloud-max, якщо потрібно.
 
 ## Поведінка
 

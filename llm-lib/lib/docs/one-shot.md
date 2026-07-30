@@ -3,7 +3,7 @@ type: JS Module
 title: one-shot.mjs
 resource: llm-lib/lib/one-shot.mjs
 docgen:
-  crc: 38adb9ce
+  crc: 3f964acb
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100

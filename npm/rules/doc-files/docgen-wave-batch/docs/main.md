@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/doc-files/docgen-wave-batch/main.mjs
 docgen:
-  crc: 8acc475e
+  crc: 670e3912
   model: openai-codex/gpt-5.5
   tier: cloud-avg
   score: 100
