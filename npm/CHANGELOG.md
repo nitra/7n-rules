@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.58.2] - 2026-07-30
+
+### Fixed
+
+- очікування GitHub checks і remaining summary у git-reconcile
+
 ## [1.58.1] - 2026-07-30
 
 ### Fixed
