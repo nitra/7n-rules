@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: plugins/lang-php/rules/php/phpcs
-resource: plugins/lang-php/rules/php/phpcs/
+title: plugins/lang-php/rules/php/mago_lint
+resource: plugins/lang-php/rules/php/mago_lint/
 ---
 
 | Файл                | Тип       |

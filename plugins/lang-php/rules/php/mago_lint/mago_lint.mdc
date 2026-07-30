@@ -1,0 +1,37 @@
+## Лінт PHP (`mago lint`)
+
+Канонічний линтер PHP-коду — [mago](https://github.com/carthage-software/mago)
+(`carthage-software/mago`), detect-only режим `mago lint` (БЕЗ `--fix`/`--unsafe`/
+`--potentially-unsafe` — інваріант «lint без мутацій джерел»). Замінює колишній `phpcs
+--standard=Security`.
+
+### Що перевіряється
+
+- Curated lint-правила mago (стиль, code smells, потенційні баги) — конфігуруються через
+  `mago.toml` у корені (за відсутності — дефолтний набір).
+- Порушення валить прогін лише від рівня `error` і вище (дефолт mago
+  `--minimum-fail-level=error`) — `warning`/`note`/`help` звітуються у виводі, але не
+  впливають на код завершення.
+- Проєкт без `composer.json` у корені — концерн мовчки пропускається (не PHP-проєкт).
+
+### Security-покриття — важливо
+
+Колишній `phpcs --standard=Security` (пакет `php-security-audit`) явно цілився в SQL
+injection / XSS / небезпечні функції. **Formal parity з mago не підтверджена** — набір
+lint-правил mago інший за походженням і покриттям. Фактична поведінка закріпленого піна
+mago зафіксована 3-4 security-фікстурами (`tests/fixtures/security/` — `eval` з
+користувацьким вводом, SQL-конкатенація з `$_GET`, `echo` без escape) у
+`tests/main.test.mjs`: тест документує **фактичне** «ловить/не ловить» на кожен патерн.
+Апгрейд піна mago в `tool-pins.json` — привід перезапустити ці тести й побачити явну
+зміну покриття, а не мовчазний регрес.
+
+### Встановлення mago
+
+`ensure-tool` встановлює mago автоматично (brew на macOS, GitHub Release на Linux/Windows
+fallback), закріплена версія — `npm/scripts/lib/tool-pins.json`. Якщо бінарник відсутній і
+авто-install вимкнено (`N_CURSOR_NO_AUTO_INSTALL=1`) — **hard-fail**, не тихий skip (на
+відміну від колишнього `phpcs`, який був опційним `vendor/bin`-тулом).
+
+### Причини порушень (reason)
+
+- `mago-lint` — `mago lint` знайшов порушення на рівні `error` (ненульовий вихідний код).

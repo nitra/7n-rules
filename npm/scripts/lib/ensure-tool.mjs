@@ -153,6 +153,8 @@ function mapArch(nodeArch, style) {
  * @property {string} archStyle стиль маппінгу архітектури: 'hk'|'conftest'|'actionlint'
  * @property {boolean} [archive] чи є release-ресурс архівом (tar) — default `true`; `false` = сирий бінарник (download + chmod)
  * @property {((ver: string) => string)|null} [binFinder] для архівів де бінарник не у корені; повертає відносний шлях
+ * @property {string} [tagPrefix] префікс git-тегу релізу перед версією — default `'v'` (`v1.2.3`); деякі
+ *   тули (mago) тегують реліз без префікса (`1.2.3`) — перекриває дефолт порожнім рядком
  */
 
 /**
@@ -244,6 +246,19 @@ export const TOOLS = {
     archive: false,
     asset: ver => `kubescape_${ver}_linux_${mapArch(arch, 'actionlint')}`,
     binFinder: null
+  },
+  mago: {
+    brew: 'mago',
+    scoop: null, // немає manifest-у в ScoopInstaller/Extras (перевірено) — Windows іде через GitHub Release fallback
+    github: 'carthage-software/mago',
+    archStyle: 'hk',
+    // Реліз тегується БЕЗ префікса `v` (тег `1.45.0`, не `v1.45.0`) — перевірено
+    // `gh api repos/carthage-software/mago/releases/latest -q '.tag_name'`.
+    tagPrefix: '',
+    asset: ver => `mago-${ver}-${mapArch(arch, 'hk')}-unknown-linux-gnu.tar.gz`,
+    // Архів розпаковується у підкаталог `mago-<ver>-<arch>-unknown-linux-gnu/mago` (перевірено
+    // розпакуванням реального .tar.gz), а не в корінь — на відміну від shellcheck-стилю.
+    binFinder: ver => `mago-${ver}-${mapArch(arch, 'hk')}-unknown-linux-gnu/mago`
   }
 }
 
@@ -328,6 +343,22 @@ export function fetchLatestVersion(repo, curlBin) {
 }
 
 /**
+ * Будує URL завантаження GitHub Release asset-у. Тег релізу: типово `v${ver}`
+ * (hk/conftest/shellcheck/…), але не всі тули так тегують — mago публікує реліз без
+ * префікса `v` (тег `1.45.0`, не `v1.45.0`, перевірено `gh api
+ * repos/carthage-software/mago/releases/latest -q '.tag_name'`); `entry.tagPrefix`
+ * перекриває дефолт для таких винятків (`undefined` → `'v'`). Експортовано для юніт-тестів.
+ * @param {ToolEntry} entry опис тула
+ * @param {string} ver закріплена версія (без префікса)
+ * @param {string} assetName назва release-ресурсу
+ * @returns {string} повний download URL
+ */
+export function buildGithubDownloadUrl(entry, ver, assetName) {
+  const tagPrefix = entry.tagPrefix ?? 'v'
+  return `https://github.com/${entry.github}/releases/download/${tagPrefix}${ver}/${assetName}`
+}
+
+/**
  * Завантажує та розпаковує GitHub Release бінарник у кеш-директорію. Версія береться
  * закріпленою з `tool-pins.json` — жодного `latest`-lookup у GitHub API на звичайному
  * install-шляху. Повертає абсолютний шлях до бінарника.
@@ -344,7 +375,7 @@ function installFromGithub(toolId, entry, cacheDir) {
 
   const ver = resolvePinnedVersion(toolId)
   const assetName = entry.asset(ver)
-  const downloadUrl = `https://github.com/${entry.github}/releases/download/v${ver}/${assetName}`
+  const downloadUrl = buildGithubDownloadUrl(entry, ver, assetName)
 
   mkdirSync(cacheDir, { recursive: true })
   // Унікальний per-call temp-каталог у тому ж cacheDir (той самий filesystem — атомарний renameSync
@@ -482,7 +513,7 @@ function buildHint(toolId, entry) {
  *
  * Порядок: PATH → кеш → авто-install (якщо не N_CURSOR_NO_AUTO_INSTALL) → hard-fail.
  * Повертає абсолютний шлях або кидає Error.
- * @param {string} toolId ключ у реєстрі TOOLS (`'hk'`, `'conftest'`, `'shellcheck'`, `'actionlint'`, `'dotenv-linter'`, `'opa'`, `'regal'`, `'hadolint'`, `'kubeconform'`, `'kubescape'`)
+ * @param {string} toolId ключ у реєстрі TOOLS (`'hk'`, `'conftest'`, `'shellcheck'`, `'actionlint'`, `'dotenv-linter'`, `'opa'`, `'regal'`, `'hadolint'`, `'kubeconform'`, `'kubescape'`, `'mago'`)
  * @returns {string} абсолютний шлях до бінарника
  */
 export function ensureTool(toolId) {
@@ -544,7 +575,7 @@ async function installWithCrossProcessLock(toolId, entry, cacheDir) {
  * гілка, що реально потребує async: обгорнута internal single-flight (`inFlightInstalls`) і
  * cross-process `withLock`, щоб паралельні виклики того самого `toolId` (в одному процесі чи
  * кількох) не тягнули install конкурентно.
- * @param {string} toolId ключ у реєстрі TOOLS (`'hk'`, `'conftest'`, `'shellcheck'`, `'actionlint'`, `'dotenv-linter'`, `'opa'`, `'regal'`, `'hadolint'`, `'kubeconform'`, `'kubescape'`)
+ * @param {string} toolId ключ у реєстрі TOOLS (`'hk'`, `'conftest'`, `'shellcheck'`, `'actionlint'`, `'dotenv-linter'`, `'opa'`, `'regal'`, `'hadolint'`, `'kubeconform'`, `'kubescape'`, `'mago'`)
  * @returns {Promise<string>} абсолютний шлях до бінарника
  */
 export async function ensureToolAsync(toolId) {

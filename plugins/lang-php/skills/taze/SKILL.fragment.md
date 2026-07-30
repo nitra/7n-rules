@@ -51,9 +51,8 @@ rg -n "<use-шлях|функція|клас>" --type php
 Залежно від того, що реально налаштовано в проєкті:
 
 ```bash
-vendor/bin/phpcs
-vendor/bin/phpstan analyse
-vendor/bin/psalm
+mago lint
+mago analyze
 vendor/bin/phpunit
 ```
 
@@ -65,7 +64,7 @@ rm composer.json.taze-bak composer.lock.taze-bak
 
 ### Крок 8 — звіт
 
-Окрема секція **PHP-пакети (Composer)** (оновлено / major / зрефакторено / потребує ручного втручання), у **Стан перевірок** — окремо `phpcs` / `phpstan` / `psalm` / phpunit.
+Окрема секція **PHP-пакети (Composer)** (оновлено / major / зрефакторено / потребує ручного втручання), у **Стан перевірок** — окремо `mago lint` / `mago analyze` / phpunit.
 
 ### Примітка
 

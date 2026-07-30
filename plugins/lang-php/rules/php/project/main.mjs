@@ -1,34 +1,69 @@
 /**
- * lint-поверхня php/project: read-only detector (`composer audit` + PHPStan + Psalm),
+ * lint-поверхня php/project: read-only detector (`composer audit` + `mago analyze`),
  * перейменовано з колишнього bundled `php/check` (spec
- * docs/specs/2026-07-02-text-check-per-file-split-design.md §5-A). `full`, без `lint.glob` —
- * phpstan/psalm потребують повного project-graph (autoload, class hierarchy), запуск на
- * одному файлі дає неповний/хибний результат; composer audit — project-wide dependency
- * audit. Не входять у delta-план (§5): спрацьовують лише через `n-rules lint --full` або
- * scoped `n-rules lint php`.
+ * docs/specs/2026-07-02-text-check-per-file-split-design.md §5-A). PHPStan/Psalm замінено
+ * на `mago analyze` (spec `docs/specs/2026-07-30-mago-php-toolchain.md`) — `composer audit`
+ * лишається обов'язковим байт-у-байт як раніше. `full`, без `lint.glob` — mago analyze
+ * потребує повного project-graph (autoload, class hierarchy), запуск на одному файлі дає
+ * неповний/хибний результат; composer audit — project-wide dependency audit. Не входять у
+ * delta-план (§5): спрацьовують лише через `n-rules lint --full` або scoped `n-rules lint php`.
  *
  * Nested Composer workspaces (ADR `2026-07-27-nested-composer-workspace-detection`): цей
- * детектор свідомо читає лише кореневий `composer.json`/`vendor/bin/*` (`ctx.cwd`) — вкладені
- * Composer-проєкти (`services/api/composer.json`) активують правило `php` (auto.glob до глибини
- * 2), і кожен `.php`-файл лінтиться per-file концернами `cs_fixer`/`phpcs` незалежно від того,
- * під яким вкладеним composer.json він лежить, але НЕ проганяються тут через
- * `composer audit`/PHPStan/Psalm. Деталі й обґрунтування — `docs/adr/`, `tooling/tooling.mdc`.
+ * детектор свідомо читає лише кореневий `composer.json` (`ctx.cwd`) — вкладені Composer-проєкти
+ * (`services/api/composer.json`) активують правило `php` (auto.glob до глибини 2), і кожен
+ * `.php`-файл лінтиться per-file концернами `mago_fmt`/`mago_lint` незалежно від того, під яким
+ * вкладеним composer.json він лежить, але НЕ проганяються тут через `composer audit`/`mago
+ * analyze`. Деталі й обґрунтування — `docs/adr/`, `tooling/tooling.mdc`.
  */
 import { existsSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
+import { ensureToolAsync } from '@7n/rules/scripts/lib/ensure-tool.mjs'
 import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/violation-reporter.mjs'
 import { resolveCmd } from '@7n/rules/scripts/utils/resolve-cmd.mjs'
 import { spawnAsync } from '@7n/rules/scripts/utils/spawn-async.mjs'
 
 /**
- * @param {string} root корінь
- * @param {string} name ім'я у vendor/bin
- * @returns {string | null} абсолютний шлях до бінарника або null, якщо відсутній
+ * Перший `X.Y`-патерн у composer-constraint (`">=8.2"`, `"^8.2"`, `"~8.2.0"`, `"8.2.*"`).
+ * Обмежені квантифікатори (`{1,4}`, не `+`) — уникає sonarjs/super-linear-regex heuristic-и на
+ * послідовних unbounded-групах; PHP-версії ніколи не мають більше 4 цифр у компоненті.
  */
-function vendorBin(root, name) {
-  const p = resolve(root, 'vendor', 'bin', name)
-  return existsSync(p) ? p : null
+const PHP_VERSION_RE = /(\d{1,4})\.(\d{1,4})/
+
+/**
+ * Витягує мінімальну PHP-версію (наприклад `"8.2"`) з composer-constraint `require.php` для
+ * `mago --php-version` (`mago analyze` перевіряє синтаксис/типи під конкретну версію PHP,
+ * а не сканує весь діапазон constraint-у). Composer-синтаксис constraint-ів (caret/tilde/OR-range)
+ * не парситься повністю — береться перше число-в-числі у рядку, що покриває типові форми
+ * (`>=8.2`, `^8.2`, `~8.2.0`, `8.2.*`); складніші вирази (OR-range `"8.1 || 8.2"`) дадуть перше
+ * знайдене число, що є прийнятним наближенням «мінімальної підтримуваної версії».
+ * @param {unknown} constraint значення `require.php` з composer.json
+ * @returns {string | null} `"X.Y"` або null, якщо не вдалось розпізнати/constraint відсутній
+ */
+export function extractPhpVersion(constraint) {
+  if (typeof constraint !== 'string') return null
+  const m = PHP_VERSION_RE.exec(constraint)
+  return m ? `${m[1]}.${m[2]}` : null
+}
+
+/**
+ * Читає `require.php` з кореневого composer.json. Тихо повертає null на будь-яку помилку
+ * (відсутній файл, битий JSON, відсутнє поле) — `mago analyze` тоді запускається без
+ * `--php-version` (дефолт mago/`mago.toml`); синтаксична валідність composer.json — turf
+ * `composer_manifest` (`composer-manifest-invalid-json`), не цього детектора.
+ * @param {string} manifestPath абсолютний шлях до composer.json
+ * @returns {Promise<string | null>} `"X.Y"` або null
+ */
+async function readPhpVersionConstraint(manifestPath) {
+  try {
+    const raw = await readFile(manifestPath, 'utf8')
+    const manifest = /** @type {Record<string, unknown>} */ (JSON.parse(raw))
+    const require_ = /** @type {Record<string, unknown> | undefined} */ (manifest.require)
+    return extractPhpVersion(require_?.php)
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -61,8 +96,9 @@ export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { fail } = reporter
   const root = ctx.cwd
+  const manifestPath = join(root, 'composer.json')
 
-  if (!existsSync(join(root, 'composer.json'))) return reporter.result()
+  if (!existsSync(manifestPath)) return reporter.result()
 
   const composer = resolveCmd('composer')
   if (!composer) {
@@ -76,23 +112,10 @@ export async function lint(ctx) {
     return reporter.result()
   }
 
-  /**
-   * @param {string} binName ім'я бінарника у vendor/bin.
-   * @param {string} label назва кроку.
-   * @param {string[]} args аргументи інструменту.
-   * @param {string} reason машиночитна причина порушення.
-   * @returns {Promise<boolean>} true якщо OK / пропущено
-   */
-  async function runOptionalVendorTool(binName, label, args, reason) {
-    const abs = vendorBin(root, binName)
-    if (!abs) return true // тул відсутній у vendor/bin → крок пропущено
-    return await runTool(label, abs, args, root, fail, reason)
-  }
-
-  if (!(await runOptionalVendorTool('phpstan', 'PHPStan', ['analyse', '--no-progress'], 'phpstan-violation'))) {
-    return reporter.result()
-  }
-  await runOptionalVendorTool('psalm', 'Psalm', ['--no-cache'], 'psalm-violation')
+  const magoBin = await ensureToolAsync('mago')
+  const phpVersion = await readPhpVersionConstraint(manifestPath)
+  const magoArgs = phpVersion ? ['--php-version', phpVersion, 'analyze'] : ['analyze']
+  await runTool('mago analyze', magoBin, magoArgs, root, fail, 'mago-analyze')
 
   return reporter.result()
 }
