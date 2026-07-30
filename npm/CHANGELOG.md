@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.59.2] - 2026-07-30
+
+### Fixed
+
+- Виправлено публікацію platform-пакетів native-аддона: fail-closed registry-гейт добудовує і публікує `@7n/rules-darwin-arm64`/`@7n/rules-linux-x64`, якщо їх немає в registry (1.59.0/1.59.1 вийшли без них — native addon був недоступний споживачам)
+
 ## [1.59.1] - 2026-07-30
 
 ### Changed
