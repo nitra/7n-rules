@@ -292,12 +292,14 @@ RESPONSE_FILE="$TMP_DIR/response.txt"
 
 # Backend selection. `local` — конвеєр на малій локальній моделі (privacy + $0,
 # `npm/scripts/lib/adr/normalize-pipeline.mjs`); `pi`/`claude`/`cursor` — single-shot
-# у хмару. Auto-default: local, якщо налаштовано `N_LOCAL_MIN_MODEL`, інакше
+# у хмару. Auto-default: local, якщо policy resolver знайшов локальну модель,
+# інакше
 # pi → claude → cursor. Команда local-бекенда override-иться через ADR_NORMALIZE_LOCAL_CMD
 # (для тестів/in-repo: `node npm/bin/n-rules.js adr-normalize-local`).
 BACKEND="${ADR_NORMALIZE_BACKEND:-}"
+LOCAL_POLICY_MODEL="$(resolve_local_policy_model "$PROJECT_ROOT" || true)"
 if [ -z "$BACKEND" ]; then
-  if [ -n "${N_LOCAL_MIN_MODEL:-}" ]; then
+  if [ -n "$LOCAL_POLICY_MODEL" ]; then
     BACKEND=local
   elif command -v pi >/dev/null 2>&1; then
     BACKEND=pi
@@ -314,7 +316,7 @@ ADR_LOCAL_CMD="${ADR_NORMALIZE_LOCAL_CMD:-npx --no @7n/rules adr-normalize-local
 
 case "$BACKEND" in
   local)
-    log "using local pipeline backend (model: ${N_LOCAL_MIN_MODEL:-?})"
+    log "using local pipeline backend (model: $LOCAL_POLICY_MODEL)"
     # local-бекенд будує власні дрібні промпти з батча — FULL_PROMPT_FILE не потрібен.
     # shellcheck disable=SC2086
     $ADR_LOCAL_CMD --batch "$BATCH_LIST" --clean "$CLEAN_LIST" --adr-dir "$ADR_DIR" > "$RESPONSE_FILE" 2>>"$LOG" || true

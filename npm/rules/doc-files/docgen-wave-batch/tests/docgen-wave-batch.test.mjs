@@ -58,7 +58,7 @@ vi.mock('../../docgen-crc/main.mjs', async importOriginal => ({
   stampDoc: md => md
 }))
 
-// JUDGE_ENABLED — статична константа docgen-judge (Boolean(CLOUD_MIN)); той
+// JUDGE_ENABLED — статична константа docgen-judge (Boolean(resolveModel(...))); той
 // самий примусовий override, що й у docgen-gen.test.mjs, щоб judge-тести не
 // залежали від ambient env.
 let judgeEnabled = false

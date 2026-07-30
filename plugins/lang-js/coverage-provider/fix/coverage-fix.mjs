@@ -8,7 +8,7 @@
  * ladder-а). Survived приходять in-memory з violations — читання COVERAGE.md
  * (колишній coverage-fix-extract) померло разом із файлом.
  *
- * Модель: `ctx.model` ladder-а, fallback CLOUD_MAX або N_CURSOR_COVERAGE_FIX_MODEL.
+ * Модель: `ctx.model` ladder-а, explicit override або policy fallback від cloud-average.
  */
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -18,11 +18,11 @@ import { verifyScopedMutationBatch } from '../js-collector.mjs'
 
 // `@7n/llm-lib` — dependency ядра `@7n/rules`, не плагіна: динамічний import
 // (top-level await) — той самий патерн, що `rules/js/eslint/fix-worker.mjs`.
-const { CLOUD_AVG, CLOUD_MAX } = await import('@7n/llm-lib/model-tiers')
+const { resolveModel } = await import('@7n/llm-lib/model-tiers')
 
-// `||`, не `??`: тир-константи — порожні рядки, коли N_CLOUD_*_MODEL env не задані
-// (поза ladder-ом, що завжди передає ctx.model) — падало «модель не знайдена: <порожньо>».
-const MODEL = env.N_CURSOR_COVERAGE_FIX_MODEL || CLOUD_MAX || CLOUD_AVG
+// Поза central ladder стартуємо від cloud-average, щоб не знижувати якість
+// mutation-fix; resolver сам переходить на cloud-max, коли average не задана.
+const MODEL = env.N_CURSOR_COVERAGE_FIX_MODEL || resolveModel('N_CLOUD_AVG_MODEL')
 
 /**
  * Дефолтна стеля мутантів на один batch (один агентний виклик зі своїм таймаут-вікном).

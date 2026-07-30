@@ -22,7 +22,7 @@ vi.mock('node:fs', async importOriginal => ({ ...(await importOriginal()), readF
 vi.mock('@7n/llm-lib/one-shot', async importOriginal => ({ ...(await importOriginal()), runOneShot: vi.fn() }))
 
 // JUDGE_ENABLED — модульна константа docgen-judge, обчислена з ambient env
-// (Boolean(CLOUD_MIN) ← N_CLOUD_MIN_MODEL): без примусового override judge-тести нижче падали б
+// (JUDGE_ENABLED ← resolveModel('N_CLOUD_MIN_MODEL')): без примусового override judge-тести нижче падали б
 // на машинах без цієї env-змінної і мовчки не покривали б гейт. Вмикаємо примусово;
 // judgeDoc/judgeFailsDoc лишаються реальними (їхній runOneShot вже замокано вище).
 vi.mock('../../docgen-judge/main.mjs', async importOriginal => ({

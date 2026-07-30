@@ -1,9 +1,25 @@
 #!/usr/bin/env bash
 # Спільний helper для ADR Stop-hook'ів: розпізнавання "tooling-only" сесій.
-# Source'ається з capture-decisions.sh і normalize-decisions.sh — функції стають
+# Підвантажується з capture-decisions.sh і normalize-decisions.sh — функції стають
 # видимими caller'у, який успадковує `set` опції.
-# Bash 3.2 (macOS /bin/bash) сумісний: без mapfile, без асоц. масивів,
+# Bash 3.2 (macOS /bin/bash) сумісний: без mapfile, без асоціативних масивів,
 # без process substitution.
+
+# Резолвить policy-модель через єдине JS/Rust джерело правди. Для ADR capture
+# потрібна саме локальна модель: cloud fallback універсальної драбини тут
+# свідомо відкидається, бо дефолтний pi-hook має лишатися offline/privacy-safe.
+# Виводить model-spec або порожньо; відсутній Node/package — fail-open skip hook-а.
+resolve_local_policy_model() {
+  local proj="$1"
+  (
+    cd "$proj" || exit 1
+    N_RULES_MODEL_SELECTOR=N_LOCAL_MIN_MODEL node --input-type=module -e '
+      import { isLocalModel, resolveModel } from "@7n/llm-lib/model-tiers"
+      const model = resolveModel(process.env.N_RULES_MODEL_SELECTOR)
+      if (model && isLocalModel(model)) process.stdout.write(model)
+    '
+  ) 2>/dev/null
+}
 
 # Структурний скіп ADR-генерації для "tooling-only" сесій.
 # Вхід: рядки-шляхи у stdin (один шлях на лінію), відносні до $PROJECT_ROOT

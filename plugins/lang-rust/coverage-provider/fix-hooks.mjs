@@ -9,7 +9,7 @@
  * плагіна: динамічні import-и (канонічний патерн fix-worker-ів).
  */
 const { runAgentFix } = await import('@7n/llm-lib/agent-fix')
-const { CLOUD_AVG, CLOUD_MAX } = await import('@7n/llm-lib/model-tiers')
+const { resolveModel } = await import('@7n/llm-lib/model-tiers')
 
 /**
  * Промпт догенерації unit-тестів для Rust-файлів нижче порогу покриття.
@@ -70,8 +70,8 @@ export function buildFixSurvivedPrompt(survived) {
  */
 async function runSession(prompt, cwd, ctx, targetFiles) {
   const res = await runAgentFix('test', prompt, cwd, {
-    // `||`: тир-константи порожні без N_CLOUD_*_MODEL env — фолбек аж до CLOUD_AVG.
-    model: ctx?.model || CLOUD_MAX || CLOUD_AVG,
+    // Поза ladder зберігаємо мінімальну якість cloud-average; resolver ескалює до max.
+    model: ctx?.model || resolveModel('N_CLOUD_AVG_MODEL'),
     tier: ctx?.tier,
     timeoutMs: ctx?.timeoutMs,
     feedback: ctx?.feedback ?? null,

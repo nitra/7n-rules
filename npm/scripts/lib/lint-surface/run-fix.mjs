@@ -18,7 +18,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { LOCAL_MIN, CLOUD_MIN, CLOUD_AVG, isLocalModel } from '@7n/llm-lib/model-tiers'
+import { isLocalModel, resolveModel } from '@7n/llm-lib/model-tiers'
 import { startChain } from '@7n/llm-lib/chain'
 import { writeTrace } from '@7n/llm-lib/trace'
 import { withTimeout } from '@7n/llm-lib/with-timeout'
@@ -35,6 +35,27 @@ import {
 import { findBrokenSiblingTests } from './test-gate.mjs'
 import { createProgressReporter } from './progress.mjs'
 import { buildLadder, decideAfterFailure, DEFAULT_MAX_AVG } from './ladder.mjs'
+
+/**
+ * Будує моделі центральної fix-ladder через єдиний policy resolver.
+ * Локальна rung існує лише коли старт від `N_LOCAL_MIN_MODEL` справді дав
+ * локальну модель: cloud fallback не повинен маркуватися як local і обходити
+ * `skipLocalTier`. Хмарні rung-и стартують зі своїх меж policy ladder.
+ * @param {{resolveModelImpl?:(selector:string)=>string, isLocalModelImpl:(model:string)=>boolean}} [deps] інʼєкції для unit-тесту policy меж
+ * @returns {{localMin:string, cloudMin:string, cloudAvg:string}} Моделі для побудови fix-ladder.
+ */
+export function resolveFixLadderModels({ resolveModelImpl = resolveModel, isLocalModelImpl = isLocalModel } = {}) {
+  const preferred = resolveModelImpl('N_LOCAL_MIN_MODEL')
+  const cloudMin = resolveModelImpl('N_CLOUD_MIN_MODEL')
+  const cloudAvg = resolveModelImpl('N_CLOUD_AVG_MODEL')
+  return {
+    localMin: isLocalModelImpl(preferred) ? preferred : '',
+    cloudMin,
+    // Не повторюємо той самий cloud-виклик у наступній rung; local retry лишається
+    // всередині buildLadder, де він має окрему семантику.
+    cloudAvg: cloudAvg === cloudMin ? '' : cloudAvg
+  }
+}
 
 /**
  * Стабільний ключ одиниці прогресу для ProgressReporter.
@@ -874,7 +895,7 @@ export async function runFixPipeline(opts) {
     }
     if (failing.length === 0 && standaloneItems.length === 0) return 0
 
-    const ladder = deps.ladder ?? buildLadder({ localMin: LOCAL_MIN, cloudMin: CLOUD_MIN, cloudAvg: CLOUD_AVG })
+    const ladder = deps.ladder ?? buildLadder(resolveFixLadderModels())
     let avgBudget = typeof opts.maxAvg === 'number' ? opts.maxAvg : DEFAULT_MAX_AVG
 
     /**

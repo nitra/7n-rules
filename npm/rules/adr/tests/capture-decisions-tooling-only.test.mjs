@@ -252,7 +252,7 @@ describe('capture-decisions.sh — structural tooling-only skip', () => {
     })
   })
 
-  test('дефолтний backend pi: без CAPTURE_DECISIONS_PI_MODEL/N_LOCAL_MIN_MODEL → миттєвий skip, fake pi не викликається', async () => {
+  test('дефолтний backend pi: без CAPTURE_DECISIONS_PI_MODEL/local policy model → миттєвий skip, fake pi не викликається', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'docs/adr'), { recursive: true })
       const piMarker = join(dir, 'pi-invoked.marker')
@@ -263,12 +263,12 @@ describe('capture-decisions.sh — structural tooling-only skip', () => {
       const { exitCode, log } = runCaptureHook(dir, JSON.stringify({ transcript_path: tpath, session_id: 'abc12352' }))
 
       expect(exitCode).toBe(0)
-      expect(log).toContain('no local model configured')
+      expect(log).toContain('no local policy model configured')
       expect(existsSync(piMarker)).toBe(false)
     })
   })
 
-  test('CAPTURE_DECISIONS_BACKEND=auto без pi (нема моделі) → fallback на fake claude, лог фіксує обраний бекенд', async () => {
+  test('CAPTURE_DECISIONS_BACKEND=auto без pi (нема local policy model) → fallback на fake claude, лог фіксує обраний бекенд', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'docs/adr'), { recursive: true })
       await mkdir(join(dir, 'bin'), { recursive: true })
@@ -294,7 +294,7 @@ describe('capture-decisions.sh — structural tooling-only skip', () => {
         CAPTURE_DECISIONS_BACKEND: 'auto'
       })
 
-      expect(log).toContain('no local model configured')
+      expect(log).toContain('no local policy model configured')
       expect(log).toContain('using claude CLI')
       expect(log).toContain('wrote:')
     })

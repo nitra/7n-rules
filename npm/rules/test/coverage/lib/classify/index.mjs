@@ -16,7 +16,7 @@ import { join } from 'node:path'
 
 import { submitBatch as submitBatchNative } from '@7n/llm-lib/batch'
 import { defaultLocalProviders } from '@7n/llm-lib/local-providers'
-import { CLOUD_MIN, LOCAL_MIN } from '@7n/llm-lib/model-tiers'
+import { resolveModel } from '@7n/llm-lib/model-tiers'
 import { deriveCacheKey, readCache, writeCache } from './cache.mjs'
 import { buildUserPrompt, SYSTEM_PROMPT } from './prompt.mjs'
 import { parseVerdict } from './verdict-schema.mjs'
@@ -107,15 +107,15 @@ async function runWave(items, model, localProviders, submitBatchImpl) {
  * @param {Array<{file: string, mutants: object[], exampleTest?: object|null, recommendationText?: string|null}>} survived survived-мутанти з виміру, згруповані по файлах
  * @param {string} cwd корінь проєкту
  * @param {{cachePath?: string, submitBatchImpl?: (model: string, items: Array<object>, opts?: object) => Promise<Array<object>>,
- *   tier1?: string, tier2?: string, localProviders?: object}} [opts] `tier1`/`tier2` — явні model-specs (дефолт: `LOCAL_MIN`/`CLOUD_MIN` пакета,
- *   інжектовні, бо тир-константи фіксуються при імпорті й у тестах не стабляться через env); `submitBatchImpl` — інжект `submitBatch` (тест)
+ *   tier1?: string, tier2?: string, localProviders?: object}} [opts] `tier1`/`tier2` — явні model-specs (дефолт: policy resolver від `N_LOCAL_MIN_MODEL`/`N_CLOUD_MIN_MODEL`);
+ *   `submitBatchImpl` — інжект `submitBatch` (тест)
  * @returns {Promise<Array<{key: string, verdict: object}>>} вердикти по кожному мутанту, у вхідному порядку
  */
 export async function classify(survived, cwd, opts = {}) {
   const cachePath = opts.cachePath ?? join(cwd, 'reports', 'coverage-classify.cache.json')
   const submitBatchImpl = opts.submitBatchImpl ?? submitBatchNative
-  const tier1 = opts.tier1 ?? LOCAL_MIN
-  const tier2 = opts.tier2 ?? CLOUD_MIN
+  const tier1 = opts.tier1 ?? resolveModel('N_LOCAL_MIN_MODEL')
+  const tier2 = opts.tier2 ?? resolveModel('N_CLOUD_MIN_MODEL')
   const localProviders = opts.localProviders ?? defaultLocalProviders()
   const cacheModel = `${tier1 || 'default'}+${tier2 || 'cloud'}`
 

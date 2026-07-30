@@ -9,7 +9,7 @@
 #
 # Capture backend — `CAPTURE_DECISIONS_BACKEND` (default: pi):
 #   pi            — local `pi` only (npm-first lookup, offline/hermetic flags); unavailable
-#                   or no local model (`CAPTURE_DECISIONS_PI_MODEL`/`N_LOCAL_MIN_MODEL`) → skip
+#                   or no local policy model (`CAPTURE_DECISIONS_PI_MODEL`/policy ladder) → skip
 #   claude        — force `claude -p --model "$CAPTURE_DECISIONS_CLAUDE_MODEL"` (default: sonnet)
 #   cursor-agent  — force `cursor-agent -p --mode ask --model "$CAPTURE_DECISIONS_CURSOR_MODEL"`
 #                   (default: claude-4.6-sonnet-medium)
@@ -227,9 +227,9 @@ try_pi() {
     log "  → pi not found, skipping capture"
     return 1
   fi
-  model="${CAPTURE_DECISIONS_PI_MODEL:-${N_LOCAL_MIN_MODEL:-}}"
+  model="${CAPTURE_DECISIONS_PI_MODEL:-$(resolve_local_policy_model "$PROJECT_ROOT" || true)}"
   if [[ -z "$model" ]]; then
-    log "  → no local model configured (CAPTURE_DECISIONS_PI_MODEL / N_LOCAL_MIN_MODEL), skipping capture"
+    log "  → no local policy model configured (CAPTURE_DECISIONS_PI_MODEL / policy ladder), skipping capture"
     return 1
   fi
   log "  → using pi (model: $model)"
