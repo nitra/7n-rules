@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.8] - 2026-07-30
+
+### Added
+
+- Додано концерн `vscode_extensions` (Rego-gate `.vscode/extensions.json`, канон `bmewburn.vscode-intelephense-client`) — симетрія з lang-js/lang-rust/lang-python.
+
 ## [0.2.7] - 2026-07-30
 
 ### Changed

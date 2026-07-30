@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.2.0] - 2026-07-30
+
+### Removed
+
+- Прибрано `**/*.vue` з `paths` канонічного `lint-style.yml.snippet.yml` — цей глоб виїхав у `@7n/rules-lang-js` (`ci.artifact` patch-existing слот `js-lint-style-patch`), той самий патерн, що й `lint-text.yml` у хвилі 3A.
+
 ## [2.1.0] - 2026-07-29
 
 ### Removed
