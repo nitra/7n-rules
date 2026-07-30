@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { spawn } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { env } from 'node:process'
-import { resolve } from 'node:path'
+import { delimiter, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 
 import { describe, expect, test } from 'vitest'
@@ -38,6 +38,7 @@ import {
   hasChangesFromBase,
   hasOnlyChangeEntries,
   inventoryStashes,
+  nativeExecutableEnvironment,
   normalizePrConcurrency,
   parseDecisionEnvelope,
   parseWorktreeInventory,
@@ -75,6 +76,21 @@ const REVIEW_BRANCH = {
   conflicts: []
 }
 const NPM_ROOT = resolve(import.meta.dirname, '../../../..')
+
+test('native executable PATH відкидає project-local npm і npx shims', () => {
+  const sourcePath = [
+    '/repo/node_modules/.bin',
+    '/tmp/.npm/_npx/hash/node_modules/.bin',
+    '/opt/homebrew/bin',
+    '/usr/bin'
+  ].join(delimiter)
+  const result = nativeExecutableEnvironment({ PATH: sourcePath, KEEP: 'yes' })
+
+  expect(result).toEqual({
+    PATH: ['/opt/homebrew/bin', '/usr/bin'].join(delimiter),
+    KEEP: 'yes'
+  })
+})
 
 /**
  * Емулює Git-відповіді для tracked, untracked, duplicate й absorbed stashes.
@@ -1694,11 +1710,10 @@ describe('runGitReconcileOrchestrator', () => {
     expect(cleanupCalls).toEqual(['branch:refs/remotes/origin/already-merged'])
   })
 
-  test('провал native mt worktree create fail-closed лишає source та повертає spawnSync ENOENT', async () => {
+  test('відсутній native mt fail-closed лишає source та повертає spawnSync ENOENT', async () => {
     const cleanupCalls = []
     const worktreeName = 'reconcile-fix-jwt-bridge-workspace-dockerfile-and'
     const branch = `mt/${worktreeName}`
-    const actualWorktree = `/repo/.worktrees/${worktreeName}`
     const result = await runGitReconcileOrchestrator({
       cwd: '/repo',
       log: noop,
@@ -1729,21 +1744,13 @@ describe('runGitReconcileOrchestrator', () => {
           if (command === 'git' && args[0] === 'worktree') {
             return {
               status: 0,
-              stdout: [
-                'worktree /repo',
-                'HEAD base',
-                'branch refs/heads/main',
-                '',
-                `worktree ${actualWorktree}`,
-                'HEAD base',
-                `branch refs/heads/${branch}`,
-                ''
-              ].join('\n'),
+              stdout: ['worktree /repo', 'HEAD base', 'branch refs/heads/main', ''].join('\n'),
               stderr: ''
             }
           }
           if (command === 'mt') {
             expect(options.cwd).toBe('/repo')
+            expect(options.env.PATH).not.toContain('node_modules/.bin')
             return {
               status: null,
               stdout: '',
@@ -1764,6 +1771,100 @@ describe('runGitReconcileOrchestrator', () => {
       worktree: undefined
     })
     expect(result.results[0].error).toContain('ENOENT')
+    expect(cleanupCalls).not.toContain(REVIEW_BRANCH.source)
+  })
+
+  test('несумісний mt create JSON прибирає щойно створений legacy worktree і branch', async () => {
+    const cleanupCalls = []
+    const gitCleanupCalls = []
+    const worktreeName = 'reconcile-fix-jwt-bridge-workspace-dockerfile-and'
+    const expectedBranch = `mt/${worktreeName}`
+    const legacyBranch = worktreeName
+    const actualWorktree = `/repo/.worktrees/${worktreeName}`
+    let partialExists = false
+    const result = await runGitReconcileOrchestrator({
+      cwd: '/repo',
+      log: noop,
+      deps: {
+        inventoryRepository: () => inventory({ stashes: [] }),
+        cleanupSource: candidate => {
+          cleanupCalls.push(candidate.source)
+          return { status: 'removed' }
+        },
+        callRunner: () =>
+          Promise.resolve({
+            ok: true,
+            error: null,
+            text: JSON.stringify({
+              decisions: [
+                {
+                  source: REVIEW_BRANCH.source,
+                  intent: 'complete-useful',
+                  action: 'pr',
+                  rationale: 'готовий fix',
+                  groups: [{ title: 'Fix JWT bridge workspace Dockerfile and trailing separator', commits: ['abc123'] }]
+                }
+              ]
+            })
+          }),
+        spawnFn: (command, args) => {
+          if (command === 'git' && args[0] === 'show-ref') return { status: 1, stdout: '', stderr: '' }
+          if (command === 'git' && args[0] === 'ls-remote') return { status: 1, stdout: '', stderr: '' }
+          if (command === 'git' && args[0] === 'worktree' && args[1] === 'list') {
+            const partial = partialExists
+              ? [`worktree ${actualWorktree}`, 'HEAD base', `branch refs/heads/${legacyBranch}`, '']
+              : []
+            return {
+              status: 0,
+              stdout: ['worktree /repo', 'HEAD base', 'branch refs/heads/main', '', ...partial].join('\n'),
+              stderr: ''
+            }
+          }
+          if (command === 'git' && args[0] === 'worktree' && args[1] === 'remove') {
+            gitCleanupCalls.push([command, args])
+            partialExists = false
+            return { status: 0, stdout: '', stderr: '' }
+          }
+          if (command === 'git' && args[0] === 'branch' && args[1] === '-D') {
+            gitCleanupCalls.push([command, args])
+            return { status: 0, stdout: '', stderr: '' }
+          }
+          if (command === 'git' && args[0] === 'worktree' && args[1] === 'prune') {
+            return { status: 0, stdout: '', stderr: '' }
+          }
+          if (command === 'mt' && args.includes('--help')) {
+            return {
+              status: 0,
+              stdout: 'mt/<name> --base --description --json',
+              stderr: ''
+            }
+          }
+          if (command === 'mt' && args.includes('create')) {
+            partialExists = true
+            return {
+              status: 0,
+              stdout: `✓ worktree створено: ${actualWorktree}`,
+              stderr: ''
+            }
+          }
+          return { status: 0, stdout: '', stderr: '' }
+        }
+      }
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.results[0]).toMatchObject({
+      source: REVIEW_BRANCH.source,
+      status: 'failed',
+      branch: expectedBranch,
+      worktree: undefined
+    })
+    expect(result.results[0].error).toContain('несумісний create JSON')
+    expect(gitCleanupCalls).toEqual([
+      ['git', ['worktree', 'remove', '--force', actualWorktree]],
+      ['git', ['branch', '-D', legacyBranch]]
+    ])
+    expect(partialExists).toBe(false)
     expect(cleanupCalls).not.toContain(REVIEW_BRANCH.source)
   })
 

@@ -3,7 +3,7 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/skills/git-reconcile/js/orchestrate.mjs
 docgen:
-  crc: d2d35ba4
+  crc: 3f3e7340
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100
@@ -32,6 +32,10 @@ semantic triage та конфліктні перенесення, перевір
 - Перенесена зміна проходить Git-state, tests, scoped docs/lint, changelog,
   lockfile, final diff та CI gates. `.changes + lockfile` лишається валідним
   release PR, якщо відповідний narrative ще не присутній у base changelog.
+- PR materialization викликає лише native `mt` поза `node_modules/.bin`,
+  перевіряє worktree contract до мутації та звіряє create JSON із фактичним
+  Git checkout. Несумісний partial create відкочується лише за pre-call
+  snapshot, без видалення раніше наявних worktree.
 - Cleanup виконується за stable ref/OID після успішного перенесення або
   детермінованого доказу merged, absorbed чи exact-duplicate стану. Загальний
   `git stash clear` не використовується.
@@ -43,4 +47,5 @@ semantic triage та конфліктні перенесення, перевір
 
 Regression suite покриває tracking ancestry, untracked stash inventory,
 absorbed/exact-duplicate cleanup, conflict-aware triage intent, behavioral
-gates, CI classification і фактичний remaining summary.
+gates, CI classification, native `mt` shadowing/rollback і фактичний remaining
+summary.
