@@ -16,6 +16,9 @@
 
 /// `resolve_changed_base` — Git-запити до commit-graph (T3 фази 1).
 pub mod changed_base;
+/// `collect_changed_files`/`collect_changed_files_since` — перелік
+/// changed files через porcelain (C1 фази 3).
+pub mod changed_files;
 /// Versioned JSON DTO-межа з `rules-napi` (Р10 спеки).
 pub mod dto;
 /// Worktree lifecycle через `mt-core` (Р3 спеки, фаза 2 задача B1).

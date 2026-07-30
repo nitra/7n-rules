@@ -4,6 +4,8 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { collectChangedFiles, collectChangedFilesSince, resolveChangedBase } from '../changed-files.mjs'
+import { loadNative } from '../native.mjs'
+import { isWorktreeCheckoutPath } from '../../utils/walkDir.mjs'
 import { withTmpDir } from '../../utils/test-helpers.mjs'
 
 const UNREACHABLE_BASE_RE = /недосяжний/
@@ -284,6 +286,21 @@ describe('resolveChangedBase', () => {
       const result = resolveChangedBase(cloneDir)
       expect(result).toBeNull()
     })
+  })
+})
+
+describe('isWorktreeCheckoutPath: native ⇄ JS (walkDir.mjs) parity', () => {
+  test.each([
+    '.worktrees/a.js',
+    'x/.worktrees/a.js',
+    '.claude/worktrees/a.js',
+    'x/.claude/worktrees/a.js',
+    '.claude/foo/worktrees/a.js',
+    'foo.worktrees/x.js',
+    '.worktrees',
+    'src/ok.mjs'
+  ])('%s', p => {
+    expect(loadNative().isWorktreeCheckoutPath(p)).toBe(isWorktreeCheckoutPath(p))
   })
 })
 
