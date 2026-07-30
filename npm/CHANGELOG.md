@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.60.0] - 2026-07-30
+
+### Changed
+
+- Worktree lifecycle через native mt-core (фаза 2 v2): `auto-worktree` створює/прибирає worktree прямими викликами `rules-core` → `mt-core` (git-dep `nitra/mt-rust`) замість spawn зовнішнього `mt` CLI; санітизація імені — канонічна `mt_core::sanitize`
+
 ## [1.59.2] - 2026-07-30
 
 ### Fixed
