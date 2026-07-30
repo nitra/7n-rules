@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.13.9] - 2026-07-30
+
+### Fixed
+
+- apiKey local-провайдерів приймає й серверну конвенцію без префікса (OMLX_API_KEY/LITELLM_API_KEY, N_-префікс має пріоритет) — оточення з auth-увімкненим omlx-server знову працює без ручного аліасингу
+
+## [2.13.8] - 2026-07-30
+
+### Fixed
+
+- acp: one-shot завершується за terminal turn (StopReason), гарантований teardown дочірнього ACP-процесу і робочий idle-timeout під flood подій — фікс зависання git-reconcile×Codex
+
 ## [2.13.7] - 2026-07-30
 
 ### Fixed
