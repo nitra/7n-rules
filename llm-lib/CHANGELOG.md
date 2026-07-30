@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.13.5] - 2026-07-30
+
+### Fixed
+
+- обмежено git-reconcile remediation точним failing scope та заборонено LLM full gates
+
 ## [2.13.4] - 2026-07-29
 
 ### Changed
