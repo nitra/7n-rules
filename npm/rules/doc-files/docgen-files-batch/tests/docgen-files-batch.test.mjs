@@ -192,7 +192,7 @@ describe('selectTargets — stale + degraded-once guard', () => {
   })
 })
 
-describe("runGenerationBatch — м'який дедлайн (issue #16)", () => {
+describe('runGenerationBatch — foreground прогін без time limit', () => {
   beforeEach(() => {
     generateDocMock.mockReset()
     vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
@@ -201,26 +201,21 @@ describe("runGenerationBatch — м'який дедлайн (issue #16)", () => 
     })
   })
 
-  test('дедлайн у минулому → перший файл обробляється, решта відкладається, штатний exit 0', async () => {
+  test('обробляє увесь backlog, не перериваючи його за часом', async () => {
     generateDocMock.mockImplementation(OK)
-    const code = await runGenerationBatch(targets(5), '/fake-root', { deadlineAt: Date.now() - 1 })
+    const code = await runGenerationBatch(targets(5), '/fake-root')
     expect(code).toBe(0)
-    // Перший файл стартує завжди (гарантія прогресу), далі — стоп до наступного прогону.
-    expect(generateDocMock).toHaveBeenCalledTimes(1)
+    expect(generateDocMock).toHaveBeenCalledTimes(5)
   })
 
-  test('без deadlineAt → увесь беклог, як раніше', async () => {
+  test('передає model і tier, але не deadline, у генерацію файла', async () => {
     generateDocMock.mockImplementation(OK)
-    const code = await runGenerationBatch(targets(3), '/fake-root', {})
-    expect(code).toBe(0)
-    expect(generateDocMock).toHaveBeenCalledTimes(3)
-  })
-
-  test('deadlineAt прокидається у generateDoc — дедлайн ріже і файл у процесі', async () => {
-    generateDocMock.mockImplementation(OK)
-    const deadlineAt = Date.now() + 60_000
-    await runGenerationBatch(targets(2), '/fake-root', { deadlineAt })
-    expect(generateDocMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ deadlineAt }))
+    await runGenerationBatch(targets(2), '/fake-root', { model: 'litellm/gemma', tier: 'local-min' })
+    expect(generateDocMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ model: 'litellm/gemma' })
+    )
+    expect(generateDocMock.mock.calls[0][1]).not.toHaveProperty('deadlineAt')
   })
 })
 
@@ -308,18 +303,6 @@ describe('runGenerationBatch — 2b-batch шлях (T8, native доступни�
     const code = await runGenerationBatch(targets(4), '/fake-root', { submitBatchImpl })
     expect(code).toBe(1) // є не-permanent помилка → exit 1, але не 2 (без circuit-breaker у batch-шляху)
     expect(submitBatchImpl).toHaveBeenCalledTimes(2) // availability-проба + реальний submit
-  })
-
-  test('deadlineAt заданий → фолбек на послідовний шлях (batch не викликається)', async () => {
-    generateDocMock.mockImplementation(OK)
-    const submitBatchImpl = vi.fn()
-    const code = await runGenerationBatch(targets(2), '/fake-root', {
-      deadlineAt: Date.now() + 60_000,
-      submitBatchImpl
-    })
-    expect(code).toBe(0)
-    expect(submitBatchImpl).not.toHaveBeenCalled()
-    expect(generateDocMock).toHaveBeenCalledTimes(2)
   })
 
   test('forceSequential=true → фолбек на послідовний шлях навіть коли submitBatchImpl доступний', async () => {

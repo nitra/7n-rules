@@ -3,7 +3,7 @@ type: JS Module
 title: run-fix.mjs
 resource: npm/scripts/lib/lint-surface/run-fix.mjs
 docgen:
-  crc: fb27d545
+  crc: 3b664cd6
   model: omlx/gemma-4-e2b-it-4bit
   tier: local-min
   score: 75
@@ -19,6 +19,11 @@ Central fix-pipeline unified lint surface (spec 2026-06-29 §Fix Role / §Tier L
 
 Ролі чесні: detector тільки виявляє; T0 і worker тільки змінюють; success визначає
 ВИКЛЮЧНО canonical re-detect. Worker не володіє rollback/tier/ladder — лише один attempt.
+
+Моделі rung-ів визначаються universal policy resolver. Cloud fallback не маскується
+під local rung, а однакова cloud-модель не запускається повторно на сусідньому
+rung. Усі workers мають backstop timeout, крім `doc-files`: довга генерація
+лишається приєднаною до foreground CLI, доки завершиться або користувач натисне Ctrl-C.
 
 ## Публічний API
 

@@ -27,11 +27,14 @@ import { parseFailingTests } from '../per-file.mjs'
 
 // `@7n/llm-lib` — dependency ядра `@7n/rules`, не плагіна: динамічний import
 // (top-level await) — той самий патерн, що `rules/js/eslint/fix-worker.mjs`.
-const { CLOUD_MAX } = await import('@7n/llm-lib/model-tiers')
+const { resolveModel } = await import('@7n/llm-lib/model-tiers')
 const { startChain } = await import('@7n/llm-lib/chain')
 const { budgetFor, capText, packBatch } = await import('@7n/llm-lib/prompt-budget')
 
-const MODEL = env.N_CURSOR_FIX_TESTS_MODEL ?? (CLOUD_MAX || undefined)
+// Fix падаючих тестів історично віддавав перевагу max, а за його відсутності —
+// average. Зберігаємо цю якість, але всі значення проходять через policy resolver.
+const MODEL =
+  env.N_CURSOR_FIX_TESTS_MODEL ?? (resolveModel('N_CLOUD_MAX_MODEL') || resolveModel('N_CLOUD_AVG_MODEL') || undefined)
 const MAX_SRC_BYTES = 4000
 const TEST_DIR_MARKERS = ['/tests/', '\\tests\\']
 const TEST_FILE_SUFFIX = '.test.mjs'

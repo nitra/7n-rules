@@ -5,20 +5,21 @@
  *
  * Доповнює детермінований `scoreDoc`: ловить `inaccurate`-доки (твердження, що
  * суперечать джерелу), яких структурно-лексичний скорер не бачить у принципі.
- * Активується АВТОМАТИЧНО, якщо задано `N_CLOUD_MIN_MODEL` (бо суддя потребує
- * сильнішої за генератор хмарної моделі — без неї судити нема чим). Працює лише на
+ * Активується АВТОМАТИЧНО, якщо policy resolver знайшов хмарну модель, починаючи
+ * з `N_CLOUD_MIN_MODEL` (бо суддя потребує сильнішої за генератор хмарної моделі).
+ * Працює лише на
  * доках що ПРОЙШЛИ det-скорер (`score ≥ threshold`) — саме там ховаються
  * false-positives. Scope строго `inaccurate` (вимір показав generic=0%). Без
- * `N_CLOUD_MIN_MODEL` → 0 змін поведінки. Патерн дзеркалить `scripts/coverage-classify`.
+ * доступної cloud-моделі → 0 змін поведінки. Патерн дзеркалить `scripts/coverage-classify`.
  */
 import { env } from 'node:process'
 import { runOneShot } from '@7n/llm-lib/one-shot'
-import { CLOUD_MIN } from '@7n/llm-lib/model-tiers'
+import { resolveModel } from '@7n/llm-lib/model-tiers'
 
-/** Модель-суддя = `N_CLOUD_MIN_MODEL` (хмарний cloud-min tier). */
-export const JUDGE_MODEL = CLOUD_MIN
-/** Гейт активується АВТОМАТИЧНО, коли задано `N_CLOUD_MIN_MODEL` (без нього нема надійного судді). */
-export const JUDGE_ENABLED = Boolean(CLOUD_MIN)
+/** Модель-суддя = перша доступна cloud-модель від `N_CLOUD_MIN_MODEL`. */
+export const JUDGE_MODEL = resolveModel('N_CLOUD_MIN_MODEL')
+/** Гейт активується, коли є доступна cloud-модель у відповідній policy ladder. */
+export const JUDGE_ENABLED = Boolean(JUDGE_MODEL)
 /** Мін. впевненість, щоб verdict `inaccurate` позначив док як degraded. */
 export const JUDGE_CONFIDENCE = Number(env.N_CURSOR_DOCGEN_JUDGE_THRESHOLD ?? 0.7) || 0.7
 
@@ -109,10 +110,10 @@ export function judgeMessages(src, doc) {
  * Судить згенерований док сильною моделлю проти джерела.
  * @param {string} src вміст вихідного файлу
  * @param {string} doc згенерована документація
- * @param {{model?: string, timeoutMs?: number}} [opts] override моделі/таймауту
+ * @param {{model?: string, timeoutMs?: number}} [opts] override моделі/таймауту (`0` = без ліміту)
  * @returns {{verdict: string, confidence: number, reason: string}} verdict судді
  */
-export async function judgeDoc(src, doc, { model = JUDGE_MODEL, timeoutMs = 120_000, chain = null } = {}) {
+export async function judgeDoc(src, doc, { model = JUDGE_MODEL, timeoutMs = 0, chain = null } = {}) {
   const res = await runOneShot({
     messages: judgeMessages(src, doc),
     modelSpec: model,

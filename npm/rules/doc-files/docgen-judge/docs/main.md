@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: npm/rules/doc-files/docgen-judge/main.mjs
 docgen:
-  crc: 6ac5333b
+  crc: d0824c25
   model: openai-codex/gpt-5.5
   tier: cloud-avg
   score: 100
@@ -27,15 +27,15 @@ docgen:
 
 ## Публічний API
 
-- JUDGE_MODEL — Модель-суддя = `N_CLOUD_MIN_MODEL` (хмарний cloud-min tier).
-- JUDGE_ENABLED — Гейт активується АВТОМАТИЧНО, коли задано `N_CLOUD_MIN_MODEL` (без нього нема надійного судді).
+- JUDGE_MODEL — Перша доступна cloud-модель у policy ladder, починаючи з `N_CLOUD_MIN_MODEL`.
+- JUDGE_ENABLED — Гейт активується автоматично, коли policy resolver знаходить cloud-модель.
 - JUDGE_CONFIDENCE — Мін. впевненість, щоб verdict `inaccurate` позначив док як degraded.
 - detectRefusalFiller — Шукає у тексті доки refusal/filler-фразу моделі.
 - parseDocVerdict — Витягує й валідує verdict-JSON із сирої відповіді LLM (як `parseVerdict` у coverage-classify).
 - judgeMessages — Messages для judge-виклику (винесено з [`judgeDoc`] для batch-хвилі
 `docgen-wave-batch`: там суддя йде окремим `submitBatch`-викликом на всі
 файли одразу, а не await тут-таки на кожен файл).
-- judgeDoc — Судить згенерований док сильною моделлю проти джерела.
+- judgeDoc — Судить згенерований док сильною моделлю проти джерела; типово очікує відповідь без автоматичного timeout.
 - judgeFailsDoc — Чи позначає verdict док як degraded (лише `inaccurate` із достатньою впевненістю).
 
 ## Сценарії використання

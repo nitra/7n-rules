@@ -13,7 +13,7 @@ import { join } from 'node:path'
 
 import { submitBatch as submitBatchNative } from '@7n/llm-lib/batch'
 import { defaultLocalProviders } from '@7n/llm-lib/local-providers'
-import { CLOUD_MIN, LOCAL_MIN } from '@7n/llm-lib/model-tiers'
+import { resolveModel } from '@7n/llm-lib/model-tiers'
 import { quickClassify } from '../lib/quick-classify.mjs'
 
 const MAX_CONTENT_BYTES = 6000
@@ -140,13 +140,13 @@ async function runWave(items, model, localProviders, submitBatchImpl) {
  * @param {string} dir корінь проєкту
  * @param {{ tier1?: string, tier2?: string, localProviders?: object,
  *   submitBatchImpl?: (model: string, items: Array<object>, opts?: object) => Promise<Array<object>> }} [opts]
- *   `tier1`/`tier2` — явні model-specs (дефолт: `LOCAL_MIN`/`CLOUD_MIN`); `submitBatchImpl` — інʼєкція `submitBatch` (тест)
+ *   `tier1`/`tier2` — явні model-specs (дефолт: policy resolver від `N_LOCAL_MIN_MODEL`/`N_CLOUD_MIN_MODEL`); `submitBatchImpl` — інʼєкція `submitBatch` (тест)
  * @returns {Promise<Array<{file: string, pct: number, needsTests: boolean, reason: string}>>} вердикти по файлах, у вхідному порядку
  */
 export async function assessNeed(files, dir, opts = {}) {
   const submitBatchImpl = opts.submitBatchImpl ?? submitBatchNative
-  const tier1 = opts.tier1 ?? LOCAL_MIN
-  const tier2 = opts.tier2 ?? CLOUD_MIN
+  const tier1 = opts.tier1 ?? resolveModel('N_LOCAL_MIN_MODEL')
+  const tier2 = opts.tier2 ?? resolveModel('N_CLOUD_MIN_MODEL')
   const localProviders = opts.localProviders ?? defaultLocalProviders()
 
   const { verdicts, pending } = prepareQueue(files, dir)

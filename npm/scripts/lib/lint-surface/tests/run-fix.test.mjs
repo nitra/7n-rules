@@ -4,7 +4,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { env } from 'node:process'
 
-import { runFixPipeline } from '../run-fix.mjs'
+import { resolveFixLadderModels, runFixPipeline } from '../run-fix.mjs'
 import { withTmpDir, writeJson } from '../../../utils/test-helpers.mjs'
 
 /**
@@ -47,6 +47,30 @@ const TWO_RUNG = [
   { tier: 'local-min', model: 'fake/min', feedback: false, local: true, isAvg: false, timeoutMs: 1000 },
   { tier: 'cloud-min', model: 'fake/cloud', feedback: true, local: false, isAvg: false, timeoutMs: 1000 }
 ]
+
+describe('resolveFixLadderModels', () => {
+  test('підхоплює local-average для запиту local-min і не дублює cloud rung', () => {
+    const resolved = resolveFixLadderModels({
+      resolveModelImpl: selector =>
+        ({
+          N_LOCAL_MIN_MODEL: 'litellm/gemma-4-26b-awq',
+          N_CLOUD_MIN_MODEL: 'cloud/min',
+          N_CLOUD_AVG_MODEL: 'cloud/min'
+        })[selector],
+      isLocalModelImpl: model => model.startsWith('litellm/')
+    })
+    expect(resolved).toEqual({ localMin: 'litellm/gemma-4-26b-awq', cloudMin: 'cloud/min', cloudAvg: '' })
+  })
+
+  test('не додає cloud fallback у local rung', () => {
+    const resolved = resolveFixLadderModels({
+      resolveModelImpl: selector =>
+        ({ N_LOCAL_MIN_MODEL: 'cloud/min', N_CLOUD_MIN_MODEL: 'cloud/min', N_CLOUD_AVG_MODEL: 'cloud/avg' })[selector],
+      isLocalModelImpl: () => false
+    })
+    expect(resolved).toEqual({ localMin: '', cloudMin: 'cloud/min', cloudAvg: 'cloud/avg' })
+  })
+})
 
 /**
  * Worker, що записує 'done' у out.txt (закриває детектор на першому rung-у).

@@ -3,7 +3,7 @@ type: JS Module
 title: fix-hooks.mjs
 resource: plugins/lang-rust/coverage-provider/fix-hooks.mjs
 docgen:
-  crc: ed03c517
+  crc: 839a79a8
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100
@@ -20,7 +20,7 @@ buildGenTestsPrompt і buildFixSurvivedPrompt формують окремі аг
 
 generateRustTests і fixRustSurvived є вхідними воротами для відповідних hook-ів. Вони відсікають не-Rust цілі, щоб не запускати агентну сесію без потреби, далі передають зібраний промпт, корінь проєкту, ladder-стан і список цільових файлів у спільний запуск через runAgentFix. Результат повертається як фактично змінені файли; помилка сесії не ламає потік, а лише фіксується в логах і завершується порожнім набором змін.
 
-Спільний для обох шляхів контракт — покладатися на ladder ядра для повторних спроб і конвергенції, а також прокидати write-guard, timeout і feedback без власної retry-логіки в цьому файлі. Дані сюди приходять уже як добірка файлів або survived-груп, а виходять як список touchedFiles для подальших кроків пайплайна.
+Спільний для обох шляхів контракт — покладатися на ladder ядра для повторних спроб і конвергенції, а також прокидати write-guard, timeout і feedback без власної retry-логіки в цьому файлі. Якщо ladder не передав модель, universal policy стартує від cloud-average. Дані сюди приходять уже як добірка файлів або survived-груп, а виходять як список touchedFiles для подальших кроків пайплайна.
 
 ## Публічний API
 

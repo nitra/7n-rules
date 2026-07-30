@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs'
 
 import {
   buildApiSection,
-  capTimeoutToDeadline,
   commentDocumentationMode,
   finishBatchItem,
   generateDoc,
@@ -22,7 +21,7 @@ vi.mock('node:fs', async importOriginal => ({ ...(await importOriginal()), readF
 vi.mock('@7n/llm-lib/one-shot', async importOriginal => ({ ...(await importOriginal()), runOneShot: vi.fn() }))
 
 // JUDGE_ENABLED — модульна константа docgen-judge, обчислена з ambient env
-// (Boolean(CLOUD_MIN) ← N_CLOUD_MIN_MODEL): без примусового override judge-тести нижче падали б
+// (JUDGE_ENABLED ← resolveModel('N_CLOUD_MIN_MODEL')): без примусового override judge-тести нижче падали б
 // на машинах без цієї env-змінної і мовчки не покривали б гейт. Вмикаємо примусово;
 // judgeDoc/judgeFailsDoc лишаються реальними (їхній runOneShot вже замокано вище).
 vi.mock('../../docgen-judge/main.mjs', async importOriginal => ({
@@ -54,7 +53,6 @@ const PROMPT_TOO_LONG = /Prompt too long/
 // Матчер вузького behavior-промпта batch-режиму (module scope — без ре-компіляції).
 const BEHAVIOR_ONLY_PROMPT = /не перефразовуй авторський текст/iu
 // Матчер помилки вичерпаного дедлайну fix-pipeline (module scope — без ре-компіляції).
-const DEADLINE_TIMEOUT = /docgen deadline: .*timeout/
 
 // Чистий, конкретний документ — еталон 100
 const CLEAN = `# foo.mjs
@@ -168,39 +166,6 @@ describe('generateDoc — pre-send byte-guard', () => {
   })
 })
 
-describe('capTimeoutToDeadline — зріз per-call таймауту під дедлайн рунга', () => {
-  test('без дедлайну → базовий ліміт без змін', () => {
-    expect(capTimeoutToDeadline(45_000, null)).toBe(45_000)
-  })
-
-  test('залишок до дедлайну менший за базовий → ріжеться до залишку', () => {
-    expect(capTimeoutToDeadline(45_000, 1010, 1000)).toBe(10)
-  })
-
-  test('дедлайн у минулому → 0 (виклик не має стартувати)', () => {
-    expect(capTimeoutToDeadline(45_000, 500, 1000)).toBe(0)
-  })
-
-  test('залишок більший за базовий → базовий ліміт', () => {
-    expect(capTimeoutToDeadline(45_000, 1000 + 300_000, 1000)).toBe(45_000)
-  })
-})
-
-describe('generateDoc — deadline fix-pipeline', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
-  test('вичерпаний бюджет → transient-помилка «timeout» без LLM-виклику, chain закривається fail', async () => {
-    readFileSync.mockReturnValue('export const a = 1\n')
-    const chain = { end: vi.fn() }
-    await expect(generateDoc('/x.mjs', { deadlineAt: Date.now() - 1, chainFactory: () => chain })).rejects.toThrow(
-      DEADLINE_TIMEOUT
-    )
-    expect(chain.end).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'fail' }))
-  })
-})
-
 const WITH_INTENT = `# foo.mjs
 
 ## Призначення
@@ -309,6 +274,7 @@ describe('buildApiSection — Stage 1/3 гібрид (ADR 260719-2155): без L
     const section = await buildApiSection(facts, null, 'x', 1000)
     expect(section).toBe('- go — Запускає перевірку.\n- stop — Зупиняє фонові задачі.')
     expect(runOneShot).toHaveBeenCalledTimes(1)
+    expect(runOneShot).toHaveBeenCalledWith(expect.objectContaining({ timeoutMs: 0 }))
   })
 })
 

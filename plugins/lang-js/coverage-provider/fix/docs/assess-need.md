@@ -3,7 +3,7 @@ type: JS Module
 title: assess-need.mjs
 resource: plugins/lang-js/coverage-provider/fix/assess-need.mjs
 docgen:
-  crc: 31581a1a
+  crc: ad8c8cb8
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 70
@@ -26,6 +26,9 @@ LLM-довизначення потреби в тестах для непокр�
 Очевидні випадки (реекспорти, функції з розгалуженнями) вирішуються локально;
 неоднозначні йдуть ОДНОЮ batch-хвилею на tier1, ті, чию відповідь не вдалось
 розпарсити, — другою хвилею на tier2, решта — conservative fallback.
+Типові tier1/tier2 моделі визначає universal policy resolver від
+`N_LOCAL_MIN_MODEL` та `N_CLOUD_MIN_MODEL`, тому відсутній selector переходить
+до наступної доступної моделі за policy ladder.
 
 ## Сценарії використання
 

@@ -46,7 +46,7 @@ import * as z from 'zod'
 import { submitBatch as submitBatchNative } from '@7n/llm-lib/batch'
 import { defaultLocalProviders } from '@7n/llm-lib/local-providers'
 import { startChain } from '@7n/llm-lib/chain'
-import { CLOUD_MIN, resolveModel } from '@7n/llm-lib/model-tiers'
+import { resolveModel } from '@7n/llm-lib/model-tiers'
 
 // ─────────────────────────── Stage 0: retrieval (JS) ───────────────────────────
 
@@ -793,7 +793,7 @@ async function normalizePipelineCore(drafts, cleanList, opts, chain) {
     stats,
     chain,
     tier1: opts.tier1 ?? resolvePreferredModel(),
-    tier2: opts.tier2 ?? CLOUD_MIN,
+    tier2: opts.tier2 ?? resolveModel('N_CLOUD_MIN_MODEL'),
     localProviders: opts.localProviders ?? defaultLocalProviders(),
     submitBatchImpl: opts.submitBatchImpl ?? submitBatchNative
   }
