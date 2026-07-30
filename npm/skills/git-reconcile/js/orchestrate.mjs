@@ -3,7 +3,7 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { appendFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
-import { dirname, isAbsolute, join } from 'node:path'
+import { delimiter, dirname, isAbsolute, join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { env } from 'node:process'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -20,6 +20,7 @@ const PR_CHECK_TIMEOUT_MS = 15 * 60_000
 const DEFAULT_PR_CONCURRENCY = 3
 const MAX_PR_CONCURRENCY = 4
 const STASH_PATH_LIMIT = 500
+const NODE_MODULES_BIN_RE = /[\\/]node_modules[\\/]\.bin[\\/]?$/
 const SOURCE_BRANCH_PREFIX = 'branch:'
 const SOURCE_STASH_PREFIX = 'stash:'
 const CONTENT_CONFLICT_RE = /^CONFLICT \(.+?\): Merge conflict in (.+)$/
@@ -182,11 +183,11 @@ export function createPhaseProgress(args) {
  * @param {string[]} args аргументи
  * @param {string} cwd робочий каталог
  * @param {typeof spawnSync} spawnFn інжект для тестів
- * @param {{ allowFailure?: boolean, input?: string }} [options] режим помилки та stdin
+ * @param {{ allowFailure?: boolean, input?: string, environment?: object }} [options] режим помилки, stdin та env
  * @returns {{ status: number, stdout: string, stderr: string, error: string }} результат
  */
 function run(command, args, cwd, spawnFn, options = {}) {
-  const childEnv = { ...env, GIT_EDITOR: 'true' }
+  const childEnv = { ...env, ...options.environment, GIT_EDITOR: 'true' }
   if (command === 'npx') delete childEnv.npm_config_package
   const result = spawnFn(command, args, {
     cwd,
@@ -207,6 +208,39 @@ function run(command, args, cwd, spawnFn, options = {}) {
     )
   }
   return normalized
+}
+
+/**
+ * Відкидає npm/bun shim-каталоги з PATH для виклику системного native binary.
+ * Інакше `npx \@7n/rules` може непомітно підмінити Rust CLI застарілим
+ * `node_modules/.bin/mt` з іншим worktree contract.
+ * @param {object} [sourceEnv] вхідне середовище
+ * @returns {object} копія env із native-only PATH
+ */
+export function nativeExecutableEnvironment(sourceEnv = env) {
+  const result = { ...sourceEnv }
+  const pathKey = Object.keys(result).find(key => key.toLowerCase() === 'path')
+  if (!pathKey || !result[pathKey]) return result
+  result[pathKey] = result[pathKey]
+    .split(delimiter)
+    .filter(path => !NODE_MODULES_BIN_RE.test(path))
+    .join(delimiter)
+  return result
+}
+
+/**
+ * Викликає тільки системний native `mt`, не project-local npm shim.
+ * @param {string[]} args аргументи CLI
+ * @param {string} cwd корінь репозиторію
+ * @param {typeof spawnSync} spawnFn інжект для тестів
+ * @param {{allowFailure?:boolean}} [options] режим помилки
+ * @returns {{status:number,stdout:string,stderr:string,error:string}} результат
+ */
+function nativeMt(args, cwd, spawnFn, options = {}) {
+  return run('mt', args, cwd, spawnFn, {
+    ...options,
+    environment: nativeExecutableEnvironment()
+  })
 }
 
 /**
@@ -1347,6 +1381,52 @@ function chooseBranch(title, cwd, spawnFn) {
 }
 
 /**
+ * Перевіряє native `mt` worktree contract до першої мутації.
+ * @param {string} cwd корінь репозиторію
+ * @param {typeof spawnSync} spawnFn інжект
+ */
+function validateNativeMtContract(cwd, spawnFn) {
+  const help = nativeMt(['worktree', 'create', '--help'], cwd, spawnFn, { allowFailure: true })
+  const text = `${help.stdout}\n${help.stderr}`
+  const missing = ['--base', '--description', '--json', 'mt/<name>'].filter(token => !text.includes(token))
+  if (help.status !== 0 || missing.length > 0) {
+    const detail = help.error || help.stderr || help.stdout || `exit ${help.status}`
+    throw new Error(`несумісний native mt worktree contract: missing ${missing.join(', ') || 'help'}; ${detail}`)
+  }
+}
+
+/**
+ * Прибирає лише worktree, синхронно створені невдалим `mt create` після
+ * pre-call snapshot. Це recovery для binary з хибним JSON/branch contract.
+ * @param {Map<string,string>} before branch→path до виклику
+ * @param {string} worktreeName передане native name
+ * @param {string} cwd корінь репозиторію
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {{branch?:string,worktree?:string}} артефакти, які не вдалося прибрати
+ */
+function rollbackPartialMtWorktree(before, worktreeName, cwd, spawnFn) {
+  const after = parseWorktrees(git(['worktree', 'list', '--porcelain'], cwd, spawnFn).stdout)
+  const ownedRefs = new Set([`refs/heads/mt/${worktreeName}`, `refs/heads/${worktreeName}`])
+  const added = [...after].filter(
+    ([ref, path]) => !before.has(ref) && ownedRefs.has(ref) && isManagedTransientWorktree(path)
+  )
+  if (added.length === 0) return {}
+  const remaining = {}
+  for (const [ref, path] of added) {
+    const removed = git(['worktree', 'remove', '--force', path], cwd, spawnFn, { allowFailure: true })
+    if (removed.status !== 0) {
+      remaining.branch ??= branchName(ref)
+      remaining.worktree ??= path
+      continue
+    }
+    const deleted = git(['branch', '-D', branchName(ref)], cwd, spawnFn, { allowFailure: true })
+    if (deleted.status !== 0) remaining.branch ??= branchName(ref)
+  }
+  git(['worktree', 'prune'], cwd, spawnFn, { allowFailure: true })
+  return remaining
+}
+
+/**
  * Створює керований native `mt` worktree від policy base ref без зміни
  * вихідного checkout.
  * @param {string} title PR title
@@ -1359,22 +1439,34 @@ function createReconcileWorktree(title, source, cwd, spawnFn) {
   const baseRef = policyBaseRef(cwd)
   const worktreeName = chooseBranch(title, cwd, spawnFn)
   const branch = `mt/${worktreeName}`
-  let worktreeCwd
+  let before
   try {
-    run(
-      'mt',
-      ['worktree', 'create', worktreeName, '--base', baseRef, '--description', `git-reconcile: ${source}`],
+    before = parseWorktrees(git(['worktree', 'list', '--porcelain'], cwd, spawnFn).stdout)
+    validateNativeMtContract(cwd, spawnFn)
+    const created = nativeMt(
+      ['--json', 'worktree', 'create', worktreeName, '--base', baseRef, '--description', `git-reconcile: ${source}`],
       cwd,
       spawnFn
     )
+    const contract = parseJson(created.stdout, null)
     const worktrees = parseWorktrees(git(['worktree', 'list', '--porcelain'], cwd, spawnFn).stdout)
-    worktreeCwd = worktrees.get(`refs/heads/${branch}`)
-    if (!worktreeCwd) throw new Error(`mt не зареєстрував worktree для ${branch}`)
+    const worktreeCwd = worktrees.get(`refs/heads/${branch}`)
+    if (
+      !contract ||
+      contract.name !== worktreeName ||
+      contract.branch !== branch ||
+      !isAbsolute(contract.path ?? '') ||
+      contract.path !== worktreeCwd
+    ) {
+      throw new Error(`mt повернув несумісний create JSON для ${branch}`)
+    }
     return { branch, worktreeName, cwd: worktreeCwd }
   } catch (error) {
     const setupError = error instanceof Error ? error : new Error(String(error))
     setupError.branch = branch
-    if (worktreeCwd) setupError.worktree = worktreeCwd
+    const remaining = before ? rollbackPartialMtWorktree(before, worktreeName, cwd, spawnFn) : {}
+    if (remaining.branch) setupError.branch = remaining.branch
+    if (remaining.worktree) setupError.worktree = remaining.worktree
     throw setupError
   }
 }
@@ -1409,7 +1501,7 @@ export function ensureLocalWorktreeExclude(cwd, spawnFn = spawnSync) {
  * @param {typeof spawnSync} spawnFn інжект
  */
 function removeReconcileWorktree(worktree, rootCwd, spawnFn) {
-  const removed = run('mt', ['worktree', 'remove', worktree.worktreeName, '--force'], rootCwd, spawnFn, {
+  const removed = nativeMt(['worktree', 'remove', worktree.worktreeName, '--force'], rootCwd, spawnFn, {
     allowFailure: true
   })
   if (removed.status !== 0) {

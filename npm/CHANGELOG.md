@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.57.7] - 2026-07-30
+
+### Fixed
+
+- Герметичні tool-dependent тести для чистих CI-раннерів (ensure-tool cache isolation, GNU sed/tr Cyrillic portability, cold-cache timeouts)
+
+## [1.57.6] - 2026-07-30
+
+### Fixed
+
+- git-reconcile перевіряє native mt contract і прибирає partial worktree після несумісного create
+
 ## [1.57.5] - 2026-07-29
 
 ### Fixed

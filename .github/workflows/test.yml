@@ -33,3 +33,8 @@ jobs:
 
       - name: Full vitest run
         run: bun run test
+        env:
+          # ensure-tool: авторизований lookup GitHub Releases (per-IP rate-limit на
+          # shared-runner-ах) — без токена тести, що тягнуть conftest/opa/oxfmt через
+          # ensure-tool, падають на чистому runner-і (той самий канон, що в lint-js.yml).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

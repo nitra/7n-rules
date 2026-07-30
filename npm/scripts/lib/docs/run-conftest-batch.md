@@ -3,32 +3,44 @@ type: JS Module
 title: run-conftest-batch.mjs
 resource: npm/scripts/lib/run-conftest-batch.mjs
 docgen:
-  crc: 39e76cec
+  crc: 66ce25c3
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
+  score: 55
 ---
 
-Файл запускає `conftest test` на заданому списку файлів, виявляючи порушення правил, визначених у Rego-полісіях. Він використовується для автоматизованої перевірки конфігураційних файлів на відповідність заданим вимогам. Результати перевірки повертаються у структурованому вигляді, що дозволяє інтегрувати результати в інші процеси валідації.
+## Огляд
 
-`runConftestBatch` — **async** (ADR 260716-1354-внутрішній-паралелізм-lint-оркестратора): `conftest` запускається через non-blocking `spawnAsync` (не `spawnSync`), а бінарник резолвиться через `ensureToolAsync('conftest')` — це дозволяє функції брати участь у parallel lane `detectAll()` замість того, щоб блокувати event loop цілком. Приймає опційні `signal` (`AbortSignal`) і `timeoutMs`, обидва прокидаються у `spawnAsync`.
+Запускає `conftest test` на batched-списку файлів і повертає всі порушення
+у структурованому вигляді. Використовується з `check-*.mjs`-скриптів, де
+пер-документні правила винесені у `npm/policy/<rule>/<name>/` як rego-полісі
+(Rego-authoritative). JS у `check-*.mjs` робить cross-file частину (walking
+дерева, парність, kustomize-резолюція), а пер-документне валідаційне ядро
+делегується сюді — один спавн `conftest` на (`namespace`, `policyDir`),
+незалежно від кількості файлів. Це закриває дублювання JS↔rego і прибирає
+ризик дрифту (типу `spec.config` vs `spec.default.config` у
+`health_check_policy.rego`, що ми ловили cross-check тестами).
 
-## Поведінка
+Hard-fail на відсутність `conftest` — через `ensureToolAsync`, що спочатку
+намагається авто-встановити, і лише після невдачі кидає виняток.
 
-buildConftestArgs: Будує аргументи командного рядка для запуску `conftest test`, враховуючи список файлів, namespace та додаткові аргументи.
-runConftestBatch: Асинхронно запускає `conftest test` для заданого списку файлів, повертає `Promise` з масивом порушень у форматі JSON, якщо `conftest` успішно завершився, і кидає виняток (реджектить), якщо `conftest` не знайдено або завершився з помилкою (включно з `null` exit-кодом — процес вбито через `timeoutMs`/`signal`). Створює тимчасову директорію для збереження даних шаблону, якщо передано `templateData`.
+Async (`spawnAsync`, не `spawnSync`) — детектор не блокує event loop, тож може
+виконуватись у parallel lane `detectAll()` (ADR 260716-1354). Приймає опційний
+`signal`/`timeoutMs` — прокидаються в `spawnAsync`.
 
 ## Публічний API
 
-- buildConftestArgs: Створює аргументи для тесту conftest. Витягнуто для зручності тестування. Зберігає поточну структуру аргументів (файли перед `-p`, `--output json` та `--no-color` для читабельного виводу) і вставляє `--data` після `--namespace`, якщо він заданий.
-- runConftestBatch: Асинхронно запускає `conftest test` для всіх файлів з одного процесу та повертає `Promise` з масивом помилок. Якщо `files` порожній, резолвиться порожнім масивом без спавну. Якщо `conftest` не знайдено в системному шляху та автоматична установка не вдалася, `Promise` реджектиться.
+- buildConftestArgs — Pure args builder for conftest test. Extracted for unit-testability.
+Preserves the existing args layout (files before -p; --output json --no-color
+for parseable output); inserts --data right after --namespace when provided.
+- runConftestBatch — Виконує `conftest test` для всіх файлів одним спавном і повертає масив
+порушень. Якщо `files` порожній — повертає `[]` без спавна. Якщо `conftest`
+не у PATH і авто-встановлення не вдалось — кидає виняток (hard fail).
+
+## Сценарії використання
+
+- `npm/scripts/lib/tests/run-conftest-batch.test.mjs` (buildConftestArgs; runConftestBatch) — emits base args without --data when tmpDataFile null; inserts --data <tmpfile> when tmpDataFile provided; appends extraArgs at the end (existing convention); кидає коли conftest відсутній у PATH і авто-install відключено; кидає коли rego-каталог не знайдено
 
 ## Гарантії поведінки
 
-- Запускає `conftest test` на заданому списку файлів.
-- Повертає всі виявлені порушення у структурованому вигляді.
-- Якщо `conftest` не встановлено, намагається автоматично встановити його.
-- У разі невдачі встановлення `conftest`, завершує роботу з помилкою.
-- Не кидає винятків назовні.
-- Не використовує кешування.
-- Не перехоплює помилки, а завершує роботу з помилкою.
-- Не має взаємодії з мережею.
-
-**policyDirAbs:** опційний абсолютний шлях до policy-теки (правила з плагінів поза вбудованим rules/); за наявності має пріоритет над `policyDirRel`.
+- (специфічних машинно-виведених гарантій немає)

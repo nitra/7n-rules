@@ -3,7 +3,7 @@ type: JS Module
 title: test-helpers.mjs
 resource: npm/scripts/utils/test-helpers.mjs
 docgen:
-  crc: 7f6852cb
+  crc: 18476771
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 75
@@ -53,6 +53,20 @@ vitest workers, що ділять один процес: один тест пе�
 
 Додатково виставляє `N_CURSOR_NO_AUTO_INSTALL=1` на час `fn`: інструменти, що резолвляться
 через `ensureTool`, інакше спробували б **реальний** brew/scoop/curl-install під час тесту.
+
+Ізолює й кеш-каталог `ensureTool` (`getCacheDir()` у `ensure-tool.mjs`: типово
+`~/.cache/@7n/rules/bin/` на POSIX, `%LOCALAPPDATA%\@7n\rules\bin\` на Windows) —
+через `N_CURSOR_TOOL_CACHE_DIR` (свіжий порожній tmp-каталог на час `fn`), а НЕ
+підміною `HOME`/`LOCALAPPDATA`: під Bun (`bun run --bun vitest` — канонічний
+CI-запуск) `os.homedir()` резолвиться один раз при старті процесу й ігнорує
+runtime-зміну `process.env.HOME` (на відміну від Node.js) — підміна HOME тут
+виглядала б робочою локально (під `node`/`npx vitest`), але мовчки не спрацьовувала
+б під реальним CI-раннером. Без цієї ізоляції `ensureTool` бачить лише PATH-крок
+negative-тесту: якщо тул уже закешований (інший тест того ж vitest-прогону чи
+попередній CI-крок його авто-встановив у спільний `~/.cache/@7n/rules/bin/`), крок 2
+(перевірка кешу) резолвить бінарник МИНАЮЧИ і PATH-фільтр, і `N_CURSOR_NO_AUTO_INSTALL`
+— негативний тест тоді хибно не кидає (спостережено на чистих GitHub ubuntu-runner-ах:
+auto-install з `GITHUB_TOKEN` реально встановлює тул у той самий процес).
 - installFakeLangJsPlugin — Ставить у tmp-репо фейковий плагін `@7n/rules-lang-js` (маніфест API v2 з
 `doc-files.extensions@1` contribution — JS-екосистема) і активує його через `.n-rules.json`.
 Потрібен тестам doc-files: ядро не має вбудованих кодових розширень — без активного
@@ -65,4 +79,5 @@ lang-плагіна скан не бачить жодного джерела (Ф
 
 ## Гарантії поведінки
 
+- Кешує результати в межах одного прогону.
 - Свідомо пропускає шляхи: `node_modules`.
