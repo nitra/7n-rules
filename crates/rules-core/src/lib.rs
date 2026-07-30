@@ -21,6 +21,8 @@ pub mod changed_base;
 pub mod changed_files;
 /// Versioned JSON DTO-межа з `rules-napi` (Р10 спеки).
 pub mod dto;
+/// `walk_dir` — native filesystem scan, точний порт `walkDir` (D1 фази 4а).
+pub mod scan;
 /// Worktree lifecycle через `mt-core` (Р3 спеки, фаза 2 задача B1).
 pub mod worktree;
 

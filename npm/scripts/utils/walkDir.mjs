@@ -1,6 +1,7 @@
 /** @see ./docs/walkDir.md */
 import { join, relative, resolve, sep } from 'node:path'
-import { globby } from 'globby'
+
+import { loadNative } from '@7n/rules/scripts/lib/native.mjs'
 
 /**
  * Сесійні git-worktree чекаути (Claude/агенти): повні копії репо, не робочий код.
@@ -40,14 +41,25 @@ function stripTrailingSlashes(p) {
 
 /**
  * Рекурсивно обходить каталог, поважаючи .gitignore (включно з вкладеними).
+ * Двигун — native (`rules-core::scan::walk_dir` через `rules-napi`, D2 фази
+ * 4а `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`): `ignore`-крейт
+ * замість `globby`, семантика звірена пункт за пунктом (doc-комент
+ * `crates/rules-core/src/scan.rs`). Порядок обходу тепер детермінований
+ * (байтово-лексикографічний, від native), а не залежний від внутрішнього
+ * ходу `fast-glob`.
+ * Сама функція синхронна (native-виклик синхронний, Р2 спеки), але лишається
+ * без `async` навмисно (`require-await`): усі 46 call-site'ів роблять
+ * `await walkDir(...)`, що коректно спрацьовує і на не-Promise значенні.
  * @param {string} dir абсолютний або відносний шлях до кореня обходу
  * @param {(filePath: string) => void} onFile колбек для кожного файлу (абсолютний шлях)
  * @param {string[]} [ignorePaths] додаткові шляхи для пропуску (абсолютні або відносні від cwd)
- * @returns {Promise<void>}
+ * @returns {void}
  */
-export async function walkDir(dir, onFile, ignorePaths = []) {
+export function walkDir(dir, onFile, ignorePaths = []) {
   const absDir = resolve(dir)
 
+  // Нормалізація ignorePaths лишається в JS — завʼязана на process.cwd(),
+  // якого немає у rules-core (doc-комент crates/rules-core/src/scan.rs).
   const extraIgnore = ignorePaths
     .map(p => {
       const abs = resolve(stripTrailingSlashes(p))
@@ -59,14 +71,10 @@ export async function walkDir(dir, onFile, ignorePaths = []) {
 
   let files
   try {
-    files = await globby('**/*', {
-      cwd: absDir,
-      gitignore: true,
-      dot: true,
-      onlyFiles: true,
-      ignore: [...ALWAYS_IGNORE, ...extraIgnore]
-    })
+    files = loadNative().walkDir(absDir, extraIgnore)
   } catch {
+    // fail-safe контракт: будь-яка помилка (не лише всередині native,
+    // а й, наприклад, недоступний аддон) → мовчазний return, без onFile.
     return
   }
 

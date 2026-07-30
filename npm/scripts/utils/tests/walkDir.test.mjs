@@ -2,11 +2,13 @@
  * Тести рекурсивного обходу `walkDir` (пропуск node_modules, .git, .gitignore-записів тощо).
  */
 import { describe, expect, test } from 'vitest'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { globby } from 'globby'
+
 import { withTmpDir } from '../test-helpers.mjs'
-import { walkDir } from '../walkDir.mjs'
+import { ALWAYS_IGNORE, walkDir } from '../walkDir.mjs'
 
 describe('walkDir', () => {
   test('збирає файли та обходить вкладеність', async () => {
@@ -182,6 +184,67 @@ describe('walkDir', () => {
         []
       )
       expect(seenB.toSorted()).toEqual(seenA.toSorted())
+    })
+  })
+
+  describe('диференційний parity: native walkDir vs прямий globby (D2 фази 4а)', () => {
+    test('множина файлів на живій фікстурі (вкладений .gitignore, dot, node_modules, .worktrees, extra ignorePaths, симлінки) збігається', async () => {
+      await withTmpDir(async dir => {
+        // dot-файли
+        await writeFile(join(dir, '.hidden.txt'), 'h', 'utf8')
+        await mkdir(join(dir, '.config'), { recursive: true })
+        await writeFile(join(dir, '.config', 'settings.json'), '{}', 'utf8')
+
+        // node_modules / .worktrees — захардкоджені safety-net ignore-патерни
+        await mkdir(join(dir, 'node_modules/pkg'), { recursive: true })
+        await writeFile(join(dir, 'node_modules', 'pkg', 'bad.txt'), 'x', 'utf8')
+        await mkdir(join(dir, '.worktrees/feature-x'), { recursive: true })
+        await writeFile(join(dir, '.worktrees', 'feature-x', 'bad.js'), 'x', 'utf8')
+
+        // вкладений .gitignore
+        await mkdir(join(dir, 'sub'), { recursive: true })
+        await writeFile(join(dir, 'sub', '.gitignore'), 'secret.txt\n', 'utf8')
+        await writeFile(join(dir, 'sub', 'secret.txt'), 'x', 'utf8')
+        await writeFile(join(dir, 'sub', 'keep.txt'), 'x', 'utf8')
+
+        // extra ignorePaths — окреме піддерево, виключене явним аргументом
+        await mkdir(join(dir, 'vendor/chart'), { recursive: true })
+        await writeFile(join(dir, 'vendor', 'chart', 'values.yaml'), 'v', 'utf8')
+
+        // звичайний файл на верхньому рівні
+        await writeFile(join(dir, 'root.txt'), 'r', 'utf8')
+
+        // симлінк на файл — має потрапити під власним шляхом
+        await writeFile(join(dir, 'real.txt'), 'x', 'utf8')
+        await symlink(join(dir, 'real.txt'), join(dir, 'link.txt'))
+
+        // симлінк на директорію — має бути пройдений, файли всередині під <symlink>/<file>
+        await mkdir(join(dir, 'realdir'), { recursive: true })
+        await writeFile(join(dir, 'realdir', 'inner.txt'), 'y', 'utf8')
+        await symlink(join(dir, 'realdir'), join(dir, 'link-to-dir'))
+
+        const extraIgnorePaths = [join(dir, 'vendor', 'chart')]
+
+        const seen = []
+        await walkDir(
+          dir,
+          p => {
+            seen.push(p)
+          },
+          extraIgnorePaths
+        )
+        const walkDirRels = new Set(seen.map(p => p.slice(dir.length + 1)))
+
+        const globbyFiles = await globby('**/*', {
+          cwd: dir,
+          gitignore: true,
+          dot: true,
+          onlyFiles: true,
+          ignore: [...ALWAYS_IGNORE, 'vendor/chart/**']
+        })
+
+        expect(walkDirRels).toEqual(new Set(globbyFiles))
+      })
     })
   })
 })
