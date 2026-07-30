@@ -79,6 +79,25 @@ describe('runAcpAgent', () => {
     ).toThrow('native не підтримує denyCommandFragments')
   })
 
+  test('transport failure з native — rejected Promise з причиною, а не завислий виклик', async () => {
+    const failure = new Error('acp: немає змістовного agent/tool прогресу 180s — ймовірно завис')
+    const native = {
+      oneShotAcp: vi.fn(() => Promise.reject(failure)),
+      oneShotAcpGuarded: vi.fn(() => Promise.reject(failure))
+    }
+
+    await expect(runAcpAgent('codex', 'prompt', '/proj', { tier: 'max', native })).rejects.toThrow(
+      'немає змістовного agent/tool прогресу'
+    )
+    await expect(
+      runAcpAgent('codex', 'prompt', '/proj', {
+        tier: 'max',
+        denyCommandFragments: ['bun run test'],
+        native
+      })
+    ).rejects.toThrow('немає змістовного agent/tool прогресу')
+  })
+
   test('kind "pi" пропускається у native без додаткової валідації на JS-рівні', async () => {
     const native = { oneShotAcp: vi.fn(() => Promise.resolve('ok')) }
     await runAcpAgent('pi', 'prompt', '/proj', { tier: 'min', native })

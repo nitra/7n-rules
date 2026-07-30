@@ -184,6 +184,14 @@ pub(crate) fn summarize_update(update: &SessionUpdate) -> String {
     }
 }
 
+/// Помилка semantic idle-timeout ходу — спільна для явної перевірки
+/// вичерпаного deadline і для `tokio::time::timeout` у [`drive_turn`].
+fn idle_timeout_error(idle_timeout: Duration) -> AcpError {
+    AcpError::internal_error().data(Some(serde_json::json!(format!(
+        "acp: немає змістовного agent/tool прогресу {idle_timeout:?} — ймовірно завис"
+    ))))
+}
+
 /// Чи є update змістовним прогресом, який подовжує semantic idle deadline.
 /// Usage/thought/config/tool-update шум навмисно не скидає watchdog: ACP
 /// агенти можуть нескінченно надсилати такі events уже після filesystem edits.
@@ -214,13 +222,18 @@ where
     let mut idle_deadline = Instant::now() + idle_timeout;
     loop {
         let remaining = idle_deadline.saturating_duration_since(Instant::now());
+        // Вичерпаний deadline перевіряється явно ДО читання:
+        // `tokio::time::timeout` завжди спершу полить внутрішній future, тож
+        // на агенті, що флудить не-змістовними подіями (кожен `read_update`
+        // миттєво ready), сам по собі timeout не спрацював би ніколи — хід
+        // жив би вічно busy-loop-ом (живий симптом Codex ACP після terminal
+        // event без відповіді на `session/prompt`).
+        if remaining.is_zero() {
+            return Err(idle_timeout_error(idle_timeout));
+        }
         let update = tokio::time::timeout(remaining, session.read_update())
             .await
-            .map_err(|_| {
-                AcpError::internal_error().data(Some(serde_json::json!(format!(
-                    "acp: немає змістовного agent/tool прогресу {idle_timeout:?} — ймовірно завис"
-                ))))
-            })??;
+            .map_err(|_| idle_timeout_error(idle_timeout))??;
 
         match update {
             SessionMessage::SessionMessage(dispatch) => {
@@ -306,6 +319,28 @@ impl AcpSessionUpdates for NoisySession {
         use agent_client_protocol::{Dispatch, UntypedMessage};
 
         tokio::time::sleep(Duration::from_millis(5)).await;
+        let notification = SessionNotification::new("test", SessionUpdate::Plan(Plan::new(vec![])));
+        let message = UntypedMessage::new("session/update", notification)?;
+        Ok(SessionMessage::SessionMessage(Dispatch::Notification(
+            message,
+        )))
+    }
+}
+
+/// Фейкова сесія-«флуд»: не-змістовний шум готовий **миттєво** на кожен
+/// `read_update`, без жодного await-yield — так виглядає буферизований потік
+/// подій від агента, що після terminal event продовжує слати телеметрію,
+/// не відповідаючи на `session/prompt` (живий симптом `codex-acp` у
+/// `git-reconcile`).
+#[cfg(test)]
+struct FloodingSession;
+
+#[cfg(test)]
+impl AcpSessionUpdates for FloodingSession {
+    async fn read_update(&mut self) -> Result<SessionMessage, AcpError> {
+        use agent_client_protocol::schema::v1::Plan;
+        use agent_client_protocol::{Dispatch, UntypedMessage};
+
         let notification = SessionNotification::new("test", SessionUpdate::Plan(Plan::new(vec![])));
         let message = UntypedMessage::new("session/update", notification)?;
         Ok(SessionMessage::SessionMessage(Dispatch::Notification(
@@ -481,6 +516,33 @@ mod tests {
         assert!(
             outcome.is_err(),
             "без подій читання має провалитись, а не повернути Ok"
+        );
+    }
+
+    /// Регресія на живий hang `git-reconcile`×Codex (~320% CPU busy-loop):
+    /// коли агент після terminal event флудить не-змістовними подіями і не
+    /// відповідає на `session/prompt`, кожен `read_update` миттєво ready — і
+    /// `tokio::time::timeout` (який завжди спершу полить внутрішній future)
+    /// ніколи не спрацьовує, навіть із вичерпаним deadline. [`drive_turn`]
+    /// має сам перевіряти вичерпання deadline і провалюватись за idle-timeout,
+    /// а не жити вічно на flood-і. До фіксу цей тест зависав намертво (loop
+    /// без жодного yield), а не просто провалювався.
+    #[tokio::test]
+    async fn idle_timeout_fires_even_when_flooded_with_instantly_ready_noise() {
+        let result = tokio::time::timeout(
+            Duration::from_secs(5),
+            drive_turn(
+                &mut FloodingSession,
+                Duration::from_millis(50),
+                |_update| {},
+            ),
+        )
+        .await;
+
+        let outcome = result.expect("flood не-змістовних подій не має тримати drive_turn вічно");
+        assert!(
+            outcome.is_err(),
+            "вичерпаний semantic idle deadline має провалити хід і під flood-ом"
         );
     }
 

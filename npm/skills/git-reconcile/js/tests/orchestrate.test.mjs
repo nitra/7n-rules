@@ -637,6 +637,44 @@ describe('LLM boundary', () => {
     }
   })
 
+  test('callRunner перетворює transport failure ACP у структуровану помилку', async () => {
+    const result = await callRunner(
+      'codex',
+      'resolve',
+      '/repo',
+      {
+        runAcpAgent: () => Promise.reject(new Error('acp: немає змістовного agent/tool прогресу 180s — ймовірно завис'))
+      },
+      'max'
+    )
+
+    expect(result.ok).toBe(false)
+    expect(result.text).toBe('')
+    expect(result.error).toContain('немає змістовного agent/tool прогресу')
+  })
+
+  test('transport failure ACP — infrastructure failure: без max retry, batch завершується', async () => {
+    const tiers = []
+    const result = await callWithValidatedFallback({
+      runner: 'codex',
+      prompt: 'resolve',
+      cwd: '/repo',
+      deps: {
+        runAcpAgent: (_runner, _prompt, _cwd, options) => {
+          tiers.push(options.tier)
+          return Promise.reject(new Error('acp: transport failure'))
+        }
+      },
+      validate: () => {
+        throw new Error('transport failure не має доходити до validation')
+      }
+    })
+
+    expect(tiers).toEqual(['min'])
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('transport failure')
+  })
+
   test('validated fallback приймає min без виклику max', async () => {
     const tiers = []
     const result = await callWithValidatedFallback({

@@ -1,6 +1,6 @@
 {
   "name": "@7n/llm-lib",
-  "version": "2.13.7",
+  "version": "2.13.9",
   "description": "Тонкий шар роботи з LLM (локальні omlx + хмарні провайдери) поверх pi: model tiers, one-shot, agentic-раннери, write-guard, trace, telemetry, prompt-budget",
   "keywords": [
     "nitra",
@@ -56,8 +56,8 @@
     "access": "public"
   },
   "optionalDependencies": {
-    "@7n/llm-lib-darwin-arm64": "2.13.5",
-    "@7n/llm-lib-linux-x64": "2.13.5"
+    "@7n/llm-lib-darwin-arm64": "2.13.8",
+    "@7n/llm-lib-linux-x64": "2.13.8"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "~0.80.10",
