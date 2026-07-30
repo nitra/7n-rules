@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.58.5] - 2026-07-30
+
+### Added
+
+- release-smoke: black-box перевірка ОПУБЛІКОВАНОГО npm-набору (bun add з реєстру + version/range reconciliation) після кожного npm-publish
+
+### Changed
+
+- chore(release): синк пінів платформних napi-пакетів @7n/llm-lib
+
 ## [1.58.4] - 2026-07-30
 
 ### Fixed
