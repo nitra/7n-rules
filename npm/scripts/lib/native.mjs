@@ -40,7 +40,7 @@ const NAPI_SUFFIXES = {
 }
 
 /** Очікувана версія JSON DTO-контракту `rules-core` ⇄ `rules-napi` (Р10 спеки). */
-export const EXPECTED_CONTRACT_VERSION = 1
+export const EXPECTED_CONTRACT_VERSION = 2
 
 /** @type {Record<string, unknown> | null} */
 let cached = null

@@ -217,3 +217,30 @@ adr-normalize, doc-files) підключає `llm-lib` як path dep у `rules-c
   чи після релізу 2.0.0.
 - **П4 — cache-контур фази 4**: інвентаризація наявних кешів і рішення про
   формат — окремий scoping.
+
+## 7. Статус виконання (2026-07-30)
+
+Фази 1–4a і пілот фази 5 виконані; всі фазові PR у main (#312 re-land фази 1,
+#315 фаза 2, #317 фаза 3, #319 фаза 4a).
+
+- **П1 закрито**: merge-base доступний у gix 0.86 (`features = ["revision",
+  "sha1"]`); porcelain-fallback знадобився лише для shallow-репо (gix ігнорує
+  межу `.git/shallow` — parity-розрив зловив тест фази 1, fail-closed
+  поведінку відновлено).
+- **П4 закрито**: on-disk кешів FS-скану не існує; `walk-cache` мертвий у
+  runtime (окремий cleanup); живі кеші (lock/dedup, plugin-resolve, LLM)
+  лишаються в JS. Спільний скан-кеш для `--full` свідомо не вводився —
+  концерни фіксять файли посеред прогону.
+- **Реліз-контур**: інцидент 1.59.0/1.59.1 (platform-пакети не вийшли —
+  скасований build-native + гейт «диф цього пуша») закрито fail-closed
+  registry-гейтом (#314); перша публікація нових platform-пакетів через OIDC
+  неможлива — bootstrap вручну, далі trusted publisher. Steady-state
+  підтверджений релізами 1.60.0/1.61.0.
+- **Фаза 5 (пілот)**: diagnostics DTO віддзеркалює чинну `LintViolation`
+  (без top-level `range` — `data.line` споживають fix-eslint і
+  collateral-veto; канонізація range — окремий крок). Реєстр native-концернів
+  живе в Rust (`NATIVE_CONCERNS` + `listNativeConcerns`), dispatch-гілка в
+  `runConcernDetector` перед резолвом `main.mjs`; `CONTRACT_VERSION = 2`.
+  Пілоти — лише core-owned (`text/forbidden-prettier`,
+  `security/sample_secret`, `k8s/dremio_logging`); плагінні концерни не
+  мігруються до окремого рішення про крос-пакетний контракт (Plugin API).

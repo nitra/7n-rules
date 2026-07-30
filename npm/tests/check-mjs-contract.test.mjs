@@ -11,7 +11,15 @@ import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { loadNative } from '../scripts/lib/native.mjs'
 import { realRepoRoot } from '../scripts/utils/test-helpers.mjs'
+
+/**
+ * Концерни, що виконуються в rules-core (фаза 5 v2): для них main.mjs
+ * відсутній навмисно — контракт lint-поверхні виконує native-реєстр
+ * (`listNativeConcerns`), dispatch у `detect.mjs` іде повз резолв main.mjs.
+ */
+const NATIVE_CONCERNS = new Set(loadNative().listNativeConcerns())
 
 const RULES_DIR = new URL('../rules/', import.meta.url).pathname
 // Через realRepoRoot, не відносно тестового файлу: sandbox-копія Stryker містить лише npm/.
@@ -143,10 +151,18 @@ describe('concern contract — усі правила', () => {
       }
     })
 
-    test(`${id}: lint-concerns мають main.mjs з lint()`, async () => {
+    test(`${id}: lint-concerns мають main.mjs з lint() або native-реєстрацію`, async () => {
       const concerns = await listConcerns(ruleDir)
       const lintConcerns = concerns.filter(c => c.meta.lint !== undefined && c.meta.lint !== null)
       for (const c of lintConcerns) {
+        if (NATIVE_CONCERNS.has(`${id}/${c.name}`)) {
+          // Native-концерн: main.mjs відсутній навмисно, і зворотно — якщо
+          // main.mjs існує, це подвійна реалізація (заборонена, Р1 спеки).
+          expect(existsSync(join(c.dir, 'main.mjs')), `${id}/${c.name}: подвійна реалізація main.mjs + native`).toBe(
+            false
+          )
+          continue
+        }
         const mainPath = join(c.dir, 'main.mjs')
         expect(existsSync(mainPath), `${id}/${c.name}/main.mjs відсутній`).toBe(true)
         const mod = await import(pathToFileURL(mainPath).href)

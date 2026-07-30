@@ -1,0 +1,90 @@
+//! Native-порти детермінованих lint-concern-ів + registry (E1 фази 5
+//! `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`).
+//!
+//! Кожен підмодуль — 1:1 порт відповідного `main.mjs` з `npm/rules/<rule>/<concern>/`
+//! (три пілоти без зовнішніх tool-залежностей — обраний за спекою порядок
+//! «від чистих текстових/структурних перевірок»). Registry ([`NATIVE_CONCERNS`],
+//! [`run_concern`]) — точка диспатчу для `rules-napi`-binding-а: JS-оркестратор
+//! перевіряє належність `ruleId/concernId`-ключа до [`NATIVE_CONCERNS`] і, якщо
+//! так, викликає native замість `import(main.mjs)` (співіснування, не fallback —
+//! секція «Фаза 5» спеки).
+
+use std::path::Path;
+
+use crate::{diagnostics::Violation, RulesError};
+
+mod dremio_logging;
+mod forbidden_prettier;
+mod sample_secret;
+
+pub use dremio_logging::{dremio_logging, zk_logback_root_level_violation};
+pub use forbidden_prettier::forbidden_prettier;
+pub use sample_secret::sample_secret;
+
+/// Ключі native-портованих concern-ів у форматі `ruleId/concernId` — той
+/// самий формат, що й `progressKey` у JS-оркестраторі
+/// (`npm/scripts/lib/lint-surface/run-detectors.mjs`), тож JS-шар може
+/// використати ключ registry напряму без додаткового мапінгу.
+pub const NATIVE_CONCERNS: &[&str] = &[
+    "text/forbidden-prettier",
+    "security/sample_secret",
+    "k8s/dremio_logging",
+];
+
+/// Запускає native-порт concern-а за ключем `ruleId/concernId`.
+///
+/// - `cwd` — абсолютний корінь consumer-репо (дзеркало `LintContext.cwd`).
+/// - `files` — posix-relative файли для per-file concern-ів (дзеркало
+///   `LintContext.files`); ігнорується whole-repo концернами
+///   (`forbidden-prettier`, `sample_secret`) — так само, як їхні JS-версії
+///   не читають `ctx.files` узагалі.
+///
+/// Невідомий ключ → [`RulesError::Concern`] (JS-loader має звіряти
+/// приналежність до [`NATIVE_CONCERNS`] ДО виклику — це остання лінія
+/// захисту, не основний контракт).
+pub fn run_concern(
+    key: &str,
+    cwd: &Path,
+    files: Option<&[String]>,
+) -> Result<Vec<Violation>, RulesError> {
+    match key {
+        "text/forbidden-prettier" => Ok(forbidden_prettier(cwd)),
+        "security/sample_secret" => Ok(sample_secret(cwd)),
+        "k8s/dremio_logging" => Ok(dremio_logging(cwd, files)),
+        other => Err(RulesError::Concern(format!(
+            "невідомий native concern: {other}"
+        ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn native_concerns_lists_all_three_pilots() {
+        assert_eq!(
+            NATIVE_CONCERNS,
+            &[
+                "text/forbidden-prettier",
+                "security/sample_secret",
+                "k8s/dremio_logging",
+            ]
+        );
+    }
+
+    #[test]
+    fn run_concern_dispatches_known_key() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let violations = run_concern("text/forbidden-prettier", tmp.path(), None).unwrap();
+        assert!(violations.is_empty());
+    }
+
+    #[test]
+    fn run_concern_rejects_unknown_key() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let err = run_concern("k8s/unknown-concern", tmp.path(), None).unwrap_err();
+        assert!(matches!(err, RulesError::Concern(_)));
+        assert!(err.to_string().contains("k8s/unknown-concern"));
+    }
+}

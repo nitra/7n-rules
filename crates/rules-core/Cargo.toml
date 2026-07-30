@@ -29,6 +29,11 @@ mt-core = { git = "https://github.com/nitra/mt-rust", rev = "8bdadf5a483ab0db9d6
 # .gitignore-парсер, що й `rg`/`fd`, використовуємо замість ручного порту
 # globby-логіки.
 ignore = "0.4"
+# Regex-порт JS-детекторів native-concern-ів (E1 фази 5). Без backreference-ів
+# (crate `regex` — DFA-двигун, `\1` не підтримується): `VALUE_SECRET_RE`
+# concern-а `sample_secret` порт через 3-way alternation замість групи з
+# backreference (doc-комент `concerns/sample_secret.rs`).
+regex = "1"
 
 [dev-dependencies]
 tempfile = "3"

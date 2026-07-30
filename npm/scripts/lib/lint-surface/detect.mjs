@@ -11,8 +11,32 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { loadNative } from '../native.mjs'
 import { hasResolvableFiles, isGeneratedFile } from './codegen-opa-wrapper.mjs'
 import { evaluatePolicyConcern } from './policy-lint-adapter.mjs'
+
+/**
+ * Кеш ключів native-портованих concern-ів (`ruleId/concernId`), один на процес.
+ * @type {Set<string> | null}
+ */
+let nativeConcernKeys = null
+
+/**
+ * Лениво резолвить множину ключів native-концернів з аддона (`listNativeConcerns()`).
+ * Кешується на рівні модуля — один виклик на процес. Коли аддон недоступний,
+ * `loadNative()` сам кидає власну зрозумілу помилку (той самий hard error, що й
+ * для решти native-поверхні rules-core) — тут вона просто пропагується вгору
+ * без обгортання й без нової поведінки понад чинний loader; кеш при цьому НЕ
+ * виставляється (присвоєння нижче не встигає виконатись), тож наступний виклик
+ * знову спробує завантажити аддон, а не залипає в невдалому стані.
+ * @returns {Set<string>} множина ключів native-концернів
+ */
+function getNativeConcernKeys() {
+  if (nativeConcernKeys === null) {
+    nativeConcernKeys = new Set(loadNative().listNativeConcerns())
+  }
+  return nativeConcernKeys
+}
 
 /**
  * Сигнал, що detector кинув виняток / повернув невалідний результат → exit 2.
@@ -139,15 +163,33 @@ function hasHandWrittenMain(mainPath) {
  * Запускає detector одного concern-а і нормалізує результат. Кидає `DetectorError`
  * при будь-якій аномалії (→ exit 2).
  *
- * Чисті policy-concern-и (rego/template, без ручного `main.mjs`) оцінюються напряму
- * через `evaluatePolicyConcern` з даних `concern.json` — генерований `main.mjs`
- * для них не потрібен. Ручний (не-`@generated`) `main.mjs` — escape-hatch, він
- * завжди має пріоритет. Concern-и без policy й без main.mjs — помилка конфігурації.
+ * Native-портовані concern-и (`NATIVE_CONCERNS` registry аддона, E1/E2 фази 5)
+ * мають абсолютний пріоритет — перевіряються ДО резолву `main.mjs`/policy: якщо
+ * `ruleId/concernId` у registry, виклик іде в `runNativeConcern` замість
+ * `import(main.mjs)` (перехідне співіснування двох реалізацій під час міграції
+ * закінчується видаленням JS-гілки — тут вона вже видалена для пілотів).
+ *
+ * Інакше — чисті policy-concern-и (rego/template, без ручного `main.mjs`)
+ * оцінюються напряму через `evaluatePolicyConcern` з даних `concern.json` —
+ * генерований `main.mjs` для них не потрібен. Ручний (не-`@generated`)
+ * `main.mjs` — escape-hatch, він завжди має пріоритет. Concern-и без native,
+ * без policy й без main.mjs — помилка конфігурації.
  * @param {ConcernMeta} concern метадані concern-а, чий detector запускаємо
  * @param {LintContext} ctx контекст лінту, що передається у lint()
  * @returns {Promise<LintResult>} нормалізований результат detector-а
  */
 export async function runConcernDetector(concern, ctx) {
+  const nativeKey = `${ctx.ruleId}/${ctx.concernId}`
+  if (getNativeConcernKeys().has(nativeKey)) {
+    let raw
+    try {
+      raw = loadNative().runNativeConcern(nativeKey, ctx.cwd, ctx.files ?? null)
+    } catch (error) {
+      throw new DetectorError(ctx.ruleId, ctx.concernId, `native concern кинув: ${error.message}`)
+    }
+    return normalizeResult(raw, ctx)
+  }
+
   const mainPath = join(concern.dir, 'main.mjs')
 
   if (!hasHandWrittenMain(mainPath) && concern.policy && hasResolvableFiles(concern.policy.files)) {
