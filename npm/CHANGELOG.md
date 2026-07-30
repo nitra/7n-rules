@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.59.1] - 2026-07-30
+
+### Changed
+
+- Додано `mago` (carthage-software/mago) у реєстр `ensure-tool` — PHP-тулчейн для нового
+`@7n/rules-lang-php` (mago format/lint/analyze); підтримано releases без `v`-префікса в тегу
+(`entry.tagPrefix`) — mago тегується як `1.45.0`, не `v1.45.0`. Оновлено сумісний range
+`@7n/rules-lang-php` у `KNOWN_PLUGIN_RANGES` (`^0.2` → `^0.3`).
+
 ## [1.59.0] - 2026-07-30
 
 ### Added

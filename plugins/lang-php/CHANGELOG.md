@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.0] - 2026-07-30
+
+### Changed
+
+- Повна заміна PHP-тулчейна на [mago](https://github.com/carthage-software/mago): `php-cs-fixer` →
+`mago_fmt` (`mago format --dry-run`), `phpcs --standard=Security` → `mago_lint` (`mago lint`,
+detect-only), PHPStan+Psalm у `project` → `mago analyze`. `composer audit` лишається
+обов'язковим без змін. Security-parity з колишнім `phpcs --standard=Security` НЕ підтверджена —
+задокументована фікстурами (`mago_lint/tests/fixtures/security/`).
+
 ## [0.2.8] - 2026-07-30
 
 ### Added

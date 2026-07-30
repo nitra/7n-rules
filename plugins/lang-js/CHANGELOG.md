@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.25.3] - 2026-07-30
+
+### Changed
+
+- release: @7n/rules@1.59.0, @7n/rules-ci-github@2.2.0, @7n/rules-lang-js@0.25.2, @7n/rules-lang-php@0.2.8, @7n/rules-lang-python@0.12.2, @7n/rules-lang-rust@0.15.2; fix(plugins): audit follow-ups — php vscode extensions, llm-lib peers, lint-style vue patch (#307)
+
 ## [0.25.2] - 2026-07-30
 
 ### Added
