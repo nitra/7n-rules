@@ -49,18 +49,33 @@ describe('appendWordsToDict', () => {
 describe('detectCspell', () => {
   const bin = resolveCmd('npx')
 
-  test('файл повністю в ignorePaths (Files checked: 0) → code:0, не порушення', async () => {
-    if (!bin) return // npx недоступний у середовищі — пропускаємо
-    await withTmpDir(async root => {
-      await writeFile(join(root, '.cspell.json'), JSON.stringify({ version: '0.2', ignorePaths: ['**/*'] }))
-      await writeFile(join(root, 'typo.md'), 'This is teh wrong wrod.')
-      const result = await detectCspell(root, bin, ['typo.md'])
-      expect(result.code).toBe(0)
-      expect(result.out).toMatch(FILES_CHECKED_ZERO_RE)
-    })
-  })
+  // Тестовий cwd — ізольований tmp-каталог поза деревом репо (навмисно: перевіряємо
+  // ignorePaths у вакуумі), тож `npx cspell` не бачить локальний `node_modules/cspell`
+  // (ancestor-lookup npm exec шукає від cwd, а tmp-каталог поза цим деревом) і на
+  // холодному npx-кеші (свіжий GitHub ubuntu-runner, кеша `~/.npm/_npx` ще нема)
+  // реально тягне пакет з registry — довше за дефолтний vitest testTimeout=5000ms
+  // (спостережено в CI: `Error: Test timed out in 5000ms`, run 30483522628). Другий
+  // тест тут не мав такого падіння лише тому, що перший встиг прогріти кеш до свого
+  // таймауту — не покладаємось на цей порядко-залежний побічний ефект, timeout
+  // піднято симетрично для обох.
+  const COLD_NPX_TIMEOUT = 30_000
 
-  test('реальні одруки в перевірених файлах → code!=0', async () => {
+  test(
+    'файл повністю в ignorePaths (Files checked: 0) → code:0, не порушення',
+    { timeout: COLD_NPX_TIMEOUT },
+    async () => {
+      if (!bin) return // npx недоступний у середовищі — пропускаємо
+      await withTmpDir(async root => {
+        await writeFile(join(root, '.cspell.json'), JSON.stringify({ version: '0.2', ignorePaths: ['**/*'] }))
+        await writeFile(join(root, 'typo.md'), 'This is teh wrong wrod.')
+        const result = await detectCspell(root, bin, ['typo.md'])
+        expect(result.code).toBe(0)
+        expect(result.out).toMatch(FILES_CHECKED_ZERO_RE)
+      })
+    }
+  )
+
+  test('реальні одруки в перевірених файлах → code!=0', { timeout: COLD_NPX_TIMEOUT }, async () => {
     if (!bin) return
     await withTmpDir(async root => {
       await writeFile(join(root, '.cspell.json'), JSON.stringify({ version: '0.2' }))

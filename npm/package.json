@@ -73,6 +73,7 @@
     "ignore": "^7.0.5",
     "markdownlint-cli2": "^0.22.1",
     "oxc-parser": "^0.137.0",
+    "oxfmt": "^0.61.0",
     "picomatch": "^4.0.4",
     "smol-toml": "^1.7.0",
     "v8r": "^6.1.0",

@@ -3,8 +3,9 @@ type: JS Module
 title: ensure-tool.mjs
 resource: npm/scripts/lib/ensure-tool.mjs
 docgen:
-  crc: 58b4092c
+  crc: fabdd634
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
   score: 40
 ---
 

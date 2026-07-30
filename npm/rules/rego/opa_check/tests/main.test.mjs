@@ -39,7 +39,12 @@ describe('lint rego/opa_check', () => {
     expect(violations).toEqual([])
   })
 
-  test('detects rego files under npm/rules/* and fails on broken syntax', async () => {
+  // Перший тест файлу, що реально резолвить opa (ensureTool) — на чистому GitHub
+  // ubuntu-runner-і без прогрітого кешу перший виклик тягне реальний GitHub Release-install
+  // (curl+tar), що може перевищити дефолтний vitest testTimeout=5000ms (той самий клас
+  // проблеми, що й cold npx cspell — див. cspell-fix.test.mjs). Наступні тести файлу вже
+  // бачать прогрітий кеш, тож піднімаємо timeout лише тут.
+  test('detects rego files under npm/rules/* and fails on broken syntax', { timeout: 30_000 }, async () => {
     const { violations } = await withTmpRepo(cwd => {
       mkdirSync(join(cwd, 'npm/rules/sample/policy/concern'), { recursive: true })
       writeFileSync(
