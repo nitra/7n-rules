@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.58.3] - 2026-07-30
+
+### Fixed
+
+- git-reconcile: контрактні тести JS boundary — transport failure ACP приходить у `callRunner` структурованою помилкою (infrastructure failure без max retry), batch не зависає
+
 ## [1.58.2] - 2026-07-30
 
 ### Fixed

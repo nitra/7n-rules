@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.13.8] - 2026-07-30
+
+### Fixed
+
+- acp: one-shot завершується за terminal turn (StopReason), гарантований teardown дочірнього ACP-процесу і робочий idle-timeout під flood подій — фікс зависання git-reconcile×Codex
+
 ## [2.13.7] - 2026-07-30
 
 ### Fixed
