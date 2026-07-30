@@ -19,6 +19,11 @@ pub mod changed_base;
 /// `collect_changed_files`/`collect_changed_files_since` — перелік
 /// changed files через porcelain (C1 фази 3).
 pub mod changed_files;
+/// Native-порти детермінованих concern-ів + registry (E1 фази 5).
+pub mod concerns;
+/// Diagnostics DTO (`Violation`/`Severity`) — versioned JSON-межа для
+/// detector-результатів (Р10 спеки, E1 фази 5).
+pub mod diagnostics;
 /// Versioned JSON DTO-межа з `rules-napi` (Р10 спеки).
 pub mod dto;
 /// `walk_dir` — native filesystem scan, точний порт `walkDir` (D1 фази 4а).
@@ -36,4 +41,7 @@ pub enum RulesError {
     /// Помилка worktree lifecycle через `mt-core` (create/remove — Р3 спеки).
     #[error("{0}")]
     Worktree(String),
+    /// Помилка native-concern registry (невідомий ключ — E1 фази 5).
+    #[error("{0}")]
+    Concern(String),
 }

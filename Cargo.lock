@@ -2907,6 +2907,7 @@ dependencies = [
  "gix",
  "ignore",
  "mt-core",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",

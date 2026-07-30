@@ -3,7 +3,7 @@ type: JS Module
 title: native.mjs
 resource: npm/scripts/lib/native.mjs
 docgen:
-  crc: 2ffe71a2
+  crc: cf2b368e
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80

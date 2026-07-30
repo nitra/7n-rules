@@ -153,3 +153,40 @@ pub fn is_worktree_checkout_path(rel_path: String) -> bool {
 pub fn walk_dir(dir: String, extra_ignore_globs: Vec<String>) -> Vec<String> {
     rules_core::scan::walk_dir(&PathBuf::from(dir), &extra_ignore_globs)
 }
+
+/// Ключі native-портованих concern-ів (`ruleId/concernId`) — тонкий binding
+/// над [`rules_core::concerns::NATIVE_CONCERNS`] (E1 фази 5). JS-оркестратор
+/// звіряє належність concern-а до цього списку — основа маршрутизації
+/// виклику: у native чи в `import(main.mjs)` (співіснування, не fallback —
+/// секція «Фаза 5» спеки).
+#[napi]
+pub fn list_native_concerns() -> Vec<String> {
+    rules_core::concerns::NATIVE_CONCERNS
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect()
+}
+
+/// Запускає native-порт concern-а за ключем — тонкий binding над
+/// [`rules_core::concerns::run_concern`] (E1 фази 5).
+///
+/// Повертає `{ "violations": [...] }` — та сама форма, що й `LintResult`
+/// (`npm/scripts/lib/lint-surface/types.mjs`), тож JS-шар прогонить
+/// результат через `normalizeResult` (`detect.mjs`) без окремого адаптера.
+///
+/// - `key` — `ruleId/concernId` (елемент [`list_native_concerns`]).
+/// - `cwd` — абсолютний корінь consumer-репо.
+/// - `files` — posix-relative файли для per-file concern-ів (`k8s/dremio_logging`);
+///   ігнорується whole-repo концернами.
+///
+/// Невідомий `key` → `Err` (`RulesError::Concern`, `to_napi_err`).
+#[napi]
+pub fn run_native_concern(
+    key: String,
+    cwd: String,
+    files: Option<Vec<String>>,
+) -> Result<serde_json::Value> {
+    let violations = rules_core::concerns::run_concern(&key, &PathBuf::from(cwd), files.as_deref())
+        .map_err(to_napi_err)?;
+    Ok(serde_json::json!({ "violations": violations }))
+}

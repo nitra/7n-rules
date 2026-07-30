@@ -12,16 +12,22 @@
 /// Інкрементувати при будь-якій несумісній зміні форми DTO (перейменування чи
 /// видалення поля, зміна типу, зміна семантики) — сумісні додавання
 /// (нове опційне поле) версію не зобов'язані рухати.
-pub const CONTRACT_VERSION: u32 = 1;
+///
+/// `2` — нова поверхня [`crate::diagnostics`] (`Violation`/`Severity`) додана
+/// у фазі 5 задачі E1 (`docs/specs/2026-07-30-rules-v2-rust-core-migration.md`):
+/// перше JSON-DTO, що серіалізується в напрямку `rules-core` → JS (на відміну
+/// від попередніх сигнатур фази 1/3/4а, де через межу йшли лише прості типи —
+/// `String`/`Option<String>`/`Vec<String>`/`bool`), тож інкремент з `1`.
+pub const CONTRACT_VERSION: u32 = 2;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn contract_version_is_one() {
-        // Плейсхолдер T1: перше значення контракту, поки DTO ще порожній
-        // (перші реальні структури — задача T3, resolve_changed_base).
-        assert_eq!(CONTRACT_VERSION, 1);
+    fn contract_version_is_two() {
+        // Фаза 5 задача E1: diagnostics DTO (`Violation`/`Severity`) додана —
+        // перша несумісна зміна форми контракту після плейсхолдера T1 (`1`).
+        assert_eq!(CONTRACT_VERSION, 2);
     }
 }

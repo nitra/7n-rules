@@ -1,11 +1,24 @@
+/**
+ * Тести `security/sample_secret` — через `runConcernDetector` (dispatch-рівень).
+ * JS `main.mjs` видалений (E2 фази 5 `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`),
+ * concern тепер живе лише в `crates/rules-core/src/concerns/sample_secret.rs` і
+ * виконується через native-гілку `runConcernDetector` — тому саме dispatch і є
+ * parity-гейтом, а не виклик функції напряму.
+ */
 import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
-import { lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 
-const run = dir => lint({ cwd: dir, ruleId: 'security', concernId: 'sample_secret', files: undefined })
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+
+const run = dir =>
+  runConcernDetector(CONCERN, { cwd: dir, ruleId: 'security', concernId: 'sample_secret', files: undefined })
 
 describe('security/js/sample_secret/check', () => {
   test('pass: прикладних файлів немає', async () => {

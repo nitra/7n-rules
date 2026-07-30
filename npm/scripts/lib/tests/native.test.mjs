@@ -11,7 +11,26 @@ import { EXPECTED_CONTRACT_VERSION, resolveNativeAddon } from '../native.mjs'
 
 const ADDON_HINT_RE = /rules native addon/
 const UNKNOWN_PLATFORM_RE = /win32-x64[\s\S]*N_RULES_NATIVE_ADDON/
-const CONTRACT_MISMATCH_RE = /несумісна версія DTO-контракту[\s\S]*аддон=2[\s\S]*очікується=1/
+
+/**
+ * Перевіряє, що виклик кидає саме "розбіжність версії контракту" з очікуваними
+ * числами — зібрано динамічно від [`EXPECTED_CONTRACT_VERSION`] (фейковий аддон
+ * у тестах нижче завжди повертає `EXPECTED_CONTRACT_VERSION + 1`), а не regex
+ * із динамічним джерелом (`security/detect-non-literal-regexp`, n-security.mdc).
+ * @param {() => unknown} fn виклик, що має кинути
+ * @param {number} expected очікувана версія контракту (`EXPECTED_CONTRACT_VERSION`)
+ * @returns {void}
+ */
+function expectContractMismatch(fn, expected) {
+  expect(fn).toThrow('несумісна версія DTO-контракту')
+  try {
+    fn()
+    throw new Error('очікував виняток, але виклик пройшов успішно')
+  } catch (error) {
+    expect(error.message).toContain(`аддон=${expected + 1}`)
+    expect(error.message).toContain(`очікується=${expected}`)
+  }
+}
 
 /**
  * Базові deps: відома платформа, нічого не встановлено і не збудовано.
@@ -133,23 +152,27 @@ describe('loadNative (кеш процесу)', () => {
   test('звірка версії контракту: розбіжність версії кидає зрозумілу помилку', async () => {
     const { loadNative: freshLoadNative } = await import('../native.mjs')
     const addon = { contractVersion: () => EXPECTED_CONTRACT_VERSION + 1 }
-    expect(() =>
-      freshLoadNative({
-        resolve: () => '/fake/bad-addon.node',
-        dlopen: () => addon
-      })
-    ).toThrow(CONTRACT_MISMATCH_RE)
+    expectContractMismatch(
+      () =>
+        freshLoadNative({
+          resolve: () => '/fake/bad-addon.node',
+          dlopen: () => addon
+        }),
+      EXPECTED_CONTRACT_VERSION
+    )
   })
 
   test('звірка версії контракту: розбіжність не кешується — наступний виклик пробує знову', async () => {
     const { loadNative: freshLoadNative } = await import('../native.mjs')
     const badAddon = { contractVersion: () => EXPECTED_CONTRACT_VERSION + 1 }
-    expect(() =>
-      freshLoadNative({
-        resolve: () => '/fake/bad-addon.node',
-        dlopen: () => badAddon
-      })
-    ).toThrow(CONTRACT_MISMATCH_RE)
+    expectContractMismatch(
+      () =>
+        freshLoadNative({
+          resolve: () => '/fake/bad-addon.node',
+          dlopen: () => badAddon
+        }),
+      EXPECTED_CONTRACT_VERSION
+    )
 
     const okAddon = { contractVersion: () => EXPECTED_CONTRACT_VERSION }
     const loaded = freshLoadNative({
