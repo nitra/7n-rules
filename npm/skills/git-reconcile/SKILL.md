@@ -141,10 +141,12 @@ transport. Після провалу `max` джерело fail-closed лишає
   повторно без fix.
 - Behavioral LLM не викликається для змін без code paths; test baseline
   актуальної policy base branch кешується між PR-групами.
-- Після `gh pr create` JS чекає terminal CI state і порівнює failed checks із
+- Після `gh pr create` JS чекає bounded кілька registration ticks до появи
+  GitHub checks і порівнює failed checks із
   base commit. Failure є regression лише якщо check з тим самим ім'ям був
   green на base; відсутній або pending base check дає `unverified`, а не
-  вигаданий regression. Лише `ready` PR дозволяє cleanup; regression,
+  вигаданий regression. PR, який GitHub уже позначив merged під час очікування,
+  також є terminally absorbed. Лише такий ready/merged PR дозволяє cleanup; regression,
   baseline-red, timeout, pending або unreadable checks зберігають branch, URL
   і worktree та завершують команду non-zero.
 - Cleanup виконує лише JS і тільки після inventory/PR-фази: видаляє точні refs,
