@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.61.0] - 2026-07-30
+
+### Fixed
+
+- тести auto-rules і package_knowledge резолвлять плагінні каталоги через пакетні specifier-и замість відносних шляхів — Stryker dry-run у sandbox більше не втрачає плагінні правила і не падає, розблоковано lint test coverage-gate
+
 ## [1.60.0] - 2026-07-30
 
 ### Changed
