@@ -3,7 +3,7 @@ type: JS Module
 title: changed-files.mjs
 resource: npm/scripts/lib/changed-files.mjs
 docgen:
-  crc: ed98c506
+  crc: dcedcdca
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
@@ -16,6 +16,11 @@ docgen:
 Quick лінтить лише те, що змінено в робочому дереві: tracked-modified + staged
 (`git diff HEAD`) і нові untracked (`git ls-files --others --exclude-standard`).
 Видалені файли не повертаються. Поза git-репо або при помилці git — порожній список.
+
+Повністю native (C2 фази 3, `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`):
+порцелян-виклики git, унікалізація й фільтр worktree-чекаутів тепер усередині
+`rules-core::changed_files` (через `rules-napi`). Цей фасад — лише передача
+виклику з JS-сигнатурою, без власної git/regex-логіки.
 
 ## Публічний API
 
@@ -40,10 +45,15 @@ fail-closed перевірка в `collectChangedFilesSince` не спрацює
 зміни вже закомічені у worktree. Без `base` — fallback на `collectChangedFiles`
 (робоче дерево vs HEAD).
 
+Fail-closed: недосяжний `base` (rebase/force-update/shallow prune) кидає Error
+замість мовчазного порожнього scope — перевірку й повідомлення робить native.
+JS-сигнатура `(base, cwd)` — незмінна plugin-поверхня; native очікує
+`(cwd, base)`, тож порядок розгортається тут.
+
 ## Сценарії використання
 
 - `npm/scripts/lib/tests/changed-files.test.mjs` (collectChangedFiles; resolveChangedBase) — modified tracked + untracked; untracked у worktree-чекаутах (.worktrees, .claude/worktrees) не потрапляють у список; чисте дерево → порожньо; поза git → порожньо; stale локальна main у worktree: origin/main новіша → база від origin/main; ще 14
 
 ## Гарантії поведінки
 
-- (специфічних машинно-виведених гарантій немає)
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.

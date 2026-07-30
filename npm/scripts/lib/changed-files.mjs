@@ -4,26 +4,14 @@
  * Quick лінтить лише те, що змінено в робочому дереві: tracked-modified + staged
  * (`git diff HEAD`) і нові untracked (`git ls-files --others --exclude-standard`).
  * Видалені файли не повертаються. Поза git-репо або при помилці git — порожній список.
+ *
+ * Повністю native (C2 фази 3, `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`):
+ * порцелян-виклики git, унікалізація й фільтр worktree-чекаутів тепер усередині
+ * `rules-core::changed_files` (через `rules-napi`). Цей фасад — лише передача
+ * виклику з JS-сигнатурою, без власної git/regex-логіки.
  */
-import { spawnSync } from 'node:child_process'
-
-import { isWorktreeCheckoutPath } from '../utils/walkDir.mjs'
 import { readGitPolicy } from './git-policy.mjs'
 import { loadNative } from './native.mjs'
-
-/**
- * @param {string[]} args аргументи git
- * @param {string} cwd корінь
- * @returns {string[]} непорожні рядки stdout або [] при помилці
- */
-function gitLines(args, cwd) {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8' })
-  if (r.status !== 0 || r.error) return []
-  return r.stdout
-    .split('\n')
-    .map(s => s.trim())
-    .filter(Boolean)
-}
 
 /**
  * Relative-posix список змінених + untracked файлів робочого дерева.
@@ -31,20 +19,7 @@ function gitLines(args, cwd) {
  * @returns {string[]} унікальні шляхи (без видалених)
  */
 export function collectChangedFiles(cwd = process.cwd()) {
-  const modified = gitLines(['diff', 'HEAD', '--name-only', '--diff-filter=ACMR'], cwd)
-  const untracked = gitLines(['ls-files', '--others', '--exclude-standard'], cwd)
-  return dropWorktreeCheckouts([...new Set([...modified, ...untracked])])
-}
-
-/**
- * Прибирає шляхи всередині worktree-чекаутів (`.worktrees/`, `.claude/worktrees/`):
- * це повні копії репо (сесійні worktree Claude/агентів), а не робочий код, і в
- * споживацьких репо вони можуть бути не gitignored — git тоді віддає їх як untracked.
- * @param {string[]} paths relative-posix шляхи
- * @returns {string[]} шляхи без worktree-чекаутів
- */
-function dropWorktreeCheckouts(paths) {
-  return paths.filter(p => !isWorktreeCheckoutPath(p))
+  return loadNative().collectChangedFiles(cwd)
 }
 
 /**
@@ -78,28 +53,15 @@ export function resolveChangedBase(cwd = process.cwd(), baseRef = null) {
  * незакомічені модифікації. Це гарантує однакову поведінку незалежно від того, чи
  * зміни вже закомічені у worktree. Без `base` — fallback на `collectChangedFiles`
  * (робоче дерево vs HEAD).
+ *
+ * Fail-closed: недосяжний `base` (rebase/force-update/shallow prune) кидає Error
+ * замість мовчазного порожнього scope — перевірку й повідомлення робить native.
+ * JS-сигнатура `(base, cwd)` — незмінна plugin-поверхня; native очікує
+ * `(cwd, base)`, тож порядок розгортається тут.
  * @param {string|null} [base] базовий комміт
  * @param {string} [cwd] корінь репо
  * @returns {string[]} унікальні шляхи (без видалених)
  */
 export function collectChangedFilesSince(base, cwd = process.cwd()) {
-  if (!base) return collectChangedFiles(cwd)
-  // Fail-closed: недосяжний base (rebase/force-update/shallow prune) інакше дав би `git diff`
-  // exit 128 → порожній список → gate мовчки пройшов би без перевірки. Краще явна помилка.
-  // `^{commit}` — git peel-синтаксис (літерал), не template-інтерполяція; окрема строкова
-  // константа тримає обидва правила тихими (no-useless-concat і no-incorrect-template-string-interpolation).
-  const commitPeel = '^{commit}'
-  const verify = spawnSync('git', ['rev-parse', '--verify', '--quiet', `${base}${commitPeel}`], {
-    cwd,
-    encoding: 'utf8'
-  })
-  if (verify.status !== 0 || verify.error) {
-    throw new Error(
-      `collectChangedFilesSince: base-комміт «${base}» недосяжний у ${cwd} ` +
-        '(rebase/force-update?) — coverage --changed не може визначити scope'
-    )
-  }
-  const changed = gitLines(['diff', base, '--name-only', '--diff-filter=ACMR'], cwd)
-  const untracked = gitLines(['ls-files', '--others', '--exclude-standard'], cwd)
-  return dropWorktreeCheckouts([...new Set([...changed, ...untracked])])
+  return loadNative().collectChangedFilesSince(cwd, base ?? null)
 }

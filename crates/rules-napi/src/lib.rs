@@ -100,3 +100,36 @@ pub fn worktree_remove(repo_root: String, name: String, force: bool) -> Result<(
     rules_core::worktree::remove_worktree(&PathBuf::from(repo_root), &name, force)
         .map_err(to_napi_err)
 }
+
+/// Relative-posix список змінених + untracked файлів робочого дерева —
+/// тонкий binding над [`rules_core::changed_files::collect_changed_files`]
+/// (C2 фази 3, `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`).
+/// Поза git-репо або при будь-якій помилці git — порожній список (не
+/// помилка), тому сигнатура не повертає `Result`.
+#[napi]
+pub fn collect_changed_files(cwd: String) -> Vec<String> {
+    rules_core::changed_files::collect_changed_files(&PathBuf::from(cwd))
+}
+
+/// Список змінених + untracked файлів **відносно базового комміту** —
+/// тонкий binding над
+/// [`rules_core::changed_files::collect_changed_files_since`] (C2 фази 3).
+///
+/// - `base = None` → fallback на [`collect_changed_files`] (робоче дерево
+///   vs HEAD).
+/// - `base = Some(_)`, але недосяжний у `cwd` (rebase/force-update/shallow
+///   prune) → `Err` з повідомленням, що містить «недосяжний» (той самий
+///   текст-контракт, що й попередня JS-версія та її тест).
+#[napi]
+pub fn collect_changed_files_since(cwd: String, base: Option<String>) -> Result<Vec<String>> {
+    rules_core::changed_files::collect_changed_files_since(&PathBuf::from(cwd), base.as_deref())
+        .map_err(to_napi_err)
+}
+
+/// Чи лежить відносний posix-шлях усередині worktree-чекаута (`.worktrees/`
+/// або `.claude/worktrees/`) — тонкий binding над
+/// [`rules_core::changed_files::is_worktree_checkout_path`] (C2 фази 3).
+#[napi]
+pub fn is_worktree_checkout_path(rel_path: String) -> bool {
+    rules_core::changed_files::is_worktree_checkout_path(&rel_path)
+}
