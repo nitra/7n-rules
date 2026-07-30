@@ -27,7 +27,10 @@ export function extractChangelogSection(changelog, version) {
   const start = lines.findIndex(line => line.startsWith(`## [${version}]`))
   if (start === -1) throw new Error(`Missing CHANGELOG section for ${version}`)
   const next = lines.findIndex((line, index) => index > start && line.startsWith('## ['))
-  return lines.slice(start, next === -1 ? undefined : next).join('\n').trim()
+  return lines
+    .slice(start, next === -1 ? undefined : next)
+    .join('\n')
+    .trim()
 }
 
 /**
@@ -49,7 +52,12 @@ export function findPublishablePackage(root, name) {
       if (existsSync(manifestPath)) {
         try {
           const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-          if (manifest.name === name && manifest.private !== true && typeof manifest.version === 'string' && existsSync(join(child, 'CHANGELOG.md'))) {
+          if (
+            manifest.name === name &&
+            manifest.private !== true &&
+            typeof manifest.version === 'string' &&
+            existsSync(join(child, 'CHANGELOG.md'))
+          ) {
             matches.push({ dir: child, version: manifest.version })
           }
         } catch {
@@ -90,7 +98,11 @@ export function prepareGitHubRelease(root, tag) {
 export function releaseTagsForWorkspaces(root, workspaces) {
   if (!Array.isArray(workspaces)) throw new Error('Release workspaces must be an array')
   return workspaces.map(workspace => {
-    if (typeof workspace !== 'string' || workspace === '' || workspace.split('/').some(part => part === '.' || part === '..')) {
+    if (
+      typeof workspace !== 'string' ||
+      workspace === '' ||
+      workspace.split('/').some(part => part === '.' || part === '..')
+    ) {
       throw new Error(`Unsupported workspace path: ${workspace}`)
     }
     const manifest = JSON.parse(readFileSync(join(root, workspace, 'package.json'), 'utf8'))
