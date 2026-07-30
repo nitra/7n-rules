@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.59.0] - 2026-07-30
+
+### Added
+
+- release-smoke: black-box перевірка ОПУБЛІКОВАНОГО npm-набору (bun add з реєстру + version/range reconciliation) після кожного npm-publish
+
+### Changed
+
+- Додано підтримку native-аддонів для darwin-arm64 та linux-x64
+- chore(release): синк пінів платформних napi-пакетів @7n/llm-lib
+
+### Fixed
+
+- KNOWN_PLUGIN_RANGES: підняти застарілі minor-лінії lang-плагінів (lang-js ^0.25, lang-python ^0.12, lang-rust ^0.15) — автоінсталяція знову ставить актуальні сумісні релізи замість старих minor
+- post-tool-use-check: stderr-writer інжектується в runPostToolUseCheckCli — тест error-шляху більше не ллє фейкову помилку в stderr vitest-прогону
+
 ## [1.58.4] - 2026-07-30
 
 ### Fixed

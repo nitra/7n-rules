@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.25.2] - 2026-07-30
+
+### Added
+
+- Додано `ci.artifact`-слот `js-lint-style-patch` — patch-existing доповнення `**/*.vue` у `paths` `.github/workflows/lint-style.yml` (той самий патерн, що `js-lint-text-patch`).
+
 ## [0.25.1] - 2026-07-30
 
 ### Fixed

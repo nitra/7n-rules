@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.2] - 2026-07-30
+
+### Changed
+
+- Peer `@7n/llm-lib` звужено з `*` до `>=1.2.0` — фактично потрібний API (`agent-fix` + `model-tiers`, `opts.chain`/`opts.targetFiles`), єдине production-використання — `coverage-provider/fix-hooks.mjs` (динамічний import, dependency ядра `@7n/rules`, не плагіна).
+
 ## [0.12.1] - 2026-07-30
 
 ### Fixed
