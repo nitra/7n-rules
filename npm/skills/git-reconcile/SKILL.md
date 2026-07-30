@@ -48,6 +48,10 @@ LLM отримує лише bounded-завдання:
 LLM не видаляє refs, не створює worktree, не push-ить і не відкриває PR.
 LLM виконує лише narrow tests, потрібні під час правок; full repository tests,
 doc generation, lint і changelog gates запускає JS після cognitive кроку.
+Для cognitive кроків ACP на рівні permission boundary скасовує repository-wide
+команди `bun run test`, `bun test`, `bun run build` і `npx @7n/rules lint`.
+Narrow test має явно називати test file або selector; без такого тесту LLM
+повертає blocker, а не підміняє його повним gate.
 Doc-files і unified lint отримують лише унікальні директорії зміненого коду,
 щоб repository-wide baseline та stale docs поза scope не забруднювали PR.
 
@@ -131,8 +135,10 @@ transport. Після провалу `max` джерело fail-closed лишає
   JS замінює його bounded verdict про cognitive review і фінальні gates.
 - Невалідний PR description повторюється на max; повторний провал fail-closed
   зберігає worktree і не push-ить гілку з misleading описом.
-- Canonical fixers охоплюють code і non-code directories; після механічного
-  виправлення фінальні gates обов'язково запускаються повторно без fix.
+- Canonical fixers отримують лише точний scope failing gate: code directory,
+  non-code directory або конкретний root file. Root-wide `.` не є fallback;
+  після механічного виправлення фінальні gates обов'язково запускаються
+  повторно без fix.
 - Behavioral LLM не викликається для змін без code paths; test baseline
   актуальної policy base branch кешується між PR-групами.
 - Після `gh pr create` JS чекає terminal CI state і порівнює failed checks із

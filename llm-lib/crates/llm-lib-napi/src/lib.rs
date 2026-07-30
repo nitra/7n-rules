@@ -87,6 +87,29 @@ pub async fn one_shot_acp(
     }
 }
 
+/// Tiered ACP-виклик із denylist terminal-command fragments. Заборонена
+/// команда відхиляється на ACP permission boundary до її виконання.
+#[napi]
+pub async fn one_shot_acp_guarded(
+    kind: String,
+    prompt: String,
+    cwd: String,
+    tier: String,
+    deny_command_fragments: Vec<String>,
+) -> Result<String> {
+    let agent = parse_agent_kind(&kind)?;
+    let tier = parse_tier(&tier)?;
+    llm_lib::acp::one_shot_acp_with_tier_guarded(
+        agent,
+        tier,
+        &prompt,
+        &PathBuf::from(cwd),
+        deny_command_fragments,
+    )
+    .await
+    .map_err(to_napi_err)
+}
+
 /// Пресети ACP-агентів (задача T5, рішення Б): для кожного `kind`-у —
 /// `command`/`label`, для кожного тиру — `label`/`env`/`args`/`postSessionConfig`
 /// (серіалізований [`llm_lib::acp::TierPreset`]). Джерело — виключно Rust-пресети

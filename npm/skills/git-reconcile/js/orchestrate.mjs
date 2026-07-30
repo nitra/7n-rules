@@ -873,9 +873,10 @@ export function parseDecisionEnvelope(text) {
  * @param {string} cwd робочий каталог
  * @param {object} deps інжекти
  * @param {'min'|'max'} [tier] model tier
+ * @param {{denyCommandFragments?:string[]}} [runnerOptions] обмеження runner-а
  * @returns {Promise<{ok:boolean,text:string,error:string|null}>} результат
  */
-export async function callRunner(runner, prompt, cwd, deps = {}, tier = 'max') {
+export async function callRunner(runner, prompt, cwd, deps = {}, tier = 'max', runnerOptions = {}) {
   if (runner === 'pi') {
     let runAgentSkill = deps.runAgentSkill
     if (!runAgentSkill) {
@@ -901,7 +902,7 @@ export async function callRunner(runner, prompt, cwd, deps = {}, tier = 'max') {
   const verbose = ['1', 'true'].includes((env.N_LLM_ACP_VERBOSE ?? '').toLowerCase())
   if (previousProgress === undefined && !verbose) env[ACP_PROGRESS_ENV] = '0'
   try {
-    const text = await runAcpAgent(runner, prompt, cwd, { tier })
+    const text = await runAcpAgent(runner, prompt, cwd, { tier, ...runnerOptions })
     return { ok: true, text, error: null }
   } catch (error) {
     return { ok: false, text: '', error: error instanceof Error ? error.message : String(error) }
@@ -918,14 +919,25 @@ export async function callRunner(runner, prompt, cwd, deps = {}, tier = 'max') {
  * @returns {Promise<{ok:boolean,text:string,error:string|null,tier:'min'|'max',validation?:object,attempts:Array<object>}>} результат
  */
 export async function callWithValidatedFallback(args) {
-  const { runner, prompt, cwd, validate, remediate, deps = {}, log = noop, label = 'LLM', onAttempt = noop } = args
+  const {
+    runner,
+    prompt,
+    cwd,
+    validate,
+    remediate,
+    deps = {},
+    log = noop,
+    label = 'LLM',
+    onAttempt = noop,
+    runnerOptions = {}
+  } = args
   const call = deps.callRunner ?? callRunner
   const attempts = []
   let retryPrompt = prompt
 
   for (const tier of LLM_TIERS) {
     onAttempt({ label, tier })
-    const outcome = await call(runner, retryPrompt, cwd, deps, tier)
+    const outcome = await call(runner, retryPrompt, cwd, deps, tier, runnerOptions)
     if (!outcome.ok) {
       const validation = { ok: false, error: outcome.error ?? `${tier} runner failed` }
       attempts.push({ tier, ok: false, validation })
@@ -1599,6 +1611,20 @@ function validateGitState(cwd, spawnFn) {
 /** Межі стабільного Vitest failure identifier. */
 const ANSI_ESCAPE = String.fromCodePoint(27)
 const TEST_FAILURE_PREFIX = 'FAIL  '
+const COGNITIVE_GATE_COMMAND_DENYLIST = [
+  'bun run test',
+  'bun test',
+  'bun run build',
+  'npx @7n/rules lint',
+  'n-rules lint',
+  'bunx @7n/rules lint'
+]
+const COGNITIVE_GATE_COMMAND_LABELS = COGNITIVE_GATE_COMMAND_DENYLIST.map(command => '`' + command + '`').join(', ')
+const COGNITIVE_GATE_BOUNDARY = [
+  'Жорстка межа: JS після твого ходу сам запускає repository-wide gates.',
+  `Заборонені команди: ${COGNITIVE_GATE_COMMAND_LABELS}.`,
+  'Narrow test має явно називати конкретний test file або selector; якщо такого тесту немає, поверни blocker.'
+].join(' ')
 
 /**
  * Витягає стабільні Vitest failure identifiers без summary/timing.
@@ -1723,11 +1749,23 @@ function changedSourceDirectories(cwd, spawnFn) {
  * @returns {string[]} directories
  */
 export function changedNonCodeDirectories(cwd, spawnFn = spawnSync) {
+  return changedNonCodeScopes(cwd, spawnFn).filter(path => dirname(path) !== '.')
+}
+
+/**
+ * Повертає найвужчі scopes для non-code змін. Файл у корені лишається
+ * файлом, а не перетворюється на `.`: root lint може торкнутися всього
+ * monorepo і забруднити reconciliation unrelated autofix-ами.
+ * @param {string} cwd worktree
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {string[]} relative files або directories
+ */
+export function changedNonCodeScopes(cwd, spawnFn = spawnSync) {
   return [
     ...new Set(
       changedPaths(cwd, spawnFn)
         .filter(path => !SOURCE_CODE_RE.test(path))
-        .map(path => dirname(path))
+        .map(path => (dirname(path) === '.' ? path : dirname(path)))
     )
   ]
     .filter(path => existsSync(join(cwd, path === '.' ? '' : path)))
@@ -1754,7 +1792,8 @@ async function validateScopedProjectGates(cwd, spawnFn, onProgress = noop, async
       return {
         ok: false,
         error: `doc-files (${path}): ${docs.stderr || docs.stdout}`,
-        remediation: 'canonical-fixers'
+        remediation: 'canonical-fixers',
+        remediationScopes: [path]
       }
     }
     onProgress(`scoped lint (${path})`)
@@ -1765,7 +1804,8 @@ async function validateScopedProjectGates(cwd, spawnFn, onProgress = noop, async
       return {
         ok: false,
         error: `scoped lint (${path}): ${lint.stderr || lint.stdout}`,
-        remediation: 'canonical-fixers'
+        remediation: 'canonical-fixers',
+        remediationScopes: [path]
       }
     }
   }
@@ -1792,10 +1832,10 @@ export async function remediateBehaviorState(
   if (validation.remediation !== 'canonical-fixers') return { attempted: false, ok: false }
 
   const longRunner = resolveAsyncSpawn(spawnFn, asyncSpawnFn)
-  const changedDirectories = [
-    ...new Set([...changedSourceDirectories(cwd, spawnFn), ...changedNonCodeDirectories(cwd, spawnFn)])
-  ].toSorted()
-  for (const path of changedDirectories) {
+  const remediationScopes = Array.isArray(validation.remediationScopes)
+    ? validation.remediationScopes
+    : [...new Set([...changedSourceDirectories(cwd, spawnFn), ...changedNonCodeScopes(cwd, spawnFn)])].toSorted()
+  for (const path of remediationScopes) {
     onProgress(`deterministic fix (${path})`)
     const fixed = await runAsync('npx', ['@7n/rules', 'lint', '--path', path], cwd, longRunner, {
       allowFailure: true
@@ -1947,7 +1987,7 @@ export async function validateFinalProjectGates(cwd, spawnFn = spawnSync, asyncS
   const longRunner = resolveAsyncSpawn(spawnFn, asyncSpawnFn)
   const lockfiles = await validateChangedLockfiles(cwd, spawnFn, asyncSpawnFn)
   if (!lockfiles.ok) return lockfiles
-  for (const path of changedNonCodeDirectories(cwd, spawnFn)) {
+  for (const path of changedNonCodeScopes(cwd, spawnFn)) {
     const lint = await runAsync('npx', ['@7n/rules', 'lint', '--path', path, '--no-fix'], cwd, longRunner, {
       allowFailure: true
     })
@@ -1955,7 +1995,8 @@ export async function validateFinalProjectGates(cwd, spawnFn = spawnSync, asyncS
       return {
         ok: false,
         error: `domain lint (${path}): ${lint.stderr || lint.stdout}`,
-        remediation: 'canonical-fixers'
+        remediation: 'canonical-fixers',
+        remediationScopes: [path]
       }
     }
   }
@@ -1966,7 +2007,8 @@ export async function validateFinalProjectGates(cwd, spawnFn = spawnSync, asyncS
     return {
       ok: false,
       error: `changelog gate: ${changelog.stderr || changelog.stdout}`,
-      remediation: 'canonical-fixers'
+      remediation: 'canonical-fixers',
+      remediationScopes: []
     }
   }
   return { ok: true }
@@ -2013,6 +2055,7 @@ async function resolveConflict(args) {
     'Порівняй current main та намір перенесеної зміни; не використовуй ours/theirs механічно.',
     'Збережи актуальну поведінку main, перенеси лише відсутню корисну частину.',
     'За потреби онови regression test. Не commit, не push, не створюй PR і не видаляй refs.',
+    COGNITIVE_GATE_BOUNDARY,
     'Наприкінці прибери conflict markers і коротко наведи виконані перевірки.'
   ].join('\n\n')
   const outcome = await callWithValidatedFallback({
@@ -2023,6 +2066,7 @@ async function resolveConflict(args) {
     log,
     label: `conflict ${source}`,
     onAttempt: ({ tier }) => onProgress('resolve conflict', tier),
+    runnerOptions: { denyCommandFragments: COGNITIVE_GATE_COMMAND_DENYLIST },
     validate: () => validateGitState(worktreeCwd, spawnFn)
   })
   if (!outcome.ok) throw new Error(`LLM conflict resolution: ${outcome.error}`)
@@ -2078,7 +2122,7 @@ async function finalizeBehavior(args) {
     '- додай/онови regression test, якщо це bug fix;',
     '- виконай найвужчі релевантні тести;',
     '- не роби unrelated refactor або formatting churn.',
-    'Не запускай full repository tests, doc generation, lint або changelog: після твоїх правок це детерміновано виконає JS.',
+    COGNITIVE_GATE_BOUNDARY,
     'Не commit, не push, не створюй PR і не видаляй refs. Якщо поведінку неможливо безпечно підтвердити — нічого не маскуй, поверни чіткий blocker.'
   ].join('\n\n')
   const outcome = await callWithValidatedFallback({
@@ -2089,6 +2133,7 @@ async function finalizeBehavior(args) {
     log,
     label: `behavior ${source}`,
     onAttempt: ({ tier }) => onProgress('behavior validation', tier),
+    runnerOptions: { denyCommandFragments: COGNITIVE_GATE_COMMAND_DENYLIST },
     validate: () =>
       validateBehaviorState(
         worktreeCwd,

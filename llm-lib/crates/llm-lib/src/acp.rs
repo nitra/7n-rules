@@ -127,9 +127,23 @@ pub async fn one_shot_acp_with_tier(
     prompt: &str,
     cwd: &Path,
 ) -> Result<String, LlmError> {
+    one_shot_acp_with_tier_guarded(agent, tier, prompt, cwd, Vec::new()).await
+}
+
+/// Tiered one-shot ACP-виклик із denylist команд у permission boundary.
+/// Заборонена команда отримує ACP `Cancelled`, тому агент не може обійти
+/// JS-owned full gates лише ігноруванням промпта.
+pub async fn one_shot_acp_with_tier_guarded(
+    agent: AcpAgentKind,
+    tier: Tier,
+    prompt: &str,
+    cwd: &Path,
+    deny_command_fragments: Vec<String>,
+) -> Result<String, LlmError> {
     let spec = agent.tier_spec(tier)?;
     let options = SessionOptions {
         post_session_config: agent.tier_preset(tier).post_session_config,
+        deny_command_fragments,
         ..SessionOptions::default()
     };
     run_one_shot(spec, cwd, options, prompt).await
