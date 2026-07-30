@@ -119,6 +119,20 @@ export async function withShellcheckStubInPath(fn) {
  *
  * Додатково виставляє `N_CURSOR_NO_AUTO_INSTALL=1` на час `fn`: інструменти, що резолвляться
  * через `ensureTool`, інакше спробували б **реальний** brew/scoop/curl-install під час тесту.
+ *
+ * Ізолює й кеш-каталог `ensureTool` (`getCacheDir()` у `ensure-tool.mjs`: типово
+ * `~/.cache/@7n/rules/bin/` на POSIX, `%LOCALAPPDATA%\@7n\rules\bin\` на Windows) —
+ * через `N_CURSOR_TOOL_CACHE_DIR` (свіжий порожній tmp-каталог на час `fn`), а НЕ
+ * підміною `HOME`/`LOCALAPPDATA`: під Bun (`bun run --bun vitest` — канонічний
+ * CI-запуск) `os.homedir()` резолвиться один раз при старті процесу й ігнорує
+ * runtime-зміну `process.env.HOME` (на відміну від Node.js) — підміна HOME тут
+ * виглядала б робочою локально (під `node`/`npx vitest`), але мовчки не спрацьовувала
+ * б під реальним CI-раннером. Без цієї ізоляції `ensureTool` бачить лише PATH-крок
+ * negative-тесту: якщо тул уже закешований (інший тест того ж vitest-прогону чи
+ * попередній CI-крок його авто-встановив у спільний `~/.cache/@7n/rules/bin/`), крок 2
+ * (перевірка кешу) резолвить бінарник МИНАЮЧИ і PATH-фільтр, і `N_CURSOR_NO_AUTO_INSTALL`
+ * — негативний тест тоді хибно не кидає (спостережено на чистих GitHub ubuntu-runner-ах:
+ * auto-install з `GITHUB_TOKEN` реально встановлює тул у той самий процес).
  * @param {string} bin ім'я виконуваного файлу (на Windows додасться `.exe`)
  * @param {() => void | Promise<void>} fn тестовий код, що очікує відсутність бінарника в PATH
  * @returns {Promise<void>}
@@ -128,12 +142,15 @@ export async function withBinRemovedFromPath(bin, fn) {
   const candidates = isWin ? [`${bin}.exe`, bin] : [bin]
   const prevPath = env.PATH
   const prevNoInstall = env['N_CURSOR_NO_AUTO_INSTALL']
+  const prevCacheDir = env['N_CURSOR_TOOL_CACHE_DIR']
   const filtered = (prevPath ?? '')
     .split(delimiter)
     .filter(d => d && candidates.every(name => !existsSync(join(d, name))))
     .join(delimiter)
   env.PATH = filtered
   env['N_CURSOR_NO_AUTO_INSTALL'] = '1'
+  const isolatedCacheDir = await mkdtemp(join(tmpdir(), 'n-rules-isolated-tool-cache-'))
+  env['N_CURSOR_TOOL_CACHE_DIR'] = isolatedCacheDir
   try {
     await fn()
   } finally {
@@ -147,6 +164,12 @@ export async function withBinRemovedFromPath(bin, fn) {
     } else {
       env['N_CURSOR_NO_AUTO_INSTALL'] = prevNoInstall
     }
+    if (prevCacheDir === undefined) {
+      delete env['N_CURSOR_TOOL_CACHE_DIR']
+    } else {
+      env['N_CURSOR_TOOL_CACHE_DIR'] = prevCacheDir
+    }
+    await rm(isolatedCacheDir, { recursive: true, force: true })
   }
 }
 
