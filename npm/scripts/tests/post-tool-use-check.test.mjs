@@ -53,9 +53,12 @@ describe('runPostToolUseCheckCli', () => {
     expect(detectFn).not.toHaveBeenCalled()
   })
 
-  test('detect кидає → 1', async () => {
+  test('detect кидає → 1, помилка йде в інжектований log (не в stderr)', async () => {
     const detectFn = vi.fn(() => Promise.reject(new Error('boom')))
-    expect(await runPostToolUseCheckCli({ stdinJson: EDIT, detectFn })).toBe(1)
+    const logged = []
+    const log = s => logged.push(s)
+    expect(await runPostToolUseCheckCli({ stdinJson: EDIT, detectFn, log })).toBe(1)
+    expect(logged.join('')).toBe('post-tool-use-check: не вдалося запустити детект — boom\n')
   })
 
   test('process.stdin.isTTY → 0, без детекту', async () => {

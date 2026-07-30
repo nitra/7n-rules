@@ -59,8 +59,8 @@ export function extractFilePath(stdinJson) {
 /**
  * Точка входу. Викликається з `bin/n-rules.js` коли argv[0] === `post-tool-use-check`.
  * Параметри доступні для інʼєкції для тестів: `stdinJson` обходить read від `process.stdin`,
- * `runConformanceCheckFn` — заміна `runConformanceCheck`.
- * @param {{ stdinJson?: string, detectFn?: typeof detectAll }} [options] параметри для тестів
+ * `detectFn` — заміна `detectAll`, `log` — заміна запису в `process.stderr`.
+ * @param {{ stdinJson?: string, detectFn?: typeof detectAll, log?: (s: string) => void }} [options] параметри для тестів
  * @returns {Promise<number>} exit code (0 — пропущено / OK; 1 — є порушення)
  */
 export async function runPostToolUseCheckCli(options = {}) {
@@ -71,12 +71,13 @@ export async function runPostToolUseCheckCli(options = {}) {
     return 0
   }
   const detect = options.detectFn ?? detectAll
+  const log = options.log ?? (s => process.stderr.write(s))
   // Read-only per-file детект (unified lint surface) зміненого файлу; рендер — у runner-і.
   try {
-    const { exitCode } = await detect({ files: [filePath], cwd: processCwd(), log: s => process.stderr.write(s) })
+    const { exitCode } = await detect({ files: [filePath], cwd: processCwd(), log })
     return exitCode === 0 ? 0 : 1
   } catch (error) {
-    process.stderr.write(`post-tool-use-check: не вдалося запустити детект — ${error.message}\n`)
+    log(`post-tool-use-check: не вдалося запустити детект — ${error.message}\n`)
     return 1
   }
 }
