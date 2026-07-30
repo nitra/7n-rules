@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.62.1] - 2026-07-30
+
+### Removed
+
+- видалено невикористаний модуль walk-cache.mjs (0 runtime-споживачів; policy-lint-adapter.mjs передає new Map() напряму)
+
 ## [1.62.0] - 2026-07-30
 
 ### Changed
