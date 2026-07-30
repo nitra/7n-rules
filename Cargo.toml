@@ -1,3 +1,8 @@
 [workspace]
 resolver = "2"
-members = ["llm-lib/crates/llm-lib", "llm-lib/crates/llm-lib-napi"]
+members = [
+  "llm-lib/crates/llm-lib",
+  "llm-lib/crates/llm-lib-napi",
+  "crates/rules-core",
+  "crates/rules-napi",
+]

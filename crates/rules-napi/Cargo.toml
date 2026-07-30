@@ -1,0 +1,19 @@
+[package]
+name = "rules-napi"
+version = "0.1.0"
+edition = "2021"
+description = "napi-біндінги rules-core для @7n/rules (тонкий binding, окремий cdylib від llm-lib-napi)"
+license = "Apache-2.0"
+
+[lib]
+name = "rules_napi"
+crate-type = ["cdylib"]
+
+[dependencies]
+rules-core = { path = "../rules-core" }
+napi = { version = "3", default-features = false, features = ["napi8", "serde-json"] }
+napi-derive = "3"
+serde_json = "1"
+
+[build-dependencies]
+napi-build = "2"

@@ -42,15 +42,19 @@ jobs:
             fi
             BASE='HEAD^'
           fi
-          if git diff --quiet "$BASE" HEAD -- Cargo.toml Cargo.lock llm-lib/crates; then
+          if git diff --quiet "$BASE" HEAD -- Cargo.toml Cargo.lock llm-lib/crates crates; then
             echo 'changed=false' >> "$GITHUB_OUTPUT"
           else
             echo 'changed=true' >> "$GITHUB_OUTPUT"
           fi
 
-  # ── Збірка prebuilt napi-аддона llm-lib для платформних підпакетів ───────
+  # ── Збірка prebuilt napi-аддонів llm-lib і rules-core для платформних підпакетів ─
   # За зразком nitra/mt npm-publish.yml (build-binaries): v1-платформи —
-  # darwin-arm64 + linux-x64-gnu, дзеркало NAPI_SUFFIXES у llm-lib/lib/internal/native.mjs.
+  # darwin-arm64 + linux-x64-gnu, дзеркало NAPI_SUFFIXES у llm-lib/lib/internal/native.mjs
+  # та npm/scripts/lib/native.mjs. Один runner на платформу збирає обидва cdylib —
+  # rules-napi окремий крейт/пакет від llm-lib-napi (Р7 спеки rules-v2-rust-core-migration),
+  # але target-тулчейн і платформа ті самі, тож друга збірка на тому ж runner-і дешевша,
+  # ніж окрема матриця.
   build-native:
     needs: changes
     if: needs.changes.outputs.native == 'true'
@@ -65,11 +69,17 @@ jobs:
             pkg: llm-lib-darwin-arm64
             napi-artifact: llm-lib-napi.darwin-arm64.node
             cdylib: libllm_lib_napi.dylib
+            rules-pkg: rules-darwin-arm64
+            rules-napi-artifact: rules-napi.darwin-arm64.node
+            rules-cdylib: librules_napi.dylib
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             pkg: llm-lib-linux-x64
             napi-artifact: llm-lib-napi.linux-x64-gnu.node
             cdylib: libllm_lib_napi.so
+            rules-pkg: rules-linux-x64
+            rules-napi-artifact: rules-napi.linux-x64-gnu.node
+            rules-cdylib: librules_napi.so
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -86,13 +96,25 @@ jobs:
       - name: Build llm-lib napi addon
         run: cargo build --release --target ${{ matrix.target }} -p llm-lib-napi
 
-      - name: Stage addon into platform package
+      - name: Stage llm-lib napi addon into platform package
         run: cp "target/${{ matrix.target }}/release/${{ matrix.cdylib }}" "llm-lib/packages/${{ matrix.pkg }}/${{ matrix.napi-artifact }}"
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.pkg }}
           path: llm-lib/packages/${{ matrix.pkg }}/*.node
+          if-no-files-found: error
+
+      - name: Build rules-napi addon
+        run: cargo build --release --target ${{ matrix.target }} -p rules-napi
+
+      - name: Stage rules-napi addon into platform package
+        run: cp "target/${{ matrix.target }}/release/${{ matrix.rules-cdylib }}" "npm/packages/${{ matrix.rules-pkg }}/${{ matrix.rules-napi-artifact }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.rules-pkg }}
+          path: npm/packages/${{ matrix.rules-pkg }}/*.node
           if-no-files-found: error
 
   release-publish:
@@ -141,11 +163,19 @@ jobs:
           git fetch origin main --tags
           git merge --ff-only origin/main
 
-      - name: Download napi addons
+      - name: Download llm-lib napi addons
         if: needs.changes.outputs.native == 'true'
         uses: actions/download-artifact@v4
         with:
           path: llm-lib/packages # → llm-lib/packages/<pkg>/llm-lib-napi.<triple>.node
+          pattern: llm-lib-*
+
+      - name: Download rules-napi addons
+        if: needs.changes.outputs.native == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          path: npm/packages # → npm/packages/<pkg>/rules-napi.<triple>.node
+          pattern: rules-*
 
       - name: Smoke-check CLI-модулів (ловить hoisting-регресії залежностей до релізу)
         if: needs.changes.outputs.native == 'true'
@@ -153,6 +183,21 @@ jobs:
         # бути доступні до цього кроку. Loader бере explicit override, бо
         # downloaded artifact не є встановленим platform npm-підпакетом.
         run: N_LLM_LIB_NATIVE_ADDON="$PWD/llm-lib/packages/llm-lib-linux-x64/llm-lib-napi.linux-x64-gnu.node" node npm/scripts/smoke-check-imports.mjs
+
+      - name: Smoke-check rules-napi аддона (контракт DTO до релізу)
+        if: needs.changes.outputs.native == 'true'
+        # Той самий канон, що й для llm-lib вище: явний override шляху (downloaded
+        # artifact — не встановлений platform npm-підпакет), мінімальний прогін
+        # contractVersion() ловить розбіжність DTO rules-core ⇄ rules-napi (Р10 спеки)
+        # до того, як платформні пакети підуть у публікацію.
+        run: |
+          N_RULES_NATIVE_ADDON="$PWD/npm/packages/rules-linux-x64/rules-napi.linux-x64-gnu.node" node -e "
+            import('./npm/scripts/lib/native.mjs').then(({ loadNative }) => {
+              const version = loadNative().contractVersion();
+              if (version !== 1) throw new Error('rules-napi contractVersion=' + version + ', очікується 1');
+              console.log('rules-napi smoke-check: contractVersion() === 1 OK');
+            });
+          "
 
       - name: Release (bump + CHANGELOG + tag)
         id: release
@@ -246,6 +291,73 @@ jobs:
         uses: ./.github/actions/publish-npm-package
         with:
           package-json-path: llm-lib/package.json
+
+      # Той самий канон, що й для @7n/llm-lib вище — новий prebuilt rules-napi addon
+      # публікуємо лише після Rust/N-API змін. `npm/package.json` optionalDependencies
+      # містить, крім платформних пакетів, і `@earendil-works/pi-*` — тож на відміну
+      # від llm-lib-скрипта тут явно перелічені лише два rules-платформні ключі,
+      # без циклу по всіх optionalDependencies.
+      - name: Sync platform versions to @7n/rules
+        if: >-
+          needs.changes.outputs.native == 'true' &&
+          contains(fromJSON(steps.release.outputs.workspaces), 'npm')
+        run: |
+          VERSION=$(node -p "require('./npm/package.json').version")
+          echo "Publishing @7n/rules platform packages at version $VERSION"
+          for pkg in rules-darwin-arm64 rules-linux-x64; do
+            V="$VERSION" node -e "const f='npm/packages/'+process.argv[1]+'/package.json';const p=require('./'+f);p.version=process.env.V;require('fs').writeFileSync(f, JSON.stringify(p,null,2)+'\n')" "$pkg"
+          done
+          V="$VERSION" node -e "
+            const f = 'npm/package.json';
+            const p = require('./' + f);
+            for (const name of ['@7n/rules-darwin-arm64', '@7n/rules-linux-x64']) {
+              if (p.optionalDependencies?.[name]) p.optionalDependencies[name] = process.env.V;
+            }
+            require('fs').writeFileSync(f, JSON.stringify(p, null, 2) + '\n');
+          "
+
+      # Платформні підпакети — ПЕРЕД @7n/rules: його optionalDependencies вже
+      # вказують на ці версії, тож інсталяція свіжого @7n/rules мусить знаходити
+      # prebuilt-аддон у registry.
+      - name: Publish @7n/rules-darwin-arm64
+        if: >-
+          needs.changes.outputs.native == 'true' &&
+          contains(fromJSON(steps.release.outputs.workspaces), 'npm')
+        id: publish-rules-darwin-arm64
+        continue-on-error: true
+        uses: ./.github/actions/publish-npm-package
+        with:
+          package-json-path: npm/packages/rules-darwin-arm64/package.json
+
+      - name: Publish @7n/rules-linux-x64
+        if: >-
+          needs.changes.outputs.native == 'true' &&
+          contains(fromJSON(steps.release.outputs.workspaces), 'npm')
+        id: publish-rules-linux-x64
+        continue-on-error: true
+        uses: ./.github/actions/publish-npm-package
+        with:
+          package-json-path: npm/packages/rules-linux-x64/package.json
+
+      # Дзеркало «Commit синк платформних пінів» вище для @7n/llm-lib: без цього
+      # піни `npm/package.json` ⇄ `npm/packages/rules-*` відстають від registry
+      # в git після release-коміту (ризик 7 спеки rules-v2-rust-core-migration).
+      - name: Commit синк платформних пінів (rules)
+        if: >-
+          needs.changes.outputs.native == 'true' &&
+          contains(fromJSON(steps.release.outputs.workspaces), 'npm') &&
+          steps.publish-rules-darwin-arm64.outcome == 'success' &&
+          steps.publish-rules-linux-x64.outcome == 'success'
+        continue-on-error: true
+        run: |
+          n=0
+          until bun update @7n/rules-darwin-arm64 @7n/rules-linux-x64; do
+            n=$((n + 1))
+            [ "$n" -ge 5 ] && { echo "::warning::registry не віддає нові платформні версії — піни лишаються незакоміченими"; exit 1; }
+            sleep 15
+          done
+          git add npm/package.json npm/packages/rules-darwin-arm64/package.json npm/packages/rules-linux-x64/package.json bun.lock
+          git commit -m "chore(release): синк пінів платформних napi-пакетів @7n/rules"
 
       - name: Publish package
         if: contains(fromJSON(steps.release.outputs.workspaces), 'npm')
