@@ -86,8 +86,15 @@ afterAll(async () => {
   for (const [spec, mod] of actualModules) mock.module(spec, () => mod)
 })
 
-const { ensureTool, ensureToolAsync, ensureHkInstall, fetchLatestVersion, checkToolPinsFreshness, TOOLS } =
-  await import('../ensure-tool.mjs')
+const {
+  ensureTool,
+  ensureToolAsync,
+  ensureHkInstall,
+  fetchLatestVersion,
+  checkToolPinsFreshness,
+  buildGithubDownloadUrl,
+  TOOLS
+} = await import('../ensure-tool.mjs')
 
 const HK_SUFFIX_RE = /hk$/
 const UNKNOWN_TOOL_RE = /невідомий тул/
@@ -317,6 +324,23 @@ describe('fetchLatestVersion', () => {
         expect(thrown?.message).toContain('API rate limit exceeded')
       })
     )
+  })
+})
+
+describe('buildGithubDownloadUrl', () => {
+  test('дефолтний тул (без tagPrefix) → тег з префіксом v', () => {
+    const url = buildGithubDownloadUrl(TOOLS['conftest'], '0.68.2', 'conftest_0.68.2_Linux_x86_64.tar.gz')
+    expect(url).toBe(
+      'https://github.com/open-policy-agent/conftest/releases/download/v0.68.2/conftest_0.68.2_Linux_x86_64.tar.gz'
+    )
+  })
+
+  test('mago (tagPrefix: "") → тег БЕЗ префікса v — regression-тест на 404 з v-префіксом', () => {
+    const url = buildGithubDownloadUrl(TOOLS['mago'], '1.45.0', 'mago-1.45.0-x86_64-unknown-linux-gnu.tar.gz')
+    expect(url).toBe(
+      'https://github.com/carthage-software/mago/releases/download/1.45.0/mago-1.45.0-x86_64-unknown-linux-gnu.tar.gz'
+    )
+    expect(url).not.toContain('/v1.45.0/')
   })
 })
 

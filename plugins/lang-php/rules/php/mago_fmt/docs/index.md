@@ -1,7 +1,7 @@
 ---
 type: Directory Index
-title: plugins/lang-php/rules/php/cs_fixer
-resource: plugins/lang-php/rules/php/cs_fixer/
+title: plugins/lang-php/rules/php/mago_fmt
+resource: plugins/lang-php/rules/php/mago_fmt/
 ---
 
 | Файл                | Тип       |

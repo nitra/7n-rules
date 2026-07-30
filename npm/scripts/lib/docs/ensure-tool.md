@@ -3,7 +3,7 @@ type: JS Module
 title: ensure-tool.mjs
 resource: npm/scripts/lib/ensure-tool.mjs
 docgen:
-  crc: fabdd634
+  crc: 16d91e8c
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 40
@@ -52,6 +52,11 @@ async-варіант для parallel lane `detectAll()`: внутрішньоп�
 - fetchLatestVersion — Отримує останній тег релізу: спершу GitHub API (з токеном за наявності), при збої —
 redirect-fallback повз API. Кидає `ToolProvisionError`, лише якщо не вдались обидва шляхи.
 Експортовано для юніт-тестів; основний споживач — `installFromGithub`.
+- buildGithubDownloadUrl — Будує URL завантаження GitHub Release asset-у. Тег релізу: типово `v${ver}`
+(hk/conftest/shellcheck/…), але не всі тули так тегують — mago публікує реліз без
+префікса `v` (тег `1.45.0`, не `v1.45.0`, перевірено `gh api
+repos/carthage-software/mago/releases/latest -q '.tag_name'`); `entry.tagPrefix`
+перекриває дефолт для таких винятків (`undefined` → `'v'`). Експортовано для юніт-тестів.
 - ensureTool — Резолвить і за необхідності авто-встановлює зовнішній CLI-тул.
 
 Порядок: PATH → кеш → авто-install (якщо не N_CURSOR_NO_AUTO_INSTALL) → hard-fail.
@@ -68,7 +73,7 @@ cross-process `withLock`, щоб паралельні виклики того с
 
 ## Сценарії використання
 
-- `npm/scripts/lib/tests/ensure-tool.test.mjs` (ensureTool; ensureToolAsync) — PATH hit → повертає абсолютний шлях, без install; кеш hit → повертає шлях з кеш-каталогу, коли в PATH нема; невідомий тул → кидає; opt-out N_CURSOR_NO_AUTO_INSTALL + відсутній → hard-fail з підказкою (без install); PATH hit → повертає абсолютний шлях, без withLock; ще 14
+- `npm/scripts/lib/tests/ensure-tool.test.mjs` (ensureTool; ensureToolAsync) — PATH hit → повертає абсолютний шлях, без install; кеш hit → повертає шлях з кеш-каталогу, коли в PATH нема; невідомий тул → кидає; opt-out N_CURSOR_NO_AUTO_INSTALL + відсутній → hard-fail з підказкою (без install); PATH hit → повертає абсолютний шлях, без withLock; ще 16
 
 ## Гарантії поведінки
 

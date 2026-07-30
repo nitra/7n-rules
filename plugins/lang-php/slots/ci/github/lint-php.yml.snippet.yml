@@ -9,9 +9,7 @@ on:
       - '**/*.php'
       - 'composer.json'
       - 'composer.lock'
-      - 'phpstan.neon'
-      - 'phpstan.neon.dist'
-      - 'psalm.xml'
+      - 'mago.toml'
       - '.github/workflows/lint-php.yml'
 
   pull_request:

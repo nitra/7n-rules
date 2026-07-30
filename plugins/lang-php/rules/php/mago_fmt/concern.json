@@ -1,5 +1,6 @@
 {
   "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
+  "fixability": "config",
   "lint": {
     "scope": "per-file",
     "glob": ["**/*.php"]

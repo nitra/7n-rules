@@ -272,7 +272,7 @@ function computePluginList(root, declared, options) {
  * семантикою розгортається у весь діапазон `0.x`); для `>=1` — caret на поточний major (`^2`).
  * Невідомий (сторонній, не з цієї таблиці) пакет інсталюється без обмеження версії — як і раніше.
  * Усі лінії в таблиці декларують `requiresPluginApi: 2` (перші сумісні релізи: core 1.52.0,
- * ci 2.0.0, lang-js 0.23.0, lang-python 0.11.0, lang-rust 0.14.0, lang-php 0.2.x) — старіші
+ * ci 2.0.0, lang-js 0.23.0, lang-python 0.11.0, lang-rust 0.14.0, lang-php 0.3.x — mago-тулчейн, spec `docs/specs/2026-07-30-mago-php-toolchain.md`) — старіші
  * лінії new-core виключає зі slot graph, тож автоматична інсталяція не має їх приносити.
  * Таблиця ручна, тому при сумісному minor-релізі `0.x`-плагіна її треба піднімати разом із
  * ним, інакше автоматична інсталяція тихо ставить застарілу minor-лінію; дрейф ловить
@@ -284,7 +284,7 @@ export const KNOWN_PLUGIN_RANGES = Object.freeze({
   '@7n/rules-lang-js': '^0.25',
   '@7n/rules-lang-python': '^0.12',
   '@7n/rules-lang-rust': '^0.15',
-  '@7n/rules-lang-php': '^0.2'
+  '@7n/rules-lang-php': '^0.3'
 })
 
 /**
