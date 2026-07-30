@@ -3,7 +3,7 @@ type: JS Module
 title: resolve-plugins.mjs
 resource: npm/scripts/lib/resolve-plugins.mjs
 docgen:
-  crc: 9ca40184
+  crc: 8a22c0a5
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 60
