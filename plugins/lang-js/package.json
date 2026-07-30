@@ -153,6 +153,17 @@
               "ci:github"
             ]
           }
+        },
+        {
+          "slot": "ci.artifact",
+          "version": 1,
+          "id": "js-lint-style-patch",
+          "resource": "./slots/ci/js-lint-style-patch.json",
+          "requires": {
+            "capabilities": [
+              "ci:github"
+            ]
+          }
         }
       ]
     }

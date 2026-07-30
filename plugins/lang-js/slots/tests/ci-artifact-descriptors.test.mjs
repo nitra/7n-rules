@@ -25,6 +25,10 @@ describeCiArtifactDescriptors({
       expected: { targetCapability: 'ci:github', mode: 'patch-existing', mergeStrategy: 'deep-subset', fix: true }
     },
     {
+      file: 'js-lint-style-patch.json',
+      expected: { targetCapability: 'ci:github', mode: 'patch-existing', mergeStrategy: 'deep-subset', fix: true }
+    },
+    {
       file: 'js-github-lint.json',
       expected: { targetCapability: 'ci:github', mode: 'required-file', mergeStrategy: 'deep-subset', fix: true }
     },
