@@ -1,0 +1,24 @@
+{
+  "name": "@7n/rules-linux-x64",
+  "version": "0.1.0",
+  "description": "Попередньо скомпільований native napi-аддон rules-core для @7n/rules — Linux x64 (glibc)",
+  "license": "ISC",
+  "author": "v@nitra.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nitra/7n-rules.git",
+    "directory": "npm/packages/rules-linux-x64"
+  },
+  "files": [
+    "rules-napi.linux-x64-gnu.node"
+  ],
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

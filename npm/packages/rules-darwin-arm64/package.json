@@ -1,0 +1,24 @@
+{
+  "name": "@7n/rules-darwin-arm64",
+  "version": "0.1.0",
+  "description": "Попередньо скомпільований native napi-аддон rules-core для @7n/rules — macOS arm64 (Apple Silicon)",
+  "license": "ISC",
+  "author": "v@nitra.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nitra/7n-rules.git",
+    "directory": "npm/packages/rules-darwin-arm64"
+  },
+  "files": [
+    "rules-napi.darwin-arm64.node"
+  ],
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

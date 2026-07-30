@@ -118,6 +118,7 @@
     "libayatana",
     "libllm",
     "librsvg",
+    "librules",
     "libwebkit",
     "lipo",
     "lmstudio",
