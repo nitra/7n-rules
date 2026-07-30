@@ -30,7 +30,10 @@ import { loadNative } from './internal/native.mjs'
  *     oneShotAcpGuarded?: (kind: string, prompt: string, cwd: string, tier: string, denyCommandFragments: string[]) => Promise<string>
  *   }
  * }} [options] тир + інжект `native` для тестів (той самий 4-й аргумент, що й раніше — сумісність зі старим `{ native }`-викликом збережена)
- * @returns {Promise<string>} повний текст відповіді до кінця ходу
+ * @returns {Promise<string>} повний текст відповіді до кінця ходу; fail-closed
+ *   контракт: Promise завжди завершується — термінальний хід повертає текст
+ *   навіть якщо агент не закриває stdio/сесію, а transport failure
+ *   (idle-timeout/помилка ACP) — reject зі структурованою причиною з Rust
  */
 export function runAcpAgent(kind, prompt, cwd, { tier, mode, native, denyCommandFragments = [] } = {}) {
   if (!tier && mode !== 'interactive') throw new TypeError('runAcpAgent: передай tier або явно mode:"interactive"')

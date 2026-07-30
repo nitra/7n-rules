@@ -3,7 +3,7 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/skills/git-reconcile/js/orchestrate.mjs
 docgen:
-  crc: 9b659040
+  crc: 05c7ed6f
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100
@@ -33,7 +33,7 @@ inventoryStashes додає до інвентарю tracked, untracked, absorbed
 
 buildTriagePrompt і parseDecisionEnvelope утворюють межу між вже порахованими Git-фактами та JSON-відповіддю моделі. Промпт не дає моделі досліджувати репозиторій самостійно, а parseDecisionEnvelope приймає лише чистий JSON або fenced-варіант.
 
-callRunner і callWithValidatedFallback керують bounded LLM-кроками: спочатку мінімальний tier, далі JS-валідатор, і лише після конкретного провалу — ескалація на max. Такий контур зберігає детермінізм, а помилки не перетворюються на довільні зміни поведінки.
+callRunner і callWithValidatedFallback керують bounded LLM-кроками: спочатку мінімальний tier, далі JS-валідатор, і лише після конкретного провалу — ескалація на max. Такий контур зберігає детермінізм, а помилки не перетворюються на довільні зміни поведінки. Transport failure ACP (idle-timeout, обрив процесу агента) приходить із runAcpAgent як rejected Promise і стає структурованою помилкою {ok:false,error} без ескалації на max — це infrastructure failure, batch завершується, а source/worktree лишаються fail-closed.
 
 validateTriageOutcome відсікає невалідні triage-рішення до того, як вони потраплять у materialization. Вона тримає рівно один verdict на candidate, перевіряє відомі commit OID і не дозволяє model output розширювати межі batch.
 

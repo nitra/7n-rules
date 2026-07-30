@@ -3,8 +3,8 @@ type: Rust Module
 title: session.rs
 resource: llm-lib/crates/llm-lib/src/acp/session.rs
 docgen:
-  crc: 14ca4f72
-  model: omlx/gemma-4-e2b-it-4bit
+  crc: 19170628
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
 ---
@@ -19,18 +19,19 @@ docgen:
 - new — Пара `configId`/`value` для `session/set_config_option`.
 - PermissionMode — Хто відповідає на `session/request_permission` (рішення Л — два режими одного механізму, не два дизайни).
 - SessionOptions — Опції створення сесії ([`create_session`]).
+- denies_tool_call — Чи tool-call містить заборонений command fragment.
 - SessionEvent — Подія, яку [`create_session`] публікує в канал подій.
 - PermissionRequestEvent — Запит дозволу, що чекає на відповідь ззовні ([`PermissionMode::External`]).
 - respond — Відповідає обраним варіантом (`option.option_id` з [`Self::options`]).  # Errors [`LlmError::Provider`] — з'єднання з агентом уже закрите.
 - cancel — Відхиляє запит (агент отримує `RequestPermissionOutcome::Cancelled`).  # Errors [`LlmError::Provider`] — з'єднання з агентом уже закрите.
-- SessionHandle — Ручка живої сесії — `prompt`/`cancel`. Клонування дешеве (`mpsc::UnboundedSender` всередині); фонова задача сесії завершується, коли останній клон дропається.
+- SessionHandle — Ручка живої сесії — `prompt`/`cancel`/`shutdown`. Клонування дешеве (`mpsc::UnboundedSender` + `AbortHandle` всередині); фонова задача сесії завершується graceful-шляхом, коли останній клон дропається, — або негайно через [`SessionHandle::shutdown`].
 - prompt — Надсилає prompt і чекає на кінець ходу (`StopReason`). Контент самого ходу (текст/tool-calls/plan) приходить окремо через канал подій [`create_session`] — це повертає лише термінальний статус.  # Errors [`LlmError::Provider`] — фонова задача сесії вже завершилась (з'єднання розірване) або хід провалився ACP-помилкою/idle-timeout.
 - cancel — Просить агента скасувати поточний хід (`session/prompt` завершиться зі `StopReason::Cancelled`) — сама команда не блокує на підтвердженні.  # Errors [`LlmError::Provider`] — фонова задача сесії вже завершена.
+- shutdown — Гарантований teardown сесії незалежно від поведінки агента: абортить фонову задачу, що володіє ACP-з'єднанням, — падіння її future дропає transport, а `ChildGuard` крейта вбиває дочірній процес агента. Graceful-шлях (drop останнього клона ручки → вихід командного циклу) покладається на те, що агент закриє stdio, — Codex ACP після термінального ходу цього не робить, тож one-shot та інші споживачі викликають `shutdown` явно після кінця ходу/помилки. Ідемпотентний; після нього канал подій [`create_session`] закривається, дочитавши буферизовані події.
 - create_session — Спавнить агента (`spec`), відкриває сесію в `cwd` і тримає її живою у фоновій `tokio`-задачі, доки живий хоч один [`SessionHandle`]. Повертається лише після успішного `initialize` → `session/new` → опційного `session/set_config_option` — так само, як `acp_spawn_agent` у плагіні чекає handshake, щоб перший `prompt` не гнався за гонкою і щоб реальна причина відмови (агент не залогінений, невалідний `configId` тощо) повернулась одразу, а не як загадкове "канал закритий" з першого [`SessionHandle::prompt`].  # Errors [`LlmError::Provider`] — спавн/handshake/config-крок провалились.
 - drive_auto_approve — Готова [`PermissionMode::AutoApprove`]-стратегія, реалізована **поверх** [`PermissionMode::External`]-каналу (рішення Л: не окремий протокольний шлях, той самий механізм). Не потрібна тому викликачу, який створює сесію вже з `PermissionMode::AutoApprove` (той шлях відповідає всередині фонової задачі сесії, без проходу через канал подій) — придатна, якщо зовнішній код хоче явно приймати рішення по кожному запиту, окрім авто-approve, тобто для проміжних стратегій (напр. `AutoApprove` з логуванням) поверх `External`-каналу.  Читає `rx`, доки він не закриється (сесія завершилась), ігноруючи `SessionEvent::Update` — той хай читає власний код викликача з окремого каналу чи `tee`.
 
 ## Гарантії поведінки
 
-- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
 - Містить локальні fail-safe гілки; інші помилки можуть поширюватися назовні.
 - Деякі локальні fail-safe гілки повертають порожнє значення (напр. `null`) замість винятку.

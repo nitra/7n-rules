@@ -3,9 +3,9 @@ type: JS Module
 title: acp.mjs
 resource: llm-lib/lib/acp.mjs
 docgen:
-  crc: 966e3fea
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
+  crc: afd53eaa
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
   score: 80
 ---
 
@@ -34,7 +34,7 @@ Rust сам резолвить tier→env/args/post-session-config з пресе
 
 ## Сценарії використання
 
-- `llm-lib/tests/acp.test.mjs` (runAcpAgent; getAcpPresets (smoke через реально збудований napi-аддон)) — interactive mode делегує kind/prompt/cwd у native.oneShotAcp і віддає його результат; без tier або interactive mode — fail-closed; tier прокидається в native.oneShotAcp четвертим аргументом; denyCommandFragments йде через guarded native boundary; denyCommandFragments fail-closed зі старим native addon; ще 1
+- `llm-lib/tests/acp.test.mjs` (runAcpAgent; getAcpPresets (smoke через реально збудований napi-аддон)) — interactive mode делегує kind/prompt/cwd у native.oneShotAcp і віддає його результат; без tier або interactive mode — fail-closed; tier прокидається в native.oneShotAcp четвертим аргументом; denyCommandFragments йде через guarded native boundary; denyCommandFragments fail-closed зі старим native addon; ще 2
 
 ## Гарантії поведінки
 

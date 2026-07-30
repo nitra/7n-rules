@@ -154,6 +154,16 @@ pub async fn one_shot_acp_with_tier_guarded(
 /// `AgentMessageChunk`-події з потоку подій до кінця ходу. Той самий
 /// idle-timeout, auto-approve дозволів і progress-логування, що й раніше
 /// (спільна операційна броня [`transport`], розділена з session-режимом).
+///
+/// Термінальний сигнал ходу — відповідь `session/prompt` (`StopReason` з
+/// [`session::SessionHandle::prompt`]) або її провал (ACP-помилка/
+/// idle-timeout), **не** закриття каналу подій: Codex ACP після
+/// термінального ходу лишає stdio й сесію відкритими, тож очікування
+/// закриття каналу висіло б вічно (живий hang `git-reconcile`×Codex).
+/// Після термінального сигналу — гарантований
+/// [`session::SessionHandle::shutdown`]-teardown дочірнього процесу агента
+/// (для success, timeout і помилки однаково) і дочитування вже
+/// буферизованих подій.
 async fn run_one_shot(
     spec: AcpAgent,
     cwd: &Path,
@@ -162,22 +172,43 @@ async fn run_one_shot(
 ) -> Result<String, LlmError> {
     let (handle, mut events) = session::create_session(spec, cwd, options).await?;
 
-    handle.prompt(prompt).await?;
-    drop(handle);
-
     let mut output = String::new();
+    let turn = handle.prompt(prompt);
+    tokio::pin!(turn);
+    let turn_result = loop {
+        tokio::select! {
+            outcome = &mut turn => break outcome,
+            event = events.recv() => match event {
+                Some(event) => accumulate_agent_text(&mut output, &event),
+                // Канал подій закрився до кінця ходу — фонова задача сесії
+                // померла; сам `turn` ось-ось поверне реальну причину
+                // (reply-канал обірваний тією самою задачею).
+                None => break turn.await,
+            },
+        }
+    };
+
+    handle.shutdown();
     while let Some(event) = events.recv().await {
-        if let SessionEvent::Update(update) = event {
-            if let SessionUpdate::AgentMessageChunk(ContentChunk {
-                content: ContentBlock::Text(text),
-                ..
-            }) = *update
-            {
-                output.push_str(&text.text);
-            }
+        accumulate_agent_text(&mut output, &event);
+    }
+
+    turn_result?;
+    Ok(output)
+}
+
+/// Доклеює текстовий `AgentMessageChunk` з події сесії до акумульованої
+/// відповіді one-shot-ходу; інші події ігнорує.
+fn accumulate_agent_text(output: &mut String, event: &SessionEvent) {
+    if let SessionEvent::Update(update) = event {
+        if let SessionUpdate::AgentMessageChunk(ContentChunk {
+            content: ContentBlock::Text(text),
+            ..
+        }) = update.as_ref()
+        {
+            output.push_str(&text.text);
         }
     }
-    Ok(output)
 }
 
 #[cfg(test)]
@@ -233,5 +264,114 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Пише виконуваний sh-скрипт фейкового ACP-агента, що відтворює живий
+    /// симптом `codex-acp` у `git-reconcile`: чесний handshake
+    /// (`initialize` → `session/new`), на `session/prompt` — один текстовий
+    /// чанк і термінальний `stopReason: end_turn`, після чого процес
+    /// **не** закриває stdio і не завершується сам (`sleep`). Свій PID агент
+    /// пише у `pid_path` — тест по ньому перевіряє гарантований teardown.
+    fn write_terminal_turn_without_close_agent(
+        pid_path: &Path,
+        script_path: &Path,
+    ) -> std::path::PathBuf {
+        use std::io::Write;
+        use std::os::unix::fs::PermissionsExt;
+
+        let script = r#"#!/bin/sh
+echo $$ > '__PID_PATH__'
+while IFS= read -r line; do
+  id=$(printf '%s' "$line" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+  case "$line" in
+    *'"initialize"'*) printf '{"jsonrpc":"2.0","id":"%s","result":{"protocolVersion":1}}\n' "$id" ;;
+    *'"session/new"'*) printf '{"jsonrpc":"2.0","id":"%s","result":{"sessionId":"sess-1"}}\n' "$id" ;;
+    *'"session/prompt"'*)
+      printf '{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"PONG"}}}}\n'
+      printf '{"jsonrpc":"2.0","id":"%s","result":{"stopReason":"end_turn"}}\n' "$id"
+      ;;
+  esac
+done
+sleep 600
+"#
+        .replace("__PID_PATH__", &pid_path.display().to_string());
+
+        let mut file =
+            std::fs::File::create(script_path).expect("не вдалось створити тестовий скрипт");
+        file.write_all(script.as_bytes())
+            .expect("не вдалось записати тестовий скрипт");
+        drop(file);
+
+        let mut perms = std::fs::metadata(script_path)
+            .expect("не вдалось прочитати метадані скрипта")
+            .permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(script_path, perms).expect("не вдалось виставити +x на скрипт");
+        script_path.to_path_buf()
+    }
+
+    /// `true` — процес `pid` зник протягом `limit` (SIGKILL від teardown
+    /// не миттєвий, тому опитуємо `kill -0`).
+    fn process_exits_within(pid: &str, limit: std::time::Duration) -> bool {
+        let deadline = std::time::Instant::now() + limit;
+        while std::time::Instant::now() < deadline {
+            let alive = std::process::Command::new("kill")
+                .args(["-0", pid])
+                .status()
+                .is_ok_and(|status| status.success());
+            if !alive {
+                return true;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        false
+    }
+
+    /// Регресія на живий hang `git-reconcile`×Codex: агент повідомив
+    /// термінальний хід (`stopReason: end_turn`), але не закрив stdio і не
+    /// завершився. One-shot має повернути накопичений текст за bounded time
+    /// (термінальний сигнал — відповідь `session/prompt`, а не закриття
+    /// event-каналу) і гарантовано прибрати дочірній процес агента.
+    #[tokio::test]
+    async fn one_shot_returns_and_kills_agent_that_never_closes_after_terminal_turn() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("час не мав би йти назад від епохи")
+            .as_nanos();
+        let dir = std::env::temp_dir();
+        let pid_path = dir.join(format!(
+            "llm-lib-acp-oneshot-terminal-pid-{}-{unique}",
+            std::process::id()
+        ));
+        let script_path = dir.join(format!(
+            "llm-lib-acp-oneshot-terminal-agent-{}-{unique}.sh",
+            std::process::id()
+        ));
+        write_terminal_turn_without_close_agent(&pid_path, &script_path);
+
+        let spec = AcpAgent::from_args([script_path.to_str().unwrap()])
+            .expect("шлях до тестового скрипта має бути валідною AcpAgent-спекою");
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            run_one_shot(spec, &dir, SessionOptions::default(), "ping"),
+        )
+        .await;
+
+        let outcome = result.expect("terminal turn без закриття stdio не має підвішувати one-shot");
+        let pid = std::fs::read_to_string(&pid_path)
+            .expect("агент мав записати свій PID до handshake")
+            .trim()
+            .to_string();
+        let agent_dead = process_exits_within(&pid, std::time::Duration::from_secs(5));
+
+        let _ = std::fs::remove_file(&script_path);
+        let _ = std::fs::remove_file(&pid_path);
+
+        let output = outcome.expect("хід з термінальним stopReason має повернути Ok");
+        assert_eq!(output, "PONG");
+        assert!(
+            agent_dead,
+            "дочірній процес агента (pid {pid}) має бути прибраний після terminal turn"
+        );
     }
 }

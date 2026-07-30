@@ -199,12 +199,14 @@ enum SessionCommand {
     Cancel,
 }
 
-/// Ручка живої сесії — `prompt`/`cancel`. Клонування дешеве
-/// (`mpsc::UnboundedSender` всередині); фонова задача сесії завершується,
-/// коли останній клон дропається.
+/// Ручка живої сесії — `prompt`/`cancel`/`shutdown`. Клонування дешеве
+/// (`mpsc::UnboundedSender` + `AbortHandle` всередині); фонова задача сесії
+/// завершується graceful-шляхом, коли останній клон дропається, — або
+/// негайно через [`SessionHandle::shutdown`].
 #[derive(Clone, Debug)]
 pub struct SessionHandle {
     commands: mpsc::UnboundedSender<SessionCommand>,
+    abort: tokio::task::AbortHandle,
 }
 
 impl SessionHandle {
@@ -237,6 +239,19 @@ impl SessionHandle {
         self.commands
             .send(SessionCommand::Cancel)
             .map_err(|_| LlmError::Provider("acp: сесія вже завершена".to_string()))
+    }
+
+    /// Гарантований teardown сесії незалежно від поведінки агента: абортить
+    /// фонову задачу, що володіє ACP-з'єднанням, — падіння її future дропає
+    /// transport, а `ChildGuard` крейта вбиває дочірній процес агента.
+    /// Graceful-шлях (drop останнього клона ручки → вихід командного циклу)
+    /// покладається на те, що агент закриє stdio, — Codex ACP після
+    /// термінального ходу цього не робить, тож one-shot та інші споживачі
+    /// викликають `shutdown` явно після кінця ходу/помилки. Ідемпотентний;
+    /// після нього канал подій [`create_session`] закривається, дочитавши
+    /// буферизовані події.
+    pub fn shutdown(&self) {
+        self.abort.abort();
     }
 }
 
@@ -310,7 +325,7 @@ pub async fn create_session(
     let ready_tx_fallback = std::sync::Arc::clone(&ready_tx);
 
     let permission_event_tx = event_tx.clone();
-    tokio::spawn(async move {
+    let session_task = tokio::spawn(async move {
         // Усередині замикання `ready_tx` бере той самий спільний слот:
         // кожен ранній вихід (`?` на init/session-new/config-кроці) сам
         // шле `Err` перед поверненням, успішний шлях шле `Ok(())` перед
@@ -451,6 +466,7 @@ pub async fn create_session(
         Ok(Ok(())) => Ok((
             SessionHandle {
                 commands: command_tx,
+                abort: session_task.abort_handle(),
             },
             event_rx,
         )),
