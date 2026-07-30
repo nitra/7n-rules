@@ -29,6 +29,7 @@
     "CHANGELOG.md",
     "doc-files",
     "coverage-provider",
+    "knowledge",
     "!**/*.test.mjs",
     "!**/*_test.rego",
     "!**/fixtures/**",
@@ -107,6 +108,12 @@
           }
         },
         {
+          "slot": "knowledge.extractor",
+          "version": 1,
+          "id": "knowledge-php",
+          "resource": "./knowledge/extractor.mjs"
+        },
+        {
           "slot": "coverage.provider",
           "version": 1,
           "id": "coverage-php",
@@ -124,5 +131,8 @@
   "engines": {
     "bun": ">=1.3",
     "node": ">=24"
+  },
+  "dependencies": {
+    "php-parser": "^3.7.0"
   }
 }

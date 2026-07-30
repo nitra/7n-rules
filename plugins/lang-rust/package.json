@@ -22,6 +22,7 @@
   "type": "module",
   "files": [
     "coverage-provider",
+    "knowledge",
     "rules",
     "doc-files",
     "taze",
@@ -59,6 +60,12 @@
         { "slot": "coverage.provider", "version": 1, "id": "coverage-rust", "resource": "./coverage-provider/provider.mjs" },
         { "slot": "doc-files.extractor", "version": 1, "id": "doc-files-rust", "resource": "./doc-files/extractors.mjs" },
         {
+          "slot": "knowledge.extractor",
+          "version": 1,
+          "id": "knowledge-rust",
+          "resource": "./knowledge/extractor.mjs"
+        },
+        {
           "slot": "doc-files.extensions",
           "version": 1,
           "id": "doc-files-ext-rust",
@@ -70,7 +77,9 @@
   },
   "dependencies": {
     "globby": "^16.0.0",
-    "smol-toml": "^1.7.0"
+    "smol-toml": "^1.7.0",
+    "tree-sitter-rust": "^0.24.0",
+    "web-tree-sitter": "^0.26.11"
   },
   "peerDependencies": {
     "@7n/rules": ">=1.52.0",

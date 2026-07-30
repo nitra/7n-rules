@@ -3,7 +3,7 @@ type: JS Module
 title: auto-rules.mjs
 resource: npm/scripts/auto-rules.mjs
 docgen:
-  crc: a0d63eec
+  crc: b1a0ced4
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 25
@@ -48,7 +48,7 @@ docgen:
 
 ## Сценарії використання
 
-- `npm/scripts/tests/auto-rules.test.mjs` (detectAutoRules; mergeConfigWithAutoDetected) — додає правила за ознаками проєкту; додає js-bun-db при pg у dependencies; додає js-bun-db при pg-format у dependencies; додає js-bun-db при імпорті sql з bun; додає js-bun-redis при ioredis у dependencies; ще 47
+- `npm/scripts/tests/auto-rules.test.mjs` (detectAutoRules; mergeConfigWithAutoDetected) — додає правила за ознаками проєкту; додає js-bun-db при pg у dependencies; додає js-bun-db при pg-format у dependencies; додає js-bun-db при імпорті sql з bun; додає js-bun-redis при ioredis у dependencies; ще 48
 
 ## Гарантії поведінки
 

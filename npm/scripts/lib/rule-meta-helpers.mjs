@@ -13,7 +13,8 @@
  */
 export const RULE_MIGRATIONS = Object.freeze(
   /** @type {Record<string, readonly string[]>} */ ({
-    image: Object.freeze(['image-compress', 'image-avif'])
+    image: Object.freeze(['image-compress', 'image-avif']),
+    ci4: Object.freeze(['doc-files'])
   })
 )
 

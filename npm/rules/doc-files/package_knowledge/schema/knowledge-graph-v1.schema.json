@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unpkg.com/@7n/rules/rules/doc-files/package_knowledge/schema/knowledge-graph-v1.schema.json",
+  "title": "Package Knowledge Graph v1",
+  "description": "Versioned machine projection of one package-level documentation domain.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "domain", "nodes", "edges", "claims", "topics", "gaps", "evidence"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "domain": { "$ref": "#/$defs/domain" },
+    "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+    "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } },
+    "claims": { "type": "array", "items": { "$ref": "#/$defs/claim" } },
+    "topics": { "type": "array", "items": { "$ref": "#/$defs/topic" } },
+    "gaps": { "type": "array", "items": { "$ref": "#/$defs/gap" } },
+    "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+    "protectedZonesByTopicId": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "$ref": "#/$defs/protectedZone" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "minLength": 1 },
+    "domain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "ecosystem", "name", "rootManifest", "sourceFingerprint"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "ecosystem": { "enum": ["npm", "cargo", "python", "composer"] },
+        "name": { "type": "string", "minLength": 1 },
+        "rootManifest": { "type": "string", "minLength": 1 },
+        "sourceFingerprint": { "type": "string", "minLength": 1 }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "name", "visibility", "domainId", "attributes", "sourceFingerprint"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": {
+          "enum": [
+            "capability",
+            "process",
+            "actor",
+            "rule",
+            "decision",
+            "state",
+            "outcome",
+            "component",
+            "integration",
+            "persistence",
+            "config",
+            "code-unit",
+            "test-scenario"
+          ]
+        },
+        "name": { "type": "string", "minLength": 1 },
+        "visibility": { "enum": ["public", "private", "package", "internal", "external"] },
+        "domainId": { "$ref": "#/$defs/id" },
+        "attributes": { "type": "object", "additionalProperties": true },
+        "sourceFingerprint": { "type": "string", "minLength": 1 }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "fromId", "toId", "kind", "evidenceIds"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "fromId": { "$ref": "#/$defs/id" },
+        "toId": { "$ref": "#/$defs/id" },
+        "kind": {
+          "enum": [
+            "contains",
+            "triggers",
+            "invokes",
+            "validates",
+            "decides",
+            "transitions",
+            "reads",
+            "mutates",
+            "persists",
+            "emits",
+            "consumes",
+            "integrates",
+            "implements",
+            "verifies",
+            "expects",
+            "recovers",
+            "produces"
+          ]
+        },
+        "evidenceIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" }, "uniqueItems": true },
+        "provenance": { "type": "string", "minLength": 1 }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "subjectId", "layer", "predicate", "value", "evidenceIds", "confidence", "sourceFingerprint"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "subjectId": { "$ref": "#/$defs/id" },
+        "layer": { "enum": ["implemented", "expected"] },
+        "predicate": { "type": "string", "minLength": 1 },
+        "value": {},
+        "evidenceIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" }, "uniqueItems": true },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "sourceFingerprint": { "type": "string", "minLength": 1 }
+      }
+    },
+    "topic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "title", "domainId", "anchorIds"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["process", "capability", "architecture", "contract"] },
+        "title": { "type": "string", "minLength": 1 },
+        "domainId": { "$ref": "#/$defs/id" },
+        "anchorIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" }, "uniqueItems": true },
+        "aliases": { "type": "array", "items": { "$ref": "#/$defs/id" }, "uniqueItems": true }
+      }
+    },
+    "gap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "status", "expectedClaimId"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "status": { "enum": ["satisfied", "missing", "diverged", "unresolved"] },
+        "expectedClaimId": { "$ref": "#/$defs/id" },
+        "implementedClaimIds": { "type": "array", "items": { "$ref": "#/$defs/id" }, "uniqueItems": true },
+        "evidenceIds": { "type": "array", "items": { "$ref": "#/$defs/id" }, "uniqueItems": true }
+      }
+    },
+    "protectedZone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "content"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["MANUAL", "EXPECTED"] },
+        "content": { "type": "string" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "path", "contentHash"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["code", "test", "spec", "adr", "manual", "schema", "config", "trace"] },
+        "path": { "type": "string", "minLength": 1 },
+        "symbolId": { "$ref": "#/$defs/id" },
+        "span": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["startByte", "endByte"],
+          "properties": {
+            "startByte": { "type": "integer", "minimum": 0 },
+            "endByte": { "type": "integer", "minimum": 0 },
+            "startLine": { "type": "integer", "minimum": 1 },
+            "startColumn": { "type": "integer", "minimum": 0 },
+            "endLine": { "type": "integer", "minimum": 1 },
+            "endColumn": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "contentHash": { "type": "string", "minLength": 1 },
+        "role": { "enum": ["syntax", "doc", "attribute"] }
+      }
+    }
+  }
+}

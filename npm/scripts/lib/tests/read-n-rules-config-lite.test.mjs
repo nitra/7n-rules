@@ -40,6 +40,18 @@ describe('readNRulesConfigLite', () => {
       expect(cfg.rules).toEqual(['a', 'b'])
     })
   })
+
+  test('мігрує legacy ci4 у doc-files для runtime readers', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, '.n-rules.json'), {
+        rules: ['ci4', 'doc-files'],
+        'disable-rules': ['ci4']
+      })
+      const cfg = await readNRulesConfigLite(dir)
+      expect(cfg.rules).toEqual(['doc-files'])
+      expect(cfg.disableRules).toEqual(['doc-files'])
+    })
+  })
 })
 
 describe('isRuleEnabled', () => {
