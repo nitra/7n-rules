@@ -6,9 +6,8 @@ import { join } from 'node:path'
 import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { lint as _abieFirebase } from '../rules/abie/firebase_hosting/main.mjs'
+import { runConcernDetector } from '../scripts/lib/lint-surface/detect.mjs'
 import { lint as _abieHc } from '../rules/abie/hc_pairing/main.mjs'
-import { lint as _abieEnv } from '../rules/abie/env_dns/main.mjs'
 import { lint as _abieUaNs } from '../rules/abie/ua_node_selector/main.mjs'
 import { lint as _abieUaHr } from '../rules/abie/ua_http_route/main.mjs'
 // Плагінні правила — пакетними specifier-ами, не `../../plugins/…`: sandbox-копія
@@ -29,9 +28,7 @@ const mk = (fn, ruleId, concernId) => async cwd => {
   const result = await fn({ cwd, ruleId, concernId })
   return result.violations.length === 0 ? 0 : 1
 }
-const checkAbieFirebase = mk(_abieFirebase, 'abie', 'firebase_hosting')
 const checkAbieHc = mk(_abieHc, 'abie', 'hc_pairing')
-const checkAbieEnv = mk(_abieEnv, 'abie', 'env_dns')
 const checkAbieUaNs = mk(_abieUaNs, 'abie', 'ua_node_selector')
 const checkAbieUaHr = mk(_abieUaHr, 'abie', 'ua_http_route')
 const checkBun = mk(_bun, 'bun', 'layout')
@@ -47,6 +44,20 @@ const checkNpmModule = mk(_npmModule, 'npm-module', 'package_structure')
 const TEST_DIR =
   typeof import.meta.dirname === 'string' ? import.meta.dirname : fileURLToPath(new URL('.', import.meta.url))
 const REPO_ROOT = join(TEST_DIR, '..', '..')
+
+// firebase_hosting і env_dns — native-портовані concern-и (F1 фази 5 батчу 2):
+// `main.mjs` видалено, лишається лише native-реєстр (`crates/rules-core`), тож
+// диспатч тут — через `runConcernDetector` (той самий шлях, що й dispatch-рівень
+// concern-тестів), а не прямий `lint()`-імпорт.
+const mkNative = (dirName, ruleId, concernId) => async cwd => {
+  const result = await runConcernDetector(
+    { dir: join(TEST_DIR, '..', 'rules', 'abie', dirName) },
+    { cwd, ruleId, concernId, files: undefined }
+  )
+  return result.violations.length === 0 ? 0 : 1
+}
+const checkAbieFirebase = mkNative('firebase_hosting', 'abie', 'firebase_hosting')
+const checkAbieEnv = mkNative('env_dns', 'abie', 'env_dns')
 
 /**
  * @param {string} cwd корінь репозиторію
