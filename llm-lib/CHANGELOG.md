@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.13.7] - 2026-07-30
+
+### Fixed
+
+- Уніфіковано LLM model resolution у execution consumers та оновлено native addon для env-selector policy.
+
 ## [2.13.6] - 2026-07-30
 
 ### Changed

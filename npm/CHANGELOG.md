@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.58.1] - 2026-07-30
+
+### Fixed
+
+- Уніфіковано LLM model resolution у execution consumers та оновлено native addon для env-selector policy.
+- Doc-files більше не обриває генерацію великих документів за timeout-ом і показує heartbeat очікування.
+
 ## [1.58.0] - 2026-07-30
 
 ### Added
