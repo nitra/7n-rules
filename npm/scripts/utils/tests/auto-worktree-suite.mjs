@@ -194,31 +194,34 @@ export function describeAutoWorktreeBridge({ bringChangesBackToOriginal, removeA
   })
 
   describe('removeAutoCreatedWorktree', () => {
-    test('викликає mt worktree remove <name> --force з cwd=originalCwd', () => {
+    test('викликає native worktreeRemove(originalCwd, name, force=true)', () => {
       const calls = []
-      removeAutoCreatedWorktree(
-        branch,
-        '/orig',
-        (cmd, args, opts) => {
-          calls.push({ cmd, args, opts })
-          return { status: 0, stdout: '', stderr: '' }
-        },
-        noop
-      )
-      expect(calls).toEqual([
-        { cmd: 'mt', args: ['worktree', 'remove', branch, '--force'], opts: { cwd: '/orig', encoding: 'utf8' } }
-      ])
+      removeAutoCreatedWorktree(branch, '/orig', noop, noop, {
+        native: {
+          worktreeRemove: (repoRoot, name, force) => {
+            calls.push({ repoRoot, name, force })
+          }
+        }
+      })
+      expect(calls).toEqual([{ repoRoot: '/orig', name: branch, force: true }])
     })
 
-    test('провал команди не кидає — лише логує попередження', () => {
+    test('провал native-виклику не кидає — лише логує попередження', () => {
       const logs = []
       expect(() =>
         removeAutoCreatedWorktree(
           branch,
           '/orig',
-          () => ({ status: 1, stdout: '', stderr: 'busy' }),
+          noop,
           line => {
             logs.push(line)
+          },
+          {
+            native: {
+              worktreeRemove: () => {
+                throw new Error('busy')
+              }
+            }
           }
         )
       ).not.toThrow()

@@ -3,7 +3,7 @@ type: JS Module
 title: resolve-plugins.mjs
 resource: npm/scripts/lib/resolve-plugins.mjs
 docgen:
-  crc: 9ca40184
+  crc: c5b4dd9e
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 60
@@ -84,12 +84,15 @@ sync-CLI інакше дублювали б і файловий скан, і war
 - KNOWN_PLUGIN_RANGES — Сумісний semver-range для first-party плагінів: обмежує автоматичну інсталяцію (`ensurePluginInstalled`)
 поточною core-сумісною лінією, щоб майбутній несумісний major/minor плагіна не встановився
 мовчки поверх старого core (Фаза 0, spec 2026-07-27-universal-plugin-slots-lang-php-extraction.md
-§10). Для `0.x`-пакетів — caret на поточний minor (`^0.23`, а не голий `^0`, який під caret-
+§10). Для `0.x`-пакетів — caret на поточний minor (`^0.25`, а не голий `^0`, який під caret-
 семантикою розгортається у весь діапазон `0.x`); для `>=1` — caret на поточний major (`^2`).
 Невідомий (сторонній, не з цієї таблиці) пакет інсталюється без обмеження версії — як і раніше.
-Ranges відповідають лініям із `requiresPluginApi: 2` (перші релізи: core 1.52.0, ci 2.0.0,
-lang-js 0.23.0, lang-python 0.11.0, lang-rust 0.14.0, lang-php 0.2.x) — старіші лінії
-new-core виключає зі slot graph, тож автоматична інсталяція не має їх приносити.
+Усі лінії в таблиці декларують `requiresPluginApi: 2` (перші сумісні релізи: core 1.52.0,
+ci 2.0.0, lang-js 0.23.0, lang-python 0.11.0, lang-rust 0.14.0, lang-php 0.2.x) — старіші
+лінії new-core виключає зі slot graph, тож автоматична інсталяція не має їх приносити.
+Таблиця ручна, тому при сумісному minor-релізі `0.x`-плагіна її треба піднімати разом із
+ним, інакше автоматична інсталяція тихо ставить застарілу minor-лінію; дрейф ловить
+registry-звірка `release-smoke.mjs` (опублікований latest має влучати у свій range звідси).
 - ensurePluginInstalled — Гарантує, що плагін встановлений: якщо `node_modules/<pkg>` нема — `bun add -d <pkg>`
 (дописує devDependency і ставить). Для first-party пакетів з `KNOWN_PLUGIN_RANGES` версія
 обмежується сумісним range (`<pkg>@^<major>` або `@^<major>.<minor>` для `0.x`); сторонні

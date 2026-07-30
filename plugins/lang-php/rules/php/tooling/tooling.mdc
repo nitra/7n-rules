@@ -8,43 +8,37 @@
 /** @param array<int, string> $items */
 function process($items) {
     foreach ($items as $id => $name) {
-        // PHPStan знає, що $id — int, $name — string
+        // mago analyze знає, що $id — int, $name — string
     }
 }
 ```
 
-### PHP_CodeSniffer (phpcs) і пакет `squizlabs/php_codesniffer`
+### mago — standalone Rust-тулчейн (`carthage-software/mago`)
 
-Стиль, базові ризики, за потреби окремі стандарти. Для **SQL injection**, **XSS**, **небезпечні функції** — PHPCS + **php-security-audit** (стандарт `Security`).
-
-```bash
-phpcs --standard=Security app/
-```
-
-### PHPStan
-
-Статичний аналіз типів і смертельних слабких місць; **PHPStan Taint Analysis** (`phpstan/phpstan-taint-analysis`) — для потоку даних (taint) у стилі security-аналізу.
+Канонічний PHP-тулчейн: `mago format` (форматтер), `mago lint` (curated стиль/code-smell
+правила), `mago analyze` (статичний аналіз типів, сумісний з PHPStan/Psalm-анотаціями,
+generics, flow narrowing). Замінює колишню трійку `php-cs-fixer` + `phpcs` + `PHPStan`/`Psalm`
+(spec `docs/specs/2026-07-30-mago-php-toolchain.md`) — standalone Rust-бінарник, без
+PHP-рантайму й без `vendor/`, встановлюється через `ensure-tool` (brew на macOS, GitHub
+Release на Linux/Windows fallback), пін версії — `npm/scripts/lib/tool-pins.json`.
 
 ```bash
-vendor/bin/phpstan analyse
-# після підключення розширення taint — у phpstan.neon/ neon.dist
+mago format --dry-run   # форматування, read-only перевірка
+mago lint                # стиль/code-smell, detect-only (БЕЗ --fix)
+mago analyze             # статичний аналіз типів
 ```
 
-### PHP-CS-Fixer
-
-Форматтер/фіксер коду; у **lint** зазвичай перевірка без змін (`--dry-run`).
-
-```bash
-vendor/bin/php-cs-fixer fix --dry-run --diff
-```
-
-### Psalm
-
-Альтернативний/додатковий аналізатор; **Psalm Security Plugin** (`vimeo/psalm` + пакет на кшталт `psalm/plugin-security` залежно від вибраної збірки) — для security-орієнтованих правил.
-
-```bash
-vendor/bin/psalm
-```
+**Security-покриття — важливо.** Колишній `phpcs --standard=Security`
+(`php-security-audit`) і **PHPStan/Psalm Taint Analysis** явно цілилися в SQL injection /
+XSS / небезпечні функції через потік даних (taint-аналіз). **mago НЕ виконує taint-аналіз**
+— `mago lint`/`mago analyze` ловлять синтаксичні патерни (наприклад `eval` через правило
+`no-eval`), але НЕ ловлять SQL-конкатенацію з `$_GET`, `echo` без escape чи
+`shell_exec` з користувацьким вводом (перевірено фікстурами:
+`plugins/lang-php/rules/php/mago_lint/tests/fixtures/security/`,
+`tests/security-fixtures.test.mjs`, докладна таблиця покриття — там-таки). Formal parity з
+попереднім стеком **не підтверджена**; якщо проєкту потрібен taint/security-аналіз рівня
+`php-security-audit`/`psalm/plugin-security`, розглянь окремий security-скан поза цим
+концерном.
 
 ### `composer audit`
 
@@ -60,25 +54,25 @@ composer audit
 
 Чотири концерни:
 
-- `plugins/lang-php/rules/php/project/main.mjs` — `composer audit` (обовʼязковий) + PHPStan + Psalm; project-wide, поза delta-планом (лише `n-rules lint --full` або scoped `n-rules lint php`);
-- `plugins/lang-php/rules/php/phpcs/main.mjs` — `vendor/bin/phpcs --standard=Security`; per-file;
-- `plugins/lang-php/rules/php/cs_fixer/main.mjs` — `vendor/bin/php-cs-fixer fix --dry-run --diff`; per-file;
+- `plugins/lang-php/rules/php/project/main.mjs` — `composer audit` (обовʼязковий) + `mago analyze` (з `--php-version` із `composer.json:require.php`, якщо розпізнано); project-wide, поза delta-планом (лише `n-rules lint --full` або scoped `n-rules lint php`);
+- `plugins/lang-php/rules/php/mago_lint/main.mjs` — `mago lint` (detect-only, без `--fix`); per-file;
+- `plugins/lang-php/rules/php/mago_fmt/main.mjs` — `mago format --dry-run`; per-file;
 - `plugins/lang-php/rules/php/composer_manifest/main.mjs` — канон кореневого `composer.json` (sort-packages, license, require.php) + опційний `composer validate --strict`; full-scope, glob `composer.json`.
 
-Якщо `composer.json` у корені відсутній — усі концерни виходять без порушень (проєкт не PHP). Якщо `composer.json` є, але `composer` не знайдено в PATH — це помилка у `php/project` (`composer audit` обовʼязковий); `php/composer_manifest` у такому разі мовчки пропускає лише крок `composer validate`, декларативні перевірки (sort-packages/license/require.php) все одно виконуються. `vendor/bin/php-cs-fixer`, `vendor/bin/phpcs`, `vendor/bin/phpstan`, `vendor/bin/psalm` — запускаються лише якщо встановлені (інакше крок пропускається з повідомленням).
+Якщо `composer.json` у корені відсутній — усі концерни виходять без порушень (проєкт не PHP). Якщо `composer.json` є, але `composer` не знайдено в PATH — це помилка у `php/project` (`composer audit` обовʼязковий); `php/composer_manifest` у такому разі мовчки пропускає лише крок `composer validate`, декларативні перевірки (sort-packages/license/require.php) все одно виконуються. `mago` — ensure-tool-керований: на відміну від колишніх vendor-optional тулів (`php-cs-fixer`/`phpcs`/`phpstan`/`psalm`, що тихо пропускались за відсутності), відсутність `mago` в PATH з вимкненим авто-install (`N_CURSOR_NO_AUTO_INSTALL=1`) — **hard-fail**, той самий патерн, що й `conftest`/`opa`.
 
 ## Вкладені Composer-проєкти (монорепо)
 
 Активація правила `php` (`main.json:auto.glob`) детектить `composer.json` до глибини 2
 (`composer.json`, `*/composer.json`, `*/*/composer.json` — типові `services/api/composer.json`,
 `backend/composer.json`), так само як автодетект плагіна `@7n/rules-lang-php`
-(`resolve-plugins.mjs:KNOWN_LANG_PLUGINS.php.maxDepth`). `cs_fixer` і `phpcs` — per-file
+(`resolve-plugins.mjs:KNOWN_LANG_PLUGINS.php.maxDepth`). `mago_fmt` і `mago_lint` — per-file
 `**/*.php`, тому лінтить PHP-файли будь-якого вкладеного проєкту без додаткових змін.
 
 `project` і `tooling` — **читають лише кореневий `composer.json`**; вкладені Composer-проєкти
-(`services/api/composer.json` тощо) НЕ проганяються через `composer audit`/PHPStan/Psalm і не
+(`services/api/composer.json` тощо) НЕ проганяються через `composer audit`/`mago analyze` і не
 перевіряються на присутність `package.json`/`lint-php.yml`. Це свідоме обмеження, не недогляд —
 див. ADR `2026-07-27-nested-composer-workspace-detection` у `docs/adr/`: прогін по кожному
-вкладеному проєкту вимагав би per-project `ctx.cwd`/reason-мапінгу у `violation-reporter` і ламав
-би vendor-relative шляхи `vendor/bin/*`, тому активація (сигнал «проєкт PHP») і глибина
-lint-перевірки (обсяг `project`/`tooling`) свідомо розведені.
+вкладеному проєкту вимагав би per-project `ctx.cwd`/reason-мапінгу у `violation-reporter`, тому
+активація (сигнал «проєкт PHP») і глибина lint-перевірки (обсяг `project`/`tooling`) свідомо
+розведені.

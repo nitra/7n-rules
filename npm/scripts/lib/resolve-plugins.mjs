@@ -268,20 +268,23 @@ function computePluginList(root, declared, options) {
  * Сумісний semver-range для first-party плагінів: обмежує автоматичну інсталяцію (`ensurePluginInstalled`)
  * поточною core-сумісною лінією, щоб майбутній несумісний major/minor плагіна не встановився
  * мовчки поверх старого core (Фаза 0, spec 2026-07-27-universal-plugin-slots-lang-php-extraction.md
- * §10). Для `0.x`-пакетів — caret на поточний minor (`^0.23`, а не голий `^0`, який під caret-
+ * §10). Для `0.x`-пакетів — caret на поточний minor (`^0.25`, а не голий `^0`, який під caret-
  * семантикою розгортається у весь діапазон `0.x`); для `>=1` — caret на поточний major (`^2`).
  * Невідомий (сторонній, не з цієї таблиці) пакет інсталюється без обмеження версії — як і раніше.
- * Ranges відповідають лініям із `requiresPluginApi: 2` (перші релізи: core 1.52.0, ci 2.0.0,
- * lang-js 0.23.0, lang-python 0.11.0, lang-rust 0.14.0, lang-php 0.2.x) — старіші лінії
- * new-core виключає зі slot graph, тож автоматична інсталяція не має їх приносити.
+ * Усі лінії в таблиці декларують `requiresPluginApi: 2` (перші сумісні релізи: core 1.52.0,
+ * ci 2.0.0, lang-js 0.23.0, lang-python 0.11.0, lang-rust 0.14.0, lang-php 0.3.x — mago-тулчейн, spec `docs/specs/2026-07-30-mago-php-toolchain.md`) — старіші
+ * лінії new-core виключає зі slot graph, тож автоматична інсталяція не має їх приносити.
+ * Таблиця ручна, тому при сумісному minor-релізі `0.x`-плагіна її треба піднімати разом із
+ * ним, інакше автоматична інсталяція тихо ставить застарілу minor-лінію; дрейф ловить
+ * registry-звірка `release-smoke.mjs` (опублікований latest має влучати у свій range звідси).
  */
 export const KNOWN_PLUGIN_RANGES = Object.freeze({
   '@7n/rules-ci-github': '^2',
   '@7n/rules-ci-azure': '^2',
-  '@7n/rules-lang-js': '^0.23',
-  '@7n/rules-lang-python': '^0.11',
-  '@7n/rules-lang-rust': '^0.14',
-  '@7n/rules-lang-php': '^0.2'
+  '@7n/rules-lang-js': '^0.25',
+  '@7n/rules-lang-python': '^0.12',
+  '@7n/rules-lang-rust': '^0.15',
+  '@7n/rules-lang-php': '^0.3'
 })
 
 /**
@@ -400,7 +403,7 @@ function isIncompatiblePluginApi(name, manifest, quiet) {
 export function resolvePlugins(projectRoot, config, options = {}) {
   const root = resolve(projectRoot)
   const names = resolvePluginList(root, config, { quiet: options.quiet })
-  const cacheKey = `${root} ${names.join(',')} ${options.allowInstall !== false}`
+  const cacheKey = `${root}.${names.join(',')}.${options.allowInstall !== false}`
   const cached = RESOLVE_CACHE.get(cacheKey)
   if (cached) return cached
 

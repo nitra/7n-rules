@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.2.1] - 2026-07-30
+
+### Changed
+
+- release: @7n/rules@1.59.0, @7n/rules-ci-github@2.2.0, @7n/rules-lang-js@0.25.2, @7n/rules-lang-php@0.2.8, @7n/rules-lang-python@0.12.2, @7n/rules-lang-rust@0.15.2; fix(plugins): audit follow-ups — php vscode extensions, llm-lib peers, lint-style vue patch (#307)
+
+## [2.2.0] - 2026-07-30
+
+### Removed
+
+- Прибрано `**/*.vue` з `paths` канонічного `lint-style.yml.snippet.yml` — цей глоб виїхав у `@7n/rules-lang-js` (`ci.artifact` patch-existing слот `js-lint-style-patch`), той самий патерн, що й `lint-text.yml` у хвилі 3A.
+
 ## [2.1.0] - 2026-07-29
 
 ### Removed

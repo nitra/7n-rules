@@ -4,6 +4,8 @@ import { copyFile, mkdir, readdir, rm } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 
+import { loadNative } from './native.mjs'
+
 const YES_RE = /^y(es)?$/i
 const TRAILING_SLASH_RE = /\/$/
 
@@ -48,12 +50,12 @@ async function defaultConfirm(message) {
  * передумову ще ДО виклику), може передати `requireCleanTree: false`, щоб не
  * платити за зайву git-команду і не питати підтвердження.
  * @param {string} cwd каталог для перевірки
- * @param {typeof import('node:child_process').spawnSync} spawnFn інжект для тестів
+ * @param {typeof import('node:child_process').spawnSync} spawnFn інжект для git-викликів (rev-parse/branch/status) і `bun install`/`npx \@7n/n push` — тестів
  * @param {(line: string) => void} log колбек прогресу
- * @param {{ suffix: string, description: string, requireCleanTree?: boolean }} opts `suffix` — коротка (до 10 символів) назва задачі для `<branch>-<suffix>`; `description` — текст для `mt worktree create --description`
- * @param {{ confirm?: (message: string) => Promise<boolean> }} [deps] `confirm` — інжект для тестів/альтернативного UX (дефолт — `defaultConfirm`, readline y/N)
+ * @param {{ suffix: string, description: string, requireCleanTree?: boolean }} opts `suffix` — коротка (до 10 символів) назва задачі для `<branch>-<suffix>`; `description` — текст для native `worktreeCreate`
+ * @param {{ confirm?: (message: string) => Promise<boolean>, native?: { sanitizeWorktreeName: (raw: string) => string, worktreeCreate: (repoRoot: string, name: string, description: string, base: string|null) => string } }} [deps] `confirm` — інжект для тестів/альтернативного UX (дефолт — `defaultConfirm`, readline y/N); `native` — заміна для native-біндінги `rules-napi` (дефолт — `loadNative()`), щоб тести підміняли `sanitizeWorktreeName`/`worktreeCreate` без dlopen
  * @returns {Promise<{ cwd: string, autoCreated: boolean, worktreeName: string|null }>} `autoCreated: false` — `cwd` без змін
- *   (вже worktree); `autoCreated: true` — `cwd` щойно створеного worktree і його native `mt` name
+ *   (вже worktree); `autoCreated: true` — `cwd` щойно створеного worktree і його ім'я, яке санітизує `mt_core::sanitize`
  */
 export async function ensureRunningInWorktree(
   cwd,
@@ -108,11 +110,13 @@ export async function ensureRunningInWorktree(
     }
   }
 
-  const worktreeName = `${currentBranch}-${suffix}`.replaceAll('/', '-')
+  const native = deps.native ?? loadNative()
+  const worktreeName = native.sanitizeWorktreeName(`${currentBranch}-${suffix}`)
   log(`⚠️ "${cwd}" не в ізольованому worktree — створюю ".worktrees/${worktreeName}"...`)
-  runCommand('mt', ['worktree', 'create', worktreeName, '--description', description], cwd, spawnFn)
+  // base=null → native мапить на дефолт "main", той самий дефолт, що й CLI-виклик
+  // `mt worktree create` без `--base` (Р3 спеки фази 2, задача B2).
+  const newCwd = native.worktreeCreate(cwd, worktreeName, description, null)
 
-  const newCwd = join(cwd, '.worktrees', worktreeName)
   log('📥 bun install (bootstrap нового дерева)...')
   runCommand('bun', ['install'], newCwd, spawnFn)
   return { cwd: newCwd, autoCreated: true, worktreeName }
@@ -229,23 +233,31 @@ export async function bringChangesBackToOriginal(worktreeCwd, originalCwd, spawn
 }
 
 /**
- * Прибирає автостворений worktree разом з його ефемерною git-гілкою
- * (`mt worktree remove <name> --force`) — викликати лише ПІСЛЯ
- * `bringChangesBackToOriginal`, інакше зміни згорять разом з деревом.
+ * Прибирає автостворений worktree разом з його ефемерною git-гілкою —
+ * native `worktreeRemove(originalCwd, worktreeName, force=true)`, той самий
+ * ефект, що й колишній `mt worktree remove <name> --force` (Р3 спеки фази 2,
+ * задача B2). Викликати лише ПІСЛЯ `bringChangesBackToOriginal`, інакше зміни
+ * згорять разом з деревом.
  * Не кидає при провалі — це прибирання, а не крок, від якого залежить
- * результат прогону; провал лише логується, worktree лишається для
- * ручного розбору.
+ * результат прогону; на відміну від старого spawn-виклику (перевірка
+ * `result.status`), native-виклик при провалі кидає `Error` — тому тут
+ * try/catch, семантика «лише лог» та сама.
  * @param {string} worktreeName name, з яким worktree був створений (з `ensureRunningInWorktree`)
- * @param {string} originalCwd вихідне дерево, звідки виконати `mt worktree remove`
- * @param {typeof import('node:child_process').spawnSync} spawnFn інжект для тестів
+ * @param {string} originalCwd вихідне дерево, звідки прибрати worktree
+ * @param {typeof import('node:child_process').spawnSync} spawnFn НЕ використовується native-шляхом; лишається в сигнатурі заради сумісності з наявними викликами (`n-rules-cli.mjs`, `orchestrate.mjs`)
  * @param {(line: string) => void} log колбек прогресу
+ * @param {{ native?: { worktreeRemove: (repoRoot: string, name: string, force: boolean) => void } }} [deps] `native` — інжект native-біндінгів `rules-napi` (дефолт — `loadNative()`), щоб тести підміняли `worktreeRemove` без dlopen
  * @returns {void}
  */
-export function removeAutoCreatedWorktree(worktreeName, originalCwd, spawnFn, log) {
+export function removeAutoCreatedWorktree(worktreeName, originalCwd, spawnFn, log, deps = {}) {
   log(`🧹 Прибираю автостворений worktree "${worktreeName}"...`)
-  const result = spawnFn('mt', ['worktree', 'remove', worktreeName, '--force'], { cwd: originalCwd, encoding: 'utf8' })
-  if (result.status !== 0) {
-    log(`⚠️ Не вдалось прибрати worktree "${worktreeName}" — приберіть вручну (${result.stderr || result.stdout})`)
+  try {
+    const native = deps.native ?? loadNative()
+    native.worktreeRemove(originalCwd, worktreeName, true)
+  } catch (error) {
+    log(
+      `⚠️ Не вдалось прибрати worktree "${worktreeName}" — приберіть вручну (${error instanceof Error ? error.message : String(error)})`
+    )
   }
 }
 

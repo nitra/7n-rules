@@ -1,0 +1,30 @@
+[package]
+name = "rules-core"
+version = "0.1.0"
+edition = "2021"
+description = "Rust-ядро @7n/rules: deterministic rule engine, Git-запити, filesystem scan, diagnostics, cache і fix plans"
+license = "Apache-2.0"
+
+[lib]
+name = "rules_core"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+# Пін 0.86 синхронно з mt-rust (Р4 спеки). default-features=false: лише
+# локальні commit-graph запити (merge-base, rev-parse) — без мережевих
+# transport-фіч, потрібних mt-core для fetch/push. `revision` дає
+# `Repository::merge_base`/`rev_parse_single` (тягне `index`); `sha1` —
+# object-hash backend для звичайних (не sha256) репозиторіїв.
+gix = { version = "0.86", default-features = false, features = ["revision", "sha1"] }
+# Р3 спеки: worktree lifecycle виключно через mt-core (репо публічний,
+# конвенції тегів `mt-core-v*` на боці mt-rust ще нема — пін по `rev`, не по
+# гілці). Пін оновлюється СИНХРОННО і СВІДОМО: коли mt-rust заводить теги,
+# перейти на них; до того — оновлення rev тут = окремий (не автоматичний)
+# крок ревʼю, той самий gix 0.86, що й тут (Р4 спеки) — cargo уніфікує
+# єдину версію в дереві залежностей.
+mt-core = { git = "https://github.com/nitra/mt-rust", rev = "8bdadf5a483ab0db9d62c2c25299edee4fa4c6b1" }
+
+[dev-dependencies]
+tempfile = "3"

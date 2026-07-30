@@ -3,63 +3,19 @@ type: JS Module
 title: auto-worktree.mjs
 resource: npm/scripts/lib/auto-worktree.mjs
 docgen:
-  crc: 108a743e
-  model: omlx/gemma-4-e2b-it-4bit
+  crc: 6ece78e1
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
-  score: 45
-  issues: no-overview,short-behavior,internal-name:copyDirectoryRecursive,best-of-2:retry-lost
+  score: 75
 ---
 
-## Публічний API
+## Поведінка
 
-- ensureRunningInWorktree — Гарантує, що подальші кроки виконуються в ізольованому worktree
-(`main.json.worktree: true`-контракт), навіть коли викликач — детермінований
-JS-код, що не годує SKILL.md жодному LLM-агенту (тож агентський preflight-блок
-з `worktree-notice.mjs` нікому виконувати). Якщо `cwd` вже під `.worktrees/`
-(репо-конвенція) або `.claude/worktrees/` (worktree харнесу Claude Code,
-куди `mt worktree create` класти заборонено — `n-worktree.mdc`) —
-повертає його без змін. Інакше сам створює `.worktrees/<branch>-<suffix>`
-(`mt worktree create`) і ставить залежності (`bun install`).
-
-**Гейт на чисте дерево.** Auto-create читає стан і потім переносить зміни
-назад копіюванням файлів (`bringChangesBackToOriginal`) — а не git merge.
-Якщо у вихідному `cwd` вже є незакомічені зміни, вони НЕ потраплять у щойно
-створений worktree (той — checkout HEAD), і перенесення назад мовчки
-затерло б їх версією з worktree. Тому за замовчуванням (`requireCleanTree:
-true`) на брудному дереві auto-create питає в терміналі (`deps.confirm`,
-дефолт — y/N через stdin; поза TTY одразу "ні") дозвіл закомить і
-запушити зараз через `npx \@7n/n push` (сквош усього робочого дерева в один
-коміт + push у origin — сама команда підтвердження не питає, тому питаємо
-ми, ДО виклику). На "ні"/поза TTY — кидає, як і раніше. Викликач, що
-гарантує чистоту дерева сам (наприклад taze — SKILL.md вимагає цього як
-передумову ще ДО виклику), може передати `requireCleanTree: false`, щоб не
-платити за зайву git-команду і не питати підтвердження.
-- bringChangesBackToOriginal — Переносить зміни з автоствореного worktree назад у вихідне дерево як
-**untracked/незакомічені** правки (просте копіювання файлів, без git
-merge/cherry-pick). Джерело істини — `git status --porcelain` у worktree:
-для кожного шляху копіює файл, якщо він існує (модифікація/додавання), або
-видаляє його у вихідному дереві, якщо existsSync каже, що в worktree його
-вже нема (видалення). Перейменування (`old -> new` у porcelain) переносять
-лише нову назву — стара лишається як була, прийнятний компроміс для
-інструментів, що самі файли не перейменовують (ефект можливий лише як
-побічний результат LLM-рефакторингу чи форматера).
-
-**Untracked-директорія цілком.** Git схлопує щойно створену untracked
-директорію в один porcelain-рядок із `/` на кінці (якщо в ній нема жодного
-файлу, вже відомого git) — `copyFile` на такий шлях впав би (`EISDIR`/`ENOENT`)
-і обривав би цикл, гублячи все, що йшло по порядку ітерації ДАЛІ. Такий
-рядок (суфікс `/` або реальний каталог на диску) копіюється рекурсивно
-(`copyDirectoryRecursive`) — весь вміст, а не один `copyFile`.
-- removeAutoCreatedWorktree — Прибирає автостворений worktree разом з його ефемерною git-гілкою
-(`mt worktree remove <name> --force`) — викликати лише ПІСЛЯ
-`bringChangesBackToOriginal`, інакше зміни згорять разом з деревом.
-Не кидає при провалі — це прибирання, а не крок, від якого залежить
-результат прогону; провал лише логується, worktree лишається для
-ручного розбору.
+Процес ініціюється викликом `ensureRunningInWorktree`, який перевіряє стан робочого каталогу, посилаючись на конфіг `main.json`. Якщо каталог не є ізольованим worktree, ця функція створює новий worktree, виконує `bun install` та підтверджує, чи потрібно закомітити та запушити незакомічені зміни вихідного каталогу. Якщо зміни були, процес зупиняється, доки не буде отримане підтвердження (або відбувається автоматичний комміт/пуш). У разі успішного створення worktree, подальші операції виконуються в ізольованому оточенні. Після цієї фази, якщо потрібно застосувати зміни, викликається `bringChangesBackToOriginal`, який копіює незакомічені зміни з новоствореного worktree назад у вихідний каталог, працюючи з глибоким описом статусу Git. Після успішного перенесення змін, для очищення системи, викликається `removeAutoCreatedWorktree`, яка прибирає тимчасовий worktree та його гілку.
 
 ## Сценарії використання
 
-- `npm/scripts/lib/tests/auto-worktree.test.mjs` (ensureRunningInWorktree) — вже під .worktrees/ — повертає cwd без змін, нічого не створює; вже під .claude/worktrees/ (harness Claude Code) — повертає cwd без змін, нічого не створює; поза worktree, чисте дерево — сам створює worktree і ставить залежності; гілка зі slash — worktree name і шлях sanitized (slash → -); detached HEAD (немає поточної гілки) — кидає, не створює worktree; ще 4
+- `npm/scripts/lib/tests/auto-worktree.test.mjs` (ensureRunningInWorktree) — вже під .worktrees/ — повертає cwd без змін, нічого не створює; вже під .claude/worktrees/ (harness Claude Code) — повертає cwd без змін, нічого не створює; поза worktree, чисте дерево — сам створює worktree і ставить залежності; гілка зі slash — worktree name і шлях sanitized через native.sanitizeWorktreeName (slash → -); detached HEAD (немає поточної гілки) — кидає, не створює worktree; ще 4
 
 ## Гарантії поведінки
 

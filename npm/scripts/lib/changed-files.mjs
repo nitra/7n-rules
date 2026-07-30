@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process'
 
 import { isWorktreeCheckoutPath } from '../utils/walkDir.mjs'
 import { readGitPolicy } from './git-policy.mjs'
+import { loadNative } from './native.mjs'
 
 /**
  * @param {string[]} args аргументи git
@@ -49,36 +50,24 @@ function dropWorktreeCheckouts(paths) {
 /**
  * Визначає git base для scoped-перевірок без зовнішнього runtime-стану.
  * Кандидати — effective Git policy: `baseBranch` + `releaseBranches`, кожна у
- * `origin/` та локальній формах. Беремо **найновіший** сумісний merge-base; це
- * захищає від stale-ref і вже інтегрованих змін між довгоживучими середовищами.
- * Якщо жодного ref немає — null, і caller порівнює лише
- * робоче дерево з HEAD. Повернений sha завжди досяжний (це merge-base існуючого
- * ref), тож fail-closed перевірка в `collectChangedFilesSince` не спрацює хибно.
- * Явний `baseRef` (CI: `--base origin/dev` після fetch) вимикає вибір —
- * merge-base рахується лише проти нього.
+ * `origin/` та локальній формах; розгортання policy лишається тут (Р5 спеки
+ * `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`). Саме обчислення
+ * «найновішого» сумісного merge-base — у native (`rules-core::changed_base`
+ * через `rules-napi`, T4 фази 1): захист від stale-ref і вже інтегрованих
+ * змін між довгоживучими середовищами перенесено туди без зміни контракту.
+ * Якщо жодного ref немає — null, і caller порівнює лише робоче дерево з HEAD.
+ * Повернений sha завжди досяжний (це merge-base існуючого ref), тож
+ * fail-closed перевірка в `collectChangedFilesSince` не спрацює хибно. Явний
+ * `baseRef` (CI: `--base origin/dev` після fetch) вимикає вибір — merge-base
+ * рахується лише проти нього.
  * @param {string} [cwd] корінь репо
  * @param {string|null} [baseRef] явний ref бази замість Git policy
  * @returns {string|null} merge-base commit або null
  */
 export function resolveChangedBase(cwd = process.cwd(), baseRef = null) {
-  const mergeBaseWith = ref => {
-    const result = spawnSync('git', ['merge-base', 'HEAD', ref], { cwd, encoding: 'utf8' })
-    return result.status === 0 && !result.error ? result.stdout.trim() : ''
-  }
-  if (baseRef) return mergeBaseWith(baseRef) || null
   const { integrationBranches } = readGitPolicy(cwd)
-  const bases = integrationBranches
-    .flatMap(name => [`origin/${name}`, name])
-    .map(ref => mergeBaseWith(ref))
-    .filter(Boolean)
-  if (bases.length === 0) return null
-  let newest = bases[0]
-  for (const candidate of bases.slice(1)) {
-    if (candidate === newest) continue
-    const ancestry = spawnSync('git', ['merge-base', '--is-ancestor', newest, candidate], { cwd })
-    if (ancestry.status === 0 && !ancestry.error) newest = candidate
-  }
-  return newest
+  const candidates = integrationBranches.flatMap(name => [`origin/${name}`, name])
+  return loadNative().resolveChangedBase(cwd, candidates, baseRef ?? null) ?? null
 }
 
 /**

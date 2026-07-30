@@ -1,0 +1,33 @@
+## Форматування PHP (`mago format`)
+
+Канонічний форматтер PHP-коду — [mago](https://github.com/carthage-software/mago)
+(`carthage-software/mago`), detect-only режим `mago format --dry-run`. Замінює колишній
+`php-cs-fixer` — mago резолвиться через `ensure-tool` (standalone Rust-бінарник, без
+PHP-рантайму, без `vendor/bin`).
+
+### Що перевіряється
+
+- **Форматування коду** відповідно до дефолтного/налаштованого стилю mago (`mago.toml` у
+  корені, якщо є). `mago format --dry-run` — read-only: рахує й показує diff, нічого не
+  пише на диск.
+- Проєкт без `composer.json` у корені — концерн мовчки пропускається (не PHP-проєкт).
+
+### Встановлення mago
+
+`ensure-tool` встановлює mago автоматично (brew на macOS, GitHub Release на Linux/Windows
+fallback), закріплена версія — `npm/scripts/lib/tool-pins.json`. Якщо бінарник відсутній і
+авто-install вимкнено (`N_CURSOR_NO_AUTO_INSTALL=1`) — **hard-fail**, не тихий skip (на
+відміну від колишнього `php-cs-fixer`, який був опційним `vendor/bin`-тулом).
+
+### Фікс
+
+`mago format` (без `--dry-run`) форматує файли на місці:
+
+```bash
+mago format
+```
+
+### Причини порушень (reason)
+
+- `mago-fmt-unformatted` — `mago format --dry-run` виявив неформатований код (ненульовий
+  вихідний код).

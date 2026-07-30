@@ -45,6 +45,28 @@ function fakeSpawn(cmd) {
 }
 
 /**
+ * Fake `deps.native` для `runTazeOrchestrator`-тестів, що проходять через
+ * `ensureRunningInWorktree`/`removeAutoCreatedWorktree` — без dlopen.
+ * Пише виклики у спільний `calls` (той самий масив, куди пише fake `spawnFn`)
+ * рядками формату `native.<fn> ...`, щоб старі асерти на колишні
+ * `mt worktree create/remove` мігрували мінімально.
+ * @param {string[]} calls спільний масив викликів
+ * @returns {{ sanitizeWorktreeName: (raw: string) => string, worktreeCreate: (repoRoot: string, name: string, description: string, base: string|null) => string, worktreeRemove: (repoRoot: string, name: string, force: boolean) => void }} fake native
+ */
+function makeFakeNative(calls) {
+  return {
+    sanitizeWorktreeName: raw => raw.replaceAll('/', '-'),
+    worktreeCreate: (repoRoot, name, description, base) => {
+      calls.push(`native.worktreeCreate ${repoRoot} ${name} ${description} ${base}`)
+      return join(repoRoot, '.worktrees', name)
+    },
+    worktreeRemove: (repoRoot, name, force) => {
+      calls.push(`native.worktreeRemove ${repoRoot} ${name} ${force}`)
+    }
+  }
+}
+
+/**
  * Fake EcosystemProvider для тестів оркестратора — усі кроки записуються в
  * `steps`, поведінка керується `overrides`.
  * @param {string} id ідентифікатор провайдера
@@ -339,13 +361,14 @@ describe('runTazeOrchestrator', () => {
           if (cmd === 'git' && args[0] === 'status') return { status: 0, stdout: '', stderr: '' }
           return fakeSpawn(cmd)
         },
+        native: makeFakeNative(calls),
         ecosystemProviders: []
       }
     })
-    expect(calls).toContain('mt worktree create main-taze --description n-taze: worktree-only skill')
+    expect(calls).toContain('native.worktreeCreate /Users/dev/repo main-taze n-taze: worktree-only skill null')
     expect(calls.some(c => c.startsWith('bun install'))).toBe(true)
     expect(calls).toContain('git status --porcelain')
-    expect(calls).toContain('mt worktree remove main-taze --force')
+    expect(calls).toContain('native.worktreeRemove /Users/dev/repo main-taze true')
     expect(result.ok).toBe(true)
   })
 
@@ -636,6 +659,7 @@ describe('runTazeOrchestrator', () => {
             if (cmd === 'git' && args[0] === 'status') return { status: 0, stdout: '', stderr: '' }
             return fakeSpawn(cmd)
           },
+          native: makeFakeNative(calls),
           ecosystemProviders: [],
           exitProcessFn: code => {
             exitCode = code
@@ -658,7 +682,7 @@ describe('runTazeOrchestrator', () => {
       process.on = originalOn
     }
 
-    expect(calls).toContain('mt worktree remove main-taze --force')
+    expect(calls).toContain('native.worktreeRemove /Users/dev/repo main-taze true')
     expect(exitCode).toBe(1)
   })
 
@@ -688,12 +712,13 @@ describe('runTazeOrchestrator', () => {
           }
           return fakeSpawn(cmd)
         },
+        native: makeFakeNative(calls),
         ecosystemProviders: []
       }
     })
 
     expect(result.ok).toBe(true)
-    expect(calls).not.toContain('mt worktree remove main-taze --force')
+    expect(calls).not.toContain('native.worktreeRemove /Users/dev/repo main-taze true')
     expect(logs.some(l => l.includes('НЕ прибирається'))).toBe(true)
   })
 

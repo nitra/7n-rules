@@ -1,5 +1,48 @@
 # Changelog
 
+## [1.60.0] - 2026-07-30
+
+### Changed
+
+- Worktree lifecycle через native mt-core (фаза 2 v2): `auto-worktree` створює/прибирає worktree прямими викликами `rules-core` → `mt-core` (git-dep `nitra/mt-rust`) замість spawn зовнішнього `mt` CLI; санітизація імені — канонічна `mt_core::sanitize`
+
+## [1.59.2] - 2026-07-30
+
+### Fixed
+
+- Виправлено публікацію platform-пакетів native-аддона: fail-closed registry-гейт добудовує і публікує `@7n/rules-darwin-arm64`/`@7n/rules-linux-x64`, якщо їх немає в registry (1.59.0/1.59.1 вийшли без них — native addon був недоступний споживачам)
+
+## [1.59.1] - 2026-07-30
+
+### Changed
+
+- Додано `mago` (carthage-software/mago) у реєстр `ensure-tool` — PHP-тулчейн для нового
+`@7n/rules-lang-php` (mago format/lint/analyze); підтримано releases без `v`-префікса в тегу
+(`entry.tagPrefix`) — mago тегується як `1.45.0`, не `v1.45.0`. Оновлено сумісний range
+`@7n/rules-lang-php` у `KNOWN_PLUGIN_RANGES` (`^0.2` → `^0.3`).
+
+## [1.59.0] - 2026-07-30
+
+### Added
+
+- release-smoke: black-box перевірка ОПУБЛІКОВАНОГО npm-набору (bun add з реєстру + version/range reconciliation) після кожного npm-publish
+
+### Changed
+
+- Додано підтримку native-аддонів для darwin-arm64 та linux-x64
+- chore(release): синк пінів платформних napi-пакетів @7n/llm-lib
+
+### Fixed
+
+- KNOWN_PLUGIN_RANGES: підняти застарілі minor-лінії lang-плагінів (lang-js ^0.25, lang-python ^0.12, lang-rust ^0.15) — автоінсталяція знову ставить актуальні сумісні релізи замість старих minor
+- post-tool-use-check: stderr-writer інжектується в runPostToolUseCheckCli — тест error-шляху більше не ллє фейкову помилку в stderr vitest-прогону
+
+## [1.58.4] - 2026-07-30
+
+### Fixed
+
+- оновлено pin `@7n/llm-lib` до 2.13.9 (автосинк релізного трейна)
+
 ## [1.58.3] - 2026-07-30
 
 ### Fixed

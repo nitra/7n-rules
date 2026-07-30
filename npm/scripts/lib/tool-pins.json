@@ -10,6 +10,7 @@
     "regal": "0.42.0",
     "hadolint": "2.14.0",
     "kubeconform": "0.8.0",
-    "kubescape": "4.0.10"
+    "kubescape": "4.0.10",
+    "mago": "1.45.0"
   }
 }

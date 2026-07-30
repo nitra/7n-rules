@@ -37,7 +37,7 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.13.8",
+      "version": "2.13.9",
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
       },
@@ -60,13 +60,13 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.58.3",
+      "version": "1.60.0",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
       },
       "dependencies": {
-        "@7n/llm-lib": "2.13.4",
+        "@7n/llm-lib": "2.13.9",
         "ajv": "^8.20.0",
         "cli-progress": "^3.12.0",
         "github-actionlint": "^1.7.12",
@@ -83,6 +83,8 @@
         "zod": "^4.4.3",
       },
       "optionalDependencies": {
+        "@7n/rules-darwin-arm64": "1.60.0",
+        "@7n/rules-linux-x64": "1.60.0",
         "@earendil-works/pi-ai": "0.80.10",
         "@earendil-works/pi-coding-agent": "0.80.10",
       },
@@ -99,7 +101,7 @@
     },
     "plugins/ci-github": {
       "name": "@7n/rules-ci-github",
-      "version": "2.1.0",
+      "version": "2.2.1",
       "dependencies": {
         "yaml": "^2.9.0",
       },
@@ -109,7 +111,7 @@
     },
     "plugins/lang-js": {
       "name": "@7n/rules-lang-js",
-      "version": "0.25.1",
+      "version": "0.25.3",
       "dependencies": {
         "@vue/compiler-dom": "^3.0.0",
         "@vue/compiler-sfc": "^3.0.0",
@@ -132,7 +134,7 @@
     },
     "plugins/lang-php": {
       "name": "@7n/rules-lang-php",
-      "version": "0.2.7",
+      "version": "0.3.0",
       "dependencies": {
         "php-parser": "^3.7.0",
       },
@@ -142,7 +144,7 @@
     },
     "plugins/lang-python": {
       "name": "@7n/rules-lang-python",
-      "version": "0.12.1",
+      "version": "0.12.3",
       "dependencies": {
         "@vscode/tree-sitter-wasm": "^0.3.1",
         "globby": "^16.0.0",
@@ -158,7 +160,7 @@
     },
     "plugins/lang-rust": {
       "name": "@7n/rules-lang-rust",
-      "version": "0.15.1",
+      "version": "0.15.3",
       "dependencies": {
         "globby": "^16.0.0",
         "smol-toml": "^1.7.0",
@@ -177,15 +179,17 @@
   "packages": {
     "@7n/llm-lib": ["@7n/llm-lib@workspace:llm-lib"],
 
-    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.13.5", "", { "os": "darwin", "cpu": "arm64" }, "sha512-Vgof9VZAeIHfpx3yW4qQL45ba+ymfOv16duyijswv19CrWlWuIyyzHt8cVzhMR5Ty9sQaytbF173/Xd/Ll9HTg=="],
+    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.13.8", "", { "os": "darwin", "cpu": "arm64" }, "sha512-2O4/e1qXsM0q7yvKVzjzB0IMTndGfuHJOs+x8RWBl3cmFiUslfy+7a++IxnoeIdKG+TlTPnYueAR6iygQsQ5Ag=="],
 
-    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.13.5", "", { "os": "linux", "cpu": "x64" }, "sha512-zZpi24dEE1iWQakiGUIMkQ7+Dt5KRrOWSY4FAZEK55tcJy+Ghv5TsmGN/cdQTUvq7zTrbd0asscE5ZVjcc0D+A=="],
+    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.13.8", "", { "os": "linux", "cpu": "x64" }, "sha512-F72t3no6ZCD6LLisRYmriEkmQmOiA8m7JCkM3MQh59s0MgMc9wBnQ7TV8Z+SP9YDgJMINBZTegRBGR/kLyfh1Q=="],
 
     "@7n/rules": ["@7n/rules@workspace:npm"],
 
     "@7n/rules-ci-azure": ["@7n/rules-ci-azure@workspace:plugins/ci-azure"],
 
     "@7n/rules-ci-github": ["@7n/rules-ci-github@workspace:plugins/ci-github"],
+
+    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.59.2", "", { "os": "darwin", "cpu": "arm64" }, "sha512-VcJTIUKrGoU1c5ts93VickBgAhA6TAvVglzrXrD2sgKvBOSySQAVaUKu0tzBFOC6TywZalfNzadxqZzUssYcUw=="],
 
     "@7n/rules-lang-js": ["@7n/rules-lang-js@workspace:plugins/lang-js"],
 
@@ -194,6 +198,8 @@
     "@7n/rules-lang-python": ["@7n/rules-lang-python@workspace:plugins/lang-python"],
 
     "@7n/rules-lang-rust": ["@7n/rules-lang-rust@workspace:plugins/lang-rust"],
+
+    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.59.2", "", { "os": "linux", "cpu": "x64" }, "sha512-3IC9DKnaK2wIcIomenytwmNfuNlmTO94xY52Vyal3tgOLXXDYsO+Ax4XuLj9Q7B1QQop150el5/B2vnA+Hev5Q=="],
 
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.91.1", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-LAmu761tSN9r66ixvmciswUj/ZC+1Q4iAfpedTfSVLeswRwnY3n2Nb6Tsk+cLPP28aLOPWeMgIuTuCcMC6W/iw=="],
 
