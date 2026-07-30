@@ -108,6 +108,29 @@ function fmtTiming(r) {
 const SYSTEMIC_ABORT_STREAK = 3
 
 /**
+ * Чекає LLM batch у foreground і кожні 30s підтверджує, що launcher не
+ * відʼєднався. Немає автоматичного timeout: для великого regeneration рішення
+ * чекати далі або скасувати належить користувачу через Ctrl-C.
+ * @template T
+ * @param {Promise<T>} pending batch-виклик
+ * @param {string} label що саме зараз чекаємо
+ * @param {(s: string) => void} out stdout/TTY логер
+ * @returns {Promise<T>} результат batch-виклику
+ */
+async function awaitBatchForeground(pending, label, out) {
+  const started = Date.now()
+  const heartbeat = setInterval(() => {
+    const seconds = Math.round((Date.now() - started) / 1000)
+    out(`  … doc-files: ${label}, очікую вже ${seconds}s (Ctrl-C — скасувати)\n`)
+  }, 30_000)
+  try {
+    return await pending
+  } finally {
+    clearInterval(heartbeat)
+  }
+}
+
+/**
  * Діагностика розміру джерела (для дослідження, що роздуває контекст):
  * байти + груба оцінка токенів (~bytes/4). Без size-guard-гейта — лише вивід.
  * @param {number} bytes розмір файлу в байтах
@@ -271,9 +294,11 @@ async function runBatchPass(targets, root, opts, stats, { reporter, emit }) {
   const wavePrepared = llmPrepared.filter(p => !p.facts.unsupported)
 
   if (wavePrepared.length > 0) {
-    await runWaveBatch(wavePrepared, { model, tier: opts.tier ?? null, localProviders, submitBatchImpl }, stats, {
+    await awaitBatchForeground(
+      runWaveBatch(wavePrepared, { model, tier: opts.tier ?? null, localProviders, submitBatchImpl }, stats, { out }),
+      `batch ${wavePrepared.length} поведінкових доки(ів) через ${model}`,
       out
-    })
+    )
   }
   if (oneShotPrepared.length === 0) return
 
@@ -283,7 +308,11 @@ async function runBatchPass(targets, root, opts, stats, { reporter, emit }) {
     system: p.messages.find(m => m.role === 'system')?.content
   }))
   const onProgress = makeBatchProgress(reporter, targets.length - oneShotPrepared.length, targets.length)
-  const results = await submitBatchImpl(model, items, { onProgress, localProviders })
+  const results = await awaitBatchForeground(
+    submitBatchImpl(model, items, { onProgress, localProviders }),
+    `batch ${items.length} whole-file доки(ів) через ${model}`,
+    out
+  )
   const byId = new Map(results.map(r => [r.customId, r]))
 
   for (const p of oneShotPrepared) {
