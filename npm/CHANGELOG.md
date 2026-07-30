@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.62.0] - 2026-07-30
+
+### Changed
+
+- Енумерація changed files через native (фаза 3 v2): `collectChangedFiles`/`collectChangedFilesSince` делегують у `rules-core` (porcelain-межа всередині крейта), фільтр worktree-чекаутів — у Rust із mirror-тестом еквівалентності до JS-реалізації walkDir
+
 ## [1.61.0] - 2026-07-30
 
 ### Fixed
