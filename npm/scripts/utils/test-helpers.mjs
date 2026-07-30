@@ -17,9 +17,31 @@
  */
 import { existsSync } from 'node:fs'
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { delimiter, isAbsolute, join } from 'node:path'
+import { delimiter, dirname, isAbsolute, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { env, platform } from 'node:process'
+
+/**
+ * Абсолютний корінь реального монорепо (тека, де лежать і `npm/`, і `plugins/`),
+ * стійкий до sandbox-копій Stryker. Sandbox (`npm/reports/stryker/.tmp/sandbox-*`)
+ * містить копію лише пакета `npm/`, тому відносні шляхи типу `../../plugins/…`
+ * від тестового файлу там порожні; цей хелпер натомість шукає маркери вгору від
+ * власного розташування і з sandbox доходить до кореня справжнього робочого дерева.
+ * Для тестів repo-інваріантів, яким потрібні файли поза пакетом (workflows,
+ * плагінні rules-теки, пін llm-lib) — такі файли не мутуються Stryker-ом, читати
+ * їх з реального дерева безпечно.
+ * @returns {string} абсолютний шлях кореня монорепо
+ * @throws {Error} якщо маркери `npm/` + `plugins/` не знайдено до кореня ФС
+ */
+export function realRepoRoot() {
+  for (let dir = dirname(fileURLToPath(import.meta.url)); ; dir = dirname(dir)) {
+    if (existsSync(join(dir, 'plugins')) && existsSync(join(dir, 'npm'))) return dir
+    if (dirname(dir) === dir) {
+      throw new Error('realRepoRoot: не знайшов корінь монорепо (маркери npm/ + plugins/)')
+    }
+  }
+}
 
 /**
  * Створює тимчасову директорію, передає її абсолютний шлях у `fn`, потім

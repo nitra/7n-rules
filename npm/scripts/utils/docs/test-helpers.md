@@ -3,7 +3,7 @@ type: JS Module
 title: test-helpers.mjs
 resource: npm/scripts/utils/test-helpers.mjs
 docgen:
-  crc: 18476771
+  crc: 8aaa1994
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 75
@@ -29,6 +29,14 @@ vitest workers, що ділять один процес: один тест пе�
 
 ## Публічний API
 
+- realRepoRoot — Абсолютний корінь реального монорепо (тека, де лежать і `npm/`, і `plugins/`),
+стійкий до sandbox-копій Stryker. Sandbox (`npm/reports/stryker/.tmp/sandbox-*`)
+містить копію лише пакета `npm/`, тому відносні шляхи типу `../../plugins/…`
+від тестового файлу там порожні; цей хелпер натомість шукає маркери вгору від
+власного розташування і з sandbox доходить до кореня справжнього робочого дерева.
+Для тестів repo-інваріантів, яким потрібні файли поза пакетом (workflows,
+плагінні rules-теки, пін llm-lib) — такі файли не мутуються Stryker-ом, читати
+їх з реального дерева безпечно.
 - withTmpDir — Створює тимчасову директорію, передає її абсолютний шлях у `fn`, потім
 видаляє директорію. **НЕ** мутує `process.cwd()`.
 - writeJson — Записує JSON-файл з типовим форматуванням і завершальним переносом рядка.

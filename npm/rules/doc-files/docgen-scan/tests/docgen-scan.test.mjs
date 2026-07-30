@@ -3,7 +3,12 @@ import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 
-import { withTmpDir, ensureDir, installFakeLangJsPlugin } from '../../../../scripts/utils/test-helpers.mjs'
+import {
+  withTmpDir,
+  ensureDir,
+  installFakeLangJsPlugin,
+  realRepoRoot
+} from '../../../../scripts/utils/test-helpers.mjs'
 import {
   isSourceFile,
   docPathForSource,
@@ -16,7 +21,9 @@ import { crc32, documentationCrc, stampDoc } from '../../docgen-crc/main.mjs'
 import { buildTestEvidenceIndex } from '../../docgen-test-context/main.mjs'
 
 // Root монорепо: всі lang-плагіни активні у .n-rules.json (js/rust/python).
-const repoRoot = new URL('../../../../..', import.meta.url).pathname
+// realRepoRoot, не відносний шлях: sandbox-копія Stryker містить лише npm/, тож
+// відносний `../../../../..` там веде у порожню теку без .n-rules.json/plugins.
+const repoRoot = realRepoRoot()
 
 describe('isSourceFile', () => {
   test('js/mjs/ts/vue — з декларації @7n/rules-lang-js, не вбудовані (фаза 5b)', () => {

@@ -4,10 +4,6 @@
   "workspaces": {
     "": {
       "name": "mono",
-      "dependencies": {
-        "@7n/rules-darwin-arm64": "^1.59.2",
-        "@7n/rules-linux-x64": "^1.59.2",
-      },
       "devDependencies": {
         "@7n/rules": "workspace:*",
         "@7n/rules-ci-azure": "workspace:*",
