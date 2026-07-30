@@ -1,0 +1,41 @@
+name: release-smoke
+
+# Black-box перевірка ОПУБЛІКОВАНОГО npm-набору після кожного успішного npm-publish на main —
+# "набір ПРАЦЮЄ з registry", а не "npm publish відпрацював" (npm-publish.yml публікує з
+# continue-on-error на кожному пакеті й може бути зеленим навіть коли один пакет не
+# опублікувався або KNOWN_PLUGIN_RANGES розсинхронізовані з registry). Логіка — окремим
+# скриптом npm/scripts/release-smoke.mjs (тестовний, unit-покритий).
+on: # zizmor: ignore[dangerous-triggers] жоден крок нижче не бере head_sha/artifact upstream
+  # workflow_run-рану — лише перевіряє success+гілку, а checkout нижче бере власний main-ref
+  # репозиторію; pwn-request-вектор (untrusted код зі стороннього репозиторію чи PR під
+  # elevated permissions) тут відсутній, бо npm-publish запускається лише push-ом на main.
+  workflow_run:
+    workflows: ['npm-publish']
+    types: [completed]
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  release-smoke:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-bun-deps
+
+      - name: Release smoke (published package set)
+        run: node npm/scripts/release-smoke.mjs
+        env:
+          # ensure-tool: авторизований lookup GitHub Releases (per-IP rate-limit на shared-runner-ах),
+          # той самий канон, що test.yml/lint-js.yml.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
