@@ -5,8 +5,8 @@
     "": {
       "name": "mono",
       "dependencies": {
-        "@7n/llm-lib-darwin-arm64": "^2.14.2",
-        "@7n/llm-lib-linux-x64": "^2.14.2",
+        "@7n/llm-lib-darwin-arm64": "^2.14.3",
+        "@7n/llm-lib-linux-x64": "^2.14.3",
       },
       "devDependencies": {
         "@7n/rules": "workspace:*",
@@ -41,7 +41,7 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.14.3",
+      "version": "2.14.4",
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
       },
@@ -50,8 +50,8 @@
         "@earendil-works/pi-coding-agent": "~0.80.10",
       },
       "optionalDependencies": {
-        "@7n/llm-lib-darwin-arm64": "2.14.3",
-        "@7n/llm-lib-linux-x64": "2.14.3",
+        "@7n/llm-lib-darwin-arm64": "2.14.4",
+        "@7n/llm-lib-linux-x64": "2.14.4",
       },
       "peerDependencies": {
         "@earendil-works/pi-ai": "~0.80.10",
@@ -64,7 +64,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.70.0",
+      "version": "1.71.0",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
@@ -184,9 +184,9 @@
   "packages": {
     "@7n/llm-lib": ["@7n/llm-lib@workspace:llm-lib"],
 
-    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.14.2", "", { "os": "darwin", "cpu": "arm64" }, "sha512-bbS962q4XnKyNO6e99OoMYEKn2ky4sC831fXAhYxxyjTnUJY+I2qs0ntYZ23HnIO2cNm1zWJrT4KDOAC/XPhvw=="],
+    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.14.3", "", { "os": "darwin", "cpu": "arm64" }, "sha512-laSZFHjvX0gNf/fOC0XPVvnblGFbyZeT7mECZRkWnTlsYYoctLsP9U61rHYXzPX1JXXGfN8T0QXqOvG7WSReyA=="],
 
-    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.14.2", "", { "os": "linux", "cpu": "x64" }, "sha512-j2DY0l9zb6K4YKQmFvKuLcX/MlrTwrEI2JdKDj/qBH7CZ9sfh6Yy5Pcwa8AiQZqS9rX85RyvZZcbsCkeVyrbMQ=="],
+    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.14.3", "", { "os": "linux", "cpu": "x64" }, "sha512-EysGVBw6kI3R27RoKU0QoiuIsYqhgNGX4Mme7ialTj5TGZgjekie5TtwRZvBEZnj82luiAXMy31KGtz8P3Ph3A=="],
 
     "@7n/rules": ["@7n/rules@workspace:npm"],
 
