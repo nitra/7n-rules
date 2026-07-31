@@ -7,15 +7,38 @@
  *   - lint-rust.yml відсутній → чисто (існування — rust.lint_rust_yml);
  *   - T0-фікс вставляє блок перед dtolnay/rust-toolchain, ідемпотентно;
  *   - appendMissingPackages дописує пакети в наявний apt-рядок (і з `\`-continuation).
+ *
+ * Детектор — через `runConcernDetector` (dispatch-рівень), не пряма функція:
+ * JS `main.mjs` видалений (G2 фази 5 батчу 3, TOML-кластер), concern тепер
+ * живе лише в `crates/rules-core/src/concerns/tauri_linux_deps.rs` і
+ * виконується через native-гілку `runConcernDetector`. T0-фіксер
+ * (`fix-linux_deps.mjs`) лишається JS і тепер самодостатній (константи й
+ * `scanLinuxDeps` дубльовані, не імпортуються з main.mjs).
  */
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { describe, expect, test, vi } from 'vitest'
 
-import { MISSING_LINUX_DEPS_PACKAGES, MISSING_LINUX_DEPS_STEP, lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { appendMissingPackages, insertLinuxDepsStep, patterns } from '../fix-linux_deps.mjs'
+
+/** Стабільний reason: у CI-workflow немає apt-кроку встановлення Linux-залежностей Tauri. */
+const MISSING_LINUX_DEPS_STEP = 'missing-linux-deps-step'
+/** Стабільний reason: apt-крок є, але в ньому бракує канонічних пакетів. */
+const MISSING_LINUX_DEPS_PACKAGES = 'missing-linux-deps-packages'
+
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+
+/**
+ * @param {import('../../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінт-прогону
+ * @returns {Promise<import('../../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат детектора
+ */
+const lint = ctx => runConcernDetector(CONCERN, ctx)
 
 /** @returns {string} абсолютний шлях тимчасового кореня проєкту */
 function makeRoot() {

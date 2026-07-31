@@ -1,14 +1,33 @@
 /**
  * Тести правила core_test_isolation.mdc: агент/LLM-логіка окремо від src-tauri app-shell.
+ *
+ * Прогін — через `runConcernDetector` (dispatch-рівень), не пряма функція: JS
+ * `main.mjs` видалений (G2 фази 5 батчу 3, TOML-кластер), concern тепер живе
+ * лише в `crates/rules-core/src/concerns/tauri_core_test_isolation.rs` і
+ * виконується через native-гілку `runConcernDetector`. Немає T0-фіксу
+ * (`fixability: "structural"`) — цей concern не має fix-файлу.
  */
 import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-import { CORE_CRATE_DEPENDS_ON_TAURI, LLM_DEP_IN_APP_SHELL, MISSING_FAKE_LLM_PROVIDER, lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
-const run = dir => lint({ cwd: dir, ruleId: 'tauri', concernId: 'core_test_isolation', files: undefined })
+/** Стабільний reason: LLM-залежність оголошена в app shell замість core-крейта. */
+const LLM_DEP_IN_APP_SHELL = 'llm-dep-in-app-shell'
+/** Стабільний reason: core-крейт залежить від Tauri — ламає ізоляцію unit-тестів від runtime. */
+const CORE_CRATE_DEPENDS_ON_TAURI = 'core-crate-depends-on-tauri'
+/** Стабільний reason: у тестах core-крейта немає fake-провайдера LLM для роботи без мережі. */
+const MISSING_FAKE_LLM_PROVIDER = 'missing-fake-llm-provider'
+
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+
+const run = dir =>
+  runConcernDetector(CONCERN, { cwd: dir, ruleId: 'tauri', concernId: 'core_test_isolation', files: undefined })
 
 describe('check tauri.core_test_isolation', () => {
   test('без src-tauri у проєкті → без порушень', async () => {

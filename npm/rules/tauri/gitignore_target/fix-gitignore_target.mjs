@@ -6,12 +6,20 @@
  * а не з повторного сканування монорепо — детектор уже визначив, яких саме
  * записів бракує). Текстовий splice (як `tauri/linux_deps`): зберігає коментарі
  * й формат, мінімальний diff. Ідемпотентно: повторний прогін на вже
- * виправленому файлі нічого не змінює (`findMissingEntries` у main.mjs
- * повторно перевіряє стан файла).
+ * виправленому файлі нічого не змінює (детектор — тепер native-порт
+ * `crates/rules-core/src/concerns/tauri_gitignore_target.rs` — повторно
+ * перевіряє стан файла).
+ *
+ * `MISSING_GITIGNORE_TARGET_ENTRIES`-константа дубльована з native-порту
+ * (той самий рядок `"missing-gitignore-target-entries"`), не імпортується
+ * з видаленого `main.mjs` — фіксер уже раніше матчився по `violation.data`,
+ * а не по функціях detector-а (G1 doc-комент native-порту: форма `data`
+ * узгоджена з JS 1:1), тож перенесення обмежується самою константою.
  */
 import { applyToFiles } from '../../../scripts/utils/apply-to-files.mjs'
 
-import { MISSING_GITIGNORE_TARGET_ENTRIES } from './main.mjs'
+/** Стабільний reason: у корінному `.gitignore` бракує ignore-запису(ів) для `src-tauri/target/`. */
+const MISSING_GITIGNORE_TARGET_ENTRIES = 'missing-gitignore-target-entries'
 
 /** Заголовок-коментар секції Tauri build-артефактів у корінному `.gitignore`. */
 export const GITIGNORE_TARGET_HEADER = '# Tauri — Rust build artifacts (tauri.mdc)'
