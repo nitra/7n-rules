@@ -35,6 +35,11 @@ use crate::LlmError;
 /// вкладений `npx` намагається виконати package зовнішнього `npm exec`.
 const NPM_CONFIG_PACKAGE: &str = "npm_config_package";
 
+/// Один і той самий ACP update не є новим прогресом. Ліміт зупиняє
+/// багатоядерний busy-loop, якщо bridge після завершення ходу нескінченно
+/// відтворює останній text/tool event замість `StopReason`.
+const MAX_DUPLICATE_ACTIVITY_EVENTS: usize = 64;
+
 /// Semantic idle-timeout — без нового tool-call або agent output, не загальна
 /// тривалість ходу. Usage/thought/config/tool-update шум не подовжує deadline,
 /// тому завислий агент не може жити вічно лише завдяки progress events.
@@ -195,11 +200,12 @@ fn idle_timeout_error(idle_timeout: Duration) -> AcpError {
 /// Чи є update змістовним прогресом, який подовжує semantic idle deadline.
 /// Usage/thought/config/tool-update шум навмисно не скидає watchdog: ACP
 /// агенти можуть нескінченно надсилати такі events уже після filesystem edits.
-fn resets_idle_timeout(update: &SessionUpdate) -> bool {
-    matches!(
-        update,
-        SessionUpdate::AgentMessageChunk(_) | SessionUpdate::ToolCall(_)
-    )
+fn activity_key(update: &SessionUpdate) -> Option<String> {
+    match update {
+        SessionUpdate::AgentMessageChunk(chunk) => Some(format!("agent:{chunk:?}")),
+        SessionUpdate::ToolCall(tool_call) => Some(format!("tool:{}", tool_call.tool_call_id.0)),
+        _ => None,
+    }
 }
 
 /// Читає events одного prompt-ходу до `StopReason`, з semantic
@@ -220,6 +226,8 @@ where
     S: AcpSessionUpdates,
 {
     let mut idle_deadline = Instant::now() + idle_timeout;
+    let mut last_activity = None;
+    let mut duplicate_activity_events = 0;
     loop {
         let remaining = idle_deadline.saturating_duration_since(Instant::now());
         // Вичерпаний deadline перевіряється явно ДО читання:
@@ -240,10 +248,27 @@ where
                 let on_update = &mut on_update;
                 let mut meaningful_activity = false;
                 let activity_seen = &mut meaningful_activity;
+                let last_activity = &mut last_activity;
+                let duplicate_events = &mut duplicate_activity_events;
                 MatchDispatch::new(dispatch)
                     .if_notification(async move |notification: SessionNotification| {
                         let update = &notification.update;
-                        *activity_seen = resets_idle_timeout(update);
+                        if let Some(key) = activity_key(update) {
+                            if last_activity.as_ref() != Some(&key) {
+                                *last_activity = Some(key);
+                                *activity_seen = true;
+                                *duplicate_events = 0;
+                            } else {
+                                *duplicate_events += 1;
+                                if *duplicate_events > MAX_DUPLICATE_ACTIVITY_EVENTS {
+                                    return Err(AcpError::internal_error().data(Some(
+                                        serde_json::json!(
+                                            "acp: bridge повторює той самий agent/tool event без StopReason"
+                                        ),
+                                    )));
+                                }
+                            }
+                        }
                         let quiet_text_chunk = matches!(
                             update,
                             SessionUpdate::AgentThoughtChunk(ContentChunk {
@@ -342,6 +367,28 @@ impl AcpSessionUpdates for FloodingSession {
         use agent_client_protocol::{Dispatch, UntypedMessage};
 
         let notification = SessionNotification::new("test", SessionUpdate::Plan(Plan::new(vec![])));
+        let message = UntypedMessage::new("session/update", notification)?;
+        Ok(SessionMessage::SessionMessage(Dispatch::Notification(
+            message,
+        )))
+    }
+}
+
+/// Фейкова сесія, яка нескінченно повторює той самий agent text event. Це
+/// окремий клас flood: до захисту кожен повтор скидав semantic idle deadline.
+#[cfg(test)]
+struct RepeatingActivitySession;
+
+#[cfg(test)]
+impl AcpSessionUpdates for RepeatingActivitySession {
+    async fn read_update(&mut self) -> Result<SessionMessage, AcpError> {
+        use agent_client_protocol::schema::v1::TextContent;
+        use agent_client_protocol::{Dispatch, UntypedMessage};
+
+        let update = SessionUpdate::AgentMessageChunk(ContentChunk::new(ContentBlock::Text(
+            TextContent::new("same agent output"),
+        )));
+        let notification = SessionNotification::new("test", update);
         let message = UntypedMessage::new("session/update", notification)?;
         Ok(SessionMessage::SessionMessage(Dispatch::Notification(
             message,
@@ -547,6 +594,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn duplicate_agent_activity_flood_fails_without_spinning_until_idle_timeout() {
+        let result = tokio::time::timeout(
+            Duration::from_secs(1),
+            drive_turn(
+                &mut RepeatingActivitySession,
+                Duration::from_secs(30),
+                |_update| {},
+            ),
+        )
+        .await;
+
+        let outcome = result.expect("повторюваний agent event має бути зупинений bounded-захистом");
+        assert!(
+            outcome.is_err(),
+            "однаковий agent event не має нескінченно подовжувати хід"
+        );
+    }
+
+    #[tokio::test]
     async fn progress_noise_does_not_reset_semantic_idle_timeout() {
         let result = tokio::time::timeout(
             Duration::from_secs(1),
@@ -591,13 +657,13 @@ mod tests {
     }
 
     #[test]
-    fn only_agent_output_or_new_tool_call_resets_semantic_idle_timeout() {
+    fn only_new_agent_output_or_tool_call_is_activity() {
         use agent_client_protocol::schema::v1::{Plan, ToolCall};
 
         let plan = SessionUpdate::Plan(Plan::new(vec![]));
         let tool_call = SessionUpdate::ToolCall(ToolCall::new("id-1", "Edit foo.rs"));
 
-        assert!(!resets_idle_timeout(&plan));
-        assert!(resets_idle_timeout(&tool_call));
+        assert!(activity_key(&plan).is_none());
+        assert_eq!(activity_key(&tool_call), Some("tool:id-1".to_string()));
     }
 }
