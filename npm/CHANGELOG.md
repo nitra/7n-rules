@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.69.0] - 2026-07-31
+
+### Added
+
+- Вбудовані first-party wasm-піни (задача O1 фази 6 v2, рішення Н): `npm/wasm-plugins/` доставляє `.wasm` first-party плагінів (`plugin-lang-js`) прямо в пакеті `@7n/rules` — `builtin-pins.json` (name → file+sha256, третє й найнижче пріоритетне джерело `wasmPlugins`, перекривається записом `.n-rules.json` консюмера) читає `wasm-plugins.mjs` поряд із собою; `npm/scripts/build-wasm-plugins.mjs` — локальна dev-петля й той самий CI-крок `npm-publish.yml` (build-native, ubuntu-рядок); `vue/tfm-translations`/`style/gap` тепер резолвляться через builtin-таблицю без ручного піна в `.n-rules.json` консюмера.
+- Фаза 7 v2 (P1, перший зріз): plan-контур lint-оркестрації (`buildPlan` + п'ять
+builders: scoped/scopedDelta/repoWide/full/delta, `planConcernForDelta`,
+picomatch-паритетний glob-матчер) портовано в `rules-core`
+(`crates/rules-core/src/lint_plan.rs`) з native-біндінгами `buildLintPlan`/
+`matchLintGlobs`; `run-detectors.mjs` делегує обчислення плану в native (JS
+лишає дискавері concern.json, capability- і applies-фільтри — межа
+задокументована в doc-коментарі `lint_plan` модуля). Diff-parity гейт проти
+замороженої копії старого picomatch-алгоритму на синтетичних і реальних
+glob-фікстурах.
+
 ## [1.68.0] - 2026-07-31
 
 ### Added
