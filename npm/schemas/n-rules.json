@@ -35,6 +35,27 @@
         "pattern": "^(@[a-z0-9-~][a-z0-9-._~]*/)?[a-z0-9-~][a-z0-9-._~]*$"
       }
     },
+    "wasmPlugins": {
+      "type": "array",
+      "description": "Wasm-плагіни plugin contract v3 (n-rules:plugin@3.0.0, docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md) — dev-форма піна (name+path на вже зібраний .wasm-компонент). Окреме поле від `plugins` (Plugin API v2, npm-пакети) — різні формати запису й різний конвеєр резолву. TODO(v3-wasm-pilot): url+sha256 hash-пін (спека §3.4) — наступний крок, поза обсягом пілоту.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "path"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Ідентифікатор плагіна (лише для diagnostics-повідомлень)."
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Repo-relative (від кореня консюмер-репо) чи абсолютний шлях до зібраного .wasm-компонента."
+          }
+        }
+      }
+    },
     "disable-rules": {
       "type": "array",
       "description": "Список rule id (без префікса n-), які не потрібно автододавати в `.n-rules.json` під час запуску CLI.",

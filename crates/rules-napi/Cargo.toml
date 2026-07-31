@@ -11,6 +11,13 @@ crate-type = ["cdylib"]
 
 [dependencies]
 rules-core = { path = "../rules-core" }
+# wasm-плагін міст (задача K фази 6, спека
+# `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.3):
+# `wasm_plugin_concerns`/`run_wasm_concern` — тонкий binding над
+# `PluginHost`/`LoadedPlugin`, той самий шар, що вже несе `rules-core` для
+# builtin-концернів (E1 фази 5).
+rules-contract = { path = "../rules-contract" }
+rules-plugin-host = { path = "../rules-plugin-host" }
 napi = { version = "3", default-features = false, features = ["napi8", "serde-json"] }
 napi-derive = "3"
 serde_json = "1"

@@ -6,11 +6,18 @@
 //! N-API поверхня (Р2), без `tokio_rt`, бо споживачі (`npm/scripts/lib/*`)
 //! викликають функції синхронно.
 
-use std::path::PathBuf;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use napi::{Error, Result};
 use napi_derive::napi;
+use rules_contract::detect::{DetectBatch, SourceFile};
+use rules_contract::tool::ToolOutput as ContractToolOutput;
+use rules_contract::version::PLUGIN_WORLD_VERSION;
 use rules_core::RulesError;
+use rules_plugin_host::{LoadedPlugin, PluginHost, PluginHostError, RunToolFn};
 
 /// Версія JSON DTO-контракту `rules-core` ⇄ `rules-napi` ([`rules_core::dto::CONTRACT_VERSION`]).
 /// JS-loader звіряє це значення при завантаженні аддона (Р10 спеки) —
@@ -189,4 +196,121 @@ pub fn run_native_concern(
     let violations = rules_core::concerns::run_concern(&key, &PathBuf::from(cwd), files.as_deref())
         .map_err(to_napi_err)?;
     Ok(serde_json::json!({ "violations": violations }))
+}
+
+/// Конвертує `PluginHostError` у `napi::Error` — той самий мотив, що
+/// [`to_napi_err`] для `RulesError`.
+fn to_wasm_napi_err(err: PluginHostError) -> Error {
+    Error::from_reason(err.to_string())
+}
+
+/// Run-tool callback-заглушка napi-мосту wasm-плагінів (задача K фази 6,
+/// спека `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.3):
+/// пілотний концерн `vue/tfm-translations` не декларує зовнішніх tools
+/// (`Manifest::tools` порожній), тож реальний ensure-tool контур — поза цією
+/// задачею (рішення Д спеки лишається оркестрації, не napi-мосту).
+fn stub_run_tool() -> Arc<RunToolFn> {
+    Arc::new(
+        |_tool: &str, _args: &[String], _stdin: Option<&str>| ContractToolOutput {
+            status: None,
+            stdout: String::new(),
+            stderr: "run-tool не підтримується napi-мостом wasm-плагінів (задача K пілоту)"
+                .to_string(),
+        },
+    )
+}
+
+thread_local! {
+    /// `PluginHost` на потік виклику napi — синхронні `#[napi]`-функції цього
+    /// модуля викликаються з JS завжди послідовно на одному потоці (той самий
+    /// контракт синхронної N-API поверхні, що документує `crate`-doc-коментар
+    /// вище), тож `thread_local!` уникає Send/Sync-вимог до `PluginHost`/
+    /// `LoadedPlugin` (які тримають wasmtime `Store`) без утрати коректності:
+    /// кеш живе, поки живий потік (типово — процес). `Engine`/`Linker`
+    /// будуються раз, переюзаються між УСІМА `wasm_plugin_concerns`/
+    /// `run_wasm_concern` викликами цього потоку.
+    static PLUGIN_HOST: PluginHost = PluginHost::new(stub_run_tool())
+        .expect("PluginHost::new не мав провалитись (Engine/Linker-конфігурація статична)");
+
+    /// Кеш завантажених плагінів per-path на процес (задача K, вимога «не
+    /// перевантажуй компонент на кожен виклик») — уникає повторної
+    /// компіляції/інстанціації `.wasm`-компонента на кожен `#[napi]`-виклик.
+    static LOADED_PLUGINS: RefCell<HashMap<String, LoadedPlugin>> = RefCell::new(HashMap::new());
+}
+
+/// Бере плагін за шляхом із кешу (чи завантажує й кешує, якщо це перший
+/// виклик для цього шляху) і виконує `f` над ним.
+fn with_loaded_plugin<T>(
+    wasm_path: &str,
+    f: impl FnOnce(&mut LoadedPlugin) -> Result<T>,
+) -> Result<T> {
+    LOADED_PLUGINS.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if !cache.contains_key(wasm_path) {
+            let loaded = PLUGIN_HOST
+                .with(|host| host.load(Path::new(wasm_path), PLUGIN_WORLD_VERSION))
+                .map_err(to_wasm_napi_err)?;
+            cache.insert(wasm_path.to_string(), loaded);
+        }
+        let plugin = cache
+            .get_mut(wasm_path)
+            .expect("щойно вставлено або вже було в кеші");
+        f(plugin)
+    })
+}
+
+/// Ключі концернів (contributions), задекларовані wasm-плагіном за шляхом —
+/// тонкий binding над `PluginHost::load` + `LoadedPlugin::describe`
+/// (`Manifest::concerns`, задача K фази 6, спека
+/// `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.3).
+/// JS-dispatch (`npm/scripts/lib/lint-surface/wasm-plugins.mjs`) резолвить
+/// цим ключем «`ruleId/concernId` → шлях `.wasm`»-мапу.
+///
+/// Плагін кешується per-path на процес (у межах потоку виклику, доккомент
+/// `PLUGIN_HOST`/`LOADED_PLUGINS` вище) — повторний виклик з тим самим
+/// шляхом не компілює компонент заново.
+#[napi]
+pub fn wasm_plugin_concerns(wasm_path: String) -> Result<Vec<String>> {
+    with_loaded_plugin(&wasm_path, |plugin| Ok(plugin.describe().concerns.clone()))
+}
+
+/// Виконує `detect` одного концерну wasm-плагіна — тонкий binding над
+/// `LoadedPlugin::detect` (задача K фази 6). Хост-бік читає вміст файлів із
+/// `cwd` (utf8-lossy; відсутній/нечитаний файл пропускається — та сама
+/// поведінка, що дав би звичайний filesystem-обхід), будує `DetectBatch` і
+/// повертає ТУ САМУ форму `{"violations": [...]}`, що [`run_native_concern`]
+/// (JS-шар прогонить результат через `normalizeResult`
+/// (`npm/scripts/lib/lint-surface/detect.mjs`), без окремого адаптера).
+///
+/// - `wasm_path` — абсолютний шлях до `.wasm`-компонента (той самий, що
+///   передається у [`wasm_plugin_concerns`]).
+/// - `key` — `ruleId/concernId`, передається як `detect-batch.concern-id`.
+/// - `cwd` — абсолютний корінь consumer-репо (звідки резолвляться `files`).
+/// - `files` — posix-relative шляхи файлів для детекції.
+#[napi]
+pub fn run_wasm_concern(
+    wasm_path: String,
+    key: String,
+    cwd: String,
+    files: Vec<String>,
+) -> Result<serde_json::Value> {
+    let cwd_path = PathBuf::from(&cwd);
+    let source_files: Vec<SourceFile> = files
+        .into_iter()
+        .filter_map(|rel| {
+            let abs = cwd_path.join(&rel);
+            std::fs::read(&abs).ok().map(|bytes| SourceFile {
+                path: rel,
+                content: String::from_utf8_lossy(&bytes).into_owned(),
+            })
+        })
+        .collect();
+    let batch = DetectBatch {
+        concern_id: key,
+        files: source_files,
+    };
+    let diagnostics = with_loaded_plugin(&wasm_path, |plugin| {
+        plugin.detect(&batch).map_err(to_wasm_napi_err)
+    })?;
+    Ok(serde_json::json!({ "violations": diagnostics }))
 }

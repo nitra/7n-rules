@@ -32,6 +32,12 @@ jobs:
       - uses: ./.github/actions/setup-bun-deps
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          # wasm32-wasip2 — ціль пілотного wasm-плагіна `crates/plugin-lang-js-pilot`
+          # (задача K фази 6): JS-тести (`wasm-plugin-parity`/`wasm-plugin-e2e`/
+          # `wasm-plugins`, `npm/scripts/lib/lint-surface/tests/`) викликають
+          # реальний зібраний компонент через napi-міст, не мок.
+          targets: wasm32-wasip2
 
       - uses: Swatinem/rust-cache@v2
 
@@ -40,6 +46,12 @@ jobs:
       # хук-тести не мають чим резолвити rules-napi аддон на свіжому checkout.
       - name: Build rules-napi addon
         run: cargo build --release -p rules-napi
+
+      # Пілотний wasm-плагін (задача K фази 6) — JS wasm-dispatch тести
+      # (доккомент кроку вище) падають з чіткою помилкою на свіжому checkout
+      # без цього кроку (той самий require_fixture-мотив, що в Rust-тестах).
+      - name: Build plugin-lang-js-pilot wasm component
+        run: bash crates/plugin-lang-js-pilot/build.sh
 
       - name: Full vitest run
         run: bun run test

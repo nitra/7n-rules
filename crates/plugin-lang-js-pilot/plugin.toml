@@ -1,0 +1,22 @@
+# Маніфест пілотного wasm-плагіна (задача K фази 6, спека
+# docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md §3.1/§3.5.2) —
+# статичний дублікат того, що `describe()` (src/lib.rs) повертає в рантаймі.
+# Поля 1:1 відповідають `rules_contract::manifest::Manifest`
+# (crates/rules-contract/src/manifest.rs, без serde-перейменувань — назви
+# полів тотожні Rust-структурі).
+#
+# TODO(v3-wasm-pilot): це dev-форма піна (`{ name, path }` у секції
+# `wasmPlugins` .n-rules.json споживача) — `url` + `sha256` дистрибуція
+# (спека §3.4, рішення Ж) є наступним кроком, поза обсягом пілоту.
+
+id = "lang-js-pilot/vue-tfm-translations"
+version = "0.1.0"
+world_version = "3.0.0"
+domains = ["lint"]
+concerns = ["vue/tfm-translations"]
+ci_artifacts = []
+tools = []
+
+[capabilities]
+fs_read = []
+network = false
