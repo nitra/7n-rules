@@ -1,0 +1,52 @@
+[package]
+name = "rules-plugin-host"
+version = "0.1.0"
+edition = "2021"
+description = "Embedded wasmtime-хост для n-rules:plugin@3.0.0 (crates/rules-contract): завантаження wasm-компонентів, WASI preopens за capabilities, вузький публічний trait поверх Component Model"
+license = "Apache-2.0"
+
+[lib]
+name = "rules_plugin_host"
+
+[dependencies]
+rules-contract = { path = "../rules-contract" }
+# Пін точної minor-версії (не caret-діапазон) — рішення М спеки
+# `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`: Component
+# Model API wasmtime ще нестабілізований між minor-релізами, тож пін
+# оновлюється КОЖЕН minor свідомо через звичайний taze-флоу (не автоматично
+# діапазоном версій), а regression-гейт — прогін contract-test-kit
+# (`tests/`) проти реальної guest-фікстури (`crates/test-plugin-guest`) на
+# кожному оновленні піна. `default-features = false` звужує features до
+# фактично потрібних: `component-model` (Component Model ABI/біндінги),
+# `cranelift` (компіляція wasm → native), `runtime` (Store/Instance/пам'ять
+# — сама можливість виконання), `std`.
+wasmtime = { version = "47.0", default-features = false, features = [
+  "component-model",
+  "cranelift",
+  "runtime",
+  "std",
+  # `wasmtime::Error` навмисно НЕ реалізує `std::error::Error` (той самий
+  # trait-coherence компроміс, що й у `anyhow`) — конверсія в `anyhow::Error`
+  # (яка й реалізує `std::error::Error`, потрібний thiserror `#[source]`)
+  # існує лише під цією feature (`impl From<wasmtime::Error> for
+  # anyhow::Error`, `wasmtime-internal-core/src/error/error.rs`).
+  "anyhow",
+] }
+# WASI Preview 2 host-реалізація (той самий пін-каданс, що й `wasmtime`
+# вище — обидва крейти з одного релізного потяга bytecodealliance/wasmtime,
+# тому версії тримаються синхронно). Дає `wasmtime_wasi::p2::WasiCtxBuilder`
+# для preopen-ів за capabilities (рішення Е спеки) — мережа заборонена за
+# замовчуванням через `WasiCtx`-політику (`allow_tcp`/`allow_udp`/
+# `allow_ip_name_lookup` лишаються `false`, доккомент `PluginHost::new` у
+# `src/host.rs`), не через відсутність wasi:sockets у `Linker`.
+wasmtime-wasi = { version = "47.0", default-features = false, features = [
+  "p2",
+] }
+thiserror = "1"
+serde_json = "1"
+# Тип `#[source]`-полів `PluginHostError` (`src/error.rs`) — `wasmtime::Error`
+# конвертується сюди через `From` (feature `anyhow` вище на `wasmtime`).
+anyhow = "1"
+
+[dev-dependencies]
+tempfile = "3"
