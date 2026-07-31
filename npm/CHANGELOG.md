@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.70.0] - 2026-07-31
+
+### Added
+
+- `plugin-lang-js` (задача Q1 батч 1): порт пʼяти JS-концернів у native/wasm — `test/vitest-config-pool-forks`, `test/no-process-chdir`, `style/admin_table`, `style/quasar_fixes`, `test/location` (усі full-scope, whole-batch, 1:1 порт reason/message); маніфест і `plugin.toml` тепер декларують сім контрибуцій разом із чинними `vue/tfm-translations`/`style/gap`; golden-тести `plugin_lang_js.rs` і parity-тест `wasm-plugin-parity.test.mjs` покривають усі сім; JS-канон (`plugins/lang-js/rules/**/main.mjs`) не видалено.
+- Фаза 7 v2 (R1, другий зріз): sort/render/exit-code контур lint-оркестрації
+(`sortViolations`/`renderViolations`/похідний exit-code `detectAll`) портовано
+в `rules-core` (`crates/rules-core/src/lint_render.rs`) з native-біндінгами
+`renderViolations`/`sortAndRenderViolations` (комбінований виклик — сортує,
+рендерить і рахує exit-code за один hop через napi-межу); `run-detectors.mjs`
+і `render.mjs` делегують у native, JS-реалізації видалено. Diff-parity гейт
+проти замороженої копії старого JS-алгоритму на синтетичних фікстурах
+(колізії ключів сортування, українські повідомлення, відсутній `file`,
+warn-severity, `data.line`).
+
 ## [1.69.0] - 2026-07-31
 
 ### Added
