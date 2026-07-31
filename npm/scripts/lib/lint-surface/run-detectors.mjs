@@ -21,7 +21,7 @@ import { getActiveCapabilities, resolveRulesDirs } from '../plugin-slots.mjs'
 import { readNRulesConfigLite, isRuleEnabled } from '../read-n-rules-config-lite.mjs'
 import { isSerialLane } from './blocking-inventory.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
-import { renderViolations, renderDiagnostics } from './render.mjs'
+import { renderDiagnostics } from './render.mjs'
 import { createProgressReporter } from './progress.mjs'
 import { runPlanConcurrently } from './scheduler.mjs'
 
@@ -544,36 +544,6 @@ async function detectPlanConcurrently(plan, { cwd, verbose, progress, log, concu
 }
 
 /**
- * `data.line` детектора (не top-level поле `LintViolation` — лише деякі detector-и
- * кладуть номер рядка в `data`, напр. `js/eslint`). Відсутність → 0 (перед усіма
- * реальними номерами рядків), щоб сортування лишалось стабільним і передбачуваним.
- * @param {LintViolation} v порушення.
- * @returns {number} номер рядка або 0.
- */
-function violationLine(v) {
-  const line = v.data && typeof v.data === 'object' ? v.data.line : undefined
-  return typeof line === 'number' ? line : 0
-}
-
-/**
- * Стабільне сортування за `(ruleId, concernId, file, line, reason)` — незалежно від порядку
- * завершення concern-ів (важливо для конкурентного шляху; послідовний шлях сьогодні лише
- * конкатенував violations у порядку виконання, без сортування за file/line/reason).
- * @param {LintViolation[]} violations вхідний масив (не мутується).
- * @returns {LintViolation[]} новий, стабільно сортований масив.
- */
-function sortViolations(violations) {
-  return violations.toSorted(
-    (a, b) =>
-      a.ruleId.localeCompare(b.ruleId) ||
-      a.concernId.localeCompare(b.concernId) ||
-      (a.file ?? '').localeCompare(b.file ?? '') ||
-      violationLine(a) - violationLine(b) ||
-      a.reason.localeCompare(b.reason)
-  )
-}
-
-/**
  * Запускає detect-only прохід. Повертає всі violations і похідний exitCode.
  * @param {object} opts опції прогону.
  * @param {string} [opts.rulesDir] базовий корінь із правилами (дефолт — вбудований).
@@ -646,13 +616,19 @@ export async function detectAll(opts) {
   }
 
   const { ran, infraMessage } = planResult
-  const allViolations = sortViolations(planResult.violations)
+  // Сортування (ruleId/concernId/file/line/reason) + рендер + exit-code —
+  // один native-виклик (R1 фази 7, `crates/rules-core/src/lint_render.rs`,
+  // `sortAndRenderViolations`): менше hops, ніж три окремі функції.
+  const { sorted, rendered, exitCode } = loadNative().sortAndRenderViolations({
+    violations: planResult.violations,
+    infraMessage
+  })
 
   if (infraMessage !== null) {
     log(`💥 ${infraMessage}\n`)
-    return { violations: allViolations, exitCode: 2, ran }
+    return { violations: sorted, exitCode, ran }
   }
 
-  if (allViolations.length > 0) baseLog(renderViolations(allViolations))
-  return { violations: allViolations, exitCode: allViolations.length > 0 ? 1 : 0, ran }
+  if (sorted.length > 0) baseLog(rendered)
+  return { violations: sorted, exitCode, ran }
 }

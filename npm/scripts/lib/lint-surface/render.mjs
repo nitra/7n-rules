@@ -2,41 +2,31 @@
  * Єдиний renderer unified lint surface. Detector-и НЕ друкують основний violation-report —
  * вони повертають `LintResult`, а runner рендерить тут. Це гарантує однаковий вигляд
  * для всіх concern-ів і єдину точку форматування.
+ *
+ * `renderViolations` — тонкий JS-фасад над native
+ * `rules_core::lint_render::render_violations` (R1 фази 7, другий зріз
+ * `docs/specs/2026-07-30-rules-v2-rust-core-migration.md` §4): точний
+ * текстовий формат і insertion-order групування портовані в
+ * `crates/rules-core/src/lint_render.rs`, doc-комент там-таки. JS-реалізацію
+ * видалено після parity-гейту (диференційний тест
+ * `tests/lint-render-native-parity.test.mjs`).
  * @typedef {import('./types.mjs').LintViolation} LintViolation
  * @typedef {import('./types.mjs').LintDiagnostic} LintDiagnostic
  */
-
-/**
- * @param {LintViolation} v порушення для форматування у рядок.
- * @returns {string} відформатований рядок порушення.
- */
-function formatViolation(v) {
-  const mark = v.severity === 'warn' ? '⚠' : '❌'
-  const loc = v.file ? ` → ${v.file}` : ''
-  return `  ${mark} ${v.ruleId}/${v.concernId}${loc} (${v.reason}): ${v.message}`
-}
+import { loadNative } from '../native.mjs'
 
 /**
  * Рендерить порушення згруповані за concern-ом. Повертає текст (не друкує сам).
+ * НЕ сортує (той самий контракт, що й видалена JS-версія) — викликачі
+ * (`default-worker.mjs`/`run-fix.mjs`) передають вже вузькі, не глобально
+ * відсортовані підмножини; глобальне сортування для `detectAll` рахує
+ * окремий комбінований native-виклик `sortAndRenderViolations`
+ * (`run-detectors.mjs`).
  * @param {LintViolation[]} violations перелік порушень для рендеру.
  * @returns {string} згрупований текст порушень (порожній рядок, якщо їх немає).
  */
 export function renderViolations(violations) {
-  if (violations.length === 0) return ''
-  /** @type {Map<string, LintViolation[]>} */
-  const byConcern = new Map()
-  for (const v of violations) {
-    const key = `${v.ruleId}/${v.concernId}`
-    const arr = byConcern.get(key)
-    if (arr) arr.push(v)
-    else byConcern.set(key, [v])
-  }
-  const blocks = []
-  for (const [key, vs] of byConcern) {
-    blocks.push(`${key} — ${vs.length} порушення:`)
-    for (const v of vs) blocks.push(formatViolation(v))
-  }
-  return blocks.join('\n') + '\n'
+  return loadNative().renderViolations(violations)
 }
 
 /**

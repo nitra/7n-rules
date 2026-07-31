@@ -233,6 +233,49 @@ pub fn match_lint_globs(glob: Vec<String>, files: Vec<String>) -> Vec<String> {
     rules_core::lint_plan::match_lint_globs(&glob, &files)
 }
 
+/// Рендерить порушення згруповані за concern-ом — тонкий binding над
+/// [`rules_core::lint_render::render_violations`] (R1 фази 7, другий зріз
+/// `docs/specs/2026-07-30-rules-v2-rust-core-migration.md` §4). НЕ сортує
+/// (doc-комент модуля `rules_core::lint_render`, секція про insertion-order
+/// групування) — точна заміна `renderViolations`
+/// (`npm/scripts/lib/lint-surface/render.mjs`), яку викликають
+/// `default-worker.mjs`/`run-fix.mjs` на вже вузьких, не глобально
+/// відсортованих підмножинах violations одного concern-а/rung-а.
+///
+/// `violations` — JSON-масив, що десеріалізується у
+/// `Vec<rules_core::lint_render::LintViolation>`.
+#[napi]
+pub fn render_violations(violations: serde_json::Value) -> Result<String> {
+    let parsed: Vec<rules_core::lint_render::LintViolation> = serde_json::from_value(violations)
+        .map_err(|err| Error::from_reason(format!("renderViolations: невалідний вхід: {err}")))?;
+    Ok(rules_core::lint_render::render_violations(&parsed))
+}
+
+/// Сортує+рендерить+рахує exit-code одним викликом — тонкий binding над
+/// [`rules_core::lint_render::sort_and_render_violations`] (R1 фази 7).
+/// Комбінований контракт (замість трьох окремих napi-викликів) — гарячий
+/// шлях `detectAll` (`run-detectors.mjs`) рахує усі три похідні з ОДНОГО
+/// набору violations за один hop через межу.
+///
+/// `input` — JSON, що десеріалізується у
+/// [`rules_core::lint_render::SortAndRenderInput`] (`{violations,
+/// infraMessage?}`). Повертає `{sorted, rendered, exitCode}` — `rendered`
+/// завжди рахується від ВЖЕ відсортованого `sorted` (doc-комент модуля),
+/// незалежно від `infraMessage`; чи друкувати `rendered`, вирішує викликач.
+#[napi]
+pub fn sort_and_render_violations(input: serde_json::Value) -> Result<serde_json::Value> {
+    let parsed: rules_core::lint_render::SortAndRenderInput = serde_json::from_value(input)
+        .map_err(|err| {
+            Error::from_reason(format!("sortAndRenderViolations: невалідний вхід: {err}"))
+        })?;
+    let result = rules_core::lint_render::sort_and_render_violations(&parsed);
+    serde_json::to_value(result).map_err(|err| {
+        Error::from_reason(format!(
+            "sortAndRenderViolations: серіалізація результату провалилась: {err}"
+        ))
+    })
+}
+
 /// Конвертує `PluginHostError` у `napi::Error` — той самий мотив, що
 /// [`to_napi_err`] для `RulesError`.
 fn to_wasm_napi_err(err: PluginHostError) -> Error {
