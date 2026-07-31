@@ -2132,6 +2132,54 @@ async function applySource(args) {
 }
 
 /**
+ * Перевіряє JSON-verdict semantic no-op review після materialization.
+ * `obsolete` дозволений лише як явно пояснений результат; невалідна відповідь
+ * fail-closed зупиняє transfer, а не перетворює його на cleanup-кандидат.
+ * @param {string} text LLM response
+ * @returns {{ok:true,value:{verdict:'proceed'|'obsolete',rationale:string}}|{ok:false,error:string}}
+ */
+export function validateAppliedValueReview(text) {
+  const value = parseJson(text, null)
+  if (!value || !['proceed', 'obsolete'].includes(value.verdict) || typeof value.rationale !== 'string' || !value.rationale.trim()) {
+    return { ok: false, error: 'semantic review має повернути verdict proceed|obsolete і непорожній rationale' }
+  }
+  return { ok: true, value: { verdict: value.verdict, rationale: value.rationale.trim() } }
+}
+
+/**
+ * Відсіює semantic obsolete перенос: поведінка вже є у policy base, а source
+ * лише повертає застарілу архітектуру. Це cognitive comparison, тому JS
+ * лишає моделі тільки читання diff/callers/tests і сам виконує cleanup.
+ * @param {object} args review context
+ * @returns {Promise<{verdict:'proceed'|'obsolete',rationale:string}>} verdict
+ */
+async function reviewAppliedValue(args) {
+  const { runner, source, rationale, worktreeCwd, deps, log, onProgress = noop } = args
+  const prompt = [
+    `JS materialized ${source} на свіжому origin/main у ${worktreeCwd}.`,
+    `Намір source: ${rationale || 'не вказано'}.`,
+    'Порівняй final diff із актуальним origin/main, реальні callers і focused tests.',
+    'Поверни ЛИШЕ JSON: {"verdict":"proceed"|"obsolete","rationale":"..."}.',
+    'obsolete обирай лише якщо вся корисна поведінка вже є в main, а перенос не додає відсутньої цінності або повертає застарілу архітектуру. Інакше proceed.',
+    'Не редагуй файли, не commit, не push, не створюй PR і не видаляй refs.',
+    COGNITIVE_GATE_BOUNDARY
+  ].join('\n\n')
+  const outcome = await callWithValidatedFallback({
+    runner,
+    prompt,
+    cwd: worktreeCwd,
+    deps,
+    log,
+    label: `semantic value ${source}`,
+    onAttempt: ({ tier }) => onProgress('semantic obsolete review', tier),
+    runnerOptions: { denyCommandFragments: COGNITIVE_GATE_COMMAND_DENYLIST },
+    validate: validateAppliedValueReview
+  })
+  if (!outcome.ok) throw new Error(`LLM semantic obsolete review: ${outcome.error}`)
+  return outcome.validation.value
+}
+
+/**
  * Делегує LLM лише behavioral verification/fix у вже зібраному worktree.
  * @param {object} args контекст
  * @returns {Promise<string>} текст відповіді
@@ -2433,6 +2481,22 @@ async function createPullRequest(args) {
     })
     const appliedOutcome = discardPatchEquivalentWorktree({ worktree, rootCwd, spawnFn, onProgress })
     if (appliedOutcome) return appliedOutcome
+    if (sourceMayChangeCode) {
+      const review = await reviewAppliedValue({
+        runner,
+        source,
+        rationale: group.rationale ?? candidate.rationale ?? '',
+        worktreeCwd: worktree.cwd,
+        deps,
+        log,
+        onProgress
+      })
+      if (review.verdict === 'obsolete') {
+        onProgress('remove semantic obsolete worktree')
+        removeReconcileWorktree(worktree, rootCwd, spawnFn)
+        return { status: 'drop-recommended', branch: worktree.branch, rationale: review.rationale }
+      }
+    }
     const verification =
       changedSourceDirectories(worktree.cwd, spawnFn).length > 0
         ? await finalizeBehavior({

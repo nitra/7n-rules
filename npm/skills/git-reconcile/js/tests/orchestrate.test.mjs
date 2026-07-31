@@ -59,6 +59,7 @@ import {
   testFailureSignatures,
   trackingRelation,
   validateBehaviorState,
+  validateAppliedValueReview,
   validateChangedLockfiles,
   validateFinalProjectGates,
   validatePullRequestDescription,
@@ -548,6 +549,15 @@ describe('Git inventory helpers', () => {
 })
 
 describe('LLM boundary', () => {
+  test('semantic obsolete review приймає лише пояснений proceed або obsolete verdict', () => {
+    expect(validateAppliedValueReview('{"verdict":"obsolete","rationale":"поведінка вже є в main"}')).toEqual({
+      ok: true,
+      value: { verdict: 'obsolete', rationale: 'поведінка вже є в main' }
+    })
+    expect(validateAppliedValueReview('{"verdict":"drop","rationale":"безпечно"}').ok).toBe(false)
+    expect(validateAppliedValueReview('{"verdict":"proceed","rationale":""}').ok).toBe(false)
+  })
+
   test('triage prompt забороняє Git-дії моделі й містить лише підготовлені facts', () => {
     const prompt = buildTriagePrompt([REVIEW_BRANCH], 'збережи завершені fixes')
 
