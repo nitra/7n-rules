@@ -3,24 +3,31 @@ type: JS Module
 title: fix-internal_urls.mjs
 resource: npm/rules/hasura/internal_urls/fix-internal_urls.mjs
 docgen:
-  crc: f38b2bec
+  crc: 3dcef8d3
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  score: 100
-  issues: judge:inaccurate:0.99
-  judgeModel: openai-codex/gpt-5.4-mini
+  tier: local-min
+  score: 75
 ---
-
-## Огляд
-
-T0-автофікс для `hasura/internal_urls`: виправляє в `*.env` файлах значення `HASURA_GRAPHQL_ENDPOINT`, у яких `service` або `namespace` не збігаються з `metadata.name` із `hasura/k8s/base/svc-hl.yaml` та `hasura/k8s/base/namespace.yaml`. Структурно невалідний URL (не внутрішній кластерний формат) не виправляється — це вимагає ручного рішення про `cluster`/`port`.
 
 ## Поведінка
 
-1. Спрацьовує лише за наявності порушень з причиною `internal-url-service-mismatch` або `internal-url-namespace-mismatch`.
-2. Обчислює очікувані `service`/`namespace` з YAML-маніфестів (`computeExpectedEndpointSegments`).
-3. Для кожного файлу-порушника переписує сегменти `service`/`namespace` у значенні `HASURA_GRAPHQL_ENDPOINT`, зберігаючи наявні `cluster` і `port`.
-4. URL з причиною `internal-url-invalid` (структурно невалідний) не чіпає — така правка вимагає людського рішення про інфраструктуру.
+1. Ініціюється перевірка, де застосовуються визначені в `patterns` правила.
+2. Для кожної виявленої порушення, що стосується причини `internal-url-service-mismatch` або `internal-url-namespace-mismatch`:
+    3. Обчислюється очікувана коректна назва служби та простір імен шляхом зчитування метаданих з файлів `hasura/k8s/base/svc-hl.yaml` та `hasura/k8s/base/namespace.yaml`.
+    4. Виявляються всі файли, що містять порушення, і які не знаходяться у директорії `base/`.
+    5. Для кожного такого файлу виконується спроба заміни значення `HASURA_GRAPHQL_ENDPOINT` на очікуване:
+        а. Значення з файлу зчитується та парситься для отримання поточної інформації про кластер та порт.
+        б. Якщо початковий URL є внутрішнім кластерним URL і не виявляє відмінностей у сегментах `service` або `namespace` (з урахуванням очікуваних значень), заміна не виконується.
+        в. В іншому випадку, значення `HASURA_GRAPHQL_ENDPOINT` у файлі замінюється, зберігаючи існуючий `cluster` та `port`.
+        г. Здійснюється запис зміненого файлу.
+6. Якщо один або більше файлів були змінені, повертається інформація про змінені файли та повідомлення про застосування правила.
+
+## Сценарії використання
+
+- `npm/rules/hasura/internal_urls/tests/fix-internal_urls.test.mjs` (hasura-internal-url-mismatch pattern) — test: спрацьовує лише на mismatch-причини; apply: переписує service, зберігаючи namespace/cluster/port; apply: не чіпає структурно невалідний URL (internal-url-invalid)
 
 ## Гарантії поведінки
 
-- Пише лише файли з переліку порушень; за відсутності збігу — no-op.
+- Містить локальні fail-safe гілки; інші помилки можуть поширюватися назовні.
+- Деякі локальні fail-safe гілки повертають порожнє значення (напр. `null`) замість винятку.
+- Свідомо пропускає шляхи: `base/`.

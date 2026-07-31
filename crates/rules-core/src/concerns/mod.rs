@@ -29,7 +29,9 @@ mod env_dns;
 mod find_src_tauri;
 mod firebase_hosting;
 mod forbidden_prettier;
+mod gha_workflow;
 mod glob_compat;
+mod hasura_internal_urls;
 mod hasura_migrations;
 mod image_compress_package_setup;
 mod marksman_config;
@@ -39,6 +41,8 @@ mod tauri_cargo_mutants_config;
 mod tauri_core_test_isolation;
 mod tauri_gitignore_target;
 mod tauri_linux_deps;
+mod tauri_release;
+mod text_formatting;
 mod workspaces;
 
 pub use abie_hc_pairing::hc_pairing as abie_hc_pairing;
@@ -48,6 +52,7 @@ pub use dremio_logging::{dremio_logging, zk_logback_root_level_violation};
 pub use env_dns::env_dns;
 pub use firebase_hosting::firebase_hosting;
 pub use forbidden_prettier::forbidden_prettier;
+pub use hasura_internal_urls::hasura_internal_urls;
 pub use hasura_migrations::hasura_migrations;
 pub use image_compress_package_setup::image_compress_package_setup;
 pub use marksman_config::marksman_config;
@@ -57,6 +62,8 @@ pub use tauri_cargo_mutants_config::tauri_cargo_mutants_config;
 pub use tauri_core_test_isolation::tauri_core_test_isolation;
 pub use tauri_gitignore_target::tauri_gitignore_target;
 pub use tauri_linux_deps::tauri_linux_deps;
+pub use tauri_release::tauri_release;
+pub use text_formatting::text_formatting;
 
 /// Ключі native-портованих concern-ів у форматі `ruleId/concernId` — той
 /// самий формат, що й `progressKey` у JS-оркестраторі
@@ -79,6 +86,9 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "abie/hc_pairing",
     "abie/ua_node_selector",
     "abie/ua_http_route",
+    "hasura/internal_urls",
+    "text/formatting",
+    "tauri/release",
 ];
 
 /// Запускає native-порт concern-а за ключем `ruleId/concernId`.
@@ -114,6 +124,9 @@ pub fn run_concern(
         "abie/hc_pairing" => Ok(abie_hc_pairing(cwd)),
         "abie/ua_node_selector" => Ok(abie_ua_node_selector(cwd)),
         "abie/ua_http_route" => Ok(abie_ua_http_route(cwd)),
+        "hasura/internal_urls" => Ok(hasura_internal_urls(cwd)),
+        "text/formatting" => Ok(text_formatting(cwd)),
+        "tauri/release" => Ok(tauri_release(cwd)),
         other => Err(RulesError::Concern(format!(
             "невідомий native concern: {other}"
         ))),
@@ -125,7 +138,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn native_concerns_lists_all_sixteen_entries() {
+    fn native_concerns_lists_all_nineteen_entries() {
         assert_eq!(
             NATIVE_CONCERNS,
             &[
@@ -145,6 +158,9 @@ mod tests {
                 "abie/hc_pairing",
                 "abie/ua_node_selector",
                 "abie/ua_http_route",
+                "hasura/internal_urls",
+                "text/formatting",
+                "tauri/release",
             ]
         );
     }
@@ -208,6 +224,21 @@ mod tests {
             "abie/ua_node_selector",
             "abie/ua_http_route",
         ] {
+            assert!(
+                run_concern(key, tmp.path(), None).is_ok(),
+                "run_concern має прийняти ключ {key}"
+            );
+        }
+    }
+
+    /// Кожен із трьох ключів I1 YAML-кластеру (фаза 5, батч 4 частина 2)
+    /// диспатчиться на свою функцію — smoke-перевірка самого `match` у
+    /// `run_concern` (не повторних сценаріїв concern-ів — ті у власних
+    /// підмодулях).
+    #[test]
+    fn run_concern_dispatches_all_i1_yaml_cluster_keys() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        for key in ["hasura/internal_urls", "text/formatting", "tauri/release"] {
             assert!(
                 run_concern(key, tmp.path(), None).is_ok(),
                 "run_concern має прийняти ключ {key}"

@@ -6,17 +6,28 @@
  *     permissions, порядок version-sync перед tauri-action) звітує окремою причиною при відхиленні;
  *   - T0-autofix доповнює вже існуючі файли канонічними ключами (idempotent), але НЕ
  *     скаффолдить відсутні файли й не чіпає pubkey/invalid-yaml.
+ *
+ * Детектор (`lint`) — через `runConcernDetector` (dispatch-рівень), не пряма
+ * функція: JS `main.mjs` видалений (I1 фази 5 батчу 4, YAML-кластер частина 2),
+ * concern тепер живе лише в `crates/rules-core/src/concerns/tauri_release.rs`.
+ * T0-фіксер (`fix-release.mjs`) лишається JS і тепер самодостатній.
  */
 import { describe, expect, test } from 'vitest'
 import { execFileSync } from 'node:child_process'
+import { dirname, join } from 'node:path'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { parse as parseYaml } from 'yaml'
 
-import { lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { patterns } from '../fix-release.mjs'
+
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+const lint = ctx => runConcernDetector(CONCERN, ctx)
 
 const CHANGELOG_RELEASE_YML = `on:
   push:

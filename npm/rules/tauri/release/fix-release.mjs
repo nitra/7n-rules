@@ -10,6 +10,13 @@
  * mdc-вимогу зробити це вручну. pubkey — реальний ключ підпису, не для
  * автогенерації. Усі патерни читають вихідний файл і re-detect-ять стан
  * заново (idempotent), як cargo_mutants_config.
+ *
+ * `CHANGELOG_RELEASE_WORKFLOW`/`RELEASE_WORKFLOW`/`findTauriAppDirs`/`hasWorkflowDispatch`
+ * дубльовані з native-порту detector-а (`crates/rules-core/src/concerns/tauri_release.rs`),
+ * не імпортуються з видаленого `main.mjs` — detector портований у Rust (I1 YAML-кластер,
+ * фаза 5 батч 4 частина 2), а `main.mjs` видалений. T0-фіксер лишається JS і далі
+ * використовує спільний `gha-workflow.mjs` (окремий lib-файл, не `main.mjs` — не видалений,
+ * бо цей фіксер лишається його споживачем).
  */
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -19,10 +26,43 @@ import { dirname, join } from 'node:path'
 import { parseDocument } from 'yaml'
 
 import { parseWorkflowYaml, flattenWorkflowSteps, getStepRun, getStepUses } from '../../../scripts/lib/gha-workflow.mjs'
-import { CHANGELOG_RELEASE_WORKFLOW, RELEASE_WORKFLOW, findTauriAppDirs, hasWorkflowDispatch } from './main.mjs'
+import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
+
+/** Шлях workflow, що на push у main бампає версію з change-файлів і створює тег. */
+const CHANGELOG_RELEASE_WORKFLOW = '.github/workflows/changelog-release.yml'
+/** Шлях workflow, що на тег збирає й публікує реліз Tauri-застосунку. */
+const RELEASE_WORKFLOW = '.github/workflows/release.yml'
 
 const GITHUB_REMOTE_RE = /github\.com[:/]([\w.-]+)\/([\w.-]+?)(?:\.git)?$/u
 const VERSION_WORD_RE = /version/iu
+
+/**
+ * Знаходить workspace-каталоги з Tauri-застосунком (`<ws>/src-tauri/tauri.conf.json` чи legacy `<ws>/tauri.conf.json`).
+ * @param {string} cwd корінь репо
+ * @returns {Promise<{ws: string, tauriConfPath: string}[]>} знайдені застосунки
+ */
+async function findTauriAppDirs(cwd) {
+  const roots = await getMonorepoPackageRootDirs(cwd)
+  const found = []
+  for (const ws of roots) {
+    const base = ws === '.' ? cwd : join(cwd, ws)
+    const nested = join(base, 'src-tauri', 'tauri.conf.json')
+    const flat = join(base, 'tauri.conf.json')
+    if (existsSync(nested)) found.push({ ws, tauriConfPath: nested })
+    else if (existsSync(flat)) found.push({ ws, tauriConfPath: flat })
+  }
+  return found
+}
+
+/**
+ * Чи `on.workflow_dispatch` присутній у корені workflow.
+ * @param {Record<string, unknown> | null} root корінь workflow
+ * @returns {boolean} true, якщо ключ присутній (значення може бути `{}`)
+ */
+function hasWorkflowDispatch(root) {
+  const on = root?.on
+  return Boolean(on && typeof on === 'object' && 'workflow_dispatch' in on)
+}
 
 /**
  * Визначає `owner/repo` з `git remote get-url origin` (https чи ssh форма).

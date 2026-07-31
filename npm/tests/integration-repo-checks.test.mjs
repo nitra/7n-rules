@@ -14,7 +14,6 @@ import { lint as _docker } from '../rules/docker/lint/main.mjs'
 import { lint as _ga } from '@7n/rules-ci-github/rules/ga/workflows/main.mjs'
 import { lint as _graphql } from '../rules/graphql/tooling/main.mjs'
 import { lint as _jsLint } from '@7n/rules-lang-js/rules/js/check/main.mjs'
-import { lint as _text } from '../rules/text/formatting/main.mjs'
 import { lint as _jsRun } from '@7n/rules-lang-js/rules/js-run/runtime/main.mjs'
 import { lint as _k8s } from '../rules/k8s/manifests/main.mjs'
 import { lint as _npmModule } from '@7n/rules-lang-js/rules/npm-module/package_structure/main.mjs'
@@ -30,7 +29,6 @@ const checkDocker = mk(_docker, 'docker', 'lint')
 const checkGa = mk(_ga, 'ga', 'workflows')
 const checkGraphql = mk(_graphql, 'graphql', 'tooling')
 const checkJsLint = mk(_jsLint, 'js', 'check')
-const checkText = mk(_text, 'text', 'formatting')
 const checkJsRun = mk(_jsRun, 'js-run', 'runtime')
 const checkK8s = mk(_k8s, 'k8s', 'manifests')
 const checkNpmModule = mk(_npmModule, 'npm-module', 'package_structure')
@@ -39,23 +37,25 @@ const TEST_DIR =
   typeof import.meta.dirname === 'string' ? import.meta.dirname : fileURLToPath(new URL('.', import.meta.url))
 const REPO_ROOT = join(TEST_DIR, '..', '..')
 
-// firebase_hosting, env_dns (F1 фази 5 батчу 2) і hc_pairing/ua_node_selector/
-// ua_http_route (H1 фази 5 батчу 4, YAML-кластер частина 1) — native-портовані
+// firebase_hosting, env_dns (F1 фази 5 батчу 2), hc_pairing/ua_node_selector/
+// ua_http_route (H1 фази 5 батчу 4, YAML-кластер частина 1) і
+// text/formatting (I1 фази 5 батчу 4, YAML-кластер частина 2) — native-портовані
 // concern-и: `main.mjs` видалено, лишається лише native-реєстр
 // (`crates/rules-core`), тож диспатч тут — через `runConcernDetector` (той
 // самий шлях, що й dispatch-рівень concern-тестів), а не прямий `lint()`-імпорт.
-const mkNative = (dirName, ruleId, concernId) => async cwd => {
+const mkNative = (ruleDirName, concernDirName, ruleId, concernId) => async cwd => {
   const result = await runConcernDetector(
-    { dir: join(TEST_DIR, '..', 'rules', 'abie', dirName) },
+    { dir: join(TEST_DIR, '..', 'rules', ruleDirName, concernDirName) },
     { cwd, ruleId, concernId, files: undefined }
   )
   return result.violations.length === 0 ? 0 : 1
 }
-const checkAbieFirebase = mkNative('firebase_hosting', 'abie', 'firebase_hosting')
-const checkAbieEnv = mkNative('env_dns', 'abie', 'env_dns')
-const checkAbieHc = mkNative('hc_pairing', 'abie', 'hc_pairing')
-const checkAbieUaNs = mkNative('ua_node_selector', 'abie', 'ua_node_selector')
-const checkAbieUaHr = mkNative('ua_http_route', 'abie', 'ua_http_route')
+const checkAbieFirebase = mkNative('abie', 'firebase_hosting', 'abie', 'firebase_hosting')
+const checkAbieEnv = mkNative('abie', 'env_dns', 'abie', 'env_dns')
+const checkAbieHc = mkNative('abie', 'hc_pairing', 'abie', 'hc_pairing')
+const checkAbieUaNs = mkNative('abie', 'ua_node_selector', 'abie', 'ua_node_selector')
+const checkAbieUaHr = mkNative('abie', 'ua_http_route', 'abie', 'ua_http_route')
+const checkText = mkNative('text', 'formatting', 'text', 'formatting')
 
 /**
  * @param {string} cwd корінь репозиторію
