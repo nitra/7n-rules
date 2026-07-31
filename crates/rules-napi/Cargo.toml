@@ -21,6 +21,21 @@ rules-plugin-host = { path = "../rules-plugin-host" }
 napi = { version = "3", default-features = false, features = ["napi8", "serde-json"] }
 napi-derive = "3"
 serde_json = "1"
+# cspell:ignore globset
+# Матчер full-scope batch-у (задача N2, передумова full-scope мосту,
+# `run_wasm_concern`): фільтрує whole-repo обхід `rules_core::scan::walk_dir`
+# за glob-ами `ConcernContribution::glob`. Уже в дереві залежностей
+# транзитивно через `ignore` (`Cargo.lock` кореня — `ignore` сам будується
+# на `globset` для override-патернів), тож пряма залежність не додає нового
+# крейта в граф збірки — лише робить наявний матчер прямо доступним тут.
+# Стандартний парний інструмент до `ignore::WalkBuilder`
+# (`crates/rules-core/src/scan.rs`), gitignore-подібний glob-синтаксис
+# (`**`/`*`/класи символів) без написання власного матчера; альтернатива
+# `rules_core::concerns::glob_compat::scan_glob` — `pub(crate)`-приватна і
+# заточена під один-патерновий walk-and-match з нуля (аналог `scanGlob` для
+# G1 TOML-кластеру), не під фільтрацію вже зібраного списку шляхів проти
+# набору патернів.
+globset = "0.4"
 
 [build-dependencies]
 napi-build = "2"

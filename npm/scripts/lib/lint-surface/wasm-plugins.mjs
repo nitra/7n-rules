@@ -1,14 +1,28 @@
 /**
  * Резолвер wasm-плагінів plugin contract v3 (`n-rules:plugin@3.0.0`, задача K
- * фази 6, спека `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`
+ * фази 6 + N1, спека `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`
  * §3.3/§3.4) — читає секцію `wasmPlugins` з `.n-rules.json` консюмер-репо, для
- * кожного запису питає napi-міст `wasmPluginConcerns()` (`crates/rules-napi`)
- * і будує мапу «ключ концерну (`ruleId/concernId`) → абсолютний шлях `.wasm`».
+ * кожного запису питає napi-міст `wasmPluginManifest()` (`crates/rules-napi`)
+ * і будує мапу «ключ концерну (`ruleId/concernId`) → `{ wasmPath, toolPaths }`»
+ * (значення — НЕ голий рядок шляху, доккомент [`buildWasmConcernMap`] нижче).
+ *
+ * **Run-tool контур (задача N1, рішення Д спеки)**: `manifest.tools` —
+ * задекларовані зовнішні tool-залежності плагіна (напр. `"shellcheck@^0.9"`).
+ * Для кожного запису резолвер кличе ensure-tool контур (`ensureToolAsync`,
+ * `../ensure-tool.mjs`, injectable через `opts.ensureToolFn`) — будує мапу
+ * «ім'я тула (без semver-суфікса декларації) → абсолютний шлях», яку
+ * `run_wasm_concern` (napi) перетворює на host-бічний `ToolResolver`
+ * (`crates/rules-plugin-host/src/tool_resolver.rs`). Тул, якого ensure-tool
+ * не знає (немає в `TOOLS`-реєстрі) чи не зміг поставити (мережа,
+ * rate-limit) — `console.warn`, ПРОПУСКАЄТЬСЯ з мапи (skip-not-crash на
+ * рівні ОДНОГО tool-у, не плагіна) — виклик `run-tool` у самому
+ * wasm-компоненті просто отримає типізовану помилку в `tool-output`
+ * (`ToolResolver::run`, доккомент host-боку), не крашиться.
  *
  * Формат конфігу — дві форми запису (schema `npm/schemas/n-rules.json`):
  * ```json
  * "wasmPlugins": [
- *   { "name": "lang-js-pilot", "path": "./target/wasm32-wasip2/release/plugin_lang_js_pilot.wasm" },
+ *   { "name": "lang-js", "path": "./target/wasm32-wasip2/release/plugin_lang_js.wasm" },
  *   { "name": "acme-plugin", "url": "https://…/plugin.wasm", "sha256": "…64 hex…" }
  * ]
  * ```
@@ -67,6 +81,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 
+import { ensureToolAsync } from '../ensure-tool.mjs'
 import { loadNative } from '../native.mjs'
 
 /**
@@ -84,16 +99,23 @@ import { loadNative } from '../native.mjs'
 
 /** @typedef {WasmPluginPathEntry | WasmPluginUrlEntry} WasmPluginConfigEntry */
 
+/**
+ * @typedef {object} WasmConcernMapEntry одне значення резолвленої мапи концернів (задача N1)
+ * @property {string} wasmPath абсолютний шлях до `.wasm`-компонента, що реалізує цей концерн
+ * @property {Record<string, string>} toolPaths ім'я тула (без semver-суфікса декларації) → абсолютний шлях,
+ *   забезпечений ensure-tool контуром для `manifest.tools` цього плагіна (може бути порожнім `{}`)
+ */
+
 /** Валідний sha256-hex: рівно 64 hex-символи (нижній регістр — той самий канон, що git/npm-lockfile hash-и). */
 const SHA256_HEX_RE = /^[0-9a-f]{64}$/
 
 /**
- * Мапа «ключ концерну → абсолютний шлях .wasm», один на процес (той самий
- * мотив, що `nativeConcernKeys` у `detect.mjs`) — резолв конфігу, retrieval і
- * `wasmPluginConcerns()` виконується раз. Зберігаємо `Promise`, не готовий
- * результат: конкурентні виклики до завершення першого резолву переюзають
- * той самий in-flight запит (доккомент модуля).
- * @type {Promise<Map<string, string>> | null}
+ * Мапа «ключ концерну → [`WasmConcernMapEntry`]», один на процес (той самий
+ * мотив, що `nativeConcernKeys` у `detect.mjs`) — резолв конфігу, retrieval,
+ * `wasmPluginManifest()` і ensure-tool контур виконуються раз. Зберігаємо
+ * `Promise`, не готовий результат: конкурентні виклики до завершення першого
+ * резолву переюзають той самий in-flight запит (доккомент модуля).
+ * @type {Promise<Map<string, WasmConcernMapEntry>> | null}
  */
 let wasmConcernMapPromise = null
 
@@ -264,42 +286,97 @@ async function resolveEntryPath(entry, ctx) {
 }
 
 /**
- * Будує мапу «ключ концерну → абсолютний шлях .wasm» — один прохід по
- * валідних записах конфігу, для кожного: resolve шляху (dev/`url`-retrieval),
- * потім `wasmPluginConcerns()`. Обидва кроки — skip-not-crash.
+ * Ім'я тула без semver-суфікса декларації (`"shellcheck@^0.9"` → `"shellcheck"`)
+ * — той самий парсинг, що host-бік `ToolResolver::run`
+ * (`crates/rules-plugin-host/src/tool_resolver.rs`, доккомент модуля
+ * пояснює версійну політику — вона НЕ тут, ensure-tool ставить канонічну
+ * закріплену версію).
+ * @param {string} declared запис із `manifest.tools`
+ * @returns {string} ім'я тула
+ */
+function toolName(declared) {
+  return declared.split('@', 1)[0]
+}
+
+/**
+ * Забезпечує наявність кожного задекларованого tool-у плагіна через
+ * ensure-tool контур (задача N1, рішення Д спеки). Тул, якого ensure-tool
+ * не знає (немає в `TOOLS`-реєстрі `ensure-tool.mjs`) чи не зміг поставити
+ * (мережа, rate-limit, hard-fail під `N_CURSOR_NO_AUTO_INSTALL`) —
+ * `console.warn`, ПРОПУСКАЄТЬСЯ з результуючої мапи (skip-not-crash на рівні
+ * ОДНОГО tool-у, не плагіна загалом) — плагін і решта його tools лишаються
+ * робочими; виклик `run-tool` у самому wasm-компоненті для ЦЬОГО tool-у
+ * просто отримає типізовану помилку в `tool-output`
+ * (`ToolResolver::run`), не крашиться.
+ * @param {string} pluginName ім'я плагіна (лише для diagnostics-повідомлень)
+ * @param {string[]} declaredTools `manifest.tools` — рядки виду `"shellcheck@^0.9"`
+ * @param {(toolId: string) => Promise<string>} ensureToolFn ін'єкція `ensureToolAsync` (тести підміняють)
+ * @returns {Promise<Record<string, string>>} ім'я тула (без semver-суфікса) → абсолютний шлях
+ */
+async function ensureDeclaredTools(pluginName, declaredTools, ensureToolFn) {
+  /** @type {Record<string, string>} */
+  const toolPaths = {}
+  for (const declared of declaredTools) {
+    const name = toolName(declared)
+    try {
+      toolPaths[name] = await ensureToolFn(name)
+    } catch (error) {
+      console.warn(
+        `⚠️ wasm-плагін "${pluginName}": tool "${name}" (${declared}) не забезпечено ensure-tool контуром — ${error.message}. ` +
+          'run-tool для цього tool-у поверне типізовану помилку в tool-output (плагін працює далі)'
+      )
+    }
+  }
+  return toolPaths
+}
+
+/**
+ * Будує мапу «ключ концерну → [`WasmConcernMapEntry`]» — один прохід по
+ * валідних записах конфігу: resolve шляху (dev/`url`-retrieval) →
+ * `wasmPluginManifest()` (повний DTO, не лише `concerns`) → ensure-tool
+ * контур для `manifest.tools` → запис у мапу для кожного `manifest.concerns`.
+ * Усі кроки — skip-not-crash (доккомент модуля).
  * @param {string} cwd абсолютний корінь consumer-репо
- * @param {{fetchFn: typeof fetch, cacheDir: string, env: Record<string, string | undefined>}} ctx ін'єктовані залежності
- * @returns {Promise<Map<string, string>>} ключ концерну → абсолютний шлях `.wasm`
+ * @param {{fetchFn: typeof fetch, cacheDir: string, env: Record<string, string | undefined>, ensureToolFn: (toolId: string) => Promise<string>, nativeFn: typeof loadNative}} ctx ін'єктовані залежності
+ * @returns {Promise<Map<string, WasmConcernMapEntry>>} ключ концерну → `{ wasmPath, toolPaths }`
  */
 async function buildWasmConcernMap(cwd, ctx) {
   const map = new Map()
   for (const entry of readWasmPluginsConfig(cwd)) {
     const wasmPath = await resolveEntryPath(entry, { cwd, ...ctx })
     if (wasmPath === null) continue
-    let concerns
+    let manifest
     try {
-      concerns = loadNative().wasmPluginConcerns(wasmPath)
+      manifest = ctx.nativeFn().wasmPluginManifest(wasmPath)
     } catch (error) {
       console.warn(`⚠️ wasm-плагін "${entry.name}" пропущено: не вдалось завантажити (${error.message})`)
       continue
     }
-    for (const key of concerns) map.set(key, wasmPath)
+    const toolPaths = await ensureDeclaredTools(entry.name, manifest.tools ?? [], ctx.ensureToolFn)
+    // `manifest.concerns` — масив структурованих контрибуцій `{ key, scope, glob }`
+    // (задача N2, передумова full-scope мосту, доккомент `wit/world.wit`
+    // `record concern-contribution`), не голі рядки — мапа концернів індексується
+    // за `.key`, `scope`/`glob` тут не потрібні (їх читає `run_wasm_concern`
+    // (napi) напряму з `describe()`, коли виклик не передав `files`).
+    for (const contribution of manifest.concerns ?? []) map.set(contribution.key, { wasmPath, toolPaths })
   }
   return map
 }
 
 /**
- * Лениво резолвить мапу «ключ концерну → абсолютний шлях .wasm» з секції
+ * Лениво резолвить мапу «ключ концерну → [`WasmConcernMapEntry`]» з секції
  * `wasmPlugins` (доккомент модуля). Плагін з відсутнім/битим `.wasm`, недосяжним
  * `url`, sha256-mismatch чи `describe()`, що кидає — пропускається з
  * `console.warn`, не валить резолв решти плагінів.
  *
- * `async` — retrieval канонічного піна (`url`+`sha256`) неминуче мережевий;
- * єдиний виклик-сайт (`detect.mjs`) вже `async`, контракт виклику не ламається.
+ * `async` — retrieval канонічного піна (`url`+`sha256`) і ensure-tool контур
+ * неминуче асинхронні; єдиний виклик-сайт (`detect.mjs`) вже `async`,
+ * контракт виклику не ламається.
  * @param {string} cwd абсолютний корінь consumer-репо (звідки читається `.n-rules.json`)
- * @param {{fetchFn?: typeof fetch, cacheDir?: string, env?: Record<string, string | undefined>}} [opts] ін'єкції для тестів:
- *   `fetchFn` (дефолт — глобальний `fetch`), `cacheDir` (дефолт — `resolvePluginCacheDir`), `env` (дефолт — `process.env`)
- * @returns {Promise<Map<string, string>>} ключ концерну (`ruleId/concernId`) → абсолютний шлях `.wasm`
+ * @param {{fetchFn?: typeof fetch, cacheDir?: string, env?: Record<string, string | undefined>, ensureToolFn?: (toolId: string) => Promise<string>, nativeFn?: typeof loadNative}} [opts] ін'єкції для тестів:
+ *   `fetchFn` (дефолт — глобальний `fetch`), `cacheDir` (дефолт — `resolvePluginCacheDir`), `env` (дефолт — `process.env`),
+ *   `ensureToolFn` (дефолт — `ensureToolAsync`), `nativeFn` (дефолт — `loadNative`, wiring-тести підміняють фейковим addon-ом)
+ * @returns {Promise<Map<string, WasmConcernMapEntry>>} ключ концерну (`ruleId/concernId`) → `{ wasmPath, toolPaths }`
  */
 export function resolveWasmConcernMap(cwd, opts = {}) {
   if (wasmConcernMapPromise !== null) return wasmConcernMapPromise
@@ -307,7 +384,9 @@ export function resolveWasmConcernMap(cwd, opts = {}) {
   const ctx = {
     fetchFn: opts.fetchFn ?? fetch,
     cacheDir: opts.cacheDir ?? resolvePluginCacheDir(env),
-    env
+    env,
+    ensureToolFn: opts.ensureToolFn ?? ensureToolAsync,
+    nativeFn: opts.nativeFn ?? loadNative
   }
   wasmConcernMapPromise = buildWasmConcernMap(cwd, ctx)
   return wasmConcernMapPromise

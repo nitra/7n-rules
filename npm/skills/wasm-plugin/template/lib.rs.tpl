@@ -51,7 +51,19 @@ fn build_manifest() -> Manifest {
         version: "0.1.0".to_string(),
         world_version: "3.0.0".to_string(),
         domains: vec![Domain::Lint],
-        concerns: vec![CONCERN_KEY.to_string()],
+        concerns: vec![ConcernContribution {
+            key: CONCERN_KEY.to_string(),
+            // per-file — типовий дефолт: виклик (JS-оркестрація чи повторний
+            // виклик того самого шляху) сам передає підмножину файлів у
+            // DetectBatch. Заміни на `ConcernScope::Full` + заповнений `glob`
+            // (glob-патерни, за якими хост фільтрує whole-repo обхід), якщо
+            // концерн — whole-repo/крос-файлова перевірка: тоді, коли виклик
+            // не передав явний список файлів, хост будує batch сам
+            // (`crates/rules-napi::run_wasm_concern`, доккомент
+            // `wit/world.wit` `record concern-contribution`).
+            scope: ConcernScope::PerFile,
+            glob: vec![],
+        }],
         ci_artifacts: vec![],
         capabilities: Capabilities {
             // Типовий концерн лишає порожнім — хост передає вміст файлів
@@ -141,7 +153,9 @@ mod tests {
     #[test]
     fn build_manifest_declares_single_concern_with_empty_capabilities() {
         let manifest = build_manifest();
-        assert_eq!(manifest.concerns, vec![CONCERN_KEY.to_string()]);
+        assert_eq!(manifest.concerns.len(), 1);
+        assert_eq!(manifest.concerns[0].key, CONCERN_KEY);
+        assert_eq!(manifest.concerns[0].scope, ConcernScope::PerFile);
         assert!(manifest.capabilities.fs_read.is_empty());
         assert!(!manifest.capabilities.network);
         assert_eq!(manifest.domains, vec![Domain::Lint]);

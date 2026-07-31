@@ -3,6 +3,8 @@
 //! інстансів: найпростіший reuse, без крос-плагінного пулу — див.
 //! доккомент `PluginHost::load`).
 
+use std::sync::Arc;
+
 use wasmtime::Store;
 
 use rules_contract::detect::DetectBatch;
@@ -13,6 +15,7 @@ use rules_contract::manifest::Manifest;
 use crate::convert;
 use crate::error::PluginHostError;
 use crate::host_state::{CapturedLog, CapturedProgress, HostState};
+use crate::tool_resolver::ToolResolver;
 use crate::wit;
 
 /// Завантажений і готовий до виклику плагін — публічний тип, єдина точка
@@ -38,6 +41,18 @@ impl LoadedPlugin {
     /// завантаження компонента») і закешований — метод сам guest не кличе.
     pub fn describe(&self) -> &Manifest {
         &self.manifest
+    }
+
+    /// Підмінює [`ToolResolver`], який `run-tool`-host-функція цього
+    /// `Store` бачитиме у ВСІХ наступних `detect`/`fix`-викликах — потрібно
+    /// napi-мосту (`crates/rules-napi`): `PluginHost`/`LoadedPlugin`
+    /// кешуються per-path на процес (уникнення повторної компіляції/
+    /// інстанціації), а `toolPaths` (ensure-tool-мапа) може відрізнятись
+    /// між окремими napi-викликами того самого плагіна — переінстанціювати
+    /// `Store` заради цього не потрібно, `HostState.tool_resolver` — звичайне
+    /// поле, доступне через `Store::data_mut()`.
+    pub fn set_tool_resolver(&mut self, resolver: Arc<ToolResolver>) {
+        self.store.data_mut().tool_resolver = resolver;
     }
 
     /// lint-домен: детекція діагностик по батчу файлів заявленого

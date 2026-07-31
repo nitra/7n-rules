@@ -1,0 +1,38 @@
+# Маніфест wasm-плагіна `lang-js/wasm-concerns` (задача N2, спека
+# `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5) —
+# статичний дублікат того, що `describe()` (src/lib.rs) повертає в рантаймі.
+# Поля 1:1 відповідають `rules_contract::manifest::Manifest`
+# (crates/rules-contract/src/manifest.rs, без serde-перейменувань — назви
+# полів тотожні Rust-структурі). Хост читає цей файл лише як довідку для
+# людини й дистрибуційний supplement — джерело правди в рантаймі завжди
+# `describe()` (не парситься назад у `PluginHost`, спека §3.1).
+#
+# TODO(v3-wasm-first-party-pins): це dev-форма піна (`{ name, path }` у
+# секції `wasmPlugins` .n-rules.json споживача) — `url` + `sha256`
+# дистрибуція (спека §3.4, рішення Ж) — наступний крок, поза обсягом задачі N2.
+
+id = "lang-js/wasm-concerns"
+version = "0.1.0"
+world_version = "3.0.0"
+domains = ["lint"]
+# Дві контрибуції концернів (задача N2, передумова full-scope мосту): scope/
+# glob дзеркалять `plugins/lang-js/rules/**/concern.json` цих самих концернів.
+[[concerns]]
+key = "vue/tfm-translations"
+scope = "per-file"
+glob = ["**/*.vue"]
+
+[[concerns]]
+key = "style/gap"
+scope = "full"
+glob = ["**/*.vue", "**/*.scss", "**/*.css"]
+
+ci_artifacts = []
+tools = []
+
+[capabilities]
+# Хост передає вміст файлів inline у `detect-batch`/`fix-request` (як
+# per-file, так і host-побудований full-scope batch) — плагін не читає диск
+# сам.
+fs_read = []
+network = false

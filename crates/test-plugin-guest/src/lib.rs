@@ -26,8 +26,21 @@ wit_bindgen::generate!({
 /// задокументовано в contract-test-kit `crates/rules-plugin-host/tests/`).
 const FS_PROBE_CONCERN_ID: &str = "test/guest-echo-fs-probe";
 
-/// Guest-реалізація world `plugin` — концерн-заглушка `test/guest-echo` і
-/// fs-preopen тест-хук `test/guest-echo-fs-probe`.
+/// `concern-id`, що перевіряє host-mediated run-tool контур (задача N1,
+/// п.4, спека §2 рішення Д): кличе `run-tool("echo-tool", ["hello"], None)`
+/// і повертає ОДНУ діагностику, що відображає `tool-output` — успішну
+/// (тул резолвлений `ToolResolver`-ом хоста, `status == Some(0)`, `stdout`
+/// містить echo) чи помилкову (тул поза мапою чи таймаут, `status: none`,
+/// `stderr` — людиночитний текст помилки `ToolResolver`) гілку. Маніфест
+/// декларує `"echo-tool"` у `tools` (доккомент модуля `ToolResolver`:
+/// версійний суфікс тут не потрібен, семантика — «ім'я без діапазону»)
+/// — contract-test-kit (`crates/rules-plugin-host/tests/contract_test_kit.rs`)
+/// тестує ОБИДВІ гілки, підмінюючи `ToolResolver` між прогонами.
+const TOOL_ECHO_CONCERN_ID: &str = "test/guest-tool-echo";
+
+/// Guest-реалізація world `plugin` — концерн-заглушка `test/guest-echo`,
+/// fs-preopen тест-хук `test/guest-echo-fs-probe` і run-tool тест-хук
+/// `test/guest-tool-echo`.
 struct GuestEcho;
 
 impl Guest for GuestEcho {
@@ -39,8 +52,21 @@ impl Guest for GuestEcho {
             world_version: "3.0.0".to_string(),
             domains: vec![Domain::Lint],
             concerns: vec![
-                "test/guest-echo".to_string(),
-                FS_PROBE_CONCERN_ID.to_string(),
+                ConcernContribution {
+                    key: "test/guest-echo".to_string(),
+                    scope: ConcernScope::PerFile,
+                    glob: vec![],
+                },
+                ConcernContribution {
+                    key: FS_PROBE_CONCERN_ID.to_string(),
+                    scope: ConcernScope::PerFile,
+                    glob: vec![],
+                },
+                ConcernContribution {
+                    key: TOOL_ECHO_CONCERN_ID.to_string(),
+                    scope: ConcernScope::PerFile,
+                    glob: vec![],
+                },
             ],
             ci_artifacts: vec![],
             capabilities: Capabilities {
@@ -51,13 +77,16 @@ impl Guest for GuestEcho {
                 fs_read: vec![],
                 network: false,
             },
-            tools: vec![],
+            tools: vec!["echo-tool".to_string()],
         }
     }
 
     fn detect(batch: DetectBatch) -> Vec<Diagnostic> {
         if batch.concern_id == FS_PROBE_CONCERN_ID {
             return vec![fs_probe_diagnostic()];
+        }
+        if batch.concern_id == TOOL_ECHO_CONCERN_ID {
+            return vec![tool_echo_diagnostic()];
         }
         let total = batch.files.len() as u32;
         let mut diagnostics = Vec::with_capacity(batch.files.len());
@@ -106,6 +135,32 @@ fn fs_probe_diagnostic() -> Diagnostic {
         file: None,
         severity: Severity::Warn,
         data: Some(format!("{{\"fs_probe_readable\":{readable}}}")),
+    }
+}
+
+/// Один `run-tool("echo-tool", ["hello"], None)` — доккомент
+/// [`TOOL_ECHO_CONCERN_ID`] пояснює обидві гілки (успіх/помилка), які тут
+/// зводяться в одну діагностику. `data` — вручну зібраний JSON-рядок (той
+/// самий мотив, що [`fs_probe_diagnostic`]): `status` — код завершення чи
+/// `null`, `ok` — чи `status == Some(0)`.
+fn tool_echo_diagnostic() -> Diagnostic {
+    let output = run_tool("echo-tool", &["hello".to_string()], None);
+    let ok = output.status == Some(0);
+    let message = if ok {
+        format!("tool-echo: stdout={}", output.stdout.trim())
+    } else {
+        format!("tool-echo: error={}", output.stderr)
+    };
+    let status_json = match output.status {
+        Some(code) => code.to_string(),
+        None => "null".to_string(),
+    };
+    Diagnostic {
+        reason: "tool-echo".to_string(),
+        message,
+        file: None,
+        severity: Severity::Warn,
+        data: Some(format!("{{\"status\":{status_json},\"ok\":{ok}}}")),
     }
 }
 

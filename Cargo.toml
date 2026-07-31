@@ -8,15 +8,19 @@ members = [
   "crates/rules-contract",
   "crates/rules-plugin-host",
   "crates/test-plugin-guest",
-  "crates/plugin-lang-js-pilot",
+  "crates/plugin-lang-js",
 ]
 # `crates/test-plugin-guest` — guest-фікстура contract-test-kit
 # `crates/rules-plugin-host` (задача I2, спека
 # `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`).
-# `crates/plugin-lang-js-pilot` — пілотний РЕАЛЬНИЙ wasm-плагін (задача K,
-# та сама спека, §3.5.2): один концерн `vue/tfm-translations`, порт чинного
-# `plugins/lang-js/rules/vue/tfm-translations/main.mjs` 1:1. Той самий
-# workspace-мотив нижче стосується й цього крейта.
+# `crates/plugin-lang-js` — РЕАЛЬНИЙ wasm-плагін lang-js (задача N2, та сама
+# спека, §3.5.5), створений скілом `npm/skills/wasm-plugin/`: два концерни,
+# `vue/tfm-translations` (per-file) і `style/gap` (full-scope), порт чинних
+# `plugins/lang-js/rules/vue/tfm-translations/main.mjs` і
+# `plugins/lang-js/rules/style/gap/main.mjs` 1:1. Замінює пілотний
+# `crates/plugin-lang-js-pilot` (виведений задачею N2 — довів конвеєр, більше
+# не потрібен окремо від реального плагіна). Той самий workspace-мотив нижче
+# стосується й цього крейта.
 #
 # Свідомо ЗВИЧАЙНИЙ `members`-запис, не `workspace.exclude` + власний
 # `[workspace]` у крейті (як типово роблять для wasm-guest-фікстур в інших

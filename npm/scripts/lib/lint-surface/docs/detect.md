@@ -3,7 +3,7 @@ type: JS Module
 title: detect.mjs
 resource: npm/scripts/lib/lint-surface/detect.mjs
 docgen:
-  crc: aa440b0b
+  crc: fbefd7f3
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80

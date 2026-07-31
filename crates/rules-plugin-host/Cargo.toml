@@ -48,5 +48,20 @@ serde_json = "1"
 # конвертується сюди через `From` (feature `anyhow` вище на `wasmtime`).
 anyhow = "1"
 
+# cspell:ignore libc
+# `ToolResolver` (`src/tool_resolver.rs`, задача N1): таймаут run-tool-виклику
+# вбиває не лише прямого дочірнього процеса, а ВСЮ process group (`kill(-pid,
+# SIGKILL)`) — доккомент `kill_process_tree` пояснює, чому: скрипт-обгортка
+# (типовий tool — shellcheck/eslint-подібний) може форкнути дочірній процес
+# (не exec-замінити себе), який успадковує stdout/stderr pipe; вбивство лише
+# top-level PID лишає той pipe відкритим, і наш reader-потік блокується аж
+# до природного завершення "онука" (емпірично підтверджено — таймаут-тест
+# `run_resolved_tool_times_out_and_kills_process` без цього фікса чекав
+# повні 5с скрипта замість інʼєктованих 150мс). Уже присутній у дереві
+# транзитивно (через `wasmtime`) — прямий пін лише формалізує вже наявну
+# залежність.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 tempfile = "3"

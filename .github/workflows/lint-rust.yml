@@ -55,12 +55,14 @@ jobs:
       - name: Build contract-test-kit guest fixture
         run: bash crates/test-plugin-guest/build.sh
 
-      # Пілотний wasm-плагін (задача K фази 6): fixture-тест
-      # `crates/rules-plugin-host/tests/plugin_lang_js_pilot.rs` потребує
-      # зібраного компонента — той самий require_fixture-мотив, що вже
-      # захищає contract-test-kit fixture вище.
-      - name: Build plugin-lang-js-pilot wasm component
-        run: bash crates/plugin-lang-js-pilot/build.sh
+      # Реальний wasm-плагін lang-js (задача N2, спека
+      # `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5,
+      # замінює виведений пілот `crates/plugin-lang-js-pilot`): fixture-тест
+      # `crates/rules-plugin-host/tests/plugin_lang_js.rs` потребує зібраного
+      # компонента — той самий require_fixture-мотив, що вже захищає
+      # contract-test-kit fixture вище.
+      - name: Build plugin-lang-js wasm component
+        run: bash crates/plugin-lang-js/build.sh
 
       - name: Rustfmt
         run: cargo fmt --all -- --check

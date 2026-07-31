@@ -8,6 +8,20 @@
 // Типи слоту `ci.artifact@1` живуть в окремому пакеті `n-rules:slots`
 // (`wit/deps/slots/ci-artifact.wit`, рішення Л) — незалежний цикл
 // версіонування.
+//
+// # Пре-реліз еволюція (задача N2, передумова full-scope мосту)
+//
+// `manifest.concerns` пройшов breaking-зміну (`list<string>` →
+// `list<concern-contribution>`, нижче) БЕЗ bump-у `3.0.0` → `3.1.0`: цей
+// world ще не опубліковано жодному зовнішньому споживачу (єдині guest-и —
+// наші `crates/plugin-lang-js`/`crates/test-plugin-guest`, єдиний host —
+// `crates/rules-plugin-host` цього ж репозиторію), тож additive-only
+// обмеження версіонування (рішення З спеки) застосовується лише ПІСЛЯ
+// першого зовнішнього плагіна. До того — пряма правка полів у межах
+// `3.0.0` є свідомо дозволеним пре-реліз-режимом (документується тут, а не
+// мовчки): перша зовнішня публікація фіксує контракт, і з того моменту
+// подальші зміни `manifest`/`detect`/`fix` вже йдуть через звичайний
+// additive-only мінор/мажор цикл.
 package n-rules:plugin@3.0.0;
 
 world plugin {
@@ -19,6 +33,36 @@ world plugin {
   enum severity {
     error,
     warn,
+  }
+
+  /// Scope контрибуції концерну (задача N2, передумова full-scope мосту) —
+  /// точний відповідник `concern.json` JS-плагінів (`{"lint": {"scope": …}}`,
+  /// `plugins/*/rules/**/concern.json`): `per-file` — хост (JS-оркестрація
+  /// чи, для повторного виклику того самого шляху, napi-міст) сам фільтрує
+  /// дельту й передає підмножину `detect-batch.files`; `full` — концерн хоче
+  /// цілий репозиторій, і коли виклик не передає явний список файлів (delta
+  /// lint без дельти для цього concern-а), хост будує `detect-batch.files`
+  /// самостійно через `glob` нижче (`crates/rules-napi::run_wasm_concern`).
+  enum concern-scope {
+    per-file,
+    full,
+  }
+
+  /// Одна контрибуція `manifest.concerns` — раніше голий рядок
+  /// (`ruleId/concernId`), тепер структурована контрибуція (задача N2):
+  /// `key` — той самий ідентифікатор, `scope`/`glob` дзеркалять
+  /// `concern.json.lint` JS-плагінів і дають host-у (не лише JS-оркестрації)
+  /// змогу самостійно побудувати full-scope batch, коли `files` виклику
+  /// відсутній.
+  record concern-contribution {
+    key: string,
+    scope: concern-scope,
+    /// Glob-патерни (posix, `**`/`*` — той самий синтаксис, що
+    /// `concern.json.lint.glob`), за якими хост фільтрує whole-repo обхід
+    /// для `scope: full`. Порожній — типовий дефолт для `per-file`
+    /// (JS-оркестрація вже має власний `concern.json.lint.glob` для
+    /// планування дельти, тут дублювати нема потреби).
+    glob: list<string>,
   }
 
   /// Одна діагностика детектора — WIT-дзеркало `Violation`
@@ -120,9 +164,10 @@ world plugin {
     world-version: string,
     /// Домени, які плагін реально реалізує (не заглушки).
     domains: list<domain>,
-    /// Ідентифікатори concern-ів, які плагін обробляє в lint-домені
-    /// (`detect`/`fix`).
-    concerns: list<string>,
+    /// Контрибуції концернів, які плагін обробляє в lint-домені
+    /// (`detect`/`fix`) — структуровані (задача N2: `key`/`scope`/`glob`,
+    /// не голий рядок), щоб хост міг самостійно побудувати full-scope batch.
+    concerns: list<concern-contribution>,
     /// Contribution-и слоту `ci.artifact@1` (типізований record із
     /// пакета `n-rules:slots`).
     ci-artifacts: list<ci-artifact-descriptor>,

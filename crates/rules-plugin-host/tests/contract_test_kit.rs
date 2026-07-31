@@ -6,14 +6,15 @@
 //! вимагає задача I2, п.3) — якщо `.wasm` відсутній, [`require_fixture`]
 //! панікує з точною командою збірки.
 
+use std::collections::HashMap;
+use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use rules_contract::detect::{DetectBatch, SourceFile};
 use rules_contract::diagnostic::Severity;
 use rules_contract::fix::FixRequest;
-use rules_contract::tool::ToolOutput;
-use rules_plugin_host::{PluginHost, PluginHostError, RunToolFn};
+use rules_plugin_host::{PluginHost, PluginHostError, ToolResolver};
 
 /// Версія world, під яку зібрана фікстура (`crates/test-plugin-guest`
 /// заявляє `world_version: "3.0.0"` — `Manifest`, `src/lib.rs`).
@@ -23,6 +24,9 @@ const PLUGIN_WORLD_VERSION: &str = "3.0.0";
 /// рядковий літерал: контракт — рядок з `Manifest::concerns`/`DetectBatch`,
 /// не Rust-константа, спільна між guest і host-тестом).
 const FS_PROBE_CONCERN_ID: &str = "test/guest-echo-fs-probe";
+/// `concern-id` run-tool тест-хука (задача N1, п.4) — дзеркало
+/// `test_plugin_guest::TOOL_ECHO_CONCERN_ID`.
+const TOOL_ECHO_CONCERN_ID: &str = "test/guest-tool-echo";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента фікстури
 /// (`crates/test-plugin-guest/build.sh`) — `wasm32-wasip2`/`release`,
@@ -46,22 +50,28 @@ fn require_fixture() -> PathBuf {
     path
 }
 
-/// `run-tool` callback для тестів — v3.0-заглушка (рішення Д спеки): жоден
-/// тест цього файлу не викликає `run-tool` із guest-фікстури (`test/guest-echo`
-/// його не використовує), тож callback лише документує факт виклику, якби
-/// він стався.
-fn stub_run_tool() -> Arc<RunToolFn> {
-    Arc::new(
-        |_tool: &str, _args: &[String], _stdin: Option<&str>| ToolOutput {
-            status: None,
-            stdout: String::new(),
-            stderr: "run-tool не задекларовано в contract-test-kit".to_string(),
-        },
-    )
+/// Хост із порожнім [`ToolResolver`] — більшість тестів цього файлу не
+/// кличуть `run-tool` (`test/guest-echo` його не використовує); тести
+/// run-tool контуру (задача N1, п.5, нижче) будують власний хост із
+/// заповненою мапою.
+fn host() -> PluginHost {
+    PluginHost::new(ToolResolver::empty()).expect("PluginHost::new не мав провалитись")
 }
 
-fn host() -> PluginHost {
-    PluginHost::new(stub_run_tool()).expect("PluginHost::new не мав провалитись")
+/// Пише виконуваний shell-скрипт `name` у `dir` з вмістом `body` —
+/// спільний хелпер для тестів run-tool контуру (задача N1, п.5): фейковий
+/// тул, що ехоїть свої `args`/`stdin`, чи навмисно "зависає" (`sleep`) для
+/// таймаут-кейсу. `cfg(unix)` — той самий мотив, що
+/// `crates/rules-core/src/scan.rs` (CI цього крейта — лише `ubuntu-latest`,
+/// доккомент `.github/workflows/lint-rust.yml`).
+#[cfg(unix)]
+fn write_executable_script(dir: &std::path::Path, name: &str, body: &str) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    let path = dir.join(name);
+    fs::write(&path, body).expect("запис скрипта не мав провалитись");
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o755))
+        .expect("chmod не мав провалитись");
+    path
 }
 
 #[test]
@@ -74,8 +84,11 @@ fn load_and_describe_returns_expected_manifest() {
     let manifest = plugin.describe();
     assert_eq!(manifest.id, "test/guest-echo");
     assert_eq!(manifest.world_version, PLUGIN_WORLD_VERSION);
-    assert!(manifest.concerns.iter().any(|c| c == "test/guest-echo"));
-    assert!(manifest.concerns.iter().any(|c| c == FS_PROBE_CONCERN_ID));
+    assert!(manifest.concerns.iter().any(|c| c.key == "test/guest-echo"));
+    assert!(manifest
+        .concerns
+        .iter()
+        .any(|c| c.key == FS_PROBE_CONCERN_ID));
     // Типовий концерн лишає `fs_read` порожнім (спека §3.2) — саме цей
     // дефолт і перевіряє `fs_probe_without_declared_capability_gets_no_extra_access`.
     assert!(manifest.capabilities.fs_read.is_empty());
@@ -213,4 +226,119 @@ fn fs_probe_without_declared_capability_gets_no_extra_access() {
         Some(&serde_json::Value::Bool(false)),
         "без preopen-шляхів читання ФС з guest-а МАЄ провалюватись: {data:?}"
     );
+}
+
+// --- run-tool контур (задача N1, п.5) ---
+//
+// `test/guest-tool-echo` (`crates/test-plugin-guest/src/lib.rs`) кличе
+// `run-tool("echo-tool", ["hello"], None)` і повертає ОДНУ діагностику з
+// `tool-output` — три сценарії нижче звіряють усі гілки `ToolResolver`:
+// резолвлений реальний процес, тул поза мапою (типізована помилка, не
+// паніка), таймаут (примусове вбивство процесу, що не завершується сам).
+
+#[cfg(unix)]
+#[test]
+fn run_tool_reaches_resolved_fake_tool_binary() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    let script = write_executable_script(
+        dir.path(),
+        "echo-tool",
+        "#!/bin/sh\necho \"args:$*\"\ncat >/dev/null\nexit 0\n",
+    );
+    let mut tools = HashMap::new();
+    tools.insert("echo-tool".to_string(), script);
+    let host =
+        PluginHost::new(ToolResolver::new(tools)).expect("PluginHost::new не мав провалитись");
+
+    let path = require_fixture();
+    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let batch = DetectBatch {
+        concern_id: TOOL_ECHO_CONCERN_ID.to_string(),
+        files: vec![],
+    };
+    let diagnostics = plugin
+        .detect(&batch)
+        .expect("tool-echo detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "tool-echo");
+    assert!(
+        diagnostics[0].message.contains("args:hello"),
+        "діагностика мала відобразити stdout резолвленого фейкового тула: {:?}",
+        diagnostics[0].message
+    );
+    let data = diagnostics[0]
+        .data
+        .as_ref()
+        .expect("tool-echo діагностика повинна мати заповнений data");
+    assert_eq!(data.get("ok"), Some(&serde_json::Value::Bool(true)));
+}
+
+#[test]
+fn run_tool_missing_from_resolver_returns_typed_error_in_diagnostic() {
+    // Порожній ToolResolver — "echo-tool" не резолвлений, `run-tool` МАЄ
+    // повернути типізовану помилку в `tool-output` (не паніку, доккомент
+    // `ToolResolver::run`), яку guest-фікстура відображає в діагностиці.
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: TOOL_ECHO_CONCERN_ID.to_string(),
+        files: vec![],
+    };
+    let diagnostics = plugin
+        .detect(&batch)
+        .expect("tool-echo detect не мав провалитись навіть без резолвленого тула");
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0].message.contains("error="),
+        "діагностика мала відобразити гілку помилки: {:?}",
+        diagnostics[0].message
+    );
+    let data = diagnostics[0]
+        .data
+        .as_ref()
+        .expect("tool-echo діагностика повинна мати заповнений data");
+    assert_eq!(data.get("ok"), Some(&serde_json::Value::Bool(false)));
+    assert_eq!(data.get("status"), Some(&serde_json::Value::Null));
+}
+
+#[cfg(unix)]
+#[test]
+fn run_tool_timeout_kills_process_and_reports_typed_error() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    // Скрипт свідомо "зависає" довше за інʼєктований таймаут — доводить,
+    // що `ToolResolver` реально вбиває процес, а не чекає його природного
+    // завершення.
+    let script = write_executable_script(dir.path(), "echo-tool", "#!/bin/sh\nsleep 5\n");
+    let mut tools = HashMap::new();
+    tools.insert("echo-tool".to_string(), script);
+    let host = PluginHost::new(ToolResolver::with_timeout(
+        tools,
+        Duration::from_millis(150),
+    ))
+    .expect("PluginHost::new не мав провалитись");
+
+    let path = require_fixture();
+    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let batch = DetectBatch {
+        concern_id: TOOL_ECHO_CONCERN_ID.to_string(),
+        files: vec![],
+    };
+
+    let start = Instant::now();
+    let diagnostics = plugin.detect(&batch).expect(
+        "tool-echo detect не мав провалитись на таймауті — контракт повертає помилку в tool-output",
+    );
+    assert!(
+        start.elapsed() < Duration::from_secs(3),
+        "інʼєктований 150мс-таймаут мав перервати detect() задовго до природного sleep 5"
+    );
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0].message.contains("таймаут"),
+        "діагностика мала відобразити таймаут-помилку: {:?}",
+        diagnostics[0].message
+    );
+    let data = diagnostics[0].data.as_ref().unwrap();
+    assert_eq!(data.get("ok"), Some(&serde_json::Value::Bool(false)));
 }

@@ -14,10 +14,10 @@ use std::sync::Arc;
 use napi::{Error, Result};
 use napi_derive::napi;
 use rules_contract::detect::{DetectBatch, SourceFile};
-use rules_contract::tool::ToolOutput as ContractToolOutput;
+use rules_contract::manifest::ConcernScope;
 use rules_contract::version::PLUGIN_WORLD_VERSION;
 use rules_core::RulesError;
-use rules_plugin_host::{LoadedPlugin, PluginHost, PluginHostError, RunToolFn};
+use rules_plugin_host::{LoadedPlugin, PluginHost, PluginHostError, ToolResolver};
 
 /// Версія JSON DTO-контракту `rules-core` ⇄ `rules-napi` ([`rules_core::dto::CONTRACT_VERSION`]).
 /// JS-loader звіряє це значення при завантаженні аддона (Р10 спеки) —
@@ -204,20 +204,20 @@ fn to_wasm_napi_err(err: PluginHostError) -> Error {
     Error::from_reason(err.to_string())
 }
 
-/// Run-tool callback-заглушка napi-мосту wasm-плагінів (задача K фази 6,
-/// спека `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.3):
-/// пілотний концерн `vue/tfm-translations` не декларує зовнішніх tools
-/// (`Manifest::tools` порожній), тож реальний ensure-tool контур — поза цією
-/// задачею (рішення Д спеки лишається оркестрації, не napi-мосту).
-fn stub_run_tool() -> Arc<RunToolFn> {
-    Arc::new(
-        |_tool: &str, _args: &[String], _stdin: Option<&str>| ContractToolOutput {
-            status: None,
-            stdout: String::new(),
-            stderr: "run-tool не підтримується napi-мостом wasm-плагінів (задача K пілоту)"
-                .to_string(),
-        },
-    )
+/// Будує [`ToolResolver`] із JS-переданого `toolPaths` (`Option<HashMap<String,String>>`,
+/// задача N1 фази 6, спека `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`
+/// §3.3): напряму мапить «ім'я тула → шлях» у `PathBuf`, версійну політику
+/// (semver-суфікс декларації) тут НЕ застосовує (той самий doc-коментар, що
+/// `ToolResolver` — ensure-tool контур на JS-боці вже поставив канонічну
+/// версію ДО того, як шлях потрапив сюди). `None`/відсутній параметр →
+/// порожній резолвер (кожен `run-tool`-виклик отримає типізовану помилку).
+fn build_tool_resolver(tool_paths: Option<HashMap<String, String>>) -> Arc<ToolResolver> {
+    let map = tool_paths
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(name, path)| (name, PathBuf::from(path)))
+        .collect();
+    Arc::new(ToolResolver::new(map))
 }
 
 thread_local! {
@@ -229,7 +229,13 @@ thread_local! {
     /// кеш живе, поки живий потік (типово — процес). `Engine`/`Linker`
     /// будуються раз, переюзаються між УСІМА `wasm_plugin_concerns`/
     /// `run_wasm_concern` викликами цього потоку.
-    static PLUGIN_HOST: PluginHost = PluginHost::new(stub_run_tool())
+    /// Стартовий резолвер — порожній: `Engine`/`Linker` (єдине, що фіксується
+    /// на весь час життя `PluginHost`) не залежать від `ToolResolver`, тож
+    /// конкретна мапа тулів не потрібна тут — [`run_wasm_concern`] підмінює
+    /// [`ToolResolver`] на потрібний ПЕРЕД кожним `detect` через
+    /// `LoadedPlugin::set_tool_resolver` (задача N1: різні `#[napi]`-виклики
+    /// того самого закешованого плагіна можуть нести різний `toolPaths`).
+    static PLUGIN_HOST: PluginHost = PluginHost::new(ToolResolver::empty())
         .expect("PluginHost::new не мав провалитись (Engine/Linker-конфігурація статична)");
 
     /// Кеш завантажених плагінів per-path на процес (задача K, вимога «не
@@ -271,14 +277,85 @@ fn with_loaded_plugin<T>(
 /// шляхом не компілює компонент заново.
 #[napi]
 pub fn wasm_plugin_concerns(wasm_path: String) -> Result<Vec<String>> {
-    with_loaded_plugin(&wasm_path, |plugin| Ok(plugin.describe().concerns.clone()))
+    with_loaded_plugin(&wasm_path, |plugin| {
+        Ok(plugin
+            .describe()
+            .concerns
+            .iter()
+            .map(|c| c.key.clone())
+            .collect())
+    })
+}
+
+/// Повний маніфест wasm-плагіна за шляхом — тонкий binding над
+/// `LoadedPlugin::describe` (задача N1, спека
+/// `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.3),
+/// серіалізований у `serde_json::Value` (той самий шлях napi-конверсії, що
+/// й `{"violations": [...]}` у [`run_wasm_concern`]). JS-dispatch
+/// (`npm/scripts/lib/lint-surface/wasm-plugins.mjs`) читає звідси
+/// `manifest.concerns` (для мапи концернів) і `manifest.tools` (для
+/// ensure-tool контуру ДО виклику [`run_wasm_concern`]) — на відміну від
+/// [`wasm_plugin_concerns`] (лише `concerns`), цей binding віддає ввесь DTO
+/// `Manifest`.
+#[napi]
+pub fn wasm_plugin_manifest(wasm_path: String) -> Result<serde_json::Value> {
+    with_loaded_plugin(&wasm_path, |plugin| {
+        serde_json::to_value(plugin.describe()).map_err(|err| {
+            Error::from_reason(format!(
+                "wasm_plugin_manifest: серіалізація маніфесту провалилась: {err}"
+            ))
+        })
+    })
+}
+
+/// Читає `SourceFile` для explicit-переданого списку файлів (per-file
+/// диспатч, чи будь-який виклик, де caller уже знає, які файли передати) —
+/// utf8-lossy; відсутній/нечитаний файл пропускається — та сама поведінка,
+/// що дав би звичайний filesystem-обхід.
+fn read_source_files(cwd: &Path, files: Vec<String>) -> Vec<SourceFile> {
+    files
+        .into_iter()
+        .filter_map(|rel| {
+            let abs = cwd.join(&rel);
+            std::fs::read(&abs).ok().map(|bytes| SourceFile {
+                path: rel,
+                content: String::from_utf8_lossy(&bytes).into_owned(),
+            })
+        })
+        .collect()
+}
+
+/// Full-scope батч (задача N2, передумова full-scope мосту): коли виклик не
+/// передав `files` (`None` — JS-оркестрація не має дельти для whole-repo
+/// концерну, `run-detectors.mjs::buildFullPlan`/`planConcernForDelta`
+/// лишають `files: undefined` саме для `scope: 'full'`), хост будує список
+/// сам: [`rules_core::scan::walk_dir`] (той самий двигун, що
+/// [`walk_dir`]-napi нижче) → фільтр [`globset`] за glob-ами задекларованої
+/// contribution → читання вмісту ([`read_source_files`]). Невалідний
+/// glob-патерн у контрибуції — тихо пропускається (`GlobSetBuilder::add`
+/// повертає `Err`, ігнорується): контрибуцію будує сам плагін, а не
+/// недовірений вхід ззовні, тож tolerant-парсинг тут — про запас, не
+/// enforcement-точка.
+fn build_full_scope_files(cwd: &Path, glob_patterns: &[String]) -> Vec<SourceFile> {
+    let mut builder = globset::GlobSetBuilder::new();
+    for pattern in glob_patterns {
+        if let Ok(glob) = globset::Glob::new(pattern) {
+            builder.add(glob);
+        }
+    }
+    let Ok(set) = builder.build() else {
+        return Vec::new();
+    };
+    let matched: Vec<String> = rules_core::scan::walk_dir(cwd, &[])
+        .into_iter()
+        .filter(|f| set.is_match(f))
+        .collect();
+    read_source_files(cwd, matched)
 }
 
 /// Виконує `detect` одного концерну wasm-плагіна — тонкий binding над
-/// `LoadedPlugin::detect` (задача K фази 6). Хост-бік читає вміст файлів із
-/// `cwd` (utf8-lossy; відсутній/нечитаний файл пропускається — та сама
-/// поведінка, що дав би звичайний filesystem-обхід), будує `DetectBatch` і
-/// повертає ТУ САМУ форму `{"violations": [...]}`, що [`run_native_concern`]
+/// `LoadedPlugin::detect` (задача K фази 6, full-scope міст — задача N2).
+/// Повертає ТУ САМУ форму `{"violations": [...]}`, що [`run_native_concern`]
 /// (JS-шар прогонить результат через `normalizeResult`
 /// (`npm/scripts/lib/lint-surface/detect.mjs`), без окремого адаптера).
 ///
@@ -286,30 +363,54 @@ pub fn wasm_plugin_concerns(wasm_path: String) -> Result<Vec<String>> {
 ///   передається у [`wasm_plugin_concerns`]).
 /// - `key` — `ruleId/concernId`, передається як `detect-batch.concern-id`.
 /// - `cwd` — абсолютний корінь consumer-репо (звідки резолвляться `files`).
-/// - `files` — posix-relative шляхи файлів для детекції.
+/// - `files` — `Some(...)` → posix-relative шляхи файлів для детекції
+///   (per-file dispatch, [`read_source_files`]); `None` → full-scope: хост
+///   сам будує batch за `ConcernContribution::glob` задекларованого
+///   концерну ([`build_full_scope_files`]) — концерн БЕЗ `scope: Full` (чи
+///   не задекларований у `manifest.concerns` узагалі) отримує порожній
+///   batch (той самий skip-not-crash дух, що решта контракту: невідповідна
+///   контрибуція не панікує, просто нічого не аналізує).
+/// - `tool_paths` — опційна мапа «ім'я тула → абсолютний шлях» (задача N1,
+///   рішення Д спеки): JS-бік будує її через ensure-tool контур із
+///   `manifest.tools` ([`wasm_plugin_manifest`]) ДО цього виклику;
+///   `None`/відсутній — порожній [`ToolResolver`], кожен `run-tool` у
+///   плагіні поверне типізовану помилку в `tool-output` (не паніку).
+///   Підміняється на закешованому `LoadedPlugin` ПЕРЕД кожним `detect`
+///   (`LoadedPlugin::set_tool_resolver`) — різні виклики того самого
+///   `wasm_path` можуть нести різний `tool_paths`.
 #[napi]
 pub fn run_wasm_concern(
     wasm_path: String,
     key: String,
     cwd: String,
-    files: Vec<String>,
+    files: Option<Vec<String>>,
+    tool_paths: Option<HashMap<String, String>>,
 ) -> Result<serde_json::Value> {
     let cwd_path = PathBuf::from(&cwd);
-    let source_files: Vec<SourceFile> = files
-        .into_iter()
-        .filter_map(|rel| {
-            let abs = cwd_path.join(&rel);
-            std::fs::read(&abs).ok().map(|bytes| SourceFile {
-                path: rel,
-                content: String::from_utf8_lossy(&bytes).into_owned(),
-            })
-        })
-        .collect();
-    let batch = DetectBatch {
-        concern_id: key,
-        files: source_files,
-    };
+    let resolver = build_tool_resolver(tool_paths);
     let diagnostics = with_loaded_plugin(&wasm_path, |plugin| {
+        let source_files = match files {
+            Some(files) => read_source_files(&cwd_path, files),
+            None => {
+                let contribution = plugin
+                    .describe()
+                    .concerns
+                    .iter()
+                    .find(|c| c.key == key)
+                    .cloned();
+                match contribution {
+                    Some(c) if c.scope == ConcernScope::Full => {
+                        build_full_scope_files(&cwd_path, &c.glob)
+                    }
+                    _ => Vec::new(),
+                }
+            }
+        };
+        let batch = DetectBatch {
+            concern_id: key.clone(),
+            files: source_files,
+        };
+        plugin.set_tool_resolver(resolver);
         plugin.detect(&batch).map_err(to_wasm_napi_err)
     })?;
     Ok(serde_json::json!({ "violations": diagnostics }))
