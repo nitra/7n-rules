@@ -3,7 +3,7 @@ type: JS Module
 title: native.mjs
 resource: npm/scripts/lib/native.mjs
 docgen:
-  crc: cf2b368e
+  crc: 7fa632f2
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
@@ -24,9 +24,11 @@ Loader napi-аддона `rules-core` (`crates/rules-napi` → `rules-core`) —
   4. Інакше — зрозуміла помилка з підказкою `cargo build --release -p rules-napi`.
 
 Аддон завантажується через `process.dlopen` — працює і для `.node`, і для
-сирих cdylib (`.dylib`/`.so`), і під bun (не лише node). Результат
+сирих cdylib (`.dylib`/`.so`/`.dll`), і під bun (не лише node). Результат
 кешується (одне завантаження на процес). Без JS-fallback на неоголошеній
-платформі — hard error, свідома межа v1 (darwin-arm64, linux-x64), Р1 спеки.
+платформі — hard error, свідома межа v1 (darwin-arm64, linux-x64, win32-x64),
+Р1 спеки + П3 (`docs/specs/2026-07-30-rules-v2-rust-core-migration.md`,
+рішення О `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.4a).
 
 Додатково (відмінність від `llm-lib`-loader-а): після dlopen звіряється
 `addon.contractVersion()` з [`EXPECTED_CONTRACT_VERSION`] — розбіжність
@@ -44,7 +46,7 @@ enforcement-точка за зразком `requiresPluginApi`). Звірка �
 
 ## Сценарії використання
 
-- `npm/scripts/lib/tests/native.test.mjs` (resolveNativeAddon (порядок пошуку); loadNative (кеш процесу)) — N_RULES_NATIVE_ADDON має найвищий пріоритет; platform-підпакет: резолвиться @7n/rules-<key> з napi-суфіксом; linux-x64 мапиться на суфікс linux-x64-gnu; dev-fallback: release-cdylib перемагає debug; dev-fallback: на linux шукається .so, а останній кандидат — вивід napi build; ще 5
+- `npm/scripts/lib/tests/native.test.mjs` (resolveNativeAddon (порядок пошуку); loadNative (кеш процесу)) — N_RULES_NATIVE_ADDON має найвищий пріоритет; platform-підпакет: резолвиться @7n/rules-<key> з napi-суфіксом; linux-x64 мапиться на суфікс linux-x64-gnu; win32-x64 мапиться на суфікс win32-x64-msvc; dev-fallback: release-cdylib перемагає debug; ще 7
 
 ## Гарантії поведінки
 

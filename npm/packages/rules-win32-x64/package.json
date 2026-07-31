@@ -1,0 +1,24 @@
+{
+  "name": "@7n/rules-win32-x64",
+  "version": "1.66.0",
+  "description": "Попередньо скомпільований native napi-аддон rules-core для @7n/rules — Windows x64 (MSVC)",
+  "license": "ISC",
+  "author": "v@nitra.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nitra/7n-rules.git",
+    "directory": "npm/packages/rules-win32-x64"
+  },
+  "files": [
+    "rules-napi.win32-x64-msvc.node"
+  ],
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -10,7 +10,10 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { EXPECTED_CONTRACT_VERSION, resolveNativeAddon } from '../native.mjs'
 
 const ADDON_HINT_RE = /rules native addon/
-const UNKNOWN_PLATFORM_RE = /win32-x64[\s\S]*N_RULES_NATIVE_ADDON/
+// win32-arm64 (а не win32-x64) — win32-x64 тепер підтримується (рішення О,
+// §3.4a plugin-contract-v3-wasm-component.md); win32-arm64 лишається поза
+// v1-межею, тож досі демонструє unknown-platform гілку.
+const UNKNOWN_PLATFORM_RE = /win32-arm64[\s\S]*N_RULES_NATIVE_ADDON/
 
 /**
  * Перевіряє, що виклик кидає саме "розбіжність версії контракту" з очікуваними
@@ -76,6 +79,11 @@ describe('resolveNativeAddon (порядок пошуку)', () => {
     expect(p).toBe('/nm/@7n/rules-linux-x64/rules-napi.linux-x64-gnu.node')
   })
 
+  test('win32-x64 мапиться на суфікс win32-x64-msvc', () => {
+    const p = resolveNativeAddon(baseDeps({ platform: 'win32', arch: 'x64', requireResolve: id => `/nm/${id}` }))
+    expect(p).toBe('/nm/@7n/rules-win32-x64/rules-napi.win32-x64-msvc.node')
+  })
+
   test('dev-fallback: release-cdylib перемагає debug', () => {
     const p = resolveNativeAddon(baseDeps({ existsSync: () => true }))
     expect(p).toBe('/repo/target/release/librules_napi.dylib')
@@ -102,8 +110,29 @@ describe('resolveNativeAddon (порядок пошуку)', () => {
     ])
   })
 
-  test('невідома платформа: без підпакета/суфікса — помилка з підказкою про N_RULES_NATIVE_ADDON', () => {
-    expect(() => resolveNativeAddon(baseDeps({ platform: 'win32', arch: 'x64' }))).toThrow(UNKNOWN_PLATFORM_RE)
+  test('dev-fallback: на win32 шукається rules_napi.dll (без lib-префікса), останній кандидат — вивід napi build', () => {
+    const seen = []
+    expect(() =>
+      resolveNativeAddon(
+        baseDeps({
+          platform: 'win32',
+          arch: 'x64',
+          existsSync: p => {
+            seen.push(p)
+            return false
+          }
+        })
+      )
+    ).toThrow(ADDON_HINT_RE)
+    expect(seen).toEqual([
+      '/repo/target/release/rules_napi.dll',
+      '/repo/target/debug/rules_napi.dll',
+      '/repo/crates/rules-napi/rules-napi.win32-x64-msvc.node'
+    ])
+  })
+
+  test('невідома платформа (win32-arm64): без підпакета/суфікса — помилка з підказкою про N_RULES_NATIVE_ADDON', () => {
+    expect(() => resolveNativeAddon(baseDeps({ platform: 'win32', arch: 'arm64' }))).toThrow(UNKNOWN_PLATFORM_RE)
   })
 })
 

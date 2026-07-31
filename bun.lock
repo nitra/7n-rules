@@ -4,12 +4,6 @@
   "workspaces": {
     "": {
       "name": "mono",
-      "dependencies": {
-        "@7n/llm-lib-darwin-arm64": "^2.13.11",
-        "@7n/llm-lib-linux-x64": "^2.13.11",
-        "@7n/rules-darwin-arm64": "^1.65.0",
-        "@7n/rules-linux-x64": "^1.65.0",
-      },
       "devDependencies": {
         "@7n/rules": "workspace:*",
         "@7n/rules-ci-azure": "workspace:*",
@@ -91,6 +85,7 @@
       "optionalDependencies": {
         "@7n/rules-darwin-arm64": "1.66.0",
         "@7n/rules-linux-x64": "1.66.0",
+        "@7n/rules-win32-x64": "1.66.0",
         "@earendil-works/pi-ai": "0.80.10",
         "@earendil-works/pi-coding-agent": "0.80.10",
       },
@@ -185,9 +180,9 @@
   "packages": {
     "@7n/llm-lib": ["@7n/llm-lib@workspace:llm-lib"],
 
-    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.13.11", "", { "os": "darwin", "cpu": "arm64" }, "sha512-8uTp9NeBBWgNALbT8uC/TuHN+Tk+TG00sce7KLG5iNC1SlgLTIjOimC0RKCU6n9i6f+3vsqZZa17HcKDZ4WHMQ=="],
+    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.13.12", "", { "os": "darwin", "cpu": "arm64" }, "sha512-pJAbAFpxlFO+HhRLF2ocTZA3Lv3YyU7uhJvi3kP/slAWaGPeRBEUDXIpyV1y1lyiC2b2UcBa6cGcnZJvFSG6RA=="],
 
-    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.13.11", "", { "os": "linux", "cpu": "x64" }, "sha512-23znxVk3k+nQEvTrV+v/kXUJBh87Lj1tTUjxQFVGnSwTfkI10Y1NcOEkSCO2z0G0Jrxlxea09zKkKj4uZAq98g=="],
+    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.13.12", "", { "os": "linux", "cpu": "x64" }, "sha512-tpPGFeJkSMzN2V21hBqH5pZURB+uipJJKss25deXaUDjosDewu+4hNLssL3Yrki29wtTCDAkLgP1BIEwINXwWg=="],
 
     "@7n/rules": ["@7n/rules@workspace:npm"],
 
@@ -195,7 +190,7 @@
 
     "@7n/rules-ci-github": ["@7n/rules-ci-github@workspace:plugins/ci-github"],
 
-    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.65.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-onjQQURcp3C4/WsHqQq1bI9md6v0rfwl4e0Ttek/rCfxepk35Q8+usq9CbZbLuJcUealSjkcbQZa4x//I8zbPw=="],
+    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.66.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-2rRPvu031CrPF8nG8C34YICcWUCdAkZiEe3/ZjFAg1BrDB5EUlf4wFcDoVDeO9JFKVs0IOxTt5cxKwnC7+1+GQ=="],
 
     "@7n/rules-lang-js": ["@7n/rules-lang-js@workspace:plugins/lang-js"],
 
@@ -205,7 +200,7 @@
 
     "@7n/rules-lang-rust": ["@7n/rules-lang-rust@workspace:plugins/lang-rust"],
 
-    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.65.0", "", { "os": "linux", "cpu": "x64" }, "sha512-csl4xnSYH0dVRB0wBHWyLzdKO5UVdplekRwaria9g4dv2GMTTcNjPPCvlVT/vk4xpsLkcTK/9l/Q0D4gu9NRMg=="],
+    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.66.0", "", { "os": "linux", "cpu": "x64" }, "sha512-NVjxO9GYdDUY/wLs4cADYPsQDIlBkH/1jR6EwnmnzbmkDispO8Hmhsg9kDVUjklTkKSk0jVxHEHLVK6lt3A41A=="],
 
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.91.1", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-LAmu761tSN9r66ixvmciswUj/ZC+1Q4iAfpedTfSVLeswRwnY3n2Nb6Tsk+cLPP28aLOPWeMgIuTuCcMC6W/iw=="],
 
@@ -2578,10 +2573,6 @@
     "zod-to-json-schema": ["zod-to-json-schema@3.25.2", "", { "peerDependencies": { "zod": "^3.25.28 || ^4" } }, "sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA=="],
 
     "zwitch": ["zwitch@2.0.4", "", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
-
-    "@7n/llm-lib/@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.13.12", "", { "os": "darwin", "cpu": "arm64" }, "sha512-pJAbAFpxlFO+HhRLF2ocTZA3Lv3YyU7uhJvi3kP/slAWaGPeRBEUDXIpyV1y1lyiC2b2UcBa6cGcnZJvFSG6RA=="],
-
-    "@7n/llm-lib/@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.13.12", "", { "os": "linux", "cpu": "x64" }, "sha512-tpPGFeJkSMzN2V21hBqH5pZURB+uipJJKss25deXaUDjosDewu+4hNLssL3Yrki29wtTCDAkLgP1BIEwINXwWg=="],
 
     "@aws-sdk/credential-provider-http/@smithy/node-http-handler": ["@smithy/node-http-handler@4.9.6", "", { "dependencies": { "@smithy/core": "^3.29.4", "@smithy/types": "^4.16.1", "tslib": "^2.6.2" } }, "sha512-odd+HYx3OLcXRSEz0ZeF3JQdSYdK8QnRgA2N87cPW7coWIbKfRk7a9VQjfeWQLqnzrDLk23KMEn46p8N7M/JFg=="],
 
