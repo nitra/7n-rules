@@ -4,6 +4,10 @@
   "workspaces": {
     "": {
       "name": "mono",
+      "dependencies": {
+        "@7n/llm-lib-darwin-arm64": "^2.14.2",
+        "@7n/llm-lib-linux-x64": "^2.14.2",
+      },
       "devDependencies": {
         "@7n/rules": "workspace:*",
         "@7n/rules-ci-azure": "workspace:*",
@@ -37,7 +41,7 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.14.2",
+      "version": "2.14.3",
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
       },
@@ -46,8 +50,8 @@
         "@earendil-works/pi-coding-agent": "~0.80.10",
       },
       "optionalDependencies": {
-        "@7n/llm-lib-darwin-arm64": "2.14.2",
-        "@7n/llm-lib-linux-x64": "2.14.2",
+        "@7n/llm-lib-darwin-arm64": "2.14.3",
+        "@7n/llm-lib-linux-x64": "2.14.3",
       },
       "peerDependencies": {
         "@earendil-works/pi-ai": "~0.80.10",
@@ -60,7 +64,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.69.0",
+      "version": "1.70.0",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
@@ -182,7 +186,7 @@
 
     "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.14.2", "", { "os": "darwin", "cpu": "arm64" }, "sha512-bbS962q4XnKyNO6e99OoMYEKn2ky4sC831fXAhYxxyjTnUJY+I2qs0ntYZ23HnIO2cNm1zWJrT4KDOAC/XPhvw=="],
 
-    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.14.1", "", { "os": "linux", "cpu": "x64" }, "sha512-1I3L1DGk1cS9fDaSlY2z28FIkd1v9UZqo/xkSrGO7sTtSuPUXcq3Bi4/YYdADTW/6m94UtXkKzmu8hzMjWzB4w=="],
+    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.14.2", "", { "os": "linux", "cpu": "x64" }, "sha512-j2DY0l9zb6K4YKQmFvKuLcX/MlrTwrEI2JdKDj/qBH7CZ9sfh6Yy5Pcwa8AiQZqS9rX85RyvZZcbsCkeVyrbMQ=="],
 
     "@7n/rules": ["@7n/rules@workspace:npm"],
 
