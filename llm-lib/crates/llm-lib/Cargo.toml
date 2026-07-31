@@ -6,18 +6,31 @@ description = "Каскадний доступ до LLM: локальні тир
 license = "Apache-2.0"
 
 [dependencies]
-genai = "0.4"
-tokio = { version = "1", features = ["rt-multi-thread", "process", "macros", "io-util", "time"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "1"
+# Р9 спеки rules-v2 (feature-split): важкі залежності — лише під `agents`
+# (default-фіча). `rules-core` бере `tiers` (лише serde/thiserror-клас
+# залежностей) через `default-features = false`, без tokio/genai/reqwest у
+# lint-адоні. `llm-lib-napi` не оголошує `default-features = false`, тож
+# лишається на дефолтних фічах (`agents` увімкнена) — збирається без змін.
+genai = { version = "0.4", optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "process", "macros", "io-util", "time"], optional = true }
 # Уже транзитивна залежність genai (той самий resolved 0.12.x) — прямий
 # dependency лише додає json+multipart для справжнього Batch API
 # (llm_lib::remote_batch), жодного нового постачальника в графі немає.
-reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"], optional = true }
 # 1.x: agent-client-protocol-tokio більше не існує окремо — AcpAgent
 # (спавн stdio-агента) перенесено в головний крейт.
-agent-client-protocol = "1.2"
+agent-client-protocol = { version = "1.2", optional = true }
+
+[features]
+default = ["agents"]
+# ACP-агенти (Codex/Cursor), local/cloud one-shot (genai) і batch/remote_batch
+# (reqwest) — усе, що НЕ tiers. `tiers`-модуль (env-каскад моделей,
+# parse/is_local_model) лишається завжди доступним: `LlmError` у lib.rs
+# посилається на `tiers::Tier`, тож сам тип має бути безумовним.
+agents = ["dep:genai", "dep:tokio", "dep:reqwest", "dep:agent-client-protocol"]
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "process", "macros", "io-util", "time", "test-util", "net"] }

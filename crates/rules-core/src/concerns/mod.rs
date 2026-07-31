@@ -22,6 +22,8 @@ mod abie_overlay_paths;
 mod abie_ua_http_route;
 mod abie_ua_node_selector;
 mod abie_yaml;
+mod adr_hooks;
+mod capacitor_platforms;
 mod cargo_workspace;
 mod change_file;
 mod changelog_presence;
@@ -35,6 +37,7 @@ mod gha_workflow;
 mod glob_compat;
 mod hasura_internal_urls;
 mod hasura_migrations;
+mod image_avif_generation;
 mod image_compress_package_setup;
 mod marksman_config;
 mod package_manifest;
@@ -55,6 +58,8 @@ mod workspaces;
 pub use abie_hc_pairing::hc_pairing as abie_hc_pairing;
 pub use abie_ua_http_route::ua_http_route as abie_ua_http_route;
 pub use abie_ua_node_selector::ua_node_selector as abie_ua_node_selector;
+pub use adr_hooks::adr_hooks;
+pub use capacitor_platforms::capacitor_platforms;
 pub use changelog_presence::changelog_presence;
 pub use dremio_logging::{dremio_logging, zk_logback_root_level_violation};
 pub use env_dns::env_dns;
@@ -62,6 +67,7 @@ pub use firebase_hosting::firebase_hosting;
 pub use forbidden_prettier::forbidden_prettier;
 pub use hasura_internal_urls::hasura_internal_urls;
 pub use hasura_migrations::hasura_migrations;
+pub use image_avif_generation::image_avif_generation;
 pub use image_compress_package_setup::image_compress_package_setup;
 pub use marksman_config::marksman_config;
 pub use rego_tooling::rego_tooling;
@@ -104,6 +110,9 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "tauri/tool_surface",
     "security/trufflehog",
     "changelog/presence",
+    "adr/hooks",
+    "capacitor/platforms",
+    "image-avif/avif_generation",
 ];
 
 /// Запускає native-порт concern-а за ключем `ruleId/concernId`.
@@ -146,6 +155,9 @@ pub fn run_concern(
         "tauri/tool_surface" => tauri_tool_surface(cwd),
         "security/trufflehog" => Ok(security_trufflehog(cwd)),
         "changelog/presence" => changelog_presence(cwd, files),
+        "adr/hooks" => Ok(adr_hooks(cwd)),
+        "capacitor/platforms" => Ok(capacitor_platforms(cwd)),
+        "image-avif/avif_generation" => Ok(image_avif_generation(cwd)),
         other => Err(RulesError::Concern(format!(
             "невідомий native concern: {other}"
         ))),
@@ -157,7 +169,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn native_concerns_lists_all_twenty_three_entries() {
+    fn native_concerns_lists_all_twenty_six_entries() {
         assert_eq!(
             NATIVE_CONCERNS,
             &[
@@ -184,6 +196,9 @@ mod tests {
                 "tauri/tool_surface",
                 "security/trufflehog",
                 "changelog/presence",
+                "adr/hooks",
+                "capacitor/platforms",
+                "image-avif/avif_generation",
             ]
         );
     }
@@ -283,6 +298,27 @@ mod tests {
             "tauri/tool_surface",
             "security/trufflehog",
             "changelog/presence",
+        ] {
+            assert!(
+                run_concern(key, tmp.path(), None).is_ok(),
+                "run_concern має прийняти ключ {key}"
+            );
+        }
+    }
+
+    /// Кожен із трьох ключів PURE-фіналу (фаза 5, останній батч: адр/hooks,
+    /// capacitor/platforms, image-avif/avif_generation) диспатчиться на свою
+    /// функцію — smoke-перевірка самого `match` у `run_concern` (не
+    /// повторних сценаріїв concern-ів — ті у власних підмодулях). Порожній
+    /// tmp-каталог без `package.json`/`.vue` → жоден concern не падає (усі
+    /// три fail-safe на відсутні файли/каталоги).
+    #[test]
+    fn run_concern_dispatches_all_pure_final_batch_keys() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        for key in [
+            "adr/hooks",
+            "capacitor/platforms",
+            "image-avif/avif_generation",
         ] {
             assert!(
                 run_concern(key, tmp.path(), None).is_ok(),
