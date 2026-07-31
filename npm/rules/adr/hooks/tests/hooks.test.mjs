@@ -5,6 +5,11 @@
  * через явно переданий `cwd` параметр (без `process.chdir`).
  * Канонічний bundled-скрипт читається з реального пакета (`npm/.claude-template/hooks/`),
  * тому перші тести копіюють його у tmp `.claude/hooks/` для збігу байт-у-байт.
+ *
+ * Прогін — через `runConcernDetector` (dispatch-рівень), не пряма функція: JS
+ * `main.mjs` видалений (PURE-фінал фази 5), concern тепер живе лише в
+ * `crates/rules-core/src/concerns/adr_hooks.rs` і виконується через
+ * native-гілку `runConcernDetector`.
  */
 import { describe, expect, test } from 'vitest'
 import { chmod, readFile, rm, writeFile } from 'node:fs/promises'
@@ -12,11 +17,14 @@ import { dirname, join } from 'node:path'
 import { env, platform } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
-const ruleId = 'rules/adr'
-const concernId = 'rules/adr/hooks'
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+const ruleId = 'adr'
+const concernId = 'hooks'
 
 /**
  * Запускає detector у заданому каталозі та повертає exit-подібний код:
@@ -25,7 +33,7 @@ const concernId = 'rules/adr/hooks'
  * @returns {Promise<0 | 1>} код сумісності зі старим контрактом
  */
 async function check(dir) {
-  const { violations } = await lint({ cwd: dir, ruleId, concernId, files: undefined })
+  const { violations } = await runConcernDetector(CONCERN, { cwd: dir, ruleId, concernId, files: undefined })
   return violations.length > 0 ? 1 : 0
 }
 

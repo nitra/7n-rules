@@ -3362,6 +3362,7 @@ version = "0.1.0"
 dependencies = [
  "gix",
  "ignore",
+ "llm-lib",
  "mt-core",
  "regex",
  "serde",

@@ -116,6 +116,55 @@ pub fn parse_model_spec(spec: &str) -> Result<(&str, &str), String> {
     Ok((provider, model))
 }
 
+/// Провайдери, що вважаються локальними за замовчуванням (без
+/// `N_LLM_LOCAL_PROVIDERS`-override) — порт дефолту `LOCAL_PROVIDERS`
+/// (`model-tiers.mjs:121`).
+const DEFAULT_LOCAL_PROVIDERS: &str = "omlx,litellm";
+
+/// Провайдери, що вважаються локальними — точний порт `LOCAL_PROVIDERS`
+/// (`model-tiers.mjs:120-125`). Читає `N_LLM_LOCAL_PROVIDERS` заново на
+/// кожен виклик (той самий live-read, що й решта `tiers.rs`, без
+/// module-level кешування — на відміну від JS, де `LOCAL_PROVIDERS` — це
+/// `const`, обчислена один раз при завантаженні модуля; тут це не спостережна
+/// різниця, бо env-змінна в межах одного процесу не змінюється в
+/// production-використанні, лише в тестах, де live-read навіть точніший).
+///
+/// **Нюанс `??` проти "порожній рядок = не задано"**: на відміну від решти
+/// `tiers.rs` (`env_var`, де порожній рядок трактується як відсутній), тут —
+/// точна калька JS `env.N_LLM_LOCAL_PROVIDERS ?? 'omlx,litellm'`: `??`
+/// спрацьовує лише на `null`/`undefined`, тобто **порожній рядок означає
+/// «явно порожній список»**, не «дефолт». `unwrap_or_else` тут — навмисно
+/// (не `env_var()`-хелпер): він підставляє дефолт лише коли змінна взагалі
+/// не задана (`Err` з `env::var`), а не коли вона задана порожнім рядком.
+fn local_providers() -> Vec<String> {
+    let raw =
+        env::var("N_LLM_LOCAL_PROVIDERS").unwrap_or_else(|_| DEFAULT_LOCAL_PROVIDERS.to_string());
+    raw.split(',')
+        .map(|p| p.trim().to_string())
+        .filter(|p| !p.is_empty())
+        .collect()
+}
+
+/// Чи `spec` вказує на локальну модель: збіг з одним із `LOCAL_*` тирів АБО
+/// провайдер входить у `N_LLM_LOCAL_PROVIDERS` (дефолт `omlx,litellm`) —
+/// точний порт `isLocalModel` (`model-tiers.mjs:138-143`).
+#[must_use]
+pub fn is_local_model(spec: &str) -> bool {
+    if spec.is_empty() {
+        return false;
+    }
+    if Some(spec) == local_min().as_deref()
+        || Some(spec) == local_avg().as_deref()
+        || Some(spec) == local_max().as_deref()
+    {
+        return true;
+    }
+    let Ok((provider, _)) = parse_model_spec(spec) else {
+        return false;
+    };
+    local_providers().iter().any(|p| p == provider)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -132,6 +181,10 @@ mod tests {
         "N_CLOUD_MIN_MODEL",
         "N_CLOUD_AVG_MODEL",
         "N_CLOUD_MAX_MODEL",
+        // is_local_model-специфічна: включена сюди, щоб with_env так само
+        // клірила/відновлювала її під тим самим ENV_LOCK (запобігає flaky
+        // паралельним тестам, що читають N_LLM_LOCAL_PROVIDERS).
+        "N_LLM_LOCAL_PROVIDERS",
     ];
 
     fn with_env<T>(vars: &[(&str, &str)], f: impl FnOnce() -> T) -> T {
@@ -241,5 +294,61 @@ mod tests {
         assert!(parse_model_spec("no-slash").is_err());
         assert!(parse_model_spec("/model").is_err());
         assert!(parse_model_spec("provider/").is_err());
+    }
+
+    // --- is_local_model: дзеркало isLocalModel (model-tiers.mjs) ---
+
+    #[test]
+    fn is_local_model_empty_spec_is_false() {
+        with_env(&[], || {
+            assert!(!is_local_model(""));
+        });
+    }
+
+    #[test]
+    fn is_local_model_default_providers_omlx_and_litellm() {
+        with_env(&[], || {
+            assert!(is_local_model("omlx/gemma-4-e4b-it-OptiQ-4bit"));
+            assert!(is_local_model("litellm/whatever"));
+            assert!(!is_local_model("openai/gpt-5.4-mini"));
+        });
+    }
+
+    #[test]
+    fn is_local_model_matches_configured_local_tier_verbatim() {
+        // Навіть значення, що не парситься провайдером зі списку
+        // LOCAL_PROVIDERS, вважається локальним, якщо буквально збігається
+        // з одним із N_LOCAL_*_MODEL (model-tiers.mjs:140).
+        with_env(&[("N_LOCAL_MIN_MODEL", "custom/exact-match")], || {
+            assert!(is_local_model("custom/exact-match"));
+            assert!(!is_local_model("custom/other"));
+        });
+    }
+
+    #[test]
+    fn is_local_model_override_via_env_replaces_default_list() {
+        with_env(&[("N_LLM_LOCAL_PROVIDERS", "vllm,ollama")], || {
+            assert!(is_local_model("vllm/foo"));
+            assert!(is_local_model("ollama/bar"));
+            // Дефолтний omlx більше не в списку — override повністю заміняє.
+            assert!(!is_local_model("omlx/gemma"));
+        });
+    }
+
+    #[test]
+    fn is_local_model_empty_override_yields_empty_provider_list() {
+        // `??` спрацьовує лише на null/undefined — порожній рядок env-змінної
+        // НЕ підставляє дефолт (JS ?? семантика, doc-комент local_providers()).
+        with_env(&[("N_LLM_LOCAL_PROVIDERS", "")], || {
+            assert!(!is_local_model("omlx/gemma"));
+            assert!(!is_local_model("litellm/x"));
+        });
+    }
+
+    #[test]
+    fn is_local_model_malformed_spec_without_slash_is_false() {
+        with_env(&[], || {
+            assert!(!is_local_model("no-slash-here"));
+        });
     }
 }

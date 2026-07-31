@@ -55,6 +55,12 @@ toml = "0.8"
 # per-document deserializer-ів (той самий лінивий підхід: помилка в одному
 # документі не валить решту потоку).
 serde_yaml = "0.9"
+# `tiers`-модуль для `adr/hooks`-конкорна (PURE-фінал фази 5, Р9 спеки):
+# `resolveModel`/`isLocalModel` еквіваленти. `default-features = false` —
+# лише `tiers` (serde/thiserror-клас залежностей), без важкого
+# genai/tokio/reqwest/agent-client-protocol стеку `agents`-фічі (ACP/batch/
+# local_cloud), непотрібного lint-адону.
+llm-lib = { path = "../../llm-lib/crates/llm-lib", default-features = false }
 
 [dev-dependencies]
 tempfile = "3"

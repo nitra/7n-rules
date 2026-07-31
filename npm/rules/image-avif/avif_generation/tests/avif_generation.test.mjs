@@ -8,18 +8,30 @@
  * `"@nitra/minify-image": { "disable-avif": true }`.
  *
  * Валідації deps/`.gitignore` тестує `image-compress`.
+ *
+ * `lint()`-прогін — через `runConcernDetector` (dispatch-рівень), не пряма
+ * функція: JS `main.mjs` видалений (PURE-фінал фази 5), детектор тепер живе
+ * лише в `crates/rules-core/src/concerns/image_avif_generation.rs`.
+ * T0-фіксер (`fix-avif_generation.mjs`) лишається JS і самодостатній
+ * (більше не імпортує з `main.mjs` — власна копія read-only скану).
  */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { env } from 'node:process'
+import { fileURLToPath } from 'node:url'
 
-import { lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { patterns } from '../fix-avif_generation.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
-const runLint = dir => lint({ cwd: dir, ruleId: 'image-avif', concernId: 'avif_generation', files: undefined })
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+
+const runLint = dir =>
+  runConcernDetector(CONCERN, { cwd: dir, ruleId: 'image-avif', concernId: 'avif_generation', files: undefined })
 const check = async dir => {
   const r = await runLint(dir)
   return r.violations
