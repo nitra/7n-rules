@@ -34,6 +34,12 @@ ignore = "0.4"
 # concern-а `sample_secret` порт через 3-way alternation замість групи з
 # backreference (doc-комент `concerns/sample_secret.rs`).
 regex = "1"
+# TOML-парсинг для G1-кластеру native concern-ів (`tauri/cargo_mutants_config`,
+# `tauri/gitignore_target`, `tauri/linux_deps`, `tauri/core_test_isolation`) —
+# заміна `smol-toml` на боці Rust. `toml::Table` (= `toml::map::Map<String,
+# Value>`) — прямий відповідник `Record<string, unknown>`, який повертає
+# `parseToml` у JS-версіях.
+toml = "0.8"
 
 [dev-dependencies]
 tempfile = "3"

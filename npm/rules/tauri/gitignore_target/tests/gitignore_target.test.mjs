@@ -9,17 +9,42 @@
  *   - `.gitignore` відсутній повністю → violation з повним переліком;
  *   - очікуваний запис обчислюється від фактичного Cargo workspace root крейту (product-root і
  *     repo-root ancestor workspace-кейси), а не завжди від фіксованого суфікса `src-tauri/target/`;
+ *   - substring у `.gitignore` не рахується присутністю (лише точний рядок);
  *   - T0-фікс вставляє новий блок, ідемпотентно;
  *   - T0-фікс дописує запис у вже наявну секцію поруч з іншими entries, зберігаючи оточення.
+ *
+ * Детектор — через `runConcernDetector` (dispatch-рівень), не пряма функція: JS
+ * `main.mjs` видалений (G2 фази 5 батчу 3, TOML-кластер), concern тепер живе
+ * лише в `crates/rules-core/src/concerns/tauri_gitignore_target.rs` і
+ * виконується через native-гілку `runConcernDetector`. Пряме юніт-тестування
+ * колишніх pure-функцій `expectedTargetEntry`/`findMissingEntries` (вони більше
+ * не експортуються з JS) замінене на детектор-рівневі сценарії з тими самими
+ * fixture-ами — еквівалентне покриття лишається і в native-юніт-тестах самого
+ * порту (`tauri_gitignore_target.rs`, той самий модуль). T0-фіксер
+ * (`fix-gitignore_target.mjs`) лишається JS — читає `violation.data.missing`.
  */
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { describe, expect, test, vi } from 'vitest'
 
-import { MISSING_GITIGNORE_TARGET_ENTRIES, expectedTargetEntry, findMissingEntries, lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { GITIGNORE_TARGET_HEADER, insertMissingTargetEntries, patterns } from '../fix-gitignore_target.mjs'
+
+/** Стабільний reason: у корінному `.gitignore` бракує ignore-запису(ів) для `src-tauri/target/`. */
+const MISSING_GITIGNORE_TARGET_ENTRIES = 'missing-gitignore-target-entries'
+
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+
+/**
+ * @param {import('../../../../scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінт-прогону
+ * @returns {Promise<import('../../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат детектора
+ */
+const lint = ctx => runConcernDetector(CONCERN, ctx)
 
 /** @returns {string} абсолютний шлях тимчасового кореня монорепо */
 function makeRoot() {
@@ -159,21 +184,15 @@ describe('tauri/gitignore_target detector', () => {
   })
 })
 
-describe('expectedTargetEntry: фактичний Cargo workspace root крейту', () => {
-  test('standalone: src-tauri сам собі workspace root → src-tauri/target/', async () => {
-    const root = makeRoot()
-    try {
-      const srcTauriDir = join(root, 'owner', 'src-tauri')
-      mkdirSync(srcTauriDir, { recursive: true })
-      writeFileSync(join(srcTauriDir, 'Cargo.toml'), '[package]\nname="t"\n')
-      const entry = await expectedTargetEntry(root, srcTauriDir)
-      expect(entry).toBe('owner/src-tauri/target/')
-    } finally {
-      rmSync(root, { recursive: true, force: true })
-    }
-  })
+describe('expectedTargetEntry: фактичний Cargo workspace root крейту (через lint dispatch)', () => {
+  // «standalone: src-tauri сам собі workspace root → src-tauri/target/» —
+  // той самий fixture, що й «Tauri-воркспейс без запису в .gitignore» вище
+  // (без ancestor-Cargo.toml src-tauri сам собі workspace root), окремого
+  // detector-рівневого дубля не додаємо; pure-функція `expectedTargetEntry`
+  // покрита напряму в native-юніт-тестах (`tauri_gitignore_target.rs`,
+  // `standalone_src_tauri_is_own_workspace_root`).
 
-  test('product-root: owner/Cargo.toml — workspace root для owner/src-tauri → owner/target/', async () => {
+  test('product-root: owner/Cargo.toml — workspace root для owner/src-tauri → owner/target/ (без .gitignore)', async () => {
     const root = makeRoot()
     try {
       const ownerDir = join(root, 'owner')
@@ -184,8 +203,11 @@ describe('expectedTargetEntry: фактичний Cargo workspace root крей�
       // Мертвий/сторонній `owner/src-tauri/target/` на диску не має задовольняти перевірку —
       // очікуваний запис і так рахується від workspace root (`owner/`), а не від диска.
       mkdirSync(join(srcTauriDir, 'target'), { recursive: true })
-      const entry = await expectedTargetEntry(root, srcTauriDir)
-      expect(entry).toBe('owner/target/')
+      writeFileSync(join(ownerDir, 'package.json'), JSON.stringify({ name: 'owner' }))
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'root', workspaces: ['owner'] }))
+      const { violations } = await lint({ cwd: root, ruleId: 'tauri', concernId: 'gitignore_target' })
+      const v = violations.find(x => x.reason === MISSING_GITIGNORE_TARGET_ENTRIES)
+      expect(v?.data?.missing).toEqual(['owner/target/'])
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -218,18 +240,30 @@ describe('expectedTargetEntry: фактичний Cargo workspace root крей�
       mkdirSync(srcTauriDir, { recursive: true })
       writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = ["owner/src-tauri"]\n')
       writeFileSync(join(srcTauriDir, 'Cargo.toml'), '[package]\nname="t"\n')
-      const entry = await expectedTargetEntry(root, srcTauriDir)
-      expect(entry).toBe('target/')
+      writeFileSync(join(root, 'owner', 'package.json'), JSON.stringify({ name: 'owner' }))
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'root', workspaces: ['owner'] }))
+      const { violations } = await lint({ cwd: root, ruleId: 'tauri', concernId: 'gitignore_target' })
+      const v = violations.find(x => x.reason === MISSING_GITIGNORE_TARGET_ENTRIES)
+      expect(v?.data?.missing).toEqual(['target/'])
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
   })
 })
 
-describe('findMissingEntries', () => {
-  test('substring-match не рахується присутністю (лише точний рядок)', () => {
-    const missing = findMissingEntries('owner/src-tauri/target/extra\n', ['owner/src-tauri/target/'])
-    expect(missing).toEqual(['owner/src-tauri/target/'])
+describe('findMissingEntries: substring-match не рахується присутністю (через lint dispatch)', () => {
+  test('лише точний рядок закриває violation, substring — ні', async () => {
+    const root = makeRoot()
+    try {
+      makeMonorepoRoot(root, ['owner'])
+      makeSrcTauriWorkspace(root, 'owner')
+      writeGitignore(root, 'owner/src-tauri/target/extra\n')
+      const { violations } = await lint({ cwd: root, ruleId: 'tauri', concernId: 'gitignore_target' })
+      const v = violations.find(x => x.reason === MISSING_GITIGNORE_TARGET_ENTRIES)
+      expect(v?.data?.missing).toEqual(['owner/src-tauri/target/'])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })
 

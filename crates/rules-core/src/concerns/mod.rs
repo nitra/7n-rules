@@ -13,16 +13,24 @@ use std::path::Path;
 
 use crate::{diagnostics::Violation, RulesError};
 
+mod cargo_workspace;
 pub(crate) mod cursor_ignore;
 mod dremio_logging;
 mod env_dns;
+mod find_src_tauri;
 mod firebase_hosting;
 mod forbidden_prettier;
+mod glob_compat;
 mod hasura_migrations;
 mod image_compress_package_setup;
 mod marksman_config;
 mod rego_tooling;
 mod sample_secret;
+mod tauri_cargo_mutants_config;
+mod tauri_core_test_isolation;
+mod tauri_gitignore_target;
+mod tauri_linux_deps;
+mod workspaces;
 
 pub use dremio_logging::{dremio_logging, zk_logback_root_level_violation};
 pub use env_dns::env_dns;
@@ -33,6 +41,10 @@ pub use image_compress_package_setup::image_compress_package_setup;
 pub use marksman_config::marksman_config;
 pub use rego_tooling::rego_tooling;
 pub use sample_secret::sample_secret;
+pub use tauri_cargo_mutants_config::tauri_cargo_mutants_config;
+pub use tauri_core_test_isolation::tauri_core_test_isolation;
+pub use tauri_gitignore_target::tauri_gitignore_target;
+pub use tauri_linux_deps::tauri_linux_deps;
 
 /// Ключі native-портованих concern-ів у форматі `ruleId/concernId` — той
 /// самий формат, що й `progressKey` у JS-оркестраторі
@@ -48,6 +60,10 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "abie/env_dns",
     "hasura/migrations",
     "image-compress/package_setup",
+    "tauri/cargo_mutants_config",
+    "tauri/gitignore_target",
+    "tauri/linux_deps",
+    "tauri/core_test_isolation",
 ];
 
 /// Запускає native-порт concern-а за ключем `ruleId/concernId`.
@@ -76,6 +92,10 @@ pub fn run_concern(
         "abie/env_dns" => Ok(env_dns(cwd)),
         "hasura/migrations" => Ok(hasura_migrations(cwd)),
         "image-compress/package_setup" => Ok(image_compress_package_setup(cwd)),
+        "tauri/cargo_mutants_config" => Ok(tauri_cargo_mutants_config(cwd)),
+        "tauri/gitignore_target" => Ok(tauri_gitignore_target(cwd)),
+        "tauri/linux_deps" => Ok(tauri_linux_deps(cwd)),
+        "tauri/core_test_isolation" => Ok(tauri_core_test_isolation(cwd)),
         other => Err(RulesError::Concern(format!(
             "невідомий native concern: {other}"
         ))),
@@ -87,7 +107,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn native_concerns_lists_all_nine_entries() {
+    fn native_concerns_lists_all_thirteen_entries() {
         assert_eq!(
             NATIVE_CONCERNS,
             &[
@@ -100,6 +120,10 @@ mod tests {
                 "abie/env_dns",
                 "hasura/migrations",
                 "image-compress/package_setup",
+                "tauri/cargo_mutants_config",
+                "tauri/gitignore_target",
+                "tauri/linux_deps",
+                "tauri/core_test_isolation",
             ]
         );
     }
@@ -124,6 +148,25 @@ mod tests {
             "abie/env_dns",
             "hasura/migrations",
             "image-compress/package_setup",
+        ] {
+            assert!(
+                run_concern(key, tmp.path(), None).is_ok(),
+                "run_concern має прийняти ключ {key}"
+            );
+        }
+    }
+
+    /// Кожен із чотирьох ключів G1 TOML-кластеру (фаза 5, батч 3) диспатчиться
+    /// на свою функцію — smoke-перевірка самого `match` у `run_concern`, не
+    /// повторних сценаріїв concern-ів (ті — у власних підмодулях).
+    #[test]
+    fn run_concern_dispatches_all_g1_toml_cluster_keys() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        for key in [
+            "tauri/cargo_mutants_config",
+            "tauri/gitignore_target",
+            "tauri/linux_deps",
+            "tauri/core_test_isolation",
         ] {
             assert!(
                 run_concern(key, tmp.path(), None).is_ok(),
