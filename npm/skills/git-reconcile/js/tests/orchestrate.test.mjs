@@ -59,6 +59,7 @@ import {
   testFailureSignatures,
   trackingRelation,
   validateBehaviorState,
+  validateAppliedValueReview,
   validateChangedLockfiles,
   validateFinalProjectGates,
   validatePullRequestDescription,
@@ -548,6 +549,15 @@ describe('Git inventory helpers', () => {
 })
 
 describe('LLM boundary', () => {
+  test('semantic obsolete review приймає лише пояснений proceed або obsolete verdict', () => {
+    expect(validateAppliedValueReview('{"verdict":"obsolete","rationale":"поведінка вже є в main"}')).toEqual({
+      ok: true,
+      value: { verdict: 'obsolete', rationale: 'поведінка вже є в main' }
+    })
+    expect(validateAppliedValueReview('{"verdict":"drop","rationale":"безпечно"}').ok).toBe(false)
+    expect(validateAppliedValueReview('{"verdict":"proceed","rationale":""}').ok).toBe(false)
+  })
+
   test('triage prompt забороняє Git-дії моделі й містить лише підготовлені facts', () => {
     const prompt = buildTriagePrompt([REVIEW_BRANCH], 'збережи завершені fixes')
 
@@ -2379,6 +2389,34 @@ describe('report helpers', () => {
       sourceReasons: 'dirty-worktree=1, failed=2, kept=1',
       worktreeReasons: 'current=1, dirty=1, failed=1'
     })
+  })
+
+  test('report деталізує збережений worktree, причину і наступну дію', () => {
+    const report = formatReport({
+      inventory: inventory({ branches: [], stashes: [], worktrees: [] }),
+      results: [
+        {
+          source: 'branch:feature/transfer',
+          status: 'failed',
+          error: "Нерозв'язані конфлікти: package.json",
+          branch: 'mt/reconcile-transfer',
+          worktree: '/repo/.worktrees/reconcile-transfer',
+          retention: {
+            commitsAhead: 1,
+            unresolvedPaths: ['package.json'],
+            stagedPaths: ['package.json'],
+            unstagedPaths: []
+          }
+        }
+      ]
+    })
+
+    expect(report).toContain('### Залишено для ручного продовження')
+    expect(report).toContain('source=`branch:feature/transfer`; status=failed')
+    expect(report).toContain('reason: Нерозв\'язані конфлікти: package.json')
+    expect(report).toContain('commits ahead of base: 1')
+    expect(report).toContain('unresolved paths: package.json')
+    expect(report).toContain('next action: Розв’язати перелічені конфлікти')
   })
 
   test('успішний PR без forensic worktree не рахує видалену mt-гілку як remaining', () => {

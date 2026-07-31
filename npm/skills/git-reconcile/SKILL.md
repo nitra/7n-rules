@@ -141,6 +141,11 @@ transport. Після провалу `max` джерело fail-closed лишає
   повторно без fix.
 - Behavioral LLM не викликається для змін без code paths; test baseline
   актуальної policy base branch кешується між PR-групами.
+- Для code-bearing переносу після materialization JS окремо просить LLM
+  порівняти final diff із актуальними callers і focused tests. Якщо вся
+  поведінка вже є в main, а source повертає застарілу архітектуру, verdict
+  `obsolete` прибирає transient worktree, повертає `drop-recommended` з
+  rationale і передає source у cleanup; PR не створюється.
 - Після `gh pr create` JS чекає bounded кілька registration ticks до появи
   GitHub checks і порівнює failed checks із
   base commit. Failure є regression лише якщо check з тим самим ім'ям був
@@ -170,4 +175,9 @@ transport. Після провалу `max` джерело fail-closed лишає
 успішно; для непідтвердженого PR звіт зберігає URL, branch, worktree і точну
 причину. Summary містить точний count кожного outcome, фактичний залишок
 branches/worktrees/stashes після cleanup та агреговані причини retention.
+Для кожного збереженого forensic worktree summary окремо показує source,
+status, branch і path, reason, URL PR (за наявності), commits ahead,
+unresolved/staged/unstaged paths та конкретну next action. Це дозволяє
+відрізнити незавершений transfer, заблокований final gate і PR з
+непідтвердженими checks без ручного перегляду Git state.
 Для cleanup ref звіт також містить точний OID і видалені aliases.
