@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules",
-  "version": "1.63.0",
+  "version": "1.64.0",
   "description": "CLI еталонних правил і skills (префікс n-): синк у репозиторій, дельта-lint, конформність",
   "keywords": [
     "cli",
@@ -65,7 +65,7 @@
     "rename-yaml-extensions": "bun ./bin/n-rules.js rename-yaml-extensions"
   },
   "dependencies": {
-    "@7n/llm-lib": "2.13.9",
+    "@7n/llm-lib": "2.13.10",
     "ajv": "^8.20.0",
     "cli-progress": "^3.12.0",
     "github-actionlint": "^1.7.12",
@@ -82,8 +82,8 @@
     "zod": "^4.4.3"
   },
   "optionalDependencies": {
-    "@7n/rules-darwin-arm64": "1.63.0",
-    "@7n/rules-linux-x64": "1.63.0",
+    "@7n/rules-darwin-arm64": "1.64.0",
+    "@7n/rules-linux-x64": "1.64.0",
     "@earendil-works/pi-ai": "0.80.10",
     "@earendil-works/pi-coding-agent": "0.80.10"
   },

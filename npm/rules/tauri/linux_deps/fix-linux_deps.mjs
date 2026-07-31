@@ -7,15 +7,53 @@
  * `apt-get install`-рядок. Текстові splice-и (як `rust/toolchain_cache`) —
  * зберігають коментарі/формат, мінімальний diff. Ідемпотентно: `scanLinuxDeps`
  * заново перевіряє стан файла на кожному прогоні.
+ *
+ * Константи й `scanLinuxDeps` дубльовані з native-порту detector-а
+ * (`crates/rules-core/src/concerns/tauri_linux_deps.rs`), не імпортуються з
+ * видаленого `main.mjs` — на відміну від `tauri/gitignore_target`, цей фіксер
+ * НЕ читає `violation.data.missing` напряму: `insertLinuxDepsStep` і
+ * `appendMissingPackages` обидва потребують позиції apt-рядка в поточному
+ * вмісті файла (індекс рядка не входить у `violation.data`), тож усе одно
+ * повторно сканують файл через `scanLinuxDeps` — той самий підхід, що й до
+ * порту detector-а в Rust (задокументовано в doc-комент native-модуля),
+ * поведінка не змінена.
  */
 import { applyToFiles } from '../../../scripts/utils/apply-to-files.mjs'
 
-import {
-  MISSING_LINUX_DEPS_PACKAGES,
-  MISSING_LINUX_DEPS_STEP,
-  REQUIRED_LINUX_PACKAGES,
-  scanLinuxDeps
-} from './main.mjs'
+/** Стабільний reason: у CI-workflow немає apt-кроку встановлення Linux-залежностей Tauri. */
+const MISSING_LINUX_DEPS_STEP = 'missing-linux-deps-step'
+/** Стабільний reason: apt-крок є, але в ньому бракує канонічних пакетів. */
+const MISSING_LINUX_DEPS_PACKAGES = 'missing-linux-deps-packages'
+
+/**
+ * Канонічні dev-пакети для компіляції Tauri v2 на ubuntu-runner-і:
+ * webkit2gtk-4.1 (WebView), ayatana-appindicator (tray), rsvg (іконки).
+ * Перевірка — підмножина: додаткові пакети в apt-рядку дозволені.
+ */
+const REQUIRED_LINUX_PACKAGES = Object.freeze(['libwebkit2gtk-4.1-dev', 'libayatana-appindicator3-dev', 'librsvg2-dev'])
+
+const APT_INSTALL_RE = /\bapt-get install\b/u
+
+/**
+ * Результат текстового сканування lint-rust.yml на apt-крок системних залежностей.
+ * @typedef {object} LinuxDepsScan
+ * @property {number} aptLine індекс першого рядка з `apt-get install` (−1, якщо немає)
+ * @property {string[]} missing канонічні пакети, відсутні у вмісті файла
+ */
+
+/**
+ * Сканує вміст workflow: перший `apt-get install`-рядок і перелік канонічних
+ * пакетів, яких немає ніде у файлі (substring — пакет може стояти на
+ * continuation-рядку багаторядкового `run: |`).
+ * @param {string} content вміст workflow-файла
+ * @returns {LinuxDepsScan} результат сканування
+ */
+function scanLinuxDeps(content) {
+  const lines = content.split('\n')
+  const aptLine = lines.findIndex(l => APT_INSTALL_RE.test(l))
+  const missing = REQUIRED_LINUX_PACKAGES.filter(p => !content.includes(p))
+  return { aptLine, missing }
+}
 
 const TOOLCHAIN_RE = /uses:\s*dtolnay\/rust-toolchain@/u
 

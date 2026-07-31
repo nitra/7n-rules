@@ -1,6 +1,9 @@
 name: npm-publish
 
 on:
+  # Recovery-шлях: повторити release після виправлення workflow, коли сам
+  # workflow-файл не входить до path-filter `push` нижче.
+  workflow_dispatch:
   push:
     paths:
       - 'npm/**'
@@ -218,10 +221,10 @@ jobs:
         # до того, як платформні пакети підуть у публікацію.
         run: |
           N_RULES_NATIVE_ADDON="$PWD/npm/packages/rules-linux-x64/rules-napi.linux-x64-gnu.node" node -e "
-            import('./npm/scripts/lib/native.mjs').then(({ loadNative }) => {
+            import('./npm/scripts/lib/native.mjs').then(({ EXPECTED_CONTRACT_VERSION, loadNative }) => {
               const version = loadNative().contractVersion();
-              if (version !== 1) throw new Error('rules-napi contractVersion=' + version + ', очікується 1');
-              console.log('rules-napi smoke-check: contractVersion() === 1 OK');
+              if (version !== EXPECTED_CONTRACT_VERSION) throw new Error('rules-napi contractVersion=' + version + ', очікується ' + EXPECTED_CONTRACT_VERSION);
+              console.log('rules-napi smoke-check: contractVersion() === ' + EXPECTED_CONTRACT_VERSION + ' OK');
             });
           "
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.64.0] - 2026-07-31
+
+### Changed
+
+- Пілот native rule engine (фаза 5 v2): diagnostics DTO і три core-концерни (`text/forbidden-prettier`, `security/sample_secret`, `k8s/dremio_logging`) виконуються в `rules-core`; dispatch за Rust-реєстром `listNativeConcerns` перед резолвом `main.mjs`; версія DTO-контракту → 2
+- Батч 2 native rule engine (фаза 5 v2): ще шість core-концернів у `rules-core` — `rego/tooling`, `doc-files/marksman_config`, `abie/firebase_hosting`, `abie/env_dns`, `hasura/migrations`, `image-compress/package_setup` (native-реєстр — 9); install-sanity-guard baseline перенесено в T0-фікс marksman_config із дружнім повідомленням
+- TOML-кластер native rule engine (фаза 5 v2): `tauri/cargo_mutants_config`, `tauri/gitignore_target`, `tauri/linux_deps`, `tauri/core_test_isolation` у `rules-core` (native-реєстр — 13) разом із портами helpers `cargo-workspace`/`workspaces`/`findSrcTauriDirs`; T0-фікси tauri зроблені самодостатніми
+
 ## [1.63.0] - 2026-07-30
 
 ### Changed
