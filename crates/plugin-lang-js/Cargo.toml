@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 license = "Apache-2.0"
-description = "wasm-компонент n-rules:plugin@3.0.0 — lang-js/wasm-concerns (vue/tfm-translations, style/gap, test/vitest-config-pool-forks, test/no-process-chdir, style/admin_table, style/quasar_fixes, test/location)"
+description = "wasm-компонент n-rules:plugin@3.0.0 — lang-js/wasm-concerns (vue/tfm-translations, style/gap, test/vitest-config-pool-forks, test/no-process-chdir, style/admin_table, style/quasar_fixes, test/location, test/no-console-store-restore, test/no-bun-test-import)"
 
 [lib]
 # `cdylib` — обов'язково: `wasm32-wasip2` виводить готовий Component Model
@@ -17,10 +17,16 @@ crate-type = ["cdylib"]
 # резолвиться в Cargo.lock кореня) — НЕ розширюй у caret-діапазон без причини
 # (доккомент шаблону `npm/skills/wasm-plugin/template/Cargo.toml.tpl`).
 wit-bindgen = "0.60"
-# Порт regex-ів усіх семи концернів (vue/tfm-translations: TFM_IMPORT_RE/
+# Порт regex-ів перших семи концернів (vue/tfm-translations: TFM_IMPORT_RE/
 # TF_SPECIFIER_RE/GET_TR_DECL_RE; style/gap: USAGE_RE/DEFINITION_RE;
 # test/vitest-config-pool-forks: POOL_FORKS_RE; test/no-process-chdir:
 # CHDIR_CALL_RE; style/admin_table: USAGE_RE/DEFINITION_RE; style/quasar_fixes:
 # FIXES[].usage/definition) 1:1 — жодного lookaround у жодному з них, прямий
-# перенос у regex-крейт.
+# перенос у regex-крейт. Два концерни задачі Q2 батч 2 (test/no-console-store-restore,
+# test/no-bun-test-import — справжній 1:1) теж лишаються в цьому самому
+# regex-крейті, без додаткових залежностей. Ще три (js-bun-redis/imports,
+# js-bun-db/safety, js-mssql/deps) мають regex-наближені detect-функції в
+# `src/lib.rs` як groundwork, БЕЗ контрибуції в маніфест (де-скоуп рішенням
+# оркестратора — regex-наближення AST-оригіналу не проходить parity-гейт для
+# shadowing, доккомент секції «Регекс-наближення» в `src/lib.rs`).
 regex = "1"

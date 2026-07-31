@@ -1,16 +1,30 @@
 /**
- * Parity-тест wasm-плагіна `plugin-lang-js` (задачі N2 та Q1 батч 1, спека
+ * Parity-тест wasm-плагіна `plugin-lang-js` (задачі N2, Q1 батч 1 та Q2
+ * батч 2 — де-скоуп до byte-exact-парних концернів, спека
  * `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5):
- * ганяє ОДНІ фікстури через чинні JS-детектори (`plugins/lang-js/rules/<rule>/<concern>/main.mjs`
- * — канонічні реалізації, Plugin API v2, НЕ видаляються) і через
- * `runWasmConcern` napi-мосту (`crates/rules-napi` → `crates/plugin-lang-js`),
- * звіряючи, що `violations` ідентичні (reason/message/file/severity
- * біт-у-біт). Це доводить конвеєр «wasm-компонент → napi-міст →
- * JS-diagnostics-форма», не замінює JS-канон.
+ * ганяє ОДНІ фікстури через чинні JS-детектори
+ * (`plugins/lang-js/rules/<rule>/<concern>/main.mjs` — канонічні реалізації,
+ * Plugin API v2, НЕ видаляються) і через `runWasmConcern` napi-мосту
+ * (`crates/rules-napi` → `crates/plugin-lang-js`), звіряючи, що `violations`
+ * ідентичні (reason/message/file/severity біт-у-біт) — для перших семи
+ * концернів (задачі N2 + Q1 батч 1) і `test/no-console-store-restore`/
+ * `test/no-bun-test-import` (задача Q2 батч 2, справжній 1:1-порт). Це
+ * доводить конвеєр «wasm-компонент → napi-міст → JS-diagnostics-форма», не
+ * замінює JS-канон.
+ *
+ * `js-bun-redis/imports`/`js-bun-db/safety`/`js-mssql/deps` (задача Q2
+ * батч 2) — СВІДОМО БЕЗ parity-тестів тут (рішення оркестратора після звіту
+ * батчу 2): JS-оригінали побудовані на справжньому oxc-parser AST, а
+ * Rust-порт — лише regex-наближення (доккомент «Регекс-наближення»,
+ * `crates/plugin-lang-js/src/lib.rs`), тож він НЕ в контрибуції `describe()`
+ * (concern-и недосяжні через production-диспетчеризацію) — твердження
+ * «wasm ⇄ JS парні» тут було б оманливим. Юніт-рівневі тести самих
+ * detect-функцій лишаються в `crates/plugin-lang-js/src/lib.rs`
+ * (`#[cfg(test)] mod tests`), не тут.
  *
  * `vue/tfm-translations` фікстури дзеркалять
  * `plugins/lang-js/rules/vue/tfm-translations/tests/tfm-translations.test.mjs`
- * (per-file, [`runTfmBoth`]). Решта шести концернів — full-scope
+ * (per-file, [`runTfmBoth`]). Решта концернів — full-scope
  * (`concern.json.lint.scope: "full"`), той самий full-scope-мостовий виклик,
  * що `style/gap` ([`runFullScopeBoth`]): виклик БЕЗ `files` (`undefined` на
  * JS-боці, `null` на wasm-боці, доккомент `detect.mjs`) на обох боках —
@@ -25,7 +39,9 @@
  * `test/no-process-chdir` — `test/no-process-chdir/tests/no-process-chdir.test.mjs`;
  * `style/admin_table` — `style/admin_table/tests/main.test.mjs`;
  * `style/quasar_fixes` — `style/quasar_fixes/tests/main.test.mjs`;
- * `test/location` — `test/location/tests/location.test.mjs`.
+ * `test/location` — `test/location/tests/location.test.mjs`;
+ * `test/no-console-store-restore` — `test/no-console-store-restore/tests/no-console-store-restore.test.mjs`;
+ * `test/no-bun-test-import` — `test/no-bun-test-import/tests/no-bun-test-import.test.mjs`.
  */
 import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
@@ -70,7 +86,40 @@ const NO_PROCESS_CHDIR_MAIN_MJS_PATH = join(
 const ADMIN_TABLE_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'style', 'admin_table', 'main.mjs')
 const QUASAR_FIXES_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'style', 'quasar_fixes', 'main.mjs')
 const LOCATION_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'test', 'location', 'main.mjs')
-
+const NO_CONSOLE_STORE_RESTORE_MAIN_MJS_PATH = join(
+  REPO_ROOT,
+  'plugins',
+  'lang-js',
+  'rules',
+  'test',
+  'no-console-store-restore',
+  'main.mjs'
+)
+const NO_BUN_TEST_IMPORT_MAIN_MJS_PATH = join(
+  REPO_ROOT,
+  'plugins',
+  'lang-js',
+  'rules',
+  'test',
+  'no-bun-test-import',
+  'main.mjs'
+)
+/**
+ * T0-фікс `no-bun-test-import` — лишається JS (доккомент модуля,
+ * `crates/plugin-lang-js/src/lib.rs`): `fix-no-bun-test-import.mjs`'s
+ * `patterns[0].test`/`apply` мають працювати НАПРЯМУ з wasm-violations
+ * (T0-критичний ризик задачі Q2 батч 2, перевірений тестом «T0-смок» у
+ * `describe('wasm-plugin parity — test/no-bun-test-import …')` нижче).
+ */
+const NO_BUN_TEST_IMPORT_FIX_MJS_PATH = join(
+  REPO_ROOT,
+  'plugins',
+  'lang-js',
+  'rules',
+  'test',
+  'no-bun-test-import',
+  'fix-no-bun-test-import.mjs'
+)
 const TFM_CONCERN_KEY = 'vue/tfm-translations'
 const GAP_CONCERN_KEY = 'style/gap'
 const POOL_FORKS_CONCERN_KEY = 'test/vitest-config-pool-forks'
@@ -78,6 +127,8 @@ const NO_PROCESS_CHDIR_CONCERN_KEY = 'test/no-process-chdir'
 const ADMIN_TABLE_CONCERN_KEY = 'style/admin_table'
 const QUASAR_FIXES_CONCERN_KEY = 'style/quasar_fixes'
 const LOCATION_CONCERN_KEY = 'test/location'
+const NO_CONSOLE_STORE_RESTORE_CONCERN_KEY = 'test/no-console-store-restore'
+const NO_BUN_TEST_IMPORT_CONCERN_KEY = 'test/no-bun-test-import'
 
 /**
  * Виставляє дефолт `severity: 'error'`, якщо ключ відсутній — точне дзеркало
@@ -446,3 +497,171 @@ describe('wasm-plugin parity — test/location (JS канон vs wasm plugin-lan
     })
   })
 })
+
+describe('wasm-plugin parity — test/no-console-store-restore (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runNoConsoleBoth = dir =>
+    runFullScopeBoth(
+      NO_CONSOLE_STORE_RESTORE_MAIN_MJS_PATH,
+      NO_CONSOLE_STORE_RESTORE_CONCERN_KEY,
+      'test',
+      'no-console-store-restore',
+      dir
+    )
+
+  // Зібрано через join, щоб у source не було дослівного assignment-патерну (той самий мотив,
+  // що no-console-store-restore.test.mjs — meta-test самого сканера).
+  const CONSOLE_ASSIGN = ['console.lo', 'g ='].join('')
+
+  test('успіх: тест без присвоєння console → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      await writeFile(join(dir, 'tests/foo.test.mjs'), 'import { test } from "vitest"\ntest("ok", () => {})\n')
+      const { js, wasm } = await runNoConsoleBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test(`порушення: ${CONSOLE_ASSIGN} fn → однакове violation з обох реалізацій`, async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      await writeFile(join(dir, 'tests/bad.test.mjs'), `const orig = ${CONSOLE_ASSIGN} fn\n`)
+      const { js, wasm } = await runNoConsoleBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('no-console-store-restore')
+    })
+  })
+
+  test('успіх: vi.spyOn(console, "log") не вважається порушенням → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      await writeFile(join(dir, 'tests/ok.test.mjs'), 'vi.spyOn(console, "log").mockReturnValue()\n')
+      const { js, wasm } = await runNoConsoleBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — test/no-bun-test-import (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runNoBunTestImportBoth = dir =>
+    runFullScopeBoth(
+      NO_BUN_TEST_IMPORT_MAIN_MJS_PATH,
+      NO_BUN_TEST_IMPORT_CONCERN_KEY,
+      'test',
+      'no-bun-test-import',
+      dir
+    )
+
+  // Джерело bun:test у фікстурах збирається динамічно (той самий мотив, що no-bun-test-import.test.mjs).
+  const BUN_TEST = ['bun', 'test'].join(':')
+
+  test('успіх: import з vitest → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      await writeFile(
+        join(dir, 'tests/foo.test.mjs'),
+        "import { describe, test, expect } from 'vitest'\ntest('ok', () => {})\n"
+      )
+      const { js, wasm } = await runNoBunTestImportBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: import з bun:test (test, expect) → однакове fixable violation з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      await writeFile(
+        join(dir, 'tests/foo.test.mjs'),
+        `import { test, expect } from '${BUN_TEST}'\ntest('ok', () => expect(1).toBe(1))\n`
+      )
+      const { js, wasm } = await runNoBunTestImportBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('bun-test-import')
+      expect(js[0].data.fixable).toBe(true)
+      expect(js[0].data.specifiers).toEqual(['test', 'expect'])
+    })
+  })
+
+  test('порушення: import з bun:test (test, mock) → однакове НЕ-fixable violation з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      await writeFile(join(dir, 'tests/foo.test.mjs'), `import { test, mock } from "${BUN_TEST}"\n`)
+      const { js, wasm } = await runNoBunTestImportBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].data.fixable).toBe(false)
+    })
+  })
+
+  /**
+   * T0-СМОК (задача Q2 батч 2, головний ризик): `fix-no-bun-test-import.mjs`
+   * лишається JS-модулем, детектор — тепер wasm. Живий прогін: tempdir із
+   * порушенням → `detect` через wasm (`runWasmConcern`, ідентичний виклик, що
+   * продакшн-диспетчеризація після `node npm/scripts/build-wasm-plugins.mjs`) →
+   * `patterns[0].test`/`apply` фіксера напряму на wasm-violations (не на
+   * JS-violations) → повторний wasm-detect має дати 0. Якби форма
+   * wasm-violation (reason/data.fixable/file) розходилась із тим, що чекає
+   * `test`/`apply` фіксера, `test()` не спрацював би або `apply()` впав.
+   */
+  test('T0-смок: fix-no-bun-test-import.mjs патчить файл напряму з wasm-violations, повторний wasm-detect → 0', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir, readFile } = await import('node:fs/promises')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      const target = join(dir, 'tests/foo.test.mjs')
+      await writeFile(
+        target,
+        `import { describe, test, expect, beforeEach } from '${BUN_TEST}'\n\ndescribe('x', () => {\n  beforeEach(() => {})\n  test('ok', () => expect(1).toBe(1))\n})\n`
+      )
+
+      const wasmBefore = loadNative().runWasmConcern(WASM_PATH, NO_BUN_TEST_IMPORT_CONCERN_KEY, dir, null).violations
+      expect(wasmBefore).toHaveLength(1)
+      expect(wasmBefore[0].reason).toBe('bun-test-import')
+      expect(wasmBefore[0].data.fixable).toBe(true)
+
+      // eslint-disable-next-line no-unsanitized/method
+      const { patterns } = await import(pathToFileURL(NO_BUN_TEST_IMPORT_FIX_MJS_PATH).href)
+      const fixCtx = {
+        cwd: dir,
+        ruleId: 'test',
+        concernId: 'no-bun-test-import',
+        recordWrite() {
+          /* no-op у тестовому контексті */
+        }
+      }
+      for (const pattern of patterns) {
+        if (pattern.test(wasmBefore)) await pattern.apply(wasmBefore, fixCtx)
+      }
+
+      const wasmAfter = loadNative().runWasmConcern(WASM_PATH, NO_BUN_TEST_IMPORT_CONCERN_KEY, dir, null).violations
+      expect(wasmAfter).toEqual([])
+
+      const content = await readFile(target, 'utf8')
+      expect(content).toContain("from 'vitest'")
+      expect(content).not.toContain(BUN_TEST)
+      expect(content).toContain('import { describe, test, expect, beforeEach } from')
+      expect(content).toContain("test('ok', () => expect(1).toBe(1))")
+    })
+  })
+})
+
+// `js-bun-redis/imports`/`js-bun-db/safety`/`js-mssql/deps` — СВІДОМО БЕЗ
+// JS⇄wasm parity-тестів тут (де-скоуп рішенням оркестратора після звіту
+// батчу 2, доккомент модуля вище й `crates/plugin-lang-js/src/lib.rs`
+// секція «Регекс-наближення»): concern-и НЕ в контрибуції `describe()`, тож
+// НЕМАЄ production-шляху, де wasm-вихід міг би «підмінити» JS-канон —
+// твердження «wasm ⇄ JS еквівалентні» тут було б оманливим (regex-
+// наближення AST-оригіналу навмисно НЕ byte-exact). Юніт-рівневі тести самих
+// pure-функцій (`detect_redis_imports`/`detect_bun_db_safety`/
+// `detect_mssql_deps` і хелпери) лишаються в
+// `crates/plugin-lang-js/src/lib.rs` (`#[cfg(test)] mod tests`) — Rust-крейт
+// єдине місце, де ці функції взагалі викликаються.

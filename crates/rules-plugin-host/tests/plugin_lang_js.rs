@@ -1,32 +1,40 @@
 //! Прогін детекту фікстурою реального wasm-компонента `plugin-lang-js`
-//! (задачі N2 та Q1 батч 1, спека
+//! (задачі N2, Q1 батч 1 та Q2 батч 2 — де-скоуп до byte-exact-парних
+//! концернів, спека
 //! `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5) —
 //! за зразком `tests/contract_test_kit.rs` (той самий `require_fixture`-мотив:
 //! якщо `.wasm` відсутній, тест падає з точною командою збірки, не мовчазним
 //! skip). Замінює виведений пілотний golden-тест
 //! (`crates/plugin-lang-js-pilot`, видалений цією ж задачею) — покриває усі
-//! сім концернів цього плагіна.
+//! девʼять концернів у контрибуції цього плагіна.
 //!
 //! Звіряє реальний end-to-end прогін через [`PluginHost`]: `describe()`
-//! декларує всі сім концернів з очікуваними `scope`/`glob`, `detect()` на
-//! фікстурах з `main.mjs` кожного JS-оригіналу
+//! декларує всі девʼять концернів з очікуваними `scope`/`glob`, `detect()`
+//! на фікстурах з `main.mjs` кожного JS-оригіналу
 //! (`plugins/lang-js/rules/vue/tfm-translations/main.mjs`,
 //! `plugins/lang-js/rules/style/gap/main.mjs`,
 //! `plugins/lang-js/rules/test/vitest-config-pool-forks/main.mjs`,
 //! `plugins/lang-js/rules/test/no-process-chdir/main.mjs`,
 //! `plugins/lang-js/rules/style/admin_table/main.mjs`,
 //! `plugins/lang-js/rules/style/quasar_fixes/main.mjs`,
-//! `plugins/lang-js/rules/test/location/main.mjs`) дає той самий violation,
-//! що й JS-оригінали (reason/message біт-у-біт) — parity з JS-боку звіряє
-//! окремий vitest-тест
+//! `plugins/lang-js/rules/test/location/main.mjs`,
+//! `plugins/lang-js/rules/test/no-console-store-restore/main.mjs`,
+//! `plugins/lang-js/rules/test/no-bun-test-import/main.mjs`) дає той самий
+//! violation, що й JS-оригінали біт-у-біт (`reason`/`message`). Parity з
+//! JS-боку звіряє окремий vitest-тест
 //! `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs` на цих
 //! самих фікстурах.
 //!
+//! `js-bun-redis/imports`/`js-bun-db/safety`/`js-mssql/deps` — СВІДОМО БЕЗ
+//! контрибуції (рішення оркестратора, доккомент секції «Регекс-наближення»
+//! `crates/plugin-lang-js/src/lib.rs`): їхні detect-функції — groundwork,
+//! недосяжні через `describe()`, тож немає golden-тестів тут (unit-рівневі
+//! тести на самих функціях лишаються в `crates/plugin-lang-js/src/lib.rs`).
+//!
 //! `detect()` на WIT-рівні не розрізняє per-file/full-scope (це виключно
 //! host(napi)-бічна турбота, `crates/rules-napi::run_wasm_concern`) — тому
-//! golden-тести whole-batch концернів (`style/gap` і решта Q1) просто
-//! передають весь batch файлів напряму, без походу через napi
-//! full-scope-побудову.
+//! golden-тести whole-batch концернів (`style/gap` і решта) просто передають
+//! весь batch файлів напряму, без походу через napi full-scope-побудову.
 
 use std::path::PathBuf;
 
@@ -43,6 +51,8 @@ const CONCERN_NO_PROCESS_CHDIR: &str = "test/no-process-chdir";
 const CONCERN_ADMIN_TABLE: &str = "style/admin_table";
 const CONCERN_QUASAR_FIXES: &str = "style/quasar_fixes";
 const CONCERN_LOCATION: &str = "test/location";
+const CONCERN_NO_CONSOLE_STORE_RESTORE: &str = "test/no-console-store-restore";
+const CONCERN_NO_BUN_TEST_IMPORT: &str = "test/no-bun-test-import";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента (`crates/plugin-lang-js/build.sh`)
 /// — `wasm32-wasip2`/`release`.
@@ -70,7 +80,7 @@ fn host() -> PluginHost {
 }
 
 #[test]
-fn describe_declares_all_seven_concerns_with_expected_scopes() {
+fn describe_declares_all_nine_concerns_with_expected_scopes() {
     let path = require_fixture();
     let plugin = host()
         .load(&path, PLUGIN_WORLD_VERSION)
@@ -80,7 +90,10 @@ fn describe_declares_all_seven_concerns_with_expected_scopes() {
     assert_eq!(manifest.id, "lang-js/wasm-concerns");
     assert_eq!(manifest.world_version, PLUGIN_WORLD_VERSION);
     assert_eq!(manifest.domains, vec![Domain::Lint]);
-    assert_eq!(manifest.concerns.len(), 7);
+    // Де-скоуп (рішення оркестратора): `js-bun-redis/imports`/
+    // `js-bun-db/safety`/`js-mssql/deps` НЕ в контрибуції (groundwork,
+    // доккомент модуля вище й `crates/plugin-lang-js/src/lib.rs`).
+    assert_eq!(manifest.concerns.len(), 9);
 
     let tfm = manifest
         .concerns
@@ -140,6 +153,31 @@ fn describe_declares_all_seven_concerns_with_expected_scopes() {
         .expect("test/location має бути в маніфесті");
     assert_eq!(location.scope, ConcernScope::Full);
     assert!(location.glob.iter().any(|g| g.contains("test.mjs")));
+
+    let no_console = manifest
+        .concerns
+        .iter()
+        .find(|c| c.key == CONCERN_NO_CONSOLE_STORE_RESTORE)
+        .expect("test/no-console-store-restore має бути в маніфесті");
+    assert_eq!(no_console.scope, ConcernScope::Full);
+    assert!(no_console.glob.iter().any(|g| g.contains("test.mjs")));
+
+    let no_bun_test = manifest
+        .concerns
+        .iter()
+        .find(|c| c.key == CONCERN_NO_BUN_TEST_IMPORT)
+        .expect("test/no-bun-test-import має бути в маніфесті");
+    assert_eq!(no_bun_test.scope, ConcernScope::Full);
+    assert!(no_bun_test.glob.iter().any(|g| g.contains("test.mjs")));
+
+    // `js-bun-redis/imports`/`js-bun-db/safety`/`js-mssql/deps` — свідомо
+    // ВІДСУТНІ в маніфесті (де-скоуп, доккомент модуля вище).
+    assert!(!manifest
+        .concerns
+        .iter()
+        .any(|c| c.key == "js-bun-redis/imports"
+            || c.key == "js-bun-db/safety"
+            || c.key == "js-mssql/deps"));
 
     assert!(manifest.capabilities.fs_read.is_empty());
     assert!(!manifest.capabilities.network);
@@ -541,6 +579,105 @@ fn detect_location_flags_test_next_to_source() {
     assert_eq!(diagnostics[0].reason, "location");
     assert!(diagnostics[0].file.is_none());
 }
+
+/// Той самий сценарій, що й JS-тест `test/no-console-store-restore`
+/// «порушення: console.log = fn → exit 1».
+#[test]
+fn detect_no_console_store_restore_flags_direct_assignment() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let assign = ["console.lo", "g ="].join("");
+    let batch = DetectBatch {
+        concern_id: CONCERN_NO_CONSOLE_STORE_RESTORE.to_string(),
+        files: vec![SourceFile {
+            path: "tests/bad.test.mjs".to_string(),
+            content: format!("const orig = {assign} fn\n"),
+        }],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "no-console-store-restore");
+    assert!(diagnostics[0].file.is_none());
+}
+
+/// Той самий сценарій, що й JS-тест «успіх: vi.spyOn(console, 'log') не
+/// вважається порушенням → exit 0».
+#[test]
+fn detect_no_console_store_restore_passes_for_spy_on() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_NO_CONSOLE_STORE_RESTORE.to_string(),
+        files: vec![SourceFile {
+            path: "tests/ok.test.mjs".to_string(),
+            content: "vi.spyOn(console, \"log\").mockReturnValue()\n".to_string(),
+        }],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert!(diagnostics.is_empty());
+}
+
+/// Той самий сценарій, що й JS-тест `test/no-bun-test-import` «порушення:
+/// import з bun:test (test, expect) → 1 violation, fixable».
+#[test]
+fn detect_no_bun_test_import_flags_fixable_import() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let bun_test = ["bun", "test"].join(":");
+    let batch = DetectBatch {
+        concern_id: CONCERN_NO_BUN_TEST_IMPORT.to_string(),
+        files: vec![SourceFile {
+            path: "tests/foo.test.mjs".to_string(),
+            content: format!("import {{ test, expect }} from '{bun_test}'\ntest('ok', () => expect(1).toBe(1))\n"),
+        }],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "bun-test-import");
+    assert_eq!(diagnostics[0].file.as_deref(), Some("tests/foo.test.mjs"));
+    let data = diagnostics[0]
+        .data
+        .as_ref()
+        .expect("data має бути присутнім");
+    assert_eq!(data.get("fixable").and_then(|v| v.as_bool()), Some(true));
+    let specifiers: Vec<String> = data
+        .get("specifiers")
+        .and_then(|v| v.as_array())
+        .expect("specifiers має бути масивом")
+        .iter()
+        .map(|v| v.as_str().unwrap_or_default().to_string())
+        .collect();
+    assert_eq!(specifiers, vec!["test".to_string(), "expect".to_string()]);
+}
+
+/// Той самий сценарій, що й JS-тест «успіх: import з vitest → без violations».
+#[test]
+fn detect_no_bun_test_import_passes_for_vitest_import() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_NO_BUN_TEST_IMPORT.to_string(),
+        files: vec![SourceFile {
+            path: "tests/foo.test.mjs".to_string(),
+            content: "import { describe, test, expect } from 'vitest'\ntest('ok', () => {})\n"
+                .to_string(),
+        }],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert!(diagnostics.is_empty());
+}
+
+// `js-bun-redis/imports`/`js-bun-db/safety`/`js-mssql/deps` — БЕЗ golden-
+// тестів тут (де-скоуп, доккомент модуля вище): недосяжні через `describe()`,
+// їхні unit-тести лишаються в `crates/plugin-lang-js/src/lib.rs`.
 
 #[test]
 fn fix_returns_empty_plan() {

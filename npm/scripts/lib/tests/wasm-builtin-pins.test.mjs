@@ -35,7 +35,14 @@ const hasBuild = existsSync(PINS_PATH)
  * Контрибуції, які `plugin-lang-js` (`crates/plugin-lang-js/plugin.toml`)
  * декларує сьогодні — дзеркало для звірки з рантайм-маніфестом нижче.
  * Задача Q1 батч 1 додала пʼять концернів понад початкові
- * `vue/tfm-translations`/`style/gap` (задача N2).
+ * `vue/tfm-translations`/`style/gap` (задача N2); задача Q2 батч 2 додала ще
+ * два (`test/no-console-store-restore`, `test/no-bun-test-import` —
+ * справжній 1:1 порт). `js-bun-redis/imports`/`js-bun-db/safety`/
+ * `js-mssql/deps` — СВІДОМО НЕ в контрибуції (рішення оркестратора: їхні
+ * JS-оригінали на справжньому oxc-parser AST, Rust-порт — лише regex-
+ * наближення, не byte-exact parity, доккомент `crates/plugin-lang-js/src/lib.rs`
+ * секція «Регекс-наближення») — detect-функції лишаються groundwork у
+ * крейті, `describe()` про них не знає.
  * @type {string[]}
  */
 const EXPECTED_LANG_JS_CONCERNS = [
@@ -45,7 +52,9 @@ const EXPECTED_LANG_JS_CONCERNS = [
   'test/no-process-chdir',
   'style/admin_table',
   'style/quasar_fixes',
-  'test/location'
+  'test/location',
+  'test/no-console-store-restore',
+  'test/no-bun-test-import'
 ]
 
 /** Валідний sha256-hex — той самий канон, що `SHA256_HEX_RE` у `wasm-plugins.mjs` (module-scope, без пере-компіляції на кожен виклик). */
