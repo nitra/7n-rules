@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.67.0] - 2026-07-31
+
+### Added
+
+- Платформна матриця native-аддона `rules-core` розширена на win32-x64
+(рішення О, §3.4a `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`):
+новий підпакет `@7n/rules-win32-x64`, `win32-x64-msvc`-суфікс і `.dll`-гілка
+(без `lib`-префікса) у `npm/scripts/lib/native.mjs`, третій рядок build-native
+матриці `npm-publish.yml` (windows-latest, лише rules-napi — llm-lib v1-межа
+не розширюється), гейт пінів і release-publish синк/publish-кроки для трьох
+rules-платформ. Перша публікація `@7n/rules-win32-x64` через OIDC неможлива
+(пакет ще не існує в registry) — потрібен ручний bootstrap-publish перед тим,
+як trusted publisher зможе підхопити подальші релізи (той самий канон, що й
+для darwin-arm64/linux-x64).
+- Канонічні піни wasm-плагінів (фаза 6 v2): форма `{name, url, sha256}` у `wasmPlugins` з завантаженням у кеш `~/.cache/@7n/rules/plugins/`, sha256-верифікацією (skip-not-crash при mismatch) і атомарним записом; dev-форма `{name, path}` — лише поза CI
+- Скіл `wasm-plugin` (фаза 6 v2, рішення І): LLM-флоу авторингу wasm-плагінів contract v3 — scaffold від шаблонів → wasip2-збірка → golden-тести через plugin-host → publish із sha256-піном; детермінований CI-смок ганяє той самий конвеєр без LLM
+
+### Changed
+
+- PURE-фінал native rule engine (фаза 5 v2): `adr/hooks`, `capacitor/platforms`, `image-avif/avif_generation` у `rules-core` (native-реєстр — 26); `main.mjs` цих трьох concern-ів видалено, `fix-avif_generation.mjs` став самодостатнім (власна копія read-only AVIF-скану замість імпорту з видаленого `main.mjs`)
+
+### Fixed
+
+- js-run/runtime: у `npm/scripts/lib/lint-surface/tests/wasm-plugin-e2e.test.mjs` замінено прямий `process.env.N_RULES_PLUGIN_CACHE_DIR` на `env` з `node:process`.
+
 ## [1.66.0] - 2026-07-31
 
 ### Added
