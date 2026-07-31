@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.68.0] - 2026-07-31
+
+### Added
+
+- run-tool контур і перший плагін фази 6 v2: host виконує задекларовані tools через ensure-tool-резолв (typed-помилки, таймаут із kill процес-групи); маніфест concerns → contribution зі scope+glob; full-scope міст будує batch через native scan; `plugin-lang-js` (tfm-translations + gap) створений за скілом wasm-plugin — пілот виведено
+
 ## [1.67.0] - 2026-07-31
 
 ### Added
