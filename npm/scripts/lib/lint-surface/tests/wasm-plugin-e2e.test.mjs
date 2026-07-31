@@ -93,7 +93,17 @@ describe('runConcernDetector — wasm-dispatch (plugin contract v3, задача
         JSON.stringify({ rules: ['vue'], wasmPlugins: [{ name: 'ghost', path: './missing.wasm' }] }),
         'utf8'
       )
-      const concernDir = join(dir, 'rules', 'vue', 'tfm-translations')
+      // Concern-ключ НЕ 'vue/tfm-translations' — навмисно: builtin-таблиця first-party
+      // пінів (задача O1, `wasm-plugins.mjs`) резолвиться з РЕАЛЬНОГО `npm/wasm-plugins/`
+      // (`resolveWasmConcernMap(ctx.cwd)` тут викликається без `opts`, той самий контракт,
+      // що продакшн `detect.mjs`), тож якщо розробник локально зібрав first-party плагіни
+      // (`node npm/scripts/build-wasm-plugins.mjs`), 'vue/tfm-translations' резолвився б
+      // через builtin lang-js НЕЗАЛЕЖНО від зламаного `ghost`-запису в `.n-rules.json`
+      // (різні `name`, не перекриває — доккомент `mergeWithBuiltinEntries`), і тест
+      // перестав би перевіряти саме fallback-гілку. Довільний ключ, якого жоден
+      // first-party плагін не декларує, тримає сценарій детермінованим незалежно від
+      // локального build-стану.
+      const concernDir = join(dir, 'rules', 'vue', 'no-such-wasm-concern')
       const { mkdir } = await import('node:fs/promises')
       await mkdir(concernDir, { recursive: true })
       await writeFile(
@@ -101,8 +111,8 @@ describe('runConcernDetector — wasm-dispatch (plugin contract v3, задача
         "export function lint() { return { violations: [{ reason: 'from-main-mjs-fallback', message: 'fallback' }] } }\n",
         'utf8'
       )
-      const concern = { name: 'tfm-translations', dir: concernDir }
-      const ctx = { cwd: dir, ruleId: 'vue', concernId: 'tfm-translations', files: ['Page.vue'] }
+      const concern = { name: 'no-such-wasm-concern', dir: concernDir }
+      const ctx = { cwd: dir, ruleId: 'vue', concernId: 'no-such-wasm-concern', files: ['Page.vue'] }
 
       const result = await runConcernDetector(concern, ctx)
       expect(result.violations[0].reason).toBe('from-main-mjs-fallback')

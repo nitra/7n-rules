@@ -3,10 +3,10 @@ type: JS Module
 title: wasm-plugins.mjs
 resource: npm/scripts/lib/lint-surface/wasm-plugins.mjs
 docgen:
-  crc: f1eb2e79
+  crc: 837ae418
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
-  score: 40
+  score: 5
 ---
 
 ## Огляд
@@ -63,10 +63,40 @@ Retrieval-модель, дзеркало `ensure-tool.mjs` (`getCacheDir`/`insta
    filesystem — без EXDEV на `renameSync`) + `renameSync` на фінальне ім'я,
    той самий патерн, що `installFromGithub` у `ensure-tool.mjs`.
 
-TODO(v3-wasm-first-party-pins): вбудована таблиця `name → url + sha256` для
-власних плагінів (спека §3.4, рішення Н) — прийде з першим published
-плагіном; до того ручний пін у `.n-rules.json` обов'язковий для будь-якого
-плагіна.
+**Вбудована таблиця first-party пінів** (задача O1 фази 6 v2, спека §3.4,
+рішення Н): ТРЕТЄ, найнижче пріоритетне джерело записів `wasmPlugins` —
+`npm/wasm-plugins/builtin-pins.json` (`readBuiltinPinsConfig`), поряд з
+яким лежать самі `.wasm`-файли first-party плагінів. Формат:
+`{ "<name>": { "file": "<basename>.wasm", "sha256": "<64 hex>" } }`.
+Файл генерується `npm/scripts/build-wasm-plugins.mjs` (локальна dev-петля
+й CI-крок `npm-publish.yml`) і НЕ комітиться в git — repo-дерево без
+локальної збірки просто не має файлу (`readBuiltinPinsConfig` мовчить,
+без `console.warn`, доккомент функції нижче). Записи `.n-rules.json`
+консюмера з тим самим `name` ПОВНІСТЮ перекривають builtin-запис
+(`mergeWithBuiltinEntries`) — ручний пін потрібен лише для власних/сторонніх
+плагінів, не для first-party. sha256-звірка ОБОВ'ЯЗКОВА і для builtin-шляху
+(`resolveEntryPath`, гілка `'file' in entry`) — той самий мотив, що й для
+кеш-хіта канонічного піна нижче: захист від пошкодженої інсталяції пакету,
+ім'я файлу саме по собі не є довірою.
+
+**Dispatch-shadowing первого first-party плагіна** (`plugin-lang-js`,
+`crates/plugin-lang-js`, задача N2): щойно `npm/wasm-plugins/builtin-pins.json`
+присутній (локальна збірка чи встановлений з npm пакет), builtin-запис
+`lang-js` резолвиться БЕЗ жодного `.n-rules.json` від консюмера — його
+контрибуції (`vue/tfm-translations`, `style/gap`) потрапляють у мапу цього
+модуля автоматично. Диспатч `runConcernDetector` (`detect.mjs`) перевіряє
+джерела в порядку native (`NATIVE_CONCERNS`) → wasm (ця мапа) → `main.mjs`/
+policy — тобто для цих двох concern-ів wasm-реалізація ПЕРЕКРИВАЄ JS-реалізацію
+`plugins/lang-js/rules/{vue/tfm-translations,style/gap}/main.mjs`, щойно
+builtin-таблиця зібрана. Це свідома мета (перший real-виведення дублювання
+реалізацій), НЕ помилка конфігурації. JS-реалізації в `plugins/lang-js`
+фізично НЕ видаляються цією зміною: пакет `@7n/rules-lang-js` має споживачів
+на старих `@7n/rules` без wasm-хоста (Plugin API v2), і лишається їхнім
+єдиним шляхом — видалення дублікату заплановане окремим кроком, коли весь
+плагін переїде на v3 (§3.5.6 спеки, виведення Plugin API v2). Консистентність
+двох реалізацій (контрибуції, форма повідомлень) звіряють
+`wasm-plugin-parity.test.mjs` (біт-у-біт `violations`) і
+`wasm-builtin-pins.test.mjs` (контрибуції маніфесту ⊆ задекларованих).
 
 Свідомо ОКРЕМА секція від `plugins` (масив npm-імен Plugin API v2,
 `npm/scripts/lib/resolve-plugins.mjs`) — той ключ уже зайнятий закритим
@@ -99,14 +129,16 @@ warn-попередженням, `runConcernDetector` (`detect.mjs`) падає 
 неминуче асинхронні; єдиний виклик-сайт (`detect.mjs`) вже `async`,
 контракт виклику не ламається.
   `fetchFn` (дефолт — глобальний `fetch`), `cacheDir` (дефолт — `resolvePluginCacheDir`), `env` (дефолт — `process.env`),
-  `ensureToolFn` (дефолт — `ensureToolAsync`), `nativeFn` (дефолт — `loadNative`, wiring-тести підміняють фейковим addon-ом)
+  `ensureToolFn` (дефолт — `ensureToolAsync`), `nativeFn` (дефолт — `loadNative`, wiring-тести підміняють фейковим addon-ом),
+  `builtinPinsDir` (дефолт — [`WASM_PLUGINS_DIR`], реальна `npm/wasm-plugins/`; тести ізолюють неіснуючим каталогом,
+  щоб локальна wasm-збірка в робочому дереві не підмішувала builtin-контрибуції в контрольовані сценарії)
 - resetWasmConcernMapForTests — Тестовий хук: скидає модульний кеш [`resolveWasmConcernMap`] — ізольовані
 тести пишуть власний `.n-rules.json` на кожен `withTmpDir` і мають бачити
 свіжий резолв, не кеш попереднього тесту.
 
 ## Сценарії використання
 
-- `npm/scripts/lib/lint-surface/tests/wasm-plugins.test.mjs` (resolveWasmConcernMap — читання конфігу; resolveWasmConcernMap — path-форма і CI-гейт (спека §3.4)) — немає .n-rules.json → порожня мапа; невалідний JSON у .n-rules.json → порожня мапа (skip-not-crash); wasmPlugins не масив → порожня мапа; невалідні записи (без name/path, без url+sha256, битий sha256) відфільтровуються; відсутній .wasm-файл за шляхом → warn і пропуск запису (skip-not-crash); ще 16
+- `npm/scripts/lib/lint-surface/tests/wasm-plugins.test.mjs` (resolveWasmConcernMap — читання конфігу; resolveWasmConcernMap — path-форма і CI-гейт (спека §3.4)) — немає .n-rules.json → порожня мапа; невалідний JSON у .n-rules.json → порожня мапа (skip-not-crash); wasmPlugins не масив → порожня мапа; невалідні записи (без name/path, без url+sha256, битий sha256) відфільтровуються; відсутній .wasm-файл за шляхом → warn і пропуск запису (skip-not-crash); ще 24
 
 ## Гарантії поведінки
 
