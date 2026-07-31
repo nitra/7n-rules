@@ -1,0 +1,28 @@
+[package]
+name = "rules-contract"
+version = "0.1.0"
+edition = "2021"
+description = "Нижній шар serde-DTO + JSON Schema + host-валідатори для WIT-контракту @7n/rules plugin v3 (n-rules:plugin@3.0.0, n-rules:slots@1.0.0)"
+license = "Apache-2.0"
+
+[lib]
+name = "rules_contract"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# JSON Schema для маніфеста (host-side публікація схеми споживачам скіла
+# авторингу плагінів, спека §2 рішення І).
+schemars = "1"
+# Regex-порт `CI_ARTIFACT_ID_RE` (`npm/scripts/lib/slot-contracts-ci.mjs`).
+regex = "1"
+
+[dev-dependencies]
+# Лише dev-dependency (спека, п.5 задачі I1 «CI-незалежність»): цей крейт
+# НЕ лінкує embedded wasm-рушій — це відповідальність
+# `crates/rules-plugin-host` (наступний крок I2). `wit-parser` тут перевіряє,
+# що `wit/` реально
+# парситься (world `plugin` існує, потрібні export-и присутні, пакет
+# `n-rules:slots` резолвиться) — WIT-файли мають парситись інструментом,
+# не лишатись прозою.
+wit-parser = "0.255"

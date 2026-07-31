@@ -1,0 +1,229 @@
+// Пакет `n-rules:plugin@3.0.0` — контракт v3 (спека
+// `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`, §3.2 ескіз,
+// рішення А/З/К/Л). Версія контракту = версія цього world (рішення З,
+// продовження `CONTRACT_VERSION` diagnostics DTO `crates/rules-core/src/dto.rs`,
+// де `2` — остання версія v2 JSON-межі; тут — новий, окремий числовий простір
+// world-версій, що починається з `3.0.0`).
+//
+// Типи слоту `ci.artifact@1` живуть в окремому пакеті `n-rules:slots`
+// (`wit/deps/slots/ci-artifact.wit`, рішення Л) — незалежний цикл
+// версіонування.
+package n-rules:plugin@3.0.0;
+
+world plugin {
+  use n-rules:slots/ci-artifact@1.0.0.{descriptor as ci-artifact-descriptor};
+
+  /// Рівень серйозності діагностики — точне дзеркало
+  /// `crate::diagnostics::Severity` (`rules-core`, `CONTRACT_VERSION = 2`):
+  /// `error` (дефолт, блокує) / `warn` (не блокує).
+  enum severity {
+    error,
+    warn,
+  }
+
+  /// Одна діагностика детектора — WIT-дзеркало `Violation`
+  /// (`crates/rules-core/src/diagnostics.rs`): `reason`/`message` обов'язкові,
+  /// `file` опційний posix-relative шлях, `severity` з дефолтом `error`.
+  ///
+  /// `data` — JSON-рядок (серіалізований `serde_json::Value::Object`), не
+  /// структурний тип: WIT record/variant не підтримує довільний
+  /// (self-describing, динамічно типізований) JSON-обʼєкт — представлення
+  /// через `option<string>` обране свідомо (рішення задачі I1), guest і host
+  /// серіалізують/парсять його власним JSON-шаром (`serde_json` на боці
+  /// Rust-хоста, guest-мова відповідає за власний JSON-кодек). Порожній
+  /// `data` — `none`, як і в JS-формі (`skip_serializing_if` у `Violation`).
+  record diagnostic {
+    reason: string,
+    message: string,
+    file: option<string>,
+    severity: severity,
+    data: option<string>,
+  }
+
+  /// Один файл у батчі: хост уже прочитав вміст під час scan-у (спека §3.2
+  /// — плагін не робить повторний IO і не потребує fs-capability для
+  /// типового концерну).
+  record source-file {
+    /// Posix-relative шлях від cwd.
+    path: string,
+    content: string,
+  }
+
+  /// Вхід `detect`: список файлів, які плагін аналізує для конкретного
+  /// заявленого концерну.
+  record detect-batch {
+    concern-id: string,
+    files: list<source-file>,
+  }
+
+  /// Одна файлова операція fix-plan-у (v3.0-мінімум, рішення задачі I1):
+  /// повний новий вміст файлу — найпростіша транспортабельна форма без
+  /// декларативного patch-формату (T0Pattern-семантика лишається
+  /// host-side, не переїжджає у WIT цієї фази).
+  record write-file {
+    path: string,
+    content: string,
+  }
+
+  /// Файлова операція fix-plan-у: записати (повний новий вміст) або
+  /// видалити файл. Немає часткового patch/diff-варіанта у v3.0 — детальний
+  /// diff-формат (за потреби) — кандидат на `n-rules:plugin@3.x`.
+  variant file-edit {
+    write(write-file),
+    delete(string),
+  }
+
+  /// Вхід `fix`: ті самі файли й концерн, що й `detect`, плюс діагностики,
+  /// для яких запитується fix (підмножина результату `detect`).
+  record fix-request {
+    concern-id: string,
+    files: list<source-file>,
+    diagnostics: list<diagnostic>,
+  }
+
+  /// Результат `fix` — впорядкований список файлових операцій; порожній
+  /// список = «fix для цього запиту нічого не змінює».
+  record fix-plan {
+    edits: list<file-edit>,
+  }
+
+  /// Домен, який плагін МОЖЕ підтримувати (рішення К: один world з усіма
+  /// інтерфейсами, `describe()` декларує підмножину).
+  enum domain {
+    lint,
+    ecosystem-outdated,
+    docgen-render,
+  }
+
+  /// Capability-декларація маніфеста (рішення Е): scope `fs-read` — хост
+  /// відкриває плагіну доступ лише до переданих шляхів (плагін фізично не
+  /// бачить решту файлової системи), `network` заборонена за замовчуванням.
+  record capabilities {
+    /// Repo-relative шляхи/глоби, які плагіну потрібно читати з файлової
+    /// системи напряму (поза `detect-batch`/`fix-request` вмістом, що хост
+    /// передає inline) — типовий концерн лишає це порожнім.
+    fs-read: list<string>,
+    /// Чи потрібен мережевий доступ (за замовчуванням — ні).
+    network: bool,
+  }
+
+  /// Маніфест плагіна — те, що повертає `describe()`. Дзеркалить
+  /// `plugin.toml` (спека §3.1: id, версія, версія world, контрибуції,
+  /// capabilities, tools), плюс перелік підтримуваних доменів (рішення К) —
+  /// хост будує мапу «домен → чи підтримано» і не викликає незадекларовані
+  /// експорти.
+  record manifest {
+    id: string,
+    version: string,
+    /// Версія `n-rules:plugin` world, під яку зібраний плагін (напр.
+    /// `3.0.0`) — negotiation зі skip-not-crash семантикою (рішення З).
+    world-version: string,
+    /// Домени, які плагін реально реалізує (не заглушки).
+    domains: list<domain>,
+    /// Ідентифікатори concern-ів, які плагін обробляє в lint-домені
+    /// (`detect`/`fix`).
+    concerns: list<string>,
+    /// Contribution-и слоту `ci.artifact@1` (типізований record із
+    /// пакета `n-rules:slots`).
+    ci-artifacts: list<ci-artifact-descriptor>,
+    capabilities: capabilities,
+    /// Декларовані зовнішні tool-залежності (рішення Д), напр.
+    /// `"shellcheck@^0.9"` — хост забезпечує наявність і виконує через
+    /// `run-tool`, плагін сам нічого не спавнить.
+    tools: list<string>,
+  }
+
+  /// Помилка домен-функції: `not-supported` — захисна заглушка для
+  /// незадекларованого в `describe()` домену (не основний шлях, хост його
+  /// не викликає за штатної роботи); `failed` — помилка виконання, вкладене
+  /// поле — людиночитне повідомлення.
+  variant domain-error {
+    not-supported,
+    failed(string),
+  }
+
+  /// Запит ecosystem-outdated домену (провайдер поза lint, рішення К) —
+  /// мінімальна форма-заглушка: вміст lock/manifest-файлу екосистеми, хост
+  /// уже прочитав.
+  record ecosystem-request {
+    ecosystem: string,
+    manifest-path: string,
+    manifest-content: string,
+  }
+
+  /// Одна застаріла залежність (мінімальна форма-заглушка).
+  record outdated-dep {
+    name: string,
+    current: string,
+    latest: string,
+    breaking: bool,
+  }
+
+  /// Запит docgen-render домену (провайдер поза lint, рішення К) —
+  /// мінімальна форма-заглушка: джерело + його CRC (звірка застарілості
+  /// доки, конвенція `n-doc-files`).
+  record docgen-request {
+    source-path: string,
+    source-content: string,
+    source-crc: string,
+  }
+
+  /// Результат docgen-render (мінімальна форма-заглушка).
+  record doc-output {
+    content: string,
+    content-crc: string,
+  }
+
+  /// Рівень логування `log` host-функції.
+  enum log-level {
+    debug,
+    info,
+    warn,
+    error,
+  }
+
+  /// Результат `run-tool` — код завершення (`none`, якщо процес не
+  /// стартував) і захоплені потоки.
+  record tool-output {
+    status: option<s32>,
+    stdout: string,
+    stderr: string,
+  }
+
+  // --- host → plugin ---
+
+  /// `describe()` декларує підтримувані домени й контрибуції (рішення К) —
+  /// перший виклик хоста після завантаження компонента.
+  export describe: func() -> manifest;
+
+  /// lint-домен: детекція діагностик по батчу файлів заявленого концерну.
+  export detect: func(batch: detect-batch) -> list<diagnostic>;
+
+  /// lint-домен: побудова fix-plan-у для підмножини діагностик `detect`.
+  export fix: func(request: fix-request) -> fix-plan;
+
+  /// Домен поза lint (рішення К) — заглушка `domain-error::not-supported`,
+  /// якщо `manifest.domains` не містить `ecosystem-outdated`; `domain-result<T>`
+  /// зі спеки §3.2 реалізовано як вбудований generic `result<T, E>` (WIT не
+  /// підтримує generics для власних record/variant-типів — `result` єдиний
+  /// придатний built-in generic з тією самою семантикою «успіх/помилка»).
+  export ecosystem-outdated: func(request: ecosystem-request) -> result<list<outdated-dep>, domain-error>;
+
+  /// Домен поза lint (рішення К) — заглушка `domain-error::not-supported`,
+  /// якщо `manifest.domains` не містить `docgen-render`.
+  export docgen-render: func(request: docgen-request) -> result<doc-output, domain-error>;
+
+  // --- plugin → host ---
+
+  /// Прогрес виконання в межах одного виклику (per-concern, спека §2
+  /// рішення Г: стрімінг поза v3.0, прогрес — на боці хоста).
+  import report-progress: func(done: u32, total: u32);
+
+  /// Host-mediated spawn зовнішнього tool-у (рішення Д) — плагін сам нічого
+  /// не спавнить, лише запитує виконання задекларованого в `manifest.tools`
+  /// tool-у.
+  import run-tool: func(tool: string, args: list<string>, stdin: option<string>) -> tool-output;
+
+  /// Структуроване логування в бік хоста.
+  import log: func(level: log-level, message: string);
+}

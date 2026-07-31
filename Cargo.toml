@@ -5,4 +5,5 @@ members = [
   "llm-lib/crates/llm-lib-napi",
   "crates/rules-core",
   "crates/rules-napi",
+  "crates/rules-contract",
 ]
