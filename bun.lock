@@ -7,6 +7,8 @@
       "dependencies": {
         "@7n/llm-lib-darwin-arm64": "^2.13.8",
         "@7n/llm-lib-linux-x64": "^2.13.8",
+        "@7n/rules-darwin-arm64": "^1.63.0",
+        "@7n/rules-linux-x64": "^1.63.0",
       },
       "devDependencies": {
         "@7n/rules": "workspace:*",
@@ -70,7 +72,7 @@
         "n-cursor": "bin/n-rules.js",
       },
       "dependencies": {
-        "@7n/llm-lib": "2.13.9",
+        "@7n/llm-lib": "2.13.10",
         "ajv": "^8.20.0",
         "cli-progress": "^3.12.0",
         "github-actionlint": "^1.7.12",
@@ -87,8 +89,8 @@
         "zod": "^4.4.3",
       },
       "optionalDependencies": {
-        "@7n/rules-darwin-arm64": "1.63.0",
-        "@7n/rules-linux-x64": "1.63.0",
+        "@7n/rules-darwin-arm64": "1.64.0",
+        "@7n/rules-linux-x64": "1.64.0",
         "@earendil-works/pi-ai": "0.80.10",
         "@earendil-works/pi-coding-agent": "0.80.10",
       },
@@ -203,7 +205,7 @@
 
     "@7n/rules-lang-rust": ["@7n/rules-lang-rust@workspace:plugins/lang-rust"],
 
-    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.62.0", "", { "os": "linux", "cpu": "x64" }, "sha512-2FiuKMJeuZqko+m7kyr96ZEuxYHHn+gW5qr28Lze9155uSDYzEPLWaF/fLjisZUUmqZZHeHuCvhtM1c2U0OM4w=="],
+    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.63.0", "", { "os": "linux", "cpu": "x64" }, "sha512-S+kc371nyY6u6PDcFJhJvDEhJb2mlPx8ZlmuVJcJOJGaHWbABDzvUhb7DkM4/pHhA6/sCp5mQqF+KmOrXZr66w=="],
 
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.91.1", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-LAmu761tSN9r66ixvmciswUj/ZC+1Q4iAfpedTfSVLeswRwnY3n2Nb6Tsk+cLPP28aLOPWeMgIuTuCcMC6W/iw=="],
 
@@ -2576,6 +2578,10 @@
     "zod-to-json-schema": ["zod-to-json-schema@3.25.2", "", { "peerDependencies": { "zod": "^3.25.28 || ^4" } }, "sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA=="],
 
     "zwitch": ["zwitch@2.0.4", "", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
+
+    "@7n/llm-lib/@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.13.10", "", { "os": "darwin", "cpu": "arm64" }, "sha512-WU5Axc7+oouP3XjoIFzLYmsYw0OjGqSVS+ohKtMlZi/EXusT1ya8WcaYxTYZ7OtI0HmmmrGUko14vSETNW93ag=="],
+
+    "@7n/llm-lib/@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.13.10", "", { "os": "linux", "cpu": "x64" }, "sha512-nofpoV3RAEQwv4rCOXRTT4NB9sYbDW7wkwb/PiZ4Gf5rRHKDICxwWrUvPTfa76AuQIhkz3eMHYJF1bp3MoLsDw=="],
 
     "@aws-sdk/credential-provider-http/@smithy/node-http-handler": ["@smithy/node-http-handler@4.9.6", "", { "dependencies": { "@smithy/core": "^3.29.4", "@smithy/types": "^4.16.1", "tslib": "^2.6.2" } }, "sha512-odd+HYx3OLcXRSEz0ZeF3JQdSYdK8QnRgA2N87cPW7coWIbKfRk7a9VQjfeWQLqnzrDLk23KMEn46p8N7M/JFg=="],
 
