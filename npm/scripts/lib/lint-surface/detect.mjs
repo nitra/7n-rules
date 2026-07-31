@@ -14,6 +14,7 @@ import { pathToFileURL } from 'node:url'
 import { loadNative } from '../native.mjs'
 import { hasResolvableFiles, isGeneratedFile } from './codegen-opa-wrapper.mjs'
 import { evaluatePolicyConcern } from './policy-lint-adapter.mjs'
+import { resolveWasmConcernMap } from './wasm-plugins.mjs'
 
 /**
  * Кеш ключів native-портованих concern-ів (`ruleId/concernId`), один на процес.
@@ -169,6 +170,18 @@ function hasHandWrittenMain(mainPath) {
  * `import(main.mjs)` (перехідне співіснування двох реалізацій під час міграції
  * закінчується видаленням JS-гілки — тут вона вже видалена для пілотів).
  *
+ * Далі — wasm-плагіни plugin contract v3 (`resolveWasmConcernMap`,
+ * `wasm-plugins.mjs`, задача K фази 6, спека
+ * `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.3): якщо
+ * `ruleId/concernId` є ключем резолвленої мапи, виклик іде в `runWasmConcern`.
+ * Skip-not-crash transition-поводження (рішення З спеки): якщо wasm-плагін
+ * падає ПІД ЧАС `detect()` (на відміну від помилки резолву/завантаження, яку
+ * `resolveWasmConcernMap` уже відфільтрувала при побудові мапи — такий запис
+ * туди просто не потрапляє), concern не валить прогін — попереджає й падає
+ * назад на `main.mjs`/policy-гілки нижче, якщо для цього ж concern-а є
+ * ручна реалізація; інакше дійде до `DetectorError('немає main.mjs')`, як
+ * і будь-який concern без жодної реалізації.
+ *
  * Інакше — чисті policy-concern-и (rego/template, без ручного `main.mjs`)
  * оцінюються напряму через `evaluatePolicyConcern` з даних `concern.json` —
  * генерований `main.mjs` для них не потрібен. Ручний (не-`@generated`)
@@ -188,6 +201,20 @@ export async function runConcernDetector(concern, ctx) {
       throw new DetectorError(ctx.ruleId, ctx.concernId, `native concern кинув: ${error.message}`)
     }
     return normalizeResult(raw, ctx)
+  }
+
+  const wasmPath = resolveWasmConcernMap(ctx.cwd).get(nativeKey)
+  if (wasmPath !== undefined) {
+    try {
+      const raw = loadNative().runWasmConcern(wasmPath, nativeKey, ctx.cwd, ctx.files ?? [])
+      return normalizeResult(raw, ctx)
+    } catch (error) {
+      // Skip-not-crash (доккомент функції вище): wasm-плагін впав під час detect() —
+      // попереджаємо і провалюємось у main.mjs/policy-гілки нижче замість DetectorError.
+      console.warn(
+        `⚠️ ${ctx.ruleId}/${ctx.concernId}: wasm-плагін впав під час detect(), fallback на main.mjs/policy якщо є (${error.message})`
+      )
+    }
   }
 
   const mainPath = join(concern.dir, 'main.mjs')

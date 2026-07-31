@@ -8,10 +8,15 @@ members = [
   "crates/rules-contract",
   "crates/rules-plugin-host",
   "crates/test-plugin-guest",
+  "crates/plugin-lang-js-pilot",
 ]
 # `crates/test-plugin-guest` — guest-фікстура contract-test-kit
 # `crates/rules-plugin-host` (задача I2, спека
 # `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`).
+# `crates/plugin-lang-js-pilot` — пілотний РЕАЛЬНИЙ wasm-плагін (задача K,
+# та сама спека, §3.5.2): один концерн `vue/tfm-translations`, порт чинного
+# `plugins/lang-js/rules/vue/tfm-translations/main.mjs` 1:1. Той самий
+# workspace-мотив нижче стосується й цього крейта.
 #
 # Свідомо ЗВИЧАЙНИЙ `members`-запис, не `workspace.exclude` + власний
 # `[workspace]` у крейті (як типово роблять для wasm-guest-фікстур в інших

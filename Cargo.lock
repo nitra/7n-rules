@@ -2987,6 +2987,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "plugin-lang-js-pilot"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "wit-bindgen",
+]
+
+[[package]]
 name = "polling"
 version = "3.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3371,7 +3379,9 @@ dependencies = [
  "napi",
  "napi-build",
  "napi-derive",
+ "rules-contract",
  "rules-core",
+ "rules-plugin-host",
  "serde_json",
 ]
 

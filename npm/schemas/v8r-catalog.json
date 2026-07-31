@@ -207,6 +207,15 @@
       ]
     },
     {
+      "name": "n-rules plugin manifest",
+      "description": "plugin.toml — маніфест wasm-плагіна n-rules:plugin@3.0.0 (crates/<guest>/plugin.toml); офіційної JSON Schema поки нема (schemars-схема rules_contract::manifest::Manifest ще не публікується як окремий файл), тому permissive any.json",
+      "url": "any.json",
+      "fileMatch": [
+        "plugin.toml",
+        "**/plugin.toml"
+      ]
+    },
+    {
       "name": "tauri-conf-overlay",
       "description": "tauri.conf.<variant>.json — частковий merge-overlay базового tauri.conf.json (повна tauri-схема відхиляє partial), тому permissive any.json",
       "url": "any.json",

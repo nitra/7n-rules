@@ -29,3 +29,4 @@ resource: npm/scripts/lib/lint-surface/
 | [tier-sampling-experiment.mjs](tier-sampling-experiment.md) | JS Module |
 | [types.mjs](types.md)                                       | JS Module |
 | [violation-reporter.mjs](violation-reporter.md)             | JS Module |
+| [wasm-plugins.mjs](wasm-plugins.md)                         | JS Module |
