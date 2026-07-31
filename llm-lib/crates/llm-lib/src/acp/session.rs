@@ -500,7 +500,7 @@ where
         .send_prompt(text)
         .map_err(|e| LlmError::Provider(e.to_string()))?;
 
-    transport::drive_turn(session, idle_timeout, |update| {
+    transport::drive_turn(session, idle_timeout, transport::turn_timeout(), |update| {
         if is_startup_noise(startup_noise, update) {
             return;
         }
