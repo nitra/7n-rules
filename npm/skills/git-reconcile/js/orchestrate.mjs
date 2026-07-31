@@ -1534,6 +1534,27 @@ function unresolvedFiles(cwd, spawnFn) {
 }
 
 /**
+ * Знімає bounded forensic snapshot worktree, який JS навмисно лишає після
+ * failed/unverified transfer. Без нього підсумок знає лише лічильник
+ * retention, а користувач не бачить, що саме треба доробити вручну.
+ * @param {string} cwd worktree
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {{unresolvedPaths:string[],stagedPaths:string[],unstagedPaths:string[],commitsAhead:number}}
+ */
+function retentionSnapshot(cwd, spawnFn) {
+  const paths = args => git(args, cwd, spawnFn, { allowFailure: true }).stdout.split('\n').filter(Boolean).slice(0, 30)
+  const commitsAhead = Number(
+    git(['rev-list', '--count', `${policyBaseRef(cwd)}..HEAD`], cwd, spawnFn, { allowFailure: true }).stdout.trim()
+  )
+  return {
+    unresolvedPaths: unresolvedFiles(cwd, spawnFn).slice(0, 30),
+    stagedPaths: paths(['diff', '--cached', '--name-only']),
+    unstagedPaths: paths(['diff', '--name-only']),
+    commitsAhead: Number.isSafeInteger(commitsAhead) ? commitsAhead : 0
+  }
+}
+
+/**
  * Пропускає лише підтверджений empty cherry-pick: sequencer активний,
  * конфліктів немає, staged diff порожній.
  * @param {string} cwd worktree
@@ -2046,7 +2067,7 @@ export async function validateChangedLockfiles(cwd, spawnFn = spawnSync, asyncSp
 /**
  * Просить LLM розв'язати лише вже матеріалізований конфлікт.
  * @param {object} args контекст
- * @returns {Promise<void>}
+ * @returns {Promise<void>} завершення без значення
  */
 async function resolveConflict(args) {
   const { runner, source, worktreeCwd, deps, spawnFn, log, onProgress = noop } = args
@@ -2078,7 +2099,7 @@ async function resolveConflict(args) {
 /**
  * Застосовує один branch group або stash у worktree.
  * @param {object} args контекст
- * @returns {Promise<void>}
+ * @returns {Promise<void>} завершення без значення
  */
 async function applySource(args) {
   const { source, sourceOid, commits, runner, rootCwd, worktreeCwd, deps, spawnFn, log, onProgress = noop } = args
@@ -2500,7 +2521,8 @@ async function createPullRequest(args) {
         error: readiness.error,
         url: createdPr,
         branch: worktree.branch,
-        worktree: worktree.cwd
+        worktree: worktree.cwd,
+        retention: retentionSnapshot(worktree.cwd, spawnFn)
       }
     }
     onProgress('remove worktree')
@@ -2517,6 +2539,7 @@ async function createPullRequest(args) {
       error: error instanceof Error ? error.message : String(error),
       branch: worktree?.branch ?? setup.branch,
       worktree: worktree?.cwd ?? setup.worktree,
+      ...(worktree?.cwd && { retention: retentionSnapshot(worktree.cwd, spawnFn) }),
       ...(createdPr && { url: createdPr })
     }
   }
@@ -2889,6 +2912,49 @@ function formatResultReport(result) {
 }
 
 /**
+ * Визначає конкретну наступну дію для збереженого forensic worktree.
+ * @param {object} result materialization outcome
+ * @returns {string} наступна рекомендована дія
+ */
+function retainedNextAction(result) {
+  if (result.status.startsWith('pr-checks-')) return 'Перевірити GitHub checks у PR і виправити лише підтверджені регресії.'
+  if ((result.retention?.unresolvedPaths ?? []).length > 0) return 'Розв’язати перелічені конфлікти, повторити final gates і створити або оновити PR.'
+  if (result.status === 'failed') return 'Усунути причину failed final gate, повторити final gates і створити PR.'
+  if (result.status === 'kept') return 'Перевірити завершеність source перед повторним reconcile.'
+  return 'Перевірити стан worktree перед наступним reconcile.'
+}
+
+/**
+ * Формує деталі лише для worktree, які lifecycle навмисно не прибрав.
+ * Це не дублює весь report: кожен рядок відповідає конкретному source і
+ * містить достатні Git-факти, щоб продовжити роботу без ручної археології.
+ * @param {object[]} results materialization outcomes
+ * @returns {string[]} markdown lines
+ */
+function formatRetainedWorktrees(results) {
+  const retained = results.filter(result => result.worktree && !cleanupRemoved(result.cleanup))
+  if (retained.length === 0) return []
+  const lines = ['### Залишено для ручного продовження']
+  for (const result of retained) {
+    const snapshot = result.retention ?? {}
+    const location = [result.branch && `branch=\`${result.branch}\``, `worktree=\`${result.worktree}\``]
+      .filter(Boolean)
+      .join('; ')
+    lines.push(
+      `- source=\`${result.source}\`; status=${result.status}; ${location}`,
+      ...(result.error ? [`  - reason: ${result.error}`] : []),
+      ...(result.url ? [`  - PR: ${result.url}`] : []),
+      ...(snapshot.commitsAhead > 0 ? [`  - commits ahead of base: ${snapshot.commitsAhead}`] : []),
+      ...(snapshot.unresolvedPaths?.length > 0 ? [`  - unresolved paths: ${snapshot.unresolvedPaths.join(', ')}`] : []),
+      ...(snapshot.stagedPaths?.length > 0 ? [`  - staged paths: ${snapshot.stagedPaths.join(', ')}`] : []),
+      ...(snapshot.unstagedPaths?.length > 0 ? [`  - unstaged paths: ${snapshot.unstagedPaths.join(', ')}`] : []),
+      `  - next action: ${retainedNextAction(result)}`
+    )
+  }
+  return lines
+}
+
+/**
  * @param {object} stash inventory stash
  * @returns {string|null} report line
  */
@@ -2924,6 +2990,7 @@ export function formatReport({ inventory, results }) {
     ...(inventory.stashes ?? []).map(stash => formatStashReport(stash)).filter(Boolean),
     ...results.map(result => formatResultReport(result))
   )
+  lines.push(...formatRetainedWorktrees(results))
   for (const warning of inventory.warnings) lines.push(`- ⚠️ ${warning}`)
   return lines.join('\n')
 }

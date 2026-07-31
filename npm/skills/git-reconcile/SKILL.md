@@ -170,4 +170,9 @@ transport. Після провалу `max` джерело fail-closed лишає
 успішно; для непідтвердженого PR звіт зберігає URL, branch, worktree і точну
 причину. Summary містить точний count кожного outcome, фактичний залишок
 branches/worktrees/stashes після cleanup та агреговані причини retention.
+Для кожного збереженого forensic worktree summary окремо показує source,
+status, branch і path, reason, URL PR (за наявності), commits ahead,
+unresolved/staged/unstaged paths та конкретну next action. Це дозволяє
+відрізнити незавершений transfer, заблокований final gate і PR з
+непідтвердженими checks без ручного перегляду Git state.
 Для cleanup ref звіт також містить точний OID і видалені aliases.

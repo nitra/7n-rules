@@ -2381,6 +2381,34 @@ describe('report helpers', () => {
     })
   })
 
+  test('report деталізує збережений worktree, причину і наступну дію', () => {
+    const report = formatReport({
+      inventory: inventory({ branches: [], stashes: [], worktrees: [] }),
+      results: [
+        {
+          source: 'branch:feature/transfer',
+          status: 'failed',
+          error: "Нерозв'язані конфлікти: package.json",
+          branch: 'mt/reconcile-transfer',
+          worktree: '/repo/.worktrees/reconcile-transfer',
+          retention: {
+            commitsAhead: 1,
+            unresolvedPaths: ['package.json'],
+            stagedPaths: ['package.json'],
+            unstagedPaths: []
+          }
+        }
+      ]
+    })
+
+    expect(report).toContain('### Залишено для ручного продовження')
+    expect(report).toContain('source=`branch:feature/transfer`; status=failed')
+    expect(report).toContain('reason: Нерозв\'язані конфлікти: package.json')
+    expect(report).toContain('commits ahead of base: 1')
+    expect(report).toContain('unresolved paths: package.json')
+    expect(report).toContain('next action: Розв’язати перелічені конфлікти')
+  })
+
   test('успішний PR без forensic worktree не рахує видалену mt-гілку як remaining', () => {
     expect(
       summarizeRemaining({
