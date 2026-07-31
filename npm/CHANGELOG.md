@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.66.0] - 2026-07-31
+
+### Added
+
+- Пілот wasm-плагінів (фаза 6 v2, contract v3): секція `wasmPlugins` у `.n-rules.json` (dev-форма піна `{name, path}`), dispatch wasm-концернів через embedded wasmtime-host у lint-прогоні зі skip-not-crash; пілотний компонент `vue/tfm-translations` доводить parity з JS-реалізацією
+
+### Changed
+
+- YAML-кластер ч.2 native rule engine (фаза 5 v2): `hasura/internal_urls`, `text/formatting`, `tauri/release` у `rules-core` разом зі спільним `gha-workflow` helper-модулем (парсинг GitHub Actions workflow); native-реєстр — 19
+- Фінальний важкий батч PURE ч.1 native rule engine (фаза 5 v2): `tauri/updater`, `tauri/tool_surface`, `security/trufflehog`, `changelog/presence` у `rules-core` разом зі спільними helper-портами (`template_subset::check_text_subset`, `package_manifest::get_monorepo_project_root_dirs`, `change_file::read_change_files`); native-реєстр — 23
+
 ## [1.65.0] - 2026-07-31
 
 ### Changed

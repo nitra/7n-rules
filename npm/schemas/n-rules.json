@@ -37,23 +37,48 @@
     },
     "wasmPlugins": {
       "type": "array",
-      "description": "Wasm-плагіни plugin contract v3 (n-rules:plugin@3.0.0, docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md) — dev-форма піна (name+path на вже зібраний .wasm-компонент). Окреме поле від `plugins` (Plugin API v2, npm-пакети) — різні формати запису й різний конвеєр резолву. TODO(v3-wasm-pilot): url+sha256 hash-пін (спека §3.4) — наступний крок, поза обсягом пілоту.",
+      "description": "Wasm-плагіни plugin contract v3 (n-rules:plugin@3.0.0, docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md §3.3/§3.4). Кожен запис — АБО dev-форма (name+path на вже зібраний .wasm-компонент, лише поза CI), АБО канонічний hash-пін дистрибуції (name+url+sha256, спека §3.4 рішення Ж). Окреме поле від `plugins` (Plugin API v2, npm-пакети) — різні формати запису й різний конвеєр резолву.",
       "items": {
         "type": "object",
-        "additionalProperties": false,
-        "required": ["name", "path"],
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Ідентифікатор плагіна (лише для diagnostics-повідомлень)."
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "required": ["name", "path"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Ідентифікатор плагіна (лише для diagnostics-повідомлень)."
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Repo-relative (від кореня консюмер-репо) чи абсолютний шлях до зібраного .wasm-компонента. Dev-петля: без hash-перевірки, дозволена лише поза CI."
+              }
+            }
           },
-          "path": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Repo-relative (від кореня консюмер-репо) чи абсолютний шлях до зібраного .wasm-компонента."
+          {
+            "additionalProperties": false,
+            "required": ["name", "url", "sha256"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Ідентифікатор плагіна (лише для diagnostics-повідомлень)."
+              },
+              "url": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Джерело завантаження .wasm-компонента (GitHub Releases/OCI/npm-дзеркало тощо — транспорт-агностично, спека §3.4)."
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$",
+                "description": "Очікуваний sha256-hex (64 hex-символи, нижній регістр) вмісту .wasm — модель довіри retrieval-контуру."
+              }
+            }
           }
-        }
+        ]
       }
     },
     "disable-rules": {

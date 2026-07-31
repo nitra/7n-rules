@@ -4,6 +4,12 @@
   "workspaces": {
     "": {
       "name": "mono",
+      "dependencies": {
+        "@7n/llm-lib-darwin-arm64": "^2.13.11",
+        "@7n/llm-lib-linux-x64": "^2.13.11",
+        "@7n/rules-darwin-arm64": "^1.65.0",
+        "@7n/rules-linux-x64": "^1.65.0",
+      },
       "devDependencies": {
         "@7n/rules": "workspace:*",
         "@7n/rules-ci-azure": "workspace:*",
@@ -37,7 +43,7 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.13.11",
+      "version": "2.13.12",
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
       },
@@ -46,8 +52,8 @@
         "@earendil-works/pi-coding-agent": "~0.80.10",
       },
       "optionalDependencies": {
-        "@7n/llm-lib-darwin-arm64": "2.13.11",
-        "@7n/llm-lib-linux-x64": "2.13.11",
+        "@7n/llm-lib-darwin-arm64": "2.13.12",
+        "@7n/llm-lib-linux-x64": "2.13.12",
       },
       "peerDependencies": {
         "@earendil-works/pi-ai": "~0.80.10",
@@ -60,13 +66,13 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.65.0",
+      "version": "1.66.0",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
       },
       "dependencies": {
-        "@7n/llm-lib": "2.13.11",
+        "@7n/llm-lib": "2.13.12",
         "ajv": "^8.20.0",
         "cli-progress": "^3.12.0",
         "github-actionlint": "^1.7.12",
@@ -83,8 +89,8 @@
         "zod": "^4.4.3",
       },
       "optionalDependencies": {
-        "@7n/rules-darwin-arm64": "1.65.0",
-        "@7n/rules-linux-x64": "1.65.0",
+        "@7n/rules-darwin-arm64": "1.66.0",
+        "@7n/rules-linux-x64": "1.66.0",
         "@earendil-works/pi-ai": "0.80.10",
         "@earendil-works/pi-coding-agent": "0.80.10",
       },
@@ -189,7 +195,7 @@
 
     "@7n/rules-ci-github": ["@7n/rules-ci-github@workspace:plugins/ci-github"],
 
-    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.64.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-iEP11WOdwEt0ZdLmq4jqnUFRWtrM9SrDkM87WFYVzv0Iz1DGmKtD8VoYvkshUHAwVkN4KUN+DHyDs4vNiZNUcQ=="],
+    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.65.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-onjQQURcp3C4/WsHqQq1bI9md6v0rfwl4e0Ttek/rCfxepk35Q8+usq9CbZbLuJcUealSjkcbQZa4x//I8zbPw=="],
 
     "@7n/rules-lang-js": ["@7n/rules-lang-js@workspace:plugins/lang-js"],
 
@@ -199,7 +205,7 @@
 
     "@7n/rules-lang-rust": ["@7n/rules-lang-rust@workspace:plugins/lang-rust"],
 
-    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.64.0", "", { "os": "linux", "cpu": "x64" }, "sha512-WGZPLOMwTxark31cafRCOcL7copOSsRTB9c6AEsPXNdiC+eOA9xKJQ7LS4piiCIq3TtRd9n48fqTx1pMzEln9w=="],
+    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.65.0", "", { "os": "linux", "cpu": "x64" }, "sha512-csl4xnSYH0dVRB0wBHWyLzdKO5UVdplekRwaria9g4dv2GMTTcNjPPCvlVT/vk4xpsLkcTK/9l/Q0D4gu9NRMg=="],
 
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.91.1", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-LAmu761tSN9r66ixvmciswUj/ZC+1Q4iAfpedTfSVLeswRwnY3n2Nb6Tsk+cLPP28aLOPWeMgIuTuCcMC6W/iw=="],
 
@@ -2572,6 +2578,10 @@
     "zod-to-json-schema": ["zod-to-json-schema@3.25.2", "", { "peerDependencies": { "zod": "^3.25.28 || ^4" } }, "sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA=="],
 
     "zwitch": ["zwitch@2.0.4", "", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
+
+    "@7n/llm-lib/@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.13.12", "", { "os": "darwin", "cpu": "arm64" }, "sha512-pJAbAFpxlFO+HhRLF2ocTZA3Lv3YyU7uhJvi3kP/slAWaGPeRBEUDXIpyV1y1lyiC2b2UcBa6cGcnZJvFSG6RA=="],
+
+    "@7n/llm-lib/@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.13.12", "", { "os": "linux", "cpu": "x64" }, "sha512-tpPGFeJkSMzN2V21hBqH5pZURB+uipJJKss25deXaUDjosDewu+4hNLssL3Yrki29wtTCDAkLgP1BIEwINXwWg=="],
 
     "@aws-sdk/credential-provider-http/@smithy/node-http-handler": ["@smithy/node-http-handler@4.9.6", "", { "dependencies": { "@smithy/core": "^3.29.4", "@smithy/types": "^4.16.1", "tslib": "^2.6.2" } }, "sha512-odd+HYx3OLcXRSEz0ZeF3JQdSYdK8QnRgA2N87cPW7coWIbKfRk7a9VQjfeWQLqnzrDLk23KMEn46p8N7M/JFg=="],
 
