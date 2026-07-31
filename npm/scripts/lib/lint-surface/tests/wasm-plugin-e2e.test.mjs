@@ -8,7 +8,7 @@
  * — крізь повний диспетчерський шлях `detect.mjs`, не напряму через napi).
  *
  * Останній describe-блок звіряє той самий шлях для канонічного `url`+`sha256`
- * піна (спека §3.4): `fetchFn`-стаб читає реальний пілотний `.wasm` через
+ * піна (спека §3.4): `fetchFn`-стаб читає реальний `.wasm` plugin-lang-js через
  * `file://`-URL (node-`fetch` не вміє `file:`-схему — стаб замінює транспорт,
  * не сам retrieval-контур), sha256 — справжній хеш файлу.
  */
@@ -26,12 +26,12 @@ import { resetWasmConcernMapForTests } from '../wasm-plugins.mjs'
 import { realRepoRoot, withTmpDir } from '../../../utils/test-helpers.mjs'
 
 const REPO_ROOT = realRepoRoot()
-const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_js_pilot.wasm')
+const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_js.wasm')
 
 if (!existsSync(WASM_PATH)) {
   throw new Error(
-    `wasm-plugin-e2e.test.mjs: пілотний компонент не зібраний: ${WASM_PATH} відсутній.\n` +
-      'Зберіть його командою: bash crates/plugin-lang-js-pilot/build.sh'
+    `wasm-plugin-e2e.test.mjs: wasm-компонент plugin-lang-js не зібраний: ${WASM_PATH} відсутній.\n` +
+      'Зберіть його командою: bash crates/plugin-lang-js/build.sh'
   )
 }
 
@@ -44,7 +44,7 @@ describe('runConcernDetector — wasm-dispatch (plugin contract v3, задача
     await withTmpDir(async dir => {
       await writeFile(
         join(dir, '.n-rules.json'),
-        JSON.stringify({ rules: ['vue'], wasmPlugins: [{ name: 'lang-js-pilot', path: WASM_PATH }] }),
+        JSON.stringify({ rules: ['vue'], wasmPlugins: [{ name: 'lang-js', path: WASM_PATH }] }),
         'utf8'
       )
       await writeFile(
@@ -74,7 +74,7 @@ describe('runConcernDetector — wasm-dispatch (plugin contract v3, задача
     await withTmpDir(async dir => {
       await writeFile(
         join(dir, '.n-rules.json'),
-        JSON.stringify({ rules: ['vue'], wasmPlugins: [{ name: 'lang-js-pilot', path: WASM_PATH }] }),
+        JSON.stringify({ rules: ['vue'], wasmPlugins: [{ name: 'lang-js', path: WASM_PATH }] }),
         'utf8'
       )
       await writeFile(join(dir, 'Page.vue'), '<template><div /></template>\n<script setup></script>\n', 'utf8')
@@ -119,7 +119,7 @@ describe('runConcernDetector — wasm-dispatch через url+sha256 (канон
 
       await writeFile(
         join(dir, '.n-rules.json'),
-        JSON.stringify({ rules: ['vue'], wasmPlugins: [{ name: 'lang-js-pilot', url: fileUrl, sha256: wasmSha256 }] }),
+        JSON.stringify({ rules: ['vue'], wasmPlugins: [{ name: 'lang-js', url: fileUrl, sha256: wasmSha256 }] }),
         'utf8'
       )
       await writeFile(

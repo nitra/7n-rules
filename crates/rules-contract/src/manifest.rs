@@ -23,6 +23,27 @@ pub enum Domain {
     DocgenRender,
 }
 
+/// Scope контрибуції концерну (задача N2, передумова full-scope мосту) —
+/// точний відповідник WIT `enum concern-scope`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum ConcernScope {
+    PerFile,
+    Full,
+}
+
+/// Одна контрибуція `Manifest::concerns` — точний структурний відповідник
+/// WIT `record concern-contribution` (задача N2): `key` — `ruleId/concernId`,
+/// `scope`/`glob` дозволяють host-у самостійно побудувати full-scope batch,
+/// коли виклик не передав явний список файлів (`crates/rules-napi`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ConcernContribution {
+    pub key: String,
+    pub scope: ConcernScope,
+    #[serde(default)]
+    pub glob: Vec<String>,
+}
+
 /// Capability-декларація маніфеста (рішення Е спеки): scope `fs_read` —
 /// хост відкриває плагіну доступ лише до переданих шляхів, `network`
 /// заборонена за замовчуванням (`false`).
@@ -50,10 +71,11 @@ pub struct Manifest {
     /// Домени, які плагін реально реалізує (не заглушки).
     #[serde(default)]
     pub domains: Vec<Domain>,
-    /// Ідентифікатори концернів, які плагін обробляє в lint-домені
-    /// (`detect`/`fix`).
+    /// Контрибуції концернів, які плагін обробляє в lint-домені
+    /// (`detect`/`fix`) — структуровані (задача N2: `key`/`scope`/`glob`),
+    /// щоб хост міг самостійно побудувати full-scope batch.
     #[serde(default)]
-    pub concerns: Vec<String>,
+    pub concerns: Vec<ConcernContribution>,
     /// Contribution-и слоту `ci.artifact@1`.
     #[serde(default)]
     pub ci_artifacts: Vec<CiArtifactDescriptor>,
@@ -76,7 +98,11 @@ mod tests {
             version: "0.1.0".to_string(),
             world_version: crate::version::PLUGIN_WORLD_VERSION.to_string(),
             domains: vec![Domain::Lint],
-            concerns: vec!["sample/concern".to_string()],
+            concerns: vec![ConcernContribution {
+                key: "sample/concern".to_string(),
+                scope: ConcernScope::PerFile,
+                glob: vec!["**/*.rs".to_string()],
+            }],
             ci_artifacts: vec![CiArtifactDescriptor {
                 target_capability: "ci:github".to_string(),
                 artifact_id: "lint-demo".to_string(),

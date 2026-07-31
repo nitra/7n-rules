@@ -1,6 +1,7 @@
 //! `HostState` — дані `Store<T>` для одного завантаженого плагіна: WASI-контекст
 //! (preopens за capabilities, рішення Е спеки) і наш host-стан (лог-капчур,
-//! прогрес-капчур, run-tool callback, рішення Д).
+//! прогрес-капчур, [`ToolResolver`] — реальний run-tool контур, рішення Д,
+//! задача N1).
 
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -8,16 +9,10 @@ use std::sync::Arc;
 use wasmtime::component::ResourceTable;
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
-use rules_contract::tool::{LogLevel, ToolOutput};
+use rules_contract::tool::LogLevel;
 
+use crate::tool_resolver::ToolResolver;
 use crate::wit;
-
-/// Host-mediated run-tool callback (рішення Д спеки) — плагін сам нічого не
-/// спавнить, лише запитує виконання задекларованого в `Manifest::tools`
-/// tool-у; реальний ensure-tool контур (перевірка наявності, встановлення)
-/// належить оркестрації (поза цією задачею, фаза 7) — тут лише інʼєкція
-/// callback-у.
-pub type RunToolFn = dyn Fn(&str, &[String], Option<&str>) -> ToolOutput + Send + Sync + 'static;
 
 /// Один запис логу, захоплений із host-функції `log` (plugin → host).
 #[derive(Debug, Clone)]
@@ -49,7 +44,7 @@ pub(crate) struct HostState {
     pub(crate) table: ResourceTable,
     pub(crate) logs: RefCell<Vec<CapturedLog>>,
     pub(crate) progress: RefCell<Vec<CapturedProgress>>,
-    pub(crate) run_tool: Arc<RunToolFn>,
+    pub(crate) tool_resolver: Arc<ToolResolver>,
 }
 
 impl WasiView for HostState {
@@ -74,7 +69,7 @@ impl wit::PluginImports for HostState {
         args: Vec<String>,
         stdin: Option<String>,
     ) -> wit::ToolOutput {
-        let out = (self.run_tool)(&tool, &args, stdin.as_deref());
+        let out = self.tool_resolver.run(&tool, &args, stdin.as_deref());
         wit::ToolOutput {
             status: out.status,
             stdout: out.stdout,

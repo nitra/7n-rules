@@ -20,8 +20,12 @@ pub enum LogLevel {
 /// Результат `run-tool` — точний відповідник WIT `record tool-output`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolOutput {
-    /// Код завершення процесу; `None`, якщо процес не стартував (WIT
-    /// `option<s32>`).
+    /// Код завершення процесу (WIT `option<s32>`); `None` — тул не
+    /// задекларований/не резолвлений `ToolResolver`-ом (спавн навіть не
+    /// почався, `crates/rules-plugin-host/src/tool_resolver.rs`), процес не
+    /// вдалось запустити, він перевищив таймаут (примусово вбитий) чи
+    /// `wait()` провалився з ОС-помилкою — усі ці випадки не мають
+    /// реального exit-коду, тож розрізняються лише текстом `stderr`.
     pub status: Option<i32>,
     pub stdout: String,
     pub stderr: String,

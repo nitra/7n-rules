@@ -3,24 +3,38 @@ type: JS Module
 title: wasm-plugins.mjs
 resource: npm/scripts/lib/lint-surface/wasm-plugins.mjs
 docgen:
-  crc: 592abaef
+  crc: f1eb2e79
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
-  score: 70
+  score: 40
 ---
 
 ## Огляд
 
 Резолвер wasm-плагінів plugin contract v3 (`n-rules:plugin@3.0.0`, задача K
-фази 6, спека `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`
+фази 6 + N1, спека `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`
 §3.3/§3.4) — читає секцію `wasmPlugins` з `.n-rules.json` консюмер-репо, для
-кожного запису питає napi-міст `wasmPluginConcerns()` (`crates/rules-napi`)
-і будує мапу «ключ концерну (`ruleId/concernId`) → абсолютний шлях `.wasm`».
+кожного запису питає napi-міст `wasmPluginManifest()` (`crates/rules-napi`)
+і будує мапу «ключ концерну (`ruleId/concernId`) → `{ wasmPath, toolPaths }`»
+(значення — НЕ голий рядок шляху, доккомент [`buildWasmConcernMap`] нижче).
+
+**Run-tool контур (задача N1, рішення Д спеки)**: `manifest.tools` —
+задекларовані зовнішні tool-залежності плагіна (напр. `"shellcheck@^0.9"`).
+Для кожного запису резолвер кличе ensure-tool контур (`ensureToolAsync`,
+`../ensure-tool.mjs`, injectable через `opts.ensureToolFn`) — будує мапу
+«ім'я тула (без semver-суфікса декларації) → абсолютний шлях», яку
+`run_wasm_concern` (napi) перетворює на host-бічний `ToolResolver`
+(`crates/rules-plugin-host/src/tool_resolver.rs`). Тул, якого ensure-tool
+не знає (немає в `TOOLS`-реєстрі) чи не зміг поставити (мережа,
+rate-limit) — `console.warn`, ПРОПУСКАЄТЬСЯ з мапи (skip-not-crash на
+рівні ОДНОГО tool-у, не плагіна) — виклик `run-tool` у самому
+wasm-компоненті просто отримає типізовану помилку в `tool-output`
+(`ToolResolver::run`, доккомент host-боку), не крашиться.
 
 Формат конфігу — дві форми запису (schema `npm/schemas/n-rules.json`):
 ```json
 "wasmPlugins": [
-  { "name": "lang-js-pilot", "path": "./target/wasm32-wasip2/release/plugin_lang_js_pilot.wasm" },
+  { "name": "lang-js", "path": "./target/wasm32-wasip2/release/plugin_lang_js.wasm" },
   { "name": "acme-plugin", "url": "https://…/plugin.wasm", "sha256": "…64 hex…" }
 ]
 ```
@@ -76,21 +90,23 @@ warn-попередженням, `runConcernDetector` (`detect.mjs`) падає 
 
 ## Публічний API
 
-- resolveWasmConcernMap — Лениво резолвить мапу «ключ концерну → абсолютний шлях .wasm» з секції
+- resolveWasmConcernMap — Лениво резолвить мапу «ключ концерну → [`WasmConcernMapEntry`]» з секції
 `wasmPlugins` (доккомент модуля). Плагін з відсутнім/битим `.wasm`, недосяжним
 `url`, sha256-mismatch чи `describe()`, що кидає — пропускається з
 `console.warn`, не валить резолв решти плагінів.
 
-`async` — retrieval канонічного піна (`url`+`sha256`) неминуче мережевий;
-єдиний виклик-сайт (`detect.mjs`) вже `async`, контракт виклику не ламається.
-  `fetchFn` (дефолт — глобальний `fetch`), `cacheDir` (дефолт — `resolvePluginCacheDir`), `env` (дефолт — `process.env`)
+`async` — retrieval канонічного піна (`url`+`sha256`) і ensure-tool контур
+неминуче асинхронні; єдиний виклик-сайт (`detect.mjs`) вже `async`,
+контракт виклику не ламається.
+  `fetchFn` (дефолт — глобальний `fetch`), `cacheDir` (дефолт — `resolvePluginCacheDir`), `env` (дефолт — `process.env`),
+  `ensureToolFn` (дефолт — `ensureToolAsync`), `nativeFn` (дефолт — `loadNative`, wiring-тести підміняють фейковим addon-ом)
 - resetWasmConcernMapForTests — Тестовий хук: скидає модульний кеш [`resolveWasmConcernMap`] — ізольовані
 тести пишуть власний `.n-rules.json` на кожен `withTmpDir` і мають бачити
 свіжий резолв, не кеш попереднього тесту.
 
 ## Сценарії використання
 
-- `npm/scripts/lib/lint-surface/tests/wasm-plugins.test.mjs` (resolveWasmConcernMap — читання конфігу; resolveWasmConcernMap — path-форма і CI-гейт (спека §3.4)) — немає .n-rules.json → порожня мапа; невалідний JSON у .n-rules.json → порожня мапа (skip-not-crash); wasmPlugins не масив → порожня мапа; невалідні записи (без name/path, без url+sha256, битий sha256) відфільтровуються; відсутній .wasm-файл за шляхом → warn і пропуск запису (skip-not-crash); ще 13
+- `npm/scripts/lib/lint-surface/tests/wasm-plugins.test.mjs` (resolveWasmConcernMap — читання конфігу; resolveWasmConcernMap — path-форма і CI-гейт (спека §3.4)) — немає .n-rules.json → порожня мапа; невалідний JSON у .n-rules.json → порожня мапа (skip-not-crash); wasmPlugins не масив → порожня мапа; невалідні записи (без name/path, без url+sha256, битий sha256) відфільтровуються; відсутній .wasm-файл за шляхом → warn і пропуск запису (skip-not-crash); ще 16
 
 ## Гарантії поведінки
 

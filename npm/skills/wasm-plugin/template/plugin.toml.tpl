@@ -11,7 +11,14 @@ id = "__PLUGIN_ID__"
 version = "0.1.0"
 world_version = "3.0.0"
 domains = ["lint"]
-concerns = ["__CONCERN_ID__"]
+# per-file — типовий дефолт (доккомент src/lib.rs::build_manifest); заміни
+# scope на "full" і заповни glob, якщо концерн — whole-repo/крос-файлова
+# перевірка.
+[[concerns]]
+key = "__CONCERN_ID__"
+scope = "per-file"
+glob = []
+
 ci_artifacts = []
 # Зовнішні tool-залежності (рішення Д спеки), напр. `["shellcheck@^0.9"]` —
 # лишай порожнім, якщо концерн нічого не спавнить.

@@ -4,7 +4,7 @@
 //! фікстурі»). Живе в `rules-plugin-host` (не окремий workflow) — цей крейт
 //! уже покритий `cargo test --workspace` у `lint-rust.yml`, де toolchain
 //! `wasm32-wasip2` і `wasm-tools` уже встановлені для інших guest-фікстур
-//! (`crates/test-plugin-guest`, `crates/plugin-lang-js-pilot`) — нуль нових
+//! (`crates/test-plugin-guest`, `crates/plugin-lang-js`) — нуль нових
 //! рядків workflow.
 //!
 //! Тест ДЕТЕРМІНОВАНО (без LLM) проганяє той самий конвеєр, що описує скіл
@@ -25,26 +25,24 @@
 //! 4. Завантажує зібраний `.wasm` через [`PluginHost`] (реальний хост, не
 //!    заглушка) і жене `detect` на фікстурі з порушенням і без — та сама
 //!    `require_fixture`-філософія `contract_test_kit.rs`/
-//!    `plugin_lang_js_pilot.rs`: якщо збірка провалилась, тест панікує з
+//!    `plugin_lang_js.rs`: якщо збірка провалилась, тест панікує з
 //!    повним stdout/stderr `cargo build`, не мовчазним skip.
 //!
 //! WIT-шлях підставляється як АБСОЛЮТНИЙ (`crates/rules-contract/wit` цього
 //! репозиторію) — у реальному first-party скаффолді (крейт живе під
 //! `crates/<name>/`) шлях відносний (`../rules-contract/wit`, той самий, що
-//! в `crates/plugin-lang-js-pilot`); тут крейт свідомо стоїть ПОЗА
+//! в `crates/plugin-lang-js`); тут крейт свідомо стоїть ПОЗА
 //! workspace-деревом (п.2 вище), тож відносний шлях не мав би сенсу —
 //! SKILL.md документує обидві форми (крок 1).
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::Arc;
 
 use rules_contract::detect::{DetectBatch, SourceFile};
 use rules_contract::diagnostic::Severity;
 use rules_contract::manifest::Domain;
-use rules_contract::tool::ToolOutput;
-use rules_plugin_host::{PluginHost, RunToolFn};
+use rules_plugin_host::{PluginHost, ToolResolver};
 
 const PLUGIN_WORLD_VERSION: &str = "3.0.0";
 const CRATE_NAME: &str = "wasm-plugin-skill-smoke-fixture";
@@ -135,25 +133,16 @@ fn scaffold_and_build() -> (tempfile::TempDir, PathBuf) {
     (dir, wasm_path)
 }
 
-fn stub_run_tool() -> Arc<RunToolFn> {
-    Arc::new(
-        |_tool: &str, _args: &[String], _stdin: Option<&str>| ToolOutput {
-            status: None,
-            stdout: String::new(),
-            stderr: "run-tool не задекларовано смок-фікстурою скіла".to_string(),
-        },
-    )
-}
-
 /// Наскрізний прогін: scaffold → build → describe/detect через реальний
 /// [`PluginHost`] — доводить, що інструкції скіла (шаблони +
 /// `template/build.sh`) дають робочий wasm-компонент, сумісний з
-/// `n-rules:plugin@3.0.0`.
+/// `n-rules:plugin@3.0.0`. Смок-фікстура не декларує зовнішніх tools —
+/// порожній резолвер.
 #[test]
 fn scaffold_build_and_detect_pipeline_is_functional() {
     let (_tempdir, wasm_path) = scaffold_and_build();
 
-    let host = PluginHost::new(stub_run_tool()).expect("PluginHost::new не мав провалитись");
+    let host = PluginHost::new(ToolResolver::empty()).expect("PluginHost::new не мав провалитись");
     let mut plugin = host
         .load(&wasm_path, PLUGIN_WORLD_VERSION)
         .expect("load не мав провалитись на щойно зібраному компоненті");
@@ -162,7 +151,8 @@ fn scaffold_build_and_detect_pipeline_is_functional() {
     assert_eq!(manifest.id, PLUGIN_ID);
     assert_eq!(manifest.world_version, PLUGIN_WORLD_VERSION);
     assert_eq!(manifest.domains, vec![Domain::Lint]);
-    assert_eq!(manifest.concerns, vec![CONCERN_ID.to_string()]);
+    assert_eq!(manifest.concerns.len(), 1);
+    assert_eq!(manifest.concerns[0].key, CONCERN_ID);
     assert!(manifest.capabilities.fs_read.is_empty());
     assert!(!manifest.capabilities.network);
 

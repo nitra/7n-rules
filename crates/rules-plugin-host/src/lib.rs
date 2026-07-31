@@ -11,7 +11,7 @@
 //! крейту, спека §3.6). Публічний потік:
 //!
 //! ```ignore
-//! let host = PluginHost::new(run_tool_callback)?;
+//! let host = PluginHost::new(tool_resolver)?;
 //! let mut plugin = host.load(path, PLUGIN_WORLD_VERSION)?;
 //! let manifest = plugin.describe();
 //! let diagnostics = plugin.detect(&batch)?;
@@ -29,9 +29,11 @@ mod error;
 mod host;
 mod host_state;
 mod loaded_plugin;
+mod tool_resolver;
 mod wit;
 
 pub use error::PluginHostError;
 pub use host::PluginHost;
-pub use host_state::{CapturedLog, CapturedProgress, RunToolFn};
+pub use host_state::{CapturedLog, CapturedProgress};
 pub use loaded_plugin::LoadedPlugin;
+pub use tool_resolver::{ToolResolver, DEFAULT_TOOL_TIMEOUT};

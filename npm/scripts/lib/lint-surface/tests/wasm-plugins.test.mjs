@@ -6,7 +6,7 @@
  * retrieval-контур канонічного піна (`url`+`sha256`: кеш-хіт/кеш-промах/
  * mismatch/пошкоджений кеш). Реальна інтеграція (без моків native-аддона —
  * той самий канон, що й `wasm-plugin-parity.test.mjs`), тому потребує зібраний
- * пілотний компонент (`bash crates/plugin-lang-js-pilot/build.sh`).
+ * wasm-компонент plugin-lang-js (`bash crates/plugin-lang-js/build.sh`).
  */
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
@@ -19,18 +19,18 @@ import { realRepoRoot, withTmpDir } from '../../../utils/test-helpers.mjs'
 import { resetWasmConcernMapForTests, resolveWasmConcernMap } from '../wasm-plugins.mjs'
 
 const REPO_ROOT = realRepoRoot()
-const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_js_pilot.wasm')
+const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_js.wasm')
 
 if (!existsSync(WASM_PATH)) {
   throw new Error(
-    `wasm-plugins.test.mjs: пілотний компонент не зібраний: ${WASM_PATH} відсутній.\n` +
-      'Зберіть його командою: bash crates/plugin-lang-js-pilot/build.sh'
+    `wasm-plugins.test.mjs: wasm-компонент plugin-lang-js не зібраний: ${WASM_PATH} відсутній.\n` +
+      'Зберіть його командою: bash crates/plugin-lang-js/build.sh'
   )
 }
 
-/** Реальні байти зібраного пілота — джерело і для happy-path retrieval, і для sha256 у конфігах тестів. */
+/** Реальні байти зібраного plugin-lang-js — джерело і для happy-path retrieval, і для sha256 у конфігах тестів. */
 const WASM_BYTES = readFileSync(WASM_PATH)
-/** sha256-hex реального пілотного компонента (кожен happy-path тест звіряється саме з ним). */
+/** sha256-hex реального компонента plugin-lang-js (кожен happy-path тест звіряється саме з ним). */
 const WASM_SHA256 = createHash('sha256').update(WASM_BYTES).digest('hex')
 /** Синтаксично валідний, але завідомо неправильний sha256 — для mismatch-сценарію. */
 const WRONG_SHA256 = '0'.repeat(64)
@@ -43,6 +43,18 @@ const WRONG_SHA256 = '0'.repeat(64)
  */
 function fakeFetch(bytes) {
   return vi.fn(async () => ({ ok: true, status: 200, arrayBuffer: async () => bytes }))
+}
+
+/**
+ * Фейковий napi-addon: `wasmPluginManifest` повертає заданий маніфест без
+ * реального завантаження wasm-компонента (`resolveEntryPath` для `path`-форми
+ * робить лише `existsSync`, не парсить вміст) — ізолює ensure-tool
+ * wiring-тести (задача N1) від живого wasmtime-виклику.
+ * @param {{ concerns: { key: string, scope: string, glob: string[] }[], tools: string[] }} manifest фейковий маніфест
+ * @returns {{ wasmPluginManifest: (path: string) => object }} фейковий addon
+ */
+function fakeNative(manifest) {
+  return { wasmPluginManifest: () => manifest }
 }
 
 beforeEach(() => {
@@ -131,11 +143,12 @@ describe('resolveWasmConcernMap — читання конфігу', () => {
     await withTmpDir(async dir => {
       await writeFile(
         join(dir, '.n-rules.json'),
-        JSON.stringify({ wasmPlugins: [{ name: 'lang-js-pilot', path: WASM_PATH }] }),
+        JSON.stringify({ wasmPlugins: [{ name: 'lang-js', path: WASM_PATH }] }),
         'utf8'
       )
       const map = await resolveWasmConcernMap(dir, { env: {} })
-      expect(map.get('vue/tfm-translations')).toBe(WASM_PATH)
+      // plugin-lang-js не декларує `tools` — `toolPaths` порожній (задача N1, доккомент модуля).
+      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: WASM_PATH, toolPaths: {} })
     })
   })
 
@@ -149,7 +162,7 @@ describe('resolveWasmConcernMap — читання конфігу', () => {
         'utf8'
       )
       const map = await resolveWasmConcernMap(dir, { env: {} })
-      expect(map.get('vue/tfm-translations')).toBe(WASM_PATH)
+      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: WASM_PATH, toolPaths: {} })
     })
   })
 
@@ -157,16 +170,18 @@ describe('resolveWasmConcernMap — читання конфігу', () => {
     await withTmpDir(async dir => {
       await writeFile(
         join(dir, '.n-rules.json'),
-        JSON.stringify({ wasmPlugins: [{ name: 'lang-js-pilot', path: WASM_PATH }] }),
+        JSON.stringify({ wasmPlugins: [{ name: 'lang-js', path: WASM_PATH }] }),
         'utf8'
       )
       const first = await resolveWasmConcernMap(dir, { env: {} })
-      expect(first.size).toBe(1)
+      // plugin-lang-js декларує дві контрибуції (vue/tfm-translations, style/gap,
+      // задача N2) — мапа концернів індексується за кожним ключем окремо.
+      expect(first.size).toBe(2)
       // Видаляємо .n-rules.json — якби кеш не працював, другий виклик повернув би порожню мапу.
       await writeFile(join(dir, '.n-rules.json'), JSON.stringify({}), 'utf8')
       const second = await resolveWasmConcernMap(dir)
       expect(second).toBe(first)
-      expect(second.size).toBe(1)
+      expect(second.size).toBe(2)
     })
   })
 
@@ -174,7 +189,7 @@ describe('resolveWasmConcernMap — читання конфігу', () => {
     await withTmpDir(async dir => {
       await writeFile(
         join(dir, '.n-rules.json'),
-        JSON.stringify({ wasmPlugins: [{ name: 'lang-js-pilot', path: WASM_PATH }] }),
+        JSON.stringify({ wasmPlugins: [{ name: 'lang-js', path: WASM_PATH }] }),
         'utf8'
       )
       const [a, b] = await Promise.all([
@@ -191,7 +206,7 @@ describe('resolveWasmConcernMap — path-форма і CI-гейт (спека �
     await withTmpDir(async dir => {
       await writeFile(
         join(dir, '.n-rules.json'),
-        JSON.stringify({ wasmPlugins: [{ name: 'lang-js-pilot', path: WASM_PATH }] }),
+        JSON.stringify({ wasmPlugins: [{ name: 'lang-js', path: WASM_PATH }] }),
         'utf8'
       )
       const warnSpy = vi.spyOn(console, 'warn').mockReturnValue()
@@ -206,11 +221,11 @@ describe('resolveWasmConcernMap — path-форма і CI-гейт (спека �
     await withTmpDir(async dir => {
       await writeFile(
         join(dir, '.n-rules.json'),
-        JSON.stringify({ wasmPlugins: [{ name: 'lang-js-pilot', path: WASM_PATH }] }),
+        JSON.stringify({ wasmPlugins: [{ name: 'lang-js', path: WASM_PATH }] }),
         'utf8'
       )
       const map = await resolveWasmConcernMap(dir, { env: {} })
-      expect(map.get('vue/tfm-translations')).toBe(WASM_PATH)
+      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: WASM_PATH, toolPaths: {} })
     })
   })
 })
@@ -221,7 +236,7 @@ describe('resolveWasmConcernMap — url+sha256 retrieval (канонічний �
       await writeFile(
         join(dir, '.n-rules.json'),
         JSON.stringify({
-          wasmPlugins: [{ name: 'lang-js-pilot', url: 'https://example.test/plugin.wasm', sha256: WASM_SHA256 }]
+          wasmPlugins: [{ name: 'lang-js', url: 'https://example.test/plugin.wasm', sha256: WASM_SHA256 }]
         }),
         'utf8'
       )
@@ -229,7 +244,7 @@ describe('resolveWasmConcernMap — url+sha256 retrieval (канонічний �
       const fetchFn = fakeFetch(WASM_BYTES)
       const map = await resolveWasmConcernMap(dir, { fetchFn, cacheDir, env: {} })
       const cachePath = join(cacheDir, `${WASM_SHA256}.wasm`)
-      expect(map.get('vue/tfm-translations')).toBe(cachePath)
+      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: cachePath, toolPaths: {} })
       expect(fetchFn).toHaveBeenCalledWith('https://example.test/plugin.wasm')
       expect(existsSync(cachePath)).toBe(true)
     })
@@ -260,7 +275,7 @@ describe('resolveWasmConcernMap — url+sha256 retrieval (канонічний �
       await writeFile(
         join(dir, '.n-rules.json'),
         JSON.stringify({
-          wasmPlugins: [{ name: 'lang-js-pilot', url: 'https://example.test/plugin.wasm', sha256: WASM_SHA256 }]
+          wasmPlugins: [{ name: 'lang-js', url: 'https://example.test/plugin.wasm', sha256: WASM_SHA256 }]
         }),
         'utf8'
       )
@@ -273,7 +288,10 @@ describe('resolveWasmConcernMap — url+sha256 retrieval (канонічний �
       resetWasmConcernMapForTests()
       const secondFetch = fakeFetch(WASM_BYTES)
       const map = await resolveWasmConcernMap(dir, { fetchFn: secondFetch, cacheDir, env: {} })
-      expect(map.get('vue/tfm-translations')).toBe(join(cacheDir, `${WASM_SHA256}.wasm`))
+      expect(map.get('vue/tfm-translations')).toEqual({
+        wasmPath: join(cacheDir, `${WASM_SHA256}.wasm`),
+        toolPaths: {}
+      })
       expect(secondFetch).not.toHaveBeenCalled()
     })
   })
@@ -283,7 +301,7 @@ describe('resolveWasmConcernMap — url+sha256 retrieval (канонічний �
       await writeFile(
         join(dir, '.n-rules.json'),
         JSON.stringify({
-          wasmPlugins: [{ name: 'lang-js-pilot', url: 'https://example.test/plugin.wasm', sha256: WASM_SHA256 }]
+          wasmPlugins: [{ name: 'lang-js', url: 'https://example.test/plugin.wasm', sha256: WASM_SHA256 }]
         }),
         'utf8'
       )
@@ -297,7 +315,7 @@ describe('resolveWasmConcernMap — url+sha256 retrieval (канонічний �
       const map = await resolveWasmConcernMap(dir, { fetchFn, cacheDir, env: {} })
       expect(fetchFn).toHaveBeenCalledTimes(1)
       const cachePath = join(cacheDir, `${WASM_SHA256}.wasm`)
-      expect(map.get('vue/tfm-translations')).toBe(cachePath)
+      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: cachePath, toolPaths: {} })
       expect(readFileSync(cachePath).equals(WASM_BYTES)).toBe(true)
     })
   })
@@ -339,6 +357,89 @@ describe('resolveWasmConcernMap — url+sha256 retrieval (канонічний �
       expect(map.size).toBe(0)
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('HTTP 404'))
       warnSpy.mockRestore()
+    })
+  })
+})
+
+describe('resolveWasmConcernMap — ensure-tool wiring (задача N1, рішення Д спеки)', () => {
+  test('manifest.tools непорожній → ensureToolFn викликається на кожен tool, toolPaths потрапляє в мапу', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({ wasmPlugins: [{ name: 'fake-plugin', path: WASM_PATH }] }),
+        'utf8'
+      )
+      const ensureToolFn = vi.fn(toolId => `/fake/bin/${toolId}`)
+      const map = await resolveWasmConcernMap(dir, {
+        env: {},
+        nativeFn: () =>
+          fakeNative({
+            concerns: [{ key: 'fake/concern', scope: 'per-file', glob: [] }],
+            tools: ['shellcheck@^0.9', 'eslint@>=8']
+          }),
+        ensureToolFn
+      })
+
+      expect(ensureToolFn).toHaveBeenCalledTimes(2)
+      // semver-суфікс декларації обрізається перед передачею в ensure-tool (доккомент модуля).
+      expect(ensureToolFn).toHaveBeenNthCalledWith(1, 'shellcheck')
+      expect(ensureToolFn).toHaveBeenNthCalledWith(2, 'eslint')
+      expect(map.get('fake/concern')).toEqual({
+        wasmPath: WASM_PATH,
+        toolPaths: { shellcheck: '/fake/bin/shellcheck', eslint: '/fake/bin/eslint' }
+      })
+    })
+  })
+
+  test('ensureToolFn кидає для одного tool-у → warn, той tool ВІДСУТНІЙ у toolPaths, плагін і решта tools лишаються', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({ wasmPlugins: [{ name: 'fake-plugin', path: WASM_PATH }] }),
+        'utf8'
+      )
+      const ensureToolFn = vi.fn(toolId => {
+        if (toolId === 'unknown-tool') throw new Error("ensureTool: невідомий тул 'unknown-tool'")
+        return `/fake/bin/${toolId}`
+      })
+      const warnSpy = vi.spyOn(console, 'warn').mockReturnValue()
+      const map = await resolveWasmConcernMap(dir, {
+        env: {},
+        nativeFn: () =>
+          fakeNative({
+            concerns: [{ key: 'fake/concern', scope: 'per-file', glob: [] }],
+            tools: ['unknown-tool', 'shellcheck']
+          }),
+        ensureToolFn
+      })
+
+      expect(ensureToolFn).toHaveBeenCalledTimes(2)
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('unknown-tool'))
+      // Плагін не пропущено (skip-not-crash на рівні ОДНОГО tool-у) — концерн лишається в мапі.
+      expect(map.get('fake/concern')).toEqual({
+        wasmPath: WASM_PATH,
+        toolPaths: { shellcheck: '/fake/bin/shellcheck' }
+      })
+      warnSpy.mockRestore()
+    })
+  })
+
+  test('manifest.tools порожній → ensureToolFn не викликається, toolPaths — порожній обʼєкт', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({ wasmPlugins: [{ name: 'fake-plugin', path: WASM_PATH }] }),
+        'utf8'
+      )
+      const ensureToolFn = vi.fn(toolId => `/fake/bin/${toolId}`)
+      const map = await resolveWasmConcernMap(dir, {
+        env: {},
+        nativeFn: () => fakeNative({ concerns: [{ key: 'fake/concern', scope: 'per-file', glob: [] }], tools: [] }),
+        ensureToolFn
+      })
+
+      expect(ensureToolFn).not.toHaveBeenCalled()
+      expect(map.get('fake/concern')).toEqual({ wasmPath: WASM_PATH, toolPaths: {} })
     })
   })
 })

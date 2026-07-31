@@ -15,8 +15,9 @@ use rules_contract::manifest::{Capabilities, Manifest};
 
 use crate::convert;
 use crate::error::PluginHostError;
-use crate::host_state::{HostState, RunToolFn};
+use crate::host_state::HostState;
 use crate::loaded_plugin::LoadedPlugin;
+use crate::tool_resolver::ToolResolver;
 use crate::wit;
 
 /// Embedded wasmtime-хост для `n-rules:plugin@3.0.0`. `Engine`+`Linker`
@@ -25,15 +26,17 @@ use crate::wit;
 pub struct PluginHost {
     engine: Engine,
     linker: Linker<HostState>,
-    run_tool: Arc<RunToolFn>,
+    tool_resolver: Arc<ToolResolver>,
 }
 
 impl PluginHost {
-    /// Створює хост із injected run-tool callback-ом (рішення Д спеки:
-    /// плагін сам нічого не спавнить, лише запитує виконання через
-    /// `run-tool`; v3.0-заглушка — реальний ensure-tool контур належить
-    /// оркестрації, поза цією задачею).
-    pub fn new(run_tool: Arc<RunToolFn>) -> Result<Self, PluginHostError> {
+    /// Створює хост із реальним run-tool контуром (рішення Д спеки, задача
+    /// N1): [`ToolResolver`] — мапа «ім'я тула → шлях», яку побудувала
+    /// оркестрація (ensure-tool контур, JS-бік) ДО виклику цього
+    /// конструктора; `ToolResolver::empty()` — валідний дефолт, коли жоден
+    /// tool ще не резолвлений (кожен `run-tool`-виклик просто отримає
+    /// типізовану помилку в `tool-output`, доккомент `ToolResolver::run`).
+    pub fn new(tool_resolver: ToolResolver) -> Result<Self, PluginHostError> {
         let mut config = Config::new();
         config.wasm_component_model(true);
         let engine =
@@ -59,7 +62,7 @@ impl PluginHost {
         Ok(Self {
             engine,
             linker,
-            run_tool,
+            tool_resolver: Arc::new(tool_resolver),
         })
     }
 
@@ -186,7 +189,7 @@ impl PluginHost {
             table: ResourceTable::new(),
             logs: Default::default(),
             progress: Default::default(),
-            run_tool: Arc::clone(&self.run_tool),
+            tool_resolver: Arc::clone(&self.tool_resolver),
         })
     }
 }

@@ -207,10 +207,27 @@ export async function runConcernDetector(concern, ctx) {
     return normalizeResult(raw, ctx)
   }
 
-  const wasmPath = (await resolveWasmConcernMap(ctx.cwd)).get(nativeKey)
-  if (wasmPath !== undefined) {
+  const wasmConcernMap = await resolveWasmConcernMap(ctx.cwd)
+  const wasmEntry = wasmConcernMap.get(nativeKey)
+  if (wasmEntry !== undefined) {
     try {
-      const raw = loadNative().runWasmConcern(wasmPath, nativeKey, ctx.cwd, ctx.files ?? [])
+      // `ctx.files ?? null` (не `?? []`) — обидва мають різну семантику для
+      // full-scope концернів (задача N2, передумова full-scope мосту):
+      // `undefined` тут означає «дельта-планувальник (`run-detectors.mjs
+      // ::buildFullPlan`/`planConcernForDelta`) не має явного списку файлів
+      // для цього concern-а» — napi-міст (`run_wasm_concern`,
+      // `crates/rules-napi`) розрізняє `None` («host сам будує full-scope
+      // batch за задекларованим glob-ом») від `Some([])` («явно порожній
+      // batch»), тож підміна на `[]` тут зробила б full-scope концерни
+      // мовчки порожніми замість того, щоб дати host-у побудувати batch
+      // самостійно.
+      const raw = loadNative().runWasmConcern(
+        wasmEntry.wasmPath,
+        nativeKey,
+        ctx.cwd,
+        ctx.files ?? null,
+        wasmEntry.toolPaths
+      )
       return normalizeResult(raw, ctx)
     } catch (error) {
       // Skip-not-crash (доккомент функції вище): wasm-плагін впав під час detect() —

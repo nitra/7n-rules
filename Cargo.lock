@@ -2987,7 +2987,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "plugin-lang-js-pilot"
+name = "plugin-lang-js"
 version = "0.1.0"
 dependencies = [
  "regex",
@@ -3377,6 +3377,7 @@ dependencies = [
 name = "rules-napi"
 version = "0.1.0"
 dependencies = [
+ "globset",
  "napi",
  "napi-build",
  "napi-derive",
@@ -3391,6 +3392,7 @@ name = "rules-plugin-host"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "libc",
  "rules-contract",
  "serde_json",
  "tempfile",

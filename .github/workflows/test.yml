@@ -33,10 +33,12 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          # wasm32-wasip2 — ціль пілотного wasm-плагіна `crates/plugin-lang-js-pilot`
-          # (задача K фази 6): JS-тести (`wasm-plugin-parity`/`wasm-plugin-e2e`/
-          # `wasm-plugins`, `npm/scripts/lib/lint-surface/tests/`) викликають
-          # реальний зібраний компонент через napi-міст, не мок.
+          # wasm32-wasip2 — ціль реального wasm-плагіна `crates/plugin-lang-js`
+          # (задача N2, спека
+          # `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5):
+          # JS-тести (`wasm-plugin-parity`/`wasm-plugin-e2e`/`wasm-plugins`,
+          # `npm/scripts/lib/lint-surface/tests/`) викликають реальний
+          # зібраний компонент через napi-міст, не мок.
           targets: wasm32-wasip2
 
       - uses: Swatinem/rust-cache@v2
@@ -47,11 +49,11 @@ jobs:
       - name: Build rules-napi addon
         run: cargo build --release -p rules-napi
 
-      # Пілотний wasm-плагін (задача K фази 6) — JS wasm-dispatch тести
+      # Реальний wasm-плагін lang-js (задача N2) — JS wasm-dispatch тести
       # (доккомент кроку вище) падають з чіткою помилкою на свіжому checkout
       # без цього кроку (той самий require_fixture-мотив, що в Rust-тестах).
-      - name: Build plugin-lang-js-pilot wasm component
-        run: bash crates/plugin-lang-js-pilot/build.sh
+      - name: Build plugin-lang-js wasm component
+        run: bash crates/plugin-lang-js/build.sh
 
       - name: Full vitest run
         run: bun run test

@@ -9,7 +9,7 @@
 use rules_contract::detect::{DetectBatch, SourceFile};
 use rules_contract::diagnostic::{Diagnostic, Severity};
 use rules_contract::fix::{FileEdit, FixPlan, FixRequest, WriteFile};
-use rules_contract::manifest::{Capabilities, Domain, Manifest};
+use rules_contract::manifest::{Capabilities, ConcernContribution, ConcernScope, Domain, Manifest};
 use rules_contract::slots::ci_artifact::{
     CiArtifactDescriptor, CiArtifactFormat, CiArtifactMergeStrategy, CiArtifactMode,
 };
@@ -77,6 +77,24 @@ fn ci_artifact_merge_strategy_from_wit(
     }
 }
 
+fn concern_scope_from_wit(scope: wit::ConcernScope) -> ConcernScope {
+    match scope {
+        wit::ConcernScope::PerFile => ConcernScope::PerFile,
+        wit::ConcernScope::Full => ConcernScope::Full,
+    }
+}
+
+/// Задача N2 (передумова full-scope мосту): `Manifest::concerns` — тепер
+/// структурована контрибуція, не голий рядок (доккомент `wit/world.wit`,
+/// `record concern-contribution`).
+fn concern_contribution_from_wit(contribution: wit::ConcernContribution) -> ConcernContribution {
+    ConcernContribution {
+        key: contribution.key,
+        scope: concern_scope_from_wit(contribution.scope),
+        glob: contribution.glob,
+    }
+}
+
 fn ci_artifact_descriptor_from_wit(descriptor: wit::CiArtifactDescriptor) -> CiArtifactDescriptor {
     CiArtifactDescriptor {
         target_capability: descriptor.target_capability,
@@ -97,7 +115,11 @@ pub(crate) fn manifest_from_wit(manifest: wit::Manifest) -> Manifest {
         version: manifest.version,
         world_version: manifest.world_version,
         domains: manifest.domains.into_iter().map(domain_from_wit).collect(),
-        concerns: manifest.concerns,
+        concerns: manifest
+            .concerns
+            .into_iter()
+            .map(concern_contribution_from_wit)
+            .collect(),
         ci_artifacts: manifest
             .ci_artifacts
             .into_iter()

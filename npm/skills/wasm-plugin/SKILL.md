@@ -28,15 +28,18 @@ version: '1.0'
 - `rustup target add wasm32-wasip2` (стабільна ціль з rustc 1.82, тут — 1.95+;
   дає готовий Component Model компонент напряму з `cargo build`, без
   окремого `wasm-tools component new` + WASI adapter кроку).
-- `wit-bindgen = "0.60"` — **пін звірено з `crates/plugin-lang-js-pilot/Cargo.toml`**
+- `wit-bindgen = "0.60"` — **пін звірено з `crates/plugin-lang-js/Cargo.toml`**
   (той самий, що й `crates/test-plugin-guest`); резолвиться в `0.60.0`
   (`Cargo.lock` кореня). Онови цей документ і шаблони кроку 1 разом, коли
   пін рухається (той самий каданс, що рішення М спеки — «кожен мінор через
   звичайний taze-флоу»).
 - Чотири зразкові файли цього репо — читай перед першим використанням
-  скіла: `crates/plugin-lang-js-pilot/` (реальний, повний приклад — порт
-  чинного JS-концерну), `crates/test-plugin-guest/` (мінімальна фікстура),
-  `crates/rules-plugin-host/tests/plugin_lang_js_pilot.rs` і
+  скіла: `crates/plugin-lang-js/` (реальний, повний приклад — два концерни,
+  порт чинних JS-концернів `vue/tfm-translations` (per-file) і `style/gap`
+  (full-scope) — замінив виведений пілот з одним концерном
+  `crates/plugin-lang-js-pilot`), `crates/test-plugin-guest/` (мінімальна
+  фікстура, теж кілька концернів в одному крейті — той самий мотив),
+  `crates/rules-plugin-host/tests/plugin_lang_js.rs` і
   `crates/rules-plugin-host/tests/contract_test_kit.rs` (golden-тести).
 
 ## Крок 1 — scaffold нового guest-крейта
@@ -54,12 +57,21 @@ version: '1.0'
 | `__MARKER__` | лише в демо-шаблоні — заміни разом із усією логікою `detect_one_file` |
 | `__WIT_PATH__` | лише `lib.rs.tpl` — шлях у `wit_bindgen::generate!({ path: … })`, дивись нижче |
 
+Шаблон декларує контрибуцію концерну як `ConcernContribution { key, scope,
+glob }` (WIT `record concern-contribution`, `manifest.concerns:
+list<concern-contribution>` — НЕ голий рядок): `key` = `__CONCERN_ID__`,
+`scope` за замовчуванням `ConcernScope::PerFile` з порожнім `glob` (типовий
+дефолт — виклик сам передає підмножину файлів у `DetectBatch`). Заміни
+`scope`/`glob`, якщо концерн — whole-repo/крос-файлова перевірка: дивись
+підрозділ «Full-scope / whole-batch концерн» нижче (крок 2) — тоді, коли
+виклик не передав явний список файлів, хост будує batch сам за цим `glob`.
+
 ### Дві форми розташування — обери одну
 
 **A. First-party (крейт живе в цьому монорепо, `crates/<name>/`).**
 
 1. Скопіюй шаблони в новий `crates/<name>/` (той самий рівень, що
-   `plugin-lang-js-pilot`/`test-plugin-guest`).
+   `plugin-lang-js`/`test-plugin-guest`).
 2. `__WIT_PATH__` → **відносний** шлях `../rules-contract/wit` (крейт на
    тому самому рівні вкладеності, що й `rules-contract`).
 3. Додай крейт у `members` кореневого `Cargo.toml` — **звичайний рядок
@@ -99,7 +111,7 @@ version: '1.0'
 
 ### Чисті helpers окремо від Guest-методів — ОБОВʼЯЗКОВО
 
-**Знахідка пілота** (`crates/plugin-lang-js-pilot/src/lib.rs`, доккомент
+**Ключове застереження** (`crates/plugin-lang-js/src/lib.rs`, доккомент
 модуля): host-імпорти (`log`, `report-progress`, `run-tool` — WIT `import`,
 plugin → host) **абортують процес**, якщо викликані поза реальним
 wasmtime-`Store`. Це означає:
@@ -127,12 +139,54 @@ wasmtime-`Store`. Це означає:
    «на свій смак».
 3. Golden-тест (крок 3) звіряє wasm-вихід проти цих самих фікстур; якщо в
    репо вже є parity-тест на рівні lint-surface (зразок:
-   `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs` для
-   пілота) — розширюй його новим концерном, а не пиши паралельний.
+   `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`,
+   `crates/plugin-lang-js`) — розширюй його новим концерном, а не пиши
+   паралельний.
 4. Регулярні вирази/парсери — перенось синтаксис, що приймає цільова мова
    guest-а, без прихованих семантичних відмінностей (напр. Rust `regex`-крейт
    не підтримує lookaround — якщо JS-оригінал на нього покладався, потрібен
    явний алгоритмічний еквівалент, не «майже той самий» регекс).
+
+### Кілька концернів в одному крейті
+
+Шаблон (крок 1) демонструє лише скаффолд з ОДНИМ концерном
+(`__CONCERN_ID__` — єдиний плейсхолдер) — це форма scaffold-кроку, не межа
+контракту: один guest-крейт МОЖЕ нести кілька контрибуцій. Патерн (зразок —
+`crates/plugin-lang-js` — два концерни, і `crates/test-plugin-guest` — три
+тест-хуки):
+
+1. `Manifest::concerns` — список із кількох `ConcernContribution` (кожен свій
+   `key`/`scope`/`glob`), не один елемент.
+2. `Guest::detect` розгалужується за `batch.concern-id` (`if`/`match` на
+   константи-ключі концернів) — кожна гілка кличе СВІЙ чистий helper.
+   `report_progress`/`log` лишаються в тілі `Guest::detect`, не в helper-ах
+   (той самий мотив, що й форма з одним концерном).
+3. Після scaffold-кроку вручну додай додаткові константи-ключі, гілку в
+   `build_manifest().concerns` і гілку в `Guest::detect` — інструменти скіла
+   (шаблони) генерують стартову форму з ОДНИМ концерном, розширення на кілька
+   концернів — ручний крок 2, не окремий шаблон.
+
+### Full-scope / whole-batch концерн
+
+Шаблон демонструє лише `detect_one_file(file) -> Option<Diagnostic>` (одна
+перевірка на ОДИН файл). Якщо концерн — крос-файлова/whole-repo перевірка
+(напр. «клас, використаний у файлі A, має бути визначений десь у файлах
+B/C/…», зразок — `style/gap`, `crates/plugin-lang-js`), чиста логіка НЕ
+per-file: пиши `detect_whole_batch(files: &[SourceFile]) -> Vec<Diagnostic>`
+(чи подібну назву), яка аналізує ВЕСЬ переданий `&[SourceFile]` разом, і
+клич її з `Guest::detect` замість `files.iter().filter_map(detect_one_file)`.
+
+Дві речі мають узгоджуватись, щоб цей концерн реально отримував whole-repo
+`files`, коли викликач не передав дельту:
+
+1. `ConcernContribution.scope = ConcernScope::Full` і непорожній `glob`
+   (посилання на файли, які концерн хоче бачити — той самий синтаксис, що й
+   `concern.json.lint.glob` JS-плагінів).
+2. Викликач (napi-міст `crates/rules-napi::run_wasm_concern`) розрізняє
+   `files: None` (host сам будує batch за `glob` контрибуції,
+   whole-repo обхід) від `files: Some([])` (явно порожній batch) — це вже
+   реалізовано хостом, автору концерну лишається коректно заповнити
+   `scope`/`glob` у `build_manifest()`.
 
 ### Домени поза lint (рішення К спеки)
 
@@ -146,9 +200,9 @@ wasmtime-`Store`. Це означає:
 ## Крок 3 — golden-тести через rules-plugin-host
 
 Інтеграційний тест на **зібраному** `.wasm` (не на Rust-функціях напряму) —
-зразки: `crates/rules-plugin-host/tests/plugin_lang_js_pilot.rs` (реальний
-концерн) і `tests/contract_test_kit.rs` (мінімальна фікстура, ширше покриття
-API `PluginHost`/`LoadedPlugin`).
+зразки: `crates/rules-plugin-host/tests/plugin_lang_js.rs` (реальний плагін,
+два концерни) і `tests/contract_test_kit.rs` (мінімальна фікстура, ширше
+покриття API `PluginHost`/`LoadedPlugin`).
 
 1. Постав тест у `crates/rules-plugin-host/tests/<plugin_id>.rs` (той самий
    крейт, що й зразки — golden-тести плагінів живуть поруч із хостом, не в
@@ -225,16 +279,38 @@ API `PluginHost`/`LoadedPlugin`).
   таким — enforcement на боці `PluginHost` (`WasiCtx` без мережевих
   дозволів, доки `capabilities.network` явно `true`). Мережевий доступ —
   усвідомлене виключення, не дефолт.
-- **`tools`** (host-mediated spawn, рішення Д спеки): плагін декларує
-  `tools = ["shellcheck@^0.9"]` у `plugin.toml`, кличе `run-tool` — сам
-  нічого не спавнить (wasm фізично не може). **Чесний статус на зараз**:
-  реальний ensure-tool контур (перевірка наявності, встановлення тула) **не
-  wired** — і `rules-plugin-host`, і napi-міст (`crates/rules-napi`, `stub_run_tool`)
-  використовують заглушку, що повертає помилку «не підтримується». Плагін
-  з непорожнім `tools` пройде golden-тести (з тестовою заглушкою run-tool),
-  але реальний прогін через `n-rules lint` поки не виконає задекларований
-  tool. Якщо задача вимагає working tools-контуру — це окрема задача
-  оркестрації (`ensure-tool` контур), не цей скіл.
+- **`tools`** (host-mediated spawn, рішення Д спеки, задача N1): плагін
+  декларує `tools = ["shellcheck@^0.9"]` у `plugin.toml`, кличе `run-tool` —
+  сам нічого не спавнить (wasm фізично не може). **Контур WIRED
+  (задача N1)**:
+  - Host-бік (`crates/rules-plugin-host/src/tool_resolver.rs`):
+    `ToolResolver` — мапа «ім'я тула (без semver-суфікса декларації) →
+    абсолютний шлях бінаря». Виклик `run-tool` із тулом ПОЗА мапою → типізована
+    помилка ВСЕРЕДИНІ `tool-output` (`status: none`, людиночитний `stderr`),
+    НЕ паніка. Резолвлений тул виконується через `std::process::Command`
+    (stdout/stderr/exit-code капчурені), з таймаутом 120с (`DEFAULT_TOOL_TIMEOUT`) —
+    процес, що не встиг, примусово вбивається (разом з усіма форкнутими
+    нащадками — `process_group`/`kill(-pid, SIGKILL)` на unix). Версійний
+    діапазон декларації (`@^0.9`) хост-бік ІГНОРУЄ — версійну політику
+    реалізує ensure-tool на JS-боці (ставить канонічну закріплену версію з
+    `tool-pins.json` ще ДО того, як шлях потрапляє в `ToolResolver`).
+  - JS-бік (`npm/scripts/lib/lint-surface/wasm-plugins.mjs`): при резолві
+    плагіна читає повний маніфест через `wasmPluginManifest()` (napi), для
+    кожного `manifest.tools` кличе ensure-tool контур (`ensureToolAsync`,
+    `npm/scripts/lib/ensure-tool.mjs`) — будує мапу «ім'я → шлях»,
+    прокидає її в `runWasmConcern(..., toolPaths)`. Тул, якого ensure-tool
+    не знає (немає в `TOOLS`-реєстрі) чи не зміг поставити (мережа,
+    rate-limit) — `console.warn`, ПРОПУСКАЄТЬСЯ з мапи (skip-not-crash на
+    рівні ОДНОГО tool-у, не плагіна) — плагін і решта його tools лишаються
+    робочими, виклик `run-tool` для ЦЬОГО tool-у отримає типізовану помилку
+    в `tool-output` (host-бік вище).
+  - Реальний прогін через `n-rules lint` тепер ВИКОНУЄ задекларований tool
+    (не заглушка). Golden-тести плагіна (крок 3) з `ToolResolver::empty()`
+    (порожній) усе одно валідні для концернів без tools; якщо плагін
+    декларує tools і golden-тест має перевірити реальний виклик — резолвни
+    фейковий бінарник (shell-скрипт у tempdir) у `ToolResolver::new(map)`
+    (зразок — `run_tool_reaches_resolved_fake_tool_binary`
+    `crates/rules-plugin-host/tests/contract_test_kit.rs`).
 - **`ci_artifacts`** (слот `ci.artifact@1`): типізовані записи
   `n-rules:slots` (`crates/rules-contract/src/slots/ci_artifact.rs`) —
   семантичні перевірки (safe-path, id-regex) живуть у
