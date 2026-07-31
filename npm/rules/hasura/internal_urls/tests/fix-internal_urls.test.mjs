@@ -1,17 +1,29 @@
 /**
  * Тести T0-фіксера `fix-internal_urls.mjs`: виправлення `service`/`namespace`
  * розбіжностей у `HASURA_GRAPHQL_ENDPOINT`, збереження `cluster`/`port`.
+ *
+ * `lint(ctx)` тут — через `runConcernDetector` (dispatch-рівень): JS
+ * `main.mjs` видалений (I1 фази 5 батчу 4, YAML-кластер частина 2), detector
+ * тепер живе лише в `crates/rules-core/src/concerns/hasura_internal_urls.rs`.
+ * T0-фіксер (`fix-internal_urls.mjs`) лишається JS і тепер самодостатній
+ * (константи й логіка дубльовані, не імпортуються з main.mjs).
  */
 import { describe, expect, test } from 'vitest'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-import { lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { patterns } from '../fix-internal_urls.mjs'
 import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+
 const P = patterns[0]
 const ctxFor = dir => ({ cwd: dir, ruleId: 'hasura', concernId: 'internal_urls', files: undefined })
+const lint = ctx => runConcernDetector(CONCERN, ctx)
 
 describe('hasura-internal-url-mismatch pattern', () => {
   test('test: спрацьовує лише на mismatch-причини', () => {

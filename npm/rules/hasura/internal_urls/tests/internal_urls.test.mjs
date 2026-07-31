@@ -1,88 +1,36 @@
 /**
- * Тести check-hasura: парсер внутрішнього URL, фільтр `*.env`, гілки nitra/abie.
+ * Тести concern-а `hasura/internal_urls`: парсер внутрішнього URL, фільтр
+ * `*.env`, гілки nitra/abie, збіг `service`/`namespace` з
+ * `hasura/k8s/base/{svc-hl,namespace}.yaml`.
+ *
+ * Прогін — через `runConcernDetector` (dispatch-рівень), не пряма функція: JS
+ * `main.mjs` видалений (I1 фази 5 батчу 4, YAML-кластер частина 2), concern
+ * тепер живе лише в `crates/rules-core/src/concerns/hasura_internal_urls.rs`
+ * і виконується через native-гілку `runConcernDetector`. Юніт-покриття
+ * чистих функцій (`parseInternalHasuraEndpoint`, `isEnvFile`,
+ * `isNitraOrAbieRepository`) лишається в native-тестах ported-модуля.
  */
 import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-import { lint, isEnvFile, isNitraOrAbieRepository, parseInternalHasuraEndpoint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+
 const check = async dir => {
-  const result = await lint({ cwd: dir, ruleId: 'hasura', concernId: 'internal_urls', files: undefined })
+  const result = await runConcernDetector(CONCERN, {
+    cwd: dir,
+    ruleId: 'hasura',
+    concernId: 'internal_urls',
+    files: undefined
+  })
   return result.violations
 }
-
-describe('parseInternalHasuraEndpoint', () => {
-  test('валідний внутрішній URL (GKE-style з .internal)', () => {
-    const r = parseInternalHasuraEndpoint('http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080')
-    expect(r).toEqual({
-      ok: true,
-      service: 'contract-h-hl',
-      namespace: 'ua-contract',
-      cluster: 'abie-ua',
-      port: '8080'
-    })
-  })
-
-  test('абі-кластери для dev і ua (.internal)', () => {
-    const dev = parseInternalHasuraEndpoint('http://apruv-h-hl.dev-apruv.svc.abie-dev.internal:8080')
-    expect(dev).toEqual({
-      ok: true,
-      service: 'apruv-h-hl',
-      namespace: 'dev-apruv',
-      cluster: 'abie-dev',
-      port: '8080'
-    })
-    const ua = parseInternalHasuraEndpoint('http://apruv-h-hl.ua-apruv.svc.abie-ua.internal:8080')
-    expect(ua).toEqual({
-      ok: true,
-      service: 'apruv-h-hl',
-      namespace: 'ua-apruv',
-      cluster: 'abie-ua',
-      port: '8080'
-    })
-  })
-
-  test('відхиляє https зовнішній URL', () => {
-    expect(parseInternalHasuraEndpoint('https://vybeerai.com.ua/contract/ql').ok).toBe(false)
-  })
-
-  test('відхиляє http без сегментів кластера', () => {
-    expect(parseInternalHasuraEndpoint('http://localhost:8080').ok).toBe(false)
-  })
-
-  test('вимагає явний порт', () => {
-    expect(parseInternalHasuraEndpoint('https://h.ns.svc.cl.internal').ok).toBe(false)
-  })
-
-  test('відхиляє неочікувані суфікси (svc.example.com)', () => {
-    expect(parseInternalHasuraEndpoint('https://h.ns.svc.example.com:8080').ok).toBe(false)
-  })
-})
-
-describe('isEnvFile', () => {
-  test('базові форми', () => {
-    expect(isEnvFile('dev.env')).toBe(true)
-    expect(isEnvFile('hasura/production.env')).toBe(true)
-    expect(isEnvFile('package.json')).toBe(false)
-    expect(isEnvFile('env.json')).toBe(false)
-  })
-
-  test('файл .env без імені — виключення з правила', () => {
-    expect(isEnvFile('.env')).toBe(false)
-    expect(isEnvFile('hasura/.env')).toBe(false)
-  })
-})
-
-describe('isNitraOrAbieRepository', () => {
-  test('детектить nitra і abie', () => {
-    expect(isNitraOrAbieRepository('https://github.com/nitra/foo')).toBe(true)
-    expect(isNitraOrAbieRepository('https://github.com/abinbevefes/bar')).toBe(true)
-    expect(isNitraOrAbieRepository('https://github.com/other/baz')).toBe(false)
-    expect(isNitraOrAbieRepository(null)).toBe(false)
-  })
-})
 
 describe('check-hasura', () => {
   test('пропускає не-nitra/abie проєкти без помилок', async () => {

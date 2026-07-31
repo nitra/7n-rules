@@ -1,15 +1,25 @@
 /**
  * Мінімальний тестовий каталог для check-text (oxfmt, cspell, markdownlint-cli2 через bunx у lint-text, v8r).
+ *
+ * Прогін — через `runConcernDetector` (dispatch-рівень), не пряма функція: JS
+ * `main.mjs` видалений (I1 фази 5 батчу 4, YAML-кластер частина 2), concern
+ * тепер живе лише в `crates/rules-core/src/concerns/text_formatting.rs` і
+ * виконується через native-гілку `runConcernDetector`.
  */
 import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-import { lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+
 const check = async dir => {
-  const { violations } = await lint({
+  const { violations } = await runConcernDetector(CONCERN, {
     cwd: dir,
     ruleId: 'text',
     concernId: 'formatting',
