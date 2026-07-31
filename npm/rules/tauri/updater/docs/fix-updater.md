@@ -3,31 +3,33 @@ type: JS Module
 title: fix-updater.mjs
 resource: npm/rules/tauri/updater/fix-updater.mjs
 docgen:
-  crc: 7c4598dc
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
-  score: 100
-  issues: judge:inaccurate:0.98
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: 24fe55dd
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
+  score: 75
 ---
-
-## Огляд
-
-`patterns` — це T0-autofix для `tauri/updater`, який приводить canonical updater-configs до узгодженого стану через `package.json`, `updater.json` і `default.json`: синхронізує updater-related залежності, desktop-scoped plugin-налаштування, `#[cfg]`-guard над уже наявним рядком реєстрації та `capabilities/*.json` permissions за очікуваним контрактом Tauri. Публічні функції працюють fail-safe: перехоплюють помилки, не кидають винятків назовні й за окремих збоїв повертають порожнє значення, наприклад `null`, замість exception. Autofix свідомо не покриває `lib-rs-process-missing`, `lib-rs-updater-missing` і `use-updater-not-called`: ці cases лишаються manual, бо потребують structural fix у чужому builder-ланцюжку або SFC і не мають deterministic insertion point.
 
 ## Поведінка
 
-1. `patterns` запускає набір T0-autofix-правил для `tauri/updater` лише тоді, коли знайдено релевантні порушення у workspace Tauri-додатка.
-2. Для `package.json` воно приводить залежності до канонічного стану: додає або оновлює `@7n/tauri-components`, `@tauri-apps/plugin-updater`, `@tauri-apps/plugin-process`.
-3. Для `Cargo.toml` воно гарантує наявність `tauri-plugin-process` і `tauri-plugin-updater`, а також тримає updater-плагін у desktop-scoped секції, щоб конфіг відповідав очікуванням Tauri для desktop-збірки.
-4. Для `lib.rs` воно ставить `#[cfg]` безпосередньо над уже наявним рядком реєстрації `tauri_plugin_updater::Builder`, щоб updater вмикався лише на desktop.
-5. Для `capabilities/updater.json` воно забезпечує permission `updater:default`; якщо файла ще немає, створює його з канонічним baseline.
-6. Для `capabilities/default.json` воно забезпечує permission `process:allow-restart`; якщо файла ще немає, створює його з канонічним baseline.
-7. Воно працює fail-safe: не викидає винятки назовні, а в проблемних місцях повертає порожній результат або пропускає зміну.
-8. Воно свідомо не виправляє `lib-rs-process-missing` і `lib-rs-updater-missing`, бо там треба вставляти новий `.plugin` у довільний builder-ланцюжок без надійної детермінованої точки вставки.
-9. Воно свідомо не виправляє `use-updater-not-called`, бо це потребує редагування чужого SFC і може зламати існуючі imports.
+1. Знаходиться всі workspace-каталоги, що містять Tauri-застосунок, шляхом пошуку файлів `tauri.conf.json` у коренях репозиторію.
+2. Групується список порушень за koncерном за конкретними workspace-каталогами.
+3. Для кожного workspace виконуються наступні дії у залежності від виявлених порушень:
+    3.1. Якщо виявлено проблеми, пов'язані з залежностями та версіями:
+        3.1.1. Парситься версія з `package.json` workspace.
+        3.1.2. Перевіряється, чи нижня межа семантичного діапазону версій відповідає мінімально необхідній версії.
+        3.1.3. Перевіряється, чи мажорна версія семантичного діапазону відповідає очікуваній.
+        3.1.4. Знаходяться всі залежності у `Cargo.toml` workspace, згруповані за секціями.
+        3.1.5. Якщо версія не задовольняє вимог, `package.json` workspace доповнюється канонічними updater-залежностями.
+        3.1.6. Якщо `Cargo.toml` потребує доповнення, пошукову механіку використовують для визначення секції, що оголошує залежність.
+        3.1.7. `Cargo.toml` workspace доповнюється канонічними updater/process залежностями за допомогою механізму, що вставляє рядок одразу після заголовка секції.
+        3.1.8. Якщо залежність повинна бути видалена, вона видаляється з `Cargo.toml` workspace.
+    3.2. Якщо виявлено порушення, пов'язані з можливостями (capabilities):
+        3.2.1. Для кожного необхідного дозволу, `updater.json` (або створюється, якщо відсутній) доповнюється відповідним дозволом.
+        3.2.2. `default.json` доповнюється дозволом `process:allow-restart`, якщо він потрібен.
+4. Якщо виявлено порушення, пов'язані з кодом плагіну (`lib.rs`):
+    4.1. До рядка реєстрації `tauri_plugin_updater::Builder` у `lib.rs` workspace вставляється маркер `#[cfg]`, якщо його там відсутній.
 
 ## Гарантії поведінки
 
-- Перехоплює помилки і не пропускає винятків назовні (fail-safe).
-- За певних помилок повертає порожнє значення (напр. `null`) замість винятку.
+- Містить локальні fail-safe гілки; інші помилки можуть поширюватися назовні.
+- Деякі локальні fail-safe гілки повертають порожнє значення (напр. `null`) замість винятку.

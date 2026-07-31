@@ -1,13 +1,23 @@
 /**
  * Тести detector-а `changelog/presence`: дешевий per-file гейт "чи є change-файл під
  * змінений workspace" (spec docs/specs/2026-07-02-text-check-per-file-split-design.md §7).
+ *
+ * Детектор (`lint`) — через `runConcernDetector` (dispatch-рівень), не пряма
+ * функція: JS `main.mjs` видалений (фінальний PURE-батч ч.1 фази 5), concern
+ * тепер живе лише в `crates/rules-core/src/concerns/changelog_presence.rs`.
  */
 import { describe, expect, test, vi } from 'vitest'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-import { lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
+
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+const lint = ctx => runConcernDetector(CONCERN, ctx)
 
 /**
  * @param {(root: string) => Promise<void>} prep підготовка фікстур
