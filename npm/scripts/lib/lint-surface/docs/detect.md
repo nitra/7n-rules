@@ -3,7 +3,7 @@ type: JS Module
 title: detect.mjs
 resource: npm/scripts/lib/lint-surface/detect.mjs
 docgen:
-  crc: 78448be3
+  crc: aa440b0b
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 80
@@ -17,7 +17,7 @@ Detect-крок unified lint surface: запуск одного concern-detector
 ## Поведінка
 
 DetectorError сигналізує про виняток або невалідний результат, що спричиняє завершення процесу з кодом виходу 2.
-runConcernDetector запускає перевірку для одного concern-а і повертає нормалізований результат, але кидає DetectorError при будь-якій аномалії.
+runConcernDetector запускає перевірку для одного concern-а і повертає нормалізований результат, але може кинути DetectorError при будь-якій аномалії.
 
 ## Публічний API
 
@@ -33,8 +33,12 @@ Native-портовані concern-и (`NATIVE_CONCERNS` registry аддона, E
 
 Далі — wasm-плагіни plugin contract v3 (`resolveWasmConcernMap`,
 `wasm-plugins.mjs`, задача K фази 6, спека
-`docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.3): якщо
+`docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.3/§3.4): якщо
 `ruleId/concernId` є ключем резолвленої мапи, виклик іде в `runWasmConcern`.
+`resolveWasmConcernMap` — `async` (канонічний `url`+`sha256`-пін тягне
+мережевий retrieval-контур, кеш-верифікацію й запис на диск, доккомент
+`wasm-plugins.mjs`), тому тут `await`; `runConcernDetector` уже `async` —
+контракт виклику не змінюється, лише додається один `await`.
 Skip-not-crash transition-поводження (рішення З спеки): якщо wasm-плагін
 падає ПІД ЧАС `detect()` (на відміну від помилки резолву/завантаження, яку
 `resolveWasmConcernMap` уже відфільтрувала при побудові мапи — такий запис

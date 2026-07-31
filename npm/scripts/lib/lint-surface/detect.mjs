@@ -172,8 +172,12 @@ function hasHandWrittenMain(mainPath) {
  *
  * Далі — wasm-плагіни plugin contract v3 (`resolveWasmConcernMap`,
  * `wasm-plugins.mjs`, задача K фази 6, спека
- * `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.3): якщо
+ * `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.3/§3.4): якщо
  * `ruleId/concernId` є ключем резолвленої мапи, виклик іде в `runWasmConcern`.
+ * `resolveWasmConcernMap` — `async` (канонічний `url`+`sha256`-пін тягне
+ * мережевий retrieval-контур, кеш-верифікацію й запис на диск, доккомент
+ * `wasm-plugins.mjs`), тому тут `await`; `runConcernDetector` уже `async` —
+ * контракт виклику не змінюється, лише додається один `await`.
  * Skip-not-crash transition-поводження (рішення З спеки): якщо wasm-плагін
  * падає ПІД ЧАС `detect()` (на відміну від помилки резолву/завантаження, яку
  * `resolveWasmConcernMap` уже відфільтрувала при побудові мапи — такий запис
@@ -203,7 +207,7 @@ export async function runConcernDetector(concern, ctx) {
     return normalizeResult(raw, ctx)
   }
 
-  const wasmPath = resolveWasmConcernMap(ctx.cwd).get(nativeKey)
+  const wasmPath = (await resolveWasmConcernMap(ctx.cwd)).get(nativeKey)
   if (wasmPath !== undefined) {
     try {
       const raw = loadNative().runWasmConcern(wasmPath, nativeKey, ctx.cwd, ctx.files ?? [])
