@@ -11,6 +11,16 @@
  * піна (спека §3.4): `fetchFn`-стаб читає реальний `.wasm` plugin-lang-js через
  * `file://`-URL (node-`fetch` не вміє `file:`-схему — стаб замінює транспорт,
  * не сам retrieval-контур), sha256 — справжній хеш файлу.
+ *
+ * Передостанній describe-блок (задача Q1 батч 1) звіряє САМЕ dispatch-shadowing
+ * ЧЕРЕЗ вбудовану таблицю `npm/wasm-plugins/builtin-pins.json`
+ * (`readBuiltinPinsConfig`, доккомент `wasm-plugins.mjs`) — tmp-репо БЕЗ жодного
+ * `wasmPlugins` у `.n-rules.json`: якщо `node npm/scripts/build-wasm-plugins.mjs`
+ * зібрав `plugin-lang-js` локально, `runConcernDetector` для одного з
+ * пʼяти нових full-scope концернів (`style/admin_table`) МАЄ знайти violation
+ * через builtin-таблицю без ручного піна — точна перевірка вимоги «живий
+ * shadowing-смок» задачі Q1. Guard-описаний `existsSync(BUILTIN_PINS_PATH)`
+ * той самий skip-not-crash мотив, що `wasm-builtin-pins.test.mjs`.
  */
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
@@ -27,11 +37,20 @@ import { realRepoRoot, withTmpDir } from '../../../utils/test-helpers.mjs'
 
 const REPO_ROOT = realRepoRoot()
 const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_js.wasm')
+const BUILTIN_PINS_PATH = join(REPO_ROOT, 'npm', 'wasm-plugins', 'builtin-pins.json')
+const hasBuiltinPins = existsSync(BUILTIN_PINS_PATH)
 
 if (!existsSync(WASM_PATH)) {
   throw new Error(
     `wasm-plugin-e2e.test.mjs: wasm-компонент plugin-lang-js не зібраний: ${WASM_PATH} відсутній.\n` +
       'Зберіть його командою: bash crates/plugin-lang-js/build.sh'
+  )
+}
+
+if (!hasBuiltinPins) {
+  console.warn(
+    `⚠️ wasm-plugin-e2e.test.mjs: builtin-shadowing describe-блок пропущено — ${BUILTIN_PINS_PATH} відсутній.\n` +
+      'Зберіть локально: node npm/scripts/build-wasm-plugins.mjs'
   )
 }
 
@@ -120,6 +139,60 @@ describe('runConcernDetector — wasm-dispatch (plugin contract v3, задача
   })
 })
 
+;(hasBuiltinPins ? describe : describe.skip)(
+  'runConcernDetector — dispatch-shadowing через builtin-pins.json (задача Q1 батч 1, без ручного піна)',
+  () => {
+    test('style/admin_table: tmp-репо БЕЗ wasmPlugins у .n-rules.json → violation усе одно йде через builtin wasm-таблицю', async () => {
+      await withTmpDir(async dir => {
+        // Навмисно БЕЗ поля `wasmPlugins` — єдине джерело резолву тут
+        // `npm/wasm-plugins/builtin-pins.json` (реальний, зібраний цим самим
+        // прогоном `node npm/scripts/build-wasm-plugins.mjs`), не запис
+        // консюмера.
+        await writeFile(join(dir, '.n-rules.json'), JSON.stringify({ rules: ['style'] }), 'utf8')
+        await writeFile(join(dir, 'Table.vue'), '<template><q-table class="n-admin-table" /></template>\n', 'utf8')
+        await writeFile(join(dir, 'app.scss'), '.other { color: red; }\n', 'utf8')
+        const concern = { name: 'admin_table', dir: join(dir, 'rules', 'style', 'admin_table') }
+        const ctx = { cwd: dir, ruleId: 'style', concernId: 'admin_table', files: undefined }
+
+        const result = await runConcernDetector(concern, ctx)
+
+        expect(result.violations).toEqual([
+          {
+            ruleId: 'style',
+            concernId: 'admin_table',
+            reason: 'missing-admin-table-style',
+            message: expect.stringContaining('n-admin-table'),
+            severity: 'error'
+          }
+        ])
+      })
+    })
+
+    test('test/location: tmp-репо БЕЗ wasmPlugins у .n-rules.json → violation усе одно йде через builtin wasm-таблицю', async () => {
+      await withTmpDir(async dir => {
+        await writeFile(join(dir, '.n-rules.json'), JSON.stringify({ rules: ['test'] }), 'utf8')
+        const { mkdir } = await import('node:fs/promises')
+        await mkdir(join(dir, 'rules/foo/bar'), { recursive: true })
+        await writeFile(join(dir, 'rules/foo/bar/check.test.mjs'), 'import { test } from "vitest"\n', 'utf8')
+        const concern = { name: 'location', dir: join(dir, 'rules', 'test', 'location') }
+        const ctx = { cwd: dir, ruleId: 'test', concernId: 'location', files: undefined }
+
+        const result = await runConcernDetector(concern, ctx)
+
+        expect(result.violations).toEqual([
+          {
+            ruleId: 'test',
+            concernId: 'location',
+            reason: 'location',
+            message: expect.stringContaining('rules/foo/bar/tests/check.test.mjs'),
+            severity: 'error'
+          }
+        ])
+      })
+    })
+  }
+)
+
 describe('runConcernDetector — wasm-dispatch через url+sha256 (канонічний пін, спека §3.4 рішення Ж)', () => {
   test('file://-fetchFn-стаб + правильний sha256 → retrieval-контур завантажує/кешує і диспатч знаходить те саме violation', async () => {
     await withTmpDir(async dir => {
@@ -147,11 +220,13 @@ describe('runConcernDetector — wasm-dispatch через url+sha256 (канон
       env['N_RULES_PLUGIN_CACHE_DIR'] = cacheDir
       // Node fetch не підтримує схему `file:` — стаб читає файл напряму й повертає
       // Response-подібний обʼєкт (той самий duck-typing контракт, що очікує wasm-plugins.mjs).
-      const fetchStub = vi.fn(async url => ({
-        ok: true,
-        status: 200,
-        arrayBuffer: async () => readFileSync(fileURLToPath(url))
-      }))
+      const fetchStub = vi.fn(url =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          arrayBuffer: () => Promise.resolve(readFileSync(fileURLToPath(url)))
+        })
+      )
       vi.stubGlobal('fetch', fetchStub)
 
       try {

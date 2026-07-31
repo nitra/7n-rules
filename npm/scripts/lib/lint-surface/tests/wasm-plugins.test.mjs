@@ -70,7 +70,7 @@ const WRONG_SHA256 = '0'.repeat(64)
  * @returns {import('vitest').Mock} fetchFn-заглушка
  */
 function fakeFetch(bytes) {
-  return vi.fn(async () => ({ ok: true, status: 200, arrayBuffer: async () => bytes }))
+  return vi.fn(() => Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(bytes) }))
 }
 
 /**
@@ -202,14 +202,15 @@ describe('resolveWasmConcernMap — читання конфігу', () => {
         'utf8'
       )
       const first = await resolveMap(dir, { env: {} })
-      // plugin-lang-js декларує дві контрибуції (vue/tfm-translations, style/gap,
-      // задача N2) — мапа концернів індексується за кожним ключем окремо.
-      expect(first.size).toBe(2)
+      // plugin-lang-js декларує сім контрибуцій (vue/tfm-translations, style/gap,
+      // задача N2 + пʼять концернів задачі Q1 батч 1) — мапа концернів
+      // індексується за кожним ключем окремо.
+      expect(first.size).toBe(7)
       // Видаляємо .n-rules.json — якби кеш не працював, другий виклик повернув би порожню мапу.
       await writeFile(join(dir, '.n-rules.json'), JSON.stringify({}), 'utf8')
       const second = await resolveMap(dir)
       expect(second).toBe(first)
-      expect(second.size).toBe(2)
+      expect(second.size).toBe(7)
     })
   })
 
@@ -355,9 +356,7 @@ describe('resolveWasmConcernMap — url+sha256 retrieval (канонічний �
         'utf8'
       )
       const cacheDir = join(dir, 'cache')
-      const fetchFn = vi.fn(async () => {
-        throw new Error('network unreachable')
-      })
+      const fetchFn = vi.fn(() => Promise.reject(new Error('network unreachable')))
       const warnSpy = vi.spyOn(console, 'warn').mockReturnValue()
       const map = await resolveMap(dir, { fetchFn, cacheDir, env: {} })
       expect(map.size).toBe(0)
@@ -376,7 +375,9 @@ describe('resolveWasmConcernMap — url+sha256 retrieval (канонічний �
         'utf8'
       )
       const cacheDir = join(dir, 'cache')
-      const fetchFn = vi.fn(async () => ({ ok: false, status: 404, arrayBuffer: async () => WASM_BYTES }))
+      const fetchFn = vi.fn(() =>
+        Promise.resolve({ ok: false, status: 404, arrayBuffer: () => Promise.resolve(WASM_BYTES) })
+      )
       const warnSpy = vi.spyOn(console, 'warn').mockReturnValue()
       const map = await resolveMap(dir, { fetchFn, cacheDir, env: {} })
       expect(map.size).toBe(0)

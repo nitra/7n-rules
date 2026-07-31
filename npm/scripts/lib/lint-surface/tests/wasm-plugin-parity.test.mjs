@@ -1,23 +1,31 @@
 /**
- * Parity-тест wasm-плагіна `plugin-lang-js` (задача N2, спека
+ * Parity-тест wasm-плагіна `plugin-lang-js` (задачі N2 та Q1 батч 1, спека
  * `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5):
- * ганяє ОДНІ фікстури через чинні JS-детектори (`plugins/lang-js/rules/vue/
- * tfm-translations/main.mjs`, `plugins/lang-js/rules/style/gap/main.mjs` —
- * канонічні реалізації, Plugin API v2, НЕ видаляються) і через
+ * ганяє ОДНІ фікстури через чинні JS-детектори (`plugins/lang-js/rules/<rule>/<concern>/main.mjs`
+ * — канонічні реалізації, Plugin API v2, НЕ видаляються) і через
  * `runWasmConcern` napi-мосту (`crates/rules-napi` → `crates/plugin-lang-js`),
  * звіряючи, що `violations` ідентичні (reason/message/file/severity
  * біт-у-біт). Це доводить конвеєр «wasm-компонент → napi-міст →
  * JS-diagnostics-форма», не замінює JS-канон.
  *
  * `vue/tfm-translations` фікстури дзеркалять
- * `plugins/lang-js/rules/vue/tfm-translations/tests/tfm-translations.test.mjs`.
- * `style/gap` фікстури дзеркалять `plugins/lang-js/rules/style/gap/tests/main.test.mjs`
- * — виклик БЕЗ `files` (`null`, доккомент `detect.mjs`) на обох боках:
- * JS-оригінал ігнорує `ctx.files` і сам ганяє `walkDir(cwd)` (full-scope,
- * `main.mjs`), `runWasmConcern` теж отримує `files: null` — саме це
- * доводить full-scope міст (задача N2 п.2): host (`crates/rules-napi
- * ::run_wasm_concern`) сам будує batch за `ConcernContribution::glob`
- * задекларованого `style/gap`, не JS-оркестрація.
+ * `plugins/lang-js/rules/vue/tfm-translations/tests/tfm-translations.test.mjs`
+ * (per-file, [`runTfmBoth`]). Решта шести концернів — full-scope
+ * (`concern.json.lint.scope: "full"`), той самий full-scope-мостовий виклик,
+ * що `style/gap` ([`runFullScopeBoth`]): виклик БЕЗ `files` (`undefined` на
+ * JS-боці, `null` на wasm-боці, доккомент `detect.mjs`) на обох боках —
+ * JS-оригінал ігнорує `ctx.files` і сам ганяє whole-repo обхід (`walkDir`/
+ * `collectTestFiles`, `main.mjs` кожного концерну), `runWasmConcern` теж
+ * отримує `files: null` — саме це доводить full-scope міст (задача N2 п.2):
+ * host (`crates/rules-napi::run_wasm_concern`) сам будує batch за
+ * `ConcernContribution::glob` задекларованого концерну, не JS-оркестрація.
+ * Фікстури дзеркалять відповідний `plugins/lang-js/rules/<rule>/<concern>/tests/*.test.mjs`:
+ * `style/gap` — `style/gap/tests/main.test.mjs`; `test/vitest-config-pool-forks`
+ * — `test/vitest-config-pool-forks/tests/vitest-config-pool-forks.test.mjs`;
+ * `test/no-process-chdir` — `test/no-process-chdir/tests/no-process-chdir.test.mjs`;
+ * `style/admin_table` — `style/admin_table/tests/main.test.mjs`;
+ * `style/quasar_fixes` — `style/quasar_fixes/tests/main.test.mjs`;
+ * `test/location` — `test/location/tests/location.test.mjs`.
  */
 import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
@@ -41,8 +49,35 @@ if (!existsSync(WASM_PATH)) {
 
 const TFM_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'vue', 'tfm-translations', 'main.mjs')
 const GAP_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'style', 'gap', 'main.mjs')
+const POOL_FORKS_MAIN_MJS_PATH = join(
+  REPO_ROOT,
+  'plugins',
+  'lang-js',
+  'rules',
+  'test',
+  'vitest-config-pool-forks',
+  'main.mjs'
+)
+const NO_PROCESS_CHDIR_MAIN_MJS_PATH = join(
+  REPO_ROOT,
+  'plugins',
+  'lang-js',
+  'rules',
+  'test',
+  'no-process-chdir',
+  'main.mjs'
+)
+const ADMIN_TABLE_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'style', 'admin_table', 'main.mjs')
+const QUASAR_FIXES_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'style', 'quasar_fixes', 'main.mjs')
+const LOCATION_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'test', 'location', 'main.mjs')
+
 const TFM_CONCERN_KEY = 'vue/tfm-translations'
 const GAP_CONCERN_KEY = 'style/gap'
+const POOL_FORKS_CONCERN_KEY = 'test/vitest-config-pool-forks'
+const NO_PROCESS_CHDIR_CONCERN_KEY = 'test/no-process-chdir'
+const ADMIN_TABLE_CONCERN_KEY = 'style/admin_table'
+const QUASAR_FIXES_CONCERN_KEY = 'style/quasar_fixes'
+const LOCATION_CONCERN_KEY = 'test/location'
 
 /**
  * Виставляє дефолт `severity: 'error'`, якщо ключ відсутній — точне дзеркало
@@ -80,17 +115,25 @@ async function runTfmBoth(dir, fileName) {
 }
 
 /**
- * Ганяє `style/gap` full-scope через JS-детектор (канон, ігнорує `ctx.files`,
- * сам ходить `walkDir(cwd)`) і `runWasmConcern` з `files: null` (full-scope
- * міст, доккомент модуля) — обидва бачать УСЕ дерево `dir`, не підмножину.
+ * Ганяє один full-scope концерн через JS-детектор (канон, ігнорує
+ * `ctx.files`, сам ходить `walkDir`/`collectTestFiles` за `cwd`) і
+ * `runWasmConcern` з `files: null` (full-scope міст, доккомент модуля) —
+ * обидва бачать УСЕ дерево `dir`, не підмножину. Спільний хелпер для
+ * `style/gap` і всіх пʼяти full-scope концернів задачі Q1 (доккомент модуля).
+ * @param {string} mainMjsPath абсолютний шлях до `main.mjs` JS-канону концерну
+ * @param {string} concernKey `ruleId/concernId` (`detect-batch.concern-id` для wasm-виклику)
+ * @param {string} ruleId `ctx.ruleId` для JS-виклику
+ * @param {string} concernId `ctx.concernId` для JS-виклику
  * @param {string} dir абсолютний шлях tmp-каталогу з уже записаними фікстурами
  * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
  */
-async function runGapBoth(dir) {
+async function runFullScopeBoth(mainMjsPath, concernKey, ruleId, concernId, dir) {
+  // file:// URL — абсолютний шлях цього файлу (realRepoRoot() + константні сегменти),
+  // не вхід ззовні (той самий мотив, що [`runTfmBoth`]).
   // eslint-disable-next-line no-unsanitized/method
-  const { lint } = await import(pathToFileURL(GAP_MAIN_MJS_PATH).href)
-  const jsResult = await lint({ cwd: dir, ruleId: 'style', concernId: 'gap', files: undefined })
-  const wasmResult = loadNative().runWasmConcern(WASM_PATH, GAP_CONCERN_KEY, dir, null)
+  const { lint } = await import(pathToFileURL(mainMjsPath).href)
+  const jsResult = await lint({ cwd: dir, ruleId, concernId, files: undefined })
+  const wasmResult = loadNative().runWasmConcern(WASM_PATH, concernKey, dir, null)
   return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
@@ -159,6 +202,8 @@ function getTr() {
 })
 
 describe('wasm-plugin parity — style/gap (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runGapBoth = dir => runFullScopeBoth(GAP_MAIN_MJS_PATH, GAP_CONCERN_KEY, 'style', 'gap', dir)
+
   test('exit 0 — n-gap-md використано і визначено → без порушень з обох реалізацій', async () => {
     await withTmpDir(async dir => {
       const { mkdir } = await import('node:fs/promises')
@@ -191,6 +236,211 @@ describe('wasm-plugin parity — style/gap (JS канон vs wasm plugin-lang-js
       await mkdir(join(dir, 'src'), { recursive: true })
       await writeFile(join(dir, 'src/Row.vue'), '<template><div class="row q-gutter-md" /></template>\n')
       const { js, wasm } = await runGapBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — test/vitest-config-pool-forks (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runPoolForksBoth = dir =>
+    runFullScopeBoth(POOL_FORKS_MAIN_MJS_PATH, POOL_FORKS_CONCERN_KEY, 'test', 'vitest-config-pool-forks', dir)
+
+  test("успіх: config з pool: 'forks' → без порушень з обох реалізацій", async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, 'vitest.config.js'),
+        "import { defineConfig } from 'vitest/config'\nexport default defineConfig({ test: { pool: 'forks' } })\n"
+      )
+      const { js, wasm } = await runPoolForksBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test("порушення: vitest.config.mjs з pool: 'threads' → однакове violation з обох реалізацій", async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'vitest.config.mjs'), "export default { test: { pool: 'threads' } }\n")
+      const { js, wasm } = await runPoolForksBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('vitest-config-pool-forks')
+    })
+  })
+
+  test('успіх: vitest.config.{mjs,js} відсутній → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { js, wasm } = await runPoolForksBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — test/no-process-chdir (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runNoProcessChdirBoth = dir =>
+    runFullScopeBoth(NO_PROCESS_CHDIR_MAIN_MJS_PATH, NO_PROCESS_CHDIR_CONCERN_KEY, 'test', 'no-process-chdir', dir)
+
+  // Зібрано через `join`, щоб у source не зустрічався точний паттерн виклику
+  // (той самий мотив, що `no-process-chdir.test.mjs` — meta-test самого сканера).
+  const CHDIR = ['process.chd', 'ir'].join('')
+
+  test('успіх: тест без забороненого виклику → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      await writeFile(join(dir, 'tests/foo.test.mjs'), 'import { test } from "vitest"\ntest("ok", () => {})\n')
+      const { js, wasm } = await runNoProcessChdirBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test(`порушення: тест із ${CHDIR}(dir) → однакове violation з обох реалізацій`, async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      await writeFile(
+        join(dir, 'tests/foo.test.mjs'),
+        `import { test } from "vitest"\ntest("bad", () => { ${CHDIR}("/tmp") })\n`
+      )
+      const { js, wasm } = await runNoProcessChdirBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('process-chdir-in-test')
+      expect(js[0].data).toEqual({ line: 2 })
+    })
+  })
+
+  test('обхід пропускає node_modules → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'node_modules/some-pkg/tests'), { recursive: true })
+      await writeFile(join(dir, 'node_modules/some-pkg/tests/foo.test.mjs'), `${CHDIR}("/anywhere")\n`)
+      const { js, wasm } = await runNoProcessChdirBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — style/admin_table (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runAdminTableBoth = dir =>
+    runFullScopeBoth(ADMIN_TABLE_MAIN_MJS_PATH, ADMIN_TABLE_CONCERN_KEY, 'style', 'admin_table', dir)
+
+  test('exit 0 — n-admin-table використано і визначено → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'src/Table.vue'), '<template><q-table class="n-admin-table" /></template>\n')
+      await writeFile(join(dir, 'src/app.scss'), '.n-admin-table {\n  height: 100%;\n}\n')
+      const { js, wasm } = await runAdminTableBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('exit 1 — n-admin-table використано, але не визначено → однакове violation з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'src/Table.vue'), '<template><q-table class="n-admin-table" /></template>\n')
+      await writeFile(join(dir, 'src/app.scss'), '.other { color: red; }\n')
+      const { js, wasm } = await runAdminTableBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('missing-admin-table-style')
+    })
+  })
+
+  test('exit 0 — n-admin-table взагалі не використовується → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'src/Table.vue'), '<template><q-table dense /></template>\n')
+      const { js, wasm } = await runAdminTableBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — style/quasar_fixes (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runQuasarFixesBoth = dir =>
+    runFullScopeBoth(QUASAR_FIXES_MAIN_MJS_PATH, QUASAR_FIXES_CONCERN_KEY, 'style', 'quasar_fixes', dir)
+
+  test('exit 0 — q-scroll-area використано і фікс визначено → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'src/List.vue'), '<template><q-scroll-area /></template>\n')
+      await writeFile(join(dir, 'src/app.scss'), '.q-scrollarea {\n  display: flex;\n}\n')
+      const { js, wasm } = await runQuasarFixesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('exit 1 — q-tooltip використано, але фікс відсутній → однакове violation з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'src/Btn.vue'), '<template><q-btn><q-tooltip>hi</q-tooltip></q-btn></template>\n')
+      await writeFile(join(dir, 'src/app.scss'), '.other { color: red; }\n')
+      const { js, wasm } = await runQuasarFixesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('missing-quasar-fix')
+      expect(js[0].message).toContain('q-tooltip')
+    })
+  })
+
+  test('exit 0 — жоден із компонентів не використовується → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'src/List.vue'), '<template><div /></template>\n')
+      const { js, wasm } = await runQuasarFixesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — test/location (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runLocationBoth = dir => runFullScopeBoth(LOCATION_MAIN_MJS_PATH, LOCATION_CONCERN_KEY, 'test', 'location', dir)
+
+  test('успіх: усі *.test.mjs у tests/ → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'rules/foo/js/bar/tests'), { recursive: true })
+      await writeFile(join(dir, 'rules/foo/js/bar/check.mjs'), 'export function check() {}\n')
+      await writeFile(join(dir, 'rules/foo/js/bar/tests/check.test.mjs'), 'import { test } from "vitest"\n')
+      const { js, wasm } = await runLocationBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: тест поряд із джерелом → однакове violation з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'rules/foo/js/bar'), { recursive: true })
+      await writeFile(join(dir, 'rules/foo/js/bar/check.mjs'), 'export function check() {}\n')
+      await writeFile(join(dir, 'rules/foo/js/bar/check.test.mjs'), 'import { test } from "vitest"\n')
+      const { js, wasm } = await runLocationBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('location')
+    })
+  })
+
+  test('обхід пропускає node_modules → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'node_modules/some-pkg'), { recursive: true })
+      await writeFile(join(dir, 'node_modules/some-pkg/foo.test.mjs'), 'import { test } from "vitest"\n')
+      const { js, wasm } = await runLocationBoth(dir)
       expect(wasm).toEqual(js)
       expect(js).toEqual([])
     })
