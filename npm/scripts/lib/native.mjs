@@ -12,9 +12,11 @@
  *   4. Інакше — зрозуміла помилка з підказкою `cargo build --release -p rules-napi`.
  *
  * Аддон завантажується через `process.dlopen` — працює і для `.node`, і для
- * сирих cdylib (`.dylib`/`.so`), і під bun (не лише node). Результат
+ * сирих cdylib (`.dylib`/`.so`/`.dll`), і під bun (не лише node). Результат
  * кешується (одне завантаження на процес). Без JS-fallback на неоголошеній
- * платформі — hard error, свідома межа v1 (darwin-arm64, linux-x64), Р1 спеки.
+ * платформі — hard error, свідома межа v1 (darwin-arm64, linux-x64, win32-x64),
+ * Р1 спеки + П3 (`docs/specs/2026-07-30-rules-v2-rust-core-migration.md`,
+ * рішення О `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.4a).
  *
  * Додатково (відмінність від `llm-lib`-loader-а): після dlopen звіряється
  * `addon.contractVersion()` з [`EXPECTED_CONTRACT_VERSION`] — розбіжність
@@ -33,10 +35,11 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 /** Корінь репо: npm/scripts/lib → up 3. */
 const REPO_ROOT = join(HERE, '..', '..', '..')
 
-/** Підтримувані platform-arch → napi-суфікс артефакта (v1: darwin-arm64, linux-x64). */
+/** Підтримувані platform-arch → napi-суфікс артефакта (v1: darwin-arm64, linux-x64, win32-x64). */
 const NAPI_SUFFIXES = {
   'darwin-arm64': 'darwin-arm64',
-  'linux-x64': 'linux-x64-gnu'
+  'linux-x64': 'linux-x64-gnu',
+  'win32-x64': 'win32-x64-msvc'
 }
 
 /** Очікувана версія JSON DTO-контракту `rules-core` ⇄ `rules-napi` (Р10 спеки). */
@@ -58,11 +61,16 @@ function dlopenAddon(p) {
 
 /**
  * Ім'я cdylib-файлу для платформи (вивід `cargo build -p rules-napi`).
+ * УВАГА: на Windows cdylib БЕЗ `lib`-префікса (`rules_napi.dll`, не
+ * `librules_napi.dll`) — конвенція MSVC-тулчейну, на відміну від
+ * darwin/linux, де cargo додає `lib`-префікс автоматично.
  * @param {string} platform process.platform
  * @returns {string} ім'я бібліотеки
  */
 function cdylibName(platform) {
-  return platform === 'darwin' ? 'librules_napi.dylib' : 'librules_napi.so'
+  if (platform === 'darwin') return 'librules_napi.dylib'
+  if (platform === 'win32') return 'rules_napi.dll'
+  return 'librules_napi.so'
 }
 
 /**

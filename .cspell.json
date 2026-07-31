@@ -141,6 +141,8 @@
     "mkdirs",
     "mlmail",
     "mpsc",
+    "msvc",
+    "MSVC",
     "multibar",
     "Mutahunter",
     "mutmut",

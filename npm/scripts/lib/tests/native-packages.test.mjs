@@ -1,10 +1,12 @@
 /**
  * Консистентність платформних підпакетів napi-аддона `rules-core` з loader-ом
  * `lib/native.mjs` (за зразком `llm-lib/tests/native-packages.test.mjs`): для
- * кожної v1-платформи (darwin-arm64, linux-x64) `resolveNativeAddon` запитує
- * `@7n/rules-<platform>-<arch>/<артефакт>` — тест звіряє, що відповідний пакет
- * існує в `npm/packages/` з коректними `name`/`files`/`os`/`cpu`/`publishConfig`
- * і покритий `optionalDependencies` головного пакета в lockstep-версії (Р8 спеки
+ * кожної v1-платформи (darwin-arm64, linux-x64, win32-x64 — рішення О,
+ * §3.4a `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`)
+ * `resolveNativeAddon` запитує `@7n/rules-<platform>-<arch>/<артефакт>` —
+ * тест звіряє, що відповідний пакет існує в `npm/packages/` з коректними
+ * `name`/`files`/`os`/`cpu`/`publishConfig` і покритий `optionalDependencies`
+ * головного пакета в lockstep-версії (Р8 спеки
  * `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`). Ловить дрейф між
  * NAPI_SUFFIXES, package.json підпакетів і npm-publish-матрицею (ризик 7 спеки).
  */
@@ -21,7 +23,8 @@ const NPM_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 /** @type {Array<{ platform: string, arch: string }>} v1-платформи loader-а */
 const V1_PLATFORMS = [
   { platform: 'darwin', arch: 'arm64' },
-  { platform: 'linux', arch: 'x64' }
+  { platform: 'linux', arch: 'x64' },
+  { platform: 'win32', arch: 'x64' }
 ]
 
 /**

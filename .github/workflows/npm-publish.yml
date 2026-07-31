@@ -61,7 +61,8 @@ jobs:
           pins='@7n/llm-lib-darwin-arm64 llm-lib/package.json
           @7n/llm-lib-linux-x64 llm-lib/package.json
           @7n/rules-darwin-arm64 npm/package.json
-          @7n/rules-linux-x64 npm/package.json'
+          @7n/rules-linux-x64 npm/package.json
+          @7n/rules-win32-x64 npm/package.json'
           missing=false
           while read -r pkg manifest; do
             ver=$(node -p "require('./$manifest').optionalDependencies?.['$pkg'] ?? ''")
@@ -78,12 +79,18 @@ jobs:
           fi
 
   # ── Збірка prebuilt napi-аддонів llm-lib і rules-core для платформних підпакетів ─
-  # За зразком nitra/mt npm-publish.yml (build-binaries): v1-платформи —
-  # darwin-arm64 + linux-x64-gnu, дзеркало NAPI_SUFFIXES у llm-lib/lib/internal/native.mjs
-  # та npm/scripts/lib/native.mjs. Один runner на платформу збирає обидва cdylib —
-  # rules-napi окремий крейт/пакет від llm-lib-napi (Р7 спеки rules-v2-rust-core-migration),
-  # але target-тулчейн і платформа ті самі, тож друга збірка на тому ж runner-і дешевша,
-  # ніж окрема матриця.
+  # За зразком nitra/mt npm-publish.yml (build-binaries): v1-платформи для
+  # llm-lib — darwin-arm64 + linux-x64-gnu (v1-межа llm-lib окрема, НЕ
+  # розширюється — див. §3.4a docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md).
+  # rules-napi додатково будується на win32-x64-msvc (рішення О, те саме §3.4a,
+  # П3 rules-v2-rust-core-migration.md). Дзеркало NAPI_SUFFIXES у
+  # llm-lib/lib/internal/native.mjs та npm/scripts/lib/native.mjs. Один runner
+  # на платформу збирає обидва cdylib, де це можливо — rules-napi окремий
+  # крейт/пакет від llm-lib-napi (Р7 спеки rules-v2-rust-core-migration), але
+  # target-тулчейн і платформа ті самі, тож друга збірка на тому ж runner-і
+  # дешевша, ніж окрема матриця. Windows-рядок будує лише rules-napi (llm-lib
+  # там не потрібен) — `pkg`/`napi-artifact`/`cdylib` порожні, а кроки
+  # llm-lib-збірки пропускаються через `if: matrix.pkg != ''`.
   build-native:
     needs: changes
     if: needs.changes.outputs.native == 'true'
@@ -109,6 +116,14 @@ jobs:
             rules-pkg: rules-linux-x64
             rules-napi-artifact: rules-napi.linux-x64-gnu.node
             rules-cdylib: librules_napi.so
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            pkg: '' # llm-lib v1-межа лишається darwin-arm64+linux-x64 (не розширюється)
+            napi-artifact: ''
+            cdylib: ''
+            rules-pkg: rules-win32-x64
+            rules-napi-artifact: rules-napi.win32-x64-msvc.node
+            rules-cdylib: rules_napi.dll # Windows cdylib БЕЗ lib-префікса (MSVC-конвенція)
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -122,13 +137,19 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       # napi-аддон — cdylib; .node = той самий файл під napi-конвенцією імені.
+      # Пропускається на windows-рядку (matrix.pkg порожній) — llm-lib v1-межа
+      # окрема від rules-napi, не розширюється разом із rules на win32-x64.
       - name: Build llm-lib napi addon
+        if: matrix.pkg != ''
         run: cargo build --release --target ${{ matrix.target }} -p llm-lib-napi
 
       - name: Stage llm-lib napi addon into platform package
+        if: matrix.pkg != ''
+        shell: bash # явно — на windows-runner-і дефолтний шлях не вмикається (guard вище), консистентність з іншими cp-кроками
         run: cp "target/${{ matrix.target }}/release/${{ matrix.cdylib }}" "llm-lib/packages/${{ matrix.pkg }}/${{ matrix.napi-artifact }}"
 
       - uses: actions/upload-artifact@v4
+        if: matrix.pkg != ''
         with:
           name: ${{ matrix.pkg }}
           path: llm-lib/packages/${{ matrix.pkg }}/*.node
@@ -137,7 +158,12 @@ jobs:
       - name: Build rules-napi addon
         run: cargo build --release --target ${{ matrix.target }} -p rules-napi
 
+      # shell: bash — на windows-latest дефолтний shell для `run` це pwsh, де
+      # `cp`/шлях із прямими слешами не гарантовано поводяться так само; git-bash
+      # вже стоїть на windows-runner-ах (actions/runner-images), тож `cp`
+      # працює ідентично macOS/Linux без окремої гілки команди.
       - name: Stage rules-napi addon into platform package
+        shell: bash
         run: cp "target/${{ matrix.target }}/release/${{ matrix.rules-cdylib }}" "npm/packages/${{ matrix.rules-pkg }}/${{ matrix.rules-napi-artifact }}"
 
       - uses: actions/upload-artifact@v4
@@ -324,7 +350,8 @@ jobs:
       # Той самий канон, що й для @7n/llm-lib вище — новий prebuilt rules-napi addon
       # публікуємо лише після Rust/N-API змін. `npm/package.json` optionalDependencies
       # містить, крім платформних пакетів, і `@earendil-works/pi-*` — тож на відміну
-      # від llm-lib-скрипта тут явно перелічені лише два rules-платформні ключі,
+      # від llm-lib-скрипта тут явно перелічені лише три rules-платформні ключі
+      # (win32-x64 додано рішенням О, §3.4a plugin-contract-v3-wasm-component.md),
       # без циклу по всіх optionalDependencies.
       - name: Sync platform versions to @7n/rules
         if: >-
@@ -333,13 +360,13 @@ jobs:
         run: |
           VERSION=$(node -p "require('./npm/package.json').version")
           echo "Publishing @7n/rules platform packages at version $VERSION"
-          for pkg in rules-darwin-arm64 rules-linux-x64; do
+          for pkg in rules-darwin-arm64 rules-linux-x64 rules-win32-x64; do
             V="$VERSION" node -e "const f='npm/packages/'+process.argv[1]+'/package.json';const p=require('./'+f);p.version=process.env.V;require('fs').writeFileSync(f, JSON.stringify(p,null,2)+'\n')" "$pkg"
           done
           V="$VERSION" node -e "
             const f = 'npm/package.json';
             const p = require('./' + f);
-            for (const name of ['@7n/rules-darwin-arm64', '@7n/rules-linux-x64']) {
+            for (const name of ['@7n/rules-darwin-arm64', '@7n/rules-linux-x64', '@7n/rules-win32-x64']) {
               if (p.optionalDependencies?.[name]) p.optionalDependencies[name] = process.env.V;
             }
             require('fs').writeFileSync(f, JSON.stringify(p, null, 2) + '\n');
@@ -368,6 +395,26 @@ jobs:
         with:
           package-json-path: npm/packages/rules-linux-x64/package.json
 
+      # BOOTSTRAP-НОТАТКА (перший реліз @7n/rules-win32-x64): npm trusted
+      # publishing (OIDC) вимагає, щоб пакет уже існував у registry з
+      # налаштованим trusted publisher — перша публікація НОВОГО імені пакета
+      # через OIDC неможлива (той самий канон, що й bootstrap darwin-arm64/
+      # linux-x64, зафіксований у §7 rules-v2-rust-core-migration.md). Перед
+      # тим, як цей крок зможе відпрацювати в CI, потрібна одноразова ручна
+      # публікація `npm publish npm/packages/rules-win32-x64` під живим
+      # npm-токеном підтримувача + налаштування trusted publisher на
+      # npmjs.com для GitHub Actions workflow цього репозиторію. Далі —
+      # steady-state через OIDC, як і для двох інших платформ.
+      - name: Publish @7n/rules-win32-x64
+        if: >-
+          needs.changes.outputs.native == 'true' &&
+          contains(fromJSON(steps.release.outputs.workspaces), 'npm')
+        id: publish-rules-win32-x64
+        continue-on-error: true
+        uses: ./.github/actions/publish-npm-package
+        with:
+          package-json-path: npm/packages/rules-win32-x64/package.json
+
       # Дзеркало «Commit синк платформних пінів» вище для @7n/llm-lib: без цього
       # піни `npm/package.json` ⇄ `npm/packages/rules-*` відстають від registry
       # в git після release-коміту (ризик 7 спеки rules-v2-rust-core-migration).
@@ -376,16 +423,17 @@ jobs:
           needs.changes.outputs.native == 'true' &&
           contains(fromJSON(steps.release.outputs.workspaces), 'npm') &&
           steps.publish-rules-darwin-arm64.outcome == 'success' &&
-          steps.publish-rules-linux-x64.outcome == 'success'
+          steps.publish-rules-linux-x64.outcome == 'success' &&
+          steps.publish-rules-win32-x64.outcome == 'success'
         continue-on-error: true
         run: |
           n=0
-          until bun update @7n/rules-darwin-arm64 @7n/rules-linux-x64; do
+          until bun update @7n/rules-darwin-arm64 @7n/rules-linux-x64 @7n/rules-win32-x64; do
             n=$((n + 1))
             [ "$n" -ge 5 ] && { echo "::warning::registry не віддає нові платформні версії — піни лишаються незакоміченими"; exit 1; }
             sleep 15
           done
-          git add npm/package.json npm/packages/rules-darwin-arm64/package.json npm/packages/rules-linux-x64/package.json bun.lock
+          git add npm/package.json npm/packages/rules-darwin-arm64/package.json npm/packages/rules-linux-x64/package.json npm/packages/rules-win32-x64/package.json bun.lock
           git commit -m "chore(release): синк пінів платформних napi-пакетів @7n/rules"
 
       - name: Publish package
