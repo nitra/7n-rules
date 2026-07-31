@@ -62,7 +62,7 @@
  * (декілька concern-ів стартують паралельно) переюзали той самий in-flight
  * запит замість дублювання fetch/IO.
  */
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -192,7 +192,7 @@ function readValidCacheHit(cachePath, expectedSha256) {
  */
 function publishToCache(cacheDir, cachePath, bytes) {
   mkdirSync(cacheDir, { recursive: true })
-  const tmpPath = join(cacheDir, `.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const tmpPath = join(cacheDir, `.tmp-${process.pid}-${randomUUID()}`)
   writeFileSync(tmpPath, bytes)
   renameSync(tmpPath, cachePath)
 }
