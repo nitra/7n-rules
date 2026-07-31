@@ -1,3 +1,4 @@
+//! cspell:ignore десеріалізується picomatch
 //! napi-біндінги до `rules-core` для `@7n/rules`.
 //!
 //! Тонкий binding: жодної власної логіки, лише передача виклику в
@@ -196,6 +197,40 @@ pub fn run_native_concern(
     let violations = rules_core::concerns::run_concern(&key, &PathBuf::from(cwd), files.as_deref())
         .map_err(to_napi_err)?;
     Ok(serde_json::json!({ "violations": violations }))
+}
+
+/// Рахує lint-план — тонкий binding над [`rules_core::lint_plan::build_lint_plan`]
+/// (P1 фази 7, `docs/specs/2026-07-30-rules-v2-rust-core-migration.md` §4):
+/// порт `buildPlan` + усіх п'ять builders з
+/// `npm/scripts/lib/lint-surface/run-detectors.mjs`.
+///
+/// `input` — JSON, що десеріалізується у
+/// [`rules_core::lint_plan::BuildLintPlanInput`] (`mode` + мінімальний
+/// `byRule`-зріз + мод-специфічні поля); межа native ⇄ JS (дискавері й
+/// обидва фільтри — capabilities/applies — лишаються в JS) задокументована
+/// в doc-коментарі модуля `rules_core::lint_plan`. Повертає
+/// `Vec<PlanItem{ruleId, concernId, files}>` — JS зіставляє його назад зі
+/// своїми повними `ConcernMeta`.
+#[napi]
+pub fn build_lint_plan(input: serde_json::Value) -> Result<serde_json::Value> {
+    let parsed: rules_core::lint_plan::BuildLintPlanInput = serde_json::from_value(input)
+        .map_err(|err| Error::from_reason(format!("buildLintPlan: невалідний вхід: {err}")))?;
+    let plan = rules_core::lint_plan::build_lint_plan(&parsed);
+    serde_json::to_value(plan).map_err(|err| {
+        Error::from_reason(format!(
+            "buildLintPlan: серіалізація плану провалилась: {err}"
+        ))
+    })
+}
+
+/// picomatch-паритетний glob-матчер — тонкий binding над
+/// [`rules_core::lint_plan::match_lint_globs`]. Використовується JS-стороною
+/// `computeActiveDomains` (`run-detectors.mjs`) — той самий матчер, що й
+/// [`build_lint_plan`] усередині, єдине джерело правди для glob-семантики
+/// по обидва боки.
+#[napi]
+pub fn match_lint_globs(glob: Vec<String>, files: Vec<String>) -> Vec<String> {
+    rules_core::lint_plan::match_lint_globs(&glob, &files)
 }
 
 /// Конвертує `PluginHostError` у `napi::Error` — той самий мотив, що
