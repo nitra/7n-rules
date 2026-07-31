@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.65.0] - 2026-07-31
+
+### Changed
+
+- YAML-кластер ч.1 native rule engine (фаза 5 v2): abie-трійка `hc_pairing`/`ua_node_selector`/`ua_http_route` у `rules-core` разом із портами yaml/k8s-tree/kustomization-patches/overlay-paths/http-route helpers (native-реєстр — 16); мультидокументний YAML через serde_yaml
+
+### Fixed
+
+- git-reconcile тепер відсіює semantic obsolete переноси до PR і детально пояснює збережені worktree.
+
 ## [1.64.0] - 2026-07-31
 
 ### Changed
