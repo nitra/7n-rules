@@ -5,8 +5,8 @@
     "": {
       "name": "mono",
       "dependencies": {
-        "@7n/rules-darwin-arm64": "^1.63.0",
-        "@7n/rules-linux-x64": "^1.62.0",
+        "@7n/llm-lib-darwin-arm64": "^2.13.8",
+        "@7n/llm-lib-linux-x64": "^2.13.8",
       },
       "devDependencies": {
         "@7n/rules": "workspace:*",
@@ -41,7 +41,7 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.13.9",
+      "version": "2.13.10",
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
       },
@@ -50,8 +50,8 @@
         "@earendil-works/pi-coding-agent": "~0.80.10",
       },
       "optionalDependencies": {
-        "@7n/llm-lib-darwin-arm64": "2.13.8",
-        "@7n/llm-lib-linux-x64": "2.13.8",
+        "@7n/llm-lib-darwin-arm64": "2.13.10",
+        "@7n/llm-lib-linux-x64": "2.13.10",
       },
       "peerDependencies": {
         "@earendil-works/pi-ai": "~0.80.10",
@@ -64,7 +64,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.63.0",
+      "version": "1.64.0",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
