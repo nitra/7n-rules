@@ -29,6 +29,11 @@ pub mod dto;
 /// `build_lint_plan`/`match_lint_globs` — plan-контур lint-оркестрації
 /// (P1 фази 7, `buildPlan` + п'ять builders з `run-detectors.mjs`).
 pub mod lint_plan;
+/// `sort_violations`/`render_violations`/`compute_exit_code` — sort/render/
+/// exit-code контур lint-оркестрації (R1 фази 7, другий зріз після
+/// `lint_plan`: `sortViolations`/`renderViolations`/exit-code гілка
+/// `detectAll` з `run-detectors.mjs`/`render.mjs`).
+pub mod lint_render;
 /// `walk_dir` — native filesystem scan, точний порт `walkDir` (D1 фази 4а).
 pub mod scan;
 /// Worktree lifecycle через `mt-core` (Р3 спеки, фаза 2 задача B1).
