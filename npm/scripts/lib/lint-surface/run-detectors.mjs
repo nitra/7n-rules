@@ -20,7 +20,7 @@ import { loadNative } from '../native.mjs'
 import { getActiveCapabilities, resolveRulesDirs } from '../plugin-slots.mjs'
 import { readNRulesConfigLite, isRuleEnabled } from '../read-n-rules-config-lite.mjs'
 import { isSerialLane } from './blocking-inventory.mjs'
-import { runConcernDetector, DetectorError } from './detect.mjs'
+import { runConcernDetector, DetectorError, isBuiltinNativeConcern, normalizeResult } from './detect.mjs'
 import { renderDiagnostics } from './render.mjs'
 import { createProgressReporter } from './progress.mjs'
 import { runPlanConcurrently } from './scheduler.mjs'
@@ -487,9 +487,142 @@ async function runPlanItem({ entry, files }, { cwd, verbose, progress, log, sign
  */
 
 /**
+ * @typedef {{ type: 'native', items: PlanItem[] } | { type: 'single', item: PlanItem }} PlanSegment
+ */
+
+/**
+ * Партиціонує план на сегменти для послідовного шляху (R2 зрізу 3 фази 7):
+ * суцільні прогони builtin-native items ({@link isBuiltinNativeConcern}) —
+ * один `native`-сегмент (пізніше ОДИН `runNativeConcernsBatch`-виклик),
+ * решта (wasm/policy/ручний main.mjs) — окремі `single`-сегменти, чинний
+ * per-item шлях без змін. Порядок плану зберігається; зливаються лише
+ * СУСІДНІ native items — нативний concern між двома невідомими items
+ * лишається власним сегментом довжини 1 (без штучного "стрибка" через
+ * невідповідний item), той самий порядок виконання, що дав би чистий
+ * per-item прохід.
+ * @param {PlanItem[]} plan впорядкований план прогону.
+ * @returns {PlanSegment[]} сегменти плану.
+ */
+function partitionPlanIntoSegments(plan) {
+  /** @type {PlanSegment[]} */
+  const segments = []
+  /** @type {PlanItem[]} */
+  let nativeRun = []
+  const flushNativeRun = () => {
+    if (!(nativeRun.length > 0)) {
+      return
+    }
+
+    segments.push({ type: 'native', items: nativeRun })
+    nativeRun = []
+  }
+  for (const item of plan) {
+    if (isBuiltinNativeConcern(item.entry.ruleId, item.entry.concern.name)) {
+      nativeRun.push(item)
+    } else {
+      flushNativeRun()
+      segments.push({ type: 'single', item })
+    }
+  }
+  flushNativeRun()
+  return segments
+}
+
+/**
+ * Виконує ОДИН суцільний сегмент builtin-native items ОДНИМ native-викликом
+ * (`runNativeConcernsBatch`, `crates/rules-napi/src/lib.rs`) замість N
+ * окремих `runConcernDetector` (R2 зрізу 3 фази 7) — менше napi-hops на
+ * гарячому шляху `detectAll`.
+ *
+ * Progress/verbose-репортинг відтворює per-item шлях ({@link runPlanItem})
+ * один-в-один: `concernStart` + verbose pre-run лог ПЕРЕД кожним item-ом
+ * (перший — до батч-виклику, бо всі `files`/`scope` уже відомі з плану;
+ * решта — з `onProgress`-колбека, що спрацьовує СИНХРОННО одразу після
+ * попереднього item-а, той самий порядок, що дав би `await` між двома
+ * послідовними `runPlanItem`); `detectSnapshot`+`concernDone` ПІСЛЯ item-а —
+ * лише за відсутності помилки (у `runPlanItem` ці два виклики стоять ПІСЛЯ
+ * `await runConcernDetector(...)`, тож `DetectorError` звідти обриває їх
+ * так само, як тут `stopped`-прапорець).
+ *
+ * Rust-бік доводить сегмент до кінця незалежно від проміжних помилок
+ * (fail-soft `run_concerns_batch`, `crates/rules-core/src/concerns/batch.rs`)
+ * — детектори read-only, зайве обчислення після першої помилки нешкідливе.
+ * Але JS-семантика ЗУПИНЯЄТЬСЯ на першому `DetectorError` (той самий
+ * контракт, що per-item `detectPlanSequentially`): `outcomes` містить лише
+ * items ДО помилки, `error` — сконструйований `DetectorError` для item-а, що
+ * впав, з ТИМ САМИМ форматом повідомлення (`native concern кинув: ...`), що
+ * одиночний виклик у {@link runConcernDetector}.
+ * @param {PlanItem[]} segmentItems суцільний сегмент native-items плану (непорожній).
+ * @param {{ cwd: string, verbose: boolean, progress: import('./progress.mjs').ProgressReporter|null, log: (s: string) => void }} runOpts опції прогону.
+ * @returns {{ outcomes: { entry: LintEntry, violations: LintViolation[] }[], error: DetectorError|null }}
+ *   виконані items (до першої помилки) і опційна помилка.
+ */
+function runNativeSegmentSync(segmentItems, { cwd, verbose, progress, log }) {
+  const keyOf = item => `${item.entry.ruleId}/${item.entry.concern.name}`
+
+  /** Concern-start + verbose pre-run лог — той самий рядок, що runPlanItem. */
+  const logPreRun = item => {
+    const key = keyOf(item)
+    progress?.concernStart(key)
+    if (verbose) {
+      const countStr = item.files === undefined ? 'весь репо' : `${item.files.length} файл(ів)`
+      log(`  🔍 ${key}  [${item.entry.concern.lint.scope}]  → ${countStr}\n`)
+    }
+  }
+  logPreRun(segmentItems[0])
+
+  const batchItems = segmentItems.map(item => ({
+    key: keyOf(item),
+    cwd,
+    // `?? null` — той самий контракт, що одиночний `runNativeConcern(nativeKey, ctx.cwd, ctx.files ?? null)`
+    // у `detect.mjs`: `undefined` (whole-repo) не можна передати крізь JSON, native розрізняє `null`/`Some([])`.
+    files: item.files ?? null
+  }))
+
+  let idx = 0
+  let stopped = false
+  const onProgress = payload => {
+    if (stopped) return // native фізично рахує далі (fail-soft), але JS уже не репортить — той самий early-stop, що per-item throw
+    if (payload.error !== undefined) {
+      stopped = true
+      return
+    }
+    const key = keyOf(segmentItems[idx])
+    progress?.detectSnapshot(key, payload.violationsCount)
+    progress?.concernDone(key)
+    idx += 1
+    if (idx < segmentItems.length) logPreRun(segmentItems[idx])
+  }
+
+  const { results } = loadNative().runNativeConcernsBatch(batchItems, onProgress)
+
+  /** @type {{ entry: LintEntry, violations: LintViolation[] }[]} */
+  const outcomes = []
+  for (const [i, r] of results.entries()) {
+    const item = segmentItems[i]
+    if (r.error !== undefined) {
+      // Той самий формат, що `detect.mjs::runConcernDetector` для native-гілки: "native concern кинув: <message>".
+      return {
+        outcomes,
+        error: new DetectorError(item.entry.ruleId, item.entry.concern.name, `native concern кинув: ${r.error}`)
+      }
+    }
+    const normalized = normalizeResult(
+      { violations: r.violations },
+      { ruleId: item.entry.ruleId, concernId: item.entry.concern.name }
+    )
+    outcomes.push({ entry: item.entry, violations: normalized.violations })
+  }
+  return { outcomes, error: null }
+}
+
+/**
  * Послідовний прохід плану — незмінна поведінка до-ADR 260716-1354 (`N_RULES_LINT_CONCURRENCY<=1`,
- * дефолт). Перший `DetectorError` негайно зупиняє прогін (`infraMessage`); будь-яка інша помилка
- * прокидається далі (несподівана помилка самого раннера, не detector-контракту).
+ * дефолт), доповнена batch-виконанням суцільних native-сегментів (R2 зрізу 3 фази 7,
+ * {@link partitionPlanIntoSegments}/{@link runNativeSegmentSync}) — спостережувано ідентична
+ * поведінка (violations/порядок/progress/DetectorError-формат), лише менше napi-hops. Перший
+ * `DetectorError` негайно зупиняє прогін (`infraMessage`); будь-яка інша помилка прокидається
+ * далі (несподівана помилка самого раннера, не detector-контракту).
  * @param {PlanItem[]} plan впорядкований план прогону.
  * @param {{ cwd: string, verbose: boolean, progress: import('./progress.mjs').ProgressReporter|null, log: (s: string) => void }} runOpts опції прогону.
  * @returns {Promise<PlanRunResult>} зібрані violations, виконані entries, повідомлення інфра-помилки.
@@ -499,16 +632,25 @@ async function detectPlanSequentially(plan, runOpts) {
   const violations = []
   /** @type {LintEntry[]} */
   const ran = []
-  for (const item of plan) {
-    let outcome
-    try {
-      outcome = await runPlanItem(item, runOpts)
-    } catch (error) {
-      if (error instanceof DetectorError) return { violations, ran, infraMessage: error.message }
-      throw error
+  for (const segment of partitionPlanIntoSegments(plan)) {
+    if (segment.type === 'single') {
+      let outcome
+      try {
+        outcome = await runPlanItem(segment.item, runOpts)
+      } catch (error) {
+        if (error instanceof DetectorError) return { violations, ran, infraMessage: error.message }
+        throw error
+      }
+      ran.push(outcome.entry)
+      violations.push(...outcome.violations)
+      continue
     }
-    ran.push(outcome.entry)
-    violations.push(...outcome.violations)
+    const { outcomes, error } = runNativeSegmentSync(segment.items, runOpts)
+    for (const outcome of outcomes) {
+      ran.push(outcome.entry)
+      violations.push(...outcome.violations)
+    }
+    if (error !== null) return { violations, ran, infraMessage: error.message }
   }
   return { violations, ran, infraMessage: null }
 }
