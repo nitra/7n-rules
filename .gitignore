@@ -36,3 +36,11 @@ target/
 # Prebuilt napi-артефакти платформних пакетів: у git лише package.json,
 # .node кладе CI (build-native) або ручна публікація — у git не потрапляють
 llm-lib/packages/**/*.node
+
+# Вбудовані піни first-party wasm-плагінів (задача O1, спека
+# 2026-07-31-plugin-contract-v3-wasm-component.md §3.4, рішення Н): у git
+# лише README.md теки — .wasm і згенерований builtin-pins.json кладе CI
+# (build-native, npm-publish.yml) або локальна dev-петля
+# `node npm/scripts/build-wasm-plugins.mjs`
+npm/wasm-plugins/*.wasm
+npm/wasm-plugins/builtin-pins.json

@@ -9,6 +9,7 @@ resource: npm/scripts/
 | [auto-rules.mjs](auto-rules.md)                                           | JS Module |
 | [auto-skills.mjs](auto-skills.md)                                         | JS Module |
 | [build-agents-commands.mjs](build-agents-commands.md)                     | JS Module |
+| [build-wasm-plugins.mjs](build-wasm-plugins.md)                           | JS Module |
 | [cli-entry.mjs](cli-entry.md)                                             | JS Module |
 | [ensure-n-rules-dev-dependencies.mjs](ensure-n-rules-dev-dependencies.md) | JS Module |
 | [github-package-release.mjs](github-package-release.md)                   | JS Module |

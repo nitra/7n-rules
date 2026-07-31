@@ -36,6 +36,7 @@
     "schemas",
     "scripts",
     "skills",
+    "wasm-plugins",
     ".claude-template",
     ".pi-template",
     "AGENTS.template.md",
