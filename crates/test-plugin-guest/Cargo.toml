@@ -1,0 +1,13 @@
+[package]
+name = "test-plugin-guest"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "Apache-2.0"
+description = "Мінімальна guest-фікстура для contract-test-kit crates/rules-plugin-host — реалізує n-rules:plugin@3.0.0 concern test/guest-echo"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.60"

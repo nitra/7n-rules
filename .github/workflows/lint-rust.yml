@@ -40,8 +40,20 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+          # wasm32-wasip2 — ціль guest-фікстури contract-test-kit
+          # `crates/rules-plugin-host` (задача I2 фази 6): `cargo build`
+          # для неї вже дає готовий Component Model компонент, без окремого
+          # adapter-кроку (доккомент `crates/test-plugin-guest/build.sh`).
+          targets: wasm32-wasip2
 
       - uses: Swatinem/rust-cache@v2
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-tools
+
+      - name: Build contract-test-kit guest fixture
+        run: bash crates/test-plugin-guest/build.sh
 
       - name: Rustfmt
         run: cargo fmt --all -- --check

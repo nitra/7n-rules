@@ -6,4 +6,37 @@ members = [
   "crates/rules-core",
   "crates/rules-napi",
   "crates/rules-contract",
+  "crates/rules-plugin-host",
+  "crates/test-plugin-guest",
 ]
+# `crates/test-plugin-guest` — guest-фікстура contract-test-kit
+# `crates/rules-plugin-host` (задача I2, спека
+# `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`).
+#
+# Свідомо ЗВИЧАЙНИЙ `members`-запис, не `workspace.exclude` + власний
+# `[workspace]` у крейті (як типово роблять для wasm-guest-фікстур в інших
+# монорепо): цей репозиторій — вкладений git worktree
+# (`.claude/worktrees/<...>/` живе ПІД основним чекаутом того самого репо,
+# в якого теж є кореневий `Cargo.toml` із `[workspace]`). Для не-члена
+# `crates/test-plugin-guest` реальна поведінка Cargo (перевірено емпірично):
+# автопошук workspace root підіймається повз найближчий предок з
+# `exclude`-записом до ДРУГОГО, зовнішнього workspace (кореня основного
+# чекауту) і падає `error: current package believes it's in a workspace
+# when it's not` — `exclude` сам собою НЕ робить пакет самостійним
+# workspace root, попри те, що офіційне повідомлення Cargo про це натякає
+# (працює лише коли пакет своєю `[workspace]`-таблицею явно скасовує
+# пошук — що заборонено `rust/workspace_root`
+# (`plugins/lang-rust/rules/rust/workspace_root/workspace_root.mdc`), або
+# коли ВИЩЕ по дереву взагалі немає іншого workspace — не наш випадок через
+# вкладеність worktree). Членство в кореневому workspace — єдиний спосіб
+# задовольнити І Cargo (немає конфлікту резолву), І лінт (один кореневий
+# workspace, без вкладених `[workspace]`/`[profile.*]`).
+#
+# Практичний ризик такого членства — конфлікт build-графів
+# (`crates/test-plugin-guest` компілюється під `wasm32-wasip2`, wit-bindgen
+# генерує host-специфічні `extern "C"` glue) — емпірично не підтвердився:
+# `wit-bindgen`-згенерований код гейтить wasm-специфічну ABI-обв'язку за
+# `cfg(target_arch = "wasm32")`, тож `cargo build`/`cargo test --workspace`
+# без `--target` компілюють і "пропускають" цей крейт на host-таргеті без
+# помилок лінкування (перевірено: `cargo build -p test-plugin-guest`,
+# `cargo test --workspace` — обидва проходять на aarch64-apple-darwin).
