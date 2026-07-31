@@ -15,8 +15,9 @@ id = "lang-js/wasm-concerns"
 version = "0.1.0"
 world_version = "3.0.0"
 domains = ["lint"]
-# Дві контрибуції концернів (задача N2, передумова full-scope мосту): scope/
-# glob дзеркалять `plugins/lang-js/rules/**/concern.json` цих самих концернів.
+# Сім контрибуцій концернів (задача N2 + Q1 батч 1, передумова full-scope
+# мосту): scope/glob дзеркалять `plugins/lang-js/rules/**/concern.json` цих
+# самих концернів.
 [[concerns]]
 key = "vue/tfm-translations"
 scope = "per-file"
@@ -26,6 +27,31 @@ glob = ["**/*.vue"]
 key = "style/gap"
 scope = "full"
 glob = ["**/*.vue", "**/*.scss", "**/*.css"]
+
+[[concerns]]
+key = "test/vitest-config-pool-forks"
+scope = "full"
+glob = ["vitest.config.mjs", "vitest.config.js"]
+
+[[concerns]]
+key = "test/no-process-chdir"
+scope = "full"
+glob = ["**/*.test.mjs", "**/*.test.js"]
+
+[[concerns]]
+key = "style/admin_table"
+scope = "full"
+glob = ["**/*.vue", "**/*.scss", "**/*.css"]
+
+[[concerns]]
+key = "style/quasar_fixes"
+scope = "full"
+glob = ["**/*.vue", "**/*.scss", "**/*.css"]
+
+[[concerns]]
+key = "test/location"
+scope = "full"
+glob = ["**/*.test.mjs"]
 
 ci_artifacts = []
 tools = []

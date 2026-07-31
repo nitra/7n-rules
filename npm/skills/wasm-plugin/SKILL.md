@@ -188,6 +188,42 @@ per-file: пиши `detect_whole_batch(files: &[SourceFile]) -> Vec<Diagnostic>`
    реалізовано хостом, автору концерну лишається коректно заповнити
    `scope`/`glob` у `build_manifest()`.
 
+#### Розбіжність full-scope мосту: `.n-rules.json`-ignore не застосовується
+
+Виявлено задачею Q1 батч 1 (`plugin-lang-js`). Host-бік full-scope збору
+(`crates/rules-napi::build_full_scope_files`) будує whole-repo batch через
+`rules_core::scan::walk_dir(cwd, &[])` (`.gitignore` +
+дефолтний `.git`/`node_modules`/worktrees-набір) відфільтрований `glob`
+контрибуції — і **все**. Якщо JS-оригінал, що ти портуєш, збирав файли через
+`walkDir(cwd, onFile, ignorePaths)` з ДОДАТКОВИМ `ignorePaths`
+(найчастіше — `loadCursorIgnorePaths(cwd)`, `npm/scripts/lib/load-cursor-config.mjs`:
+консюмер-специфічний `ignore` у `.n-rules.json`, понад дефолтний набір), wasm-порт
+цей додатковий ignore-список НЕ відтворює — `build_full_scope_files` про нього
+не знає і сама зміна цієї функції (щоб читала `.n-rules.json`) — інфраструктурна
+робота понад один плагін (торкається УСІХ full-scope wasm-концернів одразу), не
+задача авторингу одного концерну.
+
+Що робити, портуючи такий концерн:
+
+1. `ConcernContribution.glob` — точний відповідник `concern.json.lint.glob`
+   JS-оригіналу (як завжди) — host звужує whole-repo обхід ще ДО читання
+   вмісту, це не міняється.
+2. Якщо JS-оригінал використовував додатковий предикат файлу ПОНАД glob (напр.
+   `isTestFile(absPath)` — перевірка суфікса імені, не лише шаблону каталогу
+   — зразок: `npm/scripts/lib/collect-test-files.mjs`), відтвори цей
+   предикат як гість-фільтр УСЕРЕДИНІ чистої `detect_whole_batch`-функції
+   (той самий мотив, що `detect_one_file_tfm`'s `!file.path.ends_with(".vue")`
+   у `crates/plugin-lang-js`) — захист, якщо `detect` цього концерну колись
+   викличуть з файлами поза очікуваним підмножиною (напр. прямий per-file
+   виклик, не лише full-scope міст).
+3. **Задокументуй розбіжність** doc-коментарем біля чистої функції (зразок —
+   `detect_no_process_chdir`, `crates/plugin-lang-js/src/lib.rs`): яка саме
+   JS-поведінка (`ignorePaths`/`.n-rules.json` `ignore`) не відтворена і чому
+   (обсяг задачі — не інфраструктура host-боку). Не намагайся мовчки
+   "виправити" це патчем `build_full_scope_files` в межах задачі одного
+   концерну — зміни там торкаються `style/gap`/усіх наявних full-scope
+   концернів одночасно і потребують окремого regression-покриття.
+
 ### Домени поза lint (рішення К спеки)
 
 Якщо плагін підтримує `ecosystem-outdated`/`docgen-render` — реалізуй
