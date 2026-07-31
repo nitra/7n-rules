@@ -3,22 +3,20 @@ type: JS Module
 title: fix-marksman_config.mjs
 resource: npm/rules/doc-files/marksman_config/fix-marksman_config.mjs
 docgen:
-  crc: 7c52fcff
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
-  score: 95
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: 382e68f0
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
+  score: 70
 ---
-
-## Огляд
-
-`patterns` копіює canonical baseline `.marksman.toml` без LLM, щоб забезпечити стандартний вміст `doc-files/marksman_config` у разі відсутності базової конфігурації.
 
 ## Поведінка
 
-1. `patterns` задає єдиний T0-сценарій автопоправки для відсутньої конфігурації Marksman: якщо перевірка фіксує нестачу базового файлу, змінюється цільовий файл у робочій теці.
-2. Під час спрацювання записується факт зміни цільового шляху, після чого у нього копіюється canonical baseline без залучення LLM.
-3. Результат для оператора — поява стандартної конфігурації замість пропуску, з повідомленням про створення файлу згідно з правилами `doc-files.mdc`.
+patterns виконує автоматичне виправлення в наступних умовах:
+1. Виявлено відсутність конфігураційного файлу `marksman-config-missing`.
+2. Перевіряється, чи існує канонічний базовий файл конфігурації в пакеті правил.
+3. Якщо базовий файл присутній, він копіюється у цільовий файл `.marksman.toml` у корені репозиторію.
+4. Здійснюється запис у контексті, щоб позначити файл як змінений.
+5.
 
 ## Гарантії поведінки
 

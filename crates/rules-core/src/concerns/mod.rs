@@ -13,12 +13,25 @@ use std::path::Path;
 
 use crate::{diagnostics::Violation, RulesError};
 
+pub(crate) mod cursor_ignore;
 mod dremio_logging;
+mod env_dns;
+mod firebase_hosting;
 mod forbidden_prettier;
+mod hasura_migrations;
+mod image_compress_package_setup;
+mod marksman_config;
+mod rego_tooling;
 mod sample_secret;
 
 pub use dremio_logging::{dremio_logging, zk_logback_root_level_violation};
+pub use env_dns::env_dns;
+pub use firebase_hosting::firebase_hosting;
 pub use forbidden_prettier::forbidden_prettier;
+pub use hasura_migrations::hasura_migrations;
+pub use image_compress_package_setup::image_compress_package_setup;
+pub use marksman_config::marksman_config;
+pub use rego_tooling::rego_tooling;
 pub use sample_secret::sample_secret;
 
 /// Ключі native-портованих concern-ів у форматі `ruleId/concernId` — той
@@ -29,6 +42,12 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "text/forbidden-prettier",
     "security/sample_secret",
     "k8s/dremio_logging",
+    "rego/tooling",
+    "doc-files/marksman_config",
+    "abie/firebase_hosting",
+    "abie/env_dns",
+    "hasura/migrations",
+    "image-compress/package_setup",
 ];
 
 /// Запускає native-порт concern-а за ключем `ruleId/concernId`.
@@ -51,6 +70,12 @@ pub fn run_concern(
         "text/forbidden-prettier" => Ok(forbidden_prettier(cwd)),
         "security/sample_secret" => Ok(sample_secret(cwd)),
         "k8s/dremio_logging" => Ok(dremio_logging(cwd, files)),
+        "rego/tooling" => Ok(rego_tooling(cwd)),
+        "doc-files/marksman_config" => Ok(marksman_config(cwd)),
+        "abie/firebase_hosting" => Ok(firebase_hosting(cwd)),
+        "abie/env_dns" => Ok(env_dns(cwd)),
+        "hasura/migrations" => Ok(hasura_migrations(cwd)),
+        "image-compress/package_setup" => Ok(image_compress_package_setup(cwd)),
         other => Err(RulesError::Concern(format!(
             "невідомий native concern: {other}"
         ))),
@@ -62,13 +87,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn native_concerns_lists_all_three_pilots() {
+    fn native_concerns_lists_all_nine_entries() {
         assert_eq!(
             NATIVE_CONCERNS,
             &[
                 "text/forbidden-prettier",
                 "security/sample_secret",
                 "k8s/dremio_logging",
+                "rego/tooling",
+                "doc-files/marksman_config",
+                "abie/firebase_hosting",
+                "abie/env_dns",
+                "hasura/migrations",
+                "image-compress/package_setup",
             ]
         );
     }
@@ -78,6 +109,27 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let violations = run_concern("text/forbidden-prettier", tmp.path(), None).unwrap();
         assert!(violations.is_empty());
+    }
+
+    /// Кожен із шести нових ключів F1 батчу 2 диспатчиться на свою функцію
+    /// (не лише перевірені окремо в підмодулях) — smoke-перевірка самого
+    /// `match` у `run_concern`, не повторних сценаріїв concern-ів.
+    #[test]
+    fn run_concern_dispatches_all_batch2_keys() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        for key in [
+            "rego/tooling",
+            "doc-files/marksman_config",
+            "abie/firebase_hosting",
+            "abie/env_dns",
+            "hasura/migrations",
+            "image-compress/package_setup",
+        ] {
+            assert!(
+                run_concern(key, tmp.path(), None).is_ok(),
+                "run_concern має прийняти ключ {key}"
+            );
+        }
     }
 
     #[test]

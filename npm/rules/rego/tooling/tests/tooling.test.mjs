@@ -1,14 +1,24 @@
 /**
  * Тести правила rego.mdc (concern tooling): перевірка наявності .regal/config.yaml.
+ *
+ * Прогін — через `runConcernDetector` (dispatch-рівень), не пряма функція: JS
+ * `main.mjs` видалений (F2 фази 5 батчу 2), concern тепер живе лише в
+ * `crates/rules-core/src/concerns/rego_tooling.rs` і виконується через
+ * native-гілку `runConcernDetector`.
  */
 import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-import { lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
-const run = dir => lint({ cwd: dir, ruleId: 'rego', concernId: 'tooling', files: undefined })
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+
+const run = dir => runConcernDetector(CONCERN, { cwd: dir, ruleId: 'rego', concernId: 'tooling', files: undefined })
 
 describe('check rego.tooling', () => {
   test('успіх: .regal/config.yaml існує → 0 violations', async () => {

@@ -2,17 +2,29 @@
  * Тести concern-а abie/js/env_dns: для кожного `*.dev.env`/`*.ua.env` усі URL
  * `http(s)://<svc>.<ns>.svc.<dns>` мають відповідати кластеру за іменем файла.
  * Помилки виявлення/читання спливають як violation, відсутність файлів — clean.
+ *
+ * Прогін — через `runConcernDetector` (dispatch-рівень), не пряма функція: JS
+ * `main.mjs` видалений (F2 фази 5 батчу 2), concern тепер живе лише в
+ * `crates/rules-core/src/concerns/env_dns.rs` і виконується через native-гілку
+ * `runConcernDetector`. Lib-модуль `../lib/env-dns.mjs` лишається — його юніт-тести
+ * (`npm/rules/abie/lib/tests/env-dns.test.mjs`) не чіпаються цим портом.
  */
 import { describe, expect, test } from 'vitest'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { writeFile } from 'node:fs/promises'
 
-import { lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
-const ruleId = 'rules/abie'
-const concernId = 'rules/abie/env_dns'
-const run = dir => lint({ cwd: dir, ruleId, concernId, files: undefined })
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+
+// Короткий формат ruleId/concernId — узгоджений з `NATIVE_CONCERNS` (`abie/env_dns`).
+const ruleId = 'abie'
+const concernId = 'env_dns'
+const run = dir => runConcernDetector(CONCERN, { cwd: dir, ruleId, concernId, files: undefined })
 
 describe('abie env_dns concern', () => {
   test('репозиторій без env-файлів → clean (skip з повідомленням про пропуск)', async () => {

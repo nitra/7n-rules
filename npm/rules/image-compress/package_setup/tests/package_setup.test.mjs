@@ -9,16 +9,31 @@
  * (`npm/rules/image-compress/policy/package_json/`).
  *
  * AVIF-генерацію та переписування `.vue`/`.html` тестує `check-image-avif.test.mjs`.
+ *
+ * Прогін — через `runConcernDetector` (dispatch-рівень), не пряма функція: JS
+ * `main.mjs` видалений (F2 фази 5 батчу 2), concern тепер живе лише в
+ * `crates/rules-core/src/concerns/image_compress_package_setup.rs` і
+ * виконується через native-гілку `runConcernDetector`.
  */
 import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-import { lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+
 const check = async dir => {
-  const r = await lint({ cwd: dir, ruleId: 'image-compress', concernId: 'package_setup', files: undefined })
+  const r = await runConcernDetector(CONCERN, {
+    cwd: dir,
+    ruleId: 'image-compress',
+    concernId: 'package_setup',
+    files: undefined
+  })
   return r.violations
 }
 

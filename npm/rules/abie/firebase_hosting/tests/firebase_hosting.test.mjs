@@ -2,17 +2,30 @@
  * Тести concern-а abie/js/firebase_hosting: у підкаталогах 1-го рівня
  * (без .git/node_modules) не має бути `.firebaserc`, `firebase.json`, `.firebase/`.
  * У самому корені — не перевіряється.
+ *
+ * Прогін — через `runConcernDetector` (dispatch-рівень), не пряма функція: JS
+ * `main.mjs` видалений (F2 фази 5 батчу 2), concern тепер живе лише в
+ * `crates/rules-core/src/concerns/firebase_hosting.rs` і виконується через
+ * native-гілку `runConcernDetector`.
  */
 import { describe, expect, test } from 'vitest'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-import { lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 import { writeFile } from 'node:fs/promises'
 
-const ruleId = 'rules/abie'
-const concernId = 'rules/abie/firebase_hosting'
-const run = dir => lint({ cwd: dir, ruleId, concernId, files: undefined })
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+
+// Формат ruleId/concernId — короткий (без `rules/`-префікса): `detect.mjs` матчить
+// `${ruleId}/${concernId}` проти `NATIVE_CONCERNS` (`abie/firebase_hosting`), тож
+// саме цей формат — не старий `'rules/abie'`, який ігнорувався прямим `lint()`.
+const ruleId = 'abie'
+const concernId = 'firebase_hosting'
+const run = dir => runConcernDetector(CONCERN, { cwd: dir, ruleId, concernId, files: undefined })
 
 describe('abie firebase_hosting concern', () => {
   test('порожній каталог → clean', async () => {
