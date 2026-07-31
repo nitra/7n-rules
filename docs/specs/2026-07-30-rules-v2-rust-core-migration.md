@@ -1,22 +1,29 @@
 # `@7n/rules` v2 — інкрементальна міграція runtime-ядра з JS у Rust
 
-**Дата:** 2026-07-30
-**Статус:** план — погоджені рішення зафіксовано, фаза 1 готова до реалізації
-**Зв'язані документи:** `docs/specs/2026-07-16-llm-lib-napi-thin-client-design.md`,
+**Дата:** 2026-07-30 (корекція цілі — 2026-07-31, §8)
+**Статус:** план — фази 1–4a виконані, фаза 5 триває; кінцева мета уточнена
+**Зв'язані документи:** `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`
+(plugin contract v3 — рішення, на якому стоять фази 6–8),
+`docs/specs/2026-07-16-llm-lib-napi-thin-client-design.md`,
 `docs/specs/2026-07-23-llm-cascade-single-source-spec.md`,
 `npm/scripts/lib/changed-files.mjs`, `npm/scripts/lib/auto-worktree.mjs`,
 `llm-lib/lib/internal/native.mjs`, `.cursor/rules/n-worktree.mdc`
 
 ## 1. Мета
 
-v2 проєкту `@7n/rules`: Rust-ядро (`rules-core`), яке з часом бере на себе
-deterministic rule engine, Git-запити, filesystem scan, diagnostics, cache і fix
-plans, та напряму використовує крейт `llm-lib`. Bun/Node лишається CLI, plugin
-host (Plugin API v2) і адаптером до зовнішніх ecosystem tools. Міграція —
-інкрементальна: по одному вимірюваному use case, кожен із behavior-parity-гейтом
-до видалення JS-гілки.
+v2 проєкту `@7n/rules`: Rust-ядро (`rules-core`), яке бере на себе deterministic
+rule engine, Git-запити, filesystem scan, diagnostics, cache і fix plans, та
+напряму використовує крейт `llm-lib`. **Кінцева мета (корекція 2026-07-31) —
+повноцінний Rust CLI: інверсія entrypoint із Node на Rust.** Bun/Node — не
+постійний шар, а транзитний: JS-фасади живуть до фази 8, після інверсії node
+лишається лише задекларованою tool-залежністю окремих плагінів (рішення Д
+спеки plugin contract v3), не залежністю продукту. Міграція — інкрементальна:
+по одному вимірюваному use case, кожен із behavior-parity-гейтом до видалення
+JS-гілки.
 
 ## 2. Цільова архітектура
+
+Перехідна (фази 1–5, чинна сьогодні):
 
 ```text
 Bun/Node CLI + JS plugin host + external-tool adapters
@@ -27,6 +34,21 @@ rules-core (Rust: policy, scan, Git-запити, diagnostics, fix plans, cache)
       ├─ mt-core (git dep nitra/mt-rust) — worktree lifecycle + porcelain compat-межа
       ├─ gix 0.86 (пін вирівняно з mt-rust) — commit-graph read/query
       └─ llm-lib (path dep, підключається лише з LLM-фазою)
+```
+
+Кінцева (після фаз 6–8, за spec 2026-07-31):
+
+```text
+n-rules (Rust CLI, entrypoint) ──────────── standalone-дистрибуція (GitHub Releases)
+  ├─ rules-core — оркестрація, builtin-концерни, Git, scan, fix plans, cache
+  │     ├─ mt-core · gix · llm-lib (напряму)
+  ├─ rules-plugin-host (embedded wasmtime) — wasm-плагіни за contract v3
+  ├─ rules-contract — WIT world + n-rules:slots + DTO + host-валідатори
+  └─ (транзитно, до кінця фази 8) node-делегація непортованих команд
+
+npm @7n/rules — ОДИН із транспортів: bin-launcher → платформний бінар
+(esbuild/biome-патерн; чинні platform-пакети розширюються з cdylib на bin);
+rules-napi виводиться разом з останнім JS-фасадом
 ```
 
 ## 3. Зафіксовані рішення
@@ -178,12 +200,48 @@ ignore-семантики — окремий parity-гейт. Обсяг cache-�
 перенесення. Порядок правил — від чистих текстових/структурних перевірок без
 зовнішніх tool-залежностей.
 
-### Фаза 6 — fix plans + `llm-lib` напряму
+### Фаза 6 — plugin contract v3 (wasm-компоненти)
 
-Fix plans як DTO поверх diagnostics. Перший LLM-залежний флоу (кандидати:
-adr-normalize, doc-files) підключає `llm-lib` як path dep у `rules-core` —
-драбина ескалації компонується в Rust з примітивів крейта (канон spec
-2026-07-23), JS-шар `@7n/llm-lib` для цього флоу виводиться.
+Реалізація spec `2026-07-31-plugin-contract-v3-wasm-component.md` за його
+порядком робіт (§3.5 там): `rules-contract` (WIT world + `n-rules:slots` +
+host-валідатори) + `rules-plugin-host` (embedded wasmtime) + contract-test-kit →
+пілотний wasm-концерн → LLM-скіл авторингу → win-x64 у платформній матриці →
+переписування плагінів (декларативні → tool-wrapper-и → динамічні) → виведення
+Plugin API v2. Чинний реєстр `NATIVE_CONCERNS` узагальнюється до одного
+інтерфейсу builtin ↔ wasm (рішення И). Ця фаза розблоковує міграцію плагінних
+концернів, на якій зупинилась фаза 5, і є передумовою інверсії entrypoint
+(plugin host без node — обовʼязкова умова Rust CLI).
+
+### Фаза 7 — оркестрація і fix plans у Rust
+
+Порт lint-оркестрації в `rules-core`: discovery концернів, `buildPlan`
+(delta/scoped/full/repo-wide), диспатч builtin+wasm, нормалізація, сортування,
+рендер, exit codes (0/1/2), fix-пайплайн (T0-патерни як частина концерну за
+contract v3, canonical re-detect як вердикт, rollback-контур). Fix plans як DTO
+поверх diagnostics — успадковано зі старої фази 6. LLM-залежні флоу
+підключають `llm-lib` напряму (драбина ескалації в Rust, канон spec
+2026-07-23); JS-шар `@7n/llm-lib` для цих флоу виводиться. Parity-гейт — той
+самий: чинні JS-тести оркестратора стають тестами Rust-поверхні через фасад.
+
+### Фаза 8 — інверсія entrypoint: Rust CLI
+
+`crates/rules-cli` (bin `n-rules`, clap). Інверсія покомандна, lint першим;
+непортовані команди — транзитна делегація в node (`npm/bin/n-rules-cli.mjs`)
+з явним переліком, що скорочується до нуля. Дистрибуція:
+
+- npm `@7n/rules` — bin-launcher, що резолвить платформний бінар з
+  optionalDependencies (esbuild/biome-патерн; чинні platform-пакети
+  `@7n/rules-<platform>` розширюються з cdylib на повний бінар, той самий
+  lockstep-конвеєр);
+- standalone — бінарі в GitHub Releases (CLI без npm, дзеркально до
+  «плагін ≠ npm-пакет» contract v3);
+- hook-контур (Claude/Cursor Stop-hooks) переключається на бінар — найчастіший
+  виклик перестає платити за node-старт.
+
+Разом з останнім виведеним JS-фасадом виводиться `rules-napi` (N-API-межа
+більше не потрібна — CLI сам Rust). Мажорний реліз збігається з виведенням
+Plugin API v2 (§3.5.6 spec v3) і давно запланованим мажором платформної межі
+(Р1).
 
 ## 5. Ризики
 
@@ -244,3 +302,20 @@ adr-normalize, doc-files) підключає `llm-lib` як path dep у `rules-c
   Пілоти — лише core-owned (`text/forbidden-prettier`,
   `security/sample_secret`, `k8s/dremio_logging`); плагінні концерни не
   мігруються до окремого рішення про крос-пакетний контракт (Plugin API).
+
+## 8. Історія адаптацій
+
+**2026-07-31 — корекція цілі: інверсія entrypoint.** Початкова редакція
+тримала Bun/Node постійним CLI/plugin host-ом. Рішення змінено: кінцева мета —
+повноцінний Rust CLI (`n-rules` binary), node лишається лише задекларованою
+tool-залежністю окремих плагінів. Розблокував це spec
+`2026-07-31-plugin-contract-v3-wasm-component.md` (wasm-компоненти + WIT,
+embedded wasmtime, чистий брейк Plugin API v2): без node-free plugin host
+інверсія була неможлива — саме тому стара редакція і зупиняла плагінні
+концерни «до окремого рішення». Зміни цієї корекції: §1 (мета), §2 (додана
+кінцева архітектура), фази 6–8 переписані (стара фаза 6 «fix plans +
+llm-lib» поглинута фазою 7); фази 1–5 і рішення Р1–Р10 чинні без змін.
+Оновлення до статусу §7: після пілота фази 5 виконані батч 2 (#321, реєстр 9)
+і TOML-кластер (#323, реєстр 13); залишок PURE core — YAML-кластер і пʼять
+важких концернів; MIXED/TOOL-концерни чекають `run-tool`-контуру contract v3
+(фаза 6).
