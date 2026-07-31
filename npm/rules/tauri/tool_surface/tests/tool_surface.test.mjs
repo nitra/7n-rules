@@ -8,14 +8,30 @@
  *     tool-surface-plugin-capability-missing;
  *   - прямий `invoke('plugin:slug|cmd')` теж тригерить перевірку;
  *   - повний канонічний ланцюжок (dep + lib.rs + capability) → чисто.
+ *
+ * Детектор (`lint`) — через `runConcernDetector` (dispatch-рівень), не пряма
+ * функція: JS `main.mjs` видалений (фінальний PURE-батч ч.1 фази 5), concern
+ * тепер живе лише в `crates/rules-core/src/concerns/tauri_tool_surface.rs`.
+ * `PLUGIN_*`-константи більше не імпортуються з `main.mjs` (немає), тож
+ * захардкоджені тут — ті самі стабільні reason-рядки, що й у native-порті.
  */
+import { dirname, join } from 'node:path'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { describe, expect, test } from 'vitest'
 
-import { PLUGIN_CAPABILITY_MISSING, PLUGIN_DEP_MISSING, PLUGIN_NOT_REGISTERED, lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
+
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+const lint = ctx => runConcernDetector(CONCERN, ctx)
+
+const PLUGIN_DEP_MISSING = 'tool-surface-plugin-dep-missing'
+const PLUGIN_NOT_REGISTERED = 'tool-surface-plugin-not-registered'
+const PLUGIN_CAPABILITY_MISSING = 'tool-surface-plugin-capability-missing'
 
 /** @returns {string} абсолютний шлях тимчасового кореня проєкту */
 function makeRoot() {

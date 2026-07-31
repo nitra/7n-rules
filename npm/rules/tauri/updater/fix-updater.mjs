@@ -10,22 +10,119 @@
  *   - `use-updater-not-called` — редагування чужого SFC (`<script setup>`), ризик
  *     поламати існуючі імпорти.
  * Обидва пункти лишаються manual (structural fixability, без LLM-ladder).
+ *
+ * Самодостатній: детектор concern-а (колишній `./main.mjs`) видалений і живе
+ * лише в `crates/rules-core/src/concerns/tauri_updater.rs` (native-порт, I1
+ * фази 5 фінального PURE-батчу) — T0-фіксер лишається в JS, тож нижче
+ * задубльовано (не імпортовано) невеликий набір read-only helper-ів, які
+ * раніше JS-версія `main.mjs` реекспортувала: `findTauriAppWorkspaces`,
+ * `groupCargoDepsBySection`, `findSectionDeclaring`, `meetsMinVersion`,
+ * `hasMajor` і три константи. Семантика — точна копія видаленого `main.mjs`.
  */
 import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import {
-  CARGO_DESKTOP_TARGET_HEADER,
-  CARGO_MOBILE_SECTION_RE,
-  CARGO_TARGET_SECTION_RE,
-  MIN_TAURI_COMPONENTS_VERSION,
-  findSectionDeclaring,
-  findTauriAppWorkspaces,
-  groupCargoDepsBySection,
-  hasMajor,
-  meetsMinVersion
-} from './main.mjs'
+import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
+
+/** Мінімально допустима версія tauri-plugin-updater-сумісних компонентів (major, minor, patch). */
+const MIN_TAURI_COMPONENTS_VERSION = [0, 8, 0]
+const CARGO_TABLE_HEADER_RE = /^\[(.+)\]\s*$/u
+const CARGO_DEP_KEY_RE = /^([A-Za-z0-9_-]+)\s*=/u
+const SEMVER_FLOOR_RE = /(\d+)(?:\.(\d+))?(?:\.(\d+))?/u
+/** Розпізнає target-специфічну секцію залежностей у Cargo.toml. */
+const CARGO_TARGET_SECTION_RE = /target\./u
+/** Розпізнає мобільну (Android/iOS) target-секцію — updater там не потрібен. */
+const CARGO_MOBILE_SECTION_RE = /android|ios/u
+/** Канонічний заголовок desktop-only секції залежностей, куди має потрапити updater-плагін. */
+const CARGO_DESKTOP_TARGET_HEADER = 'target.\'cfg(not(any(target_os = "android", target_os = "ios")))\'.dependencies'
+
+/**
+ * Знаходить workspace-каталоги з Tauri-застосунком (`<ws>/src-tauri/tauri.conf.json` чи legacy `<ws>/tauri.conf.json`).
+ * @param {string} cwd корінь репо
+ * @returns {Promise<string[]>} відносні шляхи workspace-каталогів
+ */
+async function findTauriAppWorkspaces(cwd) {
+  const roots = await getMonorepoPackageRootDirs(cwd)
+  const found = []
+  for (const ws of roots) {
+    const base = ws === '.' ? cwd : join(cwd, ws)
+    const hasMarker =
+      existsSync(join(base, 'src-tauri', 'tauri.conf.json')) || existsSync(join(base, 'tauri.conf.json'))
+    if (hasMarker) found.push(ws)
+  }
+  return found
+}
+
+/**
+ * Розбирає semver-діапазон (`^0.8.0`, `~2.3.1`, `2`) на числові компоненти нижньої межі.
+ * @param {string} range рядок версії з package.json
+ * @returns {number[]} [major, minor, patch] (відсутні компоненти — 0)
+ */
+function parseRangeFloor(range) {
+  const m = SEMVER_FLOOR_RE.exec(range ?? '')
+  if (!m) return [0, 0, 0]
+  return [Number(m[1] ?? 0), Number(m[2] ?? 0), Number(m[3] ?? 0)]
+}
+
+/**
+ * Чи нижня межа `range` >= `min` (порівняння major.minor.patch).
+ * @param {string} range рядок версії
+ * @param {number[]} min мінімальна версія [major, minor, patch]
+ * @returns {boolean} true, якщо range задовольняє мінімум
+ */
+function meetsMinVersion(range, min) {
+  const v = parseRangeFloor(range)
+  for (const [i, minPart] of min.entries()) {
+    if (v[i] !== minPart) return v[i] > minPart
+  }
+  return true
+}
+
+/**
+ * Чи мажорна версія `range` дорівнює очікуваній.
+ * @param {string} range рядок версії
+ * @param {number} major очікувана мажорна версія
+ * @returns {boolean} true, якщо збігається
+ */
+function hasMajor(range, major) {
+  return parseRangeFloor(range)[0] === major
+}
+
+/**
+ * Групує рядки Cargo.toml за заголовком секції `[...]` для контекстного пошуку залежностей.
+ * @param {string} content вміст Cargo.toml
+ * @returns {Map<string, string[]>} секція → список ключів-залежностей у ній
+ */
+function groupCargoDepsBySection(content) {
+  const bySection = new Map()
+  let current = null
+  for (const rawLine of content.split('\n')) {
+    const line = rawLine.trim()
+    const header = CARGO_TABLE_HEADER_RE.exec(line)
+    if (header) {
+      current = header[1]
+      if (!bySection.has(current)) bySection.set(current, [])
+      continue
+    }
+    const kv = CARGO_DEP_KEY_RE.exec(line)
+    if (kv && current) bySection.get(current).push(kv[1])
+  }
+  return bySection
+}
+
+/**
+ * Знаходить назву секції Cargo.toml, що оголошує задану залежність.
+ * @param {Map<string, string[]>} bySection секція → ключі-залежності
+ * @param {string} depName ім'я залежності
+ * @returns {string | null} назва секції або null, якщо не знайдено
+ */
+function findSectionDeclaring(bySection, depName) {
+  for (const [section, keys] of bySection) {
+    if (keys.includes(depName)) return section
+  }
+  return null
+}
 
 const CARGO_DEP_LINE_RE = new Map([
   ['tauri-plugin-process', /^tauri-plugin-process\s*=.*$/u],

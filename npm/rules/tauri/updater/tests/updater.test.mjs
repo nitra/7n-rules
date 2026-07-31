@@ -7,14 +7,25 @@
  *   - T0-autofix доповнює package.json/Cargo.toml/capabilities і проставляє
  *     #[cfg(desktop)] над існуючим рядком lib.rs (idempotent), але НЕ вставляє
  *     нові рядки в lib.rs і не редагує Vue-компоненти.
+ *
+ * Детектор (`lint`) — через `runConcernDetector` (dispatch-рівень), не пряма
+ * функція: JS `main.mjs` видалений (фінальний PURE-батч ч.1 фази 5), concern
+ * тепер живе лише в `crates/rules-core/src/concerns/tauri_updater.rs`.
+ * T0-фіксер (`fix-updater.mjs`) лишається JS і тепер самодостатній.
  */
 import { describe, expect, test } from 'vitest'
+import { dirname, join } from 'node:path'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-import { lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { patterns } from '../fix-updater.mjs'
+
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+const lint = ctx => runConcernDetector(CONCERN, ctx)
 
 const PACKAGE_JSON = {
   name: 'app',

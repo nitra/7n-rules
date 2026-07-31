@@ -172,6 +172,7 @@
     "realdir",
     "rebuildable",
     "recompiles",
+    "rfind",
     "rollups",
     "rsplit",
     "rsvg",

@@ -1,9 +1,20 @@
+/**
+ * Детектор (`lint`) — через `runConcernDetector` (dispatch-рівень), не пряма
+ * функція: JS `main.mjs` видалений (фінальний PURE-батч ч.1 фази 5), concern
+ * тепер живе лише в `crates/rules-core/src/concerns/security_trufflehog.rs`.
+ */
 import { describe, expect, test } from 'vitest'
+import { dirname, join } from 'node:path'
 import { writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-import { lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+const lint = ctx => runConcernDetector(CONCERN, ctx)
 
 const run = dir => lint({ cwd: dir, ruleId: 'security', concernId: 'trufflehog', files: undefined })
 

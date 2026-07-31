@@ -23,6 +23,8 @@ mod abie_ua_http_route;
 mod abie_ua_node_selector;
 mod abie_yaml;
 mod cargo_workspace;
+mod change_file;
+mod changelog_presence;
 pub(crate) mod cursor_ignore;
 mod dremio_logging;
 mod env_dns;
@@ -35,19 +37,25 @@ mod hasura_internal_urls;
 mod hasura_migrations;
 mod image_compress_package_setup;
 mod marksman_config;
+mod package_manifest;
 mod rego_tooling;
 mod sample_secret;
+mod security_trufflehog;
 mod tauri_cargo_mutants_config;
 mod tauri_core_test_isolation;
 mod tauri_gitignore_target;
 mod tauri_linux_deps;
 mod tauri_release;
+mod tauri_tool_surface;
+mod tauri_updater;
+mod template_subset;
 mod text_formatting;
 mod workspaces;
 
 pub use abie_hc_pairing::hc_pairing as abie_hc_pairing;
 pub use abie_ua_http_route::ua_http_route as abie_ua_http_route;
 pub use abie_ua_node_selector::ua_node_selector as abie_ua_node_selector;
+pub use changelog_presence::changelog_presence;
 pub use dremio_logging::{dremio_logging, zk_logback_root_level_violation};
 pub use env_dns::env_dns;
 pub use firebase_hosting::firebase_hosting;
@@ -58,11 +66,14 @@ pub use image_compress_package_setup::image_compress_package_setup;
 pub use marksman_config::marksman_config;
 pub use rego_tooling::rego_tooling;
 pub use sample_secret::sample_secret;
+pub use security_trufflehog::security_trufflehog;
 pub use tauri_cargo_mutants_config::tauri_cargo_mutants_config;
 pub use tauri_core_test_isolation::tauri_core_test_isolation;
 pub use tauri_gitignore_target::tauri_gitignore_target;
 pub use tauri_linux_deps::tauri_linux_deps;
 pub use tauri_release::tauri_release;
+pub use tauri_tool_surface::tauri_tool_surface;
+pub use tauri_updater::tauri_updater;
 pub use text_formatting::text_formatting;
 
 /// Ключі native-портованих concern-ів у форматі `ruleId/concernId` — той
@@ -89,6 +100,10 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "hasura/internal_urls",
     "text/formatting",
     "tauri/release",
+    "tauri/updater",
+    "tauri/tool_surface",
+    "security/trufflehog",
+    "changelog/presence",
 ];
 
 /// Запускає native-порт concern-а за ключем `ruleId/concernId`.
@@ -127,6 +142,10 @@ pub fn run_concern(
         "hasura/internal_urls" => Ok(hasura_internal_urls(cwd)),
         "text/formatting" => Ok(text_formatting(cwd)),
         "tauri/release" => Ok(tauri_release(cwd)),
+        "tauri/updater" => tauri_updater(cwd),
+        "tauri/tool_surface" => tauri_tool_surface(cwd),
+        "security/trufflehog" => Ok(security_trufflehog(cwd)),
+        "changelog/presence" => changelog_presence(cwd, files),
         other => Err(RulesError::Concern(format!(
             "невідомий native concern: {other}"
         ))),
@@ -138,7 +157,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn native_concerns_lists_all_nineteen_entries() {
+    fn native_concerns_lists_all_twenty_three_entries() {
         assert_eq!(
             NATIVE_CONCERNS,
             &[
@@ -161,6 +180,10 @@ mod tests {
                 "hasura/internal_urls",
                 "text/formatting",
                 "tauri/release",
+                "tauri/updater",
+                "tauri/tool_surface",
+                "security/trufflehog",
+                "changelog/presence",
             ]
         );
     }
@@ -239,6 +262,28 @@ mod tests {
     fn run_concern_dispatches_all_i1_yaml_cluster_keys() {
         let tmp = tempfile::TempDir::new().unwrap();
         for key in ["hasura/internal_urls", "text/formatting", "tauri/release"] {
+            assert!(
+                run_concern(key, tmp.path(), None).is_ok(),
+                "run_concern має прийняти ключ {key}"
+            );
+        }
+    }
+
+    /// Кожен із чотирьох ключів PURE ч.1 батчу (фаза 5, фінальний важкий
+    /// батч) диспатчиться на свою функцію — smoke-перевірка самого `match` у
+    /// `run_concern` (не повторних сценаріїв concern-ів — ті у власних
+    /// підмодулях). `changelog/presence` — per-file scope: `files: None`
+    /// (full-режим) дає порожній результат без походу у файлову систему
+    /// `.changes/`, той самий early-return, що й JS `lint()`.
+    #[test]
+    fn run_concern_dispatches_all_pure1_batch_keys() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        for key in [
+            "tauri/updater",
+            "tauri/tool_surface",
+            "security/trufflehog",
+            "changelog/presence",
+        ] {
             assert!(
                 run_concern(key, tmp.path(), None).is_ok(),
                 "run_concern має прийняти ключ {key}"
