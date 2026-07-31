@@ -172,6 +172,34 @@ jobs:
           path: npm/packages/${{ matrix.rules-pkg }}/*.node
           if-no-files-found: error
 
+      # First-party wasm-плагіни (задача O1, рішення Н §3.4
+      # plugin-contract-v3-wasm-component.md) — платформо-незалежний Component
+      # Model артефакт, тож збирається лише на ubuntu-рядку матриці, не для
+      # кожної платформи. `node` уже стоїть на runner-і (actions/runner-images);
+      # `actions/setup-node` тут — лише для закріпленої версії (той самий '24',
+      # що `release-publish` нижче), не бо node інакше відсутній.
+      - uses: actions/setup-node@v6
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          node-version: '24'
+
+      - name: Add wasm32-wasip2 target (first-party wasm-плагіни)
+        if: matrix.os == 'ubuntu-latest'
+        run: rustup target add wasm32-wasip2
+
+      - name: Build first-party wasm-плагіни (npm/wasm-plugins/*.wasm + builtin-pins.json)
+        if: matrix.os == 'ubuntu-latest'
+        run: node npm/scripts/build-wasm-plugins.mjs
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          name: wasm-plugins
+          path: |
+            npm/wasm-plugins/*.wasm
+            npm/wasm-plugins/builtin-pins.json
+          if-no-files-found: error
+
   release-publish:
     needs: [changes, build-native]
     # `build-native` intentionally skips for npm/plugin-only releases.
@@ -435,6 +463,47 @@ jobs:
           done
           git add npm/package.json npm/packages/rules-darwin-arm64/package.json npm/packages/rules-linux-x64/package.json npm/packages/rules-win32-x64/package.json bun.lock
           git commit -m "chore(release): синк пінів платформних napi-пакетів @7n/rules"
+
+      # First-party wasm-плагіни (задача O1, рішення Н §3.4
+      # plugin-contract-v3-wasm-component.md) — `npm/wasm-plugins/` не
+      # комітиться (`.gitignore`), тож без цього кроку ПЕРЕД `npm publish`
+      # нижче пакет пішов би без вбудованих пінів. Гейт — той самий
+      # `needs.changes.outputs.native`, що й rules-napi вище (build-native вже
+      # тригериться на зміни `crates/**`, окремий гейт не потрібен) + `npm`-
+      # workspace дійсно в списку релізів цього прогону (`steps.release` вже
+      # відпрацював на цей момент, `outputs.workspaces` доступний).
+      - name: Download wasm-plugins artifact (builtin-pins.json + .wasm)
+        if: >-
+          needs.changes.outputs.native == 'true' &&
+          contains(fromJSON(steps.release.outputs.workspaces), 'npm')
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-plugins
+          path: npm/wasm-plugins
+
+      - name: Смок-перевірка builtin-pins.json (таблиця читається, sha256 файла збігається)
+        if: >-
+          needs.changes.outputs.native == 'true' &&
+          contains(fromJSON(steps.release.outputs.workspaces), 'npm')
+        run: |
+          node -e "
+            const { existsSync, readFileSync } = require('node:fs');
+            const { createHash } = require('node:crypto');
+            const { join } = require('node:path');
+            const dir = 'npm/wasm-plugins';
+            const pins = JSON.parse(readFileSync(join(dir, 'builtin-pins.json'), 'utf8'));
+            const names = Object.keys(pins);
+            if (names.length === 0) throw new Error('builtin-pins.json порожній');
+            for (const name of names) {
+              const entry = pins[name];
+              const wasmPath = join(dir, entry.file);
+              if (!existsSync(wasmPath)) throw new Error(name + ': файл не знайдено ' + wasmPath);
+              const actual = createHash('sha256').update(readFileSync(wasmPath)).digest('hex');
+              if (actual !== entry.sha256) throw new Error(name + ': sha256 не збігається (очікував ' + entry.sha256 + ', отримав ' + actual + ')');
+              console.log('✓ ' + name + ': ' + entry.file + ' sha256 OK');
+            }
+            console.log('wasm-plugins builtin-pins smoke-check OK (' + names.length + ' плагін(и))');
+          "
 
       - name: Publish package
         if: contains(fromJSON(steps.release.outputs.workspaces), 'npm')

@@ -51,10 +51,40 @@
  *    filesystem — без EXDEV на `renameSync`) + `renameSync` на фінальне ім'я,
  *    той самий патерн, що `installFromGithub` у `ensure-tool.mjs`.
  *
- * TODO(v3-wasm-first-party-pins): вбудована таблиця `name → url + sha256` для
- * власних плагінів (спека §3.4, рішення Н) — прийде з першим published
- * плагіном; до того ручний пін у `.n-rules.json` обов'язковий для будь-якого
- * плагіна.
+ * **Вбудована таблиця first-party пінів** (задача O1 фази 6 v2, спека §3.4,
+ * рішення Н): ТРЕТЄ, найнижче пріоритетне джерело записів `wasmPlugins` —
+ * `npm/wasm-plugins/builtin-pins.json` (`readBuiltinPinsConfig`), поряд з
+ * яким лежать самі `.wasm`-файли first-party плагінів. Формат:
+ * `{ "<name>": { "file": "<basename>.wasm", "sha256": "<64 hex>" } }`.
+ * Файл генерується `npm/scripts/build-wasm-plugins.mjs` (локальна dev-петля
+ * й CI-крок `npm-publish.yml`) і НЕ комітиться в git — repo-дерево без
+ * локальної збірки просто не має файлу (`readBuiltinPinsConfig` мовчить,
+ * без `console.warn`, доккомент функції нижче). Записи `.n-rules.json`
+ * консюмера з тим самим `name` ПОВНІСТЮ перекривають builtin-запис
+ * (`mergeWithBuiltinEntries`) — ручний пін потрібен лише для власних/сторонніх
+ * плагінів, не для first-party. sha256-звірка ОБОВ'ЯЗКОВА і для builtin-шляху
+ * (`resolveEntryPath`, гілка `'file' in entry`) — той самий мотив, що й для
+ * кеш-хіта канонічного піна нижче: захист від пошкодженої інсталяції пакету,
+ * ім'я файлу саме по собі не є довірою.
+ *
+ * **Dispatch-shadowing первого first-party плагіна** (`plugin-lang-js`,
+ * `crates/plugin-lang-js`, задача N2): щойно `npm/wasm-plugins/builtin-pins.json`
+ * присутній (локальна збірка чи встановлений з npm пакет), builtin-запис
+ * `lang-js` резолвиться БЕЗ жодного `.n-rules.json` від консюмера — його
+ * контрибуції (`vue/tfm-translations`, `style/gap`) потрапляють у мапу цього
+ * модуля автоматично. Диспатч `runConcernDetector` (`detect.mjs`) перевіряє
+ * джерела в порядку native (`NATIVE_CONCERNS`) → wasm (ця мапа) → `main.mjs`/
+ * policy — тобто для цих двох concern-ів wasm-реалізація ПЕРЕКРИВАЄ JS-реалізацію
+ * `plugins/lang-js/rules/{vue/tfm-translations,style/gap}/main.mjs`, щойно
+ * builtin-таблиця зібрана. Це свідома мета (перший real-виведення дублювання
+ * реалізацій), НЕ помилка конфігурації. JS-реалізації в `plugins/lang-js`
+ * фізично НЕ видаляються цією зміною: пакет `@7n/rules-lang-js` має споживачів
+ * на старих `@7n/rules` без wasm-хоста (Plugin API v2), і лишається їхнім
+ * єдиним шляхом — видалення дублікату заплановане окремим кроком, коли весь
+ * плагін переїде на v3 (§3.5.6 спеки, виведення Plugin API v2). Консистентність
+ * двох реалізацій (контрибуції, форма повідомлень) звіряють
+ * `wasm-plugin-parity.test.mjs` (біт-у-біт `violations`) і
+ * `wasm-builtin-pins.test.mjs` (контрибуції маніфесту ⊆ задекларованих).
  *
  * Свідомо ОКРЕМА секція від `plugins` (масив npm-імен Plugin API v2,
  * `npm/scripts/lib/resolve-plugins.mjs`) — той ключ уже зайнятий закритим
@@ -79,10 +109,23 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { ensureToolAsync } from '../ensure-tool.mjs'
 import { loadNative } from '../native.mjs'
+
+/**
+ * Абсолютний шлях до `npm/wasm-plugins/` — тека, куди `build-wasm-plugins.mjs`
+ * (локальна dev-петля й CI, `npm-publish.yml`) кладе `.wasm`-файли first-party
+ * плагінів і `builtin-pins.json` (задача O1, спека §3.4, рішення Н). Обчислено
+ * від `import.meta.url` ЦЬОГО модуля, не `process.cwd()` — інваріант шляху
+ * (`scripts/lib/lint-surface/` → вгору 3 рівні → `wasm-plugins/`) той самий і
+ * в repo-дереві (`npm/scripts/lib/lint-surface/…`), і в installed-пакеті
+ * (`node_modules/@7n/rules/scripts/lib/lint-surface/…`), бо `npm/` — корінь
+ * опублікованого пакету (`npm/package.json` → `files`).
+ */
+const WASM_PLUGINS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'wasm-plugins')
 
 /**
  * @typedef {object} WasmPluginPathEntry dev-форма піна (спека §3.4, лише поза CI)
@@ -98,6 +141,13 @@ import { loadNative } from '../native.mjs'
  */
 
 /** @typedef {WasmPluginPathEntry | WasmPluginUrlEntry} WasmPluginConfigEntry */
+
+/**
+ * @typedef {object} WasmPluginBuiltinEntry вбудований пін first-party плагіна з `builtin-pins.json` (задача O1, рішення Н)
+ * @property {string} name ідентифікатор плагіна (ключ об'єкта в `builtin-pins.json`, лише для diagnostics)
+ * @property {string} file basename `.wasm`-файлу поряд з `builtin-pins.json` у `npm/wasm-plugins/`
+ * @property {string} sha256 очікуваний sha256-hex (64 символи) вмісту файлу
+ */
 
 /**
  * @typedef {object} WasmConcernMapEntry одне значення резолвленої мапи концернів (задача N1)
@@ -166,6 +216,65 @@ function sha256Hex(bytes) {
   return createHash('sha256')
     .update(Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes))
     .digest('hex')
+}
+
+/**
+ * Читає `builtin-pins.json` — вбудовану таблицю first-party пінів (задача O1,
+ * спека §3.4, рішення Н), третє й найнижче пріоритетне джерело `wasmPlugins`
+ * (доккомент модуля). Генерується `npm/scripts/build-wasm-plugins.mjs`, НЕ
+ * комітиться в git.
+ *
+ * Відсутність файлу — очікуваний стан repo-дерева без локальної wasm-збірки
+ * (чи інсталяції з npm без цього кроку релізу): тиша, БЕЗ `console.warn`
+ * (доккомент модуля). Пошкоджений (невалідний JSON чи не-об'єкт) файл — уже
+ * аномалія, не "не зібрано": `console.warn` і порожній масив (skip-not-crash,
+ * той самий дух, що читач `.n-rules.json` вище). Окремі записи з відсутнім
+ * `file`/невалідним `sha256` — тихо відфільтровуються (той самий канон, що
+ * `isValidEntry` для конфігу консюмера, без warn на рівні одного запису —
+ * warn буде пізніше, при спробі резолву, якщо запис пройшов сюди коректним,
+ * але файл/hash не зійшлись).
+ * @param {string} builtinPinsDir абсолютний шлях до `npm/wasm-plugins/`
+ *   (тестова ін'єкція — `resolveWasmConcernMap` opts.builtinPinsDir; дефолт
+ *   у продакшн-виклику — [`WASM_PLUGINS_DIR`])
+ * @returns {WasmPluginBuiltinEntry[]} валідні записи вбудованої таблиці
+ */
+function readBuiltinPinsConfig(builtinPinsDir) {
+  const pinsPath = join(builtinPinsDir, 'builtin-pins.json')
+  if (!existsSync(pinsPath)) return []
+  /** @type {unknown} */
+  let raw
+  try {
+    raw = JSON.parse(readFileSync(pinsPath, 'utf8'))
+  } catch (error) {
+    console.warn(`⚠️ builtin-pins.json пошкоджено (невалідний JSON), вбудовані wasm-піни пропущено: ${error.message}`)
+    return []
+  }
+  if (typeof raw !== 'object' || raw === null) return []
+  /** @type {WasmPluginBuiltinEntry[]} */
+  const entries = []
+  for (const [name, value] of Object.entries(raw)) {
+    if (typeof value !== 'object' || value === null) continue
+    const v = /** @type {Record<string, unknown>} */ (value)
+    if (typeof v.file !== 'string' || typeof v.sha256 !== 'string' || !SHA256_HEX_RE.test(v.sha256)) continue
+    entries.push({ name, file: v.file, sha256: v.sha256 })
+  }
+  return entries
+}
+
+/**
+ * Мержить вбудовані піни (найнижчий пріоритет) із записами `.n-rules.json`
+ * консюмера — дедуплікація за `name`: запис консюмера з тим самим `name`, що
+ * builtin-плагін, ПОВНІСТЮ перекриває builtin-запис (задача O1, рішення Н:
+ * "ручні піни потрібні лише для власних/сторонніх плагінів" — перевизначення
+ * дефолту, не додавання поруч нього).
+ * @param {WasmPluginBuiltinEntry[]} builtinEntries записи [`readBuiltinPinsConfig`]
+ * @param {WasmPluginConfigEntry[]} configEntries записи [`readWasmPluginsConfig`]
+ * @returns {Array<WasmPluginConfigEntry | WasmPluginBuiltinEntry>} злитий список, консюмер виграє за `name`
+ */
+function mergeWithBuiltinEntries(builtinEntries, configEntries) {
+  const byName = new Map(builtinEntries.map(entry => [entry.name, entry]))
+  for (const entry of configEntries) byName.set(entry.name, entry)
+  return byName.values().toArray()
 }
 
 /**
@@ -261,14 +370,47 @@ async function resolveUrlEntry(entry, ctx) {
 }
 
 /**
- * Резолвить `.wasm`-шлях одного запису `wasmPlugins` — dev-форма (`path`, лише
- * поза CI) чи канонічний пін (`url`+`sha256`, retrieval-модель doc-коментаря
+ * Резолвить абсолютний шлях builtin-запису (`readBuiltinPinsConfig`) —
+ * файл уже локальний (бандл у пакеті чи локальна wasm-збірка), мережевий
+ * retrieval не потрібен. sha256-звірка ОБОВ'ЯЗКОВА (доккомент модуля): захист
+ * від пошкодженої інсталяції — підмінений/пошкоджений вміст під правильним
+ * ім'ям не має тихо потрапити в dispatch wasmtime. `null` — пропуск
+ * (skip-not-crash), причина вже в `console.warn`.
+ * @param {WasmPluginBuiltinEntry} entry запис `{name,file,sha256}`
+ * @param {string} builtinPinsDir абсолютний шлях до `npm/wasm-plugins/`
+ * @returns {string | null} абсолютний шлях до валідного `.wasm`, або `null`
+ */
+function resolveBuiltinEntryPath(entry, builtinPinsDir) {
+  const wasmPath = join(builtinPinsDir, entry.file)
+  if (!existsSync(wasmPath)) {
+    console.warn(
+      `⚠️ builtin wasm-плагін "${entry.name}" пропущено: файл не знайдено (${wasmPath}) — пошкоджена інсталяція`
+    )
+    return null
+  }
+  const actualSha256 = sha256Hex(readFileSync(wasmPath))
+  if (actualSha256 !== entry.sha256) {
+    console.warn(
+      `⚠️ builtin wasm-плагін "${entry.name}" пропущено: sha256 не збігається ` +
+        `(очікував ${entry.sha256}, отримав ${actualSha256}) — пошкоджена інсталяція`
+    )
+    return null
+  }
+  return wasmPath
+}
+
+/**
+ * Резолвить `.wasm`-шлях одного запису `wasmPlugins` — builtin first-party пін
+ * (`file`+`sha256`, найнижчий пріоритет, доккомент модуля), dev-форма (`path`,
+ * лише поза CI) чи канонічний пін (`url`+`sha256`, retrieval-модель doc-коментаря
  * модуля). `null` — запис пропущено (skip-not-crash), причина вже в `console.warn`.
- * @param {WasmPluginConfigEntry} entry валідний запис (після `isValidEntry`)
- * @param {{cwd: string, fetchFn: typeof fetch, cacheDir: string, env: Record<string, string | undefined>}} ctx ін'єктовані залежності
+ * @param {WasmPluginConfigEntry | WasmPluginBuiltinEntry} entry валідний запис
+ *   (після `isValidEntry` для конфігу консюмера, чи з `readBuiltinPinsConfig`)
+ * @param {{cwd: string, fetchFn: typeof fetch, cacheDir: string, env: Record<string, string | undefined>, builtinPinsDir: string}} ctx ін'єктовані залежності
  * @returns {Promise<string | null>} абсолютний шлях `.wasm`, або `null`
  */
 async function resolveEntryPath(entry, ctx) {
+  if ('file' in entry) return resolveBuiltinEntryPath(entry, ctx.builtinPinsDir)
   if ('path' in entry) {
     // Спека §3.4: `file:`/repo-relative dev-пін без hash-перевірки — лише поза CI.
     if (ctx.env['CI']) {
@@ -332,17 +474,20 @@ async function ensureDeclaredTools(pluginName, declaredTools, ensureToolFn) {
 
 /**
  * Будує мапу «ключ концерну → [`WasmConcernMapEntry`]» — один прохід по
- * валідних записах конфігу: resolve шляху (dev/`url`-retrieval) →
- * `wasmPluginManifest()` (повний DTO, не лише `concerns`) → ensure-tool
- * контур для `manifest.tools` → запис у мапу для кожного `manifest.concerns`.
- * Усі кроки — skip-not-crash (доккомент модуля).
+ * записах builtin-таблиці (найнижчий пріоритет) і конфігу консюмера, злитих
+ * за `name` через [`mergeWithBuiltinEntries`] (доккомент модуля): resolve
+ * шляху (builtin-файл/dev/`url`-retrieval) → `wasmPluginManifest()` (повний
+ * DTO, не лише `concerns`) → ensure-tool контур для `manifest.tools` →
+ * запис у мапу для кожного `manifest.concerns`. Усі кроки — skip-not-crash
+ * (доккомент модуля).
  * @param {string} cwd абсолютний корінь consumer-репо
- * @param {{fetchFn: typeof fetch, cacheDir: string, env: Record<string, string | undefined>, ensureToolFn: (toolId: string) => Promise<string>, nativeFn: typeof loadNative}} ctx ін'єктовані залежності
+ * @param {{fetchFn: typeof fetch, cacheDir: string, env: Record<string, string | undefined>, ensureToolFn: (toolId: string) => Promise<string>, nativeFn: typeof loadNative, builtinPinsDir: string}} ctx ін'єктовані залежності
  * @returns {Promise<Map<string, WasmConcernMapEntry>>} ключ концерну → `{ wasmPath, toolPaths }`
  */
 async function buildWasmConcernMap(cwd, ctx) {
   const map = new Map()
-  for (const entry of readWasmPluginsConfig(cwd)) {
+  const entries = mergeWithBuiltinEntries(readBuiltinPinsConfig(ctx.builtinPinsDir), readWasmPluginsConfig(cwd))
+  for (const entry of entries) {
     const wasmPath = await resolveEntryPath(entry, { cwd, ...ctx })
     if (wasmPath === null) continue
     let manifest
@@ -373,9 +518,11 @@ async function buildWasmConcernMap(cwd, ctx) {
  * неминуче асинхронні; єдиний виклик-сайт (`detect.mjs`) вже `async`,
  * контракт виклику не ламається.
  * @param {string} cwd абсолютний корінь consumer-репо (звідки читається `.n-rules.json`)
- * @param {{fetchFn?: typeof fetch, cacheDir?: string, env?: Record<string, string | undefined>, ensureToolFn?: (toolId: string) => Promise<string>, nativeFn?: typeof loadNative}} [opts] ін'єкції для тестів:
+ * @param {{fetchFn?: typeof fetch, cacheDir?: string, env?: Record<string, string | undefined>, ensureToolFn?: (toolId: string) => Promise<string>, nativeFn?: typeof loadNative, builtinPinsDir?: string}} [opts] ін'єкції для тестів:
  *   `fetchFn` (дефолт — глобальний `fetch`), `cacheDir` (дефолт — `resolvePluginCacheDir`), `env` (дефолт — `process.env`),
- *   `ensureToolFn` (дефолт — `ensureToolAsync`), `nativeFn` (дефолт — `loadNative`, wiring-тести підміняють фейковим addon-ом)
+ *   `ensureToolFn` (дефолт — `ensureToolAsync`), `nativeFn` (дефолт — `loadNative`, wiring-тести підміняють фейковим addon-ом),
+ *   `builtinPinsDir` (дефолт — [`WASM_PLUGINS_DIR`], реальна `npm/wasm-plugins/`; тести ізолюють неіснуючим каталогом,
+ *   щоб локальна wasm-збірка в робочому дереві не підмішувала builtin-контрибуції в контрольовані сценарії)
  * @returns {Promise<Map<string, WasmConcernMapEntry>>} ключ концерну (`ruleId/concernId`) → `{ wasmPath, toolPaths }`
  */
 export function resolveWasmConcernMap(cwd, opts = {}) {
@@ -386,7 +533,8 @@ export function resolveWasmConcernMap(cwd, opts = {}) {
     cacheDir: opts.cacheDir ?? resolvePluginCacheDir(env),
     env,
     ensureToolFn: opts.ensureToolFn ?? ensureToolAsync,
-    nativeFn: opts.nativeFn ?? loadNative
+    nativeFn: opts.nativeFn ?? loadNative,
+    builtinPinsDir: opts.builtinPinsDir ?? WASM_PLUGINS_DIR
   }
   wasmConcernMapPromise = buildWasmConcernMap(cwd, ctx)
   return wasmConcernMapPromise
