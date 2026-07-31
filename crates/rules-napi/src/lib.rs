@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use napi::bindgen_prelude::Function;
 use napi::{Error, Result};
 use napi_derive::napi;
 use rules_contract::detect::{DetectBatch, SourceFile};
@@ -197,6 +198,83 @@ pub fn run_native_concern(
     let violations = rules_core::concerns::run_concern(&key, &PathBuf::from(cwd), files.as_deref())
         .map_err(to_napi_err)?;
     Ok(serde_json::json!({ "violations": violations }))
+}
+
+/// Виконує batch builtin-native concern-ів ОДНИМ native-викликом — тонкий
+/// binding над [`rules_core::concerns::run_concerns_batch`] (R2 зрізу 3 фази
+/// 7, `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`). JS-бік
+/// (`run-detectors.mjs::runNativeSegmentSync`) групує суцільні прогони
+/// `isBuiltinNativeConcern`-items у ОДИН такий виклик замість N окремих
+/// [`run_native_concern`] — менше napi hops на гарячому шляху `detectAll`.
+///
+/// - `items` — JSON-масив, що десеріалізується у
+///   `Vec<rules_core::concerns::BatchItem>` (`{key, cwd, files}`, той самий
+///   мінімальний DTO, доккомент модуля `rules_core::concerns::batch`).
+/// - `on_progress` — опційний JS callback, викликається СИНХРОННО (звичайний
+///   `Function::call`, БЕЗ `ThreadsafeFunction` — колбек і napi-виклик
+///   живуть на тому самому потоці, той самий синхронний контракт, що
+///   документує crate-doc-коментар вище) ПІСЛЯ кожного item-а з
+///   `{key, violationsCount, error?}`: JS-бік реконструює звідси
+///   progress-репортинг (concernStart/detectSnapshot/concernDone) — той
+///   самий набір викликів, що дав би per-item `runConcernDetector`-шлях.
+///
+/// Повертає `{results: [{key, violations?, error?}]}` у порядку `items` —
+/// помилка ОДНОГО item-а не зупиняє решту батчу (per-item `Result`,
+/// доккомент `rules_core::concerns::batch`); JS-бік вирішує, зупинятись на
+/// першій помилці чи ні (`DetectorError`-семантика — рядок «detector
+/// ruleId/concernId: ...» будується виключно на JS-боці з поля `error`
+/// тут, той самий поділ відповідальності, що для одиночного
+/// [`run_native_concern`]).
+///
+/// Помилка САМОГО колбека (JS кинув усередині `onProgress`) — окрема
+/// категорія від помилки концерну: батч на Rust-боці все одно доводиться до
+/// кінця (concerns read-only, зайве обчислення після зіпсованого колбека
+/// нешкідливе), але перша така помилка повертається з ЦІЄЇ napi-функції як
+/// `Err` ПІСЛЯ завершення цикла — на відміну від помилки концерну, вона не
+/// потрапляє в `results` як `error`-поле, бо не належить жодному конкретному
+/// item-у семантично (зіпсований виклик, не сирий результат детектора).
+#[napi]
+pub fn run_native_concerns_batch(
+    items: serde_json::Value,
+    on_progress: Option<Function<'_, serde_json::Value, ()>>,
+) -> Result<serde_json::Value> {
+    let parsed: Vec<rules_core::concerns::BatchItem> =
+        serde_json::from_value(items).map_err(|err| {
+            Error::from_reason(format!("runNativeConcernsBatch: невалідний вхід: {err}"))
+        })?;
+
+    let mut callback_error: Option<Error> = None;
+    let batch_results = rules_core::concerns::run_concerns_batch(&parsed, |key, result| {
+        let Some(cb) = &on_progress else { return };
+        if callback_error.is_some() {
+            return;
+        }
+        let payload = match result {
+            Ok(violations) => {
+                serde_json::json!({ "key": key, "violationsCount": violations.len() })
+            }
+            Err(err) => {
+                serde_json::json!({ "key": key, "violationsCount": 0, "error": err.to_string() })
+            }
+        };
+        if let Err(err) = cb.call(payload) {
+            callback_error = Some(err);
+        }
+    });
+
+    if let Some(err) = callback_error {
+        return Err(err);
+    }
+
+    let results: Vec<serde_json::Value> = batch_results
+        .into_iter()
+        .map(|r| match r.result {
+            Ok(violations) => serde_json::json!({ "key": r.key, "violations": violations }),
+            Err(err) => serde_json::json!({ "key": r.key, "error": err.to_string() }),
+        })
+        .collect();
+
+    Ok(serde_json::json!({ "results": results }))
 }
 
 /// Рахує lint-план — тонкий binding над [`rules_core::lint_plan::build_lint_plan`]

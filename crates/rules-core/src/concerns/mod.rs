@@ -23,6 +23,10 @@ mod abie_ua_http_route;
 mod abie_ua_node_selector;
 mod abie_yaml;
 mod adr_hooks;
+/// Batch-виконавець (R2 зрізу 3 фази 7) — [`batch::run_concerns_batch`] +
+/// DTO [`batch::BatchItem`]/[`batch::BatchItemResult`], тонкий цикл над
+/// [`run_concern`] нижче.
+mod batch;
 mod capacitor_platforms;
 mod cargo_workspace;
 mod change_file;
@@ -54,6 +58,8 @@ mod tauri_updater;
 mod template_subset;
 mod text_formatting;
 mod workspaces;
+
+pub use batch::{run_concerns_batch, BatchItem, BatchItemResult};
 
 pub use abie_hc_pairing::hc_pairing as abie_hc_pairing;
 pub use abie_ua_http_route::ua_http_route as abie_ua_http_route;

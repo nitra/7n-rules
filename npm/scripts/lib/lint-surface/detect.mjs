@@ -40,6 +40,22 @@ function getNativeConcernKeys() {
 }
 
 /**
+ * Чи є `ruleId/concernId` builtin-native концерном (у registry
+ * `NATIVE_CONCERNS` аддона) — той самий предикат, що перша гілка
+ * {@link runConcernDetector} використовує для маршрутизації, винесений
+ * окремо для планувальника batch-сегментів (`run-detectors.mjs`
+ * `partitionPlanIntoSegments`, R2 зрізу 3 фази 7): суцільні прогони
+ * builtin-native items групуються в один `runNativeConcernsBatch`-виклик
+ * замість N окремих `runConcernDetector`.
+ * @param {string} ruleId id правила.
+ * @param {string} concernId id concern-а.
+ * @returns {boolean} true, якщо ключ належить `NATIVE_CONCERNS`.
+ */
+export function isBuiltinNativeConcern(ruleId, concernId) {
+  return getNativeConcernKeys().has(`${ruleId}/${concernId}`)
+}
+
+/**
  * Сигнал, що detector кинув виняток / повернув невалідний результат → exit 2.
  */
 export class DetectorError extends Error {
@@ -100,12 +116,18 @@ function normalizeViolation(raw, ctx) {
 }
 
 /**
- * Нормалізує сирий результат detector-а.
+ * Нормалізує сирий результат detector-а. Експортований (не лише внутрішній
+ * крок {@link runConcernDetector}) — batch-шлях `run-detectors.mjs`
+ * (`runNativeSegmentSync`, R2 зрізу 3 фази 7) прогонить через ЦЮ САМУ
+ * функцію кожен успішний item, повернений `runNativeConcernsBatch`, щоб
+ * домішати `ruleId`/`concernId` і застосувати ту саму валідацію форми, що
+ * й одиночний native-виклик нижче — без цього batch-шлях мав би власну
+ * копію нормалізації, яка могла б непомітно розійтись.
  * @param {unknown} raw сирий результат виклику lint()
  * @param {LintContext} ctx контекст лінту (джерело ruleId/concernId)
  * @returns {LintResult} нормалізований результат із violations (і diagnostics)
  */
-function normalizeResult(raw, ctx) {
+export function normalizeResult(raw, ctx) {
   if (
     typeof raw !== 'object' ||
     raw === null ||

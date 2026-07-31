@@ -4,10 +4,6 @@
   "workspaces": {
     "": {
       "name": "mono",
-      "dependencies": {
-        "@7n/llm-lib-darwin-arm64": "^2.14.2",
-        "@7n/llm-lib-linux-x64": "^2.14.1",
-      },
       "devDependencies": {
         "@7n/rules": "workspace:*",
         "@7n/rules-ci-azure": "workspace:*",
