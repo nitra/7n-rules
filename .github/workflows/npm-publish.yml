@@ -1,6 +1,9 @@
 name: npm-publish
 
 on:
+  # Recovery-шлях: повторити release після виправлення workflow, коли сам
+  # workflow-файл не входить до path-filter `push` нижче.
+  workflow_dispatch:
   push:
     paths:
       - 'npm/**'
