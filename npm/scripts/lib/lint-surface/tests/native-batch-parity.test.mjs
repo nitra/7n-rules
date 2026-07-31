@@ -110,7 +110,7 @@ describe('R2 зрізу 3 фази 7 — batch native-сегменти vs per-it
       // `violations` — уже SORTED-вихід native `sortAndRenderViolations` (R1 фази 7)
       // в обох випадках, тож порядок детерміновано незалежно від виконання — пряме toEqual.
       expect(batched.violations).toEqual(perItem.violations)
-      expect(batched.ran.map(keyOf).toSorted()).toEqual(perItem.ran.map(keyOf).toSorted())
+      expect(batched.ran.map(e => keyOf(e)).toSorted()).toEqual(perItem.ran.map(e => keyOf(e)).toSorted())
       // b-js/check — єдиний violation-джерело на чистому дереві.
       expect(batched.violations.map(v => v.reason)).toEqual(['js-probe'])
     })
@@ -129,7 +129,7 @@ describe('R2 зрізу 3 фази 7 — batch native-сегменти vs per-it
 
       expect(batched.exitCode).toBe(perItem.exitCode)
       expect(batched.violations).toEqual(perItem.violations)
-      expect(batched.ran.map(keyOf).toSorted()).toEqual(perItem.ran.map(keyOf).toSorted())
+      expect(batched.ran.map(e => keyOf(e)).toSorted()).toEqual(perItem.ran.map(e => keyOf(e)).toSorted())
       // Два джерела violations: native (forbidden-prettier) + JS (b-js/check).
       expect(batched.violations.map(v => v.reason).toSorted()).toEqual(['forbidden-prettier', 'js-probe'])
     })
@@ -139,11 +139,27 @@ describe('R2 зрізу 3 фази 7 — batch native-сегменти vs per-it
     await withTmpDir(async dir => {
       const rulesDir = await seedMixedRules(dir)
       const batchedLogs = []
-      await detectAll({ rulesDir, cwd: dir, full: true, verbose: true, log: s => batchedLogs.push(s) })
+      await detectAll({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        verbose: true,
+        log: s => {
+          batchedLogs.push(s)
+        }
+      })
 
       vi.stubEnv('N_RULES_LINT_CONCURRENCY', '2')
       const perItemLogs = []
-      await detectAll({ rulesDir, cwd: dir, full: true, verbose: true, log: s => perItemLogs.push(s) })
+      await detectAll({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        verbose: true,
+        log: s => {
+          perItemLogs.push(s)
+        }
+      })
       vi.unstubAllEnvs()
 
       /** Витягує `🔍 key [scope] → N` рядки незалежно від порядку прогону. */
@@ -179,10 +195,8 @@ describe('R2 зрізу 3 фази 7 — DetectorError-семантика в nat
     await writeJson(join(dir, '.n-rules.json'), { rules: ['abie', 'capacitor', 'changelog', 'text'] })
     // Той самий fixture, що rules-core::concerns::changelog_presence::tests::malformed_change_file_propagates_error.
     await writeJson(join(dir, 'package.json'), { name: 'demo', version: '1.0.0' })
-    await writeFile(join(dir, '.changes', '260702-1200.md'), 'garbage', 'utf8').catch(async () => {
-      await mkdir(join(dir, '.changes'), { recursive: true })
-      await writeFile(join(dir, '.changes', '260702-1200.md'), 'garbage', 'utf8')
-    })
+    await mkdir(join(dir, '.changes'), { recursive: true })
+    await writeFile(join(dir, '.changes', '260702-1200.md'), 'garbage', 'utf8')
     return rulesDir
   }
 
@@ -194,7 +208,7 @@ describe('R2 зрізу 3 фази 7 — DetectorError-семантика в nat
       expect(r.exitCode).toBe(2)
       // abie/env_dns, capacitor/platforms — АЛФАВІТНО ДО changelog/presence, виконались і зібрались;
       // text/forbidden-prettier — ПІСЛЯ помилки в плановому порядку, у ran не потрапляє.
-      expect(r.ran.map(keyOf)).toEqual(['abie/env_dns', 'capacitor/platforms'])
+      expect(r.ran.map(e => keyOf(e))).toEqual(['abie/env_dns', 'capacitor/platforms'])
       expect(r.violations).toEqual([])
     })
   })
@@ -203,7 +217,14 @@ describe('R2 зрізу 3 фази 7 — DetectorError-семантика в nat
     await withTmpDir(async dir => {
       const rulesDir = await seedErrorSegment(dir)
       const logs = []
-      await detectAll({ rulesDir, cwd: dir, files: ['src/index.mjs'], log: s => logs.push(s) })
+      await detectAll({
+        rulesDir,
+        cwd: dir,
+        files: ['src/index.mjs'],
+        log: s => {
+          logs.push(s)
+        }
+      })
       const infraLine = logs
         .join('')
         .split('\n')

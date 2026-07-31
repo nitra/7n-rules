@@ -510,7 +510,7 @@ function partitionPlanIntoSegments(plan) {
   let nativeRun = []
   const flushNativeRun = () => {
     if (!(nativeRun.length > 0)) {
-    	return;
+      return
     }
 
     segments.push({ type: 'native', items: nativeRun })
