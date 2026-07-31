@@ -1,18 +1,35 @@
 /**
- * Тести concern-а abie/js/hc_pairing: для кожної директорії з `kind: Deployment` під `k8s/`
+ * Тести concern-а abie/hc_pairing: для кожної директорії з `kind: Deployment` під `k8s/`
  * має існувати hc.yaml поруч із коректним modeline (yaml-language-server $schema).
+ *
+ * Прогін — через `runConcernDetector` (dispatch-рівень), не пряма функція: JS
+ * `main.mjs` видалений (H1 фази 5 батчу 4, YAML-кластер частина 1), concern тепер
+ * живе лише в `crates/rules-core/src/concerns/abie_hc_pairing.rs` і виконується
+ * через native-гілку `runConcernDetector`. Lib-модулі `../lib/hc-yaml.mjs` і
+ * `../lib/k8s-tree.mjs` видалені разом із трьома main.mjs H1-кластеру — єдиними
+ * їхніми споживачами (перевірено grep-ом по всьому `npm/`); еквівалентне
+ * юніт-покриття лишається в native-тестах ported-модулів (`abie_hc_yaml.rs`,
+ * `abie_k8s_tree.rs`).
  */
 import { describe, expect, test } from 'vitest'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { writeFile } from 'node:fs/promises'
 
-import { lint } from '../main.mjs'
-import { ABIE_HC_SCHEMA_URL } from '../../lib/hc-yaml.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
-const ruleId = 'rules/abie'
-const concernId = 'rules/abie/hc_pairing'
-const run = dir => lint({ cwd: dir, ruleId, concernId, files: undefined })
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+
+// Короткий формат ruleId/concernId — узгоджений з `NATIVE_CONCERNS` (`abie/hc_pairing`).
+const ruleId = 'abie'
+const concernId = 'hc_pairing'
+const run = dir => runConcernDetector(CONCERN, { cwd: dir, ruleId, concernId, files: undefined })
+
+/** Очікуваний URL `$schema` для hc.yaml (abie.mdc) — дзеркало колишнього `ABIE_HC_SCHEMA_URL`. */
+const ABIE_HC_SCHEMA_URL = 'https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json'
 
 const DEPLOYMENT_YAML = `apiVersion: apps/v1
 kind: Deployment

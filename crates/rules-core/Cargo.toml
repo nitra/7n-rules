@@ -40,6 +40,21 @@ regex = "1"
 # Value>`) — прямий відповідник `Record<string, unknown>`, який повертає
 # `parseToml` у JS-версіях.
 toml = "0.8"
+# YAML-парсинг для H1-кластеру native concern-ів (`abie/hc_pairing`,
+# `abie/ua_node_selector`, `abie/ua_http_route`) — заміна пакета `yaml`
+# (`parseAllDocuments`) на боці Rust. `serde_yaml` 0.9 архівований (з 2024,
+# maintenance mode), але лишається стабільним і широко вживаним для read-only
+# парсингу — той самий клас рішення, що й вибір `toml` для G1: перевага
+# ergonomics/serde-сумісності над активністю супроводу. Альтернативи
+# (`yaml-rust2` та схожі) не мають serde-сумісного `Value`, довелося б писати
+# власний конвертер `Yaml -> serde_json::Value` вручну; `serde_yaml::Value`
+# вже `Serialize`, тож `serde_json::to_value(&yaml_value)` дає прямий
+# еквівалент `doc.toJSON()` пакета `yaml` без додаткового коду (докладніше —
+# doc-комент `concerns/abie_yaml.rs`). Мультидокументний парсинг (аналог
+# `parseAllDocuments`) — через `serde_yaml::Deserializer::from_str`, ітератор
+# per-document deserializer-ів (той самий лінивий підхід: помилка в одному
+# документі не валить решту потоку).
+serde_yaml = "0.9"
 
 [dev-dependencies]
 tempfile = "3"
