@@ -153,7 +153,7 @@ function sha256Hex(bytes) {
  * wasm-компоненти плагінів не змішуються). `N_RULES_PLUGIN_CACHE_DIR` —
  * explicit override, читається першим (ізоляція тестів, той самий мотив, що
  * `N_CURSOR_TOOL_CACHE_DIR` для тулів).
- * @param {NodeJS.ProcessEnv} env джерело env-змінних (ін'єкція для тестів)
+ * @param {Record<string, string | undefined>} env джерело env-змінних (ін'єкція для тестів)
  * @returns {string} абсолютний шлях до кеш-директорії
  */
 function resolvePluginCacheDir(env) {
@@ -243,7 +243,7 @@ async function resolveUrlEntry(entry, ctx) {
  * поза CI) чи канонічний пін (`url`+`sha256`, retrieval-модель doc-коментаря
  * модуля). `null` — запис пропущено (skip-not-crash), причина вже в `console.warn`.
  * @param {WasmPluginConfigEntry} entry валідний запис (після `isValidEntry`)
- * @param {{cwd: string, fetchFn: typeof fetch, cacheDir: string, env: NodeJS.ProcessEnv}} ctx ін'єктовані залежності
+ * @param {{cwd: string, fetchFn: typeof fetch, cacheDir: string, env: Record<string, string | undefined>}} ctx ін'єктовані залежності
  * @returns {Promise<string | null>} абсолютний шлях `.wasm`, або `null`
  */
 async function resolveEntryPath(entry, ctx) {
@@ -268,7 +268,7 @@ async function resolveEntryPath(entry, ctx) {
  * валідних записах конфігу, для кожного: resolve шляху (dev/`url`-retrieval),
  * потім `wasmPluginConcerns()`. Обидва кроки — skip-not-crash.
  * @param {string} cwd абсолютний корінь consumer-репо
- * @param {{fetchFn: typeof fetch, cacheDir: string, env: NodeJS.ProcessEnv}} ctx ін'єктовані залежності
+ * @param {{fetchFn: typeof fetch, cacheDir: string, env: Record<string, string | undefined>}} ctx ін'єктовані залежності
  * @returns {Promise<Map<string, string>>} ключ концерну → абсолютний шлях `.wasm`
  */
 async function buildWasmConcernMap(cwd, ctx) {
@@ -297,7 +297,7 @@ async function buildWasmConcernMap(cwd, ctx) {
  * `async` — retrieval канонічного піна (`url`+`sha256`) неминуче мережевий;
  * єдиний виклик-сайт (`detect.mjs`) вже `async`, контракт виклику не ламається.
  * @param {string} cwd абсолютний корінь consumer-репо (звідки читається `.n-rules.json`)
- * @param {{fetchFn?: typeof fetch, cacheDir?: string, env?: NodeJS.ProcessEnv}} [opts] ін'єкції для тестів:
+ * @param {{fetchFn?: typeof fetch, cacheDir?: string, env?: Record<string, string | undefined>}} [opts] ін'єкції для тестів:
  *   `fetchFn` (дефолт — глобальний `fetch`), `cacheDir` (дефолт — `resolvePluginCacheDir`), `env` (дефолт — `process.env`)
  * @returns {Promise<Map<string, string>>} ключ концерну (`ruleId/concernId`) → абсолютний шлях `.wasm`
  */
