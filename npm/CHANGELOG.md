@@ -1,5 +1,44 @@
 # Changelog
 
+## [1.71.0] - 2026-07-31
+
+### Added
+
+- Фаза §3.5.5 v2, задача Q2 батч 2: ще два lang-js concern-и у
+`crates/plugin-lang-js` (`test/no-console-store-restore`,
+`test/no-bun-test-import`) — маніфест плагіна тепер декларує девʼять
+контрибуцій. Справжній 1:1 порт JS-регекс-детекторів, з T0-фіксом
+`fix-no-bun-test-import.mjs`, який лишається JS і напряму споживає
+wasm-violations — перевірено живим смок-тестом. Golden-тести
+(`crates/rules-plugin-host/tests/plugin_lang_js.rs`) і JS⇄wasm parity-тест
+(`npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`) розширені
+на обидва концерни.
+
+Три додаткові концерни (`js-bun-redis/imports`, `js-bun-db/safety`,
+`js-mssql/deps`) — JS-оригінали побудовані на справжньому oxc-parser AST, не
+на regex; спроба regex-наближення НЕ пройшла parity-гейт для контрибуції
+(рішення оркестратора: byte-inexact вивід недопустимий для concern-а, що
+shadow-ить живу JS-реалізацію). Їхні detect-функції й unit-тести лишаються в
+`crates/plugin-lang-js/src/lib.rs` як groundwork під майбутнє справжнє
+AST-рішення, БЕЗ контрибуції в `describe()`/`plugin.toml`.
+`npm/skills/wasm-plugin/SKILL.md` доповнено підрозділами про AST-based
+(oxc-parser) JS-концерни (апроксимація допустима лише БЕЗ контрибуції) і про
+перевірку T0-фіксів, що лишаються JS поверх wasm-детектора.
+- Фаза 7 v2 (R2, третій зріз): batch-виконавець builtin-native concern-ів —
+суцільні прогони `NATIVE_CONCERNS`-items у `detectAll`-плані виконуються
+ОДНИМ native-викликом (`run_concerns_batch` у `crates/rules-core/src/concerns/batch.rs`,
+napi-біндінг `runNativeConcernsBatch` у `crates/rules-napi/src/lib.rs` із
+синхронним `onProgress`-колбеком, без `ThreadsafeFunction`) замість N окремих
+`runNativeConcern`-викликів через napi-межу. `run-detectors.mjs`
+(`partitionPlanIntoSegments`/`runNativeSegmentSync`) партиціонує послідовний
+план на native-batch-сегменти й single-сегменти (wasm/policy/main.mjs) —
+progress-репортинг і `DetectorError`-семантика (формат повідомлення,
+зупинка на першій помилці) відтворені один-в-один із чинним per-item шляхом.
+Конкурентний режим (`N_RULES_LINT_CONCURRENCY>1`) свідомо лишається per-item.
+Диференційний parity-тест (мікс builtin-native + JS-концернів, той самий
+чинний per-item шлях у concurrent-режимі як референс) і тест error-семантики
+батчу.
+
 ## [1.70.0] - 2026-07-31
 
 ### Added
