@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.13.10] - 2026-07-31
+
+### Fixed
+
+- Виправлено busy-loop ACP bridge на повторюваних terminal activity events
+- Обмежено тривалість ACP ходу незалежно від progress events, щоб resolver не зависав на нескінченному потоці оновлень.
+
 ## [2.13.9] - 2026-07-30
 
 ### Fixed
