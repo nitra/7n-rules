@@ -26,6 +26,9 @@ pub mod concerns;
 pub mod diagnostics;
 /// Versioned JSON DTO-межа з `rules-napi` (Р10 спеки).
 pub mod dto;
+/// `build_lint_plan`/`match_lint_globs` — plan-контур lint-оркестрації
+/// (P1 фази 7, `buildPlan` + п'ять builders з `run-detectors.mjs`).
+pub mod lint_plan;
 /// `walk_dir` — native filesystem scan, точний порт `walkDir` (D1 фази 4а).
 pub mod scan;
 /// Worktree lifecycle через `mt-core` (Р3 спеки, фаза 2 задача B1).

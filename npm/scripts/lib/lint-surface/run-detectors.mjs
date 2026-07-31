@@ -14,10 +14,9 @@ import { dirname, join } from 'node:path'
 import { env } from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import picomatch from 'picomatch'
-
 import { listConcerns } from '../concern-meta.mjs'
 import { collectChangedFilesSince, resolveChangedBase } from '../changed-files.mjs'
+import { loadNative } from '../native.mjs'
 import { getActiveCapabilities, resolveRulesDirs } from '../plugin-slots.mjs'
 import { readNRulesConfigLite, isRuleEnabled } from '../read-n-rules-config-lite.mjs'
 import { isSerialLane } from './blocking-inventory.mjs'
@@ -260,16 +259,44 @@ async function enabledRuleIds(byRule, cwd, rulesDirs) {
 }
 
 /**
- * @param {LintEntry[]} entries вхідні lint-entries.
- * @returns {LintEntry[]} стабільний алфавітний порядок
+ * @typedef {{ entry: LintEntry, files: string[]|undefined }} PlanItem
  */
-function sortEntries(entries) {
-  return entries.toSorted((a, b) => a.ruleId.localeCompare(b.ruleId) || a.concern.name.localeCompare(b.concern.name))
+
+/**
+ * Мінімальний DTO концернів для native `buildLintPlan` (P1 фази 7,
+ * `docs/specs/2026-07-30-rules-v2-rust-core-migration.md` §4) — лише те, що
+ * реально читають plan-builders у `rules_core::lint_plan`
+ * (`concern.name`/`concern.lint.scope`/`concern.lint.glob`). Решта
+ * `ConcernMeta` (`dir`/`policy`/`check`/`fixability`/`skipLocalTier`/
+ * `cloudTimeoutMs`) лишається виключно тут, у JS — {@link fromPlanItems}
+ * підставляє її назад за `(ruleId, concernId)` з уже наявного `byRule`.
+ * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id (уже відфільтровані capabilities+applies).
+ * @returns {Record<string, { name: string, lint: { scope: string, glob: string[] } }[]>} мінімальний DTO для native.
+ */
+function toByRuleDto(byRule) {
+  /** @type {Record<string, { name: string, lint: { scope: string, glob: string[] } }[]>} */
+  const out = {}
+  for (const [ruleId, concerns] of Object.entries(byRule)) {
+    out[ruleId] = concerns.map(c => ({ name: c.name, lint: { scope: c.lint.scope, glob: c.lint.glob } }))
+  }
+  return out
 }
 
 /**
- * @typedef {{ entry: LintEntry, files: string[]|undefined }} PlanItem
+ * Native `PlanItem{ruleId, concernId, files}` → JS `PlanItem{entry:{ruleId,concern},
+ * files}` — зіставляє мінімальний вихід native назад із уже наявним у пам'яті
+ * повним `ConcernMeta` (native ніколи не бачить `dir`/`policy`/`check`/…, doc-
+ * комент {@link toByRuleDto}).
+ * @param {{ ruleId: string, concernId: string, files?: string[] }[]} items вихід native `buildLintPlan`.
+ * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id (той самий, що пішов у {@link toByRuleDto}).
+ * @returns {PlanItem[]} впорядкований план (порядок — уже native, зберігається як є).
  */
+function fromPlanItems(items, byRule) {
+  return items.map(item => {
+    const concern = (byRule[item.ruleId] ?? []).find(c => c.name === item.concernId)
+    return { entry: { ruleId: item.ruleId, concern }, files: item.files ?? undefined }
+  })
+}
 
 /**
  * Будує план прогону для заданих опцій (discovery + scope-table).
@@ -315,135 +342,14 @@ export async function loadEnabledLintRules(opts) {
 }
 
 /**
- * scoped-режим: усі lint-concerns названих правил, whole-repo.
- * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
- * @param {string[]} rules scoped rule-id.
- * @returns {PlanItem[]} впорядкований план (за ruleId).
- */
-function buildScopedPlan(byRule, rules) {
-  const plan = []
-  for (const ruleId of rules) {
-    for (const concern of byRule[ruleId] ?? []) plan.push({ entry: { ruleId, concern }, files: undefined })
-  }
-  return plan.toSorted((a, b) => a.entry.ruleId.localeCompare(b.entry.ruleId))
-}
-
-/**
- * scoped+`--path` режим (`lint js --path run/nexus`): ЛИШЕ per-file concerns
- * названих правил × явний файловий набір (перетин path ∩ дельта). Full-scope
- * concerns виключені повністю — деплой-гейт сервісу не блокується whole-repo
- * порушеннями поза сервісом (repo-wide workflow — їхнє канонічне місце).
- * enabledSet не застосовується (явний запит правила, як у buildScopedPlan).
- * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
- * @param {string[]} rules scoped rule-id.
- * @param {string[]} files явний файловий набір (перетин).
- * @returns {PlanItem[]} впорядкований план прогону.
- */
-function buildScopedDeltaPlan(byRule, rules, files) {
-  /** @type {PlanItem[]} */
-  const plan = []
-  for (const ruleId of rules) {
-    for (const concern of byRule[ruleId] ?? []) {
-      if (concern.lint.scope !== 'per-file') continue
-      const item = planConcernForDelta(ruleId, concern, files)
-      if (item) plan.push(item)
-    }
-  }
-  return plan.toSorted(
-    (a, b) => a.entry.ruleId.localeCompare(b.entry.ruleId) || a.entry.concern.name.localeCompare(b.entry.concern.name)
-  )
-}
-
-/**
- * `--repo-wide` режим: ЛИШЕ full-scope concerns enabled-правил, whole-repo.
- * Канонічне місце перевірок без path-підтримки (knip, jscpd, dep-policy) —
- * окремий CI-workflow, що не гейтить деплой сервісів.
- * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
- * @param {Set<string>} enabledSet активні rule-id.
- * @returns {PlanItem[]} впорядкований план (whole-repo для кожного entry).
- */
-function buildRepoWidePlan(byRule, enabledSet) {
-  /** @type {LintEntry[]} */
-  const entries = []
-  for (const [ruleId, concerns] of Object.entries(byRule)) {
-    if (!enabledSet.has(ruleId)) continue
-    for (const concern of concerns) {
-      if (concern.lint.scope === 'full') entries.push({ ruleId, concern })
-    }
-  }
-  return sortEntries(entries).map(entry => ({ entry, files: undefined }))
-}
-
-/**
- * full-режим: усі per-file + full concerns enabled-правил, whole-repo.
- * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
- * @param {Set<string>} enabledSet активні rule-id.
- * @returns {PlanItem[]} впорядкований план (whole-repo для кожного entry).
- */
-function buildFullPlan(byRule, enabledSet) {
-  /** @type {LintEntry[]} */
-  const entries = []
-  for (const [ruleId, concerns] of Object.entries(byRule)) {
-    if (!enabledSet.has(ruleId)) continue
-    for (const concern of concerns) entries.push({ ruleId, concern })
-  }
-  return sortEntries(entries).map(entry => ({ entry, files: undefined }))
-}
-
-/**
- * Планує один concern у delta/explicit-files режимі за його lint.scope.
- * @param {string} ruleId rule-id concern-а.
- * @param {ConcernMeta} concern concern із lint-поверхнею.
- * @param {string[]} changed перелік змінених файлів.
- * @returns {PlanItem|null} plan-item concern-а або null, якщо concern не тригериться.
- */
-function planConcernForDelta(ruleId, concern, changed) {
-  const { scope, glob } = concern.lint
-  const isMatch = glob.length > 0 ? picomatch(glob, { dot: true }) : () => false
-  if (scope === 'per-file') {
-    const files = glob.length > 0 ? changed.filter(f => isMatch(f)) : changed
-    return files.length > 0 ? { entry: { ruleId, concern }, files } : null
-  }
-  // full: запускається whole-repo лише якщо glob ∩ changed ≠ ∅
-  if (glob.length > 0 && changed.some(f => isMatch(f))) {
-    return { entry: { ruleId, concern }, files: undefined }
-  }
-  return null
-}
-
-/**
- * delta/explicit-files режим: concern-и enabled-правил, зіставлені зі зміненими файлами.
- * `perFileOnly` (path-режим сервіс-канону) виключає full-scope concerns —
- * перетин path ∩ дельта перевіряють лише per-file правила.
- * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
- * @param {Set<string>} enabledSet активні rule-id.
- * @param {string[]} changed перелік змінених файлів.
- * @param {{ perFileOnly?: boolean }} [opts] фільтр full-scope concerns.
- * @returns {PlanItem[]} впорядкований план (за ruleId, потім concern.name).
- */
-function buildDeltaPlan(byRule, enabledSet, changed, { perFileOnly = false } = {}) {
-  /** @type {PlanItem[]} */
-  const plan = []
-  for (const [ruleId, concerns] of Object.entries(byRule)) {
-    if (!enabledSet.has(ruleId)) continue
-    for (const concern of concerns) {
-      if (perFileOnly && concern.lint.scope !== 'per-file') continue
-      const item = planConcernForDelta(ruleId, concern, changed)
-      if (item) plan.push(item)
-    }
-  }
-  return plan.toSorted(
-    (a, b) => a.entry.ruleId.localeCompare(b.entry.ruleId) || a.entry.concern.name.localeCompare(b.entry.concern.name)
-  )
-}
-
-/**
  * Активність доменів (rule-id) для заданого файлового набору — єдине джерело
  * правди для `ci plan`: домен «активний», якщо хоч один його **per-file**
- * concern тригериться на цих файлах (та сама таблиця planConcernForDelta, що
- * й `lint <domain> --path` → «plan сказав true» ⇔ «lint щось запустить»).
- * Правила без жодного per-file concern не потрапляють у результат (їхні
- * full-scope перевірки — справа `--repo-wide`).
+ * concern тригериться на цих файлах (та сама таблиця `planConcernForDelta`,
+ * що й `lint <domain> --path` → «plan сказав true» ⇔ «lint щось запустить»,
+ * тепер порт у `rules_core::lint_plan` — glob-збіг рахує native
+ * `matchLintGlobs`, єдине джерело правди по обидва боки, doc-комент модуля
+ * `rules_core::lint_plan`). Правила без жодного per-file concern не
+ * потрапляють у результат (їхні full-scope перевірки — справа `--repo-wide`).
  * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
  * @param {Set<string>} enabledSet активні rule-id.
  * @param {string[]} changed файловий набір (перетин path ∩ дельта або дельта).
@@ -458,8 +364,13 @@ export function computeActiveDomains(byRule, enabledSet, changed) {
     if (perFile.length === 0) continue
     const matched = new Set()
     for (const concern of perFile) {
-      const item = planConcernForDelta(ruleId, concern, changed)
-      for (const f of item?.files ?? []) matched.add(f)
+      const { glob } = concern.lint
+      // glob.length === 0 → concern матчить УСІ changed (той самий fallback,
+      // що planConcernForDelta у native): matchLintGlobs([], …) навмисно
+      // повертає порожньо (doc-комент rules_core::lint_plan), тож порожній
+      // glob перевіряється тут, ДО виклику native.
+      const files = glob.length > 0 ? loadNative().matchLintGlobs(glob, changed) : changed
+      for (const f of files) matched.add(f)
     }
     out.set(ruleId, { triggered: matched.size > 0, matchedFiles: matched.size })
   }
@@ -492,23 +403,43 @@ async function buildPlan({
   cwd,
   rulesDirs = []
 }) {
-  // scoped + --path: per-file concerns названих правил × перетин path ∩ дельта
-  if (rules.length > 0 && explicitFiles !== null) return buildScopedDeltaPlan(byRule, rules, explicitFiles)
-  // scoped: усі lint-concerns названих правил, whole-repo
-  if (rules.length > 0) return buildScopedPlan(byRule, rules)
+  const byRuleDto = toByRuleDto(byRule)
 
-  const enabled = await enabledRuleIds(byRule, cwd, rulesDirs)
-  const enabledSet = new Set(enabled)
+  // scoped + --path: per-file concerns названих правил × перетин path ∩ дельта
+  if (rules.length > 0 && explicitFiles !== null) {
+    const items = loadNative().buildLintPlan({ mode: 'scopedDelta', byRule: byRuleDto, rules, explicitFiles })
+    return fromPlanItems(items, byRule)
+  }
+  // scoped: усі lint-concerns названих правил, whole-repo
+  if (rules.length > 0) {
+    const items = loadNative().buildLintPlan({ mode: 'scoped', byRule: byRuleDto, rules })
+    return fromPlanItems(items, byRule)
+  }
+
+  const enabledRuleIdList = await enabledRuleIds(byRule, cwd, rulesDirs)
 
   // repo-wide: лише full-scope concerns (окремий CI-workflow, не гейтить деплой)
-  if (repoWide) return buildRepoWidePlan(byRule, enabledSet)
+  if (repoWide) {
+    const items = loadNative().buildLintPlan({ mode: 'repoWide', byRule: byRuleDto, enabledRuleIds: enabledRuleIdList })
+    return fromPlanItems(items, byRule)
+  }
 
   // full: усі per-file + full concerns enabled-правил, whole-repo
-  if (full && explicitFiles === null) return buildFullPlan(byRule, enabledSet)
+  if (full && explicitFiles === null) {
+    const items = loadNative().buildLintPlan({ mode: 'full', byRule: byRuleDto, enabledRuleIds: enabledRuleIdList })
+    return fromPlanItems(items, byRule)
+  }
 
   // delta / explicit-files; path-режим виключає full-scope concerns
   const changed = explicitFiles ?? (await collectChangedFilesSince(await resolveChangedBase(cwd, baseRef), cwd))
-  return buildDeltaPlan(byRule, enabledSet, changed, { perFileOnly: pathMode })
+  const items = loadNative().buildLintPlan({
+    mode: 'delta',
+    byRule: byRuleDto,
+    enabledRuleIds: enabledRuleIdList,
+    changed,
+    pathMode
+  })
+  return fromPlanItems(items, byRule)
 }
 
 /**

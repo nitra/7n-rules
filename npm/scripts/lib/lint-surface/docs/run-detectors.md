@@ -3,10 +3,10 @@ type: JS Module
 title: run-detectors.mjs
 resource: npm/scripts/lib/lint-surface/run-detectors.mjs
 docgen:
-  crc: 8eef8a6e
-  model: omlx/gemma-4-e2b-it-4bit
+  crc: e24c747b
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
-  score: 75
+  score: 100
 ---
 
 ## Огляд
@@ -17,6 +17,18 @@ Discovery → scope-selection → `lint(ctx)` per concern → нормалізо
 Без мутацій, без LLM. Fix-pipeline (T0 + ladder) обгортає цей модуль і споживає
 його violations; сам detect ніколи не пише в дерево.
 
+## Поведінка
+
+DEFAULT_RULES_DIR надає вбудований корінь із правил у випадку відсутності вказівок користувача.
+
+buildDetectPlan будує упорядкований план прогону, що є спільним джерелом для режиму виявлення та конвеєра виправлень.
+
+loadEnabledLintRules виконує пошук для споживачів поза конвеєром виявлення/виправлення, повертаючи концерни та множину активних правил на основі `.n-rules.json`.
+
+computeActiveDomains визначає статус домену (rule-id) для заданого файлового набору, що є єдиним джерелом правди для сценаріїв `ci plan`.
+
+detectAll запускає прохід виявлення, повертаючи зібрані порушення, код виходу та список виконаних ентрі, де відсутній параметр, що визначає базову точку дельти.
+
 ## Публічний API
 
 - DEFAULT_RULES_DIR — Цей файл: npm/scripts/lib/lint-surface/run-detectors.mjs → PACKAGE_ROOT = npm (4 dirname угору).
@@ -26,10 +38,12 @@ Discovery → scope-selection → `lint(ctx)` per concern → нормалізо
 concerns за rule-id (ядро + плагіни, capability-фільтр) і set активних правил.
 - computeActiveDomains — Активність доменів (rule-id) для заданого файлового набору — єдине джерело
 правди для `ci plan`: домен «активний», якщо хоч один його **per-file**
-concern тригериться на цих файлах (та сама таблиця planConcernForDelta, що
-й `lint <domain> --path` → «plan сказав true» ⇔ «lint щось запустить»).
-Правила без жодного per-file concern не потрапляють у результат (їхні
-full-scope перевірки — справа `--repo-wide`).
+concern тригериться на цих файлах (та сама таблиця `planConcernForDelta`,
+що й `lint <domain> --path` → «plan сказав true» ⇔ «lint щось запустить»,
+тепер порт у `rules_core::lint_plan` — glob-збіг рахує native
+`matchLintGlobs`, єдине джерело правди по обидва боки, doc-комент модуля
+`rules_core::lint_plan`). Правила без жодного per-file concern не
+потрапляють у результат (їхні full-scope перевірки — справа `--repo-wide`).
 - detectAll — Запускає detect-only прохід. Повертає всі violations і похідний exitCode.
 
 ## Сценарії використання

@@ -55,6 +55,14 @@ toml = "0.8"
 # per-document deserializer-ів (той самий лінивий підхід: помилка в одному
 # документі не валить решту потоку).
 serde_yaml = "0.9"
+# cspell:ignore globset picomatch
+# Glob-матчер lint-plan-контуру (P1 фази 7, `lint_plan` модуль): паритетний
+# з JS `picomatch` matcher для `planConcernForDelta`/`buildDeltaPlan` тощо —
+# порт glob ∩ changed із `run-detectors.mjs` (JS-бік стояв на пакеті `picomatch`).
+# Той самий крейт, що вже транзитивно в дереві через `ignore` і прямо
+# використовується `rules-napi` (full-scope batch, doc-комент там-таки) —
+# пряма залежність тут не додає нового крейта в граф збірки.
+globset = "0.4"
 # `tiers`-модуль для `adr/hooks`-конкорна (PURE-фінал фази 5, Р9 спеки):
 # `resolveModel`/`isLocalModel` еквіваленти. `default-features = false` —
 # лише `tiers` (serde/thiserror-клас залежностей), без важкого
